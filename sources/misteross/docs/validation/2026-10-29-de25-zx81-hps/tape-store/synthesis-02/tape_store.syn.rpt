@@ -1,0 +1,498 @@
+Synthesis report
+Thu Oct 29 05:48:34 2026
+Quartus Prime Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+
+
+---------------------
+; Table of Contents ;
+---------------------
+  1. Legal Notice
+  2. Synthesis Summary
+  3. Synthesis Settings
+  4. Synthesis Source Files Read
+  5. Synthesis Partition Summary
+---- Analysis & Elaboration Stage Reports ----
+       6. Parameter Settings for User Entity altsyncram Instance: banks[1].image
+       7. Verilog Macro Usage
+       8. Top Causes of Logic Optimized Away During Sweep
+---- Logic Synthesis Stage Reports ----
+       9. Partition "root_partition" Resource Utilization by Entity
+      10. General Register Statistics for Partition "root_partition"
+      11. Multiplexer Restructuring Statistics (Restructuring Performed)
+      12. Post-Synthesis Netlist Statistics for Partition "root_partition"
+      13. Synthesis Resource Usage Summary for Partition "root_partition"
+      14. Synthesis RAM Summary for Partition "root_partition"
+ 15. General Warnings
+ 16. Synthesis Messages
+
+
+
+----------------
+; Legal Notice ;
+----------------
+Copyright (C) 2026  Altera Corporation. All rights reserved.
+Your use of Altera Corporation's design tools, logic functions 
+and other software and tools, and any partner logic 
+functions, and any output files from any of the foregoing 
+(including device programming or simulation files), and any 
+associated documentation or information are expressly subject 
+to the terms and conditions of the Altera Program License 
+Subscription Agreement, the Altera Quartus Prime License Agreement,
+the Altera IP License Agreement, or other applicable license
+agreement, including, without limitation, that your use is for
+the sole purpose of programming logic devices manufactured by
+Altera and sold by Altera or its authorized distributors.  Please
+refer to the Altera Software License Subscription Agreements 
+on the Quartus Prime software download page.
+
+
+
++-----------------------------------------------------------------------------------+
+; Synthesis Summary                                                                 ;
++--------------------------------------+--------------------------------------------+
+; Synthesis Status                     ; Successful - Thu Oct 29 05:48:34 2026      ;
+; Revision Name                        ; tape_store                                 ;
+; Top-level Entity Name                ; zx81_tape_store                            ;
+; Family                               ; Agilex 5                                   ;
+; Quartus Prime Version                ; 26.3.0 Build 114 10/14/2026 SC Pro Edition ;
+; Device                               ; A5EB013BB23BE4SCS                          ;
+; Logic utilization estimate (in ALMs) ; 59 / 46,800 ( < 1 % )                      ;
+; Total dedicated logic registers      ; 5                                          ;
+; Estimated DSP Blocks Post-Merging    ; 0                                          ;
++--------------------------------------+--------------------------------------------+
+
+
++--------------------------------------------------------------------------------------------------------------------------------------------------+
+; Synthesis Settings                                                                                                                               ;
++----------------------------------------------------------------------------------------------+-------------------------+-------------------------+
+; Option                                                                                       ; Setting                 ; Default Value           ;
++----------------------------------------------------------------------------------------------+-------------------------+-------------------------+
+; Device                                                                                       ; A5EB013BB23BE4SCS       ;                         ;
+; Top-level entity name                                                                        ; zx81_tape_store         ; tape_store              ;
+; Family name                                                                                  ; Agilex 5                ; Cyclone 10 GX           ;
+; Maximum processors allowed for parallel compilation                                          ; 2                       ;                         ;
+; Enable parallel Assembler and Timing Analyzer during compilation                             ; On                      ; On                      ;
+; Enable compact report table                                                                  ; Off                     ; Off                     ;
+; Enable Design Assistant in the compilation flow                                              ; On                      ; On                      ;
+; Design Assistant include IP blocks                                                           ; Off                     ; Off                     ;
+; High fanout net threshold for RAM inference                                                  ; 15                      ; 15                      ;
+; Design Assistant limit on reported violations per rule                                       ; 5000                    ; 5000                    ;
+; Optimization Mode                                                                            ; Balanced                ; Balanced                ;
+; Allow Register Retiming                                                                      ; On                      ; On                      ;
+; Allow RAM Retiming                                                                           ; On                      ; On                      ;
+; Allow DSP Retiming                                                                           ; On                      ; On                      ;
+; Restructure Multiplexers                                                                     ; Auto                    ; Auto                    ;
+; Waive gated clock synchronizer check                                                         ; On                      ; On                      ;
+; (DEPRECATED) MLAB Add Timing Constraints For Mixed-Port Feed-Through Mode Setting Don't Care ; Off                     ; Off                     ;
+; Preserve fewer node names                                                                    ; On                      ; On                      ;
+; Altera FPGA IP Evaluation Mode                                                               ; Enable                  ; Enable                  ;
+; Verilog Version                                                                              ; Verilog_2001            ; Verilog_2001            ;
+; VHDL Version                                                                                 ; VHDL_1993               ; VHDL_1993               ;
+; State Machine Processing                                                                     ; Auto                    ; Auto                    ;
+; Safe State Machine                                                                           ; Auto                    ; Auto                    ;
+; Iteration limit for constant Verilog loops                                                   ; 5000                    ; 5000                    ;
+; Iteration limit for non-constant Verilog loops                                               ; 250                     ; 250                     ;
+; Infer RAMs from Raw Logic                                                                    ; On                      ; On                      ;
+; DSP Action on miss                                                                           ; Ignore                  ; Ignore                  ;
+; DSP Block Balancing                                                                          ; Auto                    ; Auto                    ;
+; NOT Gate Push-Back                                                                           ; On                      ; On                      ;
+; Power-Up Don't Care                                                                          ; On                      ; On                      ;
+; Remove Redundant Logic Cells                                                                 ; Off                     ; Off                     ;
+; Remove Duplicate Registers                                                                   ; On                      ; On                      ;
+; Ignore GLOBAL Buffers                                                                        ; Off                     ; Off                     ;
+; Ignore LCELL Buffers                                                                         ; Off                     ; Off                     ;
+; Ignore SOFT Buffers                                                                          ; On                      ; On                      ;
+; Optimization Technique                                                                       ; Balanced                ; Balanced                ;
+; Auto Open-Drain Pins                                                                         ; Off                     ; Off                     ;
+; Perform WYSIWYG Primitive Resynthesis                                                        ; Off                     ; Off                     ;
+; Auto ROM Replacement                                                                         ; On                      ; On                      ;
+; Auto RAM Replacement                                                                         ; On                      ; On                      ;
+; Auto DSP Block Replacement                                                                   ; On                      ; On                      ;
+; Auto Shift Register Replacement                                                              ; Auto                    ; Auto                    ;
+; Allow Shift Register Merging across Hierarchies                                              ; Auto                    ; Auto                    ;
+; Physical Shift Register Inference                                                            ; On                      ; On                      ;
+; Auto Clock Enable Replacement                                                                ; On                      ; On                      ;
+; Strict RAM Replacement                                                                       ; Off                     ; Off                     ;
+; Allow Synchronous Control Signals                                                            ; On                      ; On                      ;
+; Force Use of Synchronous Clear Signals                                                       ; Off                     ; Off                     ;
+; Auto Resource Sharing                                                                        ; Off                     ; Off                     ;
+; Allow Any RAM Size For Recognition                                                           ; Off                     ; Off                     ;
+; Allow Any Shift Register Size For Recognition                                                ; Off                     ; Off                     ;
+; Ignore translate_off and synthesis_off directives                                            ; Off                     ; Off                     ;
+; Report Propagation of Constraints                                                            ; On                      ; On                      ;
+; Ignore Maximum Fan-Out Assignments                                                           ; Off                     ; Off                     ;
+; Maximum Synchronizer Length Protected during Optimization                                    ; 3                       ; 3                       ;
+; Power Optimization During Synthesis                                                          ; Normal compilation      ; Normal compilation      ;
+; HDL message level                                                                            ; Level2                  ; Level2                  ;
+; Number of Protected Registers Reported in Synthesis Report                                   ; 100                     ; 100                     ;
+; Number of Removed Registers Reported in Synthesis Report                                     ; 5000                    ; 5000                    ;
+; Number of Optimized Away Hierarchies Reported in Synthesis Report                            ; 100                     ; 100                     ;
+; Number of Top Root Causes Reported in Synthesis Report                                       ; 10                      ; 10                      ;
+; Group Identical Hierarchies in Optimized Away Hierarchies Report                             ; On                      ; On                      ;
+; Number of Swept Nodes Reported in Synthesis Report                                           ; 5000                    ; 5000                    ;
+; Number of Inverted Registers Reported in Synthesis Report                                    ; 100                     ; 100                     ;
+; Clock MUX Protection                                                                         ; On                      ; On                      ;
+; Auto Gated Clock Conversion                                                                  ; Off                     ; Off                     ;
+; Block Design Naming                                                                          ; Auto                    ; Auto                    ;
+; SDC constraint protection                                                                    ; Off                     ; Off                     ;
+; Optimization and Constraint Precedence                                                       ; Prioritize Optimization ; Prioritize Optimization ;
+; Synthesis Effort                                                                             ; Auto                    ; Auto                    ;
+; Shift Register Replacement - Allow Asynchronous Clear Signal                                 ; On                      ; On                      ;
+; Analysis & Synthesis Message Level                                                           ; Medium                  ; Medium                  ;
+; Disable Register Merging Across Hierarchies                                                  ; Auto                    ; Auto                    ;
+; Resource Aware Inference For Block RAM                                                       ; On                      ; On                      ;
+; Automatic Parallel Synthesis                                                                 ; On                      ; On                      ;
+; Partial Reconfiguration Bitstream ID                                                         ; Off                     ; Off                     ;
+; Disable DSP Negate Inferencing                                                               ; Off                     ; Off                     ;
+; Report Parameter Settings                                                                    ; On                      ; On                      ;
+; Report Parameter Settings to ASCII                                                           ; On                      ; On                      ;
+; Report Source Assignments                                                                    ; On                      ; On                      ;
+; Report Source Assignments to ASCII                                                           ; On                      ; On                      ;
+; Report Resource Utilization by Entity to ASCII                                               ; On                      ; On                      ;
+; Size of the Latch Report                                                                     ; 100                     ; 100                     ;
+; Enable VHDL static assertion support                                                         ; Off                     ; Off                     ;
+; Enable SystemVerilog static assertion support                                                ; Off                     ; Off                     ;
+; Enable State Machines Inference                                                              ; On                      ; On                      ;
+; Allow RAMs Inferred In Generate-For Loop For Verilog                                         ; Off                     ; Off                     ;
+; Enable formal verification support during compilation                                        ; Off                     ; Off                     ;
+; Size of the PR Initial Conditions Report                                                     ; 100                     ; 100                     ;
+; Number of Registers with Ignored Power-Up Settings Reported in Synthesis Report              ; 500                     ; 500                     ;
+; Report PR Initial Values as Errors                                                           ; Off                     ; Off                     ;
+; Fractal Synthesis                                                                            ; Off                     ; Off                     ;
+; Aggressive Multiplexer Area Optimization                                                     ; Auto                    ; Auto                    ;
+; 6LUT to Extended Mode Conversion                                                             ; Auto                    ; Auto                    ;
+; Synthesis Available Resource Multiplier                                                      ; 1                       ; 1                       ;
+; Message Level for Unconnected Output Ports                                                   ; Warning                 ; Warning                 ;
+; Pack Barrelshifters into Carry Chains for Better Area                                        ; Auto                    ; Auto                    ;
+; Initialize Verilog enums to X                                                                ; Off                     ; Off                     ;
+; Enable dynamic report                                                                        ; Off                     ; Off                     ;
+; Show Collapsible Rows in Ascii Report for Warning Summary Reports                            ; On                      ; On                      ;
+; Enable RTL Analysis Debug Mode                                                               ; Off                     ; Off                     ;
+; Enable DSP mapping                                                                           ; Off                     ; Off                     ;
+; Enable preserve for debug assignments                                                        ; Off                     ; Off                     ;
++----------------------------------------------------------------------------------------------+-------------------------+-------------------------+
+
+
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Synthesis Source Files Read                                                                                                                                                                                                                                                                                                                                                                                                                                                    ;
++----------------------------------------------------------------------------------------------------------------------------------------------------------+-----------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------+-------------+-----------+---------------+----------------------------------+
+; File Name with User-Entered Path                                                                                                                         ; File Type                                                                   ; File Name with Absolute Path                                                                                                                             ; Library     ; IP Source ; Include Files ; MD5                              ;
++----------------------------------------------------------------------------------------------------------------------------------------------------------+-----------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------+-------------+-----------+---------------+----------------------------------+
+; tape_store.v                                                                                                                                             ; User-Specified Verilog HDL File                                             ; /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-02/tape_store.v                                                  ;             ;           ;               ; 941dea7bdb2378dfa51f0d6590b49718 ;
+; tape_store.sdc                                                                                                                                           ; User-Specified SDC File (Read by the Timing Analyzer at each fitter stage)  ; /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-02/tape_store.sdc                                                ;             ;           ;               ; 8a14dc630d7a97e087c159110a805a52 ;
+; /data/altera_pro/26.3/quartus/libraries/megafunctions/altsyncram.tdf                                                                                     ; Megafunction                                                                ; /data/altera_pro/26.3/quartus/libraries/megafunctions/altsyncram.tdf                                                                                     ; altera_work ;           ;               ; 8cdc581a7adcacdb0dfed4ec170da440 ;
+; stratix_ram_block.inc                                                                                                                                    ; Megafunction                                                                ; /data/altera_pro/26.3/quartus/libraries/megafunctions/stratix_ram_block.inc                                                                              ;             ;           ;               ; 2263a3bdfffeb150af0977ee13902f70 ;
+; lpm_mux.inc                                                                                                                                              ; Megafunction                                                                ; /data/altera_pro/26.3/quartus/libraries/megafunctions/lpm_mux.inc                                                                                        ;             ;           ;               ; c22bfd353214c01495b560fc34e47d79 ;
+; lpm_decode.inc                                                                                                                                           ; Megafunction                                                                ; /data/altera_pro/26.3/quartus/libraries/megafunctions/lpm_decode.inc                                                                                     ;             ;           ;               ; 0bd0e20f5e001c1bd360461dceb53d48 ;
+; aglobal263.inc                                                                                                                                           ; Megafunction                                                                ; /data/altera_pro/26.3/quartus/libraries/megafunctions/aglobal263.inc                                                                                     ;             ;           ;               ; 8f0c00b06b80d772a1d7d6d73f1b3b95 ;
+; a_rdenreg.inc                                                                                                                                            ; Megafunction                                                                ; /data/altera_pro/26.3/quartus/libraries/megafunctions/a_rdenreg.inc                                                                                      ;             ;           ;               ; 60d2293400bc3c24acb0a137b4849830 ;
+; altrom.inc                                                                                                                                               ; Megafunction                                                                ; /data/altera_pro/26.3/quartus/libraries/megafunctions/altrom.inc                                                                                         ;             ;           ;               ; d4e3a69a331d3a99d3281790d99a1ebd ;
+; altram.inc                                                                                                                                               ; Megafunction                                                                ; /data/altera_pro/26.3/quartus/libraries/megafunctions/altram.inc                                                                                         ;             ;           ;               ; e66a83eccf67170bed97c99d891ad085 ;
+; altdpram.inc                                                                                                                                             ; Megafunction                                                                ; /data/altera_pro/26.3/quartus/libraries/megafunctions/altdpram.inc                                                                                       ;             ;           ;               ; ef8da121368208b56cc93fbf1bd671b8 ;
+; /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-02/tmp-clearbox/tape_store/3449058/mux_07331.tdf                 ; Auto-Generated Megafunction                                                 ; /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-02/tmp-clearbox/tape_store/3449058/mux_07331.tdf                 ;             ;           ;               ; 931094638090e7945437386f99ca9c09 ;
+; /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-02/tmp-clearbox/tape_store/3449058/decode_pkhm1.tdf              ; Auto-Generated Megafunction                                                 ; /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-02/tmp-clearbox/tape_store/3449058/decode_pkhm1.tdf              ;             ;           ;               ; 5c0c7e553a26b4bb4ecd25e1e9731a93 ;
+; /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-02/tmp-clearbox/tape_store/3449058/altera_syncram_impl_cnv01.tdf ; Auto-Generated Megafunction                                                 ; /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-02/tmp-clearbox/tape_store/3449058/altera_syncram_impl_cnv01.tdf ;             ;           ;               ; 6f09e8f898267c279d40110f527c46e2 ;
+; /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-02/tmp-clearbox/tape_store/3449058/altsyncram_6v3t.tdf           ; Auto-Generated Megafunction                                                 ; /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-02/tmp-clearbox/tape_store/3449058/altsyncram_6v3t.tdf           ;             ;           ;               ; d58d771f2547dcfda2d9c4c442cb2b49 ;
++----------------------------------------------------------------------------------------------------------------------------------------------------------+-----------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------+-------------+-----------+---------------+----------------------------------+
+
+
++--------------------------------------------------------------------------------------------+
+; Synthesis Partition Summary                                                                ;
++----------------+----------------+---------+--------------+-------+-------------------------+
+; Partition Name ; Hierarchy Path ; Type    ; Preservation ; Empty ; Partition Database File ;
++----------------+----------------+---------+--------------+-------+-------------------------+
+; root_partition ; |              ; Default ;              ;       ;                         ;
++----------------+----------------+---------+--------------+-------+-------------------------+
+
+
++----------------------------------------------------------------------------+
+; Parameter Settings for User Entity altsyncram Instance: banks[1].image     ;
++------------------------------------+----------------------+----------------+
+; Parameter Name                     ; Value                ; Type           ;
++------------------------------------+----------------------+----------------+
+; ADDRESS_ACLR_A                     ; NONE                 ; Untyped        ;
+; ADDRESS_ACLR_B                     ; NONE                 ; Untyped        ;
+; ADDRESS_REG_B                      ; CLOCK0               ; String         ;
+; AUTO_CARRY_CHAINS                  ; ON                   ; Untyped        ;
+; AUTO_CASCADE_CHAINS                ; ON                   ; Untyped        ;
+; BYTEENA_ACLR_A                     ; NONE                 ; Untyped        ;
+; BYTEENA_ACLR_B                     ; NONE                 ; Untyped        ;
+; BYTEENA_REG_B                      ; CLOCK1               ; Untyped        ;
+; BYTE_SIZE                          ; 8                    ; Untyped        ;
+; BYTE_SIZE_BLOCK                    ; 8                    ; Untyped        ;
+; CBXI_PARAMETER                     ; altsyncram_6v3t      ; Untyped        ;
+; CLOCK_ENABLE_CORE_A                ; USE_INPUT_CLKEN      ; Untyped        ;
+; CLOCK_ENABLE_CORE_B                ; USE_INPUT_CLKEN      ; Untyped        ;
+; CLOCK_ENABLE_INPUT_A               ; BYPASS               ; String         ;
+; CLOCK_ENABLE_INPUT_B               ; BYPASS               ; String         ;
+; CLOCK_ENABLE_OUTPUT_A              ; BYPASS               ; String         ;
+; CLOCK_ENABLE_OUTPUT_B              ; BYPASS               ; String         ;
+; ECC_PIPELINE_STAGE_ENABLED         ; FALSE                ; Untyped        ;
+; ENABLE_ECC                         ; FALSE                ; Untyped        ;
+; IGNORE_CARRY_BUFFERS               ; OFF                  ; Untyped        ;
+; IGNORE_CASCADE_BUFFERS             ; OFF                  ; Untyped        ;
+; INDATA_ACLR_A                      ; NONE                 ; Untyped        ;
+; INDATA_ACLR_B                      ; NONE                 ; Untyped        ;
+; INDATA_REG_B                       ; CLOCK1               ; Untyped        ;
+; INIT_FILE                          ; UNUSED               ; Untyped        ;
+; INIT_FILE_LAYOUT                   ; PORT_A               ; Untyped        ;
+; MAXIMUM_DEPTH                      ; 0                    ; Untyped        ;
+; NUMWORDS_A                         ; 8192                 ; Signed Integer ;
+; NUMWORDS_B                         ; 8192                 ; Signed Integer ;
+; OPERATION_MODE                     ; DUAL_PORT            ; String         ;
+; OUTDATA_ACLR_A                     ; NONE                 ; String         ;
+; OUTDATA_ACLR_B                     ; NONE                 ; String         ;
+; OUTDATA_REG_A                      ; UNREGISTERED         ; String         ;
+; OUTDATA_REG_B                      ; UNREGISTERED         ; String         ;
+; RAM_BLOCK_TYPE                     ; M20K                 ; String         ;
+; RDCONTROL_ACLR_B                   ; NONE                 ; Untyped        ;
+; RDCONTROL_REG_B                    ; CLOCK0               ; String         ;
+; READ_DURING_WRITE_MODE_MIXED_PORTS ; OLD_DATA             ; String         ;
+; READ_DURING_WRITE_MODE_PORT_A      ; NEW_DATA_NO_NBE_READ ; Untyped        ;
+; READ_DURING_WRITE_MODE_PORT_B      ; NEW_DATA_NO_NBE_READ ; Untyped        ;
+; WIDTHAD_A                          ; 13                   ; Signed Integer ;
+; WIDTHAD_B                          ; 13                   ; Signed Integer ;
+; WIDTH_A                            ; 8                    ; Signed Integer ;
+; WIDTH_B                            ; 8                    ; Signed Integer ;
+; WIDTH_BYTEENA                      ; 1                    ; Untyped        ;
+; WIDTH_BYTEENA_A                    ; 1                    ; Signed Integer ;
+; WIDTH_BYTEENA_B                    ; 1                    ; Signed Integer ;
+; WIDTH_ECCSTATUS                    ; 3                    ; Untyped        ;
+; WRCONTROL_ACLR_A                   ; NONE                 ; Untyped        ;
+; WRCONTROL_ACLR_B                   ; NONE                 ; Untyped        ;
+; WRCONTROL_WRADDRESS_REG_B          ; CLOCK1               ; Untyped        ;
+; intended_device_family             ; Agilex 5             ; String         ;
+; lpm_type                           ; altsyncram           ; String         ;
+; power_up_uninitialized             ; FALSE                ; String         ;
++------------------------------------+----------------------+----------------+
+All Instances:
+banks[0].image
+banks[1].image
+
+
+
++------------------------------------------------------+
+; Verilog Macro Usage                                  ;
++----------------+----------+------+-------+-----------+
+; Name           ; Location ; From ; Value ; Arguments ;
++----------------+----------+------+-------+-----------+
+; tape_store.qsf ;          ;      ;       ;           ;
+;     QUARTUS    ;          ;      ;       ;           ;
+;         Define ; 5        ;      ; 1     ;           ;
+; tape_store.v   ;          ;      ;       ;           ;
+;     QUARTUS    ;          ;      ;       ;           ;
+;         Refer  ; 5        ; QSF  ; 1     ;           ;
++----------------+----------+------+-------+-----------+
+&lt;same as above&gt; indicates that the value matches the previous occurence of the macro.
+
+
+Top root causes of logic optimization that have been identified during sweep. For more details and filtering options, ensure that you have compiled with the "Enable RTL Analysis Debug Mode " setting turned on under Assignments->Settings->Compiler Settings, then go to the " Root Causes Tab " in the " Sweep Hints Viewer " tool in the " RTL Analyzer ".
++---------------------------------------------------------------------------------+
+; Top Causes of Logic Optimized Away During Sweep                                 ;
++--------------------------+------------------+-------------+---------------------+
+; Root Object Path         ; Root Object Type ; Root Reason ; Swept Objects Count ;
++--------------------------+------------------+-------------+---------------------+
+; banks[0].image|data_b[7] ; INPUT_INST_PORT  ; stuck at 0  ; 2                   ;
+; banks[1].image|data_b[7] ; INPUT_INST_PORT  ; stuck at 0  ; 2                   ;
+; banks[0].image|data_b[6] ; INPUT_INST_PORT  ; stuck at 0  ; 2                   ;
+; banks[1].image|data_b[6] ; INPUT_INST_PORT  ; stuck at 0  ; 2                   ;
+; banks[0].image|data_b[5] ; INPUT_INST_PORT  ; stuck at 0  ; 2                   ;
+; banks[1].image|data_b[5] ; INPUT_INST_PORT  ; stuck at 0  ; 2                   ;
+; banks[0].image|data_b[4] ; INPUT_INST_PORT  ; stuck at 0  ; 2                   ;
+; banks[1].image|data_b[4] ; INPUT_INST_PORT  ; stuck at 0  ; 2                   ;
+; banks[0].image|data_b[3] ; INPUT_INST_PORT  ; stuck at 0  ; 2                   ;
+; banks[1].image|data_b[3] ; INPUT_INST_PORT  ; stuck at 0  ; 2                   ;
++--------------------------+------------------+-------------+---------------------+
+Table limited at 10 items. To change the number of top root causes reported, set the "Number of Top Root Causes Reported in Synthesis Report " option under Assignments->Settings->Compiler Settings->Advanced Settings (Synthesis)
+
+
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Partition "root_partition" Resource Utilization by Entity                                                                                                                                                                                     ;
++---------------------------------+---------------------+---------------------------+-------------------+------------+------+-----------+------------------------------------------------------------+---------------------------+--------------+
+; Compilation Hierarchy Node      ; Combinational ALUTs ; Dedicated Logic Registers ; Block Memory Bits ; DSP Blocks ; Pins ; Max Depth ; Full Hierarchy Name                                        ; Entity Name               ; Library Name ;
++---------------------------------+---------------------+---------------------------+-------------------+------------+------+-----------+------------------------------------------------------------+---------------------------+--------------+
+; |                               ; 96 (85)             ; 5 (1)                     ; 131072            ; 0          ; 105  ; 3.3 (3.3) ; |                                                          ; zx81_tape_store           ; altera_work  ;
+;    |banks[0].image|             ; 7 (0)               ; 2 (0)                     ; 65536             ; 0          ; 0    ; 3.3 (0.0) ; banks[0].image                                             ; altsyncram                ; altera_work  ;
+;       |auto_generated|          ; 7 (0)               ; 2 (0)                     ; 65536             ; 0          ; 0    ; 3.3 (0.0) ; banks[0].image|auto_generated                              ; altsyncram_6v3t           ; altera_work  ;
+;          |altera_syncram_impl1| ; 7 (0)               ; 2 (2)                     ; 65536             ; 0          ; 0    ; 3.3 (2.0) ; banks[0].image|auto_generated|altera_syncram_impl1         ; altera_syncram_impl_cnv01 ; altera_work  ;
+;             |decode3|           ; 7 (7)               ; 0 (0)                     ; 0                 ; 0          ; 0    ; 3.3 (3.3) ; banks[0].image|auto_generated|altera_syncram_impl1|decode3 ; decode_pkhm1              ; altera_work  ;
+;    |banks[1].image|             ; 4 (0)               ; 2 (0)                     ; 65536             ; 0          ; 0    ; 3.3 (0.0) ; banks[1].image                                             ; altsyncram                ; altera_work  ;
+;       |auto_generated|          ; 4 (0)               ; 2 (0)                     ; 65536             ; 0          ; 0    ; 3.3 (0.0) ; banks[1].image|auto_generated                              ; altsyncram_6v3t           ; altera_work  ;
+;          |altera_syncram_impl1| ; 4 (0)               ; 2 (2)                     ; 65536             ; 0          ; 0    ; 3.3 (2.0) ; banks[1].image|auto_generated|altera_syncram_impl1         ; altera_syncram_impl_cnv01 ; altera_work  ;
+;             |decode3|           ; 4 (4)               ; 0 (0)                     ; 0                 ; 0          ; 0    ; 3.3 (3.3) ; banks[1].image|auto_generated|altera_syncram_impl1|decode3 ; decode_pkhm1              ; altera_work  ;
++---------------------------------+---------------------+---------------------------+-------------------+------------+------+-----------+------------------------------------------------------------+---------------------------+--------------+
+Note: For table entries with two numbers listed, the numbers in parentheses indicate the number of resources of the given type used by the specific entity alone. The numbers listed outside of parentheses indicate the total resources of the given type used by the specific entity and all of its sub-entities in the hierarchy.
+
+
++------------------------------------------------------------+
+; General Register Statistics for Partition "root_partition" ;
++----------------------------------------------+-------------+
+; Statistic                                    ; Value       ;
++----------------------------------------------+-------------+
+; Total registers                              ; 5           ;
+; Number of registers using Synchronous Clear  ; 0           ;
+; Number of registers using Synchronous Load   ; 0           ;
+; Number of registers using Asynchronous Clear ; 0           ;
+; Number of registers using Asynchronous Load  ; 0           ;
+; Number of registers using Clock Enable       ; 0           ;
+; Number of registers using Preset             ; 0           ;
++----------------------------------------------+-------------+
+
+
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Multiplexer Restructuring Statistics (Restructuring Performed)                                                                                                     ;
++--------------------+-----------+---------------+----------------------+------------------------+------------+----------------------------+-------------------------+
+; Multiplexer Inputs ; Bus Width ; Baseline Area ; Area if Restructured ; Saving if Restructured ; Registered ; Example Multiplexer Output ; Restructuring Performed ;
++--------------------+-----------+---------------+----------------------+------------------------+------------+----------------------------+-------------------------+
+; 8:1                ; 7 bits    ; 35 LEs        ; 35 LEs               ; 0 LEs                  ; No         ; tape_data[7]~0             ; Yes                     ;
++--------------------+-----------+---------------+----------------------+------------------------+------------+----------------------------+-------------------------+
+
+
++------------------------------------------------------------------+
+; Post-Synthesis Netlist Statistics for Partition "root_partition" ;
++------------------------+-----------------------------------------+
+; Type                   ; Count                                   ;
++------------------------+-----------------------------------------+
+; boundary_port          ; 105                                     ;
+; tennm_ff               ; 5                                       ;
+;     plain              ; 5                                       ;
+; tennm_lcell_comb       ; 96                                      ;
+;     arith              ; 14                                      ;
+;         1 data inputs  ; 14                                      ;
+;     extend             ; 16                                      ;
+;         7 data inputs  ; 8                                       ;
+;         8 data inputs  ; 8                                       ;
+;     normal             ; 66                                      ;
+;         2 data inputs  ; 3                                       ;
+;         3 data inputs  ; 36                                      ;
+;         4 data inputs  ; 16                                      ;
+;         5 data inputs  ; 1                                       ;
+;         6 data inputs  ; 10                                      ;
+; tennm_ram_block        ; 64                                      ;
+;                        ;                                         ;
+; Number of carry chains ; 1                                       ;
+; Max carry chain length ; 14                                      ;
+;                        ;                                         ;
+; Max LUT depth          ; 3.30                                    ;
+; Average LUT depth      ; 1.74                                    ;
++------------------------+-----------------------------------------+
+
+
++-----------------------------------------------------------------+
+; Synthesis Resource Usage Summary for Partition "root_partition" ;
++---------------------------------------------+-------------------+
+; Resource                                    ; Usage             ;
++---------------------------------------------+-------------------+
+; Estimate of Logic utilization (ALMs needed) ; 59                ;
+;                                             ;                   ;
+; Combinational ALUT usage for logic          ; 96                ;
+;     -- 8 input functions                    ; 8                 ;
+;     -- 7 input functions                    ; 8                 ;
+;     -- 6 input functions                    ; 10                ;
+;     -- 5 input functions                    ; 1                 ;
+;     -- 4 input functions                    ; 16                ;
+;     -- <=3 input functions                  ; 53                ;
+;                                             ;                   ;
+; Dedicated logic registers                   ; 5                 ;
+;                                             ;                   ;
+; I/O pins                                    ; 105               ;
+; Total MLAB memory bits                      ; 0                 ;
+; Total block memory bits                     ; 131072            ;
+;                                             ;                   ;
+; Total DSP Blocks                            ; 0                 ;
+;     -- [A] Total Fixed Point DSP Blocks     ; 0                 ;
+;     -- [B] Total Floating Point DSP Blocks  ; 0                 ;
+;     -- [C] Total DSP_PRIME Blocks           ; 0                 ;
+;                                             ;                   ;
+; Maximum fan-out node                        ; clk               ;
+; Maximum fan-out                             ; 69                ;
+; Total fan-out                               ; 2024              ;
+; Average fan-out                             ; 7.50              ;
++---------------------------------------------+-------------------+
+
+
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Synthesis RAM Summary for Partition "root_partition"                                                                                                                                                                                                                                                                              ;
++-------------------------------------------------------------------+------------+------------------+--------------+--------------+--------------+--------------+--------------+-----------------------------+-----------------------------+-----------------------------+-----------------------------+---------------------+------+
+; Name                                                              ; Type       ; Mode             ; Port A Depth ; Port A Width ; Port B Depth ; Port B Width ; Logical Size ; Implementation Port A Depth ; Implementation Port A Width ; Implementation Port B Depth ; Implementation Port B Width ; Implementation Bits ; MIF  ;
++-------------------------------------------------------------------+------------+------------------+--------------+--------------+--------------+--------------+--------------+-----------------------------+-----------------------------+-----------------------------+-----------------------------+---------------------+------+
+; banks[0].image|auto_generated|altera_syncram_impl1|ALTERA_SYNCRAM ; M20K block ; Simple Dual Port ; 8192         ; 8            ; 8192         ; 8            ; 65536        ; 2048                        ; 32                          ; 2048                        ; 32                          ; 65536               ; None ;
+; banks[1].image|auto_generated|altera_syncram_impl1|ALTERA_SYNCRAM ; M20K block ; Simple Dual Port ; 8192         ; 8            ; 8192         ; 8            ; 65536        ; 2048                        ; 32                          ; 2048                        ; 32                          ; 65536               ; None ;
++-------------------------------------------------------------------+------------+------------------+--------------+--------------+--------------+--------------+--------------+-----------------------------+-----------------------------+-----------------------------+-----------------------------+---------------------+------+
+Note: Logical size represents the size at the time of creation, implementation bits is the size at the end of synthesis. If the number of implementation bits is smaller, some slices have optimized away because they have become redundant.
+
+
++------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; General Warnings                                                                                                                                                                                                                                                                                                                   ;
++------------+------------------+-------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Message ID ; Severity         ; Count ; Sample Warning                                                                                                                                                                                                                                                                             ;
++------------+------------------+-------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; 20759      ; Critical Warning ; 1     ; Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.                                                                                                                 ;
+; 21620      ; Warning          ; 1     ; Design Assistant Results: 1 of 1 High severity rules issued violations in snapshot 'partitioned'. Please refer to DRC report '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-02/output_files/tape_store.drc.partitioned.rpt' for more information ;
++------------+------------------+-------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+
+
++--------------------+
+; Synthesis Messages ;
++--------------------+
+Info (22747): Value AUTO_DISCOVERY for QSF Assignment PWRMGT_VOLTAGE_OUTPUT_FORMAT is not supported. Hence changing the value to LINEAR_FORMAT
+Info: *******************************************************************
+Info: Running Quartus Prime Synthesis
+    Info: Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+    Info: Copyright (C) 2026  Altera Corporation. All rights reserved.
+    Info: Your use of Altera Corporation's design tools, logic functions 
+    Info: and other software and tools, and any partner logic 
+    Info: functions, and any output files from any of the foregoing 
+    Info: (including device programming or simulation files), and any 
+    Info: associated documentation or information are expressly subject 
+    Info: to the terms and conditions of the Altera Program License 
+    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,
+    Info: the Altera IP License Agreement, or other applicable license
+    Info: agreement, including, without limitation, that your use is for
+    Info: the sole purpose of programming logic devices manufactured by
+    Info: Altera and sold by Altera or its authorized distributors.  Please
+    Info: refer to the Altera Software License Subscription Agreements 
+    Info: on the Quartus Prime software download page.
+    Info: Processing started: Thu Oct 29 05:48:29 2026
+    Info: System process ID: 3449058
+Info: Command: quartus_syn tape_store --rev=tape_store
+Info: qis_default_flow_script.tcl version: #1
+Info: Initializing Synthesis...
+Info: Project = "tape_store"
+Info: Revision = "tape_store"
+Info (21958): Initialized Quartus Message Database
+Info: Analyzing source files
+Critical Warning (20759): Use the Reset Release IP in Agilex 5 designs to ensure a successful configuration. For more information about the Reset Release IP, refer to the Configuration User Guide.
+Info: Elaborating from top-level entity "zx81_tape_store"
+Info: Found 6 design entities
+Info: There are 11 partitions after elaboration.
+Info: Running rule checking for Agilex5 protocol IPs...
+Info: DA report generation in native DNI mode
+Info (21615): Running Design Assistant Rules for snapshot 'partitioned'
+Info: No waiver waived any violations
+Info (22360): Design Assistant Results: 28 of 29 enabled rules passed, and 1 rules was disabled, in snapshot 'partitioned'
+Info (21660): Design Assistant Results: 0 of 19 Critical severity rules issued violations in snapshot 'partitioned'
+Warning (21620): Design Assistant Results: 1 of 1 High severity rules issued violations in snapshot 'partitioned'. Please refer to DRC report '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-02/output_files/tape_store.drc.partitioned.rpt' for more information
+Info (21621): Design Assistant Results: 0 of 1 Medium severity rules issued violations in snapshot 'partitioned'
+Info (21622): Design Assistant Results: 0 of 8 Low severity rules issued violations in snapshot 'partitioned'
+Info: Synthesizing partition "root_partition"
+Info (21057): Implemented 269 device resources after synthesis - the final resource count might be different
+    Info (21058): Implemented 81 input pins
+    Info (21059): Implemented 24 output pins
+    Info (21061): Implemented 100 logic cells
+    Info (21064): Implemented 64 RAM segments
+Info: Successfully synthesized partition
+Info: Saving post-synthesis snapshots for 1 partition(s)
+Info (21615): Running Design Assistant Rules for snapshot 'synthesized'
+Info: No waiver waived any violations
+Info (22360): Design Assistant Results: 12 of 13 enabled rules passed, and 7 rules was disabled, in snapshot 'synthesized'
+Info (21661): Design Assistant Results: 0 of 1 High severity rules issued violations in snapshot 'synthesized'
+Info (21621): Design Assistant Results: 0 of 6 Medium severity rules issued violations in snapshot 'synthesized'
+Info (21622): Design Assistant Results: 1 of 6 Low severity rules issued violations in snapshot 'synthesized'. Please refer to DRC report '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-tape-store-project-02/output_files/tape_store.drc.synthesized.rpt' for more information
+Info: Quartus Prime Synthesis was successful. 0 errors, 1 warning
+    Info: Peak virtual memory: 2365 megabytes
+    Info: Processing ended: Thu Oct 29 05:48:34 2026
+    Info: Elapsed time: 00:00:05
+    Info: System process ID: 3449058
+
+

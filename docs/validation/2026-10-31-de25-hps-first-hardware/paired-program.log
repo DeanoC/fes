@@ -1,0 +1,43 @@
+Info (19848): HPS IO hash is DF9589F2122209AF6D453BEE8BA0DD18F3192FA556B0B6E245CD3CB1A8FE4B1F
+Info (19848): Keyed hash is 4193C418CCF68FFA2DCBFCB9E7C14986F3CEB389AD0B7AF7190725D99C58BDEA
+Info (19848): HPS IO hash is DF9589F2122209AF6D453BEE8BA0DD18F3192FA556B0B6E245CD3CB1A8FE4B1F
+Info (19848): Keyed hash is 9D608ACA50FCCF15B552DC7E7F1F75D701AAA6D8C0671034BD7BDE0D43C6887C
+Info (19848): Regular SEU info => 2 sector(s), 2 thread(s), 10000000 interval time in microsecond(s)
+Info (19848): IO hash is C591DCF76224CD88785043A11ECDB1805D638C9C173FEDB784757C92DCF9E7E2
+Info (19848): HPS IO hash is DF9589F2122209AF6D453BEE8BA0DD18F3192FA556B0B6E245CD3CB1A8FE4B1F
+Info (19848): Keyed hash is 107FD0873D06C4895C6958EF3F61B70E71BE9F9B07622DC5585795A104043D06
+Info (19848): Design hash is 2AB827AF0105ABA3797675B6B6A2B1058B33F6D7F0DDF19830672C04AB7F1E36
+Info (19848): IO hash is C591DCF76224CD88785043A11ECDB1805D638C9C173FEDB784757C92DCF9E7E2
+Info (19848): Keyed hash is CB3DC752F17A886E41F2E985DBFD97218DDF2889BA4A786EF0E2D3FFF64F6A24
+Info: *******************************************************************
+Info: Running Quartus Prime Programmer
+    Info: Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+    Info: Copyright (C) 2026  Altera Corporation. All rights reserved.
+    Info: Your use of Altera Corporation's design tools, logic functions 
+    Info: and other software and tools, and any partner logic 
+    Info: functions, and any output files from any of the foregoing 
+    Info: (including device programming or simulation files), and any 
+    Info: associated documentation or information are expressly subject 
+    Info: to the terms and conditions of the Altera Program License 
+    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,
+    Info: the Altera IP License Agreement, or other applicable license
+    Info: agreement, including, without limitation, that your use is for
+    Info: the sole purpose of programming logic devices manufactured by
+    Info: Altera and sold by Altera or its authorized distributors.  Please
+    Info: refer to the Altera Software License Subscription Agreements 
+    Info: on the Quartus Prime software download page.
+    Info: Processing started: Sat Oct 31 08:38:36 2026
+    Info: System process ID: 1619098
+Info: Command: quartus_pgm -c "DE25-Nano [3-11.3-iface0]" -m JTAG -o p;/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-linux-loader/out/hps-first-build/hps/linux-complete.sof@1
+Info (213045): Using programming cable "DE25-Nano [3-11.3-iface0]"
+Info (213011): Using programming file /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-linux-loader/out/hps-first-build/hps/linux-complete.sof with checksum 0x06484FE4 for device A5EB013BB23BCS@1
+Info (209060): Started Programmer operation at Sat Oct 31 08:38:39 2026
+Info (18942): Configuring device index 1
+Info (18943): Configuration succeeded at device index 1
+Info (209011): Successfully performed operation(s)
+Info (209061): Ended Programmer operation at Sat Oct 31 08:38:41 2026
+Info: Quartus Prime Programmer was successful. 0 errors, 0 warnings
+    Info: Peak virtual memory: 2150 megabytes
+    Info: Processing ended: Sat Oct 31 08:38:41 2026
+    Info: Elapsed time: 00:00:05
+    Info: System process ID: 1619098

@@ -1,0 +1,7 @@
+/bin/busybox: OK
+/etc/fes-board: OK
+/etc/hostname: OK
+/etc/init.d/S50dropbear: OK
+/etc/inittab: OK
+/etc/network/interfaces: OK
+/usr/sbin/dropbear: OK

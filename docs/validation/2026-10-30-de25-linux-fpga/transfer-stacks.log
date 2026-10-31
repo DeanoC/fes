@@ -1,0 +1,29 @@
+[<0>] kthread_stop+0x78/0x198
+[<0>] stratix10_svc_done+0x2c/0x40
+[<0>] s10_ops_write+0xe0/0x1f8 [stratix10_soc]
+[<0>] fpga_mgr_buf_load_mapped+0x13c/0x1f8
+[<0>] fpga_mgr_load+0xb8/0x190
+[<0>] fpga_region_program_fpga+0xc8/0x1b0 [fpga_region]
+[<0>] of_fpga_region_notify+0x294/0x3e8 [of_fpga_region]
+[<0>] blocking_notifier_call_chain+0x6c/0xa0
+[<0>] overlay_notify+0x74/0xfc
+[<0>] of_overlay_fdt_apply+0x450/0x918
+[<0>] cfs_overlay_item_dtbo_write+0x60/0xd4
+[<0>] configfs_release_bin_file+0x9c/0xac
+[<0>] __fput+0xcc/0x2d4
+[<0>] ____fput+0x14/0x20
+[<0>] task_work_run+0x6c/0xc8
+[<0>] do_notify_resume+0x124/0x140
+[<0>] el0_svc+0xbc/0xd0
+[<0>] el0t_64_sync_handler+0x13c/0x158
+[<0>] el0t_64_sync+0x190/0x194
+[<0>] 0xffff000007e84500
+write
+[    3.462610] socfpga-dwmac 10810000.ethernet eth0: IEEE 1588-2008 Advanced Timestamp supported
+[    3.471496] socfpga-dwmac 10810000.ethernet eth0: registered PTP clock
+[    3.478047] socfpga-dwmac 10810000.ethernet eth0: configuring for phy/rgmii link mode
+[    7.587339] socfpga-dwmac 10810000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+[ 1159.351866] fpga_manager fpga0: Stratix10 SOC FPGA Manager registered
+[ 1160.852555] of-fpga-region fpga-region: FPGA Region probed
+[ 1245.971487] fpga_manager fpga0: writing fes-c134-zx81.core.rbf to Stratix10 SOC FPGA Manager
+[ 1253.090490] Stratix10 SoC FPGA manager firmware:svc:fpga-mgr: timeout waiting for svc layer buffers

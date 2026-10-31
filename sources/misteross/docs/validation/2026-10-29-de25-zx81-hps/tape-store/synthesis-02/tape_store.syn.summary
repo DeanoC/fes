@@ -1,0 +1,9 @@
+Synthesis Status : Successful - Thu Oct 29 05:48:34 2026
+Revision Name : tape_store
+Top-level Entity Name : zx81_tape_store
+Family : Agilex 5
+Quartus Prime Version : 26.3.0 Build 114 10/14/2026 SC Pro Edition
+Device : A5EB013BB23BE4SCS
+Logic utilization estimate (in ALMs) : 59 / 46,800 ( < 1 % )
+Total dedicated logic registers : 5
+Estimated DSP Blocks Post-Merging : 0

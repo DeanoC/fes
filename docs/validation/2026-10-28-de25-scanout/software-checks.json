@@ -1,0 +1,869 @@
+{
+  "audited_revision": "1d25bb339e7abb89db7e399173defc50a50ddf35",
+  "base_revision": "d9bf4d1434e76590791407289af4d601f5af7636",
+  "ci": {
+    "aggregate_ci_success_not_claimed": true,
+    "c64_job_pending_at_observation": true,
+    "checkout_commit": {
+      "parents": [
+        "d9bf4d1434e76590791407289af4d601f5af7636",
+        "c23d59ac949e2004e48aca8933b044c882434afe"
+      ],
+      "sha": "39c44d8193006883d6af00b6f05f37377d1dd7f2",
+      "tree": "f30416a70ffd73eda72225087810d9990bb26ddc"
+    },
+    "checkout_tree_matches_head": true,
+    "later_changes_are_documentation_only": [
+      "docs/validation/2026-10-28-de25-scanout/README.md",
+      "sources/misteross/docs/validation/2026-10-28-de25-scanout/README.md",
+      "sources/misteross/docs/validation/2026-10-28-de25-scanout/timing-summary.json"
+    ],
+    "observed_jobs": [
+      {
+        "conclusion": "success",
+        "id": 123051910088,
+        "name": "plan",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052110709,
+        "name": "consistency",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052110800,
+        "name": "parent-tests",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052110825,
+        "name": "contracts",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052110850,
+        "name": "host (3)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052110873,
+        "name": "host (2)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052110907,
+        "name": "simulation-tools",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052110973,
+        "name": "fpga-producer",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052111015,
+        "name": "host (1)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052111022,
+        "name": "runtime",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387372,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-board-sprites)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387383,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-board-interactive-oss)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387417,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-board-graphics)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387431,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-board-stream-oss)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387435,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-expansion)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387444,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-board-controllers)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387448,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-board-graphics-oss)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387471,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-unit)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387473,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-board-controllers-oss)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387490,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-board-sprites-oss)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387493,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-board-vdp-io)",
+        "status": "completed"
+      },
+      {
+        "conclusion": null,
+        "id": 123052387494,
+        "name": "fpga-simulation (c64, sim-fes-c64)",
+        "status": "in_progress"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387528,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-unit-oss)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387535,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-board-stream)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387554,
+        "name": "fpga-simulation (coleco, sim-fes-video-parts)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387591,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-board-interactive)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387621,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-board-vdp-io-oss)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052387642,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-diagnostic)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052389946,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-socket)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052390156,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-ay)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052390176,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-shell-ram)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052390312,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-module)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052390323,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-probe)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052390346,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-audio)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052390453,
+        "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-integrated)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052390714,
+        "name": "fpga-simulation (menu, sim-fes-menu)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052391191,
+        "name": "fpga-simulation (pc386, sim-fes-pc386)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052391450,
+        "name": "fpga-simulation (spectrum, sim-fes-spectrum)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 123052392939,
+        "name": "fpga-simulation (zx81, sim-fes-zx81)",
+        "status": "completed"
+      }
+    ],
+    "representative_checkout_log_job": 123052390714,
+    "run": {
+      "conclusion": null,
+      "event": "pull_request",
+      "head_branch": "codex/de25-menu-scanout",
+      "head_sha": "c23d59ac949e2004e48aca8933b044c882434afe",
+      "html_url": "https://github.com/DeanoC/fes/actions/runs/40754921557",
+      "id": 40754921557,
+      "status": "in_progress"
+    }
+  },
+  "classification": "host-only software evidence; local checks plus matching CI",
+  "commands": [
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "scripts/check_diff.py",
+        "--base",
+        "d9bf4d1434e76590791407289af4d601f5af7636",
+        "--head",
+        "cd9e7cf8960f69463424b4918e948aadc4f763d7"
+      ],
+      "cwd": ".",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": ".",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "scripts/parent_tests.py",
+        "--video",
+        "true",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"image/kernel/de25-dma/README.md\", \"image/kernel/de25-dma/de25_dma.c\", \"image/kernel/de25-dma/de25_dma.h\", \"image/kernel/de25-dma/de25_dma_internal.h\", \"image/kernel/de25-dma/de25_dma_test.c\", \"image/kernel/de25-dma/generated/fes_de25_ddr_probe.h\", \"image/kernel/de25-dma/generated/fes_de25_scanout.h\", \"scripts/affected.py\", \"scripts/consistency.py\", \"scripts/de25_kernel_test.py\", \"scripts/hil_plan.py\", \"scripts/test_policy.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/docs/de25-scanout.md\", \"sources/mister-packages/docs/schema.md\", \"sources/mister-packages/internal/pack/de25_scanout_test.go\", \"sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml\", \"sources/misteross/boards/de25nano/README.md\", \"sources/misteross/boards/de25nano/display/top.v\", \"sources/misteross/boards/de25nano/scanout/Makefile\", \"sources/misteross/boards/de25nano/scanout/README.md\", \"sources/misteross/boards/de25nano/scanout/board_tb.cpp\", \"sources/misteross/boards/de25nano/scanout/build.py\", \"sources/misteross/boards/de25nano/scanout/clocks.sdc\", \"sources/misteross/boards/de25nano/scanout/endpoint_tb.cpp\", \"sources/misteross/boards/de25nano/scanout/fes_de25_scanout.v\", \"sources/misteross/boards/de25nano/scanout/fes_de25_scanout_board.v\", \"sources/misteross/boards/de25nano/scanout/fes_de25_scanout_hw.tcl\", \"sources/misteross/boards/de25nano/scanout/frame_ack_tb.cpp\", \"sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.h\", \"sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.vh\", \"sources/misteross/boards/de25nano/scanout/integrate.tcl\", \"sources/misteross/boards/de25nano/scanout/interconnect_sim.py\", \"sources/misteross/boards/de25nano/scanout/interconnect_tb.cpp\", \"sources/misteross/boards/de25nano/scanout/sim.py\", \"sources/misteross/boards/de25nano/scanout/test_build.py\", \"sources/misteross/cores/fes-common/rtl/fes_display_plane.v\", \"sources/misteross/cores/fes-menu/rtl/fes_menu_ddr.v\", \"sources/misteross/cores/fes-menu/rtl/fes_menu_reader.v\", \"sources/misteross/cores/fes-menu/rtl/fes_menu_video.v\", \"sources/misteross/cores/fes-menu/rtl/top.v\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/tests/test_de25nano_scanout.py\", \"tests/test_affected.py\", \"tests/test_consistency.py\", \"tests/test_hil_plan.py\"]"
+      ],
+      "cwd": ".",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": ".",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "scripts/host_tests.py",
+        "--ui-if-needed",
+        "--paths-json",
+        "[\"image/kernel/de25-dma/README.md\", \"image/kernel/de25-dma/de25_dma.c\", \"image/kernel/de25-dma/de25_dma.h\", \"image/kernel/de25-dma/de25_dma_internal.h\", \"image/kernel/de25-dma/de25_dma_test.c\", \"image/kernel/de25-dma/generated/fes_de25_ddr_probe.h\", \"image/kernel/de25-dma/generated/fes_de25_scanout.h\", \"scripts/affected.py\", \"scripts/consistency.py\", \"scripts/de25_kernel_test.py\", \"scripts/hil_plan.py\", \"scripts/test_policy.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/docs/de25-scanout.md\", \"sources/mister-packages/docs/schema.md\", \"sources/mister-packages/internal/pack/de25_scanout_test.go\", \"sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml\", \"sources/misteross/boards/de25nano/README.md\", \"sources/misteross/boards/de25nano/display/top.v\", \"sources/misteross/boards/de25nano/scanout/Makefile\", \"sources/misteross/boards/de25nano/scanout/README.md\", \"sources/misteross/boards/de25nano/scanout/board_tb.cpp\", \"sources/misteross/boards/de25nano/scanout/build.py\", \"sources/misteross/boards/de25nano/scanout/clocks.sdc\", \"sources/misteross/boards/de25nano/scanout/endpoint_tb.cpp\", \"sources/misteross/boards/de25nano/scanout/fes_de25_scanout.v\", \"sources/misteross/boards/de25nano/scanout/fes_de25_scanout_board.v\", \"sources/misteross/boards/de25nano/scanout/fes_de25_scanout_hw.tcl\", \"sources/misteross/boards/de25nano/scanout/frame_ack_tb.cpp\", \"sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.h\", \"sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.vh\", \"sources/misteross/boards/de25nano/scanout/integrate.tcl\", \"sources/misteross/boards/de25nano/scanout/interconnect_sim.py\", \"sources/misteross/boards/de25nano/scanout/interconnect_tb.cpp\", \"sources/misteross/boards/de25nano/scanout/sim.py\", \"sources/misteross/boards/de25nano/scanout/test_build.py\", \"sources/misteross/cores/fes-common/rtl/fes_display_plane.v\", \"sources/misteross/cores/fes-menu/rtl/fes_menu_ddr.v\", \"sources/misteross/cores/fes-menu/rtl/fes_menu_reader.v\", \"sources/misteross/cores/fes-menu/rtl/fes_menu_video.v\", \"sources/misteross/cores/fes-menu/rtl/top.v\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/tests/test_de25nano_scanout.py\", \"tests/test_affected.py\", \"tests/test_consistency.py\", \"tests/test_hil_plan.py\"]"
+      ],
+      "cwd": ".",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "make",
+        "-j4",
+        "test"
+      ],
+      "cwd": "sources/libmister-runtime",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "runtime software tests",
+      "lane": "runtime",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/tmp/fes-de25-ddr-test-venv/bin/python"
+      ],
+      "cwd": "sources/mister-packages",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "contract schemas and generated fixtures",
+      "lane": "contracts",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "make",
+        "sim-fes-native-video",
+        "PYTHON=/tmp/fes-de25-ddr-test-venv/bin/python"
+      ],
+      "cwd": "sources/misteross",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "sim-fes-native-video RTL simulation",
+      "lane": "fpga",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "make",
+        "sim-fes-coleco-native",
+        "PYTHON=/tmp/fes-de25-ddr-test-venv/bin/python"
+      ],
+      "cwd": "sources/misteross",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "sim-fes-coleco-native RTL simulation",
+      "lane": "fpga",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "make",
+        "sim-fes-native-socket",
+        "PYTHON=/tmp/fes-de25-ddr-test-venv/bin/python"
+      ],
+      "cwd": "sources/misteross",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "sim-fes-native-socket RTL simulation",
+      "lane": "fpga",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "make",
+        "sim-fes-coleco-session",
+        "PYTHON=/tmp/fes-de25-ddr-test-venv/bin/python"
+      ],
+      "cwd": "sources/misteross",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "sim-fes-coleco-session RTL simulation",
+      "lane": "fpga",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "sources/misteross",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "make",
+        "sim-fes-c64",
+        "PYTHON=/tmp/fes-de25-ddr-test-venv/bin/python"
+      ],
+      "cwd": "sources/misteross",
+      "evidence": "local sequential fail-fast executor reached the next command",
+      "label": "c64 RTL simulation",
+      "lane": "fpga",
+      "returncode": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "make",
+        "sim-fes-coleco",
+        "PYTHON=/tmp/fes-de25-ddr-test-venv/bin/python"
+      ],
+      "ci_jobs": [
+        {
+          "conclusion": "success",
+          "id": 123052387372,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-board-sprites)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387383,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-board-interactive-oss)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387417,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-board-graphics)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387431,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-board-stream-oss)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387435,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-expansion)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387444,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-board-controllers)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387448,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-board-graphics-oss)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387471,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-unit)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387473,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-board-controllers-oss)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387490,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-board-sprites-oss)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387493,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-board-vdp-io)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387528,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-unit-oss)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387535,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-board-stream)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387554,
+          "name": "fpga-simulation (coleco, sim-fes-video-parts)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387591,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-board-interactive)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387621,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-board-vdp-io-oss)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052387642,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-diagnostic)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052389946,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-socket)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052390156,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-ay)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052390176,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-shell-ram)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052390312,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-module)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052390323,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-probe)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052390346,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-audio)",
+          "status": "completed"
+        },
+        {
+          "conclusion": "success",
+          "id": 123052390453,
+          "name": "fpga-simulation (coleco, sim-fes-coleco-sgm-integrated)",
+          "status": "completed"
+        }
+      ],
+      "cwd": "sources/misteross",
+      "evidence": "matching CI simulation jobs",
+      "label": "coleco RTL simulation",
+      "lane": "fpga",
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "make",
+        "sim-fes-menu",
+        "PYTHON=/tmp/fes-de25-ddr-test-venv/bin/python"
+      ],
+      "ci_jobs": [
+        {
+          "conclusion": "success",
+          "id": 123052390714,
+          "name": "fpga-simulation (menu, sim-fes-menu)",
+          "status": "completed"
+        }
+      ],
+      "cwd": "sources/misteross",
+      "evidence": "matching CI simulation jobs",
+      "label": "menu RTL simulation",
+      "lane": "fpga",
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "make",
+        "sim-fes-pc386",
+        "PYTHON=/tmp/fes-de25-ddr-test-venv/bin/python"
+      ],
+      "ci_jobs": [
+        {
+          "conclusion": "success",
+          "id": 123052391191,
+          "name": "fpga-simulation (pc386, sim-fes-pc386)",
+          "status": "completed"
+        }
+      ],
+      "cwd": "sources/misteross",
+      "evidence": "matching CI simulation jobs",
+      "label": "pc386 RTL simulation",
+      "lane": "fpga",
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "make",
+        "sim-fes-spectrum",
+        "PYTHON=/tmp/fes-de25-ddr-test-venv/bin/python"
+      ],
+      "ci_jobs": [
+        {
+          "conclusion": "success",
+          "id": 123052391450,
+          "name": "fpga-simulation (spectrum, sim-fes-spectrum)",
+          "status": "completed"
+        }
+      ],
+      "cwd": "sources/misteross",
+      "evidence": "matching CI simulation jobs",
+      "label": "spectrum RTL simulation",
+      "lane": "fpga",
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "make",
+        "sim-fes-zx81",
+        "PYTHON=/tmp/fes-de25-ddr-test-venv/bin/python"
+      ],
+      "ci_jobs": [
+        {
+          "conclusion": "success",
+          "id": 123052392939,
+          "name": "fpga-simulation (zx81, sim-fes-zx81)",
+          "status": "completed"
+        }
+      ],
+      "cwd": "sources/misteross",
+      "evidence": "matching CI simulation jobs",
+      "label": "zx81 RTL simulation",
+      "lane": "fpga",
+      "status": "passed"
+    }
+  ],
+  "consistency": {
+    "fixture_copies": 37,
+    "generated_consumers": 28,
+    "log_sha256": "f9b42c44d03d6fde4d6e4eb4f3226dc4a02ec76672f256c3cf0a36b7d1c1960b",
+    "source_pin_copies": 0
+  },
+  "focused_registered_reset_board_checks": {
+    "log_sha256": {
+      "out/de25-scanout-board-registered-reset-02.log": "b62f84cdfeaba215f0d5e29335b48a2d7365fb5cbf31adc15db269b75ee6280b",
+      "out/de25-scanout-preparation-registered-reset-05.log": "d8e7ec1946ff3aae60c13a10bdbb69ebe1913ac1414c9f2564239c4dcc443a02"
+    },
+    "preparation_tests": 8,
+    "producer_revision": "6da029aa49eeef34698fde5336761580000bd0af",
+    "startup_unlock_relock_async_cold_reset": "passed"
+  },
+  "format": 1,
+  "hil": {
+    "components": [
+      "core:menu"
+    ],
+    "decision": "FULL_IMAGE",
+    "existing_consumer_package_and_hardware_acceptance": "pending",
+    "path": "out/de25-scanout-final-hil-plan.json",
+    "sha256": "a34fe36765d20c432cc4f7f708dc7853b0ef26b752a8d453bd3dbfdb1030ce77"
+  },
+  "limits": [
+    "The local runner was stopped after C64 completed; its partial log is not relabelled as a complete local pass.",
+    "The remaining five core families are covered by successful CI jobs on an independently verified identical Git tree.",
+    "The CI aggregate was still waiting for its C64 job at observation; local C64 completed successfully.",
+    "Later board/helper inputs have separate focused Quartus/RTL records; unchanged groups bind the broad software evidence.",
+    "Core P&R, cold image/platform packaging, required browser integration and hardware acceptance are outside the affected runner.",
+    "Separate DE25 diagnostic Quartus evidence does not admit a production profile or establish physical acceptance."
+  ],
+  "local_plan_revision": "cd9e7cf8960f69463424b4918e948aadc4f763d7",
+  "local_run": {
+    "completed_command_prefix": 15,
+    "interrupted_command": "coleco RTL simulation",
+    "no_complete_local_runner_pass_claimed": true,
+    "plan_path": "out/de25-affected-plan-cd9e-jobs4.json",
+    "plan_reconstruction": "Exact jobs=4 command plan regenerated from the retained clean cd9 worktree; execution used the primary task worktree.",
+    "plan_sha256": "20d79d38f64011d61d1233249e819b3e76b6eb42b5af341375373d51d12e1190",
+    "raw_log_path": "out/de25-scanout-affected-partial.log",
+    "raw_log_sha256": "48e1867c471c108fe76b7b6a49f4c446f5c33f9e693a794bef8d778e19884d1e",
+    "status": "intentionally stopped after matching CI passed the remaining jobs",
+    "stop_record_path": "out/de25-local-tail-retirement.json",
+    "stop_record_sha256": "94803b9fe15fa8dcf027035a1900ae6791082ef3423611278851d98eae505587"
+  },
+  "local_unittest_counts": {
+    "fpga_producer": {
+      "passed": 1393,
+      "ran": 1428,
+      "skipped": 35
+    },
+    "parent": {
+      "passed": 1126,
+      "ran": 1130,
+      "skipped": 4
+    }
+  },
+  "runner_limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "source_binding": {
+    "classification": "bounded software source identity audit",
+    "comparison_revision": "6da029aa49eeef34698fde5336761580000bd0af",
+    "format": 1,
+    "kernel_producer_revision": "44de76eea08b679da18cbb7e6ac3c03c40b96c54",
+    "kernel_source_sha256": {
+      "image/kernel/de25-dma/.kunitconfig": "16eb3ccfc929a326dbe53fd4003d5fea1ad076b52c45e8bd17274012c3b66682",
+      "image/kernel/de25-dma/Kconfig": "b22cb29d2c345becdfd0e03aaa5f174ce110c4c6922b8e6120dc88e096d60956",
+      "image/kernel/de25-dma/Makefile": "f927dfb3939e67b42d87d890bd5872197e99f7ce0a7e3810259103227819c838",
+      "image/kernel/de25-dma/README.md": "31fe0ab8cd08c0ba9d204c0d0d0e30d13f75a4dbd6e00cabb4235e2bd3c616c7",
+      "image/kernel/de25-dma/de25_dma.c": "efad9291d8fd1503dedc2564ae5cf690aa7bd5f7b7efb7771f0eb4abcaf9d77b",
+      "image/kernel/de25-dma/de25_dma.h": "add29742c88700838d54eb6ade32b6a5e7cc7da010d41fa535d18b92dbfb97d2",
+      "image/kernel/de25-dma/de25_dma_internal.h": "e1c6a4a2727a2f762887b7e47e873d6b85ea60ad08243744d0981c4ca6e318bb",
+      "image/kernel/de25-dma/de25_dma_test.c": "b94ee23de10ae88c7df496cb68b0aff950b206624493d94564ffe6b1efeeabd2",
+      "image/kernel/de25-dma/generated/fes_de25_scanout.h": "2a16380147be3884f43d2963bd76b0084061c1724f19aaf1198725e5f364e6ec",
+      "image/kernel/de25-dma/linux.lock.toml": "fcd64180bd23acb5603d9c1e12b4259fc5a848d180f13aba860c89b6dc00af75",
+      "scripts/de25_kernel_test.py": "a8ad2ab6cf9361a21d500409f77fe9f94a1ef9a1fa8bfd282349f03f2427bd26"
+    },
+    "limits": [
+      "This does not assign the later board shell or transport helper to the earlier affected run.",
+      "The registered reset board shell has its own focused bench and fresh Quartus producer.",
+      "No hardware acceptance or vendor-module loadability is established."
+    ],
+    "plan_revision": "cd9e7cf8960f69463424b4918e948aadc4f763d7",
+    "unchanged_git_groups": {
+      "image/kernel/de25-dma": {
+        "git_object": "0de18e9045157c6ce50967a5b9183fcddbd68190",
+        "unchanged": true
+      },
+      "scripts": {
+        "git_object": "f930a193f3e67ff1cb297e9d790120f416370bc5",
+        "unchanged": true
+      },
+      "sources/FogCast": {
+        "git_object": "d9306de9a3b6f9225bc17c1ccd814a0526574dbf",
+        "unchanged": true
+      },
+      "sources/libmister-runtime": {
+        "git_object": "ea6aecf99cbbe179e6e3c5ddee6683cb47c5c631",
+        "unchanged": true
+      },
+      "sources/mister-packages": {
+        "git_object": "f25b288ef9ed818817631e8decbac3078744cbee",
+        "unchanged": true
+      },
+      "sources/misteross/Makefile": {
+        "git_object": "c784592ec5a17f7318ec700364d640523ec420c1",
+        "unchanged": true
+      },
+      "sources/misteross/cores": {
+        "git_object": "e5b4756e62fa16952b0a9facd4e31e063dd98c2d",
+        "unchanged": true
+      },
+      "sources/misteross/scripts": {
+        "git_object": "bccf0601ee99607e645316d6b685e2d40c78b4a4",
+        "unchanged": true
+      },
+      "sources/misteross/tests": {
+        "git_object": "ef034dc9247e6f465dd719b6c824289d7d7e8cb5",
+        "unchanged": true
+      },
+      "tests": {
+        "git_object": "502b0493b83cfed1a3ff909453347f106638e754",
+        "unchanged": true
+      }
+    }
+  },
+  "status": "all planned software commands covered by passing evidence"
+}

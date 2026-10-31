@@ -1,0 +1,51 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.de25-computer
+description: >-
+  Diagnostic DE25 lightweight Avalon bridge for the existing fes.computer
+  GPO/GPI mailbox. Offsets are peripheral-relative, not Linux physical
+  addresses. Atomic GPO submission, sticky fault containment and identity do
+  not confer runtime, firmware, MMIO lifetime or board admission.
+major: 1
+minor: 0
+constants:
+  - name: FesDe25ComputerIdentity
+    value: 0x44325a58
+  - name: FesDe25ComputerVersion
+    value: 0x00010000
+  - name: FesDe25ComputerIdOffset
+    value: 0
+  - name: FesDe25ComputerVersionOffset
+    value: 4
+  - name: FesDe25ComputerStatusOffset
+    value: 8
+  - name: FesDe25ComputerGpoOffset
+    value: 12
+  - name: FesDe25ComputerGpiOffset
+    value: 16
+  - name: FesDe25ComputerFaultOffset
+    value: 20
+  - name: FesDe25ComputerSpan
+    value: 32
+  - name: FesDe25ComputerAddressBits
+    value: 5
+  - name: FesDe25ComputerPeripheralOffset
+    value: 0x00010300
+  - name: FesDe25ComputerZx81TapeMaxBytes
+    value: 16375
+  - name: FesDe25ComputerStatusReady
+    value: 1
+  - name: FesDe25ComputerStatusBusy
+    value: 2
+  - name: FesDe25ComputerStatusFault
+    value: 4
+  - name: FesDe25ComputerFaultReset
+    value: 1
+  - name: FesDe25ComputerFaultPartial
+    value: 2
+  - name: FesDe25ComputerFaultBusy
+    value: 4
+  - name: FesDe25ComputerFaultToggle
+    value: 8
+  - name: FesDe25ComputerFaultAddress
+    value: 16

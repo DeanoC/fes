@@ -1,0 +1,23 @@
+--- selected-recipe-prepared-qsf
++++ post-generation-compiled-qsf
+@@ -6,7 +6,6 @@
+ set_global_assignment -name DEVICE A5EB013BB23BE4SCS
+ set_global_assignment -name TOP_LEVEL_ENTITY golden_top
+ set_global_assignment -name ORIGINAL_QUARTUS_VERSION "25.1.0 Pro Edition"
+-set_global_assignment -name LAST_QUARTUS_VERSION "25.1.1 Pro Edition"
+ set_global_assignment -name PROJECT_CREATION_TIME_DATE "Tue May  6 11:16:28 2025"
+ set_global_assignment -name DEVICE_FILTER_PACKAGE VPBGA
+ #============================================================
+@@ -798,3 +797,12 @@
+ set_global_assignment -name SDC_FILE fes_mailbox/clocks.sdc
+ set_global_assignment -name IP_FILE ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_emif_ddr4a_0.ip
+ set_global_assignment -name IP_FILE ramtest_b/ip/EMIF_Qsys/EMIF_Qsys_reset_in.ip
++set_global_assignment -name IP_FILE ramtest_b/ip/ramtest_b/ramtest_b_fabric100.ip
++set_global_assignment -name IP_FILE ramtest_b/ip/ramtest_b/ramtest_b_control50.ip
++set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mailbox.ip
++set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ddr_probe.ip
++set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ramtest_hps.ip
++set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ramtest_fpga.ip
++set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ramtest_sdram.ip
++set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ramtest_clk50.ip
++set_global_assignment -name IP_FILE ip/qsys_top/qsys_top_fes_ramtest_control50.ip

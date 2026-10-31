@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/terasic/linux-socfpga.git",
+  "revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "path": "drivers/firmware/stratix10-svc.c",
+  "before_sha256": "493301f526657473b05700ba54bea38d1b63d43a99a341e78c338e0908ca9f4a",
+  "after_sha256": "db18f9db8cf9f42d34e30b728d089d0747f013b47d3239f976ff0f3e8cbd72fd"
+}

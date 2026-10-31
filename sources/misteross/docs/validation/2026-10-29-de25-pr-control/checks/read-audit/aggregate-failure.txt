@@ -1,0 +1,12 @@
+FAIL: test_timeout_cancels_multithreaded_child_group_without_masking_timeout (test_compiler_read_audit.ReadAuditTests.test_timeout_cancels_multithreaded_child_group_without_masking_timeout)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-pr-control/sources/misteross/tests/test_compiler_read_audit.py", line 190, in test_timeout_cancels_multithreaded_child_group_without_masking_timeout
+    with self.assertRaises(ProcessLookupError): os.kill(pid, 0)
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+AssertionError: ProcessLookupError not raised
+
+----------------------------------------------------------------------
+Ran 1483 tests in 860.090s
+
+FAILED (failures=1, skipped=35)

@@ -1,0 +1,237 @@
+Info: *******************************************************************
+Info: Running Quartus Prime Timing Analyzer
+    Info: Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+    Info: Copyright (C) 2026  Altera Corporation. All rights reserved.
+    Info: Your use of Altera Corporation's design tools, logic functions 
+    Info: and other software and tools, and any partner logic 
+    Info: functions, and any output files from any of the foregoing 
+    Info: (including device programming or simulation files), and any 
+    Info: associated documentation or information are expressly subject 
+    Info: to the terms and conditions of the Altera Program License 
+    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,
+    Info: the Altera IP License Agreement, or other applicable license
+    Info: agreement, including, without limitation, that your use is for
+    Info: the sole purpose of programming logic devices manufactured by
+    Info: Altera and sold by Altera or its authorized distributors.  Please
+    Info: refer to the Altera Software License Subscription Agreements 
+    Info: on the Quartus Prime software download page.
+    Info: Processing started: Fri Oct 30 13:35:44 2026
+    Info: System process ID: 4408
+Info: Command: quartus_sta -t /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/verification-recipe/sources/misteross/boards/de25nano/link-proof/zx81-computer/timing.tcl /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project persona_a /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/timing-persona_a
+Info: Quartus(args): /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project persona_a /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/timing-persona_a
+Info (20032): Parallel compilation is enabled and will use up to 2 processors
+Info (16677): Loading final database.
+Info (16734): Loading "final" snapshot for partition "root_partition".
+Info (16734): Loading "final" snapshot for partition "auto_fab_0".
+Info (16734): Loading "final" snapshot for partition "slot0".
+Info (16678): Successfully loaded final database: elapsed time is 00:00:02.
+Info (21076): High junction temperature operating condition is not set. Assuming a default value of '100'.
+Info (21076): Low junction temperature operating condition is not set. Assuming a default value of '0'.
+Info (332164): Evaluating HDL-embedded SDC commands
+    Info (332165): Entity altera_std_synchronizer
+        Info (332166): set_false_path -to [get_keepers {*altera_std_synchronizer:*|din_s1}]
+Info (19539): Reading the HDL-embedded SDC files elapsed 00:00:00.
+Info (19785): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'pll_altera_iopll_2110_xltklsq.sdc'
+Info (332151): Clock uncertainty is not calculated until you update the timing netlist.
+Info: Initializing PLL database for CORE pll_altera_iopll_2110_xltklsq
+Info: Finding port-to-pin mapping for CORE: pll_altera_iopll_2110_xltklsq INSTANCE: pll_inst|iopll_0
+Info (19785): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_avalon_st_jtag_interface.sdc'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_001' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_001' from 'root_partition.qdb'
+Info (19785): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'intel_user_rst_clkgate_agilex.sdc'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'agilex_hps_intel_sundancemesa_hps_100_z5bqzvi.sdc' for instance: 'soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_hps' from 'root_partition.qdb'
+Info (19785): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_avalon_st_jtag_interface.sdc'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_001' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_001' from 'root_partition.qdb'
+Info (19785): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_avalon_st_jtag_interface.sdc'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_001' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_001' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_001' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_001' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_001' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_001' from 'root_partition.qdb'
+Info (19785): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_avalon_st_jtag_interface.sdc'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|subsys_periph|rst_controller_001' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller' from 'root_partition.qdb'
+Info (20224): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'altera_reset_controller.sdc' for instance: 'soc_inst|rst_controller_001' from 'root_partition.qdb'
+Info (19785): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy.sdc'
+Info (332151): Clock uncertainty is not calculated until you update the timing netlist.
+Info: Initializing DDR database for CORE emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy
+Info: Finding port-to-pin mapping for CORE: emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy INSTANCE: soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4 BANK:0
+Info (19785): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'sys_pll_altera_iopll_2110_msdzeyq.sdc'
+Info (332151): Clock uncertainty is not calculated until you update the timing netlist.
+Info: Initializing PLL database for CORE sys_pll_altera_iopll_2110_msdzeyq
+Info: Finding port-to-pin mapping for CORE: sys_pll_altera_iopll_2110_msdzeyq INSTANCE: fes_video_inst|video_clock|iopll_0
+Info (332104): Reading SDC File: 'ghrd_timing.sdc'
+Info (332151): Clock uncertainty is not calculated until you update the timing netlist.
+Info (332104): Reading SDC File: 'fes_mailbox/fes_de25_top.sdc'
+Info: DE25 top reset asynchronous clear pins: 2 (expected 2); D and release fanout remain timed
+Info: DE25 asynchronous human-visible LED output ports: 4 (expected 4)
+Info (332104): Reading SDC File: 'fes_mailbox/clocks.sdc'
+Info: DE25 computer HDMI reset ingress pins: 4 (expected4)
+Info: DE25 video: 2 first-stage crossings, 9 bounded metadata bits, 4 reset ingress pins
+Info: DE25 computer pixel readiness crossing: one first-stage ingress, timed stage-to-stage and frame-gate paths
+Info (332104): Reading SDC File: 'fes_link/clocks.sdc'
+Info: HPS PR diagnostic: preserved 100 MHz clock; no added timing exceptions
+Info (19785): Reading entity-bound SDC constraints from a Partition Database File (.qdb): 'default_jtag.sdc'
+Info (19449): Reading SDC files elapsed 00:00:01.
+Info (332097): The following timing edges are non-unate.  The Timing Analyzer will assume pos-unate behavior for these edges in the clock network.
+    Info (332098): Cell: soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_bufs_mem|g_MEM_DQS_T_0_out[0].obuf  from: i  to: o
+    Info (332098): Cell: soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_bufs_mem|g_MEM_DQS_T_0_out[1].obuf  from: i  to: o
+    Info (332098): Cell: soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_bufs_mem|g_MEM_DQS_T_0_out[2].obuf  from: i  to: o
+    Info (332098): Cell: soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_bufs_mem|g_MEM_DQS_T_0_out[3].obuf  from: i  to: o
+Info (332123): Deriving Clock Uncertainty. Please refer to report_sdc in the Timing Analyzer to see clock uncertainties.
+Info (332152): Existing clock uncertainty assignments were detected. They will take precedence over the derive_clock_uncertainty command
+REGISTER request_ingress slot_inst|core|request_q
+GROUP request_ingress logical=1 physical=1
+REGISTER reset_ingress slot_inst|core|reset_q
+GROUP reset_ingress logical=1 physical=1
+REGISTER address_ingress slot_inst|core|address_q[5]
+REGISTER address_ingress slot_inst|core|address_q[6]
+REGISTER address_ingress slot_inst|core|address_q[7]
+REGISTER address_ingress slot_inst|core|address_q[0]
+REGISTER address_ingress slot_inst|core|address_q[1]
+REGISTER address_ingress slot_inst|core|address_q[2]
+REGISTER address_ingress slot_inst|core|address_q[3]
+REGISTER address_ingress slot_inst|core|address_q[4]
+GROUP address_ingress logical=8 physical=8
+REGISTER valid_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_valid_q
+GROUP valid_egress logical=1 physical=1
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[12]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[13]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[14]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[15]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[2]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[3]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[0]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[1]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[4]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[5]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[6]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[7]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[10]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[11]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[8]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[9]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[30]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[31]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[28]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[29]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[16]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[17]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[18]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[19]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[22]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[23]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[20]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[21]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[26]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[27]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[24]
+REGISTER data_egress soc_inst|subsys_periph|fes_pr_control|fes_pr_control|response_data_q[25]
+GROUP data_egress logical=32 physical=32
+REGISTER bus_ingress slot_inst|core|bus_q[8]
+REGISTER bus_ingress slot_inst|core|bus_q[24]
+REGISTER bus_ingress slot_inst|core|bus_q[40]
+REGISTER bus_ingress slot_inst|core|bus_q[9]
+REGISTER bus_ingress slot_inst|core|bus_q[25]
+REGISTER bus_ingress slot_inst|core|bus_q[41]
+REGISTER bus_ingress slot_inst|core|bus_q[10]
+REGISTER bus_ingress slot_inst|core|bus_q[26]
+REGISTER bus_ingress slot_inst|core|bus_q[42]
+REGISTER bus_ingress slot_inst|core|bus_q[11]
+REGISTER bus_ingress slot_inst|core|bus_q[27]
+REGISTER bus_ingress slot_inst|core|bus_q[43]
+REGISTER bus_ingress slot_inst|core|bus_q[12]
+REGISTER bus_ingress slot_inst|core|bus_q[28]
+REGISTER bus_ingress slot_inst|core|bus_q[44]
+REGISTER bus_ingress slot_inst|core|bus_q[13]
+REGISTER bus_ingress slot_inst|core|bus_q[29]
+REGISTER bus_ingress slot_inst|core|bus_q[45]
+REGISTER bus_ingress slot_inst|core|bus_q[14]
+REGISTER bus_ingress slot_inst|core|bus_q[30]
+REGISTER bus_ingress slot_inst|core|bus_q[15]
+REGISTER bus_ingress slot_inst|core|bus_q[31]
+REGISTER bus_ingress slot_inst|core|bus_q[0]
+REGISTER bus_ingress slot_inst|core|bus_q[16]
+REGISTER bus_ingress slot_inst|core|bus_q[32]
+REGISTER bus_ingress slot_inst|core|bus_q[1]
+REGISTER bus_ingress slot_inst|core|bus_q[17]
+REGISTER bus_ingress slot_inst|core|bus_q[33]
+REGISTER bus_ingress slot_inst|core|bus_q[2]
+REGISTER bus_ingress slot_inst|core|bus_q[18]
+REGISTER bus_ingress slot_inst|core|bus_q[34]
+REGISTER bus_ingress slot_inst|core|bus_q[3]
+REGISTER bus_ingress slot_inst|core|bus_q[19]
+REGISTER bus_ingress slot_inst|core|bus_q[35]
+REGISTER bus_ingress slot_inst|core|bus_q[4]
+REGISTER bus_ingress slot_inst|core|bus_q[20]
+REGISTER bus_ingress slot_inst|core|bus_q[36]
+REGISTER bus_ingress slot_inst|core|bus_q[5]
+REGISTER bus_ingress slot_inst|core|bus_q[21]
+REGISTER bus_ingress slot_inst|core|bus_q[37]
+REGISTER bus_ingress slot_inst|core|bus_q[6]
+REGISTER bus_ingress slot_inst|core|bus_q[22]
+REGISTER bus_ingress slot_inst|core|bus_q[38]
+REGISTER bus_ingress slot_inst|core|bus_q[7]
+REGISTER bus_ingress slot_inst|core|bus_q[23]
+REGISTER bus_ingress slot_inst|core|bus_q[39]
+GROUP bus_ingress logical=46 physical=46
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[1]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[16]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[17]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[19]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[3]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[4]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[5]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[18]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[0]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[2]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[6]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[7]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[8]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[9]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[10]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[11]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[12]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[13]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[14]
+REGISTER bus_egress soc_inst|subsys_periph|fes_computer|fes_computer|external_bus.response_q[15]
+GROUP bus_egress logical=20 physical=20
+PASS: all published-corner reset and physical PR boundary setup/hold paths retained
+Info (23030): Evaluation of Tcl script /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/verification-recipe/sources/misteross/boards/de25nano/link-proof/zx81-computer/timing.tcl was successful
+Info: Quartus Prime Timing Analyzer was successful. 0 errors, 0 warnings
+    Info: Peak virtual memory: 3059 megabytes
+    Info: Processing ended: Fri Oct 30 13:35:50 2026
+    Info: Elapsed time: 00:00:06
+    Info: System process ID: 4408
+Info (19538): Reading SDC files took 00:00:01 cumulatively in this process.

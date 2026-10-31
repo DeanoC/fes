@@ -1,0 +1,20 @@
+{
+  "source_revision": "2243c34a250867b324d6b26146fd32acdb778882",
+  "command": [
+    "python3",
+    "sources/misteross/boards/de25nano/scanout/interconnect_sim.py",
+    "--project",
+    "/data/fes-de25-consolidation-bringup-2243c34a2/scanout-output/combined/hps/project",
+    "--output",
+    "/data/fes-de25-consolidation-bringup-2243c34a2/transport-sim"
+  ],
+  "cwd": "/data/fes-de25-consolidation-bringup-2243c34a2/source",
+  "started_utc": "2026-10-31T12:54:10.445639+00:00",
+  "time_cap_seconds": 1800,
+  "hardware_access": "not-performed",
+  "pid": 1736900,
+  "state": "passed",
+  "elapsed_seconds": 31.5,
+  "heartbeat_utc": "2026-10-31T12:54:41.928208+00:00",
+  "returncode": 0
+}

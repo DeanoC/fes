@@ -1,0 +1,22 @@
+#!/bin/sh
+# The runtime owns FPGA configuration; boot registers the matching kernel drivers.
+set -eu
+
+case "${1:-}" in
+  start)
+    expected=$(cat /etc/fes-kernel-release)
+    if [ "$(uname -r)" != "$expected" ]; then
+      printf '%s\n' 'FPGA drivers: kernel version differs from the selected modules' >&2
+      exit 1
+    fi
+    modprobe stratix10-soc
+    modprobe of-fpga-region
+    [ -r /sys/class/fpga_manager/fpga0/name ]
+    [ -d /sys/class/fpga_region/region0 ]
+    printf '%s\n' 'FPGA drivers: ready'
+    ;;
+  stop)
+    # No unload: only the runtime can establish whether an FPGA operation is idle.
+    ;;
+  *) printf 'Usage: %s {start|stop}\n' "$0" >&2; exit 1 ;;
+esac

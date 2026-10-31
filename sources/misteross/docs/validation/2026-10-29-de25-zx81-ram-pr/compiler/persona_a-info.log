@@ -1,0 +1,72 @@
+Info: *******************************************************************
+Info: Running Quartus Prime Programming File Generator
+    Info: Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+    Info: Copyright (C) 2026  Altera Corporation. All rights reserved.
+    Info: Your use of Altera Corporation's design tools, logic functions 
+    Info: and other software and tools, and any partner logic 
+    Info: functions, and any output files from any of the foregoing 
+    Info: (including device programming or simulation files), and any 
+    Info: associated documentation or information are expressly subject 
+    Info: to the terms and conditions of the Altera Program License 
+    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,
+    Info: the Altera IP License Agreement, or other applicable license
+    Info: agreement, including, without limitation, that your use is for
+    Info: the sole purpose of programming logic devices manufactured by
+    Info: Altera and sold by Altera or its authorized distributors.  Please
+    Info: refer to the Altera Software License Subscription Agreements 
+    Info: on the Quartus Prime software download page.
+    Info: Processing started: Thu Oct 29 16:17:12 2026
+    Info: System process ID: 3898863
+Info: Command: quartus_pfg -i /home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-ram-pr/out/zx81-ram-quartus-frozen06/hps/project/artifacts/zx81_empty.rbf
+==================================================
+General
+==================================================
+Device name: A5EB013BB23BE4SCS
+
+==================================================
+Error Detection CRC
+==================================================
+Enable internal scrubbing: FALSE
+Allow SEU fault injection: FALSE
+Enable CRAM integrity check: FALSE
+
+==================================================
+Partial Reconfiguration
+==================================================
+POF0 region ID: 0x01000000
+POF0 hash: 8662210B13586E7EB9EBD5152F1B6F0CF40F7DCAC0C3080C5B0BF0FC89C218D8
+
+==================================================
+Security
+==================================================
+Bitstream signed: FALSE
+Bitstream encrypted: FALSE
+Ownership Transfer Mode: FALSE
+
+==================================================
+Security Options
+==================================================
+Disable JTAG: OFF
+Force SDM clock to internal oscillator: OFF
+Use UDS Intel PUF: OFF
+User UDS Intel PUF: OFF
+Disable virtual eFuses: OFF
+Lock security eFuses: OFF
+Disable HPS debug: OFF
+Disable encryption key in eFuses: OFF
+Disable encryption key in BBRAM: OFF
+Disable Intrinsic ID PUF-wrapped encryption key in Quad SPI: OFF
+
+==================================================
+PR Section
+==================================================
+Offset: 0x00000000
+Signature Block Size: 4096 bytes
+Signed: False
+
+
+Info: Quartus Prime Programming File Generator was successful. 0 errors, 0 warnings
+    Info: Peak virtual memory: 606 megabytes
+    Info: Processing ended: Thu Oct 29 16:17:12 2026
+    Info: Elapsed time: 00:00:00
+    Info: System process ID: 3898863

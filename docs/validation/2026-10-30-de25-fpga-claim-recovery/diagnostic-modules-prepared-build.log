@@ -1,0 +1,27 @@
+make: Entering directory '/work/kernel-input'
+  UPD     include/generated/compile.h
+  CALL    scripts/checksyscalls.sh
+  LDS     scripts/module.lds
+make: Leaving directory '/work/kernel-input'
+make: Entering directory '/work/kernel-input'
+  MODPOST drivers/fpga/Module.symvers
+  CC [M]  drivers/fpga/altera-cvp.mod.o
+  CC [M]  drivers/fpga/stratix10-soc.mod.o
+  CC [M]  drivers/fpga/.module-common.o
+  CC [M]  drivers/fpga/fpga-bridge.mod.o
+  CC [M]  drivers/fpga/altera-freeze-bridge.mod.o
+  CC [M]  drivers/fpga/fpga-region.mod.o
+  CC [M]  drivers/fpga/of-fpga-region.mod.o
+  LD [M]  drivers/fpga/altera-freeze-bridge.ko
+  LD [M]  drivers/fpga/fpga-bridge.ko
+  LD [M]  drivers/fpga/fpga-region.ko
+  LD [M]  drivers/fpga/altera-cvp.ko
+  LD [M]  drivers/fpga/stratix10-soc.ko
+  LD [M]  drivers/fpga/of-fpga-region.ko
+make: Leaving directory '/work/kernel-input'
+6.12.11-fes-de25-claim1
+8f252665ca5840af15c4d3ff5160d4e6ebea26235afaf3d6a8cd51477812c94c  /work/kernel-input/arch/arm64/boot/Image
+6ecbedcff3a037f05c78cfb72126ae738507a2847608b999ba3dd2013935f98f  /work/kernel-input/drivers/fpga/stratix10-soc.ko
+91bdca413e60c063945b2cd66f4d0438e81ee382078d449825968d24bd76f7c3  /work/kernel-input/drivers/fpga/fpga-bridge.ko
+c63b827153e75152e6be1221c57721d5235b3cc8dad51802bc88ed012f98541f  /work/kernel-input/drivers/fpga/fpga-region.ko
+83e58da66c7b029c0d715d10c5b34d118cbac9a10e5f153c9b5ea153f39c4716  /work/kernel-input/drivers/fpga/of-fpga-region.ko

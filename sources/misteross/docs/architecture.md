@@ -65,6 +65,63 @@ upload/control interface, and default DE10 packages/images remain unchanged.
 External ADV7513 timing and the vendor's contradictory clock IO-standard
 documentation remain qualification gates; these SOFs are not boot/BSP artifacts.
 
+[`boards/de25nano/zx81/`](../boards/de25nano/zx81/README.md) combines the real
+ZX81 machine/NMOS Z80 and its existing 720p capture renderer with that board's
+HDMI pins and FPGA-side transmitter initializer. A native Agilex PLL targets
+74.25 MHz for machine and video, with rational enables at 26/297 preserving
+the 6.5 MHz ULA and 3.25 MHz CPU. The shared scheduler retains its DE10
+1625/13056 default; WAIT/NMI are declared before use for Quartus Pro.
+Board-local derived RAM sources change only the guarded device/block
+selections to Agilex 5/M20K; DE10 producers are unchanged. KEY0 resets the machine
+and KEY1 supplies ENTER. This FPGA-only diagnostic has no HPS, DDR, runtime
+package, tape delivery or session-display plane. Both capture RAM ports use
+the same board clock; startup/collision/frame-coherence limitations remain. External
+IO timing and physical board acceptance remain open.
+
+[`boards/de25nano/zx81-hps/`](../boards/de25nano/zx81-hps/README.md) composes
+the ZX81 with the preserved GHRD. A 32-bit Avalon endpoint at peripheral offset
+0x10300 stores one atomic GPO command and exposes coherent GPI/status words.
+It reuses the current `fes_computer_mailbox`, HID mapper and CRC-checked tape
+store. Control and the machine share 100 MHz, with 13/200 ULA enables; the
+renderer remains at 74.25 MHz. Readiness crosses a two-stage pixel-clock
+synchronizer, and the computer's first-picture mask changes only at the
+renderer frame tick. The board shell blanks RGB/DE on pixel reset or PLL loss,
+then changes HDMI visibility and resumes picture only after a complete HS
+pulse outside VS; active sync is not reset-gated.
+No control CCB is required and stopped PIX
+does not stop command completion or CPU/tape progress. Partial/busy/malformed
+accesses and later peripheral resets permanently fault this diagnostic,
+retaining GPO/ACK state while holding CPU and masking tape writes/presentation.
+It does not fence inherited masters or acknowledge global warm reset.
+The new path adds no DMA, but the GHRD's inherited DDR probe/debug paths remain.
+Generated constants and an offline injectable Python client add no runtime
+admission, physical MMIO address or boot image. Shared production RTL is unchanged.
+The board tape adapter uses two explicit even/odd simple-dual-port M20K banks
+with common-clock old-data reads, while retaining the exact portable module
+in its native simulation branch. Its board-local video renderer replaces the
+single capture array with two packed monochrome M20K banks. Source completion
+publishes a bank through a request/acknowledgement crossing; scanout swaps only
+at a complete 720p frame boundary and acknowledges before the source may reuse
+the previous bank. Startup and epoch reset hide unwritten storage. On an
+endpoint reset, capture and publish ownership reset asynchronously while the
+raster, sync and selected bank keep running until the synchronized frame gate
+closes at a raster boundary; other transport faults hold the machine and close
+the same gate. Whole rows up to 328×270 are captured, excess rows cropped, and
+absent bottom rows displayed as paper. Stopped clocks preserve ownership; HOLD
+aborts partial capture.
+The local SDC checks exact synchronizer/metadata endpoints and bounds the held
+row-count bus without cutting whole clocks. Digital simulation does not accept
+physical M20K timing, MTBF, clock recovery or HDMI.
+
+The same endpoint/machine also serves the native `De25Computer` client through
+the private-socket co-simulation in `zx81-hps/client_proof.py`. It snapshots the
+actual runtime and RTL sources, runs native and static AArch64 clients against
+one Verilated model, and checks real BASIC/HID/tape/RAM behavior plus uncertain
+transactions and resets. Simulation controls advance clocks and inspect state;
+they do not generate the client's mailbox commands. The existing board bench
+shares those clock and observation helpers. This remains software/RTL evidence
+with behavioral memory and no physical HPS/MMIO or programming backend.
+
 [`boards/de25nano/combined/`](../boards/de25nano/combined/README.md) composes
 that local display with the preserved GHRD HPS/LPDDR4, mailbox and read-only
 DDR probe. It uses a single configuration reset endpoint and separate system
@@ -72,6 +129,34 @@ and video PLLs. A committed source closure binds both helper lanes and the
 guarded composition. Its display still uses local pattern memory; no FPGA DMA
 scanout or Linux upload path is admitted. Warm-reset ACK is explicitly inactive
 pending global bridge/master quiescence, and firmware pairing stays unqualified.
+
+[`boards/de25nano/scanout/`](../boards/de25nano/scanout/README.md) replaces
+the combined lane's private pattern responder with a read-only allocated-buffer
+path. The pixel-domain endpoint implements the shared `fes.fabric.de25-scanout`
+contract: one immutable 8 MiB grant, two frame slots, atomic status snapshots
+and completion only after a whole good frame. Explicit Platform Designer
+`mm_ccb` bridges carry control from 100 MHz to 74.25 MHz and memory traffic
+back to the preserved F2SDRAM path. The shared reader/video extensions are
+opt-in; existing consumers retain their default configuration.
+
+Both crossing bridges share initial configuration reset. Later pixel PLL-lock
+loss latches a fault without resetting live bridge queues; the endpoint stops
+and drains when its clock resumes. The DE25 endpoint keeps its fixed raster and
+raw HS/VS running through stop, fault and reset while pixel data stays blank.
+HDMI data/DE use registered pixel-domain visibility state. A registered
+100 MHz request crosses into a two-stage pixel-clock synchronizer. Reset or
+lock loss clears a pixel-domain reset release at once, which clears that
+synchronizer, while release passes through the pixel domain; the data/DE gate
+blanks immediately and picture resumes only after a complete horizontal sync
+pulse while VS is inactive. The
+producer retains
+generated topology and response checks, native RTL tests and a simulation
+helper for the generated two-clock interconnect with explicitly modeled M20K
+storage. FIFO/controller logic remains generated; primitive equivalence and
+physical CDC remain unproven. It creates no runtime
+profile or production Linux binding. DMA translation/backing, global reset
+fencing, physical CDC, external HDMI timing and exact-artifact board acceptance
+remain separate gates.
 
 ## Functional input identity
 

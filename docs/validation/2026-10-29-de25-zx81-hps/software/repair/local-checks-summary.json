@@ -1,0 +1,72 @@
+{
+  "schema": "fes.de25-zx81-hps.repair-local-summary.v1",
+  "implementation_revision": "5a7382c4b5c17173f48bd074847acc0acc22de93",
+  "focused_tests": {
+    "reported_runs": [
+      [
+        "28",
+        "0.133"
+      ]
+    ],
+    "conclusion": "passed"
+  },
+  "endpoint_simulation": {
+    "pass_groups": [
+      "PASS DE25 computer: identity/HOLD/RUN/HID, CRC rejection, odd tape tail, commit/eject, stopped PIX",
+      "PASS DE25 computer: coherent GPI snapshot, READY during BUSY, no GP overwrite",
+      "PASS DE25 computer: partial, same-toggle, read-only/reserved/misaligned accesses fail closed",
+      "PASS DE25 computer: stopped-high/low reset, retained epoch, suppressed late tape writes"
+    ],
+    "evidence_class": "host RTL simulation with direct digital clocks and behavioral RAM; no physical M20K/PLL/HDMI qualification"
+  },
+  "delta_plan": {
+    "base": "786e6383b32617af8baeb32e9de6cf99231a19f9",
+    "head": "5a7382c4b5c17173f48bd074847acc0acc22de93",
+    "checkout_head": "5a7382c4b5c17173f48bd074847acc0acc22de93",
+    "local_paths": [],
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": true
+    },
+    "cores": [],
+    "commands": [
+      {
+        "lane": "always",
+        "label": "test_affected.py"
+      },
+      {
+        "lane": "always",
+        "label": "test_test_changed.py"
+      },
+      {
+        "lane": "always",
+        "label": "committed whitespace"
+      },
+      {
+        "lane": "always",
+        "label": "working whitespace"
+      },
+      {
+        "lane": "parent",
+        "label": "parent Python regressions"
+      },
+      {
+        "lane": "parent",
+        "label": "working-tree generated consumer consistency"
+      },
+      {
+        "lane": "fpga",
+        "label": "test_*.py"
+      }
+    ]
+  },
+  "hil_plan": {
+    "class": "none",
+    "decision": "NO_DEPLOY_CHANGE",
+    "components": []
+  },
+  "separate_compile": "The producer Quartus build is recorded separately; this directory makes no compile or timing claim."
+}

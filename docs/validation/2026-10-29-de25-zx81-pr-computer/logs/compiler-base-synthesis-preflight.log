@@ -1,0 +1,946 @@
+Info: *******************************************************************
+Info: Running Quartus Prime Synthesis
+    Info: Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+    Info: Copyright (C) 2026  Altera Corporation. All rights reserved.
+    Info: Your use of Altera Corporation's design tools, logic functions 
+    Info: and other software and tools, and any partner logic 
+    Info: functions, and any output files from any of the foregoing 
+    Info: (including device programming or simulation files), and any 
+    Info: associated documentation or information are expressly subject 
+    Info: to the terms and conditions of the Altera Program License 
+    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,
+    Info: the Altera IP License Agreement, or other applicable license
+    Info: agreement, including, without limitation, that your use is for
+    Info: the sole purpose of programming logic devices manufactured by
+    Info: Altera and sold by Altera or its authorized distributors.  Please
+    Info: refer to the Altera Software License Subscription Agreements 
+    Info: on the Quartus Prime software download page.
+    Info: Processing started: Fri Oct 30 13:07:42 2026
+    Info: System process ID: 1697
+Info: Command: quartus_syn --read_settings_files=on --write_settings_files=off fes_link_proof -c base
+Info: qis_default_flow_script.tcl version: #1
+Info: Initializing Synthesis...
+Info: Project = "fes_link_proof"
+Info: Revision = "base"
+Info (21958): Initialized Quartus Message Database
+Info: Analyzing source files
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_jtag_dc_streaming.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_dc_streaming.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_jtag_sld_node.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_sld_node.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_clock_crosser.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_clock_crosser.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_reset_synchronizer.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_reset_synchronizer.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_std_synchronizer_nocut.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_std_synchronizer_nocut.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_pipeline_base.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_pipeline_base.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_idle_remover.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_idle_remover.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_idle_inserter.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_idle_inserter.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_pipeline_stage.sv" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_pipeline_stage.sv" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_avalon_st_bytes_to_packets_1922/synth/altera_avalon_st_bytes_to_packets.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_avalon_st_bytes_to_packets_1922/synth/altera_avalon_st_bytes_to_packets.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_avalon_st_packets_to_bytes_1922/synth/altera_avalon_st_packets_to_bytes.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_avalon_st_packets_to_bytes_1922/synth/altera_avalon_st_packets_to_bytes.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_avalon_packets_to_master_1922/synth/altera_avalon_packets_to_master.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_avalon_packets_to_master_1922/synth/altera_avalon_packets_to_master.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_synchronizer.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_synchronizer.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_jtag_dc_streaming.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_dc_streaming.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_jtag_sld_node.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_sld_node.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_clock_crosser.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_clock_crosser.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_reset_synchronizer.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_reset_synchronizer.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_std_synchronizer_nocut.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_std_synchronizer_nocut.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_pipeline_base.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_pipeline_base.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_idle_remover.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_idle_remover.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_idle_inserter.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_idle_inserter.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_pipeline_stage.sv" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_pipeline_stage.sv" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_avalon_st_bytes_to_packets_1922/synth/altera_avalon_st_bytes_to_packets.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_avalon_st_bytes_to_packets_1922/synth/altera_avalon_st_bytes_to_packets.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_avalon_st_packets_to_bytes_1922/synth/altera_avalon_st_packets_to_bytes.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_avalon_st_packets_to_bytes_1922/synth/altera_avalon_st_packets_to_bytes.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_avalon_packets_to_master_1922/synth/altera_avalon_packets_to_master.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_avalon_packets_to_master_1922/synth/altera_avalon_packets_to_master.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_synchronizer.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_synchronizer.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/qsys_top/altera_reset_controller_1925/synth/altera_reset_synchronizer.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_synchronizer.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/peripheral_subsys/altera_merlin_slave_agent_1940/synth/altera_merlin_burst_uncompressor.sv" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/qsys_top/altera_merlin_slave_agent_1940/synth/altera_merlin_burst_uncompressor.sv" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/peripheral_subsys/altera_merlin_traffic_limiter_1922/synth/altera_merlin_reorder_memory.sv" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/qsys_top/altera_merlin_traffic_limiter_1922/synth/altera_merlin_reorder_memory.sv" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/peripheral_subsys/altera_merlin_traffic_limiter_1922/synth/altera_avalon_st_pipeline_base.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/qsys_top/altera_merlin_traffic_limiter_1922/synth/altera_avalon_st_pipeline_base.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/peripheral_subsys/altera_merlin_multiplexer_1922/synth/altera_merlin_arbitrator.sv" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/qsys_top/altera_merlin_multiplexer_1922/synth/altera_merlin_arbitrator.sv" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_synchronizer.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_synchronizer.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_jtag_dc_streaming.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_dc_streaming.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_jtag_sld_node.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_sld_node.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_avalon_st_clock_crosser.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_clock_crosser.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_reset_synchronizer.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_reset_synchronizer.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_std_synchronizer_nocut.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_std_synchronizer_nocut.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_avalon_st_pipeline_base.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_pipeline_base.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_avalon_st_idle_remover.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_idle_remover.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_avalon_st_idle_inserter.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_idle_inserter.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_avalon_st_pipeline_stage.sv" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_pipeline_stage.sv" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_avalon_st_bytes_to_packets_1922/synth/altera_avalon_st_bytes_to_packets.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_avalon_st_bytes_to_packets_1922/synth/altera_avalon_st_bytes_to_packets.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_avalon_st_packets_to_bytes_1922/synth/altera_avalon_st_packets_to_bytes.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_avalon_st_packets_to_bytes_1922/synth/altera_avalon_st_packets_to_bytes.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_avalon_packets_to_master_1922/synth/altera_avalon_packets_to_master.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_avalon_packets_to_master_1922/synth/altera_avalon_packets_to_master.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18237): File "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_synchronizer.v" is a duplicate of already analyzed file "/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_synchronizer.v" (same filename, same library name and same md5 digest). Skipping analysis of this file.
+Info (18437): Verilog HDL info at qsys_top_altera_merlin_axi_slave_ni_19135_52afali.sv(2170): previous definition of module module burst_split_4k is here File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/qsys_top/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_19135_52afali.sv Line: 2170
+Info (18437): Verilog HDL info at qsys_top_altera_merlin_axi_slave_ni_19135_52afali.sv(2343): previous definition of module module wr_burst_split_4k is here File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/qsys_top/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_19135_52afali.sv Line: 2343
+Info (18437): Verilog HDL info at qsys_top_altera_merlin_axi_slave_ni_19135_52afali.sv(2170): previous definition of module module burst_split_4k is here File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/qsys_top/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_19135_52afali.sv Line: 2170
+Info (18437): Verilog HDL info at qsys_top_altera_merlin_axi_slave_ni_19135_52afali.sv(2343): previous definition of module module wr_burst_split_4k is here File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/qsys_top/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_19135_52afali.sv Line: 2343
+Info (16884): Verilog HDL info at emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_cal_234_2p3bwmq.sv(17): analyzing included file hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/emif_io96b_cal_234/synth/cal_io96b_interface.svh File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/emif_io96b_cal_234/synth/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_cal_234_2p3bwmq.sv Line: 17
+Info (19624): Verilog HDL info at emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_cal_234_2p3bwmq.sv(17): back to file 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/emif_io96b_cal_234/synth/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_cal_234_2p3bwmq.sv' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/emif_io96b_cal_234/synth/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_cal_234_2p3bwmq.sv Line: 17
+Info (16884): Verilog HDL info at emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy_arch_top.sv(17): analyzing included file hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/emif_io96b_lpddr4_510/synth/emif_io96b_interface.svh File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/emif_io96b_lpddr4_510/synth/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy_arch_top.sv Line: 17
+Info (19624): Verilog HDL info at emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy_arch_top.sv(17): back to file 'hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/emif_io96b_lpddr4_510/synth/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy_arch_top.sv' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/emif_io96b_lpddr4_510/synth/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy_arch_top.sv Line: 17
+Warning (16752): Verilog HDL warning at I2C_HDMI_Config.v(194): potential always loop found File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/fes_mailbox/I2C_HDMI_Config.v Line: 194
+Warning (16749): Verilog HDL warning at I2C_Controller.v(77): identifier I2C_SCLK_ is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/fes_mailbox/I2C_Controller.v Line: 77
+Info (16884): Verilog HDL info at fes_de25_mailbox.v(3): analyzing included file peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mailbox/fes_de25_mailbox_10/synth/generated/fes_de25_mailbox.vh File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mailbox/fes_de25_mailbox_10/synth/fes_de25_mailbox.v Line: 3
+Info (19624): Verilog HDL info at fes_de25_mailbox.v(3): back to file 'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mailbox/fes_de25_mailbox_10/synth/fes_de25_mailbox.v' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mailbox/fes_de25_mailbox_10/synth/fes_de25_mailbox.v Line: 3
+Info (16884): Verilog HDL info at fes_de25_ddr_probe.v(3): analyzing included file peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ddr_probe/fes_de25_ddr_probe_10/synth/generated/fes_de25_ddr_probe.vh File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ddr_probe/fes_de25_ddr_probe_10/synth/fes_de25_ddr_probe.v Line: 3
+Info (19624): Verilog HDL info at fes_de25_ddr_probe.v(3): back to file 'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ddr_probe/fes_de25_ddr_probe_10/synth/fes_de25_ddr_probe.v' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ddr_probe/fes_de25_ddr_probe_10/synth/fes_de25_ddr_probe.v Line: 3
+Info (16884): Verilog HDL info at fes_de25_computer.v(5): analyzing included file peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/generated/fes_de25_computer.vh File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_de25_computer.v Line: 5
+Info (19624): Verilog HDL info at fes_de25_computer.v(5): back to file 'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_de25_computer.v' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_de25_computer.v Line: 5
+Info (16884): Verilog HDL info at fes_de25_computer.v(6): analyzing included file peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_computer.vh File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_de25_computer.v Line: 6
+Info (19624): Verilog HDL info at fes_de25_computer.v(6): back to file 'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_de25_computer.v' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_de25_computer.v Line: 6
+Info (16884): Verilog HDL info at fes_de25_computer.v(7): analyzing included file peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_bus_pack.vh File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_de25_computer.v Line: 7
+Info (19624): Verilog HDL info at fes_de25_computer.v(7): back to file 'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_de25_computer.v' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_de25_computer.v Line: 7
+Info (16884): Verilog HDL info at fes_computer_mailbox.v(2): analyzing included file peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_computer.vh File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_computer_mailbox.v Line: 2
+Info (19624): Verilog HDL info at fes_computer_mailbox.v(2): back to file 'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_computer_mailbox.v' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_computer_mailbox.v Line: 2
+Info (16884): Verilog HDL info at zx81_machine.sv(7): analyzing included file peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_model.vh File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 7
+Info (19624): Verilog HDL info at zx81_machine.sv(7): back to file 'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 7
+Warning (16749): Verilog HDL warning at zx81_machine.sv(140): identifier nopgen is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 140
+Warning (16749): Verilog HDL warning at zx81_machine.sv(141): identifier io_dout is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 141
+Warning (16749): Verilog HDL warning at zx81_machine.sv(176): identifier tapeloader is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 176
+Warning (16749): Verilog HDL warning at zx81_machine.sv(180): identifier tape_loader_patch is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 180
+Warning (16749): Verilog HDL warning at zx81_machine.sv(186): identifier rom_e is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 186
+Warning (16749): Verilog HDL warning at zx81_machine.sv(187): identifier rom_out is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 187
+Warning (16749): Verilog HDL warning at zx81_machine.sv(188): identifier ram_out is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 188
+Warning (16749): Verilog HDL warning at zx81_machine.sv(201): identifier tapeloader is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 201
+Warning (16749): Verilog HDL warning at zx81_machine.sv(206): identifier tapeloader is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 206
+Warning (16749): Verilog HDL warning at zx81_machine.sv(207): identifier tapewrite_we is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 207
+Warning (16749): Verilog HDL warning at zx81_machine.sv(252): identifier ram_data_latch is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 252
+Warning (16749): Verilog HDL warning at zx81_machine.sv(455): identifier shifter_en is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 455
+Warning (16749): Verilog HDL warning at zx81_machine.sv(474): identifier hsync is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 474
+Warning (16749): Verilog HDL warning at zx81_machine.sv(489): identifier hsync is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 489
+Warning (16749): Verilog HDL warning at zx81_machine.sv(491): identifier vs is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 491
+Warning (16749): Verilog HDL warning at zx81_machine.sv(497): identifier NMIlatch is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 497
+Warning (16749): Verilog HDL warning at zx81_machine.sv(507): identifier NMIlatch is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 507
+Warning (16749): Verilog HDL warning at zx81_machine.sv(508): identifier NMIlatch is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 508
+Warning (16749): Verilog HDL warning at zx81_machine.sv(509): identifier hsync is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 509
+Warning (16749): Verilog HDL warning at zx81_machine.sv(514): identifier NMIlatch is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 514
+Warning (16749): Verilog HDL warning at zx81_machine.sv(520): identifier NMIlatch is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 520
+Warning (16749): Verilog HDL warning at zx81_machine.sv(522): identifier NMIlatch is used before its declaration File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/zx81_machine.sv Line: 522
+Info (16884): Verilog HDL info at shell.v(2): analyzing included file peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_pr_control/fes_de25_pr_control_10/synth/generated/fes_de25_pr_control.vh File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_pr_control/fes_de25_pr_control_10/synth/shell.v Line: 2
+Info (19624): Verilog HDL info at shell.v(2): back to file 'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_pr_control/fes_de25_pr_control_10/synth/shell.v' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_pr_control/fes_de25_pr_control_10/synth/shell.v Line: 2
+Info (16884): Verilog HDL info at personas.v(3): analyzing included file fes_link/generated/fes_de25_pr_control.vh File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/fes_link/personas.v Line: 3
+Info (19624): Verilog HDL info at personas.v(3): back to file 'fes_link/personas.v' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/fes_link/personas.v Line: 3
+Info (16884): Verilog HDL info at personas.v(4): analyzing included file fes_mailbox/zx81_bus_pack.vh File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/fes_link/personas.v Line: 4
+Info (19624): Verilog HDL info at personas.v(4): back to file 'fes_link/personas.v' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/fes_link/personas.v Line: 4
+Info: Elaborating from top-level entity "golden_top"
+Info (18235): Library search order is as follows: "altera_iopll_2110; pll; altera_avalon_pio_1924; dipsw_pio; rst_in; periph_rst_in; jtag_rst_in; altera_jtag_dc_streaming_191; timing_adapter_1950; altera_avalon_sc_fifo_1932; altera_avalon_st_bytes_to_packets_1922; altera_avalon_st_packets_to_bytes_1922; altera_avalon_packets_to_master_1922; channel_adapter_1922; altera_reset_controller_1925; altera_jtag_avalon_master_191; hps_f2sdram; altera_avalon_sysid_qsys_2000; sysid; altera_avalon_mm_bridge_2010; pb_cpu_0; led_pio; intel_user_rst_clkgate_101; user_rst_clkgate_0; button_pio; clk_100; intel_sundancemesa_hps_100; intel_sundancemesa_mpfe_100; intel_agilex_5_soc_1410; agilex_hps; altera_address_span_extender_1921; ext_hps_f2sdram_master; hps_m; intel_onchip_memory_200; ocm; f2sdram_adapter_10; f2sdram_adapter; fpga_m; periph_clk; jtag_clk; altera_merlin_master_translator_1931; altera_merlin_axi_translator_1988; altera_merlin_master_agent_1952; altera_merlin_axi_slave_ni_19135; altera_avalon_st_pipeline_stage_1930; altera_merlin_router_1921; altera_merlin_traffic_limiter_1922; altera_merlin_demultiplexer_1921; altera_merlin_multiplexer_1922; altera_merlin_width_adapter_1970; altera_mm_interconnect_1920; altera_merlin_axi_master_ni_19122; altera_merlin_slave_translator_191; altera_merlin_slave_agent_1940; altera_merlin_burst_adapter_1950; altera_irq_mapper_2001; qsys_top; jtag_subsys; hps_subsys; peripheral_subsys; emif_io96b_hps_emif_io96b_hps_510_z7xh4ha; alt_mem_if_jtag_master_191; emif_io96b_cal_234; emif_io96b_lpddr4_510; emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4; altera_gpio_core10_ph2_2210; altera_gpio_2300; emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_refclk_gpio; qsys_interface_bridge_10; emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_refclk_bridge; emif_io96b_hps; altera_ace5lite_cache_coherency_translator_217; qsys_top_ace5lite_cache_coherency_translator_0; sys_pll; fes_de25_mailbox_10; peripheral_subsys_fes_mailbox; fes_de25_ddr_probe_10; peripheral_subsys_fes_ddr_probe; peripheral_subsys_fes_computer_pixel_clk; fes_de25_computer_10; peripheral_subsys_fes_computer; fes_de25_pr_control_10; peripheral_subsys_fes_pr_control". Quartus will look for undefined design units in your libraries in that order. To modify the ordering, please specify a semi-colon separated library list using the assignment LIBRARY_SEARCH_ORDER.
+Info (19337): VHDL info at altera_agilex_config_reset_release_endpoint.vhd(122): executing entity "altera_agilex_config_reset_release_endpoint" with architecture "rtl" File: /data/altera_pro/26.3/quartus/libraries/megafunctions/altera_agilex_config_reset_release_endpoint.vhd Line: 122
+Info (19337): VHDL info at altera_fabric_endpoint.vhd(126): executing entity "altera_fabric_endpoint(send_width=0,receive_width=1,settings="{fabric agilex_config_reset_release dir agent psig 142e1a3c}")(1,60)" with architecture "rtl" File: /data/altera_pro/26.3/quartus/libraries/megafunctions/altera_fabric_endpoint.vhd Line: 126
+Info (19337): VHDL info at sld_jtag_endpoint_adapter.vhd(96): executing entity "sld_jtag_endpoint_adapter(sld_ir_width=3,sld_auto_instance_index="YES",sld_node_info_internal=203451904)(1,1)(1,3)" with architecture "rtl" File: /data/altera_pro/26.3/quartus/libraries/megafunctions/sld_jtag_endpoint_adapter.vhd Line: 96
+Info (19337): VHDL info at altera_sld_agent_endpoint.vhd(122): executing entity "altera_sld_agent_endpoint(mfr_code=110,type_code=132,version=1,ir_width=3)(1,1)(1,1)(1,1)" with architecture "rtl" File: /data/altera_pro/26.3/quartus/libraries/megafunctions/altera_sld_agent_endpoint.vhd Line: 122
+Info (19337): VHDL info at altera_fabric_endpoint.vhd(126): executing entity "altera_fabric_endpoint(send_width=5,receive_width=26,settings="{fabric sld dir agent mfr_code 110 type_code 132 version 1 instance -1 ir_width 3 bridge_agent 0 prefer_host { } type_name {0} instance_name {0} psig 9b67919e}")(1,159)" with architecture "rtl" File: /data/altera_pro/26.3/quartus/libraries/megafunctions/altera_fabric_endpoint.vhd Line: 126
+Info (22567): Verilog HDL info at generic_mlab.sv(50): extracting RAM of size '432 bits' for identifier 'mem' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/generic_mlab.sv Line: 50
+Info (22567): Verilog HDL info at generic_mlab.sv(50): extracting RAM of size '296 bits' for identifier 'mem' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/generic_mlab.sv Line: 50
+Info (22567): Verilog HDL info at generic_mlab.sv(50): extracting RAM of size '504 bits' for identifier 'mem' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/generic_mlab.sv Line: 50
+Info (22567): Verilog HDL info at generic_mlab.sv(50): extracting RAM of size '1160 bits' for identifier 'mem' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/generic_mlab.sv Line: 50
+Info (22567): Verilog HDL info at generic_mlab.sv(50): extracting RAM of size '120 bits' for identifier 'mem' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/generic_mlab.sv Line: 50
+Info (22567): Verilog HDL info at generic_mlab.sv(50): extracting RAM of size '2176 bits' for identifier 'mem' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/generic_mlab.sv Line: 50
+Info (22567): Verilog HDL info at generic_mlab.sv(50): extracting RAM of size '968 bits' for identifier 'mem' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/generic_mlab.sv Line: 50
+Info (22567): Verilog HDL info at generic_mlab.sv(50): extracting RAM of size '776 bits' for identifier 'mem' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/generic_mlab.sv Line: 50
+Info (22567): Verilog HDL info at generic_mlab.sv(50): extracting RAM of size '2376 bits' for identifier 'mem' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/generic_mlab.sv Line: 50
+Warning (13448): Verilog HDL Case Statement warning at fes_z80_engine.sv(268): honored parallel_case synthesis attribute - differences between design synthesis and simulation may occur File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_z80_engine.sv Line: 268
+Warning (13448): Verilog HDL Case Statement warning at fes_z80_engine.sv(307): honored parallel_case synthesis attribute - differences between design synthesis and simulation may occur File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_z80_engine.sv Line: 307
+Warning (13448): Verilog HDL Case Statement warning at fes_z80_engine.sv(834): honored parallel_case synthesis attribute - differences between design synthesis and simulation may occur File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_z80_engine.sv Line: 834
+Warning (13448): Verilog HDL Case Statement warning at fes_z80_engine.sv(697): honored parallel_case synthesis attribute - differences between design synthesis and simulation may occur File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_z80_engine.sv Line: 697
+Info (22567): Verilog HDL info at video.v(11): extracting RAM of size '177120 bits' for identifier 'fb' File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/video.v Line: 11
+Warning (13469): Verilog HDL assignment warning at video.v(38): truncated value with size 17 to match size of target (15) File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/video.v Line: 38
+Warning (13469): Verilog HDL assignment warning at video.v(98): truncated value with size 10 to match size of target (9) File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/video.v Line: 98
+Warning (13469): Verilog HDL assignment warning at video.v(100): truncated value with size 17 to match size of target (15) File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/video.v Line: 100
+Warning (24541): Verilog HDL warning at golden_top.v(240): actual bit length 7 differs from formal bit length 3 for port "led_pio_external_connection_in_port" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 240
+Warning (24541): Verilog HDL warning at golden_top.v(241): actual bit length 7 differs from formal bit length 3 for port "led_pio_external_connection_out_port" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 241
+Warning (24541): Verilog HDL warning at golden_top.v(243): actual bit length 2 differs from formal bit length 4 for port "button_pio_external_connection_export" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 243
+Warning (13469): Verilog HDL assignment warning at I2C_HDMI_Config.v(48): truncated value with size 17 to match size of target (16) File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/fes_mailbox/I2C_HDMI_Config.v Line: 48
+Warning (13469): Verilog HDL assignment warning at I2C_Controller.v(79): truncated value with size 32 to match size of target (1) File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/fes_mailbox/I2C_Controller.v Line: 79
+Warning (13469): Verilog HDL assignment warning at I2C_Controller.v(92): truncated value with size 7 to match size of target (6) File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/fes_mailbox/I2C_Controller.v Line: 92
+Warning (13469): Verilog HDL assignment warning at I2C_HDMI_Config.v(98): truncated value with size 7 to match size of target (6) File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/fes_mailbox/I2C_HDMI_Config.v Line: 98
+Info (13246): Can't recognize finite state machine "mgr_c_st" because it has a complex reset state
+Info (13246): Can't recognize finite state machine "sub_c_st" because it has a complex reset state
+Info: Found 516 design entities
+Warning (21610): Output port "DRAM_CLK" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 56
+Warning (21610): Output port "DRAM_CKE" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 57
+Warning (21610): Output port "DRAM_ADDR[0..12]" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 58
+Warning (21610): Output port "DRAM_BA[0..1]" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 59
+Warning (21610): Output port "DRAM_LDQM" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 61
+Warning (21610): Output port "DRAM_UDQM" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 62
+Warning (21610): Output port "DRAM_CS_n[0..1]" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 63
+Warning (21610): Output port "DRAM_WE_n" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 64
+Warning (21610): Output port "DRAM_CAS_n" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 65
+Warning (21610): Output port "DRAM_RAS_n" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 66
+Warning (21610): Output port "FPGA_UART_TX" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 127
+Warning (21610): Output port "ADC_SCK" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 131
+Warning (21610): Output port "ADC_SDI" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 133
+Warning (21610): Output port "ADC_CS_n" in top-level entity "golden_top" does not have a driver. Connecting to the default value "gnd". File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 134
+Info: There are 812 partitions after elaboration.
+Info: Running rule checking for Agilex5 protocol IPs...
+Info (11170): Starting IP generation for the debug fabric: alt_sld_fab_0.
+Info (11172): ***************************************************************
+Info (11172): Quartus is a registered trademark of Altera Corporation in the
+Info (11172): US and other countries.  Portions of the Quartus Prime software
+Info (11172): Code, and other portions of the code included in this download
+Info (11172): Or on this DVD, are licensed to Altera Corporation and are the
+Info (11172): Copyrighted property of third parties. For license details,
+Info (11172): Refer to the Altera Software License Subscription Agreements 
+Info (11172): On the Quartus Prime software download page.
+Info (11172): ***************************************************************
+Info (11172): Add_instance splitter altera_sld_splitter
+Info (11172): Set_instance_parameter_value splitter ADD_INTERFACE_ASGN 1
+Info (11172): Send_message info {SLD fabric agents which did not specify prefer_host were connected to JTAG}
+Info (11172): Add_instance jtagpins altera_jtag_wys_atom
+Info (11172): Add_instance sldfabric altera_sld_jtag_hub
+Info (11172): Set_instance_parameter_value sldfabric COUNT 3
+Info (11172): Set_instance_parameter_value sldfabric SETTINGS {{mfr_code 110 type_code 132 version 1 instance 0 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {mfr_code 110 type_code 132 version 1 instance 1 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {mfr_code 110 type_code 132 version 1 instance 2 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} }
+Info (11172): Set_instance_parameter_value sldfabric CONN_INDEX 0
+Info (11172): Set_instance_parameter_value sldfabric ENABLE_SOFT_CORE_CONTROLLER 0
+Info (11172): Set_instance_parameter_value sldfabric BRIDGE_HOST 0
+Info (11172): Set_instance_parameter_value sldfabric USE_TCK_ENA 0
+Info (11172): Set_instance_parameter_value sldfabric NEGEDGE_TDO_LATCH 0
+Info (11172): Add_instance ident altera_connection_identification_hub
+Info (11172): Set_instance_parameter_value ident DESIGN_HASH 9cb37514639458561db1
+Info (11172): Set_instance_parameter_value ident COUNT 1
+Info (11172): Set_instance_parameter_value ident SETTINGS {{width 4 latency 0 type_name 0 instance_name 0} }
+Info (11172): Add_instance configresetfabric intel_configuration_debug_reset_release_hub
+Info (11172): Set_instance_parameter_value configresetfabric COUNT 1
+Info (11172): Set_instance_parameter_value configresetfabric SETTINGS {{is_source 0 type_name 0 instance_name 0} }
+Info (11172): Add_instance agilexconfigreset intel_agilex_reset_release_from_sdm
+Info (11172): Set_instance_parameter_value agilexconfigreset SETTINGS {{type_name 0 instance_name 0} }
+Info (11172): Set_instance_parameter_value agilexconfigreset COUNT 1
+Info (11172): Set_instance_parameter_value splitter FRAGMENTS {{{name conf_reset type reset dir end ports { {conf_reset reset in 1 0} } properties { {synchronousEdges {None} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_1} } moduleassign {debug.virtualInterface.link_1 {debug.endpointLink {fabric sld index 1} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_2} } moduleassign {debug.virtualInterface.link_2 {debug.endpointLink {fabric sld index 2} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_3} } moduleassign {debug.virtualInterface.link_3 {debug.endpointLink {fabric sld index 3} } } } } }
+Info (11172): Add_connection jtagpins.clock sldfabric.clock clock
+Info (11172): Add_connection jtagpins.node sldfabric.node conduit
+Info (11172): Add_connection sldfabric.clock_0 splitter.clock_1 clock
+Info (11172): Add_connection sldfabric.node_0 splitter.node_1 conduit
+Info (11172): Add_connection sldfabric.clock_1 splitter.clock_2 clock
+Info (11172): Add_connection sldfabric.node_1 splitter.node_2 conduit
+Info (11172): Add_connection sldfabric.clock_2 splitter.clock_3 clock
+Info (11172): Add_connection sldfabric.node_2 splitter.node_3 conduit
+Info (11172): Add_connection sldfabric.ident ident.ident_0 conduit
+Info (11172): Add_connection configresetfabric.conf_reset_out_0 sldfabric.conf_reset_out reset
+Info (11172): Add_connection agilexconfigreset.conf_reset_0 splitter.conf_reset_0 reset
+Info (11172): Set_parameter_value COMPOSED_SETTINGS {{fabric agilex_config_reset_release dir agent type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 0 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 1 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 2 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} }
+Info (11172): Add_instance splitter altera_sld_splitter
+Info (11172): Set_instance_parameter_value splitter ADD_INTERFACE_ASGN 1
+Info (11172): Send_message info {SLD fabric agents which did not specify prefer_host were connected to JTAG}
+Info (11172): Add_instance jtagpins altera_jtag_wys_atom
+Info (11172): Add_instance sldfabric altera_sld_jtag_hub
+Info (11172): Set_instance_parameter_value sldfabric COUNT 3
+Info (11172): Set_instance_parameter_value sldfabric SETTINGS {{mfr_code 110 type_code 132 version 1 instance 0 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {mfr_code 110 type_code 132 version 1 instance 1 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {mfr_code 110 type_code 132 version 1 instance 2 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} }
+Info (11172): Set_instance_parameter_value sldfabric CONN_INDEX 0
+Info (11172): Set_instance_parameter_value sldfabric ENABLE_SOFT_CORE_CONTROLLER 0
+Info (11172): Set_instance_parameter_value sldfabric BRIDGE_HOST 0
+Info (11172): Set_instance_parameter_value sldfabric USE_TCK_ENA 0
+Info (11172): Set_instance_parameter_value sldfabric NEGEDGE_TDO_LATCH 0
+Info (11172): Add_instance ident altera_connection_identification_hub
+Info (11172): Set_instance_parameter_value ident DESIGN_HASH 9cb37514639458561db1
+Info (11172): Set_instance_parameter_value ident COUNT 1
+Info (11172): Set_instance_parameter_value ident SETTINGS {{width 4 latency 0 type_name 0 instance_name 0} }
+Info (11172): Add_instance configresetfabric intel_configuration_debug_reset_release_hub
+Info (11172): Set_instance_parameter_value configresetfabric COUNT 1
+Info (11172): Set_instance_parameter_value configresetfabric SETTINGS {{is_source 0 type_name 0 instance_name 0} }
+Info (11172): Add_instance agilexconfigreset intel_agilex_reset_release_from_sdm
+Info (11172): Set_instance_parameter_value agilexconfigreset SETTINGS {{type_name 0 instance_name 0} }
+Info (11172): Set_instance_parameter_value agilexconfigreset COUNT 1
+Info (11172): Set_instance_parameter_value splitter FRAGMENTS {{{name conf_reset type reset dir end ports { {conf_reset reset in 1 0} } properties { {synchronousEdges {None} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_1} } moduleassign {debug.virtualInterface.link_1 {debug.endpointLink {fabric sld index 1} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_2} } moduleassign {debug.virtualInterface.link_2 {debug.endpointLink {fabric sld index 2} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_3} } moduleassign {debug.virtualInterface.link_3 {debug.endpointLink {fabric sld index 3} } } } } }
+Info (11172): Add_connection jtagpins.clock sldfabric.clock clock
+Info (11172): Add_connection jtagpins.node sldfabric.node conduit
+Info (11172): Add_connection sldfabric.clock_0 splitter.clock_1 clock
+Info (11172): Add_connection sldfabric.node_0 splitter.node_1 conduit
+Info (11172): Add_connection sldfabric.clock_1 splitter.clock_2 clock
+Info (11172): Add_connection sldfabric.node_1 splitter.node_2 conduit
+Info (11172): Add_connection sldfabric.clock_2 splitter.clock_3 clock
+Info (11172): Add_connection sldfabric.node_2 splitter.node_3 conduit
+Info (11172): Add_connection sldfabric.ident ident.ident_0 conduit
+Info (11172): Add_connection configresetfabric.conf_reset_out_0 sldfabric.conf_reset_out reset
+Info (11172): Add_connection agilexconfigreset.conf_reset_0 splitter.conf_reset_0 reset
+Info (11172): Set_parameter_value COMPOSED_SETTINGS {{fabric agilex_config_reset_release dir agent type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 0 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 1 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 2 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} }
+Info (11172): Alt_sld_fab_0.alt_sld_fab_0.alt_sld_fab_0: SLD fabric agents which did not specify prefer_host were connected to JTAG
+Info (11172): Deploying alt_sld_fab_0 to /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/dni/sandboxes/powerboat_1697_0/sld/ipgen/alt_sld_fab_0.ip
+Info (11172): ***************************************************************
+Info (11172): Quartus is a registered trademark of Altera Corporation in the
+Info (11172): US and other countries.  Portions of the Quartus Prime software
+Info (11172): Code, and other portions of the code included in this download
+Info (11172): Or on this DVD, are licensed to Altera Corporation and are the
+Info (11172): Copyrighted property of third parties. For license details,
+Info (11172): Refer to the Altera Software License Subscription Agreements 
+Info (11172): On the Quartus Prime software download page.
+Info (11172): ***************************************************************
+Info (11172): Add_instance splitter altera_sld_splitter
+Info (11172): Set_instance_parameter_value splitter ADD_INTERFACE_ASGN 1
+Info (11172): Send_message info {SLD fabric agents which did not specify prefer_host were connected to JTAG}
+Info (11172): Add_instance jtagpins altera_jtag_wys_atom
+Info (11172): Add_instance sldfabric altera_sld_jtag_hub
+Info (11172): Set_instance_parameter_value sldfabric COUNT 3
+Info (11172): Set_instance_parameter_value sldfabric SETTINGS {{mfr_code 110 type_code 132 version 1 instance 0 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {mfr_code 110 type_code 132 version 1 instance 1 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {mfr_code 110 type_code 132 version 1 instance 2 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} }
+Info (11172): Set_instance_parameter_value sldfabric CONN_INDEX 0
+Info (11172): Set_instance_parameter_value sldfabric ENABLE_SOFT_CORE_CONTROLLER 0
+Info (11172): Set_instance_parameter_value sldfabric BRIDGE_HOST 0
+Info (11172): Set_instance_parameter_value sldfabric USE_TCK_ENA 0
+Info (11172): Set_instance_parameter_value sldfabric NEGEDGE_TDO_LATCH 0
+Info (11172): Add_instance ident altera_connection_identification_hub
+Info (11172): Set_instance_parameter_value ident DESIGN_HASH 9cb37514639458561db1
+Info (11172): Set_instance_parameter_value ident COUNT 1
+Info (11172): Set_instance_parameter_value ident SETTINGS {{width 4 latency 0 type_name 0 instance_name 0} }
+Info (11172): Add_instance configresetfabric intel_configuration_debug_reset_release_hub
+Info (11172): Set_instance_parameter_value configresetfabric COUNT 1
+Info (11172): Set_instance_parameter_value configresetfabric SETTINGS {{is_source 0 type_name 0 instance_name 0} }
+Info (11172): Add_instance agilexconfigreset intel_agilex_reset_release_from_sdm
+Info (11172): Set_instance_parameter_value agilexconfigreset SETTINGS {{type_name 0 instance_name 0} }
+Info (11172): Set_instance_parameter_value agilexconfigreset COUNT 1
+Info (11172): Set_instance_parameter_value splitter FRAGMENTS {{{name conf_reset type reset dir end ports { {conf_reset reset in 1 0} } properties { {synchronousEdges {None} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_1} } moduleassign {debug.virtualInterface.link_1 {debug.endpointLink {fabric sld index 1} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_2} } moduleassign {debug.virtualInterface.link_2 {debug.endpointLink {fabric sld index 2} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_3} } moduleassign {debug.virtualInterface.link_3 {debug.endpointLink {fabric sld index 3} } } } } }
+Info (11172): Add_connection jtagpins.clock sldfabric.clock clock
+Info (11172): Add_connection jtagpins.node sldfabric.node conduit
+Info (11172): Add_connection sldfabric.clock_0 splitter.clock_1 clock
+Info (11172): Add_connection sldfabric.node_0 splitter.node_1 conduit
+Info (11172): Add_connection sldfabric.clock_1 splitter.clock_2 clock
+Info (11172): Add_connection sldfabric.node_1 splitter.node_2 conduit
+Info (11172): Add_connection sldfabric.clock_2 splitter.clock_3 clock
+Info (11172): Add_connection sldfabric.node_2 splitter.node_3 conduit
+Info (11172): Add_connection sldfabric.ident ident.ident_0 conduit
+Info (11172): Add_connection configresetfabric.conf_reset_out_0 sldfabric.conf_reset_out reset
+Info (11172): Add_connection agilexconfigreset.conf_reset_0 splitter.conf_reset_0 reset
+Info (11172): Set_parameter_value COMPOSED_SETTINGS {{fabric agilex_config_reset_release dir agent type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 0 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 1 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 2 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} }
+Info (11172): Add_instance splitter altera_sld_splitter
+Info (11172): Set_instance_parameter_value splitter ADD_INTERFACE_ASGN 1
+Info (11172): Send_message info {SLD fabric agents which did not specify prefer_host were connected to JTAG}
+Info (11172): Add_instance jtagpins altera_jtag_wys_atom
+Info (11172): Add_instance sldfabric altera_sld_jtag_hub
+Info (11172): Set_instance_parameter_value sldfabric COUNT 3
+Info (11172): Set_instance_parameter_value sldfabric SETTINGS {{mfr_code 110 type_code 132 version 1 instance 0 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {mfr_code 110 type_code 132 version 1 instance 1 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {mfr_code 110 type_code 132 version 1 instance 2 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} }
+Info (11172): Set_instance_parameter_value sldfabric CONN_INDEX 0
+Info (11172): Set_instance_parameter_value sldfabric ENABLE_SOFT_CORE_CONTROLLER 0
+Info (11172): Set_instance_parameter_value sldfabric BRIDGE_HOST 0
+Info (11172): Set_instance_parameter_value sldfabric USE_TCK_ENA 0
+Info (11172): Set_instance_parameter_value sldfabric NEGEDGE_TDO_LATCH 0
+Info (11172): Add_instance ident altera_connection_identification_hub
+Info (11172): Set_instance_parameter_value ident DESIGN_HASH 9cb37514639458561db1
+Info (11172): Set_instance_parameter_value ident COUNT 1
+Info (11172): Set_instance_parameter_value ident SETTINGS {{width 4 latency 0 type_name 0 instance_name 0} }
+Info (11172): Add_instance configresetfabric intel_configuration_debug_reset_release_hub
+Info (11172): Set_instance_parameter_value configresetfabric COUNT 1
+Info (11172): Set_instance_parameter_value configresetfabric SETTINGS {{is_source 0 type_name 0 instance_name 0} }
+Info (11172): Add_instance agilexconfigreset intel_agilex_reset_release_from_sdm
+Info (11172): Set_instance_parameter_value agilexconfigreset SETTINGS {{type_name 0 instance_name 0} }
+Info (11172): Set_instance_parameter_value agilexconfigreset COUNT 1
+Info (11172): Set_instance_parameter_value splitter FRAGMENTS {{{name conf_reset type reset dir end ports { {conf_reset reset in 1 0} } properties { {synchronousEdges {None} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_1} } moduleassign {debug.virtualInterface.link_1 {debug.endpointLink {fabric sld index 1} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_2} } moduleassign {debug.virtualInterface.link_2 {debug.endpointLink {fabric sld index 2} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_3} } moduleassign {debug.virtualInterface.link_3 {debug.endpointLink {fabric sld index 3} } } } } }
+Info (11172): Add_connection jtagpins.clock sldfabric.clock clock
+Info (11172): Add_connection jtagpins.node sldfabric.node conduit
+Info (11172): Add_connection sldfabric.clock_0 splitter.clock_1 clock
+Info (11172): Add_connection sldfabric.node_0 splitter.node_1 conduit
+Info (11172): Add_connection sldfabric.clock_1 splitter.clock_2 clock
+Info (11172): Add_connection sldfabric.node_1 splitter.node_2 conduit
+Info (11172): Add_connection sldfabric.clock_2 splitter.clock_3 clock
+Info (11172): Add_connection sldfabric.node_2 splitter.node_3 conduit
+Info (11172): Add_connection sldfabric.ident ident.ident_0 conduit
+Info (11172): Add_connection configresetfabric.conf_reset_out_0 sldfabric.conf_reset_out reset
+Info (11172): Add_connection agilexconfigreset.conf_reset_0 splitter.conf_reset_0 reset
+Info (11172): Set_parameter_value COMPOSED_SETTINGS {{fabric agilex_config_reset_release dir agent type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 0 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 1 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 2 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} }
+Info (11172): Saving generation log to /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/dni/sandboxes/powerboat_1697_0/sld/ipgen/alt_sld_fab_0/alt_sld_fab_0_generation.rpt
+Info (11172): Generated by version: 26.3 build 114
+Info (11172): Starting: Create HDL design files for synthesis
+Info (11172): Qsys-generate /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/dni/sandboxes/powerboat_1697_0/sld/ipgen/alt_sld_fab_0.ip --synthesis=VERILOG --output-directory=/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/dni/sandboxes/powerboat_1697_0/sld/ipgen/alt_sld_fab_0 --family="Agilex 5" --part=A5EB013BB23BE4SCS
+Info (11172): Add_instance splitter altera_sld_splitter
+Info (11172): Set_instance_parameter_value splitter ADD_INTERFACE_ASGN 1
+Info (11172): Send_message info {SLD fabric agents which did not specify prefer_host were connected to JTAG}
+Info (11172): Add_instance jtagpins altera_jtag_wys_atom
+Info (11172): Add_instance sldfabric altera_sld_jtag_hub
+Info (11172): Set_instance_parameter_value sldfabric COUNT 3
+Info (11172): Set_instance_parameter_value sldfabric SETTINGS {{mfr_code 110 type_code 132 version 1 instance 0 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {mfr_code 110 type_code 132 version 1 instance 1 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {mfr_code 110 type_code 132 version 1 instance 2 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} }
+Info (11172): Set_instance_parameter_value sldfabric CONN_INDEX 0
+Info (11172): Set_instance_parameter_value sldfabric ENABLE_SOFT_CORE_CONTROLLER 0
+Info (11172): Set_instance_parameter_value sldfabric BRIDGE_HOST 0
+Info (11172): Set_instance_parameter_value sldfabric USE_TCK_ENA 0
+Info (11172): Set_instance_parameter_value sldfabric NEGEDGE_TDO_LATCH 0
+Info (11172): Add_instance ident altera_connection_identification_hub
+Info (11172): Set_instance_parameter_value ident DESIGN_HASH 9cb37514639458561db1
+Info (11172): Set_instance_parameter_value ident COUNT 1
+Info (11172): Set_instance_parameter_value ident SETTINGS {{width 4 latency 0 type_name 0 instance_name 0} }
+Info (11172): Add_instance configresetfabric intel_configuration_debug_reset_release_hub
+Info (11172): Set_instance_parameter_value configresetfabric COUNT 1
+Info (11172): Set_instance_parameter_value configresetfabric SETTINGS {{is_source 0 type_name 0 instance_name 0} }
+Info (11172): Add_instance agilexconfigreset intel_agilex_reset_release_from_sdm
+Info (11172): Set_instance_parameter_value agilexconfigreset SETTINGS {{type_name 0 instance_name 0} }
+Info (11172): Set_instance_parameter_value agilexconfigreset COUNT 1
+Info (11172): Set_instance_parameter_value splitter FRAGMENTS {{{name conf_reset type reset dir end ports { {conf_reset reset in 1 0} } properties { {synchronousEdges {None} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_1} } moduleassign {debug.virtualInterface.link_1 {debug.endpointLink {fabric sld index 1} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_2} } moduleassign {debug.virtualInterface.link_2 {debug.endpointLink {fabric sld index 2} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_3} } moduleassign {debug.virtualInterface.link_3 {debug.endpointLink {fabric sld index 3} } } } } }
+Info (11172): Add_connection jtagpins.clock sldfabric.clock clock
+Info (11172): Add_connection jtagpins.node sldfabric.node conduit
+Info (11172): Add_connection sldfabric.clock_0 splitter.clock_1 clock
+Info (11172): Add_connection sldfabric.node_0 splitter.node_1 conduit
+Info (11172): Add_connection sldfabric.clock_1 splitter.clock_2 clock
+Info (11172): Add_connection sldfabric.node_1 splitter.node_2 conduit
+Info (11172): Add_connection sldfabric.clock_2 splitter.clock_3 clock
+Info (11172): Add_connection sldfabric.node_2 splitter.node_3 conduit
+Info (11172): Add_connection sldfabric.ident ident.ident_0 conduit
+Info (11172): Add_connection configresetfabric.conf_reset_out_0 sldfabric.conf_reset_out reset
+Info (11172): Add_connection agilexconfigreset.conf_reset_0 splitter.conf_reset_0 reset
+Info (11172): Set_parameter_value COMPOSED_SETTINGS {{fabric agilex_config_reset_release dir agent type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 0 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 1 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 2 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} }
+Info (11172): Add_instance splitter altera_sld_splitter
+Info (11172): Set_instance_parameter_value splitter ADD_INTERFACE_ASGN 1
+Info (11172): Send_message info {SLD fabric agents which did not specify prefer_host were connected to JTAG}
+Info (11172): Add_instance jtagpins altera_jtag_wys_atom
+Info (11172): Add_instance sldfabric altera_sld_jtag_hub
+Info (11172): Set_instance_parameter_value sldfabric COUNT 3
+Info (11172): Set_instance_parameter_value sldfabric SETTINGS {{mfr_code 110 type_code 132 version 1 instance 0 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {mfr_code 110 type_code 132 version 1 instance 1 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {mfr_code 110 type_code 132 version 1 instance 2 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} }
+Info (11172): Set_instance_parameter_value sldfabric CONN_INDEX 0
+Info (11172): Set_instance_parameter_value sldfabric ENABLE_SOFT_CORE_CONTROLLER 0
+Info (11172): Set_instance_parameter_value sldfabric BRIDGE_HOST 0
+Info (11172): Set_instance_parameter_value sldfabric USE_TCK_ENA 0
+Info (11172): Set_instance_parameter_value sldfabric NEGEDGE_TDO_LATCH 0
+Info (11172): Add_instance ident altera_connection_identification_hub
+Info (11172): Set_instance_parameter_value ident DESIGN_HASH 9cb37514639458561db1
+Info (11172): Set_instance_parameter_value ident COUNT 1
+Info (11172): Set_instance_parameter_value ident SETTINGS {{width 4 latency 0 type_name 0 instance_name 0} }
+Info (11172): Add_instance configresetfabric intel_configuration_debug_reset_release_hub
+Info (11172): Set_instance_parameter_value configresetfabric COUNT 1
+Info (11172): Set_instance_parameter_value configresetfabric SETTINGS {{is_source 0 type_name 0 instance_name 0} }
+Info (11172): Add_instance agilexconfigreset intel_agilex_reset_release_from_sdm
+Info (11172): Set_instance_parameter_value agilexconfigreset SETTINGS {{type_name 0 instance_name 0} }
+Info (11172): Set_instance_parameter_value agilexconfigreset COUNT 1
+Info (11172): Set_instance_parameter_value splitter FRAGMENTS {{{name conf_reset type reset dir end ports { {conf_reset reset in 1 0} } properties { {synchronousEdges {None} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_1} } moduleassign {debug.virtualInterface.link_1 {debug.endpointLink {fabric sld index 1} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_2} } moduleassign {debug.virtualInterface.link_2 {debug.endpointLink {fabric sld index 2} } } } } {{name clock type clock dir end ports { {tck clk in 1 0} } } {name node type conduit dir end ports { {tms tms in 1 1} {tdi tdi in 1 2} {tdo tdo out 1 0} {ena ena in 1 3} {usr1 usr1 in 1 4} {clr clr in 1 5} {clrn clrn in 1 6} {jtag_state_tlr jtag_state_tlr in 1 7} {jtag_state_rti jtag_state_rti in 1 8} {jtag_state_sdrs jtag_state_sdrs in 1 9} {jtag_state_cdr jtag_state_cdr in 1 10} {jtag_state_sdr jtag_state_sdr in 1 11} {jtag_state_e1dr jtag_state_e1dr in 1 12} {jtag_state_pdr jtag_state_pdr in 1 13} {jtag_state_e2dr jtag_state_e2dr in 1 14} {jtag_state_udr jtag_state_udr in 1 15} {jtag_state_sirs jtag_state_sirs in 1 16} {jtag_state_cir jtag_state_cir in 1 17} {jtag_state_sir jtag_state_sir in 1 18} {jtag_state_e1ir jtag_state_e1ir in 1 19} {jtag_state_pir jtag_state_pir in 1 20} {jtag_state_e2ir jtag_state_e2ir in 1 21} {jtag_state_uir jtag_state_uir in 1 22} {ir_in ir_in in 3 23} {irq irq out 1 1} {ir_out ir_out out 3 2} } clock clock assign {debug.controlledBy {link_3} } moduleassign {debug.virtualInterface.link_3 {debug.endpointLink {fabric sld index 3} } } } } }
+Info (11172): Add_connection jtagpins.clock sldfabric.clock clock
+Info (11172): Add_connection jtagpins.node sldfabric.node conduit
+Info (11172): Add_connection sldfabric.clock_0 splitter.clock_1 clock
+Info (11172): Add_connection sldfabric.node_0 splitter.node_1 conduit
+Info (11172): Add_connection sldfabric.clock_1 splitter.clock_2 clock
+Info (11172): Add_connection sldfabric.node_1 splitter.node_2 conduit
+Info (11172): Add_connection sldfabric.clock_2 splitter.clock_3 clock
+Info (11172): Add_connection sldfabric.node_2 splitter.node_3 conduit
+Info (11172): Add_connection sldfabric.ident ident.ident_0 conduit
+Info (11172): Add_connection configresetfabric.conf_reset_out_0 sldfabric.conf_reset_out reset
+Info (11172): Add_connection agilexconfigreset.conf_reset_0 splitter.conf_reset_0 reset
+Info (11172): Set_parameter_value COMPOSED_SETTINGS {{fabric agilex_config_reset_release dir agent type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 0 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 1 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} {fabric sld dir agent mfr_code 110 type_code 132 version 1 instance 2 ir_width 3 bridge_agent 0 prefer_host {} type_name 0 instance_name 0} }
+Info (11172): Alt_sld_fab_0.alt_sld_fab_0.alt_sld_fab_0: SLD fabric agents which did not specify prefer_host were connected to JTAG
+Info (11172): Alt_sld_fab_0: "Transforming system: alt_sld_fab_0"
+Info (11172): Alt_sld_fab_0: "Naming system components in system: alt_sld_fab_0"
+Info (11172): Alt_sld_fab_0: "Processing generation queue"
+Info (11172): Alt_sld_fab_0: "Generating: alt_sld_fab_0"
+Info (11172): Alt_sld_fab_0: "Generating: alt_sld_fab_0_alt_sld_fab_0_10_fkimwiy"
+Info (11172): Alt_sld_fab_0: "Generating: alt_sld_fab_0_alt_sld_fab_1920_6ox3y2y"
+Info (11172): Alt_sld_fab_0: "Generating: alt_sld_fab_0_altera_sld_splitter_1920_2duqtxq"
+Info (11172): Alt_sld_fab_0: "Generating: altera_jtag_wys_atom"
+Info (11172): Alt_sld_fab_0: "Generating: alt_sld_fab_0_altera_sld_jtag_hub_1920_mkoj4fi"
+Info (11172): Alt_sld_fab_0: "Generating: alt_sld_fab_0_altera_connection_identification_hub_1920_jn5sw3a"
+Info (11172): Alt_sld_fab_0: "Generating: alt_sld_fab_0_intel_configuration_debug_reset_release_hub_203_ku24h5y"
+Info (11172): Conf_reset_src: "Generating: conf_reset_src"
+Info (11172): Grounded_conf_reset_src: "Generating: grounded_conf_reset_src"
+Info (11172): Alt_sld_fab_0: "Generating: alt_sld_fab_0_intel_agilex_reset_release_from_sdm_203_poqcpxq"
+Info (11172): Alt_sld_fab_0: "Generating: conf_reset_src"
+Info (11172): Alt_sld_fab_0: "Generating: grounded_conf_reset_src"
+Info (11172): Alt_sld_fab_0: "Generating: intel_configuration_reset_release_for_debug"
+Info (11172): Alt_sld_fab_0: "Generating: intel_configuration_reset_release_to_debug_logic"
+Info (11172): Alt_sld_fab_0: Done "alt_sld_fab_0" with 13 modules, 14 files
+Info (11172): Finished: Create HDL design files for synthesis
+Info (11172): Generation of /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/dni/sandboxes/powerboat_1697_0/sld/ipgen/alt_sld_fab_0.ip (alt_sld_fab_0) took 478 ms
+Info (11171): Finished IP generation for the debug fabric: alt_sld_fab_0.
+Info (19337): VHDL info at alt_sld_fab_0_altera_sld_jtag_hub_1920_mkoj4fi.vhd(13): executing entity "alt_sld_fab_0_altera_sld_jtag_hub_1920_mkoj4fi(device_family="Agilex 5",n_node_ir_bits=5,node_info="000011000010000001101110000000100000110000100000011011100000000100001100001000000110111000000000",compilation_mode=0,force_pre_1_4_feature=0,negedge_tdo_latch=0)(1,8)(1,0)(1,96)" with architecture "rtl" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/dni/sandboxes/powerboat_1697_0/sld/ipgen/alt_sld_fab_0/altera_sld_jtag_hub_1920/synth/alt_sld_fab_0_altera_sld_jtag_hub_1920_mkoj4fi.vhd Line: 13
+Info (19337): VHDL info at sld_jtag_hub.vhd(89): executing entity "sld_jtag_hub(device_family="Agilex 5",n_node_ir_bits=5,node_info="000011000010000001101110000000100000110000100000011011100000000100001100001000000110111000000000",force_pre_1_4_feature=0,negedge_tdo_latch=0)(1,8)(95,0)" with architecture "rtl" File: /data/altera_pro/26.3/quartus/libraries/megafunctions/sld_jtag_hub.vhd Line: 89
+Info (19337): VHDL info at sld_hub.vhd(1554): executing entity "sld_shadow_jsm(ip_major_version=1,ip_minor_version=5)" with architecture "rtl" File: /data/altera_pro/26.3/quartus/libraries/megafunctions/sld_hub.vhd Line: 1554
+Info (19337): VHDL info at sld_rom_sr.vhd(5): executing entity "sld_rom_sr(n_bits=128)" with architecture "INFO_REG" File: /data/altera_pro/26.3/quartus/libraries/megafunctions/sld_rom_sr.vhd Line: 5
+Info: DA report generation in native DNI mode
+Info (21615): Running Design Assistant Rules for snapshot 'partitioned'
+Info: No waiver waived any violations
+Info (22360): Design Assistant Results: 28 of 29 enabled rules passed, and 1 rules was disabled, in snapshot 'partitioned'
+Info (21660): Design Assistant Results: 0 of 19 Critical severity rules issued violations in snapshot 'partitioned'
+Info (21661): Design Assistant Results: 0 of 1 High severity rules issued violations in snapshot 'partitioned'
+Info (21621): Design Assistant Results: 0 of 1 Medium severity rules issued violations in snapshot 'partitioned'
+Info (21622): Design Assistant Results: 1 of 8 Low severity rules issued violations in snapshot 'partitioned'. Please refer to DRC report '/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/output_files/base.drc.partitioned.rpt' for more information
+Info: Synthesizing partition "root_partition"
+Info (13014): Ignored 1485 buffer(s)
+    Info (13019): Ignored 1485 SOFT buffer(s)
+Warning (276027): Inferred dual-clock RAM node "soc_inst|subsys_periph|fes_computer|fes_computer|video|fb_rtl_0" from synchronous design logic.  The read-during-write behavior of a dual-clock RAM is undefined and may not match the behavior of the original design. File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/video.v Line: 11
+Info (19000): Inferred 13 megafunctions from design logic
+    Info (276038): Inferred altdpram megafunction from the following logic: "soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_hps|lwhps2fpga_axi4_rl_adp_inst|aw_inst_skid_buf|fifo_inst|a1|fifo_inst|mlab_inst|mem_rtl_0"  File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/generic_mlab.sv Line: 50
+        Info (286033): Parameter WIDTH set to 46
+        Info (286033): Parameter WIDTHAD set to 3
+        Info (286033): Parameter NUMWORDS set to 8
+        Info (286033): Parameter WRADDRESS_REG set to INCLOCK
+        Info (286033): Parameter WRADDRESS_ACLR set to OFF
+        Info (286033): Parameter WRCONTROL_REG set to INCLOCK
+        Info (286033): Parameter WRCONTROL_ACLR set to OFF
+        Info (286033): Parameter RDADDRESS_REG set to OUTCLOCK
+        Info (286033): Parameter RDADDRESS_ACLR set to OFF
+        Info (286033): Parameter RDCONTROL_REG set to UNREGISTERED
+        Info (286033): Parameter RDCONTROL_ACLR set to OFF
+        Info (286033): Parameter INDATA_REG set to INCLOCK
+        Info (286033): Parameter INDATA_ACLR set to OFF
+        Info (286033): Parameter OUTDATA_REG set to UNREGISTERED
+        Info (286033): Parameter OUTDATA_ACLR set to OFF
+        Info (286033): Parameter LPM_FILE set to UNUSED
+        Info (286033): Parameter RAM_BLOCK_TYPE set to LUTRAM
+    Info (276038): Inferred altdpram megafunction from the following logic: "soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_hps|lwhps2fpga_axi4_rl_adp_inst|ar_inst_skid_buf|fifo_inst|a1|fifo_inst|mlab_inst|mem_rtl_0"  File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/generic_mlab.sv Line: 50
+        Info (286033): Parameter WIDTH set to 46
+        Info (286033): Parameter WIDTHAD set to 3
+        Info (286033): Parameter NUMWORDS set to 8
+        Info (286033): Parameter WRADDRESS_REG set to INCLOCK
+        Info (286033): Parameter WRADDRESS_ACLR set to OFF
+        Info (286033): Parameter WRCONTROL_REG set to INCLOCK
+        Info (286033): Parameter WRCONTROL_ACLR set to OFF
+        Info (286033): Parameter RDADDRESS_REG set to OUTCLOCK
+        Info (286033): Parameter RDADDRESS_ACLR set to OFF
+        Info (286033): Parameter RDCONTROL_REG set to UNREGISTERED
+        Info (286033): Parameter RDCONTROL_ACLR set to OFF
+        Info (286033): Parameter INDATA_REG set to INCLOCK
+        Info (286033): Parameter INDATA_ACLR set to OFF
+        Info (286033): Parameter OUTDATA_REG set to UNREGISTERED
+        Info (286033): Parameter OUTDATA_ACLR set to OFF
+        Info (286033): Parameter LPM_FILE set to UNUSED
+        Info (286033): Parameter RAM_BLOCK_TYPE set to LUTRAM
+    Info (276038): Inferred altdpram megafunction from the following logic: "soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_hps|lwhps2fpga_axi4_rl_adp_inst|w_inst_skid_buf|fifo_inst|a1|fifo_inst|mlab_inst|mem_rtl_0"  File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/generic_mlab.sv Line: 50
+        Info (286033): Parameter WIDTH set to 37
+        Info (286033): Parameter WIDTHAD set to 3
+        Info (286033): Parameter NUMWORDS set to 8
+        Info (286033): Parameter WRADDRESS_REG set to INCLOCK
+        Info (286033): Parameter WRADDRESS_ACLR set to OFF
+        Info (286033): Parameter WRCONTROL_REG set to INCLOCK
+        Info (286033): Parameter WRCONTROL_ACLR set to OFF
+        Info (286033): Parameter RDADDRESS_REG set to OUTCLOCK
+        Info (286033): Parameter RDADDRESS_ACLR set to OFF
+        Info (286033): Parameter RDCONTROL_REG set to UNREGISTERED
+        Info (286033): Parameter RDCONTROL_ACLR set to OFF
+        Info (286033): Parameter INDATA_REG set to INCLOCK
+        Info (286033): Parameter INDATA_ACLR set to OFF
+        Info (286033): Parameter OUTDATA_REG set to UNREGISTERED
+        Info (286033): Parameter OUTDATA_ACLR set to OFF
+        Info (286033): Parameter LPM_FILE set to UNUSED
+        Info (286033): Parameter RAM_BLOCK_TYPE set to LUTRAM
+    Info (276038): Inferred altdpram megafunction from the following logic: "soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_hps|hps2fpga_axi4_rl_adp_inst|aw_inst_skid_buf|fifo_inst|a1|fifo_inst|mlab_inst|mem_rtl_0"  File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/generic_mlab.sv Line: 50
+        Info (286033): Parameter WIDTH set to 55
+        Info (286033): Parameter WIDTHAD set to 3
+        Info (286033): Parameter NUMWORDS set to 8
+        Info (286033): Parameter WRADDRESS_REG set to INCLOCK
+        Info (286033): Parameter WRADDRESS_ACLR set to OFF
+        Info (286033): Parameter WRCONTROL_REG set to INCLOCK
+        Info (286033): Parameter WRCONTROL_ACLR set to OFF
+        Info (286033): Parameter RDADDRESS_REG set to OUTCLOCK
+        Info (286033): Parameter RDADDRESS_ACLR set to OFF
+        Info (286033): Parameter RDCONTROL_REG set to UNREGISTERED
+        Info (286033): Parameter RDCONTROL_ACLR set to OFF
+        Info (286033): Parameter INDATA_REG set to INCLOCK
+        Info (286033): Parameter INDATA_ACLR set to OFF
+        Info (286033): Parameter OUTDATA_REG set to UNREGISTERED
+        Info (286033): Parameter OUTDATA_ACLR set to OFF
+        Info (286033): Parameter LPM_FILE set to UNUSED
+        Info (286033): Parameter RAM_BLOCK_TYPE set to LUTRAM
+    Info (276038): Inferred altdpram megafunction from the following logic: "soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_hps|hps2fpga_axi4_rl_adp_inst|ar_inst_skid_buf|fifo_inst|a1|fifo_inst|mlab_inst|mem_rtl_0"  File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/generic_mlab.sv Line: 50
+        Info (286033): Parameter WIDTH set to 35
+        Info (286033): Parameter WIDTHAD set to 3
+        Info (286033): Parameter NUMWORDS set to 8
+        Info (286033): Parameter WRADDRESS_REG set to INCLOCK
+        Info (286033): Parameter WRADDRESS_ACLR set to OFF
+        Info (286033): Parameter WRCONTROL_REG set to INCLOCK
+        Info (286033): Parameter WRCONTROL_ACLR set to OFF
+        Info (286033): Parameter RDADDRESS_REG set to OUTCLOCK
+        Info (286033): Parameter RDADDRESS_ACLR set to OFF
+        Info (286033): Parameter RDCONTROL_REG set to UNREGISTERED
+        Info (286033): Parameter RDCONTROL_ACLR set to OFF
+        Info (286033): Parameter INDATA_REG set to INCLOCK
+        Info (286033): Parameter INDATA_ACLR set to OFF
+        Info (286033): Parameter OUTDATA_REG set to UNREGISTERED
+        Info (286033): Parameter OUTDATA_ACLR set to OFF
+        Info (286033): Parameter LPM_FILE set to UNUSED
+        Info (286033): Parameter RAM_BLOCK_TYPE set to LUTRAM
+    Info (276038): Inferred altdpram megafunction from the following logic: "soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_hps|hps2fpga_axi4_rl_adp_inst|w_inst_skid_buf|fifo_inst|a1|fifo_inst|mlab_inst|mem_rtl_0"  File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/generic_mlab.sv Line: 50
+        Info (286033): Parameter WIDTH set to 145
+        Info (286033): Parameter WIDTHAD set to 3
+        Info (286033): Parameter NUMWORDS set to 8
+        Info (286033): Parameter WRADDRESS_REG set to INCLOCK
+        Info (286033): Parameter WRADDRESS_ACLR set to OFF
+        Info (286033): Parameter WRCONTROL_REG set to INCLOCK
+        Info (286033): Parameter WRCONTROL_ACLR set to OFF
+        Info (286033): Parameter RDADDRESS_REG set to OUTCLOCK
+        Info (286033): Parameter RDADDRESS_ACLR set to OFF
+        Info (286033): Parameter RDCONTROL_REG set to UNREGISTERED
+        Info (286033): Parameter RDCONTROL_ACLR set to OFF
+        Info (286033): Parameter INDATA_REG set to INCLOCK
+        Info (286033): Parameter INDATA_ACLR set to OFF
+        Info (286033): Parameter OUTDATA_REG set to UNREGISTERED
+        Info (286033): Parameter OUTDATA_ACLR set to OFF
+        Info (286033): Parameter LPM_FILE set to UNUSED
+        Info (286033): Parameter RAM_BLOCK_TYPE set to LUTRAM
+    Info (276038): Inferred altdpram megafunction from the following logic: "soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_mpfe|sundancemesa_mpfe_ready_latency_adp_inst_f2sdram|bresp_inst|fifo_inst|a1|fifo_inst|mlab_inst|mem_rtl_0"  File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/generic_mlab.sv Line: 50
+        Info (286033): Parameter WIDTH set to 3
+        Info (286033): Parameter WIDTHAD set to 3
+        Info (286033): Parameter NUMWORDS set to 8
+        Info (286033): Parameter WRADDRESS_REG set to INCLOCK
+        Info (286033): Parameter WRADDRESS_ACLR set to OFF
+        Info (286033): Parameter WRCONTROL_REG set to INCLOCK
+        Info (286033): Parameter WRCONTROL_ACLR set to OFF
+        Info (286033): Parameter RDADDRESS_REG set to OUTCLOCK
+        Info (286033): Parameter RDADDRESS_ACLR set to OFF
+        Info (286033): Parameter RDCONTROL_REG set to UNREGISTERED
+        Info (286033): Parameter RDCONTROL_ACLR set to OFF
+        Info (286033): Parameter INDATA_REG set to INCLOCK
+        Info (286033): Parameter INDATA_ACLR set to OFF
+        Info (286033): Parameter OUTDATA_REG set to UNREGISTERED
+        Info (286033): Parameter OUTDATA_ACLR set to OFF
+        Info (286033): Parameter LPM_FILE set to UNUSED
+        Info (286033): Parameter RAM_BLOCK_TYPE set to LUTRAM
+    Info (276038): Inferred altdpram megafunction from the following logic: "soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_mpfe|sundancemesa_mpfe_ready_latency_adp_inst_f2sdram|rresp_inst|fifo_inst|a1|fifo_inst|mlab_inst|mem_rtl_0"  File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/generic_mlab.sv Line: 50
+        Info (286033): Parameter WIDTH set to 259
+        Info (286033): Parameter WIDTHAD set to 3
+        Info (286033): Parameter NUMWORDS set to 8
+        Info (286033): Parameter WRADDRESS_REG set to INCLOCK
+        Info (286033): Parameter WRADDRESS_ACLR set to OFF
+        Info (286033): Parameter WRCONTROL_REG set to INCLOCK
+        Info (286033): Parameter WRCONTROL_ACLR set to OFF
+        Info (286033): Parameter RDADDRESS_REG set to OUTCLOCK
+        Info (286033): Parameter RDADDRESS_ACLR set to OFF
+        Info (286033): Parameter RDCONTROL_REG set to UNREGISTERED
+        Info (286033): Parameter RDCONTROL_ACLR set to OFF
+        Info (286033): Parameter INDATA_REG set to INCLOCK
+        Info (286033): Parameter INDATA_ACLR set to OFF
+        Info (286033): Parameter OUTDATA_REG set to UNREGISTERED
+        Info (286033): Parameter OUTDATA_ACLR set to OFF
+        Info (286033): Parameter LPM_FILE set to UNUSED
+        Info (286033): Parameter RAM_BLOCK_TYPE set to LUTRAM
+    Info (276038): Inferred altdpram megafunction from the following logic: "soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_mpfe|sundancemesa_mpfe_ready_latency_adp_inst_fpga2hps|aw_inst_skid_buf|fifo_inst|a1|fifo_inst|mlab_inst|mem_rtl_0"  File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/generic_mlab.sv Line: 50
+        Info (286033): Parameter WIDTH set to 35
+        Info (286033): Parameter WIDTHAD set to 3
+        Info (286033): Parameter NUMWORDS set to 8
+        Info (286033): Parameter WRADDRESS_REG set to INCLOCK
+        Info (286033): Parameter WRADDRESS_ACLR set to OFF
+        Info (286033): Parameter WRCONTROL_REG set to INCLOCK
+        Info (286033): Parameter WRCONTROL_ACLR set to OFF
+        Info (286033): Parameter RDADDRESS_REG set to OUTCLOCK
+        Info (286033): Parameter RDADDRESS_ACLR set to OFF
+        Info (286033): Parameter RDCONTROL_REG set to UNREGISTERED
+        Info (286033): Parameter RDCONTROL_ACLR set to OFF
+        Info (286033): Parameter INDATA_REG set to INCLOCK
+        Info (286033): Parameter INDATA_ACLR set to OFF
+        Info (286033): Parameter OUTDATA_REG set to UNREGISTERED
+        Info (286033): Parameter OUTDATA_ACLR set to OFF
+        Info (286033): Parameter LPM_FILE set to UNUSED
+        Info (286033): Parameter RAM_BLOCK_TYPE set to LUTRAM
+    Info (276038): Inferred altdpram megafunction from the following logic: "soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_mpfe|sundancemesa_mpfe_ready_latency_adp_inst_fpga2hps|ar_inst_skid_buf|fifo_inst|a1|fifo_inst|mlab_inst|mem_rtl_0"  File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/generic_mlab.sv Line: 50
+        Info (286033): Parameter WIDTH set to 36
+        Info (286033): Parameter WIDTHAD set to 3
+        Info (286033): Parameter NUMWORDS set to 8
+        Info (286033): Parameter WRADDRESS_REG set to INCLOCK
+        Info (286033): Parameter WRADDRESS_ACLR set to OFF
+        Info (286033): Parameter WRCONTROL_REG set to INCLOCK
+        Info (286033): Parameter WRCONTROL_ACLR set to OFF
+        Info (286033): Parameter RDADDRESS_REG set to OUTCLOCK
+        Info (286033): Parameter RDADDRESS_ACLR set to OFF
+        Info (286033): Parameter RDCONTROL_REG set to UNREGISTERED
+        Info (286033): Parameter RDCONTROL_ACLR set to OFF
+        Info (286033): Parameter INDATA_REG set to INCLOCK
+        Info (286033): Parameter INDATA_ACLR set to OFF
+        Info (286033): Parameter OUTDATA_REG set to UNREGISTERED
+        Info (286033): Parameter OUTDATA_ACLR set to OFF
+        Info (286033): Parameter LPM_FILE set to UNUSED
+        Info (286033): Parameter RAM_BLOCK_TYPE set to LUTRAM
+    Info (276038): Inferred altdpram megafunction from the following logic: "soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_mpfe|sundancemesa_mpfe_ready_latency_adp_inst_fpga2hps|w_inst_skid_buf|fifo_inst|a1|fifo_inst|mlab_inst|mem_rtl_0"  File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/generic_mlab.sv Line: 50
+        Info (286033): Parameter WIDTH set to 289
+        Info (286033): Parameter WIDTHAD set to 3
+        Info (286033): Parameter NUMWORDS set to 8
+        Info (286033): Parameter WRADDRESS_REG set to INCLOCK
+        Info (286033): Parameter WRADDRESS_ACLR set to OFF
+        Info (286033): Parameter WRCONTROL_REG set to INCLOCK
+        Info (286033): Parameter WRCONTROL_ACLR set to OFF
+        Info (286033): Parameter RDADDRESS_REG set to OUTCLOCK
+        Info (286033): Parameter RDADDRESS_ACLR set to OFF
+        Info (286033): Parameter RDCONTROL_REG set to UNREGISTERED
+        Info (286033): Parameter RDCONTROL_ACLR set to OFF
+        Info (286033): Parameter INDATA_REG set to INCLOCK
+        Info (286033): Parameter INDATA_ACLR set to OFF
+        Info (286033): Parameter OUTDATA_REG set to UNREGISTERED
+        Info (286033): Parameter OUTDATA_ACLR set to OFF
+        Info (286033): Parameter LPM_FILE set to UNUSED
+        Info (286033): Parameter RAM_BLOCK_TYPE set to LUTRAM
+    Info (276038): Inferred altdpram megafunction from the following logic: "soc_inst|subsys_hps|agilex_hps|intel_agilex_5_soc_inst|sm_mpfe|sundancemesa_mpfe_ready_latency_adp_inst_fpga2hps|rresp_inst|fifo_inst|a1|fifo_inst|mlab_inst|mem_rtl_0"  File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/generic_mlab.sv Line: 50
+        Info (286033): Parameter WIDTH set to 256
+        Info (286033): Parameter WIDTHAD set to 3
+        Info (286033): Parameter NUMWORDS set to 8
+        Info (286033): Parameter WRADDRESS_REG set to INCLOCK
+        Info (286033): Parameter WRADDRESS_ACLR set to OFF
+        Info (286033): Parameter WRCONTROL_REG set to INCLOCK
+        Info (286033): Parameter WRCONTROL_ACLR set to OFF
+        Info (286033): Parameter RDADDRESS_REG set to OUTCLOCK
+        Info (286033): Parameter RDADDRESS_ACLR set to OFF
+        Info (286033): Parameter RDCONTROL_REG set to UNREGISTERED
+        Info (286033): Parameter RDCONTROL_ACLR set to OFF
+        Info (286033): Parameter INDATA_REG set to INCLOCK
+        Info (286033): Parameter INDATA_ACLR set to OFF
+        Info (286033): Parameter OUTDATA_REG set to UNREGISTERED
+        Info (286033): Parameter OUTDATA_ACLR set to OFF
+        Info (286033): Parameter LPM_FILE set to UNUSED
+        Info (286033): Parameter RAM_BLOCK_TYPE set to LUTRAM
+    Info (276029): Inferred altsyncram megafunction from the following design logic: "soc_inst|subsys_periph|fes_computer|fes_computer|video|fb_rtl_0"  File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/video.v Line: 11
+        Info (286033): Parameter OPERATION_MODE set to DUAL_PORT
+        Info (286033): Parameter WIDTH_A set to 8
+        Info (286033): Parameter WIDTHAD_A set to 15
+        Info (286033): Parameter NUMWORDS_A set to 22140
+        Info (286033): Parameter WIDTH_B set to 8
+        Info (286033): Parameter WIDTHAD_B set to 15
+        Info (286033): Parameter NUMWORDS_B set to 22140
+        Info (286033): Parameter ADDRESS_ACLR_A set to NONE
+        Info (286033): Parameter OUTDATA_REG_B set to UNREGISTERED
+        Info (286033): Parameter ADDRESS_ACLR_B set to NONE
+        Info (286033): Parameter OUTDATA_ACLR_B set to NONE
+        Info (286033): Parameter ADDRESS_REG_B set to CLOCK1
+        Info (286033): Parameter INDATA_ACLR_A set to NONE
+        Info (286033): Parameter WRCONTROL_ACLR_A set to NONE
+        Info (286033): Parameter RAM_BLOCK_TYPE set to M20K
+Info (284007): State machine "soc_inst|subsys_periph|fes_computer|fes_computer|machine|cpu|cpu|index_sel" will be implemented as a safe state machine. File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_z80_engine.sv Line: 80
+Info (284007): State machine "soc_inst|subsys_periph|fes_computer|fes_computer|machine|cpu|cpu|group_sel" will be implemented as a safe state machine. File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_z80_engine.sv Line: 80
+Info (284007): State machine "soc_inst|subsys_periph|fes_computer|fes_computer|machine|cpu|cpu|im" will be implemented as a safe state machine. File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_z80_engine.sv Line: 80
+Info (284007): State machine "soc_inst|subsys_periph|fes_computer|fes_computer|gp_mailbox|core|read_phase" will be implemented as a safe state machine. File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth/fes_computer_mailbox.v Line: 153
+Info (284007): State machine "soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|write_state" will be implemented as a safe state machine. File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v Line: 103
+Info (284007): State machine "soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|read_state" will be implemented as a safe state machine. File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v Line: 104
+Info (284007): State machine "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|write_state" will be implemented as a safe state machine. File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v Line: 103
+Info (284007): State machine "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|read_state" will be implemented as a safe state machine. File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v Line: 104
+Info (284007): State machine "soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|write_state" will be implemented as a safe state machine. File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v Line: 103
+Info (284007): State machine "soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|read_state" will be implemented as a safe state machine. File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v Line: 104
+Info (284007): State machine "soc_inst|mm_interconnect_4|subsys_periph_pb_cpu_0_s0_burst_adapter|altera_merlin_burst_adapter_new.burst_adapter|state" will be implemented as a safe state machine. File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/qsys_top/altera_merlin_burst_adapter_1950/synth/altera_merlin_burst_adapter_new.sv Line: 181
+Info (284007): State machine "fes_video_inst|hdmi_config|mSetup_ST" will be implemented as a safe state machine. File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/fes_mailbox/I2C_HDMI_Config.v Line: 28
+Warning (14284): Synthesized away the following node(s):
+    Warning (25637): Synthesized away 44 node(s) of type RAM. See "Registers Removed during Synthesis" report for more details.
+Warning (13039): The following bidirectional pins have no drivers
+    Warning (13040): bidirectional pin "DRAM_DQ[0]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[1]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[2]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[3]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[4]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[5]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[6]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[7]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[8]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[9]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[10]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[11]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[12]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[13]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[14]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "DRAM_DQ[15]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13040): bidirectional pin "GPIO0_D[0]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[1]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[2]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[3]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[4]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[5]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[6]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[7]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[8]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[9]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[10]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[11]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[12]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[13]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[14]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[15]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[16]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[17]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[18]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[19]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[20]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[21]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[22]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[23]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[24]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[25]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[26]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[27]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[28]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[29]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[30]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[31]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[32]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[33]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[34]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO0_D[35]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13040): bidirectional pin "GPIO1_D[0]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[1]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[2]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[3]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[4]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[5]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[6]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[7]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[8]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[9]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[10]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[11]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[12]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[13]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[14]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[15]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[16]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[17]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[18]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[19]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[20]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[21]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[22]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[23]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[24]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[25]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[26]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[27]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[28]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[29]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[30]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[31]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[32]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[33]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[34]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13040): bidirectional pin "GPIO1_D[35]" has no driver File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+Warning (13032): The following tri-state nodes are fed by constants
+    Warning (13033): The pin "HDMI_LRCLK" is fed by GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 101
+    Warning (13033): The pin "HDMI_MCLK" is fed by GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 102
+    Warning (13033): The pin "HDMI_SCLK" is fed by GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 103
+    Warning (13033): The pin "HDMI_I2S" is fed by GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 112
+Warning (13008): TRI or OPNDRN buffers permanently disabled
+    Warning (13010): Node "DRAM_DQ[0]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[1]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[2]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[3]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[4]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[5]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[6]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[7]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[8]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[9]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[10]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[11]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[12]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[13]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[14]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "DRAM_DQ[15]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 60
+    Warning (13010): Node "GPIO0_D[0]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[1]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[2]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[3]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[4]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[5]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[6]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[7]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[8]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[9]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[10]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[11]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[12]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[13]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[14]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[15]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[16]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[17]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[18]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[19]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[20]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[21]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[22]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[23]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[24]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[25]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[26]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[27]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[28]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[29]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[30]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[31]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[32]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[33]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[34]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO0_D[35]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 137
+    Warning (13010): Node "GPIO1_D[0]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[1]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[2]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[3]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[4]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[5]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[6]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[7]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[8]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[9]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[10]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[11]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[12]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[13]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[14]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[15]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[16]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[17]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[18]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[19]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[20]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[21]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[22]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[23]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[24]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[25]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[26]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[27]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[28]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[29]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[30]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[31]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[32]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[33]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[34]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+    Warning (13010): Node "GPIO1_D[35]~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 138
+Warning (13009): TRI or OPNDRN buffers permanently enabled
+    Warning (13010): Node "HDMI_I2C_SCL~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 109
+    Warning (13010): Node "HDMI_LRCLK~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 101
+    Warning (13010): Node "HDMI_MCLK~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 102
+    Warning (13010): Node "HDMI_SCLK~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 103
+    Warning (13010): Node "HDMI_I2S~synth" File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 112
+Warning (13024): Output pins are stuck at VCC or GND
+    Warning (13410): Pin "ADC_CS_n" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 134
+    Warning (13410): Pin "ADC_SCK" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 131
+    Warning (13410): Pin "ADC_SDI" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 133
+    Warning (13410): Pin "DRAM_ADDR[0..12]" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 58
+    Warning (13410): Pin "DRAM_BA[0..1]" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 59
+    Warning (13410): Pin "DRAM_CAS_n" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 65
+    Warning (13410): Pin "DRAM_CKE" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 57
+    Warning (13410): Pin "DRAM_CLK" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 56
+    Warning (13410): Pin "DRAM_CS_n[0..1]" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 63
+    Warning (13410): Pin "DRAM_LDQM" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 61
+    Warning (13410): Pin "DRAM_RAS_n" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 66
+    Warning (13410): Pin "DRAM_UDQM" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 62
+    Warning (13410): Pin "DRAM_WE_n" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 64
+    Warning (13410): Pin "FPGA_UART_TX" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 127
+    Warning (13410): Pin "LED[3..6]" is stuck at GND File: /home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/golden_top.v Line: 53
+Info (17049): 2763 registers lost all their fanouts during netlist optimizations.
+Info (21057): Implemented 36954 device resources after synthesis - the final resource count might be different
+    Info (21058): Implemented 29 input pins
+    Info (21059): Implemented 86 output pins
+    Info (21060): Implemented 172 bidirectional pins
+    Info (21061): Implemented 34196 logic cells
+    Info (21064): Implemented 2438 RAM segments
+    Info (21062): Implemented 2 DSP elements
+    Info (21071): Implemented 2 partitions
+Info: Successfully synthesized partition
+Info: Synthesizing partition "auto_fab_0"
+Info (13014): Ignored 1 buffer(s)
+    Info (13019): Ignored 1 SOFT buffer(s)
+Info (21057): Implemented 263 device resources after synthesis - the final resource count might be different
+    Info (21058): Implemented 18 input pins
+    Info (21059): Implemented 80 output pins
+    Info (21061): Implemented 162 logic cells
+Info: Successfully synthesized partition
+Info: Synthesizing partition "slot0"
+Info (21057): Implemented 269 device resources after synthesis - the final resource count might be different
+    Info (21058): Implemented 57 input pins
+    Info (21059): Implemented 53 output pins
+    Info (21061): Implemented 159 logic cells
+Info: Successfully synthesized partition
+Info: Saving post-synthesis snapshots for 3 partition(s)
+Info (21615): Running Design Assistant Rules for snapshot 'synthesized'
+Info: No waiver waived any violations
+Info (22360): Design Assistant Results: 9 of 13 enabled rules passed, and 7 rules was disabled, in snapshot 'synthesized'
+Info (21661): Design Assistant Results: 0 of 1 High severity rules issued violations in snapshot 'synthesized'
+Info (21621): Design Assistant Results: 2 of 6 Medium severity rules issued violations in snapshot 'synthesized'. Please refer to DRC report '/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/output_files/base.drc.synthesized.rpt' for more information
+Info (21622): Design Assistant Results: 2 of 6 Low severity rules issued violations in snapshot 'synthesized'. Please refer to DRC report '/home/deano/tmp/fixjob-fes-1254-20261030-121035/out/de25-zx81-computer-rebuild-ae8-retry/hps/project/output_files/base.drc.synthesized.rpt' for more information
+Info: Quartus Prime Synthesis was successful. 0 errors, 208 warnings
+    Info: Peak virtual memory: 2994 megabytes
+    Info: Processing ended: Fri Oct 30 13:08:57 2026
+    Info: Elapsed time: 00:01:15
+    Info: System process ID: 1697

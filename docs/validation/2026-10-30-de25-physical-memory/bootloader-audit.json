@@ -1,0 +1,14 @@
+{
+  "sof_with_hps.bat": {
+    "sha256": "1335a663e7e08e39f1d83556a82ef6a60a243d13fab616a6cc33a26d7ad5a0fe",
+    "vendor_entries": [
+      "Demonstration/SoC_FPGA/GHRD/sof_with_hps.bat"
+    ]
+  },
+  "software/u-boot/spl/u-boot-spl-dtb.hex": {
+    "sha256": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823",
+    "vendor_entries": [
+      "Demonstration/SoC_FPGA/GHRD/software/u-boot/spl/u-boot-spl-dtb.hex"
+    ]
+  }
+}

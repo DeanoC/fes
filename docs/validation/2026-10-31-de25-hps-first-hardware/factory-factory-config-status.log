@@ -1,0 +1,36 @@
+Info: *******************************************************************
+Info: Running Quartus Prime Programmer
+    Info: Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+    Info: Copyright (C) 2026  Altera Corporation. All rights reserved.
+    Info: Your use of Altera Corporation's design tools, logic functions 
+    Info: and other software and tools, and any partner logic 
+    Info: functions, and any output files from any of the foregoing 
+    Info: (including device programming or simulation files), and any 
+    Info: associated documentation or information are expressly subject 
+    Info: to the terms and conditions of the Altera Program License 
+    Info: Subscription Agreement, the Altera Quartus Prime License Agreement,
+    Info: the Altera IP License Agreement, or other applicable license
+    Info: agreement, including, without limitation, that your use is for
+    Info: the sole purpose of programming logic devices manufactured by
+    Info: Altera and sold by Altera or its authorized distributors.  Please
+    Info: refer to the Altera Software License Subscription Agreements 
+    Info: on the Quartus Prime software download page.
+    Info: Processing started: Sat Oct 31 09:03:20 2026
+    Info: System process ID: 1861764
+Info: Command: quartus_pgm -c "DE25-Nano [3-11.3-iface0]" -m jtag --device=1 --status --status_type=CONFIG
+Info (213045): Using programming cable "DE25-Nano [3-11.3-iface0]"
+Info (21597): Response of CONFIG_STATUS
+		Device has entered user mode
+		00006000  RESPONSE_CODE=OK, LENGTH=6
+		00000000  STATE=IDLE
+		00190101  Version
+		C0000089  MSEL=AS_FAST_POR, nSTATUS=1, nCONFIG=1, CLOCK_SOURCE=OSC_CLK_1
+		00000003  CONF_DONE=1, INIT_DONE=1, CVP_DONE=0, SEU_ERROR=0, PQC_MODE=0
+		00000000  Error location
+		0000000F  Error details
+
+Info: Quartus Prime Programmer was successful. 0 errors, 0 warnings
+    Info: Peak virtual memory: 602 megabytes
+    Info: Processing ended: Sat Oct 31 09:03:20 2026
+    Info: Elapsed time: 00:00:00
+    Info: System process ID: 1861764

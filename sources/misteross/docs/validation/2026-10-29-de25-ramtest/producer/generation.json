@@ -1,0 +1,188 @@
+{
+  "clock_hz": 100000000,
+  "ddr_probe": {
+    "clock_hz": 100000000,
+    "dma_address_bits": 32,
+    "dma_admission": "not-qualified",
+    "instance": "subsys_periph.fes_ddr_probe",
+    "peripheral_offset": 65792,
+    "peripheral_slave_map": [
+      {
+        "base": 65536,
+        "name": "subsys_periph.sysid.control_slave",
+        "span": 8
+      },
+      {
+        "base": 65632,
+        "name": "subsys_periph.button_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65648,
+        "name": "subsys_periph.dipsw_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65664,
+        "name": "subsys_periph.led_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65696,
+        "name": "subsys_periph.fes_mailbox.avs",
+        "span": 32
+      },
+      {
+        "base": 65792,
+        "name": "subsys_periph.fes_ddr_probe.avs",
+        "span": 128
+      },
+      {
+        "base": 66560,
+        "name": "subsys_periph.fes_ramtest_hps.avs",
+        "span": 256
+      },
+      {
+        "base": 66816,
+        "name": "subsys_periph.fes_ramtest_fpga.avs",
+        "span": 256
+      },
+      {
+        "base": 67072,
+        "name": "subsys_periph.fes_ramtest_sdram.avs",
+        "span": 256
+      }
+    ],
+    "physical_ddr_address": "not-established",
+    "read_master_data_bits": 128,
+    "response_bits": 2,
+    "vendor_f2sdram_data_bits": 256
+  },
+  "mailbox_instance": "subsys_periph.fes_mailbox",
+  "peripheral_offset": 65696,
+  "physical_mailbox_address": "not-established",
+  "ramtest": {
+    "controller_data_bits": 256,
+    "emif_b_preserved_physical_parameters": 91,
+    "endpoints": {
+      "fpga": {
+        "clock_hz": 100000000,
+        "instance": "subsys_periph.fes_ramtest_fpga",
+        "peripheral_offset": 66816
+      },
+      "hps": {
+        "clock_hz": 100000000,
+        "instance": "subsys_periph.fes_ramtest_hps",
+        "peripheral_offset": 66560
+      },
+      "sdram": {
+        "clock_hz": 50000000,
+        "instance": "subsys_periph.fes_ramtest_sdram",
+        "peripheral_offset": 67072
+      }
+    },
+    "jtag_slave_map": [
+      {
+        "base": 262144,
+        "name": "ocm.axi_s1",
+        "span": 262144
+      },
+      {
+        "base": 1114112,
+        "name": "subsys_periph.sysid.control_slave",
+        "span": 8
+      },
+      {
+        "base": 1114208,
+        "name": "subsys_periph.button_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 1114224,
+        "name": "subsys_periph.dipsw_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 1114240,
+        "name": "subsys_periph.led_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 1114272,
+        "name": "subsys_periph.fes_mailbox.avs",
+        "span": 32
+      },
+      {
+        "base": 1114368,
+        "name": "subsys_periph.fes_ddr_probe.avs",
+        "span": 128
+      },
+      {
+        "base": 1115136,
+        "name": "subsys_periph.fes_ramtest_hps.avs",
+        "span": 256
+      },
+      {
+        "base": 1115392,
+        "name": "subsys_periph.fes_ramtest_fpga.avs",
+        "span": 256
+      },
+      {
+        "base": 1115648,
+        "name": "subsys_periph.fes_ramtest_sdram.avs",
+        "span": 256
+      }
+    ],
+    "memory_master_data_bits": 128,
+    "peripheral_slave_map": [
+      {
+        "base": 65536,
+        "name": "subsys_periph.sysid.control_slave",
+        "span": 8
+      },
+      {
+        "base": 65632,
+        "name": "subsys_periph.button_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65648,
+        "name": "subsys_periph.dipsw_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65664,
+        "name": "subsys_periph.led_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65696,
+        "name": "subsys_periph.fes_mailbox.avs",
+        "span": 32
+      },
+      {
+        "base": 65792,
+        "name": "subsys_periph.fes_ddr_probe.avs",
+        "span": 128
+      },
+      {
+        "base": 66560,
+        "name": "subsys_periph.fes_ramtest_hps.avs",
+        "span": 256
+      },
+      {
+        "base": 66816,
+        "name": "subsys_periph.fes_ramtest_fpga.avs",
+        "span": 256
+      },
+      {
+        "base": 67072,
+        "name": "subsys_periph.fes_ramtest_sdram.avs",
+        "span": 256
+      }
+    ],
+    "physical_acceptance": "not-run"
+  },
+  "sha256": "0ea7ef44ee544a6f97fc2b1c67ea451326b13b00c2527bd6a1093d2bf950534d",
+  "top_system_handoff": "qsys_top/qsys_top.sopcinfo"
+}

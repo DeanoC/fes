@@ -1,0 +1,31 @@
+# Exact selected lines from private query.log; full hash/path in receipt.json
+    Info: Version 26.3.0 Build 114 10/14/2026 SC Pro Edition
+Info: Command: quartus_sta -t receiver-stage.tcl /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-registered-capture/hps/project /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-receiver-audit-04ba/attempt03
+COUNT calibration_source 1
+NODE calibration_source fes_ram_calibration|r_cal_done_rst_n
+COUNT calibration_head 1
+NODE calibration_head soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]
+COUNT calibration_tail 1
+NODE calibration_tail soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[1]
+COUNT calibration_head_D 1
+NODE calibration_head_D soc_inst|subsys_periph|fes_ramtest_fpga|fes_ramtest_fpga|calibration[0]|d
+DRC before violations=1 waived=0
+CALIBRATION_STAGE before setup 9.431
+TIMED_CALIBRATION_FANOUT before setup 3018
+CALIBRATION_STAGE before hold 0.176
+TIMED_CALIBRATION_FANOUT before hold 3018
+DRC after violations=0 waived=0
+CALIBRATION_STAGE after setup 9.431
+TIMED_CALIBRATION_FANOUT after setup 3018
+CALIBRATION_STAGE after hold 0.176
+TIMED_CALIBRATION_FANOUT after hold 3018
+CLOCK ramtest_sdram50 period=20.000 waveform=0.000 10.000  inverted=0 type=base
+CLOCK ramtest_sdram_forwarded period=20.000 waveform=10.000 20.000  inverted=1 type=generated
+CORNER 0 Slow fix4 100C Model
+CORNER 1 Slow fix4 0C Model
+CORNER 2 Slow fix4a 0C Model
+CORNER 3 Fast fix4 0C Model
+PASS16 paired internal data paths and16 internal enable paths at4 published operating conditions
+Info: Quartus Prime Timing Analyzer was successful. 0 errors, 1 warning
+    Info: Processing ended: Thu Oct 29 10:33:16 2026
+    Info: Elapsed time: 00:00:19

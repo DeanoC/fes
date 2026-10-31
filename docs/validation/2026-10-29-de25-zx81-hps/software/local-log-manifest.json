@@ -1,0 +1,94 @@
+{
+  "schema": "fes.de25-zx81-hps.local-software-log-manifest.v1",
+  "implementation_revision": "786e6383b32617af8baeb32e9de6cf99231a19f9",
+  "logs": [
+    {
+      "source": "/tmp/fes-de25-zx81-hps-focused.log",
+      "retained_file": "focused-28.log",
+      "bytes": 4747,
+      "sha256": "4f4e9f0dc252c3ebe00d08067394151ba0896fc46264857712ab2bbf856ab375",
+      "unittest_runs": [
+        [
+          "28",
+          "0.130"
+        ]
+      ],
+      "evidence_class": "host-only check"
+    },
+    {
+      "source": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-planner-checks.log",
+      "retained_file": "planner-87.log",
+      "bytes": 466,
+      "sha256": "9fff0fdf54bff345c4540440f618e2602a221ad90a38a3f575620bc953e31b10",
+      "unittest_runs": [
+        [
+          "1",
+          "0.000"
+        ],
+        [
+          "87",
+          "25.152"
+        ]
+      ],
+      "evidence_class": "host-only check"
+    },
+    {
+      "source": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-consistency.log",
+      "retained_file": "consistency.log",
+      "bytes": 137,
+      "sha256": "08c07bc536fbb15a6932e60cbf47db79c9542e3fa7644c48a11dec9dd9523917",
+      "unittest_runs": [],
+      "evidence_class": "host-only check"
+    },
+    {
+      "source": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-doclinks.log",
+      "retained_file": "doclinks-tests.log",
+      "bytes": 104,
+      "sha256": "8e83c9e30711d3808140522c0a784c32a4a16bd2d9a482bfdc79f43bb50d7c5e",
+      "unittest_runs": [
+        [
+          "6",
+          "0.043"
+        ]
+      ],
+      "evidence_class": "host-only check"
+    },
+    {
+      "source": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-doclinks-full.log",
+      "retained_file": "doclinks.log",
+      "bytes": 14,
+      "sha256": "2340d99047ab9f3985a7cc5dfa7048812a4914fda94647b2c081d514d1135dc0",
+      "unittest_runs": [],
+      "evidence_class": "host-only check"
+    },
+    {
+      "source": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-affected-tests-provisioned.log",
+      "retained_file": "local-affected-partial.log",
+      "bytes": 309535,
+      "sha256": "a016571e2d078a0db5cb9dbb229c6d48e47d6044c1cb95b16940666d94aca733",
+      "evidence_class": "host-only partial run and planning evidence; no aggregate pass"
+    },
+    {
+      "source": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-local-tail-stop.json",
+      "retained_file": "local-tail-stop.json",
+      "bytes": 320,
+      "sha256": "a393b3cc4630ccef06514b41ab2b48cd414165af8dc8243bcae1fd14e7d96d0e",
+      "evidence_class": "host-only partial run and planning evidence; no aggregate pass"
+    },
+    {
+      "source": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-computer-affected-plan.json",
+      "retained_file": "local-affected-plan.log",
+      "bytes": 15713,
+      "sha256": "6ad47e611db03156d5f0e86019f111872f1b7f0e4fea9d414169064c6a4c62c4",
+      "evidence_class": "host-only partial run and planning evidence; no aggregate pass"
+    }
+  ],
+  "aggregate_affected_runner": {
+    "status": "terminated-partial",
+    "aggregate_pass": false,
+    "make_exit_code": 2,
+    "exit_source": "Root observed tool session completion; retained log ends with make test-changed Terminated.",
+    "reason": "Explicitly stopped as duplicate work after all matching-tree CI checks passed.",
+    "stop_record": "local-tail-stop.json"
+  }
+}

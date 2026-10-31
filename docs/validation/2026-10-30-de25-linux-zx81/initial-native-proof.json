@@ -1,0 +1,694 @@
+{
+  "serial": "TRWU8J8G",
+  "linux_image_source_revision": "3ede3890895aad82be69dfbe3e4c4cbbb1c02c6c",
+  "linux_image_sha256": "e8836b89667899efe1350d94668644fda19ebf397a3c18d770f6e93dd2d3e854",
+  "cpu_control_binding": "direct physical MMIO through existing LinuxMmio; no JTAG control proxy",
+  "command_receipts": [
+    {
+      "label": "direct-clean-reset",
+      "command": "reset",
+      "arguments": [],
+      "started_unix": 1793381792.4394534,
+      "completed_unix": 1793381792.5841336,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "reset",
+        "status": "passed",
+        "register_reads": 364,
+        "register_writes": 24,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "direct-edit",
+      "command": "keys",
+      "arguments": [
+        "1f,08,28"
+      ],
+      "started_unix": 1793381801.423687,
+      "completed_unix": 1793381802.4867227,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1144,
+        "register_writes": 76,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "direct-list",
+      "command": "keys",
+      "arguments": [
+        "0e,28"
+      ],
+      "started_unix": 1793381811.2843847,
+      "completed_unix": 1793381812.0337512,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "direct-load",
+      "command": "keys",
+      "arguments": [
+        "0d,13s,13s,28"
+      ],
+      "started_unix": 1793381792.8240101,
+      "completed_unix": 1793381794.1959195,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1954,
+        "register_writes": 130,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "direct-loaded-run",
+      "command": "keys",
+      "arguments": [
+        "15,28"
+      ],
+      "started_unix": 1793381797.4165835,
+      "completed_unix": 1793381798.1722956,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "direct-media",
+      "command": "media",
+      "arguments": [
+        "unused"
+      ],
+      "started_unix": 1793381792.6146483,
+      "completed_unix": 1793381792.7872217,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "media",
+        "status": "passed",
+        "register_reads": 7519,
+        "register_writes": 501,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "direct-probe",
+      "command": "probe",
+      "arguments": [],
+      "started_unix": 1793381770.9593508,
+      "completed_unix": 1793381771.1033974,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "probe",
+        "status": "passed",
+        "register_reads": 2,
+        "register_writes": 0,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "direct-reload",
+      "command": "keys",
+      "arguments": [
+        "0d,13s,13s,28"
+      ],
+      "started_unix": 1793381805.9075184,
+      "completed_unix": 1793381807.2819374,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1954,
+        "register_writes": 130,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "direct-reload-media",
+      "command": "media",
+      "arguments": [
+        "unused"
+      ],
+      "started_unix": 1793381805.7160347,
+      "completed_unix": 1793381805.8738117,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "media",
+        "status": "passed",
+        "register_reads": 7519,
+        "register_writes": 501,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "direct-reloaded-run",
+      "command": "keys",
+      "arguments": [
+        "15,28"
+      ],
+      "started_unix": 1793381807.3143506,
+      "completed_unix": 1793381808.0641713,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "direct-reset",
+      "command": "reset",
+      "arguments": [],
+      "started_unix": 1793381771.1333323,
+      "completed_unix": 1793381771.2749517,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "reset",
+        "status": "passed",
+        "register_reads": 364,
+        "register_writes": 24,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "direct-run",
+      "command": "keys",
+      "arguments": [
+        "15,28"
+      ],
+      "started_unix": 1793381788.462811,
+      "completed_unix": 1793381789.216109,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "direct-store-program",
+      "command": "keys",
+      "arguments": [
+        "1e,13,24,28"
+      ],
+      "started_unix": 1793381783.8766625,
+      "completed_unix": 1793381785.253484,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1414,
+        "register_writes": 94,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "final-native-hold",
+      "command": "hold",
+      "arguments": [],
+      "started_unix": 1793382011.1365974,
+      "completed_unix": 1793382011.278498,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "hold",
+        "status": "passed",
+        "register_reads": 349,
+        "register_writes": 23,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "first-direct-probe",
+      "command": "probe",
+      "arguments": [],
+      "started_unix": 1793381739.460024,
+      "completed_unix": 1793381739.6005297,
+      "returncode": 127,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0
+    },
+    {
+      "label": "observed-edit",
+      "command": "keys",
+      "arguments": [
+        "1f,08,28"
+      ],
+      "started_unix": 1793381871.0824718,
+      "completed_unix": 1793381872.1419668,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1144,
+        "register_writes": 76,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "observed-list",
+      "command": "keys",
+      "arguments": [
+        "0e,28"
+      ],
+      "started_unix": 1793381884.19206,
+      "completed_unix": 1793381884.943518,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "observed-load-enter",
+      "command": "keys",
+      "arguments": [
+        "28"
+      ],
+      "started_unix": 1793381862.9524653,
+      "completed_unix": 1793381863.4198723,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 604,
+        "register_writes": 40,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "observed-load-typed",
+      "command": "keys",
+      "arguments": [
+        "0d,13s,13s"
+      ],
+      "started_unix": 1793381857.8521495,
+      "completed_unix": 1793381858.9217718,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1684,
+        "register_writes": 112,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "observed-loaded-run",
+      "command": "keys",
+      "arguments": [
+        "15,28"
+      ],
+      "started_unix": 1793381866.987936,
+      "completed_unix": 1793381867.7446263,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "observed-media",
+      "command": "media",
+      "arguments": [
+        "unused"
+      ],
+      "started_unix": 1793381857.6151903,
+      "completed_unix": 1793381857.7748282,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "media",
+        "status": "passed",
+        "register_reads": 7519,
+        "register_writes": 501,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "observed-reload",
+      "command": "keys",
+      "arguments": [
+        "0d,13s,13s,28"
+      ],
+      "started_unix": 1793381875.577623,
+      "completed_unix": 1793381876.9509463,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1954,
+        "register_writes": 130,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "observed-reload-media",
+      "command": "media",
+      "arguments": [
+        "unused"
+      ],
+      "started_unix": 1793381875.3844247,
+      "completed_unix": 1793381875.536768,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "media",
+        "status": "passed",
+        "register_reads": 7519,
+        "register_writes": 501,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "observed-reloaded-run",
+      "command": "keys",
+      "arguments": [
+        "15,28"
+      ],
+      "started_unix": 1793381880.2000978,
+      "completed_unix": 1793381880.9575906,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "label": "observed-reset",
+      "command": "reset",
+      "arguments": [],
+      "started_unix": 1793381853.9590347,
+      "completed_unix": 1793381854.1174583,
+      "returncode": 0,
+      "serial": "TRWU8J8G",
+      "boot_id": "d3e030a3-e0d4-42af-8543-20e960329364",
+      "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+      "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+      "programmed_sof_sha256": "cce19b02476f67d300e317180138e0e6801a9d86a69613605ad94a280d7a3784",
+      "cpu_resource_base": "0x20010300",
+      "jtag_transactions_during_client": 0,
+      "client": {
+        "command": "reset",
+        "status": "passed",
+        "register_reads": 364,
+        "register_writes": 24,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    }
+  ],
+  "observed_full_basic_sequence": "observed-* frames pass LOAD/run/edit/reload/run/list; initial immediate-after-reset sequence retained as pacing failure",
+  "frames": [
+    {
+      "file": "native-seven.png",
+      "sha256": "65e0d3b26e57cc37dac66824af274c525a1c89d9fd3ed17dac55f508fc88d9b0",
+      "retained_clip": "out/hdmi/native-seven.mkv",
+      "clip_sha256": "c858e585b05b917cfe1f339419a9b7ffc19b3bea7c6c8ea7791117992637c7b2",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "native-loaded-seven.png",
+      "sha256": "4070631504130fdc769e201851f5a945fbbd0dc059c034461556d48a2d5c05ed",
+      "retained_clip": "out/hdmi/native-loaded-seven.mkv",
+      "clip_sha256": "c2820de22c7fc896c2ccc58edc7339dd261626779a562943818a6de78a9f24f7",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "native-edited.png",
+      "sha256": "a7786bca8d2170fe6582c0898292fa3f3cef8621bea1738f008b219728da6c45",
+      "retained_clip": "out/hdmi/native-edited.mkv",
+      "clip_sha256": "ed3d59cc6206f16a57d1477a07567b23c8d68f014048de89bd9310bc7225ba2c",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "observed-reset-prompt.png",
+      "sha256": "ea911fd9327a991e009f55abbc8348a913f90b5b4c0e0ec31d3b0b8b02043eeb",
+      "retained_clip": "out/hdmi/observed-reset-prompt.mkv",
+      "clip_sha256": "f93848a0432d39655976041faae38f29af934c5bec3d591e42438196fb3d6cab",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "observed-load-typed.png",
+      "sha256": "da520feb5bb969e908f214bdd29224ee94bdeaa1d9f1bb2138c2f70ab3ac4868",
+      "retained_clip": "out/hdmi/observed-load-typed.mkv",
+      "clip_sha256": "a73ea81cb27541a997d7fcfa149f88c91586486bf68c275557716a542221d519",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "observed-load-complete.png",
+      "sha256": "4070631504130fdc769e201851f5a945fbbd0dc059c034461556d48a2d5c05ed",
+      "retained_clip": "out/hdmi/observed-load-complete.mkv",
+      "clip_sha256": "1f9d48fc1aa90b4f4066729113748080b598d5a1873b3a71cd8f91a00b9f1dc1",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "observed-loaded-seven.png",
+      "sha256": "65e0d3b26e57cc37dac66824af274c525a1c89d9fd3ed17dac55f508fc88d9b0",
+      "retained_clip": "out/hdmi/observed-loaded-seven.mkv",
+      "clip_sha256": "fcfc47275a8d6b4dc58b7d7e6ee4200391dcaa8c1dba91185f1fe57a311c1f0c",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "observed-edited.png",
+      "sha256": "0ede8f24f406a6bfa41194c0b7ee0f763441b470524b4850740ad93c4d8f0520",
+      "retained_clip": "out/hdmi/observed-edited.mkv",
+      "clip_sha256": "bee1f7a60e85f35db01fdfbbb79bc5d6e78f5d3e5867e5de2c2427b5b5cbfd16",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "observed-reload-complete.png",
+      "sha256": "4070631504130fdc769e201851f5a945fbbd0dc059c034461556d48a2d5c05ed",
+      "retained_clip": "out/hdmi/observed-reload-complete.mkv",
+      "clip_sha256": "a0e0de86534b80a1f4a6163710743b1703f6055b9a904ceb57ceea63690cd73e",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "observed-reloaded-seven.png",
+      "sha256": "65e0d3b26e57cc37dac66824af274c525a1c89d9fd3ed17dac55f508fc88d9b0",
+      "retained_clip": "out/hdmi/observed-reloaded-seven.mkv",
+      "clip_sha256": "6b364bf4fd3c27c75a035479955056307fdca743591e9f89756753e6b4c3599f",
+      "native_frame_extraction_seconds": 2
+    },
+    {
+      "file": "observed-restored-list.png",
+      "sha256": "32a9a5ad707809f6d6237a4c91081961e55583ffb2cdb71d9740a0e29eeec5c8",
+      "retained_clip": "out/hdmi/observed-restored-list.mkv",
+      "clip_sha256": "958937a6ec8f3d2e56dd5bf6421661bdf47ebb404a79880abac01359b7d8e22a",
+      "native_frame_extraction_seconds": 2
+    }
+  ],
+  "production_runtime_admission": false
+}

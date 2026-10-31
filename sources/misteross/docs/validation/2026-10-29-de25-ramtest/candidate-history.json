@@ -1,0 +1,307 @@
+{
+  "candidates": [
+    {
+      "accepted_artifact": false,
+      "compile_excerpts": [
+        {
+          "line": 236,
+          "text": "Error (16045): Instance \"soc_inst|ramtest_b|emif_lpddr4b\" instantiates undefined entity \"EMIF_Qsys_emif_ddr4a_0\" File: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-6623b2a333/hps/project/ramtest_b/ramtest_b/synth/ramtest_b.v Line: 91"
+        },
+        {
+          "line": 237,
+          "text": "Error (16045): Instance \"soc_inst|ramtest_b|reset_in\" instantiates undefined entity \"EMIF_Qsys_reset_in\" File: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-6623b2a333/hps/project/ramtest_b/ramtest_b/synth/ramtest_b.v Line: 172"
+        },
+        {
+          "line": 238,
+          "text": "Error: Failed to elaborate design: "
+        },
+        {
+          "line": 239,
+          "text": "Error: Flow failed: Errors generated during elaboration"
+        },
+        {
+          "line": 240,
+          "text": "Error: Quartus Prime Synthesis was unsuccessful. 4 errors, 0 warnings"
+        },
+        {
+          "line": 245,
+          "text": "Error (21794): Quartus Prime Full Compilation was unsuccessful. 6 errors, 17 warnings"
+        },
+        {
+          "line": 246,
+          "text": "Error: Flow compile (for project /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-6623b2a333/hps/project/golden_top) was not successful"
+        },
+        {
+          "line": 247,
+          "text": "Error: run_flow flow:run1 finished: 0 Failed"
+        },
+        {
+          "line": 248,
+          "text": "Error (23031): Evaluation of Tcl script /data/altera_pro/26.3/quartus/common/tcl/internal/qsh_flowengine.tcl unsuccessful"
+        },
+        {
+          "line": 249,
+          "text": "Error: Quartus Prime Shell was unsuccessful. 13 errors, 17 warnings"
+        }
+      ],
+      "completed_fit": false,
+      "final_sta": false,
+      "output": "out/de25-ramtest-6623b2a333",
+      "reason": "Missing explicit Quartus registration for retained B controller and reset IP; undefined EMIF_Qsys_emif_ddr4a_0 and EMIF_Qsys_reset_in.",
+      "retained_files": {
+        "compile.log": {
+          "bytes": 87715,
+          "sha256": "1f9408a4b98a5a7dbd39129cdcf80ae63e46a070f35ab1c06c7fdc722c47cb80"
+        },
+        "generation.json": {
+          "bytes": 4432,
+          "sha256": "3c27cd9ea7d8ac4e988a6d5f8ff9e05aa72b6247d78d1dae2cda22404bc43478"
+        },
+        "inputs.json": {
+          "bytes": 37155,
+          "sha256": "500ee954c646cef109e904e8d14ddf15f4dd8e45e0923bc98b782e8cb5d3f02c"
+        },
+        "ip-generation.log": {
+          "bytes": 132008,
+          "sha256": "bcaa9e3941666ceea2998e170ba0734ca2cede54c722b5a8937c9d7800f99d57"
+        }
+      },
+      "source_producer": "6623b2a33327c290d25c0fb248febb2d6287de7e",
+      "status": "failed-before-synthesis-summary"
+    },
+    {
+      "accepted_artifact": false,
+      "compile_excerpts": [
+        {
+          "line": 236,
+          "text": "Error (16045): Instance \"soc_inst|ramtest_b|emif_lpddr4b\" instantiates undefined entity \"EMIF_Qsys_emif_ddr4a_0\" File: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-860dcd8b6a/hps/project/ramtest_b/ramtest_b/synth/ramtest_b.v Line: 91"
+        },
+        {
+          "line": 237,
+          "text": "Error (16045): Instance \"soc_inst|ramtest_b|reset_in\" instantiates undefined entity \"EMIF_Qsys_reset_in\" File: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-860dcd8b6a/hps/project/ramtest_b/ramtest_b/synth/ramtest_b.v Line: 172"
+        },
+        {
+          "line": 238,
+          "text": "Error: Failed to elaborate design: "
+        },
+        {
+          "line": 239,
+          "text": "Error: Flow failed: Errors generated during elaboration"
+        },
+        {
+          "line": 240,
+          "text": "Error: Quartus Prime Synthesis was unsuccessful. 4 errors, 0 warnings"
+        },
+        {
+          "line": 245,
+          "text": "Error (21794): Quartus Prime Full Compilation was unsuccessful. 6 errors, 17 warnings"
+        },
+        {
+          "line": 246,
+          "text": "Error: Flow compile (for project /home/deano/.codex/worktrees/c134/fes/out/dev/de25-ramtest/out/de25-ramtest-860dcd8b6a/hps/project/golden_top) was not successful"
+        },
+        {
+          "line": 247,
+          "text": "Error: run_flow flow:run1 finished: 0 Failed"
+        },
+        {
+          "line": 248,
+          "text": "Error (23031): Evaluation of Tcl script /data/altera_pro/26.3/quartus/common/tcl/internal/qsh_flowengine.tcl unsuccessful"
+        },
+        {
+          "line": 249,
+          "text": "Error: Quartus Prime Shell was unsuccessful. 13 errors, 17 warnings"
+        }
+      ],
+      "completed_fit": false,
+      "final_sta": false,
+      "output": "out/de25-ramtest-860dcd8b6a",
+      "reason": "Same missing controller/reset IP registration; terminal protocol-fault repair did not address compilation.",
+      "retained_files": {
+        "compile.log": {
+          "bytes": 87715,
+          "sha256": "85156cb366ff9e8a74d34e0280d5cd48e622ca5fd4fde7a36643bab75f342e02"
+        },
+        "generation.json": {
+          "bytes": 4432,
+          "sha256": "1d008ab8bde7da1519b493a519ceba159adf3f528c60b62d70272d4c1fbb284b"
+        },
+        "inputs.json": {
+          "bytes": 37155,
+          "sha256": "a736a7ea1494d7ebf1adc1d2cd62adc413a382d1dd338a51701e24a5e4fd4ed8"
+        },
+        "ip-generation.log": {
+          "bytes": 131999,
+          "sha256": "80b8105c12dc6ed7dde01d17bce5315af67e177f4411c5e50a799a1a3d191177"
+        }
+      },
+      "source_producer": "860dcd8b6afe59abae2a5a152e92ef9af73681ed",
+      "status": "failed-before-synthesis-summary"
+    },
+    {
+      "accepted_artifact": false,
+      "compile_excerpts": [
+        {
+          "line": 1056,
+          "text": "Info: Quartus Prime Synthesis was successful. 0 errors, 171 warnings"
+        },
+        {
+          "line": 1334,
+          "text": "Terminating backend processes..."
+        },
+        {
+          "line": 1335,
+          "text": "Exiting (pid==340481)..."
+        }
+      ],
+      "completed_fit": false,
+      "final_sta": false,
+      "output": "out/de25-ramtest-09b8d9e2b4",
+      "reason": "Source review found missing SDRAM EMRS and late CAS2 direct sampling; no completed fit/STA/SOF.",
+      "retained_files": {
+        "compile.log": {
+          "bytes": 305628,
+          "sha256": "e5f975fcc512c574331984aab3266df615dd4e27ad744a6b710603bcfba0a534"
+        },
+        "generation.json": {
+          "bytes": 4432,
+          "sha256": "be27ad7b95364bcf31f4312049fac5e6a33af0706a5a6db293bef4b66fe5fb31"
+        },
+        "inputs.json": {
+          "bytes": 37155,
+          "sha256": "12b0186cec74862e46666e37f2f5f8eb35dae426442b75c7a85a235bf93ed66c"
+        },
+        "ip-generation.log": {
+          "bytes": 136857,
+          "sha256": "9e63dbc0738842781ec2efa7152485cf17b0ec03dc2f54560d6296496cafffa4"
+        },
+        "project/output_files/golden_top.fit.plan.rpt": {
+          "bytes": 989517,
+          "sha256": "6f39579147e290230ea70db521179aca3da6dd59e51b9eb00e966a932dbdd4bf"
+        },
+        "project/output_files/golden_top.pin": {
+          "bytes": 109571,
+          "sha256": "c0d32ae593a22817a52fe00919a99d0e44bdb0d926fa0d8f95d60c04961ff265"
+        },
+        "project/output_files/golden_top.syn.summary": {
+          "bytes": 373,
+          "sha256": "468592cddbb68a07a3818ae7575ac8252dae10d84e97dbe88b475599353e5969"
+        }
+      },
+      "source_producer": "09b8d9e2b4f3a8118cd79db3f206b9ff0b43bfa0",
+      "status": "rejected-and-stopped-after-plan"
+    },
+    {
+      "accepted_artifact": false,
+      "compile_excerpts": [
+        {
+          "line": 1056,
+          "text": "Info: Quartus Prime Synthesis was successful. 0 errors, 171 warnings"
+        },
+        {
+          "line": 1322,
+          "text": "Terminating backend processes..."
+        },
+        {
+          "line": 1323,
+          "text": "Exiting (pid==430497)..."
+        }
+      ],
+      "completed_fit": false,
+      "final_sta": false,
+      "output": "out/de25-ramtest-issi-final",
+      "reason": "EMRS and direct CAS2 sampling fixed; superseded by a registered falling-edge input receiver to increase nominal setup margin. No completed fit/STA/SOF; no physical-failure claim.",
+      "retained_files": {
+        "compile.log": {
+          "bytes": 304690,
+          "sha256": "72b732db9e0f7dfa88e17e26ec1f5e7940e360754f734093e20323d2c32a0156"
+        },
+        "generation.json": {
+          "bytes": 4432,
+          "sha256": "cb5ae4a4d961fe8e7653336cadccde420c054c0ae89d0aeeb511933c502b957b"
+        },
+        "inputs.json": {
+          "bytes": 37155,
+          "sha256": "6136a194bef799d7b29afb4fe6adcc20e5d1d5a3ca30d673f26524d388f2eccd"
+        },
+        "ip-generation.log": {
+          "bytes": 136887,
+          "sha256": "6e53c1ca97b6bdbb650555e879d053aa82b794622e30b2a74a8fe0539fbaecdc"
+        },
+        "project/output_files/golden_top.fit.plan.rpt": {
+          "bytes": 989517,
+          "sha256": "d7c6622fcbde0a52b663d685652e8303183577e5cc6f19d086f77bdc109b4575"
+        },
+        "project/output_files/golden_top.pin": {
+          "bytes": 109571,
+          "sha256": "c0d32ae593a22817a52fe00919a99d0e44bdb0d926fa0d8f95d60c04961ff265"
+        },
+        "project/output_files/golden_top.syn.summary": {
+          "bytes": 373,
+          "sha256": "f47ba5f75f551e1da60fc886f3d34bdb4edd613916ebb193900cc0f63362c624"
+        }
+      },
+      "source_producer": "e5e6e0179b7fa782ee47b88f2e1a514ce1cd0221",
+      "status": "superseded-and-stopped-after-plan"
+    },
+    {
+      "accepted_artifact": false,
+      "artifact": {
+        "bytes": 2577149,
+        "sha256": "46f59fd3b7a60bb6afb3ecdce7792c1e943e2194c4b9d9d302b0bf058e5bcd70"
+      },
+      "completed_fit": true,
+      "final_sta": {
+        "negative_slack_rows": 0,
+        "slack_rows": 46,
+        "tns_zero_rows": 46
+      },
+      "new_cdc_50002_violations": 1,
+      "output": "out/de25-ramtest-registered-capture",
+      "reason": "Completed internal timing/bitstream, but new HIGH CDC-50002 on registered calibration status50MHz to100MHz first-stage ingress lacked its narrow asynchronous timing contract. Superseded by a fresh source-bound build after the exact source-to-stage0 constraint repair; no waiver or physical acceptance.",
+      "retained_files": {
+        "build.json": {
+          "bytes": 83817,
+          "sha256": "3259fd526733c332373dc3e046fc347562262addfe7cff2c59192c27e9e25499"
+        },
+        "compile.log": {
+          "bytes": 353239,
+          "sha256": "86990ec5a19e5fd163dfdcf99b06f90cd2c87d74aa86e39559c887802e567b2a"
+        },
+        "generation.json": {
+          "bytes": 4432,
+          "sha256": "b516406e0eff4a793b3f5cae10642281f5914e29d29b21959e097ade32e3bf50"
+        },
+        "inputs.json": {
+          "bytes": 37155,
+          "sha256": "af3433114c0fe0c389b237a07d667ecd1a553888a43188800bc6acb118aae3c3"
+        },
+        "ip-generation.log": {
+          "bytes": 138461,
+          "sha256": "0a8da3adc0011ec0ab7b5c2eb9d5bfa58cdaf95a9c646ceb976e5b16f8ac20c0"
+        },
+        "project/output_files/golden_top.fit.summary": {
+          "bytes": 613,
+          "sha256": "60b3ba7fe3c7bafc04ed0bdc1da45e0ffe7b9921eaa50a734ce64f955444434c"
+        },
+        "project/output_files/golden_top.pin": {
+          "bytes": 109571,
+          "sha256": "c0d32ae593a22817a52fe00919a99d0e44bdb0d926fa0d8f95d60c04961ff265"
+        },
+        "project/output_files/golden_top.sta.summary": {
+          "bytes": 6552,
+          "sha256": "2d71db259b38cd52e73201c0a75f2f63b6f9baae984440061c45340e65edf661"
+        },
+        "project/output_files/golden_top.syn.summary": {
+          "bytes": 373,
+          "sha256": "089bccebe77a9019f2c569d154257100e043ba5e561338743483083f097ad5e3"
+        }
+      },
+      "source_producer": "04ba0d9c503162784cd6821c1b37e129126c47ca",
+      "status": "completed-pre-contract-compiler-candidate",
+      "unwaived_sta_failed_rule_classes": 9
+    }
+  ],
+  "classification": "retained-failed-rejected-and-superseded-host-candidates",
+  "format": 1
+}

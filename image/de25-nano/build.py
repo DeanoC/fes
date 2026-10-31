@@ -74,6 +74,8 @@ def recipe_key(root=ROOT):
 
 def rootfs_key(root=ROOT):
     paths = [Path(root) / "image/de25-nano/buildroot.lock.toml",
+             Path(root) / "image/de25-nano/kernel-modules.lock.json",
+             Path(root) / "image/de25-nano/kernel_modules.py",
              *(Path(root) / name for name in BUILDER_FILES)]
     paths += [p for p in (Path(root) / "image/de25-nano/rootfs").rglob("*")
               if p.is_file() and "__pycache__" not in p.parts and not p.name.startswith("test_")]
@@ -189,7 +191,7 @@ def container(source, runtime, image, volume, cache, output, action, jobs):
                 "python3", "/src/image/de25-nano/build.py", "_inside", action, str(jobs)])
 
 
-def prepare_buildroot():
+def prepare_buildroot(modules_overlay=None):
     data = lock()
     archive = Path("/cache") / data["buildroot"]["file"]
     if digest(archive) != data["buildroot"]["sha256"]:
@@ -204,7 +206,11 @@ def prepare_buildroot():
     output = Path("/build") / rootfs_key()
     output.mkdir(parents=True, exist_ok=True)
     config = output / "de25_defconfig"
-    config.write_text((LANE / "rootfs/defconfig").read_text().replace("@ROOTFS_DIR@", str(LANE / "rootfs")))
+    if modules_overlay is None:
+        raise ValueError("DE25 rootfs requires the verified kernel-module overlay")
+    config.write_text((LANE / "rootfs/defconfig").read_text()
+                      .replace("@ROOTFS_DIR@", str(LANE / "rootfs"))
+                      .replace("@KERNEL_MODULES_DIR@", str(modules_overlay)))
     environment = dict(os.environ, SOURCE_DATE_EPOCH=str(data["source_date_epoch"]),
                        BR2_DL_DIR="/cache/dl")
     command = ["make", "-C", source, f"O={output}", f"BR2_DEFCONFIG={config}"]
@@ -252,6 +258,7 @@ def validate_rootfs_configuration(files, password):
 
 
 def verify_rootfs(directory):
+    import kernel_modules
     image = directory / "rootfs.ext4"
     run(["e2fsck", "-fn", image], stdout=subprocess.DEVNULL)
     busybox = debugfs(image, "cat /bin/busybox")
@@ -276,8 +283,9 @@ def verify_rootfs(directory):
                       or name.endswith(".rbf")]
         if forbidden:
             raise ValueError("unexpected hardware service or generated SSH key in rootfs: " + str(forbidden))
+        modules = kernel_modules.verify_rootfs(image, archive, members, debugfs)
     return {"architecture": ARCH, "console": "ttyS0:115200", "ethernet": "eth0:dhcp",
-            "ssh": "dropbear", "hardware_acceptance": "not-run"}
+            "ssh": "dropbear", "kernel_modules": modules, "hardware_acceptance": "not-run"}
 
 
 def read_ssh_banner(connection):
@@ -344,7 +352,20 @@ def inside(action, jobs):
                       image_sha256=digest(output / "fes-de25-nano.img"))
         (output / (action + ".json")).write_text(json.dumps(checks, indent=2) + "\n")
         return
-    source, work, command, env = prepare_buildroot()
+    if action == "fetch":
+        # Fetch needs no BSP extraction; build materializes and verifies this path.
+        overlay = Path('/build/kernel-modules') / rootfs_key()
+    else:
+        import kernel_modules
+        overlay = Path('/build/kernel-modules') / rootfs_key()
+        if overlay.exists():
+            shutil.rmtree(overlay)
+        import boot
+        vendor = boot.load_lock()
+        # The host prepares/authenticates vendor boot data before this container.
+        # It also copies the locked BSP ZIP into the shared cache for extraction.
+        kernel_modules.prepare(Path('/cache') / vendor['bsp']['filename'], overlay)
+    source, work, command, env = prepare_buildroot(overlay)
     if action == "fetch":
         run([*command, "source", f"-j{jobs}"], env=env)
         return

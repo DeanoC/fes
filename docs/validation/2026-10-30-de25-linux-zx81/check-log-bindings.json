@@ -1,0 +1,18 @@
+{
+  "affected-checks.log": {
+    "unmodified_log_sha256": "beb0bad63661dc24ab36cecdf088b999d4b1f820fec0351d171115cef5f6e868",
+    "public_redacted_gzip_sha256": "8b01587aba714a652aaa4aef7b8363a28979ba748c02406ef01293c40edf8414"
+  },
+  "runtime-tests.log": {
+    "unmodified_log_sha256": "db6715d2e41b5990f2360d8c86c0deeff8b77bd45685e39fc72cca2ba59146dd",
+    "public_redacted_gzip_sha256": "30ed6d67992f6c3fa78ee180f63a07396a673422ceee9e563d34e41620bc9196"
+  },
+  "linux-verify.log": {
+    "unmodified_log_sha256": "9eeeec0f61550f791d7d3833134fcff50cc22a79ecc1c6c69a88f962d897b79b",
+    "public_redacted_gzip_sha256": "fcec392a134d1ce090304752b6e0fe448c15f3c5c0f13271b70cca63adc56cb2"
+  },
+  "linux-smoke.log": {
+    "unmodified_log_sha256": "3e00a053f49c1b0fec2539a2af13edc77e7db77c8ab56da5646be70b21603396",
+    "public_redacted_gzip_sha256": "d247af9c295d3369832569022875a50e478ec632f3f836cd497ec95f4c87db5a"
+  }
+}

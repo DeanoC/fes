@@ -1,0 +1,21 @@
+test_capture_contains_current_mailbox_machine_hid_tape_and_generated_consumers (test_build.HpsZX81BuildTests.test_capture_contains_current_mailbox_machine_hid_tape_and_generated_consumers) ... ok
+test_capture_selects_only_the_owned_board_renderer (test_build.HpsZX81BuildTests.test_capture_selects_only_the_owned_board_renderer) ... ok
+test_dirty_generation_and_build_refuse_before_preparation_or_tools (test_build.HpsZX81BuildTests.test_dirty_generation_and_build_refuse_before_preparation_or_tools) ... ok
+test_generated_100_and_74_25_mhz_plls_bind_actual_dividers_and_bytes (test_build.HpsZX81BuildTests.test_generated_100_and_74_25_mhz_plls_bind_actual_dividers_and_bytes) ... ok
+test_generated_computer_missing_routes_wrong_clock_base_or_overlapping_slave_fail (test_build.HpsZX81BuildTests.test_generated_computer_missing_routes_wrong_clock_base_or_overlapping_slave_fail) ... ok
+test_generated_computer_route_and_inherited_slave_map_are_checked (test_build.HpsZX81BuildTests.test_generated_computer_route_and_inherited_slave_map_are_checked) ... ok
+test_generated_computer_version_and_native_response_ports_are_required (test_build.HpsZX81BuildTests.test_generated_computer_version_and_native_response_ports_are_required) ... ok
+test_generated_pll_rejects_rounded_missing_duplicate_or_fractional_contracts (test_build.HpsZX81BuildTests.test_generated_pll_rejects_rounded_missing_duplicate_or_fractional_contracts) ... ok
+test_jtag_control_route_is_required_and_its_actual_window_is_checked (test_build.HpsZX81BuildTests.test_jtag_control_route_is_required_and_its_actual_window_is_checked) ... ok
+test_linux_packaging_binds_phase_artifacts_without_programmer (test_build.HpsZX81BuildTests.test_linux_packaging_binds_phase_artifacts_without_programmer) ... ok
+test_linux_packaging_checks_project_mode_before_tools (test_build.HpsZX81BuildTests.test_linux_packaging_checks_project_mode_before_tools) ... ok
+test_linux_packaging_does_not_publish_missing_split_outputs (test_build.HpsZX81BuildTests.test_linux_packaging_does_not_publish_missing_split_outputs) ... ok
+test_linux_packaging_refuses_fpga_first_before_tools (test_build.HpsZX81BuildTests.test_linux_packaging_refuses_fpga_first_before_tools) ... ok
+test_patch_anchor_must_exist_exactly_once (test_build.HpsZX81BuildTests.test_patch_anchor_must_exist_exactly_once) ... ok
+test_selected_revision_capture_reads_git_blobs_instead_of_working_files (test_build.HpsZX81BuildTests.test_selected_revision_capture_reads_git_blobs_instead_of_working_files) ... ok
+test_tape_ram_adaptation_preserves_the_entire_native_branch (test_build.HpsZX81BuildTests.test_tape_ram_adaptation_preserves_the_entire_native_branch) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.034s
+
+OK

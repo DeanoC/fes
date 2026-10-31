@@ -1,0 +1,132 @@
+{
+  "attempts": [
+    {
+      "attempt": "01",
+      "files": {
+        "receipt.json": {
+          "bytes": 934,
+          "sha256": "5ba04d542f33a5ea25ebab64e6d4ece26461d3655335cb614b1df9373b1d09e1"
+        }
+      },
+      "path": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-menu-scanout/out/de25-scanout-interconnect-a54abd623b-d5b168d9fd-01",
+      "reason": "Enhanced scanout verification was incomplete; helper refused to run.",
+      "recorded_error_characters": 60,
+      "recorded_error_prefix": "completed verified scanout IP-generation receipt is required",
+      "status": "rejected"
+    },
+    {
+      "attempt": "02",
+      "files": {
+        "receipt.json": {
+          "bytes": 86230,
+          "sha256": "47d8b0f0312774e2af46d300c92877b48726a4c2dde1568fff142a65cbb8bb53"
+        }
+      },
+      "path": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-menu-scanout/out/de25-scanout-interconnect-a54abd623b-a0547320b1-02",
+      "reason": "Exact port guard exposed the generated translator reset sharing the memory-bus prefix.",
+      "recorded_error_characters": 108,
+      "recorded_error_prefix": "generated memory master mismatch: subsys_periph_fes_scanout_mem_translator_reset_reset_bridge_in_reset_reset",
+      "status": "rejected"
+    },
+    {
+      "attempt": "03",
+      "files": {
+        "build.log": {
+          "bytes": 306739,
+          "sha256": "97046effec976306e7729bc0d06a68ba6082aa6a4d30f08789e9878524355fc3"
+        },
+        "receipt.json": {
+          "bytes": 192520,
+          "sha256": "52caf5c0001cf881e5c831ebe8178d3494980766522da08f3a99ea54959e2b36"
+        }
+      },
+      "path": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-menu-scanout/out/de25-scanout-interconnect-a54abd623b-a0547320b1-03",
+      "reason": "Generated CDC RAM requires altera_syncram; no usable direct vendor primitive model was present.",
+      "recorded_error_characters": 52464,
+      "recorded_error_prefix": "Command '['/usr/bin/verilator', '--cc', '--exe', '--build', '-j', '2', '-O2', '-Wno-fatal', '--assert', '--top-module', 'fes_de25_scanout_interconnect_test', '--Mdir', '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-menu-scanout/out/de25-scanout-interconnect-a54abd623b-a0547320b1-03/obj', '-CFLAGS', '-I/home/deano/.codex/worktrees/c134/fes/out/dev/de25-menu-scanout/out/de25-scanout-interconnect-a54abd623b-a0547320b1-03/sources/fes_mailbox', '-I/home/deano/.codex/worktrees/c134/fes/out/dev/de",
+      "status": "failed-build"
+    },
+    {
+      "attempt": "04",
+      "files": {
+        "receipt.json": {
+          "bytes": 5481,
+          "sha256": "8e2b8cf603e17283400f93fc9f73d00410b5eb00e71b97c9b83ee81a218bd6b5"
+        }
+      },
+      "path": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-menu-scanout/out/de25-scanout-interconnect-a54abd623b-modeled-m20k-04",
+      "reason": "Source guard included unused generic SC-FIFO RAM branches; actual elaboration had to prove their absence.",
+      "recorded_error_characters": 273,
+      "recorded_error_prefix": "generated primitive parameter/tie contract differs: /home/deano/.codex/worktrees/c134/fes/out/dev/de25-menu-scanout/out/de25-scanout-reset-source/combined/hps/project/peripheral_subsys/ip/peripheral_subsys/pb_cpu_0/altera_avalon_mm_bridge_2010/synth/altera_avalon_sc_fifo.v",
+      "status": "rejected"
+    },
+    {
+      "attempt": "05",
+      "files": {
+        "command.json": {
+          "bytes": 50853,
+          "sha256": "5a263217901bca221ecb8448bb1f003427f4fa65c2974938d78ae727e2bed2c8"
+        },
+        "elaboration.log": {
+          "bytes": 37153,
+          "sha256": "89e1c22b72d4b56325353ba788f0c4583236eea8fd5241bf91ca8a882995e3ca"
+        }
+      },
+      "path": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-menu-scanout/out/de25-scanout-storage-elaboration-review-05",
+      "reason": "Verilator validates the mixed-port parameter declaration even in unused source branches; official DONT_CARE default was declared, with all other values rejected.",
+      "status": "failed-elaboration"
+    },
+    {
+      "attempt": "06",
+      "files": {
+        "command.json": {
+          "bytes": 50853,
+          "sha256": "69237820512579fe17ce616116c4c068f30715fa112f7f6439d94d07fec55cb4"
+        },
+        "elaboration.log": {
+          "bytes": 270126,
+          "sha256": "3337c66b730406822d11a6da7d4e075be044a7c87e5f1ef81d9638e0e55e4c6b"
+        },
+        "elaboration.xml": {
+          "bytes": 6349288,
+          "sha256": "7918f7f0bb320c81e211acd55be6485367e91098b923be010f095dcf118cc6d3"
+        }
+      },
+      "path": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-menu-scanout/out/de25-scanout-storage-elaboration-review-06",
+      "reason": "XML proved exactly the four reviewed CDC storage cells plus the isolated direct storage-model test; no functional pass claimed.",
+      "status": "passed-elaboration-only"
+    },
+    {
+      "attempt": "07",
+      "files": {
+        "build.log": {
+          "bytes": 301825,
+          "sha256": "020ad3d8ab1688fdd510d26538750fd09619f26affa8f6d45bd3811acfb5080b"
+        },
+        "elaboration.log": {
+          "bytes": 276506,
+          "sha256": "0e2d2a62158c0a378fce507ee41af54a7c6b534c7df4c09fb0b10553da44d3c4"
+        },
+        "elaboration.xml": {
+          "bytes": 6351908,
+          "sha256": "6df6f3b608334065081919fe714c622208681f190ef5a69d662f6e0d4a238818"
+        },
+        "receipt.json": {
+          "bytes": 201602,
+          "sha256": "d97e72a332ca8c110f6420fee203094271a0f0945b11be9f42562689a7f23e06"
+        },
+        "simulation.log": {
+          "bytes": 354,
+          "sha256": "59042fed3619f60d71d1f56886a650ba686fe7cf184b61dd78a45cd096a03250"
+        }
+      },
+      "path": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-menu-scanout/out/de25-scanout-interconnect-a54abd623b-modeled-m20k-07",
+      "reason": "The first written-word guard tested buffered out_valid rather than the actual RAM-to-output-stage transfer. It was corrected to internal_out_ready && internal_out_valid; buffered output and live RAM head were kept distinct.",
+      "recorded_error_characters": 206,
+      "recorded_error_prefix": "Command '['/home/deano/.codex/worktrees/c134/fes/out/dev/de25-menu-scanout/out/de25-scanout-interconnect-a54abd623b-modeled-m20k-07/obj/Vfes_de25_scanout_interconnect_test']' died with <Signals.SIGABRT: 6>.",
+      "status": "failed-simulation-instrumentation"
+    }
+  ],
+  "format": 1,
+  "scope": "Retained private attempts; failed/rejected attempts are not passing transport evidence. Attempt06 is elaboration-only."
+}

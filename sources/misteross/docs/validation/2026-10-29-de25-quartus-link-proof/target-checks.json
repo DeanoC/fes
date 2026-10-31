@@ -1,0 +1,22 @@
+{
+  "arm64_binary_sha256": "fdae4d8bf9c8b3830247359dd75826df0f868f4836cf61f85c4d044b8d9f0141",
+  "go": "go version go1.26.5 linux/amd64",
+  "logs": {
+    "arm64-tests.log": "8d2a71ce90db8de30d06dc2ee0be0ae963d6cc185195335b2a8be12f92874de4",
+    "native-tests.log": "884506cb751d37492d12ee0fa26c5571d897d7eb78dbadb87fc2731827a7f706",
+    "vet.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "qemu": {
+    "cpu": "cortex-a76",
+    "path": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-quartus-link-proof/out/link-proof-tools/qemu-aarch64-static",
+    "sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350"
+  },
+  "result": "passed",
+  "scope": "module-path integration retest; synthetic inputs only",
+  "source": {
+    "go.mod": "0e8f336d25b1d535e88bff0425786dc645f54b96c809cc1ace39d3d2f95d01b8",
+    "main.go": "e1ffcd2ef4eac263869a0a8dce9c2a696eec7720d98131e863289119fd4dd357",
+    "main_test.go": "35d513739e3c2208681ddcb8b4845ef96de3c106fa57f91f15492ab4b56ce61a",
+    "manifest.go": "88989bf4b4048a23309fde8637c6039159057d012409c034827734f6b9b978ef"
+  }
+}

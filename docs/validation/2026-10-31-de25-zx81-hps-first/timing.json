@@ -1,0 +1,96 @@
+{
+  "classification": "Quartus internal diagnostic STA; one setup class fails",
+  "producer": "42cb6e7ec2f7f28852db9c22cc6e43a6c2113f88",
+  "quartus_version": "26.3.0 Build 114 10/14/2026 SC Pro Edition",
+  "required_clocks_hz": [
+    100000000,
+    74250000
+  ],
+  "summary_rows": [
+    {
+      "type": "Setup 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "slack_ns": "-6.215",
+      "tns_ns": "-18.467",
+      "corner": "Slow fix4 0C Model"
+    },
+    {
+      "type": "Setup 'pll_inst|iopll_0_outclk0'",
+      "slack_ns": "1.483",
+      "tns_ns": "0.000",
+      "corner": "Slow fix4 0C Model"
+    },
+    {
+      "type": "Setup 'altera_reserved_tck'",
+      "slack_ns": "12.809",
+      "tns_ns": "0.000",
+      "corner": "Slow fix4 100C Model"
+    },
+    {
+      "type": "Setup 'adv7513_config'",
+      "slack_ns": "16.458",
+      "tns_ns": "0.000",
+      "corner": "Slow fix4 0C Model"
+    },
+    {
+      "type": "Setup 'fes_video_inst|video_clock|iopll_0_refclk'",
+      "slack_ns": "16.850",
+      "tns_ns": "0.000",
+      "corner": "Slow fix4a 0C Model"
+    },
+    {
+      "type": "Hold 'pll_inst|iopll_0_outclk0'",
+      "slack_ns": "0.000",
+      "tns_ns": "0.000",
+      "corner": "Slow fix4 0C Model"
+    },
+    {
+      "type": "Hold 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "slack_ns": "0.002",
+      "tns_ns": "0.000",
+      "corner": "Fast fix4 0C Model"
+    },
+    {
+      "type": "Hold 'altera_reserved_tck'",
+      "slack_ns": "0.073",
+      "tns_ns": "0.000",
+      "corner": "Fast fix4 0C Model"
+    },
+    {
+      "type": "Hold 'adv7513_config'",
+      "slack_ns": "0.102",
+      "tns_ns": "0.000",
+      "corner": "Fast fix4 0C Model"
+    },
+    {
+      "type": "Hold 'fes_video_inst|video_clock|iopll_0_refclk'",
+      "slack_ns": "0.107",
+      "tns_ns": "0.000",
+      "corner": "Fast fix4 0C Model"
+    },
+    {
+      "type": "Hold 'soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0'",
+      "slack_ns": "0.376",
+      "tns_ns": "0.000",
+      "corner": "Fast fix4 0C Model"
+    },
+    {
+      "type": "Setup Data Delay 'fes_video_inst|video_clock|iopll_0_outclk0'",
+      "slack_ns": "5.963",
+      "tns_ns": "0.000",
+      "corner": "Slow fix4 0C Model"
+    }
+  ],
+  "critical_setup_failure": {
+    "slack_ns": -6.215,
+    "tns_ns": -18.467,
+    "launch_clock": "pll_inst|iopll_0_outclk0",
+    "launch_register": "soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out",
+    "latch_clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+    "endpoint": "fes_video_inst|visible_line",
+    "sdc_exception": "none",
+    "report": "golden_top.sta.rpt.gz"
+  },
+  "timing_acceptance": "not-qualified",
+  "external_io_acceptance": "not-qualified",
+  "physical_acceptance": "not-run; HIL waived for this task"
+}
