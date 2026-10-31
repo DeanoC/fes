@@ -477,18 +477,30 @@ func TestROMLaunchErrorLateIdleClearsOnce(t *testing.T) {
 }
 
 func TestAmbiguousLocalLaunchDoesNotApplyDeferredStopToReplacement(t *testing.T) {
-	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusQueue: []localcores.RunStatus{{Phase: "launching"}, {Phase: "running", Running: true}}}
+	// The startup read takes idle, so the ambiguous launch reads launching
+	// and then a generation-free running.
+	fake := &fakeLocalCores{err: localcores.ErrUnavailable, statusQueue: []localcores.RunStatus{{Phase: "idle"}, {Phase: "launching"}, {Phase: "running", Running: true}}}
 	app := startCoreRoom(t, fake, nil, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
-	waitFor(t, app, "pong tile", func(s Snapshot) bool { return s.Room.Open && s.Room.Destination.CoreLaunchable })
+	waitFor(t, app, "pong tile after startup status", func(s Snapshot) bool {
+		app.mu.Lock()
+		checked := app.localStartupStatusChecked
+		app.mu.Unlock()
+		return s.Room.Open && s.Room.Destination.CoreLaunchable && checked
+	})
 	app.HandleCommand(CmdSelect, time.Now())
+	// The chord must land after the launch POST. Before it, Stop cancels the
+	// queued launch and nothing is ambiguous.
 	waitFor(t, app, "ambiguous launching", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseLaunching && fake.statusCount() >= 1
+		app.mu.Lock()
+		reconciling := app.localReconcileAfterFailure
+		app.mu.Unlock()
+		return s.LocalCorePhase == localPhaseLaunching && fake.launchCount() == 1 && reconciling && fake.statusCount() >= 2
 	})
 	now := time.Now()
 	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), now)
 	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), now.Add(time.Millisecond))
 	app.Tick(now.Add(localChordHold + time.Millisecond))
-	waitFor(t, app, "late-running status", func(Snapshot) bool { return fake.statusCount() >= 2 })
+	waitFor(t, app, "late-running status", func(Snapshot) bool { return fake.statusCount() >= 3 })
 	if fake.stopCount() != 0 {
 		t.Fatal("old chord stopped replacement local session")
 	}
