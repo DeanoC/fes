@@ -300,10 +300,14 @@ seeds must pass reported internal timing; the first seed must reproduce its RBF.
 Nextpnr remains advisory under [#840](https://github.com/DeanoC/fes/issues/840).
 Build success does not establish external SDRAM/HDMI/HPS/reset qualification
 or physical socket containment; hardware acceptance needs its own dated run.
-The DOS package's HIL checker requires at least three changing complete frames
+The DOS package's HIL checker requires at least three complete frames with a meaningful change
 and matches the final `A:\>` prompt using glyphs extracted from the locked
-BIOS ROM; a static signature fails. The recipe prefers Kit B then Kit A. This
-gate is not evidence that the package has already run on hardware.
+BIOS ROM; a static signature fails. The recipe prefers Kit B then Kit A.
+The [31 October Kit B DOS boot](validation/2026-10-31-pcxt-dos-boot/README.md)
+accepted exact package `7f282f3b` from source `0fdae134`: after a runtime
+FreeDOS floppy upload, captured video progressed through BIOS and reached
+`A:\>`. The kit was restored and released. This does not qualify floppy
+writes, host keyboard input or external interface timing.
 The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
 Independent review found four package/acceptance defects, now fixed and re-reviewed.
