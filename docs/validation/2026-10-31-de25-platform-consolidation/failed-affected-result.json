@@ -1,0 +1,404 @@
+{
+  "format": 1,
+  "root": "/home/deano/fes/out/dev/de25-linux-platform/out/consolidation-validation/platform-source",
+  "base": "2243c34a250867b324d6b26146fd32acdb778882",
+  "head": "70f8fee9c6d90c2bc338eef0be38829883f63cf8",
+  "checkout_head": "70f8fee9c6d90c2bc338eef0be38829883f63cf8",
+  "merge_base": "2243c34a250867b324d6b26146fd32acdb778882",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": true,
+      "fpga": true
+    },
+    "skipped": [
+      "host",
+      "runtime"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "docs/validation/2026-10-31-de25-bounded-control/README.md",
+      "docs/validation/2026-10-31-de25-bounded-control/SHA256SUMS",
+      "docs/validation/2026-10-31-de25-bounded-control/affected-regressions.log.gz",
+      "docs/validation/2026-10-31-de25-bounded-control/affected-result.json",
+      "docs/validation/2026-10-31-de25-bounded-control/artifact-verification.json",
+      "docs/validation/2026-10-31-de25-bounded-control/build.json",
+      "docs/validation/2026-10-31-de25-bounded-control/compile-job.json",
+      "docs/validation/2026-10-31-de25-bounded-control/generation-job.json",
+      "docs/validation/2026-10-31-de25-bounded-control/generation.json",
+      "docs/validation/2026-10-31-de25-bounded-control/generation.stdout.log",
+      "docs/validation/2026-10-31-de25-bounded-control/golden_top.sta.summary.gz",
+      "docs/validation/2026-10-31-de25-bounded-control/golden_top.tq.drc.signoff.rpt.gz",
+      "docs/validation/2026-10-31-de25-bounded-control/guard-build-tests.log",
+      "docs/validation/2026-10-31-de25-bounded-control/guard-consistency.log",
+      "docs/validation/2026-10-31-de25-bounded-control/guard-sim.log",
+      "docs/validation/2026-10-31-de25-bounded-control/inputs.json",
+      "docs/validation/2026-10-31-de25-bounded-control/interconnect-receipt.json",
+      "docs/validation/2026-10-31-de25-bounded-control/interconnect-simulation.log",
+      "docs/validation/2026-10-31-de25-bounded-control/linux-programming.json",
+      "docs/validation/2026-10-31-de25-bounded-control/post-compile-verification.json",
+      "docs/validation/2026-10-31-de25-bounded-control/quartus-version.txt",
+      "docs/validation/2026-10-31-de25-bounded-control/simulation-job.json",
+      "docs/validation/2026-10-31-de25-bounded-control/verification-state.json",
+      "docs/validation/2026-10-31-de25-contiguous-dma/README.md",
+      "docs/validation/2026-10-31-de25-contiguous-dma/SHA256SUMS",
+      "docs/validation/2026-10-31-de25-contiguous-dma/affected-job.json",
+      "docs/validation/2026-10-31-de25-contiguous-dma/affected-result.json",
+      "docs/validation/2026-10-31-de25-contiguous-dma/affected.log.gz",
+      "docs/validation/2026-10-31-de25-contiguous-dma/kunit-checks.json",
+      "docs/validation/2026-10-31-de25-contiguous-dma/kunit-inputs.json",
+      "docs/validation/2026-10-31-de25-contiguous-dma/kunit-job.json",
+      "docs/validation/2026-10-31-de25-contiguous-dma/kunit-raw.log",
+      "docs/validation/2026-10-31-de25-contiguous-dma/kunit-run.log",
+      "docs/validation/2026-10-31-de25-contiguous-dma/kunit.json",
+      "docs/validation/2026-10-31-de25-contiguous-dma/module-build.json",
+      "docs/validation/2026-10-31-de25-contiguous-dma/module-build.log",
+      "docs/validation/2026-10-31-de25-contiguous-dma/module-job.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/README.md",
+      "docs/validation/2026-10-31-de25-isolated-stream/SHA256SUMS",
+      "docs/validation/2026-10-31-de25-isolated-stream/affected-job.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/affected-result.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/affected.log.gz",
+      "docs/validation/2026-10-31-de25-isolated-stream/artifact-verification.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/build-job.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/build.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/failed-2e15e148a-job.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/failed-2e15e148a-output.log",
+      "docs/validation/2026-10-31-de25-isolated-stream/failed-523eb5cd2-integration.log",
+      "docs/validation/2026-10-31-de25-isolated-stream/failed-523eb5cd2-job.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/generation.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/golden_top.sta.summary.gz",
+      "docs/validation/2026-10-31-de25-isolated-stream/golden_top.tq.drc.signoff.rpt.gz",
+      "docs/validation/2026-10-31-de25-isolated-stream/hps-emif-parameter-review.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/inputs.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/interconnect-receipt.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/interconnect-simulation.log",
+      "docs/validation/2026-10-31-de25-isolated-stream/isolated-consistency.log",
+      "docs/validation/2026-10-31-de25-isolated-stream/isolated-hps-tests.log",
+      "docs/validation/2026-10-31-de25-isolated-stream/isolated-scanout-final-tests.log",
+      "docs/validation/2026-10-31-de25-isolated-stream/linux-programming.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/post-compile-verification.json",
+      "docs/validation/2026-10-31-de25-isolated-stream/quartus-version.txt",
+      "docs/validation/2026-10-31-de25-isolated-stream/simulation-job.json",
+      "docs/validation/2026-10-31-de25-linux-dma/README.md",
+      "docs/validation/2026-10-31-de25-linux-dma/SHA256SUMS",
+      "docs/validation/2026-10-31-de25-linux-dma/build.json",
+      "docs/validation/2026-10-31-de25-linux-dma/generation.json",
+      "docs/validation/2026-10-31-de25-linux-dma/golden_top.sta.summary.gz",
+      "docs/validation/2026-10-31-de25-linux-dma/golden_top.tq.drc.signoff.rpt.gz",
+      "docs/validation/2026-10-31-de25-linux-dma/hps-emif-parameter-review.json",
+      "docs/validation/2026-10-31-de25-linux-dma/inputs.json",
+      "docs/validation/2026-10-31-de25-linux-dma/kernel-build.json",
+      "docs/validation/2026-10-31-de25-linux-dma/kernel-config.diff",
+      "docs/validation/2026-10-31-de25-linux-dma/linux-dma-bootstrap-tests.log",
+      "docs/validation/2026-10-31-de25-linux-dma/linux-dma-combined-tests.log",
+      "docs/validation/2026-10-31-de25-linux-dma/linux-dma-consistency.log",
+      "docs/validation/2026-10-31-de25-linux-dma/linux-dma-hps-tests.log",
+      "docs/validation/2026-10-31-de25-linux-dma/linux-dma-tests.log",
+      "docs/validation/2026-10-31-de25-linux-dma/linux-dma-zx81-tests.log",
+      "docs/validation/2026-10-31-de25-linux-dma/linux-programming.json",
+      "docs/validation/2026-10-31-de25-linux-dma/module-identities.json",
+      "docs/validation/2026-10-31-de25-linux-dma/quartus-version.txt",
+      "docs/validation/2026-10-31-de25-linux-dma/timing-summary.json",
+      "image/kernel/de25-dma/README.md",
+      "image/kernel/de25-dma/de25_dma.c",
+      "image/kernel/de25-dma/de25_dma_test.c",
+      "image/kernel/de25-dma/generated/fes_de25_scanout.h",
+      "scripts/de25_kernel_test.py",
+      "sources/mister-packages/docs/de25-scanout.md",
+      "sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml",
+      "sources/misteross/boards/de25nano/hps/README.md",
+      "sources/misteross/boards/de25nano/hps/build.py",
+      "sources/misteross/boards/de25nano/hps/test_build.py",
+      "sources/misteross/boards/de25nano/scanout/README.md",
+      "sources/misteross/boards/de25nano/scanout/build.py",
+      "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_guard.v",
+      "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_guard_hw.tcl",
+      "sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.h",
+      "sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.vh",
+      "sources/misteross/boards/de25nano/scanout/guard_tb.cpp",
+      "sources/misteross/boards/de25nano/scanout/integrate.tcl",
+      "sources/misteross/boards/de25nano/scanout/interconnect_sim.py",
+      "sources/misteross/boards/de25nano/scanout/interconnect_tb.cpp",
+      "sources/misteross/boards/de25nano/scanout/linux_dma.py",
+      "sources/misteross/boards/de25nano/scanout/sim.py",
+      "sources/misteross/boards/de25nano/scanout/test_build.py",
+      "sources/misteross/boards/de25nano/zx81-hps/build.py",
+      "sources/misteross/boards/de25nano/zx81-hps/test_build.py",
+      "sources/misteross/docs/architecture.md",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/README.md",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/SHA256SUMS",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/bootstrap-tests.log",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/build.json",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/combined-tests.log",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/consistency.log",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/generation.json",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/golden_top.sdc_constraints.rpt.gz",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/golden_top.sta.summary.gz",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/golden_top.tq.drc.signoff.rpt.gz",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/hps-emif-parameter-review.json",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/hps-packaging-tests.log",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/hps-tests.log",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/inputs.json",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/linux-programming.json",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/quartus-version.txt",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/scanout-packaging-tests.log",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/smmu-component-probe.log",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/smmu-port-proof.json",
+      "sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/timing-summary.json",
+      "sources/misteross/tests/test_de25nano_scanout.py"
+    ],
+    "reasons": [
+      "image/kernel/de25-dma/de25_dma.c: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/de25_dma_test.c: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/generated/fes_de25_scanout.h: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/de25_kernel_test.py: parent orchestration/tests/assembly; component sources unchanged",
+      "sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml: standalone DE25 diagnostic consumers; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_guard.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/fes_de25_scanout_guard_hw.tcl: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.h: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.vh: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/guard_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/integrate.tcl: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/interconnect_sim.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/interconnect_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/linux_dma.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/sim.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/scanout/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/tests/test_de25nano_scanout.py: FPGA producer/package software tests; RTL unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "scripts/check_diff.py",
+        "--base",
+        "2243c34a250867b324d6b26146fd32acdb778882",
+        "--head",
+        "70f8fee9c6d90c2bc338eef0be38829883f63cf8"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"docs/validation/2026-10-31-de25-bounded-control/README.md\", \"docs/validation/2026-10-31-de25-bounded-control/SHA256SUMS\", \"docs/validation/2026-10-31-de25-bounded-control/affected-regressions.log.gz\", \"docs/validation/2026-10-31-de25-bounded-control/affected-result.json\", \"docs/validation/2026-10-31-de25-bounded-control/artifact-verification.json\", \"docs/validation/2026-10-31-de25-bounded-control/build.json\", \"docs/validation/2026-10-31-de25-bounded-control/compile-job.json\", \"docs/validation/2026-10-31-de25-bounded-control/generation-job.json\", \"docs/validation/2026-10-31-de25-bounded-control/generation.json\", \"docs/validation/2026-10-31-de25-bounded-control/generation.stdout.log\", \"docs/validation/2026-10-31-de25-bounded-control/golden_top.sta.summary.gz\", \"docs/validation/2026-10-31-de25-bounded-control/golden_top.tq.drc.signoff.rpt.gz\", \"docs/validation/2026-10-31-de25-bounded-control/guard-build-tests.log\", \"docs/validation/2026-10-31-de25-bounded-control/guard-consistency.log\", \"docs/validation/2026-10-31-de25-bounded-control/guard-sim.log\", \"docs/validation/2026-10-31-de25-bounded-control/inputs.json\", \"docs/validation/2026-10-31-de25-bounded-control/interconnect-receipt.json\", \"docs/validation/2026-10-31-de25-bounded-control/interconnect-simulation.log\", \"docs/validation/2026-10-31-de25-bounded-control/linux-programming.json\", \"docs/validation/2026-10-31-de25-bounded-control/post-compile-verification.json\", \"docs/validation/2026-10-31-de25-bounded-control/quartus-version.txt\", \"docs/validation/2026-10-31-de25-bounded-control/simulation-job.json\", \"docs/validation/2026-10-31-de25-bounded-control/verification-state.json\", \"docs/validation/2026-10-31-de25-contiguous-dma/README.md\", \"docs/validation/2026-10-31-de25-contiguous-dma/SHA256SUMS\", \"docs/validation/2026-10-31-de25-contiguous-dma/affected-job.json\", \"docs/validation/2026-10-31-de25-contiguous-dma/affected-result.json\", \"docs/validation/2026-10-31-de25-contiguous-dma/affected.log.gz\", \"docs/validation/2026-10-31-de25-contiguous-dma/kunit-checks.json\", \"docs/validation/2026-10-31-de25-contiguous-dma/kunit-inputs.json\", \"docs/validation/2026-10-31-de25-contiguous-dma/kunit-job.json\", \"docs/validation/2026-10-31-de25-contiguous-dma/kunit-raw.log\", \"docs/validation/2026-10-31-de25-contiguous-dma/kunit-run.log\", \"docs/validation/2026-10-31-de25-contiguous-dma/kunit.json\", \"docs/validation/2026-10-31-de25-contiguous-dma/module-build.json\", \"docs/validation/2026-10-31-de25-contiguous-dma/module-build.log\", \"docs/validation/2026-10-31-de25-contiguous-dma/module-job.json\", \"docs/validation/2026-10-31-de25-isolated-stream/README.md\", \"docs/validation/2026-10-31-de25-isolated-stream/SHA256SUMS\", \"docs/validation/2026-10-31-de25-isolated-stream/affected-job.json\", \"docs/validation/2026-10-31-de25-isolated-stream/affected-result.json\", \"docs/validation/2026-10-31-de25-isolated-stream/affected.log.gz\", \"docs/validation/2026-10-31-de25-isolated-stream/artifact-verification.json\", \"docs/validation/2026-10-31-de25-isolated-stream/build-job.json\", \"docs/validation/2026-10-31-de25-isolated-stream/build.json\", \"docs/validation/2026-10-31-de25-isolated-stream/failed-2e15e148a-job.json\", \"docs/validation/2026-10-31-de25-isolated-stream/failed-2e15e148a-output.log\", \"docs/validation/2026-10-31-de25-isolated-stream/failed-523eb5cd2-integration.log\", \"docs/validation/2026-10-31-de25-isolated-stream/failed-523eb5cd2-job.json\", \"docs/validation/2026-10-31-de25-isolated-stream/generation.json\", \"docs/validation/2026-10-31-de25-isolated-stream/golden_top.sta.summary.gz\", \"docs/validation/2026-10-31-de25-isolated-stream/golden_top.tq.drc.signoff.rpt.gz\", \"docs/validation/2026-10-31-de25-isolated-stream/hps-emif-parameter-review.json\", \"docs/validation/2026-10-31-de25-isolated-stream/inputs.json\", \"docs/validation/2026-10-31-de25-isolated-stream/interconnect-receipt.json\", \"docs/validation/2026-10-31-de25-isolated-stream/interconnect-simulation.log\", \"docs/validation/2026-10-31-de25-isolated-stream/isolated-consistency.log\", \"docs/validation/2026-10-31-de25-isolated-stream/isolated-hps-tests.log\", \"docs/validation/2026-10-31-de25-isolated-stream/isolated-scanout-final-tests.log\", \"docs/validation/2026-10-31-de25-isolated-stream/linux-programming.json\", \"docs/validation/2026-10-31-de25-isolated-stream/post-compile-verification.json\", \"docs/validation/2026-10-31-de25-isolated-stream/quartus-version.txt\", \"docs/validation/2026-10-31-de25-isolated-stream/simulation-job.json\", \"docs/validation/2026-10-31-de25-linux-dma/README.md\", \"docs/validation/2026-10-31-de25-linux-dma/SHA256SUMS\", \"docs/validation/2026-10-31-de25-linux-dma/build.json\", \"docs/validation/2026-10-31-de25-linux-dma/generation.json\", \"docs/validation/2026-10-31-de25-linux-dma/golden_top.sta.summary.gz\", \"docs/validation/2026-10-31-de25-linux-dma/golden_top.tq.drc.signoff.rpt.gz\", \"docs/validation/2026-10-31-de25-linux-dma/hps-emif-parameter-review.json\", \"docs/validation/2026-10-31-de25-linux-dma/inputs.json\", \"docs/validation/2026-10-31-de25-linux-dma/kernel-build.json\", \"docs/validation/2026-10-31-de25-linux-dma/kernel-config.diff\", \"docs/validation/2026-10-31-de25-linux-dma/linux-dma-bootstrap-tests.log\", \"docs/validation/2026-10-31-de25-linux-dma/linux-dma-combined-tests.log\", \"docs/validation/2026-10-31-de25-linux-dma/linux-dma-consistency.log\", \"docs/validation/2026-10-31-de25-linux-dma/linux-dma-hps-tests.log\", \"docs/validation/2026-10-31-de25-linux-dma/linux-dma-tests.log\", \"docs/validation/2026-10-31-de25-linux-dma/linux-dma-zx81-tests.log\", \"docs/validation/2026-10-31-de25-linux-dma/linux-programming.json\", \"docs/validation/2026-10-31-de25-linux-dma/module-identities.json\", \"docs/validation/2026-10-31-de25-linux-dma/quartus-version.txt\", \"docs/validation/2026-10-31-de25-linux-dma/timing-summary.json\", \"image/kernel/de25-dma/README.md\", \"image/kernel/de25-dma/de25_dma.c\", \"image/kernel/de25-dma/de25_dma_test.c\", \"image/kernel/de25-dma/generated/fes_de25_scanout.h\", \"scripts/de25_kernel_test.py\", \"sources/mister-packages/docs/de25-scanout.md\", \"sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml\", \"sources/misteross/boards/de25nano/hps/README.md\", \"sources/misteross/boards/de25nano/hps/build.py\", \"sources/misteross/boards/de25nano/hps/test_build.py\", \"sources/misteross/boards/de25nano/scanout/README.md\", \"sources/misteross/boards/de25nano/scanout/build.py\", \"sources/misteross/boards/de25nano/scanout/fes_de25_scanout_guard.v\", \"sources/misteross/boards/de25nano/scanout/fes_de25_scanout_guard_hw.tcl\", \"sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.h\", \"sources/misteross/boards/de25nano/scanout/generated/fes_de25_scanout.vh\", \"sources/misteross/boards/de25nano/scanout/guard_tb.cpp\", \"sources/misteross/boards/de25nano/scanout/integrate.tcl\", \"sources/misteross/boards/de25nano/scanout/interconnect_sim.py\", \"sources/misteross/boards/de25nano/scanout/interconnect_tb.cpp\", \"sources/misteross/boards/de25nano/scanout/linux_dma.py\", \"sources/misteross/boards/de25nano/scanout/sim.py\", \"sources/misteross/boards/de25nano/scanout/test_build.py\", \"sources/misteross/boards/de25nano/zx81-hps/build.py\", \"sources/misteross/boards/de25nano/zx81-hps/test_build.py\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/README.md\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/SHA256SUMS\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/bootstrap-tests.log\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/build.json\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/combined-tests.log\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/consistency.log\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/generation.json\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/golden_top.sdc_constraints.rpt.gz\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/golden_top.sta.summary.gz\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/golden_top.tq.drc.signoff.rpt.gz\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/hps-emif-parameter-review.json\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/hps-packaging-tests.log\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/hps-tests.log\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/inputs.json\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/linux-programming.json\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/quartus-version.txt\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/scanout-packaging-tests.log\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/smmu-component-probe.log\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/smmu-port-proof.json\", \"sources/misteross/docs/validation/2026-10-31-de25-scanout-linux/timing-summary.json\", \"sources/misteross/tests/test_de25nano_scanout.py\"]"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "contracts",
+      "label": "contract schemas and generated fixtures",
+      "cwd": "sources/mister-packages",
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "go",
+        "make"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "failed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "contract schemas and generated fixtures",
+      "lane": "contracts",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 1
+    }
+  ],
+  "not_started": []
+}
