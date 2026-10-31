@@ -184,3 +184,7 @@ master/drain/reset lifetime. The kernel production probe remains closed.
 
 The [Linux-DMA profile compilation record](../../../../../docs/validation/2026-10-31-de25-linux-dma/README.md)
 retains the actual stream wiring, kernel build, and open device/lifetime gates.
+
+The [bounded-control compilation and generated-interconnect proof](../../../../../docs/validation/2026-10-31-de25-bounded-control/README.md)
+retains the system-clock guard, clock-loss case, exact artifacts and open kernel
+DMA/device/domain and normal-kit acceptance requirements.
