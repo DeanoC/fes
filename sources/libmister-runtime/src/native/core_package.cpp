@@ -1010,10 +1010,6 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (!interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"computer operational interfaces must be required when declared");
-			if (interface.id == FesComputerInterfaceMediaPcxtFloppyID &&
-				descriptor.abi.minor < FesComputerExtendedAbiMinor)
-				return CompatibilityError(ErrorCode::unsupported_abi,
-					"PC/XT floppy requires FES computer extended identity");
 			if (interface.id == FesComputerInterfaceVideoFixed720p60ID) video = true;
 			if (interface.id == FesComputerInterfaceMemoryHpsDdrID) ddr = true;
 			if (interface.id == FesComputerInterfaceVideoSessionDisplayID) display = true;
@@ -1025,6 +1021,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.id == FesComputerInterfaceMediaSpectrumDiskID) spectrum_disk = true;
 			// Capability bits 16..31 are identity word 16, which only 1.1 has.
 			if (interface.id == FesComputerInterfaceMediaAtaDiskID ||
+				interface.id == FesComputerInterfaceMediaPcxtFloppyID ||
 				interface.id == FesComputerInterfacePersistenceWordsID ||
 				interface.id == FesComputerInterfacePc386MachineID ||
 				interface.id == FesComputerInterfaceRtcWallClockID) second_word = true;

@@ -1433,6 +1433,37 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 		mister::ErrorCode::invalid_package);
 }
 
+void TestPcxtDosPackageInspectionAcceptsRuntimeFloppyContract()
+{
+	std::vector<std::string> gp_events;
+	RecordingDriver gp_driver(gp_events);
+	Fixture available(&gp_driver);
+	TempDirectory package;
+	std::string manifest = ReadText(
+		"tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+	ReplaceAll(&manifest, "id = \"fes.pong\"", "id = \"fes.pcxt-dos\"");
+	ReplaceAll(&manifest, "id = \"fes.simple-game\"", "id = \"fes.computer\"");
+	ReplaceAll(&manifest, "[abi]\nid = \"fes.computer\"\nmajor = 1\nminor = 0",
+		"[abi]\nid = \"fes.computer\"\nmajor = 1\nminor = 1");
+	ReplaceAll(&manifest, "id = \"fes.gamepad\"", "id = \"fes.media.pcxt-floppy\"");
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText(
+		"tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	mister::native::OpenedCorePackage opened;
+	assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
+	assert(opened.descriptor.core.id == "fes.pcxt-dos");
+	assert(opened.descriptor.abi.id == "fes.computer" &&
+		opened.descriptor.abi.major == 1 && opened.descriptor.abi.minor == 1);
+	assert(opened.descriptor.interfaces.size() == 2);
+	mister::CorePackageInspection inspection;
+	assert(available.hardware.InspectCorePackage(package.path, opened.package_id,
+		&inspection).ok());
+	assert(inspection.compatible && inspection.compatibility_error.ok());
+	assert(inspection.persistence_layout.id.empty());
+	assert(inspection.descriptor.core.id == "fes.pcxt-dos");
+	assert(available.fpga.programmed.empty() && gp_events.empty());
+}
+
 void TestApplicationVideoOnlyLifecycleNeedsNoInput()
 {
 	for (const bool ports : {false, true}) {
@@ -4946,6 +4977,7 @@ int main()
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();
 	TestPcxtFloppyLifecycleThroughRuntime();
+	TestPcxtDosPackageInspectionAcceptsRuntimeFloppyContract();
 	TestZx81CleanMachineStopsWithoutFreeze();
 	TestInitialSTDiskBeforeExecution();
     TestInitialSTDiskBeforeExecution(409600);

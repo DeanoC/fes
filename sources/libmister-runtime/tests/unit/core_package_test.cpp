@@ -1011,6 +1011,11 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	pcxt.abi.minor = 1;
 	pcxt.interfaces.push_back({"fes.media.pcxt-floppy", 1, 0, true});
 	assert(check(pcxt).ok());
+	// PC/XT floppy capability bit 20 is in identity word 16, so the ABI 1.0
+	// identity cannot carry it even though the media interface itself is 1.0.
+	pcxt.abi.minor = 0;
+	assert(check(pcxt).code == mister::ErrorCode::unsupported_abi);
+	pcxt.abi.minor = 1;
 	// The ATA unit needs DDR, and persistent machine words need their paired
 	// layout; declaring either alone remains unsupported.
 	for (const char* id : {"fes.media.ata-disk", "fes.persistence.words",
@@ -1022,9 +1027,6 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	auto clock = pcxt;
 	clock.interfaces.push_back({"fes.rtc.wall-clock", 1, 0, true});
 	assert(check(clock).ok());
-	pcxt.abi.minor = 0;
-	assert(check(pcxt).code == mister::ErrorCode::unsupported_abi);
-	pcxt.abi.minor = 1;
 	pcxt.interfaces.back().required = false;
 	assert(check(pcxt).code == mister::ErrorCode::unsupported_interface);
 	pcxt.interfaces.back().required = true;
