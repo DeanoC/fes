@@ -12792,6 +12792,10 @@ test('keyboard HID sessions forward physical keys as HID usages', async () => {
   assert.equal(parseSession({ state: 'active', core_package: core('fes.computer', 'fes.keyboard.hid') }).keyboard_hid, true);
   assert.equal(parseSession({ state: 'active', core_package: core('fes.simple-computer', 'fes.keyboard.hid') }).keyboard_hid, undefined);
   assert.equal(parseSession({ state: 'active', core_package: core('fes.computer', 'fes.keyboard') }).keyboard_hid, undefined);
+  // fes.computer 1.1 (pc386) keeps 1.0's keyboard; an unknown minor does not.
+  const minor = (value) => ({ ...core('fes.computer', 'fes.keyboard.hid'), abi: { id: 'fes.computer', major: 1, minor: value } });
+  assert.equal(parseSession({ state: 'active', core_package: minor(1) }).keyboard_hid, true);
+  assert.equal(parseSession({ state: 'active', core_package: minor(2) }).keyboard_hid, undefined);
   assert.equal(parseSession({ state: 'idle' }).keyboard_hid, undefined);
 
   const active = { state: 'active', execution: 'fpga_native', input: inputFixture(), core_package: core('fes.computer', 'fes.keyboard.hid') };
