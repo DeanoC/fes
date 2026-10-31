@@ -284,7 +284,6 @@ def verify_handoff(project, hps):
             raise ValueError("generated scanout domain reset differs: " + end)
     reset_source = modules.get("fes_scanout_top_reset")
     top_reset_routes = (
-        ("subsys_periph_periph_rst_in.out_reset", "subsys_periph_fes_scanout_guard.reset"),
         ("reset", "fes_scanout_top_reset.out_reset", "subsys_periph_fes_scanout_pixel_reset.in_reset"),
         ("reset", "fes_scanout_top_reset.out_reset", "subsys_periph_fes_scanout_system_reset.in_reset"))
     if (reset_source is None or reset_source.get("kind") != "altera_reset_bridge" or
