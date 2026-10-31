@@ -158,9 +158,12 @@ SID in AXI address USER bits 23:8 and nonsecure SECSID bit 24 clear. The lower
 These additive build constants do not change the endpoint register ABI.
 The opt-in FPGA recipe enables HPS SMMU port exposure and verifies the actual
 25-bit generated adapter/HPS path. It does not create a kernel device or
-assert that firmware translation has been enabled. In the retained GHRD all
-F2SDRAM masters share this stream; scanout-only isolation and global master
-lifetime must not be inferred. Physical allocation, translation, bounded
-control access, drain and reset qualification remain required.
+assert that firmware translation has been enabled. The Linux-DMA recipe removes
+the diagnostic probe and external memory-debug master/window, and verifies
+exactly one generated master into the adapter and one adapter route into HPS.
+The separate maintenance recipe retains the diagnostic paths. A sole generated
+scanout path is not proof of physical isolation, translation, Linux domain or
+global reset lifetime. Physical allocation, translation, bounded control access,
+drain and reset qualification remain required.
 
 The packing follows Altera's [address USER/SMMU field table](https://docs.altera.com/r/docs/683130/25.3/embedded-peripherals-ip-user-guide/register-description?contentId=ubFvBQAlI8Vprt1qAASvfg).

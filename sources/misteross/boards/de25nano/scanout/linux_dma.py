@@ -38,7 +38,7 @@ def retarget_adapter(data, definition):
             raise ValueError('vendor address USER fixed attributes changed')
     return text.encode(), {'stream_id': sid, 'user_bits': width, 'sid_shift': shift,
         'secure_bit': secure_bit, 'secure': False, 'attributes': 0xe0,
-        'scope': 'all inherited F2SDRAM masters share this stream; not a scanout-only domain',
+        'scope': 'scanout-only generated F2SDRAM path', 'master_ownership': 'scanout-only',
         'original_sha256': hashlib.sha256(data).hexdigest(), 'derived_sha256': hashlib.sha256(text.encode()).hexdigest(),
         'kernel_binding': 'not-admitted', 'physical_translation': 'not-qualified'}
 
@@ -62,12 +62,46 @@ foreach port {{man_aruser man_awuser}} {{
 save_component
 save_system {child}
 '''
+    jtag = hps.tcl_word(project / 'jtag_subsys/jtag_subsys.qsys')
+    script += f'''# Remove the JTAG master for the Linux-owned fabric memory path.
+load_system {jtag}
+if {{[get_interface_property hps_f2sdram_master EXPORT_OF] ne "hps_f2sdram.master"}} {{error "JTAG memory export changed"}}
+remove_interface hps_f2sdram_master
+remove_instance hps_f2sdram
+save_system {jtag}
+'''
     return script, profile, {HPS_IP: {'f2sdram_SMMU': {'before': 'false', 'after': 'true'}}}
+
+
+
+def isolate_script(script, top_save):
+    probe = ("add_instance fes_ddr_probe fes_de25_ddr_probe 1.0\n"
+        "add_connection periph_clk.out_clk fes_ddr_probe.clk\n"
+        "add_connection periph_rst_in.out_reset fes_ddr_probe.reset\n"
+        "add_connection pb_cpu_0.m0 fes_ddr_probe.avs\n"
+        r"set_connection_parameter_value pb_cpu_0.m0/fes_ddr_probe.avs baseAddress 0x[0-9a-f]+" + "\n"
+        "add_interface fes_probe_mem avalon start\n"
+        "set_interface_property fes_probe_mem EXPORT_OF fes_ddr_probe.avm\n")
+    pattern = re.escape(probe).replace(re.escape(r"0x[0-9a-f]+"), r"0x[0-9a-f]+")
+    script, count = re.subn(pattern, "", script)
+    if count != 1:
+        raise ValueError("inherited probe integration changed")
+    route = ("add_connection subsys_periph.fes_probe_mem subsys_hps.f2sdram_adapter_axi4_sub\n"
+        "set_connection_parameter_value subsys_periph.fes_probe_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n")
+    if script.count(route) != 1 or script.count(top_save) != 1:
+        raise ValueError("inherited probe/top integration changed")
+    script = script.replace(route, "")
+    removal = ("# The Linux stream must have no diagnostic master.\n"
+        "remove_instance ext_hps_f2sdram_master\n")
+    return script.replace(top_save, removal + top_save)
 
 
 def verify(project, hps, profile):
     definition = (project / 'fes_mailbox/generated/fes_de25_scanout.vh').read_text()
     sid = constant(definition, 'SMMU_STREAM_ID')
+    if profile.get('master_ownership') != 'scanout-only':
+        raise ValueError('Linux DMA requires isolated scanout master ownership')
+    ownership = hps.verify_scanout_memory_handoff(project)
     if profile.get('stream_id') != sid or profile.get('secure') is not False:
         raise ValueError('captured Linux DMA stream differs')
     if hps.digest(project / ADAPTER) != profile['derived_sha256']:
@@ -104,5 +138,5 @@ def verify(project, hps, profile):
         raise ValueError('generated adapter does not drive the selected nonsecure stream')
     return {**profile, 'generated_adapter': str(sources[0].relative_to(project)),
             'generated_adapter_sha256': hps.digest(sources[0]), 'generated_qip_sha256': hps.digest(qip),
-            'address_user_word': word,
+            'address_user_word': word, 'master_handoff': ownership,
             'kernel_binding': 'not-admitted', 'physical_translation': 'not-qualified'}

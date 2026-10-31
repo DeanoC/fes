@@ -24,9 +24,9 @@ class ScanoutBuildTests(unittest.TestCase):
         self.sources = B.capture()
         self.sources.update(self.fixture.sources)
 
-    def prepare(self, revision=None, *, hps_first=False):
+    def prepare(self, revision=None, *, hps_first=False, linux_dma=False):
         with mock.patch.object(B, "capture", return_value=self.sources):
-            return B.prepare(self.fixture.archive, self.root / "prepared", revision, hps_first=hps_first)
+            return B.prepare(self.fixture.archive, self.root / "prepared", revision, hps_first=hps_first, linux_dma=linux_dma)
 
     def test_actual_preparation_replaces_pattern_with_response_preserving_real_scanout(self):
         output, _, hps, _ = self.prepare()
@@ -71,6 +71,30 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertNotIn("add_connection pb_cpu_0.m0 fes_ctrl_cdc.s0", script)
         self.assertEqual((project / "fes_mailbox/fes_de25_scanout_guard.v").read_bytes(),
                          self.sources[B.BOARD + "scanout/fes_de25_scanout_guard.v"])
+
+    def test_linux_dma_preparation_captures_exclusive_profile_and_renders_real_removal(self):
+        original_load = B.load
+        def load(path, name):
+            module = original_load(path, name)
+            if name == "scanout_retained_linux_dma":
+                # The upstream fixture has a placeholder custom-IP description;
+                # conversion has its own parser tests. Exercise the real retained
+                # isolation derivation and caller profile/receipt wiring here.
+                module.configure = mock.Mock(return_value=("# fixture port configuration\n",
+                    {"master_ownership": "scanout-only"}, {}))
+            return module
+        with mock.patch.object(B, "load", side_effect=load):
+            output, _, _, _ = self.prepare(hps_first=True, linux_dma=True)
+        project = output / "combined/hps/project"
+        script = (project / "integrate-mailbox.tcl").read_text()
+        self.assertNotIn("fes_ddr_probe", script)
+        self.assertNotIn("fes_probe_mem", script)
+        self.assertIn("remove_instance ext_hps_f2sdram_master", script)
+        self.assertIn("subsys_periph.fes_scanout_mem subsys_hps.f2sdram_adapter_axi4_sub", script)
+        inputs = json.loads((project.parent / "inputs.json").read_text())
+        self.assertEqual(inputs["f2sdram_master_profile"], "scanout-only")
+        self.assertEqual(inputs["scanout"]["linux_dma"]["master_ownership"], "scanout-only")
+        self.assertIn("removed", inputs["combined_display"]["debug_paths"])
 
     def test_source_snapshot_survives_later_working_source_mutation(self):
         revision = "a" * 40
@@ -205,6 +229,10 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertEqual(receipt["fes_revision"], "a" * 40)
         self.assertEqual(receipt["hps_initialization"], "HPS FIRST")
         self.assertEqual(len(receipt["scanout_source_sha256"]), 64)
+        self.assertEqual(receipt["inputs_sha256"], hps.digest(directory / "inputs.json"))
+        self.assertEqual(receipt["generation_sha256"], hps.digest(directory / "generation.json"))
+        self.assertEqual(receipt["f2sdram_master_profile"], "diagnostic")
+        self.assertIsNone(receipt["linux_dma"])
         self.assertEqual(receipt["hardware_programming"], "not-performed")
         self.assertFalse(receipt["production_admission"])
         for name, item in receipt["artifacts"].items():
@@ -295,6 +323,19 @@ class LinuxDmaTests(unittest.TestCase):
                            self.definition.replace("SMMU_SID_SHIFT 32'h00000008", "SMMU_SID_SHIFT 32'h00000009")):
             with self.assertRaises(ValueError):
                 self.helper.retarget_adapter(self.source.encode(), definition)
+
+    def test_isolation_removes_only_probe_and_memory_debug_path_and_refuses_source_drift(self):
+        hps_script = (B.HERE.parent / "hps/integrate.tcl").read_text()
+        script = hps_script.replace("@PROBE_BASE@", "0x10100").replace("@TOP_SYSTEM@", "top.qsys")
+        derived = self.helper.isolate_script(script, "save_system top.qsys\n")
+        self.assertNotIn("fes_ddr_probe", derived)
+        self.assertNotIn("fes_probe_mem", derived)
+        self.assertIn("remove_instance ext_hps_f2sdram_master", derived)
+        self.assertIn("add_instance fes_mailbox fes_de25_mailbox 1.0", derived)
+        for changed in (script.replace("fes_de25_ddr_probe 1.0", "fes_de25_ddr_probe 1X0"),
+                        script.replace("baseAddress 0x10100", "baseAddress arbitrary"),
+                        script + "save_system top.qsys\n"):
+            with self.assertRaises(ValueError): self.helper.isolate_script(changed, "save_system top.qsys\n")
 
     def test_linux_dma_requires_hps_first_before_output_creation(self):
         with tempfile.TemporaryDirectory() as temp:

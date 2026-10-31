@@ -157,6 +157,7 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
     if linux_dma:
         dma = load(snapshot / BOARD / "scanout/linux_dma.py", "scanout_retained_linux_dma")
         prefix, dma_profile, parameter_changes = dma.configure(project, definition, hps)
+        script = dma.isolate_script(script, before)
         script = replace_once(script, "package require -exact qsys 26.3\n", "package require -exact qsys 26.3\n" + prefix)
     (project / "integrate-mailbox.tcl").write_text(script)
     inputs = json.loads(original_inputs)
@@ -181,6 +182,8 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
     if dma_profile is not None:
         inputs["scanout"]["linux_dma"] = dma_profile
         inputs["allowed_hps_parameter_changes"] = parameter_changes
+        inputs["f2sdram_master_profile"] = "scanout-only"
+        inputs["combined_display"]["debug_paths"] = "JTAG F2SDRAM master/window removed; other JTAG/OCM/F2H paths preserved"
     (directory / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
     (output / "snapshot.json").write_text(json.dumps({**selected, "source_sha256": inputs["functional_snapshot_sha256"],
         "hps_output": "combined/hps", "upstream_preparation_inputs_sha256": sha(original_inputs)}, indent=2, sort_keys=True) + "\n")
@@ -321,7 +324,7 @@ def verify_handoff(project, hps):
             raise ValueError("generated scanout guard ports differ: " + interface)
     # The inherited handoff check already validates all elaborated LW regions
     # pairwise for overlap. Require the actual scanout leaf region too.
-    probe = hps.verify_probe_handoff(project)
+    _, probe = hps.verify_memory_handoff(project, json.loads((project.parent / "inputs.json").read_text()))
     regions = [r for r in probe["peripheral_slave_map"] if r["name"] == "subsys_periph.fes_scanout_guard.avs"]
     if len(regions) != 1 or regions[0]["base"] != offset or regions[0]["span"] != 256:
         raise ValueError("generated scanout LW leaf region differs")
@@ -369,7 +372,9 @@ def compile_project(output, hps, display, tool):
     record = json.loads((directory / "build.json").read_text())
     record["post_compile_pixel_pll_parameters_unchanged"] = actual == expected
     record["scanout_generation_sha256"] = hps.digest(directory / "generation.json")
-    record["scanout"] = {"default_enabled": False, "ddr_scanout": True, "runtime_admission": "not-qualified"}
+    record["scanout"] = {"default_enabled": False, "ddr_scanout": True, "runtime_admission": "not-qualified",
+                         "f2sdram_master_profile": inputs.get("f2sdram_master_profile", "diagnostic"),
+                         "linux_dma": inputs["scanout"].get("linux_dma")}
     (directory / "build.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     if actual != expected:
         raise ValueError("compile changed pixel PLL parameters; retained failed validation receipt")
@@ -378,6 +383,10 @@ def compile_project(output, hps, display, tool):
             hps_initialization=inputs["scanout"]["hps_initialization"])
         record = {"format": 1, "classification": "unadmitted-HPS-first-scanout",
                   "fes_revision": inputs["fes_revision"],
+                  "inputs_sha256": hps.digest(directory / "inputs.json"),
+                  "generation_sha256": hps.digest(directory / "generation.json"),
+                  "f2sdram_master_profile": inputs.get("f2sdram_master_profile", "diagnostic"),
+                  "linux_dma": inputs["scanout"].get("linux_dma"),
                   "scanout_source_sha256": sha(json.dumps(inputs["functional_snapshot_sha256"], sort_keys=True).encode()),
                   **artifacts, "hardware_programming": "not-performed", "boot_compatibility": "not-qualified",
                   "Linux_load_acceptance": "not-qualified", "production_admission": False}

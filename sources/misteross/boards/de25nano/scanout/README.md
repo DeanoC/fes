@@ -3,8 +3,10 @@
 This lane extends the combined Terasic GHRD/display shell with an actual
 read-only framebuffer path. It starts **disabled**, issues no scanout reads
 until a valid explicit submission, and creates no admitted runtime profile.
-It preserves the existing HPS/EMIF parameters, mailbox, diagnostic DDR probe,
-JTAG paths and inactive active-low warm-reset acknowledgement. It uses Quartus
+The default maintenance build preserves the HPS/EMIF parameters, mailbox,
+diagnostic DDR probe and JTAG paths. The explicit Linux-DMA build removes the
+probe and memory-debug path, as described below. Both keep inactive active-low
+warm-reset acknowledgement. It uses Quartus
 Prime Pro 26.3.0 for `A5EB013BB23BE4SCS` and never programs hardware.
 
 For loading through Linux from the matching HPS-first bootstrap, select the
@@ -177,10 +179,20 @@ SMMU address USER ports, drives the generated nonsecure stream ID 13 in bits
 23:8, and preserves the lower vendor attributes 0xE0. Generation verifies the
 25-bit adapter/HPS interfaces and the constant driven by the QIP-selected HDL.
 Only the captured `f2sdram_SMMU` false-to-true HPS parameter change is permitted;
-other HPS/EMIF or boot-data changes still fail. This profile remains unadmitted:
-all inherited F2SDRAM masters share the selected context. It establishes no
-kernel device, firmware translation, physically qualified bounded control access or global
-master/drain/reset lifetime. The kernel production probe remains closed.
+other HPS/EMIF or boot-data changes still fail. This profile removes the DDR
+probe instance/control window/export and the memory JTAG master/export/address
+window. Other JTAG/OCM/F2H paths remain. Generation requires exactly one route
+into the F2SDRAM adapter, from scanout's memory crossing, and exactly one adapter
+route into HPS F2SDRAM; retained probe/debug instances, duplicate/extra masters,
+nonzero address translations and additional HPS F2SDRAM paths fail. The default
+maintenance build still requires the probe and memory JTAG route.
+
+Input, generation, compilation and Linux phase receipts capture the explicit
+master profile. Phase receipts also bind input/generation hashes, so source
+identity alone cannot mix maintenance and Linux-DMA artifacts. The Linux-DMA
+profile remains unadmitted: generated topology does not establish physical
+translation, Linux device/domain lifetime, control qualification, global reset
+fencing or hardware acceptance. The kernel production probe remains closed.
 
 The [Linux-DMA profile compilation record](../../../../../docs/validation/2026-10-31-de25-linux-dma/README.md)
 retains the actual stream wiring, kernel build, and open device/lifetime gates.

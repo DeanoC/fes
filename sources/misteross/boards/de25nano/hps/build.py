@@ -252,7 +252,10 @@ def peripheral_slave_map(address_map, probe_offset):
     if not regions:
         raise ValueError("vendor peripheral slave map is empty")
     probes = [r for r in regions if r["name"] == "subsys_periph.fes_ddr_probe.avs"]
-    if len(probes) != 1 or probes[0]["base"] != probe_offset or probes[0]["span"] != 128:
+    if probe_offset is None:
+        if probes:
+            raise ValueError("scanout-only profile retains the DDR probe slave")
+    elif len(probes) != 1 or probes[0]["base"] != probe_offset or probes[0]["span"] != 128:
         raise ValueError("generated DDR probe slave region differs")
     regions.sort(key=lambda r: r["base"])
     for index, region in enumerate(regions):
@@ -426,6 +429,56 @@ def verify_probe_handoff(project):
             "physical_ddr_address": "not-established", "dma_admission": "not-qualified"}
 
 
+
+def verify_scanout_memory_handoff(project):
+    """Require one actual fabric memory master, not merely a selected SID."""
+    tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
+    modules = {m.get("path"): m for m in tree.findall("module")}
+    forbidden = ("subsys_periph.fes_ddr_probe", "ext_hps_f2sdram_master", "subsys_debug.hps_f2sdram")
+    if any(path == name or path.startswith(name + ".") for path in modules for name in forbidden) or any(
+            m.get("kind") == "fes_de25_ddr_probe" for m in modules.values()):
+        raise ValueError("scanout-only profile retains a diagnostic memory master")
+    connections = tree.findall("connection")
+    ingress = [c for c in connections if c.get("end") == "subsys_hps_f2sdram_adapter.axi4_sub"]
+    egress = [c for c in connections if (c.get("end") or "").startswith("subsys_hps_agilex_hps.f2sdram")]
+    expected = ((ingress, "subsys_periph_fes_mem_cdc.m0", "subsys_hps_f2sdram_adapter.axi4_sub"),
+                (egress, "subsys_hps_f2sdram_adapter.axi4_man", "subsys_hps_agilex_hps.f2sdram"))
+    for routes, start, end in expected:
+        if (len(routes) != 1 or routes[0].get("kind") != "avalon" or
+                routes[0].get("start") != start or routes[0].get("end") != end or
+                int(routes[0].findtext("parameter[@name='baseAddress']/value") or "-1", 0) != 0):
+            raise ValueError("scanout-only F2SDRAM master route differs")
+    adapter = modules.get("subsys_hps.f2sdram_adapter")
+    if adapter is None:
+        raise ValueError("scanout-only F2SDRAM adapter missing")
+    ports = component_ports(adapter, "axi4_sub")
+    if any(ports.get(name) != expected for name, expected in {
+            "rdata": ("Output", 256), "araddr": ("Input", 32), "rresp": ("Output", 2)}.items()):
+        raise ValueError("scanout-only F2SDRAM adapter ports differ")
+    lw = [c for c in connections if c.get("kind") == "avalon" and
+          c.get("start") == "subsys_hps_agilex_hps.lwhps2fpga" and
+          c.get("end") == "subsys_periph_pb_cpu_0.s0"]
+    address_map = lw[0].findtext("parameter[@name='addressMapSysInfo']/value") if len(lw) == 1 else None
+    if not address_map:
+        raise ValueError("scanout-only LW slave map missing")
+    return {"master": ingress[0].get("start"), "master_count": 1,
+            "removed_masters": list(forbidden), "scope": "scanout-only F2SDRAM path",
+            "peripheral_slave_map": peripheral_slave_map(address_map, None),
+            "dma_admission": "not-qualified", "physical_translation": "not-qualified"}
+
+
+def verify_memory_handoff(project, inputs):
+    profile = inputs.get("f2sdram_master_profile", "diagnostic")
+    if profile == "diagnostic":
+        if inputs.get("scanout", {}).get("linux_dma") is not None:
+            raise ValueError("Linux DMA requires the scanout-only master profile")
+        return "ddr_probe", verify_probe_handoff(project)
+    if (profile != "scanout-only" or
+            inputs.get("scanout", {}).get("linux_dma", {}).get("master_ownership") != "scanout-only"):
+        raise ValueError("unsupported F2SDRAM master profile")
+    return "scanout_memory", verify_scanout_memory_handoff(project)
+
+
 def generate_project(output, tool, version):
     project = output / "project"
     install = tool.parents[2]
@@ -465,7 +518,8 @@ def generate_project(output, tool, version):
         if name.startswith("software/") and digest(project / name) != expected:
             raise ValueError("generation changed vendor boot data: " + name)
     handoff = verify_mailbox_handoff(project)
-    handoff["ddr_probe"] = verify_probe_handoff(project)
+    memory_key, memory = verify_memory_handoff(project, inputs)
+    handoff[memory_key] = memory
     (output / "generation.json").write_text(json.dumps(handoff, indent=2, sort_keys=True) + "\n")
 
 

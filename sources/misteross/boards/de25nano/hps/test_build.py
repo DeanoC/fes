@@ -501,6 +501,65 @@ class HpsBuildTests(unittest.TestCase):
         recorded = json.loads((output / "inputs.json").read_text())
         self.assertEqual(recorded["vendor_hps_emif_parameters"][EMIF], inventory)
 
+    def scanout_handoff(self):
+        tree = handoff_tree()
+        root = tree.getroot()
+        for item in list(root):
+            if item.tag == "module" and item.get("path") == "subsys_periph.fes_ddr_probe":
+                root.remove(item)
+            elif item.tag == "connection" and any(
+                    name in str(item.attrib) for name in ("fes_ddr_probe", "ext_hps_f2sdram_master")):
+                root.remove(item)
+        route = ET.SubElement(root, "connection", {"kind": "avalon",
+            "start": "subsys_periph_fes_mem_cdc.m0", "end": "subsys_hps_f2sdram_adapter.axi4_sub"})
+        ET.SubElement(ET.SubElement(route, "parameter", {"name": "baseAddress"}), "value").text = "0"
+        address = root.find("connection[@start='subsys_hps_agilex_hps.lwhps2fpga']/parameter/value")
+        mapping = ET.fromstring(address.text)
+        mapping.remove(mapping.find("slave[@name='subsys_periph.fes_ddr_probe.avs']"))
+        ET.SubElement(mapping, "slave", {"name": "subsys_periph.fes_scanout_guard.avs", "start": "0x10200", "end": "0x10300"})
+        address.text = ET.tostring(mapping, encoding="unicode")
+        return tree
+
+    def test_scanout_only_profile_requires_exclusive_actual_routes_and_removes_probe_window(self):
+        project = self.root / "isolated"
+        self.write_handoff(project, self.scanout_handoff())
+        record = BUILD.verify_scanout_memory_handoff(project)
+        self.assertEqual(record["master_count"], 1)
+        self.assertEqual(record["master"], "subsys_periph_fes_mem_cdc.m0")
+        self.assertFalse(any('fes_ddr_probe' in r['name'] for r in record['peripheral_slave_map']))
+        for fault in ("extra-master", "duplicate", "missing", "wrong-base", "direct-hps", "probe-instance", "debug-instance", "probe-map"):
+            tree = self.scanout_handoff(); root = tree.getroot()
+            route = root.find("connection[@start='subsys_periph_fes_mem_cdc.m0']")
+            if fault in ("extra-master", "duplicate"):
+                extra = copy.deepcopy(route)
+                if fault == "extra-master": extra.set("start", "unexpected.master")
+                root.append(extra)
+            elif fault == "missing": root.remove(route)
+            elif fault == "wrong-base": route.find("parameter/value").text = "0x1000"
+            elif fault == "direct-hps":
+                ET.SubElement(root, "connection", {"kind": "avalon", "start": "bypass.master", "end": "subsys_hps_agilex_hps.f2sdram1"})
+            elif fault in ("probe-instance", "debug-instance"):
+                ET.SubElement(root, "module", {"path": "subsys_periph.fes_ddr_probe" if fault == "probe-instance" else "subsys_debug.hps_f2sdram"})
+            else:
+                address = root.find("connection[@start='subsys_hps_agilex_hps.lwhps2fpga']/parameter/value")
+                mapping = ET.fromstring(address.text)
+                ET.SubElement(mapping, "slave", {"name": "subsys_periph.fes_ddr_probe.avs", "start": "0x10100", "end": "0x10180"})
+                address.text = ET.tostring(mapping, encoding="unicode")
+            self.write_handoff(project, tree)
+            with self.subTest(fault=fault), self.assertRaisesRegex(ValueError, "scanout-only"):
+                BUILD.verify_scanout_memory_handoff(project)
+
+    def test_memory_profile_selection_does_not_relax_default_probe_requirements(self):
+        project = self.root / "profile"
+        self.write_handoff(project, self.scanout_handoff())
+        with self.assertRaisesRegex(ValueError, "DDR probe"):
+            BUILD.verify_memory_handoff(project, {})
+        for inputs in ({"f2sdram_master_profile": "unknown"}, {"f2sdram_master_profile": "scanout-only"},
+                       {"scanout": {"linux_dma": {"master_ownership": "scanout-only"}}}):
+            with self.assertRaises(ValueError): BUILD.verify_memory_handoff(project, inputs)
+        inputs = {"f2sdram_master_profile": "scanout-only", "scanout": {"linux_dma": {"master_ownership": "scanout-only"}}}
+        self.assertEqual(BUILD.verify_memory_handoff(project, inputs)[0], "scanout_memory")
+
     def test_probe_preparation_checks_all_peripheral_slaves_and_exports_response_master(self):
         archive, selected, files = self.archive()
         output = self.prepare(archive, selected)
