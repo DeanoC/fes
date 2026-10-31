@@ -3453,10 +3453,12 @@ warm reset retains it, and cold reset invalidates it. CPU/DMA, upload and media
 reads arbitrate while physical refresh continues. The DOS profile accepts runtime
 replacement and eject. The image has 40
 cylinders, two heads and nine 512-byte sectors per track. A pinned
-8086-compatible FreeDOS image and GLaBIOS form a separate
-whole-machine test, intended to check the boot sector, DOS prompt and directory
-listing through the RTL machine. The diagnostic package does not connect the runtime PC media ABI. Writes, persistence, flux images
-and physical acceptance remain outside this simulation path.
+8086-compatible FreeDOS image and GLaBIOS run together in the whole-machine
+test. It checks BIOS POST, 640 KiB detection, keyboard BAT, INT 19, the boot
+sector, DOS prompt and directory listing through the RTL machine. The
+diagnostic package does not connect the runtime PC media ABI. Writes,
+persistence, flux images and physical acceptance remain outside this
+simulation path.
 
 Use `fes.computer` and implemented keyboard/audio/video services where their
 contracts fit. PC floppy transport uses the versioned `fes.media.pcxt-floppy` interface;

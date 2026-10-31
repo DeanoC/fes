@@ -284,7 +284,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-pcxt/rtl/pcxt_isa_bridge.sv': {'pcxt'},
             'cores/fes-common/generated/fes_pcxt_isa.vh': {'pcxt'},
             'scripts/sim_fes_pcxt.py': {'pcxt'},
-            'scripts/sim_fes_pcxt_bios.py': {'pcxt'},
+            'scripts/pcxt_bios.py': {'pcxt'},
             'scripts/sim_fes_pcxt_fdc.py': {'pcxt'},
             'scripts/sim_fes_pcxt_dos.py': {'pcxt'},
             'scripts/build_pcxt_freedos_image.py': {'pcxt'},

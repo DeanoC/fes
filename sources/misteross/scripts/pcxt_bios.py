@@ -1,11 +1,7 @@
-#!/usr/bin/env python3
-"""Boot the unmodified, pinned 8088 XT BIOS through the real SDRAM machine."""
-import argparse
+"""Shared pinned BIOS fixture and text-video helpers for PC/XT simulations."""
 import hashlib
 import json
-import os
 from pathlib import Path
-import subprocess
 import urllib.request
 
 import sim_fes_pcxt as sim
@@ -130,51 +126,3 @@ def verify_post_frame(frame, cells, font, label=b'GLaBIOS', target_row=None):
     if best['score'] < 0.90:
         raise ValueError('720p frame does not render the BIOS font and text: ' + str(best))
     return best
-
-
-def check_outputs(build):
-    ppm = (build / 'post.ppm').read_bytes()
-    header = b'P6\n1280 720\n255\n'
-    if not ppm.startswith(header):
-        raise ValueError('POST image has invalid PPM header')
-    font = bytes.fromhex((build / 'font.hex').read_text())
-    proof = verify_post_frame(ppm[len(header):], (build / 'screen.bin').read_bytes(), font)
-    result_path = build / 'result.json'
-    result = json.loads(result_path.read_text())
-    result['frame_check'] = proof
-    result_path.write_text(json.dumps(result, indent=2) + '\n')
-    print('PASS 720p BIOS glyphs:', proof, flush=True)
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--download', action='store_true', help='fetch the hash-pinned BIOS if absent')
-    parser.add_argument('--bios', type=Path, help='local copy of the BIOS selected by bios.lock')
-    parser.add_argument('--font', type=Path, help='external normalized 4096-byte CGA font')
-    parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
-    args = parser.parse_args()
-    if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
-        parser.error('simulation does not use the shared compiler cache')
-    build = ROOT / 'build/sim/fes-pcxt/bios'
-    build.mkdir(parents=True, exist_ok=True)
-    fixture_inputs(build, args.bios, args.font, args.download)
-    for name in sim.CHIP_VENDORS:
-        sim.verify_vendor(name)
-    sim.cpu_roms(build)
-    sources = tuple(p for p in sim.SYSTEM_SOURCES if not p.endswith('/pcxt_boot.sv')) + (
-        'cores/fes-common/rtl/fes_computer_mailbox.v',
-        sim.MEMORY_SOURCES[-1], 'cores/fes-pcxt/sim/bios_top.sv', 'cores/fes-pcxt/sim/bios_tb.cpp')
-    subprocess.run([args.verilator, '--cc', '--exe', '--build', '-j', '4', '-Wall',
-        '--timescale-override', '1ns/1ps',
-        str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt'), str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt'),
-        '--top-module', 'bios_top', '--Mdir', str(build), '-I' + str(build),
-        '-I' + str(ROOT / 'cores/fes-common/generated'),
-        *('-I' + str(sim.vendor_dir(name)) for name in sim.CHIP_VENDORS),
-        '-CFLAGS', '-std=c++17 -O2', '-I' + str(ROOT / 'cores/fes-pcxt/sim'),
-        *(str(ROOT / path) for path in sources)], check=True)
-    subprocess.run([str(build / 'Vbios_top'), str(build / 'firmware.bin')], cwd=build, check=True)
-    check_outputs(build)
-
-
-if __name__ == '__main__':
-    main()

@@ -511,18 +511,17 @@ are under `build/synth/fes-pcxt/video-{cga,mda}/{direct,scanlines}/`. These synt
 one adapter plus shared effect, not the CPU, ISA cards, font ROM or board shell.
 They provide no routed timing, physical containment or hardware acceptance.
 
-## BIOS POST simulation
+## XT floppy and DOS simulation
 
-`scripts/sim_fes_pcxt_bios.py` exercises the real assembled 8088, motherboard,
-ISA CGA card, SDRAM controller and Direct video pipeline with the stock GLaBIOS
-0.4.2 8088 XT/5160 ROM selected in `sim/bios.lock`. The simulated equipment
-profile has 640 KiB RAM, CGA and no floppy drive. The test intends to check
-that the BIOS reaches its bootstrap entry without a POST error, detects the
-expected RAM and display, receives the XT keyboard self-test byte and records
-an A make/break in its keyboard buffer. Its captured 720p banner is compared
-against the selected font and video text attributes. The firmware and keyboard events use
-the loader and cable interfaces; BIOS instructions and interrupts run on the
-RTL machine without firmware-call interception.
+The whole-machine DOS simulation begins with BIOS POST on the assembled 8088,
+motherboard, ISA CGA card and SDRAM controller. It loads the stock GLaBIOS
+0.4.2 8088 XT/5160 ROM selected in `sim/bios.lock` through the reset-only
+firmware port and uses the simulated XT keyboard. It checks POST status and
+text, an empty BIOS keyboard buffer after the BAT self-test, 640 KiB detection,
+the CGA plus one-floppy equipment profile, and the INT 19 bootstrap path before
+continuing into DOS. The keyboard then enters `DIR` through the guest-facing
+keyboard path. BIOS instructions and interrupts run on the RTL machine without
+firmware-call interception.
 
 The runner accepts only the exact BIOS bytes in the lock. It maps that 8 KiB
 ROM to the top of the 64 KiB firmware window and fills the rest with `FF`, then
@@ -532,20 +531,6 @@ The default simulation font derives the BIOS's lower 128 8-by-8 graphics glyphs
 into a 256-by-16-byte table, with the upper characters and unused rows blank.
 This is sufficient for readable ASCII during POST, not a complete CGA font.
 `--font` instead accepts an explicit 4096-byte normalized font.
-
-```sh
-# From sources/misteross; the first command explicitly permits a BIOS download.
-make sim-fes-pcxt-bios
-# Alternatively use a previously obtained exact copy and an optional font:
-python3 scripts/sim_fes_pcxt_bios.py --bios /absolute/GLABIOS_0.4.2_8X.ROM --font /absolute/cga-font.bin
-```
-
-The runner writes its input identity, trace and simulation outputs under
-`build/sim/fes-pcxt/bios/`; the firmware is an external simulation input, not
-part of the package. This host-only, diskless diagnostic does not exercise
-floppy I/O or DOS boot, and does not qualify a routed artifact or a kit.
-
-## XT floppy and DOS simulation
 
 The optional inline `pcxt_fdc_card` implements the read-only 765-family command
 subset for one XT drive. It exposes the XT adapter registers, IRQ6 and DMA2,
@@ -574,13 +559,14 @@ python3 scripts/build_pcxt_freedos_image.py --download
 python3 scripts/sim_fes_pcxt_dos.py --bios /absolute/GLABIOS_0.4.2_8X.ROM --disk /absolute/freedos-360.img
 ```
 
-The whole-machine test loads the pinned GLaBIOS and complete floppy image
-through the real SDRAM controller, enables the floppy adapter and checks that
-the disk's boot sector arrives at `0000:7C00` through DMA2. It compares every
-uploaded byte and every returned disk byte with the selected image, and checks
-that warm reset retains the medium and cold reset invalidates its admission.
-It is designed to require a DOS prompt, type `DIR` over the simulated XT
-keyboard and check `FESXT.TXT` in both text memory and the captured display.
+The whole-machine test continues from POST by loading the complete floppy image
+through the real SDRAM controller, enabling the floppy adapter and checking
+that the disk's boot sector arrives at `0000:7C00` through DMA2. It compares
+every uploaded byte and every returned disk byte with the selected image, and
+checks that warm reset retains the medium and cold reset invalidates its
+admission. It requires a DOS prompt, types `DIR` over the simulated XT keyboard
+and checks `FESXT.TXT` in both text memory and the captured display. The
+rendered directory text is checked against the selected font and attributes.
 The runner validates the selected disk's boot code, FAT12 layout and file
 contents against the lock and records the actual disk hash. Outputs are under
 `build/sim/fes-pcxt/dos/`. This is host simulation; the registered diagnostic

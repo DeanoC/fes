@@ -9,7 +9,7 @@ import subprocess
 
 import sim_fes_pcxt as sim
 import build_pcxt_freedos_image as freedos
-import sim_fes_pcxt_bios as bios
+import pcxt_bios as bios
 
 ROOT = sim.ROOT
 

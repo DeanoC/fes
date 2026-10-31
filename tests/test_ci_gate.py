@@ -172,12 +172,13 @@ class SimulationMatrixTests(unittest.TestCase):
         self.assertEqual({row['target'] for row in rows}, expected)
         self.assertTrue(all(row['core'] == 'coleco' for row in rows))
 
-    def test_pcxt_bios_is_an_independent_required_scenario(self):
-        rows = simulation_matrix(['pcxt'])['include']
-        self.assertEqual(rows, [{'core': 'pcxt', 'target': 'sim-fes-pcxt'},
-                                {'core': 'pcxt', 'target': 'sim-fes-pcxt-bios'},
-                                {'core': 'pcxt', 'target': 'sim-fes-pcxt-fdc'},
-                                {'core': 'pcxt', 'target': 'sim-fes-pcxt-dos'}])
+    def test_pcxt_dos_runs_in_full_tier_only(self):
+        from scripts.ci_simulations import simulation_matrix
+        full = [row['target'] for row in simulation_matrix(['pcxt'], 'full')['include']]
+        smoke = [row['target'] for row in simulation_matrix(['pcxt'], 'smoke')['include']]
+        self.assertEqual(full, ['sim-fes-pcxt', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-dos'])
+        self.assertEqual(smoke, ['sim-fes-pcxt-smoke'])
+        self.assertNotIn('sim-fes-pcxt-dos', smoke)
 
     def test_coleco_smoke_is_five_jobs_and_oss_board_twins_are_full_only(self):
         from scripts.ci_simulations import simulation_matrix
