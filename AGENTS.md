@@ -46,6 +46,13 @@ Lander merges directly with `gh pr merge N --squash --match-head-commit <sha>` a
 - Batch fixes. Merge main in only when there is a conflict.
 - A clean review carries over across base-only merges when CI is green.
 
+### PR size
+- Prefer one PR per coherent feature or milestone, not one PR per step.
+- Don't mix unrelated subsystems in one PR.
+- Don't split work into stacked chains. Stacks stay at most 2 deep.
+- Put unfinished work behind a feature flag and land it on main (trunk-based) instead of holding long stacks.
+- Small PRs are still right for isolated fixes.
+
 ### HIL
 - Run HIL in parallel with review. Use kit A if kit B is busy.
 - Stop after 2 FAILs on the same head and fix instead.
