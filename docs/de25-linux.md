@@ -253,11 +253,14 @@ existing FES development convention. Dropbear creates the board's SSH host keys
 on the writable root filesystem at first boot; no shared host key is shipped.
 `/etc/fes-board` identifies this root filesystem as `de25-nano`.
 
-The selected vendor boot path may generate a random Ethernet MAC when no
-valid address is available from firmware or hardware. Stable MAC identity
-across reboots is not established by this milestone. Record the observed MAC
-and DHCP address during board qualification, including distinct addresses
-when testing both boards.
+The selected vendor boot path may generate a random locally administered
+Ethernet MAC on each boot. Before DHCP, `S38fes-network-id` preserves globally
+assigned hardware addresses and replaces local addresses with `02` followed
+by five bytes of the SHA-256 digest of the lowercase SD card CID. This identity
+is stable for the card; replacing the card changes it. Invalid identities are
+rejected before changing the interface. Physical reboot verification of this
+initialization remains pending; record the MAC and DHCP address during board
+qualification, including distinct addresses when testing both boards.
 
 The normal FES appliance bootstrap is not used. Its current kernel contract,
 trial watchdog reset preparation and software bundle identities target

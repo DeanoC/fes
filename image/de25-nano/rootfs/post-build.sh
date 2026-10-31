@@ -23,3 +23,11 @@ if [ -n "$(find "$target/etc/dropbear" -name 'dropbear_*_host_key' -print)" ]; t
   printf '%s\n' 'de25 post-build: SSH host keys must be generated on the board' >&2
   exit 1
 fi
+
+# Refuse an incomplete or stale overlay in newly assembled images.
+network_id=etc/init.d/S38fes-network-id
+source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ ! -x "$target/$network_id" ] || ! cmp -s "$source_dir/overlay/$network_id" "$target/$network_id"; then
+  printf '%s\n' 'de25 post-build: missing or stale network identity initialization' >&2
+  exit 1
+fi
