@@ -309,13 +309,21 @@ func assertTargetClientAcceptsStatus(t *testing.T, status protocol.Status) {
 	if err != nil {
 		t.Fatalf("targetclient rejected reconciled computer status: %v", err)
 	}
-	if got.CorePackage == nil || len(got.CorePackage.MediaUnits) != 1 ||
-		!reflect.DeepEqual(got.CorePackage.MediaUnits, status.CorePackage.MediaUnits) {
+	if got.CorePackage == nil || len(got.CorePackage.MediaUnits) != len(status.CorePackage.MediaUnits) ||
+		(len(status.CorePackage.MediaUnits) > 0 && !reflect.DeepEqual(got.CorePackage.MediaUnits, status.CorePackage.MediaUnits)) {
 		t.Fatalf("targetclient changed reconciled media status: got=%+v want=%+v", got.CorePackage, status.CorePackage)
 	}
 }
 
-func pc386FixtureArchive(t *testing.T) []byte {
+// pc386FixtureArchive is a synthetic fes.computer 1.1 pc386 package with the
+// ATA disk; extra interface IDs are added as required version 1.0.
+func pc386FixtureArchive(t *testing.T, extra ...string) []byte {
+	return pc386PackageArchive(t, append([]string{"fes.video.fixed-720p60", "fes.memory.hps-ddr", "fes.media.ata-disk"}, extra...)...)
+}
+
+// pc386PackageArchive is a synthetic fes.computer 1.1 package declaring the
+// interfaces, each required version 1.0.
+func pc386PackageArchive(t *testing.T, interfaces ...string) []byte {
 	t.Helper()
 	payloadPath := filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2", "payloads", "fes-fixture.rbf")
 	payload, err := os.ReadFile(payloadPath)
@@ -323,6 +331,10 @@ func pc386FixtureArchive(t *testing.T) []byte {
 		t.Fatal(err)
 	}
 	digest := sha256.Sum256(payload)
+	var blocks string
+	for _, id := range interfaces {
+		blocks += fmt.Sprintf("[[interfaces]]\nid = %q\nmajor = 1\nminor = 0\nrequired = true\n\n", id)
+	}
 	manifest := []byte(fmt.Sprintf(`format = 2
 
 [core]
@@ -346,31 +358,13 @@ id = "fes.computer"
 major = 1
 minor = 1
 
-[[interfaces]]
-id = "fes.video.fixed-720p60"
-major = 1
-minor = 0
-required = true
-
-[[interfaces]]
-id = "fes.memory.hps-ddr"
-major = 1
-minor = 0
-required = true
-
-[[interfaces]]
-id = "fes.media.ata-disk"
-major = 1
-minor = 0
-required = true
-
-[build]
+%s[build]
 id = "0123456789abcdef0123456789abcdef"
 repository = "https://example.invalid/fes-pc386"
 revision = "1111111111111111111111111111111111111111"
 recipe_sha256 = "2222222222222222222222222222222222222222222222222222222222222222"
 toolchain = "synthetic fixture generator 1.0 (test-only)"
-`, len(payload), digest))
+`, len(payload), digest, blocks))
 	return pc386TarArchive(manifest, payload)
 }
 

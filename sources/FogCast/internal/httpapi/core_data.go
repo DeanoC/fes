@@ -11,6 +11,12 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
+// machineCoreController launches and reads pc386 library games.
+type machineCoreController interface {
+	LoadLibraryMachineCore(context.Context, int64, io.Reader, string, protocol.LibraryMachineBinding) (protocol.Status, *protocol.APIError)
+	InspectGameCoreData(context.Context, int64, io.Reader, string, string) (protocol.CoreDataInspection, *protocol.APIError)
+}
+
 type coreDataController interface {
 	LoadLibraryCore(context.Context, int64, io.Reader, string) (protocol.Status, *protocol.APIError)
 	InspectCoreData(context.Context, int64, io.Reader, string) (protocol.CoreDataInspection, *protocol.APIError)
@@ -56,13 +62,55 @@ func registerCoreDataRoutes(mux *http.ServeMux, token string, controller Develop
 				setRequestState(r, status)
 				result = status
 			case "/v1/library/core/load":
+				machine, valid := protocol.LibraryMachineHeaders(r.Header)
+				if !valid {
+					writeBadRequest(w, r, "library game or disk binding is invalid")
+					return
+				}
 				var status protocol.Status
-				status, apiErr = c.LoadLibraryCore(r.Context(), r.ContentLength, r.Body, ids[0])
+				if machine != nil {
+					games, ok := controller.(machineCoreController)
+					if !ok {
+						writeAPIError(w, 400, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"})
+						return
+					}
+					status, apiErr = games.LoadLibraryMachineCore(r.Context(), r.ContentLength, r.Body, ids[0], *machine)
+				} else {
+					status, apiErr = c.LoadLibraryCore(r.Context(), r.ContentLength, r.Body, ids[0])
+				}
 				setRequestState(r, status)
 				result = status
 			case "/v1/library/core/data/inspect":
-				result, apiErr = c.InspectCoreData(r.Context(), r.ContentLength, r.Body, ids[0])
+				games := r.Header.Values(protocol.LibraryGameHeader)
+				if len(games) > 1 || (len(games) == 1 && !protocol.ValidMediaGameID(games[0])) {
+					writeBadRequest(w, r, "library game is invalid")
+					return
+				}
+				if len(games) == 1 {
+					gameData, ok := controller.(machineCoreController)
+					if !ok {
+						writeAPIError(w, 400, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"})
+						return
+					}
+					result, apiErr = gameData.InspectGameCoreData(r.Context(), r.ContentLength, r.Body, ids[0], games[0])
+				} else {
+					result, apiErr = c.InspectCoreData(r.Context(), r.ContentLength, r.Body, ids[0])
+				}
 			case "/v1/library/core/settings":
+				if settings := r.Header.Values(protocol.MachineSettingsHeader); len(settings) != 0 {
+					revisions, games := r.Header.Values("X-FogCast-Expected-Revision"), r.Header.Values(protocol.LibraryGameHeader)
+					machine, parsed := protocol.ParseMachineSettings(settings[0])
+					update := protocol.CoreSettingsUpdate{ExpectedPackageID: ids[0], Machine: &machine}
+					if len(settings) == 1 && len(revisions) == 1 && len(games) == 1 && len(r.Header.Values("X-FogCast-Paddle-Speed")) == 0 && parsed {
+						update.ExpectedRevision, update.GameID = revisions[0], games[0]
+					}
+					if !update.Valid() {
+						writeBadRequest(w, r, "machine settings, revision or game are invalid")
+						return
+					}
+					result, apiErr = c.UpdateCoreSettings(r.Context(), r.ContentLength, r.Body, update)
+					break
+				}
 				revisions, speeds := r.Header.Values("X-FogCast-Expected-Revision"), r.Header.Values("X-FogCast-Paddle-Speed")
 				if len(revisions) != 1 || len(speeds) != 1 || !protocol.ValidCoreDataRevision(revisions[0]) || (speeds[0] != "0" && speeds[0] != "1" && speeds[0] != "2") {
 					writeBadRequest(w, r, "core settings revision or speed is invalid")
@@ -79,4 +127,5 @@ func registerCoreDataRoutes(mux *http.ServeMux, token string, controller Develop
 			writeJSON(w, 200, result)
 		}))))
 	}
+	registerDiskImageRoutes(mux, token, controller)
 }

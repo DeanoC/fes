@@ -146,7 +146,7 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 		return nil, nil
 	}
 	role = savedZx81TapeRole(descriptor, role)
-	if (role != "blob" && role != protocol.DiskRole && role != protocol.CassetteRole) || protocol.ValidateDigest(id) != nil {
+	if (role != "blob" && role != protocol.DiskRole && role != protocol.CassetteRole && role != protocol.HardDiskRole) || protocol.ValidateDigest(id) != nil {
 		return nil, canonicalError(protocol.CodeBadRequest, nil)
 	}
 	var capability *protocol.CoreMediaCapability
@@ -170,6 +170,14 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 	if media.Size < capability.MinBytes || media.Size > capability.MaxBytes || (capability.Interface == protocol.AtariStFloppyInterface() && !protocol.AdmitAtariStFloppySize(media.Size)) {
 		return nil, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "request",
 			Message: fmt.Sprintf("selected %s media is %d bytes; package contract accepts %d..%d bytes", role, media.Size, capability.MinBytes, capability.MaxBytes)}
+	}
+	if capability.Interface == protocol.AtaDiskInterface() {
+		// The fixed disk travels through kit staging at launch (readHardDisk),
+		// never as a media-unit insert; selection only checks its size.
+		if !protocol.AdmitAtaDiskSize(media.Size) {
+			return nil, protocol.HardDiskRequestError()
+		}
+		return &coreEntryMedia{ReadCloser: io.NopCloser(bytes.NewReader(nil)), size: media.Size}, nil
 	}
 	opened, reader, err := store.OpenCoreMedia(ctx, id)
 	if err != nil {

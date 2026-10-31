@@ -284,12 +284,16 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 	if current != nil && current.PersistenceLayout != nil && !reflect.DeepEqual(current.PersistenceLayout, check.PersistenceLayout) {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeIncompatibleData, nil)
 	}
-	data, err := s.inspectInstalledCoreData(ctx, id, nil)
-	if err != nil {
-		return catalog.CoreEntry{}, err
-	}
-	if !reflect.DeepEqual(data.Layout, check.PersistenceLayout) {
-		return catalog.CoreEntry{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	// A pc386 record is per library game: a new entry has none to read yet,
+	// and its launch reads the layout from the kit.
+	if !protocol.DeclaresPc386Machine(check.Descriptor) || gameID != "" {
+		data, err := s.inspectInstalledCoreData(ctx, id, gameID, nil)
+		if err != nil {
+			return catalog.CoreEntry{}, err
+		}
+		if !reflect.DeepEqual(data.Layout, check.PersistenceLayout) {
+			return catalog.CoreEntry{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+		}
 	}
 	var entry catalog.CoreEntry
 	if gameID == "" {
@@ -353,8 +357,10 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 	var entry catalog.CoreEntry
 	var media *coreEntryMedia
 	var firmware *coreEntryMedia
+	var hardDisk *hardDiskSource
 	var imageSHA string
 	defer func() {
+		resultErr = errors.Join(resultErr, hardDisk.Close())
 		if media != nil {
 			resultErr = errors.Join(resultErr, media.Close())
 		}
@@ -380,6 +386,13 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		}
 		if err := validateROMMediaContract(inspection.Descriptor); err != nil {
 			return coreLoadSource{}, err
+		}
+		if (protocol.DeclaresAtaDisk(inspection.Descriptor) || protocol.DeclaresPc386Machine(inspection.Descriptor)) &&
+			(inspection.Descriptor.ROM != nil || inspection.Descriptor.Format == 4) {
+			// Only the pc386 launch below sends the game and stages the disk;
+			// a ROM-linked launch would send neither.
+			return coreLoadSource{}, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission",
+				Message: "a package with a hard disk or a pc386 machine record cannot link a ROM"}
 		}
 		if protocol.RequiresCoreMedia(inspection.Descriptor) && !(inspection.Descriptor.ROM != nil && inspection.Descriptor.ROM.Role == "cartridge") && entry.MediaID == "" {
 			return coreLoadSource{}, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission",
@@ -440,6 +453,32 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 				return coreLoadSource{}, snapshotMismatch(launchSnapshotROMSourcesChanged)
 			}
 			return source, nil
+		}
+		if protocol.DeclaresAtaDisk(inspection.Descriptor) && !protocol.DeclaresPc386Machine(inspection.Descriptor) && entry.MediaID != "" {
+			// The runtime binds a disk delta to the game of a per-game
+			// record, and takes a game only from a package that has one.
+			return coreLoadSource{}, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission",
+				Message: "this package has no per-game machine record, so a hard-disk image cannot be bound to it"}
+		}
+		if protocol.DeclaresPc386Machine(inspection.Descriptor) {
+			// The game keys the machine record and disk delta; the disk is
+			// staged on the kit by digest and written by the runtime before
+			// release, so nothing is inserted after the core starts.
+			if protocol.DeclaresAtaDisk(inspection.Descriptor) {
+				hardDisk, err = s.readHardDisk(ctx, entry)
+			} else if entry.MediaID != "" {
+				err = protocol.HardDiskRequestError()
+			}
+			if err != nil {
+				return coreLoadSource{}, err
+			}
+			machine := &protocol.LibraryMachineBinding{GameID: entry.GameID}
+			if hardDisk != nil {
+				disk := hardDisk.disk
+				machine.Disk = &disk
+			}
+			return coreLoadSource{activationBudget: hardDiskActivationBudget, size: int64(len(data)), body: bytes.NewReader(data),
+				entry: &entry, machine: machine, hardDisk: hardDisk}, nil
 		}
 		media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, entry.MediaID)
 		if err != nil {
@@ -667,6 +706,10 @@ type coreLoadSource struct {
 	size            int64
 	body            io.Reader
 	entry           *catalog.CoreEntry
+	// machine binds a pc386 library launch to its game and staged disk;
+	// hardDisk uploads that disk when the kit does not hold it yet.
+	machine  *protocol.LibraryMachineBinding
+	hardDisk *hardDiskSource
 }
 
 // stopRejectedCore owns recovery when package activation cannot be accepted,

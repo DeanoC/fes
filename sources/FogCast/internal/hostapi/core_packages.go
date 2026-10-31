@@ -29,6 +29,7 @@ var corePackageIDRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 func registerCoreLibrary(mux *http.ServeMux, service Service) {
 	registerCoreCatalog(mux, service)
 	registerCoreMediaLibrary(mux, service)
+	registerHardDiskMedia(mux, service)
 	registerAtariStDisks(mux, service)
 	registerCoreFirmwareLibrary(mux, service)
 	registerCoreExpansions(mux, service)

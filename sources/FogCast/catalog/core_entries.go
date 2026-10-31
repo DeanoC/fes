@@ -39,16 +39,25 @@ type CoreEntry struct {
 	MediaID          string `json:"media_id,omitempty"`
 	MediaRole        string `json:"media_role,omitempty"`
 	FirmwareRequired bool   `json:"firmware_required,omitempty"`
+	// DiskGeometry overrides the geometry inferred from a hard-disk image's
+	// master boot record. Nil means inferred.
+	DiskGeometry *protocol.DiskGeometry `json:"disk_geometry,omitempty"`
 }
 
-const coreEntrySelect = `SELECT e.game_id, g.title, e.core_id, e.package_id, e.media_role, e.media_id, e.firmware_required
+const coreEntrySelect = `SELECT e.game_id, g.title, e.core_id, e.package_id, e.media_role, e.media_id, e.firmware_required,
+		e.disk_cylinders, e.disk_heads, e.disk_sectors
 		FROM core_entries AS e JOIN games AS g ON g.game_id = e.game_id`
 
 func scanCoreEntry(scan func(...any) error) (CoreEntry, error) {
 	var entry CoreEntry
 	var firmware int
-	err := scan(&entry.GameID, &entry.Title, &entry.CoreID, &entry.PackageID, &entry.MediaRole, &entry.MediaID, &firmware)
+	var geometry protocol.DiskGeometry
+	err := scan(&entry.GameID, &entry.Title, &entry.CoreID, &entry.PackageID, &entry.MediaRole, &entry.MediaID, &firmware,
+		&geometry.Cylinders, &geometry.Heads, &geometry.SectorsPerTrack)
 	entry.FirmwareRequired = firmware != 0
+	if geometry != (protocol.DiskGeometry{}) {
+		entry.DiskGeometry = &geometry
+	}
 	return entry, err
 }
 
