@@ -1,0 +1,9 @@
+PASS python3 tests/test_de25_bootstrap.py (five rejection-focused cases)
+PASS real Quartus26.3 prepare and subsequent closed-package verify
+PASS regenerated HPS-only RBF/core hashes match retained physical proof
+PASS make test-changed --base e76179a112bfa4aa5baec03046747d82afe57e0e
+  affected planner tests, parent Python regressions, working-tree generated
+  consumer consistency and committed/working whitespace all return0
+PASS python3 scripts/check_doc_links.py (including support matrix)
+PASS published metadata/log scan for private IPv4/MAC addresses
+No FPGA compile, image build, target access, boot/flash/SD write or new physical acceptance.

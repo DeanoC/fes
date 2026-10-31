@@ -144,6 +144,11 @@ The [normal Linux kit acceptance map](design/de25-linux-platform.md) tracks the
 remaining managed workflow. The [Linux FPGA-manager bring-up](validation/2026-10-30-de25-linux-fpga/README.md)
 records successful driver probing and the current core-transfer/cleanup failure.
 
+The [persistent bootstrap procedure](de25-reboot-bootstrap.md) prepares a
+closed candidate/recovery/vendor-rollback set for the next reboot milestone.
+Preparation never programs the board; QSPI deployment remains an explicitly
+approved hardware trial.
+
 ## Image artifacts
 
 The image output contains:

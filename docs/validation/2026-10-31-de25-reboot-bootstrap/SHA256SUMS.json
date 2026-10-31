@@ -1,0 +1,9 @@
+{
+  "README.md": "c0cd4a8f96c0ebc801eb39723a2b24fc9197354c622b82378304afc437af04e0",
+  "bootstrap.json": "ac59e7183e6361606e9b13dae124974395bdb5d7547d2c1bde28bf0edf97af85",
+  "candidate-info.log": "ae6a3d13464fd744da0c8cd7c8d5e755ba9bd5b02a923cd7db2fc53411559d0f",
+  "checks.txt": "175d3a806a3c22820fb07e79d7584082f29b7ee158e2b37d38d1d8af1da12fac",
+  "conversion.log": "d49f8b21774cf4776c7d14c94d39e23356ed7da4e21478879c6d0da6cac6c952",
+  "recovery-info.log": "7b888f3a7dfffd8cee4a93c02e07690e0786de74958b5908a6020e6bf507f47c",
+  "rollback-info.log": "6686a32ddc13cdaa4b5e3ec31cda3480b7e1f4770c281d5c5f3adb1501a91f4c"
+}
