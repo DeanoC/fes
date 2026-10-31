@@ -23,14 +23,16 @@ type CoreMediaCapability struct {
 	Transport string          `json:"transport"`
 	// Unit is the fes.computer media unit a removable-media role occupies.
 	Unit *uint8 `json:"unit,omitempty"`
-	// Extensions lists the file names a live-media request may carry.
+	// Extensions lists accepted source file names for this package's media role.
 	Extensions []string `json:"extensions,omitempty"`
 }
 
-// DeclaredCoreMediaCapabilities contains transport interpretations, never core
-// IDs. Unknown interface versions cannot silently inherit legacy size limits
-// or transport semantics. Optional declarations still require active runtime
-// support at launch.
+// DeclaredCoreMediaCapabilities contains transport interpretations for known
+// package ABI/interface declarations. It also reports machine-specific source
+// formats when one shared unit uses different image formats, as with ZX80 .o
+// and ZX81/Timex .p cassettes. Unknown interface versions cannot silently
+// inherit legacy size limits or transport semantics. Optional declarations
+// still require active runtime support at launch.
 func DeclaredCoreMediaCapabilities(descriptor corepackage.Descriptor) []CoreMediaCapability {
 	if ComputerABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
 		return declaredComputerMedia(descriptor)

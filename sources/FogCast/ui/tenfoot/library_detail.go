@@ -120,16 +120,16 @@ func detailReadiness(d rooms.Destination) readinessCopy {
 	return c
 }
 
-// drawDetailReadiness draws the readiness row on the dark Details pane and
+// drawDetailReadiness draws the readiness row on the Library Details pane and
 // returns the height it used. maxY keeps it inside a collapsed pane.
 func drawDetailReadiness(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, x, y, w, maxY int, d rooms.Destination) int {
 	c := detailReadiness(d)
 	if c.State == "" && c.Headline == "" {
 		return 0
 	}
-	text := gfx.RGBA(0xED, 0xF3, 0xE9, 0xFF)
-	secondary := gfx.RGBA(0xB5, 0xC3, 0xB9, 0xFF)
-	rowH := gfx.TextHeight(16)
+	text := heroText
+	secondary := heroSecondary
+	rowH := gfx.TextHeight(20)
 	lineX := x
 	if c.State != "" {
 		if y+gfx.TextHeightWeight(detailPill.px, gfx.WeightBold)+detailPill.px/2 > maxY {
@@ -139,10 +139,10 @@ func drawDetailReadiness(dev gfx.Device, labels map[string]gpuTexture, used map[
 		lineX += pw + 12
 		rowH = max(rowH, h)
 	}
-	heroLine(dev, labels, used, lineX, y+(rowH-gfx.TextHeight(16))/2, x+w-lineX, 16, false, text, c.Headline)
+	heroLine(dev, labels, used, lineX, y+(rowH-gfx.TextHeight(20))/2, x+w-lineX, 20, false, text, c.Headline)
 	height := rowH + 6
-	if c.Explain != "" && y+height+gfx.TextHeight(16) <= maxY {
-		height += heroLine(dev, labels, used, x, y+height, w, 16, false, secondary, c.Explain) + 4
+	if c.Explain != "" && y+height+gfx.TextHeight(20) <= maxY {
+		height += heroLine(dev, labels, used, x, y+height, w, 20, false, secondary, c.Explain) + 4
 	}
 	return height
 }

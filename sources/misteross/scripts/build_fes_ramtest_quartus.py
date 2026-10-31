@@ -9,6 +9,7 @@ fes.memory.hps-ddr ports on the memory clock.
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import re
 import shutil
@@ -67,6 +68,9 @@ PROJECT_SDC = (
     "    -group [get_clocks {ram_clock|pll|general[1].gpll~PLL_OUTPUT_COUNTER|divclk}] \\\n"
     "    -group [get_clocks {ram_clock|pll|general[2].gpll~PLL_OUTPUT_COUNTER|divclk}]\n"
 )
+# Registers on a clock TimeQuest cannot analyse are in no slack row.
+UNANALYSED_CLOCKS = ("Illegal Clocks", "Unconstrained Clocks")
+UNANALYSED_ROW_RE = re.compile(r"^; (Illegal Clocks|Unconstrained Clocks)\s*; (\d+)\s*; (\d+)\s*;", re.M)
 
 
 class BuildError(ValueError):
@@ -125,6 +129,19 @@ def write_project(root: Path, output: Path) -> Path:
     return project
 
 
+def check_setup_slack(domain: str, line: str) -> None:
+    text = line.split(";")[2].strip()
+    try:
+        slack = float(text)
+    except ValueError:
+        raise BuildError(f"{domain} setup slack {text} is not a number: {line.strip()}") from None
+    print(f"{domain} setup slack {slack:.3f} ns")
+    # TimeQuest prints a sub-picosecond miss as -0.000, which float() reads
+    # as zero, so the printed sign also fails the gate.
+    if not math.isfinite(slack) or slack < 0 or text.startswith("-"):
+        raise BuildError(f"{domain} setup slack is {text} ns: {line.strip()}")
+
+
 def validate_timing(sta_text: str) -> None:
     for needle in ("74.27 MHz",):
         if needle not in sta_text:
@@ -150,20 +167,20 @@ def validate_timing(sta_text: str) -> None:
     if not memory_rows:
         raise BuildError(f"timing report lacks the {MHZ} MHz memory setup row")
     for line in memory_rows:
-        slack = float(line.split(";")[2])
-        print(f"memory setup slack {slack:.3f} ns")
-        if slack < 0:
-            raise BuildError(f"memory setup slack is {slack} ns: {line.strip()}")
+        check_setup_slack("memory", line)
     pixel_rows = [
         line for line in setup.group(1).splitlines()
         if "video_clock" in line and "divclk" in line
     ]
     if len(pixel_rows) != 1:
         raise BuildError("timing report lacks the pixel setup row")
-    pixel_slack = float(pixel_rows[0].split(";")[2])
-    print(f"pixel setup slack {pixel_slack:.3f} ns")
-    if pixel_slack < 0:
-        raise BuildError(f"pixel setup slack is {pixel_slack} ns")
+    check_setup_slack("pixel", pixel_rows[0])
+    unanalysed = UNANALYSED_ROW_RE.findall(sta_text)
+    if sorted(row[0] for row in unanalysed) != sorted(UNANALYSED_CLOCKS):
+        raise BuildError("timing report lacks the unconstrained paths summary")
+    for row, setup_count, hold_count in unanalysed:
+        if int(setup_count) or int(hold_count):
+            raise BuildError(f"timing report has {row.lower()}: {setup_count} setup, {hold_count} hold")
 
 
 def compile(root: Path | None = None) -> Path:

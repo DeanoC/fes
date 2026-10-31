@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "reviewed_head": "50fb1cc22e631e7aa5b2f9fd7d6c1df4ce92b700",
+  "fix_commit": "b52145ab6681f9c812f93ada3150be63b8df4ac2",
+  "tested_source": "3544e5ca36b4bcf8dd4d92db046225ce23fb29cf",
+  "evidence_class": "host-only software checks; userspace bundle built, not deployed",
+  "retained_root": "/home/deano/.codex/worktrees/2a2a/fes/out/dev/working-core-rooms/out/review-1182",
+  "retained_files": [
+    {
+      "path": "bundle-final/bundle.tar",
+      "size": 36476416,
+      "sha256": "b95bd9c58cefa46af3ee82632fcdabf1cf41dce288dd6003253292f38a0e9a57"
+    },
+    {
+      "path": "bundle-final/receipt.json",
+      "size": 4691,
+      "sha256": "286eafc57fd622e0c2c6f897536a44731392f5ef3ec3d4d63c8239cfd814d205"
+    },
+    {
+      "path": "build-bundle-final.log",
+      "size": 41735,
+      "sha256": "e00b761459a91c85506604f466c7c382c2407e2ca59778f3344c63f7f34aa1d2"
+    },
+    {
+      "path": "test-changed.log",
+      "size": 286311,
+      "sha256": "397e409f7f553e96d82481f010993946a06650c9653ea1d25b3aadd4265602fe"
+    },
+    {
+      "path": "host-lane-retry.log",
+      "size": 977589,
+      "sha256": "d91c97854bbfaa5f6e189c379c8869f81fea2a7d835bbb3c4c0b8e3e6781336a"
+    },
+    {
+      "path": "host-lane-command.json",
+      "size": 2191,
+      "sha256": "9e1d9db7e41b9b915c842b0cceb26d8ac0dc12dc59dc5201f89969be80fd6946"
+    },
+    {
+      "path": "parent-checks.log",
+      "size": 185,
+      "sha256": "7d5d254bd02b3abb520a70e3a2509f4146335383b33349b8397c374a0825fc29"
+    }
+  ],
+  "validation": {
+    "planner": 21,
+    "runner": 31,
+    "parent": 864,
+    "generated_consumers": 21,
+    "fixture_copies": 37,
+    "copied_source_pins": 0,
+    "host_stages": 7,
+    "go_package_results": 95,
+    "go_unique_packages": 90,
+    "node": 361,
+    "ui_dom": 78,
+    "check": "passed",
+    "deadcode": "passed",
+    "doc_links": "passed"
+  }
+}

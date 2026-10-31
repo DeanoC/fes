@@ -336,6 +336,20 @@ overrides and a no-op `ip`.
 The same CID could later seed a per-card `target_id` or credential; that is
 not implemented here.
 
+## Wall-clock time
+
+The kits have no battery RTC, so the clock boots at the Unix epoch.
+`S21fes-time` starts BusyBox `ntpd -n` against `0.pool.ntp.org` to
+`3.pool.ntp.org` right after `S20mister-network` starts DHCP. The image
+enables the `ntpd` applet through `board/fogcast-target/busybox.fragment`.
+The script doesn't wait for the network: `ntpd` keeps retrying names that
+don't resolve yet and steps the clock on its first good sample. Until that
+sample arrives, and for good on a network that can't reach the pool, the clock
+still reads 1970. Logs from early boot keep their epoch timestamps. Stop sends
+`ntpd` a signal and doesn't wait, so it adds nothing to the shutdown budget.
+The host test `image/scripts/tests/time-init_test.sh` runs the script against
+a stub `ntpd`.
+
 ## What verification proves
 
 `make verify-media` reads the published artifact and checks the MBR, partition

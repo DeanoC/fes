@@ -6,6 +6,11 @@ running. All listed product picks are locked. This document is not an
 implementation claim and does not invent RTL. Deano owns FES parent merge.
 Do not merge without Deano. Bob coordinates; this PR is design lock only.
 
+This lock covers the ZX81/Timex `.p` path and mid-session media. Separately,
+`fes.zx80` next-start setup accepts raw `.o` files through the installed-core
+picker; this does not change ZX81/Timex or live-media `.p` admission. See the
+[current architecture](../sources/FogCast/docs/ARCHITECTURE.md) for that path.
+
 **Audience:** FES parent, FogCast (host/rooms/tenfoot/agent),
 libmister-runtime media lifecycle, mister-packages ABI, and later misteross
 tape-loader work. Read this before adding a sofa tape picker, a mid-session
@@ -99,11 +104,12 @@ is retired for day-to-day.
   interpretation beyond the next begin.
 - misteross `zx81_machine.sv`: the ZX81 compile intercepts LOAD at `$0347` and
   stores the image at `tape_addr` plus eight. The ZX80 compile intercepts
-  `$0207` and stores the raw image at `tape_addr` with no +8. FES does not
-  admit `.o` files as a separate format. A committed
-  mailbox blob is copied into RAM; with no blob, SCF so BASIC returns `0/0`
-  instead of the original cassette waiter (black screen until BREAK). Raw
-  `.p` bytes only — **no audio / TZX decode**.
+  `$0207` and stores the raw image at `tape_addr` with no +8. The separate
+  `fes.zx80` next-start picker admits raw `.o` images; ZX81/Timex and live-media
+  admission remain `.p` only. A committed mailbox blob is copied into RAM;
+  with no blob, SCF so BASIC returns `0/0` instead of the original cassette
+  waiter (black screen until BREAK). This lock's tape path uses raw `.p` bytes
+  only — **no audio / TZX decode**.
 - Package manifest declares **`fes.media.blob` only** (not
   `fes.media.blob-stream`). Coleco/SMS stream is a different contract.
 
@@ -182,11 +188,11 @@ image for the active `fes.simple-computer` / `fes.media.blob` contract.
 
 | Rule | v1 |
 | --- | --- |
-| File format | **`.p` / `.P` only** (ZX81 memory-image tape). Reject other extensions at admission once enforcement lands. |
+| File format | **`.p` / `.P` only** (ZX81 memory-image tape). The ZX80 next-start picker's `.o` support is separate and does not apply here. |
 | Size | **1..16384** bytes (existing ABI max). |
 | Storage | Ordinary `POST /api/v1/core-media` object (digest id). Not an FPGA package. Not sealed into `fes.zx81`. |
 | Free path | Absolute local path remains valid for **development** upload; household product path is library media id. |
-| Not v1 | `.tzx` / TZX, `.tap`, `.o`, `.col`, `.chr`, analog cassette wav, multi-file albums. |
+| Not v1 | `.tzx` / TZX, `.tap`, `.col`, `.chr`, analog cassette wav, multi-file albums. ZX80 `.o` files are outside this ZX81/live-media lock. |
 
 Primary launch-time `.p` and mid-session tape share the **same byte class**.
 They differ in **bind time** (launch primary vs post-boot secondary), not in

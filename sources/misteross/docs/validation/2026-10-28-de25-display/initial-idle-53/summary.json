@@ -1,0 +1,89 @@
+{
+  "output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-idle-menu/out/de25-display-idle-53a44708e2",
+  "timing_rows": [
+    {
+      "type": "Setup 'video_clock|iopll_0_outclk0'",
+      "slack_ns": 11.934,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4 0C Model"
+    },
+    {
+      "type": "Setup 'video_clock|iopll_0_refclk'",
+      "slack_ns": 18.363,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4a 0C Model"
+    },
+    {
+      "type": "Hold 'video_clock|iopll_0_refclk'",
+      "slack_ns": 0.108,
+      "tns_ns": 0.0,
+      "corner": "Fast fix4 0C Model"
+    },
+    {
+      "type": "Hold 'video_clock|iopll_0_outclk0'",
+      "slack_ns": 0.118,
+      "tns_ns": 0.0,
+      "corner": "Fast fix4 0C Model"
+    },
+    {
+      "type": "Recovery 'video_clock|iopll_0_refclk'",
+      "slack_ns": 18.924,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4 0C Model"
+    },
+    {
+      "type": "Removal 'video_clock|iopll_0_refclk'",
+      "slack_ns": 0.256,
+      "tns_ns": 0.0,
+      "corner": "Fast fix4 0C Model"
+    },
+    {
+      "type": "Minimum Pulse Width 'video_clock|iopll_0_outclk0'",
+      "slack_ns": 5.858,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4 0C Model"
+    },
+    {
+      "type": "Minimum Pulse Width 'video_clock|iopll_0|tennm_ph2_iopll|ref_clk0'",
+      "slack_ns": 8.582,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4a 0C Model"
+    },
+    {
+      "type": "Minimum Pulse Width 'video_clock|iopll_0_refclk'",
+      "slack_ns": 9.59,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4a 0C Model"
+    },
+    {
+      "type": "Minimum Pulse Width 'video_clock|iopll_0_n_cnt_clk'",
+      "slack_ns": 49.563,
+      "tns_ns": 0.0,
+      "corner": "Slow fix4 100C Model"
+    }
+  ],
+  "failed_design_assistant_rules": [
+    {
+      "rule": "TMC-20012 - Missing Output Delay Constraint",
+      "severity": "High",
+      "violations": 29,
+      "waived": 0
+    },
+    {
+      "rule": "TMC-20011 - Missing Input Delay Constraint",
+      "severity": "High",
+      "violations": 2,
+      "waived": 0
+    },
+    {
+      "rule": "CLK-30026 - Missing Clock Assignment",
+      "severity": "High",
+      "violations": 1,
+      "waived": 0
+    }
+  ],
+  "warnings_retained": "16",
+  "internal_timing_acceptance": "constrained rows only; external IO remains unqualified",
+  "hardware_acceptance": "not-run",
+  "boot_firmware_compatibility": "not-qualified"
+}

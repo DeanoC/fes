@@ -1,0 +1,49 @@
+=== RUN   TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial
+=== RUN   TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial/empty
+=== RUN   TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial/relative
+=== RUN   TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial/unclean
+=== RUN   TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial/NUL
+=== RUN   TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial/overlong
+--- PASS: TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial (0.01s)
+    --- PASS: TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial/empty (0.01s)
+    --- PASS: TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial/relative (0.00s)
+    --- PASS: TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial/unclean (0.00s)
+    --- PASS: TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial/NUL (0.00s)
+    --- PASS: TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial/overlong (0.00s)
+=== RUN   TestClientRejectsWrongProtocolAndUnknownResponseFields
+=== RUN   TestClientRejectsWrongProtocolAndUnknownResponseFields/wrong_protocol
+=== RUN   TestClientRejectsWrongProtocolAndUnknownResponseFields/unknown_top-level_field
+=== RUN   TestClientRejectsWrongProtocolAndUnknownResponseFields/unknown_error_field
+--- PASS: TestClientRejectsWrongProtocolAndUnknownResponseFields (0.02s)
+    --- PASS: TestClientRejectsWrongProtocolAndUnknownResponseFields/wrong_protocol (0.02s)
+    --- PASS: TestClientRejectsWrongProtocolAndUnknownResponseFields/unknown_top-level_field (0.00s)
+    --- PASS: TestClientRejectsWrongProtocolAndUnknownResponseFields/unknown_error_field (0.00s)
+=== RUN   TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse
+=== PAUSE TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse
+=== RUN   TestNativeReconcileMapsRebootRequiredToFailedUnavailable
+=== PAUSE TestNativeReconcileMapsRebootRequiredToFailedUnavailable
+=== RUN   TestRuntimeSocketOpenIsFalseWhenDialFails
+=== PAUSE TestRuntimeSocketOpenIsFalseWhenDialFails
+=== CONT  TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse
+=== RUN   TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/idle
+=== CONT  TestRuntimeSocketOpenIsFalseWhenDialFails
+=== CONT  TestNativeReconcileMapsRebootRequiredToFailedUnavailable
+--- PASS: TestRuntimeSocketOpenIsFalseWhenDialFails (0.00s)
+--- PASS: TestNativeReconcileMapsRebootRequiredToFailedUnavailable (0.00s)
+=== RUN   TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/idle_with_retained_prior_error
+=== RUN   TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/idle_with_malformed_retained_error
+=== RUN   TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/starting
+=== RUN   TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/running_Mega_Drive
+=== RUN   TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/running_wrong_core
+=== RUN   TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/running_development
+=== RUN   TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/reboot_required
+--- PASS: TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse (0.01s)
+    --- PASS: TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/idle (0.01s)
+    --- PASS: TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/idle_with_retained_prior_error (0.00s)
+    --- PASS: TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/idle_with_malformed_retained_error (0.00s)
+    --- PASS: TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/starting (0.00s)
+    --- PASS: TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/running_Mega_Drive (0.00s)
+    --- PASS: TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/running_wrong_core (0.00s)
+    --- PASS: TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/running_development (0.00s)
+    --- PASS: TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse/reboot_required (0.00s)
+PASS

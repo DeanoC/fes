@@ -355,7 +355,8 @@ as a blanket pass for the combined build.
   the launcher's own classification (lease and unknown-status included). The
   room draws only the card, artwork motif, shelf and header routes, so a room
   cannot claim Ready.
-- **Content.** The shelf is the kit's installed cores, names verbatim.
+- **Content.** The shelf is the kit's installed machines and prepared systems, using plain
+  model names rather than package/build labels.
   Missing art is a deliberate motif chosen from the core id (colour) and
   required inputs (keyboard motif); titles stay outside the art. Creator is
   not shown because packages carry no creator. The shelf never says Ready.
@@ -376,14 +377,15 @@ as a blanket pass for the combined build.
   (Y, or A on a blocked core) shows the core id, short package id and the
   kit's verbatim block in the hero; Back closes it. After an ambiguous local
   launch the core shows Checking, not Ready, until the agent reports idle.
-  **Remaining gap:** the drawn Details control for a Ready core has no
-  direction-and-Confirm focus route; Y/pointer access does not satisfy H5.
+  A Ready item also has a directional route: Up enters Play/Details,
+  Left/Right chooses, and Confirm opens the focused action. Back returns to
+  the same shelf item without launching it.
 - **Confirm during Checking.** Acknowledged ("Still checking. Press A again
   once it has finished.") and not queued, so a press can never start an item
   the player has not seen. This is the reviewed policy for #764's warm-up
   window.
-- **Routes.** Library, Rooms (the lobby) and Settings sit one Up from the
-  shelf in the hero and when the compact routes share a row, so Direction
+- **Routes.** Library, Systems and Settings sit above the hero actions.
+  Up from the shelf reaches actions; another Up reaches these routes, so Direction
   and Confirm reach the system menu on a pad without a Guide button. On a
   content box under 480×360 the same routes sit above the destination strip;
   when they stack, Down and Up walk that column and then the cores, and Up

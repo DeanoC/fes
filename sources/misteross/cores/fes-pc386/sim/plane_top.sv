@@ -33,6 +33,9 @@ module plane_top (
     reg [1:0] pixel_reset_sync = 2'b11;
     always @(posedge pixel_clk) pixel_reset_sync <= {pixel_reset_sync[0], reset || !pixel_locked};
     wire pixel_reset = pixel_reset_sync[1];
+    reg [1:0] timing_reset_sync = 2'b11;
+    always @(posedge pixel_clk) timing_reset_sync <= {timing_reset_sync[0], !pixel_locked};
+    wire timing_reset = timing_reset_sync[1];
     wire [1:0] present_buffer;
     wire [28:0] present_address;
     wire [7:0] present_burstcount;
@@ -45,7 +48,7 @@ module plane_top (
         .frame_sequence(frame_sequence), .present_buffer(present_buffer),
         .ddr_address(present_address), .ddr_burstcount(present_burstcount), .ddr_read(present_read),
         .ddr_waitrequest(present_waitrequest), .ddr_readdata(p2_readdata), .ddr_readdatavalid(present_readdatavalid),
-        .pixel_clk(pixel_clk), .pixel_reset(pixel_reset),
+        .pixel_clk(pixel_clk), .pixel_reset(pixel_reset), .timing_reset(timing_reset),
         .video(presenter_video), .underflows(present_underflows), .frames_shown(frames_shown)
     );
     wire plane_hold, plane_ddr_reset, plane_ddr_drained, plane_read, plane_waitrequest, plane_readdatavalid;

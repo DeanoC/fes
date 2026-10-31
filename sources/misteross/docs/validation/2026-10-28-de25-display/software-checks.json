@@ -1,0 +1,253 @@
+{
+  "format": 1,
+  "root": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-idle-menu",
+  "base": "e300dcdcf6f20cdcf0f36013900eb750a4217ed7",
+  "head": "a00b0eebb362fd6594a28364e9b83263174b5db8",
+  "checkout_head": "a00b0eebb362fd6594a28364e9b83263174b5db8",
+  "merge_base": "e300dcdcf6f20cdcf0f36013900eb750a4217ed7",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": true
+    },
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "sources/misteross/boards/de25nano/README.md",
+      "sources/misteross/boards/de25nano/display/Makefile",
+      "sources/misteross/boards/de25nano/display/README.md",
+      "sources/misteross/boards/de25nano/display/build.py",
+      "sources/misteross/boards/de25nano/display/clocks.sdc",
+      "sources/misteross/boards/de25nano/display/display_tb.cpp",
+      "sources/misteross/boards/de25nano/display/sim.py",
+      "sources/misteross/boards/de25nano/display/sim_models.v",
+      "sources/misteross/boards/de25nano/display/test_build.py",
+      "sources/misteross/boards/de25nano/display/top.v",
+      "sources/misteross/boards/de25nano/display/vendor.lock.toml",
+      "sources/misteross/docs/architecture.md",
+      "sources/misteross/tests/test_de25nano_display.py"
+    ],
+    "reasons": [
+      "sources/misteross/boards/de25nano/display/Makefile: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/clocks.sdc: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/display_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/sim.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/sim_models.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/top.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/vendor.lock.toml: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/tests/test_de25nano_display.py: FPGA producer/package software tests; RTL unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "e300dcdcf6f20cdcf0f36013900eb750a4217ed7",
+        "--head",
+        "a00b0eebb362fd6594a28364e9b83263174b5db8"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"sources/misteross/boards/de25nano/README.md\", \"sources/misteross/boards/de25nano/display/Makefile\", \"sources/misteross/boards/de25nano/display/README.md\", \"sources/misteross/boards/de25nano/display/build.py\", \"sources/misteross/boards/de25nano/display/clocks.sdc\", \"sources/misteross/boards/de25nano/display/display_tb.cpp\", \"sources/misteross/boards/de25nano/display/sim.py\", \"sources/misteross/boards/de25nano/display/sim_models.v\", \"sources/misteross/boards/de25nano/display/test_build.py\", \"sources/misteross/boards/de25nano/display/top.v\", \"sources/misteross/boards/de25nano/display/vendor.lock.toml\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/tests/test_de25nano_display.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ]
+}

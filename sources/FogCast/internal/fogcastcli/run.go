@@ -197,16 +197,22 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, open Open
 		}
 		return writeResult(*jsonOutput, stdout, stderr, runLiveMediaCommand(ctx, origin, commandArgs))
 	}
-	paths, err := fogcast.DefaultPaths()
-	if err != nil {
-		return writeFailure(*jsonOutput, stdout, stderr, err)
-	}
 	configSpecified := false
 	flags.Visit(func(selected *flag.Flag) {
 		configSpecified = configSpecified || selected.Name == "config"
 	})
-	if configSpecified {
-		paths.Config = *configPath
+	var paths fogcast.Paths
+	var err error
+	if configSpecified && strings.TrimSpace(*configPath) != "" {
+		paths, err = fogcast.PathsForConfig(*configPath)
+	} else {
+		paths, err = fogcast.DefaultPaths()
+		if err == nil && configSpecified {
+			paths.Config = *configPath
+		}
+	}
+	if err != nil {
+		return writeFailure(*jsonOutput, stdout, stderr, err)
 	}
 	if open == nil {
 		return writeFailure(*jsonOutput, stdout, stderr, errors.New("FogCast service opener is unavailable"))

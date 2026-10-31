@@ -1,0 +1,21 @@
+test_rejects_boot_bytes_replaced_after_initial_verification (test_de25_boot_contract.BootSelectionTests.test_rejects_boot_bytes_replaced_after_initial_verification) ... ok
+test_rejects_selected_wrong_roles_and_missing_referenced_image (test_de25_boot_contract.BootSelectionTests.test_rejects_selected_wrong_roles_and_missing_referenced_image) ... ok
+test_resolves_selected_configuration_and_keeps_mailbox_unqualified (test_de25_boot_contract.BootSelectionTests.test_resolves_selected_configuration_and_keeps_mailbox_unqualified) ... ok
+test_nested_binary_and_empty_properties_preserve_bytes_and_total (test_de25_boot_contract.FdtTests.test_nested_binary_and_empty_properties_preserve_bytes_and_total) ... ok
+test_rejects_invalid_structure_and_duplicate_node_or_property (test_de25_boot_contract.FdtTests.test_rejects_invalid_structure_and_duplicate_node_or_property) ... ok
+test_rejects_property_name_offsets_and_unterminated_strings (test_de25_boot_contract.FdtTests.test_rejects_property_name_offsets_and_unterminated_strings) ... ok
+test_rejects_property_value_outside_structure (test_de25_boot_contract.FdtTests.test_rejects_property_value_outside_structure) ... ok
+test_rejects_truncated_overlapping_and_nonempty_reservation_sections (test_de25_boot_contract.FdtTests.test_rejects_truncated_overlapping_and_nonempty_reservation_sections) ... ok
+test_embedded_payloads_are_hashed_as_bytes (test_de25_boot_contract.FitTests.test_embedded_payloads_are_hashed_as_bytes) ... ok
+test_external_offsets_and_absolute_positions_resolve_after_tree (test_de25_boot_contract.FitTests.test_external_offsets_and_absolute_positions_resolve_after_tree) ... ok
+test_rejects_crc_mismatch_ambiguous_locations_and_missing_hash (test_de25_boot_contract.FitTests.test_rejects_crc_mismatch_ambiguous_locations_and_missing_hash) ... ok
+test_rejects_external_data_inside_tree_or_beyond_file (test_de25_boot_contract.FitTests.test_rejects_external_data_inside_tree_or_beyond_file) ... ok
+test_matching_receipts_remain_diagnostic_without_factory_pairing (test_de25_boot_contract.HpsReceiptTests.test_matching_receipts_remain_diagnostic_without_factory_pairing) ... ok
+test_rejects_modified_inputs_sof_or_handoff (test_de25_boot_contract.HpsReceiptTests.test_rejects_modified_inputs_sof_or_handoff) ... ok
+test_rejects_rehashed_unsupported_handoff_and_symlinked_artifacts (test_de25_boot_contract.HpsReceiptTests.test_rejects_rehashed_unsupported_handoff_and_symlinked_artifacts) ... ok
+test_rejects_wrong_source_board_device_and_artifact_namespace (test_de25_boot_contract.HpsReceiptTests.test_rejects_wrong_source_board_device_and_artifact_namespace) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.010s
+
+OK

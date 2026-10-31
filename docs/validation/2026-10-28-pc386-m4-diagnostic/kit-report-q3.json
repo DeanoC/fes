@@ -1,0 +1,624 @@
+{
+ "date": "2026-10-29",
+ "kit": "B",
+ "run": "q3",
+ "package": {
+  "core_id": "fes.pc386-diag",
+  "build_id": "f1d64e7d3ca9e85cbe82487bbf2b68a8",
+  "package_id": "fc9c0dd0f384c4627038e9e2efdbfaf2f2e48d4b77f4e481d8a445a600a3c8da",
+  "revision": "d2f2565474",
+  "contains": "deano/interesting-yalow-d6a1e4 at e920b2f90a (720p timing on the pixel PLL lock, ports 1 and 2 fenced on the bus master hold), #1245, the Quartus lane",
+  "timing_seed1_slow_100c": {
+   "system_mhz": 74.26,
+   "pixel_mhz": 80.03,
+   "audio_mhz": 186.05,
+   "setup_slack_ns": 0.756,
+   "hold_slack_ns": 0.097
+  }
+ },
+ "kit_state": "same baseline as q1 and q2; verified after by the wrapper (same keys and boot_id, agent idle, lease free)",
+ "load_seconds": 4.36,
+ "programs": {
+  "smoke": {
+   "commands": 899,
+   "results": 899,
+   "command_failures": [],
+   "frame_differences_from_bench": [],
+   "kit_seconds": 0.005,
+   "marks": [],
+   "frames": 0,
+   "counters_at_end": {
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "scanout_underflows": 0
+   }
+  },
+  "mode13": {
+   "commands": 872,
+   "results": 872,
+   "command_failures": [],
+   "frame_differences_from_bench": [],
+   "kit_seconds": 2.65,
+   "marks": [
+    {
+     "name": "mode13",
+     "s": 0.117,
+     "done": 1765
+    }
+   ],
+   "frames": 1,
+   "counters_at_end": {
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "scanout_underflows": 0
+   }
+  },
+  "vga-trace": {
+   "commands": 366931,
+   "results": 366931,
+   "command_failures": [],
+   "frame_differences_from_bench": [
+    "frame 1 (720x400) differs from the reference (720x400) in 342 bytes of each 4",
+    "frame 2 (720x400) differs from the reference (720x400) in 144 bytes of each 4"
+   ],
+   "kit_seconds": 33.123,
+   "marks": [
+    {
+     "name": "text",
+     "s": 0.293,
+     "done": 46387
+    },
+    {
+     "name": "text-font",
+     "s": 3.326,
+     "done": 46524
+    },
+    {
+     "name": "text-bright",
+     "s": 6.379,
+     "done": 46584
+    },
+    {
+     "name": "mode13",
+     "s": 9.652,
+     "done": 144431
+    },
+    {
+     "name": "mode13-cycle",
+     "s": 12.501,
+     "done": 147546
+    },
+    {
+     "name": "modey",
+     "s": 15.801,
+     "done": 263059
+    },
+    {
+     "name": "modey-flip",
+     "s": 18.55,
+     "done": 263083
+    },
+    {
+     "name": "modey-split",
+     "s": 21.275,
+     "done": 263111
+    },
+    {
+     "name": "modey-fade",
+     "s": 24.301,
+     "done": 287755
+    },
+    {
+     "name": "mode12",
+     "s": 27.258,
+     "done": 347259
+    },
+    {
+     "name": "final",
+     "s": 30.21,
+     "done": 368645
+    }
+   ],
+   "frames": 11,
+   "counters_at_end": {
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "scanout_underflows": 0
+   }
+  },
+  "sound": {
+   "commands": 1078,
+   "results": 1078,
+   "command_failures": [],
+   "frame_differences_from_bench": [],
+   "kit_seconds": 4.732,
+   "marks": [
+    {
+     "name": "speaker",
+     "s": 0.005,
+     "done": 369563
+    },
+    {
+     "name": "speaker-end",
+     "s": 1.505,
+     "done": 369569
+    },
+    {
+     "name": "dsp-single",
+     "s": 1.506,
+     "done": 369605
+    },
+    {
+     "name": "dsp-auto",
+     "s": 1.598,
+     "done": 369631
+    },
+    {
+     "name": "dsp-end",
+     "s": 4.732,
+     "done": 369773
+    }
+   ],
+   "frames": 0,
+   "counters_at_end": {
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "scanout_underflows": 0
+   }
+  },
+  "opl2": {
+   "commands": 1366,
+   "results": 1366,
+   "command_failures": [],
+   "frame_differences_from_bench": [],
+   "kit_seconds": 2.98,
+   "marks": [
+    {
+     "name": "opl2",
+     "s": 0.006,
+     "done": 370641
+    },
+    {
+     "name": "opl2-end",
+     "s": 2.98,
+     "done": 371141
+    }
+   ],
+   "frames": 0,
+   "counters_at_end": {
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "scanout_underflows": 0
+   }
+  },
+  "ata": {
+   "commands": 1916,
+   "results": 1916,
+   "command_failures": [],
+   "frame_differences_from_bench": [],
+   "kit_seconds": 0.179,
+   "marks": [
+    {
+     "name": "disk-load",
+     "s": 0.0,
+     "done": 371147
+    },
+    {
+     "name": "disk-loaded",
+     "s": 0.171,
+     "done": 371147
+    }
+   ],
+   "frames": 0
+  },
+  "resets": {
+   "commands": 172668,
+   "results": 172668,
+   "command_failures": [],
+   "frame_differences_from_bench": [],
+   "kit_seconds": 6.922,
+   "marks": [
+    {
+     "name": "resets",
+     "s": 4.403,
+     "done": 545724
+    }
+   ],
+   "frames": 1,
+   "counters_at_end": {
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "scanout_underflows": 0
+   },
+   "machine_resets": 201
+  }
+ },
+ "hdmi_grabs_psnr_db_vs_720p_simulation": {
+  "text": {
+   "psnr": 30.41085
+  },
+  "text-font": {
+   "psnr": 32.238298
+  },
+  "text-bright": {
+   "psnr": 31.14375
+  },
+  "mode13": {
+   "psnr": 35.370442
+  },
+  "mode13-cycle": {
+   "psnr": 34.464259
+  },
+  "modey": {
+   "psnr": 36.681429
+  },
+  "modey-flip": {
+   "psnr": 36.700688
+  },
+  "modey-split": {
+   "psnr": 38.81667
+  },
+  "modey-fade": {
+   "psnr": 39.325299
+  },
+  "mode12": {
+   "psnr": 29.819782
+  },
+  "final": {
+   "psnr": 56.449918
+  }
+ },
+ "audio": {
+  "opl2": {
+   "recorded_seconds": 7.5,
+   "windows_0_1s": [
+    [
+     0.0,
+     0.0,
+     306.4
+    ],
+    [
+     2.4,
+     1048.9,
+     879.6
+    ],
+    [
+     2.5,
+     1144.1,
+     1076.1
+    ],
+    [
+     2.6,
+     1371.4,
+     1081.7
+    ],
+    [
+     2.7,
+     1564.9,
+     1094.6
+    ],
+    [
+     2.8,
+     2032.4,
+     1107.4
+    ],
+    [
+     2.9,
+     1681.4,
+     1130.9
+    ],
+    [
+     3.0,
+     1439.5,
+     1104.2
+    ],
+    [
+     3.1,
+     1201.0,
+     1113.9
+    ],
+    [
+     3.2,
+     1032.5,
+     1073.6
+    ],
+    [
+     3.3,
+     804.7,
+     1806.4
+    ],
+    [
+     3.4,
+     2510.5,
+     1391.7
+    ],
+    [
+     3.5,
+     3112.4,
+     849.9
+    ],
+    [
+     3.6,
+     1606.4,
+     629.0
+    ],
+    [
+     3.7,
+     1938.1,
+     2076.8
+    ],
+    [
+     3.8,
+     849.7,
+     926.7
+    ],
+    [
+     3.9,
+     693.9,
+     916.4
+    ],
+    [
+     4.0,
+     705.9,
+     1024.2
+    ],
+    [
+     4.1,
+     709.1,
+     518.8
+    ]
+   ]
+  },
+  "sound": {
+   "recorded_seconds": 9.0,
+   "windows_0_1s": [
+    [
+     2.0,
+     475.8,
+     5743.2
+    ],
+    [
+     2.1,
+     440.0,
+     7549.1
+    ],
+    [
+     2.2,
+     440.0,
+     7549.5
+    ],
+    [
+     2.3,
+     439.9,
+     7549.8
+    ],
+    [
+     2.4,
+     440.0,
+     7550.6
+    ],
+    [
+     2.5,
+     440.0,
+     7550.2
+    ],
+    [
+     2.6,
+     439.9,
+     7550.1
+    ],
+    [
+     2.7,
+     440.0,
+     7550.1
+    ],
+    [
+     2.8,
+     440.0,
+     7549.3
+    ],
+    [
+     2.9,
+     440.0,
+     7549.8
+    ],
+    [
+     3.0,
+     439.9,
+     7549.7
+    ],
+    [
+     3.1,
+     440.0,
+     7549.6
+    ],
+    [
+     3.2,
+     440.0,
+     7550.0
+    ],
+    [
+     3.3,
+     440.0,
+     7549.4
+    ],
+    [
+     3.4,
+     440.0,
+     7550.1
+    ],
+    [
+     3.5,
+     746.2,
+     8041.9
+    ],
+    [
+     3.6,
+     1005.1,
+     8381.5
+    ],
+    [
+     3.7,
+     1000.0,
+     8381.7
+    ],
+    [
+     3.8,
+     1006.9,
+     8384.9
+    ],
+    [
+     3.9,
+     1000.2,
+     8381.3
+    ],
+    [
+     4.0,
+     1006.8,
+     8382.4
+    ],
+    [
+     4.1,
+     1006.7,
+     8376.5
+    ],
+    [
+     4.2,
+     1000.0,
+     8381.6
+    ],
+    [
+     4.3,
+     1006.9,
+     8388.0
+    ],
+    [
+     4.4,
+     1000.0,
+     8382.1
+    ],
+    [
+     4.5,
+     1007.0,
+     8379.2
+    ],
+    [
+     4.6,
+     1000.0,
+     8381.6
+    ],
+    [
+     4.7,
+     1007.0,
+     8379.9
+    ],
+    [
+     4.8,
+     1000.0,
+     8381.5
+    ],
+    [
+     4.9,
+     1006.9,
+     8387.8
+    ],
+    [
+     5.0,
+     1000.0,
+     8381.4
+    ],
+    [
+     5.1,
+     996.6,
+     8375.9
+    ],
+    [
+     5.2,
+     1006.8,
+     8383.6
+    ],
+    [
+     5.3,
+     1000.2,
+     8382.1
+    ],
+    [
+     5.4,
+     996.9,
+     8385.8
+    ],
+    [
+     5.5,
+     1000.0,
+     8382.0
+    ],
+    [
+     5.6,
+     1006.9,
+     8375.3
+    ],
+    [
+     5.7,
+     1000.0,
+     8381.4
+    ],
+    [
+     5.8,
+     1007.0,
+     8386.6
+    ],
+    [
+     5.9,
+     1000.0,
+     8381.6
+    ],
+    [
+     6.0,
+     1006.9,
+     8381.6
+    ],
+    [
+     6.1,
+     1000.0,
+     8381.6
+    ],
+    [
+     6.2,
+     996.9,
+     8377.5
+    ],
+    [
+     6.3,
+     1000.0,
+     8381.8
+    ],
+    [
+     6.4,
+     1006.8,
+     8388.4
+    ],
+    [
+     6.5,
+     996.9,
+     8378.3
+    ],
+    [
+     6.6,
+     1000.2,
+     8381.4
+    ],
+    [
+     6.7,
+     1036.5,
+     7100.3
+    ]
+   ]
+  }
+ }
+}

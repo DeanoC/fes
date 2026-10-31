@@ -1,0 +1,60 @@
+{
+  "classification": "one-slow-model-routed-path-diagnostic",
+  "compiled_report_hashes_unchanged_after_queries": true,
+  "default_controller_bounds_ns": {
+    "max": 100,
+    "min": -100
+  },
+  "extra_in_memory_controller_bounds_ns": {
+    "max": 10,
+    "min": 0
+  },
+  "fes_revision": "4ab2472b0b22b64d8756fd7c6e83d117e794b214",
+  "generated_synchronous_controller_heads": 2,
+  "physical_acceptance": "not-run",
+  "production_constraints_changed": false,
+  "reports": {
+    "controller-0ns-hold.rpt": {
+      "minimum_slack_ns": 0.296,
+      "paths": 2,
+      "sha256": "59131a50d21c0e8f249e5beddca6bf8a99d13e41d87de81a93f1e0f05d473ba4"
+    },
+    "controller-10ns-setup.rpt": {
+      "minimum_slack_ns": 7.652,
+      "paths": 2,
+      "sha256": "100d984e308e5d00b232e6fa7cf6ee546fa3a050a801b9b55160ac315c23e10c"
+    },
+    "reset-controller-hold.rpt": {
+      "minimum_slack_ns": 100.26,
+      "paths": 2,
+      "sha256": "ec1243337051ae706710053ea98667de987c814365012d0667b8623b24a5b508"
+    },
+    "reset-controller-setup.rpt": {
+      "minimum_slack_ns": 97.652,
+      "paths": 2,
+      "sha256": "b9e9a39aadfbb7a49e29d9fbc58d1696f3d343303716d5795f8c9f1a7bb02a31"
+    },
+    "reset-release-recovery.rpt": {
+      "minimum_slack_ns": 7.534,
+      "paths": 5,
+      "sha256": "9707476e7e44b5e8890fa558c7e7c7abe3bb3da0539515ace1ee4b2cb83b8267"
+    },
+    "reset-release-removal.rpt": {
+      "minimum_slack_ns": 0.321,
+      "paths": 5,
+      "sha256": "96aa6cddf471c1c3fae5fa38eb443911359d2eca9ca9d393a7e35853d9c3151e"
+    },
+    "reset-stage-hold.rpt": {
+      "minimum_slack_ns": 0.107,
+      "paths": 1,
+      "sha256": "bc43bd2f9c3e8cb5f6d3d26a3b9ab4b956f0d30dcd805b0e5a5bef4543eac4fb"
+    },
+    "reset-stage-setup.rpt": {
+      "minimum_slack_ns": 9.574,
+      "paths": 1,
+      "sha256": "35208946bbe5b4aaa37ad7b28cd3d07f7fa8717688e1eb85b3c60992163bd1b4"
+    }
+  },
+  "stages": 2,
+  "top_reset_consumers": 89
+}

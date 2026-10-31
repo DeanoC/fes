@@ -1,0 +1,27 @@
+{
+  "all_record_checksums_pass": true,
+  "classification": "independent-binary-inspection-only",
+  "fdt_decoded_address": 245824,
+  "fdt_sha256": "41c76d2e31e823260099d415863d8e903a6f72c7b94c4b42f334cbf95f853b10",
+  "fdt_size": 10723,
+  "format_reference": "https://www.keil.com/support/docs/1584/default.htm",
+  "intel_hex_record_types": [
+    0,
+    1,
+    2
+  ],
+  "memory": [
+    {
+      "path": "/memory",
+      "reg_cells": [
+        0,
+        2147483648,
+        0,
+        1073741824
+      ]
+    }
+  ],
+  "model": "SoCFPGA Agilex5 Terasic DE25-Nano",
+  "segment_base_rule": "record02 payload shifted left4; data address added within16bitsegment",
+  "source_hex_sha256": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823"
+}

@@ -1,0 +1,72 @@
+Path #1: Delay is 6.316
+===============================================================================
++--------------------------+
+; Path Summary             ;
++-----------+--------------+
+; Property  ; Value        ;
++-----------+--------------+
+; From Node ; HDMI_I2C_SDA ;
+; To Node   ; hdmi_i2c|sda ;
+; Delay     ; 6.316        ;
++-----------+--------------+
+
++-----------------------------------------------------------------------------------+
+; Statistics                                                                        ;
++------------------------+-------+-------+-------------+------------+-------+-------+
+; Property               ; Value ; Count ; Total Delay ; % of Total ; Min   ; Max   ;
++------------------------+-------+-------+-------------+------------+-------+-------+
+; Data Delay             ; 6.316 ;       ;             ;            ;       ;       ;
+; Number of Logic Levels ;       ; 1     ;             ;            ;       ;       ;
+; Physical Delays        ;       ;       ;             ;            ;       ;       ;
+;  IC                    ;       ; 2     ; 0.000       ; 0          ; 0.000 ; 0.000 ;
+;  Cell                  ;       ; 1     ; 0.674       ; 11         ; 0.674 ; 0.674 ;
+;  Routing Element       ;       ; 35    ; 5.642       ; 89         ; 0.000 ; 1.263 ;
++------------------------+-------+-------+-------------+------------+-------+-------+
+Note: Negative delays are omitted from totals when calculating percentages
+
++-------------------------------------------------------------------------------------------------------------------------------------------+
+; Data Arrival Path                                                                                                                         ;
++---------+---------+----+------+--------+-------------------------------------------------------------+------------------------------------+
+; Total   ; Incr    ; RF ; Type ; Fanout ; Location                                                    ; Element                            ;
++---------+---------+----+------+--------+-------------------------------------------------------------+------------------------------------+
+; 6.316   ; 6.316   ;    ;      ;        ;                                                             ; data path                          ;
+;   0.000 ;   0.000 ;    ;      ; 1      ; PIN_AA4                                                     ; HDMI_I2C_SDA                       ;
+;   0.000 ;   0.000 ;    ; RE   ; 1      ; IOPAD_X4_Y0_N34                                             ; ARRIAV_IO_PAD                      ;
+;   0.000 ;   0.000 ;    ; RE   ; 1      ; IO_PAD_OUTPUT_X4_Y0_N34_I1                                  ; IO_PAD_OUTPUT                      ;
+;   0.000 ;   0.000 ;    ; RE   ; 1      ; IO_INPUT_BUFFER_INPUT_X4_Y0_N35_I0                          ; IO_INPUT_BUFFER_INPUT              ;
+;   0.000 ;   0.000 ; RR ; IC   ; 1      ; IOIBUF_X4_Y0_N35                                            ; HDMI_I2C_SDA~input|i               ;
+;   0.674 ;   0.674 ; RR ; CELL ; 1      ; IOIBUF_X4_Y0_N35                                            ; HDMI_I2C_SDA~input|o               ;
+;   0.674 ;   0.000 ;    ; RE   ; 1      ; IOIBUF_X4_Y0_N35                                            ; ARRIAV_IO_IBUF                     ;
+;   0.674 ;   0.000 ;    ; RE   ; 1      ; IO_INPUT_BUFFER_OUTPUT_X4_Y0_N35_I2                         ; IO_INPUT_BUFFER_OUTPUT             ;
+;   0.674 ;   0.000 ;    ; RE   ; 1      ; IO_RE_X4_Y0_N34_I96                                         ; IO_RE                              ;
+;   0.674 ;   0.000 ;    ; RE   ; 1      ; IO_INPUT_PATH_RE_X4_Y0_N47_I0                               ; IO_INPUT_PATH_RE                   ;
+;   0.674 ;   0.000 ;    ; RE   ; 1      ; IO_INPUT_PATH_RE_X4_Y0_N47_I66                              ; IO_INPUT_PATH_RE                   ;
+;   1.937 ;   1.263 ;    ; RE   ; 1      ; IO_INPUT_PATH_RE_X4_Y0_N47_I60                              ; IO_INPUT_PATH_RE                   ;
+;   1.937 ;   0.000 ;    ; RE   ; 1      ; IO_INPUT_PATH_RE_X4_Y0_N47_I55                              ; IO_INPUT_PATH_RE                   ;
+;   2.631 ;   0.694 ;    ; RE   ; 1      ; IO_RE_X4_Y0_N34_I68                                         ; IO_RE                              ;
+;   2.685 ;   0.054 ;    ; RE   ; 1      ; VIO_BUFFER_X4_Y0_N0_I15                                     ; VIO_BUFFER                         ;
+;   2.820 ;   0.135 ;    ; RE   ; 1      ; C12_X4_Y1_N0_I5                                             ; V_SEG12                            ;
+;   2.820 ;   0.000 ;    ; RE   ; 1      ; R14_C12_INTERCONNECT_DRIVER_X4_Y2_N0_I3                     ; WIRE_MUX                           ;
+;   3.142 ;   0.322 ;    ; RE   ; 1      ; C12_X4_Y3_N0_I0                                             ; V_SEG12                            ;
+;   3.142 ;   0.000 ;    ; RE   ; 1      ; R14_C12_INTERCONNECT_DRIVER_X4_Y14_N0_I3                    ; WIRE_MUX                           ;
+;   3.456 ;   0.314 ;    ; RE   ; 1      ; R14_X5_Y14_N0_I0                                            ; H_SEG14                            ;
+;   3.456 ;   0.000 ;    ; RE   ; 1      ; R14_C12_INTERCONNECT_DRIVER_X18_Y14_N0_I0                   ; WIRE_MUX                           ;
+;   3.791 ;   0.335 ;    ; RE   ; 1      ; C12_X18_Y15_N0_I0                                           ; V_SEG12                            ;
+;   3.791 ;   0.000 ;    ; RE   ; 1      ; R14_C12_INTERCONNECT_DRIVER_X18_Y26_N0_I3                   ; WIRE_MUX                           ;
+;   4.095 ;   0.304 ;    ; RE   ; 1      ; R14_X19_Y26_N0_I0                                           ; H_SEG14                            ;
+;   4.095 ;   0.000 ;    ; RE   ; 1      ; R14_C12_INTERCONNECT_DRIVER_X32_Y26_N0_I0                   ; WIRE_MUX                           ;
+;   4.450 ;   0.355 ;    ; RE   ; 1      ; C12_X32_Y27_N0_I0                                           ; V_SEG12                            ;
+;   4.450 ;   0.000 ;    ; RE   ; 1      ; R14_C12_INTERCONNECT_DRIVER_X32_Y38_N0_I3                   ; WIRE_MUX                           ;
+;   4.799 ;   0.349 ;    ; RE   ; 1      ; C12_X32_Y39_N0_I0                                           ; V_SEG12                            ;
+;   4.799 ;   0.000 ;    ; RE   ; 1      ; R14_C12_INTERCONNECT_DRIVER_X32_Y50_N0_I3                   ; WIRE_MUX                           ;
+;   5.145 ;   0.346 ;    ; RE   ; 1      ; C12_X32_Y51_N0_I0                                           ; V_SEG12                            ;
+;   5.145 ;   0.000 ;    ; RE   ; 1      ; R14_C12_INTERCONNECT_DRIVER_X32_Y62_N0_I3                   ; WIRE_MUX                           ;
+;   5.491 ;   0.346 ;    ; RE   ; 1      ; C12_X32_Y63_N0_I0                                           ; V_SEG12                            ;
+;   5.491 ;   0.000 ;    ; RE   ; 1      ; R14_C12_INTERCONNECT_DRIVER_X32_Y74_N0_I3                   ; WIRE_MUX                           ;
+;   5.826 ;   0.335 ;    ; RE   ; 1      ; R14_X33_Y74_N0_I0                                           ; H_SEG14                            ;
+;   6.072 ;   0.246 ;    ; RE   ; 1      ; R6_X47_Y74_N0_I12                                           ; H_SEG6                             ;
+;   6.256 ;   0.184 ;    ; RE   ; 1      ; LOCAL_INTERCONNECT_X51_Y74_N0_I6                            ; LAB_LINE                           ;
+;   6.316 ;   0.060 ;    ; RE   ; 1      ; BLOCK_INPUT_MUX_PASSTHROUGH_X51_Y74_N0_I25                  ; LEIM                               ;
+;   6.316 ;   0.000 ;    ; RE   ; 1      ; INTERNAL_HPS_INTERFACE_PERIPHERAL_I2C_INPUT_X52_Y60_N111_I0 ; HPS_INTERFACE_PERIPHERAL_I2C_INPUT ;
+;   6.316 ;   0.000 ; RR ; IC   ; 1      ; HPSINTERFACEPERIPHERALI2C_X52_Y60_N111                      ; hdmi_i2c|sda                       ;
++---------+---------+----+------+--------+-------------------------------------------------------------+------------------------------------+

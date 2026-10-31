@@ -93,8 +93,13 @@ func TestUSBKeyboardBrowseDetailSearchAndLaunch(t *testing.T) {
 	}
 
 	app.Press(CommandFromKey("down"), now)
+	if !app.Snapshot().BrowseActions.Focused || app.Snapshot().Detail.Open {
+		t.Fatal("down on the last row should focus its actions")
+	}
+	app.Press(CommandFromKey("right"), now)
+	app.Press(CommandFromKey("return"), now)
 	if !app.Snapshot().Detail.Open {
-		t.Fatal("down on last row should open detail")
+		t.Fatal("direction and Enter should open the selected title's Details")
 	}
 	app.Press(CommandFromKey("escape"), now)
 	if app.Snapshot().Detail.Open {

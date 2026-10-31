@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Simple dual-port RAMs for the pc386 VGA and presenter: one write port and
-// one registered read port. pc386_ram reads when read is high and holds its
+// Simple dual-port RAMs for the pc386 AT core, VGA and presenter: one write
+// port and one registered read port. pc386_ram reads when read is high and holds its
 // output otherwise; pc386_dcram writes in one clock and reads in another, for
 // the presenter's line buffers. Byte enables cover BYTES equal lanes.
 module pc386_ram #(
@@ -25,6 +25,11 @@ module pc386_ram #(
             for (lane = 0; lane < BYTES; lane = lane + 1)
                 if (wbyteenable[lane]) memory[waddress][lane * LANE +: LANE] <= wdata[lane * LANE +: LANE];
         if (read) rdata <= memory[raddress];
+`ifdef PC386_RAM_COLLISION
+        // M10K leaves a read of the word being written undefined; the device
+        // checks poison it so that a design using one fails.
+        if (read && write && raddress == waddress) rdata <= ~memory[raddress];
+`endif
     end
     initial if (WIDTH % BYTES != 0) $error("pc386_ram: WIDTH must divide into BYTES lanes");
 endmodule

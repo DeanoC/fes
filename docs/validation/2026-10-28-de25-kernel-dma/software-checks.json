@@ -1,0 +1,454 @@
+{
+  "base": "703f5215c23155418b125af87e310e50a30b083f",
+  "checkout_head": "a8a91a4c4e33d29f812192b61767a18d31adde9d",
+  "commands": [
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_affected.py"
+      ],
+      "label": "test_affected.py",
+      "lane": "always",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python"
+      ]
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_test_changed.py"
+      ],
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python"
+      ]
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "scripts/check_diff.py",
+        "--base",
+        "703f5215c23155418b125af87e310e50a30b083f",
+        "--head",
+        "a8a91a4c4e33d29f812192b61767a18d31adde9d"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "committed whitespace",
+      "lane": "always",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python"
+      ]
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "working whitespace",
+      "lane": "always",
+      "tools": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"image/kernel/de25-dma/.kunitconfig\", \"image/kernel/de25-dma/Kconfig\", \"image/kernel/de25-dma/Makefile\", \"image/kernel/de25-dma/README.md\", \"image/kernel/de25-dma/de25_dma.c\", \"image/kernel/de25-dma/de25_dma.h\", \"image/kernel/de25-dma/de25_dma_internal.h\", \"image/kernel/de25-dma/de25_dma_test.c\", \"image/kernel/de25-dma/generated/fes_de25_ddr_probe.h\", \"image/kernel/de25-dma/linux.lock.toml\", \"scripts/consistency.py\", \"scripts/de25_kernel_test.py\", \"scripts/hil_plan.py\", \"scripts/test_policy.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/cmd/mister-packages/main.go\", \"sources/mister-packages/docs/schema.md\", \"sources/mister-packages/internal/emitc/emitc.go\", \"sources/mister-packages/internal/emitc/emitc_test.go\", \"sources/misteross/boards/de25nano/README.md\", \"sources/misteross/boards/de25nano/combined/Makefile\", \"sources/misteross/boards/de25nano/combined/README.md\", \"sources/misteross/boards/de25nano/combined/build.py\", \"sources/misteross/boards/de25nano/combined/sim.py\", \"sources/misteross/boards/de25nano/combined/test_build.py\", \"sources/misteross/boards/de25nano/display/Makefile\", \"sources/misteross/boards/de25nano/display/README.md\", \"sources/misteross/boards/de25nano/display/build.py\", \"sources/misteross/boards/de25nano/display/clocks.sdc\", \"sources/misteross/boards/de25nano/display/display_tb.cpp\", \"sources/misteross/boards/de25nano/display/sim.py\", \"sources/misteross/boards/de25nano/display/sim_models.v\", \"sources/misteross/boards/de25nano/display/test_build.py\", \"sources/misteross/boards/de25nano/display/top.v\", \"sources/misteross/boards/de25nano/display/vendor.lock.toml\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/docs/validation/2026-10-28-de25-display/README.md\", \"sources/misteross/docs/validation/2026-10-28-de25-display/de25-display-consistency-final.log\", \"sources/misteross/docs/validation/2026-10-28-de25-display/de25-display-focused-m20k.log\", \"sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/failure.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/inputs.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/ip-parameter-review.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/quartus-version.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/synthesis-errors.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/build.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/fit.summary\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/inputs.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/ip-parameter-review.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/quartus-version.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/report-excerpts.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/reset-path-audit.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/reset-path-audit.tcl\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/source-preservation.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/sta.summary\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/summary.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/build.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/fit.summary\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/inputs.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/ip-parameter-review.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/quartus-version.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/report-excerpts.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/sta.summary\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/summary.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/build.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/fit.summary\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/inputs.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/ip-parameter-review.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/quartus-version.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/report-excerpts.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/reset-path-audit.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/reset-path-audit.tcl\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/source-preservation.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/sta.summary\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/summary.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/software-checks.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/software-log-sha256.json\", \"sources/misteross/tests/test_de25nano_combined.py\", \"sources/misteross/tests/test_de25nano_display.py\", \"tests/test_affected.py\", \"tests/test_consistency.py\", \"tests/test_de25_kernel_test.py\", \"tests/test_hil_plan.py\", \"tests/test_test_policy.py\"]"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ],
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "sh"
+      ]
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/consistency.py"
+      ],
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "go"
+      ]
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "scripts/host_tests.py",
+        "--ui-if-needed",
+        "--paths-json",
+        "[\"image/kernel/de25-dma/.kunitconfig\", \"image/kernel/de25-dma/Kconfig\", \"image/kernel/de25-dma/Makefile\", \"image/kernel/de25-dma/README.md\", \"image/kernel/de25-dma/de25_dma.c\", \"image/kernel/de25-dma/de25_dma.h\", \"image/kernel/de25-dma/de25_dma_internal.h\", \"image/kernel/de25-dma/de25_dma_test.c\", \"image/kernel/de25-dma/generated/fes_de25_ddr_probe.h\", \"image/kernel/de25-dma/linux.lock.toml\", \"scripts/consistency.py\", \"scripts/de25_kernel_test.py\", \"scripts/hil_plan.py\", \"scripts/test_policy.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/cmd/mister-packages/main.go\", \"sources/mister-packages/docs/schema.md\", \"sources/mister-packages/internal/emitc/emitc.go\", \"sources/mister-packages/internal/emitc/emitc_test.go\", \"sources/misteross/boards/de25nano/README.md\", \"sources/misteross/boards/de25nano/combined/Makefile\", \"sources/misteross/boards/de25nano/combined/README.md\", \"sources/misteross/boards/de25nano/combined/build.py\", \"sources/misteross/boards/de25nano/combined/sim.py\", \"sources/misteross/boards/de25nano/combined/test_build.py\", \"sources/misteross/boards/de25nano/display/Makefile\", \"sources/misteross/boards/de25nano/display/README.md\", \"sources/misteross/boards/de25nano/display/build.py\", \"sources/misteross/boards/de25nano/display/clocks.sdc\", \"sources/misteross/boards/de25nano/display/display_tb.cpp\", \"sources/misteross/boards/de25nano/display/sim.py\", \"sources/misteross/boards/de25nano/display/sim_models.v\", \"sources/misteross/boards/de25nano/display/test_build.py\", \"sources/misteross/boards/de25nano/display/top.v\", \"sources/misteross/boards/de25nano/display/vendor.lock.toml\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/docs/validation/2026-10-28-de25-display/README.md\", \"sources/misteross/docs/validation/2026-10-28-de25-display/de25-display-consistency-final.log\", \"sources/misteross/docs/validation/2026-10-28-de25-display/de25-display-focused-m20k.log\", \"sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/failure.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/inputs.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/ip-parameter-review.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/quartus-version.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/synthesis-errors.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/build.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/fit.summary\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/inputs.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/ip-parameter-review.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/quartus-version.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/report-excerpts.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/reset-path-audit.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/reset-path-audit.tcl\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/source-preservation.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/sta.summary\", \"sources/misteross/docs/validation/2026-10-28-de25-display/idle/summary.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/build.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/fit.summary\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/inputs.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/ip-parameter-review.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/quartus-version.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/report-excerpts.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/sta.summary\", \"sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/summary.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/build.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/fit.summary\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/inputs.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/ip-parameter-review.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/quartus-version.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/report-excerpts.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/reset-path-audit.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/reset-path-audit.tcl\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/source-preservation.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/sta.summary\", \"sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/summary.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/software-checks.json\", \"sources/misteross/docs/validation/2026-10-28-de25-display/software-log-sha256.json\", \"sources/misteross/tests/test_de25nano_combined.py\", \"sources/misteross/tests/test_de25nano_display.py\", \"tests/test_affected.py\", \"tests/test_consistency.py\", \"tests/test_de25_kernel_test.py\", \"tests/test_hil_plan.py\", \"tests/test_test_policy.py\"]"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/host_tests.py",
+        "sources/FogCast/Makefile",
+        "sources/FogCast/go.mod",
+        "sources/FogCast/appliance/go.mod",
+        "sources/misteross/expansion/go.mod"
+      ],
+      "host_ui": {
+        "boundary_scheduled": false,
+        "command_scheduled": true,
+        "reason": "UI/API, production/full or uncertain inputs",
+        "required": true,
+        "scheduled": true,
+        "target": "test-ui"
+      },
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "cc",
+        "go",
+        "make",
+        "node",
+        "rg",
+        "sh"
+      ]
+    },
+    {
+      "argv": [
+        "make",
+        "-j2",
+        "test"
+      ],
+      "cwd": "sources/libmister-runtime",
+      "files": [
+        "Makefile"
+      ],
+      "label": "runtime software tests",
+      "lane": "runtime",
+      "tools": [
+        "ar",
+        "c++",
+        "c++filt",
+        "make",
+        "nm",
+        "rg",
+        "sh"
+      ]
+    },
+    {
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/tmp/fes-de25-ddr-test-venv/bin/python"
+      ],
+      "cwd": "sources/mister-packages",
+      "files": [
+        "Makefile"
+      ],
+      "label": "contract schemas and generated fixtures",
+      "lane": "contracts",
+      "tools": [
+        "go",
+        "make"
+      ]
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "sources/misteross",
+      "files": [
+        "tests/test_*.py"
+      ],
+      "label": "test_*.py",
+      "lane": "fpga",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "strace"
+      ]
+    }
+  ],
+  "evidence_class": "host-only software checks; kernel/FPGA producer evidence recorded separately",
+  "final_focused_checks": ".....\n----------------------------------------------------------------------\nRan 5 tests in 0.049s\n\nOK\n",
+  "format": 1,
+  "head": "a8a91a4c4e33d29f812192b61767a18d31adde9d",
+  "hil_decision": "NO_DEPLOY_CHANGE",
+  "impact": {
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "cores": [],
+    "lanes": {
+      "contracts": true,
+      "fpga": true,
+      "host": true,
+      "parent": true,
+      "runtime": true
+    },
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ],
+    "paths": [
+      "image/kernel/de25-dma/.kunitconfig",
+      "image/kernel/de25-dma/Kconfig",
+      "image/kernel/de25-dma/Makefile",
+      "image/kernel/de25-dma/README.md",
+      "image/kernel/de25-dma/de25_dma.c",
+      "image/kernel/de25-dma/de25_dma.h",
+      "image/kernel/de25-dma/de25_dma_internal.h",
+      "image/kernel/de25-dma/de25_dma_test.c",
+      "image/kernel/de25-dma/generated/fes_de25_ddr_probe.h",
+      "image/kernel/de25-dma/linux.lock.toml",
+      "scripts/consistency.py",
+      "scripts/de25_kernel_test.py",
+      "scripts/hil_plan.py",
+      "scripts/test_policy.py",
+      "sources/mister-packages/README.md",
+      "sources/mister-packages/cmd/mister-packages/main.go",
+      "sources/mister-packages/docs/schema.md",
+      "sources/mister-packages/internal/emitc/emitc.go",
+      "sources/mister-packages/internal/emitc/emitc_test.go",
+      "sources/misteross/boards/de25nano/README.md",
+      "sources/misteross/boards/de25nano/combined/Makefile",
+      "sources/misteross/boards/de25nano/combined/README.md",
+      "sources/misteross/boards/de25nano/combined/build.py",
+      "sources/misteross/boards/de25nano/combined/sim.py",
+      "sources/misteross/boards/de25nano/combined/test_build.py",
+      "sources/misteross/boards/de25nano/display/Makefile",
+      "sources/misteross/boards/de25nano/display/README.md",
+      "sources/misteross/boards/de25nano/display/build.py",
+      "sources/misteross/boards/de25nano/display/clocks.sdc",
+      "sources/misteross/boards/de25nano/display/display_tb.cpp",
+      "sources/misteross/boards/de25nano/display/sim.py",
+      "sources/misteross/boards/de25nano/display/sim_models.v",
+      "sources/misteross/boards/de25nano/display/test_build.py",
+      "sources/misteross/boards/de25nano/display/top.v",
+      "sources/misteross/boards/de25nano/display/vendor.lock.toml",
+      "sources/misteross/docs/architecture.md",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/README.md",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/de25-display-consistency-final.log",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/de25-display-focused-m20k.log",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/failure.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/inputs.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/ip-parameter-review.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/quartus-version.txt",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/failed-menu-c436/synthesis-errors.txt",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/idle/build.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/idle/fit.summary",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/idle/inputs.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/idle/ip-parameter-review.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/idle/quartus-version.txt",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/idle/report-excerpts.txt",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/idle/reset-path-audit.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/idle/reset-path-audit.tcl",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/idle/source-preservation.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/idle/sta.summary",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/idle/summary.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/build.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/fit.summary",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/inputs.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/ip-parameter-review.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/quartus-version.txt",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/report-excerpts.txt",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/sta.summary",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/initial-idle-53/summary.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/build.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/fit.summary",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/inputs.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/ip-parameter-review.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/quartus-version.txt",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/report-excerpts.txt",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/reset-path-audit.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/reset-path-audit.tcl",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/source-preservation.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/sta.summary",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/menu-pattern/summary.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/software-checks.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-display/software-log-sha256.json",
+      "sources/misteross/tests/test_de25nano_combined.py",
+      "sources/misteross/tests/test_de25nano_display.py",
+      "tests/test_affected.py",
+      "tests/test_consistency.py",
+      "tests/test_de25_kernel_test.py",
+      "tests/test_hil_plan.py",
+      "tests/test_test_policy.py"
+    ],
+    "reasons": [
+      "image/kernel/de25-dma/.kunitconfig: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/Kconfig: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/Makefile: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/de25_dma.c: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/de25_dma.h: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/de25_dma_internal.h: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/de25_dma_test.c: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/generated/fes_de25_ddr_probe.h: parent orchestration/tests/assembly; component sources unchanged",
+      "image/kernel/de25-dma/linux.lock.toml: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/consistency.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/de25_kernel_test.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/hil_plan.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/test_policy.py: software CI infrastructure; RTL unchanged",
+      "sources/mister-packages/cmd/mister-packages/main.go: contract tooling software; generated RTL unchanged",
+      "sources/mister-packages/internal/emitc/emitc.go: contract tooling software; generated RTL unchanged",
+      "sources/mister-packages/internal/emitc/emitc_test.go: contract tooling software; generated RTL unchanged",
+      "sources/misteross/boards/de25nano/combined/Makefile: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/combined/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/combined/sim.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/combined/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/Makefile: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/clocks.sdc: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/display_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/sim.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/sim_models.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/top.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/display/vendor.lock.toml: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/tests/test_de25nano_combined.py: FPGA producer/package software tests; RTL unchanged",
+      "sources/misteross/tests/test_de25nano_display.py: FPGA producer/package software tests; RTL unchanged",
+      "tests/test_affected.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_consistency.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_de25_kernel_test.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_hil_plan.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_test_policy.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "skipped": [],
+    "test_modes": {
+      "full_race": false,
+      "media": false,
+      "video": false
+    }
+  },
+  "later_executable_changes": "Kernel source/runner fixes are tested at45c2dfc247; final HIL/runner unit checks pass separately. Other module executable inputs did not change.",
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "local_paths": [],
+  "log": {
+    "path": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-display/out/de25-combined-software-checks/test-changed.log",
+    "sha256": "6c03486f9e5fa381a6c23e7b957d1810ea4f3c13514025f4a5b7c63ca00eecdd"
+  },
+  "make_check": "python3 scripts/consistency.py\nconsistency: package YAML valid; 26 generated consumers, 37 fixture copies and 0 copied source pins match\n",
+  "merge_base": "703f5215c23155418b125af87e310e50a30b083f",
+  "python_unittest_summaries": [
+    "Ran 25 tests in 0.244s\n\nOK",
+    "Ran 31 tests in 0.885s\n\nOK",
+    "Ran 1 test in 0.000s\n\nOK",
+    "Ran 1087 tests in 172.283s\n\nOK (skipped=2)",
+    "Ran 4 tests in 0.003s\n\nOK",
+    "Ran 10 tests in 1.974s\n\nOK",
+    "Ran 2 tests in 0.001s\n\nOK",
+    "Ran 1419 tests in 377.965s\n\nOK (skipped=35)"
+  ],
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "returncode": 0
+    },
+    {
+      "label": "runtime software tests",
+      "lane": "runtime",
+      "returncode": 0
+    },
+    {
+      "label": "contract schemas and generated fixtures",
+      "lane": "contracts",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "root": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-display",
+  "status": "passed"
+}

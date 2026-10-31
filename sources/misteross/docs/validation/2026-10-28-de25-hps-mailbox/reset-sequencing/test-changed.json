@@ -1,0 +1,248 @@
+{
+  "format": 1,
+  "root": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-nano-bringup",
+  "base": "6cb01a9123d20923032a3f47cb927409931b4af1",
+  "head": "4ab2472b0b22b64d8756fd7c6e83d117e794b214",
+  "checkout_head": "4ab2472b0b22b64d8756fd7c6e83d117e794b214",
+  "merge_base": "6cb01a9123d20923032a3f47cb927409931b4af1",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": true
+    },
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "sources/misteross/boards/de25nano/hps/README.md",
+      "sources/misteross/boards/de25nano/hps/build.py",
+      "sources/misteross/boards/de25nano/hps/fes_de25_top_reset.v",
+      "sources/misteross/boards/de25nano/hps/reset_tb.cpp",
+      "sources/misteross/boards/de25nano/hps/test_build.py",
+      "sources/misteross/docs/architecture.md",
+      "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/README.md",
+      "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/candidate.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/full-report-sha256.txt",
+      "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/golden_top.sta.summary",
+      "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/postcompile-preservation.json",
+      "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/report-excerpts.txt",
+      "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/software-log-sha256.txt",
+      "sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/software-source-binding.json"
+    ],
+    "reasons": [
+      "sources/misteross/boards/de25nano/hps/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/fes_de25_top_reset.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/reset_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "6cb01a9123d20923032a3f47cb927409931b4af1",
+        "--head",
+        "4ab2472b0b22b64d8756fd7c6e83d117e794b214"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"sources/misteross/boards/de25nano/hps/README.md\", \"sources/misteross/boards/de25nano/hps/build.py\", \"sources/misteross/boards/de25nano/hps/fes_de25_top_reset.v\", \"sources/misteross/boards/de25nano/hps/reset_tb.cpp\", \"sources/misteross/boards/de25nano/hps/test_build.py\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/README.md\", \"sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/candidate.json\", \"sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/full-report-sha256.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/golden_top.sta.summary\", \"sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/postcompile-preservation.json\", \"sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/report-excerpts.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/software-log-sha256.txt\", \"sources/misteross/docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/candidate-6cb01a9123/software-source-binding.json\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ]
+}

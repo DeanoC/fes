@@ -1,0 +1,579 @@
+{
+  "scope": "Fresh bounded four-counter Quartus 17.0.2 fit and four-corner reports for committed CPU100/board50 early-CS source, plus partial uncertainty screens of all three native routes. Fitted reference constraints are conditional, not measured-kit or exact-artifact physical acceptance. Native CS clock sidebranch and other fabric differ from the fitted reference.",
+  "committed_source": "695036ff4863af9345def69c85d4f12790b630b8",
+  "reference_input_binding": {
+    "revision": "695036ff4863af9345def69c85d4f12790b630b8",
+    "scope": "Bounded fresh four-counter Quartus reference: actual committed PLL/early-CS blocks and memory/controller bytes, fixed CPU/board/capture/CS counter/global sites and forwarded-clock route. Pixel global branch auto-selected because CS uses G0; remaining fabric and clock sidebranches differ from the native full-board artifact. Zero board flight, declared FPGA30pF/TI inverter50pF; not physical or hardware acceptance.",
+    "native_seed1_receipt_sha256": "31ebbfb78aebb5718b82584106bff5bf8ddb500db8e930e2556936b70611b72d",
+    "files": {
+      "audit.tcl": "d30ea3cf5640d54f9a5b442be686908ac729365040986770553c3b0f415abbff",
+      "chip-pin-diagnostic.tcl": "2cb715c6a9a0250ebaa6226d6a6ceb012132077865891af92e504bb5ebe0622a",
+      "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c",
+      "edge-pair-audit.tcl": "0a7c3d3f1a2234d671f586be4257dbb834338f663fd0cd417ea3ebb52c1e1ea6",
+      "pcxt_memory.sv": "82bb400b17ebe84b6beed6ded828229f001da4b1ecf66556bba8c9a42a0b49ea",
+      "sdram_addon_port.v": "e3ccc890531752d3fd8274ddbfac4401c79374cab80e7404f8825760da002a08",
+      "top.qpf": "5874c1b7f0c8de4ca333804dffd705e0dc888990ce4ae46b0182a963c9f38e13",
+      "top.qsf": "cb57b6bb1038a255fe554e74dfef8b4171b00fc0e8f0c9a006295d78a8297933",
+      "top.rcf": "53c90b116fd8f53aada58800009190d69210d6de8e5370510705b54d31cb7682",
+      "top.sv": "33e28b954c89a5a8b31add776a327cb19575667f77acbe51f36fb4934a6b8ae5"
+    },
+    "committed_sources": {
+      "cores/fes-pcxt/rtl/fes_pcxt_top.sv": "2de973ca42a5e2844b63a4a9d3ff7e70002b22f71795c15194c1fd22d9c7252a",
+      "cores/fes-pcxt/rtl/pcxt_memory.sv": "82bb400b17ebe84b6beed6ded828229f001da4b1ecf66556bba8c9a42a0b49ea",
+      "cores/fes-ramtest/rtl/sdram_addon_port.v": "e3ccc890531752d3fd8274ddbfac4401c79374cab80e7404f8825760da002a08"
+    },
+    "hardware": false
+  },
+  "reference_audit_receipt": {
+    "scope": "Fresh bounded four-counter reference analyses and conversion; no native route, fitted-board or hardware signoff.",
+    "revision": "695036ff4863af9345def69c85d4f12790b630b8",
+    "input_binding_sha256": "5ba1928ed29d230964141af80168c960818513c7d0c4fd762716e972fffe905c",
+    "steps": [
+      {
+        "argv": [
+          "quartus_sta",
+          "-t",
+          "audit.tcl"
+        ],
+        "exit": 0,
+        "seconds": 3.6213946901261806,
+        "log": "audit.tcl.log",
+        "log_sha256": "c96332ffac88b974bbc974ac932f75a0b67344e0226bbdbe263286a13c8d7b3c"
+      },
+      {
+        "argv": [
+          "quartus_sta",
+          "-t",
+          "edge-pair-audit.tcl"
+        ],
+        "exit": 0,
+        "seconds": 2.755951652303338,
+        "log": "edge-pair-audit.tcl.log",
+        "log_sha256": "b28678b4f5c8227e2a50a0fb158992ef367d93b100f34452407cb3288768a88b"
+      },
+      {
+        "argv": [
+          "quartus_sta",
+          "-t",
+          "chip-pin-diagnostic.tcl"
+        ],
+        "exit": 0,
+        "seconds": 2.2430210248567164,
+        "log": "chip-pin-diagnostic.tcl.log",
+        "log_sha256": "18d039fd8dfe99f57fac52747ad007b8133b6c31d2f57b6f61e773f666604b51"
+      },
+      {
+        "argv": [
+          "quartus_cpf",
+          "-c",
+          "-o",
+          "bitstream_compression=on",
+          "output_files/top.sof",
+          "output_files/top.rbf"
+        ],
+        "exit": 0,
+        "seconds": 1.0491421949118376,
+        "log": "convert.log",
+        "log_sha256": "cb04554e4d65d8ce8976e41106b00f8d790388cd57bd3054c0839988dd129bd4"
+      }
+    ],
+    "postflight_input_identity_pass": true,
+    "rbf_sha256": "871720dcf62d67531ce834607ec54c2fd62f96efd3def4cf97f74688e9f60684"
+  },
+  "reference_artifacts_sha256": {
+    "input-binding.json": "5ba1928ed29d230964141af80168c960818513c7d0c4fd762716e972fffe905c",
+    "audit-receipt.json": "f3652d57ddad2cf0c9504e2adcbedc9fe0402ec3d1c24704d2d7ae71507a74f3",
+    "compile.log": "70b541c2f63c310e8678b3a23dcc56f45d0a86050781a7f8ce4b40803a328cd0",
+    "output_files/top.fit.summary": "cc71fcb7d76fe71bf4439e20fc3ed3a556a22f64f9f271a1125307f988c63fbc",
+    "output_files/top.rbf": "871720dcf62d67531ce834607ec54c2fd62f96efd3def4cf97f74688e9f60684",
+    "raw-memory-pll.tsv": "0a83846d40f990dad7a7576c68ff2e5d69282760583845a525c7b6e85a66adf7",
+    "selected-muxes.tsv": "c34660192c033da27405bf3a3a1cbf62dad258c4dc721f878b9578a95fd3613e",
+    "topology.log": "75b8d2af291423cf1bc36e801407a26a012df01df8101812b4509797f5ad67cd"
+  },
+  "conditions": {
+    "memory": "Photo-derived Etron EM63B165TS-6SG -6 CL2",
+    "tAC_max_ns": 6,
+    "tOH_min_ns": 2.5,
+    "tIS_min_ns": 1.5,
+    "tIH_min_ns": 0.8,
+    "conditional_CS2_inverter_tpd_max_ns": 4.2,
+    "CS2_inverter_reference": "Published schematic SN74LVC1G04DBVR, 3.3V +/-0.3V, CL50pF, -40..85C and datasheet input slew conditions; actual fitted part/load/slew unverified.",
+    "fpga_load_pF": 30,
+    "board_flight_ns": 0,
+    "fitted_module_confirmed": false,
+    "dedicated_mirrors": "Reference chip commands exclude separate CKE/DQML/DQMH shell mirrors; actual published module CKE tied high and chip masks on A11/A12.",
+    "virtual_probes": "Non-SDRAM harness ports are virtual and not board-qualified."
+  },
+  "chip_reference_corners": {
+    "7_slow_1100mv_100c": {
+      "input": {
+        "setup": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 6.048,
+          "report_sha256": "edfe0bdbcb9d139c6444e516161ba05464614d55d9760064581ea853b4d1669b"
+        },
+        "hold": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 7.182,
+          "report_sha256": "b937bcff3b65ae666e1106b653840654653e7a59e96aa27af6109666ab1dd310"
+        }
+      },
+      "output": {
+        "setup": {
+          "paths": 51,
+          "violated": 0,
+          "wns_ns": 5.183,
+          "report_sha256": "ebb4f5e56fd0447fd23947a906988eb37b4ee658acb5d2d34c96c039ae8a6e59"
+        },
+        "hold": {
+          "paths": 51,
+          "violated": 0,
+          "wns_ns": 5.389,
+          "report_sha256": "173ffc0d5b4cb0ef9ab6feded2fb899c921567cc66c5b886ebc1120698ed9813"
+        }
+      },
+      "handoff": {
+        "setup": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 2.495,
+          "report_sha256": "ceb9b414552471e73fcf6b14a96da45b275572ad01693f5677a7126cc5dea525"
+        },
+        "hold": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 11.458,
+          "report_sha256": "351fbba8a59f4bd8830b965d95a8ddd37d6276c4967d79d28104a746e93ca171"
+        }
+      },
+      "cs": {
+        "setup": {
+          "paths": 1,
+          "violated": 0,
+          "wns_ns": 5.183,
+          "report_sha256": "0b4befdcdab8a353db80ea6af9feca41df92d6340c60f3122bf4fdaf9ff10b02"
+        },
+        "hold": {
+          "paths": 1,
+          "violated": 0,
+          "wns_ns": 5.389,
+          "report_sha256": "d020cf111d443d078aca8e7d781cb77837ed2ff0636a4be4832edc00731fa878"
+        }
+      }
+    },
+    "7_slow_1100mv_-40c": {
+      "input": {
+        "setup": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 6.688,
+          "report_sha256": "c459e32daf7d79e38cf2460174176eb2e3207a154ab8b9c17fc4a27454b1aa1a"
+        },
+        "hold": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 6.722,
+          "report_sha256": "9168539937284aec488e0a8df96f6683059a64c03d8b31ef5ecd1ee35d80b6c3"
+        }
+      },
+      "output": {
+        "setup": {
+          "paths": 51,
+          "violated": 0,
+          "wns_ns": 5.296,
+          "report_sha256": "c3b9b669f58afac2a388fab52afcb6657e61415aae51ba54ec147aa69bc25679"
+        },
+        "hold": {
+          "paths": 51,
+          "violated": 0,
+          "wns_ns": 5.57,
+          "report_sha256": "5d13e81bc0a1b4d2053c44c5ed7f2f1074143cc306c11291e80cee4b5a9d2f52"
+        }
+      },
+      "handoff": {
+        "setup": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 2.687,
+          "report_sha256": "4e05138a1b221f044dd061a07b240ab90a71de65b0481371880cfe59405b8285"
+        },
+        "hold": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 11.545,
+          "report_sha256": "0425a61a138482a0ed518b99b9d3e2b93fa178952b7a71ff2a64ce69ee0f7169"
+        }
+      },
+      "cs": {
+        "setup": {
+          "paths": 1,
+          "violated": 0,
+          "wns_ns": 5.296,
+          "report_sha256": "1b56aee9b926b15e74c98dae606436c57f6a694a3cddd0b2101e47bc1e94910a"
+        },
+        "hold": {
+          "paths": 1,
+          "violated": 0,
+          "wns_ns": 5.57,
+          "report_sha256": "9a6daaafc155fc441d7619034e08b71def9b1c67efda998627e9ecbcc23ea854"
+        }
+      }
+    },
+    "MIN_fast_1100mv_100c": {
+      "input": {
+        "setup": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 8.744,
+          "report_sha256": "3395770fc58a169a2f97aa1a76c17f8a2807b955aa4c2276b221c1177d4c82b3"
+        },
+        "hold": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 5.476,
+          "report_sha256": "6dcaf5bf2987ca6cd3aa3059b115497086510747c6cdc0989193bd8c3d8793ad"
+        }
+      },
+      "output": {
+        "setup": {
+          "paths": 51,
+          "violated": 0,
+          "wns_ns": 5.624,
+          "report_sha256": "9866d01aa0280937d7c36fe6c2fc6973184ba7355f6f960ddf1636496b1a015d"
+        },
+        "hold": {
+          "paths": 51,
+          "violated": 0,
+          "wns_ns": 6.115,
+          "report_sha256": "6d809010e6855850fc2a33fcf675843172bc0c31608e1ad7e610613ac4b8c63f"
+        }
+      },
+      "handoff": {
+        "setup": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 6.081,
+          "report_sha256": "f6fb868b9be8e14b1a1f3af542bc0a4fa2daa72f5ca8dbab47c93070c749a18d"
+        },
+        "hold": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 10.684,
+          "report_sha256": "560b31d513ba67f2ff022497adf996cd0da3c2c916639d90c9fe0685e4375ac4"
+        }
+      },
+      "cs": {
+        "setup": {
+          "paths": 1,
+          "violated": 0,
+          "wns_ns": 5.624,
+          "report_sha256": "262e0efd2dbdb458a30785b5dad6f9ddaa9e3246fd88362e6b489cd4014b1d76"
+        },
+        "hold": {
+          "paths": 1,
+          "violated": 0,
+          "wns_ns": 6.115,
+          "report_sha256": "07a671ccfa9aa3a14d436d01d0439484862c97352326bdfd26e813532d35cf30"
+        }
+      }
+    },
+    "MIN_fast_1100mv_-40c": {
+      "input": {
+        "setup": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 9.343,
+          "report_sha256": "22078ec308fc5cf2d3e8e1aea08dda8c2260a55fd5bea0dd5ac5acf5cd6fc170"
+        },
+        "hold": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 4.861,
+          "report_sha256": "daaf5a5d20ae05f2aec2b4bb428a53ef1e86db44c2b669412dfcc77ae27472b4"
+        }
+      },
+      "output": {
+        "setup": {
+          "paths": 51,
+          "violated": 0,
+          "wns_ns": 5.653,
+          "report_sha256": "c746599f2ed584bc19c7979f06dd7b3be686470fea0dbac4af72b1a167119ea7"
+        },
+        "hold": {
+          "paths": 51,
+          "violated": 0,
+          "wns_ns": 6.242,
+          "report_sha256": "deece7ca94443d7bfbb115b84e52b6643837490dc57faa070aaa6fdefaf8dc3f"
+        }
+      },
+      "handoff": {
+        "setup": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 6.426,
+          "report_sha256": "66386ce171f98eb44c10cece55a928b185f422d3dbe5d74f17ed250cee02c37d"
+        },
+        "hold": {
+          "paths": 16,
+          "violated": 0,
+          "wns_ns": 10.635,
+          "report_sha256": "28daaf907dd2ee8a136e0a94d928d7157425891227f2dff5a0dfb6da658cd03d"
+        }
+      },
+      "cs": {
+        "setup": {
+          "paths": 1,
+          "violated": 0,
+          "wns_ns": 5.653,
+          "report_sha256": "daa9f4481572c498481c5493e665efa1507dc3edd9c7cd6b4680c227dc5b493a"
+        },
+        "hold": {
+          "paths": 1,
+          "violated": 0,
+          "wns_ns": 6.242,
+          "report_sha256": "cf22a57990deeee54f52e15c2bf0c0e41b4d5376f7872a9b64a9d42b031ec1c6"
+        }
+      }
+    }
+  },
+  "all_reported_chip_reference_setup_hold_pass": true,
+  "reference_minima_ns": {
+    "input": {
+      "setup": 6.048,
+      "hold": 4.861
+    },
+    "output": {
+      "setup": 5.183,
+      "hold": 5.389
+    },
+    "handoff": {
+      "setup": 2.495,
+      "hold": 10.635
+    },
+    "cs": {
+      "setup": 5.183,
+      "hold": 5.389
+    }
+  },
+  "native_uncertainty_screens": [
+    {
+      "seed": 1,
+      "reference_screen_sha256": "754ed28e9e0af2180605c42426135805567cce5110b35a0bfb287f5dbdc1bb2d",
+      "adjusted_setup_min_ns": 1.5619999647140503,
+      "adjusted_hold_min_ns": 0.7940000295639038,
+      "paired_rows": 17709,
+      "unpaired_rows": 9,
+      "clock_pair_count": 12,
+      "setup_failures": 0,
+      "hold_failures": 0,
+      "screen_exit": 1,
+      "screen_exit_reason": "Nine explicit unpaired/asynchronous rows keep whole-board gate failed closed.",
+      "raw_queried_memory_pll_fields_equal_reference": true,
+      "reference_clock_branches": {
+        "SDRAM_CLK_MISTRAL_OB_PAD": {
+          "native_chain": [
+            "GCLK.000.036.0001",
+            "SCLK.077.000.0018",
+            "SCLKB1.077.000.0054",
+            "SCLKB2.077.000.0056",
+            "BCLK.067.000.0005",
+            "BCLKB.067.000.0005",
+            "XCLKB1.070.000.0005",
+            "XCLKB2A.070.000.0005",
+            "TCLK.070.000.0015",
+            "DCMUX.070.000.0015"
+          ],
+          "reference_chain": [
+            "GCLK.000.036.0001",
+            "SCLK.077.000.0018",
+            "SCLKB1.077.000.0054",
+            "SCLKB2.077.000.0056",
+            "BCLK.067.000.0005",
+            "BCLKB.067.000.0005",
+            "XCLKB1.070.000.0005",
+            "XCLKB2A.070.000.0005",
+            "TCLK.070.000.0015",
+            "DCMUX.070.000.0015"
+          ],
+          "matches": true
+        },
+        "SDRAM_nCS_MISTRAL_OB_PAD": {
+          "native_chain": [
+            "GCLK.000.036.0000",
+            "SCLK.077.000.0005",
+            "SCLKB1.077.006.0030",
+            "SCLKB2.077.006.0033",
+            "HCLK.078.006.0002",
+            "HCLKB.078.006.0002",
+            "XCLKB1.089.006.0002",
+            "XCLKB2A.089.006.0002",
+            "TCLK.089.006.0008",
+            "DCMUX.089.006.0008"
+          ],
+          "reference_chain": [
+            "GCLK.000.036.0000",
+            "SCLK.077.000.0005",
+            "SCLKB1.077.006.0031",
+            "SCLKB2.077.006.0035",
+            "HCLK.078.006.0004",
+            "HCLKB.078.006.0004",
+            "XCLKB1.089.006.0004",
+            "XCLKB2B.089.006.0004",
+            "TD.089.006.0071",
+            "TDMUX.089.006.0013",
+            "DCMUX.089.006.0008"
+          ],
+          "matches": false
+        }
+      }
+    },
+    {
+      "seed": 2,
+      "reference_screen_sha256": "ad194eb96d1289335365e8c67a8871b0482bbb74fb5e07c640fd294f749682a9",
+      "adjusted_setup_min_ns": 0.6050000023841858,
+      "adjusted_hold_min_ns": 0.7609999775886536,
+      "paired_rows": 17709,
+      "unpaired_rows": 9,
+      "clock_pair_count": 12,
+      "setup_failures": 0,
+      "hold_failures": 0,
+      "screen_exit": 1,
+      "screen_exit_reason": "Nine explicit unpaired/asynchronous rows keep whole-board gate failed closed.",
+      "raw_queried_memory_pll_fields_equal_reference": true,
+      "reference_clock_branches": {
+        "SDRAM_CLK_MISTRAL_OB_PAD": {
+          "native_chain": [
+            "GCLK.000.036.0001",
+            "SCLK.077.000.0018",
+            "SCLKB1.077.000.0054",
+            "SCLKB2.077.000.0056",
+            "BCLK.067.000.0005",
+            "BCLKB.067.000.0005",
+            "XCLKB1.070.000.0005",
+            "XCLKB2A.070.000.0005",
+            "TCLK.070.000.0015",
+            "DCMUX.070.000.0015"
+          ],
+          "reference_chain": [
+            "GCLK.000.036.0001",
+            "SCLK.077.000.0018",
+            "SCLKB1.077.000.0054",
+            "SCLKB2.077.000.0056",
+            "BCLK.067.000.0005",
+            "BCLKB.067.000.0005",
+            "XCLKB1.070.000.0005",
+            "XCLKB2A.070.000.0005",
+            "TCLK.070.000.0015",
+            "DCMUX.070.000.0015"
+          ],
+          "matches": true
+        },
+        "SDRAM_nCS_MISTRAL_OB_PAD": {
+          "native_chain": [
+            "GCLK.000.036.0000",
+            "SCLK.077.000.0005",
+            "SCLKB1.077.006.0030",
+            "SCLKB2.077.006.0033",
+            "HCLK.078.006.0002",
+            "HCLKB.078.006.0002",
+            "XCLKB1.089.006.0002",
+            "XCLKB2A.089.006.0002",
+            "TCLK.089.006.0008",
+            "DCMUX.089.006.0008"
+          ],
+          "reference_chain": [
+            "GCLK.000.036.0000",
+            "SCLK.077.000.0005",
+            "SCLKB1.077.006.0031",
+            "SCLKB2.077.006.0035",
+            "HCLK.078.006.0004",
+            "HCLKB.078.006.0004",
+            "XCLKB1.089.006.0004",
+            "XCLKB2B.089.006.0004",
+            "TD.089.006.0071",
+            "TDMUX.089.006.0013",
+            "DCMUX.089.006.0008"
+          ],
+          "matches": false
+        }
+      }
+    },
+    {
+      "seed": 3,
+      "reference_screen_sha256": "0841f195cffe66d3ea1c1d20cde18c3efb7ee14ef2591def031e6aadd7a247c0",
+      "adjusted_setup_min_ns": 0.4050000190734863,
+      "adjusted_hold_min_ns": 0.7960000038146973,
+      "paired_rows": 17709,
+      "unpaired_rows": 9,
+      "clock_pair_count": 12,
+      "setup_failures": 0,
+      "hold_failures": 0,
+      "screen_exit": 1,
+      "screen_exit_reason": "Nine explicit unpaired/asynchronous rows keep whole-board gate failed closed.",
+      "raw_queried_memory_pll_fields_equal_reference": true,
+      "reference_clock_branches": {
+        "SDRAM_CLK_MISTRAL_OB_PAD": {
+          "native_chain": [
+            "GCLK.000.036.0001",
+            "SCLK.077.000.0018",
+            "SCLKB1.077.000.0054",
+            "SCLKB2.077.000.0056",
+            "BCLK.067.000.0005",
+            "BCLKB.067.000.0005",
+            "XCLKB1.070.000.0005",
+            "XCLKB2A.070.000.0005",
+            "TCLK.070.000.0015",
+            "DCMUX.070.000.0015"
+          ],
+          "reference_chain": [
+            "GCLK.000.036.0001",
+            "SCLK.077.000.0018",
+            "SCLKB1.077.000.0054",
+            "SCLKB2.077.000.0056",
+            "BCLK.067.000.0005",
+            "BCLKB.067.000.0005",
+            "XCLKB1.070.000.0005",
+            "XCLKB2A.070.000.0005",
+            "TCLK.070.000.0015",
+            "DCMUX.070.000.0015"
+          ],
+          "matches": true
+        },
+        "SDRAM_nCS_MISTRAL_OB_PAD": {
+          "native_chain": [
+            "GCLK.000.036.0000",
+            "SCLK.077.000.0005",
+            "SCLKB1.077.006.0030",
+            "SCLKB2.077.006.0033",
+            "HCLK.078.006.0002",
+            "HCLKB.078.006.0002",
+            "XCLKB1.089.006.0002",
+            "XCLKB2A.089.006.0002",
+            "TCLK.089.006.0008",
+            "DCMUX.089.006.0008"
+          ],
+          "reference_chain": [
+            "GCLK.000.036.0000",
+            "SCLK.077.000.0005",
+            "SCLKB1.077.006.0031",
+            "SCLKB2.077.006.0035",
+            "HCLK.078.006.0004",
+            "HCLKB.078.006.0004",
+            "XCLKB1.089.006.0004",
+            "XCLKB2B.089.006.0004",
+            "TD.089.006.0071",
+            "TDMUX.089.006.0013",
+            "DCMUX.089.006.0008"
+          ],
+          "matches": false
+        }
+      }
+    }
+  ],
+  "uncertainty_scope": "Fresh explicit four-corner budgets for every native paired launch/capture event, including the new board-to-CS pair. Raw queried memory-PLL fields and forwarded-clock branch match. This does not calibrate native data/IO delays or establish native fast-corner timing.",
+  "whole_board_qualified": false,
+  "physical_qualified": false,
+  "hardware": false
+}

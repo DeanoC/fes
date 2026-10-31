@@ -316,7 +316,7 @@ func drawRoomChoice(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 			th := drawTheme(snap)
 			fillRect(dev, float32(x+8), float32(rowY), 6, float32(panel.RowH-4), th.Highlight.R, th.Highlight.G, th.Highlight.B, th.Highlight.A)
 		}
-		label := strings.TrimSpace(rows[idx].Title)
+		label := strings.TrimSpace(displayGameTitle(rows[idx]))
 		if label == "" {
 			label = rows[idx].ID
 		}
@@ -350,13 +350,19 @@ func drawFilePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	}
 	rows := snap.FirmwarePicker.Rows
 	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
-	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
-	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	if !snap.Session.MediaSelector {
+		dimOutsidePanel(dev, snap.Grid, rectI{x - 4, y - 4, panelW + 8, panelH + 8})
+	}
+	dev.FillRect(gfx.Rect{X: float32(x - 4), Y: float32(y - 4), W: float32(panelW + 8), H: float32(panelH + 8)}, heroDivider)
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(panelW), H: float32(panelH)}, heroSurface)
 	title := strings.TrimSpace(snap.FirmwarePicker.Title)
 	if title == "" {
 		title = firmwarePickerTitle
 	}
-	drawLabel(dev, labels, used, "fw-title", x+16, y+12, panelW-32, 18, title)
+	heroLine(dev, labels, used, x+16, y+12, panelW-32, 28, true, heroText, title)
+	if path := strings.TrimSpace(snap.FirmwarePicker.Path); path != "" {
+		heroLine(dev, labels, used, x+16, y+49, panelW-32, 18, false, heroSecondary, path)
+	}
 	for i := 0; i < panel.Visible; i++ {
 		idx := panel.Start + i
 		if idx >= len(rows) {
@@ -364,24 +370,25 @@ func drawFilePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		}
 		rowY := panel.rowY(i)
 		if idx == snap.FirmwarePicker.Index {
-			fillRect(dev, float32(x+8), float32(rowY), float32(panelW-16), float32(panel.RowH-4), 48, 56, 80, 255)
-			th := drawTheme(snap)
-			fillRect(dev, float32(x+8), float32(rowY), 6, float32(panel.RowH-4), th.Highlight.R, th.Highlight.G, th.Highlight.B, th.Highlight.A)
+			dev.FillRect(gfx.Rect{X: float32(x + 8), Y: float32(rowY), W: float32(panelW - 16), H: float32(panel.RowH - 4)}, heroRaised)
+			heroOutline(dev, x+8, rowY, panelW-16, panel.RowH-4, 2, heroAccent)
 		}
-		drawLabel(dev, labels, used, fmt.Sprintf("fw-%d", idx), x+20, rowY+8, panelW-40, 16, rowLabel(rows[idx]))
+		drawFESLabel(dev, labels, used, fmt.Sprintf("fw-%d", idx), x+20, rowY+10, panelW-40, 22, rowLabel(rows[idx]))
 	}
 	status := strings.TrimSpace(snap.FirmwarePicker.Status)
 	if status == "" {
 		status = strings.TrimSpace(snap.FirmwarePicker.Path)
 	}
 	if status != "" {
-		drawLabel(dev, labels, used, "fw-status", x+16, y+panelH-40, panelW-32, 14, status)
+		for i, line := range gfx.WrapText(status, 18, panelW-32, 2) {
+			drawFESLabel(dev, labels, used, fmt.Sprintf("fw-status-%d", i), x+16, y+panelH-panel.FooterH+4+i*22, panelW-32, 18, line)
+		}
 	}
 	hint := strings.TrimSpace(snap.FirmwarePicker.Hint)
 	if hint == "" {
 		hint = firmwarePickerHint(snap.Affinity)
 	}
-	drawLabel(dev, labels, used, "fw-hint", x+16, y+panelH-22, panelW-32, 14, hint)
+	drawFESLabel(dev, labels, used, "fw-hint", x+16, y+panelH-29, panelW-32, 18, hint)
 }
 
 func drawTapePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
@@ -391,14 +398,17 @@ func drawTapePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	}
 	rows := snap.TapePicker.Rows
 	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
-	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
-	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	if !snap.Session.MediaSelector {
+		dimOutsidePanel(dev, snap.Grid, rectI{x - 4, y - 4, panelW + 8, panelH + 8})
+	}
+	dev.FillRect(gfx.Rect{X: float32(x - 4), Y: float32(y - 4), W: float32(panelW + 8), H: float32(panelH + 8)}, heroDivider)
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(panelW), H: float32(panelH)}, heroSurface)
 	title := strings.TrimSpace(snap.TapePicker.Title)
 	if title == "" {
 		title = tapePickerTitle
 	}
-	drawLabel(dev, labels, used, "tape-title", x+16, y+12, panelW-32, 18, title)
-	drawLabel(dev, labels, used, "tape-current", x+16, y+34, panelW-32, 14, snap.TapePicker.Current)
+	heroLine(dev, labels, used, x+16, y+12, panelW-32, 28, true, heroText, title)
+	drawFESLabel(dev, labels, used, "tape-current", x+16, y+49, panelW-32, 18, snap.TapePicker.Current)
 	for i := 0; i < panel.Visible; i++ {
 		idx := panel.Start + i
 		if idx >= len(rows) {
@@ -406,34 +416,35 @@ func drawTapePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		}
 		rowY := panel.rowY(i)
 		if idx == snap.TapePicker.Index {
-			fillRect(dev, float32(x+8), float32(rowY), float32(panelW-16), float32(panel.RowH-4), 48, 56, 80, 255)
-			th := drawTheme(snap)
-			fillRect(dev, float32(x+8), float32(rowY), 6, float32(panel.RowH-4), th.Highlight.R, th.Highlight.G, th.Highlight.B, th.Highlight.A)
+			dev.FillRect(gfx.Rect{X: float32(x + 8), Y: float32(rowY), W: float32(panelW - 16), H: float32(panel.RowH - 4)}, heroRaised)
+			heroOutline(dev, x+8, rowY, panelW-16, panel.RowH-4, 2, heroAccent)
 		}
-		drawLabel(dev, labels, used, fmt.Sprintf("tape-%d", idx), x+20, rowY+8, panelW-40, 16, tapePickerRowLabel(rows[idx]))
+		drawFESLabel(dev, labels, used, fmt.Sprintf("tape-%d", idx), x+20, rowY+10, panelW-40, 22, tapePickerRowLabel(rows[idx]))
 	}
 	status := strings.TrimSpace(snap.TapePicker.Status)
 	if status == "" {
 		status = strings.TrimSpace(snap.TapePicker.Path)
 	}
 	if status != "" {
-		drawLabel(dev, labels, used, "tape-status", x+16, y+panelH-40, panelW-32, 14, status)
+		for i, line := range gfx.WrapText(status, 18, panelW-32, 2) {
+			drawFESLabel(dev, labels, used, fmt.Sprintf("tape-status-%d", i), x+16, y+panelH-panel.FooterH+4+i*22, panelW-32, 18, line)
+		}
 	}
 	hint := strings.TrimSpace(snap.TapePicker.Hint)
 	if hint == "" {
 		hint = tapePickerHint(snap.Affinity)
 	}
-	drawLabel(dev, labels, used, "tape-hint", x+16, y+panelH-22, panelW-32, 14, hint)
+	drawFESLabel(dev, labels, used, "tape-hint", x+16, y+panelH-29, panelW-32, 18, hint)
 }
 
 // drawRoomChrome keeps host/kit health, launch progress and the input hint
 // visible over any room without the library header.
 func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
-	if snap.Room.ID == hardwareRoomID {
+	if roomHasWorkbenchFooter(snap.Room.ID) {
 		x, y := snap.Room.OffsetX, snap.Room.OffsetY+snap.Room.Height
 		fillRect(dev, float32(x), float32(y), float32(snap.Room.Width), hardwareRoomFooterHeight, 37, 48, 45, 255)
-		drawLabel(dev, labels, used, "hardware-status", x+16, y+6, snap.Room.Width-32, 15, hardwareRoomStatus(snap))
-		drawLabel(dev, labels, used, "hardware-hint", x+16, y+29, snap.Room.Width-32, 14, snap.HeaderHint())
+		drawLabel(dev, labels, used, "hardware-status", x+16, y+6, snap.Room.Width-32, 18, hardwareRoomStatus(snap))
+		drawLabel(dev, labels, used, "hardware-hint", x+16, y+29, snap.Room.Width-32, 16, snap.HeaderHint())
 		return
 	}
 	if snap.Room.Hero {
@@ -441,30 +452,14 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		return
 	}
 	g := snap.Grid
-	x := g.contentLeft()
-	w := g.contentWidth()
-	statusY, hintY := roomChromeFooterRows(g)
-	line := strings.TrimSpace(snap.Health.Line)
-	if lease := strings.TrimSpace(snap.KitLease.Line); lease != "" {
-		if line != "" {
-			line += "  ·  "
-		}
-		line += lease
+	x, w := g.contentLeft(), g.contentWidth()
+	// This band ends before the destination pane. Its opaque surface keeps
+	// authored artwork from reducing the legibility of launcher controls.
+	y := g.footerY() - 30
+	if pane, ok := roomDestGeom(snap); ok {
+		y = pane.Y - 30
 	}
-	if !launchOverlayVisible(snap) {
-		switch snap.Launch.Phase {
-		case "launching", "error", "host":
-			if msg := strings.TrimSpace(snap.Launch.Message); msg != "" {
-				line = msg
-			}
-		}
-	}
-	if strings.TrimSpace(snap.Status) != "" && strings.HasPrefix(snap.Status, "room failed") {
-		line = snap.Status
-	}
-	if snap.Status == localInUseCopy || snap.Status == machineStatusUnknown {
-		line = snap.Status
-	}
+	line := heroFooterStatus(snap)
 	if snap.Room.ID == colecoArcadeRoomID && snap.Room.DuringPlay && snap.Session.Coleco {
 		switch strings.TrimSpace(snap.Room.Notice) {
 		case colecoCartridgeSessionStatus, runningMachineLibraryBlockedStatus:
@@ -476,11 +471,14 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 			}
 		}
 	}
+	y = max(g.contentTop(), y)
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: 28}, heroText)
+	statusW := 0
 	if line != "" {
-		drawLabel(dev, labels, used, "room-status", x+8, statusY, w-16, 14, line)
+		statusW = min(w/3, gfx.MeasureText(line, 16)+24)
+		drawTintedLabel(dev, labels, used, "room-status", x+12, y+4, statusW-20, 16, heroOnAccent, line)
 	}
-	hint := snap.HeaderHint()
-	drawDebug(dev, x+w-8*len(hint)-8, hintY, hint, 1)
+	drawTintedLabel(dev, labels, used, "room-hint", x+12+statusW, y+3, w-24-statusW, 18, heroOnAccent, snap.HeaderHint())
 }
 
 func hardwareRoomStatus(snap Snapshot) string {
@@ -585,9 +583,12 @@ func drawRoomPicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	}
 	rows := snap.RoomPicker.Rows
 	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
-	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
-	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
-	drawLabel(dev, labels, used, "rooms-title", x+20, y+14, panelW-40, 22, "Home")
+	if !snap.Session.MediaSelector {
+		dimOutsidePanel(dev, snap.Grid, rectI{x - 4, y - 4, panelW + 8, panelH + 8})
+	}
+	dev.FillRect(gfx.Rect{X: float32(x - 4), Y: float32(y - 4), W: float32(panelW + 8), H: float32(panelH + 8)}, heroDivider)
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(panelW), H: float32(panelH)}, heroSurface)
+	heroLine(dev, labels, used, x+20, y+14, panelW-40, 28, true, heroText, "Menu")
 	currentRoom := ""
 	if snap.Room.Open {
 		currentRoom = snap.Room.ID
@@ -600,15 +601,16 @@ func drawRoomPicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		row := rows[idx]
 		rowY := panel.rowY(i)
 		if idx == snap.RoomPicker.Index {
-			fillRect(dev, float32(x+8), float32(rowY), float32(panelW-16), float32(panel.RowH-4), 48, 56, 80, 255)
-			th := drawTheme(snap)
-			fillRect(dev, float32(x+8), float32(rowY), 6, float32(panel.RowH-4), th.Highlight.R, th.Highlight.G, th.Highlight.B, th.Highlight.A)
+			dev.FillRect(gfx.Rect{X: float32(x + 8), Y: float32(rowY), W: float32(panelW - 16), H: float32(panel.RowH - 4)}, heroRaised)
+			heroOutline(dev, x+8, rowY, panelW-16, panel.RowH-4, 2, heroAccent)
 		}
 		label := homeRowLabel(row, currentRoom)
-		drawLabel(dev, labels, used, fmt.Sprintf("rooms-%d", idx), x+24, rowY+4, panelW-48, 18, label)
+		drawFESLabel(dev, labels, used, fmt.Sprintf("rooms-%d", idx), x+24, rowY+6, panelW-48, 22, label)
 		if detail := strings.TrimSpace(row.Detail); detail != "" {
-			drawLabel(dev, labels, used, fmt.Sprintf("rooms-%d-detail", idx), x+24, rowY+26, panelW-48, 13, detail)
+			drawFESLabel(dev, labels, used, fmt.Sprintf("rooms-%d-detail", idx), x+24, rowY+34, panelW-48, 18, detail)
 		}
 	}
-	drawLabel(dev, labels, used, "rooms-hint", x+20, y+panelH-22, panelW-40, 14, roomPickerHint(snap.Affinity))
+	for i, line := range gfx.WrapText(roomPickerHint(snap.Affinity), 18, panelW-40, 2) {
+		drawFESLabel(dev, labels, used, fmt.Sprintf("rooms-hint-%d", i), x+20, y+panelH-panel.FooterH+6+i*22, panelW-40, 18, line)
+	}
 }

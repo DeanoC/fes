@@ -1,0 +1,67 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.de25-ddr-probe
+description: >-
+  Read-only DE25-Nano DDR diagnostic with a snapshotted bounded DMA bus
+  descriptor. Register offsets are relative to the copied Terasic GHRD
+  lightweight peripheral subsystem. This contract confers no Linux MMIO,
+  DMA allocation, translation, firewall or runtime admission. See
+  docs/de25-ddr.md for drain, reset and prospective framebuffer ownership.
+major: 1
+minor: 0
+constants:
+  - {name: FesDe25DdrProbeIdentity, value: 0x44323550}
+  - {name: FesDe25DdrProbeVersion, value: 0x00010000}
+  - {name: FesDe25DdrProbeArchitecturalLwBase, value: 0x20000000}
+  - {name: FesDe25DdrProbeArchitecturalLwSpan, value: 0x20000000}
+  - {name: FesDe25DdrProbePeripheralOffset, value: 0x00010100}
+  - {name: FesDe25DdrProbeSpan, value: 128}
+  - {name: FesDe25DdrProbeAddressBits, value: 7}
+  - {name: FesDe25DdrProbeDmaAddressBits, value: 32}
+  - {name: FesDe25DdrProbeBeatBytes, value: 16}
+  - {name: FesDe25DdrProbeGrantAlignment, value: 32}
+  - {name: FesDe25DdrProbeMaxBurstBeats, value: 16}
+  - {name: FesDe25DdrProbeBoundaryBytes, value: 4096}
+  - {name: FesDe25DdrProbeIdOffset, value: 0x00}
+  - {name: FesDe25DdrProbeVersionOffset, value: 0x04}
+  - {name: FesDe25DdrProbeStatusOffset, value: 0x08}
+  - {name: FesDe25DdrProbeCommandOffset, value: 0x0c}
+  - {name: FesDe25DdrProbeGrantLoOffset, value: 0x10}
+  - {name: FesDe25DdrProbeGrantHiOffset, value: 0x14}
+  - {name: FesDe25DdrProbeGrantSpanOffset, value: 0x18}
+  - {name: FesDe25DdrProbeReadOffsetOffset, value: 0x1c}
+  - {name: FesDe25DdrProbeReadBytesOffset, value: 0x20}
+  - {name: FesDe25DdrProbeGenerationLoOffset, value: 0x24}
+  - {name: FesDe25DdrProbeGenerationHiOffset, value: 0x28}
+  - {name: FesDe25DdrProbeSequenceOffset, value: 0x2c}
+  - {name: FesDe25DdrProbeCompletedBytesOffset, value: 0x30}
+  - {name: FesDe25DdrProbeChecksumOffset, value: 0x34}
+  - {name: FesDe25DdrProbeErrorOffset, value: 0x38}
+  - {name: FesDe25DdrProbeActiveSequenceOffset, value: 0x3c}
+  - {name: FesDe25DdrProbeActiveGenerationLoOffset, value: 0x40}
+  - {name: FesDe25DdrProbeActiveGenerationHiOffset, value: 0x44}
+  - {name: FesDe25DdrProbeLastData0Offset, value: 0x48}
+  - {name: FesDe25DdrProbeLastData1Offset, value: 0x4c}
+  - {name: FesDe25DdrProbeLastData2Offset, value: 0x50}
+  - {name: FesDe25DdrProbeLastData3Offset, value: 0x54}
+  - {name: FesDe25DdrProbeAcceptedBytesOffset, value: 0x58}
+  - {name: FesDe25DdrProbeStatusIdle, value: 1}
+  - {name: FesDe25DdrProbeStatusBusy, value: 2}
+  - {name: FesDe25DdrProbeStatusDone, value: 4}
+  - {name: FesDe25DdrProbeStatusFault, value: 8}
+  - {name: FesDe25DdrProbeStatusCancelled, value: 16}
+  - {name: FesDe25DdrProbeCommandStart, value: 1}
+  - {name: FesDe25DdrProbeCommandCancel, value: 2}
+  - {name: FesDe25DdrProbeCommandClear, value: 4}
+  - {name: FesDe25DdrProbeErrorDescriptor, value: 1}
+  - {name: FesDe25DdrProbeErrorBusyCommand, value: 2}
+  - {name: FesDe25DdrProbeErrorResponse, value: 4}
+  - {name: FesDe25DdrProbeErrorUnexpectedResponse, value: 8}
+  - {name: FesDe25DdrProbeErrorCommand, value: 16}
+  - {name: FesDe25DdrProbeFrameWidth, value: 1280}
+  - {name: FesDe25DdrProbeFrameHeight, value: 720}
+  - {name: FesDe25DdrProbeFrameStride, value: 5120}
+  - {name: FesDe25DdrProbeFrameBytes, value: 3686400}
+  - {name: FesDe25DdrProbeSlotBytes, value: 4194304}
+  - {name: FesDe25DdrProbeSlotCount, value: 2}
+  - {name: FesDe25DdrProbeAllocationBytes, value: 8388608}

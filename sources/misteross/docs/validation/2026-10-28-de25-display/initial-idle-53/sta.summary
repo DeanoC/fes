@@ -1,0 +1,55 @@
+------------------------------------------------------------
+Timing Analyzer Summary
+------------------------------------------------------------
+
+Type  : Setup 'video_clock|iopll_0_outclk0'
+Slack : 11.934
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Setup 'video_clock|iopll_0_refclk'
+Slack : 18.363
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Hold 'video_clock|iopll_0_refclk'
+Slack : 0.108
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Hold 'video_clock|iopll_0_outclk0'
+Slack : 0.118
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Recovery 'video_clock|iopll_0_refclk'
+Slack : 18.924
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Removal 'video_clock|iopll_0_refclk'
+Slack : 0.256
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Minimum Pulse Width 'video_clock|iopll_0_outclk0'
+Slack : 5.858
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'video_clock|iopll_0|tennm_ph2_iopll|ref_clk0'
+Slack : 8.582
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Minimum Pulse Width 'video_clock|iopll_0_refclk'
+Slack : 9.590
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Minimum Pulse Width 'video_clock|iopll_0_n_cnt_clk'
+Slack : 49.563
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+------------------------------------------------------------

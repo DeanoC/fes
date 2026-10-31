@@ -1,0 +1,7 @@
+{
+  "source_revision": "c436951365f0d4f4fb0430d7c86f3442e00e5079",
+  "output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-idle-menu/out/de25-display-menu-pattern-c436951365",
+  "artifact_produced": false,
+  "compile_log_sha256": "31f67279c67b63b18e7e8670838be8c7a90c9114f410a565ee8344cd0790efb8",
+  "reason": "Agilex altera_syncram rejects Cyclone V M10K RAM_BLOCK_TYPE"
+}

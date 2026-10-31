@@ -1,0 +1,1365 @@
+[
+  {
+    "label": "final-plus3-clear",
+    "utc": "2026-10-28T07:57:24.240779+00:00",
+    "session": {
+      "id": "6c2d06cd-a466-45b9-8410-c60d25a1ebf3",
+      "target": "pr1182-kita",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "connection": {
+        "state": "ready",
+        "address": "http://192.168.10.84:8182",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "boot_id": "2a5e35b5-5ff4-4355-ac52-4cea4fc88e12"
+      },
+      "state": "idle",
+      "input": {
+        "state": "detached",
+        "ready": false,
+        "metrics": {
+          "frames_sent": 0,
+          "state_resyncs": 0,
+          "sequence_gaps": 0,
+          "releases": 0,
+          "capture_to_bridge_p95_ms": 0,
+          "bridge_to_uinput_p95_ms": 0,
+          "rtt_ms": 0,
+          "bridge_to_uinput_measurable": false,
+          "shutdown_reason": "session_stop"
+        }
+      },
+      "flight_id": "470e4aeb-649c-4868-91d0-5d9184b4b0cc"
+    },
+    "entries": {
+      "entries": [
+        {
+          "game_id": "fpga-pr1182-spectrum-3-2d98dac4015c",
+          "title": "PR1182 Spectrum +3",
+          "core_id": "fes.spectrum-plus3",
+          "package_id": "88766ab1a88db64d04cfb110a337b1d3cc54e4ef8edae9ffaf8fef88633c09cb"
+        },
+        {
+          "game_id": "fpga-pr1182-spectrum-48k-1cae1cd26262",
+          "title": "PR1182 Spectrum 48K",
+          "core_id": "fes.spectrum",
+          "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+          "media_id": "1623ed21386796d640bea6d3de26fae36cba57f666c5fdf43ba71e0d4276b0d3",
+          "media_role": "cassette"
+        }
+      ]
+    },
+    "lease": {
+      "expires_in_ms": 0,
+      "state": "free",
+      "generation": "3a1fbf383333833684d4656d5751a8721080511f6c32840a195a7c7e9f9fa1f5",
+      "expires_at": "0001-01-01T00:00:00Z"
+    },
+    "target_status": {
+      "state": "idle",
+      "game_id": null,
+      "system": null,
+      "expected_core": null,
+      "observed_core": null,
+      "last_error": null
+    }
+  },
+  {
+    "label": "final-plus3-disk-saved",
+    "utc": "2026-10-28T07:57:40.474531+00:00",
+    "session": {
+      "id": "6c2d06cd-a466-45b9-8410-c60d25a1ebf3",
+      "target": "pr1182-kita",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "connection": {
+        "state": "ready",
+        "address": "http://192.168.10.84:8182",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "boot_id": "2a5e35b5-5ff4-4355-ac52-4cea4fc88e12"
+      },
+      "state": "idle",
+      "input": {
+        "state": "detached",
+        "ready": false,
+        "metrics": {
+          "frames_sent": 0,
+          "state_resyncs": 0,
+          "sequence_gaps": 0,
+          "releases": 0,
+          "capture_to_bridge_p95_ms": 0,
+          "bridge_to_uinput_p95_ms": 0,
+          "rtt_ms": 0,
+          "bridge_to_uinput_measurable": false,
+          "shutdown_reason": "session_stop"
+        }
+      },
+      "flight_id": "470e4aeb-649c-4868-91d0-5d9184b4b0cc"
+    },
+    "entries": {
+      "entries": [
+        {
+          "game_id": "fpga-pr1182-spectrum-3-2d98dac4015c",
+          "title": "PR1182 Spectrum +3",
+          "core_id": "fes.spectrum-plus3",
+          "package_id": "88766ab1a88db64d04cfb110a337b1d3cc54e4ef8edae9ffaf8fef88633c09cb",
+          "media_id": "4aefcfb1fc437d2132905a6561f656a6806fec3e7ebf2e31fbe838bf26d98ed9",
+          "media_role": "disk"
+        },
+        {
+          "game_id": "fpga-pr1182-spectrum-48k-1cae1cd26262",
+          "title": "PR1182 Spectrum 48K",
+          "core_id": "fes.spectrum",
+          "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+          "media_id": "1623ed21386796d640bea6d3de26fae36cba57f666c5fdf43ba71e0d4276b0d3",
+          "media_role": "cassette"
+        }
+      ]
+    },
+    "lease": {
+      "expires_in_ms": 0,
+      "state": "free",
+      "generation": "3a1fbf383333833684d4656d5751a8721080511f6c32840a195a7c7e9f9fa1f5",
+      "expires_at": "0001-01-01T00:00:00Z"
+    },
+    "target_status": {
+      "state": "idle",
+      "game_id": null,
+      "system": null,
+      "expected_core": null,
+      "observed_core": null,
+      "last_error": null
+    }
+  },
+  {
+    "label": "final-plus3-active",
+    "utc": "2026-10-28T07:58:22.179030+00:00",
+    "session": {
+      "id": "3d6cb911-bfb2-41c0-98c7-883f889af697",
+      "target": "pr1182-kita",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "connection": {
+        "state": "active",
+        "address": "http://192.168.10.84:8182",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "boot_id": "2a5e35b5-5ff4-4355-ac52-4cea4fc88e12"
+      },
+      "state": "active",
+      "game_id": "fpga-pr1182-spectrum-3-2d98dac4015c",
+      "system": "fpga",
+      "execution": "fpga_native",
+      "input": {
+        "session_id": "430ba5358b0d3c91",
+        "state": "attached",
+        "ready": true,
+        "metrics": {
+          "frames_sent": 4,
+          "state_resyncs": 0,
+          "sequence_gaps": 0,
+          "releases": 0,
+          "capture_to_bridge_p95_ms": 0,
+          "bridge_to_uinput_p95_ms": 0,
+          "rtt_ms": 0.949363,
+          "bridge_to_uinput_measurable": false
+        }
+      },
+      "core_package": {
+        "rom_link": {
+          "rom_id": "spectrum-plus3-firmware",
+          "map_sha256": "a68d9e60bd04c9be4767aeeeeb0f06cc8494ec2bb7ca41f9973047f81530fc4a",
+          "source_sha256": "ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2",
+          "source_size": 65536,
+          "programmed_sha256": "86b51ed2ec6c518f5403bbeff4a0582ec5aad9f37f4454c0f81a69839238d6bf",
+          "programmed_size": 3150948
+        },
+        "media_units": [
+          {
+            "unit": 0,
+            "interface": {
+              "id": "fes.media.spectrum-tape",
+              "major": 2,
+              "minor": 0
+            },
+            "min_bytes": 10,
+            "max_bytes": 16777216,
+            "chunk_bytes": 512,
+            "state": "empty"
+          },
+          {
+            "unit": 1,
+            "interface": {
+              "id": "fes.media.spectrum-disk",
+              "major": 1,
+              "minor": 0
+            },
+            "min_bytes": 8192,
+            "max_bytes": 2834432,
+            "chunk_bytes": 512,
+            "state": "ready"
+          }
+        ],
+        "persistence_mode": "volatile",
+        "package_id": "88766ab1a88db64d04cfb110a337b1d3cc54e4ef8edae9ffaf8fef88633c09cb",
+        "generation": 1,
+        "abi": {
+          "id": "fes.computer",
+          "major": 1,
+          "minor": 0
+        },
+        "build_id": "1e6cf1a1464d4e3435a13c808bc22edf",
+        "active_interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.spectrum-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.fabric.video.display-plane",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keyboard.hid",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-disk",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-snapshot",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-snapshot-128",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-snapshot-plus3",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-tape",
+            "major": 2,
+            "minor": 0
+          },
+          {
+            "id": "fes.memory.hps-ddr",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.session-display",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "gamepad": true
+      },
+      "flight_id": "c80c07e7-45bd-42ec-b404-5b604b11a6f3"
+    },
+    "entries": {
+      "entries": [
+        {
+          "game_id": "fpga-pr1182-spectrum-3-2d98dac4015c",
+          "title": "PR1182 Spectrum +3",
+          "core_id": "fes.spectrum-plus3",
+          "package_id": "88766ab1a88db64d04cfb110a337b1d3cc54e4ef8edae9ffaf8fef88633c09cb",
+          "media_id": "4aefcfb1fc437d2132905a6561f656a6806fec3e7ebf2e31fbe838bf26d98ed9",
+          "media_role": "disk"
+        },
+        {
+          "game_id": "fpga-pr1182-spectrum-48k-1cae1cd26262",
+          "title": "PR1182 Spectrum 48K",
+          "core_id": "fes.spectrum",
+          "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+          "media_id": "1623ed21386796d640bea6d3de26fae36cba57f666c5fdf43ba71e0d4276b0d3",
+          "media_role": "cassette"
+        }
+      ]
+    },
+    "lease": {
+      "expires_in_ms": 70488,
+      "state": "held",
+      "generation": "af4f5c254d6be25c6970af5954ad3e41bd96e7c55632a73d43b508231c9caef8",
+      "owner": "fogcast@powerboat",
+      "purpose": "interactive game/development session",
+      "expires_at": "1970-01-02T17:01:25.723512Z"
+    },
+    "target_status": {
+      "state": "active",
+      "game_id": null,
+      "system": null,
+      "expected_core": null,
+      "observed_core": "fes.spectrum-plus3",
+      "last_error": null,
+      "development": true,
+      "core_package": {
+        "rom_link": {
+          "rom_id": "spectrum-plus3-firmware",
+          "map_sha256": "a68d9e60bd04c9be4767aeeeeb0f06cc8494ec2bb7ca41f9973047f81530fc4a",
+          "source_sha256": "ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2",
+          "source_size": 65536,
+          "programmed_sha256": "86b51ed2ec6c518f5403bbeff4a0582ec5aad9f37f4454c0f81a69839238d6bf",
+          "programmed_size": 3150948
+        },
+        "media_units": [
+          {
+            "unit": 0,
+            "interface": {
+              "id": "fes.media.spectrum-tape",
+              "major": 2,
+              "minor": 0
+            },
+            "min_bytes": 10,
+            "max_bytes": 16777216,
+            "chunk_bytes": 512,
+            "state": "empty"
+          },
+          {
+            "unit": 1,
+            "interface": {
+              "id": "fes.media.spectrum-disk",
+              "major": 1,
+              "minor": 0
+            },
+            "min_bytes": 8192,
+            "max_bytes": 2834432,
+            "chunk_bytes": 512,
+            "state": "ready"
+          }
+        ],
+        "persistence_mode": "volatile",
+        "package_id": "88766ab1a88db64d04cfb110a337b1d3cc54e4ef8edae9ffaf8fef88633c09cb",
+        "generation": 1,
+        "abi": {
+          "id": "fes.computer",
+          "major": 1,
+          "minor": 0
+        },
+        "build_id": "1e6cf1a1464d4e3435a13c808bc22edf",
+        "active_interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.spectrum-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.fabric.video.display-plane",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keyboard.hid",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-disk",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-snapshot",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-snapshot-128",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-snapshot-plus3",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-tape",
+            "major": 2,
+            "minor": 0
+          },
+          {
+            "id": "fes.memory.hps-ddr",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.session-display",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "gamepad": true
+      }
+    }
+  },
+  {
+    "label": "final-plus3-ui-stop",
+    "utc": "2026-10-28T07:58:44.075988+00:00",
+    "session": {
+      "id": "3d6cb911-bfb2-41c0-98c7-883f889af697",
+      "target": "pr1182-kita",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "connection": {
+        "state": "ready",
+        "address": "http://192.168.10.84:8182",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "boot_id": "2a5e35b5-5ff4-4355-ac52-4cea4fc88e12"
+      },
+      "state": "idle",
+      "input": {
+        "state": "detached",
+        "ready": false,
+        "metrics": {
+          "frames_sent": 83,
+          "state_resyncs": 0,
+          "sequence_gaps": 0,
+          "releases": 1,
+          "capture_to_bridge_p95_ms": 0,
+          "bridge_to_uinput_p95_ms": 0,
+          "rtt_ms": 1.480383,
+          "bridge_to_uinput_measurable": false,
+          "shutdown_reason": "session_stop"
+        }
+      },
+      "flight_id": "c80c07e7-45bd-42ec-b404-5b604b11a6f3"
+    },
+    "entries": {
+      "entries": [
+        {
+          "game_id": "fpga-pr1182-spectrum-3-2d98dac4015c",
+          "title": "PR1182 Spectrum +3",
+          "core_id": "fes.spectrum-plus3",
+          "package_id": "88766ab1a88db64d04cfb110a337b1d3cc54e4ef8edae9ffaf8fef88633c09cb",
+          "media_id": "4aefcfb1fc437d2132905a6561f656a6806fec3e7ebf2e31fbe838bf26d98ed9",
+          "media_role": "disk"
+        },
+        {
+          "game_id": "fpga-pr1182-spectrum-48k-1cae1cd26262",
+          "title": "PR1182 Spectrum 48K",
+          "core_id": "fes.spectrum",
+          "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+          "media_id": "1623ed21386796d640bea6d3de26fae36cba57f666c5fdf43ba71e0d4276b0d3",
+          "media_role": "cassette"
+        }
+      ]
+    },
+    "lease": {
+      "expires_in_ms": 86730,
+      "state": "held",
+      "generation": "af4f5c254d6be25c6970af5954ad3e41bd96e7c55632a73d43b508231c9caef8",
+      "owner": "fogcast@powerboat",
+      "purpose": "interactive game/development session",
+      "expires_at": "1970-01-02T17:02:05.72293406Z"
+    },
+    "target_status": {
+      "state": "idle",
+      "game_id": null,
+      "system": null,
+      "expected_core": null,
+      "observed_core": null,
+      "last_error": null
+    }
+  },
+  {
+    "label": "final-48-active",
+    "utc": "2026-10-28T07:59:21.779099+00:00",
+    "session": {
+      "id": "3d6cb911-bfb2-41c0-98c7-883f889af697",
+      "target": "pr1182-kita",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "connection": {
+        "state": "active",
+        "address": "http://192.168.10.84:8182",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "boot_id": "2a5e35b5-5ff4-4355-ac52-4cea4fc88e12"
+      },
+      "state": "active",
+      "game_id": "fpga-pr1182-spectrum-48k-1cae1cd26262",
+      "system": "fpga",
+      "execution": "fpga_native",
+      "input": {
+        "session_id": "2d3949c02eafd3ef",
+        "state": "attached",
+        "ready": true,
+        "metrics": {
+          "frames_sent": 1,
+          "state_resyncs": 0,
+          "sequence_gaps": 0,
+          "releases": 0,
+          "capture_to_bridge_p95_ms": 0,
+          "bridge_to_uinput_p95_ms": 0,
+          "rtt_ms": 18.029785,
+          "bridge_to_uinput_measurable": false
+        }
+      },
+      "core_package": {
+        "rom_link": {
+          "rom_id": "spectrum-firmware",
+          "map_sha256": "4f6ed2e1395a0e74ccb285b890e3a206e5ebc2fa8f589de5890ba9e95cad16d4",
+          "source_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+          "source_size": 16384,
+          "programmed_sha256": "aeb2a5e8377134058e29a4dd5de312c5769b77c4833a82807a7b62696f225ce8",
+          "programmed_size": 2641691
+        },
+        "media_units": [
+          {
+            "unit": 0,
+            "interface": {
+              "id": "fes.media.spectrum-tape",
+              "major": 2,
+              "minor": 0
+            },
+            "min_bytes": 10,
+            "max_bytes": 16777216,
+            "chunk_bytes": 512,
+            "state": "ready"
+          }
+        ],
+        "persistence_mode": "volatile",
+        "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+        "generation": 2,
+        "abi": {
+          "id": "fes.computer",
+          "major": 1,
+          "minor": 0
+        },
+        "build_id": "8d7098d0b70586bef5e8143db7a63bfe",
+        "active_interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.spectrum-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.fabric.video.display-plane",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keyboard.hid",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-snapshot",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-tape",
+            "major": 2,
+            "minor": 0
+          },
+          {
+            "id": "fes.memory.hps-ddr",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.session-display",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "gamepad": true
+      },
+      "flight_id": "d0fb77fe-9aee-4c21-bb19-9b9fecefe5fe"
+    },
+    "entries": {
+      "entries": [
+        {
+          "game_id": "fpga-pr1182-spectrum-3-2d98dac4015c",
+          "title": "PR1182 Spectrum +3",
+          "core_id": "fes.spectrum-plus3",
+          "package_id": "88766ab1a88db64d04cfb110a337b1d3cc54e4ef8edae9ffaf8fef88633c09cb",
+          "media_id": "4aefcfb1fc437d2132905a6561f656a6806fec3e7ebf2e31fbe838bf26d98ed9",
+          "media_role": "disk"
+        },
+        {
+          "game_id": "fpga-pr1182-spectrum-48k-1cae1cd26262",
+          "title": "PR1182 Spectrum 48K",
+          "core_id": "fes.spectrum",
+          "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+          "media_id": "1623ed21386796d640bea6d3de26fae36cba57f666c5fdf43ba71e0d4276b0d3",
+          "media_role": "cassette"
+        }
+      ]
+    },
+    "lease": {
+      "expires_in_ms": 77500,
+      "state": "held",
+      "generation": "af4f5c254d6be25c6970af5954ad3e41bd96e7c55632a73d43b508231c9caef8",
+      "owner": "fogcast@powerboat",
+      "purpose": "interactive game/development session",
+      "expires_at": "1970-01-02T17:02:45.73547005Z"
+    },
+    "target_status": {
+      "state": "active",
+      "game_id": null,
+      "system": null,
+      "expected_core": null,
+      "observed_core": "fes.spectrum",
+      "last_error": null,
+      "development": true,
+      "core_package": {
+        "rom_link": {
+          "rom_id": "spectrum-firmware",
+          "map_sha256": "4f6ed2e1395a0e74ccb285b890e3a206e5ebc2fa8f589de5890ba9e95cad16d4",
+          "source_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+          "source_size": 16384,
+          "programmed_sha256": "aeb2a5e8377134058e29a4dd5de312c5769b77c4833a82807a7b62696f225ce8",
+          "programmed_size": 2641691
+        },
+        "media_units": [
+          {
+            "unit": 0,
+            "interface": {
+              "id": "fes.media.spectrum-tape",
+              "major": 2,
+              "minor": 0
+            },
+            "min_bytes": 10,
+            "max_bytes": 16777216,
+            "chunk_bytes": 512,
+            "state": "ready"
+          }
+        ],
+        "persistence_mode": "volatile",
+        "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+        "generation": 2,
+        "abi": {
+          "id": "fes.computer",
+          "major": 1,
+          "minor": 0
+        },
+        "build_id": "8d7098d0b70586bef5e8143db7a63bfe",
+        "active_interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.spectrum-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.fabric.video.display-plane",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keyboard.hid",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-snapshot",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-tape",
+            "major": 2,
+            "minor": 0
+          },
+          {
+            "id": "fes.memory.hps-ddr",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.session-display",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "gamepad": true
+      }
+    }
+  },
+  {
+    "label": "final-48-cancel",
+    "utc": "2026-10-28T08:00:12.973407+00:00",
+    "session": {
+      "id": "3d6cb911-bfb2-41c0-98c7-883f889af697",
+      "target": "pr1182-kita",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "connection": {
+        "state": "active",
+        "address": "http://192.168.10.84:8182",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "boot_id": "2a5e35b5-5ff4-4355-ac52-4cea4fc88e12"
+      },
+      "state": "active",
+      "game_id": "fpga-pr1182-spectrum-48k-1cae1cd26262",
+      "system": "fpga",
+      "execution": "fpga_native",
+      "input": {
+        "session_id": "2d3949c02eafd3ef",
+        "state": "attached",
+        "ready": true,
+        "metrics": {
+          "frames_sent": 152,
+          "state_resyncs": 0,
+          "sequence_gaps": 0,
+          "releases": 0,
+          "capture_to_bridge_p95_ms": 0,
+          "bridge_to_uinput_p95_ms": 0,
+          "rtt_ms": 1.436564,
+          "bridge_to_uinput_measurable": false
+        }
+      },
+      "core_package": {
+        "rom_link": {
+          "rom_id": "spectrum-firmware",
+          "map_sha256": "4f6ed2e1395a0e74ccb285b890e3a206e5ebc2fa8f589de5890ba9e95cad16d4",
+          "source_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+          "source_size": 16384,
+          "programmed_sha256": "aeb2a5e8377134058e29a4dd5de312c5769b77c4833a82807a7b62696f225ce8",
+          "programmed_size": 2641691
+        },
+        "media_units": [
+          {
+            "unit": 0,
+            "interface": {
+              "id": "fes.media.spectrum-tape",
+              "major": 2,
+              "minor": 0
+            },
+            "min_bytes": 10,
+            "max_bytes": 16777216,
+            "chunk_bytes": 512,
+            "state": "ready"
+          }
+        ],
+        "persistence_mode": "volatile",
+        "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+        "generation": 2,
+        "abi": {
+          "id": "fes.computer",
+          "major": 1,
+          "minor": 0
+        },
+        "build_id": "8d7098d0b70586bef5e8143db7a63bfe",
+        "active_interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.spectrum-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.fabric.video.display-plane",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keyboard.hid",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-snapshot",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-tape",
+            "major": 2,
+            "minor": 0
+          },
+          {
+            "id": "fes.memory.hps-ddr",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.session-display",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "gamepad": true
+      },
+      "flight_id": "d0fb77fe-9aee-4c21-bb19-9b9fecefe5fe"
+    },
+    "entries": {
+      "entries": [
+        {
+          "game_id": "fpga-pr1182-spectrum-3-2d98dac4015c",
+          "title": "PR1182 Spectrum +3",
+          "core_id": "fes.spectrum-plus3",
+          "package_id": "88766ab1a88db64d04cfb110a337b1d3cc54e4ef8edae9ffaf8fef88633c09cb",
+          "media_id": "4aefcfb1fc437d2132905a6561f656a6806fec3e7ebf2e31fbe838bf26d98ed9",
+          "media_role": "disk"
+        },
+        {
+          "game_id": "fpga-pr1182-spectrum-48k-1cae1cd26262",
+          "title": "PR1182 Spectrum 48K",
+          "core_id": "fes.spectrum",
+          "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+          "media_id": "1623ed21386796d640bea6d3de26fae36cba57f666c5fdf43ba71e0d4276b0d3",
+          "media_role": "cassette"
+        }
+      ]
+    },
+    "lease": {
+      "expires_in_ms": 79712,
+      "state": "held",
+      "generation": "af4f5c254d6be25c6970af5954ad3e41bd96e7c55632a73d43b508231c9caef8",
+      "owner": "fogcast@powerboat",
+      "purpose": "interactive game/development session",
+      "expires_at": "1970-01-02T17:03:25.72247334Z"
+    },
+    "target_status": {
+      "state": "active",
+      "game_id": null,
+      "system": null,
+      "expected_core": null,
+      "observed_core": "fes.spectrum",
+      "last_error": null,
+      "development": true,
+      "core_package": {
+        "rom_link": {
+          "rom_id": "spectrum-firmware",
+          "map_sha256": "4f6ed2e1395a0e74ccb285b890e3a206e5ebc2fa8f589de5890ba9e95cad16d4",
+          "source_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+          "source_size": 16384,
+          "programmed_sha256": "aeb2a5e8377134058e29a4dd5de312c5769b77c4833a82807a7b62696f225ce8",
+          "programmed_size": 2641691
+        },
+        "media_units": [
+          {
+            "unit": 0,
+            "interface": {
+              "id": "fes.media.spectrum-tape",
+              "major": 2,
+              "minor": 0
+            },
+            "min_bytes": 10,
+            "max_bytes": 16777216,
+            "chunk_bytes": 512,
+            "state": "ready"
+          }
+        ],
+        "persistence_mode": "volatile",
+        "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+        "generation": 2,
+        "abi": {
+          "id": "fes.computer",
+          "major": 1,
+          "minor": 0
+        },
+        "build_id": "8d7098d0b70586bef5e8143db7a63bfe",
+        "active_interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.spectrum-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.fabric.video.display-plane",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keyboard.hid",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-snapshot",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-tape",
+            "major": 2,
+            "minor": 0
+          },
+          {
+            "id": "fes.memory.hps-ddr",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.session-display",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "gamepad": true
+      }
+    }
+  },
+  {
+    "label": "final-48-live-second",
+    "utc": "2026-10-28T08:00:47.176005+00:00",
+    "session": {
+      "id": "3d6cb911-bfb2-41c0-98c7-883f889af697",
+      "target": "pr1182-kita",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "connection": {
+        "state": "active",
+        "address": "http://192.168.10.84:8182",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "boot_id": "2a5e35b5-5ff4-4355-ac52-4cea4fc88e12"
+      },
+      "state": "active",
+      "game_id": "fpga-pr1182-spectrum-48k-1cae1cd26262",
+      "system": "fpga",
+      "execution": "fpga_native",
+      "media_name": "pr1182-second.tap",
+      "input": {
+        "session_id": "2d3949c02eafd3ef",
+        "state": "attached",
+        "ready": true,
+        "metrics": {
+          "frames_sent": 289,
+          "state_resyncs": 0,
+          "sequence_gaps": 0,
+          "releases": 0,
+          "capture_to_bridge_p95_ms": 0,
+          "bridge_to_uinput_p95_ms": 0,
+          "rtt_ms": 0.696347,
+          "bridge_to_uinput_measurable": false
+        }
+      },
+      "core_package": {
+        "rom_link": {
+          "rom_id": "spectrum-firmware",
+          "map_sha256": "4f6ed2e1395a0e74ccb285b890e3a206e5ebc2fa8f589de5890ba9e95cad16d4",
+          "source_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+          "source_size": 16384,
+          "programmed_sha256": "aeb2a5e8377134058e29a4dd5de312c5769b77c4833a82807a7b62696f225ce8",
+          "programmed_size": 2641691
+        },
+        "media_units": [
+          {
+            "unit": 0,
+            "interface": {
+              "id": "fes.media.spectrum-tape",
+              "major": 2,
+              "minor": 0
+            },
+            "min_bytes": 10,
+            "max_bytes": 16777216,
+            "chunk_bytes": 512,
+            "state": "ready"
+          }
+        ],
+        "persistence_mode": "volatile",
+        "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+        "generation": 2,
+        "abi": {
+          "id": "fes.computer",
+          "major": 1,
+          "minor": 0
+        },
+        "build_id": "8d7098d0b70586bef5e8143db7a63bfe",
+        "active_interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.spectrum-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.fabric.video.display-plane",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keyboard.hid",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-snapshot",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-tape",
+            "major": 2,
+            "minor": 0
+          },
+          {
+            "id": "fes.memory.hps-ddr",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.session-display",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "gamepad": true
+      },
+      "flight_id": "d0fb77fe-9aee-4c21-bb19-9b9fecefe5fe"
+    },
+    "entries": {
+      "entries": [
+        {
+          "game_id": "fpga-pr1182-spectrum-3-2d98dac4015c",
+          "title": "PR1182 Spectrum +3",
+          "core_id": "fes.spectrum-plus3",
+          "package_id": "88766ab1a88db64d04cfb110a337b1d3cc54e4ef8edae9ffaf8fef88633c09cb",
+          "media_id": "4aefcfb1fc437d2132905a6561f656a6806fec3e7ebf2e31fbe838bf26d98ed9",
+          "media_role": "disk"
+        },
+        {
+          "game_id": "fpga-pr1182-spectrum-48k-1cae1cd26262",
+          "title": "PR1182 Spectrum 48K",
+          "core_id": "fes.spectrum",
+          "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+          "media_id": "1623ed21386796d640bea6d3de26fae36cba57f666c5fdf43ba71e0d4276b0d3",
+          "media_role": "cassette"
+        }
+      ]
+    },
+    "lease": {
+      "expires_in_ms": 85463,
+      "state": "held",
+      "generation": "af4f5c254d6be25c6970af5954ad3e41bd96e7c55632a73d43b508231c9caef8",
+      "owner": "fogcast@powerboat",
+      "purpose": "interactive game/development session",
+      "expires_at": "1970-01-02T17:04:05.72803691Z"
+    },
+    "target_status": {
+      "state": "active",
+      "game_id": null,
+      "system": null,
+      "expected_core": null,
+      "observed_core": "fes.spectrum",
+      "last_error": null,
+      "development": true,
+      "core_package": {
+        "rom_link": {
+          "rom_id": "spectrum-firmware",
+          "map_sha256": "4f6ed2e1395a0e74ccb285b890e3a206e5ebc2fa8f589de5890ba9e95cad16d4",
+          "source_sha256": "d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42",
+          "source_size": 16384,
+          "programmed_sha256": "aeb2a5e8377134058e29a4dd5de312c5769b77c4833a82807a7b62696f225ce8",
+          "programmed_size": 2641691
+        },
+        "media_units": [
+          {
+            "unit": 0,
+            "interface": {
+              "id": "fes.media.spectrum-tape",
+              "major": 2,
+              "minor": 0
+            },
+            "min_bytes": 10,
+            "max_bytes": 16777216,
+            "chunk_bytes": 512,
+            "state": "ready"
+          }
+        ],
+        "persistence_mode": "volatile",
+        "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+        "generation": 2,
+        "abi": {
+          "id": "fes.computer",
+          "major": 1,
+          "minor": 0
+        },
+        "build_id": "8d7098d0b70586bef5e8143db7a63bfe",
+        "active_interfaces": [
+          {
+            "id": "fes.audio.pcm-s16-stereo-48k",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.expansion.spectrum-bus",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.fabric.video.display-plane",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.gamepad.ports",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.keyboard.hid",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-snapshot",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.media.spectrum-tape",
+            "major": 2,
+            "minor": 0
+          },
+          {
+            "id": "fes.memory.hps-ddr",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.fixed-720p60",
+            "major": 1,
+            "minor": 0
+          },
+          {
+            "id": "fes.video.session-display",
+            "major": 1,
+            "minor": 0
+          }
+        ],
+        "gamepad": true
+      }
+    }
+  },
+  {
+    "label": "final-48-ui-stop",
+    "utc": "2026-10-28T08:01:07.191991+00:00",
+    "session": {
+      "id": "3d6cb911-bfb2-41c0-98c7-883f889af697",
+      "target": "pr1182-kita",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "connection": {
+        "state": "ready",
+        "address": "http://192.168.10.84:8182",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "boot_id": "2a5e35b5-5ff4-4355-ac52-4cea4fc88e12"
+      },
+      "state": "idle",
+      "input": {
+        "state": "detached",
+        "ready": false,
+        "metrics": {
+          "frames_sent": 360,
+          "state_resyncs": 0,
+          "sequence_gaps": 0,
+          "releases": 1,
+          "capture_to_bridge_p95_ms": 0,
+          "bridge_to_uinput_p95_ms": 0,
+          "rtt_ms": 0.727937,
+          "bridge_to_uinput_measurable": false,
+          "shutdown_reason": "session_stop"
+        }
+      },
+      "flight_id": "d0fb77fe-9aee-4c21-bb19-9b9fecefe5fe"
+    },
+    "entries": {
+      "entries": [
+        {
+          "game_id": "fpga-pr1182-spectrum-3-2d98dac4015c",
+          "title": "PR1182 Spectrum +3",
+          "core_id": "fes.spectrum-plus3",
+          "package_id": "88766ab1a88db64d04cfb110a337b1d3cc54e4ef8edae9ffaf8fef88633c09cb",
+          "media_id": "4aefcfb1fc437d2132905a6561f656a6806fec3e7ebf2e31fbe838bf26d98ed9",
+          "media_role": "disk"
+        },
+        {
+          "game_id": "fpga-pr1182-spectrum-48k-1cae1cd26262",
+          "title": "PR1182 Spectrum 48K",
+          "core_id": "fes.spectrum",
+          "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+          "media_id": "1623ed21386796d640bea6d3de26fae36cba57f666c5fdf43ba71e0d4276b0d3",
+          "media_role": "cassette"
+        }
+      ]
+    },
+    "lease": {
+      "expires_in_ms": 83866,
+      "state": "held",
+      "generation": "af4f5c254d6be25c6970af5954ad3e41bd96e7c55632a73d43b508231c9caef8",
+      "owner": "fogcast@powerboat",
+      "purpose": "interactive game/development session",
+      "expires_at": "1970-01-02T17:04:25.72097368Z"
+    },
+    "target_status": {
+      "state": "idle",
+      "game_id": null,
+      "system": null,
+      "expected_core": null,
+      "observed_core": null,
+      "last_error": null
+    }
+  },
+  {
+    "label": "restored",
+    "utc": "2026-10-28T08:03:02.016213+00:00",
+    "session": {
+      "id": "6c2d06cd-a466-45b9-8410-c60d25a1ebf3",
+      "target": "pr1182-kita",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "connection": {
+        "state": "ready",
+        "address": "http://192.168.10.84:8182",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "boot_id": "2a5e35b5-5ff4-4355-ac52-4cea4fc88e12"
+      },
+      "state": "idle",
+      "input": {
+        "state": "detached",
+        "ready": false,
+        "metrics": {
+          "frames_sent": 0,
+          "state_resyncs": 0,
+          "sequence_gaps": 0,
+          "releases": 0,
+          "capture_to_bridge_p95_ms": 0,
+          "bridge_to_uinput_p95_ms": 0,
+          "rtt_ms": 0,
+          "bridge_to_uinput_measurable": false,
+          "shutdown_reason": "session_stop"
+        }
+      },
+      "flight_id": "470e4aeb-649c-4868-91d0-5d9184b4b0cc"
+    },
+    "entries": {
+      "entries": [
+        {
+          "game_id": "fpga-pr1182-spectrum-3-2d98dac4015c",
+          "title": "PR1182 Spectrum +3",
+          "core_id": "fes.spectrum-plus3",
+          "package_id": "88766ab1a88db64d04cfb110a337b1d3cc54e4ef8edae9ffaf8fef88633c09cb",
+          "media_id": "4aefcfb1fc437d2132905a6561f656a6806fec3e7ebf2e31fbe838bf26d98ed9",
+          "media_role": "disk"
+        },
+        {
+          "game_id": "fpga-pr1182-spectrum-48k-1cae1cd26262",
+          "title": "PR1182 Spectrum 48K",
+          "core_id": "fes.spectrum",
+          "package_id": "073b93ad43c8ee114f2f60ae1c55371c58cab6e6414b5446769bde15b11ed222",
+          "media_id": "1623ed21386796d640bea6d3de26fae36cba57f666c5fdf43ba71e0d4276b0d3",
+          "media_role": "cassette"
+        }
+      ]
+    },
+    "lease": {
+      "expires_in_ms": 0,
+      "state": "free",
+      "generation": "0aab1f6faff23b75e47eb23e3f8a83e3fce48cf920110f1c3ec071e34f5157a8",
+      "expires_at": "0001-01-01T00:00:00Z"
+    },
+    "target_status": {
+      "state": "idle",
+      "game_id": null,
+      "system": null,
+      "expected_core": null,
+      "observed_core": null,
+      "last_error": null
+    }
+  }
+]

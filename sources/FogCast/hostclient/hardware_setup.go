@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/corepackage"
-	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -206,9 +205,9 @@ func (c *Client) DescribeCoreExpansion(ctx context.Context, id, label, descripti
 	return err
 }
 
-// InstalledZX81Setup uses the local package library without a publication
-// catalogue. Firmware still comes from the sealed manifest's ROM requirement.
-func (c *Client) InstalledZX81Setup(ctx context.Context, pkg string) (CoreSetup, error) {
+// InstalledCoreSetup reads the local package's requirements without a published
+// catalog. ROM and media choices still come from the installed manifest.
+func (c *Client) InstalledCoreSetup(ctx context.Context, pkg string) (CoreSetup, error) {
 	if protocol.ValidateDigest(pkg) != nil {
 		return CoreSetup{}, fmt.Errorf("invalid package identity")
 	}
@@ -219,36 +218,75 @@ func (c *Client) InstalledZX81Setup(ctx context.Context, pkg string) (CoreSetup,
 	if err := c.getJSON(ctx, "/api/v1/core-packages/"+pkg, &installed); err != nil {
 		return CoreSetup{}, err
 	}
-	coreID := installed.Descriptor.Core.ID
-	if installed.PackageID != pkg || !zx81family.Known(coreID) || installed.Descriptor.ROM == nil {
-		return CoreSetup{}, fmt.Errorf("choose a ZX81-family package with a sealed machine ROM requirement")
+	descriptor := installed.Descriptor
+	if installed.PackageID != pkg || descriptor.Core.ID == "" || descriptor.Core.ID == "fes.menu" || !installedPlayableABI(descriptor.ABI) {
+		return CoreSetup{}, fmt.Errorf("choose an installed playable core package")
 	}
-	r := installed.Descriptor.ROM
 	library, err := c.CoreLibrary(ctx)
 	if err != nil {
 		return CoreSetup{}, err
 	}
-	result := CoreSetup{CoreReference: CoreReference{CoreID: coreID, PackageID: pkg}, Descriptor: installed.Descriptor, ROMs: []SetupROM{{ID: r.ID, Role: r.Role, SourceSize: r.SourceSize, Binding: "entry"}}}
+	result := CoreSetup{CoreReference: CoreReference{CoreID: descriptor.Core.ID, PackageID: pkg}, Descriptor: descriptor, ROMs: []SetupROM{}, Entries: []CoreEntry{}}
+	if r := descriptor.ROM; r != nil {
+		result.ROMs = append(result.ROMs, SetupROM{ID: r.ID, Role: r.Role, SourceSize: r.SourceSize, Binding: "entry"})
+	}
+	for i, r := range descriptor.ROMs {
+		binding := "entry"
+		if i == 0 && r.Role == protocol.FirmwareRole {
+			binding = "household-firmware"
+		}
+		result.ROMs = append(result.ROMs, SetupROM{ID: r.ID, Role: r.Role, SourceSize: r.SourceSize, Binding: binding})
+	}
 	for _, entry := range library.Entries {
-		if entry.CoreID == coreID {
+		if entry.CoreID == descriptor.Core.ID {
 			result.Entries = append(result.Entries, entry)
 		}
 	}
-	err = c.getJSON(ctx, "/api/v1/core-packages/"+pkg+"/media-capabilities", &result.Capabilities)
-	return result, err
+	result.Capabilities, err = c.PackageMediaCapabilities(ctx, pkg)
+	if err != nil {
+		return CoreSetup{}, err
+	}
+	if len(descriptor.ROMs) > 0 {
+		firmware, err := c.HouseholdFirmware(ctx)
+		if err != nil {
+			return CoreSetup{}, err
+		}
+		result.FirmwareMediaID = firmware.MediaID
+	}
+	return result, nil
 }
 
-// CreateInstalledZX81Entry preserves an existing title's package/media/ROM
-// selections. Explicit retries can finish an empty ROM binding, never replace it.
-func (c *Client) CreateInstalledZX81Entry(ctx context.Context, setup CoreSetup, title string, roms map[string]string) (CoreEntry, error) {
-	if !zx81family.Known(setup.CoreID) || len(setup.ROMs) != 1 || protocol.ValidateDigest(setup.PackageID) != nil {
-		return CoreEntry{}, fmt.Errorf("invalid ZX81-family setup")
+func installedPlayableABI(abi corepackage.Contract) bool {
+	if abi.Major != 1 || abi.Minor != 0 {
+		return false
 	}
-	rom := setup.ROMs[0]
-	mediaID := roms[rom.ID]
-	if protocol.ValidateDigest(mediaID) != nil {
-		return CoreEntry{}, fmt.Errorf("choose the required machine ROM")
+	switch abi.ID {
+	case "fes.application", "fes.simple-game", "fes.simple-computer", "fes.computer":
+		return true
+	default:
+		return false
 	}
+}
+
+// CreateInstalledCoreEntry preserves existing package, ROM and media choices.
+// A retry can finish an empty ROM binding but cannot replace a saved selection.
+func (c *Client) CreateInstalledCoreEntry(ctx context.Context, setup CoreSetup, title string, roms map[string]string, mediaRole, mediaID string) (CoreEntry, error) {
+	if setup.CoreID == "" || setup.CoreID == "fes.menu" || !installedPlayableABI(setup.Descriptor.ABI) || protocol.ValidateDigest(setup.PackageID) != nil {
+		return CoreEntry{}, fmt.Errorf("invalid installed core setup")
+	}
+	if (mediaRole == "") != (mediaID == "") || mediaID != "" && protocol.ValidateDigest(mediaID) != nil {
+		return CoreEntry{}, fmt.Errorf("invalid media selection")
+	}
+	for _, rom := range setup.ROMs {
+		id := roms[rom.ID]
+		if protocol.ValidateDigest(id) != nil {
+			return CoreEntry{}, fmt.Errorf("choose the required %s ROM", rom.ID)
+		}
+		if rom.Binding == "household-firmware" && id != setup.FirmwareMediaID {
+			return CoreEntry{}, fmt.Errorf("select the chosen household BIOS before adding the game")
+		}
+	}
+	firmwareRequired := len(setup.Descriptor.ROMs) > 0
 	library, err := c.CoreLibrary(ctx)
 	if err != nil {
 		return CoreEntry{}, err
@@ -256,7 +294,7 @@ func (c *Client) CreateInstalledZX81Entry(ctx context.Context, setup CoreSetup, 
 	var entry CoreEntry
 	for _, candidate := range library.Entries {
 		if candidate.CoreID == setup.CoreID && candidate.Title == strings.TrimSpace(title) {
-			if candidate.PackageID != setup.PackageID || candidate.MediaID != "" || candidate.FirmwareRequired {
+			if candidate.PackageID != setup.PackageID || candidate.MediaID != mediaID || candidate.MediaRole != mediaRole || candidate.FirmwareRequired != firmwareRequired {
 				return entry, fmt.Errorf("this title already has different selections; choose another title")
 			}
 			entry = candidate
@@ -264,37 +302,43 @@ func (c *Client) CreateInstalledZX81Entry(ctx context.Context, setup CoreSetup, 
 		}
 	}
 	if entry.GameID == "" {
-		// The library route returns 201. 200 remains success.
-		err = c.doJSONStatuses(ctx, http.MethodPost, "/api/v1/library/core-entries", map[string]string{"title": title, "package_id": setup.PackageID}, &entry, http.StatusOK, http.StatusCreated)
+		request := struct {
+			Title            string `json:"title"`
+			PackageID        string `json:"package_id"`
+			MediaRole        string `json:"media_role,omitempty"`
+			MediaID          string `json:"media_id,omitempty"`
+			FirmwareRequired bool   `json:"firmware_required,omitempty"`
+		}{title, setup.PackageID, mediaRole, mediaID, firmwareRequired}
+		err = c.doJSONStatuses(ctx, http.MethodPost, "/api/v1/library/core-entries", request, &entry, http.StatusOK, http.StatusCreated)
 		if err != nil {
 			return entry, err
 		}
 	}
-	if protocol.ValidateGameID(entry.GameID) != nil || entry.PackageID != setup.PackageID || entry.CoreID != setup.CoreID {
+	if protocol.ValidateGameID(entry.GameID) != nil || entry.PackageID != setup.PackageID || entry.CoreID != setup.CoreID || entry.MediaID != mediaID || entry.MediaRole != mediaRole || entry.FirmwareRequired != firmwareRequired {
 		return entry, fmt.Errorf("created setup identity mismatch")
 	}
-	var binding struct {
-		PackageID string `json:"package_id"`
-		ROMID     string `json:"rom_id"`
-		MediaID   string `json:"media_id"`
-		GameID    string `json:"game_id"`
-	}
-	path := "/api/v1/library/core-entries/" + url.PathEscape(entry.GameID) + "/rom"
-	if err = c.getJSON(ctx, path, &binding); err != nil {
-		return entry, err
-	}
-	if binding.GameID != entry.GameID || (binding.PackageID != "" && binding.PackageID != entry.PackageID) {
-		return entry, fmt.Errorf("ROM selection identity changed")
-	}
-	if binding.MediaID != "" {
-		if binding.ROMID != rom.ID || binding.MediaID != mediaID {
-			return entry, fmt.Errorf("the existing machine ROM differs; choose another title")
+	for _, rom := range setup.ROMs {
+		if rom.Binding != "entry" {
+			continue
 		}
-		return entry, nil
+		var binding CoreEntryROMSelection
+		path := "/api/v1/library/core-entries/" + url.PathEscape(entry.GameID) + "/rom"
+		if err = c.getJSON(ctx, path, &binding); err != nil {
+			return entry, err
+		}
+		if binding.GameID != entry.GameID || binding.PackageID != "" && binding.PackageID != entry.PackageID {
+			return entry, fmt.Errorf("ROM selection identity changed")
+		}
+		id := roms[rom.ID]
+		if binding.MediaID != "" {
+			if binding.ROMID != rom.ID || binding.MediaID != id {
+				return entry, fmt.Errorf("the existing ROM differs; choose another title")
+			}
+			continue
+		}
+		if _, err = c.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, rom.ID, "", id); err != nil {
+			return entry, err
+		}
 	}
-	err = c.doJSON(ctx, http.MethodPut, path, map[string]string{"package_id": entry.PackageID, "rom_id": rom.ID, "expected_media_id": "", "media_id": mediaID}, &binding)
-	if err == nil && (binding.GameID != entry.GameID || binding.PackageID != entry.PackageID || binding.ROMID != rom.ID || binding.MediaID != mediaID) {
-		err = fmt.Errorf("selected ROM identity mismatch")
-	}
-	return entry, err
+	return entry, nil
 }

@@ -10,6 +10,75 @@ Nobody touches Deano's harness (~/harnesses on Powerboat) or its processes.
 
 A core's locked nextpnr is only its last known good, not a required pin. If a newer nextpnr closes that core's timing, move the lock forward instead of changing RTL to fit the old version. Timing and seal checks still apply.
 
+## PR workflow: lanes, merge gate, review, stacks, HIL, ops
+
+This section is the shared rulebook for every agent (Codex, Cursor, Claude, Grok Bot) in DeanoC/fes, nextpnr, yosys and mistral.
+
+### Lanes and labels
+- `lane:lander`: Lander's team drives the PR to merge (fixes, review, CI, HIL).
+- `lane:deano`: Deano and his side agents own it. Lander's team does not touch it.
+- `needs:design`: too big for a merge-fix. Add it together with `lane:deano` to hand a PR back.
+- An unlabelled ready PR counts as `lane:lander`.
+- Draft means only "not ready for review". It is not an ownership signal.
+- To hand off, swap the lane label and comment why and what is left.
+- Take `lane:deano` work only when Deano assigned it to you.
+
+### Merge gate
+Merge only when all of these hold:
+- The head SHA is exactly the one checked.
+- CI is green: `gh pr checks N --json name,bucket --jq 'if length==0 then error("no checks") else map(select(.bucket!="pass" and .bucket!="skipping")) | length end'` exits 0 and prints `0`. Any error, no checks, or a non-zero count means not green.
+- 0 unresolved review threads.
+- A clean SuperGrok or Codex review on the exact head. One exception: a clean review carries over to a new head that only adds a merge from the base branch, when the PR's own diff against its base is unchanged and CI is green on the new head.
+- HIL is PASS on the exact head, N/A, or waived. HIL N/A means no kit test applies: the PR changes no kit-run bitstream, firmware or runtime (docs, CI, host tooling only), or the core has no kit (pc386/i386). DE25 HIL is waived until Deano says the boards are ready. A pass on a diagnostic build does not count.
+- The base branch is live, and no open PR uses this head branch as its base.
+- Stacks merge top-down. After each merge, the next PR's tree must equal the reviewed tree, or it needs a fresh review.
+
+Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and mistral itself, only after the full gate passes, with `gh pr merge N --squash --match-head-commit <sha>`, and sends Deano an FYI after each merge. Deano merges `lane:deano` PRs or tells Lander to. Other agents do not merge.
+
+### Review
+- One full review, then re-reviews check only the fix.
+- P3s never block. File a follow-up issue instead.
+- Budget is 2 review rounds. After that the PR goes to one owner for a bigger fix, or to `needs:design` + `lane:deano`.
+
+### Stacks
+- Max stack depth is 2. Land deeper work on main behind feature flags.
+- One owning agent per stack, end to end.
+- Batch fixes. Update a PR branch from main (by merge, never rebase; see the rules at the top) only when it is needed: a conflict, or a main fix the PR depends on. Don't merge main in just to stay current.
+- A clean review carries over across base-only merges (see the merge gate exception).
+
+### PR size
+- Prefer one PR per coherent feature or milestone, not one PR per step.
+- Don't mix unrelated subsystems in one PR.
+- Don't split work into stacked chains. Stacks stay at most 2 deep.
+- Put unfinished new work behind a feature flag and land it on main (trunk-based) instead of holding long stacks. A flag gates new code that is not done yet; it is not a compatibility shim. Don't use flags to keep old paths alive, and remove the flag when the work is finished (see "Delete superseded code" below).
+- Small PRs are still right for isolated fixes.
+
+### HIL
+- Run HIL in parallel with review. Use kit A if kit B is busy.
+- Stop after 2 FAILs on the same head and fix instead.
+- Report HIL as started only once the kit is claimed in its status file (see Shared kits below) and the test bundle, image or core under test is loaded on it. A core-only run does not need a bundle install or reflash.
+- Afterwards, restore each kit to exactly the baseline bundle and image that kitA-STATUS.md / kitB-STATUS.md names. Activate the named bundle; reflash only if the booted image differs from the named image (then follow the bundle/image order in the kit procedure (step 3) below) and verify the boot. Verify the active bundle before logging the kit restored. Baselines are promoted only from main HIL passes.
+
+### Toolchains
+- Quartus is primary for DE25, pc386 and PC/XT. nextpnr is advisory for those.
+- DE25 is Quartus-only and needs Quartus Pro (Agilex 5). Both Powerboat and the 3090 box (fes-build-3090) have Quartus Pro 26.3 and can build DE25; send DE25 builds to the 3090 by preference to keep Powerboat free.
+- Cyclone V is the primary platform and builds with Quartus Lite on Powerboat.
+
+### Hard rules
+- No rebase, force-push or amend.
+- Never relax timing or seal checks.
+- Do not close PRs without Deano's OK.
+
+### Ops
+- Check disk before launching a job. Refuse under 30G free.
+- Every job needs a heartbeat and a Quartus time cap, and notifies on finish or fail.
+- When stuck or looping, change approach and say what changed.
+
+### Machines
+- Powerboat does HIL, the kits and capture. DE25 capture is `/dev/v4l/by-id/fes-ms2109-hil`; never open the raw MS2109 device.
+- The 3090 box (fes-build-3090) is the second Quartus/CI builder, with Quartus Pro 26.3, and is the preferred DE25 build host.
+- Powerboat has Quartus Pro 26.3 (DE25/Agilex 5) and Quartus Lite (Cyclone V, the primary platform).
+
 ## PR scope
 
 - One scope per PR. Don't bundle unrelated fixes.

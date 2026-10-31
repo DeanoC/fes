@@ -1,0 +1,23 @@
+{
+  "boot_firmware_compatibility": "not-qualified",
+  "committed_fes_source_copies_match": {
+    "board_build.py": true,
+    "build.py": true,
+    "fes_de25_mailbox.v": true,
+    "fes_de25_mailbox_hw.tcl": true,
+    "fes_de25_top.sdc": true,
+    "fes_de25_top_reset.v": true,
+    "generated/fes_de25_mailbox.hpp": true,
+    "generated/fes_de25_mailbox.vh": true,
+    "integrate.tcl": true,
+    "vendor.lock.toml": true
+  },
+  "fes_revision": "6cb01a9123d20923032a3f47cb927409931b4af1",
+  "original_boot_sources_match": {
+    "software/hps_debug/README.md": true,
+    "software/hps_debug/build.sh": true,
+    "software/hps_debug/hps_wipe.s": true,
+    "software/u-boot/spl/u-boot-spl-dtb.hex": true
+  },
+  "original_hps_emif_parameter_changes": {}
+}

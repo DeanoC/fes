@@ -49,8 +49,9 @@ module pipeline_sr #(
 ) (
     input wire clk,
     input wire [DATA_WIDTH-1:0] in,
-    output logic [ENDING_CYCLE:STARTING_CYCLE] [DATA_WIDTH-1:0] out = '{default: POR_VALUE}
+    output logic [ENDING_CYCLE:STARTING_CYCLE] [DATA_WIDTH-1:0] out
 );
+    initial out = {(ENDING_CYCLE - STARTING_CYCLE + 1){DATA_WIDTH'(POR_VALUE)}};
     always_ff @(posedge clk) begin
         out <= out << DATA_WIDTH;
         out[STARTING_CYCLE] <= in;

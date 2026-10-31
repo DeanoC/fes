@@ -6,6 +6,28 @@ import (
 	"testing"
 )
 
+func TestCommandsAcceptStandaloneBoard(t *testing.T) {
+	de25Path := filepath.Join("..", "..", "packages", "board", "de25_nano.yaml")
+	if id, err := validatePath(de25Path); err != nil || id != "de25_nano" {
+		t.Fatalf("validate DE25 board = %q, %v", id, err)
+	}
+	path := filepath.Join("..", "..", "packages", "board", "de10_nano.yaml")
+	id, err := validatePath(path)
+	if err != nil || id != "de10_nano" {
+		t.Fatalf("validate board = %q, %v", id, err)
+	}
+	if err := reportPath(path); err != nil {
+		t.Fatal(err)
+	}
+	for name, emit := range map[string]func(string) (string, error){
+		"C++": emitPath, "Go": emitGoPath, "Verilog": emitVerilogPath,
+	} {
+		if _, err := emit(path); err == nil {
+			t.Errorf("standalone board unexpectedly emitted %s", name)
+		}
+	}
+}
+
 func TestCommandsAcceptABIAndProgrammingDefinitions(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", ".."))
 	abiPath := filepath.Join(root, "packages", "abi", "fes_simple_game.yaml")

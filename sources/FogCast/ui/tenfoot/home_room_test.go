@@ -163,6 +163,14 @@ func TestHomeRoomLibraryIgnoresHomeRoom(t *testing.T) {
 }
 
 func TestHomeRoomFallbackPickerAndDiagnostic(t *testing.T) {
+	for _, id := range []string{systemRoomID, hardwareRoomID} {
+		t.Run(id, func(t *testing.T) {
+			assertHomeRoomFallback(t, id, "internal setup", rooms.NewIndex([]rooms.Pack{
+				testRoomPack(t, id, homeRoomScript),
+				testRoomPack(t, "arcade", homeRoomScript),
+			}))
+		})
+	}
 	t.Run("missing", func(t *testing.T) {
 		assertHomeRoomFallback(t, "zz-missing-home", "missing", rooms.NewIndex([]rooms.Pack{
 			testRoomPack(t, "arcade", homeRoomScript),

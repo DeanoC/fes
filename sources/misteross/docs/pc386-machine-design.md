@@ -14,6 +14,18 @@ synthesis is the first area measurement ([budgets](#budgets)). Every other
 clock, area, bandwidth and latency figure below is a budget or an estimate
 unless it names a measurement. The milestone that measures one replaces it.
 
+Phase M4's diagnostic shell exists as RTL, a producer and a kit tool: the
+machine without its CPU in the development package `fes.pc386-diag`, with a
+bus master that runs commands from the DDR window in the CPU's place. Its
+nextpnr routes, the machine's first, miss both fixed clocks (about 40 of
+61.44 MHz system, 56 of 74.25 MHz pixel). Sealed with Quartus 17.0.2 instead
+([#1235](https://github.com/DeanoC/fes/issues/1235)), it passed every
+diagnostic program on Kit B: the VGA pictures on HDMI, speaker, DSP and OPL2
+audio, and the counters at zero
+([M4 record](../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md)).
+That run found the presenter's 720p timing following machine reset. It now
+follows the pixel PLL's lock alone.
+
 Phase M3's audio exists beside the AT core: the OPL2 import, Sound Blaster 2.0
 DSP and mixer pass their host simulation checks, including OPL2 sample
 comparison with Nuked-OPL3 and game start-up audio
@@ -303,7 +315,7 @@ cycles for 16-bit devices.
 | --- | --- | --- |
 | `isa8` | Every on-board chip, port 61h/92h/80h, ATA task file, Sound Blaster, OPL2 | 720 ns: six ISA clocks at 8.33 MHz |
 | `isa16` | ATA data port 1F0h | 360 ns: three ISA clocks |
-| `vga` | 3B0–3DF | Posted into the VGA FIFO (four clocks a byte at the CPU); reads wait for the FIFO to drain (six clocks a byte when it is empty) |
+| `vga` | 3B0–3DF | Posted into the VGA FIFO (four clocks a byte at the CPU, and a byte waits while the FIFO is full); reads wait for the FIFO to drain (six clocks a byte when it is empty) |
 
 The ISA figures come from the AT bus's default wait states: an ISA cycle is
 two bus clocks plus four wait states for 8-bit cycles and one for 16-bit
@@ -472,9 +484,11 @@ exists ([firmware](#firmware)).
 
 The runtime seeds the clock from the kit's local time at every launch, before
 release, through `fes.rtc.wall-clock` 1.0: four words of binary year, month,
-day, hour, minute, second and weekday. The RTC converts to BCD or binary and
-12- or 24-hour form according to its current register B. A guest that sets the
-time keeps it until Stop; the next launch takes the kit's time again.
+day, hour, minute, second and weekday. The runtime computes the weekday from
+the date. Like an MC146818, the RTC stores the weekday as given and does not
+check it against the date. The RTC converts to BCD or binary and 12- or 24-hour
+form according to its current register B. A guest that sets the time keeps it
+until Stop; the next launch takes the kit's time again.
 
 ### Persistence
 
@@ -851,7 +865,9 @@ drive model. The Bochs BIOS lists that slave as "Unknown device".
   image, so a captured image never holds a torn sector (as for the
   [ST disk](../../mister-packages/docs/media-data.md)).
 - **Dirty tracking:** one bit per 64 KiB chunk of the image (2,048 bits for
-  128 MiB) in an M10K, set when a sector write reaches DDR.
+  128 MiB) in an M10K, set when a sector write reaches DDR. A word of the map
+  reads out two clocks after its index, and a sector's mark reaches it four
+  clocks after the store goes idle; a reset clears the map in 128 clocks.
 - **IDENTIFY** reports the geometry the runtime committed (below), the LBA
   capacity, and PIO 16-bit only.
 
@@ -872,18 +888,19 @@ offset `0x08000000`, maximum 134,217,728 bytes (128 MiB), chunk 65,536 bytes.
 
 | Operation | Meaning |
 | --- | --- |
-| DiskInfo | Fields: minimum and maximum bytes, chunk size, state (absent, empty, loading, verifying, ready), flags (dirty, frozen, writer busy), change epoch |
+| DiskInfo | Fields: minimum and maximum bytes, chunk size, state (absent, empty, loading, ready, verifying), flags (dirty, frozen, writer busy, CRC error), change epoch |
 | DiskControl prepare | Held execution only. The unit becomes loading; the ATA device reports no drive |
-| DiskCommit words | Size in sectors, cylinders, heads, sectors per track, CRC-32 of the image |
-| DiskControl commit | The core reads the whole region on port 2, computing CRC-32 (about 0.2 s for 128 MiB at 700 MB/s), and becomes ready on a match. A mismatch leaves it loading with an error flag. The runtime polls DiskInfo |
+| DiskCommit words | Size in sectors, cylinders, heads, sectors per track, CRC-32 of the committed sectors |
+| DiskControl commit | The core reads exactly the committed sector count from the window on port 2 and computes CRC-32 (about 0.2 s for 128 MiB at 700 MB/s). A match makes it ready; a mismatch leaves it loading with the CRC error flag. The runtime polls DiskInfo |
 | DiskControl eject | Held execution only. A hard disk is fixed while running |
 | DiskControl freeze, resume, saved | Freeze fences new sector writes (a write command stays BSY), drains an accepted one and ACKs. Saved clears the dirty bits and keeps the fence, as for the [ST capture](../../mister-packages/docs/computer-io.md#writable-st-image-capture) |
 | DiskDirty | Reads the dirty map, 16 chunks per word, while frozen |
 
 The size is a multiple of 512 bytes from 1 MiB to 128 MiB. 128 MiB is also the
 largest FAT16 volume with 2 KiB clusters. CRC-32 is the CRC-32/IEEE the media
-units use; the core computing it is what lets the contract claim an
-FPGA-side integrity check ([core media](../../../docs/core-media-evolution.md#transfer-and-lifecycle)).
+units use, over exactly `sectors * 512` bytes from the window; the core
+computing it is what lets the contract claim an FPGA-side integrity check
+([core media](../../../docs/core-media-evolution.md#transfer-and-lifecycle)).
 It also proves that the runtime's cache clean reached DDR.
 
 ### How FogCast prepares and attaches the image
@@ -1154,10 +1171,12 @@ replaces each row.
 the VGA needs at least 1,891 ALMs and 16 M10K (its small FIFOs each take a
 block), the presenter 826 ALMs, 8 M10K and five DSP blocks, the port 2 arbiter
 and plane bridge 199 ALMs and 6 M10K, the display plane 624 ALMs, 4 M10K and
-one DSP block. The M1 AT core needs at least 16,526 ALMs, more than three
-times its rows, because its memories (the ATA sector buffer and dirty map,
-CMOS, the 8042's RAM and FIFOs, the DMA register files) synthesize to
-flip-flops; they must move to M10K before the machine can fit beside the CPU.
+one DSP block. The M1 AT core needed at least 16,526 ALMs, more than three
+times its rows, because its memories synthesized to flip-flops. With the ATA
+sector buffer, dirty map and CMOS in M10K it needs at least 3,788 ALMs and
+4 M10K, inside its rows, and the machine-only blocks together need 7,331 ALMs
+and 38 M10K
+([record](../../../docs/validation/2026-10-27-pc386-at-core-m10k/summary.md#machine-only-synthesis)).
 
 The M10K margin leaves room for a VGA read cache or a larger L2 if profiles ask
 for either. The ALM margin is the tight one. With the CPU at 16,000 ALMs the
@@ -1184,25 +1203,28 @@ It declares, all required:
 | `fes.memory.hps-ddr` 1.0 | 12 | Exists |
 | `fes.video.session-display` 1.0 | 13 | Exists |
 | `fes.fabric.video.display-plane` 1.0 | None (manifest only) | Exists |
-| `fes.media.ata-disk` 1.0 | 15 | New |
-| `fes.persistence.words` 1.0 | 16 | New on `fes.computer` |
-| `fes.rtc.wall-clock` 1.0 | 17 | New |
-| `fes.pc386.machine` 1.0 layout | 18 | New |
+| `fes.media.ata-disk` 1.0 | 16 | New |
+| `fes.persistence.words` 1.0 | 17 | New on `fes.computer` |
+| `fes.rtc.wall-clock` 1.0 | 18 | New |
+| `fes.pc386.machine` 1.0 layout | 19 | New |
 
-**The capability word is full.** `fes.computer` 1.0 uses bits 0–14 of its
-single 16-bit capability word, and identity has no spare word. The decision is
+**The capability word is full.** `fes.computer` 1.0 uses bits 0–15 of its
+single 16-bit capability word (bit 15 is the Spectrum disk), and identity has
+no spare word. The decision is
 `fes.computer` 1.1, which adds identity word 16 for capability bits 16–31.
 Older runtimes reject ABI 1.1 at compatibility, before programming, which is
 the normal refusal path. A new `fes.pc` ABI was the alternative; it would have
 duplicated keyboard, mouse, media and display semantics only because one
 identity word ran out.
 
-Opcodes for 1.1, avoiding the display's 18–21 (the YAML fixes the final
-numbers):
+Opcodes for 1.1, avoiding the display's 18–21, as
+[`fes_computer.yaml`](../../mister-packages/packages/abi/fes_computer.yaml)
+fixes them; [computer I/O](../../mister-packages/docs/computer-io.md#ata-hard-disk)
+has the field rules:
 
 | Opcode | Name | Index | Argument |
 | --- | --- | --- | --- |
-| 16 | DiskInfo | unit × 8 + field | 0 |
+| 16 | DiskInfo | unit × 8 + field (chunk size is field 4, in sectors) | 0 |
 | 17 | DiskControl | unit | 0 prepare, 1 commit, 2 eject, 3 freeze, 4 resume, 5 saved |
 | 22 | DiskCommit | word 0–7 | size low and high, cylinders, heads, sectors, CRC low and high, 0 |
 | 23 | DiskDirty | word 0–127 | 0; response is 16 chunk bits |
@@ -1215,7 +1237,7 @@ own `toolchain.lock`.
 
 ### mister-packages adds
 
-- `fes_computer.yaml` 1.1: identity word 16, bits 15–18, the opcodes, disk
+- `fes_computer.yaml` 1.1: identity word 16, bits 16–19, the opcodes, disk
   window offset, maximum and chunk constants, CMOS and settings word counts.
 - `computer-io.md`: the disk, persistence and wall-clock sections; the mouse
   dy sign.
@@ -1314,6 +1336,21 @@ first playable.
 | M4 | Machine diagnostic shell on a kit: a development package where a mailbox-driven bus master stands in for the CPU and issues I/O and MMIO cycles | Hardware diagnostic: VGA modes captured from HDMI, OPL2 and DSP audio, a disk load and save round trip with the runtime, port 2 underflow counters at zero, load time measured | Before CPU Phase 3 |
 | M5 = CPU Phase 3 | The RTL CPU in the machine | FreeDOS boots in simulation with the RTL CPU; first sealed package; the four games pass the checks above on a kit, with both presets recorded | — |
 
+**M4 as built** ([README](../cores/fes-pc386/README.md#m4-diagnostic-shell)):
+the bus master takes its commands from a ring in the DDR window on port 0, not
+through the GP mailbox. During a package session the mailbox belongs to the
+runtime: its exchanges toggle one request bit and poison on a mismatch, so a
+second writer would break them, and `fes.computer` 1.0 has no opcode for
+arbitrary data. A raw development RBF would leave the mailbox free, but the
+runtime releases the DDR ports and brings up HDMI and audio only for an
+admitted package. The bus master's machine reset bypasses `fes_hps_ddr`'s
+guards, so it fences ports 1 and 2 to keep a reset from cutting a burst. Port 0
+reaches all of HPS DDR, so the bus master refuses a command whose range leaves
+the window or A0000h-BFFFFh, or that would alias another, and gives up one the
+machine never answers, as while it is held in reset. Until M0 the shell serves the ATA image port from port 0 and the HPS writes the
+image into the window directly; the disk round trip with the runtime waits for
+the M0 contracts.
+
 After first playable: CPU Phase 5 brings JEMM386 and Wolfenstein 3D with EMS;
 CPU Phase 6 wires FERR to IRQ13 and port F0h. Machine follow-ups wait for a
 title: OPL3 and Sound Blaster Pro, floppy, game port, MT-32 over MIDI,
@@ -1366,8 +1403,9 @@ No decision is open.
 
 ## Location
 
-The machine RTL goes in `cores/fes-pc386/` with `fes_pc386_top` as the shell,
-beside the CPU in `cores/fes-common/rtl/i386/`. The opl2_fpga import goes in
+The machine RTL goes in `cores/fes-pc386/` with `rtl/top.sv` as the shell
+(module `top`, as every FES producer names it), beside the CPU in
+`cores/fes-common/rtl/i386/`. The opl2_fpga import goes in
 `cores/fes-pc386/vendor/`. The KF8259 and KF8253 imports and the DMA
 controller moved from `cores/fes-pcxt/` to `cores/fes-common/` with M1
 (`vendor/kf8259`, `vendor/kf8253`, `rtl/fes_dma8237.sv`), since two cores share

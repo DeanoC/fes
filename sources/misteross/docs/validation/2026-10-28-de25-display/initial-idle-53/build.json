@@ -1,0 +1,50 @@
+{
+  "artifact": "project/output_files/de25nano_display.sof",
+  "boot_firmware_compatibility": "not-qualified",
+  "command": [
+    "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+    "--flow",
+    "compile",
+    "de25nano_display"
+  ],
+  "diagnostic_only": true,
+  "fes_revision": "53a44708e2078ba07a4e221356b809bb69071537",
+  "generated_sdc_sha256": {
+    "agilex_reset_release/intel_user_rst_clkgate_101/synth/intel_user_rst_clkgate_agilex.sdc": "5996a3812dce6289c2597c26e9539aa214a71dd42ace89fbfc28ac4979f21ebf",
+    "clocks.sdc": "7eb8822b95a8fb1404f6481f70d90a3b741e99fef858338f9d7de593e36f08cd",
+    "sys_pll/altera_iopll_2110/synth/sys_pll_altera_iopll_2110_msdzeyq.sdc": "70e5595b0ccdda88b2d9c7409a2c26ee77b067e1ca7eece57b5b41465cfe510a"
+  },
+  "hardware_acceptance": "not-run",
+  "inputs_sha256": "ad870bdee323cda5089e0960fc1bd58f06818c3075b7f5b6db6f6e97e1434be0",
+  "ip_generation_command": [
+    "/data/altera_pro/26.3/quartus/bin/quartus_ipgenerate",
+    "--generate_project_ip_files",
+    "--synthesis=verilog",
+    "de25nano_display"
+  ],
+  "quartus_version": "Quartus Prime Shell\nVersion 26.3.0 Build 114 10/14/2026 SC Pro Edition\nCopyright (C) 2026  Altera Corporation. All rights reserved.",
+  "reports_sha256": {
+    "output_files/de25nano_display.asm.rpt": "b732b3ab4699b080560bb069cc928c92433e9c01aba9afd624bc91fb53de1c8c",
+    "output_files/de25nano_display.drc.partitioned.rpt": "36393796b28c8311ef50bff85d9820beb17ba458a526a91de3dcaba0eb1b87ec",
+    "output_files/de25nano_display.drc.synthesized.rpt": "f20a7668963fe478a8df03b9bd049c47647c041bc32d3d02b186aaeb551d5c62",
+    "output_files/de25nano_display.fit.finalize.rpt": "d1a360028fe6aa1759b23931a51de421bb2382b9cf7c858cf6b1b7f09031296a",
+    "output_files/de25nano_display.fit.place.rpt": "d7836d1f78d83ab50338faa0f8e550ea6b195a8893881460c83c4298d0fd91e3",
+    "output_files/de25nano_display.fit.plan.rpt": "6c421b501f95b0fe13da603117839728a7354fa52938fd2262a2f02473eb7c34",
+    "output_files/de25nano_display.fit.retime.rpt": "ee623f61f451b1ba4f7971a2e640120b044b8fd783df18dc967bb7e7cf8c03be",
+    "output_files/de25nano_display.fit.route.rpt": "5e646c7799a32ea7bafd2dc3c14c42a1632e036278b9f8bac70a26c9585c10d7",
+    "output_files/de25nano_display.fit.rpt": "5c015d724deda0a54ca543e4be71417065feb3f101273bcb39967381cfe727dc",
+    "output_files/de25nano_display.fit.summary": "ee5fd406c70137b5f8cfd95babcf4ef97604318089104b54e7c333aad6dd9985",
+    "output_files/de25nano_display.flow.rpt": "2988b1c752adba806be02089ce9503298613e1499fb6d3dce19f719d6ea347fd",
+    "output_files/de25nano_display.ipg.rpt": "1e47aa9cc202a2759e7bbecee06139e0c294a9e31dea235b50049ddf23f032c8",
+    "output_files/de25nano_display.pin": "6c388b2edde6b7fba47f9880a32b37a3d6bf5b3759489ab36c906b15ebeb0c04",
+    "output_files/de25nano_display.sdc_constraints.rpt": "9dccbaff94be1053245a2249d19d94783cf111c578854dc149b28b9b9b78cf43",
+    "output_files/de25nano_display.sta.rpt": "8496e84c53e2b08bd39e4bf9f163070b2561594dd033086d915a34f02f84691f",
+    "output_files/de25nano_display.sta.summary": "871c611fe2046fda95ccac8509e95c4d586cec261f2dc16638647eb6ae6c86b6",
+    "output_files/de25nano_display.syn.ae.rpt": "9845511d28864491ef74c0dfd0eb5134b17d536369f444c1bda71cfd68f57784",
+    "output_files/de25nano_display.syn.rpt": "3f068418313ccb4a74bcb52fa8ff0463fe361bf6eda72c29c93068f6db26c23d",
+    "output_files/de25nano_display.syn.summary": "0ab140a1cf2e1b748bf344d7b9acdc7c63926a981ba26cfffe0bc417978f0d85",
+    "output_files/de25nano_display.tq.drc.signoff.rpt": "627731f1c289aa32bbaca768e1b8b9fbf1cf25a5bae5d626858775ada8d0a46b"
+  },
+  "sha256": "bb4a9cd9cde89368ff6a586fad82bd8946533d72be15948b5ea63e65284eb06c",
+  "timing_acceptance": "not-qualified"
+}

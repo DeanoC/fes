@@ -204,7 +204,8 @@ module fes_computer_mailbox_direct #(
                 8'd3: identity_word = 16'(`FES_COMPUTER_TRANSPORT_MINOR);
                 8'd4: identity_word = 16'(`FES_COMPUTER_ABI_TAG);
                 8'd5: identity_word = 16'(`FES_COMPUTER_ABI_MAJOR);
-                8'd6: identity_word = 16'(`FES_COMPUTER_ABI_MINOR);
+                // The ABI 1.0 identity: every capability here fits word 7.
+                8'd6: identity_word = 16'd0;
                 8'd7: identity_word = CAPABILITIES;
                 8'd8: identity_word = {identity[119:112], identity[127:120]};
                 8'd9: identity_word = {identity[103:96], identity[111:104]};

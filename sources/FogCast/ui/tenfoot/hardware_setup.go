@@ -2,11 +2,14 @@ package tenfoot
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/corenames"
 	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
@@ -42,6 +45,7 @@ func (a *App) openHardwarePickerLocked(action rooms.Action) {
 	s := &a.coreLibrary
 	s.HardwareGameID = action.GameID
 	s.HardwarePackageID = action.PackageID
+	s.HardwareCoreID = action.CoreID
 	s.ExpectedMediaID = action.ExpectedMediaID
 	s.Ref = nil
 	s.Setup = nil
@@ -88,7 +92,11 @@ func (a *App) hardwarePickerRowsLocked() []FirmwarePickerRow {
 		}
 		return rows
 	}
-	rows = append(rows, FirmwarePickerRow{Name: "No cassette · start BASIC", Kind: "empty-tape", Selectable: true}, FirmwarePickerRow{Name: "Import a .p cassette…", Kind: "import-tape", Selectable: true})
+	importLabel := "Import a .p cassette…"
+	if s.HardwareCoreID == "fes.zx80" {
+		importLabel = "Import a .o cassette…"
+	}
+	rows = append(rows, FirmwarePickerRow{Name: "No cassette · start BASIC", Kind: "empty-tape", Selectable: true}, FirmwarePickerRow{Name: importLabel, Kind: "import-tape", Selectable: true})
 	for _, t := range s.Tapes {
 		rows = append(rows, FirmwarePickerRow{Name: fmt.Sprintf("%s · %dK RAM · %s", t.Name, t.RAMKB, t.License), Kind: "tape:" + t.ID, Selectable: true})
 	}
@@ -107,7 +115,11 @@ func (a *App) handleHardwarePickerLocked(row FirmwarePickerRow) {
 		s.Status = hardwareExpansionFamilies[index].description + " Archive must match this exact installed core."
 	} else if row.Kind == "import-tape" {
 		s.PickID = "tape"
-		s.Status = "Choose a .p / .P file of 1–16384 bytes on this launcher."
+		if s.HardwareCoreID == "fes.zx80" {
+			s.Status = "Choose a .o / .O file of 1–16384 bytes on this launcher."
+		} else {
+			s.Status = "Choose a .p / .P file of 1–16384 bytes on this launcher."
+		}
 	} else if row.Kind == "empty-tape" {
 		a.selectHardwareTapeLocked(nil)
 		return
@@ -171,7 +183,7 @@ func (a *App) selectHardwareTapeLocked(tape *hostclient.HardwareTape) {
 
 func (a *App) importHardwareFileLocked(path string) {
 	s := &a.coreLibrary
-	mode, game, pkg, expected := s.HardwareMode, s.HardwareGameID, s.HardwarePackageID, s.ExpectedMediaID
+	mode, game, pkg, expected, coreID := s.HardwareMode, s.HardwareGameID, s.HardwarePackageID, s.ExpectedMediaID, s.HardwareCoreID
 	family := hardwareExpansionFamilies[s.ExpansionFamily]
 	manager := a.driveManagerLocked()
 	var selected hostclient.CoreEntry
@@ -195,8 +207,8 @@ func (a *App) importHardwareFileLocked(path string) {
 			}
 			return a.client.DescribeCoreExpansion(ctx, asset.ExpansionID, family.label, family.description, family.inProgress)
 		}
-		if !protocol.AdmitTapeMediaName(name) || !protocol.AdmitTapeMediaSize(size) {
-			return fmt.Errorf("choose a .p / .P cassette of 1–16384 bytes")
+		if err := admitHardwareCassette(coreID, name, size); err != nil {
+			return err
 		}
 		media, err := a.client.ImportCoreMedia(ctx, size, f)
 		if err != nil {
@@ -225,44 +237,66 @@ func (a *App) importHardwareFileLocked(path string) {
 	})
 }
 
+func admitHardwareCassette(coreID, name string, size int64) error {
+	if coreID == "fes.zx80" {
+		if protocol.AdmitZx80TapeMediaName(name) && protocol.AdmitTapeMediaSize(size) {
+			return nil
+		}
+		return fmt.Errorf("choose a .o / .O cassette of 1–16384 bytes")
+	}
+	if protocol.AdmitTapeMediaName(name) && protocol.AdmitTapeMediaSize(size) {
+		return nil
+	}
+	return fmt.Errorf("choose a .p / .P cassette of 1–16384 bytes")
+}
+
 func (a *App) zx81HardwareTapeRole(ctx context.Context, pkg string) (string, error) {
 	caps, err := a.client.PackageMediaCapabilities(ctx, pkg)
 	if err != nil {
 		return "", err
 	}
-	role, ok := protocol.ZX81TapeSelectionRole(caps.Media)
+	role, ok := protocol.ZX81FamilyTapeSelectionRole(caps.Media)
 	if !ok {
-		return "", fmt.Errorf("this Sinclair ZX81 package has no .p cassette")
+		return "", fmt.Errorf("this Sinclair ZX81-family package has no supported cassette")
 	}
 	return role, nil
 }
 
-func (a *App) openZX81SetupLocked() {
+func (a *App) openInstalledCoreSetupLocked(coreID string) {
 	if a.client == nil {
 		a.status = "Host API is unavailable."
 		return
 	}
 	a.resetCoreLibraryLocked()
 	a.coreLibrary.InstalledSetup = true
-	a.coreLibrary.FilterCoreID = ""
+	a.coreLibrary.FilterCoreID = coreID
+	a.coreLibrary.SetupFamilyPicker = coreID == ""
 	a.coreLibrary.Online = true
-	a.coreLibrary.Status = "Choose a ZX81-family machine…"
+	a.coreLibrary.Status = "Preparing system setup…"
+	if coreID != "" {
+		a.refreshInstalledCoreSetupLocked()
+	}
 }
 
-func (a *App) refreshInstalledZX81Locked() {
+func (a *App) refreshInstalledCoreSetupLocked() {
 	s := &a.coreLibrary
-	variant, ok := zx81family.ByID(s.FilterCoreID)
-	if !ok {
+	coreID := s.FilterCoreID
+	if coreID == "" {
 		return
 	}
+	label := corenames.Name(coreID, "")
 	s.Online = false
 	s.Ref = nil
 	s.Setup = nil
 	s.Index = 0
-	s.Status = "Finding installed " + variant.Label + " packages…"
+	s.Status = "Finding installed " + label + " packages…"
 	var cores []hostclient.AvailableCore
-	standing := "experimental"
-	if variant.CoreID == "fes.zx81" {
+	skipped := 0
+	standing := "installed"
+	if variant, ok := zx81family.ByID(coreID); ok && variant.CoreID != "fes.zx81" {
+		standing = "experimental"
+	}
+	if coreID == "fes.zx81" {
 		standing = "supported"
 	}
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
@@ -271,22 +305,44 @@ func (a *App) refreshInstalledZX81Locked() {
 			return err
 		}
 		for _, p := range library.Packages {
-			if p.CoreID != variant.CoreID {
+			if p.CoreID != coreID {
 				continue
 			}
-			setup, err := a.client.InstalledZX81Setup(ctx, p.PackageID)
+			setup, err := a.client.InstalledCoreSetup(ctx, p.PackageID)
 			if err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				var requestErr *url.Error
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.As(err, &requestErr) {
+					return err
+				}
+				skipped++
 				continue
 			}
-			cores = append(cores, hostclient.AvailableCore{CoreReference: setup.CoreReference, Label: variant.Label + " " + p.Version + " · " + p.PackageID[:8], Standing: standing, ArtifactState: "installed"})
+			packageLabel := corenames.Name(coreID, p.Name)
+			if packageLabel == "" {
+				packageLabel = coreID
+			}
+			cores = append(cores, hostclient.AvailableCore{CoreReference: setup.CoreReference, Label: packageLabel + " " + p.Version + " · " + p.PackageID[:8], Standing: standing, ArtifactState: "installed"})
 		}
 		return nil
 	}, func() {
 		s.Cores = cores
 		s.Online = true
-		s.Status = "Choose an installed " + variant.Label + " and its BASIC ROM. Adding a setup does not start it."
+		s.Status = "Choose an installed " + label + " and its required ROMs. Adding a setup does not start it."
 		if len(cores) == 0 {
-			s.Status = "No " + variant.Label + " with a sealed ROM requirement is installed. Browse published systems to install one."
+			s.Status = "No " + label + " package is installed. Browse published systems to install one."
+			if skipped > 0 {
+				s.Status = "No usable installed " + label + " package could be checked."
+			}
+		}
+		if skipped > 0 {
+			packages := "packages"
+			if skipped == 1 {
+				packages = "package"
+			}
+			s.Status += fmt.Sprintf(" Skipped %d %s that could not be checked. Refresh systems to retry.", skipped, packages)
 		}
 	})
 }

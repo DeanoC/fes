@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/corenames"
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/localfeed"
@@ -304,7 +305,7 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 	// Same probe retirement as startLocalCoreLocked.
 	a.localStartupStatusChecked = true
 	a.localWatchStartup = false
-	title := strings.TrimSpace(game.Title)
+	title := strings.TrimSpace(displayGameTitle(game))
 	if title == "" {
 		title = "game"
 	}
@@ -675,7 +676,7 @@ func (a *App) observeStartupPendingLocked(status localcores.RunStatus) {
 }
 
 func (a *App) applyStartupClaimLocked(status localcores.RunStatus, phase string) {
-	title := strings.TrimSpace(status.CoreID)
+	title := corenames.Name(status.CoreID, status.CoreID)
 	if title == "" {
 		title = "core"
 	}

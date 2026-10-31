@@ -9,6 +9,7 @@ import argparse
 from pathlib import Path
 import re
 import subprocess
+import sys
 
 # One level of balanced parentheses is allowed inside a destination.
 LINK = re.compile(r'\[[^\]]*\]\(\s*((?:[^()\s]|\([^()\s]*\))+)(?:\s+"[^"]*")?\s*\)')
@@ -75,6 +76,15 @@ def main():
     broken = broken_links(args.root.resolve())
     if broken:
         parser.exit(1, 'broken relative Markdown links:\n' + '\n'.join(broken) + '\n')
+    root = args.root.resolve()
+    data = root / 'docs' / 'support-matrix.json'
+    if data.is_file():
+        completed = subprocess.run(
+            [sys.executable, str(root / 'docs' / 'support-matrix.py'), '--check', '--root', str(root)],
+            check=False,
+        )
+        if completed.returncode != 0:
+            parser.exit(completed.returncode)
     print('doc links: ok')
 
 

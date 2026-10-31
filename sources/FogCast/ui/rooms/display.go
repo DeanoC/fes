@@ -76,6 +76,7 @@ type Action struct {
 	ExpectedMediaID   string
 	GameID            string
 	InitialGameID     string
+	InitialCoreID     string
 	CoreID            string
 	RoomID            string
 	Platform          string
@@ -102,4 +103,6 @@ const (
 	ActionHardwareSetup
 	ActionHardwareTapes
 	ActionHardwareImportExpansion
+	ActionHardwareMedia
+	ActionHardwareExpansions
 )

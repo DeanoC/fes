@@ -1,0 +1,55 @@
+{
+  "source_commit": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
+  "gallery_capture_count": 86,
+  "embedded_pack_count": 4,
+  "native_capture_count": 47,
+  "native_top_level_tests": 5,
+  "native_subtests": 45,
+  "native_package_elapsed_seconds": 3.65,
+  "native_tests": [
+    {
+      "Test": "TestHardwareRoomNativeRender",
+      "Elapsed": 1.63
+    },
+    {
+      "Test": "TestHomeLoungeNativeRender",
+      "Elapsed": 1.24
+    },
+    {
+      "Test": "TestLibraryNativeRender",
+      "Elapsed": 0.26
+    },
+    {
+      "Test": "TestRoomDetailsKeepsLongSummaryAndCuratorNoteInsidePane",
+      "Elapsed": 0.15
+    },
+    {
+      "Test": "TestNativeDialogRender",
+      "Elapsed": 0.35
+    }
+  ],
+  "archive_verification": {
+    "source_commit": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
+    "verified_tracked_ui_files": 217,
+    "verified_ui_corenames_and_package_files": 220,
+    "mismatches": [],
+    "corepackage_exact_f31_bytes": true,
+    "corepackage_sha256": "f6d81b8cc40f1e2378de5646a3bbd80e455c538ad1a7f6c900fcc416a986e20a",
+    "private_display_pattern_matches_historical_semver": true,
+    "corenames_imports_corepackage": false,
+    "live_temporary_test_absent": true
+  },
+  "fixture_template_sha256": "c3ac0f9b2109f38903369994f44d27eeb915171de86c314ef28648f7e85ebebb",
+  "live_source_touched": false,
+  "snapshot_temporary_test_removed": true,
+  "hardware_acceptance": false,
+  "gallery_test_elapsed_seconds": 8.86,
+  "reference_comparison": "out/ux-pass/names/final-reference-comparison.json",
+  "reference_count": 13,
+  "changed_reference_count": 0,
+  "visual_review": {
+    "reviewed": "four-pack/variants/native contact sheets and all three differing captures side-by-side",
+    "new_p1_p2_defects": [],
+    "known_cosmetic_limit": "Existing unavailable-illustration fallback caption can slightly intersect expansion-card marker in small Sinclair variant setup; no control obscured. Not hardware acceptance."
+  }
+}

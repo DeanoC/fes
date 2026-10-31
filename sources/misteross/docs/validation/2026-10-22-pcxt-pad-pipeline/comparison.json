@@ -1,0 +1,755 @@
+{
+  "baseline": {
+    "fmax": {
+      "clk_pixel": {
+        "achieved": 83.35417175292969,
+        "constraint": 74.25006866455078
+      },
+      "clocks[0]": {
+        "achieved": 76.40586853027344,
+        "constraint": 100
+      },
+      "clocks[1]": {
+        "achieved": 273.97259521484375,
+        "constraint": 100
+      },
+      "clocks[2]": {
+        "achieved": 103.95010375976562,
+        "constraint": 100
+      }
+    },
+    "timing_summary": {
+      "clocks": {
+        "clk_pixel": {
+          "hold_wns_ns": 0.7070000171661377,
+          "setup_wns_ns": 1.4709999561309814
+        },
+        "clocks[0]": {
+          "hold_wns_ns": 0.7839999794960022,
+          "setup_wns_ns": -2.555000066757202
+        },
+        "clocks[1]": {
+          "hold_wns_ns": 5.724999904632568,
+          "setup_wns_ns": 3.174999952316284
+        },
+        "clocks[2]": {
+          "hold_wns_ns": 4.255000114440918,
+          "setup_wns_ns": 0.2849999964237213
+        }
+      },
+      "final_analogue_model": true
+    },
+    "complete": false,
+    "unsupported": 105,
+    "endpoint_keys": 17153,
+    "failing_setup_rows": 257,
+    "failing_related_hold_rows": 0,
+    "pads": {
+      "SDRAM_A[0]": {
+        "setup_ps": 204,
+        "hold_ps": 3899,
+        "rows": 1
+      },
+      "SDRAM_A[1]": {
+        "setup_ps": 2730,
+        "hold_ps": 3839,
+        "rows": 2
+      },
+      "SDRAM_A[2]": {
+        "setup_ps": 2819,
+        "hold_ps": 3477,
+        "rows": 2
+      },
+      "SDRAM_A[3]": {
+        "setup_ps": 2612,
+        "hold_ps": 2414,
+        "rows": 2
+      },
+      "SDRAM_A[4]": {
+        "setup_ps": -2555,
+        "hold_ps": 6417,
+        "rows": 1
+      },
+      "SDRAM_A[5]": {
+        "setup_ps": 1566,
+        "hold_ps": 2366,
+        "rows": 2
+      },
+      "SDRAM_A[6]": {
+        "setup_ps": 2684,
+        "hold_ps": 2192,
+        "rows": 2
+      },
+      "SDRAM_A[7]": {
+        "setup_ps": 3317,
+        "hold_ps": 3018,
+        "rows": 2
+      },
+      "SDRAM_A[8]": {
+        "setup_ps": 2445,
+        "hold_ps": 3113,
+        "rows": 2
+      },
+      "SDRAM_A[9]": {
+        "setup_ps": 1993,
+        "hold_ps": 2725,
+        "rows": 2
+      },
+      "SDRAM_A[10]": {
+        "setup_ps": 1959,
+        "hold_ps": 2589,
+        "rows": 2
+      },
+      "SDRAM_A[11]": {
+        "setup_ps": 692,
+        "hold_ps": 6067,
+        "rows": 2
+      },
+      "SDRAM_A[12]": {
+        "setup_ps": 2643,
+        "hold_ps": 3914,
+        "rows": 2
+      },
+      "SDRAM_BA[0]": {
+        "setup_ps": 2748,
+        "hold_ps": 2653,
+        "rows": 2
+      },
+      "SDRAM_BA[1]": {
+        "setup_ps": 2323,
+        "hold_ps": 3221,
+        "rows": 2
+      },
+      "SDRAM_CKE[0]": {
+        "setup_ps": 2718,
+        "hold_ps": 3150,
+        "rows": 1
+      },
+      "SDRAM_nCS[0]": {
+        "setup_ps": 1258,
+        "hold_ps": 3883,
+        "rows": 1
+      },
+      "SDRAM_nRAS[0]": {
+        "setup_ps": 1778,
+        "hold_ps": 3923,
+        "rows": 1
+      },
+      "SDRAM_nCAS[0]": {
+        "setup_ps": 3521,
+        "hold_ps": 3850,
+        "rows": 1
+      },
+      "SDRAM_nWE[0]": {
+        "setup_ps": 3635,
+        "hold_ps": 4036,
+        "rows": 1
+      }
+    },
+    "worst_paths": [
+      {
+        "launch": {
+          "cell": "system.storage.physical_MISTRAL_FF_Q",
+          "loc": [
+            28,
+            22
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "SDRAM_A_MISTRAL_OB_PAD_10",
+          "loc": [
+            40,
+            81
+          ],
+          "port": "I"
+        },
+        "setup_ns": -2.5550003051757812,
+        "delays_ns": {
+          "clk-skew": -0.22499999403953552,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 10.106000252068043,
+          "logic": 1.8230000436306,
+          "setup": 0.11999999731779099
+        }
+      },
+      {
+        "launch": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_dx_MISTRAL_FF_Q_1",
+          "loc": [
+            55,
+            20
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[3].read_address_MISTRAL_FF_Q_9",
+          "loc": [
+            53,
+            29
+          ],
+          "port": "DATAIN"
+        },
+        "setup_ns": -2.046000074595213,
+        "delays_ns": {
+          "clk-skew": 0.039000000804662704,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 9.374000057578087,
+          "logic": 2.098000004887581,
+          "setup": -0.19599999487400055
+        }
+      },
+      {
+        "launch": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_dx_MISTRAL_FF_Q_1",
+          "loc": [
+            55,
+            20
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[0].read_address_MISTRAL_FF_Q_8",
+          "loc": [
+            53,
+            25
+          ],
+          "port": "DATAIN"
+        },
+        "setup_ns": -1.9580000415444374,
+        "delays_ns": {
+          "clk-skew": 0.06400000303983688,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 9.261000022292137,
+          "logic": 2.098000004887581,
+          "setup": -0.19599999487400055
+        }
+      },
+      {
+        "launch": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_r0_MISTRAL_FF_Q_4",
+          "loc": [
+            48,
+            20
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_add_overflow16_fixed_MISTRAL_FF_Q",
+          "loc": [
+            42,
+            20
+          ],
+          "port": "DATAIN"
+        },
+        "setup_ns": -1.6150000570341945,
+        "delays_ns": {
+          "clk-skew": 0.006000000052154064,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 7.6180000603199005,
+          "logic": 3.4559999853372574,
+          "setup": -0.19599999487400055
+        }
+      },
+      {
+        "launch": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_dx_MISTRAL_FF_Q_1",
+          "loc": [
+            55,
+            20
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[0].read_address_MISTRAL_FF_Q_10",
+          "loc": [
+            63,
+            24
+          ],
+          "port": "DATAIN"
+        },
+        "setup_ns": -1.5949999690055847,
+        "delays_ns": {
+          "clk-skew": 0.04500000178813934,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 8.919999971985817,
+          "logic": 2.094999983906746,
+          "setup": -0.19599999487400055
+        }
+      }
+    ],
+    "worst_cpu": {
+      "launch": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_register_dx_MISTRAL_FF_Q_1",
+        "loc": [
+          55,
+          20
+        ],
+        "port": "CLK"
+      },
+      "capture": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[3].read_address_MISTRAL_FF_Q_9",
+        "loc": [
+          53,
+          29
+        ],
+        "port": "DATAIN"
+      },
+      "setup_ns": -2.046000074595213,
+      "delays_ns": {
+        "clk-skew": 0.039000000804662704,
+        "clk-to-q": 0.7310000061988831,
+        "routing": 9.374000057578087,
+        "logic": 2.098000004887581,
+        "setup": -0.19599999487400055
+      }
+    },
+    "receipt": {
+      "label": "candidate",
+      "argv": [
+        "/tmp/pcxt-commit-timing-20261022/nextpnr-mistral",
+        "--device",
+        "5CSEBA6U23I7",
+        "--json",
+        "synth.json",
+        "--qsf",
+        "/tmp/pcxt-commit-timing-20261022/source/sources/misteross/cores/fes-ramtest/constraints.qsf",
+        "--sdc",
+        "/tmp/pcxt-commit-timing-20261022/source/sources/misteross/boards/de10nano/clocks.sdc",
+        "--seed",
+        "1",
+        "--freq",
+        "100",
+        "--router",
+        "gpu",
+        "--placer-heap-timingweight",
+        "2000",
+        "--placer-heap-critexp",
+        "5",
+        "--rbf",
+        "diagnostic.rbf",
+        "--compress-rbf",
+        "--write",
+        "routed.json",
+        "--report",
+        "timing.json",
+        "--detailed-timing-report",
+        "--timing-report-paths",
+        "1024",
+        "--routed-endpoints",
+        "endpoints.json"
+      ],
+      "binary_sha256": "7573ad112fb71c05f05c22f1887ebae55a356ad2464aea3afe12302d2aa2bc85",
+      "synth_sha256": "ade504d78213ae90f0b6a4c6f7d7f2c93a19bf710928f069900a7edb3819c2fd",
+      "remaining_before": 1023.979731879472,
+      "timeout_active_seconds": 450,
+      "environment": {
+        "FES_GPU_LEASE_OWNER": "pcxt-agent",
+        "GPU_LEASE_MAX_PER_OWNER": "2",
+        "NEXTPNR_REQUIRE_GPU": "1"
+      },
+      "hardware": false,
+      "returncode": 1,
+      "elapsed_wall_seconds": 192.14092606585473,
+      "remaining_after": 831.8388058136172,
+      "artifacts": {
+        "timing.json": "5f48e70531460ceba41ee72db2b8521a37e005459a1bf55d32d19e2adfb79ec8",
+        "routed.json": "747e7724d99582a270fb6020e9c092362d71d25681539f1625c803b9e337c4c1",
+        "diagnostic.rbf": "99c879152806ca6d0d6bc60e0587da2ad64f31876e6dddcdcdd8d2f7cce9ec28",
+        "endpoints.json": "508fb1cc423cb17a36ed472186905b66de1df773b69e32e049794dc0a63671b2",
+        "nextpnr.log": "0049daf8735222ad1e9967da5ede200fe1a196791d5e11fd0ca7b89440b65ee1",
+        "invocation.json": "fd40461db9159aa204623bd8e4b68360cc06eaeaad8d37c78afad97ffba1e15d",
+        "synth.json": "ade504d78213ae90f0b6a4c6f7d7f2c93a19bf710928f069900a7edb3819c2fd",
+        "yosys.log": "31156a25202bc381f11d9210ff99ab75b5350618fc2a64ec064c871eecfe10fe",
+        "synth.ys": "8017cab9f9d914c829fe6a19ba5e02c5d44cf2b9f50efeb9604a59f7c3df5ac6",
+        "pcxt_diagnostic.hex": "f805c9370d589fce57dd5d685539a9841752b3f43757dc2c77c27e320866b013",
+        "diagnostic.bin": "afe432903f7911042397c6d645471e32bdece8e4c06fb38193dc0e870d27b85b",
+        "diagnostic.o": "508c69a6c8a2ffe4ec5e5ea56ef07b31db43fcfe60c5a0248ac9ac88db797ccc",
+        "mcl86_facts.vh": "2ae18c54651bd6a7870c886eeba9feceb0e812b25d250df0409f6858c82660e4",
+        "mcl86_ucode_byte3.mem": "f67eaa6a751041796da221bf760c9bc3b80a2cf77a2941344c9ee5eee85fd50d",
+        "mcl86_ucode_byte2.mem": "1ae5014d21bca2970a7a153ce209babf576278956234c1f6e463357ee1601549",
+        "mcl86_ucode_byte1.mem": "915ad321a1c9657afbc3455369642b35bae54abc697d3c8779039690c95e682d",
+        "mcl86_ucode_byte0.mem": "3d1820b7f3de4f2f9f1377c5c715f3eea75cc9664cb9d498e0c455d7936f73c2",
+        "mcl86_ucode.mem": "98c6a648c799fa656b44feba4747116a8ada91d964d1d1b0eda785fed28ec0d0"
+      }
+    }
+  },
+  "candidate": {
+    "fmax": {
+      "clk_pixel": {
+        "achieved": 78.1677474975586,
+        "constraint": 74.25006866455078
+      },
+      "clocks[0]": {
+        "achieved": 64.00409698486328,
+        "constraint": 100
+      },
+      "clocks[1]": {
+        "achieved": 232.9916229248047,
+        "constraint": 100
+      },
+      "clocks[2]": {
+        "achieved": 100.01333618164062,
+        "constraint": 100
+      }
+    },
+    "timing_summary": {
+      "clocks": {
+        "clk_pixel": {
+          "hold_wns_ns": 0.7979999780654907,
+          "setup_wns_ns": 0.675000011920929
+        },
+        "clocks[0]": {
+          "hold_wns_ns": 0.7950000166893005,
+          "setup_wns_ns": -1.6019999980926514
+        },
+        "clocks[1]": {
+          "hold_wns_ns": 5.835999965667725,
+          "setup_wns_ns": 2.8540000915527344
+        },
+        "clocks[2]": {
+          "hold_wns_ns": 5.124000072479248,
+          "setup_wns_ns": 0.0010000000474974513
+        }
+      },
+      "final_analogue_model": true
+    },
+    "complete": false,
+    "unsupported": 105,
+    "endpoint_keys": 17199,
+    "failing_setup_rows": 369,
+    "failing_related_hold_rows": 0,
+    "pads": {
+      "SDRAM_A[0]": {
+        "setup_ps": 6781,
+        "hold_ps": 2789,
+        "rows": 1
+      },
+      "SDRAM_A[1]": {
+        "setup_ps": 6143,
+        "hold_ps": 3427,
+        "rows": 1
+      },
+      "SDRAM_A[2]": {
+        "setup_ps": 6370,
+        "hold_ps": 3200,
+        "rows": 1
+      },
+      "SDRAM_A[3]": {
+        "setup_ps": 7117,
+        "hold_ps": 2453,
+        "rows": 1
+      },
+      "SDRAM_A[4]": {
+        "setup_ps": 8434,
+        "hold_ps": 1136,
+        "rows": 1
+      },
+      "SDRAM_A[5]": {
+        "setup_ps": 7334,
+        "hold_ps": 2236,
+        "rows": 1
+      },
+      "SDRAM_A[6]": {
+        "setup_ps": 6259,
+        "hold_ps": 3311,
+        "rows": 1
+      },
+      "SDRAM_A[7]": {
+        "setup_ps": 5021,
+        "hold_ps": 4549,
+        "rows": 1
+      },
+      "SDRAM_A[8]": {
+        "setup_ps": 6951,
+        "hold_ps": 2619,
+        "rows": 1
+      },
+      "SDRAM_A[9]": {
+        "setup_ps": 6034,
+        "hold_ps": 3536,
+        "rows": 1
+      },
+      "SDRAM_A[10]": {
+        "setup_ps": 5092,
+        "hold_ps": 4478,
+        "rows": 1
+      },
+      "SDRAM_A[11]": {
+        "setup_ps": 6756,
+        "hold_ps": 2814,
+        "rows": 1
+      },
+      "SDRAM_A[12]": {
+        "setup_ps": 6219,
+        "hold_ps": 3351,
+        "rows": 1
+      },
+      "SDRAM_BA[0]": {
+        "setup_ps": 6667,
+        "hold_ps": 2903,
+        "rows": 1
+      },
+      "SDRAM_BA[1]": {
+        "setup_ps": 5118,
+        "hold_ps": 4452,
+        "rows": 1
+      },
+      "SDRAM_CKE[0]": {
+        "setup_ps": 8145,
+        "hold_ps": 1425,
+        "rows": 1
+      },
+      "SDRAM_nCS[0]": {
+        "setup_ps": 7014,
+        "hold_ps": 2556,
+        "rows": 1
+      },
+      "SDRAM_nRAS[0]": {
+        "setup_ps": 6292,
+        "hold_ps": 3256,
+        "rows": 1
+      },
+      "SDRAM_nCAS[0]": {
+        "setup_ps": 6670,
+        "hold_ps": 2871,
+        "rows": 1
+      },
+      "SDRAM_nWE[0]": {
+        "setup_ps": 6875,
+        "hold_ps": 2670,
+        "rows": 1
+      }
+    },
+    "worst_paths": [
+      {
+        "launch": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_alu_last_result_MISTRAL_FF_Q_1",
+          "loc": [
+            10,
+            37
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[3].read_address_MISTRAL_FF_Q_1",
+          "loc": [
+            24,
+            39
+          ],
+          "port": "DATAIN"
+        },
+        "setup_ns": -1.6019999533891678,
+        "delays_ns": {
+          "clk-skew": 0.04399999976158142,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 7.977999910712242,
+          "logic": 3.0450000315904617,
+          "setup": -0.19599999487400055
+        }
+      },
+      {
+        "launch": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_alu_last_result_MISTRAL_FF_Q_1",
+          "loc": [
+            10,
+            37
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[0].read_address_MISTRAL_FF_Q_4",
+          "loc": [
+            24,
+            39
+          ],
+          "port": "DATAIN"
+        },
+        "setup_ns": -1.5829999893903732,
+        "delays_ns": {
+          "clk-skew": 0.04399999976158142,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 7.974999949336052,
+          "logic": 3.0290000289678574,
+          "setup": -0.19599999487400055
+        }
+      },
+      {
+        "launch": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_alu_last_result_MISTRAL_FF_Q_1",
+          "loc": [
+            10,
+            37
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[1].read_address_MISTRAL_FF_Q_4",
+          "loc": [
+            24,
+            39
+          ],
+          "port": "DATAIN"
+        },
+        "setup_ns": -1.575999990105629,
+        "delays_ns": {
+          "clk-skew": 0.04399999976158142,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 7.955999955534935,
+          "logic": 3.04100002348423,
+          "setup": -0.19599999487400055
+        }
+      },
+      {
+        "launch": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_add_select1_MISTRAL_FF_Q",
+          "loc": [
+            13,
+            33
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "system.machine.cpu.cpu.u_biu_core.eu_prefix_seg_MISTRAL_FF_Q",
+          "loc": [
+            12,
+            30
+          ],
+          "port": "DATAIN"
+        },
+        "setup_ns": -1.5589999929070473,
+        "delays_ns": {
+          "clk-skew": -0.041999999433755875,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 8.034999966621399,
+          "logic": 3.0310000143945217,
+          "setup": -0.19599999487400055
+        }
+      },
+      {
+        "launch": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.eu_alu_last_result_MISTRAL_FF_Q_1",
+          "loc": [
+            10,
+            37
+          ],
+          "port": "CLK"
+        },
+        "capture": {
+          "cell": "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[3].read_address_MISTRAL_FF_Q_4",
+          "loc": [
+            30,
+            37
+          ],
+          "port": "DATAIN"
+        },
+        "setup_ns": -1.5319999642670155,
+        "delays_ns": {
+          "clk-skew": 0.013000000268220901,
+          "clk-to-q": 0.7310000061988831,
+          "routing": 8.423999950289726,
+          "logic": 2.560000002384186,
+          "setup": -0.19599999487400055
+        }
+      }
+    ],
+    "worst_cpu": {
+      "launch": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.eu_alu_last_result_MISTRAL_FF_Q_1",
+        "loc": [
+          10,
+          37
+        ],
+        "port": "CLK"
+      },
+      "capture": {
+        "cell": "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[3].read_address_MISTRAL_FF_Q_1",
+        "loc": [
+          24,
+          39
+        ],
+        "port": "DATAIN"
+      },
+      "setup_ns": -1.6019999533891678,
+      "delays_ns": {
+        "clk-skew": 0.04399999976158142,
+        "clk-to-q": 0.7310000061988831,
+        "routing": 7.977999910712242,
+        "logic": 3.0450000315904617,
+        "setup": -0.19599999487400055
+      }
+    },
+    "receipt": {
+      "label": "candidate",
+      "argv": [
+        "/tmp/pcxt-pad-timing-20261022/nextpnr-mistral",
+        "--device",
+        "5CSEBA6U23I7",
+        "--json",
+        "synth.json",
+        "--qsf",
+        "/tmp/pcxt-pad-timing-20261022/source/sources/misteross/cores/fes-ramtest/constraints.qsf",
+        "--sdc",
+        "/tmp/pcxt-pad-timing-20261022/source/sources/misteross/boards/de10nano/clocks.sdc",
+        "--seed",
+        "1",
+        "--freq",
+        "100",
+        "--router",
+        "gpu",
+        "--placer-heap-timingweight",
+        "2000",
+        "--placer-heap-critexp",
+        "5",
+        "--rbf",
+        "diagnostic.rbf",
+        "--compress-rbf",
+        "--write",
+        "routed.json",
+        "--report",
+        "timing.json",
+        "--detailed-timing-report",
+        "--timing-report-paths",
+        "1024",
+        "--routed-endpoints",
+        "endpoints.json"
+      ],
+      "binary_sha256": "7573ad112fb71c05f05c22f1887ebae55a356ad2464aea3afe12302d2aa2bc85",
+      "synth_sha256": "b4c44b2b66faaf8dd1019c6d8de119c55eecb49856158019ac8899a869de028b",
+      "remaining_before": 831.8388058136172,
+      "timeout_active_seconds": 600,
+      "environment": {
+        "FES_GPU_LEASE_OWNER": "pcxt-agent",
+        "GPU_LEASE_MAX_PER_OWNER": "2",
+        "NEXTPNR_REQUIRE_GPU": "1"
+      },
+      "hardware": false,
+      "returncode": 1,
+      "elapsed_wall_seconds": 224.16479452326894,
+      "remaining_after": 607.6740112903483,
+      "artifacts": {
+        "timing.json": "c20bd5e0f88dcb3e5208e9676f35b7b3dfaeb4cbb6da57b7b319a5377f367164",
+        "routed.json": "f81e53165429b781d101b398949adae04a60943d95eb0c96fc5b9a3e428dcb5f",
+        "diagnostic.rbf": "1dc6726a83a3aad3cb596b98dcf2b8623351c01d1e69cda86e9db2fd09b26d65",
+        "endpoints.json": "53548211b919750743aec2fc0148794b9b1ca09354786abad660a5c810e24041",
+        "nextpnr.log": "36df4bb57674cf288b69e444619dc99e70e199a2be898a1fde5b073cdf5960be",
+        "invocation.json": "1f693b8d84381c6cb6cb6dc938e9178bc8bbb990807f41eee1b311b908b12320",
+        "pack-check.json": "960cb36831c6248865cc755b33ef161e62dd91f83d91e138703478c0b3aae109",
+        "packed-check.json": "1cb42bf8ab33b1767067655c7c16a6cdf58a30b189f6b6b3fadd36a8f99fa68a",
+        "pack-check.log": "414e6a137f9ca7ef4cdb483cc0a09518110d83a1189af357c9189c18d75014d2",
+        "synth.json": "b4c44b2b66faaf8dd1019c6d8de119c55eecb49856158019ac8899a869de028b",
+        "yosys.log": "df5430ce681958080114d09c8c8084f52e1fec1ea7f6066eae9889b3f9fbb0e8",
+        "synth.ys": "3e2c61014af33799dda67b23068ef5e7bf84fa54bc6e1e29c1b97de4d697eaf6",
+        "pcxt_diagnostic.hex": "f805c9370d589fce57dd5d685539a9841752b3f43757dc2c77c27e320866b013",
+        "diagnostic.bin": "afe432903f7911042397c6d645471e32bdece8e4c06fb38193dc0e870d27b85b",
+        "diagnostic.o": "508c69a6c8a2ffe4ec5e5ea56ef07b31db43fcfe60c5a0248ac9ac88db797ccc",
+        "mcl86_facts.vh": "2ae18c54651bd6a7870c886eeba9feceb0e812b25d250df0409f6858c82660e4",
+        "mcl86_ucode_byte3.mem": "f67eaa6a751041796da221bf760c9bc3b80a2cf77a2941344c9ee5eee85fd50d",
+        "mcl86_ucode_byte2.mem": "1ae5014d21bca2970a7a153ce209babf576278956234c1f6e463357ee1601549",
+        "mcl86_ucode_byte1.mem": "915ad321a1c9657afbc3455369642b35bae54abc697d3c8779039690c95e682d",
+        "mcl86_ucode_byte0.mem": "3d1820b7f3de4f2f9f1377c5c715f3eea75cc9664cb9d498e0c455d7936f73c2",
+        "mcl86_ucode.mem": "98c6a648c799fa656b44feba4747116a8ada91d964d1d1b0eda785fed28ec0d0"
+      }
+    }
+  }
+}

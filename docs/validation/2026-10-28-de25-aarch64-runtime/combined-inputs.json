@@ -1,0 +1,19 @@
+{
+  "fogcast_source_tree": "d9306de9a3b6f9225bc17c1ccd814a0526574dbf",
+  "hps_producer": "4b7b88775ca41e5cd680f1510419d1a368d057dd",
+  "hps_source_sha256": {
+    "board_build.py": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c",
+    "build.py": "ffd1d63bb31b769ab0c7e19866a48ba94f90f375b0e15b9ca8cb5d5a6594a5eb",
+    "fes_de25_mailbox.v": "c7cb18157ad5476b0c2824e56a88855dd29f81f6470f8820405434acd301945e",
+    "fes_de25_mailbox_hw.tcl": "fecd51d784e9bb595f7aa0d456055a32d9587a6dd4041ecb11395cd1a4a14f2a",
+    "generated/fes_de25_mailbox.hpp": "8b1f04a79981b7f77cc0d0035a7ca112ef3c75f35dea9b4596133f4e07719c6b",
+    "generated/fes_de25_mailbox.vh": "f0404bd1898a0f825a6fbdab20018d7efe95e48e06e57640477266d4a2f5cd9a",
+    "integrate.tcl": "fd2a5542ebd9ca22502994924363aaf3440cd332c968736de26b8ad70672a167",
+    "vendor.lock.toml": "cd72e8f75190725071d14830348b574542894aa97027650a546badac55c2c2fb"
+  },
+  "integration_revision": "9d16147253290c34202feb2227244c65497ce6f0",
+  "result": "matched",
+  "runtime_source_tree": "ea6aecf99cbbe179e6e3c5ddee6683cb47c5c631",
+  "sdk_recipe_sha256": "6e672b4d0186cc81433338bdb5bb2c007ae7b5d7fda020f3c836e42769c8f348",
+  "sdk_rootfs_key": "377f625443dbe9a90f508a0aa45ad6e126adb50f894ea327795a1c82d18768bc"
+}

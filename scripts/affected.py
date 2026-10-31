@@ -5,18 +5,18 @@ from pathlib import Path
 import subprocess
 
 try:
-    from scripts.test_policy import select_test_modes, validate_test_modes
+    from scripts.test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, select_test_modes, validate_test_modes
 except ImportError:
-    from test_policy import select_test_modes, validate_test_modes
+    from test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, select_test_modes, validate_test_modes
 
 # Logical module names survive the monorepo move; update only these roots.
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
-# Simulation families include the standalone CPU; it has no play-package recipe.
+# z80 and pc386 are simulation-only families; PC/XT also has a package producer.
 CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv', 'pcxt',
          'pc386')
-SIMULATION_ONLY_CORES = frozenset({'z80', 'pcxt', 'pc386'})
+SIMULATION_ONLY_CORES = frozenset({'z80', 'pc386'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
 EMBEDDED_CONTROL_INPUTS = frozenset({
     'sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml',
@@ -94,7 +94,8 @@ SOFTWARE_CI_INPUTS = frozenset({
 # misteross unittest suite runs (about two minutes); tool-dependent cases skip.
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
-    'bootstrap.sh',
+    'bootstrap.sh', 'audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'build_fes_pcxt_quartus.py', 'pcxt_quartus_mailbox.py',
+    'audit_fes_pcxt_hps_i2c.py', 'characterize_fes_pcxt_hps_i2c.py', 'screen_fes_pcxt_uncertainty.py',
     'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
     'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
     'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
@@ -137,12 +138,12 @@ SHARED_RTL = {
     'fes_computer_gp.v': COLECO_CONSUMERS,
     'fes_application_gp.v': ('demo', 'coleco', 'menu', 'ramtest', 'riscv'),
     'fes_video_720p.v': ('demo', 'pong', 'ramtest', 'riscv'),
-    'fes_audio_i2s.v': ('demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'),
+    'fes_audio_i2s.v': ('demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386'),
     'fes_audio_pll.v': ('demo',),
-    'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'),
+    'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386'),
     'fes_sn76489.sv': ('coleco', 'sg1000'),
     'fes_z80_ce.sv': COLECO_CONSUMERS,
-    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81'),
+    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pc386', 'pcxt'),
     't80pa.v': ('coleco', 'sms'),
     'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
     'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
@@ -161,7 +162,7 @@ ATARI_ST_SCRIPTS = frozenset({'atari_st_slot.py', 'build_atari_st_slot_card.py',
 # the FPGA software lane.
 I386_SCRIPTS = frozenset({'fes_i386_oracle.py', 'test_fes_i386_vectors.py', 'test_fes_i386_test386.py',
                           'test_fes_i386_frontend.py', 'test_fes_i386_lockstep.py', 'benchmark_fes_i386.py',
-                          'quartus_fes_i386.py'})
+                          'quartus_fes_i386.py', 'fes_i386_ucode.py'})
 
 
 def fpga_cores(path):
@@ -178,6 +179,8 @@ def fpga_cores(path):
     parts = relative.parts
     if path in EMBEDDED_CONTROL_INPUTS or embedded_producer_input(path) or embedded_board_control_input(path):
         return (), 'standalone embedded-control endpoint; no shipped core consumer'
+    if len(parts) >= 3 and parts[:2] == ('boards', 'de25nano') and '..' not in parts:
+        return (), 'standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer'
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('demo', 'pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
     if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_addon_port.v':
@@ -258,10 +261,10 @@ def fpga_cores(path):
             return ('spectrum',), 'Spectrum socket recipe'
         if parts[1] in ATARI_ST_SCRIPTS:
             return ('atari-st',), 'Atari ST socket/card/ROM test recipe'
-        if parts[1] in ('build_pc386_firmware.py', 'build_pc386_freedos_image.py'):
-            return ('pc386',), 'pc386 firmware and simulation disk recipes'
-        if parts[1] == 'synth_fes_pc386.py':
-            return (), 'pc386 diagnostic synthesis recipe; no simulation reads it'
+        if parts[1] in ('build_pc386_firmware.py', 'build_pc386_freedos_image.py', 'pc386_diag.py'):
+            return ('pc386',), 'pc386 firmware, simulation disk and diagnostic program recipes'
+        if parts[1] in ('synth_fes_pc386.py', 'build_fes_pc386_oss.py'):
+            return (), 'pc386 diagnostic synthesis recipe and producer; no simulation reads them'
         if parts[1] in I386_SCRIPTS:
             return (), 'i386 oracle, corpus runners, RTL checks and timing harness; no core consumer'
     if parts and parts[0] == 'tests':
@@ -345,6 +348,12 @@ def plan(paths):
                     for prefix in PARENT_ROOTS)):
             selected.add('parent')
             reasons.append(f'{path}: parent orchestration/tests/assembly; component sources unchanged')
+        elif path == DE25_BOARD_DEFINITION:
+            selected.update(('parent', 'contracts'))
+            reasons.append(f'{path}: descriptive DE25-Nano board; no emitted or deployed consumers')
+        elif path == DE25_DDR_PROBE_DEFINITION:
+            selected.update(('parent', 'contracts', 'fpga'))
+            reasons.append(f'{path}: standalone DE25 DDR probe consumers; no existing core consumer')
         elif owner == 'contracts' and path.endswith(('.go', '/go.mod', '/go.sum')):
             selected.update(LANES)
             reasons.append(f'{path}: contract tooling software; generated RTL unchanged')

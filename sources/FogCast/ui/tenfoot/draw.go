@@ -185,7 +185,11 @@ func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTex
 		drawRoomChoice(dev, snap, labels, used)
 		drawLaunchOverlay(dev, snap, labels, used)
 	} else {
-		dev.Clear(drawTheme(snap).SofaBackground)
+		background := heroBackground
+		if th := drawTheme(snap); th.Name != theme.NameDefault && th.Name != theme.NameNight {
+			background = th.SofaBackground
+		}
+		dev.Clear(background)
 		drawHeader(dev, snap, labels, used)
 		if snap.Grid.Mode == LayoutList {
 			drawListRows(dev, snap, textures, labels, used)
@@ -230,23 +234,25 @@ func drawCoverCells(dev gfx.Device, snap Snapshot, textures, labels map[string]g
 			continue
 		}
 		game := snap.Games[i]
-		focused := i == snap.Grid.Focus
+		focused := i == snap.Grid.Focus && !snap.BrowseActions.Focused
 		if focused {
-			fillRect(dev, float32(x-4), float32(y-4), float32(snap.Grid.CellW+8), float32(snap.Grid.CellH+8), 255, 184, 48, 255)
+			dev.FillRect(gfx.Rect{X: float32(x - 4), Y: float32(y - 4), W: float32(snap.Grid.CellW + 8), H: float32(snap.Grid.CellH + 8)}, heroAccent)
 		}
-		fillRect(dev, float32(x), float32(y), float32(snap.Grid.CellW), float32(snap.Grid.CellH-36), 28, 32, 44, 255)
+		dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(snap.Grid.CellW), H: float32(snap.Grid.CellH)}, heroSurface)
 		if tex, ok := textures[game.ID]; ok {
-			dx, dy, dw, dh := shared.CoverDestRect(x, y, snap.Grid.CellW, snap.Grid.CellH-36, tex.w, tex.h)
+			dx, dy, dw, dh := shared.CoverDestRect(x, y, snap.Grid.CellW, snap.Grid.CellH-40, tex.w, tex.h)
 			drawGPU(dev, tex, dx, dy, dw, dh)
 		} else {
 			r, g, b := placeholderColor(game.Title)
 			fillRect(dev, float32(x+8), float32(y+8), float32(snap.Grid.CellW-16), float32(snap.Grid.CellH-52), r, g, b, 255)
+			// Keep missing-art identity on paper rather than variable colour.
+			dev.FillRect(gfx.Rect{X: float32(x + 12), Y: float32(y + 16), W: float32(snap.Grid.CellW - 24), H: 30}, heroSurface)
 			// Missing art names the platform, not an acronym; the full
 			// title is the label under the art.
-			drawLabel(dev, labels, used, "i:"+game.ID, x+16, y+24, snap.Grid.CellW-32, 18, placeholderSystem(snap, game))
+			drawFESLabel(dev, labels, used, "i:"+game.ID, x+16, y+20, snap.Grid.CellW-32, 18, placeholderSystem(snap, game))
 		}
 		drawCellBlockTag(dev, labels, used, x+8, y+snap.Grid.CellH-44, snap.Grid.CellW-16, game, snap.KitPlay)
-		drawLabel(dev, labels, used, "t:"+game.ID, x+6, y+snap.Grid.CellH-28, snap.Grid.CellW-12, 16, game.Title)
+		heroLine(dev, labels, used, x+6, y+snap.Grid.CellH-31, snap.Grid.CellW-12, 20, i == snap.Grid.Focus, heroText, displayGameTitle(game))
 	}
 }
 
@@ -258,13 +264,13 @@ func drawListRows(dev gfx.Device, snap Snapshot, textures, labels map[string]gpu
 			continue
 		}
 		game := snap.Games[i]
-		focused := i == snap.Grid.Focus
+		focused := i == snap.Grid.Focus && !snap.BrowseActions.Focused
 		if focused {
-			fillRect(dev, float32(x-4), float32(y-2), float32(snap.Grid.CellW+8), float32(snap.Grid.CellH+4), 255, 184, 48, 255)
+			dev.FillRect(gfx.Rect{X: float32(x - 4), Y: float32(y - 2), W: float32(snap.Grid.CellW + 8), H: float32(snap.Grid.CellH + 4)}, heroAccent)
 		}
-		fillRect(dev, float32(x), float32(y), float32(snap.Grid.CellW), float32(snap.Grid.CellH), 28, 32, 44, 255)
+		dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(snap.Grid.CellW), H: float32(snap.Grid.CellH)}, heroSurface)
 		tx, ty, tw, th := snap.Grid.listThumbRect(x, y)
-		fillRect(dev, float32(tx), float32(ty), float32(tw), float32(th), 18, 20, 28, 255)
+		dev.FillRect(gfx.Rect{X: float32(tx), Y: float32(ty), W: float32(tw), H: float32(th)}, heroSurface)
 		if tex, ok := textures[game.ID]; ok {
 			dx, dy, dw, dh := shared.CoverDestRect(tx, ty, tw, th, tex.w, tex.h)
 			drawGPU(dev, tex, dx, dy, dw, dh)
@@ -277,11 +283,11 @@ func drawListRows(dev gfx.Device, snap Snapshot, textures, labels map[string]gpu
 		if textW < 1 {
 			textW = 1
 		}
-		title := game.Title
+		title := displayGameTitle(game)
 		if game.Favorite {
 			title = "* " + title
 		}
-		drawLabel(dev, labels, used, "lt:"+game.ID, textX, y+12, textW, 22, title)
+		heroLine(dev, labels, used, textX, y+12, textW, 22, i == snap.Grid.Focus, heroText, title)
 		meta := strings.TrimSpace(game.System)
 		if year := strings.TrimSpace(game.Year); year != "" {
 			if meta != "" {
@@ -297,11 +303,21 @@ func drawListRows(dev gfx.Device, snap Snapshot, textures, labels map[string]gpu
 				meta = play
 			}
 		}
-		drawLabel(dev, labels, used, "lm:"+game.ID, textX, y+40, textW, 16, meta)
+		drawFESLabel(dev, labels, used, "lm:"+game.ID, textX, y+40, textW, 16, meta)
 	}
 }
 
 func drawLabel(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, key string, x, y, maxW, sizePx int, text string) {
+	drawTintedLabel(dev, labels, used, key, x, y, maxW, sizePx, labelColor, text)
+}
+
+// Native Library and shared dialogs use the same paper and ink as Home.
+// Keep the dark playback labels independent of this presentation.
+func drawFESLabel(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, key string, x, y, maxW, sizePx int, text string) {
+	drawTintedLabel(dev, labels, used, key, x, y, maxW, sizePx, heroText, text)
+}
+
+func drawTintedLabel(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, key string, x, y, maxW, sizePx int, color gfx.Color, text string) {
 	text = strings.TrimSpace(text)
 	if text == "" || maxW < 1 {
 		return
@@ -321,7 +337,7 @@ func drawLabel(dev gfx.Device, labels map[string]gpuTexture, used map[string]str
 			labelMu.Unlock()
 			tex.labelSource = text
 			labels[key] = tex
-			drawMask(dev, tex, x, y, labelColor)
+			drawMask(dev, tex, x, y, color)
 			return
 		}
 		laid, laidOK := layoutLabel(face, display, maxW, sizePx)
@@ -334,20 +350,23 @@ func drawLabel(dev gfx.Device, labels map[string]gpuTexture, used map[string]str
 		tex.labelSource, tex.labelDisplay = text, display
 		labels[key] = tex
 	}
-	drawMask(dev, tex, x, y, labelColor)
+	drawMask(dev, tex, x, y, color)
 }
 
 func drawHeader(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
-	x := snap.Grid.contentLeft()
-	y := snap.Grid.headerY()
-	w := snap.Grid.contentWidth()
-	fillRect(dev, float32(x), float32(y), float32(w), float32(snap.Grid.HeaderHeight), 18, 20, 28, 255)
-	drawDebug(dev, x+24, y+18, "FOGCAST", 3)
-	pad := snap.AffinityBadge()
-	drawDebug(dev, x+w-160, y+22, pad, 2)
-	chrome := snap.ChromeLine()
-	drawLabel(dev, labels, used, "chrome", x+24, y+52, w-48, 18, chrome)
-	drawDebug(dev, x+24, y+72, snap.HeaderHint(), 1)
+	x, y, w := snap.Grid.contentLeft(), snap.Grid.headerY(), snap.Grid.contentWidth()
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(snap.Grid.HeaderHeight)}, heroBackground)
+	title := "FES  |  Library"
+	if snap.GPUParked || snap.Session.State == "active" {
+		title = "FES  |  Now playing"
+	}
+	heroLine(dev, labels, used, x+24, y+6, w-150, 28, true, heroText, title)
+	heroLine(dev, labels, used, x+w-128, y+14, 104, 16, false, heroSecondary, snap.AffinityBadge())
+	drawFESLabel(dev, labels, used, "chrome", x+24, y+43, w-48, 18, snap.chromeBody())
+	for i, line := range gfx.WrapText(snap.HeaderHint(), 18, w-48, 2) {
+		heroLine(dev, labels, used, x+24, y+68+i*22, w-48, 18, false, heroSecondary, line)
+	}
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y + snap.Grid.HeaderHeight - 2), W: float32(w), H: 2}, heroDivider)
 }
 
 func drawSessionPreview(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTexture, used map[string]struct{}, x, y, maxW int) int {
@@ -503,9 +522,9 @@ func drawDetail(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, use
 	}
 	x, y, w, h := geom.Pane.X, geom.Pane.Y, geom.Pane.W, geom.Pane.H
 	if snap.Detail.Open {
-		fillRect(dev, float32(x-4), float32(y-4), float32(w+8), float32(h+8), 255, 184, 48, 255)
+		dev.FillRect(gfx.Rect{X: float32(x - 4), Y: float32(y - 4), W: float32(w + 8), H: float32(h + 8)}, heroAccent)
 	}
-	fillRect(dev, float32(x), float32(y), float32(w), float32(h), 16, 18, 26, 255)
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}, heroSurface)
 	detail := snap.FocusDetail
 	pad := 24
 	title := strings.TrimSpace(detail.Title)
@@ -516,76 +535,111 @@ func drawDetail(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, use
 		title = "* " + title
 	}
 	textW := w - 2*pad
+	if primary, _ := libraryActionRects(snap); primary.W > 0 {
+		textW = min(textW, primary.X-x-pad-24)
+	}
 	if geom.Carousel.W > 0 {
 		textW = geom.Carousel.X - x - 2*pad
 		if textW < 160 {
 			textW = w - 2*pad
 		}
 	}
-	drawLabel(dev, labels, used, "d-title", x+pad, y+12, textW, 26, title)
-	// The creator sits beside the title, not among the facts.
+	titleLines := 1
+	if snap.Detail.Open {
+		titleLines = 2
+	}
+	titleY := y + 10
+	for _, line := range gfx.WrapTextWeight(title, 32, textW, titleLines, gfx.WeightBold) {
+		heroLine(dev, labels, used, x+pad, titleY, textW, 32, true, heroText, line)
+		titleY += 38
+	}
+	creatorBesideTitle := false
 	if studio := strings.TrimSpace(detail.Studio); studio != "" {
-		titleW := min(gfx.MeasureText(title, 26), textW)
+		titleW := min(gfx.MeasureTextWeight(title, 32, gfx.WeightBold), textW)
 		if byX := x + pad + titleW + 16; byX < x+pad+textW-80 {
-			drawLabel(dev, labels, used, "d-by", byX, y+20, x+pad+textW-byX, 18, "by "+studio)
+			drawFESLabel(dev, labels, used, "d-by", byX, y+22, x+pad+textW-byX, 18, "by "+studio)
+			creatorBesideTitle = true
 		}
 	}
+	metaY := titleY + 2
 	factDetail := detail
-	factDetail.Studio = ""
-	facts, factsX, factsW, attr, attrX, attrW := layoutDetailMeta(factDetail, x+pad, textW, 16)
+	if creatorBesideTitle {
+		factDetail.Studio = ""
+	}
+	facts, factsX, factsW, attr, attrX, attrW := layoutDetailMeta(factDetail, x+pad, textW, 18)
 	if facts != "" && factsW > 0 {
-		drawLabel(dev, labels, used, "d-meta", factsX, y+44, factsW, 16, facts)
+		drawFESLabel(dev, labels, used, "d-meta", factsX, metaY, factsW, 18, facts)
 	}
 	if attr != "" && attrW > 0 {
-		drawLabel(dev, labels, used, "d-attr", attrX, y+44, attrW, 16, attr)
+		drawFESLabel(dev, labels, used, "d-attr", attrX, metaY, attrW, 18, attr)
 	}
-	lineY := y + 68
-	// Readiness comes before history and the summary: it answers whether
-	// the title can start and what to do if not.
-	lineY += drawDetailReadiness(dev, labels, used, x+pad, lineY, textW, y+h-8, snap.DetailPlay)
+	lineY := metaY + 28
+	bottom := y + h - 8
+	// Readiness comes before history and editorial text. Every later row
+	// consumes the space it actually draws, within the same pane boundary.
+	lineY += drawDetailReadiness(dev, labels, used, x+pad, lineY, textW, bottom, snap.DetailPlay)
 	if snap.Room.Open {
-		if hist := strings.TrimSpace(snap.Room.Destination.History.Line()); hist != "" {
-			drawLabel(dev, labels, used, "d-history", x+pad, lineY, textW, 16, hist)
-			lineY += 22
+		if hist := strings.TrimSpace(snap.Room.Destination.History.Line()); hist != "" && lineY+gfx.TextHeight(18) <= bottom {
+			drawFESLabel(dev, labels, used, "d-history", x+pad, lineY, textW, 18, hist)
+			lineY += 26
 		}
+	}
+	credit, note := "", ""
+	if snap.Room.Open {
+		note = strings.TrimSpace(snap.Room.Destination.Note)
+		if note != "" {
+			credit = snap.Room.Destination.CuratorAttribution()
+			if credit == "" {
+				credit = "Note from this room"
+			}
+		}
+	}
+	// Reserve room for attribution and as much of the note as fits before
+	// filling the remainder with the title's general summary.
+	var noteLines []string
+	noteH := 0
+	for limit := 3; note != "" && limit > 0; limit-- {
+		noteLines = gfx.WrapText(note, 18, textW, limit)
+		noteH = 8 + gfx.TextHeight(16) + 4 + len(noteLines)*24
+		if lineY+noteH <= bottom {
+			break
+		}
+		noteLines, noteH = nil, 0
 	}
 	summaryLines := 2
 	if snap.Detail.Open {
 		summaryLines = detailSummaryLines
 	}
-	maxChars := textW / 8
-	if maxChars < 20 {
-		maxChars = 20
-	}
-	for i, line := range wrapWords(detail.Summary, maxChars, summaryLines) {
-		if lineY+i*20+16 > y+h-8 {
+	for i, line := range gfx.WrapText(detail.Summary, 20, textW, summaryLines) {
+		if lineY+gfx.TextHeight(20) > bottom-noteH {
 			break
 		}
-		drawLabel(dev, labels, used, fmt.Sprintf("d-sum-%d", i), x+pad, lineY+i*20, textW, 16, line)
+		drawFESLabel(dev, labels, used, fmt.Sprintf("d-sum-%d", i), x+pad, lineY, textW, 20, line)
+		lineY += 26
 	}
-	lineY += len(wrapWords(detail.Summary, maxChars, summaryLines)) * 20
-	if snap.Room.Open {
-		if note := strings.TrimSpace(snap.Room.Destination.Note); note != "" {
-			credit := snap.Room.Destination.CuratorAttribution()
-			if credit == "" {
-				credit = "Note from this room"
+	if len(noteLines) > 0 {
+		lineY += 8
+		drawFESLabel(dev, labels, used, "d-note-attr", x+pad, lineY, textW, 16, credit)
+		lineY += gfx.TextHeight(16) + 4
+		for i, line := range noteLines {
+			if lineY+gfx.TextHeight(18) > bottom {
+				break
 			}
-			drawLabel(dev, labels, used, "d-note-attr", x+pad, lineY+8, textW, 14, credit)
-			for i, line := range wrapWords(note, maxChars, 3) {
-				drawLabel(dev, labels, used, fmt.Sprintf("d-note-%d", i), x+pad, lineY+28+i*20, textW, 16, line)
-			}
+			drawFESLabel(dev, labels, used, fmt.Sprintf("d-note-%d", i), x+pad, lineY, textW, 18, line)
+			lineY += 24
 		}
 	}
 	if geom.Carousel.W > 0 {
 		drawScreenshotCarousel(dev, snap, labels, used, textures, geom.Carousel.X, geom.Carousel.Y, geom.Carousel.W, geom.Carousel.H)
 	}
+	drawLibraryActions(dev, snap, labels, used)
 }
 
 func drawScreenshotCarousel(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}, textures map[string]gpuTexture, x, y, w, h int) {
 	if w < 1 || h < 1 {
 		return
 	}
-	fillRect(dev, float32(x), float32(y), float32(w), float32(h), 28, 32, 44, 255)
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}, heroSurface)
 	ids := snap.FocusDetail.ScreenshotIDs
 	index := clampCarouselIndex(snap.Detail.Index, len(ids))
 	captionH := 22
@@ -600,12 +654,12 @@ func drawScreenshotCarousel(dev gfx.Device, snap Snapshot, labels map[string]gpu
 			dx, dy, dw, dh := shared.CoverDestRect(x+8, y+8, w-16, innerH-16, tex.w, tex.h)
 			drawGPU(dev, tex, dx, dy, dw, dh)
 		} else {
-			drawLabel(dev, labels, used, "d-shot-miss", x+12, y+innerH/2-8, w-24, 16, "…")
+			drawFESLabel(dev, labels, used, "d-shot-miss", x+12, y+innerH/2-8, w-24, 16, "…")
 		}
 	}
 	if captionH > 0 {
 		caption := carouselCaption(index, len(ids))
-		drawLabel(dev, labels, used, "d-shot-cap", x+8, y+h-captionH, w-16, 16, caption)
+		drawFESLabel(dev, labels, used, "d-shot-cap", x+8, y+h-captionH, w-16, 16, caption)
 	}
 }
 
@@ -616,9 +670,9 @@ func drawViewPicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	}
 	rows := viewPickerRows(snap)
 	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
-	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
-	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
-	drawLabel(dev, labels, used, "view-title", x+16, y+10, panelW-32, 18, "Library view")
+	dev.FillRect(gfx.Rect{X: float32(x - 4), Y: float32(y - 4), W: float32(panelW + 8), H: float32(panelH + 8)}, heroDivider)
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(panelW), H: float32(panelH)}, heroSurface)
+	heroLine(dev, labels, used, x+16, y+10, panelW-32, 26, true, heroText, "Library view")
 	for i := 0; i < panel.Visible; i++ {
 		idx := panel.Start + i
 		if idx >= len(rows) {
@@ -626,7 +680,8 @@ func drawViewPicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		}
 		rowY := panel.rowY(i)
 		if idx == snap.ViewPickerIndex {
-			fillRect(dev, float32(x+8), float32(rowY-2), float32(panelW-16), float32(panel.RowH-2), 48, 56, 80, 255)
+			dev.FillRect(gfx.Rect{X: float32(x + 8), Y: float32(rowY - 2), W: float32(panelW - 16), H: float32(panel.RowH - 2)}, heroRaised)
+			heroOutline(dev, x+8, rowY-2, panelW-16, panel.RowH-2, 2, heroAccent)
 		}
 		label := rows[idx].Label
 		if label == "" {
@@ -638,9 +693,9 @@ func drawViewPicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		if rows[idx].Member {
 			label = label + "  +"
 		}
-		drawLabel(dev, labels, used, fmt.Sprintf("view-%d", idx), x+20, rowY, panelW-40, 16, label)
+		drawFESLabel(dev, labels, used, fmt.Sprintf("view-%d", idx), x+20, rowY+7, panelW-40, 20, label)
 	}
-	drawLabel(dev, labels, used, "view-hint", x+16, y+panelH-22, panelW-32, 14, viewPickerFooterHint(snap.Affinity))
+	drawFESLabel(dev, labels, used, "view-hint", x+16, y+panelH-22, panelW-32, 18, viewPickerFooterHint(snap.Affinity))
 }
 
 func drawCollectionMenu(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
@@ -650,25 +705,26 @@ func drawCollectionMenu(dev gfx.Device, snap Snapshot, labels map[string]gpuText
 		return
 	}
 	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
-	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
-	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	dev.FillRect(gfx.Rect{X: float32(x - 4), Y: float32(y - 4), W: float32(panelW + 8), H: float32(panelH + 8)}, heroDivider)
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(panelW), H: float32(panelH)}, heroSurface)
 	title := strings.TrimSpace(menu.Title)
 	if title == "" {
 		title = "Collection"
 	}
-	drawLabel(dev, labels, used, "cmenu-title", x+16, y+12, panelW-32, 18, title)
+	heroLine(dev, labels, used, x+16, y+12, panelW-32, 26, true, heroText, title)
 	for i, row := range menu.Rows {
 		rowY := panel.rowY(i)
 		if !menu.Confirm && i == menu.Index {
-			fillRect(dev, float32(x+8), float32(rowY-2), float32(panelW-16), float32(panel.RowH-2), 48, 56, 80, 255)
+			dev.FillRect(gfx.Rect{X: float32(x + 8), Y: float32(rowY - 2), W: float32(panelW - 16), H: float32(panel.RowH - 2)}, heroRaised)
+			heroOutline(dev, x+8, rowY-2, panelW-16, panel.RowH-2, 2, heroAccent)
 		}
-		drawLabel(dev, labels, used, fmt.Sprintf("cmenu-%d", i), x+20, rowY, panelW-40, 16, row)
+		drawFESLabel(dev, labels, used, fmt.Sprintf("cmenu-%d", i), x+20, rowY+7, panelW-40, 20, row)
 	}
 	hint := strings.TrimSpace(menu.Hint)
 	if hint == "" {
 		hint = collectionHintFor(snap.Affinity, menu.Confirm)
 	}
-	drawLabel(dev, labels, used, "cmenu-hint", x+16, y+panelH-24, panelW-32, 14, hint)
+	drawFESLabel(dev, labels, used, "cmenu-hint", x+16, y+panelH-24, panelW-32, 18, hint)
 }
 
 func drawSettings(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
@@ -679,8 +735,8 @@ func drawSettings(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, u
 	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
 	dimOutsidePanel(dev, snap.Grid, rectI{x - 4, y - 4, panelW + 8, panelH + 8})
 	rows := snap.Settings.Rows
-	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
-	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	dev.FillRect(gfx.Rect{X: float32(x - 4), Y: float32(y - 4), W: float32(panelW + 8), H: float32(panelH + 8)}, heroDivider)
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(panelW), H: float32(panelH)}, heroSurface)
 	title := "Settings"
 	switch {
 	case snap.Settings.TargetCount > 0 && snap.Settings.LibraryCount > 0:
@@ -690,11 +746,11 @@ func drawSettings(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, u
 	case snap.Settings.LibraryCount > 0:
 		title = fmt.Sprintf("Settings  ·  %d libraries", snap.Settings.LibraryCount)
 	}
-	drawLabel(dev, labels, used, "set-title", x+16, y+12, panelW-32, 18, title)
+	heroLine(dev, labels, used, x+16, y+12, panelW-32, 26, true, heroText, title)
 	if cache, ok := dev.(interface{ CacheBackdrop() }); ok {
 		cache.CacheBackdrop()
 	}
-	labelW := 180
+	labelW := 240
 	if labelW > panelW/3 {
 		labelW = panelW / 3
 	}
@@ -705,11 +761,12 @@ func drawSettings(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, u
 		}
 		rowY := panel.rowY(i)
 		if idx == snap.Settings.Index {
-			fillRect(dev, float32(x+8), float32(rowY-2), float32(panelW-16), float32(panel.RowH-2), 48, 56, 80, 255)
+			dev.FillRect(gfx.Rect{X: float32(x + 8), Y: float32(rowY - 2), W: float32(panelW - 16), H: float32(panel.RowH - 2)}, heroRaised)
+			heroOutline(dev, x+8, rowY-2, panelW-16, panel.RowH-2, 2, heroAccent)
 		}
 		row := rows[idx]
-		drawLabel(dev, labels, used, fmt.Sprintf("set-l-%s", row.ID), x+20, rowY+4, labelW, 16, row.Label)
-		drawLabel(dev, labels, used, fmt.Sprintf("set-v-%s-%d", row.ID, idx), x+20+labelW, rowY+4, panelW-labelW-40, 16, row.Value)
+		drawFESLabel(dev, labels, used, fmt.Sprintf("set-l-%s", row.ID), x+20, rowY+8, labelW, 20, row.Label)
+		drawFESLabel(dev, labels, used, fmt.Sprintf("set-v-%s-%d", row.ID, idx), x+20+labelW, rowY+8, panelW-labelW-40, 20, row.Value)
 	}
 	status := strings.TrimSpace(snap.Settings.Status)
 	if status == "" {
@@ -721,7 +778,9 @@ func drawSettings(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, u
 	if snap.Settings.Loading {
 		status = "loading host settings"
 	}
-	drawLabel(dev, labels, used, "set-status", x+16, y+panelH-24, panelW-32, 14, status)
+	for i, line := range gfx.WrapText(status, 18, panelW-32, 2) {
+		drawFESLabel(dev, labels, used, fmt.Sprintf("set-status-%d", i), x+16, y+panelH-panel.FooterH+6+i*22, panelW-32, 18, line)
+	}
 }
 
 // The opaque settings panel overwrites its entire border and interior. Only
@@ -756,13 +815,13 @@ func drawFilters(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, us
 	dev.SetBlend(gfx.BlendNone)
 	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
 	rows := snap.Filters.Rows
-	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
-	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	dev.FillRect(gfx.Rect{X: float32(x - 4), Y: float32(y - 4), W: float32(panelW + 8), H: float32(panelH + 8)}, heroDivider)
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(panelW), H: float32(panelH)}, heroSurface)
 	title := strings.TrimSpace(snap.Filters.Title)
 	if title == "" {
 		title = "Filters"
 	}
-	drawLabel(dev, labels, used, "flt-title", x+16, y+12, panelW-32, 18, title)
+	heroLine(dev, labels, used, x+16, y+12, panelW-32, 26, true, heroText, title)
 	labelW := 180
 	if labelW > panelW/2 {
 		labelW = panelW / 2
@@ -774,16 +833,17 @@ func drawFilters(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, us
 		}
 		rowY := panel.rowY(i)
 		if idx == snap.Filters.Index {
-			fillRect(dev, float32(x+8), float32(rowY-2), float32(panelW-16), float32(panel.RowH-2), 48, 56, 80, 255)
+			dev.FillRect(gfx.Rect{X: float32(x + 8), Y: float32(rowY - 2), W: float32(panelW - 16), H: float32(panel.RowH - 2)}, heroRaised)
+			heroOutline(dev, x+8, rowY-2, panelW-16, panel.RowH-2, 2, heroAccent)
 		}
 		row := rows[idx]
 		label := row.Label
 		if row.Active {
 			label += "  *"
 		}
-		drawLabel(dev, labels, used, fmt.Sprintf("flt-l-%s-%d", row.ID, idx), x+20, rowY+4, labelW, 16, label)
+		drawFESLabel(dev, labels, used, fmt.Sprintf("flt-l-%s-%d", row.ID, idx), x+20, rowY+8, labelW, 20, label)
 		if strings.TrimSpace(row.Value) != "" {
-			drawLabel(dev, labels, used, fmt.Sprintf("flt-v-%s-%d", row.ID, idx), x+20+labelW, rowY+4, panelW-labelW-40, 16, row.Value)
+			drawFESLabel(dev, labels, used, fmt.Sprintf("flt-v-%s-%d", row.ID, idx), x+20+labelW, rowY+8, panelW-labelW-40, 20, row.Value)
 		}
 	}
 	status := strings.TrimSpace(snap.Filters.Status)
@@ -793,7 +853,9 @@ func drawFilters(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, us
 	if status == "" {
 		status = filterHintFor(snap.Affinity, false)
 	}
-	drawLabel(dev, labels, used, "flt-status", x+16, y+panelH-24, panelW-32, 14, status)
+	for i, line := range gfx.WrapText(status, 18, panelW-32, 2) {
+		drawFESLabel(dev, labels, used, fmt.Sprintf("flt-status-%d", i), x+16, y+panelH-panel.FooterH+6+i*22, panelW-32, 18, line)
+	}
 }
 
 func drawOSK(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
@@ -808,32 +870,32 @@ func drawOSK(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used m
 	dev.SetBlend(gfx.BlendNone)
 	x, y, panelW, panelH := geom.X, geom.Y, geom.W, geom.H
 	keyH := geom.KeyH
-	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
-	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	dev.FillRect(gfx.Rect{X: float32(x - 4), Y: float32(y - 4), W: float32(panelW + 8), H: float32(panelH + 8)}, heroDivider)
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(panelW), H: float32(panelH)}, heroSurface)
 	prompt := strings.TrimSpace(snap.OSK.Prompt)
 	if prompt == "" {
 		prompt = "Search"
 	}
 	query := snap.OSK.Buffer
-	drawLabel(dev, labels, used, "osk-query", x+16, y+12, panelW-32, 18, prompt+": "+query+"_")
+	drawFESLabel(dev, labels, used, "osk-query", x+16, y+12, panelW-32, 22, prompt+": "+query+"_")
 	for _, key := range keys {
 		if key.Focus {
-			fillRect(dev, float32(key.X-2), float32(key.Y-2), float32(key.W+4), float32(key.H+4), 255, 184, 48, 255)
-			fillRect(dev, float32(key.X), float32(key.Y), float32(key.W), float32(key.H), 48, 56, 80, 255)
+			dev.FillRect(gfx.Rect{X: float32(key.X - 2), Y: float32(key.Y - 2), W: float32(key.W + 4), H: float32(key.H + 4)}, heroAccent)
+			dev.FillRect(gfx.Rect{X: float32(key.X), Y: float32(key.Y), W: float32(key.W), H: float32(key.H)}, heroRaised)
 		} else {
-			fillRect(dev, float32(key.X), float32(key.Y), float32(key.W), float32(key.H), 32, 36, 48, 255)
+			dev.FillRect(gfx.Rect{X: float32(key.X), Y: float32(key.Y), W: float32(key.W), H: float32(key.H)}, heroRaised)
 		}
-		labelSize := 16
+		labelSize := 20
 		if keyH < 28 {
 			labelSize = 12
 		}
-		drawLabel(dev, labels, used, fmt.Sprintf("osk-%d-%d-%s", key.Row, key.Col, key.ID), key.X+4, key.Y+(keyH-labelSize)/2, key.W-8, labelSize, key.Label)
+		drawFESLabel(dev, labels, used, fmt.Sprintf("osk-%d-%d-%s", key.Row, key.Col, key.ID), key.X+4, key.Y+(keyH-labelSize)/2, key.W-8, labelSize, key.Label)
 	}
 	hint := strings.TrimSpace(snap.OSK.Hint)
 	if hint == "" {
 		hint = oskHintFor(snap.Affinity, snap.OSK.Page)
 	}
-	drawLabel(dev, labels, used, "osk-hint", x+16, y+panelH-24, panelW-32, 14, hint)
+	drawFESLabel(dev, labels, used, "osk-hint", x+16, y+panelH-24, panelW-32, 18, hint)
 }
 
 func drawAttract(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTexture) {
@@ -899,10 +961,6 @@ func drawAttract(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuT
 
 func fillRect(dev gfx.Device, x, y, w, h float32, r, g, b, a uint8) {
 	dev.FillRect(gfx.Rect{X: x, Y: y, W: w, H: h}, gfx.RGBA(r, g, b, a))
-}
-
-func drawDebug(dev gfx.Device, x, y int, text string, scale int) {
-	dev.DebugText(x, y, text, scale)
 }
 
 func drawDebugHUD(dev gfx.Device, snap Snapshot) {

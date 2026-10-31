@@ -77,6 +77,20 @@ wait_hblank:
     inb %dx,%al
     testb $1,%al
     jz wait_hblank
+    /* Visible completion signature, only after both adapters and status polls
+     * pass: a solid 16-dot by 8-line block at the CGA viewport's top left.
+     * The surrounding 55AA stripes deliberately remain static after HLT. */
+    movw $0xb800,%ax
+    movw %ax,%es
+    movw $0xffff,%ax
+    movw %ax,%es:0
+    movw %ax,%es:0x2000
+    movw %ax,%es:80
+    movw %ax,%es:0x2050
+    movw %ax,%es:160
+    movw %ax,%es:0x20a0
+    movw %ax,%es:240
+    movw %ax,%es:0x20f0
     movb $0xaa,0x600
 stop:
     hlt

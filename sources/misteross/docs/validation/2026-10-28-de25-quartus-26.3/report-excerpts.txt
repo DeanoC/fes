@@ -1,0 +1,113 @@
+Exact selected report lines; table borders and blank lines omitted.
+
+output_files/de25nano_blinky.sta.rpt:253-258
+; Clocks                                                                                                                                                                                                                                                                                           ;
+; Clock Name   ; Type ; Period ; Frequency ; Rise  ; Fall   ; Duty Cycle ; Divide by ; Multiply by ; Phase ; Offset ; Edge List ; Edge Shift ; Inverted ; Master ; Source ; Targets                                                                                                                ;
+; CLOCK0_50    ; Base ; 20.000 ; 50.0 MHz  ; 0.000 ; 10.000 ;            ;           ;             ;       ;        ;           ;            ;          ;        ;        ; { CLOCK0_50 }                                                                                                          ;
+; internal_clk ; Base ; 10.000 ; 100.0 MHz ; 0.000 ; 5.000  ;            ;           ;             ;       ;        ;           ;            ;          ;        ;        ; { auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|agilexconfigreset|user_reset|sdm_gpo_out_user_reset~internal_ctrl_clock.reg } ;
+
+output_files/de25nano_blinky.sta.rpt:261-285
+; Design Closure Summary                                                            ;
+; Panel Name                                             ; Result Flag              ;
+; Design Closure Summary                                 ; Fail                     ;
+;   Timing Closure                                       ; Pass                     ;
+;     Setup Summary                                      ; Pass                     ;
+;     Hold Summary                                       ; Pass                     ;
+;     Recovery Summary                                   ; Pass                     ;
+;     Removal Summary                                    ; Pass                     ;
+;     Setup Data Delay Summary                           ; Not Found                ;
+;     Recovery Data Delay Summary                        ; Not Found                ;
+;     Minimum Pulse Width Summary                        ; Pass                     ;
+;     Max Skew Summary                                   ; Not Found                ;
+;     Max Clock Skew Summary                             ; Not Found                ;
+;     Net Delay Summary                                  ; Not Found                ;
+;     Metastability Summary                              ; Not Calculated           ;
+;     Double Data Rate (DDR) Summary                     ; Not Found                ;
+;     Transmitter Channel-to-Channel Skew (TCCS) Summary ; Not Found                ;
+;     Receiver Input Skew Margin (RSKM) Summary          ; Not Found                ;
+;   Design Assistant Summary                             ; High Severity Violations ;
+;   Unconstrained Paths                                  ; Fail                     ;
+
+output_files/de25nano_blinky.sta.rpt:369-384
+Slow fix4a 0C Model
+Fast fix4 0C Model
+----------------------------------------------
+; Metastability Summary Slow fix4 100C Model ;
+----------------------------------------------
+The Design MTBF is not calculated because there are no specified synchronizers in the design.
+MTBF(design) = 1 / SUM(1 / MTBF(synchronizer chain))
+Number of Synchronizer Chains Found: 1
+Shortest Synchronizer Chain: 2 Registers
+Number of Chains For Which MTBFs Could Not be Calculated Due to Timing Violations: 0, or 0.0%.
+Number of Chains Excluded from MTBF Analysis: 1, or 100.0%
+
+output_files/de25nano_blinky.sta.rpt:448-467
+; Recovery Transfers                                                                                                                                        ;
+; From Clock   ; To Clock  ; RR Paths   ; FR Paths   ; RF Paths ; FF Paths ; Clock Pair Classification ; Worst-Case Slack ; Worst-Case Operating Conditions ;
+; internal_clk ; CLOCK0_50 ; false path ; false path ; 0        ; 0        ; Ignored (Not Timed)       ; --               ; --                              ;
+; CLOCK0_50    ; CLOCK0_50 ; 48         ; 0          ; 0        ; 0        ; Intra-Clock (Timed Safe)  ; 19.039           ; Slow fix4 0C Model              ;
+An "Asynchronous (Timed Unsafe)" transfer occurs when the From & To clocks are asynchronous and no timing constraints exist. Entries labeled "false path" only account for clock-to-clock false paths. Path-based false path counts are shown in rows with "Ignored (Not Timed)" classifications
+; Removal Transfers                                                                                                                                         ;
+; From Clock   ; To Clock  ; RR Paths   ; FR Paths   ; RF Paths ; FF Paths ; Clock Pair Classification ; Worst-Case Slack ; Worst-Case Operating Conditions ;
+; internal_clk ; CLOCK0_50 ; false path ; false path ; 0        ; 0        ; Ignored (Not Timed)       ; --               ; --                              ;
+; CLOCK0_50    ; CLOCK0_50 ; 48         ; 0          ; 0        ; 0        ; Intra-Clock (Timed Safe)  ; 0.171            ; Fast fix4 0C Model              ;
+
+output_files/de25nano_blinky.sta.rpt:4209-4230
+; Unconstrained Paths Summary                                      ;
+; Property                                          ; Setup ; Hold ;
+; Illegal Clocks                                    ; 0     ; 0    ;
+; Unconstrained Clocks                              ; 0     ; 0    ;
+; Unconstrained Input Ports                         ; 0     ; 0    ;
+; Paths from Unconstrained Input Ports (Pairs-Only) ; 0     ; 0    ;
+; Unconstrained Output Ports                        ; 8     ; 8    ;
+; Paths to Unconstrained Output Ports (Pairs-Only)  ; 8     ; 8    ;
+; Clock Status Summary                                                                                                                                   ;
+; Target                                                                                                             ; Clock        ; Type ; Status      ;
+; CLOCK0_50                                                                                                          ; CLOCK0_50    ; Base ; Constrained ;
+; auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|agilexconfigreset|user_reset|sdm_gpo_out_user_reset~internal_ctrl_clock.reg ; internal_clk ; Base ; Constrained ;
+
+output_files/de25nano_blinky.fit.rpt:230-248
+; Name      ; Pin # ; I/O Bank ; X coordinate ; Y coordinate ; Z coordinate ; Combinational Fan-Out ; Registered Fan-Out ; Global ; Input Register ; Bus Hold ; Weak Pull Up ; I/O Standard ; Termination ; Termination Control Block ; Location assigned by ; Slew Rate ;
+; CLOCK0_50 ; DJ35  ; 2A_T     ; 62           ; 0            ; 120          ; 35                    ; 0                  ; yes    ; no             ; no       ; Off          ; 1.1-V        ; Off         ; --                        ; User                 ; no        ;
+; Output Pins                                                                                                                                                                                                                                                                                                                                                                                                                   ;
+; Name    ; Pin # ; I/O Bank ; X coordinate ; Y coordinate ; Z coordinate ; Output Register ; Output Enable Register ; Slew Rate ; Open Drain ; TRI Primitive ; Bus Hold ; Weak Pull Up ; I/O Standard ; Current Strength ; Termination                       ; Termination Control Block ; Output Buffer Pre-emphasis ; Voltage Output Differential ; Location assigned by ; Load ; Output Enable Source ; Output Enable Group ;
+; LEDR[0] ; DF35  ; 2A_T     ; 62           ; 0            ; 123          ; no              ; no                     ; 1         ; no         ; no            ; no       ; Off          ; 1.1-V        ; 9mA              ; Series 40 Ohm without Calibration ; --                        ; 0                          ; 2                           ; User                 ; 0 pF ; -                    ; -                   ;
+; LEDR[1] ; DJ32  ; 2A_T     ; 62           ; 0            ; 137          ; no              ; no                     ; 1         ; no         ; no            ; no       ; Off          ; 1.1-V        ; 9mA              ; Series 40 Ohm without Calibration ; --                        ; 0                          ; 2                           ; User                 ; 0 pF ; -                    ; -                   ;
+; LEDR[2] ; DN22  ; 2A_T     ; 62           ; 0            ; 52           ; no              ; no                     ; 1         ; no         ; no            ; no       ; Off          ; 1.1-V        ; 9mA              ; Series 40 Ohm without Calibration ; --                        ; 0                          ; 2                           ; User                 ; 0 pF ; -                    ; -                   ;
+; LEDR[3] ; DP23  ; 2A_T     ; 62           ; 0            ; 49           ; no              ; no                     ; 1         ; no         ; no            ; no       ; Off          ; 1.1-V        ; 9mA              ; Series 40 Ohm without Calibration ; --                        ; 0                          ; 2                           ; User                 ; 0 pF ; -                    ; -                   ;
+; LEDR[4] ; DN25  ; 2A_T     ; 62           ; 0            ; 45           ; no              ; no                     ; 1         ; no         ; no            ; no       ; Off          ; 1.1-V        ; 9mA              ; Series 40 Ohm without Calibration ; --                        ; 0                          ; 2                           ; User                 ; 0 pF ; -                    ; -                   ;
+; LEDR[5] ; DP25  ; 2A_T     ; 62           ; 0            ; 42           ; no              ; no                     ; 1         ; no         ; no            ; no       ; Off          ; 1.1-V        ; 9mA              ; Series 40 Ohm without Calibration ; --                        ; 0                          ; 2                           ; User                 ; 0 pF ; -                    ; -                   ;
+; LEDR[6] ; DJ27  ; 2A_T     ; 62           ; 0            ; 141          ; no              ; no                     ; 1         ; no         ; no            ; no       ; Off          ; 1.1-V        ; 9mA              ; Series 40 Ohm without Calibration ; --                        ; 0                          ; 2                           ; User                 ; 0 pF ; -                    ; -                   ;
+; LEDR[7] ; DP30  ; 2A_T     ; 62           ; 0            ; 35           ; no              ; no                     ; 1         ; no         ; no            ; no       ; Off          ; 1.1-V        ; 9mA              ; Series 40 Ohm without Calibration ; --                        ; 0                          ; 2                           ; User                 ; 0 pF ; -                    ; -                   ;
+
+output_files/de25nano_blinky.fit.rpt:1537-1548
+; I/O Assignment Warnings                                                                                    ;
+; Pin Name ; Reason                                                                                          ;
+; LEDR[0]  ; Missing termination setting and slew rate on output pin, a default slew rate of 1 has been used ;
+; LEDR[1]  ; Missing termination setting and slew rate on output pin, a default slew rate of 1 has been used ;
+; LEDR[2]  ; Missing termination setting and slew rate on output pin, a default slew rate of 1 has been used ;
+; LEDR[3]  ; Missing termination setting and slew rate on output pin, a default slew rate of 1 has been used ;
+; LEDR[4]  ; Missing termination setting and slew rate on output pin, a default slew rate of 1 has been used ;
+; LEDR[5]  ; Missing termination setting and slew rate on output pin, a default slew rate of 1 has been used ;
+; LEDR[6]  ; Missing termination setting and slew rate on output pin, a default slew rate of 1 has been used ;
+; LEDR[7]  ; Missing termination setting and slew rate on output pin, a default slew rate of 1 has been used ;
+
+output_files/de25nano_blinky.tq.drc.signoff.rpt:120-124
+; Design Assistant (Signoff) Results - 1 of 85 Rules Failed                                                                                                                                    ;
+; Rule                                                                                                       ; Severity ; Violations ; Waived ; Tags                                           ;
+; TMC-20012 - Missing Output Delay Constraint                                                                ; High     ; 8          ; 0      ; sdc, system                                    ;
+
+compile.log: warning lines and completion footer
+214: Warning (25315): Some pins are missing drive strength (current strength), termination and/or slew rate assignments. Refer to the I/O Assignment Warnings report for details.
+372: Warning (21620): Design Assistant Results: 1 of 34 High severity rules issued violations in snapshot 'final'. Please refer to DRC report '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-nano-bringup/out/de25-quartus-26.3-304142aa0d/output_files/de25nano_blinky.tq.drc.signoff.rpt' for more information
+    Info: Peak virtual memory: 4110 megabytes
+    Info: Processing ended: Wed Oct 28 12:37:25 2026
+    Info: Elapsed time: 00:00:11
+    Info: System process ID: 3629445
+Info (21793): Quartus Prime Full Compilation was successful. 0 errors, 2 warnings
+Info (23030): Evaluation of Tcl script /data/altera_pro/26.3/quartus/common/tcl/internal/qsh_flowengine.tcl was successful
+Info: Quartus Prime Shell was successful. 0 errors, 2 warnings
+    Info: Peak virtual memory: 1366 megabytes
+    Info: Processing ended: Wed Oct 28 12:37:27 2026
+    Info: Elapsed time: 00:02:07
+    Info: System process ID: 3609946

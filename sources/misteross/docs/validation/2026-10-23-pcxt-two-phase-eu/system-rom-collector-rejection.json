@@ -1,0 +1,488 @@
+{
+  "scope": "Rejected collection receipt; native CPU/board figures are diagnostic only. No timing qualification or hardware acceptance.",
+  "original_receipt": "route-system-rom/receipt.json",
+  "original_receipt_sha256": "8ece4ddf8a11ca7e449c3e314dd0ffb4a62fd9e0fc8613efa7b50243cb782a58",
+  "original_postflight_identity_pass": false,
+  "cause": "The adapted runner self-binding key was paired with the retained original route.py hash.",
+  "expected_runner_hash_recorded": "62385cfcb4abfc92fe7fe0dfbef5f76c5db45e377fdbb795132f75e347ec8e16",
+  "actual_adapted_runner_sha256": "5be66c24f17d4b3674b1c4d33d0212fcabdd7ab629d88e18ec1646a7f669e59c",
+  "retained_original_runner_sha256": "62385cfcb4abfc92fe7fe0dfbef5f76c5db45e377fdbb795132f75e347ec8e16",
+  "all_design_and_tool_input_bindings_match": true,
+  "diagnostic_metrics": {
+    "rows": 17709,
+    "setup_timed": 17704,
+    "setup_failures": 72,
+    "setup_wns_ps": -1575,
+    "hold_related": 17704,
+    "hold_failures": 0,
+    "hold_min_ps": 789,
+    "unsupported": 105,
+    "complete": false,
+    "groups": {
+      "CPU": {
+        "rows": 3491,
+        "setup_timed": 3491,
+        "setup_failures": 0,
+        "setup_wns_ps": 934,
+        "hold_related": 3491,
+        "hold_failures": 0,
+        "hold_min_ps": 802,
+        "worst_setup": [
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.eu_rom_address_MISTRAL_FF_Q_4",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 934
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[1].read_address_MISTRAL_FF_Q_10",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1044
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.eu_rom_address_MISTRAL_FF_Q_7",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1060
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.eu_rom_address_MISTRAL_FF_Q_1",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1209
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.eu_add_overflow8_fixed_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1232
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[2].read_address_MISTRAL_FF_Q_5",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1271
+          }
+        ]
+      },
+      "PIC": {
+        "rows": 195,
+        "setup_timed": 195,
+        "setup_failures": 0,
+        "setup_wns_ps": 1245,
+        "hold_related": 195,
+        "hold_failures": 0,
+        "hold_min_ps": 1102,
+        "worst_setup": [
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.u_In_Service.next_in_service_register_MISTRAL_ALUT3_Q_2_A_MISTRAL_ALUT2_B_Q_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1245
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.address_MISTRAL_FF_Q",
+                "ENA"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1288
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.u_Control_Logic.write_initial_command_word_4_MISTRAL_FF_ENA_1_Q_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1288
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.u_In_Service.next_in_service_register_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT5_Q_A_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1590
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.u_In_Service.next_in_service_register_MISTRAL_ALUT3_Q_A_MISTRAL_FF_Q_1_ENA_MISTRAL_FF_ENA_1_Q_MISTRAL_FF_Q_1",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1725
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.u_In_Service.next_in_service_register_MISTRAL_ALUT3_Q_3_A_MISTRAL_ALUT2_B_Q_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1964
+          }
+        ]
+      },
+      "display": {
+        "rows": 2642,
+        "setup_timed": 2642,
+        "setup_failures": 27,
+        "setup_wns_ps": -1575,
+        "hold_related": 2642,
+        "hold_failures": 0,
+        "hold_min_ps": 829,
+        "worst_setup": [
+          {
+            "key": [
+              [
+                "system.machine.isa.rgbi_MISTRAL_FF_Q_7",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -1575
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.slots[1].cga.card.card.vram.5.0.0",
+                "A1EN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -1391
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.slots[1].cga.card.card.vram.14.0.1",
+                "A1EN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -1266
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.slots[1].cga.card.card.vram.11.0.0",
+                "A1EN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -1203
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.slots[1].cga.card.card.vram.4.0.0",
+                "A1EN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -1132
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.slots[1].cga.card.card.vram.1.0.1",
+                "A1EN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -1087
+          }
+        ]
+      },
+      "other": {
+        "rows": 11381,
+        "setup_timed": 11376,
+        "setup_failures": 45,
+        "setup_wns_ps": -968,
+        "hold_related": 11376,
+        "hold_failures": 0,
+        "hold_min_ps": 789,
+        "worst_setup": [
+          {
+            "key": [
+              [
+                "boot.rom.7.7.0",
+                "B1ADDR[4]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -968
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.dma_device.terminal_MISTRAL_FF_Q",
+                "ENA"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -962
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.dma_device.transfer_address_MISTRAL_FF_Q",
+                "ENA"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -962
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.dma_device.transfer_address_MISTRAL_FF_Q_10",
+                "ENA"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -962
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.dma_device.transfer_address_MISTRAL_FF_Q_11",
+                "ENA"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -962
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.dma_device.transfer_address_MISTRAL_FF_Q_14",
+                "ENA"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -962
+          }
+        ]
+      }
+    }
+  },
+  "repeat": "Completed with successful preflight/postflight and byte-exact complete RBF/timing/endpoint reproduction; see final-route-summary.json. The original receipt stays rejected.",
+  "accounting": {
+    "completed_route_search_receipts": 80,
+    "prior_79_prefix_exact": true,
+    "all_80_receipt_objects_hashes_and_Decimal_charges_verified": true,
+    "prior_journal_sha256": "e5f97f4909a177e68b11876ba9e0376d89c3b42560571e0f81cc40cd16f78e4e",
+    "journal_sha256": "b5f59e6265a6994bbeed41c401212ccc42df65809b5ef4d8e7fa4b8c8be4c13a",
+    "new_charge_seconds": "1211.429087513592",
+    "cumulative_charge_seconds": "89820.69556666351809",
+    "scope": "Exactly one fresh system-clock-ROM full route; no host proof/build/synthesis charges."
+  },
+  "hardware": false
+}

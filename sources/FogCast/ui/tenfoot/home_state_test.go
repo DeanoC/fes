@@ -77,11 +77,11 @@ func restoreHomeSelection(t *testing.T, homeFile, stateDir string) {
 	wantID := cores[1].PackageID
 	app := startHomeState(t, cores)
 	waitFor(t, app, "first core", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "FES Pong"
+		return s.Room.Destination.Label == "Pong"
 	})
 	app.HandleCommand(CmdRight, time.Now())
 	waitFor(t, app, "moved core", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "Zx81"
+		return s.Room.Destination.Label == "Sinclair ZX81"
 	})
 	// Closing Home runs its unload save and flushes the store. These tests
 	// cover filesystem selection, not the render loop or save debounce.
@@ -101,7 +101,7 @@ func restoreHomeSelection(t *testing.T, homeFile, stateDir string) {
 
 	again := startHomeState(t, cores)
 	waitFor(t, again, "restored core", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "Zx81" && s.Room.Destination.PackageID == wantID
+		return s.Room.Destination.Label == "Sinclair ZX81" && s.Room.Destination.PackageID == wantID
 	})
 }
 
@@ -131,7 +131,7 @@ func TestHomeRestoresSelectionFromReadOnlyConfig(t *testing.T) {
 
 	app := startHomeState(t, cores)
 	waitFor(t, app, "read-only restored core", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "Zx81" && s.Room.Destination.PackageID == wantID
+		return s.Room.Destination.Label == "Sinclair ZX81" && s.Room.Destination.PackageID == wantID
 	})
 	if _, err := os.Lstat(filepath.Join(kitDir, "FogCast")); !os.IsNotExist(err) {
 		t.Fatalf("read-only config fell back to the kit directory: %v", err)
@@ -236,11 +236,11 @@ func TestHomeKeepsWorkingWhenStateDirIsUnwritable(t *testing.T) {
 
 	app := startHomeState(t, homeFixtureCores())
 	waitFor(t, app, "first core", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "FES Pong"
+		return s.Room.Destination.Label == "Pong"
 	})
 	app.HandleCommand(CmdRight, time.Now())
 	snap := waitFor(t, app, "moved core", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "Zx81"
+		return s.Room.Destination.Label == "Sinclair ZX81"
 	})
 	if snap.Room.Err != "" {
 		t.Fatalf("room failed: %s", snap.Room.Err)

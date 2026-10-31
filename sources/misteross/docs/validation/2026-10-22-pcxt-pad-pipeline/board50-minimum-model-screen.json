@@ -1,0 +1,1340 @@
+{
+  "schema": 1,
+  "scope": "Publish bounded PC/XT minimum-model investigation, without changing a lock.",
+  "evidence_class": "host-only model and fitted-reference diagnostic",
+  "base_FES_commit": "7217d83031e60f9c238b73ae34a41019ee1252f2",
+  "compiler": {
+    "thresholds": {
+      "commit": "c57686002daaaf6cd95831480487b6cc99fc42c2",
+      "pre_master_merge_commit": "d210ec5d9a578b6bd162558cffb4c94d80aee376",
+      "library_source_tree": "4c0184391d8a0477dec770f1e0a73aa8f890837a",
+      "library_source_unchanged_by_master_merge": true,
+      "ctest_count": 10,
+      "ctest_log_sha256": "31bffa357683c5aac334c1136a3161a57d2649c1d7473f0e9f5a2f6ad9f8d5ec",
+      "pull_request": "https://github.com/DeanoC/mistral/pull/22"
+    },
+    "corners": {
+      "commit": "d8b07450982fa53e1efaae76e4706fe51e1a2be1",
+      "pre_master_merge_commit": "0e8b9e95108255924af3c5b4f873f92abbf2b156",
+      "library_source_tree": "bfb165a691148ca4e6b9915e9e5acba95974b039",
+      "library_source_unchanged_by_master_merge": true,
+      "ctest_count": 13,
+      "ctest_log_sha256": "1a5ebe873cee82b190649f92e0be25f2b0b3af22a7f0e69aed19ef8f7a2b816f",
+      "pull_request": "https://github.com/DeanoC/mistral/pull/24"
+    }
+  },
+  "actual_replay_library_sha256": "058bd24109a3f4521ac266d7a2625c67fbf40cce926175ab9cf499bc99aa440f",
+  "actual_replay_library_commit": "0e8b9e95108255924af3c5b4f873f92abbf2b156",
+  "native_Arch_objects_commit": "fdf0462df26d18bfb308248249e1798a0b58667c",
+  "replay_library_bytes_unchanged_after_master_merge": true,
+  "replays": [
+    {
+      "run": "seed1-min100",
+      "receipt_sha256": "12686f18d10dac63c8448bb6598474a51d792718f84c6d939b5b8dffaac3266e",
+      "seed": 1,
+      "corner": "min100",
+      "FF_clock_to_Q_min_forced_zero": false,
+      "returncode": 0,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 2.2260000705718994,
+      "hold_min_ns": 0.6119999885559082,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "fabccae4b262b3c946d0b3c2438010b3171cafab81288e8ca79e8f33868e1d7e",
+        "run.log": "89d67b0d2085007ffd4e11fa6fa8f8d81ac27cf95bc9c1e2300625eabbd920f3",
+        "replay.rbf": "facbd2002fbe9113b542dff56ba9238243d8eb2f46a5c6388c5528acfb81cdd1",
+        "started.json": "fd4dfdf203cd3220c99520187b938f40e0f2f3ea1eaf65c8a1c91e601cc06e53"
+      }
+    },
+    {
+      "run": "seed1-minn40",
+      "receipt_sha256": "237c092bbcb9c4a0f9f80ef0be2e2ea40c5a6398290e60245f914efb7d49de27",
+      "seed": 1,
+      "corner": "minn40",
+      "FF_clock_to_Q_min_forced_zero": false,
+      "returncode": 0,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 2.563999891281128,
+      "hold_min_ns": 0.5659999847412109,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "f485c056cab5a14d5937ca60cc35896363d7ee025212e628133bd5a617959e9c",
+        "run.log": "30b3aad6312317cdf0bc14a6251ae65ebbb1107fabdeb63cf2d12ee73e6b9af3",
+        "replay.rbf": "facbd2002fbe9113b542dff56ba9238243d8eb2f46a5c6388c5528acfb81cdd1",
+        "started.json": "23a22ec5aaf021eb6e67bfe91b536af8e9e8fc6cf5b27c00d1faaab6d239c29e"
+      }
+    },
+    {
+      "run": "seed1-minn40-zeroFFmin",
+      "receipt_sha256": "ab066e1010d111e5713187d3096ca100696f202bc206a20c387f7a5faf80790d",
+      "seed": 1,
+      "corner": "minn40",
+      "FF_clock_to_Q_min_forced_zero": true,
+      "returncode": 1,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 2.563999891281128,
+      "hold_min_ns": -0.16500000655651093,
+      "failing_setup": 0,
+      "failing_hold": 70,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "35d5b2625b1bf2b67df6806e8df2b82c8f6c6d05a03d13c8de184651c21e8b8d",
+        "run.log": "7dfcb429641dd81d41c6a0abd6b6833b0ce0d1c2548bea51142aa41314e7302c",
+        "replay.rbf": "facbd2002fbe9113b542dff56ba9238243d8eb2f46a5c6388c5528acfb81cdd1",
+        "started.json": "6694f1d6f8dc3ad9d553468a820ae78f715ffea069cfd4811c3ba3f415fb10f5"
+      }
+    },
+    {
+      "run": "seed1-slow100",
+      "receipt_sha256": "89a317a42371f4183c2312618311c9168a916cc755101f9b99455da896d44c3d",
+      "seed": 1,
+      "corner": "slow100",
+      "FF_clock_to_Q_min_forced_zero": false,
+      "returncode": 0,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.343000054359436,
+      "hold_min_ns": 0.7080000042915344,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "cdfd062a657df2bc3eab55636eff982e6ef301971ea7725e835ef21d795b5fc2",
+        "run.log": "560b86d43cb03304d7bf10122e6ed99e1f36dddd177c0abbeab40010f21187c6",
+        "replay.rbf": "facbd2002fbe9113b542dff56ba9238243d8eb2f46a5c6388c5528acfb81cdd1",
+        "started.json": "a1180ad64ea594700f05cac0078a905c5aeffb25795e019821c0026ef598ee6e"
+      }
+    },
+    {
+      "run": "seed1-slown40",
+      "receipt_sha256": "1f8ffafa6276a95c584dfc9888159d99939e90180ca9daa96420314514c05506",
+      "seed": 1,
+      "corner": "slown40",
+      "FF_clock_to_Q_min_forced_zero": false,
+      "returncode": 0,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.5570000410079956,
+      "hold_min_ns": 0.6050000190734863,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "7a8348e03150c74af8fc4c99ff8edfc6eb089bbf435e8c4f4a58020781c7e603",
+        "run.log": "269a6c4a91cd7757c9451fd9b967719f076a1a8800fc58152a7e1ffc93bc8886",
+        "replay.rbf": "facbd2002fbe9113b542dff56ba9238243d8eb2f46a5c6388c5528acfb81cdd1",
+        "started.json": "6033f35b60f83edf5af00947e4baac3312ad8935599ff1a7002f6c5893c03097"
+      }
+    },
+    {
+      "run": "seed2-min100",
+      "receipt_sha256": "f23c5054a0faa65b0d80f9d570fa6e72240921b79f600748237004a9024d4159",
+      "seed": 2,
+      "corner": "min100",
+      "FF_clock_to_Q_min_forced_zero": false,
+      "returncode": 0,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 2.753000020980835,
+      "hold_min_ns": 0.6150000095367432,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "42cf4a1cc6493e08a54ea7d2f5b7e4eb3d256634aa40c43c5169716003ab5d70",
+        "run.log": "2c36369aa786ead05cd6167cd98d93552d31b0b9318e844ec0c2d1a264b757bc",
+        "replay.rbf": "bc29a02c89a38f59f2bad77fd87ee3ebd72061f1b6a7d416bb8690b477f6799c",
+        "started.json": "3fa92a7ee955d475d984d9d7a486e9ef8cc08ec2ce5456b7e21c9c765eeb6642"
+      }
+    },
+    {
+      "run": "seed2-minn40",
+      "receipt_sha256": "2028bd114c1137adbbe0a0c70adfae591083c20db75be689224592d8b84c2b7a",
+      "seed": 2,
+      "corner": "minn40",
+      "FF_clock_to_Q_min_forced_zero": false,
+      "returncode": 0,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 2.9489998817443848,
+      "hold_min_ns": 0.5910000205039978,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "61a6dc0ce92cdf510979ab325467432271a6d9cbe5b458bca6a071a334c476a8",
+        "run.log": "3d25aef79105fd52f5b64a4688da9a68877518dbbbaf5fbfd8f33f8439faef08",
+        "replay.rbf": "bc29a02c89a38f59f2bad77fd87ee3ebd72061f1b6a7d416bb8690b477f6799c",
+        "started.json": "6b20ab911480c8a377802d3b71652fc7609bb28001bc7882d97ab9f96acf2bd6"
+      }
+    },
+    {
+      "run": "seed2-minn40-zeroFFmin",
+      "receipt_sha256": "dfd6faec6441cd05d0d36e40827b8eb5f31ff9337c02db3d280f0338d6f1121a",
+      "seed": 2,
+      "corner": "minn40",
+      "FF_clock_to_Q_min_forced_zero": true,
+      "returncode": 1,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 2.9489998817443848,
+      "hold_min_ns": -0.14000000059604645,
+      "failing_setup": 0,
+      "failing_hold": 63,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "bcb5ce07b8f317c0c1f90e0d14291d71b743219975efba485e721620533deb6f",
+        "run.log": "76dc50cbd3ece9e78916b18561c33013337e8604b04dd5a9abda9285c2aded8a",
+        "replay.rbf": "bc29a02c89a38f59f2bad77fd87ee3ebd72061f1b6a7d416bb8690b477f6799c",
+        "started.json": "960c699fdaf055530b9d4ac80b57a1474bad477c8b7fb0827502be13376f67c9"
+      }
+    },
+    {
+      "run": "seed2-slow100",
+      "receipt_sha256": "d58ab6704c6e98cd4d3c363f38573ecff38e30b00a1f15646151812b0fabd98d",
+      "seed": 2,
+      "corner": "slow100",
+      "FF_clock_to_Q_min_forced_zero": false,
+      "returncode": 0,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.815999984741211,
+      "hold_min_ns": 0.7720000147819519,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "d33df669de471652589bb333b458a254c67ea47bd50fa6835cae536d66d483a9",
+        "run.log": "ef1e616e5ff8b96241a9d7d5e7cf994d4de9dd5b2d598b59e68f82fff6d7edef",
+        "replay.rbf": "bc29a02c89a38f59f2bad77fd87ee3ebd72061f1b6a7d416bb8690b477f6799c",
+        "started.json": "2415f3c15b45316bbf151633b8aeff91f0f275c6676dd30a4d75e390389ef7ab"
+      }
+    },
+    {
+      "run": "seed2-slown40",
+      "receipt_sha256": "a3c0b8595bd8d6feee70f377fdefec9638278cfdaf96e4adcca424a31dddb11e",
+      "seed": 2,
+      "corner": "slown40",
+      "FF_clock_to_Q_min_forced_zero": false,
+      "returncode": 0,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 2.1510000228881836,
+      "hold_min_ns": 0.7279999852180481,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "d83b41c11bfbd44bc8484da67e1b2d2ccd125fda3d81914ad514b2b106810632",
+        "run.log": "0c3bcde16715896722f4d4cfd0bb3a0a633607703ef50d659db48425c35b7372",
+        "replay.rbf": "bc29a02c89a38f59f2bad77fd87ee3ebd72061f1b6a7d416bb8690b477f6799c",
+        "started.json": "be282a6fd8d5e38e072dc58eecf903985cefc2f7dadf45677ce893feabae7d6c"
+      }
+    },
+    {
+      "run": "seed3-min100",
+      "receipt_sha256": "f3e6895272e5007a988a5f9386917c73e0bdc8d970ff906aead7305de154e3ec",
+      "seed": 3,
+      "corner": "min100",
+      "FF_clock_to_Q_min_forced_zero": false,
+      "returncode": 0,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 2.4489998817443848,
+      "hold_min_ns": 0.6330000162124634,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "4773f3e41c4fb22bf4a6a83a171fe261df821adc8da9a4e341ce33cb5266c1a3",
+        "run.log": "d2e749d9c5c9ac52f44c3f9f2f30db868854018ba854c59e3cffde6b2c536845",
+        "replay.rbf": "cb6db043d3022eb33a63e02c66507dd5ee47b7375d2eee95997900a9d5a24210",
+        "started.json": "c4b12d1e533f39488c9978661c3b526f74b98cf0a86025651197271e2f603ab7"
+      }
+    },
+    {
+      "run": "seed3-minn40",
+      "receipt_sha256": "94a1da657767db51ade104846fffd51a16d49a3bb1052f074a1577df959c54f1",
+      "seed": 3,
+      "corner": "minn40",
+      "FF_clock_to_Q_min_forced_zero": false,
+      "returncode": 0,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 2.765000104904175,
+      "hold_min_ns": 0.6010000109672546,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "ae191676052d40e9937ab91860a764a051d59c5e729a2646d23a6fdb79e03dda",
+        "run.log": "1494f8f67611eba9c94583e68c2d4cda4bc9f21b0add1af93f53ba18fc5ae873",
+        "replay.rbf": "cb6db043d3022eb33a63e02c66507dd5ee47b7375d2eee95997900a9d5a24210",
+        "started.json": "25fefac2ea881bcb7e0ddb50939695a3a9c0705f9cb0c9c8adab262cd65570ff"
+      }
+    },
+    {
+      "run": "seed3-minn40-zeroFFmin",
+      "receipt_sha256": "d1827d3700aeee0e8a58a8b025c190d35e4671208cc1b719731ff4c0f1bc7df1",
+      "seed": 3,
+      "corner": "minn40",
+      "FF_clock_to_Q_min_forced_zero": true,
+      "returncode": 1,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 2.765000104904175,
+      "hold_min_ns": -0.12999999523162842,
+      "failing_setup": 0,
+      "failing_hold": 70,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "97c8c817560694c9cfb58c6e784bf39b0624af3e847f5ad5b8cfb9e22c09e291",
+        "run.log": "c9e9469be3a91b7daf617134dac7ab6d2cb4389615510006ff333d2f9ef8d348",
+        "replay.rbf": "cb6db043d3022eb33a63e02c66507dd5ee47b7375d2eee95997900a9d5a24210",
+        "started.json": "b6c18aa909118b6af66f8615cd51b9a7cdafb4d5935443cf9cc1b69e383bbba8"
+      }
+    },
+    {
+      "run": "seed3-slow100",
+      "receipt_sha256": "abc0ceb527cda680b57103410f8646236cc02f474a52fe66fda5846c47aa3ad2",
+      "seed": 3,
+      "corner": "slow100",
+      "FF_clock_to_Q_min_forced_zero": false,
+      "returncode": 0,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.649999976158142,
+      "hold_min_ns": 0.7829999923706055,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "b18f6f877d9a26b4c5a26fb1ee687d6bfec25ee8f3c507389b9e5a9ff27b42dd",
+        "run.log": "4c0944c61db11952f233137aea2a439c69a6de373af2084bde7fad9c03eb085c",
+        "replay.rbf": "cb6db043d3022eb33a63e02c66507dd5ee47b7375d2eee95997900a9d5a24210",
+        "started.json": "b40feafd533b34dc7f775860d0dbfc65a21451db494146653066191783c03014"
+      }
+    },
+    {
+      "run": "seed3-slown40",
+      "receipt_sha256": "15ef3a2d764ac7bc8b13004dc4ce3c360346157c2aaff920bd26fd0b2a2ae7be",
+      "seed": 3,
+      "corner": "slown40",
+      "FF_clock_to_Q_min_forced_zero": false,
+      "returncode": 0,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.8869999647140503,
+      "hold_min_ns": 0.6669999957084656,
+      "failing_setup": 0,
+      "failing_hold": 0,
+      "rbf_identical": true,
+      "artifacts_sha256": {
+        "timing.json": "0de4399521a25701e30462272e83089140e85067779a200e6e08170326fa795c",
+        "run.log": "b7915c3bb8484bdffb7034252533bd52e0a151b722ceb969c4f09c9ab1fcbb38",
+        "replay.rbf": "cb6db043d3022eb33a63e02c66507dd5ee47b7375d2eee95997900a9d5a24210",
+        "started.json": "2e4cedc821496c4073b6b847bb91087d0e4cbacaf886275b423f84f9c288506f"
+      }
+    }
+  ],
+  "fitted_reference_version": "Quartus Prime Lite 17.0.2 Build 602, final timing models",
+  "fitted_reference_inputs": {
+    "slots": {
+      "fixture_source": "https://github.com/DeanoC/nextpnr/tree/2bc7d90beb1e31b0902557e54107d10b78beb190/mistral/tests/ff-reset/fixtures/slots",
+      "source_sha256": {
+        "top.sv": "8eacf54f7dd7cee55072a963852dc89c66fe20975e4c050bd06f88d22af8d012",
+        "top.qsf": "f2e22dc905660400b915c7ddfa1dcc6b2c3bab0ee720a495e4a2461fbeba5440",
+        "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+        "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c",
+        "audit.tcl": "c381b7ceae8c682a61d5287512dcf55d31a166aa2a787ce67a0625106321bb60",
+        "fixture.json": "24d181cd1006cd7075c5ba11a1e5c45f047f79689d33c63c47442ca56672b388"
+      },
+      "sof_sha256": "b408793a27752e56ffae2a1722a3de4a9f693928773bf01c160b2015481811e8",
+      "fixed_LAB_sites": [
+        [
+          31,
+          49
+        ],
+        [
+          31,
+          48
+        ]
+      ],
+      "fixed_FFs": 80,
+      "enable_source_counts": {
+        "1'b1": 40,
+        "count[2]": 40
+      },
+      "SCLR_and_SLOAD_fixed_inactive": true
+    },
+    "slots-ce": {
+      "fixture_source": "https://github.com/DeanoC/nextpnr/tree/2bc7d90beb1e31b0902557e54107d10b78beb190/mistral/tests/ff-reset/fixtures/slots-ce",
+      "source_sha256": {
+        "top.sv": "8e974dc98efe1b792f1479c3b15a5673c5cb72a23298f098c0dcc8fabfcb9ce4",
+        "top.qsf": "2dc65b5a26b8bd912d4c073bbe435f2d6dd3460ee401b01991993c359f8227bf",
+        "top.qpf": "7a131c9521f2b7da8012faedb841cfe89996b4569c20130b402c5f0133da4a56",
+        "clocks.sdc": "f28bb8decbaf4d903b79fe90df4090e38301e7b74d54e2d9b25305186735c63c",
+        "audit.tcl": "c381b7ceae8c682a61d5287512dcf55d31a166aa2a787ce67a0625106321bb60",
+        "fixture.json": "e2ece04375aa6f77269d4946a5d688c2557402ca1a656942a5b9e93f24439e8e"
+      },
+      "sof_sha256": "7c1dbe25be40b80682deb78a9bc2ae57cb6492f4ef023e7c08a504056f3f3219",
+      "fixed_LAB_sites": [
+        [
+          31,
+          49
+        ],
+        [
+          31,
+          48
+        ],
+        [
+          31,
+          47
+        ]
+      ],
+      "fixed_FFs": 120,
+      "enable_source_counts": {
+        "1'b1": 40,
+        "count[2]": 40,
+        "!count[2]": 40
+      },
+      "SCLR_and_SLOAD_fixed_inactive": true
+    }
+  },
+  "fitted_reference_analysis": {
+    "clock_to_Q": {
+      "observations": 3200,
+      "summary": {
+        "slots": {
+          "7_slow_1100mv_-40c": {
+            "setup": {
+              "clock_pin_to_q_ns": [
+                0.513,
+                0.521
+              ],
+              "clock_anchor_to_q_ns": [
+                0.514,
+                0.522
+              ],
+              "clock_pin_ic_increment_ns": [
+                0.001,
+                0.001
+              ],
+              "clock_to_storage_cell_ns": [
+                0.513,
+                0.521
+              ]
+            },
+            "hold": {
+              "clock_pin_to_q_ns": [
+                0.446,
+                0.469
+              ],
+              "clock_anchor_to_q_ns": [
+                0.446,
+                0.468
+              ],
+              "clock_pin_ic_increment_ns": [
+                -0.001,
+                0.0
+              ],
+              "clock_to_storage_cell_ns": [
+                0.446,
+                0.469
+              ]
+            }
+          },
+          "7_slow_1100mv_100c": {
+            "setup": {
+              "clock_pin_to_q_ns": [
+                0.558,
+                0.567
+              ],
+              "clock_anchor_to_q_ns": [
+                0.559,
+                0.568
+              ],
+              "clock_pin_ic_increment_ns": [
+                0.001,
+                0.001
+              ],
+              "clock_to_storage_cell_ns": [
+                0.558,
+                0.567
+              ]
+            },
+            "hold": {
+              "clock_pin_to_q_ns": [
+                0.478,
+                0.504
+              ],
+              "clock_anchor_to_q_ns": [
+                0.48,
+                0.504
+              ],
+              "clock_pin_ic_increment_ns": [
+                0.0,
+                0.002
+              ],
+              "clock_to_storage_cell_ns": [
+                0.478,
+                0.504
+              ]
+            }
+          },
+          "MIN_fast_1100mv_-40c": {
+            "setup": {
+              "clock_pin_to_q_ns": [
+                0.189,
+                0.191
+              ],
+              "clock_anchor_to_q_ns": [
+                0.188,
+                0.191
+              ],
+              "clock_pin_ic_increment_ns": [
+                -0.001,
+                0.0
+              ],
+              "clock_to_storage_cell_ns": [
+                0.189,
+                0.191
+              ]
+            },
+            "hold": {
+              "clock_pin_to_q_ns": [
+                0.168,
+                0.173
+              ],
+              "clock_anchor_to_q_ns": [
+                0.168,
+                0.173
+              ],
+              "clock_pin_ic_increment_ns": [
+                0.0,
+                0.0
+              ],
+              "clock_to_storage_cell_ns": [
+                0.168,
+                0.173
+              ]
+            }
+          },
+          "MIN_fast_1100mv_100c": {
+            "setup": {
+              "clock_pin_to_q_ns": [
+                0.23,
+                0.232
+              ],
+              "clock_anchor_to_q_ns": [
+                0.23,
+                0.232
+              ],
+              "clock_pin_ic_increment_ns": [
+                0.0,
+                0.0
+              ],
+              "clock_to_storage_cell_ns": [
+                0.23,
+                0.232
+              ]
+            },
+            "hold": {
+              "clock_pin_to_q_ns": [
+                0.204,
+                0.21
+              ],
+              "clock_anchor_to_q_ns": [
+                0.205,
+                0.211
+              ],
+              "clock_pin_ic_increment_ns": [
+                0.001,
+                0.001
+              ],
+              "clock_to_storage_cell_ns": [
+                0.204,
+                0.21
+              ]
+            }
+          }
+        },
+        "slots-ce": {
+          "7_slow_1100mv_-40c": {
+            "setup": {
+              "clock_pin_to_q_ns": [
+                0.513,
+                0.527
+              ],
+              "clock_anchor_to_q_ns": [
+                0.514,
+                0.525
+              ],
+              "clock_pin_ic_increment_ns": [
+                -0.002,
+                0.001
+              ],
+              "clock_to_storage_cell_ns": [
+                0.513,
+                0.527
+              ]
+            },
+            "hold": {
+              "clock_pin_to_q_ns": [
+                0.446,
+                0.469
+              ],
+              "clock_anchor_to_q_ns": [
+                0.446,
+                0.468
+              ],
+              "clock_pin_ic_increment_ns": [
+                -0.001,
+                0.0
+              ],
+              "clock_to_storage_cell_ns": [
+                0.446,
+                0.469
+              ]
+            }
+          },
+          "7_slow_1100mv_100c": {
+            "setup": {
+              "clock_pin_to_q_ns": [
+                0.558,
+                0.57
+              ],
+              "clock_anchor_to_q_ns": [
+                0.559,
+                0.57
+              ],
+              "clock_pin_ic_increment_ns": [
+                0.0,
+                0.001
+              ],
+              "clock_to_storage_cell_ns": [
+                0.558,
+                0.57
+              ]
+            },
+            "hold": {
+              "clock_pin_to_q_ns": [
+                0.478,
+                0.504
+              ],
+              "clock_anchor_to_q_ns": [
+                0.48,
+                0.504
+              ],
+              "clock_pin_ic_increment_ns": [
+                0.0,
+                0.002
+              ],
+              "clock_to_storage_cell_ns": [
+                0.478,
+                0.504
+              ]
+            }
+          },
+          "MIN_fast_1100mv_-40c": {
+            "setup": {
+              "clock_pin_to_q_ns": [
+                0.189,
+                0.192
+              ],
+              "clock_anchor_to_q_ns": [
+                0.188,
+                0.192
+              ],
+              "clock_pin_ic_increment_ns": [
+                -0.001,
+                0.0
+              ],
+              "clock_to_storage_cell_ns": [
+                0.189,
+                0.192
+              ]
+            },
+            "hold": {
+              "clock_pin_to_q_ns": [
+                0.168,
+                0.173
+              ],
+              "clock_anchor_to_q_ns": [
+                0.168,
+                0.173
+              ],
+              "clock_pin_ic_increment_ns": [
+                0.0,
+                0.0
+              ],
+              "clock_to_storage_cell_ns": [
+                0.168,
+                0.173
+              ]
+            }
+          },
+          "MIN_fast_1100mv_100c": {
+            "setup": {
+              "clock_pin_to_q_ns": [
+                0.23,
+                0.233
+              ],
+              "clock_anchor_to_q_ns": [
+                0.23,
+                0.234
+              ],
+              "clock_pin_ic_increment_ns": [
+                0.0,
+                0.001
+              ],
+              "clock_to_storage_cell_ns": [
+                0.23,
+                0.233
+              ]
+            },
+            "hold": {
+              "clock_pin_to_q_ns": [
+                0.204,
+                0.21
+              ],
+              "clock_anchor_to_q_ns": [
+                0.205,
+                0.211
+              ],
+              "clock_pin_ic_increment_ns": [
+                0.001,
+                0.001
+              ],
+              "clock_to_storage_cell_ns": [
+                0.204,
+                0.21
+              ]
+            }
+          }
+        }
+      },
+      "parser_sha256": "7263919dde15d749affbb0333102f49e1626c8003cc228068cfc2b1ab77f50b9",
+      "analysis_tcl": "board50-ff-clock-to-q.tcl",
+      "analysis_tcl_sha256": "dc5d83f042c86305d71167f6d5a2d4ca1453fcc99dc67e8921493d0be7227db5",
+      "complete_extraction_sha256": "edd0d083340c81b7955a31bab4525a3d41d4c620e14ec96eef1cf371a263bc04",
+      "reports_sha256": {
+        "slots": {
+          "ff-clock-to-q/7_slow_1100mv_100c/hold-fall.rpt": "72b7af47fbc13d85f13910327c6f9fa16315e8e06af7222c6f963b6402f742d9",
+          "ff-clock-to-q/7_slow_1100mv_100c/setup-fall.rpt": "462ca3ec8440bfb4694f52c1da228e91fdc6d559e660ec0a1d21ea247350e116",
+          "ff-clock-to-q/7_slow_1100mv_100c/setup-rise.rpt": "0ff313844e27fcb2dcd8d4a7b6aac0bc0bbe7ac8c9b0eb86952ef6f8085dd162",
+          "ff-clock-to-q/7_slow_1100mv_100c/hold-rise.rpt": "034a2eef7719ddc9cc649b29b3cde7457065b4da77979a09728f55cb8d60cc93",
+          "ff-clock-to-q/7_slow_1100mv_-40c/hold-fall.rpt": "8ba892a8ac723329772b7eb86add7ae50b089ca2f55a7cf67e0c60e84951ac84",
+          "ff-clock-to-q/7_slow_1100mv_-40c/setup-fall.rpt": "aba2ca38d8fbc3803eeba4ff706b717de255ec2fbddf51a71a0a1bc4d016d63f",
+          "ff-clock-to-q/7_slow_1100mv_-40c/setup-rise.rpt": "a7835efeb422cbe82a0eae74323981cf4de3e442fa5b944354c950aea96afac1",
+          "ff-clock-to-q/7_slow_1100mv_-40c/hold-rise.rpt": "6995717c89acbd034a1ddcfdf73e010449fcfebf997bda3fe89137cd0c93e8e9",
+          "ff-clock-to-q/MIN_fast_1100mv_-40c/hold-fall.rpt": "d2311dd66c6cf3864c4250cf11815d8a5a325ec0bab05b21c1479554d0f70d2b",
+          "ff-clock-to-q/MIN_fast_1100mv_-40c/setup-fall.rpt": "fbee00e63d2449f8161c821ed3fb4f999a23c27565edcef7a5c10526fc783bd4",
+          "ff-clock-to-q/MIN_fast_1100mv_-40c/setup-rise.rpt": "1ca7aad0da60ace1c2bf31ba8ea707843b0c889a03d64f4d56c358e6121f5957",
+          "ff-clock-to-q/MIN_fast_1100mv_-40c/hold-rise.rpt": "6c807ddaff7ff6aeeda5e736a61cd13f9ae5c72e61c326ccaf2f6ae1a97c6374",
+          "ff-clock-to-q/MIN_fast_1100mv_100c/hold-fall.rpt": "b408ab1670297fa3a40f2a3c5b2d66006bd0fa22b7af0a80ce415510d0fb44bb",
+          "ff-clock-to-q/MIN_fast_1100mv_100c/setup-fall.rpt": "b2c43234773627885caef4b08ccd3a79f78d75f6e5f615a01374fb7d8260c51c",
+          "ff-clock-to-q/MIN_fast_1100mv_100c/setup-rise.rpt": "103140530f5cc7b047c1345d500979ccae9effb2c83d8bb27b5bef4184843112",
+          "ff-clock-to-q/MIN_fast_1100mv_100c/hold-rise.rpt": "ff50d4c9718d8be0918e6ebf19c3e5b6b05d9fe0eca9264d5020a7dc7f44e76f"
+        },
+        "slots-ce": {
+          "ff-clock-to-q/7_slow_1100mv_100c/hold-fall.rpt": "db0781168cbaae4f6c290c42c30a7818697ec2b71810cd9f788cd71648833510",
+          "ff-clock-to-q/7_slow_1100mv_100c/setup-fall.rpt": "f64631b5e76d3f54256810568e5085d0ab401f5270c610264628190308d6435e",
+          "ff-clock-to-q/7_slow_1100mv_100c/setup-rise.rpt": "76eab379229d361c97e14f0f65925f3778a13a5a219c47af4f3f805da43945dc",
+          "ff-clock-to-q/7_slow_1100mv_100c/hold-rise.rpt": "500351783a029dcb3ce67e186ba721c1c9cfd7fee42f81327cbba44e0dda899f",
+          "ff-clock-to-q/7_slow_1100mv_-40c/hold-fall.rpt": "ff2d65d8524a87f65601941f087d7cad0cef6a595fe8059c536dfa531e978ff9",
+          "ff-clock-to-q/7_slow_1100mv_-40c/setup-fall.rpt": "7495a148484d6ead536d87dd75cd31aed4bdd318afd33b92f9e92486545fd0c1",
+          "ff-clock-to-q/7_slow_1100mv_-40c/setup-rise.rpt": "5a856058fab150f8ce0302ff4db8980cf0b5d5ee2d9e60074b7d2f467c6d7691",
+          "ff-clock-to-q/7_slow_1100mv_-40c/hold-rise.rpt": "b1748d4200a52898774fca13cef17ab26a0cd751390d9aba0ee67dad0f4fd329",
+          "ff-clock-to-q/MIN_fast_1100mv_-40c/hold-fall.rpt": "00b803c3a8822996161575a2de173b04dc39d4628d7bf12e8f73141dee241426",
+          "ff-clock-to-q/MIN_fast_1100mv_-40c/setup-fall.rpt": "2939643726541e71f2376205b284802e951baaf34f2871ea150140b3952a8d52",
+          "ff-clock-to-q/MIN_fast_1100mv_-40c/setup-rise.rpt": "08b09f269fb66ce8dad727efb96d55e0b07502b8f315c54d689d8bfc87798b0c",
+          "ff-clock-to-q/MIN_fast_1100mv_-40c/hold-rise.rpt": "077faf14e1e1ac6e102b04fbbcbf625cae8fdb520b9db59a28fc285591b12237",
+          "ff-clock-to-q/MIN_fast_1100mv_100c/hold-fall.rpt": "89ab56c594c8d6a39ec2c1515d3b9c49976adb3cdd5eed367047513d4bdd0688",
+          "ff-clock-to-q/MIN_fast_1100mv_100c/setup-fall.rpt": "ff3f3cfb5dd54df1b71598585412491e7f2bbbcb22c7722d85eaaf25cad8872a",
+          "ff-clock-to-q/MIN_fast_1100mv_100c/setup-rise.rpt": "1ff42a1dc04333fcd560756d511de0e8c776e2a9c555291693b33fab393f95a1",
+          "ff-clock-to-q/MIN_fast_1100mv_100c/hold-rise.rpt": "45a238511dca7bc6b9dabca35ae18d08e3deda7715ac2c9325f74ec2b00c459c"
+        }
+      },
+      "synthetic_IO_clock_is_not_a_physical_clock_contract": true
+    },
+    "data_pins": {
+      "observations": 3200,
+      "summary": {
+        "slots": {
+          "7_slow_1100mv_-40c": {
+            "setup": {
+              "data_pin_to_storage_ns": [
+                0.266,
+                0.656
+              ],
+              "clock_pin_to_storage_ns": [
+                0.446,
+                0.469
+              ],
+              "effective_pin_constraint_ns": [
+                -0.202,
+                0.208
+              ]
+            },
+            "hold": {
+              "data_pin_to_storage_ns": [
+                0.069,
+                0.402
+              ],
+              "clock_pin_to_storage_ns": [
+                0.513,
+                0.521
+              ],
+              "effective_pin_constraint_ns": [
+                0.111,
+                0.451
+              ]
+            }
+          },
+          "7_slow_1100mv_100c": {
+            "setup": {
+              "data_pin_to_storage_ns": [
+                0.259,
+                0.605
+              ],
+              "clock_pin_to_storage_ns": [
+                0.478,
+                0.504
+              ],
+              "effective_pin_constraint_ns": [
+                -0.243,
+                0.125
+              ]
+            },
+            "hold": {
+              "data_pin_to_storage_ns": [
+                0.067,
+                0.358
+              ],
+              "clock_pin_to_storage_ns": [
+                0.558,
+                0.567
+              ],
+              "effective_pin_constraint_ns": [
+                0.201,
+                0.498
+              ]
+            }
+          },
+          "MIN_fast_1100mv_-40c": {
+            "setup": {
+              "data_pin_to_storage_ns": [
+                0.121,
+                0.261
+              ],
+              "clock_pin_to_storage_ns": [
+                0.168,
+                0.173
+              ],
+              "effective_pin_constraint_ns": [
+                -0.051,
+                0.091
+              ]
+            },
+            "hold": {
+              "data_pin_to_storage_ns": [
+                0.022,
+                0.171
+              ],
+              "clock_pin_to_storage_ns": [
+                0.189,
+                0.191
+              ],
+              "effective_pin_constraint_ns": [
+                0.019,
+                0.168
+              ]
+            }
+          },
+          "MIN_fast_1100mv_100c": {
+            "setup": {
+              "data_pin_to_storage_ns": [
+                0.128,
+                0.27
+              ],
+              "clock_pin_to_storage_ns": [
+                0.204,
+                0.21
+              ],
+              "effective_pin_constraint_ns": [
+                -0.081,
+                0.065
+              ]
+            },
+            "hold": {
+              "data_pin_to_storage_ns": [
+                0.025,
+                0.178
+              ],
+              "clock_pin_to_storage_ns": [
+                0.23,
+                0.232
+              ],
+              "effective_pin_constraint_ns": [
+                0.053,
+                0.207
+              ]
+            }
+          }
+        },
+        "slots-ce": {
+          "7_slow_1100mv_-40c": {
+            "setup": {
+              "data_pin_to_storage_ns": [
+                0.266,
+                0.656
+              ],
+              "clock_pin_to_storage_ns": [
+                0.446,
+                0.469
+              ],
+              "effective_pin_constraint_ns": [
+                -0.202,
+                0.203
+              ]
+            },
+            "hold": {
+              "data_pin_to_storage_ns": [
+                0.069,
+                0.402
+              ],
+              "clock_pin_to_storage_ns": [
+                0.513,
+                0.527
+              ],
+              "effective_pin_constraint_ns": [
+                0.111,
+                0.457
+              ]
+            }
+          },
+          "7_slow_1100mv_100c": {
+            "setup": {
+              "data_pin_to_storage_ns": [
+                0.259,
+                0.605
+              ],
+              "clock_pin_to_storage_ns": [
+                0.478,
+                0.504
+              ],
+              "effective_pin_constraint_ns": [
+                -0.244,
+                0.12
+              ]
+            },
+            "hold": {
+              "data_pin_to_storage_ns": [
+                0.067,
+                0.358
+              ],
+              "clock_pin_to_storage_ns": [
+                0.558,
+                0.57
+              ],
+              "effective_pin_constraint_ns": [
+                0.202,
+                0.502
+              ]
+            }
+          },
+          "MIN_fast_1100mv_-40c": {
+            "setup": {
+              "data_pin_to_storage_ns": [
+                0.121,
+                0.261
+              ],
+              "clock_pin_to_storage_ns": [
+                0.168,
+                0.173
+              ],
+              "effective_pin_constraint_ns": [
+                -0.051,
+                0.091
+              ]
+            },
+            "hold": {
+              "data_pin_to_storage_ns": [
+                0.022,
+                0.171
+              ],
+              "clock_pin_to_storage_ns": [
+                0.189,
+                0.192
+              ],
+              "effective_pin_constraint_ns": [
+                0.019,
+                0.169
+              ]
+            }
+          },
+          "MIN_fast_1100mv_100c": {
+            "setup": {
+              "data_pin_to_storage_ns": [
+                0.128,
+                0.27
+              ],
+              "clock_pin_to_storage_ns": [
+                0.204,
+                0.21
+              ],
+              "effective_pin_constraint_ns": [
+                -0.081,
+                0.064
+              ]
+            },
+            "hold": {
+              "data_pin_to_storage_ns": [
+                0.025,
+                0.178
+              ],
+              "clock_pin_to_storage_ns": [
+                0.23,
+                0.233
+              ],
+              "effective_pin_constraint_ns": [
+                0.053,
+                0.208
+              ]
+            }
+          }
+        }
+      },
+      "parser_sha256": "5b31e05a946f7551b3acbc863966cb5a1493d72c963cc2ee73116c24f3066f58",
+      "analysis_tcl": "board50-ff-data-pins.tcl",
+      "analysis_tcl_sha256": "8c2e6ce541f60eedea7f7c7413871e444217f9cf2abc4d743a4d808f936120af",
+      "complete_extraction_sha256": "d9b1159ba48b0ee9aed452e00cca8b921a794b46711e94f02079a28308e049ce",
+      "reports_sha256": {
+        "slots": {
+          "ff-data/7_slow_1100mv_100c/hold-fall.rpt": "11444948acb0d145c62a5fbfaeac67af1b0d1f9fc8978102ec06a610691eafef",
+          "ff-data/7_slow_1100mv_100c/setup-fall.rpt": "6cd6e5c53f26ec6947db186c9afb84ed24ed3a95259c14ac93e152c14b4c6d77",
+          "ff-data/7_slow_1100mv_100c/setup-rise.rpt": "16d33779336ce9b142039047ca80294daf580b588a1493dd4f85ca26b2f6ce01",
+          "ff-data/7_slow_1100mv_100c/hold-rise.rpt": "59816454c60197fe25a660496d23bf2f0fc547556f6b507ae341749b29d55f75",
+          "ff-data/7_slow_1100mv_-40c/hold-fall.rpt": "6f1caadb95388cd34417a914433ae36cc91cead8946ebf9e72bf06a265b3e64a",
+          "ff-data/7_slow_1100mv_-40c/setup-fall.rpt": "1456366f7d943074e6aa523f875c898c87e4c523622e4becea94fabcfb7c4e43",
+          "ff-data/7_slow_1100mv_-40c/setup-rise.rpt": "dd444b623f1258884773efa672c7fcf05921ffbd7cb52040186d22fea9b412d9",
+          "ff-data/7_slow_1100mv_-40c/hold-rise.rpt": "3a7128842934672214f85892d89b47294a65ac7cd2963f81b5fdd85011ccc409",
+          "ff-data/MIN_fast_1100mv_-40c/hold-fall.rpt": "b2e177326f8d487b0dc595b72c13d6d47d876da584fc6d28c1e36c091796a8c6",
+          "ff-data/MIN_fast_1100mv_-40c/setup-fall.rpt": "4cbf941cce83864d31c561149d5534f091d0d4d89ef1d2df8421925fe4606078",
+          "ff-data/MIN_fast_1100mv_-40c/setup-rise.rpt": "3ce01cfd1695169b38acf42948220561a345b85744b28e0ad4104a45ce8a82c4",
+          "ff-data/MIN_fast_1100mv_-40c/hold-rise.rpt": "9b28b034f679fc6856b6bf9b5603d89be8ff16c509e63ce9249e2d9eb195244f",
+          "ff-data/MIN_fast_1100mv_100c/hold-fall.rpt": "0f9b39fab0d2eb6b7914783a43a37ce556a74989d2f6b6b8bac96eb2b6aec3f3",
+          "ff-data/MIN_fast_1100mv_100c/setup-fall.rpt": "9455f23523a0fff1554e02dabf14a35ed7dc78c5b723b48d579983f6b0715df3",
+          "ff-data/MIN_fast_1100mv_100c/setup-rise.rpt": "1c643aacd75767196766d62577e9409c0ea5aaab302fbba15cd68276608b67e0",
+          "ff-data/MIN_fast_1100mv_100c/hold-rise.rpt": "a04428dacb819d41ac540fa093330bfd2509608054fd8b7463dff7ae0fec208c"
+        },
+        "slots-ce": {
+          "ff-data/7_slow_1100mv_100c/hold-fall.rpt": "ac7e6d6914198b54e207e1af529940ded4b50d5e1a91debd9cd5218b22300a30",
+          "ff-data/7_slow_1100mv_100c/setup-fall.rpt": "99888d90651676fe077e26afe515f5a0e0c4742825dd2694f08dbd968fadf551",
+          "ff-data/7_slow_1100mv_100c/setup-rise.rpt": "19d33a5a43a40363a5eec1c11f621f234c5c2ea5b281343520a8bd3205b858d7",
+          "ff-data/7_slow_1100mv_100c/hold-rise.rpt": "b96b4e39164ad31cdc19fcb8a60cb47227e01fa47dddeab32b92e3f8e927229e",
+          "ff-data/7_slow_1100mv_-40c/hold-fall.rpt": "d49c86714f6f7c566f9c85cd840439dee57df75c5f2fbb24777711de9620b015",
+          "ff-data/7_slow_1100mv_-40c/setup-fall.rpt": "fdfe0f742409444c6049f8c60810c765a342a341421d12351eac807783b3b5ff",
+          "ff-data/7_slow_1100mv_-40c/setup-rise.rpt": "1479fea1917825a4c86dd4af2cd06e1692ebaaaa3aee887b1fbf997af12002b6",
+          "ff-data/7_slow_1100mv_-40c/hold-rise.rpt": "3683da6a8b1cd4775a821be15a84c3a45600461b28c0b5bf9209a16b901f451b",
+          "ff-data/MIN_fast_1100mv_-40c/hold-fall.rpt": "5c107937b78ba19b331bdbc377db83d2132a81d5ccf2f3c04e3475f57653f3e3",
+          "ff-data/MIN_fast_1100mv_-40c/setup-fall.rpt": "0d2ed43c61ee39f46e8ed0599724c87d1c5c46a2dc7e3af1b7d040c47fea7b56",
+          "ff-data/MIN_fast_1100mv_-40c/setup-rise.rpt": "86a2b6c475c896970d5a37938528469e87b3db41d47df1574091a19ec5d32316",
+          "ff-data/MIN_fast_1100mv_-40c/hold-rise.rpt": "751f0fad925ea1a48c9a1f8433b5c2c7120f23a64bcf93486c9a3239db739724",
+          "ff-data/MIN_fast_1100mv_100c/hold-fall.rpt": "ff7bb30d02ff9175c4ba5f746dff9a30d9a6a8b470461e160021d6a35e518c6a",
+          "ff-data/MIN_fast_1100mv_100c/setup-fall.rpt": "e60efdfe89622f506d6ba70331ce46a16ff05a020d5d6591fb636f8704e1420b",
+          "ff-data/MIN_fast_1100mv_100c/setup-rise.rpt": "e2d850d90db2b1c78c53d9dc0b4e89aff815a2f9172d501e2ecb1d35a5607e55",
+          "ff-data/MIN_fast_1100mv_100c/hold-rise.rpt": "a5ba0708fce9ebe9141179fd8f081bc951ec3e101a3f8b1c41f2678eabb7ad21"
+        }
+      },
+      "synthetic_IO_clock_is_not_a_physical_clock_contract": true,
+      "by_physical_pin": {
+        "7_slow_1100mv_-40c": {
+          "setup": {
+            "d": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                -0.202,
+                -0.179
+              ]
+            },
+            "asdata": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                0.079,
+                0.208
+              ]
+            }
+          },
+          "hold": {
+            "d": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                0.442,
+                0.457
+              ]
+            },
+            "asdata": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                0.111,
+                0.226
+              ]
+            }
+          }
+        },
+        "7_slow_1100mv_100c": {
+          "setup": {
+            "d": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                -0.244,
+                -0.218
+              ]
+            },
+            "asdata": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                0.013,
+                0.125
+              ]
+            }
+          },
+          "hold": {
+            "d": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                0.489,
+                0.502
+              ]
+            },
+            "asdata": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                0.201,
+                0.297
+              ]
+            }
+          }
+        },
+        "MIN_fast_1100mv_-40c": {
+          "setup": {
+            "d": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                -0.051,
+                -0.046
+              ]
+            },
+            "asdata": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                0.053,
+                0.091
+              ]
+            }
+          },
+          "hold": {
+            "d": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                0.165,
+                0.169
+              ]
+            },
+            "asdata": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                0.019,
+                0.05
+              ]
+            }
+          }
+        },
+        "MIN_fast_1100mv_100c": {
+          "setup": {
+            "d": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                -0.081,
+                -0.075
+              ]
+            },
+            "asdata": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                0.023,
+                0.065
+              ]
+            }
+          },
+          "hold": {
+            "d": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                0.205,
+                0.208
+              ]
+            },
+            "asdata": {
+              "observations": 200,
+              "effective_pin_constraint_ns": [
+                0.053,
+                0.087
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "complete_FF_observations_file": "board50-ff-pin-observations.json.gz",
+  "complete_FF_observations_sha256": "75e32bce853dd02fb03aa68d533d52b600250e778d45306e20ae3624f45f5b7b",
+  "FF_observations_total": 6400,
+  "FF_data_interpretation": "Retain d/asdata identities. Pin constraints use data-to-storage and clock-to-storage CELL increments plus the reported intrinsic adjustment. Do not transfer these bare pin observations to native virtual FF endpoints without proving their selection and routing boundaries.",
+  "native_fast_corner_qualified": false,
+  "unpaired_HPS_sources_remain_unknown": true,
+  "primitive_FF_PLL_pad_models_fully_calibrated": false,
+  "zero_FF_min_is_a_sensitivity_control_not_measured_RTL_failure": true,
+  "toolchain_lock_unchanged": true,
+  "clock_rates_changed": false,
+  "timing_exceptions_added": false,
+  "native_route_searches_this_step": 0,
+  "route_journal_entries": 133,
+  "route_journal_sha256": "2e47287e09f7fcf7f4f82f81d434097ce15d0b340c7345971b12e15ec681a585",
+  "hardware": false,
+  "physical_qualified": false,
+  "exact_artifact_accepted": false,
+  "remaining": [
+    "MLAB FF characterization: the current fitted FF references cover LABs; native seeds use 1008/928/932 MLAB FFs.",
+    "Matched native FF data and control selection/boundaries, then a source-bound min/max model and complete corner replays.",
+    "Hard-IP HPS launch/capture and OE/pad/feedback bounds; board load/flight/skew and reset/CDC physical qualification.",
+    "Observable runtime-owned exact-RBF hardware diagnostic, then exact-artifact acceptance."
+  ],
+  "native_FF_selection": {
+    "scope": "Actual-architecture native FF data-source selection matches RBF PKREG; does not qualify timing.",
+    "nextpnr_objects_commit": "fdf0462df26d18bfb308248249e1798a0b58667c",
+    "Mistral_commit": "9ab6522077948fc3dd2e074338874f92e848fc44",
+    "helper_source_sha256": "64ca16930fdfe262c98bc59fa800bfb3773ac32871736aa63b81e8d921cbac8d",
+    "helper_binary_sha256": "49886d6ecdaccbcb14aa89da8aa96a378735796c93962354f95d05c379d86445",
+    "actual_architecture_owned_placement_and_routed_source": true,
+    "qualified_timing": false,
+    "runs": {
+      "1": {
+        "FFs": 4067,
+        "classes": [
+          {
+            "block": "LAB",
+            "input_family": "EF/asdata",
+            "count": 966
+          },
+          {
+            "block": "LAB",
+            "input_family": "LUT/d",
+            "count": 2093
+          },
+          {
+            "block": "MLAB",
+            "input_family": "EF/asdata",
+            "count": 256
+          },
+          {
+            "block": "MLAB",
+            "input_family": "LUT/d",
+            "count": 752
+          }
+        ],
+        "stdout_sha256": "5db93f6b31b7cb8d7247581a08a638cbf13e580a39ad55143913c24b9a2640b0",
+        "inputs_sha256": {
+          "routed.json": "a3d8e703d178fb390f1cb3105f997c605d365717e6dbd2e86e0c514245b5f1b3",
+          "diagnostic.rbf": "facbd2002fbe9113b542dff56ba9238243d8eb2f46a5c6388c5528acfb81cdd1"
+        }
+      },
+      "2": {
+        "FFs": 4067,
+        "classes": [
+          {
+            "block": "LAB",
+            "input_family": "EF/asdata",
+            "count": 828
+          },
+          {
+            "block": "LAB",
+            "input_family": "LUT/d",
+            "count": 2311
+          },
+          {
+            "block": "MLAB",
+            "input_family": "EF/asdata",
+            "count": 238
+          },
+          {
+            "block": "MLAB",
+            "input_family": "LUT/d",
+            "count": 690
+          }
+        ],
+        "stdout_sha256": "4c988085a90b57ebdf8973c6edf6f07daf7b85917574e8547b3f5a040d13ec6c",
+        "inputs_sha256": {
+          "routed.json": "f6c22f728cd737212654d2f28f67db1b070d0fb06952f4a4cc8545f365bcc868",
+          "diagnostic.rbf": "bc29a02c89a38f59f2bad77fd87ee3ebd72061f1b6a7d416bb8690b477f6799c"
+        }
+      },
+      "3": {
+        "FFs": 4067,
+        "classes": [
+          {
+            "block": "LAB",
+            "input_family": "EF/asdata",
+            "count": 821
+          },
+          {
+            "block": "LAB",
+            "input_family": "LUT/d",
+            "count": 2314
+          },
+          {
+            "block": "MLAB",
+            "input_family": "EF/asdata",
+            "count": 258
+          },
+          {
+            "block": "MLAB",
+            "input_family": "LUT/d",
+            "count": 674
+          }
+        ],
+        "stdout_sha256": "e3c83e4ca3f8a1f86e89896beafee24ce2a836a699a3cb01d90f18d67bca31b6",
+        "inputs_sha256": {
+          "routed.json": "b263281800cc5afefd0a4983cd8063b2e6dbe24d978468baf0fc4a5f2ac9f70c",
+          "diagnostic.rbf": "cb6db043d3022eb33a63e02c66507dd5ee47b7375d2eee95997900a9d5a24210"
+        }
+      }
+    }
+  },
+  "fitted_PKREG_pin_selection_proof": {
+    "scope": "Actual fitted RBF PKREG maps every retained d/asdata identity. Does not by itself prove virtual native timing boundaries.",
+    "helper_source_sha256": "17b898ffa0581e8950af39ea68fee5cfb8ffe18de3580abf5aeb5fd34991cd72",
+    "helper_binary_sha256": "9e19ebde8e5150d627135fbfbc677314c0f9b3e106b8e4b70088a37ce602df64",
+    "runs": {
+      "slots": {
+        "FFs": 80,
+        "data_observations": 1280,
+        "inventory_sha256": "a1ba448bf5d18dfa25efa28fd0d0ea0f582c04a211634e254943ae03bb29cf78"
+      },
+      "slots-ce": {
+        "FFs": 120,
+        "data_observations": 1920,
+        "inventory_sha256": "495b6e9fd85a8a56e685324913e346a09464796b45fea78766960e5467a3fbdd"
+      }
+    }
+  }
+}

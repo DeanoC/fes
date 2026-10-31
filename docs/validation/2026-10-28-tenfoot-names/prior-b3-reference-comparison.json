@@ -1,0 +1,153 @@
+{
+  "source_commit": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
+  "previous_source_commit": "9f10d0912f8cc9c619a12a68bd3d05bbf5fc0ff9",
+  "capture_comparison": {
+    "gallery": {
+      "old_count": 86,
+      "final_count": 86,
+      "identical": 84,
+      "changed": [
+        "hardware-empty-1024x600.png",
+        "hardware-focus-1280x720.png"
+      ],
+      "added": [],
+      "removed": []
+    },
+    "native": {
+      "old_count": 47,
+      "final_count": 47,
+      "identical": 46,
+      "changed": [
+        "home-launching-1280x720.png"
+      ],
+      "added": [],
+      "removed": []
+    }
+  },
+  "reference_count": 13,
+  "changed_reference_count": 0,
+  "references": [
+    {
+      "reference": "docs/ux/references/tenfoot-polish/home-1280x720.png",
+      "capture": "out/ux-pass/names/final-gallery/fes-cores-1280x720.png",
+      "sha256": "216bc3db3021fbea9ce4d9b23991078740123f7e5468072b802ad2693f9bdb32",
+      "previous_sha256": "216bc3db3021fbea9ce4d9b23991078740123f7e5468072b802ad2693f9bdb32",
+      "changed": false,
+      "bytes": 51098
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/library-1280x720.png",
+      "capture": "out/ux-pass/names/final-gallery/native-library-actions-details-1280x720.png",
+      "sha256": "b738543ce21b18598d8262f608f2c8c138a202e6f066f88ee0a5dd38cdaa9399",
+      "previous_sha256": "b738543ce21b18598d8262f608f2c8c138a202e6f066f88ee0a5dd38cdaa9399",
+      "changed": false,
+      "bytes": 34166
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/system-1024x600.png",
+      "capture": "out/ux-pass/names/final-gallery/system-1024x600.png",
+      "sha256": "690ea63e5d2475f7a8c84bb939b080a7bd10c4625c45dc2c81dd439c9bc152a4",
+      "previous_sha256": "690ea63e5d2475f7a8c84bb939b080a7bd10c4625c45dc2c81dd439c9bc152a4",
+      "changed": false,
+      "bytes": 60572
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/workshop-1280x720.png",
+      "capture": "out/ux-pass/names/final-native/hardware-idle-1280x720.png",
+      "sha256": "c9b1f7c1bc63fbce946b7edba29e883f8b356404ba38e2050d2ba6c39da8d7d7",
+      "previous_sha256": "c9b1f7c1bc63fbce946b7edba29e883f8b356404ba38e2050d2ba6c39da8d7d7",
+      "changed": false,
+      "bytes": 257260
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/settings-1024x600.png",
+      "capture": "out/ux-pass/names/final-gallery/native-settings-1024x600.png",
+      "sha256": "c20147eb815ea7ebee05119f4be4cdb0b516a7e51199c8adeebfbb942118f345",
+      "previous_sha256": "c20147eb815ea7ebee05119f4be4cdb0b516a7e51199c8adeebfbb942118f345",
+      "changed": false,
+      "bytes": 54548
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/details-notes-1024x600.png",
+      "capture": "out/ux-pass/names/final-native/home-curator-notes-1024x600.png",
+      "sha256": "1f9779a3d066bd3320ea48cc357d9223389a774d730b5a97149f5d33e987a4a5",
+      "previous_sha256": "1f9779a3d066bd3320ea48cc357d9223389a774d730b5a97149f5d33e987a4a5",
+      "changed": false,
+      "bytes": 45224
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/systems-1280x720.png",
+      "capture": "out/ux-pass/names/final-gallery/computers-1280x720.png",
+      "sha256": "e602a5e4f97ba5b063cdd914ea6bf78b86618d45b13b8c916326a203afea984a",
+      "previous_sha256": "e602a5e4f97ba5b063cdd914ea6bf78b86618d45b13b8c916326a203afea984a",
+      "changed": false,
+      "bytes": 54374
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/contact-rooms-1280x720.jpg",
+      "capture": "out/ux-pass/names/final-gallery/contact-rooms-1280x720.jpg",
+      "sha256": "aadcad32f2ec8cf8c70af895c7a8894fc080547d32552d42c42fa4dc581d99b0",
+      "previous_sha256": "aadcad32f2ec8cf8c70af895c7a8894fc080547d32552d42c42fa4dc581d99b0",
+      "changed": false,
+      "bytes": 91126
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/contact-rooms-1024x600.jpg",
+      "capture": "out/ux-pass/names/final-gallery/contact-rooms-1024x600.jpg",
+      "sha256": "3cb8e42fd828eae0550fda33cc1dba1cd22dbd91192146a4b7bf5c1135bfa2d5",
+      "previous_sha256": "3cb8e42fd828eae0550fda33cc1dba1cd22dbd91192146a4b7bf5c1135bfa2d5",
+      "changed": false,
+      "bytes": 97338
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/contact-variants-1280x720.jpg",
+      "capture": "out/ux-pass/names/final-gallery/contact-variants-1280x720.jpg",
+      "sha256": "1f9fe8279c722a6fd28632733a3c03c977ef8b300895fddf6aae397e030ff97e",
+      "previous_sha256": "1f9fe8279c722a6fd28632733a3c03c977ef8b300895fddf6aae397e030ff97e",
+      "changed": false,
+      "bytes": 287184
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/contact-variants-1024x600.jpg",
+      "capture": "out/ux-pass/names/final-gallery/contact-variants-1024x600.jpg",
+      "sha256": "761f7a249d3f1a80d026f9bac15931925a5567b8577f867fb863403f814666e0",
+      "previous_sha256": "761f7a249d3f1a80d026f9bac15931925a5567b8577f867fb863403f814666e0",
+      "changed": false,
+      "bytes": 301594
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/contact-native-1280x720.jpg",
+      "capture": "out/ux-pass/names/final-gallery/contact-native-1280x720.jpg",
+      "sha256": "eb3a417e304f0cb811a9fbf4c1f792c57b9530e58c728f8f8e5015d59c81ed40",
+      "previous_sha256": "eb3a417e304f0cb811a9fbf4c1f792c57b9530e58c728f8f8e5015d59c81ed40",
+      "changed": false,
+      "bytes": 334743
+    },
+    {
+      "reference": "docs/ux/references/tenfoot-polish/contact-native-1024x600.jpg",
+      "capture": "out/ux-pass/names/final-gallery/contact-native-1024x600.jpg",
+      "sha256": "3f882810c11883b9e83f1aa5434da820d68bfc8013e1ea5c6dbe3372df37d091",
+      "previous_sha256": "3f882810c11883b9e83f1aa5434da820d68bfc8013e1ea5c6dbe3372df37d091",
+      "changed": false,
+      "bytes": 392669
+    }
+  ],
+  "obsolete_world_reference_absent": true,
+  "non_reference_differences": [
+    {
+      "capture": "gallery/hardware-empty-1024x600.png",
+      "changed_pixels": 56148,
+      "reason": "asynchronous illustration ready in final; earlier fallback silhouette"
+    },
+    {
+      "capture": "gallery/hardware-focus-1280x720.png",
+      "changed_pixels": 82651,
+      "reason": "asynchronous illustration not yet ready in final; earlier photo ready"
+    },
+    {
+      "capture": "native/home-launching-1280x720.png",
+      "changed_pixels": 588,
+      "reason": "animated launch-progress segment"
+    }
+  ]
+}

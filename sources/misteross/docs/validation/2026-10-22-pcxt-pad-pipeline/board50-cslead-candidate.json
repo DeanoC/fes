@@ -1,0 +1,108 @@
+{
+  "scope": "Separate fixed CPU100/board50 CS-lead2ns native cohort, plus conditional host IO replays. No whole-board, physical or hardware signoff.",
+  "rows": [
+    {
+      "seed": 1,
+      "paired_rows": 17709,
+      "unpaired_rows": 9,
+      "setup_min_ns": 1.7619999647140503,
+      "hold_min_ns": 0.7940000295639038,
+      "cs_input_setup_ns": 16.999000549316406,
+      "cs_input_hold_ns": 2.571000099182129,
+      "conditional_chip_cs_setup_ns": 0.9620000123977661,
+      "conditional_chip_cs_hold_ns": 1.5080000162124634,
+      "native_receipt_sha256": "31ebbfb78aebb5718b82584106bff5bf8ddb500db8e930e2556936b70611b72d",
+      "io_replay_receipt_sha256": "525ca18a3d5672b59053d52cc41ca7e9ab8245f3bbfdc8c29d4d1a6c33257c85"
+    },
+    {
+      "seed": 2,
+      "paired_rows": 17709,
+      "unpaired_rows": 9,
+      "setup_min_ns": 0.6850000023841858,
+      "hold_min_ns": 0.7609999775886536,
+      "cs_input_setup_ns": 16.996000289916992,
+      "cs_input_hold_ns": 2.5739998817443848,
+      "conditional_chip_cs_setup_ns": 0.9620000123977661,
+      "conditional_chip_cs_hold_ns": 1.5080000162124634,
+      "native_receipt_sha256": "1e2bfcb262d0f46108ab92a7e91617476f8166f00fd24351ec6988e96fa3028d",
+      "io_replay_receipt_sha256": "87bfe0ed779e008c911d867b432bcde17fd7c28e180c542e1109e7bf87e84fb9"
+    },
+    {
+      "seed": 3,
+      "paired_rows": 17709,
+      "unpaired_rows": 9,
+      "setup_min_ns": 0.6050000190734863,
+      "hold_min_ns": 0.7960000038146973,
+      "cs_input_setup_ns": 16.78700065612793,
+      "cs_input_hold_ns": 2.7829999923706055,
+      "conditional_chip_cs_setup_ns": 0.9620000123977661,
+      "conditional_chip_cs_hold_ns": 1.5080000162124634,
+      "native_receipt_sha256": "20d6d910a65443ce5e38c88ae688dd7b147a1c533ca4e0edd5422fd6e651a38f",
+      "io_replay_receipt_sha256": "a527a23f5b77ceb269425b8a41e915235a649d0f64edf01679872575b3a4aea0"
+    }
+  ],
+  "same_endpoint_identities_all_three": true,
+  "accounting": {
+    "completed_route_search_receipts": 124,
+    "previous_121_prefix_exact": true,
+    "all_receipts_artifacts_and_input_bindings_verified": true,
+    "new_charge_seconds": "264.30493893800304",
+    "cumulative_charge_seconds": "100408.94542329385818741",
+    "journal_sha256": "0bd06b75c389dd2812c964144b40e5cdf91e11a09e697efdaac708fb3a8eab6a",
+    "controller_note": "The outer tool session later reported 143 although its retained completion line and all three child receipts record completion/exit 0. No child result or charge omitted."
+  },
+  "source": {
+    "revision": "320dbc515040d203601aeaaa0d940d49daaecebd",
+    "parent": "b03528b33bc734b4015e89d6902293c15deeb727",
+    "component_tree": "97017002fd54d399004b347756ac095451509761",
+    "archive_sha256": "948222a26fba94c47cc508947da0bb7368aecdc120ccd934c60a0b20e3d94a4e",
+    "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/source-board50-cslead2ns/sources/misteross",
+    "scope": "Unadopted CPU100/board50 candidate: fourth PLL counter launches CS at phase18ns (2ns before normal output stage). Other IO/CPU/pixel clocks unchanged; no exceptions or failure overrides. Conditional TI inverter reference, not fitted-board/hardware acceptance.",
+    "changed_files": {
+      "cores/fes-pcxt/rtl/fes_pcxt_top.sv": {
+        "baseline_sha256": "d769b9ae79234cc3deb494718d6063e8ca3cb67b2e2e943e863351bb49e0a183",
+        "candidate_sha256": "2de973ca42a5e2844b63a4a9d3ff7e70002b22f71795c15194c1fd22d9c7252a"
+      },
+      "cores/fes-pcxt/rtl/pcxt_system.sv": {
+        "baseline_sha256": "9b420174dfd487ad592ca80f1809a79e2b3fb071aaba68723f8295750e5eff37",
+        "candidate_sha256": "334c3444e7dee658f977e139d1589d10d55e513ace90ce152f19f0dd5a246acb"
+      },
+      "cores/fes-pcxt/rtl/pcxt_memory.sv": {
+        "baseline_sha256": "944526d30fe0e1789f4403849e1f7570634c0d4de1c697324ba7abdd9bedb69b",
+        "candidate_sha256": "82bb400b17ebe84b6beed6ded828229f001da4b1ecf66556bba8c9a42a0b49ea"
+      },
+      "cores/fes-ramtest/rtl/sdram_addon_port.v": {
+        "baseline_sha256": "f8ede141bc455ec2cc6020c2157088da59a1f91f66f678a4c069d1b582b5cd9d",
+        "candidate_sha256": "e3ccc890531752d3fd8274ddbfac4401c79374cab80e7404f8825760da002a08"
+      }
+    },
+    "hardware": false
+  },
+  "photo_reference": "retroremake-sdram-photo-reference.json",
+  "phase": "Fourth memory PLL counter drives only the final CS output FF at 50 MHz/phase 18 ns, 2 ns before normal board output registers. CPU100/board50/capture50/pixel74.25 stay unchanged.",
+  "conditional_io_scope": "All 70 registered channels pass host replay with Etron -6 CL2 and TI 4.2 ns inverter reference. FPGA load 30 pF, inverter load 50 pF, zero board flight/uncertainty. Replay RBF equals the original native RBF; reloaded timing does not replace fresh native reports.",
+  "functional_proof": {
+    "default_stage": "Bad output identically zero after optimization, with arbitrary command/address/data/OE inputs.",
+    "earlier_cs": "ABC PDR proves equal chip-capture values for arbitrary board-registered CS sequences after final-stage warmup.",
+    "missing_output_stage": "Counterexample; omitting the final CS register breaks capture equivalence.",
+    "test_file": "tests/test_pcxt_cs_phase.py",
+    "reference_scope": "Logical event ordering only. Native routed checks separately cover the 18 ns source-to-CS capture window; no analogue or board claim."
+  },
+  "remaining": [
+    "Fresh four-corner reference budgets cover all paired native clock events, including the board-to-CS pair. Nine unpaired rows keep whole-board qualification open; native fast-corner, reset pulse/CDC/MTBF and fitted-board IO requirements are not supplied by this partial screen.",
+    "Raw PLL reset entries, video CDC entry/physical bank-skew and MTBF obligations remain open.",
+    "Fitted board load/flight/inverter slew, HDMI/HPS contracts, and fresh authenticated producer/exact-artifact hardware qualification remain open."
+  ],
+  "route_budget_unlimited": true,
+  "physical_qualified": false,
+  "hardware": false,
+  "committed_integration": "695036ff4863af9345def69c85d4f12790b630b8",
+  "fresh_reference": "board50-cslead-quartus-reference.json",
+  "verification": "board50-cslead-verification.json",
+  "synthesis_parameters": {
+    "MDA": 0,
+    "SCANLINES": 0,
+    "HALF_RATE_BOARD": 1
+  },
+  "variant_scope": "The three native routes report passing paired timing for CGA Direct only. MDA and scanline combinations inherit no routed or hardware acceptance."
+}

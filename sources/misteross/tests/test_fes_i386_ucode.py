@@ -49,6 +49,20 @@ class AssembleTest(unittest.TestCase):
         last = 1 << (ucode.WIDTH - 1)
         self.assertEqual([bool(word & last) for word in words], [False, False, True])
 
+    def test_the_instructions_register(self):
+        # s1 or s2 = "reg" sets that source's valid bit and rg, its index 0.
+        field = {name: n for n, (name, _) in enumerate(ucode.FIELDS)}
+        def bits(word):
+            values, shift = {}, ucode.WIDTH
+            for name, width in ucode.FIELDS:
+                shift -= width
+                values[name] = word >> shift & ((1 << width) - 1)
+            return values
+        words, _ = ucode.assemble({'routine': [routine('a', [{'s1': 'reg'}, {'s2': 'reg'}, {'s2': 'edi'}])]})
+        self.assertIn('rg', field)
+        self.assertEqual([(bits(w)['s1'], bits(w)['s2'], bits(w)['s2_idx'], bits(w)['rg']) for w in words],
+                         [(1, 0, 0, 1), (0, 1, 0, 1), (0, 1, 7, 0)])
+
     def test_rejects(self):
         for table, message in (
             ({'routine': []}, 'no routines'),

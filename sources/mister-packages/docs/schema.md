@@ -180,6 +180,20 @@ cpu: cpu/arm_cyclone_v.yaml
 Vendor, FPGA part, clocks, and pins. Pins are descriptive; this schema
 does not generate XDC or Quartus constraints.
 
+`validate` and `report` accept a standalone board without a platform, SoC or
+CPU definition. `emit-c`, `emit-cpp`, `emit-go` and `emit-verilog` do not accept boards.
+Board identifiers follow the ABI identifier grammar. Vendor, FPGA family and
+device are required. At least one clock is required, and each clock names its
+physical pin, I/O standard and positive frequency in Hz. Every additional pin
+names its physical pin, I/O standard and `input`, `output` or `inout` direction.
+Names and physical pins are unique across both lists. Board loading rejects
+unknown fields and multiple YAML documents; platform loading applies the same
+board validation.
+
+The DE25-Nano board definition describes the initial FPGA bring-up pins only.
+It does not declare an Agilex 5 SoC register map, programming profile, image or
+runtime support. Those require separate verified hardware contracts.
+
 ## soc
 
 Physical windows (base and size), AXI-style buses, and named register
@@ -295,8 +309,23 @@ constant includes using the existing naming rules. `emit-cpp` emits the same
 constants for a fabric contract the runtime also reads, such as
 [`fes.fabric.video.display-plane`](../packages/fabric/fes_fabric_video_display_plane.yaml).
 `emit-go` can emit those same constants for the experimental native runtime.
+`emit-c` accepts only fabric packages and emits standalone guarded C headers,
+with no system includes. Constant names use the existing uppercase Verilog
+macro naming rule; each value is an unsigned 32-bit hexadecimal literal such
+as `#define FES_DE25_DDR_PROBE_IDENTITY 0x44323550U`. The include guard derives
+from the package ID and major version, with a `_H` suffix. Duplicate normalized
+macro names, including collisions with that guard, are rejected.
 This path does not generate RTL modules, connections, constraints, or host
 Go/C++ admission tables.
+
+[`fabric/fes_fabric_de25_hps_mailbox.yaml`](../packages/fabric/fes_fabric_de25_hps_mailbox.yaml)
+defines the standalone DE25-Nano HPS mailbox's diagnostic register constants.
+Its peripheral offset is relative to the copied vendor GHRD subsystem, not
+a Linux physical MMIO map or an activatable package interface.
+
+[`fabric/fes_fabric_de25_ddr_probe.yaml`](../packages/fabric/fes_fabric_de25_ddr_probe.yaml)
+defines the bounded read-only DDR diagnostic. [DE25 DDR](de25-ddr.md) describes
+its descriptor, local drain status and separate translation/firewall gates.
 
 [`fabric/fes_fabric_video_raster_rgb888.yaml`](../packages/fabric/fes_fabric_video_raster_rgb888.yaml)
 defines `fes.fabric.video.raster-rgb888` 1.0. See
@@ -438,6 +467,13 @@ read and resume, including invalid requests. It leaves the original volatile
 `fes-gp-v1` vectors unchanged. Regenerate with
 `python3 scripts/core_persistence_fixtures.py`, or use `--check` to compare.
 These fixtures establish byte contracts, not hardware acceptance.
+
+`fes.computer` 1.1 registers `fes.persistence.words` 1.0 (bit 17) with the
+same semantics on opcodes 24..27 and one layout, `fes.pc386.machine` 1.0
+(bit 19, tag 3, 72 words). Its record is keyed by core ID and library game
+ID: the `FESGAME1` envelope in [computer I/O](computer-io.md#persistence-words).
+`testdata/core-persistence-v1/pc386-machine.json` holds its valid and
+rejected vectors, from the same script.
 
 Application menu display `fes.video.menu-display` 1.0 uses capability bit 9
 and opcodes 18–21. It is an additive required-when-present interface; no

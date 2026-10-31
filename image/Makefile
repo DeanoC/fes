@@ -36,6 +36,7 @@ test:
 	sh scripts/tests/reboot-backstop_test.sh
 	sh scripts/tests/shutdown-budget_test.sh
 	sh scripts/tests/ethaddr-init_test.sh
+	sh scripts/tests/time-init_test.sh
 	sh scripts/tests/block-admit_test.sh
 	sh scripts/tests/usb-quirk_test.sh
 	sh scripts/tests/target-image-rootfs_test.sh

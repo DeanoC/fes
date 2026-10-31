@@ -1,0 +1,26 @@
+{
+  "host": {
+    "archive": "host.tar.gz",
+    "archive_sha256": "b7eb123902ff8b6c7a422f0846cc431607fc2e5ddb9f6eda06ed2fd507e8537c",
+    "archive_bytes": 43281524,
+    "verified_members": 94,
+    "all_members_read_back": true,
+    "original_manifest_sha256": "105831cf121903d6306e88b5fc8d5d9fe0e7a24ab0133dbdc48cedb790fcc5cf"
+  },
+  "window-route": {
+    "archive": "window-route.tar.gz",
+    "archive_sha256": "2b0acc180391b46eef07236b3ff3377c333684f2cecc3962f8e80cd6b06d03bb",
+    "archive_bytes": 14603983,
+    "verified_members": 53,
+    "all_members_read_back": true,
+    "original_manifest_sha256": "6652a294aa3c21c6bdb25e8b54601dc758b744dbd4278060568f0e5fefb87597"
+  },
+  "timing-cost-route": {
+    "archive": "timing-cost-route.tar.gz",
+    "archive_sha256": "5bdf7d9e2c4cbe0d494e4b702f7e88ef7f74b58c515774746a13b0e3047ff308",
+    "archive_bytes": 9578260,
+    "verified_members": 33,
+    "all_members_read_back": true,
+    "original_manifest_sha256": "6cc0ddd5a3042d4307ad0a58f489ccfa2ce32da2d1c4f22edeb851a29c229f92"
+  }
+}

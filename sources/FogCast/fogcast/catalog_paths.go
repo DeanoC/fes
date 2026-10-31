@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -58,19 +59,36 @@ func ResolveCatalogConfig(explicit, launcherConfig string, getenv func(string) s
 // create directories under /usr, and the kit still cannot use them.
 const catalogSystemReadOnlyRoot = "/usr"
 
-// PathsForConfig is the catalog Paths for one resolved config file.
+// PathsForConfig resolves one config file path and returns its catalog Paths.
 // Explicit state and staging in the file win when both are absolute and
-// usable. The default user config keeps DefaultPaths. Any other file on a
-// writable directory uses state beside that file so a test does not open
+// usable. The default user config keeps DefaultPaths, even if a service
+// overrides HOME; its explicit config path is still retained. Any other file
+// on a writable directory uses state beside that file so a test does not open
 // the operator's home library. A config on a read-only directory never
 // creates those directories beside the file. Paths under /usr, and paths
 // beside a config that itself lives under /usr, are unusable even when the
 // current user can write them. They fall back to the writable default: the
 // kit tmpfs when that is writable, and a private temp directory otherwise.
+// Relative config paths resolve from the current working directory before
+// store paths are derived.
 func PathsForConfig(configPath string) (Paths, error) {
+	accountHome := ""
+	if current, err := user.Current(); err == nil {
+		accountHome = current.HomeDir
+	}
+	return pathsForConfig(configPath, accountHome)
+}
+
+// accountHome comes from the process identity, independently of HOME, which a
+// service may override while still loading the account's canonical config.
+func pathsForConfig(configPath, accountHome string) (Paths, error) {
 	configPath = strings.TrimSpace(configPath)
 	if configPath == "" {
 		return Paths{}, fmt.Errorf("catalog config path is empty")
+	}
+	configPath, err := filepath.Abs(configPath)
+	if err != nil {
+		return Paths{}, fmt.Errorf("resolve catalog config path: %w", err)
 	}
 	info, err := os.Stat(configPath)
 	if err != nil || info.IsDir() {
@@ -97,13 +115,30 @@ func PathsForConfig(configPath string) (Paths, error) {
 				return Paths{}, prepErr
 			}
 		}
-	} else if defaults, err := DefaultPaths(); err == nil && filepath.Clean(defaults.Config) == configPath {
+	} else if defaults, ok := defaultPathsForConfig(configPath, accountHome); ok {
 		return defaults, nil
 	} else if configDirAcceptsCatalogStorage(configPath, dir) {
 		return prepareCatalogPaths(configPath, filepath.Join(dir, "state"), filepath.Join(dir, "staging"))
 	}
 	root := defaultWritableCatalogRoot(configPath)
 	return prepareCatalogPaths(configPath, filepath.Join(root, "state"), filepath.Join(root, "staging"))
+}
+
+func defaultPathsForConfig(configPath, accountHome string) (Paths, bool) {
+	defaults, err := DefaultPaths()
+	if err != nil {
+		return Paths{}, false
+	}
+	defaultConfig := filepath.Clean(defaults.Config)
+	accountConfig := ""
+	if accountHome != "" {
+		accountConfig = filepath.Clean(filepath.Join(accountHome, ".config", "fogcast", "config.toml"))
+	}
+	if configPath != defaultConfig && (configPath != accountConfig || storageOnSystemReadOnlyTree(configPath)) {
+		return Paths{}, false
+	}
+	defaults.Config = configPath
+	return defaults, true
 }
 
 type catalogStorageSettings struct {

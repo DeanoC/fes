@@ -5,8 +5,10 @@ This is the current described-core matrix. It is taken from
 misteross producers that emit format-2 manifests, except ZX81, SMS, SG-1000,
 Apple II, C64, Spectrum and Atari ST format-3 manifests, and Coleco format-4
 manifests with sealed ROM maps.
-Whether a core matches the current HIP pin, CPU and display choices is
-[core alignment](core-alignment.md). A dated note under
+Boards, OSS versus Quartus toolchains and support tiers are the
+[core support matrix](support-matrix.md). This page stays ABI, interfaces
+and package standing. Whether a core matches the current HIP pin, CPU and
+display choices is [core alignment](core-alignment.md). A dated note under
 [validation/](validation/) describes the artifact it names. It does not accept
 a bitstream built later.
 
@@ -62,9 +64,10 @@ factory-image acceptance or promotion. Keyboard transposition
 ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated. The factory
 packages, Apple II and Catch seal with HIP/nextpnr. The accepted policy allows
 labelled Quartus product variants alongside OSS builds; current registered
-recipes and package selection still use HIP/nextpnr only. Quartus remains an
-oracle where a recipe says so until variant support lands. A failed OSS route
-never falls back to Quartus.
+playable recipes use HIP/nextpnr. PC/XT selects a Quartus diagnostic package
+through its normal recipe; nextpnr remains advisory for that core. Quartus
+remains an oracle where other recipes say so until variant support lands.
+A failed OSS route never falls back to Quartus.
 
 ## Matrix
 
@@ -282,22 +285,31 @@ to ordinary 320×200, and later demo sections/audio fidelity remain unqualified.
 
 ## PC/XT development diagnostic
 
-PC/XT is outside the factory/package set. Its assembled 8088, motherboard,
+PC/XT is outside the factory image package set. Its assembled 8088, motherboard,
 SDRAM, ISA CGA/MDA and one Direct/Scanlines pipeline have host simulation
-coverage, including DMA and refresh. The autonomous diagnostic board builder
-supplies PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts
-under `sources/misteross/build/diagnostic/fes-pcxt/`. The CGA Direct diagnostic
-at `6df7e982` was rejected by the [Quartus cross-check](https://github.com/DeanoC/fes/pull/836#issuecomment-6261235615):
-system, pixel and ROM-phase paths miss the unchanged 100/74.25/100 MHz targets.
-Its old nextpnr-only pass does not establish timing closure; [#840](https://github.com/DeanoC/fes/issues/840)
-remains open. Other profiles,
-SDRAM pad qualification, physically linkable ISA cards, a runtime ABI/sealed package,
-BIOS/DOS/game compatibility and hardware acceptance remain open. See the
+coverage, including DMA and refresh. The diagnostic board builder supplies
+PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts under
+`sources/misteross/build/diagnostic/fes-pcxt/`. `fes.pcxt` now has an installable
+format-2 diagnostic package with a minimal `fes.computer` identity/execution
+mailbox and fixed CGA Direct video. The registered package producer uses Quartus with a common 100 MHz board,
+74.25 MHz CGA Direct video and a visible firmware-completion block. All declared
+seeds must pass reported internal timing; the first seed must reproduce its RBF.
+Nextpnr remains advisory under [#840](https://github.com/DeanoC/fes/issues/840).
+Build success does not establish external SDRAM/HDMI/HPS/reset qualification
+or physical socket containment; hardware acceptance needs its own dated run.
+The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
+passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
+Independent review found four package/acceptance defects, now fixed and re-reviewed.
+Kit A accepts package `9d46fefc49f516b2` through normal import/launch/Stop in a
+private host HOME/catalog: three captures match the static stripes and all eight
+firmware-completion scanlines.
+The baseline image/bundle are retained and the kit is idle/lease-free.
+BIOS/DOS/game compatibility, keyboard and other profiles remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
-## pc386 machine, phases M1, M2 and M3
+## pc386 machine, phases M1 to M4
 
-pc386 is outside the factory/package set and has no shell or producer. Its AT
+pc386 is outside the factory/package set. Its AT
 core (PICs, 8254, DMA, 8042, RTC/CMOS, ATA) runs the Bochs BIOS, the LGPL
 VGABios and FreeDOS 1.4 to a working prompt in host simulation, with the Bochs
 oracle as CPU; `make sim-fes-pc386` runs the device, DSP, OPL2, presenter and
@@ -309,8 +321,17 @@ simulation, and the VGA trace replay matches Bochs's VGA
 synthesis figures. See the [pc386 README](../sources/misteross/cores/fes-pc386/README.md),
 the [M1 record](validation/2026-10-26-pc386-m1-freedos-boot/summary.md) and the
 [M2 record](validation/2026-10-26-pc386-m2-vga/summary.md) and the
-[M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md). The RTL CPU
-in the machine, mailbox, routed result and hardware remain open.
+[M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md); the
+[AT core M10K record](validation/2026-10-27-pc386-at-core-m10k/summary.md) has the
+AT core's current synthesis figures. Phase M4's
+development package `fes.pc386-diag` (`make build-fes-pc386-diag`, not
+registered) is the machine without its CPU on a DE10-Nano: a bus master runs
+diagnostic commands from the HPS DDR window in the CPU's place
+([M4 record](validation/2026-10-28-pc386-m4-diagnostic/summary.md)). Its
+nextpnr routes miss both clocks; sealed with Quartus 17.0.2, it passed every
+diagnostic program on Kit B on 2026-10-29. The RTL
+CPU in the machine, the `fes.computer` 1.1 mailbox and the disk round trip
+with the runtime remain open.
 
 ## Not implemented, or not this package
 

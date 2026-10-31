@@ -97,7 +97,7 @@ func hardwareExpansion(t *testing.T, inspection corepackage.Inspection, changes 
 	return asset, encoded.Bytes()
 }
 
-func TestShelfComputersListsZX81AndC64Only(t *testing.T) {
+func TestShelfComputersIncludesAllPlayableLibraryCores(t *testing.T) {
 	ctx := context.Background()
 	archive, _ := hardwareZX81Fixture(t, true, false)
 	s, _, entry, _ := newCoreEntryLaunchFixture(t, archive, "My ZX81", time.Minute)
@@ -105,22 +105,22 @@ func TestShelfComputersListsZX81AndC64Only(t *testing.T) {
 	if _, err := store.CreateCoreEntry(ctx, "Commodore 64", "fes.c64", entry.PackageID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.CreateCoreEntry(ctx, "Unrelated machine", "fes.pong", entry.PackageID); err != nil {
+	if _, err := store.CreateCoreEntry(ctx, "Pong", "fes.pong", entry.PackageID); err != nil {
 		t.Fatal(err)
 	}
 	listed, err := s.ShelfComputers(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(listed) != 2 || listed[0].CoreID != "fes.c64" || listed[1].CoreID != "fes.zx81" || listed[1].GameID != entry.GameID {
+	if len(listed) != 3 || listed[0].CoreID != "fes.c64" || listed[1].CoreID != "fes.pong" || listed[2].CoreID != "fes.zx81" || listed[2].GameID != entry.GameID {
 		t.Fatalf("shelf %+v", listed)
 	}
 	if listed[0].Ready || listed[0].UnavailableReason == "" {
 		t.Fatalf("mismatched c64 package was launchable: %+v", listed[0])
 	}
 	for _, card := range listed {
-		if card.CoreID == "fes.pong" {
-			t.Fatalf("unrelated core listed: %+v", listed)
+		if card.CoreID == "fes.pong" && card.Ready {
+			t.Fatalf("mismatched pong package was launchable: %+v", listed)
 		}
 	}
 }
@@ -525,7 +525,7 @@ func testHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T, majo
 			t.Fatal(err)
 		}
 	}
-	if _, err := store.CreateCoreEntry(ctx, "Unrelated machine", "fes.pong", entry.PackageID); err != nil {
+	if _, err := store.CreateCoreEntry(ctx, "Pong", "fes.pong", entry.PackageID); err != nil {
 		t.Fatal(err)
 	}
 	view, err := s.Hardware(ctx)

@@ -22,7 +22,7 @@ module fes_i386_agu (
     input  logic [15:0] seg_hi_plus1,       // ... plus 1, kept with the segment
     input  logic [31:0] row,
     input  logic [31:0] last,
-    input  logic [31:0] disp,               // zero-extended from 16 bits when !addr32
+    input  logic [31:0] disp,               // only bits 15:0 count when !addr32, as for row and last
     input  logic [1:0]  late,               // last-row operand: 0 last, 1 M1, 2 EX, 3 WB
     input  logic [1:0]  late_hi,            // the same for bits 31:16
     input  logic [31:0] late_m1,

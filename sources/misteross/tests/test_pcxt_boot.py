@@ -1,5 +1,6 @@
 """Exercise every boot-ROM byte with delayed acceptance and completion."""
 from pathlib import Path
+import importlib.util
 import shutil
 import subprocess
 import tempfile
@@ -7,6 +8,24 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 VERILATOR = shutil.which('verilator')
+SPEC = importlib.util.spec_from_file_location('pcxt_sim_boot', ROOT / 'scripts/sim_fes_pcxt.py')
+SIM = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(SIM)
+
+
+class BootImageTest(unittest.TestCase):
+    def test_banks_reconstruct_exact_image(self):
+        data = bytes(((i * 73) ^ (i >> 3) ^ (i >> 9)) & 255 for i in range(65536))
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            SIM.boot_roms(work, data)
+            restored = b''.join(bytes.fromhex((work / f'pcxt_diagnostic.bank{bank}.hex').read_text())
+                                for bank in range(8))
+            self.assertEqual(restored, data)
+            self.assertEqual(len(list(work.iterdir())), 8)
+            for size in (0, 65535, 65537):
+                with self.assertRaises(ValueError):
+                    SIM.boot_roms(work, bytes(size))
 
 
 @unittest.skipUnless(VERILATOR, 'requires Verilator')
@@ -68,8 +87,7 @@ endmodule
 '''
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
-            (work / 'pcxt_diagnostic.hex').write_text(''.join(
-                f'{(i ^ (i >> 8)) & 255:02x}\n' for i in range(65536)))
+            SIM.boot_roms(work, bytes((i ^ (i >> 8)) & 255 for i in range(65536)))
             (work / 'tb.sv').write_text(fixture)
             result = subprocess.run([
                 VERILATOR, '--binary', '--timing', '--top-module', 'tb',

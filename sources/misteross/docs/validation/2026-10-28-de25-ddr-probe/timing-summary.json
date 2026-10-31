@@ -1,0 +1,661 @@
+{
+  "artifact": {
+    "matches_build_receipt": true,
+    "path": "project/output_files/golden_top.sof",
+    "sha256": "9c45d9371d108f1f1134864bb5bfbb9182c2af853f4a062b5904224c3a97367c"
+  },
+  "baseline_coverage_comparison": {
+    "added_failed_rules": [
+      {
+        "name": "Reset Nets with Polarity Conflict",
+        "rule": "LNT-30023",
+        "severity": "Medium",
+        "violations": 1,
+        "waived": 0
+      }
+    ],
+    "baseline_coverage": [
+      {
+        "hold": 0,
+        "property": "Illegal Clocks",
+        "setup": 0
+      },
+      {
+        "hold": 0,
+        "property": "Unconstrained Clocks",
+        "setup": 0
+      },
+      {
+        "hold": 0,
+        "property": "Unconstrained Input Ports",
+        "setup": 0
+      },
+      {
+        "hold": 0,
+        "property": "Paths from Unconstrained Input Ports (Pairs-Only)",
+        "setup": 0
+      },
+      {
+        "hold": 0,
+        "property": "Unconstrained Output Ports",
+        "setup": 0
+      },
+      {
+        "hold": 0,
+        "property": "Paths to Unconstrained Output Ports (Pairs-Only)",
+        "setup": 0
+      }
+    ],
+    "baseline_failed_rules": [
+      {
+        "name": "Missing Output Delay Constraint",
+        "rule": "TMC-20012",
+        "severity": "High",
+        "violations": 1,
+        "waived": 0
+      },
+      {
+        "name": "Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+        "rule": "RDC-50003",
+        "severity": "Medium",
+        "violations": 1,
+        "waived": 0
+      },
+      {
+        "name": "Intra-Clock False Path Reset Synchronizer",
+        "rule": "RES-50101",
+        "severity": "Low",
+        "violations": 2,
+        "waived": 0
+      }
+    ],
+    "baseline_metastability": {
+      "excluded_counts": [
+        14
+      ],
+      "found_counts": [
+        38
+      ],
+      "modeled_count": 24,
+      "qualification": "partial compiler model; excluded chains and physical behavior not qualified",
+      "reported_model_years": [
+        "1e+09"
+      ],
+      "shortest_register_counts": [
+        2
+      ],
+      "timing_violation_counts": [
+        0
+      ]
+    },
+    "clock_count": 35,
+    "clock_identity_type_period_frequency_identical": true,
+    "coverage_identical": true,
+    "final_clock_count": 35,
+    "output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-nano-bringup/out/de25-hps-reset-4ab2472b0b",
+    "producer_revision": "4ab2472b0b22b64d8756fd7c6e83d117e794b214",
+    "rdc_groups_identical": true
+  },
+  "bindings": {
+    "build_receipt_sha256": "5ac9e88f0b3bc4c28dc1f3ac2a240ccd5b75a7b6d85d16f3068b7a79117f76d8",
+    "build_report_manifest_count": 19,
+    "build_report_mismatches": [],
+    "final_report_sha256": {
+      "golden_top.fit.summary": "24bee60e9d04e753fcaf349eb9050b5b49345c9c0fcebf945f13f06936ac9bfc",
+      "golden_top.sta.rpt": "21e761b37bdec5af822f8579c0e8b62905da9c548c97152823b3b742f5115260",
+      "golden_top.sta.summary": "e1957a003ea4ad02b64442f4111f12ab2a4b5317760ba79ea623fcfde840f3cf",
+      "golden_top.tq.drc.signoff.rpt": "30a4ac6a3592dc9f860e221ccff65423e7cec19770435cda99bf1b11b63a3eef"
+    },
+    "generation_sha256": "507102c1e9e937d920a22b2accb1e5aa9ec13f81ebdc190255b823d56d1341f5",
+    "inputs_sha256": "a49101da9b94c4c6289342415c647bbc3d73b9f6511a288535f34c05d49be27e",
+    "top_handoff_sha256": "726b6d5c0c5a579fad5dd6ae0ae29cd36b8f82ef5ec79f753585007e9aab2bff"
+  },
+  "boot_firmware_compatibility": "not-qualified",
+  "classification": "host-only constrained-timing evidence; overall design closure fails",
+  "clocks": [
+    {
+      "frequency": "16.0 MHz",
+      "name": "altera_reserved_tck",
+      "period_ns": "62.500",
+      "type": "Base"
+    },
+    {
+      "frequency": "166.67 MHz",
+      "name": "EMIF_REF_CLOCK",
+      "period_ns": "6.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "internal_clk",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "50.0 MHz",
+      "name": "pll_inst|iopll_0_m_cnt_clk",
+      "period_ns": "20.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "50.0 MHz",
+      "name": "pll_inst|iopll_0_n_cnt_clk",
+      "period_ns": "20.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "pll_inst|iopll_0_outclk0",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "50.0 MHz",
+      "name": "pll_inst|iopll_0_refclk",
+      "period_ns": "20.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "50.0 MHz",
+      "name": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+      "period_ns": "20.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "666.67 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c0_cntr_0",
+      "period_ns": "1.500",
+      "type": "Generated"
+    },
+    {
+      "frequency": "166.67 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_c1_cntr_0",
+      "period_ns": "6.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_byte_rx_gated",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_byte_rx_gated",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_byte_rx_gated",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_byte_rx_gated",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_byte_rx_gated",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_byte_rx_gated",
+      "period_ns": "10.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "100.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+      "period_ns": "10.000",
+      "type": "Base"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_in",
+      "period_ns": "0.750",
+      "type": "Base"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[0]_nff",
+      "period_ns": "0.750",
+      "type": "Generated"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_in",
+      "period_ns": "0.750",
+      "type": "Base"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[1]_nff",
+      "period_ns": "0.750",
+      "type": "Generated"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_in",
+      "period_ns": "0.750",
+      "type": "Base"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[2]_nff",
+      "period_ns": "0.750",
+      "type": "Generated"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_in",
+      "period_ns": "0.750",
+      "type": "Base"
+    },
+    {
+      "frequency": "1333.0 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_LPDDR4A_DQS[3]_nff",
+      "period_ns": "0.750",
+      "type": "Generated"
+    },
+    {
+      "frequency": "666.67 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+      "period_ns": "1.500",
+      "type": "Generated"
+    },
+    {
+      "frequency": "166.67 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_sync_0",
+      "period_ns": "6.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "166.67 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_pll_ncntr",
+      "period_ns": "6.000",
+      "type": "Generated"
+    },
+    {
+      "frequency": "1333.33 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+      "period_ns": "0.750",
+      "type": "Generated"
+    },
+    {
+      "frequency": "1333.33 MHz",
+      "name": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+      "period_ns": "0.750",
+      "type": "Generated"
+    }
+  ],
+  "closure": {
+    "design": "Fail",
+    "design_assistant": "High Severity Violations",
+    "timing": "Pass",
+    "unconstrained_paths": "Pass"
+  },
+  "coverage": [
+    {
+      "hold": 0,
+      "property": "Illegal Clocks",
+      "setup": 0
+    },
+    {
+      "hold": 0,
+      "property": "Unconstrained Clocks",
+      "setup": 0
+    },
+    {
+      "hold": 0,
+      "property": "Unconstrained Input Ports",
+      "setup": 0
+    },
+    {
+      "hold": 0,
+      "property": "Paths from Unconstrained Input Ports (Pairs-Only)",
+      "setup": 0
+    },
+    {
+      "hold": 0,
+      "property": "Unconstrained Output Ports",
+      "setup": 0
+    },
+    {
+      "hold": 0,
+      "property": "Paths to Unconstrained Output Ports (Pairs-Only)",
+      "setup": 0
+    }
+  ],
+  "dma_admission": "not-qualified",
+  "failed_design_assistant_rules": [
+    {
+      "name": "Missing Output Delay Constraint",
+      "rule": "TMC-20012",
+      "severity": "High",
+      "violations": 1,
+      "waived": 0
+    },
+    {
+      "name": "Reset Nets with Polarity Conflict",
+      "rule": "LNT-30023",
+      "severity": "Medium",
+      "violations": 1,
+      "waived": 0
+    },
+    {
+      "name": "Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+      "rule": "RDC-50003",
+      "severity": "Medium",
+      "violations": 1,
+      "waived": 0
+    },
+    {
+      "name": "Intra-Clock False Path Reset Synchronizer",
+      "rule": "RES-50101",
+      "severity": "Low",
+      "violations": 2,
+      "waived": 0
+    }
+  ],
+  "fit": {
+    "Device": "A5EB013BB23BE4SCS",
+    "Device Status": "Final",
+    "Family": "Agilex 5",
+    "Fitter Status": "Successful - Wed Oct 28 18:13:46 2026",
+    "Logic utilization (in ALMs)": "10,893 / 46,800 ( 23 % )",
+    "Power Models": "Final",
+    "Quartus Prime Version": "26.3.0 Build 114 10/14/2026 SC Pro Edition",
+    "Revision Name": "golden_top",
+    "Timing Models": "Final",
+    "Top-level Entity Name": "golden_top",
+    "Total DSP Blocks": "0 / 188 ( 0 % )",
+    "Total HSSI HPS": "1 / 1 ( 100 % )",
+    "Total PLLs": "2 / 11 ( 18 % )",
+    "Total RAM Blocks": "131 / 358 ( 37 % )",
+    "Total block memory bits": "2,098,688 / 7,331,840 ( 29 % )",
+    "Total dedicated logic registers": "21655",
+    "Total pins": "284 / 351 ( 81 % )"
+  },
+  "format": 1,
+  "hardware_acceptance": "not-run",
+  "interconnect_post_compile_verification": {
+    "all_sources_match": true,
+    "interconnect_module": "qsys_top_altera_mm_interconnect_1920_7nkwjpa",
+    "interconnect_source": "qsys_top/altera_mm_interconnect_1920/synth/qsys_top_altera_mm_interconnect_1920_7nkwjpa.v",
+    "mismatches": [],
+    "receipt": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/out/de25-ddr-interconnect-8f54e4f89e-03/receipt.json",
+    "receipt_sha256": "e27005a6faa4f0fd013c51dbab5e96066b2ff0adfd63fd20987d681db1556b2b",
+    "source_count": 114
+  },
+  "lnt_30023": {
+    "classification": "datapath lane-selection mapped to synchronous clear; not a system-reset polarity conflict",
+    "driver": "soc_inst|mm_interconnect_0|limiter_pipeline|gen_inst[0].core|data1[40]",
+    "limits": "source/netlist mapping classification; legacy JTAG writes not functionally exercised; no physical or formal equivalence qualification",
+    "official_rule": "https://resources.altera.com/quartushelp/25.1/da_rules/lnt_30023.htm",
+    "semantic_role": "legacy JTAG command packet address bit 4; selects lower/upper 128-bit payload half during 32-to-256 data steering",
+    "sinks": [
+      {
+        "register_bank": "mux_pipeline|gen_inst[0].core|data0",
+        "sclr_count": 128
+      },
+      {
+        "register_bank": "mux_pipeline|gen_inst[1].core|data0",
+        "sclr_count": 128
+      }
+    ],
+    "waiver_applied": false
+  },
+  "metastability": {
+    "excluded_counts": [
+      18
+    ],
+    "found_counts": [
+      42
+    ],
+    "modeled_count": 24,
+    "qualification": "partial compiler model; excluded chains and physical behavior not qualified",
+    "reported_model_years": [
+      "1e+09"
+    ],
+    "shortest_register_counts": [
+      2
+    ],
+    "timing_violation_counts": [
+      0
+    ]
+  },
+  "output": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/out/de25-ddr-probe-8f54e4f89e",
+  "producer_revision": "8f54e4f89e5b12ae18df70c542bc5846d0452ce6",
+  "rdc_groups": [
+    {
+      "clock": "pll_inst|iopll_0_outclk0",
+      "count": 12,
+      "heads": [
+        "fes_top_reset_inst|sync_regs[0]",
+        "soc_inst|subsys_periph|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|sink_crosser|alt_rst_req_sync_in_rst|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|sink_crosser|alt_rst_req_sync_in_rst|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|sink_crosser|alt_rst_req_sync_in_rst|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|rst_controller|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1",
+        "soc_inst|subsys_debug|hps_f2sdram|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1",
+        "soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1"
+      ]
+    }
+  ],
+  "sta": {
+    "all_rows_nonnegative": true,
+    "all_tns_zero": true,
+    "minima_ns": {
+      "Hold": 0.0,
+      "Minimum Pulse Width": 0.22,
+      "Recovery": 7.567,
+      "Removal": 0.155,
+      "Setup": 3.581
+    },
+    "row_count": 23,
+    "rows": [
+      {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 3.581,
+        "tns_ns": 0.0,
+        "type": "Setup"
+      },
+      {
+        "clock": "altera_reserved_tck",
+        "corner": "Slow fix4 100C Model",
+        "slack_ns": 12.809,
+        "tns_ns": 0.0,
+        "type": "Setup"
+      },
+      {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 0.0,
+        "tns_ns": 0.0,
+        "type": "Hold"
+      },
+      {
+        "clock": "altera_reserved_tck",
+        "corner": "Fast fix4 0C Model",
+        "slack_ns": 0.073,
+        "tns_ns": 0.0,
+        "type": "Hold"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+        "corner": "Fast fix4 0C Model",
+        "slack_ns": 0.376,
+        "tns_ns": 0.0,
+        "type": "Hold"
+      },
+      {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 7.567,
+        "tns_ns": 0.0,
+        "type": "Recovery"
+      },
+      {
+        "clock": "altera_reserved_tck",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 60.695,
+        "tns_ns": 0.0,
+        "type": "Recovery"
+      },
+      {
+        "clock": "altera_reserved_tck",
+        "corner": "Fast fix4 0C Model",
+        "slack_ns": 0.155,
+        "tns_ns": 0.0,
+        "type": "Removal"
+      },
+      {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Fast fix4 0C Model",
+        "slack_ns": 0.159,
+        "tns_ns": 0.0,
+        "type": "Removal"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_clk_periph_0",
+        "corner": "Slow fix4 100C Model",
+        "slack_ns": 0.22,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_vco_base_0",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 0.272,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_phy_clk_0",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 0.419,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "EMIF_REF_CLOCK",
+        "corner": "Slow fix4 100C Model",
+        "slack_ns": 2.22,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "pll_inst|iopll_0_outclk0",
+        "corner": "Slow fix4a 0C Model",
+        "slack_ns": 4.385,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_0_rxclk_gated",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 4.905,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_1_rxclk_gated",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 4.905,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_2_rxclk_gated",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 4.905,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_3_rxclk_gated",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 4.905,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_4_rxclk_gated",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 4.905,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "soc_inst|subsys_hps|emif_hps|emif_io96b_hps|emif_0_lpddr4|emif_0_lpddr4_0_lane_5_rxclk_gated",
+        "corner": "Slow fix4 0C Model",
+        "slack_ns": 4.905,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "pll_inst|iopll_0|tennm_ph2_iopll|ref_clk0",
+        "corner": "Slow fix4 100C Model",
+        "slack_ns": 8.313,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "pll_inst|iopll_0_refclk",
+        "corner": "Slow fix4 100C Model",
+        "slack_ns": 9.231,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      },
+      {
+        "clock": "altera_reserved_tck",
+        "corner": "Slow fix4 100C Model",
+        "slack_ns": 28.581,
+        "tns_ns": 0.0,
+        "type": "Minimum Pulse Width"
+      }
+    ]
+  },
+  "tool_version": "Quartus Prime Shell\nVersion 26.3.0 Build 114 10/14/2026 SC Pro Edition\nCopyright (C) 2026  Altera Corporation. All rights reserved."
+}

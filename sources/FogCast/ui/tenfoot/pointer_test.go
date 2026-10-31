@@ -150,9 +150,9 @@ func TestPointerClickDetailLaunches(t *testing.T) {
 		return !snap.Loading && len(snap.Games) == 1
 	})
 	now := time.Now()
-	app.Press(CommandFromKey("down"), now)
+	app.Press(CmdDetails, now)
 	if !app.Snapshot().Detail.Open {
-		t.Fatal("down should open detail")
+		t.Fatal("Details should open detail")
 	}
 	geom, ok := detailGeomOf(app.Snapshot())
 	if !ok {

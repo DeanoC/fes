@@ -1,0 +1,13 @@
+# Terasic DE25-Nano rev. B resource package v1.0.0, golden_top.qsf.
+# CLOCK0_50 and LEDR use 1.1 V, not the DE10-Nano's 3.3 V standard.
+set_location_assignment PIN_DJ35 -to CLOCK0_50
+set_instance_assignment -name IO_STANDARD "1.1-V" -to CLOCK0_50
+set_location_assignment PIN_DF35 -to {LEDR[0]}
+set_location_assignment PIN_DJ32 -to {LEDR[1]}
+set_location_assignment PIN_DN22 -to {LEDR[2]}
+set_location_assignment PIN_DP23 -to {LEDR[3]}
+set_location_assignment PIN_DN25 -to {LEDR[4]}
+set_location_assignment PIN_DP25 -to {LEDR[5]}
+set_location_assignment PIN_DJ27 -to {LEDR[6]}
+set_location_assignment PIN_DP30 -to {LEDR[7]}
+set_instance_assignment -name IO_STANDARD "1.1-V" -to {LEDR[*]}

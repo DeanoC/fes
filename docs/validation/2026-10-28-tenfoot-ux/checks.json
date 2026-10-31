@@ -1,0 +1,73 @@
+{
+  "format": 1,
+  "recorded_utc": "2026-10-28T11:36:27.574192+00:00",
+  "base": "b5ec777d624a1c9dfa589ffcb4ae70e94ae21a58",
+  "executable_source": "9ab7e975cb249c97c4b95c52739800053b96ea7d",
+  "status": "all selected checks completed; host lane passed on rerun; original aggregate failure logs retained",
+  "affected_command": {
+    "command": "make test-changed TEST_CHANGED_ARGS='--base b5ec777d624a1c9dfa589ffcb4ae70e94ae21a58'",
+    "returncode": 2,
+    "passed_parent_counts": {
+      "planner": 21,
+      "runner": 31,
+      "parent_regressions": 439
+    },
+    "generated_consumer_consistency": "passed",
+    "host_failure": "Home native render/state assertions with two callback wall-budget reports; exact failed cases and full host lane retried without source or budget changes"
+  },
+  "host_lane_retry": {
+    "command": "python3 scripts/host_tests.py --ui-if-needed",
+    "returncode": 0,
+    "results": [
+      {
+        "label": "host artifact functional suites",
+        "returncode": 0
+      },
+      {
+        "label": "host race suite excluding race-expensive packages",
+        "returncode": 0
+      },
+      {
+        "label": "host concurrency-focused race checks",
+        "returncode": 0
+      },
+      {
+        "label": "appliance race suite",
+        "returncode": 0
+      },
+      {
+        "label": "expansion functional suite",
+        "returncode": 0
+      },
+      {
+        "label": "expansion concurrency-focused race checks",
+        "returncode": 0
+      },
+      {
+        "label": "host UI tests",
+        "returncode": 0
+      }
+    ],
+    "node_tests": 361,
+    "ui_browser_tests": 78,
+    "go_package_pass_lines": 95
+  },
+  "consistency": {
+    "command": "make check",
+    "returncode": 0
+  },
+  "deadcode": {
+    "command": "make deadcode",
+    "returncode": 0
+  },
+  "bundle": {
+    "command": "make kit-software KIT_SOFTWARE_VERSION=tenfoot-ux-9ab7e975cb [base/output parameters in build log]",
+    "returncode": 0,
+    "id": "75fa28c4265b2a31bc1d416f4d4ebffe320d9fdead59b49da89064ee37368c3c",
+    "tar_sha256": "5fa9f1a5860906de20d428cf5019249ba7c01dde81a398f8c05269c01fd297bc",
+    "tar_bytes": 36541952,
+    "deployed": false
+  },
+  "hardware_evidence": "host-only; kit smoke and menu-display latency/readability/controller acceptance pending",
+  "contracts": "No shared/API/runtime/FPGA/package schema changes"
+}

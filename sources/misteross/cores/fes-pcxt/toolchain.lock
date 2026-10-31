@@ -2,28 +2,28 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "3a5accbd78c526ab7bae32640044a2e062a3cfc9"
 order = 10
-rationale = "PC/XT diagnostic timing campaign for FES #840; per-pin nextpnr 552ba246, with current Yosys and unchanged Mistral. Not timing or hardware acceptance."
+rationale = "PC/XT diagnostic tools: reviewed nextpnr main 2fa5ec4c (merged #294/#295/#296) and Mistral #19 indexing fix 9ab65220. Harmonic/FF clear modes are explicit diagnostic opt-ins; reset reference validation, physical IO and hardware acceptance remain open."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
-commit = "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f"
+commit = "9ab6522077948fc3dd2e074338874f92e848fc44"
 order = 20
-rationale = "PC/XT diagnostic timing campaign for FES #840; per-pin nextpnr 552ba246, with current Yosys and unchanged Mistral. Not timing or hardware acceptance."
+rationale = "PC/XT diagnostic tools: reviewed nextpnr main 2fa5ec4c (merged #294/#295/#296) and Mistral #19 indexing fix 9ab65220. Harmonic/FF clear modes are explicit diagnostic opt-ins; reset reference validation, physical IO and hardware acceptance remain open."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "552ba2464a8fce6ef0bc66189ef6d9f5b732ef3b"
+commit = "2fa5ec4c0ef6f6a34eafe0a311cf63f866b73c99"
 order = 30
-rationale = "PC/XT diagnostic timing campaign for FES #840; per-pin nextpnr 552ba246, with current Yosys and unchanged Mistral. Not timing or hardware acceptance."
+rationale = "PC/XT diagnostic tools: reviewed nextpnr main 2fa5ec4c (merged #294/#295/#296) and Mistral #19 indexing fix 9ab65220. Harmonic/FF clear modes are explicit diagnostic opt-ins; reset reference validation, physical IO and hardware acceptance remain open."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
 commit = "5e4151e3e0c8ecf11d9845a93495f37a31b2f667"
 order = 40
-rationale = "PC/XT diagnostic timing campaign for FES #840; per-pin nextpnr 552ba246, with current Yosys and unchanged Mistral. Not timing or hardware acceptance."
+rationale = "PC/XT diagnostic tools: reviewed nextpnr main 2fa5ec4c (merged #294/#295/#296) and Mistral #19 indexing fix 9ab65220. Harmonic/FF clear modes are explicit diagnostic opt-ins; reset reference validation, physical IO and hardware acceptance remain open."
 
 [tool.openfpgaloader]
 repo = "https://github.com/trabucayre/openFPGALoader.git"
 commit = "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86"
 order = 50
-rationale = "PC/XT diagnostic timing campaign for FES #840; per-pin nextpnr 552ba246, with current Yosys and unchanged Mistral. Not timing or hardware acceptance."
+rationale = "PC/XT diagnostic tools: reviewed nextpnr main 2fa5ec4c (merged #294/#295/#296) and Mistral #19 indexing fix 9ab65220. Harmonic/FF clear modes are explicit diagnostic opt-ins; reset reference validation, physical IO and hardware acceptance remain open."

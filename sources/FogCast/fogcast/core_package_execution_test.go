@@ -16,6 +16,24 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
+func pcxtComputerPackageFixture(t *testing.T) []byte {
+	t.Helper()
+	base := "../corepackage/testdata/core-bundle-v2/"
+	manifest, err := os.ReadFile(base + "manifests/valid-basic.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest = bytes.Replace(manifest, []byte("id = \"fes.pong\""), []byte("id = \"fes.pcxt\""), 1)
+	manifest = bytes.Replace(manifest, []byte("name = \"FES Pong\""), []byte("name = \"FES PC/XT Diagnostic\""), 1)
+	manifest = bytes.Replace(manifest, []byte("id = \"fes.simple-game\""), []byte("id = \"fes.computer\""), 1)
+	manifest = bytes.Replace(manifest, []byte("[[interfaces]]\nid = \"fes.gamepad\"\nmajor = 1\nminor = 0\nrequired = true\n\n"), nil, 1)
+	payload, err := os.ReadFile(base + "payloads/fes-fixture.rbf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return testCorePackageArchive(t, manifest, payload)
+}
+
 func TestRecognizedPlayABI(t *testing.T) {
 	tests := []struct {
 		id         string
@@ -26,6 +44,7 @@ func TestRecognizedPlayABI(t *testing.T) {
 		{id: "fes.simple-computer", major: 1, recognized: true},
 		{id: "fes.simple-game", major: 1, recognized: true},
 		{id: "fes.application", major: 1, recognized: true},
+		{id: "fes.computer", major: 1, recognized: true},
 		{id: "fes.simple-computer", major: 1, minor: 1},
 		{id: "fes.simple-computer", major: 2},
 		{id: "vendor.unknown", major: 1},
@@ -35,6 +54,43 @@ func TestRecognizedPlayABI(t *testing.T) {
 		if got := RecognizedPlayABI(test.id, test.major, test.minor); got != test.recognized {
 			t.Fatalf("%s %d.%d = %v, want %v", test.id, test.major, test.minor, got, test.recognized)
 		}
+	}
+}
+
+func TestPCXTComputerPackageLaunchesAsNativePlay(t *testing.T) {
+	ctx := context.Background()
+	raw := pcxtComputerPackageFixture(t)
+	service, client, entry, inspection := newCoreEntryLaunchFixture(t, raw, "FES PC/XT Diagnostic")
+	if entry.CoreID != "fes.pcxt" || inspection.Descriptor.Format != 2 ||
+		inspection.Descriptor.ABI.ID != "fes.computer" || inspection.Descriptor.ABI.Major != 1 ||
+		inspection.Descriptor.ABI.Minor != 0 {
+		t.Fatalf("PC/XT package entry = %+v descriptor = %+v", entry, inspection.Descriptor)
+	}
+	execution, err := service.SessionExecution(ctx, entry.GameID)
+	if err != nil || execution != ExecutionFPGANative {
+		t.Fatalf("SessionExecution = %q, %v, want %q", execution, err, ExecutionFPGANative)
+	}
+	loadCalls := 0
+	client.coreLoad = func(_ context.Context, size int64, body io.Reader) (protocol.Status, error) {
+		loadCalls++
+		loaded, err := io.ReadAll(body)
+		if err != nil || size != int64(len(raw)) || !bytes.Equal(loaded, raw) {
+			t.Fatalf("loaded PC/XT package size=%d bytes=%d err=%v", size, len(loaded), err)
+		}
+		observed := "fes.pcxt"
+		return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed,
+			CorePackage: &protocol.CorePackageStatus{PackageID: inspection.PackageID, Generation: 4,
+				ABI:     protocol.RuntimeContract{ID: inspection.Descriptor.ABI.ID, Major: 1},
+				BuildID: inspection.Descriptor.Build.ID, PersistenceMode: "volatile",
+				ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.video.fixed-720p60", Major: 1}}}}, nil
+	}
+	response, err := service.Launch(ctx, entry.GameID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loadCalls != 1 || response.Status.State != protocol.StateActive || response.Status.CorePackage == nil ||
+		response.Status.CorePackage.PackageID != inspection.PackageID || response.Status.CorePackage.Generation != 4 {
+		t.Fatalf("launch calls=%d status=%+v", loadCalls, response.Status)
 	}
 }
 

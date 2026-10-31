@@ -1,0 +1,387 @@
+{
+  "base": "9c155bb5fc31d293efcf325b676215b0bb4399e0",
+  "checkout_head": "8f54e4f89e5b12ae18df70c542bc5846d0452ce6",
+  "commands": [
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_affected.py"
+      ],
+      "label": "test_affected.py",
+      "lane": "always",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python"
+      ]
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_test_changed.py"
+      ],
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python"
+      ]
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "scripts/check_diff.py",
+        "--base",
+        "9c155bb5fc31d293efcf325b676215b0bb4399e0",
+        "--head",
+        "8f54e4f89e5b12ae18df70c542bc5846d0452ce6"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "committed whitespace",
+      "lane": "always",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python"
+      ]
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "working whitespace",
+      "lane": "always",
+      "tools": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"docs/README.md\", \"docs/de25-linux.md\", \"scripts/affected.py\", \"scripts/consistency.py\", \"scripts/de25_dma_descriptor.py\", \"scripts/hil_plan.py\", \"scripts/test_policy.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/docs/de25-ddr.md\", \"sources/mister-packages/docs/schema.md\", \"sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml\", \"sources/misteross/boards/de25nano/hps/Makefile\", \"sources/misteross/boards/de25nano/hps/README.md\", \"sources/misteross/boards/de25nano/hps/build.py\", \"sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe.v\", \"sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe_hw.tcl\", \"sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp\", \"sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.vh\", \"sources/misteross/boards/de25nano/hps/integrate.tcl\", \"sources/misteross/boards/de25nano/hps/interconnect_sim.py\", \"sources/misteross/boards/de25nano/hps/interconnect_tb.cpp\", \"sources/misteross/boards/de25nano/hps/probe_tb.cpp\", \"sources/misteross/boards/de25nano/hps/test_build.py\", \"sources/misteross/docs/validation/2026-10-28-de25-ddr-probe/source-review.md\", \"tests/test_affected.py\", \"tests/test_consistency.py\", \"tests/test_de25_dma_descriptor.py\", \"tests/test_hil_plan.py\"]"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ],
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "sh"
+      ]
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/consistency.py"
+      ],
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "go"
+      ]
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "scripts/host_tests.py",
+        "--ui-if-needed",
+        "--paths-json",
+        "[\"docs/README.md\", \"docs/de25-linux.md\", \"scripts/affected.py\", \"scripts/consistency.py\", \"scripts/de25_dma_descriptor.py\", \"scripts/hil_plan.py\", \"scripts/test_policy.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/docs/de25-ddr.md\", \"sources/mister-packages/docs/schema.md\", \"sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml\", \"sources/misteross/boards/de25nano/hps/Makefile\", \"sources/misteross/boards/de25nano/hps/README.md\", \"sources/misteross/boards/de25nano/hps/build.py\", \"sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe.v\", \"sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe_hw.tcl\", \"sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp\", \"sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.vh\", \"sources/misteross/boards/de25nano/hps/integrate.tcl\", \"sources/misteross/boards/de25nano/hps/interconnect_sim.py\", \"sources/misteross/boards/de25nano/hps/interconnect_tb.cpp\", \"sources/misteross/boards/de25nano/hps/probe_tb.cpp\", \"sources/misteross/boards/de25nano/hps/test_build.py\", \"sources/misteross/docs/validation/2026-10-28-de25-ddr-probe/source-review.md\", \"tests/test_affected.py\", \"tests/test_consistency.py\", \"tests/test_de25_dma_descriptor.py\", \"tests/test_hil_plan.py\"]"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/host_tests.py",
+        "sources/FogCast/Makefile",
+        "sources/FogCast/go.mod",
+        "sources/FogCast/appliance/go.mod",
+        "sources/misteross/expansion/go.mod"
+      ],
+      "host_ui": {
+        "boundary_scheduled": false,
+        "command_scheduled": true,
+        "reason": "UI/API, production/full or uncertain inputs",
+        "required": true,
+        "scheduled": true,
+        "target": "test-ui"
+      },
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "cc",
+        "go",
+        "make",
+        "node",
+        "rg",
+        "sh"
+      ]
+    },
+    {
+      "argv": [
+        "make",
+        "-j2",
+        "test"
+      ],
+      "cwd": "sources/libmister-runtime",
+      "files": [
+        "Makefile"
+      ],
+      "label": "runtime software tests",
+      "lane": "runtime",
+      "tools": [
+        "ar",
+        "c++",
+        "c++filt",
+        "make",
+        "nm",
+        "rg",
+        "sh"
+      ]
+    },
+    {
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/tmp/fes-de25-ddr-test-venv/bin/python"
+      ],
+      "cwd": "sources/mister-packages",
+      "files": [
+        "Makefile"
+      ],
+      "label": "contract schemas and generated fixtures",
+      "lane": "contracts",
+      "tools": [
+        "go",
+        "make"
+      ]
+    },
+    {
+      "argv": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "sources/misteross",
+      "files": [
+        "tests/test_*.py"
+      ],
+      "label": "test_*.py",
+      "lane": "fpga",
+      "tools": [
+        "/tmp/fes-de25-ddr-test-venv/bin/python",
+        "strace"
+      ]
+    }
+  ],
+  "evidence_class": "host-only software checks",
+  "format": 1,
+  "harness_and_test_commit": "c51d15b57f",
+  "head": "8f54e4f89e5b12ae18df70c542bc5846d0452ce6",
+  "hil_decision": "NO_DEPLOY_CHANGE",
+  "impact": {
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "cores": [],
+    "lanes": {
+      "contracts": true,
+      "fpga": true,
+      "host": true,
+      "parent": true,
+      "runtime": true
+    },
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ],
+    "paths": [
+      "docs/README.md",
+      "docs/de25-linux.md",
+      "scripts/affected.py",
+      "scripts/consistency.py",
+      "scripts/de25_dma_descriptor.py",
+      "scripts/hil_plan.py",
+      "scripts/test_policy.py",
+      "sources/mister-packages/README.md",
+      "sources/mister-packages/docs/de25-ddr.md",
+      "sources/mister-packages/docs/schema.md",
+      "sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml",
+      "sources/misteross/boards/de25nano/hps/Makefile",
+      "sources/misteross/boards/de25nano/hps/README.md",
+      "sources/misteross/boards/de25nano/hps/build.py",
+      "sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe.v",
+      "sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe_hw.tcl",
+      "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp",
+      "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.vh",
+      "sources/misteross/boards/de25nano/hps/integrate.tcl",
+      "sources/misteross/boards/de25nano/hps/interconnect_sim.py",
+      "sources/misteross/boards/de25nano/hps/interconnect_tb.cpp",
+      "sources/misteross/boards/de25nano/hps/probe_tb.cpp",
+      "sources/misteross/boards/de25nano/hps/test_build.py",
+      "sources/misteross/docs/validation/2026-10-28-de25-ddr-probe/source-review.md",
+      "tests/test_affected.py",
+      "tests/test_consistency.py",
+      "tests/test_de25_dma_descriptor.py",
+      "tests/test_hil_plan.py"
+    ],
+    "reasons": [
+      "scripts/affected.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/consistency.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/de25_dma_descriptor.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/hil_plan.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/test_policy.py: software CI infrastructure; RTL unchanged",
+      "sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml: standalone DE25 DDR probe consumers; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/Makefile: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/fes_de25_ddr_probe_hw.tcl: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/generated/fes_de25_ddr_probe.vh: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/integrate.tcl: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/interconnect_sim.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/interconnect_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/probe_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/hps/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "tests/test_affected.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_consistency.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_de25_dma_descriptor.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_hil_plan.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "skipped": [],
+    "test_modes": {
+      "full_race": false,
+      "media": false,
+      "video": false
+    }
+  },
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "local_paths": [
+    "sources/misteross/boards/de25nano/hps/interconnect_sim.py",
+    "sources/misteross/boards/de25nano/hps/interconnect_tb.cpp",
+    "tests/test_affected.py"
+  ],
+  "log": {
+    "path": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/out/de25-ddr-software-checks/test-changed.log",
+    "sha256": "27892ba05f32a3bc37198ed8e84e8a91fefda08f33517ac885d9223f939980e0"
+  },
+  "merge_base": "9c155bb5fc31d293efcf325b676215b0bb4399e0",
+  "note": "Tested working-copy helper and planner-test bytes were committed in c51d15b57f; later changes are documentation and evidence. FPGA producer remains 8f54e4f89e.",
+  "python_unittest_summaries": [
+    "Ran 25 tests in 0.229s\n\nOK",
+    "Ran 31 tests in 0.794s\n\nOK",
+    "Ran 1 test in 0.000s\n\nOK",
+    "Ran 1084 tests in 173.315s\n\nOK (skipped=2)",
+    "Ran 4 tests in 0.003s\n\nOK",
+    "Ran 10 tests in 1.904s\n\nOK",
+    "Ran 2 tests in 0.001s\n\nOK",
+    "Ran 1397 tests in 244.094s\n\nOK (skipped=35)"
+  ],
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "returncode": 0
+    },
+    {
+      "label": "runtime software tests",
+      "lane": "runtime",
+      "returncode": 0
+    },
+    {
+      "label": "contract schemas and generated fixtures",
+      "lane": "contracts",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "root": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface",
+  "status": "passed"
+}

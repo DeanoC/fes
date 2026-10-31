@@ -1,0 +1,6 @@
+auto lo
+iface lo inet loopback
+
+# The Terasic device tree's ethernet0 alias is eth0 without userspace renaming.
+auto eth0
+iface eth0 inet dhcp

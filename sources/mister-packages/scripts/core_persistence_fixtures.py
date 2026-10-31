@@ -41,6 +41,62 @@ def records():
             "valid": valid, "invalid": [{"name": name, "hex": data.hex()} for name, data in invalid.items()]}
 
 
+PC386_CORE, PC386_GAME, PC386_LAYOUT = "fes.pc386", "ultima-vi", "fes.pc386.machine"
+PC386_DEFAULTS = (0, 0, 0, 0, 0x220, 7, 1, 0) + (0,) * 64
+
+
+def game_record(core=PC386_CORE, game=PC386_GAME, layout=PC386_LAYOUT, major=1, minor=0, words=PC386_DEFAULTS):
+    """fes.computer core data, keyed by core ID and library game ID."""
+    data = (b"FESGAME1" + hashlib.sha256(core.encode()).digest() + hashlib.sha256(game.encode()).digest()
+            + struct.pack("<HHHH", len(layout), major, minor, len(words))
+            + layout.encode() + struct.pack("<" + "H" * len(words), *words))
+    return data + hashlib.sha256(data).digest()
+
+
+def pc386_records():
+    restored = (3, 0, 1, 0, 0x240, 5, 1, 0) + tuple((2 * i * 37 + 11 & 255) | ((2 * i + 1) * 37 + 11 & 255) << 8
+                                                    for i in range(64))
+    overridden = (4, 250, 0, 1, 0x220, 2, 1, 0) + (0xffff,) * 64
+    valid = []
+    for name, words in (("defaults", PC386_DEFAULTS), ("restored", restored), ("frequency-override", overridden)):
+        data = game_record(words=words)
+        valid.append({"name": name, "words": list(words), "hex": data.hex(), "revision": hashlib.sha256(data).hexdigest()})
+    default = game_record()
+
+    def change(index, value):
+        words = list(PC386_DEFAULTS)
+        words[index] = value
+        return game_record(words=tuple(words))
+
+    invalid = {
+        "pong-envelope": record(core=PC386_CORE, layout=PC386_LAYOUT, words=PC386_DEFAULTS),
+        "bad-magic": b"X" + default[1:],
+        "bad-checksum": default[:-1] + bytes([default[-1] ^ 1]),
+        "wrong-core": game_record(core="fes.pcxt"),
+        "wrong-game": game_record(game="ultima-vii"),
+        "wrong-layout": game_record(layout="fes.pc386.other"),
+        "wrong-major": game_record(major=2),
+        "wrong-minor": game_record(minor=1),
+        "short-count": game_record(words=PC386_DEFAULTS[:71]),
+        "invalid-preset": change(0, 8),
+        "override-under-max": change(1, 250),
+        "invalid-code-profile": change(2, 2),
+        "invalid-turbo": change(3, 2),
+        "invalid-sb-base": change(4, 0x230),
+        "invalid-sb-irq": change(5, 9),
+        "invalid-sb-dma": change(6, 3),
+        "reserved-nonzero": change(7, 1),
+        "truncated": default[:-1],
+        "trailing-byte": default + b"\x00",
+        "oversize": b"\x00" * 721,
+        "empty": b"",
+    }
+    namespace = hashlib.sha256(b"fes-core-game-data-v1\0" + PC386_CORE.encode() + b"\0" + PC386_GAME.encode()).hexdigest()
+    return {"format": 1, "core_id": PC386_CORE, "game_id": PC386_GAME, "namespace": namespace,
+            "layout": {"id": PC386_LAYOUT, "major": 1, "minor": 0, "words": 72},
+            "valid": valid, "invalid": [{"name": name, "hex": data.hex()} for name, data in invalid.items()]}
+
+
 def exchanges():
     original = json.loads((ROOT / "testdata/fes-gp-v1/exchanges.json").read_text())
     rows = []
@@ -93,7 +149,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    for filename, value in (("records.json", records()), ("exchanges.json", exchanges())):
+    for filename, value in (("records.json", records()), ("exchanges.json", exchanges()),
+                            ("pc386-machine.json", pc386_records())):
         path = OUTPUT / filename
         contents = json.dumps(value, indent=2) + "\n"
         if args.check:

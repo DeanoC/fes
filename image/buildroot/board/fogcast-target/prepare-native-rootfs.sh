@@ -115,6 +115,7 @@ fi
   "$target/etc/init.d"/S11fes-block-admit \
   "$target/etc/init.d"/S15fes-ethaddr \
   "$target/etc/init.d"/S20mister-network \
+  "$target/etc/init.d"/S21fes-time \
   "$target/etc/init.d"/S30dbus \
   "$target/etc/init.d"/S30mister-dropbear \
   "$target/etc/init.d"/S35fes-bluetooth \

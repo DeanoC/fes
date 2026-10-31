@@ -1,0 +1,80 @@
+------------------------------------------------------------
+Timing Analyzer Summary
+------------------------------------------------------------
+
+Type  : Setup 'video_clock|iopll_0_outclk0'
+Slack : 10.231
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Setup 'adv7513_config'
+Slack : 17.858
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Setup 'video_clock|iopll_0_refclk'
+Slack : 18.169
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Hold 'video_clock|iopll_0_outclk0'
+Slack : 0.090
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Hold 'adv7513_config'
+Slack : 0.105
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Hold 'video_clock|iopll_0_refclk'
+Slack : 0.112
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Recovery 'adv7513_config'
+Slack : 18.254
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Recovery 'video_clock|iopll_0_refclk'
+Slack : 18.719
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Removal 'adv7513_config'
+Slack : 0.009
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Removal 'video_clock|iopll_0_refclk'
+Slack : 0.222
+TNS   : 0.000
+Corner: Fast fix4 0C Model
+
+Type  : Minimum Pulse Width 'video_clock|iopll_0_outclk0'
+Slack : 5.858
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+Type  : Minimum Pulse Width 'video_clock|iopll_0|tennm_ph2_iopll|ref_clk0'
+Slack : 8.582
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Minimum Pulse Width 'video_clock|iopll_0_refclk'
+Slack : 9.591
+TNS   : 0.000
+Corner: Slow fix4a 0C Model
+
+Type  : Minimum Pulse Width 'video_clock|iopll_0_n_cnt_clk'
+Slack : 49.563
+TNS   : 0.000
+Corner: Slow fix4 100C Model
+
+Type  : Minimum Pulse Width 'adv7513_config'
+Slack : 50018.769
+TNS   : 0.000
+Corner: Slow fix4 0C Model
+
+------------------------------------------------------------

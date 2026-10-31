@@ -1,0 +1,11 @@
+{
+  "source_commit": "b3ff95896edd1643a4d1f532cb4b8f9c7cb2915f",
+  "verified_tracked_ui_files": 217,
+  "verified_ui_corenames_and_package_files": 220,
+  "mismatches": [],
+  "corepackage_exact_f31_bytes": true,
+  "corepackage_sha256": "f6d81b8cc40f1e2378de5646a3bbd80e455c538ad1a7f6c900fcc416a986e20a",
+  "private_display_pattern_matches_historical_semver": true,
+  "corenames_imports_corepackage": false,
+  "live_temporary_test_absent": true
+}

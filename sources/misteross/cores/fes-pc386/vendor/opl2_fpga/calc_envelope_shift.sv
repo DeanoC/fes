@@ -63,7 +63,7 @@ module calc_envelope_shift
     localparam EG_TIMER_WIDTH = 13;
     localparam PIPELINE_DELAY = 3;
     localparam EG_ADD_WIDTH = $clog2(13);
-    localparam logic [3:0][3:0] EG_INC_STEP = {
+    localparam [15:0] EG_INC_STEP = {
         4'b0111,
         4'b0101,
         4'b0001,
@@ -121,7 +121,7 @@ module calc_envelope_shift
         rate_lo_p1 = rate_p1[1:0];
         eg_shift_p1 = rate_hi_p1 + eg_add;
 
-        env_shift_pre_p1 = rate_hi_p1[1:0] + EG_INC_STEP[rate_lo_p1][eg_timer_lo];
+        env_shift_pre_p1 = rate_hi_p1[1:0] + EG_INC_STEP[{rate_lo_p1, eg_timer_lo}];
     end
 
     always_ff @(posedge clk) begin

@@ -43,6 +43,21 @@ module fes_dma8237 #(
     reg [15:0] base_address[0:3], current_address[0:3];
     reg [15:0] base_count[0:3], current_count[0:3];
     reg [7:0] mode[0:3];
+    reg [3:0] mode_invalid, mode_verify, mode_read;
+    // Mode decoding is configuration state, updated with the programmed byte.
+    // Priority still resolves from the live requests at the actual grant.
+    always @(posedge clk) begin : program_mode_decode
+        if (reset) begin
+            mode_invalid <= 4'b0000; mode_verify <= 4'b1111; mode_read <= 4'b0000;
+        end
+        else if (reg_write && reg_address == 4'hb) begin
+            mode_invalid[reg_wdata[1:0]] <= reg_wdata[7:6] == 2'd3 || reg_wdata[3:2] == 2'd3 ||
+                (REFRESH != 0 && reg_wdata[1:0] == 2'd0 && reg_wdata[3:2] == 2'd1);
+            mode_verify[reg_wdata[1:0]] <= reg_wdata[3:2] == 2'd0;
+            mode_read[reg_wdata[1:0]] <= reg_wdata[3:2] == 2'd1;
+        end
+    end
+
     reg [PAGE_BITS-1:0] page[0:3];
     reg [7:0] command;
     reg [3:0] mask_bits, software_request, tc_status;
@@ -122,6 +137,14 @@ module fes_dma8237 #(
             end
         end else begin
             refresh_previous <= refresh_clock; refresh_done <= 0;
+            // Snapshot on each grant before validating service. Invalid-cycle
+            // payloads are not consumed; a valid SELECT overwrites both fields.
+            if (state == SELECT && granted && guest_ce) begin
+                transfer_address <= WORD_ADDRESS != 0 ?
+                    {service_page[PAGE_BITS-1:1], current_address[service_channel], 1'b0} :
+                    {service_page, current_address[service_channel]};
+                terminal <= current_count[service_channel] == 0;
+            end
             if (guest_ce && minimum_wait != 0) minimum_wait<=minimum_wait-1'b1;
             if (REFRESH != 0 && refresh_edge) refresh_pending <= 1;
             if (page_write) page[reg_address[1:0]] <= reg_wdata[PAGE_BITS-1:0];
@@ -174,19 +197,14 @@ module fes_dma8237 #(
                     // misleading device commits. External EOP is not exposed.
                     if (command[2] || (!service_started && !chosen_valid) ||
                         (service_started && (mask_bits[channel] ||
-                         (transfer_mode == 0 && !hardware_request[channel])))) begin
+                         (mode[channel][7:6] == 0 && !hardware_request[channel])))) begin
                         yield_served<=0; state<=YIELD;
-                    end else if (command[0] || transfer_mode == 3 || operation == 3 ||
-                        (service_channel == 0 && operation == 1)) begin fault<=3; state<=FAILED; end
+                    end else if (command[0] || mode_invalid[service_channel]) begin fault<=3; state<=FAILED; end
                     else begin
                         channel<=service_channel; service_started<=1; minimum_wait<=3;
                         if (service_channel == 0) refresh_pending<=REFRESH != 0 && refresh_edge;
-                        transfer_address <= WORD_ADDRESS != 0 ?
-                            {service_page[PAGE_BITS-1:1], current_address[service_channel], 1'b0} :
-                            {service_page, current_address[service_channel]};
-                        terminal <= current_count[service_channel] == 0;
-                        if (operation == 0) state<=COMPLETE;
-                        else if (operation == 1) state<=DEV_SEND;
+                        if (mode_verify[service_channel]) state<=COMPLETE;
+                        else if (mode_read[service_channel]) state<=DEV_SEND;
                         else state<=MEM_SEND;
                     end
                 end

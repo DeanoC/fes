@@ -231,7 +231,7 @@ func TestWorkshopStartMachineSucceedsThroughPairedHostAPI(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := NewClient(server.URL, launcherHTTPClient(workshopStartToken, workshopStartTargetID))
 
-	setup, err := client.InstalledZX81Setup(t.Context(), workshopStartPackage)
+	setup, err := client.InstalledCoreSetup(t.Context(), workshopStartPackage)
 	if err != nil || setup.PackageID != workshopStartPackage || len(setup.Entries) != 1 || setup.ROMs[0].ID != "machine-rom" {
 		t.Fatalf("installed ZX81 setup over host API = %+v, %v", setup, err)
 	}

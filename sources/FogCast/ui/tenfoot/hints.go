@@ -286,6 +286,14 @@ func (s Snapshot) HeaderHint() string {
 		}
 		return tapePickerHint(kind)
 	}
+	if s.BrowseActions.Focused {
+		return browseActionsHint(s)
+	}
+	if !s.Room.Open && s.BrowseActions.Visible {
+		if _, hasSecondary := browseActionLabels(s.DetailPlay); hasSecondary {
+			return browseActionsClosedHint(s)
+		}
+	}
 	if s.Room.Open {
 		if s.Room.Err != "" {
 			return backWord(kind) + " home"
@@ -364,6 +372,9 @@ func libraryDetailHint(kind InputKind, count int, d rooms.Destination) string {
 		parts = append(parts, selectWord(kind)+" import BIOS")
 	}
 	parts = append(parts, backWord(kind)+" back")
+	if kind == InputGamepad {
+		parts = append(parts, "Y search")
+	}
 	if count > 1 {
 		switch kind {
 		case InputKeyboard, InputMouse:

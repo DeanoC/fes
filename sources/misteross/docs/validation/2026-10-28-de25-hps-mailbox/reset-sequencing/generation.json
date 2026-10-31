@@ -1,0 +1,8 @@
+{
+  "clock_hz": 100000000,
+  "mailbox_instance": "subsys_periph.fes_mailbox",
+  "peripheral_offset": 65696,
+  "physical_mailbox_address": "not-established",
+  "sha256": "060f22dc030bb3eae94209777471bf85f818be7ee00cf72b8b6fc6bb03da4ec2",
+  "top_system_handoff": "qsys_top/qsys_top.sopcinfo"
+}

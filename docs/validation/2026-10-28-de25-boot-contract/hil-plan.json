@@ -1,0 +1,37 @@
+{
+  "rows": [
+    {
+      "path": "docs/de25-linux.md",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "scripts/de25_boot_contract.py",
+      "class": "none",
+      "component": null,
+      "rule": "scripts/de25_boot_contract.py"
+    },
+    {
+      "path": "scripts/hil_plan.py",
+      "class": "none",
+      "component": null,
+      "rule": "scripts/hil_plan.py"
+    },
+    {
+      "path": "tests/test_de25_boot_contract.py",
+      "class": "none",
+      "component": null,
+      "rule": "tests/**"
+    },
+    {
+      "path": "tests/test_hil_plan.py",
+      "class": "none",
+      "component": null,
+      "rule": "tests/**"
+    }
+  ],
+  "class": "none",
+  "components": [],
+  "decision": "NO_DEPLOY_CHANGE"
+}

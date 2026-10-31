@@ -1,0 +1,667 @@
+{
+  "schema": 1,
+  "scope": "Guarded native-cut FF model qualification on immutable PC/XT whole-board diagnostic layouts",
+  "fes_base_commit": "7f2ff2b5834a9a26a671cdb3bde1607bdd174f8c",
+  "compiler_pr": "https://github.com/DeanoC/nextpnr/pull/307",
+  "reference_pr": "https://github.com/DeanoC/nextpnr/pull/305",
+  "compiler_base_commit": "ff051ec6566c7eeb46b58c5d95661f2db7d48c19",
+  "source_proof": {
+    "scope": "Frozen three-seed local-FF timing qualification; host replay, no native route or hardware.",
+    "source_commit": "0e1e03edfff15b9baedf27f2b403b85a43be4445",
+    "source_tree": "04abbafdb8de3fccb402aa827da8f83597080cbf",
+    "binary_sha256": "e8736bfb63b7499e52b6b6f52d8eec9a2e2ef425bb00739f2c30a454e0fc61bc",
+    "version": "\"nextpnr-mistral\" -- Next Generation Place and Route (Version 0e1e03e)\n",
+    "cmake_cache_sha256": "3dc3312699545dd6db8d4d84c686510c7e8ea834e18e003fe8f18b5bb3ca92b2",
+    "mistral_source_commit": "d8b07450982fa53e1efaae76e4706fe51e1a2be1",
+    "mistral_library_sha256": "9ab405b50d42fe978c64b09f45a2cb2f8c4429f281af9f1b8863737cd790e851",
+    "reference_manifest_sha256": "1cf161cebc0efe2ce256affec515a51408dccb83e113c826544488665abb26cf",
+    "reference_archive_sha256": "012514b81888bc62dfca83f6c89a1c9476f23a1f3cd005eb74b4e35ea7dcee25",
+    "hardware": false,
+    "physical_qualified": false,
+    "whole_board_qualified": false
+  },
+  "reference": {
+    "cases": 52,
+    "observations": 326912,
+    "physical_modes": 126,
+    "corners": [
+      "7_slow_1100mv_100c",
+      "7_slow_1100mv_-40c",
+      "MIN_fast_1100mv_100c",
+      "MIN_fast_1100mv_-40c"
+    ],
+    "public_native_corner": "slow100",
+    "q_rounding_guard_ps": 1,
+    "input_constraint_rounding_guard_ps": 3,
+    "archive_sha256": "012514b81888bc62dfca83f6c89a1c9476f23a1f3cd005eb74b4e35ea7dcee25",
+    "sclr_selectors_separate": true,
+    "ef_input_roles_separate": true
+  },
+  "native_ff_coverage": {
+    "scope": "Check every connected native FF role against the committed reference inventory.",
+    "reference_sha256": "012514b81888bc62dfca83f6c89a1c9476f23a1f3cd005eb74b4e35ea7dcee25",
+    "seeds": {
+      "1": {
+        "FFs": 4067,
+        "roles": {
+          "0": 4067,
+          "1": 2845,
+          "5": 2579,
+          "3": 813,
+          "2": 409,
+          "4": 3088
+        },
+        "mode_FFs": {
+          "1088": 184,
+          "1216": 173,
+          "1089": 23,
+          "0": 157,
+          "1232": 1028,
+          "1105": 189,
+          "1217": 45,
+          "1233": 390,
+          "1104": 502,
+          "1": 57,
+          "16": 392,
+          "4": 13,
+          "20": 86,
+          "21": 27,
+          "17": 126,
+          "1218": 26,
+          "1219": 18,
+          "2": 1,
+          "1234": 1,
+          "272": 258,
+          "256": 202,
+          "257": 80,
+          "273": 41,
+          "305": 12,
+          "304": 36
+        },
+        "missing": [],
+        "input_sha256": {
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/native-ff-boundary-cuts-checked-v3/seed1.json": "f25c037a8b460014bd3e3311c4e2b20649a3fbfeaca6d272af38e064e1368bc4",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131825Z-dadbe672/diagnostic.rbf": "facbd2002fbe9113b542dff56ba9238243d8eb2f46a5c6388c5528acfb81cdd1"
+        },
+        "postflight_identity_pass": true
+      },
+      "2": {
+        "FFs": 4067,
+        "roles": {
+          "0": 4067,
+          "1": 3001,
+          "5": 2579,
+          "3": 769,
+          "2": 297,
+          "4": 3088
+        },
+        "mode_FFs": {
+          "1088": 174,
+          "1089": 33,
+          "1216": 154,
+          "1217": 64,
+          "0": 166,
+          "1232": 1090,
+          "1104": 501,
+          "1233": 328,
+          "1105": 190,
+          "1": 38,
+          "16": 452,
+          "4": 23,
+          "17": 87,
+          "20": 69,
+          "21": 23,
+          "1218": 39,
+          "1219": 5,
+          "2": 1,
+          "1234": 1,
+          "273": 93,
+          "257": 56,
+          "272": 206,
+          "256": 226,
+          "304": 37,
+          "305": 11
+        },
+        "missing": [],
+        "input_sha256": {
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/native-ff-boundary-cuts-checked-v3/seed2.json": "fefeb998c2ea4365252d184e5b6f08371d1bbfaef5d9f79bf62c8ba444b69a22",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131834Z-06e32b3b/diagnostic.rbf": "bc29a02c89a38f59f2bad77fd87ee3ebd72061f1b6a7d416bb8690b477f6799c"
+        },
+        "postflight_identity_pass": true
+      },
+      "3": {
+        "FFs": 4067,
+        "roles": {
+          "0": 4067,
+          "1": 2988,
+          "5": 2579,
+          "3": 717,
+          "4": 3088,
+          "2": 362
+        },
+        "mode_FFs": {
+          "1088": 184,
+          "1216": 185,
+          "1089": 23,
+          "0": 158,
+          "1232": 1103,
+          "1104": 495,
+          "1217": 33,
+          "1233": 315,
+          "1105": 196,
+          "1": 64,
+          "20": 112,
+          "16": 359,
+          "4": 4,
+          "17": 137,
+          "21": 23,
+          "1218": 26,
+          "1219": 18,
+          "2": 1,
+          "1234": 1,
+          "5": 1,
+          "272": 245,
+          "273": 54,
+          "256": 235,
+          "257": 47,
+          "304": 27,
+          "305": 21
+        },
+        "missing": [],
+        "input_sha256": {
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/native-ff-boundary-cuts-checked-v3/seed3.json": "8b7eee5d7fb25d68df8c21ce36888ab1186b26917f875238eb296fcaf67cf728",
+          "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T133217Z-1390d302/diagnostic.rbf": "cb6db043d3022eb33a63e02c66507dd5ee47b7375d2eee95997900a9d5a24210"
+        },
+        "postflight_identity_pass": true
+      }
+    },
+    "hardware": false,
+    "physical_qualified": false
+  },
+  "runs": [
+    {
+      "scope": "Frozen three-seed local-FF timing qualification; host replay, no native route or hardware.",
+      "source_commit": "0e1e03edfff15b9baedf27f2b403b85a43be4445",
+      "source_tree": "04abbafdb8de3fccb402aa827da8f83597080cbf",
+      "seed": 1,
+      "profile": "default",
+      "returncode": 0,
+      "seconds": 7.967803081999591,
+      "input_sha256": {
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/nextpnr-mistral": "e8736bfb63b7499e52b6b6f52d8eec9a2e2ef425bb00739f2c30a454e0fc61bc",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131825Z-dadbe672/routed.json": "a3d8e703d178fb390f1cb3105f997c605d365717e6dbd2e86e0c514245b5f1b3",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131825Z-dadbe672/diagnostic.rbf": "facbd2002fbe9113b542dff56ba9238243d8eb2f46a5c6388c5528acfb81cdd1",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-parent-controls-20261026/seed1/timing.json": "558a99864dc122fd576c6bc17bf786e94dba5c3e82156171e5ec4539f1c2a425",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-parent-controls-20261026/seed1/replay.rbf": "06196d6ff77d3dece653a98074bae59cd3e7d939f67b80c823d27d1bf74fb321"
+      },
+      "command": [
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/nextpnr-mistral",
+        "--device",
+        "5CSEBA6U23I7",
+        "--json",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131825Z-dadbe672/routed.json",
+        "--no-pack",
+        "--no-place",
+        "--no-route",
+        "--phase-related-harmonic-clocks",
+        "--mistral-ff-reset-reference",
+        "--sdc",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc",
+        "--detailed-timing-report",
+        "--timing-report-paths",
+        "1024",
+        "--report",
+        "timing.json",
+        "--rbf",
+        "replay.rbf",
+        "--compress-rbf"
+      ],
+      "postflight_identity_pass": true,
+      "hardware": false,
+      "physical_qualified": false,
+      "whole_board_qualified": false,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.343000054359436,
+      "hold_min_ns": 0.7080000042915344,
+      "final_analogue_model": true,
+      "complete_endpoint_coverage_matches_parent": true,
+      "complete_timing_json_matches_parent": true,
+      "rbf_byte_identical_to_parent": true,
+      "host_local_ff_gate_pass": true,
+      "artifacts_sha256": {
+        "timing.json": "558a99864dc122fd576c6bc17bf786e94dba5c3e82156171e5ec4539f1c2a425",
+        "run.log": "85ff73664e55bcebcda9813fa5ca7a9dcbec8abb32739667e80e1172e71ef89c",
+        "replay.rbf": "06196d6ff77d3dece653a98074bae59cd3e7d939f67b80c823d27d1bf74fb321"
+      }
+    },
+    {
+      "scope": "Frozen three-seed local-FF timing qualification; host replay, no native route or hardware.",
+      "source_commit": "0e1e03edfff15b9baedf27f2b403b85a43be4445",
+      "source_tree": "04abbafdb8de3fccb402aa827da8f83597080cbf",
+      "seed": 1,
+      "profile": "reference",
+      "returncode": 0,
+      "seconds": 8.113532265000686,
+      "input_sha256": {
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/nextpnr-mistral": "e8736bfb63b7499e52b6b6f52d8eec9a2e2ef425bb00739f2c30a454e0fc61bc",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131825Z-dadbe672/routed.json": "a3d8e703d178fb390f1cb3105f997c605d365717e6dbd2e86e0c514245b5f1b3",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131825Z-dadbe672/diagnostic.rbf": "facbd2002fbe9113b542dff56ba9238243d8eb2f46a5c6388c5528acfb81cdd1",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-parent-controls-20261026/seed1/timing.json": "558a99864dc122fd576c6bc17bf786e94dba5c3e82156171e5ec4539f1c2a425",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-parent-controls-20261026/seed1/replay.rbf": "06196d6ff77d3dece653a98074bae59cd3e7d939f67b80c823d27d1bf74fb321"
+      },
+      "command": [
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/nextpnr-mistral",
+        "--device",
+        "5CSEBA6U23I7",
+        "--json",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131825Z-dadbe672/routed.json",
+        "--no-pack",
+        "--no-place",
+        "--no-route",
+        "--phase-related-harmonic-clocks",
+        "--mistral-ff-reset-reference",
+        "--sdc",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc",
+        "--detailed-timing-report",
+        "--timing-report-paths",
+        "1024",
+        "--report",
+        "timing.json",
+        "--rbf",
+        "replay.rbf",
+        "--compress-rbf",
+        "--mistral-ff-core-reference"
+      ],
+      "postflight_identity_pass": true,
+      "hardware": false,
+      "physical_qualified": false,
+      "whole_board_qualified": false,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 0.8389999866485596,
+      "hold_min_ns": 0.28600001335144043,
+      "final_analogue_model": true,
+      "complete_endpoint_coverage_matches_parent": true,
+      "rbf_byte_identical_to_parent": true,
+      "host_local_ff_gate_pass": true,
+      "artifacts_sha256": {
+        "timing.json": "0bff3355d48a81b941fe42b13aa86d197a400dd3d8e62a4e1fa864efcea3b39c",
+        "run.log": "fcdd208febe73b9e0af894cb48f0358d17a52014c95a8dcacff66a8175a6e71d",
+        "replay.rbf": "06196d6ff77d3dece653a98074bae59cd3e7d939f67b80c823d27d1bf74fb321"
+      }
+    },
+    {
+      "scope": "Frozen three-seed local-FF timing qualification; host replay, no native route or hardware.",
+      "source_commit": "0e1e03edfff15b9baedf27f2b403b85a43be4445",
+      "source_tree": "04abbafdb8de3fccb402aa827da8f83597080cbf",
+      "seed": 2,
+      "profile": "default",
+      "returncode": 0,
+      "seconds": 8.191492069003289,
+      "input_sha256": {
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/nextpnr-mistral": "e8736bfb63b7499e52b6b6f52d8eec9a2e2ef425bb00739f2c30a454e0fc61bc",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131834Z-06e32b3b/routed.json": "f6c22f728cd737212654d2f28f67db1b070d0fb06952f4a4cc8545f365bcc868",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131834Z-06e32b3b/diagnostic.rbf": "bc29a02c89a38f59f2bad77fd87ee3ebd72061f1b6a7d416bb8690b477f6799c",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-parent-controls-20261026/seed2/timing.json": "92d1dd3b3b3a758e6fada684c32baa3ba55eb6a480f0a90eec70aa1ab5dc2b71",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-parent-controls-20261026/seed2/replay.rbf": "2abc6854c880c1b0192f009734f72bf5dfb0de2049dcde40630b94324b28e11a"
+      },
+      "command": [
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/nextpnr-mistral",
+        "--device",
+        "5CSEBA6U23I7",
+        "--json",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131834Z-06e32b3b/routed.json",
+        "--no-pack",
+        "--no-place",
+        "--no-route",
+        "--phase-related-harmonic-clocks",
+        "--mistral-ff-reset-reference",
+        "--sdc",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc",
+        "--detailed-timing-report",
+        "--timing-report-paths",
+        "1024",
+        "--report",
+        "timing.json",
+        "--rbf",
+        "replay.rbf",
+        "--compress-rbf"
+      ],
+      "postflight_identity_pass": true,
+      "hardware": false,
+      "physical_qualified": false,
+      "whole_board_qualified": false,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.815999984741211,
+      "hold_min_ns": 0.7720000147819519,
+      "final_analogue_model": true,
+      "complete_endpoint_coverage_matches_parent": true,
+      "complete_timing_json_matches_parent": true,
+      "rbf_byte_identical_to_parent": true,
+      "host_local_ff_gate_pass": true,
+      "artifacts_sha256": {
+        "timing.json": "92d1dd3b3b3a758e6fada684c32baa3ba55eb6a480f0a90eec70aa1ab5dc2b71",
+        "run.log": "3a5a308d7c4bc313069a6d82d1f32bff250613763d757f38a96926469480acd2",
+        "replay.rbf": "2abc6854c880c1b0192f009734f72bf5dfb0de2049dcde40630b94324b28e11a"
+      }
+    },
+    {
+      "scope": "Frozen three-seed local-FF timing qualification; host replay, no native route or hardware.",
+      "source_commit": "0e1e03edfff15b9baedf27f2b403b85a43be4445",
+      "source_tree": "04abbafdb8de3fccb402aa827da8f83597080cbf",
+      "seed": 2,
+      "profile": "reference",
+      "returncode": 0,
+      "seconds": 8.267023365006025,
+      "input_sha256": {
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/nextpnr-mistral": "e8736bfb63b7499e52b6b6f52d8eec9a2e2ef425bb00739f2c30a454e0fc61bc",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131834Z-06e32b3b/routed.json": "f6c22f728cd737212654d2f28f67db1b070d0fb06952f4a4cc8545f365bcc868",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131834Z-06e32b3b/diagnostic.rbf": "bc29a02c89a38f59f2bad77fd87ee3ebd72061f1b6a7d416bb8690b477f6799c",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-parent-controls-20261026/seed2/timing.json": "92d1dd3b3b3a758e6fada684c32baa3ba55eb6a480f0a90eec70aa1ab5dc2b71",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-parent-controls-20261026/seed2/replay.rbf": "2abc6854c880c1b0192f009734f72bf5dfb0de2049dcde40630b94324b28e11a"
+      },
+      "command": [
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/nextpnr-mistral",
+        "--device",
+        "5CSEBA6U23I7",
+        "--json",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131834Z-06e32b3b/routed.json",
+        "--no-pack",
+        "--no-place",
+        "--no-route",
+        "--phase-related-harmonic-clocks",
+        "--mistral-ff-reset-reference",
+        "--sdc",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc",
+        "--detailed-timing-report",
+        "--timing-report-paths",
+        "1024",
+        "--report",
+        "timing.json",
+        "--rbf",
+        "replay.rbf",
+        "--compress-rbf",
+        "--mistral-ff-core-reference"
+      ],
+      "postflight_identity_pass": true,
+      "hardware": false,
+      "physical_qualified": false,
+      "whole_board_qualified": false,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.6619999408721924,
+      "hold_min_ns": 0.35199999809265137,
+      "final_analogue_model": true,
+      "complete_endpoint_coverage_matches_parent": true,
+      "rbf_byte_identical_to_parent": true,
+      "host_local_ff_gate_pass": true,
+      "artifacts_sha256": {
+        "timing.json": "8dcc39e9a2feff05c1c664d9972e14de4086530fdf7251f4122204a0fad9e0b4",
+        "run.log": "63839cf1da3775a168fd4bd5d3fe6430b29cb162a3b08f724a89ad9ccf0ab5a3",
+        "replay.rbf": "2abc6854c880c1b0192f009734f72bf5dfb0de2049dcde40630b94324b28e11a"
+      }
+    },
+    {
+      "scope": "Frozen three-seed local-FF timing qualification; host replay, no native route or hardware.",
+      "source_commit": "0e1e03edfff15b9baedf27f2b403b85a43be4445",
+      "source_tree": "04abbafdb8de3fccb402aa827da8f83597080cbf",
+      "seed": 3,
+      "profile": "default",
+      "returncode": 0,
+      "seconds": 8.193327682995005,
+      "input_sha256": {
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/nextpnr-mistral": "e8736bfb63b7499e52b6b6f52d8eec9a2e2ef425bb00739f2c30a454e0fc61bc",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T133217Z-1390d302/routed.json": "b263281800cc5afefd0a4983cd8063b2e6dbe24d978468baf0fc4a5f2ac9f70c",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T133217Z-1390d302/diagnostic.rbf": "cb6db043d3022eb33a63e02c66507dd5ee47b7375d2eee95997900a9d5a24210",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-parent-controls-20261026/seed3/timing.json": "85b05af5f00045529a45030801c22440764ad9fe6a7227a7768b881b27baf6e1",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-parent-controls-20261026/seed3/replay.rbf": "6e7694d4d6f728adca87cef5f1c6ca04d65683f87188e7b0a1746786914583d2"
+      },
+      "command": [
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/nextpnr-mistral",
+        "--device",
+        "5CSEBA6U23I7",
+        "--json",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T133217Z-1390d302/routed.json",
+        "--no-pack",
+        "--no-place",
+        "--no-route",
+        "--phase-related-harmonic-clocks",
+        "--mistral-ff-reset-reference",
+        "--sdc",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc",
+        "--detailed-timing-report",
+        "--timing-report-paths",
+        "1024",
+        "--report",
+        "timing.json",
+        "--rbf",
+        "replay.rbf",
+        "--compress-rbf"
+      ],
+      "postflight_identity_pass": true,
+      "hardware": false,
+      "physical_qualified": false,
+      "whole_board_qualified": false,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.649999976158142,
+      "hold_min_ns": 0.7829999923706055,
+      "final_analogue_model": true,
+      "complete_endpoint_coverage_matches_parent": true,
+      "complete_timing_json_matches_parent": true,
+      "rbf_byte_identical_to_parent": true,
+      "host_local_ff_gate_pass": true,
+      "artifacts_sha256": {
+        "timing.json": "85b05af5f00045529a45030801c22440764ad9fe6a7227a7768b881b27baf6e1",
+        "run.log": "fe0137691762b2caeb8f47d3fe3d2413034cce1757178093bbc4c2404f9c94b6",
+        "replay.rbf": "6e7694d4d6f728adca87cef5f1c6ca04d65683f87188e7b0a1746786914583d2"
+      }
+    },
+    {
+      "scope": "Frozen three-seed local-FF timing qualification; host replay, no native route or hardware.",
+      "source_commit": "0e1e03edfff15b9baedf27f2b403b85a43be4445",
+      "source_tree": "04abbafdb8de3fccb402aa827da8f83597080cbf",
+      "seed": 3,
+      "profile": "reference",
+      "returncode": 0,
+      "seconds": 7.708578633995785,
+      "input_sha256": {
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/nextpnr-mistral": "e8736bfb63b7499e52b6b6f52d8eec9a2e2ef425bb00739f2c30a454e0fc61bc",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T133217Z-1390d302/routed.json": "b263281800cc5afefd0a4983cd8063b2e6dbe24d978468baf0fc4a5f2ac9f70c",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T133217Z-1390d302/diagnostic.rbf": "cb6db043d3022eb33a63e02c66507dd5ee47b7375d2eee95997900a9d5a24210",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-parent-controls-20261026/seed3/timing.json": "85b05af5f00045529a45030801c22440764ad9fe6a7227a7768b881b27baf6e1",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-parent-controls-20261026/seed3/replay.rbf": "6e7694d4d6f728adca87cef5f1c6ca04d65683f87188e7b0a1746786914583d2"
+      },
+      "command": [
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/nextpnr-mistral",
+        "--device",
+        "5CSEBA6U23I7",
+        "--json",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T133217Z-1390d302/routed.json",
+        "--no-pack",
+        "--no-place",
+        "--no-route",
+        "--phase-related-harmonic-clocks",
+        "--mistral-ff-reset-reference",
+        "--sdc",
+        "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc",
+        "--detailed-timing-report",
+        "--timing-report-paths",
+        "1024",
+        "--report",
+        "timing.json",
+        "--rbf",
+        "replay.rbf",
+        "--compress-rbf",
+        "--mistral-ff-core-reference"
+      ],
+      "postflight_identity_pass": true,
+      "hardware": false,
+      "physical_qualified": false,
+      "whole_board_qualified": false,
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.1449999809265137,
+      "hold_min_ns": 0.3529999852180481,
+      "final_analogue_model": true,
+      "complete_endpoint_coverage_matches_parent": true,
+      "rbf_byte_identical_to_parent": true,
+      "host_local_ff_gate_pass": true,
+      "artifacts_sha256": {
+        "timing.json": "afa3150a5bd54939370a61610513d2e4efe19784f2f60aba0c59460215aeb498",
+        "run.log": "28e8c0ed36f056fedbbe39b84d0c825c48c3512d392624610222eb7405e38606",
+        "replay.rbf": "6e7694d4d6f728adca87cef5f1c6ca04d65683f87188e7b0a1746786914583d2"
+      }
+    }
+  ],
+  "retained_failed_host_fits": {
+    "ff-native-mode-reference-din3": [
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3/native-lab-din3-constant-negative-sync",
+        "compile_log_sha256": "aedb928b87296053f2180f688380423f500246d1125da2c58993bcaae4f127eb",
+        "receipt_sha256": "a7bf2f5ea2b6d06b1a98db8930c24f977145dab8756e65b18f0bf9c2d25c0485",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3/native-lab-din3-constant-positive-sync",
+        "compile_log_sha256": "43ca65f4294714362d29394f76937ff72bd226733157c5399d2fa7aec6d4fa1d",
+        "receipt_sha256": "62290da8bf4611342a0273326de6ee200f991c574ec0ccd79b2f3260b15230fd",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3/native-lab-din3-negative-sync",
+        "compile_log_sha256": "d2afcddd7d193d6a533c0b424bac6308b283e84a6d315c49a37cfb611a54870b",
+        "receipt_sha256": "494a9f6b9dd3afba9d2b2837ed92e40154f4ccb2f4f8fdbf5792949ff2fe9fa3",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3/native-lab-din3-positive-sync",
+        "compile_log_sha256": "68f6f975c41afaf3f37cb8ad01bea1c504e0754ebddfd3484a262d1e9e07801f",
+        "receipt_sha256": "2254ef0ec68d715a2f4bb93dd54806bb0bb917ba1129cff3f343fc8148bb8810",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3/native-mlab-din3-constant-negative-sync",
+        "compile_log_sha256": "41c1df3e569e7e134cbe48882ed6e28b54f2e0b5b90a535793b8c8b0e394860b",
+        "receipt_sha256": "4ebb74917da01cfa532e88c873a59e4a546431022a9a60dbf460035a3b305628",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3/native-mlab-din3-constant-positive-sync",
+        "compile_log_sha256": "5e6612237d4080437725f23af36e48e17315b4a8c5be40c71c8524b17a515bb0",
+        "receipt_sha256": "780f9a892074d6e9558e9312d66ce96df0c0a76ce8fc88cc99d0f25022dfb945",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3/native-mlab-din3-negative-sync",
+        "compile_log_sha256": "846a04243e10b1fa73d74546ad25059d008a606f7019f54814c63f227eeb5248",
+        "receipt_sha256": "dc487bffc39d3e191fea1c8e4e3ee90541b5c09b35b649ee798ef94a9b7b3aa5",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3/native-mlab-din3-positive-sync",
+        "compile_log_sha256": "a573174490e8bc5867bfb41aea0b9afdcbc15412dbc6485d633db78f4d56e897",
+        "receipt_sha256": "cbb9cb091a4617605b69e23dc1f53e61589136545690fa392036694b0e45dc37",
+        "returncode": 3
+      }
+    ],
+    "ff-native-mode-reference-din3-single-aux": [
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3-single-aux/native-lab-din3-constant-negative-sync",
+        "compile_log_sha256": "7f05aa54c4a9ca3079b7caaf95ec73358d327ea92274a4dde55b26303a6ab765",
+        "receipt_sha256": "1ae54a14fe25ba5707806b86d2a8b74d9d9951a576f7e9e284ca854c8d5ddcd2",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3-single-aux/native-lab-din3-constant-positive-sync",
+        "compile_log_sha256": "d75bfc5c0e049072c0694d3e8eadf784e0b1518c06f526e2621f71e4db8b1492",
+        "receipt_sha256": "89719d087b9a539c0a4a34c4090679a4e8e7ef731f0725f85f7f7b72acdd4f02",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3-single-aux/native-lab-din3-negative-sync",
+        "compile_log_sha256": "b6450d242d3237b34e3ee397df448b33b908e2b4fe3e9e6a99d1e7b889696851",
+        "receipt_sha256": "75023f93b5a673a9ebc41c124ec7209ca3491c6027e54f92f7673375a6d63a38",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3-single-aux/native-lab-din3-positive-sync",
+        "compile_log_sha256": "616e4da70845f4f0e170afd26b479c510b973339659b69877e14c3a069223930",
+        "receipt_sha256": "d0bfcb56553d9d2d53849d534c216c15ed74a7dadbfdf77f39d676bb48ce99a0",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3-single-aux/native-mlab-din3-constant-negative-sync",
+        "compile_log_sha256": "3ebc8c2792afdf9ea56ec523ad2f662b064e95c6ee5fc7a193623d12be55a1bd",
+        "receipt_sha256": "ab7977d2ea2d892e73beff61e6b294cc546b9c838fdcc3437787535cc45bfb87",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3-single-aux/native-mlab-din3-constant-positive-sync",
+        "compile_log_sha256": "94d87096da4a5b41e547a9ad13ef183274a0477f0e195b1fdff600ccdbdc56ae",
+        "receipt_sha256": "7c5ba42121a7d3692cec3c1d7e1c69eabc0f4229208337182080003c0d48395a",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3-single-aux/native-mlab-din3-negative-sync",
+        "compile_log_sha256": "9586f88aa2fe1b14c4699fd4230bba051a5e90c2a548a7ccc6410d79ff4f2ccb",
+        "receipt_sha256": "799e3b509560f2dc20067e385f17f25aa1bf3f90f3b403cba2d50f21d735116a",
+        "returncode": 3
+      },
+      {
+        "path": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-native-mode-reference-din3-single-aux/native-mlab-din3-positive-sync",
+        "compile_log_sha256": "431fb147386a06ff772cde2f21701cb440d5a34ab4654ec2de130dc7fe1a1272",
+        "receipt_sha256": "d3199056c0c95fdc0b31ec77dd249a59e129d8cefeca25dad9fcf5ac28d5f6c3",
+        "returncode": 3
+      }
+    ]
+  },
+  "artifacts_sha256": {
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/qualification.json": "588b7da8f208ce60a9044cb2c76992a5150ebb88ac24b999f7937a3e1d21f733",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-ff-model-qualification-20261026/source-proof.json": "1346de1b48faef002a003572ceaaab97b2efcb8647b8f70d61724e2cdd72c4e3",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/native-ff-model-selector-coverage.json": "cd3c7f19d6da46d975ea799eb9a6c447d05dbd8b1ba09b1fe8b460f3ac3785c5",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-model-upstream-irq-proof.json": "64d851b8c78353670538e8f971b4fff010372168462a17dcbc03346158d10b72",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-model-upstream-irq-proof.log": "61d6ce4506eec6454aab7880ed672c36b693a22b06b1bf8437eba164ade6697e",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-model-upstream-rbf-diff.log": "77e30c8b94e94efe15d8021cba871634fe9d7829a30a5cb199999570c59892c9",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-core-model-selectors-build.log": "1efcdb8f728c8191e64ee2240e8b71759eaf824cd2fe10d026d28d0fb1ffb6d7",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-core-model-selectors-cpp-tests.log": "c382eeeebbb3073cabd3960ba0442ee7e8008347afb80d2c0214ba25944eca01",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-core-model-selectors-ctest.log": "ca315efabde9baf46fe1093c8e0997a5592c4b333f6f144bf8ad4477d6b658b5",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-core-model-committed-configure.log": "074ba98cdb9f5bb2bad1e9ef38e0f10686037713a3bfabbae22cd75f68e46174",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/ff-core-model-committed-build.log": "bc98cfb9d05b8b7faa41a3d91757a79bf310e151cfbbdeb7a22ccad40f098dc4",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/qualify-native-ff-model.py": "6e9295b2a9c2d43ff8d1ffe776a7f97b3dcc009dd3bf2c89acaf9a85854bede4",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/extend-native-ff-selector-reference.py": "ecd8f46e79ae7c621746c9f8dd865cc14c6a242df5eb4c1f938fc0d48ea9958c",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/audit-native-ff-model-selector-coverage.py": "ce59020a234d1b96e3ed63b8389babdc3603a7a2b318632260d7239095da7b43"
+  },
+  "tests": {
+    "focused_cpp_passed": 28,
+    "ctest_passed": 4,
+    "native_parser_tests_passed": 6,
+    "all_52_reference_rbf_and_header_checks_pass": true
+  },
+  "evidence_class": "host-only frozen-route replay",
+  "host_local_ff_gate_pass": true,
+  "hardware": false,
+  "physical_qualified": false,
+  "whole_board_qualified": false,
+  "new_native_route_searches": 0,
+  "native_search_journal": {
+    "path": "sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/continued-runs.jsonl",
+    "entries": 133,
+    "sha256": "2e47287e09f7fcf7f4f82f81d434097ce15d0b340c7345971b12e15ec681a585"
+  },
+  "remaining": [
+    "native fast-corner coverage for every cell, clock and routing boundary",
+    "HPS hard-IP launch/capture, OE/pad/feedback and physical board/load/flight/skew bounds",
+    "physical reset/relock/pulse/MTBF and bundled-data CDC qualification",
+    "fresh authenticated producer on reviewed selected tools and same-recipe seed gates",
+    "observable exact-artifact hardware acceptance; no PC/XT RBF loaded"
+  ]
+}

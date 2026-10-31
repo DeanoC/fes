@@ -48,6 +48,26 @@ checks the result.
 - `opl2_pkg.sv`: `INSTANTIATE_SAMPLE_DAC_CDC = 0`; the sample stays in the
   machine clock domain.
 
+The locked Yosys (`cores/fes-pc386/toolchain.lock`) cannot read five
+SystemVerilog forms the import uses. These changes keep the same registers,
+values and widths; the opl2 and audio suites pass unchanged on them, and each
+form has a DeanoC/yosys issue linked from the
+[M4 record](../../../../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md).
+
+- `channels.sv`, `mem_single_bank_reset.sv`: `state` and `self` get their
+  power-on values from `initial` statements, not initializers on their
+  anonymous enum and packed struct declarations.
+- `pipeline_sr.sv`: the power-on value is an `initial` replication, not
+  `'{default: POR_VALUE}` on a packed array.
+- `calc_envelope_shift.sv`: `EG_INC_STEP` is a plain 16-bit localparam indexed
+  by `{rate_lo, eg_timer_lo}`, the bits the typed `[3:0][3:0]` localparam's
+  `[rate_lo][eg_timer_lo]` reads.
+- `phase_generator.sv`, `calc_rhythm_phase.sv`, `envelope_generator.sv`,
+  `control_operators.sv`: `$bits` of a type or a part select is the constant
+  it names (3, 4 and 2).
+- `control_operators.sv`: the operator alignment assertion is simulation-only
+  (`` `ifndef SYNTHESIS ``); Yosys has no concurrent assertions.
+
 ## Known differences from a YM3812
 
 These follow the reference, not the chip, and are recorded in the design.

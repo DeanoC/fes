@@ -1,0 +1,32 @@
+make: Entering directory '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/boards/de25nano/hps'
+verilator --cc --exe --build -O2 --top-module fes_de25_mailbox \
+	-Igenerated --Mdir "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/build/sim/de25nano-hps-mailbox" fes_de25_mailbox.v "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/boards/de25nano/hps/mailbox_tb.cpp"
+make[1]: Entering directory '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/build/sim/de25nano-hps-mailbox'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/build/sim/de25nano-hps-mailbox'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.009 s (elab=0.000, cvt=0.000, bld=0.009); cpu 0.000 s on 1 threads; alloced 8.305 MB
+"/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/build/sim/de25nano-hps-mailbox/Vfes_de25_mailbox"
+DE25 mailbox decode, byte enables, clock counter, reset and Avalon-MM responses passed
+verilator --cc --exe --build -O2 --top-module fes_de25_top_reset \
+	--Mdir "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/build/sim/de25nano-hps-reset" fes_de25_top_reset.v "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/boards/de25nano/hps/reset_tb.cpp"
+make[1]: Entering directory '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/build/sim/de25nano-hps-reset'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/build/sim/de25nano-hps-reset'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.009 s (elab=0.000, cvt=0.000, bld=0.009); cpu 0.000 s on 1 threads; alloced 8.305 MB
+"/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/build/sim/de25nano-hps-reset/Vfes_de25_top_reset"
+DE25 common reset: source truth table, startup, stopped-clock assertion, two-edge release and relock passed
+verilator --cc --exe --build -O2 --top-module fes_de25_ddr_probe \
+	-I. --Mdir "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/build/sim/de25nano-hps-ddr-probe" fes_de25_ddr_probe.v "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/boards/de25nano/hps/probe_tb.cpp"
+make[1]: Entering directory '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/build/sim/de25nano-hps-ddr-probe'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/build/sim/de25nano-hps-ddr-probe'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.012 s (elab=0.000, cvt=0.000, bld=0.011); cpu 0.001 s on 1 threads; alloced 8.305 MB
+"/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/build/sim/de25nano-hps-ddr-probe/Vfes_de25_ddr_probe"
+DE25 DDR probe: 13 groups passed (host RTL simulation only)
+make: Leaving directory '/home/deano/.codex/worktrees/c134/fes/out/dev/de25-hps-interface/sources/misteross/boards/de25nano/hps'

@@ -74,14 +74,16 @@ module channels
         LOAD_2_OP_SECOND_1,
         LOAD_2_OP_FIRST_AND_ACCUMULATE,
         DONE
-    } state = IDLE, next_state;
+    } state, next_state;
+    initial state = IDLE;
 
     struct packed {
         logic signed [OP_OUT_WIDTH-1:0] operator_out_second;
         logic [$clog2(NUM_OPERATORS_PER_BANK)-1:0] op_num;
         logic [$clog2(NUM_CHANNELS_PER_BANK)-1:0] channel_num;
         logic signed [CHANNEL_ACCUMULATOR_WIDTH-1:0] channel_acc_pre_clamp;
-    } self = 0, next_self;
+    } self, next_self;
+    initial self = 0;
 
     // verilator lint_off UNOPTFLAT
     struct packed {

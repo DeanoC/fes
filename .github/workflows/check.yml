@@ -75,7 +75,7 @@ jobs:
         # that read current guides run here for every change.
         run: |
           python3 scripts/check_doc_links.py
-          python3 -m unittest tests.test_check_doc_links tests.test_image_assembly tests.test_consistency tests.test_core_build tests.test_coordination -v
+          python3 -m unittest tests.test_check_doc_links tests.test_support_matrix tests.test_image_assembly tests.test_consistency tests.test_core_build tests.test_coordination -v
   parent-tests:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).parent

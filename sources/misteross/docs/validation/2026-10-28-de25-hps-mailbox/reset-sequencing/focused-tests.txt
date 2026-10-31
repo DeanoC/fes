@@ -1,0 +1,31 @@
++ python3 -m unittest -v tests.test_de25nano_hps
+test_absolute_output_path_is_literal_in_generated_tcl (de25_hps_build_tests.HpsBuildTests.test_absolute_output_path_is_literal_in_generated_tcl) ... ok
+test_archive_hash_and_symlink_inputs_fail_before_extraction (de25_hps_build_tests.HpsBuildTests.test_archive_hash_and_symlink_inputs_fail_before_extraction) ... ok
+test_archive_rejects_unsafe_paths_links_and_duplicate_sources (de25_hps_build_tests.HpsBuildTests.test_archive_rejects_unsafe_paths_links_and_duplicate_sources) ... ok
+test_changed_nested_emif_reference_frequency_or_top_connection_is_rejected (de25_hps_build_tests.HpsBuildTests.test_changed_nested_emif_reference_frequency_or_top_connection_is_rejected) ... ok
+test_changed_top_pll_led_or_duplicate_clock_contract_fails_closed (de25_hps_build_tests.HpsBuildTests.test_changed_top_pll_led_or_duplicate_clock_contract_fails_closed) ... ok
+test_compile_rejects_missing_or_empty_sof_without_success_receipt (de25_hps_build_tests.HpsBuildTests.test_compile_rejects_missing_or_empty_sof_without_success_receipt) ... ok
+test_constraint_repair_keeps_emif_and_generated_pll_clock_ownership (de25_hps_build_tests.HpsBuildTests.test_constraint_repair_keeps_emif_and_generated_pll_clock_ownership) ... ok
+test_dirty_rtl_is_working_copy_evidence_and_cannot_generate_or_build (de25_hps_build_tests.HpsBuildTests.test_dirty_rtl_is_working_copy_evidence_and_cannot_generate_or_build) ... ok
+test_extracts_locked_sources_and_excludes_cached_generation (de25_hps_build_tests.HpsBuildTests.test_extracts_locked_sources_and_excludes_cached_generation) ... ok
+test_failed_subprocess_retains_diagnostic_output (de25_hps_build_tests.HpsBuildTests.test_failed_subprocess_retains_diagnostic_output) ... + /usr/bin/python3 -c print('DE25 diagnostic command failed'); raise SystemExit(7)
+ok
+test_generated_handoff_requires_instance_upstream_bridge_offset_clock_and_reset (de25_hps_build_tests.HpsBuildTests.test_generated_handoff_requires_instance_upstream_bridge_offset_clock_and_reset) ... ok
+test_generation_rejects_changed_original_hps_and_nested_ddr_parameters (de25_hps_build_tests.HpsBuildTests.test_generation_rejects_changed_original_hps_and_nested_ddr_parameters) ... ok
+test_generation_reviews_original_parameters_and_boot_data_without_promoting_acceptance (de25_hps_build_tests.HpsBuildTests.test_generation_reviews_original_parameters_and_boot_data_without_promoting_acceptance) ... ok
+test_missing_required_vendor_input_is_rejected (de25_hps_build_tests.HpsBuildTests.test_missing_required_vendor_input_is_rejected) ... ok
+test_parameter_inventory_includes_packaged_emif_ddr_settings (de25_hps_build_tests.HpsBuildTests.test_parameter_inventory_includes_packaged_emif_ddr_settings) ... ok
+test_preparation_preserves_hps_boot_bytes_and_refuses_existing_outputs (de25_hps_build_tests.HpsBuildTests.test_preparation_preserves_hps_boot_bytes_and_refuses_existing_outputs) ... ok
+test_selected_commit_blobs_ignore_later_working_tree_changes (de25_hps_build_tests.HpsBuildTests.test_selected_commit_blobs_ignore_later_working_tree_changes) ... ok
+test_source_change_during_preparation_stops_before_ip_generation (de25_hps_build_tests.HpsBuildTests.test_source_change_during_preparation_stops_before_ip_generation) ... ok
+test_top_reset_patch_preserves_generated_controllers_and_pll_reset (de25_hps_build_tests.HpsBuildTests.test_top_reset_patch_preserves_generated_controllers_and_pll_reset) ... ok
+test_mailbox_transactions (tests.test_de25nano_hps.HpsMailboxSimulationTests.test_mailbox_transactions) ... ok
+test_top_reset_startup_loss_and_relock (tests.test_de25nano_hps.HpsMailboxSimulationTests.test_top_reset_startup_loss_and_relock) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 5.719s
+
+OK
+exit_status=0
++ git diff --check
+exit_status=0

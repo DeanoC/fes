@@ -1,0 +1,131 @@
+// Task-owned, temporary host-rendered gallery. Never commit this file as product code.
+package tenfoot
+
+import (
+ "context"
+ "encoding/json"
+ "errors"
+ "fmt"
+ "image/png"
+ "os"
+ "path/filepath"
+ "strings"
+ "testing"
+ "time"
+
+ "github.com/DeanoC/FogCast/hostclient"
+ "github.com/DeanoC/FogCast/protocol"
+ "github.com/DeanoC/FogCast/ui/gfx"
+ "github.com/DeanoC/FogCast/ui/rooms"
+ "github.com/DeanoC/FogCast/ui/shared"
+)
+
+type uxPassGalleryServices struct { games []hostclient.Game; hardware hostclient.HardwareSnapshot }
+func (s uxPassGalleryServices) QueryGames(_ context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game,error) {
+ out:=[]hostclient.Game{}
+ for _,g:=range s.games {
+  if q.Platform!="" && q.Platform!=g.System {continue}
+  if q.Q!="" && !strings.Contains(strings.ToLower(g.Title),strings.ToLower(q.Q)) {continue}
+  if len(q.CoreIDs)>0 {found:=false; for _,id:=range q.CoreIDs {if id==g.CoreID {found=true}}; if !found {continue}}
+  if q.Genre!="" && q.Genre!=g.Genre {continue}
+  out=append(out,g); if max>0 && len(out)>=max {break}
+ }
+ return out,nil
+}
+func (s uxPassGalleryServices) Platforms(context.Context)([]hostclient.Platform,error){return []hostclient.Platform{{ID:"snes",Label:"Super Nintendo",Tags:[]string{"vdp:tms9918-family"}},{ID:"coleco",Label:"ColecoVision",Tags:[]string{"vdp:tms9918-family"}},{ID:"sms",Label:"Master System",Tags:[]string{"vdp:tms9918-family"}}},nil}
+func (s uxPassGalleryServices) Collections(context.Context)([]hostclient.Collection,error){return []hostclient.Collection{{ID:"strategy",Name:"Strategy"}},nil}
+func (s uxPassGalleryServices) Game(_ context.Context,id string)(hostclient.Game,error){for _,g:=range s.games {if g.ID==id{return g,nil}}; return hostclient.Game{},errors.New("fixture entry missing")}
+func (s uxPassGalleryServices) Hardware(context.Context)(hostclient.HardwareSnapshot,error){return s.hardware,nil}
+func (s uxPassGalleryServices) SelectCoreEntryExpansion(context.Context,string,string,string,string)(hostclient.CoreEntryExpansion,error){return hostclient.CoreEntryExpansion{},errors.New("gallery fixture is read-only")}
+
+func uxPassGalleryFixture() uxPassGalleryServices {
+ games,_:=libraryFixture()
+ add:=func(id,title,system,core string){g:=availableGame(id,title,system);g.CoreID=core;if core!=""{g.System="fpga"};g.PackageID=strings.Repeat("a",64);g.Execution="fpga_native";g.ROMReady=true;g.FirmwareReady=true;g.ExpansionReady=true;g.Genre="Strategy";games=append(games,g)}
+ add("zx81","My ZX81","zx81","fes.zx81")
+ add("zx80","My ZX80","zx80","fes.zx80")
+ add("ts1000","My TS1000","ts1000","fes.ts1000")
+ add("ts1500","My TS1500","ts1500","fes.ts1500")
+ add("c64","Commodore 64 · home computer","c64","fes.c64")
+ add("spectrum","My Spectrum 48K","spectrum","fes.spectrum")
+ add("spectrum128","My Spectrum 128K","spectrum","fes.spectrum128")
+ add("plus3","Spectrum +3 with a very long household title and selected disk","spectrum","fes.spectrum-plus3")
+ add("pentagon","My Pentagon 128","spectrum","fes.pentagon")
+ add("apple2","Apple II","apple2","fes.apple2")
+ add("atari-st","Atari 520ST","atari-st","fes.atari-st")
+ add("coleco","ColecoVision","coleco","fes.coleco")
+ add("mario","Super Mario World","snes","")
+ add("mario-kart","Super Mario Kart","snes","")
+ add("mario-tennis","Mario Tennis","n64","")
+ add("donkey-kong","Donkey Kong","coleco","fes.coleco")
+ add("zaxxon","Zaxxon","coleco","fes.coleco")
+ add("risk","Risk: The World Conquest Game","amiga","")
+ machine:=hostclient.HardwareMachine{GameID:"zx81",Title:"My ZX81",CoreID:"fes.zx81",PackageID:strings.Repeat("a",64),PackageReady:true,FirmwareReady:true,Ready:true,Socket:hostclient.HardwareSocket{ID:"rear",Label:"Rear expansion socket",Supported:true},DraftExpansionID:strings.Repeat("b",64),Choices:[]hostclient.HardwareExpansion{{ExpansionID:strings.Repeat("b",64),Label:"16K RAM pack",Description:"Additional memory for larger programs.",Ready:true},{ExpansionID:strings.Repeat("c",64),Label:"Sound expansion",Description:"Fixture card for visual review.",Ready:true}}}
+ for i:=range games {if games[i].CoreID=="fes.spectrum-plus3" {games[i].MediaRole="disk";games[i].MediaID=strings.Repeat("d",64)}}
+ return uxPassGalleryServices{games:games,hardware:hostclient.HardwareSnapshot{Machines:[]hostclient.HardwareMachine{machine,func()hostclient.HardwareMachine{m:=machine;m.GameID="zx80";m.CoreID="fes.zx80";m.Title="My ZX80";return m}(),func()hostclient.HardwareMachine{m:=machine;m.GameID="ts1000";m.CoreID="fes.ts1000";m.Title="My TS1000";return m}(),func()hostclient.HardwareMachine{m:=machine;m.GameID="ts1500";m.CoreID="fes.ts1500";m.Title="My TS1500";return m}()},Session:&hostclient.SessionResult{State:"idle"}}}
+}
+
+type uxPassGalleryRecord struct { Name string; Room string; Width,Height int; Scene string; Error string; Text []string; Hits []rooms.Hit }
+
+func TestUXPassGalleryTask(t *testing.T){
+ out:=os.Getenv("FES_UX_PASS_GALLERY");if out=="" {t.Skip("task-only screenshot harness")}
+ if err:=os.MkdirAll(out,0755);err!=nil{t.Fatal(err)}
+ records:=[]uxPassGalleryRecord{}
+ capture:=func(name,scene string,s Snapshot){
+  t.Helper();dev,err:=gfx.NewSoftware(s.Grid.Width,s.Grid.Height);if err!=nil{t.Fatal(err)};defer dev.Close()
+  presentFrame(dev,s,map[string]gpuTexture{},map[string]gpuTexture{},false)
+  file:=fmt.Sprintf("%s-%dx%d.png",name,s.Grid.Width,s.Grid.Height);f,err:=os.Create(filepath.Join(out,file));if err!=nil{t.Fatal(err)};err=png.Encode(f,dev.Snapshot());closeErr:=f.Close();if err!=nil{t.Fatal(err)};if closeErr!=nil{t.Fatal(closeErr)}
+  r:=uxPassGalleryRecord{Name:file,Room:s.Room.ID,Width:s.Grid.Width,Height:s.Grid.Height,Scene:scene,Error:s.Room.Err,Hits:s.Room.Frame.Hits}
+  for _,op:=range s.Room.Frame.Ops {if op.Kind==rooms.OpText {r.Text=append(r.Text,op.Text)}};records=append(records,r)
+ }
+ index:=rooms.NewIndex(rooms.Examples());fixture:=uxPassGalleryFixture();only:=os.Getenv("FES_UX_PASS_ROOMS")
+ for _,size:=range [][2]int{{1280,720},{1024,600}}{
+  w,h:=size[0],size[1]
+  roomApp:=func(p rooms.Pack,svc uxPassGalleryServices,game,core string)*App{
+   app:=NewApp(nil,w,h,100);ctx,cancel:=context.WithCancel(context.Background());cancel();app.ctx=ctx;app.roomsIndex=index;app.attractDisabled=true
+   rw,rh:=app.roomContentSizeLocked(p.ID)
+   local:=homeFixtureCores();if len(svc.games)==0{local=nil}
+   inst,err:=rooms.New(p,rooms.Options{Width:rw,Height:rh,Services:svc,Index:index,Local:&fakeLocalCores{cores:local},Budget:hardwareRenderTestBudget(),InitialGameID:game,InitialCoreID:core,ReducedMotion:true});if err!=nil{t.Fatal(err)}
+   t.Cleanup(inst.Close);app.room=inst;if svc.hardware.Session!=nil{app.session=*svc.hardware.Session;app.roomDuringPlay=app.session.State=="active"};if err:=inst.Load();err!=nil{t.Fatal(err)}
+   // Drain actual async service/artwork results through the production frame loop.
+   for i:=0;i<35;i++{app.Tick(time.Now());time.Sleep(2*time.Millisecond)}
+   if err:=inst.Err();err!=nil{t.Errorf("%s: %v",p.ID,err)}
+   return app
+  }
+  for _,p:=range index.Packs {
+   if only!="" && !strings.Contains(","+only+",",","+p.ID+","){continue}
+   if !p.Valid(){t.Fatalf("pack %s: %v",p.ID,p.Err)}
+   app:=roomApp(p,fixture,"","");capture(strings.TrimPrefix(p.ID,"example."),"populated; production Lua; synthetic host data; missing cover artwork",app.Snapshot())
+   if p.ID==installedCoresHomeID{app.HandleCommand(CmdUp,time.Now());app.Tick(time.Now());capture("home-actions-primary","directional action focus; retained selected item",app.Snapshot());app.HandleCommand(CmdRight,time.Now());app.Tick(time.Now());capture("home-actions-details","directional Details action focus",app.Snapshot());app.HandleCommand(CmdDown,time.Now());app.Tick(time.Now())}
+   app.HandleCommand(CmdRight,time.Now());app.Tick(time.Now());capture(strings.TrimPrefix(p.ID,"example.")+"-focus","directional focus",app.Snapshot())
+   empty:=uxPassGalleryServices{hardware:hostclient.HardwareSnapshot{Session:&hostclient.SessionResult{State:"idle"}}};app=roomApp(p,empty,"","");capture(strings.TrimPrefix(p.ID,"example.")+"-empty","empty host library and kit-local list",app.Snapshot())
+  }
+  if only!=""{continue}
+  variants:=[]struct{room,game,core string}{{hardwareRoomID,"zx80","fes.zx80"},{hardwareRoomID,"ts1000","fes.ts1000"},{hardwareRoomID,"ts1500","fes.ts1500"},{systemRoomID,"plus3","fes.spectrum-plus3"},{systemRoomID,"pentagon","fes.pentagon"},{systemRoomID,"apple2","fes.apple2"},{systemRoomID,"atari-st","fes.atari-st"},{systemRoomID,"coleco","fes.coleco"}}
+  for _,v:=range variants{p,_:=index.Find(v.room);app:=roomApp(p,fixture,v.game,v.core);capture("variant-"+strings.TrimPrefix(v.core,"fes."),"exact initial model; long title/media where supplied",app.Snapshot())}
+  for _,v:=range []struct{room,game,core,abi,media string}{{hardwareRoomID,"zx81","fes.zx81","fes.simple-computer","fes.media.blob"},{systemRoomID,"c64","fes.c64","fes.computer","fes.media.c64-disk"}} {
+   svc:=fixture;svc.hardware.Session=&hostclient.SessionResult{ID:"visual-fixture-session",Target:"dev",State:"active",GameID:v.game,CorePackage:&hostclient.SessionCorePackage{PackageID:strings.Repeat("a",64),Generation:9,Composition:&hostclient.SessionComposition{PackageID:strings.Repeat("a",64)},ABI:hostclient.SessionCoreABI{ID:v.abi,Major:1},ActiveInterfaces:[]hostclient.SessionCoreInterface{{ID:v.media,Major:1}}}}
+   p,_:=index.Find(v.room);app:=roomApp(p,svc,v.game,v.core);capture("running-"+strings.TrimPrefix(v.core,"fes."),"active-session visual fixture only",app.Snapshot())
+   display,err:=gfx.NewMenuDisplayWithPresenter(&countingSessionMenu{});if err!=nil{t.Fatal(err)};app.menuDisplay,app.sessionDisplay=display,protocol.SessionDisplayFocused;app.Tick(time.Now());capture("overlay-"+strings.TrimPrefix(v.core,"fes."),"session plane visual fixture; no actual machine frame",app.Snapshot());display.Close()
+  }
+  // The remaining captures use renderer-facing native snapshots. They exercise
+  // production painting/layout, not catalogue admission or input flow.
+  app:=libraryRenderApp(t,w,h,true);base:=app.Snapshot();capture("native-library-grid","existing library fixture",base)
+  app.focusIndex(len(app.games)-1);app.HandleCommand(CmdDown,time.Now());capture("native-library-actions-primary","directional action focus",app.Snapshot());app.HandleCommand(CmdRight,time.Now());capture("native-library-actions-details","directional Details action focus",app.Snapshot());app.HandleCommand(CmdBack,time.Now());app.focusIndex(0)
+  app.grid.Mode=LayoutList;app.grid.Layout(w,h);capture("native-library-list","existing library fixture",app.Snapshot())
+  app.grid.Mode=LayoutShelf;app.grid.Layout(w,h);capture("native-library-shelf","existing library fixture",app.Snapshot())
+  app.HandleCommand(CmdDetails,time.Now());capture("native-details","existing library fixture",app.Snapshot())
+  app=libraryRenderApp(t,w,h,false);app.games[0].Title="Sinclair ZX Spectrum 128K +2A Expanded Edition With A Very Long Household Name";capture("native-library-long","long title; no artwork",app.Snapshot())
+  s:=base;s.Settings=SettingsSnapshot{Open:true,Rows:[]SettingsRow{{Label:"Library",Value:"8 titles"},{Label:"Systems",Value:"12 installed"},{Label:"BIOS & media drives",Value:"2 saved drives"},{Label:"TV surround",Value:"On"},{Label:"Display safe area",Value:"5%"},{Label:"Reduced motion",Value:"On"},{Label:"About FES"}},Hint:"↑ ↓ move · Enter select · Esc back"};capture("native-settings","native snapshot fixture",s)
+  s=base;s.RoomPicker=RoomPickerSnapshot{Open:true};for _,p:=range index.Packs{s.RoomPicker.Rows=append(s.RoomPicker.Rows,RoomPickerRow{ID:p.ID,Label:p.Title,Detail:p.Description,Kind:"room"})};capture("native-rooms-menu","all embedded rooms native menu fixture",s)
+  files:=[]FirmwarePickerRow{{Name:"Type a path…",Kind:"osk",Selectable:true},{Name:"From host drive",Kind:"host-drive",Selectable:true},{Name:"Household media",Kind:"dir",Selectable:true},{Name:"A very long selected cartridge or disk filename for the next start.dsk",Kind:"file",Size:194816,Selectable:true},{Name:"README.txt",Kind:"file",Size:416}}
+  s=base;s.CoreLibrary=FirmwarePickerSnapshot{Open:true,Title:"Media for next start",Path:"Household media / Spectrum",Index:3,Rows:files,Hint:"Enter choose · Esc back",Status:"Your running machine keeps its current media."};capture("native-system-media","native snapshot fixture",s)
+  s=base;s.CoreLibrary=FirmwarePickerSnapshot{Open:true,Title:"Systems",Rows:[]FirmwarePickerRow{{Name:"Refresh systems",Selectable:true},{Name:"Browse published systems",Selectable:true},{Name:"ZX Spectrum +3 · installed · ready",Selectable:true},{Name:"Commodore 64 · installed · ready",Selectable:true},{Name:"Atari 520ST · installed · needs BIOS",Selectable:true}},Index:2,Hint:"Enter select · Esc back"};capture("native-systems-picker","native snapshot fixture",s)
+  s=base;s.FirmwarePicker=FirmwarePickerSnapshot{Open:true,Title:"Choose BIOS",Path:"Household BIOS",Rows:files,Index:3,Hint:"Enter import · Esc back",Status:"Choose the exact BIOS file for this system."};capture("native-firmware-picker","native snapshot fixture",s)
+  s=base;s.Storage=FirmwarePickerSnapshot{Open:true,Title:"BIOS & media drives",Rows:[]FirmwarePickerRow{{Name:"This device",Selectable:true},{Name:"FogCast host",Selectable:true},{Name:"Household media · connected",Selectable:true},{Name:"Add SMB share",Selectable:true}},Index:2,Hint:"Enter select · Esc back"};capture("native-storage","native snapshot fixture",s)
+  s=base;s.TapePicker=TapePickerSnapshot{Open:true,Title:"Change disk",Current:"Current: Workbench disk",Path:"Household media / Apple II",Rows:[]TapePickerRow{{Name:"Eject media",Kind:"eject",Selectable:true},{Name:"From host drive",Kind:"host-drive",Selectable:true},{Name:"Adventure.dsk",Kind:"file",Size:143360,Selectable:true}},Index:2,Hint:"Enter insert · Esc back",Status:"The machine keeps running while you choose."};capture("native-live-media","native snapshot fixture",s)
+  s=base;s.Filters=FilterSnapshot{Open:true,Title:"Filters",Rows:[]FilterRow{{Label:"Genre",Value:"All"},{Label:"Year",Value:"All"},{Label:"Region",Value:"Europe"},{Label:"Hide prereleases",Value:"On"},{Label:"Clear filters"}},Index:2,Hint:"Enter change · Esc back"};capture("native-filters","native snapshot fixture",s)
+  s=base;s.ViewPicker=true;s.PickerRows=[]LibraryView{{Label:"All games"},{Label:"Continue"},{Label:"Favorites"},{Label:"Recent"},{Label:"Household collection with a long display name"}};s.ViewPickerIndex=4;capture("native-collections","native snapshot fixture",s)
+  s=base;field:=shared.TextField{Buffer:"Household game title"};s.OSK=field.Snapshot();s.OSK.Open=true;s.OSK.Prompt="Title for this library entry";s.OSK.Hint="Directions move · Enter type · Esc cancel";capture("native-keyboard","native snapshot fixture",s)
+ }
+ data,err:=json.MarshalIndent(map[string]any{"evidence":"Host-rendered UI fixtures only; no hardware, launch, compatibility or performance acceptance.","rooms":len(index.Packs),"captures":records},"","  ");if err!=nil{t.Fatal(err)};if err:=os.WriteFile(filepath.Join(out,"inventory.json"),data,0644);err!=nil{t.Fatal(err)}
+}

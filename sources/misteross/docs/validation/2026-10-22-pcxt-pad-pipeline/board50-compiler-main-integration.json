@@ -1,0 +1,64 @@
+{
+  "scope": "Fresh native CGA Direct CPU100/board50 early-CS cohort after reviewed-main integration into PR296. Same native endpoint identities across three seeds; same-seed RBF bytes and entire timing JSON equal prior frozen fdf0462 cohort. No whole-board physical or hardware acceptance.",
+  "compiler": {
+    "source": "e9ff47f72bd56a27f596fbd02c7a68076c56af3d",
+    "reviewed_main": "5b6b5a9f225f2bbb13cb97764358f4b20def5b68",
+    "mistral": "9ab6522077948fc3dd2e074338874f92e848fc44",
+    "native_binary_sha256": "0b4e00120e4392b8c3404d880f31ab3e4b59a7974a6d045fa67d55b30ce376b6",
+    "test_binary_sha256": "bc0154f9569dceb43177144b68d57f9a4de5f12fa744c96400ad9e8c6b4c2e1f",
+    "version": "\"nextpnr-mistral\" -- Next Generation Place and Route (Version e9ff47f)",
+    "tests": "64 focused cases PASS, including new DeviceModelLifetime; reset parser and CLI/checkpoint PASS",
+    "logs_sha256": {
+      "board50-integrated-build.log": "350b83ccdd8e1dc3f49eb222441d805c086c2ec7cfe2ec137249f007c3bcef98",
+      "board50-integrated-tests.log": "12045c3b42f7d80201b2b502456affafa78acbc1f6af106b40990e87276c7100",
+      "board50-integrated-cli-parser-tests.log": "f93e745ed3d8e10e363f80752c86147270f4b91d190a2963b3328cdc0282fc3f"
+    },
+    "scope": "Task-owned PR296 branch updated by merging reviewed main; both test lists retained. No timing-policy change, PR merge, lock bump or hardware qualification."
+  },
+  "rows": [
+    {
+      "seed": 1,
+      "paired_rows": 17709,
+      "unpaired_rows": 9,
+      "setup_min_ns": 1.7619999647140503,
+      "hold_min_ns": 0.7940000295639038,
+      "native_receipt_sha256": "cf2fe92b4da21fbfc1b6eeb50549cdab59a060c30f6559c0d976c798b3fb5148",
+      "same_seed_previous_rbf_sha256": "320410cd96521a7994b1e4e658ee9aed1c34f2945b49666079341d86f6fbbd08",
+      "same_seed_previous_timing_report_json_equal": true,
+      "rbf_byte_equal_to_previous": true
+    },
+    {
+      "seed": 2,
+      "paired_rows": 17709,
+      "unpaired_rows": 9,
+      "setup_min_ns": 0.6850000023841858,
+      "hold_min_ns": 0.7609999775886536,
+      "native_receipt_sha256": "7b49a398d292573e959ca724feb3cbaea247cb9f11b0c9b29fecf780f5cbabb0",
+      "same_seed_previous_rbf_sha256": "12863243f77cfd46a4ac97b54adec01be27e1f625b83d5171c3161e5e2587215",
+      "same_seed_previous_timing_report_json_equal": true,
+      "rbf_byte_equal_to_previous": true
+    },
+    {
+      "seed": 3,
+      "paired_rows": 17709,
+      "unpaired_rows": 9,
+      "setup_min_ns": 0.6050000190734863,
+      "hold_min_ns": 0.7960000038146973,
+      "native_receipt_sha256": "7a9bfef911503d18a3f09e4a49a8619ae5a25159dfb26ddfca4fa987e91bca7d",
+      "same_seed_previous_rbf_sha256": "b10bd18d529420a7f2f60ea714bc6925db8af85f195b565bdc636c39665bcc99",
+      "same_seed_previous_timing_report_json_equal": true,
+      "rbf_byte_equal_to_previous": true
+    }
+  ],
+  "same_endpoint_identities_all_three": true,
+  "accounting": {
+    "completed_route_search_receipts": 127,
+    "previous_124_prefix_exact": true,
+    "all_receipts_artifacts_and_input_bindings_verified": true,
+    "new_charge_seconds": "414.52129876473919",
+    "cumulative_charge_seconds": "100823.46672205859737741",
+    "journal_sha256": "1099d18e14a987f8cbacf5fbd3da0d926596785349e8964155ef2a5e8cb0989f"
+  },
+  "physical_qualified": false,
+  "hardware": false
+}

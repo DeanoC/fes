@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Autonomous diagnostic board shell. No production runtime/firmware ABI.
-module top #(parameter bit MDA = 0, SCANLINES = 0) (
+// The default profile is autonomous. The package producer enables the minimal
+// runtime mailbox so the target can start the built-in diagnostic ROM.
+module top #(
+    parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0,
+    parameter bit PHASED_HDMI_CLOCK = 0,
+    parameter bit ENABLE_FES_COMPUTER = 0,
+    parameter [127:0] BUILD_ID = 128'h00000000000000000000000000000000
+) (
     input wire FPGA_CLK1_50,
     output wire HDMI_TX_CLK, HDMI_TX_DE, HDMI_TX_HS, HDMI_TX_VS,
     output wire [23:0] HDMI_TX_D,
@@ -11,26 +17,39 @@ module top #(parameter bit MDA = 0, SCANLINES = 0) (
     output wire [12:0] SDRAM_A,
     inout wire [15:0] SDRAM_DQ
 );
-    wire clk, clk_capture, clk_rom, clk_pixel, memory_locked, video_locked;
+    wire clk, clk_memory, clk_capture, clk_pixel, clk_hdmi, memory_locked, video_locked;
     // Rate-3 consumes the falling-edge sample. A 180 degree fabric capture
     // clock provides that edge without unsupported DDIO on bidirectional IO.
-    wire [2:0] clocks;
+    wire [(HALF_RATE_BOARD ? 4 : 2)-1:0] clocks;
     altera_pll #(
-        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(3),
-        .output_clock_frequency0("100.0 MHz"), .output_clock_frequency1("100.0 MHz"),
-        .output_clock_frequency2("100.0 MHz"),
-        .phase_shift0("0 ps"), .phase_shift1("5000 ps"), .phase_shift2("2500 ps"),
-        .duty_cycle0(50), .duty_cycle1(50), .duty_cycle2(50), .operation_mode("direct"),
+        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(HALF_RATE_BOARD ? 4 : 2),
+        .output_clock_frequency0("100.0 MHz"), .output_clock_frequency1(HALF_RATE_BOARD ? "50.0 MHz" : "100.0 MHz"),
+        .output_clock_frequency2(HALF_RATE_BOARD ? "50.0 MHz" : "0 MHz"),
+        .output_clock_frequency3(HALF_RATE_BOARD ? "50.0 MHz" : "0 MHz"),
+        .phase_shift0("0 ps"), .phase_shift1(HALF_RATE_BOARD ? "10000 ps" : "5000 ps"),
+        .phase_shift2("0 ps"), .phase_shift3(HALF_RATE_BOARD ? "18000 ps" : "0 ps"),
+        .duty_cycle0(50), .duty_cycle1(50), .duty_cycle2(50), .duty_cycle3(50), .operation_mode("direct"),
         .fractional_vco_multiplier("false")
     ) memory_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk(clocks), .locked(memory_locked));
     assign clk = clocks[0];
+    assign clk_memory = HALF_RATE_BOARD ? clocks[2] : clk;
     assign clk_capture = clocks[1];
-    assign clk_rom = clocks[2];
+    localparam bit USE_PHASED_HDMI_CLOCK = HALF_RATE_BOARD || PHASED_HDMI_CLOCK;
+    wire [(USE_PHASED_HDMI_CLOCK ? 2 : 1)-1:0] video_clocks;
     altera_pll #(
-        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(1),
-        .output_clock_frequency0("74.25 MHz"), .phase_shift0("0 ps"), .duty_cycle0(50),
+        .reference_clock_frequency("50.0 MHz"), .number_of_clocks(USE_PHASED_HDMI_CLOCK ? 2 : 1),
+        .output_clock_frequency0("74.25 MHz"), .output_clock_frequency1(USE_PHASED_HDMI_CLOCK ? "74.25 MHz" : "0 MHz"),
+        .phase_shift0("0 ps"), .phase_shift1(USE_PHASED_HDMI_CLOCK ? "8979 ps" : "0 ps"), .duty_cycle0(50), .duty_cycle1(50),
         .operation_mode("direct"), .fractional_vco_multiplier("true")
-    ) video_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk(clk_pixel), .locked(video_locked));
+    ) video_clock (.refclk(FPGA_CLK1_50), .rst(1'b0), .outclk(video_clocks), .locked(video_locked));
+    assign clk_pixel = video_clocks[0];
+    // The forwarded edge is 8.979 ns after a phase-zero pixel update and
+    // 4.489 ns before the next one. Pixel state stays on phase 0.
+    generate if (USE_PHASED_HDMI_CLOCK) begin: phased_hdmi_clock
+        MISTRAL_CLKBUF clock_buffer (.A(video_clocks[1]), .Q(clk_hdmi));
+    end else begin: common_hdmi_clock
+        assign clk_hdmi = clk_pixel;
+    end endgenerate
     wire locked = memory_locked && video_locked;
     (* async_reg = "true" *) reg [1:0] sys_reset = 2'b11, pixel_reset = 2'b11;
     always @(posedge clk or negedge locked)
@@ -39,10 +58,47 @@ module top #(parameter bit MDA = 0, SCANLINES = 0) (
     always @(posedge clk_pixel or negedge locked)
         if (!locked) pixel_reset <= 2'b11;
         else pixel_reset <= {pixel_reset[0], 1'b0};
+    wire board_reset_live;
+    wire controller_cs;
+    generate if (HALF_RATE_BOARD) begin: early_chip_select
+        // Source CS is ready a board cycle before the command pads. Capture
+        // it 2ns before their final stage, giving the addon inverter headroom.
+        reg cs;
+        always @(posedge clocks[3]) cs <= controller_cs;
+        assign SDRAM_nCS = cs;
+    end else begin: common_chip_select
+        assign SDRAM_nCS = controller_cs;
+    end endgenerate
+    generate if (HALF_RATE_BOARD) begin: board_reset_domain
+        (* async_reg = "true" *) reg [1:0] board_reset = 2'b11;
+        always @(posedge clk_memory or negedge locked)
+            if (!locked) board_reset <= 2'b11;
+            else board_reset <= {board_reset[0], 1'b0};
+        assign board_reset_live = board_reset[1];
+    end else begin: common_reset_domain
+        assign board_reset_live = sys_reset[1];
+    end endgenerate
+    wire exec_reset;
+    generate if (ENABLE_FES_COMPUTER) begin: fes_computer_runtime
+        wire [31:0] fpga_to_hps, hps_to_fpga;
+        cyclonev_hps_interface_mpu_general_purpose hps_gp (
+            .gp_in(fpga_to_hps), .gp_out(hps_to_fpga));
+        fes_computer_mailbox gp_mailbox (
+            .clk(clk), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
+            .exec_reset(exec_reset), .keyboard_rows(), .controller_buttons(),
+            .mouse_valid(), .mouse_dx(), .mouse_dy(), .mouse_buttons(), .mouse_ready(1'b0),
+            .media_write_addr(), .media_write_data(), .media_write_enable(),
+            .media_write_ready(1'b1), .media_write_busy(1'b0), .media_changed(1'b0),
+            .media_frozen(), .media_read_req(), .media_read_addr(),
+            .media_read_ready(1'b0), .media_read_data(8'd0),
+            .unit0_state(), .unit0_size());
+    end else begin: standalone_diagnostic
+        assign exec_reset = 1'b0;
+    end endgenerate
     wire firmware_valid, firmware_ready, firmware_done;
     wire [15:0] firmware_address;
     wire [7:0] firmware_data;
-    pcxt_boot boot (.clk(clk), .cold_reset(sys_reset[1]), .enable(1'b1),
+    pcxt_boot boot (.clk(clk_memory), .cold_reset(board_reset_live), .enable(!exec_reset),
         .valid(firmware_valid), .ready(firmware_ready), .done(firmware_done),
         .address(firmware_address), .data(firmware_data));
     wire [31:0] video_request;
@@ -50,15 +106,15 @@ module top #(parameter bit MDA = 0, SCANLINES = 0) (
     wire [15:0] dq_out, dq_sample;
     wire dq_oe;
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES)) system (
-        .clk(clk), .clk_rom(clk_rom), .clk_pixel(clk_pixel), .clk_pin(clk), .cold_reset(sys_reset[1]),
-        .reset_pixel(pixel_reset[1]), .warm_reset(1'b0), .hold(1'b0),
+    pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD), .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD)) system (
+        .clk(clk_memory), .clk_cpu(clk), .clk_pixel(clk_pixel), .clk_pin(clk_memory), .cold_reset(board_reset_live),
+        .reset_pixel(pixel_reset[1]), .warm_reset(exec_reset), .hold(1'b0),
         .firmware_valid(firmware_valid), .firmware_ready(firmware_ready),
         .firmware_done(firmware_done), .firmware_address(firmware_address), .firmware_data(firmware_data),
         .firmware_loaded(), .initialized(), .machine_reset(), .fault(), .halted(),
         .dma_owner(), .refresh_done(), .audio_valid(), .audio_sample(),
         .video_request(video_request), .video_response(video_response),
-        .sdram_clk(SDRAM_CLK), .sdram_cke(SDRAM_CKE), .sdram_ncs(SDRAM_nCS),
+        .sdram_clk(SDRAM_CLK), .sdram_cke(SDRAM_CKE), .sdram_ncs(controller_cs),
         .sdram_nras(SDRAM_nRAS), .sdram_ncas(SDRAM_nCAS), .sdram_nwe(SDRAM_nWE),
         .sdram_ba(SDRAM_BA), .sdram_a(SDRAM_A), .sdram_dqml(SDRAM_DQML), .sdram_dqmh(SDRAM_DQMH),
         .dq_out(dq_out), .dq_oe(dq_oe), .dq_rise(dq_sample), .dq_fall(dq_sample)
@@ -78,7 +134,7 @@ module top #(parameter bit MDA = 0, SCANLINES = 0) (
     (* BEL = "cyclonev_hps_interface_peripheral_i2c.52.60.0" *)
     cyclonev_hps_interface_peripheral_i2c hdmi_i2c (
         .scl(scl_in), .sda(sda_in), .out_clk(scl_low), .out_data(sda_low));
-    assign HDMI_TX_CLK = clk_pixel;
+    assign HDMI_TX_CLK = clk_hdmi;
     assign HDMI_TX_D = video_response[23:0];
     assign HDMI_TX_DE = video_response[24];
     assign HDMI_TX_HS = video_response[25];

@@ -16,13 +16,14 @@
 #include <cstring>
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
 
 constexpr double CLOCK_HZ = 100e6;
 constexpr uint64_t RTC_SECOND = 1u << 19;
-constexpr uint16_t CYLINDERS = 20, HEADS = 4, SPT = 17;
+constexpr uint16_t CYLINDERS = 40, HEADS = 4, SPT = 17;  // 2,720 sectors: dirty map words 0 and 1
 constexpr uint32_t SECTORS = uint32_t(CYLINDERS) * HEADS * SPT;
 
 int failures = 0;
@@ -650,6 +651,48 @@ void ata(Bench &b) {
     b.top.dirty_index = 0;
     b.run(2);
     check("the sector store sets dirty chunk 1 only", b.top.dirty_word == 0x0002, hex(b.top.dirty_word));
+
+    // The dirty map: chunk LBA / 128 is bit chunk % 16 of word chunk / 16.
+    // Writes one sector at lba with dirty_index at index, watching dirty_word
+    // every clock: it reads old_word, then new_word from some clock after the
+    // store goes idle. Returns whether it read nothing else, and that clock.
+    auto store_marks = [&](uint32_t lba, uint8_t index, uint16_t old_word, uint16_t new_word) {
+        b.top.dirty_index = index;
+        b.run(2);
+        bool clean = b.top.dirty_word == old_word;
+        uint64_t idle = 0, seen = 0;
+        b.each_clock = [&] {
+            uint16_t word = b.top.dirty_word;
+            if (!seen && idle && word == new_word) seen = b.cycles;
+            clean &= word == (seen ? new_word : old_word);
+            if (b.top.disk_valid && b.top.disk_ready && b.top.disk_write && (b.top.disk_address & 63) == 63)
+                idle = b.cycles + 1;  // the last beat is accepted at this clock's edge
+        };
+        b.out(0x1f2, 1); b.out(0x1f3, uint8_t(lba)); b.out(0x1f4, uint8_t(lba >> 8)); b.out(0x1f5, 0);
+        b.out(0x1f6, 0xe0); b.out(0x1f7, 0x30);
+        b.wait([&] { return (b.in(0x1f7) & 0x88) == 0x08; }, 10000);
+        for (int n = 0; n < 256; ++n) b.outw(0x1f0, uint16_t(lba + n));
+        b.run(1000);
+        b.each_clock = nullptr;
+        b.out(0x1f4, 0);  // the later commands set only the low LBA byte
+        return std::make_pair(clean && seen != 0, seen - idle);
+    };
+    auto [kept, latency] = store_marks(5 * 128, 0, 0x0002, 0x0022);
+    check("a mark keeps its word's earlier bits, and dirty_word holds over the mark's read-modify-write",
+          kept, std::to_string(latency));
+    check("a mark reaches dirty_word 4 clocks after the store goes idle", latency == 4, std::to_string(latency));
+    bool steady = store_marks(19 * 128, 0, 0x0022, 0x0022).first;
+    check("a mark in another word leaves dirty_word steady", steady && b.image[19 * 128 * 512 + 2] == 0x81);
+    b.top.dirty_index = 1;
+    b.run(1);
+    uint16_t one_clock = b.top.dirty_word;
+    b.run(1);
+    uint16_t word1 = b.top.dirty_word;
+    b.top.dirty_index = 0;
+    b.run(2);
+    check("dirty_word reads word 1 (chunk 19), then word 0 (chunks 1, 5), two clocks after dirty_index",
+          one_clock == 0x0022 && word1 == 0x0008 && b.top.dirty_word == 0x0022,
+          hex(one_clock) + " " + hex(word1) + " " + hex(b.top.dirty_word));
     b.out(0x1f2, 2); b.out(0x1f3, 130); b.out(0x1f6, 0xe0);
     b.out(0x1f7, 0x20);
     bool same = true;
@@ -783,6 +826,23 @@ void ata(Bench &b) {
           b.in(0x1f2) == 1 && b.in(0x1f3) == 1 && b.in(0x1f4) == 0 && b.in(0x1f5) == 0 && (b.in(0x1f7) & 0xc1) == 0x40);
 }
 
+// After the other checks: a machine reset clears the dirty map over 128 clocks.
+void dirty_reset(Bench &b) {
+    b.top.reset = 1;
+    b.run(4);
+    b.top.reset = 0;
+    uint64_t released = b.cycles;
+    while (b.top.cmos_busy) b.clock();
+    b.run(10);
+    bool clear = b.cycles - released > 130;
+    for (uint8_t index : {0, 1}) {
+        b.top.dirty_index = index;
+        b.run(2);
+        clear &= b.top.dirty_word == 0;
+    }
+    check("a reset clears the dirty map", clear, std::to_string(b.cycles - released) + " " + hex(b.top.dirty_word));
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -797,6 +857,7 @@ int main(int argc, char **argv) {
         rtc(b);
         ata(b);
         pit(b);
+        dirty_reset(b);
     }
     std::printf("%s %d failure(s)\n", failures ? "FAIL" : "PASS", failures);
     return failures ? 1 : 0;

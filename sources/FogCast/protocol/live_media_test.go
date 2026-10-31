@@ -13,6 +13,7 @@ func TestAdmitTapeMediaName(t *testing.T) {
 		{"game.p", true},
 		{"Game.P", true},
 		{"game.P", true},
+		{"game.o", false},
 		{"game.tzx", false},
 		{"game.tap", false},
 		{".p", true},
@@ -23,6 +24,21 @@ func TestAdmitTapeMediaName(t *testing.T) {
 	} {
 		if AdmitTapeMediaName(tc.name) != tc.ok {
 			t.Fatalf("%q ok=%v", tc.name, AdmitTapeMediaName(tc.name))
+		}
+	}
+	for _, tc := range []struct {
+		name string
+		ok   bool
+	}{
+		{"dragons-add.o", true},
+		{"Dragons.O", true},
+		{"game.p", false},
+		{"game.O.p", false},
+		{"dir/dragons.o", false},
+		{"", false},
+	} {
+		if AdmitZx80TapeMediaName(tc.name) != tc.ok {
+			t.Fatalf("zx80 %q ok=%v", tc.name, AdmitZx80TapeMediaName(tc.name))
 		}
 	}
 }

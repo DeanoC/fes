@@ -1,0 +1,147 @@
+{
+  "rows": [
+    {
+      "path": "docs/validation/2026-10-28-tenfoot-families-kit-a/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "sources/FogCast/docs/ARCHITECTURE.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/FogCast/hostclient/core_package.go",
+      "class": "overlay",
+      "component": "kit-go+host",
+      "rule": "sources/FogCast/**"
+    },
+    {
+      "path": "sources/FogCast/hostclient/core_package_test.go",
+      "class": "none",
+      "component": null,
+      "rule": "**/*_test.go"
+    },
+    {
+      "path": "sources/FogCast/ui/rooms/computers_test.go",
+      "class": "none",
+      "component": null,
+      "rule": "**/*_test.go"
+    },
+    {
+      "path": "sources/FogCast/ui/rooms/examples/computers/main.lua",
+      "class": "overlay",
+      "component": "kit-go+host",
+      "rule": "sources/FogCast/**"
+    },
+    {
+      "path": "sources/FogCast/ui/rooms/examples/hardware/main.lua",
+      "class": "overlay",
+      "component": "kit-go+host",
+      "rule": "sources/FogCast/**"
+    },
+    {
+      "path": "sources/FogCast/ui/rooms/examples/hardware/room.toml",
+      "class": "overlay",
+      "component": "kit-go+host",
+      "rule": "sources/FogCast/**"
+    },
+    {
+      "path": "sources/FogCast/ui/rooms/hardware_test.go",
+      "class": "none",
+      "component": null,
+      "rule": "**/*_test.go"
+    },
+    {
+      "path": "sources/FogCast/ui/rooms/stdlib/systems.lua",
+      "class": "overlay",
+      "component": "kit-go+host",
+      "rule": "sources/FogCast/**"
+    },
+    {
+      "path": "sources/FogCast/ui/rooms/stdlib/widgets/system_workbench.lua",
+      "class": "overlay",
+      "component": "kit-go+host",
+      "rule": "sources/FogCast/**"
+    },
+    {
+      "path": "sources/FogCast/ui/rooms/system_workbench_test.go",
+      "class": "none",
+      "component": null,
+      "rule": "**/*_test.go"
+    },
+    {
+      "path": "sources/FogCast/ui/tenfoot/app.go",
+      "class": "overlay",
+      "component": "kit-go+host",
+      "rule": "sources/FogCast/**"
+    },
+    {
+      "path": "sources/FogCast/ui/tenfoot/core_library.go",
+      "class": "overlay",
+      "component": "kit-go+host",
+      "rule": "sources/FogCast/**"
+    },
+    {
+      "path": "sources/FogCast/ui/tenfoot/core_library_test.go",
+      "class": "none",
+      "component": null,
+      "rule": "**/*_test.go"
+    },
+    {
+      "path": "sources/FogCast/ui/tenfoot/hardware_render_test.go",
+      "class": "none",
+      "component": null,
+      "rule": "**/*_test.go"
+    },
+    {
+      "path": "sources/FogCast/ui/tenfoot/hardware_room.go",
+      "class": "overlay",
+      "component": "kit-go+host",
+      "rule": "sources/FogCast/**"
+    },
+    {
+      "path": "sources/FogCast/ui/tenfoot/hardware_room_test.go",
+      "class": "none",
+      "component": null,
+      "rule": "**/*_test.go"
+    },
+    {
+      "path": "sources/FogCast/ui/tenfoot/hardware_session_test.go",
+      "class": "none",
+      "component": null,
+      "rule": "**/*_test.go"
+    },
+    {
+      "path": "sources/FogCast/ui/tenfoot/hardware_setup.go",
+      "class": "overlay",
+      "component": "kit-go+host",
+      "rule": "sources/FogCast/**"
+    },
+    {
+      "path": "sources/FogCast/ui/tenfoot/hardware_setup_test.go",
+      "class": "none",
+      "component": null,
+      "rule": "**/*_test.go"
+    },
+    {
+      "path": "sources/FogCast/ui/tenfoot/surround_test.go",
+      "class": "none",
+      "component": null,
+      "rule": "**/*_test.go"
+    },
+    {
+      "path": "sources/FogCast/ui/tenfoot/tape_test.go",
+      "class": "none",
+      "component": null,
+      "rule": "**/*_test.go"
+    }
+  ],
+  "class": "overlay",
+  "components": [
+    "kit-go+host"
+  ],
+  "decision": "OVERLAY kit-go+host"
+}

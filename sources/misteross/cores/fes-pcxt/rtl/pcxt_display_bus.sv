@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Eight registered logical slots; CGA slot 2 and MDA slot 3, remaining vacant.
-module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0) (
+module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, parameter integer CLOCK_HZ = 100000000) (
     input wire clk, reset, cycle_valid,
     output wire cycle_ready,
     input wire [19:0] cycle_address,
@@ -32,7 +32,7 @@ module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0) (
             .card_response(card_response), .response(responses[n*32 +: 32])
         );
         if (n == 1) begin: cga
-            pcxt_cga_card card (
+            pcxt_cga_card #(.CLOCK_HZ(CLOCK_HZ)) card (
                 .clk(clk), .reset(reset), .request(card_request), .response(card_response),
                 .font_address(cga_font_address), .font_data(cga_font_data),
                 .light_pen_trigger(light_pen_trigger), .light_pen_switch(light_pen_switch),
@@ -41,7 +41,7 @@ module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0) (
                 .unsupported_interlace(unsupported_interlace[0])
             );
         end else if (n == 2) begin: mda
-            pcxt_mda_card card (
+            pcxt_mda_card #(.CLOCK_HZ(CLOCK_HZ)) card (
                 .clk(clk), .reset(reset), .request(card_request), .response(card_response),
                 .font_address(mda_font_address), .font_data(mda_font_data),
                 .light_pen_trigger(1'b0), .light_pen_switch(1'b0),

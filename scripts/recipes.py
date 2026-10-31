@@ -93,11 +93,13 @@ class Format2Recipe:
     producer_options: tuple[tuple[str, object], ...] = ()
     video_profiles: tuple[str, ...] = ()
     optional: bool = False
+    toolchain: str = "oss"
+    quartus: dict | None = None
 
 
 REGISTRY_PATH = Path(__file__).resolve().parents[1] / "config/core-recipes.toml"
 _OPTIONAL_RECIPE_FIELDS = frozenset({
-    "producer_arguments", "producer_options", "video_profiles", "optional"})
+    "producer_arguments", "producer_options", "video_profiles", "optional", "toolchain", "quartus"})
 _VIDEO_ARGUMENT = {
     "--native-video-socket": ("native_video", True),
     "--video-socket": ("video_socket", True),
@@ -149,9 +151,24 @@ def load_recipes(path=REGISTRY_PATH):
         raise ValueError("recipes must be a nonempty array of tables")
     result, selections, environment_names = {}, set(), set()
     for entry in entries:
-        if (not isinstance(entry, dict) or not _RECIPE_FIELDS <= set(entry)
-                or set(entry) - _RECIPE_FIELDS - _OPTIONAL_RECIPE_FIELDS):
-            raise ValueError("recipe fields must exactly match the version-1 schema")
+        lane = entry.get("toolchain", "oss") if isinstance(entry, dict) else None
+        if lane not in ("oss", "quartus"):
+            raise ValueError("unknown recipe toolchain")
+        required = _RECIPE_FIELDS - ({"gpu_router", "hip_architectures", "pnr"} if lane == "quartus" else set())
+        if (not isinstance(entry, dict) or not required <= set(entry)
+                or set(entry) - required - _OPTIONAL_RECIPE_FIELDS):
+            raise ValueError("recipe fields must exactly match the selected toolchain schema")
+        if lane == "quartus":
+            q = entry.get("quartus")
+            if (not isinstance(q, dict) or set(q) != {"version", "seeds", "threads"}
+                    or not isinstance(q["version"], str) or not q["version"]
+                    or not isinstance(q["seeds"], list) or not q["seeds"]
+                    or any(type(n) is not int or n < 1 for n in q["seeds"])
+                    or len(q["seeds"]) != len(set(q["seeds"]))
+                    or type(q["threads"]) is not int or q["threads"] < 1):
+                raise ValueError("invalid Quartus recipe")
+        elif "quartus" in entry:
+            raise ValueError("OSS recipe cannot declare a Quartus descriptor")
         if type(entry.get("identity_version")) is not int or entry["identity_version"] != 2:
             raise ValueError("identity_version must be explicitly 2")
         if any(not isinstance(value, str) or not value.strip()
@@ -160,57 +177,60 @@ def load_recipes(path=REGISTRY_PATH):
                if key not in {"identity_version", "pnr"} and key not in _OPTIONAL_RECIPE_FIELDS):
             raise ValueError("recipe fields must be nonempty strings without control characters")
         entry = dict(entry)
-        pnr = entry.get("pnr")
-        if not isinstance(pnr, dict):
-            raise ValueError("every recipe requires a complete pnr table")
-        pnr_fields = {
-            "seeds", "timing_weights", "search_weights", "critexp", "clocks",
-            "freq", "qsf", "sdc", "router", "backend", "gpu_device",
-            "timeout_s", "threads", "timing_allow_fail", "argv_style", "extra",
-            "env", "optional_env", "unset_env", "compress_rbf",
-            "detailed_timing_report", "flags",
-        }
-        if set(pnr) != pnr_fields:
-            raise ValueError("P&R recipe fields are incomplete")
-        # Which options a recipe must list depends on the nextpnr its own lock
-        # pins; sources/misteross/scripts/pnr_recipe.py owns each classified
-        # pin's closed option schema and validates every recipe against it.
-        flags = pnr["flags"]
-        if (not isinstance(flags, dict) or not flags
-                or any(not re.fullmatch(r"[a-z][a-z0-9_]*", name) for name in flags)
-                or any(type(value) not in (bool, int, float, str, list)
-                       or (type(value) is list and any(not isinstance(item, str) for item in value))
-                       for value in flags.values())):
-            raise ValueError("invalid nextpnr option table")
-        if (not all(isinstance(pnr[key], list) and pnr[key]
-                    for key in ("seeds", "timing_weights", "search_weights", "clocks"))
-                or any(type(value) is not int or value < 0 for value in pnr["seeds"])
-                or any(type(value) is not int or value <= 0
-                       for key in ("timing_weights", "search_weights") for value in pnr[key])
-                or type(pnr["critexp"]) is not int or pnr["critexp"] <= 0
-                or type(pnr["timeout_s"]) is not int or pnr["timeout_s"] < 0
-                or type(pnr["threads"]) is not int or pnr["threads"] <= 0
-                or type(pnr["timing_allow_fail"]) is not bool
-                or type(pnr["compress_rbf"]) is not bool
-                or type(pnr["detailed_timing_report"]) is not bool
-                or pnr["router"] != "gpu" or pnr["backend"] != "HIP"
-                or pnr["gpu_device"] not in ("lease", "default")
-                or pnr["argv_style"] not in ("search", "direct")
-                or not isinstance(pnr["extra"], list)
-                or not isinstance(pnr["env"], dict) or not isinstance(pnr["optional_env"], dict)
-                or not isinstance(pnr["unset_env"], list)):
-            raise ValueError("invalid P&R recipe values")
-        if any(not isinstance(clock, dict) or set(clock) != {"name", "mhz"}
-               or not isinstance(clock["name"], str)
-               or type(clock["mhz"]) not in (int, float) or clock["mhz"] <= 0
-               for clock in pnr["clocks"]):
-            raise ValueError("invalid P&R clock entry")
-        if any(not isinstance(name, str) or not isinstance(value, str)
-               for env_table in (pnr["env"], pnr["optional_env"])
-               for name, value in env_table.items()):
-            raise ValueError("invalid P&R environment allowlist")
-        if any(not isinstance(name, str) for name in pnr["unset_env"]):
-            raise ValueError("invalid P&R unset environment list")
+        if lane == "oss":
+            pnr = entry.get("pnr")
+            if not isinstance(pnr, dict):
+                raise ValueError("every recipe requires a complete pnr table")
+            pnr_fields = {
+                "seeds", "timing_weights", "search_weights", "critexp", "clocks",
+                "freq", "qsf", "sdc", "router", "backend", "gpu_device",
+                "timeout_s", "threads", "timing_allow_fail", "argv_style", "extra",
+                "env", "optional_env", "unset_env", "compress_rbf",
+                "detailed_timing_report", "flags",
+            }
+            if set(pnr) != pnr_fields:
+                raise ValueError("P&R recipe fields are incomplete")
+            # Which options a recipe must list depends on the nextpnr its own lock
+            # pins; sources/misteross/scripts/pnr_recipe.py owns each classified
+            # pin's closed option schema and validates every recipe against it.
+            flags = pnr["flags"]
+            if (not isinstance(flags, dict) or not flags
+                    or any(not re.fullmatch(r"[a-z][a-z0-9_]*", name) for name in flags)
+                    or any(type(value) not in (bool, int, float, str, list)
+                           or (type(value) is list and any(not isinstance(item, str) for item in value))
+                           for value in flags.values())):
+                raise ValueError("invalid nextpnr option table")
+            if (not all(isinstance(pnr[key], list) and pnr[key]
+                        for key in ("seeds", "timing_weights", "search_weights", "clocks"))
+                    or any(type(value) is not int or value < 0 for value in pnr["seeds"])
+                    or any(type(value) is not int or value <= 0
+                           for key in ("timing_weights", "search_weights") for value in pnr[key])
+                    or type(pnr["critexp"]) is not int or pnr["critexp"] <= 0
+                    or type(pnr["timeout_s"]) is not int or pnr["timeout_s"] < 0
+                    or type(pnr["threads"]) is not int or pnr["threads"] <= 0
+                    or type(pnr["timing_allow_fail"]) is not bool
+                    or type(pnr["compress_rbf"]) is not bool
+                    or type(pnr["detailed_timing_report"]) is not bool
+                    or pnr["router"] != "gpu" or pnr["backend"] != "HIP"
+                    or pnr["gpu_device"] not in ("lease", "default")
+                    or pnr["argv_style"] not in ("search", "direct")
+                    or not isinstance(pnr["extra"], list)
+                    or not isinstance(pnr["env"], dict) or not isinstance(pnr["optional_env"], dict)
+                    or not isinstance(pnr["unset_env"], list)):
+                raise ValueError("invalid P&R recipe values")
+            if any(not isinstance(clock, dict) or set(clock) != {"name", "mhz"}
+                   or not isinstance(clock["name"], str)
+                   or type(clock["mhz"]) not in (int, float) or clock["mhz"] <= 0
+                   for clock in pnr["clocks"]):
+                raise ValueError("invalid P&R clock entry")
+            if any(not isinstance(name, str) or not isinstance(value, str)
+                   for env_table in (pnr["env"], pnr["optional_env"])
+                   for name, value in env_table.items()):
+                raise ValueError("invalid P&R environment allowlist")
+            if any(not isinstance(name, str) for name in pnr["unset_env"]):
+                raise ValueError("invalid P&R unset environment list")
+        else:
+            entry.update(gpu_router=None, hip_architectures=None, pnr=None)
         arguments = entry.get("producer_arguments", [])
         options = entry.get("producer_options", {})
         profiles = entry.get("video_profiles", [])
@@ -247,10 +267,11 @@ def load_recipes(path=REGISTRY_PATH):
         auth = entry["authenticate"]
         if not re.fullmatch(_IDENTIFIER, auth) or keyword.iskeyword(auth):
             raise ValueError("invalid authenticate identifier")
-        if entry["gpu_router"] != HIP_ROUTER:
-            raise ValueError("only the HIP production route is supported")
-        if not re.fullmatch(r"gfx[0-9a-f]+(?:;gfx[0-9a-f]+)*", entry["hip_architectures"]):
-            raise ValueError("invalid HIP architectures")
+        if lane == "oss":
+            if entry["gpu_router"] != HIP_ROUTER:
+                raise ValueError("only the HIP production route is supported")
+            if not re.fullmatch(r"gfx[0-9a-f]+(?:;gfx[0-9a-f]+)*", entry["hip_architectures"]):
+                raise ValueError("invalid HIP architectures")
         selection = entry["selection_filename"]
         if ("/" in selection or not _relative_path(selection)
                 or not selection.endswith(".package-selection.toml")):
@@ -298,6 +319,9 @@ def producer_environment(env=None, recipe=None):
             del mapped[name]
     mapped.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
     mapped.pop("FES_TOOLCHAIN_ROOT", None)
-    mapped["FES_TOOLCHAIN_GPU_ROUTER"] = recipe.gpu_router
-    mapped["FES_TOOLCHAIN_HIP_ARCHITECTURES"] = recipe.hip_architectures
+    mapped.pop("FES_TOOLCHAIN_GPU_ROUTER", None)
+    mapped.pop("FES_TOOLCHAIN_HIP_ARCHITECTURES", None)
+    if recipe.toolchain == "oss":
+        mapped["FES_TOOLCHAIN_GPU_ROUTER"] = recipe.gpu_router
+        mapped["FES_TOOLCHAIN_HIP_ARCHITECTURES"] = recipe.hip_architectures
     return mapped

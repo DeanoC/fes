@@ -24,6 +24,7 @@ from scripts.build_fes_sms import (
     _manifest,
     project_qsf,
     require_clocks,
+    validate_timing_report,
 )
 from scripts.build_fes_sms_oss import (
     OUTPUT_RELATIVE as OSS_OUTPUT,
@@ -42,6 +43,7 @@ from scripts.build_fes_sms_oss import (
 )
 from scripts import build_fes_sms_oss as sms_oss
 from scripts.lockfile import load_lock
+from tests.quartus_timing_fixture import assert_timing_gate
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,6 +55,9 @@ class BuildFesSmsTests(unittest.TestCase):
         with self.assertRaisesRegex(QuartusBuildError, "12.288 MHz audio clock"):
             require_clocks("52.224 MHz system clock\n74.25 MHz pixel clock")
         require_clocks("52.224 MHz system clock\n74.25 MHz pixel clock\n12.288 MHz audio clock")
+
+    def test_quartus_timing_gate_requires_every_clock_analysed(self) -> None:
+        assert_timing_gate(self, validate_timing_report, QuartusBuildError)
 
     def test_make_entrypoints_use_both_recipes(self) -> None:
         for target, recipe in (

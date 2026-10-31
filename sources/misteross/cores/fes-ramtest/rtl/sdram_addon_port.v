@@ -14,6 +14,9 @@ module sdram_addon_port #(
     // (FAST_OUTPUT_REGISTER). Write data and DQ OE get the same extra cycle in
     // the fabric, and the read capture waits one cycle longer.
     parameter IO_OUTPUT_REGISTERS = 0,
+    // A caller selecting this owns the final chip-select register, including
+    // its phase and timing. Other output stages keep their existing cycle.
+    parameter EXTERNAL_CS_REGISTER = 0,
     // Runtime refresh recovery only. Keep the established tester timing by
     // default; slower fixed-clock clients may select a qualified cycle count.
     // Initialization retains its conservative sixteen-clock recovery.
@@ -132,7 +135,8 @@ module sdram_addon_port #(
                 dq_out_p <= dq_out_c;
                 dq_oe_p <= dq_oe_r;
             end
-            assign {sdram_cke, sdram_ncs, sdram_nras, sdram_ncas, sdram_nwe} = {cke_p, ncs_p, nras_p, ncas_p, nwe_p};
+            assign {sdram_cke, sdram_nras, sdram_ncas, sdram_nwe} = {cke_p, nras_p, ncas_p, nwe_p};
+            assign sdram_ncs = EXTERNAL_CS_REGISTER ? sdram_ncs_r : ncs_p;
             assign {sdram_dqml, sdram_dqmh, sdram_ba, sdram_a} = {dqml_p, dqmh_p, ba_p, a_p};
             assign dq_out = dq_out_p;
             assign dq_oe = dq_oe_p;

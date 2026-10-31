@@ -1,3 +1,6 @@
+#ifndef HALF_RATE_BOARD
+#define HALF_RATE_BOARD 0
+#endif
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "Vsystem_top.h"
 #include "verilated.h"
@@ -48,7 +51,8 @@ int main(int argc,char**argv) {
             unsigned want=0;
             if(x>=160 && x<1120 && y<720) {
                 unsigned sx=(x-160)*(mda?720u:640u)/960;
-                bool ink=mda ? sx%9==0 || sx%9>=7 : (sx%16<8 ? !(sx&1):bool(sx&1));
+                bool ink=mda ? sx%9==0 || sx%9>=7 :
+                    ((sx<16 && y*200/720<8) || (sx%16<8 ? !(sx&1):bool(sx&1)));
                 want=ink?0xffffff:0;
             }
             require((r&0xffffff)==want,"SDRAM CPU/ISA-to-720p pixel",cycles);++pixels;
@@ -56,8 +60,17 @@ int main(int argc,char**argv) {
         if(++x==1650) {x=0;++y;}
     };
     auto step=[&] {
-        edge(0); d.dq_sample=ram.tick(d); d.eval(); edge(1); ++cycles;
-        require(d.sdram_clk==0,"inverted SDRAM clock rising phase",cycles);
+        if constexpr (HALF_RATE_BOARD) {
+            edge(0); d.clk_board=(cycles & 1)==0; edge(1);
+            // Model the phase-18 ns chip-select capture after the phase-zero
+            // board edge. This registered output feeds the SDRAM model.
+            d.clk_cs=d.clk_board; d.eval();
+            if (!d.clk_board) { d.dq_sample=ram.tick(d); d.eval(); }
+            ++cycles;
+        } else {
+            edge(0); d.dq_sample=ram.tick(d); d.eval(); edge(1); ++cycles;
+        }
+        require(d.sdram_clk==(HALF_RATE_BOARD ? !d.clk_board : 0),"inverted SDRAM clock rising phase",cycles);
     };
     auto cold=[&] {
         check_video=false; pipe.clear();effect_known=false;
@@ -111,7 +124,8 @@ int main(int argc,char**argv) {
             require(((ram.words[a/2]>>((a&1)*8))&255)==0x6d,"ISA DMA write to real SDRAM",cycles);
         require(ram.words[0x2000]==0x3231 && ram.words[0x2001]==0x3433,"CPU SDRAM DMA source",cycles);
         require(ram.mode_sets==modes,"warm boot restarted SDRAM",cycles);
-        std::cout<<"PASS system "<<(mda?"MDA Scanlines":"CGA Direct")<<" mask-delay="<<argv[1]<<" boot="<<boot
+        std::cout<<"PASS system "<<(mda?"MDA Scanlines":"CGA Direct")
+                 <<(HALF_RATE_BOARD?" external-CS-register":"")<<" mask-delay="<<argv[1]<<" boot="<<boot
                  <<" clocks="<<ticks<<" pixels="<<pixels<<" DMA="<<dma_cycles<<" refresh="<<refresh<<'\n';
         check_video=false;
         d.hold=1;
@@ -121,5 +135,5 @@ int main(int argc,char**argv) {
         for(unsigned i=0;i<32;++i)step();
         d.warm_reset=0;
     }
-    require(ram.writes>writes && ram.max_refresh_gap<=850,"storage and physical refresh",cycles);
+    require(ram.writes>writes && ram.max_refresh_gap<=(HALF_RATE_BOARD ? 390 : 850),"storage and physical refresh",cycles);
 }

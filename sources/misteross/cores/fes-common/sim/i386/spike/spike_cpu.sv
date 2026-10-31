@@ -98,7 +98,7 @@ module spike_cpu (
 
     // The reset state, held while reset is.
     logic [7:0][31:0] init_gpr;
-    logic [31:0]      init_eflags, init_eip;
+    logic [31:0]      init_eflags, init_eip, init_cr0;
     logic [5:0][15:0] init_sel, init_ar;
     logic [5:0][31:0] init_base, init_limit;
     always_ff @(posedge clk) begin
@@ -108,6 +108,7 @@ module spike_cpu (
             init_gpr <= noise[511:256];
             init_eflags <= noise[415:384];
             init_eip <= noise[447:416];
+            init_cr0 <= noise[63:32];
             init_sel <= noise[479:384];
             init_base <= noise[447:256];
             init_limit <= noise[511:320];
@@ -133,21 +134,21 @@ module spike_cpu (
     logic             trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_issue, trace_md_wait;
     logic [7:0]       trace_vector;
     logic [7:0][31:0] arch_gpr;
-    logic [31:0]      arch_eflags, arch_eip;
+    logic [31:0]      arch_eflags, arch_eip, arch_cr0;
     logic [5:0][15:0] arch_sel, arch_ar;
     logic [5:0][31:0] arch_base, arch_limit;
 
     fes_i386_cpu dut (
-        .clk, .reset, .init_gpr, .init_eflags, .init_eip, .init_sel, .init_base, .init_limit, .init_ar,
+        .clk, .reset, .init_gpr, .init_eflags, .init_eip, .init_cr0, .init_sel, .init_base, .init_limit, .init_ar,
         .mem_block, .mem_load, .mem_data, .mem_valid, .dmem_addr, .dmem_read, .dmem_rdata, .dmem_valid, .dmem_write, .dmem_waddr,
         .dmem_wdata, .dmem_wmask, .io_req, .io_write, .io_port, .io_size, .io_wdata, .io_ack, .io_rdata,
         .intr, .nmi, .inta_req, .inta_ack, .inta_vector, .trace_retire, .trace_halt, .trace_exception, .trace_vector,
-        .trace_unimplemented, .trace_issue, .trace_md_wait, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar
+        .trace_unimplemented, .trace_issue, .trace_md_wait, .arch_gpr, .arch_eflags, .arch_eip, .arch_cr0, .arch_sel, .arch_base, .arch_limit, .arch_ar
     );
 
     logic [31:0] signature, observed;
     always_comb begin
-        observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_vector}
+        observed = arch_eflags ^ arch_eip ^ arch_cr0 ^ {20'b0, trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_vector}
                  ^ dmem_waddr ^ dmem_wdata[3:0] ^ dmem_wdata[7:4] ^ {23'b0, dmem_write, dmem_wmask}
                  ^ io_wdata ^ {io_port, 11'b0, inta_req, io_req, io_write, io_size};
         for (int n = 0; n < 8; n++) observed ^= arch_gpr[n];

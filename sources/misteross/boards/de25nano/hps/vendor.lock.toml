@@ -1,0 +1,9 @@
+format = 1
+board = "de25-nano"
+device = "A5EB013BB23BE4SCS"
+
+[archive]
+url = "https://dl2.terasic.com/resources/de25-nano/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip"
+file = "DE25-Nano_revB_v.1.0.0_ResourcePackage.zip"
+sha256 = "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66"
+prefix = "Demonstration/SoC_FPGA/GHRD/"

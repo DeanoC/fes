@@ -174,7 +174,15 @@ function Map:draw(opts)
         local hist = M.history_line(n)
         if hist ~= "" then text = text .. "  ·  " .. hist end
       end
-      gfx.text(text, x - 120, y + r + 6, { size = opts.label_size or 18, align = "center", max_w = 240, bold = focused, color = opts.label_color or room.theme.label })
+      local size = opts.label_size or 22
+      local tw, th = gfx.measure(text, size, focused)
+      local max_w = math.max(24, math.min(opts.label_width or 320, room.width - 32))
+      local bw, bh = math.min(tw + 24, max_w), th + 16
+      local bx = math.max(8, math.min(x - bw / 2, room.width - bw - 8))
+      local bottom = math.min(opts.label_bottom or room.height - 8, room.height - 8)
+      local by = math.min(y + r + 8, bottom - bh)
+      gfx.rect(bx, by, bw, bh, opts.label_plate or "#202725")
+      gfx.text(text, bx + 12, by + 8, { size = size, align = "center", max_w = math.max(1, bw - 24), bold = focused, color = opts.label_color or "#EDF3E9" })
     end
     gfx.hit(self:hit_id(id), x - r - 6, y - r - 6, (r + 6) * 2, (r + 6) * 2)
   end

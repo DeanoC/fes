@@ -6,9 +6,12 @@ description: >-
   two controller ports, fixed stereo PCM audio and removable media units are
   independently declared capabilities. Media units accept chunked CRC32
   transfers and eject while execution runs, so a medium can be changed without
-  resetting the machine. Transport bits match the other FES GP ABIs.
+  resetting the machine. Transport bits match the other FES GP ABIs. Minor 1
+  adds identity word 16 for capability bits 16..31, the ATA hard disk written
+  into the HPS DDR window, persistence words, a wall clock and the pc386
+  machine layout.
 major: 1
-minor: 0
+minor: 1
 tag: 4
 constants:
   - name: FesComputerSignature
@@ -40,7 +43,7 @@ constants:
   - name: FesComputerAbiMajor
     value: 1
   - name: FesComputerAbiMinor
-    value: 0
+    value: 1
   - name: FesComputerIdentityMagic0Index
     value: 0
   - name: FesComputerIdentityMagic1Index
@@ -61,6 +64,12 @@ constants:
     value: 8
   - name: FesComputerIdentityWordCount
     value: 16
+  # ABI 1.1: word 16 carries capability bits 16..31. An endpoint reporting
+  # minor 0 answers words 0..15 and rejects index 16; minor 1 answers 0..16.
+  - name: FesComputerIdentityCapabilitiesHighIndex
+    value: 16
+  - name: FesComputerIdentityExtendedWordCount
+    value: 17
   - name: FesComputerOpcodeIdentity
     value: 1
   - name: FesComputerOpcodeExecution
@@ -91,6 +100,10 @@ constants:
     value: 14
   - name: FesComputerOpcodeMediaSnapshotData
     value: 15
+  - name: FesComputerOpcodeDiskInfo
+    value: 16
+  - name: FesComputerOpcodeDiskControl
+    value: 17
   # Same opcode numbers as fes.application / fes.simple-computer menu display.
   - name: FesComputerOpcodeMenuInfo
     value: 18
@@ -100,6 +113,21 @@ constants:
     value: 20
   - name: FesComputerOpcodeMenuSubmit
     value: 21
+  - name: FesComputerOpcodeDiskCommit
+    value: 22
+  - name: FesComputerOpcodeDiskDirty
+    value: 23
+  # fes.persistence.words 1.0, with the fes.simple-game semantics.
+  - name: FesComputerOpcodeDataControl
+    value: 24
+  - name: FesComputerOpcodeDataRead
+    value: 25
+  - name: FesComputerOpcodeDataWrite
+    value: 26
+  - name: FesComputerOpcodeDataInfo
+    value: 27
+  - name: FesComputerOpcodeWallClock
+    value: 28
   - name: FesComputerMouseButtonMask
     value: 3
   - name: FesComputerMediaSnapshotInfoStride
@@ -301,6 +329,192 @@ constants:
     value: 512
   - name: FesComputerAtariStFloppyGeometryLayoutMinor
     value: 1
+  # fes.media.ata-disk 1.0: unit 0, a raw hard-disk image of 1..128 MiB in
+  # whole sectors, written by the runtime into the HPS DDR window at the
+  # offset below. The mailbox carries control, geometry, the CRC-32 and the
+  # dirty map, 16 chunks per DiskDirty word. DiskInfo index is unit*8+field.
+  - name: FesComputerAtaDiskUnit
+    value: 0
+  - name: FesComputerAtaDiskWindowOffset
+    value: 0x08000000
+  - name: FesComputerAtaDiskMinBytes
+    value: 1048576
+  - name: FesComputerAtaDiskMaxBytes
+    value: 134217728
+  - name: FesComputerAtaDiskSectorBytes
+    value: 512
+  - name: FesComputerAtaDiskMinSectors
+    value: 2048
+  - name: FesComputerAtaDiskMaxSectors
+    value: 262144
+  - name: FesComputerAtaDiskChunkBytes
+    value: 65536
+  - name: FesComputerAtaDiskChunkSectors
+    value: 128
+  - name: FesComputerAtaDiskMaxChunks
+    value: 2048
+  - name: FesComputerAtaDiskDirtyWordCount
+    value: 128
+  - name: FesComputerAtaDiskDirtyChunksPerWord
+    value: 16
+  - name: FesComputerAtaDiskMaxCylinders
+    value: 16383
+  - name: FesComputerAtaDiskMaxHeads
+    value: 16
+  - name: FesComputerAtaDiskMaxSectorsPerTrack
+    value: 63
+  - name: FesComputerDiskInfoStride
+    value: 8
+  - name: FesComputerDiskInfoMinLoField
+    value: 0
+  - name: FesComputerDiskInfoMinHiField
+    value: 1
+  - name: FesComputerDiskInfoMaxLoField
+    value: 2
+  - name: FesComputerDiskInfoMaxHiField
+    value: 3
+  - name: FesComputerDiskInfoChunkSectorsField
+    value: 4
+  - name: FesComputerDiskInfoStateField
+    value: 5
+  - name: FesComputerDiskInfoFlagsField
+    value: 6
+  - name: FesComputerDiskInfoEpochField
+    value: 7
+  # States 0..3 are the media unit states; verifying is the core's CRC pass.
+  - name: FesComputerDiskStateVerifying
+    value: 4
+  - name: FesComputerDiskFlagDirtyMask
+    value: 1
+  - name: FesComputerDiskFlagFrozenMask
+    value: 2
+  - name: FesComputerDiskFlagBusyMask
+    value: 4
+  - name: FesComputerDiskFlagErrorMask
+    value: 8
+  - name: FesComputerDiskControlPrepare
+    value: 0
+  - name: FesComputerDiskControlCommit
+    value: 1
+  - name: FesComputerDiskControlEject
+    value: 2
+  - name: FesComputerDiskControlFreeze
+    value: 3
+  - name: FesComputerDiskControlResume
+    value: 4
+  - name: FesComputerDiskControlSaved
+    value: 5
+  - name: FesComputerDiskCommitWordCount
+    value: 8
+  - name: FesComputerDiskCommitSizeLoWord
+    value: 0
+  - name: FesComputerDiskCommitSizeHiWord
+    value: 1
+  - name: FesComputerDiskCommitCylindersWord
+    value: 2
+  - name: FesComputerDiskCommitHeadsWord
+    value: 3
+  - name: FesComputerDiskCommitSectorsPerTrackWord
+    value: 4
+  - name: FesComputerDiskCommitCRC32LoWord
+    value: 5
+  - name: FesComputerDiskCommitCRC32HiWord
+    value: 6
+  - name: FesComputerDiskCommitReservedWord
+    value: 7
+  # fes.persistence.words 1.0 on this registry. Control index 0.
+  - name: FesComputerDataFreeze
+    value: 0
+  - name: FesComputerDataBegin
+    value: 1
+  - name: FesComputerDataCommit
+    value: 2
+  - name: FesComputerDataResume
+    value: 3
+  - name: FesComputerDataInfoWordCountIndex
+    value: 0
+  - name: FesComputerDataInfoLayoutTagIndex
+    value: 1
+  - name: FesComputerDataInfoLayoutMajorIndex
+    value: 2
+  - name: FesComputerDataInfoLayoutMinorIndex
+    value: 3
+  - name: FesComputerDataMaximumWords
+    value: 256
+  # fes.pc386.machine 1.0: 72 words, settings then CMOS. Tag 3 follows the
+  # snapshot layout tags 1 (ST disk) and 2 (ZX81 tape) in one tag space.
+  - name: FesComputerPc386MachineTag
+    value: 3
+  - name: FesComputerPc386MachineWordCount
+    value: 72
+  - name: FesComputerPc386PresetIndex
+    value: 0
+  - name: FesComputerPc386FrequencyIndex
+    value: 1
+  - name: FesComputerPc386CodeProfileIndex
+    value: 2
+  - name: FesComputerPc386TurboIndex
+    value: 3
+  - name: FesComputerPc386SbBaseIndex
+    value: 4
+  - name: FesComputerPc386SbIrqIndex
+    value: 5
+  - name: FesComputerPc386SbDmaIndex
+    value: 6
+  - name: FesComputerPc386ReservedIndex
+    value: 7
+  - name: FesComputerPc386CmosStartIndex
+    value: 8
+  - name: FesComputerPc386CmosWordCount
+    value: 64
+  # PresetMaxPerformance is the named maximum-performance option (ID 0), not
+  # an upper bound. PresetCount is 8, so valid preset IDs are 0..7.
+  # Presets 1 286-12, 2 386SX-16, 3 386DX-25, 4 386DX-33, 5 386DX-40,
+  # 6 486DX-33, 7 486DX2-66.
+  - name: FesComputerPc386PresetMaxPerformance
+    value: 0
+  - name: FesComputerPc386PresetCount
+    value: 8
+  # Frequency override in units of 100 kHz; 0 keeps the preset's frequency.
+  - name: FesComputerPc386FrequencyMin
+    value: 10
+  - name: FesComputerPc386FrequencyMax
+    value: 1000
+  - name: FesComputerPc386CodeProfileCoherent
+    value: 0
+  - name: FesComputerPc386CodeProfileQueue16
+    value: 1
+  - name: FesComputerPc386TurboPreset
+    value: 0
+  - name: FesComputerPc386TurboMax
+    value: 1
+  - name: FesComputerPc386SbBase220
+    value: 0x220
+  - name: FesComputerPc386SbBase240
+    value: 0x240
+  # IRQ 2, 3, 5 or 7, one bit per IRQ.
+  - name: FesComputerPc386SbIrqMask
+    value: 0xac
+  - name: FesComputerPc386SbIrqDefault
+    value: 7
+  - name: FesComputerPc386SbDma
+    value: 1
+  # fes.rtc.wall-clock 1.0: four binary words, staged in order; word 3
+  # applies them. Weekday counts 1 (Sunday) to 7 as the MC146818 does.
+  - name: FesComputerWallClockWordCount
+    value: 4
+  - name: FesComputerWallClockYearWord
+    value: 0
+  - name: FesComputerWallClockMonthDayWord
+    value: 1
+  - name: FesComputerWallClockHourMinuteWord
+    value: 2
+  - name: FesComputerWallClockSecondWeekdayWord
+    value: 3
+  - name: FesComputerWallClockMinYear
+    value: 1980
+  - name: FesComputerWallClockMaxYear
+    value: 2099
 interfaces:
   - id: fes.video.fixed-720p60
     major: 1
@@ -373,3 +587,22 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 15
+  # ABI 1.1, identity word 16. The ATA disk keeps its image in the DDR window,
+  # so it requires fes.memory.hps-ddr; the machine layout requires the
+  # persistence transport.
+  - id: fes.media.ata-disk
+    major: 1
+    minor: 0
+    capability_bit: 16
+  - id: fes.persistence.words
+    major: 1
+    minor: 0
+    capability_bit: 17
+  - id: fes.rtc.wall-clock
+    major: 1
+    minor: 0
+    capability_bit: 18
+  - id: fes.pc386.machine
+    major: 1
+    minor: 0
+    capability_bit: 19

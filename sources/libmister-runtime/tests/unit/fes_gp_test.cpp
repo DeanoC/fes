@@ -2395,7 +2395,7 @@ std::vector<std::uint16_t> ComputerWords(std::uint16_t capabilities)
 	auto words = IdentityWords("00112233445566778899aabbccddeeff");
 	words[FesGpIdentityAbiTagIndex] = FesComputerAbiTag;
 	words[FesGpIdentityAbiMajorIndex] = FesComputerAbiMajor;
-	words[FesGpIdentityAbiMinorIndex] = FesComputerAbiMinor;
+	words[FesGpIdentityAbiMinorIndex] = 0;
 	words[FesGpIdentityCapabilitiesIndex] = capabilities;
 	return words;
 }

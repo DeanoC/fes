@@ -1,0 +1,29 @@
+stty: 'standard input': Inappropriate ioctl for device
+[17:02:23] Configuring KUnit Kernel ...
+Generating .config ...
+Populating config with:
+$ make ARCH=arm64 O=/build/kunit olddefconfig CROSS_COMPILE=/build/sdk/bin/aarch64-buildroot-linux-gnu-
+[17:02:26] Building KUnit Kernel ...
+Populating config with:
+$ make ARCH=arm64 O=/build/kunit olddefconfig CROSS_COMPILE=/build/sdk/bin/aarch64-buildroot-linux-gnu-
+Building with:
+$ make all compile_commands.json ARCH=arm64 O=/build/kunit --jobs=8 CROSS_COMPILE=/build/sdk/bin/aarch64-buildroot-linux-gnu-
+[17:03:24] Starting KUnit Kernel (1/1)...
+[17:03:24] ============================================================
+Running tests with:
+$ qemu-system-aarch64 -nodefaults -m 1024 -kernel /build/kunit/arch/arm64/boot/Image.gz -append 'kunit.filter_glob=fes-de25-dma* kunit.enable=1 console=ttyAMA0 kunit_shutdown=reboot' -no-reboot -nographic -serial stdio -machine virt -cpu max,pauth-impdef=on
+[17:03:24] ================ fes-de25-dma (8 subtests) =================
+[17:03:24] [PASSED] binding_stays_closed
+[17:03:24] [PASSED] rejects_bad_publish_before_effects
+[17:03:24] [PASSED] kernel_owns_descriptor_and_drain_lifetime
+[17:03:24] [PASSED] failed_start_is_held_until_drain
+[17:03:25] [PASSED] unreadable_epoch_retains_exposed_storage
+[17:03:25] [PASSED] coherent_mapping_uapi_and_revoke
+[17:03:25] [PASSED] rejects_invalid_mapping_shapes
+[17:03:25] [PASSED] revoke_catches_inflight_mmap_link
+[17:03:25] ================== [PASSED] fes-de25-dma ===================
+[17:03:25] ============================================================
+[17:03:25] Testing complete. Ran 8 tests: passed: 8
+[17:03:25] Test results stored in /export/kunit.json
+[17:03:25] Elapsed time: 61.543s total, 2.973s configuring, 57.898s building, 0.651s running
+

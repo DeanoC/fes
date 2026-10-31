@@ -1,0 +1,31 @@
+{
+  "files": {
+    "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/agilex_hps_intel_sundancemesa_hps_100_z5bqzvi.v": "59d1b70144cab0ea0ffaa407fc099bf4ff42aaf204ab2b340857f43d6aaf8f2b",
+    "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/ready_latency_adapter.sv": "06d8b49cd33d1ccc79975f08eb1018185dc934c90600093485cc027690e12f6f",
+    "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/ready_latency/ready_latency_reset_synchronizer.sv": "5ae9b428c6bb2ee8d3d996823eb0ec20a8dc583e11364d86d6078c2541e24548",
+    "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/agilex_hps_intel_sundancemesa_mpfe_100_u4663zy.sv": "06ed6af205e97c2f4dd47dbc74b416a02c9a6eb3e6b85c8e6b47e3c8b997ffae",
+    "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_mpfe_100/synth/ready_latency/ready_latency_reset_synchronizer.sv": "5ae9b428c6bb2ee8d3d996823eb0ec20a8dc583e11364d86d6078c2541e24548",
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_avalon_packets_to_master_1922/synth/altera_avalon_packets_to_master.v": "2a326f67d3340968ae8c9c50ab43b78868148821b4cb1f4bc0f04fc3928695b9",
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_avalon_master_191/synth/fpga_m_altera_jtag_avalon_master_191_unfwqdy.v": "86dcf5554e9f1331e26e8b070ec7ad0feac444b251b690a0397b9ca64d7dd8a6",
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_clock_crosser.v": "d304c0b0f7b3df7ed62ac040ede4500782edd0a4298751edac55c1e4d5bfb576",
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_jtag_dc_streaming.v": "a5b2a3a4b82d7189c14d64b4676afc50f36a31e7a1c3918eda54dd18d42e5dad",
+    "jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v": "d7c7e9dbccda46eb184c2570748ef0096a3645defeabc72ba048a1f8ce2799dc",
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_avalon_packets_to_master_1922/synth/altera_avalon_packets_to_master.v": "2a326f67d3340968ae8c9c50ab43b78868148821b4cb1f4bc0f04fc3928695b9",
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_avalon_master_191/synth/hps_f2sdram_altera_jtag_avalon_master_191_unfwqdy.v": "209b3a169ebe9eeba43bfd5f92f7e9e7cc4a76d3a72ec093ff0aeafeb3d28210",
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_clock_crosser.v": "d304c0b0f7b3df7ed62ac040ede4500782edd0a4298751edac55c1e4d5bfb576",
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_dc_streaming.v": "a5b2a3a4b82d7189c14d64b4676afc50f36a31e7a1c3918eda54dd18d42e5dad",
+    "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v": "d7c7e9dbccda46eb184c2570748ef0096a3645defeabc72ba048a1f8ce2799dc",
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_avalon_packets_to_master_1922/synth/altera_avalon_packets_to_master.v": "2a326f67d3340968ae8c9c50ab43b78868148821b4cb1f4bc0f04fc3928695b9",
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_avalon_master_191/synth/hps_m_altera_jtag_avalon_master_191_unfwqdy.v": "5e54ebf13f945f9211308cc324c736e9f58230188c3c6a1ca6fc77892f97ad04",
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_clock_crosser.v": "d304c0b0f7b3df7ed62ac040ede4500782edd0a4298751edac55c1e4d5bfb576",
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_jtag_dc_streaming.v": "a5b2a3a4b82d7189c14d64b4676afc50f36a31e7a1c3918eda54dd18d42e5dad",
+    "jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_jtag_streaming.v": "d7c7e9dbccda46eb184c2570748ef0096a3645defeabc72ba048a1f8ce2799dc",
+    "jtag_subsys/jtag_subsys/synth/jtag_subsys.v": "3a1c900c6731a6ce837ea1635ae1ebb41ce0b75de625f86ace9478b8368b552a",
+    "peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v": "6841c27b683e8dbab7eb64a6ef4e9535736cfa43162cb707535f60bc28ae44e6",
+    "qsys_top/synth/qsys_top.v": "6bef6aae5a3a14b65349362861e53906633d7d39a93b81bd2d5303c538fdacad"
+  },
+  "format": 1,
+  "producer_revision": "4b7b88775ca41e5cd680f1510419d1a368d057dd",
+  "project_root": "out/de25-hps-final-4b7b88775ca41e5cd680f1510419d1a368d057dd/project",
+  "sof_sha256": "3bd8ff20634b3401a15a0d5458e49590c539bb1e9e6d7c5fe4999a6703f49250"
+}

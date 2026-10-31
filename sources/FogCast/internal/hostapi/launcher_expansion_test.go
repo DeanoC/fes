@@ -173,10 +173,9 @@ func TestLauncherExpansionSelectionRejectsBeforeService(t *testing.T) {
 		{"other foreground query", http.MethodPut, "/api/v1/library/core-entries/fpga-zx81/expansion?target=kit-a", launcherTokenB, launcherIDB, http.StatusForbidden},
 		{"malformed game", http.MethodPut, "/api/v1/library/core-entries/Nope/expansion", launcherTokenB, launcherIDB, http.StatusNotFound},
 		{"extra suffix", http.MethodPut, "/api/v1/library/core-entries/fpga-zx81/expansion/extra", launcherTokenB, launcherIDB, http.StatusNotFound},
-		{"slot write", http.MethodPut, "/api/v1/library/core-entries/fpga-zx81/expansions/1", launcherTokenB, launcherIDB, http.StatusNotFound},
+		{"invalid slot", http.MethodPut, "/api/v1/library/core-entries/fpga-zx81/expansions/8", launcherTokenB, launcherIDB, http.StatusNotFound},
 		{"presentation", http.MethodPut, "/api/v1/core-expansions/" + strings.Repeat("a", 64) + "/presentation", launcherTokenB, launcherIDB, http.StatusNotFound},
 		{"edition", http.MethodPut, "/api/v1/library/edition-preferences", launcherTokenB, launcherIDB, http.StatusNotFound},
-		{"read selection", http.MethodGet, "/api/v1/library/core-entries/fpga-zx81/expansion", launcherTokenB, launcherIDB, http.StatusNotFound},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := call(tc.method, tc.path, tc.token, tc.id, body); got != tc.want {

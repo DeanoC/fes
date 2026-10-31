@@ -1,0 +1,55 @@
+#!/bin/sh
+# Wall-clock time (#777).
+#
+# The kits have no battery RTC, so the clock boots at the Unix epoch. Start
+# BusyBox ntpd against the public NTP pool once S20mister-network has started
+# DHCP. ntpd keeps retrying names that do not resolve yet and steps the clock on
+# its first good sample, so this never waits for the network or blocks boot.
+#
+# Paths and commands are overridable for host tests only.
+set -u
+
+pid_file=${FES_TIME_PID:-/run/fes-ntpd.pid}
+ntpd_cmd=${FES_TIME_NTPD:-/usr/sbin/ntpd}
+servers=${FES_TIME_SERVERS:-0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org}
+
+running() {
+  [ -f "$pid_file" ] || return 1
+  IFS= read -r pid < "$pid_file" || return 1
+  [ -n "$pid" ] && /bin/kill -0 "$pid" 2>/dev/null
+}
+
+start_service() {
+  running && return 0
+  set --
+  for server in $servers; do
+    set -- "$@" -p "$server"
+  done
+  "$ntpd_cmd" -n "$@" &
+  printf '%s\n' "$!" > "$pid_file"
+}
+
+stop_service() {
+  if running; then
+    /bin/kill "$pid" 2>/dev/null || :
+  fi
+  /bin/rm -f "$pid_file"
+}
+
+case "${1:-start}" in
+  start)
+    start_service
+    ;;
+  stop)
+    stop_service
+    ;;
+  restart)
+    stop_service
+    start_service
+    ;;
+  *)
+    printf 'usage: %s start|stop|restart\n' "$0" >&2
+    exit 2
+    ;;
+esac
+exit 0

@@ -512,10 +512,10 @@ func TestAppFocusDetailDecodesStudioPlayersAndScreenshots(t *testing.T) {
 			len(d.ScreenshotIDs) == 3 && d.ScreenshotIDs[0] == shotOK
 	})
 	now := time.Now()
-	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdDetails, now)
 	snap := app.Snapshot()
 	if !snap.Detail.Open {
-		t.Fatal("down from last row should enter detail")
+		t.Fatal("Details should open detail")
 	}
 	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
 		return snap.Screenshots[shotOK] != nil
@@ -583,21 +583,21 @@ func TestAppDetailFocusEnterLeaveDoesNotStealBindings(t *testing.T) {
 	if app.Snapshot().Detail.Open {
 		t.Fatal("detail should start closed")
 	}
-	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdDetails, now)
 	if !app.Snapshot().Detail.Open {
-		t.Fatal("down on last row should open detail")
+		t.Fatal("Details should open detail")
 	}
 	app.HandleCommand(CmdUp, now)
 	if app.Snapshot().Detail.Open {
 		t.Fatal("up should leave detail")
 	}
-	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdDetails, now)
 	app.HandleCommand(CmdBack, now)
 	if app.Snapshot().Detail.Open {
 		t.Fatal("east/back should leave detail")
 	}
 
-	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdDetails, now)
 	app.HandleCommand(CmdLayoutCycle, now)
 	snap := app.Snapshot()
 	if !snap.Detail.Open {
@@ -621,7 +621,7 @@ func TestAppDetailFocusEnterLeaveDoesNotStealBindings(t *testing.T) {
 	}
 	app.HandleCommand(CmdBack, now)
 
-	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdDetails, now)
 	app.HandleCommand(CmdSearch, now)
 	if !app.Snapshot().SearchOpen {
 		t.Fatal("north/search OSK should open from detail")
@@ -631,7 +631,7 @@ func TestAppDetailFocusEnterLeaveDoesNotStealBindings(t *testing.T) {
 	}
 	app.HandleCommand(CmdBack, now)
 
-	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdDetails, now)
 	app.HandleCommand(CmdSelect, now)
 	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
 		return launches.Load() >= 1 && (snap.Session.State == "active" || snap.Launch.Phase == "ok" || snap.Launch.HTTPStatus != 0)
@@ -702,7 +702,7 @@ func TestAppOfflinePresentationOmitsIncompleteDetail(t *testing.T) {
 	})
 }
 
-func TestAppShelfLastPageDownOpensDetail(t *testing.T) {
+func TestAppShelfLastPageDownFocusesActions(t *testing.T) {
 	t.Parallel()
 	app := catalogApp(3)
 	app.SetLayout(LayoutShelf)
@@ -716,8 +716,8 @@ func TestAppShelfLastPageDownOpensDetail(t *testing.T) {
 	}
 	app.HandleCommand(CmdDown, time.Now())
 	snap := app.Snapshot()
-	if !snap.Detail.Open {
-		t.Fatalf("shelf last-page down should open detail, focus=%d", snap.Grid.Focus)
+	if !snap.BrowseActions.Focused || snap.Detail.Open {
+		t.Fatalf("shelf last-page down should focus actions, focus=%d", snap.Grid.Focus)
 	}
 	if snap.Grid.Focus != 0 {
 		t.Fatalf("focus moved to %d, want stay on last page start", snap.Grid.Focus)
@@ -753,7 +753,7 @@ func TestAppDetailOpensBeforeScreenshotsArrive(t *testing.T) {
 	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1
 	})
-	app.HandleCommand(CmdDown, time.Now())
+	app.HandleCommand(CmdDetails, time.Now())
 	snap := app.Snapshot()
 	if !snap.Detail.Open {
 		t.Fatal("detail pane must open without waiting on screenshot bytes")

@@ -1,0 +1,72 @@
+{
+  "scope": "Working-tree host checks and simulations; frozen-source synthesis/route receipts are separate. No hardware acceptance.",
+  "source_RTL_revision": "be56eb29f72d72ba06c8b9b2521d815be1df203c",
+  "required_command": [
+    "make",
+    "test-changed",
+    "TEST_CHANGED_ARGS=--base e0bb083d37de176947f28e9f8f2ab640423347ec"
+  ],
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    },
+    {
+      "label": "pcxt RTL simulation",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "log": "fes-test-changed-unsandboxed.log",
+  "log_sha256": "0a7961d5515970b321504fd7e4df5a5d0112b857b2a1e788e9218f1460ee2673",
+  "parent_tests": 842,
+  "component_tests": 1272,
+  "component_optional_skips": 1,
+  "optional_skip_reason": "FES_ROM_ORACLE_MISTRAL and FES_ROM_ORACLE_SOURCE not supplied for the optional host oracle.",
+  "observed_new_system_clock_ROM_alignment_test": true,
+  "focused_tests": 31,
+  "all_PCXT_simulation_suites": 16,
+  "make_check": "passed",
+  "prior_sandbox_attempt": "Retained fes-test-changed.log: isolated loopback/Unix socket fixture bindings were denied; this complete rerun ran outside the sandbox.",
+  "hardware": false
+}

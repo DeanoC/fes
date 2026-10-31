@@ -1,0 +1,434 @@
+{
+  "format": 1,
+  "scope": "PC/XT Quartus diagnostic package and completion acceptance; no BIOS/DOS integration",
+  "classification": "exact-artifact hardware diagnostic",
+  "pr": 979,
+  "base": "60f4fdc59e2d2ee79f578cb71a519caba017496e",
+  "merged_main": "8cbc26a5d58b85924cb7ae84dcfc015638197f73",
+  "producer_revision": "d0745b0c2c5ce9f2b295c4a0cb8f4fd34ae2c172",
+  "build_id": "cb63d316c3244ea3eee0c76885fa0e8b",
+  "package_id": "00d06ddc1866e901d5da6499f1e8bd8675de8971f6feea955bb4afdee93b8358",
+  "archive": {
+    "path": "core.fcore",
+    "sha256": "a21a895a9c5ae8d3fc53720e2e45e17ce6fe7a4121e243ad659cb3508ea0a0fe",
+    "size": 2824192
+  },
+  "payload_sha256": "038e749e805b313e41ad99d1cdd61084cb76572388ad175f0f89a70f02a1a161",
+  "quartus_version": "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition",
+  "yosys": {
+    "path": "/home/deano/fes/out/cache/misteross-toolchains/slots/6ec7830697afe18abe007c60c5c44a162ddf8032f5bca05c07431e32d31aa448/install/bin/yosys",
+    "sha256": "d45b5d6ec2bf8311211015d5aee40e3fcf5af117a48ed0c473dce548dec0e271",
+    "version": "Yosys 0.69+ (git sha1 3a5accbd7, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]",
+    "source_commit": "3a5accbd78c526ab7bae32640044a2e062a3cfc9"
+  },
+  "profile": {
+    "MDA": 0,
+    "SCANLINES": 0,
+    "HALF_RATE_BOARD": 0,
+    "ENABLE_FES_COMPUTER": 1,
+    "BUILD_ID": "cb63d316c3244ea3eee0c76885fa0e8b"
+  },
+  "clock_targets_mhz": {
+    "cpu": 100,
+    "board": 100,
+    "pixel": 74.25
+  },
+  "signoff": [
+    {
+      "seed": 1,
+      "reported_endpoint_checks_pass": true,
+      "checks": {
+        "setup": {
+          "worst_slack_ns": 1.057,
+          "failing_endpoints": 0
+        },
+        "hold": {
+          "worst_slack_ns": 0.155,
+          "failing_endpoints": 0
+        },
+        "recovery": {
+          "worst_slack_ns": 6.237,
+          "failing_endpoints": 0
+        },
+        "removal": {
+          "worst_slack_ns": 0.333,
+          "failing_endpoints": 0
+        }
+      },
+      "minimum_pulse_width": {
+        "MIN_fast_1100mv_100c": {
+          "checks": 53958,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_-40c": {
+          "checks": 53958,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_100c": {
+          "checks": 53958,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_-40c": {
+          "checks": 53958,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        }
+      },
+      "timing_coverage_issues": {
+        "no_clock": 1234,
+        "multiple_clock": 0,
+        "generated_clock": 0,
+        "loops": 0,
+        "latches": 0,
+        "no_input_delay": 18,
+        "no_output_delay": 69,
+        "partial_input_delay": 0,
+        "partial_output_delay": 0,
+        "io_min_max_delay_consistency": 0,
+        "reference_pin": 0,
+        "pll_cross_check": 0,
+        "uncertainty": 0
+      },
+      "rbf_sha256": "038e749e805b313e41ad99d1cdd61084cb76572388ad175f0f89a70f02a1a161",
+      "qsf_sha256": "e033e0180736e20fa1edee347b2093e47fe82e376c8b77e16d59e0e7058f111e",
+      "sdc_sha256": "5a49863c371df4360fbe5975ae6a93efc056c728c4ef2463a5f5f10d844979ac",
+      "mailbox_interstage_checks": 24
+    },
+    {
+      "seed": 2,
+      "reported_endpoint_checks_pass": true,
+      "checks": {
+        "setup": {
+          "worst_slack_ns": 1.393,
+          "failing_endpoints": 0
+        },
+        "hold": {
+          "worst_slack_ns": 0.123,
+          "failing_endpoints": 0
+        },
+        "recovery": {
+          "worst_slack_ns": 5.555,
+          "failing_endpoints": 0
+        },
+        "removal": {
+          "worst_slack_ns": 0.451,
+          "failing_endpoints": 0
+        }
+      },
+      "minimum_pulse_width": {
+        "MIN_fast_1100mv_100c": {
+          "checks": 53888,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_-40c": {
+          "checks": 53888,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_100c": {
+          "checks": 53888,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_-40c": {
+          "checks": 53888,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        }
+      },
+      "timing_coverage_issues": {
+        "no_clock": 1234,
+        "multiple_clock": 0,
+        "generated_clock": 0,
+        "loops": 0,
+        "latches": 0,
+        "no_input_delay": 18,
+        "no_output_delay": 69,
+        "partial_input_delay": 0,
+        "partial_output_delay": 0,
+        "io_min_max_delay_consistency": 0,
+        "reference_pin": 0,
+        "pll_cross_check": 0,
+        "uncertainty": 0
+      },
+      "rbf_sha256": "e55781a9af33683c0de0229edec6f176eb75e46139c70d6cef08a62b06cbef13",
+      "qsf_sha256": "7d969be7a84c7123a0f2565e971d85313be9f262b6661ab988326c7f002d97f9",
+      "sdc_sha256": "5a49863c371df4360fbe5975ae6a93efc056c728c4ef2463a5f5f10d844979ac",
+      "mailbox_interstage_checks": 24
+    },
+    {
+      "seed": 3,
+      "reported_endpoint_checks_pass": true,
+      "checks": {
+        "setup": {
+          "worst_slack_ns": 1.241,
+          "failing_endpoints": 0
+        },
+        "hold": {
+          "worst_slack_ns": 0.125,
+          "failing_endpoints": 0
+        },
+        "recovery": {
+          "worst_slack_ns": 6.41,
+          "failing_endpoints": 0
+        },
+        "removal": {
+          "worst_slack_ns": 0.412,
+          "failing_endpoints": 0
+        }
+      },
+      "minimum_pulse_width": {
+        "MIN_fast_1100mv_100c": {
+          "checks": 53908,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_-40c": {
+          "checks": 53908,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "7_slow_1100mv_100c": {
+          "checks": 53908,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        },
+        "MIN_fast_1100mv_-40c": {
+          "checks": 53908,
+          "failures": 0,
+          "minimum_slack_ns": 1.122
+        }
+      },
+      "timing_coverage_issues": {
+        "no_clock": 1234,
+        "multiple_clock": 0,
+        "generated_clock": 0,
+        "loops": 0,
+        "latches": 0,
+        "no_input_delay": 18,
+        "no_output_delay": 69,
+        "partial_input_delay": 0,
+        "partial_output_delay": 0,
+        "io_min_max_delay_consistency": 0,
+        "reference_pin": 0,
+        "pll_cross_check": 0,
+        "uncertainty": 0
+      },
+      "rbf_sha256": "e15910ff8d5f5a598045c4f3b432a506e85b7c6711a134566927ce7824e3d6ba",
+      "qsf_sha256": "07817891f645b25d4135350fa9efbb0a65fd047c7ce68b952273d402b921704f",
+      "sdc_sha256": "5a49863c371df4360fbe5975ae6a93efc056c728c4ef2463a5f5f10d844979ac",
+      "mailbox_interstage_checks": 24
+    }
+  ],
+  "independent_repeat": {
+    "seed": 1,
+    "reported_endpoint_checks_pass": true,
+    "checks": {
+      "setup": {
+        "worst_slack_ns": 1.057,
+        "failing_endpoints": 0
+      },
+      "hold": {
+        "worst_slack_ns": 0.155,
+        "failing_endpoints": 0
+      },
+      "recovery": {
+        "worst_slack_ns": 6.237,
+        "failing_endpoints": 0
+      },
+      "removal": {
+        "worst_slack_ns": 0.333,
+        "failing_endpoints": 0
+      }
+    },
+    "minimum_pulse_width": {
+      "MIN_fast_1100mv_100c": {
+        "checks": 53958,
+        "failures": 0,
+        "minimum_slack_ns": 1.122
+      },
+      "7_slow_1100mv_100c": {
+        "checks": 53958,
+        "failures": 0,
+        "minimum_slack_ns": 1.122
+      },
+      "7_slow_1100mv_-40c": {
+        "checks": 53958,
+        "failures": 0,
+        "minimum_slack_ns": 1.122
+      },
+      "MIN_fast_1100mv_-40c": {
+        "checks": 53958,
+        "failures": 0,
+        "minimum_slack_ns": 1.122
+      }
+    },
+    "timing_coverage_issues": {
+      "no_clock": 1234,
+      "multiple_clock": 0,
+      "generated_clock": 0,
+      "loops": 0,
+      "latches": 0,
+      "no_input_delay": 18,
+      "no_output_delay": 69,
+      "partial_input_delay": 0,
+      "partial_output_delay": 0,
+      "io_min_max_delay_consistency": 0,
+      "reference_pin": 0,
+      "pll_cross_check": 0,
+      "uncertainty": 0
+    },
+    "rbf_sha256": "038e749e805b313e41ad99d1cdd61084cb76572388ad175f0f89a70f02a1a161",
+    "qsf_sha256": "e033e0180736e20fa1edee347b2093e47fe82e376c8b77e16d59e0e7058f111e",
+    "sdc_sha256": "5a49863c371df4360fbe5975ae6a93efc056c728c4ef2463a5f5f10d844979ac",
+    "mailbox_interstage_checks": 24
+  },
+  "repeat_rbf_identical": true,
+  "normal_prepare": {
+    "command": "python3 scripts/core_dev.py prepare --core fes.pcxt --output <new-directory>",
+    "cold_build": "passed",
+    "later_selected_revision": "45a99907bddc9ce2aa96b4d3a5baae9d3dfbfdab",
+    "functional_cache_reuse": "passed; same package ID",
+    "source_selection": {
+      "path": "fes-pcxt.package-selection.provenance.json",
+      "sha256": "270c7b9872bca3d4cd17c892dabd2369c6646e1073c1eb7480abd371d8d4ffd9"
+    }
+  },
+  "hardware": {
+    "kit": "A",
+    "image_identity": "f904961e008a972db8f06f1bb47aff9631123d67215b9f4157ea1fbee83b98d4",
+    "bundle_identity": "b5f6d8e54731b2b5356f7e475a87771fa88da0902af18083dddde05263b89176",
+    "host_binary_sha256": "e311669feec1c23ef85d8be1a1cf4a9eacd724d8911f7baf0c00ae06ea8f4aa9",
+    "package_lifecycle": "normal import, compatibility, entry, launch and owned Stop passed",
+    "lifecycle_receipt_sha256": "e5dd2b16e1468496dd1221ea583bb92536489b818f3c21747ff8f63344c42fae",
+    "picture_result": {
+      "captures": [
+        {
+          "pattern_matches": true,
+          "width": 1920,
+          "height": 1080,
+          "mean_pixel_error": 24.389,
+          "worst_row_error": 24.422,
+          "completion_signature_verified": true,
+          "classification": "completed PC/XT hardware diagnostic picture",
+          "static_picture_expected": true,
+          "capture_sha256": "306e56477b529117399bd7b062ff4cb026ff438497988362570698e804bff098"
+        },
+        {
+          "pattern_matches": true,
+          "width": 1920,
+          "height": 1080,
+          "mean_pixel_error": 24.389,
+          "worst_row_error": 24.422,
+          "completion_signature_verified": true,
+          "classification": "completed PC/XT hardware diagnostic picture",
+          "static_picture_expected": true,
+          "capture_sha256": "306e56477b529117399bd7b062ff4cb026ff438497988362570698e804bff098"
+        },
+        {
+          "pattern_matches": true,
+          "width": 1920,
+          "height": 1080,
+          "mean_pixel_error": 24.389,
+          "worst_row_error": 24.422,
+          "completion_signature_verified": true,
+          "classification": "completed PC/XT hardware diagnostic picture",
+          "static_picture_expected": true,
+          "capture_sha256": "306e56477b529117399bd7b062ff4cb026ff438497988362570698e804bff098"
+        }
+      ],
+      "package_id": "00d06ddc1866e901d5da6499f1e8bd8675de8971f6feea955bb4afdee93b8358",
+      "session_id": "7a104d81-dd78-4650-853d-faca75d23685",
+      "whole_board_qualified": false
+    },
+    "retained_capture": {
+      "file": "cga-complete.png",
+      "sha256": "306e56477b529117399bd7b062ff4cb026ff438497988362570698e804bff098"
+    },
+    "post_lease_state": "free",
+    "post_target_state": "idle",
+    "private_host_stopped": true,
+    "image_bundle_boot_changes": false
+  },
+  "historical_reassessment": {
+    "captures": [
+      {
+        "pattern_matches": true,
+        "width": 1920,
+        "height": 1080,
+        "mean_pixel_error": 24.422,
+        "worst_row_error": 24.422,
+        "completion_signature_verified": false,
+        "classification": "historical diagnostic picture; final firmware completion unverified",
+        "static_picture_expected": true,
+        "capture_sha256": "68c5d71bd8f6df2d894e9c4c54ce8094dad82dfacacd3410766780d83b1dac3d"
+      },
+      {
+        "pattern_matches": true,
+        "width": 1920,
+        "height": 1080,
+        "mean_pixel_error": 24.422,
+        "worst_row_error": 24.422,
+        "completion_signature_verified": false,
+        "classification": "historical diagnostic picture; final firmware completion unverified",
+        "static_picture_expected": true,
+        "capture_sha256": "68c5d71bd8f6df2d894e9c4c54ce8094dad82dfacacd3410766780d83b1dac3d"
+      },
+      {
+        "pattern_matches": true,
+        "width": 1920,
+        "height": 1080,
+        "mean_pixel_error": 24.422,
+        "worst_row_error": 24.422,
+        "completion_signature_verified": false,
+        "classification": "historical diagnostic picture; final firmware completion unverified",
+        "static_picture_expected": true,
+        "capture_sha256": "68c5d71bd8f6df2d894e9c4c54ce8094dad82dfacacd3410766780d83b1dac3d"
+      }
+    ],
+    "whole_board_qualified": false
+  },
+  "negative_control": "the historical unmarked capture rejects as a completed diagnostic: completion block mean 114.111 < 235",
+  "rejected_control": {
+    "producer_revision": "a26a5c0e35f8bf28d49df1f2aad004e031c76cb5",
+    "build_id": "7dc4ad13388e1618d50e19849defbcfb",
+    "seed": 1,
+    "reason": "experimental board50 DQ I/O packing was incorrectly selected for the common-clock package",
+    "slow100_setup_failing_endpoints": 3,
+    "worst_setup_ns": -1.146,
+    "outcome": "rejected; remaining owned jobs cancelled; original capture retained locally"
+  },
+  "software": {
+    "focused_parent": "34 tests passed",
+    "quartus_capture_and_package": "25 tests passed with real Yosys elaboration",
+    "make_target": "9 tests passed",
+    "parent_authentication_followup": "passed",
+    "initial_full_parent": {
+      "tests": 1123,
+      "skipped": 4,
+      "errors": 1,
+      "error": "GPU-slot-only authentication assumption; corrected and focused test passed"
+    },
+    "make_check": "passed; 23 generated consumers, 37 fixtures",
+    "documentation_links": "passed",
+    "ci": "live PR checks are authoritative; no overall CI success asserted by this record"
+  },
+  "contracts": {
+    "runtime_abi_changed": false,
+    "shared_hardware_contract_changed": false,
+    "functional_build_record": "Quartus records explicitly label their toolchain; existing OSS keys remain unchanged"
+  },
+  "whole_board_qualified": false,
+  "remaining": [
+    "external SDRAM and HDMI timing budgets",
+    "HPS timing coverage",
+    "physical reset/PLL relock/pulse/MTBF qualification",
+    "independent review",
+    "BIOS, DOS, keyboard and disks remain outside this diagnostic"
+  ],
+  "superseded_by": "review-followup.json"
+}

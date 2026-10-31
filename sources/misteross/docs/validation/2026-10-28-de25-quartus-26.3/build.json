@@ -1,0 +1,22 @@
+{
+  "board": "de25_nano",
+  "device": "A5EB013BB23BE4SCS",
+  "diagnostic_only": true,
+  "quartus_version": "Quartus Prime Shell\nVersion 26.3.0 Build 114 10/14/2026 SC Pro Edition\nCopyright (C) 2026  Altera Corporation. All rights reserved.",
+  "ip_generation_command": [
+    "/data/altera_pro/26.3/quartus/bin/quartus_ipgenerate",
+    "--generate_project_ip_files",
+    "--synthesis=verilog",
+    "de25nano_blinky"
+  ],
+  "command": [
+    "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+    "--flow",
+    "compile",
+    "de25nano_blinky"
+  ],
+  "artifact": "output_files/de25nano_blinky.sof",
+  "sha256": "c837729e8f9443316d761769bbc58d44c7068c832a59e1d871e3cf8cb50a2980",
+  "timing_acceptance": "not-qualified",
+  "hardware_acceptance": "not-run"
+}

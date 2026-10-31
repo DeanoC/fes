@@ -1,0 +1,5 @@
+`verilator_config
+// Observation points for the VGA port-write timing rule (machine_tb): a port
+// byte the decoder presents waits each clock the front FIFO is full.
+public_flat_rd -module "pc386_vga" -var "io_new"
+public_flat_rd -module "pc386_vga" -var "fifo_full"

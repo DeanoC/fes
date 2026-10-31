@@ -1,0 +1,644 @@
+{
+  "schema": 1,
+  "scope": "Native LUT profile and source-coverage rejection evidence; no whole-board acceptance.",
+  "FES_base_commit": "29ea2a15cf39dcd25c2b6f32a3b3417e080d3f4d",
+  "runtime_source_commit": "5a7117de139543b1aaa2972a92442c39ead8caeb",
+  "compiler_PR_head": "1c7f20eddcac76082758f1d314e6866f5ce1423d",
+  "compiler_pull_request": "https://github.com/DeanoC/nextpnr/pull/317",
+  "compiler_issue": "https://github.com/DeanoC/nextpnr/issues/316",
+  "compiler_base_commit": "80a2e3006dfc104cf864c36f1cdab7625462e08c",
+  "source_proof": {
+    "scope": "Frozen-layout LUT model comparison; diagnostic only, no board/hardware acceptance.",
+    "source_commit": "5a7117de139543b1aaa2972a92442c39ead8caeb",
+    "source_tree": "9b488300fc9194db787abd602652cd912a614411",
+    "binary_sha256": "463886455cf5c25fd7fe93d529b729f488903d3ec7a2c3f2e2963c8d26b96f27",
+    "version": "\"nextpnr-mistral\" -- Next Generation Place and Route (Version 5a7117d)\n",
+    "cmake_cache_sha256": "d2dc87d432c55e5c89d6e67ecdc5b9922d25bf0a9cefc5d0705404c3ccb990ed",
+    "mistral_library_sha256": "4138a6e1e18fa08fbfe025d89dbb1f2634e4373baa39b7deb1ef8a00e3a6cae1",
+    "mistral_source_commit": "5e311528d8a373503f3508b0dc916e876db0a7a8",
+    "reference_sha256": "907f7eb411762be8ab672100351b2fe7230e74879b9856eb59532b9eddf87d93",
+    "native_corner": "slow100",
+    "carry_model_unchanged": true,
+    "clocks_mhz": {
+      "cpu": 100,
+      "board": 50,
+      "pixel": 74.25
+    },
+    "hardware": false,
+    "physical_qualified": false,
+    "whole_board_qualified": false
+  },
+  "input_sha256": {
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/nextpnr-mistral": "463886455cf5c25fd7fe93d529b729f488903d3ec7a2c3f2e2963c8d26b96f27",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/qualify-native-lut-core-reference-20261027.py": "39661a17b70735446b2dfa440a673611c428cb59134186308b4e44f15ed4b43a",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed1/edge/timing.json": "9c22e03f78784a56500fae2665debb6353276ab4a78c5f05ba51917c1379694b",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed1/edge/replay.rbf": "06196d6ff77d3dece653a98074bae59cd3e7d939f67b80c823d27d1bf74fb321",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed1/edge/receipt.json": "80b0e0fcb625a2adbb2254f1fa10682721645a4a52e547cc1f39ca50aa7267cc",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/source-proof.json": "318ffccb7eaf624bddd430b37661dbef1ff5dc8d8eee35a0dac1e86638a4a396",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/lut-core-reference-build/CMakeCache.txt": "d2dc87d432c55e5c89d6e67ecdc5b9922d25bf0a9cefc5d0705404c3ccb990ed",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/lut-core-reference-build/mistral/libmistral/libmistral.a": "4138a6e1e18fa08fbfe025d89dbb1f2634e4373baa39b7deb1ef8a00e3a6cae1",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131825Z-dadbe672/routed.json": "a3d8e703d178fb390f1cb3105f997c605d365717e6dbd2e86e0c514245b5f1b3",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed1/io-edge/timing.json": "a0092c776b4ed9b3b78c9e8aa5fcceeb1211b63b1b7146b822de6fb66f9f9629",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed1/io-edge/replay.rbf": "06196d6ff77d3dece653a98074bae59cd3e7d939f67b80c823d27d1bf74fb321",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed1/io-edge/receipt.json": "609d6e197794859a7450ff018e25ced4c83eb8544900db3c9888b01b84ffa647",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/board50-merged-combined-seed1/instrumented.json": "7a8789827b05aa0b61a0aa721bafa662c7194f13cfcf34ae0d812356cd4ab2ca",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/board50-merged-combined-seed1/combined.sdc": "ece40e5b3d648bf1ac05e8022b6412ad49adb65564e6a5fa60cc6f9cab723cee",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed2/edge/timing.json": "aa516bd1488547c6687804709fdc4f94cb6129eb2e86feea1ce0bf20f0523896",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed2/edge/replay.rbf": "2abc6854c880c1b0192f009734f72bf5dfb0de2049dcde40630b94324b28e11a",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed2/edge/receipt.json": "ed8786d5c24b1d705ad0780fd5c821f8ee2a1827b2e8a7c601dab5e25245fa88",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T131834Z-06e32b3b/routed.json": "f6c22f728cd737212654d2f28f67db1b070d0fb06952f4a4cc8545f365bcc868",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed2/io-edge/timing.json": "66aad6c26e348f48ae94cc775533b3cc1ed71e268190cbaf43d0410de23128db",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed2/io-edge/replay.rbf": "2abc6854c880c1b0192f009734f72bf5dfb0de2049dcde40630b94324b28e11a",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed2/io-edge/receipt.json": "e8916b6fe7aa4a132f1055ee61fe24e2d2335fe0c58f602be69ed92e07bf6926",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/board50-merged-combined-seed2/instrumented.json": "6f5bca817a69d6b8f57e0341231e7f08106e554af2bb06dbd0e0e8769fb9a9f0",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/board50-merged-combined-seed2/combined.sdc": "ece40e5b3d648bf1ac05e8022b6412ad49adb65564e6a5fa60cc6f9cab723cee",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed3/edge/timing.json": "65de221185206d257b650527a9bc3014321da6086a60af9e861daed9053d2d36",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed3/edge/replay.rbf": "6e7694d4d6f728adca87cef5f1c6ca04d65683f87188e7b0a1746786914583d2",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed3/edge/receipt.json": "503bc0a81c829f9fb3c8dbbe77300e6811bc0655bfbd4d622fefb149eb5fa593",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T133217Z-1390d302/routed.json": "b263281800cc5afefd0a4983cd8063b2e6dbe24d978468baf0fc4a5f2ac9f70c",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed3/io-edge/timing.json": "5ced3b24f403295cfd4347c159813bb75bd89b20f3c7fc34dcfc2dc2c6f7901c",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed3/io-edge/replay.rbf": "6e7694d4d6f728adca87cef5f1c6ca04d65683f87188e7b0a1746786914583d2",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-clock-edge-ranges-qualification-v2-20261026/seed3/io-edge/receipt.json": "168a55e8aa754e655a45e1a44517d8de0d63fd37a47f96257f24cefd71067579",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/board50-merged-combined-seed3/instrumented.json": "a376c80dcb59b12084fd3605e34afe8c68ab7c0983abe80f10a89c2f8d56d4cb",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/board50-merged-combined-seed3/combined.sdc": "ece40e5b3d648bf1ac05e8022b6412ad49adb65564e6a5fa60cc6f9cab723cee",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/record-lut-core-reference-20261027.py": "7c2ad75461e1e8ef1629de8c349f0f88c21bbc0ad3306a1f77025d1f9a7711b9",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/qualification.json": "65d8158222abbd98d86c19ba8220ce82ab31c0699b31d94818f02cd6ff9705d6",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/lut-core-reference-final-cpp-regressions-20261027.log": "fc6cc98e8ff2e02085ddf62dda0ace3f5616980874b651a4680f4a6678f2b351",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/lut-core-reference-final-ctest-20261027.log": "480f62d892f4d291a8676432b3cb769de9e2dbd950c7fbe9f15a4c7ac3ffa4c2",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/continued-runs.jsonl": "2e47287e09f7fcf7f4f82f81d434097ce15d0b340c7345971b12e15ec681a585",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/lut-core-reference-build/nextpnr-mistral-test": "b181993235cd610f13c2fd0c2b9b0e497165761fec2ea88a8042807de6921a62",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/carry-boundary-investigation-20261027.json": "e651d570b7d587ac17c0bff8cc9899ae82352f47f9709151c7fe08c75e86f035",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/probe-m10k-pll-native-source-waves-20261027.cc": "11b2d7f745a8e627e912d50f349eaacc3852735f190f700c2385fe327ce417d4",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/probe-m10k-pll-native-source-waves-20261027": "363c04d5afcc250a117cf29623020d9a4740794f08efa7bbebaead002b410cbe",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/probe-m10k-pll-native-source-waves-20261027.log": "80696778b70478eeda5cea05a8f201f104fd011f508ad27587da7b5627ea7571",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/nextpnr-lut-core-reference/mistral/lut_core_reference_data.h": "fef69aaa3fd3e3a05e570a72680a89d4181afafc275de9ad1c26996f99c59aa2",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/nextpnr-lut-core-reference/mistral/tests/lut-carry/reference.json.gz": "907f7eb411762be8ab672100351b2fe7230e74879b9856eb59532b9eddf87d93",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed1/native-control/receipt.json": "0798185cf307c6cbeb4420f495c59ad6827fb5e13730e775eaa8b6c08e545e42",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed1/native-control/timing.json": "9c22e03f78784a56500fae2665debb6353276ab4a78c5f05ba51917c1379694b",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed1/native-control/run.log": "dc96a72b20cc8935af7a54e33a8f36b810888fc005d98e21e8d49f7c0bca88a4",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed1/native-control/replay.rbf": "06196d6ff77d3dece653a98074bae59cd3e7d939f67b80c823d27d1bf74fb321",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed1/native-reference/receipt.json": "58571cbd8b83e61575b8c975daf59d98c3a9df2f39d508db972ef06b8a2df043",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed1/native-reference/run.log": "fbf91199705d88aa461935fce93b74ec9b8980aee26a90f4a5a6db724b93cff5",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed1/io-control/receipt.json": "3a99311b531bd92b5bfd166a88c7ede8a92b39780465f9677659804b79277027",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed1/io-control/timing.json": "a0092c776b4ed9b3b78c9e8aa5fcceeb1211b63b1b7146b822de6fb66f9f9629",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed1/io-control/run.log": "19423efa9ee1a8a56029847fbb4fea6f879256cad5ef06f2bc2bf0e3d69feb85",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed1/io-control/replay.rbf": "06196d6ff77d3dece653a98074bae59cd3e7d939f67b80c823d27d1bf74fb321",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed1/io-reference/receipt.json": "895f92281d3769a45f65cd77bd83d6e78582270f7caab9f27b5f77e05a7942c3",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed1/io-reference/run.log": "684b9ed08453b7f9d617f3935525ce969973bf7c741b00dbb16d8553493ae996",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed2/native-control/receipt.json": "eb6eeb42fa2233e7967d7eb991d3be846e1a3625d8d819a78214566aa471c036",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed2/native-control/timing.json": "aa516bd1488547c6687804709fdc4f94cb6129eb2e86feea1ce0bf20f0523896",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed2/native-control/run.log": "18b5c0b41da8343a21b53934025a0bfd765ba3a06e8938bac872f6851c9ed69e",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed2/native-control/replay.rbf": "2abc6854c880c1b0192f009734f72bf5dfb0de2049dcde40630b94324b28e11a",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed2/native-reference/receipt.json": "a34f6e94607a73129619d9e081e3c82d9f59f5a8944627f77aaba9e1a3c0eff2",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed2/native-reference/run.log": "0bee9fae3e95274138a9da8114b4e6d28a6312d3ed742e265a9687aac0464d01",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed2/io-control/receipt.json": "e4d12e66acb8a08cdb216d3b952351e46f18cf07ec23a6970dc52d85b49fce7b",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed2/io-control/timing.json": "66aad6c26e348f48ae94cc775533b3cc1ed71e268190cbaf43d0410de23128db",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed2/io-control/run.log": "348efaa186f001e4d13d92d0d20d8d18d8125b759292821e6b81d6e31601ebc0",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed2/io-control/replay.rbf": "2abc6854c880c1b0192f009734f72bf5dfb0de2049dcde40630b94324b28e11a",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed2/io-reference/receipt.json": "7823ded1e682336463c9a5429af2ffe5be938407870d16a74c24a337c8c443f1",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed2/io-reference/run.log": "25f91bca2799527cacffd6ee70979722b8e3b6bbd9769a5edfeb3d76a51a99f7",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed3/native-control/receipt.json": "6fd64da37fea8d2e17832b0207a3f31afe1f58dd5d64ef4408997e8139e603a0",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed3/native-control/timing.json": "65de221185206d257b650527a9bc3014321da6086a60af9e861daed9053d2d36",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed3/native-control/run.log": "413a10c285a78fb215e42087eb6ddffe681ce8a49c01de5717972489dbfc008a",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed3/native-control/replay.rbf": "6e7694d4d6f728adca87cef5f1c6ca04d65683f87188e7b0a1746786914583d2",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed3/native-reference/receipt.json": "4f1eefb8da6b709ffc37fbd92ae8c50a73e9a428a711c8d892318db87493fbf4",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed3/native-reference/run.log": "607111d3cacfe74579d51acd12749ffdb786b1d06be861b9077f992af468827f",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed3/io-control/receipt.json": "8ccfa512bca96a466df4597e67171397f3e4bacd94079a32e10c805abfd6cb08",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed3/io-control/timing.json": "5ced3b24f403295cfd4347c159813bb75bd89b20f3c7fc34dcfc2dc2c6f7901c",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed3/io-control/run.log": "caa9f0f966791a0515db99e7135f7d4520bfeb74718f0e383e9a90b59a2cbbc5",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed3/io-control/replay.rbf": "6e7694d4d6f728adca87cef5f1c6ca04d65683f87188e7b0a1746786914583d2",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed3/io-reference/receipt.json": "580db650719bd8f19eff48ae1b17b6467f387a037bdb279ca3320fe379a2f3ac",
+    "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/native-lut-core-reference-qualification-20261027/seed3/io-reference/run.log": "49fcba99d1f206ba82722b517d76e0ab659f5f259f8f9c83aa676c4e67794c3c"
+  },
+  "physical_LUT_input_classes": 440,
+  "public_profile_corner": "slow100",
+  "tests": {
+    "Cpp_regressions": 54,
+    "LUT_tests": 17,
+    "CMake_CTests": 2,
+    "absent_native_source_wave_queries": 24,
+    "positive_LAB_wave_controls": 8
+  },
+  "frozen_default_controls": [
+    {
+      "seed": 1,
+      "mode": "native-control",
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 0.5659999847412109,
+      "hold_min_ns": 0.289000004529953,
+      "complete_timing_json_matches_parent": true,
+      "rbf_byte_identical_to_parent": true,
+      "clock_constraints_identical": true
+    },
+    {
+      "seed": 1,
+      "mode": "io-control",
+      "paired": 17806,
+      "unpaired": 11,
+      "setup_min_ns": 0.5659999847412109,
+      "hold_min_ns": 0.289000004529953,
+      "complete_timing_json_matches_parent": true,
+      "rbf_byte_identical_to_parent": true,
+      "clock_constraints_identical": true
+    },
+    {
+      "seed": 2,
+      "mode": "native-control",
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 1.409999966621399,
+      "hold_min_ns": 0.3409999907016754,
+      "complete_timing_json_matches_parent": true,
+      "rbf_byte_identical_to_parent": true,
+      "clock_constraints_identical": true
+    },
+    {
+      "seed": 2,
+      "mode": "io-control",
+      "paired": 17806,
+      "unpaired": 11,
+      "setup_min_ns": 0.8619999885559082,
+      "hold_min_ns": 0.3409999907016754,
+      "complete_timing_json_matches_parent": true,
+      "rbf_byte_identical_to_parent": true,
+      "clock_constraints_identical": true
+    },
+    {
+      "seed": 3,
+      "mode": "native-control",
+      "paired": 17709,
+      "unpaired": 9,
+      "setup_min_ns": 0.9110000133514404,
+      "hold_min_ns": 0.33899998664855957,
+      "complete_timing_json_matches_parent": true,
+      "rbf_byte_identical_to_parent": true,
+      "clock_constraints_identical": true
+    },
+    {
+      "seed": 3,
+      "mode": "io-control",
+      "paired": 17806,
+      "unpaired": 11,
+      "setup_min_ns": 0.8619999885559082,
+      "hold_min_ns": 0.33899998664855957,
+      "complete_timing_json_matches_parent": true,
+      "rbf_byte_identical_to_parent": true,
+      "clock_constraints_identical": true
+    }
+  ],
+  "strict_profile_rejections": [
+    {
+      "seed": 1,
+      "domain": "native",
+      "rejected_arcs": 1755,
+      "driver_types": {
+        "MISTRAL_M10K": 1753,
+        "altera_pll": 2
+      },
+      "full_profile_endpoint_inventory_produced": false,
+      "missing_source_coverage_not_waived": true
+    },
+    {
+      "seed": 1,
+      "domain": "io",
+      "rejected_arcs": 1755,
+      "driver_types": {
+        "MISTRAL_M10K": 1753,
+        "altera_pll": 2
+      },
+      "full_profile_endpoint_inventory_produced": false,
+      "missing_source_coverage_not_waived": true
+    },
+    {
+      "seed": 2,
+      "domain": "native",
+      "rejected_arcs": 1761,
+      "driver_types": {
+        "MISTRAL_M10K": 1759,
+        "altera_pll": 2
+      },
+      "full_profile_endpoint_inventory_produced": false,
+      "missing_source_coverage_not_waived": true
+    },
+    {
+      "seed": 2,
+      "domain": "io",
+      "rejected_arcs": 1761,
+      "driver_types": {
+        "MISTRAL_M10K": 1759,
+        "altera_pll": 2
+      },
+      "full_profile_endpoint_inventory_produced": false,
+      "missing_source_coverage_not_waived": true
+    },
+    {
+      "seed": 3,
+      "domain": "native",
+      "rejected_arcs": 1762,
+      "driver_types": {
+        "MISTRAL_M10K": 1760,
+        "altera_pll": 2
+      },
+      "full_profile_endpoint_inventory_produced": false,
+      "missing_source_coverage_not_waived": true
+    },
+    {
+      "seed": 3,
+      "domain": "io",
+      "rejected_arcs": 1762,
+      "driver_types": {
+        "MISTRAL_M10K": 1760,
+        "altera_pll": 2
+      },
+      "full_profile_endpoint_inventory_produced": false,
+      "missing_source_coverage_not_waived": true
+    }
+  ],
+  "carry_investigation": {
+    "scope": "Retain failed cross-LAB carry characterization; no accepted timing model.",
+    "raw_cases_completed": 10,
+    "continued_chain_observations": [
+      {
+        "case": "lab-carry-bridge",
+        "corner": "7_slow_1100mv_100c",
+        "cell": "target_20",
+        "location": "LABCELL_X29_Y76_N0",
+        "delays_ps": {
+          "rr_min": 97,
+          "rr_max": 108,
+          "ff_min": 114,
+          "ff_max": 127
+        }
+      },
+      {
+        "case": "lab-carry-bridge",
+        "corner": "7_slow_1100mv_100c",
+        "cell": "target_21",
+        "location": "LABCELL_X29_Y76_N3",
+        "delays_ps": {
+          "rr_min": 0,
+          "rr_max": 0,
+          "ff_min": 0,
+          "ff_max": 0
+        }
+      },
+      {
+        "case": "lab-carry-bridge",
+        "corner": "7_slow_1100mv_100c",
+        "cell": "target_22",
+        "location": "LABCELL_X29_Y76_N6",
+        "delays_ps": {
+          "rr_min": 45,
+          "rr_max": 50,
+          "ff_min": 41,
+          "ff_max": 45
+        }
+      },
+      {
+        "case": "lab-carry-bridge",
+        "corner": "7_slow_1100mv_-40c",
+        "cell": "target_20",
+        "location": "LABCELL_X29_Y76_N0",
+        "delays_ps": {
+          "rr_min": 104,
+          "rr_max": 114,
+          "ff_min": 110,
+          "ff_max": 121
+        }
+      },
+      {
+        "case": "lab-carry-bridge",
+        "corner": "7_slow_1100mv_-40c",
+        "cell": "target_21",
+        "location": "LABCELL_X29_Y76_N3",
+        "delays_ps": {
+          "rr_min": 0,
+          "rr_max": 0,
+          "ff_min": 0,
+          "ff_max": 0
+        }
+      },
+      {
+        "case": "lab-carry-bridge",
+        "corner": "7_slow_1100mv_-40c",
+        "cell": "target_22",
+        "location": "LABCELL_X29_Y76_N6",
+        "delays_ps": {
+          "rr_min": 48,
+          "rr_max": 53,
+          "ff_min": 49,
+          "ff_max": 54
+        }
+      },
+      {
+        "case": "lab-carry-bridge",
+        "corner": "MIN_fast_1100mv_100c",
+        "cell": "target_20",
+        "location": "LABCELL_X29_Y76_N0",
+        "delays_ps": {
+          "rr_min": 57,
+          "rr_max": 61,
+          "ff_min": 58,
+          "ff_max": 63
+        }
+      },
+      {
+        "case": "lab-carry-bridge",
+        "corner": "MIN_fast_1100mv_100c",
+        "cell": "target_21",
+        "location": "LABCELL_X29_Y76_N3",
+        "delays_ps": {
+          "rr_min": 0,
+          "rr_max": 0,
+          "ff_min": 0,
+          "ff_max": 0
+        }
+      },
+      {
+        "case": "lab-carry-bridge",
+        "corner": "MIN_fast_1100mv_100c",
+        "cell": "target_22",
+        "location": "LABCELL_X29_Y76_N6",
+        "delays_ps": {
+          "rr_min": 24,
+          "rr_max": 26,
+          "ff_min": 21,
+          "ff_max": 22
+        }
+      },
+      {
+        "case": "lab-carry-bridge",
+        "corner": "MIN_fast_1100mv_-40c",
+        "cell": "target_20",
+        "location": "LABCELL_X29_Y76_N0",
+        "delays_ps": {
+          "rr_min": 52,
+          "rr_max": 56,
+          "ff_min": 50,
+          "ff_max": 53
+        }
+      },
+      {
+        "case": "lab-carry-bridge",
+        "corner": "MIN_fast_1100mv_-40c",
+        "cell": "target_21",
+        "location": "LABCELL_X29_Y76_N3",
+        "delays_ps": {
+          "rr_min": 0,
+          "rr_max": 0,
+          "ff_min": 0,
+          "ff_max": 0
+        }
+      },
+      {
+        "case": "lab-carry-bridge",
+        "corner": "MIN_fast_1100mv_-40c",
+        "cell": "target_22",
+        "location": "LABCELL_X29_Y76_N6",
+        "delays_ps": {
+          "rr_min": 25,
+          "rr_max": 27,
+          "ff_min": 23,
+          "ff_max": 25
+        }
+      },
+      {
+        "case": "mlab-carry-bridge",
+        "corner": "7_slow_1100mv_100c",
+        "cell": "target_20",
+        "location": "MLABCELL_X15_Y25_N0",
+        "delays_ps": {
+          "rr_min": 90,
+          "rr_max": 113,
+          "ff_min": 97,
+          "ff_max": 123
+        }
+      },
+      {
+        "case": "mlab-carry-bridge",
+        "corner": "7_slow_1100mv_100c",
+        "cell": "target_21",
+        "location": "MLABCELL_X15_Y25_N3",
+        "delays_ps": {
+          "rr_min": 0,
+          "rr_max": 0,
+          "ff_min": 0,
+          "ff_max": 0
+        }
+      },
+      {
+        "case": "mlab-carry-bridge",
+        "corner": "7_slow_1100mv_100c",
+        "cell": "target_22",
+        "location": "MLABCELL_X15_Y25_N6",
+        "delays_ps": {
+          "rr_min": 44,
+          "rr_max": 49,
+          "ff_min": 41,
+          "ff_max": 46
+        }
+      },
+      {
+        "case": "mlab-carry-bridge",
+        "corner": "7_slow_1100mv_-40c",
+        "cell": "target_20",
+        "location": "MLABCELL_X15_Y25_N0",
+        "delays_ps": {
+          "rr_min": 95,
+          "rr_max": 112,
+          "ff_min": 102,
+          "ff_max": 122
+        }
+      },
+      {
+        "case": "mlab-carry-bridge",
+        "corner": "7_slow_1100mv_-40c",
+        "cell": "target_21",
+        "location": "MLABCELL_X15_Y25_N3",
+        "delays_ps": {
+          "rr_min": 0,
+          "rr_max": 0,
+          "ff_min": 0,
+          "ff_max": 0
+        }
+      },
+      {
+        "case": "mlab-carry-bridge",
+        "corner": "7_slow_1100mv_-40c",
+        "cell": "target_22",
+        "location": "MLABCELL_X15_Y25_N6",
+        "delays_ps": {
+          "rr_min": 48,
+          "rr_max": 53,
+          "ff_min": 49,
+          "ff_max": 54
+        }
+      },
+      {
+        "case": "mlab-carry-bridge",
+        "corner": "MIN_fast_1100mv_100c",
+        "cell": "target_20",
+        "location": "MLABCELL_X15_Y25_N0",
+        "delays_ps": {
+          "rr_min": 48,
+          "rr_max": 63,
+          "ff_min": 44,
+          "ff_max": 59
+        }
+      },
+      {
+        "case": "mlab-carry-bridge",
+        "corner": "MIN_fast_1100mv_100c",
+        "cell": "target_21",
+        "location": "MLABCELL_X15_Y25_N3",
+        "delays_ps": {
+          "rr_min": 0,
+          "rr_max": 0,
+          "ff_min": 0,
+          "ff_max": 0
+        }
+      },
+      {
+        "case": "mlab-carry-bridge",
+        "corner": "MIN_fast_1100mv_100c",
+        "cell": "target_22",
+        "location": "MLABCELL_X15_Y25_N6",
+        "delays_ps": {
+          "rr_min": 24,
+          "rr_max": 26,
+          "ff_min": 21,
+          "ff_max": 22
+        }
+      },
+      {
+        "case": "mlab-carry-bridge",
+        "corner": "MIN_fast_1100mv_-40c",
+        "cell": "target_20",
+        "location": "MLABCELL_X15_Y25_N0",
+        "delays_ps": {
+          "rr_min": 48,
+          "rr_max": 56,
+          "ff_min": 48,
+          "ff_max": 56
+        }
+      },
+      {
+        "case": "mlab-carry-bridge",
+        "corner": "MIN_fast_1100mv_-40c",
+        "cell": "target_21",
+        "location": "MLABCELL_X15_Y25_N3",
+        "delays_ps": {
+          "rr_min": 0,
+          "rr_max": 0,
+          "ff_min": 0,
+          "ff_max": 0
+        }
+      },
+      {
+        "case": "mlab-carry-bridge",
+        "corner": "MIN_fast_1100mv_-40c",
+        "cell": "target_22",
+        "location": "MLABCELL_X15_Y25_N6",
+        "delays_ps": {
+          "rr_min": 25,
+          "rr_max": 27,
+          "ff_min": 23,
+          "ff_max": 25
+        }
+      }
+    ],
+    "source_graph_probe_case": "lab-carry-bridge",
+    "public_source_cout_pin_has_no_timing_fanout": true,
+    "selected_path_source_is_optimized_internal_node": true,
+    "interconnect_prefix_not_independently_qualified": true,
+    "bridge_tap_trial": "failed Quartus placement: constrained carry-chain ALM becomes illegal",
+    "accepted_native_carry_model": false,
+    "hardware": false,
+    "whole_board_qualified": false,
+    "input_sha256": {
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/hps-i2c-qualification-20261025/record-carry-boundary-investigation-20261027.py": "b44716654106ecd94b5163efad6450e51badd7fd5ac5d3248bdfee1b4bf40b1e",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/capture.json": "8c7050a4f12ffc4da8e1e6af0145987328fdb2780bd3de648bfa25d7fab31d37",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/producer-scripts-20261027/project.py": "2c2e946c397bae6787498098301b792913fe620aa190891904a0ba23482f7bae",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/producer-scripts-20261027/extract.tcl": "eaf81071859f7c5a2304303280fb4d1d92479a8fccacac316c1de5daa729e705",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/producer-scripts-20261027/bindings.tcl": "58442a2eb24bf9ffc111bfc8e265d583fd8e5c1491ccf427405b471132903335",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/producer-scripts-20261027/carry_paths.tcl": "4361d29376f20dc378ccbad4d8de17291f7b3240f456e34a616bb0bcbe33427e",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/producer-scripts-20261027/characterize.py": "31a33b326727564f4994f3d00e130096304b6c69d55ec5a6ee2bcfe5c73e19b5",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/receipt.json": "75e9706fe11b82995dd182a757cd631eb6ddb622a0d8a0f717befcce0b72a38c",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/fitted.rbf": "25f0410d8d9806898d0e09beeb19f2587d3fd0109cd3ae3eb45dd2ac37c45a0e",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/fitted.bt": "86da0d086966e1beb932c57e158b4fd9f34b5a277cbc67b4bf3c7ab28316f5b0",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/arcs/7_slow_1100mv_100c.tsv": "2774b950f7e756a0ac910b123a742a719031477d52c73d84fbdc6ab4338f86cc",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/7_slow_1100mv_100c/bridge-setup-rise.rpt": "cc92456a6857feb3077395fd35aa1061cce65cc78c6311b1141726d4f7d89d9e",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/7_slow_1100mv_100c/bridge-hold-fall.rpt": "c25002636c26b2ad0dffa84d3248cf7810fc2e25e8735a45f8ecbd30200dd006",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/7_slow_1100mv_100c/bridge-setup-fall.rpt": "925e8332125654de56cafcbedea19fc5c56257d3be292081d0160b2f32ee22be",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/7_slow_1100mv_100c/bridge-hold-rise.rpt": "9c8293c03327fb4b9bd1315e703e01fc95124c7cff31df3113b88d331382082e",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/arcs/7_slow_1100mv_-40c.tsv": "be917193edbd79e907bb9d6956f3a3442bc5f70a7558965ada09467e53c41647",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/7_slow_1100mv_-40c/bridge-setup-rise.rpt": "379d1928a05045480f3b748ad3f77051f48acd4ff771aaf7c55ee112d96bd908",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/7_slow_1100mv_-40c/bridge-hold-fall.rpt": "caec2ddf57e4ec236909a3c74a15859de37c0be57e39ebba358800425400dd34",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/7_slow_1100mv_-40c/bridge-setup-fall.rpt": "e70db5dac13b4e4f547409ee76c5b98aa58d90d5c798a2f26ed281222e5b98c5",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/7_slow_1100mv_-40c/bridge-hold-rise.rpt": "37d64be7c6ceccda40109c22485e98a554fa985f67328250d9974b11ea0bb8fe",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/arcs/MIN_fast_1100mv_100c.tsv": "3cc490f195891e1af4960ba6d481ce5bf3fc1c9b89afb79cfa8ca3e039566663",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/MIN_fast_1100mv_100c/bridge-setup-rise.rpt": "8e2bf57d6537af05dc7e161034f608477916ddb45725bf8149ea4194f11ecaa3",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/MIN_fast_1100mv_100c/bridge-hold-fall.rpt": "877eac8ceffe261571ce8ab6ce7cce64da2708929981d9dc0b1ab38e14680c50",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/MIN_fast_1100mv_100c/bridge-setup-fall.rpt": "bd6f0d8c2f1035b00d1c3079096b8cabd0519d1703d2f85ab8d01e9895fc35e4",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/MIN_fast_1100mv_100c/bridge-hold-rise.rpt": "288c987b7cc95bd3b67ff815474e8d116a0b0669904588212703a197bca81f57",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/arcs/MIN_fast_1100mv_-40c.tsv": "2f3e38830437041fea411c710da6a31a5fd4d225c94354ab8ac34d611c1f99d9",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/MIN_fast_1100mv_-40c/bridge-setup-rise.rpt": "7f2f95a0d2e1019e873dcfb886e6d7e88a4671ab1108224f6826025a66615412",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/MIN_fast_1100mv_-40c/bridge-hold-fall.rpt": "8e88d85e40fe051d7c003b6b648b4350cd6405f10bf2d88ecf34d9db7f89686b",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/MIN_fast_1100mv_-40c/bridge-setup-fall.rpt": "bf7299c9724a42529ee2312758f4300c8e478056269a7dd659d81af856f463ec",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/paths/MIN_fast_1100mv_-40c/bridge-hold-rise.rpt": "4fcd08bf8847bf28e186b62d203be2ea7f1df2d5e9fedffd2380dccc8bab8368",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/receipt.json": "8f72ef9c79412bac4205f967ae04d7f01806d68d870401b43d8177cc701b7dd3",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/fitted.rbf": "6201d561e5265140f2548438ba4dfb0998e61e4e47341b7d33fcb39707d22a1d",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/fitted.bt": "9a593300615d37f245969faf952f26aa5581a6f8d80ddf0672f89f886ad14c93",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/arcs/7_slow_1100mv_100c.tsv": "2fe75d8da825da0458489a3736b2bdb43ffdcda70d832c0428ef8818a2b49272",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/7_slow_1100mv_100c/bridge-setup-rise.rpt": "991be8d4b429c80fc1ee57b10892a8841c574c13132530e781b88a86977eb5e7",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/7_slow_1100mv_100c/bridge-hold-fall.rpt": "c0e873e5f4a597283f6ac7ca7bf215f2437a7613962b9f7ffc3baae1435b6adf",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/7_slow_1100mv_100c/bridge-setup-fall.rpt": "2954a37b7efb88ec0e9190ffacba216e532283dbb61bced7bbe678b890c277b3",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/7_slow_1100mv_100c/bridge-hold-rise.rpt": "d46d5881131eccf35d8bf9c19820d1a614ac5012922334b030f845e4e5747e22",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/arcs/7_slow_1100mv_-40c.tsv": "1306e82132f4bcbd1fefa2ea920105a29cb7c3ab95f92fe605e030f18689e4ba",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/7_slow_1100mv_-40c/bridge-setup-rise.rpt": "55651ab0afdadafde18afda5dbd1b285c4cf28c0204fb12672f19b7083663b5a",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/7_slow_1100mv_-40c/bridge-hold-fall.rpt": "86640bd2f82402aefadd0af49427e256f33a08b406e25bb3ff738c04733c0081",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/7_slow_1100mv_-40c/bridge-setup-fall.rpt": "4b9009f8d7690932d2e46c0d02d8db14e551babf0907e3c525c5ee5b8f30c1e5",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/7_slow_1100mv_-40c/bridge-hold-rise.rpt": "d106ee02d14eab81f373751d351a9e1cd7f940826a56383bf6d1e4e86f4bb059",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/arcs/MIN_fast_1100mv_100c.tsv": "5145bc43ce73e680912ff5dc39be6434d6054c1e647f712e2bd3f5c4e2e19fb1",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/MIN_fast_1100mv_100c/bridge-setup-rise.rpt": "4e8c33a32a83beb391c7cacf5a7b6263da6e1db61e9487390adcba52d8b52694",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/MIN_fast_1100mv_100c/bridge-hold-fall.rpt": "5181f084aa2b9e62969f5d769e5fa0ce92967dd02f804e2b469d47f27b1079c6",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/MIN_fast_1100mv_100c/bridge-setup-fall.rpt": "af35ab99bff568b87ca7aa52b40fc0038700b60ac789b7af55cdf31ab6664d7d",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/MIN_fast_1100mv_100c/bridge-hold-rise.rpt": "88937fc51e9316e0b83dcb55313994ceb13737e49e1ad279d3de8f70fc1076ab",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/arcs/MIN_fast_1100mv_-40c.tsv": "f120c3e1c6430bad6a0113613a92d4667d24d8a3bda73d6f47c8c9531d00f2df",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/MIN_fast_1100mv_-40c/bridge-setup-rise.rpt": "0673eeaff5a70d5c341f6809c4a85372a2325493fdb3d440726e2251e943ec60",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/MIN_fast_1100mv_-40c/bridge-hold-fall.rpt": "3cbb7a659bae68a5b0d7f5f90e56d04e5611f767a5550c3710577b440980b893",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/MIN_fast_1100mv_-40c/bridge-setup-fall.rpt": "2f493e22a6199dce51b6c77adef99089d9810ed9c9c0884038e30417e2fe65ef",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/mlab-carry-bridge/paths/MIN_fast_1100mv_-40c/bridge-hold-rise.rpt": "8fe28366c05dd4724dac1da7654791f7be184a9edfdbfcd2bcc75e1561d76a1d",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/bridge-graph-debug-v2-20261027.tcl": "2da2fc9c7128e193b9ff1b963a29159ad15e3fbba1458a7e1ef65f5e4fc4f48d",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-core-reference-fresh-20261027/lab-carry-bridge/bridge-graph-debug-v2-20261027.log": "5710aa2d5ac1b7a0925528453535b9ac974edc7c8062e763c0fe6ef4767f0242",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-carry-bridge-tap-trial-20261027/producer-scripts/characterize.py": "31a33b326727564f4994f3d00e130096304b6c69d55ec5a6ee2bcfe5c73e19b5",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-carry-bridge-tap-trial-20261027/producer-scripts/project.py": "719ba0830604e8d2a5c584b938a7e09dbee5755599d91cfa66f751c98a784c39",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-carry-bridge-tap-trial-20261027/producer-scripts/bindings.tcl": "58442a2eb24bf9ffc111bfc8e265d583fd8e5c1491ccf427405b471132903335",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-carry-bridge-tap-trial-20261027/producer-scripts/carry_paths.tcl": "4361d29376f20dc378ccbad4d8de17291f7b3240f456e34a616bb0bcbe33427e",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-carry-bridge-tap-trial-20261027/producer-scripts/extract.tcl": "eaf81071859f7c5a2304303280fb4d1d92479a8fccacac316c1de5daa729e705",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-carry-bridge-tap-trial-20261027/lab-carry-bridge/receipt.json": "cd4dc1fae5a6ec889cc6cbe2754bbc48d6ae43619558364ea7797fb996be3592",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-carry-bridge-tap-trial-20261027/lab-carry-bridge/compile.log": "581aabc3d2a5fc2caf93655f084d7a8dd5d8ae88211e1c74b60648934fdf7e5e",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-carry-bridge-tap-trial-20261027/lab-carry-bridge/source/top.sv": "a94163d0990e86967c29c153409c85dee6e2aa9c340663849a1d4b9f0ad92a79",
+      "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-whole-board-closure-20261023/logic-carry-bridge-tap-trial-20261027/lab-carry-bridge/source/top.qsf": "de2b9ddb20c1645565d5fe0837cd0c06c8bd60dcdbf3cc7ee29f289f8cf591eb"
+    }
+  },
+  "Mistral_issue_not_posted": "Automatic approval review rejected external issue creation under the FES-only repository rule.",
+  "clocks_MHz": {
+    "CPU": 100,
+    "motherboard": 50,
+    "pixel": 74.25
+  },
+  "native_search_journal": {
+    "entries": 133,
+    "sha256": "2e47287e09f7fcf7f4f82f81d434097ce15d0b340c7345971b12e15ec681a585"
+  },
+  "original_failed_captures_retained": true,
+  "production_lock_changed": false,
+  "RTL_clock_phases_routes_runtime_or_shared_contracts_changed": false,
+  "fresh_producer_sealed": false,
+  "private_corner_overrides_replaced": false,
+  "whole_board_qualified": false,
+  "hardware": false
+}

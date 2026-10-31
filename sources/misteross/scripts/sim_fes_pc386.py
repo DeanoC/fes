@@ -21,10 +21,23 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            the RTL VGA) with the Bochs oracle as the CPU, types a command at
            the prompt, checks the answer read from VRAM and the I/O completion
            times, and replays the boot's VGA trace against Bochs's VGA.
+           With --cpu rtl, fes_i386_cpu is the CPU and the oracle runs only
+           what it stops on (see machine_tb.cpp); writes boot-rtl/, whose
+           report lists the stops by stem against the lockstep's scope.
+  rtl-stops
+           boots cores/fes-pc386/sim/rtl_stop_test.asm on the oracle and on
+           the RTL: SMSW at two sites and a protected-mode stretch from LMSW
+           to MOV CR0, all unbuilt in the RTL. The RTL run must stop on
+           each, record the stretch, and write what the oracle run writes.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
   game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
-           and checks the game's OPL2 output. Supply the games outside the repo.
+           and checks the game's OPL2 output; writes the last captured frame.
+           Supply the games outside the repo. With --cpu rtl, on
+           fes_i386_cpu as boot runs it, and fails if the RTL stopped,
+           stalled or handed the oracle an instruction; writes
+           game-<name>-rtl/. Runs share machine/'s build, so start a second
+           run only once the first has built it.
   vga      runs the benches, boots
            cores/fes-pc386/sim/vga_test.asm (VGA BIOS text, mode 13h, mode Y,
            mode 12h), checks every marked picture's 720p frame from the
@@ -40,8 +53,11 @@ Examples:
   python3 scripts/sim_fes_pc386.py --suite devices
   python3 scripts/sim_fes_pc386.py --suite opl2
   python3 scripts/sim_fes_pc386.py --suite boot --download
+  python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl
+  python3 scripts/sim_fes_pc386.py --suite rtl-stops
   python3 scripts/sim_fes_pc386.py --suite sound --download
   python3 scripts/sim_fes_pc386.py --suite game --game ultima6
+  python3 scripts/sim_fes_pc386.py --suite game --game wolf3d --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite vga
 """
 from __future__ import annotations
@@ -66,6 +82,7 @@ if __package__ in (None, ''):
 from scripts import build_pc386_firmware as firmware
 from scripts import build_pc386_freedos_image as freedos
 from scripts import fes_i386_oracle as oracle
+from scripts import test_fes_i386_lockstep as lockstep
 from scripts import test_fes_i386_test386 as test386
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -92,6 +109,7 @@ AT_RTL = (
     CORE / 'rtl/pc386_sysctl.sv',
     CORE / 'rtl/pc386_kbc.sv',
     CORE / 'rtl/pc386_rtc.sv',
+    CORE / 'rtl/pc386_ram.sv',
     CORE / 'rtl/pc386_ata.sv',
     CORE / 'rtl/pc386_at_core.sv',
 )
@@ -106,12 +124,13 @@ OPL2_RTL = (
     CORE / 'rtl/pc386_opl2.sv',
 )
 AUDIO_RTL = (*OPL2_RTL, CORE / 'rtl/pc386_sb.sv', CORE / 'rtl/pc386_mixer.sv', CORE / 'rtl/pc386_audio.sv')
+# machine_tb --cpu rtl's CPU: fes_i386_cpu with the load size it reports.
+CPU_RTL = (*(lockstep.RTL / path for path in lockstep.CPU_RTL), CORE / 'sim/pc386_rtl_cpu.sv')
 OPL2_SEEDS = (1, 2, 3)
 OPL2_SAMPLES = 20000
 # The machine without the CPU: the AT core, the VGA, the presenter, port 2
 # and the shared display plane.
 MACHINE_RTL = AT_RTL + (
-    CORE / 'rtl/pc386_ram.sv',
     CORE / 'rtl/pc386_vga.sv',
     CORE / 'rtl/pc386_vga_scanout.sv',
     CORE / 'rtl/pc386_presenter.sv',
@@ -124,14 +143,22 @@ MACHINE_RTL = AT_RTL + (
     ROOT / 'cores/fes-menu/rtl/fes_menu_video.v',
     ROOT / 'cores/fes-menu/rtl/fes_menu_reader.v',
 )
+# The M4 diagnostic machine: the machine, its audio and the bus master that
+# stands in for the CPU (pc386_diag.sv).
+DIAG_RTL = (*dict.fromkeys(MACHINE_RTL + AUDIO_RTL), CORE / 'rtl/pc386_bus_master.sv',
+            CORE / 'rtl/pc386_port_fence.sv', CORE / 'rtl/pc386_snapshot.sv', CORE / 'rtl/pc386_diag.sv')
+DIAG_CLOCK_HZ = 61_440_000
+DIAG_PROGRAMS = ('smoke', 'mode13', 'sound', 'opl2', 'ata', 'resets', 'copy')
 # I/O completion, request clock to done clock: each device cycle's class time
 # (isa8 72 clocks, isa16 36 at 100 MHz) plus one clock to take the request and
 # one to report it. 1F0h with a dword is one word cycle and two byte cycles
 # (1F2h, 1F3h), as the AT's bus sizing does. A VGA port byte is presented a
 # clock after the request; a write is in the VGA FIFO a clock later and the
-# decoder leaves a clock between bytes. A read waits until the FIFO has
-# drained and takes two clocks more, so it takes at least VGA_READ_MINIMUM
-# and at most VGA_READ_BOUND.
+# decoder leaves a clock between bytes. A write byte waits while the FIFO is
+# full: machine_tb counts those clocks (IOWAIT) and takes them out of the
+# access's time, which must still be the class time. A read waits until the
+# FIFO has drained and takes two clocks more, so it takes at least
+# VGA_READ_MINIMUM and at most VGA_READ_BOUND.
 ISA8, ISA16, OVERHEAD = 72, 36, 2
 EXPECTED_IO = {
     ('isa8', 1): ISA8 + OVERHEAD, ('isa8', 2): 2 * ISA8 + OVERHEAD, ('isa8', 4): 4 * ISA8 + OVERHEAD,
@@ -174,15 +201,15 @@ class SimError(RuntimeError):
 
 def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testbench: Path | None,
              linked: list[Path], jobs: int, parameters: dict[str, int] | None = None,
-             include: tuple[Path, ...] = ()) -> Path:
+             include: tuple[Path, ...] = (), flags: tuple[str, ...] = (), defines: tuple[str, ...] = ()) -> Path:
     output = OUTPUT / name / ('obj' if testbench else f'obj-{top}')
     output.mkdir(parents=True, exist_ok=True)
     includes = ' '.join(f'-I{path}' for path in (COMMON / 'sim/i386', CORE / 'sim', NUKED, *include))
     command = [verilator, '--cc', *(['--exe'] if testbench else []), '--build', '-j', str(jobs), '-O3', '--top-module', top,
-               '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-DECLFILENAME',
-               str(CORE / 'sim/pc386.vlt'), str(CORE / 'sim/pc386_audio.vlt'),
+               '-Wall', '-Wno-UNUSEDSIGNAL', '-Wno-DECLFILENAME', *flags,
+               *(str(CORE / 'sim' / name) for name in ('pc386.vlt', 'pc386_audio.vlt', 'pc386_vga.vlt')),
                f'-I{COMMON / "vendor/kf8259"}', f'-I{COMMON / "vendor/kf8253"}', f'-I{COMMON / "generated"}',
-               *(f'-G{key}={value}' for key, value in (parameters or {}).items()),
+               *(f'-G{key}={value}' for key, value in (parameters or {}).items()), *(f'-D{name}' for name in defines),
                '--Mdir', str(output), '-MAKEFLAGS', 'OPT_FAST=-O3',
                '-CFLAGS', f'-std=c++17 -O2 {includes}', '-LDFLAGS', '-pthread',
                *map(str, rtl), *([str(testbench)] if testbench else []), *map(str, linked)]
@@ -195,12 +222,40 @@ def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testben
 
 
 def parse_boot(text: str) -> dict:
-    report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'inta': {}, 'screen': [], 'end': None,
+    report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'io_wait': {}, 'inta': {}, 'screen': [], 'end': None,
               'prompt_cycle': None, 'cpu_resets': 0, 'snaps': {}, 'present': {}, 'vga': {}, 'marks': {},
               'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None}
+    rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'unretired': [], 'overlaps': [], 'notes': [],
+           'counters': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
-        if kind == 'POST':
+        if kind == 'STOP':
+            stop, cycle, site, *fields = rest.split()
+            rtl['stops'].append({'kind': stop, 'cycle': int(cycle), 'site': site,
+                                 'bytes': fields[0] if fields else None, 'stem': fields[1] if fields else None})
+        elif kind == 'PMODE':
+            start, end, steps, entry, exit_site = rest.split()
+            rtl['pmode'].append({'from': int(start), 'to': int(end), 'steps': int(steps), 'entry': entry,
+                                 'exit': exit_site})
+        elif kind == 'GAP':
+            stop, stem, stops, sites, executed, site, cycle = rest.split()
+            rtl['gaps'].append(rtl_gap(stop, stem, int(stops), int(sites), int(executed), site, int(cycle)))
+        elif kind == 'SMC':
+            event, cycle, site, instruction, address = rest.split()
+            rtl['smc'].append({'event': event, 'cycle': int(cycle), 'site': site, 'instruction': instruction,
+                               'address': address})
+        elif kind == 'OVERLAP':
+            cycle, address, abandoned = rest.split()
+            rtl['overlaps'].append({'cycle': int(cycle), 'address': address, 'abandoned': abandoned})
+        elif kind == 'UNRETIRED':
+            why, loads, site, stem, address, cycle = rest.split()
+            rtl['unretired'].append({'why': why, 'loads': int(loads), 'site': site, 'stem': stem,
+                                     'first_address': address, 'first_cycle': int(cycle)})
+        elif kind == 'NOTE':
+            rtl['notes'].append(rest)
+        elif kind == 'RTL':
+            rtl['counters'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
+        elif kind == 'POST':
             code, cycle = rest.split()
             report['post'].append({'code': code, 'cycle': int(cycle)})
         elif kind == 'DEBUG':
@@ -211,6 +266,9 @@ def parse_boot(text: str) -> dict:
         elif kind == 'IO':
             klass, size, cycles, count = rest.split()
             report['io'].setdefault(f'{klass} {size}', {})[cycles] = int(count)
+        elif kind == 'IOWAIT':
+            klass, size, clocks, count = rest.split()
+            report['io_wait'].setdefault(f'{klass} {size}', {})[clocks] = int(count)
         elif kind == 'INTA':
             cycles, count = rest.split()
             report['inta'][cycles] = int(count)
@@ -245,7 +303,34 @@ def parse_boot(text: str) -> dict:
             fields = rest.split()
             report['end'] = {'reason': fields[0], **{k: float(v) if '.' in v else int(v)
                                                       for k, v in (field.split('=') for field in fields[1:])}}
+    if rtl['counters'] is not None:
+        rtl['gaps'].sort(key=lambda gap: (-gap['stops'], gap['stem']))
+        report['rtl'] = rtl
     return report
+
+
+# Names for the stems the RTL stops on; the lockstep's SCOPE says which are built.
+STEM_NAMES = {
+    '0F00.0': 'SLDT', '0F00.1': 'STR', '0F00.2': 'LLDT', '0F00.3': 'LTR', '0F00.4': 'VERR', '0F00.5': 'VERW',
+    '0F01.0': 'SGDT', '0F01.1': 'SIDT', '0F01.2': 'LGDT', '0F01.3': 'LIDT', '0F01.4': 'SMSW', '0F01.6': 'LMSW',
+    '0F01.7': 'INVLPG', '0F02': 'LAR', '0F03': 'LSL', '0F06': 'CLTS', '0F08': 'INVD', '0F09': 'WBINVD',
+    '0F0B': 'UD2', '0F20': 'MOV r32, CRn', '0F21': 'MOV r32, DRn', '0F22': 'MOV CRn, r32', '0F23': 'MOV DRn, r32',
+    '0F24': 'MOV r32, TRn', '0F26': 'MOV TRn, r32', '0FA2': 'CPUID', '0FA3': 'BT r/m, r', '0FAB': 'BTS r/m, r',
+    '0FB3': 'BTR r/m, r', '0FBB': 'BTC r/m, r', '0FB0': 'CMPXCHG r/m8', '0FB1': 'CMPXCHG r/m', '0FC0': 'XADD r/m8',
+    '0FC1': 'XADD r/m', '0FBA.0': 'BT group /0', '0FBA.1': 'BT group /1', '0FBA.2': 'BT group /2',
+    '0FBA.3': 'BT group /3', '27': 'DAA', '2F': 'DAS', '37': 'AAA', '3F': 'AAS', '62': 'BOUND', '63': 'ARPL',
+    '9B': 'WAIT', 'F0': 'LOCK', 'F1': 'ICEBP', 'D6': 'SALC',
+    **{f'{opcode:02X}.{reg}': f'ESC {opcode:02X} /{reg}' for opcode in range(0xD8, 0xE0) for reg in range(8)},
+    **{f'0FC{n:X}': 'BSWAP' for n in range(8, 16)},
+}
+
+
+def rtl_gap(kind: str, stem: str, stops: int, sites: int, executed: int, site: str, cycle: int) -> dict:
+    """One stem the RTL stopped on, and whether the lockstep counts it as built."""
+    bare = re.sub(r'^(67)?(66)?', '', stem)
+    return {'kind': kind, 'stem': stem, 'name': STEM_NAMES.get(bare), 'built': lockstep.in_scope(stem),
+            'stops': stops, 'sites': sites, 'executed': executed,
+            'first_site': site, 'first_cycle': cycle}
 
 
 def timing_failures(report: dict) -> list[str]:
@@ -267,17 +352,18 @@ def timing_failures(report: dict) -> list[str]:
 
 
 def machine_testbench(args, linked: list[Path]) -> Path:
-    return verilate_with_audio(args, 'machine', CORE / 'sim/machine_tb.cpp', linked,
-                               top='pc386_machine', rtl=MACHINE_RTL)
+    cpu = verilate(args.verilator, 'machine', 'pc386_rtl_cpu', CPU_RTL, None, [], args.jobs)
+    return verilate_with_audio(args, 'machine', CORE / 'sim/machine_tb.cpp', [*linked, cpu],
+                               top='pc386_machine', rtl=MACHINE_RTL, include=(cpu.parent,))
 
 
 def verilate_with_audio(args, name: str, testbench: Path, linked: list[Path],
                         parameters: dict[str, int] | None = None, top: str = TOP,
-                        rtl: tuple[Path, ...] = AT_RTL) -> Path:
+                        rtl: tuple[Path, ...] = AT_RTL, include: tuple[Path, ...] = ()) -> Path:
     """Build the audio model and link it beside the AT core in a testbench."""
     audio = verilate(args.verilator, name, 'pc386_audio', AUDIO_RTL, None, [], args.jobs)
     return verilate(args.verilator, name, top, rtl, testbench,
-                    [*linked, audio, NUKED / 'opl3.c'], args.jobs, parameters, (audio.parent,))
+                    [*linked, audio, NUKED / 'opl3.c'], args.jobs, parameters, (audio.parent, *include))
 
 
 def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict) -> dict:
@@ -302,6 +388,57 @@ def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict)
         if report['vga'].get(counter):
             report['failures'].append(f'VGA {counter}: {report["vga"][counter]}')
     return report
+
+
+def rtl_failures(report: dict, run: str) -> list[str]:
+    """Require the RTL to have run the whole run itself: it retired, handed no
+    instruction to the oracle (protected mode and V86 included), and neither
+    stopped nor stalled."""
+    rtl = report.get('rtl')
+    if not isinstance(rtl, dict):
+        return [f'the {run} report has no RTL CPU counters']
+
+    failures = []
+    counters = rtl.get('counters') or {}
+    retired = counters.get('retired')
+    if retired is None:
+        failures.append(f'the {run} report is missing the retired counter')
+    elif retired <= 0:
+        failures.append(f'the RTL retired no instructions in the {run}: {retired}')
+    for counter in ('oracle_steps', 'protected_steps'):
+        value = counters.get(counter)
+        if value is None:
+            failures.append(f'the {run} report is missing the {counter} counter')
+        elif value != 0:
+            failures.append(f'RTL {counter}={value}, expected 0: the {run} handed instructions to the oracle')
+
+    stops = rtl.get('stops', [])
+    gaps = rtl.get('gaps', [])
+    if stops or gaps:
+        details = [f'{stop.get("kind")} {stop.get("stem")} at {stop.get("site")}' for stop in stops]
+        details.extend(f'{gap.get("kind")} {gap.get("stem")} ({gap.get("stops")} stops)' for gap in gaps)
+        failures.append(f'the RTL stopped or stalled in the {run}: ' + '; '.join(details))
+    return failures
+
+
+def rtl_boot_failures(report: dict, cpu: str) -> list[str]:
+    """Require the RTL itself to reach the FreeDOS prompt on an RTL boot."""
+    if cpu != 'rtl':
+        return []
+
+    failures = []
+    if report.get('prompt_cycle') is None:
+        failures.append('the RTL boot did not report reaching the prompt')
+    if (report.get('end') or {}).get('reason') != 'prompt':
+        failures.append(f'the RTL boot ended before the prompt: {(report.get("end") or {}).get("reason")}')
+    failures += rtl_failures(report, 'RTL boot')
+    if isinstance(report.get('rtl'), dict):
+        value = (report['rtl'].get('counters') or {}).get('shadow_faults')
+        if value is None:
+            failures.append('the RTL boot report is missing the shadow_faults counter')
+        elif value != 0:
+            failures.append(f'RTL shadow_faults={value}, expected 0')
+    return failures
 
 
 def vga_reference_objects(args) -> list[Path]:
@@ -359,13 +496,15 @@ def run_boot(args, linked: list[Path]) -> dict:
     images = firmware.images(args.download, args.jobs)
     disk = freedos.build(args.download, args.jobs) if args.rebuild_image else freedos.image(args.download, args.jobs)
     testbench = machine_testbench(args, linked)
-    trace = OUTPUT / 'boot/vga.trace'
-    print('Booting FreeDOS in simulation (this takes minutes)', flush=True)
-    report = run_machine(testbench, 'boot', ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
-                                             '--type', args.type, '--expect', args.expect, '--trace', str(trace)],
-                         images)
+    suite = 'boot' if args.cpu == 'oracle' else 'boot-rtl'
+    trace = OUTPUT / suite / 'vga.trace'
+    print(f'Booting FreeDOS in simulation on the {args.cpu} CPU (this takes minutes)', flush=True)
+    report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                            '--type', args.type, '--expect', args.expect, '--trace', str(trace),
+                                            '--cpu', args.cpu], images)
+    report['failures'] += rtl_boot_failures(report, args.cpu)
     print('Replaying the boot\'s VGA trace against Bochs\'s VGA', flush=True)
-    report['replay'] = run_replay(args, 'boot', trace)
+    report['replay'] = run_replay(args, suite, trace)
     report['failures'] += report['replay']['failures']
     return report
 
@@ -386,6 +525,53 @@ def vga_test_disk(args) -> Path:
     return disk
 
 
+# What the RTL must stop on in rtl_stop_test.asm: stem -> (stops, sites).
+RTL_STOPS = {'0F22': (1, 1), '0F01.4': (2, 2), '0F01.6': (1, 1)}
+
+
+def run_rtl_stops(args, linked: list[Path]) -> dict:
+    """The stop path of --cpu rtl, on a boot sector of instructions the RTL has not built."""
+    nasm = test386.nasm(args.download, args.jobs)
+    directory = OUTPUT / 'rtl-stops'
+    directory.mkdir(parents=True, exist_ok=True)
+    binary = directory / 'rtl_stop_test.bin'
+    result = subprocess.run([str(nasm), '-f', 'bin', '-o', str(binary), str(CORE / 'sim/rtl_stop_test.asm')],
+                            capture_output=True, text=True)
+    if result.returncode:
+        raise SimError('nasm failed on rtl_stop_test.asm\n' + result.stderr)
+    disk = directory / 'rtl_stop_test.img'
+    disk.write_bytes(binary.read_bytes().ljust(1 << 20, b'\0'))
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    runs = {}
+    for cpu in ('oracle', 'rtl'):
+        print(f'Booting the stop test disk on the {cpu} CPU', flush=True)
+        runs[cpu] = run_machine(testbench, f'rtl-stops/{cpu}', ['--disk', str(disk), '--limit-seconds',
+                                                                str(args.limit_seconds), '--until-debug', 'DONE',
+                                                                '--cpu', cpu], images)
+    lines = {cpu: [entry['text'] for entry in run['debug'] if entry['port'] == '0e9'] for cpu, run in runs.items()}
+    failures = [f'{cpu}: {failure}' for cpu, run in runs.items() for failure in run['failures']]
+    if not lines['oracle'] or lines['oracle'][-1] != 'DONE':
+        failures.append(f'the oracle run did not finish: {lines["oracle"]}')
+    if 'C fff0' not in lines['oracle'] or 'C fff0' not in lines['rtl']:
+        failures.append(
+            f'SMSW after the RTL stop should report 386 CR0 fff0: oracle {lines["oracle"]}, RTL {lines["rtl"]}')
+    if lines['rtl'] != lines['oracle']:
+        failures.append(f'the RTL run wrote {lines["rtl"]}, the oracle run {lines["oracle"]}')
+    rtl = runs['rtl'].get('rtl') or {'gaps': [], 'pmode': []}
+    gaps = {gap['stem']: gap for gap in rtl['gaps']}
+    for stem, (stops, sites) in RTL_STOPS.items():
+        gap = gaps.get(stem)
+        if not gap or (gap['stops'], gap['sites'], gap['executed']) != (stops, sites, stops):
+            failures.append(f'stem {stem}: expected {stops} stops at {sites} sites, each run on the oracle: {gap}')
+    if set(gaps) != set(RTL_STOPS):
+        failures.append(f'the RTL stopped on {sorted(gaps)}, expected {sorted(RTL_STOPS)}')
+    if len(rtl['pmode']) != 1 or rtl['pmode'][0]['steps'] != 3:
+        failures.append(f'expected one protected-mode stretch of 3 steps: {rtl["pmode"]}')
+    return {'lines': lines, 'runs': runs, 'failures': failures,
+            'checks': [f'{cpu}: {" | ".join(lines[cpu])}' for cpu in runs] + [f'RTL {gap}' for gap in rtl['gaps']]}
+
+
 def run_bench(args, name: str, top: str, rtl: tuple[Path, ...], testbench: Path) -> dict:
     """A PASS/FAIL bench without the oracle."""
     binary = verilate(args.verilator, name, top, rtl, testbench, [], args.jobs)
@@ -404,6 +590,52 @@ def run_benches(args) -> dict:
                'plane': run_bench(args, 'plane', 'plane_top', PLANE_RTL, CORE / 'sim/plane_tb.cpp')}
     return {'checks': [line for bench in benches.values() for line in bench['checks']],
             'failures': [line for bench in benches.values() for line in bench['failures']], 'benches': benches}
+
+
+def run_diag(args) -> dict:
+    """The M4 diagnostic programs on pc386_diag through the command ring.
+    sound, opl2 and resets run shortened; vga-trace runs when --trace names a VGA trace."""
+    from scripts import pc386_diag
+    parameters = pc386_diag.rates(DIAG_CLOCK_HZ)
+    # The OPL2 import declares a timescale and the KF imports do not.
+    testbench = verilate(args.verilator, 'diag', 'pc386_diag', DIAG_RTL, CORE / 'sim/diag_tb.cpp', [], args.jobs,
+                         parameters, flags=('-Wno-TIMESCALEMOD',))
+    report = {'clock_hz': DIAG_CLOCK_HZ, 'programs': {}, 'checks': [], 'failures': []}
+    programs = list(DIAG_PROGRAMS) + (['vga-trace'] if args.trace else [])
+    for name in programs:
+        if name == 'sound':
+            program = pc386_diag.sound(DIAG_CLOCK_HZ, speaker_seconds=0.01, auto_seconds=0.004, block=64)
+        elif name == 'opl2':
+            # The setup and the first note, then a short tail.
+            program = pc386_diag.opl2(DIAG_CLOCK_HZ, CORE / 'sim/fixtures/sound-opl2.log', lines=140,
+                                      longest_gap=0.001, sample_every=0.001, tail_seconds=0.02, rate_seconds=0.02)
+        elif name == 'resets':
+            program = pc386_diag.resets(DIAG_CLOCK_HZ, count=16)
+        else:
+            program = pc386_diag.build_program(name, DIAG_CLOCK_HZ, trace=Path(args.trace) if args.trace else None)
+        directory = OUTPUT / 'diag' / name
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / 'program.p386').write_bytes(program.encode())
+        results = directory / 'results.r386'
+        limit = args.limit_seconds_given or (60 if name == 'vga-trace' else 4)
+        run = subprocess.run([str(testbench), '--program', str(directory / 'program.p386'), '--results', str(results),
+                              '--limit-seconds', str(limit)], cwd=directory, capture_output=True, text=True)
+        (directory / 'diag.log').write_text(run.stdout + run.stderr)
+        if run.returncode:
+            report['failures'].append(f'{name}: diag_tb exited {run.returncode}: {run.stderr.strip()[-400:]}')
+            continue
+        decoded = pc386_diag.decode_results(results.read_bytes())
+        checked = pc386_diag.check(program, decoded)
+        checked['failures'] += pc386_diag.program_checks(name, program, decoded)
+        frames = directory / 'frames'
+        frames.mkdir(exist_ok=True)
+        for n, frame in enumerate(decoded.frames):
+            pc386_diag.write_frame_ppm(frame, frames / f'{n:02d}.ppm')
+        report['programs'][name] = checked
+        report['checks'].append(f'{name}: {checked["commands"]} commands, {checked["seconds"]} simulated s, '
+                                f'{len(decoded.frames)} frames')
+        report['failures'] += [f'{name}: {failure}' for failure in checked['failures']]
+    return report
 
 
 def run_vga(args, linked: list[Path]) -> dict:
@@ -445,8 +677,9 @@ def run_vga(args, linked: list[Path]) -> dict:
 
 def run_devices(args) -> dict:
     # A fast RTC (one guest second is 2^19 clocks) keeps the update test short.
+    # The RAMs poison a read of the word being written, as M10K leaves it.
     testbench = verilate(args.verilator, 'devices', 'pc386_at_core', AT_RTL, CORE / 'sim/devices_tb.cpp', [],
-                         args.jobs, {'RTC_N': 1, 'RTC_D': 16})
+                         args.jobs, {'RTC_N': 1, 'RTC_D': 16}, defines=('PC386_RAM_COLLISION',))
     result = subprocess.run([str(testbench)], cwd=OUTPUT / 'devices', capture_output=True, text=True)
     (OUTPUT / 'devices/devices.log').write_text(result.stdout + result.stderr)
     checks = [line for line in result.stdout.splitlines() if line.startswith(('PASS', 'FAIL'))]
@@ -621,9 +854,26 @@ def game_disk(args, game: dict, work: Path) -> tuple[Path, dict]:
     return disk, record
 
 
+def game_failures(report: dict, cpu: str) -> list[str]:
+    """The machine's failures but the time limit's exit, a game that never
+    played the OPL2, and on the RTL CPU, what rtl_failures requires."""
+    failures = list(report['failures'])
+    # The game runs until the time limit, which machine_tb reports as exit 1.
+    if (report['end'] or {}).get('reason') == 'limit':
+        failures = [failure for failure in failures if not failure.startswith('machine_tb exited 1')]
+    opl2 = report['opl2'] or {}
+    if not opl2.get('writes') or not opl2.get('nonzero'):
+        failures.append(f'the game did not play the OPL2: {opl2}')
+    if cpu == 'rtl':
+        failures += rtl_failures(report, 'game')
+    return failures
+
+
 def run_game(args, linked: list[Path]) -> dict:
     game = GAMES[args.game]
-    work = Path(args.games_work) / args.game
+    rtl = '-rtl' if args.cpu == 'rtl' else ''
+    suite = f'game-{args.game}{rtl}'
+    work = Path(args.games_work) / f'{args.game}{rtl}'
     work.mkdir(parents=True, exist_ok=True)
     disk, record = game_disk(args, game, work)
     args.limit_seconds = args.limit_seconds_given or game['limit']
@@ -632,15 +882,16 @@ def run_game(args, linked: list[Path]) -> dict:
     testbench = machine_testbench(args, linked)
     wav, opl2_log = work / f'{args.game}.wav', work / f'{args.game}-opl2.log'
     keys = [arg for seconds, text in game['keys'] for arg in ('--keys', f'{seconds}:{text}')]
-    report = run_machine(testbench, f'game-{args.game}', ['--disk', str(disk), '--limit-seconds',
-                                  str(args.limit_seconds), '--type', args.type, '--expect', args.expect,
-                                  '--wav', str(wav), '--opl2-log', str(opl2_log), *keys], images)
+    # The last captured frame, to see where the game got to.
+    frames = OUTPUT / suite / 'frames'
+    frames.mkdir(parents=True, exist_ok=True)
+    report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                            '--type', args.type, '--expect', args.expect, '--wav', str(wav),
+                                            '--opl2-log', str(opl2_log), '--frames', str(frames), *keys,
+                                            '--cpu', args.cpu], images)
     report['game'] = {'name': args.game, **record}
     report['work'] = str(work)
-    report['failures'] = [failure for failure in report['failures'] if not failure.startswith('machine_tb exited 1')]
-    opl2 = report['opl2'] or {}
-    if not opl2.get('writes') or not opl2.get('nonzero'):
-        report['failures'].append(f'the game did not play the OPL2: {opl2}')
+    report['failures'] = game_failures(report, args.cpu)
     if wav.exists():
         report['audio'] = tone(read_wav(wav))
     return report
@@ -648,8 +899,9 @@ def run_game(args, linked: list[Path]) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--suite', choices=('devices', 'audio', 'opl2', 'benches', 'boot', 'sound', 'game', 'vga',
-                                            'all'), default='all', help='simulation suite to run')
+    parser.add_argument('--suite', choices=('devices', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops', 'sound', 'game',
+                                            'vga', 'diag', 'all'), default='all', help='simulation suite to run')
+    parser.add_argument('--trace', default=None, help='diag: also replay this VGA trace (from the vga suite)')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
     parser.add_argument('--rebuild-image', action='store_true', help='rebuild the FreeDOS fixture')
     parser.add_argument('--limit-seconds', type=float, default=None, help='simulated seconds before giving up')
@@ -660,9 +912,14 @@ def main() -> int:
                         help='sound: copy the captured OPL2 port log to sim/fixtures/sound-opl2.log')
     parser.add_argument('--type', default=None, help="keys typed at the prompt; '|' is Enter")
     parser.add_argument('--expect', default=None, help='text the screen must show at the end')
+    parser.add_argument('--cpu', choices=('oracle', 'rtl'), default='oracle',
+                        help='boot and game: the CPU, the Bochs oracle or fes_i386_cpu (which the oracle backs on '
+                             'its stops)')
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game'):
+        parser.error('--cpu rtl runs the boot and game suites only')
     limit_seconds, typed, expect = args.limit_seconds, args.type, args.expect
     args.limit_seconds_given = limit_seconds
     if shutil.which(args.verilator) is None:
@@ -670,9 +927,10 @@ def main() -> int:
         return 2
     failed = False
     try:
-        suites = ('devices', 'audio', 'opl2', 'benches', 'boot', 'vga', 'sound') if args.suite == 'all' else (args.suite,)
+        suites = ('devices', 'audio', 'opl2', 'benches', 'diag', 'boot', 'vga', 'sound') if args.suite == 'all' else (args.suite,)
         for suite in suites:
-            args.limit_seconds = limit_seconds or (14 if suite == 'sound' else 8 if suite == 'boot' else 12)
+            args.limit_seconds = limit_seconds or (14 if suite == 'sound' else 8 if suite == 'boot' else
+                                                   2 if suite == 'rtl-stops' else 12)
             args.type = typed or ('sound|' if suite == 'sound' else 'dir|')
             args.expect = expect or ('SOUND DONE' if suite == 'sound' else 'bytes free')
             if suite == 'devices':
@@ -683,14 +941,18 @@ def main() -> int:
                 report = run_opl2(args)
             elif suite == 'benches':
                 report = run_benches(args)
+            elif suite == 'diag':
+                report = run_diag(args)
             elif suite == 'sound':
                 report = run_sound(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'game':
                 report = run_game(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'rtl-stops':
+                report = run_rtl_stops(args, oracle.link_inputs(args.jobs, args.download))
             else:
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))
-            name = f'game-{args.game}' if suite == 'game' else suite
+            name = (f'game-{args.game}' if suite == 'game' else suite) + ('-rtl' if args.cpu == 'rtl' else '')
             (OUTPUT / name).mkdir(parents=True, exist_ok=True)
             (OUTPUT / name / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
             if suite in ('boot', 'vga', 'sound', 'game'):
@@ -704,6 +966,11 @@ def main() -> int:
                 for name, section in report.get('sections', {}).items():
                     print('SECTION', name, section)
                 print('SB', report['sb'], 'AUDIO', report['audio_samples'])
+                if 'rtl' in report:
+                    print('RTL', report['rtl']['counters'])
+                    for gap in report['rtl']['gaps']:
+                        print('GAP', gap['kind'], gap['stem'], gap['name'] or '', 'built' if gap['built'] else 'unbuilt',
+                              f'stops={gap["stops"]} sites={gap["sites"]} first={gap["first_site"]}')
                 print('END', report['end'])
             else:
                 print('\n'.join(report['checks']))

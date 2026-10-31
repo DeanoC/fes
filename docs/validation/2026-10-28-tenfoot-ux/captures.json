@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "base": "b5ec777d624a1c9dfa589ffcb4ae70e94ae21a58",
+  "executable_source": "9ab7e975cb249c97c4b95c52739800053b96ea7d",
+  "evidence": "Production Go/Lua software-renderer fixtures from a verified git archive of executable_source. 134 gallery and47 native captures; no physical HDMI/controller/scanout acceptance.",
+  "references": [
+    {
+      "path": "docs/ux/references/tenfoot-polish/contact-native-1024x600.jpg",
+      "bytes": 348771,
+      "sha256": "79cb66c025dc4417722c2b97a3e0941bd069fda489bc83583bd5b9b2b21e7ed6"
+    },
+    {
+      "path": "docs/ux/references/tenfoot-polish/contact-rooms-1024x600.jpg",
+      "bytes": 340675,
+      "sha256": "fc53352cd9874a927a24a7512ad14b2947b29269c868bd2b03adcefb0d87c09c"
+    },
+    {
+      "path": "docs/ux/references/tenfoot-polish/contact-rooms-1280x720.jpg",
+      "bytes": 303880,
+      "sha256": "072d923518e4479ab255cc5202c2a079768980b9d54f2a569d4836c0144b8f17"
+    },
+    {
+      "path": "docs/ux/references/tenfoot-polish/contact-variants-1024x600.jpg",
+      "bytes": 293027,
+      "sha256": "c6858a5b5db4f4bd056e8b18b9bc356873f6f8b27fbbc4f0521a28c95e8b9f15"
+    },
+    {
+      "path": "docs/ux/references/tenfoot-polish/details-notes-1024x600.png",
+      "bytes": 45224,
+      "sha256": "1f9779a3d066bd3320ea48cc357d9223389a774d730b5a97149f5d33e987a4a5"
+    },
+    {
+      "path": "docs/ux/references/tenfoot-polish/home-1280x720.png",
+      "bytes": 53165,
+      "sha256": "3c4992a7d61e6104f0e35daf367b4547cb9a9047a6318f51eec3aaa9312e9410"
+    },
+    {
+      "path": "docs/ux/references/tenfoot-polish/library-1280x720.png",
+      "bytes": 34166,
+      "sha256": "b738543ce21b18598d8262f608f2c8c138a202e6f066f88ee0a5dd38cdaa9399"
+    },
+    {
+      "path": "docs/ux/references/tenfoot-polish/settings-1024x600.png",
+      "bytes": 54548,
+      "sha256": "c20147eb815ea7ebee05119f4be4cdb0b516a7e51199c8adeebfbb942118f345"
+    },
+    {
+      "path": "docs/ux/references/tenfoot-polish/system-1024x600.png",
+      "bytes": 59497,
+      "sha256": "262fe97d899380bb149178d0ae1a6d2cdeb135956e52d833c7efef96b4ca2b1a"
+    },
+    {
+      "path": "docs/ux/references/tenfoot-polish/workshop-1280x720.png",
+      "bytes": 257340,
+      "sha256": "97a5fa0bd7883bc454a68fe9b6a9e91f63733862731cc95266fad2eec977e5a9"
+    },
+    {
+      "path": "docs/ux/references/tenfoot-polish/world-1280x720.png",
+      "bytes": 35535,
+      "sha256": "db07ba2d244c3a32940eb3c2e52269becea1a3ca667922bdcc015f8c22f518e1"
+    }
+  ]
+}

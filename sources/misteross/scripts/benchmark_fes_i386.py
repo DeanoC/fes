@@ -28,7 +28,8 @@ named nets along it.
 
 Tools come from the selected toolchain lock's authenticated slot (default: the
 i386 lock, cores/fes-common/rtl/i386/toolchain.lock, whose Yosys reads the RTL
-as written). Synthesis permits M10K and DSP cells and forbids
+as written), built for the GPU router --gpu-router names: HIP (Powerboat's) or
+CUDA (a CUDA host's; its route results match HIP's). Synthesis permits M10K and DSP cells and forbids
 LUT RAM, as the design's rules do. Every route uses the GPU router through
 gpu-run, with CPU fallback rejected. Timing is allowed to fail so a miss is
 measured; nothing here is a signoff.
@@ -443,6 +444,8 @@ def main() -> int:
                         help=f'toolchain lock relative to sources/misteross (default: {LOCK})')
     parser.add_argument('--cache-root', type=Path, help='shared misteross-toolchains cache root')
     parser.add_argument('--gpu-device', type=int, default=0)
+    parser.add_argument('--gpu-router', choices=('HIP', 'CUDA'), default='HIP',
+                        help="the toolchain slot's GPU router (default HIP)")
     parser.add_argument('--output', type=Path, help='diagnostic output directory')
     parser.add_argument('--version', default='diagnostic',
                         help='run label stored in every per-route JSONL row (default: diagnostic)')
@@ -459,7 +462,13 @@ def main() -> int:
         parser.error('run outside gpu-run; each route takes its own lease')
 
     try:
-        tools = board._authenticate_tools(ROOT, lock_path=ROOT / args.lock, cache_root=args.cache_root)
+        if args.gpu_router == 'CUDA':
+            tools = board._authenticate_tools(
+                ROOT, lock_path=ROOT / args.lock, cache_root=args.cache_root, gpu_router='CUDA',
+                hip_architectures='unused',
+                expected_configuration={'nextpnr': board.cuda_toolchain_configuration()})
+        else:
+            tools = board._authenticate_tools(ROOT, lock_path=ROOT / args.lock, cache_root=args.cache_root)
         yosys, nextpnr = tools['yosys'], tools['nextpnr-mistral']
         backend = expected_backend(nextpnr.identity)
         selected = {path.as_posix(): (ROOT / path).read_bytes()
@@ -485,7 +494,11 @@ def main() -> int:
         runs_path = output / 'runs.jsonl'
         write_json(summary_path, summary)
 
-        route_env = dict(os.environ, NEXTPNR_REQUIRE_GPU='1')
+        # CUDA numbers devices by PCI bus, as gpu-run's leases do.
+        extra_env = {'NEXTPNR_REQUIRE_GPU': '1'}
+        if args.gpu_router == 'CUDA':
+            extra_env['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+        route_env = dict(os.environ, **extra_env)
         for spike in spikes:
             top, _ = SPIKES[spike]
             work = output / spike
@@ -530,7 +543,7 @@ def main() -> int:
                 elapsed = round(time.monotonic() - started, 1)
                 log_text = (destination / 'route.log').read_text(errors='replace')
                 run = {'spike': spike, 'seed': seed, 'argv': command, 'exit_code': result.returncode,
-                       'elapsed_seconds': elapsed, 'env': {'NEXTPNR_REQUIRE_GPU': '1'},
+                       'elapsed_seconds': elapsed, 'env': extra_env,
                        **board.gpu_route_evidence(log_text, args.gpu_device)}
                 if result.returncode == 0:
                     run['gpu_backend'] = board._require_gpu_backend(log_text, backend)

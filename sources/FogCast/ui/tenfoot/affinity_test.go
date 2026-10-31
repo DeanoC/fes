@@ -98,7 +98,7 @@ func TestAffinityLastUsedSwitchesHints(t *testing.T) {
 	if snap.Affinity != InputKeyboard || snap.AffinityID != 1 {
 		t.Fatalf("keyboard affinity = %s/%d", snap.Affinity, snap.AffinityID)
 	}
-	if !strings.Contains(snap.HeaderHint(), "Enter launch") || strings.Contains(snap.HeaderHint(), "LB/RB") {
+	if !strings.Contains(snap.HeaderHint(), "Enter play") || !strings.Contains(snap.HeaderHint(), "i details") || strings.Contains(snap.HeaderHint(), "LB/RB") {
 		t.Fatalf("keyboard hint = %q", snap.HeaderHint())
 	}
 	if snap.AffinityBadge() != "KB" {
@@ -115,7 +115,7 @@ func TestAffinityLastUsedSwitchesHints(t *testing.T) {
 	if snap.Grid.Focus != 2 {
 		t.Fatalf("mouse focus = %d", snap.Grid.Focus)
 	}
-	if snap.HeaderHint() != "move focus  click launch" {
+	if snap.HeaderHint() != "move focus  click play  click details" {
 		t.Fatalf("mouse hint = %q", snap.HeaderHint())
 	}
 	if snap.AffinityBadge() != "MOUSE" {
@@ -156,7 +156,7 @@ func TestAffinityHotplugClaimsWithoutMovingFocus(t *testing.T) {
 	if snap.Grid.Focus != focus {
 		t.Fatalf("plug moved focus %d -> %d", focus, snap.Grid.Focus)
 	}
-	if snap.HeaderHint() != "move focus  click launch" {
+	if snap.HeaderHint() != "move focus  click play  click details" {
 		t.Fatalf("plug hint = %q", snap.HeaderHint())
 	}
 
@@ -168,7 +168,7 @@ func TestAffinityHotplugClaimsWithoutMovingFocus(t *testing.T) {
 	if snap.Grid.Focus != focus {
 		t.Fatalf("unplug moved focus %d -> %d", focus, snap.Grid.Focus)
 	}
-	if !strings.Contains(snap.HeaderHint(), "Enter launch") {
+	if !strings.Contains(snap.HeaderHint(), "Enter play") || !strings.Contains(snap.HeaderHint(), "i details") {
 		t.Fatalf("restored hint = %q", snap.HeaderHint())
 	}
 }

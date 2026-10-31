@@ -1,0 +1,1473 @@
+{
+  "scope": "Verification of committed experimental CPU100/board50 HDMI clock phase and default-profile unused-output repair. Exact complete mapped-input equality retains the frozen three-seed native/conditional timing evidence. No production lock/recipe promotion or whole-board physical acceptance.",
+  "base_fes_commit": "c05fba011141bdbef01977c942d585d17472d905",
+  "validated_code_commit": "f24a255ad40c8dcb23ebc9889808378ae3c0c71f",
+  "default_repair_base": "f925f35eebc37277343102a0a63e9ad6ef6919f6",
+  "source_sha256": {
+    "sources/misteross/cores/fes-pcxt/rtl/fes_pcxt_top.sv": "7200c137813a32717c1a8a6a77380048678a0a2088753d9d354a7d3882e34dcb",
+    "sources/misteross/tests/test_pcxt_hdmi_phase.py": "86ea29d14afa585ea853f24f3b8206ceccfaa6c782d757d96036447219e439fb",
+    "sources/misteross/tests/test_pcxt_hdmi_profile.py": "ac0a9eb04583f8dd5f3f0e9ae4674395385e79aca41b4cea58d62aaf73fe5467",
+    "sources/misteross/scripts/audit_fes_pcxt_cdc.py": "56b49dd313a5c532d9952d8580fb2cbbf34a06d20318ba3a662765bf9e3e1c18",
+    "sources/misteross/tests/test_pcxt_cdc_audit.py": "173470598895b56c3addfbb4574b9b53b9e2f795ec0dd9727c50dc86107550d3"
+  },
+  "make_check": "PASS:21 generated consumers,37 fixture copies",
+  "affected_run": {
+    "status": "passed",
+    "base": "f925f35eebc37277343102a0a63e9ad6ef6919f6",
+    "head": "f24a255ad40c8dcb23ebc9889808378ae3c0c71f",
+    "results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "test_*.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "label": "pcxt RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      }
+    ],
+    "impact": {
+      "lanes": {
+        "parent": true,
+        "host": false,
+        "runtime": false,
+        "contracts": false,
+        "fpga": true
+      },
+      "skipped": [
+        "host",
+        "runtime",
+        "contracts"
+      ],
+      "cores": [
+        "pcxt"
+      ],
+      "test_modes": {
+        "video": false,
+        "media": false,
+        "full_race": false
+      },
+      "paths": [
+        "sources/misteross/cores/fes-pcxt/README.md",
+        "sources/misteross/cores/fes-pcxt/rtl/fes_pcxt_top.sv",
+        "sources/misteross/docs/validation/2026-10-22-pcxt-pad-pipeline/whole-board-pipeline.md",
+        "sources/misteross/tests/test_pcxt_hdmi_phase.py",
+        "sources/misteross/tests/test_pcxt_hdmi_profile.py"
+      ],
+      "reasons": [
+        "sources/misteross/cores/fes-pcxt/rtl/fes_pcxt_top.sv: core family and dependent consumers",
+        "sources/misteross/tests/test_pcxt_hdmi_phase.py: FPGA producer/package software tests; RTL unchanged",
+        "sources/misteross/tests/test_pcxt_hdmi_profile.py: FPGA producer/package software tests; RTL unchanged"
+      ],
+      "always": [
+        "planner tests",
+        "diff whitespace checks"
+      ],
+      "not_run": [
+        "FPGA synthesis/place-and-route",
+        "cold image builds",
+        "hardware acceptance"
+      ]
+    },
+    "limits": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance",
+      "platform/image packaging suite",
+      "required browser integration suite",
+      "committed-source/release validation (make check remains separate)"
+    ],
+    "unittest_summaries": [
+      [
+        "19",
+        "0.242s"
+      ],
+      [
+        "26",
+        "1.129s"
+      ],
+      [
+        "1",
+        "0.000s"
+      ],
+      [
+        "806",
+        "257.191s"
+      ],
+      [
+        "1338",
+        "457.993s"
+      ]
+    ],
+    "optional_component_skips": 64,
+    "note": "All21 PC/XT simulation suites selected by the standard runner pass. Previous f925f35eeb full run from c05fba0111 also passes843 parent/1334 component cases and all21 suites."
+  },
+  "explicit_pinned_focused_tests": {
+    "count": 30,
+    "status": "PASS",
+    "scope": "22 reset/CDC audit tests,4 pixel-order proof tests and4 actual native profile-pack tests. Tool-dependent default suite skips are covered explicitly."
+  },
+  "logs_sha256": {
+    "board50-hdmi-defaultfix-test-changed.log": "14fe7470c3c68672015506ccdd405a7ddbf6bf19022a2963dcfefada2722e054",
+    "board50-hdmi-defaultfix-check.log": "7e64928b0bfda0f6d4e520886eb05d607384f0d95ecdc94235608f71a0fc183f",
+    "board50-hdmi-defaultfix-focused.log": "f5c89b5d86bc6f0b11e23b7c1ff1bffc538ae96bcc0e0c4f0f6b6ce6efdfdbec"
+  },
+  "ordinary_authenticated_synthesis": {
+    "scope": "Fresh authenticated synthesis-only producer of committed CPU100/board50 early-CS and phased-HDMI profile versus frozen three-seed native cohort. Entire JSON comparison normalizes only source/output path prefixes; no fields, source lines, nets, cells or parameters are dropped. Synthesis identity only, not a new native route or hardware acceptance.",
+    "equal_entire_json_after_only_path_prefix_normalization": true,
+    "selected_commit": "f24a255ad40c8dcb23ebc9889808378ae3c0c71f",
+    "selected_producer_receipt_sha256": "19435a553ceab72843390efe668b1e97fa37c361e6926bc564c3147808ca47d9",
+    "selected_synth_sha256": "acb94773f4bb7ff671cbf9b4c727cef7144b6e230a7da0472150eccc5905c57b",
+    "frozen_synth_sha256": "e6480449b21027bf0972bda87ab44f72f132dc4f956bbf6a1cb1a8af43d55331",
+    "frozen_receipt_sha256": "4e1d9d2fd3c85c4cd5bd277d9fbf55cfcf45df4d7000b400898da4bc384faeb7",
+    "selected_producer_output": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/sources/misteross/build/diagnostic/fes-pcxt/cga/direct/20261025T085508Z-5916c3b6",
+    "generated_roms_equal": true,
+    "hardware": false
+  },
+  "stable_source_proofs_and_reset_audits": {
+    "revision": "f24a255ad40c8dcb23ebc9889808378ae3c0c71f",
+    "source_sha256": {
+      "sources/misteross/cores/fes-pcxt/rtl/fes_pcxt_top.sv": "7200c137813a32717c1a8a6a77380048678a0a2088753d9d354a7d3882e34dcb",
+      "sources/misteross/tests/test_pcxt_hdmi_phase.py": "86ea29d14afa585ea853f24f3b8206ceccfaa6c782d757d96036447219e439fb",
+      "sources/misteross/scripts/audit_fes_pcxt_cdc.py": "56b49dd313a5c532d9952d8580fb2cbbf34a06d20318ba3a662765bf9e3e1c18"
+    },
+    "tool_sha256": {
+      "yosys": "132c532dc925b167a6af1157c93521809720def93467fab1e5ef900cbaa4957c",
+      "yosys-abc": "9810a14bc5b954adea149e3dac19d73b72849482be04af79996c588e1c256d2f"
+    },
+    "cases": [
+      {
+        "case": "default",
+        "status": "proved",
+        "result": "Bad output is identically zero.",
+        "artifacts_sha256": {
+          "proof.json": "bab3623eb710b830c058b7f83cfa00c0721cc0d281d443534b48f21b372ba879",
+          "proof.aig": "ede137d047533523dfed70548d72fe820a94e8c4da11d0849c6210e093482381",
+          "proof.sv": "7a278155684b7c4174e5a2387667aa1783c19da08e78b61d33bba4dc921d1d2b",
+          "yosys.log": "bc2c492c25fc352db7b411f9be8ff0bd82d01c0d535cb9493c04dbe4105a6d5b"
+        }
+      },
+      {
+        "case": "shifted",
+        "status": "proved",
+        "result": "======== ABC command line \"read_aiger proof.aig; pdr\"\nInvariant F[3] : 56 clauses with 0 flops (out of 58) (cex = 0, ave = 4.98)\nVerification of invariant with 56 clauses was successful.  Time =     0.00 sec\nProperty proved.  Time =     0.04 sec\n",
+        "artifacts_sha256": {
+          "abc.log": "4ddc4b2d9591492fa7385760cf932f64af14a658dc78103417fa1294529cd4f1",
+          "proof.json": "8d9503c39c3e8abfb92fc1e653a8acdfb718b85f5462d9d261484520e8d8a485",
+          "proof.aig": "72c108f519c4907b8de5858152de1b6eebf1f470fbe77848a5e00a3906cf0952",
+          "proof.sv": "103e48dc56053175cf4ee9d5caa7f6401cde973df204b4a6a1229ea542d01a9d",
+          "yosys.log": "8410bd123f2a544a57fc93560f8fb1ae8809fb7a7adffce3824f430d7c9f8790"
+        }
+      },
+      {
+        "case": "wrong-slot",
+        "status": "expected counterexample",
+        "result": "======== ABC command line \"read_aiger proof.aig; pdr\"\nOutput 0 of miter \"proof\" was asserted in frame 2.  Time =     0.01 sec\n",
+        "artifacts_sha256": {
+          "abc.log": "8f377e7dd980f00e1b91256cd88a085e3ed1f1499bf25994632060996f92c528",
+          "proof.json": "a40140d33570edec2273579c21e28b26f3ee6f4e1d1f78fc24515c3aa9bc27a7",
+          "proof.aig": "04427813b1fd02c48e6f28252bcc040994e9956959176527edc3591fba344db7",
+          "proof.sv": "a53ac8c3655d1d4291ea8efb585aabeee935805b3dc5b6c161aaaa6f3ca81953",
+          "yosys.log": "cb351ef4be25796e19e8f7347026925e13300f906f58beecb7727321299f6624"
+        }
+      },
+      {
+        "case": "corrupt-payload",
+        "status": "expected counterexample",
+        "result": "======== ABC command line \"read_aiger proof.aig; pdr\"\nOutput 0 of miter \"proof\" was asserted in frame 2.  Time =     0.01 sec\n",
+        "artifacts_sha256": {
+          "abc.log": "8f377e7dd980f00e1b91256cd88a085e3ed1f1499bf25994632060996f92c528",
+          "proof.json": "89b5c18a12b368d8196acd08c27a256fbd1747315dd87f4bbd5dbf8dfa8a3574",
+          "proof.aig": "407375cb209a02e50868ad703c3d7d490b40e995ac3fc28e553c6c2e35614dc9",
+          "proof.sv": "6c263034909eeed0fddc99cdc32a9994d6b99a45b1e4637c66ff32a570078b9b",
+          "yosys.log": "1cb5bc93a45ee17c681884de503ddc2da370f3af859d5095e6925fad2593ccef"
+        }
+      }
+    ],
+    "stable_CDC_audits_sha256": {
+      "1": "3ac8c0594562a3450133e3ef1e4033b68addecadec454e74021e7aff531055c7",
+      "2": "b7a879ed9b554a0cbcb4fd06f595ae8e124504ebed6bb9bb6b3071d20e59725a",
+      "3": "151ab0b57b38dba299a3b72b53897e8c54fbf995fda5f534eb663e28f60a94cd"
+    },
+    "scope": "Actual committed top-level pin/clock projection; digital event ordering after warmup. Stable-source reset audits retain physical obligations. No propagation, power-up, native-fast-corner or hardware acceptance.",
+    "hardware": false
+  },
+  "both_profile_native_pack_checks": [
+    {
+      "case": "default",
+      "expected_returncode": 0,
+      "scope": "Actual selected video PLL/clock block, two counter FFs and real HDMI pad locations; pack-only, no full-board route or physical qualification.",
+      "artifacts_sha256": {
+        "pins.qsf": "10efbec4df08f6bcc4650557f5016f3054210fc04c16a39f5e8362daca7892dd",
+        "fixture.sv": "e7b60ea03d039bd700f26fa94f14583023d106e14bc08aa92b575d2ed2d25bb2",
+        "nextpnr.log": "c181629b125373412526753668b13f1070f418fc1d28d9865fd442a3c6ba8f8c",
+        "synth.json": "c5a4f10c0b5deb4fb406b92f2c3c58ed7acc28c7503aa5a39e806c9e3baa70d1",
+        "packed.json": "154743c66a0cdfd2b1d988e618064466ae952dc8db8ecc3d7e0eace4d33575d2",
+        "yosys.log": "09450a048801e5e3859adec08fa65fd9133d687095d8f5dae27f3e6c4d89c254"
+      }
+    },
+    {
+      "case": "half-rate",
+      "expected_returncode": 0,
+      "scope": "Actual selected video PLL/clock block, two counter FFs and real HDMI pad locations; pack-only, no full-board route or physical qualification.",
+      "artifacts_sha256": {
+        "pins.qsf": "10efbec4df08f6bcc4650557f5016f3054210fc04c16a39f5e8362daca7892dd",
+        "fixture.sv": "ee322ceef8a30377ea4c59ba0b4121cdaed41d6ce6cb3a27e5ad1bceb97b58bc",
+        "nextpnr.log": "0c137bd78d0097641dca5616b4bdce7d8335564313f2b6fb4c649ef64d3e6e60",
+        "synth.json": "cffa1c766a59402a732fdefa5720f982d20e4dbbf8788bedb8bb9cf2201f4f7d",
+        "packed.json": "5c04a4795c0ad54d6f4bb9d2d760d8cbae5f62753bd0560d37e99b2c5dbc7451",
+        "yosys.log": "a931f6ee5070f52e467f7fb0bc3ef2881aeea2a5ae7774caa2849c54b46592ea"
+      }
+    },
+    {
+      "case": "bad-frequency",
+      "expected_returncode": 125,
+      "scope": "Actual selected video PLL/clock block, two counter FFs and real HDMI pad locations; pack-only, no full-board route or physical qualification.",
+      "artifacts_sha256": {
+        "pins.qsf": "10efbec4df08f6bcc4650557f5016f3054210fc04c16a39f5e8362daca7892dd",
+        "fixture.sv": "068d35f4d9c8de695935f33828f68ddcfd0deb50af6d25c4a781dfe049785ca5",
+        "nextpnr.log": "03ee42a3a0233755004b63eed04bc394b1bf6b98aab2224ef564a0be5a4ed865",
+        "synth.json": "76e263b3ad51b0e4fde7477b18a8b88631dbe9e57183641275255b0676165201",
+        "yosys.log": "ca238683c1be9abcc993bba6583c3c04ff9b66bd64404c60566e343b4ed2e629"
+      }
+    },
+    {
+      "case": "bad-phase",
+      "expected_returncode": 125,
+      "scope": "Actual selected video PLL/clock block, two counter FFs and real HDMI pad locations; pack-only, no full-board route or physical qualification.",
+      "artifacts_sha256": {
+        "pins.qsf": "10efbec4df08f6bcc4650557f5016f3054210fc04c16a39f5e8362daca7892dd",
+        "fixture.sv": "c49f3aaac2b0ea4700c37024d779c920bd11feef34d000af2b013037ea64059c",
+        "nextpnr.log": "13265f0abe37e00628b0a0461b30b5f129e46d58b04015c918ac8e7d96687fcf",
+        "synth.json": "9b0a4fb9d9cd94db1e3169fb2dd6f7d9c6fb4cb94f0fdb51957a643b59ca3e11",
+        "yosys.log": "57a5c10b8de14058c1bc31ab38b4c2ea6879a5bc5241c6bebf44aec254e5f57b"
+      }
+    }
+  ],
+  "full_experimental_clock_block_mapped_JSON_equal_before_after_default_fix": true,
+  "native_candidate_evidence_sha256": "94b1815f2f581c837fcd6a4189eb4becbc8143ef6b2fca9d25bcae4cfd943a52",
+  "native_reference_uncertainty": {
+    "scope": "Partial memory/pixel reference uncertainty screen. Memory raw PLL and SDRAM clock branch match existing four-counter reference; pixel self timing uses the fresh two-output PLL reference. Different native fabric and clock side branches remain; no native fast-corner or physical qualification.",
+    "rows": [
+      {
+        "seed": 1,
+        "screen_sha256": "934843f04d5ad38ebea6ec7c9138e19a8bc877bf01aebf10cb70539d7381e6b4",
+        "paired_rows": 17709,
+        "native_rows": 17718,
+        "unpaired_rows": 9,
+        "groups": [
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 8.70600025177002,
+            "adjusted_hold_min_ns": 1.11899995803833
+          },
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "rows": 26,
+            "adjusted_setup_wns_ns": 1.5219999980926513,
+            "adjusted_hold_min_ns": 5.801999988555909
+          },
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "rows": 71,
+            "adjusted_setup_wns_ns": 1.253000054359436,
+            "adjusted_hold_min_ns": 6.03099983215332
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "rows": 79,
+            "adjusted_setup_wns_ns": 2.304000062942505,
+            "adjusted_hold_min_ns": 6.020999851226807
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "rows": 3724,
+            "adjusted_setup_wns_ns": 1.6489999723434448,
+            "adjusted_hold_min_ns": 0.7730000019073486
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "rows": 85,
+            "adjusted_setup_wns_ns": 3.0740000343322755,
+            "adjusted_hold_min_ns": 2.63199990272522
+          },
+          {
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "rows": 16,
+            "adjusted_setup_wns_ns": 7.979999923706055,
+            "adjusted_hold_min_ns": 10.482000274658203
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "rows": 12,
+            "adjusted_setup_wns_ns": 2.7810000514984132,
+            "adjusted_hold_min_ns": 6.136999778747558
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 9.031999740600586,
+            "adjusted_hold_min_ns": 0.7060000228881835
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "rows": 11317,
+            "adjusted_setup_wns_ns": 8.974000358581543,
+            "adjusted_hold_min_ns": 0.7080000042915344
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[3]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 16.840000534057616,
+            "adjusted_hold_min_ns": 2.550000114440918
+          },
+          {
+            "launch": "posedge video_clocks[0]",
+            "capture": "posedge video_clocks[0]",
+            "rows": 2376,
+            "adjusted_setup_wns_ns": 2.026999998092651,
+            "adjusted_hold_min_ns": 0.7739999890327454
+          }
+        ],
+        "budgets": [
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.06,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.06,
+              "7_slow_1100mv_100c": 0.06,
+              "MIN_fast_1100mv_-40c": 0.06,
+              "MIN_fast_1100mv_100c": 0.06
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.06,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.06,
+              "7_slow_1100mv_100c": 0.06,
+              "MIN_fast_1100mv_-40c": 0.06,
+              "MIN_fast_1100mv_100c": 0.06
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[3]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge video_clocks[0]",
+            "capture": "posedge video_clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[3]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge video_clocks[0]",
+            "capture": "posedge video_clocks[0]",
+            "maximum_ns": 0.2,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.2,
+              "7_slow_1100mv_100c": 0.2,
+              "MIN_fast_1100mv_-40c": 0.2,
+              "MIN_fast_1100mv_100c": 0.2
+            }
+          }
+        ],
+        "minimum_adjusted_setup_ns": 1.253000054359436,
+        "minimum_adjusted_hold_ns": 0.7060000228881835,
+        "status": "Exit1: fails closed on9 unpaired rows; every paired row remains positive"
+      },
+      {
+        "seed": 2,
+        "screen_sha256": "1a294bbfa306c05c83716e0e5f5ccef4357d859170b0e8871afb6fd47c1e351e",
+        "paired_rows": 17709,
+        "native_rows": 17718,
+        "unpaired_rows": 9,
+        "groups": [
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 8.14700023651123,
+            "adjusted_hold_min_ns": 1.6729999780654907
+          },
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "rows": 26,
+            "adjusted_setup_wns_ns": 1.973999900817871,
+            "adjusted_hold_min_ns": 6.22499984741211
+          },
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "rows": 71,
+            "adjusted_setup_wns_ns": 2.0770000553131105,
+            "adjusted_hold_min_ns": 5.903000049591064
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "rows": 79,
+            "adjusted_setup_wns_ns": 2.9520000648498534,
+            "adjusted_hold_min_ns": 5.822999897003174
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "rows": 3724,
+            "adjusted_setup_wns_ns": 1.7359999847412109,
+            "adjusted_hold_min_ns": 0.7720000147819519
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "rows": 85,
+            "adjusted_setup_wns_ns": 3.370000038146973,
+            "adjusted_hold_min_ns": 2.562999897003174
+          },
+          {
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "rows": 16,
+            "adjusted_setup_wns_ns": 8.009000205993653,
+            "adjusted_hold_min_ns": 10.27200023651123
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "rows": 12,
+            "adjusted_setup_wns_ns": 3.0670000648498537,
+            "adjusted_hold_min_ns": 6.147000007629394
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 8.373000297546387,
+            "adjusted_hold_min_ns": 1.3690000104904174
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "rows": 11317,
+            "adjusted_setup_wns_ns": 9.50099983215332,
+            "adjusted_hold_min_ns": 0.8080000281333923
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[3]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 16.84799995422363,
+            "adjusted_hold_min_ns": 2.541999979019165
+          },
+          {
+            "launch": "posedge video_clocks[0]",
+            "capture": "posedge video_clocks[0]",
+            "rows": 2376,
+            "adjusted_setup_wns_ns": 2.1420000076293944,
+            "adjusted_hold_min_ns": 0.7730000019073486
+          }
+        ],
+        "budgets": [
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.06,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.06,
+              "7_slow_1100mv_100c": 0.06,
+              "MIN_fast_1100mv_-40c": 0.06,
+              "MIN_fast_1100mv_100c": 0.06
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.06,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.06,
+              "7_slow_1100mv_100c": 0.06,
+              "MIN_fast_1100mv_-40c": 0.06,
+              "MIN_fast_1100mv_100c": 0.06
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[3]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge video_clocks[0]",
+            "capture": "posedge video_clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[3]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge video_clocks[0]",
+            "capture": "posedge video_clocks[0]",
+            "maximum_ns": 0.2,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.2,
+              "7_slow_1100mv_100c": 0.2,
+              "MIN_fast_1100mv_-40c": 0.2,
+              "MIN_fast_1100mv_100c": 0.2
+            }
+          }
+        ],
+        "minimum_adjusted_setup_ns": 1.7359999847412109,
+        "minimum_adjusted_hold_ns": 0.7720000147819519,
+        "status": "Exit1: fails closed on9 unpaired rows; every paired row remains positive"
+      },
+      {
+        "seed": 3,
+        "screen_sha256": "34f3ffc85b31e256d74f846b12b39440e4d075308229d2a75167deb31e2d7c6f",
+        "paired_rows": 17709,
+        "native_rows": 17718,
+        "unpaired_rows": 9,
+        "groups": [
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 8.638999862670898,
+            "adjusted_hold_min_ns": 1.1759999990463257
+          },
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "rows": 26,
+            "adjusted_setup_wns_ns": 1.9910000991821288,
+            "adjusted_hold_min_ns": 6.0630001449584965
+          },
+          {
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "rows": 71,
+            "adjusted_setup_wns_ns": 1.559999976158142,
+            "adjusted_hold_min_ns": 6.000000171661377
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "rows": 79,
+            "adjusted_setup_wns_ns": 2.4950000476837157,
+            "adjusted_hold_min_ns": 5.919000091552735
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "rows": 3724,
+            "adjusted_setup_wns_ns": 1.9650000762939452,
+            "adjusted_hold_min_ns": 0.7870000004768372
+          },
+          {
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "rows": 85,
+            "adjusted_setup_wns_ns": 4.062999877929688,
+            "adjusted_hold_min_ns": 2.4239999580383302
+          },
+          {
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "rows": 16,
+            "adjusted_setup_wns_ns": 8.009000205993653,
+            "adjusted_hold_min_ns": 10.279999656677246
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "rows": 12,
+            "adjusted_setup_wns_ns": 3.2729999160766603,
+            "adjusted_hold_min_ns": 5.759999923706054
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 8.717000160217285,
+            "adjusted_hold_min_ns": 1.04899995803833
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "rows": 11317,
+            "adjusted_setup_wns_ns": 8.18499984741211,
+            "adjusted_hold_min_ns": 0.7829999923706055
+          },
+          {
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[3]",
+            "rows": 1,
+            "adjusted_setup_wns_ns": 16.67000045776367,
+            "adjusted_hold_min_ns": 2.719999952316284
+          },
+          {
+            "launch": "posedge video_clocks[0]",
+            "capture": "posedge video_clocks[0]",
+            "rows": 2376,
+            "adjusted_setup_wns_ns": 1.5710000276565552,
+            "adjusted_hold_min_ns": 0.8349999785423279
+          }
+        ],
+        "budgets": [
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.06,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.06,
+              "7_slow_1100mv_100c": 0.06,
+              "MIN_fast_1100mv_-40c": 0.06,
+              "MIN_fast_1100mv_100c": 0.06
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.06,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.06,
+              "7_slow_1100mv_100c": 0.06,
+              "MIN_fast_1100mv_-40c": 0.06,
+              "MIN_fast_1100mv_100c": 0.06
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.07,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.07,
+              "7_slow_1100mv_100c": 0.07,
+              "MIN_fast_1100mv_-40c": 0.07,
+              "MIN_fast_1100mv_100c": 0.07
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[3]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "hold",
+            "launch": "posedge video_clocks[0]",
+            "capture": "posedge video_clocks[0]",
+            "maximum_ns": 0.0,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.0,
+              "7_slow_1100mv_100c": 0.0,
+              "MIN_fast_1100mv_-40c": 0.0,
+              "MIN_fast_1100mv_100c": 0.0
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "negedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.08,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.08,
+              "7_slow_1100mv_100c": 0.08,
+              "MIN_fast_1100mv_-40c": 0.08,
+              "MIN_fast_1100mv_100c": 0.08
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[0]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[1]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "negedge clocks[0]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[0]",
+            "maximum_ns": 0.09,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.09,
+              "7_slow_1100mv_100c": 0.09,
+              "MIN_fast_1100mv_-40c": 0.09,
+              "MIN_fast_1100mv_100c": 0.09
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[2]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge clocks[2]",
+            "capture": "posedge clocks[3]",
+            "maximum_ns": 0.1,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.1,
+              "7_slow_1100mv_100c": 0.1,
+              "MIN_fast_1100mv_-40c": 0.1,
+              "MIN_fast_1100mv_100c": 0.1
+            }
+          },
+          {
+            "kind": "setup",
+            "launch": "posedge video_clocks[0]",
+            "capture": "posedge video_clocks[0]",
+            "maximum_ns": 0.2,
+            "corners_ns": {
+              "7_slow_1100mv_-40c": 0.2,
+              "7_slow_1100mv_100c": 0.2,
+              "MIN_fast_1100mv_-40c": 0.2,
+              "MIN_fast_1100mv_100c": 0.2
+            }
+          }
+        ],
+        "minimum_adjusted_setup_ns": 1.559999976158142,
+        "minimum_adjusted_hold_ns": 0.7829999923706055,
+        "status": "Exit1: fails closed on9 unpaired rows; every paired row remains positive"
+      }
+    ],
+    "source_fes_commit": "f925f35eebc37277343102a0a63e9ad6ef6919f6",
+    "hardware": false,
+    "physical_qualified": false
+  },
+  "fresh_pixel_uncertainty_reference": {
+    "input_binding_sha256": "74228f7e3323d611c44644a966ebb013349424711ccca8c816f49ce10bb99380",
+    "receipt_sha256": "3babdd891c5bd3f0e1be39ba432abba5826ecd1b5947a458dab193e78b41168a",
+    "rbf_sha256": "b1fc7842dbe2c900f77e48e1a7868ac37ffecc725adf03ba2ea4c87c750a6ca8",
+    "raw_PLL_capture_sha256": "fd66b60bee65c259e49d717ff0f196084ddcdaea9ffbb387313a335feaa40306",
+    "scope": "Additional conditional two-output video PLL reference with an eight-bit pixel-clock counter and virtual probe pins for explicit four-corner pixel-self uncertainty. Actual PLL request/site and G4/G5 roots retained; fabric differs from native. No physical qualification."
+  },
+  "hardware_configuration_diagnostic": "board50-hps-config-readback.json",
+  "hardware_class": "Host proofs/native routes/fitted references plus leased read-only Kit A HPS configuration diagnostic. No PC/XT RBF hardware run or exact-artifact acceptance.",
+  "accounting": {
+    "completed_route_search_receipts": 130,
+    "previous_127_prefix_exact": true,
+    "candidate_charge_seconds": "306.43179752398282",
+    "cumulative_charge_seconds": "101129.89851958258019741",
+    "journal_sha256": "ffbfcddf0149fd954c78db1ba12fab7025d108b890a0c8abeb7277581ed10a0c"
+  },
+  "contract_effects": "No shared schema, runtime/target API, package, factory-image or toolchain lock change. New pixel clock audit identity is explicit and binds native video PLL output zero.",
+  "remaining": [
+    "Nine native unpaired reset/video rows and two mask mirrors retain explicit obligations; no timing exception or failure override.",
+    "HPS clock/controller configuration is now observed; hard-IP source/OE/pad/feedback bounds and immutable running-image/bundle binding remain incomplete.",
+    "Native fast-corner model, fitted board/continuous load/flight/skew, inverter slew, reset/relock/pulse/MTBF and bundled-data qualification remain open.",
+    "Review/merge nextpnr#296, integrate its pin and recipe flags, then run a fresh ordinary route producer and exact-artifact kit acceptance. #294/#295 are already merged.",
+    "CGA Direct timing evidence does not grant MDA/Scanlines routed or hardware acceptance."
+  ],
+  "whole_board_qualified": false,
+  "physical_qualified": false,
+  "exact_artifact_accepted": false
+}

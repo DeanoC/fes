@@ -108,3 +108,9 @@ core_id = "fes.atari-st"
 label = "Atari 520ST"
 system = "atari-st"
 standing = "experimental"
+
+[[cores]]
+core_id = "fes.pcxt"
+label = "FES PC/XT Diagnostic"
+system = "pcxt"
+standing = "experimental"

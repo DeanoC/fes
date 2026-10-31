@@ -1,0 +1,1211 @@
+{
+  "scope": "Initial two-phase EU with the retained phase-shifted ROM, not the subsequent system-clock ROM revision; one matched seed, no timing/hardware acceptance.",
+  "source": {
+    "baseline": {
+      "revision": "e0bb083d37de176947f28e9f8f2ab640423347ec",
+      "component_tree": "22457bf46d4eafe4bb591d2ac56243d63312b63d",
+      "archive_sha256": "da021089dcd84b7f44de0fa9b31ee5f619b6a098fc8a39a6cba4c2dd0310cfc9",
+      "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-baseline/sources/misteross",
+      "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+    },
+    "candidate": {
+      "revision": "47563669b31270fd95396eabafc5194dddd17e70",
+      "component_tree": "93b1530cfc01450d116963e70c374cc9ac05b1f3",
+      "archive_sha256": "5a146a666e020334dfaa957d46d806f1cb7492f8f39ba3d7f8e5acaaf2c92894",
+      "source_root": "/home/deano/harnesses/worktrees/fes/silver-delta/out/dev/pcxt-board/out/pcxt-two-phase-eu-20261023/source-candidate/sources/misteross",
+      "scope": "Frozen committed module bytes for matched diagnostic synthesis; no production/toolchain or hardware acceptance."
+    }
+  },
+  "baseline": {
+    "rows": 17199,
+    "setup_timed": 17194,
+    "setup_failures": 143,
+    "setup_wns_ps": -1200,
+    "hold_related": 17194,
+    "hold_failures": 0,
+    "hold_min_ps": 781,
+    "unsupported": 105,
+    "complete": false,
+    "groups": {
+      "CPU": {
+        "rows": 2981,
+        "setup_timed": 2981,
+        "setup_failures": 78,
+        "setup_wns_ps": -1200,
+        "hold_related": 2981,
+        "hold_failures": 0,
+        "hold_min_ps": 851,
+        "worst_setup": [
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[2].read_address_MISTRAL_FF_Q_9",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -1200
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[2].read_address_MISTRAL_FF_Q_5",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -952
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[2].read_address_MISTRAL_FF_Q_1",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -928
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[3].read_address_MISTRAL_FF_Q_11",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -897
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[3].read_address_MISTRAL_FF_Q_10",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -863
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[0].read_address_MISTRAL_FF_Q_1",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -822
+          }
+        ]
+      },
+      "PIC": {
+        "rows": 948,
+        "setup_timed": 948,
+        "setup_failures": 2,
+        "setup_wns_ps": -201,
+        "hold_related": 948,
+        "hold_failures": 0,
+        "hold_min_ps": 982,
+        "worst_setup": [
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.u_Control_Logic.write_initial_command_word_4_MISTRAL_FF_ENA_2_Q_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -201
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.interrupt_MISTRAL_ALUT6_Q_B_MISTRAL_ALUT5_Q_D_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -52
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.interrupt_MISTRAL_ALUT6_Q_F_MISTRAL_ALUT4_Q_1_C_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT5_E_Q_MISTRAL_FF_Q_1",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 508
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.u_In_Service.next_in_service_register_MISTRAL_ALUT3_Q_4_A_MISTRAL_ALUT2_B_Q_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 650
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.u_In_Service.next_in_service_register_MISTRAL_ALUT3_Q_2_B_MISTRAL_ALUT6_E_1_Q_MISTRAL_ALUT5_Q_A_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 858
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.read_MISTRAL_ALUT3_B_C_MISTRAL_ALUT4_B_Q_MISTRAL_FF_Q",
+                "ENA"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1481
+          }
+        ]
+      },
+      "display": {
+        "rows": 2642,
+        "setup_timed": 2642,
+        "setup_failures": 18,
+        "setup_wns_ps": -945,
+        "hold_related": 2642,
+        "hold_failures": 0,
+        "hold_min_ps": 796,
+        "worst_setup": [
+          {
+            "key": [
+              [
+                "system.machine.isa.rgbi_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -945
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.rgbi_MISTRAL_FF_Q_7",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -945
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.rgbi_MISTRAL_FF_Q_6",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -597
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.rgbi_MISTRAL_FF_Q_5",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -588
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.rgbi_MISTRAL_FF_Q_2",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -353
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.rgbi_MISTRAL_FF_Q_1",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -312
+          }
+        ]
+      },
+      "other": {
+        "rows": 10628,
+        "setup_timed": 10623,
+        "setup_failures": 45,
+        "setup_wns_ps": -603,
+        "hold_related": 10623,
+        "hold_failures": 0,
+        "hold_min_ps": 781,
+        "worst_setup": [
+          {
+            "key": [
+              [
+                "system.machine.board.dma_device.current_count[0]_MISTRAL_FF_Q_7",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -603
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.dma_device.current_address[0]_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -596
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.dma_device.current_address[2]_MISTRAL_FF_Q_11",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -543
+          },
+          {
+            "key": [
+              [
+                "system.storage.controller.wdata_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -533
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.dma_device.current_address[0]_MISTRAL_FF_Q_4",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -490
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.dma_device.channel_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT5_B_Q_MISTRAL_FF_DATAIN",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -408
+          }
+        ]
+      }
+    }
+  },
+  "candidate": {
+    "rows": 17709,
+    "setup_timed": 17704,
+    "setup_failures": 40,
+    "setup_wns_ps": -1801,
+    "hold_related": 17704,
+    "hold_failures": 0,
+    "hold_min_ps": 796,
+    "unsupported": 105,
+    "complete": false,
+    "groups": {
+      "CPU": {
+        "rows": 3491,
+        "setup_timed": 3491,
+        "setup_failures": 6,
+        "setup_wns_ps": -422,
+        "hold_related": 3491,
+        "hold_failures": 0,
+        "hold_min_ps": 796,
+        "worst_setup": [
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[1].rom.2.0.0",
+                "B1ADDR[5]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[2]",
+                0
+              ]
+            ],
+            "margin_ps": -422
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[1].rom.0.0.0",
+                "B1ADDR[5]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[2]",
+                0
+              ]
+            ],
+            "margin_ps": -413
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[3].rom.0.0.0",
+                "B1ADDR[5]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[2]",
+                0
+              ]
+            ],
+            "margin_ps": -345
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[1].rom.1.0.0",
+                "B1ADDR[5]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[2]",
+                0
+              ]
+            ],
+            "margin_ps": -274
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[1].rom.3.0.0",
+                "B1ADDR[5]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[2]",
+                0
+              ]
+            ],
+            "margin_ps": -114
+          },
+          {
+            "key": [
+              [
+                "system.machine.cpu.cpu.u_eu_core.u_ucode_rom.bytes[2].rom.1.0.0",
+                "B1ADDR[5]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[2]",
+                0
+              ]
+            ],
+            "margin_ps": -67
+          }
+        ]
+      },
+      "PIC": {
+        "rows": 195,
+        "setup_timed": 195,
+        "setup_failures": 0,
+        "setup_wns_ps": 650,
+        "hold_related": 195,
+        "hold_failures": 0,
+        "hold_min_ps": 1182,
+        "worst_setup": [
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.u_In_Service.next_in_service_register_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT5_Q_A_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 650
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.u_In_Service.next_in_service_register_MISTRAL_ALUT3_Q_3_A_MISTRAL_FF_Q_ENA_MISTRAL_FF_ENA_2_Q_MISTRAL_FF_Q_1",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 824
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.u_Control_Logic.write_initial_command_word_4_MISTRAL_FF_ENA_Q_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1089
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.u_In_Service.next_in_service_register_MISTRAL_ALUT3_Q_3_A_MISTRAL_FF_Q_ENA_MISTRAL_FF_ENA_1_Q_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1170
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.u_In_Service.next_in_service_register_MISTRAL_ALUT3_Q_3_A_MISTRAL_ALUT2_B_Q_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1467
+          },
+          {
+            "key": [
+              [
+                "system.machine.board.pic_device.address_MISTRAL_FF_Q",
+                "ENA"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": 1602
+          }
+        ]
+      },
+      "display": {
+        "rows": 2642,
+        "setup_timed": 2642,
+        "setup_failures": 14,
+        "setup_wns_ps": -1801,
+        "hold_related": 2642,
+        "hold_failures": 0,
+        "hold_min_ps": 834,
+        "worst_setup": [
+          {
+            "key": [
+              [
+                "system.machine.isa.rgbi_MISTRAL_FF_Q_6",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -1801
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.slots[1].cga.card.card.vram.4.0.1",
+                "B1ADDR[12]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -1174
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.rgbi_MISTRAL_FF_Q",
+                "DATAIN"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -858
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.slots[1].cga.card.card.vram.1.0.1",
+                "B1ADDR[12]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -767
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.slots[1].cga.card.card.vram.9.0.1",
+                "B1ADDR[12]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -606
+          },
+          {
+            "key": [
+              [
+                "system.machine.isa.slots[1].cga.card.card.vram.11.0.1",
+                "B1ADDR[12]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -477
+          }
+        ]
+      },
+      "other": {
+        "rows": 11381,
+        "setup_timed": 11376,
+        "setup_failures": 20,
+        "setup_wns_ps": -1670,
+        "hold_related": 11376,
+        "hold_failures": 0,
+        "hold_min_ps": 828,
+        "worst_setup": [
+          {
+            "key": [
+              [
+                "system.video.adapter.framebuffer_banks[1].framebuffer.ram.0.33",
+                "A1ADDR[4]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -1670
+          },
+          {
+            "key": [
+              [
+                "system.video.adapter.framebuffer_banks[1].framebuffer.ram.0.7",
+                "A1ADDR[4]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -1396
+          },
+          {
+            "key": [
+              [
+                "system.video.adapter.framebuffer_banks[1].framebuffer.ram.0.24",
+                "A1ADDR[4]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -814
+          },
+          {
+            "key": [
+              [
+                "system.video.adapter.framebuffer_banks[1].framebuffer.ram.0.8",
+                "A1ADDR[4]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -793
+          },
+          {
+            "key": [
+              [
+                "system.video.adapter.framebuffer_banks[1].framebuffer.ram.0.48",
+                "A1ADDR[4]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -631
+          },
+          {
+            "key": [
+              [
+                "system.video.adapter.framebuffer_banks[1].framebuffer.ram.0.10",
+                "A1ADDR[4]"
+              ],
+              [
+                "clocks[0]",
+                0
+              ],
+              [
+                "clocks[0]",
+                0
+              ]
+            ],
+            "margin_ps": -597
+          }
+        ]
+      }
+    }
+  },
+  "candidate_cpu_clock_windows": {
+    "[[\"clocks[0]\", 0], [\"clocks[0]\", 0]]": {
+      "rows": 3209,
+      "setup_failures": 0,
+      "setup_wns_ps": 273
+    },
+    "[[\"clocks[2]\", 0], [\"clocks[0]\", 0]]": {
+      "rows": 90,
+      "setup_failures": 0,
+      "setup_wns_ps": 1764
+    },
+    "[[\"clocks[0]\", 0], [\"clocks[2]\", 0]]": {
+      "rows": 192,
+      "setup_failures": 6,
+      "setup_wns_ps": -422
+    }
+  },
+  "candidate_cpu_unsupported": [],
+  "endpoint_union": {
+    "baseline_only": 1503,
+    "candidate_only": 2013,
+    "common": 15696,
+    "total": 19212
+  },
+  "clocks": {
+    "baseline": {
+      "FPGA_CLK1_50": [
+        20000,
+        20000,
+        10000,
+        10000,
+        10000,
+        10000,
+        0,
+        ""
+      ],
+      "FPGA_CLK1_50_MISTRAL_IB_PAD_O": [
+        20000,
+        20000,
+        10000,
+        10000,
+        10000,
+        10000,
+        0,
+        ""
+      ],
+      "clk_pixel": [
+        13468,
+        13468,
+        6734,
+        6734,
+        6734,
+        6734,
+        0,
+        ""
+      ],
+      "clocks[0]": [
+        10000,
+        10000,
+        5000,
+        5000,
+        5000,
+        5000,
+        0,
+        "memory_clock"
+      ],
+      "clocks[1]": [
+        10000,
+        10000,
+        5000,
+        5000,
+        5000,
+        5000,
+        5000,
+        "memory_clock"
+      ],
+      "clocks[2]": [
+        10000,
+        10000,
+        5000,
+        5000,
+        5000,
+        5000,
+        2500,
+        "memory_clock"
+      ],
+      "memory_clock_outclk": [
+        10000,
+        10000,
+        5000,
+        5000,
+        5000,
+        5000,
+        0,
+        "memory_clock"
+      ],
+      "memory_clock_outclk_1": [
+        10000,
+        10000,
+        5000,
+        5000,
+        5000,
+        5000,
+        5000,
+        "memory_clock"
+      ],
+      "memory_clock_outclk_2": [
+        10000,
+        10000,
+        5000,
+        5000,
+        5000,
+        5000,
+        2500,
+        "memory_clock"
+      ],
+      "video_clock_outclk": [
+        13468,
+        13468,
+        6734,
+        6734,
+        6734,
+        6734,
+        0,
+        ""
+      ]
+    },
+    "candidate": {
+      "FPGA_CLK1_50": [
+        20000,
+        20000,
+        10000,
+        10000,
+        10000,
+        10000,
+        0,
+        ""
+      ],
+      "FPGA_CLK1_50_MISTRAL_IB_PAD_O": [
+        20000,
+        20000,
+        10000,
+        10000,
+        10000,
+        10000,
+        0,
+        ""
+      ],
+      "clk_pixel": [
+        13468,
+        13468,
+        6734,
+        6734,
+        6734,
+        6734,
+        0,
+        ""
+      ],
+      "clocks[0]": [
+        10000,
+        10000,
+        5000,
+        5000,
+        5000,
+        5000,
+        0,
+        "memory_clock"
+      ],
+      "clocks[1]": [
+        10000,
+        10000,
+        5000,
+        5000,
+        5000,
+        5000,
+        5000,
+        "memory_clock"
+      ],
+      "clocks[2]": [
+        10000,
+        10000,
+        5000,
+        5000,
+        5000,
+        5000,
+        2500,
+        "memory_clock"
+      ],
+      "memory_clock_outclk": [
+        10000,
+        10000,
+        5000,
+        5000,
+        5000,
+        5000,
+        0,
+        "memory_clock"
+      ],
+      "memory_clock_outclk_1": [
+        10000,
+        10000,
+        5000,
+        5000,
+        5000,
+        5000,
+        5000,
+        "memory_clock"
+      ],
+      "memory_clock_outclk_2": [
+        10000,
+        10000,
+        5000,
+        5000,
+        5000,
+        5000,
+        2500,
+        "memory_clock"
+      ],
+      "video_clock_outclk": [
+        13468,
+        13468,
+        6734,
+        6734,
+        6734,
+        6734,
+        0,
+        ""
+      ]
+    }
+  },
+  "returncodes": {
+    "baseline": 1,
+    "candidate": 1
+  },
+  "binary_sha256": {
+    "baseline": "1e5a84816064d169093475ddeb0c53973ae86a8a756fb0bc6f6864b68f3e2b90",
+    "candidate": "1e5a84816064d169093475ddeb0c53973ae86a8a756fb0bc6f6864b68f3e2b90"
+  },
+  "receipts": {
+    "baseline": {
+      "path": "route-baseline/receipt.json",
+      "sha256": "91c3ee643a97812e23e06ddf40c8f12f825598ae4027cfad572440125ee3068c"
+    },
+    "candidate": {
+      "path": "route-candidate/receipt.json",
+      "sha256": "737806b265cdf018980566df957bc71282a85d61987a68b5c819bc7ecfb6443d"
+    }
+  },
+  "accounting": {
+    "completed_route_search_receipts": 79,
+    "prior_77_prefix_exact": true,
+    "all_79_receipt_objects_hashes_and_Decimal_charges_verified": true,
+    "prior_journal_sha256": "a7d2ebd4056bc72dc8344bffb4907b7dadd248cf4b673efe5aaa8f233b680bf5",
+    "journal_sha256": "e5f97f4909a177e68b11876ba9e0376d89c3b42560571e0f81cc40cd16f78e4e",
+    "new_charges_seconds": [
+      "1431.911910095252",
+      "1465.1457514027134"
+    ],
+    "cumulative_charge_seconds": "88609.26647914992609",
+    "scope": "Exactly two fresh full-route receipts; host builds/proofs/synthesis/timing workloads are not route charges."
+  },
+  "hardware": false
+}

@@ -9,4 +9,5 @@ package fes_i386_ucode_pkg;
     localparam logic [7:0] UC_VECTOR = 8'd15;
     localparam logic [7:0] UC_INT = 8'd16;
     localparam logic [7:0] UC_IRET = 8'd22;
+    localparam logic [7:0] UC_BOUND = 8'd25;
 endpackage

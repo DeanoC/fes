@@ -1,226 +1,121 @@
-# FES rooms experience 01 — Exploring and playing through rooms
+# Tenfoot rooms: browse, set up and play
 
-**Status:** proposed experience specification (accepted for planning). Describes intended behaviour; not a claim that every capability is implemented.
+Home and Systems are the built-in navigation screens. System setup and Sinclair
+setup are internal templates opened for the selected model, entry or running
+session. Old demonstration rooms are removed. Independently installed room
+packs remain supported; see [room authoring](rooms.md) and
+[controller bindings](rooms-controller-bindings.md).
 
-**Reference room:** Mushroom Kingdom (with nested Mario Sports / Sports Island).
+## Home and system selection
 
-**Related:** FogCast `docs/rooms.md` (authoring). Tip pin: FES #85 / FogCast `690b51a` (rooms selected for tenfoot). Proposed launch-slot readiness (core-present is not composition-ready): [`launch-composition.md`](launch-composition.md). Proposed replacement of kit MENU idle with rooms through FES ABI (splash vs attract ABI vs play; kit-as-host is the same host, not a second catalog): [FES idle MENU → rooms](../../../docs/idle-menu-rooms.md).
+Home shows installed machines and prepared library systems with plain model
+names. The product wordmark appears once in shared chrome; package names,
+versions, hashes and test labels do not become machine headings or default
+setup titles. Unknown systems retain their supplied name. User-authored game
+and setup titles remain distinct from machine identity.
 
-**Out of scope here (separate specs later):** room discovery/download UI, room authoring tools, automatic routing across LAN machines. LAN routing is drafted in [mesh LAN](../../../docs/mesh-lan.md) and [mesh node protocol](../../../docs/mesh-node-protocol.md) (design draft awaiting Deano; it does not change this experience spec). This flow must accommodate those later without rewriting the core model.
+Library, Systems and Settings are visible header routes. Confirm on a Ready
+shelf item plays directly. Up moves into its Play/Details controls; a second
+Up reaches the header. Left/Right moves within a row, while Down or Back
+returns to the same shelf selection. Delayed catalog or artwork replies must
+not move focus. A changed item, readiness intent, package, media, target or
+session invalidates captured action focus before activation.
 
----
+Systems lists prepared entries and their editions. Confirm starts the selected
+entry; Set up opens its exact model and entry. An empty shelf offers Add system.
+Related models share a family workbench, including Spectrum 48K/128K/+3/Pentagon
+and ZX81/ZX80/TS1000/TS1500. Family, model, setup and title edition are separate
+choices; changing navigation does not rewrite any saved binding or running core.
 
-## Core principle
+Only Home, Systems and installed presentation rooms appear in room/default-start
+pickers. Internal setup templates are not duplicate startup destinations. Missing
+saved room IDs use the ordinary fallback without recreating removed demos.
 
-A **room** controls its presentation and local navigation.
+## Library and Details
 
-**FES** provides dependable system actions, game launching, session feedback, and recovery.
+Library remains the complete catalog with grid, list and shelf layouts, search,
+filters, favourites and collections. Confirm on a Ready title launches directly.
+Down from the bottom visible item row enters Play/Details; Left/Right chooses,
+Confirm acts, and Up or Back returns to the same title and browse position.
 
-Authors may style prompts and navigation markers. They must not suppress **Back** or the **system menu**.
+Details gives the title, known creator/system facts, readiness, destination and
+supported next action. Curator notes are attributed and fit inside the panel.
+Missing artwork leaves a labelled surface and keeps the same geometry. Focus,
+readiness and recorded play history use separate labels or shapes.
 
----
-
-## 1. Home and room entry
-
-Home provides access to:
-
-- pinned rooms
-- recently played games
-- all installed rooms
-- the full library
-
-Selecting Mushroom Kingdom opens its overworld.
-
-- **First entry:** focus the authored starting location.
-- **Later visits:** restore the last valid location.
-
-The room becomes navigable while artwork and library matches load. **Loading results must not move the player’s selection.**
-
-A room transition should communicate arrival without delaying input. Reduced-motion settings apply across all rooms.
-
----
-
-## 2. Exploring Mushroom Kingdom
-
-Directional input moves between connected locations. One location is clearly selected (marker or outline as well as colour).
-
-A compact information panel identifies the selected destination:
-
-| Kind | Panel content |
+| State | Meaning and Confirm outcome |
 | --- | --- |
-| Game | Title, system, availability, primary action |
-| Room | Destination name and “Enter room.” |
-| Library | Destination name and “Open library.” |
-| Unresolved | Honest loading or matching message |
+| Checking | Requirements are resolving. Acknowledge Confirm; never queue a launch for a later selection. |
+| Ready | The current setup can launch the selected option. Confirm plays. |
+| Needs a choice | More than one viable edition exists. Choose explicitly and retain a valid preference. |
+| Unavailable | Explain the concrete requirement and supported remedy. A missing Coleco BIOS can open its import picker; other blocks retain Details and Back. |
 
-The map remains legible when artwork is absent. Long titles stay readable in the information panel.
+Core installation alone does not establish readiness. Media, firmware, display,
+expansion, ownership and session requirements still come from the existing
+services. An unavailable backend does not become an offered choice.
 
-Paths express relationships and navigation. They do **not** imply unlock gates unless the author explicitly introduces an unlocking mechanic. Authoring note: [`docs/rooms.md`](rooms.md).
+## Setup and media
 
----
+Setup lists installed versions and their real firmware/media requirements.
+Versions and package identifiers distinguish package choices; they do not become
+the saved title. Firmware replacement is explicit. Cartridge ROMs are selected
+through setup, and removable media follows the chosen package's declared roles,
+formats and sizes. See [system setup](../../../docs/hardware-rooms.md).
 
-## 3. Common controller actions
+The setup shows Running separately from saved Next start configuration. Inspecting
+an expansion changes only the preview. Fit/save changes Next start after a
+validated reply; uncertain or conflicting replies require refresh rather than
+silently replaying a mutation. Saving setup never claims RAM or program progress
+was saved. Restart and Stop consequences stay beside the controls.
 
-Use **logical actions**; button prompts match the connected controller.
+During play, the supported media selector opens over the active session and
+returns to that session. Browse and Cancel preserve the running machine. Media
+mutations stay bound to captured session, target, package and generation.
+Unsupported or uncertain operations remain unavailable, with a retry or Back
+route. Changing a saved entry's next-start medium does not silently change its
+running machine.
 
-| Action | Behaviour |
-| --- | --- |
-| Direction | Move within the room |
-| Confirm | Perform the displayed primary action |
-| Details | Open information and available actions for the selected game |
-| Back | Close the current panel or return to the previous room |
-| System menu | Open a FES-owned menu with a reliable route Home |
+## Launch, return and failure
 
-No essential action may require a long press or button combination as its **only** route.
+The launcher owns launch feedback and duplicate-request prevention. Show observed
+phases and elapsed time, without invented percentages. Failure retains the
+selection and explains the next action. After Stop and required saving finish,
+return to the same room and selected location. Failed saving remains visible
+and cannot be presented as successful completion or permit replacement play.
 
-Physical bindings for Xbox-style, PlayStation-style, generic SDL, keyboard,
-and pointer are in
-[rooms-controller-bindings.md](rooms-controller-bindings.md). Tip tenfoot
-already has tap routes for Direction, Confirm, Back, System menu, and
-Details (task #3: North / Y / Triangle / `NORTH`, keyboard `i`, pointer
-tap on the compact selected-destination strip). Hold-B
-rooms picker is a shortcut; Home is also reachable through the system menu.
+Installed authored rooms can open child rooms. Back returns to the suspended
+parent with its last valid selection; returning from a launched game preserves
+the child and its parent stack. Opening Library suspends the room context until
+Back returns to it. Authors cannot suppress Back or the system menu.
 
----
+## Input and accessibility
 
-## 4. Selecting a game
+Direction, Confirm, Details, Back and the system menu have visible routes. A
+shortcut is additional; it is not the only menu route. Prompts match the active
+input mapping. The kit's separately accepted gameplay-exit controls remain F12
+or Guide, or a Select+Start hold on a pad without Guide; menu navigation does not
+inherit that exception. See [UX acceptance](../../../docs/ux/acceptance.md).
 
-For an available, matched game, **Confirm** launches directly. The focused panel must show **Play** before activation.
+Use readable text, controlled title surfaces, safe margins and a focus outline
+independent of colour. Reduced motion does not remove feedback or navigation.
+Missing and late artwork preserve identity and selection. User-visible errors
+and unknown running state remain visible until resolved.
 
-**Details** is optional. It opens a shared game-information panel (room context retained), with Play as primary action and any curator’s note clearly attributed.
+Played means recorded play activity (`play_count > 0` or `last_played_at > 0`).
+Completed requires an explicit completion record; it is not inferred from a
+launch, returning to a room, catalog metadata or a successful Stop. Catalog rows
+currently have no household completion store.
 
-### Availability states (distinct treatment)
+Attract is off while a room is focused unless that room opts in. An authored
+attract presentation must preserve focus and Direction/Confirm/Details/Back/
+system-menu access. It does not imply gameplay is active.
 
-Play surfaces (rooms, tenfoot, browser) show four names: **Checking**, **Ready**, **Needs a choice**, **Unavailable**. They never claim Ready before it is known.
+## Evidence
 
-| State | Meaning | Confirm behaviour |
-| --- | --- | --- |
-| Checking | Capability, composition, or required content is still resolving | Honest wait; never silent no-op; do not launch. Acknowledge the press ("Still checking. Press A again once it has finished.") and do not queue it: a queued Confirm could start an item the player has not seen |
-| Needs a choice | More than one **viable** edition or backend can play this title; no preference saved | Force a clear choice; remember for household. A single viable option is Ready with no prompt. |
-| Unavailable | Matched, but a requirement blocks play (skew, in use, not installed, missing firmware, browse-only). Missing (no library match) is this family. | Reason + specific next action. Missing Coleco BIOS Confirm opens the household file picker (Import Coleco BIOS). Other blocks still open Details. Fail-closed rows are never offered as a choice. |
-| Ready | The selected option can launch through the current setup | Launch (Play) |
-
-Missing locations remain on the authored map so structure survives. Confirm must **never** silently do nothing.
-
-Needs a choice is FPGA versus emulator when both can run the title, or two playable editions. Remember the chosen `game_id` for the household; do not re-ask every visit.
-
-**Storage:** household `libraryuser` table `edition_preference` in `library-user.sqlite3` (same store as favorites and play counts). Tenfoot loads `GET /api/v1/library/edition-preferences` at start and writes `PUT /api/v1/library/edition-preferences` when Confirm or Details chooses an edition. A saved `game_id` that is still among the current matches makes Needs a choice Ready (or Unavailable), so Confirm launches and Details opens the shared game panel. A stale or missing preference still forces a clear choice. Back and the system menu stay reachable.
-
----
-
-## 5. Launch and return
-
-Confirm produces immediate feedback. FES owns the launch overlay, prevents duplicate requests, and describes actual progress without inventing percentages.
-
-On failure: keep the selected location; show the reason with a specific next action (e.g. Retry, Back to room).
-
-After gameplay ends and any required saving finishes: restore the same room, location, and navigation history. A failed save must remain visible and must not look like a successful completion.
-
----
-
-## 6. Nested rooms
-
-Sports Island enters the Mario Sports room and records its parent location.
-
-- **Back** from Mario Sports → Sports Island location in Mushroom Kingdom.
-- Return from a game launched inside Mario Sports → stay inside Mario Sports.
-
-Home is always available through the system menu, regardless of nesting depth.
-
----
-
-## 7. Meaning and accessibility
-
-Focus, availability, and recorded play history are **separate** visual states.
-
-- **Played** = FES recorded play activity.
-- **Completed** = explicit completion record; returning from a launch is insufficient.
-
-### Played vs Completed (data contract)
-
-These flags are household play-history chrome. They must not be inferred from focus, destination availability, or a launch overlay returning to the room.
-
-| State | Meaning | Source on tip |
-| --- | --- | --- |
-| Unplayed | No FES play activity recorded | `play_count == 0` and `last_played_at == 0` |
-| Played | FES recorded play activity | `play_count > 0` or `last_played_at > 0` (`libraryuser.RecordPlay` after a successful host launch) |
-| Completed | Explicit completion record | **Not stored yet.** Always false on catalog rows. |
-
-**Insufficient for Completed:** returning from Confirm→Play, `play_count`, `last_played_at`, session idle, or presentation metadata `completion` (catalog/provider copy such as `"100%"`, not household completion).
-
-Tenfoot paints `History.Line()` on the compact destination panel and on room Details (`Played`, or `Played  ·  Completed` only when an explicit record exists). Nodemap `played` and `done` are those two states; `done` must not be set from play activity or `on_resume`.
-
-**Follow-up (not this task):** when a household completion store lands, pass that explicit record into `ClassifyHistory`. Do not add inference from launch return.
-
-Text size, contrast, controller prompts, and reduced motion remain usable across room styles. Important information must not rely on colour alone. The destination panel carries Played/Completed as text so map colour is not the only channel.
-
----
-
-## Attract (policy — decided 2026-09-19)
-
-**Attract policy (decided):**
-
-- Default: attract is **off** while a room is the focused surface.
-- Per-room opt-in: a room author may enable attract for that room if desired. Opt-in is customizable per room and may provide a **custom attract** defined by the room author, not merely a boolean on/off of the global attract.
-- When attract runs (only if the room opted in): it must not steal focus, move the player’s selection, or block Direction/Confirm/Details/Back/System menu.
-
-Tip smoke (2026-09-19): attract was not observed while Mushroom Kingdom was loaded. That is consistent with default-off.
-
----
-
-## Acceptance scenarios
-
-1. A controller-only player enters the room, launches a game, and returns to the same location.
-2. Back from a nested room restores its parent location.
-3. Missing artwork does not prevent identification or navigation.
-4. A missing game or ambiguous edition offers an understandable next action.
-5. Launch failure preserves focus and allows recovery.
-6. Every room permits a dependable exit to Home.
-7. Played games are not presented as completed without supporting information.
-
-### Smoke notes (2026-09-19, tip rooms / FES #85)
-
-- Nested map nav (Mushroom Kingdom → Sports Island → return): **pass**
-- Keyboard + mouse: **pass** (gamepad not connected)
-- Settings / system key: **pass**
-- Launch / return after play: Confirm→Play **pass** on Coleco (task #5); return-to-same-location **host tests** (task #7)
-- Attract in Mushroom Kingdom: **not observed** (see policy above)
-- Coleco Confirm→Play (`example.coleco-arcade`, tip ~32996fe, direct kit): **pass** — kit image lacked Mushroom Kingdom legacy cores
-- Launch overlay / duplicate Confirm / failure keeps focus: **host tests** (task #6)
-- Return restores room + location + nested stack; SAVE_FAILED is not Now playing / Completed: **host tests** (task #7)
-
----
-
-## Ownership (soft)
-
-- **Grok Bot team** (Foggy / Luna / Bob): strong fit for tenfoot UI, panels, bindings, availability presentation, accessibility chrome, PR review against this doc.
-- **Kepler / CLI:** useful for larger host/session/launch plumbing, data contracts, or multi-file backend when that is the bottleneck.
-- Division is **not** a hard fence — pick the tool that fits the task.
-
----
-
-## Ordered work plan
-
-See companion section below (also summarised in chat). Update status here as items land.
-
-### Ordered tasks
-
-| # | Task | Goal / done when | Suggested owner |
-| --- | --- | --- | --- |
-| 0 | Land this doc in-repo (`docs/rooms-experience.md`) | Merged; linked from `docs/rooms.md` | Bot team (doc PR) |
-| 1 | Decide attract-in-room policy | **STATUS done / decided** (2026-09-19): default off while a room is focused; per-room opt-in with optional custom attract | Deano (+ Foggy) |
-| 2 | Logical action ↔ controller binding table | **STATUS done** (2026-09-19): table in `docs/rooms-controller-bindings.md`; no essential long-press-only or chord-only. Pointer Details on the compact strip landed as a #273 follow-up | Luna / UI |
-| 3 | Info panel: five availability states | **STATUS done** (2026-09-19): compact selected-destination panel plus Details tap; Checking/Missing/Needs a choice/Unavailable/Ready have distinct copy and Confirm never no-ops. Lobby / Workbench / TMS9918 Family publish destinations; pointer tap on the strip is Details | Luna / UI (host match hooks as needed) |
-| 4 | Played vs Completed data contract | **STATUS done** (2026-09-19): §7 contract; `ClassifyHistory` + rooms/tenfoot chrome; Played from `play_count` / `last_played_at`; Completed never inferred (no completion store yet) | Kepler or host owner + Luna |
-| 5 | Target setup for launch smoke | **STATUS done** (2026-09-19): Coleco Confirm→Play (`example.coleco-arcade`) smoked on tip ~32996fe direct kit. The kit image lacked Mushroom Kingdom legacy cores, so Coleco was the Ready path | Deano / kit+host |
-| 6 | Launch overlay + duplicate prevention + honest failure | **STATUS done** (2026-09-19): tenfoot FES overlay on Confirm; second Confirm does not double-POST; TRANSFER_FAILED-style failure keeps the selected location and offers Retry / Back to room. Hosted by rooms chrome, not room Lua. Tests cover overlay + duplicate guard + focus retention | Host/session (Kepler or Caster) + Luna chrome |
-| 7 | Return restores room, location, history; failed save visible | **STATUS done** (2026-09-19): successful Stop restores the same room, selected location, and parent stack; a game launched inside a nested room returns there; SAVE_FAILED stays on failed-save chrome (not Now playing / Completed) until retry Stop succeeds | Host/session + Luna |
-| 8 | Home surface: pinned / recent / installed rooms / library | **STATUS done** (2026-09-19): tenfoot Home overlay lists pinned rooms, recently played games, every installed room, and the full library. Settings Confirm goes Home; Y/`i` pins rooms into `tenfoot.json`. Selecting a room keeps first-entry vs later-visit restore. Discovery/download remains out of scope | Luna / UI |
-| 9 | Edition preference remembered for household | **STATUS done** (2026-09-19): household `libraryuser.edition_preference`; host GET/PUT `/api/v1/library/edition-preferences`; Confirm/Details skip the re-ask when the saved edition is still a match | Host profile / FES |
-| 10 | Accessibility pass | **STATUS done** (2026-09-19): tenfoot `reduced_motion` pref (settings + `tenfoot.json` / `FOGCAST_REDUCED_MOTION`); rooms read `room.reduced_motion`; nodemap/list/grid keep focus markers that are not colour-only; destination Played/Completed text kept and extended onto focused map labels; Back and system menu stay FES-owned (scripts cannot suppress them) | Luna |
-| 11 | Controller-only acceptance pass | Scenario 1 green on real pad | Luna + Deano smoke |
-| 12 | Authoring note: paths ≠ unlocks | **STATUS done** (2026-09-19): short note in [`docs/rooms.md`](rooms.md) — nodemap edges are navigation relationships, not unlock gates, unless the author adds unlocking | Doc / authoring |
-
-**Recommended sequence for starting now:** 11. (0–10 and 12 are done.)
-
-**Do not start yet:** discovery/download, authoring tools, LAN routing (explicitly out of scope).
+Production-renderer captures test real Go/Lua drawing with fixture data. They do
+not accept physical viewing distance, controller input, callback budgets or
+menu-display transport. Hardware evidence names its exact bundle, base image,
+package, inputs and exercised journey. Follow the
+[acceptance record](../../../docs/ux/acceptance.md) and
+[kit sharing procedure](../../../docs/kit-sharing.md); keep software checks,
+hardware diagnostics and exact-artifact acceptance distinct.

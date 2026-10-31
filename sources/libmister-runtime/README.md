@@ -8,6 +8,14 @@ physical lifecycle, media/input delivery, and recovery. FES described packages a
 `fes.simple-game`, `fes.simple-computer`, `fes.application`, and
 `fes.computer` through `fes-gp-v1`. Protocol 2 is the only local socket protocol.
 
+Production hardware construction requires an ARMv7 Linux binary and the exact
+DE10-nano device-tree identity used by FES boot/reset preparation. AArch64,
+DE25-Nano, unknown boards and missing or malformed identity are rejected before
+kernel-module loading or construction of MMIO/I2C adapters. The daemon retains
+its existing unavailable-hardware adapter and local protocol after refusal;
+it advertises no programming capabilities. An AArch64 compile or QEMU software
+test does not add DE25 hardware support.
+
 Raw RBF loading is an explicit, idle-only hardware diagnostic using
 `development-contained-v1`; it does not infer a game, ABI, media, or persistence.
 Startup, Stop, and bounded failure recovery load the sealed splash through the

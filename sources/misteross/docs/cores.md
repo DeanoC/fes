@@ -16,7 +16,9 @@ they were written. They are not the schedule for this tree.
 
 ## Current cores
 
-Parent recipe rows live in FES `config/core-recipes.toml`. The bootstrap
+Boards, toolchains and support tiers for these cores are the parent
+[core support matrix](../../../docs/support-matrix.md). Parent recipe rows
+live in FES `config/core-recipes.toml`. The bootstrap
 image installs the idle display `fes.menu` only (fes#919); every playable
 package is a core-library installation with a standing in
 `config/core-library.toml`. `fes.coleco` and `fes.atari-st` are video-socket
@@ -46,6 +48,7 @@ nothing by itself.
 | `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `cores/fes-ramtest/toolchain.lock` (100 and 130 MHz) | `make build-fes-ramtest-100` (100 MHz), `make build-fes-ramtest-130` (explicit) | supported; 100 MHz catalog utility, not in the bootstrap image |
 | `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `cores/fes-atari-st/toolchain.lock` | `make build-fes-atari-st` | experimental; Atari 520ST firmware shell and Direct/Scanlines parts |
 | `fes.riscv` | `cores/fes-riscv` | `fes.application` with `fes.gamepad` | `cores/fes-riscv/toolchain.lock` | `make build-fes-riscv` | experimental; original RV32I CPU from `cores/fes-common/rtl/riscv` |
+| `fes.pc386-diag` | `cores/fes-pc386` | `fes.computer` with session display and HPS DDR; no CPU, a bus master runs commands from the DDR window | `cores/fes-pc386/toolchain.lock` | `make build-fes-pc386-diag` | no; not registered; the pc386 M4 hardware diagnostic |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
 
 `cores/pong` is the standalone Pong game module (`make sim-pong`). It is not
@@ -189,10 +192,20 @@ cancellation, physical refresh and two 8088 ISA display boots without a second
 firmware load. `synth_fes_pcxt.py --suite memory --cache-root /absolute/cache`
 emits a diagnostic backend/controller netlist; capture/pads are external and
 its DDR clock primitive remains unmapped.
+The registered `fes.pcxt` recipe exports a format-2 package that starts this
+built-in CGA Direct diagnostic through the standard `fes.computer` identity and
+execution mailbox. It declares fixed 720p60 video only; keyboard and media
+remain unavailable. Quartus is the registered package producer: all three
+seeds must pass the complete reported internal timing inventory and an
+independent seed-1 rebuild must reproduce the RBF. External IO/HPS/reset and
+exact-artifact hardware qualification remain separate. Its forwarded HDMI
+clock is phased 8979 ps after pixel-data updates so the receiver samples while
+pixel data is stable; this fixed-video output is inline and has no
+external video-parts index.
 The `system` and `system-mda` suites assemble CPU, motherboard, real SDRAM,
 DMA/refresh and one Direct/Scanlines pipeline, using the original diagnostic
-firmware copied through a gated boot loader. `make build-fes-pcxt
-CACHE_ROOT=/absolute/cache` attempts one bounded locked HIP board route; add
+firmware copied through a gated boot loader. `python3 scripts/build_fes_pcxt.py
+--cache-root /absolute/cache` attempts one bounded locked HIP board route; add
 `PCXT_BUILD_ARGS='--mda --scanlines'` for MDA Scanlines or `--synth-only` for a
 frontend probe. Separate run directories under `build/diagnostic/fes-pcxt/`
 retain firmware, source/tool receipts and synthesis/route evidence, including

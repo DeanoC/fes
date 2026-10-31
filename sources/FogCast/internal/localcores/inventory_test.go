@@ -518,6 +518,7 @@ func TestLaunchRequirementsComeFromDescriptor(t *testing.T) {
 		{name: "blob requires host delivery", format: 2, abi: "fes.application", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1, Required: true}}, needs: "unsupported"},
 		{name: "cartridge cannot substitute for required blob", format: 3, abi: "fes.application", role: "cartridge", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1, Required: true}}, needs: "unsupported"},
 		{name: "computer empty drives", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}, needs: "none", launchable: true},
+		{name: "PC/XT fixed-video package", coreID: "fes.pcxt", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.video.fixed-720p60", Major: 1, Required: true}}, needs: "none", launchable: true},
 		{name: "computer spectrum tape starts empty", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.spectrum-tape", Major: 2, Required: true}}, needs: "none", launchable: true},
 		{name: "computer c64 disk starts empty", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.c64-disk", Major: 1, Required: true}}, needs: "none", launchable: true},
 		{name: "format-2 ZX81 requires a local machine ROM splice", coreID: "fes.zx81", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.zx81-tape", Major: 1, Required: true}}, needs: "firmware", block: "Needs machine ROM"},

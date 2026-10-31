@@ -20,7 +20,7 @@ type Grid struct {
 }
 
 const (
-	defaultHeaderHeight = 88
+	defaultHeaderHeight = 116
 	defaultFooterHeight = 120
 	defaultPad          = 36
 	defaultGap          = 18
