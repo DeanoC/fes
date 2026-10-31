@@ -5,7 +5,9 @@ pc386 machine with [`fes_i386_cpu`](../../../sources/misteross/cores/fes-common/
 and its L1I, L1D and bus interface on DDR port 0, in place of M4's bus
 master. Quartus 17.0.2 sealed it at the 61.44 MHz system clock with every
 clock and analysis met. The same system, everything below the board shell,
-boots FreeDOS in simulation with no oracle behind the CPU.
+boots FreeDOS in simulation with no oracle behind the CPU. Kit B ran the
+29 October package. The 31 October seal, after the merge of #1230's head,
+has had no kit run.
 
 - **Simulation.** The system bench runs `pc386_system` with all three DDR
   ports on one window model. Its host does only what a kit's host can,
@@ -17,13 +19,19 @@ boots FreeDOS in simulation with no oracle behind the CPU.
     45,534,556 instructions have retired by the end of the run. Nothing
     stopped or stalled the CPU, and no underflow, drop or reset counter
     moved.
-- **Seal.** Build `0efa2213…`, package `538773ad…`, Yosys `0a7927bf`.
-  - Worst setup slack +1.969 ns, on the pixel clock; the system clock has
-    +2.489 ns and reaches 72.53 MHz at the slow 100 °C corner.
-  - 23,147 ALMs (55%), 251 of 553 RAM blocks and 27 of 112 DSP blocks. The
+- **Seal, 31 October.** Build `951c8048…`, package `15c5c86d…`, Yosys
+  `0a7927bf`, at `2c13827a2`, after the branch merged #1230's head
+  ([below](#merge-conflicts)).
+  - Worst setup slack +0.709 ns, on the pixel clock. The system clock has
+    +2.250 ns, and its slow-corner Fmax is 71.30-73.80 MHz.
+  - 24,004 ALMs (57%), 251 of 553 RAM blocks and 27 of 112 DSP blocks. The
     design's estimate for the first playable machine was about 77% of the
     ALMs.
-- **Kit B, run m5k1.** A core-only run of the sealed package, with
+  - The system bench boots the merge cycle for cycle as it booted the
+    29 October RTL.
+- **Seal, 29 October.** Build `0efa2213…`, package `538773ad…`: setup
+  +1.969 ns, 23,147 ALMs (55%). Kit B ran this package.
+- **Kit B, run m5k1.** A core-only run of the 29 October package, with
   [`pc386-host`](../../../sources/misteross/cores/fes-pc386/host/main.go) on
   the HPS staging the FreeDOS fixture through `/dev/mem`.
   - The kit printed the same BIOS lines as the simulation, then reached the
@@ -44,8 +52,9 @@ M5 work.
 
 ## Inputs
 
-- FES branch `deano/pc386-m5-cpu`, sealed at `c97eee0b6f`, merged from main
-  `6a7e47d0af` and these drafts (merges only, no rebase):
+- FES branch `deano/pc386-m5-cpu`, sealed at `c97eee0b6f` on 29 October and
+  at `2c13827a2` on 31 October. It merged main `6a7e47d0af` and these
+  branches, merges only, no rebase:
 
   | Branch | Head | Content |
   | --- | --- | --- |
@@ -53,6 +62,7 @@ M5 work.
   | `deano/i386-smc` ([#1234](https://github.com/DeanoC/fes/pull/1234)) | `ee0c7c8ac0` | Memory slice 2 on #1230's memory path |
   | `deano/pc386-game-census` ([#1243](https://github.com/DeanoC/fes/pull/1243)) | `853ac57f0e` | The game census on #1195's RTL boot |
   | `deano/pc386-at-m10k` ([#1153](https://github.com/DeanoC/fes/pull/1153)) | `962f7cd0c0` | Test and record fixes; no change to the netlist |
+  | `deano/i386-mempath` ([#1230](https://github.com/DeanoC/fes/pull/1230)), 31 October | `45af99a23` | Main `bb0680c66`, which squashes every branch above but #1234, with #1234's squash, the CPU work since and the memory-path review fixes. Sealed again at the merge, `2c13827a2` |
 
 - Quartus Prime Lite 17.0.2. The netlist comes from the pc386 lock's Yosys
   `0a7927bf`, DeanoC/yosys#68's squash merge on Yosys main
@@ -103,6 +113,26 @@ M5 work.
   - `pc386_system` takes the new `pc386_snapshot`. Its status block had read
     the presenter's and the plane's pixel-clock counters in the system clock
     without a synchroniser, as M4's observe words had.
+- **`deano/i386-mempath` at `45af99a23`, 31 October.** Main now holds
+  squashes of branches this one merged as their own commits. The merge base,
+  `6a7e47d0af`, is older than all of them, so a plain merge could quietly
+  revert one side. The merge tree starts from `45af99a23` and adds only
+  slice 1's changes, so `git diff 45af99a23` lists only slice 1's 44 files.
+  - Slice 1 changed 30 files that #1230 left as an input this branch had
+    already merged. Those take this branch's version.
+  - Both sides changed the other 14. Each was merged with an explicit base:
+    this branch's merge of its inputs before slice 1 (`5690dd639`), or
+    `e10811e575` for the README and the M4 record.
+  - The Makefile and `tests/test_affected.py` keep main's PC/XT entries.
+  - The README keeps #1230's stop-test row.
+  - `test_pc386_machine.py` and `sim_fes_pc386.py` drop the M4 diagnostic
+    tests, the suite and the imports that #1226's review had added.
+  - `top.sv` drops the bus master's `TIMEOUT_CLOCKS`.
+  - Two of #1230's changes reach slice 1's files. The CPU gained
+    `init_cr0`, which `pc386_system` ties to 0 (MP and TS clear, as at a 386
+    reset), and new trace outputs, left open. The bench's port 0 model now
+    asks its memory for `at(offset, write)`, which `system_tb` answers from
+    the window.
 
 The merged base passes on its own. `--suite boot --cpu rtl` on `machine_tb`
 reaches the prompt and lists `dir`, with 113,547,658 instructions retired.
@@ -154,9 +184,16 @@ and a CPU reset leaves the machine and its ports running.
 ## System simulation
 
 `python3 scripts/sim_fes_pc386.py --suite system`, at `c6003e5304` (the
-sealed revision's RTL; `c97eee0b6f` changes only documents):
+29 October seal's RTL; `c97eee0b6f` changes only documents):
 [`system-report.json`](system-report.json). Its benches took about 40
 minutes of wall time.
+
+On 31 October the suite ran again at `2c13827a2`, the merge of #1230's head,
+in 16 minutes. Its bench was built from that RTL, the CPU with CR0's MP and
+TS among it. Its report is byte for byte `system-report.json`: the same POST
+and debug lines, prompt cycle, instructions retired, screen and status
+block. Nothing the CPU gained since changed a cycle of this boot: not the new
+instructions, and not the DMA and forwarding fixes.
 
 | | Simulation, 61.44 MHz | Kit B, m5k1 |
 | --- | --- | --- |
@@ -203,26 +240,47 @@ keeps its latency model, which is pessimistic at 61.44 MHz.
 
 ## Quartus seal
 
-`make build-fes-pc386-quartus` at seed 1 and `c97eee0b6f`:
-[`seal-summary.json`](seal-summary.json) is the build summary (timing,
-resources, firmware digests, every pinned input's hash).
+`make build-fes-pc386-quartus` at seed 1, both times from a clean checkout.
+Each summary is the build's own record: timing, resources, firmware digests,
+and every pinned input's hash.
+- **31 October**, at `2c13827a2`, the merge of #1230's head:
+  [`seal-summary-2026-10-31.json`](seal-summary-2026-10-31.json).
+- **29 October**, at `c97eee0b6f`: [`seal-summary.json`](seal-summary.json).
+  Kit B ran this package. It no longer describes the branch's RTL.
 
-| | Seal | Earlier fit, Yosys `1f7d0273` | Earlier fit, with the underflow change |
-| --- | --- | --- | --- |
-| Revision | `c97eee0b6f` | `183dfbbc1b` | `9576db71ab` |
-| Build ID, package | `0efa2213…`, `538773ad…` | `66121381…`, `3fa1455a…` | not published: the checkout was not clean at the end |
-| System Fmax, slow corners | 72.53-72.70 MHz | 72.58-73.34 MHz | 73.80 MHz |
-| Pixel Fmax | 86.99 MHz | 82.06 MHz | 80.57 MHz |
-| Setup, hold slack | +1.969, +0.093 ns | +1.278, +0.069 ns | +0.933, +0.113 ns |
-| Recovery, removal, pulse width | +6.914, +0.266, +1.122 ns | +7.607, +0.551, +1.122 ns | +7.948, +0.266, +1.122 ns |
-| ALMs | 23,147 (55%) | 23,156 (55%) | 23,145 (55%) |
-| Registers | 22,315 | 22,150 | |
-| RAM blocks | 251 of 553 (1,243,843 bits) | 251 | |
-| DSP blocks | 27 of 112 | 27 | |
-| RBF | 3,465,012 bytes, SHA-256 `97272a86…` | | |
+| | Seal, 31 October | Seal, 29 October | Earlier fit, Yosys `1f7d0273` | Earlier fit, with the underflow change |
+| --- | --- | --- | --- | --- |
+| Revision | `2c13827a2` | `c97eee0b6f` | `183dfbbc1b` | `9576db71ab` |
+| Build ID, package | `951c8048…`, `15c5c86d…` | `0efa2213…`, `538773ad…` | `66121381…`, `3fa1455a…` | not published: the checkout was not clean at the end |
+| System Fmax, slow corners | 71.30-73.80 MHz | 72.53-72.70 MHz | 72.58-73.34 MHz | 73.80 MHz |
+| Pixel Fmax, slow corners | 78.40-79.37 MHz | 86.99 MHz | 82.06 MHz | 80.57 MHz |
+| Setup slack: pixel, system | +0.709, +2.250 ns | +1.969, +2.489 ns | +1.278 ns worst | +0.933 ns worst |
+| Hold slack | +0.086 ns | +0.093 ns | +0.069 ns | +0.113 ns |
+| Recovery, removal, pulse width | +7.776, +0.370, +1.122 ns | +6.914, +0.266, +1.122 ns | +7.607, +0.551, +1.122 ns | +7.948, +0.266, +1.122 ns |
+| ALMs | 24,004 (57%) | 23,147 (55%) | 23,156 (55%) | 23,145 (55%) |
+| Registers | 22,426 | 22,315 | 22,150 | |
+| RAM blocks | 251 of 553 (1,244,615 bits) | 251 of 553 (1,243,843 bits) | 251 | |
+| DSP blocks | 27 of 112 | 27 of 112 | 27 | |
+| RBF | 3,461,832 bytes, SHA-256 `82859bbf…` | 3,465,012 bytes, SHA-256 `97272a86…` | | |
 
 The two earlier fits are timing data points only. Every fit has no illegal
-or unconstrained clocks. Against M4's shell (9,754 ALMs, 53 RAM, 21 DSP),
+or unconstrained clocks.
+
+The 31 October seal is the first with the CPU work #1230 carries since the
+last merge:
+- BT, BTS, BTR and BTC; BSF and BSR; DAA, DAS, AAA and AAS.
+- BOUND, with CLTS, WAIT and CR0's MP and TS.
+- #1234's squash, and the DMA-ordering, store-forwarding and review fixes.
+
+That costs 857 ALMs and 111 registers. The pixel clock's slack fell from
++1.969 to +0.709 ns, though no pixel-clock RTL changed. TimeQuest's worst
+paths at the slow -40 °C corner, the worst for both clocks, lie outside the
+CPU:
+- **Pixel clock.** All eight worst paths run in the presenter's scaler, from
+  `presenter_width` to `p_wx` and its duplicates. No presenter RTL changed,
+  so the difference comes from the fit.
+- **System clock.** The worst paths run in the VGA scanout, from `vcount` to
+  `line_base`, at +2.250 ns. Against M4's shell (9,754 ALMs, 53 RAM, 21 DSP),
 the CPU, its ROM and the host link add about 13,400 ALMs, 198 RAM blocks and
 6 DSP blocks. The ROM takes 128 of those blocks: Quartus maps its 6,144 x
 128 bits as 128 blocks of 8K x 1, where the design budgeted 96. RAM is not
