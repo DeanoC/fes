@@ -219,8 +219,15 @@ def verify_reset_synchronizers(project):
         return re.sub(r"\s+", "", source)
 
     board = compact(project / "fes_mailbox/fes_de25_scanout_board.v")
-    if ("always@(posedgepixel_clkornegedgequalified_lock)" not in board or
-            "always@(posedgepixel_clkornegedgevisible_sync[1])" not in board or
+    if ("always@(posedgesystem_clkornegedgetop_reset_n)if(!top_reset_n)visible_request<=1'b0;"
+            "elsevisible_request<=first_lock_seen&&qualified_lock&&!fault;" not in board or
+            "fes_de25_top_resetvisible_release(.clk(pixel_clk),.ninit_done(1'b0),"
+            ".pll_locked(qualified_lock),.reset_n(visible_reset_n));" not in board or
+            "always@(posedgepixel_clkornegedgevisible_reset_n)" not in board or
+            "wirevisible_request=" in board or
+            "always@(posedgepixel_clkornegedgequalified_lock)" in board):
+        raise ValueError("scanout visibility crossing needs a registered source and a pixel-domain reset release")
+    if ("always@(posedgepixel_clkornegedgevisible_sync[1])" not in board or
             "assignHDMI_TX_D=video_active&&visible_line?video_rgb:24'd0;" not in board or
             "assignHDMI_TX_DE=video_active&&visible_line&&video_de;" not in board or
             "assignHDMI_TX_D=visible_request" in board or
@@ -238,23 +245,27 @@ def verify_reset_synchronizers(project):
                       "altera_reset_synchronizer_int_chain[" + str(stage) + "]|")
             if target + "aclr" not in sdc or target + "clrn" not in sdc:
                 raise ValueError("scanout SDC does not constrain the generated " + controller + " stage " + str(stage))
-    for path in ("visible_sync[0]", "visible_sync[1]"):
-        for pin in ("aclr", "clrn"):
-            if "fes_video_inst|" + path + "|" + pin not in sdc:
-                raise ValueError("scanout SDC does not constrain the registered visibility clear pin: " + path + "|" + pin)
     cuts = "".join(re.findall(r"setscanout_(?:aclr|clrn)\[get_pins[^{]*\{[^}]*\}\]", sdc))
-    if ("video_active" in cuts or "set_false_path-to$scanout_gate_clear" in sdc or
+    for pin in ("aclr", "clrn"):
+        if "fes_video_inst|visible_release|sync_regs*|" + pin not in cuts:
+            raise ValueError("scanout SDC does not constrain the visibility release clear pin: " + pin)
+    if ("visible_sync" in cuts or "video_active" in cuts or
+            "set_false_path-to$scanout_visible_clear" in sdc or "set_false_path-to$scanout_gate_clear" in sdc or
+            "if{[get_collection_size$scanout_visible_clear]!=2}" not in sdc or
             "setscanout_gate_clear[get_pins-compatibility_mode-nocase-nowarn{fes_video_inst|video_active|aclr"
             "fes_video_inst|video_active|clrn}]" not in sdc or
             "if{[get_collection_size$scanout_gate_clear]!=1}" not in sdc):
-        raise ValueError("scanout SDC must keep the pixel-domain data/DE gate clear timed and present")
+        raise ValueError("scanout SDC must keep the pixel-domain visibility and data/DE gate clears timed and present")
+    if ("setscanout_visible_source[get_registers{fes_video_inst|visible_request}]" not in sdc or
+            "set_false_path-from$scanout_visible_source-to$scanout_visible_head" not in sdc):
+        raise ValueError("scanout SDC must cut only the registered visibility request to the first synchronizer stage")
     if "if{$scanout_clear_count!=10}" not in sdc:
         raise ValueError("scanout SDC does not require all ten reset/visibility clear pins")
     if "fes_scanout_pixel_reset|sync_regs*" in sdc or "fes_scanout_system_reset|sync_regs*" in sdc:
         raise ValueError("scanout SDC still targets nonexistent board reset registers")
     return {"pixel_clock": "74250000 Hz", "system_clock": "100000000 Hz",
             "assertion": "asynchronous", "deassertion": "synchronous per domain",
-            "hdmi_data_de_gate": "pixel-registered; qualified-lock clear asserts immediately",
+            "hdmi_data_de_gate": "pixel-registered; qualified-lock loss clears the pixel release immediately",
             "sdc_clear_pins": 10}
 
 
