@@ -3018,6 +3018,11 @@ void TestPc386LibraryRecordAndWallClock()
 	mister::CoreData saved;
 	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "ultima-vi", &saved).ok());
 	assert(saved.words[8 + 0x20] == 0x5a && saved.words[0] == 1 && saved.revision != inspected.revision);
+	auto changed_settings = settings;
+	changed_settings.machine.preset = 2;
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "ultima-vi",
+		saved.revision, changed_settings, &inspected).ok());
+	assert(inspected.words[0] == 2 && inspected.words[8 + 0x20] == 0x5a);
 	// A Stop whose record cannot be published resumes the core, and the
 	// package stays persistent through its record although it has no disk.
 	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-vi").ok());
@@ -3232,8 +3237,10 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	{ std::ofstream rewrite(disk.path, std::ios::binary | std::ios::trunc); rewrite << base; }
 	const std::string ns = media.path + "/" + MediaDataNamespace(identity);
 	{ std::ofstream corrupt(ns + "/chunk-" + saved.chunks[1].sha256, std::ios::binary | std::ios::trunc); corrupt << "x"; }
-	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &disk).code ==
-		mister::ErrorCode::corrupt_data);
+	const auto corrupt_chunk = fixture.runtime.LoadLibraryCore(package.path, opened.package_id,
+		data.path, "ultima-vi", &disk);
+	assert(corrupt_chunk.code == mister::ErrorCode::corrupt_data &&
+		corrupt_chunk.phase == "media_data");
 	file.reset();
 	assert(unlink((ns + "/record.bin").c_str()) == 0);
 	for (const auto& entry : saved.chunks) unlink((ns + "/chunk-" + entry.sha256).c_str());

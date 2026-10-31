@@ -314,6 +314,7 @@ Error AtaDeltaFile::CollectLocked(const AtaDiskDelta& published)
     DIR* dir = fdopendir(copy);
     if (!dir) { close(copy); return Io("cannot scan media-data namespace"); }
     std::vector<std::string> unnamed;
+    errno = 0;
     while (const dirent* entry = readdir(dir)) {
         const std::string name(entry->d_name);
         if (!ChunkName(name)) continue;
@@ -322,7 +323,9 @@ Error AtaDeltaFile::CollectLocked(const AtaDiskDelta& published)
                 [&](const AtaDeltaChunk& chunk) { return chunk.sha256 == digest; }))
             unnamed.push_back(name);
     }
+    const int scan_error = errno;
     closedir(dir);
+    if (scan_error != 0) return Io("cannot scan media-data namespace");
     for (const auto& name : unnamed)
         if (unlinkat(directory_, name.c_str(), 0) != 0 && errno != ENOENT)
             return Io("cannot remove an unnamed ATA disk delta chunk");
