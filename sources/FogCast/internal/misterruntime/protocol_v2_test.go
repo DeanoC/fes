@@ -91,40 +91,6 @@ func TestProtocol2ErrorAcceptsMediaDataPhase(t *testing.T) {
 	}
 }
 
-func TestProtocol2DecoderAcceptsPerGamePc386MachineRecord(t *testing.T) {
-	line := fixtureLines(t, "protocol-v2.jsonl")[1]
-	machine := map[string]any{
-		"preset": 1, "frequency": 0, "code_profile": 0, "turbo": 0,
-		"sb_base": 0x220, "sb_irq": 7, "sb_dma": 1,
-	}
-	coreData := map[string]any{
-		"package_id": strings.Repeat("a", 64), "core_id": "fes.pc386",
-		"layout": map[string]any{"id": "fes.pc386.machine", "major": 1, "minor": 0},
-		"mode":   "persistent", "revision": "absent", "game_id": "ultima-vi", "machine": machine,
-	}
-	decode := func() (Protocol2Response, error) {
-		encoded, err := json.Marshal(coreData)
-		if err != nil {
-			t.Fatal(err)
-		}
-		responseLine := strings.Replace(line, `"version":"fixture"`,
-			`"version":"fixture","core_data":`+string(encoded), 1)
-		return decodeProtocol2Response([]byte(responseLine))
-	}
-	response, err := decode()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if response.CoreData == nil || response.CoreData.GameID != "ultima-vi" ||
-		response.CoreData.Machine == nil || response.CoreData.Machine.SBIRQ != 7 {
-		t.Fatalf("core data = %#v", response.CoreData)
-	}
-	machine["sb_irq"] = 6
-	if _, err := decode(); !errors.Is(err, errInvalidRuntimeResponse) {
-		t.Fatalf("invalid machine settings error = %v", err)
-	}
-}
-
 func TestLoadCoreNegotiatesReadOnlyThenMutatesExactlyOnce(t *testing.T) {
 	lines := fixtureLines(t, "protocol-v2.jsonl")
 	fixture := newSequenceSocketFixture(t, []string{lines[1] + "\n", lines[5] + "\n"})

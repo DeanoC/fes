@@ -422,8 +422,10 @@ The aux device accumulates them and reports standard 3-byte PS/2 packets.
   recognised.
 - Commands FF, FE, F6, F5, F4, F3, F2, F0, EE/EC wrap mode, EB, EA, E9, E8, E7,
   E6; anything else gets FE.
-- PS/2 Y is positive upward while `fes.mouse.relative` uses screen-down
-  positive dy. The aux device negates dy when forming PS/2 packets.
+- PS/2 Y is positive upward. The `fes.mouse.relative` contract does not state
+  its dy sign; evdev and the ST's IKBD path use screen-down positive. The
+  mister-packages change states the sign, and the aux device negates dy if it
+  is screen-down.
 
 ### A20 and CPU reset
 
@@ -895,7 +897,7 @@ offset `0x08000000`, maximum 134,217,728 bytes (128 MiB), chunk 65,536 bytes.
 | DiskCommit words | Size in sectors, cylinders, heads, sectors per track, CRC-32 of the committed sectors |
 | DiskControl commit | The core reads exactly the committed sector count from the window on port 2 and computes CRC-32 (about 0.2 s for 128 MiB at 700 MB/s). A match makes it ready; a mismatch leaves it loading with the CRC error flag. The runtime polls DiskInfo |
 | DiskControl eject | Held execution only. A hard disk is fixed while running |
-| DiskControl freeze, resume, saved | Freeze fences new sector writes (a write command stays BSY), drains accepted writes, then ACKs; each successful Freeze clears Saved. Resume releases the fence. Saved requires a frozen disk with no busy writer, clears dirty bits and keeps the fence until a later Freeze clears its authorization. |
+| DiskControl freeze, resume, saved | Freeze fences new sector writes (a write command stays BSY), drains an accepted one and ACKs. Saved clears the dirty bits and keeps the fence, as for the [ST capture](../../mister-packages/docs/computer-io.md#writable-st-image-capture) |
 | DiskDirty | Reads the dirty map, 16 chunks per word, while frozen |
 
 The size is a multiple of 512 bytes from 1 MiB to 128 MiB. 128 MiB is also the
@@ -1207,7 +1209,7 @@ It declares, all required:
 | `fes.video.fixed-720p60` 1.0 | 0 | Exists |
 | `fes.keyboard.hid` 1.0 | 1 | Exists |
 | `fes.audio.pcm-s16-stereo-48k` 1.0 | 3 | Exists |
-| `fes.mouse.relative` 1.0 | 8 | Exists; positive dy moves down the screen |
+| `fes.mouse.relative` 1.0 | 8 | Exists; the dy sign gets stated |
 | `fes.memory.hps-ddr` 1.0 | 12 | Exists |
 | `fes.video.session-display` 1.0 | 13 | Exists |
 | `fes.fabric.video.display-plane` 1.0 | None (manifest only) | Exists |

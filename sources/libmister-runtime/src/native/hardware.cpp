@@ -425,20 +425,6 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
         media_snapshot_.clear(); media_data_flushed_ = false;
         return {};
     }
-	if (core_data_file_) {
-		if (active_driver_ == nullptr || generation == 0)
-			return {ErrorCode::io_failed,
-				"active persistent data cannot be restored", "core_data"};
-		if (input_open_)
-			return {ErrorCode::io_failed,
-				"active input was not fully stopped", "input"};
-		const Error resumed =
-			active_driver_->ResumeData(active_context_, Deadline(clock_, timeouts_.core_io_ms));
-		if (!resumed.ok())
-			return resumed;
-	}
-	// Keep the disk fenced until machine data has resumed. If record restore
-	// fails, reboot recovery must not leave the guest able to write unsaved data.
 	if (ata_delta_file_) {
 		auto* driver = active_driver_ == fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
 		if (!driver || generation == 0) return {ErrorCode::io_failed, "active ATA disk cannot be resumed", "media_data"};
@@ -448,6 +434,19 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
 	}
 	if (!core_data_file_)
 		return {};
+	if (active_driver_ == nullptr || generation == 0)
+		return {ErrorCode::io_failed,
+			"active persistent data cannot be restored", "core_data"};
+	if (input_open_)
+		return {ErrorCode::io_failed,
+			"active input was not fully stopped", "input"};
+
+	if (core_data_file_) {
+		const Error resumed =
+			active_driver_->ResumeData(active_context_, Deadline(clock_, timeouts_.core_io_ms));
+		if (!resumed.ok())
+			return resumed;
+	}
 	// Some persistent computer packages have no host input recipe. Their
 	// machine record still needs Resume after a failed save, and once it has
 	// resumed the guest may change RAM before the next save attempt.

@@ -223,11 +223,6 @@ func ComputerABI(id string, major, minor int64) bool {
 	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor >= 0 && minor <= int64(generated.FesComputerABIMinor)
 }
 
-// ComputerABI10 reports the original fes.computer 1.0 contract only.
-func ComputerABI10(id string, major, minor int64) bool {
-	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor == 0
-}
-
 // ComputerAtaDiskABI reports a supported fes.computer minor that includes ATA disks.
 func ComputerAtaDiskABI(id string, major, minor int64) bool {
 	return ComputerABI(id, major, minor) && minor >= 1
@@ -373,10 +368,10 @@ func MediaUnit(p *CorePackageStatus, unit uint8) (MediaUnitStatus, bool) {
 	return MediaUnitStatus{}, false
 }
 
-// declaredComputerMedia projects known media interfaces of a supported
-// fes.computer 1.0 or 1.1 descriptor. The shared ZX81 tape unit has
-// machine-specific source images: ZX80 packages use raw .o images, while the
-// ZX81 and Timex packages use .p images.
+// declaredComputerMedia projects known media interfaces of a fes.computer
+// descriptor. The shared ZX81 tape unit has machine-specific source images:
+// ZX80 packages use raw .o images, while the ZX81 and Timex packages use .p
+// images.
 func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapability {
 	result := make([]CoreMediaCapability, 0)
 	if !ComputerABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {

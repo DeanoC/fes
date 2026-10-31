@@ -85,10 +85,9 @@ func (d CoreData) Valid() bool {
 	if !coreDataDigest.MatchString(d.PackageID) || !coreDataID.MatchString(d.CoreID) || !ValidCoreDataRevision(d.Revision) || !d.PaddleSpeed.Valid() {
 		return false
 	}
-	if d.GameID != "" || d.Machine != nil {
-		return d.Mode == "persistent" && d.CoreID == "fes.pc386" && d.Machine != nil && d.Machine.Valid() &&
-			ValidMediaGameID(d.GameID) && d.Layout != nil && *d.Layout == Pc386MachineInterface() &&
-			d.PaddleSpeed == PaddleSlow && d.BestRally == 0
+	if d.Machine != nil || d.GameID != "" {
+		return d.Machine != nil && d.Machine.Valid() && ValidMediaGameID(d.GameID) && d.Mode == "persistent" &&
+			d.Layout != nil && *d.Layout == Pc386MachineInterface() && d.PaddleSpeed == 0 && d.BestRally == 0
 	}
 	switch d.Mode {
 	case "persistent":

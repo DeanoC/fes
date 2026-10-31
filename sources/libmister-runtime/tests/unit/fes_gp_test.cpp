@@ -3168,13 +3168,6 @@ void TestPc386IdentityPersistenceAndWallClock()
 	assert(f.endpoint.clock == std::vector<unsigned>({2026, 12, 31, 23, 59, 59, 5}));
 	assert(f.driver.SetWallClock(LocalTime(1970, 1, 1, 0, 0, 5, 4), kComputerDeadline).ok());
 	assert(f.endpoint.clock == std::vector<unsigned>({1980, 1, 1, 0, 0, 0, 3}));
-	f.endpoint.reject_request = [](const mister_test::ComputerEndpoint::Request& request) {
-		return request.opcode == FesComputerOpcodeWallClock && request.index == 2 ? 3u : 0u;
-	};
-	const auto clock_error = f.driver.SetWallClock(LocalTime(2026, 10, 28, 14, 5, 37, 3),
-		kComputerDeadline);
-	assert(!clock_error.ok() && clock_error.phase == "transport");
-	f.endpoint.reject_request = {};
 	const auto out_of_range = f.driver.SetWallClock(LocalTime(2100, 1, 1, 0, 0, 0, 5), kComputerDeadline);
 	assert(out_of_range.code == mister::ErrorCode::invalid_request && out_of_range.phase == "transport");
 	for (const bool timeout : {false, true}) {

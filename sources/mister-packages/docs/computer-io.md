@@ -93,7 +93,7 @@ in the order written below; the first failing check determines the error.
 
 | Opcode | Name | Index | Argument |
 | --- | --- | --- | --- |
-| 1 | Identity | word 0..15; word 16 on ABI 1.1 | 0 |
+| 1 | Identity | word 0..15 | 0 |
 | 2 | Execution | 0 | 0 hold reset, 1 release |
 | 3 | KeyboardHid | row 0..8 | 16-bit row state |
 | 4 | ControllerButtons | port 0..1 | 8-bit button mask |

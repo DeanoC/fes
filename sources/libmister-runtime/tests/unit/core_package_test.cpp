@@ -1034,28 +1034,22 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 		high.abi.minor = 0;
 		assert(check(high).code == mister::ErrorCode::unsupported_abi);
 	}
-	for (const auto* id : {"fes.persistence.words", "fes.pc386.machine"}) {
-		auto high = descriptor;
-		high.abi.minor = 1;
-		high.interfaces.push_back({id, 1, 0, true});
-		assert(check(high).code == mister::ErrorCode::unsupported_interface);
-		high.abi.minor = 0;
-		assert(check(high).code == mister::ErrorCode::unsupported_abi);
+	{
+		auto paired = descriptor;
+		paired.abi.minor = 1;
+		paired.interfaces.push_back({"fes.persistence.words", 1, 0, true});
+		paired.interfaces.push_back({"fes.pc386.machine", 1, 0, true});
+		assert(check(paired).ok());
+		auto words_only = paired;
+		words_only.interfaces.pop_back();
+		assert(check(words_only).code == mister::ErrorCode::unsupported_interface);
+		auto layout_only = paired;
+		layout_only.interfaces.erase(layout_only.interfaces.end() - 2);
+		assert(check(layout_only).code == mister::ErrorCode::unsupported_interface);
+		auto duplicate_layout = paired;
+		duplicate_layout.interfaces.push_back({"fes.pc386.machine", 1, 0, true});
+		assert(check(duplicate_layout).code == mister::ErrorCode::unsupported_interface);
 	}
-	auto persistent = descriptor;
-	persistent.abi.minor = 1;
-	persistent.interfaces.push_back({"fes.persistence.words", 1, 0, true});
-	persistent.interfaces.push_back({"fes.pc386.machine", 1, 0, true});
-	assert(check(persistent).ok());
-	for (const auto* id : {"fes.persistence.words", "fes.pc386.machine"}) {
-		auto incomplete = persistent;
-		incomplete.interfaces.erase(std::remove_if(incomplete.interfaces.begin(), incomplete.interfaces.end(),
-			[&](const Interface& interface) { return interface.id == id; }), incomplete.interfaces.end());
-		assert(check(incomplete).code == mister::ErrorCode::unsupported_interface);
-	}
-	auto duplicate_layout = persistent;
-	duplicate_layout.interfaces.push_back({"fes.pc386.machine", 1, 0, true});
-	assert(check(duplicate_layout).code == mister::ErrorCode::unsupported_interface);
 	auto system = descriptor;
 	system.core.system = "apple2";
 	assert(check(system).code == mister::ErrorCode::unsupported_abi);

@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -86,52 +85,6 @@ func TestPc386GoldenDiskStatusesDecodeReconcileAndPassTargetClient(t *testing.T)
 			}
 			assertTargetClientAcceptsStatus(t, status)
 		})
-	}
-}
-
-func TestPc386PersistentMachineRecordAllowsDisklessStatus(t *testing.T) {
-	lines := fixtureLines(t, "protocol-v2-live-computer-statuses.jsonl")
-	response, err := decodeProtocol2Response([]byte(lines[1]))
-	if err != nil {
-		t.Fatal(err)
-	}
-	active := response.ActivePackage
-	if active == nil || active.PersistenceMode != "persistent" {
-		t.Fatalf("active package = %+v", active)
-	}
-	dropMediaInterfaces := func(interfaces []corepackage.Interface) []corepackage.Interface {
-		filtered := interfaces[:0]
-		for _, item := range interfaces {
-			if item.ID != protocol.AtaDiskInterface().ID && item.ID != "fes.memory.hps-ddr" {
-				filtered = append(filtered, item)
-			}
-		}
-		return filtered
-	}
-	active.Descriptor.Interfaces = dropMediaInterfaces(active.Descriptor.Interfaces)
-	response.Capabilities.ActiveInterfaces = slices.DeleteFunc(response.Capabilities.ActiveInterfaces,
-		func(item Protocol2Interface) bool {
-			return item.ID == protocol.AtaDiskInterface().ID || item.ID == "fes.memory.hps-ddr"
-		})
-	for index := range response.Capabilities.ABIs {
-		abi := &response.Capabilities.ABIs[index]
-		if abi.ID == active.Descriptor.ABI.ID && abi.Major == uint16(active.Descriptor.ABI.Major) &&
-			abi.Minor == uint16(active.Descriptor.ABI.Minor) {
-			filtered := abi.Interfaces[:0]
-			for _, item := range abi.Interfaces {
-				if item.ID != protocol.AtaDiskInterface().ID && item.ID != "fes.memory.hps-ddr" {
-					filtered = append(filtered, item)
-				}
-			}
-			abi.Interfaces = filtered
-		}
-	}
-	response.Capabilities.MediaUnits = nil
-	if !descriptorPersistentMachineData(active.Descriptor) || descriptorAtaDisk(active.Descriptor) {
-		t.Fatal("diskless pc386 machine-data descriptor was not isolated")
-	}
-	if !validActivePackage(*active, response.Capabilities) {
-		t.Fatal("persistent pc386 machine record without an ATA unit was rejected")
 	}
 }
 

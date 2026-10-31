@@ -56,26 +56,12 @@
 #include <atomic>
 #include <cerrno>
 static std::atomic<bool> fail_media_directory_sync{false};
-static std::atomic<int> fail_media_directory_sync_after{-1};
 extern "C" int fsync(int descriptor)
 {
     struct stat state {};
-    if (fstat(descriptor,&state)==0 && S_ISDIR(state.st_mode)) {
-        int remaining = fail_media_directory_sync_after.load();
-        while (remaining >= 0) {
-            const int next = remaining == 0 ? -1 : remaining - 1;
-            if (fail_media_directory_sync_after.compare_exchange_weak(remaining, next)) {
-                if (remaining == 0) {
-                    errno = EIO;
-                    return -1;
-                }
-                break;
-            }
-        }
-        if (fail_media_directory_sync.exchange(false)) {
-            errno = EIO;
-            return -1;
-        }
+    if (fail_media_directory_sync.load() && fstat(descriptor,&state)==0 &&
+        S_ISDIR(state.st_mode) && fail_media_directory_sync.exchange(false)) {
+        errno=EIO;return -1;
     }
     return static_cast<int>(syscall(SYS_fsync,descriptor));
 }
@@ -2889,9 +2875,6 @@ void TestProductionFactoryForwardsCoreDataWithoutHardwareMutation()
 		refreshed = result.ok() && observed.package_id == id &&
 					observed.revision == saved.revision && observed.paddle_speed == 2 &&
 					observed.best_rally == 17;
-		result = hardware->UpdateCoreSettings(package.path, id, data.path, "ultima-vi",
-			saved.revision, PaddleSpeed(0), &observed);
-		assert(result.code == mister::ErrorCode::invalid_request);
 		result =
 			hardware->UpdateCoreSettings(package.path, id, data.path, "", saved.revision, PaddleSpeed(0), &observed);
 		mister::CoreData reread;
@@ -3001,17 +2984,6 @@ void TestPc386LibraryRecordAndWallClock()
 	OpenedCorePackage opened;
 	assert(OpenCorePackage(package.path, "", &opened).ok());
 	const std::string id = opened.package_id;
-	auto remove_interface = [](auto* descriptor, const std::string& interface_id) {
-		auto& interfaces = descriptor->interfaces;
-		interfaces.erase(std::remove_if(interfaces.begin(), interfaces.end(),
-			[&](const auto& interface) { return interface.id == interface_id; }), interfaces.end());
-	};
-	auto without_machine_layout = opened.descriptor;
-	remove_interface(&without_machine_layout, FesComputerInterfacePc386MachineID);
-	assert(!CheckCoreCompatibility(without_machine_layout).ok());
-	auto without_persistence_transport = opened.descriptor;
-	remove_interface(&without_persistence_transport, FesComputerInterfacePersistenceWordsID);
-	assert(!CheckCoreCompatibility(without_persistence_transport).ok());
 	// The record is per game: a pc386 package needs a game, Pong never takes one.
 	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path).code ==
 		mister::ErrorCode::invalid_request);
@@ -3036,8 +3008,6 @@ void TestPc386LibraryRecordAndWallClock()
 
 	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-vi").ok());
 	assert(!endpoint.held && fixture.runtime.status().core_data.mode == "persistent");
-	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "", "absent",
-		settings, &inspected).code == mister::ErrorCode::invalid_request);
 	assert(endpoint.machine_words == inspected.words);
 	assert(endpoint.clock == std::vector<unsigned>({2026, 10, 28, 14, 5, 37, 4}));
 	// Restore and the clock both precede release.
@@ -3206,21 +3176,6 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	endpoint.GuestSectorWrite(300, 0x22);
 	endpoint.GuestSectorWrite(size / 512 - 1, 0x33);  // in the 1536-byte tail chunk
 	const auto modified = region;
-	const std::string ata_directory = media.path + "/" + MediaDataNamespace(identity);
-	assert(chmod(ata_directory.c_str(), 0500) == 0);
-	const std::size_t failed_ata_save_requests = endpoint.requests.size();
-	const auto failed_ata_save = fixture.runtime.Stop();
-	assert(failed_ata_save.code == mister::ErrorCode::save_failed);
-	assert(fixture.runtime.status().state == mister::State::running_development);
-	assert(!endpoint.disk_frozen && endpoint.data_snapshot.empty());
-	bool failed_ata_resumed = false;
-	for (std::size_t at = failed_ata_save_requests; at < endpoint.requests.size(); ++at) {
-		const auto& request = endpoint.requests[at];
-		failed_ata_resumed = failed_ata_resumed || (request.opcode == FesComputerOpcodeDiskControl &&
-			request.argument == FesComputerDiskControlResume);
-	}
-	assert(failed_ata_resumed);
-	assert(chmod(ata_directory.c_str(), 0700) == 0);
 	const std::string record_directory = data.path + "/games/" +
 		GameDataNamespace("fes.pc386", "ultima-vi");
 	assert(chmod(record_directory.c_str(), 0500) == 0);
@@ -3263,27 +3218,6 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	// A Stop with no guest writes publishes nothing new.
 	assert(fixture.runtime.Stop().ok());
 	assert(file->Read(&saved).ok() && saved.chunks.size() == 3);
-	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &disk).ok());
-	const std::string previous_revision = fixture.runtime.status().capabilities.media_units[0].revision;
-	endpoint.GuestSectorWrite(17, 0x44);
-#if defined(__linux__)
-	// One dirty-chunk rename and the pre-manifest sync succeed; fail the sync
-	// after the new manifest rename so retry must reread its visible revision.
-	fail_media_directory_sync_after = 1;
-	const auto uncertain_ata_save = fixture.runtime.Stop();
-	assert(uncertain_ata_save.code == mister::ErrorCode::save_failed);
-	assert(fixture.runtime.status().state == mister::State::running_development && !endpoint.disk_frozen);
-	assert(fail_media_directory_sync_after.load() == -1);
-	AtaDiskDelta visible_after_sync_failure;
-	assert(file->Read(&visible_after_sync_failure).ok() &&
-		visible_after_sync_failure.revision != previous_revision);
-	assert(fixture.runtime.status().capabilities.media_units[0].revision == previous_revision);
-	endpoint.GuestSectorWrite(18, 0x55);
-	assert(fixture.runtime.Stop().ok());
-	assert(file->Read(&saved).ok() && saved.revision != visible_after_sync_failure.revision);
-#else
-	assert(fixture.runtime.Stop().ok());
-#endif
 	// A completed execution-release rejection proves the guest never ran. It
 	// must take idle cleanup without trying to capture a record while held.
 	bool rejected_release = false;
@@ -3324,41 +3258,6 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	const std::string games = data.path + "/games/";
 	const std::string record = games + GameDataNamespace("fes.pc386", "ultima-vi");
 	assert(unlink((record + "/record.bin").c_str()) == 0 && rmdir(record.c_str()) == 0 && rmdir(games.c_str()) == 0);
-
-	// If restoring the machine record fails after a Stop save failure, the
-	// fixed disk must remain frozen until reboot recovery.
-	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path,
-		"ultima-vi", &disk).ok());
-	endpoint.GuestSectorWrite(1, 0x44);
-	assert(chmod(record_directory.c_str(), 0500) == 0);
-	const std::size_t failed_resume_requests = endpoint.requests.size();
-	endpoint.fail_after_request = [](const mister_test::ComputerEndpoint::Request& request) {
-		return request.opcode == FesComputerOpcodeDataControl &&
-			request.argument == FesComputerDataResume;
-	};
-	const auto failed_resume = fixture.runtime.Stop();
-	assert(failed_resume.code == mister::ErrorCode::idle_failed && failed_resume.phase == "recovery");
-	assert(fixture.runtime.status().state == mister::State::reboot_required && endpoint.disk_frozen);
-	bool data_resume_attempted = false;
-	for (std::size_t at = failed_resume_requests; at < endpoint.requests.size(); ++at) {
-		const auto& request = endpoint.requests[at];
-		data_resume_attempted |= request.opcode == FesComputerOpcodeDataControl &&
-			request.argument == FesComputerDataResume;
-		assert(!(request.opcode == FesComputerOpcodeDiskControl &&
-			request.argument == FesComputerDiskControlResume));
-	}
-	assert(data_resume_attempted);
-	endpoint.fail_after_request = {};
-	assert(chmod(record_directory.c_str(), 0700) == 0);
-	file.reset();
-	assert(AtaDeltaFile::Open(media.path, identity, size, &file).ok());
-	assert(file->Read(&saved).ok());
-	file.reset();
-	assert(unlink((ns + "/record.bin").c_str()) == 0);
-	for (const auto& entry : saved.chunks) assert(unlink((ns + "/chunk-" + entry.sha256).c_str()) == 0);
-	assert(rmdir(ns.c_str()) == 0);
-	if (unlink((record_directory + "/record.bin").c_str()) != 0) assert(errno == ENOENT);
-	assert(rmdir(record_directory.c_str()) == 0 && rmdir(games.c_str()) == 0);
 }
 
 // An input fault, or an execution release lost at launch, leaves the

@@ -1293,11 +1293,7 @@ func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePac
 func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Capabilities) bool {
 	if protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) && active.PersistenceMode == "persistent" {
 		status := protocol2MediaStatus(active, capabilities)
-		persistentMedia := protocol.PersistentMediaStatusValid(status) &&
-			descriptorPersistentMedia(active.Descriptor, capabilities.MediaUnits)
-		persistentMachineData := len(capabilities.MediaUnits) == 0 &&
-			!descriptorAtaDisk(active.Descriptor) && descriptorPersistentMachineData(active.Descriptor)
-		if !persistentMedia && !persistentMachineData {
+		if !protocol.PersistentMediaStatusValid(status) || !descriptorPersistentMedia(active.Descriptor, capabilities.MediaUnits) {
 			return false
 		}
 	}
@@ -1573,33 +1569,6 @@ func descriptorMediaWrite(d corepackage.Descriptor) bool {
 	return protocol.ComputerABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) && base && write
 }
 
-func descriptorAtaDisk(d corepackage.Descriptor) bool {
-	if !protocol.ComputerAtaDiskABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) {
-		return false
-	}
-	for _, i := range d.Interfaces {
-		if i.ID == protocol.AtaDiskInterface().ID && i.Major == int64(protocol.AtaDiskInterface().Major) && i.Minor == int64(protocol.AtaDiskInterface().Minor) {
-			return true
-		}
-	}
-	return false
-}
-
-func descriptorPersistentMachineData(d corepackage.Descriptor) bool {
-	if !protocol.ComputerAtaDiskABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) {
-		return false
-	}
-	words, machine := false, false
-	for _, i := range d.Interfaces {
-		switch i.ID {
-		case "fes.persistence.words":
-			words = i.Required && i.Major == 1 && i.Minor == 0
-		case "fes.pc386.machine":
-			machine = i.Required && i.Major == 1 && i.Minor == 0
-		}
-	}
-	return words && machine
-}
 func descriptorPersistentMedia(d corepackage.Descriptor, units []protocol.MediaUnitStatus) bool {
 	for _, unit := range units {
 		if unit.Persistence != nil {

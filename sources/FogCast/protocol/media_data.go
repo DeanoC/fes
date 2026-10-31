@@ -39,7 +39,7 @@ func PersistentMediaUnitCapable(p *CorePackageStatus, unit MediaUnitStatus) bool
 	}
 	switch unit.Interface {
 	case AtariStFloppyInterface():
-		return ComputerABI10(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) && unit.Unit == AtariStFloppyUnit && MediaWriteCapable(p)
+		return unit.Unit == AtariStFloppyUnit && MediaWriteCapable(p)
 	case AtaDiskInterface():
 		return ComputerAtaDiskABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) && unit.Unit == AtaDiskUnit && !unit.CanSave()
 	default:
