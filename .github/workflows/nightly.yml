@@ -1,7 +1,7 @@
 name: FES nightly regression
 # Every core's full simulation suite (and every other lane) on main, nightly.
-# Pull requests run only smoke sims for affected cores; pushes to main run the
-# full suite for affected cores; this run catches anything either missed.
+# Pull requests and pushes to main run only smoke sims for affected cores; this
+# is the only scheduled run of the full suite.
 on:
   schedule:
     - cron: '17 1 * * *'
@@ -13,11 +13,14 @@ jobs:
     uses: ./.github/workflows/check.yml
   report:
     # Lander owns nightly triage: open or update one tracking issue on failure.
+    # A cancelled run is not a regression, so it files nothing.
     needs: regression
-    if: failure() || cancelled()
+    if: failure()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
+      # contents: read lets the commit lookup list the last day's commits.
+      contents: read
       issues: write
     steps:
       - name: Open or update the nightly regression issue
