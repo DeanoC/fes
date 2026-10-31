@@ -345,6 +345,18 @@
     if (source.firmware_ready === true || source.firmware_ready === false) record.firmware_ready = source.firmware_ready;
     if (source.rom_required === true || source.rom_required === false) record.rom_required = source.rom_required;
     if (source.rom_ready === true || source.rom_ready === false) record.rom_ready = source.rom_ready;
+    const expansionID = optionalCatalogText(source.expansion_id);
+    if (expansionID) record.expansion_id = expansionID;
+    if (source.expansion_ready === true || source.expansion_ready === false) record.expansion_ready = source.expansion_ready;
+    if (Array.isArray(source.slot_expansions)) {
+      // Keep every card, even a malformed one, so an unreadable card still
+      // blocks Play the way Go Game.LaunchBlock does.
+      record.slot_expansions = Object.freeze(source.slot_expansions.map(card => Object.freeze({
+        slot: card && Number.isSafeInteger(card.slot) ? card.slot : 0,
+        expansion_id: card && typeof card.expansion_id === 'string' ? card.expansion_id.trim() : '',
+        ready: Boolean(card) && card.ready === true,
+      })));
+    }
     if (typeof source.rom_id === 'string' && source.rom_id.trim()) record.rom_id = source.rom_id.trim();
     if (typeof source.rom_media_id === 'string' && source.rom_media_id.trim()) record.rom_media_id = source.rom_media_id.trim();
     if (typeof source.rom_role === 'string' && source.rom_role.trim()) record.rom_role = source.rom_role.trim();
@@ -670,15 +682,44 @@
     return '';
   }
 
+  // playLookup indexes titles and game rows once, for callers that resolve
+  // many games against the same catalog (every card in a render). It answers
+  // as titleForGame and findGameRow(choiceGameRows(game, games), id) do: the
+  // first title that names the game, and the last row for an id, with the
+  // open game and its variants last.
+  function playLookup(titles, games) {
+    const byGame = new Map();
+    (Array.isArray(titles) ? titles : []).forEach(title => {
+      if (!title) return;
+      const ids = [title.title_id];
+      (Array.isArray(title.options) ? title.options : []).forEach(option => {
+        if (option) ids.push(option.source_game_id);
+      });
+      ids.forEach(id => {
+        if (typeof id === 'string' && !byGame.has(id)) byGame.set(id, title);
+      });
+    });
+    const rows = new Map();
+    choiceGameRows(null, games).forEach(row => rows.set(row.id, row));
+    return {
+      title: game => (game && byGame.get(game.id)) || null,
+      row: (game, id) => findGameRow(choiceGameRows(game, []), id) || rows.get(id) || null,
+    };
+  }
+
   // resolvePlay classifies the viable backends. The open catalog row is chosen
   // only when the household or the user actually picked that source.
-  function resolvePlay(game, titles, picks, games, resolutionState) {
+  function resolvePlay(game, titles, picks, games, resolutionState, lookup) {
     if (resolutionState && resolutionState !== 'ready') {
       return { game, options: [], choice: { resolutionState } };
     }
-    const title = titleForGame(titles, game);
-    const rows = choiceGameRows(game, games);
-    const options = viableTitleOptions(title, rows);
+    lookup = lookup || playLookup(titles, games);
+    const title = lookup.title(game);
+    const row = id => lookup.row(game, id);
+    const options = titleOptionList(title).filter(option => {
+      const found = row(option.source_game_id);
+      return Boolean(found) && launchBlockReason(found) === '';
+    });
     if (options.length > 1) {
       const saved = savedSourceGameID(title, game, picks, options);
       if (!saved) {
@@ -688,10 +729,10 @@
           choice: { needsChoice: true, choiceReason: 'This title can play in more than one way. Choose one.' },
         };
       }
-      return { game: findGameRow(rows, saved) || game, options, choice: {} };
+      return { game: row(saved) || game, options, choice: {} };
     }
     if (options.length === 1) {
-      return { game: findGameRow(rows, options[0].source_game_id) || game, options, choice: {} };
+      return { game: row(options[0].source_game_id) || game, options, choice: {} };
     }
     return { game, options, choice: {} };
   }
@@ -708,8 +749,11 @@
     return Boolean(game) && game.state === 'invalid' && game.root_online !== false;
   }
 
-  function coverStatusLabel(game) {
-    return playAvailability(game).label;
+  // coverStatusLabel takes the card's resolvePlay result when the renderer
+  // has one, so a card agrees with the play pane on Needs a choice (#424).
+  function coverStatusLabel(game, play) {
+    if (!play) return playAvailability(game).label;
+    return playAvailability(play.game || game, play.choice).label;
   }
 
   function isSessionPlayingCard(session, game, sessionLive, sessionAuthority) {
@@ -844,12 +888,12 @@
     return variantLabelText(game, keepMatchingTitle);
   }
 
-  function coverHoverMeta(game, view) {
+  function coverHoverMeta(game, view, play) {
     const bits = [systemLabel(game.system)];
     if (game && game.region) bits.push(regionLabel(game.region));
     const year = (game && game.year) || catalogYear(view);
     if (year && year !== '—') bits.push(year);
-    bits.push(coverStatusLabel(game));
+    bits.push(coverStatusLabel(game, play));
     return bits.join(' · ');
   }
 
@@ -866,6 +910,13 @@
     if (game.state === 'missing' || game.root_online !== true) return 'This game’s source is offline.';
     if (game.state === 'invalid') return 'This ROM can’t be read.';
     if (game.state !== 'available') return 'This game isn’t ready to launch.';
+    // Same expansion gates as Go Game.LaunchBlock, before firmware and ROM.
+    if (typeof game.expansion_id === 'string' && game.expansion_id.trim() && game.expansion_ready !== true) {
+      return 'Needs an expansion';
+    }
+    if (Array.isArray(game.slot_expansions) && game.slot_expansions.some(card => !card || card.ready !== true)) {
+      return 'Needs an expansion';
+    }
     if (game.firmware_required === true && game.firmware_ready !== true) {
       return game.rom_role === 'firmware'
         ? 'Required machine firmware is missing. Import it before Play.'
@@ -3668,6 +3719,8 @@
     titlesPath,
     parseLibraryTitles,
     playChoiceFor,
+    playLookup,
+    resolvePlay,
     collectionIDFromName,
     uniqueCollectionID,
     parseCollection,
@@ -5059,6 +5112,7 @@
 
   function renderCard(view, liveGame, parent, pane, homeCoord) {
     const game = view.live;
+    const play = cardPlay(game);
     const presentation = view.presentation;
     const selected = isSelectedGame(state.selectedLiveGame, game);
     const homeSelected = pane !== 'home' || !homeCoord
@@ -5091,7 +5145,7 @@
       const labels = collectionLabels(game, state.collections);
       if (labels.length) bits.push(labels[0]);
       if (labels.length > 1) bits.push(`+${labels.length - 1}`);
-      bits.push(coverStatusLabel(game));
+      bits.push(coverStatusLabel(game, play));
       body.appendChild(element('p', 'game-meta', bits.join(' · ')));
       if (game.favorite === true) body.appendChild(element('p', 'game-row-favorite', 'Favorite'));
       if (game.variant_count > 1) {
@@ -5100,7 +5154,7 @@
       card.appendChild(body);
     } else {
       card.appendChild(element('h3', '', cardTitle(game)));
-      card.appendChild(element('p', 'game-meta', coverHoverMeta(game, view)));
+      card.appendChild(element('p', 'game-meta', coverHoverMeta(game, view, play)));
       if (presentation.isFallback) {
         card.appendChild(element('p', 'fallback-note', 'Using local catalog data'));
       } else {
@@ -5126,6 +5180,19 @@
     });
     (parent || nodes.list).appendChild(card);
     if (coverMarks) scheduleCardMarksClearance(card, coverMarks);
+  }
+
+  // Cards resolve against the catalog the play pane uses. The lookup is built
+  // once per catalog snapshot, not once per card.
+  let cardPlayCache = null;
+  function cardPlay(game) {
+    const titles = state.libraryTitles;
+    const games = state.games;
+    const extra = state.playOptionRows;
+    if (!cardPlayCache || cardPlayCache.titles !== titles || cardPlayCache.games !== games || cardPlayCache.extra !== extra) {
+      cardPlayCache = { titles, games, extra, lookup: playLookup(titles, [...(games || []), ...(extra || [])]) };
+    }
+    return resolvePlay(game, titles, state.playPicks, null, '', cardPlayCache.lookup);
   }
 
   function launchControl(game) {

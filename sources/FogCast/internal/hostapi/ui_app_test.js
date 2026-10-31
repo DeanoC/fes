@@ -55,6 +55,8 @@ const {
   sourceLabel,
   playAvailability,
   playChoiceFor,
+  playLookup,
+  resolvePlay,
   launchBlockReason,
   collectionIDFromName,
   uniqueCollectionID,
@@ -967,6 +969,38 @@ test('canonical title id stays a choice until the household picks a backend', ()
   assert.equal(playChoiceFor(skewed, [title], {}, [skewed, emu]).needsChoice, undefined);
   assert.equal(playChoiceFor(checking, [title], {}, [checking, emu]).needsChoice, undefined);
   assert.equal(playChoiceFor(fpga, [title], {}, [fpga]).needsChoice, undefined);
+});
+
+// A card resolves the same choice as the play pane: a dual-ready title with
+// no saved pick says Needs a choice, not Ready (#424).
+test('card status follows the play pane choice', () => {
+  const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const titles = [dataStormTitle(true)];
+  const games = [fpga, emu];
+  const lookup = playLookup(titles, games);
+  const unpicked = resolvePlay(fpga, titles, {}, null, '', lookup);
+  assert.equal(coverStatusLabel(fpga), 'Ready');
+  assert.equal(coverStatusLabel(fpga, unpicked), 'Needs a choice');
+  assert.equal(coverStatusLabel(emu, resolvePlay(emu, titles, {}, null, '', lookup)), 'Needs a choice');
+  const picked = resolvePlay(fpga, titles, { 'data storm': dataStormEmu }, null, '', lookup);
+  assert.equal(coverStatusLabel(fpga, picked), 'Ready');
+  assert.equal(picked.game, emu);
+  // The prebuilt lookup answers as the per-call path does.
+  for (const [game, picks] of [[fpga, {}], [emu, {}], [fpga, { 'data storm': dataStormEmu }]]) {
+    const plain = resolvePlay(game, titles, picks, games);
+    const indexed = resolvePlay(game, titles, picks, null, '', lookup);
+    assert.deepEqual(indexed.choice, plain.choice);
+    assert.equal(indexed.game, plain.game);
+    assert.deepEqual(indexed.options, plain.options);
+  }
+  // One viable backend is Ready; an unready expansion is not viable (#423).
+  const blocked = { ...emu, expansion_id: 'sms-expansion', expansion_ready: false };
+  const single = resolvePlay(fpga, titles, {}, [fpga, blocked]);
+  assert.equal(coverStatusLabel(fpga, single), 'Ready');
+  assert.equal(coverStatusLabel(blocked, resolvePlay(blocked, titles, {}, [fpga, blocked])), 'Ready');
+  assert.equal(coverStatusLabel(blocked), 'Unavailable');
+  assert.equal(coverHoverMeta(fpga, null, unpicked), 'Sega Master System · Needs a choice');
 });
 
 async function openDataStorm(fpga, emu, preferences, extraRoutes = {}) {
@@ -8005,9 +8039,9 @@ test('Cover and Home show non-hover favorite offline and playing marks', async (
   assert.match(css, /\.game-card \.game-meta\s*\{[^}]*white-space:\s*nowrap/);
   assert.match(css, /--list-row-height:\s*72px/);
   assert.match(css, /--list-row-stride:\s*78px/);
-  assert.match(app, /bits\.push\(coverStatusLabel\(game\)\)/);
+  assert.match(app, /bits\.push\(coverStatusLabel\(game, play\)\)/);
   assert.match(app, /\[shownPlay\.label, 'Status'\]/);
-  assert.match(app, /coverHoverMeta\(game, view\)/);
+  assert.match(app, /coverHoverMeta\(game, view, play\)/);
   assert.match(app, /\(game && game\.year\) \|\| catalogYear\(view\)/);
   assert.match(app, /dumpFlagLabels\(game\)/);
   assert.match(app, /function dumpFlagLabels\(game\)/);
@@ -11136,7 +11170,7 @@ test('detail facts show Source ZIP or ROM and omit unknown kind', async () => {
   assert.match(app, /content_prepared: contentPrepared/);
   assert.doesNotMatch(app, /game\.content_prepared/);
   assert.doesNotMatch(app, /game\.execution/);
-  assert.match(app, /coverHoverMeta\(game, view\)/);
+  assert.match(app, /coverHoverMeta\(game, view, play\)/);
   assert.doesNotMatch(app, /bits\.push\(sourceKindLabel/);
   assert.match(css, /--list-row-height:\s*72px/);
   assert.match(css, /--list-row-stride:\s*78px/);
@@ -11576,8 +11610,8 @@ test('detail dump identity Status and Collections follow the selected variant be
   assert.doesNotMatch(app, /'Staging'/);
   assert.doesNotMatch(app, /'Prepared'/);
   assert.doesNotMatch(app, /'On demand'/);
-  assert.match(app, /bits\.push\(coverStatusLabel\(game\)\)/);
-  assert.match(app, /coverHoverMeta\(game, view\)/);
+  assert.match(app, /bits\.push\(coverStatusLabel\(game, play\)\)/);
+  assert.match(app, /coverHoverMeta\(game, view, play\)/);
   assert.match(app, /function collectionLabels\(game/);
   assert.match(css, /--list-row-height:\s*72px/);
   assert.match(css, /--list-row-stride:\s*78px/);
