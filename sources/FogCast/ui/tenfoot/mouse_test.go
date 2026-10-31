@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"encoding/json"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"net/http"
 	"net/http/httptest"
@@ -39,7 +40,7 @@ func TestPlayMouseFractionsButtonsAndCapability(t *testing.T) {
 	a.mu.Unlock()
 	select {
 	case <-tail:
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("queue")
 	}
 	mu.Lock()

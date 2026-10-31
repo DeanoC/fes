@@ -279,10 +279,10 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		tests/support/capture_log.cpp tests/support/fake_input.cpp \
 		tests/support/fake_mmio.cpp \
 		src/native/artifacts.cpp src/native/core_package.cpp src/native/core_composition.cpp src/native/core_data.cpp src/native/media_data.cpp src/native/ata_disk.cpp src/native/sha256.cpp \
-		src/native/core_driver.cpp src/native/input.cpp \
+		src/native/core_driver.cpp  src/native/input.cpp \
 		src/native/fes_gp.cpp src/native/menu_display.cpp src/native/diagnostic.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
-		src/native/hardware.cpp src/runtime.cpp src/native/linux/menu_window.cpp \
+		src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
 		src/linux/production_hardware.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
 		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
@@ -294,15 +294,15 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		tests/support/capture_log.cpp tests/support/fake_input.cpp \
 		tests/support/fake_mmio.cpp \
 		src/native/artifacts.cpp src/native/core_package.cpp src/native/core_composition.cpp src/native/core_data.cpp src/native/media_data.cpp src/native/ata_disk.cpp src/native/sha256.cpp \
-		src/native/core_driver.cpp src/native/input.cpp \
+		src/native/core_driver.cpp  src/native/input.cpp \
 		src/native/fes_gp.cpp src/native/menu_display.cpp src/native/diagnostic.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
-		src/native/hardware.cpp src/runtime.cpp src/native/linux/menu_window.cpp \
+		src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
 		src/linux/production_hardware.cpp \
 		src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
 		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp \
-		-o "$@"
+		 -o "$@"
 
 $(BUILD_DIR)/tests/unit/production_hardware_test: tests/unit/production_hardware_test.cpp \
 		src/linux/production_hardware.cpp \

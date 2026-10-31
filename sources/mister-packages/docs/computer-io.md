@@ -556,8 +556,8 @@ them at the next launch.
 ## Wall clock
 
 `fes.rtc.wall-clock` 1.0 (bit 18) sets the machine's clock from the kit's
-local time on opcode 28. Index is word 0..3 (else invalid index), and execution
-must be held (invalid state otherwise). Word 0 always starts a new time; words 1..3
+local time, on opcode 28, while held (invalid state otherwise). Index is the
+word 0..3 (else invalid index). Word 0 always starts a new time; words 1..3
 must follow in order (invalid index), and word 3 applies all four at once. A
 rejected word is not consumed. Words are binary, first-named byte low:
 

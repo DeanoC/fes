@@ -28,7 +28,7 @@ func AtariStFloppyWriteInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtariStFloppyWriteID, Major: generated.FesComputerInterfaceMediaAtariStFloppyWriteMajor, Minor: generated.FesComputerInterfaceMediaAtariStFloppyWriteMinor}
 }
 func MediaWriteCapable(p *CorePackageStatus) bool {
-	return p != nil && ComputerMediaABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) &&
+	return p != nil && ComputerABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) &&
 		activeInterface(p, AtariStFloppyInterface()) && activeInterface(p, AtariStFloppyWriteInterface())
 }
 

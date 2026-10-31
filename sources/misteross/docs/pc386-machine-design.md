@@ -890,7 +890,7 @@ offset `0x08000000`, maximum 134,217,728 bytes (128 MiB), chunk 65,536 bytes.
 
 | Operation | Meaning |
 | --- | --- |
-| DiskInfo | Fields: minimum and maximum bytes, chunk size, state (absent, empty, loading, verifying, ready), flags (dirty, frozen, writer busy, CRC error), change epoch |
+| DiskInfo | Fields: minimum and maximum bytes, chunk size, state (absent, empty, loading, ready, verifying), flags (dirty, frozen, writer busy, CRC error), change epoch |
 | DiskControl prepare | Held execution only. The unit becomes loading; the ATA device reports no drive |
 | DiskCommit words | Size in sectors, cylinders, heads, sectors per track, CRC-32 of the committed sectors |
 | DiskControl commit | The core reads exactly the committed sector count from the window on port 2 and computes CRC-32 (about 0.2 s for 128 MiB at 700 MB/s). A match makes it ready; a mismatch leaves it loading with the CRC error flag. The runtime polls DiskInfo |

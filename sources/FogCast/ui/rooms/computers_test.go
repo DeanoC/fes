@@ -3,6 +3,7 @@ package rooms
 import (
 	"context"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"math"
 	"strings"
 	"sync"
@@ -300,7 +301,7 @@ func TestSystemsRoomIgnoresStaleEditionRefresh(t *testing.T) {
 
 func waitForSystemsSignal(t *testing.T, r *Instance, signal <-chan struct{}, description string) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		r.Step(time.Now())
 		select {
@@ -315,7 +316,7 @@ func waitForSystemsSignal(t *testing.T, r *Instance, signal <-chan struct{}, des
 
 func waitForSystemsPending(t *testing.T, r *Instance, game bool) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		r.pendingMu.Lock()
 		found := false
