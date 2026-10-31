@@ -17,7 +17,13 @@ accept a caller-provided physical/DMA address.
 The private constructor receives the actual DMA device and an exclusively owned,
 driver-controlled register transport. The KUnit suite is its only consumer. It
 sets the device's 32-bit coherent DMA mask, allocates one 8 MiB region with
-`dma_alloc_coherent`, clears it, and maps it with `dma_mmap_coherent`. CPU and DMA
+`dma_alloc_attrs` with `DMA_ATTR_FORCE_CONTIGUOUS`, clears it, and maps it
+with `dma_mmap_attrs` using that same attribute. Release passes the same attribute
+to `dma_free_attrs`. The pinned IOMMU implementation uses contiguous backing
+through this path, instead of a page array mapped by `vm_map_pages`. Allocation
+can fail if suitable contiguous storage is unavailable; it does not fall back
+to a mapping shape the driver cannot revoke. The strict I/O-PFN mapping checks
+still apply. See [Linux DMA attributes](https://docs.kernel.org/core-api/dma-attributes.html#dma-attr-force-contiguous). CPU and DMA
 addresses remain distinct kernel values. The complete allocation must fit the
 32-bit DMA space and meet the generated grant alignment; low IOVAs remain valid.
 Geometry comes from the generated C consumer of `fes.fabric.de25-scanout`:
@@ -114,7 +120,9 @@ acceptance versus full-frame display, alternating slot reuse, contradictory
 completion, frame faults, generation/reset mismatch, counter exhaustion,
 bounded/unstable snapshots and failed-start/drain retention. VMA tests use a real
 temporary mm and kernel uaccess for INFO/PUBLISH/POLL, revoke-before-stop,
-post-revoke faults, refused writable page pins, denied remapping and the
+post-revoke faults, contiguous PFNs across the full allocation, an offset alias
+that sees the same storage and is revoked together, refused writable page pins,
+denied remapping and the
 mmap-callback/VMA-link race. Test hooks compile out when the test config is off.
 
 These are kernel software checks with a scripted register device. They do not
@@ -122,3 +130,7 @@ emulate or qualify the DE25 fabric master, SMMU, firewall, DDR, clock crossing,
 kernel boot, HDMI, runtime or interactive MENU. The separate RTL and generated
 interconnect simulations cover their own artifacts. Loading against the board's
 kernel additionally requires matching config and symbol-version evidence.
+
+The test dependency lock selects the authenticated AArch64 SDK from image
+producer `0da63d1044cc7ecf9908efba52af17b3e55e6271`, including C++ runtime
+support. This changes the SDK hash, not the pinned vendor kernel or builder.

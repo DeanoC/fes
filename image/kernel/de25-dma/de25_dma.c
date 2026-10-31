@@ -18,6 +18,13 @@
 
 #include "de25_dma_internal.h"
 
+/* The pinned IOMMU DMA implementation maps page-array allocations with
+ * vm_map_pages(), allowing page pins beyond PTE revocation. Request actual
+ * contiguous backing so its DMA mmap path can install revocable I/O PFNs.
+ * The mmap shape check remains mandatory; no driver-made PFN mapping.
+ */
+#define FES_DE25_DMA_ATTRIBUTES DMA_ATTR_FORCE_CONTIGUOUS
+
 static_assert(FES_DE25_SCANOUT_DMA_ADDRESS_BITS == 32);
 static_assert(FES_DE25_DMA_SLOTS == 2);
 static_assert(FES_DE25_DMA_FRAME_BYTES <= FES_DE25_DMA_SLOT_BYTES);
@@ -71,7 +78,8 @@ static void fes_de25_dma_destroy(struct kref *refs)
 
 	/* Exposed grants hold an independent reference and cannot get here. */
 	WARN_ON(grant->exposed);
-	dma_free_coherent(grant->dev, FES_DE25_DMA_ALLOCATION_BYTES, grant->cpu, grant->dma);
+	dma_free_attrs(grant->dev, FES_DE25_DMA_ALLOCATION_BYTES, grant->cpu, grant->dma,
+		FES_DE25_DMA_ATTRIBUTES);
 	list_for_each_entry_safe(entry, next, &grant->mms, link) {
 		mmdrop(entry->mm);
 		kfree(entry);
@@ -505,8 +513,8 @@ static int fes_de25_dma_mmap(struct file *file, struct vm_area_struct *vma)
 	 * to the strict check below. No DMA-specific operations are discarded.
 	 */
 	vma->vm_ops = NULL;
-	ret = dma_mmap_coherent(grant->dev, vma, grant->cpu, grant->dma,
-			FES_DE25_DMA_ALLOCATION_BYTES);
+	ret = dma_mmap_attrs(grant->dev, vma, grant->cpu, grant->dma,
+			FES_DE25_DMA_ALLOCATION_BYTES, FES_DE25_DMA_ATTRIBUTES);
 	if (!ret) {
 		/* Only an eager I/O PFN mapping is currently revocable here. An
 		 * IOMMU's vm_map_pages mapping can also have no vm_ops, but permits
@@ -642,7 +650,8 @@ struct file *fes_de25_dma_create(struct device *dev, const struct fes_de25_dma_b
 	mutex_init(&grant->lock);
 	mutex_init(&grant->revoke_lock);
 	INIT_LIST_HEAD(&grant->mms);
-	grant->cpu = dma_alloc_coherent(dev, FES_DE25_DMA_ALLOCATION_BYTES, &grant->dma, GFP_KERNEL);
+	grant->cpu = dma_alloc_attrs(dev, FES_DE25_DMA_ALLOCATION_BYTES, &grant->dma, GFP_KERNEL,
+		FES_DE25_DMA_ATTRIBUTES);
 	if (!grant->cpu) {
 		put_device(grant->dev);
 		kfree(grant);

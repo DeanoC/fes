@@ -21,7 +21,7 @@ REQUIRED_CASES = frozenset((
     "binding_stays_closed", "rejects_bad_publish_before_effects",
     "kernel_owns_descriptor_and_drain_lifetime", "failed_start_is_held_until_drain",
     "unreadable_epoch_retains_exposed_storage",
-    "coherent_mapping_uapi_and_revoke", "rejects_invalid_mapping_shapes",
+    "coherent_mapping_uapi_and_revoke", "contiguous_aliases_are_revoked", "rejects_invalid_mapping_shapes",
     "revoke_catches_inflight_mmap_link",
     "acceptance_is_not_display_and_slots_alternate",
     "ordered_descriptor_precedes_first_submit",

@@ -620,6 +620,74 @@ out:
 	mmput(mm);
 }
 
+static void contiguous_aliases_are_revoked(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct mm_struct *mm = test_mm(test);
+	struct vm_area_struct *vma;
+	unsigned long address, alias, first_pfn = 0, page;
+	u32 value = 0x7193ac5e, copy = 0;
+	int ret;
+
+	if (!mm)
+		return;
+	kthread_use_mm(mm);
+	address = vm_mmap(fixture->file, TEST_ADDRESS, FES_DE25_DMA_ALLOCATION_BYTES,
+			PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, 0);
+	KUNIT_EXPECT_EQ(test, address, TEST_ADDRESS);
+	if (IS_ERR_VALUE(address))
+		goto out;
+	alias = vm_mmap(fixture->file, TEST_ADDRESS + (16UL << 20), PAGE_SIZE,
+			PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, 3 * PAGE_SIZE);
+	KUNIT_EXPECT_FALSE(test, IS_ERR_VALUE(alias));
+	if (IS_ERR_VALUE(alias))
+		goto unmap;
+	mmap_read_lock(mm);
+	vma = find_vma(mm, address);
+	KUNIT_EXPECT_NOT_NULL(test, vma);
+	if (vma) {
+		for (page = 0; page < FES_DE25_DMA_ALLOCATION_BYTES / PAGE_SIZE; page++) {
+			struct follow_pfnmap_args args = {
+				.vma = vma, .address = address + page * PAGE_SIZE,
+			};
+
+			ret = follow_pfnmap_start(&args);
+			KUNIT_EXPECT_EQ(test, ret, 0);
+			if (ret)
+				break;
+			if (!page)
+				first_pfn = args.pfn;
+			KUNIT_EXPECT_EQ(test, args.pfn, first_pfn + page);
+			follow_pfnmap_end(&args);
+		}
+	}
+	vma = find_vma(mm, alias);
+	KUNIT_EXPECT_NOT_NULL(test, vma);
+	if (vma) {
+		struct follow_pfnmap_args args = { .vma = vma, .address = alias };
+
+		ret = follow_pfnmap_start(&args);
+		KUNIT_EXPECT_EQ(test, ret, 0);
+		if (!ret) {
+			KUNIT_EXPECT_EQ(test, args.pfn, first_pfn + 3);
+			follow_pfnmap_end(&args);
+		}
+	}
+	mmap_read_unlock(mm);
+	KUNIT_EXPECT_EQ(test, copy_to_user((void __user *)alias, &value, sizeof(value)), 0UL);
+	KUNIT_EXPECT_EQ(test, copy_from_user(&copy, (void __user *)(address + 3 * PAGE_SIZE), sizeof(copy)), 0UL);
+	KUNIT_EXPECT_EQ(test, copy, value);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
+	KUNIT_EXPECT_NE(test, copy_from_user(&copy, (void __user *)alias, sizeof(copy)), 0UL);
+	KUNIT_EXPECT_NE(test, copy_from_user(&copy, (void __user *)(address + 3 * PAGE_SIZE), sizeof(copy)), 0UL);
+	KUNIT_EXPECT_EQ(test, vm_munmap(alias, PAGE_SIZE), 0);
+unmap:
+	KUNIT_EXPECT_EQ(test, vm_munmap(address, FES_DE25_DMA_ALLOCATION_BYTES), 0);
+out:
+	kthread_unuse_mm(mm);
+	mmput(mm);
+}
+
 static void rejects_invalid_mapping_shapes(struct kunit *test)
 {
 	struct dma_fixture *fixture = test->priv;
@@ -748,6 +816,7 @@ static struct kunit_case fes_de25_dma_cases[] = {
 	KUNIT_CASE(sequence_and_generation_never_wrap),
 	KUNIT_CASE(poll_identity_rejects_before_register_effects),
 	KUNIT_CASE(coherent_mapping_uapi_and_revoke),
+	KUNIT_CASE(contiguous_aliases_are_revoked),
 	KUNIT_CASE(rejects_invalid_mapping_shapes),
 	KUNIT_CASE(revoke_catches_inflight_mmap_link),
 	{ }
