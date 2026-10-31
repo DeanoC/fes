@@ -59,6 +59,16 @@ Merge authority: Lander may merge `lane:lander` PRs in fes, nextpnr, yosys and m
 - Report HIL as started only once the kit is claimed in its status file (see Shared kits below) and the test bundle, image or core under test is loaded on it. A core-only run does not need a bundle install or reflash.
 - Afterwards, restore each kit to exactly the baseline bundle and image that kitA-STATUS.md / kitB-STATUS.md names. Activate the named bundle; reflash only if the booted image differs from the named image (then follow the bundle/image order in the kit procedure (step 3) below) and verify the boot. Verify the active bundle before logging the kit restored. Baselines are promoted only from main HIL passes.
 
+### Kit HIL baseline tracking
+- The kit HIL baseline (shared host plus kit agent and software, recorded in `current.json` in Powerboat's hil-queue) tracks main. Do not pin it to an old host.
+- After a merge whose main-tip diff touches host, agent, runtime, ABI, supervisor or image-recipe paths (docs and tests ignored), `post-merge-promote.sh` runs `promote-baseline.sh`. This trigger is not wired to a hook or timer yet, so run it by hand after such merges for now. The nightly is the backstop.
+- `promote-baseline.sh` builds from fetched main only and smokes kit B and/or A, whichever are free, recording any kit it skipped. It publishes `current.json` only after the smoke and activation checks pass, keeps the previous baseline, and stops on failure. A failed promote is logged and reported, never retried in a loop.
+- `rollback-baseline.sh` restores the previous host, databases and software. Automatic rollback uses it.
+- Every HIL run is stamped with its baseline, and baseline changes go to the gate log, so a FAIL can be tied to a baseline change.
+- PRs that bump the ABI or add a capability use the hil-queue core+sw mode: the sealed core runs against a host and kit software built from the PR head, so they do not wait for a promote.
+- The host and agent keep accepting the previous ABI minor version (`fes.computer` 1.0 alongside 1.1), so open PRs survive a promote.
+- The scripts live in `~/lander-hilq` on Powerboat.
+
 ### Toolchains
 - Quartus is primary for DE25, pc386 and PC/XT. nextpnr is advisory for those.
 - DE25 is Quartus-only and needs Quartus Pro (Agilex 5). Both Powerboat and the 3090 box (fes-build-3090) have Quartus Pro 26.3 and can build DE25; send DE25 builds to the 3090 by preference to keep Powerboat free.

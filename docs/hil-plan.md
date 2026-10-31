@@ -1,5 +1,7 @@
 # HIL plan
 
+The kit HIL baseline tracks main through promote and rollback scripts, and ABI PRs use core+sw mode. See "Kit HIL baseline tracking" in `AGENTS.md`.
+
 ## Shared kits and Powerboat (READ FIRST)
 
 Outside agent sessions have ignored these rules. Obey them.
