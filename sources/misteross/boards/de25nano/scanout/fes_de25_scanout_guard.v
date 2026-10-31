@@ -25,6 +25,7 @@ module fes_de25_scanout_guard #(
 );
     localparam integer TIMER_BITS = (TIMEOUT_CYCLES < 2) ? 1 : $clog2(TIMEOUT_CYCLES);
     reg [TIMER_BITS-1:0] timer;
+    wire [31:0] timer_value = {{(32-TIMER_BITS){1'b0}}, timer};
     reg pending, accepted, pending_write, host_waiting;
     reg [31:0] faults, epoch;
     wire poisoned = |faults;
@@ -36,7 +37,7 @@ module fes_de25_scanout_guard #(
     wire [31:0] response_faults =
         ((response_present && !response_expected) ? `FES_DE25_SCANOUT_GUARD_FAULT_UNEXPECTED_RESPONSE : 32'b0) |
         ((response_expected && avm_response != 0) ? `FES_DE25_SCANOUT_GUARD_FAULT_RESPONSE : 32'b0);
-    wire timeout_expired = host_waiting && !response_expected && timer == TIMER_BITS'(TIMEOUT_CYCLES - 1);
+    wire timeout_expired = host_waiting && !response_expected && timer_value == TIMEOUT_CYCLES - 1;
     wire host_request = (read || write) && !waitrequest;
     wire valid_access = (read != write) && byteenable == 4'hf && address[1:0] == 0;
     wire [31:0] status = (poisoned ? `FES_DE25_SCANOUT_GUARD_STATUS_POISONED : 32'b0) |
@@ -53,7 +54,7 @@ module fes_de25_scanout_guard #(
             `FES_DE25_SCANOUT_GUARD_STATUS_OFFSET: local_data = status;
             `FES_DE25_SCANOUT_GUARD_FAULT_OFFSET: local_data = faults;
             `FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET: local_data = epoch;
-            `FES_DE25_SCANOUT_GUARD_TIMEOUT_OFFSET: local_data = 32'(TIMEOUT_CYCLES);
+            `FES_DE25_SCANOUT_GUARD_TIMEOUT_OFFSET: local_data = TIMEOUT_CYCLES;
             default: begin local_data = 0; local_valid = 1'b0; end
         endcase
     end
@@ -91,7 +92,7 @@ module fes_de25_scanout_guard #(
             end
             if (host_request) begin
                 if (!valid_access || (address[7] && (!local_valid ||
-                    (write && (address != 8'(`FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET) || epoch != 0 || writedata == 0))))) begin
+                    (write && ({24'b0, address} != `FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET || epoch != 0 || writedata == 0))))) begin
                     faults <= faults | response_faults | `FES_DE25_SCANOUT_GUARD_FAULT_ACCESS;
                     readdata <= 0; readdatavalid <= read; writeresponsevalid <= write && !read;
                 end else if (address[7]) begin
