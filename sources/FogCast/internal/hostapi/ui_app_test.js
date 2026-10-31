@@ -4567,6 +4567,88 @@ test('settings GET fills untouched fields without overwriting typed fields', asy
   assert.equal(document.nodes.get('settings-preferred-regions').value, 'japan');
 });
 
+// One edited library or target row must not hide rows a held GET added or
+// changed elsewhere, and Save must not drop them (#448).
+test('held settings GET merges rows the user did not edit', async () => {
+  let releaseGet;
+  const held = new Promise(resolve => { releaseGet = resolve; });
+  let settingsGets = 0;
+  const settings = {
+    attract_idle_seconds: 60,
+    preferred_regions: ['usa'],
+    libraries: [
+      { id: 'snes-main', system: 'snes', root: '/library/SNES' },
+      { id: 'nes-main', system: 'nes', root: '/library/NES' },
+      { id: 'old-main', system: 'nes', root: '/library/Old' },
+    ],
+    targets: [
+      { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+      { name: 'lab', address: 'http://192.0.2.12:8182', enabled: false, agent_configured: false },
+    ],
+    selected_target: 'dev',
+    systems: [{ id: 'snes', label: 'SNES' }, { id: 'nes', label: 'NES' }],
+  };
+  const { document, calls } = await runKeyboardApp({
+    settings,
+    onSettings: async ({ options }) => {
+      if (options && options.method && options.method !== 'GET') return;
+      settingsGets += 1;
+      if (settingsGets === 3) await held;
+    },
+  });
+  await settleBrowser();
+  await document.nodes.get('open-settings').click();
+  await waitForCondition(() => document.nodes.get('settings-libraries').children.length === 3, 'settings rows did not render');
+  await pressKey(document, 'Escape', document.nodes.get('settings-attract-idle'));
+
+  const opening = document.nodes.get('open-settings').click();
+  await waitForCondition(() => settingsGets === 3, 'reopen settings GET not sent');
+  // Another client changes the household while this GET is held.
+  settings.libraries = [
+    { id: 'snes-main', system: 'snes', root: '/library/SNES-elsewhere' },
+    { id: 'nes-main', system: 'nes', root: '/library/NES-moved' },
+    { id: 'old-main', system: 'nes', root: '/library/Old' },
+    { id: 'gb-main', system: 'nes', root: '/library/GB' },
+  ];
+  settings.targets = [
+    { name: 'dev', address: 'http://192.0.2.10:8182', enabled: false, agent_configured: false },
+    { name: 'lab', address: 'http://192.0.2.99:8182', enabled: true, agent_configured: false },
+    { name: 'den', address: 'http://192.0.2.11:8182', enabled: false, agent_configured: false },
+  ];
+  const libraries = () => Array.from(document.nodes.get('settings-libraries').children);
+  const targets = () => Array.from(document.nodes.get('settings-targets').children);
+  const snes = libraries()[0]._fogcastFields;
+  snes.root.value = '/library/SNES-mine';
+  snes.root.dispatchEvent({ type: 'input' });
+  libraries()[2].children.find(child => String(child.className).includes('settings-remove')).click();
+  const dev = targets()[0]._fogcastFields;
+  dev.address.value = 'http://192.0.2.20:8182';
+  dev.address.dispatchEvent({ type: 'input' });
+  releaseGet();
+  await opening;
+  await settleBrowser();
+
+  assert.deepEqual(libraries().map(row => [row.getAttribute('data-library-id'), row._fogcastFields.root.value]), [
+    ['snes-main', '/library/SNES-mine'],
+    ['nes-main', '/library/NES-moved'],
+    ['gb-main', '/library/GB'],
+  ]);
+  assert.deepEqual(targets().map(row => [row._fogcastFields.name.value, row._fogcastFields.address.value, row._fogcastFields.enabled.checked]), [
+    ['dev', 'http://192.0.2.20:8182', false],
+    ['lab', 'http://192.0.2.99:8182', true],
+    ['den', 'http://192.0.2.11:8182', false],
+  ]);
+  assert.deepEqual(Array.from(document.nodes.get('settings-selected-target').children).map(option => option.value), ['dev', 'lab', 'den']);
+
+  await document.nodes.get('save-settings').click();
+  await waitForCondition(() => calls.some(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT'), 'settings PUT not sent');
+  const put = JSON.parse(calls.find(call => call.path === '/api/v1/library/settings' && call.options && call.options.method === 'PUT').options.body);
+  assert.deepEqual(put.libraries.map(library => library.id), ['snes-main', 'nes-main', 'gb-main']);
+  assert.deepEqual(put.targets.map(target => target.name), ['dev', 'lab', 'den']);
+  assert.equal(put.targets[1].address, 'http://192.0.2.99:8182');
+  assert.equal(put.selected_target, 'dev');
+});
+
 test('stale settings save does not refill a reopened form', async () => {
   let releaseSave;
   const held = new Promise(resolve => { releaseSave = resolve; });

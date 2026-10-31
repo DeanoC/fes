@@ -3747,6 +3747,9 @@
   let settingsCleanGeneration = 0;
   let settingsLoadToken = 0;
   const settingsTouched = new Set();
+  // Library ids and target names the user removed while a settings GET was
+  // held. A held GET keeps them out of the merged rows (#448).
+  const settingsRemovedRows = { libraries: new Set(), targets: new Set() };
   let settingsSelectedTargetRow = null;
   let searchTimer = null;
   let attractIdleHydrated = false;
@@ -5778,6 +5781,46 @@
     bumpSettingsGeneration();
   }
 
+  // touchSettingsRow marks one library or target row as edited, so a held
+  // settings GET refills every other row of that section.
+  function touchSettingsRow(row, section) {
+    row._fogcastTouched = true;
+    touchSettings(section);
+  }
+
+  function settingsRowKey(row, section) {
+    if (!row) return '';
+    return section === 'libraries' ? row.getAttribute('data-library-id') || '' : row._fogcastOriginalName || '';
+  }
+
+  // mergeSettingsRows rebuilds a touched section from the GET: edited rows
+  // keep the user's values, rows the user removed stay out, rows added in
+  // this form follow, and every other row comes from the response.
+  function mergeSettingsRows(container, section, items, keyOf, render) {
+    const current = Array.from(container.children);
+    const edited = new Map();
+    const added = [];
+    current.forEach(row => {
+      if (!row._fogcastTouched) return;
+      const key = settingsRowKey(row, section);
+      if (key) edited.set(key, row);
+      else added.push(row);
+    });
+    const removed = settingsRemovedRows[section];
+    const seen = new Set();
+    const rows = [];
+    items.forEach(item => {
+      const key = keyOf(item);
+      if (key && removed.has(key)) return;
+      if (key) seen.add(key);
+      rows.push((key && edited.get(key)) || render(item));
+    });
+    edited.forEach((row, key) => {
+      if (!seen.has(key)) rows.push(row);
+    });
+    container.replaceChildren(...rows, ...added);
+  }
+
   function settingsRequestExpired(generation) {
     return generation !== settingsGeneration || !settingsIsOpen();
   }
@@ -5793,7 +5836,10 @@
   function removeSettingsRow(container, row) {
     if (!container || !row) return;
     container.replaceChildren(...Array.from(container.children).filter(child => child !== row));
-    touchSettings(container === nodes.settingsLibraries ? 'libraries' : 'targets');
+    const section = container === nodes.settingsLibraries ? 'libraries' : 'targets';
+    const key = settingsRowKey(row, section);
+    if (key) settingsRemovedRows[section].add(key);
+    touchSettings(section);
   }
 
   function renderLibraryRow(library, systems) {
@@ -5814,8 +5860,8 @@
     const remove = element('button', 'button secondary compact settings-remove', 'Remove');
     remove.type = 'button';
     remove.addEventListener('click', () => removeSettingsRow(nodes.settingsLibraries, row));
-    system.addEventListener('change', () => touchSettings('libraries'));
-    root.addEventListener('input', () => touchSettings('libraries'));
+    system.addEventListener('change', () => touchSettingsRow(row, 'libraries'));
+    root.addEventListener('input', () => touchSettingsRow(row, 'libraries'));
     row._fogcastFields = { system, root };
     row.appendChild(settingsField('System', system));
     row.appendChild(settingsField('Folder', root));
@@ -5891,16 +5937,16 @@
       } else {
         settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
       }
-      touchSettings('targets');
+      touchSettingsRow(row, 'targets');
     });
-    address.addEventListener('input', () => touchSettings('targets'));
+    address.addEventListener('input', () => touchSettingsRow(row, 'targets'));
     row._fogcastAgentDirty = false;
     row._fogcastAgentClear = false;
     agent.addEventListener('input', () => {
       row._fogcastAgentDirty = agent.value !== '';
       row._fogcastAgentClear = false;
       clearAgent.textContent = 'Clear agent';
-      touchSettings('targets');
+      touchSettingsRow(row, 'targets');
     });
     clearAgent.addEventListener('click', () => {
       row._fogcastAgentClear = !row._fogcastAgentClear;
@@ -5908,9 +5954,9 @@
       agent.value = '';
       agent.placeholder = row._fogcastAgentClear ? 'Will clear' : 'Stored';
       clearAgent.textContent = row._fogcastAgentClear ? 'Keep agent' : 'Clear agent';
-      touchSettings('targets');
+      touchSettingsRow(row, 'targets');
     });
-    enabled.addEventListener('change', () => touchSettings('targets'));
+    enabled.addEventListener('change', () => touchSettingsRow(row, 'targets'));
     const prepare = element('button', 'button secondary compact settings-prepare', target && target.target_id ? 'Identity ready' : 'Prepare identity');
     prepare.type = 'button';
     prepare.disabled = Boolean(target && target.target_id);
@@ -5950,8 +5996,9 @@
     if (!nodes.settingsLibraries) return;
     const settings = controller.getState().librarySettings;
     const systems = settings && Array.isArray(settings.systems) ? settings.systems : [];
-    nodes.settingsLibraries.appendChild(renderLibraryRow({}, systems));
-    touchSettings('libraries');
+    const row = renderLibraryRow({}, systems);
+    nodes.settingsLibraries.appendChild(row);
+    touchSettingsRow(row, 'libraries');
   }
 
   function addTargetSettingsRow() {
@@ -5967,7 +6014,7 @@
     row._fogcastOriginalName = '';
     nodes.settingsTargets.appendChild(row);
     refreshSelectedTargetOptions(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
-    touchSettings('targets');
+    touchSettingsRow(row, 'targets');
   }
 
   function fillSettingsForm(settings, preserveTouched = false) {
@@ -5981,26 +6028,40 @@
       nodes.settingsPreferredRegions.value = regions.join(', ');
     }
     const systems = settings && Array.isArray(settings.systems) ? settings.systems : [];
-    if (nodes.settingsLibraries && untouched('libraries')) {
+    if (nodes.settingsLibraries) {
       const libraries = settings && Array.isArray(settings.libraries) ? settings.libraries : [];
-      nodes.settingsLibraries.replaceChildren(...libraries.map(library => renderLibraryRow(library, systems)));
+      const render = library => renderLibraryRow(library, systems);
+      if (untouched('libraries')) nodes.settingsLibraries.replaceChildren(...libraries.map(render));
+      else mergeSettingsRows(nodes.settingsLibraries, 'libraries', libraries, library => (library && library.id) || '', render);
     }
-    if (nodes.settingsTargets && untouched('targets')) {
+    if (nodes.settingsTargets) {
       const targets = settings && Array.isArray(settings.targets) ? settings.targets : [];
-      settingsSelectedTargetRow = null;
-      nodes.settingsTargets.replaceChildren(...targets.map(renderTargetRow));
+      if (untouched('targets')) {
+        settingsSelectedTargetRow = null;
+        nodes.settingsTargets.replaceChildren(...targets.map(renderTargetRow));
+      } else {
+        mergeSettingsRows(nodes.settingsTargets, 'targets', targets, target => (target && target.name) || '', renderTargetRow);
+      }
     }
-    if (untouched('targets')) {
-      const selected = untouched('selectedTarget') ? settings && settings.selected_target : nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value;
-      refreshSelectedTargetOptions(selected);
-    }
+    // A merged target list can add names, so the picker always refreshes.
+    // The user's pick stays when they changed it or edited the targets.
+    const keepSelected = !untouched('selectedTarget') || !untouched('targets');
+    refreshSelectedTargetOptions(keepSelected
+      ? nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value
+      : settings && settings.selected_target);
     settingsSelectedTargetRow = targetSettingsRowByName(nodes.settingsSelectedTarget && nodes.settingsSelectedTarget.value);
     if (nodes.settingsHostHealth) {
       nodes.settingsHostHealth.textContent = nodes.health ? nodes.health.textContent : '';
     }
     if (nodes.settingsMessage) nodes.settingsMessage.textContent = '';
     if (!preserveTouched || settingsTouched.size === 0) settingsCleanGeneration = settingsGeneration;
-    if (!preserveTouched) settingsTouched.clear();
+    if (!preserveTouched) clearSettingsTouched();
+  }
+
+  function clearSettingsTouched() {
+    settingsTouched.clear();
+    settingsRemovedRows.libraries.clear();
+    settingsRemovedRows.targets.clear();
   }
 
   async function openSettings() {
@@ -6012,7 +6073,7 @@
     keyboardPane = 'settings';
     writePaneAttribute();
     bumpSettingsGeneration();
-    settingsTouched.clear();
+    clearSettingsTouched();
     const loadToken = ++settingsLoadToken;
     resetAttractTimer();
     try {
