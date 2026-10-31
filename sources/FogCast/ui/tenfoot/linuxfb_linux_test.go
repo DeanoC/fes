@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -204,7 +205,7 @@ func TestFramebufferLoopDropsTraceWhenItReturns(t *testing.T) {
 			if err := syscall.Kill(os.Getpid(), syscall.SIGUSR1); err != nil {
 				return true, err
 			}
-			deadline := time.Now().Add(time.Second)
+			deadline := time.Now().Add(testwait.Timeout)
 			for time.Now().Before(deadline) {
 				entries, readErr := os.ReadDir(dir)
 				if readErr != nil {
@@ -240,7 +241,7 @@ func TestFramebufferLoopDropsTraceWhenItReturns(t *testing.T) {
 	}
 	select {
 	case <-signals:
-	case <-time.After(time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("SIGUSR1 was not delivered after the loop returned")
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -928,7 +929,7 @@ func pollNative(t *testing.T, events ...[]byte) (*nativeInputs, func(*App)) {
 
 func waitStops(t *testing.T, fake *fakeLocalCores, want int) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for fake.stopCount() < want && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}

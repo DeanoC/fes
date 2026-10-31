@@ -79,7 +79,7 @@ func TestUSBKeyboardBrowseDetailSearchAndLaunch(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 50)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 2
 	})
 
@@ -112,12 +112,12 @@ func TestUSBKeyboardBrowseDetailSearchAndLaunch(t *testing.T) {
 	}
 	app.TypeText("sonic", now)
 	app.Press(CommandFromKey("tab"), now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.SearchOpen && snap.Query == "sonic" && len(snap.Games) == 1 && snap.Games[0].ID == "megadrive-sonic" && !snap.Loading
 	})
 
 	app.Press(CommandFromKey("return"), now)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Launch.Phase == "ok" || snap.Launch.HTTPStatus != 0 || snap.Session.State == "active"
 	})
 	if len(launches) != 1 || !strings.Contains(launches[0], "megadrive-sonic") {

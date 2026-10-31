@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"fmt"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"image"
 	"image/png"
 	"io"
@@ -574,7 +575,7 @@ func TestRecentDetailFavoriteAndClickStayOnThatTitle(t *testing.T) {
 	app.detailOpen = true
 
 	app.HandleCommand(CmdFavorite, time.Now())
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for {
 		snap := app.Snapshot()
 		app.mu.Lock()

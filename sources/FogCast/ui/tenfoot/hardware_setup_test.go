@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"encoding/json"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -359,7 +360,7 @@ func TestImportHardwareCassetteUsesCapturedCoreID(t *testing.T) {
 
 	select {
 	case <-fileRequest:
-	case <-time.After(5 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("timed out waiting for the host storage request")
 	}
 	app.mu.Lock()

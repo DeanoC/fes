@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"encoding/json"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -330,7 +331,7 @@ func TestActiveWorkbenchDiscardsLookupAfterSessionReplacement(t *testing.T) {
 			close(gate)
 			select {
 			case <-ctx.Done():
-			case <-time.After(time.Second):
+			case <-time.After(testwait.Timeout):
 				t.Fatal("retired lookup did not finish")
 			}
 			app.mu.Lock()
