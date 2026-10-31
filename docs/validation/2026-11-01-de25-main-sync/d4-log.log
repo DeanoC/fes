@@ -1,0 +1,36 @@
+phase=input_stop error=
+phase=hdmi_quiesce error=
+phase=video error=
+CORE_RUNNING cycle=1
+BASIC_RUN_REQUESTED cycle=1
+DE25_SHARED_LIFECYCLE_CYCLE_PASS cycle=1 production_factory=false
+phase=input_stop error=
+phase=hdmi_quiesce error=
+phase=driver_quiesce error=
+phase=video error=
+CORE_RUNNING cycle=2
+BASIC_RUN_REQUESTED cycle=2
+DE25_SHARED_LIFECYCLE_CYCLE_PASS cycle=2 production_factory=false
+DE25_SHARED_LIFECYCLE_PASS final_held=true owned_overlay_retained=true
+[    2.453636] usb 1-1.3: new full-speed USB device number 3 using dwc2
+[    3.245599] random: crng init done
+[    3.296685] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-0
+[    3.307871] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-1
+[    3.318061] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-2
+[    3.329085] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-3
+[    3.340148] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-4
+[    3.350291] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-5
+[    3.361394] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-6
+[    3.371575] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-7
+[    3.448271] socfpga-dwmac 10810000.ethernet eth0: PHY [stmmac-0:01] driver [Micrel KSZ9031 Gigabit PHY] (irq=POLL)
+[    3.458706] socfpga-dwmac 10810000.ethernet eth0: No Safety Features support found
+[    3.466303] socfpga-dwmac 10810000.ethernet eth0: IEEE 1588-2008 Advanced Timestamp supported
+[    3.475267] socfpga-dwmac 10810000.ethernet eth0: registered PTP clock
+[    3.481865] socfpga-dwmac 10810000.ethernet eth0: configuring for phy/rgmii link mode
+[    7.586529] socfpga-dwmac 10810000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx
+[ 2701.946689] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[ 2704.051024] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[ 2704.061321] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us
+[ 2716.743329] fpga_manager fpga0: writing fes-runtime-core.rbf to Stratix10 SOC FPGA Manager
+[ 2718.847749] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/firmware-name
+[ 2718.858010] OF: overlay: WARNING: memory leak will occur if overlay removed, property: /fpga-region/config-complete-timeout-us

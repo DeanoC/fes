@@ -1,0 +1,14 @@
+phase=input_stop error=
+phase=hdmi_quiesce error=
+phase=video error=
+CORE_RUNNING cycle=1
+BASIC_RUN_REQUESTED cycle=1
+DE25_SHARED_LIFECYCLE_CYCLE_PASS cycle=1 production_factory=false
+phase=input_stop error=
+phase=hdmi_quiesce error=
+phase=driver_quiesce error=
+phase=video error=
+CORE_RUNNING cycle=2
+BASIC_RUN_REQUESTED cycle=2
+DE25_SHARED_LIFECYCLE_CYCLE_PASS cycle=2 production_factory=false
+DE25_SHARED_LIFECYCLE_PASS final_held=true owned_overlay_retained=true
