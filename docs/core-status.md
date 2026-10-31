@@ -311,8 +311,9 @@ writes, host keyboard input or external interface timing. That package used
 the earlier PC/XT capability bit 16. The [post-merge Kit B run](validation/2026-10-31-pcxt-main-merge/README.md)
 separately booted exact package `a93e3921` from source `72febda79` with the
 merged bit-20 interface and restored the kit afterward. Later QSF synchronizer
-assignments and host upload changes at PR head `a22d567c9` postdate that run;
-current-source Quartus timing and exact-artifact Kit acceptance remain open.
+assignments and host upload changes present by PR source `a22d567c9` postdate
+that run; current-source Quartus timing and exact-artifact Kit acceptance
+remain open.
 The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
 Independent review found four package/acceptance defects, now fixed and re-reviewed.
