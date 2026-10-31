@@ -1,0 +1,8 @@
+{
+  "classification": "exact build verifier negative control; not runtime or hardware evidence",
+  "returncode": 1,
+  "stderr": "DE25 owner DTB refused: permanent root owner\n",
+  "verifier_sha256": "51b1f3ed9de63e29e6131f3972f80323a5bba3804710da9af0ecb5825b611a95",
+  "input_sha256": "4698fbcab78c283b6228e9ec870b076fc10e4881d3fbc7b0824a8c30057baa06",
+  "expected": "reject prior compiled base DTB without permanent owner"
+}
