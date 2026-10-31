@@ -25,6 +25,7 @@ def sha(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reference", type=Path, help="pinned TF-A source; omit to fetch the exact public Git blob")
+    parser.add_argument("--reset-reference", type=Path, help="Terasic bridge source, when separate from its service source")
     parser.add_argument("--output", type=Path, default=ROOT / "out" / ("native-fabric-hooks-" + uuid.uuid4().hex))
     args = parser.parse_args()
     output = args.output.absolute()
@@ -62,6 +63,8 @@ def main():
     command = [sys.executable, FIRMWARE / "verify.py", "--output", firmware_out]
     if args.reference:
         command += ["--reference", args.reference.absolute()]
+    if args.reset_reference:
+        command += ["--reset-reference", args.reset_reference.absolute()]
     run("firmware", command)
     firmware = json.loads((firmware_out / "result.json").read_text())
     vendor = firmware.get("reference_profile") == "terasic-de25-v2.12"
@@ -94,6 +97,7 @@ def main():
         "firmware_reference_git_blob": firmware["reference_git_blob"],
         "firmware_reference_profile": firmware["reference_profile"],
         "firmware_patched_sha256": firmware["patched_tfa_sha256"],
+        "firmware_reset_patched_sha256": firmware["reset_patched_sha256"],
         "firmware_checks": firmware["checks"],
         "rpc_sha256": sha(rpc_dir / "Vfes_embedded_control"),
         "host_go_sha256": sha(go.resolve()),

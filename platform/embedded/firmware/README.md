@@ -40,6 +40,17 @@ before the vendor's versioned SiP dispatch. Both sources are tested against
 the same native lifecycle and RTL model; the Terasic checks additionally cover
 isolation ordering/failure, progress status and actual SiP dispatch.
 
+The pinned Terasic
+[bridge reset implementation](https://github.com/terasic/arm-trusted-firmware/blob/580dcb5c4e10aa7daff2bf69d493c076a6d3e665/plat/intel/soc/common/soc/socfpga_reset_manager.c#L391)
+reuses return variables across enable and disable handshakes. A later successful
+poll can overwrite an earlier timeout. The Terasic variant also transforms that
+exact reset-manager source to preserve the first reported error, and tests the
+actual vendor and modified functions with simulated handshake results. Those
+tests do not establish that physical bridges or their traffic have drained,
+or that a partial enable can be safely reversed. The current firmware remains a
+diagnostic and must not be used for a board trial until its boot handoff,
+bridge sequencing and readback are qualified.
+
 It preserves accepted-BUSY and completion-address semantics. The existing
 `HPS_SET_BRIDGES` service still exists; this is an exclusive trusted-runtime
 sequencing contract, not a security boundary against another SMC caller. No

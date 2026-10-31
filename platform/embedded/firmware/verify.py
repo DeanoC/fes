@@ -35,6 +35,7 @@ def function(source, name):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--reference", type=Path, help="exact TF-A file; otherwise fetch the pinned public Git blob")
+    p.add_argument("--reset-reference", type=Path, help="Terasic bridge source; defaults to soc/ beside the service")
     p.add_argument("--output", type=Path, default=ROOT / "out" / ("embedded-control-" + uuid.uuid4().hex))
     p.add_argument("--cross-cxx", type=Path, help="optional AArch64 freestanding compiler")
     p.add_argument("--verilator", default="verilator")
@@ -52,6 +53,19 @@ def main():
     blob, profile = prepare_tfa.source_identity(reference)
     vendor = profile == "terasic-de25-v2.12"
     source = prepare_tfa.contained_source(reference).decode()
+    reset_reference = reset_source = None
+    if vendor:
+        reset_path = a.reset_reference or a.reference.parent / "soc/socfpga_reset_manager.c"
+        reset_reference = reset_path.read_bytes()
+        reset_source = prepare_tfa.contained_terasic_reset(reset_reference).decode()
+        try:
+            prepare_tfa.contained_terasic_reset(reset_reference + b"\n")
+        except ValueError:
+            pass
+        else:
+            raise ValueError("modified Terasic reset source was accepted")
+    elif a.reset_reference:
+        p.error("reset source is only supported with the Terasic profile")
     try:
         prepare_tfa.contained_source(reference + b"\n")
     except ValueError:
@@ -108,7 +122,7 @@ uint64_t fes_tfa_translate(uint64_t a){intel_smmu_hps_remapper_init(&a);return a
 '''
     (out / "tfa_subset.c").write_text(subset)
     def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
-    files=[HERE/"control.hpp",HERE/"control.cpp",HERE/"tests/contained_path.hpp",HERE/"tests/tfa_stubs.h",HERE/"tests/endpoint_tb.cpp",Path(__file__).resolve(),
+    files=[HERE/"control.hpp",HERE/"control.cpp",HERE/"tests/contained_path.hpp",HERE/"tests/tfa_stubs.h",HERE/"tests/endpoint_tb.cpp",HERE/"tests/terasic_reset_test.h",Path(__file__).resolve(),
            HERE/"prepare_tfa.py",HERE/"generated/fes_embedded_control.hpp",FPGA/"cores/fes-common/rtl/fes_embedded_control.sv",
            FPGA/"cores/fes-common/generated/fes_embedded_control.vh"]
     sources = {str(f.relative_to(ROOT)):sha(f) for f in files}
@@ -123,6 +137,21 @@ uint64_t fes_tfa_translate(uint64_t a){intel_smmu_hps_remapper_init(&a);return a
     run(["cc", "-std=c11", "-Wall", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I"+str(HERE/"tests"),
          "-c",out/"tfa_subset.c","-o",out/"tfa_subset.o"],"firmware-functions")
     if vendor:
+        # Compile the actual original and patched bridge routines against the
+        # same simulated polls. Original functions must reproduce the masked
+        # timeout; patched functions must return each Agilex5 poll failure.
+        for direction in ("enable", "disable"):
+            for name, code, flags in (("original", reset_reference.decode(), ["-DFES_TEST_VENDOR_ORIGINAL"]),
+                                      ("patched", reset_source, [])):
+                label = direction + "-" + name
+                test_source = out / ("reset-" + label + ".c")
+                test_source.write_text('#include "terasic_reset_test.h"\n' + function(code, "socfpga_bridges_" + direction))
+                executable = out / ("reset-" + label)
+                if direction == "enable":
+                    flags = [*flags, "-DFES_TEST_ENABLE"]
+                run(["cc", "-std=c11", "-Wall", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all",
+                     "-I" + str(HERE/"tests"), *flags, test_source, "-o", executable], "reset-build-" + label)
+                run([executable], "reset-check-" + label)
         # Exercise the fork's real top-level SiP dispatcher: the FES query
         # must not be swallowed by either vendor range and nearby IDs must
         # continue to reach their original versioned handlers.
@@ -183,10 +212,13 @@ int main(void) {
             "commands":commands,"source_sha256":sources,
             "reference_git_blob":blob,"reference_profile":profile,"reference_sha256":hashlib.sha256(reference).hexdigest(),
             "patched_tfa_sha256":hashlib.sha256(source.encode()).hexdigest(),
+            "reset_reference_git_blob":prepare_tfa.TERASIC_RESET_BLOB if vendor else None,
+            "reset_reference_sha256":hashlib.sha256(reset_reference).hexdigest() if vendor else None,
+            "reset_patched_sha256":hashlib.sha256(reset_source.encode()).hexdigest() if vendor else None,
             "cross_compiler_sha256":sha(a.cross_cxx.resolve()) if a.cross_cxx else None,
             "aarch64_object_sha256":sha(out/"control-aarch64.o") if a.cross_cxx else None,
             "not_run":[] if a.cross_cxx else ["AArch64 freestanding adapter compilation"],
-            "checks":(out/"checks.log").read_text().splitlines() + (["PASS terasic-query-dispatch-v1-v2-and-v3"] if vendor else [])}
+            "checks":(out/"checks.log").read_text().splitlines() + (["PASS terasic-query-dispatch-v1-v2-and-v3", "PASS terasic-original-timeout-reproduction-and-patched-enable-disable-polls"] if vendor else [])}
     (out/"result.json").write_text(json.dumps(report,indent=2)+"\n")
     print("PASS:",out)
 

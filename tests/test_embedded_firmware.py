@@ -32,6 +32,8 @@ class EmbeddedFirmwareTests(unittest.TestCase):
         for source in (b'', b'not TF-A', b'\0'*65536):
             with self.subTest(length=len(source)), self.assertRaises(ValueError):
                 prepare.contained_source(source)
+            with self.subTest(reset_length=len(source)), self.assertRaises(ValueError):
+                prepare.contained_terasic_reset(source)
 
     def test_vendor_snapshot_extraction_rejects_unsafe_members(self):
         def archive(name, kind=tarfile.REGTYPE):
@@ -73,7 +75,8 @@ class EmbeddedFirmwareTests(unittest.TestCase):
             elf.write_bytes(image)
             inputs = (PATH.parent / 'build_terasic.py', PATH, PATH.parent / 'generated/fes_embedded_control.hpp')
             receipt = {'status': 'built', 'reference_revision': prepare.TERASIC_REVISION,
-                       'reference_git_blob': prepare.TERASIC_BLOB, 'bl31_bin_size': component.stat().st_size,
+                       'reference_git_blob': prepare.TERASIC_BLOB, 'reset_reference_git_blob': prepare.TERASIC_RESET_BLOB,
+                       'bl31_bin_size': component.stat().st_size,
                        'bl31_bin_sha256': hashlib.sha256(component.read_bytes()).hexdigest(),
                        'bl31_elf_sha256': hashlib.sha256(image).hexdigest(), 'bl31_entry': 0x80000000,
                        'bl31_load_segments': [[0x80000000, 0x80001000]],

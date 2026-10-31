@@ -13,10 +13,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 SOURCE = "plat/intel/soc/common/socfpga_sip_svc.c"
+RESET_SOURCE = "plat/intel/soc/common/soc/socfpga_reset_manager.c"
 REFERENCE_BLOB = "3c223c1498e3a412e075e4f921cd78acd3d0fcd6"
 REFERENCE_REVISION = "4ec2948fe3f65dba2f19e691e702f7de2949179c"
 TERASIC_BLOB = "288baffb283787dbd49729983800ce764243adda"
 TERASIC_REVISION = "580dcb5c4e10aa7daff2bf69d493c076a6d3e665"
+TERASIC_RESET_BLOB = "0d612e2f63d8e99a5bc4b699c0cc372556748584"
 
 
 def source_identity(data):
@@ -119,9 +121,44 @@ def contained_source(data):
     return text.encode()
 
 
+def contained_terasic_reset(data):
+    """Keep the first bridge handshake failure in the pinned vendor routines."""
+    blob = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+    if (blob != TERASIC_RESET_BLOB or hashlib.sha256(data).hexdigest() !=
+            "8118f8564debe15764db725a6188fb5885884fd1178e3804416a697d6d1cf2fb"):
+        raise ValueError("bridge reset source is not the exact reviewed Terasic blob")
+    text = data.decode()
+    def patch_function(start_marker, end_marker, checks, final, early=False):
+        nonlocal text
+        if text.count(start_marker) != 1 or text.count(end_marker) != 1:
+            raise ValueError("vendor bridge reset context is not unique")
+        start, end = text.index(start_marker), text.index(end_marker)
+        body = text[start:end]
+        replacements = [
+            ("\tint ret = 0;\n", "\tint ret = 0;\n\tint first_error = 0;\n", 1),
+            ("\t\tif (ret < 0) {\n", "\t\tif (ret < 0) {\n"
+             "\t\t\tif (first_error == 0) {\n\t\t\t\tfirst_error = ret;\n\t\t\t}\n", checks),
+            (final, final.replace("return ret;", "return first_error != 0 ? first_error : ret;"), 1),
+        ]
+        if early:
+            replacements.append(("\t\t\treturn 0;\n", "\t\t\treturn first_error;\n", 1))
+        for old, new, expected in replacements:
+            if body.count(old) != expected:
+                raise ValueError("vendor bridge reset patch context changed")
+            body = body.replace(old, new)
+        text = text[:start] + body + text[end:]
+    patch_function("int socfpga_bridges_enable(uint32_t mask)\n{",
+                   "int socfpga_bridge_nongraceful_disable(uint32_t mask)", 9,
+                   "\tret = ret | ret_hps;\n\treturn ret;\n")
+    patch_function("int socfpga_bridges_disable(uint32_t mask)\n{",
+                   "/* CPUxRESETBASELOW */", 8, "\treturn ret;\n", early=True)
+    return text.encode()
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--reference", type=Path, required=True)
+    p.add_argument("--reset-reference", type=Path, help="Terasic reset source; defaults to soc/ beside the service")
     p.add_argument("--output", type=Path, required=True)
     a = p.parse_args()
     output = a.output.absolute()
@@ -130,10 +167,21 @@ def main():
     original = a.reference.read_bytes()
     blob, profile = source_identity(original)
     modified = contained_source(original)
+    reset = None
+    if profile == "terasic-de25-v2.12":
+        reset_path = a.reset_reference or a.reference.parent / "soc/socfpga_reset_manager.c"
+        reset_original = reset_path.read_bytes()
+        reset = contained_terasic_reset(reset_original)
+    elif a.reset_reference:
+        p.error("reset source is only supported with the Terasic profile")
     output.mkdir(parents=True)
     (output / "socfpga_sip_svc.c").write_bytes(modified)
     diff = "".join(difflib.unified_diff(original.decode().splitlines(True), modified.decode().splitlines(True),
                                       fromfile="a/" + SOURCE, tofile="b/" + SOURCE))
+    if reset is not None:
+        (output / "socfpga_reset_manager.c").write_bytes(reset)
+        diff += "".join(difflib.unified_diff(reset_original.decode().splitlines(True), reset.decode().splitlines(True),
+                                            fromfile="a/" + RESET_SOURCE, tofile="b/" + RESET_SOURCE))
     (output / "contained.patch").write_text(diff)
     (output / "result.json").write_text(json.dumps({
         "reference_git_blob": blob, "reference_profile": profile,
@@ -141,6 +189,9 @@ def main():
         "source_path": SOURCE,
         "reference_sha256": hashlib.sha256(original).hexdigest(),
         "patched_sha256": hashlib.sha256(modified).hexdigest(),
+        "reset_reference_git_blob": TERASIC_RESET_BLOB if reset is not None else None,
+        "reset_reference_sha256": hashlib.sha256(reset_original).hexdigest() if reset is not None else None,
+        "reset_patched_sha256": hashlib.sha256(reset).hexdigest() if reset is not None else None,
         "patch_sha256": hashlib.sha256(diff.encode()).hexdigest(),
         "preparer_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "contract_header_sha256": hashlib.sha256((Path(__file__).parent / "generated/fes_embedded_control.hpp").read_bytes()).hexdigest(),

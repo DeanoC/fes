@@ -48,7 +48,8 @@ def checked_bl31(bl31_build):
     blob = component.read_bytes()
     image_elf = elf.read_bytes()
     if (receipt.get("status") != "built" or receipt.get("reference_revision") != prepare_tfa.TERASIC_REVISION or
-            receipt.get("reference_git_blob") != prepare_tfa.TERASIC_BLOB or not blob or
+            receipt.get("reference_git_blob") != prepare_tfa.TERASIC_BLOB or
+            receipt.get("reset_reference_git_blob") != prepare_tfa.TERASIC_RESET_BLOB or not blob or
             receipt.get("bl31_bin_size") != len(blob) or receipt.get("bl31_bin_sha256") != hashlib.sha256(blob).hexdigest() or
             receipt.get("bl31_elf_sha256") != hashlib.sha256(image_elf).hexdigest()):
         raise ValueError("BL31 component differs from its pinned vendor build receipt")

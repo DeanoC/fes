@@ -131,6 +131,10 @@ def main():
         raise ValueError("pinned tree does not contain the reviewed Terasic service")
     patched = prepare_tfa.contained_source(original)
     target.write_bytes(patched)
+    reset_target = source / prepare_tfa.RESET_SOURCE
+    reset_original = reset_target.read_bytes()
+    reset_patched = prepare_tfa.contained_terasic_reset(reset_original)
+    reset_target.write_bytes(reset_patched)
     frozen = {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in
               (Path(__file__).resolve(), HERE / "prepare_tfa.py", HERE / "generated/fes_embedded_control.hpp")}
     label = "fes-terasic-contained-" + revision[:12]
@@ -146,7 +150,8 @@ def main():
     if not image or label.encode() not in image:
         raise ValueError("expected nonempty Agilex5 BL31 and AArch64 ELF")
     entry, segments = bl31_load_segments(image_elf)
-    if (target.read_bytes() != patched or revision != git(repo, "rev-parse", "HEAD^{commit}").decode().strip() or
+    if (target.read_bytes() != patched or reset_target.read_bytes() != reset_patched or
+            revision != git(repo, "rev-parse", "HEAD^{commit}").decode().strip() or
             git(repo, "status", "--porcelain", "--untracked-files=all") or
             frozen != {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in
                        (Path(__file__).resolve(), HERE / "prepare_tfa.py", HERE / "generated/fes_embedded_control.hpp")} or
@@ -156,6 +161,8 @@ def main():
               "reference_revision": revision, "reference_tree": tree,
               "archive_sha256": digest(archive), "reference_git_blob": blob,
               "reference_sha256": digest(original), "patched_sha256": digest(patched),
+              "reset_reference_git_blob": prepare_tfa.TERASIC_RESET_BLOB,
+              "reset_reference_sha256": digest(reset_original), "reset_patched_sha256": digest(reset_patched),
               "producer_sources": frozen, "cross_tools": tools, "command": command, "environment": env,
               "bl31_bin_sha256": digest(image), "bl31_bin_size": len(image),
               "bl31_elf_sha256": digest(image_elf), "bl31_entry": entry, "bl31_load_segments": segments, "build_label": label,

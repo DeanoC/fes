@@ -30,6 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", required=True, type=Path)
     parser.add_argument("--reference", type=Path)
+    parser.add_argument("--reset-reference", type=Path)
     parser.add_argument("--output", type=Path, default=ROOT / "out" / ("de25-sealed-native-" + uuid.uuid4().hex))
     args = parser.parse_args()
     project, output = args.project.absolute(), args.output.absolute()
@@ -113,6 +114,8 @@ def main():
     command = [sys.executable, FIRMWARE / "verify.py", "--output", firmware_out]
     if args.reference:
         command += ["--reference", args.reference.absolute()]
+    if args.reset_reference:
+        command += ["--reset-reference", args.reset_reference.absolute()]
     run("firmware", command)
     firmware = json.loads((firmware_out / "result.json").read_text())
     vendor = firmware.get("reference_profile") == "terasic-de25-v2.12"
@@ -142,6 +145,7 @@ def main():
               "package_id": result["package_id"], "build_id": result["build_id"], "rbf_sha256": result["rbf_sha256"],
               "archive_sha256": sha(package), "record_sha256": result["build_inputs_sha256"],
               "firmware_reference_git_blob": firmware["reference_git_blob"], "firmware_patched_sha256": firmware["patched_tfa_sha256"],
+              "firmware_reset_patched_sha256": firmware["reset_patched_sha256"],
               "rpc_sha256": sha(model / "Vfes_embedded_control"), "go_sha256": sha(go.resolve()), "source_sha256": sources,
               "oracle_sha256": sha(oracle), "oracle_dependencies_sha256": dep_hashes, "existing_runtime_decision": decision,
               "commands": commands, "log_sha256": {name: sha(output / (name + ".log")) for name in ("firmware", "rpc-build", "native", "tenfoot", "board-rtl", "oracle-nano")},
