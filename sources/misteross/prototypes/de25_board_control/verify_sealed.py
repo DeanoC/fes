@@ -114,11 +114,13 @@ def main():
     if args.reference:
         command += ["--reference", args.reference.absolute()]
     run("firmware", command)
+    firmware = json.loads((firmware_out / "result.json").read_text())
+    vendor = firmware.get("reference_profile") == "terasic-de25-v2.12"
     model = output / "rpc"
     run("rpc-build", ["verilator", "--cc", "--exe", "--build", "--top-module", "fes_embedded_control", "-Wall",
                       "--Mdir", model, "-I" + str(FPGA / "cores/fes-common/generated"),
                       "-GBUILD_ID=128'h" + result["build_id"], "-GABI_ID=" + str(inputs["embedded_control"]["control_abi"]),
-                      "-CFLAGS", "-std=c++14 -O2 -fsanitize=undefined -fno-sanitize-recover=all -I" + str(FIRMWARE),
+                      "-CFLAGS", "-std=c++14 -O2 -fsanitize=undefined -fno-sanitize-recover=all " + ("-DFES_TEST_TERASIC_TFA " if vendor else "") + "-I" + str(FIRMWARE),
                       "-LDFLAGS", str(firmware_out / "tfa_subset.o") + " -fsanitize=undefined",
                       FPGA / "cores/fes-common/rtl/fes_embedded_control.sv", FIRMWARE / "control.cpp", FIRMWARE / "tests/native_rpc.cpp"])
     test_env = {"FES_DE25_SEALED_PACKAGE": str(package), "FES_SEALED_TFA_RPC": str(model / "Vfes_embedded_control")}

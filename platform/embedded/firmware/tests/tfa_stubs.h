@@ -43,7 +43,12 @@ int mailbox_send_cmd(int,int,const uint32_t*,unsigned int,int,uint32_t*,unsigned
 int mailbox_send_cmd_async(uint32_t*,int,const uint32_t*,unsigned int,int);
 int mailbox_read_response(uint32_t*,uint32_t*,unsigned int*);
 void mailbox_clear_response(void);
+#ifdef FES_TEST_TERASIC_TFA
+int intel_mailbox_get_config_status(uint32_t,bool,uint32_t*);
+int mailbox_send_fpga_config_comp(void);
+#else
 uint32_t intel_mailbox_get_config_status(int,bool);
+#endif
 void intel_smmu_hps_remapper_init(uint64_t*);
 void fes_tfa_reset(void);
 void fes_tfa_query(uint64_t result[4]);
@@ -51,6 +56,7 @@ int fes_tfa_start(unsigned int);
 int fes_tfa_write(uint64_t,uint64_t);
 int fes_tfa_completed(uint32_t addresses[3]);
 int fes_tfa_isdone(void);
+int fes_tfa_isdone_detail(uint32_t*);
 uint64_t fes_tfa_translate(uint64_t);
 #ifdef __cplusplus
 }

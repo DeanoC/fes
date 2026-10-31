@@ -10,8 +10,10 @@ using namespace fes::embedded;
 static void check(bool b,const char* s){if(!b)throw std::runtime_error(s);}
 struct World {
     bool held=false, control=true, disable_error=false, cancel_error=false, short_reply=false, async_error=false, bad_profile=false;
+    bool isolation_error=false;
     bool native_rpc=false;
-    unsigned starts=0, data_enables=0, control_enables=0, bytes=0, completed=0;
+    unsigned starts=0, data_enables=0, control_enables=0, bytes=0, completed=0, isolations=0, cancels=0;
+    uint32_t config_return=0, config_detail=0;
     bool seen[16]{};
     std::deque<unsigned> responses;
 } world;
@@ -25,7 +27,7 @@ extern "C" void mmio_write_32(uintptr_t address,uint32_t value){check((address==
 extern "C" void mailbox_clear_response(void){}
 extern "C" int mailbox_send_cmd(int,int command,const uint32_t*,unsigned,int,uint32_t* response,unsigned* count){
     check(world.held,"CANCEL/RECONFIG before containment");
-    if(command==MBOX_CMD_CANCEL)return world.cancel_error?-1:0;
+    if(command==MBOX_CMD_CANCEL){++world.cancels;return world.cancel_error?-1:0;}
     check(command==MBOX_RECONFIG,"unexpected mailbox command");
     response[0]=2;response[1]=world.native_rpc?4096:8;*count=world.short_reply?1:2;return 0;
 }
@@ -47,7 +49,17 @@ extern "C" int mailbox_read_response(uint32_t*,uint32_t*,unsigned* n){
     *n=0;if(world.responses.empty())return MBOX_NO_RESPONSE;
     world.responses.pop_front();return 0;
 }
+#ifdef FES_TEST_TERASIC_TFA
+extern "C" int mailbox_send_fpga_config_comp(void){
+    check(world.held,"vendor isolation before containment");++world.isolations;
+    return world.isolation_error?-1:0;
+}
+extern "C" int intel_mailbox_get_config_status(uint32_t,bool,uint32_t* detail){
+    check(world.held,"status outside containment");*detail=world.config_detail;return world.config_return;
+}
+#else
 extern "C" uint32_t intel_mailbox_get_config_status(int,bool){check(world.held,"status outside containment");return 0;}
+#endif
 
 struct Bench {
     Vfes_embedded_control d;
@@ -168,6 +180,22 @@ static void contained_failures(){
     check(fes_tfa_start(2)==2&&world.control,"authentication bypass accepted");
     check(fes_tfa_translate(0x96000000)==0x16000000,"remap translation changed");
 }
+#ifdef FES_TEST_TERASIC_TFA
+static void terasic_isolation_and_status(){
+    Bench b;
+    check(fes_tfa_start(1)==2&&world.isolations==0&&!world.held,"partial request touched the SDM");
+    world.isolation_error=true;
+    check(fes_tfa_start(0)==4&&world.held&&world.isolations==1&&world.cancels==0&&world.data_enables==0,
+          "failed vendor isolation advanced or lost containment");
+    world.isolation_error=false;world.config_return=MBOX_CFGSTAT_STATE_CONFIG;world.config_detail=MBOX_CFGSTAT_STATE_CONFIG;
+    uint32_t detail=1;
+    check(fes_tfa_isdone_detail(&detail)==1&&detail==0,"vendor BUSY detail was not normalized");
+    world.config_return=5;world.config_detail=5;
+    check(fes_tfa_isdone_detail(&detail)==4&&detail==5,"vendor error detail was lost");
+    world.config_return=0;world.config_detail=5;
+    check(fes_tfa_isdone()!=0&&world.data_enables==0,"unexpected success detail released containment");
+}
+#endif
 static void queue_and_csr(){
     Bench b;check(b.control.enable(1)==Result::ok,"enable queue test");
     for(unsigned i=0;i<4;i++)b.offer(0x3000+i*64,0);
@@ -219,6 +247,9 @@ int main(){
         held_address_and_reload();std::cout<<"PASS actual-TFA-contained-reload\n";
         faults_and_stale();std::cout<<"PASS AXI-fault-reset-generation-cookie\n";
         contained_failures();std::cout<<"PASS identity-firmware-deadline-failures\n";
+#ifdef FES_TEST_TERASIC_TFA
+        terasic_isolation_and_status();std::cout<<"PASS terasic-isolation-and-status\n";
+#endif
         queue_and_csr();std::cout<<"PASS outstanding-queue-and-CSR-backpressure\n";
         forwarding_and_admission();std::cout<<"PASS forwarding-profile-and-late-response\n";
         simultaneous_and_maximum_burst();std::cout<<"PASS simultaneous-AR-RLAST-and-256-beat-burst\n";

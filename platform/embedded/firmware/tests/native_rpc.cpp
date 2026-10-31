@@ -38,7 +38,8 @@ int main() {
                     uint32_t addresses[3]{}; r[0]=fes_tfa_completed(addresses);
                     r[1]=addresses[0];r[2]=addresses[1];r[3]=addresses[2];
                 } else if (x==0xc2000004U) {
-                    r[0]=fes_tfa_isdone(); if (r[0]==0) b.reset();
+                    uint32_t detail=0; r[0]=fes_tfa_isdone_detail(&detail); r[1]=detail;
+                    if (r[0]==0 && r[1]==0) b.reset();
                 } else throw std::runtime_error("unknown SMC");
                 std::cout << "R 1" << std::hex;
                 for (auto v:r) std::cout << " " << v;

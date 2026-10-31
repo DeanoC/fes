@@ -20,7 +20,7 @@ FPGA = ROOT / "sources/misteross"
 def function(source, name):
     # Exact source blob is verified before extraction; these functions contain
     # no brace-bearing strings. Fail closed if the known definition is absent.
-    match = re.search(r"(?m)^(?:static )?(?:int|bool|void|uint32_t) " + name + r"\(", source)
+    match = re.search(r"(?m)^(?:static )?(?:int|bool|void|uint32_t|uintptr_t) " + name + r"\(", source)
     if not match:
         raise ValueError("missing TF-A function " + name)
     start = source.index("{", match.start())
@@ -49,13 +49,23 @@ def main():
             reference = base64.b64decode(json.load(response)["content"], validate=False)
     else:
         reference = a.reference.read_bytes()
+    blob, profile = prepare_tfa.source_identity(reference)
+    vendor = profile == "terasic-de25-v2.12"
     source = prepare_tfa.contained_source(reference).decode()
+    try:
+        prepare_tfa.contained_source(reference + b"\n")
+    except ValueError:
+        pass
+    else:
+        raise ValueError("modified TF-A reference was accepted")
     names = ["fes_contained_query", "intel_fpga_sdm_write_buffer", "intel_fpga_sdm_write_all", "intel_mailbox_fpga_config_isdone",
              "mark_last_buffer_xfer_completed", "intel_fpga_config_completed_write", "intel_fpga_config_start",
              "is_fpga_config_buffer_full", "is_address_in_ddr_range", "intel_fpga_config_write", "intel_smmu_hps_remapper_init"]
+    if vendor:
+        names.insert(1, "fes_contained_isdone_detail")
     out.mkdir(parents=True)
     (out / "reference.c").write_bytes(reference)
-    subset = source[:source.index("*/")+2] + '\n#include "tfa_stubs.h"\n' + '''
+    subset = source[:source.index("*/")+2] + ('\n#define FES_TEST_TERASIC_TFA 1\n' if vendor else '\n') + '#include "tfa_stubs.h"\n' + '''
 #define FPGA_CONFIG_BUFFER_SIZE 4
 typedef enum {NO_REQUEST,RECONFIGURATION,BITSTREAM_AUTH} config_type;
 struct fpga_config_info {uint32_t addr; int size,size_written; uint32_t write_requested; int subblocks_sent,block_number;};
@@ -80,7 +90,20 @@ int fes_tfa_completed(uint32_t a[3]) {
  int status=intel_fpga_config_completed_write(a,&n,&id);
  return n ? 0 : status;
 }
-int fes_tfa_isdone(void){return intel_mailbox_fpga_config_isdone();}
+'''
+    if vendor:
+        subset += '''
+int fes_tfa_isdone_detail(uint32_t *detail){
+ uint32_t raw=0; int status=intel_mailbox_fpga_config_isdone(&raw);
+ *detail=fes_contained_isdone_detail(status,raw);return status;
+}
+'''
+    else:
+        subset += '''
+int fes_tfa_isdone_detail(uint32_t *detail){*detail=0;return intel_mailbox_fpga_config_isdone();}
+'''
+    subset += '''
+int fes_tfa_isdone(void){uint32_t detail=0;int status=fes_tfa_isdone_detail(&detail);return detail ? INTEL_SIP_SMC_STATUS_ERROR : status;}
 uint64_t fes_tfa_translate(uint64_t a){intel_smmu_hps_remapper_init(&a);return a;}
 '''
     (out / "tfa_subset.c").write_text(subset)
@@ -99,6 +122,49 @@ uint64_t fes_tfa_translate(uint64_t a){intel_smmu_hps_remapper_init(&a);return a
     # START/WRITE/completion/status behaviour. Only platform calls are fakes.
     run(["cc", "-std=c11", "-Wall", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I"+str(HERE/"tests"),
          "-c",out/"tfa_subset.c","-o",out/"tfa_subset.o"],"firmware-functions")
+    if vendor:
+        # Exercise the fork's real top-level SiP dispatcher: the FES query
+        # must not be swallowed by either vendor range and nearby IDs must
+        # continue to reach their original versioned handlers.
+        dispatch = '''#include <stdint.h>
+typedef uint64_t u_register_t;
+typedef struct { uint64_t r[4]; unsigned route; } Reply;
+#ifdef FES_TEST_NO_V3
+#define SIP_SVC_V3 0
+#else
+#define SIP_SVC_V3 1
+#endif
+#define INTEL_SIP_SMC_CMD_MASK 0xffffU
+#define INTEL_SIP_SMC_CMD_V2_RANGE_BEGIN 0x400U
+#define INTEL_SIP_SMC_CMD_V2_RANGE_END 0x4ffU
+#define INTEL_SIP_SMC_CMD_V3_RANGE_BEGIN 0xc8U
+#define INTEL_SIP_SMC_CMD_V3_RANGE_END 0x1f4U
+#define SMC_RET4(h,a,b,c,d) do { Reply *r=(h); r->r[0]=(a); r->r[1]=(b); r->r[2]=(c); r->r[3]=(d); return 0; } while (0)
+#define MOCK(name,n) static uintptr_t name(uint32_t f,u_register_t a,u_register_t b,u_register_t c,u_register_t d,void *cookie,void *handle,u_register_t flags) { (void)f;(void)a;(void)b;(void)c;(void)d;(void)cookie;(void)flags; ((Reply*)handle)->route=(n); return (n); }
+MOCK(sip_smc_handler_v1,1)
+MOCK(sip_smc_handler_v2,2)
+#if SIP_SVC_V3
+MOCK(sip_smc_handler_v3,3)
+#endif
+''' + function(source, "fes_contained_query") + function(source, "sip_smc_handler") + '''
+int main(void) {
+ Reply r={{0},0};
+ if(sip_smc_handler(0xc2000300U,0,0,0,0,0,&r,0)!=0 || r.route || r.r[0] || r.r[1]!=0x46455343U || r.r[2]!=0x10000U || r.r[3]!=0xfU) return 1;
+ if(sip_smc_handler(0x42000300U,0,0,0,0,0,&r,0)!=1 || r.route!=1) return 2;
+ if(sip_smc_handler(0xc2000401U,0,0,0,0,0,&r,0)!=2 || r.route!=2) return 3;
+#if SIP_SVC_V3
+ if(sip_smc_handler(0xc20000c8U,0,0,0,0,0,&r,0)!=3 || r.route!=3) return 4;
+#else
+ if(sip_smc_handler(0xc20000c8U,0,0,0,0,0,&r,0)!=1 || r.route!=1) return 4;
+#endif
+ return 0;
+}
+'''
+        (out / "dispatch.c").write_text(dispatch)
+        for name, flags in (("v3", []), ("v1-v2", ["-DFES_TEST_NO_V3"])):
+            executable = out / ("dispatch-" + name)
+            run(["cc", "-std=c11", "-Wall", "-Werror", *flags, out/"dispatch.c", "-o", executable], "dispatch-build-" + name)
+            run([executable], "dispatch-check-" + name)
     if a.cross_cxx:
         run([a.cross_cxx,"-std=c++14","-ffreestanding","-fno-exceptions","-fno-rtti","-mgeneral-regs-only","-Wall","-Wextra","-Werror",
              "-c",HERE/"control.cpp","-o",out/"control-aarch64.o"],"cross-control")
@@ -108,19 +174,19 @@ uint64_t fes_tfa_translate(uint64_t a){intel_smmu_hps_remapper_init(&a);return a
     run([a.verilator,"--cc","--exe","--build","--top-module","fes_embedded_control","-Wall",
          "--Mdir",out/"obj","-I"+str(FPGA/"cores/fes-common/generated"),
          "-GBUILD_ID=128'h00112233445566778899aabbccddeeff",
-         "-CFLAGS","-std=c++14 -O2 -fsanitize=undefined -fno-sanitize-recover=all -I"+str(HERE),"-LDFLAGS",str(out/"tfa_subset.o")+" -fsanitize=undefined",
+         "-CFLAGS","-std=c++14 -O2 -fsanitize=undefined -fno-sanitize-recover=all " + ("-DFES_TEST_TERASIC_TFA " if vendor else "") + "-I"+str(HERE),"-LDFLAGS",str(out/"tfa_subset.o")+" -fsanitize=undefined",
          FPGA/"cores/fes-common/rtl/fes_embedded_control.sv",HERE/"control.cpp",HERE/"tests/endpoint_tb.cpp"],"verilator-build")
     run([out/"obj/Vfes_embedded_control"],"checks")
     if sources != {str(f.relative_to(ROOT)):sha(f) for f in files}:
         raise ValueError("sources changed while compiling/verifying endpoint")
     report={"status":"passed","classification":"actual RTL plus patched TF-A C functions with simulated platform operations; no hardware acceptance",
             "commands":commands,"source_sha256":sources,
-            "reference_git_blob":prepare_tfa.REFERENCE_BLOB,"reference_sha256":hashlib.sha256(reference).hexdigest(),
+            "reference_git_blob":blob,"reference_profile":profile,"reference_sha256":hashlib.sha256(reference).hexdigest(),
             "patched_tfa_sha256":hashlib.sha256(source.encode()).hexdigest(),
             "cross_compiler_sha256":sha(a.cross_cxx.resolve()) if a.cross_cxx else None,
             "aarch64_object_sha256":sha(out/"control-aarch64.o") if a.cross_cxx else None,
             "not_run":[] if a.cross_cxx else ["AArch64 freestanding adapter compilation"],
-            "checks":(out/"checks.log").read_text().splitlines()}
+            "checks":(out/"checks.log").read_text().splitlines() + (["PASS terasic-query-dispatch-v1-v2-and-v3"] if vendor else [])}
     (out/"result.json").write_text(json.dumps(report,indent=2)+"\n")
     print("PASS:",out)
 

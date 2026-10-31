@@ -64,12 +64,13 @@ def main():
         command += ["--reference", args.reference.absolute()]
     run("firmware", command)
     firmware = json.loads((firmware_out / "result.json").read_text())
+    vendor = firmware.get("reference_profile") == "terasic-de25-v2.12"
 
     rpc_dir = output / "rpc"
     run("rpc-build", ["verilator", "--cc", "--exe", "--build", "--top-module", "fes_embedded_control", "-Wall",
         "--Mdir", rpc_dir, "-I" + str(FPGA / "cores/fes-common/generated"),
         "-GBUILD_ID=128'h0123456789abcdef0123456789abcdef",
-        "-CFLAGS", "-std=c++14 -O2 -fsanitize=undefined -fno-sanitize-recover=all -I" + str(FIRMWARE),
+        "-CFLAGS", "-std=c++14 -O2 -fsanitize=undefined -fno-sanitize-recover=all " + ("-DFES_TEST_TERASIC_TFA " if vendor else "") + "-I" + str(FIRMWARE),
         "-LDFLAGS", str(firmware_out / "tfa_subset.o") + " -fsanitize=undefined",
         FPGA / "cores/fes-common/rtl/fes_embedded_control.sv", FIRMWARE / "control.cpp", FIRMWARE / "tests/native_rpc.cpp"])
 
@@ -91,6 +92,7 @@ def main():
         "source_sha256": sources,
         "fixture_source_sha256": fixture_snapshot,
         "firmware_reference_git_blob": firmware["reference_git_blob"],
+        "firmware_reference_profile": firmware["reference_profile"],
         "firmware_patched_sha256": firmware["patched_tfa_sha256"],
         "firmware_checks": firmware["checks"],
         "rpc_sha256": sha(rpc_dir / "Vfes_embedded_control"),
