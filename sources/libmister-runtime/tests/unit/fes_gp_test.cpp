@@ -3168,8 +3168,26 @@ void TestPc386IdentityPersistenceAndWallClock()
 	assert(f.endpoint.clock == std::vector<unsigned>({2026, 12, 31, 23, 59, 59, 5}));
 	assert(f.driver.SetWallClock(LocalTime(1970, 1, 1, 0, 0, 5, 4), kComputerDeadline).ok());
 	assert(f.endpoint.clock == std::vector<unsigned>({1980, 1, 1, 0, 0, 0, 3}));
-	assert(f.driver.SetWallClock(LocalTime(2100, 1, 1, 0, 0, 0, 5), kComputerDeadline).code ==
-		mister::ErrorCode::invalid_request);
+	const auto out_of_range = f.driver.SetWallClock(LocalTime(2100, 1, 1, 0, 0, 0, 5), kComputerDeadline);
+	assert(out_of_range.code == mister::ErrorCode::invalid_request && out_of_range.phase == "transport");
+	for (const bool timeout : {false, true}) {
+		ComputerFixture failed(live, {}, Pc386Descriptor());
+		failed.endpoint.abi_minor = 1;
+		assert(failed.driver.Identify(failed.context, kComputerDeadline).error.ok());
+		if (timeout) {
+			failed.endpoint.fail_after_request = [](const mister_test::ComputerEndpoint::Request& request) {
+				return request.opcode == FesComputerOpcodeWallClock && request.index == 1;
+			};
+		} else {
+			failed.endpoint.reject_request = [](const mister_test::ComputerEndpoint::Request& request) {
+				return request.opcode == FesComputerOpcodeWallClock && request.index == 1 ?
+					FesSimpleComputerErrorInvalidState : 0;
+			};
+		}
+		const auto error = failed.driver.SetWallClock(LocalTime(2026, 10, 28, 14, 5, 37, 3),
+			kComputerDeadline);
+		assert(error.code == mister::ErrorCode::io_failed && error.phase == "transport");
+	}
 	assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
 	start = f.endpoint.requests.size();
 	assert(!f.driver.SetWallClock(LocalTime(2026, 10, 28, 14, 5, 37, 3), kComputerDeadline).ok());

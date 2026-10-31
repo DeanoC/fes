@@ -1058,6 +1058,9 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		if (!video)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"computer requires fixed video");
+		VersionedContract layout;
+		Error persistence = CorePersistenceLayout(descriptor, &layout);
+		if (!persistence.ok()) return persistence;
 		return {};
 	}
 	if (descriptor.abi.id == FesSimpleComputerABIID &&

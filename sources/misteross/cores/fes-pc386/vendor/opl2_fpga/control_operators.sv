@@ -292,7 +292,7 @@ module control_operators
         .reset_mem_done_pulse()
     );
 
-    localparam block_fnum_high_mem_width = $bits(block) + $bits(fnum[9:8]);
+    localparam block_fnum_high_mem_width = $bits(block) + 2; // $bits(fnum[9:8])
 
     mem_single_bank #(
         .DATA_WIDTH(block_fnum_high_mem_width),
@@ -441,9 +441,11 @@ module control_operators
     always_ff @(posedge clk)
         modulation_out_p1 <= out_p6;
 
+`ifndef SYNTHESIS
     ERROR_operators_not_aligned_for_modulation:
     assert property (@(posedge clk)
         op_sample_clk_en && op_num == 3 |-> operator_out.valid && operator_out.op_num == 0);
+`endif
 
     always_comb begin
         operator_out.valid = op_sample_clk_en_p[6];

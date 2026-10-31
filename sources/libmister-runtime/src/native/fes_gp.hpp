@@ -165,7 +165,8 @@ private:
 	};
 	MediaUnitCapability* FindMediaUnit(std::uint8_t unit);
 	Error ComputerCommand(std::uint8_t opcode, std::uint8_t index, std::uint16_t argument,
-		std::uint64_t deadline, bool* mutation_started = nullptr);
+		std::uint64_t deadline, bool* mutation_started = nullptr,
+		const char* phase = "input");
 	Error ReadMediaInfo(std::uint8_t unit, std::uint64_t deadline, LiveMediaInfo*);
 	Error ReadMediaState(std::uint8_t unit, std::uint64_t deadline, std::uint16_t* state);
 	Error RecoverComputerMailbox(std::uint64_t deadline);

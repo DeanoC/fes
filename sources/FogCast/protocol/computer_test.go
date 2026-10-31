@@ -195,6 +195,22 @@ func TestPc386MachineRecordAlonePersists(t *testing.T) {
 	}
 }
 
+func TestMediaUnitKeepsV10ContractsOnComputer11(t *testing.T) {
+	floppy := AtariStFloppyInterface()
+	unit := MediaUnitStatus{Unit: AtariStFloppyUnit, Interface: floppy,
+		MinBytes: uint32(AtariStFloppyBytes), MaxBytes: uint32(AtariStFloppyBytes),
+		ChunkBytes: ComputerMediaChunkBytes, State: MediaUnitEmpty}
+	p := &CorePackageStatus{
+		ABI:              RuntimeContract{ID: ComputerABIID, Major: 1, Minor: 1},
+		ActiveInterfaces: []RuntimeInterface{{ID: floppy.ID, Major: floppy.Major, Minor: floppy.Minor}},
+		MediaUnits:       []MediaUnitStatus{unit},
+	}
+	got, ok := MediaUnit(p, AtariStFloppyUnit)
+	if !ok || got.Interface != floppy || got.Unit != AtariStFloppyUnit {
+		t.Fatalf("1.1 package's active 1.0 floppy unit = %+v, found=%v", got, ok)
+	}
+}
+
 func TestComputerInputCapabilitiesIncludeMinorOne(t *testing.T) {
 	p := computerStatus()
 	p.CorePackage.ActiveInterfaces = append(p.CorePackage.ActiveInterfaces,
@@ -231,20 +247,37 @@ func TestZx81TapeProjection(t *testing.T) {
 	if unit.Valid() {
 		t.Fatal("widened ZX81 tape unit accepted")
 	}
-	role, ok := ZX81TapeSelectionRole(got)
+	role, ok := ZX81FamilyTapeSelectionRole(got)
 	if !ok || role != CassetteRole {
 		t.Fatalf("tape-unit role = %q ok=%v", role, ok)
 	}
 	blob := []CoreMediaCapability{{Role: "blob", Format: "raw", Interface: RuntimeContract{ID: "fes.media.blob", Major: 1}}}
-	if role, ok = ZX81TapeSelectionRole(blob); !ok || role != "blob" {
+	if role, ok = ZX81FamilyTapeSelectionRole(blob); !ok || role != "blob" {
 		t.Fatalf("legacy blob role = %q ok=%v", role, ok)
 	}
 	both := append(append([]CoreMediaCapability{}, blob...), got...)
-	if role, ok = ZX81TapeSelectionRole(both); !ok || role != CassetteRole {
+	if role, ok = ZX81FamilyTapeSelectionRole(both); !ok || role != CassetteRole {
 		t.Fatalf("declared tape unit should win, role=%q ok=%v", role, ok)
 	}
-	if _, ok = ZX81TapeSelectionRole(DeclaredCoreMediaCapabilities(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true}))); ok {
+	if _, ok = ZX81FamilyTapeSelectionRole(DeclaredCoreMediaCapabilities(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 2, Required: true}))); ok {
 		t.Fatal("spectrum cassette is not a ZX81 .p role")
+	}
+}
+
+func TestZx80TapeProjection(t *testing.T) {
+	descriptor := apple2Descriptor(corepackage.Interface{ID: "fes.media.zx81-tape", Major: 1, Required: true})
+	descriptor.Core.ID = "fes.zx80"
+	got := DeclaredCoreMediaCapabilities(descriptor)
+	encoded, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `[{"role":"cassette","format":"zx80-o","min_bytes":1,"max_bytes":16384,"interface":{"id":"fes.media.zx81-tape","major":1,"minor":0},"transport":"fes-computer-media-unit-v1","unit":0,"extensions":[".o"]}]`
+	if string(encoded) != want || !DeclaresZx81Tape(descriptor) || DeclaresDiskMedia(descriptor) {
+		t.Fatalf("projection %s", encoded)
+	}
+	if role, ok := ZX81FamilyTapeSelectionRole(got); !ok || role != CassetteRole {
+		t.Fatalf("tape-unit role = %q ok=%v", role, ok)
 	}
 }
 

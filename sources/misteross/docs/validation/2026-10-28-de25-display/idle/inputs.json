@@ -1,0 +1,90 @@
+{
+  "board": "de25_nano",
+  "boot_firmware_compatibility": "not-qualified",
+  "ddr": false,
+  "device": "A5EB013BB23BE4SCS",
+  "diagnostic_only": true,
+  "fes_revision": "a00b0eebb362fd6594a28364e9b83263174b5db8",
+  "gp": false,
+  "hardware_acceptance": "not-run",
+  "hps": false,
+  "i2c_internal_clock": {
+    "derivation": "2 * (CLK_Freq / I2C_Freq + 1)",
+    "divide_by": 5002,
+    "source_hz": 50000000
+  },
+  "mode": "idle",
+  "prepared_project_sha256": {
+    "I2C_Controller.v": "4ac2feae20095dc7287dedec70bdeb8949b086ea6ce3c3a33583063e978003ab",
+    "I2C_HDMI_Config.v": "b9b7c477173fee9b6cb5e3d6a6ba1122c7a0b539f205d807b1d61b22048fd391",
+    "agilex_reset_release.ip": "ae85b020d42484275cabf5a9e812f0f43f6f182e1870b4eb09013a26280b1d87",
+    "board_build.py": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c",
+    "build.py": "a6daf1ca93d4b4dce6a8e558c1351b2992e16ef5c1c9fb4b587fa22f52ec7273",
+    "clocks.sdc": "d4add41163090d41463018fa26bf144fd3726a05b9b1a94dc8397bef3eaae897",
+    "de25nano_display.qpf": "229e0007260cdce44f239881c4d685a5395b01d603c9db1935a414f141eb84a8",
+    "de25nano_display.qsf": "cc94b5f16ea06902e6695c08ce7e086069ef3f6d20e48769a17c7e026552df06",
+    "fes_de25_top_reset.v": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+    "fes_menu_pattern_memory.v": "3a03c36b8a23d2205f5a10a3da052beb744c64ddb8dfe64e8de2a2e8ec49e7b3",
+    "fes_menu_reader.v": "0bd4f7d897d0569d030a6fc8028a59300a55cc7435cd97da2cbb40f934fe97f6",
+    "fes_menu_reader_de25.v": "66d1db21705cd356121aacd2a0f0002f9e625533bc3661a9db473722178aabd6",
+    "fes_menu_video.v": "03e7bf254c1ecb58174d61fec01cf124a784b0c7b6867f043386d7c78d2b0c6b",
+    "fes_splash_core.v": "9740e47e25ffa8a9bd124339bcefd18a48c62ac5500f8d862e5abe435e50a7a6",
+    "pins.qsf": "3c64ef31d81673077380029f63ef6d2bba37ac8b8fc9530d8c16f15d8e048632",
+    "sys_pll.ip": "115dfc74af00f4f6ed769073b7611de878b696bda4c0ea74a2486bdaa8f1f2e0",
+    "top.v": "d974ad681412a7bec4c466a7c8ef76295fec4f791b6c83e8a9f1699003779530",
+    "vendor.lock.toml": "49cdc74e6e7b051c4cad17faf2ce91902dbc74e54a29b0ad4ff7846298ff95f3"
+  },
+  "reviewed_menu_ram_hint_repair": {
+    "after": "(* ramstyle = \"M20K\" *) reg [127:0] fifo [0:255];",
+    "before": "(* ramstyle = \"M10K\" *) reg [127:0] fifo [0:255];",
+    "derived": "fes_menu_reader_de25.v",
+    "derived_sha256": "66d1db21705cd356121aacd2a0f0002f9e625533bc3661a9db473722178aabd6",
+    "original": "fes_menu_reader.v",
+    "original_sha256": "0bd4f7d897d0569d030a6fc8028a59300a55cc7435cd97da2cbb40f934fe97f6"
+  },
+  "reviewed_pll_device_repair": {
+    "after": "A5EB013BB23BE4SCS",
+    "before": "A5EB013BB23BE4SR1",
+    "parameters": [
+      "system_info_device_component",
+      "system/device"
+    ]
+  },
+  "reviewed_reset_release_device_repair": {
+    "after": "A5EB013BB23BE4SCS",
+    "before": "A5EB013BB23BE4SR1",
+    "parameter": "system/device"
+  },
+  "runtime_menu": false,
+  "source_classification": "committed",
+  "source_sha256": {
+    "board_build.py": "104fc74e5bf448396e3e078535615efd9ac30ce6d47cc1e96cf98a5622211d6c",
+    "build.py": "a6daf1ca93d4b4dce6a8e558c1351b2992e16ef5c1c9fb4b587fa22f52ec7273",
+    "clocks.sdc": "d4add41163090d41463018fa26bf144fd3726a05b9b1a94dc8397bef3eaae897",
+    "fes_de25_top_reset.v": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+    "fes_menu_pattern_memory.v": "3a03c36b8a23d2205f5a10a3da052beb744c64ddb8dfe64e8de2a2e8ec49e7b3",
+    "fes_menu_reader.v": "0bd4f7d897d0569d030a6fc8028a59300a55cc7435cd97da2cbb40f934fe97f6",
+    "fes_menu_video.v": "03e7bf254c1ecb58174d61fec01cf124a784b0c7b6867f043386d7c78d2b0c6b",
+    "fes_splash_core.v": "9740e47e25ffa8a9bd124339bcefd18a48c62ac5500f8d862e5abe435e50a7a6",
+    "top.v": "d974ad681412a7bec4c466a7c8ef76295fec4f791b6c83e8a9f1699003779530",
+    "vendor.lock.toml": "49cdc74e6e7b051c4cad17faf2ce91902dbc74e54a29b0ad4ff7846298ff95f3"
+  },
+  "vendor_archive": {
+    "file": "DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+    "prefix": "Demonstration/FPGA/HDMI_ASx4/",
+    "sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+    "url": "https://dl2.terasic.com/resources/de25-nano/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip"
+  },
+  "vendor_source_sha256": {
+    "HDMI_I2C/I2C_Controller.v": "4ac2feae20095dc7287dedec70bdeb8949b086ea6ce3c3a33583063e978003ab",
+    "HDMI_I2C/I2C_HDMI_Config.v": "b9b7c477173fee9b6cb5e3d6a6ba1122c7a0b539f205d807b1d61b22048fd391",
+    "agilex_reset_release.ip": "73ef4d840ee44416c46c570947b0fe832a1c0362fc278ba98e61a6f60d2f899e",
+    "golden_top.qsf": "73dac113e3914d4b34fb1642525bbf8467e4e339cedcd1e4fcec2b5eed0eda45",
+    "sys_pll.ip": "ca35f6ecd0034b3e88f51425433d2c6c02a288c863247ac02ad58b69c794df38"
+  },
+  "video": {
+    "h_total": 1650,
+    "pixel_clock_hz": 74250000,
+    "v_total": 750
+  }
+}

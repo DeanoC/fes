@@ -1661,13 +1661,14 @@ MediaUnitCapability* FesGpCoreDriver::FindMediaUnit(std::uint8_t unit)
 }
 
 Error FesGpCoreDriver::ComputerCommand(std::uint8_t opcode, std::uint8_t index,
-	std::uint16_t argument, std::uint64_t deadline, bool* mutation_started)
+	std::uint16_t argument, std::uint64_t deadline, bool* mutation_started,
+	const char* phase)
 {
 	std::uint16_t response = 0;
 	Error error = gp_.Exchange(opcode, index, argument, deadline, &response);
 	if (mutation_started != nullptr) *mutation_started = error.ok() || gp_.Poisoned();
 	if (error.ok() && response != 0) error = Io("invalid FES computer media acknowledgement");
-	return WithPhase(error, "input");
+	return WithPhase(error, phase);
 }
 
 Error FesGpCoreDriver::ReadMediaInfo(std::uint8_t unit, std::uint64_t deadline,
@@ -1952,7 +1953,8 @@ Error FesGpCoreDriver::SetWallClock(const std::tm& local, std::uint64_t deadline
 		static_cast<std::uint16_t>(std::min(time.tm_sec, 59) | ((time.tm_wday + 1) << 8))};
 	Error error;
 	for (std::uint8_t index = 0; index < FesComputerWallClockWordCount && error.ok(); ++index)
-		error = ComputerCommand(FesComputerOpcodeWallClock, index, words[index], deadline);
+		error = ComputerCommand(FesComputerOpcodeWallClock, index, words[index], deadline,
+			nullptr, "transport");
 	return WithPhase(error, "transport");
 }
 

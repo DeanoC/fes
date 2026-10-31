@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -40,6 +41,7 @@ func (c *Client) SetSessionDisplayForSession(ctx context.Context, prior SessionR
 	if err != nil {
 		return SessionResult{}, err
 	}
+	log.Printf("tenfoot: POST /api/v1/session/display target=%s package=%s generation=%d payload=%s", prior.Target, binding.PackageID, binding.Generation, payload)
 	req, err := c.NewRequest(ctx, http.MethodPost, "/api/v1/session/display", bytes.NewReader(payload))
 	if err != nil {
 		return SessionResult{}, err

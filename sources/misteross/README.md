@@ -81,12 +81,15 @@ The PC/XT development slice runs an original diagnostic ROM on a pinned 8088
 through its motherboard, SDRAM and separate ISA CGA/MDA cards. The assembled
 system also exercises DMA and refresh while one selected display crosses into
 the shared Direct/Scanlines 720p output. `make sim-fes-pcxt` checks this on the
-host. `make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache` builds an
-autonomous board diagnostic with PLLs, SDRAM pads/capture and HDMI, retaining
-source/tool receipts and failed or completed routes under
-`build/diagnostic/fes-pcxt/`. See the [core README](cores/fes-pcxt/README.md).
-Routed timing, SDRAM pad qualification, a sealed package, physically linkable ISA
-sockets, BIOS/DOS/game compatibility and hardware acceptance remain open.
+host. `make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache` builds the
+normal Quartus diagnostic package, with authenticated tool/source identity,
+three timing seeds and an independent byte-identical rebuild under
+`build/fes-pcxt-quartus/`. The [core README](cores/fes-pcxt/README.md) describes
+tool selection and the separate advisory nextpnr diagnostic. The exact package
+in the [reviewed Kit A record](../../docs/validation/2026-10-29-pcxt-quartus-package/review-followup.json)
+passes the static picture/completion-block and launch/Stop checks. External
+SDRAM/HDMI timing, whole-board qualification, physically linkable ISA sockets
+and BIOS/DOS/game compatibility remain open.
 
 The pc386 machine's AT core (phase M1 of the [machine design](docs/pc386-machine-design.md))
 boots the Bochs BIOS and FreeDOS to a prompt in host simulation with the Bochs
@@ -103,6 +106,22 @@ its VGA trace; `make sim-fes-pc386-vga` checks the marked VGA modes; and
 Run the commands below from `sources/misteross/`. Preparing one registered
 package without an image rebuild is the FES
 [core developer workflow](../../docs/core-development.md).
+
+### DE25-Nano board bring-up
+
+The standalone [DE25-Nano diagnostic](boards/de25nano/README.md) exercises
+the 50 MHz clock and eight active-low LEDs on the Agilex 5
+`A5EB013BB23BE4SCS`. Run `make -C boards/de25nano sim` for host simulation
+and `make -C boards/de25nano project` to prepare a local Quartus project.
+The explicit Quartus Pro build produces a JTAG `.sof` diagnostic; it does
+not export a described package. Compiler fitting, timing and physical
+acceptance require the configured Pro installation and a DE25-Nano board.
+
+The board definition lives in
+[`mister-packages`](../mister-packages/packages/board/de25_nano.yaml).
+The existing DE10-Nano producers, package admission and Quartus 17.0.2
+oracles retain their current target. DE25-Nano HPS, boot media, runtime,
+HDMI and memory integration are not implemented by this diagnostic.
 
 The original RV32I CPU in `cores/fes-common/rtl/riscv` is the first-party
 RISC-V lane; `make sim-fes-riscv` checks it against an independent model and

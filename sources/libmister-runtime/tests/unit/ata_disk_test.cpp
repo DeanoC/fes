@@ -5,13 +5,16 @@
 #include "native/sha256.hpp"
 #include <algorithm>
 #include <cassert>
+#include <cerrno>
 #include <cstdio>
 #include <dirent.h>
 #include <fstream>
 #include <map>
+#include <signal.h>
 #include <set>
 #include <string>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 using namespace mister;
 using namespace mister::native;
@@ -47,6 +50,17 @@ std::vector<unsigned char> Chunk(std::uint32_t index, std::uint32_t length)
 	return bytes;
 }
 
+std::uint32_t Crc32(const std::vector<unsigned char>& bytes)
+{
+	std::uint32_t crc = 0xffffffffu;
+	for (unsigned char byte : bytes) {
+		crc ^= byte;
+		for (unsigned bit = 0; bit < 8; ++bit)
+			crc = (crc >> 1) ^ ((crc & 1) ? 0xedb88320u : 0u);
+	}
+	return ~crc;
+}
+
 // The shared golden manifest: decode, re-encode, and reject every
 // invalid vector.
 void GoldenDelta()
@@ -68,13 +82,23 @@ void GoldenDelta()
 	assert(delta.revision == fields["revision"].string_value && delta.revision == Digest(record));
 	assert(MediaDataNamespace(id) == fields["namespace"].string_value);
 	assert(delta.chunks.size() == fields["chunks"].array.size());
+	std::vector<unsigned char> restored(base_size);
+	for (std::uint32_t at = 0; at < base_size; ++at)
+		restored[at] = static_cast<unsigned char>(at * 7 + (at >> 11));
+	assert(Digest(restored) == fields["base_media_id"].string_value);
 	for (std::size_t i = 0; i < delta.chunks.size(); ++i) {
 		std::map<std::string, daemon::json::Value> chunk;
 		for (const auto& pair : fields["chunks"].array[i].object) chunk[pair.first] = pair.second;
 		assert(delta.chunks[i].index == chunk["index"].integer_value);
 		assert(delta.chunks[i].sha256 == chunk["sha256"].string_value);
 		assert(AtaDiskChunkLength(base_size, delta.chunks[i].index) == chunk["bytes"].integer_value);
+		const auto bytes = Chunk(delta.chunks[i].index, AtaDiskChunkLength(base_size, delta.chunks[i].index));
+		assert(Digest(bytes) == delta.chunks[i].sha256);
+		std::copy(bytes.begin(), bytes.end(), restored.begin() +
+			std::size_t(delta.chunks[i].index) * generated::FesComputerAtaDiskChunkBytes);
 	}
+	assert(Digest(restored) == fields["restored_sha256"].string_value);
+	assert(Crc32(restored) == static_cast<std::uint32_t>(fields["restored_crc32"].integer_value));
 	std::vector<unsigned char> encoded;
 	assert(EncodeAtaDelta(delta, &encoded).ok() && encoded == record);
 	for (const auto& row : fields["invalid"].array) {
@@ -208,8 +232,32 @@ void BaseImage()
 	const std::string link = std::string(tmp) + "/link.img";
 	assert(symlink(path.c_str(), link.c_str()) == 0);
 	assert(!AtaBaseImage::Open(link, 1u << 20, &image).ok());
+	const std::string fifo = std::string(tmp) + "/disk.fifo";
+	assert(mkfifo(fifo.c_str(), 0600) == 0);
+	const pid_t child = fork();
+	assert(child >= 0);
+	if (child == 0) {
+		std::unique_ptr<AtaBaseImage> rejected;
+		_exit(AtaBaseImage::Open(fifo, 1u << 20, &rejected).ok() ? 1 : 0);
+	}
+	int status = 0;
+	bool finished = false;
+	for (unsigned attempt = 0; attempt < 100; ++attempt) {
+		const pid_t waited = waitpid(child, &status, WNOHANG);
+		if (waited == child) {
+			finished = true;
+			break;
+		}
+		assert(waited == 0 || (waited < 0 && errno == EINTR));
+		usleep(10000);
+	}
+	if (!finished) {
+		assert(kill(child, SIGKILL) == 0);
+		assert(waitpid(child, &status, 0) == child);
+	}
+	assert(finished && WIFEXITED(status) && WEXITSTATUS(status) == 0);
 	image.reset();
-	assert(unlink(link.c_str()) == 0 && unlink(path.c_str()) == 0 && rmdir(tmp) == 0);
+	assert(unlink(fifo.c_str()) == 0 && unlink(link.c_str()) == 0 && unlink(path.c_str()) == 0 && rmdir(tmp) == 0);
 }
 } // namespace
 

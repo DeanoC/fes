@@ -12,6 +12,19 @@ video, Linux input, callback-only input session, and `NativeHardware`.
 There is no conventional Main, MiSTer SPI, framebuffer, cartridge profile table,
 or raw game launch operation.
 
+Before loading the window driver or constructing those physical adapters, the
+factory requires a Linux ARMv7 binary, raw device-tree model
+`Terasic DE10-nano\0`, and compatible list
+`altr,socfpga-cyclone5\0altr,socfpga\0`. This matches the existing FES boot/reset
+board contract. AArch64, another board, or absent/malformed properties return
+`unsupported_target` with phase `platform`. The daemon uses its existing
+failure-only hardware adapter and serves the same local protocol with no
+programming capabilities. The test-only factory overload supplies identity and
+the driver-loader callback to this same guarded construction path; it is absent
+from production archives. Identity/ordering tests establish this rejection
+behavior. An AArch64 compile or execution under QEMU does not establish DE25
+FPGA programming, MMIO, DDR, input or display support.
+
 The package inspector reads format 4's two named ROM sources and sealed map
 with its separate identity domain. Physical admission still requires a linked
 load before that format can be activated.
@@ -363,6 +376,10 @@ the DDR window through short fes-window grants (`DiskWindow`) from the staged
 base image and the game's `fes.ata-disk.delta` chunks, committed with the CRC
 the core recomputes, and saved at Stop as content-addressed dirty chunks under
 a merged manifest. Host coverage only.
+
+Compatibility admission requires `fes.persistence.words` to pair with exactly
+one registered layout before programming, including volatile developer loads
+that omit a data root.
 
 An empty ATA unit does not remove the pc386 package's persistent core-data
 mode. Rejected insert/eject operations for that fixed unit leave the package's

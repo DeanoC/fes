@@ -1,0 +1,129 @@
+{
+ "classification": "routed timing of the pc386 M4 shell; no seal, no hardware",
+ "tools": {
+  "yosys": "1f7d0273b55bd48343b149c86ca9766d6d48c174",
+  "nextpnr": "bd7a1c0d2e1a36ff64ad303edffac87fdabd66bb",
+  "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
+  "router": "gpu (HIP)"
+ },
+ "recipe": {
+  "timing_weight": 10,
+  "critexp": 2,
+  "analogue_signoff": true
+ },
+ "utilization": {
+  "MISTRAL_BUF": {
+   "available": 0,
+   "used": 6929
+  },
+  "MISTRAL_CLKENA": {
+   "available": 8,
+   "used": 3
+  },
+  "MISTRAL_COMB": {
+   "available": 83820,
+   "used": 20168
+  },
+  "MISTRAL_FF": {
+   "available": 167640,
+   "used": 14157
+  },
+  "MISTRAL_IO": {
+   "available": 472,
+   "used": 35
+  },
+  "MISTRAL_M10K": {
+   "available": 553,
+   "used": 40
+  },
+  "MISTRAL_MUL18X18": {
+   "available": 112,
+   "used": 1
+  },
+  "MISTRAL_MUL27X27": {
+   "available": 112,
+   "used": 4
+  },
+  "MISTRAL_MUL9X9": {
+   "available": 336,
+   "used": 13
+  },
+  "altera_pll": {
+   "available": 6,
+   "used": 2
+  },
+  "cyclonev_hps_interface_fpga2sdram": {
+   "available": 1,
+   "used": 1
+  },
+  "cyclonev_hps_interface_mpu_general_purpose": {
+   "available": 1,
+   "used": 1
+  },
+  "cyclonev_hps_interface_peripheral_i2c": {
+   "available": 4,
+   "used": 1
+  }
+ },
+ "seeds": {
+  "1": {
+   "diag.machine.bridge.commands.storage.wclk": 55.76,
+   "system_clock.clocks[0]": 40.44,
+   "system_clock.clocks[1]": 231.05
+  },
+  "2": {
+   "diag.machine.bridge.commands.storage.wclk": 52.33,
+   "system_clock.clocks[0]": 38.55,
+   "system_clock.clocks[1]": 186.64
+  }
+ },
+ "constraints_mhz": {
+  "diag.machine.bridge.commands.storage.wclk": 74.25,
+  "system_clock.clocks[0]": 61.44,
+  "system_clock.clocks[1]": 12.288
+ },
+ "seed1_failing_setup_endpoints": {
+  "posedge system_clock.clocks[0]": {
+   "diag.machine.at": {
+    "count": 295,
+    "worst_ns": -8.45
+   },
+   "diag.inta": {
+    "count": 8,
+    "worst_ns": -7.33
+   },
+   "diag.machine.vga": {
+    "count": 244,
+    "worst_ns": -3.87
+   },
+   "diag.master": {
+    "count": 237,
+    "worst_ns": -2.99
+   },
+   "diag.audio.opl2": {
+    "count": 5,
+    "worst_ns": -0.43
+   }
+  },
+  "posedge diag.machine.bridge.commands.storage.wclk": {
+   "diag.machine.presenter": {
+    "count": 94,
+    "worst_ns": -4.47
+   }
+  }
+ },
+ "critical_path_heads": {
+  "system": "diag.machine.at.decoder.cycle_port -> ATA register select -> diag.machine.at.cycle_rdata -> diag.machine.at.decoder.rdata (28 cells)",
+  "pixel": "diag.machine.presenter.s1_rx -> weight path through MISTRAL_MUL27X27 -> diag.machine.presenter.p_wx (74 cells)"
+ },
+ "block_estimates_mhz": {
+  "bus master alone, before": 75.68,
+  "bus master alone, after": 105.76,
+  "note": "synth + placement (no route) of pc386_bus_master in the M2 synthesis envelope"
+ },
+ "placement_first_iteration_s": {
+  "AT core, memories in flip-flops (M2 netlist)": 839.73,
+  "VGA (M2 netlist)": 1.05,
+  "whole shell with #1153": 1.64
+ }
+}

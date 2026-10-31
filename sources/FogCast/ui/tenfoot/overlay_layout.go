@@ -201,18 +201,23 @@ func firmwarePickerPanel(snap Snapshot) (listPanel, bool) {
 		rows = 1
 	}
 	g := snap.Grid
-	panelW := 640
+	panelW := 760
 	if max := g.contentWidth() - 48; panelW > max {
 		panelW = max
 	}
 	if panelW < 280 {
 		panelW = g.contentWidth()
 	}
-	headerH, footerH, rowH := 48, 52, 44
+	headerH, footerH, rowH := 60, 84, 52
+	if snap.FirmwarePicker.Path != "" {
+		headerH = 84
+	}
 	visible := rows
 	if visible > 8 {
 		visible = 8
 	}
+	maxRows := max(1, (g.contentHeight()-24-headerH-footerH-8)/rowH)
+	visible = min(visible, maxRows)
 	panelH := headerH + footerH + visible*rowH + 8
 	x := g.contentLeft() + (g.contentWidth()-panelW)/2
 	y := g.contentTop() + (g.contentHeight()-panelH)/2
@@ -241,18 +246,20 @@ func tapePickerPanel(snap Snapshot) (listPanel, bool) {
 		rows = 1
 	}
 	g := snap.Grid
-	panelW := 640
+	panelW := 760
 	if max := g.contentWidth() - 48; panelW > max {
 		panelW = max
 	}
 	if panelW < 280 {
 		panelW = g.contentWidth()
 	}
-	headerH, footerH, rowH := 64, 52, 44
+	headerH, footerH, rowH := 84, 84, 52
 	visible := rows
 	if visible > 8 {
 		visible = 8
 	}
+	maxRows := max(1, (g.contentHeight()-24-headerH-footerH-8)/rowH)
+	visible = min(visible, maxRows)
 	panelH := headerH + footerH + visible*rowH + 8
 	x := g.contentLeft() + (g.contentWidth()-panelW)/2
 	y := g.contentTop() + (g.contentHeight()-panelH)/2
@@ -287,17 +294,17 @@ func viewPickerPanel(snap Snapshot) (listPanel, bool) {
 	}
 	g := snap.Grid
 	contentW := g.contentWidth()
-	panelW := 480
+	panelW := 600
 	if panelW > contentW-48 {
 		panelW = contentW - 48
 	}
 	if panelW < 200 {
 		panelW = contentW - 24
 	}
-	rowH := 28
-	headerH := 40
-	footerH := 24
-	maxRows := 10
+	rowH := 40
+	headerH := 54
+	footerH := 40
+	maxRows := min(10, max(1, (g.contentHeight()-24-headerH-footerH)/rowH))
 	if maxRows > len(rows) {
 		maxRows = len(rows)
 	}
@@ -338,9 +345,9 @@ func collectionMenuPanel(snap Snapshot) (listPanel, bool) {
 	if panelW < 200 {
 		panelW = contentW - 24
 	}
-	rowH := 28
-	headerH := 44
-	footerH := 28
+	rowH := 40
+	headerH := 56
+	footerH := 40
 	rows := menu.Rows
 	panelH := headerH + len(rows)*rowH + footerH
 	if panelH < headerH+footerH+rowH {
@@ -369,16 +376,16 @@ func settingsPanel(snap Snapshot) (listPanel, bool) {
 	g := snap.Grid
 	contentW := g.contentWidth()
 	contentH := g.contentHeight()
-	panelW := 720
+	panelW := 860
 	if panelW > contentW-48 {
 		panelW = contentW - 48
 	}
 	if panelW < 280 {
 		panelW = contentW - 24
 	}
-	rowH := 32
-	headerH := 44
-	footerH := 28
+	rowH := 44
+	headerH := 56
+	footerH := 56
 	rows := snap.Settings.Rows
 	panelH := headerH + len(rows)*rowH + footerH
 	maxH := contentH - 24
@@ -431,9 +438,9 @@ func filtersPanel(snap Snapshot) (listPanel, bool) {
 	if panelW < 280 {
 		panelW = contentW - 24
 	}
-	rowH := 28
-	headerH := 44
-	footerH := 28
+	rowH := 44
+	headerH := 56
+	footerH := 56
 	rows := snap.Filters.Rows
 	maxH := contentH - 24
 	if maxH < 120 {
@@ -583,16 +590,16 @@ func roomPickerPanel(snap Snapshot) (listPanel, bool) {
 	g := snap.Grid
 	contentW := g.contentWidth()
 	contentH := g.contentHeight()
-	panelW := 640
+	panelW := 760
 	if panelW > contentW-48 {
 		panelW = contentW - 48
 	}
 	if panelW < 240 {
 		panelW = contentW - 24
 	}
-	rowH := 48
-	headerH := 52
-	footerH := 28
+	rowH := 64
+	headerH := 60
+	footerH := 64
 	maxRows := (contentH - 24 - headerH - footerH) / rowH
 	if maxRows < 1 {
 		maxRows = 1

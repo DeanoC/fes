@@ -87,6 +87,16 @@ mister::CoreSettingsUpdate PaddleSpeed(std::uint16_t speed)
 	return update;
 }
 
+mister::Error CreateKnownProductionHardware(mister::LogSink& log,
+	std::unique_ptr<mister::Hardware>* hardware)
+{
+	const char model[] = "Terasic DE10-nano";
+	const char compatible[] = "altr,socfpga-cyclone5\0altr,socfpga";
+	return mister::CreateProductionHardware(log, hardware, "armv7",
+		std::string(model, sizeof(model)), std::string(compatible, sizeof(compatible)),
+		[] { return mister::Error{}; });
+}
+
 struct TempDirectory {
 	explicit TempDirectory(const std::string& parent = "/tmp")
 	{
@@ -2840,7 +2850,7 @@ void TestProductionFactoryForwardsCoreDataWithoutHardwareMutation()
 		const std::string id = PersistentPackage(&package);
 		mister_test::CaptureLog log;
 		std::unique_ptr<mister::Hardware> hardware;
-		assert(mister::CreateProductionHardware(log, &hardware).ok());
+		assert(CreateKnownProductionHardware(log, &hardware).ok());
 		// Creation and data operations are lazy with respect to all physical devices.
 		// Do not call Start/LoadIdle/LoadCore: this exercises only production admission/storage.
 		mister::CoreData observed;
@@ -2907,7 +2917,7 @@ void TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation()
 		const std::string digest = mister::native::Sha256Hex(hash.Final());
 		mister_test::CaptureLog log;
 		std::unique_ptr<mister::Hardware> hardware;
-		assert(mister::CreateProductionHardware(log, &hardware).ok());
+		assert(CreateKnownProductionHardware(log, &hardware).ok());
 		std::unique_ptr<mister::AdmittedCorePackage> admitted;
 		assert(hardware->AdmitCorePackage(package.path, id, &admitted).ok());
 		const auto mismatch = hardware->AttachProgrammedBitstream(
@@ -3011,11 +3021,18 @@ void TestPc386LibraryRecordAndWallClock()
 	assert(commit && commit < release && clock_word < release && clock_word);
 	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "ultima-vi",
 		inspected.revision, settings, &inspected).code == mister::ErrorCode::busy);
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "", "absent",
+		settings, &inspected).code == mister::ErrorCode::invalid_request);
 	endpoint.GuestCmosWrite(0x40, 0x5a);
 	assert(fixture.runtime.Stop().ok());
 	mister::CoreData saved;
 	assert(fixture.runtime.InspectCoreData(package.path, id, data.path, "ultima-vi", &saved).ok());
 	assert(saved.words[8 + 0x20] == 0x5a && saved.words[0] == 1 && saved.revision != inspected.revision);
+	auto changed_settings = settings;
+	changed_settings.machine.preset = 2;
+	assert(fixture.runtime.UpdateCoreSettings(package.path, id, data.path, "ultima-vi",
+		saved.revision, changed_settings, &inspected).ok());
+	assert(inspected.words[0] == 2 && inspected.words[8 + 0x20] == 0x5a);
 	// A Stop whose record cannot be published resumes the core, and the
 	// package stays persistent through its record although it has no disk.
 	assert(fixture.runtime.LoadLibraryCore(package.path, id, data.path, "ultima-vi").ok());
@@ -3230,8 +3247,10 @@ void TestPc386AtaDiskLaunchSaveAndRestore()
 	{ std::ofstream rewrite(disk.path, std::ios::binary | std::ios::trunc); rewrite << base; }
 	const std::string ns = media.path + "/" + MediaDataNamespace(identity);
 	{ std::ofstream corrupt(ns + "/chunk-" + saved.chunks[1].sha256, std::ios::binary | std::ios::trunc); corrupt << "x"; }
-	assert(fixture.runtime.LoadLibraryCore(package.path, opened.package_id, data.path, "ultima-vi", &disk).code ==
-		mister::ErrorCode::corrupt_data);
+	const auto corrupt_chunk = fixture.runtime.LoadLibraryCore(package.path, opened.package_id,
+		data.path, "ultima-vi", &disk);
+	assert(corrupt_chunk.code == mister::ErrorCode::corrupt_data &&
+		corrupt_chunk.phase == "media_data");
 	file.reset();
 	assert(unlink((ns + "/record.bin").c_str()) == 0);
 	for (const auto& entry : saved.chunks) unlink((ns + "/chunk-" + entry.sha256).c_str());
@@ -3801,7 +3820,7 @@ void TestFormat4TwoSourceAdmissionBeforeMutation()
 	// Admission and attachment retain files without touching physical devices.
 	mister_test::CaptureLog production_log;
 	std::unique_ptr<mister::Hardware> production;
-	assert(mister::CreateProductionHardware(production_log, &production).ok());
+	assert(CreateKnownProductionHardware(production_log, &production).ok());
 	std::unique_ptr<mister::AdmittedCorePackage> retained;
 	assert(fixture.native.hardware.AdmitCorePackage(package.path, opened.package_id, &retained).ok());
 	assert(production->AttachROMsBitstream(retained.get(), programmed, links).ok());
@@ -4136,7 +4155,7 @@ void TestInitialSTDiskBeforeExecution(unsigned size = 737280)
     initial.binding = {"st-initial", Sha256Hex(source.Final()), 0};
     mister_test::CaptureLog production_log;
     std::unique_ptr<mister::Hardware> production;
-    assert(mister::CreateProductionHardware(production_log, &production).ok());
+    assert(CreateKnownProductionHardware(production_log, &production).ok());
     std::unique_ptr<mister::AdmittedCorePackage> prepared;
     assert(fixture.native.hardware.AdmitCorePackage(package.path, opened.package_id, &prepared).ok());
     assert(production->PrepareInitialComputerMedia(prepared.get(), initial).ok());
@@ -4633,7 +4652,7 @@ void TestComputerLiveMediaLifecycleThroughRuntime()
 	// The production factory forwards the computer operations to native hardware.
 	mister_test::CaptureLog production_log;
 	std::unique_ptr<mister::Hardware> production;
-	assert(mister::CreateProductionHardware(production_log, &production).ok());
+	assert(CreateKnownProductionHardware(production_log, &production).ok());
 	assert(production->SetKeyboardHid(mister::KeyboardHidRows{}).message == "FES computer is not active");
 	assert(production->InsertComputerMedia(0, "/media/disk.dsk", 143360).message ==
 		"FES computer media unit is not active");

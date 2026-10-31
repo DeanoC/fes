@@ -124,7 +124,7 @@ Error AtaBaseImage::Open(const std::string& path, std::uint32_t size, std::uniqu
 {
     if (!output || path.empty() || path[0] != '/' || !ValidAtaDiskSize(size))
         return {ErrorCode::invalid_request, "invalid ATA disk image path or size", "admission"};
-    FD file(open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+    FD file(open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK));
     if (file.value < 0) return {ErrorCode::invalid_request, "cannot open the ATA disk image", "admission"};
     struct stat st {};
     if (fstat(file.value, &st) != 0 || !S_ISREG(st.st_mode) || std::uint64_t(st.st_size) != size)
@@ -314,6 +314,7 @@ Error AtaDeltaFile::CollectLocked(const AtaDiskDelta& published)
     DIR* dir = fdopendir(copy);
     if (!dir) { close(copy); return Io("cannot scan media-data namespace"); }
     std::vector<std::string> unnamed;
+    errno = 0;
     while (const dirent* entry = readdir(dir)) {
         const std::string name(entry->d_name);
         if (!ChunkName(name)) continue;
@@ -322,7 +323,9 @@ Error AtaDeltaFile::CollectLocked(const AtaDiskDelta& published)
                 [&](const AtaDeltaChunk& chunk) { return chunk.sha256 == digest; }))
             unnamed.push_back(name);
     }
+    const int scan_error = errno;
     closedir(dir);
+    if (scan_error != 0) return Io("cannot scan media-data namespace");
     for (const auto& name : unnamed)
         if (unlinkat(directory_, name.c_str(), 0) != 0 && errno != ENOENT)
             return Io("cannot remove an unnamed ATA disk delta chunk");

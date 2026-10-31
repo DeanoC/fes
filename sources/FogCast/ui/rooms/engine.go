@@ -100,6 +100,7 @@ type Options struct {
 	// InitialGameID carries the selected library entry into a nested setup
 	// room. Direct room opens leave it empty and use saved room navigation.
 	InitialGameID string
+	InitialCoreID string
 	// SessionDisplayRequired means this physical display needs an observed
 	// session-display contract before it can show controls during play.
 	SessionDisplayRequired bool

@@ -1,0 +1,66 @@
+{
+  "checks": [
+    "PASS 720x400 720x400",
+    "PASS 640x400 640x400",
+    "PASS 320x400 320x400",
+    "PASS 640x480 640x480",
+    "PASS 320x200 320x200",
+    "PASS 360x480 360x480",
+    "PASS 800x600 800x600",
+    "PASS 640x350 640x350",
+    "PASS switch 320x400",
+    "PASS stream: 6 720p frames each one published frame (5 distinct), 0 mixed",
+    "PASS capture drop recovery: dropped=1 published=1 buffer=1",
+    "PASS plane locks to the presenter's 720p raster",
+    "PASS closed plane passes the presenter's picture unchanged",
+    "PASS plane reports the picture rectangle (160, 0, 960, 720)",
+    "PASS plane configured and enabled",
+    "PASS launcher frame 1 shown from slot 0",
+    "PASS alpha 128 over the picture: 0 pixels differ",
+    "PASS launcher frame 2 shown from slot 1",
+    "PASS alpha 255 over the picture: 0 pixels differ",
+    "PASS plane closed",
+    "PASS closed plane returns the picture unchanged",
+    "PASS no presenter or plane underflow, no plane fault (capture beats written: 3279152)"
+  ],
+  "failures": [],
+  "benches": {
+    "presenter": {
+      "checks": [
+        "PASS 720x400 720x400",
+        "PASS 640x400 640x400",
+        "PASS 320x400 320x400",
+        "PASS 640x480 640x480",
+        "PASS 320x200 320x200",
+        "PASS 360x480 360x480",
+        "PASS 800x600 800x600",
+        "PASS 640x350 640x350",
+        "PASS switch 320x400",
+        "PASS stream: 6 720p frames each one published frame (5 distinct), 0 mixed"
+      ],
+      "failures": []
+    },
+    "capture": {
+      "checks": [
+        "PASS capture drop recovery: dropped=1 published=1 buffer=1"
+      ],
+      "failures": []
+    },
+    "plane": {
+      "checks": [
+        "PASS plane locks to the presenter's 720p raster",
+        "PASS closed plane passes the presenter's picture unchanged",
+        "PASS plane reports the picture rectangle (160, 0, 960, 720)",
+        "PASS plane configured and enabled",
+        "PASS launcher frame 1 shown from slot 0",
+        "PASS alpha 128 over the picture: 0 pixels differ",
+        "PASS launcher frame 2 shown from slot 1",
+        "PASS alpha 255 over the picture: 0 pixels differ",
+        "PASS plane closed",
+        "PASS closed plane returns the picture unchanged",
+        "PASS no presenter or plane underflow, no plane fault (capture beats written: 3279152)"
+      ],
+      "failures": []
+    }
+  }
+}

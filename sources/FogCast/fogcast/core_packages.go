@@ -439,8 +439,17 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 			if err != nil {
 				return coreLoadSource{}, err
 			}
+			expectedCartID := ""
+			if snap.romSources != nil {
+				expectedCartID = snap.romSources.cartID
+				// The saved pair was revalidated before loading; a swap changes
+				// only the cartridge expected for this one load.
+				if replacementID, swapped := CartridgeFromContext(ctx, gameID); swapped {
+					expectedCartID = replacementID
+				}
+			}
 			if snap.romSources != nil && (entry.PackageID != snap.romSources.packageID ||
-				source.biosMediaID != snap.romSources.biosID || source.romMediaID != snap.romSources.cartID) {
+				source.biosMediaID != snap.romSources.biosID || source.romMediaID != expectedCartID) {
 				return coreLoadSource{}, snapshotMismatch(launchSnapshotROMSourcesChanged)
 			}
 			return source, nil

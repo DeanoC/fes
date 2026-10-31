@@ -25,6 +25,7 @@ import (
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/menudisplay"
 	"github.com/DeanoC/FogCast/ui/rooms"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 func kitDisplaySession() hostclient.SessionResult {
@@ -121,7 +122,15 @@ func TestColecoF12OpensTitleSelectorOnSessionDisplayPlane(t *testing.T) {
 	app, _ := kitDisplayApp(t, server)
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{
 		testRoomPack(t, hardwareRoomID, `function load() end; function draw() error("ZX81 workbench must not draw over Coleco") end`),
-		testRoomPack(t, colecoArcadeRoomID, `function load() end; function draw() gfx.clear("#101820") end`),
+		testRoomPack(t, colecoArcadeRoomID, `
+function load() end
+function draw()
+  gfx.clear("#101820")
+  gfx.text("Coleco title selector", 20, 20, {size=24})
+  gfx.rect(20, 60, 240, 80, "#345678")
+  gfx.hit("coleco-title", 20, 60, 240, 80)
+end
+`),
 	}), "")
 	app.mu.Lock()
 	app.session = prior
@@ -134,11 +143,50 @@ func TestColecoF12OpensTitleSelectorOnSessionDisplayPlane(t *testing.T) {
 	snap := waitFor(t, app, "Coleco title selector on focused session plane", func(s Snapshot) bool {
 		return s.Session.State == "active" && s.Session.ControlsOpen && s.Room.DuringPlay && s.Room.ID == colecoArcadeRoomID
 	})
-	if snap.TapePicker.Open || displayPosts.Load() != 1 {
+	if snap.TapePicker.Open || snap.Session.LoadTape || snap.Session.MediaSelector || displayPosts.Load() != 1 {
 		t.Fatalf("Coleco selector used live media or missed the display plane: picker=%v display POSTs=%d", snap.TapePicker.Open, displayPosts.Load())
 	}
 	if snap.Status != playingColecoSelectorStatus {
 		t.Fatalf("status = %q, want %q", snap.Status, playingColecoSelectorStatus)
+	}
+	rec := gfx.NewRecorder()
+	drawFrame(rec, snap, map[string]gpuTexture{}, map[string]gpuTexture{})
+	if len(rec.Calls) < 2 || rec.Calls[1].Op != "Clear" || rec.Calls[1].Color != snap.Room.Frame.Clear {
+		t.Fatalf("kit frame did not draw the Coleco room: calls=%+v clear=%+v", rec.Calls, snap.Room.Frame.Clear)
+	}
+	if len(snap.Room.Frame.Hits) == 0 {
+		t.Fatal("Coleco selector room has no pointer target")
+	}
+	target := snap.Room.Frame.Hits[0]
+	x := snap.Room.OffsetX + int(target.X+target.W/2)
+	y := snap.Room.OffsetY + int(target.Y+target.H/2)
+	if got := HitTest(snap, x, y); got.Kind != PointerRoom || got.KeyID != "coleco-title" {
+		t.Fatalf("kit Coleco selector pointer hit = %+v", got)
+	}
+}
+
+func TestColecoCartridgePlayHintSeparatesLiveMedia(t *testing.T) {
+	server := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, colecoArcadeRoomID, `function load() end; function draw() end`),
+	}), "")
+	app.mu.Lock()
+	app.session = colecoBIOSKitSession()
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+
+	snap := app.Snapshot()
+	if !snap.Session.Coleco || snap.Session.LoadTape || snap.Session.MediaSelector || !snap.Session.HardwareRoom {
+		t.Fatalf("Coleco cartridge session capabilities = %+v", snap.Session)
+	}
+	if got := playingRoomLabel(snap.Session); got != "Coleco selector" {
+		t.Fatalf("surround room label = %q", got)
+	}
+	hint := strings.ToLower(snap.HeaderHint())
+	if strings.Contains(hint, "change media") || strings.Contains(hint, "load tape") || strings.Count(hint, "change cartridge") != 1 {
+		t.Fatalf("Coleco cartridge play hint = %q", snap.HeaderHint())
 	}
 }
 
@@ -275,6 +323,59 @@ func TestKitComputerMediaPresentsFramesAndRestoresVideo(t *testing.T) {
 			prior.CorePackage.MediaUnits[0] = protocol.MediaUnitStatus{Unit: 0, Interface: tc.contract, MinBytes: tc.minBytes, MaxBytes: tc.maxBytes, ChunkBytes: 512, State: "empty"}
 			testKitComputerMediaDisplay(t, prior)
 		})
+	}
+}
+
+func TestFormat4ColecoCartridgePickerSubmitsACompositedFrame(t *testing.T) {
+	prior := colecoBIOSKitSession()
+	presenter := &countingSessionMenu{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/session/display" {
+			http.NotFound(w, r)
+			return
+		}
+		visible := decodeSessionDisplay(t, r)
+		presenter.set(menudisplay.Status{
+			Available: visible, Session: visible, Generation: 4,
+			PackageID: prior.CorePackage.PackageID, CoreGeneration: prior.CorePackage.Generation,
+			Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes,
+		})
+		writeKitDisplaySession(w, prior)
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, hardwareRoomID, liveHardwareTestScript),
+		testRoomPack(t, colecoArcadeRoomID, `function load() end; function draw() gfx.clear("#101820") end`),
+	}), "")
+	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(display.Close)
+	app.SetMenuDisplay(display)
+	app.mu.Lock()
+	app.session = prior
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+
+	app.HandleCommand(CmdSearch, time.Now())
+	waitFor(t, app, "format-4 Coleco cartridge picker", func(s Snapshot) bool {
+		return s.Session.ControlsOpen && s.TapePicker.Open && !s.GPUParked
+	})
+	drawFrame(display, app.Snapshot(), map[string]gpuTexture{}, map[string]gpuTexture{})
+	waitSessionMenuFrame(t, display)
+	if calls, n := presenter.snapshot(); calls != 1 || n != menudisplay.FrameBytes {
+		t.Fatalf("format-4 selector frame was not submitted: calls=%d bytes=%d", calls, n)
+	}
+	if !presenter.visible() {
+		t.Fatal("format-4 selector frame was fully transparent")
+	}
+	app.mu.Lock()
+	composition := app.session.CorePackage.PartsComposition
+	app.mu.Unlock()
+	if composition == nil || composition.Layout != expansion.ColecoNativeVideoLayout {
+		t.Fatalf("format-4 video part identity was not retained: %+v", composition)
 	}
 }
 
@@ -933,10 +1034,11 @@ func TestKitTapePickerArmsSavedZX81ProgramWithoutReimport(t *testing.T) {
 }
 
 type countingSessionMenu struct {
-	mu     sync.Mutex
-	status menudisplay.Status
-	calls  int
-	lastN  int
+	mu               sync.Mutex
+	status           menudisplay.Status
+	calls            int
+	lastN            int
+	lastFrameVisible bool
 }
 
 func (c *countingSessionMenu) set(status menudisplay.Status) {
@@ -951,6 +1053,12 @@ func (c *countingSessionMenu) snapshot() (int, int) {
 	return c.calls, c.lastN
 }
 
+func (c *countingSessionMenu) visible() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lastFrameVisible
+}
+
 func (c *countingSessionMenu) Status(context.Context) (menudisplay.Status, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -962,6 +1070,13 @@ func (c *countingSessionMenu) Present(_ context.Context, generation uint64, pixe
 	defer c.mu.Unlock()
 	c.calls++
 	c.lastN = len(pixels)
+	c.lastFrameVisible = false
+	for i := 3; i < len(pixels); i += 4 {
+		if pixels[i] != 0 {
+			c.lastFrameVisible = true
+			break
+		}
+	}
 	return menudisplay.Result{Generation: generation}, nil
 }
 

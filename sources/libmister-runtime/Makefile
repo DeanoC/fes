@@ -75,6 +75,7 @@ DAEMON_OBJECTS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(DAEMON_SOURCES))
 DEPENDENCIES := $(LIB_OBJECTS:.o=.d) $(DAEMON_OBJECTS:.o=.d)
 
 TEST_BINS := \
+ $(BUILD_DIR)/tests/unit/production_hardware_test \
  $(BUILD_DIR)/tests/unit/menu_frame_transport_test \
 	$(BUILD_DIR)/tests/unit/menu_window_test \
 	$(BUILD_DIR)/tests/unit/menu_display_test \
@@ -287,7 +288,7 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp
 	@mkdir -p "$(dir $@)"
-	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) \
+	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) \
 		-DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\" \
 		tests/unit/native_hardware_test.cpp \
 		tests/support/capture_log.cpp tests/support/fake_input.cpp \
@@ -302,6 +303,13 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp \
 		 -o "$@"
+
+$(BUILD_DIR)/tests/unit/production_hardware_test: tests/unit/production_hardware_test.cpp \
+		src/linux/production_hardware.cpp \
+		$(filter-out $(BUILD_DIR)/src/linux/production_hardware.o,$(LIB_OBJECTS))
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) \
+		$(filter %.cpp %.o,$^) -o "$@"
 
 $(BUILD_DIR)/tests/unit/protocol_test: tests/unit/protocol_test.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp  src/runtime.cpp \
@@ -435,7 +443,7 @@ archive-audit: $(ARCHIVE)
 			printf '%s\n' "$${object#"$(BUILD_DIR)/"}"; \
 		fi; \
 	done < <(printf '%s\n' $(LIB_OBJECTS) | LC_ALL=C sort))"; \
-	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/ata_disk.o\nsrc/native/core_composition.o\nsrc/native/core_data.o\nsrc/native/core_package.o\nsrc/native/diagnostic.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/menu_window.o\nsrc/native/linux/mmio.o\nsrc/native/linux/window_driver.o\nsrc/native/media_data.o'; \
+	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/ata_disk.o\nsrc/native/core_composition.o\nsrc/native/core_data.o\nsrc/native/core_package.o\nsrc/native/diagnostic.o\nsrc/native/hardware.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/menu_window.o\nsrc/native/linux/mmio.o\nsrc/native/linux/window_driver.o\nsrc/native/media_data.o'; \
 	[[ "$$raw_owners" == "$$expected_raw_owners" ]] || { \
 		echo "raw I/O ownership differs from the canonical native boundary" >&2; \
 		diff -u <(printf '%s\n' "$$expected_raw_owners") \

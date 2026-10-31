@@ -20,7 +20,8 @@ module fes_i386_exctl (
     output logic [31:0]            y
 );
     typedef fes_i386_pkg::uop_t uop_t;
-    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_MUL = 3'd2, C_DIV = 3'd3, C_BRANCH = 3'd4, C_SEGMENT = 3'd5;
+    localparam logic [2:0] C_ALU = 3'd0, C_SHIFT = 3'd1, C_MUL = 3'd2, C_DIV = 3'd3, C_BRANCH = 3'd4, C_SEGMENT = 3'd5,
+                           C_SYSTEM = 3'd6;
 
     function automatic logic [31:0] extract(input logic [31:0] v, input logic s8, input logic s16, input logic hi8);
         extract = s8 ? {24'b0, hi8 ? v[15:8] : v[7:0]} : s16 ? {16'b0, v[15:0]} : v;
@@ -29,7 +30,7 @@ module fes_i386_exctl (
     uop_t       u;
     logic [2:0] cls;
     logic [4:0] op;
-    logic       alu, arith, logic_op, incdec, neg, lnot, ext, size8, size16, src8, src16, w8, w16;
+    logic       alu, arith, logic_op, incdec, neg, lnot, ext, size8, size16, src8, src16, w8, w16, bt, scan, bcd;
     assign u = s.uop;
     assign cls = 3'(u.cls);
     assign op = u.op;
@@ -40,12 +41,15 @@ module fes_i386_exctl (
     assign logic_op = alu && (op == 5'd1 || op == 5'd4 || op == 5'd6 || op == 5'd8);
     assign neg = alu && op == 5'd12;
     assign lnot = alu && op == 5'd13;
+    assign bt = alu && op >= 5'd19 && op <= 5'd22;   // BT, BTS, BTR, BTC
+    assign scan = alu && (op == 5'd23 || op == 5'd24);  // BSF, BSR
+    assign bcd = alu && op >= 5'd25 && op <= 5'd28;    // DAA, DAS, AAA, AAS
     assign size8 = u.size == fes_i386_pkg::SIZE_8;
     assign size16 = u.size == fes_i386_pkg::SIZE_16;
     assign src8 = u.src_size == fes_i386_pkg::SIZE_8;
     assign src16 = u.src_size == fes_i386_pkg::SIZE_16;
-    // MOVZX, MOVSX, SIGN and a segment read take src2 at its own size.
-    assign ext = (alu && (op == 5'd15 || op == 5'd16 || op == 5'd31)) || cls == C_SEGMENT;
+    // MOVZX, MOVSX, SIGN, BITDISP and a segment read take src2 at its own size.
+    assign ext = (alu && (op == 5'd15 || op == 5'd16 || op == 5'd31 || op == 5'd18)) || cls == C_SEGMENT;
     assign w8 = ext ? src8 : size8;
     assign w16 = ext ? src16 : size16;
 
@@ -61,7 +65,9 @@ module fes_i386_exctl (
     assign c.byp_a = s.pend_a && s.dist_a == 3'd1;
     assign c.xl = lda;
     assign c.yl = ya ? lda : ldb;
-    assign c.byp_c = s.pend_c && s.dist_c == 3'd1;
+    // A bit test's bit number is src2 or imm, through the shifter's count
+    // and its bypass from WB.
+    assign c.byp_c = bt ? s.pend_b && s.dist_b == 3'd1 : s.pend_c && s.dist_c == 3'd1;
     assign c.size8 = size8;
     assign c.size16 = size16;
     assign c.src8 = src8;
@@ -144,6 +150,16 @@ module fes_i386_exctl (
     assign c.r_sign = alu && op == 5'd31;
     assign c.l_or = op == 5'd1;
     assign c.l_xor = op == 5'd6 || op == 5'd13;   // NOT is x XOR the size's ones
+    assign c.r_bt = bt;
+    assign c.bt_or = op == 5'd20;    // BTS
+    assign c.bt_andn = op == 5'd21;  // BTR; BTC flips
+    assign c.r_btd = alu && op == 5'd18;
+    assign c.r_scan = scan;
+    assign c.bsr = op == 5'd24;
+    // DAA, DAS, AAA and AAS adjust x, AL or AX, in EX by its flags.
+    assign c.r_bcd = bcd;
+    assign c.bcd_sub = op == 5'd26 || op == 5'd28;  // DAS, AAS
+    assign c.bcd_ax = op == 5'd27 || op == 5'd28;   // AAA, AAS
 
     // ---- Flags --------------------------------------------------------------------
     // The flag instructions: CLC STC CMC CLI STI CLD STD SAHF (LAHF writes none).
@@ -168,9 +184,11 @@ module fes_i386_exctl (
     assign c.fl_cf = fop == 4'd1;
     assign c.fl_cmc = fop == 4'd2;
     assign c.fl_set = fop == 4'd4 || fop == 4'd6;
+    assign c.f_bt = bt && u.flags.write.cf;
 
     assign c.b_jcc = cls == C_BRANCH && op == 5'd0;
-    assign c.b_jmp = cls == C_BRANCH && op == 5'd1;
+    // CLTS (UOP_SYSTEM) jumps to the next instruction too.
+    assign c.b_jmp = cls == C_BRANCH && op == 5'd1 || cls == C_SYSTEM;
     assign c.b_loop = cls == C_BRANCH && op == 5'd6;
     assign c.b_loope = cls == C_BRANCH && op == 5'd7;
     assign c.b_loopne = cls == C_BRANCH && op == 5'd8;
@@ -178,6 +196,7 @@ module fes_i386_exctl (
     assign c.b_rpe = u.rep_stop[0];
     assign c.b_rpne = u.rep_stop[1];
     assign c.b_ind = ind;
+    assign c.bound = u.bound;
 
     // The shifter's selects (fes_i386_shift): direction, size and fill.
     localparam logic [4:0] ROL = 5'd0, ROR = 5'd1, RCL = 5'd2, RCR = 5'd3, SHL = 5'd4, SHR = 5'd5, SAL = 5'd6,
@@ -197,7 +216,7 @@ module fes_i386_exctl (
                 for (int f = 0; f < 5; f++)
                     sel[d * 15 + k * 5 + f] = shift && left == (d == 1) && z[k] && kind[f];
     end
-    assign count = u.count_cl ? s.c[4:0] : u.imm[4:0];
+    assign count = bt ? s.b[4:0] : u.count_cl ? s.c[4:0] : u.imm[4:0];
     assign c.sh.sel = sel;
     assign c.sh.left = left;
     assign c.sh.z8 = z[0];

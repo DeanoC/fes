@@ -9,6 +9,9 @@
 //     every pixel is the premultiplied "over" of the launcher pixel on the
 //     presenter's, as fes_display_plane computes it.
 //   - Closed again, the picture returns unchanged.
+//   - A machine reset in mid-frame leaves the 720p syncs running (every line
+//     1650 pixel clocks, every frame 1650 x 750) and the plane locked; the
+//     picture returns unchanged after the next capture.
 // All the while 16-beat capture bursts go to capture buffer 2. Neither the
 // presenter nor the plane may underflow, and the plane must not fault.
 //
@@ -65,7 +68,8 @@ public:
     pc386::Frame raster{1280, 720, std::vector<uint32_t>(1280 * 720)};
     pc386::Frame last;
     unsigned x = 0, y = 0, complete = 0;
-    bool started = false, last_de = false, last_vs = false;
+    bool started = false, last_de = false, last_vs = false, last_hs = false;
+    uint64_t pixels = 0, hs_at = 0, vs_at = 0, sync_breaks = 0;
 
     void step() {
         // Capture bursts: 16 beats to buffer 2, started at random.
@@ -80,6 +84,8 @@ public:
         pc386::PortSignals port{&top.p2_address, &top.p2_burstcount, &top.p2_read, &top.p2_write,
                                 &top.p2_writedata, &top.p2_byteenable, &top.p2_waitrequest, &top.p2_readdata,
                                 &top.p2_readdatavalid};
+        // The capture inputs changed since the last eval; the port sees this clock's command.
+        top.eval();
         ddr.drive(port, cycles);
         top.eval();
         bool beat_taken = top.capture_write && !top.capture_waitrequest;
@@ -103,7 +109,17 @@ public:
     }
     void observe() {
         uint32_t word = top.video;
-        bool de = word & (1u << 24), vs = word & (1u << 26);
+        bool de = word & (1u << 24), hs = word & (1u << 25), vs = word & (1u << 26);
+        ++pixels;
+        if (hs && !last_hs) {
+            sync_breaks += hs_at && pixels - hs_at != 1650;
+            hs_at = pixels;
+        }
+        if (vs && !last_vs) {
+            sync_breaks += vs_at && pixels - vs_at != 1650 * 750;
+            vs_at = pixels;
+        }
+        last_hs = hs;
         if (vs && !last_vs) {
             if (started && y == 720) { last = raster; ++complete; }
             started = true;
@@ -213,5 +229,21 @@ int main(int argc, char **argv) {
     ok &= report(bench.top.present_underflows == 0 && bench.top.plane_underflows == 0 && !bench.top.faulted,
                  "no presenter or plane underflow, no plane fault (capture beats written: " +
                      std::to_string(bench.capture_beats) + ")");
+
+    // A machine reset of 1,000 system clocks a third of the way into a frame.
+    uint64_t breaks = bench.sync_breaks;
+    for (unsigned n = 0; n < 1700000 / 3; ++n) bench.step();
+    bench.top.reset = 1;
+    for (unsigned n = 0; n < 1000; ++n) bench.step();
+    bench.top.reset = 0;
+    bench.frames(1);
+    bench.top.frame_sequence = 2;
+    bench.frames(2);
+    ok &= report(bench.sync_breaks == breaks && bench.hs_at && bench.vs_at,
+                 "720p syncs run through a machine reset (" + std::to_string(bench.sync_breaks - breaks) +
+                     " broken periods)");
+    ok &= report(bench.top.locked && !bench.top.faulted, "plane stays locked through a machine reset");
+    ok &= report(compare(bench.last, picture) == 0 && bench.top.present_underflows == 0,
+                 "picture returns unchanged after the reset, no presenter underflow");
     return ok ? 0 : 1;
 }

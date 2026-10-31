@@ -6,8 +6,8 @@ holds Phase 1's slices so far: the uop format, the front end from F1 to Q,
 and `fes_i386_cpu`, which runs the real-mode instructions `fes_i386_decode`
 lists from D to WB, with their memory forms on a data port, fixed uop
 sequences, the string instructions and ENTER, I/O on an I/O port, the
-microcode ROM, exception delivery and the multiply and divide unit. There is
-no cache yet.
+microcode ROM, exception delivery, INTR and NMI, and the multiply and divide
+unit. There is no cache yet.
 
 | File | Stage | Content |
 | --- | --- | --- |
@@ -135,7 +135,11 @@ a taken branch or a fault in WB wait out a wrong-path load. A multiply or
 divide freezes them the same way while it works in EX (`md_busy`, a register
 set as the uop enters EX), and so the freeze has one more registered input
 and D's issue no new term. So does an I/O access in WB, until the machine
-completes it (`io_wb` and `io_done`, both registers; see I/O). What WB does with
+completes it (`io_wait`, set as the uop enters WB and cleared on the
+completing edge; see I/O), and an INTR being taken, until the machine returns
+its vector (`int_wait`, likewise; see Interrupts). Each wait is one register,
+so the freeze stays one LUT of five inputs, which every stage's enable takes.
+What WB does with
 its uop (flush, redirect, deliver a fault) is decided as the uop enters WB, so
 each of those is one gate from the freeze too.
 
@@ -151,17 +155,18 @@ DEC, NEG, NOT, TEST, MOV (to and from a segment register in real mode, and
 immediates), LEA, the shifts and rotates, SHLD and SHRD, SETcc, MOVZX and
 MOVSX, CBW/CWDE, CWD/CDQ, SAHF, LAHF, the flag set and clear instructions,
 NOP, HLT, the near JMP, Jcc, LOOP, LOOPE, LOOPNE and JCXZ, MUL, IMUL (all
-three forms), DIV, IDIV, AAM and AAD, the stack operations below, and the
+three forms), DIV, IDIV, AAM and AAD, BT, BTS, BTR and BTC by an immediate
+or a register, BSF and BSR, DAA, DAS, AAA and AAS, the stack operations below, and the
 first uops of the string instructions and ENTER, with a ModRM memory
 operand wherever they take one. A memory operand is a load, a store,
 or both in one uop (read-modify-write), and stands for the register it
 replaces: no GPR is read or written for it. Its segment is the override, else
 SS for a BP-, EBP- or ESP-based address, else DS. LOCK on anything but a
-read-modify-write of ADD, OR, ADC, SBB, AND, SUB, XOR, NOT, NEG, INC or DEC,
-MOV to CS or to segment register 6 or 7, LEA of a register and C6h/C7h with
-reg != 0 raise #UD; over 15 bytes raises #GP(0). Every other encoding decodes
-as `FAULT_UNIMPLEMENTED`, which stops the CPU at WB, so no check can pass over
-one. An immediate after a ModRM's operand bytes is the instruction's last
+read-modify-write of ADD, OR, ADC, SBB, AND, SUB, XOR, NOT, NEG, INC, DEC,
+BTS, BTR or BTC, MOV to CS or to segment register 6 or 7, LEA of a register
+and C6h/C7h with reg != 0 raise #UD; over 15 bytes raises #GP(0). Every
+other encoding decodes as `FAULT_UNIMPLEMENTED`, which stops the CPU at WB,
+so no check can pass over one. An immediate after a ModRM's operand bytes is the instruction's last
 bytes, so DC takes it from the length, beside the decode. DC also registers
 the address registers and scale a memory ModRM names (`fes_i386_amode`), or
 ESP (EBP for LEAVE) for a stack operation.
@@ -219,6 +224,16 @@ them, so a uop reads one at WB, or waits in D until its writers retire.
 - Far transfers are taken branches, with no prediction yet: each redirects
   from WB.
 
+**CR0, CLTS and WAIT.** CR0's MP and TS are all of CR0 the CPU holds,
+from `init_cr0`, shown in `arch_cr0`. WAIT is a NOP, or raises #NM when MP
+and TS are both set, which DC decodes after every other check, as the
+design's [FPU](../../../../docs/i386-cpu-design.md#fpu) section asks. CLTS
+clears TS at WB as a system uop that jumps to the next instruction, so
+every instruction after it decodes once TS is clear, and no wait in D
+follows it. The jump is not cut to 16 bits: a CLTS that ends at FFFFh
+leaves EIP 10000h, as any other instruction does. Nothing else writes MP
+or TS yet: MOV to CR0, LMSW and the ESC instructions are not built.
+
 **Small forms:**
 - XCHG of registers is three XORs that write no flags, each into the
   register the one before read; EX's arithmetic and logic flag selects
@@ -233,7 +248,12 @@ them, so a uop reads one at WB, or waits in D until its writers retire.
   it. POP m reads the stack's slot into T1 without moving ESP, stores T1 to
   the operand, whose address registers DC kept beside the stack uop's
   (`m_*`), then pops into nothing to step ESP, so a store that faults leaves
-  ESP as the 386EX does. POP m with 32-bit addressing is not built.
+  ESP as the 386EX does. A 32-bit address that reads ESP, as a base or as
+  the 386EX's scaled base of an invalid SIB, reads it after the pop, which
+  has not happened yet. The store waits for T1, so every older uop has
+  retired and ESP is the register file's: D adds the operand size, scaled
+  as ESP is, to the store's displacement (`esp_adj`), less 10000h so scaled
+  (`esp_wrap`) when a 16-bit stack's SP wraps from its top slot to 0.
 
 **Strings and ENTER** run on the string engine, as the design's string
 sequencer describes. While one runs, D keeps copies of the next source and
@@ -315,13 +335,44 @@ access at WB, never speculatively, on the I/O port.
   REP INS and OUTS take 2 cycles an element. An IN or OUT takes 6 more
   than a NOP, mostly the next instruction's wait to issue.
 
+**Interrupts.** INTR and NMI are taken at instruction boundaries, as the
+design's commit rules ask, and between a REP string's elements.
+- **When.** On the edge an instruction's last uop retires, a delivery's
+  included, or a REP string element's (the one that steps ECX,
+  `str_cx`), or while the CPU is in HLT.
+  - NMI comes first, unless one is being handled: an NMI blocks the next
+    until IRET's last uop retires (the microcode word's `iret` bit).
+  - INTR is taken if IF is set after the instruction.
+  - Neither is taken after MOV SS or POP SS, unless that one follows
+    another, nor after an STI that set IF: the shadow, as Bochs keeps it.
+    LSS has none. Before a REP string the shadow ends with its first
+    element, since Bochs counts an iteration as an instruction.
+- **How.** The decision is a register, `int_take`, from that edge.
+  - An INTR first asks the machine for its vector: `inta_req` until
+    `inta_ack`, with D to WB frozen.
+  - Then WB flushes, as for a fault. The uop in WB, the next instruction's,
+    neither retires, stores nor makes an I/O access, and EX's running flags
+    go back to EFLAGS.
+  - DC takes the vector routine's entry with D's EIP the next instruction's,
+    so the routine pushes it. An NMI's vector is 2.
+  - Between a REP string's elements that EIP is the string's own, since WB
+    moves EIP only as an instruction ends. The elements done have stepped
+    ESI, EDI and ECX, so IRET returns to the string, which runs on from
+    there. The uop in WB, the next element's, is discarded with the rest.
+- **HLT** waits for an interrupt now. `trace_halt` is HLT or the stop for
+  good, which `trace_unimplemented` tells apart. A HLT that retires with an
+  interrupt pending takes it at once.
+- **Not built yet:** the debug traps.
+
 **Microcode.** Longer routines come from an M10K ROM
 (`fes_i386_ucode_rom`). `scripts/fes_i386_ucode.py` builds it from
 `ucode.toml`, with the entry addresses in `fes_i386_ucode_pkg`, checking
 every field and routine.
 - **Words.** A word is a `ucode_t`: the uop fields a routine sets. The
   operand size, the vector and the memory operand come from the instruction
-  in `dc`.
+  in `dc`. A word's memory operand is a stack slot, the vector's entry, or
+  the instruction's ModRM operand (`rm`); its registers are GPRs, or the
+  instruction's register (`rg`), which DC's first uop carries in src1.
 - **Issue.** DC decodes a routine's first uop, and `dc.upc` addresses the
   next word. Each later uop is a `SEQ_UCODE` step of the sequencer, so `dc`'s
   input select keeps its three sources.
@@ -352,6 +403,14 @@ every field and routine.
     and jump.
   - IRET reads its three slots, the FLAGS load checking the offset first,
     then jumps, stepping ESP at WB.
+  - BOUND loads its upper bound, past the lower by the operand size and
+    wrapped by address size, into T1, then compares the register with the
+    lower bound, which it loads, and T1 with the register. Each compare
+    raises #BR (vector 5) from EX's adder when its first operand is below
+    its second, signed, at the operand size, and writes no flag. Both
+    bounds load, and check their limits, before either compare, as the
+    386EX does: a bound past the limit raises #GP(0) or #SS(0) whatever
+    the register. A register operand is #UD.
 - **Flags in EX.** PUSHF and POPF are single uops. EX's flag operations give
   FLAGS' image and load the writable real-mode flags in its running copy, as
   INT's and IRET's do.
@@ -479,6 +538,43 @@ D holds a flag reader one cycle behind a shift. Undefined flags follow the
 count set it, and the shift OF and wide-count CF rules are in
 `fes_i386_shflags`.
 
+**Bit test and scan.** BT, BTS, BTR and BTC number their bit by the
+shifter's count: the immediate, or the register with its bypass from WB, as
+a shift's CL. EX builds the bit's one-hot mask after that bypass, mod the
+size, and sets, clears or flips the bit for BTS, BTR and BTC. CF is the bit.
+The 386EX writes OF as the two bits below it XORed, mod the size, and leaves
+SF, ZF, AF and PF. LOCK is valid on BTS, BTR and BTC with a memory operand.
+- **By a register, with a memory operand** (`SEQ_BTM`), the address moves by
+  the register: (n >> 4) * 2 or (n >> 5) * 4, signed, added to the operand's
+  offset and wrapped by address size, as Bochs and the 386EX do. AG has no
+  fifth term for it, so three uops fold it into the displacement through T1:
+  - the displacement into T1, from the register (`ALU_BITDISP`, wiring in EX);
+  - T1 plus the operand's displacement into T1, an ADD;
+  - the bit test at the operand's address with T1 as its displacement
+    (`disp_t1`), through `far_off`, which already takes a far jump's offset
+    from T1. AG wraps the offset by address size.
+  No other path from T1 into D's AG registers is added: two that a first
+  version had cost about 4 MHz on nextpnr.
+  Each waits for the T1 before it to retire, behind one register (`t_rd`):
+  about 12 cycles more than a bit test by an immediate, without latency, on
+  a form game code rarely runs.
+
+BSF and BSR scan y for its lowest or highest set bit in EX; a source of 0
+sets ZF and keeps the destination. Their other flags are the 386EX's, which
+`fes_i386_ex` lists, fitted to every SingleStepTests state of the two
+opcodes.
+
+**Decimal and ASCII adjusts.** DAA, DAS, AAA and AAS adjust AL in EX by AF
+and, for DAA and DAS, CF, read from EX's running copy, so D holds them behind
+a shift as flag readers. Each adds 6 to AL, or takes it away, when AL's low
+digit is above 9 or AF is set, and DAA and DAS 60h when AL is above 99h or
+CF is set; AAA and AAS carry into AH and keep AL's low digit. Each digit's
+sum is a table and the compares are spelled out, so the adjust adds no carry
+chain to EX. The flags the manual leaves undefined are the 386EX's:
+SF, ZF and PF of the byte the add or subtract makes, before AAA and AAS clear
+its high digit, and OF its signed overflow, fitted to every SingleStepTests
+state of the four opcodes. Their flags take the multiply unit's select in EX.
+
 **Branches** are predicted not taken. EX resolves them; a taken one redirects
 F1 from WB, where every younger uop is flushed, and clears D's forwarding
 tables. A fault, an unimplemented encoding or HLT stops D issuing after it.
@@ -488,9 +584,10 @@ retires and stops it. A fault is delivered:
   DC. A fault detected before EX changes no flags there, so its delivery
   starts with the earlier EFLAGS. A divide raises #DE in EX after its
   multiply/divide flags reach EX's running copy, so its delivery pushes those
-  flags, as the 386EX does. The cycle after, DC's skid takes the
-  exception's entry (`dc_exc`): a NOP, at length 0, that starts the ROM's
-  `vector` routine with the fault's vector, the one INTO enters.
+  flags, as the 386EX does; BOUND's #BR comes from EX too. The cycle after,
+  DC's skid takes the exception's entry (`dc_exc`): a NOP, at length 0,
+  that starts the ROM's `vector` routine with the fault's vector, the one
+  INTO enters.
 - **The frame.** D's EIP is the faulting instruction's, cut to 16 bits, so
   the routine pushes FLAGS, CS and that IP, and D's CS-limit check passes an
   EIP of 10000h left by an instruction that ends at FFFFh. The front end
@@ -506,9 +603,10 @@ a string element's steps of ESI, EDI and ECX, EFLAGS, EIP and stores, the result
 in its dword and the next (IN's data for INS), and I/O accesses. A real-mode segment load sets the base to selector * 16 and
 keeps the limit and attributes.
 
-**Reset and trace.** `init_*` is the architectural state reset loads; a
-machine ties it to the 386 reset state, and the lockstep harness to a test's
-state. `trace_*` and `arch_*` show each retirement.
+**Reset and trace.** `init_*` is the architectural state reset loads,
+CR0's MP and TS among it; a machine ties it to the 386 reset state, and the
+lockstep harness to a test's state. `trace_*` and `arch_*` show each
+retirement.
 
 ## Synthesis notes
 

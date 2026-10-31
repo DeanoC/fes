@@ -11,9 +11,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts.build_fes_coleco import (
+    BuildError as QuartusBuildError,
     OUTPUT_RELATIVE as QUARTUS_OUTPUT,
     PINNED_INPUTS as QUARTUS_PINNED_INPUTS,
     project_qsf,
+    validate_timing_report,
 )
 from scripts.build_fes_coleco_oss import (
     COLECO_TOOLCHAIN_LOCK,
@@ -38,6 +40,7 @@ from scripts.build_fes_coleco_oss import (
 )
 from scripts import build_fes_coleco_oss, toolchain_cache
 from scripts.lockfile import load_lock
+from tests.quartus_timing_fixture import assert_timing_gate
 from tests.test_build_fes_pong import publish_shared_toolchain
 
 
@@ -401,6 +404,9 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn("vram_pattern_block", vdp)
         self.assertIn("vram_color_block", vdp)
         self.assertIn("vram_sprite_block", vdp)
+
+    def test_quartus_timing_gate_requires_every_clock_analysed(self) -> None:
+        assert_timing_gate(self, validate_timing_report, QuartusBuildError)
 
     def test_oss_rejects_wrong_output_directory(self) -> None:
         with self.assertRaises(BuildError):

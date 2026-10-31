@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/corenames"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -22,7 +23,19 @@ func (r *Instance) installHardware() *lua.LTable {
 	L := r.L
 	t := L.NewTable()
 	L.SetFuncs(t, map[string]lua.LGFunction{
-		"setup": func(L *lua.LState) int { r.actions = append(r.actions, Action{Kind: ActionHardwareSetup}); return 0 },
+		"open_expansions": r.openSystemExpansions,
+		"setup": func(L *lua.LState) int {
+			coreID := ""
+			if opts, ok := L.Get(1).(*lua.LTable); ok {
+				coreID = optString(opts, "core_id")
+			}
+			r.actions = append(r.actions, Action{Kind: ActionHardwareSetup, CoreID: coreID})
+			return 0
+		},
+		"open_media": func(L *lua.LState) int {
+			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareMedia))
+			return 0
+		},
 		"open_tapes": func(L *lua.LState) int {
 			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareTapes))
 			return 0
@@ -88,7 +101,7 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	out, machines := L.NewTable(), L.NewTable()
 	for _, m := range v.Machines {
 		row := L.NewTable()
-		for k, s := range map[string]string{"game_id": m.GameID, "title": m.Title, "core_id": m.CoreID, "package_id": m.PackageID, "launch_package_id": m.LaunchPackageID, "unavailable_reason": m.UnavailableReason, "draft_expansion_id": m.DraftExpansionID, "media_id": m.MediaID, "media_name": m.MediaName} {
+		for k, s := range map[string]string{"game_id": m.GameID, "title": corenames.EntryTitle(m.CoreID, m.Title), "core_id": m.CoreID, "package_id": m.PackageID, "launch_package_id": m.LaunchPackageID, "unavailable_reason": m.UnavailableReason, "draft_expansion_id": m.DraftExpansionID, "media_id": m.MediaID, "media_name": m.MediaName} {
 			row.RawSetString(k, lua.LString(s))
 		}
 		for k, b := range map[string]bool{"package_ready": m.PackageReady, "firmware_ready": m.FirmwareReady, "ready": m.Ready} {
@@ -116,7 +129,7 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	computers := L.NewTable()
 	for _, c := range v.Computers {
 		row := L.NewTable()
-		for k, s := range map[string]string{"game_id": c.GameID, "title": c.Title, "core_id": c.CoreID, "package_id": c.PackageID, "unavailable_reason": c.UnavailableReason} {
+		for k, s := range map[string]string{"game_id": c.GameID, "title": corenames.EntryTitle(c.CoreID, c.Title), "core_id": c.CoreID, "package_id": c.PackageID, "unavailable_reason": c.UnavailableReason} {
 			row.RawSetString(k, lua.LString(s))
 		}
 		row.RawSetString("ready", lua.LBool(c.Ready))
@@ -167,7 +180,7 @@ func hardwareSetupAction(L *lua.LState, kind ActionKind) Action {
 	if game == "" || pkg == "" {
 		L.ArgError(1, "game_id and package_id are required")
 	}
-	if kind == ActionHardwareTapes {
+	if kind == ActionHardwareTapes || kind == ActionHardwareMedia {
 		if coreID == "" {
 			L.ArgError(1, "core_id is required")
 		}

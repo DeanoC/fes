@@ -85,6 +85,12 @@ func TestProtocol2DecoderRejectsClosedShapeAndSemanticViolations(t *testing.T) {
 	}
 }
 
+func TestProtocol2ErrorAcceptsMediaDataPhase(t *testing.T) {
+	if !validProtocol2Error(Protocol2Error{Code: "corrupt_data", Message: "bad ATA chunk", Phase: "media_data"}) {
+		t.Fatal("rejected media_data error phase")
+	}
+}
+
 func TestLoadCoreNegotiatesReadOnlyThenMutatesExactlyOnce(t *testing.T) {
 	lines := fixtureLines(t, "protocol-v2.jsonl")
 	fixture := newSequenceSocketFixture(t, []string{lines[1] + "\n", lines[5] + "\n"})
