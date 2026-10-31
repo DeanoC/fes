@@ -22,12 +22,24 @@ modprobe, successful dependency entry points and failed-load reporting. These
 are software tests with injected commands, not physical kernel autoload.
 Ten existing image-builder tests and four rootfs tests pass.
 
-A full official BSP download is proceeding from Terasic; the initial single
-stream was replaced by owned parallel Range reads after measured12KB/sec
-throughput. Only this task's download PID was stopped; complete initial chunks
-were retained. The final assembled ZIP must pass the original lock hash before
-the production extractor can consume it. Reading known module bytes from the
-factory board does not substitute for that archive/source validation.
+The full official BSP and resource ZIPs have now passed their original locked
+SHA256 hashes. The unchanged production extractor from source
+`0da63d1044cc7ecf9908efba52af17b3e55e6271` also passed against the actual BSP:
+it authenticated the entire decompressed vendor SD image, recovered all four
+modules from its regular-file partition and verified their bytes, AArch64 ELF
+identity, kernel release and dependency closure. See
+[official-archive-proof.json](official-archive-proof.json). No card was mounted
+or written. The original slow stream was replaced by this task's parallel
+HTTP Range downloader; the original archive hashes remained required.
+
+The approved baseline's actual AArch64 BusyBox also resolves the generated
+`modules.dep` under QEMU in an isolated chroot. Its `modprobe -D` dependency
+listing selects bridge, region and OF region in that order, plus the separate
+manager. [busybox-dryrun.json](busybox-dryrun.json) binds the BusyBox bytes;
+[dependency](modprobe-dependencies-chroot.log) and
+[manager](modprobe-manager-chroot.log) logs retain the output. `-D` lists the
+operations without executing `insmod`. This is userspace emulation, not a
+physical module load or boot-autoload test.
 
 Image build, QEMU rootfs packaging and an exact-image boot/autoload check remain
 required. Production AArch64 runtime admission, bounded failed-load recovery,
