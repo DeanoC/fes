@@ -12,6 +12,20 @@ import (
 const CoreDataRoot = "/media/fat/fogcast/core-data"
 
 func validateCoreDataShape(raw json.RawMessage) error {
+	if machine, err := exactRawObject(raw, []string{"package_id", "core_id", "layout", "mode", "revision", "game_id", "machine"}, nil); err == nil {
+		// A fes.pc386.machine record: the library game and its settings.
+		if err := requireRawKinds(machine, map[string]rawKind{"package_id": rawString, "core_id": rawString, "layout": rawObject, "mode": rawString, "revision": rawString, "game_id": rawString, "machine": rawObject}); err != nil {
+			return err
+		}
+		settings, err := exactRawObject(machine["machine"], []string{"preset", "frequency", "code_profile", "turbo", "sb_base", "sb_irq", "sb_dma"}, nil)
+		if err != nil {
+			return err
+		}
+		if err := requireRawKinds(settings, map[string]rawKind{"preset": rawUnsigned, "frequency": rawUnsigned, "code_profile": rawUnsigned, "turbo": rawUnsigned, "sb_base": rawUnsigned, "sb_irq": rawUnsigned, "sb_dma": rawUnsigned}); err != nil {
+			return err
+		}
+		return validateSupportedInterfaceShape(machine["layout"])
+	}
 	fields, err := exactRawObject(raw, []string{"package_id", "core_id", "layout", "mode", "revision", "paddle_speed", "best_rally"}, nil)
 	if err != nil {
 		return err
@@ -33,6 +47,10 @@ type coreDataRequest struct {
 	DataRoot         string                `json:"data_root"`
 	ExpectedRevision string                `json:"expected_revision,omitempty"`
 	PaddleSpeed      *protocol.PaddleSpeed `json:"paddle_speed,omitempty"`
+	// A pc386 record is keyed by its library game; its update carries the
+	// machine settings in place of paddle_speed.
+	GameID  string                    `json:"game_id,omitempty"`
+	Machine *protocol.MachineSettings `json:"machine,omitempty"`
 }
 
 func (client *Client) InspectCoreData(ctx context.Context, path, id, root string) (Protocol2Response, error) {
@@ -74,15 +92,23 @@ type protocol2LibraryControl interface {
 }
 
 func (r *Runtime) InspectCoreData(ctx context.Context, size int64, body io.Reader, id string) (protocol.CoreDataInspection, *protocol.APIError) {
-	return r.coreDataOperation(ctx, size, body, id, nil)
+	return r.coreDataOperation(ctx, size, body, id, "", nil)
+}
+
+// InspectGameCoreData reads a pc386 library game's machine record.
+func (r *Runtime) InspectGameCoreData(ctx context.Context, size int64, body io.Reader, id, gameID string) (protocol.CoreDataInspection, *protocol.APIError) {
+	if !protocol.ValidMediaGameID(gameID) {
+		return protocol.CoreDataInspection{}, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "library game is invalid", Phase: "request"}
+	}
+	return r.coreDataOperation(ctx, size, body, id, gameID, nil)
 }
 func (r *Runtime) UpdateCoreSettings(ctx context.Context, size int64, body io.Reader, update protocol.CoreSettingsUpdate) (protocol.CoreDataInspection, *protocol.APIError) {
 	if !update.Valid() {
 		return protocol.CoreDataInspection{}, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "core settings request is invalid", Phase: "request"}
 	}
-	return r.coreDataOperation(ctx, size, body, update.ExpectedPackageID, &update)
+	return r.coreDataOperation(ctx, size, body, update.ExpectedPackageID, update.GameID, &update)
 }
-func (r *Runtime) coreDataOperation(ctx context.Context, size int64, body io.Reader, id string, update *protocol.CoreSettingsUpdate) (result protocol.CoreDataInspection, apiErr *protocol.APIError) {
+func (r *Runtime) coreDataOperation(ctx context.Context, size int64, body io.Reader, id, gameID string, update *protocol.CoreSettingsUpdate) (result protocol.CoreDataInspection, apiErr *protocol.APIError) {
 	control, ok := r.control.(protocol2DataControl)
 	if !ok || r.corePackageRoot == "" {
 		return result, unsupportedOperationError()
@@ -104,10 +130,26 @@ func (r *Runtime) coreDataOperation(ctx context.Context, size int64, body io.Rea
 	if staged.PackageID != id {
 		return result, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "package identity differs from request", Phase: "admission"}
 	}
+	// A pc386 record is per library game; Pong's is per core.
+	machine := protocol.DeclaresPc386Machine(staged.Descriptor)
+	if machine != (gameID != "") || (update != nil && machine != (update.Machine != nil)) {
+		return result, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "core data request does not match the package's record", Phase: "request"}
+	}
 	var response Protocol2Response
-	if update == nil {
+	switch {
+	case machine:
+		games, ok := r.control.(protocol2MachineDataControl)
+		if !ok {
+			return result, unsupportedOperationError()
+		}
+		if update == nil {
+			response, err = games.InspectMachineCoreData(ctx, staged.Directory, id, CoreDataRoot, gameID)
+		} else {
+			response, err = games.UpdateMachineSettings(ctx, staged.Directory, id, CoreDataRoot, gameID, update.ExpectedRevision, *update.Machine)
+		}
+	case update == nil:
 		response, err = control.InspectCoreData(ctx, staged.Directory, id, CoreDataRoot)
-	} else {
+	default:
 		response, err = control.UpdateCoreSettings(ctx, staged.Directory, id, CoreDataRoot, update.ExpectedRevision, update.PaddleSpeed)
 	}
 	if err != nil {
@@ -120,7 +162,7 @@ func (r *Runtime) coreDataOperation(ctx context.Context, size int64, body io.Rea
 		return result, unavailableError()
 	}
 	result = protocol.CoreDataInspection{CoreData: *response.CoreData, Descriptor: staged.Descriptor}
-	if result.PackageID != id || !result.Valid() || (update != nil && (result.Mode != "persistent" || result.Revision == "absent" || result.PaddleSpeed != update.PaddleSpeed)) {
+	if result.PackageID != id || !result.Valid() || result.GameID != gameID || (update != nil && !update.Applied(result.CoreData)) {
 		return protocol.CoreDataInspection{}, unavailableError()
 	}
 	return result, nil
@@ -129,7 +171,16 @@ func (r *Runtime) LoadLibraryCoreOwned(admission, observation, owner context.Con
 	if !protocol2Hex64.MatchString(id) {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "package identity is invalid", Phase: "request"}
 	}
-	return r.loadCoreOwned(admission, observation, owner, size, body, id)
+	return r.loadCoreOwned(admission, observation, owner, size, body, id, nil)
+}
+
+// LoadLibraryMachineCoreOwned launches a pc386 library package with its game
+// and its staged disk, if bound.
+func (r *Runtime) LoadLibraryMachineCoreOwned(admission, observation, owner context.Context, size int64, body io.Reader, id string, machine protocol.LibraryMachineBinding) (CoreActivation, bool, *protocol.APIError) {
+	if !protocol2Hex64.MatchString(id) || !protocol.ValidMediaGameID(machine.GameID) {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "library machine launch is invalid", Phase: "request"}
+	}
+	return r.loadCoreOwned(admission, observation, owner, size, body, id, &machine)
 }
 
 func mapCoreDataError(remote *Protocol2Error) *protocol.APIError {

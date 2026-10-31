@@ -15,9 +15,12 @@ import (
 )
 
 const (
-	MaxCoreMediaBytes    = protocol.MaxContentBytes
-	CoreMediaChunkBytes  = 64 << 10
-	legacyCoreMediaBytes = 16 << 10
+	MaxCoreMediaBytes = protocol.MaxContentBytes
+	// MaxHardDiskMediaBytes bounds only the hard-disk role's imports; every
+	// other role keeps MaxCoreMediaBytes and its own contract limits.
+	MaxHardDiskMediaBytes = protocol.AtaDiskMaxBytes
+	CoreMediaChunkBytes   = 64 << 10
+	legacyCoreMediaBytes  = 16 << 10
 )
 
 var (
@@ -84,8 +87,21 @@ func (r coreMediaContextReader) Read(p []byte) (int, error) {
 
 // ImportCoreMediaStream snapshots and hashes the exact body before reserving a
 // database writer. Memory usage is bounded by the chunk size.
-func (s *Store) ImportCoreMediaStream(ctx context.Context, size int64, body io.Reader) (resultMedia CoreMedia, created bool, err error) {
-	if size < 1 || size > MaxCoreMediaBytes || body == nil {
+func (s *Store) ImportCoreMediaStream(ctx context.Context, size int64, body io.Reader) (CoreMedia, bool, error) {
+	return s.importCoreMediaStream(ctx, size, body, MaxCoreMediaBytes)
+}
+
+// ImportHardDiskMediaStream imports a raw hard-disk image: 1..128 MiB in
+// whole 512-byte sectors.
+func (s *Store) ImportHardDiskMediaStream(ctx context.Context, size int64, body io.Reader) (CoreMedia, bool, error) {
+	if !protocol.AdmitAtaDiskSize(size) {
+		return CoreMedia{}, false, ErrInvalidCoreMedia
+	}
+	return s.importCoreMediaStream(ctx, size, body, MaxHardDiskMediaBytes)
+}
+
+func (s *Store) importCoreMediaStream(ctx context.Context, size int64, body io.Reader, limit int64) (resultMedia CoreMedia, created bool, err error) {
+	if size < 1 || size > limit || body == nil {
 		return CoreMedia{}, false, ErrInvalidCoreMedia
 	}
 	if err := ctx.Err(); err != nil {
@@ -176,7 +192,7 @@ func verifyCoreMedia(ctx context.Context, q coreMediaQuerier, id string, dst io.
 	if err != nil {
 		return CoreMedia{}, err
 	}
-	if size < 1 || size > MaxCoreMediaBytes || legacySize < 0 || legacySize > legacyCoreMediaBytes {
+	if size < 1 || size > MaxHardDiskMediaBytes || legacySize < 0 || legacySize > legacyCoreMediaBytes {
 		return CoreMedia{}, ErrInvalidCoreMedia
 	}
 	hash := sha256.New()
@@ -297,10 +313,60 @@ func validateCoreMediaSelection(role, id string) error {
 	if role == "" && id == "" {
 		return nil
 	}
-	if (role != "blob" && role != protocol.DiskRole && role != protocol.CassetteRole) || protocol.ValidateDigest(id) != nil {
-		return fmt.Errorf("%w: expected blob, disk or cassette role and media digest, or both empty", ErrInvalidCoreMedia)
+	if (role != "blob" && role != protocol.DiskRole && role != protocol.CassetteRole && role != protocol.HardDiskRole) || protocol.ValidateDigest(id) != nil {
+		return fmt.Errorf("%w: expected blob, disk, cassette or hard-disk role and media digest, or both empty", ErrInvalidCoreMedia)
 	}
 	return nil
+}
+
+// SetCoreEntryDiskGeometry overrides, or with nil clears, the CHS geometry of
+// an entry's selected hard-disk image, conditional on the observed package and
+// media. Selecting other media clears it.
+func (s *Store) SetCoreEntryDiskGeometry(ctx context.Context, gameID, expectedPackageID, expectedMediaID string, geometry *protocol.DiskGeometry) (CoreEntry, error) {
+	if protocol.ValidateGameID(gameID) != nil || protocol.ValidateDigest(expectedPackageID) != nil || protocol.ValidateDigest(expectedMediaID) != nil {
+		return CoreEntry{}, fmt.Errorf("%w: invalid geometry identity", ErrInvalidCoreEntry)
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return CoreEntry{}, fmt.Errorf("begin core entry geometry: %w", err)
+	}
+	defer tx.Rollback()
+	entry, err := scanCoreEntry(tx.QueryRowContext(ctx, coreEntrySelect+` WHERE e.game_id = ?`, gameID).Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return CoreEntry{}, ErrCoreEntryNotFound
+	}
+	if err != nil {
+		return CoreEntry{}, fmt.Errorf("read core entry geometry: %w", err)
+	}
+	if entry.PackageID != expectedPackageID || entry.MediaID != expectedMediaID {
+		return CoreEntry{}, ErrCoreEntryConflict
+	}
+	if entry.MediaRole != protocol.HardDiskRole {
+		return CoreEntry{}, fmt.Errorf("%w: geometry needs a hard-disk selection", ErrInvalidCoreEntry)
+	}
+	var value protocol.DiskGeometry
+	if geometry != nil {
+		media, err := verifyCoreMedia(ctx, tx, expectedMediaID, io.Discard)
+		if err != nil {
+			return CoreEntry{}, err
+		}
+		if !geometry.Valid(media.Size) {
+			return CoreEntry{}, fmt.Errorf("%w: geometry exceeds the image", ErrInvalidCoreEntry)
+		}
+		value = *geometry
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE core_entries SET disk_cylinders = ?, disk_heads = ?, disk_sectors = ? WHERE game_id = ?`,
+		value.Cylinders, value.Heads, value.SectorsPerTrack, gameID); err != nil {
+		return CoreEntry{}, fmt.Errorf("update core entry geometry: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return CoreEntry{}, fmt.Errorf("commit core entry geometry: %w", err)
+	}
+	entry.DiskGeometry = nil
+	if geometry != nil {
+		entry.DiskGeometry = &value
+	}
+	return entry, nil
 }
 
 // SelectCoreEntryMedia changes only media, conditional on the package and media
@@ -335,8 +401,15 @@ func (s *Store) SelectCoreEntryMedia(ctx context.Context, gameID, expectedPackag
 			return CoreEntry{}, err
 		}
 	}
-	result, err := tx.ExecContext(ctx, `UPDATE core_entries SET media_role = ?, media_id = ? WHERE game_id = ? AND package_id = ? AND media_id = ?`,
-		mediaRole, mediaID, gameID, expectedPackageID, expectedMediaID)
+	// A geometry override belongs to its image: selecting the same image
+	// again keeps it, and any other selection clears it.
+	same := mediaRole == entry.MediaRole && mediaID == entry.MediaID
+	update := `UPDATE core_entries SET media_role = ?, media_id = ?,
+		disk_cylinders = 0, disk_heads = 0, disk_sectors = 0 WHERE game_id = ? AND package_id = ? AND media_id = ?`
+	if same {
+		update = `UPDATE core_entries SET media_role = ?, media_id = ? WHERE game_id = ? AND package_id = ? AND media_id = ?`
+	}
+	result, err := tx.ExecContext(ctx, update, mediaRole, mediaID, gameID, expectedPackageID, expectedMediaID)
 	if err != nil {
 		return CoreEntry{}, fmt.Errorf("update core entry media selection: %w", err)
 	}
@@ -351,5 +424,8 @@ func (s *Store) SelectCoreEntryMedia(ctx context.Context, gameID, expectedPackag
 		return CoreEntry{}, fmt.Errorf("commit core entry media selection: %w", err)
 	}
 	entry.MediaRole, entry.MediaID = mediaRole, mediaID
+	if !same {
+		entry.DiskGeometry = nil
+	}
 	return entry, nil
 }

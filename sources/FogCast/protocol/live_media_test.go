@@ -75,7 +75,7 @@ func TestLiveMediaCapableAdmitsComputerZx81Tape(t *testing.T) {
 	if LiveMediaCapable(&CorePackageStatus{ABI: RuntimeContract{ID: "fes.computer", Major: 1}, ActiveInterfaces: []RuntimeInterface{{ID: SpectrumTapeInterface().ID, Major: 2}}}) {
 		t.Fatal("spectrum tape must not open the ZX81 tape picker")
 	}
-	if LiveMediaCapable(&CorePackageStatus{ABI: RuntimeContract{ID: "fes.computer", Major: 1, Minor: 1}, ActiveInterfaces: active}) {
+	if LiveMediaCapable(&CorePackageStatus{ABI: RuntimeContract{ID: "fes.computer", Major: 1, Minor: 2}, ActiveInterfaces: active}) {
 		t.Fatal("a later computer minor is a different contract")
 	}
 	later := []RuntimeInterface{{ID: tape.ID, Major: tape.Major, Minor: tape.Minor + 1}}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -21,7 +22,66 @@ type coreMediaCapabilitiesService interface {
 }
 
 func validCoreMediaPair(role, id string) bool {
-	return role == "" && id == "" || (role == "blob" || role == protocol.DiskRole || role == protocol.CassetteRole) && corePackageIDRE.MatchString(id)
+	return role == "" && id == "" || (role == "blob" || role == protocol.DiskRole || role == protocol.CassetteRole || role == protocol.HardDiskRole) && corePackageIDRE.MatchString(id)
+}
+
+type hardDiskMediaService interface {
+	ImportHardDiskMedia(context.Context, int64, io.Reader) (fogcast.HardDiskMedia, bool, error)
+	SetCoreEntryDiskGeometry(context.Context, string, string, string, *protocol.DiskGeometry) (catalog.CoreEntry, error)
+}
+
+// registerHardDiskMedia adds the hard-disk role's own import, the one route
+// that admits more than 32 MiB, and the entry's geometry override.
+func registerHardDiskMedia(mux *http.ServeMux, service Service) {
+	withService := func(fn func(http.ResponseWriter, *http.Request, hardDiskMediaService)) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			s, ok := service.(hardDiskMediaService)
+			if !ok {
+				writeError(w, 501, "UNSUPPORTED_OPERATION", "hard-disk media is unavailable")
+				return
+			}
+			fn(w, r, s)
+		}
+	}
+	mux.HandleFunc("POST /api/v1/core-media/hard-disk", withService(func(w http.ResponseWriter, r *http.Request, s hardDiskMediaService) {
+		types := r.Header.Values("Content-Type")
+		if len(types) != 1 || types[0] != "application/octet-stream" || len(r.TransferEncoding) != 0 || !protocol.AdmitAtaDiskSize(r.ContentLength) {
+			writeError(w, 400, "BAD_REQUEST", "hard-disk import requires a raw image of 1 to 128 MiB in whole 512-byte sectors")
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, catalog.MaxHardDiskMediaBytes)
+		value, created, err := s.ImportHardDiskMedia(r.Context(), r.ContentLength, r.Body)
+		if err != nil {
+			writeCoreLibraryError(w, err)
+			return
+		}
+		code := http.StatusOK
+		if created {
+			code = http.StatusCreated
+		}
+		writeJSON(w, code, value)
+	}))
+	mux.HandleFunc("PUT /api/v1/library/core-entries/{game_id}/disk-geometry", withService(func(w http.ResponseWriter, r *http.Request, s hardDiskMediaService) {
+		var request struct {
+			ExpectedPackageID *string                `json:"expected_package_id"`
+			ExpectedMediaID   *string                `json:"expected_media_id"`
+			Geometry          *protocol.DiskGeometry `json:"geometry"`
+		}
+		if decodeSingleJSON(w, r, &request) != nil {
+			return
+		}
+		if protocol.ValidateGameID(r.PathValue("game_id")) != nil || request.ExpectedPackageID == nil || request.ExpectedMediaID == nil ||
+			!corePackageIDRE.MatchString(*request.ExpectedPackageID) || !corePackageIDRE.MatchString(*request.ExpectedMediaID) {
+			writeError(w, 400, "BAD_REQUEST", "disk geometry request is invalid")
+			return
+		}
+		value, err := s.SetCoreEntryDiskGeometry(r.Context(), r.PathValue("game_id"), *request.ExpectedPackageID, *request.ExpectedMediaID, request.Geometry)
+		if err != nil {
+			writeCoreLibraryError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, value)
+	}))
 }
 
 func registerCoreMediaLibrary(mux *http.ServeMux, service Service) {

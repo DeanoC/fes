@@ -1169,6 +1169,8 @@ func validProtocol2Error(remote Protocol2Error) bool {
 }
 
 func validCapabilities(capabilities Protocol2Capabilities) bool {
+	// One ABI may be advertised at several minors (fes.computer 1.0 and 1.1),
+	// each with its own interfaces; a package matches exactly one.
 	if !sortedUniqueStrings(capabilities.ProgrammingProfiles) ||
 		!sort.SliceIsSorted(capabilities.ABIs, func(i, j int) bool {
 			a, b := capabilities.ABIs[i], capabilities.ABIs[j]
@@ -1216,7 +1218,7 @@ func validSupportedInterfaces(interfaces []Protocol2Interface) bool {
 func validMediaUnits(response Protocol2Response) bool {
 	active := response.ActivePackage
 	if active == nil || !positive(response.Generation) ||
-		!protocol.ComputerMediaABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
+		!protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
 		return false
 	}
 	packageStatus := computerMediaStatus(response).CorePackage
@@ -1289,7 +1291,7 @@ func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePac
 }
 
 func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Capabilities) bool {
-	if protocol.ComputerMediaABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) && active.PersistenceMode == "persistent" {
+	if protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) && active.PersistenceMode == "persistent" {
 		status := protocol2MediaStatus(active, capabilities)
 		if !protocol.PersistentMediaStatusValid(status) || !descriptorPersistentMedia(active.Descriptor, capabilities.MediaUnits) {
 			return false
@@ -1567,18 +1569,6 @@ func descriptorMediaWrite(d corepackage.Descriptor) bool {
 	return protocol.ComputerABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) && base && write
 }
 
-func descriptorAtaDisk(d corepackage.Descriptor) bool {
-	if !protocol.ComputerAtaDiskABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) {
-		return false
-	}
-	for _, i := range d.Interfaces {
-		if i.ID == protocol.AtaDiskInterface().ID && i.Major == int64(protocol.AtaDiskInterface().Major) && i.Minor == int64(protocol.AtaDiskInterface().Minor) {
-			return true
-		}
-	}
-	return false
-}
-
 func descriptorPersistentMedia(d corepackage.Descriptor, units []protocol.MediaUnitStatus) bool {
 	for _, unit := range units {
 		if unit.Persistence != nil {
@@ -1586,19 +1576,20 @@ func descriptorPersistentMedia(d corepackage.Descriptor, units []protocol.MediaU
 			case protocol.AtariStFloppyInterface():
 				return descriptorMediaWrite(d)
 			case protocol.AtaDiskInterface():
-				return descriptorAtaDisk(d)
+				return protocol.DeclaresAtaDisk(d)
 			default:
 				return false
 			}
 		}
 	}
 	for _, unit := range units {
-		if unit.Interface == protocol.AtaDiskInterface() && unit.Persistence == nil &&
-			(unit.State == protocol.MediaUnitEmpty || unit.State == protocol.MediaUnitLoading) {
-			return descriptorAtaDisk(d)
+		if unit.Interface == protocol.AtaDiskInterface() {
+			return unit.Persistence == nil && (unit.State == protocol.MediaUnitEmpty || unit.State == protocol.MediaUnitLoading) &&
+				protocol.DeclaresAtaDisk(d)
 		}
 	}
-	return false
+	// With no disk, a pc386 machine record alone is persistent.
+	return protocol.DeclaresPc386Machine(d) && !protocol.DeclaresAtaDisk(d)
 }
 
 func protocol2MediaStatus(active Protocol2ActivePackage, capabilities Protocol2Capabilities) *protocol.CorePackageStatus {
