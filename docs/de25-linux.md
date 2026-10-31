@@ -425,6 +425,11 @@ The recipe verifies the linked symbols and DTB with pinned libfdt. It does not
 assemble or install an SD image; matching rootfs/boot and positive loader/control
 integration, then physical DMA acceptance, remain required.
 
+The [positive owner lifecycle record](validation/2026-10-31-de25-owner-positive/README.md)
+executes real OF overlay apply/remove, the owner control callback and private
+file-descriptor lifetime through two cycles. Programming/register responses
+remain modeled; this is not an SDM firmware-load or userspace /dev syscall test.
+
 The [allocated-buffer FPGA diagnostic](../sources/misteross/boards/de25nano/scanout/README.md)
 connects the real menu reader to the preserved memory path. Its shared
 `fes.fabric.de25-scanout` contract owns the two-slot grant, full-frame

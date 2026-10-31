@@ -46,7 +46,7 @@ are built-in; the vendor's old modules must not be reused with this kernel.
 
 This is build preparation. It does not establish that the physical supplier
 graph passes admission or that this kernel boots the board. Still required:
-positive profile/actual-overlay/control-fd tests, matching candidate rootfs and
-boot integration, physical SID/domain/firewall/DDR acceptance, managed MENU and
+actual SDM firmware loading and userspace control-syscall tests, matching
+candidate rootfs and boot integration, physical SID/domain/firewall/DDR acceptance, managed MENU and
 normal core lifecycle/recovery. The owner and device-tree description must not
 be mistaken for package authentication or a safe probe of unknown fabric.
