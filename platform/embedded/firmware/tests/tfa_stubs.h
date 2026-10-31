@@ -35,6 +35,10 @@ typedef unsigned __int128 uint128_t;
 #ifdef __cplusplus
 extern "C" {
 #endif
+#ifdef FES_TEST_NANO_BRIDGES
+void fes_tfa_owned_sip(uint32_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t[4]);
+unsigned fes_tfa_legacy_routes(void);
+#endif
 int socfpga_bridges_disable(uint32_t);
 int socfpga_bridges_enable(uint32_t);
 uint32_t mmio_read_32(uintptr_t);

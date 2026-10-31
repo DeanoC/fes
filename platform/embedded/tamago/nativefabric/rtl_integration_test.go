@@ -89,7 +89,7 @@ func (r *rpcHooks) Read32(o uint32) (uint32, error) {
 }
 func (r *rpcHooks) Write32(o, v uint32) error { _, err := r.call("write %x %x", o, v); return err }
 func (r *rpcHooks) Invoke(req [7]uint64) ([4]uint64, error) {
-	v, err := r.call("smc %x %x %x", req[0], req[1], req[2])
+	v, err := r.call("smc %x %x %x %x %x", req[0], req[1], req[2], req[3], req[4])
 	if err != nil {
 		return [4]uint64{}, err
 	}

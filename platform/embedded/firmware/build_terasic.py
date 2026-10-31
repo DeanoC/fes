@@ -84,6 +84,7 @@ def main():
                         help="absolute AArch64 GNU cross-tool prefix ending in '-'")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--jobs", type=int, default=2)
+    parser.add_argument("--nano-owned-bridges", action="store_true", help="controlled SiP variant; boot remains NOT_READY without trusted proof")
     args = parser.parse_args()
     repo = args.reference_repo.resolve()
     output = args.output.absolute()
@@ -126,21 +127,27 @@ def main():
     extract_archive(archive, source)
     producer_inputs = (Path(__file__).resolve(), HERE / "prepare_tfa.py", HERE / "generated/fes_embedded_control.hpp",
                        prepare_tfa.DIAG_HEADER, prepare_tfa.DIAG_HELPERS)
+    if args.nano_owned_bridges:
+        import prepare_nano_owned
+        producer_inputs += tuple(prepare_nano_owned.inputs())
     frozen = {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in producer_inputs}
     target = source / prepare_tfa.SOURCE
     original = target.read_bytes()
     blob, profile = prepare_tfa.source_identity(original)
     if blob != prepare_tfa.TERASIC_BLOB or profile != "terasic-de25-v2.12":
         raise ValueError("pinned tree does not contain the reviewed Terasic service")
-    patched = prepare_tfa.contained_source(original)
+    owned = prepare_nano_owned.install(source) if args.nano_owned_bridges else None
+    patched = target.read_bytes() if owned else prepare_tfa.contained_source(original)
     target.write_bytes(patched)
     reset_target = source / prepare_tfa.RESET_SOURCE
-    reset_original = reset_target.read_bytes()
-    reset_patched = prepare_tfa.contained_terasic_reset(reset_original)
+    reset_original = git(repo, "show", revision + ":" + prepare_tfa.RESET_SOURCE)
+    reset_patched = reset_target.read_bytes() if owned else prepare_tfa.contained_terasic_reset(reset_original)
     reset_target.write_bytes(reset_patched)
     diag_header = source / prepare_tfa.DIAG_HEADER_SOURCE
     diag_header.write_bytes(prepare_tfa.DIAG_HEADER.read_bytes())
     label = "fes-terasic-contained-" + revision[:12]
+    if owned:
+        label = "fes-nano-owned-unready-" + revision[:12]
     # The exported source is inside the FES worktree. Do not let TF-A's
     # default git-describe walk up into FES and embed an unrelated revision.
     command = [str(make), "-j", str(args.jobs), "PLAT=agilex5", "BUILD_STRING=" + label,
@@ -172,6 +179,10 @@ def main():
               "limitations": ["not a complete HPS-first boot chain or board handoff",
                               "vendor SPL, U-Boot, CPU entry, memory ownership and physical containment remain unqualified",
                               "firmware source transformation is not a signature or production attestation"]}
+    report["bridge_mode"] = "owned-unready" if owned else "strict"
+    if owned:
+        report["owned_bridge_binding"] = owned
+        report["classification"] = "controlled owned Nano BL31 component; boot proof unavailable, service remains NOT_READY; no board acceptance"
     (output / "result.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
     print("Built experimental BL31:", component)
 

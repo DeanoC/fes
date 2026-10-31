@@ -1,0 +1,32 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.embedded.bridges
+major: 1
+minor: 0
+description: >-
+  Experimental owned Nano firmware bridge channel. A private call number and
+  opt-in cookie select this channel. The number is unused in the inspected pin, not an
+  assigned vendor extension, physical capability, or trusted boot proof.
+constants:
+  - {name: FesEmbeddedBridgeCall, value: 0xc2000301}
+  - {name: FesEmbeddedBridgeCookie, value: 0x46455342}
+  - {name: FesEmbeddedBridgeTag, value: 0x46424f31}
+  - {name: FesEmbeddedBridgeSnapshot, value: 0}
+  - {name: FesEmbeddedBridgeClose, value: 1}
+  - {name: FesEmbeddedBridgeControl, value: 2}
+  - {name: FesEmbeddedBridgeRelease, value: 3}
+  - {name: FesEmbeddedBridgeRequestFabric, value: 0x100}
+  - {name: FesEmbeddedBridgeRequestHeld, value: 0x200}
+  - {name: FesEmbeddedBridgeNotReady, value: 5}
+  - {name: FesEmbeddedBridgeMask, value: 15}
+  - {name: FesEmbeddedBridgeControlMask, value: 2}
+  - {name: FesEmbeddedBridgeDrainMask, value: 12}
+  - {name: FesEmbeddedBridgeFabricShift, value: 4}
+  - {name: FesEmbeddedBridgeNeverEnabled, value: 0x40}
+  - {name: FesEmbeddedBridgeMastersContained, value: 0x80}
+  - {name: FesEmbeddedBridgeProducersQuiescent, value: 0x100}
+  - {name: FesEmbeddedBridgeFabricAcknowledged, value: 0x200}
+  - {name: FesEmbeddedBridgeDrainShift, value: 10}
+  - {name: FesEmbeddedBridgeDataHeld, value: 0x4000}
+  - {name: FesEmbeddedBridgeSnapshotFlags, value: 0xff}
+  - {name: FesEmbeddedBridgeClosureFlags, value: 0x7fff}

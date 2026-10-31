@@ -80,7 +80,7 @@ chain. A board test needs those gates before this prototype can be selected.
 
 ## Replay
 
-See the [firmware commands](../../../platform/embedded/firmware/README.md#unbound-nano-bridge-service).
+See the [firmware commands](../../../platform/embedded/firmware/README.md#controlled-nano-bridge-service).
 The service's always-available callback tests run with:
 
 ```sh

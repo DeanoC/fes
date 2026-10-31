@@ -148,7 +148,7 @@ func (r *actorRPC) Invoke(q [7]uint64) ([4]uint64, error) {
 	} else if q[0] == 0xc2000001 {
 		r.programs++
 	}
-	v, err := r.call("smc %x %x %x", q[0], q[1], q[2])
+	v, err := r.call("smc %x %x %x %x %x", q[0], q[1], q[2], q[3], q[4])
 	var out [4]uint64
 	copy(out[:], v)
 	return out, err

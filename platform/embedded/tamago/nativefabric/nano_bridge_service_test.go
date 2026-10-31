@@ -7,11 +7,15 @@ import (
 	"testing"
 	"time"
 
+	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
 )
 
 // This adapter is test transport for the C service, never a Nano SiP binding.
-type nanoFirmwarePlatform struct{ *rpcHooks }
+type nanoFirmwarePlatform struct {
+	*rpcHooks
+	wire *FirmwareBridges
+}
 
 func (n *nanoFirmwarePlatform) ReadPhysical32(address uint64) (uint32, error) {
 	if address < 0x40000000 || address >= 0x40000100 {
@@ -25,43 +29,89 @@ func (n *nanoFirmwarePlatform) WritePhysical32(address uint64, value uint32) err
 	}
 	return n.Write32(uint32(address-0x40000000), value)
 }
-func nanoSnapshot(words []uint64) (BridgeSnapshot, error) {
-	if len(words) != 6 || words[2] > 15 || words[3] > 2 || words[4] > 1 || words[5] > 1 {
-		return BridgeSnapshot{}, errors.New("invalid C bridge snapshot")
-	}
-	return BridgeSnapshot{Capabilities: BridgeCapabilities{Mask: 15, ControlMask: 2, HardwareDrainMask: 12, FabricHandshake: FabricHandshake(words[3])},
-		Owner: words[0], Generation: words[1], ResetMask: uint32(words[2]), NeverEnabled: words[4] != 0, MastersContained: words[5] != 0}, nil
-}
 func (n *nanoFirmwarePlatform) ObserveBridges() (BridgeSnapshot, error) {
-	words, err := n.call("bridge-observe")
-	if err != nil {
-		return BridgeSnapshot{}, err
-	}
-	return nanoSnapshot(words)
+	return n.wire.ObserveBridges()
 }
 func (n *nanoFirmwarePlatform) CloseBridges(r BridgeCloseRequest) (BridgeClosure, error) {
-	words, err := n.call("bridge-close %x %x %x %x", r.Before.Owner, r.Before.Generation, boolWord(r.RequireFabricHandshake), boolWord(r.PreserveDataContainment))
-	if err != nil {
-		return BridgeClosure{}, err
-	}
-	if len(words) != 10 {
-		return BridgeClosure{}, errors.New("invalid C bridge closure")
-	}
-	s, err := nanoSnapshot(words[:6])
-	return BridgeClosure{After: s, ProducersQuiescent: words[6] == 1, FabricAcknowledged: words[7] == 1, HardwareDrainedMask: uint32(words[8]), DataRemainedContained: words[9] == 1}, err
+	return n.wire.CloseBridges(r)
 }
 func (n *nanoFirmwarePlatform) OpenBridges(r BridgeOpenRequest) (BridgeSnapshot, error) {
-	words, err := n.call("bridge-open %x %x %x", r.Before.Owner, r.Before.Generation, r.Mask)
-	if err != nil {
-		return BridgeSnapshot{}, err
-	}
-	return nanoSnapshot(words)
+	return n.wire.OpenBridges(r)
 }
-func boolWord(b bool) uint64 {
-	if b {
-		return 1
+
+func TestNanoFirmwareBridgeSiPGates(t *testing.T) {
+	path := os.Getenv("FES_NANO_BRIDGE_RPC")
+	if path == "" {
+		t.Skip("run nativefabric/verify.py --nano-bridge-service")
 	}
-	return 0
+	t.Setenv("FES_EMBEDDED_RPC", path)
+	r := newRPC(t)
+	if _, err := NewFirmwareBridges(r); !errors.Is(err, ErrBridgeNotReady) {
+		t.Fatal("missing boot proof accepted", err)
+	}
+	for _, request := range [][7]uint64{
+		{0xc2000032, 3, 15}, // legacy mutable bridge API
+		{0xc2000401},        // versioned range
+		{0xc20000c8},
+		{0x42000300}, // wrong calling convention for the private query
+		{uint64(g.FesEmbeddedBridgeCall), 4, 0, uint64(g.FesEmbeddedBridgeCookie)}, // no init action
+	} {
+		reply, err := r.Invoke(request)
+		if err != nil || reply[0] != 2 {
+			t.Fatal("unreviewed route accepted", request, reply, err)
+		}
+	}
+	routes, err := r.call("owned-route-stats")
+	if err != nil || routes[0] != 0 {
+		t.Fatal("owned call escaped into a vendor handler", routes, err)
+	}
+	stats, _ := r.call("stats")
+	if stats[0] != 0 || stats[1] != 0 {
+		t.Fatal("unready/legacy request mutated state", stats)
+	}
+	if _, err = r.call("bridge-boot f 1 2"); err != nil {
+		t.Fatal(err)
+	} // simulated trusted boot code
+	b, err := NewFirmwareBridges(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := b.ObserveBridges()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply, err := r.Invoke([7]uint64{start}); err != nil || reply[0] != 0 {
+		t.Fatal(reply, err)
+	}
+	if _, err := b.OpenBridges(BridgeOpenRequest{Before: s, Mask: 2}); err == nil {
+		t.Fatal("opened a bridge during configuration")
+	}
+	if reply, _ := r.Invoke([7]uint64{start}); reply[0] != 1 {
+		t.Fatal("replayed START", reply)
+	}
+	if reply, err := r.Invoke([7]uint64{write, 0x96000000, 128}); err != nil || reply[0] != 0 {
+		t.Fatal(reply, err)
+	}
+	if reply, _ := r.Invoke([7]uint64{isdone}); reply[0] != 1 {
+		t.Fatal("ISDONE ignored pending DMA", reply)
+	}
+	// The first completion poll submits the queued vendor buffer; the next
+	// consumes its acknowledgement. Neither step can be replaced by ISDONE.
+	if reply, err := r.Invoke([7]uint64{completed}); err != nil || reply != [4]uint64{1, 0, 0, 0} {
+		t.Fatal("queued buffer was reported complete", reply, err)
+	}
+	if reply, _ := r.Invoke([7]uint64{isdone}); reply[0] != 1 {
+		t.Fatal("ISDONE ignored submitted DMA", reply)
+	}
+	if reply, err := r.Invoke([7]uint64{completed}); err != nil || reply[0] != 0 || reply[1] != 0x16000000 {
+		t.Fatal(reply, err)
+	}
+	if reply, err := r.Invoke([7]uint64{isdone}); err != nil || reply[0] != 0 {
+		t.Fatal(reply, err)
+	}
+	if _, err := b.OpenBridges(BridgeOpenRequest{Before: s, Mask: 2}); err != nil {
+		t.Fatal("completed configuration never released control", err)
+	}
 }
 
 func TestNanoFirmwareBridgeCyclesAndFailures(t *testing.T) {
@@ -83,7 +133,11 @@ func TestNanoFirmwareBridgeCyclesAndFailures(t *testing.T) {
 			if _, err := r.call("bridge-boot %x %x %x", reset, proof, fabric); err != nil {
 				t.Fatal(err)
 			}
-			platform := &nanoFirmwarePlatform{r}
+			wire, err := NewFirmwareBridges(r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			platform := &nanoFirmwarePlatform{rpcHooks: r, wire: wire}
 			hooks, err := NewCPUHooks(platform, platform, 0x40000000, 256)
 			if err != nil {
 				t.Fatal(err)

@@ -13,14 +13,21 @@ tests use the actual firmware functions and RTL with simulated platform services
 the native image's Nano discovery remains read-only until board routing, reset
 and memory are qualified.
 
+The opt-in [owned bridge SiP binding](../../docs/validation/2026-10-31-de25-owned-sip/README.md)
+now cross-builds inside BL31 and connects to the native runtime through the
+shared wire contract. Its actual setup remains unready until trusted boot code
+supplies qualified ownership and containment proof. Launch/return and failure
+tests use injected platform state; the variant cannot enter card packaging.
+
 The experimental [native boot entry](entry/README.md) uses the vendor U-Boot
 source in QEMU to cleanly hand a validated ELF to the Go runtime at EL1. A Nano
 candidate can be cross-built with an explicit firmware profile, but the board
 handoff and recovery path remain unverified.
 
 The [Nano serial-probe recipe](nano/README.md) now assembles a source-derived
-memory/device gate and matched SPL/FIT/SOF/test-SD files. Its live checks await
-execution on TRWU8CBL; native peripherals remain disabled for that first test.
+memory/device gate and matched SPL/FIT/SOF/test-SD files. The bounded serial
+trials stopped at the firmware bridge gate before native entry; native
+peripherals remain disabled for that probe.
 
 The initial [feasibility study](../../docs/design/de25-embedded-os.md) exercised
 a small protocol probe. This work goes further: retain the actual tenfoot

@@ -77,9 +77,12 @@ def main():
             parser.error("Nano bridge service requires the explicit pinned Terasic source")
         sys.path.insert(0, str(FIRMWARE))
         import verify_nano_bridges
+        import verify_owned_sip
         reference = args.reset_reference or args.reference.parent / "soc/socfpga_reset_manager.c"
         nano = verify_nano_bridges.build(reference.absolute(), output / "nano-driver", run)
-        objects += [output / "nano-driver/driver.o", output / "nano-driver/service.o"]
+        engine, binding = verify_owned_sip.build(args.reference.absolute(), firmware_out / "tfa_subset.c", output, run)
+        objects = engine + [output / "nano-driver/driver.o", output / "nano-driver/service.o"]
+        nano["owned_sip"] = binding
 
     rpc_dir = output / "rpc"
     run("rpc-build", ["verilator", "--cc", "--exe", "--build", "--top-module", "fes_embedded_control", "-Wall",

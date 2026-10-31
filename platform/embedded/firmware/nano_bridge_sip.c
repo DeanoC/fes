@@ -1,0 +1,49 @@
+/* SPDX-License-Identifier: BSD-3-Clause */
+#include "nano_bridge_sip.h"
+
+static uint32_t snapshot_flags(const struct fes_nano_bridge_snapshot *s)
+{
+    return s->reset | (s->fabric << FES_EMBEDDED_BRIDGE_FABRIC_SHIFT) |
+        (s->never_enabled ? FES_EMBEDDED_BRIDGE_NEVER_ENABLED : 0U) |
+        (s->masters_contained ? FES_EMBEDDED_BRIDGE_MASTERS_CONTAINED : 0U);
+}
+
+void fes_nano_bridge_sip(struct fes_nano_bridges *b, uint64_t operation,
+                         uint64_t owner, uint64_t generation, unsigned configuring,
+                         uint64_t result[4])
+{
+    struct fes_nano_bridge_snapshot s = {0};
+    struct fes_nano_bridge_closure c = {0};
+    uint32_t flags = 0;
+    int status = -1;
+    result[0] = 2; /* rejected request; no successful state */
+    result[1] = (uint64_t)FES_EMBEDDED_BRIDGE_TAG << 32;
+    result[2] = result[3] = 0;
+    if (operation != FES_EMBEDDED_BRIDGE_SNAPSHOT &&
+        operation != FES_EMBEDDED_BRIDGE_CONTROL && operation != FES_EMBEDDED_BRIDGE_RELEASE &&
+        (operation & ~(uint64_t)(FES_EMBEDDED_BRIDGE_REQUEST_FABRIC | FES_EMBEDDED_BRIDGE_REQUEST_HELD)) != FES_EMBEDDED_BRIDGE_CLOSE)
+        return;
+    if (operation == FES_EMBEDDED_BRIDGE_SNAPSHOT && (owner || generation)) return;
+    if (!b || !b->initialized) { result[0] = FES_EMBEDDED_BRIDGE_NOT_READY; return; }
+    if (configuring && operation != FES_EMBEDDED_BRIDGE_SNAPSHOT) { result[0] = 1; return; }
+    if (operation == FES_EMBEDDED_BRIDGE_SNAPSHOT) {
+        status = fes_nano_bridges_observe(b, &s);
+    } else if (operation == FES_EMBEDDED_BRIDGE_CONTROL || operation == FES_EMBEDDED_BRIDGE_RELEASE) {
+        status = fes_nano_bridges_open(b, owner, generation,
+            operation == FES_EMBEDDED_BRIDGE_CONTROL ? FES_NANO_BRIDGES_CONTROL : FES_NANO_BRIDGES_DATA, &s);
+    } else {
+        status = fes_nano_bridges_close(b, owner, generation,
+            !!(operation & FES_EMBEDDED_BRIDGE_REQUEST_FABRIC),
+            !!(operation & FES_EMBEDDED_BRIDGE_REQUEST_HELD), &c);
+        s = c.after;
+        flags = (c.producers_quiescent ? FES_EMBEDDED_BRIDGE_PRODUCERS_QUIESCENT : 0U) |
+                (c.fabric_acknowledged ? FES_EMBEDDED_BRIDGE_FABRIC_ACKNOWLEDGED : 0U) |
+                (c.hardware_drained << FES_EMBEDDED_BRIDGE_DRAIN_SHIFT) |
+                (c.data_remained_contained ? FES_EMBEDDED_BRIDGE_DATA_HELD : 0U);
+    }
+    if (status != 0) { result[0] = 4; return; }
+    result[0] = 0;
+    result[1] |= snapshot_flags(&s) | flags;
+    result[2] = s.owner;
+    result[3] = s.generation;
+}

@@ -6,6 +6,7 @@ package de25nano
 import (
 	"errors"
 
+	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 )
 
@@ -32,6 +33,11 @@ func (FabricCPUTransport) Invoke(request [7]uint64) ([4]uint64, error) {
 	switch request[0] {
 	case 0xc2000300, 0xc2000001, 0x42000002, 0xc2000003, 0xc2000004:
 		return smc(request), nil
+	case uint64(g.FesEmbeddedBridgeCall):
+		if request[3] == uint64(g.FesEmbeddedBridgeCookie) && request[5] == 0 && request[6] == 0 {
+			return smc(request), nil
+		}
+		return [4]uint64{}, errors.New("DE25: owned bridge call lacks its explicit cookie")
 	default:
 		return [4]uint64{}, errors.New("DE25: firmware call outside fabric protocol")
 	}

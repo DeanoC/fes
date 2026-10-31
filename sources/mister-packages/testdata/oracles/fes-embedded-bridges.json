@@ -1,0 +1,37 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "commit": "2a0758a18bfdf7c38de205c7c1c5e138bbf18e52",
+    "file": "platform/embedded/firmware/generated/fes_embedded_bridges.h",
+    "note": "Base runtime/FES revision. New local experimental C/Go channel in this change; no physical programming admission."
+  },
+  "fabric": {
+    "id": "fes.fabric.embedded.bridges",
+    "major": 1,
+    "minor": 0
+  },
+  "constants": {
+    "FesEmbeddedBridgeCall": 3254780673,
+    "FesEmbeddedBridgeCookie": 1178948418,
+    "FesEmbeddedBridgeTag": 1178750769,
+    "FesEmbeddedBridgeSnapshot": 0,
+    "FesEmbeddedBridgeClose": 1,
+    "FesEmbeddedBridgeControl": 2,
+    "FesEmbeddedBridgeRelease": 3,
+    "FesEmbeddedBridgeRequestFabric": 256,
+    "FesEmbeddedBridgeRequestHeld": 512,
+    "FesEmbeddedBridgeNotReady": 5,
+    "FesEmbeddedBridgeMask": 15,
+    "FesEmbeddedBridgeControlMask": 2,
+    "FesEmbeddedBridgeDrainMask": 12,
+    "FesEmbeddedBridgeFabricShift": 4,
+    "FesEmbeddedBridgeNeverEnabled": 64,
+    "FesEmbeddedBridgeMastersContained": 128,
+    "FesEmbeddedBridgeProducersQuiescent": 256,
+    "FesEmbeddedBridgeFabricAcknowledged": 512,
+    "FesEmbeddedBridgeDrainShift": 10,
+    "FesEmbeddedBridgeDataHeld": 16384,
+    "FesEmbeddedBridgeSnapshotFlags": 255,
+    "FesEmbeddedBridgeClosureFlags": 32767
+  }
+}

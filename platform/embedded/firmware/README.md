@@ -109,7 +109,7 @@ The validation record includes a successful `PLAT=agilex5 bl31` AArch64 build
 from the actual TF-A v2.12 tree with this prepared source. BL31 alone does not
 configure Nano DDR, select its UART/PHYs or provide a complete boot chain.
 
-## Unbound Nano bridge service
+## Controlled Nano bridge service
 
 `nano_bridges.c` implements the owner/generation checks behind the native
 platform's bridge contract. Its operations are injected and must be serialized,
@@ -129,7 +129,8 @@ The opt-in `nano_bridge_driver_source` transformation preserves the pinned
 vendor driver and first-error checks while gating only optional fabric warning
 writes/polls on an injected, qualified capability. It covers enable as well as
 disable. Hardware flush/fence polls stay mandatory. The normal source
-transformations and `build_terasic.py` do not select this driver or service.
+transformations and default `build_terasic.py` mode do not select this driver
+or service.
 
 ```sh
 python3 platform/embedded/firmware/verify_nano_bridges.py \
@@ -142,17 +143,43 @@ python3 platform/embedded/tamago/nativefabric/verify.py \
 ```
 
 The first command executes the actual driver C with injected registers. The
-second links the C service/driver into the native test transport, uses the
-closure guard for prepared TF-A START, and tests the existing controller and
-tenfoot actor with actual FPGA RTL. The register, ownership, memory and SDM
-responses are models. See the [service validation](../../../docs/validation/2026-10-31-de25-nano-bridge-service/README.md).
+second exercises the controlled SiP dispatcher, C service and driver through
+the production Go wire adapter, existing controller and tenfoot actor, with
+actual FPGA RTL. Register, ownership, memory and SDM responses are models.
+See the [service validation](../../../docs/validation/2026-10-31-de25-nano-bridge-service/README.md)
+and [SiP binding validation](../../../docs/validation/2026-10-31-de25-owned-sip/README.md).
 
-No real SiP dispatch, trusted boot initialization, whole-board master-stop
-callback or Nano binding is installed. The selected BL31 and U-Boot gate retain
-the strict behavior measured on the board. Linking this service into a future
-BL31 requires routing every relevant bridge/configuration mutation through its
-ownership checks and establishing the boot proof. Source-producer hashes have
-changed, so earlier build receipts must not be reused as current build evidence.
+`prepare_nano_owned.py` installs the opt-in controlled channel in a fresh export
+of the exact Terasic pin. The [shared wire contract](../../../sources/mister-packages/docs/embedded-bridges.md)
+defines a private call distinct from the older mutable bridge call. Querying
+the service cannot disable bridges on the inspected older firmware. The
+controlled dispatcher admits only that channel, the existing capability query
+and the four contained configuration operations. It blocks alternate legacy,
+versioned and arbitrary-mailbox routes. Bridge and configuration operations
+share a lock and the same ownership guard; an outstanding configuration blocks
+bridge mutations, and pending buffers block ISDONE. Public raw bridge wrappers
+cannot bypass that guard. PSCI power/reset transitions invalidate ownership.
+
+```sh
+python3 platform/embedded/firmware/build_terasic.py \
+  --reference-repo out/terasic-git-restore-tfa \
+  --cross-prefix /absolute/path/aarch64-linux-gnu- \
+  --nano-owned-bridges --output out/fresh-owned-bl31
+```
+
+This builds a controlled BL31 component, not a bootable candidate. Its setup
+only reads and logs reset state. It deliberately leaves the service
+uninitialized: Snapshot returns the recognized `NOT_READY` reply until trusted
+secure boot code calls `fes_nano_bridge_platform_bind` with qualified callbacks
+and proof. Non-secure callers cannot initialize it. The pinned HPS-first path
+does not establish the required never-enabled history or whole-board master
+containment. Closed reset bits alone cannot supply that proof. The host tests
+inject trusted initialization; the real build does not.
+
+Build receipts distinguish `strict` from `owned-unready` mode. The U-Boot/card
+packaging gate requires explicit `strict` mode and rejects this unready variant.
+The default firmware behavior and native board boot gate remain unchanged.
+Source-producer hashes have changed; earlier receipts are historical evidence.
 
 ## Board-specific off-board candidate
 

@@ -106,14 +106,24 @@ or a new production compatibility registry.
 
 The [contract validation](../../../../docs/validation/2026-10-31-de25-bridge-contract/README.md)
 exercises cold/closed, active, launch/return and failure paths without hardware.
-The [unbound C Nano service](../../firmware/README.md#unbound-nano-bridge-service)
-now implements the provider behind this contract in host tests, including
-prepared TF-A START, vendor bridge functions and the tenfoot actor. It has no
-installed SiP dispatch or qualified boot initialization. There is no
-automatically enabled physical binding. The selected Terasic firmware's bridge polls
-and the native boot gate are unchanged; this does not fix or waive the
-physical stage-3 timeout. A real adapter still needs qualified boot history,
-handshake selection, hardware-drain implementation and ownership observation.
+`FirmwareBridges` implements the contract over an injected synchronous SMC
+transport using the generated [owned-channel wire contract](../../../../sources/mister-packages/docs/embedded-bridges.md).
+Its constructor takes a read-only snapshot on the private call number, validates
+the reply tag, capabilities and ownership, and rejects an unknown service or
+`ErrBridgeNotReady`. It never probes the older mutable bridge call, initializes
+ownership or supplies boot proof. The existing `CPUHooks` still validates the
+meaning of each closure and fresh state before advancing the controller.
+
+The [controlled C Nano service](../../firmware/README.md#controlled-nano-bridge-service)
+now has an opt-in real SiP binding. Host tests exercise its actual dispatcher,
+prepared TF-A engine, vendor bridge functions and tenfoot actor through this
+same Go adapter. Trusted initialization, registers, ownership and SDM remain
+injected. The controlled BL31 setup leaves the service unready, and U-Boot
+packaging rejects it. There is no automatically enabled physical binding. The
+default firmware's bridge polls and native boot gate retain their strict
+behavior; the physical stage-3 timeout remains unqualified. A runnable board
+adapter still needs qualified boot history, handshake selection, hardware drain
+and complete ownership/master containment observation.
 
 The FPGA endpoint covers one AXI read port; it is not a complete scanout engine
 or an address firewall. Native input neutralization, saves, frame handoff,

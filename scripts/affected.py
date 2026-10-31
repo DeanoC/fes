@@ -24,10 +24,15 @@ EMBEDDED_CONTROL_INPUTS = frozenset({
     'sources/misteross/cores/fes-common/generated/fes_embedded_control.vh',
     'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
 })
+EMBEDDED_BRIDGE_INPUTS = frozenset({
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-bridges.json',
+})
 
 
 def embedded_control_input(path):
-    return path in EMBEDDED_CONTROL_INPUTS or path.startswith('platform/embedded/firmware/')
+    return (path in EMBEDDED_CONTROL_INPUTS or path in EMBEDDED_BRIDGE_INPUTS or
+            path.startswith('platform/embedded/firmware/'))
 
 
 def embedded_producer_input(path):

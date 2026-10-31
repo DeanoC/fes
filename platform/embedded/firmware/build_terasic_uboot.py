@@ -48,6 +48,8 @@ def checked_bl31(bl31_build):
         raise ValueError("BL31 component or receipt is a symlink")
     receipt_bytes = receipt_path.read_bytes()
     receipt = json.loads(receipt_bytes)
+    if receipt.get("bridge_mode") != "strict":
+        raise ValueError("U-Boot packaging requires the strict bridge mode; owned-unready is a firmware component only")
     blob = component.read_bytes()
     image_elf = elf.read_bytes()
     if (receipt.get("status") != "built" or receipt.get("reference_revision") != prepare_tfa.TERASIC_REVISION or

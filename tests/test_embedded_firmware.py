@@ -75,7 +75,7 @@ class EmbeddedFirmwareTests(unittest.TestCase):
             elf.write_bytes(image)
             inputs = (PATH.parent / 'build_terasic.py', PATH, PATH.parent / 'generated/fes_embedded_control.hpp',
                       prepare.DIAG_HEADER, prepare.DIAG_HELPERS)
-            receipt = {'status': 'built', 'reference_revision': prepare.TERASIC_REVISION,
+            receipt = {'status': 'built', 'bridge_mode': 'strict', 'reference_revision': prepare.TERASIC_REVISION,
                        'reference_git_blob': prepare.TERASIC_BLOB, 'reset_reference_git_blob': prepare.TERASIC_RESET_BLOB,
                        'bl31_bin_size': component.stat().st_size,
                        'bl31_bin_sha256': hashlib.sha256(component.read_bytes()).hexdigest(),
@@ -84,6 +84,13 @@ class EmbeddedFirmwareTests(unittest.TestCase):
                        'producer_sources': {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}}
             (root / 'result.json').write_text(json.dumps(receipt))
             self.assertEqual(uboot.checked_bl31(root)[4], b'example BL31')
+            for mode in (None, 'owned-unready', 'unknown'):
+                receipt['bridge_mode'] = mode
+                (root / 'result.json').write_text(json.dumps(receipt))
+                with self.subTest(mode=mode), self.assertRaises(ValueError):
+                    uboot.checked_bl31(root)
+            receipt['bridge_mode'] = 'strict'
+            (root / 'result.json').write_text(json.dumps(receipt))
             component.write_bytes(b'changed BL31')
             with self.assertRaises(ValueError):
                 uboot.checked_bl31(root)
