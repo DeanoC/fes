@@ -1,0 +1,5 @@
+c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0
+of_fpga_region 12288 0 - Live 0xffff80007ad73000
+fpga_region 12288 1 of_fpga_region, Live 0xffff80007ad6d000
+fpga_bridge 16384 2 of_fpga_region,fpga_region, Live 0xffff80007ad66000
+stratix10_soc 12288 1 - Live 0xffff80007ad60000

@@ -19,8 +19,13 @@ and JTAG diagnostics are intermediate evidence only.
 Each row requires its changed artifact and its actual hardware path. Passing a
 simulation or a maintenance client does not complete the corresponding managed
 flow. Headless Linux currently ships no runtime daemon, target agent, managed
-bundle or MENU. The first Linux-manager probe succeeds; actual core loading is
-still under investigation in the [bring-up record](../validation/2026-10-30-de25-linux-fpga/README.md).
+bundle or MENU. The [HPS-first hardware proof](../validation/2026-10-31-de25-hps-first-hardware/README.md)
+boots FES with an HPS-only volatile bootstrap, then loads ZX81 through Linux and
+runs BASIC through native CPU control. Two reloads after the complete bootstrap
+also pass. Direct loading from factory startup still fails, ordinary reboot
+under JTAG startup stops, and bounded failure recovery remains unqualified.
+The [earlier bring-up record](../validation/2026-10-30-de25-linux-fpga/README.md)
+retains the unsupported FPGA-first attempt and vendor cleanup failure.
 
 Keep the approved FES SD plus factory QSPI as the baseline while preparing the
 new boot/programming artifacts. Preserve the original factory Ubuntu card and
