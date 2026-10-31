@@ -97,7 +97,7 @@ void Uncertain() {
     std::cout<<"partial/failed/late close and unapplied status retain state and refuse replay\n";
 }
 void BeforeMutation() {
-    for(int mode=0;mode<10;++mode) {
+    for(int mode=0;mode<11;++mode) {
         Fixture f;auto m=f.Manager();
         if(mode==0)f.clock.now=100;
         if(mode==1)Put(f.paths.search,"/wrong/search\n");
@@ -109,6 +109,7 @@ void BeforeMutation() {
         if(mode==7)Put(f.paths.record,"{}");
         if(mode==8)Put(f.paths.notes,"different running kernel");
         if(mode==9)assert(!chmod(f.paths.record.c_str(),0666));
+        if(mode==10) {assert(!mkdir((f.paths.firmware+"/updates").c_str(),0700));Put(f.paths.firmware+"/updates/fes-runtime-core.rbf","wrong image");}
         auto r=f.Program(*m);assert(!r.error.ok() && !r.mutation_attempted);
         assert(f.ops.written==0 && f.ops.closed==0);
         if(mode==5 || mode==6)assert(!Exists(f.paths.firmware+"/fes-runtime-core.rbf") && !Exists(f.ops.Dir()));

@@ -182,6 +182,14 @@ public:
             kernel_known = true;
         }
         if (!Exact(search, "")) return Failure("firmware search override is not empty");
+        // The normal firmware loader checks these locations before the base
+        // directory. Do not allow an old copy to shadow the retained artifact.
+        for (const auto& prefix : {"/updates/6.12.11-fes-de25-owner/", "/updates/", "/6.12.11-fes-de25-owner/"}) {
+            struct stat other{};
+            if (!lstat((firmware + prefix + kFirmware).c_str(), &other) ||
+                (errno != ENOENT && errno != ENOTDIR))
+                return Failure("higher-priority firmware path is occupied or inaccessible");
+        }
         return {};
     }
     int Create(int fd) {
@@ -235,7 +243,7 @@ public:
         if (!Text(state, &manager) || (manager != "unknown" && manager != "operating"))
             return {Failure("FPGA manager is not in a known programming state"), false};
         const auto blob = De25ProgrammingOverlay();
-        bool attempted = false, staged = false, created = false;
+        bool attempted = false, copied = false, created = false;
         if (!Testing() && mkdir(firmware.c_str(), 0755) && errno != EEXIST)
             return {SystemError("create firmware directory"), false};
         Fd fw(open(firmware.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
@@ -244,7 +252,7 @@ public:
             if (attempted) poisoned = true;
             else {
                 if (created && Remove(overlays.n)) poisoned = true;
-                if (staged && unlinkat(fw.n, kFirmware, 0)) poisoned = true;
+                if (copied && unlinkat(fw.n, kFirmware, 0)) poisoned = true;
             }
             return {e, attempted};
         };
@@ -268,8 +276,8 @@ public:
                 return fail(Failure("previous firmware identity/removal failed"));
         }
         Fd output(openat(fw.n, kFirmware, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600));
-        if (output.n < 0) return fail(SystemError("stage exclusive firmware"));
-        staged = true; unsigned char buffer[65536]; std::uint64_t offset = 0;
+        if (output.n < 0) return fail(SystemError("create exclusive firmware"));
+        copied = true; unsigned char buffer[65536]; std::uint64_t offset = 0;
         while (offset < artifact.size()) {
             error = Check(deadline); if (!error.ok()) return fail(error);
             const auto count = std::min<std::uint64_t>(sizeof(buffer), artifact.size() - offset);
@@ -286,10 +294,10 @@ public:
             }
             offset += n;
         }
-        if (fchmod(output.n, 0444) || fsync(output.n)) return fail(SystemError("sync staged firmware"));
-        const int staged_fd = output.n; output.n = -1;
+        if (fchmod(output.n, 0444) || fsync(output.n)) return fail(SystemError("sync firmware copy"));
+        const int copy_fd = output.n; output.n = -1;
         // request_firmware may deny reading a file that still has a writer.
-        if (close(staged_fd)) return fail(SystemError("close staged firmware"));
+        if (close(copy_fd)) return fail(SystemError("close firmware copy"));
         if (Create(overlays.n)) return fail(SystemError("create configuration"));
         created = true;
         Fd dir(openat(overlays.n, kOverlay, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));

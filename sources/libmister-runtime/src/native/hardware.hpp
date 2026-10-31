@@ -55,7 +55,8 @@ struct NativeResult {
 class FpgaManager {
 public:
 	virtual ~FpgaManager() {}
-	// Every program leaves the SDR FPGA ports in reset.
+	// Cyclone V profiles leave the SDR FPGA ports in reset. The DE25
+	// profile uses its permanent kernel owner and never this port recipe.
 	virtual NativeResult Program(const Artifact&,
 		ProgrammingProfile,
 		std::uint64_t absolute_deadline_ms) = 0;
