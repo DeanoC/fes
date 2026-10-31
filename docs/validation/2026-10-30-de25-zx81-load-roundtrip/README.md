@@ -11,6 +11,8 @@ Owner: misteross. The task started at
 `54c9b6ce6716dcde188c08cae43de5f6943e53b7`, including its separate completed-HID
 and frame-boundary video-gating fixes. This PR changes only simulation clients,
 observation helpers, proof validation and documentation relative to that parent.
+The branch later merged `codex/de25-quartus-link-proof` at `73ee2ea85c2ac543747318ea1c59eebae5225d68`; the
+combined simulation below was rerun against that merged source tree.
 
 ## Cause and controlled comparison
 
@@ -77,41 +79,52 @@ watchdogs and physical timing constraints are unchanged.
 
 ## Evidence and limits
 
-[Internal RAM: 20 cases](internal-proof.json) and
-[PR RAM pack: 14 cases](combined-proof.json) pass on committed producer
-`a05bd205c6929a72d5c070d353c8ea37203fd665`. Both architectures match every
-semantic result. All four retained SAVE files are identical 923-byte images:
+[Internal RAM: 20 cases](internal-proof.json) passes on committed producer
+`a05bd205c6929a72d5c070d353c8ea37203fd665`; its 89 captured source hashes
+still match the current tree. The [combined PR RAM-pack proof: 14 cases](combined-proof.json)
+was rerun on committed source `75abf6dfa9912e6c3c45c825a53f4ae1a26f2d01`
+after merge `73ee2ea85`. It now captures the updated response-valid gate and
+RAM response pipeline along with the full 59-file compiler input closure.
+Both native and AArch64 clients pass all seven scenarios on that RTL and match
+every semantic result. All four retained SAVE files are identical 923-byte images:
 SHA-256 `b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71`.
 Each internal session performs exactly 1,475 client register writes and observes
 637 complete output frames. Each combined session makes three persona selections,
 freezes the third LOAD after 9 of 923 bytes, observes 720 output frames and
 returns to actual 1-KiB BASIC.
 
-The [source audit](source-match.json) matches every selected production, test
-and runtime byte to the receipts. It confirms no production-source changes
-relative to the integrated parent. The [manifest](manifest.json) lists hashes
-for receipts, per-architecture logs and retained SAVE images. Rejected fixture candidates
-and the controlled CDFLAG comparison are retained separately from passing runs.
+The [source audit](source-match.json) matches all current internal and combined
+production, test and runtime inputs to their receipts: 89/89 internal inputs,
+59/59 combined compiler inputs and 49/49 combined runtime inputs. It confirms
+no production-source changes from this PR relative to the merged parent. The
+[manifest](manifest.json) lists hashes for receipts, per-architecture logs and
+retained SAVE images. Rejected fixture candidates and the controlled CDFLAG
+comparison are retained separately from passing runs.
 The [line-completion control](line-completion-control.json) records the actual
 store/editor events. Its private early-return client deliberately omits the
 full picture sequence and later fails that normal client gate; it is no full
 session pass.
 
-`make test-changed` against parent `54c9b6ce6716dcde188c08cae43de5f6943e53b7`
-passes all selected commands, including 971 parent Python cases (one skip),
-1,511 FPGA cases (35 skips), whitespace and generated-consumer consistency.
-That local aggregate began at `773568c215` while the fixture was still being
-refined, so it is not a frozen final-head claim. The four focused schema cases
-and complete native/AArch64 matrices select committed producer `a05bd205c6`.
-`make check` reports 37 consumers/37 fixtures; documentation links pass.
+`make test-changed TEST_CHANGED_ARGS='--base origin/codex/de25-quartus-link-proof'`
+passes at source revision `75abf6dfa`. The parent lane passed 1,515 Python
+tests with 35 skips, plus generated-consumer consistency; the FPGA lane also
+passed its `test_*.py` suite. Host, runtime, and contract lanes were not selected;
+the command does not run FPGA synthesis or place-and-route. An earlier
+`make test-changed` record against parent `54c9b6ce` remains historical context;
+it began at `773568c215` before fixture refinement. The combined proof receipt
+binds the 14 cases to their current RTL and runtime source hashes. Its freshness
+is checked by the link-proof unit suite, so a later input change without a
+matching proof receipt fails that suite.
 
 No FPGA production source, timing constraint, toolchain pin or shared contract
 changes relative to the merged parent. This task does not run Quartus. The
 older C7 compilation remains evidence for its own captured inputs only; the
 parent's later video changes prevent attributing that artifact to this tree.
-The [input comparison](compiler-input-comparison.json) records the three changed
-parent inputs and 55 unchanged inputs out of the previous 58-source closure.
-The selected build ID identifies the simulation endpoint, not a newly compiled
+The [input comparison](compiler-input-comparison.json) remains the historical
+Quartus-versus-original-simulation comparison (`c7a99111` versus `a05bd205`)
+over its original 58-source closure. It does not qualify a new Quartus build.
+The refreshed combined proof records its own current source closure. Its
+selected build ID identifies the simulation endpoint, not a newly compiled
 SOF or RBF.
 
 All evidence here is off-board client/RTL simulation with behavioral memory.
