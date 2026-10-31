@@ -11,9 +11,8 @@
   "time_cap_seconds": 7200,
   "hardware_access": "not-performed",
   "pid": 2407875,
-  "state": "running",
-  "elapsed_seconds": 1710.9,
-  "heartbeat_utc": "2026-10-31T13:57:19.685243+00:00",
-  "snapshot_utc": "2026-10-31T13:57:45.068687+00:00",
-  "scope": "broader compatibility checks still running; not an acceptance result"
+  "state": "passed",
+  "elapsed_seconds": 3783.4,
+  "heartbeat_utc": "2026-10-31T14:31:52.133250+00:00",
+  "returncode": 0
 }
