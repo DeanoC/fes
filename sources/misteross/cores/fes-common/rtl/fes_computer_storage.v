@@ -30,7 +30,10 @@
 // word n in bits 16n+15:16n). Words 8..71 hold CMOS 00h..7Fh, two bytes a
 // word, low byte first, in a RAM the machine writes a byte at a time
 // (cmos_write) and reads while cmos_load is high (the word at cmos_load_pair
-// a clock later). A 128-word buffer holds the Freeze snapshot while released
+// a clock later). Words 8..14 are the clock's registers 00h..0Dh, which change
+// without a write: Freeze takes them from the machine (cmos_clock_pair, the
+// pair at cmos_clock_index, in the same clock), and the RAM keeps the last
+// words restored there. A 128-word buffer holds the Freeze snapshot while released
 // and the restore staging while held: Freeze copies the 72 words into it, and
 // Commit copies the staged CMOS words back while execution is held. A copy
 // that meets cmos_load starts again.
@@ -76,6 +79,8 @@ module fes_computer_storage #(
     input  wire         cmos_load,
     input  wire [5:0]   cmos_load_pair,
     output wire [15:0]  cmos_load_word,
+    output wire [2:0]   cmos_clock_index,
+    input  wire [15:0]  cmos_clock_pair,
     // Wall clock
     output reg          wall_apply,
     output reg  [15:0]  wall_year,
@@ -153,6 +158,7 @@ module fes_computer_storage #(
         cmos_q <= cmos_words[cmos_raddr];
     end
     assign cmos_load_word = cmos_q;
+    assign cmos_clock_index = 3'(step - 7'd8);
 
     // Snapshot or staging: Freeze's copy and DataWrite write it, DataRead and
     // Commit's copy read it.
@@ -269,17 +275,18 @@ module fes_computer_storage #(
                 end
             end
             W_SNAPSHOT: begin
-                // Words 0..7 from the settings, then word n from the CMOS
-                // word read at step n-1.
+                // Words 0..7 from the settings, 8..14 from the clock, then
+                // word n from the CMOS word read at step n-1.
                 if (cmos_load || copy_restart) begin
                     copy_restart <= 1'b0;
                     step <= 7'd0;
                 end else begin
-                    copy_restart <= cmos_write && step >= 7'd7 && step < 7'd71 &&
+                    copy_restart <= cmos_write && step >= 7'd14 && step < 7'd71 &&
                                     cmos_byte_index[6:1] == 6'(step - 7'd7);
                     buffer_we <= 1'b1;
                     buffer_waddr <= step;
-                    buffer_wdata <= step < 7'd8 ? machine_settings[step[2:0] * 16 +: 16] : cmos_q;
+                    buffer_wdata <= step < 7'd8 ? machine_settings[step[2:0] * 16 +: 16] :
+                                    step < 7'd15 ? cmos_clock_pair : cmos_q;
                     if (step == 7'd71) begin
                         snapshot <= 1'b1;
                         reply(1'b0, 16'd0);

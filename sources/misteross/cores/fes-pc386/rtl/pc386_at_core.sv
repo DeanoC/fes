@@ -111,7 +111,9 @@ module pc386_at_core #(
     output wire [7:0] record_byte,
     output wire record_load,
     output wire [5:0] record_pair,
-    input wire [15:0] record_word
+    input wire [15:0] record_word,
+    input wire [2:0] record_clock_index,
+    output wire [15:0] record_clock_pair
 );
     // ---- I/O decoder ----------------------------------------------------
     wire [15:0] port;
@@ -320,7 +322,8 @@ module pc386_at_core #(
         .wall_valid(wall_valid), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second), .wall_weekday(wall_weekday),
         .record_write(record_write), .record_index(record_index), .record_byte(record_byte),
-        .record_load(record_load), .record_pair(record_pair), .record_word(record_word)
+        .record_load(record_load), .record_pair(record_pair), .record_word(record_word),
+        .record_clock_index(record_clock_index), .record_clock_pair(record_clock_pair)
     );
 
     // ---- ATA ----------------------------------------------------------------

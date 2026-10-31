@@ -300,8 +300,11 @@ the `fes.pc386.machine` record and the wall clock, with
     which the CPU does not have yet. The RTC loads CMOS 0Eh-7Fh from the
     record after every reset, then writes its configuration bytes, and every
     byte written to its RAM goes to the record. 00h-0Dh are the clock's
-    registers, not RAM, and stay out of it; the clock is battery-backed, so a
-    machine reset clears only B's interrupt enables, SQWE and the flags.
+    registers, not RAM: Freeze reads them as the guest does, and a restore
+    leaves them to the clock (a missing record's zeros would stop its
+    oscillator and select 12-hour time; the wall clock sets the time at every
+    launch). The clock is battery-backed, so a machine reset clears only B's
+    interrupt enables, SQWE and the flags.
   - *Wall clock.* An applied clock reaches the RTC once its CMOS setup is
     done after release, and the CPU starts after that.
   - *Hold.* The CPU stops at once; the machine resets once the CPU's memory

@@ -42,6 +42,8 @@ module computer_storage_top #(
     input  wire         cmos_load,
     input  wire [5:0]   cmos_load_pair,
     output wire [15:0]  cmos_load_word,
+    output wire [2:0]   cmos_clock_index,
+    input  wire [15:0]  cmos_clock_pair,
     output wire         wall_apply,
     output wire [15:0]  wall_year,
     output wire [7:0]   wall_month,
@@ -95,7 +97,7 @@ module computer_storage_top #(
         .disk_dirty_index(disk_dirty_index), .disk_dirty_word(disk_dirty_word),
         .machine_settings(machine_settings), .cmos_write(cmos_write), .cmos_byte_index(cmos_byte_index),
         .cmos_byte(cmos_byte), .cmos_load(cmos_load), .cmos_load_pair(cmos_load_pair),
-        .cmos_load_word(cmos_load_word),
+        .cmos_load_word(cmos_load_word), .cmos_clock_index(cmos_clock_index), .cmos_clock_pair(cmos_clock_pair),
         .wall_apply(wall_apply), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second),
         .wall_weekday(wall_weekday)

@@ -876,6 +876,26 @@ void disk_and_record(Bench &b) {
     check("dirty_clear clears the map over 128 clocks", b.top.dirty_word == 0 && b.cycles - asked >= 128,
           std::to_string(b.cycles - asked) + " " + hex(b.top.dirty_word));
 
+    // The record reads 00h-0Dh as the guest does, two at a time, and reading
+    // C that way leaves its flags for the guest.
+    b.cmos_write(0x05, 0x17);
+    b.top.record_clock_index = 2;  // 04h, 05h
+    b.clock();
+    uint16_t hours = b.top.record_clock_pair;
+    bool same = hours == uint16_t(b.cmos(0x04) | b.cmos(0x05) << 8);
+    b.cmos(0x0c);
+    b.top.record_clock_index = 6;  // 0Ch, 0Dh
+    bool flagged = b.wait([&] { return (b.top.record_clock_pair & 0xff) != 0; }, 100000);
+    uint16_t flags = b.top.record_clock_pair;
+    b.run(4);
+    bool kept = b.top.record_clock_pair == flags;
+    uint8_t read = b.cmos(0x0c);
+    b.clock();
+    check("the record reads the clock's registers as the guest does, without clearing C",
+          same && (hours >> 8) == 0x17 && flagged && (flags >> 8) == 0x80 && kept && read == (flags & 0xff) &&
+              (b.top.record_clock_pair & 0xff) == 0,
+          hex(hours) + " " + hex(flags) + " " + hex(read) + " " + hex(b.top.record_clock_pair));
+
     // The fence holds a write command back under BSY; the drive is fenced at
     // once while idle.
     b.out(0x3f6, 0x02);  // nIEN

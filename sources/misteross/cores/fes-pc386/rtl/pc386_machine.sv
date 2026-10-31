@@ -107,6 +107,8 @@ module pc386_machine #(
     output wire record_load,
     output wire [5:0] record_pair,
     input wire [15:0] record_word,
+    input wire [2:0] record_clock_index,
+    output wire [15:0] record_clock_pair,
     // DDR port 1
     output wire [28:0] p1_address,
     output wire [7:0] p1_burstcount,
@@ -188,7 +190,8 @@ module pc386_machine #(
         .disk_frozen(disk_frozen), .disk_dirty_clear(disk_dirty_clear), .disk_dirty_clearing(disk_dirty_clearing),
         .disk_writer_busy(disk_writer_busy), .disk_fenced(disk_fenced), .disk_written(disk_written),
         .record_write(record_write), .record_index(record_index), .record_byte(record_byte),
-        .record_load(record_load), .record_pair(record_pair), .record_word(record_word)
+        .record_load(record_load), .record_pair(record_pair), .record_word(record_word),
+        .record_clock_index(record_clock_index), .record_clock_pair(record_clock_pair)
     );
 
     wire [28:0] capture_address;

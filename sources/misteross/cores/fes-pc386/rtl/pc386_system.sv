@@ -149,7 +149,8 @@ module pc386_system #(
     wire [6:0] record_index;
     wire [7:0] record_byte;
     wire [5:0] record_pair;
-    wire [15:0] record_word;
+    wire [15:0] record_word, record_clock_pair;
+    wire [2:0] record_clock_index;
     wire wall_apply;
     wire [15:0] wall_year;
     wire [7:0] wall_month, wall_day, wall_hour, wall_minute, wall_second, wall_weekday;
@@ -166,7 +167,7 @@ module pc386_system #(
         .disk_dirty_index(dirty_index), .disk_dirty_word(dirty_word),
         .machine_settings(settings), .cmos_write(record_write), .cmos_byte_index(record_index),
         .cmos_byte(record_byte), .cmos_load(record_load), .cmos_load_pair(record_pair),
-        .cmos_load_word(record_word),
+        .cmos_load_word(record_word), .cmos_clock_index(record_clock_index), .cmos_clock_pair(record_clock_pair),
         .wall_apply(wall_apply), .wall_year(wall_year), .wall_month(wall_month), .wall_day(wall_day),
         .wall_hour(wall_hour), .wall_minute(wall_minute), .wall_second(wall_second),
         .wall_weekday(wall_weekday)
@@ -293,6 +294,7 @@ module pc386_system #(
         .disk_writer_busy(disk_writer_busy), .disk_fenced(disk_fenced), .disk_written(disk_written),
         .record_write(record_write), .record_index(record_index), .record_byte(record_byte),
         .record_load(record_load), .record_pair(record_pair), .record_word(record_word),
+        .record_clock_index(record_clock_index), .record_clock_pair(record_clock_pair),
         .p1_address(p1_address), .p1_burstcount(p1_burstcount), .p1_read(p1_read), .p1_write(p1_write),
         .p1_writedata(p1_writedata), .p1_byteenable(p1_byteenable), .p1_waitrequest(p1_waitrequest),
         .p1_readdata(p1_readdata), .p1_readdatavalid(p1_readdatavalid),

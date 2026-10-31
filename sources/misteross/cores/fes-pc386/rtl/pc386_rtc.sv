@@ -19,7 +19,10 @@
 // into 2Eh and 2Fh. busy is high until that has finished. Every byte written
 // to the RAM, by the setup, the guest or the century, goes to the record as
 // well (record_write). 00h-0Dh are the clock's registers, not RAM: the record
-// neither gives them nor takes them. The clock is battery-backed, as an
+// reads them as the guest does, two at a time (record_clock_pair, without
+// clearing C), and a restore leaves them to the clock. A missing record's
+// zeros would stop the oscillator (A) and select 12-hour time (B), and the
+// wall clock sets the time at every launch. The clock is battery-backed, as an
 // MC146818 is: a machine reset clears only PIE, AIE, UIE and SQWE and the
 // flags, as its RESET pin does, and the time, alarms, A and B carry over.
 // The clock does not run while the machine is held; the wall clock sets it.
@@ -57,7 +60,9 @@ module pc386_rtc #(
     output wire [7:0] record_byte,
     output wire record_load,
     output wire [5:0] record_pair,
-    input wire [15:0] record_word
+    input wire [15:0] record_word,
+    input wire [2:0] record_clock_index,
+    output wire [15:0] record_clock_pair
 );
     reg [6:0] index;
     reg [5:0] second, minute;
@@ -231,25 +236,19 @@ module pc386_rtc #(
     reg [6:0] century;
     reg century_pending;
 
+    // 00h-0Dh as the guest reads them, byte n in bits 8n+7:8n.
+    wire [8*14-1:0] clock_bytes = {
+        8'h80,                              // 0Dh: VRT, the battery is good
+        {irqf, pf, af, uf, 4'b0},           // 0Ch
+        control_b, {uip, divider, rate},    // 0Bh, 0Ah
+        encode(year), encode({3'b0, month}), encode({2'b0, day}), encode({4'b0, weekday}),
+        alarm_hour, encode_hour(hour), alarm_minute, encode({1'b0, minute}),
+        alarm_second, encode({1'b0, second})
+    };
+    assign record_clock_pair = clock_bytes[16 * record_clock_index +: 16];
     always @* begin
         rdata = 8'hff;  // 70h is write-only
-        if (a0) case (index)
-            7'h00: rdata = encode({1'b0, second});
-            7'h01: rdata = alarm_second;
-            7'h02: rdata = encode({1'b0, minute});
-            7'h03: rdata = alarm_minute;
-            7'h04: rdata = encode_hour(hour);
-            7'h05: rdata = alarm_hour;
-            7'h06: rdata = encode({4'b0, weekday});
-            7'h07: rdata = encode({2'b0, day});
-            7'h08: rdata = encode({3'b0, month});
-            7'h09: rdata = encode(year);
-            7'h0a: rdata = {uip, divider, rate};
-            7'h0b: rdata = control_b;
-            7'h0c: rdata = {irqf, pf, af, uf, 4'b0};
-            7'h0d: rdata = 8'h80;  // VRT: the battery is good
-            default: rdata = ram_byte;
-        endcase
+        if (a0) rdata = index < 7'h0e ? clock_bytes[8 * index[3:0] +: 8] : ram_byte;
     end
 
     // The battery-backed state starts at configuration.

@@ -7,7 +7,10 @@
 // once the runtime has polled the state as verifying `verify_reads` times,
 // lands the scripted guest sector writes (a write only begun lands when the
 // fence goes up), keeps the dirty map, and writes the scripted CMOS bytes
-// before the exchange they precede. It then checks the scenario's final state.
+// before the exchange they precede. CMOS 00h-0Dh are its clock's registers:
+// a scripted write sets them, a committed restore loads them from the
+// endpoint's words, and Freeze reads them through the clock pair. It then
+// checks the scenario's final state.
 #include "Vcomputer_storage_top.h"
 #include "verilated.h"
 
@@ -69,7 +72,8 @@ std::vector<unsigned> list(const std::string& text, const std::string& name) {
     return values;
 }
 
-constexpr unsigned OP_MEDIA_INFO = 5, OP_DISK_INFO = 16, STATE_FIELD = 5, VERIFYING = 4, CHUNK_SECTORS = 128;
+constexpr unsigned OP_MEDIA_INFO = 5, OP_DISK_INFO = 16, OP_DATA_CONTROL = 24, DATA_COMMIT = 2, STATE_FIELD = 5,
+                   VERIFYING = 4, CHUNK_SECTORS = 128;
 
 }  // namespace
 
@@ -141,7 +145,9 @@ int main(int argc, char** argv) {
     dut.disk_verify_done = 0; dut.disk_verify_match = 0; dut.disk_fenced = 0; dut.disk_busy = 0;
     dut.disk_written = 0; dut.disk_clearing = 0; dut.disk_dirty_word = 0;
     dut.cmos_write = 0; dut.cmos_byte_index = 0; dut.cmos_byte = 0; dut.cmos_load = 0; dut.cmos_load_pair = 0;
+    dut.cmos_clock_pair = 0;
     dut.eval();
+    uint8_t clock_registers[14] = {};
 
     // The machine's side of the disk.
     std::vector<uint16_t> dirty(128, 0);
@@ -160,6 +166,8 @@ int main(int argc, char** argv) {
         dut.disk_clearing = clearing != 0;
         dut.disk_dirty_word = dirty[dut.disk_dirty_index];
         dut.disk_verify_done = verify_due;
+        dut.cmos_clock_pair = dut.cmos_clock_index < 7 ? uint16_t(clock_registers[2 * dut.cmos_clock_index] |
+                                                                  clock_registers[2 * dut.cmos_clock_index + 1] << 8) : 0;
         dut.disk_verify_match = verify_due && dut.disk_sectors * 512ull <= window.size() &&
                                 crc32(window, dut.disk_sectors * 512ull) == dut.disk_crc;
         verify_due = false;
@@ -183,7 +191,9 @@ int main(int argc, char** argv) {
         const Exchange& x = exchanges[n];
         for (; next_event < events.size() && events[next_event].before == n; ++next_event) {
             const Event& e = events[next_event];
-            if (e.kind == "cmos-write") {
+            if (e.kind == "cmos-write" && e.byte < 14) {
+                clock_registers[e.byte] = uint8_t(e.value);
+            } else if (e.kind == "cmos-write") {
                 dut.cmos_write = 1; dut.cmos_byte_index = e.byte; dut.cmos_byte = e.value;
                 tick();
             } else if (e.kind == "sector-write") {
@@ -212,6 +222,17 @@ int main(int argc, char** argv) {
             message << x.name << ": gpi 0x" << std::hex << dut.gpi << " want 0x" << x.gpi;
             fail(message.str());
         }
+        // A committed restore gives the clock the record's 00h-0Dh.
+        if (x.opcode == OP_DATA_CONTROL && x.argument == DATA_COMMIT && !x.error) {
+            for (unsigned pair = 0; pair < 7; ++pair) {
+                dut.cmos_load = 1;
+                dut.cmos_load_pair = pair;
+                tick();
+                clock_registers[2 * pair] = uint8_t(dut.cmos_load_word);
+                clock_registers[2 * pair + 1] = uint8_t(dut.cmos_load_word >> 8);
+            }
+            dut.cmos_load = 0;
+        }
         // The CRC pass ends after the runtime has seen it verifying often enough.
         if (x.opcode == OP_DISK_INFO && x.index == STATE_FIELD && !x.error && x.data == VERIFYING &&
             ++verifying_reads == verify_reads) {
@@ -238,7 +259,11 @@ int main(int argc, char** argv) {
         unsigned got = (dut.machine_settings[w / 2] >> (16 * (w % 2))) & 0xffff;
         require(got == words[w], "setting word " + std::to_string(w));
     }
-    for (unsigned pair = 0; pair < 64; ++pair) {
+    // Words 8..14 are the machine's clock registers; the rest the endpoint's RAM.
+    for (unsigned pair = 0; pair < 7; ++pair)
+        require((clock_registers[2 * pair] | clock_registers[2 * pair + 1] << 8) == int(words[8 + pair]),
+                "clock word " + std::to_string(8 + pair));
+    for (unsigned pair = 7; pair < 64; ++pair) {
         dut.cmos_load = 1;
         dut.cmos_load_pair = pair;
         tick();
