@@ -152,6 +152,30 @@ now passes three software reboots with this QSPI bootstrap, plus Linux ZX81
 loading and native BASIC in two epochs. Its backup and working bootstrap are
 retained independently of the task checkout.
 
+## FPGA kernel modules
+
+The image builder selects the four unchanged vendor FPGA modules for kernel
+`6.12.11-gd7d192a9ddd9`. The [module lock](../image/de25-nano/kernel-modules.lock.json)
+binds their byte hashes to the selected vendor kernel Image. Preparation
+validates the BSP archive and decompressed image, reads the modules from a
+private regular partition file with debugfs, then checks AArch64 ELF identity,
+vermagic and the complete dependency closure. No card is mounted or written.
+
+The rootfs contains that closed module tree, generated `modules.dep`,
+`/etc/fes-kernel-release` and `/usr/share/fes/kernel-modules.json`.
+`S15fpga` refuses a different running kernel before invoking modprobe, loads
+the manager/region dependency graph and reports ready only when both kernel
+interfaces exist. It does not configure an FPGA or unload drivers on shutdown;
+physical configuration and lifecycle remain the runtime's responsibility.
+Rootfs verification checks the module bytes, metadata, dependency file and
+executable boot service in both tar and ext4 outputs. The native runtime's
+AArch64 production-admission gate is unchanged.
+
+The module packaging and boot service have off-board checks, including real
+ELF files matching the factory board's hashes and isolated execution of the
+actual service. A newly built image still needs its own boot/autoload check;
+these checks do not promote the earlier manually loaded diagnostic image.
+
 ## Image artifacts
 
 The image output contains:

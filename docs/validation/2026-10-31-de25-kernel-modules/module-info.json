@@ -1,0 +1,22 @@
+{
+  "kernel/drivers/fpga/stratix10-soc.ko": {
+    "depends": "",
+    "name": "stratix10_soc",
+    "vermagic": "6.12.11-gd7d192a9ddd9 SMP preempt mod_unload aarch64"
+  },
+  "kernel/drivers/fpga/fpga-bridge.ko": {
+    "depends": "",
+    "name": "fpga_bridge",
+    "vermagic": "6.12.11-gd7d192a9ddd9 SMP preempt mod_unload aarch64"
+  },
+  "kernel/drivers/fpga/fpga-region.ko": {
+    "depends": "fpga-bridge",
+    "name": "fpga_region",
+    "vermagic": "6.12.11-gd7d192a9ddd9 SMP preempt mod_unload aarch64"
+  },
+  "kernel/drivers/fpga/of-fpga-region.ko": {
+    "depends": "fpga-region,fpga-bridge",
+    "name": "of_fpga_region",
+    "vermagic": "6.12.11-gd7d192a9ddd9 SMP preempt mod_unload aarch64"
+  }
+}
