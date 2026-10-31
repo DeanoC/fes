@@ -7,8 +7,10 @@ closer analog to real expansion and cartridge buses that many system had.
 DE25-Nano bring-up includes a [headless AArch64 image](docs/de25-linux.md),
 [Quartus Pro clock/LED and HPS mailbox diagnostics](sources/misteross/boards/de25nano/README.md),
 and [off-board runtime software checks](docs/de25-linux.md#aarch64-runtime-and-agent-checks-without-a-board).
-These lanes build, simulate and retain diagnostic artifacts; DE25 physical
-boot, FPGA programming, display and playable-core acceptance remain open.
+[Physical HPS-first bring-up](docs/validation/2026-10-31-de25-hps-first-hardware/README.md)
+boots FES Linux, loads ZX81 through Linux and runs BASIC through native CPU
+control with captured HDMI. Managed runtime, MENU and normal catalog/core
+launch acceptance remain open.
 The default appliance and playable packages target DE10-Nano.
 
 Agents: read [AGENTS.md](AGENTS.md), then the

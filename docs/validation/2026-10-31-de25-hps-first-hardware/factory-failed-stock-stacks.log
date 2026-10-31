@@ -1,0 +1,104 @@
+PID   PPID  STAT COMMAND          COMMAND
+    1     0 S    init             init
+    2     0 SW   kthreadd         [kthreadd]
+    3     2 SW   pool_workqueue_  [pool_workqueue_]
+    4     2 IW<  kworker/R-rcu_g  [kworker/R-rcu_g]
+    5     2 IW<  kworker/R-sync_  [kworker/R-sync_]
+    6     2 IW<  kworker/R-slub_  [kworker/R-slub_]
+    7     2 IW<  kworker/R-netns  [kworker/R-netns]
+    9     2 IW   kworker/0:1-eve  [kworker/0:1-eve]
+   10     2 IW<  kworker/0:0H-mm  [kworker/0:0H-mm]
+   11     2 IW   kworker/u16:0-e  [kworker/u16:0-e]
+   12     2 IW<  kworker/R-mm_pe  [kworker/R-mm_pe]
+   13     2 IW   rcu_tasks_kthre  [rcu_tasks_kthre]
+   14     2 IW   rcu_tasks_trace  [rcu_tasks_trace]
+   15     2 SW   ksoftirqd/0      [ksoftirqd/0]
+   16     2 IW   rcu_preempt      [rcu_preempt]
+   17     2 SW   rcu_exp_par_gp_  [rcu_exp_par_gp_]
+   18     2 SW   rcu_exp_gp_kthr  [rcu_exp_gp_kthr]
+   19     2 SW   migration/0      [migration/0]
+   20     2 SW   cpuhp/0          [cpuhp/0]
+   21     2 SW   cpuhp/1          [cpuhp/1]
+   22     2 SW   migration/1      [migration/1]
+   23     2 SW   ksoftirqd/1      [ksoftirqd/1]
+   24     2 IW   kworker/1:0-eve  [kworker/1:0-eve]
+   25     2 IW<  kworker/1:0H-ev  [kworker/1:0H-ev]
+   26     2 SW   cpuhp/2          [cpuhp/2]
+   27     2 SW   migration/2      [migration/2]
+   28     2 SW   ksoftirqd/2      [ksoftirqd/2]
+   30     2 IW<  kworker/2:0H-ev  [kworker/2:0H-ev]
+   31     2 SW   cpuhp/3          [cpuhp/3]
+   32     2 SW   migration/3      [migration/3]
+   33     2 SW   ksoftirqd/3      [ksoftirqd/3]
+   34     2 IW   kworker/3:0-eve  [kworker/3:0-eve]
+   35     2 IW<  kworker/3:0H-ev  [kworker/3:0H-ev]
+   36     2 SW   kdevtmpfs        [kdevtmpfs]
+   37     2 IW<  kworker/R-inet_  [kworker/R-inet_]
+   38     2 IW   kworker/u16:1-e  [kworker/u16:1-e]
+   39     2 SW   kauditd          [kauditd]
+   40     2 SW   oom_reaper       [oom_reaper]
+   41     2 IW<  kworker/R-write  [kworker/R-write]
+   42     2 SW   kcompactd0       [kcompactd0]
+   43     2 SWN  ksmd             [ksmd]
+   44     2 SWN  khugepaged       [khugepaged]
+   45     2 IW<  kworker/R-kinte  [kworker/R-kinte]
+   46     2 IW<  kworker/R-kbloc  [kworker/R-kbloc]
+   47     2 IW<  kworker/R-blkcg  [kworker/R-blkcg]
+   48     2 IW<  kworker/R-tpm_d  [kworker/R-tpm_d]
+   49     2 IW<  kworker/R-ata_s  [kworker/R-ata_s]
+   50     2 IW<  kworker/R-edac-  [kworker/R-edac-]
+   51     2 IW<  kworker/R-devfr  [kworker/R-devfr]
+   52     2 SW   watchdogd        [watchdogd]
+   53     2 IW   kworker/3:1-mm_  [kworker/3:1-mm_]
+   54     2 IW<  kworker/1:1H     [kworker/1:1H]
+   55     2 IW<  kworker/R-rpcio  [kworker/R-rpcio]
+   56     2 IW<  kworker/R-xprti  [kworker/R-xprti]
+   57     2 SW   kswapd0          [kswapd0]
+   58     2 IW<  kworker/R-nfsio  [kworker/R-nfsio]
+   59     2 IW   kworker/0:2-eve  [kworker/0:2-eve]
+   61     2 IW<  kworker/2:1H-kb  [kworker/2:1H-kb]
+   62     2 IW   kworker/2:1-mm_  [kworker/2:1-mm_]
+   63     2 IW   kworker/1:1-mm_  [kworker/1:1-mm_]
+   64     2 SW   irq/19-arm-smmu  [irq/19-arm-smmu]
+   65     2 IW<  kworker/R-stmma  [kworker/R-stmma]
+   67     2 IW<  kworker/u17:0    [kworker/u17:0]
+   68     2 IW<  kworker/R-sdhci  [kworker/R-sdhci]
+   69     2 SW   irq/45-mmc0      [irq/45-mmc0]
+   70     2 IW   kworker/u16:2-e  [kworker/u16:2-e]
+   75     2 IW<  kworker/R-mmc_c  [kworker/R-mmc_c]
+   76     2 IW<  kworker/0:1H-kb  [kworker/0:1H-kb]
+   77     2 IW   kworker/2:2      [kworker/2:2]
+   78     2 SW   jbd2/mmcblk0p2-  [jbd2/mmcblk0p2-]
+   79     2 IW<  kworker/R-ext4-  [kworker/R-ext4-]
+   95     1 S    syslogd          /sbin/syslogd -n
+   99     1 S    klogd            /sbin/klogd -n
+  111     1 S    mdev             /sbin/mdev -df
+  130     2 IW<  kworker/3:1H-kb  [kworker/3:1H-kb]
+  154     1 S    udhcpc           udhcpc -R -n -O search -p /var/run/udhcpc.eth0.pid -i eth0 -b
+  161     1 S    dropbear         /usr/sbin/dropbear -R
+  182     1 S    getty            /sbin/getty -L ttyS0 115200 vt100
+  294     1 D    sh               sh -c test "$(cat /sys/class/net/eth0/address)" = [private-mac] && test "$(cat /proc/sys/kernel/random/boot_id)" = e29bcc8c-f48a-43b9-9742-2fcd6f57b9aa || exit 93 set -eu; test -z "$(cat /sys/module/firmware_class/parameters/path)"; test ! -d /sys/kernel/config/device-tree; mount -t configfs none /sys/kernel/config; echo /tmp/fes-c134-platform-XXbuBRNI > /sys/module/firmware_class/parameters/path; mkdir /sys/kernel/config/device-tree/overlays/fes-c134-platform; cat /tmp/fes-c134-platform-XXbuBRNI/zx81-linux.dtbo > /sys/kernel/config/device-tree/overlays/fes-c134-platform/dtbo; cat /sys/kernel/config/device-tree/overlays/fes-c134-platform/status; cat /sys/class/fpga_manager/fpga0/state; cat /proc/sys/kernel/random/boot_id; dmesg | tail -25
+  301     2 RW   svc_smc_hvc_thr  [svc_smc_hvc_thr]
+  310   161 R    dropbear         /usr/sbin/dropbear -R
+  311   310 S    sh               sh -c test "$(cat /sys/class/net/eth0/address)" = [private-mac] && test "$(cat /proc/sys/kernel/random/boot_id)" = e29bcc8c-f48a-43b9-9742-2fcd6f57b9aa || exit 93 set -eu; ps -o pid,ppid,stat,comm,args; for p in /proc/[0-9]*; do c=$(cat "$p/comm" 2>/dev/null) || continue; case "$c" in sh|svc_smc_hvc_thr) w=$(cat "$p/wchan"); case "$w" in kthread_stop|0) echo "$p $c $w"; cat "$p/stack";; esac;; esac; done
+  314   311 R    ps               ps -o pid,ppid,stat,comm,args
+/proc/294 sh kthread_stop
+[<0>] kthread_stop+0x78/0x198
+[<0>] stratix10_svc_done+0x2c/0x40
+[<0>] s10_ops_write+0xe0/0x1f8 [stratix10_soc]
+[<0>] fpga_mgr_buf_load_mapped+0x13c/0x1f8
+[<0>] fpga_mgr_load+0xb8/0x190
+[<0>] fpga_region_program_fpga+0xc8/0x1b0 [fpga_region]
+[<0>] of_fpga_region_notify+0x294/0x3e8 [of_fpga_region]
+[<0>] blocking_notifier_call_chain+0x6c/0xa0
+[<0>] overlay_notify+0x74/0xfc
+[<0>] of_overlay_fdt_apply+0x450/0x918
+[<0>] cfs_overlay_item_dtbo_write+0x60/0xd4
+[<0>] configfs_release_bin_file+0x9c/0xac
+[<0>] __fput+0xcc/0x2d4
+[<0>] ____fput+0x14/0x20
+[<0>] task_work_run+0x6c/0xc8
+[<0>] do_notify_resume+0x124/0x140
+[<0>] el0_svc+0xbc/0xd0
+[<0>] el0t_64_sync_handler+0x13c/0x158
+[<0>] el0t_64_sync+0x190/0x194
