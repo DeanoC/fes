@@ -150,7 +150,7 @@ def publish(output, artifact, archive, tool, record, expected_tools, version):
             (output / f"pfg-info-{label}.log").write_bytes(result.stdout)
             if result.returncode:
                 raise ValueError("cannot inspect HPS-first artifact")
-            hashes.append(parse_pfg_info(result.stdout.decode(errors="strict")))
+            hashes.append(parse_pfg_info(result.stdout))
         assembly = parse_assembler_hash((output / "project/output_files/golden_top.asm.rpt").read_text())
         if hashes[0] != hashes[1] or hashes[0] != assembly:
             raise ValueError("HPS-first split and assembler HPS IO hashes differ")
@@ -198,7 +198,10 @@ def publish(output, artifact, archive, tool, record, expected_tools, version):
     return result
 
 
-def parse_pfg_info(text):
+def parse_pfg_info(data):
+    # PFG emits a single-byte degree symbol even under LC_ALL=C. Decode
+    # losslessly while continuing to match the ASCII identity fields exactly.
+    text = data.decode("latin-1")
     hashes = re.findall(r"(?m)^HPS IO hash:\s*([0-9A-Fa-f]{64})\s*$", text)
     devices = re.findall(r"(?m)^Device name:\s*(\S+)\s*$", text)
     if len(hashes) != 1 or devices != [DEVICE]:

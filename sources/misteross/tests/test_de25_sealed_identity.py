@@ -44,11 +44,11 @@ class SealedIdentityTests(unittest.TestCase):
         value = "AB" * 32
         info = f"Device name: {seal.DEVICE}\nHPS IO hash: {value}\n"
         report = f"; HPS IO hash ; {value} ;\n"
-        self.assertEqual(seal.parse_pfg_info(info), value.lower())
+        self.assertEqual(seal.parse_pfg_info(info.encode() + b"Temperature threshold: 120\xb0C\n"), value.lower())
         self.assertEqual(seal.parse_assembler_hash(report), value.lower())
         for bad in ("", info + "HPS IO hash: " + value + "\n", info.replace(seal.DEVICE, "other"), info.replace(value, "x" * 64)):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
-                seal.parse_pfg_info(bad)
+                seal.parse_pfg_info(bad.encode())
         for bad in ("", report + report, report.replace(value, "x" * 64)):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 seal.parse_assembler_hash(bad)

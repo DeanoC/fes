@@ -114,7 +114,7 @@ def inputs_for(project):
             core = board / "hps/hps-first.core.rbf"
             keys = {"format", "classification", "package_id", "build_id", "build_inputs_sha256", "hps_io_hash",
                     "pfg_identity", "quartus_version", "phase1_sha256", "phase1_size", "core_sha256", "core_size", "vendor_spl_sha256"}
-            hashes = [seal.parse_pfg_info((board / f"hps/pfg-info-{name}.log").read_text()) for name in ("hps", "core")]
+            hashes = [seal.parse_pfg_info((board / f"hps/pfg-info-{name}.log").read_bytes()) for name in ("hps", "core")]
             hashes.append(seal.parse_assembler_hash((board / "hps/project/output_files/golden_top.asm.rpt").read_text()))
             if (set(pair) != keys or raw != (json.dumps(pair, sort_keys=True, separators=(",", ":")) + "\n").encode() or
                     pair["format"] != 1 or pair["classification"] != "unqualified-hps-first-diagnostic" or
