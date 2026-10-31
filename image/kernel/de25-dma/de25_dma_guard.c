@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0
 /* Ordered accesses through the compiled system-clock timeout proxy. */
 #include <linux/errno.h>
+#include <linux/build_bug.h>
 #include <linux/kernel.h>
 
 #include "de25_dma_guard.h"
 #include "generated/fes_de25_scanout.h"
+
+static_assert(FES_DE25_SCANOUT_SPAN == FES_DE25_SCANOUT_GUARD_ID_OFFSET);
+static_assert(FES_DE25_SCANOUT_GUARD_TIMEOUT_OFFSET + sizeof(u32) <= FES_DE25_SCANOUT_CONTROL_SPAN);
 
 static u32 guard_read(struct fes_de25_dma_guard *guard, u32 offset)
 {
