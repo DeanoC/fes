@@ -235,9 +235,19 @@ type warmingLocalCores struct {
 	*fakeLocalCores
 	warm      atomic.Bool
 	warmLists atomic.Int32
+	// hiccups is how many lists fail with a transient error, alternating a
+	// client timeout and a dropped socket, before the warm check runs.
+	hiccups atomic.Int32
 }
 
 func (w *warmingLocalCores) List(ctx context.Context) ([]localcores.Core, error) {
+	if n := w.hiccups.Add(-1); n >= 0 {
+		if n%2 == 0 {
+			return nil, context.DeadlineExceeded
+		}
+		return nil, localcores.ErrUnavailable
+	}
+	w.hiccups.Store(0)
 	if !w.warm.Load() {
 		w.warmLists.Add(1)
 		return nil, localcores.ErrWarming
@@ -315,6 +325,32 @@ func TestHomeConfirmOnRememberedCoreStartsOnceListed(t *testing.T) {
 	waitFor(t, app, "queued launch", func(s Snapshot) bool {
 		return s.LocalCorePhase == localPhaseLaunching && fake.warmLists.Load() >= 2
 	})
+	fake.setStatus(localcores.RunStatus{Generation: strings.Repeat("a", 64), Phase: "running", Running: true, PackageID: zx81.PackageID})
+	fake.warm.Store(true)
+	waitFor(t, app, "running", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
+	fake.mu.Lock()
+	launched := append([]string(nil), fake.launches...)
+	fake.mu.Unlock()
+	if len(launched) != 1 || launched[0] != zx81.PackageID {
+		t.Fatalf("launches %v", launched)
+	}
+}
+
+func TestHomeQueuedLaunchSurvivesListHiccups(t *testing.T) {
+	dir := t.TempDir()
+	zx81 := rememberedZX81(t, dir)
+	fake := &warmingLocalCores{fakeLocalCores: &fakeLocalCores{cores: homeFixtureCores()}}
+	app := startHomeLoungeIn(t, dir, fake, 1280, 720)
+	waitFor(t, app, "pending card", func(s Snapshot) bool { return s.Room.Destination.CorePending })
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "queued launch", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseLaunching && fake.warmLists.Load() >= 1
+	})
+	fake.hiccups.Store(4)
+	waitFor(t, app, "hiccups seen", func(s Snapshot) bool { return fake.hiccups.Load() <= 0 })
+	if s := app.Snapshot(); s.LocalCorePhase != localPhaseLaunching {
+		t.Fatalf("a list hiccup ended the queue: phase %q status %q", s.LocalCorePhase, s.LocalCoreStatus)
+	}
 	fake.setStatus(localcores.RunStatus{Generation: strings.Repeat("a", 64), Phase: "running", Running: true, PackageID: zx81.PackageID})
 	fake.warm.Store(true)
 	waitFor(t, app, "running", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
