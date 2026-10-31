@@ -425,7 +425,9 @@ inside the 8042 ahead of its PS/2 keyboard):
   none of these.
 - Typematic: F3's byte sets the delay ((D + 1) × 250 ms) and the rate
   ((8 + A) × 2^B / 240 s, exact on average); FF, F5 and F6 restore 2Bh and stop
-  the repeat, as they clear a keyboard's typematic key. The delay counts from
+  the repeat, as they clear a keyboard's typematic key. As in Bochs's keyboard,
+  F5 and F6 also empty the keyboard's output buffer, and F6 enables scanning
+  where F5 disables it. The delay counts from
   the end of the press's make. Modifiers neither repeat nor stop another key's
   repeat (a PS/2 keyboard repeats a held Shift itself; nothing reads it). A
   repeat that falls due while the keyboard's FIFO is full is sent once, not
@@ -456,7 +458,14 @@ The aux device accumulates them and reports standard 3-byte PS/2 packets.
   is screen-down.
 - **As built:** the aux device takes the mailbox's packet on the clock it is
   offered once the machine is out of reset (`mouse_ready`), so the runtime's
-  acknowledge never reports a packet the device did not take. The runtime
+  acknowledge never reports a packet the device did not take. A button change
+  that arrives while streaming, before the previous change has been reported,
+  sends that pending packet at once, outside the sample interval (a recorded
+  deviation), so the guest sees every click. `mouse_ready` is low only while
+  that packet cannot be queued, which lasts the few milliseconds the guest
+  takes to read. The runtime treats an acknowledge that stalls past 100 ms as
+  a fault, so the device never waits on a guest that is not reporting: with
+  reporting off, or in remote mode, button changes merge as a mouse's do. The runtime
   splits large moves into packets of −128 to 127 per axis; the device's
   accumulator is wider than a packet, so a negated −128 arrives as +128.
 - **Limitation of the locked BIOS** ([#1330](https://github.com/DeanoC/fes/issues/1330)):

@@ -39,7 +39,8 @@ module pc386_kbc #(
 );
     wire us_tick;
     pc386_rate #(.N(US_N), .D(US_D)) us_rate (.clk(clk), .reset(reset), .tick(us_tick));
-    assign mouse_ready = !reset;
+    wire move_ready;
+    assign mouse_ready = !reset && move_ready;
 
     // Controller state
     reg [7:0] ram [0:31];
@@ -84,8 +85,8 @@ module pc386_kbc #(
         .clk(clk), .reset(reset), .us_tick(us_tick),
         .rx_valid(aux_rx), .rx_byte(device_byte),
         .tx_valid(aux_valid), .tx_byte(aux_byte), .tx_take(aux_take),
-        .move_valid(mouse_valid && mouse_ready), .move_dx(mouse_dx), .move_dy(mouse_dy),
-        .move_buttons(mouse_buttons)
+        .move_valid(mouse_valid), .move_dx(mouse_dx), .move_dy(mouse_dy), .move_buttons(mouse_buttons),
+        .move_ready(move_ready)
     );
 
     function automatic [7:0] translate(input [7:0] code);
@@ -283,7 +284,9 @@ endmodule
 // asking for 1 or 3 is acknowledged and ignored. ED is acknowledged; the
 // host's LEDs are not driven. F3's byte is the host keyboard model's
 // typematic delay and rate; FF, F5 and F6 restore the default 2Bh (500 ms,
-// 10.9 per second) and stop the repeat. Unknown commands get FEh.
+// 10.9 per second), stop the repeat and empty the output buffer, and F5
+// disables scanning where F6 and FF enable it, as Bochs's keyboard does.
+// Unknown commands get FEh.
 module pc386_ps2_keyboard #(
     parameter integer BAT_US = 5000
 ) (
@@ -352,9 +355,9 @@ module pc386_ps2_keyboard #(
                         bat <= 16'(BAT_US);
                     end
                     8'hfe: respond(2'd1, last_sent, 8'h00, 8'h00);
-                    8'hf6: begin typematic <= 7'h2b; typematic_clear <= 1; respond(2'd1, 8'hfa, 8'h00, 8'h00); end
-                    8'hf5: begin
-                        scanning <= 0;
+                    8'hf6, 8'hf5: begin
+                        clear <= 1;
+                        scanning <= rx_byte == 8'hf6;
                         typematic <= 7'h2b; typematic_clear <= 1;
                         respond(2'd1, 8'hfa, 8'h00, 8'h00);
                     end
@@ -376,6 +379,12 @@ endmodule
 // into the next packet beyond +-255 and below one count, so the guest receives
 // exactly the host's sum; the overflow bits stay zero. 2:1 scaling applies the
 // PS/2 table to stream packets. Wrap mode echoes every byte but ECh and FFh.
+// A host packet is taken on a clock move_valid and move_ready are both high.
+// A button change that arrives while streaming, before the last one has been
+// reported, sends that pending packet at once, outside the sample interval,
+// so the guest sees every click; move_ready is low only while that packet
+// cannot be queued, a few milliseconds while the guest reads. With reporting
+// off, or in remote mode, button changes merge, as a mouse's do.
 module pc386_ps2_mouse #(
     parameter integer DY_DOWN = 1
 ) (
@@ -387,7 +396,8 @@ module pc386_ps2_mouse #(
     input wire tx_take,
     input wire move_valid,
     input wire signed [7:0] move_dx, move_dy,
-    input wire [1:0] move_buttons
+    input wire [1:0] move_buttons,
+    output wire move_ready
 );
     reg enabled, remote, wrap, scaling;
     reg [1:0] resolution;
@@ -444,6 +454,13 @@ module pc386_ps2_mouse #(
         enabled <= 0; remote <= 0; scaling <= 0; resolution <= 2; sample_rate <= 100;
     endtask
     wire [7:0] packet_head = {2'b00, sent_y[9], sent_x[9], 1'b1, 1'b0, buttons[1], buttons[0]};
+    wire streaming = enabled && !remote && !wrap;
+    wire flush_needed = move_valid && move_buttons != buttons && buttons_changed && streaming;
+    assign move_ready = !flush_needed || (pushing == 0 && !rx_valid && space >= 7);
+    wire accept = move_valid && move_ready;
+    wire flush = accept && flush_needed;
+    wire signed [19:0] add_x = 20'(move_dx) <<< resolution;
+    wire signed [19:0] add_y = DY_DOWN != 0 ? -(20'(move_dy) <<< resolution) : (20'(move_dy) <<< resolution);
 
     always @(posedge clk) begin
         clear <= 0;
@@ -454,17 +471,22 @@ module pc386_ps2_mouse #(
             if (pushing != 0) pushing <= pushing - 1'b1;
             if (tx_take) last_sent <= tx_byte;
             if (us_tick && sample_timer != 0) sample_timer <= sample_timer - 1'b1;
-            if (move_valid) begin
-                x <= x + (20'(move_dx) <<< resolution);
-                y <= y + (DY_DOWN != 0 ? -(20'(move_dy) <<< resolution) : (20'(move_dy) <<< resolution));
+            if (accept) begin
+                // A flush reports the pending change with the movement so far.
+                x <= x + add_x - (flush ? 20'(report_x) <<< 2 : 20'sd0);
+                y <= y + add_y - (flush ? 20'(report_y) <<< 2 : 20'sd0);
+                if (flush) begin
+                    respond(3'd3, packet_head, sent_x[7:0], sent_y[7:0], 8'h00);
+                    sample_timer <= sample_us;
+                end
                 if (move_buttons != buttons) buttons_changed <= 1;
                 buttons <= move_buttons;
             end
             // Stream packets at the sample rate; EB (read_data) reports once.
             // A stream packet uses three slots; keep four for the largest
             // command reply (E9) that may arrive before the guest reads it.
-            if (pushing == 0 && !rx_valid && !move_valid && space >= 7 &&
-                (read_data || (enabled && !remote && !wrap && sample_timer == 0 && moved))) begin
+            if (pushing == 0 && !rx_valid && !accept && space >= 7 &&
+                (read_data || (streaming && sample_timer == 0 && moved))) begin
                 respond(3'd3, packet_head, sent_x[7:0], sent_y[7:0], 8'h00);
                 x <= x - (20'(report_x) <<< 2);
                 y <= y - (20'(report_y) <<< 2);

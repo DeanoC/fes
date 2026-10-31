@@ -482,6 +482,25 @@ void kbc(Bench &b) {
     std::string led_detail;
     bool leds = typematic_ok(repeat_times(4), 500, 1000.0 / 240 * 22, led_detail);
     check("an ED LED byte does not change the typematic setting", leds, led_detail);
+
+    // F5 stops scanning and F6 starts it again, as Bochs's keyboard has them.
+    auto first = [](const std::vector<uint8_t> &bytes) { return bytes.empty() ? 0 : int(bytes[0]); };
+    b.out(0x60, 0xf5);
+    int f5_reply = first(b.drain());
+    b.key(0x05, true);
+    std::vector<uint8_t> unscanned = b.drain();
+    b.key(0x05, false);
+    unscanned = b.drain();
+    b.out(0x60, 0xf6);
+    int f6_reply = first(b.drain());
+    b.key(0x05, true);
+    std::vector<uint8_t> rescanned = b.drain();
+    b.key(0x05, false);
+    std::vector<uint8_t> rereleased = b.drain();
+    check("keyboard F5 stops scanning and F6 starts it again",
+          f5_reply == 0xfa && unscanned.empty() && f6_reply == 0xfa && rescanned == std::vector<uint8_t>{0x30} &&
+              rereleased == std::vector<uint8_t>{0xb0},
+          hex(f5_reply) + " " + hex(f6_reply) + " " + hex_bytes(rescanned) + " / " + hex_bytes(rereleased));
     b.out(0x60, 0xf2);
     uint8_t id[3] = {};
     for (auto &byte : id) {
@@ -648,6 +667,49 @@ void kbc(Bench &b) {
     // Detected within one 20,000-clock poll window of the packet.
     check("sample rate 10: stream packets 100 ms apart", gap >= 9980000 && gap < 10040000, std::to_string(gap));
     mouse_command(0xf3); mouse_command(100);
+
+    // A click while the guest is not reading. With the 8042's aux interface
+    // off, four moves fill the device's FIFO (12 bytes, leaving the four a
+    // command reply needs) and a fifth waits in the sums. A button-down is
+    // taken; the button-up after it waits (mouse_ready low) until the
+    // pending down can be queued, and the guest sees both edges and every
+    // count. The mouse is
+    // reset first: the sample-rate check leaves movement to report.
+    mouse_command(0xff);
+    while (b.output_within(3000000)) b.in(0x60);  // AA 00
+    mouse_command(0xf4);
+    while (b.output_within(3000000)) b.in(0x60);
+    b.run(11000000);  // the 10 per second check's sample interval runs out
+    struct Offer { bool pending = false; int dx = 0, buttons = 0; } offer;
+    b.each_clock = [&] {
+        b.top.mouse_valid = offer.pending;
+        if (!offer.pending) return;
+        b.top.mouse_dx = int8_t(offer.dx); b.top.mouse_dy = 0; b.top.mouse_buttons = uint8_t(offer.buttons);
+        b.top.eval();
+        if (b.top.mouse_ready) offer.pending = false;  // taken on this clock's edge
+    };
+    auto send = [&](int dx, int buttons) { offer = {true, dx, buttons}; };
+    b.out(0x64, 0xa7);
+    for (int n = 0; n < 5; ++n) { send(1, 0); b.run(1200000); }  // a packet per 10 ms sample
+    send(0, 1);
+    b.run(100000);
+    bool down_taken = !offer.pending;
+    send(0, 0);
+    b.run(300000);
+    bool up_held = offer.pending;
+    b.out(0x64, 0xa8);
+    std::vector<uint8_t> clicked;
+    while (b.output_within(3000000)) clicked.push_back(b.in(0x60));
+    bool up_taken = !offer.pending;
+    b.each_clock = nullptr;
+    b.top.mouse_valid = 0;
+    std::vector<uint8_t> want;
+    for (int n = 0; n < 4; ++n) for (uint8_t byte : {0x08, 0x01, 0x00}) want.push_back(byte);
+    for (uint8_t byte : {0x09, 0x01, 0x00, 0x08, 0x00, 0x00}) want.push_back(byte);
+    check("a click while the aux FIFO is full: the up waits for room, and the guest sees both edges",
+          down_taken && up_held && up_taken && clicked == want,
+          std::to_string(down_taken) + std::to_string(up_held) + std::to_string(up_taken) + " " + hex_bytes(clicked));
+
     b.out(0x64, 0xa7);
     b.run(200000);
     while (b.in(0x64) & 1) b.in(0x60);
