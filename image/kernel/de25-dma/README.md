@@ -80,8 +80,22 @@ callback clears the kernel's empty generic `vma_dummy_vm_ops` sentinel before
 invoking the DMA API; real mapper-installed operations still cause refusal.
 
 The private backend supplies a nonzero external reset epoch and bounded,
-ordered `read32`, `write32` and `io_fence` operations. No physical MMIO backend
-is implemented or admitted. A callback error after SUBMIT may already have
+ordered `read32`, `write32` and `io_fence` operations. The private
+`de25_dma_guard` transport implements `readl`/`writel` with explicit barriers and
+checks local guard identity, version, timeout, epoch, idle status and sticky
+faults before and after each endpoint access. A timed-out proxy's dummy zero is
+an error, never endpoint evidence. A faulted context stays poisoned even if
+registers later appear healthy. Endpoint operations cannot address the guard's
+epoch/configuration window. Claiming a fresh guard writes its nonzero epoch
+once and verifies it; it never overwrites or adopts an existing owner's epoch.
+
+This transport is not yet wired to an admitted physical provider. Its caller
+must supply a mapped, live system-clock guard window and retain the full
+resource/reconfiguration lease for all calls. It cannot make an unconfigured
+fabric or dead HPS/bridge/guard clock safe to probe. Epoch selection belongs to
+the kernel loader's fresh-configuration lifecycle; it cannot assert old DMA
+drained. No userspace or DT flag bypasses device/domain qualification.
+A callback error after SUBMIT may already have
 enabled DMA and retains exposure. Userspace cannot supply a drain proof.
 Callbacks are private to the same kernel module. The provider must implement
 real context/device/domain retention and prevent detach/reconfiguration for the
@@ -139,6 +153,15 @@ missing ownership callbacks, failed acquisition before all register effects,
 constructor-error unwinding and retention through uncertain drain. Successful
 drain alone cannot release the backend while its allocation still exists.
 The release observer verifies that storage destruction precedes lease release.
+
+Guard cases exercise the real `readl`/`writel` path on kernel test RAM and a
+scripted raw-register device for fault/reset interleavings. They cover missing
+identity/timeout metadata, foreign or ignored epoch writes, pre-existing busy
+state, post-access response faults, reset during reads and sticky software
+poisoning. A constructor case connects the guarded transport through the
+exclusive backend lease to the actual DMA allocator. These tests do not model
+ARM Device-memory ordering, physical HPS bridge liveness or FPGA transactions;
+the separate RTL/generated-interconnect tests cover their own proxy behavior.
 
 These are kernel software checks with a scripted register device. They do not
 emulate or qualify the DE25 fabric master, SMMU, firewall, DDR, clock crossing,

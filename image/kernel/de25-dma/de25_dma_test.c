@@ -11,6 +11,7 @@
 #include <linux/uaccess.h>
 
 #include "de25_dma_internal.h"
+#include "de25_dma_guard.h"
 
 #define TEST_ADDRESS 0x10000000UL
 
@@ -979,7 +980,287 @@ out:
 	mmput(mm);
 }
 
+struct guard_test_device {
+	struct fes_de25_dma_guard guard;
+	u32 regs[FES_DE25_SCANOUT_CONTROL_SPAN / 4];
+	u32 reads, writes, endpoint_reads, endpoint_writes;
+	bool ignore_epoch, timeout_read, response_error, reset_read;
+	u32 mutate_guard_offset;
+	struct test_transport *endpoint;
+};
+
+static u32 guard_test_read(void *context, u32 offset)
+{
+	struct guard_test_device *device = context;
+	u32 value = device->regs[offset / 4];
+
+	device->reads++;
+	if (offset < FES_DE25_SCANOUT_SPAN) {
+		device->endpoint_reads++;
+		if (device->endpoint)
+			transport_read(device->endpoint, offset, &value);
+		if (device->timeout_read) {
+			device->regs[FES_DE25_SCANOUT_GUARD_FAULT_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_FAULT_TIMEOUT;
+			device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] |= FES_DE25_SCANOUT_GUARD_STATUS_POISONED;
+			value = 0;
+		}
+		if (device->reset_read) {
+			device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4] = 0;
+			device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] = 0;
+		}
+		if (device->mutate_guard_offset)
+			device->regs[device->mutate_guard_offset / 4] = 0;
+	}
+	return value;
+}
+
+static void guard_test_write(void *context, u32 offset, u32 value)
+{
+	struct guard_test_device *device = context;
+
+	device->writes++;
+	if (offset == FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET) {
+		if (!device->ignore_epoch) {
+			device->regs[offset / 4] = value;
+			device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_STATUS_EPOCH_SET;
+		}
+	} else {
+		device->endpoint_writes++;
+		device->regs[offset / 4] = value;
+		if (device->endpoint)
+			transport_write(device->endpoint, offset, value);
+		if (device->response_error) {
+			device->regs[FES_DE25_SCANOUT_GUARD_FAULT_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_FAULT_RESPONSE;
+			device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] |= FES_DE25_SCANOUT_GUARD_STATUS_POISONED;
+		}
+	}
+}
+
+static struct guard_test_device *guard_test_device(struct kunit *test, u32 epoch)
+{
+	struct guard_test_device *device = kunit_kzalloc(test, sizeof(*device), GFP_KERNEL);
+
+	if (!device)
+		return NULL;
+	device->regs[FES_DE25_SCANOUT_GUARD_ID_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_IDENTITY;
+	device->regs[FES_DE25_SCANOUT_GUARD_VERSION_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_VERSION;
+	device->regs[FES_DE25_SCANOUT_GUARD_TIMEOUT_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_TIMEOUT_CYCLES;
+	if (fes_de25_guard_init(&device->guard, (void __iomem *)device->regs, sizeof(device->regs)))
+		return NULL;
+	device->guard.test_read = guard_test_read;
+	device->guard.test_write = guard_test_write;
+	device->guard.test_context = device;
+	if (epoch && fes_de25_guard_claim(&device->guard, epoch))
+		return NULL;
+	return device;
+}
+
+static void guard_real_access_and_bounds(struct kunit *test)
+{
+	struct guard_test_device *device = guard_test_device(test, 7);
+	u32 value;
+
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	/* Exercise the real readl/writel path on kernel-owned test storage. This
+	 * is not a physical-device or AXI-completion model.
+	 */
+	device->guard.test_read = NULL;
+	device->guard.test_write = NULL;
+	device->regs[FES_DE25_SCANOUT_ID_OFFSET / 4] = FES_DE25_SCANOUT_IDENTITY;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, FES_DE25_SCANOUT_ID_OFFSET, &value), 0);
+	KUNIT_EXPECT_EQ(test, value, FES_DE25_SCANOUT_IDENTITY);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_write(&device->guard, FES_DE25_SCANOUT_GRANT_LO_OFFSET, 0x1000), 0);
+	KUNIT_EXPECT_EQ(test, device->regs[FES_DE25_SCANOUT_GRANT_LO_OFFSET / 4], 0x1000U);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, 1, &value), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_write(&device->guard, FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET, 8), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_fence(&device->guard), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_epoch(&device->guard), 7ULL);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_claim(&device->guard, 8), -EBUSY);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_init(&device->guard, (void __iomem *)device->regs,
+			sizeof(device->regs)), -EBUSY);
+}
+
+static void guard_claim_rejects_wrong_or_existing_identity(struct kunit *test)
+{
+	u32 offsets[] = { FES_DE25_SCANOUT_GUARD_ID_OFFSET, FES_DE25_SCANOUT_GUARD_VERSION_OFFSET,
+		FES_DE25_SCANOUT_GUARD_TIMEOUT_OFFSET };
+	struct guard_test_device *device;
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(offsets); i++) {
+		device = guard_test_device(test, 0);
+		KUNIT_ASSERT_NOT_NULL(test, device);
+		device->regs[offsets[i] / 4] = 0;
+		KUNIT_EXPECT_EQ(test, fes_de25_guard_claim(&device->guard, 9), -EPROTONOSUPPORT);
+		KUNIT_EXPECT_EQ(test, device->writes, 0U);
+		KUNIT_EXPECT_EQ(test, fes_de25_guard_epoch(&device->guard), 0ULL);
+	}
+	device = guard_test_device(test, 0);
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4] = 123;
+	device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_STATUS_EPOCH_SET;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_claim(&device->guard, 9), -ESTALE);
+	KUNIT_EXPECT_EQ(test, device->writes, 0U);
+	KUNIT_EXPECT_EQ(test, device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 123U);
+	device = guard_test_device(test, 0);
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->ignore_epoch = true;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_claim(&device->guard, 9), -ESTALE);
+	KUNIT_EXPECT_EQ(test, device->writes, 1U);
+	KUNIT_EXPECT_EQ(test, device->endpoint_writes, 0U);
+}
+
+static void guard_dummy_zero_timeout_is_not_success(struct kunit *test)
+{
+	struct guard_test_device *device = guard_test_device(test, 7);
+	u32 value = 0x12345678, reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->timeout_read = true;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, FES_DE25_SCANOUT_SNAPSHOT_STATUS_OFFSET, &value), -EIO);
+	KUNIT_EXPECT_EQ(test, value, 0U);
+	KUNIT_EXPECT_EQ(test, device->endpoint_reads, 1U);
+	reads = device->reads;
+	/* Apparent recovery cannot rearm the poisoned software context. */
+	device->timeout_read = false;
+	device->regs[FES_DE25_SCANOUT_GUARD_FAULT_OFFSET / 4] = 0;
+	device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_STATUS_EPOCH_SET;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, FES_DE25_SCANOUT_ID_OFFSET, &value), -EIO);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_write(&device->guard, FES_DE25_SCANOUT_COMMAND_OFFSET, 2), -EIO);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_fence(&device->guard), -EIO);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_epoch(&device->guard), 0ULL);
+	KUNIT_EXPECT_EQ(test, device->reads, reads);
+	KUNIT_EXPECT_EQ(test, device->endpoint_writes, 0U);
+}
+
+static void guard_post_access_fault_and_reset_reject_results(struct kunit *test)
+{
+	struct guard_test_device *device = guard_test_device(test, 7);
+	u32 value = 0x12345678;
+	u32 offsets[] = { FES_DE25_SCANOUT_GUARD_ID_OFFSET, FES_DE25_SCANOUT_GUARD_VERSION_OFFSET,
+		FES_DE25_SCANOUT_GUARD_TIMEOUT_OFFSET };
+	unsigned int i;
+
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->response_error = true;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_write(&device->guard, FES_DE25_SCANOUT_COMMAND_OFFSET, 8), -EIO);
+	KUNIT_EXPECT_EQ(test, device->endpoint_writes, 1U);
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_epoch(&device->guard), 0ULL);
+	device = guard_test_device(test, 8);
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->regs[FES_DE25_SCANOUT_ID_OFFSET / 4] = FES_DE25_SCANOUT_IDENTITY;
+	device->reset_read = true;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, FES_DE25_SCANOUT_ID_OFFSET, &value), -ESTALE);
+	KUNIT_EXPECT_EQ(test, value, 0U);
+	KUNIT_EXPECT_EQ(test, device->endpoint_reads, 1U);
+	for (i = 0; i < ARRAY_SIZE(offsets); i++) {
+		device = guard_test_device(test, 9);
+		KUNIT_ASSERT_NOT_NULL(test, device);
+		device->mutate_guard_offset = offsets[i];
+		KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, FES_DE25_SCANOUT_ID_OFFSET,
+				&value), -EPROTONOSUPPORT);
+		KUNIT_EXPECT_EQ(test, value, 0U);
+		KUNIT_EXPECT_EQ(test, device->endpoint_reads, 1U);
+	}
+}
+
+static void guard_busy_or_unknown_status_prevents_access(struct kunit *test)
+{
+	struct guard_test_device *device = guard_test_device(test, 7);
+	u32 value;
+
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] |=
+		FES_DE25_SCANOUT_GUARD_STATUS_PENDING | FES_DE25_SCANOUT_GUARD_STATUS_ACCEPTED;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_read(&device->guard, FES_DE25_SCANOUT_ID_OFFSET, &value), -EBUSY);
+	KUNIT_EXPECT_EQ(test, device->endpoint_reads, 0U);
+	device = guard_test_device(test, 8);
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->regs[FES_DE25_SCANOUT_GUARD_STATUS_OFFSET / 4] |= 0x80000000;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_write(&device->guard, FES_DE25_SCANOUT_COMMAND_OFFSET, 1), -EPROTO);
+	KUNIT_EXPECT_EQ(test, device->endpoint_writes, 0U);
+	device = guard_test_device(test, 9);
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->regs[FES_DE25_SCANOUT_GUARD_FAULT_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_FAULT_ACCESS;
+	KUNIT_EXPECT_EQ(test, fes_de25_guard_fence(&device->guard), -EIO);
+	KUNIT_EXPECT_EQ(test, device->endpoint_reads, 0U);
+}
+
+static int guard_owner_acquire(void *context)
+{
+	struct guard_test_device *device = context;
+	int ret = transport_acquire(device->endpoint);
+
+	if (ret)
+		return ret;
+	ret = device->guard.claimed ? fes_de25_guard_fence(&device->guard) :
+		fes_de25_guard_claim(&device->guard, 7);
+	if (ret)
+		transport_release(device->endpoint);
+	return ret;
+}
+
+static void guard_owner_release(void *context)
+{
+	struct guard_test_device *device = context;
+
+	transport_release(device->endpoint);
+}
+
+static u64 guard_owner_epoch(void *context)
+{
+	return fes_de25_guard_epoch(&((struct guard_test_device *)context)->guard);
+}
+
+static int guard_owner_read(void *context, u32 offset, u32 *value)
+{
+	return fes_de25_guard_read(&((struct guard_test_device *)context)->guard, offset, value);
+}
+
+static int guard_owner_write(void *context, u32 offset, u32 value)
+{
+	return fes_de25_guard_write(&((struct guard_test_device *)context)->guard, offset, value);
+}
+
+static int guard_owner_fence(void *context)
+{
+	return fes_de25_guard_fence(&((struct guard_test_device *)context)->guard);
+}
+
+static void guarded_transport_constructs_real_dma_grant(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct guard_test_device *device = guard_test_device(test, 0);
+	struct fes_de25_dma_backend backend = {
+		.acquire = guard_owner_acquire, .release = guard_owner_release,
+		.epoch = guard_owner_epoch, .read32 = guard_owner_read,
+		.write32 = guard_owner_write, .io_fence = guard_owner_fence, .context = device,
+	};
+	struct file *file;
+
+	KUNIT_ASSERT_NOT_NULL(test, device);
+	device->endpoint = kunit_kzalloc(test, sizeof(*device->endpoint), GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, device->endpoint);
+	atomic_set(&device->endpoint->lease, 0);
+	device->endpoint->epoch = 7;
+	device->endpoint->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
+	file = fes_de25_dma_create(fixture->dev, &backend);
+	KUNIT_EXPECT_FALSE(test, IS_ERR(file));
+	if (!IS_ERR(file))
+		__fput_sync(file);
+	KUNIT_EXPECT_GT(test, device->endpoint_reads, 0U);
+	KUNIT_EXPECT_EQ(test, device->endpoint->acquired, 1U);
+	KUNIT_EXPECT_EQ(test, device->endpoint->released, 1U);
+	KUNIT_EXPECT_EQ(test, device->endpoint->unleased_access, 0U);
+}
+
 static struct kunit_case fes_de25_dma_cases[] = {
+	KUNIT_CASE(guard_real_access_and_bounds),
+	KUNIT_CASE(guard_claim_rejects_wrong_or_existing_identity),
+	KUNIT_CASE(guard_dummy_zero_timeout_is_not_success),
+	KUNIT_CASE(guard_post_access_fault_and_reset_reject_results),
+	KUNIT_CASE(guard_busy_or_unknown_status_prevents_access),
+	KUNIT_CASE(guarded_transport_constructs_real_dma_grant),
 	KUNIT_CASE(binding_stays_closed),
 	KUNIT_CASE(backend_lease_required_before_access),
 	KUNIT_CASE(unconfigured_engine_has_one_allocation_lease),
