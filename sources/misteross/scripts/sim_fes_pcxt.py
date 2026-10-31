@@ -248,7 +248,12 @@ def main():
                         '-CFLAGS', '-std=c++17 -O2' + (' -DRATE=' + ('50000000' if suite == 'speaker50' else '100000000') if suite in ('speaker100', 'speaker50') else '') + (' -DHALF_RATE_BOARD=1' if suite in ('system-board50', 'system-board50-mda') else ''),
                         *(['-I' + str(ROOT / 'cores/fes-pcxt/sim')] if suite in ('memory', 'memory-machine', 'system', 'system-mda', 'system-board50', 'system-board50-mda') else []),
                         *[str(ROOT / source) for source in sources]], cwd=ROOT, check=True)
-        for delay in (0, 1, 2) if suite in ('memory', 'memory-machine', 'system', 'system-mda', 'system-board50', 'system-board50-mda') else (None,):
+        # memory and memory-machine sweep every SDRAM DQM mask delay; the
+        # system boots produce identical clocks, DMA and refresh counts at each
+        # delay, so they run once at the longest (2), the tightest timing.
+        delays = ((0, 1, 2) if suite in ('memory', 'memory-machine') else
+                  (2,) if suite in ('system', 'system-mda', 'system-board50', 'system-board50-mda') else (None,))
+        for delay in delays:
             subprocess.run([str(build / ('V' + top)),
                             *(['mda'] if suite == 'video-mda' else []),
                             *([str(build / 'diagnostic.bin')] if suite in ('cpu', 'cpu-timing', 'machine', 'display-machine', 'video-machine', 'memory-machine') else []),

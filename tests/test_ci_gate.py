@@ -41,15 +41,18 @@ class TierTests(unittest.TestCase):
 
     def test_gate_ties_the_tier_to_the_event(self):
         results = results_for(('parent', 'fpga'), ('c64',))
-        require_success(results, 'push')
-        with self.assertRaises(ValueError):
-            require_success(results, 'pull_request')
+        require_success(results, 'schedule')
+        require_success(results, 'workflow_dispatch')
+        for event in ('pull_request', 'merge_group', 'push'):
+            with self.subTest(event=event), self.assertRaises(ValueError):
+                require_success(results, event)
         outputs = results['plan']['outputs']
         outputs['sim_tier'] = 'smoke'
         outputs['simulations'] = json.dumps(simulation_matrix(['c64'], 'smoke'))
         require_success(results, 'pull_request')
         require_success(results, 'merge_group')
-        for event in ('push', 'schedule', 'workflow_dispatch'):
+        require_success(results, 'push')
+        for event in ('schedule', 'workflow_dispatch'):
             with self.subTest(event=event), self.assertRaises(ValueError):
                 require_success(results, event)
 
@@ -168,6 +171,16 @@ class SimulationMatrixTests(unittest.TestCase):
                           'integrated', 'probe')})
         self.assertEqual({row['target'] for row in rows}, expected)
         self.assertTrue(all(row['core'] == 'coleco' for row in rows))
+
+    def test_coleco_smoke_is_five_jobs_and_oss_board_twins_are_full_only(self):
+        from scripts.ci_simulations import simulation_matrix
+        smoke = [row['target'] for row in simulation_matrix(['coleco'], 'smoke')['include']]
+        self.assertEqual(smoke, ['sim-fes-coleco-unit', 'sim-fes-coleco-unit-oss',
+                                 'sim-fes-coleco-board-graphics', 'sim-fes-coleco-diagnostic',
+                                 'sim-fes-coleco-sgm-integrated'])
+        full = {row['target'] for row in simulation_matrix(['coleco'], 'full')['include']}
+        self.assertTrue(set(smoke) <= full)
+        self.assertFalse(any(t.startswith('sim-fes-coleco-board-') and t.endswith('-oss') for t in smoke))
 
     def test_selected_families_only_and_no_empty_placeholder(self):
         from scripts.ci_simulations import simulation_matrix

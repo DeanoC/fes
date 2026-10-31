@@ -1,8 +1,9 @@
 """Expand selected core families into independent, complete simulation jobs.
 
-Two tiers: pull requests and the merge queue run the "smoke" tier, where the
-slow families run a short boot/frames target instead of their full suite.
-Pushes to main, manual runs and the nightly regression run the "full" tier.
+Two tiers: pull requests, the merge queue and pushes to main run the "smoke"
+tier, where the slow families run a short boot/frames target instead of their
+full suite. Manual runs and the nightly regression run the "full" tier, so
+full sims (including the coleco -oss board twins) run nightly only.
 """
 from scripts.affected import CORES
 
@@ -21,7 +22,9 @@ TARGETS = {
     'sms': ('sim-fes-sms sim-fes-sms-oss',),
     'sg1000': ('sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-gp-audio',),
     'apple2': ('sim-fes-apple2',),
-    'c64': ('sim-fes-c64',),
+    # Four independent groups that together are exactly sim-fes-c64.
+    'c64': ('sim-fes-c64-cpu-group', 'sim-fes-c64-video-a-group',
+            'sim-fes-c64-video-b-group', 'sim-fes-c64-system-group'),
     'spectrum': ('sim-fes-spectrum',),
     'menu': ('sim-fes-menu',),
     'z80': ('sim-fes-z80',),
@@ -40,9 +43,13 @@ SMOKE_TARGETS = {
     'atari-st': ('sim-fes-atari-st-smoke',),
     'spectrum': ('sim-fes-spectrum-smoke',),
     'pcxt': ('sim-fes-pcxt-smoke',),
+    # Default and OSS unit benches, one board scenario, the diagnostic and the
+    # integrated SGM bench; the other board scenarios and -oss twins are full.
+    'coleco': ('sim-fes-coleco-unit', 'sim-fes-coleco-unit-oss', 'sim-fes-coleco-board-graphics',
+               'sim-fes-coleco-diagnostic', 'sim-fes-coleco-sgm-integrated'),
 }
 TIERS = ('smoke', 'full')
-SMOKE_EVENTS = ('pull_request', 'merge_group')
+SMOKE_EVENTS = ('pull_request', 'merge_group', 'push')
 
 
 def tier_for_event(event):
