@@ -28,7 +28,8 @@ CI_BROAD_INPUTS = frozenset({
     'scripts/ci_simulations.py', 'scripts/ci_verilator.sh',
 })
 SOFTWARE_CI_INPUTS = frozenset({
-    'Makefile', '.github/workflows/check.yml', 'scripts/test_changed.py',
+    'Makefile', '.github/workflows/check.yml', '.github/workflows/nightly.yml',
+    'scripts/test_changed.py',
     'scripts/test_policy.py',
 })
 
