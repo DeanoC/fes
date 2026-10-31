@@ -22,6 +22,10 @@ INTERFACES = {'runtime-protocol': '2', 'maintenance': 'fes-kit-maintenance-v1',
 MENU_SELECTION = 'usr/share/mister-runtime/selections/fes-menu.package.toml'
 INTERFACE_KEY = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9._+-]{0,127}')
 VERSION = re.compile(r'(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})')
+TARGET_ABIS = {
+    'de10-nano': ('armv7', 'ELF32', 'ARM', 'armv7-linux-gnueabihf'),
+    'de25-nano': ('aarch64', 'ELF64', 'AArch64', 'aarch64-linux-gnu'),
+}
 
 
 def run(*args):
@@ -56,12 +60,17 @@ def resolve(root, path):
     return result
 
 
-def elf(path):
+def elf(path, board='de10-nano'):
+    if board not in TARGET_ABIS:
+        raise ValueError('unsupported software base board: ' + str(board))
+    _, elf_class, machine, _ = TARGET_ABIS[board]
     header = run('readelf', '-h', str(path))
-    if not re.search(r'Class:\s+ELF32', header) or not re.search(r'Machine:\s+ARM\s*$', header, re.M):
-        raise ValueError(f'not ARM ELF32: {path}')
-    if not re.search(r'Data:.*little endian', header) or 'Version5 EABI' not in header:
-        raise ValueError(f'unsupported ARM ABI: {path}')
+    if (not re.search(r'Class:\s+' + elf_class + r'\s*$', header, re.M)
+            or not re.search(r'Machine:\s+' + machine + r'\s*$', header, re.M)):
+        raise ValueError(f'not {machine} {elf_class}: {path}')
+    if (not re.search(r'Data:.*little endian', header)
+            or (board == 'de10-nano' and 'Version5 EABI' not in header)):
+        raise ValueError(f'unsupported {machine} ABI: {path}')
     dynamic = run('readelf', '-d', str(path))
     # Buildroot sanitizes some libraries by retaining the dynamic tag with
     # an empty value. Empty tags add no search path; nonempty paths remain
@@ -92,16 +101,29 @@ def elf(path):
             'defined': sorted(defined), 'required': sorted(required)}
 
 
-def base_contract(target, executables):
+def base_contract(target, executables, board='de10-nano'):
+    if board not in TARGET_ABIS:
+        raise ValueError('unsupported software base board: ' + str(board))
+    architecture, _, _, abi_name = TARGET_ABIS[board]
+    identity = target / 'etc/fes-board'
+    if board == 'de25-nano' or identity.exists() or identity.is_symlink():
+        if identity.is_symlink() or not identity.is_file() or identity.read_bytes() != (board + '\n').encode():
+            raise ValueError('software base requires its exact FES board identity')
     libraries = {}
     for directory in ('lib', 'usr/lib'):
         for p in sorted((target / directory).glob('*.so*')):
             actual = resolve(target, p.relative_to(target))
+            # Linker scripts and debugger helpers also match *.so*. Only ELF
+            # objects expose loader interfaces. A DT_NEEDED reference to an
+            # excluded file still fails the unresolved-library check below.
+            with actual.open('rb') as stream:
+                if stream.read(4) != b'\x7fELF':
+                    continue
             libraries[p.name] = actual
     cache = {}
     def inspect(p):
         if p not in cache:
-            cache[p] = elf(p)
+            cache[p] = elf(p, board)
         return cache[p]
     # Pin the whole available base-library interface set, not only the current
     # bundle's dependency subset: future bundles may use another existing lib.
@@ -128,9 +150,9 @@ def base_contract(target, executables):
             missing = set(inspect(p)['required']) - provided
             if missing:
                 raise ValueError(f'unresolved base symbols in {p}: {sorted(missing)}')
-    abi = {'format': 1, 'architecture': 'armv7-linux-gnueabihf', 'libraries': inventory}
+    abi = {'format': 1, 'architecture': abi_name, 'libraries': inventory}
     digest = hashlib.sha256(json.dumps(abi, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-    return {'board': 'de10-nano', 'architecture': 'armv7',
+    return {'board': board, 'architecture': architecture,
             'base_contract': 'fes-kit-base-v1-' + digest, 'interfaces': INTERFACES}
 
 
@@ -278,7 +300,7 @@ def pack_update(base_root, payload, output, version, fogcast, runtime_revision):
     for p in executables:
         if p.is_symlink() or not p.is_file():
             raise ValueError(f'regular payload executable required: {p}')
-    actual = base_contract(base_root, executables)
+    actual = base_contract(base_root, executables, expected.get('board'))
     if expected != actual:
         raise ValueError('retained base ELF contract differs from recorded compatibility')
     # The bundle lists the menu interfaces its runtime admits. A base image

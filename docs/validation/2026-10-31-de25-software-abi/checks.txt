@@ -1,0 +1,5 @@
+PASS 13 focused bundle ABI tests, including real AArch64 Go ELF and fixed DE10 ABI digest
+PASS 17 standalone kit-software producer tests
+PASS make test-changed --base 0da63d1044cc7ecf9908efba52af17b3e55e6271
+PASS documentation links/support matrix and whitespace
+PASS read-only FES baseline AArch64 ELF/library/symbol closure; no install or hardware programming

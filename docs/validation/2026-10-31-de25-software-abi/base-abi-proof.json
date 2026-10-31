@@ -1,0 +1,22 @@
+{
+  "source": "read-only FES baseline userland, dereferenced regular-file view",
+  "board_serial": "TRWU8J8G",
+  "boot_id": "e8963972-c3e9-405c-a2ef-93eb09f691e6",
+  "contract": {
+    "board": "de25-nano",
+    "architecture": "aarch64",
+    "base_contract": "fes-kit-base-v1-fab9b86e78feaffc706c8098ebda7661d9d5ccf074a90710b35e6e27ad3c9e90",
+    "interfaces": {
+      "runtime-protocol": "2",
+      "maintenance": "fes-kit-maintenance-v1",
+      "software-admission": "fes-kit-software-v1"
+    }
+  },
+  "archive_sha256": "d4d1cf44a44a2b4d3cd83c7914497bddb5a04e13d6c999dd5cea0564ab08f803",
+  "executables": {
+    "bin/busybox": "afd28893ac9137d9c2c81c21d6f7a1b2f1375020fc01adb29311af2e1f66f3d8",
+    "usr/sbin/dropbear": "54c283e4c9b275bce7f80b36aba95d9283f0a3283c4965eb9fad06f6aed2f78d"
+  },
+  "hardware_programming": false,
+  "bundle_install_or_base_mutation": false
+}

@@ -42,6 +42,27 @@ and the image's menu requirements. Equal host and kit Git revisions are not
 required. Retained earlier bundles are recovery inputs subject to the same
 checks.
 
+## Software base ABI targets
+
+The bundle ABI validator accepts the existing DE10 `armv7` ELF32/EABI target
+and DE25 `aarch64` ELF64 target. Update validation selects the board from the
+already verified base contract and checks every executable and base library
+against that board's ELF architecture. A DE25 base must contain the exact
+regular `/etc/fes-board` identity file. Its architecture participates in the
+ABI digest, so equal symbol inventories on the two architectures produce
+different contracts; existing DE10 ABI identifiers remain unchanged.
+
+Only ELF objects contribute runtime-library interfaces. GNU linker scripts
+and debugger helpers that also match `*.so*` are excluded; a dynamic dependency
+on an excluded file is unresolved and refused. Library/symbol closure and the
+existing ban on embedded runtime search paths apply to both targets.
+
+This adds AArch64 ABI validation to the existing bundle-update packer. The
+standalone cross-build producer and factory-image assembler still select DE10;
+DE25 SDK selection, factory bundle assembly, physical runtime/MENU binding and
+an actual managed update remain integration work. No daemon admission or
+supervisor compatibility rule is relaxed by this change.
+
 ## Image compatibility
 
 A bundle runs only on a base image it fits. Board, architecture, base ELF
