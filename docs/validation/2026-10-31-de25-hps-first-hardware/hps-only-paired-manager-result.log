@@ -1,0 +1,6 @@
+/sys/class/fpga_manager/fpga0/name
+Stratix10 SOC FPGA Manager
+/sys/class/fpga_manager/fpga0/state
+unknown
+region0
+35618839-7f3d-4d5c-94ae-51c3118750aa

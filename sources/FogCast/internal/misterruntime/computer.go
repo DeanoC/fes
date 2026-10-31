@@ -29,7 +29,7 @@ func computerResponseMatches(response Protocol2Response, packageID string, gener
 	return response.OK && response.Error == nil && response.State == "running_development" &&
 		response.Execution == "development" && response.ActivePackage != nil &&
 		response.ActivePackage.PackageID == packageID && response.Generation != nil && *response.Generation == generation &&
-		protocol.ComputerMediaABI(response.ActivePackage.Descriptor.ABI.ID, response.ActivePackage.Descriptor.ABI.Major, response.ActivePackage.Descriptor.ABI.Minor)
+		protocol.ComputerABI(response.ActivePackage.Descriptor.ABI.ID, response.ActivePackage.Descriptor.ABI.Major, response.ActivePackage.Descriptor.ABI.Minor)
 }
 
 // SetKeyboardHID sends one complete nine-row key state bound to the exact

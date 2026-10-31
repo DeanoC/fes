@@ -358,6 +358,19 @@ func (s coreLoadSource) matchesLoadedIdentity(status *protocol.CorePackageStatus
 			return false
 		}
 	}
+	if s.machine != nil {
+		// The kit bound the disk the host sent to the entry's game, or left
+		// the drive empty when it sent none.
+		u, ok := protocol.MediaUnit(status, protocol.AtaDiskUnit)
+		if disk := s.machine.Disk; disk != nil {
+			if !ok || u.Interface != protocol.AtaDiskInterface() || u.State != protocol.MediaUnitReady || status.PersistenceMode != "persistent" ||
+				u.Persistence == nil || u.Persistence.Mode != "persistent" || u.Persistence.GameID != s.machine.GameID || u.Persistence.BaseMediaID != disk.SHA256 {
+				return false
+			}
+		} else if ok && (u.Interface != protocol.AtaDiskInterface() || u.State != protocol.MediaUnitEmpty || u.Persistence != nil) {
+			return false
+		}
+	}
 	if !reflect.DeepEqual(status.PartsComposition, s.partsComposition) {
 		return false
 	}

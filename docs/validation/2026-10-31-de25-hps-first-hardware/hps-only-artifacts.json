@@ -1,0 +1,34 @@
+{
+  "kind": "diagnostic derivative packaging; no recompile",
+  "input_complete_sof_sha256": "0a9475308c4411664083377e7865ad7dedac287bc3b8c4b6fcb520386c7fcc5f",
+  "producer_revision": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+  "tool": "Quartus Prime Pro 26.3 Build 114",
+  "conversion": [
+    "quartus_pfg",
+    "-c",
+    "linux-complete.sof",
+    "boot.rbf",
+    "-o",
+    "hps=on"
+  ],
+  "programming": [
+    "quartus_pgm",
+    "-c",
+    "DE25-Nano [3-11.3-iface0]",
+    "-m",
+    "JTAG",
+    "-o",
+    "p;boot.hps.rbf@1"
+  ],
+  "outputs": {
+    "boot.hps.rbf": {
+      "bytes": 868352,
+      "sha256": "1a0d681a00efdb34ecc3ff1866da5dc343c3fe625fb6019351647144452b18de"
+    },
+    "boot.core.rbf": {
+      "bytes": 1990656,
+      "sha256": "7130375986bd59633d856beb6cf69db238432a06b84fa0ba1900ffd556ca180a"
+    }
+  },
+  "flash_programmed": false
+}

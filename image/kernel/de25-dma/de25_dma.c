@@ -515,6 +515,11 @@ static int fes_de25_dma_mmap(struct file *file, struct vm_area_struct *vma)
 	vma->vm_ops = NULL;
 	ret = dma_mmap_attrs(grant->dev, vma, grant->cpu, grant->dma,
 			FES_DE25_DMA_ALLOCATION_BYTES, FES_DE25_DMA_ATTRIBUTES);
+#if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
+	/* Exercise the mapper-refusal path after a successful DMA mapping. */
+	if (!ret && grant->observer && grant->observer->mmap_refuse)
+		vm_flags_clear(vma, VM_PFNMAP);
+#endif
 	if (!ret) {
 		/* Only an eager I/O PFN mapping is currently revocable here. An
 		 * IOMMU's vm_map_pages mapping can also have no vm_ops, but permits
@@ -712,6 +717,19 @@ void fes_de25_dma_test_observe(struct file *file, struct fes_de25_dma_test_obser
 	struct fes_de25_dma *grant = file->private_data;
 
 	grant->observer = observer;
+}
+
+unsigned int fes_de25_dma_test_mmap_count(struct file *file)
+{
+	struct fes_de25_dma *grant = file->private_data;
+	struct fes_de25_dma_mm *entry;
+	unsigned int count = 0;
+
+	mutex_lock(&grant->lock);
+	list_for_each_entry(entry, &grant->mms, link)
+		count++;
+	mutex_unlock(&grant->lock);
+	return count;
 }
 #endif
 

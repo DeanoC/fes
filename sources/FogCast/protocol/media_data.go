@@ -28,14 +28,13 @@ func AtariStFloppyWriteInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtariStFloppyWriteID, Major: generated.FesComputerInterfaceMediaAtariStFloppyWriteMajor, Minor: generated.FesComputerInterfaceMediaAtariStFloppyWriteMinor}
 }
 func MediaWriteCapable(p *CorePackageStatus) bool {
-	return p != nil && ComputerABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) &&
-		activeInterface(p, AtariStFloppyInterface()) && activeInterface(p, AtariStFloppyWriteInterface())
+	return activeComputer(p) && activeInterface(p, AtariStFloppyInterface()) && activeInterface(p, AtariStFloppyWriteInterface())
 }
 
 // PersistentMediaUnitCapable admits a durable binding only for the writable
 // ST floppy or the fixed ATA disk, whose binding cannot be checkpointed live.
 func PersistentMediaUnitCapable(p *CorePackageStatus, unit MediaUnitStatus) bool {
-	if !activeComputerMedia(p) || unit.Persistence == nil || !unit.Valid() || !activeInterface(p, unit.Interface) {
+	if !activeComputer(p) || unit.Persistence == nil || !unit.Valid() || !activeInterface(p, unit.Interface) {
 		return false
 	}
 	switch unit.Interface {
@@ -51,7 +50,7 @@ func PersistentMediaUnitCapable(p *CorePackageStatus, unit MediaUnitStatus) bool
 // PersistentMediaBound reports any valid durable disk binding, including the
 // pc386 fixed disk. MediaDataBound remains the ST live-save predicate.
 func PersistentMediaBound(p *CorePackageStatus) bool {
-	if !activeComputerMedia(p) {
+	if !activeComputer(p) {
 		return false
 	}
 	for _, unit := range p.MediaUnits {
@@ -62,10 +61,11 @@ func PersistentMediaBound(p *CorePackageStatus) bool {
 	return false
 }
 
-// PersistentMediaStatusValid accepts a bound persistent unit or the empty
-// fixed ATA unit reported before a library disk is loaded.
+// PersistentMediaStatusValid accepts a bound persistent unit, the empty
+// fixed ATA unit reported before a library disk is loaded, or a pc386
+// package without a disk, which its machine record alone makes persistent.
 func PersistentMediaStatusValid(p *CorePackageStatus) bool {
-	if !activeComputerMedia(p) {
+	if !activeComputer(p) {
 		return false
 	}
 	if PersistentMediaBound(p) {
@@ -73,6 +73,9 @@ func PersistentMediaStatusValid(p *CorePackageStatus) bool {
 	}
 	if !ComputerAtaDiskABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) {
 		return false
+	}
+	if activeInterface(p, Pc386MachineInterface()) && !activeInterface(p, AtaDiskInterface()) {
+		return true
 	}
 	unit, ok := MediaUnit(p, AtaDiskUnit)
 	return ok && unit.Interface == AtaDiskInterface() && !unit.CanSave() && unit.Persistence == nil &&

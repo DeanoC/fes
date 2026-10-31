@@ -142,7 +142,11 @@ sequence, separate image/client identities and remaining image qualification.
 
 The [normal Linux kit acceptance map](design/de25-linux-platform.md) tracks the
 remaining managed workflow. The [Linux FPGA-manager bring-up](validation/2026-10-30-de25-linux-fpga/README.md)
-records successful driver probing and the current core-transfer/cleanup failure.
+records the initial transfer/cleanup failure. The later
+[HPS-first hardware proof](validation/2026-10-31-de25-hps-first-hardware/README.md)
+boots Linux with only the HPS bootstrap, then loads ZX81 and runs BASIC using
+the board CPU. Factory-start loading and ordinary JTAG-epoch reboot still fail;
+managed runtime, MENU and normal catalog launch remain separate gates.
 
 The [persistent bootstrap procedure](de25-reboot-bootstrap.md) prepares a
 closed candidate/recovery/vendor-rollback set for the next reboot milestone.

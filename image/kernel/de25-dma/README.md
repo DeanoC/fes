@@ -122,8 +122,9 @@ bounded/unstable snapshots and failed-start/drain retention. VMA tests use a rea
 temporary mm and kernel uaccess for INFO/PUBLISH/POLL, revoke-before-stop,
 post-revoke faults, contiguous PFNs across the full allocation, an offset alias
 that sees the same storage and is revoked together, refused writable page pins,
-denied remapping and the
-mmap-callback/VMA-link race. Test hooks compile out when the test config is off.
+denied remapping and the mmap-callback/VMA-link race. A forced mapper refusal
+verifies a newly recorded `mm` reference is removed on the error path. Test hooks
+compile out when the test config is off.
 
 These are kernel software checks with a scripted register device. They do not
 emulate or qualify the DE25 fabric master, SMMU, firewall, DDR, clock crossing,

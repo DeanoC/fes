@@ -232,7 +232,54 @@ def verify_reset_bridge(project, module, hps, synchronous_edges="NONE"):
     return {"parameters": checked, "logical_view": source}
 
 
+def verify_reset_synchronizers(project):
+    """Require the registered HDMI visibility gate and its exact SDC clears."""
+    def compact(path):
+        source = re.sub(r"//[^\n]*", "", path.read_text())
+        return re.sub(r"\s+", "", source)
+
+    board = compact(project / "fes_mailbox/fes_de25_scanout_board.v")
+    if ("always@(posedgepixel_clkornegedgequalified_lock)" not in board or
+            "always@(posedgepixel_clkornegedgevisible_sync[1])" not in board or
+            "assignHDMI_TX_D=video_active&&visible_line?video_rgb:24'd0;" not in board or
+            "assignHDMI_TX_DE=video_active&&visible_line&&video_de;" not in board or
+            "assignHDMI_TX_D=visible_request" in board or
+            "assignHDMI_TX_DE=visible_request" in board):
+        raise ValueError("scanout HDMI data/DE visibility is not pixel-registered with immediate lock assertion")
+    if ("if(!top_reset_n)beginfirst_lock_seen<=1'b0;" not in board or
+            "if(qualified_lock)first_lock_seen<=1'b1;" not in board or
+            "assignscanout_reset_n=first_lock_seen;" not in board):
+        raise ValueError("scanout reset source no longer waits for first qualified lock")
+
+    sdc = compact(project / "fes_mailbox/clocks.sdc")
+    for controller in ("rst_controller_001", "rst_controller_002"):
+        for stage in (0, 1):
+            target = ("soc_inst|" + controller + "|alt_rst_sync_uq1|"
+                      "altera_reset_synchronizer_int_chain[" + str(stage) + "]|")
+            if target + "aclr" not in sdc or target + "clrn" not in sdc:
+                raise ValueError("scanout SDC does not constrain the generated " + controller + " stage " + str(stage))
+    for path in ("visible_sync[0]", "visible_sync[1]"):
+        for pin in ("aclr", "clrn"):
+            if "fes_video_inst|" + path + "|" + pin not in sdc:
+                raise ValueError("scanout SDC does not constrain the registered visibility clear pin: " + path + "|" + pin)
+    cuts = "".join(re.findall(r"setscanout_(?:aclr|clrn)\[get_pins[^{]*\{[^}]*\}\]", sdc))
+    if ("video_active" in cuts or "set_false_path-to$scanout_gate_clear" in sdc or
+            "setscanout_gate_clear[get_pins-compatibility_mode-nocase-nowarn{fes_video_inst|video_active|aclr"
+            "fes_video_inst|video_active|clrn}]" not in sdc or
+            "if{[get_collection_size$scanout_gate_clear]!=1}" not in sdc):
+        raise ValueError("scanout SDC must keep the pixel-domain data/DE gate clear timed and present")
+    if "if{$scanout_clear_count!=10}" not in sdc:
+        raise ValueError("scanout SDC does not require all ten reset/visibility clear pins")
+    if "fes_scanout_pixel_reset|sync_regs*" in sdc or "fes_scanout_system_reset|sync_regs*" in sdc:
+        raise ValueError("scanout SDC still targets nonexistent board reset registers")
+    return {"pixel_clock": "74250000 Hz", "system_clock": "100000000 Hz",
+            "assertion": "asynchronous", "deassertion": "synchronous per domain",
+            "hdmi_data_de_gate": "pixel-registered; qualified-lock clear asserts immediately",
+            "sdc_clear_pins": 10}
+
+
 def verify_handoff(project, hps):
+    reset_synchronizers = verify_reset_synchronizers(project)
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
     modules = {m.get("path"): m for m in tree.findall("module")}
     endpoint = modules.get("subsys_periph.fes_scanout")
@@ -334,6 +381,7 @@ def verify_handoff(project, hps):
         "peripheral_slave_map": probe["peripheral_slave_map"], "ddr_scanout": True,
         "top_reset_source": "fes_scanout_top_reset.out_reset -> pixel and 100 MHz reset bridge inputs",
         "reset_bridges": reset_bridges,
+        "reset_synchronizers": reset_synchronizers,
         "top_pixel_clock_bridge": "74.25 MHz clock bridge drives the nested pixel-clock sink",
         "runtime_admission": "not-qualified", "global_reset_ownership": "not-qualified"}
 

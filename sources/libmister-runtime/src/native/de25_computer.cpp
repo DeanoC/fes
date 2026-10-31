@@ -211,9 +211,9 @@ Error De25Computer::Identify(const std::string& expected_build, std::uint64_t de
 		if (!e.ok()) return e;
 		if (rejected) return Fail("DE25 identity probe was rejected");
 	}
+	// The mailbox reports the ABI 1.0 identity, words 0..15.
 	const std::array<std::uint16_t, 8> prefix{{FesComputerIdentityMagic0, FesComputerIdentityMagic1,
 		FesComputerTransportMajor, FesComputerTransportMinor, FesComputerABITag,
-		// This endpoint implements ABI 1.0; the generated minor is the family maximum.
 		FesComputerABIMajor, 0, kCapabilities}};
 	if (!std::equal(prefix.begin(), prefix.end(), words.begin()) || BuildId(words) != expected)
 		return Fail("DE25 mailbox identity/capabilities/build differ from selected artifact");

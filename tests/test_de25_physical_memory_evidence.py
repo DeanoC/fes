@@ -1,3 +1,6 @@
+import subprocess
+import sys
+import tempfile
 import gzip
 import hashlib
 import json
@@ -48,11 +51,295 @@ class De25PhysicalMemoryEvidenceTests(unittest.TestCase):
         digest = hashlib.sha256((EVIDENCE / 'README.md').read_bytes()).hexdigest()
         self.assertEqual(manifest['file_sha256']['README.md'], digest)
 
-    def test_reboot_commands_are_reported_without_claiming_a_transcript(self):
-        readme = (EVIDENCE / 'README.md').read_text()
-        normalized = re.sub(r'\s+', ' ', readme)
-        self.assertIn('the recorded operator procedure says Linux `sync`', normalized)
-        self.assertIn('no command transcript is retained', normalized)
+    def test_boot_uuid_is_attributed_to_ssh(self):
+        hardware = json.loads((EVIDENCE / 'hardware.json').read_text())
+        self.assertEqual(hardware['boot']['temporary_sof_boot_id'], BOOT_UUID)
+        self.assertEqual(hardware['boot']['temporary_sof_boot_id_source'],
+                         'temporary-sof-linux.log.gz (pinned-key SSH)')
+        normalized = re.sub(r'\s+', ' ', (EVIDENCE / 'README.md').read_text())
+        self.assertIn('The UART transcript records Ubuntu 22.04.3', normalized)
+        self.assertIn('The pinned-key SSH transcript records that boot UUID', normalized)
+
+    def test_reboot_claim_is_limited_to_the_retained_uart_bytes(self):
+        uart = gzip.decompress(
+            (EVIDENCE / 'restore-reboot-uart.log.gz').read_bytes()
+        ).decode(errors='replace')
+        self.assertIn('reboot: Restarting system', uart)
+        restore = json.loads((EVIDENCE / 'restore.json').read_text())
+        self.assertIn('no subsequent boot', restore['software_reboot'])
+        self.assertNotIn('60-second', restore['software_reboot'])
+        normalized = re.sub(r'\s+', ' ', (EVIDENCE / 'README.md').read_text())
+        self.assertIn('do not retain the Linux commands that initiated shutdown', normalized)
+        self.assertIn('document the capture duration, or include a subsequent boot', normalized)
+        self.assertNotIn('operator procedure', normalized)
+        self.assertNotIn('Linux `sync` and authenticated `sudo /sbin/reboot`', normalized)
+
+    def test_pre_load_halt_is_attributed_to_the_operator(self):
+        normalized = re.sub(r'\s+', ' ', (EVIDENCE / 'README.md').read_text())
+        self.assertIn('No retained file records the commands that preceded the test-image load.', normalized)
+        self.assertIn('According to the operator, Linux `sync` was run', normalized)
+        self.assertIn('does not establish that factory Linux completed a clean halt', normalized)
+        self.assertNotIn('recorded procedure', normalized)
+
+    def test_failed_device_info_log_does_not_name_a_device_index(self):
+        failed = gzip.decompress(
+            (EVIDENCE / 'device-info-command-failed.log.gz').read_bytes()
+        ).decode(errors='replace')
+        self.assertIn('Error (213019)', failed)
+        self.assertIn('Error (213002)', failed)
+        self.assertNotRegex(failed, r'device index [0-9]+|@[0-9]+|--device\s*=?\s*[0-9]+')
+        normalized = re.sub(r'\s+', ' ', (EVIDENCE / 'README.md').read_text())
+        self.assertIn('does not establish which index was queried', normalized)
+        self.assertIn('[config-status-device1.log.gz](config-status-device1.log.gz)', normalized)
+        self.assertNotIn('device-info-command-index2', normalized)
+
+
+class De25PhysicalMemoryRecordTests(unittest.TestCase):
+    root = Path(__file__).resolve().parents[1]
+    record = root / 'docs/validation/2026-10-30-de25-physical-memory'
+
+    def test_sdram_chip_select_claim_matches_scan_extent_and_controller(self):
+        scans = json.loads((self.record / 'scans.json').read_text())['results']
+        sdram = {row['test']: row for row in scans if row['bank'] == 'sdram'}
+        full_rows = {row['bank']: row for row in scans if row['test'] == 'full'}
+        boundary = 1 << 26
+        self.assertEqual(sdram['smoke']['length_bytes'], 4096)
+        self.assertLess(sdram['smoke']['length_bytes'], boundary)
+        self.assertEqual(sdram['full']['length_bytes'], 128 * 1024 * 1024)
+        self.assertGreater(sdram['full']['length_bytes'], boundary)
+
+        smoke_script = (self.record / 'smoke-ram.tcl').read_text()
+        self.assertIn('de25ramtest::run $service 6ee668470911276a9e553d0025c7ef0b $bank 60000 10 4096', smoke_script)
+        full_script = (self.record / 'full-ram.tcl').read_text()
+        full_lengths = re.search(r'foreach \{bank length\} \{([^}]*)\}', full_script)
+        self.assertIsNotNone(full_lengths)
+        full_values = full_lengths.group(1).split()
+        self.assertEqual(len(full_values) % 2, 0)
+        script_capacities = {
+            full_values[index]: int(full_values[index + 1])
+            for index in range(0, len(full_values), 2)
+        }
+        self.assertEqual(script_capacities, {
+            bank: full_rows[bank]['length_bytes'] for bank in ('fpga', 'sdram')
+        })
+        self.assertIn('100 $length', full_script)
+        jtag_script = (self.root / 'sources/misteross/boards/de25nano/ramtest/jtag.tcl').read_text()
+        self.assertRegex(jtag_script, r'BASE_OFFSET 0 BASE_HIGH_OFFSET 0')
+        controller = (self.root / 'sources/misteross/boards/de25nano/ramtest/sdram.v').read_text()
+        self.assertIn('output reg [1:0] dram_ba=0,dram_cs_n=3', controller)
+        self.assertIn('word_addr<=write&&write_left!=0?write_next:address[26:1]', controller)
+        self.assertRegex(controller, r'word_addr\[25\].*2\'b01:2\'b10')
+        self.assertRegex(controller, r'PRE_INIT:begin\s+dram_cs_n<=0;')
+        self.assertRegex(controller, r'REF_INIT1,REF_INIT2:begin\s+dram_cs_n<=0;')
+        self.assertRegex(controller, r'REFRESH:begin\s+dram_cs_n<=0;')
+
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        ramtest_guide = ' '.join((self.root / 'sources/misteross/boards/de25nano/ramtest/README.md').read_text().split())
+        self.assertIn('4,096-byte SDRAM smoke starts at address 0 and stays below byte-address bit 26, so its scan accesses select one chip', report)
+        self.assertIn('initialization and refresh commands assert both chip selects, and the smoke run is long enough to include refresh', report)
+        self.assertIn('Only the full 128-MiB SDRAM scan crosses byte-address bit 26', ramtest_guide)
+        self.assertNotIn('so it selects one chip', report)
+
+    def test_factory_clean_halt_claim_matches_retained_boot_log(self):
+        with gzip.open(self.record / 'temporary-sof-boot.log.gz', 'rt') as stream:
+            boot_log = stream.read()
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('corrupted or uncleanly shut down', boot_log)
+        self.assertIn('does not establish that factory Linux completed a clean halt', report)
+        self.assertNotRegex(report, r'Factory Linux is synced and gracefully halted')
+
+    def test_device_mask_claim_matches_retained_device_names(self):
+        hardware = json.loads((self.record / 'hardware.json').read_text())
+        board = hardware['board']
+        with gzip.open(self.record / 'factory-linked-services.log.gz', 'rt') as stream:
+            linked_services = stream.read()
+        with gzip.open(self.record / 'ramtest-program-with-spl.log.gz', 'rt') as stream:
+            programmer = stream.read()
+
+        self.assertEqual(board['system_console_device_path_pattern'], 'A5E(A013BB23B|B013BB23BCS)')
+        self.assertNotIn('R1', board['system_console_device_path_pattern'])
+        self.assertIn(f'/devices/{board["system_console_device_path_pattern"]}', linked_services)
+        self.assertIn(f'for device {board["programmer_device_name"]}@1', programmer)
+        self.assertEqual(board['silicon_suffix'], 'unconfirmed; retained device path has no R1 arm')
+
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('with no R1 arm', report)
+        self.assertNotIn('matches this part to both the CS and R1 masks', report)
+
+    def test_factory_restore_boot_identity_is_bound_to_ssh_not_uart(self):
+        restore = json.loads((self.record / 'restore.json').read_text())
+        with gzip.open(self.record / 'restore-reboot-uart.log.gz', 'rt') as stream:
+            uart = stream.read()
+        with gzip.open(self.record / 'restored-factory-linux.log.gz', 'rt') as stream:
+            ssh = stream.read()
+        with gzip.open(self.record / 'factory-linked-services.log.gz', 'rt') as stream:
+            sld = stream.read()
+
+        self.assertEqual(restore['uart_factory_boot'], 'NOT_RETAINED')
+        self.assertEqual(restore['pinned_ssh_factory_boot'], 'PASS')
+        self.assertIn('reboot: Restarting system', uart)
+        self.assertNotIn(restore['factory_boot_id'], uart)
+        for value in (restore['factory_boot_id'], restore['factory_kernel'], restore['root']):
+            self.assertIn(value, ssh)
+        self.assertIn(restore['factory_sld_design_hash'], sld)
+        self.assertIn(restore['diagnostic_sld_design_hash'], sld)
+        self.assertNotRegex(sld, r'\b\d{2}:\d{2}:\d{2}\s+\d{4}\b')
+
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('no subsequent factory boot transcript', report)
+        self.assertIn('The pinned-key SSH transcript records factory boot UUID', report)
+        self.assertIn('untimestamped [factory-linked-services.log.gz](factory-linked-services.log.gz)', report)
+        self.assertIn('it does not establish when that link check occurred', report)
+        self.assertNotIn('The restored factory SLD design hash', report)
+        self.assertNotIn('UART/pinned SSH checks', report)
+
+    def test_old_address_probe_outcome_is_not_claimed_without_a_transcript(self):
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('No retained transcript establishes the outcome of later old-address SSH or serial-prompt checks', report)
+        self.assertNotIn('Subsequent old-address SSH and serial prompt checks fail', report)
+
+    def test_programmed_sof_identity_uses_logged_quartus_checksum(self):
+        hardware = json.loads((self.record / 'hardware.json').read_text())
+        programmed = hardware['programmed_sof']
+        self.assertEqual(programmed['programmer_log'], 'ramtest-program-with-spl.log.gz')
+        self.assertEqual(programmed['quartus_checksum'], '0x067AE616')
+        self.assertNotIn('sha256', programmed)
+        self.assertNotIn('bytes', programmed)
+
+        with gzip.open(self.record / programmed['programmer_log'], 'rt') as stream:
+            programmer = stream.read()
+        self.assertRegex(programmer, r'Using programming file .* with checksum 0x067AE616 for device A5EB013BB23BCS@1')
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('No SHA-256 or byte count for the generated SOF was retained', report)
+        self.assertNotIn('one exact image', report)
+        self.assertIn('generated SOF is identified in the retained programming transcript by its Quartus checksum only', report)
+        self.assertNotIn('2267ecc2e9e8dd08cd24e8d413ee7e704cc022863d5b761b6d6e6aa33a6bb64c', report)
+        ramtest_guide = ' '.join((self.root / 'sources/misteross/boards/de25nano/ramtest/README.md').read_text().split())
+        self.assertIn('programmed SOF, identified by Quartus checksum `0x067AE616`', ramtest_guide)
+        self.assertNotIn('That exact image boots the factory SD', ramtest_guide)
+
+    def test_temporary_boot_claim_matches_separate_uart_and_ssh_evidence(self):
+        hardware = json.loads((self.record / 'hardware.json').read_text())
+        boot = hardware['boot']
+        self.assertEqual(boot['temporary_sof_boot_id_source'], 'temporary-sof-linux.log.gz (pinned-key SSH)')
+        with gzip.open(self.record / 'temporary-sof-boot.log.gz', 'rb') as stream:
+            uart = stream.read().replace(b'\0', b'').decode('utf-8', 'replace')
+        with gzip.open(self.record / 'temporary-sof-linux.log.gz', 'rb') as stream:
+            ssh = stream.read().replace(b'\0', b'').decode('utf-8', 'replace')
+
+        self.assertIn('Ubuntu 22.04.3', uart)
+        self.assertIn(boot['kernel'], uart)
+        self.assertIn('/dev/mmcblk0p2', uart)
+        self.assertIn('ext3', uart)
+        self.assertNotIn(boot['temporary_sof_boot_id'], uart)
+        self.assertNotIn('Ubuntu', ssh)
+        for value in (boot['temporary_sof_boot_id'], boot['kernel'], boot['root']):
+            self.assertIn(value, ssh)
+
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('The UART transcript records Ubuntu 22.04.3', report)
+        self.assertIn('The pinned-key SSH transcript records that boot UUID', report)
+        self.assertNotIn('UART and pinned-key SSH confirm Ubuntu', report)
+
+    def test_reboot_claim_matches_retained_uart_capture(self):
+        with gzip.open(self.record / 'restore-reboot-uart.log.gz', 'rb') as stream:
+            uart = stream.read().replace(b'\0', b'').decode('utf-8', 'replace')
+        self.assertIn('reboot: Restarting system', uart)
+        self.assertNotRegex(uart, r'60-second|capture duration')
+        restore = json.loads((self.record / 'restore.json').read_text())
+        self.assertIn('no subsequent boot', restore['software_reboot'])
+        self.assertNotIn('60-second', restore['software_reboot'])
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('do not retain the Linux commands that initiated shutdown', report)
+        self.assertIn('document the capture duration, or include a subsequent boot', report)
+        self.assertNotIn('retained 60-second UART capture', report)
+        self.assertNotIn('failed software reboot', report)
+        self.assertNotIn('software-reboot failure', report)
+        self.assertNotIn('Linux `sync` and authenticated `sudo /sbin/reboot`', report)
+
+    def test_failed_device_info_log_does_not_establish_device_index(self):
+        with gzip.open(self.record / 'device-info-command-failed.log.gz', 'rt') as stream:
+            failed_attempt = stream.read()
+        self.assertIn('Error (213019)', failed_attempt)
+        self.assertIn('Error (213002)', failed_attempt)
+        self.assertRegex(failed_attempt, r'Programming option ei;[^;]+;1 is illegal')
+        self.assertNotRegex(failed_attempt, r'device index [0-9]+|@[0-9]+|--device\s*=?\s*[0-9]+')
+
+        with gzip.open(self.record / 'ramtest-program-with-spl.log.gz', 'rt') as stream:
+            programmer = stream.read()
+        self.assertIn('Configuring device index 1', programmer)
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('does not establish which index was queried', report)
+        self.assertNotIn('device index 2 information attempt failed', report)
+        self.assertNotIn('device-info-command-index2', report)
+
+    def test_configuration_status_transcript_is_cited(self):
+        with gzip.open(self.record / 'device-info-scs.log.gz', 'rt') as stream:
+            device_info = stream.read()
+        with gzip.open(self.record / 'config-status-device1.log.gz', 'rt') as stream:
+            config_status = stream.read()
+        with gzip.open(self.record / 'ramtest-program-with-spl.log.gz', 'rt') as stream:
+            programming = stream.read()
+
+        self.assertIn('17:08:01 2026', device_info)
+        self.assertIn('--device=1 --cmd_code=0x4', config_status)
+        self.assertIn('17:10:09 2026', config_status)
+        self.assertIn('17:19:45 2026', programming)
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('[config-status-device1.log.gz](config-status-device1.log.gz)', report)
+        self.assertIn('between the device-information and SPL-programming transcripts', report)
+
+    def test_board_identity_and_release_claims_are_limited_to_retained_evidence(self):
+        hardware = json.loads((self.record / 'hardware.json').read_text())
+        board = hardware['board']
+        self.assertEqual(board['quartus_cable'], 'DE25-Nano [3-11.3-iface0]')
+        self.assertNotIn('jtag_idcode', board)
+        self.assertNotIn('usb_serial', board)
+        self.assertNotIn('uid', board)
+
+        report = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('do not bind the session to a USB serial or board', report)
+        self.assertNotIn('TRWU8J8G', report)
+        self.assertNotIn('79B9468337C3A50B', report)
+        self.assertNotIn('TRWU8CBL', report)
+        self.assertNotIn('Both serial-specific status files record release', report)
+
+        guide = (self.root / 'docs/de25-linux.md').read_text()
+        self.assertNotIn('identified board', guide)
+        self.assertIn('do not bind this session to a USB serial or board UID', ' '.join(guide.split()))
+        self.assertNotIn('4362c0dd', (self.record / 'README.md').read_text())
+
+        checks_note = ' '.join((self.record / 'README.md').read_text().split())
+        self.assertIn('does not attest checks on this PR head', checks_note)
+
+        self.assertIn('does not establish which index was queried', report)
+        restore = json.loads((self.record / 'restore.json').read_text())
+        self.assertIn('claim_released_utc', restore)
+        self.assertIn('one claim-release timestamp', report)
+
+    def test_collector_cli_replays_retained_logs_to_exact_scans_json(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            logs = Path(temp_dir) / 'logs'
+            logs.mkdir()
+            output = Path(temp_dir) / 'scans.json'
+            for name in ('smoke-ram.log', 'full-ram.log'):
+                with gzip.open(self.record / f'{name}.gz', 'rb') as source:
+                    (logs / name).write_bytes(source.read())
+
+            subprocess.run([
+                sys.executable,
+                str(self.record / 'collect.py'),
+                '--logs', str(logs),
+                '--output', str(output),
+            ], check=True, capture_output=True, text=True)
+            self.assertEqual(output.read_bytes(), (self.record / 'scans.json').read_bytes())
+
+    def test_manifest_hashes_match_the_retained_evidence(self):
+        manifest = json.loads((self.record / 'manifest.json').read_text())
+        for name, expected in manifest['file_sha256'].items():
+            with self.subTest(name=name):
+                actual = hashlib.sha256((self.record / name).read_bytes()).hexdigest()
+                self.assertEqual(actual, expected)
 
 
 if __name__ == '__main__':

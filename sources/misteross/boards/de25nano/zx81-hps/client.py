@@ -234,8 +234,9 @@ class ComputerClient:
                 self._abort("register resource is not the expected DE25 computer endpoint")
             words = [self._exchange(self.c.abi("OPCODE_IDENTITY"), index)
                      for index in range(self.c.abi("IDENTITY_WORD_COUNT"))]
+            # The mailbox reports the ABI 1.0 identity, words 0..15.
             expected = [self.c.abi(name) for name in ("IDENTITY_MAGIC0", "IDENTITY_MAGIC1",
-                "TRANSPORT_MAJOR", "TRANSPORT_MINOR", "ABI_TAG", "ABI_MAJOR", "ABI_MINOR")]
+                "TRANSPORT_MAJOR", "TRANSPORT_MINOR", "ABI_TAG", "ABI_MAJOR")] + [0]
             capabilities = (self.c.abi("INTERFACE_VIDEO_FIXED_720P60_CAPABILITY_MASK") |
                             self.c.abi("INTERFACE_KEYBOARD_HID_CAPABILITY_MASK") |
                             self.c.abi("INTERFACE_MEDIA_ZX81_TAPE_CAPABILITY_MASK"))

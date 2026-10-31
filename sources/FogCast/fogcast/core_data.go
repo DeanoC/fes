@@ -20,6 +20,9 @@ type coreDataClient interface {
 	InspectCoreData(context.Context, int64, io.Reader, string) (protocol.CoreDataInspection, error)
 	UpdateCoreSettings(context.Context, int64, io.Reader, protocol.CoreSettingsUpdate) (protocol.CoreDataInspection, error)
 }
+type gameCoreDataClient interface {
+	InspectGameCoreData(context.Context, int64, io.Reader, string, string) (protocol.CoreDataInspection, error)
+}
 type libraryCoreClient interface {
 	LoadLibraryCore(context.Context, int64, io.Reader, string) (protocol.Status, error)
 }
@@ -31,6 +34,10 @@ func (s *Service) CoreProgress(ctx context.Context, gameID string) (CoreDataResu
 	return s.entryCoreData(ctx, gameID, nil)
 }
 func (s *Service) SetCoreSettings(ctx context.Context, gameID string, u protocol.CoreSettingsUpdate) (CoreDataResult, error) {
+	if u.Machine != nil {
+		// The entry names the game; a caller never chooses another record.
+		u.GameID = gameID
+	}
 	if !u.Valid() {
 		return CoreDataResult{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
@@ -60,7 +67,7 @@ func (s *Service) entryCoreData(parent context.Context, gameID string, u *protoc
 			return CoreDataResult{}, canonicalError(protocol.CodeBusy, nil)
 		}
 	}
-	result, err := s.inspectInstalledCoreData(ctx, entry.PackageID, u)
+	result, err := s.inspectInstalledCoreData(ctx, entry.PackageID, entry.GameID, u)
 	if err == nil && result.CoreID != entry.CoreID {
 		return CoreDataResult{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
@@ -71,10 +78,23 @@ func (s *Service) entryCoreData(parent context.Context, gameID string, u *protoc
 }
 
 // Caller holds lifecycle admission, keeping selection and the target fixed.
-func (s *Service) inspectInstalledCoreData(ctx context.Context, id string, u *protocol.CoreSettingsUpdate) (CoreDataResult, error) {
+func (s *Service) inspectInstalledCoreData(ctx context.Context, id, gameID string, u *protocol.CoreSettingsUpdate) (CoreDataResult, error) {
 	value, data, err := s.readInstalledCore(ctx, id)
 	if err != nil {
 		return CoreDataResult{}, err
+	}
+	// A pc386 machine record is keyed by its library game; Pong's by its core.
+	game := ""
+	if protocol.DeclaresPc386Machine(value.Descriptor) {
+		game = gameID
+	}
+	if (u != nil && (u.Machine != nil) != (game != "")) || (game != "" && !protocol.ValidMediaGameID(game)) {
+		return CoreDataResult{}, canonicalError(protocol.CodeBadRequest, nil)
+	}
+	if u != nil && game != "" {
+		update := *u
+		update.GameID = game
+		u = &update
 	}
 	if SessionTargetFromContext(ctx) != "" || s.protocolAdmissionEnabled() {
 		if _, err = s.refreshTargetAdmission(ctx); err != nil {
@@ -96,7 +116,13 @@ func (s *Service) inspectInstalledCoreData(ctx context.Context, id string, u *pr
 		return CoreDataResult{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
 	var result protocol.CoreDataInspection
-	if u == nil {
+	if u == nil && game != "" {
+		games, ok := client.(gameCoreDataClient)
+		if !ok {
+			return CoreDataResult{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+		}
+		result, err = games.InspectGameCoreData(ctx, int64(len(data)), bytes.NewReader(data), id, game)
+	} else if u == nil {
 		result, err = native.InspectCoreData(ctx, int64(len(data)), bytes.NewReader(data), id)
 	} else {
 		result, err = native.UpdateCoreSettings(ctx, int64(len(data)), bytes.NewReader(data), *u)

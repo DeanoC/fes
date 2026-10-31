@@ -19,7 +19,9 @@ and JTAG diagnostics are intermediate evidence only.
 Each row requires its changed artifact and its actual hardware path. Passing a
 simulation or a maintenance client does not complete the corresponding managed
 flow. Headless Linux currently ships no runtime daemon, target agent, managed
-bundle or MENU. The [persistent bootstrap trial](../validation/2026-10-31-de25-reboot-bootstrap/README.md#physical-trial)
+bundle or MENU. The [HPS-first hardware proof](../validation/2026-10-31-de25-hps-first-hardware/README.md)
+records volatile startup and native BASIC loading. The later
+[persistent bootstrap trial](../validation/2026-10-31-de25-reboot-bootstrap/README.md#physical-trial)
 loads ZX81 through Linux and runs BASIC in two epochs separated by ordinary
 reboot. Managed loading, MENU and failed-load recovery remain separate gates.
 The [earlier bring-up record](../validation/2026-10-30-de25-linux-fpga/README.md)

@@ -1,0 +1,42 @@
+name: FES nightly regression
+# Every core's full simulation suite (and every other lane) on main, nightly.
+# Pull requests run only smoke sims for affected cores; pushes to main run the
+# full suite for affected cores; this run catches anything either missed.
+on:
+  schedule:
+    - cron: '17 1 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    uses: ./.github/workflows/check.yml
+  report:
+    # Lander owns nightly triage: open or update one tracking issue on failure.
+    needs: regression
+    if: failure() || cancelled()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the nightly regression issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+          RESULT: ${{ needs.regression.result }}
+        run: |
+          title='Nightly regression failing on main'
+          since=$(gh api "repos/$GH_REPO/commits?sha=$SHA&since=$(date -u -d '-1 day' +%Y-%m-%dT%H:%M:%SZ)" \
+            --jq '.[] | "- " + .sha[0:8] + " " + (.commit.message | split("\n")[0])' || true)
+          body=$(printf '%s\n\n- Run: %s\n- Commit: %s\n- Result: %s\n\nCommits on main in the last 24 hours:\n%s\n\nTriage: open the run, find the failing fpga-simulation (core, target) row, and file or reopen against the PR that introduced it.\n' \
+            "$(date -u +%Y-%m-%d) nightly full regression did not pass." "$RUN_URL" "$SHA" "$RESULT" "${since:-- (none)}")
+          number=$(gh issue list --state open --label nightly-regression --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh label create nightly-regression --color B60205 --description 'Nightly full regression failure' 2>/dev/null || true
+            gh issue create --title "$title" --label nightly-regression --label lane:lander --body "$body"
+          fi
