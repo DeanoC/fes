@@ -177,6 +177,7 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertEqual(drifted, {
             leaf_path,
             B.BOARD + "zx81-hps/computer_tb.cpp",
+            B.BOARD + "zx81-hps/endpoint_tb.cpp",
             B.BOARD + "zx81-hps/sim.py",
             B.BOARD + "zx81-hps/build.py",
         })

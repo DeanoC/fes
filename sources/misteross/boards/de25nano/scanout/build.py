@@ -221,6 +221,13 @@ def verify_reset_synchronizers(project):
         return re.sub(r"\s+", "", source)
 
     board = compact(project / "fes_mailbox/fes_de25_scanout_board.v")
+    if ("always@(posedgepixel_clkornegedgequalified_lock)" not in board or
+            "always@(posedgepixel_clkornegedgevisible_sync[1])" not in board or
+            "assignHDMI_TX_D=video_active&&visible_line?video_rgb:24'd0;" not in board or
+            "assignHDMI_TX_DE=video_active&&visible_line&&video_de;" not in board or
+            "assignHDMI_TX_D=visible_request" in board or
+            "assignHDMI_TX_DE=visible_request" in board):
+        raise ValueError("scanout HDMI data/DE visibility is not pixel-registered with immediate lock assertion")
     for instance, clock, output in (("fes_scanout_pixel_reset", "pixel_clk", "pixel_reset_n"),
                                     ("fes_scanout_system_reset", "system_clk", "system_reset_n")):
         expected = ("fes_de25_top_reset" + instance + "(.clk(" + clock + "),"
@@ -261,14 +268,17 @@ def verify_reset_synchronizers(project):
         target = "fes_video_inst|" + instance + "|sync_regs*|"
         if target + "aclr" not in sdc or target + "clrn" not in sdc:
             raise ValueError("scanout SDC does not constrain the actual " + instance + " chain")
-    if "if{$scanout_clear_count!=8}" not in sdc:
-        raise ValueError("scanout SDC does not require all eight real reset-chain clear pins")
+    for path in ("visible_sync[0]|aclr", "visible_sync[1]|aclr", "video_active|aclr"):
+        if "fes_video_inst|" + path not in sdc:
+            raise ValueError("scanout SDC does not constrain the registered visibility clear pin: " + path)
+    if "if{$scanout_clear_count!=11}" not in sdc:
+        raise ValueError("scanout SDC does not require all eleven reset/visibility clear pins")
     if "soc_inst|subsys_periph|fes_scanout_pixel_reset|sync_regs*" in sdc or \
             "soc_inst|subsys_periph|fes_scanout_system_reset|sync_regs*" in sdc:
         raise ValueError("scanout SDC still targets nonexistent Qsys reset registers")
     return {"pixel_clock": "74250000 Hz", "system_clock": "100000000 Hz",
             "assertion": "asynchronous", "deassertion": "synchronous per domain",
-            "sdc_clear_pins": 8}
+            "sdc_clear_pins": 11}
 
 
 def verify_handoff(project, hps):

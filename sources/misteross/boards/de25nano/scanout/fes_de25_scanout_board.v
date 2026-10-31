@@ -46,25 +46,39 @@ module fes_de25_scanout_board (
         .HDMI_TX_INT(HDMI_TX_INT), .READY());
     assign {HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S} = 4'b0000;
     wire visible_request = pixel_reset_n && pixel_locked && qualified_lock && !fault;
+    // The qualified-lock signal asserts asynchronously and releases on the
+    // system clock. Resetting this synchronizer on its assertion preserves an
+    // immediate blank when the pixel clock stops; visibility itself only
+    // leaves this pixel domain through registered state.
     (* async_reg = "true" *) reg [1:0] visible_sync = 2'b00;
     reg previous_hs = 1'b0;
     reg visible_line = 1'b0;
     reg video_active = 1'b0;
+    always @(posedge pixel_clk or negedge qualified_lock) begin
+        if (!qualified_lock) visible_sync <= 2'b00;
+        else visible_sync <= {visible_sync[0], visible_request};
+    end
     always @(posedge pixel_clk) begin
-        visible_sync <= {visible_sync[0], visible_request};
         previous_hs <= video_hs;
         // Apply visibility after the complete sync pulse, in the horizontal
         // porch. Hold it through vertical sync so VS cannot be clipped.
-        if (previous_hs && !video_hs && !video_vs) begin
+        if (previous_hs && !video_hs && !video_vs)
             visible_line <= visible_sync[1];
-            video_active <= visible_sync[1];
-        end else if (!visible_sync[1]) video_active <= 1'b0;
+    end
+    // This registered gate is the only data/DE visibility control at the
+    // pins. Its async assertion is driven by a pixel-domain synchronizer Q;
+    // lock loss clears the chain immediately, while release is pixel-clocked.
+    always @(posedge pixel_clk or negedge visible_sync[1]) begin
+        if (!visible_sync[1]) video_active <= 1'b0;
+        else if (previous_hs && !video_hs && !video_vs) video_active <= 1'b1;
     end
     assign HDMI_TX_CLK = pixel_clk;
-    // Data blanks immediately on reset/lock loss, then waits for a safe line
-    // boundary before it can return. Sync keeps using the unmasked raster.
-    assign HDMI_TX_D = visible_request && visible_sync[1] && video_active && visible_line ? video_rgb : 24'd0;
-    assign HDMI_TX_DE = visible_request && visible_sync[1] && video_active && visible_line && video_de;
+    // Data/DE use pixel-domain registered visibility only. qualified_lock
+    // asynchronously clears the synchronizer on reset/PLL loss, then picture
+    // returns only after the complete sync pulse outside VS. Sync keeps using
+    // the unmasked raster until its own safe line boundary.
+    assign HDMI_TX_D = video_active && visible_line ? video_rgb : 24'd0;
+    assign HDMI_TX_DE = video_active && visible_line && video_de;
     assign HDMI_TX_HS = visible_line && video_hs;
     assign HDMI_TX_VS = visible_line && video_vs;
 endmodule

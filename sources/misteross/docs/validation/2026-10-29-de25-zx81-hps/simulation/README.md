@@ -1,10 +1,12 @@
 # DE25 ZX81 HPS historical computer simulation
 
-The retained machine and endpoint runs predate the HDMI frame-gate source at
-PR head `d715651b4171da7a69fa0d896dc1bd67168dd064`. They are historical host
-simulation evidence for their recorded inputs, not simulation evidence for the
-current PR source. No machine or endpoint simulation was rerun after that gate
-was added.
+The retained machine and endpoint logs in this directory predate the HDMI
+frame-gate source at PR head `d715651b4171da7a69fa0d896dc1bd67168dd064`. They
+remain historical host simulation evidence for their recorded inputs and do
+not describe the current PR source. The current `computer_tb.cpp` and native/
+AArch64 client proof were rerun against the frame-gated renderer; the current
+endpoint fault regression also reaches an active rendered frame before checking
+that transport loss blanks sync and data at the next frame boundary.
 
 These are host simulations of the native Avalon computer leaf, its actual
 `fes.computer` mailbox, HID mapper, CRC media transfer, tape store, NMOS Z80,

@@ -38,6 +38,15 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertIn("Cut only the first synchronizer D input", sdc)
         self.assertNotIn("set_clock_groups", sdc)
 
+    def test_hdmi_data_and_de_use_registered_visibility_with_lock_assertion(self):
+        board = self.sources[B.BOARD + "scanout/fes_de25_scanout_board.v"].decode()
+        self.assertIn("always @(posedge pixel_clk or negedge qualified_lock)", board)
+        self.assertIn("always @(posedge pixel_clk or negedge visible_sync[1])", board)
+        self.assertIn("assign HDMI_TX_D = video_active && visible_line ? video_rgb : 24'd0;", board)
+        self.assertIn("assign HDMI_TX_DE = video_active && visible_line && video_de;", board)
+        self.assertNotIn("assign HDMI_TX_D = visible_request", board)
+        self.assertNotIn("assign HDMI_TX_DE = visible_request", board)
+
     def test_actual_preparation_replaces_pattern_with_response_preserving_real_scanout(self):
         output, _, hps, _ = self.prepare()
         project = output / "combined/hps/project"
@@ -121,7 +130,7 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertNotIn("deassert", integrate.lower())
         self.assertIn("add_connection fes_scanout_system_reset.out_reset $instance.s0_reset", integrate)
         self.assertIn("add_connection fes_scanout_pixel_reset.out_reset $instance.m0_reset", integrate)
-        self.assertEqual(B.verify_reset_synchronizers(project)["sdc_clear_pins"], 8)
+        self.assertEqual(B.verify_reset_synchronizers(project)["sdc_clear_pins"], 11)
 
     def test_generation_reset_guard_rejects_missing_chain_or_stale_sdc_targets(self):
         output, _, _, _ = self.prepare()
@@ -136,6 +145,9 @@ class ScanoutBuildTests(unittest.TestCase):
         original_sdc = sdc_path.read_text()
         sdc_path.write_text(original_sdc.replace("fes_video_inst|fes_scanout_pixel_reset|sync_regs*|aclr", "soc_inst|subsys_periph|fes_scanout_pixel_reset|sync_regs*|aclr", 1))
         with self.assertRaisesRegex(ValueError, "does not constrain the actual fes_scanout_pixel_reset chain"):
+            B.verify_reset_synchronizers(project)
+        sdc_path.write_text(original_sdc.replace("fes_video_inst|visible_sync[1]|aclr", "fes_video_inst|missing_visible_sync|aclr", 1))
+        with self.assertRaisesRegex(ValueError, "does not constrain the registered visibility clear pin"):
             B.verify_reset_synchronizers(project)
 
     def test_postcompile_pll_mutation_is_rejected_with_failed_receipt_retained(self):

@@ -60,14 +60,17 @@ running 100 MHz domain and stops/drains the endpoint once the pixel clock
 resumes; it does **not** reset live FIFO or reader accounting. The DE25
 scanout instance keeps its fixed raster and raw HS/VS running while the
 endpoint is stopped, faulted or reset.
-HDMI data blanks on reset/lock loss, then visibility changes after a complete
-horizontal sync pulse while VS is inactive. This keeps DE, HS and VS gating
-away from active pixels and complete sync pulses, including a lock failure in
-the middle of HS. A qualifier stretches brief loss/relock events so video
-cannot briefly reappear before the sticky fault latches. This detects PLL lock
-loss, not independent pixel-clock progress. Permanent clock loss cannot advance
-the control bridge or local drain proof. Forced common reset starts a new
-bridge and reader epoch and cannot prove prior traffic drained.
+HDMI data/DE at the pins use registered pixel-domain visibility state. The
+visibility synchronizer asynchronously asserts from the qualified lock signal
+and releases through its pixel-clock stages; data blanks immediately on lock
+loss while HS/VS finish their current pulses. Visibility returns after a
+complete horizontal sync pulse while VS is inactive. This keeps DE, HS and VS
+gating away from active pixels and complete sync pulses, including a lock
+failure in the middle of HS. A qualifier stretches brief loss/relock events so
+video cannot briefly reappear before the sticky fault latches. This detects PLL
+lock loss, not independent pixel-clock progress. Permanent clock loss cannot
+advance the control bridge or local drain proof. Forced common reset starts a
+new bridge and reader epoch and cannot prove prior traffic drained.
 
 Run from this directory:
 
@@ -98,9 +101,10 @@ checks. The pixel PLL parameters are checked after generation and compilation.
 Generated bridge FIFO constraints remain authoritative: no broad clock groups
 or pointer-path cuts are added. The board SDC cuts the eight asynchronous clear
 pins on the configuration, lock-qualification and two domain reset
-synchronizers, plus the first D ingress of the
-sticky-fault and HDMI-visibility synchronizers; later synchronizer stages,
-line gating and output paths remain timed. No HDMI IO delays are fabricated.
+synchronizers, plus the two visibility-synchronizer clears and the registered
+data/DE gate clear. It also cuts only the first D ingress of the sticky-fault
+and HDMI-visibility synchronizers; later synchronizer stages, line gating and
+output paths remain timed. No HDMI IO delays are fabricated.
 
 Native tests exercise the real reader/video/control RTL with the same guarded
 M20K hint adaptation used by the build. They cover complete frames and lane

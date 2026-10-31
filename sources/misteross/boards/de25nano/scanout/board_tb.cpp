@@ -59,6 +59,15 @@ int main(int argc, char** argv) {
     t.video_de = 1; t.eval();
     check(t.HDMI_TX_DE && t.HDMI_TX_D == 0x123456, "visible active video did not pass");
 
+    // A short asynchronous fault request between pixel edges must not feed a
+    // multi-domain visibility expression directly to the HDMI data/DE pins.
+    t.rootp->fes_de25_scanout_board__DOT__fault = 1;
+    t.eval();
+    check(t.HDMI_TX_DE && t.HDMI_TX_D == 0x123456,
+          "an unsampled visibility request changed HDMI data/DE between pixels");
+    t.rootp->fes_de25_scanout_board__DOT__fault = 0;
+    t.eval();
+
     // A mid-sync visibility loss waits through the complete HS and VS pulse,
     // then takes effect at an HS trailing edge with VS low.
     t.video_de = 1; t.video_hs = 1; t.video_vs = 1; tick_pixel();
