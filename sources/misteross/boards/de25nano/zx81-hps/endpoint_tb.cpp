@@ -354,7 +354,7 @@ static void reset_faults_and_late_media() {
 }
 
 static void board_video_ready_crossing() {
-    Board b;
+    Board b; auto& t = b.t;
     check(b.read_word(FesDe25ComputerVideoStatusOffset) == FesDe25ComputerVideoReady,
           "configured board status was not readable");
     b.t.video_ready = 0; b.t.eval();
