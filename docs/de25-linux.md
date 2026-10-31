@@ -421,9 +421,11 @@ The [permanent-owner kernel recipe](../image/kernel/de25-platform/README.md)
 builds a separate candidate kernel and compiled base device tree from the locked
 Terasic source/SDK. It makes the owner and FPGA suppliers built-in, protects the
 region/manager/service bindings and describes the permanent SID-13 device.
-The recipe verifies the linked symbols and DTB with pinned libfdt. It does not
-assemble or install an SD image; matching rootfs/boot and positive loader/control
-integration, then physical DMA acceptance, remain required.
+The recipe verifies the linked symbols and DTB with pinned libfdt. The separate
+offline assembler described with that recipe prepares matching rootfs and boot
+files, removes incompatible vendor modules and requires two identical SD image
+assemblies. Neither recipe installs an image. Board boot, positive loader/control
+integration and physical DMA acceptance remain required.
 
 The [positive owner lifecycle record](validation/2026-10-31-de25-owner-positive/README.md)
 executes real OF overlay apply/remove, the owner control callback and private

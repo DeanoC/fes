@@ -334,7 +334,10 @@ def main(argv=None):
                 raise ValueError('candidate output must be separate from inputs')
         build.verify_receipt(base)
         selected_kernel(candidate)
-        if shutil.disk_usage(output.parent).free < 30 << 30:
+        existing = output.parent
+        while not existing.exists():
+            existing = existing.parent
+        if shutil.disk_usage(existing).free < 30 << 30:
             raise ValueError('candidate assembly requires at least 30 GiB free')
         output.mkdir(parents=True, exist_ok=False)
         tools = ensure_media_tools(source, args.container_runtime)
