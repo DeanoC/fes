@@ -945,8 +945,11 @@ func (r *Runtime) adoptActivePackage(adopted []corepackage.Staged, activeIndex i
 
 // ExpansionSocketReceipt is the running receipt for a package's rear socket.
 // A load that succeeded with no composition had none staged and none echoed
-// by the runtime (the load is refused otherwise), so the socket is verified
-// empty. A composed, slotted or parts load is not reported here.
+// by the runtime (the load is refused otherwise), so the socket is reported
+// empty. For a ZX81 RomInit load this rests on the host staging no
+// composition, the same trust a composed RomInit receipt already has: the
+// kit checks the programmed image against its receipt, not the package
+// payload. A composed, slotted or parts load is not reported here.
 func ExpansionSocketReceipt(activation CoreActivation) string {
 	if activation.Composition != nil || activation.SlotComposition != nil || activation.PartsComposition != nil {
 		return ""

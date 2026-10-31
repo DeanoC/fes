@@ -156,8 +156,8 @@ type CorePackageStatus struct {
 	Composition      *expansion.Composition        `json:"composition,omitempty"`
 	SlotComposition  *expansion.SlotComposition    `json:"slot_composition,omitempty"`
 	// ExpansionSocket is ExpansionSocketEmpty when the loaded package has an
-	// optional rear expansion socket and this load verifiably fitted nothing
-	// to it. It is omitted otherwise, including by agents that predate it, so
+	// optional rear expansion socket and this load staged and echoed no
+	// composition for it. It is omitted otherwise, including by agents that predate it, so
 	// a reader without it must treat the running setup as unknown.
 	ExpansionSocket  string                 `json:"expansion_socket,omitempty"`
 	MediaStream      *MediaStreamCapability `json:"media_stream,omitempty"`

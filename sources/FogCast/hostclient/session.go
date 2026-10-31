@@ -77,8 +77,8 @@ type SessionCorePackage struct {
 	MediaUnits      []protocol.MediaUnitStatus `json:"media_units,omitempty"`
 	PersistenceMode string                     `json:"persistence_mode,omitempty"`
 	Composition     *SessionComposition        `json:"composition,omitempty"`
-	// ExpansionSocket is "empty" when the kit verified that this load fitted
-	// nothing to the rear socket. Absent means not reported, not empty.
+	// ExpansionSocket is "empty" when the kit staged and its runtime echoed no
+	// composition for the rear socket on this load. Absent means not reported, not empty.
 	ExpansionSocket  string                      `json:"expansion_socket,omitempty"`
 	PartsComposition *expansion.PartsComposition `json:"parts_composition,omitempty"`
 	Generation       uint64                      `json:"generation"`
