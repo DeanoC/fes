@@ -50,7 +50,7 @@ def canonical_name(name):
     if name in ('.', './'):
         return ''
     name = name.removeprefix('./').rstrip('/')
-    if (not name or not re.fullmatch(r'[A-Za-z0-9_+./@-]+', name)
+    if (not name or not re.fullmatch(r'[A-Za-z0-9_+./@\[\]-]+', name)
             or name.startswith('/') or '..' in PurePosixPath(name).parts):
         raise ValueError('unsupported archive path: ' + name)
     return name

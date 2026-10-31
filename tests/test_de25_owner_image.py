@@ -23,6 +23,8 @@ class CandidateArchiveTests(unittest.TestCase):
             with tarfile.open(original, 'w') as archive:
                 self.add(archive, 'lib/libc.so.6', b'unchanged libc', mode=0o755, uid=0, gid=0)
                 self.add(archive, 'lib/ld.so', type=tarfile.SYMTYPE, linkname='libc.so.6')
+                self.add(archive, 'usr/bin/[', type=tarfile.SYMTYPE, linkname='../../bin/busybox')
+                self.add(archive, 'usr/bin/[[', type=tarfile.SYMTYPE, linkname='../../bin/busybox')
                 self.add(archive, 'lib/modules', type=tarfile.DIRTYPE)
                 self.add(archive, 'lib/modules/vendor', type=tarfile.DIRTYPE)
                 self.add(archive, 'lib/modules/vendor/driver.ko', b'old module')
@@ -36,6 +38,8 @@ class CandidateArchiveTests(unittest.TestCase):
                 self.assertEqual(items['lib/libc.so.6'].mode, 0o755)
                 self.assertEqual(items['lib/ld.so'].linkname, 'libc.so.6')
                 self.assertTrue(items['lib/ld.so'].issym())
+                for name in ('usr/bin/[', 'usr/bin/[['):
+                    self.assertEqual(items[name].linkname, '../../bin/busybox')
                 self.assertEqual(archive.extractfile(items['etc/fes-kernel-release']).read(), b'new\n')
                 self.assertEqual(items['etc/fes-kernel-release'].uid, 0)
                 self.assertEqual(items['etc/fes-kernel-release'].mtime, 1751459412)
