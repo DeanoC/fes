@@ -54,6 +54,21 @@ independently at
 manifest describes that complete retention. Timing and hardware acceptance are
 still not qualified.
 
+The concurrent visibility repair `af83211cb` is incorporated by normal merge
+`21f50a8e2`. The source-matched composition gate, scanout construction/constraint
+checks and actual RTL simulations pass after that merge (`visibility-delta/`).
+The combined ZX81 proof's selected production/runtime bytes are unchanged.
+
+The latest opt-in profile build at `21f50a8e2` passes in 485.6 seconds, verifies
+19 report and 431 handoff/SDC hashes, and retains the three split artifacts.
+All 74 reported timing rows have nonnegative slack and zero TNS; **four signoff
+rules still fail**. The actual generated interconnect passes all eight cases.
+These results (`fpga-after-visibility-fix/`) supersede the earlier six-failure
+scanout build for the current profile. Complete artifacts are independently
+retained at `out/artifacts/de25-pr-consolidation/2026-10-31/fpga/platform-21f50/`.
+No constraints were relaxed, no waivers were added and no hardware was
+programmed. Review readiness does not establish timing or hardware acceptance.
+
 This remains an unfinished foundation. The guard bounds CPU control accesses
 and poisons after uncertainty; it is not a global reset or drain proof.
 Contiguous allocation does not establish physical DDR/SMMU/firewall operation.
