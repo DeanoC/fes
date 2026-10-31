@@ -3446,9 +3446,10 @@ but require their own sound, IRQ and DMA qualification. Base audio is PC speaker
 The host simulation now has an optional inline XT 765-family adapter with a
 read-only command subset, IRQ6 and DMA2. Its byte service reads a 360 KiB raw
 image from physical SDRAM `100000–159FFF`, beyond the guest's address map.
-An ordered reset-only loader admits the whole image before the CPU is released;
-warm reset retains it, and cold reset invalidates it. CPU/DMA and media reads
-arbitrate for the controller while physical refresh continues. The DOS profile accepts runtime replacement and eject. The image has 40
+The ordered loader commits the first image before the CPU is released;
+warm reset retains it, and cold reset invalidates it. CPU/DMA, upload and media
+reads arbitrate while physical refresh continues. The DOS profile accepts runtime
+replacement and eject. The image has 40
 cylinders, two heads and nine 512-byte sectors per track. A pinned
 8086-compatible FreeDOS image and GLaBIOS form a separate
 whole-machine test, intended to check the boot sector, DOS prompt and directory
@@ -3456,10 +3457,10 @@ listing through the RTL machine. The diagnostic package does not connect the run
 and physical acceptance remain outside this simulation path.
 
 Use `fes.computer` and implemented keyboard/audio/video services where their
-contracts fit. PC floppy and hard-disk transports need new versioned shared
-media definitions and runtime support before a package advertises them. Media
-uploads populate bounded buffers while the CPU is held; rotating-media events
-and sector transfers subsequently follow guest time. Start with 360 KiB raw
+contracts fit. PC floppy transport uses the versioned `fes.media.pcxt-floppy` interface;
+hard-disk transport remains future work. Initial media upload populates the
+bounded buffer before boot; rotating-media events and sector transfers follow
+guest time. Start with 360 KiB raw
 floppies and explicit geometry. Model seek, motor spin-up, command/result phases,
 IRQ6, DMA2, terminal count and write protection. Raw sector images cannot express
 all copy protection; such games need a later flux/track representation.
