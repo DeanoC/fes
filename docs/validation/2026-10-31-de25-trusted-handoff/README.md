@@ -1,5 +1,10 @@
 # Nano secure handoff, master stopping and network recovery
 
+Follow-up: the [bounded TRWU8CBL Ethernet/SD trial](../2026-10-31-de25-ethernet-sd/README.md)
+corrects this preparation's missing FAT boot FIT, passes Ethernet download and
+SD scratch write/readback, and verifies factory restoration. The off-board
+handoff/ownership qualification limits below still apply.
+
 Base: `8dc3de51236e55a2c2b1ba775aec24ea4bcbe6e9`. This continues the
 [owned SiP binding](../2026-10-31-de25-owned-sip/README.md). All work in this
 record is off-board: source transforms, injected register/producer tests,

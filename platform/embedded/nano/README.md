@@ -3,7 +3,8 @@
 The separate [secure handoff and network recovery prototype](../../../docs/validation/2026-10-31-de25-trusted-handoff/README.md)
 adds a recovery loader with Ethernet/TFTP and SD writing at a manual prompt.
 It prepares a regular-file test-card image and matching recovery SOF; its
-Ethernet and SD-writing paths still require a bounded Nano trial. This keeps
+Ethernet download and SD scratch write/readback passed the
+[bounded TRWU8CBL trial](../../../docs/validation/2026-10-31-de25-ethernet-sd/README.md). This keeps
 recovery independent of the owned native firmware's unqualified boot proof.
 The recovery SPL selects FAT partition 1 and loads `/u-boot.itb`. Packaging
 verifies that exact file as well as the duplicate FIT at raw sector `0x200`;
