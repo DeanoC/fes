@@ -1,0 +1,44 @@
+{
+  "control_result": "original function hangs on BUSY as expected",
+  "classification": "actual platform service functions; injected firmware and clock",
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "service": {
+    "before_sha256": "493301f526657473b05700ba54bea38d1b63d43a99a341e78c338e0908ca9f4a",
+    "after_sha256": "b8110f3911f8163cfe62e90b22824cd666ee8d2835c730a3e614b9bff8c06432"
+  },
+  "patch_sha256": "e58abfd26c97f6d03490fde48a68a3290b19de9733cc4260e45818ef697227fa",
+  "compiler_command": [
+    "cc",
+    "-std=c11",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "out/de25-retention-claim-proof-v2/claim-test.c",
+    "-o",
+    "out/de25-retention-claim-proof-v2/claim-test"
+  ],
+  "cases": [
+    "busy firmware reaches bounded error",
+    "firmware error clears all stale callback pointers",
+    "already stopped client produces no SMC or callback",
+    "stop during busy polling produces no late callback",
+    "four buffers across two replies preserve success",
+    "repeated OK replies without progress terminate",
+    "deadline survives jiffies wrap",
+    "real buffer progress refreshes only the inactivity deadline",
+    "stop after SMC suppresses even a successful late callback"
+  ],
+  "disabled_positive": "passed",
+  "hardware_access": false,
+  "sdm_dma_quiescence": false,
+  "files_sha256": {
+    "claim-control": "599df20115ead449e55d1b70be8558f64137a7ed8c1fa01785c252e21c7471ab",
+    "claim-test": "be45fdda2c62c35ee321d44304d182d1973feeaf81136d34e4367c1917fc71a8",
+    "results.log": "2759ea4245be16bf29fc595b7519fdbe4ecfe7d00310c7183211017550c6d721",
+    "claim-test.c": "7f7bad40850a74c90a5024aac655d5335d117d035a91813d097574b69c23d8e4",
+    "disabled.log": "114dbc304e8a2ced7b34dc9c31b877860a492ba35c5976ad1e1497a5620d07ba",
+    "claim-disabled": "15aed475bb4db2340d395c9b393e30c772b87c876fafc2181a234dc78cfe6410",
+    "claim-function.c": "04b7938e395ccac83dff6f4ad24cd72af16e3eb946b2dd853569a0b8fe75c75f"
+  }
+}

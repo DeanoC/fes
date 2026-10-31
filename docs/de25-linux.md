@@ -441,11 +441,14 @@ DMA and managed FES runtime acceptance remain open. The running
 card was updated by verified files after the first full-image write; this does
 not attest the whole writable SD as the final offline image.
 
-The later [manager write-loop repair](validation/2026-10-31-de25-manager-write/README.md)
-bounds opt-in data-submission retries and preserves permanent errors, with
-thirteen actual-function cases and a full AArch64 kernel build. That kernel is
-unbooted. Service-thread termination, secure-call return, uncertain-transfer
-retention and physical fencing still block whole-load failure qualification.
+The later [programming-retention record](validation/2026-10-31-de25-retention/README.md)
+adds guarded service-claim termination, refusal of further programming after
+uncertainty, and manager-owned deadlines shared across image fragments. All 37
+actual-function cases pass. Its matching kernel/image boots the bottom board,
+loads the known ZX81 core twice with visible BASIC 7, and survives another
+software reboot with SSH and actual owner syscall checks. Physical failed
+transfers were not injected; secure-call/mutex bounds and hardware fencing
+remain unqualified. Managed FES runtime and DMA admission remain closed.
 
 The [positive owner lifecycle record](validation/2026-10-31-de25-owner-positive/README.md)
 executes real OF overlay apply/remove, the owner control callback and private

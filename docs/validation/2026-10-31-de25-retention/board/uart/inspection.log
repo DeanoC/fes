@@ -1,0 +1,26 @@
+
+FES DE25-Nano Linux bring-up
+fes-de25-nano login: root
+Password: 
+# printf '\nFES_RETENTION_IDENTITY_BEGIN\n'; uname -r; cat /proc/sys/kernel/rand
+om/boot_id; cat /sys/block/mmcblk0/device/cid; ip -4 addr show eth0; sha256sum /
+sys/kernel/notes /usr/share/fes/kernel-modules.json; ls -ln /dev/fes-de25-scanou
+t; dropbearkey -y -f /etc/dropbear/dropbear_ed25519_host_key; printf '\nFES_RETE
+NTION_IDENTITY_END\n' 
+
+FES_RETENTION_IDENTITY_BEGIN
+6.12.11-fes-de25-owner
+3678ada3-13a3-42a7-9266-ddfbca4e50b1
+275048534436344760702d33e0017c00
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq qlen 1000
+    inet 192.168.10.78/24 brd 192.168.10.255 scope global eth0
+       valid_lft forever preferred_lft forever
+be78380775fe921a08e9b5f1ab312df073338290fe0ebe06777a21b075462b9b  /sys/kernel/notes
+65924051b1381476129add83244af33cbe3f1afb0503f3e845347697f7fd073c  /usr/share/fes/kernel-modules.json
+crw-------    1 0        0          10, 124 Jan  1 00:00 [1;35m/dev/fes-de25-scanout[m
+Public key portion is:
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBN3b8AOr8MfwpqR7klS6g6pYEw2/ErY+LPjDstQpMm3 root@fes-de25-nano
+Fingerprint: sha1!! 96:54:c1:bd:16:d2:9a:7b:ed:ba:79:d9:32:e7:a0:38:76:1b:52:a8
+
+FES_RETENTION_IDENTITY_END
+# exit

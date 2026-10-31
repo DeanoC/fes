@@ -1,0 +1,8 @@
+{
+  "host": "192.168.10.69",
+  "boot_id": "9191e320-2d97-41a2-8e28-735ab8695f7c",
+  "command": "test ! -e /tmp/fes-owner-retention/boot && cat > /tmp/fes-owner-retention/install.sh",
+  "returncode": 0,
+  "elapsed_seconds": 0.14,
+  "stdin_sha256": "7036ff814b7b84d7b07c0ad33a071f74760e39c0f7ca4fdc92e35c347bb7c418"
+}
