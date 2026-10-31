@@ -8,10 +8,14 @@ for the merged bit-20 interface; it does not change the earlier artifact's
 identity or its historical record.
 
 The package and matching software bundle were built from merge commit
-`72febda79dc96d0bb87c72ea96d53f83366a523e`. The subsequent commits through
-`e02a5273c32d39e74aaae5e58007dc23f498aca8` change documentation and tests,
-not the deployed implementation. Quartus passed three seed audits and an
-independent byte-identical rebuild. Across the four reported internal corners,
+`72febda79dc96d0bb87c72ea96d53f83366a523e`. At the time of this run, the
+subsequent commits through `e02a5273c32d39e74aaae5e58007dc23f498aca8` changed
+documentation and tests, not the deployed implementation. That statement does
+not extend to the current PR head: later changes add sealed Quartus QSF
+synchronizer assignments and change the host upload path. This record proves
+the named package only; current-source timing and exact-artifact Kit B
+acceptance remain open. Quartus passed three seed audits and an independent
+byte-identical rebuild for the named package. Across the four reported internal corners,
 the worst setup/hold slacks were +1.012/+0.120 ns, +0.827/+0.134 ns and
 +1.421/+0.120 ns for seeds 1, 2 and 3.
 
