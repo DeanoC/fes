@@ -292,9 +292,9 @@ PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts under
 `sources/misteross/build/diagnostic/fes-pcxt/`. `fes.pcxt` has an installable
 format-2 diagnostic package with a minimal `fes.computer` identity/execution
 mailbox and fixed CGA Direct video. A separate `fes.pcxt-dos` recipe enables
-the GLaBIOS XT/5160 ROM and read-only floppy controller; its FreeDOS 1.4 boot
-image is copied into SDRAM through the physical storage loader before the 8088
-is released. The registered package producer uses Quartus with a common 100 MHz board,
+the GLaBIOS XT/5160 ROM and read-only floppy controller. It accepts a 360 KiB
+floppy image at runtime and stores it in SDRAM before releasing the 8088. The
+registered package producer uses Quartus with a common 100 MHz board,
 74.25 MHz CGA Direct video and a visible firmware-completion block. All declared
 seeds must pass reported internal timing; the first seed must reproduce its RBF.
 Nextpnr remains advisory under [#840](https://github.com/DeanoC/fes/issues/840).
@@ -318,10 +318,9 @@ checks are described in the core guide. A separate host simulation adds a
 read-only XT floppy adapter using IRQ6 and DMA2 with a pinned FreeDOS 360 KiB
 FAT12 image loaded into an isolated SDRAM buffer; its whole-machine test checks
 a DOS prompt and directory listing. Neither simulation qualifies either
-package for BIOS or DOS boot on hardware. The DOS package image is licensed
+package for BIOS or DOS boot on hardware. The FreeDOS test image is licensed
 GPL-2.0-or-later for the kernel and GPL-2.0 for FreeCOM; its source commits
-and SHA-256 are recorded in the core firmware notices. Runtime PC floppy media,
-write persistence,
+and SHA-256 are recorded in the core firmware notices. Floppy write persistence,
 DOS/game compatibility, host keyboard and other profiles remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 

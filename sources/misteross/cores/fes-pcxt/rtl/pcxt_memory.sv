@@ -58,7 +58,7 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     localparam [18:0] DISK_BYTES = 19'h5a000;
     reg busy, discard, odd, physical;
     reg [1:0] owner;
-    reg memory_seen, firmware_seen, disk_load_seen, media_seen, prefer_media;
+    reg memory_seen, firmware_seen, disk_load_seen, media_seen, prefer_media, prefer_load;
     reg [25:0] held_address;
     reg [15:0] held_data;
     reg [1:0] held_lanes;
@@ -72,15 +72,19 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     end
     wire controller_done;
     wire [15:0] controller_data;
-    wire waiting_media = media_read_valid && !media_seen;
-    wire waiting_memory = memory_valid && !memory_seen;
+    wire waiting_media = !reset && media_read_valid && !media_seen;
+    wire waiting_memory = !reset && memory_valid && !memory_seen;
+    wire waiting_load = disk_load_valid && !disk_load_seen && disk_load_address < DISK_BYTES && !media_read_valid;
     assign memory_ready = initialized && !cold_reset && !reset && !busy && !memory_seen &&
-                          (!waiting_media || !prefer_media);
+                          (!waiting_media || !prefer_media) &&
+                          (waiting_media || !waiting_load || !prefer_load);
     assign firmware_ready = initialized && !cold_reset && reset && !busy && !firmware_seen;
-    // Upload is fail-closed: invalid offsets are never accepted. The caller
-    // validates the whole image and keeps reset asserted through final DONE.
-    assign disk_load_ready = initialized && !cold_reset && reset && !busy && !disk_load_seen &&
-                             disk_load_address < DISK_BYTES && !(firmware_valid && !firmware_seen);
+    // The guest can keep running during a host upload. An outstanding floppy
+    // read drains before an overwrite; CPU and upload then alternate under
+    // sustained contention. Invalid offsets are never accepted.
+    assign disk_load_ready = initialized && !cold_reset && !busy && !disk_load_seen &&
+                             disk_load_address < DISK_BYTES && !(reset && firmware_valid && !firmware_seen) &&
+                             !media_read_valid && (!waiting_memory || prefer_load);
     /* verilator lint_off PINCONNECTEMPTY */
     // Separate the controller state/enable muxes from the physical pad FFs.
     // The existing controller mode delays command, address, data and OE
@@ -107,7 +111,8 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
         media_read_ready <= 0;
         if (cold_reset) begin
             busy <= 0; owner <= OWNER_MEMORY; discard <= 0; odd <= 0; physical <= 0;
-            memory_seen <= 0; firmware_seen <= 0; disk_load_seen <= 0; media_seen <= 0; prefer_media <= 0;
+            memory_seen <= 0; firmware_seen <= 0; disk_load_seen <= 0; media_seen <= 0;
+            prefer_media <= 0; prefer_load <= 0;
             held_address <= 0; held_data <= 0; held_lanes <= 0; held_write <= 0;
             memory_rdata <= 8'hff; media_read_data <= 8'hff;
         end else begin
@@ -140,6 +145,7 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
                 held_write <= 1;
             end else if (disk_load_valid && disk_load_ready) begin
                 busy <= 1; owner <= OWNER_LOAD; discard <= 0; physical <= 1;
+                prefer_load <= 0;
                 disk_load_seen <= 1; odd <= disk_load_address[0];
                 // Disk lives after the complete 1 MiB guest physical map.
                 held_address <= {6'd0, 1'b1, 1'b0, disk_load_address[18:1]};
@@ -147,7 +153,7 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
                 held_lanes <= disk_load_address[0] ? 2'b10 : 2'b01;
                 held_write <= 1;
             end else if (memory_valid && memory_ready) begin
-                busy <= 1; owner <= OWNER_MEMORY; discard <= 0; prefer_media <= 1;
+                busy <= 1; owner <= OWNER_MEMORY; discard <= 0; prefer_media <= 1; prefer_load <= 1;
                 memory_seen <= 1; odd <= address[0];
                 // Defensively reject ISA holes and ROM writes even if a
                 // caller bypasses the motherboard's own address protection.

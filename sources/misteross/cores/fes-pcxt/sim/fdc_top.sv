@@ -4,6 +4,7 @@ module fdc_top (
     input wire clk, reset, guest_ce,
     output wire observed_commit,
     output wire [19:0] observed_seek_ticks,
+    output wire observed_seek_irq,
     input wire cycle_valid,
     output wire cycle_ready,
     input wire [19:0] cycle_address,
@@ -36,5 +37,7 @@ module fdc_top (
         .media_read_valid(media_read_valid), .media_read_addr(media_read_addr),
         .media_read_ready(media_read_ready), .media_read_data(media_read_data));
     assign observed_commit = card.commit;
-    assign observed_seek_ticks = card.seek_ticks;
+    // Test-only reconstruction of the original single-counter value.
+    assign observed_seek_ticks = 20'(card.seek_steps) * 20'd14318 + 20'(card.seek_phase);
+    assign observed_seek_irq = card.sense_irq_pending;
 endmodule

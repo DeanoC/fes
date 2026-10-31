@@ -1026,7 +1026,9 @@ func (s *Service) DevelopmentSessionState(ctx context.Context) (bool, string, er
 // play profile. Unknown or empty ABIs stay on the Diagnostic development path.
 func RecognizedPlayABI(id string, major, minor int64) bool {
 	switch id {
-	case "fes.simple-computer", "fes.simple-game", "fes.application", "fes.computer":
+	case "fes.computer":
+		return protocol.ComputerABI(id, major, minor)
+	case "fes.simple-computer", "fes.simple-game", "fes.application":
 		return major == 1 && minor == 0
 	default:
 		return false

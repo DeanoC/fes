@@ -76,7 +76,7 @@ module top #(
         .exec_reset(exec_reset), .keyboard_rows(), .controller_buttons(),
         .mouse_valid(), .mouse_dx(), .mouse_dy(), .mouse_buttons(), .mouse_ready(1'b0),
         .media_write_addr(), .media_write_data(), .media_write_enable(), .media_write_unit(),
-        .media_write_ready(1'b0), .media_write_busy(1'b0), .media_changed(1'b0), .media_frozen(),
+        .media_write_ready(1'b0), .media_write_busy(1'b0), .media_changed(1'b0), .media_reset(1'b0), .media_frozen(),
         .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
         .save_ready(1'b0), .save_busy(1'b0), .save_size(15'd0),
         .unit0_state(), .unit0_size(), .unit1_state(), .unit1_size(),

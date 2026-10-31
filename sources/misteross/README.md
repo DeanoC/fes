@@ -85,8 +85,8 @@ host. `make sim-fes-pcxt-bios` runs the separate diskless GLaBIOS XT/5160 POST
 fixture with an external BIOS, font and simulated XT keyboard. The host-only
 `make sim-fes-pcxt-fdc` tests the read-only 360 KiB XT floppy adapter, and
 `make sim-fes-pcxt-dos` permits downloads of pinned BIOS and FreeDOS inputs
-for a whole-machine DOS boot test. These simulations do not add a runtime PC
-media or HID path or qualify hardware. `make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache` builds the
+for a whole-machine DOS boot test. The DOS profile uses the runtime PC floppy media path; it has no host keyboard input.
+Host simulations do not qualify hardware. `make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache` builds the
 normal Quartus diagnostic package, with authenticated tool/source identity,
 three timing seeds and an independent byte-identical rebuild under
 `build/fes-pcxt-quartus/`. The [core README](cores/fes-pcxt/README.md) describes

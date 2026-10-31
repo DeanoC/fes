@@ -162,6 +162,7 @@ def main():
         sim.verify_vendor(name)
     sim.cpu_roms(build)
     sources = tuple(p for p in sim.SYSTEM_SOURCES if not p.endswith('/pcxt_boot.sv')) + (
+        'cores/fes-common/rtl/fes_computer_mailbox.v',
         sim.MEMORY_SOURCES[-1], 'cores/fes-pcxt/sim/bios_top.sv', 'cores/fes-pcxt/sim/bios_tb.cpp')
     subprocess.run([args.verilator, '--cc', '--exe', '--build', '-j', '4', '-Wall',
         '--timescale-override', '1ns/1ps',

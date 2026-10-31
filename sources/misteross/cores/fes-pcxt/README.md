@@ -8,10 +8,9 @@ PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a trans
 HID keyboard frontend, runtime floppy media transport or physical socket map.
 The registered `fes.pcxt` recipe builds a diagnostic package with fixed CGA
 Direct video and the standard identity/execution mailbox. The separate
-`fes.pcxt-dos` recipe builds an experimental fixed-image DOS profile with the
+`fes.pcxt-dos` recipe builds an experimental runtime-floppy DOS profile with the
 GLaBIOS XT/5160 ROM and read-only floppy controller. Host simulation loads its
-pinned FreeDOS 1.4 boot image into SDRAM through the physical loader used by
-the SDRAM floppy path and reaches `A:\>`; exact-artifact hardware prompt
+pinned FreeDOS 1.4 boot image into SDRAM through the runtime mailbox and physical loader and reaches `A:\>`; exact-artifact hardware prompt
 acceptance remains open. The storage lane
 connects conventional RAM and firmware to the existing
 addon SDRAM controller and boots the display diagnostic through its physical
@@ -44,15 +43,17 @@ is not a timing waiver.
 ### FreeDOS DOS-profile package
 
 The `fes.pcxt-dos` recipe selects `HARDWARE_DOS` and keeps the diagnostic
-profile unchanged. The host simulation loads the locked GLaBIOS ROM and a
-360 KiB FreeDOS floppy image. At cold start, the image bytes are written in
-order to SDRAM by `pcxt_system`; guest floppy reads then use the existing SDRAM
-media-read interface. The variant does not use a simulation-only disk model
-and has no floppy write path. Its FreeDOS image is assembled from FreeDOS
-kernel 2043 and FreeCOM 0.86a. Exact-artifact hardware validation to the DOS
-prompt remains open. Source commits, licences and image SHA-256 are recorded in
+profile unchanged. It includes GLaBIOS and a BAT-only XT keyboard responder;
+keyboard input is not yet supported. A 360 KiB raw floppy is delivered at
+runtime through `fes.media.pcxt-floppy` and the complete ordered image is
+written into SDRAM. The guest stays in reset until the initial image is
+physically written and committed. After that, eject and replacement leave the
+running guest alone. A cold reset invalidates the image. Guest floppy reads
+use the SDRAM media path; there is no disk ROM in the FPGA and no write path.
+The FreeDOS fixture uses kernel 2043 and FreeCOM 0.86a; see
 [`firmware/THIRD-PARTY-NOTICES.md`](firmware/THIRD-PARTY-NOTICES.md) and
-`sim/freedos.lock`.
+[`sim/freedos.lock`](sim/freedos.lock). Hardware prompt acceptance remains
+separate from the host simulation and package build.
 
 The recipe registers `scripts/pcxt_dos_hil_acceptance.py` with preferred kit
 order B then A. It requires at least three complete changing
@@ -557,7 +558,7 @@ treating the disk as guest RAM. The supported image is a raw 360 KiB disk:
 The DOS fixture uses the 8086-compatible FreeDOS kernel and FreeCOM selected
 and hashed in `sim/freedos.lock`, with a FAT12 boot sector assembled using the
 pinned NASM release. The image contains `FESXT.TXT` and is generated under
-`build/sim/fes-pcxt/freedos/`; third-party firmware and the image are not
+`build/sim/fes-pcxt/freedos/`; the generated fixture and external firmware are not
 packaged. The builder needs mtools. Downloads occur only with `--download`,
 which fetches missing pinned sources and the assembler; cached inputs are
 verified before use.

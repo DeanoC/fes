@@ -6,7 +6,7 @@ package generated
 const (
 	FesComputerABIID                                           = "fes.computer"
 	FesComputerABIMajor                                 uint16 = 1
-	FesComputerABIMinor                                 uint16 = 0
+	FesComputerABIMinor                                 uint16 = 1
 	FesComputerABITag                                   uint16 = 4
 	FesComputerSignature                                uint32 = 0xf5000000
 	FesComputerRequestMask                              uint32 = 0x80000000
@@ -23,6 +23,7 @@ const (
 	FesComputerAbiTag                                   uint32 = 0x4
 	FesComputerAbiMajor                                 uint32 = 0x1
 	FesComputerAbiMinor                                 uint32 = 0x0
+	FesComputerExtendedAbiMinor                         uint32 = 0x1
 	FesComputerIdentityMagic0Index                      uint32 = 0x0
 	FesComputerIdentityMagic1Index                      uint32 = 0x1
 	FesComputerIdentityTransportMajorIndex              uint32 = 0x2
@@ -33,6 +34,8 @@ const (
 	FesComputerIdentityCapabilitiesIndex                uint32 = 0x7
 	FesComputerIdentityBuildIDStartIndex                uint32 = 0x8
 	FesComputerIdentityWordCount                        uint32 = 0x10
+	FesComputerIdentityCapabilitiesHighIndex            uint32 = 0x10
+	FesComputerIdentityExtendedWordCount                uint32 = 0x11
 	FesComputerOpcodeIdentity                           uint32 = 0x1
 	FesComputerOpcodeExecution                          uint32 = 0x2
 	FesComputerOpcodeKeyboardHid                        uint32 = 0x3
@@ -127,6 +130,8 @@ const (
 	FesComputerZx81TapeLayoutMinor                      uint32 = 0x0
 	FesComputerC64DiskUnit                              uint32 = 0x0
 	FesComputerC64DiskBytes                             uint32 = 0x2ab00
+	FesComputerPcxtFloppyUnit                           uint32 = 0x0
+	FesComputerPcxtFloppyBytes                          uint32 = 0x5a000
 	FesComputerSpectrumDiskUnit                         uint32 = 0x1
 	FesComputerSpectrumDiskMinBytes                     uint32 = 0x2000
 	FesComputerSpectrumDiskMaxBytes                     uint32 = 0x2b4000
@@ -206,4 +211,8 @@ const (
 	FesComputerInterfaceMediaSpectrumDiskMajor          uint16 = 1
 	FesComputerInterfaceMediaSpectrumDiskMinor          uint16 = 0
 	FesComputerCapabilityMediaSpectrumDisk              uint32 = 0x8000
+	FesComputerInterfaceMediaPcxtFloppyID                      = "fes.media.pcxt-floppy"
+	FesComputerInterfaceMediaPcxtFloppyMajor            uint16 = 1
+	FesComputerInterfaceMediaPcxtFloppyMinor            uint16 = 0
+	FesComputerCapabilityMediaPcxtFloppy                uint32 = 0x10000
 )

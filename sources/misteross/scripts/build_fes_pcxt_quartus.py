@@ -207,9 +207,15 @@ def dos_assets(root):
 
 
 def create_build_record(root, repository, revision, tool_identities, *, identity_version=2,
-                        execution=None, core_id='fes.pcxt', dos_profile=False):
+                        execution=None, core_id=None, dos_profile=False):
     if identity_version != 2 or execution is None or execution.get('toolchain') != 'quartus':
         raise BuildError('Quartus package requires controlled functional execution inputs')
+    if not isinstance(dos_profile, bool):
+        raise BuildError('PC/XT DOS profile must be a boolean')
+    expected_core_id = 'fes.pcxt-dos' if dos_profile else 'fes.pcxt'
+    if core_id is not None and core_id != expected_core_id:
+        raise BuildError('PC/XT core ID does not match the selected profile')
+    core_id = expected_core_id
     root = Path(root).resolve()
     top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
     roots = source_roots(root)
@@ -217,16 +223,16 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
     parameters = {'device': board.DEVICE, 'core_id': core_id,
                   'hardware_dos': dos_profile,
                   'half_rate_board': False, 'phased_hdmi_clock': True,
-                  'enable_fes_computer': True, 'video_mailbox_contract': True,
+                  'enable_fes_computer': True, 'enable_pcxt_media': dos_profile,
+                  'diagnostic_completion_marker': not dos_profile,
+                  'video_mailbox_contract': True,
                   'system_clock_hz': 100000000, 'pixel_clock_hz': 74250000,
                   'hdmi_phase_ps': 8979,
                   'quartus_recipe_sha256': hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest(),
                   'execution_sha256': execution_digest(execution)}
     if dos_profile:
         metadata, font = dos_assets(root)
-        parameters.update(freedos_image_sha256=metadata['floppy']['sha256'],
-                          freedos_source_urls='; '.join(item['url'] for item in metadata['floppy']['sources']),
-                          glabios_rom_sha256=metadata['bios']['sha256'],
+        parameters.update(glabios_rom_sha256=metadata['bios']['sha256'],
                           glabios_font_sha256=hashlib.sha256(font).hexdigest())
     fields = {'format': 2, 'toolchain': 'quartus', 'repository': repository, 'revision': revision,
               'source_path': root.relative_to(top).as_posix(), 'source_roots': roots,
@@ -243,6 +249,7 @@ def require_timing(summary, seeds, *, dos_profile=False):
             or summary.get('profile', {}).get('HALF_RATE_BOARD') != 0
             or summary.get('profile', {}).get('ENABLE_FES_COMPUTER') != 1
             or summary.get('profile', {}).get('HARDWARE_DOS') != int(dos_profile)
+            or summary.get('profile', {}).get('ENABLE_PCXT_MEDIA') != int(dos_profile)
             or len(summary.get('runs', [])) != len(seeds)
             or summary.get('elaboration', {}).get('hps_primitive_instances') != {
                 'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
@@ -267,22 +274,29 @@ def require_timing(summary, seeds, *, dos_profile=False):
 
 def manifest(record, payload, *, dos_profile=False, metadata=None):
     fields = json.loads(record)
+    parameters = fields.get('parameters', {})
+    expected_core_id = 'fes.pcxt-dos' if dos_profile else 'fes.pcxt'
+    if (not isinstance(dos_profile, bool) or parameters.get('core_id') != expected_core_id
+            or parameters.get('hardware_dos') is not dos_profile
+            or parameters.get('enable_pcxt_media') is not dos_profile):
+        raise BuildError('PC/XT manifest profile does not match its build record')
     if dos_profile:
-        floppy = metadata['floppy']
-        sources = '; '.join(f"{item['url']} ({item['license']})" for item in floppy['sources'])
-        description = (f"FreeDOS 1.4 boots to A:\\> from a read-only XT floppy served through SDRAM. "
-                       f"Image source: {sources}; SHA-256 {floppy['sha256']}. See PC/XT third-party notices.")
+        description = ('XT-compatible BIOS and read-only 360 KiB floppy loaded '
+                       'at runtime into SDRAM. A bootable disk image is required.')
         core = {'id': 'fes.pcxt-dos', 'name': 'FES PC/XT FreeDOS', 'version': '0.1.0',
                 'description': description}
     else:
         core = {'id': 'fes.pcxt', 'name': 'FES PC/XT Diagnostic', 'version': '0.2.0',
                 'description': 'Quartus 8088 SDRAM/DMA diagnostic with a static CGA completion signature'}
+    interfaces = [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}]
+    if dos_profile:
+        interfaces.append({'id': 'fes.media.pcxt-floppy', 'major': 1, 'minor': 0, 'required': True})
     return encode_manifest({'format': 2,
         'core': core,
         'target': {'platform': 'de10_nano', 'device': board.DEVICE, 'programming_profile': 'fes-gp-v1'},
         'payload': {'file': 'core.rbf', 'size': payload.stat().st_size, 'sha256': sha(payload)},
-        'abi': {'id': 'fes.computer', 'major': 1, 'minor': 0},
-        'interfaces': [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}],
+        'abi': {'id': 'fes.computer', 'major': 1, 'minor': 1 if dos_profile else 0},
+        'interfaces': interfaces,
         'build': {'id': build_identity(record), 'repository': fields['repository'],
                   'revision': fields['revision'], 'recipe_sha256': fields['recipe_sha256'],
                   'toolchain': '; '.join(f'{k} {fields["tools"][k]}' for k in sorted(fields['tools']))}})
@@ -291,7 +305,7 @@ def manifest(record, payload, *, dos_profile=False, metadata=None):
 def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2, dos_profile=False):
     root = Path(root).resolve()
     core_id = 'fes.pcxt-dos' if dos_profile else 'fes.pcxt'
-    repository, revision = _require_clean_source(root, identity_version=identity_version)
+    repository, revision = _require_clean_source(root, identity_version=identity_version, dos_profile=dos_profile)
     tools = authenticate_tools(root, cache_root=cache_root, core_id=core_id)
     paths = {name: tool.path for name, tool in tools.items()}
     identities = {name: tool.identity for name, tool in tools.items()}
@@ -338,11 +352,11 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
             'classification': 'installable-quartus-hardware-dos-package' if dos_profile else 'installable-quartus-diagnostic-package',
             'build_id': build_id, 'revision': revision, 'seeds': recipe['seeds'],
             'core_id': core_id, 'hardware_dos': dos_profile,
-            'freedos_image_sha256': metadata['floppy']['sha256'] if dos_profile else None,
             'internal_timing_pass': True, 'repeat_rbf_sha256': sha(repeated),
             'whole_board_qualified': False, 'hardware_acceptance': False,
             'limits': ['external IO/HPS timing and physical reset qualification remain open',
-                       'no exact-artifact hardware acceptance recorded']}, indent=2) + '\n')
+                       ('runtime floppy image required; host keyboard and exact-artifact hardware acceptance remain open'
+                        if dos_profile else 'BIOS, DOS boot, host keyboard and in-play display plane are not implemented')]}, indent=2) + '\n')
         package = export_package(encoded, payload, Path(package_output or root / 'build/packages'))
     return package
 

@@ -38,7 +38,8 @@ func PartsShell(inspection Inspection, payload []byte) (expansion.PartsShell, er
 	if st {
 		abi = "fes.computer"
 	}
-	if (!st && !coleco) || d.ABI.ID != abi || d.ABI.Major != 1 || d.ABI.Minor != 0 {
+	if (!st && !coleco) || d.ABI.ID != abi || (st && !SupportedComputerABI(d.ABI)) ||
+		(!st && (d.ABI.Major != 1 || d.ABI.Minor != 0)) {
 		return expansion.PartsShell{}, errors.New("parts require a closed Coleco application or ST firmware shell")
 	}
 	video, cpu := false, false

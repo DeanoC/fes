@@ -2957,13 +2957,14 @@ Existing linker layout admission remains closed until an exact shell and its
 physical sockets are qualified.
 
 The independent `fes.pcxt-dos` recipe selects the default-off `HARDWARE_DOS`
-top parameter. It enables the GLaBIOS XT/5160 ROM, the read-only floppy
-controller, and a reset-only upload of the pinned 360 KiB FreeDOS image into
-SDRAM. Guest reads use the same SDRAM media-read path exercised by the floppy
-simulation; no simulation-only shortcut is part of the package. The floppy
-image is assembled from FreeDOS kernel 2043 (GPL-2.0-or-later) and FreeCOM
-0.86a (GPL-2.0). Its exact source commits and SHA-256 are recorded in the core
-firmware notices and `sim/freedos.lock`. The registered recipe points its HIL
+top parameter. It enables the GLaBIOS XT/5160 ROM, a BAT-only XT keyboard
+responder, and the read-only floppy controller. The `fes.computer` 1.1
+mailbox accepts a 360 KiB runtime floppy and writes it into SDRAM. The first
+boot waits for complete physical writes and media commit; subsequent eject or
+replacement does not reset the guest, while cold reset invalidates media.
+Guest reads use the SDRAM media-read path. The pinned FreeDOS simulation
+fixture's exact source commits and SHA-256 are recorded in the core firmware
+notices and `sim/freedos.lock`. The registered recipe points its HIL
 gate at `scripts/pcxt_dos_hil_acceptance.py`, preferring Kit B and then Kit A.
 That checker requires at least three full, changing 16:9 HDMI captures and
 matches the final `A:\>` text using the font from the locked ROM. Static
@@ -3447,13 +3448,11 @@ read-only command subset, IRQ6 and DMA2. Its byte service reads a 360 KiB raw
 image from physical SDRAM `100000–159FFF`, beyond the guest's address map.
 An ordered reset-only loader admits the whole image before the CPU is released;
 warm reset retains it, and cold reset invalidates it. CPU/DMA and media reads
-arbitrate for the controller while physical refresh continues. This fixed-image
-profile does not provide runtime replacement or eject. The image has 40
+arbitrate for the controller while physical refresh continues. The DOS profile accepts runtime replacement and eject. The image has 40
 cylinders, two heads and nine 512-byte sectors per track. A pinned
 8086-compatible FreeDOS image and GLaBIOS form a separate
 whole-machine test, intended to check the boot sector, DOS prompt and directory
-listing through the RTL machine. This service is not a runtime PC media ABI;
-the diagnostic package does not connect it. Writes, persistence, flux images
+listing through the RTL machine. The diagnostic package does not connect the runtime PC media ABI. Writes, persistence, flux images
 and physical acceptance remain outside this simulation path.
 
 Use `fes.computer` and implemented keyboard/audio/video services where their

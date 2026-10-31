@@ -41,7 +41,7 @@ public:
 		std::uint16_t argument, std::uint64_t absolute_deadline_ms,
 		std::uint16_t* response);
 	Error Identify(const CoreDescriptor&, std::uint64_t absolute_deadline_ms,
-		bool* safe_to_quiesce = nullptr, std::uint16_t* observed_capabilities = nullptr);
+		bool* safe_to_quiesce = nullptr, std::uint32_t* observed_capabilities = nullptr);
 
 private:
 	// Caller holds mutex_. Read only; never reissues the outstanding request.
@@ -90,9 +90,9 @@ public:
 	Error StreamInfo(MediaStreamInfo*) const;
 	Error LoadMediaStream(const ComputerMediaSnapshot&, Clock&, std::uint64_t deadline);
 	Error AbortMediaStream(std::uint64_t deadline);
-	std::uint16_t observed_capabilities() const { return observed_capabilities_; }
+	std::uint32_t observed_capabilities() const { return observed_capabilities_; }
 
-	// fes.computer 1.0. Rows that equal the last acknowledged state are not
+	// fes.computer. Rows that equal the last acknowledged state are not
 	// written; after Start every row is written once, in ascending order.
 	Error SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t deadline);
 	Error SendMouseRelative(std::int16_t dx, std::int16_t dy, std::uint8_t buttons,
@@ -157,7 +157,7 @@ private:
 	bool gamepad_ = false;
 	bool controller_ports_ = false;
 	bool keypad_ports_ = false;
-	std::uint16_t observed_capabilities_ = 0;
+	std::uint32_t observed_capabilities_ = 0;
 	MediaStreamInfo stream_info_;
 	bool stream_verified_ = false;
 	bool stream_pending_ = false;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Run a real BIOS and DOS on the assembled 8088. The only simulated devices
-// are physical SDRAM pins and an XT keyboard. The disk image is uploaded
-// through the machine's reset-only SDRAM loader before the CPU is released.
+// are physical SDRAM pins and an XT keyboard. The disk is uploaded through
+// the same mailbox and SDRAM loader used by the runtime.
 #include "Vbios_top.h"
 #include "verilated.h"
 #include "memory_model.hpp"
@@ -31,7 +31,8 @@ int main(int argc, char **argv) {
     uint64_t cycles=0, post_cycle=0, boot_cycle=0, sector_cycle=0, prompt_cycle=0, dir_cycle=0;
     unsigned pixel_phase=0, held=0, bat_sent=0, bat_reads=0, key_reads=0, media_reads=0;
     unsigned dma2_completions=0, irq6_edges=0, pending_address=0;
-    bool pending=false, last_dma=false, last_irq=false, post=false, boot=false, sector=false;
+    bool pending=false, last_dma=false, last_irq=false, post=false, boot=false, sector=false, live=false;
+    uint64_t instructions=0;
     bool prompt=false, directory=false, frame_complete=false, collecting=false;
     std::vector<unsigned char> frame(1280*720*3);
     unsigned frame_pixels=0;
@@ -97,6 +98,7 @@ int main(int argc, char **argv) {
         if(irq && !last_irq)++irq6_edges;
         last_dma=dma;last_irq=irq;
         if(consumed) {
+            ++instructions;
             if(ip==0xfe47a)require(false,"BIOS reported POST error",cycles);
             if(ip==0xfe49a && !post) {require(flags==0,"BIOS POST flags",cycles);post=true;post_cycle=cycles;}
             if(ip==0xfe6f2 && !boot) {boot=true;boot_cycle=cycles;}
@@ -117,7 +119,7 @@ int main(int argc, char **argv) {
             if(d.keyboard_clock_low) {if(held<2000000)++held;}
             else {if(held>=2000000)keys.push_back(0xaa);held=0;}
         }
-        d.code_valid=!keys.empty();d.code=keys.empty()?0:keys.front();
+        d.code_valid=!keys.empty();d.key_code=keys.empty()?0:keys.front();
         if(cycles%5000000==0) {
             const auto text=screen();
             if(!prompt && sector && text.find("A:\\>")!=std::string::npos) {
@@ -148,10 +150,11 @@ int main(int argc, char **argv) {
             ram.ram_writes.clear();
         }
         require(d.fault==0,"CPU/ISA/DMA fault",cycles);
+        if(live) require(!d.machine_reset,"media operation reset the running guest",cycles);
         require(cycles<6000000000ULL,"BIOS/DOS boot timeout",cycles);
     };
-    d.cold_reset=d.reset_pixel=1;d.warm_reset=0;d.hold=0;d.firmware_valid=0;d.code_valid=0;d.code=0;
-    d.media_present=0;d.disk_load_valid=0;d.disk_load_address=0;d.disk_load_data=0;
+    d.cold_reset=d.reset_pixel=1;d.warm_reset=0;d.hold=0;d.firmware_valid=0;d.code_valid=0;d.key_code=0;
+    d.media_present=0;d.disk_restart=0;d.disk_load_valid=0;d.disk_load_address=0;d.disk_load_data=0;d.media_gpo=0;
     for(unsigned i=0;i<32;++i)step();
     ram.cold_reset();d.cold_reset=d.reset_pixel=0;
     while(!d.initialized)step();
@@ -162,36 +165,62 @@ int main(int argc, char **argv) {
         step();d.firmware_valid=0;
         while(!d.firmware_done)step();
     }
-    // The read-only image is written through the actual SDRAM controller,
-    // with no direct fixture writes to its backing memory. FLOPPY keeps the
-    // machine held until the final upload completes even with hold released.
-    auto reject_upload=[&](unsigned address) {
-        d.disk_load_valid=0;step();
-        const auto before=ram.writes;
-        d.disk_load_address=address;d.disk_load_data=0x5a;d.disk_load_valid=1;d.eval();
-        for(unsigned i=0;i<8;++i) {
-            require(!d.disk_load_ready && !d.disk_load_done && d.machine_reset && !d.disk_loaded,
-                    "out-of-order disk upload was admitted",cycles);
+    // Use the real GP mailbox protocol, including an odd first chunk to test
+    // pair splitting across chunk and SDRAM byte-lane boundaries.
+    unsigned toggle=0;
+    auto exchange=[&](unsigned op,unsigned index,unsigned arg) {
+        const unsigned command=(op<<24)|(index<<16)|arg;
+        d.media_gpo=(toggle<<31)|command;
+        for(unsigned i=0;i<3;++i)step();
+        toggle^=1;d.media_gpo=(toggle<<31)|command;
+        for(unsigned i=0;i<4000;++i) {
             step();
+            if(((d.media_gpi>>23)&1)==toggle) {
+                require((d.media_gpi&0xff000000u)==0xf5000000u && !(d.media_gpi&(1u<<22)),
+                        "runtime mailbox rejected media command",cycles);
+                return unsigned(d.media_gpi&0xffff);
+            }
         }
-        require(ram.writes==before,"invalid upload wrote SDRAM",cycles);
-        d.disk_load_valid=0;step();
+        require(false,"runtime mailbox timeout",cycles);return 0u;
     };
-    reject_upload(1);
-    reject_upload(disk.size());
-    for(unsigned a=0;a<disk.size();++a) {
-        if(a==disk.size()/2)reject_upload(a+1);
-        require(d.machine_reset && !d.disk_loaded,"early CPU release during disk upload",cycles);
-        d.disk_load_address=a;d.disk_load_data=disk[a];d.disk_load_valid=1;d.eval();
-        while(!d.disk_load_ready)step();
-        step();d.disk_load_valid=0;
-        while(!d.disk_load_done)step();
-        require(d.machine_reset,"CPU released before completed disk upload",cycles);
+    uint32_t crc=0xffffffffu;
+    for(auto b:disk) {
+        crc^=b;
+        for(unsigned i=0;i<8;++i)crc=(crc&1)?(crc>>1)^0xedb88320u:crc>>1;
     }
+    crc^=0xffffffffu;
+    auto begin_image=[&] {
+        exchange(6,0,disk.size()&0xffff);exchange(6,1,disk.size()>>16);
+        exchange(6,2,crc&0xffff);exchange(6,3,crc>>16);
+        require(d.media_state==2 && !d.disk_loaded,"new image was exposed before commit",cycles);
+    };
+    auto chunk=[&](unsigned offset,unsigned length) {
+        exchange(7,0,offset&0xffff);exchange(7,1,offset>>16);exchange(7,2,length);
+        for(unsigned i=0;i<length;i+=2) {
+            const unsigned value=disk[offset+i] | (i+1<length ? unsigned(disk[offset+i+1])<<8 : 0);
+            exchange(8,i/2,value);
+        }
+    };
+    auto upload=[&] {
+        begin_image();chunk(0,3);
+        for(unsigned offset=3;offset<disk.size();) {
+            const unsigned length=std::min<unsigned>(512,disk.size()-offset);
+            chunk(offset,length);offset+=length;
+        }
+        require(d.disk_loaded && d.media_state==2,"final physical write not complete before commit",cycles);
+        if (!live) require(d.machine_reset,"CPU released before disk commit",cycles);
+        exchange(9,0,0);
+        require(d.media_state==3,"committed disk not ready",cycles);
+    };
+    require(exchange(1,6,0)==1 && exchange(1,16,0)==1,"runtime PC floppy identity",cycles);
+    exchange(2,0,1); // Start before loading; the physical-media gate keeps the CPU held.
+    // An abandoned partial image must be hidden and restart from offset zero.
+    begin_image();chunk(0,3);exchange(10,0,0);
+    for(unsigned i=0;i<3;++i)step();
+    require(d.media_state==1 && !d.disk_loaded,"partial eject left media eligible",cycles);
+    upload();
     for(unsigned a=0;a<disk.size();++a)
         require(byte(0x100000+a)==disk[a],"uploaded disk differs in SDRAM",cycles);
-    while(!d.disk_loaded)step();
-    d.media_present=1;
     while(!(post && boot && sector && prompt && directory && frame_complete))step();
     require(bat_sent==1 && bat_reads==1,"keyboard self-test",cycles);
     require(key_reads>=8,"DIR make/break bytes not delivered",cycles);
@@ -199,6 +228,21 @@ int main(int argc, char **argv) {
     require((word(0x410)&0x31)==0x21,"CGA and one floppy equipment profile",cycles);
     require(irq6_edges>=2,"floppy interrupts not observed",cycles);
     screen();
+    // Eject, abandon a partial replacement, then insert the complete image
+    // while the DOS session remains live. No host execution Hold is sent.
+    live=true;
+    const auto before_instructions=instructions;
+    exchange(10,0,0);
+    for(unsigned i=0;i<3;++i)step();
+    require(d.media_state==1 && !d.disk_loaded,"live eject retained medium",cycles);
+    begin_image();chunk(0,3);exchange(10,0,0);
+    for(unsigned i=0;i<3;++i)step();
+    require(d.media_state==1 && !d.disk_loaded,"aborted live upload retained medium",cycles);
+    upload();
+    for(unsigned a=0;a<disk.size();++a)
+        require(byte(0x100000+a)==disk[a],"live replacement differs in SDRAM",cycles);
+    require(instructions>before_instructions,"guest did not continue during media replacement",cycles);
+    live=false;
     // A warm reset keeps the loaded medium. A cold reset invalidates its
     // admission state, so the next boot cannot use stale SDRAM contents.
     d.warm_reset=1;
@@ -208,17 +252,18 @@ int main(int argc, char **argv) {
         require(byte(0x100000+a)==disk[a],"warm reset changed disk bytes",cycles);
     d.warm_reset=0;d.cold_reset=1;ram.cold_reset();
     for(unsigned i=0;i<64;++i)step();
-    require(d.machine_reset && !d.disk_loaded,"cold reset retained disk admission",cycles);
+    require(d.machine_reset && !d.disk_loaded && d.media_state==1,"cold reset retained disk admission",cycles);
     d.cold_reset=0;
     while(!d.initialized)step();
-    require(d.machine_reset && !d.disk_loaded,"cold reset released without disk reload",cycles);
+    require(d.machine_reset && !d.firmware_loaded && !d.disk_loaded,
+            "cold reset released before firmware reload",cycles);
     std::ofstream picture("dos.ppm",std::ios::binary);
     picture<<"P6\n1280 720\n255\n";
     picture.write(reinterpret_cast<const char*>(frame.data()),frame.size());
     std::ofstream result("result-pending.json");
     result<<"{\"classification\":\"host simulation only\",\"ram_kib\":640,"
           <<"\"bat_reads\":"<<bat_reads<<",\"key_reads\":"<<key_reads
-          <<",\"disk_upload_bytes\":"<<disk.size()<<",\"disk_base\":1048576"
+          <<",\"disk_upload_bytes\":"<<disk.size()<<",\"disk_base\":1048576,\"live_media_replacement\":true"
           <<",\"media_reads\":"<<media_reads<<",\"dma2_completions\":"<<dma2_completions
           <<",\"irq6_edges\":"<<irq6_edges<<",\"post_cycle\":"<<post_cycle
           <<",\"boot_cycle\":"<<boot_cycle<<",\"boot_sector_cycle\":"<<sector_cycle

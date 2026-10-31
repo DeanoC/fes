@@ -305,7 +305,8 @@ func diskCapable(p *protocol.CorePackageStatus) bool {
 	}
 	return unit.Interface == protocol.Apple2FloppyInterface() ||
 		unit.Interface == protocol.C64DiskInterface() ||
-		unit.Interface == protocol.AtariStFloppyInterface()
+		unit.Interface == protocol.AtariStFloppyInterface() ||
+		unit.Interface == protocol.PcxtFloppyInterface()
 }
 
 func cassetteCapable(p *protocol.CorePackageStatus) bool {
@@ -461,6 +462,8 @@ func resolveDiskArgument(ctx context.Context, origin, arg string, active *protoc
 		if protocol.AtariStFloppyGeometryCapable(active) && err == nil && protocol.AdmitAtariStFloppySize(before.Size()) {
 			limit = before.Size()
 		}
+	case protocol.AdmitPcxtFloppyName(base):
+		limit = protocol.PcxtFloppyBytes
 	}
 	if err != nil || !before.Mode().IsRegular() || limit == 0 || before.Size() != limit {
 		return "", "", protocol.DiskMediaRequestError()
@@ -496,6 +499,8 @@ func syntheticDiskName(active *protocol.CorePackageStatus) (string, bool) {
 		return "disk.st", true
 	case protocol.Apple2FloppyInterface().ID:
 		return "disk.dsk", true
+	case protocol.PcxtFloppyInterface().ID:
+		return "disk.img", true
 	default:
 		return "", false
 	}

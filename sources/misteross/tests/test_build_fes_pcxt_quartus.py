@@ -18,7 +18,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                 'elaboration': {'hps_primitive_instances': {
                     'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
                     'fes_computer_runtime_hps_gp': 'cyclonev_hps_interface_mpu_general_purpose'}},
-                'profile': {'HALF_RATE_BOARD': 0, 'ENABLE_FES_COMPUTER': 1, 'HARDWARE_DOS': 0}, 'runs': [{
+                'profile': {'HALF_RATE_BOARD': 0, 'ENABLE_FES_COMPUTER': 1,
+                            'ENABLE_PCXT_MEDIA': 0, 'HARDWARE_DOS': 0}, 'runs': [{
                     'seed': 1, 'capture_complete': True, 'reported_endpoint_checks_pass': True,
                     'minimum_pulse_width': {str(c): {'failures': 0} for c in range(4)},
                     'mailbox_interstage': [{'slack_ns': '0.123'} for _ in range(24)],
@@ -35,7 +36,10 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                      lambda s: s['runs'][0]['mailbox_interstage'][0].update(slack_ns='-0.000'),
                      lambda s: s['runs'][0]['timing_coverage_issues'].update(generated_clock=1),
                      lambda s: s['profile'].update(HALF_RATE_BOARD=1),
+                     lambda s: s['profile'].update(ENABLE_PCXT_MEDIA=1),
+                     lambda s: s['profile'].pop('ENABLE_PCXT_MEDIA'),
                      lambda s: s['profile'].update(HARDWARE_DOS=1),
+                     lambda s: s['profile'].pop('HARDWARE_DOS'),
                      lambda s: s.update(video_mailbox_contract=False),
                      lambda s: s['runs'].clear()]
         for mutate in mutations:
@@ -47,11 +51,16 @@ class PCXTQuartusPackageTests(unittest.TestCase):
     def test_dos_profile_is_explicit_in_the_timing_record(self):
         summary = self.summary()
         summary['profile']['HARDWARE_DOS'] = 1
+        summary['profile']['ENABLE_PCXT_MEDIA'] = 1
         producer.require_timing(summary, [1], dos_profile=True)
         with self.assertRaises(producer.BuildError):
             producer.require_timing(summary, [1])
 
         summary['profile']['HARDWARE_DOS'] = 0
+        with self.assertRaises(producer.BuildError):
+            producer.require_timing(summary, [1], dos_profile=True)
+        summary['profile']['HARDWARE_DOS'] = 1
+        summary['profile']['ENABLE_PCXT_MEDIA'] = 0
         with self.assertRaises(producer.BuildError):
             producer.require_timing(summary, [1], dos_profile=True)
 
@@ -68,8 +77,31 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             execution={'toolchain': 'quartus', 'files': {}},
             core_id='fes.pcxt-dos', dos_profile=True)
         parameters = json.loads(record)['parameters']
-        self.assertEqual(parameters['freedos_source_urls'], '; '.join(
-            source['url'] for source in metadata['floppy']['sources']))
+        self.assertNotIn('freedos_image_sha256', parameters)
+        self.assertEqual(parameters['glabios_rom_sha256'], metadata['bios']['sha256'])
+
+    def test_dos_resolver_and_producer_use_the_same_record(self):
+        registry = tomllib.loads((producer.ROOT.parents[1] / 'config/core-recipes.toml').read_text())
+        recipe = next(r for r in registry['recipes'] if r['core_id'] == 'fes.pcxt-dos')
+        options = recipe['producer_options']
+        self.assertEqual(options, {'dos_profile': True})
+        arguments = (producer.ROOT, 'https://github.com/DeanoC/fes.git', 'a' * 40,
+                     {'quartus': 'pinned', 'yosys': 'pinned'})
+        execution = {'toolchain': 'quartus', 'files': {}}
+        resolver = producer.create_build_record(*arguments, execution=execution, **options)
+        builder = producer.create_build_record(*arguments, execution=execution,
+                                                core_id='fes.pcxt-dos', dos_profile=True)
+        self.assertEqual(resolver, builder)
+        parameters = json.loads(resolver)['parameters']
+        self.assertEqual(parameters['core_id'], 'fes.pcxt-dos')
+        self.assertTrue(parameters['hardware_dos'])
+        self.assertTrue(parameters['enable_pcxt_media'])
+        with mock.patch.object(producer, 'require_clean_source', return_value=('repo', 'a' * 40)) as clean:
+            producer._require_clean_source(producer.ROOT, identity_version=2, **options)
+            clean.assert_called_once()
+        with self.assertRaisesRegex(producer.BuildError, 'core ID'):
+            producer.create_build_record(*arguments, execution=execution,
+                                         core_id='fes.pcxt', dos_profile=True)
 
     def test_invalid_internal_clocks_and_unknown_unclocked_registers_reject(self):
         for key in ('reference_pin', 'pll_cross_check', 'uncertainty', 'partial_input_delay',
@@ -166,6 +198,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(fields['format'], 2)
         self.assertEqual(fields['toolchain'], 'quartus')
         self.assertNotIn('gpu_device', fields['parameters'])
+        self.assertFalse(fields['parameters']['enable_pcxt_media'])
         before = build_identity(record)
         fields.pop('toolchain')
         self.assertNotEqual(build_identity(encode_build_record(fields)), before)
@@ -186,6 +219,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                                              package_profile=True, build_id='1234567890abcdef'*2)
         self.assertIn('-set HALF_RATE_BOARD 0', program)
         self.assertIn('-set ENABLE_FES_COMPUTER 1', program)
+        self.assertIn('-set ENABLE_PCXT_MEDIA 0', program)
         self.assertIn('-set PHASED_HDMI_CLOCK 1', program)
         dos_program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                                  producer.ROOT / 'unused-library',
@@ -193,10 +227,38 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                                                  build_id='1234567890abcdef'*2,
                                                  dos_profile=True)
         self.assertIn('-set HARDWARE_DOS 1', dos_program)
+        self.assertIn('-set ENABLE_PCXT_MEDIA 1', dos_program)
         self.assertIn("-set BUILD_ID 128'h" + '1234567890abcdef'*2, program)
         with self.assertRaisesRegex(ValueError, 'BUILD_ID'):
             producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                        producer.ROOT / 'unused-library', package_profile=True)
+
+    def test_manifest_declares_the_actual_media_enabled_identity(self):
+        record = producer.create_build_record(producer.ROOT, 'https://github.com/DeanoC/fes.git',
+            'a'*40, {'quartus': 'pinned', 'yosys': 'pinned'}, execution={'toolchain': 'quartus'})
+        with tempfile.TemporaryDirectory(prefix='pcxt-manifest-') as directory:
+            payload = Path(directory) / 'core.rbf'
+            payload.write_bytes(b'test diagnostic')
+            manifest = tomllib.loads(producer.manifest(record, payload).decode())
+        self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 0})
+        interfaces = {i['id']: i for i in manifest['interfaces']}
+        self.assertNotIn('fes.media.pcxt-floppy', interfaces)
+        self.assertTrue(interfaces['fes.video.fixed-720p60']['required'])
+
+    def test_dos_manifest_declares_runtime_floppy(self):
+        record = producer.create_build_record(producer.ROOT, 'https://github.com/DeanoC/fes.git',
+            'a'*40, {'quartus': 'pinned', 'yosys': 'pinned'},
+            execution={'toolchain': 'quartus'}, dos_profile=True)
+        metadata = producer.dos_assets(producer.ROOT)[0]
+        with tempfile.TemporaryDirectory(prefix='pcxt-dos-manifest-') as directory:
+            payload = Path(directory) / 'core.rbf'
+            payload.write_bytes(b'test DOS')
+            manifest = tomllib.loads(producer.manifest(record, payload, dos_profile=True, metadata=metadata).decode())
+            with self.assertRaisesRegex(producer.BuildError, 'manifest profile'):
+                producer.manifest(record, payload)
+        self.assertEqual(manifest['core']['id'], 'fes.pcxt-dos')
+        self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
+        self.assertEqual([i['id'] for i in manifest['interfaces']], ['fes.video.fixed-720p60', 'fes.media.pcxt-floppy'])
 
     def test_yosys_bus_hold_rewrite_runs_after_deferred_hierarchy(self):
         program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
@@ -251,7 +313,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                     self.assertTrue(dos_inputs)
                     self.assertFalse(list(work.glob('pcxt_diagnostic.bank*.hex')))
                     self.assertTrue((work / 'pcxt_glabios.bank0.hex').is_file())
-                    self.assertTrue((work / 'pcxt_freedos_disk.hex').is_file())
+                    self.assertFalse((work / 'pcxt_freedos_disk.hex').exists())
                 else:
                     self.assertFalse(dos_inputs)
                     self.assertTrue((work / 'pcxt_diagnostic.bank0.hex').is_file())
@@ -260,11 +322,17 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                 program = producer.board.elaboration(
                     producer.ROOT, work, library, package_profile=True,
                     build_id='1234567890abcdef' * 2, dos_profile=dos_profile)
+                self.assertNotIn('pcxt_disk_boot.sv', program)
+                self.assertEqual('pcxt_xt_keyboard_bat.sv' in program, dos_profile)
+                self.assertEqual('c:dos_font.glyphs' in program, dos_profile)
                 (work / 'elaborate.ys').write_text(program)
                 result = subprocess.run([str(yosys), '-s', 'elaborate.ys'], cwd=work,
                                         capture_output=True, text=True, timeout=600, check=False)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 producer.board.validate_renaming(work, package_profile=True)
+                before = json.loads((work / 'before-names.json').read_text())['modules']['top']
+                after = json.loads((work / 'elaborated.json').read_text())['modules']['top']
+                producer.board.validate_mailbox(before, after, half_rate_board=False)
                 elaborated_verilog = (work / 'elaborated.v').read_text()
                 bus_hold_parameters = elaborated_verilog.count('.enable_bus_hold("FALSE")')
                 self.assertEqual(bus_hold_parameters, 16,

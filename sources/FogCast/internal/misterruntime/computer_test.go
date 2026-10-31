@@ -15,6 +15,31 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
+func TestComputerABICapabilitiesMatchSupportedOlderMinor(t *testing.T) {
+	capabilities := Protocol2Capabilities{ABIs: []Protocol2ABI{{ID: "fes.computer", Major: 1, Minor: 1}}}
+	for _, tc := range []struct {
+		id    string
+		minor int64
+		want  bool
+	}{
+		{"fes.computer", 0, true}, {"fes.computer", 1, true}, {"fes.computer", 2, false},
+		{"fes.application", 0, false},
+	} {
+		d := corepackage.Descriptor{ABI: corepackage.Contract{ID: tc.id, Major: 1, Minor: tc.minor}}
+		if (matchingABI(capabilities, d) != nil) != tc.want {
+			t.Fatalf("ABI %s 1.%d", tc.id, tc.minor)
+		}
+	}
+	capabilities.ABIs[0] = Protocol2ABI{ID: "fes.application", Major: 1, Minor: 1}
+	if matchingABI(capabilities, corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.application", Major: 1}}) != nil {
+		t.Fatal("unrelated ABI minor was broadened")
+	}
+	capabilities.ABIs[0] = Protocol2ABI{ID: "fes.computer", Major: 1, Minor: 2}
+	if matchingABI(capabilities, corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 2}}) != nil {
+		t.Fatal("unsupported computer minor matched itself")
+	}
+}
+
 // computerResponse is a synthetic protocol-2 status for an active
 // fes.computer 1.0 Apple II package, shaped as the runtime spec describes.
 func computerResponse(t *testing.T) Protocol2Response {
@@ -44,6 +69,50 @@ func computerResponse(t *testing.T) Protocol2Response {
 	core := "fes.apple2"
 	r.Core = &core
 	return r
+}
+
+func TestComputerVersionAndPcxtMediaResponseValidation(t *testing.T) {
+	legacy := computerResponse(t)
+	legacy.Capabilities.ABIs[0].Minor = 1
+	if _, err := decodeProtocol2Response([]byte(responseLine(t, legacy))); err != nil {
+		t.Fatalf("1.1 runtime must preserve 1.0 computer status: %v", err)
+	}
+	unsupported := computerResponse(t)
+	unsupported.ActivePackage.Descriptor.ABI.Minor = 2
+	unsupported.ActivePackage.Observed.ABI.Minor = 2
+	unsupported.Capabilities.ABIs[0].Minor = 2
+	unsupported.Capabilities.MediaUnits = nil
+	if _, err := decodeProtocol2Response([]byte(responseLine(t, unsupported))); err == nil {
+		t.Fatal("unsupported 1.2 computer status accepted by an exact 1.2 match")
+	}
+	pcxt := computerResponse(t)
+	disk := protocol.PcxtFloppyInterface()
+	pcxt.ActivePackage.Descriptor.Core.ID = "fes.pcxt"
+	*pcxt.Core = "fes.pcxt"
+	for i := range pcxt.ActivePackage.Descriptor.Interfaces {
+		if pcxt.ActivePackage.Descriptor.Interfaces[i].ID == protocol.Apple2FloppyInterface().ID {
+			pcxt.ActivePackage.Descriptor.Interfaces[i].ID = disk.ID
+		}
+	}
+	for _, interfaces := range [][]Protocol2Interface{pcxt.Capabilities.ActiveInterfaces, pcxt.Capabilities.ABIs[0].Interfaces} {
+		for i := range interfaces {
+			if interfaces[i].ID == protocol.Apple2FloppyInterface().ID {
+				interfaces[i].ID = disk.ID
+			}
+		}
+	}
+	pcxt.Capabilities.ABIs[0].Minor = 1
+	pcxt.Capabilities.MediaUnits[0] = protocol.MediaUnitStatus{Interface: disk,
+		MinBytes: uint32(protocol.PcxtFloppyBytes), MaxBytes: uint32(protocol.PcxtFloppyBytes),
+		ChunkBytes: 512, State: "empty"}
+	if _, err := decodeProtocol2Response([]byte(responseLine(t, pcxt))); err == nil {
+		t.Fatal("PC/XT unit accepted on a 1.0 computer")
+	}
+	pcxt.ActivePackage.Descriptor.ABI.Minor = 1
+	pcxt.ActivePackage.Observed.ABI.Minor = 1
+	if _, err := decodeProtocol2Response([]byte(responseLine(t, pcxt))); err != nil {
+		t.Fatalf("valid 1.1 PC/XT unit rejected: %v", err)
+	}
 }
 
 func atariStComputerResponse(t *testing.T) Protocol2Response {

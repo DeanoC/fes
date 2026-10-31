@@ -42,6 +42,46 @@ func TestClientAddsBearerAndDecodesStatus(t *testing.T) {
 	}
 }
 
+func TestClientRejectsPcxtMediaWithoutExtendedActiveInterface(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		minor           uint16
+		interfaceActive bool
+		want            bool
+	}{
+		{"valid extended", 1, true, true},
+		{"legacy ABI", 0, true, false},
+		{"unsupported future ABI", 2, true, false},
+		{"interface not active", 1, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			interfaces := []protocol.RuntimeInterface{{ID: "fes.video.fixed-720p60", Major: 1}}
+			if tc.interfaceActive {
+				interfaces = append([]protocol.RuntimeInterface{{ID: protocol.PcxtFloppyInterface().ID, Major: 1}}, interfaces...)
+			}
+			status := protocol.Status{State: protocol.StateActive, Development: true,
+				CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 1,
+					ABI:     protocol.RuntimeContract{ID: "fes.computer", Major: 1, Minor: tc.minor},
+					BuildID: strings.Repeat("b", 32), PersistenceMode: "volatile", ActiveInterfaces: interfaces,
+					MediaUnits: []protocol.MediaUnitStatus{{Interface: protocol.PcxtFloppyInterface(),
+						MinBytes: uint32(protocol.PcxtFloppyBytes), MaxBytes: uint32(protocol.PcxtFloppyBytes),
+						ChunkBytes: 512, State: protocol.MediaUnitEmpty}}}}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/v1/development/core" {
+					t.Errorf("unexpected request %s", r.URL.Path)
+				}
+				_ = json.NewEncoder(w).Encode(status)
+			}))
+			defer server.Close()
+			base, _ := url.Parse(server.URL)
+			_, err := targetclient.NewClient(base, "token", server.Client()).LoadCore(context.Background(), 5, strings.NewReader("fcore"))
+			if (err == nil) != tc.want {
+				t.Fatalf("acceptance=%t, expected %t: %v", err == nil, tc.want, err)
+			}
+		})
+	}
+}
+
 func TestClientHealthAuthenticatesIdentity(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

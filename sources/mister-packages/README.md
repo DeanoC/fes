@@ -80,6 +80,10 @@ Required `fes.media.atari-st-floppy-geometry` 1.0 adds capability 10 for bounded
 Legacy 720 KiB behavior and durable record bytes remain unchanged; nonlegacy
 saved records use layout 1.1. See [computer I/O](docs/computer-io.md).
 
+`fes.media.pcxt-floppy` 1.0 describes a read-only 360 KiB raw XT floppy in
+unit 0. It uses bit 16 of the opt-in `fes.computer` 1.1 extended capability
+word; existing 1.0 endpoints retain their identities and behavior.
+
 [PC/XT ISA fabric](docs/pcxt-isa.md) defines the internal byte-transaction
 prepare/commit boundary for PC/XT expansion development. Its generated Verilog
 consumer adds no GP capability, physical layout or activation support.
