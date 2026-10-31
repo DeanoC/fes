@@ -1,0 +1,8 @@
++ git worktree add --detach /home/deano/fes/out/dev/de25-linux-platform/out/work/de25-linux-829cf0353d1ea7a479f95bdbdf3d72e0391ab810 829cf0353d1ea7a479f95bdbdf3d72e0391ab810
+Preparing worktree (detached HEAD 829cf0353)
+HEAD is now at 829cf0353 Make private boot payload copies writable for replacement
+{"state": "running", "container": "fes-de25-owner-image-512d4c8e9f3fafa8", "pid": 3871119, "time_cap_seconds": 1800, "elapsed_seconds": 0.0, "heartbeat_utc": "2026-10-31T16:54:58.629344+00:00", "returncode": null}
++ e2fsck -fn /base/rootfs.ext4
+e2fsck 1.47.0 (5-Feb-2023)
+DE25_OWNER_CANDIDATE_IMAGE_PASS
+{"state": "passed", "container": "fes-de25-owner-image-512d4c8e9f3fafa8", "pid": 3871119, "time_cap_seconds": 1800, "elapsed_seconds": 27.3, "heartbeat_utc": "2026-10-31T16:55:25.927330+00:00", "returncode": 0}

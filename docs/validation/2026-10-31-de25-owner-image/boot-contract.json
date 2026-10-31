@@ -1,0 +1,175 @@
+{
+  "board": "de25-nano",
+  "boot": {
+    "boot_script": {
+      "enables_fpga_bridges": true,
+      "overrides_chosen_bootargs": true,
+      "sha256": "ccaaffc87484f055ca61b249fca7f65c9e8b845ca60e26039a06c4fffdeeb54b",
+      "text": "echo \"Trying to boot Linux from device ${target}\";\nif test ${target} = \"mmc0\"; then\n        bridge enable;\n        echo \"Found kernel in mmc0\";        \n        mmc rescan;\n        fatload mmc 0:1 ${kernel_addr_r} Image;\n        fatload mmc 0:1 ${fdt_addr_r} socfpga_agilex5_de25_nano.dtb;\n        setenv bootargs \"console=ttyS0,115200 root=${mmcroot} rw rootwait\";\n        booti ${kernel_addr_r} - ${fdt_addr_r};\n        exit;\nfi\n"
+    },
+    "cpu_mailbox_address": "not-established",
+    "fit_configuration": {
+      "fdt": [
+        "fdt-0"
+      ],
+      "firmware": [
+        "atf"
+      ],
+      "loadables": [
+        "uboot"
+      ],
+      "name": "board-0"
+    },
+    "fit_images": {
+      "atf": {
+        "entry": [
+          2147483648
+        ],
+        "file_offset": 929560,
+        "load": [
+          2147483648
+        ],
+        "sha256": "0d29d7f1ff43afa267f63c1599657eea6d7fcdc8fd53addf8beb2d4f7089fb3c",
+        "size": 61501,
+        "type": "firmware"
+      },
+      "fdt-0": {
+        "entry": [],
+        "file_offset": 991064,
+        "load": [],
+        "sha256": "ff637eda305e47fb53feb24d1461728dcf55cc026e690da343a056cb7d2f75bb",
+        "size": 22768,
+        "type": "flat_dt"
+      },
+      "uboot": {
+        "entry": [],
+        "file_offset": 1216,
+        "load": [
+          2149580800
+        ],
+        "sha256": "a9735c5a3c1ba7c790fe7c0aa1f5ef2a2cfffec7eb43c386512f92a49da9116e",
+        "size": 928344,
+        "type": "standalone"
+      }
+    },
+    "linux_device_tree": {
+      "chosen": {
+        "bootargs": [
+          "console=uart8250,mmio32,0x10c02000,115200n8 \t\t\troot=/dev/ram0 rw initrd=0x10000000 init=/sbin/init \t\t\tramdisk_size=10000000 earlycon=uart8250,mmio32,0x10c02000,115200n8 \t\t\tpanic=-1 rootfstype=ext3"
+        ],
+        "stdout-path": [
+          "serial0:115200n8"
+        ]
+      },
+      "compatible": [
+        "intel,socfpga-agilex5-socdk",
+        "intel,socfpga-agilex5"
+      ],
+      "ethernet0": {
+        "path": "/soc@0/ethernet@10810000",
+        "reg_cells": [
+          276889600,
+          13568
+        ],
+        "status": "okay"
+      },
+      "firmware_interfaces": [
+        {
+          "compatible": [
+            "intel,agilex5-svc"
+          ],
+          "method": "smc",
+          "path": "/firmware/svc"
+        },
+        {
+          "compatible": [
+            "intel,agilex5-soc-fpga-mgr"
+          ],
+          "method": null,
+          "path": "/firmware/svc/fpga-mgr"
+        }
+      ],
+      "fpga_bridge_nodes": [],
+      "fpga_regions": [
+        {
+          "children": [],
+          "path": "/fpga-region",
+          "ranges": null
+        }
+      ],
+      "memory": [
+        {
+          "path": "/memory",
+          "reg_cells": [
+            0,
+            2147483648,
+            0,
+            2147483648
+          ]
+        }
+      ],
+      "model": "SoCFPGA Agilex5 Terasic DE25-Nano",
+      "serial0": {
+        "path": "/soc@0/serial@10c02100",
+        "reg_cells": [
+          281026816,
+          256
+        ],
+        "status": "okay"
+      }
+    },
+    "memory_size": "raw DT declarations; runtime memory banks require board observation",
+    "root_device": "/dev/mmcblk0p2",
+    "uboot_device_tree": {
+      "chosen": {
+        "stdout-path": [
+          "serial0:115200n8"
+        ]
+      },
+      "compatible": [
+        "intel,socfpga-agilex"
+      ],
+      "ethernet0": {
+        "path": "/soc/ethernet@10810000",
+        "reg_cells": [
+          276889600,
+          13568
+        ],
+        "status": "okay"
+      },
+      "firmware_interfaces": [],
+      "fpga_bridge_nodes": [],
+      "fpga_regions": [
+        {
+          "children": [],
+          "path": "/soc/base_fpga_region",
+          "ranges": null
+        }
+      ],
+      "memory": [
+        {
+          "path": "/memory",
+          "reg_cells": [
+            0,
+            2147483648,
+            0,
+            1073741824
+          ]
+        }
+      ],
+      "model": "SoCFPGA Agilex5 Terasic DE25-Nano",
+      "serial0": {
+        "path": "/soc/serial1@10c02100",
+        "reg_cells": [
+          281026816,
+          256
+        ],
+        "status": "okay"
+      }
+    }
+  },
+  "classification": "host-only-boot-contract",
+  "format": 1,
+  "image_producer": "829cf0353d1ea7a479f95bdbdf3d72e0391ab810",
+  "image_sha256": "de2a9a4ca35214ab75230d5807a0a8900d99f7869e1346c83f4e41bce0853138"
+}

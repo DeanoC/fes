@@ -1,0 +1,9 @@
++ git worktree add --detach /home/deano/fes/out/dev/de25-linux-platform/out/work/de25-linux-199c963483b66886cbab6462880377473649aeba 199c963483b66886cbab6462880377473649aeba
+Preparing worktree (detached HEAD 199c96348)
+HEAD is now at 199c96348 Preserve BusyBox test command symlinks in candidate archives
+{"state": "running", "container": "fes-de25-owner-image-d4dab6d108d25349", "pid": 3855421, "time_cap_seconds": 1800, "elapsed_seconds": 0.0, "heartbeat_utc": "2026-10-31T16:54:28.898027+00:00", "returncode": null}
++ e2fsck -fn /base/rootfs.ext4
+e2fsck 1.47.0 (5-Feb-2023)
+de25-owner-image: [Errno 13] Permission denied: '/export/pass-1/boot/Image'
+{"state": "failed", "container": "fes-de25-owner-image-d4dab6d108d25349", "pid": 3855421, "time_cap_seconds": 1800, "elapsed_seconds": 3.2, "heartbeat_utc": "2026-10-31T16:54:32.070940+00:00", "returncode": 1}
+de25-owner-image: candidate kernel build failed

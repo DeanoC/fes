@@ -426,6 +426,9 @@ offline assembler described with that recipe prepares matching rootfs and boot
 files, removes incompatible vendor modules and requires two identical SD image
 assemblies. Neither recipe installs an image. Board boot, positive loader/control
 integration and physical DMA acceptance remain required.
+The [matching image record](validation/2026-10-31-de25-owner-image/README.md)
+retains the identical full assemblies, independent verification and receipt
+refusals; its candidate kernel is still unbooted.
 
 The [positive owner lifecycle record](validation/2026-10-31-de25-owner-positive/README.md)
 executes real OF overlay apply/remove, the owner control callback and private
