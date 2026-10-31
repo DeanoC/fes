@@ -520,3 +520,9 @@ The [unit-media proof](validation/2026-10-31-de25-unit-media/README.md)
 records selected-driver limits/status/insert/eject and actual AArch64 CPU tests.
 Use the normal dynamic SDK runtime recipe; its static threaded-test candidate
 also aborts on the board. No production driver or package admission is implied.
+
+The off-board runtime check includes core-package/profile admission. Its QEMU
+prefix exposes SDK libraries and lib64 aliases only. Using the entire SDK
+sysroot can redirect `/tmp` directory opens into the SDK, breaking the trusted
+package-directory test while newly created paths remain in the host `/tmp`.
+This changes the diagnostic environment, not runtime admission or board setup.
