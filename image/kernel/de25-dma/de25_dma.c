@@ -508,9 +508,13 @@ static int fes_de25_dma_mmap(struct file *file, struct vm_area_struct *vma)
 	ret = dma_mmap_coherent(grant->dev, vma, grant->cpu, grant->dma,
 			FES_DE25_DMA_ALLOCATION_BYTES);
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
-	/* Exercise the mapper-refusal path after a successful DMA mapping. */
-	if (!ret && grant->observer && grant->observer->mmap_refuse)
-		vm_flags_clear(vma, VM_PFNMAP);
+	/* Refuse a successful mapping without changing the installed PTEs'
+	 * PFNMAP semantics: the mmap error path must unmap them safely.
+	 */
+	if (!ret && grant->observer && grant->observer->mmap_refuse) {
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
 #endif
 	if (!ret) {
 		/* Only an eager I/O PFN mapping is currently revocable here. An
