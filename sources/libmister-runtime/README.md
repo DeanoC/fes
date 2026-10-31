@@ -32,6 +32,18 @@ Restart adoption and bounded whole-load recovery remain unfinished. Software
 unit coverage is separate from physical adapter acceptance; the [dated record](../../docs/validation/2026-10-31-de25-runtime-programmer/README.md)
 identifies the exact kernel, adapter and known BRAM core tested on the board.
 
+
+The same programmer accepts an explicit `De25OverlayProfile::allocated_scanout`
+selection for the allocated-buffer diagnostic. It adds only a `scanout` child
+with compatible `fes,de25-linux-dma-scanout` to the existing region overlay;
+the permanent owner's POST_APPLY notifier validates the control guard and
+claims the epoch before allowing allocation. The default firmware-only overlay
+is unchanged. This option supplies no address, DMA grant, supplier or topology
+property and does not request owner REAP or grant normal runtime admission.
+Unknown selections are refused before any staging/mount/programming mutation.
+Exact selected-overlay replacement checks, inherited-overlay refusal and sticky
+uncertainty apply to both selections. Physical scanout/DMA acceptance is pending.
+
 The internal `De25ComputerCoreDriver` now implements the shared driver lifecycle
 and optional HID/tape calls through that atomic client. It accepts only the
 exact BRAM computer ABI/interface/build contract, keeps launch media held until

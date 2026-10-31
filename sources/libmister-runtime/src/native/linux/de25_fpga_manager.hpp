@@ -7,8 +7,11 @@
 #include <sys/types.h>
 
 namespace mister { namespace native {
-// Fixed, resource-free overlay: the permanent base tree owns DMA and suppliers.
-std::vector<unsigned char> De25ProgrammingOverlay();
+// The permanent base tree owns DMA and suppliers. Only explicit scanout
+// selection adds the marker consumed by that owner's POST_APPLY notifier.
+enum class De25OverlayProfile { firmware_only, allocated_scanout };
+std::vector<unsigned char> De25ProgrammingOverlay(
+    De25OverlayProfile = De25OverlayProfile::firmware_only);
 
 #if defined(MISTER_RUNTIME_TESTING)
 struct De25FpgaTestPaths {
@@ -29,10 +32,12 @@ public:
 // Destruction never removes a running/uncertain kernel configuration.
 class LinuxDe25FpgaManager final : public FpgaManager {
 public:
-    LinuxDe25FpgaManager(Clock&, int lease_fd);
+    LinuxDe25FpgaManager(Clock&, int lease_fd,
+        De25OverlayProfile = De25OverlayProfile::firmware_only);
 #if defined(MISTER_RUNTIME_TESTING)
     LinuxDe25FpgaManager(Clock&, int lease_fd, const De25FpgaTestPaths&,
-                        De25FpgaTestOperations&);
+                        De25FpgaTestOperations&,
+                        De25OverlayProfile = De25OverlayProfile::firmware_only);
 #endif
     ~LinuxDe25FpgaManager() override;
     NativeResult Program(const Artifact&, ProgrammingProfile, std::uint64_t) override;

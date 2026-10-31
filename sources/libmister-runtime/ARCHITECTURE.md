@@ -64,6 +64,18 @@ The [2026-10-31 physical programmer diagnostic](../../docs/validation/2026-10-31
 records two known-core loads and BASIC7 at the selected C++/kernel bytes. It
 does not admit the production factory or qualify failure/DMA recovery.
 
+
+The same programmer accepts an explicit `De25OverlayProfile::allocated_scanout`
+selection for the allocated-buffer diagnostic. It adds only a `scanout` child
+with compatible `fes,de25-linux-dma-scanout` to the existing region overlay;
+the permanent owner's POST_APPLY notifier validates the control guard and
+claims the epoch before allowing allocation. The default firmware-only overlay
+is unchanged. This option supplies no address, DMA grant, supplier or topology
+property and does not request owner REAP or grant normal runtime admission.
+Unknown selections are refused before any staging/mount/programming mutation.
+Exact selected-overlay replacement checks, inherited-overlay refusal and sticky
+uncertainty apply to both selections. Physical scanout/DMA acceptance is pending.
+
 ## DE25 computer driver integration
 
 `De25ComputerCoreDriver` consumes the existing atomic client through the shared
