@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"image"
 	"image/color"
 	"io"
@@ -75,10 +76,10 @@ func TestAppPollsSessionParksAndStops(t *testing.T) {
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
 
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 2 && !snap.Loading
 	})
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.CoverHits >= 1
 	})
 	if app.Snapshot().GPUParked {
@@ -86,7 +87,7 @@ func TestAppPollsSessionParksAndStops(t *testing.T) {
 	}
 
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.GPUParked && snap.Session.State == "active" && snap.Session.GameID == "snes-mario"
 	})
 	snap := app.Snapshot()
@@ -114,7 +115,7 @@ func TestAppPollsSessionParksAndStops(t *testing.T) {
 	}
 
 	app.Press(CmdBack, time.Now())
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.GPUParked && snap.Session.State != "active"
 	})
 	mu.Lock()
@@ -128,7 +129,7 @@ func TestAppPollsSessionParksAndStops(t *testing.T) {
 		t.Fatalf("soft-stop left playing chrome %q", chrome)
 	}
 
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.CoverHits >= 1
 	})
 	app.Press(CmdRight, time.Now())
@@ -163,7 +164,7 @@ func TestAppSessionPollObservesExternalStopAndPark(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 
@@ -171,7 +172,7 @@ func TestAppSessionPollObservesExternalStopAndPark(t *testing.T) {
 	sessionJSON = `{"state":"active","game_id":"snes-mario","execution":"host_only"}`
 	mu.Unlock()
 	app.kickSessionPollLocked()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.GPUParked && snap.Session.State == "active" && snap.Session.GameID == "snes-mario"
 	})
 
@@ -179,7 +180,7 @@ func TestAppSessionPollObservesExternalStopAndPark(t *testing.T) {
 	sessionJSON = `{"state":"idle"}`
 	mu.Unlock()
 	app.kickSessionPollLocked()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.GPUParked && snap.Session.State != "active"
 	})
 }
@@ -301,18 +302,18 @@ func TestAppStopKeyboardBindingAndBlockedLaunch(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active"
 	})
 	if CommandFromKey("s") != CmdStop {
 		t.Fatal("s should map to stop")
 	}
 	app.Press(CmdStop, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State != "active" && !snap.GPUParked
 	})
 	mu.Lock()
@@ -326,7 +327,7 @@ func TestAppStopKeyboardBindingAndBlockedLaunch(t *testing.T) {
 func TestAppIgnoresStaleSessionPollAfterLaunch(t *testing.T) {
 	app, releaseHeldPoll := startHeldSessionApp(t, `{"state":"idle"}`)
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.GPUParked && snap.Session.State == "active"
 	})
 	releaseHeldPoll()
@@ -373,7 +374,7 @@ func TestAppIgnoresStaleSessionPollAfterStop(t *testing.T) {
 		return true
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.GPUParked && snap.Session.State == "active"
 	})
 
@@ -386,12 +387,12 @@ func TestAppIgnoresStaleSessionPollAfterStop(t *testing.T) {
 		if !strings.Contains(body, `"active"`) {
 			t.Fatalf("held active poll body = %q", body)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("timed out waiting for pre-stop poll")
 	}
 
 	app.Press(CmdBack, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.GPUParked && snap.Session.State != "active"
 	})
 	close(release)
@@ -447,7 +448,7 @@ func startHeldSessionApp(t *testing.T, heldBody string) (*App, func()) {
 		if body != heldBody {
 			t.Fatalf("held poll body = %q", body)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("timed out waiting for held session poll")
 	}
 	return app, func() {
@@ -498,7 +499,7 @@ func startSessionApp(t *testing.T, mu *sync.Mutex, sessionJSON *string, sessionG
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	return app
@@ -539,15 +540,15 @@ func TestAppDoesNotInventGameIDForGameLessActiveSession(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active" && snap.Session.GameID == "snes-mario"
 	})
 	app.Press(CmdBack, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State != "active" && snap.Launch.GameID == ""
 	})
 
@@ -555,7 +556,7 @@ func TestAppDoesNotInventGameIDForGameLessActiveSession(t *testing.T) {
 	sessionJSON = `{"state":"active","execution":"fpga_development"}`
 	mu.Unlock()
 	app.kickSessionPollLocked()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.GPUParked && snap.Session.State == "active"
 	})
 	snap := app.Snapshot()
@@ -593,11 +594,11 @@ func TestAppDoesNotKeepLaunchGameIDWhenPollOmitsIt(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active" && snap.Session.GameID == "snes-mario"
 	})
 
@@ -605,7 +606,7 @@ func TestAppDoesNotKeepLaunchGameIDWhenPollOmitsIt(t *testing.T) {
 	sessionJSON = `{"state":"active","execution":"fpga_development"}`
 	mu.Unlock()
 	app.kickSessionPollLocked()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active" && snap.Session.Execution == "fpga_development" && snap.Session.GameID == ""
 	})
 }
@@ -628,11 +629,11 @@ func TestAppFillsGameIDFromLaunchResponseOnly(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Launch.Phase == "ok" && snap.Session.State == "active" && snap.Session.GameID == "snes-mario"
 	})
 }
@@ -669,11 +670,11 @@ func TestAppStatusPrefersStopErrorAndProgressOverLaunchOK(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Launch.Phase == "ok" && snap.Session.State == "active"
 	})
 	if status := app.Snapshot().Status; !strings.Contains(status, "host accepted launch") {
@@ -683,7 +684,7 @@ func TestAppStatusPrefersStopErrorAndProgressOverLaunchOK(t *testing.T) {
 	sessionJSON = `{"state":"active","game_id":"snes-mario","progress":{"stage":"core","message":"loading core"}}`
 	mu.Unlock()
 	app.kickSessionPollLocked()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return strings.Contains(snap.Status, "loading core")
 	})
 	if status := app.Snapshot().Status; strings.Contains(status, "host accepted launch") {
@@ -691,7 +692,7 @@ func TestAppStatusPrefersStopErrorAndProgressOverLaunchOK(t *testing.T) {
 	}
 
 	app.Press(CmdBack, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return strings.Contains(snap.Status, "stop failed") || strings.Contains(snap.Status, "TARGET_BUSY")
 	})
 	snap := app.Snapshot()
@@ -830,14 +831,14 @@ func TestAppPollsSessionEventsIntoSofaList(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Session.Events) >= 1 && strings.Contains(snap.Session.Events[0], "launch")
 	})
 	mu.Lock()
 	eventsJSON = `{"events":[{"sequence":2,"event":"session.stop","state":"idle","media":"stopped"}]}`
 	mu.Unlock()
 	app.kickSessionPollLocked()
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		if len(snap.Session.Events) < 2 {
 			return false
 		}
@@ -890,7 +891,7 @@ func TestAppKitLeaseStripFromSelectedTarget(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.KitLease.State == "held" && strings.Contains(snap.KitLease.Line, "fogcast@powerboat")
 	})
 	snap := app.Snapshot()
@@ -949,15 +950,15 @@ func TestAppSaveFailedStopLockoutRetryAndClear(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) >= 2 && !snap.Loading
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active" && snap.GPUParked
 	})
 	app.Press(CmdBack, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.RetryStop && snap.Session.LaunchLocked
 	})
 	snap := app.Snapshot()
@@ -986,7 +987,7 @@ func TestAppSaveFailedStopLockoutRetryAndClear(t *testing.T) {
 	failStop = false
 	mu.Unlock()
 	app.Press(CmdBack, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Session.RetryStop && !snap.Session.LaunchLocked && snap.Session.Chrome == "idle"
 	})
 	mu.Lock()
@@ -1020,7 +1021,7 @@ func TestAppHistoricalSaveFailedDoesNotLockIdleSession(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Session.Events) >= 1
 	})
 	snap := app.Snapshot()
@@ -1064,15 +1065,15 @@ func TestShellExitReleasesIdleRetainedLease(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	defer app.Stop()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active" && snap.Session.GameID == "snes-mario"
 	})
 	app.Press(CmdBack, time.Now())
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State != "active"
 	})
 	mu.Lock()
@@ -1213,24 +1214,24 @@ func assertShellExitReleasesRetainedGrant(t *testing.T, promote bool) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	defer app.Stop()
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	app.Press(CmdSelect, time.Now())
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active" && snap.Session.GameID == "snes-mario"
 	})
 	app.Press(CmdBack, time.Now())
 	if promote {
-		waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		waitSnapshot(t, app, func(snap Snapshot) bool {
 			return snap.Session.State == "active" && snap.Session.GameID == "nes-still"
 		})
 	} else {
-		waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		waitSnapshot(t, app, func(snap Snapshot) bool {
 			return snap.Session.State != "active"
 		})
 		app.Press(CmdSelect, time.Now())
-		waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		waitSnapshot(t, app, func(snap Snapshot) bool {
 			return snap.Session.State == "active" && snap.Session.GameID == "snes-mario"
 		})
 	}
@@ -1334,7 +1335,7 @@ func TestShellExitReleasesInFlightSoftStop(t *testing.T) {
 	app.Press(CmdBack, time.Now())
 	select {
 	case <-started:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("soft-stop was not posted")
 	}
 	exited := make(chan struct{})
@@ -1355,7 +1356,7 @@ func TestShellExitReleasesInFlightSoftStop(t *testing.T) {
 	close(releaseStop)
 	select {
 	case <-exited:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("shell exit did not finish after Soft-stop")
 	}
 	mu.Lock()
@@ -1479,7 +1480,7 @@ func TestAppSaveFailedEventLocksLaunchUntilStop(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.RetryStop && snap.Session.LaunchLocked
 	})
 	app.Press(CmdSelect, time.Now())
@@ -1489,7 +1490,7 @@ func TestAppSaveFailedEventLocksLaunchUntilStop(t *testing.T) {
 	}
 	mu.Unlock()
 	app.Press(CmdBack, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Session.RetryStop && snap.Session.State != "active"
 	})
 	mu.Lock()
@@ -1538,20 +1539,20 @@ func TestSettingsReleaseKitFreesAnIdleLeaseAndLaunchesAgain(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	now := time.Now()
 	app.Press(CmdSelect, now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active"
 	})
 	app.Press(CmdBack, now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State != "active"
 	})
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	if row := settingsRowByID(t, app, "release-kit"); row.Value != "A release" {
@@ -1562,7 +1563,7 @@ func TestSettingsReleaseKitFreesAnIdleLeaseAndLaunchesAgain(t *testing.T) {
 		t.Fatalf("hint = %q", app.Snapshot().Settings.Hint)
 	}
 	app.HandleCommand(CmdSelect, now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && strings.Contains(snap.Status, "Kit released")
 	})
 	if row := settingsRowByID(t, app, "release-kit"); row.Value != "free" {
@@ -1575,11 +1576,11 @@ func TestSettingsReleaseKitFreesAnIdleLeaseAndLaunchesAgain(t *testing.T) {
 		t.Fatalf("stop bodies = %#v", got)
 	}
 	app.HandleCommand(CmdBack, now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Settings.Open
 	})
 	app.Press(CmdSelect, now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active"
 	})
 	mu.Lock()
@@ -1621,12 +1622,12 @@ func TestSettingsReleaseKitLeavesARunningGameAndAFreeKit(t *testing.T) {
 		app.mu.Unlock()
 		app.Stop()
 	})
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	focusSettingsRow(t, app, "release-kit", now)
@@ -1710,31 +1711,31 @@ func TestSettingsReleaseKitDoesNotStopAMenuLaunchAfterIdleObservation(t *testing
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
 	t.Cleanup(unblockRelease)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return len(snap.Games) == 1 && !snap.Loading
 	})
 	now := time.Now()
 	app.Press(CmdSelect, now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active"
 	})
 	app.Press(CmdBack, now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State != "active"
 	})
 	app.HandleCommand(CmdSettings, now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Settings.Open && !snap.Settings.Loading
 	})
 	focusSettingsRow(t, app, "release-kit", now)
 	app.HandleCommand(CmdSelect, now)
 	select {
 	case <-observed:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testwait.Timeout):
 		t.Fatal("idle release did not post after reading the session")
 	}
 	app.HandleCommand(CmdBack, now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return !snap.Settings.Open
 	})
 	app.Press(CmdSelect, now)
@@ -1750,7 +1751,7 @@ func TestSettingsReleaseKitDoesNotStopAMenuLaunchAfterIdleObservation(t *testing
 		t.Fatalf("launch during release busy=%v phase=%s launches=%d status=%q", busy, phase, launchCount, status)
 	}
 	unblockRelease()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for time.Now().Before(deadline) {
 		app.mu.Lock()
 		done := !app.leaseReleaseBusy && !app.retainedIdleLease
@@ -1768,7 +1769,7 @@ func TestSettingsReleaseKitDoesNotStopAMenuLaunchAfterIdleObservation(t *testing
 		t.Fatalf("release did not finish busy=%v retained=%v", busy, kept)
 	}
 	app.Press(CmdSelect, now)
-	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active" && snap.Session.GameID == "snes-mario"
 	})
 	mu.Lock()

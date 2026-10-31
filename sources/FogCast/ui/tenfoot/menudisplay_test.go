@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"context"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -105,7 +106,7 @@ func TestTenfootMenuDisplayIsChangeDrivenAnd720p(t *testing.T) {
 	}
 	dev.Clear(gfx.RGB(1, 2, 3))
 	dev.Present()
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(testwait.Timeout)
 	for {
 		calls, _, n := client.snapshot()
 		if calls == 1 && n == menudisplay.FrameBytes && !dev.FramePending() {
