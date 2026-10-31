@@ -99,14 +99,16 @@ bridge parameters, response/write-completion interfaces, clocks and common
 reset connections, in addition to inherited mailbox/probe and HPS/EMIF
 checks. The pixel PLL parameters are checked after generation and compilation.
 Generated bridge FIFO constraints remain authoritative: no broad clock groups
-or pointer-path cuts are added. The board SDC cuts eleven asynchronous clear
+or pointer-path cuts are added. The board SDC cuts ten asynchronous clear
 pins: four on the configuration and lock-qualification synchronizers, four on
-the generated pixel and 100 MHz reset-bridge synchronizers, two on the
-visibility synchronizer and one on the registered data/DE gate. It also cuts
+the generated pixel and 100 MHz reset-bridge synchronizers, and two on the
+visibility synchronizer. The registered data/DE gate clears from that
+synchronizer's pixel-clock output, so its recovery and removal stay timed; the
+SDC only checks that its clear pin exists. It also cuts
 only the first D ingress of the sticky-fault and HDMI-visibility
 synchronizers; later synchronizer stages, line gating and output paths remain
 timed. Generation rejects a board whose data/DE pins are not driven by the
-registered gate or an SDC that does not name all eleven clear pins. No HDMI IO
+registered gate or an SDC that does not name all ten clear pins. No HDMI IO
 delays are fabricated.
 
 Native tests exercise the real reader/video/control RTL with the same guarded

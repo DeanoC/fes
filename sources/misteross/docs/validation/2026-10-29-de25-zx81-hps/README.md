@@ -115,8 +115,9 @@ board's HDMI visibility synchronizer samples a pixel-clock reset, so that path
 is same-domain and stays timed. The frame-owner constraints check both
 request/acknowledge crossings, bound all nine row-metadata bits, and require
 four reset ingress pins for its two domain synchronizers. The separate scanout
-SDC cuts only its `visible_sync[0]` D pin and checks all eleven
-qualifier/reset-synchronizer/visibility clear pins. None of these current
+SDC cuts only its `visible_sync[0]` D pin and checks all ten
+qualifier/reset-synchronizer/visibility clear pins, leaving the data/DE gate's
+pixel-domain clear timed. None of these current
 selectors or constraints, nor the current RTL, were compiled into the retained
 STA, so this report provides no timing evidence for them. A fresh Quartus build
 and STA run from the current source must confirm the collections resolve and

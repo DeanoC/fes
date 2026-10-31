@@ -7,15 +7,19 @@ create_generated_clock -name adv7513_config -source [get_ports CLOCK0_50] -divid
 # Loss of pixel lock does not reset either live PD crossing or the endpoint's
 # outstanding accounting. Qsys emits the two domain reset synchronizers as
 # top-level reset controllers; the reset-bridge modules themselves are
-# pass-through cells. The two visibility-synchronizer clears and the
-# registered data/DE gate clear complete the asynchronous clear set.
-set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr fes_video_inst|visible_sync[0]|aclr fes_video_inst|visible_sync[1]|aclr fes_video_inst|video_active|aclr}]
-set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn fes_video_inst|visible_sync[0]|clrn fes_video_inst|visible_sync[1]|clrn fes_video_inst|video_active|clrn}]
+# pass-through cells. The two visibility-synchronizer clears complete the
+# asynchronous clear set.
+set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr fes_video_inst|visible_sync[0]|aclr fes_video_inst|visible_sync[1]|aclr}]
+set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn fes_video_inst|visible_sync[0]|clrn fes_video_inst|visible_sync[1]|clrn}]
 set scanout_clear_count [expr {[get_collection_size $scanout_aclr] + [get_collection_size $scanout_clrn]}]
-post_message -type info "DE25 scanout qualifier/reset-bridge/visibility clear pins: $scanout_clear_count (expected 11)"
-if {$scanout_clear_count != 11} {error "DE25 scanout requires exactly eleven qualifier/reset-bridge/visibility clear pins"}
+post_message -type info "DE25 scanout qualifier/reset-bridge/visibility clear pins: $scanout_clear_count (expected 10)"
+if {$scanout_clear_count != 10} {error "DE25 scanout requires exactly ten qualifier/reset-bridge/visibility clear pins"}
 if {[get_collection_size $scanout_aclr] > 0} {set_false_path -to $scanout_aclr}
 if {[get_collection_size $scanout_clrn] > 0} {set_false_path -to $scanout_clrn}
+# The registered data/DE gate clears from visible_sync[1], a pixel-clock
+# register, so its recovery and removal stay timed. Only check that it exists.
+set scanout_gate_clear [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|video_active|aclr fes_video_inst|video_active|clrn}]
+if {[get_collection_size $scanout_gate_clear] != 1} {error "DE25 scanout data/DE gate clear pin changed"}
 # A monotonic 100 MHz fault level crosses through its dedicated two-flop chain.
 # Cut only asynchronous ingress to stage0 D. Stage0->1 and fanout stay timed.
 set scanout_fault_source [get_registers {fes_video_inst|fault}]

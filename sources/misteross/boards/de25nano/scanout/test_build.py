@@ -2,6 +2,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
 from unittest import mock
@@ -134,7 +135,7 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertIn("add_connection fes_scanout_system_reset.out_reset $instance.s0_reset", integrate)
         self.assertIn("add_connection fes_scanout_pixel_reset.out_reset $instance.m0_reset", integrate)
         self.assertIn('if {[string compare $instance "fes_ctrl_cdc"] == 0}', integrate)
-        self.assertEqual(B.verify_reset_synchronizers(project)["sdc_clear_pins"], 11)
+        self.assertEqual(B.verify_reset_synchronizers(project)["sdc_clear_pins"], 10)
 
     def test_generation_reset_guard_rejects_unregistered_gate_or_stale_sdc_targets(self):
         output, _, _, _ = self.prepare()
@@ -152,8 +153,11 @@ class ScanoutBuildTests(unittest.TestCase):
         sdc_path.write_text(original_sdc.replace("fes_video_inst|visible_sync[1]|aclr", "fes_video_inst|missing_visible_sync|aclr", 1))
         with self.assertRaisesRegex(ValueError, "does not constrain the registered visibility clear pin"):
             B.verify_reset_synchronizers(project)
-        sdc_path.write_text(original_sdc.replace("$scanout_clear_count != 11", "$scanout_clear_count != 8", 1))
-        with self.assertRaisesRegex(ValueError, "eleven reset/visibility clear pins"):
+        sdc_path.write_text(original_sdc.replace("$scanout_clear_count != 10", "$scanout_clear_count != 8", 1))
+        with self.assertRaisesRegex(ValueError, "ten reset/visibility clear pins"):
+            B.verify_reset_synchronizers(project)
+        sdc_path.write_text(original_sdc.replace("fes_video_inst|visible_sync[1]|aclr}]", "fes_video_inst|visible_sync[1]|aclr fes_video_inst|video_active|aclr}]", 1))
+        with self.assertRaisesRegex(ValueError, "data/DE gate clear timed"):
             B.verify_reset_synchronizers(project)
         sdc_path.write_text(original_sdc.replace("rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn", "rst_controller_002|missing|clrn", 1))
         with self.assertRaisesRegex(ValueError, "does not constrain the generated rst_controller_002 stage 1"):
@@ -175,10 +179,15 @@ class ScanoutBuildTests(unittest.TestCase):
                 )
         self.assertNotIn("altera_reset_synchronizer_int_chain*|aclr", sdc)
         self.assertNotIn("altera_reset_synchronizer_int_chain*|clrn", sdc)
-        for register in ("visible_sync[0]", "visible_sync[1]", "video_active"):
+        for register in ("visible_sync[0]", "visible_sync[1]"):
             self.assertIn(f"fes_video_inst|{register}|aclr", sdc)
             self.assertIn(f"fes_video_inst|{register}|clrn", sdc)
-        self.assertIn("if {$scanout_clear_count != 11}", sdc)
+        self.assertIn("if {$scanout_clear_count != 10}", sdc)
+        cuts = re.findall(r"set scanout_(?:aclr|clrn) \[get_pins [^{]*\{[^}]*\}\]", sdc)
+        self.assertEqual(len(cuts), 2)
+        self.assertNotIn("video_active", "".join(cuts))
+        self.assertIn("if {[get_collection_size $scanout_gate_clear] != 1}", sdc)
+        self.assertNotIn("set_false_path -to $scanout_gate_clear", sdc)
         self.assertNotIn("fes_scanout_pixel_reset|sync_regs*", sdc)
         self.assertNotIn("fes_scanout_system_reset|sync_regs*", sdc)
 

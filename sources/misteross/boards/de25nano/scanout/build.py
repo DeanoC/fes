@@ -238,18 +238,24 @@ def verify_reset_synchronizers(project):
                       "altera_reset_synchronizer_int_chain[" + str(stage) + "]|")
             if target + "aclr" not in sdc or target + "clrn" not in sdc:
                 raise ValueError("scanout SDC does not constrain the generated " + controller + " stage " + str(stage))
-    for path in ("visible_sync[0]", "visible_sync[1]", "video_active"):
+    for path in ("visible_sync[0]", "visible_sync[1]"):
         for pin in ("aclr", "clrn"):
             if "fes_video_inst|" + path + "|" + pin not in sdc:
                 raise ValueError("scanout SDC does not constrain the registered visibility clear pin: " + path + "|" + pin)
-    if "if{$scanout_clear_count!=11}" not in sdc:
-        raise ValueError("scanout SDC does not require all eleven reset/visibility clear pins")
+    cuts = "".join(re.findall(r"setscanout_(?:aclr|clrn)\[get_pins[^{]*\{[^}]*\}\]", sdc))
+    if ("video_active" in cuts or "set_false_path-to$scanout_gate_clear" in sdc or
+            "setscanout_gate_clear[get_pins-compatibility_mode-nocase-nowarn{fes_video_inst|video_active|aclr"
+            "fes_video_inst|video_active|clrn}]" not in sdc or
+            "if{[get_collection_size$scanout_gate_clear]!=1}" not in sdc):
+        raise ValueError("scanout SDC must keep the pixel-domain data/DE gate clear timed and present")
+    if "if{$scanout_clear_count!=10}" not in sdc:
+        raise ValueError("scanout SDC does not require all ten reset/visibility clear pins")
     if "fes_scanout_pixel_reset|sync_regs*" in sdc or "fes_scanout_system_reset|sync_regs*" in sdc:
         raise ValueError("scanout SDC still targets nonexistent board reset registers")
     return {"pixel_clock": "74250000 Hz", "system_clock": "100000000 Hz",
             "assertion": "asynchronous", "deassertion": "synchronous per domain",
             "hdmi_data_de_gate": "pixel-registered; qualified-lock clear asserts immediately",
-            "sdc_clear_pins": 11}
+            "sdc_clear_pins": 10}
 
 
 def verify_handoff(project, hps):
