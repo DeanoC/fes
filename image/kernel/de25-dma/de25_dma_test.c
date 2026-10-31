@@ -3,6 +3,10 @@
 #include <kunit/device.h>
 #include <kunit/test.h>
 #include <linux/completion.h>
+#include <linux/capability.h>
+#include <linux/cred.h>
+#include <linux/fdtable.h>
+#include <linux/notifier.h>
 #include <linux/file.h>
 #include <linux/kthread.h>
 #include <linux/mman.h>
@@ -1355,7 +1359,29 @@ struct owner_fixture {
 	struct fes_de25_owner *owner;
 	struct guard_test_device *device;
 	struct file *file;
+	int fd, base_overlay, profile_overlay, program_error;
+	struct device_node *region;
+	struct notifier_block programmer;
+	bool programmer_registered;
+	unsigned int programs, removes;
+	bool wrong_identity;
+	struct fes_de25_dma_test_observer control_observer;
 };
+
+static void owner_fixture_close_client(struct owner_fixture *f)
+{
+	struct file *file;
+
+	if (!IS_ERR_OR_NULL(f->file))
+		__fput_sync(f->file);
+	f->file = NULL;
+	if (f->fd >= 0) {
+		file = file_close_fd(f->fd);
+		f->fd = -1;
+		if (file)
+			__fput_sync(file);
+	}
+}
 
 static void owner_fixture_cleanup(void *context)
 {
@@ -1364,8 +1390,15 @@ static void owner_fixture_cleanup(void *context)
 	f->device->endpoint->drain_error = 0;
 	f->device->endpoint->stop_error = 0;
 	fes_de25_owner_test_reap(f->owner);
-	if (!IS_ERR_OR_NULL(f->file))
-		__fput_sync(f->file);
+	owner_fixture_close_client(f);
+	if (f->profile_overlay)
+		of_overlay_remove(&f->profile_overlay);
+	if (f->programmer_registered)
+		of_overlay_notifier_unregister(&f->programmer);
+	fes_de25_owner_test_detach(f->owner);
+	of_node_put(f->region);
+	if (f->base_overlay)
+		of_overlay_remove(&f->base_overlay);
 	fes_de25_owner_test_destroy(f->owner);
 }
 
@@ -1376,6 +1409,7 @@ static struct owner_fixture *owner_fixture_create(struct kunit *test, bool ready
 
 	if (!f)
 		return NULL;
+	f->fd = -1;
 	f->device = guard_test_device(test, 0);
 	if (!f->device)
 		return NULL;
@@ -1533,7 +1567,204 @@ static void permanent_owner_checks_real_supplier_links(struct kunit *test)
 	platform_device_unregister(consumer);
 }
 
+/* Actual OF apply/remove and owner ioctl/FD table. The priority-zero
+ * programmer models a completed firmware transfer and register reset; it is
+ * not the SDM manager, an RBF loader, an SMMU or physical FPGA hardware.
+ */
+extern u8 __dtbo_fes_de25_owner_base_begin[], __dtbo_fes_de25_owner_base_end[];
+extern u8 __dtbo_fes_de25_owner_profile_begin[], __dtbo_fes_de25_owner_profile_end[];
+
+static int owner_fixture_program(struct notifier_block *nb, unsigned long action, void *data)
+{
+	struct owner_fixture *f = container_of(nb, struct owner_fixture, programmer);
+	struct of_overlay_notify_data *nd = data;
+	struct guard_test_device *device = f->device;
+	struct test_transport *endpoint = device->endpoint;
+
+	if (nd->target != f->region)
+		return NOTIFY_OK;
+	if (action == OF_OVERLAY_PRE_REMOVE)
+		f->removes++;
+	if (action != OF_OVERLAY_PRE_APPLY)
+		return NOTIFY_OK;
+	f->programs++;
+	if (f->program_error)
+		return notifier_from_errno(f->program_error);
+	memset(device->regs, 0, sizeof(device->regs));
+	device->regs[FES_DE25_SCANOUT_GUARD_ID_OFFSET / 4] =
+		f->wrong_identity ? 0 : FES_DE25_SCANOUT_GUARD_IDENTITY;
+	device->regs[FES_DE25_SCANOUT_GUARD_VERSION_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_VERSION;
+	device->regs[FES_DE25_SCANOUT_GUARD_TIMEOUT_OFFSET / 4] = FES_DE25_SCANOUT_GUARD_TIMEOUT_CYCLES;
+	memset(endpoint->regs, 0, sizeof(endpoint->regs));
+	memset(endpoint->live, 0, sizeof(endpoint->live));
+	memset(endpoint->frozen, 0, sizeof(endpoint->frozen));
+	endpoint->serial = 0;
+	endpoint->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
+	return NOTIFY_OK;
+}
+
+static int owner_fixture_overlay_setup(struct owner_fixture *f)
+{
+	int ret;
+
+	/* Descriptor mutations stay in this test task's own table. */
+	if (!current->files)
+		return -EINVAL;
+	ret = unshare_files();
+	if (ret)
+		return ret;
+	ret = of_overlay_fdt_apply(__dtbo_fes_de25_owner_base_begin,
+		__dtbo_fes_de25_owner_base_end - __dtbo_fes_de25_owner_base_begin,
+		&f->base_overlay, NULL);
+	if (ret)
+		return ret;
+	f->region = of_find_node_by_path("/fes-de25-kunit-region");
+	if (!f->region)
+		return -ENODEV;
+	ret = fes_de25_owner_test_attach(f->owner, f->region, &f->device->guard);
+	if (ret)
+		return ret;
+	f->programmer.notifier_call = owner_fixture_program;
+	f->programmer.priority = 0;
+	ret = of_overlay_notifier_register(&f->programmer);
+	if (!ret)
+		f->programmer_registered = true;
+	return ret;
+}
+
+static int owner_fixture_apply(struct owner_fixture *f)
+{
+	return of_overlay_fdt_apply(__dtbo_fes_de25_owner_profile_begin,
+		__dtbo_fes_de25_owner_profile_end - __dtbo_fes_de25_owner_profile_begin,
+		&f->profile_overlay, NULL);
+}
+
+static void owner_overlay_and_control_fd_complete_two_cycles(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	struct fes_de25_dma_publish publish;
+	struct device_node *node;
+	u64 previous = 0;
+	unsigned int cycle;
+	bool cloexec;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	for (cycle = 1; cycle <= 2; cycle++) {
+		KUNIT_ASSERT_EQ(test, owner_fixture_apply(f), 0);
+		KUNIT_EXPECT_EQ(test, f->programs, cycle);
+		KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], cycle);
+		f->fd = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0);
+		KUNIT_ASSERT_GE(test, f->fd, 0);
+		spin_lock(&current->files->file_lock);
+		cloexec = close_on_exec(f->fd, current->files);
+		spin_unlock(&current->files->file_lock);
+		KUNIT_EXPECT_TRUE(test, cloexec);
+		f->file = fget(f->fd);
+		KUNIT_ASSERT_NOT_NULL(test, f->file);
+		fes_de25_dma_test_observe(f->file, &f->control_observer);
+		publish = publish_for(f->file);
+		KUNIT_EXPECT_GT(test, publish.generation, previous);
+		previous = publish.generation;
+		KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+		KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->profile_overlay), -EBUSY);
+		KUNIT_EXPECT_EQ(test, f->removes, cycle - 1);
+		node = of_find_node_by_path("/fes-de25-kunit-region/scanout");
+		KUNIT_EXPECT_NOT_NULL(test, node);
+		of_node_put(node);
+		KUNIT_ASSERT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_REAP, 0), 0);
+		KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->profile_overlay), -EBUSY);
+		KUNIT_EXPECT_EQ(test, f->control_observer.freed, cycle - 1);
+		owner_fixture_close_client(f);
+		KUNIT_EXPECT_EQ(test, f->control_observer.freed, cycle);
+		KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+		KUNIT_EXPECT_EQ(test, f->removes, cycle);
+		KUNIT_EXPECT_EQ(test, f->profile_overlay, 0);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	}
+}
+
+static void owner_overlay_refuses_remove_after_uncertain_last_close(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	struct fes_de25_dma_publish publish;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	KUNIT_ASSERT_EQ(test, owner_fixture_apply(f), 0);
+	f->fd = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0);
+	KUNIT_ASSERT_GE(test, f->fd, 0);
+	f->file = fget(f->fd);
+	KUNIT_ASSERT_NOT_NULL(test, f->file);
+	fes_de25_dma_test_observe(f->file, &f->control_observer);
+	publish = publish_for(f->file);
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(f->file, &publish), 0);
+	f->device->endpoint->drain_error = -ETIMEDOUT;
+	owner_fixture_close_client(f);
+	KUNIT_EXPECT_EQ(test, f->control_observer.freed, 0U);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_REAP, 0), -EAGAIN);
+	KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->profile_overlay), -EBUSY);
+	KUNIT_EXPECT_EQ(test, f->removes, 0U);
+	f->device->endpoint->drain_error = 0;
+	KUNIT_ASSERT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_REAP, 0), 0);
+	KUNIT_EXPECT_EQ(test, f->control_observer.freed, 1U);
+	KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+}
+
+static void owner_overlay_failure_never_admits_a_guard(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	unsigned int reads;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	f->program_error = -EIO;
+	KUNIT_EXPECT_EQ(test, owner_fixture_apply(f), -EIO);
+	reads = f->device->reads;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+	f->program_error = 0;
+	f->wrong_identity = true;
+	KUNIT_EXPECT_EQ(test, owner_fixture_apply(f), -EPROTONOSUPPORT);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
+	f->wrong_identity = false;
+	KUNIT_ASSERT_EQ(test, owner_fixture_apply(f), 0);
+	KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 2U);
+}
+
+static void owner_control_checks_capability_and_command_before_effects(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, false);
+	struct cred *denied;
+	const struct cred *saved;
+	unsigned int reads;
+	long ret;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
+	KUNIT_ASSERT_EQ(test, owner_fixture_apply(f), 0);
+	reads = f->device->reads;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 1), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, 0, 0), -ENOTTY);
+	denied = prepare_creds();
+	KUNIT_ASSERT_NOT_NULL(test, denied);
+	cap_lower(denied->cap_effective, CAP_SYS_RAWIO);
+	saved = override_creds(denied);
+	ret = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0);
+	revert_creds(saved);
+	put_cred(denied);
+	KUNIT_EXPECT_EQ(test, ret, -EPERM);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+}
+
 static struct kunit_case fes_de25_dma_cases[] = {
+	KUNIT_CASE(owner_overlay_and_control_fd_complete_two_cycles),
+	KUNIT_CASE(owner_overlay_refuses_remove_after_uncertain_last_close),
+	KUNIT_CASE(owner_overlay_failure_never_admits_a_guard),
+	KUNIT_CASE(owner_control_checks_capability_and_command_before_effects),
 	KUNIT_CASE(permanent_owner_checks_real_supplier_links),
 	KUNIT_CASE(permanent_owner_probe_refuses_unbound_device),
 	KUNIT_CASE(permanent_owner_rejects_topology_overrides),

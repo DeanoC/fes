@@ -232,11 +232,22 @@ it is not artifact authentication. The supported runtime must construct the
 overlay from its admitted package and matching bitstream. Device-tree metadata
 cannot prove a wrong or unconfigured bridge safe to probe.
 
-The owner tests call the actual allocation/reap and notification decision paths
-with scripted guard/endpoint registers and a test device. They verify early
-exclusion and post-client-close recovery. They bypass physical binding only in
-KUnit fixtures; they do not execute an actual OF overlay or qualify a domain,
-stream, permanent supplier binding, physical clock/bridge, or board lifecycle.
-Still required before activation: the pinned kernel supplier integration,
-base-tree owner binding, admitted loader/package integration, complete overlay
-and concurrent operation tests, and physical acceptance.
+The owner tests call the actual allocation/reap and notification paths with
+scripted guard/endpoint registers and a test device. Positive lifecycle cases
+apply/remove real compiled OF overlays through registered priority-100 owner and
+priority-zero modeled programmer notifiers. They use the actual control ioctl
+callback, private descriptor table, CLOEXEC bit, file references and final close.
+Two full cycles require fresh guard epochs and allocation generations. Actual
+removal is refused before later notifiers or node detachment while storage is
+live, including uncertain drain after the last client closes. Failure cases
+reject incomplete programming and wrong guard identity, clean up the actual
+changeset and then admit a fresh configuration. Control rejection checks include
+actual credentials without CAP_SYS_RAWIO, unknown commands and nonzero arguments.
+
+These fixtures bypass physical binding only in KUnit. The programmer simulates
+firmware completion/reset; it does not call the SDM manager or load an RBF.
+Control tests enter the real ioctl callback, not a userspace /dev open or ioctl
+syscall. No domain, stream, permanent supplier binding, physical clock/bridge or
+board lifecycle is qualified. Still required before activation: admitted
+loader/package and syscall integration, matching boot/rootfs, concurrency and
+physical acceptance of the prepared kernel/base tree.

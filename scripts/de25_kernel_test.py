@@ -18,6 +18,10 @@ ROOT = Path(__file__).resolve().parents[1]
 DRIVER = "image/kernel/de25-dma"
 KERNEL_DRIVER = "drivers/misc/fes-de25-dma"
 REQUIRED_CASES = frozenset((
+    "owner_overlay_and_control_fd_complete_two_cycles",
+    "owner_overlay_refuses_remove_after_uncertain_last_close",
+    "owner_overlay_failure_never_admits_a_guard",
+    "owner_control_checks_capability_and_command_before_effects",
     "permanent_owner_checks_real_supplier_links",
     "permanent_owner_probe_refuses_unbound_device",
     "permanent_owner_rejects_topology_overrides", "permanent_owner_rejects_ancestor_mutation",

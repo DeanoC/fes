@@ -38,7 +38,8 @@ struct fes_de25_owner {
 	u32 next_epoch;
 	bool ready, leased;
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
-	bool test_fixture;
+	bool test_fixture, test_registered;
+	struct fes_de25_dma_guard *test_borrowed_guard, *test_guard_template;
 	struct device_node test_region;
 #endif
 };
@@ -181,9 +182,12 @@ static bool ancestor(const struct device_node *parent, const struct device_node 
 static void owner_retire_guard(struct fes_de25_owner *owner)
 {
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
-	if (!owner->test_fixture)
+	if (owner->test_fixture && owner->guard == owner->test_borrowed_guard) {
+		owner->guard = NULL;
+		return;
+	}
 #endif
-		kfree(owner->guard);
+	kfree(owner->guard);
 	owner->guard = NULL;
 }
 
@@ -291,6 +295,13 @@ static int owner_notify(struct notifier_block *nb, unsigned long action, void *d
 			break;
 		}
 		ret = fes_de25_guard_init(owner->guard, owner->base, FES_DE25_SCANOUT_CONTROL_SPAN);
+#if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
+		if (owner->test_fixture && owner->test_guard_template) {
+			owner->guard->test_read = owner->test_guard_template->test_read;
+			owner->guard->test_write = owner->test_guard_template->test_write;
+			owner->guard->test_context = owner->test_guard_template->test_context;
+		}
+#endif
 		if (!ret)
 			ret = fes_de25_guard_claim(owner->guard, ++owner->next_epoch);
 		if (ret)
@@ -555,10 +566,51 @@ struct fes_de25_owner *fes_de25_owner_test_create(struct device *dev,
 	owner->test_fixture = true;
 	owner->region = &owner->test_region;
 	owner->guard = guard;
+	owner->test_borrowed_guard = guard;
 	owner->ready = !!guard;
 	mutex_init(&owner->lock);
 	mutex_init(&owner->allocation_lock);
 	return owner;
+}
+
+int fes_de25_owner_test_attach(struct fes_de25_owner *owner, struct device_node *region,
+		struct fes_de25_dma_guard *transport)
+{
+	int ret;
+
+	if (owner->test_registered || owner->leased || owner->ready || !region || !transport)
+		return -EINVAL;
+	owner->region = of_node_get(region);
+	owner->base = transport->base;
+	owner->test_guard_template = transport;
+	owner->notifier.notifier_call = owner_notify;
+	owner->notifier.priority = 100;
+	ret = of_overlay_notifier_register(&owner->notifier);
+	if (ret) {
+		of_node_put(owner->region);
+		owner->region = &owner->test_region;
+		return ret;
+	}
+	owner->test_registered = true;
+	return 0;
+}
+
+void fes_de25_owner_test_detach(struct fes_de25_owner *owner)
+{
+	if (!owner->test_registered)
+		return;
+	of_overlay_notifier_unregister(&owner->notifier);
+	of_node_put(owner->region);
+	owner->region = &owner->test_region;
+	owner->test_registered = false;
+}
+
+long fes_de25_owner_test_ioctl(struct fes_de25_owner *owner, unsigned int command,
+		unsigned long argument)
+{
+	struct file control = { .private_data = &owner->misc };
+
+	return owner_fops.unlocked_ioctl(&control, command, argument);
 }
 
 struct file *fes_de25_owner_test_allocate(struct fes_de25_owner *owner)
@@ -607,6 +659,8 @@ int fes_de25_owner_test_dependencies(struct device *dev)
 void fes_de25_owner_test_destroy(struct fes_de25_owner *owner)
 {
 	WARN_ON(owner->leased || owner->active);
+	fes_de25_owner_test_detach(owner);
+	owner_retire_guard(owner);
 	kfree(owner);
 }
 #endif
