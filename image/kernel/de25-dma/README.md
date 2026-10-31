@@ -16,7 +16,7 @@ accept a caller-provided physical/DMA address.
 
 The private constructor receives the actual DMA device and an exclusively owned,
 driver-controlled register transport. The KUnit suite is its only consumer. It
-sets the device's 32-bit coherent DMA mask, allocates one 8 MiB region with
+sets the device's 32-bit coherent DMA mask, allocates one 8 MiB region through
 `dma_alloc_attrs` with `DMA_ATTR_FORCE_CONTIGUOUS`, clears it, and maps it
 with `dma_mmap_attrs` using that same attribute. Release passes the same attribute
 to `dma_free_attrs`. The pinned IOMMU implementation uses contiguous backing
@@ -134,3 +134,7 @@ kernel additionally requires matching config and symbol-version evidence.
 The test dependency lock selects the authenticated AArch64 SDK from image
 producer `0da63d1044cc7ecf9908efba52af17b3e55e6271`, including C++ runtime
 support. This changes the SDK hash, not the pinned vendor kernel or builder.
+
+The [contiguous allocation and revocation record](../../../docs/validation/2026-10-31-de25-contiguous-dma/README.md)
+retains all 17 passing AArch64 KUnit cases and the matching prepared-kernel
+module build. Physical stream/domain and normal-kit admission remain open.
