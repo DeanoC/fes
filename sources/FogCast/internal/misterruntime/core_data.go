@@ -12,42 +12,12 @@ import (
 const CoreDataRoot = "/media/fat/fogcast/core-data"
 
 func validateCoreDataShape(raw json.RawMessage) error {
-	common := []string{"package_id", "core_id", "layout", "mode", "revision"}
-	fields, err := exactRawObject(raw, common, []string{"paddle_speed", "best_rally", "game_id", "machine"})
+	fields, err := exactRawObject(raw, []string{"package_id", "core_id", "layout", "mode", "revision", "paddle_speed", "best_rally"}, nil)
 	if err != nil {
 		return err
 	}
-	if err = requireRawKinds(fields, map[string]rawKind{"package_id": rawString, "core_id": rawString, "layout": rawNullableObject, "mode": rawString, "revision": rawString}); err != nil {
+	if err = requireRawKinds(fields, map[string]rawKind{"package_id": rawString, "core_id": rawString, "layout": rawNullableObject, "mode": rawString, "revision": rawString, "paddle_speed": rawUnsigned, "best_rally": rawUnsigned}); err != nil {
 		return err
-	}
-	if fields["game_id"] != nil || fields["machine"] != nil {
-		required := append(append([]string{}, common...), "game_id", "machine")
-		fields, err = exactRawObject(raw, required, nil)
-		if err != nil {
-			return err
-		}
-		if err = requireRawKinds(fields, map[string]rawKind{"game_id": rawString, "machine": rawObject}); err != nil {
-			return err
-		}
-		machine, machineErr := exactRawObject(fields["machine"], []string{"preset", "frequency", "code_profile", "turbo", "sb_base", "sb_irq", "sb_dma"}, nil)
-		if machineErr != nil {
-			return machineErr
-		}
-		if machineErr = requireRawKinds(machine, map[string]rawKind{
-			"preset": rawUnsigned, "frequency": rawUnsigned, "code_profile": rawUnsigned, "turbo": rawUnsigned,
-			"sb_base": rawUnsigned, "sb_irq": rawUnsigned, "sb_dma": rawUnsigned,
-		}); machineErr != nil {
-			return machineErr
-		}
-	} else {
-		required := append(append([]string{}, common...), "paddle_speed", "best_rally")
-		fields, err = exactRawObject(raw, required, nil)
-		if err != nil {
-			return err
-		}
-		if err = requireRawKinds(fields, map[string]rawKind{"paddle_speed": rawUnsigned, "best_rally": rawUnsigned}); err != nil {
-			return err
-		}
 	}
 	if !isNull(fields["layout"]) {
 		return validateSupportedInterfaceShape(fields["layout"])
