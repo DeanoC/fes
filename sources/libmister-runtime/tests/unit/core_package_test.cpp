@@ -1008,6 +1008,15 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	pcxt.abi.minor = 1;
 	pcxt.interfaces.push_back({"fes.media.pcxt-floppy", 1, 0, true});
 	assert(check(pcxt).ok());
+	// The new shared ABI assignments do not implement the pc386 transports
+	// in this runtime. A 1.1 PC/XT descriptor must still fail closed when it
+	// requires any of them.
+	for (const char* id : {"fes.media.ata-disk", "fes.persistence.words",
+		"fes.rtc.wall-clock", "fes.pc386.machine"}) {
+		auto unsupported = pcxt;
+		unsupported.interfaces.push_back({id, 1, 0, true});
+		assert(check(unsupported).code == mister::ErrorCode::unsupported_interface);
+	}
 	pcxt.abi.minor = 0;
 	assert(check(pcxt).code == mister::ErrorCode::unsupported_abi);
 	pcxt.abi.minor = 1;

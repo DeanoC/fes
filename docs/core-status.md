@@ -307,7 +307,9 @@ The [31 October Kit B DOS boot](validation/2026-10-31-pcxt-dos-boot/README.md)
 accepted exact package `7f282f3b` from source `0fdae134`: after a runtime
 FreeDOS floppy upload, captured video progressed through BIOS and reached
 `A:\>`. The kit was restored and released. This does not qualify floppy
-writes, host keyboard input or external interface timing.
+writes, host keyboard input or external interface timing. That package used
+the earlier PC/XT capability bit 16; the merged interface uses bit 20 and
+requires its own exact-package hardware test.
 The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
 Independent review found four package/acceptance defects, now fixed and re-reviewed.
