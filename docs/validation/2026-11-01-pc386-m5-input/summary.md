@@ -114,6 +114,12 @@ of the four games, which are the next M5 slice.
   `fes.computer` 1.0. It now takes 1.0 and 1.1, as `protocol.ComputerABI` does.
   libmister-runtime, the agent and tenfoot already gate keyboard and mouse
   only on the declared interfaces.
+  - That puts pc386 on the browser's mouse queue. Its cap of 64 waiting
+    requests (from #511) dropped every event except a full release, so
+    letting go of one button while holding the other could be lost (Codex's
+    third finding).
+  - A full queue now drops only events that leave the buttons it last queued
+    unchanged. Every button change, a partial release included, is sent.
 
 ## Simulation
 
@@ -173,8 +179,10 @@ The system bench drives the whole shell as the runtime does, with the RTL CPU:
   clock checks.
 
 The oracle machine bench gives the same two lines from `machine_tb --mouse`
-and named keys. 46 Python tests, the support matrix and FogCast's browser UI
-suite (`Makefile` line 51, 373 tests) pass.
+and named keys. 46 Python tests and the support matrix pass. On the host side,
+FogCast's browser UI suites pass: `Makefile` line 51, 374 tests, including a
+full mouse queue that keeps a partial release and drops pure motion, and
+`ui_browser_test.js`, 78. So does `go test ./internal/hostapi/...`.
 
 ## Quartus seal
 

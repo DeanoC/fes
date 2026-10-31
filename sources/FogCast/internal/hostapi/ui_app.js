@@ -2567,10 +2567,15 @@
     }
     let mouseQueue = Promise.resolve();
     let mousePending = 0;
+    // The buttons of the last event queued for a binding. A full queue drops
+    // motion only: every button change, a partial release included, is sent.
+    let mouseQueued = { binding: null, buttons: 0 };
     function sendMouseRelative(dx, dy, buttons) {
       if (![dx,dy,buttons].every(Number.isInteger) || dx < -32768 || dx > 32767 || dy < -32768 || dy > 32767 || buttons < 0 || buttons > 3 || !mouseAllowed()) return Promise.resolve(false);
-      if (mousePending >= 64 && (dx || dy || buttons)) return Promise.resolve(false);
       const binding = state.session.mouse_binding;
+      const buttonsChange = mouseQueued.binding !== binding || mouseQueued.buttons !== buttons;
+      if (mousePending >= 64 && !buttonsChange && (dx || dy || buttons)) return Promise.resolve(false);
+      mouseQueued = { binding, buttons };
       mousePending += 1;
       const task = mouseQueue.then(async () => {
         if (!mouseAllowed() || state.session.mouse_binding !== binding) return false;
