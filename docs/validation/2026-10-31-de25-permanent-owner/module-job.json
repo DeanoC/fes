@@ -1,0 +1,10 @@
+{
+  "owner": "deano/codex/de25-linux-platform",
+  "pid": 3279263,
+  "container": "fes-de25-platform-delivery-e89975869",
+  "time_cap_seconds": 600,
+  "heartbeat_utc": "2026-10-31T15:37:08.259629+00:00",
+  "elapsed_seconds": 43.0,
+  "state": "passed",
+  "returncode": 0
+}
