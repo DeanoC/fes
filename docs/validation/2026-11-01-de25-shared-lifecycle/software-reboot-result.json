@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "boot_id": "2b179a1a-cf78-45e4-b188-f5e5643c0762",
+  "previous_boot_id": "15e107d8-0ed1-4e5e-83d8-b27c8a49d853",
+  "ip": "192.168.10.153",
+  "previous_ip": "192.168.10.28",
+  "scope": "ordinary software reboot after actual new shared lifecycle diagnostic; unchanged kernel/CID/receipt; no power cycle; new IP located by existing pinned key"
+}

@@ -1,0 +1,16 @@
+{
+  "source_revision": "1cf85647a5278cabedaf55e12634ba16d7d27415",
+  "command": [
+    "python3",
+    "out/video-ready-corrected-check.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-archive-completion",
+  "started_utc": "2026-10-31T22:07:17.933064+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 3054079,
+  "state": "passed",
+  "elapsed_seconds": 15.8,
+  "heartbeat_utc": "2026-10-31T22:07:33.729492+00:00",
+  "returncode": 0
+}

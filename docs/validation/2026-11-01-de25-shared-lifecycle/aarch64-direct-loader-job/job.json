@@ -1,0 +1,16 @@
+{
+  "source_revision": "16838e82c8124f1a21910a6739ae6653dad3429a",
+  "command": [
+    "python3",
+    "out/platform-lifecycle-aarch64-direct-loader.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T21:59:23.275346+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 3027640,
+  "state": "passed",
+  "elapsed_seconds": 92.2,
+  "heartbeat_utc": "2026-10-31T22:00:55.438730+00:00",
+  "returncode": 0
+}

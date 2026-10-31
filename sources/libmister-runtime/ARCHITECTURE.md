@@ -110,7 +110,7 @@ mutation. A managed DE25 idle/MENU package and restart adoption are still needed
 before the single production factory can construct this path.
 
 Production construction/startup remains closed. Scripted-register and selected-driver
-regressions are software evidence; this driver has not run on the board.
+regressions are software evidence. The [2026-11-01 shared-lifecycle diagnostic](../../docs/validation/2026-11-01-de25-shared-lifecycle/README.md) runs this actual driver/video backend through two NativeHardware package loads, BASIC7 and software reboot; the factory and normal idle/MENU remain closed.
 
 ## DE25 PR-control diagnostic
 

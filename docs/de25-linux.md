@@ -537,3 +537,11 @@ with an identity filesystem prefix and explicit SDK library paths. A libraries-o
 prefix still redirects `open("/")`, so it cannot correctly exercise component-by-
 component trusted-directory walks. This runner change preserves those production
 checks and their assertions; it changes no board rootfs or installed loader.
+
+The [2026-11-01 shared-lifecycle diagnostic](validation/2026-11-01-de25-shared-lifecycle/README.md)
+loads the described BRAM ZX81 package twice through actual NativeHardware,
+observes FPGA-owned HDMI readiness, loads/runs BASIC7 through driver tape/HID
+calls and verifies ordinary software reboot without power cycling. The new
+crossings retain paired routed setup/hold coverage; five other signoff rules
+remain open. Production factory/idle/MENU and restart adoption remain unfinished.
+Ethernet MAC/IP changes across reboot are an observed remaining network issue.

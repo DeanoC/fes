@@ -1,0 +1,16 @@
+{
+  "source_revision": "16838e82c8124f1a21910a6739ae6653dad3429a",
+  "command": [
+    "python3",
+    "out/platform-lifecycle-native-sequential.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T21:54:10.432447+00:00",
+  "time_cap_seconds": 1800,
+  "hardware_access": "not-performed",
+  "pid": 3000538,
+  "state": "passed",
+  "elapsed_seconds": 221.7,
+  "heartbeat_utc": "2026-10-31T21:57:52.123441+00:00",
+  "returncode": 0
+}

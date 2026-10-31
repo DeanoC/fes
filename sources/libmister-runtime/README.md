@@ -38,7 +38,7 @@ exact BRAM computer ABI/interface/build contract, keeps launch media held until
 Start, replaces live tape without reset, and never clears a poisoned transport
 at a session boundary. NativeHardware dispatches HID and basic tape operations
 through its selected CoreDriver rather than a DE10 concrete-class cast. This
-new driver has software coverage only; its DE25 registry binding requires
+new driver has a [dated two-load hardware diagnostic](../../docs/validation/2026-11-01-de25-shared-lifecycle/README.md); its DE25 registry binding requires
 explicit platform selection and is not constructed by the production factory and has no new physical acceptance claim. Unit-media limits/state are observed during identity, insert/eject use retained
 snapshots through the selected driver, and uncertain transfer preserves an
 unready state without cleanup commands. The known BRAM image advertises no
@@ -52,7 +52,10 @@ packages are refused before programming. The DE25 video backend performs no
 Linux I2C setup; HOLD belongs to the core driver and does not promise black HDMI.
 The Cyclone V splash-idle recipe is refused on DE25. The production factory,
 managed DE25 idle/MENU startup, safe process restart and actual tape-save support
-remain unfinished. This internal lifecycle wiring is software-tested only.
+remain unfinished. The dated shared-lifecycle diagnostic programs the known package twice, observes
+video readiness, loads/runs BASIC7 through driver tape/HID calls and verifies
+a software reboot. Production startup, managed idle/MENU and restart adoption
+remain closed.
 
 The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
 register contract through an exclusive injected `Mmio` backend and an injected
