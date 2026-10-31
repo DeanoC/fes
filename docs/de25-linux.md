@@ -515,3 +515,8 @@ Production core-driver/catalog/MENU integration and physical recovery gates rema
 The [shared computer-driver software proof](validation/2026-10-31-de25-core-driver/README.md)
 adds DE25 lifecycle/HID/basic-tape operations to the existing driver interface.
 It is not yet package-admitted or deployed through the production daemon.
+
+The [unit-media proof](validation/2026-10-31-de25-unit-media/README.md)
+records selected-driver limits/status/insert/eject and actual AArch64 CPU tests.
+Use the normal dynamic SDK runtime recipe; its static threaded-test candidate
+also aborts on the board. No production driver or package admission is implied.
