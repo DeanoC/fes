@@ -18,8 +18,8 @@ the production factory; package and AArch64 production admission remain closed.
   NativeHardware suite including a non-FesGp selected-driver dispatch fixture.
   Cases cover invalid descriptors without writes, changed build contexts,
   launch/Start/live-tape/HID/eject, and no replay after an uncertain Start.
-- All six affected commands pass in463.4 seconds, including parent Python,
-  consistency, full runtime functional/incremental/version/exact archive and
+- All eight affected commands pass in463.4 seconds, including parent Python,
+  consistency, host Go/UI/browser and full runtime functional/incremental/version/exact archive and
   hardware-support-truth checks. Detailed output and job identity are retained.
 - `make check` passes at the same producer in7.0 seconds.
 - Locked SDK builds the full static AArch64 archive and daemon. The programmer
