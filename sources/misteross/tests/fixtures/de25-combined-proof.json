@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "7b67bbf4711f2c11a64e20fb62381a73baad2da4",
+  "source_revision": "348baa73415f7689a5ca0aaaf816f03e30e494a4",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -49,7 +49,7 @@
     "sources/misteross/boards/de25nano/zx81-hps/integrate.tcl": "ecd2eafeef7dc74b50aef44512b83940b6fa16a2aa7d27cf4462e4889a45c86e",
     "sources/misteross/boards/de25nano/zx81-hps/tape_store.v": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f",
     "sources/misteross/boards/de25nano/zx81-hps/video.v": "2e48ac6620e7e5c319274dfc4b67b7afaf74c2dd6ffb820d567b7a1aa4df0dc2",
-    "sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v": "93fbcb23dcd36845f55b13af1f8cb9bab585d37fb65d76065447f0bd10bf0f87",
+    "sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v": "08b63b2f9240e36984e71fe1b98c3eb57defbfae32eb23efc2be240e408fc088",
     "sources/misteross/cores/fes-common/rtl/z80/fes_z80_alu.sv": "c7ce86810a6537150ccc482b91135031422c10ff4de257a6d4d8e54f3a4f43d9",
     "sources/misteross/cores/fes-common/rtl/z80/fes_z80_bus.sv": "1946158638c97ee46f993b4a53e168cd4f44f209af01b4be0f11faa69c331b2a",
     "sources/misteross/cores/fes-common/rtl/z80/fes_z80_engine.sv": "f40dad3d2b4909c4b93fa507479a417ad9b197d708580d8cc100f8f46954113b",
@@ -298,7 +298,7 @@
     "verilator": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)",
     "cxx": "c++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
     "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
-    "sdk_volume": "fes-de25-kunit-d961d5e670e46e84",
+    "sdk_volume": "fes-de25-kunit-b118ba148f145469",
     "sdk_before": "e82814dae98497c53ce9488ee7ca92491020acfc8b1f2fa53853e4548b2261e0  /build/sdk/bin/aarch64-buildroot-linux-gnu-g++\n29f631250421bf3c2fbe113fadf1cc1b89e8714c3530a43db06b507ada50145f  /build/sdk/bin/aarch64-buildroot-linux-gnu-g++.br_real\n",
     "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
     "qemu_version": "qemu-aarch64 version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)\nCopyright (c) 2003-2022 Fabrice Bellard and the QEMU Project developers\n",
@@ -310,7 +310,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "e65ff7d38f0d5826e00d1e88a89b33cf971d824afcd915257eba1220752aa927",
-    "Vfes_de25_combined_sim": "3355bd362f9908d956e8e81f2cc267a5b389d6d480134c653e5d695d8d7ae3f6",
+    "Vfes_de25_combined_sim": "f9d87230609cbfe7ae4fa1a70b23b223bfa065b639e6df8ab58227859405097a",
     "client-aarch64": "bf306c64dece0cca30dfb7e6f3c9441428b3a52bc6dd0217c4be1616f235192d"
   },
   "physical_PR": "selection-mux-model-only",
