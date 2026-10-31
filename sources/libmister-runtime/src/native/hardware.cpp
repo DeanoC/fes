@@ -934,11 +934,10 @@ Capabilities NativeHardware::capabilities() const
 				if (a.id != b.id) return a.id < b.id;
 				if (a.major != b.major) return a.major < b.major;
 				return a.minor < b.minor; });
+		if (active_driver_) result.media_units = active_driver_->media_units();
 		if (active_driver_ == fes_gp_driver_) {
 			MediaStreamInfo info;
 			const auto* driver = dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_);
-			if (driver != nullptr && driver->home_computer())
-				result.media_units = driver->media_units();
             if (driver != nullptr && driver->home_computer() && driver->AtaDiskCapable()) {
                 MediaUnitCapability unit;
                 unit.unit = generated::FesComputerAtaDiskUnit;
@@ -1104,8 +1103,7 @@ Error NativeHardware::SetKeyboardHid(const KeyboardHidRows& rows)
 Error NativeHardware::InsertComputerMedia(std::uint8_t unit, const std::string& path,
 	std::uint32_t size)
 {
-	auto* driver = active_driver_ == fes_gp_driver_ ?
-		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	auto* driver = active_driver_;
 	const MediaUnitCapability* info = nullptr;
 	if (driver != nullptr)
 		for (const auto& candidate : driver->media_units())
@@ -1204,9 +1202,13 @@ Error NativeHardware::AcknowledgeZx81Tape()
 
 Error NativeHardware::EjectComputerMedia(std::uint8_t unit)
 {
-	auto* driver = active_driver_ == fes_gp_driver_ ?
-		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	auto* driver = active_driver_;
 	if (driver == nullptr)
+		return {ErrorCode::unsupported_interface, "FES computer media unit is not active", "request"};
+	bool present = false;
+	for (const auto& candidate : driver->media_units())
+		if (candidate.unit == unit) present = true;
+	if (!present)
 		return {ErrorCode::unsupported_interface, "FES computer media unit is not active", "request"};
 	const Error saved = FlushMediaSave();
     if (!saved.ok()) return saved;

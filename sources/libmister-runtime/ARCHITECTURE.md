@@ -76,8 +76,19 @@ live replacement never sends an execution/reset command.
 
 CoreDriver has optional rejecting HID/basic-media operations. FesGp overrides
 preserve its implementation, and NativeHardware routes these calls through the
-active driver. The registry/profile table, concrete unit-media discovery and
-production factory are not changed. Scripted-register and selected-driver
+active driver. CoreDriver also owns optional unit-media observation/insert/eject operations;
+NativeHardware consults the active driver before snapshotting or ejecting a
+unit. The DE25 implementation exposes only the live limits/state proven during
+identity. Its bounded BRAM-tape snapshot is read under the operation deadline;
+insert never resets execution. Successful completion records ready/empty,
+while transport uncertainty records loading and permits no cleanup/replay.
+The BRAM contract has no tape-write bit, so its unit is not saveable. FesGp
+retains its existing unit transfer/recovery behavior through overrides.
+
+The DE25 driver now has separate de25_core_driver source/header files, leaving
+the pure protocol consumer independently linkable by RTL proofs and maintenance
+CLI. The production archive requires the driver object. The registry/profile
+table and production factory remain closed. Scripted-register and selected-driver
 regressions are software evidence; this driver has not run on the board.
 
 ## DE25 PR-control diagnostic

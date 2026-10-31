@@ -1,6 +1,8 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "native/de25_computer.hpp"
+#include "native/de25_core_driver.hpp"
+#include "native/artifacts.hpp"
 #include "native/generated/fes_de25_computer.hpp"
 #include "native/generated/fes_computer.hpp"
 #include "native/hardware.hpp"
@@ -354,13 +356,52 @@ void TestCoreDriverRejectsDescriptorAndRetainsTransportFault() {
 	assert(!driver.LoadMediaLive({1}, 1000000).ok());
 	assert(f.bridge.writes.size() == after);
 }
+void TestUnitMediaSnapshotAndStickyFailure() {
+	Fixture f; De25ComputerCoreDriver driver(f.client); CoreDriver& selected = driver;
+	auto descriptor = DriverDescriptor(); CoreDriverContext context;
+	context.descriptor = &descriptor; context.expected_core = "zx81";
+	assert(selected.media_units().empty());
+	f.bridge.state = FesComputerMediaStateReady;
+	assert(selected.Identify(context, 1000000).error.ok());
+	assert(selected.media_units().size() == 1);
+	const auto& info = selected.media_units()[0];
+	assert(info.unit == 0 && info.interface.id == FesComputerInterfaceMediaZx81TapeID);
+	assert(info.min_bytes == 1 && info.max_bytes == FesDe25ComputerZx81TapeMaxBytes);
+	assert(info.chunk_bytes == 512 && !info.saveable && info.state == MediaUnitState::ready);
+	ComputerMediaSnapshot empty; const auto before = f.bridge.writes.size();
+	assert(!selected.InsertMedia(0, empty, f.clock, 1000000, 100).ok());
+	assert(!selected.EjectMedia(1, 1000000).ok());
+	assert(f.bridge.writes.size() == before);
+	ComputerMediaSnapshot snapshot;
+	assert(snapshot.PrepareBytes({4,5,6}, f.clock, 1000000).ok());
+	assert(selected.Start(context, 1000000).error.ok());
+	const auto live = f.bridge.writes.size();
+	assert(selected.InsertMedia(0, snapshot, f.clock, 1000000, 100).ok());
+	assert(f.bridge.tape == std::vector<std::uint8_t>({4,5,6}));
+	assert(!f.bridge.hold_state && selected.media_units()[0].state == MediaUnitState::ready);
+	for (auto n = live; n < f.bridge.writes.size(); ++n)
+		assert(((f.bridge.writes[n] >> 24) & 127) != FesComputerOpcodeExecution);
+	assert(selected.EjectMedia(0, 1000000).ok());
+	assert(selected.media_units()[0].state == MediaUnitState::empty);
+	const auto expired = f.bridge.writes.size();
+	assert(!selected.InsertMedia(0, snapshot, f.clock, f.clock.time, 100).ok());
+	assert(f.bridge.writes.size() == expired && !f.client.Poisoned());
+	f.bridge.no_ack = true;
+	assert(!selected.InsertMedia(0, snapshot, f.clock, f.clock.time + 50, 100).ok());
+	assert(f.client.Poisoned() && selected.media_units()[0].state == MediaUnitState::loading);
+	const auto uncertain = f.bridge.writes.size();
+	assert(!selected.EjectMedia(0, 1000000).ok());
+	assert(f.bridge.writes.size() == uncertain); // no speculative cleanup/replay
+	selected.BeginSession(); assert(selected.media_units().empty());
+}
 } // namespace
 int main() {
+	TestUnitMediaSnapshotAndStickyFailure();
 	TestCoreDriverLifecycleAndLiveMedia(); TestCoreDriverRejectsDescriptorAndRetainsTransportFault();
 	TestAtomicIdentityAndControl(); TestCompletedKeyboardSnapshotSurvivesSettleDeadline();
 	TestSelectedIdentityRefusesMutations(); TestInputPreflightBeforeEffects();
 	TestOddTapeAndCrc(); TestMaximumTapeChunkOrdinals(); TestHealthyRejectionsDoNotReplayOrPoison();
 	TestUncertainCommandsNeverReplay(); TestBusyAndIdleToggleMismatchRefuseBeforeWrite();
 	TestBoundedMissingAckAndStalledClock(); TestAcknowledgedCommitMustBecomeReady(); TestOneSerializedClientOwnership(); TestLateSuccessfulAckIsUncertain();
-	std::puts("de25_computer_test: 15 groups passed (scripted registers; no hardware admission)");
+	std::puts("de25_computer_test: 16 groups passed (scripted registers; no hardware admission)");
 }

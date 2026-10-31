@@ -192,12 +192,12 @@ Error De25Computer::MediaInfo(std::uint32_t* minimum, std::uint32_t* maximum,
 		return Fail("DE25 tape unit returned an invalid state");
 	return {};
 }
-Error De25Computer::Identify(const std::string& expected_build, std::uint64_t deadline, De25ComputerIdentity* identity)
+Error De25Computer::Identify(const std::string& expected_build, std::uint64_t deadline, De25ComputerIdentity* identity, De25TapeInfo* tape)
 {
 	std::lock_guard<std::mutex> lock(mutex_);
 	std::string expected;
 	if (!identity || !BuildId(expected_build, &expected)) return Invalid("selected DE25 build must be a nonzero 32-digit hexadecimal identity");
-	*identity = {}; identified_ = false;
+	*identity = {}; if (tape) *tape = {}; identified_ = false;
 	Error e = Begin(deadline); if (!e.ok()) return e;
 	std::uint32_t id = 0, version = 0;
 	e = Read(FesDe25ComputerIdOffset, &id); if (!e.ok()) return e;
@@ -223,6 +223,7 @@ Error De25Computer::Identify(const std::string& expected_build, std::uint64_t de
 		maximum != FesDe25ComputerZx81TapeMaxBytes || chunk != FesComputerMediaChunkMaxBytes)
 		return Fail("DE25 tape limits differ from selected diagnostic contract");
 	identified_ = true; identity->build_id = expected; identity->capabilities = kCapabilities;
+	if (tape) { tape->minimum = minimum; tape->maximum = maximum; tape->chunk_bytes = chunk; tape->state = state; }
 	return {};
 }
 Error De25Computer::Hold(std::uint64_t deadline)
@@ -298,103 +299,6 @@ Error De25Computer::EjectTape(std::uint64_t deadline)
 	std::uint32_t minimum = 0, maximum = 0; std::uint16_t chunk = 0, state = 0;
 	e = MediaInfo(&minimum, &maximum, &chunk, &state); if (!e.ok()) return e;
 	return state == FesComputerMediaStateEmpty ? Error{} : Fail("DE25 acknowledged tape eject did not become empty");
-}
-void De25ComputerCoreDriver::BeginSession()
-{
-	selected_ = false; core_.clear(); build_.clear();
-	// A lifecycle boundary never clears the protocol client's sticky fault.
-}
-Error De25ComputerCoreDriver::Ready() const
-{
-	if (!selected_ || client_.Poisoned())
-		return {ErrorCode::io_failed, "DE25 driver requires a healthy selected identity", "de25-control"};
-	return {};
-}
-Error De25ComputerCoreDriver::Context(const CoreDriverContext& context) const
-{
-	Error error = Ready(); if (!error.ok()) return error;
-	if (!context.descriptor || context.descriptor->core.id != core_ ||
-		context.expected_core != core_ || context.descriptor->build.id != build_)
-		return {ErrorCode::core_mismatch, "DE25 driver context changed", "identity"};
-	return {};
-}
-CoreDriverResult De25ComputerCoreDriver::Identify(const CoreDriverContext& context,
-	std::uint64_t deadline)
-{
-	BeginSession();
-	const auto* descriptor = context.descriptor;
-	if (!descriptor || descriptor->core.id.empty() ||
-		context.expected_core != descriptor->core.id ||
-		descriptor->abi.id != FesComputerABIID || descriptor->abi.major != 1 ||
-		descriptor->abi.minor != 0 || descriptor->interfaces.size() != 3)
-		return {{ErrorCode::unsupported_abi, "DE25 driver requires the exact BRAM computer contract", "identity"}, false, ""};
-	unsigned seen = 0;
-	for (const auto& interface : descriptor->interfaces) {
-		unsigned bit = interface.id == FesComputerInterfaceVideoFixed720p60ID ? 1 :
-			interface.id == FesComputerInterfaceKeyboardHidID ? 2 :
-			interface.id == FesComputerInterfaceMediaZx81TapeID ? 4 : 0;
-		if (!bit || (seen & bit) || !interface.required || interface.major != 1 || interface.minor != 0)
-			return {{ErrorCode::unsupported_interface, "DE25 descriptor declares an unsupported interface", "identity"}, false, ""};
-		seen |= bit;
-	}
-	De25ComputerIdentity identity;
-	Error error = client_.Identify(descriptor->build.id, deadline, &identity);
-	if (!error.ok()) return {error, false, ""};
-	core_ = descriptor->core.id; build_ = descriptor->build.id; selected_ = true;
-	CoreDriverResult result;
-	result.observed_core = core_; result.safe_to_quiesce = true;
-	return result;
-}
-CoreDriverResult De25ComputerCoreDriver::Quiesce(const CoreDriverContext& context,
-	std::uint64_t deadline)
-{
-	Error error = Context(context); if (!error.ok()) return {error, false, ""};
-	return {client_.Hold(deadline), true, core_};
-}
-CoreDriverResult De25ComputerCoreDriver::NeutralizeButtons(const CoreDriverContext& context,
-	std::uint64_t deadline)
-{
-	Error error = Context(context); if (!error.ok()) return {error, false, ""};
-	return {client_.SetKeyboardHid({}, deadline), true, core_};
-}
-CoreDriverResult De25ComputerCoreDriver::SetButtons(const CoreDriverContext& context,
-	std::uint16_t buttons, std::uint64_t deadline)
-{
-	if (buttons) return {{ErrorCode::unsupported_interface, "DE25 ZX81 has no gamepad interface", "input"}, false, ""};
-	return NeutralizeButtons(context, deadline);
-}
-CoreDriverResult De25ComputerCoreDriver::Start(const CoreDriverContext& context,
-	std::uint64_t deadline)
-{
-	Error error = Context(context); if (!error.ok()) return {error, false, ""};
-	error = client_.Run(deadline);
-	CoreDriverResult result{error, true, core_};
-	result.execution_may_have_run = error.ok() || client_.Poisoned();
-	return result;
-}
-Error De25ComputerCoreDriver::SetKeyboardHid(const KeyboardHidRows& rows,
-	std::uint64_t deadline)
-{
-	Error error = Ready(); return error.ok() ? client_.SetKeyboardHid(rows, deadline) : error;
-}
-Error De25ComputerCoreDriver::LoadMedia(const std::vector<std::uint8_t>& bytes,
-	std::uint64_t deadline)
-{
-	Error error = Ready(); if (!error.ok()) return error;
-	if (bytes.empty() || bytes.size() > FesDe25ComputerZx81TapeMaxBytes)
-		return Invalid("DE25 tape is outside the selected media limits");
-	// Launch binding stays held; Start is the only release operation.
-	error = client_.Hold(deadline);
-	return error.ok() ? client_.LoadTape(bytes, deadline) : error;
-}
-Error De25ComputerCoreDriver::LoadMediaLive(const std::vector<std::uint8_t>& bytes,
-	std::uint64_t deadline)
-{
-	Error error = Ready(); return error.ok() ? client_.LoadTape(bytes, deadline) : error;
-}
-Error De25ComputerCoreDriver::ClearMedia(std::uint64_t deadline)
-{
-	Error error = Ready(); return error.ok() ? client_.EjectTape(deadline) : error;
 }
 } // namespace native
 } // namespace mister

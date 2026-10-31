@@ -129,14 +129,14 @@ public:
 	bool WallClockCapable() const { return wall_clock_; }
 	Error SetWallClock(const std::tm& local, std::uint64_t deadline);
 	// Units of declared media interfaces with their last live MediaInfo state.
-	const std::vector<MediaUnitCapability>& media_units() const { return media_units_; }
+	const std::vector<MediaUnitCapability>& media_units() const override { return media_units_; }
 	// Live transfer while execution stays released: MediaInfo, Begin, 512-byte
 	// Chunk/Data, Commit, then MediaInfo must report ready. Any failure after the
 	// first mailbox exchange ejects the unit once within `cleanup_ms`; an
 	// ambiguous mutation is never repeated.
 	Error InsertMedia(std::uint8_t unit, const ComputerMediaSnapshot&, Clock&,
-		std::uint64_t deadline, std::uint32_t cleanup_ms);
-	Error EjectMedia(std::uint8_t unit, std::uint64_t deadline);
+		std::uint64_t deadline, std::uint32_t cleanup_ms) override;
+	Error EjectMedia(std::uint8_t unit, std::uint64_t deadline) override;
 
 private:
 	CoreDriverResult Gameplay(std::uint16_t, std::uint64_t);

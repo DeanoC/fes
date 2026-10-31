@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
-#include "native/core_driver.hpp"
+#include "libmister-runtime/runtime.h"
 #include <chrono>
 #include <cstdint>
 #include <mutex>
@@ -13,6 +13,11 @@ namespace mister {
 namespace native {
 class Mmio;
 class Clock;
+
+struct De25TapeInfo {
+	std::uint32_t minimum = 0, maximum = 0;
+	std::uint16_t chunk_bytes = 0, state = 0;
+};
 
 struct De25ComputerIdentity {
 	std::string build_id;
@@ -29,7 +34,7 @@ public:
 	bool Poisoned() const;
 	// A selected, nonzero 128-bit build identity is mandatory before control.
 	Error Identify(const std::string& expected_build_id, std::uint64_t deadline_ms,
-		De25ComputerIdentity*);
+		De25ComputerIdentity*, De25TapeInfo* tape = nullptr);
 	Error Hold(std::uint64_t deadline_ms);
 	Error Run(std::uint64_t deadline_ms);
 	Error SetKeyboardHid(const KeyboardHidRows&, std::uint64_t deadline_ms);
@@ -58,29 +63,6 @@ private:
 	bool poisoned_ = false, identified_ = false;
 	std::uint64_t deadline_ = 0, last_time_ = 0;
 	std::chrono::steady_clock::time_point wall_deadline_;
-};
-// Internal driver for the known BRAM ZX81 contract. The existing registry and
-// production platform factory do not construct or admit it yet. Its caller
-// serializes lifecycle/control calls and owns the exclusive protocol client.
-class De25ComputerCoreDriver final : public CoreDriver {
-public:
-	explicit De25ComputerCoreDriver(De25Computer& client) : client_(client) {}
-	void BeginSession() override;
-	CoreDriverResult Identify(const CoreDriverContext&, std::uint64_t) override;
-	CoreDriverResult Quiesce(const CoreDriverContext&, std::uint64_t) override;
-	CoreDriverResult NeutralizeButtons(const CoreDriverContext&, std::uint64_t) override;
-	CoreDriverResult SetButtons(const CoreDriverContext&, std::uint16_t, std::uint64_t) override;
-	CoreDriverResult Start(const CoreDriverContext&, std::uint64_t) override;
-	Error SetKeyboardHid(const KeyboardHidRows&, std::uint64_t) override;
-	Error LoadMedia(const std::vector<std::uint8_t>&, std::uint64_t) override;
-	Error LoadMediaLive(const std::vector<std::uint8_t>&, std::uint64_t) override;
-	Error ClearMedia(std::uint64_t) override;
-private:
-	Error Ready() const;
-	Error Context(const CoreDriverContext&) const;
-	De25Computer& client_;
-	bool selected_ = false;
-	std::string core_, build_;
 };
 } // namespace native
 } // namespace mister

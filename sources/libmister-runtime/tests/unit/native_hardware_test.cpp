@@ -654,6 +654,24 @@ public:
 	{ media = bytes; ++live_media_calls; return control_error; }
 	mister::Error ClearMedia(std::uint64_t) override
 	{ ++clear_calls; return control_error; }
+	const std::vector<mister::MediaUnitCapability>& media_units() const override { return units; }
+	mister::Error InsertMedia(std::uint8_t unit, const mister::native::ComputerMediaSnapshot& snapshot,
+		mister::native::Clock& clock, std::uint64_t deadline, std::uint32_t) override
+	{
+		assert(unit == 0); ++unit_insert_calls; media.resize(snapshot.size());
+		auto error = snapshot.Read(0, media.data(), media.size(), clock, deadline);
+		if (!error.ok()) return error;
+		if (control_error.ok()) units[0].state = mister::MediaUnitState::ready;
+		return control_error;
+	}
+	mister::Error EjectMedia(std::uint8_t unit, std::uint64_t) override
+	{
+		assert(unit == 0); ++unit_eject_calls;
+		if (control_error.ok()) units[0].state = mister::MediaUnitState::empty;
+		return control_error;
+	}
+	std::vector<mister::MediaUnitCapability> units;
+	unsigned unit_insert_calls = 0, unit_eject_calls = 0;
 	mister::KeyboardHidRows keyboard{};
 	std::vector<std::uint8_t> media;
 	unsigned keyboard_calls = 0, media_calls = 0, live_media_calls = 0, clear_calls = 0;
@@ -1537,6 +1555,20 @@ void TestComputerControlsDispatchThroughSelectedCoreDriver()
 	assert(fixture.hardware.LoadComputerMediaLive(fixture.media_zero).ok());
 	assert(driver.live_media_calls == 1 && driver.media == std::vector<std::uint8_t>({'0'}));
 	assert(fixture.hardware.ClearComputerMedia().ok() && driver.clear_calls == 1);
+	mister::MediaUnitCapability unit; unit.unit = 0;
+	unit.interface = {"fes.media.zx81-tape", 1, 0};
+	unit.min_bytes = 1; unit.max_bytes = 16384; unit.chunk_bytes = 512; unit.saveable = false;
+	driver.units.push_back(unit);
+	assert(fixture.hardware.capabilities().media_units.size() == 1);
+	assert(!fixture.hardware.InsertComputerMedia(1, fixture.media_two, 2).ok());
+	assert(!fixture.hardware.InsertComputerMedia(0, fixture.media_two, 1).ok());
+	assert(driver.unit_insert_calls == 0);
+	assert(fixture.hardware.InsertComputerMedia(0, fixture.media_two, 2).ok());
+	assert(driver.unit_insert_calls == 1 && driver.media == std::vector<std::uint8_t>({'2','2'}));
+	assert(fixture.hardware.capabilities().media_units[0].state == mister::MediaUnitState::ready);
+	assert(!fixture.hardware.capabilities().media_units[0].saveable);
+	assert(fixture.hardware.EjectComputerMedia(0).ok() && driver.unit_eject_calls == 1);
+	assert(fixture.hardware.capabilities().media_units[0].state == mister::MediaUnitState::empty);
 	driver.control_error = {mister::ErrorCode::io_failed, "injected selected-driver error"};
 	assert(fixture.hardware.SetKeyboardHid(rows).code == mister::ErrorCode::io_failed);
 	assert(fixture.hardware.ClearComputerMedia().code == mister::ErrorCode::io_failed);

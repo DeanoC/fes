@@ -37,8 +37,11 @@ Start, replaces live tape without reset, and never clears a poisoned transport
 at a session boundary. NativeHardware dispatches HID and basic tape operations
 through its selected CoreDriver rather than a DE10 concrete-class cast. This
 new driver has software coverage only; it is not registered or constructed by
-the production factory and has no new physical acceptance claim. Unit-specific
-media discovery/insert/save, package admission and startup remain unfinished.
+the production factory and has no new physical acceptance claim. Unit-media limits/state are observed during identity, insert/eject use retained
+snapshots through the selected driver, and uncertain transfer preserves an
+unready state without cleanup commands. The known BRAM image advertises no
+tape-write capability, so this driver reports saveable=false. Package admission,
+startup and actual tape-save support remain unfinished.
 
 The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
 register contract through an exclusive injected `Mmio` backend and an injected

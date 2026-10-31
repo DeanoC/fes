@@ -12,6 +12,7 @@
 namespace mister {
 namespace native {
 
+class ComputerMediaSnapshot;
 class Clock;
 class Mmio;
 enum class ProgrammingProfile {
@@ -67,6 +68,13 @@ public:
 	{ return {ErrorCode::unsupported_interface, "live computer media unavailable", "request"}; }
 	virtual Error ClearMedia(std::uint64_t)
 	{ return {ErrorCode::unsupported_interface, "computer media unavailable", "request"}; }
+	virtual const std::vector<MediaUnitCapability>& media_units() const
+	{ static const std::vector<MediaUnitCapability> empty; return empty; }
+	virtual Error InsertMedia(std::uint8_t, const ComputerMediaSnapshot&, Clock&,
+		std::uint64_t, std::uint32_t)
+	{ return {ErrorCode::unsupported_interface, "computer media unit unavailable", "request"}; }
+	virtual Error EjectMedia(std::uint8_t, std::uint64_t)
+	{ return {ErrorCode::unsupported_interface, "computer media unit unavailable", "request"}; }
 	virtual CoreDriverResult Quiesce(const CoreDriverContext&,
 		std::uint64_t absolute_deadline_ms) = 0;
 	virtual CoreDriverResult Identify(const CoreDriverContext&,
