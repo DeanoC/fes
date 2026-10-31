@@ -105,6 +105,9 @@ synchronizers, plus the two visibility-synchronizer clears and the registered
 data/DE gate clear. It also cuts only the first D ingress of the sticky-fault
 and HDMI-visibility synchronizers; later synchronizer stages, line gating and
 output paths remain timed. No HDMI IO delays are fabricated.
+The full Quartus run for the registered visibility gate matched all eleven
+clear pins against the generated netlist; see the
+[routed collection check](../../../docs/validation/2026-10-31-de25-scanout-visibility/README.md).
 
 Native tests exercise the real reader/video/control RTL with the same guarded
 M20K hint adaptation used by the build. They cover complete frames and lane
