@@ -113,11 +113,13 @@ separately in [ramtest-program-with-spl.log.gz](ramtest-program-with-spl.log.gz)
 
 The separate successful configuration-status query on device index 1 and the
 same cable is retained in [config-status-device1.log.gz](config-status-device1.log.gz).
-It ran between the device-information and SPL-programming transcripts. Subsequent
-old-address SSH and serial prompt checks fail. No current pre-helper Linux health
-capture exists, so those observations alone do not establish the cause. Factory
-flash and SD contents are not rewritten. The helper and configuration logs are
-retained; this operation is explicitly not classified as read-only.
+It ran between the device-information and SPL-programming transcripts. No
+retained transcript establishes the outcome of later old-address SSH or
+serial-prompt checks. No current pre-helper Linux health capture exists, so the
+retained evidence does not establish the effect of the helper or configuration
+query. Factory flash and SD contents are not rewritten. The helper and
+configuration logs are retained; this operation is explicitly not classified as
+read-only.
 `restore.json` has one claim-release timestamp; no second-board status transcript
 is present, so this record makes no second-board release claim.
 
@@ -152,9 +154,11 @@ those are reported by the PR's GitHub check runs.
 
 Both full-bank endpoints finish with status 18 (DONE and calibrated, BUSY
 clear), fault/errors/bad-bits zero, generation 1 and sequence 3. The 4,096-byte
-SDRAM smoke starts at address 0 and stays below byte-address bit 26, so it
-selects one chip. The 134,217,728-byte full SDRAM scan spans the 128-MiB range,
-crosses bit 26 and exercises both physical chip selects. No physical HPS-memory
+SDRAM smoke starts at address 0 and stays below byte-address bit 26, so its scan
+accesses select one chip. Controller initialization and refresh commands assert
+both chip selects, and the smoke run is long enough to include refresh. The
+134,217,728-byte full SDRAM scan spans the 128-MiB range, crosses bit 26 in its
+scan accesses and exercises both physical chip selects. No physical HPS-memory
 test runs.
 
 After the recorded JTAG sessions close, the retained UART bytes show systemd
@@ -171,14 +175,15 @@ A physical power cycle restores the factory boot. The retained UART capture is
 for the software-reboot attempt and ends at `reboot: Restarting system`; it has
 no subsequent factory boot transcript. The pinned-key SSH transcript records
 factory boot UUID `b8e89f9f-9dc1-4fa5-874c-3adf3aa6da67`, kernel
-`6.12.11-gd7d192a9ddd9`, and root `/dev/mmcblk0p2 ext3`. The restored factory
-SLD design hash is also retained, and System Console refuses linking the test
-image to that distinct factory design. [restore.json](restore.json) records the
-SSH boot check and explicitly marks UART boot evidence as not retained. This
-verifies restoration from the untouched factory boot media; it does not attest
-their complete byte digests. The redacted restore logs retain the software-
-reboot attempt and SSH recovery evidence. Temporary USB node ownership is
-restored, all recorded sessions and master claims are closed, no proof software
-was uploaded, and the one recorded claim is released. No serial-specific status
-transcript is retained. DE10 Kits A/B and GPU/harness processes were not
-touched.
+`6.12.11-gd7d192a9ddd9`, and root `/dev/mmcblk0p2 ext3`. A separate,
+untimestamped [factory-linked-services.log.gz](factory-linked-services.log.gz)
+records the distinct factory-device and diagnostic-SOF design hashes and
+System Console's refusal to link them; it does not establish when that link
+check occurred. [restore.json](restore.json) records the SSH boot check and
+explicitly marks UART boot evidence as not retained. This verifies restoration
+from the untouched factory boot media; it does not attest their complete byte
+digests. The redacted restore logs retain the software-reboot attempt and SSH
+recovery evidence. Temporary USB node ownership is restored, all recorded
+sessions and master claims are closed, no proof software was uploaded, and the
+one recorded claim is released. No serial-specific status transcript is
+retained. DE10 Kits A/B and GPU/harness processes were not touched.
