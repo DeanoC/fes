@@ -1,0 +1,21 @@
+#!/bin/sh
+# This candidate has built-in drivers; never load the vendor kernel's modules.
+set -eu
+case "${1:-}" in
+  start)
+    expected=$(cat /etc/fes-kernel-release)
+    [ "$(uname -r)" = "$expected" ] || {
+      printf '%s\n' 'FPGA drivers: candidate kernel release differs' >&2
+      exit 1
+    }
+    [ -r /sys/class/fpga_manager/fpga0/name ]
+    [ -d /sys/class/fpga_region/region0 ]
+    [ -c /dev/fes-de25-scanout ]
+    for driver in fes-de25-dma of-fpga-region stratix10-svc 'Stratix10 SoC FPGA manager'; do
+      [ ! -e "/sys/bus/platform/drivers/$driver/unbind" ]
+    done
+    printf '%s\n' 'FPGA drivers: built-in candidate drivers ready'
+    ;;
+  stop) : ;;
+  *) printf 'Usage: %s {start|stop}\n' "$0" >&2; exit 1 ;;
+esac

@@ -50,3 +50,34 @@ actual SDM firmware loading and userspace control-syscall tests, matching
 candidate rootfs and boot integration, physical SID/domain/firewall/DDR acceptance, managed MENU and
 normal core lifecycle/recovery. The owner and device-tree description must not
 be mistaken for package authentication or a safe probe of unknown fabric.
+
+The separate offline assembler prepares that matching rootfs and boot image:
+
+```sh
+python3 scripts/de25_owner_image.py \
+  --base /absolute/verified/headless-linux-output \
+  --kernel /absolute/verified/kernel-owner-output \
+  --output /absolute/new/owner-image-output
+```
+
+It authenticates the existing headless image receipt and candidate kernel,
+preserves the userspace libraries and tools, removes the old vendor module
+tree, and replaces the release marker, FPGA startup check and module manifest.
+The startup check requires the built-in drivers and owner device. The assembler
+replaces only the kernel and DTB in a private copy of the vendor FAT partition;
+U-Boot, its boot script, the partition geometry and unrelated boot dependencies
+retain their locked bytes. It uses the existing boot parser and image verifier.
+No filesystem is mounted and no block device is opened.
+
+Two independent assemblies must have identical image, rootfs, archive and boot
+prefix hashes. The pinned unprivileged media-tool container has a 30-minute
+limit and a 30-second heartbeat. Outputs include owner-image.json,
+boot-contract.json and first-boot-expectation.json for the existing read-only
+first-boot collector. Recheck with `python3 scripts/de25_owner_image.py --verify
+/absolute/owner-image-output` using the same committed source and e2fsprogs on
+PATH. This is an opt-in, unbooted candidate; normal runtime admission stays
+closed. The SDK and standard headless image selection are unchanged.
+
+The copied factory-boot artifacts are reference inputs for the shared boot
+verifier, not instructions to replace the kit's approved HPS-first QSPI baseline.
+Assembling an image does not install it or authorize a new flash operation.
