@@ -7,7 +7,25 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/DeanoC/FogCast/corepackage"
 )
+
+func TestInstalledComputerABIAdmission(t *testing.T) {
+	for _, tc := range []struct {
+		abi  corepackage.Contract
+		want bool
+	}{
+		{corepackage.Contract{ID: "fes.computer", Major: 1}, true},
+		{corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 1}, true},
+		{corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 2}, false},
+		{corepackage.Contract{ID: "fes.application", Major: 1, Minor: 1}, false},
+	} {
+		if installedPlayableABI(tc.abi) != tc.want {
+			t.Fatalf("installed admission for %+v", tc.abi)
+		}
+	}
+}
 
 func TestInstalledZX81CreationFinishesEmptyROMWithoutPublicationCatalog(t *testing.T) {
 	pkg, rom := strings.Repeat("a", 64), strings.Repeat("b", 64)

@@ -1411,7 +1411,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	std::vector<std::string> computer_11_interfaces;
 	for (const auto& interface : computer_11.interfaces) computer_11_interfaces.push_back(interface.id);
 	std::vector<std::string> expected_11 = computer_interfaces;
-	expected_11.insert(expected_11.end(), {"fes.media.ata-disk", "fes.pc386.machine", "fes.persistence.words",
+	expected_11.insert(expected_11.end(), {"fes.media.ata-disk", "fes.media.pcxt-floppy", "fes.pc386.machine", "fes.persistence.words",
 		"fes.rtc.wall-clock"});
 	std::sort(expected_11.begin(), expected_11.end());
 	assert(computer_11_interfaces == expected_11);
@@ -4659,6 +4659,55 @@ void TestComputerLiveMediaLifecycleThroughRuntime()
 	assert(production->EjectComputerMedia(0).message == "FES computer media unit is not active");
 }
 
+void TestPcxtFloppyLifecycleThroughRuntime()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	const auto caps = 15u | FesComputerCapabilityMediaPcxtFloppy;
+	mister_test::ComputerEndpoint endpoint(caps,
+		{{0, {FesComputerPcxtFloppyBytes, FesComputerPcxtFloppyBytes}}},
+		"0123456789abcdef0123456789abcdef", FesComputerExtendedAbiMinor);
+	FixedClock clock(100);
+	FesGp transport(endpoint, clock);
+	FesGpCoreDriver driver(transport);
+	IntegratedFixture fixture(&driver);
+	fixture.Start();
+	fixture.native.fpga.on_program = [&] { endpoint.Reset(); };
+	std::string manifest = ComputerManifest();
+	ReplaceAll(&manifest, "id = \"fes.computer\"\nmajor = 1\nminor = 0",
+		"id = \"fes.computer\"\nmajor = 1\nminor = 1");
+	ReplaceAll(&manifest, "fes.media.apple2-floppy", "fes.media.pcxt-floppy");
+	ReplaceAll(&manifest, "fes.pong", "fes.pcxt");
+	TempDirectory package;
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	assert(fixture.runtime.LoadCore(package.path, opened.package_id).ok());
+	const auto status = fixture.runtime.status();
+	assert(status.capabilities.media_units.size() == 1);
+	assert(status.capabilities.media_units[0].interface.id == "fes.media.pcxt-floppy");
+	assert(status.capabilities.media_units[0].min_bytes == FesComputerPcxtFloppyBytes &&
+		status.capabilities.media_units[0].max_bytes == FesComputerPcxtFloppyBytes);
+	assert(driver.observed_capabilities() == caps && !endpoint.held);
+	const auto generation = status.generation;
+	TempDirectory media;
+	const auto bytes = ComputerDisk(FesComputerPcxtFloppyBytes);
+	const auto disk = media.File("disk.img", bytes);
+	const auto start = endpoint.requests.size();
+	assert(fixture.runtime.InsertMedia(disk, opened.package_id, generation, 0, bytes.size()).ok());
+	assert(endpoint.unit(0).state == FesComputerMediaStateReady && endpoint.unit(0).data.size() == bytes.size());
+	assert(std::equal(bytes.begin(), bytes.end(), endpoint.unit(0).data.begin(),
+		[](char a, std::uint8_t b) { return static_cast<std::uint8_t>(a) == b; }));
+	assert(fixture.runtime.status().capabilities.media_units[0].state == mister::MediaUnitState::ready);
+	assert(fixture.runtime.EjectMedia(opened.package_id, generation, 0).ok());
+	assert(fixture.runtime.status().capabilities.media_units[0].state == mister::MediaUnitState::empty);
+	for (std::size_t i = start; i < endpoint.requests.size(); ++i)
+		assert(endpoint.requests[i].opcode != FesComputerOpcodeExecution);
+	assert(!endpoint.held && fixture.runtime.status().generation == generation);
+	assert(fixture.runtime.Stop().ok());
+}
+
 void TestZx81CleanMachineStopsWithoutFreeze()
 {
 	using namespace mister::native;
@@ -4896,6 +4945,7 @@ int main()
  TestNativeMenuBlitterPresent(1);
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();
+	TestPcxtFloppyLifecycleThroughRuntime();
 	TestZx81CleanMachineStopsWithoutFreeze();
 	TestInitialSTDiskBeforeExecution();
     TestInitialSTDiskBeforeExecution(409600);

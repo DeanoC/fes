@@ -197,7 +197,8 @@ Error OpenSlotComposition(const std::vector<std::string>& roots,
 			max_slots=7;
 		}
 	}
-	if (!bus_id || descriptor.abi.id!="fes.computer" || descriptor.abi.major!=1 || descriptor.abi.minor!=0)
+	if (!bus_id || descriptor.abi.id!="fes.computer" || descriptor.abi.major!=1 ||
+		descriptor.abi.minor>generated::FesComputerExtendedAbiMinor)
 		return Invalid("base package does not declare an optional multi-slot bus");
 	const auto& info=request.composition;
 	if (!request.expansion_path.empty() || !info.expansion_id.empty() ||
@@ -280,7 +281,8 @@ Error OpenPartsComposition(const std::vector<std::string>& roots,
 	}
 	if ((!st && !ColecoVideoShell(descriptor)) || (st && native_pixels) ||
 		descriptor.abi.id != (st ? "fes.computer" : "fes.application") || descriptor.abi.major != 1 ||
-		descriptor.abi.minor != 0 || !video || !cpu || video_count != 1 || cpu_count != 1)
+		(st ? descriptor.abi.minor > generated::FesComputerExtendedAbiMinor : descriptor.abi.minor != 0) ||
+		!video || !cpu || video_count != 1 || cpu_count != 1)
 		return Invalid("parts require the declared closed video shell");
 	const char* video_slot = native_pixels ? "fes.fabric.video.native-pixels" : "fes.fabric.video.raster-rgb888";
 	const char* video_map = st ? "fes.atari-st-video.socket/1" : native_pixels ? "fes.coleco-native-video.socket/1" : "fes.coleco-video.socket/1";
@@ -391,7 +393,8 @@ Error OpenCoreComposition(const std::vector<std::string>& roots,
 	std::string abi = socket=="fes.expansion.coleco-bus" ? "fes.application" : "fes.simple-computer";
 	// Installed ZX81 packages stay on fes.simple-computer. The current shell is fes.computer.
 	if (socket=="fes.expansion.zx81-bus" && descriptor.abi.id=="fes.computer") abi="fes.computer";
-	if (socket.empty() || descriptor.abi.id!=abi || descriptor.abi.major!=1 || descriptor.abi.minor!=0)
+	if (socket.empty() || descriptor.abi.id!=abi || descriptor.abi.major!=1 ||
+		(descriptor.abi.id=="fes.computer" ? descriptor.abi.minor>generated::FesComputerExtendedAbiMinor : descriptor.abi.minor!=0))
 		return Invalid("base package does not declare a matching optional expansion bus");
 	const auto& info=request.composition;
 	if (!Hex(info.id,64) || !Hex(info.package_id,64) || !Hex(info.expansion_id,64) ||

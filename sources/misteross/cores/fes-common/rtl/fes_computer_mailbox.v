@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 `include "fes_computer.vh"
 
-// One-request-at-a-time HPS GPO/GPI mailbox for fes.computer 1.0
+// One-request-at-a-time HPS GPO/GPI mailbox for fes.computer 1.0, with an
+// explicitly enabled 1.1 identity extension for the PC/XT floppy profile.
 // (mister-packages docs/computer-io.md). The endpoint implements identity,
 // execution, USB HID key rows, two controller ports and media unit 0. The
 // core owns media storage: accepted data words appear on the write port for
@@ -26,6 +27,7 @@ module fes_computer_mailbox_core #(
     parameter bit ENABLE_AUDIO = 0,
     parameter bit ENABLE_APPLE2_FLOPPY = 0,
     parameter bit ENABLE_C64_DISK = 0,
+    parameter bit ENABLE_PCXT_FLOPPY = 0,
     parameter bit ENABLE_SPECTRUM_TAPE = 0,
     parameter bit ENABLE_ZX81_TAPE = 0,
     parameter bit ENABLE_SESSION_DISPLAY = 0,
@@ -58,6 +60,7 @@ module fes_computer_mailbox_core #(
     input  wire        media_write_ready,
     input  wire        media_write_busy,
     input  wire        media_changed,
+    input  wire        media_reset,
     output reg         media_frozen,
     output wire        media_read_req,
     output wire [19:0] media_read_addr,
@@ -84,7 +87,7 @@ module fes_computer_mailbox_core #(
     input  wire         display_quiesced
 );
     // Unit 0 is one drive. A shell enables one of the three media parameters.
-    localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_C64_DISK | ENABLE_SPECTRUM_TAPE | ENABLE_ZX81_TAPE | ENABLE_ATARI_ST_FLOPPY;
+    localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_C64_DISK | ENABLE_PCXT_FLOPPY | ENABLE_SPECTRUM_TAPE | ENABLE_ZX81_TAPE | ENABLE_ATARI_ST_FLOPPY;
     localparam bit WRITABLE = ENABLE_ATARI_ST_FLOPPY_WRITE && ENABLE_ATARI_ST_FLOPPY;
     localparam bit ZX81_WRITE = ENABLE_ZX81_TAPE && ENABLE_ZX81_TAPE_WRITE;
     localparam bit SNAPSHOT = WRITABLE || ZX81_WRITE;
@@ -126,6 +129,11 @@ module fes_computer_mailbox_core #(
     reg acknowledged_toggle;
     reg response_error;
     reg [15:0] response_data;
+    // The PC/XT buffer can be invalidated by a physical SDRAM reset while
+    // the HPS request crosses the mailbox synchronizers. Hold invalidation
+    // for two more clocks to reject any request already in flight.
+    reg [1:0] media_reset_pipe = 2'b00;
+    wire media_reset_active = ENABLE_PCXT_FLOPPY && (media_reset || |media_reset_pipe);
 
     wire request_toggle = (gpo & `FES_COMPUTER_REQUEST_MASK) != 32'h00000000;
     wire [6:0] opcode = gpo[30:24];
@@ -207,7 +215,8 @@ module fes_computer_mailbox_core #(
     assign media_write_addr = received[MEDIA_AW-1:0];
     assign media_write_unit = UNIT1 && active_unit;
     assign media_write_data = argument;
-    assign media_write_enable = {data_ok && remaining != 10'd1, data_ok};
+    assign media_write_enable = {data_ok && !media_reset_active && remaining != 10'd1,
+                                 data_ok && !media_reset_active};
 
     function [15:0] identity_word;
         input [7:0] word_index;
@@ -220,8 +229,9 @@ module fes_computer_mailbox_core #(
                 8'd3: identity_word = 16'(`FES_COMPUTER_TRANSPORT_MINOR);
                 8'd4: identity_word = 16'(`FES_COMPUTER_ABI_TAG);
                 8'd5: identity_word = 16'(`FES_COMPUTER_ABI_MAJOR);
-                // The ABI 1.0 identity: every capability here fits word 7.
-                8'd6: identity_word = 16'd0;
+                // Legacy shells retain the 16-word ABI 1.0 identity; the
+                // PC/XT shell opts into the extended 1.1 capability word.
+                8'd6: identity_word = ENABLE_PCXT_FLOPPY ? 16'(`FES_COMPUTER_EXTENDED_ABI_MINOR) : 16'd0;
                 8'd7: identity_word = CAPABILITIES;
                 8'd8: identity_word = {identity[119:112], identity[127:120]};
                 8'd9: identity_word = {identity[103:96], identity[111:104]};
@@ -230,7 +240,10 @@ module fes_computer_mailbox_core #(
                 8'd12: identity_word = {identity[55:48], identity[63:56]};
                 8'd13: identity_word = {identity[39:32], identity[47:40]};
                 8'd14: identity_word = {identity[23:16], identity[31:24]};
-                default: identity_word = {identity[7:0], identity[15:8]};
+                8'd15: identity_word = {identity[7:0], identity[15:8]};
+                8'd16: identity_word = ENABLE_PCXT_FLOPPY ?
+                    16'(`FES_COMPUTER_INTERFACE_MEDIA_PCXT_FLOPPY_CAPABILITY_MASK >> 16) : 16'd0;
+                default: identity_word = 16'd0;
             endcase
         end
     endfunction
@@ -322,6 +335,23 @@ module fes_computer_mailbox_core #(
     always @(posedge clk) begin
         request_meta <= request_toggle;
         request_sync <= request_meta;
+        media_reset_pipe <= {media_reset_pipe[0], media_reset};
+        if (media_reset_active) begin
+            // Invalidate the image and cancel even partially staged headers.
+            // An outstanding mailbox transaction fails rather than being
+            // acknowledged as if its physical write had survived reset.
+            unit0_state <= EMPTY;
+            unit0_size <= 32'd0;
+            cancel_transfer;
+            begin0 <= 0; begin1 <= 0; begin2 <= 0;
+            chunk0 <= 0; chunk1 <= 0;
+            total <= 0; expected_crc <= 0; received <= 0; crc <= CRC_INIT;
+            if (request) begin
+                acknowledged_toggle <= request_sync;
+                response_error <= 1'b1;
+                response_data <= E_STATE;
+            end
+        end else begin
         if (SNAPSHOT && media_changed) begin
             snapshot_dirty <= 1'b1;
             saved_authorized <= 1'b0;
@@ -353,7 +383,7 @@ module fes_computer_mailbox_core #(
                 defer_ack = 1'b0;
             case (opcode)
                 7'(`FES_COMPUTER_OPCODE_IDENTITY): begin
-                    if (index >= 8'd16) reject(E_INDEX);
+                    if (index >= 8'd16 && !(ENABLE_PCXT_FLOPPY && index == 8'd16)) reject(E_INDEX);
                     else if (argument != 16'd0) reject(E_ARGUMENT);
                     else response_data <= identity_word(index, build_id);
                 end
@@ -682,7 +712,48 @@ module fes_computer_mailbox_core #(
                     acknowledged_toggle <= request_sync;
             end
         end
+        end
     end
+endmodule
+
+// PC/XT has a resettable SDRAM medium. Keep that physical invalidation
+// explicit instead of changing the port contract of existing 1.0 shells.
+module fes_computer_mailbox_pcxt (
+    input wire clk,
+    input wire [31:0] gpo,
+    input wire [127:0] build_id,
+    output wire [31:0] gpi,
+    output wire exec_reset,
+    input wire media_reset,
+    output wire [18:0] media_write_addr,
+    output wire [15:0] media_write_data,
+    output wire [1:0] media_write_enable,
+    input wire media_write_ready,
+    input wire media_write_busy,
+    output wire [1:0] unit0_state,
+    output wire [31:0] unit0_size
+);
+    /* verilator lint_off PINCONNECTEMPTY */
+    fes_computer_mailbox_core #(
+        .ENABLE_PCXT_FLOPPY(1), .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(19),
+        .UNIT0_MIN(`FES_COMPUTER_PCXT_FLOPPY_BYTES),
+        .UNIT0_MAX(`FES_COMPUTER_PCXT_FLOPPY_BYTES)
+    ) core (
+        .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi), .exec_reset(exec_reset),
+        .keyboard_rows(), .controller_buttons(), .mouse_valid(), .mouse_dx(), .mouse_dy(),
+        .mouse_buttons(), .mouse_ready(1'b0),
+        .media_write_addr(media_write_addr), .media_write_data(media_write_data),
+        .media_write_enable(media_write_enable), .media_write_unit(),
+        .media_write_ready(media_write_ready), .media_write_busy(media_write_busy),
+        .media_changed(1'b0), .media_reset(media_reset), .media_frozen(),
+        .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'b0),
+        .save_ready(1'b0), .save_busy(1'b0), .save_size(15'd0),
+        .unit0_state(unit0_state), .unit0_size(unit0_size), .unit1_state(), .unit1_size(),
+        .display_request(), .display_opcode(), .display_index(), .display_argument(),
+        .display_response_valid(1'b0), .display_response_error(1'b0),
+        .display_response_data(16'b0), .display_quiesced(1'b1)
+    );
+    /* verilator lint_on PINCONNECTEMPTY */
 endmodule
 /* verilator lint_on DECLFILENAME */
 
@@ -769,7 +840,7 @@ module fes_computer_mailbox #(
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
         .media_write_enable(media_write_enable), .media_write_unit(unused_write_unit),
         .media_write_ready(media_write_ready),
-        .media_write_busy(media_write_busy), .media_changed(media_changed),
+        .media_write_busy(media_write_busy), .media_changed(media_changed), .media_reset(1'b0),
         .media_frozen(media_frozen),
         .media_read_req(media_read_req), .media_read_addr(media_read_addr),
         .media_read_ready(media_read_ready), .media_read_data(media_read_data),

@@ -192,6 +192,10 @@ cancellation, physical refresh and two 8088 ISA display boots without a second
 firmware load. `synth_fes_pcxt.py --suite memory --cache-root /absolute/cache`
 emits a diagnostic backend/controller netlist; capture/pads are external and
 its DDR clock primitive remains unmapped.
+The `sim-fes-pcxt-fdc`, `sim-fes-pcxt-media`, and
+`sim-fes-pcxt-mailbox` targets cover floppy command/DMA behavior, runtime media
+loading into SDRAM and the PC/XT mailbox ABI. These focused benches run on pull
+requests; the complete FreeDOS boot remains in the full nightly/manual tier.
 The registered `fes.pcxt` recipe exports a format-2 package that starts this
 built-in CGA Direct diagnostic through the standard `fes.computer` identity and
 execution mailbox. It declares fixed 720p60 video only; keyboard and media

@@ -127,7 +127,7 @@ module top #(
         .exec_reset(exec_reset), .keyboard_rows(keyboard_rows),
         .controller_buttons(),
         .mouse_valid(), .mouse_dx(), .mouse_dy(), .mouse_buttons(), .mouse_ready(1'b0),
-        .media_write_busy(tape_busy), .media_changed(save_changed), .media_frozen(),
+        .media_write_busy(tape_busy), .media_changed(save_changed), .media_reset(1'b0), .media_frozen(),
         .media_read_req(media_read_req), .media_read_addr(media_read_addr),
         .media_read_ready(save_read_ready), .media_read_data(save_q),
         .save_ready(save_ready), .save_busy(save_busy), .save_size(save_size),

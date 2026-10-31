@@ -976,6 +976,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesComputerInterfaceMediaAtaDiskID ||
 				interface.id == FesComputerInterfaceMediaC64DiskID ||
 				interface.id == FesComputerInterfaceMediaAtariStFloppyID ||
+				interface.id == FesComputerInterfaceMediaPcxtFloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
 				interface.id == FesComputerInterfaceMediaZx81TapeID;
 			const bool known = interface.id == FesComputerInterfaceVideoFixed720p60ID ||
@@ -1009,6 +1010,10 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (!interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"computer operational interfaces must be required when declared");
+			if (interface.id == FesComputerInterfaceMediaPcxtFloppyID &&
+				descriptor.abi.minor < FesComputerExtendedAbiMinor)
+				return CompatibilityError(ErrorCode::unsupported_abi,
+					"PC/XT floppy requires FES computer extended identity");
 			if (interface.id == FesComputerInterfaceVideoFixed720p60ID) video = true;
 			if (interface.id == FesComputerInterfaceMemoryHpsDdrID) ddr = true;
 			if (interface.id == FesComputerInterfaceVideoSessionDisplayID) display = true;

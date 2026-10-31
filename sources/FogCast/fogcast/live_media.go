@@ -16,7 +16,7 @@ type liveMediaClient interface {
 
 // ReplaceLiveMedia arms a household core-media id into the active generation
 // via the mid-session live path. It does not inject LOAD "" keys.
-// A .dsk/.do, .d64 or .st name selects the fes.computer disk unit instead; see
+// A .dsk/.do, .d64, .st or PC floppy .img/.ima name selects the fes.computer disk unit instead; see
 // replaceLiveDisk. A .trd or .scl name, or a .dsk on a package with a
 // Spectrum disk drive, selects the Spectrum disk unit; see
 // replaceLiveSpectrumDisk. A Spectrum tape or snapshot name selects the
@@ -184,6 +184,9 @@ func (s *Service) clearLiveMediaLocked(ctx, owner context.Context, b protocol.De
 		return status, err
 	}
 	if status, handled, err := s.ejectComputerUnit(ctx, client, prior, b, unit, protocol.AtariStFloppyInterface()); handled || err != nil {
+		return status, err
+	}
+	if status, handled, err := s.ejectComputerUnit(ctx, client, prior, b, unit, protocol.PcxtFloppyInterface()); handled || err != nil {
 		return status, err
 	}
 	if status, handled, err := s.ejectComputerUnit(ctx, client, prior, b, cassetteUnitBinding(b), protocol.SpectrumTapeInterface()); handled || err != nil {

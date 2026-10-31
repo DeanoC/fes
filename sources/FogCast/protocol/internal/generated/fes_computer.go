@@ -23,6 +23,7 @@ const (
 	FesComputerAbiTag                                   uint32 = 0x4
 	FesComputerAbiMajor                                 uint32 = 0x1
 	FesComputerAbiMinor                                 uint32 = 0x1
+	FesComputerExtendedAbiMinor                         uint32 = 0x1
 	FesComputerIdentityMagic0Index                      uint32 = 0x0
 	FesComputerIdentityMagic1Index                      uint32 = 0x1
 	FesComputerIdentityTransportMajorIndex              uint32 = 0x2
@@ -138,6 +139,8 @@ const (
 	FesComputerZx81TapeLayoutMinor                      uint32 = 0x0
 	FesComputerC64DiskUnit                              uint32 = 0x0
 	FesComputerC64DiskBytes                             uint32 = 0x2ab00
+	FesComputerPcxtFloppyUnit                           uint32 = 0x0
+	FesComputerPcxtFloppyBytes                          uint32 = 0x5a000
 	FesComputerSpectrumDiskUnit                         uint32 = 0x1
 	FesComputerSpectrumDiskMinBytes                     uint32 = 0x2000
 	FesComputerSpectrumDiskMaxBytes                     uint32 = 0x2b4000
@@ -318,4 +321,8 @@ const (
 	FesComputerInterfacePc386MachineMajor               uint16 = 1
 	FesComputerInterfacePc386MachineMinor               uint16 = 0
 	FesComputerCapabilityPc386Machine                   uint32 = 0x80000
+	FesComputerInterfaceMediaPcxtFloppyID                      = "fes.media.pcxt-floppy"
+	FesComputerInterfaceMediaPcxtFloppyMajor            uint16 = 1
+	FesComputerInterfaceMediaPcxtFloppyMinor            uint16 = 0
+	FesComputerCapabilityMediaPcxtFloppy                uint32 = 0x100000
 )

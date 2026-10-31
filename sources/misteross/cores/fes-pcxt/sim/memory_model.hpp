@@ -19,7 +19,8 @@ public:
     explicit Sdram(unsigned delay = 0) : mask_delay(delay) {
         require(delay <= 2, "DQM delay must be zero, one or two clocks", 0);
     }
-    std::vector<uint16_t> words = std::vector<uint16_t>(0x80000, 0);
+    // 1 MiB guest address space followed by the 360 KiB floppy buffer.
+    std::vector<uint16_t> words = std::vector<uint16_t>(0xad000, 0);
     uint64_t cycle = 0, reads = 0, writes = 0, refreshes = 0, mode_sets = 0;
     uint64_t last_refresh = 0, read_due = 0, max_refresh_gap = 0;
     uint16_t pending_read = 0;

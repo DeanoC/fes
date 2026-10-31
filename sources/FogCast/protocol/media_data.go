@@ -28,7 +28,8 @@ func AtariStFloppyWriteInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtariStFloppyWriteID, Major: generated.FesComputerInterfaceMediaAtariStFloppyWriteMajor, Minor: generated.FesComputerInterfaceMediaAtariStFloppyWriteMinor}
 }
 func MediaWriteCapable(p *CorePackageStatus) bool {
-	return activeComputer(p) && activeInterface(p, AtariStFloppyInterface()) && activeInterface(p, AtariStFloppyWriteInterface())
+	return p != nil && ComputerMediaABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) &&
+		activeInterface(p, AtariStFloppyInterface()) && activeInterface(p, AtariStFloppyWriteInterface())
 }
 
 // PersistentMediaUnitCapable admits a durable binding only for the writable

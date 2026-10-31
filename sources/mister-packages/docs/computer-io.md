@@ -1,18 +1,21 @@
-# Home-computer I/O 1.1
+# Home-computer I/O 1.0 and 1.1
 
 `fes.computer` ABI 1.1, live tag 4, is approved on `fes-gp-v1`.
 [The YAML](../packages/abi/fes_computer.yaml) owns constants, emitted as
 `FesComputer*` and `FES_COMPUTER_*` Verilog macros. It is a separate ABI from
 `fes.simple-computer` (tag 2) and `fes.application` (tag 3); both remain
 unchanged. The consumers are the FES Apple II, the FES ZX Spectrum and the
-FES Commodore 64 and Atari 520ST, which declare ABI 1.0, and the FES pc386, which
-declares 1.1. These definitions and the synthetic fixtures do not establish
-consumer or hardware acceptance.
+FES Commodore 64 and Atari 520ST, which declare ABI 1.0, and the FES pc386
+and PC/XT DOS profiles, which declare 1.1. These definitions and synthetic
+fixtures do not establish consumer or hardware acceptance.
 
 Minor 1 adds a second capability word, identity word 16, because bits 0..15
 of word 7 are all assigned. It also adds the ATA hard disk, persistence words,
-the wall clock and the pc386 machine layout, all on bits 16..19. A 1.0
-endpoint and manifest keep their exact bytes and behavior.
+the wall clock and the pc386 machine layout on bits 16..19, and the PC/XT
+floppy on bit 20. A 1.0 endpoint and manifest keep their exact bytes and
+behavior: they report minor 0 and reject identity index 16. A host admits an
+endpoint only when it supports the declared ABI minor and compares every
+capability word required by that minor.
 
 A home computer differs from the existing ABIs in three ways: it has a full
 keyboard, it keeps running while media is changed, and it may have several
@@ -44,6 +47,7 @@ removable media by unit.
 | fes.persistence.words | 17 | Durable words of one registered layout, restored while held and captured at Stop ([persistence](#persistence-words)) |
 | fes.rtc.wall-clock | 18 | The kit's local time, seeded while held ([wall clock](#wall-clock)) |
 | fes.pc386.machine | 19 | The 72-word pc386 settings and CMOS layout of the persistence words |
+| fes.media.pcxt-floppy | 20 | Media unit 0: one read-only 360 KiB raw XT floppy; requires ABI 1.1 |
 
 A session display is also declared with the manifest-only
 `fes.fabric.video.display-plane` 1.0, which has no capability bit; see
@@ -85,6 +89,7 @@ capabilities 16..31; one that reports minor 0 rejects index 16 as an invalid
 index. The host reads word 16 only when the manifest declares minor 1, and a
 host that supports 1.1 still admits 1.0 manifests. Compare identity with the
 exact manifest before release or any input or media delivery.
+A host rejects undeclared or unsupported live bits.
 
 Errors are invalid opcode=1, invalid index=2, invalid argument=3, invalid
 state=4. An opcode whose capability is absent returns invalid opcode. Every
@@ -93,7 +98,7 @@ in the order written below; the first failing check determines the error.
 
 | Opcode | Name | Index | Argument |
 | --- | --- | --- | --- |
-| 1 | Identity | word 0..15 | 0 |
+| 1 | Identity | word 0..15 (1.0), 0..16 (1.1) | 0 |
 | 2 | Execution | 0 | 0 hold reset, 1 release |
 | 3 | KeyboardHid | row 0..8 | 16-bit row state |
 | 4 | ControllerButtons | port 0..1 | 8-bit button mask |
@@ -399,6 +404,21 @@ Backend wait states do not alter mailbox framing: a successful MediaData
 acknowledgement follows its complete storage write, including a byte pair
 split across two memory words at an odd chunk boundary. Rejected requests
 acknowledge normally without writing. CPU Hold does not cancel media traffic.
+
+### fes.media.pcxt-floppy 1.0
+
+Unit 0 accepts exactly 368,640 bytes (Info minimum = maximum = 368,640): a
+raw 360 KiB XT floppy with 40 cylinders, two heads, nine sectors per track
+and 512 bytes per sector. Byte offset is
+`((cylinder * 2 + head) * 9 + sector - 1) * 512`, with cylinders 0..39,
+heads 0..1 and sectors 1..9. The medium is read-only; drive A reports write
+protection and drive B is absent. Flux or track images and other geometries
+are not this interface. Capability bit 20 identifies it and requires ABI 1.1.
+It shares unit 0 with the other computer media interfaces, so a shell may
+declare only one. The generic Begin, Data, Commit and Eject rules above apply
+while execution is held or running. A successful Data acknowledgement follows
+all accepted physical writes, and a removed or loading unit is not presented
+to the floppy controller.
 
 ## ATA hard disk
 

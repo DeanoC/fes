@@ -40,8 +40,9 @@ public:
 
 	ComputerEndpoint(std::uint32_t capabilities,
 		std::map<unsigned, std::pair<std::uint32_t, std::uint32_t>> units,
-		const std::string& build_id = "00112233445566778899aabbccddeeff")
-		: capabilities_(capabilities)
+		const std::string& build_id = "00112233445566778899aabbccddeeff",
+		std::uint16_t abi_minor = 0)
+			: abi_minor(abi_minor), capabilities_(capabilities)
 	{
 		for (const auto& unit : units) {
 			Unit value;
@@ -62,11 +63,14 @@ public:
 		using namespace mister::native::generated;
 		enum { opcode_error = 1, index_error = 2, argument_error = 3, state_error = 4 };
 		if (op == FesComputerOpcodeIdentity) {
-			if (index >= (abi_minor ? 17u : 16u)) return {index_error, 0};
+			if (index > FesComputerIdentityCapabilitiesHighIndex ||
+				(index == FesComputerIdentityCapabilitiesHighIndex && abi_minor < FesComputerExtendedAbiMinor))
+				return {index_error, 0};
 			if (arg) return {argument_error, 0};
-			if (index == 16) return {0, static_cast<std::uint16_t>(capabilities_ >> 16)};
-			const std::uint16_t words[8] = {0x4546, 0x3153, 1, 0, 4, 1,
-				static_cast<std::uint16_t>(abi_minor), static_cast<std::uint16_t>(capabilities_)};
+			if (index == FesComputerIdentityCapabilitiesHighIndex)
+				return {0, static_cast<std::uint16_t>(capabilities_ >> 16)};
+			const std::uint16_t words[8] = {0x4546, 0x3153, 1, 0, 4, 1, static_cast<std::uint16_t>(abi_minor),
+				static_cast<std::uint16_t>(capabilities_)};
 			return {0, index < 8 ? words[index] : build_words_[index - 8]};
 		}
 		if (op == FesComputerOpcodeExecution) {
@@ -182,10 +186,10 @@ public:
 			return {0, static_cast<std::uint16_t>(pair)};
 		}
 		const bool media_opcode = op >= FesComputerOpcodeMediaInfo && op <= FesComputerOpcodeMediaEject;
-		const unsigned media_bits = FesComputerCapabilityMediaApple2Floppy |
+		const std::uint32_t media_bits = FesComputerCapabilityMediaApple2Floppy |
 			FesComputerCapabilityMediaC64Disk | FesComputerCapabilityMediaSpectrumTape |
 			FesComputerCapabilityMediaAtariStFloppy | FesComputerCapabilityMediaZx81Tape |
-			FesComputerCapabilityMediaSpectrumDisk;
+			FesComputerCapabilityMediaSpectrumDisk | FesComputerCapabilityMediaPcxtFloppy;
 		if (media_opcode && !(capabilities_ & media_bits))
 			return {opcode_error, 0};
 		if (op == FesComputerOpcodeMediaInfo) {

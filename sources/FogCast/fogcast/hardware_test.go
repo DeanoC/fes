@@ -196,6 +196,15 @@ func TestZX81RearSocketAdmitsComputerAndLegacyShells(t *testing.T) {
 			t.Fatalf("%s rear socket rejected", abi)
 		}
 	}
+	for _, tc := range []struct {
+		minor int64
+		want  bool
+	}{{0, true}, {1, true}, {2, false}} {
+		d := corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: tc.minor}, Interfaces: []corepackage.Interface{bus}}
+		if corepackage.RearExpansionSocket(d) != tc.want {
+			t.Fatalf("computer 1.%d rear socket", tc.minor)
+		}
+	}
 	if corepackage.RearExpansionSocket(corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.application", Major: 1}, Interfaces: []corepackage.Interface{bus}}) {
 		t.Fatal("application ABI accepted as a ZX81 rear socket")
 	}
@@ -361,6 +370,14 @@ func TestZX81SessionDisplayDescriptorRequiresABICompatibleMedia(t *testing.T) {
 	computerTape.Interfaces[len(computerTape.Interfaces)-1].ID = "fes.media.zx81-tape"
 	if !zx81SessionDisplayDescriptor(computerTape, nil) {
 		t.Fatal("fes.computer with zx81-tape should support the selector")
+	}
+	computerTape.ABI.Minor = 1
+	if !zx81SessionDisplayDescriptor(computerTape, nil) {
+		t.Fatal("1.1 computer lost its existing tape selector")
+	}
+	computerTape.ABI.Minor = 2
+	if zx81SessionDisplayDescriptor(computerTape, nil) {
+		t.Fatal("unsupported computer minor gained a selector")
 	}
 
 	simpleTape := required

@@ -22,7 +22,7 @@ func RemovableMediaUnit(p *SessionCorePackage) (protocol.MediaUnitStatus, bool) 
 		return u, false
 	}
 	switch u.Interface {
-	case protocol.Zx81TapeInterface(), protocol.SpectrumTapeInterface(), protocol.Apple2FloppyInterface(), protocol.C64DiskInterface(), protocol.AtariStFloppyInterface():
+	case protocol.Zx81TapeInterface(), protocol.SpectrumTapeInterface(), protocol.Apple2FloppyInterface(), protocol.C64DiskInterface(), protocol.AtariStFloppyInterface(), protocol.PcxtFloppyInterface():
 		return u, true
 	}
 	return protocol.MediaUnitStatus{}, false
@@ -88,6 +88,8 @@ func AdmitRemovableMedia(p *SessionCorePackage, name string, size int64) bool {
 		return protocol.AdmitC64DiskName(name)
 	case protocol.AtariStFloppyInterface():
 		return protocol.AdmitAtariStFloppyName(name) && protocol.AdmitAtariStFloppySize(size)
+	case protocol.PcxtFloppyInterface():
+		return protocol.AdmitPcxtFloppyName(name) && size == protocol.PcxtFloppyBytes
 	}
 	return false
 }
@@ -103,7 +105,7 @@ func RemovableMediaRequestError(p *SessionCorePackage, name string) *protocol.AP
 	default:
 		if u, ok := RemovableMediaUnit(p); ok {
 			switch u.Interface {
-			case protocol.Apple2FloppyInterface(), protocol.C64DiskInterface(), protocol.AtariStFloppyInterface():
+			case protocol.Apple2FloppyInterface(), protocol.C64DiskInterface(), protocol.AtariStFloppyInterface(), protocol.PcxtFloppyInterface():
 				err = protocol.DiskMediaRequestError()
 			case protocol.SpectrumTapeInterface():
 				err = protocol.CassetteMediaRequestError()
