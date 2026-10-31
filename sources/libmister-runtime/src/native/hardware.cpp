@@ -725,13 +725,21 @@ Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::str
 	Error error = AdmitCorePackage(path, id, &package);
 	if (!error.ok())
 		return error;
+	VersionedContract layout;
+	error = CorePersistenceLayout(package->info().descriptor, &layout);
+	if (!error.ok())
+		return error;
+	const bool per_game = !layout.id.empty() &&
+		package->info().descriptor.abi.id == generated::FesComputerABIID;
+	if (per_game ? !ValidLibraryGameID(game_id) : !game_id.empty())
+		return {ErrorCode::invalid_request, "core-data game identity does not fit the package", "core_data"};
+	if (active_package_ && active_package_->info().declared_core == package->info().declared_core &&
+		(game_id.empty() || durable_data_.game_id == game_id))
+		return {ErrorCode::busy, "core-data namespace is active", "core_data"};
 	CoreData data;
 	error = PrepareCoreData(package.get(), root, game_id, &data);
 	if (!error.ok())
 		return error;
-	if (active_package_ && active_package_->info().declared_core == package->info().declared_core &&
-		(game_id.empty() || durable_data_.game_id == game_id))
-		return {ErrorCode::busy, "core-data namespace is active", "core_data"};
 	auto admitted = dynamic_cast<NativeAdmittedCore*>(package.get());
 	if (!admitted->data_file_)
 		return {
@@ -1289,8 +1297,10 @@ Error NativeHardware::LoadAtaDisk(FesGpCoreDriver& driver, PreparedAtaDisk& disk
 				return Error{};
 			});
 	}
+	// Phase identity marks the base file itself as wrong; a CRC the core does
+	// not match is input, since the file can be right and the window wrong.
 	if (error.ok() && Sha256Hex(base_hash.Final()) != disk.identity.base_media_id)
-		error = {ErrorCode::corrupt_data, "ATA disk image differs from its base identity", "input"};
+		error = {ErrorCode::corrupt_data, "ATA disk image differs from its base identity", "identity"};
 	if (error.ok())
 		error = driver.CommitAtaDisk(disk.image.size / generated::FesComputerAtaDiskSectorBytes,
 			disk.image.cylinders, disk.image.heads, disk.image.sectors_per_track, crc ^ 0xffffffffu, deadline);

@@ -148,23 +148,15 @@ func (client *Client) LoadCore(ctx context.Context, path, packageID string) (Pro
 func (client *Client) loadCoreWithStatus(ctx context.Context, path, packageID string) (Protocol2Response, Protocol2Response, error) {
 	return client.loadCoreWithRoot(ctx, path, packageID, "")
 }
-func (client *Client) loadCoreOperation(ctx context.Context, path, id, root, gameID string) (Protocol2Response, error) {
-	if !validRuntimePath(root) || (gameID != "" && protocol.ValidateGameID(gameID) != nil) {
+func (client *Client) loadCoreOperation(ctx context.Context, path, id, root string) (Protocol2Response, error) {
+	if !validRuntimePath(root) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
-	response, _, err := client.loadCoreWithComposition(ctx, path, id, root, "", "", nil, gameID)
-	return response, err
-}
-func (client *Client) loadCoreOperationWithAtaDisk(ctx context.Context, path, id, root, gameID string,
-	disk ataDiskLoadRequest) (Protocol2Response, error) {
-	if !validRuntimePath(root) || !disk.valid() || protocol.ValidateGameID(gameID) != nil {
-		return Protocol2Response{}, errInvalidRuntimeRequest
-	}
-	response, _, err := client.loadCoreWithComposition(ctx, path, id, root, "", "", nil, gameID, &disk)
+	response, _, err := client.loadCoreWithRoot(ctx, path, id, root)
 	return response, err
 }
 func (client *Client) loadCoreWithRoot(ctx context.Context, path, packageID, root string) (Protocol2Response, Protocol2Response, error) {
-	return client.loadCoreWithComposition(ctx, path, packageID, root, "", "", nil, "")
+	return client.loadCoreWithComposition(ctx, path, packageID, root, "", "", nil)
 }
 func (client *Client) LoadInitializedCore(ctx context.Context, path, packageID, programmedPath, programmedSHA string) (Protocol2Response, error) {
 	return client.loadInitialized(ctx, path, packageID, "", "", "", nil, programmedPath, programmedSHA, "load_initialized_core")
@@ -359,33 +351,12 @@ func (client *Client) LoadComposedCore(ctx context.Context, path, packageID, exp
 	if !validRuntimePath(expansionPath) || !validRuntimePath(payloadPath) || !validComposition(composition, packageID) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
-	response, _, err := client.loadCoreWithComposition(ctx, path, packageID, "", expansionPath, payloadPath, &composition, "")
+	response, _, err := client.loadCoreWithComposition(ctx, path, packageID, "", expansionPath, payloadPath, &composition)
 	return response, err
 }
-
-type protocol2AtaDisk struct {
-	Path            string `json:"path"`
-	Size            uint32 `json:"size"`
-	BaseMediaID     string `json:"base_media_id"`
-	DataRoot        string `json:"data_root"`
-	Cylinders       uint16 `json:"cylinders"`
-	Heads           uint16 `json:"heads"`
-	SectorsPerTrack uint16 `json:"sectors_per_track"`
-}
-
-func (client *Client) loadCoreWithComposition(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, gameID string, ataDisks ...*ataDiskLoadRequest) (Protocol2Response, Protocol2Response, error) {
+func (client *Client) loadCoreWithComposition(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition) (Protocol2Response, Protocol2Response, error) {
 	if !validRuntimePath(path) || !protocol2Hex64.MatchString(packageID) {
 		return Protocol2Response{}, Protocol2Response{}, errInvalidRuntimeRequest
-	}
-	if len(ataDisks) > 1 || (len(ataDisks) == 1 && (root == "" || !ataDisks[0].valid())) {
-		return Protocol2Response{}, Protocol2Response{}, errInvalidRuntimeRequest
-	}
-	var disk *protocol2AtaDisk
-	if len(ataDisks) == 1 {
-		selection := ataDisks[0].Selection
-		disk = &protocol2AtaDisk{Path: ataDisks[0].Path, Size: selection.Size,
-			BaseMediaID: selection.BaseMediaID, DataRoot: ataDisks[0].DataRoot,
-			Cylinders: selection.Cylinders, Heads: selection.Heads, SectorsPerTrack: selection.SectorsPerTrack}
 	}
 	before, err := client.Protocol2Status(ctx)
 	if err != nil {
@@ -404,12 +375,10 @@ func (client *Client) loadCoreWithComposition(ctx context.Context, path, package
 		PackagePath   string                 `json:"package_path"`
 		PackageID     string                 `json:"package_id"`
 		DataRoot      string                 `json:"data_root,omitempty"`
-		GameID        string                 `json:"game_id,omitempty"`
 		ExpansionPath string                 `json:"expansion_path,omitempty"`
 		PayloadPath   string                 `json:"payload_path,omitempty"`
 		Composition   *expansion.Composition `json:"composition,omitempty"`
-		AtaDisk       *protocol2AtaDisk      `json:"ata_disk,omitempty"`
-	}{Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, GameID: gameID, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition, AtaDisk: disk})
+	}{Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition})
 	if err != nil {
 		return Protocol2Response{}, before, protocol2MutationError{error: err, attempted: attempted}
 	}
@@ -1192,7 +1161,7 @@ func validProtocol2Error(remote Protocol2Error) bool {
 		return false
 	}
 	switch remote.Phase {
-	case "core_data", "request", "admission", "compatibility", "save", "quiesce", "programming", "transport", "identity", "video", "input", "recovery", "lifecycle", "menu", "menu_window":
+	case "core_data", "media_data", "request", "admission", "compatibility", "save", "quiesce", "programming", "transport", "identity", "video", "input", "recovery", "lifecycle", "menu", "menu_window":
 		return true
 	default:
 		return false
@@ -1282,13 +1251,13 @@ func validMediaUnits(response Protocol2Response) bool {
 	return true
 }
 
-// validSlotComposition binds a v2 tuple to a supported fes.computer shell
+// validSlotComposition binds a v2 tuple to an exact fes.computer 1.0 shell
 // declaring one optional slot bus; every slot is a physical socket.
 func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePackage) bool {
 	id, err := expansion.SlotCompositionID(c.PackageID, c.Expansions, c.PayloadSHA256)
 	if err != nil || id != c.ID || c.PackageID != active.PackageID || !protocol2Hex64.MatchString(c.ShellSHA256) ||
 		c.ShellSHA256 != active.Descriptor.Payload.SHA256 || c.PayloadSize < 40408 || c.PayloadSize > corepackage.MaxPayloadSize ||
-		(active.PersistenceMode == "persistent" && !descriptorMediaWrite(active.Descriptor)) || !protocol.ComputerMediaABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
+		(active.PersistenceMode == "persistent" && !descriptorMediaWrite(active.Descriptor)) || !protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
 		return false
 	}
 	var bus string
@@ -1599,7 +1568,7 @@ func descriptorMediaWrite(d corepackage.Descriptor) bool {
 			write = true
 		}
 	}
-	return protocol.ComputerMediaABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) && base && write
+	return protocol.ComputerABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) && base && write
 }
 
 func descriptorAtaDisk(d corepackage.Descriptor) bool {

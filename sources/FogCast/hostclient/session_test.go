@@ -164,15 +164,6 @@ func TestDecodeSessionRecognizesExactComputerKeyboardHID(t *testing.T) {
 	}
 }
 
-func TestDecodeSessionArmsComputer11HIDAndMouse(t *testing.T) {
-	raw := []byte(`{"state":"active","core_package":{"package_id":"` + strings.Repeat("a", 64) +
-		`","generation":3,"gamepad":true,"abi":{"id":"fes.computer","major":1,"minor":1},"active_interfaces":[{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.mouse.relative","major":1,"minor":0}]}}`)
-	result, err := DecodeSession(http.StatusOK, raw)
-	if err != nil || !result.CoreKeyboardHID || !result.CoreMouse {
-		t.Fatalf("computer 1.1 input flags = %+v, error = %v", result, err)
-	}
-}
-
 func TestDecodeSessionPreservesStructuredError(t *testing.T) {
 	result, err := DecodeSession(http.StatusConflict, []byte(`{"error":{"code":"KIT_LEASE_BLOCKED","message":"another session owns the kit"}}`))
 	if err != nil {
@@ -280,5 +271,14 @@ func TestReleaseIdleGrantsPostsFlagAndAcceptsActivePlay(t *testing.T) {
 	}
 	if body != `{"release_idle":true}` {
 		t.Fatalf("body = %q", body)
+	}
+}
+
+func TestDecodeSessionArmsComputer11HIDAndMouse(t *testing.T) {
+	raw := []byte(`{"state":"active","core_package":{"package_id":"` + strings.Repeat("a", 64) +
+		`","generation":3,"gamepad":true,"abi":{"id":"fes.computer","major":1,"minor":1},"active_interfaces":[{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.mouse.relative","major":1,"minor":0}]}}`)
+	result, err := DecodeSession(http.StatusOK, raw)
+	if err != nil || !result.CoreKeyboardHID || !result.CoreMouse {
+		t.Fatalf("computer 1.1 input flags = %+v, error = %v", result, err)
 	}
 }

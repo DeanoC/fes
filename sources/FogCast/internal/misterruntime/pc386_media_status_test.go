@@ -352,7 +352,7 @@ func assertTargetClientAcceptsStatus(t *testing.T, status protocol.Status) {
 		t.Fatal(err)
 	}
 	client := targetclient.NewClient(base, "test-token", server.Client())
-	got, err := client.LoadLibraryCore(context.Background(), 1, strings.NewReader("x"), status.CorePackage.PackageID, "")
+	got, err := client.LoadLibraryCore(context.Background(), 1, strings.NewReader("x"), status.CorePackage.PackageID)
 	if err != nil {
 		t.Fatalf("targetclient rejected reconciled computer status: %v", err)
 	}

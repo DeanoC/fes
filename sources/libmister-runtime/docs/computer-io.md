@@ -106,6 +106,8 @@ held; a missing record restores the layout's defaults. A package with
 The core stores the weekday unchecked, so the runtime sends the local time's
 own. A time before 1980 starts the clock at 1980-01-01, a Tuesday; a leap
 second holds at 59; and an unavailable local time fails the launch.
+Wall-clock command rejection or timeout remains a `transport`-phase failure;
+the seed is sent before Start.
 
 ## ATA hard disk
 
@@ -115,6 +117,9 @@ game's disk; it requires `game_id`:
 ```json
 {"protocol":2,"operation":"load_library_core","package_path":"/tmp/fogcast-development/core-packages/example","package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","data_root":"/media/fat/fogcast/core-data","game_id":"ultima-vi","ata_disk":{"path":"/media/fat/fogcast/disk-images/a.img","size":2098688,"base_media_id":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","data_root":"/media/fat/fogcast/core-data/media","cylinders":4,"heads":16,"sectors_per_track":63}}
 ```
+
+The base image path must name a regular file. Non-regular paths such as FIFOs
+are rejected without waiting for a writer.
 
 The image is 1..128 MiB in whole sectors and its geometry must fit it as
 DiskCommit requires. Before programming the runtime opens the image (no
@@ -129,10 +134,12 @@ fes-window grants of 4 MiB in turn: each 64 KiB chunk is the base's bytes, or
 the delta's chunk file when the manifest names it. It hashes the base as it
 reads it and CRC-32s what it writes. Each grant is revoked before the next,
 which writes back and invalidates its lines in L1 and the PL310. A base whose
-SHA-256 differs from `base_media_id`, a missing or altered chunk file, or a
-CRC the core does not match fails the launch with `corrupt_data`. Then
-DiskCommit words 0..7 and Commit, and DiskInfo is polled until the core's CRC
-pass ends. Status lists the disk as unit 0 with interface
+SHA-256 differs from `base_media_id` fails the launch with `corrupt_data` in
+phase `identity`: the staged file itself is wrong. A missing or altered chunk
+file fails it with `corrupt_data` in phase `media_data`, and a CRC the core
+does not match with `corrupt_data` in phase `input`, since the file can be
+right while the window is not. Then DiskCommit words 0..7 and Commit, and
+DiskInfo is polled until the core's CRC pass ends. Status lists the disk as unit 0 with interface
 `fes.media.ata-disk`, 65,536-byte chunks and its binding's revision. It is
 fixed: media insert, eject and save refuse it.
 

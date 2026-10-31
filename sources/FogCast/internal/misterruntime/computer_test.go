@@ -193,7 +193,7 @@ func TestC64StatusReportsInsertedMediaUnit(t *testing.T) {
 }
 
 func TestSetKeyboardHIDRequestAndResponse(t *testing.T) {
-	r := computerResponse11(t)
+	r := computerResponse(t)
 	id := r.ActivePackage.PackageID
 	fixture := newSequenceSocketFixture(t, []string{responseLine(t, r) + "\n"})
 	rows := KeyboardHIDRows{0x0010, 0, 0, 0x0100, 0, 0, 0, 0, 0x0002}
@@ -221,9 +221,9 @@ func TestSetKeyboardHIDRequestAndResponse(t *testing.T) {
 }
 
 func TestComputerMediaRequestShapes(t *testing.T) {
-	r := computerResponse11(t)
+	r := computerResponse(t)
 	id := r.ActivePackage.PackageID
-	ready := computerResponse11(t)
+	ready := computerResponse(t)
 	ready.Capabilities.MediaUnits[0].State = "ready"
 	fixture := newSequenceSocketFixture(t, []string{responseLine(t, ready) + "\n", responseLine(t, r) + "\n"})
 	client := NewClient(fixture.path)
@@ -253,20 +253,6 @@ func TestComputerMediaRequestShapes(t *testing.T) {
 		if err := call(); err != errInvalidRuntimeRequest {
 			t.Fatalf("invalid media request: %v", err)
 		}
-	}
-}
-
-func TestSendMouseRelativeAcceptsComputer11Reply(t *testing.T) {
-	r := computerResponse11(t)
-	id := r.ActivePackage.PackageID
-	fixture := newSequenceSocketFixture(t, []string{responseLine(t, r) + "\n"})
-	if _, err := NewClient(fixture.path).SendMouseRelative(context.Background(), id, 7, -3, 4, 1); err != nil {
-		t.Fatalf("accepted 1.1 mouse response rejected: %v", err)
-	}
-	requests := fixture.wait(t)
-	want := `{"protocol":2,"operation":"send_mouse_relative","package_id":"` + id + `","expected_generation":7,"dx":-3,"dy":4,"buttons":1}`
-	if len(requests) != 1 || requests[0] != want {
-		t.Fatalf("request %q", requests)
 	}
 }
 
@@ -454,5 +440,33 @@ func TestRuntimeKeyboardHIDMapsRejection(t *testing.T) {
 	var apiErr *protocol.APIError
 	if err := runtime.SetKeyboardHID(context.Background(), control.resp.ActivePackage.PackageID, 7, KeyboardHIDRows{}); !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBusy {
 		t.Fatalf("rejection %v", err)
+	}
+}
+
+// A fes.computer 1.1 generation answers keyboard, media and mouse requests
+// with the same reply shape as 1.0.
+func TestComputer11RepliesAreAccepted(t *testing.T) {
+	r := computerResponse11(t)
+	id := r.ActivePackage.PackageID
+	ready := computerResponse11(t)
+	ready.Capabilities.MediaUnits[0].State = "ready"
+	fixture := newSequenceSocketFixture(t, []string{responseLine(t, r) + "\n", responseLine(t, ready) + "\n", responseLine(t, r) + "\n", responseLine(t, r) + "\n"})
+	client := NewClient(fixture.path)
+	if _, err := client.SetKeyboardHID(context.Background(), id, 7, KeyboardHIDRows{0x0010}); err != nil {
+		t.Fatalf("1.1 keyboard reply rejected: %v", err)
+	}
+	if _, err := client.InsertMedia(context.Background(), "/tmp/fogcast-media-unit-1/media.bin", id, 7, 0, 143360); err != nil {
+		t.Fatalf("1.1 insert reply rejected: %v", err)
+	}
+	if _, err := client.EjectMedia(context.Background(), id, 7, 0); err != nil {
+		t.Fatalf("1.1 eject reply rejected: %v", err)
+	}
+	if _, err := client.SendMouseRelative(context.Background(), id, 7, -3, 4, 1); err != nil {
+		t.Fatalf("1.1 mouse reply rejected: %v", err)
+	}
+	requests := fixture.wait(t)
+	want := `{"protocol":2,"operation":"send_mouse_relative","package_id":"` + id + `","expected_generation":7,"dx":-3,"dy":4,"buttons":1}`
+	if len(requests) != 4 || requests[3] != want {
+		t.Fatalf("requests %q", requests)
 	}
 }

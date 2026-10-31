@@ -76,7 +76,7 @@ func TestSTROMPartsClientUsesOrdinaryLibraryLoadAndRejectsMixedReceipts(t *testi
 			if name == "ROM-less parts endpoint" {
 				_, err = client.LoadLibraryPartsCore(context.Background(), 5, strings.NewReader("input"), value.PackageID)
 			} else {
-				_, err = client.LoadLibraryCore(context.Background(), 5, strings.NewReader("input"), value.PackageID, "")
+				_, err = client.LoadLibraryCore(context.Background(), 5, strings.NewReader("input"), value.PackageID)
 			}
 			if (err == nil) != (name == "paired" || name == "persistent disk" || name == "computer 1.1 persistent disk" || name == "persistent disk without parts") || calls != 1 {
 				t.Fatalf("error=%v calls=%d", err, calls)

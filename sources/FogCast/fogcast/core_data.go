@@ -17,15 +17,11 @@ type CoreDataResult struct {
 	TargetID string `json:"target_id"`
 }
 type coreDataClient interface {
-	InspectCoreData(context.Context, int64, io.Reader, string, string) (protocol.CoreDataInspection, error)
+	InspectCoreData(context.Context, int64, io.Reader, string) (protocol.CoreDataInspection, error)
 	UpdateCoreSettings(context.Context, int64, io.Reader, protocol.CoreSettingsUpdate) (protocol.CoreDataInspection, error)
 }
 type libraryCoreClient interface {
-	LoadLibraryCore(context.Context, int64, io.Reader, string, string) (protocol.Status, error)
-}
-type libraryAtaDiskClient interface {
-	LoadLibraryCoreWithAtaDisk(context.Context, int64, io.Reader, string, string,
-		protocol.AtaDiskSelection, io.Reader) (protocol.Status, error)
+	LoadLibraryCore(context.Context, int64, io.Reader, string) (protocol.Status, error)
 }
 
 func (s *Service) CoreSettings(ctx context.Context, gameID string) (CoreDataResult, error) {
@@ -35,7 +31,6 @@ func (s *Service) CoreProgress(ctx context.Context, gameID string) (CoreDataResu
 	return s.entryCoreData(ctx, gameID, nil)
 }
 func (s *Service) SetCoreSettings(ctx context.Context, gameID string, u protocol.CoreSettingsUpdate) (CoreDataResult, error) {
-	u.GameID = gameID
 	if !u.Valid() {
 		return CoreDataResult{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
@@ -65,7 +60,7 @@ func (s *Service) entryCoreData(parent context.Context, gameID string, u *protoc
 			return CoreDataResult{}, canonicalError(protocol.CodeBusy, nil)
 		}
 	}
-	result, err := s.inspectInstalledCoreData(ctx, entry.PackageID, gameID, u)
+	result, err := s.inspectInstalledCoreData(ctx, entry.PackageID, u)
 	if err == nil && result.CoreID != entry.CoreID {
 		return CoreDataResult{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
@@ -76,7 +71,7 @@ func (s *Service) entryCoreData(parent context.Context, gameID string, u *protoc
 }
 
 // Caller holds lifecycle admission, keeping selection and the target fixed.
-func (s *Service) inspectInstalledCoreData(ctx context.Context, id, gameID string, u *protocol.CoreSettingsUpdate) (CoreDataResult, error) {
+func (s *Service) inspectInstalledCoreData(ctx context.Context, id string, u *protocol.CoreSettingsUpdate) (CoreDataResult, error) {
 	value, data, err := s.readInstalledCore(ctx, id)
 	if err != nil {
 		return CoreDataResult{}, err
@@ -102,9 +97,8 @@ func (s *Service) inspectInstalledCoreData(ctx context.Context, id, gameID strin
 	}
 	var result protocol.CoreDataInspection
 	if u == nil {
-		result, err = native.InspectCoreData(ctx, int64(len(data)), bytes.NewReader(data), id, gameID)
+		result, err = native.InspectCoreData(ctx, int64(len(data)), bytes.NewReader(data), id)
 	} else {
-		u.GameID = gameID
 		result, err = native.UpdateCoreSettings(ctx, int64(len(data)), bytes.NewReader(data), *u)
 	}
 	if err != nil {

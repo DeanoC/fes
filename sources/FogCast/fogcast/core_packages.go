@@ -7,7 +7,6 @@ import (
 	"io"
 	"reflect"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
@@ -285,11 +284,7 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 	if current != nil && current.PersistenceLayout != nil && !reflect.DeepEqual(current.PersistenceLayout, check.PersistenceLayout) {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeIncompatibleData, nil)
 	}
-	dataGameID := gameID
-	if dataGameID == "" {
-		dataGameID = catalog.CoreEntryGameID(check.Descriptor.Core.ID, strings.TrimSpace(title))
-	}
-	data, err := s.inspectInstalledCoreData(ctx, id, dataGameID, nil)
+	data, err := s.inspectInstalledCoreData(ctx, id, nil)
 	if err != nil {
 		return catalog.CoreEntry{}, err
 	}
@@ -455,9 +450,6 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 			return coreLoadSource{}, err
 		}
 		if parts != nil {
-			if media != nil && media.ataDisk != nil {
-				return coreLoadSource{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
-			}
 			transport, err := parts.Write(ctx)
 			if err != nil {
 				return coreLoadSource{}, videoPartUnavailable()
@@ -469,9 +461,6 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 			return coreLoadSource{}, err
 		}
 		if slots != nil {
-			if media != nil && media.ataDisk != nil {
-				return coreLoadSource{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
-			}
 			transport, err := slots.Write()
 			if err != nil {
 				return coreLoadSource{}, slotExpansionUnavailable()
@@ -491,31 +480,18 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 			return initializedLaunchSource(entry, initialized, bundle), nil
 		}
 		if bundle != nil {
-			if media != nil && media.ataDisk != nil {
-				return coreLoadSource{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
-			}
 			var transport bytes.Buffer
 			if err = bundle.Write(&transport); err != nil {
 				return coreLoadSource{}, expansionError(err)
 			}
 			return coreLoadSource{size: int64(transport.Len()), body: bytes.NewReader(transport.Bytes()), entry: &entry, composition: &bundle.Composition}, nil
 		}
-		var ataDisk *coreEntryMedia
-		if media != nil && media.ataDisk != nil {
-			ataDisk = media
-		}
-		return coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry, ataDisk: ataDisk}, nil
+		return coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry}, nil
 	})
 	status = retainImageSHA(status, imageSHA)
 	response := protocol.CachedLaunchResponse{Status: status}
 	if err != nil {
 		return response, err
-	}
-	if media != nil && media.ataDisk != nil {
-		if closeErr := media.Close(); closeErr != nil {
-			return response, closeErr
-		}
-		media = nil
 	}
 	// The core load recorded execution. Keep a placement claim through
 	// later media delivery. A failure before this return releases it.
@@ -691,17 +667,6 @@ type coreLoadSource struct {
 	size            int64
 	body            io.Reader
 	entry           *catalog.CoreEntry
-	ataDisk         *coreEntryMedia
-}
-
-func matchesLoadedAtaDisk(packageStatus *protocol.CorePackageStatus, gameID string, disk *coreEntryMedia) bool {
-	if disk == nil || disk.ataDisk == nil {
-		return true
-	}
-	unit, ok := protocol.MediaUnit(packageStatus, protocol.AtaDiskUnit)
-	return ok && unit.Interface == protocol.AtaDiskInterface() && unit.State == protocol.MediaUnitReady &&
-		unit.Persistence != nil && unit.Persistence.Mode == "persistent" &&
-		unit.Persistence.GameID == gameID && unit.Persistence.BaseMediaID == disk.ataDisk.BaseMediaID
 }
 
 // stopRejectedCore owns recovery when package activation cannot be accepted,

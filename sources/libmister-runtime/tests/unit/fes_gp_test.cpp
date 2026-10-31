@@ -3175,8 +3175,26 @@ void TestPc386IdentityPersistenceAndWallClock()
 		kComputerDeadline);
 	assert(!clock_error.ok() && clock_error.phase == "transport");
 	f.endpoint.reject_request = {};
-	assert(f.driver.SetWallClock(LocalTime(2100, 1, 1, 0, 0, 0, 5), kComputerDeadline).code ==
-		mister::ErrorCode::invalid_request);
+	const auto out_of_range = f.driver.SetWallClock(LocalTime(2100, 1, 1, 0, 0, 0, 5), kComputerDeadline);
+	assert(out_of_range.code == mister::ErrorCode::invalid_request && out_of_range.phase == "transport");
+	for (const bool timeout : {false, true}) {
+		ComputerFixture failed(live, {}, Pc386Descriptor());
+		failed.endpoint.abi_minor = 1;
+		assert(failed.driver.Identify(failed.context, kComputerDeadline).error.ok());
+		if (timeout) {
+			failed.endpoint.fail_after_request = [](const mister_test::ComputerEndpoint::Request& request) {
+				return request.opcode == FesComputerOpcodeWallClock && request.index == 1;
+			};
+		} else {
+			failed.endpoint.reject_request = [](const mister_test::ComputerEndpoint::Request& request) {
+				return request.opcode == FesComputerOpcodeWallClock && request.index == 1 ?
+					FesSimpleComputerErrorInvalidState : 0;
+			};
+		}
+		const auto error = failed.driver.SetWallClock(LocalTime(2026, 10, 28, 14, 5, 37, 3),
+			kComputerDeadline);
+		assert(error.code == mister::ErrorCode::io_failed && error.phase == "transport");
+	}
 	assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
 	start = f.endpoint.requests.size();
 	assert(!f.driver.SetWallClock(LocalTime(2026, 10, 28, 14, 5, 37, 3), kComputerDeadline).ok());
@@ -3217,9 +3235,10 @@ void TestPc386AtaDiskCommitPollAndDirtyMap()
 	}
 	crc ^= 0xffffffffu;
 	assert(f.driver.AtaDiskControl(FesComputerDiskControlPrepare, kComputerDeadline).ok());
-	// A wrong CRC ends the poll with the unit loading.
-	assert(f.driver.CommitAtaDisk(4096, 4, 16, 63, crc ^ 1, kComputerDeadline).code ==
-		mister::ErrorCode::corrupt_data);
+	// A wrong CRC ends the poll with the unit loading. It is input, not
+	// identity: the staged file can be right while the window is wrong.
+	const mister::Error crc_error = f.driver.CommitAtaDisk(4096, 4, 16, 63, crc ^ 1, kComputerDeadline);
+	assert(crc_error.code == mister::ErrorCode::corrupt_data && crc_error.phase == "input");
 	assert(f.endpoint.disk_state == 2 && f.endpoint.disk_error);
 	assert(f.driver.AtaDiskControl(FesComputerDiskControlPrepare, kComputerDeadline).ok());
 	f.endpoint.after_disk_commit = [&] {

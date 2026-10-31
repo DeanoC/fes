@@ -28,11 +28,11 @@ func TestROMLaunchClientUploadLimits(t *testing.T) {
 				case "development":
 					_, _ = client.LoadCore(context.Background(), size, body)
 				case "library":
-					_, _ = client.LoadLibraryCore(context.Background(), size, body, id, "")
+					_, _ = client.LoadLibraryCore(context.Background(), size, body, id)
 				case "inspect":
 					_, _ = client.InspectCore(context.Background(), size, body)
 				case "data":
-					_, _ = client.InspectCoreData(context.Background(), size, body, id, "")
+					_, _ = client.InspectCoreData(context.Background(), size, body, id)
 				case "settings":
 					_, _ = client.UpdateCoreSettings(context.Background(), size, body, protocol.CoreSettingsUpdate{ExpectedPackageID: id, ExpectedRevision: "absent"})
 				}
@@ -74,7 +74,7 @@ func TestROMWithExpansionUsesOrdinaryLibraryLoad(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = contentClientWithTransport(&staticResponseTransport{body: string(data)}).LoadLibraryCore(context.Background(), 1, strings.NewReader("x"), status.CorePackage.PackageID, "")
+			_, err = contentClientWithTransport(&staticResponseTransport{body: string(data)}).LoadLibraryCore(context.Background(), 1, strings.NewReader("x"), status.CorePackage.PackageID)
 			if (err == nil) != (kind == "valid") {
 				t.Fatalf("kind=%s err=%v", kind, err)
 			}

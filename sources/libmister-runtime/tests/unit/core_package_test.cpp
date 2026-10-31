@@ -1053,6 +1053,9 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 			[&](const Interface& interface) { return interface.id == id; }), incomplete.interfaces.end());
 		assert(check(incomplete).code == mister::ErrorCode::unsupported_interface);
 	}
+	auto duplicate_layout = persistent;
+	duplicate_layout.interfaces.push_back({"fes.pc386.machine", 1, 0, true});
+	assert(check(duplicate_layout).code == mister::ErrorCode::unsupported_interface);
 	auto system = descriptor;
 	system.core.system = "apple2";
 	assert(check(system).code == mister::ErrorCode::unsupported_abi);

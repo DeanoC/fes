@@ -103,13 +103,13 @@ func partPaths(s corepackage.Staged) []PartPath {
 }
 
 func (r *Runtime) LoadPartsCoreOwned(admission, observation, owner context.Context, size int64, body io.Reader) (CoreActivation, bool, *protocol.APIError) {
-	return r.loadCoreOwnedMode(admission, observation, owner, size, body, "", true, "", nil, true)
+	return r.loadCoreOwnedMode(admission, observation, owner, size, body, "", true, true)
 }
 func (r *Runtime) LoadLibraryPartsCoreOwned(admission, observation, owner context.Context, size int64, body io.Reader, id string) (CoreActivation, bool, *protocol.APIError) {
 	if !protocol2Hex64.MatchString(id) {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "invalid package identity", Phase: "admission"}
 	}
-	return r.loadCoreOwnedMode(admission, observation, owner, size, body, id, true, "", nil, true)
+	return r.loadCoreOwnedMode(admission, observation, owner, size, body, id, true, true)
 }
 
 func (r *Runtime) InspectPartsCore(ctx context.Context, size int64, body io.Reader) (result protocol.PartsInspection, apiErr *protocol.APIError) {

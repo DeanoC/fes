@@ -81,13 +81,7 @@ const (
 	// ComputerMediaTransport names the fes.computer media-unit delivery.
 	ComputerMediaTransport = "fes-computer-media-unit-v1"
 	// MediaUnitHeader carries the addressed unit on target media requests.
-	MediaUnitHeader        = "X-FogCast-Media-Unit"
-	CorePackageSizeHeader  = "X-FogCast-Core-Package-Size"
-	AtaDiskSizeHeader      = "X-FogCast-ATA-Disk-Size"
-	AtaDiskBaseIDHeader    = "X-FogCast-ATA-Disk-Base-ID"
-	AtaDiskCylindersHeader = "X-FogCast-ATA-Disk-Cylinders"
-	AtaDiskHeadsHeader     = "X-FogCast-ATA-Disk-Heads"
-	AtaDiskSectorsHeader   = "X-FogCast-ATA-Disk-Sectors-Per-Track"
+	MediaUnitHeader = "X-FogCast-Media-Unit"
 )
 
 // MediaUnitStates are the runtime's reported unit states.
@@ -253,41 +247,6 @@ func ComputerAtaDiskABI(id string, major, minor int64) bool {
 	return ComputerMediaABI(id, major, minor) && minor >= 1
 }
 
-// AtaDiskSelection describes the immutable base image bound to a pc386
-// library entry. The target derives its staging path and persistence root.
-type AtaDiskSelection struct {
-	BaseMediaID     string `json:"base_media_id"`
-	Size            uint32 `json:"size"`
-	Cylinders       uint16 `json:"cylinders"`
-	Heads           uint16 `json:"heads"`
-	SectorsPerTrack uint16 `json:"sectors_per_track"`
-}
-
-func (d AtaDiskSelection) Valid() bool {
-	return ValidateDigest(d.BaseMediaID) == nil && int64(d.Size) >= AtaDiskMinBytes &&
-		int64(d.Size) <= AtaDiskMaxBytes && d.Size%generated.FesComputerAtaDiskSectorBytes == 0 &&
-		d.Cylinders > 0 && d.Cylinders <= uint16(generated.FesComputerAtaDiskMaxCylinders) &&
-		d.Heads > 0 && d.Heads <= uint16(generated.FesComputerAtaDiskMaxHeads) &&
-		d.SectorsPerTrack > 0 && d.SectorsPerTrack <= uint16(generated.FesComputerAtaDiskMaxSectorsPerTrack) &&
-		uint64(d.Cylinders)*uint64(d.Heads)*uint64(d.SectorsPerTrack) <=
-			uint64(d.Size)/uint64(generated.FesComputerAtaDiskSectorBytes)
-}
-
-// AtaDiskGeometry chooses a conventional 16-head, 63-sector geometry that
-// fits an admitted raw image without claiming sectors beyond its size.
-func AtaDiskGeometry(size int64) (cylinders, heads, sectors uint16, ok bool) {
-	if size < AtaDiskMinBytes || size > AtaDiskMaxBytes || size%int64(generated.FesComputerAtaDiskSectorBytes) != 0 {
-		return 0, 0, 0, false
-	}
-	const h, s = uint64(16), uint64(63)
-	totalSectors := uint64(size) / uint64(generated.FesComputerAtaDiskSectorBytes)
-	c := totalSectors / (h * s)
-	if c == 0 || c > uint64(generated.FesComputerAtaDiskMaxCylinders) {
-		return 0, 0, 0, false
-	}
-	return uint16(c), uint16(h), uint16(s), true
-}
-
 func activeComputerMedia(p *CorePackageStatus) bool {
 	return p != nil && ComputerMediaABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor))
 }
@@ -429,19 +388,18 @@ func MediaUnit(p *CorePackageStatus, unit uint8) (MediaUnitStatus, bool) {
 }
 
 // declaredComputerMedia projects known media interfaces of a supported
-// fes.computer descriptor. The shared ZX81 tape unit has machine-specific
-// source images: ZX80 packages use raw .o images, while the ZX81 and Timex
-// packages use .p images.
+// fes.computer 1.0 or 1.1 descriptor. The shared ZX81 tape unit has
+// machine-specific source images: ZX80 packages use raw .o images, while the
+// ZX81 and Timex packages use .p images.
 func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapability {
 	result := make([]CoreMediaCapability, 0)
-	if !ComputerMediaABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
+	if !ComputerABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
 		return result
 	}
 	floppy := Apple2FloppyInterface()
 	tape := SpectrumTapeInterface()
 	disk := C64DiskInterface()
 	stFloppy := AtariStFloppyInterface()
-	ataDisk := AtaDiskInterface()
 	for _, contract := range descriptor.Interfaces {
 		switch {
 		case contract.ID == floppy.ID && contract.Major == int64(floppy.Major) && contract.Minor == int64(floppy.Minor):
@@ -463,12 +421,6 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 			result = append(result, CoreMediaCapability{Role: DiskRole, Format: "atari-st-floppy",
 				MinBytes: minBytes, MaxBytes: maxBytes, Interface: stFloppy,
 				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".st"}})
-		case contract.ID == ataDisk.ID && contract.Major == int64(ataDisk.Major) && contract.Minor == int64(ataDisk.Minor) &&
-			ComputerAtaDiskABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor):
-			unit := AtaDiskUnit
-			result = append(result, CoreMediaCapability{Role: DiskRole, Format: "raw-ata-disk",
-				MinBytes: AtaDiskMinBytes, MaxBytes: AtaDiskMaxBytes, Interface: ataDisk,
-				Transport: "fes-computer-ata-disk-v1", Unit: &unit})
 		}
 		if contract.ID == tape.ID && contract.Major == int64(tape.Major) && contract.Minor == int64(tape.Minor) {
 			// The library holds tape images, and snapshots where the package
