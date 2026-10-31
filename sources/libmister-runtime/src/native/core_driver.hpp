@@ -4,6 +4,7 @@
 #pragma once
 
 #include "libmister-runtime/runtime.h"
+#include "native/platform.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -18,7 +19,7 @@ class Mmio;
 enum class ProgrammingProfile {
 	fes_gp_v1,
 	development_contained_v1,
-	// Internal transport only; not admitted by the package profile registry.
+	// Selected by the DE25-only shared programming-profile row.
 	de25_hps_first_v1,
 };
 
@@ -100,11 +101,14 @@ public:
 class CoreDriverRegistry {
 public:
 	CoreDriverRegistry(CoreDriver* fes_gp,
-		CoreDriver& contained);
+		CoreDriver& contained, CoreDriver* de25 = nullptr,
+		NativePlatform platform = NativePlatform::de10_nano);
 	Error Resolve(const CoreDescriptor&, ProgrammingProfile*, CoreDriver**) const;
 	CoreDriver* Resolve(ProgrammingProfile) const;
 
 private:
+	NativePlatform platform_;
+	CoreDriver* de25_;
 	CoreDriver* fes_gp_;
 	CoreDriver& contained_;
 };

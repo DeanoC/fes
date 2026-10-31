@@ -249,3 +249,38 @@ func TestGenerateDisplayPlaneFabricConstants(t *testing.T) {
 		t.Fatal("fabric accepted a duplicate constant")
 	}
 }
+
+func TestRealProgrammingRegistriesCoexist(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"de10_nano", "de25_nano"} {
+		profiles, err := pack.LoadProgrammingProfiles("../../packages/programming/" + name + ".yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		generated, err := GenerateProgrammingProfiles(profiles)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name+".hpp"), []byte(generated), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	source := `#include "de10_nano.hpp"
+#include "de25_nano.hpp"
+using namespace mister::native::generated;
+static_assert(kDe10NanoProgrammingProfilePairCount == 5, "DE10 rows unchanged");
+static_assert(kDe25NanoProgrammingProfilePairCount == 1, "DE25 computer row");
+static_assert(kDe25NanoProgrammingProfilePairs[0].major == 1, "ABI major");
+static_assert(!kDe25NanoProgrammingProfilePairs[0].diagnostic_only, "described core pair");
+`
+	if err := os.WriteFile(filepath.Join(dir, "test.cpp"), []byte(source), 0600); err != nil {
+		t.Fatal(err)
+	}
+	compiler := os.Getenv("CXX")
+	if compiler == "" {
+		compiler = "c++"
+	}
+	if out, err := exec.Command(compiler, "-std=c++14", "-pedantic-errors", "-fsyntax-only", filepath.Join(dir, "test.cpp")).CombinedOutput(); err != nil {
+		t.Fatalf("real board registries: %v\n%s", err, out)
+	}
+}

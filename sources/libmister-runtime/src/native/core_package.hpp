@@ -4,6 +4,7 @@
 #pragma once
 
 #include "native/artifacts.hpp"
+#include "native/platform.hpp"
 #include "native/generated/fes_computer.hpp"
 
 #include <cstdint>
@@ -53,7 +54,8 @@ Error OpenCorePackage(const std::vector<std::string>& trusted_roots,
 // Hash a retained regular artifact after checking its current size.
 Error HashOpenedArtifact(const Artifact&, std::string* digest);
 Error RecheckCorePackage(const OpenedCorePackage& package);
-Error CheckCoreCompatibility(const CoreDescriptor& descriptor);
+Error CheckCoreCompatibility(const CoreDescriptor& descriptor,
+	NativePlatform platform = NativePlatform::de10_nano);
 // Whether a fes.computer interface declaration is at the version this runtime
 // implements: 1.0, except fes.media.spectrum-tape, whose PZX deck is 2.0.
 inline bool ComputerInterfaceCurrent(const CoreInterface& interface)

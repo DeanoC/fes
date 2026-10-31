@@ -408,7 +408,7 @@ contains `fes-gp-v1` paired with `fes.simple-game`, `fes.simple-computer`,
 `development-contained-v1` is explicitly diagnostic-only and has no ABI
 fallback. MiSTer ABI packages are not activatable.
 
-`emit-cpp` represents every row as `GeneratedProgrammingProfilePair` with
+`emit-cpp` represents every row as `Generated<Platform>ProgrammingProfilePair` with
 `profile`, `abi`, `major`, and `diagnostic_only`; a diagnostic row uses
 `nullptr`, zero, and `true`. `emit-go` emits the equivalent
 `ProgrammingProfilePair`. Runtime consumers combine a matching profile/ABI
@@ -480,3 +480,8 @@ manifest schema or ABI-major change is needed. Fixed geometry, bounded slot
 selection, coherent counters and drain/sequence semantics are defined in
 [application I/O](application-io.md#menu-display-10). The golden menu fixture
 is copied into RTL and runtime consumers by FES generation.
+
+DE25 `packages/programming/de25_nano.yaml` pairs `de25-hps-first-v1` with
+`fes.computer` major1 on `A5EB013BB23BE4SCS`. The runtime explicitly selects
+the platform and restricts the current BRAM contract further. A profile row
+does not construct hardware or admit a DMA-capable profile.

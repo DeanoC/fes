@@ -194,11 +194,11 @@ $(BUILD_DIR)/tests/unit/artifacts_test: tests/unit/artifacts_test.cpp \
 		src/native/artifacts.cpp src/native/diagnostic.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/core_package_test: tests/unit/core_package_test.cpp \
-		src/native/core_package.cpp src/native/sha256.cpp src/native/artifacts.cpp \
+		src/native/core_package.cpp src/native/core_driver.cpp src/native/sha256.cpp src/native/artifacts.cpp \
 		src/native/diagnostic.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/core_package_test.cpp \
-		src/native/core_package.cpp src/native/sha256.cpp \
+		src/native/core_package.cpp src/native/core_driver.cpp src/native/sha256.cpp \
 		src/native/artifacts.cpp src/native/diagnostic.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/core_composition_test: tests/unit/core_composition_test.cpp src/native/core_composition.cpp src/native/sha256.cpp src/native/artifacts.cpp src/native/diagnostic.cpp

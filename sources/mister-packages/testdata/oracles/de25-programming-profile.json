@@ -1,0 +1,17 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "runtime_base_commit": "cb12a6b3100065e81b7c76867418ea628261e93a",
+    "file": "sources/libmister-runtime/src/native/generated/de25_nano_programming.hpp",
+    "header_sha256": "0be656a6368205526034276fca50e0809f62158ca04954a5db7124fe9ca86d79",
+    "note": "New consumer is regenerated in the same FES change as this record; the base commit identifies the preceding runtime, not a hardware acceptance claim."
+  },
+  "platform": "de25_nano",
+  "device": "A5EB013BB23BE4SCS",
+  "profile": "de25-hps-first-v1",
+  "abi": {
+    "id": "fes.computer",
+    "major": 1
+  },
+  "production_factory_enabled": false
+}

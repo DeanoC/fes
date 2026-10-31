@@ -28,8 +28,8 @@ FPGA programming, MMIO, DDR, input or display support.
 ## DE25 kernel programmer
 
 `LinuxDe25FpgaManager` implements `FpgaManager` for the internal
-`de25_hps_first_v1` enum. The package profile registry does not approve it and
-the production factory remains closed. Cyclone V refuses that enum before its
+`de25_hps_first_v1` enum. The shared registry declares a DE25-only computer pair; the default DE10
+platform and production factory remain closed to it. Cyclone V refuses that enum before its
 first register/boot-layout access; the DE25 adapter refuses Cyclone V profiles.
 This supplies the programming transport for the existing lifecycle, not another
 runtime, daemon, profile table or network API.
@@ -87,8 +87,12 @@ retains its existing unit transfer/recovery behavior through overrides.
 
 The DE25 driver now has separate de25_core_driver source/header files, leaving
 the pure protocol consumer independently linkable by RTL proofs and maintenance
-CLI. The production archive requires the driver object. The registry/profile
-table and production factory remain closed. Scripted-register and selected-driver
+CLI. The production archive requires the driver object. The metadata checker and driver registry require explicit `NativePlatform::de25_nano`
+selection and the generated DE25 profile/device row. The default stays DE10;
+foreign profiles, including contained development, do not resolve on DE25.
+One contract validator is shared by preflight and live Identify; it requires
+format2, ABI1.0, selected nonzero128-bit build, and exactly the required
+video/HID/tape interfaces. Production construction/startup remains closed. Scripted-register and selected-driver
 regressions are software evidence; this driver has not run on the board.
 
 ## DE25 PR-control diagnostic

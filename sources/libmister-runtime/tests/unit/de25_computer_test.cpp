@@ -292,7 +292,7 @@ void TestAcknowledgedCommitMustBecomeReady() {
 	assert(!f.client.LoadTape({1}, 1000000).ok() && f.client.Poisoned());
 }
 CoreDescriptor DriverDescriptor() {
-	CoreDescriptor descriptor;
+	CoreDescriptor descriptor; descriptor.format = 2;
 	descriptor.core.id = "zx81"; descriptor.build.id = kBuild;
 	descriptor.abi = {FesComputerABIID, 1, 0};
 	for (const char* id : {FesComputerInterfaceVideoFixed720p60ID,

@@ -10,7 +10,8 @@ fixtures. Go emitters generate C, C++14, Go and Verilog consumers. FES runs
 
 Standalone board definitions support `validate` and `report`, independently of
 SoC and CPU definitions. DE25-Nano starts with descriptive FPGA bring-up pins;
-it has no platform, programming profile or runtime admission yet. Board metadata
+the DE25 HPS-first programming registry now declares the BRAM computer pair,
+while production runtime admission remains closed. Board metadata
 does not emit Quartus constraints. For example, from this module:
 
 ```sh
@@ -68,6 +69,14 @@ The programming registry contains `fes-gp-v1` for `fes.simple-game`,
 MiSTer programming/ABI pair are retired. Format-2 structural fixtures may
 still describe arbitrary ABIs; syntax validity does not confer activation
 support. Historical oracle records remain provenance.
+
+The DE25 registry declares only `de25-hps-first-v1` with `fes.computer` major1
+for the SCS part selected by the board definition. Runtime preflight requires
+an explicit DE25 platform choice and the exact BRAM ABI1.0/video/HID/tape/build
+contract. Metadata never selects a hardware backend. This declaration does not
+construct the production factory, release DMA or provide normal-kit acceptance.
+C++ profile row types include their platform prefix so actual board registries
+can be included together without duplicate type definitions.
 
 The runtime owns physical programming and compatibility admission; FogCast
 owns library/session context; misteross owns source builds and RBF provenance.

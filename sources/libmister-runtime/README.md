@@ -17,10 +17,12 @@ it advertises no programming capabilities. An AArch64 compile or QEMU software
 test does not add DE25 hardware support.
 
 The internal `LinuxDe25FpgaManager` uses the existing retained-Artifact and
-programming-result interfaces for kernel configfs/SDM programming. Its internal
-`de25_hps_first_v1` enum is not admitted by the package profile table and is not
-constructed by the production factory. It retains the caller's existing
-maintenance lease, binds the actual running kernel notes to the matched-image
+programming-result interfaces for kernel configfs/SDM programming. Its
+`de25_hps_first_v1` enum maps to the DE25-only shared `de25-hps-first-v1` row.
+The default platform and production factory still reject DE25. An explicit
+DE25 metadata/driver-registry selection permits only the exact BRAM computer
+contract; it does not construct the physical lifecycle. It retains the caller's
+existing maintenance lease, binds the actual running kernel notes to the matched-image
 receipt, stages firmware exclusively, and checks completion after closing the
 configfs binary attribute. No Cyclone V register or DDR-release recipe is used.
 Unsuccessful, partial or late programming poisons that context and preserves
@@ -36,8 +38,8 @@ exact BRAM computer ABI/interface/build contract, keeps launch media held until
 Start, replaces live tape without reset, and never clears a poisoned transport
 at a session boundary. NativeHardware dispatches HID and basic tape operations
 through its selected CoreDriver rather than a DE10 concrete-class cast. This
-new driver has software coverage only; it is not registered or constructed by
-the production factory and has no new physical acceptance claim. Unit-media limits/state are observed during identity, insert/eject use retained
+new driver has software coverage only; its DE25 registry binding requires
+explicit platform selection and is not constructed by the production factory and has no new physical acceptance claim. Unit-media limits/state are observed during identity, insert/eject use retained
 snapshots through the selected driver, and uncertain transfer preserves an
 unready state without cleanup commands. The known BRAM image advertises no
 tape-write capability, so this driver reports saveable=false. Package admission,

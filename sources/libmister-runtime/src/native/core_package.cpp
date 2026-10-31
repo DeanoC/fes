@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "native/core_package.hpp"
+#include "native/de25_core_contract.hpp"
+#include "native/generated/de25_nano_programming.hpp"
 
 #include "native/generated/de10_nano_programming.hpp"
 #include "native/generated/fes_gp.hpp"
@@ -796,39 +798,37 @@ Error HashOpenedArtifact(const Artifact& artifact, std::string* digest)
 	return {};
 }
 
-Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
+Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform platform)
 {
 	using namespace generated;
-	if (descriptor.target.platform != kDe10NanoProgrammingPlatform)
+	if (platform != NativePlatform::de10_nano && platform != NativePlatform::de25_nano)
+		return CompatibilityError(ErrorCode::unsupported_target, "unknown selected runtime platform");
+	const bool de25 = platform == NativePlatform::de25_nano;
+	const char* expected_platform = de25 ? kDe25NanoProgrammingPlatform : kDe10NanoProgrammingPlatform;
+	const char* expected_device = de25 ? kDe25NanoProgrammingDevice : kDe10NanoProgrammingDevice;
+	if (descriptor.target.platform != expected_platform)
 		return CompatibilityError(ErrorCode::unsupported_target,
-			"unsupported target platform", kDe10NanoProgrammingPlatform,
-			descriptor.target.platform);
-	if (descriptor.target.device != kDe10NanoProgrammingDevice)
+			"unsupported target platform", expected_platform, descriptor.target.platform);
+	if (descriptor.target.device != expected_device)
 		return CompatibilityError(ErrorCode::unsupported_target,
-			"unsupported target device", kDe10NanoProgrammingDevice,
-			descriptor.target.device);
-	bool known_profile = false;
-	bool activatable_profile = false;
-	bool paired = false;
-	for (std::size_t index = 0; index < kDe10NanoProgrammingProfilePairCount; ++index) {
-		const GeneratedProgrammingProfilePair& row = kDe10NanoProgrammingProfilePairs[index];
-		if (descriptor.target.programming_profile == row.profile) known_profile = true;
-		if (!row.diagnostic_only &&
-			descriptor.target.programming_profile == row.profile)
-			activatable_profile = true;
-		if (!row.diagnostic_only && descriptor.target.programming_profile == row.profile &&
-			row.abi != nullptr && descriptor.abi.id == row.abi &&
-			descriptor.abi.major == row.major) {
-			paired = true;
-			break;
+			"unsupported target device", expected_device, descriptor.target.device);
+	auto check_pair = [&](const auto& rows) -> Error {
+		bool activatable = false, paired = false;
+		for (const auto& row : rows) {
+			if (descriptor.target.programming_profile != row.profile || row.diagnostic_only) continue;
+			activatable = true;
+			if (row.abi && descriptor.abi.id == row.abi && descriptor.abi.major == row.major)
+				paired = true;
 		}
-	}
-	if (!known_profile || !activatable_profile)
-		return CompatibilityError(ErrorCode::unsupported_programming_profile,
-			"unsupported programming profile", "registered profile",
-			descriptor.target.programming_profile);
-	if (!paired) return CompatibilityError(ErrorCode::unsupported_abi,
-		"unsupported profile and ABI pairing");
+		if (!activatable) return CompatibilityError(ErrorCode::unsupported_programming_profile,
+			"unsupported programming profile", "registered profile", descriptor.target.programming_profile);
+		return paired ? Error{} : CompatibilityError(ErrorCode::unsupported_abi,
+			"unsupported profile and ABI pairing");
+	};
+	Error pairing = de25 ? check_pair(kDe25NanoProgrammingProfilePairs) :
+		check_pair(kDe10NanoProgrammingProfilePairs);
+	if (!pairing.ok()) return pairing;
+	if (de25) return CheckDe25ComputerContract(descriptor);
 	unsigned video_socket_count = 0;
 	bool native_pixels_socket = false;
 	for (const auto& interface : descriptor.interfaces) {

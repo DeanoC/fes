@@ -1,6 +1,7 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "native/de25_core_driver.hpp"
+#include "native/de25_core_contract.hpp"
 #include "native/artifacts.hpp"
 #include "native/generated/fes_computer.hpp"
 #include "native/generated/fes_de25_computer.hpp"
@@ -30,20 +31,10 @@ CoreDriverResult De25ComputerCoreDriver::Identify(const CoreDriverContext& conte
 {
 	BeginSession();
 	const auto* descriptor = context.descriptor;
-	if (!descriptor || descriptor->core.id.empty() ||
-		context.expected_core != descriptor->core.id ||
-		descriptor->abi.id != FesComputerABIID || descriptor->abi.major != 1 ||
-		descriptor->abi.minor != 0 || descriptor->interfaces.size() != 3)
-		return {{ErrorCode::unsupported_abi, "DE25 driver requires the exact BRAM computer contract", "identity"}, false, ""};
-	unsigned seen = 0;
-	for (const auto& interface : descriptor->interfaces) {
-		unsigned bit = interface.id == FesComputerInterfaceVideoFixed720p60ID ? 1 :
-			interface.id == FesComputerInterfaceKeyboardHidID ? 2 :
-			interface.id == FesComputerInterfaceMediaZx81TapeID ? 4 : 0;
-		if (!bit || (seen & bit) || !interface.required || interface.major != 1 || interface.minor != 0)
-			return {{ErrorCode::unsupported_interface, "DE25 descriptor declares an unsupported interface", "identity"}, false, ""};
-		seen |= bit;
-	}
+	if (!descriptor || context.expected_core != descriptor->core.id)
+		return {{ErrorCode::core_mismatch, "DE25 selected core context differs", "identity"}, false, ""};
+	Error contract = CheckDe25ComputerContract(*descriptor);
+	if (!contract.ok()) { contract.phase = "identity"; return {contract, false, ""}; }
 	De25ComputerIdentity identity; De25TapeInfo tape;
 	Error error = client_.Identify(descriptor->build.id, deadline, &identity, &tape);
 	if (!error.ok()) return {error, false, ""};

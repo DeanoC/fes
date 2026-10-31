@@ -1,0 +1,16 @@
+schema: mister-packages.v1
+kind: programming_profiles
+id: de25_nano
+description: >-
+  DE25 HPS-first kernel programming profile for the BRAM fes.computer core.
+  Runtime owns the matched boot/kernel receipt, retained configuration, exact
+  core contract, lease and lifecycle. Declaring this pair does not enable the
+  production factory or qualify DMA, timing or failure recovery.
+platform: de25_nano
+device: A5EB013BB23BE4SCS
+profiles:
+  - id: de25-hps-first-v1
+    diagnostic_only: false
+    abis:
+      - id: fes.computer
+        major: 1
