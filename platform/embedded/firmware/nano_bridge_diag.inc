@@ -32,4 +32,3 @@ void fes_nano_bridge_diag_read(uint64_t result[3])
 		result[i] = fes_nano_bridge_diag_words[i];
 	}
 }
-
