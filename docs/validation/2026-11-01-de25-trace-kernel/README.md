@@ -76,3 +76,24 @@ Still required: physical SID/SMMU/firewall/DDR and full-frame acceptance; manage
 idle/MENU, the single production factory and normal agent/catalog lifecycle;
 safe restart/adoption, tape SAVE, failure/reset/whole-load bounds and timing
 #1284. These positive Linux and mapping checks do not meet those gates.
+
+
+## Off-board replay at the observed high IOVA
+
+A test-only change at `678d9b2d6` replays the full three-frame/both-slot scenario
+with the observed base `0xff800000`, an 8 MiB grant ending exactly at the 32-bit
+address-space limit. The actual generated interconnect from FPGA producer
+`d4c6544e3` is reused read-only. All generated-source/QIP, generation and input
+hashes match the previous eight-case proof. The wrapper's top-level named-port
+declaration order changes through set iteration; the inspected diff changes no
+wiring or logic, but its byte hash is different and is retained accurately.
+
+The [actual generated-transport run](high-iova-transport-receipt.json) passes
+all nine cases in [38.73 seconds](high-iova-transport-job.json), including
+`linux_iova_last_8mib`. That case exercises 72,006 AXI bursts and complete-frame
+slot reuse without wrap, address truncation, response loss or underflow in the
+model. The model still supplies M20K storage and HPS responses; it cannot prove
+physical TBU/SMMU/firewall/DDR behavior. There is no hardware repair or new FPGA
+image here, and this result does not authorize another frame on the failed RBF.
+All 17 scanout builder checks, 16 live source-closure recipe checks, 38 generated
+consumers/41 fixture copies and documentation/whitespace checks pass.
