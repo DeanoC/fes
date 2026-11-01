@@ -8,7 +8,9 @@
 // BUILD_ID is overridden from the canonical build-input record.
 module top #(
     parameter [127:0] BUILD_ID = `FES_ZX81_BUILD_ID,
-    parameter EXPANSION_SOCKET = 0
+    parameter EXPANSION_SOCKET = 0,
+    // Quartus oracle only: the user-supplied machine ROM MIF.
+    parameter FIRMWARE_INIT = ""
 ) (
     input  wire        FPGA_CLK1_50,
     output wire        HDMI_TX_CLK,
@@ -199,7 +201,7 @@ module top #(
         assign plug_addr = 46'b0;
         assign plug_rdata = 20'b0;
     end endgenerate
-    zx81_machine #(.EXTERNAL_RAM(EXPANSION_SOCKET)) machine (
+    zx81_machine #(.EXTERNAL_RAM(EXPANSION_SOCKET), .FIRMWARE_INIT(FIRMWARE_INIT)) machine (
         .clk_sys(clk_sys),
         .reset(exec_reset),
         .keyboard(keyboard),

@@ -37,7 +37,7 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             result.stdout.strip(),
-            f'python3 scripts/build_fes_zx81.py --root "{ROOT}"',
+            f'python3 scripts/build_fes_zx81.py --root "{ROOT}" --rom ""',
         )
 
     def test_project_pins_nmos_z80_dual_pll_and_hdmi_i2c_site(self) -> None:
@@ -56,7 +56,9 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn("fes_audio_i2s.v", qsf)
         self.assertIn("fes_computer_gp.v", qsf)
         self.assertIn('VERILOG_MACRO "QUARTUS=1"', qsf)
-        self.assertIn(build_fes_zx81.ROM_MIF, build_fes_zx81.PINNED_INPUTS)
+        self.assertIn('set_parameter -name FIRMWARE_INIT "zx81.mif"', qsf)
+        self.assertIn("scripts/zx81_rom.py", build_fes_zx81.PINNED_INPUTS)
+        self.assertFalse(any("zx8x" in path for path in build_fes_zx81.PINNED_INPUTS))
         self.assertNotIn("tv80", qsf)
         self.assertNotIn("t80pa.v", qsf)
         self.assertIn("128'h00112233445566778899aabbccddeeff", qsf)
@@ -94,6 +96,15 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn('"audio_clock_hz":12288000', text)
         self.assertIn("scripts/build_fes_zx81.py", text)
         self.assertIn("fes_simple_computer.vh", text)
+
+    def test_rom_is_user_supplied(self) -> None:
+        with self.assertRaisesRegex(BuildError, "FES_ZX81_ROM"):
+            build_fes_zx81.build(ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            wrong = Path(temporary) / "zx81.rom"
+            wrong.write_bytes(bytes(8192))
+            with self.assertRaisesRegex(ValueError, "edition 3"):
+                build_fes_zx81.build(ROOT, rom=wrong)
 
     def test_missing_quartus_is_a_supported_failure(self) -> None:
         env = os.environ.copy()
