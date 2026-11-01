@@ -1,0 +1,11 @@
+{
+  "appliance_tree": "f7c16542236c4690875ea5b28ad74eb26b376d3683da626c71aa739580c06a30",
+  "canonical_menu_inputs_verified": 374,
+  "compiler_source_sha256_verified": 59,
+  "hardware_access": false,
+  "platform_tree": "59725c83306fe535ee0b408361d0e8f9752b9fb13650c26cbd9555dc2b36751e",
+  "source_restored": true,
+  "source_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0",
+  "test_runtime_source_sha256_verified": 58,
+  "tree": "d5c26607a2a915399d8071a8c37aca6341615f34"
+}

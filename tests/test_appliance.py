@@ -292,6 +292,30 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(evidence['binary_source_revision'],platform_build['fogcast_revision'])
         self.assertEqual(evidence['platform_build']['fogcast_revision'],platform_build['fogcast_revision'])
 
+    def test_de25_bootstrap_requires_matched_board_elf_and_build_environment(self):
+        factory = self.root / 'de25-factory.json'
+        factory.write_bytes(appliance.canonical(appliance.release_manifest(
+            self.rootfs, version='v1', provenance=provenance(self.rootfs, self.kernel), board='de25-nano')))
+        binary = self.root / 'fes-boot'; binary.write_bytes(aarch64_elf())
+        class NeverRun:
+            def disk(self, command):
+                raise AssertionError('invalid bootstrap reached construction')
+        with self.assertRaises(ValueError):
+            appliance.assemble_bootstrap(self.root / 'wrong-default', binary, factory, self.kernel, runner=NeverRun())
+        binary.write_bytes(arm_elf())
+        with self.assertRaises(ValueError):
+            appliance_inside.assemble(self.root / 'wrong-elf', binary, factory, board='de25-nano')
+        binary.write_bytes(aarch64_elf())
+        wrong = fes_platform.platform_build_record('1'*64,'2'*64,'3'*40,'go1.26.5','4'*64)
+        with self.assertRaisesRegex(ValueError, 'environment'):
+            appliance.assemble_bootstrap(self.root / 'wrong-env', binary, factory, self.kernel,
+                                        runner=NeverRun(), board='de25-nano', platform_build=wrong)
+        for name in ('wrong-default', 'wrong-elf', 'wrong-env'):
+            self.assertFalse((self.root / name).exists())
+        with self.assertRaisesRegex(ValueError, 'selected bootstrap board'):
+            appliance.bootstrap_identity('1'*64, {'board':'de10-nano'}, 'sha256:'+'2'*64,
+                                         '3'*40, {}, board='de25-nano')
+
     def test_reject_existing_unsealed_or_open_ended_bundle(self):
         for mutation in ('directory','file','extra'):
             with self.subTest(mutation=mutation):
@@ -396,6 +420,26 @@ class ContainerTests(unittest.TestCase):
 
 @unittest.skipUnless(INSIDE,'executed in pinned media container')
 class RealBootstrapTests(unittest.TestCase):
+    def test_de25_two_pass_image_contains_selected_board_and_aarch64_init(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); binary = root/'fes-boot'; binary.write_bytes(aarch64_elf())
+            factory = root/'factory.json'
+            manifest = {'format':1,'board':'de25-nano','boot_abi':'fes-bootstrap-v1','version':'v1',
+                        'kernel_sha256':'a'*64,'image_sha256':'b'*64,'image_size':4096,
+                        'fes_revision':'c'*40,'fogcast_revision':'d'*40,'runtime_revision':'e'*40}
+            factory.write_bytes(appliance.canonical(manifest))
+            first = appliance_inside.assemble(root/'first.img', binary, factory, board='de25-nano')
+            second = appliance_inside.assemble(root/'second.img', binary, factory, board='de25-nano')
+            self.assertEqual(first, second)
+            for name, expected in (('/sbin/init', binary.read_bytes()),
+                                   ('/etc/fes-board', b'de25-nano\n'),
+                                   ('/etc/fes/factory.json', appliance.canonical(manifest))):
+                extracted = root/'extracted'
+                extracted.unlink(missing_ok=True)
+                appliance_inside.debugfs(root/'first.img', f'dump {name} {extracted}')
+                self.assertEqual(extracted.read_bytes(), expected)
+            self.assertIn('Mode:  0444', appliance_inside.debugfs(root/'first.img', 'stat /etc/fes-board'))
+
     def test_two_pass_contents_devices_timestamps_and_features(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);binary=root/'fes-boot';binary.write_bytes(arm_elf())

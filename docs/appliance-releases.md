@@ -17,7 +17,7 @@ The deterministic assembly receipts still mark their artifact hardware field
 The [current candidate record](validation/2026-09-08-appliance-release.md) lists
 the exact verified outputs and live acceptance scope.
 
-The CLI defaults and bootstrap below target DE10. Release export and
+The CLI defaults and card workflow below target DE10. Release export and
 storage also support an explicitly selected `de25-nano`: FES
 `export_release(..., board='de25-nano')` and the Go codec/store `ForBoard`
 entry points. Their defaults remain DE10-only, and neither selects a board
@@ -33,6 +33,31 @@ pins its store to its immutable image's `/etc/fes-board` and CPU architecture;
 an upload cannot select that board. Direct-root headless images still provide
 no appliance-update service. The base storage helper's existing build target
 accepts `FES_KIT_DATA_ARCH=aarch64`, retaining ARMv7 as its default.
+
+The FES platform builder also supports
+`build_static_arm(..., architecture='aarch64')`, and the existing bootstrap
+assembler supports `assemble_bootstrap(..., board='de25-nano')`. Both require
+explicit selection: default validation refuses an AArch64 executable or DE25
+factory. Build provenance pins the CPU environment and selected sources. The
+bootstrap writes `/etc/fes-board` into its immutable ext4 root; PID1 checks it
+against the executing CPU before opening board-specific release storage.
+
+Terasic's unchanged boot script supplies a partition-2 ext4 root, unlike DE10's
+kernel-mounted loop root. The DE25 bootstrap admits the exact board/SoC and
+root device, remounts that stable root read-only, then mounts partition 1 at
+`/media/fat` with device, executable and set-ID use disabled. It reuses the
+existing verified release selection and root-switching implementation. The
+prepared kernel has the required loop/ext4/FAT/codepage support built in.
+DE25 trial boots are refused before starting the watchdog guard; Cyclone V
+reset-register preparation remains DE10-only. Native watchdog recovery must
+be qualified before DE25 trial updates can execute.
+
+The [bootstrap record](validation/2026-11-01-de25-appliance-bootstrap/README.md)
+retains native/AArch64 CPU checks and a reproducible bootstrap image whose
+manifest uses the existing headless rootfs as a binding fixture. That fixture
+is not a managed factory or a bootable appliance card. Full DE25 factory/card
+assembly and native boot/update/recovery remain open; the normal Make/CLI card
+workflow below has not switched platforms.
 
 ## Build once from selected inputs
 
