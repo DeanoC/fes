@@ -77,7 +77,7 @@ def configuration():
         'BR2_aarch64=y', 'BR2_cortex_a53=y', 'BR2_REPRODUCIBLE=y',
         'BR2_TOOLCHAIN_EXTERNAL=y', 'BR2_TOOLCHAIN_EXTERNAL_CUSTOM=y',
         'BR2_TOOLCHAIN_EXTERNAL_PREINSTALLED=y',
-        f'BR2_TOOLCHAIN_EXTERNAL_PATH="/build/managed-sdk-{sdk_lock()["sdk_sha256"]}"',
+        f'BR2_TOOLCHAIN_EXTERNAL_PATH="{toolchain_path()}"',
         'BR2_TOOLCHAIN_EXTERNAL_CUSTOM_PREFIX="aarch64-buildroot-linux-gnu"',
         'BR2_TOOLCHAIN_EXTERNAL_GCC_9=y', 'BR2_TOOLCHAIN_EXTERNAL_HEADERS_5_10=y',
         'BR2_TOOLCHAIN_EXTERNAL_CUSTOM_GLIBC=y', 'BR2_TOOLCHAIN_EXTERNAL_CXX=y',
@@ -91,15 +91,21 @@ def configuration():
     return '\n'.join(lines) + '\n'
 
 
+def toolchain_path():
+    # Buildroot exports HOST_DIR as its SDK. Keeping the pinned compiler here
+    # makes its tool links and compiler-wrapper paths relative to that export.
+    return Path('/build') / recipe_key() / 'host/opt' / ('sdk-' + sdk_lock()['sdk_sha256'])
+
+
 def prepare_sdk():
     selected = sdk_lock()
     archive = Path('/cache') / ('aarch64-sdk-' + selected['sdk_sha256'] + '.tar.gz')
     if archive.is_symlink() or image.digest(archive) != selected['sdk_sha256']:
         raise ValueError('managed base SDK differs from owner-kernel source lock')
-    destination = Path('/build') / ('managed-sdk-' + selected['sdk_sha256'])
+    destination = toolchain_path()
     if destination.exists():
         shutil.rmtree(destination)
-    destination.mkdir()
+    destination.mkdir(parents=True)
     image.run(['tar', '-xzf', archive, '--strip-components=1', '-C', destination])
     image.run([destination / 'relocate-sdk.sh'])
 

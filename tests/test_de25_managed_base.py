@@ -2,7 +2,9 @@
 import copy
 import importlib.util
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -27,6 +29,24 @@ class ManagedBaseTests(unittest.TestCase):
         self.assertNotIn('BR2_PACKAGE_FOGCAST_MISTER_RUNTIME=y', configured)
         self.assertIn(BASE.sdk_lock()['sdk_sha256'], '\n'.join(configured))
         self.assertNotIn('armv7', '\n'.join(configured))
+        self.assertTrue(BASE.toolchain_path().is_relative_to(Path('/build') / BASE.recipe_key() / 'host'))
+
+    def test_postbuild_uses_the_pinned_python_when_buildroot_shadows_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            impostor = root / 'python3'
+            impostor.write_text('#!/bin/sh\nexit 97\n')
+            impostor.chmod(0o755)
+            probe = root / 'probe.py'
+            probe.write_text('import tomllib\nprint("PINNED_PYTHON_PASS")\n')
+            wrapper = root / 'post-build.sh'
+            wrapper.write_text((ROOT / 'image/de25-nano/managed-base-post-build.sh').read_text()
+                               .replace('/src/image/de25-nano/managed_base.py', str(probe)))
+            result = subprocess.run(['/bin/sh', wrapper, '/unused-target'],
+                                    env={**os.environ, 'PATH': str(root) + ':' + os.environ['PATH']},
+                                    capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), 'PINNED_PYTHON_PASS')
 
     def test_receipt_rejects_target_builder_input_and_artifact_changes(self):
         with tempfile.TemporaryDirectory() as temporary:
