@@ -342,6 +342,11 @@ load settings. Other explicit configs use their declared state and staging
 paths or writable storage beside the config, subject to the existing
 read-only storage fallbacks.
 
+The user catalog has its own SQLite schema version. Schema 20 adds the
+`core_entries.media_name` value used by host views; it is additive, so
+catalog revisions that do not consume that value can open the database while
+retaining the stored names.
+
 Tenfoot applies the paired kit-lease state to installed-core destinations as
 well as FPGA titles. On a paired kit, a foreign lease displays the shared
 in-use copy and refuses Confirm; unavailable lease status fails closed. Core

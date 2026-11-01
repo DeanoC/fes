@@ -57,6 +57,10 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open(new database): %v", err)
 	}
+	entry, err := store.CreateCoreEntry(ctx, "Pong", "fes.pong", strings.Repeat("a", 64))
+	if err != nil {
+		t.Fatalf("CreateCoreEntry: %v", err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatalf("Close(new database): %v", err)
 	}
@@ -71,7 +75,7 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	const currentSchemaVersion = 19
+	const currentSchemaVersion = 20
 	if version != currentSchemaVersion {
 		t.Fatalf("user_version = %d, want %d", version, currentSchemaVersion)
 	}
@@ -81,6 +85,13 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 	}
 	if !strings.Contains(triggerSQL, "new.search_text IS NOT old.search_text") {
 		t.Fatalf("games_au = %q, want search_text WHEN clause", triggerSQL)
+	}
+	var mediaNameColumn int
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM pragma_table_info('core_entries') WHERE name = 'media_name'").Scan(&mediaNameColumn); err != nil || mediaNameColumn != 1 {
+		t.Fatalf("schema 20 media_name column count = %d, %v", mediaNameColumn, err)
+	}
+	if _, err := db.ExecContext(ctx, "UPDATE core_entries SET media_name = ? WHERE game_id = ?", "track.p", entry.GameID); err != nil {
+		t.Fatalf("seed schema 20 media name: %v", err)
 	}
 	rows, err := db.QueryContext(ctx, "SELECT name FROM sqlite_master WHERE type IN ('table', 'index') AND name IN ('core_entries', 'games', 'libraries', 'games_fts', 'games_system_title_id') ORDER BY name")
 	if err != nil {
@@ -100,6 +111,62 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 	}
 	if want := []string{"core_entries", "games", "games_fts", "games_system_title_id", "libraries"}; !reflect.DeepEqual(names, want) {
 		t.Fatalf("schema objects = %v, want %v", names, want)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close schema 20 database: %v", err)
+	}
+
+	// A promoted host may have already migrated the shared database. Opening
+	// this older catalog revision must retain its additive schema and data.
+	store, err = catalog.Open(path)
+	if err != nil {
+		t.Fatalf("Open(schema 20 database): %v", err)
+	}
+	if got, err := store.CoreEntry(ctx, entry.GameID); err != nil || got.PackageID != entry.PackageID {
+		t.Fatalf("CoreEntry on schema 20 database = %+v, %v", got, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close(schema 20 database): %v", err)
+	}
+	db, err = sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("sql.Open(schema 20 verification): %v", err)
+	}
+	var mediaName string
+	if err := db.QueryRowContext(ctx, "SELECT media_name FROM core_entries WHERE game_id = ?", entry.GameID).Scan(&mediaName); err != nil || mediaName != "track.p" {
+		t.Fatalf("schema 20 media_name = %q, %v", mediaName, err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close schema 20 verification: %v", err)
+	}
+
+	// Recreate a schema 19 database to exercise the forward migration too.
+	db, err = sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("sql.Open(schema 19 fixture): %v", err)
+	}
+	if _, err := db.ExecContext(ctx, "ALTER TABLE core_entries DROP COLUMN media_name; PRAGMA user_version = 19"); err != nil {
+		t.Fatalf("make schema 19 fixture: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close schema 19 fixture: %v", err)
+	}
+	store, err = catalog.Open(path)
+	if err != nil {
+		t.Fatalf("Open(schema 19 database): %v", err)
+	}
+	if got, err := store.CoreEntry(ctx, entry.GameID); err != nil || got.PackageID != entry.PackageID {
+		t.Fatalf("CoreEntry after schema 19 migration = %+v, %v", got, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close(migrated schema 19 database): %v", err)
+	}
+	db, err = sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("sql.Open(migrated database): %v", err)
+	}
+	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != currentSchemaVersion {
+		t.Fatalf("migrated user_version = %d, %v", version, err)
 	}
 
 	if _, err := db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", currentSchemaVersion+1)); err != nil {
