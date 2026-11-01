@@ -93,3 +93,5 @@ expectations are updated; the 11 focused consistency fixtures pass. The final
 SD command uses `-count=1` because its C compiler reads firmware outside Go's
 package cache boundary. Failed/canceled attempts remain retained; none is a
 passing hardware or integration gate.
+
+All 14 selected affected checks are complete on `9910f1325e285c3e9c6508e43c070d54563ad461` across retained runs. The first ordered run passed the first ten stages, then hit the private 900-second outer workflow limit during runtime rebuild tests. That timeout remains recorded as a failed/interrupted orchestration run, not a full workflow pass. The unchanged-head tail reran runtime and completed the four remaining stages with their existing test limits. Its direct results and the ordered-prefix proof are in `affected-checks.json`. The parent runner selected 1202 routine cases and explicitly omitted 82 extended cases under the reviewed consumer policy. Committed generated-consumer consistency also passes. No board operation occurred in this milestone.
