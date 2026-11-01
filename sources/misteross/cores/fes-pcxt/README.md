@@ -330,12 +330,14 @@ that fixture is not a production firmware admission path.
 
 The optional floppy profile uses physical SDRAM byte addresses
 `100000–159FFF` for a read-only 360 KiB image, outside the guest address map.
-Its separate upload port accepts ordered bytes only while reset is asserted;
-the system holds the machine in reset and hides the medium until every byte,
-including the last physical write, has completed. Warm reset retains the
-image; cold reset invalidates it. CPU/DMA and floppy reads share the controller
-with bounded arbitration and refresh. A fixed boot image cannot be replaced
-without cold reset; this is not a runtime mount or eject interface.
+Its separate upload port accepts one ordered image at a time, with or without
+reset. A new media transaction invalidates the current image, lets accepted
+writes drain, and hides the medium until every byte, including the last
+physical write, has completed. After a cold start the guest is held in reset
+until the first complete image, or until the host releases it with the drive
+empty; later eject and replacement do not reset the running guest. Warm reset
+retains the image; cold reset invalidates it. CPU/DMA and floppy reads share the
+controller with bounded arbitration and refresh.
 
 `cold_reset` restarts controller initialization and cancels all responses. It
 must assert during startup; the caller holds the CPU/motherboard reset until
