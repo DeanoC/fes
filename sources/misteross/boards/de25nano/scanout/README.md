@@ -308,3 +308,6 @@ reporting cap. This is a model result for those two chains, not physical or
 whole-board qualification. The canonical build record includes the policy;
 the review binds its raw reports to that record, RBF and compiled database.
 No clocks, toggle rates, constraints or waived findings are changed.
+Quartus `~DUPLICATE` copies of the reviewed ACK1/2/3 and LUT_INDEX0..5
+registers are permitted after stage two. Raw inputs and stage zero still have
+exactly one consumer each; other register names or copy suffixes are refused.

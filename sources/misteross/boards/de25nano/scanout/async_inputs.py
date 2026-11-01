@@ -72,7 +72,9 @@ def review_reports(directory):
         consumers = topology[port, 'stage1-fanout'].split(',')
         require(len(set(consumers)) == len(consumers), port + ' duplicate consumer')
         if port == 'HDMI_I2C_SDA':
-            require(set(consumers) == {f'fes_video_inst|hdmi_config|u0|ACK{i}' for i in (1, 2, 3)},
+            matched = [re.fullmatch(r'fes_video_inst\|hdmi_config\|u0\|ACK([1-3])(?:~DUPLICATE)?', c)
+                       for c in consumers]
+            require(all(matched) and {m[1] for m in matched} == set('123'),
                     port + ' unreviewed controller consumer')
         else:
             matched = [re.fullmatch(r'fes_video_inst\|hdmi_config\|LUT_INDEX\[([0-5])\](?:~DUPLICATE)?', c)

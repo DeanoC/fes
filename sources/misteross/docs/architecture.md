@@ -33,7 +33,8 @@ The approved `de25-menu-reviewed-async-inputs-v1` policy accepts only TMC-20011
 for `HDMI_I2C_SDA` and `HDMI_TX_INT`. Each compilation and independent rebuild
 queries a private copy of the final fitted database: raw input and first-stage
 fanout must follow the reviewed two-register chain, with only its intended
-controller consumers, passing stage setup/hold timing and no internal SDC
+controller consumers (including Quartus copies of ACK1/2/3 and LUT_INDEX0..5
+only after the second stage), passing stage setup/hold timing and no internal SDC
 exception. Both chains must retain 50 MHz, two registers in one tile, included
 MTBF above the tool's one-billion-year cap and the default 6.25 million
 transitions/second assumption. The source record, RBF, compiled database and

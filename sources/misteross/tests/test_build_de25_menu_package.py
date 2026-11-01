@@ -88,9 +88,9 @@ class DE25MenuPackageTests(unittest.TestCase):
                 with self.assertRaises(producer.BuildError):
                     producer.timing_evidence(self.root)
 
-    def async_reports(self, directory):
+    def async_reports(self, directory, name='de25_menu_async_inputs.json.gz'):
         fixture = json.loads(gzip.decompress((Path(__file__).parent /
-            'fixtures/de25_menu_async_inputs.json.gz').read_bytes()))
+            'fixtures' / name).read_bytes()))
         directory.mkdir(parents=True, exist_ok=True)
         for name, text in fixture.items():
             (directory / name).write_text(text)
@@ -189,6 +189,17 @@ class DE25MenuPackageTests(unittest.TestCase):
             except producer.BuildError:
                 continue
             self.assertFalse(evidence['package_timing_admission'])
+
+    def test_actual_fit_with_ack_copies_keeps_only_the_reviewed_logical_consumers(self):
+        directory = self.root.parent / 'reports'
+        fixture = self.async_reports(directory, 'de25_menu_async_inputs_ack_copies.json.gz')
+        proof = producer.async_inputs.review_reports(directory)
+        self.assertIn('fes_video_inst|hdmi_config|u0|ACK1~DUPLICATE', proof['HDMI_I2C_SDA']['consumers'])
+        self.assertIn('fes_video_inst|hdmi_config|u0|ACK3~DUPLICATE', proof['HDMI_I2C_SDA']['consumers'])
+        for bad in ('ACK4~DUPLICATE', 'ACK1~DUPLICATE_OTHER'):
+            (directory / 'inventory.tsv').write_text(fixture['inventory.tsv'].replace('ACK1~DUPLICATE', bad))
+            with self.assertRaises(producer.BuildError):
+                producer.async_inputs.review_reports(directory)
 
     def test_source_artifact_database_and_report_substitution_invalidate_review(self):
         hps = self.prepare_async_fit()
