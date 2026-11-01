@@ -16,5 +16,12 @@
   "hardware_operations": false,
   "physical_sd_acceptance": false,
   "core_load_acceptance": false,
-  "next": "Connect qualified firmware SD resume/stop grants and restore Cadence/ComboPHY preparation, then test native FAT32 on the spare card; serial cold ownership cannot authorize reset release."
+  "next": "Connect qualified firmware SD resume/stop grants and restore Cadence/ComboPHY preparation, then test native FAT32 on the spare card; serial cold ownership cannot authorize reset release.",
+  "tested_commit": "beca44cd26ae245f8e261dc7787e7d341f04bf2b",
+  "parent_checks": {
+    "tests_run": 1239,
+    "skipped": 40,
+    "all_selected_checks_passed": true,
+    "full_log_sha256": "358c27a5fe3bb41f52116061297ff37cfa7c81c9bf1310f3a6e74ecd70d438dc"
+  }
 }

@@ -23,6 +23,11 @@ unqualified synthetic profile. All 1,319 compiler-selected source files matched
 their receipt after the build. This is compilation evidence: the profile is
 not a trusted firmware grant and was not deployed.
 
+Affected checks also passed: 1,239 parent tests with 40 skips, planner/whitespace
+and generated-consumer consistency. The evidence records the exact tested
+commit and full-output digest; the source/build/race evidence remains separate
+from hardware qualification.
+
 No board operation or shared firmware ABI change occurred. Native SD remains
 disabled in the [accepted serial profile](../2026-11-01-de25-native-go-boot/README.md).
 Driver quiescence does not establish all-master reset containment. The next
