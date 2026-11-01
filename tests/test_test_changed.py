@@ -23,6 +23,14 @@ class TestChangedTest(unittest.TestCase):
         for target in ("sim-fes-native-video", "sim-fes-coleco-native", "sim-fes-native-socket"):
             self.assertTrue(any(target in c["argv"] for c in result["commands"]))
 
+    def test_pcxt_changes_run_dos_and_existing_machine(self):
+        self.change("sources/misteross/cores/fes-pcxt/rtl/pcxt_machine.sv")
+        result = self.plan()
+        self.assertEqual(result["impact"]["cores"], ["pcxt"])
+        targets = [c["argv"][1] for c in result["commands"]
+                   if c["lane"] == "fpga" and c["argv"][0] == "make"]
+        self.assertEqual(targets, ["sim-fes-pcxt", "sim-fes-pcxt-fdc", "sim-fes-pcxt-dos"])
+
     def test_atari_st_and_68000_changes_select_machine_and_video_simulation(self):
         self.change("sources/misteross/cores/fes-common/rtl/fx68k/fx68k.sv")
         self.change("sources/misteross/cores/fes-atari-st/rtl/st_machine.sv")

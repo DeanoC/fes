@@ -9,7 +9,24 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/corepackage"
 )
+
+func TestShelfComputerABIAdmission(t *testing.T) {
+	for _, tc := range []struct {
+		abi  corepackage.Contract
+		want bool
+	}{
+		{corepackage.Contract{ID: "fes.computer", Major: 1}, true},
+		{corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 1}, true},
+		{corepackage.Contract{ID: "fes.computer", Major: 1, Minor: 2}, false},
+		{corepackage.Contract{ID: "fes.application", Major: 1, Minor: 1}, false},
+	} {
+		if shelfPlayableABI(tc.abi) != tc.want {
+			t.Fatalf("shelf admission for %+v", tc.abi)
+		}
+	}
+}
 
 func TestShelfComputersIncludesPreparedFamiliesAndPrefersBareSetup(t *testing.T) {
 	ctx := context.Background()

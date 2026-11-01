@@ -347,8 +347,9 @@ func compositionShell(inspection Inspection, payload []byte) (expansion.Shell, e
 		// Current ZX81 shells use fes.computer. Installed packages stay on fes.simple-computer.
 		abi = "fes.computer"
 	}
-	if d.ABI.ID != abi || d.ABI.Major != 1 || d.ABI.Minor != 0 {
-		return expansion.Shell{}, errors.New("composition bus does not match package ABI 1.0")
+	if d.ABI.ID != abi || (abi == "fes.computer" && !SupportedComputerABI(d.ABI)) ||
+		(abi != "fes.computer" && (d.ABI.Major != 1 || d.ABI.Minor != 0)) {
+		return expansion.Shell{}, errors.New("composition bus does not match a supported package ABI")
 	}
 	return expansion.Shell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Slot: slot, SlotMajor: slotMajor}, nil
 }
@@ -374,8 +375,11 @@ func ValidateExpansionArchive(base []byte, asset expansion.Asset) error {
 // RearExpansionSocket reports a computer package whose descriptor offers an
 // optional rear expansion socket (expansion.Slot 1.0 or 2.0).
 func RearExpansionSocket(descriptor Descriptor) bool {
-	if descriptor.ABI.Major != 1 || descriptor.ABI.Minor != 0 ||
-		(descriptor.ABI.ID != "fes.simple-computer" && descriptor.ABI.ID != "fes.computer") {
+	if descriptor.ABI.ID == "fes.simple-computer" {
+		if descriptor.ABI.Major != 1 || descriptor.ABI.Minor != 0 {
+			return false
+		}
+	} else if !SupportedComputerABI(descriptor.ABI) {
 		return false
 	}
 	for _, contract := range descriptor.Interfaces {

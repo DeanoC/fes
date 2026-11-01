@@ -35,7 +35,7 @@ func liveBlobCapable(p *CorePackageStatus) bool {
 }
 
 func liveComputerZx81TapeCapable(p *CorePackageStatus) bool {
-	return p != nil && ComputerABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) &&
+	return p != nil && ComputerMediaABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) &&
 		activeInterface(p, Zx81TapeInterface())
 }
 

@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Eight registered logical slots; CGA slot 2 and MDA slot 3, remaining vacant.
-module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, parameter integer CLOCK_HZ = 100000000) (
+// Eight registered slots: CGA index 1, MDA index 2, optional floppy index 3.
+module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, FLOPPY = 0,
+    parameter integer CLOCK_HZ = 100000000) (
     input wire clk, reset, cycle_valid,
+    input wire media_present,
+    output wire media_read_valid,
+    output wire [18:0] media_read_addr,
+    input wire media_read_ready,
+    input wire [7:0] media_read_data,
     output wire cycle_ready,
     input wire [19:0] cycle_address,
     input wire [7:0] cycle_wdata,
@@ -49,7 +55,15 @@ module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, parameter integer 
                 .sof(sof[1]), .eol(eol[1]), .rgbi(rgbi[7:4]),
                 .unsupported_interlace(unsupported_interlace[1])
             );
-        end else if (n == 0 && DIAGNOSTIC_PROBE) begin: probe
+        end else if (n == 3 && FLOPPY) begin: floppy
+            pcxt_fdc_card card (
+                .clk(clk), .reset(reset), .guest_ce(guest_ce),
+                .request(card_request), .response(card_response),
+                .media_present(media_present), .media_read_valid(media_read_valid),
+                .media_read_addr(media_read_addr), .media_read_ready(media_read_ready),
+                .media_read_data(media_read_data)
+            );
+        end else if (n == 0 && DIAGNOSTIC_PROBE && !FLOPPY) begin: probe
             /* verilator lint_off PINCONNECTEMPTY */
             pcxt_isa_probe card (.clk(clk), .reset(reset), .request(card_request), .response(card_response), .commit_pulse());
             /* verilator lint_on PINCONNECTEMPTY */
@@ -58,4 +72,11 @@ module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, parameter integer 
             wire unused_request = ^card_request;
         end
     end endgenerate
+    // The diagnostic probe also claims DMA2, so the floppy profile leaves it
+    // vacant. Disabled profiles retain the prior zero-response slot behavior.
+    generate if (!FLOPPY) begin: no_floppy
+        assign media_read_valid = 1'b0;
+        assign media_read_addr = 19'b0;
+    end endgenerate
+    wire unused_media_inputs = &{1'b0, media_present, media_read_ready, media_read_data};
 endmodule

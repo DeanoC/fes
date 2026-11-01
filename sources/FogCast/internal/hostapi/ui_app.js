@@ -1152,18 +1152,20 @@
     return Object.freeze(result);
   }
 
-  // fes.computer 1.0 packages with fes.keyboard.hid 1.0 take physical key
-  // state; other versions are not assumed compatible.
+  // Both supported fes.computer minors retain the same input contracts.
+  function supportedComputerABI(abi) {
+    return Boolean(abi && abi.id === 'fes.computer' && abi.major === 1 && (abi.minor === 0 || abi.minor === 1));
+  }
   function sessionHasKeyboardHID(core) {
     if (!core || typeof core !== 'object' || Array.isArray(core)) return false;
     const abi = core.abi;
-    if (!abi || abi.id !== 'fes.computer' || abi.major !== 1 || abi.minor !== 0) return false;
+    if (!supportedComputerABI(abi)) return false;
     return Array.isArray(core.active_interfaces) && core.active_interfaces.some(contract =>
       contract && contract.id === 'fes.keyboard.hid' && contract.major === 1 && contract.minor === 0);
   }
 
   function sessionHasMouse(core) {
-    return Boolean(core && core.abi && core.abi.id === 'fes.computer' && core.abi.major === 1 && core.abi.minor === 0 &&
+    return Boolean(core && supportedComputerABI(core.abi) &&
       /^[a-f0-9]{64}$/.test(core.package_id) && Number.isSafeInteger(core.generation) && core.generation > 0 &&
       Array.isArray(core.active_interfaces) && core.active_interfaces.some(c => c && c.id === 'fes.mouse.relative' && c.major === 1 && c.minor === 0));
   }

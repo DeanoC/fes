@@ -91,8 +91,48 @@ func TestLiveDiskInsertAndEjectUseTheFloppyUnit(t *testing.T) {
 		name  string
 	}{{protocol.Apple2FloppyInterface(), protocol.Apple2FloppyBytes, "DOS33.DSK"},
 		{protocol.C64DiskInterface(), protocol.C64DiskBytes, "GAME.D64"},
-		{protocol.AtariStFloppyInterface(), protocol.AtariStFloppyBytes, "GAME.ST"}} {
+		{protocol.AtariStFloppyInterface(), protocol.AtariStFloppyBytes, "GAME.ST"},
+		{protocol.PcxtFloppyInterface(), protocol.PcxtFloppyBytes, "DOS.IMG"}} {
 		t.Run(disk.name, func(t *testing.T) { testLiveDiskInsertAndEject(t, disk.iface, disk.size, disk.name) })
+	}
+}
+
+func TestSameSizeDiskFormatsCannotCrossActiveUnits(t *testing.T) {
+	ctx := context.Background()
+	store, err := catalog.Open(t.TempDir() + "/catalog.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	disk := bytes.Repeat([]byte{0x96}, int(protocol.PcxtFloppyBytes))
+	media, _, err := store.ImportCoreMediaStream(ctx, int64(len(disk)), bytes.NewReader(disk))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strings.Repeat("a", 64)
+	for _, tc := range []struct {
+		iface protocol.RuntimeContract
+		name  string
+	}{
+		{protocol.PcxtFloppyInterface(), "disk.st"},
+		{protocol.AtariStFloppyInterface(), "disk.img"},
+	} {
+		status := computerSessionStatus(id, 4, "ready")
+		status.CorePackage.ABI.Minor = 1
+		status.CorePackage.ActiveInterfaces = []protocol.RuntimeInterface{{ID: tc.iface.ID, Major: 1}}
+		unit := protocol.MediaUnitStatus{Interface: tc.iface, MinBytes: 368640, MaxBytes: 368640, ChunkBytes: 512, State: "ready"}
+		if tc.iface == protocol.AtariStFloppyInterface() {
+			unit.MinBytes, unit.MaxBytes = uint32(protocol.AtariStFloppyGeometryMinBytes), uint32(protocol.AtariStFloppyGeometryMaxBytes)
+			status.CorePackage.ActiveInterfaces = append(status.CorePackage.ActiveInterfaces, protocol.RuntimeInterface{ID: protocol.AtariStFloppyGeometryInterface().ID, Major: 1})
+		}
+		status.CorePackage.MediaUnits = []protocol.MediaUnitStatus{unit}
+		client := &mediaUnitServiceClient{fakeServiceClient: fakeServiceClient{statusResult: status}}
+		s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+		s.activeExecution = ExecutionFPGANative
+		binding := protocol.DevelopmentMediaBinding{PackageID: id, Generation: 4, Target: "dev"}
+		if _, err := s.ReplaceLiveMedia(ctx, media.MediaID, tc.name, binding); err == nil || client.inserts != 0 {
+			t.Fatalf("%s admitted on %s: err=%v calls=%d", tc.name, tc.iface.ID, err, client.inserts)
+		}
 	}
 }
 
@@ -116,6 +156,9 @@ func testLiveDiskInsertAndEject(t *testing.T, iface protocol.RuntimeContract, si
 	id := strings.Repeat("a", 64)
 	statusForState := func(state string) protocol.Status {
 		status := computerSessionStatus(id, 4, state)
+		if iface == protocol.PcxtFloppyInterface() {
+			status.CorePackage.ABI.Minor = 1
+		}
 		status.CorePackage.ActiveInterfaces[1] = protocol.RuntimeInterface{ID: iface.ID, Major: iface.Major, Minor: iface.Minor}
 		status.CorePackage.MediaUnits[0] = protocol.MediaUnitStatus{Interface: iface,
 			MinBytes: uint32(size), MaxBytes: uint32(size), ChunkBytes: 512, State: state}

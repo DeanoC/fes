@@ -2158,7 +2158,8 @@ struct ComputerFixture {
 	ComputerFixture(std::uint32_t capabilities,
 		std::map<unsigned, std::pair<std::uint32_t, std::uint32_t>> units,
 		mister::native::CoreDescriptor declared)
-		: endpoint(capabilities, std::move(units)), gp(endpoint, clock), driver(gp),
+		: endpoint(capabilities, std::move(units), "00112233445566778899aabbccddeeff",
+			static_cast<std::uint16_t>(declared.abi.minor)), gp(endpoint, clock), driver(gp),
 		  descriptor(std::move(declared))
 	{
 		context.descriptor = &descriptor;
@@ -2645,6 +2646,61 @@ void TestAtariStFloppyDiscoveryAndLiveInsert()
 	unit.minimum = FesComputerAtariStFloppyBytes;
 	assert(f.driver.EjectMedia(0, kComputerDeadline).ok());
 	assert(f.driver.media_units()[0].state == mister::MediaUnitState::empty);
+}
+
+void TestPcxtFloppyDiscoveryAndLiveInsert()
+{
+	// The PC/XT bit must remain distinct from pc386 ATA in identity word 16.
+	assert(FesComputerCapabilityMediaPcxtFloppy == (1u << 20));
+	assert(FesComputerCapabilityMediaAtaDisk == (1u << 16));
+	auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceMediaPcxtFloppyID});
+	descriptor.core.id = "fes.pcxt";
+	descriptor.abi.minor = FesComputerExtendedAbiMinor;
+	const std::uint32_t caps = FesComputerCapabilityVideoFixed720p60 |
+		FesComputerCapabilityMediaPcxtFloppy;
+	for (const auto wrong : {FesComputerCapabilityVideoFixed720p60,
+		caps | FesComputerCapabilityMediaAtaDisk, caps | 0x20000u,
+		caps | FesComputerCapabilityKeyboardHid}) {
+		ComputerFixture f(wrong, {{0, {FesComputerPcxtFloppyBytes, FesComputerPcxtFloppyBytes}}}, descriptor);
+		const auto result = f.driver.Identify(f.context, kComputerDeadline);
+		assert(result.error.code == mister::ErrorCode::core_mismatch && !result.safe_to_quiesce);
+		assert(f.driver.media_units().empty());
+	}
+	for (const auto& limits : {std::make_pair(FesComputerPcxtFloppyBytes - 1, FesComputerPcxtFloppyBytes),
+		std::make_pair(FesComputerPcxtFloppyBytes, FesComputerPcxtFloppyBytes + 1)}) {
+		ComputerFixture f(caps, {{0, limits}}, descriptor);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.code == mister::ErrorCode::core_mismatch);
+		assert(f.driver.media_units().empty());
+	}
+	ComputerFixture f(caps, {{0, {FesComputerPcxtFloppyBytes, FesComputerPcxtFloppyBytes}}}, descriptor);
+	assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+	assert(f.driver.observed_capabilities() == caps);
+	assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+	const auto image = ComputerPayload(FesComputerPcxtFloppyBytes);
+	const auto begin = f.endpoint.requests.size();
+	assert(f.Insert(image, 0, FesComputerPcxtFloppyBytes, 10000000).ok());
+	assert(!f.endpoint.held && f.endpoint.unit(0).state == FesComputerMediaStateReady);
+	assert(f.endpoint.unit(0).data == std::vector<std::uint8_t>(image.begin(), image.end()));
+	assert(f.driver.media_units()[0].interface.id == FesComputerInterfaceMediaPcxtFloppyID);
+	for (const auto& request : f.Since(begin)) assert(request.opcode != FesComputerOpcodeExecution);
+	assert(f.Insert(image.substr(1), 0, FesComputerPcxtFloppyBytes, 10000000).code ==
+		mister::ErrorCode::invalid_request);
+	auto& unit = f.endpoint.unit(0);
+	unit.minimum = 1;
+	const auto changed = f.endpoint.requests.size();
+	assert(f.Insert(image, 0, FesComputerPcxtFloppyBytes, 10000000).code == mister::ErrorCode::core_mismatch);
+	for (const auto& request : f.Since(changed)) assert(request.opcode != FesComputerOpcodeMediaBegin);
+	unit.minimum = FesComputerPcxtFloppyBytes;
+	const auto failed = f.endpoint.requests.size();
+	f.endpoint.corrupt_next_data = true;
+	assert(!f.Insert(image, 0, FesComputerPcxtFloppyBytes, 10000000).ok());
+	assert(!f.endpoint.held && f.endpoint.unit(0).state == FesComputerMediaStateEmpty);
+	assert(f.driver.media_units()[0].state == mister::MediaUnitState::empty);
+	for (const auto& request : f.Since(failed)) assert(request.opcode != FesComputerOpcodeExecution);
+	assert(f.Insert(image, 0, FesComputerPcxtFloppyBytes, 10000000).ok());
+	assert(f.driver.EjectMedia(0, kComputerDeadline).ok());
+	assert(!f.endpoint.held && f.driver.media_units()[0].state == mister::MediaUnitState::empty);
 }
 
 void TestAtariStGeometryOptInTransferAndCapture()
@@ -3137,6 +3193,7 @@ void TestPc386IdentityPersistenceAndWallClock()
 	{
 		// A 1.0 endpoint rejects word 16, so it never identifies as 1.1.
 		ComputerFixture f(live, {}, Pc386Descriptor());
+		f.endpoint.abi_minor = 0;
 		assert(!f.driver.Identify(f.context, kComputerDeadline).error.ok());
 	}
 	ComputerFixture f(live, {}, Pc386Descriptor());
@@ -3267,6 +3324,7 @@ int main()
  TestMediaSnapshotFrozenCaptureAndRecovery();
  TestMouseRelativeSplittingAndUncertainDelivery();
  TestAtariStFloppyDiscoveryAndLiveInsert();
+	TestPcxtFloppyDiscoveryAndLiveInsert();
  TestAtariStGeometryOptInTransferAndCapture();
  TestSimpleComputerDisplayRequiresExactLiveCapability();
 	TestControllerPortsValidateAndNeutralize();

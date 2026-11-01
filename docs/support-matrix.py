@@ -34,7 +34,7 @@ POLICY_CITE = 'policy: Deano 2026-10-29'
 QUARTUS_PRIMARY = 'Quartus (primary, policy)'
 DE25_CELL = 'Quartus-only (policy); shell pending'
 # i386, pc386 and PC/XT. nextpnr on these rows is advisory.
-QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt'})
+QUARTUS_PRIMARY_IDS = frozenset({'i386', 'fes.pc386', 'fes.pcxt', 'fes.pcxt-dos'})
 BOARDS = frozenset({'de10', 'device', 'none'})
 # Human-table feature words. The long `features` string stays in the JSON.
 HIGHLIGHTS = {
@@ -63,6 +63,7 @@ HIGHLIGHTS = {
     'fes.demo': 'pad, HDMI',
     'sim.pong': '—',
     'fes.pcxt': 'HDMI',
+    'fes.pcxt-dos': 'disk, HDMI',
     'fes.pc386': 'sim',
     'i386': '—',
     'z80': '—',
@@ -97,6 +98,7 @@ DETAILS = {
     'fes.demo': ('sources/misteross/docs/cores.md', 'cores'),
     'sim.pong': ('sources/misteross/docs/cores.md', 'cores'),
     'fes.pcxt': ('sources/misteross/cores/fes-pcxt/README.md', 'README'),
+    'fes.pcxt-dos': ('sources/misteross/cores/fes-pcxt/README.md', 'README'),
     'fes.pc386': ('sources/misteross/cores/fes-pc386/README.md', 'README'),
     'i386': ('sources/misteross/docs/i386-cpu-design.md', 'design'),
     'z80': ('sources/misteross/cores/fes-common/rtl/z80/README.md', 'README'),

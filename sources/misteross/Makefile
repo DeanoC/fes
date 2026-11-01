@@ -139,6 +139,10 @@ help:
 		"  sim-fes-c64-sid  Check digital SID state and staged MOS6581 audio" \
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
+		"  sim-fes-pcxt-fdc  Test the XT floppy adapter over ISA/DMA" \
+		"  sim-fes-pcxt-media  Test the runtime floppy mailbox and SDRAM loader" \
+		"  sim-fes-pcxt-mailbox  Test the PC/XT media identity and mailbox handshake" \
+		"  sim-fes-pcxt-dos  Test XT BIOS POST and boot the pinned FreeDOS floppy (downloads fixtures)" \
 		"  sim-fes-pc386  Check pc386 devices, the fes.computer 1.1 exchanges, audio, OPL2, presenter and display plane on port 2" \
 		"  sim-fes-pc386-boot  Boot the Bochs BIOS and FreeDOS on the pc386 machine with the oracle CPU; replay its VGA trace" \
 		"  sim-fes-pc386-system  Boot FreeDOS on pc386_system, the M5 machine with fes_i386_cpu, to the prompt (about an hour)" \
@@ -2661,6 +2665,23 @@ sim-fes-pcxt:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt.py --verilator "$(VERILATOR)"
 
+.PHONY: sim-fes-pcxt-fdc sim-fes-pcxt-media sim-fes-pcxt-mailbox sim-fes-pcxt-dos
+sim-fes-pcxt-fdc:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pcxt_fdc.py --verilator "$(VERILATOR)"
+
+sim-fes-pcxt-media:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pcxt_media.py
+
+sim-fes-pcxt-mailbox:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pcxt_mailbox.py
+
+sim-fes-pcxt-dos:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pcxt_dos.py --download --verilator "$(VERILATOR)"
+
 .PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
 sim-fes-pc386:
 	$(require_local_sim)
@@ -2716,7 +2737,7 @@ sim-fes-c64-session:
 
 # PR-tier smoke simulations (scripts/ci_simulations.py SMOKE_TARGETS): each
 # proves boot or a few frames in a couple of minutes on a CI runner. The full
-# targets above run on push to main and in the nightly regression.
+# targets above run in the nightly/manual regression; pushes use smoke.
 .PHONY: sim-fes-zx81-smoke sim-fes-c64-smoke sim-fes-atari-st-smoke sim-fes-spectrum-smoke sim-fes-pcxt-smoke
 sim-fes-zx81-smoke: sim-fes-zx81-rom sim-fes-zx81-machine
 

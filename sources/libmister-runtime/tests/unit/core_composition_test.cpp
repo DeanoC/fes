@@ -105,7 +105,10 @@ void ZX81V2BusAdmission() {
 	f.base.descriptor.interfaces[0].required=false;
 	f.base.descriptor.abi.id="fes.application";assert(!f.Open(&out).ok());
 	f.base.descriptor.abi.id="fes.computer";assert(f.Open(&out).ok());
-	f.base.descriptor.abi.id="fes.simple-computer";assert(f.Open(&out).ok());
+	f.base.descriptor.abi.minor=1;assert(f.Open(&out).ok());
+	f.base.descriptor.abi.minor=2;assert(!f.Open(&out).ok());
+	f.base.descriptor.abi.id="fes.simple-computer";assert(!f.Open(&out).ok());
+	f.base.descriptor.abi.minor=0;assert(f.Open(&out).ok());
 }
 void ColecoBoundaryPatchAdmission() {
 	const std::string patch="\"boundary_patch\":{\"bits\":[{\"value\":0,\"x\":3332,\"y\":803},"
@@ -279,6 +282,8 @@ void SlotCompositionAdmission() {
 	}
 	SlotFixture all({1,2,3,4,5,6,7});OpenedCoreComposition out;assert(all.Open(&out).ok());
 	assert(out.expansions.size()==7);
+	all.base.descriptor.abi.minor=1;assert(all.Open(&out).ok());
+	all.base.descriptor.abi.minor=2;assert(!all.Open(&out).ok());
 	SlotFixture c64({1,2}, true);assert(c64.Open(&out).ok());
 	assert(out.expansions.size()==2 && out.expansions[0].slot==1 && out.expansions[1].slot==2);
 	SlotFixture io_only({2}, true);assert(io_only.Open(&out).ok());
@@ -390,6 +395,9 @@ void DeveloperVideoPartsAdmission(bool native=false,bool st=false) {
  };
  seal();OpenedCoreComposition out;assert(f.Open(&out).ok());
  assert(out.info.parts.size()==1&&RecheckCoreComposition(out).ok());
+ f.base.descriptor.abi.minor=1;assert(f.Open(&out).ok()==st);
+ f.base.descriptor.abi.minor=2;assert(!f.Open(&out).ok());
+ f.base.descriptor.abi.minor=0;
  f.base.descriptor.interfaces.pop_back();assert(!f.Open(&out).ok());
  f.base.descriptor.interfaces.push_back({video_slot,1,0,true});assert(!f.Open(&out).ok());
  f.base.descriptor.interfaces.back().required=false;

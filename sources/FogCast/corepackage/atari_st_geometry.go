@@ -24,7 +24,7 @@ func AtariStGeometryForSize(size int64) (AtariStGeometry, bool) {
 }
 
 func DeclaresAtariStGeometry(d Descriptor) bool {
-	if d.ABI != (Contract{ID: "fes.computer", Major: 1}) {
+	if !SupportedComputerABI(d.ABI) {
 		return false
 	}
 	for _, i := range d.Interfaces {

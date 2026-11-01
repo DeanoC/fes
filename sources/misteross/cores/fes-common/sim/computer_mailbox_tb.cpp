@@ -132,6 +132,18 @@ int main(int argc, char** argv) {
         std::vector<uint8_t> image(memory.begin(), memory.begin() + dut.unit0_size);
         require(crc32(image) == 1471701714u, "committed unit 0 image differs from the fixture");
     }
+    // The 1.1 capability extension must not change legacy 1.0 admission.
+    const uint32_t old_toggle=(dut.gpi>>23)&1;
+    dut.gpo=(old_toggle<<31) | (1u<<24) | (16u<<16);
+    for(int i=0;i<3;++i) tick();
+    dut.gpo=((old_toggle^1u)<<31) | (1u<<24) | (16u<<16);
+    bool rejected=false;
+    for(int i=0;i<12;++i) {
+        tick();
+        if(((dut.gpi>>23)&1)==(old_toggle^1u)) {rejected=true;break;}
+    }
+    require(rejected && (dut.gpi & (1u<<22)) && (dut.gpi & 0xffffu)==2,
+            "1.0 endpoint must reject extended identity index");
     std::cout << "fes.computer mailbox scenario " << scenario << ": " << exchanges.size()
               << " exchanges match\n";
     return 0;

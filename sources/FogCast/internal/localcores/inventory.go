@@ -429,12 +429,16 @@ func descriptorNeeds(d corepackage.Descriptor) (needs, block string, launchable 
 	return "none", "", true
 }
 
-// computerEmptyStartup reports a fes.computer 1.0 removable-media interface
+// computerEmptyStartup reports a supported fes.computer removable-media interface
 // whose contract permits an empty unit at startup. Blob and other media
 // endpoints are startup inputs this launcher does not deliver.
 func computerEmptyStartup(d corepackage.Descriptor, iface corepackage.Interface) bool {
-	if !protocol.ComputerABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) {
+	if !protocol.ComputerMediaABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) {
 		return false
+	}
+	pcxt := protocol.PcxtFloppyInterface()
+	if iface.ID == pcxt.ID && iface.Major == int64(pcxt.Major) && iface.Minor == int64(pcxt.Minor) {
+		return d.ABI.Minor >= protocol.ComputerExtendedMinor
 	}
 	for _, contract := range []protocol.RuntimeContract{
 		protocol.Apple2FloppyInterface(),

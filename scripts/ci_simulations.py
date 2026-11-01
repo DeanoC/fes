@@ -31,7 +31,8 @@ TARGETS = {
     'atari-st': ('sim-fes-atari-st',),
     'ramtest': ('sim-fes-ramtest',),
     'riscv': ('sim-fes-riscv',),
-    'pcxt': ('sim-fes-pcxt',),
+    'pcxt': ('sim-fes-pcxt', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-media',
+             'sim-fes-pcxt-mailbox', 'sim-fes-pcxt-dos'),
     'pc386': ('sim-fes-pc386',),
 }
 
@@ -42,7 +43,8 @@ SMOKE_TARGETS = {
     'c64': ('sim-fes-c64-smoke',),
     'atari-st': ('sim-fes-atari-st-smoke',),
     'spectrum': ('sim-fes-spectrum-smoke',),
-    'pcxt': ('sim-fes-pcxt-smoke',),
+    'pcxt': ('sim-fes-pcxt-smoke', 'sim-fes-pcxt-fdc',
+             'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox'),
     # Default and OSS unit benches, one board scenario, the diagnostic and the
     # integrated SGM bench; the other board scenarios and -oss twins are full.
     'coleco': ('sim-fes-coleco-unit', 'sim-fes-coleco-unit-oss', 'sim-fes-coleco-board-graphics',

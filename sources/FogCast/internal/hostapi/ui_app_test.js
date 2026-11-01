@@ -12790,6 +12790,11 @@ test('keyboard HID sessions forward physical keys as HID usages', async () => {
   const core = (abi, hid) => ({ package_id: 'a'.repeat(64), generation: 2, gamepad: true, abi: { id: abi, major: 1, minor: 0 },
     active_interfaces: [{ id: hid, major: 1, minor: 0 }] });
   assert.equal(parseSession({ state: 'active', core_package: core('fes.computer', 'fes.keyboard.hid') }).keyboard_hid, true);
+  for (const minor of [1, 2]) {
+    const candidate = core('fes.computer', 'fes.keyboard.hid');
+    candidate.abi.minor = minor;
+    assert.equal(parseSession({ state: 'active', core_package: candidate }).keyboard_hid, minor === 1 ? true : undefined);
+  }
   assert.equal(parseSession({ state: 'active', core_package: core('fes.simple-computer', 'fes.keyboard.hid') }).keyboard_hid, undefined);
   assert.equal(parseSession({ state: 'active', core_package: core('fes.computer', 'fes.keyboard') }).keyboard_hid, undefined);
   assert.equal(parseSession({ state: 'idle' }).keyboard_hid, undefined);
