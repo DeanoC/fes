@@ -5,9 +5,10 @@
 
 /* Dedicated diagnostic cold/serial profile, not an active-device drain policy.
  * Shared by actual SPL and BL31; no NS initialization API. */
-#define FES_NANO_COLD_MAGIC 0x464e4331U
-#define FES_NANO_COLD_COOKIE 0x464e433100000001ULL
-#define FES_NANO_COLD_FLAGS 7U /* secure entry, matched preloaded entry, SD drained */
+#define FES_NANO_COLD_MAGIC 0x464e4332U
+#define FES_NANO_COLD_VERSION 2U
+#define FES_NANO_COLD_COOKIE 0x464e433200000002ULL
+#define FES_NANO_COLD_FLAGS 15U /* secure entry, matched entry, SD drained, initial CPU parking */
 /* CS/R1 register map RC28: STAT[0] SDM cold, STAT[2] sticky last POR.
  * These flags are not boot-history proof; the SDM boot kind is independent. */
 #define FES_NANO_COLD_CAUSE_ALLOWED 0x5U
@@ -16,11 +17,17 @@
 #define FES_NANO_COLD_SD_BUSY 0xb07U
 #define FES_NANO_COLD_POLLS 1000U
 #define FES_NANO_COLD_RSTMGR 0x10d11000UL
+#define FES_NANO_COLD_PWRMGR 0x10d14000UL
+#define FES_NANO_COLD_CPU_CHANNELS 0x1eU
+#define FES_NANO_COLD_BOOT_CORE 0xc00U
 #define FES_NANO_COLD_SDHCI 0x10808200UL /* Cadence SRS: device base + 0x200 */
 enum fes_nano_cold_register {
     FES_COLD_CAUSE, FES_COLD_PER0, FES_COLD_BRG, FES_COLD_CPUS, FES_COLD_RELEASE,
     FES_COLD_SD_STATE, FES_COLD_SD_MODE, FES_COLD_SD_CLOCK, FES_COLD_SD_INT, FES_COLD_SD_SIGNAL,
-    FES_COLD_BOOT_KIND
+    FES_COLD_BOOT_KIND,
+    FES_COLD_CPU0_POWER, FES_COLD_CPU1_POWER, FES_COLD_CPU2_POWER, FES_COLD_CPU3_POWER,
+    FES_COLD_PCH_REQUEST, FES_COLD_PCH_STATUS, FES_COLD_BOOT_CONFIG,
+    FES_COLD_REGISTER_COUNT
 };
 struct fes_nano_cold_io {
     void *context;
@@ -29,7 +36,10 @@ struct fes_nano_cold_io {
     void (*barrier)(void *);
     void (*wait)(void *);
 };
-struct fes_nano_cold_sample { uint32_t cause, per0, bridge, cpus, release, boot_kind; };
+struct fes_nano_cold_sample {
+    uint32_t cause, per0, bridge, cpus, release, boot_kind;
+    uint32_t power[4], pch_request, pch_status, boot_config;
+};
 struct fes_nano_cold_record {
     uint32_t magic, version, size, checksum;
     struct fes_nano_boot_record boot;
@@ -51,4 +61,7 @@ int fes_nano_cold_consume(struct fes_nano_cold *, const struct fes_nano_cold_rec
 int fes_nano_cold_owns(void *, uint64_t owner, uint64_t epoch);
 int fes_nano_cold_quiesce(void *, uint32_t producers);
 int fes_nano_cold_quiescent(void *, uint32_t *producers);
+/* Strong implementation lives beside the cold profile's PSCI CPU_ON frontend.
+ * Linking an observer alone must not supply secondary-release authority. */
+int fes_nano_cold_cpu_release_locked(void);
 #endif

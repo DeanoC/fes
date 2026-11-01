@@ -158,7 +158,8 @@ and the four contained configuration operations. It blocks alternate legacy,
 versioned and arbitrary-mailbox routes. Bridge and configuration operations
 share a lock and the same ownership guard; an outstanding configuration blocks
 bridge mutations, and pending buffers block ISDONE. Public raw bridge wrappers
-cannot bypass that guard. PSCI power/reset transitions invalidate ownership.
+cannot bypass that guard. PSCI power/reset transitions invalidate ownership;
+the cold serial profile instead denies CPU_ON without side effects, as below.
 
 ```sh
 python3 platform/embedded/firmware/build_terasic.py \
@@ -221,7 +222,7 @@ non-secure initialization route. A checksum detects record corruption; it
 does not authenticate an attacker-controlled boot chain.
 
 The matched SPL uses `nano_cold.c` and the shared real register adapter to
-sample SDM boot kind, reset cause, held secondary CPUs, bridges and unused
+sample SDM boot kind, reset cause, parked secondary CPUs, bridges and unused
 masters before initialization. Only positively identified POR/cold/nCONFIG/JTAG
 entry paths qualify. SD is the sole active device, with all DMA disabled.
 After loading the sealed FIT and native entry, SPL independently observes
@@ -229,6 +230,26 @@ SDHCI idle, masks interrupts, disables the card clock, then asserts functional
 and OCP resets with barriers/readback. It supplies a copied one-use record
 bound to the exact entry, producer sources, owner and epoch. Full U-Boot never
 reopens SD after BL31 receives that record.
+
+Its private version-2 record also captures CPU power status, MPU power
+request/status and boot configuration at each ownership boundary. The selected
+primary must agree with actual EL3 MPIDR, both CPU-channel masks must name only
+it, and every spare controller must retain its zero reset default with no
+pending release or cleared spare reset-history bit. The active primary's
+reset bit is excluded from the live-state test, following the
+[factory CPU comparison](../../../docs/validation/2026-11-01-de25-cpu-inventory-reference/README.md)
+and [initial EL3 power observations](../../../docs/validation/2026-11-01-de25-el3-power-inventory/README.md).
+This is a trusted fresh-entry parking policy, not a generic power-off decoder
+or hotplug/drain implementation. It does not accept the old six-word tuple.
+
+The cold profile's actual PSCI CPU_ON frontend returns `PSCI_E_DENIED` before
+framework bookkeeping or any hardware write and preserves the owner. The lower
+platform callback returns `PSCI_E_INTERN_FAIL`, as required by TF-A's internal
+callback contract, and cannot release a CPU. A strong release-lock function in
+the frontend's translation unit is mandatory for the early provider; the matched
+U-Boot builder requires its installation receipt. Other power/reset transitions
+continue to invalidate ownership. Version-1 records/cookies reject. The shared
+bridge wire ABI is unchanged.
 
 The actual `owns`, `quiesce` and `quiescent` callbacks verify continued cold
 containment through live registers; they do not access an SD controller held

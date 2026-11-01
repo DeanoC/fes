@@ -85,6 +85,7 @@ type scriptPlatform struct {
 	priorGeneration      uint64
 	sawPixels            bool
 	device               *gfx.Software
+	caseDone             func()
 }
 
 func (p *scriptPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error) {
@@ -159,6 +160,9 @@ func (p *scriptPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error
 				}
 				p.index++
 				p.stage = 0
+				if p.caseDone != nil {
+					p.caseDone()
+				}
 			}
 		case 2:
 			input.Commands = []tenfoot.Command{tenfoot.CmdBack}
@@ -192,6 +196,9 @@ func (p *scriptPlatform) Next(ctx context.Context) (tenfoot.PlatformInput, error
 			p.priorGeneration = p.active.Status.CoreGeneration
 			p.index++
 			p.stage = 0
+			if p.caseDone != nil {
+				p.caseDone()
+			}
 		}
 	}
 	frame, err := p.backend.BeginFrame(ctx)
@@ -242,8 +249,13 @@ func TestTenfootLaunchReturnAndFailures(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := &scriptPlatform{app: app, backend: backend, entries: config.Entries, device: device}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	// Each catalog case has the existing 30-second budget. Rendering all
+	// cases under -race must not consume the next case's deadline.
+	deadline := time.AfterFunc(30*time.Second, cancel)
+	defer deadline.Stop()
+	p.caseDone = func() { deadline.Reset(30 * time.Second) }
 	if err = tenfoot.RunPlatform(ctx, app, device, p); err != nil {
 		t.Fatalf("%v stage=%d index=%d snapshot=%+v backend=%+v", err, p.stage, p.index, app.Snapshot().Launch, backend.View())
 	}

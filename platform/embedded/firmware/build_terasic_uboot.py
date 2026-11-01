@@ -52,7 +52,8 @@ def checked_bl31(bl31_build, cold_profile=None):
         if receipt.get("bridge_mode") != "strict":
             raise ValueError("U-Boot packaging requires the strict bridge mode; owned-unready is a firmware component only")
     elif (receipt.get('bridge_mode')!='owned-cold-serial' or receipt.get('native_boot_profile')!=cold_profile or
-          receipt.get('owned_bridge_binding',{}).get('boot_proof_installed') is not True):
+          receipt.get('owned_bridge_binding',{}).get('boot_proof_installed') is not True or
+          receipt.get('owned_bridge_binding',{}).get('secondary_release_locked') is not True):
         raise ValueError('native boot requires the matched owned cold serial SPL/BL31 profile')
     blob = component.read_bytes()
     image_elf = elf.read_bytes()

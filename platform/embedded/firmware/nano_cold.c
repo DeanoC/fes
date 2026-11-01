@@ -6,29 +6,51 @@
 static int fail(struct fes_nano_cold *s) { s->failed = 1; s->valid = 0; return -1; }
 static int sample(struct fes_nano_cold *s, struct fes_nano_cold_sample *v)
 {
-    return s->io.read(s->io.context,FES_COLD_CAUSE,&v->cause) ||
+    if (s->io.read(s->io.context,FES_COLD_CAUSE,&v->cause) ||
         s->io.read(s->io.context,FES_COLD_PER0,&v->per0) ||
         s->io.read(s->io.context,FES_COLD_BRG,&v->bridge) ||
         s->io.read(s->io.context,FES_COLD_CPUS,&v->cpus) ||
         s->io.read(s->io.context,FES_COLD_RELEASE,&v->release) ||
-        s->io.read(s->io.context,FES_COLD_BOOT_KIND,&v->boot_kind);
+        s->io.read(s->io.context,FES_COLD_BOOT_KIND,&v->boot_kind)) return -1;
+    for (unsigned i=0;i<4;i++)
+        if (s->io.read(s->io.context,FES_COLD_CPU0_POWER+i,&v->power[i])) return -1;
+    return s->io.read(s->io.context,FES_COLD_PCH_REQUEST,&v->pch_request) ||
+        s->io.read(s->io.context,FES_COLD_PCH_STATUS,&v->pch_status) ||
+        s->io.read(s->io.context,FES_COLD_BOOT_CONFIG,&v->boot_config);
+}
+static int parked(const struct fes_nano_cold_sample *v, unsigned core)
+{
+    if (core!=0 && core!=2) return 0;
+    const uint32_t spares=15U^(1U<<core), channel=1U<<(core+1);
+    /* SDM fresh entry parks non-boot CPUs. CPUINRESET is not a live bitmap:
+     * the executing EL3 primary's bit can remain set. Require independent
+     * boot selection, sole CPU power request/ack and untouched spare power
+     * controllers as well as their unreleased reset history. Zero PWRSTAT is
+     * a reset-default observation, not an invented universal power-off code.
+     * Actual MPIDR/EL checks are in the trusted SPL/BL31 adapters. */
+    if (((v->boot_config & FES_NANO_COLD_BOOT_CORE)>>10)!=core ||
+        (v->cpus & spares)!=spares || (v->release & 15U) ||
+        (v->pch_request & FES_NANO_COLD_CPU_CHANNELS)!=channel ||
+        (v->pch_status & FES_NANO_COLD_CPU_CHANNELS)!=channel) return 0;
+    for (unsigned i=0;i<4;i++) if (i!=core && v->power[i]) return 0;
+    return 1;
 }
 static int initial(const struct fes_nano_cold_sample *v, unsigned core)
 {
-    /* Require the SDM's positive boot-kind observation, held secondary CPUs and
+    /* Require the SDM's positive boot-kind observation, parked secondary CPUs and
      * any previously open bridge or unused bus master. The reviewed SPL keeps
      * these held from this first sample until BL31. The exact pinned DDR driver
      * defines POR=0, warm=1, cold=2, nCONFIG=3, JTAG=4, RSU=5. Only the four
      * reviewed fresh-entry paths qualify; absence of warm bits alone cannot. */
-    return (core == 0 || core == 2) && !(v->cause & ~FES_NANO_COLD_CAUSE_ALLOWED) &&
+    return parked(v,core) && !(v->cause & ~FES_NANO_COLD_CAUSE_ALLOWED) &&
         (v->boot_kind==0 || v->boot_kind==2 || v->boot_kind==3 || v->boot_kind==4) &&
         (v->per0 & FES_NANO_COLD_UNUSED) == FES_NANO_COLD_UNUSED &&
-        (v->bridge & 15U) == 15U && (v->cpus & 15U) == (15U ^ (1U << core)) &&
-        !(v->release & 15U);
+        (v->bridge & 15U) == 15U;
 }
-static int stable(const struct fes_nano_cold_sample *a, const struct fes_nano_cold_sample *b)
+static int stable(const struct fes_nano_cold_sample *a, const struct fes_nano_cold_sample *b, unsigned core)
 {
-    return a->cause == b->cause && a->boot_kind==b->boot_kind && a->cpus == b->cpus && a->release == b->release &&
+    return parked(a,core) && parked(b,core) && a->cause == b->cause && a->boot_kind==b->boot_kind &&
+        a->release == b->release && a->boot_config==b->boot_config &&
         (a->bridge & 15U) == (b->bridge & 15U);
 }
 static int io_valid(struct fes_nano_cold_io io)
@@ -54,7 +76,7 @@ int fes_nano_cold_begin(struct fes_nano_cold *s, struct fes_nano_cold_io io,
     s->io = io;
     memset(&s->record,0,sizeof(s->record));
     struct fes_nano_cold_record *r = &s->record;
-    r->magic=FES_NANO_COLD_MAGIC; r->version=1; r->size=sizeof(*r); r->core=core;
+    r->magic=FES_NANO_COLD_MAGIC; r->version=FES_NANO_COLD_VERSION; r->size=sizeof(*r); r->core=core;
     r->boot=(struct fes_nano_boot_record){.magic=FES_NANO_BOOT_MAGIC,.version=1,.size=sizeof(r->boot),
         .owner=owner,.epoch=epoch,.history=FES_NANO_BOOT_NEVER_ENABLED,
         .fabric=FES_NANO_FABRIC_ABSENT,.producers=FES_NANO_PRODUCERS_ALL};
@@ -86,7 +108,7 @@ int fes_nano_cold_finish(struct fes_nano_cold *s, unsigned entry_verified,
     uint32_t clock;
     if (!s || !out || !s->attempted || s->failed || s->valid) return -1;
     struct fes_nano_cold_record *r=&s->record;
-    if (entry_verified != 1 || sample(s,&before) || !initial(&before,r->core) || !stable(&r->first,&before)) return fail(s);
+    if (entry_verified != 1 || sample(s,&before) || !initial(&before,r->core) || !stable(&r->first,&before,r->core)) return fail(s);
     /* SD must have been used by the synchronous PIO SPL. Missing clock/reset
      * access or an unexpected DMA mode rejects before peripheral resets. */
     if (before.per0 & FES_NANO_COLD_SD_RESET) return fail(s);
@@ -98,7 +120,7 @@ int fes_nano_cold_finish(struct fes_nano_cold *s, unsigned entry_verified,
     if (idle(s,&r->sd_after) || s->io.read(s->io.context,FES_COLD_SD_CLOCK,&r->sd_clock) || (r->sd_clock & 4U)) return fail(s);
     /* The independent idle observation precedes functional and OCP reset. */
     if (hold(s,FES_NANO_MASTER_FUNCTION) || hold(s,FES_NANO_MASTER_RESET) ||
-        sample(s,&r->last) || !stable(&r->first,&r->last) ||
+        sample(s,&r->last) || !stable(&r->first,&r->last,r->core) ||
         (r->last.per0 & FES_NANO_MASTER_RESET) != FES_NANO_MASTER_RESET) return fail(s);
     r->flags=FES_NANO_COLD_FLAGS; r->checksum=fes_nano_cold_checksum(r);
     s->valid=1; *out=*r;
@@ -109,7 +131,7 @@ int fes_nano_cold_owns(void *p, uint64_t owner, uint64_t epoch)
     struct fes_nano_cold *s=p;
     struct fes_nano_cold_sample now;
     if (!s || !s->valid || s->failed || owner!=s->record.boot.owner || epoch!=s->record.boot.epoch) return 0;
-    if (sample(s,&now) || !stable(&s->record.last,&now) ||
+    if (sample(s,&now) || !stable(&s->record.last,&now,s->record.core) ||
         (now.per0 & FES_NANO_MASTER_RESET) != FES_NANO_MASTER_RESET) return fail(s);
     return 1;
 }
@@ -118,13 +140,13 @@ int fes_nano_cold_consume(struct fes_nano_cold *s, const struct fes_nano_cold_re
 {
     if (!s || s->attempted) return -1;
     s->attempted=1;
-    if (!r || !io_valid(io) || !chain || r->magic!=FES_NANO_COLD_MAGIC || r->version!=1 ||
+    if (!r || !io_valid(io) || !chain || r->magic!=FES_NANO_COLD_MAGIC || r->version!=FES_NANO_COLD_VERSION ||
         r->size!=sizeof(*r) || r->checksum!=fes_nano_cold_checksum(r) || r->flags!=FES_NANO_COLD_FLAGS ||
         r->boot.owner!=owner || !r->boot.epoch || memcmp(r->boot.chain,chain,32) ||
         r->boot.magic!=FES_NANO_BOOT_MAGIC || r->boot.version!=1 || r->boot.size!=sizeof(r->boot) ||
         r->boot.reserved || r->boot.reserved_end || r->boot.history!=FES_NANO_BOOT_NEVER_ENABLED ||
         r->boot.fabric!=FES_NANO_FABRIC_ABSENT || r->boot.producers!=FES_NANO_PRODUCERS_ALL ||
-        !initial(&r->first,r->core) || !stable(&r->first,&r->last) ||
+        !initial(&r->first,r->core) || !stable(&r->first,&r->last,r->core) ||
         (r->last.per0 & FES_NANO_MASTER_RESET)!=FES_NANO_MASTER_RESET ||
         (r->sd_before & FES_NANO_COLD_SD_BUSY) || (r->sd_after & FES_NANO_COLD_SD_BUSY) ||
         (r->sd_mode & 1U) || (r->sd_clock & 4U)) return fail(s);

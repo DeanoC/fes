@@ -10,6 +10,7 @@ HERE = Path(__file__).resolve().parent
 SETUP = "plat/intel/soc/agilex5/bl31_plat_setup.c"
 MAKEFILE = "plat/intel/soc/agilex5/platform.mk"
 PSCI = "plat/intel/soc/common/socfpga_psci.c"
+PSCI_FRONTEND = "lib/psci/psci_main.c"
 
 
 def service_source(data, cold_serial=False):
@@ -60,6 +61,47 @@ def inputs():
     return [HERE / name for name in ("prepare_nano_owned.py", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "generated/fes_embedded_bridges.h")]
 
 
+def psci_source(text, cold_serial=False):
+    names = ("socfpga_pwr_domain_on", "socfpga_pwr_domain_off", "socfpga_pwr_domain_suspend",
+             "socfpga_pwr_domain_on_finish", "socfpga_pwr_domain_suspend_finish", "socfpga_system_off",
+             "socfpga_system_reset", "socfpga_system_reset2")
+    if cold_serial:
+        old = function(text, "socfpga_pwr_domain_on")
+        # Denial precedes every reset/vector/power write and does not retire a
+        # still-valid owner. This profile never grants a secondary CPU lifecycle.
+        text = text.replace(old, """int socfpga_pwr_domain_on(u_register_t mpidr)
+{
+\t(void)mpidr;
+\treturn PSCI_E_INTERN_FAIL;
+}
+""")
+        names = names[1:]
+    for name in names:
+        text, count = re.subn(r"(\b" + name + r"\([^;]*?\)\s*\{)", r"\1\n\tfes_nano_bridge_platform_invalidate();", text, count=1)
+        if count != 1: raise ValueError("owned PSCI context changed: " + name)
+    return '#include "nano_bridge_platform.h"\n' + text
+
+
+def psci_frontend_source(text):
+    old = function(text, "psci_cpu_on")
+    # The platform callback only permits SUCCESS/INTERN_FAIL, after PSCI has
+    # already set ON_PENDING. Deny here before validation, locks, bookkeeping
+    # or hardware. Both 32-bit and 64-bit CPU_ON dispatch through this function.
+    text = text.replace(old, """int psci_cpu_on(u_register_t target_cpu, uintptr_t entrypoint, u_register_t context_id)
+{
+\t(void)target_cpu;
+\t(void)entrypoint;
+\t(void)context_id;
+\treturn PSCI_E_DENIED;
+}
+int fes_nano_cold_cpu_release_locked(void)
+{
+\treturn 1;
+}
+""")
+    return '#include "nano_cold.h"\n' + text
+
+
 def install(source, cold_profile=None, cold_header=None):
     service = source / prepare_tfa.SOURCE
     reset = source / prepare_tfa.RESET_SOURCE
@@ -94,15 +136,14 @@ def install(source, cold_profile=None, cold_header=None):
         text=text.replace('void bl31_early_platform_setup2(', 'extern void fes_nano_cold_capture(uintptr_t, uint64_t);\nvoid bl31_early_platform_setup2(')
         setup.write_text(text.replace(marker,marker+'\tfes_nano_cold_capture(arg2, arg3);\n'))
     psci = source / PSCI
-    text = psci.read_text()
-    for name in ("socfpga_pwr_domain_on", "socfpga_pwr_domain_off", "socfpga_pwr_domain_suspend",
-                 "socfpga_pwr_domain_on_finish", "socfpga_pwr_domain_suspend_finish", "socfpga_system_off",
-                 "socfpga_system_reset", "socfpga_system_reset2"):
-        text, count = re.subn(r"(\b" + name + r"\([^;]*?\)\s*\{)", r"\1\n\tfes_nano_bridge_platform_invalidate();", text, count=1)
-        if count != 1: raise ValueError("owned PSCI context changed: " + name)
-    psci.write_text('#include "nano_bridge_platform.h"\n' + text)
+    psci.write_text(psci_source(psci.read_text(), cold_serial=cold_profile is not None))
+    frontend = source / PSCI_FRONTEND
+    if cold_profile is not None:
+        frontend.write_text(psci_frontend_source(frontend.read_text()))
     return {"service_sha256": hashlib.sha256(service.read_bytes()).hexdigest(), "reset_sha256": hashlib.sha256(reset.read_bytes()).hexdigest(),
             "setup_sha256": hashlib.sha256(setup.read_bytes()).hexdigest(), "makefile_sha256": hashlib.sha256(mk.read_bytes()).hexdigest(),
             "psci_sha256": hashlib.sha256(psci.read_bytes()).hexdigest(),
+            "psci_frontend_sha256": hashlib.sha256(frontend.read_bytes()).hexdigest() if cold_profile is not None else None,
             "boot_proof_installed": cold_profile is not None,
+            "secondary_release_locked": cold_profile is not None,
             "expected_boot_state": "validated cold serial record or rejection; hardware unqualified" if cold_profile else "recognized owned service, NOT_READY"}

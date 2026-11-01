@@ -5,10 +5,15 @@
 #include <stdio.h>
 #include <string.h>
 
-struct hw { uint32_t r[11]; unsigned fault, writes, resets, waits, idle_reads; };
+struct hw {
+    uint32_t r[FES_COLD_REGISTER_COUNT];
+    unsigned fault, writes, resets, waits, idle_reads, fail_read, change_reg;
+    uint32_t change_bit;
+};
 static int read_reg(void *p,unsigned reg,uint32_t *v)
 {
-    struct hw *h=p;assert(reg<11);
+    struct hw *h=p;assert(reg<FES_COLD_REGISTER_COUNT);
+    if (h->fail_read==reg+1)return -1;
     if (reg==FES_COLD_SD_STATE) {
         /* A controller held in reset must never be read by BL31 callbacks. */
         assert(!(h->r[FES_COLD_PER0]&0x80));h->idle_reads++;
@@ -27,6 +32,7 @@ static int write_reg(void *p,unsigned reg,uint32_t v)
         if (h->fault==5)return -1;
         if (!(h->fault==6 && h->resets==2))h->r[reg]|=v;
         if (h->fault==7)h->r[FES_COLD_CPUS]&=~2U;
+        if (h->resets==2 && h->change_reg)h->r[h->change_reg-1]^=h->change_bit;
     } else if (!(h->fault==3 && reg==FES_COLD_SD_CLOCK))h->r[reg]=v;
     return 0;
 }
@@ -38,12 +44,50 @@ static void init(struct hw *h,unsigned core)
 {
     memset(h,0,sizeof(*h));h->r[FES_COLD_CAUSE]=1;h->r[FES_COLD_BOOT_KIND]=4;h->r[FES_COLD_PER0]=FES_NANO_COLD_UNUSED;
     h->r[FES_COLD_BRG]=15;h->r[FES_COLD_CPUS]=15U^(1U<<core);h->r[FES_COLD_SD_CLOCK]=7;
+    h->r[FES_COLD_CPU0_POWER+core]=0x90000021;
+    h->r[FES_COLD_PCH_REQUEST]=h->r[FES_COLD_PCH_STATUS]=0x20U|(1U<<(core+1));
+    h->r[FES_COLD_BOOT_CONFIG]=0x0070021eU|(core<<10);
 }
 static int per_read(void *p,uint32_t *v) { struct fes_nano_cold *s=p;return s->io.read(s->io.context,FES_COLD_PER0,v); }
 static int per_assert(void *p,uint32_t bits) { struct fes_nano_cold *s=p;return s->io.write(s->io.context,FES_COLD_PER0,bits); }
 static int br_read(void *p,uint32_t *v) { struct fes_nano_cold *s=p;return s->io.read(s->io.context,FES_COLD_BRG,v); }
 static int disabled(void *p,uint32_t m,unsigned f) { (void)p;(void)m;(void)f;return -1; }
 static const uint8_t chain[32]={0x42,0x17};
+/* A spare can change during SD drain or after a valid seal. Each stage must
+ * reject independently; a restored register cannot resurrect its owner. */
+static unsigned parking_failures(unsigned core,unsigned reg,uint32_t bit)
+{
+    for (unsigned stage=0;stage<5;stage++) {
+        struct hw h;init(&h,core);
+        struct fes_nano_cold spl={0},bl31={0};struct fes_nano_cold_record r;
+        memset(&r,0xa5,sizeof(r));struct fes_nano_cold_record untouched=r;
+        if (!stage) {
+            h.r[reg]^=bit;
+            assert(fes_nano_cold_begin(&spl,ops(&h),chain,17,7,core)<0 && !h.writes);
+            continue;
+        }
+        assert(!fes_nano_cold_begin(&spl,ops(&h),chain,17,7,core));
+        if (stage==1 || stage==2) {
+            if(stage==1)h.r[reg]^=bit;
+            else {h.change_reg=reg+1;h.change_bit=bit;}
+            assert(fes_nano_cold_finish(&spl,1,&r)<0 && !memcmp(&r,&untouched,sizeof(r)));
+            assert(stage==1 ? !h.writes : h.resets==2);
+            h.r[reg]^=bit;
+            unsigned writes=h.writes;
+            assert(fes_nano_cold_finish(&spl,1,&r)<0 && h.writes==writes);
+        } else {
+            assert(!fes_nano_cold_finish(&spl,1,&r));
+            if(stage==3)assert(!fes_nano_cold_consume(&bl31,&r,ops(&h),chain,17));
+            unsigned writes=h.writes;h.r[reg]^=bit;
+            if(stage==3)assert(fes_nano_cold_owns(&bl31,17,7)!=1);
+            else assert(fes_nano_cold_consume(&bl31,&r,ops(&h),chain,17)<0);
+            h.r[reg]^=bit;
+            assert(fes_nano_cold_owns(&bl31,17,7)!=1 && h.writes==writes);
+            assert(fes_nano_cold_consume(&bl31,&r,ops(&h),chain,17)<0);
+        }
+    }
+    return 5;
+}
 int main(void)
 {
     unsigned cases=0;
@@ -59,12 +103,52 @@ int main(void)
         struct hw h;init(&h,0);h.r[FES_COLD_CAUSE]=4U|(1U<<bit);struct fes_nano_cold s={0};
         assert(fes_nano_cold_begin(&s,ops(&h),chain,17,7,0)<0 && !h.writes);cases++;
     }
-    /* Exact first TRWU8CBL tuple stays rejected even after correcting POR.
-     * Its CPU status does not match either qualified primary inventory. */
+    /* The old six-word tuple alone still cannot prove initial parking. */
     for (unsigned core=0;core<=2;core+=2) {
         struct hw h;init(&h,core);h.r[FES_COLD_CAUSE]=4;h.r[FES_COLD_PER0]=0xff7fbfff;
         h.r[FES_COLD_BRG]=0x4f;h.r[FES_COLD_CPUS]=0xf;struct fes_nano_cold s={0};
+        h.r[FES_COLD_PCH_REQUEST]=h.r[FES_COLD_PCH_STATUS]=h.r[FES_COLD_BOOT_CONFIG]=0;
         assert(fes_nano_cold_begin(&s,ops(&h),chain,17,7,core)<0 && !h.writes);cases++;
+    }
+    /* Actual enriched EL3 inventory, independent of the primary reset bit.
+     * Non-CPU PCH bits and the running primary's power word are observations,
+     * not invented CPU-off encodings or a single magic tuple. */
+    for (unsigned core=0;core<=2;core+=2) for(unsigned bit=0;bit<2;bit++) {
+        struct hw h;init(&h,core);h.r[FES_COLD_CAUSE]=4;h.r[FES_COLD_PER0]=0xff7fbfff;
+        h.r[FES_COLD_BRG]=0x4f;h.r[FES_COLD_CPUS]|=1U<<core;
+        struct fes_nano_cold spl={0},bl31={0};struct fes_nano_cold_record r;
+        assert(!fes_nano_cold_begin(&spl,ops(&h),chain,17,7,core));
+        h.r[FES_COLD_PER0]&=~FES_NANO_COLD_SD_RESET; /* modeled synchronous SPL load */
+        if(bit) {
+            h.r[FES_COLD_CPUS]^=1U<<core;h.r[FES_COLD_CPU0_POWER+core]^=0x81234567U;
+            h.r[FES_COLD_PCH_REQUEST]^=0x21U;h.r[FES_COLD_PCH_STATUS]^=0x21U;
+        }
+        assert(!fes_nano_cold_finish(&spl,1,&r));
+        assert(!fes_nano_cold_consume(&bl31,&r,ops(&h),chain,17));cases++;
+    }
+    for (unsigned core=0;core<=2;core+=2) {
+        for(unsigned spare=0;spare<4;spare++) if(spare!=core) {
+            for(unsigned bit=0;bit<32;bit++)cases+=parking_failures(core,FES_COLD_CPU0_POWER+spare,1U<<bit);
+            cases+=parking_failures(core,FES_COLD_CPUS,1U<<spare);
+        }
+        for(unsigned bit=0;bit<4;bit++) {
+            cases+=parking_failures(core,FES_COLD_PCH_REQUEST,1U<<(bit+1));
+            cases+=parking_failures(core,FES_COLD_PCH_STATUS,1U<<(bit+1));
+            cases+=parking_failures(core,FES_COLD_RELEASE,1U<<bit);
+        }
+        cases+=parking_failures(core,FES_COLD_BOOT_CONFIG,1U<<10);
+        cases+=parking_failures(core,FES_COLD_BOOT_CONFIG,1U<<11);
+    }
+    for(unsigned reg=FES_COLD_CPU0_POWER;reg<=FES_COLD_BOOT_CONFIG;reg++) for(unsigned stage=0;stage<4;stage++) {
+        struct hw h;init(&h,0);struct fes_nano_cold s={0};struct fes_nano_cold_record r;
+        if(stage)assert(!fes_nano_cold_begin(&s,ops(&h),chain,17,7,0));
+        if(stage>=2)assert(!fes_nano_cold_finish(&s,1,&r));
+        h.fail_read=reg+1;
+        if(!stage)assert(fes_nano_cold_begin(&s,ops(&h),chain,17,7,0)<0 && !h.writes);
+        else if(stage==1)assert(fes_nano_cold_finish(&s,1,&r)<0 && !h.writes);
+        else if(stage==2)assert(fes_nano_cold_owns(&s,17,7)!=1);
+        else assert(fes_nano_cold_consume(&(struct fes_nano_cold){0},&r,ops(&h),chain,17)<0);
+        cases++;
     }
     for (unsigned kind=0;kind<8;kind++) {
         struct hw h;init(&h,0);h.r[FES_COLD_BOOT_KIND]=kind;h.r[FES_COLD_CAUSE]=0;
@@ -128,13 +212,17 @@ int main(void)
     }
     struct hw h;init(&h,0);struct fes_nano_cold s={0};struct fes_nano_cold_record r;
     assert(!fes_nano_cold_begin(&s,ops(&h),chain,17,7,0)&&!fes_nano_cold_finish(&s,1,&r));
-    for(unsigned mutation=0;mutation<9;mutation++) {
+    for(unsigned mutation=0;mutation<17;mutation++) {
         struct fes_nano_cold_record bad=r;struct fes_nano_cold target={0};
         switch(mutation) {
         case 0:bad.checksum^=1;break;case 1:bad.boot.chain[0]^=1;break;
         case 2:bad.boot.reserved=1;break;case 3:bad.flags=0;break;
         case 4:bad.sd_after=1;break;case 5:bad.last.per0&=~1U;break;
         case 6:bad.first.bridge=0;break;case 7:bad.boot.history=2;break;case 8:bad.size++;break;
+        case 9:bad.version=1;break;case 10:bad.magic=0x464e4331;break;
+        case 11:bad.first.power[1]=0x80000021;break;case 12:bad.last.power[3]=0x90000021;break;
+        case 13:bad.last.pch_request|=4;break;case 14:bad.last.pch_status|=4;break;
+        case 15:bad.first.boot_config^=0x800;break;case 16:bad.boot.epoch=0;break;
         }
         if(mutation)bad.checksum=fes_nano_cold_checksum(&bad);
         assert(fes_nano_cold_consume(&target,&bad,ops(&h),chain,17)<0);cases++;

@@ -32,7 +32,8 @@ int fes_nano_platform_boot_record(struct fes_nano_boot_record *record,
 {
     static const uint8_t chain[32]=FES_NANO_COLD_CHAIN;
     uint64_t owner=(FES_NANO_COLD_OWNER_SEED ^ captured.boot.epoch)|1U;
-    if (!capture_valid || captured.core!=MPIDR_AFFLVL1_VAL(read_mpidr()) ||
+    if (!capture_valid || fes_nano_cold_cpu_release_locked()!=1 ||
+        captured.core!=MPIDR_AFFLVL1_VAL(read_mpidr()) ||
         fes_nano_cold_consume(&provider,&captured,fes_cold_hw_ops(),chain,owner)) return -1;
     *record=provider.record.boot;
     *policy=(struct fes_nano_boot_policy){.qualifications=FES_NANO_BOOT_QUALIFIED,

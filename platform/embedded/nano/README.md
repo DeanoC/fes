@@ -33,19 +33,20 @@ The continuing claim is held under the user's optional factory-restore policy.
 The [subsequent full initial trace](../../../docs/validation/2026-11-01-de25-initial-trace/README.md)
 also passes with the preserved seed configuration: all 18 first-C-to-park
 checkpoints, EL3/MPIDR and first/fresh reset samples were captured. Initial
-admission still rejects `CPUINRESET=0xf`; no native gate was relaxed. The
+admission in that diagnostic rejected `CPUINRESET=0xf`; its gate was unchanged. The
 [factory inventory comparison](../../../docs/validation/2026-11-01-de25-cpu-inventory-reference/README.md)
 then showed that this register is not a complete live CPU-state check. CPU1
 hotplug restoration failed and testing stopped; exact reference-SOF recovery
 verified a fresh original factory boot with all four CPUs online. The native
-ownership contract still needs qualified initial parking and release prevention.
+version-2 ownership prototype below adds initial parking and release prevention;
+physical qualification remains required.
 The authoritative kit log records the current image and continuing claim.
 The [EL3 power inventory](../../../docs/validation/2026-11-01-de25-el3-power-inventory/README.md)
 now captures all 32 records: first/pre-park values agree, with spare CPU status
 words zero and CPU-channel request/status masks selecting only core0. The
 diagnostic is parked with the original card inserted. These observations do
-not grant native ownership; the trusted-parking contract and secondary-release
-restriction remain to be implemented and qualified.
+not grant native ownership. The version-2 trusted-parking contract and
+secondary-release restriction still require a fresh physical test.
 
 The same spare card carries two paths:
 
@@ -176,6 +177,29 @@ Warm reset, RSU, unknown kinds, other reset
 causes, open bridges or released unused masters reject. Reset bits alone do
 not supply history or traffic-drain proof.
 
+The private version-2 record adds the four CPU power-status words, MPU power
+request/status and boot configuration. Trusted EL3 entry must execute on the
+selected primary (core 0 or 2). Both CPU-channel masks must request/acknowledge
+only that primary, every spare power-status word must retain its zero reset
+default, spare reset-history bits must remain set, and no CPU release may be
+pending. The executing primary's reset bit is not interpreted as live state:
+the [physical comparison](../../../docs/validation/2026-11-01-de25-cpu-inventory-reference/README.md)
+found it set even with all four Linux CPUs online. The
+[boot guide](https://docs.altera.com/r/docs/813762/25.3/hard-processor-system-booting-user-guide-agilextm-3-and-agilextm-5-socs/boot-flow-overview-for-fpga-configuration-first-mode)
+places non-boot CPUs in WFI. Zero spare status is used only as evidence of
+untouched initial controllers; it is not a general CPU-off encoding or support
+for hotplug. CPU-channel and boot-selector masks come from the pinned TF-A
+power manager and its secondary-entry code. Other boot-configuration bits are
+not decoded. The primary power word and non-CPU channel bits are observations.
+
+The owned cold firmware denies PSCI CPU_ON in its public frontend, before
+framework bookkeeping or any vector, power or reset write, without invalidating
+an otherwise valid owner. Its lower platform callback also refuses release
+using the framework's supported internal-failure result. The strong release-lock
+proof lives beside the denied frontend and is required by the EL3 consumer and build
+receipt. Other power/reset transitions still retire ownership. A version-1
+record or the old six-register tuple cannot grant this version-2 contract.
+
 Only SD is used, synchronously in PIO mode. SPL loads BL31, U-Boot and the native
 entry from the sealed FIT. Before entering BL31, it verifies the entry hash,
 disables SD interrupts, waits for independent SDHCI idle/buffer observations,
@@ -192,9 +216,11 @@ verify continued containment without touching SD while it is in reset. Any
 restarted producer, open bridge, changed CPU/reset scope or replay rejects.
 The additional `SCOPE` line reports MPIDR, primary index, fresh reset/CPU
 registers and reset timeout status after clock/console setup. It cannot replace
-a failed first sample. The first physical tuple's CPU value `0xf` still fails
-the current primary/secondary inventory contract; its semantics/timing need
-qualification before native boot can continue.
+a failed first sample. The initial and pre-park
+[power diagnostic](../../../docs/validation/2026-11-01-de25-el3-power-inventory/README.md)
+supplied the additional observations used by the version-2 prototype. That
+diagnostic kept the old gate and rejected admission; the replacement contract
+still requires a fresh matched build and physical native handoff test.
 
 This cold serial firmware permits only read-only ownership Snapshot. It denies
 bridge opening, reconfiguration and release, and reports zero configuration

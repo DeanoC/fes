@@ -116,7 +116,7 @@ void hang(void){assert(mode);longjmp(stop,2);}
                 cpu.function((base/'common/spl/spl.c').read_text(),'board_init_r') + r'''
 int main(int argc,char **argv){
     assert(argc==4);source.failed=atoi(argv[1]);core=atoi(argv[2]);mode=atoi(argv[3]);
-    source.record.first=(struct fes_nano_cold_sample){4,0xff7fbfff,0x4f,15,0,4};
+    source.record.first=(struct fes_nano_cold_sample){.cause=4,.per0=0xff7fbfff,.bridge=0x4f,.cpus=15,.boot_kind=4};
     if(!setjmp(stop)){board_init_f(0);assert(!"report returned");}
     if(!mode){
         assert(parks==1 && consoles==1 && reads==(CONSOLE_CONTROL ? 6 : 3));
