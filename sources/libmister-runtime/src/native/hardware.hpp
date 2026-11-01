@@ -26,8 +26,8 @@ class CoreVideoBringup;
 class InputSession;
 struct InputDeviceIdentity;
 class VideoBringup;
-class MenuDisplayDriver;
-class MenuWindow;
+class MenuDisplay;
+class MenuMemory;
 class DiskWindow;
 class FesGpCoreDriver;
 
@@ -78,7 +78,7 @@ public:
 		LogSink&, std::string idle_rbf, NativeTimeouts, CoreDriver* fes_gp_driver,
 		std::vector<std::string> package_roots = {},
 		IdleRecipe idle_recipe = SplashIdle(),
- MenuDisplayDriver* menu_display = nullptr,MenuWindow* menu_window = nullptr,
+ MenuDisplay* menu_display = nullptr,MenuMemory* menu_window = nullptr,
 		DiskWindow* disk_window = nullptr,
 		NativePlatform platform = NativePlatform::de10_nano,
 		CoreDriver* de25_driver = nullptr);
@@ -144,15 +144,16 @@ private:
 		std::unique_ptr<AdmittedCorePackage>*);
 	HardwareResult LoadCoreInternal(std::unique_ptr<AdmittedCorePackage>,std::uint64_t,bool);
  HardwareResult LoadSplashIdle();
- void RevokeMenuWindow();
+ Error RevokeMenuWindow();
  void SetSessionDisplayInputFocus(bool launcher_focus);
  bool MenuReactivationAllowed();
  Error FailMenuPresent(const Error&);
  Error ReleaseControllers();
- MenuDisplayDriver* menu_display_;
- MenuWindow* menu_window_;
+ MenuDisplay* menu_display_;
+ MenuMemory* menu_window_;
  DiskWindow* disk_window_;
  MenuDisplayStatus menu_status_;
+ Error menu_revoke_error_;
  std::string menu_directory_,menu_package_id_;
  std::uint8_t menu_slot_=0;
  bool menu_unsafe_=false;

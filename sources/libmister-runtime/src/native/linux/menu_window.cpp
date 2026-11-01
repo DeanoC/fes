@@ -87,8 +87,8 @@ MenuWindow::MenuWindow(MenuWindowOperations& operations):operations_(&operations
 MenuWindow::~MenuWindow(){Revoke();}
 Error MenuWindow::Activate(bool clear,bool blitter)
 {
- Revoke();
- Error error;
+ Error error=Revoke();
+ if(!error.ok())return error;
  if(clear) {
   // The fill has its own grant. Revoking it writes back and invalidates
   // every slot line, which a clean would leave valid in the PL310.
@@ -103,6 +103,9 @@ Error MenuWindow::Activate(bool clear,bool blitter)
   }
   const Error revoked=operations_->Revoke(fill);
   operations_->Close(fill);
+  if(!revoked.ok()) {
+   std::lock_guard<std::mutex> lock(mutex_);revoke_error_=revoked;
+  }
   if(error.ok())error=revoked;
   if(!error.ok())return error;
  }
@@ -110,15 +113,17 @@ Error MenuWindow::Activate(bool clear,bool blitter)
  if(!error.ok())return error;
  std::lock_guard<std::mutex> lock(mutex_);grant_=grant;blitter_=blitter;return {};
 }
-void MenuWindow::Revoke()
+Error MenuWindow::Revoke()
 {
- int grant;
- {std::lock_guard<std::mutex> lock(mutex_);grant=grant_;grant_=-1;blitter_=false;}
- if(grant<0)return;
- // A failed revoke cannot be retried meaningfully; closing still drops
- // the runtime's reference, and the driver writes back on the last close.
- (void)operations_->Revoke(grant);
+ std::lock_guard<std::mutex> lock(mutex_);
+ const int grant=grant_;grant_=-1;blitter_=false;
+ if(grant<0)return revoke_error_;
+ // Keep the failed result even after dropping this descriptor: peers may
+ // still hold mappings. A new activation must not erase that uncertainty.
+ const Error error=operations_->Revoke(grant);
  operations_->Close(grant);
+ if(!error.ok())revoke_error_=error;
+ return revoke_error_;
 }
 Error MenuWindow::Clean(std::uint8_t slot,const std::vector<MenuRect>& rects) const
 {

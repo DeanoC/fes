@@ -723,7 +723,8 @@ public:
 
 struct Fixture {
 	explicit Fixture(mister::native::CoreDriver* gp_driver = nullptr,
-		mister::native::IdleRecipe idle_recipe = mister::native::SplashIdle())
+		mister::native::IdleRecipe idle_recipe = mister::native::SplashIdle(),
+        mister::native::MenuMemory* menu_memory = nullptr)
 		: temporary(), events(), idle(temporary.File("idle.rbf", "idle")),
 		  rbf(temporary.File("megadrive.rbf", "game")),
 		  media_two(temporary.File("two.bin", "22")),
@@ -736,7 +737,7 @@ struct Fixture {
 			0x0001}), sink(), disk_operations(), disk_window(disk_operations),
 			hardware(opener, fpga, idle_video, game_video, input,
 			input_identity, clock, log, idle, {30000, 10000, 10000},
-			gp_driver, {"/tmp"}, std::move(idle_recipe), nullptr, nullptr, &disk_window)
+			gp_driver, {"/tmp"}, std::move(idle_recipe), nullptr, menu_memory, &disk_window)
 	{
 		hardware.SetFaultSink(&sink);
 	}
@@ -1724,7 +1725,7 @@ void SetHpsDdrMirrors(mister_test::FakeMmio* mmio, bool matching)
 class MenuOperations final : public mister::native::MenuWindowOperations {
 public:
  std::vector<std::uint32_t> pixels=std::vector<std::uint32_t>(8388608/4,0xdeadbeef);
- bool driver=true;unsigned grants=0,revokes=0,cleans=0;
+ bool driver=true,fail_revoke=false;unsigned grants=0,revokes=0,cleans=0;
  struct Cleaned {std::uint64_t offset;std::uint32_t width,height,stride;};
  std::vector<Cleaned> cleaned;
  std::vector<std::uint64_t> granted;
@@ -1738,11 +1739,30 @@ public:
  mister::Error Clean(int,std::uint64_t offset,std::uint32_t width,std::uint32_t height,std::uint32_t stride) override {
   cleaned.push_back({offset,width,height,stride});++cleans;return {};
  }
- mister::Error Revoke(int) override {++revokes;return {};}
+ mister::Error Revoke(int) override {
+  ++revokes;return fail_revoke?mister::Error{mister::ErrorCode::io_failed,"menu revoke failed"}:mister::Error{};
+ }
  mister::Error Duplicate(int fd,int* copy) override {*copy=fd+1000;return {};}
  void Close(int) override {}
  bool Granted() const {return grants>revokes;}
 };
+void TestMenuRevocationFailureBlocksIdleAndReplacement()
+{
+ using namespace mister::native;
+ MenuOperations operations;MenuWindow memory(operations);
+ assert(memory.Activate(false,false).ok());
+ operations.fail_revoke=true;
+ Fixture fixture(nullptr,SplashIdle(),&memory);
+ const auto idle=fixture.hardware.LoadIdle();
+ assert(!idle.error.ok()&&idle.error.phase=="quiesce");
+ assert(fixture.fpga.calls==0&&fixture.opener.calls==0&&fixture.idle_video.calls==0);
+ // Even a later successful-looking device cannot erase a failed revoke.
+ operations.fail_revoke=false;
+ const auto replacement=fixture.hardware.LoadContainedDevelopmentRBF(fixture.rbf,17);
+ assert(!replacement.error.ok()&&replacement.error.phase=="quiesce");
+ assert(fixture.fpga.calls==0&&operations.revokes==1);
+ assert(!memory.Activate(true,false).ok()&&operations.grants==1);
+}
 // The client draws into the slot the hardware names, then commits it.
 mister::Error PresentBackSlot(mister::native::NativeHardware& hardware,mister::MenuDisplayInfo* info)
 {
@@ -5173,6 +5193,7 @@ int main()
 	TestMutatingProgramFailureForgetsOutgoingDriverBeforeRecovery();
 	TestDriverFaultCallbackRejectsOldPackageGeneration();
 	TestIdleRequiresVideo();
+	TestMenuRevocationFailureBlocksIdleAndReplacement();
 	TestSplashIdleProgramsWithoutProbeOrFramebuffer();
 	TestIdlePreflightFailureCallsNeitherFpgaNorVideo();
 	TestIdleFpgaFailureAfterQuiesceReportsHardwareMutation();

@@ -284,7 +284,7 @@ NativeHardware::NativeHardware(ArtifactOpener& opener, FpgaManager& fpga,
 	InputSession& input, const InputDeviceIdentity& input_identity, Clock& clock,
 	LogSink& log, std::string idle_rbf, NativeTimeouts timeouts,
 	CoreDriver* fes_gp_driver, std::vector<std::string> package_roots,
-	IdleRecipe idle_recipe,MenuDisplayDriver* menu_display,MenuWindow* menu_window,
+	IdleRecipe idle_recipe,MenuDisplay* menu_display,MenuMemory* menu_window,
 	DiskWindow* disk_window, NativePlatform platform, CoreDriver* de25_driver)
 	: menu_display_(menu_display),menu_window_(menu_window),disk_window_(disk_window),opener_(opener), fpga_(fpga), idle_video_(idle_video),
 	  game_video_(game_video), input_(input), input_identity_(input_identity),
@@ -517,7 +517,11 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 	if (!game_video_.SupportsPlatform(platform_))
 		return {{ErrorCode::unsupported_target, "core video backend differs from selected platform", "platform"}, false, ""};
 	// No process writes the menu window once quiesce or programming begins.
-	RevokeMenuWindow();
+	const Error revoked = RevokeMenuWindow();
+	if (!revoked.ok()) {
+		ObserveHandoff(operation, revoked);
+		return {WithPhase(revoked, "quiesce"), true, ""};
+	}
 	const VideoQuiesceResult video = game_video_.Quiesce(
 		Deadline(clock_, timeouts_.video_ms));
 	log_.Write({operation, system, core, "hdmi_quiesce", video.error});
@@ -1978,11 +1982,14 @@ Error NativeHardware::SetSessionDisplay(bool visible,bool launcher_focus)
   menu_underflow_streak_=0;menu_status_.available=true;menu_status_.error={};
   return {};
  }
- RevokeMenuWindow();
+ const Error revoked=RevokeMenuWindow();
  MenuDisplayInfo info;
  const Error error=menu_display_->Quiesce(deadline,&active_package_->info().descriptor,&info);
  menu_status_.available=false;
- if(!error.ok()){menu_status_.error=error;SetSessionDisplayInputFocus(true);return error;}
+ if(!error.ok()||!revoked.ok()){
+  menu_status_.error=revoked.ok()?error:revoked;
+  SetSessionDisplayInputFocus(true);return menu_status_.error;
+ }
  menu_status_.displayed_sequence=info.displayed_sequence;
  SetSessionDisplayInputFocus(false);menu_underflow_streak_=0;
  return {};
@@ -2021,7 +2028,8 @@ HardwareResult NativeHardware::LoadSplashIdle()
  // transmitter. DE25 needs its own managed idle package before startup opens.
  if (platform_ != NativePlatform::de10_nano)
   return {{ErrorCode::unsupported_interface, "DE25 managed idle profile is unavailable", "admission"}, false, ""};
-	RevokeMenuWindow();
+	const Error revoked = RevokeMenuWindow();
+	if (!revoked.ok()) return {WithPhase(revoked, "quiesce"), true, ""};
 	// Startup/fault/failed-launch cleanup deliberately has no save side effect.
 	core_data_file_.reset();
 	core_snapshot_.clear();
@@ -2078,8 +2086,16 @@ HardwareResult NativeHardware::LoadSplashIdle()
 }
 
 
-void NativeHardware::RevokeMenuWindow()
-{if(menu_window_)menu_window_->Revoke();}
+Error NativeHardware::RevokeMenuWindow()
+{
+ if(!menu_revoke_error_.ok())return menu_revoke_error_;
+ const Error error=menu_window_?menu_window_->Revoke():Error{};
+ if(!error.ok()) {
+  menu_revoke_error_=error;
+  menu_unsafe_=true;menu_status_.available=false;menu_status_.error=error;
+ }
+ return error;
+}
 void NativeHardware::SetSessionDisplayInputFocus(bool launcher_focus)
 {
  session_display_focused_=launcher_focus;
@@ -2101,7 +2117,9 @@ bool NativeHardware::MenuReactivationAllowed()
 Error NativeHardware::FailMenuPresent(const Error& error)
 {
  if(menu_status_.session) {
-  RevokeMenuWindow();menu_underflow_streak_=0;menu_status_.available=false;menu_status_.error=error;
+  const Error revoked=RevokeMenuWindow();
+  menu_underflow_streak_=0;menu_status_.available=false;
+  menu_status_.error=revoked.ok()?error:revoked;
   // The only physical recovery is disabling this plane. Never execute hold,
   // program another core, or spend the idle-menu reactivation budget here.
   MenuDisplayInfo info;
@@ -2109,13 +2127,15 @@ Error NativeHardware::FailMenuPresent(const Error& error)
    active_package_?&active_package_->info().descriptor:nullptr,&info);
   SetSessionDisplayInputFocus(!drained.ok());
   if(drained.ok())menu_status_.displayed_sequence=info.displayed_sequence;
-  if(!drained.ok())menu_status_.error={error.code,error.message+"; session display quiesce failed: "+drained.message,"menu"};
+  if(!drained.ok())menu_status_.error={menu_status_.error.code,menu_status_.error.message+"; session display quiesce failed: "+drained.message,"menu"};
   return menu_status_.error;
  }
  // The runtime's present failure path calls LoadIdle. Keeping the package
  // selects menu reactivation; clearing it selects splash. The counter resets
  // on that program, so the streak does not carry into the new image.
- RevokeMenuWindow();menu_underflow_streak_=0;menu_status_.available=false;menu_status_.error=error;
+ const Error revoked=RevokeMenuWindow();
+ menu_underflow_streak_=0;menu_status_.available=false;menu_status_.error=revoked.ok()?error:revoked;
+ if(!revoked.ok()){menu_directory_.clear();menu_package_id_.clear();return revoked;}
  if(!menu_directory_.empty()&&MenuReactivationAllowed()){++menu_reactivations_;return error;}
  menu_unsafe_=true;menu_directory_.clear();menu_package_id_.clear();return error;
 }

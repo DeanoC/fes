@@ -306,6 +306,15 @@ verify construction and reject old mutation authority.
 
 ## Menu presentation primitives
 
+`NativeHardware` consumes the `MenuDisplay` presentation and `MenuMemory`
+grant interfaces. `MenuDisplayDriver` and `MenuWindow` are the DE10 adapters;
+board-independent lifecycle code does not require their concrete transports.
+A failed revoke is retained by both the window and lifecycle: no later grant,
+splash load or core replacement can erase that uncertainty. Session-plane
+failure may still request display quiescence, but cannot report revocation
+success or proceed to programming. A new process is not proof that a retained
+kernel owner is safe. DE25 allocation/presentation integration remains closed.
+
 The required `fes.video.menu-display` 1.0 application capability (bit 9)
 is admitted only alongside fixed video and HPS DDR. The only other interface a
 menu package may declare is `fes.video.menu-blitter` 1.0 or 1.1 (bit 10), which

@@ -32,34 +32,46 @@ public:
 // never copies a frame. Revoke ends the grant for every process before the
 // window stops being the menu's, so nothing writes it, or evicts a dirty
 // line into it, once a core owns it.
-class MenuWindow final {
+class MenuMemory {
+public:
+ virtual ~MenuMemory() {}
+ virtual Error Activate(bool clear,bool blitter)=0;
+ // Failure means replacement must not proceed. Closing a descriptor alone
+ // does not establish that peer mappings or DMA storage are safe to reuse.
+ virtual Error Revoke()=0;
+ virtual Error Share(int* fd) const=0;
+ virtual Error Clean(std::uint8_t slot,const std::vector<MenuRect>& rects) const=0;
+ virtual Error CleanBlit(std::uint32_t first,std::uint32_t count,const std::vector<MenuSpan>& uploaded) const=0;
+};
+class MenuWindow final : public MenuMemory {
 public:
  MenuWindow();
  explicit MenuWindow(MenuWindowOperations&);
- ~MenuWindow();
+ ~MenuWindow() override;
  MenuWindow(const MenuWindow&)=delete;
  MenuWindow& operator=(const MenuWindow&)=delete;
  // Revokes any earlier grant and grants both slots, plus the lists and heap
  // with blitter. clear fills the slots black; a re-shown session plane keeps
  // the pixels it was hidden with. No slot line stays in the CPU caches, so
  // a later CPU write cannot carry stale bytes over what the blitter drew.
- Error Activate(bool clear,bool blitter);
+ Error Activate(bool clear,bool blitter) override;
  // Idempotent. The window has no grant until the next Activate.
- void Revoke();
+ Error Revoke() override;
  // A new descriptor for the current grant, owned by the caller.
- Error Share(int* fd) const;
+ Error Share(int* fd) const override;
  // Writes back what the client drew in slot (empty: the whole frame), so
  // fpga2sdram reads see it.
- Error Clean(std::uint8_t slot,const std::vector<MenuRect>& rects) const;
+ Error Clean(std::uint8_t slot,const std::vector<MenuRect>& rects) const override;
  // Writes back count commands from first in the list region and the
  // uploaded heap spans, so the blitter reads them.
- Error CleanBlit(std::uint32_t first,std::uint32_t count,const std::vector<MenuSpan>& uploaded) const;
+ Error CleanBlit(std::uint32_t first,std::uint32_t count,const std::vector<MenuSpan>& uploaded) const override;
 private:
  std::unique_ptr<MenuWindowOperations> owned_;
  MenuWindowOperations* operations_;
  mutable std::mutex mutex_;
  int grant_=-1;
  bool blitter_=false;
+ Error revoke_error_;
 };
 // The fes.media.ata-disk region of the window, written at launch and read
 // back at Stop through short grants taken in turn. Revoking each grant writes

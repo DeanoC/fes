@@ -77,6 +77,14 @@ video readiness, loads/runs BASIC7 through driver tape/HID calls and verifies
 a software reboot. Production startup, managed idle/MENU and restart adoption
 remain closed.
 
+The shared lifecycle consumes board-independent `MenuDisplay` and `MenuMemory`
+contracts. DE10 supplies the existing mailbox display and fixed-window memory
+adapters. Failed memory revocation remains sticky and blocks idle/replacement
+programming; closing a descriptor cannot clear it. This separates the proven
+DE25 DMA allocation path from DE10 window/cache rules without enabling a DE25
+MENU adapter or production factory. These interfaces and failure gates have
+software coverage only.
+
 The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
 register contract through an exclusive injected `Mmio` backend and an injected
 persona-configuration operation. It validates the selected base identity,
