@@ -1,0 +1,186 @@
+{
+  "pass": true,
+  "source_commit": "9743c0819eb34e3ebcce81f286eb2210a37be22b",
+  "native_build_source_commit": "6e8102da071676abe56a38e7deca39b673a8d394",
+  "hardware_evidence": "one native closed-bridge source-context roundtrip; no runtime core admission",
+  "console_sha256": "655a5c2a5ec07b67b3a5e80ec35fa4675e2aa275ee1f7f30221ec3bf19dee691",
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "usb_node": "/dev/bus/usb/003/061",
+  "uart_free": true,
+  "claim_retained": true,
+  "factory_restore_requested": false,
+  "programming_permission": false,
+  "native_sd_access": false,
+  "native_fpga_mmio": false,
+  "trace": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "d0584135f55f2ad9"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 5380823972543936707,
+          "epoch": 4408671075,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 41,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 45,
+        "values": {
+          "id": "d0584135f55f2ad9"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 49,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 61,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 62,
+        "values": {
+          "id": "d0584135f55f2ad9"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 63,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383136
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 70,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 5380823972543936707,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 79,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 5380823972543936707,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 80,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 81,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 82,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 83,
+        "values": {}
+      },
+      {
+        "stage": "hps_context",
+        "line": 84,
+        "values": {
+          "sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+          "package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+          "build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+          "owner": 5380823972543936707,
+          "generation": 1
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": true,
+    "last_checkpoint": "hps_context",
+    "core_load_acceptance": false
+  },
+  "finished_utc": "2026-11-01T19:14:47.221206+00:00"
+}

@@ -1,0 +1,44 @@
+{
+  "source_commit": "9743c0819eb34e3ebcce81f286eb2210a37be22b",
+  "scope": "one verified recovery FIT upload and one native read-only HPS source-context boot",
+  "usb_node": "/dev/bus/usb/003/061",
+  "uart_owner_absent": true,
+  "claim_owned": true,
+  "native_sof_sha256": "616ee321fbef264be244f3725ad79905707b237a8968b64241ed1d4f4db44910",
+  "native_fit_sha256": "b1f0cfe34c1aba102e7d2bf7589b6862a7df0cf14eba4581ec69b3f71e573eda",
+  "native_package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+  "hps_context_sha256": "94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc",
+  "helper_sha256": {
+    "common.py": "77a7e56d929e41e6b816bacb0347686845eff16ec0ad7333d32fbf876add1e18",
+    "recovery.py": "e04fbbb48fb7644ec4bd3974b2423f8497281206058645e4a583a0ffd8db95bc",
+    "upload_trial.py": "97ae8029fef1d52eb44c1e2f5f4fdadea9c8319ffe5c5269a0b91406cf5f6627",
+    "native.py": "7b4075e76d97d9b61276d9cfdaae453bd3c2b099a5ebb05af01e0d01ee675224",
+    "experiment.py": "5fd385f0e45a4dd1690e5c7778fcb33a50564e4313c389691ba958905cc2a0d3"
+  },
+  "boot_decoder_sha256": "03f927577503a44744370e0cd290cbee3b2cd72d7dd4fc4d16316932cc830327",
+  "composition_sha256": "2ffb4ab839f28d3a8ced6a197342f01ebe7c62c02bc5e1c7bf8e18eda9f877e2",
+  "software_receipts": {
+    "context-completed-phases": "00069af7fe33abdc90f4cef6a2d939edb48c7e143525be3852f9b572b6a1d3c9",
+    "context-final-check": "9b2c9310cb53a80b5cadae017ed68d5f1f73c175365950889b84de7445e1f6dd",
+    "sdk-context-build-v3": "5ef516c7d0f155d0538c786deaddd03a2a99d6979c74f39de450c94bad39f0e4",
+    "uboot-entry-context-build-v3": "dbbc910a815fc008503c3427966dc5b716722d19a033c57c5dafc2a0dc38c1bd",
+    "bl31-context-build-v3": "1e8c5248d740d5b5a60a01cc6c02df40eefbb19e9298f3015751ce69e59e450b",
+    "uboot-context-build-v3": "2b1e459d739c49aa3b01a413cdbf461ebeff7b7044ef2039a8c4133ad5d65605",
+    "hps-context-compose": "632b8c35c69323669d455fde6f77622b7898c194ab3247e316af124f5910681d",
+    "context-sealed-model": "4dd2d3960cb3d6abbe26c35029345ed3140795d6b18c9af1fb6f782b0d6d4a2e"
+  },
+  "software_plan_heads": [
+    "9743c0819eb34e3ebcce81f286eb2210a37be22b"
+  ],
+  "software_completion_sha256": "6a32aa38c5db2974dc2b7c84642c16bc37751cc82ff1aefe5ac64025ea75ef8c",
+  "native_build_source_commit": "6e8102da071676abe56a38e7deca39b673a8d394",
+  "test_selection_only_delta_paths": [
+    "scripts/test_policy.py",
+    "tests/test_test_policy.py"
+  ],
+  "native_selected_sources_unchanged": true,
+  "prior_loader_receipt_sha256": "b29fe8aa3bde70278d47d88d0915242e63664fe01bad544bfc992a85a17d423a",
+  "card_state_sha256": "0acc68c18c8b343d422516b0943ef66ed10fdcd1f67f2b9ba98f3c7e875d2fd8",
+  "physical_runtime_admission": false,
+  "utc": "2026-11-01T19:13:26.803893+00:00"
+}

@@ -496,25 +496,40 @@ not implement `BootHandoffVerifier`: a matching source digest cannot establish
 the live CPU aperture, HPS configuration, active master drain or programming
 authority. All bridges stay closed and secondary CPU release remains denied.
 
-## Next bounded TRWU8CBL trial
+The [bounded source-context test](../../../docs/validation/2026-11-01-de25-hps-context/README.md)
+passes on TRWU8CBL: verified Ethernet/SD FIT update, matched native EL1 entry
+and the exact secure context digest under generation 1. The original cable
+clock and USB permissions are restored; the spare and diagnostic remain in
+place under the user's retained-diagnostic policy. This does not qualify CPU
+FPGA MMIO or runtime core loading.
+
+## Contained native boot procedure
 
 1. Claim the top board in its current status file, verify serial/cable/UART,
-   record the factory boot identity and shut Linux down cleanly. Preserve the
-   original factory card and verify the spare's device identity before writing.
+   and verify the recorded board/card state. If factory Linux is running,
+   record its identity and shut it down cleanly before moving cards. Preserve
+   the original factory card and identify the spare before writing it.
 2. With the combined spare card, load `network-recovery.sof` through volatile
    JTAG. Run one upload/readback of the matched native FIT using `upload.py`.
    Require the exact recovery checks and successful receipt before continuing.
-3. Load `native-probe.sof` through the exact top JTAG cable. Require device ID
+3. Load the checked `native-probe.sof`, or the matched HPS-first composition's
+   `native-hps-first.sof`, through the exact top JTAG cable. Require device ID
    `4362C0DD`, the valid `FES_NANO_SPL BEGIN`, verified-before-parsing FIT marker,
    SPL handoff and `FES_NANO_OWNED_BOOT provider=1 result=0 reset=f`.
 4. At the matching `-fes-nano-<build_id>` prompt issue `fesboot` once. Require
    both ownership snapshots to report the same nonzero owner, generation 1 and
    exact flags `0xdf`; then `FES_NANO_HANDOFF PASS serial-only`, native entry
-   markers and `FES_NATIVE_GO_PROBE PASS os=tamago board=de25-nano`.
-5. Stop on a failure or incomplete marker sequence. Restore the original card
-   and `recovery-reference.sof`, verify the factory boot/media identity and
-   release the claim. Use a physical power cycle if volatile recovery fails.
+   markers and the selected program's complete marker sequence. A baseline
+   probe prints `FES_NATIVE_GO_PROBE PASS`; `bootcontext` requires the independently
+   checked context/package/build values in `FES_NATIVE_HPS_CONTEXT PASS`.
+5. Stop on a failure or incomplete marker sequence and retain its first trace.
+   Restore the original cable clock and USB permissions, and close the UART.
+   Follow the user's board-retention policy: retain and record the diagnostic
+   under its continuing claim when requested, or restore the original card
+   and `recovery-reference.sof`, verify the factory identity and release it.
+   A physical power cycle remains a recovery option if volatile recovery fails.
 
 This trial qualifies only serial CPU/RAM and the observed handoff. Native
-USB/SD/network drivers, active master stop/drain, HDMI and FPGA programming
-still need their own implementation and physical checks.
+USB/network, active master stop/drain, HDMI and runtime FPGA programming still
+need physical qualification. Read-only SD/package retention has its separate
+tested profile; this serial-only procedure supplies no active SD drain proof.

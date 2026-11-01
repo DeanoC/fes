@@ -1,0 +1,826 @@
+{
+  "source_commit": "9743c0819eb34e3ebcce81f286eb2210a37be22b",
+  "status": "passed",
+  "classification": "all14 planned software phases completed across bounded runs; neither timed-out outer run is passing evidence",
+  "plan": {
+    "format": 1,
+    "root": "/home/deano/fes/out/dev/de25-embedded-os",
+    "base": "cc47b121103f35524ad78a75de795b931b2f081d",
+    "head": "9743c0819eb34e3ebcce81f286eb2210a37be22b",
+    "checkout_head": "9743c0819eb34e3ebcce81f286eb2210a37be22b",
+    "merge_base": "cc47b121103f35524ad78a75de795b931b2f081d",
+    "local_paths": [],
+    "impact": {
+      "lanes": {
+        "parent": true,
+        "host": true,
+        "runtime": true,
+        "contracts": true,
+        "fpga": true
+      },
+      "skipped": [],
+      "cores": [],
+      "test_modes": {
+        "video": false,
+        "media": false,
+        "full_race": false
+      },
+      "paths": [
+        "platform/embedded/entry/README.md",
+        "platform/embedded/entry/build.py",
+        "platform/embedded/firmware/README.md",
+        "platform/embedded/firmware/generated/fes_embedded_bridges.h",
+        "platform/embedded/firmware/nano_bridge_sip.c",
+        "platform/embedded/firmware/nano_bridge_sip.h",
+        "platform/embedded/firmware/nano_owned_sip.inc",
+        "platform/embedded/firmware/tests/nano_bridge_sip_test.c",
+        "platform/embedded/firmware/tests/nano_cold_platform_test.c",
+        "platform/embedded/nano/README.md",
+        "platform/embedded/nano/cold_profile.py",
+        "platform/embedded/nano/hps_boot.py",
+        "platform/embedded/nano/hps_context.py",
+        "platform/embedded/nano/native_trace.py",
+        "platform/embedded/nano/package.py",
+        "platform/embedded/tamago/README.md",
+        "platform/embedded/tamago/build.py",
+        "platform/embedded/tamago/cmd/bootcontext/main.go",
+        "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go",
+        "platform/embedded/tamago/nativefabric/hpscontext.go",
+        "platform/embedded/tamago/nativefabric/hpscontext_test.go",
+        "platform/embedded/tamago/nativefabric/testdata/hps-context.json",
+        "platform/embedded/tamago/run.py",
+        "scripts/test_policy.py",
+        "sources/mister-packages/docs/embedded-bridges.md",
+        "sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml",
+        "sources/mister-packages/testdata/oracles/fes-embedded-bridges.json",
+        "tests/test_nano_cold.py",
+        "tests/test_nano_hps_boot.py",
+        "tests/test_nano_hps_context.py",
+        "tests/test_nano_native_trace.py",
+        "tests/test_test_policy.py"
+      ],
+      "reasons": [
+        "platform/embedded/entry/build.py: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/firmware/generated/fes_embedded_bridges.h: embedded firmware/RTL integration; no shipped core consumer",
+        "platform/embedded/firmware/nano_bridge_sip.c: embedded firmware/RTL integration; no shipped core consumer",
+        "platform/embedded/firmware/nano_bridge_sip.h: embedded firmware/RTL integration; no shipped core consumer",
+        "platform/embedded/firmware/nano_owned_sip.inc: embedded firmware/RTL integration; no shipped core consumer",
+        "platform/embedded/firmware/tests/nano_bridge_sip_test.c: embedded firmware/RTL integration; no shipped core consumer",
+        "platform/embedded/firmware/tests/nano_cold_platform_test.c: embedded firmware/RTL integration; no shipped core consumer",
+        "platform/embedded/nano/cold_profile.py: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/nano/hps_boot.py: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/nano/hps_context.py: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/nano/native_trace.py: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/nano/package.py: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/build.py: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/cmd/bootcontext/main.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/nativefabric/hpscontext.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/nativefabric/hpscontext_test.go: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/nativefabric/testdata/hps-context.json: parent orchestration/tests/assembly; component sources unchanged",
+        "platform/embedded/tamago/run.py: parent orchestration/tests/assembly; component sources unchanged",
+        "scripts/test_policy.py: software CI infrastructure; RTL unchanged",
+        "sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml: embedded firmware/RTL integration; no shipped core consumer",
+        "sources/mister-packages/testdata/oracles/fes-embedded-bridges.json: embedded firmware/RTL integration; no shipped core consumer",
+        "tests/test_nano_cold.py: parent orchestration/tests/assembly; component sources unchanged",
+        "tests/test_nano_hps_boot.py: parent orchestration/tests/assembly; component sources unchanged",
+        "tests/test_nano_hps_context.py: parent orchestration/tests/assembly; component sources unchanged",
+        "tests/test_nano_native_trace.py: parent orchestration/tests/assembly; component sources unchanged",
+        "tests/test_test_policy.py: parent orchestration/tests/assembly; component sources unchanged"
+      ],
+      "always": [
+        "planner tests",
+        "diff whitespace checks"
+      ],
+      "not_run": [
+        "FPGA synthesis/place-and-route",
+        "cold image builds",
+        "hardware acceptance"
+      ]
+    },
+    "commands": [
+      {
+        "lane": "always",
+        "label": "test_affected.py",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_affected.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": [
+          "tests/test_affected.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "test_test_changed.py",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_test_changed.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": [
+          "tests/test_test_changed.py"
+        ]
+      },
+      {
+        "lane": "always",
+        "label": "committed whitespace",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/check_diff.py",
+          "--base",
+          "cc47b121103f35524ad78a75de795b931b2f081d",
+          "--head",
+          "9743c0819eb34e3ebcce81f286eb2210a37be22b"
+        ],
+        "tools": [
+          "/usr/bin/python3"
+        ],
+        "files": []
+      },
+      {
+        "lane": "always",
+        "label": "working whitespace",
+        "cwd": ".",
+        "argv": [
+          "git",
+          "diff",
+          "--check",
+          "HEAD",
+          "--"
+        ],
+        "tools": [
+          "git"
+        ],
+        "files": []
+      },
+      {
+        "lane": "parent",
+        "label": "parent Python regressions",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/parent_tests.py",
+          "--video",
+          "false",
+          "--media",
+          "false",
+          "--paths-json",
+          "[\"platform/embedded/entry/README.md\", \"platform/embedded/entry/build.py\", \"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/generated/fes_embedded_bridges.h\", \"platform/embedded/firmware/nano_bridge_sip.c\", \"platform/embedded/firmware/nano_bridge_sip.h\", \"platform/embedded/firmware/nano_owned_sip.inc\", \"platform/embedded/firmware/tests/nano_bridge_sip_test.c\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/nano/README.md\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/nano/hps_boot.py\", \"platform/embedded/nano/hps_context.py\", \"platform/embedded/nano/native_trace.py\", \"platform/embedded/nano/package.py\", \"platform/embedded/tamago/README.md\", \"platform/embedded/tamago/build.py\", \"platform/embedded/tamago/cmd/bootcontext/main.go\", \"platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go\", \"platform/embedded/tamago/nativefabric/hpscontext.go\", \"platform/embedded/tamago/nativefabric/hpscontext_test.go\", \"platform/embedded/tamago/nativefabric/testdata/hps-context.json\", \"platform/embedded/tamago/run.py\", \"scripts/test_policy.py\", \"sources/mister-packages/docs/embedded-bridges.md\", \"sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml\", \"sources/mister-packages/testdata/oracles/fes-embedded-bridges.json\", \"tests/test_nano_cold.py\", \"tests/test_nano_hps_boot.py\", \"tests/test_nano_hps_context.py\", \"tests/test_nano_native_trace.py\", \"tests/test_test_policy.py\"]"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "sh"
+        ],
+        "files": [
+          "scripts/parent_tests.py",
+          "tests"
+        ]
+      },
+      {
+        "lane": "parent",
+        "label": "working-tree generated consumer consistency",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "-c",
+          "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "go"
+        ],
+        "files": [
+          "scripts/consistency.py"
+        ]
+      },
+      {
+        "lane": "parent",
+        "label": "native SD firmware lease and PIO lifecycle",
+        "cwd": "platform/embedded/tamago",
+        "argv": [
+          "go",
+          "test",
+          "-race",
+          "-count=1",
+          "-timeout",
+          "90s",
+          "./sdcontrol",
+          "./sdhci",
+          "./fat",
+          "./packagestore"
+        ],
+        "tools": [
+          "cc",
+          "go",
+          "mcopy",
+          "mformat",
+          "mmd"
+        ],
+        "files": [
+          "sdcontrol/session_test.go",
+          "sdhci/sdhci.go",
+          "packagestore/store_test.go"
+        ]
+      },
+      {
+        "lane": "parent",
+        "label": "native runtime firmware and FPGA launch integration",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "platform/embedded/tamago/nativefabric/verify.py"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "c++",
+          "cc",
+          "go",
+          "verilator"
+        ],
+        "files": [
+          "platform/embedded/tamago/nativefabric/verify.py",
+          "platform/embedded/firmware/tests/native_rpc.cpp"
+        ]
+      },
+      {
+        "lane": "parent",
+        "label": "embedded producer identity and native control integration",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "platform/embedded/tamago/nativefabric/verify_producer.py"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "c++",
+          "cc",
+          "g++",
+          "git",
+          "go",
+          "make",
+          "verilator",
+          "verilator_bin"
+        ],
+        "files": [
+          "sources/misteross/prototypes/embedded_control/producer.py",
+          "platform/embedded/tamago/nativefabric/verify_producer.py"
+        ]
+      },
+      {
+        "lane": "host",
+        "label": "host Go and UI tests",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "scripts/host_tests.py",
+          "--ui-if-needed",
+          "--paths-json",
+          "[\"platform/embedded/entry/README.md\", \"platform/embedded/entry/build.py\", \"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/generated/fes_embedded_bridges.h\", \"platform/embedded/firmware/nano_bridge_sip.c\", \"platform/embedded/firmware/nano_bridge_sip.h\", \"platform/embedded/firmware/nano_owned_sip.inc\", \"platform/embedded/firmware/tests/nano_bridge_sip_test.c\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/nano/README.md\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/nano/hps_boot.py\", \"platform/embedded/nano/hps_context.py\", \"platform/embedded/nano/native_trace.py\", \"platform/embedded/nano/package.py\", \"platform/embedded/tamago/README.md\", \"platform/embedded/tamago/build.py\", \"platform/embedded/tamago/cmd/bootcontext/main.go\", \"platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go\", \"platform/embedded/tamago/nativefabric/hpscontext.go\", \"platform/embedded/tamago/nativefabric/hpscontext_test.go\", \"platform/embedded/tamago/nativefabric/testdata/hps-context.json\", \"platform/embedded/tamago/run.py\", \"scripts/test_policy.py\", \"sources/mister-packages/docs/embedded-bridges.md\", \"sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml\", \"sources/mister-packages/testdata/oracles/fes-embedded-bridges.json\", \"tests/test_nano_cold.py\", \"tests/test_nano_hps_boot.py\", \"tests/test_nano_hps_context.py\", \"tests/test_nano_native_trace.py\", \"tests/test_test_policy.py\"]"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "cc",
+          "go",
+          "make",
+          "node",
+          "rg",
+          "sh"
+        ],
+        "files": [
+          "scripts/host_tests.py",
+          "sources/FogCast/Makefile",
+          "sources/FogCast/go.mod",
+          "sources/FogCast/appliance/go.mod",
+          "sources/misteross/expansion/go.mod"
+        ],
+        "host_ui": {
+          "required": true,
+          "scheduled": true,
+          "boundary_scheduled": false,
+          "command_scheduled": true,
+          "target": "test-ui",
+          "reason": "UI/API, production/full or uncertain inputs"
+        }
+      },
+      {
+        "lane": "runtime",
+        "label": "runtime software tests",
+        "cwd": "sources/libmister-runtime",
+        "argv": [
+          "make",
+          "-j2",
+          "test"
+        ],
+        "tools": [
+          "ar",
+          "c++",
+          "c++filt",
+          "make",
+          "nm",
+          "rg",
+          "sh"
+        ],
+        "files": [
+          "Makefile"
+        ]
+      },
+      {
+        "lane": "contracts",
+        "label": "contract schemas and generated fixtures",
+        "cwd": "sources/mister-packages",
+        "argv": [
+          "make",
+          "test",
+          "PYTHON=/usr/bin/python3"
+        ],
+        "tools": [
+          "go",
+          "make"
+        ],
+        "files": [
+          "Makefile"
+        ]
+      },
+      {
+        "lane": "fpga",
+        "label": "embedded firmware and identity/drain RTL integration",
+        "cwd": ".",
+        "argv": [
+          "/usr/bin/python3",
+          "platform/embedded/firmware/verify.py"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "c++",
+          "cc",
+          "verilator"
+        ],
+        "files": [
+          "platform/embedded/firmware/verify.py",
+          "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
+        ]
+      },
+      {
+        "lane": "fpga",
+        "label": "test_*.py",
+        "cwd": "sources/misteross",
+        "argv": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_*.py",
+          "-v"
+        ],
+        "tools": [
+          "/usr/bin/python3",
+          "strace"
+        ],
+        "files": [
+          "tests/test_*.py"
+        ]
+      }
+    ],
+    "limits": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance",
+      "platform/image packaging suite",
+      "required browser integration suite",
+      "committed-source/release validation (make check remains separate)"
+    ],
+    "status": "planned"
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ],
+      "returncode": 0,
+      "completion_basis": "observed next phase under sequential fail-stop executor"
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ],
+      "returncode": 0,
+      "completion_basis": "observed next phase under sequential fail-stop executor"
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "cc47b121103f35524ad78a75de795b931b2f081d",
+        "--head",
+        "9743c0819eb34e3ebcce81f286eb2210a37be22b"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [],
+      "returncode": 0,
+      "completion_basis": "observed next phase under sequential fail-stop executor"
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": [],
+      "returncode": 0,
+      "completion_basis": "observed next phase under sequential fail-stop executor"
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/entry/README.md\", \"platform/embedded/entry/build.py\", \"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/generated/fes_embedded_bridges.h\", \"platform/embedded/firmware/nano_bridge_sip.c\", \"platform/embedded/firmware/nano_bridge_sip.h\", \"platform/embedded/firmware/nano_owned_sip.inc\", \"platform/embedded/firmware/tests/nano_bridge_sip_test.c\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/nano/README.md\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/nano/hps_boot.py\", \"platform/embedded/nano/hps_context.py\", \"platform/embedded/nano/native_trace.py\", \"platform/embedded/nano/package.py\", \"platform/embedded/tamago/README.md\", \"platform/embedded/tamago/build.py\", \"platform/embedded/tamago/cmd/bootcontext/main.go\", \"platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go\", \"platform/embedded/tamago/nativefabric/hpscontext.go\", \"platform/embedded/tamago/nativefabric/hpscontext_test.go\", \"platform/embedded/tamago/nativefabric/testdata/hps-context.json\", \"platform/embedded/tamago/run.py\", \"scripts/test_policy.py\", \"sources/mister-packages/docs/embedded-bridges.md\", \"sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml\", \"sources/mister-packages/testdata/oracles/fes-embedded-bridges.json\", \"tests/test_nano_cold.py\", \"tests/test_nano_hps_boot.py\", \"tests/test_nano_hps_context.py\", \"tests/test_nano_native_trace.py\", \"tests/test_test_policy.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ],
+      "returncode": 0,
+      "completion_basis": "observed next phase under sequential fail-stop executor"
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ],
+      "returncode": 0,
+      "completion_basis": "observed next phase under sequential fail-stop executor"
+    },
+    {
+      "lane": "parent",
+      "label": "native SD firmware lease and PIO lifecycle",
+      "cwd": "platform/embedded/tamago",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "90s",
+        "./sdcontrol",
+        "./sdhci",
+        "./fat",
+        "./packagestore"
+      ],
+      "tools": [
+        "cc",
+        "go",
+        "mcopy",
+        "mformat",
+        "mmd"
+      ],
+      "files": [
+        "sdcontrol/session_test.go",
+        "sdhci/sdhci.go",
+        "packagestore/store_test.go"
+      ],
+      "returncode": 0,
+      "completion_basis": "observed next phase under sequential fail-stop executor"
+    },
+    {
+      "lane": "parent",
+      "label": "native runtime firmware and FPGA launch integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "go",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/tamago/nativefabric/verify.py",
+        "platform/embedded/firmware/tests/native_rpc.cpp"
+      ],
+      "returncode": 0,
+      "completion_basis": "observed next phase under sequential fail-stop executor"
+    },
+    {
+      "lane": "parent",
+      "label": "embedded producer identity and native control integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "g++",
+        "git",
+        "go",
+        "make",
+        "verilator",
+        "verilator_bin"
+      ],
+      "files": [
+        "sources/misteross/prototypes/embedded_control/producer.py",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "returncode": 0,
+      "completion_basis": "observed next phase under sequential fail-stop executor"
+    },
+    {
+      "lane": "host",
+      "label": "host Go and UI tests",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/host_tests.py",
+        "--ui-if-needed",
+        "--paths-json",
+        "[\"platform/embedded/entry/README.md\", \"platform/embedded/entry/build.py\", \"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/generated/fes_embedded_bridges.h\", \"platform/embedded/firmware/nano_bridge_sip.c\", \"platform/embedded/firmware/nano_bridge_sip.h\", \"platform/embedded/firmware/nano_owned_sip.inc\", \"platform/embedded/firmware/tests/nano_bridge_sip_test.c\", \"platform/embedded/firmware/tests/nano_cold_platform_test.c\", \"platform/embedded/nano/README.md\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/nano/hps_boot.py\", \"platform/embedded/nano/hps_context.py\", \"platform/embedded/nano/native_trace.py\", \"platform/embedded/nano/package.py\", \"platform/embedded/tamago/README.md\", \"platform/embedded/tamago/build.py\", \"platform/embedded/tamago/cmd/bootcontext/main.go\", \"platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go\", \"platform/embedded/tamago/nativefabric/hpscontext.go\", \"platform/embedded/tamago/nativefabric/hpscontext_test.go\", \"platform/embedded/tamago/nativefabric/testdata/hps-context.json\", \"platform/embedded/tamago/run.py\", \"scripts/test_policy.py\", \"sources/mister-packages/docs/embedded-bridges.md\", \"sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml\", \"sources/mister-packages/testdata/oracles/fes-embedded-bridges.json\", \"tests/test_nano_cold.py\", \"tests/test_nano_hps_boot.py\", \"tests/test_nano_hps_context.py\", \"tests/test_nano_native_trace.py\", \"tests/test_test_policy.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "cc",
+        "go",
+        "make",
+        "node",
+        "rg",
+        "sh"
+      ],
+      "files": [
+        "scripts/host_tests.py",
+        "sources/FogCast/Makefile",
+        "sources/FogCast/go.mod",
+        "sources/FogCast/appliance/go.mod",
+        "sources/misteross/expansion/go.mod"
+      ],
+      "host_ui": {
+        "required": true,
+        "scheduled": true,
+        "boundary_scheduled": false,
+        "command_scheduled": true,
+        "target": "test-ui",
+        "reason": "UI/API, production/full or uncertain inputs"
+      },
+      "returncode": 0,
+      "completion_basis": "observed next phase under sequential fail-stop executor"
+    },
+    {
+      "lane": "runtime",
+      "label": "runtime software tests",
+      "cwd": "sources/libmister-runtime",
+      "argv": [
+        "make",
+        "-j2",
+        "test"
+      ],
+      "tools": [
+        "ar",
+        "c++",
+        "c++filt",
+        "make",
+        "nm",
+        "rg",
+        "sh"
+      ],
+      "files": [
+        "Makefile"
+      ],
+      "returncode": 0,
+      "completion_basis": "observed next phase under sequential fail-stop executor"
+    },
+    {
+      "lane": "contracts",
+      "label": "contract schemas and generated fixtures",
+      "cwd": "sources/mister-packages",
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "tools": [
+        "go",
+        "make"
+      ],
+      "files": [
+        "Makefile"
+      ],
+      "returncode": 0,
+      "completion_basis": "observed next phase under sequential fail-stop executor"
+    },
+    {
+      "lane": "fpga",
+      "label": "embedded firmware and identity/drain RTL integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/firmware/verify.py",
+        "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
+      ],
+      "returncode": 0,
+      "completion_basis": "observed next phase under sequential fail-stop executor"
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ],
+      "returncode": 0,
+      "completion_basis": "direct standalone phase completion"
+    }
+  ],
+  "completed_earlier_phase_checkpoint": {
+    "source_commit": "9743c0819eb34e3ebcce81f286eb2210a37be22b",
+    "active_phase": 13,
+    "pid": "1099779",
+    "parent_pid": 1023364,
+    "argv": [
+      "/usr/bin/python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_*.py",
+      "-v"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross",
+    "completed_phase_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "sequential_fail_stop_executor_sha256": "c4487f1a8ca01970517458916eb0cc2cd328c0021a6f4f985c60bc4510ad667b",
+    "classification": "observed final planned subprocess under the sequential fail-stop affected runner; earlier phases necessarily returned zero",
+    "monotonic": 591375.017480971
+  },
+  "outer_run": {
+    "argv": [
+      "make",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base cc47b121103f35524ad78a75de795b931b2f081d"
+    ],
+    "returncode": -15,
+    "timed_out": true,
+    "elapsed": 900.1953465429833,
+    "log_sha256": "161ee50fef6c36a5cd1031698aac748fe4d42a916fc2805d5ed02cb3e36fa68e"
+  },
+  "standalone_final_phase": {
+    "argv": [
+      "python3",
+      "out/nano-hps-context-20261101/run_final_phase.py"
+    ],
+    "returncode": 0,
+    "timed_out": false,
+    "elapsed": 405.4472186630592,
+    "log_sha256": "539f94fddbe8f0018b327c44454f7ee3c27160171e3bdfcc1f2c9e47bb62c2eb"
+  },
+  "checkpoint_sha256": "30dba785a04d27d18e0bb4ef6fe9a89ec380dff034f89b3bb2e87cea007f9c9d",
+  "initial_extended_run": {
+    "argv": [
+      "make",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base cc47b121103f35524ad78a75de795b931b2f081d"
+    ],
+    "returncode": -15,
+    "timed_out": true,
+    "elapsed": 900.1795665289974,
+    "log_sha256": "72f1f910f5da6344d43717ed661e280be60b4b6a6389143de5a16afb3c201dcb"
+  }
+}
