@@ -1,7 +1,6 @@
-// Throwaway capture harness for docs/ux/references/v1. Never commit it as
-// product code: render.sh copies it into sources/FogCast/ui/tenfoot, runs it
-// and deletes it again. It renders the v1ref Lua pack through the production
-// rooms engine, display-list replay and software renderer.
+// Throwaway capture harness for docs/ux/references/v1. render.sh supplies it
+// to the tenfoot package through a Go overlay. It renders the v1ref Lua pack
+// through the production rooms engine, display-list replay and software renderer.
 package tenfoot
 
 import (
@@ -18,17 +17,19 @@ import (
 )
 
 // v1Scene is one reference picture. The Lua pack reads the scene name from
-// room.initial_game_id. Hint replaces the native hero footer hint, because
-// the first-run screens propose their own; an empty hint on Home keeps the
-// production one. Native overlays (Settings, the folder picker) are applied
-// to the snapshot after the room has drawn.
+// room.initial_game_id. Hint replaces the native hero footer hint on proposed
+// first-run screens. Native keeps the production footer hint; FooterOverride
+// supplies the first-run hint under a native overlay's dimmed Home footer.
+// Native overlays (Settings, the folder picker) are applied to the snapshot
+// after the room has drawn.
 type v1Scene struct {
-	Name     string
-	Room     string
-	Hint     string
-	Native   bool // keep the production footer hint
-	NoFooter bool
-	Overlay  func(*Snapshot)
+	Name           string
+	Room           string
+	Hint           string
+	Native         bool // keep the production footer hint
+	FooterOverride bool
+	NoFooter       bool
+	Overlay        func(*Snapshot)
 }
 
 func v1SettingsRows(rows ...string) []SettingsRow {
@@ -52,11 +53,11 @@ func v1Scenes() []v1Scene {
 		{Name: "0-splash", Room: "splash", NoFooter: true},
 		{Name: "1-welcome", Room: "welcome", Hint: "D-pad move  ·  A continue  ·  Keyboard: arrows and Enter"},
 		{Name: "1-welcome-skip", Room: "welcome-skip", Hint: "D-pad move  ·  A skip setup  ·  Keyboard: arrows and Enter"},
-		{Name: "2-controllers-waiting", Room: "pads-waiting", Hint: "Press any button  ·  Enter continues with the keyboard"},
+		{Name: "2-controllers-waiting", Room: "pads-waiting", Hint: "B back  ·  P pair Bluetooth  ·  Enter continue with keyboard"},
 		{Name: "2-controllers-found", Room: "pads-found", Hint: "D-pad move  ·  A continue  ·  B back"},
 		{Name: "2-controllers-bluetooth", Room: "pads-bluetooth", Hint: "D-pad move  ·  A pair  ·  B stop searching"},
 		{Name: "3-folders-suggested", Room: "folders-suggested", Hint: "D-pad move  ·  A scan folders  ·  B back"},
-		{Name: "3-folders-picker", Room: "folders-suggested", Hint: "", Native: true, Overlay: func(s *Snapshot) {
+		{Name: "3-folders-picker", Room: "folders-suggested", Hint: "A open  ·  Y use this folder  ·  LB / RB change drive  ·  B back", Native: true, FooterOverride: true, Overlay: func(s *Snapshot) {
 			s.FirmwarePicker = FirmwarePickerSnapshot{Open: true, Title: "Spectrum games folder", Path: "USB drive  /  games", Index: 2,
 				Rows: []FirmwarePickerRow{
 					{Name: "Up one folder", Kind: "dir", Selectable: true},
@@ -95,8 +96,8 @@ func v1Scenes() []v1Scene {
 			"Pair a Bluetooth pad", "Search",
 			"Reset controller settings", "")},
 		{Name: "settings-2-games-folders", Room: "home-recent", Native: true, Overlay: v1Settings(1, "Games folders  ·  A change  ·  B back",
-			"ZX81", "USB drive / games/ZX81  ·  38 titles",
-			"Spectrum", "USB drive / games/Spectrum  ·  241 titles",
+			"ZX81", "USB drive / games/ZX81  ·  38 games",
+			"Spectrum", "USB drive / games/Spectrum  ·  241 games",
 			"Atari ST", "SD card / ST  ·  no games found",
 			"C64", "Not chosen",
 			"Rescan all folders", "",
@@ -133,7 +134,7 @@ func v1Scenes() []v1Scene {
 
 func v1Footer(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, sc v1Scene) {
 	layout, ok := rooms.HeroPanel(snap.Room.Width, snap.Room.Height)
-	if !ok || sc.Native {
+	if !ok || (sc.Native && !sc.FooterOverride) {
 		return
 	}
 	f := layout.Footer
@@ -147,6 +148,18 @@ func v1Footer(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, sc v1
 	textY := y + (f.H-gfx.TextHeight(heroFooterPx))/2
 	hintW := min(gfx.MeasureText(sc.Hint, heroFooterPx), f.W-2*margin)
 	heroLine(dev, labels, map[string]struct{}{}, x+f.W-margin-hintW, textY, hintW, heroFooterPx, false, heroSecondary, sc.Hint)
+}
+
+func dimV1Footer(dev gfx.Device, snap Snapshot) {
+	layout, ok := rooms.HeroPanel(snap.Room.Width, snap.Room.Height)
+	if !ok {
+		return
+	}
+	f := layout.Footer
+	dev.SetBlend(gfx.BlendAlpha)
+	dev.FillRect(gfx.Rect{X: float32(snap.Room.OffsetX + f.X), Y: float32(snap.Room.OffsetY + f.Y),
+		W: float32(f.W), H: float32(f.H)}, gfx.Color{R: 8, G: 8, B: 12, A: 180})
+	dev.SetBlend(gfx.BlendNone)
 }
 
 func TestV1Renders(t *testing.T) {
@@ -195,8 +208,11 @@ func TestV1Renders(t *testing.T) {
 			}
 			labels := map[string]gpuTexture{}
 			presentFrame(dev, snap, map[string]gpuTexture{}, labels, false)
-			if sc.Overlay == nil {
+			if sc.Overlay == nil || sc.FooterOverride {
 				v1Footer(dev, snap, labels, sc)
+				if sc.FooterOverride {
+					dimV1Footer(dev, snap)
+				}
 			}
 			path := filepath.Join(out, fmt.Sprintf("%s-%dx%d.png", sc.Name, size[0], size[1]))
 			file, err := os.Create(path)

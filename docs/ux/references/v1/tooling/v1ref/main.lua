@@ -158,13 +158,13 @@ local function buttons(list, x, y, size)
   return cx - x - 20
 end
 
--- Availability chips. Each state has its own shape, not only its colour:
--- Ready is filled, Needs firmware is outlined, the rest sit on a raised plate.
+-- Shared room state chips: Ready is filled, Unavailable is raised with a
+-- leading bar, and the other states are outlined.
 local CHIP = {
   ready = { label = "Ready", fill = C.accent, color = C.on_accent },
-  firmware = { label = "Needs firmware", fill = C.surface, color = C.text, ring = C.text },
-  nogames = { label = "No games yet", fill = C.raised, color = C.text },
-  checking = { label = "Checking", fill = C.raised, color = C.text },
+  firmware = { label = "Unavailable", fill = C.raised, color = C.text, leading = C.text },
+  nogames = { label = "Ready", fill = C.accent, color = C.on_accent },
+  checking = { label = "Checking", fill = C.surface, color = C.text, ring = C.secondary },
   suggested = { label = "Suggested", fill = C.warm, color = C.text },
   tested = { label = "Tested", fill = C.warm, color = C.text },
   skipped = { label = "Skipped", fill = C.raised, color = C.secondary },
@@ -178,15 +178,17 @@ local function chip(kind, x, y, size, label)
   size = size or 18
   label = label or c.label
   local tw, th = gfx.measure(label, size, true)
-  local w, h = tw + 20, th + 8
+  local lead = c.leading and 7 or 0
+  local w, h = tw + 20 + lead, th + 8
   gfx.rect(x, y, w, h, c.fill)
+  if c.leading then gfx.rect(x, y, lead, h, c.leading) end
   if c.ring then outline(x, y, w, h, 2, c.ring) end
-  gfx.text(label, x + 10, y + 4, { size = size, bold = true, color = c.color })
+  gfx.text(label, x + 10 + lead, y + 4, { size = size, bold = true, color = c.color })
   return w, h
 end
 
 local function chip_w(kind, size, label)
-  return gfx.measure(label or CHIP[kind].label, size or 18, true) + 20
+  return gfx.measure(label or CHIP[kind].label, size or 18, true) + 20 + (CHIP[kind].leading and 7 or 0)
 end
 
 -- Placeholder family mark (#1351 draws the real icons): a muted ground,
@@ -371,14 +373,14 @@ local function draw_pads_waiting()
   header("Controllers", nil, 2)
   local f, l, r = setup_columns()
   local y = title_block("Pick up a controller",
-    "Press any button on the pad you want to use. FES names it and makes it Player 1.", l.x, l.y, l.w)
-  y = para("Using a keyboard? Press Enter to carry on with it. The keyboard works on every screen.", l.x, y + 4, l.w, 20, C.secondary, false)
-  local note = "Bluetooth pad? Choose Pair a Bluetooth pad, then hold the pad's pairing button until its light flashes."
+    "Press any pad button except B to select it. FES names it and makes it Player 1.", l.x, l.y, l.w)
+  y = para("B goes back. Enter continues with the keyboard; P opens Bluetooth pairing.", l.x, y + 4, l.w, 20, C.secondary, false)
+  local note = "Bluetooth pad? Press P or choose Pair a Bluetooth pad, then hold the pad's pairing button until its light flashes."
   local lines = wrap(note, 20, l.w - 40, false)
   local nh = #lines * (line_h(20) + 4) + 28
   panel(l.x, y + 16, l.w, nh, C.raised)
   para(note, l.x + 20, y + 30, l.w - 40, 20, C.text, false)
-  bottom_buttons({ { "Continue with keyboard", "Enter", filled = true }, { "Pair a Bluetooth pad", nil } })
+  bottom_buttons({ { "Continue with keyboard", "Enter", filled = true, focused = true }, { "Pair a Bluetooth pad", "P" } })
   panel(r.x, r.y, r.w, r.h)
   pad_art(r.x + 24, r.y + 24, r.w - 48, r.h * 0.62)
   local cy = r.y + r.h * 0.72
@@ -546,7 +548,7 @@ local function draw_ready(skipped)
     family_row(FAMILIES[i], f.x, y, f.w, rh, r[1], r[2])
     y = y + rh + gap
   end
-  local by = bottom_buttons({ { "Finish", "A", filled = true, focused = true }, { "Back" } })
+  local by = bottom_buttons({ { "Finish", "A", filled = true, focused = true }, { "Back", "B" } })
   local note = "Change any of this later in Settings."
   local nw = gfx.measure(note, 20)
   gfx.text(note, f.x + f.w - nw, by + (button_h() - line_h(20)) / 2, { size = 20, color = C.secondary })
@@ -557,14 +559,14 @@ end
 local FIRST = {
   { kind = "ready", line = "38 games" },
   { kind = "ready", line = "241 games" },
-  { kind = "nogames", line = "Built-in firmware" },
+  { kind = "nogames", line = "No games yet  ·  firmware built in" },
   { kind = "firmware", line = "Add your ROM files" },
 }
 
 local SKIPPED = {
-  { kind = "nogames", line = "Built-in firmware" },
-  { kind = "nogames", line = "Built-in firmware" },
-  { kind = "nogames", line = "Built-in firmware" },
+  { kind = "nogames", line = "No games yet  ·  firmware built in" },
+  { kind = "nogames", line = "No games yet  ·  firmware built in" },
+  { kind = "nogames", line = "No games yet  ·  firmware built in" },
   { kind = "firmware", line = "Add your ROM files" },
 }
 
@@ -579,10 +581,25 @@ local RECENT = {
 local function hero_text(c)
   local t = H().text
   local y = t.y
-  gfx.text(string.upper(c.kicker), t.x, y, { size = 16, bold = true, color = C.secondary, max_w = t.w })
-  y = y + line_h(16, true) + 2
+  local kicker_h = line_h(16, true) + 2
+  local title_h = line_h(36, true) + 2
+  local meta_h = c.meta and (line_h(20) + 12) or 0
+  local state_h = gfx.measure(CHIP[c.state].label, 20, true) + 18
+  local bh = button_h()
+  local limit = t.y + t.h - bh - 10
+  local explain_lines, explain_line_h = {}, line_h(20) + 4
+  if c.explain then explain_lines = wrap(c.explain, 20, t.w, false) end
+  local show_kicker = c.kicker ~= nil and c.kicker ~= ""
+  local explain_y = y + (show_kicker and kicker_h or 0) + title_h + meta_h + state_h
+  if show_kicker and c.explain and #explain_lines * explain_line_h > limit - explain_y then
+    show_kicker = false
+  end
+  if show_kicker then
+    gfx.text(string.upper(c.kicker), t.x, y, { size = 16, bold = true, color = C.secondary, max_w = t.w })
+    y = y + kicker_h
+  end
   gfx.text(c.title, t.x, y, { size = 36, bold = true, color = C.text, max_w = t.w })
-  y = y + line_h(36, true) + 2
+  y = y + title_h
   if c.meta then
     gfx.text(c.meta, t.x, y, { size = 20, color = C.secondary, max_w = t.w })
     y = y + line_h(20) + 12
@@ -590,17 +607,13 @@ local function hero_text(c)
   local cw, ch = chip(c.state, t.x, y, 20)
   gfx.text(c.headline, t.x + cw + 14, y + (ch - line_h(22)) / 2, { size = 22, color = C.text, max_w = t.w - cw - 14 })
   y = y + ch + 10
-  local bh = button_h()
-  local limit = t.y + t.h - bh - 10
-  if c.explain then
+  if #explain_lines > 0 then
     -- Lines that do not fit are dropped; the last shown line says so.
-    local lh = line_h(20) + 4
-    local lines = wrap(c.explain, 20, t.w, false)
-    for i, l in ipairs(lines) do
-      if y + lh > limit then break end
-      if i < #lines and y + 2 * lh > limit then l = l .. " …" end
+    for i, l in ipairs(explain_lines) do
+      if y + explain_line_h > limit then break end
+      if i < #explain_lines and y + 2 * explain_line_h > limit then l = l .. " …" end
       gfx.text(l, t.x, y, { size = 20, color = C.secondary, max_w = t.w })
-      y = y + lh
+      y = y + explain_line_h
     end
   end
   buttons(c.actions, t.x + 6, t.y + t.h - bh - 4)

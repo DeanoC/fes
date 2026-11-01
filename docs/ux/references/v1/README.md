@@ -48,12 +48,13 @@ the repository root:
 
 ```sh
 docs/ux/references/v1/tooling/render.sh
+docs/ux/references/v1/tooling/render.sh --update
 ```
 
-The script copies the harness into `sources/FogCast/ui/tenfoot` for the run,
-renders all 27 scenes at 1280×720 and 1024×600 into this folder, and removes
-the harness again. Pass a directory to render somewhere else. Nothing under
-`sources/` changes. The harness reads the scene name through
+With no argument, the script renders to a temporary directory and verifies all
+54 committed PNGs byte for byte. The `--update` form regenerates this folder;
+pass a directory to render somewhere else. A Go overlay supplies the harness;
+nothing under `sources/` changes. The harness reads the scene name through
 `room.initial_game_id`; the scene list and the Settings rows are in the
 harness.
 
@@ -92,8 +93,10 @@ harness.
 Finish writes the first-run marker; so does Skip setup, with a record of the
 unfinished steps that Home shows as a banner. Settings › About & help › Run
 setup again starts from 1 without clearing anything. B goes back one step on
-2–4; it does nothing on 1. The keyboard works on every screen: arrows move,
-Enter confirms, Esc goes back.
+2–4; it does nothing on 1. On Controllers waiting, B is reserved for Back and
+any other pad button identifies the pad. The keyboard works on every screen:
+arrows move, Enter confirms, Esc goes back, and P opens Bluetooth pairing while
+waiting for a controller.
 
 ## Screens
 
@@ -142,8 +145,8 @@ green outline, so focus and readiness never share a shape.
 | | |
 | --- | --- |
 | Purpose | Make the first pad Player 1, confirm it by name, and show its buttons work. Offer Bluetooth pairing. |
-| Focus and default | Waiting: no focus is needed; any pad button identifies the pad, Enter continues with the keyboard. Found: Continue. Bluetooth: the first pad found. |
-| Copy | Waiting: "Pick up a controller" · "Press any button on the pad you want to use. FES names it and makes it Player 1." · "Using a keyboard? Press Enter to carry on with it. The keyboard works on every screen." Found: "Player 1 is ready"; rows for P1 (name, Tested badge, "Wired · Xbox layout · buttons as printed"), P2 ("Press a button on another pad") and Keyboard; "Try your buttons" with the last button pressed lit; "Buttons look wrong? Swap A and B here, or remap them later in Settings › Controllers." Bluetooth: three numbered steps, a Searching chip, found pads with Tested where it applies, "Pads you have paired before connect on their own." |
+| Focus and default | Waiting: Continue with keyboard is focused; B/Esc backs up, P opens Bluetooth pairing, another pad button identifies the pad. Found: Continue. Bluetooth: the first pad found. |
+| Copy | Waiting: "Pick up a controller" · "Press any pad button except B to select it. FES names it and makes it Player 1." · "B goes back. Enter continues with the keyboard; P opens Bluetooth pairing." Found: "Player 1 is ready"; rows for P1 (name, Tested badge, "Wired · Xbox layout · buttons as printed"), P2 ("Press a button on another pad") and Keyboard; "Try your buttons" with the last button pressed lit; "Buttons look wrong? Swap A and B here, or remap them later in Settings › Controllers." Bluetooth: three numbered steps, a Searching chip, found pads with Tested where it applies, "Pads you have paired before connect on their own." |
 | States | Waiting for a button; pad found (Tested); a second pad slot; Bluetooth searching with a pad not yet on the Tested list. A pad not on the list still works; it only lacks the badge. |
 | Reused | GameControllerDB identification (`ui/controller/gamecontrollerdb.go`, #981), player ports (#990), GUID profiles (#995), the BT agent (#1058). |
 | New | This step, the button test, the pairing screen and the Tested badge (#980 slice 4). |
@@ -220,10 +223,12 @@ Family states. The plan's tile states map onto the shared room states:
 | Needs firmware | Unavailable, with the firmware reason | "Add your C64 ROM files to play" | A Add firmware / Y Details |
 | Setup skipped | Ready with no games; the banner sits in the Recently played slot and holds Finish setup | "No games folder chosen" | A Open / Y Details |
 
-"No games yet" uses its own raised chip, so it never reads as Ready.
-"Needs firmware" is an outlined chip. X is the proposed shortcut for a
-family's folder remedy; when it shows, the footer hint must name it (#1347).
-Open goes to the family workbench,
+The chips keep the shared room state labels and shapes: Ready is filled,
+Unavailable uses a raised plate and a leading bar, and Checking is outlined.
+"No games yet" is reason text within Ready; a firmware requirement is reason
+text within Unavailable. V1 does not replace the shared readiness vocabulary
+for families. X is the proposed shortcut for a family's folder remedy; when it
+shows, the footer hint must name it (#1347). Open goes to the family workbench,
 where the model is chosen. **Recently played**, not Continue, names the row:
 the visual language reserves resume wording for a real saved state. Play
 starts the title again; a later resume feature can add Continue for titles
@@ -241,10 +246,12 @@ with a saved state.
 
 1024×600: [first visit](5-home-first-visit-1024x600.png) · [recent](5-home-recent-1024x600.png) · [needs firmware](5-home-needs-firmware-1024x600.png) · [no games](5-home-no-games-1024x600.png) · [setup skipped](5-home-setup-skipped-1024x600.png)
 
-At 1024×600 the hero has no room for the explanation line; the headline and
-actions stay. With Recently played showing, tiles switch to a compact form:
-a small mark beside the short name and chip. Both are visible in the
-1024×600 pictures.
+At 1024×600 Home drops the hero kicker before the explanation, keeping the full
+stop line with the headline and actions. Tall family tiles omit their detail
+line (for example, "38 games" or "Add your ROM files") at this size. With
+Recently played showing, tiles switch to a compact form with a small mark, the
+short name and shared-state chip; the detail line is also omitted. These
+elements remain visible in the 1024×600 pictures.
 
 ### 6 First use of a family: the firmware card
 
