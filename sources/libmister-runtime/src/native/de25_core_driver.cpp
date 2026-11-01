@@ -5,20 +5,36 @@
 #include "native/artifacts.hpp"
 #include "native/generated/fes_computer.hpp"
 #include "native/generated/fes_de25_computer.hpp"
+#include "native/linux/de25_menu.hpp"
 namespace mister { namespace native {
 using namespace generated;
-VideoResult De25VideoBringup::BringUpCustom(std::uint64_t deadline, bool audio)
+VideoResult De25VideoBringup::BringUpCustom(std::uint64_t, bool)
+{
+ VideoResult result;
+ result.error = {ErrorCode::unsupported_interface, "DE25 video needs the selected core driver", "video"};
+ return result;
+}
+VideoResult De25VideoBringup::BringUp(const IdleRecipe&, std::uint64_t deadline)
+{
+ return BringUpCustom(deadline);
+}
+VideoResult De25VideoBringup::BringUpSelected(CoreDriver& driver, std::uint64_t deadline, bool audio)
 {
  VideoResult result;
  result.phase = "fpga-video";
- if (audio) result.error = {ErrorCode::unsupported_interface, "DE25 BRAM computer has no audio", "video"};
- else result.error = client_.WaitVideoReady(deadline);
+ if (audio) result.error = {ErrorCode::unsupported_interface, "selected DE25 profiles have no audio", "video"};
+ else result.error = driver.WaitVideoReady(deadline);
  return result;
 }
 void De25ComputerCoreDriver::BeginSession()
 {
 	selected_ = false; core_.clear(); build_.clear(); media_.clear();
 	// A lifecycle boundary never clears the protocol client's sticky fault.
+}
+Error De25ComputerCoreDriver::WaitVideoReady(std::uint64_t deadline)
+{
+	Error error = Ready();
+	return error.ok() ? client_.WaitVideoReady(deadline) : error;
 }
 Error De25ComputerCoreDriver::Ready() const
 {
@@ -139,5 +155,65 @@ Error De25ComputerCoreDriver::EjectMedia(std::uint8_t unit, std::uint64_t deadli
 	if (unit != FesComputerZx81TapeUnit)
 		return {ErrorCode::unsupported_interface, "DE25 tape unit is inactive", "request"};
 	return ClearMedia(deadline);
+}
+
+void De25MenuCoreDriver::BeginSession()
+{
+	selected_ = false; build_.clear();
+	// The shared presenter retains any uncertain grant until guarded retirement.
+}
+Error De25MenuCoreDriver::Context(const CoreDriverContext& context) const
+{
+	if (!selected_ || !context.descriptor || context.expected_core != "fes.menu" ||
+		context.descriptor->build.id != build_)
+		return {ErrorCode::core_mismatch, "DE25 MENU selected context differs", "identity"};
+	return CheckDe25MenuContract(*context.descriptor);
+}
+CoreDriverResult De25MenuCoreDriver::Identify(const CoreDriverContext& context, std::uint64_t deadline)
+{
+	BeginSession();
+	if (!context.descriptor || context.expected_core != "fes.menu")
+		return {{ErrorCode::core_mismatch, "DE25 MENU selected context differs", "identity"}, false, ""};
+	Error error = CheckDe25MenuContract(*context.descriptor);
+	std::array<std::uint32_t,4> words{};
+	if (error.ok()) error = De25BuildWords(context.descriptor->build.id, &words);
+	if (!error.ok()) return {error, false, ""};
+	error = menu_.Bind(words, deadline);
+	CoreDriverResult result{error, true, error.ok() ? "fes.menu" : ""};
+	if (error.ok()) {
+		selected_ = true; build_ = context.descriptor->build.id;
+		result.safe_to_quiesce = true;
+	}
+	return result;
+}
+Error De25MenuCoreDriver::WaitVideoReady(std::uint64_t deadline)
+{
+	if (!selected_)
+		return {ErrorCode::core_mismatch, "DE25 MENU has no selected identity", "video"};
+	MenuDisplayInfo info;
+	Error error = menu_.ReadInfo(deadline, &info);
+	if (error.ok() && (!info.enabled || !info.configured || info.quiesced || info.pending || info.faulted || info.underflows))
+		error = {ErrorCode::io_failed, "DE25 MENU has no completed ready frame", "video"};
+	return error;
+}
+CoreDriverResult De25MenuCoreDriver::Quiesce(const CoreDriverContext& context, std::uint64_t deadline)
+{
+	Error error = Context(context);
+	return {error.ok() ? menu_.Quiesce(deadline) : error, true, "fes.menu"};
+}
+CoreDriverResult De25MenuCoreDriver::NeutralizeButtons(const CoreDriverContext& context, std::uint64_t)
+{
+	return {Context(context), false, "fes.menu"};
+}
+CoreDriverResult De25MenuCoreDriver::SetButtons(const CoreDriverContext& context, std::uint16_t buttons,
+	std::uint64_t deadline)
+{
+	if (buttons) return {{ErrorCode::unsupported_interface, "DE25 MENU has no gamepad interface", "input"}, false, ""};
+	return NeutralizeButtons(context, deadline);
+}
+CoreDriverResult De25MenuCoreDriver::Start(const CoreDriverContext& context, std::uint64_t deadline)
+{
+	Error error = Context(context);
+	return {error.ok() ? WaitVideoReady(deadline) : error, false, "fes.menu"};
 }
 } } // namespace mister::native

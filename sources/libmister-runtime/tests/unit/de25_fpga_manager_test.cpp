@@ -73,8 +73,8 @@ struct Fixture {
         // Test-only tree: every name is our private mkdtemp directory.
         std::string cmd="rm -rf -- '"+root+"'";assert(!system(cmd.c_str()));if(lease>=0)close(lease);
     }
-    std::unique_ptr<LinuxDe25FpgaManager> Manager(De25OverlayProfile profile = De25OverlayProfile::firmware_only) {return std::unique_ptr<LinuxDe25FpgaManager>(new LinuxDe25FpgaManager(clock,lease,paths,ops,profile));}
-    NativeResult Program(LinuxDe25FpgaManager& m) {return m.Program(artifact,ProgrammingProfile::de25_hps_first_v1,100);}
+    std::unique_ptr<LinuxDe25FpgaManager> Manager() {return std::unique_ptr<LinuxDe25FpgaManager>(new LinuxDe25FpgaManager(clock,lease,paths,ops));}
+    NativeResult Program(LinuxDe25FpgaManager& m, ProgrammingProfile p = ProgrammingProfile::de25_hps_first_v1) {return m.Program(artifact,p,100);}
     void Preserved() {assert(Exists(ops.Dir()) && Exists(paths.firmware+"/fes-runtime-core.rbf"));}
 };
 void Positive() {
@@ -140,30 +140,35 @@ void AllocatedScanoutProfile() {
     allocated.erase(profile_key);assert(allocated == ordinary);
     assert(De25ProgrammingOverlay(static_cast<De25OverlayProfile>(42)).empty());
     {
-        Fixture f;auto m = f.Manager(De25OverlayProfile::allocated_scanout);
-        assert(f.Program(*m).error.ok());
+        Fixture f;auto m = f.Manager();
+        assert(f.Program(*m,ProgrammingProfile::de25_linux_menu_v1).error.ok());
         assert(Get(f.ops.Dir()+"/dtbo") == bytes(scanout));
-        assert(f.Program(*m).error.ok() && f.ops.removed == 1);
+        assert(f.Program(*m,ProgrammingProfile::de25_linux_menu_v1).error.ok() && f.ops.removed == 1);
         // An inherited marker is never adopted by a fresh caller.
-        auto fresh = f.Manager(De25OverlayProfile::allocated_scanout);
-        auto r = f.Program(*fresh);assert(!r.error.ok() && !r.mutation_attempted);
+        auto fresh = f.Manager();
+        auto r = f.Program(*fresh,ProgrammingProfile::de25_linux_menu_v1);assert(!r.error.ok() && !r.mutation_attempted);
+        // The outgoing bytes, not the incoming profile, authorize replacement.
+        assert(f.Program(*m).error.ok());
+        assert(Get(f.ops.Dir()+"/dtbo") == bytes(basic));
+        assert(f.Program(*m,ProgrammingProfile::de25_linux_menu_v1).error.ok());
+        assert(Get(f.ops.Dir()+"/dtbo") == bytes(scanout) && f.ops.removed == 3);
         // A successful context must retain its exact selected marker too.
         Put(f.ops.Dir()+"/dtbo", bytes(basic));
-        r = f.Program(*m);assert(!r.error.ok() && !r.mutation_attempted && f.ops.removed == 1);
+        r = f.Program(*m,ProgrammingProfile::de25_linux_menu_v1);assert(!r.error.ok() && !r.mutation_attempted && f.ops.removed == 3);
     }
     {
-        Fixture f;auto m = f.Manager(static_cast<De25OverlayProfile>(42));
-        auto r = f.Program(*m);assert(!r.error.ok() && !r.mutation_attempted);
+        Fixture f;auto m = f.Manager();
+        auto r = f.Program(*m,static_cast<ProgrammingProfile>(42));assert(!r.error.ok() && !r.mutation_attempted);
         assert(!f.ops.created && !Exists(f.paths.firmware+"/fes-runtime-core.rbf"));
     }
     {
-        Fixture f;auto m = f.Manager(De25OverlayProfile::allocated_scanout);
-        f.ops.error_close = true;auto r = f.Program(*m);
+        Fixture f;auto m = f.Manager();
+        f.ops.error_close = true;auto r = f.Program(*m,ProgrammingProfile::de25_linux_menu_v1);
         assert(!r.error.ok() && r.mutation_attempted && m->Poisoned());
         f.Preserved();assert(!f.ops.removed && f.ops.written == 1);
-        r = f.Program(*m);assert(!r.error.ok() && !r.mutation_attempted && f.ops.written == 1);
+        r = f.Program(*m,ProgrammingProfile::de25_linux_menu_v1);assert(!r.error.ok() && !r.mutation_attempted && f.ops.written == 1);
     }
-    std::cout<<"explicit scanout marker, invalid selection, exact replacement and uncertainty retention pass\n";
+    std::cout<<"profile-selected marker, MENU-computer-MENU switching, exact outgoing identity and uncertainty retention pass\n";
 }
 void Uncertain() {
     for(int mode=0;mode<4;++mode) {

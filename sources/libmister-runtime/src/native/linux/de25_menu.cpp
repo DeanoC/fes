@@ -110,6 +110,13 @@ Error LinuxDe25Menu::Deadline(std::uint64_t d) const {
  return clock_.NowMs()>=d?Failed("DE25 MENU operation exceeded its deadline"):Error{};
 }
 Error LinuxDe25Menu::Fault(Error e){if(!e.ok())faulted_=true;return e;}
+Error LinuxDe25Menu::CheckOwnerAbi(std::uint64_t d) {
+ std::lock_guard<std::mutex> lock(mutex_);
+ Error e=Deadline(d);if(!e.ok())return e;
+ std::uint32_t abi=0;e=operations_->OwnerAbi(&abi);if(e.ok())e=Deadline(d);
+ if(!e.ok())return e;
+ return abi==kAbi?Error{}:Error{ErrorCode::unsupported_interface,"DE25 owner ABI must be 3 before allocation","menu"};
+}
 Error LinuxDe25Menu::Validate(const De25MenuGrant& v) const {
  using namespace generated;
  if(v.version!=kAbi||!v.generation||v.generation!=info_.generation||v.reserved||v.build_id!=expected_||

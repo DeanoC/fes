@@ -7,14 +7,13 @@
 namespace mister { namespace native {
 // HDMI configuration belongs to this FPGA image. Linux observes readiness;
 // it never writes the DE10 I2C recipe. Core quiesce remains the driver's HOLD.
-class De25VideoBringup final : public CoreVideoBringup {
+class De25VideoBringup final : public CoreVideoBringup, public VideoBringup {
 public:
- explicit De25VideoBringup(De25Computer& client) : client_(client) {}
  bool SupportsPlatform(NativePlatform p) const override { return p == NativePlatform::de25_nano; }
  VideoResult BringUpCustom(std::uint64_t deadline, bool audio = false) override;
+ VideoResult BringUpSelected(CoreDriver&, std::uint64_t, bool audio = false) override;
+ VideoResult BringUp(const IdleRecipe&, std::uint64_t) override;
  VideoQuiesceResult Quiesce(std::uint64_t) override { return {}; }
-private:
- De25Computer& client_;
 };
 
 // Internal driver for the known BRAM ZX81 contract. The production factory
@@ -24,6 +23,7 @@ class De25ComputerCoreDriver final : public CoreDriver {
 public:
 	explicit De25ComputerCoreDriver(De25Computer& client) : client_(client) {}
 	void BeginSession() override;
+	Error WaitVideoReady(std::uint64_t deadline) override;
 	CoreDriverResult Identify(const CoreDriverContext&, std::uint64_t) override;
 	CoreDriverResult Quiesce(const CoreDriverContext&, std::uint64_t) override;
 	CoreDriverResult NeutralizeButtons(const CoreDriverContext&, std::uint64_t) override;
@@ -45,5 +45,25 @@ private:
 	std::vector<MediaUnitCapability> media_;
 	bool selected_ = false;
 	std::string core_, build_;
+};
+
+class LinuxDe25Menu;
+// The application has no guest CPU or GP mailbox. Identify binds the selected
+// allocation; Configure performs the two observed black frames before Start.
+class De25MenuCoreDriver final : public CoreDriver {
+public:
+	explicit De25MenuCoreDriver(LinuxDe25Menu& menu) : menu_(menu) {}
+	void BeginSession() override;
+	Error WaitVideoReady(std::uint64_t) override;
+	CoreDriverResult Identify(const CoreDriverContext&, std::uint64_t) override;
+	CoreDriverResult Quiesce(const CoreDriverContext&, std::uint64_t) override;
+	CoreDriverResult NeutralizeButtons(const CoreDriverContext&, std::uint64_t) override;
+	CoreDriverResult SetButtons(const CoreDriverContext&, std::uint16_t, std::uint64_t) override;
+	CoreDriverResult Start(const CoreDriverContext&, std::uint64_t) override;
+private:
+	Error Context(const CoreDriverContext&) const;
+	LinuxDe25Menu& menu_;
+	bool selected_ = false;
+	std::string build_;
 };
 } } // namespace mister::native

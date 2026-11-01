@@ -195,3 +195,14 @@ The ACE5-Lite translator CSR table uses a different layout and cannot define
 this raw port. The [correction and physical diagnostic](../../../docs/validation/2026-11-01-de25-raw-smmu-layout/README.md)
 retain the installed primary-source identity, failed old encoding and recovery
 boundaries.
+
+## MENU package binding
+
+`de25-linux-menu-v1` pairs application1.0 with the exact required interfaces
+`fes.video.fixed-720p60`1.0, `fes.video.menu-display`1.0 and this fabric1.1.
+The source-derived BUILD_ID must match the selected package before exposure.
+The runtime uses one ABI3 kernel allocation and two observed initial black
+frames, then grants coherent frame slots with explicit per-frame mapping
+agreement. This binding declares no physical address, boot-latched HPS DDR
+layout, blitter or retained session plane. A registry row or software/model
+result does not qualify native MENU or remove physical/reset/timing gates.

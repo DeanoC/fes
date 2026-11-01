@@ -159,8 +159,11 @@ public:
 		log_.Write({operation, system, core, phase, error});
 	}
 
-	Error Start()
+	Error Start(const std::string& menu_directory, const std::string& menu_package_id)
 	{
+		if ((!menu_directory.empty() || !menu_package_id.empty()) &&
+			(!ValidAbsolutePath(menu_directory) || !ValidPackageId(menu_package_id)))
+			return Invalid("invalid startup menu package request");
 		LogRecord rejection;
 		bool rejected = false;
 		{
@@ -182,7 +185,8 @@ public:
 		}
 		Log("start", "", "", "validate");
 		Log("start", "", "", "starting");
-		const HardwareResult result = hardware_.LoadIdle();
+		const HardwareResult result = menu_directory.empty() ? hardware_.LoadIdle() :
+			hardware_.ConfigureMenuPackage(menu_directory, menu_package_id);
 		if (!result.error.ok()) {
 			const Error error = IdleFailure(result.error);
 			{
@@ -1545,7 +1549,7 @@ Runtime::Runtime(Hardware& hardware, LogSink& log)
 
 Runtime::~Runtime() = default;
 
-Error Runtime::Start() { return impl_->Start(); }
+Error Runtime::Start(const std::string& directory, const std::string& id) { return impl_->Start(directory, id); }
 Error Runtime::ConfigureMenuPackage(const std::string& directory,const std::string& id) {return impl_->ConfigureMenuPackage(directory,id);}
 Error Runtime::ShareMenuWindow(std::uint64_t generation,int* fd,bool* blitter,std::uint16_t* blitter_minor,
  bool permit_frame_mapping,bool* frame_mapping) {return impl_->ShareMenuWindow(generation,fd,blitter,blitter_minor,permit_frame_mapping,frame_mapping);}

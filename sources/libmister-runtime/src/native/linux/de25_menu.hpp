@@ -44,6 +44,7 @@ public:
  explicit LinuxDe25Menu(Clock&,std::uint32_t revoke_ms=10000);
  LinuxDe25Menu(Clock&,De25MenuOperations&,std::uint32_t revoke_ms=10000);
  ~LinuxDe25Menu() override;
+ Error CheckOwnerAbi(std::uint64_t deadline);
  Error Bind(const std::array<std::uint32_t,4>&,std::uint64_t deadline);
  Error Activate(bool clear,bool blitter) override;
  bool FrameMapping() const override {return true;}

@@ -32,18 +32,20 @@ public:
 // Destruction never removes a running/uncertain kernel configuration.
 class LinuxDe25FpgaManager final : public FpgaManager {
 public:
-    LinuxDe25FpgaManager(Clock&, int lease_fd,
-        De25OverlayProfile = De25OverlayProfile::firmware_only);
+    // Normal runtime owns the same maintenance flock used by native clients.
+    explicit LinuxDe25FpgaManager(Clock&);
+    LinuxDe25FpgaManager(Clock&, int lease_fd);
 #if defined(MISTER_RUNTIME_TESTING)
     LinuxDe25FpgaManager(Clock&, int lease_fd, const De25FpgaTestPaths&,
-                        De25FpgaTestOperations&,
-                        De25OverlayProfile = De25OverlayProfile::firmware_only);
+                        De25FpgaTestOperations&);
 #endif
     ~LinuxDe25FpgaManager() override;
     NativeResult Program(const Artifact&, ProgrammingProfile, std::uint64_t) override;
     Error ReleaseHpsDdrPorts(std::uint64_t) override;
     bool BootHpsDdrLayout() override { return false; }
     bool Poisoned() const;
+    // Read-only board/kernel/lease preflight, before normal factory admission.
+    Error CheckPlatform(std::uint64_t);
 private:
     class Impl;
     std::unique_ptr<Impl> impl_;

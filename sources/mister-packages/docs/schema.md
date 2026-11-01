@@ -484,6 +484,10 @@ selection, coherent counters and drain/sequence semantics are defined in
 is copied into RTL and runtime consumers by FES generation.
 
 DE25 `packages/programming/de25_nano.yaml` pairs `de25-hps-first-v1` with
-`fes.computer` major1 on `A5EB013BB23BE4SCS`. The runtime explicitly selects
-the platform and restricts the current BRAM contract further. A profile row
-does not construct hardware or admit a DMA-capable profile.
+`fes.computer` major1 and `de25-linux-menu-v1` with `fes.application` major1
+on `A5EB013BB23BE4SCS`. Runtime selects the board explicitly and restricts each
+contract: BRAM computer1.0/video/HID/tape, or MENU application1.0 with fixed
+video1.0, menu-display1.0 and `fes.fabric.de25-scanout`1.1. MENU uses kernel DMA
+ABI3 and no `fes.memory.hps-ddr` declaration. Registry rows describe package
+pairings; physical factory/kernel/lease admission and hardware acceptance are
+separate.

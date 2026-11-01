@@ -21,7 +21,8 @@ std::unique_ptr<Hardware> CreateUnavailableHardware(const Error& reason);
 // loading a kernel module. This overload is absent from production artifacts.
 Error CreateProductionHardware(LogSink& log, std::unique_ptr<Hardware>* hardware,
 	const std::string& architecture, const std::string& model,
-	const std::string& compatible, const std::function<Error()>& load_window_driver);
+	const std::string& compatible, const std::function<Error()>& load_window_driver,
+	const std::function<Error(std::unique_ptr<Hardware>*)>& construct_de25 = {});
 #endif
 
 } // namespace mister

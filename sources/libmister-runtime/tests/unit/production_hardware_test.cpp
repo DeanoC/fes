@@ -94,6 +94,29 @@ void TestMissingOutputDoesNotPrepareHardware()
 	assert(result.code == mister::ErrorCode::invalid_request && loads == 0);
 }
 
+void TestDe25IdentityPrecedesItsOwnPreparation()
+{
+	const auto model=Property("SoCFPGA Agilex5 Terasic DE25-Nano");
+	const auto compatible=Property("intel,socfpga-agilex5-socdk\0intel,socfpga-agilex5");
+	for (unsigned kind=0;kind<6;++kind) {
+		Log log;unsigned loads=0,preparations=0;
+		std::unique_ptr<mister::Hardware> hardware;
+		auto observed_model=model, observed_compatible=compatible;std::string arch="aarch64";
+		if(kind==1)arch="armv7";
+		if(kind==2)observed_model.pop_back();
+		if(kind==3)observed_model+="extra";
+		if(kind==4)observed_compatible.pop_back();
+		if(kind==5)observed_compatible+="extra";
+		const auto result=mister::CreateProductionHardware(log,&hardware,arch,observed_model,observed_compatible,
+			[&]{++loads;return mister::Error{};},[&](std::unique_ptr<mister::Hardware>*){
+				++preparations;return mister::Error{mister::ErrorCode::busy,"injected held DE25 lease","platform"};
+			});
+		assert(!hardware && loads==0 && log.records.empty());
+		assert(preparations==(kind==0?1u:0u));
+		assert(result.code==(kind==0?mister::ErrorCode::busy:mister::ErrorCode::unsupported_target));
+	}
+}
+
 void TestNativeNonArmv7FactoryRejectsWithoutLoadingDevices()
 {
 #if !(defined(__linux__) && defined(__arm__) && defined(__ARM_ARCH) && __ARM_ARCH == 7)
@@ -112,6 +135,7 @@ int main()
 	TestKnownDe10PreservesDriverLoadPolicy();
 	TestUnknownIdentityFailsBeforeDriverOrAdapterConstruction();
 	TestMissingOutputDoesNotPrepareHardware();
+	TestDe25IdentityPrecedesItsOwnPreparation();
 	TestNativeNonArmv7FactoryRejectsWithoutLoadingDevices();
 	puts("production_hardware_test passed");
 	return 0;

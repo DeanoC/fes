@@ -8,99 +8,66 @@ physical lifecycle, media/input delivery, and recovery. FES described packages a
 `fes.simple-game`, `fes.simple-computer`, `fes.application`, and
 `fes.computer` through `fes-gp-v1`. Protocol 2 is the only local socket protocol.
 
-Production hardware construction requires an ARMv7 Linux binary and the exact
-DE10-nano device-tree identity used by FES boot/reset preparation. AArch64,
-DE25-Nano, unknown boards and missing or malformed identity are rejected before
-kernel-module loading or construction of MMIO/I2C adapters. The daemon retains
-its existing unavailable-hardware adapter and local protocol after refusal;
-it advertises no programming capabilities. An AArch64 compile or QEMU software
-test does not add DE25 hardware support.
+Production hardware construction selects the board before constructing physical
+adapters. DE10 requires ARMv7 and the exact FES Cyclone V device-tree identity.
+DE25 requires AArch64 and the exact Terasic Agilex5 model/compatible properties,
+then the existing exclusive maintenance flock, matched running-kernel receipt,
+root-only permanent owner and Linux DMA ABI3. Unknown or malformed identities
+fail before preparation. The same production wrapper and NativeHardware lifecycle
+serve both boards; DE25 constructs no Cyclone V manager, DDR window or Linux I2C
+recipe. The daemon keeps its unavailable adapter on preparation failure.
+AArch64 compilation does not establish physical support.
 
-The internal `LinuxDe25FpgaManager` uses the existing retained-Artifact and
-programming-result interfaces for kernel configfs/SDM programming. Its
-`de25_hps_first_v1` enum maps to the DE25-only shared `de25-hps-first-v1` row.
-The default platform and production factory still reject DE25. An explicit
-DE25 metadata/driver-registry selection permits only the exact BRAM computer
-contract; it does not construct the physical lifecycle. It retains the caller's
-existing maintenance lease, binds the actual running kernel notes to the matched-image
-receipt, stages firmware exclusively, and checks completion after closing the
-configfs binary attribute. No Cyclone V register or DDR-release recipe is used.
-Unsuccessful, partial or late programming poisons that context and preserves
-configuration/firmware; destruction never unloads it. A new context refuses an
-existing runtime overlay, including after a late successful kernel callback.
-Restart adoption and bounded whole-load recovery remain unfinished. Software
-unit coverage is separate from physical adapter acceptance; the [dated record](../../docs/validation/2026-10-31-de25-runtime-programmer/README.md)
-identifies the exact kernel, adapter and known BRAM core tested on the board.
+`LinuxDe25FpgaManager` selects the overlay from the described programming
+profile: `de25-hps-first-v1` is the BRAM computer, and `de25-linux-menu-v1` is the
+allocated MENU application. It retains the actual outgoing overlay bytes before
+MENU/computer replacement; an inherited or modified overlay is refused. Firmware
+comes from the retained Artifact and is closed before the kernel reads it.
+Partial, failed or late programming poisons the context and retains the
+configuration. Software deadlines cannot abort an opaque configfs/SDM call.
+Safe process restart/adoption and whole-load failure bounds remain unfinished.
 
+The [programmer diagnostic](../../docs/validation/2026-10-31-de25-runtime-programmer/README.md)
+and [shared computer lifecycle diagnostic](../../docs/validation/2026-11-01-de25-shared-lifecycle/README.md)
+record their own selected kernel/runtime/core bytes, two loads and BASIC7.
+`De25ComputerCoreDriver` implements the exact BRAM computer contract, selected
+build identity, HID and tape insert/eject. Launch tape stays held until Start;
+live replacement sends no execution/reset command. Its known image has no
+tape-write capability and reports saveable=false. These dated results do not
+qualify the new factory or MENU path.
 
-The same programmer accepts an explicit `De25OverlayProfile::allocated_scanout`
-selection for the allocated-buffer diagnostic. It adds only a `scanout` child
-with compatible `fes,de25-linux-dma-scanout` to the existing region overlay;
-the permanent owner's POST_APPLY notifier validates the control guard and
-claims the epoch before allowing allocation. The default firmware-only overlay
-is unchanged. This option supplies no address, DMA grant, supplier or topology
-property and does not request owner REAP or grant normal runtime admission.
-Unknown selections are refused before any staging/mount/programming mutation.
-Exact selected-overlay replacement checks, inherited-overlay refusal and sticky
-uncertainty apply to both selections. The [initial allocated-scanout trial](../../docs/validation/2026-11-01-de25-allocated-scanout/README.md)
-retains the AXI response failure and guarded recovery. The later
-[exact-artifact DMA display diagnostic](../../docs/validation/2026-11-01-de25-read-ahead/README.md)
-corrects raw HPS stream/security wiring and read concurrency. It displays three
-kernel-allocated frames with matching captured patterns, then repeats after an
-ordinary software reboot and fresh Linux FPGA load, without pulling power.
-The trace verifies full allocation unmap and cleanup. This demonstrates the
-named diagnostic and recovery after known quiescence; broader security/reset,
-production MENU integration and timing acceptance remain open.
+`LinuxDe25Menu` supplies the existing MenuMemory and MenuDisplay interfaces from
+one kernel allocation. `De25MenuCoreDriver` binds its selected build identity;
+Configure waits for HDMI and confirms two complete black frames in slots1/0.
+Only then does hardware sequence2 become logical initial sequence0. The
+board's video backend asks the selected core driver for readiness, so MENU
+never reads the computer endpoint. Subsequent publication uses coherent slots
+and actual full-frame completion, without physical addresses, PL310 operations,
+frame copies, a GP mailbox or invented execution commands.
 
-The internal `De25ComputerCoreDriver` now implements the shared driver lifecycle
-and optional HID/tape calls through that atomic client. It accepts only the
-exact BRAM computer ABI/interface/build contract, keeps launch media held until
-Start, replaces live tape without reset, and never clears a poisoned transport
-at a session boundary. NativeHardware dispatches HID and basic tape operations
-through its selected CoreDriver rather than a DE10 concrete-class cast. This
-new driver has a [dated two-load hardware diagnostic](../../docs/validation/2026-11-01-de25-shared-lifecycle/README.md); its DE25 registry binding requires
-explicit platform selection and is not constructed by the production factory and has no new physical acceptance claim. Unit-media limits/state are observed during identity, insert/eject use retained
-snapshots through the selected driver, and uncertain transfer preserves an
-unready state without cleanup commands. The known BRAM image advertises no
-tape-write capability, so this driver reports saveable=false.
+The MENU package declares application1.0 with fixed video1.0, menu-display1.0
+and `fes.fabric.de25-scanout`1.1. It declares no boot-latched HPS DDR window,
+blitter or retained session plane. The runtime's ELF menu-interface records are
+the union of its explicit DE10 and DE25 contracts. A selected startup MENU is
+loaded directly; the default Start without a package uses the board's splash
+recipe, which remains unsupported on DE25.
 
-Explicit DE25 construction of the shared `NativeHardware` now binds package
-compatibility, driver selection and advertised capabilities to that platform.
-Its managed core lifecycle programs, identifies, observes FPGA-owned video
-readiness and calls the selected driver Start. A DE10 video backend and foreign
-packages are refused before programming. The DE25 video backend performs no
-Linux I2C setup; HOLD belongs to the core driver and does not promise black HDMI.
-The Cyclone V splash-idle recipe is refused on DE25. The production factory,
-managed DE25 idle/MENU startup, safe process restart and actual tape-save support
-remain unfinished. The dated shared-lifecycle diagnostic programs the known package twice, observes
-video readiness, loads/runs BASIC7 through driver tape/HID calls and verifies
-a software reboot. Production startup, managed idle/MENU and restart adoption
-remain closed.
+MENU grants explicitly negotiate per-frame mappings. The UI unmaps before
+commit and preparation abandonment, then remaps the same allocation for its
+next frame. An unaware peer is refused before fd sharing. Retirement requires
+kernel drain and the final peer reference. Failed retirement stays sticky and
+blocks programming; descriptor closure cannot authorize reuse. Kernel file
+release can attempt its own guarded revocation and retains uncertain exposure.
+The [frame agreement](../../docs/validation/2026-11-01-de25-menu-frame-mapping/README.md)
+and [lifecycle tests](../../docs/validation/2026-11-01-de25-menu-lifecycle/README.md)
+are software evidence at their named producers.
 
-The shared lifecycle consumes board-independent `MenuDisplay` and `MenuMemory`
-contracts. DE10 supplies the existing mailbox display and fixed-window memory
-adapters. Failed memory revocation remains sticky and blocks idle/replacement
-programming; closing a descriptor cannot clear it. This separates the proven
-DE25 DMA allocation path from DE10 window/cache rules without enabling a DE25
-MENU adapter or production factory. These interfaces and failure gates have
-[software validation only](../../docs/validation/2026-11-01-de25-menu-lifecycle/README.md).
-
-MENU memory adapters can require explicit per-frame mapping agreement. The
-runtime refuses an unaware peer before sharing a descriptor. The UI negotiates
-that flag, unmaps before committing and remaps the same generation for its next
-frame, so a failed frame can recover before its reply without retaining a peer
-VMA. Existing persistent DE10 windows keep their contract. This is a software
-interface addition; the DE25 presenter and production construction stay closed.
-
-The internal `LinuxDe25Menu` implements MENU memory and presentation through
-one Linux DMA allocation. It binds an expected build identity after checking
-owner ABI3, waits for HDMI readiness, and confirms black frames in slots1/0
-before translating hardware sequence2 to logical initial sequence0. Subsequent
-frames preserve the kernel's pending-slot and completion rules. Revocation
-waits for kernel drain and the final peer reference; errors remain sticky.
-No physical addresses, PL310 operations, frame copies or inherited-configuration
-adoption are introduced. A profile, selected core driver and production factory
-still need to connect this adapter; no new hardware acceptance is claimed.
+The [allocated DMA hardware diagnostic](../../docs/validation/2026-11-01-de25-read-ahead/README.md)
+records three captured frames, full allocation unmap, software reboot and fresh
+reload/repetition on its earlier ABI2 kernel. The new ABI3 factory/MENU path is
+not deployed or hardware-accepted. Normal agent/catalog startup, safe restart,
+physical tape SAVE, broader security/reset/failure fencing and full timing
+acceptance remain open.
 
 The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
 register contract through an exclusive injected `Mmio` backend and an injected

@@ -2,7 +2,8 @@ schema: mister-packages.v1
 kind: programming_profiles
 id: de25_nano
 description: >-
-  DE25 HPS-first kernel programming profile for the BRAM fes.computer core.
+  DE25 HPS-first kernel programming profiles for the BRAM computer and
+  kernel-allocated MENU scanout.
   Runtime owns the matched boot/kernel receipt, retained configuration, exact
   core contract, lease and lifecycle. Declaring this pair does not enable the
   production factory or qualify DMA, timing or failure recovery.
@@ -13,4 +14,9 @@ profiles:
     diagnostic_only: false
     abis:
       - id: fes.computer
+        major: 1
+  - id: de25-linux-menu-v1
+    diagnostic_only: false
+    abis:
+      - id: fes.application
         major: 1

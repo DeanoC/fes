@@ -117,8 +117,9 @@ std::vector<unsigned char> De25ProgrammingOverlay(De25OverlayProfile profile) {
 class LinuxDe25FpgaManager::Impl {
 public:
     Clock& clock;
-    const De25OverlayProfile overlay_profile;
+    std::vector<unsigned char> configured_overlay;
     Fd lease;
+    Error lease_error;
     bool poisoned = false, configuration_known = false, kernel_known = false;
     mutable std::mutex mutex;
     std::string config = "/sys/kernel/config", firmware = "/lib/firmware";
@@ -129,7 +130,16 @@ public:
 #if defined(MISTER_RUNTIME_TESTING)
     De25FpgaTestOperations* test = nullptr;
 #endif
-    Impl(Clock& c, int fd, De25OverlayProfile p): clock(c), overlay_profile(p), lease(fcntl(fd, F_DUPFD_CLOEXEC, 0)) {}
+    Impl(Clock& c, int fd): clock(c), lease(fcntl(fd, F_DUPFD_CLOEXEC, 0)) {}
+    explicit Impl(Clock& c): clock(c) {
+        lease.n = open(lease_path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
+        struct stat info{};
+        if (lease.n < 0 || fstat(lease.n, &info) || !S_ISREG(info.st_mode) ||
+            info.st_uid || (info.st_mode & 07777) != 0600)
+            lease_error = Failure("DE25 maintenance lease is unavailable or has different permissions");
+        else if (flock(lease.n, LOCK_EX | LOCK_NB))
+            lease_error = {ErrorCode::busy, "DE25 is held by another maintenance or runtime owner", "platform"};
+    }
     bool Testing() const {
 #if defined(MISTER_RUNTIME_TESTING)
         return test != nullptr;
@@ -138,6 +148,7 @@ public:
 #endif
     }
     Error Check(std::uint64_t deadline) {
+        if (!lease_error.ok()) return lease_error;
         if (poisoned) return Failure("DE25 programming context is uncertain; retained configuration requires external recovery");
         if (clock.NowMs() >= deadline) return Failure("DE25 programming deadline exceeded");
         if (lease.n < 0) return Failure("missing DE25 maintenance lease");
@@ -228,9 +239,11 @@ public:
         return close(fd);
     }
     NativeResult Program(const Artifact& artifact, ProgrammingProfile profile, std::uint64_t deadline) {
-        if (profile != ProgrammingProfile::de25_hps_first_v1)
+        if (profile != ProgrammingProfile::de25_hps_first_v1 &&
+            profile != ProgrammingProfile::de25_linux_menu_v1)
             return {Failure("programming profile is not DE25 HPS-first"), false};
-        const auto blob = De25ProgrammingOverlay(overlay_profile);
+        const auto blob = De25ProgrammingOverlay(profile == ProgrammingProfile::de25_linux_menu_v1 ?
+            De25OverlayProfile::allocated_scanout : De25OverlayProfile::firmware_only);
         if (blob.empty()) return {Failure("invalid DE25 overlay ownership profile"), false};
         auto error = Check(deadline); if (!error.ok()) return {error, false};
         struct stat source{};
@@ -275,7 +288,7 @@ public:
             Fd dir(openat(overlays.n, kOverlay, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
             Fd dtbo(dir.n < 0 ? -1 : openat(dir.n, "dtbo", O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
             std::vector<unsigned char> previous;
-            if (dir.n < 0 || !Read(dtbo.n, &previous, blob.size()) || previous != blob ||
+            if (dir.n < 0 || !Read(dtbo.n, &previous, configured_overlay.size()) || previous != configured_overlay ||
                 manager != "operating" || !Exact(config + "/device-tree/overlays/" + kOverlay + "/status", "applied"))
                 return {Failure("existing runtime configuration is not verified/applied; retained for recovery"), false};
             }
@@ -330,13 +343,15 @@ public:
         if (!Exact(config + "/device-tree/overlays/" + kOverlay + "/status", "applied") || !Exact(state, "operating"))
             return fail(Failure("configuration completion/status is uncertain"));
         configuration_known = true;
+        configured_overlay = blob;
         return {{}, true};
     }
 };
-LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c, int fd, De25OverlayProfile profile): impl_(new Impl(c, fd, profile)) {}
+LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c, int fd): impl_(new Impl(c, fd)) {}
+LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c): impl_(new Impl(c)) {}
 #if defined(MISTER_RUNTIME_TESTING)
 LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c, int fd, const De25FpgaTestPaths& p,
-        De25FpgaTestOperations& ops, De25OverlayProfile profile): impl_(new Impl(c, fd, profile)) {
+        De25FpgaTestOperations& ops): impl_(new Impl(c, fd)) {
     impl_->config = p.config; impl_->firmware = p.firmware; impl_->state = p.state;
     impl_->search = p.search; impl_->lease_path = p.lease; impl_->test = &ops;
     impl_->record = p.record; impl_->notes = p.notes;
@@ -349,4 +364,7 @@ NativeResult LinuxDe25FpgaManager::Program(const Artifact& a, ProgrammingProfile
 }
 Error LinuxDe25FpgaManager::ReleaseHpsDdrPorts(std::uint64_t) { return {ErrorCode::unsupported_interface, "Cyclone V DDR port release is unavailable on DE25"}; }
 bool LinuxDe25FpgaManager::Poisoned() const { std::lock_guard<std::mutex> lock(impl_->mutex); return impl_->poisoned; }
+Error LinuxDe25FpgaManager::CheckPlatform(std::uint64_t d) {
+    std::lock_guard<std::mutex> lock(impl_->mutex); return impl_->Check(d);
+}
 } }

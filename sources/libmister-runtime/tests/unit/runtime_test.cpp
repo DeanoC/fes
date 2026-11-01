@@ -249,6 +249,25 @@ void TestStartLoadsIdleOnceAndPublishesIdle()
 	assert(fixture.runtime.status().state == State::idle);
 }
 
+void TestStartWithSelectedMenuAvoidsSplash()
+{
+	Fixture f;
+	const std::string id(64, 'a');
+	assert(f.runtime.Start("/menu", "").code == ErrorCode::invalid_request);
+	assert(f.hardware.idle_calls == 0 && f.hardware.menu_configure_calls == 0);
+	assert(f.runtime.Start("/menu", id).ok());
+	assert(f.hardware.idle_calls == 0 && f.hardware.menu_configure_calls == 1);
+	const auto status=f.runtime.status();
+	assert(status.state == State::idle && status.menu_display.available && status.menu_display.package_id == id && status.menu_display.generation);
+	assert(f.runtime.Start("/menu", id).code == ErrorCode::busy);
+	assert(f.hardware.menu_configure_calls == 1);
+	Fixture failed;
+	failed.hardware.menu_configure_result = {{ErrorCode::program_failed, "selected menu failed"},true,""};
+	assert(failed.runtime.Start("/menu",id).code == ErrorCode::idle_failed);
+	assert(failed.runtime.status().state == State::reboot_required);
+	assert(failed.hardware.idle_calls == 0 && failed.hardware.menu_configure_calls == 1);
+}
+
 void TestNonMenuIdlePublishesIdleWithoutReboot()
 {
 	Fixture fixture;
@@ -1851,6 +1870,7 @@ void TestMenuPreparationFencesLifecycle()
 
 int main()
 {
+ TestStartWithSelectedMenuAvoidsSplash();
  TestComputerSessionDisplayPresentsFramesAndRestoresVideo();
  TestSessionDisplayBindingsFocusAndFrameRevocation();
  TestSessionDisplayMachineFocusKeepsInput();

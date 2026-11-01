@@ -649,7 +649,9 @@ public:
 	~Runtime();
 	Runtime(const Runtime&) = delete;
 	Runtime& operator=(const Runtime&) = delete;
-	Error Start();
+	// A selected MENU is the initial idle image. Empty arguments use the
+	// board's splash recipe; they never program a foreign splash before MENU.
+	Error Start(const std::string& menu_directory = {}, const std::string& menu_package_id = {});
  Error ConfigureMenuPackage(const std::string&,const std::string&);
  Error SetSessionDisplay(const std::string& expected_package_id,
   std::uint64_t expected_generation,bool visible,bool launcher_focus);

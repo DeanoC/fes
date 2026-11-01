@@ -6,30 +6,35 @@
 `mister-runtime` exposes protocol 2 over the local Unix socket. FogCast owns
 network sessions and library context; the runtime owns physical transitions.
 
-`CreateProductionHardware` constructs the retained artifact opener, Linux MMIO
-and FPGA manager, FES GP transport/driver, ADV7513 I2C, fixed video and splash
-video, Linux input, callback-only input session, and `NativeHardware`.
-There is no conventional Main, MiSTer SPI, framebuffer, cartridge profile table,
-or raw game launch operation.
+`CreateProductionHardware` identifies the exact board/CPU before physical
+preparation. DE10 uses the ARMv7 Cyclone V identity and its existing window,
+manager, GP, I2C and fixed/splash video adapters. DE25 uses AArch64, raw model
+`SoCFPGA Agilex5 Terasic DE25-Nano\0`, and compatible list
+`intel,socfpga-agilex5-socdk\0intel,socfpga-agilex5\0`. Its manager acquires the
+existing `/run/fes-de25-computer.lock`; matched kernel notes/receipt, root-only
+owner and DMA ABI3 are required before capabilities are exposed. Unknown or
+malformed properties fail before preparation. The test-only factory overload
+checks the same ordering and is absent from production archives.
 
-Before loading the window driver or constructing those physical adapters, the
-factory requires a Linux ARMv7 binary, raw device-tree model
-`Terasic DE10-nano\0`, and compatible list
-`altr,socfpga-cyclone5\0altr,socfpga\0`. This matches the existing FES boot/reset
-board contract. AArch64, another board, or absent/malformed properties return
-`unsupported_target` with phase `platform`. The daemon uses its existing
-failure-only hardware adapter and serves the same local protocol with no
-programming capabilities. The test-only factory overload supplies identity and
-the driver-loader callback to this same guarded construction path; it is absent
-from production archives. Identity/ordering tests establish this rejection
-behavior. An AArch64 compile or execution under QEMU does not establish DE25
-FPGA programming, MMIO, DDR, input or display support.
+One production wrapper owns the selected board's adapters and one NativeHardware.
+DE25 constructs no Cyclone V manager, fixed DDR window, GP client or Linux I2C.
+Its two selected drivers are the BRAM computer and allocated MENU. The FPGA
+owns its transmitter, and the video backend observes the selected driver's
+readiness. Missing/failed preparation uses the existing unavailable adapter and
+protocol with no programming capabilities. Compilation/model checks do not
+establish native factory or MENU support.
+
+`Runtime::Start` accepts an optional sealed MENU directory/package ID and loads
+it as the first idle image. The daemon passes `--menu-package` directly to that
+start. Without a selected package it keeps the existing splash recipe; DE25
+refuses that recipe. A failed selected startup does not program another board's
+splash and ends in reboot-required.
 
 ## DE25 kernel programmer
 
-`LinuxDe25FpgaManager` implements `FpgaManager` for the internal
-`de25_hps_first_v1` enum. The shared registry declares a DE25-only computer pair; the default DE10
-platform and production factory remain closed to it. Cyclone V refuses that enum before its
+`LinuxDe25FpgaManager` implements `FpgaManager` for the selected
+`de25_hps_first_v1` computer and `de25_linux_menu_v1` application profiles.
+The shared registry pairs these only with the DE25 platform. Cyclone V refuses that enum before its
 first register/boot-layout access; the DE25 adapter refuses Cyclone V profiles.
 This supplies the programming transport for the existing lifecycle, not another
 runtime, daemon, profile table or network API.
@@ -51,8 +56,8 @@ loaders and symlink/pre-existing staging collisions. The pinned configfs binary
 attribute buffers writes and invokes programming on release: the adapter closes
 it once, then checks deadline, `applied` and `operating`.
 
-Within a successful context, replacement verifies the exact existing overlay
-bytes/status before removing it. Any uncertainty after removal or submission
+Within a successful context, replacement verifies the retained outgoing overlay
+bytes/status before removing it, independently of the incoming profile. Any uncertainty after removal or submission
 permanently poisons the context and retains files/configuration. No retry,
 rollback program, destructor unload or close-as-drain operation exists. New
 contexts refuse old overlays; safe restart adoption remains required before
@@ -65,11 +70,12 @@ records two known-core loads and BASIC7 at the selected C++/kernel bytes. It
 does not admit the production factory or qualify failure/DMA recovery.
 
 
-The same programmer accepts an explicit `De25OverlayProfile::allocated_scanout`
-selection for the allocated-buffer diagnostic. It adds only a `scanout` child
+The MENU programming profile selects `De25OverlayProfile::allocated_scanout`;
+the computer profile selects firmware-only. This choice comes from the checked
+package/profile, rather than a constructor option or inferred RBF contents. It adds only a `scanout` child
 with compatible `fes,de25-linux-dma-scanout` to the existing region overlay;
 the permanent owner's POST_APPLY notifier validates the control guard and
-claims the epoch before allowing allocation. The default firmware-only overlay
+claims the epoch before allowing allocation. The computer firmware-only overlay
 is unchanged. This option supplies no address, DMA grant, supplier or topology
 property and does not request owner REAP or grant normal runtime admission.
 Unknown selections are refused before any staging/mount/programming mutation.
@@ -909,7 +915,7 @@ DE25 programmer validates the kernel receipt through it. The daemon links that
 same object from the archive; no second parser or policy path is introduced.
 The production-hardware test links the complete library objects, including the
 parser, on AArch64 as well as native hosts. The archive audit requires exactly
-28 members and explicitly names the DE25 programmer as a file-I/O owner.
+29 members and explicitly names the DE25 programmer and MENU adapter as file-I/O owners.
 
 DE25 computer fabric1.1 adds read-only video status at offset24. The board
 qualifies vendor HDMI initialization with PLL/reset and its complete-line gate;
@@ -918,4 +924,27 @@ within the existing absolute deadline before Run. Readiness errors report no
 execution release; a late/failed Run retains its existing uncertainty semantics.
 The resource remains32 bytes and the maintenance read allowlist expands to
 seven registers. Exact version matching rejects older images before control.
-This does not select the production factory or accept a physical display.
+This does not establish native factory or physical display acceptance.
+
+## DE25 allocated MENU lifecycle
+
+The exact format2 `fes.menu` application1.0 package declares fixed video1.0,
+menu-display1.0 and `fes.fabric.de25-scanout`1.1, with a selected nonzero build ID.
+It does not declare the Cyclone V boot-latched DDR contract. The selected MENU
+driver checks this before binding ABI3 storage. Configure performs both observed
+black frames on that same allocation. Selected video readiness and Start observe
+the completed allocation; they issue no computer-mailbox or execution command.
+Normal LoadCore/Stop then use the existing serialized lifecycle to retire MENU,
+program/identify/start the computer, and reload MENU with a fresh generation.
+
+MenuMemory retirement precedes any replacement. OWNER_REAP must prove drain;
+OWNER_IDLE must subsequently show the last peer FD/VMA gone. A failed retirement
+remains sticky, including after the peer eventually closes. The kernel's file
+release may also attempt guarded revocation, but closure itself proves neither
+drain nor storage reuse. Restarting a manager refuses inherited overlays; safe
+artifact/boot/epoch adoption is still required for normal process restart.
+
+ELF menu-interface records describe the union of the two board-specific
+contracts, not one package containing all interfaces. Package target/profile
+admission still separates those contracts. This implementation is not installed
+on the physical ABI2 board, and adds no native MENU/catalog or timing acceptance.

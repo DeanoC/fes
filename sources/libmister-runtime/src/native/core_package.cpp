@@ -828,7 +828,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor, NativePlatform pl
 	Error pairing = de25 ? check_pair(kDe25NanoProgrammingProfilePairs) :
 		check_pair(kDe10NanoProgrammingProfilePairs);
 	if (!pairing.ok()) return pairing;
-	if (de25) return CheckDe25ComputerContract(descriptor);
+	if (de25) return descriptor.abi.id == FesApplicationABIID ?
+		CheckDe25MenuContract(descriptor) : CheckDe25ComputerContract(descriptor);
 	unsigned video_socket_count = 0;
 	bool native_pixels_socket = false;
 	for (const auto& interface : descriptor.interfaces) {

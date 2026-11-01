@@ -14,6 +14,7 @@ namespace mister {
 namespace native {
 
 class Clock;
+class CoreDriver;
 class I2c;
 struct VideoRecipe;
 
@@ -47,6 +48,8 @@ public:
  virtual ~CoreVideoBringup() {}
  virtual bool SupportsPlatform(NativePlatform) const = 0;
  virtual VideoResult BringUpCustom(std::uint64_t, bool audio = false) = 0;
+ virtual VideoResult BringUpSelected(CoreDriver&, std::uint64_t deadline, bool audio = false)
+ { return BringUpCustom(deadline, audio); }
  virtual VideoQuiesceResult Quiesce(std::uint64_t) = 0;
 };
 

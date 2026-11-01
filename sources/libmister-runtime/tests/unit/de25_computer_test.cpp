@@ -398,17 +398,20 @@ void TestUnitMediaSnapshotAndStickyFailure() {
 	selected.BeginSession(); assert(selected.media_units().empty());
 }
 void TestFpgaOwnedVideoBackend() {
- Fixture f; De25VideoBringup video(f.client);
+ Fixture f; De25VideoBringup video; De25ComputerCoreDriver driver(f.client);
  assert(video.SupportsPlatform(NativePlatform::de25_nano));
  assert(!video.SupportsPlatform(NativePlatform::de10_nano));
  const auto initial_reads = f.bridge.reads;
- assert(!video.BringUpCustom(1000000, true).error.ok());
+ assert(!video.BringUpSelected(driver,1000000,true).error.ok());
+ assert(!video.BringUpCustom(1000000).error.ok());
  assert(f.bridge.reads == initial_reads && f.bridge.writes.empty());
  assert(video.Quiesce(0).error.ok());
  assert(f.bridge.reads == initial_reads && f.bridge.writes.empty());
- f.Probe();
+ auto descriptor=DriverDescriptor();CoreDriverContext context;
+ context.descriptor=&descriptor;context.expected_core="zx81";
+ assert(driver.Identify(context,1000000).error.ok());
  const auto before = f.bridge.writes.size();
- assert(video.BringUpCustom(1000000).error.ok());
+ assert(video.BringUpSelected(driver,1000000).error.ok());
  assert(f.bridge.writes.size() == before && f.bridge.hold_state);
 }
 void TestManagedStartWaitsForVideoWithoutCommands() {

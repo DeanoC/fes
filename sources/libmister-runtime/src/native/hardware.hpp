@@ -81,7 +81,7 @@ public:
  MenuDisplay* menu_display = nullptr,MenuMemory* menu_window = nullptr,
 		DiskWindow* disk_window = nullptr,
 		NativePlatform platform = NativePlatform::de10_nano,
-		CoreDriver* de25_driver = nullptr);
+		CoreDriver* de25_driver = nullptr, CoreDriver* de25_menu_driver = nullptr);
 	~NativeHardware();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
@@ -181,6 +181,7 @@ private:
 	NativeTimeouts timeouts_;
 	NativePlatform platform_;
 	CoreDriver* de25_driver_;
+	CoreDriver* de25_menu_driver_;
 	CoreDriver* fes_gp_driver_;
 	ContainedCoreDriver contained_driver_;
 	CoreDriverRegistry driver_registry_;

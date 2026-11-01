@@ -70,13 +70,14 @@ MiSTer programming/ABI pair are retired. Format-2 structural fixtures may
 still describe arbitrary ABIs; syntax validity does not confer activation
 support. Historical oracle records remain provenance.
 
-The DE25 registry declares only `de25-hps-first-v1` with `fes.computer` major1
-for the SCS part selected by the board definition. Runtime preflight requires
-an explicit DE25 platform choice and the exact BRAM ABI1.0/video/HID/tape/build
-contract. Metadata never selects a hardware backend. This declaration does not
-construct the production factory, release DMA or provide normal-kit acceptance.
-C++ profile row types include their platform prefix so actual board registries
-can be included together without duplicate type definitions.
+The DE25 registry pairs `de25-hps-first-v1` with `fes.computer` major1 and
+`de25-linux-menu-v1` with `fes.application` major1 on the SCS board part.
+Runtime preflight requires explicit DE25 selection and either the exact BRAM
+computer contract or MENU's fixed-video/menu-display/scanout1.1 contract.
+The latter uses kernel-allocated coherent DMA, not a boot-latched HPS DDR window.
+Metadata never selects a hardware backend or establishes hardware acceptance.
+The production factory separately checks the board, lease, kernel receipt and
+owner ABI3. C++ profile row types include their platform prefix.
 
 The runtime owns physical programming and compatibility admission; FogCast
 owns library/session context; misteross owns source builds and RBF provenance.

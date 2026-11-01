@@ -24,13 +24,16 @@ CoreDriverResult ContainedCoreDriver::Start(const CoreDriverContext&,
 	std::uint64_t) { return {}; }
 
 CoreDriverRegistry::CoreDriverRegistry(CoreDriver* fes_gp, CoreDriver& contained,
-	CoreDriver* de25, NativePlatform platform)
-	: platform_(platform), de25_(de25), fes_gp_(fes_gp), contained_(contained) {}
+	CoreDriver* de25, NativePlatform platform, CoreDriver* de25_menu)
+	: platform_(platform), de25_(de25), de25_menu_(de25_menu), fes_gp_(fes_gp), contained_(contained) {}
 
 CoreDriver* CoreDriverRegistry::Resolve(ProgrammingProfile profile) const
 {
-	if (platform_ == NativePlatform::de25_nano)
-		return profile == ProgrammingProfile::de25_hps_first_v1 ? de25_ : nullptr;
+	if (platform_ == NativePlatform::de25_nano) {
+		if (profile == ProgrammingProfile::de25_hps_first_v1) return de25_;
+		if (profile == ProgrammingProfile::de25_linux_menu_v1) return de25_menu_;
+		return nullptr;
+	}
 	if (platform_ != NativePlatform::de10_nano) return nullptr;
 	if (profile == ProgrammingProfile::fes_gp_v1) return fes_gp_;
 	if (profile == ProgrammingProfile::development_contained_v1)
@@ -65,6 +68,7 @@ Error ParseProgrammingProfile(const std::string& value,
 	else if (value == "development-contained-v1")
 		*output = ProgrammingProfile::development_contained_v1;
 	else if (value == "de25-hps-first-v1") *output = ProgrammingProfile::de25_hps_first_v1;
+	else if (value == "de25-linux-menu-v1") *output = ProgrammingProfile::de25_linux_menu_v1;
 	else return {ErrorCode::unsupported_programming_profile,
 		"unsupported programming profile", "compatibility"};
 	return {};
