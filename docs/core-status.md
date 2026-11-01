@@ -293,7 +293,8 @@ PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts under
 format-2 diagnostic package with `fes.computer` 1.1 live floppy media and
 fixed CGA Direct video. A separate `fes.pcxt-dos` recipe enables the GLaBIOS
 XT/5160 ROM and read-only floppy controller. It accepts a 360 KiB floppy image
-at runtime and stores it in SDRAM before releasing the 8088. The registered
+at runtime and stores it in SDRAM before releasing the 8088 when booting that
+image. Releasing execution with an empty drive starts the BIOS. The registered
 package producer uses Quartus with a common 100 MHz board,
 74.25 MHz CGA Direct video and a visible firmware-completion block. All declared
 seeds must pass reported internal timing; the first seed must reproduce its RBF.
