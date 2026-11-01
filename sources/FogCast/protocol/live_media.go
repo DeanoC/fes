@@ -35,7 +35,8 @@ func liveBlobCapable(p *CorePackageStatus) bool {
 }
 
 func liveComputerZx81TapeCapable(p *CorePackageStatus) bool {
-	return activeComputer(p) && activeInterface(p, Zx81TapeInterface())
+	return p != nil && ComputerMediaABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) &&
+		activeInterface(p, Zx81TapeInterface())
 }
 
 // ComputerZx81TapeCapable reports an active fes.computer 1.0 generation with

@@ -399,7 +399,10 @@ lease ownership and recovery checks remain separate requirements.
 
 API compatibility is not a promise that every operation is available. The
 native adapter negotiates its versioned runtime protocol; package inspection
-checks the runtime's ABI registry before activation. Media, input and
+checks the runtime's ABI registry before activation. The registry lists each
+supported ABI version separately, so one ABI ID may appear more than once when
+the major/minor versions differ. Entries are ordered by ID, major and minor;
+an exact duplicate version is invalid. Media, input and
 persistence retain their operation-specific interface versions, limits and
 package/generation checks. Unsupported operations remain rejected rather than
 being inferred from a Git revision or silently retried through another path.
@@ -554,8 +557,9 @@ validates and relinks the retained source bytes.
 
 The target package lifecycle uses runtime protocol 2. A read-only
 `inspect_package` exchange negotiates the exact ABI registry and programming
-profiles before mutation. Protocol 1 is rejected without mutation; there is
-no negotiation fallback.
+profiles before mutation. The ABI registry may include multiple versions of
+one ID; each row describes one exact version and its interfaces. Protocol 1 is
+rejected without mutation; there is no negotiation fallback.
 The strict status decoder accepts the runtime's optional `menu_display`
 evidence, including a failed menu, so physical idle can still be confirmed
 for appliance maintenance. A `menu_display` field it does not define is
@@ -936,6 +940,8 @@ reply. The runtime never holds reset for these transfers and ejects the unit
 once on failure; the agent then republishes the live unit state from a fresh
 status read instead of replacing the session. Keyboard posts do not wait
 behind a disk transfer.
+ABI 1.1 retains visibility of active media units that use earlier interface
+versions; the ATA unit alone requires the 1.1 identity capability.
 
 A shell pairing `fes.media.atari-st-floppy-write` 1.0 with the Atari ST base
 interface supports writable disk RAM and versioned snapshots. Library launch
@@ -954,9 +960,18 @@ binding and an empty body. Both retain the existing kit lease and update
 exclusion. The agent chooses the storage root; callers never send target paths.
 Live status exposes optional unit `persistence` with `mode:"persistent"`,
 `game_id`, `base_media_id`, and `revision` (`absent` before the first publication
-or the full-record SHA-256). Whole-package persistence mode is persistent only
-while such a binding exists. ST parts/ROM composition does not change this
-identity or weaken composition validation.
+or the full-record SHA-256). A unit may also report `saveable:false` when it has
+a durable binding but does not support an explicit in-session checkpoint;
+callers must preserve the binding identity while refusing the Save operation.
+Writable Atari ST packages use persistent mode only while a disk binding exists.
+The `fes.computer` 1.1 pc386 `fes.media.ata-disk` unit is a fixed 1..128 MiB
+unit with 65,536-byte chunks and always reports `saveable:false`. Its package
+remains persistent when the unit is empty, and a loaded disk keeps its
+game/base/revision binding in status. FogCast validates that binding and gives
+Stop the persistent-data deadline, while keeping the unit outside the Atari ST
+in-session Save and insert/eject paths; libmister-runtime checkpoints its dirty
+chunks during Stop or fault cleanup. ST parts/ROM composition does not change its
+binding identity or weaken composition validation.
 
 The host routes `POST /api/v1/session/disk/insert` and `…/disk/save` retain the
 captured session ID and package/generation/target/unit binding. Insert takes
@@ -2581,12 +2596,15 @@ list. A launch that arrives while the warm is still running returns the same
 HTTP 503 `{"error":"warming"}`, claims no lease, and does not program a core.
 The kit-local client returns `warming` as soon as that response arrives, as it
 does for a list, so the caller can retry. It does not treat the response as an
-unavailable agent and does not reconcile it as a lost launch. A successful list is
-the finished catalog, not a partial one. The list handler waits on the
-request context, so a client disconnect ends that wait and leaves the warm
-running. One catalog scan runs
-at a time. A fingerprint change while that scan is in progress waits for it to
-finish, then scans once more when the tree still differs. Durable listing
+unavailable agent and does not reconcile it as a lost launch. Home's queued
+Play polls the read-only list before posting Launch, so Stop during catalog
+warm ends the queue before any core load. If the catalog starts warming again
+between the successful list and Launch, it waits for another successful list
+before retrying. A successful list is the finished catalog, not a partial one.
+The list handler waits on the request context, so a client disconnect ends
+that wait and leaves the warm running. One catalog scan runs at a time. A
+fingerprint change while that scan is in progress waits for it to finish, then
+scans once more when the tree still differs. Durable listing
 reuses the byte verification recorded at install, reopen, warm-up, or the last
 fingerprint miss while the sealed archive and member fingerprint (size,
 mtime, ctime, device, inode, mode, and directory entries) still matches, and
@@ -2649,7 +2667,11 @@ selected removable media, package composition, and the format-2 ZX81 machine
 ROM linker. The format-2 ZX81 local row is blocked because local `LoadCore`
 loads only the installed archive and does not splice the machine ROM. If
 kit-local listing fails, Home still reads the host shelf and shows any
-available host cards; with no host cards, it shows the kit-listing error.
+available host cards; with no host cards, it shows the kit-listing error. Once
+the opening selection is listed, Home persists it in that frame so a player
+can press Play immediately and still get the remembered pending card next
+time. Later shelf navigation keeps its one-second save debounce. The saved card
+also carries the package's keyboard and mouse needs into its pending display.
 
 ### Home-computer packages and slot cards
 
@@ -2760,14 +2782,17 @@ general keyboard/mouse support. Shared controller ports are described below.
 
 ### Keyboard HID for home computers
 
-An active `fes.computer` 1.0 generation with `fes.keyboard.hid` 1.0 takes USB HID
-key state, not a machine-shaped matrix. Clients send physical keys as keyboard
+An active `fes.computer` 1.0 or 1.1 generation with `fes.keyboard.hid` 1.0
+takes USB HID key state, not a machine-shaped matrix. Clients send physical keys as keyboard
 events whose code is `0x1000 + usage` (`internal/hidkeys`; usages 0x04..0x7f and
 the modifiers 0xe0..0xe7): the browser maps `KeyboardEvent.code`, tenfoot uses
 SDL scancodes, and the kit maps evdev `KEY_*`. There is no per-core character
 map; the core owns characters, shifted symbols, repeat and reset chords. The host
 attaches input for these sessions even without controller ports and passes the
 events through `POST /api/v1/session/input/event` and the host stream unchanged.
+The 1.1 ABI retains its 1.0 keyboard and relative-mouse capabilities; an active
+`fes.mouse.relative` 1.0 interface receives the same supported-generation
+binding.
 The browser's **Capture keyboard** session action forwards every key, including
 Escape and Backspace, until **Release keyboard**; Stop stays the Stop button.
 The browser posts these events one at a time in event order, so a release
@@ -2901,7 +2926,12 @@ as a joystick, so it is not a keyboard requirement. `fogcast-tenfoot -gfx menu-d
 connects that socket and, while the core runs, writes pad frames through the
 shared `ui/localfeed` socket. A host session, and any other tenfoot gfx backend,
 leaves `kit` unset. Confirm shows the room launch overlay while loading, then
-pauses menu presents when the core owns HDMI. "In use. Someone else is playing on this machine. You can
+drains and pauses menu presents before dispatching the local launch. This
+pending pause keeps the last acknowledged launcher-readiness marker while the
+agent is warming or can still reject the package; an accepted or uncertain
+launch result clears the marker. Late adoption and ordinary menu pauses clear
+readiness immediately.
+"In use. Someone else is playing on this machine. You can
 play when they're done." is the busy lease. A blocked tile keeps its block line
 ("Needs a cartridge", "Needs firmware") and does not call the runtime. Anything
 else the socket cannot launch says "This core isn't available right now."
@@ -3435,6 +3465,21 @@ its exact generation and can restore host input; unsafe persistence recovery
 retains package/generation attribution in failed status and blocks input.
 Existing post-activation HostOnly cleanup recovery remains unchanged.
 
+
+## pc386 hard disk and machine record
+
+`fes.computer` 1.1 adds identity word 16 and the pc386 interfaces; FogCast
+admits 1.0 and 1.1, and the agent accepts the runtime advertising one ABI at
+several minors (unique by id and version). A pc386 library entry binds a raw
+hard-disk image (`hard-disk` role, 1..128 MiB, its own import route) and an
+optional CHS override; otherwise the host infers geometry from the image's MBR.
+Launch stages the image on the kit by digest (probe, then upload only when
+missing), then sends the library load with the game, image digest and geometry.
+The agent resolves the staged file and sends `load_library_core` with `game_id`
+and `ata_disk`; the runtime writes the image into the DDR window before release.
+Machine settings are a per-game record on the kit, read and written with the
+library game ([package library](core-package-library.md#pc386-hard-disk-entries)).
+The fixed disk takes no live media operations; Stop saves its delta.
 
 ## Initial Atari ST library disk
 

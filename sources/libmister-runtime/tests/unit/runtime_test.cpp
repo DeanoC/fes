@@ -1344,7 +1344,7 @@ void TestMenuFrameYieldsToCoreDataAndLaunch()
    condition.notify_all();
    if (inspect_data) {
     mister::CoreData data;
-    mutation_error = f.runtime.InspectCoreData("/game", id, "/data", &data);
+    mutation_error = f.runtime.InspectCoreData("/game", id, "/data", "", &data);
    } else {
     mutation_error = f.runtime.LoadCore("/game", id);
    }

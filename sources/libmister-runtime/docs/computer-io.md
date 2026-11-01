@@ -7,9 +7,10 @@ the constants are generated from `packages/abi/fes_computer.yaml` into
 `src/native/generated/fes_computer.hpp`. The consumers are the FES Apple II
 ([pathfinder contract](../../../docs/superpowers/specs/2026-09-26-apple2-pathfinder-design.md)),
 the FES ZX Spectrum
-([pathfinder contract](../../../docs/superpowers/specs/2026-09-28-spectrum-pathfinder-design.md))
-the FES Commodore 64 and the FES Atari 520ST. A PC/XT media endpoint is
-under development and is exercised in host simulation.
+([pathfinder contract](../../../docs/superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)),
+the FES Commodore 64 and the FES Atari 520ST, all on ABI 1.0, and the FES pc386
+on ABI 1.1. The PC/XT read-only floppy endpoint is exercised in host simulation;
+hardware acceptance remains separate.
 Existing `fes.simple-game`, `fes.simple-computer` and `fes.application`
 packages keep their requirements, wire identities and startup behavior.
 
@@ -26,11 +27,16 @@ and exact-artifact acceptance.
 ## Admission
 
 A package declares `fes.computer` major 1 with `fes-gp-v1`. Minor versions
-0 and 1 are supported; versions above 1 and any `core.system` value are rejected. `fes.video.fixed-720p60` 1.0
+0 and 1 are supported; versions above 1 and any `core.system` value are
+rejected. Minor 1 adds identity word 16 and capability bits 16..31 for
+`fes.media.ata-disk` 1.0 (unit 0, requiring `fes.memory.hps-ddr`),
+`fes.media.pcxt-floppy` 1.0, `fes.persistence.words` 1.0 with its
+`fes.pc386.machine` 1.0 layout, and `fes.rtc.wall-clock` 1.0. A 1.0 package
+that declares any of them is refused as an unsupported ABI. `fes.video.fixed-720p60` 1.0
 is required. The recognized operational set is `fes.video.fixed-720p60`,
 `fes.keyboard.hid`, `fes.gamepad.ports`, `fes.audio.pcm-s16-stereo-48k`,
-`fes.media.apple2-floppy`, `fes.media.zx81-tape`, `fes.media.c64-disk`
-`fes.media.atari-st-floppy`, `fes.media.pcxt-floppy` and
+`fes.media.apple2-floppy`, `fes.media.zx81-tape`, `fes.media.c64-disk`,
+`fes.media.atari-st-floppy`, `fes.media.pcxt-floppy`, `fes.media.ata-disk` and
 `fes.media.spectrum-disk`, each 1.0, and
 `fes.media.spectrum-tape` 2.0; each must be declared required when present. A
 shell declares at most one unit-0 medium. The PC/XT floppy requires
@@ -51,15 +57,18 @@ Format 2 and format 3 with a `firmware` ROM are admitted. Format 3 with a
 after identity and has no media gate that could hold a linked cartridge.
 Firmware ROM packages activate through `load_rom_core`,
 `load_rom_library_core` or `load_rom_composed_core` with the existing
-`rom_link` receipt. The ABI has no core-scoped persistence interface; an
-explicit writable ST initial library disk or later library insertion supplies
-disk persistence and changes the active persistence mode. The PC/XT medium is
+`rom_link` receipt. ABI 1.0 has no core-scoped persistence interface; ABI 1.1
+adds `fes.persistence.words` for the pc386 machine record. An explicit writable
+Atari ST initial library disk or later library insertion supplies its disk
+persistence and changes the active persistence mode. The PC/XT floppy is
 read-only and does not use that initial-library-disk path.
 
-Native capabilities advertise the ABI with every recognized interface:
+Native capabilities advertise each minor as its own ABI entry, so a 1.0
+package keeps matching its exact ABI. The 1.0 entry has every recognized 1.0
+interface:
 
 ```json
-{"id":"fes.computer","major":1,"minor":1,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.atari-st-bus","major":1,"minor":0},{"id":"fes.expansion.c64-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.atari-st-floppy","major":1,"minor":0},{"id":"fes.media.c64-disk","major":1,"minor":0},{"id":"fes.media.pcxt-floppy","major":1,"minor":0},{"id":"fes.media.spectrum-disk","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-128","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-plus3","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":2,"minor":0},{"id":"fes.media.zx81-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
+{"id":"fes.computer","major":1,"minor":0,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.atari-st-bus","major":1,"minor":0},{"id":"fes.expansion.c64-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.atari-st-floppy","major":1,"minor":0},{"id":"fes.media.c64-disk","major":1,"minor":0},{"id":"fes.media.spectrum-disk","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-128","major":1,"minor":0},{"id":"fes.media.spectrum-snapshot-plus3","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":2,"minor":0},{"id":"fes.media.zx81-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
 ```
 
 `fes.memory.hps-ddr` 1.0 is added, and sorted with the rest, when the boot
@@ -69,16 +78,20 @@ presentation adapters are present, together with its shared plane
 `fes.fabric.video.display-plane` 1.0. That plane has no capability bit; a
 package declaring either one without the other is refused at compatibility. A
 computer that does not implement the plane leaves the session-display bit clear.
+The 1.1 entry has the same interfaces plus `fes.media.pcxt-floppy`, `fes.pc386.machine`,
+`fes.persistence.words` and `fes.rtc.wall-clock`, each 1.0, and
+`fes.media.ata-disk` 1.0 when the DDR layout is latched and the window driver
+is available.
 
 ## Lifecycle
 
 Identity must equal the manifest: tag 4, the declared ABI version and build ID.
 For 1.0, the registered low capability bits must equal the declared required
 recognized set. Version 1.1 retains those identity words and reads word 16 for
-the high capability bits: bit 20 identifies `fes.media.pcxt-floppy`. The entire
-high word must equal the declared set, so unknown or undeclared bits fail
-identity. Discovery then reads MediaInfo fields 0 through 5 for every declared
-media unit.
+capability bits 16..31. Registered high bits must match the declared set;
+unassigned bits outside the registered mask are ignored. Bit 20 identifies
+`fes.media.pcxt-floppy`. Discovery then reads MediaInfo fields 0 through 5 for
+every declared media unit.
 `fes.media.apple2-floppy`, `fes.media.spectrum-tape`, `fes.media.zx81-tape`,
 `fes.media.c64-disk`, `fes.media.atari-st-floppy` and `fes.media.pcxt-floppy`
 are each unit 0, and a shell declares one of them; `fes.media.spectrum-disk`
@@ -94,9 +107,64 @@ requires exactly 368,640 bytes for both limits: 40 cylinders, two heads, nine
 512-byte sectors per track. The runtime checks those limits at discovery and
 before insertion, rejecting a mismatch before MediaBegin.
 
-After verified identity the ADV7513 audio packets follow the audio
-declaration exactly as for applications. An explicit ST initial library disk
-is uploaded and confirmed ready before Start; otherwise the drive stays empty.
+After verified identity, ADV7513 audio packets follow the audio declaration
+exactly as for applications. A library launch of a package with
+`fes.persistence.words` restores its game's 72-word `fes.pc386.machine`
+record (DataControl Begin, 72 DataWrite on opcodes 24..27, Commit) while
+held; a missing record restores the layout's defaults. A package with
+`fes.rtc.wall-clock` then gets the kit's local time in four WallClock words.
+The core stores the weekday unchecked, so the runtime sends the local time's
+own. A time before 1980 starts the clock at 1980-01-01, a Tuesday; a leap
+second holds at 59; and an unavailable local time fails the launch.
+Wall-clock command rejection or timeout remains a `transport`-phase failure;
+the seed is sent before Start.
+
+## ATA hard disk
+
+A `load_library_core` of a package with `fes.media.ata-disk` may carry its
+game's disk; it requires `game_id`:
+
+```json
+{"protocol":2,"operation":"load_library_core","package_path":"/tmp/fogcast-development/core-packages/example","package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","data_root":"/media/fat/fogcast/core-data","game_id":"ultima-vi","ata_disk":{"path":"/media/fat/fogcast/disk-images/a.img","size":2098688,"base_media_id":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","data_root":"/media/fat/fogcast/core-data/media","cylinders":4,"heads":16,"sectors_per_track":63}}
+```
+
+The base image path must name a regular file. Non-regular paths such as FIFOs
+are rejected without waiting for a writer.
+
+The image is 1..128 MiB in whole sectors and its geometry must fit it as
+DiskCommit requires. Before programming the runtime opens the image (no
+symlinks; its size must equal `size`), opens the `fes.ata-disk.delta`
+namespace of core, game and base digest under `ata_disk.data_root`, reads
+the manifest and checks that the namespace is writable. A pc386 package
+without `ata_disk` launches with its drive empty.
+
+After identity and the record restore, while held, the runtime sends
+Prepare and writes the image into the DDR window from `0x08000000` through
+fes-window grants of 4 MiB in turn: each 64 KiB chunk is the base's bytes, or
+the delta's chunk file when the manifest names it. It hashes the base as it
+reads it and CRC-32s what it writes. Each grant is revoked before the next,
+which writes back and invalidates its lines in L1 and the PL310. A base whose
+SHA-256 differs from `base_media_id` fails the launch with `corrupt_data` in
+phase `identity`: the staged file itself is wrong. A missing or altered chunk
+file fails it with `corrupt_data` in phase `media_data`, and a CRC the core
+does not match with `corrupt_data` in phase `input`, since the file can be
+right while the window is not. Then DiskCommit words 0..7 and Commit, and
+DiskInfo is polled until the core's CRC pass ends. Status lists the disk as unit 0 with interface
+`fes.media.ata-disk`, 65,536-byte chunks and its binding's revision. It is
+fixed: media insert, eject and save refuse it.
+
+Stop and fault cleanup save it before the record: Freeze, the 128 DiskDirty
+words, then each dirty chunk read through a fresh grant (taken after Freeze
+has fenced the core's writes, so no line cached before them can exist) and
+written as a synced content-addressed file. The merged manifest is published
+against the revision read under the namespace lock, chunk files it does not
+name are deleted, and Saved is sent. A Stop with no dirty chunk publishes
+nothing. A failed save leaves the disk frozen and returns `save_failed`; recovery
+resumes the disk and any machine-data snapshot before restoring host input.
+Packages without a host input recipe still resume machine data. An explicit
+Atari ST initial library disk is uploaded and confirmed ready before Start;
+otherwise the drive stays empty. The PC/XT floppy is read-only and does not
+use that initial-library-disk path.
 Start sends only Execution release, with no media gate and no neutral writes,
 because programming starts held with neutral input. No evdev
 input worker is opened. Stop and replacement send Execution hold before
@@ -316,9 +384,11 @@ previous disk and generation.
 
 If execution release fails ambiguously after binding the disk, failed-launch
 cleanup first performs the existing fault-save capture and durable publication.
-The release command is never resent. Successful save allows idle replacement;
-failed save retains the newly selected package/generation and persistent disk
-in recovery, blocking generic idle programming and replacement.
+The release command is never resent. A completed release rejection proves the
+guest did not run and proceeds directly to idle cleanup; a lost or unstable
+acknowledgement still requires fault-save recovery. Successful save allows idle
+replacement; failed save retains the newly selected package/generation and
+persistent disk in recovery, blocking generic idle programming and replacement.
 
 Omitting this object preserves an empty volatile drive at launch: diskless
 boot to GEM remains supported even when the package requires both floppy

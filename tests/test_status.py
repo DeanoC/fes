@@ -259,16 +259,19 @@ class StatusTest(unittest.TestCase):
     def test_validated_skipped_lanes_emit_successful_status_evidence(self):
         from scripts.affected import LANES
         from scripts.ci_gate import JOB_LANES
+        from scripts.ci_simulations import simulation_matrix
         results = {job: {'result': 'skipped'} for job in
                    (*JOB_LANES, 'simulation-tools', 'fpga-simulation')}
         results['plan'] = {'result': 'success', 'outputs': {
             'lanes': json.dumps({lane: False for lane in LANES}),
-            'cores': '[]', 'simulations': '{"include": []}',
+            'cores': '[]', 'sim_tier': 'smoke',
+            'simulations': json.dumps(simulation_matrix([], 'smoke')),
             'test_modes': json.dumps({'video': False, 'media': False, 'full_race': False})}}
         environment = dict(os.environ, RESULTS=json.dumps(results),
                            PYTHONPATH=str(Path(__file__).resolve().parents[1]),
                            TESTED_REVISION=self.head, INTEGRATION_BASE=self.head,
-                           REPOSITORY='test/fes', RUN_URL='https://example.invalid/runs/2')
+                           REPOSITORY='test/fes', RUN_URL='https://example.invalid/runs/2',
+                           GITHUB_EVENT_NAME='pull_request')
         run = subprocess.run([sys.executable, '-m', 'scripts.ci_gate'], cwd=self.root,
                              env=environment, capture_output=True)
         self.assertEqual(run.returncode, 0, run.stderr)

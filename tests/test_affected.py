@@ -284,7 +284,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-pcxt/rtl/pcxt_isa_bridge.sv': {'pcxt'},
             'cores/fes-common/generated/fes_pcxt_isa.vh': {'pcxt'},
             'scripts/sim_fes_pcxt.py': {'pcxt'},
-            'scripts/sim_fes_pcxt_bios.py': {'pcxt'},
+            'scripts/pcxt_bios.py': {'pcxt'},
             'scripts/sim_fes_pcxt_fdc.py': {'pcxt'},
             'scripts/sim_fes_pcxt_media.py': {'pcxt'},
             'scripts/sim_fes_pcxt_media_diag.py': {'pcxt'},
@@ -299,7 +299,7 @@ class AffectedTests(unittest.TestCase):
             'scripts/sim_fes_pc386.py': {'pc386'},
             'scripts/build_pc386_firmware.py': {'pc386'},
             'scripts/build_pc386_freedos_image.py': {'pc386'},
-            'scripts/pc386_diag.py': {'pc386'},
+            'scripts/build_fes_pc386_quartus.py': {'pc386'},
             'cores/fes-common/sim/riscv/rv32_model.h': {'riscv'},
             'cores/fes-riscv/firmware/firmware.S': {'riscv'},
             'scripts/sim_fes_riscv.py': {'riscv'},
@@ -328,7 +328,7 @@ class AffectedTests(unittest.TestCase):
                      'scripts/rom_map.py', 'scripts/rom_map_oracle.py', 'tests/test_rom_map.py',
                      'tests/test_core_package_v3.py', 'scripts/build_fes_atari_st_oss.py',
                      'tests/test_atari_st_producer.py', 'tests/test_atari_st_slot_card.py',
-                     'scripts/build_fes_pc386_oss.py', 'scripts/synth_fes_pc386.py', 'scripts/build_fes_pcxt_quartus.py'):
+                     'scripts/synth_fes_pc386.py', 'scripts/build_fes_pcxt_quartus.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertTrue(result['lanes']['fpga'])

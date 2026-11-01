@@ -101,7 +101,14 @@ int main(int argc, char **argv) {
             ++instructions;
             if(ip==0xfe47a)require(false,"BIOS reported POST error",cycles);
             if(ip==0xfe49a && !post) {require(flags==0,"BIOS POST flags",cycles);post=true;post_cycle=cycles;}
-            if(ip==0xfe6f2 && !boot) {boot=true;boot_cycle=cycles;}
+            if(ip==0xfe6f2 && !boot) {
+                boot=true;boot_cycle=cycles;
+                require(word(0x41a)==word(0x41c),"BIOS keyboard buffer not empty after self-test",cycles);
+                const auto post_text=screen();
+                require(post_text.find("GLaBIOS")!=std::string::npos &&
+                        post_text.find("640")!=std::string::npos,"BIOS POST text missing",cycles);
+                require(post_text.find("POST Error")==std::string::npos,"BIOS POST error text",cycles);
+            }
             if(ip==0x7c00 && !sector) {
                 require(boot && media_reads>=512 && dma2_completions>=512,"boot sector skipped the floppy/DMA path",cycles);
                 for(unsigned i=0;i<512;++i)require(byte(0x7c00+i)==disk[i],"boot sector differs from image",cycles);
@@ -213,12 +220,12 @@ int main(int argc, char **argv) {
         require(d.media_state==3,"committed disk not ready",cycles);
     };
     require(exchange(1,6,0)==1 && exchange(1,16,0)==16,"runtime PC floppy identity",cycles);
-    exchange(2,0,1); // Start before loading; the physical-media gate keeps the CPU held.
     // An abandoned partial image must be hidden and restart from offset zero.
     begin_image();chunk(0,3);exchange(10,0,0);
     for(unsigned i=0;i<3;++i)step();
     require(d.media_state==1 && !d.disk_loaded,"partial eject left media eligible",cycles);
     upload();
+    exchange(2,0,1); // Release only after the complete initial disk is committed.
     for(unsigned a=0;a<disk.size();++a)
         require(byte(0x100000+a)==disk[a],"uploaded disk differs in SDRAM",cycles);
     while(!(post && boot && sector && prompt && directory && frame_complete))step();

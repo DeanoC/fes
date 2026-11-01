@@ -3,12 +3,26 @@
   'use strict';
   const MAX_PACKAGE_BYTES = 65 * 1024 * 1024;
   const MAX_MEDIA_BYTES = 32 * 1024 * 1024;
+  const MAX_HARD_DISK_BYTES = 128 * 1024 * 1024;
+  // The host gives a hard-disk import a minute plus a second per 128 KiB
+  // (about 1 Mbit/s); the browser waits that long and half a minute more.
+  const HARD_DISK_IMPORT_RATE = 128 * 1024;
+  const hardDiskImportMs = size => (90 + Math.floor(size / HARD_DISK_IMPORT_RATE)) * 1000;
   const MAX_VIDEO_PART_BYTES = 32 * 1024 * 1024;
   const videoProfile = value => ['direct', 'scanlines'].includes(value);
   const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
   const clone = value => JSON.parse(JSON.stringify(value));
   const core = item => item && item.descriptor && item.descriptor.core && item.descriptor.core.id;
   const entryPath = id => '/api/v1/library/core-entries/' + encodeURIComponent(id);
+  const chs = g => g && [g.cylinders, g.heads, g.sectors_per_track].every(Number.isInteger) ?
+    g.cylinders + '/' + g.heads + '/' + g.sectors_per_track : '';
+  // An imported hard disk's geometry from its partition table, or why it has none.
+  function diskGeometryText(media) {
+    if (!media) return '';
+    if (chs(media.geometry)) return ' Disk geometry ' + chs(media.geometry) + ' (cylinders/heads/sectors) from its partition table.';
+    if (typeof media.geometry_error === 'string' && media.geometry_error) return ' No disk geometry: ' + media.geometry_error + '.';
+    return '';
+  }
   function validPackage(value) {
     return value && digest(value.package_id) && typeof core(value) === 'string' && core(value);
   }
@@ -25,14 +39,14 @@
     let epoch = 0;
     let listener = () => {};
     function emit() { const value = clone(state); onChange(value); listener(value); return value; }
-    async function request(path, options = {}) {
+    async function request(path, options = {}, timeoutMs = requestTimeoutMs) {
       const abort = new AbortController();
       let timer;
       const deadline = new Promise((_, reject) => {
         timer = setTimeout(() => {
           reject(new Error('Request timed out. Change may already be saved; outcome unknown. Refresh to confirm; nothing was retried.'));
           abort.abort();
-        }, requestTimeoutMs);
+        }, timeoutMs);
       });
       try {
         // Race the entire fetch/body operation: even an adapter ignoring abort cannot hold the UI lock.
@@ -56,7 +70,13 @@
     const selectedPackage = () => state.packages.find(p => p.package_id === state.packageId);
     const selectedEntry = () => state.entries.find(e => e.game_id === state.entryId);
     function fail(error) { state.message = String(error.message || error); return emit(); }
-    const MEDIA_ROLES = ['blob', 'disk', 'cassette'];
+    const MEDIA_ROLES = ['blob', 'disk', 'cassette', 'hard-disk'];
+    // A package with the fixed hard disk imports raw images through their
+    // own route, which admits up to 128 MiB in whole sectors.
+    function hardDisk() {
+      const caps = state.capabilities;
+      return !!(caps && caps.package_id === state.packageId && caps.media.find(m => m.role === 'hard-disk'));
+    }
     const ST_LAYOUTS = [];
     for (let tracks = 80; tracks <= 82; tracks++) {
       for (let heads = 1; heads <= 2; heads++) {
@@ -389,8 +409,11 @@
       importMedia(file) {
         return mutate(async () => {
           requirePackage();
-          boundedFile(file, MAX_MEDIA_BYTES);
-          const value = await request('/api/v1/core-media', {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:file});
+          const disk = hardDisk();
+          boundedFile(file, disk ? MAX_HARD_DISK_BYTES : MAX_MEDIA_BYTES);
+          if (disk && (file.size < 1024 * 1024 || file.size % 512 !== 0)) throw new Error('Choose a raw hard-disk image of 1 to 128 MiB in whole 512-byte sectors.');
+          const value = await request(disk ? '/api/v1/core-media/hard-disk' : '/api/v1/core-media', {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:file},
+            disk ? Math.max(requestTimeoutMs, hardDiskImportMs(file.size)) : requestTimeoutMs);
           if (!value || !digest(value.media_id) || value.size !== file.size) throw new Error('Invalid media import identity or size.');
           state.media = value;
         }, 'Media stored by digest. Select it explicitly; storage does not prove core compatibility.');
@@ -537,8 +560,9 @@
       const limits = caps ? caps.media.map(m => m.role + ': ' + m.min_bytes + '–' + m.max_bytes + ' bytes (' + m.transport + ')').join('; ') || 'No supported media contract.' : 'Choose a package to read declared media limits.';
       const media = state.media;
       byId('core-media-status').textContent = limits + ' Declared only; active target capacity is checked at launch.' +
-        (media ? ' Imported SHA-256 ' + media.media_id + ' — ' + media.size + ' bytes.' : ' New entry: no media selected.');
-      byId('core-entry-current').textContent = entry ? 'Current package ' + entry.package_id + '; media ' + (entry.media_id || 'none') : 'Create an explicitly titled library entry.';
+        (media ? ' Imported SHA-256 ' + media.media_id + ' — ' + media.size + ' bytes.' + diskGeometryText(media) : ' New entry: no media selected.');
+      byId('core-entry-current').textContent = entry ? 'Current package ' + entry.package_id + '; media ' + (entry.media_id || 'none') +
+        (chs(entry.disk_geometry) ? '; disk geometry override ' + chs(entry.disk_geometry) : '') : 'Create an explicitly titled library entry.';
       if (byId('core-video-status')) {
         const video = state.video;
         const name = profile => profile === 'scanlines' ? 'Scanlines' : 'Direct';

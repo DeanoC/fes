@@ -4,6 +4,7 @@
 #include "native/core_package.hpp"
 #include "native/sha256.hpp"
 
+#include <algorithm>
 #include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -992,13 +993,15 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	assert(check(bus).code == mister::ErrorCode::unsupported_interface);
 	// Unknown optional declarations are ignored; unknown required ones fail.
 	for (const auto* id : {"vendor.extension", "fes.gamepad", "fes.keyboard",
-		"fes.persistence.words", "fes.media.blob", "fes.expansion.coleco-bus"}) {
+		"fes.media.blob", "fes.expansion.coleco-bus"}) {
 		auto unknown = descriptor;
 		unknown.interfaces.push_back({id, 1, 0, false});
 		assert(check(unknown).ok());
 		unknown.interfaces.back().required = true;
 		assert(check(unknown).code == mister::ErrorCode::unsupported_interface);
 	}
+	// ABI 1.1 admits the 1.0 interfaces and adds identity word 16's bits;
+	// those bits need the 1.1 identity.
 	auto minor = descriptor;
 	minor.abi.minor = 1;
 	assert(check(minor).ok());
@@ -1008,23 +1011,70 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	pcxt.abi.minor = 1;
 	pcxt.interfaces.push_back({"fes.media.pcxt-floppy", 1, 0, true});
 	assert(check(pcxt).ok());
-	// The new shared ABI assignments do not implement the pc386 transports
-	// in this runtime. A 1.1 PC/XT descriptor must still fail closed when it
-	// requires any of them.
+	// PC/XT floppy capability bit 20 is in identity word 16, so the ABI 1.0
+	// identity cannot carry it even though the media interface itself is 1.0.
+	pcxt.abi.minor = 0;
+	assert(check(pcxt).code == mister::ErrorCode::unsupported_abi);
+	pcxt.abi.minor = 1;
+	// The ATA unit needs DDR, and persistent machine words need their paired
+	// layout; declaring either alone remains unsupported.
 	for (const char* id : {"fes.media.ata-disk", "fes.persistence.words",
-		"fes.rtc.wall-clock", "fes.pc386.machine"}) {
+		"fes.pc386.machine"}) {
 		auto unsupported = pcxt;
 		unsupported.interfaces.push_back({id, 1, 0, true});
 		assert(check(unsupported).code == mister::ErrorCode::unsupported_interface);
 	}
-	pcxt.abi.minor = 0;
-	assert(check(pcxt).code == mister::ErrorCode::unsupported_abi);
-	pcxt.abi.minor = 1;
+	auto clock = pcxt;
+	clock.interfaces.push_back({"fes.rtc.wall-clock", 1, 0, true});
+	assert(check(clock).ok());
 	pcxt.interfaces.back().required = false;
 	assert(check(pcxt).code == mister::ErrorCode::unsupported_interface);
 	pcxt.interfaces.back().required = true;
 	pcxt.interfaces.push_back({"fes.media.apple2-floppy", 1, 0, true});
 	assert(check(pcxt).code == mister::ErrorCode::unsupported_interface);
+	{
+		// The hard disk is a unit-0 medium whose image lives in HPS DDR.
+		auto disk = descriptor;
+		disk.abi.minor = 1;
+		disk.interfaces.erase(std::remove_if(disk.interfaces.begin(), disk.interfaces.end(),
+			[](const Interface& i) { return i.id == "fes.media.apple2-floppy"; }), disk.interfaces.end());
+		disk.interfaces.push_back({"fes.media.ata-disk", 1, 0, true});
+		assert(check(disk).code == mister::ErrorCode::unsupported_interface);
+		disk.interfaces.push_back({"fes.memory.hps-ddr", 1, 0, true});
+		assert(check(disk).ok());
+		disk.abi.minor = 0;
+		assert(check(disk).code == mister::ErrorCode::unsupported_abi);
+		disk.abi.minor = 1;
+		disk.interfaces.push_back({"fes.media.apple2-floppy", 1, 0, true});
+		assert(check(disk).code == mister::ErrorCode::unsupported_interface);
+	}
+	for (const auto* id : {"fes.rtc.wall-clock"}) {
+		auto high = descriptor;
+		high.abi.minor = 1;
+		high.interfaces.push_back({id, 1, 0, true});
+		assert(check(high).ok());
+		high.interfaces.back().required = false;
+		assert(check(high).code == mister::ErrorCode::unsupported_interface);
+		high.interfaces.back().required = true;
+		high.abi.minor = 0;
+		assert(check(high).code == mister::ErrorCode::unsupported_abi);
+	}
+	{
+		auto paired = descriptor;
+		paired.abi.minor = 1;
+		paired.interfaces.push_back({"fes.persistence.words", 1, 0, true});
+		paired.interfaces.push_back({"fes.pc386.machine", 1, 0, true});
+		assert(check(paired).ok());
+		auto words_only = paired;
+		words_only.interfaces.pop_back();
+		assert(check(words_only).code == mister::ErrorCode::unsupported_interface);
+		auto layout_only = paired;
+		layout_only.interfaces.erase(layout_only.interfaces.end() - 2);
+		assert(check(layout_only).code == mister::ErrorCode::unsupported_interface);
+		auto duplicate_layout = paired;
+		duplicate_layout.interfaces.push_back({"fes.pc386.machine", 1, 0, true});
+		assert(check(duplicate_layout).code == mister::ErrorCode::unsupported_interface);
+	}
 	auto system = descriptor;
 	system.core.system = "apple2";
 	assert(check(system).code == mister::ErrorCode::unsupported_abi);

@@ -273,7 +273,12 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                 producer.manifest(record, payload)
         self.assertEqual(manifest['core']['id'], 'fes.pcxt-dos')
         self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
+        self.assertIn('image is optional', manifest['core']['description'])
+        self.assertIn('empty drive', manifest['core']['description'])
         self.assertEqual([i['id'] for i in manifest['interfaces']], ['fes.video.fixed-720p60', 'fes.media.pcxt-floppy'])
+        self.assertTrue(manifest['interfaces'][1]['required'])
+        self.assertIn('runtime floppy image is optional', producer.build_limits(True)[1])
+        self.assertNotIn('required', producer.build_limits(True)[1])
 
     def test_yosys_bus_hold_rewrite_runs_after_deferred_hierarchy(self):
         program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',

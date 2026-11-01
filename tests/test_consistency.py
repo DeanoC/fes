@@ -85,7 +85,7 @@ class ConsistencyTest(unittest.TestCase):
 
     def test_selected_sources_and_validation_coverage(self):
         self.assertEqual(self.module.check(self.root, self.sources), {
-            'generated_files': 27, 'source_pin_copies': 0, 'fixture_copies': 37})
+            'generated_files': 27, 'source_pin_copies': 0, 'fixture_copies': 41})
         self.assertIn(
             ('emit-go', 'packages/abi/fes_computer.yaml', 'FogCast',
              'corepackage/internal/generated/fes_computer.go'), self.module.GENERATED)

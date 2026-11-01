@@ -310,7 +310,10 @@ FreeDOS floppy upload, captured video progressed through BIOS and reached
 writes, host keyboard input or external interface timing. That package used
 the earlier PC/XT capability bit 16. The [post-merge Kit B run](validation/2026-10-31-pcxt-main-merge/README.md)
 separately booted exact package `a93e3921` from source `72febda79` with the
-merged bit-20 interface and restored the kit afterward.
+merged bit-20 interface and restored the kit afterward. Later QSF synchronizer
+assignments and host upload changes present by PR source `a22d567c9` postdate
+that run; current-source Quartus timing and exact-artifact Kit acceptance
+remain open.
 The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
 Independent review found four package/acceptance defects, now fixed and re-reviewed.
@@ -343,7 +346,7 @@ display plane, write persistence, DOS/game compatibility and host keyboard
 remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
-## pc386 machine, phases M1 to M4
+## pc386 machine, phases M1 to M5
 
 pc386 is outside the factory/package set. Its AT
 core (PICs, 8254, DMA, 8042, RTC/CMOS, ATA) runs the Bochs BIOS, the LGPL
@@ -360,14 +363,18 @@ the [M1 record](validation/2026-10-26-pc386-m1-freedos-boot/summary.md) and the
 [M3 audio record](validation/2026-10-26-pc386-m3-audio/summary.md); the
 [AT core M10K record](validation/2026-10-27-pc386-at-core-m10k/summary.md) has the
 AT core's current synthesis figures. Phase M4's
-development package `fes.pc386-diag` (`make build-fes-pc386-diag`, not
-registered) is the machine without its CPU on a DE10-Nano: a bus master runs
-diagnostic commands from the HPS DDR window in the CPU's place
-([M4 record](validation/2026-10-28-pc386-m4-diagnostic/summary.md)). Its
-nextpnr routes miss both clocks; sealed with Quartus 17.0.2, it passed every
-diagnostic program on Kit B on 2026-10-29. The RTL
-CPU in the machine, the `fes.computer` 1.1 mailbox and the disk round trip
-with the runtime remain open.
+diagnostic package, the machine without its CPU with a bus master in its
+place, passed every diagnostic program on Kit B on 2026-10-29
+([M4 record](validation/2026-10-28-pc386-m4-diagnostic/summary.md)). Phase M5
+replaces it with the development package `fes.pc386`
+(`make build-fes-pc386-quartus`, not registered): `fes_i386_cpu` with its L1s
+on DDR port 0 in the same machine, the firmware in M10K, and the HPS staging
+the disk and settings in the DDR window until the `fes.computer` 1.1 contracts.
+It boots FreeDOS to its prompt in simulation and on Kit B on 2026-10-29
+([M5 record](validation/2026-10-29-pc386-m5-system/summary.md)). nextpnr
+builds of pc386 are parked ([#1235](https://github.com/DeanoC/fes/issues/1235)).
+The four games, the keyboard and mouse, the `fes.computer` 1.1 mailbox and
+the disk round trip with the runtime remain open.
 
 ## Not implemented, or not this package
 

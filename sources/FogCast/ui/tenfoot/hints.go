@@ -209,7 +209,15 @@ func (s Snapshot) HeaderHint() string {
 		if s.Session.Coleco && s.Room.ID == colecoArcadeRoomID {
 			return selectWord(kind) + " choose  " + backWord(kind) + " return to session  ·  Stop to play another cartridge"
 		}
-		return selectWord(kind) + " choose  " + backWord(kind) + " return to session  ·  Machine keeps running"
+		hint := selectWord(kind) + " choose  " + backWord(kind) + " return to session"
+		if s.Session.LoadTape {
+			media := "load tape"
+			if s.Session.MediaSelector {
+				media = "change media"
+			}
+			hint += "  " + northWord(kind) + " " + media
+		}
+		return hint + "  ·  Machine keeps running"
 	}
 	if s.GPUParked || s.Session.State == "active" || s.Session.RetryStop {
 		if s.TapePicker.Open {

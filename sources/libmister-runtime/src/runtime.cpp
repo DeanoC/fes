@@ -370,7 +370,8 @@ public:
 	Error LoadCore(const std::string& directory, const std::string& expected_package_id,
 		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr,
 		const std::string& programmed_path = "", const std::string& programmed_sha256 = "", const CoreROMLink* rom_link = nullptr,
-		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr)
+		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr,
+		const std::string& game_id = "", const AtaDiskImage* disk = nullptr)
 	{
 		LogRecord rejection;
 		bool rejected = false;
@@ -432,7 +433,9 @@ public:
 		data.package_id = package->info().package_id;
 		data.core_id = package->info().declared_core;
 		if (!data_root.empty()) {
-			const Error prepared = hardware_.PrepareCoreData(package.get(), data_root, &data);
+			Error prepared = hardware_.PrepareCoreData(package.get(), data_root, game_id, &data);
+			if (prepared.ok() && disk != nullptr)
+				prepared = hardware_.PrepareAtaDisk(package.get(), game_id, *disk);
 			if (!prepared.ok()) {
 				{
 					std::lock_guard<std::mutex> lock(mutex_);
@@ -589,12 +592,13 @@ public:
 	}
 
 	Error AccessCoreData(const std::string& directory, const std::string& package_id,
-		const std::string& data_root, const std::string& revision, std::uint16_t speed, bool update,
-		CoreData* output)
+		const std::string& data_root, const std::string& game_id, const std::string& revision,
+		const CoreSettingsUpdate* update, CoreData* output)
 	{
 		if (!output || !ValidAbsolutePath(directory) || !ValidAbsolutePath(data_root) ||
 			!ValidPackageId(package_id) ||
-			(update && (speed > 2 || (revision != "absent" && !ValidPackageId(revision)))))
+			(update && ((!update->pc386 && update->paddle_speed > 2) ||
+				(revision != "absent" && !ValidPackageId(revision)))))
 			return Invalid("invalid core-data request");
 		{
 			std::unique_lock<std::mutex> lock(mutex_);
@@ -606,8 +610,8 @@ public:
 		}
 		CoreData data;
 		Error error = update ? hardware_.UpdateCoreSettings(
-								   directory, package_id, data_root, revision, speed, &data)
-							 : hardware_.InspectCoreData(directory, package_id, data_root, &data);
+								   directory, package_id, data_root, game_id, revision, *update, &data)
+							 : hardware_.InspectCoreData(directory, package_id, data_root, game_id, &data);
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			busy_ = false;
@@ -973,7 +977,7 @@ public:
 		const Error error = hardware_.InsertComputerMedia(unit, path, size);
 		if (error.code == ErrorCode::save_failed)
 			return RestoreAfterSaveFailure("insert_media", system, core, generation, error);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("insert_media", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -997,7 +1001,7 @@ public:
 		const Error error = hardware_.InsertLibraryComputerMedia(unit, path, size, root, binding);
 		if (error.code == ErrorCode::save_failed && error.phase != "request")
 			return RestoreAfterSaveFailure("insert_library_media", system, core, generation, error);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("insert_library_media", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -1012,8 +1016,13 @@ public:
 			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
 			if (!rejected.ok()) return rejected;
 			bool persistent = false;
-			for (const auto& media : status_.capabilities.media_units)
-				if (media.unit == unit && media.persistence_mode == "persistent") persistent = true;
+			for (const auto& media : status_.capabilities.media_units) {
+				if (media.unit != unit) continue;
+				if (!media.saveable)
+					return {ErrorCode::unsupported_interface,
+						"media unit does not support an explicit save while the computer is running", "compatibility"};
+				if (media.persistence_mode == "persistent") persistent = true;
+			}
 			if (!persistent) return {ErrorCode::unsupported_interface,
 				"media has no library data binding", "compatibility"};
 			busy_ = true; system = status_.system; core = status_.core;
@@ -1033,7 +1042,7 @@ public:
 			busy_ = true; system = status_.system; core = status_.core;
 		}
 		const Error error = hardware_.CaptureZx81Tape(path);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("capture_zx81_tape", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -1052,7 +1061,7 @@ public:
 		const Error error = hardware_.AcknowledgeZx81Tape();
 		if (error.code == ErrorCode::save_failed)
 			return RestoreAfterSaveFailure("acknowledge_zx81_tape", system, core, generation, error);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("acknowledge_zx81_tape", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -1075,7 +1084,7 @@ public:
 		const Error error = hardware_.EjectComputerMedia(unit);
 		if (error.code == ErrorCode::save_failed)
 			return RestoreAfterSaveFailure("eject_media", system, core, generation, error);
-		FinishMediaUnit();
+		FinishMediaUnit(error.code != ErrorCode::unsupported_interface);
 		Log("eject_media", system, core, error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -1261,17 +1270,25 @@ public:
 			"media unit is not declared by the active computer", "compatibility"};
 	}
 
-	void FinishMediaUnit()
+	// Caller holds mutex_. A fes.computer package is persistent through its
+	// record layout (the pc386 machine) or through a bound persistent unit.
+	void RecomputeComputerPersistence()
+	{
+		if (status_.active_package.descriptor.abi.id != native::generated::FesComputerABIID) return;
+		const bool persistent_record = status_.core_data.mode == "persistent" &&
+			!status_.core_data.layout.id.empty();
+		status_.core_data.mode = persistent_record ? "persistent" : "volatile";
+		for (const auto& media : status_.capabilities.media_units)
+			if (media.persistence_mode == "persistent") status_.core_data.mode = "persistent";
+	}
+
+	void FinishMediaUnit(bool recompute_persistence)
 	{
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			// Publish the driver's unit state from its last live exchange.
 			status_.capabilities.media_units = hardware_.capabilities().media_units;
-			if (status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID) {
-				status_.core_data.mode = "volatile";
-				for (const auto& media : status_.capabilities.media_units)
-					if (media.persistence_mode == "persistent") status_.core_data.mode = "persistent";
-			}
+			if (recompute_persistence) RecomputeComputerPersistence();
 			busy_ = false;
 		}
 		condition_.notify_all();
@@ -1295,11 +1312,7 @@ public:
 				std::lock_guard<std::mutex> lock(mutex_);
 				status_.error = save_error;
 				status_.capabilities.media_units = hardware_.capabilities().media_units;
-				if (status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID) {
-					status_.core_data.mode = "volatile";
-					for (const auto& media : status_.capabilities.media_units)
-						if (media.persistence_mode == "persistent") status_.core_data.mode = "persistent";
-				}
+				RecomputeComputerPersistence();
 				busy_ = false;
 			}
 			condition_.notify_all();
@@ -1425,7 +1438,7 @@ public:
 			std::string system;
 			std::string core;
 			Status retained;
-			bool bound_disk = false;
+			bool durable_state = false;
 			{
 				std::unique_lock<std::mutex> lock(mutex_);
 				condition_.wait(lock, [this]() {
@@ -1444,16 +1457,20 @@ public:
 				pending_fault_generation_ = 0;
 				system = status_.system;
 				core = status_.core;
+				// A persistent fes.computer record (the pc386 machine) is
+				// captured too; Pong progress keeps its Stop-only boundary.
+				durable_state = status_.core_data.mode == "persistent" &&
+					status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID;
 				for (const auto& media : status_.capabilities.media_units)
-					if (media.persistence_mode == "persistent") bound_disk = true;
-				if (bound_disk) retained = status_;
+					if (media.persistence_mode == "persistent") durable_state = true;
+				if (durable_state) retained = status_;
 				status_ = FreshStatus(State::starting);
 				status_.execution = Execution::none;
 			}
 
 			Log("input_fault", system, core, "failure", fault.error);
 			Log("input_fault", system, core, "cleanup");
-			if (bound_disk) {
+			if (durable_state) {
 				const Error saved = hardware_.FlushFaultSave();
 				if (!saved.ok()) {
 					const Error recovery = IdleFailure(saved);
@@ -1543,12 +1560,13 @@ Error Runtime::LoadComposedCore(const std::string& directory, const std::string&
 {
 	return impl_->LoadCore(directory, id, "", &request);
 }
-Error Runtime::LoadLibraryCore(
-	const std::string& directory, const std::string& id, const std::string& root)
+Error Runtime::LoadLibraryCore(const std::string& directory, const std::string& id,
+	const std::string& root, const std::string& game_id, const AtaDiskImage* disk)
 {
-	if (!ValidAbsolutePath(root))
-		return Invalid("invalid core-data root");
-	return impl_->LoadCore(directory, id, root);
+	if (!ValidAbsolutePath(root) || (disk && (game_id.empty() || !ValidAbsolutePath(disk->path) ||
+		!ValidAbsolutePath(disk->data_root))))
+		return Invalid("invalid core-data root or ATA disk");
+	return impl_->LoadCore(directory, id, root, nullptr, "", "", nullptr, nullptr, nullptr, game_id, disk);
 }
 Error Runtime::LoadLibraryPartsCore(const std::string& directory, const std::string& id,
 	const std::string& root, const CoreCompositionRequest& request)
@@ -1601,15 +1619,16 @@ Error Runtime::LoadInitializedComposedCore(const std::string& directory, const s
 {
 	return impl_->LoadCore(directory, id, "", &request, programmed_path, programmed_sha256);
 }
-Error Runtime::InspectCoreData(
-	const std::string& directory, const std::string& id, const std::string& root, CoreData* output)
+Error Runtime::InspectCoreData(const std::string& directory, const std::string& id,
+	const std::string& root, const std::string& game_id, CoreData* output)
 {
-	return impl_->AccessCoreData(directory, id, root, "", 0, false, output);
+	return impl_->AccessCoreData(directory, id, root, game_id, "", nullptr, output);
 }
 Error Runtime::UpdateCoreSettings(const std::string& directory, const std::string& id,
-	const std::string& root, const std::string& revision, std::uint16_t speed, CoreData* output)
+	const std::string& root, const std::string& game_id, const std::string& revision,
+	const CoreSettingsUpdate& update, CoreData* output)
 {
-	return impl_->AccessCoreData(directory, id, root, revision, speed, true, output);
+	return impl_->AccessCoreData(directory, id, root, game_id, revision, &update, output);
 }
 
 Error Runtime::InspectCore(const std::string& directory,

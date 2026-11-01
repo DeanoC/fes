@@ -43,4 +43,10 @@ func TestDiskClientBindsCapturedSessionAndNeverReplays(t *testing.T) {
 	if _, err := c.SaveDiskForSession(context.Background(), prior); err == nil || calls != 3 {
 		t.Fatal("volatile save dispatched")
 	}
+	prior.CorePackage.MediaUnits[0].Persistence = u.Persistence
+	no := false
+	prior.CorePackage.MediaUnits[0].Saveable = &no
+	if _, err := c.SaveDiskForSession(context.Background(), prior); err == nil || calls != 3 {
+		t.Fatal("non-saveable media dispatched")
+	}
 }

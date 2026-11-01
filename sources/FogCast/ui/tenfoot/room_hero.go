@@ -70,6 +70,9 @@ const heroPlaysOnThisTV = "Plays on this TV"
 // 5% safe area, and at 1024×600.
 const heroStopCopy = "Stop: F12, Guide, or hold Select+Start for one second."
 
+// heroPendingCopy is a remembered core shown before the kit lists its cores.
+const heroPendingCopy = "Play now and it starts once this kit has checked it."
+
 // waitAckCopy answers a Confirm received while Checking.
 func waitAckCopy(kind InputKind) string {
 	return "Still checking. Press " + selectWord(kind) + " again once it has finished."
@@ -149,14 +152,21 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 	case rooms.KindCore:
 		c.Kicker = "On this kit"
 		c.Meta = heroInputsLine(d.Inputs)
-		switch d.Confirm() {
-		case rooms.ConfirmLaunchCore:
+		switch {
+		case d.Confirm() == rooms.ConfirmLaunchCore && d.CorePending:
+			// Play is accepted now and starts once the kit has listed it.
+			c.State = heroStateChecking
+			c.Headline = strings.TrimSpace(d.Status)
+			c.Explain = heroPendingCopy
+			c.Primary, c.Filled = "Play", true
+			c.Secondary = "Details"
+		case d.Confirm() == rooms.ConfirmLaunchCore:
 			c.State = heroStateReady
 			c.Headline = heroPlaysOnThisTV
 			c.Explain = heroStopCopy
 			c.Primary, c.Filled = "Play", true
 			c.Secondary = "Details"
-		case rooms.ConfirmWait:
+		case d.Confirm() == rooms.ConfirmWait:
 			c.State = heroStateChecking
 			c.Headline = strings.TrimSpace(d.Status)
 		default:
@@ -246,6 +256,10 @@ func heroCoreDetails(d rooms.Destination) []string {
 			pkg = pkg[:12] + "…"
 		}
 		lines = append(lines, "Package: "+pkg)
+	}
+	if d.CorePending {
+		// Tenfoot's own Checking line: the kit has not said anything yet.
+		return append(lines, strings.TrimSpace(d.Status))
 	}
 	status := strings.TrimSpace(d.CoreBlock)
 	if status == "" {

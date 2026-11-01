@@ -272,6 +272,15 @@ def require_timing(summary, seeds, *, dos_profile=False):
             raise BuildError('Quartus internal timing failed for seed ' + str(seed))
 
 
+def build_limits(dos_profile):
+    return [
+        'external IO/HPS timing and physical reset qualification remain open',
+        ('runtime floppy image is optional; host keyboard and exact-artifact hardware acceptance remain open'
+         if dos_profile else
+         'BIOS, DOS boot, host keyboard and in-play display plane are not implemented'),
+    ]
+
+
 def manifest(record, payload, *, dos_profile=False, metadata=None):
     fields = json.loads(record)
     parameters = fields.get('parameters', {})
@@ -282,7 +291,8 @@ def manifest(record, payload, *, dos_profile=False, metadata=None):
         raise BuildError('PC/XT manifest profile does not match its build record')
     if dos_profile:
         description = ('XT-compatible BIOS and read-only 360 KiB floppy loaded '
-                       'at runtime into SDRAM. A bootable disk image is required.')
+                       'at runtime into SDRAM. A bootable disk image is optional; '
+                       'with an empty drive the BIOS still starts and displays its boot state.')
         core = {'id': 'fes.pcxt-dos', 'name': 'FES PC/XT FreeDOS', 'version': '0.1.0',
                 'description': description}
     else:
@@ -353,9 +363,7 @@ def build(root=ROOT, *, package_output=None, cache_root=None, identity_version=2
             'core_id': core_id, 'hardware_dos': dos_profile,
             'internal_timing_pass': True, 'repeat_rbf_sha256': sha(repeated),
             'whole_board_qualified': False, 'hardware_acceptance': False,
-            'limits': ['external IO/HPS timing and physical reset qualification remain open',
-                       ('runtime floppy image required; host keyboard and exact-artifact hardware acceptance remain open'
-                        if dos_profile else 'BIOS, DOS boot, host keyboard and in-play display plane are not implemented')]}, indent=2) + '\n')
+            'limits': build_limits(dos_profile)}, indent=2) + '\n')
         package = export_package(encoded, payload, Path(package_output or root / 'build/packages'))
     return package
 

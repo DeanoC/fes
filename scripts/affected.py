@@ -28,7 +28,8 @@ CI_BROAD_INPUTS = frozenset({
     'scripts/ci_simulations.py', 'scripts/ci_verilator.sh',
 })
 SOFTWARE_CI_INPUTS = frozenset({
-    'Makefile', '.github/workflows/check.yml', 'scripts/test_changed.py',
+    'Makefile', '.github/workflows/check.yml', '.github/workflows/nightly.yml',
+    'scripts/test_changed.py',
     'scripts/test_policy.py',
 })
 
@@ -189,7 +190,7 @@ def fpga_cores(path):
                         'sim_fes_pc386.py'):
             core = parts[1][len('sim_fes_'):-len('.py')]
             return (core,), core + ' simulation recipe'
-        if parts[1] in ('sim_fes_pcxt_bios.py', 'sim_fes_pcxt_fdc.py',
+        if parts[1] in ('pcxt_bios.py', 'sim_fes_pcxt_fdc.py',
                          'sim_fes_pcxt_dos.py', 'sim_fes_pcxt_media.py', 'sim_fes_pcxt_media_diag.py',
                          'sim_fes_pcxt_mailbox.py', 'build_pcxt_freedos_image.py'):
             return ('pcxt',), 'PC/XT BIOS, floppy and DOS simulation recipes'
@@ -207,10 +208,10 @@ def fpga_cores(path):
             return ('spectrum',), 'Spectrum socket recipe'
         if parts[1] in ATARI_ST_SCRIPTS:
             return ('atari-st',), 'Atari ST socket/card/ROM test recipe'
-        if parts[1] in ('build_pc386_firmware.py', 'build_pc386_freedos_image.py', 'pc386_diag.py'):
-            return ('pc386',), 'pc386 firmware, simulation disk and diagnostic program recipes'
-        if parts[1] in ('synth_fes_pc386.py', 'build_fes_pc386_oss.py'):
-            return (), 'pc386 diagnostic synthesis recipe and producer; no simulation reads them'
+        if parts[1] in ('build_pc386_firmware.py', 'build_pc386_freedos_image.py', 'build_fes_pc386_quartus.py'):
+            return ('pc386',), 'pc386 firmware, simulation disk and producer (the system simulation takes its rates)'
+        if parts[1] == 'synth_fes_pc386.py':
+            return (), 'pc386 machine synthesis recipe; no simulation reads it'
         if parts[1] in I386_SCRIPTS:
             return (), 'i386 oracle, corpus runners, RTL checks and timing harness; no core consumer'
     if parts and parts[0] == 'tests':

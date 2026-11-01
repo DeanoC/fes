@@ -281,6 +281,10 @@ func (c *Coordinator) LoadCore(parent context.Context, size int64, content io.Re
 	return c.loadCore(parent, size, content, "")
 }
 func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Reader, libraryID string, composition ...bool) (protocol.Status, *protocol.APIError) {
+	return c.loadBoundCore(parent, size, content, libraryID, nil, composition...)
+}
+
+func (c *Coordinator) loadBoundCore(parent context.Context, size int64, content io.Reader, libraryID string, machine *protocol.LibraryMachineBinding, composition ...bool) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceProgram, "ok", map[string]any{"operation": "core_package", "size": size})
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
@@ -317,6 +321,12 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 			return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
 		}
 		activation, attempted, apiErr = composed.LoadComposedCoreOwned(parent, observation, c.operationContext, size, content, libraryID)
+	} else if machine != nil {
+		games, ok := c.runtime.(machineCoreRuntime)
+		if !ok {
+			return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+		}
+		activation, attempted, apiErr = games.LoadLibraryMachineCoreOwned(parent, observation, c.operationContext, size, content, libraryID, *machine)
 	} else if libraryID != "" {
 		library, ok := c.runtime.(libraryCoreRuntime)
 		if !ok {
@@ -371,6 +381,7 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 		Composition:      activation.Composition,
 		PartsComposition: activation.PartsComposition,
 		SlotComposition:  activation.SlotComposition,
+		ExpansionSocket:  misterruntime.ExpansionSocketReceipt(activation),
 		MediaStream:      activation.MediaStream,
 		MediaUnits:       activation.MediaUnits,
 		PackageID:        activation.PackageID, CoreID: activation.Descriptor.Core.ID, Generation: activation.Generation,
@@ -434,7 +445,7 @@ func (c *Coordinator) stopLocked(parent context.Context) (protocol.Status, *prot
 	stopping.LastError = nil
 	c.set(stopping)
 	stopBudget := c.stopTimeout
-	if protocol.MediaDataBound(current.CorePackage) && stopBudget < 135*time.Second {
+	if protocol.PersistentMediaBound(current.CorePackage) && stopBudget < 135*time.Second {
 		stopBudget = 135 * time.Second
 	}
 	var observed string

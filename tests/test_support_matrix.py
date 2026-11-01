@@ -23,6 +23,12 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertIn('Experimental', row['notes'])
         self.assertIsNone(row['signals']['last_hil_pass'])
         self.assertIn('no exact-artifact hardware acceptance', row['features'])
+        self.assertIn('loaded at runtime through the mailbox', row['features'])
+        self.assertNotIn('no runtime floppy insertion', row['features'])
+        self.assertIn('a93e3921', row['features'])
+        self.assertIn('72febda79', row['features'])
+        self.assertIn('no exact-artifact hardware acceptance', row['features'])
+        self.assertIn('sealed QSF', row['notes'])
         self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
         self.assertIn('| PC/XT (FreeDOS) | Bring-up | Quartus |', SUPPORT_MATRIX.render(data))
 

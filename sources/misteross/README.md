@@ -81,11 +81,14 @@ The PC/XT development slice runs an original diagnostic ROM on a pinned 8088
 through its motherboard, SDRAM and separate ISA CGA/MDA cards. The assembled
 system also exercises DMA and refresh while one selected display crosses into
 the shared Direct/Scanlines 720p output. `make sim-fes-pcxt` checks this on the
-host. `make sim-fes-pcxt-bios` runs the separate diskless GLaBIOS XT/5160 POST
-fixture with an external BIOS, font and simulated XT keyboard. The host-only
-`make sim-fes-pcxt-fdc` tests the read-only 360 KiB XT floppy adapter, and
-`make sim-fes-pcxt-dos` permits downloads of pinned BIOS and FreeDOS inputs
-for a whole-machine DOS boot test. The DOS profile uses the runtime PC floppy media path; it has no host keyboard input.
+host. The host-only `make sim-fes-pcxt-fdc` tests the read-only 360 KiB XT
+floppy adapter; `make sim-fes-pcxt-media` exercises the runtime mailbox and
+physical SDRAM loader, and `make sim-fes-pcxt-mailbox` checks the PC/XT media
+ABI. CI runs these focused floppy checks on pull requests. The complete
+`make sim-fes-pcxt-dos` simulation boots the pinned GLaBIOS XT/5160 BIOS
+and FreeDOS through the same whole-machine SDRAM, keyboard and floppy paths;
+it permits downloads of pinned BIOS and FreeDOS fixtures. The DOS profile uses
+the runtime PC floppy media path and does not accept host keyboard input.
 Host simulations do not qualify hardware. `make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache` builds the
 normal Quartus diagnostic package, with authenticated tool/source identity,
 three timing seeds and an independent byte-identical rebuild under

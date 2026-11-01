@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Eight registered logical slots; CGA slot 2 and MDA slot 3, remaining vacant.
+// Eight registered logical slots; CGA is logical index 1 and MDA index 2.
+// The optional floppy bridge occupies logical index 3.
 module display_top (
     input wire clk, reset, cycle_valid,
     output wire cycle_ready,

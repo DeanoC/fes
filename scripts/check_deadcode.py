@@ -27,7 +27,6 @@ MODULES = (
     'sources/FogCast',
     'sources/FogCast/appliance',
     'sources/mister-packages',
-    'sources/misteross/cores/fes-pc386/diagnostic',
     'sources/misteross/expansion',
 )
 LANES = (

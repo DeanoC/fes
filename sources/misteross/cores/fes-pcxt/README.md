@@ -45,10 +45,13 @@ The `fes.pcxt-dos` recipe selects `HARDWARE_DOS` and keeps the diagnostic
 profile unchanged. It includes GLaBIOS and a BAT-only XT keyboard responder;
 keyboard input is not yet supported. A 360 KiB raw floppy is delivered at
 runtime through `fes.media.pcxt-floppy` and the complete ordered image is
-written into SDRAM. The guest stays in reset until the initial image is
-physically written and committed. After that, eject and replacement leave the
-running guest alone. A cold reset invalidates the image. Guest floppy reads
-use the SDRAM media path; there is no disk ROM in the FPGA and no write path.
+written into SDRAM. When an initial disk is being loaded, the guest stays in
+reset until its final physical write is committed. If the host releases
+execution with the drive empty, the BIOS starts and displays its POST/boot
+status instead of leaving a black screen. Eject and replacement after startup
+do not reset the running guest. A cold reset invalidates the image. Guest
+floppy reads use the SDRAM media path; there is no disk ROM in the FPGA and no
+write path.
 The FreeDOS fixture uses kernel 2043 and FreeCOM 0.86a; see
 [`firmware/THIRD-PARTY-NOTICES.md`](firmware/THIRD-PARTY-NOTICES.md) and
 [`sim/freedos.lock`](sim/freedos.lock). Hardware prompt acceptance remains
@@ -515,18 +518,17 @@ are under `build/synth/fes-pcxt/video-{cga,mda}/{direct,scanlines}/`. These synt
 one adapter plus shared effect, not the CPU, ISA cards, font ROM or board shell.
 They provide no routed timing, physical containment or hardware acceptance.
 
-## BIOS POST simulation
+## XT floppy and DOS simulation
 
-`scripts/sim_fes_pcxt_bios.py` exercises the real assembled 8088, motherboard,
-ISA CGA card, SDRAM controller and Direct video pipeline with the stock GLaBIOS
-0.4.2 8088 XT/5160 ROM selected in `sim/bios.lock`. The simulated equipment
-profile has 640 KiB RAM, CGA and no floppy drive. The test intends to check
-that the BIOS reaches its bootstrap entry without a POST error, detects the
-expected RAM and display, receives the XT keyboard self-test byte and records
-an A make/break in its keyboard buffer. Its captured 720p banner is compared
-against the selected font and video text attributes. The firmware and keyboard events use
-the loader and cable interfaces; BIOS instructions and interrupts run on the
-RTL machine without firmware-call interception.
+The whole-machine DOS simulation begins with BIOS POST on the assembled 8088,
+motherboard, ISA CGA card and SDRAM controller. It loads the stock GLaBIOS
+0.4.2 8088 XT/5160 ROM selected in `sim/bios.lock` through the reset-only
+firmware port and uses the simulated XT keyboard. It checks POST status and
+text, an empty BIOS keyboard buffer after the BAT self-test, 640 KiB detection,
+the CGA plus one-floppy equipment profile, and the INT 19 bootstrap path before
+continuing into DOS. The keyboard then enters `DIR` through the guest-facing
+keyboard path. BIOS instructions and interrupts run on the RTL machine without
+firmware-call interception.
 
 The runner accepts only the exact BIOS bytes in the lock. It maps that 8 KiB
 ROM to the top of the 64 KiB firmware window and fills the rest with `FF`, then
@@ -536,20 +538,6 @@ The default simulation font derives the BIOS's lower 128 8-by-8 graphics glyphs
 into a 256-by-16-byte table, with the upper characters and unused rows blank.
 This is sufficient for readable ASCII during POST, not a complete CGA font.
 `--font` instead accepts an explicit 4096-byte normalized font.
-
-```sh
-# From sources/misteross; the first command explicitly permits a BIOS download.
-make sim-fes-pcxt-bios
-# Alternatively use a previously obtained exact copy and an optional font:
-python3 scripts/sim_fes_pcxt_bios.py --bios /absolute/GLABIOS_0.4.2_8X.ROM --font /absolute/cga-font.bin
-```
-
-The runner writes its input identity, trace and simulation outputs under
-`build/sim/fes-pcxt/bios/`; the firmware is an external simulation input, not
-part of the package. This host-only, diskless diagnostic does not exercise
-floppy I/O or DOS boot, and does not qualify a routed artifact or a kit.
-
-## XT floppy and DOS simulation
 
 The optional inline `pcxt_fdc_card` implements the read-only 765-family command
 subset for one XT drive. It exposes the XT adapter registers, IRQ6 and DMA2,
@@ -578,34 +566,30 @@ python3 scripts/build_pcxt_freedos_image.py --download
 python3 scripts/sim_fes_pcxt_dos.py --bios /absolute/GLABIOS_0.4.2_8X.ROM --disk /absolute/freedos-360.img
 ```
 
-The optional `ENABLE_PCXT_MEDIA` shell profile connects `fes.computer` 1.1's
+The `ENABLE_PCXT_MEDIA` shell profile connects `fes.computer` 1.1's
 `fes.media.pcxt-floppy` unit 0 through a little-endian mailbox writer to this
-SDRAM buffer. Begin and eject hide the medium without resetting the running
-guest; aborted uploads can be ejected and restarted. This path accepts only
-the 360 KiB raw geometry and reports write protection. The registered diagnostic
-package enables this profile and advertises PC floppy media. Inserting a
-disk into a running guest does not reset it or automatically restart its boot.
-The current shell also lacks a session-display plane and a host keyboard path;
-the separate DOS profile holds the guest until its first disk has committed.
-General host keyboard and a session-display plane remain future work.
+SDRAM buffer. Both registered PC/XT packages enable this profile. Begin and
+eject hide the medium without resetting the running guest; aborted uploads can
+be ejected and restarted. This path accepts only 360 KiB raw geometry and
+reports write protection. Inserting a disk into a running guest does not reset
+it or automatically restart its boot. The current shell lacks a session-display
+plane and a host keyboard path.
 
 The whole-machine test loads the pinned GLaBIOS and sends the complete floppy
 image through the runtime mailbox and real SDRAM controller before releasing
-the guest, enables the floppy adapter and checks that
-the disk's boot sector arrives at `0000:7C00` through DMA2. It compares every
-uploaded byte and every returned disk byte with the selected image, and checks
-that warm reset retains the medium and cold reset invalidates its admission.
-It is designed to require a DOS prompt, type `DIR` over the simulated XT
-keyboard and check `FESXT.TXT` in both text memory and the captured display.
-The runner validates the selected disk's boot code, FAT12 layout and file
-contents against the lock and records the actual disk hash. It also ejects,
-abandons a partial transfer and reloads the image while the DOS session runs.
-`make sim-fes-pcxt-media` covers identity, mailbox reset, live replacement,
-odd chunk boundaries and host/guest SDRAM contention. Outputs are under
-`build/sim/fes-pcxt/dos/`. This is host simulation; the registered diagnostic
-package still runs its built-in diagnostic firmware. The separate DOS package
-has exact-artifact hardware boot evidence for a named earlier build; neither
-that evidence nor the host simulation qualifies a newer package or write persistence.
+the guest. It checks BIOS POST, keyboard BAT, the boot sector at `0000:7C00`
+through DMA2, the DOS prompt and `DIR` output in text memory and the captured
+display. Rendered directory text is checked against the selected font and
+attributes. It compares uploaded and returned disk bytes with the selected
+image, checks warm and cold reset behavior, and exercises eject, an abandoned
+partial transfer and reload during a DOS session. The runner validates the
+selected disk's boot code, FAT12 layout and file contents against the lock and
+records the disk hash. `make sim-fes-pcxt-media` covers runtime loading and the
+diagnostic; `make sim-fes-pcxt-mailbox` covers identity and mailbox handshake.
+DOS outputs are under `build/sim/fes-pcxt/dos/`. These are host simulations;
+hardware acceptance is tied to the exact package and source recorded in the
+parent core-status matrix. Write persistence and broader compatibility are not
+implemented.
 
 ## Assembled board diagnostic
 

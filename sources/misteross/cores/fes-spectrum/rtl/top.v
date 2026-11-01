@@ -94,7 +94,10 @@ module top #(
         .display_response_valid(display_response_valid),
         .display_response_error(display_response_error),
         .display_response_data(display_response_data),
-        .display_quiesced(display_quiesced)
+        .display_quiesced(display_quiesced),
+        .storage_request(), .storage_opcode(), .storage_index(), .storage_argument(),
+        .storage_response_valid(1'b0), .storage_response_error(1'b0), .storage_response_data(16'd0),
+        .execution_accepted()
     );
 
     // Controller port 0 is a Kempston joystick (bit 0 right, 1 left, 2 down,

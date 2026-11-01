@@ -1089,7 +1089,7 @@ func TestHomeSavesSelectionWhileOpen(t *testing.T) {
 	r := newRoom(t, examplePack(t, "example.fes-cores"), Options{
 		Local: &fakeLocalCores{cores: []localcores.Core{
 			{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
-			{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true},
+			{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true, Inputs: []string{"keyboard"}},
 		}},
 		StorePath: path,
 	})
@@ -1121,5 +1121,32 @@ func TestHomeSavesSelectionWhileOpen(t *testing.T) {
 	}
 	if got := read(); !strings.Contains(got, coreZXID) {
 		t.Fatalf("selection was not saved while Home remained open: %s", got)
+	}
+	if got := read(); !strings.Contains(got, `"package_inputs": [
+    "keyboard"`) {
+		t.Fatalf("input needs were not saved with the selection: %s", got)
+	}
+}
+
+func TestHomePersistsOpeningSelectionBeforeDebounce(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "home.state.json")
+	now := time.Unix(1000, 0)
+	r := newRoom(t, examplePack(t, "example.fes-cores"), Options{
+		Local: &fakeLocalCores{cores: []localcores.Core{
+			{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
+		}},
+		StorePath: path,
+		Now:       func() time.Time { return now },
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool { return r.Destination().PackageID == corePongID })
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("opening selection was not persisted on its first frame: %v", err)
+	}
+	if !strings.Contains(string(data), corePongID) || !strings.Contains(string(data), `"package_name": "Pong"`) {
+		t.Fatalf("opening selection state %s", data)
 	}
 }

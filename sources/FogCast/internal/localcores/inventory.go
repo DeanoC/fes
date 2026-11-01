@@ -433,7 +433,7 @@ func descriptorNeeds(d corepackage.Descriptor) (needs, block string, launchable 
 // whose contract permits an empty unit at startup. Blob and other media
 // endpoints are startup inputs this launcher does not deliver.
 func computerEmptyStartup(d corepackage.Descriptor, iface corepackage.Interface) bool {
-	if !protocol.ComputerABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) {
+	if !protocol.ComputerMediaABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) {
 		return false
 	}
 	pcxt := protocol.PcxtFloppyInterface()

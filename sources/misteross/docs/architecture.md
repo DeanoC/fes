@@ -1428,6 +1428,21 @@ write-data word stay on the live GPO. `make sim-fes-atari-st-mailbox-direct` rep
 mailbox vectors and the commands ST uses, including a completed snapshot
 read, against both endpoints and fails if they diverge. Other shells keep
 `fes_computer_mailbox` or the core.
+The core is `fes.computer` 1.0 unless a shell enables a 1.1 interface:
+`ENABLE_ATA_DISK`, `ENABLE_PERSISTENCE`, `ENABLE_WALL_CLOCK`,
+`ENABLE_PC386_MACHINE` and `ENABLE_PCXT_FLOPPY` expose capability bits 16..20
+respectively and make it minor 1, answering identity word 16. `fes.pc386`
+uses bits 16..19; `fes.pcxt` uses bit 20. `pc386_system` hands its storage
+opcodes to `fes_computer_storage` (`rtl/fes_computer_storage.v`) and holds each
+until the reply, as it does menu opcodes for the display plane. That endpoint
+owns the ATA disk's unit
+state, staged geometry, fence, dirty flag and epoch, the 72 words of the
+`fes.pc386.machine` record with its Freeze snapshot and restore staging, and
+the wall clock; the shell owns the image in the DDR window, the CRC pass and
+the dirty map. Its storage suite
+(`scripts/sim_fes_pc386.py --suite storage`) replays every scenario of the
+1.1 golden exchanges, `cores/fes-common/generated/computer-exchanges-1.1.json`,
+compiled with that scenario's interfaces; the bench plays the machine's side.
 `cores/fes-zx81/rtl/fes_computer_gp.v` remains the session-harness mailbox on
 the older `fes.simple-computer` 1.0 transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
@@ -2960,10 +2975,12 @@ physical sockets are qualified.
 The independent `fes.pcxt-dos` recipe selects the default-off `HARDWARE_DOS`
 top parameter. It enables the GLaBIOS XT/5160 ROM, a BAT-only XT keyboard
 responder, and the read-only floppy controller. The `fes.computer` 1.1
-mailbox accepts a 360 KiB runtime floppy and writes it into SDRAM. The first
-boot waits for complete physical writes and media commit; subsequent eject or
-replacement does not reset the guest, while cold reset invalidates media.
-Guest reads use the SDRAM media-read path. The pinned FreeDOS simulation
+mailbox accepts a 360 KiB runtime floppy and writes it into SDRAM. When an
+initial disk is being loaded, the first boot waits for complete physical writes
+and media commit. Releasing execution with an empty drive starts the BIOS so
+the display reports its POST/boot state instead of remaining black. Subsequent
+eject or replacement does not reset the running guest, while cold reset
+invalidates media. Guest reads use the SDRAM media-read path. The pinned FreeDOS simulation
 fixture's exact source commits and SHA-256 are recorded in the core firmware
 notices and `sim/freedos.lock`. The registered recipe points its HIL
 gate at `scripts/pcxt_dos_hil_acceptance.py`, preferring Kit B and then Kit A.
@@ -3452,16 +3469,17 @@ image from physical SDRAM `100000–159FFF`, beyond the guest's address map.
 The PC/XT media profile connects a `fes.computer` 1.1 mailbox to an ordered
 byte loader; the drive is present only after all SDRAM writes and a successful
 CRC commit. Begin or eject hides the drive without resetting execution, and an
-in-flight floppy read drains before an overwrite. The DOS profile holds the
-guest until its first complete image is committed; later eject or replacement
-does not reset it. Warm reset retains the image; cold reset invalidates it.
-CPU/DMA, media reads and host uploads arbitrate for the controller while
+in-flight floppy read drains before an overwrite. Releasing execution with an
+empty drive starts the BIOS; an initial image selected for boot must be committed
+before execution is released. Warm reset retains the image; cold reset invalidates
+it. CPU/DMA, media reads and host uploads arbitrate for the controller while
 physical refresh continues. The image has 40 cylinders, two heads and nine
 512-byte sectors per track. A pinned 8086-compatible FreeDOS image and GLaBIOS
-form a separate whole-machine test for the boot sector, DOS prompt, directory
-listing and live eject/replacement. Both registered PC/XT packages connect the
-runtime media ABI. Host simulation does not qualify a newly built package on
-hardware; writes, persistence and flux images remain outside this path.
+form a separate whole-machine test for BIOS POST, keyboard BAT, the boot sector,
+DOS prompt, directory listing and live eject/replacement. Both registered PC/XT
+packages connect the runtime media ABI. Host simulation does not qualify a newly
+built package on hardware; writes, persistence and flux images remain outside
+this path.
 
 Use `fes.computer` and implemented keyboard/audio/video services where their
 contracts fit. PC floppy transport uses `fes.media.pcxt-floppy`; hard-disk

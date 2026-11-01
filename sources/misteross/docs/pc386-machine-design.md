@@ -159,6 +159,12 @@ while running and the machine never uses FLUSH for it. The memory router sends
 L2 fills in the two ROM ranges and the reset alias to the ROM M10K; everything
 else goes to DDR port 0 at window offset `0x04000000 + physical`. The ROM
 ranges are read-only, so their lines are never dirty and never written back.
+The CPU maps the reset alias onto F0000h itself, so its fills there name
+F0000h-FFFFFh. Until the L2 lands its L1s fill straight from port 0, so the
+ROM M10K sits in front of port 0 and answers the L1s' reads of the two ROM
+ranges itself ([`pc386_rom`](../cores/fes-pc386/rtl/pc386_rom.sv), M5);
+`machine_tb` serves them from the ROM images at those window offsets
+([first memory slice](validation/2026-10-28-i386-memory-path.md)).
 
 **Upper RAM** is on by default, so a UMB driver can load DOS drivers high
 without V86, which the Ultima VII games forbid. UMBM from the Jemm package
@@ -908,20 +914,22 @@ It also proves that the runtime's cache clean reached DDR.
 - **Import.** A pc386 library entry binds one immutable base image: a raw
   `.img`, size as above. FogCast's host storage stops at 32 MiB per asset
   today; this role raises it to 128 MiB.
-- **Geometry.** FogCast reads the MBR. If the partition entries' end CHS values
-  imply heads and sectors per track, it uses them; otherwise 16 heads and 63
-  sectors. Cylinders follow from the size, capped at 16,383. The entry can
-  override. IDENTIFY must report the geometry the partition table was written
-  with: the machine sets CMOS 39h to no translation, so INT 13h presents the
-  IDENTIFY geometry, and DOS addresses the disk in CHS through INT 13h.
+- **Geometry.** FogCast reads the MBR. If the partition entries' CHS values,
+  checked against their LBA values, imply heads and sectors per track, it uses
+  them; with no CHS values, 16 heads and 63 sectors. Cylinders follow from the
+  size, capped at 16,383. A table written for more than 16 heads, or one that
+  fits no geometry, needs the entry's override, which can also replace any
+  inferred geometry. IDENTIFY must report the geometry the partition table was
+  written with: the machine sets CMOS 39h to no translation, so INT 13h presents
+  the IDENTIFY geometry, and DOS addresses the disk in CHS through INT 13h.
 - **Staging.** FogCast stages the base image to the kit by SHA-256 and reuses
   a staged copy whose digest matches, so relaunching does not move 128 MiB.
 - **Launch.** The runtime:
   1. checks identity and releases the DDR ports;
   2. restores the `fes.pc386.machine` record and seeds the wall clock;
   3. sends prepare;
-  4. grants the region, zero-fills it, writes the base image, skipping all-zero
-     chunks, applies the saved delta's chunks, cleans and revokes the grant;
+  4. grants the region, writes every byte of the base image, applies the saved
+     delta's chunks, cleans and revokes the grant;
   5. sends the geometry and the CRC of what it wrote, commits, and polls until
      ready;
   6. releases execution.
@@ -1001,14 +1009,16 @@ ID, unit, base-image SHA-256), layout `fes.ata-disk.delta` 1.0:
   then an ascending list of chunk indices each with the SHA-256 of its 64 KiB
   of data, then a SHA-256 of the manifest.
 - Chunk data lives in content-addressed files beside it.
-- **Saving** (at Stop, and before eject): freeze; read the dirty map and the
-  existing manifest (empty on the first save); grant the region, invalidate the
-  HPS caches for it and read the dirty chunks; write and sync each new chunk
+- **Saving** (at Stop and fault cleanup only): freeze; read the dirty map and the
+  existing manifest (empty on the first save); grant the region (no line of
+  it is cached, see below) and read the dirty chunks; write and sync each new chunk
   file; replace those indices in the existing manifest, retaining entries for
   unchanged chunks; publish the merged manifest with the existing
   temporary-file, rename and directory-sync rule; send Saved to clear the dirty
   bits; delete chunk files the published manifest does not name, under the
   namespace lock.
+- The disk is fixed while the computer runs. Insert, eject and explicit media
+  save are refused; periodic checkpoints during play remain future work.
 - **Restoring** applies the manifest's chunks over the base, as in launch step
   4.
 
@@ -1018,10 +1028,12 @@ is the manifest's SHA-256. A corrupt manifest or chunk blocks the launch and is
 never replaced silently, as for every media record. Periodic checkpoints while
 playing stay future work, as the persistence page says.
 
-The read-back needs one kit-software addition: fes-window has CLEAN and REVOKE
-but no invalidate, and a cached mapping must not return stale lines after the
-FPGA has written DDR. The runtime takes the read grant only after Freeze ACKs
-and invalidates the range first.
+The read-back needs no new fes-window operation. A cached mapping must not
+return stale lines after the FPGA has written DDR, and none can exist: every
+grant the runtime takes is revoked when the access ends, and REVOKE writes
+back and invalidates the grant's lines in L1 and the PL310. The runtime takes
+the read grants only after Freeze ACKs, so nothing caches a line of the region
+between the core's last write and the read.
 
 FogCast offers "reset disk" (discard the delta, after confirmation) and, as
 follow-up, "save as new image" (base plus delta as a new immutable asset).
@@ -1232,8 +1244,11 @@ has the field rules:
 | 28 | WallClock | word 0–3 | year; month and day; hour and minute; second and weekday |
 
 Package: format 2 (firmware in the RBF), `core.id = fes.pc386`, built by
-`scripts/build_fes_pc386_oss.py` with the CPU's DSP-permitting recipe and its
-own `toolchain.lock`.
+`scripts/build_fes_pc386_quartus.py` with Quartus 17.0.2 from the netlist of
+its own `toolchain.lock`'s Yosys, while nextpnr is parked
+([#1235](https://github.com/DeanoC/fes/issues/1235)). Until the M0 contracts
+land it declares `fes.computer` 1.0 and takes its disk and settings from the
+DDR window ([M5 as built](#phases)).
 
 ### mister-packages adds
 
@@ -1249,10 +1264,11 @@ own `toolchain.lock`.
 ### libmister-runtime adds
 
 - `fes.computer` 1.1 identity and admission.
-- The ATA disk loader and saver: window grant, zero-skip load, delta apply,
-  clean, commit with CRC, poll; freeze, dirty map, invalidate, read, publish
-  the delta, Saved.
-- An invalidate operation in fes-window (kit software, not the image).
+- The ATA disk loader and saver: window grant, complete base-image write, delta apply,
+  clean, commit with CRC, poll; freeze, dirty map, read, publish the delta,
+  Saved.
+- Short fes-window grants for the disk region; REVOKE's write-back and
+  invalidate keeps the read-back coherent, so fes-window needs no new operation.
 - `fes.persistence.words` on `fes.computer`, keyed by core ID and game ID, with
   the `fes.pc386.machine` layout's validation.
 - Wall-clock seeding at launch.
@@ -1336,7 +1352,7 @@ first playable.
 | M4 | Machine diagnostic shell on a kit: a development package where a mailbox-driven bus master stands in for the CPU and issues I/O and MMIO cycles | Hardware diagnostic: VGA modes captured from HDMI, OPL2 and DSP audio, a disk load and save round trip with the runtime, port 2 underflow counters at zero, load time measured | Before CPU Phase 3 |
 | M5 = CPU Phase 3 | The RTL CPU in the machine | FreeDOS boots in simulation with the RTL CPU; first sealed package; the four games pass the checks above on a kit, with both presets recorded | — |
 
-**M4 as built** ([README](../cores/fes-pc386/README.md#m4-diagnostic-shell)):
+**M4 as built** ([record](../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md)):
 the bus master takes its commands from a ring in the DDR window on port 0, not
 through the GP mailbox. During a package session the mailbox belongs to the
 runtime: its exchanges toggle one request bit and poison on a mismatch, so a
@@ -1350,6 +1366,22 @@ the window or A0000h-BFFFFh, or that would alias another, and gives up one the
 machine never answers, as while it is held in reset. Until M0 the shell serves the ATA image port from port 0 and the HPS writes the
 image into the window directly; the disk round trip with the runtime waits for
 the M0 contracts.
+
+**M5 as built** ([README](../cores/fes-pc386/README.md#m5-system)): slice 1
+puts `fes_i386_cpu` with its L1s and bus interface on port 0 in place of the
+M4 bus master, which leaves the tree with its ring, port fence, kit tool and
+nextpnr producer. Until the CPU has an L2, the firmware ROM answers the L1s'
+reads of its two ranges in front of port 0. The system simulation boots
+FreeDOS on the whole shell below `top.sv`, Quartus 17.0.2 seals it, and the
+sealed package boots FreeDOS to its prompt on Kit B
+([record](../../../docs/validation/2026-10-29-pc386-m5-system/summary.md)).
+That slice staged the machine through a development host link in the window;
+the `fes.computer` 1.1 slice replaces it with the M0 contracts in the shell:
+the runtime's ATA disk with the core's CRC pass, save fence and dirty map on
+port 2, the `fes.pc386.machine` record (the straps, and CMOS through the RTC)
+and the wall clock, and the system simulation now launches and stops the
+machine through the mailbox as the runtime does. The four games
+follow; there is no keyboard or mouse in the package yet.
 
 After first playable: CPU Phase 5 brings JEMM386 and Wolfenstein 3D with EMS;
 CPU Phase 6 wires FERR to IRQ13 and port F0h. Machine follow-ups wait for a
@@ -1412,5 +1444,5 @@ controller moved from `cores/fes-pcxt/` to `cores/fes-common/` with M1
 them; the PC/XT keeps no copy. The
 firmware sources go in `cores/fes-pc386/firmware/`, their build script in
 `scripts/build_pc386_firmware.py`, and the producer in
-`scripts/build_fes_pc386_oss.py`. The FogCast disk builder and its FreeDOS
+`scripts/build_fes_pc386_quartus.py`. The FogCast disk builder and its FreeDOS
 lock land in `sources/FogCast/` with that follow-up.
