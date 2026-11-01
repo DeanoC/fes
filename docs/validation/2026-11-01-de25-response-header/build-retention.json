@@ -1,0 +1,31 @@
+{
+  "archive": "/home/deano/fes-retained/de25-header-response-20261101/builds.tar.gz",
+  "size": 148125474,
+  "sha256": "2be8c9149d6e5ae72bfafa5363c25f6282e98bee3640977b52f0818b592d26fe",
+  "members": 43681,
+  "every_member_verified": true,
+  "source": {
+    "source_commit": "8bc8fcf70756085553e46a4605e793a610335220",
+    "tree": "ba14ff90967ec74b5db8afc9a5bbd9bbe549f48d",
+    "bundle_sha256": "4da43830834662c0e4995b23c45bce1e8706bf4108942564b795d2ea88a383d4",
+    "prerequisite_commit": "95773958cddae22ee192a5271bb4a7fc6f71a34d",
+    "previous_object_store": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mailbox-parser-20261101/source-restore.git",
+    "alternate_object_stores": [
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-physical-core-20261101/source-restore/.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-hps-context-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-fpga-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-fpga-ready-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phase2-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phase2-timing-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-digest-native-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mailbox-20261101/source-restore.git/objects",
+      "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mailbox-parser-20261101/source-restore.git/objects"
+    ],
+    "restored_tree_verified": true,
+    "verified_reachable_objects": 8395,
+    "missing_objects": 0,
+    "scope": "incremental bundle; requires the documented prior source-retention chain"
+  },
+  "manifest_sha256": "3399e4f9c63c1e9c80973f809a98d14ff8570ade671d617c577ee90408e62dc0",
+  "prior_retention": "/home/deano/fes-retained/de25-mailbox-parser-20261101"
+}

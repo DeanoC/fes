@@ -84,7 +84,11 @@ plus parser state and descriptor counts. No FIFO contents or write-only
 register are read; no mailbox command, clear, response consumption or restart
 is added. Samples follow START/WRITE and completion polls 1, 2, 16 and 64 per
 buffer. They are non-atomic observations and cannot acknowledge bytes or grant
-bridge authority. This image has not been tested on the board yet.
+bridge authority. The `job` field reports the next send ID. The
+[matched board test](../../../docs/validation/2026-11-01-de25-response-header/README.md)
+still stopped with one missing completion after 786,432 bytes. Four pending
+samples show CIN=COUT=0x19, RIN=ROUT=2, no incoming doorbell, an idle parser and
+no local descriptors. The source stayed pinned and the deadline stayed fixed.
 
 The actual pinned FIFO transport, mailbox-v3 parser and contained engine pass
 80 host cases covering every response-ring starting position, a full
@@ -101,8 +105,10 @@ local header before every read, including reads following an acknowledgement.
 Only `-2` without a header remains pending; `-2` with a packet retires authority
 and preserves the original error code. The actual-parser regression reproduced
 the old 786,432-byte stall with an injected error 2 and passes with this repair.
-This establishes a software defect, not the cause of the physical stall; the
-header-aware image still needs a matched bounded board test.
+This establishes a software defect. The matched header-aware trial observed no
+error packet and stopped at 20.097686 seconds with the same missing completion.
+SDM transfer-window and DMA/configuration progress need further investigation;
+the observed queue state does not identify their root cause.
 
 Invalid scope, changed bytes, uncertain replies or failed completion retire
 authority and keep memory owned until reboot. No reset-bit repair or implicit
