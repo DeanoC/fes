@@ -2958,8 +2958,9 @@ recipe now exports an installable format-2 diagnostic package with the standard
 identity/execution mailbox and fixed CGA Direct video. Its forwarded HDMI clock
 uses an 8.979 ns phase offset from pixel-data updates; the system and pixel
 rates do not change. Fixed video is inline in the RBF and needs no external
-video-part index. Keyboard, media and physical socket interfaces are not
-declared. The registered producer is Quartus, with the common 100 MHz package profile,
+video-part index. The `fes.computer` 1.1 mailbox declares one read-only 360 KiB
+PC/XT floppy unit; keyboard and physical socket interfaces are not declared.
+The registered producer is Quartus, with the common 100 MHz package profile,
 proof-bound video mailbox constraints and phased HDMI. All declared seeds
 must pass reported internal checks; an independent first-seed rebuild must
 reproduce the RBF. Internal clock-validity checks must pass, and every unclocked
@@ -2983,7 +2984,7 @@ invalidates media. Guest reads use the SDRAM media-read path. The pinned FreeDOS
 fixture's exact source commits and SHA-256 are recorded in the core firmware
 notices and `sim/freedos.lock`. The registered recipe points its HIL
 gate at `scripts/pcxt_dos_hil_acceptance.py`, preferring Kit B and then Kit A.
-That checker requires at least three full, changing 16:9 HDMI captures and
+That checker requires at least three full 16:9 HDMI captures with a meaningful change and
 matches the final `A:\>` text using the font from the locked ROM. Static
 signatures fail. Passing this prompt check is DOS boot evidence only; external
 SDRAM/HDMI/HPS/reset qualification and broader compatibility remain separate.
@@ -3465,23 +3466,26 @@ but require their own sound, IRQ and DMA qualification. Base audio is PC speaker
 The host simulation now has an optional inline XT 765-family adapter with a
 read-only command subset, IRQ6 and DMA2. Its byte service reads a 360 KiB raw
 image from physical SDRAM `100000–159FFF`, beyond the guest's address map.
-The ordered loader commits the first image before the CPU is released;
-warm reset retains it, and cold reset invalidates it. CPU/DMA, upload and media
-reads arbitrate while physical refresh continues. The DOS profile accepts runtime
-replacement and eject. The image has 40
-cylinders, two heads and nine 512-byte sectors per track. A pinned
-8086-compatible FreeDOS image and GLaBIOS run together in the whole-machine
-test. It checks BIOS POST, 640 KiB detection, keyboard BAT, INT 19, the boot
-sector, DOS prompt and directory listing through the RTL machine. The
-diagnostic package does not connect the runtime PC media ABI. Writes,
-persistence, flux images and physical acceptance remain outside this
-simulation path.
+The PC/XT media profile connects a `fes.computer` 1.1 mailbox to an ordered
+byte loader; the drive is present only after all SDRAM writes and a successful
+CRC commit. Begin or eject hides the drive without resetting execution, and an
+in-flight floppy read drains before an overwrite. Releasing execution with an
+empty drive starts the BIOS; an initial image selected for boot must be committed
+before execution is released. Warm reset retains the image; cold reset invalidates
+it. CPU/DMA, media reads and host uploads arbitrate for the controller while
+physical refresh continues. The image has 40 cylinders, two heads and nine
+512-byte sectors per track. A pinned 8086-compatible FreeDOS image and GLaBIOS
+form a separate whole-machine test for BIOS POST, keyboard BAT, the boot sector,
+DOS prompt, directory listing and live eject/replacement. Both registered PC/XT
+packages connect the runtime media ABI. Host simulation does not qualify a newly
+built package on hardware; writes, persistence and flux images remain outside
+this path.
 
 Use `fes.computer` and implemented keyboard/audio/video services where their
-contracts fit. PC floppy transport uses the versioned `fes.media.pcxt-floppy` interface;
-hard-disk transport remains future work. Initial media upload populates the
-bounded buffer before boot; rotating-media events and sector transfers follow
-guest time. Start with 360 KiB raw
+contracts fit. PC floppy transport uses `fes.media.pcxt-floppy`; hard-disk
+transport remains future work. Initial DOS upload populates the bounded buffer
+before boot; later rotating-media events and sector transfers follow guest time.
+Start with 360 KiB raw
 floppies and explicit geometry. Model seek, motor spin-up, command/result phases,
 IRQ6, DMA2, terminal count and write protection. Raw sector images cannot express
 all copy protection; such games need a later flux/track representation.

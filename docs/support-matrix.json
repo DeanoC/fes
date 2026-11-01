@@ -1595,8 +1595,8 @@
       "primary_toolchain": "quartus",
       "router": "Quartus is the normal diagnostic package producer. Nextpnr remains an explicit advisory diagnostic.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. Quartus Lite 17.0.2 Build 602: common 100 MHz package profile, three-seed reported internal timing gate and independent RBF repeat. External IO/HPS/reset and exact-artifact hardware acceptance remain separate.",
-      "features": "Media: diagnostic firmware byte port only. No disk controller and no sealed firmware map. Input: no HID keyboard frontend. HDMI: diagnostic 720p RGB on the DE10-Nano shell (CGA or MDA, Direct or Scanlines). No runtime ABI. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
-      "notes": "Registered Quartus format-2 diagnostic package outside the bootstrap image. Independently reviewed package 9d46fefc49f516b2 passes the CGA Direct completion-picture and normal launch/Stop diagnostic on Kit A. Whole-board physical qualification, BIOS/DOS, keyboard and disks remain open.",
+      "features": "Media: read-only 360 KiB floppy through fes.computer 1.1 live media, with a guest FDC/DMA diagnostic. Input: no HID keyboard frontend. HDMI: fixed CGA Direct 720p diagnostic on the DE10-Nano shell. Mesh/Bluetooth: per-core unverified (host evdev and FogCast only).",
+      "notes": "Experimental Quartus format-2 diagnostic package outside the bootstrap image. Parent-merge package 187f31cefecc14e48c30868acb128d08dbafa703d8a352eb53b6b71a7e8d2a6f passed the Kit B empty, wrong, matching and ejected disk sector diagnostic. Whole-board physical qualification, a bootable BIOS path, host keyboard and write support remain open.",
       "evidence": [
         "sources/misteross/cores/fes-pcxt/README.md",
         "sources/misteross/cores/fes-pcxt/toolchain.lock",

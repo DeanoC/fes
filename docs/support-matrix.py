@@ -63,7 +63,7 @@ HIGHLIGHTS = {
     'fes.riscv': 'pad, HDMI',
     'fes.demo': 'pad, HDMI',
     'sim.pong': '—',
-    'fes.pcxt': 'HDMI',
+    'fes.pcxt': 'disk, HDMI',
     'fes.pcxt-dos': 'disk, HDMI',
     'fes.pc386': 'sim',
     'i386': '—',
