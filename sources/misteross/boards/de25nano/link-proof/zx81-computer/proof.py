@@ -4,6 +4,7 @@ import argparse
 import concurrent.futures
 import importlib.util
 import json
+import os
 import re
 from pathlib import Path
 import shutil
@@ -96,7 +97,7 @@ def execute(args):
     if not args.native_only:
         if not all((args.builder_image,args.sdk_volume,args.sdk_cxx,args.qemu)):raise ValueError("AArch64 SDK image/volume/compiler and QEMU required")
         arm=output/"client-aarch64"
-        container=["docker","run","--rm","--network=none","--mount",f"type=volume,src={args.sdk_volume},dst=/build,readonly","--mount",f"type=bind,src={snapshot},dst=/src,readonly","--mount",f"type=bind,src={output},dst=/out",args.builder_image]
+        container=["docker","run","--rm","--network=none","--user",f"{os.getuid()}:{os.getgid()}","--mount",f"type=volume,src={args.sdk_volume},dst=/build,readonly","--mount",f"type=bind,src={snapshot},dst=/src,readonly","--mount",f"type=bind,src={output},dst=/out",args.builder_image]
         sdk_files=[args.sdk_cxx,args.sdk_cxx+".br_real"]
         before=helpers.run([*container,"sha256sum",*sdk_files],logs/"sdk-before.txt")
         container_include=Path("/src/sources/libmister-runtime"); container_bench=Path("/src")/HERE.relative_to(ROOT)
