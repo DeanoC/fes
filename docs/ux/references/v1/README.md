@@ -1,7 +1,7 @@
 # v1 first boot, Home and Settings references
 
 **Status:** design references for [#1342](https://github.com/DeanoC/fes/issues/1342),
-made on 1 November 2026 from `bdc7839e3` (main, before #1371 merged). They
+made on 1 November 2026 from `bdc7839e3` (main, while #1371 was still an open PR). They
 draw Deano's 1 November decisions in the
 [v1 first boot & setup plan](../../../plans/v1-first-release-first-boot-setup.md)
 (screens 0–6 and the minimum v1 settings). The build issues below implement
@@ -70,8 +70,8 @@ harness.
   [#1343](https://github.com/DeanoC/fes/issues/1343). If an open C64
   replacement ships, the C64 takes the built-in states below.
 - **Games, counts, folders and pads are fictional.** Lunar Courier, Bit
-  Garden and Pixel Post are made-up titles. "USB gamepad" with a Tested badge
-  stands in for the list [#1348](https://github.com/DeanoC/fes/issues/1348)
+  Garden and Pixel Post are made-up titles. "USB gamepad", "Wireless gamepad"
+  and "Travel pad", and which of them carry a Tested badge, stand in for the list [#1348](https://github.com/DeanoC/fes/issues/1348)
   picks.
 
 ## The flow
@@ -163,8 +163,8 @@ green outline, so focus and readiness never share a shape.
 | --- | --- |
 | Purpose | Point each computer at a folder the user already has, then count what is there. |
 | Focus and default | Scan, focused, when at least one suggestion is pre-selected (the button names how many: "Scan 2 folders"). Up reaches the family rows; A on a row opens the picker. With no suggestions, focus starts on the first row. |
-| Copy | "Where are your games?" · "Choose a folder for each computer, on a USB drive, the SD card or a network share. FES only reads these folders; it never moves, renames or creates files." Rows show the folder as "USB drive / games/ZX81" with a Suggested chip, "No likely folder found" with Choose a folder, or "Skipped: Home will remind you". |
-| States | Suggested (pre-selected, nothing created); the folder picker for one family; scanning; results. Scanning shows "Done", "Scanning" with files checked so far, "Waiting" and "Skipped"; no percentages. Results: a count per family, "12 files not recognised", "No games found in SD card / ST" (No games yet) and "No folder chosen" (Skipped). |
+| Copy | "Where are your games?" · "Choose a folder for each computer, on a USB drive, the SD card or a network share. FES only reads these folders; it never moves, renames or creates files." Rows show the folder as "USB drive / games/ZX81" with a Suggested chip, "No likely folder found" with Choose a folder, or "Skipped: Home will remind you". On a focused row, X skips that family. Buttons: "Scan 2 folders", "Skip for now" (skips every unset family); results: "Continue", "Change a folder", "Scan again". |
+| States | Suggested (pre-selected, nothing created); the folder picker for one family; scanning; results. Scanning shows "Done", "Scanning" with files checked so far, "Waiting" and "Skipped"; no percentages. Results: a count per family on a raised chip (not the green Ready chip), "12 files not recognised", "No games found in SD card / ST" (No games yet) and "No folder chosen" (Skipped). |
 | Picker | The native picker: title "Spectrum games folder", the drive and path, folders with the match marked "suggested", "Use this folder", the read-only promise, and "LB / RB change drive" across USB, SD card data and network shares. |
 | Reused | The drive browser (`ui/tenfoot/storage_settings.go`), library roots and the scanner; the native picker dialog shown. |
 | New | Per-family folders with suggestions (existing `games/<System>` matches), the in-UI scan with progress, and the results. |
@@ -204,10 +204,10 @@ green outline, so focus and readiness never share a shape.
 | --- | --- |
 | Purpose | The everyday start: what was played recently, and the four computers with whether each can be used. |
 | Layout | The existing hero card on top shows the focused item. Below it, a Recently played row (hidden until something has been played) above four family tiles: Sinclair ZX81, ZX Spectrum, Atari ST, Commodore 64. The header has Settings only: no Library and no Systems route. |
-| Focus and default | The first Recently played item if there is one, otherwise the first Ready family. Up reaches the hero actions and then Settings, as Home does today. |
+| Focus and default | The first Recently played item if there is one, otherwise the first family that can open (Ready or No games yet). Up reaches the hero actions and then Settings, as Home does today. |
 | Copy | Family hero: kicker "Computer", the family name, its models ("4 models: ZX81, ZX80, TS1000, TS1500"), a state chip with a headline ("38 games · firmware built in"), one line of explanation, and the actions. Recent hero: kicker "Recently played", the title, "ZX Spectrum 48K · keyboard or pad", Ready "Plays on this TV", the stop line, Play and Details. |
 | Footer | The production hero hint: "D-pad move · A select · Y details · B back · GUIDE settings". |
-| Reused | The fes-cores Home: header, hero card geometry, shelf, focus outline, motif art, Up to hero actions and Settings, and saved selection. Family workbenches with a Variant selector (#1182) are where Open goes. Plain names (#1187). The release filter (#1371). |
+| Reused | The fes-cores Home: header, hero card geometry, shelf, focus outline, motif art, Up to hero actions and Settings, and saved selection. Family workbenches with a Variant selector (#1182) are where Open goes. Plain names (#1187). The release filter in open PR #1371. |
 | New | The Recently played row; family tiles instead of the installed-core shelf; a family destination and its hero copy; Library and Systems out of the header; the setup banner. |
 | Builds it | [#1347](https://github.com/DeanoC/fes/issues/1347); icons and every not-ready state's copy at both sizes are [#1351](https://github.com/DeanoC/fes/issues/1351) |
 
@@ -216,12 +216,14 @@ Family states. The plan's tile states map onto the shared room states:
 | Tile state | Room state | Hero headline (example) | Primary / second action |
 | --- | --- | --- | --- |
 | Ready | Ready | "38 games · firmware built in" | A Open / Y Details |
-| No games yet | Ready, with a reason: the machine can start without a game | "No games found in SD card / ST" | A Open / Choose folder |
+| No games yet | Ready, with a reason: the machine can start without a game | "No games found in SD card / ST" | A Open / X Choose folder |
 | Needs firmware | Unavailable, with the firmware reason | "Add your C64 ROM files to play" | A Add firmware / Y Details |
-| Setup skipped | Ready with no games; the banner sits in the Recently played slot | "No games folder chosen" | A Open / Finish setup |
+| Setup skipped | Ready with no games; the banner sits in the Recently played slot and holds Finish setup | "No games folder chosen" | A Open / Y Details |
 
 "No games yet" uses its own raised chip, so it never reads as Ready.
-"Needs firmware" is an outlined chip. Open goes to the family workbench,
+"Needs firmware" is an outlined chip. X is the proposed shortcut for a
+family's folder remedy; when it shows, the footer hint must name it (#1347).
+Open goes to the family workbench,
 where the model is chosen. **Recently played**, not Continue, names the row:
 the visual language reserves resume wording for a real saved state. Play
 starts the title again; a later resume feature can add Continue for titles
@@ -249,7 +251,7 @@ a small mark beside the short name and chip. Both are visible in the
 | | |
 | --- | --- |
 | Purpose | Once per family, before its workbench first opens, say which firmware it runs on: built in with its licence, or the user's ROM files and where they go. |
-| Focus and default | Built in: "Continue to Atari ST" opens the workbench. User's ROMs: "Got it" closes the card. Y opens the licence or shows the folder. B closes the card without opening the workbench. |
+| Focus and default | A dismisses the card and opens the family workbench, as the plan says: "Continue to Atari ST" or "Continue to C64". On the C64 the workbench then shows the firmware requirement. Y opens the licence or shows the folder. B closes the card and stays on Home; the card shows again on the next Open. |
 | Copy, built in | Kicker "First time on the Atari ST" · "Built-in firmware: EmuTOS" · "The Atari ST starts with EmuTOS, a free replacement for Atari's TOS. It comes with FES, so there is nothing to add." · "Licence: GNU General Public License. Licence shows the full text and where its source code is." · "Prefer the original TOS? Put your own TOS file in your firmware folder and choose it in Atari ST › Details." · "Shown once. Open it again from Atari ST › Details." |
 | Copy, user's ROMs | Kicker "First time on the Commodore 64" · "The C64 needs your firmware" · "FES can't include Commodore's original ROMs. Copy your own ROM files into this folder:" · the firmware folder · "You need the BASIC, KERNAL and character ROMs, plus the 1541 drive ROM. FES checks them when you open the C64, and Details lists anything missing." · "Shown once. Open it again from Commodore 64 › Details." |
 | States | Built in; user-supplied. Shown once per family; re-opened from the family's Details. The C64 card also opens from Add firmware on Home. |
@@ -318,7 +320,7 @@ current rows. A proposal for where each goes in v1, for #1349 to confirm:
 | Target, Prepare target, per-target rows, Add target, Save targets | Network › Pair with a computer, or out of v1 |
 | Systems (install cores and add games) | Updates › Cores |
 | Layout, Home, Attract, Idle, Regions | Out of v1 (Library and room choice are not in v1) |
-| DIAGNOSTIC RBF, Release kit, Show all cores (#1371) | About & help › Diagnostics |
+| DIAGNOSTIC RBF, Release kit, and Show all cores once open PR #1371 adds it | About & help › Diagnostics |
 
 Out of v1, as the plan says: a Library destination, per-core remap overrides,
 themes, multiple users and mesh settings.

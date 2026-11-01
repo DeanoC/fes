@@ -170,6 +170,7 @@ local CHIP = {
   skipped = { label = "Skipped", fill = C.raised, color = C.secondary },
   choose = { label = "Choose a folder", fill = C.surface, color = C.text, ring = C.divider },
   done = { label = "Done", fill = C.accent, color = C.on_accent },
+  count = { label = "", fill = C.raised, color = C.text },
 }
 
 local function chip(kind, x, y, size, label)
@@ -434,8 +435,8 @@ local function draw_pads_bluetooth()
   gfx.text("Nearby pads", r.x + 24, r.y + 18, { size = 24, bold = true, color = C.text })
   chip("checking", r.x + r.w - 24 - chip_w("checking", 18, "Searching"), r.y + 20, 18, "Searching")
   local ry = r.y + 64
-  ry = ry + player_row(r.x + 20, ry, r.w - 40, "BT", true, "Wireless Controller", false, "Bluetooth  ·  not on the Tested list yet", true) + 12
-  ry = ry + player_row(r.x + 20, ry, r.w - 40, "BT", true, "Pro Controller", true, "Bluetooth  ·  Tested") + 12
+  ry = ry + player_row(r.x + 20, ry, r.w - 40, "BT", true, "Wireless gamepad", false, "Bluetooth  ·  not on the Tested list yet", true) + 12
+  ry = ry + player_row(r.x + 20, ry, r.w - 40, "BT", true, "Travel pad", true, "Bluetooth") + 12
   para("Not in the list? Check the pad is still flashing, then wait a moment.", r.x + 24, ry + 4, r.w - 48, 20, C.secondary, false)
 end
 
@@ -505,8 +506,8 @@ end
 local function draw_folders_results()
   folder_screen("Found 279 games", nil,
     {
-      { "USB drive  /  games/ZX81", "done", "38 games" },
-      { "USB drive  /  games/Spectrum  ·  12 files not recognised", "done", "241 games" },
+      { "USB drive  /  games/ZX81", "count", "38 games" },
+      { "USB drive  /  games/Spectrum  ·  12 files not recognised", "count", "241 games" },
       { "No games found in SD card  /  ST", "nogames" },
       { "No folder chosen", "skipped" },
     },
@@ -725,7 +726,7 @@ local HERO = {
   [3] = { kicker = "Computer", title = "Atari ST", meta = FAMILIES[3].models, state = "nogames",
     headline = "No games found in SD card / ST",
     explain = "Choose another folder, or open the ST anyway on its built-in firmware.",
-    actions = { { "Open", "A", filled = true }, { "Choose folder" } } },
+    actions = { { "Open", "A", filled = true }, { "Choose folder", "X" } } },
   [4] = { kicker = "Computer", title = "Commodore 64", meta = FAMILIES[4].models, state = "firmware",
     headline = "Add your C64 ROM files to play",
     explain = "FES can't include Commodore's ROMs. Add firmware shows what to copy.",
@@ -733,7 +734,7 @@ local HERO = {
   skipped = { kicker = "Computer", title = "Sinclair ZX81", meta = FAMILIES[1].models, state = "nogames",
     headline = "No games folder chosen",
     explain = "You can still open it and type BASIC.",
-    actions = { { "Open", "A", filled = true }, { "Finish setup" } } },
+    actions = { { "Open", "A", filled = true }, { "Details", "Y" } } },
 }
 
 local function home_header()
@@ -832,7 +833,7 @@ local function draw_card_your_rom()
       { text = "You need the BASIC, KERNAL and character ROMs, plus the 1541 drive ROM. FES checks them when you open the C64, and Details lists anything missing.", size = 20, color = C.secondary },
       { text = "Shown once. Open it again from Commodore 64 › Details.", size = 18, color = C.secondary },
     },
-    actions = { { "Got it", "A", filled = true, focused = true }, { "Show folder", "Y" } },
+    actions = { { "Continue to C64", "A", filled = true, focused = true }, { "Show folder", "Y" } },
   })
 end
 

@@ -78,7 +78,7 @@ func v1Scenes() []v1Scene {
 		{Name: "5-home-no-games", Room: "home-no-games", Native: true},
 		{Name: "5-home-setup-skipped", Room: "home-skipped", Native: true},
 		{Name: "6-firmware-built-in", Room: "card-built-in", Hint: "A continue  ·  Y licence  ·  B back"},
-		{Name: "6-firmware-your-rom", Room: "card-your-rom", Hint: "A got it  ·  Y show folder  ·  B back"},
+		{Name: "6-firmware-your-rom", Room: "card-your-rom", Hint: "A continue  ·  Y show folder  ·  B back"},
 		{Name: "settings-0-sections", Room: "home-recent", Native: true, Overlay: v1Settings(0, v1SettingsHint,
 			"Controllers", "1 pad  ·  USB gamepad (Tested)",
 			"Games folders", "3 of 4 families",
