@@ -33,6 +33,11 @@ TRACE_STAGES={format(i,'02x'):name for i,name in enumerate((
     'timer-begin','timer-done','mailbox-begin','mailbox-done','notify-begin','notify-done',
     'clock-begin','clock-done','console-begin','console-done','report-begin','park'),1)}
 TRACE_STAGES.update(e0='dm-error',e1='clock-error')
+POWER_REGISTERS=(('cpu0-pwrstat',0x10d1401c),('cpu1-pwrstat',0x10d14024),
+                 ('cpu2-pwrstat',0x10d1402c),('cpu3-pwrstat',0x10d14034),
+                 ('mpu-pchctlr',0x10d14050),('mpu-pchstat',0x10d14054),('mpu-bootconfig',0x10d14058))
+for phase,base in (('first',0x20),('current',0x30)):
+    TRACE_STAGES.update({format(base+i,'02x'):phase+'-'+name for i,(name,_) in enumerate(POWER_REGISTERS)})
 
 def sha(path):
     with Path(path).open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
@@ -44,13 +49,16 @@ def decode_trace(data,identity,console_control=False):
     rows=[{'stage':stage,'name':TRACE_STAGES.get(stage,'unknown'),'value':int(value,16),
            'mpidr':mpidr,'el':int(el)} for seen,stage,value,mpidr,el in records if seen==identity]
     stages=[int(row['stage'],16) for row in rows]
-    expected=list(range(16 if console_control else 1,19))
+    expected=([16,17] if console_control else [1,*range(0x20,0x27),*range(2,18)])+[*range(0x30,0x37),18]
     prefix=stages==expected[:len(stages)] and len(stages)<=len(expected)
     error_prefix=(not console_control and len(stages)>1 and stages[-1] in (0xe0,0xe1) and
                   stages[:-1]==expected[:len(stages)-1] and stages[-2]==(3 if stages[-1]==0xe0 else 13))
     mismatch=any(seen!=identity for seen in re.findall(r'(?m)^FES_NANO_CPU_TRACE id=([0-9a-f]{16})',text))
     same_scope=len({(row['mpidr'],row['el']) for row in rows})<=1
-    return {'records':rows,'last_checkpoint':rows[-1] if rows else None,'identity_mismatch':mismatch,
+    power={phase:{name:row['value'] for i,(name,_) in enumerate(POWER_REGISTERS)
+                  for row in rows if row['stage']==format(base+i,'02x')}
+           for phase,base in (('first',0x20),('current',0x30))}
+    return {'records':rows,'last_checkpoint':rows[-1] if rows else None,'identity_mismatch':mismatch,'power_inventory':power,
             'sequence_valid':bool(rows) and (prefix or error_prefix) and not mismatch and same_scope,
             'complete':stages==expected and not mismatch and same_scope,'native_admission':False}
 
@@ -61,6 +69,7 @@ def contain_source(source,console_control=False):
     if text.count(anchor)!=1:raise ValueError('CPU report stop context changed')
     park='''__attribute__((__noreturn__,__noinline__)) static void fes_nano_cpu_diag_park(void)
 {
+    fes_nano_cpu_trace_power(FES_CPU_POWER_CURRENT);
     fes_nano_cpu_trace(FES_CPU_PARK,0);
     puts("'''+PARK+'''\\n");
     for (;;) asm volatile("yield" ::: "memory");
@@ -99,7 +108,7 @@ def contain_source(source,console_control=False):
     bounded=old.replace(watchdog,'\t\t\t(void)0; /* Contained diagnostic never starts a watchdog. */')
     new=bounded[:bounded.index(anchor)+len(anchor)]+'\n\thang(); /* Defensive stop if a diagnostic ABI ever returns. */\n}\n'
     checkpoints=(
-        ('\tfes_nano_spl_early();','\tfes_nano_cpu_trace(FES_CPU_C_ENTRY,0);\n\tfes_nano_spl_early();\n\tfes_nano_cpu_trace(FES_CPU_SAMPLE_DONE,0);'),
+        ('\tfes_nano_spl_early();','\tfes_nano_cpu_trace(FES_CPU_C_ENTRY,0);\n\tfes_nano_cpu_trace_power(FES_CPU_POWER_FIRST);\n\tfes_nano_spl_early();\n\tfes_nano_cpu_trace(FES_CPU_SAMPLE_DONE,0);'),
         ('\tret = spl_early_init();','\tfes_nano_cpu_trace(FES_CPU_DM_BEGIN,0);\n\tret = spl_early_init();\n\tfes_nano_cpu_trace(ret ? FES_CPU_DM_ERROR : FES_CPU_DM_DONE,(unsigned)ret);'),
         ('\tsocfpga_get_managers_addr();','\tsocfpga_get_managers_addr();\n\tfes_nano_cpu_trace(FES_CPU_MANAGERS_DONE,0);'),
         ('\tsysmgr_pinmux_init();','\tsysmgr_pinmux_init();\n\tfes_nano_cpu_trace(FES_CPU_PINMUX_DONE,0);'),
@@ -263,6 +272,9 @@ def main():
             'vendor_startup_sources':startup,'vendor_startup_objects':startup_objects,'spl_atf_selection_retained':True,
             'trace':{'ocram_address':int(trace[0][0],16),'bytes':int(trace[0][1],16),'capacity':32,'line_poll_limit':262144,
                      'serial_before_clocks':False,'uart_configuration_modified':False,'early_readback_over_jtag_qualified':False,
+                     'power_registers':[{'name':name,'address':address,'width':32} for name,address in POWER_REGISTERS],
+                     'power_first_scope':'not sampled' if args.console_control else 'first C before cold proof',
+                     'power_current_scope':'report complete, immediately before unconditional park',
                      'stages':TRACE_STAGES},
             'excluded_symbols':list(forbidden),'disabled_options':[],'commands':commands,
             'limitations':['not a native boot chain or signed boot','no DDR/storage/EL3/Go/drain qualification','embedded SPL not independently decoded from SOF',

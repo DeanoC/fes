@@ -12,6 +12,7 @@
 #endif
 
 _Static_assert(sizeof(unsigned)==4 && sizeof(unsigned long long)==8,"trace layout");
+_Static_assert(FES_CPU_TRACE_CAPACITY==FES_CPU_PARK+2*FES_CPU_POWER_REGISTER_COUNT,"full power trace capacity");
 /* Never use pre-DDR BSS, allocation, console state, timers or device model. */
 volatile struct fes_cpu_trace fes_nano_cpu_trace_record
     __attribute__((section(".data"),aligned(8)))={.magic=0x46544331U,.version=1};
@@ -67,6 +68,17 @@ void fes_nano_cpu_trace(unsigned stage,unsigned value)
     fes_nano_cpu_trace_record.last_stage=stage;
     FES_CPU_TRACE_BARRIER();
     if (n<FES_CPU_TRACE_CAPACITY && fes_nano_cpu_trace_record.uart_active) emit(n);
+}
+void fes_nano_cpu_trace_power(unsigned stage)
+{
+    /* Pinned Agilex 5 SDK power-manager offsets. All accesses are 32-bit
+     * readl observations; no state, request or reset is changed here. */
+    static const unsigned long addresses[FES_CPU_POWER_REGISTER_COUNT]={
+        0x10d1401cUL,0x10d14024UL,0x10d1402cUL,0x10d14034UL,
+        0x10d14050UL,0x10d14054UL,0x10d14058UL};
+    if (stage!=FES_CPU_POWER_FIRST && stage!=FES_CPU_POWER_CURRENT) return;
+    for (unsigned i=0;i<FES_CPU_POWER_REGISTER_COUNT;i++)
+        fes_nano_cpu_trace(stage+i,FES_CPU_TRACE_READ(addresses[i]));
 }
 void fes_nano_cpu_trace_serial(void)
 {

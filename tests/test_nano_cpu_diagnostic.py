@@ -55,6 +55,8 @@ class CPUOnlyTests(unittest.TestCase):
             report=soc/'fes_nano_spl.c'
             board=soc/'spl_agilex5.c'
             cpu.contain_source(base,console_control)
+            park=cpu.function(report.read_text().replace('__attribute__((__noreturn__,__noinline__)) ',''),'fes_nano_cpu_diag_park')
+            park=park.replace('for (;;) asm volatile("yield" ::: "memory");','parks++;longjmp(stop,1);')
             source=base/'test.c';binary=base/'test'
             source.write_text('#define CONSOLE_CONTROL '+str(int(console_control))+r'''
 #include <assert.h>
@@ -77,7 +79,12 @@ void fes_nano_cpu_trace(unsigned stage,unsigned value){
     if(stage_count==1){fes_nano_cpu_trace_record.mpidr=read_mpidr();fes_nano_cpu_trace_record.el=3;}
 }
 void fes_nano_cpu_trace_serial(void){assert(clock_ready);serials++;}
-void fes_nano_spl_early(void){samples++;assert(stage_count==1 && stages[0]==FES_CPU_C_ENTRY);}
+void fes_nano_cpu_trace_power(unsigned stage){
+    if(stage==FES_CPU_POWER_FIRST)assert(!CONSOLE_CONTROL && !consoles && stage_count==1);
+    else assert(stage==FES_CPU_POWER_CURRENT && consoles==1 && stage_count==(CONSOLE_CONTROL ? 2 : 24));
+    for(unsigned i=0;i<7;i++)fes_nano_cpu_trace(stage+i,stage+i);
+}
+void fes_nano_spl_early(void){samples++;assert(stage_count==8 && stages[0]==FES_CPU_C_ENTRY);}
 static int spl_early_init(void){return mode==1 ? -5 : 0;}
 static void socfpga_get_managers_addr(void){}
 static void sysmgr_pinmux_init(void){}
@@ -103,9 +110,8 @@ uint32_t mmio(uintptr_t a){assert(a==0x10d11008);return 0;}
 static void preloader_console_init(void){if(CONSOLE_CONTROL)assert(!stage_count && !samples);consoles++;}
 #define CONFIG_IS_ENABLED(v) 1
 void initr_watchdog(void){assert(!"diagnostic must not start a watchdog");}
-static void fes_nano_cpu_diag_park(void){parks++;fes_nano_cpu_trace(FES_CPU_PARK,0);longjmp(stop,1);}
 void hang(void){assert(mode);longjmp(stop,2);}
-''' + cpu.function(report.read_text(),'fes_nano_spl_report') +
+''' + park + cpu.function(report.read_text(),'fes_nano_spl_report') +
                 cpu.function(board.read_text(),'board_init_f') +
                 cpu.function((base/'common/spl/spl.c').read_text(),'board_init_r') + r'''
 int main(int argc,char **argv){
@@ -114,8 +120,12 @@ int main(int argc,char **argv){
     if(!setjmp(stop)){board_init_f(0);assert(!"report returned");}
     if(!mode){
         assert(parks==1 && consoles==1 && reads==(CONSOLE_CONTROL ? 6 : 3));
-        assert(serials==(CONSOLE_CONTROL ? 1 : 2) && stage_count==(CONSOLE_CONTROL ? 3 : 18));
-        for(unsigned i=0;i<stage_count;i++)assert(stages[i]==i+(CONSOLE_CONTROL ? 16 : 1));
+        static const unsigned normal[]={1,32,33,34,35,36,37,38,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,48,49,50,51,52,53,54,18};
+        static const unsigned control[]={16,17,48,49,50,51,52,53,54,18};
+        const unsigned *expected=CONSOLE_CONTROL ? control : normal;
+        unsigned count=CONSOLE_CONTROL ? sizeof(control)/sizeof(*control) : sizeof(normal)/sizeof(*normal);
+        assert(serials==(CONSOLE_CONTROL ? 1 : 2) && stage_count==count);
+        for(unsigned i=0;i<stage_count;i++)assert(stages[i]==expected[i]);
     }else{
         assert(!parks && !consoles && !reads && !serials);
         if(CONSOLE_CONTROL)assert(!stage_count);
@@ -166,9 +176,14 @@ int main(int argc,char **argv){
 #include <stdio.h>
 #include <string.h>
 #include "cpu_trace.h"
-static unsigned reads,writes,reset,lcr=3,ready=1;
+static unsigned reads,writes,power_reads,reset,lcr=3,ready=1;
 static char output[8192];
 static uint32_t read32(uintptr_t a){
+    static const uintptr_t power[]={0x10d1401c,0x10d14024,0x10d1402c,0x10d14034,0x10d14050,0x10d14054,0x10d14058};
+    for(unsigned i=0;i<7;i++)if(a==power[i]){
+        assert(i==power_reads%7);unsigned first=power_reads++<7;
+        return (first ? 0xa5000000U : 0xb6000000U)+i;
+    }
     reads++;
     if(a==FES_CPU_TRACE_RSTMGR_PER1)return reset;
     if(a==FES_CPU_TRACE_UART1+0x0c)return lcr;
@@ -188,8 +203,9 @@ static void write32(uintptr_t a,uint32_t value){
 int main(int argc,char **argv){
     assert(argc==2);unsigned mode=(unsigned)(argv[1][0]-'0');
     fes_nano_cpu_trace(FES_CPU_C_ENTRY,0);
+    fes_nano_cpu_trace_power(FES_CPU_POWER_FIRST);
     fes_nano_cpu_trace(FES_CPU_SAMPLE_DONE,0);
-    assert(reads==0 && writes==0 && fes_nano_cpu_trace_record.count==2);
+    assert(reads==0 && writes==0 && power_reads==7 && fes_nano_cpu_trace_record.count==9);
     assert(fes_nano_cpu_trace_record.mpidr==0x80000200ULL && fes_nano_cpu_trace_record.el==3);
     if(mode==1)reset=1U<<17;
     if(mode==2)lcr=0x83;
@@ -207,8 +223,19 @@ int main(int argc,char **argv){
         assert(strstr(output,"stage=02 value=00000000"));
         fes_nano_cpu_trace(FES_CPU_DM_ERROR,(unsigned)-5);
         assert(strstr(output,"stage=e0 value=fffffffb"));
-        assert(fes_nano_cpu_trace_record.emitted==3);
+        assert(fes_nano_cpu_trace_record.emitted==10);
     }
+    fes_nano_cpu_trace_power(FES_CPU_POWER_CURRENT);
+    assert(power_reads==14);
+    for(unsigned i=0;i<7;i++){
+        assert(fes_nano_cpu_trace_record.events[1+i].stage==FES_CPU_POWER_FIRST+i);
+        assert(fes_nano_cpu_trace_record.events[1+i].value==0xa5000000U+i);
+        unsigned current=fes_nano_cpu_trace_record.count-7+i;
+        assert(fes_nano_cpu_trace_record.events[current].stage==FES_CPU_POWER_CURRENT+i);
+        assert(fes_nano_cpu_trace_record.events[current].value==0xb6000000U+i);
+    }
+    unsigned before=fes_nano_cpu_trace_record.count;fes_nano_cpu_trace_power(0);
+    assert(power_reads==14 && fes_nano_cpu_trace_record.count==before);
     for(unsigned i=0;i<40;i++)fes_nano_cpu_trace(0x20+i,i);
     assert(fes_nano_cpu_trace_record.count==32 && fes_nano_cpu_trace_record.overflow);
     puts("TRACE_PASS");return 0;
@@ -227,22 +254,26 @@ int main(int argc,char **argv){
         identity='0123456789abcdef'
         def line(stage,seen=identity,mpidr='0000000080000200'):
             return f'FES_NANO_CPU_TRACE id={seen} stage={stage:02x} value=00000000 mpidr={mpidr} el=3\r\n'
-        full=''.join(line(i) for i in range(1,19))
+        sequence=[1,*range(0x20,0x27),*range(2,18),*range(0x30,0x37),18]
+        full=''.join(line(i) for i in sequence)
         r=cpu.decode_trace(full,identity)
         self.assertTrue(r['complete']);self.assertEqual(r['last_checkpoint']['name'],'park')
-        cases=('', ''.join(line(i) for i in range(1,14)),full[:-8],full+line(1,'fedcba9876543210'),
-               line(2)+line(1),''.join(line(i) for i in range(1,18))+line(18,mpidr='0000000080000000'))
+        self.assertEqual(len(r['power_inventory']['first']),7);self.assertEqual(len(r['power_inventory']['current']),7)
+        cases=('', ''.join(line(i) for i in sequence[:sequence.index(13)+1]),full[:-8],full+line(1,'fedcba9876543210'),
+               line(2)+line(1),''.join(line(i) for i in sequence[:-1])+line(18,mpidr='0000000080000000'),
+               ''.join(line(i) for i in range(1,19)),full.replace(line(0x32),''))
         for data in cases:
             with self.subTest(data=data[-100:]):
                 r=cpu.decode_trace(data,identity)
                 self.assertFalse(r['complete']);self.assertFalse(r['native_admission'])
-        partial=cpu.decode_trace(''.join(line(i) for i in range(1,14)),identity)
+        partial=cpu.decode_trace(''.join(line(i) for i in sequence[:sequence.index(13)+1]),identity)
         self.assertTrue(partial['sequence_valid']);self.assertEqual(partial['last_checkpoint']['name'],'clock-begin')
-        error=cpu.decode_trace(''.join(line(i) for i in range(1,4))+line(0xe0),identity)
+        error=cpu.decode_trace(''.join(line(i) for i in sequence[:sequence.index(3)+1])+line(0xe0),identity)
         self.assertTrue(error['sequence_valid']);self.assertEqual(error['last_checkpoint']['name'],'dm-error')
         self.assertFalse(error['complete']);self.assertFalse(error['native_admission'])
-        control=''.join(line(i) for i in range(16,19))
+        control=''.join(line(i) for i in [16,17,*range(0x30,0x37),18])
         self.assertTrue(cpu.decode_trace(control,identity,True)['complete'])
+        self.assertEqual(cpu.decode_trace(control,identity,True)['power_inventory']['first'],{})
         self.assertFalse(cpu.decode_trace(control,identity)['complete'])
         self.assertFalse(cpu.decode_trace(control,identity,True)['native_admission'])
 

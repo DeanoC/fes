@@ -29,13 +29,17 @@ control](../../../docs/validation/2026-11-01-de25-seed-prefix-control/README.md)
 then reached console, six register observations and unconditional park, reporting
 EL3 and `MPIDR=0x81000000`. It retains the seed drivers and defers tracing until
 after console setup. Those later observations grant no initial ownership proof.
-This diagnostic is retained and parked with the original card inserted; the
-continuing claim is held under the user's optional factory-restore policy.
+The continuing claim is held under the user's optional factory-restore policy.
 The [subsequent full initial trace](../../../docs/validation/2026-11-01-de25-initial-trace/README.md)
 also passes with the preserved seed configuration: all 18 first-C-to-park
 checkpoints, EL3/MPIDR and first/fresh reset samples were captured. Initial
-admission still rejects `CPUINRESET=0xf`; no native gate was relaxed. This
-full trace is now the retained, parked diagnostic.
+admission still rejects `CPUINRESET=0xf`; no native gate was relaxed. The
+[factory inventory comparison](../../../docs/validation/2026-11-01-de25-cpu-inventory-reference/README.md)
+then showed that this register is not a complete live CPU-state check. CPU1
+hotplug restoration failed and testing stopped; exact reference-SOF recovery
+verified a fresh original factory boot with all four CPUs online. The native
+ownership contract still needs qualified initial parking and release prevention.
+The authoritative kit log records the current image and continuing claim.
 
 The same spare card carries two paths:
 
@@ -105,10 +109,14 @@ a stop and no firmware payload is supplied. The build checks the actual Nano
 startup sources and emitted startup text against the seed. No native CPU/reset
 admission rule changes.
 
-The trace records 18 checkpoints from first C entry through the cold sample,
-device setup, managers/pins, timer, mailbox, clocks, console, report and park.
-Its 304-byte record lives in loaded OCRAM data. Before clock setup returns it
-only writes that record. After clocks, guarded raw UART output can replay the
+The trace records 18 lifecycle checkpoints from first C entry through the cold
+sample, device setup, managers/pins, timer, mailbox, clocks, console, report and
+park. Seven power/request/boot-configuration words are sampled before the cold
+proof, and seven more immediately before park. The complete 32-event trace
+fits its existing 304-byte record in loaded OCRAM data. The power helper uses
+fixed 32-bit reads and never changes power requests or reset state. Before
+clock setup returns, status reads store only OCRAM and do not access UART.
+After clocks, guarded raw UART output can replay the
 record before normal console setup if UART1 is already released and in 8N1.
 Otherwise it tries after normal console initialization. It does not change
 UART reset, clock, divisor, framing or interrupts, and caps TX polling per line.
@@ -123,8 +131,9 @@ park, and the later SPL initializer independently stops on entry. The linked
 image is checked for absent watchdog-start, cold-proof and firmware-entry
 symbols. DDR/storage drivers can remain linked with this configuration; the
 two initializers cannot proceed to their later initialization/loading paths.
-This control emits only checkpoints `10`, `11` and `12`. Six bracketed register
-observations run between the report checkpoint and park. Its MPIDR/EL scope is
+This control emits checkpoints `10`, `11` and `12` plus seven pre-park power
+words, with no first-C power sample. Six bracketed register observations run
+between the report checkpoint and power sample. Its MPIDR/EL scope is
 after console initialization, not first C entry. Those observations never
 supply the initial trusted ownership proof or grant native admission.
 
