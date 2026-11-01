@@ -1,0 +1,17 @@
+{
+  "classification": "synthetic package retention test; payload is not an FPGA bitstream; never program",
+  "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-package-store-20261101/PKGTEST.BIN",
+  "archive_bytes": 3584,
+  "archive_sha256": "0181b38b59e8a2fd0399a299c95f325dff7ad55cb623f480721b93a6b1ca1212",
+  "package_id": "164c9e356d32eed24bb5ec59528323c0a325a23a93e2a04c25b78985df22f873",
+  "payload_bytes": 12,
+  "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+  "build_id": "0123456789abcdef0123456789abcdef",
+  "inputs": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-package-store-20261101/prepare_fixture.py": "d115e122000bca5573a9e1d44ae2b8ff2b79024a453bcf452a04e94cd924d546",
+    "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/scripts/core_package.py": "a4281f6b8106c56b6e5c561737cccdf58a129e00d2a4a9e622909cd1a5c894cd",
+    "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/scripts/rfc3986_validator.py": "95fc6d48642f111952b25c040947765bccba669210c8c140b7ed9647fd7e470c",
+    "/home/deano/fes/out/dev/de25-embedded-os/sources/FogCast/corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml": "c5a45ab474899b87b3c81d89d328eeae493c2fbf334ec38ef56399d464f5141a",
+    "/home/deano/fes/out/dev/de25-embedded-os/sources/FogCast/corepackage/testdata/core-bundle-v2/payloads/fes-fixture.rbf": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1"
+  }
+}
