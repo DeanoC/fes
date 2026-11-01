@@ -40,6 +40,12 @@ hotplug restoration failed and testing stopped; exact reference-SOF recovery
 verified a fresh original factory boot with all four CPUs online. The native
 ownership contract still needs qualified initial parking and release prevention.
 The authoritative kit log records the current image and continuing claim.
+The [EL3 power inventory](../../../docs/validation/2026-11-01-de25-el3-power-inventory/README.md)
+now captures all 32 records: first/pre-park values agree, with spare CPU status
+words zero and CPU-channel request/status masks selecting only core0. The
+diagnostic is parked with the original card inserted. These observations do
+not grant native ownership; the trusted-parking contract and secondary-release
+restriction remain to be implemented and qualified.
 
 The same spare card carries two paths:
 
