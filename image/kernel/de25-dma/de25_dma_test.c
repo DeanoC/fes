@@ -331,6 +331,24 @@ static void build_identity_reports_hardware_words(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, f->transport.reads, reads);
 }
 
+static void cold_poll_observes_display_ready_without_submission(struct kunit *test)
+{
+	struct dma_fixture *f = test->priv;
+	struct fes_de25_dma_info info;
+
+	fes_de25_dma_info(f->file, &info);
+	KUNIT_EXPECT_EQ(test, info.hardware_status & FES_DE25_SCANOUT_STATUS_DISPLAY_READY, 0U);
+	f->transport.regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] |= FES_DE25_SCANOUT_STATUS_DISPLAY_READY;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_poll(f->file, &info), 0);
+	KUNIT_EXPECT_NE(test, info.hardware_status & FES_DE25_SCANOUT_STATUS_DISPLAY_READY, 0U);
+	KUNIT_EXPECT_EQ(test, info.state, 0U);
+	KUNIT_EXPECT_EQ(test, f->transport.starts, 0U);
+	f->transport.regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] &= ~FES_DE25_SCANOUT_STATUS_DISPLAY_READY;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_poll(f->file, &info), 0);
+	KUNIT_EXPECT_EQ(test, info.hardware_status & FES_DE25_SCANOUT_STATUS_DISPLAY_READY, 0U);
+	KUNIT_EXPECT_EQ(test, f->transport.starts, 0U);
+}
+
 static void zero_build_identity_refuses_allocation(struct kunit *test)
 {
 	struct dma_fixture *f = test->priv;
@@ -343,7 +361,7 @@ static void zero_build_identity_refuses_allocation(struct kunit *test)
 	other = fes_de25_dma_create(f->dev, &backend);
 	f->transport.zero_build_id = false;
 	if (!IS_ERR(other))
-	    __fput_sync(other);
+		__fput_sync(other);
 	KUNIT_ASSERT_TRUE(test, IS_ERR(other));
 	KUNIT_EXPECT_EQ(test, PTR_ERR(other), (long)-EPROTONOSUPPORT);
 	KUNIT_EXPECT_EQ(test, f->transport.acquired, f->transport.released);
@@ -356,7 +374,7 @@ static void changed_build_identity_retains_uncertain_lease(struct kunit *test)
 	struct dma_fixture *f = test->priv;
 	struct fes_de25_dma_publish publish = publish_for(f->file);
 	struct fes_de25_dma_info info = {
-	    .version = FES_DE25_DMA_ABI_VERSION, .generation = publish.generation,
+		.version = FES_DE25_DMA_ABI_VERSION, .generation = publish.generation,
 	};
 
 	/* The previous private ABI must fail before any descriptor submission. */
@@ -1860,13 +1878,54 @@ out:
 	}
 }
 
+static void owner_cached_info_has_no_hardware_or_lifetime_effect(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, true);
+	struct fes_de25_dma_info info;
+	struct mm_struct *mm;
+	unsigned long address;
+	unsigned int reads, writes;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_INFO, 0), -ENODATA);
+	f->file = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(f->file));
+	mm = test_mm(test);
+	if (!mm)
+		return;
+	kthread_use_mm(mm);
+	address = vm_mmap(f->file, TEST_ADDRESS, PAGE_SIZE,
+			PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, 0);
+	KUNIT_EXPECT_EQ(test, address, TEST_ADDRESS);
+	if (IS_ERR_VALUE(address))
+		goto out;
+	reads = f->device->reads;
+	writes = f->device->writes;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_INFO, 0), -EFAULT);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_INFO, address), 0);
+	KUNIT_EXPECT_EQ(test, copy_from_user(&info, (void __user *)address, sizeof(info)), 0UL);
+	KUNIT_EXPECT_EQ(test, sizeof(info), (size_t)104);
+	KUNIT_EXPECT_EQ(test, info.version, 3U);
+	KUNIT_EXPECT_NE(test, info.generation, 0ULL);
+	KUNIT_EXPECT_EQ(test, info.build_id[0], 0x76543210U);
+	KUNIT_EXPECT_EQ(test, info.build_id[3], 0x01234567U);
+	KUNIT_EXPECT_EQ(test, info.state, 0U);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	KUNIT_EXPECT_EQ(test, f->device->writes, writes);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -EBUSY);
+	KUNIT_EXPECT_EQ(test, vm_munmap(address, PAGE_SIZE), 0);
+out:
+	kthread_unuse_mm(mm);
+	mmput(mm);
+}
+
 static void owner_control_checks_capability_and_command_before_effects(struct kunit *test)
 {
 	struct owner_fixture *f = owner_fixture_create(test, false);
 	struct cred *denied;
 	const struct cred *saved;
 	unsigned int reads;
-	long ret, idle_ret, abi_ret;
+	long ret, idle_ret, abi_ret, info_ret;
 
 	KUNIT_ASSERT_NOT_NULL(test, f);
 	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
@@ -1884,16 +1943,20 @@ static void owner_control_checks_capability_and_command_before_effects(struct ku
 	saved = override_creds(denied);
 	ret = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0);
 	abi_ret = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ABI, 0);
+	info_ret = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_INFO, 0);
 	idle_ret = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0);
 	revert_creds(saved);
 	put_cred(denied);
 	KUNIT_EXPECT_EQ(test, ret, -EPERM);
 	KUNIT_EXPECT_EQ(test, idle_ret, -EPERM);
 	KUNIT_EXPECT_EQ(test, abi_ret, -EPERM);
+	KUNIT_EXPECT_EQ(test, info_ret, -EPERM);
 	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
 }
 
 static struct kunit_case fes_de25_dma_cases[] = {
+	KUNIT_CASE(cold_poll_observes_display_ready_without_submission),
+	KUNIT_CASE(owner_cached_info_has_no_hardware_or_lifetime_effect),
 	KUNIT_CASE(build_identity_reports_hardware_words),
 	KUNIT_CASE(zero_build_identity_refuses_allocation),
 	KUNIT_CASE(changed_build_identity_retains_uncertain_lease),

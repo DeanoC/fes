@@ -62,6 +62,13 @@ serial again. One exclusive controller serializes these operations. Snapshot
 can observe the state before a same-edge frame event; every field still belongs
 to the same observation. Other command combinations fault and stop new fetches.
 
+DisplayReady reports the board shell's registered HDMI visibility, after its
+configuration-complete result crosses through a registered source and the
+system/pixel synchronizers. It is observable while scanout is disabled; waiting
+for it never resets a live bridge. Loss during a running frame latches Display,
+stops new work and prevents a healthy complete-frame acknowledgement. Restoring
+readiness alone cannot clear that fault or retire outstanding memory traffic.
+
 ## Register layout
 
 Generated C/Verilog constants are authoritative. Offsets are bytes, registers
@@ -83,8 +90,8 @@ read-only writes have no effect.
 | `64`, `68`, `6c`, `70` | Immutable 128-bit build identity, least-significant word first |
 
 Status bits are Configured `1`, Running `2`, Pending `4`, Drained `8`, Fault
-`16`, ClockFault `32`. Error bits are Descriptor `1`, Command `2`, Response
-`4`, Underflow `8`, Clock `16`, Sequence `32`, UnexpectedResponse `64`.
+`16`, ClockFault `32`, DisplayReady `64`. Error bits are Descriptor `1`, Command `2`, Response
+`4`, Underflow `8`, Clock `16`, Sequence `32`, UnexpectedResponse `64`, Display `128`.
 Ordinary read errors and underflow stop and drain without successful display
 completion. An unexpected response breaks ownership accounting: it is terminal,
 never reports Drained and cannot be cleared locally. The outstanding count
@@ -93,7 +100,7 @@ includes a presented but unaccepted burst, so it cannot hide stalled traffic.
 ## System-clock control guard
 
 The CPU-facing control window is 256 bytes. Its lower 128 bytes forward to the
-unchanged pixel endpoint ABI 1.0; the upper half implements a distinct guard
+pixel endpoint ABI 1.1; the upper half implements a distinct guard
 identity/version on the 100 MHz peripheral clock. The guard uses the inherited
 peripheral reset, so its release does not wait for pixel PLL lock.
 

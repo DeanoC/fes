@@ -78,3 +78,6 @@ add_interface_port video video_hs hs Output 1
 add_interface_port video video_vs vs Output 1
 add_interface clock_fault conduit end
 add_interface_port clock_fault clock_fault export Input 1
+
+add_interface ready conduit end
+add_interface_port ready display_ready export Input 1

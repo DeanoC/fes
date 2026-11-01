@@ -310,7 +310,7 @@ def wrapper(periph_source, memory_source, memory_module):
     for role, spec in axi.items():
         if mem_seen.get(SLAVE + role) != spec:
             raise ValueError(f"AXI256 port mismatch: {role}")
-    external = ["input wire clk_mem, clk_pixel, reset_n, clock_fault", "input wire [16:0] address",
+    external = ["input wire clk_mem, clk_pixel, reset_n, clock_fault, display_ready", "input wire [16:0] address",
                 "input wire read, write", "input wire [3:0] byteenable", "input wire [31:0] writedata",
                 "output wire [31:0] readdata", "output wire readdatavalid, waitrequest",
                 "output wire [23:0] video_rgb", "output wire video_de, video_hs, video_vs",
@@ -355,6 +355,11 @@ def wrapper(periph_source, memory_source, memory_module):
                 raise ValueError("domain reset port changed: " + name)
             value = "reset_n"
             handled.add("pixel_reset" if name == "fes_scanout_pixel_reset_reset_n" else "system_reset")
+        elif name == "fes_scanout_ready_export":
+            if (direction, width) != ("input", ""):
+                raise ValueError("display ready port changed")
+            value = "display_ready"
+            handled.add("display_ready")
         elif name == "fes_scanout_clock_fault_export":
             if (direction, width) != ("input", ""):
                 raise ValueError("clock fault port changed")
@@ -373,7 +378,7 @@ def wrapper(periph_source, memory_source, memory_module):
         else:
             value = ""
         pconnections.append(f" .{name}({value})")
-    if handled != {"pixel", "pixel_reset", "system_reset", "fault", "rgb", "de", "hs", "vs"}:
+    if handled != {"pixel", "pixel_reset", "system_reset", "fault", "display_ready", "rgb", "de", "hs", "vs"}:
         raise ValueError(f"missing scanout conduits: {handled}")
     if not re.search(r"\bperipheral_subsys_fes_scanout\s+fes_scanout\s*\(", uncomment(periph_source)):
         raise ValueError("unsupported generated endpoint instance identity")

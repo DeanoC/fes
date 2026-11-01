@@ -55,7 +55,7 @@ public:
     std::deque<std::uint32_t> pending;
 
     Endpoint() {
-        dut.clk = 0; dut.reset_n = 0; dut.clock_fault = 0;
+        dut.clk = 0; dut.reset_n = 0; dut.clock_fault = 0; dut.display_ready = 0;
         dut.address = 0; dut.read = 0; dut.write = 0; dut.byteenable = 0; dut.writedata = 0;
         dut.avm_waitrequest = 0; dut.avm_readdatavalid = 0; dut.avm_response = 0;
         for (unsigned lane = 0; lane < 4; ++lane) dut.avm_readdata[lane] = 0;
@@ -69,6 +69,12 @@ public:
         write(FES_DE25_SCANOUT_BUILD_ID0_OFFSET, 0xffffffffu);
         equal(read(FES_DE25_SCANOUT_BUILD_ID0_OFFSET), 0x76543210u, "build identity is read-only");
         equal(read(FES_DE25_SCANOUT_STATUS_OFFSET), FES_DE25_SCANOUT_STATUS_DRAINED, "cold state");
+        dut.display_ready = 1; idle(2);
+        equal(read(FES_DE25_SCANOUT_STATUS_OFFSET), FES_DE25_SCANOUT_STATUS_DRAINED | FES_DE25_SCANOUT_STATUS_DISPLAY_READY,
+              "readiness is observed without enabling DMA");
+        dut.display_ready = 0; idle(2);
+        equal(read(FES_DE25_SCANOUT_STATUS_OFFSET), FES_DE25_SCANOUT_STATUS_DRAINED, "readiness loss is observed");
+        dut.display_ready = 1; idle(2);
         require(bursts.empty() && !dut.avm_read, "cold endpoint fetched memory");
     }
     ~Endpoint() { dut.final(); }
@@ -233,7 +239,7 @@ static void disabled_and_snapshot() {
         equal(e.read(FES_DE25_SCANOUT_SNAPSHOT_STATUS_OFFSET + 4u * i), frozen.words[i], "live event changed frozen fields");
     e.stop_and_drain(); e.command(FES_DE25_SCANOUT_COMMAND_CLEAR);
     auto empty = e.snapshot(); equal(empty.generation(), 0, "CLEAR generation");
-    equal(empty.status(), FES_DE25_SCANOUT_STATUS_DRAINED, "CLEAR empty state");
+    equal(empty.status(), FES_DE25_SCANOUT_STATUS_DRAINED | FES_DE25_SCANOUT_STATUS_DISPLAY_READY, "CLEAR empty state");
 }
 static void raster_sync_runs_while_disabled_and_survives_reset() {
     Endpoint e;
@@ -467,12 +473,29 @@ static void clock_fault_cannot_clear_into_new_lease() {
     d.generation++; e.stage(d); e.command(FES_DE25_SCANOUT_COMMAND_SUBMIT);
     equal(e.snapshot().accepted(), 0, "clock fault permitted a new allocation lease");
 }
+static void display_readiness_loss_stops_without_releasing_traffic() {
+    Endpoint e; Descriptor d;
+    e.stall = true; e.responses = false; e.submit(d); e.wait_request(); e.idle(2);
+    e.dut.display_ready = 0; e.idle(4);
+    auto lost = e.snapshot();
+    require(lost.errors() & FES_DE25_SCANOUT_ERROR_DISPLAY, "visibility loss was not latched");
+    require(!(lost.status() & FES_DE25_SCANOUT_STATUS_DRAINED) && lost.outstanding(),
+            "visibility loss manufactured a drain proof");
+    equal(lost.displayed(), 0, "invisible frame was acknowledged");
+    require(e.dut.avm_read, "visibility loss withdrew a held memory command");
+    e.stop_and_drain(); e.dut.display_ready = 1; e.idle(4);
+    require(e.snapshot().errors() & FES_DE25_SCANOUT_ERROR_DISPLAY, "readiness recovery erased the fault");
+    e.command(FES_DE25_SCANOUT_COMMAND_CLEAR);
+    equal(e.snapshot().errors(), 0, "checked drain could not retire visibility fault");
+}
+
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     unsigned groups = 0;
     try {
 #define RUN(name) do { name(); ++groups; std::cout << "PASS " #name "\n"; } while (0)
         RUN(disabled_and_snapshot);
+        RUN(display_readiness_loss_stops_without_releasing_traffic);
         RUN(raster_sync_runs_while_disabled_and_survives_reset);
         RUN(clock_fault_does_not_shorten_active_hsync);
         two_complete_frames(false); ++groups; std::cout << "PASS two_complete_frames_delayed\n";

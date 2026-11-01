@@ -73,7 +73,7 @@ class ScanoutBuildTests(unittest.TestCase):
         # the synchronizer; lock loss still clears the pixel release at once.
         self.assertIn("always @(posedge system_clk or negedge top_reset_n)\n"
                       "        if (!top_reset_n) visible_request <= 1'b0;\n"
-                      "        else visible_request <= first_lock_seen && qualified_lock && !fault;", board)
+                      "        else visible_request <= first_lock_seen && qualified_lock && !fault && hdmi_ready_sync[1];", board)
         self.assertIn("fes_de25_top_reset visible_release (.clk(pixel_clk), .ninit_done(1'b0),\n"
                       "        .pll_locked(qualified_lock), .reset_n(visible_reset_n));", board)
         self.assertIn("always @(posedge pixel_clk or negedge visible_reset_n)", board)

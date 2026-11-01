@@ -44,6 +44,17 @@ class OwnerScanoutTests(unittest.TestCase):
                 self.assertEqual(r['reaps'], 0)
                 self.assertEqual(r['maps'], 0)
 
+    def test_waits_for_display_readiness_before_mapping_or_publication(self):
+        r = self.scenario('late-ready')
+        self.assertEqual(r['result'], 0)
+        self.assertEqual(r['publishes'], 3)
+        self.assertEqual(r['polls'], 8)
+        r = self.scenario('not-ready')
+        self.assertEqual(r['result'], 1)
+        self.assertEqual(r['maps'], 0)
+        self.assertEqual(r['publishes'], 0)
+        self.assertEqual(r['reaps'], 0)
+
     def test_owner_abi_refusal_precedes_allocation(self):
         for name in ('abi-error', 'old-abi'):
             with self.subTest(name=name):
@@ -56,7 +67,7 @@ class OwnerScanoutTests(unittest.TestCase):
 
     def test_uncertainty_never_retries_or_reaps(self):
         for name in ('publish-error', 'poll-error', 'timeout', 'wrong-ack',
-                     'changed-generation', 'changed-build', 'underflow', 'uncertain', 'clock-error', 'hardware-fault'):
+                     'changed-generation', 'changed-build', 'ready-loss', 'underflow', 'uncertain', 'clock-error', 'hardware-fault'):
             with self.subTest(name=name):
                 r = self.scenario(name)
                 self.assertEqual(r['result'], 1)

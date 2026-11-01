@@ -96,7 +96,8 @@ constants:
   - {name: FesDe25ScanoutStatusDrained, value: 8}
   - {name: FesDe25ScanoutStatusFault, value: 16}
   - {name: FesDe25ScanoutStatusClockFault, value: 32}
-  - {name: FesDe25ScanoutStatusMask, value: 63}
+  - {name: FesDe25ScanoutStatusDisplayReady, value: 64}
+  - {name: FesDe25ScanoutStatusMask, value: 127}
   - {name: FesDe25ScanoutErrorDescriptor, value: 1}
   - {name: FesDe25ScanoutErrorCommand, value: 2}
   - {name: FesDe25ScanoutErrorResponse, value: 4}
@@ -104,4 +105,5 @@ constants:
   - {name: FesDe25ScanoutErrorClock, value: 16}
   - {name: FesDe25ScanoutErrorSequence, value: 32}
   - {name: FesDe25ScanoutErrorUnexpectedResponse, value: 64}
-  - {name: FesDe25ScanoutErrorMask, value: 127}
+  - {name: FesDe25ScanoutErrorDisplay, value: 128}
+  - {name: FesDe25ScanoutErrorMask, value: 255}

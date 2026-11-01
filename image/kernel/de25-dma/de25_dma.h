@@ -74,5 +74,9 @@ struct fes_de25_dma_info {
  * ALLOC so an older kernel cannot leave an unwanted legacy allocation behind.
  */
 #define FES_DE25_DMA_OWNER_ABI _IO(0xD5, 0x13)
+/* Cached active-grant metadata for a privileged serialized lifecycle. Returns
+ * ENODATA without an owner handle. No MMIO, drain or reference release occurs.
+ */
+#define FES_DE25_DMA_OWNER_INFO _IOR(0xD5, 0x14, struct fes_de25_dma_info)
 
 #endif

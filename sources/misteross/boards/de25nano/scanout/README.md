@@ -236,3 +236,10 @@ HDL parameter and checked in generated handoff metadata. The owner UAPI version
 zero identities and the older endpoint/API versions are refused. These source
 changes require a matching new kernel and FPGA image; they do not extend the
 older physical diagnostic evidence or enable normal runtime startup.
+
+DisplayReady reports registered HDMI visibility after configuration completion;
+loss during scanout latches a Display fault and cannot acknowledge the frame.
+The board still releases the control/memory bridges after initial clock lock,
+independently of a slow transmitter configuration. Software can wait through
+cold snapshots without enabling DMA. These changes await new exact-artifact
+compiler, kernel and board validation.

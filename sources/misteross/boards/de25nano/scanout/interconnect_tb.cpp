@@ -49,7 +49,7 @@ struct Simulation {
     Burst held_ar{};
 
     Simulation() {
-        dut.clk_mem = 0; dut.clk_pixel = 0; dut.reset_n = 0; dut.clock_fault = 0;
+        dut.clk_mem = 0; dut.clk_pixel = 0; dut.reset_n = 0; dut.clock_fault = 0; dut.display_ready = 1;
         dut.address = 0; dut.read = 0; dut.write = 0;
         dut.byteenable = 15; dut.writedata = 0;
         dut.ram_test_write_address = 0; dut.ram_test_read_address = 2;
@@ -335,7 +335,7 @@ int main(int argc, char** argv) {
             require(s.read(FES_DE25_SCANOUT_ID_OFFSET) == FES_DE25_SCANOUT_IDENTITY, "wrong generated control decode");
             require(s.read(FES_DE25_SCANOUT_VERSION_OFFSET) == FES_DE25_SCANOUT_VERSION, "wrong register version");
             auto v = s.snapshot();
-            require(v.status == FES_DE25_SCANOUT_STATUS_DRAINED && !v.generation && !v.outstanding &&
+            require(v.status == (FES_DE25_SCANOUT_STATUS_DRAINED | FES_DE25_SCANOUT_STATUS_DISPLAY_READY) && !v.generation && !v.outstanding &&
                     !v.errors && !s.axi_bursts && !s.dut.video_de, "reset enabled traffic or display");
             s.report("reset_disabled");
         }

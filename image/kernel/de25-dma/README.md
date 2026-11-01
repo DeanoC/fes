@@ -48,7 +48,10 @@ four words, least-significant first. Creation checks interface version 1.1 and
 a nonzero build ID before allocating storage. Snapshot validation compares the
 image identity with the original grant, including before and after CLEAR;
 identity loss retains the uncertain exposure and provider lease. INFO remains
-a cached observation. No CPU or DMA address is added to the ABI. The previous
+a cached observation. A cold POLL also obtains a fresh snapshot and checks the
+unchanged unconfigured/drained tuple while observing DisplayReady, before any
+submission; transmitter configuration need not be guessed or followed by a
+fixed sleep. No CPU or DMA address is added to the ABI. The previous
 INFO/POLL request sizes and legacy PUBLISH versions cannot select this ABI.
 
 Initially the logical front slot is zero and the first submission must use slot
@@ -218,6 +221,15 @@ or permission to program. Existing maintenance serialization and the strict
 overlay exclusion remain required. An older installed kernel returns `ENOTTY`;
 callers must not interpret that as idle. The query has kernel software tests;
 it is not yet installed or tested on the physical board.
+
+`OWNER_INFO` copies the active owner's cached grant metadata, including the
+original observed build ID and generation, without a grant descriptor. It
+returns ENODATA if no active owner handle exists and is gated by the same root
+CAP_SYS_RAWIO check. It takes no reference or hardware action and returns no
+address. This permits a serialized restarting lifecycle to compare a retained
+configuration with its own known record before considering checked recovery;
+cached metadata alone authorizes neither adoption nor REAP. Unsupported or
+mismatched observations must remain refused.
 
 An abandoned handle can be reaped by a later owner-control connection.
 

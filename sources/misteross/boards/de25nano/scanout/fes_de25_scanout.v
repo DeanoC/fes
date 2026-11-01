@@ -6,7 +6,7 @@ module fes_de25_scanout #(
     parameter [127:0] BUILD_ID = 128'd0
 ) (
     input wire clk, reset_n,
-    input wire clock_fault,
+    input wire clock_fault, display_ready,
     input wire [6:0] address,
     input wire read, write,
     input wire [3:0] byteenable,
@@ -74,6 +74,7 @@ module fes_de25_scanout #(
     always @* begin
         new_errors = 32'd0;
         if (clock_failed) new_errors = new_errors | `FES_DE25_SCANOUT_ERROR_CLOCK;
+        if (running && !display_ready) new_errors = new_errors | `FES_DE25_SCANOUT_ERROR_DISPLAY;
         // A legal CLEAR resets the local reader/video on the following edge.
         // Suppress only their old sticky errors through that reset cycle.
         if (!legal_clear && !local_clear) begin
@@ -101,7 +102,8 @@ module fes_de25_scanout #(
         (pending ? `FES_DE25_SCANOUT_STATUS_PENDING : 32'd0) |
         (drained ? `FES_DE25_SCANOUT_STATUS_DRAINED : 32'd0) |
         (live_errors != 32'd0 ? `FES_DE25_SCANOUT_STATUS_FAULT : 32'd0) |
-        (clock_failed ? `FES_DE25_SCANOUT_STATUS_CLOCK_FAULT : 32'd0);
+        (clock_failed ? `FES_DE25_SCANOUT_STATUS_CLOCK_FAULT : 32'd0) |
+        (display_ready ? `FES_DE25_SCANOUT_STATUS_DISPLAY_READY : 32'd0);
     reg stage_write;
     reg [2:0] stage_index;
     always @* begin
@@ -127,7 +129,7 @@ module fes_de25_scanout #(
     // Registered command faults stop on their acceptance edge; data/clock
     // faults also blank immediately without withdrawing any existing read.
     wire video_enable = configured && running && errors == 32'd0 &&
-        !clock_failed && memory_errors == 2'b00 && underflows == 32'd0 && !local_clear;
+        !clock_failed && display_ready && memory_errors == 2'b00 && underflows == 32'd0 && !local_clear;
     assign video_rgb = video_enable ? rgb : 24'd0;
     assign video_de = video_enable && de;
     // HS/VS are board timing, not scanout visibility. Keep them continuous
