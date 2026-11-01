@@ -37,10 +37,18 @@ runs what SCOPE names, cannot pass over an unbuilt instruction.
 With --yosys the CPU is first run through that Yosys (read, proc -norom,
 flatten, opt) and the netlist it writes is simulated instead of the RTL.
 
+With --preset the speed governor (fes_i386_governor) runs at that preset in
+every mode. It only holds D, so every result must be what max gives:
+--same-as names max's report.json and fails the run on any difference in the
+architectural results (counts, faults, interrupts, divergences, every trace
+hash), leaving out only timing (cycles, memory waits, replays, the
+latency-free gaps, which a governed run does not check either).
+
 Example:
   python3 scripts/test_fes_i386_lockstep.py --download
   python3 scripts/test_fes_i386_lockstep.py --opcode 00 --opcode D3.4 --random-programs 0
   python3 scripts/test_fes_i386_lockstep.py --yosys /abs/path/to/i386-locked/yosys
+  python3 scripts/test_fes_i386_lockstep.py --preset 1 --same-as /abs/path/to/max/report.json
 
 Writes build/sim/fes-i386-lockstep/report.json.
 """
@@ -69,11 +77,12 @@ RTL = ROOT / 'cores/fes-common/rtl/i386'
 SIM = ROOT / 'cores/fes-common/sim/i386'
 DDR_MODEL = ROOT / 'cores/fes-pc386/sim'  # pc386_ddr_model.h: HPS DDR port 0
 OUTPUT = ROOT / 'build/sim/fes-i386-lockstep'
-CPU_RTL = ('fes_i386_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
+CPU_RTL = ('fes_i386_pkg.sv', 'fes_i386_gov_pkg.sv', 'fes_i386_oplen.sv', 'fes_i386_lendec.sv', 'fes_i386_lstage.sv',
            'fes_i386_fetchbuf.sv', 'fes_i386_qalign.sv', 'fes_i386_frontend.sv', 'fes_i386_amode.sv',
            'fes_i386_dfwd.sv', 'fes_i386_agu.sv', 'fes_i386_ucode_pkg.sv', 'fes_i386_ucode_rom.sv', 'fes_i386_decode.sv', 'fes_i386_seq.sv', 'fes_i386_dops.sv',
            'fes_i386_shift.sv', 'fes_i386_shflags.sv', 'fes_i386_exctl.sv', 'fes_i386_muldiv.sv', 'fes_i386_ex.sv',
-           'fes_i386_l1i.sv', 'fes_i386_l1d.sv', 'fes_i386_biu.sv', 'fes_i386_cpu.sv')
+           'fes_i386_l1i.sv', 'fes_i386_l1d.sv', 'fes_i386_biu.sv', 'fes_i386_gov_rom.sv', 'fes_i386_governor.sv',
+           'fes_i386_cpu.sv')
 TOP = 'fes_i386_cpu'
 
 # What the CPU executes, by MOO stem without 66h/67h prefixes: every form of
@@ -228,8 +237,11 @@ def label_fields(entries: list[dict], stem: str, test: vectors.MooTest) -> tuple
     return corpus, oracle_side
 
 
-def verilate(verilator: str, linked: list[Path], jobs: int, yosys: str | None) -> Path:
-    output = OUTPUT / ('netlist' if yosys else 'rtl')
+def verilate(verilator: str, linked: list[Path], jobs: int, yosys: str | None,
+             parameters: dict[str, int] | None = None) -> Path:
+    """The testbench, with the CPU's parameters (-G) if any."""
+    output = OUTPUT / (('netlist' if yosys else 'rtl')
+                       + ''.join(f'-{name}{value}' for name, value in sorted((parameters or {}).items())))
     output.mkdir(parents=True, exist_ok=True)
     if yosys:
         design = [frontend.synthesize_netlist(yosys, [RTL / path for path in CPU_RTL], TOP, output)]
@@ -239,6 +251,7 @@ def verilate(verilator: str, linked: list[Path], jobs: int, yosys: str | None) -
         warnings = []
     command = [verilator, '--cc', '--exe', '--build', '-j', str(jobs), '-O3', '--top-module', TOP,
                '-Wall', '-Wno-UNUSEDSIGNAL', *warnings, '--Mdir', str(output),
+               *(f'-G{name}={value}' for name, value in sorted((parameters or {}).items())),
                '-CFLAGS', f'-std=c++17 -O2 -I{SIM} -I{DDR_MODEL}', '-LDFLAGS', '-pthread',
                *map(str, design), str(SIM / 'lockstep_tb.cpp'), *map(str, linked)]
     log = output / 'build.log'
@@ -265,6 +278,45 @@ def run_biu_dma_test(verilator: str, jobs: int) -> dict:
     result = subprocess.run([str(output / 'Vfes_i386_biu')], cwd=ROOT, capture_output=True, text=True)
     (output / 'run.log').write_text(result.stdout + result.stderr)
     return {'exit': result.returncode, 'output': result.stdout.strip(), 'error': result.stderr.strip()}
+
+
+# What a governed run must share with max's (--same-as): every count but
+# timing's, and the trace hashes.
+SAME_CORPUS = ('tests', 'passed', 'retired_to_hlt', 'faults', 'retirements', 'mmio_runs', 'mmio_accesses',
+               'io_accesses', 'interrupts')
+SAME_RANDOM = ('runs', 'passed', 'retirements', 'halts', 'faults', 'double_faults', 'retire_limits', 'io_accesses',
+               'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops', 'window_code_stops',
+               'code_store_stops', 'stray_stops', 'mmio_runs', 'mmio_accesses')
+SAME_MODE = ('runs', 'passed', 'failed', 'retirements', 'halts', 'interrupts', 'faults', 'fault_vectors',
+             'double_faults', 'io_accesses', 'external_interrupts', 'nmis', 'rep_interrupts', 'divergence_retirements',
+             'trace_hash')
+
+
+def same_as(report: dict, other: dict) -> list[str]:
+    """Where a governed run's architectural results differ from max's."""
+    differences = []
+
+    def compare(where: str, mine, theirs):
+        if mine != theirs:
+            differences.append(f'{where}: {mine!r} here, {theirs!r} at max')
+
+    for key in SAME_CORPUS:
+        compare(f'corpus {key}', report['corpus']['totals'].get(key), other['corpus']['totals'].get(key))
+    for key in ('files', 'fault_vectors', 'divergence_retirements', 'trace_hashes'):
+        compare(f'corpus {key}', report['corpus'].get(key), other['corpus'].get(key))
+    for stem, counts in report['corpus']['by_opcode'].items():
+        theirs = other['corpus']['by_opcode'].get(stem, {})
+        for key in ('tests', 'passed', 'failed', 'retired_to_hlt', 'interrupts', 'faults', 'retirements'):
+            compare(f'corpus {stem} {key}', counts.get(key), theirs.get(key))
+    for key in SAME_RANDOM:
+        compare(f'random {key}', report['random']['totals'].get(key), other['random']['totals'].get(key))
+    for key in ('seeds', 'programs_per_seed', 'trace_hashes'):
+        compare(f'random {key}', report['random'].get(key), other['random'].get(key))
+    for mode in ('directed_cases', 'memory_cases', 'reset_store'):
+        for key in SAME_MODE:
+            compare(f'{mode} {key}', report[mode]['summary'].get(key), other[mode]['summary'].get(key))
+    compare('unbuilt encodings', report['unbuilt']['encodings'], other['unbuilt']['encodings'])
+    return differences
 
 
 def hold_failures(gaps: dict) -> list[str]:
@@ -342,12 +394,17 @@ def main() -> int:
     parser.add_argument('--no-latency', action='store_true', help='no fetch latency in the corpus run')
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--yosys', help="simulate this Yosys's netlist of the CPU instead of the RTL")
+    parser.add_argument('--preset', type=int, default=0, choices=range(8),
+                        help="the governor's preset, fes.pc386.machine word 0 (default 0, max)")
+    parser.add_argument('--same-as', type=Path, help="max's report.json (absolute), which a governed run must match")
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
     if not 1 <= args.jobs <= 64:
         parser.error('--jobs must be between 1 and 64')
     if args.corpus is not None and not args.corpus.is_absolute():
         parser.error('--corpus must be absolute')
+    if args.same_as is not None and not args.same_as.is_absolute():
+        parser.error('--same-as must be absolute')
     if args.random_programs < 0 or args.random_seeds < 1 or args.seed < 0:
         parser.error('--random-programs must be nonnegative, --random-seeds positive, --seed nonnegative')
     if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
@@ -371,7 +428,8 @@ def main() -> int:
         linked = oracle.link_inputs(args.jobs, args.download)
         testbench = str(verilate(verilator, linked, args.jobs, yosys))
         biu_dma = run_biu_dma_test(verilator, args.jobs)
-        env = dict(os.environ, FES_I386_DIVERGENCES=str(table), FES_I386_LATENCY='0' if args.no_latency else '1')
+        env = dict(os.environ, FES_I386_DIVERGENCES=str(table), FES_I386_LATENCY='0' if args.no_latency else '1',
+                   FES_I386_PRESET=str(args.preset))
         reset_store = run_reset_store(testbench, env)
         directed = run_directed(testbench, env)
         memory = run_memory(testbench, env)
@@ -445,7 +503,9 @@ def main() -> int:
             for key in ('sequential', 'prefixed', 'lea', 'selector', 'after_taken', 'after_not_taken',
                         'shift_consumer', 'after_shift', 'store_load', 'after_store', 'address', 'after_segment',
                         'after_stack', 'stack_stack', 'several', 'after_string', 'after_io', 'memory', 'smc')}
-    held = hold_failures(gaps)
+    # Governed, D waits for the governor between instructions: the holds'
+    # cycle counts are max's alone.
+    held = hold_failures(gaps) if args.preset == 0 else []
     unbuilt_failures = [line for result in unbuilt_results for line in result['failures']]
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
     random_failures += held
@@ -460,16 +520,24 @@ def main() -> int:
         'reset_store': reset_store,
         'directed_cases': directed,
         'memory_cases': memory,
+        'governor': {'preset': args.preset},
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
                    'fault_vectors': dict(fault_vectors), 'divergence_retirements': dict(divergences),
+                   'trace_hashes': {result['stem']: result['summary']['trace_hash'] for result in corpus_results},
                    'by_opcode': {stem: dict(counts) for stem, counts in sorted(by_opcode.items())},
                    'failures': corpus_failures[:200]},
         'unbuilt': {'encodings': unbuilt_runs, 'failures': unbuilt_failures[:200]},
         'random': {'seeds': [result['seed'] for result in random_results], 'programs_per_seed': args.random_programs,
                    'totals': dict(random_totals), 'latency_free_reruns': [result['seed'] for result in steady_results],
+                   'trace_hashes': {str(result['seed']): result['summary']['trace_hash'] for result in random_results},
                    'trace_hash_mismatches': hash_mismatches, 'latency_free_gaps': gaps,
                    'failures': random_failures[:200]},
     })
+    if args.same_as is not None:
+        differences = same_as(report, json.loads(args.same_as.read_text()))
+        report['same_as'] = {'report': str(args.same_as), 'differences': differences[:200]}
+        if differences:
+            exit_code = 1
     (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(f"corpus: {len(corpus_results)} files, {len(by_opcode)} opcodes, {totals['tests']} tests: "
           f"{totals['passed']} pass ({totals['retired_to_hlt']} to HLT, {totals['interrupts']} of them in an "
@@ -516,8 +584,13 @@ def main() -> int:
     print(f"reset-store-on-reset: {reset_store['summary']['passed']} pass, {reset_store['summary']['failed']} fail")
     print(f"directed cases: {directed['summary']['passed']} pass, {directed['summary']['failed']} fail")
     print(f"memory cases (DMA, FLUSH): {memory['summary']['passed']} pass, {memory['summary']['failed']} fail")
+    if args.preset:
+        print(f'governor preset {args.preset}: the latency-free holds are not checked')
+    if args.same_as is not None:
+        print(f"same as {args.same_as}: " + (f"{len(report['same_as']['differences'])} differences"
+                                             if report['same_as']['differences'] else 'every architectural result'))
     for line in (biu_dma_failures + reset_store_failures + directed_failures + memory_failures + unbuilt_failures + corpus_failures
-                 + random_failures)[:40]:
+                 + random_failures + report.get('same_as', {}).get('differences', []))[:40]:
         print(line)
     print(('i386 lockstep FAILED' if exit_code else 'i386 lockstep passed')
           + f' (host simulation only; report: {OUTPUT / "report.json"})')

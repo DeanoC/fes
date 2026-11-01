@@ -31,7 +31,7 @@
 //        [--cycles-per-instruction N] [--prompt TEXT] [--type TEXT] [--expect TEXT]
 //        [--trace F] [--frames DIR] [--pixel-from S] [--until-debug TEXT]
 //        [--type-at S] [--key-gap S] [--wav F] [--opl2-log F] [--keys S:TEXT]... [--cpu oracle|rtl]
-//        [--census F]
+//        [--census F] [--preset N] [--frequency N] [--turbo N]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -43,6 +43,8 @@
 // prompt (for a program that runs as the shell); --key-gap is applied after
 // each byte unless the next byte is the 0xf0 break prefix (default 0.03 s).
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
+// --preset, --frequency and --turbo are --cpu rtl's governor settings
+// (fes_i386_governor; fes.pc386.machine words 0, 1 and 3), max by default.
 //
 // --cpu rtl runs fes_i386_cpu in the oracle's place, clocked with the
 // machine at the system clock (RtlCpu), with its caches on HPS DDR port 0
@@ -948,6 +950,7 @@ struct Options {
     std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, trace, frames, until_debug;
     std::string wav, opl2_log, cpu = "oracle", census;
     double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03;
+    unsigned preset = 0, frequency = 0, turbo = 0;  // --cpu rtl's governor settings
     std::vector<std::pair<double, std::string>> keys;
     unsigned cycles_per_instruction = 4;
 };
@@ -977,6 +980,9 @@ Options parse(int argc, char **argv) {
         else if (flag == "--opl2-log") options.opl2_log = value;
         else if (flag == "--cpu") options.cpu = value;
         else if (flag == "--census") options.census = value;
+        else if (flag == "--preset") options.preset = unsigned(std::stoul(value));
+        else if (flag == "--frequency") options.frequency = unsigned(std::stoul(value));
+        else if (flag == "--turbo") options.turbo = unsigned(std::stoul(value));
         else if (flag == "--keys") {
             size_t colon = value.find(':');
             if (colon == std::string::npos) throw std::runtime_error("--keys takes SECONDS:TEXT");
@@ -1018,6 +1024,10 @@ int main(int argc, char **argv) {
         std::unique_ptr<RtlCpu> rtl;
         if (options.cpu == "rtl") {
             rtl = std::make_unique<RtlCpu>(machine);
+            // The governor's settings, which each reset of the CPU samples.
+            rtl->cpu.gov_preset = uint8_t(options.preset);
+            rtl->cpu.gov_frequency = uint16_t(options.frequency);
+            rtl->cpu.gov_turbo = uint8_t(options.turbo);
             rtl->length = [&](uint32_t linear) {
                 uint8_t bytes[15];
                 for (unsigned n = 0; n < 15; ++n) bytes[n] = rtl->read8(linear + n);

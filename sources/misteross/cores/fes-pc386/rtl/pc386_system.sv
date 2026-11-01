@@ -16,9 +16,10 @@
 // The mailbox (fes_computer_mailbox_core) answers identity, execution and the
 // session-display plane, and hands the ATA disk, the fes.pc386.machine record
 // and the wall clock to fes_computer_storage. The record's settings are the
-// machine's straps at each release: the self-modifying-code profile and the
-// Sound Blaster's port, IRQ and DMA; the governor's preset, frequency and
-// turbo words wait for the CPU's governor. Its CMOS words are what the RTC
+// machine's straps at each release: the governor's preset, frequency and
+// turbo at launch (fes_i386_governor, which samples them at the CPU's
+// reset), the self-modifying-code profile and the Sound Blaster's port, IRQ
+// and DMA. Its CMOS words are what the RTC
 // loads after reset and writes back. The wall clock reaches the RTC once its
 // CMOS setup is done, and the CPU starts after that.
 //
@@ -44,6 +45,7 @@ module pc386_system #(
     parameter integer DOT1_N = 14161, DOT1_D = 50000,
     parameter integer OPL2_N = 7, OPL2_D = 14080,
     parameter integer AUDIO_N = 3, AUDIO_D = 6250,
+    parameter integer GOV_N = 1, GOV_D = 1000,  // 100 kHz, the governor's frequency unit
     parameter integer ATA_RESET_CLOCKS = 1000,
     parameter ROM_HEX = "build/firmware/pc386/pc386-rom.hex"
 ) (
@@ -61,7 +63,8 @@ module pc386_system #(
     // Mixer output at 48 kHz
     output wire signed [15:0] sample,
     // What the system does, for system_tb; the shell leaves these open.
-    //   0  flags [7:0] (halted, stopped, A20M, INTR, running), last POST code
+    //   0  flags [7:0] (halted, stopped, A20M, INTR, running, governor held D
+    //      since the machine's reset), last POST code
     //      [15:8], CPU resets [23:16], instructions retired [63:32]
     //   1  CS [15:0], the last exception or interrupt vector delivered [31:24],
     //      EIP [63:32]
@@ -175,8 +178,13 @@ module pc386_system #(
     );
     wire verifying = disk_state == 3'(`FES_COMPUTER_DISK_STATE_VERIFYING);
     wire disk_present = disk_state == 3'(`FES_COMPUTER_MEDIA_STATE_READY);
-    // The settings words: 2 the code profile, 4-6 the Sound Blaster's port,
-    // IRQ and DMA channel.
+    // The settings words: 0 the governor's preset, 1 its frequency override
+    // (100 kHz units), 2 the code profile, 3 turbo at launch, 4-6 the Sound
+    // Blaster's port, IRQ and DMA channel. Commit has checked each field's
+    // range (fes_computer_storage).
+    wire [2:0] gov_preset = settings[2:0];
+    wire [9:0] gov_frequency = settings[25:16];
+    wire gov_turbo = settings[48];
     wire queue16 = settings[32];
     wire [7:0] sb_base_high = settings[75:68];
     wire [7:0] sb_irq = settings[87:80];
@@ -342,7 +350,7 @@ module pc386_system #(
     // it has any wall clock the runtime sent (started), and Hold stops it at
     // once. The AT core's CPU reset pulse holds it again for at least 4 clocks
     // and until its memory is idle.
-    wire cpu_halt, cpu_stopped, cpu_retire;
+    wire cpu_halt, cpu_stopped, cpu_retire, gov_hold;
     reg started, cpu_cold, cpu_reset;
     reg [2:0] stretch;
     always @(posedge clk) begin
@@ -422,6 +430,7 @@ module pc386_system #(
         .init_base({32'h0, 32'h0, 32'h0, 32'h0, 32'hffff0000, 32'h0}),
         .init_limit({6{32'hffff}}), .init_ar({6{16'h0093}}),
         .a20m(a20m), .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16(queue16),
+        .gov_preset(gov_preset), .gov_frequency(gov_frequency), .gov_turbo(gov_turbo),
         .ddr_address(cpu_ddr_address), .ddr_burstcount(cpu_ddr_burstcount), .ddr_read(cpu_ddr_read),
         .ddr_write(cpu_ddr_write), .ddr_writedata(cpu_ddr_writedata), .ddr_byteenable(cpu_ddr_byteenable),
         .ddr_waitrequest(cpu_ddr_waitrequest), .ddr_readdata(cpu_ddr_readdata),
@@ -439,6 +448,7 @@ module pc386_system #(
         .trace_unimplemented(cpu_stopped), .trace_issue(), .trace_md_wait(), .trace_fetch(),
         .trace_fetch_block(), .trace_dread(), .trace_dread_addr(), .trace_mem_wait(),
         .trace_mem_idle(cpu_mem_idle), .trace_replay(), .trace_smc(), .trace_smc_open(), .trace_ex_store(),
+        .trace_gov_hold(gov_hold), .trace_gov_debt(), .trace_gov_charge(),
         .trace_store(), .trace_store_addr(), .trace_store_data(), .trace_store_mask(), .arch_gpr(),
         .arch_eflags(), .arch_cr0(), .arch_eip(cpu_eip), .arch_sel(cpu_sel),
         .arch_base(), .arch_limit(), .arch_ar()
@@ -463,10 +473,13 @@ module pc386_system #(
     );
     reg [31:0] retired, samples, opl2_samples, dma_cycles;
     reg [7:0] cpu_resets, last_post;
+    reg gov_held;
     always @(posedge clk)
         if (reset) begin
             retired <= 0; samples <= 0; opl2_samples <= 0; dma_cycles <= 0; cpu_resets <= 0; last_post <= 0;
+            gov_held <= 0;
         end else begin
+            if (gov_hold) gov_held <= 1;
             if (cpu_retire) retired <= retired + 32'd1;
             if (sample_valid) samples <= samples + 32'd1;
             if (opl2_valid) opl2_samples <= opl2_samples + 32'd1;
@@ -477,7 +490,7 @@ module pc386_system #(
     assign status = {
         opl2_samples, dma_cycles, samples, plane_underflows_sys, present_underflows_sys, capture_drops,
         scanout_underflows, frames_shown_sys, cpu_eip, cpu_vector, 8'd0, cpu_sel[1],
-        retired, 8'd0, cpu_resets, last_post, 3'd0, !reset, intr, a20m, cpu_stopped, cpu_halt
+        retired, 8'd0, cpu_resets, last_post, 2'd0, gov_held, !reset, intr, a20m, cpu_stopped, cpu_halt
     };
 
     // ---- The ATA image and the CRC pass on port 2
@@ -491,10 +504,9 @@ module pc386_system #(
         .aux_readdatavalid(aux_readdatavalid), .readdata(p2_readdata)
     );
 
-    // The governor's words (0 preset, 1 frequency, 3 turbo) have no consumer yet.
     wire unused = ^{dma_ack_tc, start_latched, frame_start, frame_done, presenter_video, debug_port, opl2_sample,
                     dsp_dac, key_ready, frame_count, frame_buffer, frame_width, frame_height,
                     nmi_mask, cpu_mmio_address[fes_i386_pkg::PA-3:15], cpu_sel[5:2], cpu_sel[0],
-                    settings[31:0], settings[63:48], settings[127:104], settings[47:33], settings[79:76],
+                    settings[15:3], settings[31:26], settings[63:49], settings[127:104], settings[47:33], settings[79:76],
                     settings[67:64], settings[95:88]};
 endmodule

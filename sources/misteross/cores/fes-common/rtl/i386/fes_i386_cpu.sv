@@ -52,12 +52,18 @@
 // same routine's entry with the interrupt's vector, from INTA for INTR, so
 // the routine pushes the next instruction's IP.
 //
+// The speed governor (fes_i386_governor) charges each instruction and REP
+// element WB retires its reference cost and holds D at the next one's first
+// uop while the debt is over its window; under max it never holds. Holding
+// D is all it does, so no result depends on it.
+//
 // init_* is the architectural state reset loads. A machine ties it to the
 // 386 reset state; the lockstep harness loads a test's initial state.
 // trace_* and arch_* show each retirement: on the edge an instruction
 // retires, trace_retire rises and arch_* hold the state after it.
 module fes_i386_cpu #(
-    parameter logic [31:0] RAM_BASE = 32'h3400_0000  // the HPS address of guest physical 0
+    parameter logic [31:0] RAM_BASE = 32'h3400_0000, // the HPS address of guest physical 0
+    parameter integer GOV_N = 1, GOV_D = 1000         // 100 kHz as a fraction of clk (fes_i386_governor)
 ) (
     input  logic             clk,
     input  logic             cold_reset,   // the machine's start: also empties the write buffer
@@ -78,6 +84,13 @@ module fes_i386_cpu #(
     // The self-modifying-code profile, sampled at reset: coherent (0) or
     // queue16 (1); see Self-modifying code.
     input  logic             queue16,
+    // The speed governor's settings, sampled at reset (fes_i386_governor):
+    // the preset (fes.pc386.machine word 0: 0 max, 1 286-12 to 7 486DX2-66),
+    // its frequency in 100 kHz units (0 the preset's own) and turbo (1 runs
+    // at max).
+    input  logic [2:0]       gov_preset,
+    input  logic [9:0]       gov_frequency,
+    input  logic             gov_turbo,
     // HPS DDR port 0 (fes.memory.hps-ddr), guest physical 0 at RAM_BASE.
     output logic [27:0]      ddr_address,
     output logic [7:0]       ddr_burstcount,
@@ -147,6 +160,9 @@ module fes_i386_cpu #(
     output logic             trace_smc,            // ... for self-modifying code (see Self-modifying code)
     output logic             trace_smc_open,       // a DMA write into fetched bytes now restarts the next instruction (ditto)
     output logic             trace_ex_store,       // a store in EX, one stage before it can retire
+    output logic             trace_gov_hold,       // the governor's debt is over its window: D starts nothing
+    output logic [11:0]      trace_gov_debt,       // ... the debt, in whole reference clocks
+    output logic [8:0]       trace_gov_charge,     // ... what it adds this cycle: a retirement's cost, 3 cycles on
     // The store WB commits: the bytes trace_store_mask names of the eight
     // from trace_store_addr's dword, at linear addresses.
     output logic             trace_store,
@@ -321,14 +337,16 @@ module fes_i386_cpu #(
     logic     dc_branch, dc_stack;  // dc_branch: not used yet
     logic     q_two;                // a two-byte opcode: the ModRM is byte 2
     assign q_two = q.bytes[0] == 8'h0f;
+    logic [7:0] q_modrm;
+    assign q_modrm = q_two ? q.bytes[2] : q.bytes[1];
     logic [2:0] q_stk;              // dc_q.stk and .seq, apart so no field of dc_q reads another
     logic [4:0] q_seq;
     logic       q_direct, q_xlat;   // no base or index (a moffs, the vector's entry); XLAT's [BX + AL]
     uop_t       q_uop;              // dc_q.uop, .lea and the address registers, for dc_q.rd_str
-    logic       q_lea, q_has_base, q_has_index;
+    logic       q_lea, q_has_base, q_has_index, q_opsize32;
     logic [2:0] q_base, q_index;
     fes_i386_decode decode (
-        .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .uop(q_uop), .opsize32(dc_q.opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
+        .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .uop(q_uop), .opsize32(q_opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
@@ -341,10 +359,11 @@ module fes_i386_cpu #(
     logic [2:0] am_base, am_index;
     logic [1:0] am_scale;
     fes_i386_amode amode (
-        .modrm(q_two ? q.bytes[2] : q.bytes[1]), .sib(q_two ? q.bytes[3] : q.bytes[2]), .addr32(q_uop.mem.addr32), .has_base(am_has_base),
+        .modrm(q_modrm), .sib(q_two ? q.bytes[3] : q.bytes[2]), .addr32(q_uop.mem.addr32), .has_base(am_has_base),
         .base(am_base), .has_index(am_has_index), .index(am_index), .scale(am_scale), .stack(dc_stack)
     );
     assign dc_q.uop = q_uop;
+    assign dc_q.opsize32 = q_opsize32;
     assign dc_q.lea = q_lea;
     assign dc_q.stk = q_stk;
     // XLAT's address is BX (or EBX) plus AL, zero-extended (index8).
@@ -369,6 +388,11 @@ module fes_i386_cpu #(
     assign dc_q.esp_adj = 6'd0;
     assign dc_q.esp_wrap = 4'd0;
     assign dc_q.length = q.length;
+    // The governor's fields; ea3 is an address of base, index and an 8- or
+    // 16/32-bit displacement (ModRM mod 1 or 2).
+    assign dc_q.gov = '{two: q_two, op: q_two ? q.bytes[1] : q.bytes[0], mreg: q_modrm[5:3],
+                        rm_reg: q_modrm[7:6] == 2'b11, o32: q_opsize32, rep: q.prefixes.rep != 2'b00,
+                        ea3: am_has_base && am_has_index && q_modrm[7] != q_modrm[6]};
     assign dc_q.seq = q_seq;
     assign dc_q.step = 3'd0;
     assign dc_q.more = q_seq != fes_i386_pkg::SEQ_NONE;
@@ -417,6 +441,7 @@ module fes_i386_cpu #(
         dc_exc.upc = fes_i386_ucode_pkg::UC_VECTOR;
         dc_exc.seq = fes_i386_pkg::SEQ_UCODE;
         dc_exc.more = 1'b1;
+        dc_exc.gov.op = 8'hcd;  // the governor charges a delivery as INT
     end
     // A string's first element ends the instruction when its count is 0 or 1
     // (s_end1, see the string engine), which seq does not know when it
@@ -837,9 +862,20 @@ module fes_i386_cpu #(
     // behind its first, whose result it takes one stage ahead (x_prev); it
     // then counts as the oldest behind it (oldest).
     logic serial, ser_wait;
+    // The governor holds D only at an instruction's first uop or a REP
+    // element's (d_first: after a redirect, or once D has issued the last
+    // uop of either), so no sequence's uops are split, and the hold is a
+    // cycle late (gov_block, one register).
+    logic d_first, d_first_next, gov_hold, gov_block;
     assign issue = cur_valid && !(addr_use && lea_stall) && !(reads_seg && seg_hazard) && !(mem && mseg_hazard)
                 && !store_hazard && !flag_hazard && !sp_hazard && !stack_wait && !t_wait && !uc_wait && !str_wait
-                && !str_hazard && !io_hazard && !(ser_wait && !dc.x_prev) && !freeze && !halted;
+                && !str_hazard && !io_hazard && !(ser_wait && !dc.x_prev) && !freeze && !halted && !gov_block;
+    assign d_first_next = reset || redirect || (issue ? !dc_more || u.str_cx : d_first);
+    always_ff @(posedge clk) begin
+        d_first <= d_first_next;
+        gov_block <= gov_hold && d_first_next;
+    end
+    assign trace_gov_hold = gov_hold;
     assign trace_issue = issue;
     assign trace_md_wait = md_busy;
 
@@ -892,6 +928,7 @@ module fes_i386_cpu #(
         d_out = '0;
         d_out.valid = issue;
         d_out.uop = u;
+        d_out.gov = dc.gov;
         d_out.eip = d_eip;
         d_out.eip_next = d_eip_next;
         d_out.a = dc.cs_base ? seg_base[SEG_CS] : dc.a_t1 ? t1 : a_val;
@@ -1559,6 +1596,23 @@ module fes_i386_cpu #(
             end
         end
     end
+
+    // ---- The speed governor ---------------------------------------------------------
+    // It charges what WB retires (see fes_i386_governor): each instruction's
+    // or REP element's end (at_boundary), with WB's taken branch other than
+    // a far jump, and each committed uop's memory bus cycles: a load or
+    // store one, a read-modify-write two, and a st2 store one more. A load
+    // whose data nothing uses (nodata: a probe) reads nothing.
+    logic [1:0] gov_accesses;
+    assign gov_accesses = !wb_commit || wb_s.nodata ? 2'd0
+                        : 2'(wb_s.uop.mem.kind == fes_i386_pkg::MEM_RMW) + 2'(wb_s.uop.mem.kind != fes_i386_pkg::MEM_NONE)
+                          + 2'(wb_s.uop.st2);
+    fes_i386_governor #(.GOV_N(GOV_N), .GOV_D(GOV_D)) governor (
+        .clk, .reset, .preset(gov_preset), .frequency(gov_frequency), .turbo(gov_turbo),
+        .boundary(at_boundary), .eoi(wb_eoi), .element(wb_s.uop.str_cx), .taken(wb_s.taken && !wb_s.uop.seg2),
+        .gov(wb_s.gov), .accesses(gov_accesses), .dword(wb_s.uop.mem.bytes[2] || wb_s.uop.mem.bytes[3]),
+        .hold(gov_hold), .debt_clocks(trace_gov_debt), .charge(trace_gov_charge)
+    );
 
     // trace_vector: the delivered fault's or interrupt's vector, or 8 once a
     // fault in a delivery has stopped the CPU.
