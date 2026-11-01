@@ -37,8 +37,102 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             result.stdout.strip(),
-            f'python3 scripts/build_fes_zx81.py --root "{ROOT}" --rom ""',
+            f'python3 scripts/build_fes_zx81.py --root "{ROOT}"',
         )
+
+    def test_make_entrypoint_passes_a_supplied_rom(self) -> None:
+        result = subprocess.run(
+            ["make", "-n", "build-fes-zx81-quartus", "FES_ZX81_ROM=zx81.rom"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.strip(),
+            f'python3 scripts/build_fes_zx81.py --root "{ROOT}" --rom "zx81.rom"',
+        )
+
+    def test_missing_rom_make_entrypoint_reports_the_required_variable(self) -> None:
+        env = os.environ.copy()
+        env.pop("FES_ZX81_ROM", None)
+        result = subprocess.run(
+            ["make", "build-fes-zx81-quartus"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        output = result.stdout + result.stderr
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("set FES_ZX81_ROM", output)
+        self.assertNotIn("Is a directory", output)
+
+    def test_zx81_smoke_runs_machine_variants_without_a_user_rom(self) -> None:
+        env = os.environ.copy()
+        env.pop("FES_ZX81_ROM", None)
+        result = subprocess.run(
+            ["make", "-n", "sim-fes-zx81-smoke"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("SKIP sim-fes-zx81-rom", result.stdout)
+        self.assertIn("SKIP sim-fes-zx81-machine", result.stdout)
+        self.assertIn("variant_probe.hex", result.stdout)
+        self.assertIn("zx80_load_probe.hex", result.stdout)
+        self.assertIn('zx80:-DZX81_MODEL_ZX80', result.stdout)
+
+    def test_rom_benches_generate_and_use_hex_or_skip_without_rom(self) -> None:
+        targets = (
+            "sim-fes-zx81-rom",
+            "sim-fes-zx81-machine",
+            "sim-fes-zx81-save",
+        )
+        env = os.environ.copy()
+        env.pop("FES_ZX81_ROM", None)
+        skipped = subprocess.run(
+            ["make", "-n", *targets],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(skipped.returncode, 0, skipped.stderr)
+        for target in targets:
+            with self.subTest(target=target):
+                self.assertIn(f"SKIP {target}", skipped.stdout)
+
+        rom = subprocess.run(
+            ["make", "-n", *targets, "FES_ZX81_ROM=zx81.rom"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(rom.returncode, 0, rom.stderr)
+        hex_path = str(ROOT / "build/sim/zx81-rom/zx81.hex")
+        self.assertIn(
+            f'python3 scripts/zx81_rom.py --rom "zx81.rom" --hex "{hex_path}"',
+            rom.stdout,
+        )
+        self.assertIn(f"-GROM_INIT='\"{hex_path}\"'", rom.stdout)
+        self.assertEqual(rom.stdout.count(f"-GFIRMWARE_INIT='\"{hex_path}\"'"), 2)
+        self.assertIn("cores/fes-zx81/sim/rom_init_tb.cpp", rom.stdout)
+        self.assertIn("cores/fes-zx81/sim/machine_tb.cpp", rom.stdout)
+        self.assertIn("cores/fes-zx81/sim/save_tb.cpp", rom.stdout)
 
     def test_project_pins_nmos_z80_dual_pll_and_hdmi_i2c_site(self) -> None:
         qsf = project_qsf(ROOT, ROOT / "build/fes-zx81-quartus/project", "00112233445566778899aabbccddeeff")

@@ -180,6 +180,11 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | `fes.riscv` | `make sim-fes-riscv` | `make build-fes-riscv` | none | library, experimental |
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |
 
+Set `FES_ZX81_ROM` to the user-supplied edition 3 BASIC image for the BASIC,
+expansion and SAVE simulations or the Quartus oracle. Pull-request CI runs
+`make sim-fes-zx81-smoke`, which also exercises the ROM-independent model and
+ZX80 tape-load probes.
+
 `fes.sms` and `fes.sg1000` use the `fes.simple-computer` ABI with sealed, linked
 cartridge ROMs. Diagnostic builds retain the media mailbox; the SMS ROM-link
 OSS package disables its legacy blob commands. Do not use `fes.mastersystem`.

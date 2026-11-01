@@ -1476,8 +1476,11 @@ CHROMA/QS/YM2149/joystick. Keyboard rows and `.p` tape bytes come from the GP
 mailbox. ZX81-family firmware is user-supplied, so no ROM bytes are committed.
 `scripts/zx81_rom.py` checks the 8 KiB edition 3 BASIC ROM named by
 `FES_ZX81_ROM` and writes the simulation hex or Quartus MIF under `build/`;
-the BASIC benches skip without it. The CPU is the shared first-party `fes_z80_nmos`,
-driven by positive and negative phase enables from the rational machine clock scheduler at an average
+the BASIC benches skip without it. `make sim-fes-zx81-smoke` includes the
+ROM-independent `sim-fes-zx81-variants` probes, so pull-request simulation still
+compiles and exercises the machine without user firmware. The CPU is the shared
+first-party `fes_z80_nmos`, driven by positive and negative phase enables from
+the rational machine clock scheduler at an average
 3.25 MHz. The machine passes WAIT, INT and NMI to that CPU and uses its native
 refresh bus cycle. The Zon X firmware diagnostic uses the same NMOS CPU and
 expansion socket as the machine and expansion simulations.
