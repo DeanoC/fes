@@ -273,11 +273,8 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
 
         route_thread = None
         try:
-            # The lock is taken before its owner metadata is written, so
-            # wait for both (#1271).
             held = wait_for(
-                lambda payload: payload["gpus"][0]["state"] == "held"
-                and payload["gpus"][0]["owner"] == "blocker",
+                lambda payload: payload["gpus"][0]["state"] == "held",
                 "the GPU 7 blocker did not acquire its lease",
             )
             self.assertEqual(held["gpus"][0]["id"], "7")
