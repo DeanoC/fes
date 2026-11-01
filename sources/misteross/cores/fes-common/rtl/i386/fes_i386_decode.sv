@@ -1460,6 +1460,7 @@ module fes_i386_decode (
             cls = C_ALU;
             op = 5'd9;  // ALU_MOV
             size = 2'd2;
+            mbytes = 3'd2;  // the selector's word, whatever the move's size
             d_seg = 1'b0;
             d_temp = 1'b1;
             d_idx = 3'd0;

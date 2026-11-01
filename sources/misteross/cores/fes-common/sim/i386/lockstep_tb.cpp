@@ -4060,6 +4060,9 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
 //                is FFFFh (RTL), so a word at CS:FFFFh raises #GP(0).
 //   cs-rule-hlt  as cs-rule, halting after the far jump: the RTL's CS must
 //                be limit FFFFh, access rights 93h, D/B and G clear.
+//   pm-sreg-limit  in protected mode, DS loaded with 18h, MOV ES, [FFFEh]
+//                reads the selector 10h from DS's last word, which must not
+//                fault (the read is a word); then HLT with PE set.
 // The run checks the RTL's segment caches after the reloads as well
 // (unreal: DS, ES, FS, GS and SS at limit FFFFFFFFh).
 int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
@@ -4087,6 +4090,7 @@ int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         {"normal-ss", 0x08, 0x10, 0x18, 12},
         {"cs-rule", 0x20, 0x10, 0x10, 13},
         {"cs-rule-hlt", 0x20, 0x10, 0x10, -2},
+        {"pm-sreg-limit", 0x08, 0x10, 0x10, -3},
     };
     for (const Case &c : cases) {
         Asm a;
@@ -4100,6 +4104,12 @@ int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         a.op({0xb8, 0x10, 0x00, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xe0});  // MOV AX, 10h; MOV DS, ES, FS, AX
         a.op({0xb8}); a.w(c.gs_sel); a.op({0x8e, 0xe8});    // MOV AX, gs_sel; MOV GS, AX
         a.op({0xb8}); a.w(c.ss_sel); a.op({0x8e, 0xd0});    // MOV AX, ss_sel; MOV SS, AX
+        if (c.ending == -3) {
+            a.op({0xb8, 0x18, 0x00, 0x8e, 0xd8});           // MOV AX, 18h; MOV DS, AX
+            a.op({0xc7, 0x06, 0xfe, 0xff, 0x10, 0x00});     // MOV word [FFFEh], 10h
+            a.op({0x8e, 0x06, 0xfe, 0xff});                 // MOV ES, [FFFEh]
+            a.op({0xf4});
+        }
         a.op({0x0f, 0x20, 0xc0, 0x24, 0xfe, 0x0f, 0x22, 0xc0});  // MOV EAX, CR0; AND AL, FEh; MOV CR0, EAX
         if (c.code_sel == 0x20) {
             a.op({0x66, 0xbb}); a.d(0x10000);              // MOV EBX, 10000h
@@ -4109,7 +4119,7 @@ int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         a.op({0xea}); a.w(0); a.w(0);                       // JMP 0000:rm
         const uint16_t rm = uint16_t(CODE + a.here());
         a.b[jmp_rm + 1] = uint8_t(rm); a.b[jmp_rm + 2] = uint8_t(rm >> 8);
-        if (c.ending == -2) {
+        if (c.ending <= -2) {
             a.op({0xf4});
         } else {
             // Real-mode reloads, then accesses.
@@ -4176,6 +4186,8 @@ int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
         } else if (outcome.exception != c.ending) {
             out.add(label + ".exception", uint32_t(c.ending), outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
         }
+        if (c.ending == -3 && s.seg[fes_i386::SEG_ES].selector != 0x10)
+            out.add(label + ".es", 0x10, s.seg[fes_i386::SEG_ES].selector);
         if (c.ending == -1)
             for (int k : {fes_i386::SEG_DS, fes_i386::SEG_ES, fes_i386::SEG_FS, fes_i386::SEG_GS, fes_i386::SEG_SS})
                 if (s.seg[k].limit != 0xffffffffu || s.seg[k].base != 0x1000) out.add(label + ".unreal." + SEG_NAMES[k], 0xffffffffu, s.seg[k].limit);
