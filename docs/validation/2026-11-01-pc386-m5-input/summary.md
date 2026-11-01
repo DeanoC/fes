@@ -385,6 +385,20 @@ on the PR branch, without merging main.
   export rejected the source checkout after this validation record changed
   during the build. That run is retained as an unsealed candidate under
   `sources/misteross/build/fes-pc386-quartus-failed-dirty-15e/`. A clean-source
-  rerun is required. No kit was touched under this task's restriction, so
-  current-head HIL remains open until exact-artifact acceptance is authorized
-  and passes.
+  rerun then passed at source revision
+  `2bcd5bc3efdb677afad9bd663063141d7c2b077d` (the review-fix RTL commit above
+  plus the committed validation record). Quartus Prime Lite 17.0.2, seed 1,
+  produced build `4b5c4811d376136e05a31c3ef7392cd7`, package
+  `528451026fa05746036b8dfce2fd7809f763d2f8580c0e6b1bc0285a3f14e7a6`, and
+  a 3,563,352-byte RBF with SHA-256
+  `f4e5c0a3394267f676d0a8efd306f41e286f246fbd352617c091dca318fabd4c`.
+  The build script passed: setup +1.318 ns, hold +0.112 ns, recovery +7.584
+  ns, removal +0.436 ns and minimum pulse width +1.122 ns; system Fmax 61.44
+  MHz, pixel 74.27 MHz and audio 12.29 MHz. It used 25,654 ALMs, 254 RAM
+  blocks and 30 DSP blocks. Quartus reported 0 errors; its 17,987 warnings
+  include the generated-netlist warnings noted above.
+- The final validation-record commit is documentation only; the sealed source
+  commit above and all pinned producer inputs remain unchanged.
+- No kit was touched under this task's restriction. The old Kit B package and
+  run remain historical, so current-head exact-artifact HIL is still open and
+  must pass before the PR's hardware gate is satisfied.
