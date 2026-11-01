@@ -25,9 +25,38 @@ class ScanoutBuildTests(unittest.TestCase):
         self.sources = B.capture()
         self.sources.update(self.fixture.sources)
 
-    def prepare(self, revision=None, *, hps_first=False, linux_dma=False):
+    def prepare(self, revision=None, *, hps_first=False, linux_dma=False, package_build_id=None):
         with mock.patch.object(B, "capture", return_value=self.sources):
-            return B.prepare(self.fixture.archive, self.root / "prepared", revision, hps_first=hps_first, linux_dma=linux_dma)
+            return B.prepare(self.fixture.archive, self.root / "prepared", revision, hps_first=hps_first, linux_dma=linux_dma,
+                             package_build_id=package_build_id)
+
+    def test_package_identity_is_inserted_before_generation_with_an_explicit_seed(self):
+        selected = "0123456789abcdeffedcba9876543210"
+        original_load = B.load
+        def load(path, name):
+            module = original_load(path, name)
+            if name == "scanout_retained_linux_dma":
+                # The small upstream fixture has placeholder adapter RTL;
+                # its real conversion is exercised by LinuxDMAProfileTests.
+                module.configure = mock.Mock(return_value=("# fixture port configuration\n",
+                    {"master_ownership": "scanout-only"}, {}))
+            return module
+        with mock.patch.object(B, "load", side_effect=load):
+            output, _, _, _ = self.prepare("a" * 40, hps_first=True, linux_dma=True, package_build_id=selected)
+        directory = output / "combined/hps"
+        inputs = json.loads((directory / "inputs.json").read_text())
+        self.assertEqual(inputs["scanout"]["build_id"], selected)
+        self.assertEqual(inputs["scanout"]["build_identity_scheme"], "canonical-functional-record-v2")
+        self.assertIn("set_instance_parameter_value fes_scanout BUILD_ID 0x" + selected,
+                      (directory / "project/integrate-mailbox.tcl").read_text())
+        self.assertIn("set_global_assignment -name SEED 1\n", (directory / "project/golden_top.qsf").read_text())
+
+    def test_package_identity_rejects_wrong_profile_dirty_source_zero_and_invalid_ids(self):
+        for revision, linux_dma, value in ((None, True, "a" * 32), ("b" * 40, False, "a" * 32),
+                ("b" * 40, True, "0" * 32), ("b" * 40, True, "A" * 32),
+                ("b" * 40, True, "a" * 31), ("b" * 40, True, 1)):
+            with self.subTest(revision=revision, linux_dma=linux_dma, value=value), self.assertRaises(ValueError):
+                self.prepare(revision, hps_first=True, linux_dma=linux_dma, package_build_id=value)
 
     def test_build_identity_binds_actual_sources_and_profile(self):
         output, _, _, _ = self.prepare("a" * 40, hps_first=True)

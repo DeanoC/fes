@@ -19,6 +19,23 @@ selection and transfer. libmister-runtime programs the FPGA.
 
 ## DE25-Nano board diagnostic
 
+`scripts/build_de25_menu_package.py` prepares the allocated-buffer MENU with a
+canonical format-2 functional record before generating IP. Its record binds the
+tracked board/MENU/splash/producer source closure, locked vendor resource archive,
+actual Quartus 26.3 Pro tools, complete selected installation and controlled
+execution. That record supplies the real Qsys BUILD_ID and explicit seed 1;
+the diagnostic source/profile identity remains the default for the standalone
+scanout recipe. `--compile-only` retains a candidate and never exports a package.
+The package path requires the complete 85-rule signoff inventory and its detailed
+results, all reported setup/hold/recovery/removal/pulse-width/skew/net-delay checks, zero waived
+findings and an independent identical RBF before using the normal exporter.
+Outstanding signoff findings therefore still block package publication. These
+checks do not establish whole-board timing, physical reset/CDC acceptance or a
+managed-kit hardware pass. No build action programs hardware.
+DE25 package validation accepts only format 2 for its exact SCS device. The
+existing format-3/4 ROM-map encoding and destination geometry describe Cyclone V
+M10K storage and are refused for Agilex 5.
+
 `boards/de25nano/` is an independent FPGA-only bring-up project for
 `A5EB013BB23BE4SCS` with Quartus Prime Pro 26.3.0. Its 50 MHz input and
 active-low LED pins follow Terasic's revision B resource package; the shared

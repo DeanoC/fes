@@ -80,8 +80,14 @@ producer, compiler identities and output hashes. Test logs and the resulting
 runtime archive, daemon and agent remain in that output. Its classification is
 `userspace-only`: it establishes AArch64 build/software behavior, without
 claiming a DE25 FPGA programming backend, hardware MMIO map or device access.
-The current production runtime accepts only its identified ARMv7 DE10 target
-and refuses other boards before loading drivers or constructing hardware.
+The shared runtime factory also recognizes the exact AArch64 DE25 model and
+compatible strings. Its DE25 branch requires the matched owner-kernel receipt,
+exclusive physical lease, root-only owner device and owner API version 3 before
+constructing the allocated-buffer MENU or computer backend. The current
+headless image still installs no runtime, agent or managed software bundle.
+The [MENU integration record](validation/2026-11-01-de25-managed-menu/README.md)
+separates native/QEMU software checks and the prepared owner-API-3 kernel/image
+from physical acceptance; those candidate components have not been installed.
 
 The [2026-10-28 AArch64 software validation record](validation/2026-10-28-de25-aarch64-runtime/README.md)
 retains the selected C++ SDK/image and runtime receipts, QEMU test logs, native
