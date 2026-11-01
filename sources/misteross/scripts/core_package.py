@@ -164,6 +164,8 @@ def _validate_fields(fields: object, payload: bytes | None) -> dict:
     devices = {"de10_nano": "5CSEBA6U23I7", "de25_nano": "A5EB013BB23BE4SCS"}
     if devices.get(target["platform"]) != target["device"]:
         raise PackageError("target must match a supported board and its exact device")
+    if target["platform"] == "de25_nano" and format_version != 2:
+        raise PackageError("DE25 packages require format 2; Cyclone V ROM maps are unsupported")
 
     payload_fields = _exact_dict(root["payload"], {"file", "size", "sha256"}, set(), "payload")
     if payload_fields["file"] != "core.rbf":

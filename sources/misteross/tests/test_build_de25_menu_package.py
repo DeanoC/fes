@@ -133,6 +133,11 @@ class DE25MenuPackageTests(unittest.TestCase):
             changed['target'].update(platform=platform, device=device)
             with self.subTest(platform=platform, device=device), self.assertRaises(PackageError):
                 encode_manifest(changed)
+        for version, extra in ((3, {'rom': {}}), (4, {'roms': [], 'rom_map': {}})):
+            changed = copy.deepcopy(fields)
+            changed.update(format=version, **extra)
+            with self.subTest(format=version), self.assertRaisesRegex(PackageError, 'DE25 packages require format 2'):
+                encode_manifest(changed)
 
     def test_controlled_environment_excludes_ambient_values_and_restores_on_failure(self):
         before = copy.copy(os.environ)

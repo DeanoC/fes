@@ -32,6 +32,9 @@ findings and an independent identical RBF before using the normal exporter.
 Outstanding signoff findings therefore still block package publication. These
 checks do not establish whole-board timing, physical reset/CDC acceptance or a
 managed-kit hardware pass. No build action programs hardware.
+DE25 package validation accepts only format 2 for its exact SCS device. The
+existing format-3/4 ROM-map encoding and destination geometry describe Cyclone V
+M10K storage and are refused for Agilex 5.
 
 `boards/de25nano/` is an independent FPGA-only bring-up project for
 `A5EB013BB23BE4SCS` with Quartus Prime Pro 26.3.0. Its 50 MHz input and
