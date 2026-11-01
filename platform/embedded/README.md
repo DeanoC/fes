@@ -35,6 +35,10 @@ The [HPS-first native composition tool](nano/README.md#compose-the-hps-first-fpg
 now pairs the sealed FPGA diagnostic with the matched native SPL as regular
 files. It checks the embedded SPL and unchanged canonical core payload, while
 keeping live boot assertions and physical programming admission disabled.
+The [bounded HPS-first loader observation](../../docs/validation/2026-11-01-de25-native-hps-pair/README.md)
+passed DDR setup, sealed FIT verification and the matched loader prompt on
+TRWU8CBL. That observation stops before native EL1 entry and runtime FPGA
+configuration.
 
 The initial [feasibility study](../../docs/design/de25-embedded-os.md) exercised
 a small protocol probe. This work goes further: retain the actual tenfoot

@@ -1,0 +1,38 @@
+{
+  "classification": "bounded HPS-first FPGA/native SPL loader boot diagnostic; no EL1 entry or runtime core load",
+  "pass": true,
+  "source_commit": "bc664a2e31bd67d1d332a1f3fecb90fc763bf4e2",
+  "board_serial": "TRWU8CBL",
+  "native_boot_id": "b1f79112ba1db5bc",
+  "fpga_build_id": "e25bb65a1d14a2bbbddf4c770ea033e5",
+  "fpga_package_id": "6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63",
+  "sof_sha256": "a87ff982e7dc74ec3f1022023ba3f09d663d4b05d7a4558ff13936e19be59c23",
+  "phase1_sha256": "28859ab225e05a42dd8a212cba813af84f7c01dfabf690cf15ca15573571915c",
+  "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+  "fit_sha256": "a2c4dc4f7c290e1c385d58491eda242f5bf6ea44d68886163aea0bd12b549821",
+  "programming_attempts": 1,
+  "entry_commands": 0,
+  "sd_write_commands": 0,
+  "trusted_physical_handoff": false,
+  "physical_runtime_admission": false,
+  "playable_core_acceptance": false,
+  "go_runtime_executed": false,
+  "post_state": {
+    "clock": "15M",
+    "usb_permissions_restored": true,
+    "uart_owner_absent": true,
+    "claim_held": true,
+    "factory_restore_required": false,
+    "spare_card_retained": true
+  },
+  "evidence_sha256": {
+    "out/nano-hps-loader-trial-20261101/loader-result.json": "b29fe8aa3bde70278d47d88d0915242e63664fe01bad544bfc992a85a17d423a",
+    "out/nano-hps-loader-trial-20261101/loader-console.log": "8b67f4f574dda5dd074ec518a83d8a5a97c7e723f4c36247409fa5e027a0e8a6",
+    "out/nano-hps-loader-trial-20261101/experiment-result.json": "1ae1592930cfbbaad7fa57eba8a16e2c5814f392601df054a7211de4e05cfd7c",
+    "out/nano-hps-loader-trial-20261101/preflight.json": "3dd334e564ab0f530ce6da15ea0b26bea205b94850d42dd11ec1bdceb4aa1359",
+    "out/nano-hps-loader-trial-20261101/post-jtag.log": "900ce9c70db9625196a219c22aff5cbb03c36ef2bcb261b3c984047e0bcede74",
+    "out/nano-hps-loader-trial-20261101/post-clock.log": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+    "out/nano-physical-core-20261101/native-hps-composition-v2/result.json": "37957217d40d1a175b3800886e3e280d7d1ecdd125129bf94ea66b0f51070ed8"
+  },
+  "utc": "2026-11-01T18:11:02.351936+00:00"
+}

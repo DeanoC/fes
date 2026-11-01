@@ -458,6 +458,12 @@ handoff and physical programming admission. It cannot replace the model's
 existing boot assertion or establish physical CPU mapping, DDR preservation,
 DMA ownership or active bridge return. No board, card or flash is accessed.
 
+The subsequent [bounded HPS-first loader observation](../../../docs/validation/2026-11-01-de25-native-hps-pair/README.md)
+booted the composed SOF on TRWU8CBL through DDR, sealed FIT verification and
+the matched manual loader prompt. It sent no native entry command or SD
+write. Native FPGA admission and the HPS-first physical handoff remain
+unqualified; the original vendor-SPL pair is unchanged.
+
 ## Next bounded TRWU8CBL trial
 
 1. Claim the top board in its current status file, verify serial/cable/UART,
