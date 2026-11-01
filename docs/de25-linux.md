@@ -50,6 +50,39 @@ make de25-linux DE25_LINUX_ARGS='--help'
 The default container runtime is `docker`. These commands prepare and inspect
 regular files. They do not write a card, program the FPGA or change boot flash.
 
+## Managed base preparation
+
+The same builder also prepares a `managed-base-intermediate` from the shared
+native FES rootfs configuration. It includes the read-only filesystem policy,
+AArch64 FES agent and UI, storage/software/Bluetooth helpers, BlueZ and D-Bus,
+the fourteen required library paths, serial recovery and the matching permanent
+owner kernel. USB Bluetooth, classic/LE HID, UHID and uinput are built into that
+kernel; DE10 and vendor kernel modules are not reused.
+
+With a completed matching kernel build and the SDK archive pinned by
+[`linux.lock.toml`](../image/kernel/de25-dma/linux.lock.toml):
+
+```sh
+python3 image/de25-nano/build.py managed-base \
+  --kernel /absolute/owner-kernel-build \
+  --sdk /absolute/locked/aarch64-sdk.tar.gz \
+  --output out/de25-managed-base --cache out/de25-linux-cache --jobs 4
+python3 image/de25-nano/build.py verify-base \
+  --output out/de25-managed-base --cache out/de25-linux-cache
+```
+
+This requires committed sources and uses the existing authenticated builder,
+download cache and filesystem assembly. It exports rootfs ext4/tar, a developer
+SDK, the matching kernel files and source-bound receipts. Verification checks
+the real ELF/library closure, fresh executable hashes and selected ext4/tar
+contents. These are build checks; native boot, drivers and service behavior
+still require board acceptance.
+
+This intermediate retains `/.fes-bootstrap` and leaves managed software startup
+disabled. It contains no runtime, factory bundle, RBF or card image. Final
+factory assembly must use the existing bundle and sealed-package checks with a
+validated DE25 MENU; this action does not bypass those checks or change a board.
+
 ## AArch64 runtime and agent checks without a board
 
 After building the C/C++ SDK, run:

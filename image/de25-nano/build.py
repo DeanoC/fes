@@ -178,20 +178,22 @@ def ensure_builder(source, runtime, volume):
                                     "--format", "{{.Id}}"], text=True).strip()
 
 
-def container(source, runtime, image, volume, cache, output, action, jobs):
+def container(source, runtime, image, volume, cache, output, action, jobs, inputs=None):
+    mounts = [] if inputs is None else ["--volume", f"{inputs}:/inputs:ro"]
     return run([runtime, "run", "--rm", "--platform", "linux/amd64",
-                "--network", "bridge" if action == "fetch" else "none",
+                "--network", "bridge" if action in ("fetch", "base-fetch") else "none",
                 "--user", f"{os.getuid()}:{os.getgid()}", "--ulimit", "core=0:0",
                 # Buildroot's fakeroot closes every possible descriptor at
                 # startup; container hosts may otherwise expose a billion.
                 "--ulimit", "nofile=65536:65536",
                 "--volume", f"{source}:/src:ro", "--volume", f"{volume}:/build",
                 "--volume", f"{cache}:/cache", "--volume", f"{output}:/export",
+                *mounts,
                 "--env", "LC_ALL=C", "--env", "TZ=UTC", image,
                 "python3", "/src/image/de25-nano/build.py", "_inside", action, str(jobs)])
 
 
-def prepare_buildroot(modules_overlay=None):
+def prepare_buildroot(modules_overlay=None, *, managed=False):
     data = lock()
     archive = Path("/cache") / data["buildroot"]["file"]
     if digest(archive) != data["buildroot"]["sha256"]:
@@ -203,21 +205,31 @@ def prepare_buildroot(modules_overlay=None):
         shutil.rmtree(source)
     source.mkdir(parents=True)
     run(["tar", "-xf", archive, "--strip-components=1", "-C", source])
-    output = Path("/build") / rootfs_key()
+    if managed:
+        import managed_base
+    output = Path("/build") / (managed_base.recipe_key() if managed else rootfs_key())
     output.mkdir(parents=True, exist_ok=True)
     config = output / "de25_defconfig"
-    if modules_overlay is None:
+    if managed:
+        config.write_text(managed_base.configuration())
+    elif modules_overlay is None:
         raise ValueError("DE25 rootfs requires the verified kernel-module overlay")
-    config.write_text((LANE / "rootfs/defconfig").read_text()
-                      .replace("@ROOTFS_DIR@", str(LANE / "rootfs"))
-                      .replace("@KERNEL_MODULES_DIR@", str(modules_overlay)))
+    else:
+        config.write_text((LANE / "rootfs/defconfig").read_text()
+                          .replace("@ROOTFS_DIR@", str(LANE / "rootfs"))
+                          .replace("@KERNEL_MODULES_DIR@", str(modules_overlay)))
     environment = dict(os.environ, SOURCE_DATE_EPOCH=str(data["source_date_epoch"]),
                        BR2_DL_DIR="/cache/dl")
     command = ["make", "-C", source, f"O={output}", f"BR2_DEFCONFIG={config}"]
+    if managed:
+        command.append(f"BR2_EXTERNAL={ROOT / 'image/buildroot'}")
+        environment.update(FOGCAST_DIR=str(ROOT / "sources/FogCast"),
+                           FES_TARGET_BOARD=BOARD)
     run([*command, "defconfig"], env=environment)
     configured = (output / ".config").read_text()
-    for option in ("BR2_aarch64=y", "BR2_cortex_a53=y", "BR2_TOOLCHAIN_BUILDROOT_GLIBC=y",
-                   "BR2_TOOLCHAIN_BUILDROOT_CXX=y",
+    toolchain = (("BR2_TOOLCHAIN_EXTERNAL_CUSTOM_GLIBC=y", "BR2_TOOLCHAIN_EXTERNAL_CXX=y")
+                 if managed else ("BR2_TOOLCHAIN_BUILDROOT_GLIBC=y", "BR2_TOOLCHAIN_BUILDROOT_CXX=y"))
+    for option in ("BR2_aarch64=y", "BR2_cortex_a53=y", *toolchain,
                    "BR2_PACKAGE_DROPBEAR=y", 'BR2_TARGET_GENERIC_GETTY_PORT="ttyS0"'):
         if option not in configured.splitlines():
             raise ValueError("Buildroot configuration lost required selection " + option)
@@ -344,6 +356,9 @@ def smoke_rootfs(directory):
 
 
 def inside(action, jobs):
+    if action.startswith("base-"):
+        import managed_base
+        return managed_base.inside(action, jobs)
     output = Path("/export")
     if action in ("verify", "smoke"):
         checks = smoke_rootfs(output) if action == "smoke" else verify_rootfs(output)
@@ -409,17 +424,19 @@ def artifact_names(source=ROOT):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("fetch", "build", "verify", "smoke", "_inside"),
-                        metavar="{fetch,build,verify,smoke}")
+    parser.add_argument("action", choices=("fetch", "build", "verify", "smoke", "managed-base", "verify-base", "_inside"),
+                        metavar="{fetch,build,verify,smoke,managed-base,verify-base}")
     parser.add_argument("inside_action", nargs="?", help=argparse.SUPPRESS)
     parser.add_argument("inside_jobs", nargs="?", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--output", type=Path, default=ROOT / "out/de25-nano-linux")
     parser.add_argument("--cache", type=Path, default=ROOT / "out/de25-linux-cache")
     parser.add_argument("--jobs", type=int, default=min(8, os.cpu_count() or 1))
     parser.add_argument("--container-runtime", default="docker")
+    parser.add_argument("--kernel", type=Path, help="verified matching owner-kernel build for managed-base")
+    parser.add_argument("--sdk", type=Path, help="AArch64 SDK archive pinned by the owner-kernel source lock")
     args = parser.parse_args(argv)
     if args.action == "_inside":
-        if str(ROOT) != "/src" or args.inside_action not in ("fetch", "build", "verify", "smoke"):
+        if str(ROOT) != "/src" or args.inside_action not in ("fetch", "build", "verify", "smoke", "base-fetch", "base-build", "base-verify"):
             parser.error("internal action requires the isolated DE25 builder")
         inside(args.inside_action, args.inside_jobs)
         return 0
@@ -427,6 +444,14 @@ def main(argv=None):
         parser.error("--jobs must be between 1 and 64")
     if args.inside_action is not None or args.inside_jobs is not None:
         parser.error("unexpected positional arguments")
+    if args.action in ("managed-base", "verify-base"):
+        import managed_base
+        try:
+            return managed_base.publish(args)
+        except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
+            parser.exit(1, f"de25-managed-base: {error}\n")
+    if args.kernel is not None or args.sdk is not None:
+        parser.error("--kernel and --sdk apply only to managed-base")
     cache, output = args.cache.resolve(), args.output.resolve()
     cache.mkdir(parents=True, exist_ok=True)
     try:
