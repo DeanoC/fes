@@ -45,7 +45,7 @@ seal, and the record says below why a rerun is owed once #1335 lands.
 - **Package.** `fes.pc386` `457444bf9ae851f7d115e0df1a0cead19f1b84cbfa6b27f04e93f635f806df52`
   (build `4681e16d…`). It is #1335's seal of `f2b12145a`, the keyboard and mouse
   slice with main `58edb6b3b` merged in. Its record is
-  [2026-11-01-pc386-m5-input](https://github.com/DeanoC/fes/blob/deano/pc386-m5-input/docs/validation/2026-11-01-pc386-m5-input/summary.md).
+  [2026-11-01-pc386-m5-input](../2026-11-01-pc386-m5-input/summary.md) (on #1335's branch until it lands).
   - #1335 is still open. Its head is now `bcb9f9098`, which adds review fixes in
     `pc386_kbc.sv` and `pc386_hid_keyboard.sv` after that seal.
   - The package for main's pc386 tree once #1335 lands will therefore be a new
@@ -172,7 +172,8 @@ interfaces. The prompt was stable 32.5-32.8 s after each launch.
 Results against the per-game table in
 [`pc386-machine-design.md`](../../../sources/misteross/docs/pc386-machine-design.md#per-game).
 Audio levels are with the capture's DC offset removed (see findings), from
-[`metrics.json`](metrics.json).
+[`metrics.json`](metrics.json). Its burst lists are the 100 ms windows above
+−40 dBFS by raw RMS; the −48 dBFS that the offset alone gives sits below that.
 
 ### FreeDOS
 
