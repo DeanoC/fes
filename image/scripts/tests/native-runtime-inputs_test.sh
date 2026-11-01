@@ -421,7 +421,7 @@ $selected_fogcast/bin/.installed:
 EOF
 FOGCAST_DIR="$selected_fogcast" FES_PREBUILT_RUNTIME_SHA256="$prebuilt_sha" \
   make --no-print-directory -s -f "$fixture/prebuilt.mk" \
-  TARGET_DIR="$fixture/prebuilt-target" INSTALL=install
+  BR2_arm=y TARGET_DIR="$fixture/prebuilt-target" INSTALL=install
 cmp "$selected_fogcast/bin/mister-runtime-linux-armv7" "$fixture/prebuilt-target/usr/sbin/mister-runtime" || fail 'prebuilt runtime installation differs'
 printf '%s\n' 'prebuilt runtime verification and installation passed'
 
@@ -447,3 +447,15 @@ if FES_TARGET_BOARD=unknown-board sh "$repo/scripts/verify-native-runtime-inputs
   fail 'unknown board accepted'
 fi
 printf '%s\n' 'DE25 runtime selection and cross-board refusal passed'
+FOGCAST_DIR="$selected_fogcast" FES_PREBUILT_RUNTIME_SHA256="$de25_sha" \
+  make --no-print-directory -s -f "$fixture/prebuilt.mk" \
+  BR2_aarch64=y TARGET_DIR="$fixture/prebuilt-de25-target" INSTALL=install
+cmp "$selected_fogcast/bin/mister-runtime-linux-aarch64" "$fixture/prebuilt-de25-target/usr/sbin/mister-runtime" || fail 'DE25 prebuilt runtime installation differs'
+printf '%s\n' changed >"$selected_fogcast/bin/mister-runtime-linux-aarch64"
+before=$(sha256sum "$fixture/prebuilt-de25-target/usr/sbin/mister-runtime")
+if FOGCAST_DIR="$selected_fogcast" FES_PREBUILT_RUNTIME_SHA256="$de25_sha" \
+  make --no-print-directory -s -f "$fixture/prebuilt.mk" \
+  BR2_aarch64=y TARGET_DIR="$fixture/prebuilt-de25-target" INSTALL=install > /dev/null 2>&1; then
+  fail 'DE25 installed a changed runtime'
+fi
+test "$before" = "$(sha256sum "$fixture/prebuilt-de25-target/usr/sbin/mister-runtime")" || fail 'failed hash check changed the installed runtime'
