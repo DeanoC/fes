@@ -212,6 +212,20 @@ def run_directed(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
+def run_unreal(testbench: str, env: dict) -> dict:
+    """The directed unreal-mode cases (lockstep_tb.cpp's run_unreal_cases):
+    extended DS, ES, FS, GS and SS limits that survive real-mode reloads, a
+    normal GS and SS that fault at FFFFh, and the 386 real-mode CS rule."""
+    env = dict(env, FES_I386_MODE='unreal', FES_I386_LATENCY='1')
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'unreal cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != 5:
+        raise LockstepError(f'unreal cases: testbench ran {summary["runs"]} of 5 cases')
+    return {'summary': summary, 'failures': failures}
+
+
 def divergence_table(entries: list[dict], path: Path) -> None:
     """The opcode-class entries, for the testbench to apply per retirement."""
     lines = []
@@ -387,6 +401,7 @@ def main() -> int:
         env = dict(os.environ, FES_I386_DIVERGENCES=str(table), FES_I386_LATENCY='0' if args.no_latency else '1')
         reset_store = run_reset_store(testbench, env)
         directed = run_directed(testbench, env)
+        unreal = run_unreal(testbench, env)
         memory = run_memory(testbench, env)
 
         corpus = args.corpus or vectors.OUTPUT / 'corpus' / vectors.REVISION
@@ -474,7 +489,7 @@ def main() -> int:
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
     random_failures += held
     reset_store_failures = reset_store['failures']
-    directed_failures = directed['failures']
+    directed_failures = directed['failures'] + unreal['failures']
     memory_failures = memory['failures']
     if (biu_dma_failures or corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures
             or directed_failures or memory_failures):
@@ -483,6 +498,7 @@ def main() -> int:
         'biu_dma_test': biu_dma,
         'reset_store': reset_store,
         'directed_cases': directed,
+        'unreal_cases': unreal,
         'memory_cases': memory,
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
                    'fault_vectors': dict(fault_vectors), 'divergence_retirements': dict(divergences),
@@ -548,6 +564,8 @@ def main() -> int:
     print(f"BIU DMA/store: {biu_dma['output'] or 'FAIL'}")
     print(f"reset-store-on-reset: {reset_store['summary']['passed']} pass, {reset_store['summary']['failed']} fail")
     print(f"directed cases: {directed['summary']['passed']} pass, {directed['summary']['failed']} fail")
+    print(f"unreal-mode cases: {unreal['summary']['passed']} pass, {unreal['summary']['failed']} fail "
+          f"({unreal['summary']['cs_rule']} real-mode CS loads under the 386 rule)")
     print(f"memory cases (DMA, FLUSH): {memory['summary']['passed']} pass, {memory['summary']['failed']} fail")
     for line in (biu_dma_failures + reset_store_failures + directed_failures + memory_failures + unbuilt_failures + corpus_failures
                  + random_failures)[:40]:

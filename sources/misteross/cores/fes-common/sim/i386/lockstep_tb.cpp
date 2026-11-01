@@ -69,6 +69,11 @@
 //           after FES_I386_RETIRE_LIMIT retirements, at an interrupt through
 //           a vector entry it rewrote, or at a store into its code other
 //           than those rewrites, after which it may run anything.
+//           FES_I386_PM protected-mode blocks per hundred items (pm_block,
+//           default 2): LGDT, PE set, far jumps to code descriptors,
+//           segment loads, accesses, CR and table moves, back to real mode
+//           (unreal); an exception or interrupt with PE set stops the RTL,
+//           whose vector and error code must be the oracle's first event.
 //   unbuilt encodings this build does not execute, one per line on stdin as
 //           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
 //           anything retires. The RTL runs alone; the oracle is not stepped.
@@ -80,6 +85,7 @@
 //             fetch, issue and data reads stay inactive after a handler HLT;
 //             an INT and a fault whose delivery faults must stop with nothing
 //             written.
+//   unreal    the directed unreal-mode cases (run_unreal_cases).
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
@@ -4017,6 +4023,177 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
     return 0;
 }
 
+// ---- Unreal mode (directed) ---------------------------------------------------------
+// docs/i386-cpu-design.md's planned unreal-mode test, against the oracle with
+// the RTL-only checks of the 386 real-mode CS rule. Each case runs from
+// 0000:1000 in real mode with a GDT at 2000h (LGDT's pointer at 2100h):
+//   08h code, 16-bit, base 0, 64K      18h data, base 0, 64K
+//   10h data, base 0, 4 GiB (G)        20h code, 16-bit, base 0, 4 GiB (G)
+// It enters protected mode, far-jumps to a code descriptor, loads DS, ES,
+// FS, GS and SS there, clears PE, far-jumps to 0000 in real mode (whose CS
+// load sets CS to limit FFFFh and access rights 93h on the RTL, where
+// Bochs 3.1 keeps the cache: the lockstep's cs_rule adoption), reloads the
+// segments in real mode and reads or writes through them:
+//   unreal       all five loaded with 10h: each reads or writes at 2 MiB
+//                (32-bit addresses), no fault; HLT.
+//   normal-gs    GS loaded with 18h: a word at GS:FFFFh raises #GP(0).
+//   normal-ss    SS loaded with 18h: a word at SS:FFFFh raises #SS(0).
+//   cs-rule      the code descriptor is 20h (4 GiB): with PE clear CS still
+//                reads at 10000h; after the real-mode far jump CS's limit
+//                is FFFFh (RTL), so a word at CS:FFFFh raises #GP(0).
+//   cs-rule-hlt  as cs-rule, halting after the far jump: the RTL's CS must
+//                be limit FFFFh, access rights 93h, D/B and G clear.
+// The run checks the RTL's segment caches after the reloads as well
+// (unreal: DS, ES, FS, GS and SS at limit FFFFFFFFh).
+int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                     Summary &summary) {
+    (void)entries;
+    struct Asm {
+        std::vector<uint8_t> b;
+        void op(std::initializer_list<uint8_t> bytes) { b.insert(b.end(), bytes); }
+        void w(uint16_t v) { b.push_back(uint8_t(v)); b.push_back(uint8_t(v >> 8)); }
+        void d(uint32_t v) { w(uint16_t(v)); w(uint16_t(v >> 16)); }
+        size_t here() const { return b.size(); }
+    };
+    constexpr uint32_t CODE = 0x1000, GDT = 0x2000;
+    auto desc = [](uint32_t base, uint32_t limit, uint8_t ar, bool g, bool db) {
+        return uint64_t(limit & 0xffff) | uint64_t(base & 0xffff) << 16 | uint64_t((base >> 16) & 0xff) << 32
+             | uint64_t(ar) << 40 | uint64_t((limit >> 16) & 0xf) << 48 | uint64_t(db) << 54 | uint64_t(g) << 55
+             | uint64_t(base >> 24) << 56;
+    };
+    const uint64_t gdt[5] = {0, desc(0, 0xffff, 0x9b, false, false), desc(0, 0xfffff, 0x93, true, false),
+                             desc(0, 0xffff, 0x93, false, false), desc(0, 0xfffff, 0x9b, true, false)};
+    struct Case { const char *label; uint16_t code_sel; uint16_t gs_sel, ss_sel; int ending; };  // ending: 0 HLT, else vector
+    const Case cases[] = {
+        {"unreal", 0x08, 0x10, 0x10, -1},
+        {"normal-gs", 0x08, 0x18, 0x10, 13},
+        {"normal-ss", 0x08, 0x10, 0x18, 12},
+        {"cs-rule", 0x20, 0x10, 0x10, 13},
+        {"cs-rule-hlt", 0x20, 0x10, 0x10, -2},
+    };
+    for (const Case &c : cases) {
+        Asm a;
+        a.op({0xfa, 0x31, 0xc0, 0x8e, 0xd8});                // CLI; XOR AX, AX; MOV DS, AX
+        a.op({0x0f, 0x01, 0x16}); a.w(0x2100);              // LGDT [2100h]
+        a.op({0x0f, 0x20, 0xc0, 0x0c, 0x01, 0x0f, 0x22, 0xc0});  // MOV EAX, CR0; OR AL, 1; MOV CR0, EAX
+        const size_t jmp_pm = a.here();
+        a.op({0xea}); a.w(0); a.w(c.code_sel);              // JMP code_sel:pm
+        const uint16_t pm = uint16_t(CODE + a.here());
+        a.b[jmp_pm + 1] = uint8_t(pm); a.b[jmp_pm + 2] = uint8_t(pm >> 8);
+        a.op({0xb8, 0x10, 0x00, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xe0});  // MOV AX, 10h; MOV DS, ES, FS, AX
+        a.op({0xb8}); a.w(c.gs_sel); a.op({0x8e, 0xe8});    // MOV AX, gs_sel; MOV GS, AX
+        a.op({0xb8}); a.w(c.ss_sel); a.op({0x8e, 0xd0});    // MOV AX, ss_sel; MOV SS, AX
+        a.op({0x0f, 0x20, 0xc0, 0x24, 0xfe, 0x0f, 0x22, 0xc0});  // MOV EAX, CR0; AND AL, FEh; MOV CR0, EAX
+        if (c.code_sel == 0x20) {
+            a.op({0x66, 0xbb}); a.d(0x10000);              // MOV EBX, 10000h
+            a.op({0x2e, 0x67, 0x8b, 0x03});                // MOV AX, CS:[EBX]: CS's 4 GiB limit, PE clear
+        }
+        const size_t jmp_rm = a.here();
+        a.op({0xea}); a.w(0); a.w(0);                       // JMP 0000:rm
+        const uint16_t rm = uint16_t(CODE + a.here());
+        a.b[jmp_rm + 1] = uint8_t(rm); a.b[jmp_rm + 2] = uint8_t(rm >> 8);
+        if (c.ending == -2) {
+            a.op({0xf4});
+        } else {
+            // Real-mode reloads, then accesses.
+            a.op({0xb8, 0x00, 0x01, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xe0, 0x8e, 0xe8, 0x8e, 0xd0});
+            a.op({0xbc, 0x00, 0x08});                       // MOV SP, 0800h (SS.base 1000h)
+            if (c.ending == -1) {
+                a.op({0x66, 0xbb}); a.d(0x00200000);         // MOV EBX, 200000h
+                a.op({0x67, 0x66, 0x8b, 0x03});              // MOV EAX, [EBX]
+                a.op({0x26, 0x67, 0x66, 0x89, 0x03});        // MOV ES:[EBX], EAX
+                a.op({0x64, 0x67, 0x66, 0x89, 0x43, 0x04});  // MOV FS:[EBX+4], EAX
+                a.op({0x65, 0x67, 0x66, 0x8b, 0x4b, 0x08});  // MOV ECX, GS:[EBX+8]
+                a.op({0x36, 0x67, 0x66, 0x89, 0x4b, 0x0c});  // MOV SS:[EBX+12], ECX
+                a.op({0xf4});
+            } else if (c.ending == 12) {
+                a.op({0xbb, 0xff, 0xff, 0x36, 0x8b, 0x07});  // MOV BX, FFFFh; MOV AX, SS:[BX]
+                a.op({0xf4});
+            } else if (c.code_sel == 0x20) {
+                a.op({0x2e, 0x8b, 0x1e, 0xff, 0xff});        // MOV BX, CS:[FFFFh]
+                a.op({0xf4});
+            } else {
+                a.op({0x65, 0x8b, 0x06, 0xff, 0xff});        // MOV AX, GS:[FFFFh]
+                a.op({0xf4});
+            }
+        }
+        std::vector<std::pair<uint32_t, uint8_t>> image;
+        for (size_t i = 0; i < a.b.size(); ++i) image.emplace_back(CODE + uint32_t(i), a.b[i]);
+        for (unsigned n = 0; n < 5; ++n)
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(GDT + 8 * n + i, uint8_t(gdt[n] >> (8 * i)));
+        for (unsigned i = 0; i < 6; ++i) image.emplace_back(0x2100 + i, uint8_t((uint64_t(GDT) << 16 | 0x27) >> (8 * i)));
+        image.emplace_back(HANDLER, 0xf4);
+        for (uint32_t vector : {12u, 13u}) {
+            image.emplace_back(vector * 4, uint8_t(HANDLER));
+            image.emplace_back(vector * 4 + 1, uint8_t(HANDLER >> 8));
+            image.emplace_back(vector * 4 + 2, 0);
+            image.emplace_back(vector * 4 + 3, 0);
+        }
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, value);
+            oracle.invalidate(address, 1);
+        }
+        State state;
+        for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+        state.eip = CODE;
+        state.gpr[fes_i386::REG_ESP] = 0x0f00;
+        state.cr0 = 0x7ffffff0;
+        oracle.reset();
+        oracle.set_state(state);
+        rtl.start(state);
+        Mismatches out;
+        Outcome outcome;
+        const uint64_t cs_rule = summary.cs_rule;
+        try {
+            const std::vector<Entry> no_divergences;
+            outcome = lockstep(oracle, bus, rtl, no_divergences, Fields{}, 64, true, summary, out, CODE + uint32_t(a.b.size()));
+        } catch (const std::exception &error) {
+            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
+            oracle.reset();
+        }
+        const State s = rtl.state();
+        const std::string label = c.label;
+        if (c.ending < 0) {
+            if (!outcome.halted) out.add(label + ".halt", 1, 0);
+            if (outcome.exception >= 0) out.add(label + ".exception", 0xff, uint32_t(outcome.exception));
+        } else if (outcome.exception != c.ending) {
+            out.add(label + ".exception", uint32_t(c.ending), outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
+        }
+        if (c.ending == -1)
+            for (int k : {fes_i386::SEG_DS, fes_i386::SEG_ES, fes_i386::SEG_FS, fes_i386::SEG_GS, fes_i386::SEG_SS})
+                if (s.seg[k].limit != 0xffffffffu || s.seg[k].base != 0x1000) out.add(label + ".unreal." + SEG_NAMES[k], 0xffffffffu, s.seg[k].limit);
+        // The 386 rule: the real-mode far jump sets CS's cache, where Bochs
+        // kept the 4 GiB code descriptor's (the oracle took the RTL's).
+        if (c.ending == -2) {
+            const auto &cs = s.seg[fes_i386::SEG_CS];
+            if (cs.limit != 0xffff || cs.ar != 0x93 || cs.base != 0) out.add(label + ".cs", 0x93ffff, uint64_t(cs.ar) << 32 | cs.limit);
+        }
+        if (c.code_sel == 0x20 && summary.cs_rule == cs_rule) out.add(label + ".cs-rule-unused", 1, 0);
+        end_run(bus, rtl, outcome.halted, out);
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        rtl.written.clear();
+        ++summary.runs;
+        if (out.items.empty()) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL unreal:" << label;
+            for (const auto &item : out.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+    }
+    return 0;
+}
+
 // The memory system's ports the lockstep does not drive: DMA and FLUSH. Each
 // case runs a program from 0000:1000 in real mode with the RTL alone, makes
 // its request part way, and checks what the CPU or DDR shows after it.
@@ -4484,6 +4661,8 @@ int main(int argc, char **argv) {
     } else if (mode == "directed") {
         run_fault_regressions(*oracle, bus, rtl, entries, summary);
         run_smc_cases(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "unreal") {
+        run_unreal_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "unbuilt") {
         run_unbuilt(rtl, summary);
     } else if (mode == "memory") {
