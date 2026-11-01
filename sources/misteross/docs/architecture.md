@@ -59,7 +59,9 @@ The diagnostic uses the standard Quartus Pro compile tasks separately, from
 IP generation and synthesis through every fitter stage, signoff timing and
 assembly. Each task has a 120-second limit, heartbeat and retained log. Failed
 tasks stop sealing and terminate only their owned process group. The recipe
-changes no timing constraint, seed or optimization mode. Its canonical record
+accepts an explicit 1–16 compiler worker limit, binding the selected count in
+the project, functional record and build receipt. The default is two workers.
+It changes no timing constraint, seed or optimization mode. Its canonical record
 binds this bounded flow and the actual `quartus_syn` executable.
 The [physical diagnostic](../../../docs/validation/2026-10-30-de25-embedded-control-hardware/README.md)
 checks that endpoint and its local responder on one exact DE25 SOF through JTAG;

@@ -50,6 +50,10 @@ sealing and terminates only that task's process group; partial outputs remain
 for diagnosis. No timing option, seed, constraint or optimization mode changes.
 The canonical record binds this recipe and the actual `quartus_syn` executable;
 it does not use the older `quartus_map` identity as a synthesis proxy.
+`--jobs 1..16` selects the compiler worker limit (default 2). The project,
+functional build record and build receipt record the count; verification
+requires all three to agree. Use the explicit available CPU count on the build
+host when a two-worker fitter cannot finish within the per-task limit.
 
 For a content-sealed diagnostic format-2 package, add `--sealed-diagnostic` to
 the `build` command. This requires a clean checkout and uses the selected

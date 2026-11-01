@@ -14,6 +14,7 @@ spec.loader.exec_module(seal)
 class SealedIdentityTests(unittest.TestCase):
     def test_record_binds_board_snapshot_vendor_tools_and_abi(self):
         inputs = {"device": seal.DEVICE, "diagnostic_only": True, "board_fes_revision": "a" * 40,
+                  "compile_processors": 2,
                   "overlay_source_state": "committed", "vendor_archive_sha256": "b" * 64,
                   "functional_snapshot_sha256": {"source": "c" * 64}}
         closure = {seal.RECIPE: "d" * 64, seal.DEFINITION: "e" * 64}
@@ -25,6 +26,7 @@ class SealedIdentityTests(unittest.TestCase):
             self.assertEqual(first, seal.encode_build_record(json.loads(first)))
             self.assertEqual(json.loads(first)["parameters"]["snapshot_sha256"], seal.snapshot_digest(inputs["functional_snapshot_sha256"]))
             for key, value in (("board_fes_revision", "1" * 40), ("vendor_archive_sha256", "2" * 64),
+                               ("compile_processors", 16),
                                ("functional_snapshot_sha256", {"source": "3" * 64})):
                 changed = copy.deepcopy(inputs)
                 changed[key] = value

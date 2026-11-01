@@ -70,6 +70,7 @@ def inputs_for(project):
                 fields["parameters"].get("board_revision") != identity["board_fes_revision"] or
                 fields["parameters"].get("control_abi") != identity["control_abi"] or
                 fields["parameters"].get("device") != seal.DEVICE or
+                fields["parameters"].get("parallel_processors") != inputs.get("compile_processors") or
                 fields["parameters"].get("classification") != "de25-two-revision-diagnostic" or
                 fields["revision"] != identity["overlay_fes_revision"] or
                 seal.build_identity(record) != build_id or identity.get("board_fingerprint") != fingerprint):
@@ -101,6 +102,7 @@ def inputs_for(project):
                 payload.read_bytes() != package.payload_bytes or
                 (board / "hps/packages" / (result["package_id"] + ".build-inputs.json")).read_bytes() != record or
                 build["inputs_sha256"] != sha(board / "hps/inputs.json") or
+                build.get("parallel_processors") != inputs.get("compile_processors") or
                 build["sha256"] != sha(raw_sof) or result["raw_sof_sha256"] != sha(raw_sof) or
                 result["combined_sof_sha256"] != sha(combined) or result["vendor_spl_sha256"] != sha(spl) or
                 result["build_inputs_sha256"] != identity["build_inputs_sha256"] or
@@ -147,6 +149,8 @@ def inputs_for(project):
     if sha(script) != inputs["computer"]["integration_sha256"]:
         raise ValueError("project integration script differs")
     qsf = (board / "hps/project/golden_top.qsf").read_text()
+    if re.findall(r'(?m)^set_global_assignment -name NUM_PARALLEL_PROCESSORS ([^\r\n]+)$', qsf) != [str(inputs.get('compile_processors'))]:
+        raise ValueError('project compile processor selection differs')
     if qsf.count(f"FES_DE25_COMPUTER_BUILD_ID=128'h{build_id}") != 1:
         raise ValueError("project build-ID macro differs")
     if inputs["computer"].get("hps_initialization") == "HPS FIRST" and re.findall(

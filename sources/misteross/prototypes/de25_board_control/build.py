@@ -98,6 +98,7 @@ def compile_project(output, tool):
                if path.is_file() and path.suffix in ('.rpt', '.summary')}
     record = {'diagnostic_only': True, 'board': 'de25_nano', 'device': 'A5EB013BB23BE4SCS',
               'fes_revision': json.loads((output/'inputs.json').read_text()).get('fes_revision'),
+              'parallel_processors': json.loads((output/'inputs.json').read_text())['compile_processors'],
               'artifact': str(artifact.relative_to(output)), 'sha256': digest(artifact.read_bytes()),
               'quartus_version': (output/'quartus-version.txt').read_text().strip(),
               'commands': commands, 'phase_limit_seconds': PHASE_LIMIT_SECONDS,
@@ -155,6 +156,23 @@ def replace_once(text, before, after):
     if text.count(before) != 1:
         raise ValueError("board integration anchor changed")
     return text.replace(before, after)
+
+
+def configure_processors(output, processors):
+    """Override only the captured helper's two-worker compiler selection."""
+    if type(processors) is not int or not 1 <= processors <= 16:
+        raise ValueError('compile processor count must be between 1 and 16')
+    qsf = output/'hps/project/golden_top.qsf'
+    source = qsf.read_text()
+    pattern = r'(?m)^set_global_assignment -name NUM_PARALLEL_PROCESSORS ([^\r\n]+)$'
+    if re.findall(pattern, source) != ['2']:
+        raise ValueError('captured compile processor selection differs')
+    selected = re.sub(pattern, 'set_global_assignment -name NUM_PARALLEL_PROCESSORS '+str(processors), source)
+    inputs_file = output/'hps/inputs.json'
+    inputs = json.loads(inputs_file.read_text())
+    inputs['compile_processors'] = processors
+    qsf.write_text(selected)
+    inputs_file.write_text(json.dumps(inputs, indent=2, sort_keys=True)+'\n')
 
 
 def overlay_project(output, board, sources, identity, record=None):
@@ -268,6 +286,8 @@ def main():
     parser.add_argument("--allow-dirty", action="store_true")
     parser.add_argument("--sealed-diagnostic", action="store_true", help="build a committed diagnostic-only format-2 package")
     parser.add_argument("--hps-first", action="store_true", help="select the captured board producer's HPS-first profile")
+    parser.add_argument("--jobs", type=int, choices=range(1, 17), default=2,
+                        help="explicit compiler worker limit, recorded in the functional identity (default: 2)")
     args = parser.parse_args()
     try:
         output = args.output.absolute()
@@ -293,6 +313,7 @@ def main():
             result, hps, _ = board.prepare_captured(args.vendor_archive, output / "board", sources, selected, hps_first=True)
         else:
             result, hps, _ = board.prepare_captured(args.vendor_archive, output / "board", sources, selected)
+        configure_processors(result, args.jobs)
         record = None
         if args.sealed_diagnostic:
             import seal

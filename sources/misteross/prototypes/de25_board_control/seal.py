@@ -87,6 +87,9 @@ def make_record(inputs, revision, repository, tools):
     sources = inputs["functional_snapshot_sha256"]
     if not sources or not inputs["board_fes_revision"] or inputs["overlay_source_state"] != "committed":
         raise ValueError("sealed diagnostic requires committed, captured sources")
+    processors = inputs.get('compile_processors')
+    if type(processors) is not int or not 1 <= processors <= 16:
+        raise ValueError('sealed diagnostic requires explicit compile processor count')
     closure = source_input_closure(ROOT, ROOTS)
     order = boot_order(inputs)
     fields = {
@@ -100,6 +103,7 @@ def make_record(inputs, revision, repository, tools):
                        "system_hz": 100000000, "pixel_hz": 74250000,
                        "spl_member": SPL_MEMBER, "hps_initialization": order,
                        "compile_flow": "quartus-pro-bounded-tasks-v1",
+                       "parallel_processors": processors,
                        "conversion": "hps-first-split-rbf-v1" if order == "HPS FIRST" else "sof+hps-hex-to-sof;sof-to-rbf"},
     }
     return encode_build_record(fields)

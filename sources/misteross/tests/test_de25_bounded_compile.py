@@ -18,7 +18,7 @@ spec.loader.exec_module(build)
 class BoundedCompileTests(unittest.TestCase):
     def fixture(self, root):
         output=root/'build';project=output/'project';project.mkdir(parents=True)
-        (output/'inputs.json').write_text('{"fes_revision":"host-test"}')
+        (output/'inputs.json').write_text('{"fes_revision":"host-test","compile_processors":2}')
         (output/'quartus-version.txt').write_text('host-test compiler; no FPGA output')
         (project/'clocks.sdc').write_text('source constraint fixture\n')
         tool=root/'compiler';tool.write_text('''#!/usr/bin/env python3
@@ -51,6 +51,7 @@ if task=='assembler':
             record=json.loads((output/'build.json').read_text())
             self.assertEqual(record['sha256'],build.digest(artifact.read_bytes()))
             self.assertEqual(record['phase_limit_seconds'],120)
+            self.assertEqual(record['parallel_processors'],2)
             self.assertEqual(record['hardware_acceptance'],'not-run')
             self.assertIn('clocks.sdc',record['generated_handoff_and_sdc_sha256'])
             for task,row in zip(expected,record['commands']):
@@ -68,6 +69,21 @@ if task=='assembler':
             self.assertEqual(calls.count('fitter_route'),1)
             self.assertFalse((output/'build.json').exists())
             self.assertFalse((project/'output_files/golden_top.sof').exists())
+
+    def test_explicit_processors_change_only_selection_and_bind_the_inputs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);hps=root/'hps';(hps/'project').mkdir(parents=True)
+            qsf=hps/'project/golden_top.qsf'
+            original='set_global_assignment -name SEED 1\nset_global_assignment -name NUM_PARALLEL_PROCESSORS 2\nset_global_assignment -name SDC_FILE clocks.sdc\n'
+            qsf.write_text(original);(hps/'inputs.json').write_text('{}')
+            build.configure_processors(root,16)
+            self.assertEqual(qsf.read_text(),original.replace('PROCESSORS 2','PROCESSORS 16'))
+            self.assertEqual(json.loads((hps/'inputs.json').read_text())['compile_processors'],16)
+            with self.assertRaises(ValueError):build.configure_processors(root,16)
+            for bad in (0,17,True,2.0):
+                with self.subTest(bad=bad),self.assertRaises(ValueError):build.configure_processors(root,bad)
+            qsf.write_text(original+original)
+            with self.assertRaises(ValueError):build.configure_processors(root,16)
 
     def test_expired_phase_is_reaped_without_replay_or_success_receipt(self):
         with tempfile.TemporaryDirectory() as temp:
