@@ -208,7 +208,7 @@ uops = [
 
 # POP Sreg in protected mode: DC reads the selector's word at SS:ESP into T0,
 # ESP unmoved. After the load, ESP steps by the operand size, at the width
-# of the SS the load leaves, as Bochs steps it.
+# SS had for the read, as Bochs pops before it loads.
 [[routine]]
 name = "ppop"
 uops = [

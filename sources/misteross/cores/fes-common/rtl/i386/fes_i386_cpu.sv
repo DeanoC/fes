@@ -553,6 +553,12 @@ module fes_i386_cpu #(
     logic [31:0] st_size, st_disp, st_sp_disp;
     assign stk = dc.stk;
     assign ss32 = seg_ar[SEG_SS][14];
+    // The stack's width for this uop: SS.B, but for a protected-mode POP
+    // Sreg's step of ESP (nochk) the width its read of the selector had (a
+    // STK_PEEK uop, the last before it), as Bochs pops before the load.
+    logic sst, pop_ss32;
+    assign sst = dc.nochk ? pop_ss32 : ss32;
+    always_ff @(posedge clk) if (issue && stk == fes_i386_pkg::STK_PEEK) pop_ss32 <= ss32;
     assign st_size = dc.opsize32 ? 32'd4 : 32'd2;
     always_comb begin
         st_disp = 32'd0;
@@ -575,7 +581,7 @@ module fes_i386_cpu #(
             fes_i386_pkg::STK_RETF: st_sp_disp = (dc.slot[0] ? st_size * 32'd3 : st_size << 1) + dc.uop.imm;
             default: ;
         endcase
-        if (!ss32) begin
+        if (!sst) begin
             st_disp = {16'b0, st_disp[15:0]};
             st_sp_disp = {16'b0, st_sp_disp[15:0]};
         end
@@ -588,7 +594,7 @@ module fes_i386_cpu #(
     fes_i386_pkg::mem_kind_e mkind;
     assign mkind = dc.uop.mem.kind;
     assign a_addr = dc.lea || mkind != fes_i386_pkg::MEM_NONE;
-    assign a_addr32 = stk != fes_i386_pkg::STK_NONE ? ss32 : dc.uop.mem.addr32;
+    assign a_addr32 = stk != fes_i386_pkg::STK_NONE ? sst : dc.uop.mem.addr32;
     assign mem = mkind != fes_i386_pkg::MEM_NONE;
     assign mem_reads = mkind == fes_i386_pkg::MEM_LOAD || mkind == fes_i386_pkg::MEM_RMW;
     assign mem_writes = mkind == fes_i386_pkg::MEM_STORE || mkind == fes_i386_pkg::MEM_RMW;
@@ -633,7 +639,7 @@ module fes_i386_cpu #(
                         && t1[0];
     always_comb begin
         u = dc.uop;
-        if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = ss32;
+        if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = sst;
         if (dc.uop.desc != 2'd0 && (t0_null || dc.uop.desc == 2'd3 && t3[8])) u.mem.kind = fes_i386_pkg::MEM_NONE;
         // POPAD's ESP image counts only on a 16-bit stack.
         if (dc.popad_esp && !(dc.opsize32 && !ss32)) u.dst.valid = 1'b0;
@@ -1055,7 +1061,7 @@ module fes_i386_cpu #(
         end
         if (!freeze) begin
             ag_stack <= stk != fes_i386_pkg::STK_NONE;
-            ag_ss32 <= ss32;
+            ag_ss32 <= sst;
             ag_leave <= stk == fes_i386_pkg::STK_LEAVE;
             // ENTER's last uop: ESP from the engine's offset, its high half
             // the copy's.

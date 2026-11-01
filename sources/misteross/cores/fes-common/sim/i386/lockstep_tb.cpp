@@ -3444,6 +3444,15 @@ private:
     uint16_t gdt_limit = 0;
     struct Desc { uint32_t base, limit; bool g, db; uint8_t ar; };  // ar: P DPL S type
     std::array<Desc, 16> gdt{};
+    std::array<uint64_t, 16> raw{};  // the descriptors as stored
+    // A far jump's selector to a TSS, task gate or call gate: not built.
+    bool gate(uint16_t sel) const {
+        const unsigned index = sel >> 3;
+        if (index >= 16 || index * 8 + 7 > gdt_limit) return false;
+        const uint8_t ar = uint8_t(raw[index] >> 40);
+        const unsigned type = ar & 15;
+        return !(ar & 0x10) && (type == 1 || type == 9 || type == 5 || type == 4 || type == 12);
+    }
     static uint64_t desc_bytes(const Desc &d) {
         const uint64_t lo = (d.limit & 0xffff) | (uint64_t(d.base & 0xffff) << 16);
         const uint64_t hi = ((d.base >> 16) & 0xff) | (uint64_t(d.ar) << 8) | (uint64_t((d.limit >> 16) & 0xf) << 16)
@@ -3475,6 +3484,7 @@ private:
         gdt_limit = pick(6) == 0 ? uint16_t(8 * (1 + pick(16)) - 1) : 0x7f;
         for (unsigned n = 0; n < 16; ++n) {
             const uint64_t d = n == 15 ? rng() : desc_bytes(gdt[n]);
+            raw[n] = d;
             for (unsigned i = 0; i < 8; ++i) image.emplace_back(gdt_lin + 8 * n + i, uint8_t(d >> (8 * i)));
         }
         for (unsigned i = 0; i < 6; ++i)
@@ -3679,7 +3689,12 @@ private:
                 }
                 break;
             }
-            case 7: if (pick(2)) pm_far_jump(pick(3) ? 0x30 : pick(2) ? 0x70 : pick(2) ? 0x40 : selector()); break;
+            case 7: {
+                uint16_t sel = pick(3) ? 0x30 : pick(2) ? 0x70 : pick(2) ? 0x40 : selector();
+                if (gate(sel)) sel = 0x30;
+                if (pick(2)) pm_far_jump(sel);
+                break;
+            }
             case 8: {  // PUSH r, POP r (not ESP)
                 unsigned reg = pick(7);
                 if (reg >= 4) ++reg;
