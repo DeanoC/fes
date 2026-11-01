@@ -144,5 +144,58 @@ class NativeTraceTests(unittest.TestCase):
         self.assertEqual(trace.OWNED_FLAGS, (values['FesEmbeddedBridgeTag'] << 32) | expected)
 
 
+class NativeSDTraceTests(unittest.TestCase):
+    expected={'bytes':1098,'sha256':'a'*64}
+    def capture(self):
+        raw=fixture().replace(f'U-Boot 2025.01-fes-nano-{BUILD}',
+              f'NOTICE:  FES_NANO_SD_PLATFORM setup=1 ready=1\r\nU-Boot 2025.01-fes-nano-{BUILD}')
+        raw=raw[:raw.index('PASS volatile memory filesystem')]
+        return raw+'\r\n'.join((
+            'FES_STORAGE_PROBE board=de25-nano EL=1 counter=400000000Hz writes=disabled',
+            f'FES_NANO_SD READ bytes=1098 sha256={"a"*64} cid={"b"*32} sectors=7774208 owner={OWNER:016x} generation=3',
+            f'FES_NANO_SD CONTAINED owner={OWNER:016x} generation=4',
+            f'FES_NANO_SD RESUMED bytes=1098 sha256={"a"*64} owner={OWNER:016x} generation=6',
+            f'FES_NANO_SD PASS read-only owner={OWNER:016x} generation=7',''))
+    def decode(self,raw):return trace.decode_native_boot(raw,BUILD,SEED,storage=self.expected)
+    def test_full_read_contain_resume_and_final_containment(self):
+        report=self.decode(self.capture())
+        self.assertTrue(report['complete'],report)
+        self.assertFalse(report['core_load_acceptance'])
+        self.assertEqual(report['last_checkpoint'],'sd_pass')
+        prefix=self.capture().split('SOCFPGA_AGILEX5 # ')[0]+'SOCFPGA_AGILEX5 # '
+        self.assertTrue(self.decode(prefix)['loader_ready'])
+        self.assertFalse(self.decode(prefix)['complete'])
+    def test_every_fragment_remains_partial_without_false_errors(self):
+        raw=self.capture().encode()
+        for end in range(len(raw)):
+            report=self.decode(raw[:end])
+            self.assertFalse(report['complete'],end)
+            self.assertEqual(report['errors'],[],(end,report))
+    def test_bad_hash_owner_generation_setup_and_each_missing_or_duplicate_stage(self):
+        raw=self.capture()
+        for old,new in (('setup=1 ready=1','setup=0 ready=0'),('bytes=1098','bytes=1099'),
+                        ('sha256='+'a'*64,'sha256='+'0'*64),('generation=7','generation=6'),
+                        ('generation=6','generation=5'),('generation=4','generation=3'),
+                        ('generation=3','generation=2'),('cid='+'b'*32,'cid='+'0'*32),
+                        (f'owner={OWNER:016x} generation',f'owner={OWNER+2:016x} generation')):
+            with self.subTest(new=new):
+                report=self.decode(raw.replace(old,new))
+                self.assertFalse(report['complete']);self.assertTrue(report['errors'])
+        lines=raw.splitlines(keepends=True)
+        for row in self.decode(raw)['records']:
+            i=row['line']-1
+            with self.subTest(stage=row['stage']):
+                self.assertFalse(self.decode(''.join(lines[:i]+lines[i+1:]))['complete'])
+                self.assertFalse(self.decode(''.join(lines[:i]+[lines[i]]+lines[i:]))['complete'])
+        self.assertTrue(self.decode(raw+'NOTICE:  FES_NANO_SD_FAILURE stage=12\r\n')['errors'])
+    def test_checked_expected_file_is_required_and_serial_cannot_grant_sd(self):
+        for value in ({},{'bytes':True,'sha256':'a'*64},{'bytes':1098,'sha256':'wrong'}):
+            with self.assertRaises(ValueError):trace.decode_native_boot('',BUILD,SEED,storage=value)
+        self.assertFalse(trace.decode_native_boot(self.capture(),BUILD,SEED)['complete'])
+        disabled=fixture().replace(f'U-Boot 2025.01-fes-nano-{BUILD}',
+                 f'NOTICE:  FES_NANO_SD_PLATFORM setup=0 ready=0\r\nU-Boot 2025.01-fes-nano-{BUILD}')
+        self.assertTrue(trace.decode_native_boot(disabled,BUILD,SEED)['complete'])
+
+
 if __name__ == '__main__':
     unittest.main()

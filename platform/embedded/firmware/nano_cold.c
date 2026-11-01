@@ -168,6 +168,19 @@ int fes_nano_cold_owns(void *p, uint64_t owner, uint64_t epoch)
         (now.per0 & FES_NANO_MASTER_RESET) != FES_NANO_MASTER_RESET) return fail(s);
     return 1;
 }
+int fes_nano_cold_sd_scope(struct fes_nano_cold *s, uint64_t owner,
+                           uint64_t epoch, unsigned active)
+{
+    struct fes_nano_cold_sample first, last;
+    if (!s || !s->valid || s->failed || active > 1 ||
+        owner != s->record.boot.owner || epoch != s->record.boot.epoch) return -1;
+    uint32_t expected = FES_NANO_MASTER_RESET & ~(active ? FES_NANO_COLD_SD_RESET : 0U);
+    if (sample(s, &first) || !stable(&s->record.last, &first, s->record.core) ||
+        (first.per0 & FES_NANO_MASTER_RESET) != expected ||
+        sample(s, &last) || !stable(&first, &last, s->record.core) ||
+        (last.per0 & FES_NANO_MASTER_RESET) != expected) return fail(s);
+    return 0;
+}
 int fes_nano_cold_consume(struct fes_nano_cold *s, const struct fes_nano_cold_record *r,
                            struct fes_nano_cold_io io, const uint8_t chain[32], uint64_t owner)
 {

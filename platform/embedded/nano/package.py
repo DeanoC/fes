@@ -12,7 +12,7 @@ import shutil
 import struct
 import subprocess
 
-from cold_profile import EXPERIMENTAL_FILE, MAX_FIT_SIZE
+from cold_profile import EXPERIMENTAL_FILE, MAX_FIT_SIZE, entry as checked_entry, selected_profile
 from upload import load_kit
 
 HERE=Path(__file__).resolve().parent
@@ -39,6 +39,8 @@ def main():
     if sha(recovery/'network-recovery.sof')!=base_record['sof_sha256']:raise ValueError('recovery SOF differs')
     fit,spl,image=uboot/'build/u-boot.itb',uboot/'build/spl/u-boot-spl-dtb.hex',entry/'entry.img'
     u=json.loads((uboot/'result.json').read_text());e=json.loads((entry/'result.json').read_text())
+    checked_entry(entry)
+    profile=selected_profile(e)
     native=u.get('native_handoff',{});config=(uboot/'build/.config').read_text()
     if (sha(vendor)!=VENDOR_SOF or u.get('status')!='built' or u.get('bl31_bridge_mode')!='owned-cold-serial' or
             u.get('fit_sha256')!=sha(fit) or u.get('spl_sha256')!=sha(spl) or not u.get('fit_atf_verified') or
@@ -46,7 +48,7 @@ def main():
             native.get('sealed_fit_sha256')!=sha(fit) or native.get('sealed_fit_size')!=fit.stat().st_size or
             native.get('experimental_fit_path')!=EXPERIMENTAL_FILE or
             native.get('entry_image_sha256')!=sha(image) or native.get('entry_receipt_sha256')!=sha(entry/'result.json') or
-            native.get('bl31_sha256')!=u.get('bl31_sha256') or native.get('profile_sha256')!=sha(HERE/'probe-profile.json') or
+            native.get('bl31_sha256')!=u.get('bl31_sha256') or native.get('profile_sha256')!=sha(profile) or
             u.get('fit_components',{}).get('fes-entry',{}).get('sha256')!=sha(image) or
             e.get('entry_image_sha256')!=sha(image) or e.get('target')!='de25-nano' or
             sha(uboot/'build/.config')!=u.get('config_sha256') or
@@ -87,12 +89,12 @@ def main():
         'bl31_sha256':u['bl31_sha256'],'sof_sha256':sha(candidate),'recovery_reference_sof_sha256':VENDOR_SOF,
         'network_recovery_sof_sha256':base_record['sof_sha256'],'base_recovery_image_sha256':base['image_sha256'],
         'recovery_fit_sha256':base['fit_sha256'],'protected_prefix_sha256':base['prefix_sha256'],
-        'profile_sha256':sha(HERE/'probe-profile.json'),'native_handoff':native,'experimental_fit_path':EXPERIMENTAL_FILE,
+        'profile_sha256':sha(profile),'native_handoff':native,'experimental_fit_path':EXPERIMENTAL_FILE,
         'native_entry_delivery':'sealed FIT loadable at 0x96080000; no BL33 SD access',
         'fat32_start_sector':PARTITION_SECTOR,'fat32_sectors':PARTITION_SECTORS,'embedded_spl_independently_decoded':True,
         'embedded_spl_identity':embedded_spl,
         'limitations':['cold serial source-bound candidate; not signed boot or hardware acceptance',
-                       'no active USB/Ethernet/FPGA provider or native SD driver',
+                       'no active USB/Ethernet/FPGA provider; controlled read-only native SD remains diagnostic',
                        'no atomic FAT update or durability/rollback guarantee through power loss',
                        'only regular files prepared; no board, flash or card touched']}
     (output/'BOOTCHAIN.JSON').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')

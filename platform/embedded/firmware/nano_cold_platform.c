@@ -13,6 +13,10 @@
 #define FES_COLD_BARRIER() dsbsy()
 #define FES_COLD_WAIT() udelay(10)
 #include "nano_cold_mmio.inc"
+#if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
+#include <common/debug.h>
+#include "nano_sd_platform.h"
+#endif
 
 static struct fes_nano_cold_record captured;
 static struct fes_nano_cold provider;
@@ -43,3 +47,33 @@ int fes_nano_platform_boot_record(struct fes_nano_boot_record *record,
         .quiesce=fes_nano_cold_quiesce,.quiescent=fes_nano_cold_quiescent};
     return 1;
 }
+
+#if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
+static struct fes_nano_sd_platform sd_platform;
+static unsigned sd_reported;
+static int sd_read(void *context, uintptr_t address, uint32_t *value)
+{ (void)context; dsbsy(); *value=mmio_read_32(address); dsbsy(); return 0; }
+static int sd_write(void *context, uintptr_t address, uint32_t value)
+{ (void)context; dsbsy(); mmio_write_32(address,value); dsbsy(); return 0; }
+static void sd_barrier(void *context) { (void)context; dsbsy(); }
+static void sd_wait(void *context) { (void)context; udelay(10); }
+void fes_nano_platform_sd_report(void)
+{
+    if (sd_reported++ || (!sd_platform.failed && !fes_nano_owned_sd.failed)) return;
+    NOTICE("FES_NANO_SD_FAILURE stage=%u error=%d address=%lx value=%08x mask=%08x expected=%08x\n",
+           sd_platform.stage, sd_platform.first_error, (unsigned long)sd_platform.last_address,
+           sd_platform.last_value, sd_platform.last_mask, sd_platform.last_expected);
+    for (unsigned i=0; i<FES_NANO_SD_CLOCK_REGS; i++)
+        NOTICE("FES_NANO_SD_CLOCK index=%u captured=%08x observed=%08x\n",
+               i,sd_platform.clocks[i],sd_platform.observed[i]);
+}
+int fes_nano_platform_sd_setup(void)
+{
+    struct fes_nano_sd_io io={0,sd_read,sd_write,sd_barrier,sd_wait};
+    int result=fes_nano_sd_platform_init(&sd_platform,&provider,io,FES_NANO_SD_QUALIFIED);
+    if (!result) result=fes_nano_sd_init(&fes_nano_owned_sd,&fes_nano_owned_bridges,
+                                       fes_nano_sd_platform_ops(&sd_platform),FES_NANO_SD_QUALIFIED);
+    if (result) { fes_nano_platform_sd_report(); return -1; }
+    return 1;
+}
+#endif

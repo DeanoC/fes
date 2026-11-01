@@ -14,6 +14,11 @@ void fes_nano_bridge_platform_invalidate(void);
  * or callbacks. The default provider has no qualified boot evidence. */
 int fes_nano_platform_boot_record(struct fes_nano_boot_record *, struct fes_nano_boot_policy *,
                                   struct fes_nano_master_ops *);
+/* Called only by secure setup under the shared lock after boot acceptance.
+ * Zero leaves SD unavailable; one installs the matched platform callbacks. */
+int fes_nano_platform_sd_setup(void);
+/* Report saved first-failure observations only; never sample failed hardware. */
+void fes_nano_platform_sd_report(void);
 int fes_nano_bridge_platform_handoff(const struct fes_nano_boot_record *,
                                      const struct fes_nano_boot_policy *, struct fes_nano_master_ops);
 #endif

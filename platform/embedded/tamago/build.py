@@ -47,9 +47,9 @@ def validate_native_elf(data, start, size, link_address):
 
 def profile_constants(profile):
     """Validate firmware memory and platform readiness, not a board default."""
-    expected = {"schema", "firmware", "ram_start", "ram_size", "entry", "reserved", "sd_input_clock_hz", "usb_phy_clock_hz", "uart_index", "network", "display", "fpga_probe", "handoff"}
-    if not isinstance(profile, dict) or set(profile) != expected or type(profile["schema"]) is not int or profile["schema"] != 7:
-        raise ValueError("expected exact schema-7 handoff fields")
+    expected = {"schema", "firmware", "ram_start", "ram_size", "entry", "reserved", "sd_input_clock_hz", "usb_phy_clock_hz", "uart_index", "network", "display", "fpga_probe", "sd_control", "handoff"}
+    if not isinstance(profile, dict) or set(profile) != expected or type(profile["schema"]) is not int or profile["schema"] != 8:
+        raise ValueError("expected exact schema-8 handoff fields")
     if not isinstance(profile["firmware"], str) or not profile["firmware"].strip():
         raise ValueError("firmware identity is required")
     required = {"el1", "single_cpu", "counter_access", "exclusive_devices", "uart_configured", "mmu_off_caches_clean"}
@@ -83,9 +83,23 @@ def profile_constants(profile):
         if a < start + size and start < a + n:
             raise ValueError("Go RAM overlaps firmware reservation")
     frequency = number("sd_input_clock_hz")
-    if ((handoff["sd_platform_ready"] and not 400000 <= frequency <= 200000000) or
-            (not handoff["sd_platform_ready"] and frequency != 0)):
-        raise ValueError("SD requires a valid input clock or explicit disabled clock 0")
+    control = profile["sd_control"]
+    # The CPU enters with SD contained. A clock value is not a runtime grant.
+    if handoff["sd_platform_ready"] is not False:
+        raise ValueError("SD must enter contained; runtime firmware ownership is required")
+    if control is None:
+        if frequency != 0:
+            raise ValueError("disabled SD requires clock 0 and no control service")
+    else:
+        keys = {"service", "exclusive", "closed_bridges", "synchronous_bounded_return"}
+        if (not isinstance(control, dict) or set(control) != keys or
+                control["service"] != "fes-owned-sd-pio-v1" or
+                any(control[k] is not True for k in keys - {"service"}) or frequency != 200000000):
+            raise ValueError("SD requires the explicit owned PIO service and qualified 200 MHz input")
+        if (profile["usb_phy_clock_hz"] != 0 or profile["network"] is not None or
+                profile["display"] is not None or profile["fpga_probe"] is not None or
+                any(handoff[k] for k in ("usb_platform_ready", "ethernet_platform_ready", "display_platform_ready"))):
+            raise ValueError("initial closed-bridge SD ownership excludes other active device profiles")
     usb_frequency = number("usb_phy_clock_hz")
     uart_index = number("uart_index")
     if uart_index not in (0, 1):
@@ -189,7 +203,7 @@ def build(args):
     uart_base = 0x10c02000 + uart_index * 0x100
     generated = output / "profile.go"
     generated.write_text("//go:build tamago && arm64 && de25nano\n\npackage de25nano\nconst (\n" +
-                         f"profileRAMStart = {start}\nprofileRAMSize = {size}\nprofileSDInputClockHz = {frequency}\nprofileUSBPHYClockHz = {usb_frequency}\nprofileConsoleUARTBase = {uart_base}\n" +
+                         f"profileRAMStart = {start}\nprofileRAMSize = {size}\nprofileSDControlEnabled = {str(profile['sd_control'] is not None).lower()}\nprofileSDInputClockHz = {frequency}\nprofileUSBPHYClockHz = {usb_frequency}\nprofileConsoleUARTBase = {uart_base}\n" +
                          f"profileFPGAProbeEnabled = {str(fpga is not None).lower()}\nprofileFPGAProbeBase = {fpga['base'] if fpga else 0}\nprofileFPGAProbeBytes = {fpga['size'] if fpga else 0}\n)\n")
     network_constants = {"profileNetworkEnabled": net is not None,
                          "profileNetworkBase": 0x10810000 + (net["mac_index"] * 0x10000) if net else 0,

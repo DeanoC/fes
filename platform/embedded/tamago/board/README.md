@@ -24,16 +24,17 @@ A successful cross-build does **not** mean tenfoot can display or launch on
 hardware: display is disabled unless an explicit compatible firmware handoff is supplied.
 `probe`, `storage`, `keyboard`, `network` and `display` are the
 first bring-up programs; `keyboard` reports keys over serial, while `storage` mounts the same FAT32 implementation, reads
-`FES/BOOT.JSON`, and prints its hash without writing anything.
+`FES/BOOT.JSON` on QEMU. Nano instead reads the protected `FES/RECOVERY.JSON`,
+contains and resumes the same card, reads it again, and ends contained. Both are read-only.
 
 ## Firmware handoff
 
 No default active-device Nano resource profile is shipped. The
 [contained serial profile](../../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
 has booted Go on TRWU8CBL with native SD, USB, network and display disabled.
-An active SD profile still needs trusted reset/clock/ComboPHY ownership and
-physical qualification.
-The build runner requires an exact schema-7 JSON object with these fields:
+The source-controlled `nano/sd-profile.json` selects the closed-bridge SD
+diagnostic with trusted reset/clock/ComboPHY callbacks; physical qualification
+remains separate. The build runner requires an exact schema-8 JSON object:
 
 - `firmware`: identifying string for the firmware producing this handoff.
 - `ram_start`, `ram_size`, `entry`: integer physical addresses/length; owned RAM
@@ -43,14 +44,15 @@ The build runner requires an exact schema-7 JSON object with these fields:
   segments must also leave the final 128 KiB clear for the initial Go stack.
 - `reserved`: nonempty array of `{start, size, owner}` firmware reservations;
   none may overlap Go RAM. Record **all** firmware, secure and DMA reservations.
-- `sd_input_clock_hz`: actual SDHCI input clock established by firmware, between
-  400 kHz and 200 MHz. The driver divides it to at most 400 kHz for both card
-  identification and initial read-only operation, using a one-bit bus. Use `0`
-  with `handoff.sd_platform_ready=false` to explicitly disable native SD during
-  a serial-only firmware test; OpenStorage then rejects before touching MMIO.
+- `sd_input_clock_hz`: `200000000` with the controlled SD service, or `0`
+  with `sd_control=null` to disable SD before MMIO. The driver divides the
+  verified input to at most 400 kHz for one-bit identification and PIO reads.
+- `sd_control`: `null`, or the exact service `fes-owned-sd-pio-v1` with
+  `exclusive`, `closed_bridges` and `synchronous_bounded_return` all true.
+  This diagnostic excludes active USB/network/display/FPGA providers.
 - `usb_phy_clock_hz`: `60000000` for admitted ULPI USB, or `0` to disable USB
   explicitly. Disabling USB allows SD/serial bring-up before PHY/VBUS work.
-- `schema`: integer `7`. Superseded schemas and capacity/RCA fields reject.
+- `schema`: integer `8`. Superseded schemas and capacity/RCA fields reject.
 - `uart_index`: integer `0` or `1`, identifying the UART configured and
   released by firmware for both console output and serial input.
 - `network` and `handoff.ethernet_platform_ready`: explicit XGMAC/DMA profile
@@ -62,8 +64,9 @@ The build runner requires an exact schema-7 JSON object with these fields:
   see the [read-only SDM contract](../sdm/README.md). It admits no programming.
 - `handoff`: object with `el1`, `single_cpu`, `counter_access`,
   `exclusive_devices`, `uart_configured`, and
-  `mmu_off_caches_clean`, all explicitly `true`. `sd_platform_ready` must match
-  the SD clock declaration; `usb_platform_ready` must be a
+  `mmu_off_caches_clean`, all explicitly `true`. `sd_platform_ready` must be
+  false: SD is contained at entry and granted through firmware later.
+  `usb_platform_ready` must be a
   boolean matching the USB clock declaration: true for 60 MHz, false for 0.
 
 These are firmware obligations, not facts the cross-builder can verify.
@@ -94,8 +97,9 @@ The [SD driver lifecycle](../sdhci/README.md) now fences queued reads, drains
 PIO and stops the card clock through `Quiesce`. After the platform's ownership
 and PHY preparation, `Resume` reinitializes and checks CID/capacity before the
 same Device can serve its retained FAT volume again. Failures retire it. The
-board wrapper does not yet wire the required firmware grant/stop operations;
-the serial cold owner remains strict and native SD stays disabled there.
+board wrapper now uses `sdcontrol.Session` with the actual CPU/SMC transport.
+It retains a failed lease until reboot, with no direct-MMIO fallback. The
+serial profile keeps SD disabled and its original all-masters owner stays strict.
 
 If USB is admitted, firmware must also configure the 60 MHz ULPI PHY and the
 board's VBUS supply/Type-C host role with DMA off and all channels released.

@@ -62,6 +62,7 @@ def main():
     if not Path(args.cross_prefix).is_absolute() or not args.cross_prefix.endswith("-"):
         parser.error("cross-prefix must be absolute and end in -")
     profile_bytes = receipt_bytes = None
+    native_sources = None
     if args.target == "qemu":
         if args.nano_build or args.profile or args.image_address is not None:
             parser.error("Nano receipt, profile and load address are only valid with --target de25-nano")
@@ -85,6 +86,15 @@ def main():
                 receipt["firmware_profile_sha256"] != sha(profile_bytes) or receipt["elf_sha256"] != sha(payload.read_bytes()) or
                 receipt["source_sha256"].get(str(nano_builder.relative_to(ROOT))) != sha(nano_builder.read_bytes())):
             raise ValueError("Nano ELF/profile does not match its cross-build receipt")
+        native_sources=receipt["source_sha256"]
+        def check_native_sources():
+            if not native_sources:raise ValueError("missing Nano selected-source proof")
+            for name,expected in native_sources.items():
+                path=ROOT/name
+                if (Path(name).is_absolute() or '..' in Path(name).parts or
+                        not path.resolve().is_relative_to(ROOT) or sha(path.read_bytes())!=expected):
+                    raise ValueError("Nano selected source changed: "+name)
+        check_native_sources()
         image_address, ram_start, ram_end = args.image_address, start, start + size
         uart_base = 0x10c02000 + uart * 0x100
         staging_lower, staging_upper = 0x80000000, 0xc0000000
@@ -178,6 +188,7 @@ def main():
             any(sha(Path(value["path"]).read_bytes()) != value["sha256"] for value in tools.values()) or
             (profile_bytes is not None and (profile_path.read_bytes() != profile_bytes or receipt_path.read_bytes() != receipt_bytes))):
         raise ValueError("entry build inputs changed")
+    if native_sources is not None:check_native_sources()
     result = {"status": "built", "target": args.target,
               "classification": ("QEMU-only arm64 U-Boot handoff; not a Nano boot image" if args.target == "qemu" else
                                  "unqualified Nano handoff candidate; profile obligations and hardware unverified"),
@@ -190,6 +201,7 @@ def main():
               "staging_exclusions": exclusions,
               "firmware_profile_sha256": sha(profile_bytes) if profile_bytes is not None else None,
               "native_build_sha256": sha(receipt_bytes) if receipt_bytes is not None else None,
+              "native_build_sources": native_sources,
               "sources": frozen, "tools": tools, "environment": env, "commands": commands,
               "limitations": ["no physical Nano, DDR, peripheral, DMA, bridge or reset proof",
                               "payload hashes are not signatures; U-Boot device quiescence is a separate obligation",

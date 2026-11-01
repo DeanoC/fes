@@ -27,6 +27,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('fit', r'FES_NANO_SPL FIT verified before parsing'),
     ('spl_handoff', rf'FES_NANO_SPL HANDOFF owner=(?P<owner>{H}) epoch=(?P<epoch>{H}) per0=(?P<per0>{W}) bridge=(?P<bridge>{W}) sd=(?P<sd>{W})'),
     ('provider', rf'(?:NOTICE:[ \t]+)?FES_NANO_OWNED_BOOT provider=(?P<provider>-?[0-9]{{1,10}}) result=(?P<result>-?[0-9]{{1,10}}) reset=(?P<bridge>{W})'),
+    ('sd_platform', r'(?:NOTICE:[ \t]+)?FES_NANO_SD_PLATFORM setup=(?P<setup>-?[0-9]{1,10}) ready=(?P<ready>[01])'),
     ('uboot', r'U-Boot (?!SPL)[^\r\n]*?-fes-nano-(?P<id>[0-9a-f]{16})(?:[ \t].*)?'),
     ('dram', r'DRAM:[ \t]+1 GiB'),
     ('prompt', r'SOCFPGA_AGILEX5 # (?:fesboot)?'),
@@ -38,13 +39,18 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('el2', r'FES_ENTRY EL2 CLEAN'),
     ('el1', r'FES_ENTRY EL1 HANDOFF'),
     ('go', r'FES_NATIVE_GO_PROBE PASS os=tamago board=de25-nano'),
+    ('storage', r'FES_STORAGE_PROBE board=de25-nano EL=1 counter=400000000Hz writes=disabled'),
+    ('read', rf'FES_NANO_SD READ bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}}) cid=(?P<cid>[0-9a-f]{{32}}) sectors=(?P<sectors>[0-9]{{1,20}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
+    ('contained', rf'FES_NANO_SD CONTAINED owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
+    ('resumed', rf'FES_NANO_SD RESUMED bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
+    ('sd_pass', rf'FES_NANO_SD PASS read-only owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
 )]
 DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter',
-           'cpu0', 'cpu1', 'cpu2', 'cpu3'}
-TEXT = {'id', 'phase'}
+           'cpu0', 'cpu1', 'cpu2', 'cpu3', 'setup', 'ready', 'bytes', 'sectors', 'sd_generation'}
+TEXT = {'id', 'phase', 'sha256', 'cid'}
 
 
-def decode_native_boot(data, build_id, owner_seed):
+def decode_native_boot(data, build_id, owner_seed, *, storage=None):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -57,6 +63,12 @@ def decode_native_boot(data, build_id, owner_seed):
         raise ValueError('checked build ID and nonzero odd uint64 owner seed required')
     if not isinstance(data, (str, bytes, bytearray, memoryview)):
         raise TypeError('serial bytes or text required')
+    if storage is not None and (not isinstance(storage,dict) or set(storage)!={'bytes','sha256'} or
+            type(storage['bytes']) is not int or not 0<storage['bytes']<=1<<20 or
+            not isinstance(storage['sha256'],str) or not re.fullmatch('[0-9a-f]{64}',storage['sha256'])):
+        raise ValueError('independently checked recovery manifest size/hash required')
+    stages=STAGES if storage is None else STAGES[:7]+('sd_platform',)+STAGES[7:-1]+('storage','read','contained','resumed','sd_pass')
+    loader_stages=stages[:stages.index('prompt')+1]
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False}
     if len(data) > MAX_BYTES:
@@ -83,8 +95,14 @@ def decode_native_boot(data, build_id, owner_seed):
                       for key, value in match.groupdict().items()}
             if name == 'owned':
                 name = values['phase']
+            if name=='sd_platform' and storage is None:
+                if ('sd_platform' in observed or not report['records'] or report['records'][-1]['stage']!='provider' or
+                        values!={'setup':0,'ready':0}):
+                    report['errors'].append(f'unexpected SD authority at line {number}')
+                observed[name]=values
+                break
             index = len(report['records'])
-            if index >= len(STAGES) or name != STAGES[index]:
+            if index >= len(stages) or name != stages[index]:
                 report['errors'].append(f'out-of-order or duplicate {name} at line {number}')
             if 'id' in values and (values['id'] != build_id or line.count('-fes-nano-') > 1):
                 report['errors'].append(f'build identity mismatch at line {number}')
@@ -93,7 +111,7 @@ def decode_native_boot(data, build_id, owner_seed):
             observed.setdefault(name, values)
             break
         else:
-            if (line.startswith(('U-Boot ', 'FES_NANO_', 'FES_ENTRY', 'FES_NATIVE_GO_PROBE',
+            if (line.startswith(('U-Boot ', 'FES_NANO_', 'FES_ENTRY', 'FES_NATIVE_GO_PROBE', 'FES_STORAGE_PROBE',
                                  'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
                     line.startswith('NOTICE:') and 'FES_NANO_' in line):
                 report['errors'].append(f'malformed or unexpected probe marker at line {number}')
@@ -141,8 +159,22 @@ def decode_native_boot(data, build_id, owner_seed):
                 'native CPU/counter scope differs')
         require(live['per0'] & MASTER_RESET == MASTER_RESET and live['bridge'] & BRIDGES == BRIDGES,
                 'native master/bridge scope differs')
+    if storage is not None:
+        if 'sd_platform' in observed:
+            require(observed['sd_platform']=={'setup':1,'ready':1},'controlled SD setup rejected')
+        for phase,generation in (('read',3),('contained',4),('resumed',6),('sd_pass',7)):
+            if phase in observed:
+                value=observed[phase]
+                require(seal is not None and value['owner']==seal['owner'] and value['sd_generation']==generation,
+                        f'{phase} SD owner/generation differs')
+                if phase in ('read','resumed'):
+                    require(value['bytes']==storage['bytes'] and value['sha256']==storage['sha256'],
+                            f'{phase} recovery manifest differs')
+        if 'read' in observed:
+            require(observed['read']['sectors']>0 and int(observed['read']['cid'],16)>0,
+                    'SD card identity/capacity absent')
     names = tuple(row['stage'] for row in report['records'])
-    report['loader_ready'] = not report['errors'] and names[:len(LOADER_STAGES)] == LOADER_STAGES
-    report['complete'] = not report['errors'] and names == STAGES and not tail
+    report['loader_ready'] = not report['errors'] and names[:len(loader_stages)] == loader_stages
+    report['complete'] = not report['errors'] and names == stages and not tail
     report['last_checkpoint'] = names[-1] if names else None
     return report

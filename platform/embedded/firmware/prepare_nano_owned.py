@@ -126,12 +126,12 @@ def install(source, cold_profile=None, cold_header=None):
     setup.write_text('#include "nano_bridge_platform.h"\n' + text.replace(marker, marker + "\tfes_nano_bridge_platform_setup();\n"))
     if cold_profile is not None:
         if cold_header is None: raise ValueError("missing matched cold profile header")
-        for name in ("nano_cold.h", "nano_cold_mmio.inc"):
+        for name in ("nano_cold.h", "nano_cold_mmio.inc", "nano_sd_platform.h"):
             (include/name).write_bytes((HERE/name).read_bytes())
         (include/'fes_nano_cold_profile.h').write_text(cold_header)
-        for name in ("nano_cold.c", "nano_cold_platform.c"):
+        for name in ("nano_cold.c", "nano_cold_platform.c", "nano_sd_platform.c"):
             (source/'plat/intel/soc/common'/name).write_bytes((HERE/name).read_bytes())
-        mk.write_text(mk.read_text()+"\nTF_CFLAGS += -DFES_NANO_COLD_SERIAL=1\nBL31_SOURCES += plat/intel/soc/common/nano_cold.c plat/intel/soc/common/nano_cold_platform.c\n")
+        mk.write_text(mk.read_text()+"\nTF_CFLAGS += -DFES_NANO_COLD_SERIAL=1\nBL31_SOURCES += plat/intel/soc/common/nano_cold.c plat/intel/soc/common/nano_cold_platform.c plat/intel/soc/common/nano_sd_platform.c\n")
         text=setup.read_text()
         marker='\tstatic console_t console;\n'
         if text.count(marker)!=1: raise ValueError('cold early capture context changed')

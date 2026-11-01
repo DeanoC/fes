@@ -12,17 +12,17 @@ spec.loader.exec_module(build)
 
 
 def profile():
-    return {"schema": 7, "firmware": "synthetic test; not a board recipe", "uart_index": 0,
+    return {"schema": 8, "firmware": "synthetic test; not a board recipe", "uart_index": 0,
             "ram_start": 0x82000000, "ram_size": 256 << 20, "entry": 0x82020000,
             "reserved": [{"start": 0x80000000, "size": 32 << 20, "owner": "synthetic firmware"}],
-            "sd_input_clock_hz": 100000000, "usb_phy_clock_hz": 60000000,
-            "network": None, "display": None, "fpga_probe": None, "handoff": {"display_platform_ready":False, "ethernet_platform_ready":False, **{key: True for key in ("el1", "single_cpu", "counter_access", "exclusive_devices",
-                "uart_configured", "sd_platform_ready", "usb_platform_ready", "mmu_off_caches_clean")}}}
+            "sd_input_clock_hz": 0, "usb_phy_clock_hz": 60000000,
+            "network": None, "display": None, "fpga_probe": None, "sd_control": None, "handoff": {"display_platform_ready":False, "ethernet_platform_ready":False, "sd_platform_ready":False, **{key: True for key in ("el1", "single_cpu", "counter_access", "exclusive_devices",
+                "uart_configured", "usb_platform_ready", "mmu_off_caches_clean")}}}
 
 
 class BoardProfileTests(unittest.TestCase):
     def test_explicit_profile(self):
-        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82020000, 100000000, 60000000, None, None, None, 0))
+        self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82020000, 0, 60000000, None, None, None, 0))
 
     def test_console_selection_is_explicit_and_exact(self):
         p = profile()
@@ -52,7 +52,7 @@ class BoardProfileTests(unittest.TestCase):
             lambda p: p.update(entry=0x82010000),
             lambda p: p.update(schema=6),
             lambda p: p.update(ram_start=0x82001000),
-            lambda p: p.update(sd_input_clock_hz=0),
+            lambda p: p.update(sd_input_clock_hz=100000000),
             lambda p: p.update(usb_phy_clock_hz=48000000),
             lambda p: p["handoff"].update(usb_platform_ready=False),
             lambda p: p.update(sd_input_clock_hz=200000001),
@@ -85,6 +85,25 @@ class BoardProfileTests(unittest.TestCase):
         p["sd_input_clock_hz"] = 100000000
         with self.assertRaises(ValueError):
             build.profile_constants(p)
+
+    def test_controlled_sd_service_is_explicit_and_never_static_readiness(self):
+        p = profile()
+        p['usb_phy_clock_hz'] = 0
+        p['handoff']['usb_platform_ready'] = False
+        p['sd_input_clock_hz'] = 200000000
+        p['sd_control'] = {'service':'fes-owned-sd-pio-v1', 'exclusive':True,
+                           'closed_bridges':True, 'synchronous_bounded_return':True}
+        self.assertEqual(build.profile_constants(p)[3], 200000000)
+        for key, value in (('service','mmio'), ('exclusive',False), ('exclusive',1),
+                           ('closed_bridges',False), ('synchronous_bounded_return',False)):
+            bad = copy.deepcopy(p); bad['sd_control'][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError): build.profile_constants(bad)
+        for mutate in (lambda b:b.update(sd_input_clock_hz=100000000),
+                       lambda b:b['handoff'].update(sd_platform_ready=True),
+                       lambda b:b['handoff'].update(usb_platform_ready=True),
+                       lambda b:b['sd_control'].update(unknown=True)):
+            bad=copy.deepcopy(p);mutate(bad)
+            with self.assertRaises(ValueError): build.profile_constants(bad)
 
     def test_elf_load_segments_leave_the_whole_runtime_reservation_clear(self):
         data = bytearray(0x2000)

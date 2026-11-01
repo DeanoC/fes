@@ -220,9 +220,23 @@ Default owned and cold serial builds leave it NOT_READY; they install no
 SD authority. The [native session](../tamago/sdcontrol/README.md) binds the
 actual PIO driver to this service through injectable transport/registers.
 C/Go tests inject scope and MMIO and exercise read/quiesce/resume, changed cards
-and retained failures. Real Nano callbacks, a controlled SD profile and
-physical reads remain pending. The cold serial profile still advertises zero
-programming features.
+and retained failures. `nano_sd_platform.c` supplies the actual Nano callbacks;
+`nano/sd-profile.json` selects them in the matched cold chain. Secure setup
+verifies the original owner, closed bridges, retained CPU/master scope, direct
+SD pin routing and live 200 MHz clock derivation before touching a contained
+controller. Resume releases only the SD controller and its ComboPHY reset,
+checks reset readback and applies the pinned Nano PHY timing. Prepare repeats
+that timing after the Go host reset, before enabling the card clock. Stop
+independently checks DMA/interrupts/errors, drains PIO, stops the clock and
+asserts/readbacks only the controller reset; unused ECC remains held.
+
+The timing comes from the exact Terasic Nano DTS at `d0f8813`, rather than
+the different generic bare-metal defaults. Clock and pin routes are checked,
+never reprogrammed. Failures retain their first observations and retire access;
+the diagnostic printer uses saved values only. Register models exercise these
+actual callbacks, including two full leases and failed reset/PHY/clock/drain
+paths. Physical reads remain a separate gate. The matched cold diagnostic
+still advertises zero FPGA programming features and prevents secondary CPU release.
 
 ### Actual cold serial producer and callbacks
 

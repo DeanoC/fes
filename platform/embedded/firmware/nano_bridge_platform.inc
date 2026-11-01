@@ -82,6 +82,8 @@ __attribute__((weak)) int fes_nano_platform_boot_record(struct fes_nano_boot_rec
     (void)record; (void)policy; (void)masters;
     return 0;
 }
+__attribute__((weak)) int fes_nano_platform_sd_setup(void) { return 0; }
+__attribute__((weak)) void fes_nano_platform_sd_report(void) {}
 void fes_nano_bridge_platform_setup(void)
 {
     struct fes_nano_boot_record record = {0};
@@ -89,10 +91,22 @@ void fes_nano_bridge_platform_setup(void)
     struct fes_nano_master_ops masters = {0};
     int available = fes_nano_platform_boot_record(&record, &policy, &masters);
     int result = -1;
+    int sd = 0;
     if (available == 1) result = fes_nano_bridge_platform_handoff(&record, &policy, masters);
     else if (available != 0) fes_nano_bridge_platform_invalidate();
+    if (available == 1 && result == 0) {
+        fes_nano_bridge_platform_lock();
+        sd = fes_nano_platform_sd_setup();
+        if (sd < 0) {
+            fes_nano_owned_sd.attempted = fes_nano_owned_sd.failed = 1;
+            fes_nano_owned_bridges.failed = 1;
+            fes_nano_boot_invalidate(&fes_nano_owned_boot);
+        }
+        fes_nano_bridge_platform_unlock();
+    }
     NOTICE("FES_NANO_OWNED_BOOT provider=%d result=%d reset=%08x\n",
-           available, result, mmio_read_32(SOCFPGA_RSTMGR(BRGMODRST)));
+           available, result, fes_nano_owned_bridges.state.reset);
+    NOTICE("FES_NANO_SD_PLATFORM setup=%d ready=%u\n", sd, fes_nano_owned_sd.initialized);
 }
 
 /* Legacy and alternate SiP callers cannot bypass the owned channel. The

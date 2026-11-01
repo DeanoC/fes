@@ -3,6 +3,7 @@
 #define _GNU_SOURCE
 #include "nano_cold.h"
 #include "nano_bridge_platform.h"
+#include "nano_sd_platform.h"
 #include "fes_nano_cold_profile.h"
 #include <assert.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@ static uint32_t per0=FES_NANO_MASTER_RESET,bridge=15;
 static uint32_t power[4]={0x90000021,0,0,0},pch_request=0x23,pch_status=0x23,boot_config=0x0070021e;
 static unsigned release_locked=1,current_el=12;
 static uint64_t mpidr;
+static unsigned invalid_sd_clock,invalid_sd_route,sd_mmio,clock_reads;
 int fes_nano_cold_cpu_release_locked(void) { return release_locked; }
 struct fes_nano_bridges fes_nano_owned_bridges;
 struct fes_nano_sd fes_nano_owned_sd;
@@ -38,9 +40,26 @@ static int intel_fpga_config_write(uint64_t a,uint64_t b) { (void)a;(void)b;engi
 static int intel_fpga_config_completed_write(uint32_t *a,uint32_t *b,uint32_t *c) { (void)a;(void)b;(void)c;engine_calls++;return 4; }
 static int intel_mailbox_fpga_config_isdone(uint32_t *v) { (void)v;engine_calls++;return 4; }
 static uint32_t fes_contained_isdone_detail(uint32_t a,uint32_t b) { (void)a;return b; }
+#if !defined(FES_NANO_CONTROLLED_SD) || !FES_NANO_CONTROLLED_SD
+void fes_nano_platform_sd_report(void) {}
+#endif
 #include "nano_owned_sip.inc"
 uint32_t mmio_read_32(uintptr_t a)
 {
+    if(a>=FES_NANO_SD_CLKMGR && a<FES_NANO_SD_CLKMGR+0x100) {
+        clock_reads++;
+        switch(a-FES_NANO_SD_CLKMGR) {
+        case 0:return 0;case 4:return 0x10100;case 0x30:case 0x88:return 0;
+        case 0x40:return 0;case 0x44:return 0;
+        case 0x48:case 0x9c:return 0x100;
+        case 0x6c:case 0xc0:return invalid_sd_clock?31:32;
+        case 0x68:case 0xb4:return 0x08000004;
+        case 0x7c:return 32;case 0x18:return 0;default:assert(0);return 0;
+        }
+    }
+    if(a==FES_NANO_SD_SYSMGR+0xfc)return invalid_sd_route?2:1;
+    if(a==FES_NANO_SD_SYSMGR+0x1354)return 0;
+    if(a>=FES_NANO_SD_BASE && a<FES_NANO_SD_BASE+0x300){sd_mmio++;assert(0);return 0;}
     if(a==0x10d1220cUL)return 4U<<29;
     if(a>=FES_NANO_COLD_PWRMGR && a<FES_NANO_COLD_PWRMGR+0x100) {
         switch(a-FES_NANO_COLD_PWRMGR) {
@@ -95,7 +114,7 @@ int main(int argc,char **argv)
     fes_nano_cold_capture((uintptr_t)r,mutation==11?0:mutation==19?0x464e433100000001ULL:FES_NANO_COLD_COOKIE);
     struct fes_nano_boot_record record;struct fes_nano_boot_policy policy;struct fes_nano_master_ops masters;
     int result=fes_nano_platform_boot_record(&record,&policy,&masters);
-    if(mutation) {assert(result<0);return 0;}
+    if(mutation && mutation<22) {assert(result<0);assert(!clock_reads && !sd_mmio);return 0;}
     assert(result==1);
     r->boot.owner++; /* copied before nonsecure entry, no later pointer use */
     struct fes_nano_boot boot={0};struct fes_nano_bridges b={0};
@@ -106,12 +125,29 @@ int main(int argc,char **argv)
     assert(reply[0]==0 && (uint32_t)reply[1]==0xdf && reply[2]==record.owner && reply[3]==1);
     assert(masters.owns(masters.context,record.owner,record.epoch)==1);
     fes_nano_owned_bridges=b;
+#if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
+    invalid_sd_clock=mutation==22;invalid_sd_route=mutation==23;
+    if(mutation==24)per0|=FES_NANO_SD_PHY_RESET;
+    int sd=fes_nano_platform_sd_setup();
+    assert(clock_reads && !sd_mmio);
+    if(mutation>=22) {
+        assert(sd<0 && !fes_nano_owned_sd.initialized);
+        assert(masters.owns(masters.context,record.owner,record.epoch)!=1);
+        unsigned before=clock_reads;
+        assert(fes_nano_platform_sd_setup()<0 && clock_reads==before && !sd_mmio);
+        return 0;
+    }
+    assert(sd==1 && fes_nano_owned_sd.initialized);
+    fes_nano_owned_call(FES_EMBEDDED_SD_CALL,0,0,FES_EMBEDDED_SD_COOKIE,0,reply);
+    assert(!reply[0] && (uint32_t)reply[1]==0x39 && reply[2]==record.owner && reply[3]==1);
+#else
     /* Adding the channel grants no SD authority to the serial profile. */
     for (unsigned op=0; op<4; op++) {
         fes_nano_owned_call(FES_EMBEDDED_SD_CALL,op,op?record.owner:0,FES_EMBEDDED_SD_COOKIE,op?1:0,reply);
         assert(reply[0]==FES_EMBEDDED_SD_NOT_READY && reply[1]==(uint64_t)FES_EMBEDDED_SD_TAG<<32 && !reply[2] && !reply[3]);
         assert(!fes_nano_owned_sd.attempted && !fes_nano_owned_bridges.failed && !engine_calls);
     }
+#endif
     fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
     assert(reply[0]==0 && reply[2]==record.owner);
     for(unsigned op=1;op<=4;op++) {

@@ -105,7 +105,8 @@ class NanoExportTests(unittest.TestCase):
         receipt = {"status": "built", "target": "de25-nano", "entry_image_address": 0x96080000,
                    "ram_start": 0x84000000, "ram_end": 0x94000000, "uart_base": 0x10c02100,
                    "entry_image_sha256": prepare.sha(image), "entry_image_size": 64,
-                   "firmware_profile_sha256": prepare.sha(HERE / "probe-profile.json"), "sources": {}}
+                   "firmware_profile_sha256": prepare.sha(HERE / "probe-profile.json"), "sources": {},
+                   "native_build_sources":{"platform/embedded/tamago/build.py":prepare.sha(HERE.parent/'tamago/build.py')}}
         (entry / "result.json").write_text(json.dumps(receipt))
         return source, entry, bootm
 
@@ -127,6 +128,31 @@ class NanoExportTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 prepare.prepare(source, entry, "a" * 64)
             self.assertEqual(bootm.read_bytes(), before)
+
+    def test_controlled_sd_selects_only_the_exact_source_profile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source,entry,_=self.fixture(Path(tmp))
+            path=entry/'result.json';receipt=json.loads(path.read_text())
+            receipt['firmware_profile_sha256']=prepare.sha(HERE/'sd-profile.json')
+            path.write_text(json.dumps(receipt))
+            result=prepare.prepare(source,entry,'a'*64)
+            self.assertEqual(result['profile_sha256'],prepare.sha(HERE/'sd-profile.json'))
+            self.assertTrue(result['cold_boot_profile']['sd_pio'])
+            self.assertIn('#define FES_NANO_CONTROLLED_SD 1',
+                          (source/'arch/arm/mach-socfpga/fes_nano_cold_profile.h').read_text())
+
+    def test_stale_native_sources_and_unknown_profiles_reject_before_export(self):
+        for mutation in ('source','missing','escape','profile'):
+            with self.subTest(mutation=mutation),tempfile.TemporaryDirectory() as tmp:
+                source,entry,bootm=self.fixture(Path(tmp));before=bootm.read_bytes()
+                path=entry/'result.json';receipt=json.loads(path.read_text())
+                if mutation=='source':receipt['native_build_sources']['platform/embedded/tamago/build.py']='0'*64
+                elif mutation=='missing':receipt.pop('native_build_sources')
+                elif mutation=='escape':receipt['native_build_sources']={'../AGENTS.md':'0'*64}
+                else:receipt['firmware_profile_sha256']='a'*64
+                path.write_text(json.dumps(receipt))
+                with self.assertRaises(ValueError):prepare.prepare(source,entry,'a'*64)
+                self.assertEqual(bootm.read_bytes(),before)
 
     def test_firmware_identity_changes_loader_identity(self):
         identities = []

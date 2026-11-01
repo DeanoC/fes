@@ -80,6 +80,11 @@ int fes_nano_cold_finish(struct fes_nano_cold *, unsigned entry_verified,
 int fes_nano_cold_consume(struct fes_nano_cold *, const struct fes_nano_cold_record *,
                            struct fes_nano_cold_io, const uint8_t chain[32], uint64_t owner);
 int fes_nano_cold_owns(void *, uint64_t owner, uint64_t epoch);
+/* Trusted SD platform only: validate the original boot with exactly SD's
+ * controller reset released when active=1. This never grants bridge access
+ * or changes the strict all-master semantics of cold_owns. */
+int fes_nano_cold_sd_scope(struct fes_nano_cold *, uint64_t owner,
+                           uint64_t epoch, unsigned active);
 int fes_nano_cold_quiesce(void *, uint32_t producers);
 int fes_nano_cold_quiescent(void *, uint32_t *producers);
 /* Strong implementation lives beside the cold profile's PSCI CPU_ON frontend.

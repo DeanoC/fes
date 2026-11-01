@@ -29,6 +29,7 @@ static int intel_fpga_config_completed_write(uint32_t a[3], uint32_t *b, uint32_
 { (void)a; (void)b; (void)c; configurations++; return 4; }
 static int intel_mailbox_fpga_config_isdone(uint32_t *a) { (void)a; configurations++; return 4; }
 static uint32_t fes_contained_isdone_detail(int a, uint32_t b) { (void)a; return b; }
+void fes_nano_platform_sd_report(void) {}
 #include "nano_owned_sip.inc"
 int main(int argc, char **argv)
 {

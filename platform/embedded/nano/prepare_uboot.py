@@ -42,7 +42,7 @@ def prepare(source, entry_build, bl31_sha256):
     spec=importlib.util.spec_from_file_location('fes_nano_cold_profile', HERE/'cold_profile.py')
     cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
     image, receipt_path=cold.entry(entry_build)
-    profile=HERE/'probe-profile.json'
+    profile=cold.selected_profile(json.loads(receipt_path.read_text()))
     chain=cold.make(entry_build)
     reset=source/'drivers/reset/reset-socfpga.c'
     reset.write_text(cold_reset_source(reset.read_text()))

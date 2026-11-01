@@ -91,10 +91,10 @@ physical USB/DMA quiescence.
 ## Nano candidate
 
 `build.py --target de25-nano` requires a native Nano cross-build, the exact
-schema-7 handoff profile used for that build, and an explicitly selected
+schema-8 handoff profile used for that build, and an explicitly selected
 `--image-address` in a separate HPS DDR window at a 2 MiB base plus `0x80000`.
 Staging must be disjoint from Go RAM and all declared firmware and device arenas.
-It checks the build/profile/ELF hashes, selected UART, executable segments and
+It checks the build/profile/ELF and full selected-source hashes, selected UART, executable segments and
 staging overlap. It does not establish that the profile's declarations are
 true, or that U-Boot, TF-A, the FPGA, other CPUs, and DMA devices have released
 the stated resources. The test fixture's profile is synthetic and must not be

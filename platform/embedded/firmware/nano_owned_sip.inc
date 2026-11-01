@@ -13,6 +13,7 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
     if (fid == FES_EMBEDDED_SD_CALL && x3 == FES_EMBEDDED_SD_COOKIE) {
         fes_nano_sd_sip(&fes_nano_owned_sd, x1, x2, x4,
                         request_type != NO_REQUEST, r);
+        if (fes_nano_owned_sd.failed) fes_nano_platform_sd_report();
         goto out;
     }
     if (fid == FES_EMBEDDED_BRIDGE_CALL && x3 == FES_EMBEDDED_BRIDGE_COOKIE) {
