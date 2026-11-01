@@ -638,7 +638,7 @@ accounting and SDM state need further bounded diagnosis.
 The contained engine now propagates rejected submissions and firmware error
 responses even when they carry no data words. It retires on timeout or malformed
 status and keeps the source pinned until reboot; only a genuine no-response
-result continues polling. The next matched image logs SDM limits and the first
+result continues polling. The matched image logs SDM limits and the first
 transport error with its transfer position. The host decoder checks the limit
 record's ownership/order, and failure records cannot qualify a completed load.
 The [matched bounded trial](../../../docs/validation/2026-11-01-de25-transport-errors/README.md)
