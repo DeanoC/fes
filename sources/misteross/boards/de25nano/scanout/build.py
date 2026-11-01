@@ -75,14 +75,19 @@ def build_identity(sources, hps_first, linux_dma):
     return value
 
 
-def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=False):
+def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=False,
+            package_build_id=None):
     if type(hps_first) is not bool:
         raise ValueError("HPS-first selection must be boolean")
     if type(linux_dma) is not bool or (linux_dma and not hps_first):
         raise ValueError("Linux DMA requires explicit HPS-first selection")
+    if package_build_id is not None and (not revision or not linux_dma or
+            not isinstance(package_build_id, str) or
+            not re.fullmatch(r"[0-9a-f]{32}", package_build_id) or package_build_id == "0" * 32):
+        raise ValueError("package build identity requires committed Linux-DMA source and nonzero 128-bit ID")
     boot_order = "HPS FIRST" if hps_first else "AFTER INIT_DONE"
     sources = capture(revision)
-    build_id = build_identity(sources, hps_first, linux_dma)
+    build_id = package_build_id or build_identity(sources, hps_first, linux_dma)
     selected = {"fes_revision": revision, "source_classification": "committed"} if revision else identity()
     if revision is None:
         selected = {"base_revision": selected.get("fes_revision", selected.get("base_revision")),
@@ -122,6 +127,10 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
     if re.search(r"(?m)^\s*set_global_assignment\s+-name\s+HPS_INITIALIZATION\b", qsf):
         raise ValueError("upstream already selects HPS initialization; review before overriding")
     qsf += f'set_global_assignment -name HPS_INITIALIZATION "{boot_order}"\n'
+    if package_build_id is not None:
+        if re.search(r"(?m)^\s*set_global_assignment\s+-name\s+SEED\b", qsf):
+            raise ValueError("upstream already selects a seed; review before package compilation")
+        qsf += "set_global_assignment -name SEED 1\n"
     (project / "golden_top.qsf").write_text(qsf)
     top = (project / "golden_top.v").read_text()
     top = replace_once(top, "fes_de25_combined_video #(.MENU_PATTERN(1'b1)) fes_video_inst (",
@@ -182,7 +191,9 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
                     "pixel_pll_parameters", "pixel_clock_hz", "i2c_internal_clock", "configuration_release",
                     "warm_reset_ack_n", "debug_paths")}
     inputs["combined_display"].update(mode="allocated-buffer-scanout", ddr_scanout=True, runtime_menu=False)
-    inputs["scanout"] = {"build_id": build_id, "hps_initialization": boot_order, "peripheral_offset": int(offset[1], 16), "default_enabled": False,
+    inputs["scanout"] = {"build_id": build_id,
+        "build_identity_scheme": "canonical-functional-record-v2" if package_build_id else "diagnostic-source-profile",
+        "hps_initialization": boot_order, "peripheral_offset": int(offset[1], 16), "default_enabled": False,
         "pixel_hz": 74250000, "system_hz": 100000000, "control_bridge": "system100 bounded guard -> mm_ccb19.4.1 DATA32 RESPONSE1",
         "memory_bridge": "mm_ccb19.4.1 DATA128 RESPONSE1 MAX16", "allocation_bytes": 8388608,
         "reset_release": {"assertion": "asynchronous",

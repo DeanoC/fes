@@ -252,3 +252,19 @@ HDMI configuration runs from CLOCK0_50 while the system PLL uses CLOCK2_50.
 The readiness crossing has a registered source and two receiving registers;
 its SDC names exactly that source and stage0 D, with one-object checks. Later
 stages, fanout and reset recovery/removal remain timed. No clock group is cut.
+
+The separate canonical MENU producer runs from the misteross module:
+
+```sh
+python3 scripts/build_de25_menu_package.py --compile-only --quartus-root /absolute/26.3 --vendor-archive /absolute/ResourcePackage.zip
+```
+
+It hashes the actual tool installation and controlled execution, writes
+`build-inputs.json` before preparation, and passes its canonical identity into
+the actual Qsys BUILD_ID parameter. Outputs default to a fresh attempt under
+`build/de25-menu/<build-id>/`. Compile-only creates no manifest or package.
+Without `--compile-only`, all reported timing and all 85 signoff rules must
+pass without waived findings, and a second compilation must reproduce the RBF,
+before the unchanged normal package exporter runs. Current external IO/reset
+findings block that export. Candidate compilation does not open any physical
+or normal-kit acceptance gate.

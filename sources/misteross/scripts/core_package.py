@@ -161,8 +161,9 @@ def _validate_fields(fields: object, payload: bytes | None) -> dict:
     _identifier(target["platform"], "target.platform")
     _string(target["device"], "target.device", nonempty=True)
     _identifier(target["programming_profile"], "target.programming_profile")
-    if target["platform"] != "de10_nano" or target["device"] != "5CSEBA6U23I7":
-        raise PackageError("target must be de10_nano device 5CSEBA6U23I7")
+    devices = {"de10_nano": "5CSEBA6U23I7", "de25_nano": "A5EB013BB23BE4SCS"}
+    if devices.get(target["platform"]) != target["device"]:
+        raise PackageError("target must match a supported board and its exact device")
 
     payload_fields = _exact_dict(root["payload"], {"file", "size", "sha256"}, set(), "payload")
     if payload_fields["file"] != "core.rbf":
