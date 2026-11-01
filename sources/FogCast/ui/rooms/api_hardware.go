@@ -33,6 +33,29 @@ func (r *Instance) installHardware() *lua.LTable {
 			r.actions = append(r.actions, Action{Kind: ActionHardwareSetup, CoreID: coreID})
 			return 0
 		},
+		// firmware_info shows a family's firmware card. first_use asks for it
+		// only when the family's card has not been continued past yet.
+		"firmware_info": func(L *lua.LState) int {
+			opts := L.CheckTable(1)
+			action := Action{Kind: ActionFirmwareInfo, CoreID: optString(opts, "core_id"), FamilyID: optString(opts, "family_id"),
+				FamilyLabel: optString(opts, "family_label"), FirstUse: lua.LVAsBool(opts.RawGetString("first_use"))}
+			if action.CoreID == "" || action.FamilyID == "" {
+				L.ArgError(1, "core_id and family_id are required")
+			}
+			if ids, ok := opts.RawGetString("core_ids").(*lua.LTable); ok {
+				ids.ForEach(func(_, value lua.LValue) {
+					if id, ok := value.(lua.LString); ok && string(id) != "" {
+						action.CoreIDs = append(action.CoreIDs, string(id))
+					}
+				})
+			}
+			if action.FirstUse {
+				r.firmwareInfo = &action
+			} else {
+				r.actions = append(r.actions, action)
+			}
+			return 0
+		},
 		"open_media": func(L *lua.LState) int {
 			r.actions = append(r.actions, hardwareSetupAction(L, ActionHardwareMedia))
 			return 0

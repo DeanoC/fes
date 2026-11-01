@@ -507,6 +507,12 @@ package's media capabilities and saves with compare-and-swap.
 manifest-derived sockets and exact-package cards. Importing and fitting are
 separate actions. These setup actions require an idle machine; live media uses
 `session.open_tape` and its observed session binding.
+`hardware.firmware_info({core_id=..., family_id=..., family_label=...,
+core_ids={...}, first_use=...})` asks for a family's firmware card
+([bundled firmware](../../../docs/bundled-firmware.md#the-first-use-card)).
+With `first_use = true` it is a standing request, not an action: the room
+keeps only the latest one and the launcher shows the card only if the family
+has not been continued past. Without it, the card always opens.
 
 Keep configuration out of `store`: it is presentation state, not the host
 catalogue. Room code may display compatibility results but must not infer

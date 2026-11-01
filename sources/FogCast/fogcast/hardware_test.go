@@ -15,7 +15,6 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
-	"github.com/DeanoC/FogCast/internal/zx81machine"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -475,37 +474,41 @@ func TestHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T) {
 	}
 }
 
-func TestZX81MissingMachineROMIsProvisionedWithoutReplacingUserSelection(t *testing.T) {
+func TestBundledFirmwareIsSelectedWithoutReplacingUserSelection(t *testing.T) {
 	ctx := context.Background()
-	firmware := bytes.Repeat([]byte{0x00}, 8192)
-	archive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("6", 40), nil, firmware)
+	archive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("6", 40), nil, bytes.Repeat([]byte{0x00}, 8192))
 	s, _, entry, _ := newCoreEntryLaunchFixture(t, archive, "Workshop ZX81")
 	before, err := s.CoreEntryROM(ctx, entry.GameID)
 	if err != nil || before.MediaID != "" {
 		t.Fatalf("fixture should start without a ROM selection: %+v err=%v", before, err)
 	}
-
 	view, err := s.Hardware(ctx)
+	if err != nil || len(view) != 1 || view[0].Ready || view[0].FirmwareReady {
+		t.Fatalf("a title with no bundled firmware and no selection must need firmware: %+v err=%v", view, err)
+	}
+
+	bundled := bytes.Repeat([]byte{0x42}, 8192)
+	s.LoadBundledFirmware(ctx, bundledFirmwareFixture(t, "fes.zx81", "machine-rom", bundled))
+	view, err = s.Hardware(ctx)
 	if err != nil || len(view) != 1 || !view[0].Ready || !view[0].FirmwareReady {
-		t.Fatalf("missing-ROM setup was not auto-provisioned: %+v err=%v", view, err)
+		t.Fatalf("missing-ROM setup did not select bundled firmware: %+v err=%v", view, err)
 	}
 	selected, err := s.CoreEntryROM(ctx, entry.GameID)
-	if err != nil || selected.PackageID != entry.PackageID || selected.ROMID != "machine-rom" || selected.SourceSize != 8192 || selected.MediaID == "" {
-		t.Fatalf("provisioned ROM selection = %+v err=%v", selected, err)
+	if err != nil || selected.PackageID != entry.PackageID || selected.ROMID != "machine-rom" || selected.SourceSize != 8192 || selected.MediaID != fmt.Sprintf("%x", sha256.Sum256(bundled)) {
+		t.Fatalf("bundled ROM selection = %+v err=%v", selected, err)
 	}
 	compositions, err := s.CoreCompositions(ctx, []string{entry.GameID})
 	if err != nil || !compositions[entry.GameID].FirmwareReady || compositions[entry.GameID].ROMMediaID != selected.MediaID {
-		t.Fatalf("missing-ROM launch projection = %+v err=%v", compositions[entry.GameID], err)
+		t.Fatalf("bundled launch projection = %+v err=%v", compositions[entry.GameID], err)
 	}
 	object, reader, err := s.catalog.(coreMediaCatalog).OpenCoreMedia(ctx, selected.MediaID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer reader.Close()
-	provisioned, err := io.ReadAll(reader)
-	expected, expectedErr := zx81machine.MachineROM()
-	if err != nil || expectedErr != nil || object.Size != 8192 || !bytes.Equal(provisioned, expected) {
-		t.Fatalf("provisioned media size=%d bytes=%d err=%v", object.Size, len(provisioned), err)
+	stored, err := io.ReadAll(reader)
+	if err != nil || object.Size != 8192 || !bytes.Equal(stored, bundled) {
+		t.Fatalf("bundled media size=%d bytes=%d err=%v", object.Size, len(stored), err)
 	}
 
 	custom := bytes.Repeat([]byte{0x5a}, 8192)
@@ -530,6 +533,7 @@ func testHardwareSnapshotUsesExactPackageAdmissionAndFirmware(t *testing.T, majo
 	ctx := context.Background()
 	archive, firmware := hardwareZX81Fixture(t, true, false, major)
 	s, client, entry, inspection := newCoreEntryLaunchFixture(t, archive, "My ZX81", time.Minute)
+	s.LoadBundledFirmware(ctx, bundledFirmwareFixture(t, "fes.zx81", "machine-rom", bytes.Repeat([]byte{0x42}, 8192)))
 	asset, data := hardwareExpansion(t, inspection)
 	if _, err := s.ImportCoreExpansion(ctx, int64(len(data)), bytes.NewReader(data)); err != nil {
 		t.Fatal(err)

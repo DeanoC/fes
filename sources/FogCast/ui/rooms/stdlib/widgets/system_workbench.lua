@@ -20,6 +20,14 @@ local function family()
   }
 end
 local function family_label() return family().label end
+-- The launcher shows a family's firmware card: once on its first opening,
+-- and again from the Firmware button.
+local function firmware_info(first_use)
+  if not systems.by_id[selected_core] then return end
+  local ids = {}
+  for _, variant in ipairs(family().variants) do ids[#ids + 1] = variant.id end
+  hardware.firmware_info({core_id=selected_core, family_id=family().id, family_label=family_label(), core_ids=ids, first_use=first_use})
+end
 local function rgb(r, g, b, a)
   if a then return {r = r, g = g, b = b, a = a} end
   return {r = r, g = g, b = b}
@@ -349,7 +357,9 @@ end
 local function choose_core(core_id)
   if core_id == selected_core or not systems.by_id[core_id] then return end
   remember()
+  local previous_family = family().id
   selected_core = core_id
+  if family().id ~= previous_family then firmware_info(true) end
   initial_game_id = ""
   local previous = core_choices[core_id] or {}
   chosen, chosen_edition = previous.game_id or "", previous.edition_id or ""
@@ -508,6 +518,7 @@ local function picture(part)
     hardware.open_expansions({game_id=game.id, core_id=game.core_id, package_id=game.package_id})
   end)
   button("system", "Next system", 752, 480, 200, 38, locked_core == "", next_system)
+  button("firmware", "Firmware", 968, 480, 128, 38, systems.by_id[selected_core] ~= nil, function() firmware_info(false) end)
   button("machine", "Next machine", 24, 530, 200, 44, #entries > 1, next_machine)
   button("edition", "Next edition", 240, 530, 200, 44, game and #editions_of(entries[entry_i]) > 1, next_edition)
   button("start", label, 456, 524, 220, 52, enabled, fn)
@@ -613,6 +624,7 @@ local function boot_step()
 end
 
 function load()
+  firmware_info(true)
   last_hw = room.time
   read_hardware()
   library_generation = library_generation + 1

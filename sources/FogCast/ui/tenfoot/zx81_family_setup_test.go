@@ -28,6 +28,9 @@ func TestZX81SetupRoomPicksAVariantThenItsPackages(t *testing.T) {
 				"abi":  map[string]any{"id": "fes.computer", "major": 1},
 				"rom":  map[string]any{"id": "zx80-rom", "role": "firmware", "source_size": 4096},
 			}})
+		case "/api/v1/library/firmware/bundled":
+			// A host from before bundled firmware: nothing is preselected.
+			http.NotFound(w, r)
 		case "/api/v1/core-packages/" + zx80 + "/media-capabilities":
 			json.NewEncoder(w).Encode(map[string]any{"package_id": zx80, "media": []any{}})
 		case "/api/v1/core-catalog":

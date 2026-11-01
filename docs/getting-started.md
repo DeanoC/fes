@@ -147,6 +147,10 @@ system = "megadrive"
 root = "/absolute/path/to/your/megadrive-games"
 ```
 
+To have the host select the firmware FES may ship (the Spectrum ROMs and
+EmuTOS), stage it with `python3 scripts/bundled_firmware.py --output DIR` and
+add `[firmware]` with `bundled_dir = "DIR"` ([bundled firmware](bundled-firmware.md)).
+
 To connect a configured target, change the target table to `enabled = true` and
 supply both `address = "http://YOUR_TARGET:8182"` and
 `agent = "YOUR_TARGET_AGENT_TOKEN"`. Replace those placeholders with the actual

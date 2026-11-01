@@ -121,3 +121,4 @@ and the [project map](project-map.md). [Structure](fes-structure.md) only
 points at those. It is not a second roadmap.
 
 - [Kit software releases](kit-software-releases.md): persistent userspace bundles, queued activation and scoped recovery.
+- [Bundled firmware](bundled-firmware.md): the Spectrum ROMs and EmuTOS that ship beside the cores, their pins and licences, and the first-use firmware card.

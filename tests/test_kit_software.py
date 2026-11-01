@@ -340,9 +340,16 @@ class SoftwareWorkflowTests(unittest.TestCase):
             self.assertEqual((payload / 'share/fes-window/fes_window.ko').read_bytes(), b'module')
             self.assertEqual((payload / 'share/fes-window/version').read_text(), '0123456789abcdef\n')
             self.assertEqual((payload / 'share/fes-window/version').stat().st_mode & 0o777, 0o444)
+            self.assertEqual((payload / 'share/fogcast/firmware/test-rom/manifest.json').read_text(), '{}')
             output.write_bytes(b'partial failed pack')
             raise ValueError('incompatible base')
+        def stage(output, cache):
+            self.assertEqual(cache, self.root / 'out/firmware-cache')
+            (output / 'test-rom').mkdir(parents=True)
+            (output / 'test-rom/manifest.json').write_text('{}')
+            return [{'id': 'test-rom', 'sha256': 'f' * 64, 'size': 1}]
         with patch.object(kit, 'load', return_value=sdk), \
+             patch.object(kit.bundled_firmware, 'stage', side_effect=stage), \
              patch.object(kit, 'package', side_effect=fail), \
              patch.object(kit, 'run', side_effect=clone), \
              patch.object(kit, 'build_go', return_value='go test'), \

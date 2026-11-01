@@ -281,6 +281,7 @@ type Snapshot struct {
 	Storage         FirmwarePickerSnapshot
 	CoreLibrary     FirmwarePickerSnapshot
 	FirmwarePicker  FirmwarePickerSnapshot
+	FirmwareCard    FirmwareCardSnapshot
 	TapePicker      TapePickerSnapshot
 	ReducedMotion   bool
 	LocalCorePhase  string
@@ -550,6 +551,8 @@ type App struct {
 	roomChoice               []hostclient.Game
 	roomPicks                map[string]string
 	firmwarePickerOpen       bool
+	firmwareCard             firmwareCardState
+	firmwareCardSeen         map[string]bool
 	firmwarePickerAtRoots    bool
 	firmwarePickerBusy       bool
 	firmwarePickerIndex      int
@@ -1012,7 +1015,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		}
 	}
-	roomOwnsInput := a.room != nil && !a.roomPickerOpen && !a.settingsOpen && !a.settingsOSKOpenLocked() && !a.firmwarePickerOpen && !a.tapePickerOpen
+	roomOwnsInput := a.room != nil && !a.roomPickerOpen && !a.settingsOpen && !a.settingsOSKOpenLocked() && !a.firmwarePickerOpen && !a.tapePickerOpen && !a.firmwareCard.Open
 	switch cmd {
 	case CmdSafeAreaIn:
 		a.setSafeAreaPctLocked(a.safeAreaPct+safeAreaNudge, true)
@@ -1023,7 +1026,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.status = fmt.Sprintf("safe-area %.1f%%", a.safeAreaPct*100)
 		return
 	case CmdLayoutCycle:
-		if a.firmwarePickerOpen || a.tapePickerOpen {
+		if a.firmwarePickerOpen || a.tapePickerOpen || a.firmwareCard.Open {
 			return
 		}
 		if a.sessionStopOfferedLocked() {
@@ -1059,6 +1062,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		if a.firmwarePickerOpen {
 			a.closeFirmwarePickerLocked()
 		}
+		a.closeFirmwareCardLocked()
 		if !a.openHomeRoomAsRootLocked() {
 			a.toggleRoomPickerLocked()
 		}
@@ -1070,6 +1074,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		if a.firmwarePickerOpen {
 			a.closeFirmwarePickerLocked()
 		}
+		a.closeFirmwareCardLocked()
 		if a.settingsOpen {
 			a.closeSettingsLocked()
 		} else {
@@ -1077,7 +1082,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		}
 		return
 	case CmdFilters:
-		if a.firmwarePickerOpen || a.tapePickerOpen {
+		if a.firmwarePickerOpen || a.tapePickerOpen || a.firmwareCard.Open {
 			return
 		}
 		if roomOwnsInput {
@@ -1105,6 +1110,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	if a.firmwarePickerOpen {
 		a.handleFirmwarePickerLocked(cmd)
+		return
+	}
+	if a.firmwareCard.Open {
+		a.handleFirmwareCardLocked(cmd)
 		return
 	}
 	if a.roomPickerOpen && (!a.sessionStopOfferedLocked() || a.roomDuringPlay) {
@@ -1836,6 +1845,7 @@ func (a *App) Snapshot() Snapshot {
 		Storage:                 a.driveSettingsSnapshotLocked(),
 		CoreLibrary:             a.coreLibrarySnapshotLocked(),
 		FirmwarePicker:          a.firmwarePickerSnapshotLocked(),
+		FirmwareCard:            a.firmwareCardSnapshotLocked(),
 		TapePicker:              a.tapePickerSnapshotLocked(),
 		ReducedMotion:           a.reducedMotion,
 		LocalCorePhase:          a.localPhase,

@@ -125,6 +125,9 @@ type tenfootPrefs struct {
 	// Controllers holds kit pads' saved profiles, keyed by the GUID tenfoot
 	// logs when a pad attaches.
 	Controllers map[string]inputmap.Profile `json:"controllers,omitempty"`
+	// FirmwareInfoSeen lists the families whose first-use firmware card
+	// was continued past.
+	FirmwareInfoSeen []string `json:"firmware_info_seen,omitempty"`
 }
 
 func homePrefValue(rooms bool) string {

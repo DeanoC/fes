@@ -80,6 +80,8 @@ func TestTenfootKitRequestPathsMatchLauncherPolicy(t *testing.T) {
 		{"POST", "/api/v1/library/zx81-tapes/../settings/import", false},
 		{"POST", "/api/v1/session/display", true},
 		{"GET", "/api/v1/library/firmware", true},
+		{"GET", "/api/v1/library/firmware/bundled", true},
+		{"PUT", "/api/v1/library/firmware/bundled", false},
 		{"GET", "/api/v1/library/core-entries/fpga-zx81/expansion", true},
 		{"PUT", "/api/v1/library/core-entries/fpga-zx81/expansion", true},
 		{"PUT", "/api/v1/library/core-entries/fpga-zx81/expansion/extra", false},

@@ -117,3 +117,52 @@ func (c *Client) SelectHouseholdFirmware(ctx context.Context, mediaID string) (C
 	}
 	return slot, nil
 }
+
+// BundledFirmware lists the firmware the host ships and selects by default.
+// A host from before bundled firmware has no route; it answers 404 (or 405
+// or 501 behind a launcher), and that reads as no bundled firmware, so a
+// caller never claims built-in firmware the host cannot confirm.
+func (c *Client) BundledFirmware(ctx context.Context) ([]protocol.BundledFirmware, error) {
+	req, err := c.NewRequest(ctx, http.MethodGet, "/api/v1/library/firmware/bundled", http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.HTTPClient().Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := ReadResponseBody(resp, maxResponseBytes)
+	if err != nil {
+		return nil, err
+	}
+	switch resp.StatusCode {
+	case http.StatusOK:
+	case http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusNotImplemented:
+		return nil, nil
+	default:
+		return nil, APIStatusError(resp.StatusCode, body)
+	}
+	var list protocol.BundledFirmwareList
+	if err := json.Unmarshal(body, &list); err != nil {
+		return nil, fmt.Errorf("bundled firmware: %w", err)
+	}
+	out := make([]protocol.BundledFirmware, 0, len(list.Firmware))
+	for _, fw := range list.Firmware {
+		if fw.CoreID != "" && fw.ROMID != "" && fw.Size > 0 && protocol.ValidateDigest(fw.MediaID) == nil {
+			out = append(out, fw)
+		}
+	}
+	return out, nil
+}
+
+// BundledFirmwareFor finds the bundled image for one core's named ROM.
+func BundledFirmwareFor(list []protocol.BundledFirmware, coreID, romID string, size int64) (protocol.BundledFirmware, bool) {
+	for _, fw := range list {
+		if fw.CoreID == coreID && fw.ROMID == romID && fw.Size == size {
+			return fw, true
+		}
+	}
+	return protocol.BundledFirmware{}, false
+}

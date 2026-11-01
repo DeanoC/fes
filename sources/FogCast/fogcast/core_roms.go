@@ -12,7 +12,6 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
-	"github.com/DeanoC/FogCast/internal/zx81machine"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -128,14 +127,15 @@ func (s *Service) readCoreEntryROM(ctx context.Context, entry catalog.CoreEntry,
 	if descriptor.Format == 4 && len(descriptor.ROMs) == 2 {
 		reqID, reqSize = descriptor.ROMs[1].ID, descriptor.ROMs[1].SourceSize
 	}
-	if entry.CoreID == "fes.zx81" && descriptor.Core.ID == entry.CoreID && descriptor.Format == 3 &&
-		descriptor.ROM != nil && descriptor.ROM.ID == "machine-rom" &&
-		descriptor.ROM.Role == protocol.FirmwareRole && descriptor.ROM.SourceSize == zx81machine.MachineROMBytes {
+	if descriptor.Core.ID == entry.CoreID && descriptor.Format == 3 && descriptor.ROM != nil && descriptor.ROM.Role == protocol.FirmwareRole {
+		bundled, hasBundled := s.bundledFirmwareFor(entry.CoreID, descriptor.ROM)
+		stale := selected.MediaID != "" && selected.PackageID != entry.PackageID && selected.ROMID == reqID && selected.SourceSize == reqSize
+		zx81 := entry.CoreID == "fes.zx81" && reqID == "machine-rom" && reqSize == 8192
 		switch {
-		case selected.MediaID == "":
-			selected, err = s.provisionZX81MachineROM(ctx, entry, descriptor.ROM)
-		case selected.PackageID != entry.PackageID && selected.ROMID == reqID && selected.SourceSize == reqSize:
-			selected, err = s.rebindZX81MachineROM(ctx, entry, selected, descriptor.ROM)
+		case selected.MediaID == "" && hasBundled:
+			selected, err = s.selectBundledFirmware(ctx, entry, descriptor.ROM, bundled)
+		case stale && (zx81 || hasBundled && selected.MediaID == bundled.MediaID):
+			selected, err = s.rebindCoreFirmware(ctx, entry, selected, descriptor.ROM)
 		}
 		if err != nil {
 			return selected, nil, err
@@ -167,11 +167,12 @@ func (s *Service) readCoreEntryROM(ctx context.Context, entry catalog.CoreEntry,
 	return selected, data, nil
 }
 
-// rebindZX81MachineROM carries a saved firmware binary across package changes
+// rebindCoreFirmware carries a saved firmware binary across package changes
 // only when the active package declares the same named, exact-size contract.
+// It applies to every ZX81 selection and to bundled firmware on any core.
 // The media digest is the compare-and-swap value, so concurrent user choices
 // are not overwritten.
-func (s *Service) rebindZX81MachineROM(ctx context.Context, entry catalog.CoreEntry, selected catalog.CoreEntryROM, requirement *corepackage.ROM) (catalog.CoreEntryROM, error) {
+func (s *Service) rebindCoreFirmware(ctx context.Context, entry catalog.CoreEntry, selected catalog.CoreEntryROM, requirement *corepackage.ROM) (catalog.CoreEntryROM, error) {
 	roms, ok := s.catalog.(coreROMCatalog)
 	if !ok {
 		return catalog.CoreEntryROM{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
@@ -189,41 +190,6 @@ func (s *Service) rebindZX81MachineROM(ctx context.Context, entry catalog.CoreEn
 	return selected, romSelectionError(err)
 }
 
-// provisionZX81MachineROM binds the bundled standard BASIC image only when a
-// ZX81 title has no firmware selection. A user-selected image is never replaced.
-func (s *Service) provisionZX81MachineROM(ctx context.Context, entry catalog.CoreEntry, requirement *corepackage.ROM) (catalog.CoreEntryROM, error) {
-	if requirement == nil || requirement.ID != "machine-rom" || requirement.Role != protocol.FirmwareRole || requirement.SourceSize != zx81machine.MachineROMBytes {
-		return catalog.CoreEntryROM{}, romAdmissionError()
-	}
-	roms, ok := s.catalog.(coreROMCatalog)
-	if !ok {
-		return catalog.CoreEntryROM{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
-	}
-	mediaStore, ok := s.catalog.(coreMediaCatalog)
-	if !ok {
-		return catalog.CoreEntryROM{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
-	}
-	image, err := zx81machine.MachineROM()
-	if err != nil || int64(len(image)) != requirement.SourceSize {
-		return catalog.CoreEntryROM{}, romAdmissionError()
-	}
-	media, _, err := mediaStore.ImportCoreMediaStream(ctx, int64(len(image)), bytes.NewReader(image))
-	if err != nil {
-		return catalog.CoreEntryROM{}, mapCoreMediaError(err)
-	}
-	selected, err := roms.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, requirement.ID, requirement.SourceSize, "", media.MediaID)
-	if err == nil {
-		return selected, nil
-	}
-	// Another request may have filled the empty selection after our initial
-	// read. Accept that winner without replacing it; the normal admission below
-	// still checks its package, ROM identity, size and stored bytes.
-	current, readErr := roms.CoreEntryROM(ctx, entry.GameID)
-	if readErr == nil && current.MediaID != "" && current.PackageID == entry.PackageID && current.ROMID == requirement.ID && current.SourceSize == requirement.SourceSize {
-		return current, nil
-	}
-	return catalog.CoreEntryROM{}, romSelectionError(err)
-}
 func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, descriptor corepackage.Descriptor, base []byte, initial *corepackage.InitialMedia) (coreLoadSource, error) {
 	// Format 4 is Coleco only: the 8 KiB BIOS with the 16 KiB cartridge
 	// shell or the 128 KiB MegaCart lane.
