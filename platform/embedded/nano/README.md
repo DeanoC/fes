@@ -25,6 +25,12 @@ The matched Linux-free probe retained the expected package, contained SD,
 consumed retained RAM bytes, resumed/reread, and contained again with one owner
 and generations 3/4/6/7. No native SD write or FPGA payload activation occurred.
 
+The [closed-bridge SDM status diagnostic](../../../docs/validation/2026-11-01-de25-fpga-ready/README.md)
+now passes on TRWU8CBL: one fixed read-only firmware query and unchanged
+closed ownership at generation 1. The observed readiness is `0`.
+No FPGA endpoint access or bridge opening was requested. This observation
+is separate from live build identity and runtime configuration acceptance.
+
 This prototype joins a repeatable recovery upload tool to a matched Linux-free
 SPL, BL31 and native serial probe. The [current validation](../../../docs/validation/2026-10-31-de25-cold-upload/README.md)
 records the first host tests, cross-builds and regular-file packaging. The

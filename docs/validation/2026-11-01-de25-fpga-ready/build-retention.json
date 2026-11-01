@@ -1,0 +1,20 @@
+{
+  "archive": "/home/deano/fes-retained/de25-fpga-ready-20261101/builds.tar.gz",
+  "size": 121080676,
+  "sha256": "3d569ceea4338b67bda8512e15343c69b72793dd80f6a9990f3e68a825453c26",
+  "members": 43673,
+  "every_member_verified": true,
+  "source": {
+    "source_commit": "c93ae266c46c8996a7a64073172d6563999aed91",
+    "tree": "87b0620b33fb1dc48437b3e7fb9db4be4de43623",
+    "bundle_sha256": "dec5547381e1fe40a98aaa440a46181cc9d66d854090da590fbc0aa92035579d",
+    "prerequisite_commit": "359b07bbd29c4a65720a380239876fcc3ca70f67",
+    "previous_object_store": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-cpu-fpga-20261101/source-restore.git",
+    "restored_tree_verified": true,
+    "verified_reachable_objects": 8059,
+    "missing_objects": 0,
+    "scope": "incremental bundle; requires the documented prior source-retention chain"
+  },
+  "manifest_sha256": "093a2cd178625943a176dd934a6833b55217c18401b4927353f782567eaa737f",
+  "prior_retention": "/home/deano/fes-retained/de25-cpu-fpga-20261101"
+}

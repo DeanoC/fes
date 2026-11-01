@@ -110,3 +110,8 @@ working diagnosis, not a measured SDM state. The next candidate queries SDM
 configuration status before any control opening, rejects incomplete/unready
 status while closed, and adds individual access markers if fabric is ready.
 It sends no configuration command and grants no runtime programming permission.
+
+The subsequent [status-only boot](../2026-11-01-de25-fpga-ready/README.md)
+passed with SDM ready=`0` and every bridge closed. It made no
+endpoint request and does not retroactively supply identity, status or
+reclose evidence for this first stopped attempt.
