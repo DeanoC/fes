@@ -29,12 +29,13 @@ func (c *releasingMenuClient) releaseCount() int {
 
 func TestMenuPauseReleasesWindowOnlyAfterFrameDrains(t *testing.T) {
 	block := make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(block) })
 	client := &releasingMenuClient{testMenuClient: &testMenuClient{generation: 3, ready: make(chan struct{}, 3), presentBlock: block}}
 	d, err := newMenuDisplayWithClient(client)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer func() { unblock(); d.Close() }()
 	d.Present()
 	select {
 	case <-client.ready:
@@ -51,7 +52,7 @@ func TestMenuPauseReleasesWindowOnlyAfterFrameDrains(t *testing.T) {
 	if client.releaseCount() != 0 {
 		t.Fatal("released mapping while a frame could still write it")
 	}
-	close(block)
+	unblock()
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
@@ -94,12 +95,13 @@ func TestMenuPausePropagatesWindowReleaseFailure(t *testing.T) {
 
 func TestCancelledMenuPauseKeepsInflightMapping(t *testing.T) {
 	block := make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(block) })
 	client := &releasingMenuClient{testMenuClient: &testMenuClient{generation: 3, ready: make(chan struct{}, 1), presentBlock: block}}
 	d, err := newMenuDisplayWithClient(client)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer func() { unblock(); d.Close() }()
 	d.Present()
 	select {
 	case <-client.ready:
@@ -114,7 +116,7 @@ func TestCancelledMenuPauseKeepsInflightMapping(t *testing.T) {
 	if client.releaseCount() != 0 {
 		t.Fatal("cancelled wait released inflight mapping")
 	}
-	close(block)
+	unblock()
 	if err := d.Pause(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -125,12 +127,13 @@ func TestCancelledMenuPauseKeepsInflightMapping(t *testing.T) {
 
 func TestResumedMenuPauseCannotReleaseANewFrameMapping(t *testing.T) {
 	block := make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(block) })
 	client := &releasingMenuClient{testMenuClient: &testMenuClient{generation: 3, ready: make(chan struct{}, 1), presentBlock: block}}
 	d, err := newMenuDisplayWithClient(client)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer d.Close()
+	defer func() { unblock(); d.Close() }()
 	d.Present()
 	select {
 	case <-client.ready:
@@ -148,13 +151,13 @@ func TestResumedMenuPauseCannotReleaseANewFrameMapping(t *testing.T) {
 			break
 		}
 		if time.Now().After(until) {
-			close(block)
+			unblock()
 			t.Fatal("pause did not begin")
 		}
 		time.Sleep(time.Millisecond)
 	}
 	d.Resume()
-	close(block)
+	unblock()
 	if err := <-done; err == nil {
 		t.Fatal("superseded pause reported launch-ready")
 	}
