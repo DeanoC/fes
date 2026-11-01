@@ -72,7 +72,7 @@ def main():
         pass
     else:
         raise ValueError("modified TF-A reference was accepted")
-    names = ["fes_contained_query", "intel_fpga_sdm_write_buffer", "intel_fpga_sdm_write_all", "intel_mailbox_fpga_config_isdone",
+    names = ["fes_contained_query", "fes_contained_transport_failure", "intel_fpga_sdm_write_buffer", "intel_fpga_sdm_write_all", "intel_mailbox_fpga_config_isdone",
              "mark_last_buffer_xfer_completed", "intel_fpga_config_completed_write", "intel_fpga_config_start",
              "is_fpga_config_buffer_full", "is_address_in_ddr_range", "intel_fpga_config_write", "intel_smmu_hps_remapper_init"]
     if vendor:
@@ -87,6 +87,8 @@ static config_type request_type;
 static int current_block,current_buffer,read_block,max_blocks;
 static uint32_t send_id,rcv_id,bytes_per_block,blocks_submitted,g_remapper_bypass;
 static bool bridge_disable;
+static int fes_contained_transport_status;
+static unsigned fes_contained_transport_phase;
 struct fpga_config_info fpga_config_buffers[4];
 '''
     subset += "\n".join(function(source, name) for name in names)
@@ -94,6 +96,7 @@ struct fpga_config_info fpga_config_buffers[4];
 void fes_tfa_reset(void) {
  request_type=NO_REQUEST; current_block=current_buffer=read_block=max_blocks=0;
  send_id=rcv_id=bytes_per_block=blocks_submitted=g_remapper_bypass=0;bridge_disable=false;
+ fes_contained_transport_status=0;fes_contained_transport_phase=0;
  for(unsigned i=0;i<4;i++) fpga_config_buffers[i]=(struct fpga_config_info){0};
 }
 void fes_tfa_query(uint64_t result[4]){fes_contained_query(result);}

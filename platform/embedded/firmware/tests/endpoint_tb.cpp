@@ -109,13 +109,14 @@ struct Bench {
         if(fes_tfa_start(0)!=0)return Result::fault;
         for(unsigned i=0;i<4;i++){
             int status=fes_tfa_write(0x96000000U+i*32,32);
+            if(status!=0&&status!=1)return Result::fault;
             check(status==(i==3?1:0),"unexpected actual TF-A WRITE status");
         }
         return Result::ok;
     }
     static Result poll(void* p){
         uint32_t addresses[3]{};int status=fes_tfa_completed(addresses);
-        check(status==0||status==1,"actual TF-A completion failed");
+        if(status!=0&&status!=1)return Result::fault;
         for(auto addr:addresses)if(addr){check(addr==0x16000000U+world.completed*32,"wrong completion namespace/order");++world.completed;}
         if(world.completed!=4)return Result::busy;
         if(fes_tfa_isdone()!=0)return Result::fault;

@@ -27,6 +27,11 @@ The contained variant:
 - Rejects partial/authentication flags; full configuration uses flag zero.
 - Disables bridges and checks the result before CANCEL/RECONFIG.
 - Checks CANCEL failure and RECONFIG response shape/zero credits or block size.
+- Propagates asynchronous submission failures and every completion error,
+  including zero-word errors and errors after an earlier acknowledgement.
+- Treats only `MBOX_NO_RESPONSE` as pending; timeouts retire the engine. Failed
+  transfers retain their buffers; the engine initiates no response flush, replay
+  or restart.
 - Makes ISDONE leave every data bridge closed, including repeated status polls.
 - Handles START's null remapper argument while preserving WRITE's CPU-to-SDM
   relative-address conversion.
@@ -57,6 +62,15 @@ next fixed chunk, including the final short chunk; accepted BUSY cannot replay
 it. Completion addresses use the reviewed SDM-relative namespace. Configuration
 does not open control or data. A later independent readiness query precedes
 the secure live-identity probe and control reclose.
+
+The cold diagnostic reports accepted SDM credits/block size once after START.
+On a transport failure it records the original status and submission/completion
+position before stopping. These are observations; no raw mailbox command or
+additional configuration authority is exposed. Empty error responses used to
+look like BUSY, and rejected asynchronous sends used to look submitted. The
+actual-engine regressions cover both defects, delayed responses, malformed
+statuses and late errors following an acknowledgement. The preserved physical
+stall still needs a matched test of this repair to identify its hardware cause.
 
 Invalid scope, changed bytes, uncertain replies or failed completion retire
 authority and keep memory owned until reboot. No reset-bit repair or implicit

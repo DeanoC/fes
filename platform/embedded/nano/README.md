@@ -635,6 +635,15 @@ retained; no identity or bridge-opening marker follows. This paired digest
 measurement does not qualify a complete core load. Mailbox/configuration
 accounting and SDM state need further bounded diagnosis.
 
+The contained engine now propagates rejected submissions and firmware error
+responses even when they carry no data words. It retires on timeout or malformed
+status and keeps the source pinned until reboot; only a genuine no-response
+result continues polling. The next matched image logs SDM limits and the first
+transport error with its transfer position. The host decoder checks the limit
+record's ownership/order, and failure records cannot qualify a completed load.
+This repair passes actual-engine/RTL and injected failure tests; its connection
+to the physical stall remains unproven until the next bounded board test.
+
 This source-bound cold profile is a hardware-qualification candidate. No
 contained physical transfer is accepted yet. It enables neither an active
 reader nor data bridges, secondary CPUs, active drain, runtime package

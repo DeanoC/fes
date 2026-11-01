@@ -402,6 +402,29 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
         self.assertIn('configuration_timing',report)
         self.assertFalse(self.decode(raw+'panic: late FPGA firmware return\r\n')['complete'])
 
+    def test_engine_limits_are_scoped_observations_and_never_hide_failures(self):
+        lines=self.capture().splitlines(keepends=True)
+        first=next(i for i,line in enumerate(lines) if 'phase=write ' in line)
+        engine=f'NOTICE:  FES_NANO_CORE_ENGINE credits=4 block_bytes=65536 next_job=0 owner={OWNER:x} generation=1\r\n'
+        raw=''.join(lines[:first]+[engine]+lines[first:])
+        report=self.decode(raw)
+        self.assertTrue(report['complete'],report)
+        observed=[r for r in report['records'] if r['stage']=='configuration_engine']
+        self.assertEqual(len(observed),1)
+        self.assertEqual(observed[0]['values'],{'credits':4,'block_bytes':65536,'next_job':0,'owner':OWNER,'generation':1})
+        for old,new in (('credits=4','credits=0'),('credits=4','credits=2147483648'),
+                        ('block_bytes=65536','block_bytes=0'),('next_job=0','next_job=14'),
+                        (f'owner={OWNER:x}',f'owner={OWNER+2:x}'),('generation=1','generation=2')):
+            with self.subTest(new=new):
+                changed=raw.replace(engine,engine.replace(old,new))
+                self.assertFalse(self.decode(changed)['complete'])
+        self.assertFalse(self.decode(raw.replace(engine,engine+engine))['complete'])
+        self.assertFalse(self.decode(engine+self.capture())['complete'])
+        failure='NOTICE:  FES_NANO_CORE_TRANSPORT_FAILURE phase=2 status=-17 completed=12 submitted=13 next_job=13 credits=3\r\n'
+        self.assertFalse(self.decode(raw+failure)['complete'])
+        partial=self.decode(''.join(lines[:first])+engine)
+        self.assertFalse(partial['complete']);self.assertFalse(partial['errors'])
+
 
 class NativeSDTraceTests(unittest.TestCase):
     expected={'bytes':1098,'sha256':'a'*64}

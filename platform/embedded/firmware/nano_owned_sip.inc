@@ -7,6 +7,9 @@ static const uint8_t fes_nano_hps_context[32] = FES_NANO_HPS_CONTEXT_SHA;
 #else
 static const uint8_t fes_nano_hps_context[32] = {0};
 #endif
+#if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
+#include <common/debug.h>
+#endif
 
 static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
                                 uint64_t x3, uint64_t x4, uint64_t r[4])
@@ -110,6 +113,13 @@ out:
 #if defined(FES_NANO_COLD_SERIAL) && defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
     if(configuration && configuration->issued && configuration->issued==fid)
         fes_nano_configuration_after(configuration,fid,r);
+    if (fid==INTEL_SIP_SMC_FPGA_CONFIG_START && r[0]==0 && configuration && !configuration->failed)
+        NOTICE("FES_NANO_CORE_ENGINE credits=%d block_bytes=%u next_job=%u owner=%llx generation=%llu\n",
+               max_blocks,bytes_per_block,send_id,(unsigned long long)fes_nano_owned_bridges.state.owner,
+               (unsigned long long)fes_nano_owned_bridges.state.generation);
+    if (fes_contained_transport_status)
+        NOTICE("FES_NANO_CORE_TRANSPORT_FAILURE phase=%u status=%d completed=%d submitted=%u next_job=%u credits=%d\n",
+               fes_contained_transport_phase,fes_contained_transport_status,current_block,blocks_submitted,send_id,max_blocks);
 #endif
     fes_nano_bridge_platform_unlock();
 }

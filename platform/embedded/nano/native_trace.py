@@ -327,9 +327,10 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
         return decode_native_boot(raw,build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True)
     core=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_CORE_TRANSFER phase=(?P<phase>[A-Za-z]{{1,16}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) completed=(?P<completed>[0-9]{{1,10}}) pending=(?P<pending>[0-9]{{1,10}}) total=(?P<total>[0-9]{{1,10}}) base=(?P<base>{H})(?: counter=(?P<counter>{H}) hash_ticks=(?P<hash_ticks>{H}))?')
     programmed=re.compile(rf'FES_NATIVE_FPGA_PROGRAMMED PASS package_id=(?P<package_id>[0-9a-f]{{64}}) core_sha256=(?P<core_sha256>[0-9a-f]{{64}}) bytes=(?P<bytes>[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) data_held=1 activation=unavailable')
+    engine=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_CORE_ENGINE credits=(?P<credits>[0-9]{{1,10}}) block_bytes=(?P<block_bytes>[0-9]{{1,10}}) next_job=(?P<next_job>[0-9]{{1,2}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}})')
     parts=raw.split(b'\n');extra=[];errors=[];last=None;offset=pending=0;complete=False;programmed_row=None
     total=configuration['core_size'];chunk=configuration['chunk_bytes'];owner=None
-    timed=None;first_counter=first_hash=previous_counter=previous_hash=None
+    timed=None;first_counter=first_hash=previous_counter=previous_hash=None;engine_row=None
     def require(condition, reason):
         if not condition:errors.append(reason)
     for index,fragment in enumerate(parts[:-1]):
@@ -380,6 +381,15 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
             extra.append({'stage':'configuration_'+phase,'line':index+1,'values':values})
             last=phase;parts[index]=b''
         else:
+            match=engine.fullmatch(line)
+            if match:
+                values={key:int(value,16 if key=='owner' else 10) for key,value in match.groupdict().items()}
+                require(engine_row is None and last=='start','configuration engine observation repeated or misplaced')
+                require(values['owner']==owner and values['generation']==1 and 0<values['credits']<=0x7fffffff and
+                        0<values['block_bytes']<=0xffffffff and values['next_job']<14,
+                        'configuration engine observation has invalid scope or limits')
+                engine_row={'stage':'configuration_engine','line':index+1,'values':values}
+                extra.append(engine_row);parts[index]=b'';continue
             match=programmed.fullmatch(line)
             if not match:continue
             values={key:int(value,16 if key=='owner' else 10) if key in ('owner','generation','bytes') else value for key,value in match.groupdict().items()}

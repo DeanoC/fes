@@ -52,6 +52,19 @@ def contained_source(data):
     query = constant("FesEmbeddedFirmwareQuery")
     fields = ["0", constant("FesEmbeddedFirmwareMagic"), constant("FesEmbeddedFirmwareVersion"), constant("FesEmbeddedFirmwareFeatures")]
     helper = "static void fes_contained_query(uint64_t result[4])\n{\n" + "".join("\tresult[%d] = %sU;\n" % (i,v) for i,v in enumerate(fields)) + "}\n\n"
+    helper += '''static int fes_contained_transport_status;
+static unsigned fes_contained_transport_phase;
+static int fes_contained_transport_failure(unsigned phase, int status)
+{
+\tif (fes_contained_transport_status == 0) {
+\t\tfes_contained_transport_status = status;
+\t\tfes_contained_transport_phase = phase;
+\t}
+\trequest_type = NO_REQUEST;
+\treturn INTEL_SIP_SMC_STATUS_ERROR;
+}
+
+'''
     if profile == "terasic-de25-v2.12":
         # Terasic reports the SDM state alongside BUSY. The native protocol
         # carries BUSY without extra words; preserve details on all other
@@ -93,7 +106,9 @@ def contained_source(data):
             "\t * separately opens only the control bridge, verifies live identity,\n"
             "\t * then explicitly releases data bridges. */")
     full_only = ("\t/* FES profile admits full configuration only. */\n"
-                 "\tif (flag != 0U) {\n\t\treturn INTEL_SIP_SMC_STATUS_REJECTED;\n\t}\n\n")
+                 "\tif (flag != 0U) {\n\t\treturn INTEL_SIP_SMC_STATUS_REJECTED;\n\t}\n"
+                 "\tif (fes_contained_transport_status != 0)\n"
+                 "\t\treturn INTEL_SIP_SMC_STATUS_ERROR;\n\n")
     contain = ("\t/* Containment precedes every SDM configuration command. */\n"
                "\tif (socfpga_bridges_disable(~0U) != 0) {\n"
                "\t\trequest_type = NO_REQUEST;\n\t\treturn INTEL_SIP_SMC_STATUS_ERROR;\n\t}\n")
@@ -133,6 +148,43 @@ def contained_source(data):
     # START initializes remapping with NULL. WRITE supplies a real pointer.
     old = "\t\t*mem = *mem - DRAM_BASE;\n\t} else {\n\t\t*mem = *mem - DRAM_BASE;\n\t}\n"
     replace(old, "\t}\n\tif (mem != NULL) {\n\t\t*mem = *mem - DRAM_BASE;\n\t}\n")
+    # A rejected/uncertain submission is never recorded as sent. Retain the
+    # buffer and retire this boot's engine without replay or mailbox flushing.
+    replace("\t\tbuffer->size_written += args[2];\n"
+            "\t\tmailbox_send_cmd_async(&send_id, MBOX_RECONFIG_DATA, args,\n"
+            "\t\t\t\t\t3U, CMD_INDIRECT);\n",
+            "\t\tint status = mailbox_send_cmd_async(&send_id, MBOX_RECONFIG_DATA, args,\n"
+            "\t\t\t\t\t3U, CMD_INDIRECT);\n"
+            "\t\tif (status != 0) return fes_contained_transport_failure(1U, status);\n"
+            "\t\tbuffer->size_written += args[2];\n")
+    replace("static int intel_fpga_sdm_write_all(void)\n{\n",
+            "static int intel_fpga_sdm_write_all(void)\n{\n"
+            "\tif (fes_contained_transport_status != 0) return INTEL_SIP_SMC_STATUS_ERROR;\n")
+    replace("\t\tif (intel_fpga_sdm_write_buffer(\n"
+            "\t\t\t&fpga_config_buffers[current_buffer])) {\n",
+            "\t\tint status = intel_fpga_sdm_write_buffer(&fpga_config_buffers[current_buffer]);\n"
+            "\t\tif (status == INTEL_SIP_SMC_STATUS_ERROR) return status;\n"
+            "\t\tif (status != 0) {\n")
+    replace("\t*count = 0;\n\n\twhile (*count < 3) {",
+            "\t*count = 0;\n"
+            "\tif (fes_contained_transport_status != 0) return INTEL_SIP_SMC_STATUS_ERROR;\n\n"
+            "\twhile (*count < 3) {")
+    replace("\t\tif (status < 0) {\n\t\t\tbreak;\n\t\t}\n\n\t\tmax_blocks++;",
+            "\t\tif (status == MBOX_NO_RESPONSE) break;\n"
+            "\t\tif (status != 0) {\n\t\t\t*count = 0;\n"
+            "\t\t\treturn fes_contained_transport_failure(2U, status);\n\t\t}\n\n"
+            "\t\tmax_blocks++;")
+    replace("\tif (*count <= 0) {\n"
+            "\t\tif (status != MBOX_NO_RESPONSE &&\n"
+            "\t\t\tstatus != MBOX_TIMEOUT && resp_len != 0) {\n"
+            "\t\t\tmailbox_clear_response();\n\t\t\trequest_type = NO_REQUEST;\n"
+            "\t\t\treturn INTEL_SIP_SMC_STATUS_ERROR;\n\t\t}\n\n"
+            "\t\t*count = 0;\n\t}\n\n\tintel_fpga_sdm_write_all();",
+            "\tif (intel_fpga_sdm_write_all() != 0) {\n\t\t*count = 0;\n"
+            "\t\treturn INTEL_SIP_SMC_STATUS_ERROR;\n\t}")
+    replace("\tintel_fpga_sdm_write_all();\n\n\tif (!is_address_in_ddr_range(mem, size) ||",
+            "\tif (intel_fpga_sdm_write_all() != 0) return INTEL_SIP_SMC_STATUS_ERROR;\n\n"
+            "\tif (!is_address_in_ddr_range(mem, size) ||")
     return text.encode()
 
 
