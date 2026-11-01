@@ -108,9 +108,15 @@ games slice does both.
     checked under a preset.
   - The governor bench's runs all halt with the same registers as `max`'s.
 - **FreeDOS under a preset.**
-  - The RTL machine sim boots under 286-12 (`--suite boot --cpu rtl
-    --preset 1`): running at the time of writing; its result lands in a
-    later commit.
+  - The RTL machine sim (`machine_tb`, at 100 MHz) boots under 386DX-40
+    (`--suite boot --cpu rtl --preset 5`,
+    [`boot-rtl-386dx40-report.json`](boot-rtl-386dx40-report.json)) and
+    passes. FreeDOS reaches `C:\>` and lists the directory at 5.95 simulated
+    seconds, against 4.1 at `max` on main. The RTL ran alone (no oracle
+    steps, no stops), and its VGA trace replays against Bochs's VGA with no
+    mismatch. It retired 52,708,504 instructions against 113,546,092 at
+    `max`. The same boot under 286-12 was still running at the time of
+    writing.
   - `system_tb` boots through the record under 386DX-25 (`--suite system
     --preset 3`,
     [`system-freedos-386dx25-report.json`](system-freedos-386dx25-report.json))
