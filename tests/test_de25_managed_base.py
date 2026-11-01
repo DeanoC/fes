@@ -20,6 +20,22 @@ SPEC.loader.exec_module(BASE)
 
 
 class ManagedBaseTests(unittest.TestCase):
+    def test_bootstrap_mountpoint_requires_real_directories_in_tar_and_ext4(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); mount = root / '.fes-bootstrap'; mount.mkdir()
+            with mock.patch.object(BASE.image, 'debugfs', return_value=b'Inode: 41 Type: directory Mode: 0755') as stat:
+                BASE.verify_bootstrap_mountpoint(root, root / 'base.img')
+                stat.assert_called_once()
+                mount.rmdir(); mount.write_bytes(b'not a mount point')
+                with self.assertRaisesRegex(ValueError, 'mount directory'):
+                    BASE.verify_bootstrap_mountpoint(root, root / 'base.img')
+                mount.unlink(); mount.symlink_to(root, target_is_directory=True)
+                with self.assertRaisesRegex(ValueError, 'mount directory'):
+                    BASE.verify_bootstrap_mountpoint(root, root / 'base.img')
+                mount.unlink(); mount.mkdir(); stat.return_value = b'Inode: 41 Type: regular Mode: 0644'
+                with self.assertRaisesRegex(ValueError, 'ext4 bootstrap'):
+                    BASE.verify_bootstrap_mountpoint(root, root / 'base.img')
+
     def test_sdk_export_keeps_host_and_sysroot_aliases_inside_the_archive(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); source = root / 'sdk.tar.gz'; output = root / 'export.tar.gz'

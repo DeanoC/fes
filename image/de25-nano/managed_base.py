@@ -137,14 +137,23 @@ def post_build(target):
     for name in ('fes-kit-software', 'fes-bluetooth', 'fes-kit-data'):
         shutil.copyfile(ROOT / 'sources/FogCast/bin' / BINARIES[name], target / 'usr/sbin' / name)
         (target / 'usr/sbin' / name).chmod(0o755)
-    # Bootstrap guard keeps this intermediate out of the managed launch path.
-    # Full factory assembly must install its selected bundle before enabling S40.
-    (target / '.fes-bootstrap').touch()
+    # PID1 retains the original root at this immutable mount point. Full
+    # factory assembly must install its selected bundle before enabling S40.
+    (target / '.fes-bootstrap').mkdir(exist_ok=True)
     (target / 'etc/init.d/S40fes-kit-software').unlink(missing_ok=True)
     record = {**inputs, 'classification': 'managed-base-intermediate',
               'normal_runtime_admission': 'closed', 'factory_assembly': 'required',
               'kernel_image_sha256': kernel['files']['Image']['sha256']}
     (target / 'usr/share/fes/managed-base.json').write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
+
+
+def verify_bootstrap_mountpoint(target, ext4):
+    bootstrap, startup = target / '.fes-bootstrap', target / 'etc/init.d/S40fes-kit-software'
+    if (bootstrap.is_symlink() or not bootstrap.is_dir() or
+            startup.exists() or startup.is_symlink()):
+        raise ValueError('intermediate requires its bootstrap mount directory and disabled managed launch')
+    if not re.search(rb'Type:\s+directory\b', image.debugfs(ext4, 'stat /.fes-bootstrap')):
+        raise ValueError('ext4 bootstrap mount point must be a directory')
 
 
 def verify_rootfs(directory):
@@ -178,8 +187,7 @@ def verify_rootfs(directory):
                 raise ValueError('managed base configuration lost required policy: ' + required)
         if not re.search(r'(?m)^ttyS0::respawn:.*getty.*ttyS0 115200', (target / 'etc/inittab').read_text()):
             raise ValueError('managed base serial recovery console differs')
-        if not (target / '.fes-bootstrap').is_file() or (target / 'etc/init.d/S40fes-kit-software').exists():
-            raise ValueError('intermediate must retain its bootstrap guard and leave managed launch disabled')
+        verify_bootstrap_mountpoint(target, directory / 'rootfs.ext4')
         forbidden = [p for p in target.rglob('*') if
                      (p.name.endswith(('.rbf', '.ko')) or
                       p.name.startswith('dropbear_') and p.name.endswith('_host_key'))]
@@ -194,7 +202,7 @@ def verify_rootfs(directory):
         for path in ('etc/fes-board', 'etc/inittab', 'etc/fstab', 'etc/mdev.conf',
                      'etc/init.d/S15fpga', 'etc/init.d/S15fes-network-id',
                      'etc/init.d/S20mister-network', 'etc/init.d/S30mister-dropbear',
-                     'usr/share/fes/kernel-modules.json', 'usr/share/fes/managed-base.json', '.fes-bootstrap'):
+                     'usr/share/fes/kernel-modules.json', 'usr/share/fes/managed-base.json'):
             checked.add(target / path)
         for path in sorted(checked):
             name = '/' + path.relative_to(target).as_posix()
@@ -202,6 +210,7 @@ def verify_rootfs(directory):
                 raise ValueError('managed rootfs tar/ext4 mismatch: ' + name)
         return {'classification': 'managed-base-intermediate', 'architecture': 'aarch64',
                 'base_contract': closure, 'checked_tar_ext4_files': len(checked),
+                'bootstrap_mountpoint': 'directory',
                 'normal_runtime_admission': 'closed', 'hardware_acceptance': 'not-run'}
 
 
