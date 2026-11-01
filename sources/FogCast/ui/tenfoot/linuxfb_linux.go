@@ -861,8 +861,8 @@ func nativeKeyText(code uint16, shift bool) string {
 	return strings.ToUpper(name)
 }
 
-// Linux keycodes are not USB HID usages. Every key the kernel's hid-input
-// table names reaches a fes.keyboard.hid core; an unmapped key is usage 0.
+// Linux keycodes are not USB HID usages. Return the shared HID usage where
+// mapped; F12 and available room controls can be consumed before forwarding.
 func nativeHIDUsage(code uint16) uint8 {
 	usage, _ := hidkeys.FromLinuxKey(code)
 	return usage
@@ -1049,23 +1049,27 @@ func (ins *nativeInputs) drop(app *App, lost *nativeInput) {
 }
 
 func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
+	app.mu.Lock()
+	// A key stays down while another keyboard holds the same key: the HID
+	// usage in a fes.keyboard.hid session, the play-keyboard name otherwise.
+	hid := app.session.CoreKeyboardHID
 	remainingKeys := map[string]bool{}
 	for _, in := range ins.devices {
-		for _, name := range in.keysHeld {
-			remainingKeys[name] = true
+		for code, name := range in.keysHeld {
+			remainingKeys[playHeldKey(name, nativeHIDUsage(code), hid)] = true
 		}
 	}
-	app.mu.Lock()
 	padEvents := releasePortLocked(app, lost)
 	var keyEvents []remoteinput.Event
 	for code, name := range lost.keysHeld {
-		if remainingKeys[name] {
+		key := playHeldKey(name, nativeHIDUsage(code), hid)
+		if remainingKeys[key] {
 			continue
 		}
-		delete(app.playKeyHeld, name)
-		delete(app.playKeySuppressed, name)
+		delete(app.playKeyHeld, key)
+		delete(app.playKeySuppressed, key)
 		event, ok := playhid.Event(name, false, app.session.CoreKeyboard)
-		if app.session.CoreKeyboardHID {
+		if hid {
 			event, ok = hidkeys.Event(nativeHIDUsage(code), false)
 		}
 		if ok {

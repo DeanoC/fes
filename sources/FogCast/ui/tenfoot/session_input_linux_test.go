@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -80,6 +81,70 @@ func TestNativeDisconnectReleasesOnlyLostDeviceHolds(t *testing.T) {
 	defer app.mu.Unlock()
 	if !app.playKeyHeld["a"] || app.playKeyHeld["q"] || app.stopPhase == "stopping" || app.sessionDisplayBusy {
 		t.Fatal("disconnect navigated or cleared surviving keyboard ownership")
+	}
+}
+
+func TestNativeDisconnectReleasesLostHIDKeysByUsage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
+	t.Cleanup(server.Close)
+	app, feed := kitDisplayApp(t, server)
+	app.mu.Lock()
+	app.session.CoreKeyboard = false
+	app.session.CoreKeyboardHID = true
+	app.mu.Unlock()
+	now := time.Now()
+	lost := &nativeInput{fd: 1, kind: InputKeyboard}
+	other := &nativeInput{fd: 2, kind: InputKeyboard}
+	// F1 and left Shift have no name or share a name with the other keyboard's
+	// keypad 5 and right Shift. Disconnect must release only the lost usages.
+	for _, hold := range []struct {
+		in   *nativeInput
+		code uint16
+	}{{lost, 59}, {lost, 42}, {other, 76}, {other, 54}} {
+		if hold.in.key(app, hold.code, 1, now) {
+			t.Fatalf("key %d requested Stop", hold.code)
+		}
+	}
+	drainLocalKeyQueue(t, app)
+	inputs := &nativeInputs{devices: []*nativeInput{other}}
+	inputs.releaseLostPlayInput(app, lost)
+	drainLocalKeyQueue(t, app)
+	released := func(usage uint8) bool {
+		code, _ := hidkeys.Code(usage)
+		return feed.saw(code, remoteinput.ActionRelease)
+	}
+	if !released(0x3a) || !released(0xe1) || released(0x5d) || released(0xe5) {
+		t.Fatalf("disconnect left lost keys held or released another keyboard's keys: %+v", feed.snapshot())
+	}
+}
+
+func TestHandoffSuppressesEachHeldHIDKeyByUsage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
+	t.Cleanup(server.Close)
+	app, feed := kitDisplayApp(t, server)
+	app.mu.Lock()
+	app.session.CoreKeyboard = false
+	app.session.CoreKeyboardHID = true
+	app.mu.Unlock()
+	now := time.Now()
+	in := &nativeInput{fd: 1, kind: InputKeyboard}
+	// Neither key has a play-keyboard name, so their usages distinguish the
+	// held keys across a session-display hand-off.
+	for _, code := range []uint16{59, 76} { // F1 and keypad 5
+		if in.key(app, code, 1, now) {
+			t.Fatalf("key %d requested Stop", code)
+		}
+	}
+	drainLocalKeyQueue(t, app)
+	app.mu.Lock()
+	app.suppressHeldPlayKeysLocked()
+	app.mu.Unlock()
+	in.key(app, 59, 0, now)
+	before := len(feed.snapshot())
+	in.key(app, 76, 2, now)
+	drainLocalKeyQueue(t, app)
+	if len(feed.snapshot()) != before {
+		t.Fatalf("keypad 5 repeat reached the core after F1 was released: %+v", feed.snapshot()[before:])
 	}
 }
 

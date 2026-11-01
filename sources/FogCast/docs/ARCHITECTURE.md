@@ -2786,8 +2786,11 @@ An active `fes.computer` 1.0 or 1.1 generation with `fes.keyboard.hid` 1.0
 takes USB HID key state, not a machine-shaped matrix. Clients send physical keys as keyboard
 events whose code is `0x1000 + usage` (`internal/hidkeys`; usages 0x04..0x7f and
 the modifiers 0xe0..0xe7): the browser maps `KeyboardEvent.code`, tenfoot uses
-SDL scancodes, and the kit maps evdev `KEY_*`. There is no per-core character
-map; the core owns characters, shifted symbols, repeat and reset chords. The host
+SDL scancodes, and the kit maps supported evdev `KEY_*` values through
+`internal/hidkeys`. F12 remains a tenfoot media/Stop key, available Home-key
+room navigation is consumed by the launcher, and unmapped evdev keys are not
+forwarded. There is no per-core character map; the core owns characters,
+shifted symbols, repeat and reset chords. The host
 attaches input for these sessions even without controller ports and passes the
 events through `POST /api/v1/session/input/event` and the host stream unchanged.
 The 1.1 ABI retains its 1.0 keyboard and relative-mouse capabilities; an active
