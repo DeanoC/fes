@@ -47,6 +47,8 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            passes in 18 more ticks. Under a preset both must be within 5% of
            the loop's table time (governor.toml) at the preset's frequency,
            and the record saved at Stop must hold them in CMOS 70h-79h.
+           --preset runs that one preset beside max, with --frequency (the
+           table time follows it) and --turbo (it must run as max does).
   vga      runs the benches, boots
            cores/fes-pc386/sim/vga_test.asm (VGA BIOS text, mode 13h, mode Y,
            mode 12h), checks every marked picture's 720p frame from the
@@ -812,11 +814,18 @@ def run_governor(args) -> dict:
     print(f'Booting the governor test disk on pc386_system under presets {chosen} (this takes most of an hour)',
           flush=True)
 
+    # The record's words 0, 1 and 3 for each run: --frequency and --turbo go
+    # with --preset's run.
+    settings = {preset: (preset, args.frequency, args.turbo) if preset and preset == args.preset else (preset, 0, 0)
+                for preset in chosen}
+
     def boot(preset: int) -> dict:
         run_directory = directory / f'preset{preset}'
         run_directory.mkdir(parents=True, exist_ok=True)
+        _, frequency, turbo = settings[preset]
         command = [str(testbench), '--disk', str(disk), '--clock-hz', str(producer.SYSTEM_CLOCK_HZ),
-                   '--limit-seconds', str(args.limit_seconds), '--prompt', 'GOV DONE', '--preset', str(preset)]
+                   '--limit-seconds', str(args.limit_seconds), '--prompt', 'GOV DONE', '--preset', str(preset),
+                   '--frequency', str(frequency), '--turbo', str(turbo)]
         log = run_directory / 'system.log'
         with log.open('w') as stream:
             run = subprocess.run(command, cwd=run_directory, stdout=stream, stderr=subprocess.PIPE, text=True)
@@ -829,7 +838,10 @@ def run_governor(args) -> dict:
         runs = dict(zip(chosen, executor.map(boot, chosen)))
     failures, checks, results = [], [], {}
     for preset, report in runs.items():
-        name = presets[preset].name if preset else 'max'
+        _, frequency, turbo = settings[preset]
+        name = (presets[preset].name if preset else 'max') + (f' at {frequency / 10:g} MHz' if frequency else '') \
+            + (' with turbo' if turbo else '')
+        governed = bool(preset) and not turbo
         line = next((text for text in report['debug'] if text.startswith('GOV TP=')), None)
         end = report.get('end') or {}
         if end.get('reason') != 'prompt' or line is None:
@@ -840,18 +852,20 @@ def run_governor(args) -> dict:
         record = report['record']
         stored = [cmos(record, byte) for byte in range(0x70, 0x7c)]
         entry = {'tp': tp, 'delay_count': dc, 'c18': c18, 'seconds': end['seconds'],
-                 'governed': report['status']['governed'], 'record_word0': record[0], 'cmos_70_7b': stored}
+                 'governed': report['status']['governed'], 'record_words': [record[0], record[1], record[3]],
+                 'cmos_70_7b': stored}
         failures += [f'{name}: record check failed: {check["check"]}' for check in report['record_checks']
                      if not check['pass']]
         if stored[:10] != list((tp | dc << 32 | c18 << 48).to_bytes(10, 'little')) or stored[11] != 0xa5:
             failures.append(f'{name}: CMOS 70h-7Bh {stored} do not hold TP={tp} DC={dc} C18={c18}')
-        if record[0] != preset or report['status']['governed'] != int(bool(preset)):
-            failures.append(f'{name}: record word 0 {record[0]}, governed {report["status"]["governed"]}')
+        if (record[0], record[1], record[3]) != settings[preset] or report['status']['governed'] != int(governed):
+            failures.append(f'{name}: record words 0, 1, 3 {(record[0], record[1], record[3])}, '
+                            f'governed {report["status"]["governed"]}')
         if dc != tp // 55:
             failures.append(f'{name}: DC {dc} is not TP / 55 ({tp // 55})')
-        if preset:
+        if governed:
             clocks = governor_pass_clocks(presets[preset])
-            per_tick = TICK_SECONDS * presets[preset].frequency * 100_000 / clocks
+            per_tick = TICK_SECONDS * (frequency or presets[preset].frequency) * 100_000 / clocks
             entry.update(pass_clocks=clocks, table_tp=round(per_tick, 1), table_c18=round(18 * per_tick, 1),
                          tp_error=round(tp / per_tick - 1, 5), c18_error=round(c18 / (18 * per_tick) - 1, 5))
             for what, value, want in (('TP', tp, per_tick), ('C18', c18, 18 * per_tick)):
@@ -860,7 +874,14 @@ def run_governor(args) -> dict:
         results[name] = entry
         checks.append(f'{name}: TP={tp} DC={dc} C18={c18}' + (
             f' table TP {entry["table_tp"]:.0f} ({entry["tp_error"]:+.2%}) C18 {entry["table_c18"]:.0f} '
-            f'({entry["c18_error"]:+.2%})' if preset else ''))
+            f'({entry["c18_error"]:+.2%})' if governed else ''))
+    # Turbo runs at max: its passes within the budget of max's.
+    if args.turbo and 'max' in results and len(results) == 2:
+        (name, entry), = [(n, e) for n, e in results.items() if n != 'max']
+        error = entry['tp'] / results['max']['tp'] - 1
+        entry['tp_error_from_max'] = round(error, 5)
+        if abs(error) > GOVERNOR_BUDGET:
+            failures.append(f'{name}: TP {entry["tp"]} is {error:+.2%} from max\'s ({results["max"]["tp"]})')
     return {'runs': results, 'checks': checks, 'failures': failures}
 
 
@@ -1189,6 +1210,10 @@ def main() -> int:
     if (args.preset or args.frequency or args.turbo) and not (
             args.suite in ('system', 'governor') or args.suite in ('boot', 'game') and args.cpu == 'rtl'):
         parser.error('the governor runs on the RTL CPU: system, governor, or boot and game with --cpu rtl')
+    if (args.frequency or args.turbo) and not args.preset:
+        parser.error('--frequency and --turbo set a preset: give --preset too')
+    if args.frequency and not 10 <= args.frequency <= 1000:
+        parser.error('--frequency is 10 to 1000 (100 kHz units), as the record allows')
     limit_seconds, typed, expect = args.limit_seconds, args.type, args.expect
     args.limit_seconds_given = limit_seconds
     if shutil.which(args.verilator) is None:
