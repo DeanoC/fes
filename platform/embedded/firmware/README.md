@@ -40,6 +40,14 @@ chunk with compiled digests; it does not use the convenience wrapper that
 touches the watchdog. The gate brackets these reads with live cold ownership
 checks and requires EL3 translation and data cache disabled.
 
+Only that cold configuration profile also selects `nano_digest.py`: it verifies
+the exact pinned SHA source/header, inserts three GCC loop-unrolling hints and
+adds `-O3` to the BL31 `sha.o` target alone. Removing the hints reproduces the
+original source bytes. The build receipt records the original/generated hashes
+and compilation policy. Other profiles retain the original digest source and
+flags. This scalar specialization changes no digest, cache state or verification
+coverage; its physical speedup remains unqualified until a matched board test.
+
 Only this explicitly generated profile enables the four existing configuration
 operations after preparation. Closed bridge masks, generation 1, never-enabled
 history and contained masters must remain unchanged. WRITE accepts only its

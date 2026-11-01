@@ -618,6 +618,14 @@ other elapsed work on the next bounded test. These observations grant no
 authority. Timed traces require monotonic counters and digest accounting
 within elapsed time; the earlier untimed trace remains independently decodable.
 
+The [bounded timing experiment](../../../docs/validation/2026-11-01-de25-configuration-timing/README.md)
+measured at least 16.837575 seconds of secure hashing before a 20.121780-second
+late-return stop. The next candidate specializes the same pinned scalar digest
+with three loop-unrolling hints and `-O3` on its object alone, preserving every
+whole-image/chunk check, ownership rule, CPU/cache state and the 20-second
+deadline. Independent digest vectors and injected secure-provider paths pass;
+code inspection is not a physical speedup or configuration-acceptance result.
+
 This source-bound cold profile is a hardware-qualification candidate. No
 contained physical transfer is accepted yet. It enables neither an active
 reader nor data bridges, secondary CPUs, active drain, runtime package

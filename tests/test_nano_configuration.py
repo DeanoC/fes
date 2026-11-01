@@ -1,6 +1,7 @@
 """Run the actual contained configuration gate with injected memory/ownership."""
 from pathlib import Path
 import hashlib
+import importlib.util
 import os
 import re
 import subprocess
@@ -9,9 +10,21 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 FW = ROOT / 'platform/embedded/firmware'
+spec=importlib.util.spec_from_file_location('nano_digest_test_subject',FW/'nano_digest.py')
+digest=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(digest)
 
 
 class NanoConfigurationTests(unittest.TestCase):
+    def test_digest_specialization_rejects_unreviewed_inputs_and_is_explicit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            for disabled in (False,None,0,1,'enabled'):
+                self.assertIsNone(digest.install(root,disabled))
+            self.assertEqual(list(root.iterdir()),[])
+            with self.assertRaises(ValueError):digest.unrolled(b'not the reviewed source',b'header')
+            self.assertEqual(digest.FLAGS,'$(BUILD_PLAT)/bl31/sha.o: override CFLAGS += -O3\n')
+
     def test_sequential_transfer_and_ownership_failure_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             binary = Path(directory) / 'configuration'
@@ -33,6 +46,13 @@ class NanoConfigurationTests(unittest.TestCase):
         header=reference.with_name('sha.h')
         self.assertEqual(hashlib.sha256(reference.read_bytes()).hexdigest(),'b0e8cb2095a77957741a70f62b42443eaa8e4dfd502aef87bdd3b16f62785d58')
         self.assertEqual(hashlib.sha256(header.read_bytes()).hexdigest(),'76a51a6aba59f84f754d9b8102394ff12ce0cdad1fb89cec61130543b73f66fb')
+        specialized=digest.unrolled(reference.read_bytes(),header.read_bytes())
+        self.assertEqual(specialized.count(b'#pragma GCC unroll '),3)
+        self.assertEqual(re.sub(rb'(?m)^\s*#pragma GCC unroll [0-9]+\n',b'',specialized),reference.read_bytes())
+        for source,sha_header in ((reference.read_bytes()+b'\n',header.read_bytes()),
+                                  (reference.read_bytes(),header.read_bytes()+b'\n'),
+                                  (specialized,header.read_bytes())):
+            with self.assertRaises(ValueError):digest.unrolled(source,sha_header)
         with tempfile.TemporaryDirectory() as directory:
             base=Path(directory);inc=base/'include'
             for name in ('drivers','lib','common'): (inc/name).mkdir(parents=True,exist_ok=True)
@@ -45,7 +65,7 @@ class NanoConfigurationTests(unittest.TestCase):
             # Preserve the pinned algorithm and constants; host-only includes
             # supply libc types. A watchdog access aborts this fixture.
             pure='#include <stdint.h>\n#include <string.h>\n#include <stdlib.h>\n#include <endian.h>\n#include <assert.h>\n#include "sha.h"\nstatic void watchdog_sw_rst(void) { assert(0); }\n'
-            pure+=re.sub(r'(?m)^#include[^\n]*\n','',reference.read_text())
+            pure+=re.sub(r'(?m)^#include[^\n]*\n','',specialized.decode())
             sha_source=base/'vendor_sha.c';sha_source.write_text(pure)
             raw=bytes(range(256))*256+bytes(range(128));chunk=65536
             def array(digest):return '{'+','.join('0x%02x'%b for b in digest)+'}'
@@ -62,8 +82,32 @@ class NanoConfigurationTests(unittest.TestCase):
             (inc/'fes_nano_cold_profile.h').write_text(profile)
             flags=['-std=c11','-Wall','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all','-Wno-unused-const-variable','-I'+str(inc),'-I'+str(FW)]
             sha_object=base/'vendor_sha.o'
-            compiled=subprocess.run(['cc',*flags,'-c',str(sha_source),'-o',str(sha_object)],capture_output=True,text=True,timeout=30)
+            compiled=subprocess.run(['cc',*flags,'-O3','-c',str(sha_source),'-o',str(sha_object)],capture_output=True,text=True,timeout=30)
             self.assertEqual(compiled.returncode,0,compiled.stderr)
+            runner=base/'digest.c'
+            runner.write_text('#include <stdint.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include "sha.h"\n'
+                              'int main(int argc,char **argv) { if(argc!=3)return 2;\n'
+                              'unsigned offset=(unsigned)strtoul(argv[1],0,10),step=(unsigned)strtoul(argv[2],0,10);\n'
+                              'unsigned char *buffer=malloc((2U<<20)+8);if(!buffer || offset>7 || !step)return 3;\n'
+                              'size_t n=fread(buffer+offset,1,2U<<20,stdin);if(ferror(stdin) || !feof(stdin))return 4;\n'
+                              'sha512_context ctx;unsigned char output[48];sha384_init(&ctx);\n'
+                              'for(size_t i=0;i<n;) { size_t amount=n-i;if(amount>step)amount=step;\n'
+                              'sha384_update(&ctx,buffer+offset+i,(uint32_t)amount);i+=amount;}\n'
+                              'sha384_finish(&ctx,output);free(buffer);return fwrite(output,1,48,stdout)!=48; }\n')
+            digest_binary=base/'digest'
+            compiled=subprocess.run(['cc',*flags,str(runner),str(sha_object),'-o',str(digest_binary)],capture_output=True,text=True,timeout=30)
+            self.assertEqual(compiled.returncode,0,compiled.stderr)
+            # Independent hashlib values cover padding boundaries, unaligned
+            # input and streaming splits, including one complete bounded core.
+            cases=[(b'',0,128),(b'abc',1,1)]
+            for length in (1,111,112,113,127,128,129,255,256,257,65536,65664,2027520):
+                payload=bytes((i*37+i//7)&255 for i in range(length))
+                cases.extend((payload,offset,step) for offset,step in ((0,65536),(3,17),(7,128)))
+            for payload,offset,step in cases:
+                with self.subTest(bytes=len(payload),offset=offset,step=step):
+                    result=subprocess.run([str(digest_binary),str(offset),str(step)],input=payload,capture_output=True,timeout=15)
+                    self.assertEqual(result.returncode,0,result.stderr)
+                    self.assertEqual(result.stdout,hashlib.sha384(payload).digest())
             binary=base/'strong-cold'
             sources=('nano_cold_platform.c','nano_cold.c','nano_boot.c','nano_bridges.c','nano_bridge_sip.c','nano_sd.c','nano_sd_platform.c','nano_identity.c','nano_configuration.c','tests/nano_cold_platform_test.c')
             compiled=subprocess.run(['cc',*flags,'-Wextra','-DFES_TEST_HPS_CONTEXT',*(str(FW/name) for name in sources),str(sha_object),'-o',str(binary)],capture_output=True,text=True,timeout=30)
