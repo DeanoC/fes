@@ -420,7 +420,7 @@ module pc386_system #(
     wire [5:0][15:0] cpu_sel;
     wire [31:0] cpu_eip;
     /* verilator lint_off PINCONNECTEMPTY */
-    fes_i386_cpu cpu (
+    fes_i386_cpu #(.GOV_N(GOV_N), .GOV_D(GOV_D)) cpu (
         .clk(clk), .cold_reset(cpu_cold), .reset(cpu_reset),
         // The reset state, Bochs's: CS F000h at FFFF0000h, EIP FFF0h, every
         // limit FFFFh and every attribute a present read/write data segment;
