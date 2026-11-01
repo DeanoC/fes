@@ -87,7 +87,10 @@ class NanoExportTests(unittest.TestCase):
         (soc/'Makefile').write_text('ifdef CONFIG_TARGET_SOCFPGA_AGILEX5\nobj-y += rsu.o\nobj-y += rsu_ll_qspi.o\nobj-y += rsu_misc.o\nobj-$(CONFIG_CADENCE_QSPI) += rsu_s10.o\nobj-$(CONFIG_ARMV8_PSCI) += smc_rsu_s10.o\nendif\nifdef CONFIG_TARGET_SOCFPGA_AGILEX7M\nendif\n')
         (soc/'spl_agilex5.c').write_text('\tret = spl_early_init();\n\tpreloader_console_init();\n')
         (source/'common/spl').mkdir(parents=True)
-        (source/'common/spl/spl_atf.c').write_text('typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params);\n\tatf_entry(bl31_params, (void *)fdt_addr);\n')
+        (source/'common/spl/spl_atf.c').write_text('struct bl31_params;\n'
+            'typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params);\n'
+            'static void invoke_atf(struct bl31_params *bl31_params, unsigned long fdt_addr, atf_entry_t atf_entry)\n{\n'
+            '\tatf_entry(bl31_params, (void *)fdt_addr);\n}\n')
         (source/'common/spl/spl_fat.c').write_text('static ulong spl_fit_read(struct spl_load_info *load, ulong file_offset, ulong size, void *buf)\n{\n\treturn 0;\n}\nvoid load(void) {\n\terr = spl_register_fat_device(block_dev, partition);\n\tif (err)\n\t\tgoto end;\nend:;\n}\n')
         (source/'common/board_r.c').write_text('static int initr_mmc(void)\n{\n\treturn 0;\n}\n\tinitr_mmc,\n')
         (source/'arch/arm/dts').mkdir(parents=True)
@@ -134,6 +137,37 @@ class NanoExportTests(unittest.TestCase):
                 self.assertTrue(result["preloaded_entry"])
                 identities.append(result["build_id"])
         self.assertNotEqual(*identities)
+
+    def test_generated_spl_atf_call_passes_current_cookie_and_record(self):
+        """Execute the generated caller; a valid record with the old cookie rejects at EL3."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base=Path(tmp)
+            source,entry,_=self.fixture(base)
+            prepare.prepare(source,entry,"a"*64)
+            include=source/'include'
+            (include/'linux').mkdir()
+            (include/'linux/types.h').write_text('#include <stdint.h>\n')
+            test=base/'atf-call.c';binary=base/'atf-call'
+            test.write_text('#include <assert.h>\n#include <stdint.h>\n#define __noreturn\n'+
+                (source/'common/spl/spl_atf.c').read_text()+r'''
+static unsigned record,calls;
+const void *fes_nano_spl_handoff(void) { calls++;return &record; }
+static void capture(struct bl31_params *params,void *fdt,const void *cold,unsigned long cookie)
+{
+    assert(params==(void *)0x10000 && fdt==(void *)0x94000000);
+    assert(cold==&record && calls==1);
+    assert(cookie==FES_NANO_COLD_COOKIE && cookie!=0x464e433100000001ULL);
+}
+int main(void)
+{
+    invoke_atf((void *)0x10000,0x94000000,capture);
+    assert(calls==1);
+}
+''')
+            subprocess.run([shutil.which('cc'),'-std=c11','-Wall','-Wextra','-Werror',
+                            '-fsanitize=undefined','-fno-sanitize-recover=all','-I'+str(include),
+                            str(test),'-o',str(binary)],check=True)
+            subprocess.run([str(binary)],check=True)
 
 
 class NanoOwnedSnapshotTests(unittest.TestCase):

@@ -37,11 +37,16 @@ def prepare(source, entry_build, bl31_sha256):
     firmware=HERE.parent/'firmware'
     shutil.copyfile(firmware/'generated/fes_embedded_bridges.h',source/'cmd/fes_embedded_bridges.h')
     soc=source/'arch/arm/mach-socfpga'
-    for name in ('nano_cold.h','nano_cold.c','nano_boot.h','nano_bridges.h','nano_cold_mmio.inc'):
+    # SPL's ATF caller and record producer must use the same wire definition.
+    # Install the shared headers on U-Boot's include path, rather than copying
+    # a cookie literal into the separate common/spl translation unit.
+    for name in ('nano_cold.h','nano_boot.h','nano_bridges.h'):
+        shutil.copyfile(firmware/name,source/'include'/name)
+    for name in ('nano_cold.c','nano_cold_mmio.inc'):
         shutil.copyfile(firmware/name,soc/name)
     # U-Boot's stdint.h is intentionally empty; its fixed-width types come
     # from linux/types.h. Keep the standalone/TF-A header unchanged.
-    types=soc/'nano_bridges.h';text=types.read_text()
+    types=source/'include/nano_bridges.h';text=types.read_text()
     if text.count('#include <stdint.h>')!=1:raise ValueError('shared integer type context changed')
     types.write_text(text.replace('#include <stdint.h>','#include <linux/types.h>'))
     shutil.copyfile(HERE/'spl_cold.c',soc/'fes_nano_spl.c')
@@ -69,8 +74,8 @@ def prepare(source, entry_build, bl31_sha256):
     text=text.replace(before,'typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params, const void *cold, unsigned long cookie);')
     before='\tatf_entry(bl31_params, (void *)fdt_addr);'
     if text.count(before)!=1:raise ValueError('SPL ATF entry context changed')
-    text=text.replace(before,'\t{\n\t\textern const void *fes_nano_spl_handoff(void);\n\t\tatf_entry(bl31_params, (void *)fdt_addr, fes_nano_spl_handoff(), 0x464e433100000001UL);\n\t}')
-    atf.write_text(text)
+    text=text.replace(before,'\t{\n\t\textern const void *fes_nano_spl_handoff(void);\n\t\tatf_entry(bl31_params, (void *)fdt_addr, fes_nano_spl_handoff(), FES_NANO_COLD_COOKIE);\n\t}')
+    atf.write_text('#include <nano_cold.h>\n'+text)
     fat=source/'common/spl/spl_fat.c';text=fat.read_text()
     anchor='\terr = spl_register_fat_device(block_dev, partition);\n\tif (err)\n\t\tgoto end;\n'
     if text.count(anchor)!=1:raise ValueError('SPL FAT pre-parser context changed')
