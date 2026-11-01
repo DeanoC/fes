@@ -118,6 +118,33 @@ func TestNativeDisconnectReleasesLostHIDKeysByUsage(t *testing.T) {
 	}
 }
 
+func TestHandoffSuppressesEachHeldHIDKeyByUsage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
+	t.Cleanup(server.Close)
+	app, feed := kitDisplayApp(t, server)
+	app.mu.Lock()
+	app.session.CoreKeyboardHID = true
+	app.mu.Unlock()
+	now := time.Now()
+	// F1 and keypad 5 are held through a session-display hand-off. Neither has
+	// a play-keyboard name, so only their usages tell them apart.
+	app.HandlePlayHIDScancode(nativeKeyName(59), nativeHIDUsage(59), true, now)
+	app.HandlePlayHIDScancode(nativeKeyName(76), nativeHIDUsage(76), true, now)
+	drainLocalKeyQueue(t, app)
+	app.mu.Lock()
+	app.suppressHeldPlayKeysLocked()
+	app.mu.Unlock()
+	app.HandlePlayHIDScancode(nativeKeyName(59), nativeHIDUsage(59), false, now)
+	before := len(feed.snapshot())
+	if !app.HandlePlayHIDScancode(nativeKeyName(76), nativeHIDUsage(76), true, now) {
+		t.Fatal("keypad 5's repeat after F1's release was not consumed")
+	}
+	drainLocalKeyQueue(t, app)
+	if len(feed.snapshot()) != before {
+		t.Fatalf("keypad 5 reached the core before a new press: %+v", feed.snapshot()[before:])
+	}
+}
+
 func TestKitKeyboardIsNeutralBeforeOpeningAndNeedsNewPress(t *testing.T) {
 	prior := kitDisplaySession()
 	var feed *transitionPadFeed
