@@ -216,13 +216,19 @@ def unmet(provides, requires):
     return missing
 
 
-def assemble(target, fogcast, runtime_revision, window_driver):
+def assemble(target, fogcast, runtime_revision, window_driver=None, board='de10-nano'):
+    if board not in TARGET_ABIS:
+        raise ValueError('unsupported factory software board: ' + str(board))
+    if board == 'de10-nano' and window_driver is None:
+        raise ValueError('DE10 factory software requires its fes-window driver')
+    if board == 'de25-nano' and window_driver is not None:
+        raise ValueError('DE25 uses its built-in DMA owner; a fes-window module is invalid')
     target = target.resolve()
     inputs = [target / 'usr/sbin' / name for name in BINARIES]
     for p in inputs:
         if p.is_symlink() or not p.is_file():
             raise ValueError(f'fresh regular executable required: {p}')
-    contract = base_contract(target, inputs)
+    contract = base_contract(target, inputs, board)
     # The image records what its sealed menu needs; its own runtime must admit it.
     requires = menu_requirements(target)
     provides = runtime_menu_interfaces(target / 'usr/sbin/mister-runtime')
@@ -247,14 +253,15 @@ def assemble(target, fogcast, runtime_revision, window_driver):
             raise ValueError('fresh factory assets must not be a symlink')
         if assets.exists():
             shutil.copytree(assets, payload / 'share/fogcast', symlinks=True)
-        # The runtime loads the fes-window driver its release carries.
-        window_driver = Path(window_driver)
-        if sorted(p.name for p in window_driver.iterdir()) != ['fes_window.ko', 'version'] or \
-                not re.fullmatch(r'[0-9a-f]{16}', (window_driver / 'version').read_text().strip()):
-            raise ValueError('fes-window driver input must be fes_window.ko and its version')
-        (payload / 'share/fes-window').mkdir(parents=True)
-        for name in ('fes_window.ko', 'version'):
-            shutil.copyfile(window_driver / name, payload / 'share/fes-window' / name)
+        if board == 'de10-nano':
+            # DE10 loads the fes-window driver its release carries.
+            window_driver = Path(window_driver)
+            if sorted(p.name for p in window_driver.iterdir()) != ['fes_window.ko', 'version'] or \
+                    not re.fullmatch(r'[0-9a-f]{16}', (window_driver / 'version').read_text().strip()):
+                raise ValueError('fes-window driver input must be fes_window.ko and its version')
+            (payload / 'share/fes-window').mkdir(parents=True)
+            for name in ('fes_window.ko', 'version'):
+                shutil.copyfile(window_driver / name, payload / 'share/fes-window' / name)
         metadata = {**contract, 'interfaces': {**contract['interfaces'], **provides},
                     'format': 1, 'version': 'factory-' + revision[:12],
                     'provenance': {'fogcast': revision, 'runtime': runtime_revision}}
@@ -330,14 +337,14 @@ def main():
     parser.add_argument('--version', help='software version label (update only)')
     parser.add_argument('--fogcast', type=Path, required=True)
     parser.add_argument('--runtime-revision', required=True)
-    parser.add_argument('--window-driver', type=Path, help='built fes-window driver directory (factory only)')
+    parser.add_argument('--board', choices=tuple(TARGET_ABIS), default='de10-nano',
+                        help='explicit factory target; updates use the authenticated base')
+    parser.add_argument('--window-driver', type=Path, help='built fes-window directory (DE10 factory only)')
     args = parser.parse_args()
     if args.target:
         if args.payload or args.output or args.version:
             parser.error('--payload, --output and --version require --base-root')
-        if not args.window_driver:
-            parser.error('--target requires --window-driver')
-        assemble(args.target, args.fogcast, args.runtime_revision, args.window_driver)
+        assemble(args.target, args.fogcast, args.runtime_revision, args.window_driver, args.board)
     else:
         if not args.payload or not args.output or not args.version:
             parser.error('--base-root requires --payload, --output and --version')

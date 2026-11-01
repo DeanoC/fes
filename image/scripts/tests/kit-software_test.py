@@ -142,6 +142,16 @@ class SoftwareABI(unittest.TestCase):
             self.assertFalse((root / 'etc/fes/software-base.json').exists())
             self.assertFalse((root / 'usr/share/fes/software').exists())
 
+    def test_factory_driver_choice_fails_before_inspecting_or_writing_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for board, driver in [('de10-nano', None), ('de25-nano', root), ('unknown', None)]:
+                with self.subTest(board=board), patch.object(software, 'base_contract') as inspect:
+                    with self.assertRaises(ValueError):
+                        software.assemble(root, root, 'a' * 40, driver, board)
+                    inspect.assert_not_called()
+                    self.assertEqual(list(root.iterdir()), [])
+
     def test_update_lists_runtime_menu_interfaces_and_covers_base_menu(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -263,6 +273,40 @@ class SoftwareABI(unittest.TestCase):
             contract = software.base_contract(root, [binary], 'de25-nano')
             self.assertEqual(contract['board'], 'de25-nano')
             self.assertEqual(contract['architecture'], 'aarch64')
+            # Exercise the real packer on an actual AArch64 factory payload.
+            # ELF section extraction has its own actual stripped-ELF test.
+            (root / 'usr/sbin').mkdir(parents=True)
+            for name in software.BINARIES:
+                shutil.copyfile(binary, root / 'usr/sbin' / name)
+            fogcast = root / 'fogcast'
+            (fogcast / 'bin').mkdir(parents=True)
+            (fogcast / 'bin/kit-software.revision').write_text('a' * 40 + '\n')
+            module = Path(__file__).resolve().parents[3] / 'sources/FogCast'
+            build_env = dict(os.environ, CGO_ENABLED='0', GOWORK='off', GOFLAGS='')
+            for key in ('GOOS', 'GOARCH', 'GOARM', 'GOARM64'):
+                build_env.pop(key, None)
+            subprocess.run(['go', 'build', '-buildvcs=false', '-o',
+                            str(fogcast / 'bin/fes-kit-bundle-linux-amd64'), './cmd/fes-kit-bundle'],
+                           cwd=module, env=build_env, check=True, timeout=120)
+            menu(root, [('fes.video.fixed-720p60', 1, 0, True),
+                        ('fes.video.menu-display', 1, 0, True), ('fes.fabric.de25-scanout', 1, 1, True)])
+            provides = {'menu.fes.video.fixed-720p60': '1.0', 'menu.fes.video.menu-display': '1.0',
+                        'menu.fes.fabric.de25-scanout': '1.1'}
+            with patch.object(software, 'runtime_menu_interfaces', return_value=provides):
+                software.assemble(root, fogcast, 'b' * 40, board='de25-nano')
+            bundle = root / 'usr/share/fes/software'
+            manifest = json.loads((bundle / 'manifest.json').read_text())
+            self.assertEqual(manifest['board'], 'de25-nano')
+            self.assertEqual(manifest['architecture'], 'aarch64')
+            self.assertEqual({row['path'] for row in manifest['files']},
+                             {'bin/' + name for name in software.BINARIES})
+            self.assertFalse((bundle / 'share/fes-window').exists())
+            for name in software.BINARIES:
+                self.assertEqual(os.readlink(root / 'usr/sbin' / name),
+                                 '/run/fogcast/software/current/bin/' + name)
+            subprocess.run([str(fogcast / 'bin/fes-kit-bundle-linux-amd64'), 'verify-directory',
+                            '--root', str(bundle), '--base', str(root / 'etc/fes/software-base.json')],
+                           check=True, capture_output=True, timeout=30)
             arm_root = root / 'arm'
             arm_root.mkdir()
             arm = software.base_contract(arm_root, [])

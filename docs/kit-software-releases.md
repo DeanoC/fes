@@ -57,9 +57,12 @@ and debugger helpers that also match `*.so*` are excluded; a dynamic dependency
 on an excluded file is unresolved and refused. Library/symbol closure and the
 existing ban on embedded runtime search paths apply to both targets.
 
-This adds AArch64 ABI validation to the existing bundle-update packer. The
-standalone cross-build producer and factory-image assembler still select DE10;
-DE25 SDK selection, factory bundle assembly, physical runtime/MENU binding and
+The factory assembler also accepts explicit `--board de25-nano`. It validates
+AArch64 executables and the base ELF closure, seals the same immutable bundle
+and menu requirements, and rejects a DE10 window-driver input. DE25 uses its
+built-in DMA owner. DE10 keeps its required versioned window module. The
+standalone cross-build producer still selects DE10; DE25 SDK selection,
+complete image/bootstrap wiring, physical runtime/MENU binding and
 an actual managed update remain integration work. No daemon admission or
 supervisor compatibility rule is relaxed by this change.
 
