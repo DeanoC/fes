@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	command := exec.CommandContext(ctx, "cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all",
 		"-I"+fw, "-I"+filepath.Join(fw, "tests"), filepath.Join(fw, "nano_bridges.c"), filepath.Join(fw, "nano_bridge_sip.c"),
-		filepath.Join(fw, "nano_sd.c"), filepath.Join(fw, "tests/nano_sd_rpc.c"), "-o", rpcBinary)
+		filepath.Join(fw, "nano_sd.c"), filepath.Join(fw, "nano_identity.c"), filepath.Join(fw, "tests/nano_sd_rpc.c"), "-o", rpcBinary)
 	output, err := command.CombinedOutput()
 	cancel()
 	if err != nil {
@@ -145,6 +145,7 @@ func TestFirmwareAndPIOReadQuiesceResume(t *testing.T) {
 	beforeOwns := firmware.stats[5]
 	for _, a := range [][7]uint64{
 		{uint64(g.FesEmbeddedBridgeCall), 0, 0, uint64(g.FesEmbeddedBridgeCookie)},
+		{uint64(g.FesEmbeddedBridgeCall), uint64(g.FesEmbeddedBridgeProbeIdentity), 17, uint64(g.FesEmbeddedBridgeCookie), 1},
 		{0xc2000001},
 	} {
 		reply, err := firmware.Invoke(a)
@@ -161,6 +162,10 @@ func TestFirmwareAndPIOReadQuiesceResume(t *testing.T) {
 	receipt, valid := s.LastReceipt()
 	if !valid || receipt != (Receipt{Owner: 17, Generation: 4}) {
 		t.Fatalf("%+v %v", receipt, valid)
+	}
+	beforeOwns = firmware.stats[5]
+	if reply, err := firmware.Invoke([7]uint64{uint64(g.FesEmbeddedBridgeCall), uint64(g.FesEmbeddedBridgeProbeIdentity), 17, uint64(g.FesEmbeddedBridgeCookie), 1}); err != nil || reply != ([4]uint64{uint64(g.FesEmbeddedBridgeNotReady), uint64(g.FesEmbeddedBridgeIdentityTag) << 32}) || firmware.stats[5] != beforeOwns {
+		t.Fatalf("SD firmware granted identity access without a provider: %#v %v", reply, err)
 	}
 	accesses, calls := c.accesses, len(firmware.requests)
 	if !errors.Is(s.ReadSectors(0, read), sdhci.ErrQuiesced) || !errors.Is(s.Flush(), sdhci.ErrQuiesced) || !errors.Is(s.Quiesce(), sdhci.ErrQuiesced) {
