@@ -59,5 +59,12 @@ struct fes_de25_dma_info {
  */
 #define FES_DE25_DMA_OWNER_ALLOC _IO(0xD5, 0x10)
 #define FES_DE25_DMA_OWNER_REAP _IO(0xD5, 0x11)
+/* Read-only reference check: 0 when ready with no active allocation or lease,
+ * -EBUSY while any allocation/client/VMA retains the lease, -ENODEV when the
+ * profile is not ready. No argument, MMIO, drain, REAP or lease acquisition.
+ * A result is only an observation; callers still serialize transitions with
+ * their maintenance lease and validate the configuration separately.
+ */
+#define FES_DE25_DMA_OWNER_IDLE _IO(0xD5, 0x12)
 
 #endif

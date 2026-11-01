@@ -135,6 +135,22 @@ static int owner_reap(struct fes_de25_owner *owner)
 	return ret;
 }
 
+static int owner_idle(struct fes_de25_owner *owner)
+{
+	int ret;
+
+	/* Same order as allocation: do not race the ready/leased snapshot with
+	 * allocation, owner REAP or the final client's provider release.
+	 */
+	mutex_lock(&owner->allocation_lock);
+	mutex_lock(&owner->lock);
+	ret = !owner->ready ? -ENODEV :
+		(owner->active || owner->leased ? -EBUSY : 0);
+	mutex_unlock(&owner->lock);
+	mutex_unlock(&owner->allocation_lock);
+	return ret;
+}
+
 static long owner_ioctl(struct file *control, unsigned int command, unsigned long argument)
 {
 	struct fes_de25_owner *owner = container_of(control->private_data,
@@ -146,6 +162,8 @@ static long owner_ioctl(struct file *control, unsigned int command, unsigned lon
 		return -EPERM;
 	if (argument)
 		return -EINVAL;
+	if (command == FES_DE25_DMA_OWNER_IDLE)
+		return owner_idle(owner);
 	if (command == FES_DE25_DMA_OWNER_REAP)
 		return owner_reap(owner);
 	if (command != FES_DE25_DMA_OWNER_ALLOC)
