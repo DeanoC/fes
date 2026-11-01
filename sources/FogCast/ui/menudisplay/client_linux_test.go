@@ -547,7 +547,7 @@ func TestFrameMappingEndsBeforeCommitAndFailureReply(t *testing.T) {
 			t.Fatal("frame did not complete with released mapping")
 		}
 		f.mu.Lock()
-		got := f.mapping[f.shown*SlotBytes]
+		got := f.mapping[f.shown*SlotBytes+2] // RGBA input red is byte2 in BGRX scanout.
 		f.mu.Unlock()
 		if got != pix[0] {
 			t.Fatal("unmapping lost the submitted pixels")
