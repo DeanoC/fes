@@ -1,0 +1,544 @@
+{
+  "runs": {
+    "boot": {
+      "post": [
+        {
+          "code": "00",
+          "cycle": 11516
+        },
+        {
+          "code": "21",
+          "cycle": 2243826
+        },
+        {
+          "code": "31",
+          "cycle": 2343794
+        },
+        {
+          "code": "41",
+          "cycle": 2744185
+        },
+        {
+          "code": "71",
+          "cycle": 2846546
+        },
+        {
+          "code": "77",
+          "cycle": 2946638
+        }
+      ],
+      "debug": [
+        {
+          "port": "402",
+          "text": "BIOS BUILD DATE: 11/01/26"
+        },
+        {
+          "port": "500",
+          "text": "VGABios ID: vgabios.c 2026-08-07"
+        },
+        {
+          "port": "402",
+          "text": "ata0-0: PCHS=65/16/63 translation=none LCHS=65/16/63"
+        },
+        {
+          "port": "402",
+          "text": "IDE time out"
+        },
+        {
+          "port": "402",
+          "text": "Booting from 0000:7c00"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 boot ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 query ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 query-2403 ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 bios ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 bios ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 bios ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 bios ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 port92 ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 port92 ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 port92 ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 port92 ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move-kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move-kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move-kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move-kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 resume ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 resume ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 resume ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 resume ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 DONE ok"
+        }
+      ],
+      "panic": [],
+      "io": {
+        "isa16 2": {
+          "38": 145408
+        },
+        "isa8 1": {
+          "74": 72791
+        },
+        "vga-in 1": {
+          "6": 6
+        },
+        "vga-out 1": {
+          "4": 823
+        },
+        "vga-out 2": {
+          "7": 3451
+        }
+      },
+      "io_wait": {},
+      "inta": {
+        "146": 86
+      },
+      "screen": [
+        "A20 bios ok                                                                     ",
+        "A20 bios ok                                                                     ",
+        "A20 bios ok                                                                     ",
+        "A20 bios ok                                                                     ",
+        "A20 kbc ok                                                                      ",
+        "A20 kbc ok                                                                      ",
+        "A20 kbc ok                                                                      ",
+        "A20 kbc ok                                                                      ",
+        "A20 port92 ok                                                                   ",
+        "A20 port92 ok                                                                   ",
+        "A20 port92 ok                                                                   ",
+        "A20 port92 ok                                                                   ",
+        "A20 move ok                                                                     ",
+        "A20 move ok                                                                     ",
+        "A20 move ok                                                                     ",
+        "A20 move-kbc ok                                                                 ",
+        "A20 move-kbc ok                                                                 ",
+        "A20 move-kbc ok                                                                 ",
+        "A20 move-kbc ok                                                                 ",
+        "A20 resume ok                                                                   ",
+        "A20 resume ok                                                                   ",
+        "A20 resume ok                                                                   ",
+        "A20 resume ok                                                                   ",
+        "A20 DONE ok                                                                     ",
+        "C:\\>                                                                            "
+      ],
+      "end": {
+        "reason": "prompt",
+        "steps": 103417046,
+        "cycles": 385000087,
+        "seconds": 3.85
+      },
+      "prompt_cycle": 235000041,
+      "cpu_resets": 1,
+      "snaps": {},
+      "present": {},
+      "vga": {
+        "frames": 9919,
+        "scanout_underflows": 0,
+        "capture_drops": 0,
+        "present_underflows": 0,
+        "plane_underflows": 0,
+        "frames_shown": 0,
+        "port1_commands": 17733511,
+        "port2_commands": 2470336
+      },
+      "marks": {},
+      "opl2": {
+        "samples": 191406,
+        "exact": 191406,
+        "nonzero": 0,
+        "writes": 0
+      },
+      "opl2_mismatch": null,
+      "audio_samples": 184800,
+      "sb": {
+        "resets": 0,
+        "commands": 0,
+        "dma": 0,
+        "irqs": 0
+      },
+      "mouse": {
+        "sent": 0,
+        "scheduled": 0
+      },
+      "rtl": {
+        "stops": [
+          {
+            "kind": "unimplemented",
+            "cycle": 329642083,
+            "site": "f000:0000410e",
+            "bytes": "260f015408",
+            "stem": "0F01.2"
+          },
+          {
+            "kind": "unimplemented",
+            "cycle": 329642139,
+            "site": "f000:00004113",
+            "bytes": "2e0f011ea3f8",
+            "stem": "0F01.3"
+          },
+          {
+            "kind": "unimplemented",
+            "cycle": 329642196,
+            "site": "f000:00004119",
+            "bytes": "0f20c0",
+            "stem": "0F20"
+          },
+          {
+            "kind": "unimplemented",
+            "cycle": 329642280,
+            "site": "f000:0000411e",
+            "bytes": "0f22c0",
+            "stem": "0F22"
+          },
+          {
+            "kind": "unimplemented",
+            "cycle": 329642406,
+            "site": "f000:00004150",
+            "bytes": "2e0f011ea9f8",
+            "stem": "0F01.3"
+          },
+          {
+            "kind": "unimplemented",
+            "cycle": 329645429,
+            "site": "f000:0000410e",
+            "bytes": "260f015408",
+            "stem": "0F01.2"
+          },
+          {
+            "kind": "unimplemented",
+            "cycle": 329645486,
+            "site": "f000:00004113",
+            "bytes": "2e0f011ea3f8",
+            "stem": "0F01.3"
+          },
+          {
+            "kind": "unimplemented",
+            "cycle": 329645545,
+            "site": "f000:00004119",
+            "bytes": "0f20c0",
+            "stem": "0F20"
+          },
+          {
+            "kind": "unimplemented",
+            "cycle": 329645628,
+            "site": "f000:0000411e",
+            "bytes": "0f22c0",
+            "stem": "0F22"
+          },
+          {
+            "kind": "unimplemented",
+            "cycle": 330072906,
+            "site": "f000:0000410e",
+            "bytes": "260f015408",
+            "stem": "0F01.2"
+          },
+          {
+            "kind": "unimplemented",
+            "cycle": 330073021,
+            "site": "f000:00004119",
+            "bytes": "0f20c0",
+            "stem": "0F20"
+          },
+          {
+            "kind": "unimplemented",
+            "cycle": 330073105,
+            "site": "f000:0000411e",
+            "bytes": "0f22c0",
+            "stem": "0F22"
+          }
+        ],
+        "pmode": [
+          {
+            "from": 329642284,
+            "to": 329642352,
+            "steps": 17,
+            "entry": "f000:00004121",
+            "exit": "0020:0000414b"
+          },
+          {
+            "from": 329645632,
+            "to": 329645700,
+            "steps": 17,
+            "entry": "f000:00004121",
+            "exit": "0020:0000414b"
+          },
+          {
+            "from": 330073109,
+            "to": 330073177,
+            "steps": 17,
+            "entry": "f000:00004121",
+            "exit": "0020:0000414b"
+          },
+          {
+            "from": 330075916,
+            "to": 330075984,
+            "steps": 17,
+            "entry": "f000:00004121",
+            "exit": "0020:0000414b"
+          }
+        ],
+        "gaps": [
+          {
+            "kind": "unimplemented",
+            "stem": "0F01.3",
+            "name": "LIDT",
+            "built": false,
+            "stops": 8,
+            "sites": 2,
+            "executed": 8,
+            "first_site": "f000:00004113",
+            "first_cycle": 329642139
+          },
+          {
+            "kind": "unimplemented",
+            "stem": "0F01.2",
+            "name": "LGDT",
+            "built": false,
+            "stops": 4,
+            "sites": 1,
+            "executed": 4,
+            "first_site": "f000:0000410e",
+            "first_cycle": 329642083
+          },
+          {
+            "kind": "unimplemented",
+            "stem": "0F20",
+            "name": "MOV r32, CRn",
+            "built": false,
+            "stops": 4,
+            "sites": 1,
+            "executed": 4,
+            "first_site": "f000:00004119",
+            "first_cycle": 329642196
+          },
+          {
+            "kind": "unimplemented",
+            "stem": "0F22",
+            "name": "MOV CRn, r32",
+            "built": false,
+            "stops": 4,
+            "sites": 1,
+            "executed": 4,
+            "first_site": "f000:0000411e",
+            "first_cycle": 329642280
+          }
+        ],
+        "smc": [
+          {
+            "event": "store",
+            "cycle": 30492467,
+            "site": "8fe9:0000a04a",
+            "instruction": "00099eda",
+            "address": "00099efb"
+          },
+          {
+            "event": "store",
+            "cycle": 228219177,
+            "site": "1006:00002bae",
+            "instruction": "00012c0e",
+            "address": "00012c30"
+          },
+          {
+            "event": "store",
+            "cycle": 327333164,
+            "site": "1006:0000bc45",
+            "instruction": "0001bca5",
+            "address": "0001bcbe"
+          },
+          {
+            "event": "store",
+            "cycle": 327333164,
+            "site": "1006:0000bc45",
+            "instruction": "0001bca5",
+            "address": "0001bcbf"
+          }
+        ],
+        "notes": [
+          "real-mode IDTR moved"
+        ],
+        "counters": {
+          "retired": 103416958,
+          "oracle_steps": 88,
+          "protected_steps": 68,
+          "parked_clocks": 7211345,
+          "tf_retired": 0,
+          "vga_loads": 61472,
+          "replays": 768,
+          "port0_reads": 1717258,
+          "port0_writes": 37905092,
+          "smc_stores": 394528,
+          "smc_addresses": 4,
+          "smc_executed": 0,
+          "smc_restarts": 665648
+        }
+      },
+      "command": [
+        "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+        "--bios",
+        "build/firmware/pc386/pc386-bios.bin",
+        "--vgabios",
+        "build/firmware/pc386/pc386-vgabios.bin",
+        "--disk",
+        "build/sim/fes-pc386/a20-rtl/boot/disk.img",
+        "--limit-seconds",
+        "10",
+        "--type",
+        "a20test|",
+        "--expect",
+        "A20 DONE ok",
+        "--cpu",
+        "rtl"
+      ],
+      "exit": 0,
+      "failures": [],
+      "lines": [
+        "A20 boot ok",
+        "A20 query ok",
+        "A20 query-2403 ok",
+        "A20 bios ok",
+        "A20 bios ok",
+        "A20 bios ok",
+        "A20 bios ok",
+        "A20 kbc ok",
+        "A20 kbc ok",
+        "A20 kbc ok",
+        "A20 kbc ok",
+        "A20 port92 ok",
+        "A20 port92 ok",
+        "A20 port92 ok",
+        "A20 port92 ok",
+        "A20 move ok",
+        "A20 move ok",
+        "A20 move ok",
+        "A20 move-kbc ok",
+        "A20 move-kbc ok",
+        "A20 move-kbc ok",
+        "A20 move-kbc ok",
+        "A20 resume ok",
+        "A20 resume ok",
+        "A20 resume ok",
+        "A20 resume ok",
+        "A20 DONE ok"
+      ]
+    }
+  },
+  "checks": [
+    "boot: A20 boot ok",
+    "boot: A20 query ok",
+    "boot: A20 query-2403 ok",
+    "boot: A20 bios ok",
+    "boot: A20 bios ok",
+    "boot: A20 bios ok",
+    "boot: A20 bios ok",
+    "boot: A20 kbc ok",
+    "boot: A20 kbc ok",
+    "boot: A20 kbc ok",
+    "boot: A20 kbc ok",
+    "boot: A20 port92 ok",
+    "boot: A20 port92 ok",
+    "boot: A20 port92 ok",
+    "boot: A20 port92 ok",
+    "boot: A20 move ok",
+    "boot: A20 move ok",
+    "boot: A20 move ok",
+    "boot: A20 move-kbc ok",
+    "boot: A20 move-kbc ok",
+    "boot: A20 move-kbc ok",
+    "boot: A20 move-kbc ok",
+    "boot: A20 resume ok",
+    "boot: A20 resume ok",
+    "boot: A20 resume ok",
+    "boot: A20 resume ok",
+    "boot: A20 DONE ok",
+    "boot: RTL stop unimplemented 0F01.3 x8, run on the oracle",
+    "boot: RTL stop unimplemented 0F01.2 x4, run on the oracle",
+    "boot: RTL stop unimplemented 0F20 x4, run on the oracle",
+    "boot: RTL stop unimplemented 0F22 x4, run on the oracle"
+  ],
+  "failures": []
+}

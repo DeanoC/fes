@@ -282,7 +282,9 @@ jobs:
           echo "$RUNNER_TEMP/fes-verilator/bin" >> "$GITHUB_PATH"
           bash scripts/ci_verilator.sh "$RUNNER_TEMP/fes-verilator" "$RUNNER_TEMP/fes-verilator-build"
       - name: Install PC/XT and PC386 image tools
-        if: matrix.target == 'sim-fes-pcxt-dos' || matrix.target == 'sim-fes-pc386-fesenv'
+        if: >-
+          matrix.target == 'sim-fes-pcxt-dos' || matrix.target == 'sim-fes-pc386-fesenv' ||
+          matrix.target == 'sim-fes-pc386-a20'
         run: sudo apt-get update && sudo apt-get install -y mtools
       - name: Simulate selected core scenarios
         env:

@@ -201,6 +201,21 @@ END prompt steps=42 cycles=100 seconds=0.001
 """
 
 
+class A20TestTest(unittest.TestCase):
+    def test_suite_checks_are_the_programs_names(self):
+        source = (sim.CORE / 'sim/a20_test.asm').read_text()
+        names = {line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')}
+        suite = {name for checks in sim.A20_CHECKS.values() for name in checks}
+        # Mode X, for MS-DOS on a kit, adds its own.
+        self.assertEqual(names - suite, {'dos-start', 'dos-locks-0', 'dos-release', 'xms-global', 'xms-lock'})
+        self.assertLessEqual(suite, names)
+
+    def test_himemx_method_is_read_from_its_banner(self):
+        self.assertEqual(sim.HIMEMX_METHOD.search('Fast A20 method used').group(1), 'Fast')
+        self.assertEqual(sim.HIMEMX_METHOD.search('Always on A20 method used').group(1), 'Always on')
+        self.assertIsNone(sim.HIMEMX_METHOD.search('Interface : XMS 3.00 80386 4G'))
+
+
 class BootReportTest(unittest.TestCase):
     def test_boot_suite_output_names_cover_image_cpu_and_preset(self):
         cases = (
