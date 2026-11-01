@@ -428,3 +428,41 @@ func readLine(conn *net.UnixConn) ([]byte, []int, error) {
 		}
 	}
 }
+
+func TestReleaseWindowAllowsSameGenerationRemap(t *testing.T) {
+	runtime, path := newFakeRuntime(t)
+	client := New(path)
+	defer client.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := client.Grant(ctx, 7); err != nil {
+		t.Fatal(err)
+	}
+	client.mu.Lock()
+	client.window.mapping[0] = 0x45
+	client.mu.Unlock()
+	if err := client.ReleaseWindow(); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.ReleaseWindow(); err != nil {
+		t.Fatal(err)
+	}
+	client.mu.Lock()
+	released := client.window == nil
+	client.mu.Unlock()
+	if !released {
+		t.Fatal("client retained mapping")
+	}
+	if _, err := client.Grant(ctx, 7); err != nil {
+		t.Fatal(err)
+	}
+	client.mu.Lock()
+	pixel := client.window.mapping[0]
+	client.mu.Unlock()
+	runtime.mu.Lock()
+	grants := runtime.grants
+	runtime.mu.Unlock()
+	if grants != 2 || pixel != 0x45 {
+		t.Fatalf("grants=%d pixel=%x; remap must preserve same-generation storage", grants, pixel)
+	}
+}

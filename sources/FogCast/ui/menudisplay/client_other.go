@@ -51,4 +51,5 @@ func (*Client) Grant(context.Context, uint64) (Grant, error) {
 func (*Client) PresentBlit(context.Context, uint64, BlitFrame) (Result, error) {
 	return Result{}, errors.New("native menu requires Linux")
 }
-func (*Client) Close() error { return nil }
+func (*Client) Close() error         { return nil }
+func (*Client) ReleaseWindow() error { return nil }

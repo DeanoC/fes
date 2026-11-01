@@ -262,6 +262,13 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 
 // Close unmaps the granted window.
 func (c *Client) Close() error {
+	return c.ReleaseWindow()
+}
+
+// ReleaseWindow drops this client's grant mapping without ending the client.
+// A later present may map the current generation again, including after a
+// rejected launch. Callers must first drain their outstanding frame work.
+func (c *Client) ReleaseWindow() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.closeWindowLocked()
@@ -271,9 +278,11 @@ func (c *Client) closeWindowLocked() error {
 	if c.window == nil {
 		return nil
 	}
-	err := unix.Munmap(c.window.mapping)
+	if err := unix.Munmap(c.window.mapping); err != nil {
+		return err
+	}
 	c.window = nil
-	return err
+	return nil
 }
 
 // windowLocked maps generation's grant, once per generation. A blitter
