@@ -31,6 +31,8 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(layout['partition_1'], {'type': 0x0b, 'start_sector': 2048, 'sectors': 4194304})
         self.assertEqual(layout['partition_2'], {'type': 0x83, 'start_sector': 4196352, 'sectors': 65536})
         self.assertEqual(layout['total_sectors'], 4261888)
+        self.assertEqual(layout['fat_filesystem_sectors'], 4194288)
+        self.assertEqual(MEDIA.FAT_BYTES - MEDIA.FAT_FS_BYTES, 8192)
         self.assertEqual(vendor, original)
         MEDIA.check_capacity(256 << 20, 64 << 20)
         with self.assertRaisesRegex(ValueError, 'rollback capacity'):
@@ -176,6 +178,11 @@ class RealCardTests(unittest.TestCase):
                 MEDIA.verify(image, self.inputs, self.vendor)
             with image.open('r+b') as stream:
                 stream.seek(offset);stream.write(byte)
+                stream.seek(1048576 + MEDIA.FAT_FS_BYTES);stream.write(b'\x01')
+            with self.assertRaisesRegex(ValueError, 'track padding'):
+                MEDIA.verify(image, self.inputs, self.vendor)
+            with image.open('r+b') as stream:
+                stream.seek(1048576 + MEDIA.FAT_FS_BYTES);stream.write(b'\x00')
             extra = root / 'extra';extra.write_bytes(b'extra')
             MEDIA.media.run('mcopy', '-i', str(image)+'@@1048576', extra, '::/unexpected')
             with self.assertRaisesRegex(ValueError, 'owned paths'):

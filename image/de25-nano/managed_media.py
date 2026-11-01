@@ -27,6 +27,10 @@ SECTOR = 512
 FAT_START = 2048
 FAT_SERIAL = 0xde250001
 FAT_LABEL = 'FESDATA'
+# Pinned dosfstools 4.2 rounds a 255/63 filesystem down to whole tracks.
+# Keep the 2 GiB partition and require its exact 16-sector zero tail.
+FAT_FS_SECTORS = (FAT_BYTES // SECTOR) // 63 * 63
+FAT_FS_BYTES = FAT_FS_SECTORS * SECTOR
 
 
 @dataclass(frozen=True)
@@ -50,6 +54,7 @@ def appliance_layout(vendor):
         raise ValueError('unsupported DE25 source boot geometry')
     second = FAT_START + FAT_BYTES // SECTOR
     return {'sector_size': SECTOR, 'total_sectors': second + BOOTSTRAP_BYTES // SECTOR,
+            'fat_filesystem_sectors': FAT_FS_SECTORS, 'fat_cluster_sectors': 8,
             'partition_1': {'type': 0x0b, 'start_sector': FAT_START, 'sectors': FAT_BYTES // SECTOR},
             'partition_2': {'type': 0x83, 'start_sector': second, 'sectors': BOOTSTRAP_BYTES // SECTOR}}
 
@@ -59,7 +64,7 @@ def check_capacity(factory_size, boot_payload_size):
             type(boot_payload_size) is not int or boot_payload_size <= 0):
         raise ValueError('invalid DE25 payload capacity')
     # Factory, Good, Previous and one staged candidate must coexist on FAT.
-    if 4 * factory_size + boot_payload_size + (16 << 20) > FAT_BYTES:
+    if 4 * factory_size + boot_payload_size + (16 << 20) > FAT_FS_BYTES:
         raise ValueError('DE25 FAT leaves insufficient update and rollback capacity')
 
 
@@ -168,6 +173,8 @@ def verify(image, inputs, vendor):
             stream.seek(offset)
             if boot.range_digest(stream, BOOTSTRAP_BYTES) != boot.digest(inputs.bootstrap):
                 raise ValueError('DE25 partition-2 bootstrap differs')
+            media.require_zero(stream, FAT_START * SECTOR + FAT_FS_BYTES,
+                               FAT_BYTES - FAT_FS_BYTES, 'DE25 FAT track padding')
         fat = scratch / 'fat.img'
         media.copy_region(image, fat, FAT_START * SECTOR, FAT_BYTES)
         media.run('fsck.fat', '-vn', fat)
@@ -175,7 +182,7 @@ def verify(image, inputs, vendor):
             bpb = stream.read(SECTOR)
         if (struct.unpack_from('<H', bpb, 11)[0] != SECTOR or bpb[13] != 8 or
                 struct.unpack_from('<I', bpb, 28)[0] != FAT_START or
-                struct.unpack_from('<I', bpb, 32)[0] != FAT_BYTES // SECTOR or
+                struct.unpack_from('<I', bpb, 32)[0] != FAT_FS_SECTORS or
                 bpb[82:90] != b'FAT32   ' or struct.unpack_from('<I', bpb, 67)[0] != FAT_SERIAL or
                 bpb[71:82] != FAT_LABEL.encode().ljust(11)):
             raise ValueError('DE25 FAT geometry or identity differs')
