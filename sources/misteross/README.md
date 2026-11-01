@@ -32,7 +32,8 @@ serves experiments.
 
 ZX81, SMS, SG-1000, Apple II, C64, Spectrum and Atari ST seal format-3 packages
 containing a blank base RBF and an authenticated ROM map. ZX81 requires an
-exact 8192-byte firmware input; SMS requires an exact 32768-byte cartridge
+exact 8192-byte firmware input (`make zx81-openrom` builds a free one into
+`build/zx81-openrom`; see [FES ZX81](../../docs/fes-zx81.md#open-rom)); SMS requires an exact 32768-byte cartridge
 input; SG-1000 requires an exact 16384-byte cartridge input. The factory
 Coleco producer seals format-4 packages with an exact 8192-byte `coleco-bios`
 and 16384-byte `coleco-cart`. Map extraction checks the selected Mistral
