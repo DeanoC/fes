@@ -317,7 +317,9 @@ func TestWorkbenchAsksForFirmwareCardOfTheOpenedEntrysFamily(t *testing.T) {
 	if acts := r.TakeActions(); len(acts) != 0 {
 		t.Fatalf("first-use request entered the action queue: %+v", acts)
 	}
-	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Firmware") && strings.Contains(frameText(f), "Set up system") })
+	stepUntil(t, r, func(f Frame) bool {
+		return strings.Contains(frameText(f), "Firmware") && strings.Contains(frameText(f), "Set up system")
+	})
 	r.Activate("firmware")
 	acts := r.TakeActions()
 	if len(acts) != 1 || acts[0].Kind != ActionFirmwareInfo || acts[0].FirstUse || acts[0].FamilyID != "spectrum" {
