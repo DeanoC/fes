@@ -1,0 +1,33 @@
+{
+  "status": "passed",
+  "classification": "static AArch64 userspace under QEMU; no board or production MENU acceptance",
+  "source": "ba43ac5aa5acc3ba14225849515eef9538b3e154",
+  "expected_cases": {
+    "gfx": [
+      "TestMenuPauseReleasesWindowOnlyAfterFrameDrains",
+      "TestMenuPausePropagatesWindowReleaseFailure",
+      "TestCancelledMenuPauseKeepsInflightMapping",
+      "TestResumedMenuPauseCannotReleaseANewFrameMapping"
+    ],
+    "menudisplay": [
+      "TestReleaseWindowAllowsSameGenerationRemap",
+      "TestFrameMappingEndsBeforeCommitAndFailureReply",
+      "TestFrameMappingGrantMustMatchNegotiatedStatus",
+      "TestFrameMappingPreservesDamageAcrossRemap",
+      "TestFrameMappingEndsBeforePreparationAbandonment"
+    ]
+  },
+  "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
+  "cpu": "cortex-a53",
+  "go_version": "go version go1.24.4 linux/amd64",
+  "files_sha256": {
+    "gfx-tests-arm64": "1e2144e1731fed7b770cc22dca792e04432fa63b5c0c7a283de97c459da564d4",
+    "gfx-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gfx-qemu.log": "47546cfd15e61a5d9db44c7e94a3a04841724dc2aecdc8254a33e5fbffeaac05",
+    "menudisplay-tests-arm64": "24d3ce6ed11366d61dada7088f062f8de5499cbc915ef1fc6e8b1226fed1cea5",
+    "tenfoot-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "menudisplay-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fogcast-tenfoot-linux-arm64": "a0049831017d1ef350b4ed7c542d07340820eca441a8959336f41241215a9dc7",
+    "menudisplay-qemu.log": "3a5d3f3fe40dd76fbe25d29a59da1f2bdc00eb5a652617ef0ed244b3e0d64f86"
+  }
+}
