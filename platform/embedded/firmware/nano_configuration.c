@@ -26,13 +26,22 @@ static int scope(struct fes_nano_configuration *s)
         !fes_nano_bridges_observe(s->bridges,&b) && b.owner==s->owner &&
         b.generation==s->generation && b.generation==1 && b.never_enabled &&
         b.reset==FES_NANO_BRIDGES_ALL && b.masters_contained &&
-        s->completed<=s->bytes && s->pending<=s->bytes-s->completed;
+        s->chunk && s->completed<=s->bytes && s->pending<=s->bytes-s->completed &&
+        s->pending<=(uint64_t)s->chunk*FES_NANO_CONFIG_BUFFERS &&
+        (s->completed==s->bytes || s->completed%s->chunk==0) &&
+        (s->completed+s->pending==s->bytes || s->pending%s->chunk==0);
 }
 static int check(struct fes_nano_configuration *s, unsigned whole)
 {
-    uint64_t address=s->base+(whole ? 0 : s->completed);
-    uint32_t bytes=whole ? s->bytes : s->pending;
-    return scope(s) && s->io.check(s->io.context,address,bytes,whole)==0 && scope(s);
+    if(!scope(s))return 0;
+    if(whole)return s->io.check(s->io.context,s->base,s->bytes,1)==0 && scope(s);
+    for(uint32_t offset=0;offset<s->pending;) {
+        uint32_t bytes=s->pending-offset;
+        if(bytes>s->chunk)bytes=s->chunk;
+        if(s->io.check(s->io.context,s->base+s->completed+offset,bytes,0)!=0 || !scope(s))return 0;
+        offset+=bytes;
+    }
+    return 1;
 }
 int fes_nano_configuration_init(struct fes_nano_configuration *s, struct fes_nano_bridges *b,
                                  struct fes_nano_configuration_ops io, uint64_t base,
@@ -76,10 +85,11 @@ int fes_nano_configuration_before(struct fes_nano_configuration *s, uint32_t fid
     } else {
         if(!s->started || !configuring)return fail(s,-1);
         if(fid==FES_NANO_CONFIG_WRITE) {
-            uint32_t amount=s->bytes-s->completed;
+            uint32_t amount=s->bytes-s->completed-s->pending;
             if(amount>s->chunk)amount=s->chunk;
-            if(s->pending || !amount || address!=s->base+s->completed || bytes!=amount)return fail(s,-22);
-            s->pending=amount;
+            if(s->pending>=(uint64_t)s->chunk*FES_NANO_CONFIG_BUFFERS || !amount ||
+               address!=s->base+s->completed+s->pending || bytes!=amount)return fail(s,-22);
+            s->pending+=amount;
             if(!check(s,0))return fail(s,-1);
             trace(s,FES_CONFIG_WRITE);
         } else if(fid==FES_NANO_CONFIG_COMPLETED) {
@@ -104,8 +114,19 @@ void fes_nano_configuration_after(struct fes_nano_configuration *s, uint32_t fid
     } else if(fid==FES_NANO_CONFIG_COMPLETED) {
         if(!check(s,0))goto failed;
         if(r[0]==1 && !r[1] && !r[2] && !r[3])return;
-        if(r[0] || r[1]!=s->base+s->completed-FES_NANO_CONFIG_DRAM || r[2] || r[3])goto failed;
-        s->completed+=s->pending;s->pending=0;
+        if(r[0] || !r[1])goto failed;
+        uint32_t bytes=0;
+        for(unsigned i=1;i<4;i++) {
+            if(!r[i]) {
+                for(unsigned j=i+1;j<4;j++)if(r[j])goto failed;
+                break;
+            }
+            if(bytes>=s->pending || r[i]!=s->base+s->completed+bytes-FES_NANO_CONFIG_DRAM)goto failed;
+            uint32_t amount=s->pending-bytes;
+            if(amount>s->chunk)amount=s->chunk;
+            bytes+=amount;
+        }
+        s->completed+=bytes;s->pending-=bytes;
     } else if(fid==FES_NANO_CONFIG_ISDONE) {
         if(r[1] || r[2] || r[3] || !check(s,1))goto failed;
         if(r[0]==1)return;

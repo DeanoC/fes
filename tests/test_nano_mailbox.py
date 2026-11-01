@@ -129,10 +129,10 @@ class NanoMailboxTests(unittest.TestCase):
                      '-fsanitize=address,undefined','-fno-sanitize-recover=all','-I'+str(inc),'-I'+str(FW),str(model),'-o',str(binary)]
             compiled=subprocess.run(command,capture_output=True,text=True,timeout=30)
             self.assertEqual(compiled.returncode,0,compiled.stderr)
-            for mode in range(5):
+            for mode in range(9):
                 for initial in range(16):
                     with self.subTest(mode=mode,initial=initial):
                         result=subprocess.run([str(binary),str(mode),str(initial)],capture_output=True,text=True,timeout=10)
                         self.assertEqual(result.returncode,0,result.stderr)
-                        expected=2027520 if mode<2 else 786432
+                        expected=2027520 if mode<2 or mode==5 else 786432
                         self.assertIn('completed='+str(expected),result.stdout)

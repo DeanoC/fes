@@ -31,8 +31,8 @@ next display generation. The endpoint implements the command phases:
    reader, then wait for its matching generation/cookie drain acknowledgement.
 2. Require the platform to prove containment of every other relevant master.
 3. Reserve DMA-visible storage for the admitted bytes and issue the real TF-A
-   full-configuration START/WRITE/COMPLETED_WRITE/ISDONE wire protocol. One
-   write is outstanding at a time; accepted BUSY is never replayed. CPU and
+   full-configuration START/WRITE/COMPLETED_WRITE/ISDONE wire protocol. Up to
+   four writes can remain outstanding; accepted BUSY is never replayed. CPU and
    SDM-relative addresses remain distinct. The reserved bytes are released only
    after their completion and successful configuration status.
 4. Require control-only bridge access, compare the entire live FPGA build and
@@ -55,8 +55,11 @@ used by this endpoint and the Nano's first contained phase-two loader. It owns
 no lifecycle, board policy or bridge operation. Its caller supplies the actual
 reserved DMA bytes, qualified transport, DRAM base and chunk size, checks the
 monotonic deadline before and after each step, and retains uncertain storage.
-Accepted BUSY writes are not replayed; only the exact outstanding relative
-address can complete a buffer. Mutation during calls, malformed replies and
+Writes fill the pinned firmware's four descriptors until accepted BUSY or EOF.
+Completion polls accept up to three exact, ordered relative addresses, then
+refill the freed descriptors. Every outstanding source and DMA chunk is checked
+before and after calls. A malformed batch advances no completion authority.
+Mutation during calls, malformed replies and
 cancellation permanently retire the transfer. The final bytes are rechecked
 before release, and a failed release cannot be retried.
 

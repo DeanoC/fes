@@ -331,6 +331,40 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
     def decode(self,raw):
         return trace.decode_native_configuration(raw,BUILD,SEED,fpga_identity=self.identity,configuration=self.configuration)
 
+    def window_capture(self):
+        raw=self.capture();start=raw.index('NOTICE:  FES_NANO_CORE_TRANSFER phase=arm')
+        end=raw.index('FES_NATIVE_FPGA_PROGRAMMED')
+        def row(phase,completed,pending):
+            return f'NOTICE:  FES_NANO_CORE_TRANSFER phase={phase} owner={OWNER:x} generation=1 completed={completed} pending={pending} total=65664 base=94800000\r\n'
+        rows=(row('arm',0,0)+row('start',0,0)+row('write',0,65536)+row('write',0,65664)+
+              row('poll',0,65664)+row('status',65664,0)+row('complete',65664,0))
+        return raw[:start]+rows+raw[end:]
+
+    def test_two_buffer_batch_capture(self):
+        report=self.decode(self.window_capture())
+        self.assertTrue(report['complete'],report)
+        self.assertEqual(report['configuration_transfer']['completed_bytes'],65664)
+
+    def test_four_buffer_window_requires_bounded_real_completion_progress(self):
+        raw=self.capture();first=raw.index('NOTICE:  FES_NANO_CORE_TRANSFER phase=arm');end=raw.index('FES_NATIVE_FPGA_PROGRAMMED')
+        config=dict(self.configuration,core_size=262272,chunk_sha384=['1'*96]*5)
+        def row(phase,completed,pending):
+            return f'NOTICE:  FES_NANO_CORE_TRANSFER phase={phase} owner={OWNER:x} generation=1 completed={completed} pending={pending} total=262272 base=94800000\r\n'
+        def decode(data):return trace.decode_native_configuration(data,BUILD,SEED,fpga_identity=self.identity,configuration=config)
+        rows=(row('arm',0,0)+row('start',0,0)+row('write',0,65536)+row('write',0,131072)+
+              row('write',0,196608)+row('write',0,262144)+row('poll',0,262144)+
+              row('write',196608,65664)+row('poll',196608,65664)+row('status',262272,0)+row('complete',262272,0))
+        full=raw[:first]+rows+raw[end:].replace('bytes=65664','bytes=262272')
+        report=decode(full);self.assertTrue(report['complete'],report)
+        self.assertFalse(report['core_load_acceptance'])
+        self.assertEqual(report['configuration_transfer']['completed_bytes'],262272)
+        for old,new in ((row('write',0,262144),row('write',0,262144)+row('write',0,262272)),
+                        (row('write',196608,65664),row('write',262144,128)),
+                        (row('write',0,131072),row('write',0,131068)),
+                        (row('poll',0,262144),''),
+                        (row('poll',0,262144),row('poll',65536,196608))):
+            with self.subTest(new=new):self.assertFalse(decode(full.replace(old,new))['complete'])
+
     def test_complete_transfer_then_live_identity_remains_contained_diagnostic(self):
         raw=self.capture();result=self.decode(raw)
         self.assertTrue(result['complete'],result)

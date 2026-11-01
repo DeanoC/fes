@@ -73,16 +73,30 @@ void fes_nano_mailbox_observe(unsigned phase,unsigned completed,unsigned pending
 }
 static unsigned configuration_mutation,configuration_polls;
 static uint32_t configuration_address;
+static uint32_t configuration_addresses[4];
+static unsigned configuration_address_count;
 static int intel_fpga_config_start(uint64_t v) {
     assert(!v && bridge==15);engine_calls++;request_type=RECONFIGURATION;
     return configuration_mutation==50 ? 4 : 0;
 }
 static int intel_fpga_config_write(uint64_t a,uint64_t b) {
     assert(a>=FES_NANO_CONFIG_BASE && a+b<=FES_NANO_CONFIG_BASE+FES_NANO_CONFIG_BYTES && b && b<=FES_NANO_CONFIG_CHUNK && bridge==15);
-    engine_calls++;configuration_address=(uint32_t)a;fpga_config_buffers[0].write_requested=1;return 1;
+    engine_calls++;configuration_address=(uint32_t)a;fpga_config_buffers[0].write_requested=1;
+    if(configuration_mutation==59) {
+        assert(configuration_address_count<4);
+        configuration_addresses[configuration_address_count++]=(uint32_t)a;
+        return 0;
+    }
+    return 1;
 }
 static int intel_fpga_config_completed_write(uint32_t *a,uint32_t *b,uint32_t *c) {
     assert(configuration_address && bridge==15);engine_calls++;
+    if(configuration_mutation==59) {
+        assert(configuration_address_count==2);
+        a[0]=configuration_addresses[0]-0x80000000U;a[1]=configuration_addresses[1]-0x80000000U;
+        *b=2;*c=0;configuration_address=0;configuration_address_count=0;
+        fpga_config_buffers[0].write_requested=0;return 0;
+    }
     if(configuration_mutation==58 && configuration_polls++<90) {*b=0;*c=0;return 1;}
     a[0]=configuration_mutation==49 ? configuration_address : configuration_address-0x80000000U;
     *b=1;*c=0;configuration_address=0;fpga_config_buffers[0].write_requested=0;
@@ -266,8 +280,19 @@ int main(int argc,char **argv)
         fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_WRITE,FES_NANO_CONFIG_BASE+(mutation==47?64U:0U),
                            amount,0,0,reply);
         if(mutation==47) {assert(reply[0]==4 && engine_calls==1 && bridge==15 && fes_nano_platform_configuration()->failed);return 0;}
-        assert(reply[0]==1 && engine_calls==2);
+        assert(reply[0]==(mutation==59?0:1) && engine_calls==2);
         assert(mailbox_observations[2]==1);
+        if(mutation==59) {
+            fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_WRITE,FES_NANO_CONFIG_BASE+amount,
+                               FES_NANO_CONFIG_BYTES-amount,0,0,reply);
+            assert(!reply[0] && fes_nano_platform_configuration()->pending==FES_NANO_CONFIG_BYTES);
+            fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE,0,0,0,0,reply);
+            assert(!reply[0] && reply[1]==FES_NANO_CONFIG_BASE-0x80000000ULL &&
+                   reply[2]==FES_NANO_CONFIG_BASE+amount-0x80000000ULL && !reply[3]);
+            assert(fes_nano_platform_configuration()->completed==FES_NANO_CONFIG_BYTES &&
+                   !fes_nano_platform_configuration()->pending);
+            goto configured_bytes;
+        }
         if(mutation==58) {
             for(unsigned i=0;i<90;i++) {
                 fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE,0,0,0,0,reply);
@@ -292,6 +317,7 @@ int main(int argc,char **argv)
             assert(!reply[0] && reply[1]==FES_NANO_CONFIG_BASE+offset-0x80000000ULL && !reply[2] && !reply[3]);
             offset+=amount;
         }
+configured_bytes:
         fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_ISDONE,0,0,0,0,reply);
         if(mutation==52) {
             assert(reply[0]==1 && !reply[1]);

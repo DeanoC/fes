@@ -110,6 +110,17 @@ error packet and stopped at 20.097686 seconds with the same missing completion.
 SDM transfer-window and DMA/configuration progress need further investigation;
 the observed queue state does not identify their root cause.
 
+The next candidate follows the pinned vendor client's queue protocol: fill up
+to four accepted WRITE descriptors, stop writing on BUSY, and consume up to
+three completion addresses per poll before refilling. The secure gate keeps a
+bounded contiguous window inside the same immutable arena, checks every pending
+chunk around calls, and validates the whole completion batch before advancing.
+Errors retain all possibly issued buffers until reboot. No new address range,
+bridge permission or deadline is introduced. The 144-case actual-parser matrix
+includes queued lookahead, batched completions, persistent silence and an error
+after a valid ACK. A strong-provider test also verifies two queued chunks through
+the real digest/dispatch path. This windowed candidate has no physical result yet.
+
 Invalid scope, changed bytes, uncertain replies or failed completion retire
 authority and keep memory owned until reboot. No reset-bit repair or implicit
 retry stands in for drain proof. Other cold profiles still deny configuration,

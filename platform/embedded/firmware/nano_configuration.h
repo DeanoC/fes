@@ -8,6 +8,7 @@
 #define FES_NANO_CONFIG_COMPLETED 0xc2000003U
 #define FES_NANO_CONFIG_ISDONE 0xc2000004U
 #define FES_NANO_CONFIG_DRAM 0x80000000ULL
+#define FES_NANO_CONFIG_BUFFERS 4U
 
 /* Trusted platform check: compare the fixed staged whole image or indexed
  * chunk with its compiled digest. No non-secure address or digest is accepted. */

@@ -329,12 +329,18 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
     programmed=re.compile(rf'FES_NATIVE_FPGA_PROGRAMMED PASS package_id=(?P<package_id>[0-9a-f]{{64}}) core_sha256=(?P<core_sha256>[0-9a-f]{{64}}) bytes=(?P<bytes>[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) data_held=1 activation=unavailable')
     engine=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_CORE_ENGINE credits=(?P<credits>[0-9]{{1,10}}) block_bytes=(?P<block_bytes>[0-9]{{1,10}}) next_job=(?P<next_job>[0-9]{{1,2}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}})')
     mailbox=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_CORE_MAILBOX phase=(?P<phase>[1-3]) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) completed=(?P<completed>[0-9]{{1,10}}) pending=(?P<pending>[0-9]{{1,10}}) job=(?P<job>[0-9]{{1,2}}) cin=(?P<cin>[0-9a-f]{{1,8}}) cout=(?P<cout>[0-9a-f]{{1,8}}) rin=(?P<rin>[0-9a-f]{{1,8}}) rout=(?P<rout>[0-9a-f]{{1,8}}) bell=(?P<bell>[0-9a-f]{{1,8}}) status=(?P<status>[0-9a-f]{{1,8}}) state=(?P<state>[0-9]) next=(?P<next>[0-9]) slot=(?P<slot>-1|[0-9]{{1,2}}) cmd_used=(?P<cmd_used>[0-9]{{1,2}}) resp_used=(?P<resp_used>[0-9]{{1,2}})')
-    parts=raw.split(b'\n');extra=[];errors=[];last=None;offset=pending=0;complete=False;programmed_row=None
+    parts=raw.split(b'\n');extra=[];errors=[];last=None;offset=pending=accepted=0;complete=False;programmed_row=None
     total=configuration['core_size'];chunk=configuration['chunk_bytes'];owner=None
     timed=None;first_counter=first_hash=previous_counter=previous_hash=None;engine_row=None
     core_line=None;mailbox_sources=set()
     def require(condition, reason):
         if not condition:errors.append(reason)
+    def completion_extents():
+        cursor=offset;extents={(offset,pending)}
+        for _ in range(min(3,(pending+chunk-1)//chunk)):
+            cursor+=min(chunk,total-cursor)
+            extents.add((cursor,accepted-cursor))
+        return extents
     for index,fragment in enumerate(parts[:-1]):
         line=fragment.decode(errors='replace').rstrip('\r');match=core.fullmatch(line)
         if match:
@@ -364,16 +370,26 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
             elif phase=='start':
                 require(last=='arm' and values['completed']==values['pending']==0,'configuration START repeated or reordered')
             elif phase=='write':
-                if last=='poll':offset+=pending
-                require(last in ('start','poll') and offset<total and values['completed']==offset and
-                        values['pending']==min(chunk,total-offset),'configuration WRITE replay, gap or invalid extent')
+                require(values['completed'] in ({x for x,_ in completion_extents()} if last=='poll' else {offset}),
+                        'configuration WRITE invented or skipped acknowledgements')
+                offset=values['completed']
+                amount=min(chunk,total-accepted)
+                require(last in ('start','write','poll') and accepted<total and offset<=accepted and
+                        values['pending']==accepted-offset+amount and 0<values['pending']<=4*chunk,
+                        'configuration WRITE replay, gap or invalid window extent')
+                accepted+=amount
                 pending=values['pending']
             elif phase=='poll':
-                require(last in ('write','poll') and values['completed']==offset and values['pending']==pending and pending>0,
+                require(values['completed'] in ({x for x,_ in completion_extents()} if last=='poll' else {offset}),
+                        'configuration poll invented or skipped acknowledgements')
+                offset=values['completed'];pending=accepted-offset
+                require(last in ('write','poll') and values['pending']==pending and 0<pending<=4*chunk,
                         'configuration completion has no matching issued buffer')
             elif phase=='status':
-                if last=='poll':offset+=pending;pending=0
-                require(last in ('poll','status') and offset==total and values['completed']==total and values['pending']==0,
+                require(values['completed'] in ({x for x,_ in completion_extents()} if last=='poll' else {offset}),
+                        'configuration final status invented or skipped acknowledgements')
+                offset=values['completed'];pending=accepted-offset
+                require(last in ('poll','status') and accepted==offset==total and values['pending']==pending==0,
                         'configuration final status preceded full transfer completion')
             elif phase=='complete':
                 require(last=='status' and values['completed']==total and values['pending']==0,
@@ -392,8 +408,7 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
                         last=={1:'start',2:'write',3:'poll'}[phase],
                         'configuration mailbox observation repeated or misplaced')
                 mailbox_sources.add(core_line)
-                extents={(0,0)} if phase==1 else {(offset,pending)}
-                if phase==3:extents.add((offset+pending,0))
+                extents={(0,0)} if phase==1 else completion_extents() if phase==3 else {(offset,pending)}
                 require(values['owner']==owner and values['generation']==1 and values['job']<14 and
                         (values['completed'],values['pending']) in extents and
                         values['state']<=3 and values['next']<=3 and -1<=values['slot']<32 and

@@ -669,6 +669,15 @@ header-aware trial reports no error packet, and stops at 20.097686 seconds with
 786,432 bytes completed, 65,536 outstanding and all source bytes held. No identity
 or bridge opening follows. The physical cause remains open.
 
+The next loader fills the firmware's bounded four-buffer window and processes
+up to three ordered completions per poll, matching the pinned vendor client.
+The secure gate checks every pending chunk in the same fixed arena and rejects
+overlap, a fifth write, invented acknowledgements or malformed batches. The
+original serial client stalls against an injected peer needing later data;
+the queued client completes the core-sized stream. Actual-parser, strong-provider
+and trace tests cover the window without hardware. The physical cause and
+matched windowed boot result remain unproven.
+
 This source-bound cold profile is a hardware-qualification candidate. No
 contained physical transfer is accepted yet. It enables neither an active
 reader nor data bridges, secondary CPUs, active drain, runtime package

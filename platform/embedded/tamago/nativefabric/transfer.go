@@ -15,21 +15,27 @@ import (
 // authority and never opens a bridge. Keep it and its region until reboot on
 // any uncertain failure, including a constructor failure after reservation.
 type ConfigurationTransfer struct {
-	cpu            FirmwareCaller
-	region         *Region
-	source         []byte
-	beforeStart    func() error
-	phase          string
-	digest         [32]byte
-	chunks         [][32]byte
-	chunk          int
-	dramBase       uint64
-	offset, amount int
-	accepted       int
-	writeIssued    bool
-	err            error
-	done           bool
+	cpu         FirmwareCaller
+	region      *Region
+	source      []byte
+	beforeStart func() error
+	phase       string
+	digest      [32]byte
+	chunks      [][32]byte
+	chunk       int
+	dramBase    uint64
+	offset      int
+	accepted    int
+	pending     []configurationBuffer
+	err         error
+	done        bool
 }
+
+// The pinned SiP engine has four buffer descriptors. BUSY accepts the latest
+// WRITE and requires polling; it never permits replay of that buffer.
+const configurationBuffers = 4
+
+type configurationBuffer struct{ offset, amount int }
 
 type ConfigurationTransferStatus struct {
 	Phase                         string
@@ -62,15 +68,11 @@ func (t *ConfigurationTransfer) Status() ConfigurationTransferStatus {
 	if t == nil {
 		return ConfigurationTransferStatus{Failed: true}
 	}
-	outstanding := 0
-	if t.writeIssued {
-		outstanding = 1
-	}
 	retained := 0
 	if t.region != nil {
 		retained = len(t.region.Bytes)
 	}
-	return ConfigurationTransferStatus{t.phase, t.accepted, t.offset, outstanding, retained, t.done, t.err != nil}
+	return ConfigurationTransferStatus{t.phase, t.accepted, t.offset, len(t.pending), retained, t.done, t.err != nil}
 }
 
 // Cancel permanently retires a pending transfer without replay or release. A
@@ -93,13 +95,22 @@ func (t *ConfigurationTransfer) stable() bool {
 	return t.region != nil && sha256.Sum256(t.region.Bytes) == t.digest && sha256.Sum256(t.source) == t.digest
 }
 
-func (t *ConfigurationTransfer) stableChunk() bool {
-	if t.region == nil || t.offset < 0 || t.amount <= 0 || t.offset+t.amount > len(t.region.Bytes) || t.offset+t.amount > len(t.source) {
+func (t *ConfigurationTransfer) stableChunk(b configurationBuffer) bool {
+	if t.region == nil || b.offset < 0 || b.amount <= 0 || b.offset+b.amount > len(t.region.Bytes) || b.offset+b.amount > len(t.source) {
 		return false
 	}
-	index := t.offset / t.chunk
-	return index < len(t.chunks) && sha256.Sum256(t.region.Bytes[t.offset:t.offset+t.amount]) == t.chunks[index] &&
-		sha256.Sum256(t.source[t.offset:t.offset+t.amount]) == t.chunks[index]
+	index := b.offset / t.chunk
+	return index < len(t.chunks) && sha256.Sum256(t.region.Bytes[b.offset:b.offset+b.amount]) == t.chunks[index] &&
+		sha256.Sum256(t.source[b.offset:b.offset+b.amount]) == t.chunks[index]
+}
+
+func (t *ConfigurationTransfer) stablePending() bool {
+	for _, b := range t.pending {
+		if !t.stableChunk(b) {
+			return false
+		}
+	}
+	return true
 }
 
 // Advance performs at most one firmware operation. busy asks the cooperative
@@ -138,52 +149,69 @@ func (t *ConfigurationTransfer) Advance() (done, busy bool, err error) {
 		}
 		t.phase = "write"
 	case "write":
-		if t.offset == len(t.source) {
-			t.phase = "done"
+		if t.accepted == len(t.source) || len(t.pending) == configurationBuffers {
+			t.phase = "completion"
 			break
 		}
-		t.amount = min(t.chunk, len(t.source)-t.offset)
-		if !t.stableChunk() {
+		b := configurationBuffer{t.accepted, min(t.chunk, len(t.source)-t.accepted)}
+		if !t.stablePending() || !t.stableChunk(b) {
 			return fail(errors.New("native fabric: staged image changed"))
 		}
-		t.writeIssued = true
-		r, err := t.cpu.Invoke([7]uint64{write, t.region.Address + uint64(t.offset), uint64(t.amount)})
+		// Keep possible DMA ownership even if this call fails or returns an
+		// uncertain result. Only explicit completions remove pending ranges.
+		t.pending = append(t.pending, b)
+		r, err := t.cpu.Invoke([7]uint64{write, t.region.Address + uint64(b.offset), uint64(b.amount)})
 		if err != nil {
 			return fail(err)
 		}
-		if !t.stableChunk() {
+		if !t.stablePending() {
 			return fail(errors.New("native fabric: WRITE changed issued image"))
 		}
 		if (r[0] != 0 && r[0] != 1) || !plain(r) {
 			return fail(fmt.Errorf("native fabric: WRITE returned %v", r))
 		}
-		// BUSY accepted this buffer too; the next action polls its completion.
-		t.accepted = t.offset + t.amount
-		t.phase = "completion"
+		t.accepted += b.amount
+		if r[0] == 1 || len(t.pending) == configurationBuffers || t.accepted == len(t.source) {
+			t.phase = "completion"
+		}
 	case "completion":
-		if !t.stableChunk() {
+		if len(t.pending) == 0 || !t.stablePending() {
 			return fail(errors.New("native fabric: asynchronous image mutation"))
 		}
 		r, err := t.cpu.Invoke([7]uint64{completed})
 		if err != nil {
 			return fail(err)
 		}
-		if !t.stableChunk() {
+		if !t.stablePending() {
 			return fail(errors.New("native fabric: completion changed issued image"))
 		}
 		if r[0] == 1 && plain(r) {
 			return false, true, nil
 		}
-		want := t.region.Address + uint64(t.offset) - t.dramBase
-		if r != ([4]uint64{0, want}) {
+		count := 0
+		for i := 1; i < len(r) && r[i] != 0; i++ {
+			if count >= len(t.pending) || r[i] != t.region.Address+uint64(t.pending[count].offset)-t.dramBase {
+				return fail(fmt.Errorf("native fabric: unexpected completion %v", r))
+			}
+			count++
+		}
+		if r[0] != 0 || count == 0 {
 			return fail(fmt.Errorf("native fabric: unexpected completion %v", r))
 		}
-		if !t.stableChunk() {
-			return fail(errors.New("native fabric: completed image mutation"))
+		for i := count + 1; i < len(r); i++ {
+			if r[i] != 0 {
+				return fail(fmt.Errorf("native fabric: completion gap %v", r))
+			}
 		}
-		t.offset += t.amount
-		t.writeIssued = false
-		t.phase = "write"
+		for _, b := range t.pending[:count] {
+			t.offset += b.amount
+		}
+		t.pending = t.pending[count:]
+		if t.accepted < len(t.source) {
+			t.phase = "write"
+		} else if len(t.pending) == 0 {
+			t.phase = "done"
+		}
 	case "done":
 		if !t.stable() {
 			return fail(errors.New("native fabric: staged image changed"))

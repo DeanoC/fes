@@ -20,7 +20,12 @@ static void advance(void) {
  if(qread==qwrite)return;
  if(mode==1 && ++delays%3)return;
  if(mode==2 && acknowledged==12)return; /* peer stops replying, not a parser defect */
- unsigned job=queue[qread++%64];reply(job,acknowledged==12 ? (mode==3 ? 17 : mode==4 ? 2 : 0) : 0,0,NULL);acknowledged++;
+ if(mode==7 && acknowledged>=12)return;
+ if(mode>=5 && acknowledged>=12 && qwrite-qread<2 && bytes<2027520)return;
+ unsigned job=queue[qread++%64];
+ unsigned error=acknowledged==12 ? (mode==3 ? 17 : (mode==4 || mode==6) ? 2 : 0) : 0;
+ if(mode==8 && acknowledged==13)error=2;
+ reply(job,error,0,NULL);acknowledged++;
 }
 static void consume(void) {
  uint32_t *cout=reg(MBOX_COUT),cin=*reg(MBOX_CIN);
@@ -73,10 +78,48 @@ static void observe(unsigned completed,unsigned pending) {
  assert(mmio_writes==writes && mmio_reads==reads+6 && !mbox_db_lock);
  assert(!memcmp(before,registers,sizeof(before)) && !memcmp(&service,&mbox_svc,sizeof(service)));
 }
+static int windowed(void) {
+ unsigned accepted=0,done=0,pending=0,polls=0,total=2027520;
+ while(done<total) {
+  while(accepted<total && pending<4) {
+   unsigned amount=total-accepted<65536 ? total-accepted:65536;
+   int status=intel_fpga_config_write(0x94800000+accepted,amount);
+   assert(status==(pending==3 ? 1:0));accepted+=amount;pending++;
+  }
+  unsigned tries=0;
+  for(;;) {
+   for(unsigned i=0;i<3;i++)advance();
+   uint32_t addresses[3]={0},count=0,job=0;
+   int status=intel_fpga_config_completed_write(addresses,&count,&job);polls++;
+   observe(done,accepted-done);
+   if(status==4) {
+    assert((mode==6 || mode==8) && done==786432 && !count && pending==4 && fes_contained_transport_status==-2);
+    assert(request_type==NO_REQUEST);goto stopped_window;
+   }
+   if(!count) {
+    assert(status==1 && pending);
+    if(++tries==10) {assert(mode==7 && done==786432 && pending==4 && !fes_contained_transport_status);goto stopped_window;}
+    continue;
+   }
+   assert(status==0 && count<=3 && count<=pending);
+   for(unsigned i=0;i<count;i++) {
+    assert(addresses[i]==0x14800000+done);
+    unsigned amount=total-done<65536 ? total-done:65536;done+=amount;pending--;
+   }
+   break;
+  }
+ }
+ assert(mode==5 && done==total && accepted==total && !pending && sent==31 && acknowledged==31 && max_blocks==4);
+stopped_window:
+ assert(observations==polls);
+ printf("window mode=%u completed=%u accepted=%u pending=%u submitted=%u ack=%u polls=%u status=%d\n",mode,done,accepted,pending,sent,acknowledged,polls,fes_contained_transport_status);
+ return 0;
+}
 int main(int argc,char **argv) {
  assert(argc==3);mode=(unsigned)strtoul(argv[1],NULL,10);unsigned initial=(unsigned)strtoul(argv[2],NULL,10);
- assert(initial<16 && mode<5);*reg(MBOX_RIN)=*reg(MBOX_ROUT)=initial;*reg(MBOX_CIN)=*reg(MBOX_COUT)=30;
+ assert(initial<16 && mode<9);*reg(MBOX_RIN)=*reg(MBOX_ROUT)=initial;*reg(MBOX_CIN)=*reg(MBOX_COUT)=30;
  mailbox_init_v3();assert(intel_fpga_config_start(0)==0);assert(max_blocks==4 && bytes_per_block==1048560);
+ if(mode>=5)return windowed();
  unsigned done=0,polls=0,total=2027520;
  while(done<total) {
   unsigned chunk=total-done<65536 ? total-done:65536;

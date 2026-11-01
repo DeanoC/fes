@@ -20,28 +20,35 @@ static int driver(void *p,uint32_t mask,unsigned fabric)
 static int check(void *p,uint64_t address,uint32_t bytes,unsigned whole)
 {
     struct fixture *f=p;f->checks++;
-    if(whole)assert(address==0x94800000ULL && bytes==128);
-    else assert(address==0x94800000ULL+f->configuration.completed && bytes==64);
+    if(whole)assert(address==0x94800000ULL && bytes==f->configuration.bytes);
+    else {
+        uint64_t offset=address-0x94800000ULL;
+        unsigned amount=f->configuration.bytes-(unsigned)offset;
+        if(amount>64)amount=64;
+        assert(offset>=f->configuration.completed && offset<f->configuration.completed+f->configuration.pending &&
+               !(offset%64) && bytes==amount);
+    }
     if(f->checks==f->change_check)f->valid=0;
     return f->checks==f->fail_check ? -7 : 0;
 }
 static void trace(void *p,unsigned stage,uint32_t completed,uint32_t pending)
 {
-    struct fixture *f=p;assert(completed<=128 && pending<=64);
+    struct fixture *f=p;assert(completed<=f->configuration.bytes && pending<=256);
     if(stage==FES_CONFIG_FAILURE)f->failures++;
 }
-static void init(struct fixture *f)
+static void init_bytes(struct fixture *f,unsigned bytes)
 {
     memset(f,0,sizeof(*f));f->reset=15;f->masters=f->valid=1;
     struct fes_nano_bridge_ops b={f,owns,reset,masters,stop,driver,driver};
     assert(!fes_nano_bridges_init(&f->bridges,b,17,9,FES_NANO_FABRIC_ABSENT,1));
     struct fes_nano_configuration_ops io={f,check,trace};
-    assert(!fes_nano_configuration_init(&f->configuration,&f->bridges,io,0x94800000,128,64,1));
+    assert(!fes_nano_configuration_init(&f->configuration,&f->bridges,io,0x94800000,bytes,64,1));
 }
+static void init(struct fixture *f) { init_bytes(f,128); }
 static void arm(struct fixture *f)
 {
     uint64_t r[4];fes_nano_configuration_prepare(&f->configuration,17,1,0,r);
-    assert(r[0]==0 && r[1]==((uint64_t)FES_EMBEDDED_BRIDGE_PREPARATION_TAG<<32|128) && r[2]==17 && r[3]==1);
+    assert(r[0]==0 && r[1]==((uint64_t)FES_EMBEDDED_BRIDGE_PREPARATION_TAG<<32|f->configuration.bytes) && r[2]==17 && r[3]==1);
     assert(fes_nano_configuration_busy(&f->configuration));
 }
 static void reply(struct fixture *f,uint32_t fid,uint64_t address,uint64_t bytes,unsigned configuring,
@@ -79,6 +86,36 @@ static void retired(struct fixture *f)
 int main(void)
 {
     unsigned cases=0;struct fixture f;uint64_t r[4];
+    init_bytes(&f,260);started(&f);
+    for(unsigned i=0;i<4;i++)reply(&f,FES_NANO_CONFIG_WRITE,0x94800000+i*64,64,1,i==3,0,0,0);
+    assert(f.configuration.pending==256 && !f.configuration.completed);
+    reply(&f,FES_NANO_CONFIG_COMPLETED,0,0,1,1,0,0,0);
+    reply(&f,FES_NANO_CONFIG_COMPLETED,0,0,1,0,0x14800000,0x14800040,0x14800080);
+    assert(f.configuration.completed==192 && f.configuration.pending==64);
+    reply(&f,FES_NANO_CONFIG_WRITE,0x94800100,4,1,0,0,0,0);
+    reply(&f,FES_NANO_CONFIG_COMPLETED,0,0,1,0,0x148000c0,0x14800100,0);
+    assert(f.configuration.completed==260 && !f.configuration.pending);
+    reply(&f,FES_NANO_CONFIG_ISDONE,0,0,1,0,0,0,0);cases++;
+    init_bytes(&f,260);started(&f);
+    for(unsigned i=0;i<4;i++)reply(&f,FES_NANO_CONFIG_WRITE,0x94800000+i*64,64,1,i==3,0,0,0);
+    assert(fes_nano_configuration_before(&f.configuration,FES_NANO_CONFIG_WRITE,0x94800100,4,1)==4);
+    assert(f.configuration.pending==256 && !f.configuration.completed);retired(&f);cases++;
+    for(unsigned mode=0;mode<10;mode++) {
+        init_bytes(&f,260);started(&f);
+        for(unsigned i=0;i<4;i++)reply(&f,FES_NANO_CONFIG_WRITE,0x94800000+i*64,64,1,i==3,0,0,0);
+        assert(!fes_nano_configuration_before(&f.configuration,FES_NANO_CONFIG_COMPLETED,0,0,1));
+        uint64_t value[]={0,0x14800000,0x14800040,0x14800080};
+        if(mode==0)value[2]=value[1];
+        if(mode==1)value[1]+=64;
+        if(mode==2)value[2]=0;
+        if(mode==3)value[3]=0x14800100;
+        if(mode==4)value[0]=1;
+        if(mode==5)value[0]=4;
+        if(mode>=6)f.fail_check=f.checks+1+(mode-6);
+        fes_nano_configuration_after(&f.configuration,FES_NANO_CONFIG_COMPLETED,value);
+        assert(value[0]==4 && !value[1] && !value[2] && !value[3]);
+        assert(f.configuration.pending==256 && !f.configuration.completed);retired(&f);cases++;
+    }
     init(&f);all_bytes(&f);
     reply(&f,FES_NANO_CONFIG_ISDONE,0,0,1,1,0,0,0);
     reply(&f,FES_NANO_CONFIG_ISDONE,0,0,1,0,0,0,0);
