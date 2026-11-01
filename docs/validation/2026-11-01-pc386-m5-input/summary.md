@@ -8,7 +8,7 @@ PS/2 aux mouse.
 
 > The seal, system and Kit B evidence below records earlier revisions of this
 > slice. It does not qualify the review-fix RTL in this PR. The current-head
-> follow-up is recorded under “Review-fix rerun” at the end; this task does not
+> follow-up is recorded under “Current PR-head follow-up” at the end; this task does not
 > touch kits, so the earlier Kit B run remains historical evidence only.
 
 **Historical Kit B run: a remote keyboard and mouse drove FreeDOS on the then-sealed package.**
@@ -208,8 +208,11 @@ The system bench drives the whole shell as the runtime does, with the RTL CPU:
 - Stop's disk save and record checks pass as before, including #1268's new
   clock checks.
 
-The oracle machine bench gives the same two lines from `machine_tb --mouse`
-and named keys. 46 Python tests and the support matrix pass. On the host side,
+The earlier `machine_tb --mouse` self-test used a fake device and reported the
+expected observations, but it did not clock the device outside `mouse_cycle`
+or exercise readiness backpressure and duplicate acceptance. The current-head
+follow-up below adds those checks and sends an actual packet in the boot suite.
+46 Python tests and the support matrix pass. On the host side,
 FogCast's browser UI suites pass: `Makefile` line 51, 375 tests, including a
 full mouse queue that keeps a partial release and drops pure motion, and
 `ui_browser_test.js`, 78. So does `go test ./internal/hostapi/...`. All three
@@ -218,7 +221,9 @@ ran again on the merge.
 ## Quartus seal
 
 `make build-fes-pc386-quartus` at seed 1 and the merge `f2b12145a`:
-[`seal-summary.json`](seal-summary.json). Each checkout stayed clean.
+[`seal-summary-f2b12145-superseded.json`](seal-summary-f2b12145-superseded.json).
+This file records that earlier seal only; its RTL hashes do not match the
+current PR head. Each checkout stayed clean.
 
 | | Seal, `f2b12145a` (run m5i7) | `5328606ca` (runs m5i4, m5i5) | `b8cfc9668` (runs m5i2, m5i3, m5i6) | #1268's 1.1 seal |
 | --- | --- | --- | --- | --- |
@@ -371,10 +376,12 @@ on the PR branch, without merging main.
   Directed coverage includes FA/BAT AA ordering, retry after F5 clears a queued
   make, broken-prefix retry, the 520 ms typematic observation, and the 50 ms
   full-mouse-FIFO readiness bound.
-- `python3 scripts/sim_fes_pc386.py --suite boot --download` passed. The
-  `machine_tb --mouse` handshake check passed with `mouse_valid` held through
-  readiness. FreeDOS reached the prompt after 4.3 simulated seconds; fixture
-  replay matched 85,234 events with zero replay, read, VRAM or frame mismatches.
+- `python3 scripts/sim_fes_pc386.py --suite boot --download` passed. That
+  version of the boot suite did not send a mouse packet. Its separate fake
+  `machine_tb --mouse` check did not clock the device outside `mouse_cycle`,
+  so it did not test a packet waiting for readiness or repeated acceptance.
+  FreeDOS reached the prompt after 4.3 simulated seconds; fixture replay
+  matched 85,234 events with zero replay, read, VRAM or frame mismatches.
 - `python3 scripts/sim_fes_pc386.py --suite system --download` passed all 16
   checks. FreeDOS printed `M5:Kb!`, `MOUSE X=+172 Y=-72 LEFT=2/2 RIGHT=1/1
   PACKETS=10`, and `KEYS 48E0 3B00 53E0 1E41`, then returned to the prompt after
@@ -393,10 +400,12 @@ on the PR branch, without merging main.
   a 3,563,352-byte RBF with SHA-256
   `f4e5c0a3394267f676d0a8efd306f41e286f246fbd352617c091dca318fabd4c`.
   The build script passed: setup +1.318 ns, hold +0.112 ns, recovery +7.584
-  ns, removal +0.436 ns and minimum pulse width +1.122 ns; system Fmax 61.44
-  MHz, pixel 74.27 MHz and audio 12.29 MHz. It used 25,654 ALMs, 254 RAM
-  blocks and 30 DSP blocks. Quartus reported 0 errors; its 17,987 warnings
-  include the generated-netlist warnings noted above.
+  ns, removal +0.436 ns and minimum pulse width +1.122 ns. The JSON lists
+  system, pixel and audio clock output frequencies of 61.44, 74.27 and 12.29
+  MHz under `timing.clocks`; these are not Fmax values, and this record does
+  not contain that seal's Fmax. It used 25,654 ALMs, 254 RAM blocks and 30 DSP
+  blocks. Quartus reported 0 errors and 17,987 warnings; this record did not
+  classify those warnings.
 - The final validation-record commit is documentation only; the sealed source
   commit above and all pinned producer inputs remain unchanged.
 - No kit was touched under this task's restriction. The old Kit B package and
@@ -410,3 +419,28 @@ that stops typematic as soon as a key's break is projected into the keyboard
 FIFO. The earlier Kit B package also does not contain this fix. This updated
 RTL needs a fresh seal and exact-artifact HIL on the new PR head; neither is
 claimed here.
+
+## Current PR-head follow-up (2026-11-01)
+
+These checks use source commit `5957397c079f84b31a2ae42a6861e00b86d54120`.
+
+- `python3 scripts/sim_fes_pc386.py --suite devices` passed all 131 checks
+  (99 device and 32 keyboard checks). The ADh/AEh regression holds A through
+  typematic, disables the keyboard interface, releases A, then verifies that
+  re-enabling the interface produces no make after A's break.
+- `python3 scripts/sim_fes_pc386.py --suite boot` passed with one real mouse
+  packet accepted once (`MOUSE sent=1 scheduled=1`). FreeDOS reached the prompt
+  after 4.3 simulated seconds; fixture replay matched 85,234 events with zero
+  replay, read, VRAM or frame mismatches.
+- `make check` passed: 27 generated consumers and 41 fixture copies matched.
+- `make test-changed TEST_CHANGED_ARGS='--base origin/main'` exited 2 after
+  unrelated parent Python producer-evidence regressions in Coleco and Atari ST
+  video tests. Host and FPGA parent targets were not started by its fail-fast
+  runner. The focused PC386 device and boot suites above passed separately.
+- `make build-fes-pc386-quartus` did not produce a fresh seal. It stopped
+  before Quartus because the required pinned Yosys path was not a regular
+  executable: `sources/misteross/build/toolchain/fes-pc386/install/bin/yosys`.
+  Therefore neither the renamed historical seal summary nor the earlier
+  package describes this source commit.
+- No kit was touched. Evidence for this commit is host simulation only; a
+  fresh seal and any required exact-package hardware run remain outstanding.
