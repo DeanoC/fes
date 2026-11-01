@@ -1493,6 +1493,20 @@ in the original cassette waiter with the display off. A 720p raster module
 `zx81_video_720p.v` integer-scales the 6.5 MHz capture into 1650×750 timing.
 This is simulation, not a Quartus RBF or kit result.
 
+`make sim-fes-zx81-diagnostic` needs no ROM, so it is the CI smoke bench
+(`sim-fes-zx81-smoke`; the BASIC benches there skip without `FES_ZX81_ROM`).
+`cores/fes-zx81/diagnostic/firmware.py` writes an 8 KiB first-party image
+under `build/diagnostics/fes-zx81/`. Its own display driver runs a 24-row
+display file through the ULA (IM 1 line interrupt from R, 207 T lines,
+glyphs at `$1E00`) in the same 310-line frame and position as BASIC. It scans
+the eight keyboard rows in VSYNC, probes RAMTOP, and uses the `$0347` LOAD and
+`$02FB`/`$0313`/`$031E`/`$0207` SAVE hooks the machine patches. The bench
+passes it through the ROM port, then `diagnostic_tb.cpp` on `zx81_machine`
+checks RAMTOP `$8000`, each key row, three captured frames pixel for pixel
+against the display file and glyphs, LOAD with and without a tape, and SAVE
+of the loaded `.p`. On `expansion_machine` it checks RAMTOP `$4400` (vacant
+socket) and `$8000` (16 KiB pack) plus the same keys, frames and LOAD.
+
 `make sim-fes-zx81-session` combines the real Z80, machine RAM, capture,
 mailbox, shared DDR guards and scanout with unrelated system/pixel clocks.
 A diagnostic firmware retains a RAM marker and continuously updates another
