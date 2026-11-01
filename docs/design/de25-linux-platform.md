@@ -44,6 +44,10 @@ builds a real AArch64 rootfs and SDK with the shared policy, matching built-in
 USB Bluetooth/HID kernel and actual FES helpers. Filesystem/ELF checks and an
 isolated SDK/C++/QEMU/SSH-banner proof pass. This intermediate retains its
 bootstrap guard, lacks runtime/factory/MENU and has no native boot acceptance.
+The [normal SDK/runtime record](../validation/2026-11-02-de25-managed-sdk/README.md)
+then corrects the bootstrap mount point to a directory and SDK export links,
+adds producer-authenticated SDK reuse, and passes the existing AArch64 runtime
+builder, canonical archive audit and five Cortex-A76 CPU model executables.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.
 

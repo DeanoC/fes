@@ -1,0 +1,27 @@
+{
+  "base_contract": {
+    "architecture": "aarch64",
+    "base_contract": "fes-kit-base-v1-4d08af30f26132bab500672c0bd227576cdaf11e108617966690620b22f494a9",
+    "board": "de25-nano",
+    "interfaces": {
+      "maintenance": "fes-kit-maintenance-v1",
+      "runtime-protocol": "2",
+      "software-admission": "fes-kit-software-v1"
+    }
+  },
+  "board_boot": "not-run",
+  "classification": "isolated SDK and QEMU userspace proof",
+  "compiler": "aarch64-buildroot-linux-gnu-g++.br_real (Buildroot 2021.02.4) 9.4.0",
+  "compiler_sysroot_inside_extracted_sdk": true,
+  "executable_result": "DE25_MANAGED_SDK_PASS",
+  "executable_sha256": "b44b10a1a47a8d9f61b55e972500e62227f13189373fbbd28567a364d6c7364f",
+  "hardware_access": "not-performed",
+  "original_build_volume": "not-mounted",
+  "qemu_architecture": "aarch64",
+  "rootfs_sha256": "588421ad2ca56d9b4dae256772f46260068d680f0cdb5387faf3e1754206a9aa",
+  "sdk_sha256": "5a7fa4bf99cfc660bd157d3ffc79b25807cf93eaa49dab894b579c7c52ea30e4",
+  "source_revision": "cad04bd65d82c98f0e375de927051d215dd63af1",
+  "source_sha256": "e21b0d8c3a71ed826c1e719a6a4a5b8423839f0dfbaafd2dc2307e2c1e48f901",
+  "ssh_authentication": "not-tested",
+  "ssh_banner": "SSH-2.0-dropbear_2020.81"
+}

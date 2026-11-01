@@ -1,0 +1,11 @@
+{
+  "canonical_menu_inputs_verified": 374,
+  "combined_compiler_inputs_verified": 59,
+  "hardware_access": "not-performed",
+  "kernel_C_DTS_profile_and_build_files_matched": 26,
+  "kernel_producer": "59d3b43997b5827dda55125f0f651248a51e6ebf",
+  "new_FPGA_or_Quartus_run": false,
+  "runtime_test_inputs_verified": 58,
+  "shared_image_builder_changed": true,
+  "tested_source": "cad04bd65d82c98f0e375de927051d215dd63af1"
+}

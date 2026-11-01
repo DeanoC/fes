@@ -1,0 +1,8 @@
+{
+  "preflight_source": "5951d0c9f18447582a1b6f12c30a2f9c750a359e",
+  "base_producer": "cad04bd65d82c98f0e375de927051d215dd63af1",
+  "export_sdk_function_equal": true,
+  "export_sdk_source_sha256": "1698287c7414c26f638dc04c7f16e1b5a33d26c2469c74ccd229ea6341a31030",
+  "actual_preflight_receipt_sha256": "9fad5a6cfb75963a6272a8c9cd8493411193358ecc108e96da869afdce2ad439",
+  "scope": "reuse only unchanged export transformation proof; new base/runtime/SDK acceptance still required"
+}

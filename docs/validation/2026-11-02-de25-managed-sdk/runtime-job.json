@@ -1,0 +1,16 @@
+{
+  "source_revision": "cad04bd65d82c98f0e375de927051d215dd63af1",
+  "command": [
+    "python3",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-sdk-integration/normal-runtime-proof.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-sdk-integration-cad04bd65",
+  "started_utc": "2026-11-01T23:05:06.395778+00:00",
+  "time_cap_seconds": 1800,
+  "hardware_access": "not-performed",
+  "pid": 163063,
+  "state": "passed",
+  "elapsed_seconds": 41.3,
+  "heartbeat_utc": "2026-11-01T23:05:47.671157+00:00",
+  "returncode": 0
+}
