@@ -55,6 +55,18 @@ later stages and consumers stay timed. That SDC correction changes the selected
 build identity and needs a separate compile/model result. No timing waiver,
 clock reduction, widened DMA permission or new hardware acceptance is claimed.
 
+The corrected producer `90d4313c05caeb68597af75efbdfc57425a2436e` passes
+Quartus in 496.0 seconds and its ten generated transport cases. Final comparison
+again matches all 175 generated sources, 17 QIPs, inputs, generation and
+artifact digests. Its build ID is `574ca1f9858748e6d4fedb8ffa16a9c3`;
+RBF `b90ba713537b573c441c17bbc41f01c15ca0c437f34a11e08438ec2211c1e738`
+is 1,740,800 bytes. CDC-50002 is zero. All-family analysis returns to the four
+previously recorded rules and counts: TMC-20012 (30), TMC-20011 (2), RDC-50003
+(2) and RES-50101 (3), without waivers. Full timing acceptance remains open.
+The endpoint and kernel code are unchanged by the SDC correction; the new
+source-derived ID is checked by the actual regenerated model. The new kernel,
+ABI3 client and RBF are not installed on the physical board.
+
 Remaining normal-kit work includes the DE25 MENU presenter and platform factory,
 managed catalog launch/stop/relaunch, safe restart/failure recovery, native
 acceptance of the new pair, physical media SAVE and the existing timing gates.
