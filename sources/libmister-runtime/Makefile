@@ -115,6 +115,7 @@ TEST_HEADERS := $(wildcard \
 	src/native/*.hpp \
 	src/native/generated/*.hpp \
 	src/native/linux/*.hpp \
+	src/native/linux/*.h \
 	src/daemon/*.hpp \
 	src/linux/*.hpp \
 	third_party/toml11/include/*.hpp \
