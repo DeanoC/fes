@@ -8,6 +8,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 HERE = Path(__file__).resolve().parent
@@ -32,6 +33,17 @@ def inputs():
 
 
 def derive(project):
+    # The FPGA producer imports private modules named seal/scripts/verify and
+    # adjusts sys.path. Isolate those imports from the firmware builders, whose
+    # own verify module must remain authoritative after this call returns.
+    result = subprocess.run([sys.executable, str(Path(__file__).resolve()), str(project)],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+    if result.returncode:
+        raise ValueError('sealed HPS context verification failed: '+result.stderr.decode(errors='replace')[-4096:])
+    return json.loads(result.stdout)
+
+
+def _derive(project):
     project = Path(project).absolute()
     if (not project.is_relative_to(ROOT/'out') or '..' in project.parts or
             any(p.is_symlink() for p in (project, *project.parents)) or not project.is_dir()):
@@ -78,3 +90,9 @@ def checked(record, program_key='program'):
     if record['hps_context'] != expected or record['hps_context_sha256'] != digest(expected):
         raise ValueError('native HPS context differs from the sealed FPGA source')
     return expected
+
+
+if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        raise SystemExit('usage: hps_context.py SEALED_PROJECT')
+    sys.stdout.buffer.write(encode(_derive(sys.argv[1])))

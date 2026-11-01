@@ -1,6 +1,7 @@
 """Source-context identity and omission failures, without programming hardware."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -80,6 +81,30 @@ class HPSContextTests(unittest.TestCase):
                     result = subprocess.run(common+args, capture_output=True, text=True, timeout=10)
                     self.assertEqual(result.returncode, 2, result.stderr)
                     self.assertFalse(output.exists())
+
+    def test_invalid_project_cannot_change_a_callers_firmware_imports(self):
+        # The FPGA verifier's sys.path edits previously caused the following
+        # firmware import to resolve the wrong verify.py during a real build.
+        source = '''
+import sys
+import tempfile
+from pathlib import Path
+sys.path.insert(0, 'platform/embedded/nano')
+import hps_context
+before = sys.path[:]
+(Path('out')).mkdir(exist_ok=True)
+with tempfile.TemporaryDirectory(dir='out') as broken:
+    try:hps_context.derive(broken)
+    except (ValueError, OSError):pass
+    else:raise AssertionError('invalid project accepted')
+assert before == sys.path
+sys.path.insert(0, 'platform/embedded/firmware')
+import prepare_nano_owned
+assert callable(prepare_nano_owned.function)
+'''
+        subprocess.run([sys.executable, '-c', source], cwd=ROOT,
+                       env=dict(os.environ, PYTHONPATH=str(ROOT/'out/nano-bridge-diag-test-python')),
+                       check=True, capture_output=True, timeout=15)
 
 
 if __name__ == '__main__':
