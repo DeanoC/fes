@@ -294,9 +294,18 @@ The actual `owns`, `quiesce` and `quiescent` callbacks verify continued cold
 containment through live registers; they do not access an SD controller held
 in reset. A changed boot/reset scope, restarted master, active bridge or
 replay retires the proof. This is not an active-device drain provider. The
-cold dispatcher admits read-only Snapshot only, denies all bridge mutations
+cold dispatcher admits read-only Snapshot and optional source-context reads, denies all bridge mutations
 and configuration operations, and advertises zero configuration features.
 The general controlled service and strict recovery behavior are unchanged.
+
+The dedicated native `bootcontext` build derives its source descriptor from a
+verified sealed HPS-first project before building SPL. The existing cold chain
+binds that descriptor, native entry and producer sources. SPL/BL31 compile the
+same context digest; private bridge operations 4/5 expose it only under an
+unchanged owned, closed scope. A missing digest returns NOT_READY. This is
+source consistency, not measured boot or live FPGA admission; it supplies no
+new master-stop, control-opening or configuration permission. See the
+[wire contract](../../../sources/mister-packages/docs/embedded-bridges.md).
 
 The [Nano guide](../nano/README.md) describes matched builds, a preserved
 recovery card and repeatable network uploads of `FES/UPLOAD.BIN`. The

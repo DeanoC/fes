@@ -1,6 +1,12 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 /* Inserted after the pinned configuration engine; reuse its state/buffers. */
 #include "nano_bridge_platform.h"
+#ifdef FES_NANO_COLD_SERIAL
+#include "fes_nano_cold_profile.h"
+static const uint8_t fes_nano_hps_context[32] = FES_NANO_HPS_CONTEXT_SHA;
+#else
+static const uint8_t fes_nano_hps_context[32] = {0};
+#endif
 
 static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
                                 uint64_t x3, uint64_t x4, uint64_t r[4])
@@ -20,6 +26,11 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
         if (fes_nano_owned_bridges.device_lease) {
             r[0] = INTEL_SIP_SMC_STATUS_BUSY;
             r[1] = (uint64_t)FES_EMBEDDED_BRIDGE_TAG << 32;
+            goto out;
+        }
+        if (x1 == FES_EMBEDDED_BRIDGE_CONTEXT_PART0 || x1 == FES_EMBEDDED_BRIDGE_CONTEXT_PART1) {
+            fes_nano_boot_context_sip(&fes_nano_owned_bridges, x1, x2, x4,
+                                      request_type != NO_REQUEST, fes_nano_hps_context, r);
             goto out;
         }
 #ifdef FES_NANO_COLD_SERIAL

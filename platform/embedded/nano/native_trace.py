@@ -39,6 +39,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('el2', r'FES_ENTRY EL2 CLEAN'),
     ('el1', r'FES_ENTRY EL1 HANDOFF'),
     ('go', r'FES_NATIVE_GO_PROBE PASS os=tamago board=de25-nano'),
+    ('hps_context', rf'FES_NATIVE_HPS_CONTEXT PASS sha256=(?P<sha256>[0-9a-f]{{64}}) package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) programming=unavailable'),
     ('storage', r'FES_STORAGE_PROBE board=de25-nano EL=1 counter=400000000Hz writes=disabled'),
     # SDHCI R2 supplies CID[127:8], exactly 15 bytes without CRC/end bits.
     ('read', rf'FES_NANO_SD READ bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}}) cid=(?P<cid>[0-9a-f]{{30}}) sectors=(?P<sectors>[0-9]{{1,20}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
@@ -56,7 +57,7 @@ DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter',
 TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id'}
 
 
-def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None):
+def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -81,8 +82,16 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         raise ValueError('independently checked package/payload/build identities required')
     if storage is not None and package is not None:
         raise ValueError('select exactly one native SD diagnostic')
+    if hps_context is not None:
+        if (not isinstance(hps_context,dict) or set(hps_context)!={'sha256','package_id','build_id'} or
+                any(not isinstance(hps_context[key],str) or not re.fullmatch('[0-9a-f]{'+str(size)+'}',hps_context[key]) or
+                    int(hps_context[key],16)==0 for key,size in (('sha256',64),('package_id',64),('build_id',32)))):
+            raise ValueError('independently checked HPS source-context identities required')
+        if storage is not None or package is not None:
+            raise ValueError('select exactly one SD or HPS context diagnostic')
     controlled = storage is not None or package is not None
     stages=STAGES
+    if hps_context is not None:stages=STAGES[:-1]+('hps_context',)
     if controlled:
         suffix=(('storage','read','contained','resumed','sd_pass') if storage is not None else
                 ('package_probe','package_retained','package_contained','package_resumed','package_pass'))
@@ -131,7 +140,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             break
         else:
             if (line.startswith(('U-Boot ', 'FES_NANO_', 'FES_ENTRY', 'FES_NATIVE_GO_PROBE', 'FES_STORAGE_PROBE', 'FES_SD_PACKAGE_PROBE',
-                                 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
+                                 'FES_NATIVE_HPS_CONTEXT', 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
                     line.startswith('NOTICE:') and 'FES_NANO_' in line):
                 report['errors'].append(f'malformed or unexpected probe marker at line {number}')
 
@@ -178,6 +187,12 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 'native CPU/counter scope differs')
         require(live['per0'] & MASTER_RESET == MASTER_RESET and live['bridge'] & BRIDGES == BRIDGES,
                 'native master/bridge scope differs')
+    if hps_context is not None and 'hps_context' in observed:
+        value=observed['hps_context']
+        require(all(value[key]==hps_context[key] for key in ('sha256','package_id','build_id')),
+                'native HPS source context differs')
+        require(seal is not None and value['owner']==seal['owner'] and value['generation']==1,
+                'native HPS source-context owner/generation differs')
     if controlled:
         if 'sd_platform' in observed:
             require(observed['sd_platform']=={'setup':1,'ready':1},'controlled SD setup rejected')

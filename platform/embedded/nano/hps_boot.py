@@ -17,6 +17,7 @@ import sys
 
 from package import checked_native, sha
 from sof_hps import inspect
+import hps_context
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
@@ -42,6 +43,9 @@ def prepare(project, uboot, entry, pfg, output):
     hps = project/'board/hps'
     pair = json.loads((hps/'hps-first-pair.json').read_text())
     fit, spl, image, native, _, profile = checked_native(uboot, entry)
+    source_context=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_context')
+    if source_context is not None and source_context!=hps_context.derive(project):
+        raise ValueError('native HPS source context differs from the sealed FPGA project')
     binary = pfg.parent.parent/'linux64/quartus_pfg'
     identity = 'wrapper-sha256:'+sha(pfg)+'; binary-sha256:'+sha(binary)
     if identity != pair['pfg_identity']:
@@ -104,6 +108,8 @@ def prepare(project, uboot, entry, pfg, output):
         'sof_sha256': sha(candidate), 'phase1_sha256': sha(phase1), 'phase1_size': phase1.stat().st_size,
         'core_sha256': sha(core), 'core_size': core.stat().st_size,
         'core_payload_unchanged': True, 'embedded_spl_identity': embedded,
+        'source_context_bound': source_context is not None,
+        'hps_context_sha256': hps_context.digest(source_context) if source_context is not None else None,
         'trusted_boot_handoff': False, 'physical_programming_admission': False,
         'hardware_acceptance': 'not-run', 'inputs': hashes, 'commands': commands,
         'limitations': ['file composition only; no board, SD card or flash touched',

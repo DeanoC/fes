@@ -150,9 +150,23 @@ int main(int argc,char **argv)
 #endif
     fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
     assert(reply[0]==0 && reply[2]==record.owner);
-    for(unsigned op=1;op<=4;op++) {
+    for(unsigned op=1;op<=3;op++) {
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,op,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
         assert(reply[0]==2 && !fes_nano_owned_bridges.failed);
+    }
+    for(unsigned part=0;part<2;part++) {
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONTEXT_PART0+part,
+                           record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+#ifdef FES_TEST_HPS_CONTEXT
+        uint64_t want[2]={0,0};
+        for(unsigned word=0;word<2;word++)for(unsigned byte=0;byte<8;byte++)
+            want[word]=(want[word]<<8)|(part*16+word*8+byte);
+        assert(!reply[0] && reply[1]==((uint64_t)FES_EMBEDDED_BRIDGE_CONTEXT_TAG<<32|part));
+        assert(reply[2]==want[0] && reply[3]==want[1]);
+#else
+        assert(reply[0]==FES_EMBEDDED_BRIDGE_NOT_READY && !reply[2] && !reply[3]);
+#endif
+        assert(!fes_nano_owned_bridges.failed && fes_nano_owned_bridges.state.generation==1 && !engine_calls);
     }
     const uint32_t commands[]={INTEL_SIP_SMC_FPGA_CONFIG_START,INTEL_SIP_SMC_FPGA_CONFIG_WRITE,INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE,INTEL_SIP_SMC_FPGA_CONFIG_ISDONE};
     for(unsigned i=0;i<4;i++) {fes_nano_owned_call(commands[i],0,0,0,0,reply);assert(reply[0]==2 && !engine_calls);}

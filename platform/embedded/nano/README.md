@@ -464,6 +464,38 @@ the matched manual loader prompt. It sent no native entry command or SD
 write. Native FPGA admission and the HPS-first physical handoff remain
 unqualified; the original vendor-SPL pair is unchanged.
 
+## Source context readback
+
+`hps_context.py` derives a canonical descriptor from a verified sealed
+HPS-first project. It names the package, build inputs, unchanged core, HPS
+I/O hash, original SOF/pair and source/tool identities. It excludes the native
+SPL and composed phase-one hashes because including them in SPL would create
+a hash cycle. The existing cold-chain seal binds the descriptor digest and
+native entry together.
+
+```sh
+python3 platform/embedded/tamago/run.py bootcontext --board de25-nano \
+  --profile platform/embedded/nano/probe-profile.json \
+  --hps-first-project out/de25-hps-first \
+  --compiler /absolute/path/tamago-go/bin/go --output out/nano-context-sdk
+```
+
+Use that ELF/receipt in the normal Nano entry build, then select that entry
+for both native TF-A and U-Boot builds. `hps_boot.py` requires the same sealed
+FPGA source context when composing them. The original vendor-SOF packager
+rejects context-bearing images. The source context is checked again across
+these steps; no board is accessed during builds.
+
+At EL1 the native reader takes an owned bridge Snapshot, reads both secure
+digest halves and takes a second identical Snapshot. It compares the digest
+with the compiled descriptor before printing `FES_NATIVE_HPS_CONTEXT PASS`.
+`native_trace.py` accepts this diagnostic only with independently checked
+`hps_context={sha256,package_id,build_id}` and the same SPL owner/generation.
+Its completion still denies core-load acceptance. The native verifier does
+not implement `BootHandoffVerifier`: a matching source digest cannot establish
+the live CPU aperture, HPS configuration, active master drain or programming
+authority. All bridges stay closed and secondary CPU release remains denied.
+
 ## Next bounded TRWU8CBL trial
 
 1. Claim the top board in its current status file, verify serial/cable/UART,

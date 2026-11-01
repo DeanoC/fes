@@ -1,6 +1,6 @@
 # Experimental owned firmware bridge channel
 
-`fes.fabric.embedded.bridges` 1.0 supplies generated C/Go constants for the
+`fes.fabric.embedded.bridges` 1.1 supplies generated C/Go constants for the
 Linux-free Nano firmware experiment. It adds no programming profile, package
 ABI, register mapping or production compatibility entry. The FPGA endpoint
 contract and its generated inputs are unchanged.
@@ -36,3 +36,22 @@ or hardware-drain claims. Snapshot/Control/Release reject extra response bits.
 Reserved request bits, response bits, invalid operations and missing/mismatched
 owner/generation reject. The marker is not firmware authentication. Qualified
 boot identity, platform ownership and physical validation remain required.
+
+Operations 4/5 read the two halves of an optional source-context SHA-256.
+They use the same cookie and expected owner/generation. Each reply carries
+status in `x0`, `0x46484331 << 32 | part` in `x1` (part 0/1), and 16 digest
+bytes in `x2/x3`, each packed most-significant byte first. Failure returns
+zero digest words. Status 1 means configuration or a device lease is active;
+2 means a bad operation/scope; 4 means closed containment was lost; 5 means
+the trusted provider or compiled digest is absent. Readers bracket both
+halves with identical successful Snapshots; partial or changed observations
+reject. These reads never change generation or bridge state.
+
+The source context binds the sealed HPS-first FPGA package before native SPL
+construction, avoiding a self-referential SPL hash. Its digest is compiled
+into the matched secure firmware and native image. It is not live FPGA
+identity, measured boot, CPU mapping qualification or programming admission.
+Only the dedicated contained `bootcontext` diagnostic selects it. The default
+provider returns NOT_READY, and the cold dispatcher still denies all bridge
+mutations and configuration. The fabric warning capability describes the
+optional warning handshake, not the presence of a configured FPGA core.

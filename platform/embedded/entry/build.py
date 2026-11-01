@@ -5,6 +5,7 @@ This produces an ordinary file only. Nano output requires an explicit firmware
 profile and remains unqualified until its physical handoff is established.
 """
 import argparse
+import base64
 import ctypes
 import hashlib
 import importlib.util
@@ -63,6 +64,7 @@ def main():
         parser.error("cross-prefix must be absolute and end in -")
     profile_bytes = receipt_bytes = None
     native_sources = None
+    native_context = None
     if args.target == "qemu":
         if args.nano_build or args.profile or args.image_address is not None:
             parser.error("Nano receipt, profile and load address are only valid with --target de25-nano")
@@ -87,6 +89,11 @@ def main():
                 receipt["source_sha256"].get(str(nano_builder.relative_to(ROOT))) != sha(nano_builder.read_bytes())):
             raise ValueError("Nano ELF/profile does not match its cross-build receipt")
         native_sources=receipt["source_sha256"]
+        context_spec=importlib.util.spec_from_file_location('fes_entry_hps_context',HERE.parent/'nano/hps_context.py')
+        hps=importlib.util.module_from_spec(context_spec);context_spec.loader.exec_module(hps)
+        native_context=hps.checked(receipt)
+        if native_context is not None and base64.b64encode(hps.encode(native_context)) not in payload.read_bytes():
+            raise ValueError('HPS context is absent from the selected native ELF')
         def check_native_sources():
             if not native_sources:raise ValueError("missing Nano selected-source proof")
             for name,expected in native_sources.items():
@@ -126,6 +133,8 @@ def main():
     files = [HERE / name for name in ("build.py", "entry.S", "entry.c", "entry.ld", "elf_plan.c", "elf_plan.h")]
     if args.target == "de25-nano":
         files.append(nano_builder)
+        files.append(HERE.parent/'nano/hps_context.py')
+        if native_context is not None:files.extend(hps.inputs())
     frozen = {str(path.relative_to(ROOT)): sha(path.read_bytes()) for path in files}
     payload_bytes = payload.read_bytes()
     output.mkdir(parents=True)
@@ -202,6 +211,10 @@ def main():
               "firmware_profile_sha256": sha(profile_bytes) if profile_bytes is not None else None,
               "native_build_sha256": sha(receipt_bytes) if receipt_bytes is not None else None,
               "native_build_sources": native_sources,
+              "native_program":receipt['program'] if receipt_bytes is not None else None,
+              "hps_context":native_context,
+              "hps_context_sha256":hps.digest(native_context) if native_context is not None else None,
+              "hps_project":receipt['hps_project'] if native_context is not None else None,
               "sources": frozen, "tools": tools, "environment": env, "commands": commands,
               "limitations": ["no physical Nano, DDR, peripheral, DMA, bridge or reset proof",
                               "payload hashes are not signatures; U-Boot device quiescence is a separate obligation",

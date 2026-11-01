@@ -144,6 +144,52 @@ class NativeTraceTests(unittest.TestCase):
         self.assertEqual(trace.OWNED_FLAGS, (values['FesEmbeddedBridgeTag'] << 32) | expected)
 
 
+class NativeHPSContextTraceTests(unittest.TestCase):
+    expected = {'sha256': 'a'*64, 'package_id': 'b'*64, 'build_id': 'c'*32}
+
+    def capture(self):
+        marker = (f"FES_NATIVE_HPS_CONTEXT PASS sha256={self.expected['sha256']} "
+                  f"package_id={self.expected['package_id']} build_id={self.expected['build_id']} "
+                  f'owner={OWNER:x} generation=1 programming=unavailable')
+        return fixture().replace('FES_NATIVE_GO_PROBE PASS os=tamago board=de25-nano', marker)
+
+    def decode(self, raw):
+        return trace.decode_native_boot(raw, BUILD, SEED, hps_context=self.expected)
+
+    def test_exact_source_context_completes_only_this_diagnostic(self):
+        report = self.decode(self.capture())
+        self.assertTrue(report['complete'], report)
+        self.assertEqual(report['last_checkpoint'], 'hps_context')
+        self.assertFalse(report['core_load_acceptance'])
+        self.assertFalse(trace.decode_native_boot(self.capture(), BUILD, SEED)['complete'])
+        self.assertFalse(self.decode(fixture())['complete'])
+        # UART fragments cannot grant a successful context before its newline.
+        self.assertFalse(self.decode(self.capture().rstrip('\r\n'))['complete'])
+
+    def test_wrong_identity_owner_generation_and_extra_authority_reject(self):
+        for old, new in (('sha256='+'a'*64, 'sha256='+'d'*64),
+                         ('package_id='+'b'*64, 'package_id='+'d'*64),
+                         ('build_id='+'c'*32, 'build_id='+'d'*32),
+                         (f'owner={OWNER:x} generation=1 programming=', f'owner={OWNER+2:x} generation=1 programming='),
+                         ('generation=1 programming=', 'generation=2 programming='),
+                         ('programming=unavailable', 'programming=available')):
+            with self.subTest(new=new):
+                report = self.decode(self.capture().replace(old, new))
+                self.assertFalse(report['complete'], report)
+                self.assertTrue(report['errors'])
+        self.assertFalse(self.decode(self.capture()+self.capture().splitlines()[-1]+'\n')['complete'])
+        self.assertFalse(self.decode(self.capture()+'FES_NATIVE_HPS_CONTEXT FAIL\n')['complete'])
+
+    def test_expected_context_is_independent_and_excludes_sd_profiles(self):
+        for expected in ({}, dict(self.expected, sha256='0'*64), dict(self.expected, build_id='wrong'),
+                         dict(self.expected, trusted=True), []):
+            with self.subTest(expected=expected), self.assertRaises(ValueError):
+                trace.decode_native_boot(b'', BUILD, SEED, hps_context=expected)
+        with self.assertRaises(ValueError):
+            trace.decode_native_boot(b'', BUILD, SEED, hps_context=self.expected,
+                                     storage={'bytes': 1, 'sha256': 'a'*64})
+
+
 class NativeSDTraceTests(unittest.TestCase):
     expected={'bytes':1098,'sha256':'a'*64}
     def capture(self):

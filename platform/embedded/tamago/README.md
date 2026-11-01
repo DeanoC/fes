@@ -32,6 +32,11 @@ now pass; other physical device and core-launch qualification remains open.
 The Nano-only `fpga` program cross-builds a read-only TF-A SDM mailbox probe.
 It reports silicon IDCODE and configuration status, without programming,
 opening bridges or establishing a live package identity. See [SDM](sdm/README.md).
+The Nano-only `bootcontext` program compares the compiled HPS-first package
+descriptor with a read-only secure-firmware digest under the same closed
+owner/generation. It requires `--hps-first-project` and the exact source serial
+probe profile. The [matched build](../nano/README.md#source-context-readback)
+does not grant physical core admission or implement `BootHandoffVerifier`.
 The QEMU `fabric` diagnostic also models the dedicated configuration protocol
 under a hypothetical held-bridge firmware contract. Its generation-bound drain,
 buffer ownership and identity-before-release checks do not enable Nano programming.

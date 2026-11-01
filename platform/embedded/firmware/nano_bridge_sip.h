@@ -9,6 +9,9 @@ extern "C" {
 void fes_nano_bridge_sip(struct fes_nano_bridges *, uint64_t operation,
                          uint64_t owner, uint64_t generation, unsigned configuring,
                          uint64_t result[4]);
+void fes_nano_boot_context_sip(struct fes_nano_bridges *, uint64_t operation,
+                              uint64_t owner, uint64_t generation, unsigned configuring,
+                              const uint8_t digest[32], uint64_t result[4]);
 #ifdef __cplusplus
 }
 #endif

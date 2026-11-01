@@ -1,14 +1,14 @@
 {
   "source": {
     "repository": "DeanoC/fes",
-    "commit": "2a0758a18bfdf7c38de205c7c1c5e138bbf18e52",
+    "commit": "cc47b121103f35524ad78a75de795b931b2f081d",
     "file": "platform/embedded/firmware/generated/fes_embedded_bridges.h",
-    "note": "Base runtime/FES revision. New local experimental C/Go channel in this change; no physical programming admission."
+    "note": "Base FES firmware revision. This change adds two read-only source-context digest parts; no bridge mutation or physical programming admission."
   },
   "fabric": {
     "id": "fes.fabric.embedded.bridges",
     "major": 1,
-    "minor": 0
+    "minor": 1
   },
   "constants": {
     "FesEmbeddedBridgeCall": 3254780673,
@@ -32,6 +32,9 @@
     "FesEmbeddedBridgeDrainShift": 10,
     "FesEmbeddedBridgeDataHeld": 16384,
     "FesEmbeddedBridgeSnapshotFlags": 255,
-    "FesEmbeddedBridgeClosureFlags": 32767
+    "FesEmbeddedBridgeClosureFlags": 32767,
+    "FesEmbeddedBridgeContextPart0": 4,
+    "FesEmbeddedBridgeContextPart1": 5,
+    "FesEmbeddedBridgeContextTag": 1179140913
   }
 }

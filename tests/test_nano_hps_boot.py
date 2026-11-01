@@ -19,7 +19,7 @@ spec.loader.exec_module(boot)
 
 
 class HpsBootTests(unittest.TestCase):
-    def run_candidate(self, base, mode='pass', order='HPS FIRST', sealed=True):
+    def run_candidate(self, base, mode='pass', order='HPS FIRST', sealed=True, context=None):
         project = base/'project'
         hps = project/'board/hps'
         (hps/'project/output_files').mkdir(parents=True)
@@ -84,6 +84,8 @@ else:raise SystemExit(9)
         verifier = types.SimpleNamespace(inputs_for=Mock(return_value=(inputs, {}, None)))
         real_module = boot.producer_module
         native = {'native_handoff': {'build_id': '1234567890abcdef'}, 'bl31_sha256': 'e'*64}
+        if context is not None:
+            native['native_handoff']['cold_boot_profile'] = {'hps_context': context}
         output = base/'output'
         with patch.object(boot, 'producer_module', side_effect=lambda name, filename:
                           verifier if filename == 'verify.py' else real_module(name, filename)), \
@@ -127,6 +129,25 @@ else:raise SystemExit(9)
                     self.run_candidate(base, sealed=sealed, order=order)
                 self.assertFalse((base/'calls.jsonl').exists())
                 self.assertFalse((base/'output').exists())
+
+    def test_source_bound_native_chain_requires_the_same_sealed_project(self):
+        context = json.loads((ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-context.json').read_bytes())
+        for changed in (False, True):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as temp:
+                base = Path(temp)
+                actual = dict(context, package_id='f'*64) if changed else context
+                with patch.object(boot.hps_context, 'derive', return_value=actual):
+                    if changed:
+                        with self.assertRaisesRegex(ValueError, 'sealed FPGA project'):
+                            self.run_candidate(base, context=context)
+                        self.assertFalse((base/'calls.jsonl').exists())
+                        self.assertFalse((base/'output').exists())
+                    else:
+                        result = self.run_candidate(base, context=context)
+                        self.assertTrue(result['source_context_bound'])
+                        self.assertEqual(result['hps_context_sha256'], boot.hps_context.digest(context))
+                        self.assertFalse(result['trusted_boot_handoff'])
+                        self.assertFalse(result['physical_programming_admission'])
 
 
 if __name__ == '__main__':

@@ -70,6 +70,8 @@ def main():
     if sha(vendor)!=VENDOR_SOF:raise ValueError("recovery reference SOF differs")
     fit,spl,image,u,e,profile=checked_native(uboot,entry)
     native=u["native_handoff"]
+    if native.get('cold_boot_profile',{}).get('hps_context') is not None:
+        raise ValueError('source-bound HPS-first native chain requires hps_boot.py and its sealed FPGA project')
     tools={name:Path(shutil.which(name) or '').absolute() for name in ('mcopy',)}
     if any(not p.is_file() for p in tools.values()):raise ValueError('mtools required')
     inputs={str(p):sha(p) for p in (fit,spl,image,vendor,pfg,uboot/'result.json',entry/'result.json',uboot/'build/.config',

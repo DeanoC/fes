@@ -105,17 +105,20 @@ int main(void) {
             (inc/'lib/mmio.h').write_text('#include <stdint.h>\nuint32_t mmio_read_32(uintptr_t);\nuint16_t mmio_read_16(uintptr_t);\nvoid mmio_write_32(uintptr_t,uint32_t);\nvoid mmio_write_16(uintptr_t,uint16_t);\n')
             (inc/'common').mkdir()
             (inc/'common/debug.h').write_text('#include <stdio.h>\n#define NOTICE(...) printf(__VA_ARGS__)\n')
-            (inc/'fes_nano_cold_profile.h').write_text('#define FES_NANO_COLD_CHAIN {0x42,0x17}\n#define FES_NANO_COLD_OWNER_SEED 17ULL\n')
+            header='#define FES_NANO_COLD_CHAIN {0x42,0x17}\n#define FES_NANO_COLD_OWNER_SEED 17ULL\n'
             command=['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
                      '-I'+str(inc),'-I'+str(FW),*(str(FW/name) for name in ('nano_cold_platform.c','nano_cold.c','nano_boot.c','nano_bridges.c','nano_bridge_sip.c','nano_sd.c','nano_sd_platform.c','tests/nano_cold_platform_test.c'))]
             for sd in (0,1):
-                binary=base/('platform-'+str(sd))
-                r=subprocess.run(command+['-DFES_NANO_CONTROLLED_SD='+str(sd),'-o',str(binary)],capture_output=True,text=True)
-                self.assertEqual(r.returncode,0,r.stderr)
-                for mutation in range(25 if sd else 22):
-                    with self.subTest(sd=sd,mutation=mutation):
-                        r=subprocess.run([str(binary),str(mutation)],capture_output=True,text=True)
-                        self.assertEqual(r.returncode,0,r.stderr)
+                for context in (0,1):
+                    values=','.join(str(i) for i in range(32)) if context else '0'
+                    (inc/'fes_nano_cold_profile.h').write_text(header+'#define FES_NANO_HPS_CONTEXT_SHA {'+values+'}\n')
+                    binary=base/('platform-'+str(sd)+'-'+str(context))
+                    r=subprocess.run(command+['-DFES_NANO_CONTROLLED_SD='+str(sd),*(['-DFES_TEST_HPS_CONTEXT'] if context else []),'-o',str(binary)],capture_output=True,text=True)
+                    self.assertEqual(r.returncode,0,r.stderr)
+                    for mutation in range(25 if sd else 22):
+                        with self.subTest(sd=sd,context=context,mutation=mutation):
+                            r=subprocess.run([str(binary),str(mutation)],capture_output=True,text=True)
+                            self.assertEqual(r.returncode,0,r.stderr)
 
     def test_actual_spl_handoff_reports_saved_failure_before_reject(self):
         source=(ROOT/'platform/embedded/nano/spl_cold.c').read_text()

@@ -1,6 +1,33 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include "nano_bridge_sip.h"
 
+void fes_nano_boot_context_sip(struct fes_nano_bridges *b, uint64_t operation,
+                              uint64_t owner, uint64_t generation, unsigned configuring,
+                              const uint8_t digest[32], uint64_t result[4])
+{
+    struct fes_nano_bridge_snapshot s = {0};
+    unsigned nonzero = 0;
+    result[0] = 2;
+    result[1] = (uint64_t)FES_EMBEDDED_BRIDGE_CONTEXT_TAG << 32;
+    result[2] = result[3] = 0;
+    if (operation != FES_EMBEDDED_BRIDGE_CONTEXT_PART0 && operation != FES_EMBEDDED_BRIDGE_CONTEXT_PART1)
+        return;
+    result[1] |= operation - FES_EMBEDDED_BRIDGE_CONTEXT_PART0;
+    if (configuring || (b && b->device_lease)) { result[0] = 1; return; }
+    if (digest) for (unsigned i = 0; i < 32; i++) nonzero |= digest[i];
+    if (!b || !b->initialized || !nonzero) { result[0] = FES_EMBEDDED_BRIDGE_NOT_READY; return; }
+    if (!owner || !generation || owner != b->state.owner || generation != b->state.generation) return;
+    if (fes_nano_bridges_observe(b, &s) || s.reset != FES_NANO_BRIDGES_ALL || !s.masters_contained) {
+        result[0] = 4;
+        return;
+    }
+    unsigned offset = (unsigned)(operation - FES_EMBEDDED_BRIDGE_CONTEXT_PART0) * 16;
+    for (unsigned word = 0; word < 2; word++)
+        for (unsigned byte = 0; byte < 8; byte++)
+            result[2 + word] = (result[2 + word] << 8) | digest[offset + word * 8 + byte];
+    result[0] = 0;
+}
+
 static uint32_t snapshot_flags(const struct fes_nano_bridge_snapshot *s)
 {
     return s->reset | (s->fabric << FES_EMBEDDED_BRIDGE_FABRIC_SHIFT) |

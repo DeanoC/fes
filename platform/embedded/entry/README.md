@@ -101,6 +101,11 @@ the stated resources. The test fixture's profile is synthetic and must not be
 used on a board. Output is a diagnostic file only; the builder does not install,
 boot, sign, program, or otherwise contact a device.
 
+For a Nano `bootcontext` payload, the builder also revalidates the sealed
+HPS-first project, descriptor digest and linked descriptor bytes. It passes
+this source context to the matched SPL/BL31 cold-chain producer. Missing or
+changed context rejects; the descriptor grants no physical handoff authority.
+
 Before a physical attempt, derive and review a Nano-specific RAM/firmware and
 device handoff from the matched boot chain; verify other CPU and DMA ownership,
 counter and UART access, and a controlled load and recovery procedure. Pair the
