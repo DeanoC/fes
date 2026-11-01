@@ -33,7 +33,7 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
         self.assertIn("2. **Sold or preinstalled hardware. Noted.**", DOC)
         self.assertIn("3. **Which Spectrum ROM versions to recognise? Agreed.**", DOC)
         self.assertIn("4. **Pentagon firmware composition. Agreed.**", DOC)
-        self.assertIn("5. **ZX81 family. Deano's decision needed.**", DOC)
+        self.assertIn("5. **ZX81 family. Agreed.**", DOC)
         self.assertIn("6. **EmuTOS image and source. Agreed.**", DOC)
         self.assertIn("7. **Commercial C64 licence. Agreed.**", DOC)
         self.assertNotIn("if Deano accepts Decision 1", DOC)
@@ -42,17 +42,24 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
         self.assertIn("remove the ROMs if a rights holder objects", decision1)
         self.assertIn("release HIL passes on the PAL core", decision6)
 
-    def test_zx81_rom_bundling_is_recorded_and_deferred_to_deano(self):
+    def test_zx81_rom_bundling_and_followups_are_recorded(self):
         state = evidence_line("Firmware bytes are already in Git:")
         evidence = evidence_line("- **Z0.")
-        decision = evidence_line("5. **ZX81 family.")
+        decision = evidence_line("5. **ZX81 family. Agreed.")
+        summary = evidence_line("- **The remaining ROMs stay user-supplied")
         self.assertIn("machine.rom", state)
         self.assertIn("core_roms.go", state)
         self.assertIn("build_fes_zx81.py", state)
+        self.assertIn("qs_chrs.hex", state)
+        self.assertIn("qs_chrs_init.vh", state)
+        self.assertIn("GPL-2.0-or-later", state)
+        self.assertIn("#387", state)
         self.assertIn("zx8x.mif", evidence)
+        self.assertIn("#1379", evidence)
+        self.assertIn("#1381", evidence)
         self.assertIn("not permission to redistribute", evidence)
-        self.assertIn("Deano's decision needed", decision)
-        self.assertIn("removing them is a separate PR", decision)
+        self.assertIn("user-supplied for v1", decision)
+        self.assertIn("user-supplied in v1", summary)
         self.assertIn("Pentagon's entire 48 KiB image", DOC)
 
     def test_decision_links_use_the_current_heading_anchor(self):
@@ -68,7 +75,7 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
 
     def test_ts1500_evidence_does_not_claim_a_timex_grant(self):
         row = licensing_row("| `fes.ts1500` |")
-        decision = evidence_line("5. **ZX81 family. Deano's decision needed.**")
+        decision = evidence_line("5. **ZX81 family. Agreed.**")
         self.assertIn("neither establishes TS1500 permission", row)
         self.assertNotIn("Timex permits distribution", row)
         self.assertIn("TS2000 BASIC", evidence_line("- **Z1.**"))
