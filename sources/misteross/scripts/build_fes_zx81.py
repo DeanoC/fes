@@ -34,7 +34,7 @@ TARGET = "5CSEBA6U23I7"
 TOP = "top"
 OUTPUT_RELATIVE = Path("build/fes-zx81-quartus")
 RECIPE = "scripts/build_fes_zx81.py"
-ABI_DEFINITION = "cores/fes-zx81/generated/fes_simple_computer.vh"
+ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 QSF_PINS = "cores/fes-zx81/constraints.qsf"
 SDC = "cores/fes-zx81/clocks.sdc"
 ROM_HEX = "cores/fes-zx81/rtl/zx8x.hex"
@@ -45,7 +45,9 @@ VERILOG_SOURCES = (
     "cores/fes-zx81/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_audio_i2s.v",
     "cores/fes-common/rtl/fes_audio_output.v",
-    "cores/fes-zx81/rtl/fes_computer_gp.v",
+    "cores/fes-common/rtl/fes_computer_mailbox.v",
+    "cores/fes-zx81/rtl/zx81_keyboard.v",
+    "cores/fes-zx81/rtl/zx81_tape_store.v",
     "cores/fes-zx81/rtl/zx81_dpram.v",
     "cores/fes-zx81/rtl/zx81_video_720p.v",
     "cores/fes-zx81/rtl/top.v",
@@ -69,6 +71,7 @@ PINNED_INPUTS = (
     "scripts/source_provenance.py",
     "scripts/quartus_tools.py",
     ABI_DEFINITION,
+    "cores/fes-zx81/generated/fes_simple_computer.vh",
     "cores/fes-common/generated/fes_application.vh",
     "cores/fes-common/generated/fes_display_plane.vh",
     QSF_PINS,
