@@ -140,6 +140,10 @@ func NewForBoard(root string, factory release.Manifest, board string) (*Store, e
 		loopBackings:   loopBackingFiles,
 	}, nil
 }
+
+// Board is the selected board validated when this store was constructed.
+func (s *Store) Board() string { return s.factory.Board }
+
 func (s *Store) ImagePath(hash string) (string, error) {
 	if !release.ValidHash(hash) {
 		return "", errors.New("invalid image hash")

@@ -24,8 +24,15 @@ func updateManifest(body string) appliance.Manifest {
 }
 
 func TestUpdateObservesLostActivationAndConfirmationRepliesUsingFreshLease(t *testing.T) {
+	for _, board := range []string{appliance.Board, appliance.BoardDE25} {
+		t.Run(board, func(t *testing.T) { updateLostRepliesForBoard(t, board) })
+	}
+}
+
+func updateLostRepliesForBoard(t *testing.T, board string) {
 	body := strings.Repeat("x", 4096)
 	m := updateManifest(body)
+	m.Board = board
 	var claims, activations, confirms, ownershipReads, postConfirmStatusReads atomic.Int32
 	var rebooted, confirmed atomic.Bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +65,7 @@ func TestUpdateObservesLostActivationAndConfirmationRepliesUsingFreshLease(t *te
 				fmt.Fprint(w, `{"error":{"code":"TEMPORARY","message":"retry"}}`)
 				return
 			}
-			fmt.Fprintf(w, `{"boot_id":%q,"image_sha256":%q,"trial":%t,"raw_idle_ready":true,"good":%q}`, boot, image, rebooted.Load() && !confirmed.Load(), image)
+			fmt.Fprintf(w, `{"board":%q,"boot_id":%q,"image_sha256":%q,"trial":%t,"raw_idle_ready":true,"good":%q}`, board, boot, image, rebooted.Load() && !confirmed.Load(), image)
 		case "/v1/update/stage":
 			if r.Header.Get(KitLeaseHeader) != "lease-1" {
 				t.Error("stage lacks current lease")
@@ -112,7 +119,13 @@ func TestUpdateObservesLostActivationAndConfirmationRepliesUsingFreshLease(t *te
 	defer c.InvalidateKitSession()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	got, err := c.UpdateAppliance(ctx, "kit", m, strings.NewReader(body), nil)
+	var got ApplianceStatus
+	var err error
+	if board == appliance.Board {
+		got, err = c.UpdateAppliance(ctx, "kit", m, strings.NewReader(body), nil)
+	} else {
+		got, err = c.UpdateApplianceForBoard(ctx, "kit", m, strings.NewReader(body), nil, board)
+	}
 	if err != nil || got.Trial || got.ImageSHA256 != m.ImageSHA256 {
 		t.Fatalf("result %+v, %v", got, err)
 	}

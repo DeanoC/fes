@@ -27,6 +27,13 @@ reboot. Managed loading, MENU and failed-load recovery remain separate gates.
 The [earlier bring-up record](../validation/2026-10-30-de25-linux-fpga/README.md)
 retains the failed FPGA-first/factory-start attempts.
 
+Shared release storage and the update agent/API have explicit DE25 board
+selection. The agent and storage gate bind the immutable image's board file to
+its CPU architecture, while the upload parser and client refuse cross-board
+payloads. The base storage helper builds for AArch64. These are software paths:
+DE25 bootstrap/media assembly, managed image installation, watchdog/reboot
+recovery and the native workflow in the table remain unqualified.
+
 The approved bottom-board baseline is the existing FES SD plus the exact
 HPS-first QSPI in the [persistent bootstrap trial](../de25-reboot-bootstrap.md).
 Preserve the verified pre-write factory readback, vendor rollback and original

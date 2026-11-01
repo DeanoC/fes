@@ -17,7 +17,7 @@ The deterministic assembly receipts still mark their artifact hardware field
 The [current candidate record](validation/2026-09-08-appliance-release.md) lists
 the exact verified outputs and live acceptance scope.
 
-The normal CLI and bootstrap below target DE10. Low-level release export and
+The CLI defaults and bootstrap below target DE10. Release export and
 storage also support an explicitly selected `de25-nano`: FES
 `export_release(..., board='de25-nano')` and the Go codec/store `ForBoard`
 entry points. Their defaults remain DE10-only, and neither selects a board
@@ -26,6 +26,13 @@ to the selected board and stable kernel. Image assembly must independently
 verify the rootfs payload and ELF target before calling the exporter. This
 does not qualify a DE25 bootstrap, native update/recovery or managed image;
 the [normal-kit requirements](design/de25-linux-platform.md) remain open.
+For a prepared DE25 release, `fes-update --board de25-nano` also requires the
+authenticated target's reported board to match before upload, and the image
+must contain a DE25/AArch64 software-base record. The target independently
+pins its store to its immutable image's `/etc/fes-board` and CPU architecture;
+an upload cannot select that board. Direct-root headless images still provide
+no appliance-update service. The base storage helper's existing build target
+accepts `FES_KIT_DATA_ARCH=aarch64`, retaining ARMv7 as its default.
 
 ## Build once from selected inputs
 
