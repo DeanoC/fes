@@ -32,7 +32,7 @@ struct Simulation {
     // Simulation ticks are arbitrary rational time units, not timing signoff.
     uint64_t time = 0, next_mem = 297, next_pixel = 417;
     uint64_t mem_cycles = 0, pixel_cycles = 0;
-    unsigned response_latency = 0;
+    unsigned response_latency = 0, max_pending_axi = 0;
     uint32_t base = 0x08000fe0U;
     uint64_t generation = 0x9e3779b912345678ULL;
     bool pixel_stopped = false, hold_responses = false, holding_response = false;
@@ -188,7 +188,8 @@ struct Simulation {
             ++axi_beats;
             holding_response = false;
         }
-        if (ar_accepted) { new_burst.ready_cycle = mem_cycles + response_latency; pending.push_back(new_burst); }
+        if (ar_accepted) { new_burst.ready_cycle = mem_cycles + response_latency; pending.push_back(new_burst);
+            if (pending.size() > max_pending_axi) max_pending_axi = pending.size(); }
         if (mem_rise) ++mem_cycles;
         if (pixel_rise) ++pixel_cycles;
     }
@@ -319,6 +320,7 @@ struct Simulation {
                   << ",\"full_frames_slot1\":" << complete_frames[1] << ",\"ar_stall_cycles\":" << ar_stalls
                   << ",\"r_stall_cycles\":" << r_stalls << ",\"endpoint128_beats\":" << endpoint_beats
                   << ",\"endpoint_error_beats\":" << endpoint_error_beats
+                  << ",\"max_pending_axi\":" << max_pending_axi
                   << ",\"ram_storage_self_test_passed\":" << (ram_storage_self_test_passed ? "true" : "false")
                   << "}" << std::endl;
     }
@@ -397,11 +399,14 @@ int main(int argc, char** argv) {
                             (pending.status & FES_DE25_SCANOUT_STATUS_PENDING), "acceptance released current front slot");
                 }
             }
+            if (mode == 2) require(s.max_pending_axi >= 3, "latency test did not overlap independent AXI reads");
             s.stop_and_drain(); s.report(mode == 2 ? "bounded_transaction_latency" :
                 (linux_iova ? "linux_iova_last_8mib" : "complete_frames_and_slot_reuse"));
         }
         {
             Simulation s; s.hold_responses = true; s.submit(1, 1); s.wait_request(); s.wait_axi_request();
+            s.cycles(1000);
+            require(s.max_pending_axi >= 2, "STOP test has no overlapped accepted AXI reads");
             s.write(FES_DE25_SCANOUT_COMMAND_OFFSET, FES_DE25_SCANOUT_COMMAND_STOP);
             auto v = s.snapshot();
             require(!(v.status & FES_DE25_SCANOUT_STATUS_DRAINED) && v.outstanding,
