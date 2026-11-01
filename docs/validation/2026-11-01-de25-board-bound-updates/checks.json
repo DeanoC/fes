@@ -1,0 +1,245 @@
+{
+  "aarch64_pass_events": 26,
+  "aarch64_test_groups": {
+    "data-gate": {
+      "bytes": 4980862,
+      "passed_test_events": 4,
+      "required_pass": "TestSelectedBoardUpdateGate",
+      "sha256": "06131066bbf870bba2ef73f8ea3c31d422a952a43ca3c846b37d01d118ee9352"
+    },
+    "image-board": {
+      "bytes": 5832830,
+      "passed_test_events": 1,
+      "required_pass": "TestImageBoardRequiresImageAndCPUAgreement",
+      "sha256": "5564235597772eaa4806a1b2867f7caee774d117fcb6c3d8e37b12b1e692b95a"
+    },
+    "release-board": {
+      "bytes": 3211390,
+      "passed_test_events": 3,
+      "required_pass": "TestSelectedReleaseBoard",
+      "sha256": "61a8fd3ac846efa230e8d9b493951300dee29b896a87c304ea2aa45b5fd4821b"
+    },
+    "release-store": {
+      "bytes": 3604606,
+      "passed_test_events": 6,
+      "required_pass": "TestSelectedBoardRealImages/de25-nano",
+      "sha256": "45be040b7ed8ef4b34c719defbad70073a8d8eb3c5c7ac65f639c02af749c9d1"
+    },
+    "update-cli": {
+      "bytes": 8978558,
+      "passed_test_events": 2,
+      "required_pass": "TestReadReleaseManifestRequiresSelectedBoard",
+      "sha256": "b7ac0517e612cfb0d969f02e4c656af24ed2dc8b5adc6a92a4f72ee282fd6bb1"
+    },
+    "update-client": {
+      "bytes": 9240702,
+      "passed_test_events": 7,
+      "required_pass": "TestUpdateObservesLostActivationAndConfirmationRepliesUsingFreshLease/de25-nano",
+      "sha256": "e866fd60e45992d0e544e3d69d886608a67e1837bebffdbf194c59209b98449c"
+    },
+    "upload-api": {
+      "bytes": 9568382,
+      "passed_test_events": 3,
+      "required_pass": "TestSelectedBoardUpdateAPI/de25-nano",
+      "sha256": "75f63fb2546e149bf230e1670909119bec865d6378a3c72bf763193a642e5587"
+    }
+  },
+  "affected_plan": {
+    "Go_package_pass_runs": 136,
+    "base": "a0e5a70865987ea6fea38308bf42d33ad58251c8",
+    "commands": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "host Go and UI tests",
+        "lane": "host",
+        "returncode": 0
+      }
+    ],
+    "elapsed_seconds": 763.6,
+    "fixture_copies": 42,
+    "generated_consumers": 40,
+    "hardware_access": "not-performed",
+    "log_sha256": "901854460d4ee39fb4341a7d8056ef9bf6f2d2f43a69bf25ca943bb9f13de93a",
+    "parent_unittest_summaries": [
+      {
+        "outcome": "OK",
+        "seconds": 0.264,
+        "tests": 30
+      },
+      {
+        "outcome": "OK",
+        "seconds": 1.263,
+        "tests": 32
+      },
+      {
+        "outcome": "OK",
+        "seconds": 2.624,
+        "tests": 2
+      },
+      {
+        "outcome": "OK",
+        "seconds": 17.117,
+        "tests": 3
+      },
+      {
+        "outcome": "OK",
+        "seconds": 54.016,
+        "tests": 33
+      },
+      {
+        "outcome": "OK",
+        "seconds": 0.0,
+        "tests": 1
+      },
+      {
+        "outcome": "OK (skipped=40)",
+        "seconds": 293.787,
+        "tests": 1276
+      }
+    ],
+    "source_revision": "83e1c16b6a4b4cd19b92fe93e42a0902d52e1c3b",
+    "status": "passed",
+    "unittest_parent_skipped": 40,
+    "unittest_parent_tests": 1276
+  },
+  "archive": {
+    "archive_sha256": "dcc5def1aa38d1241df3f25e8d126360023ff3b8fd664b37c240321dee0d4fc5",
+    "archive_size": 41268394,
+    "archived_regular_files_verified": 95
+  },
+  "classification": "off-board release/API/helper checks; no managed boot or hardware acceptance",
+  "finish_seconds": 6.916,
+  "finish_state": "pass",
+  "go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+  "go_version": "go version go1.26.5 linux/amd64",
+  "hardware_acceptance": false,
+  "hardware_access": "not-performed",
+  "helper_assets": {
+    "fes-bluetooth": {
+      "bytes": 2359422,
+      "execution": "not-run",
+      "mode": "0o755",
+      "sha256": "5b88dfefff3eef44dacaf1a09f4cd3fae71ae1857db606b273f2ba9994b6fec6"
+    },
+    "fes-kit-software": {
+      "bytes": 7078014,
+      "execution": "not-run",
+      "mode": "0o755",
+      "sha256": "a7d1bcbe6cc8afecf1920ccee9ebcffcbd5617571f44683891fe38ed21190eb8"
+    },
+    "fes-update": {
+      "bytes": 11403390,
+      "execution": "not-run",
+      "sha256": "d51756ac931c2696560d800d4b5bc0f54db0bf128a6c51243905da09d2f4791d"
+    },
+    "mister-agent": {
+      "bytes": 10223742,
+      "execution": "not-run",
+      "sha256": "c5b83e64e38116cab8f3a5f3db75125a240ae05a79caa25880a3061e128ce8b2"
+    },
+    "storage-aarch64": {
+      "bytes": 4260002,
+      "mode": "0o755",
+      "normal_make_build_reused": true,
+      "sha256": "0222fccc35325f4274296fc3b12b2a43c39c12ef4c2b74331b027c0eccd69fc2"
+    },
+    "storage-armv7": {
+      "bytes": 4587682,
+      "mode": "0o755",
+      "normal_make_build_reused": true,
+      "sha256": "c5ad759ffc0b756893fca4f5f050102d2f8c555a4b5c2a6acbb10d876a86c10e"
+    }
+  },
+  "installed": false,
+  "native_appliance_events_reused": {
+    "packages": [
+      "github.com/DeanoC/FogCast/appliance",
+      "github.com/DeanoC/FogCast/appliance/blockprobe",
+      "github.com/DeanoC/FogCast/appliance/software",
+      "github.com/DeanoC/FogCast/appliance/store"
+    ],
+    "passed_test_events": 87,
+    "skipped_test_events": 0
+  },
+  "native_consumer_focused": {
+    "packages": [
+      "github.com/DeanoC/FogCast/internal/appliancedata",
+      "github.com/DeanoC/FogCast/targetclient"
+    ],
+    "passed_test_events": 232,
+    "skipped_test_events": 0
+  },
+  "not_proven": [
+    "FES managed rootfs/bootstrap/media assembly",
+    "native update/watchdog recovery",
+    "FPGA/HDMI/reset signoff and normal-kit acceptance"
+  ],
+  "original_native_consumer_run": {
+    "failed_packages": [
+      "github.com/DeanoC/FogCast/internal/appliancedata"
+    ],
+    "passed_packages": [
+      "github.com/DeanoC/FogCast/internal/applianceupdate",
+      "github.com/DeanoC/FogCast/internal/httpapi",
+      "github.com/DeanoC/FogCast/cmd/fes-update",
+      "github.com/DeanoC/FogCast/targetclient",
+      "github.com/DeanoC/FogCast/cmd/mister-agent"
+    ],
+    "receipt_sha256": "9d1524c6528836ad3d8153cfa8d038afc0ad321c78359f55a26ef557495e8968",
+    "skipped_packages": [
+      "github.com/DeanoC/FogCast/cmd/fes-kit-data"
+    ],
+    "state": "failed"
+  },
+  "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
+  "retention": "/home/deano/fes/out/artifacts/de25-board-bound-updates/83e1c16b6/retention.json",
+  "source_equivalence": {
+    "appliance_module_bytes_unchanged": true,
+    "base": "079642e0e89c45562ed2d433bee6d097d0ef8058",
+    "changed_paths": [
+      "sources/FogCast/internal/appliancedata/board_test.go",
+      "sources/FogCast/targetclient/appliance_board_test.go"
+    ],
+    "production_bytes_unchanged": true
+  },
+  "source_revision": "83e1c16b6a4b4cd19b92fe93e42a0902d52e1c3b",
+  "source_scope": {
+    "appliance_tree": "f7c16542236c4690875ea5b28ad74eb26b376d3683da626c71aa739580c06a30",
+    "canonical_menu_inputs_verified": 374,
+    "compiler_source_sha256_verified": 59,
+    "platform_tree": "a987e2d7cb5cb709e569503854ce7b0bd44f00dc1758616fc752b256dff37b30",
+    "restored_tree": "effcfc027965c37a444deb259521034ce9d19eb5",
+    "source_restored": true,
+    "source_revision": "83e1c16b6a4b4cd19b92fe93e42a0902d52e1c3b",
+    "test_runtime_source_sha256_verified": 58
+  }
+}
