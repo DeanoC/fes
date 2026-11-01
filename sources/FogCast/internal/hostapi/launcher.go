@@ -656,7 +656,7 @@ func launcherCoreMediaSelectionPath(path string) bool {
 
 func launcherCoreEntryMediaNamePath(path string) bool {
 	const prefix, suffix = "/api/v1/library/core-entries/", "/media-name"
-	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+	if len(path) <= len(prefix)+len(suffix) || !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
 		return false
 	}
 	game := path[len(prefix) : len(path)-len(suffix)]

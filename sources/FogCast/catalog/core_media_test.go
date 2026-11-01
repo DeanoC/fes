@@ -525,3 +525,21 @@ func TestCoreEntryMediaNameFollowsItsSelection(t *testing.T) {
 		t.Fatalf("clear kept the name: %+v, %v", got, err)
 	}
 }
+
+func TestCoreEntryMediaNameReturnsFollowUpReadErrors(t *testing.T) {
+	ctx := context.Background()
+	s, _ := mediaTestStore(t)
+	pkg := strings.Repeat("a", 64)
+	entry, err := s.CreateCoreEntry(ctx, "Tape", "fes.zx81", pkg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, `ALTER TABLE games RENAME TO unavailable_games`); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = s.SetCoreEntryMediaName(ctx, entry.GameID, pkg, strings.Repeat("c", 64), "MAZE.P")
+	if err == nil || errors.Is(err, ErrCoreEntryConflict) || !strings.Contains(err.Error(), "no such table: games") {
+		t.Fatalf("SetCoreEntryMediaName() error = %v, want wrapped follow-up read error", err)
+	}
+}

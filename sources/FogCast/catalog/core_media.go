@@ -461,6 +461,8 @@ func (s *Store) SetCoreEntryMediaName(ctx context.Context, gameID, expectedPacka
 	if changed != 1 {
 		if _, err := scanCoreEntry(tx.QueryRowContext(ctx, coreEntrySelect+` WHERE e.game_id = ?`, gameID).Scan); errors.Is(err, sql.ErrNoRows) {
 			return CoreEntry{}, ErrCoreEntryNotFound
+		} else if err != nil {
+			return CoreEntry{}, fmt.Errorf("read core entry after media name selection mismatch: %w", err)
 		}
 		return CoreEntry{}, ErrCoreEntryConflict
 	}

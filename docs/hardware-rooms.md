@@ -100,8 +100,9 @@ the next launch. The host's cassette label is shown on its own row above the
 machine controls. A starter uses its display name. An import shows the `.p`
 or `.o` filename it was chosen under, which the host keeps on the machine record
 until other media is selected. An import with no recorded name, such as one
-saved through a host that predates the record, is labelled "Imported cassette"
-plus the first eight characters of its digest. A label that does not fit
+selected through the browser Library page or CLI, or through a host that
+predates the record, is labelled "Imported cassette" plus the first eight
+characters of its digest. A label that does not fit
 keeps its start and its end. Selection compares both the package and previous
 media ID; another client's change requires a refresh. Opening the shelf imports nothing.
 The three attributed starter tapes are Guess the Number (MIT, 1 KiB), Aritm
