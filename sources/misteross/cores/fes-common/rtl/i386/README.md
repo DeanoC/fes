@@ -7,9 +7,11 @@ and `fes_i386_cpu`, which runs the real-mode instructions `fes_i386_decode`
 lists from D to WB, with their memory forms, fixed uop sequences, the string
 instructions and ENTER, I/O on an I/O port, the microcode ROM, exception
 delivery, INTR and NMI, the multiply and divide unit, and the speed
-governor ([Speed governor](#speed-governor)). It reaches guest memory through
-an L1I, an L1D and a bus interface on HPS DDR port 0, with an uncached path
-to MMIO (see [Memory](#memory)). There is no L2 or paging yet.
+governor ([Speed governor](#speed-governor)); and Phase 2's first slice,
+protected mode at CPL 0 as far as unreal mode needs it (see
+[Protected mode](#protected-mode)). It reaches guest memory through an L1I,
+an L1D and a bus interface on HPS DDR port 0, with an uncached path to MMIO
+(see [Memory](#memory)). There is no L2 or paging yet.
 
 | File | Stage | Content |
 | --- | --- | --- |
@@ -236,15 +238,38 @@ them, so a uop reads one at WB, or waits in D until its writers retire.
 - Far transfers are taken branches, with no prediction yet: each redirects
   from WB.
 
-**CR0, CLTS and WAIT.** CR0's MP and TS are all of CR0 the CPU holds,
-from `init_cr0`, shown in `arch_cr0`. WAIT is a NOP, or raises #NM when MP
-and TS are both set, which DC decodes after every other check, as the
-design's [FPU](../../../../docs/i386-cpu-design.md#fpu) section asks. CLTS
-clears TS at WB as a system uop that jumps to the next instruction, so
-every instruction after it decodes once TS is clear, and no wait in D
-follows it. The jump is not cut to 16 bits: a CLTS that ends at FFFFh
-leaves EIP 10000h, as any other instruction does. Nothing else writes MP
-or TS yet: MOV to CR0, LMSW and the ESC instructions are not built.
+**CR0, CLTS and WAIT.** The CPU holds CR0's PE, MP, EM, TS, ET and PG,
+from `init_cr0`, and reads CR0 with bits 30-5 set, as Bochs's 386 does
+(`arch_cr0`). WAIT is a NOP, or raises #NM when MP and TS are both set,
+which DC decodes after every other check, as the design's
+[FPU](../../../../docs/i386-cpu-design.md#fpu) section asks. CLTS clears TS
+at WB as a system uop that jumps to the next instruction, so every
+instruction after it decodes once TS is clear, and no wait in D follows it.
+The jump is not cut to 16 bits: a CLTS that ends at FFFFh leaves EIP 10000h,
+as any other instruction does. The ESC instructions are not built.
+
+**Control and table registers** (any mode, CPL 0):
+- MOV r32, CRn (CR0, CR2, CR3) and SMSW are an ALU move of the register,
+  which D reads as src2's value (`b_sys`): SMSW gives a 16-bit register
+  CR0's low word, a 32-bit one all of it, and memory a word, as Bochs does.
+  CR1 and CR4-CR7 are #UD; the ModRM is a register form whatever its mod.
+- MOV CRn, r32 and LMSW put their source in T1; a system uop from the ROM
+  writes the register at WB from T1 and jumps to the next instruction, so
+  the pipeline behind it refetches and DC decodes it under the new CR0. LMSW
+  writes PE, MP, EM and TS and cannot clear PE. D raises #GP(0) for a CR0
+  with PG set and PE clear, and stops one with both set as not built
+  (FAULT_UNIMPLEMENTED): paging is Phase 5. CR2 and CR3 hold what is
+  written.
+- LGDT and LIDT load the limit's word into T0 and the base's dword, 2 bytes
+  on (`plus2`), into T1, both checked before the system uop writes the
+  register and jumps to the next instruction; a 16-bit operand size clears
+  the base's top byte. SGDT and SIDT store the limit's word and the whole
+  base, 2 bytes on, whatever the operand size, as Bochs does. GDTR's limit
+  less 7 and IDTR's less 3 are kept beside them for the descriptor and
+  vector checks.
+- Real-mode interrupts and exceptions read their vector at IDTR's base plus
+  vector × 4; an entry past IDTR's limit raises #GP(0) (and in a delivery
+  stops the CPU, as any fault there does).
 
 **Small forms:**
 - XCHG of registers is three XORs that write no flags, each into the
@@ -423,6 +448,11 @@ every field and routine.
     bounds load, and check their limits, before either compare, as the
     386EX does: a bound past the limit raises #GP(0) or #SS(0) whatever
     the register. A register operand is #UD.
+  - `wcr0`, `wcr2`, `wcr3` and `lmsw`: the CR write from T1, a jump to the
+    next instruction; `lgdt` and `lidt`: the base into T1, then the table
+    register's write; `sgdt` and `sidt`: the base's store.
+  - `pseg`, `ppop`, `plptr`, `pjmp` and `pjmpm`: protected-mode segment
+    loads and far jumps (see [Protected mode](#protected-mode)).
 - **Flags in EX.** PUSHF and POPF are single uops. EX's flag operations give
   FLAGS' image and load the writable real-mode flags in its running copy, as
   INT's and IRET's do.
@@ -482,9 +512,13 @@ not cut to 16 bits, as on the 386: an instruction that ends at offset FFFFh
 leaves EIP 10000h. Real-mode CS loads leave CS's limit at FFFFh, and an
 instruction that starts or runs past it raises #GP(0) at its fetch, before
 any fault its decode found; under a larger limit that is unimplemented, as
-the general CS-limit check is not built. D applies both, since only D knows
-the EIP. D also picks the memory operand's segment limit less the access's
-bytes but one, which reset precomputes per segment and size.
+the general CS-limit check is not built. So is 16-bit code under a limit
+below FFFFh, and 32-bit code under any limit but FFFFFFFFh (`cs_odd`), which
+only a protected-mode far jump can give. D applies these, since only D knows
+the EIP. D also picks the memory operand's access check (`seg_chk_t`): its
+segment's limit less the access's bytes but one, or an expand-down
+segment's upper bound so less and its limit below, and whether the segment
+refuses the read or the write.
 
 The uop's src1 is always its destination's register: a byte or word result
 merges into the old value, an implicit source. src2 is the second register
@@ -618,12 +652,77 @@ retires and stops it. A fault is delivered:
 **WB** commits in order: the GPR file and segment registers in flip-flops,
 a string element's steps of ESI, EDI and ECX, EFLAGS, EIP and stores, the result's low bytes moved to the address's place
 in its dword and the next (IN's data for INS), and I/O accesses. A real-mode segment load sets the base to selector * 16 and
-keeps the limit and attributes.
+keeps the limit and type, setting P and S, except a CS load, which takes
+the 386's real-mode values (limit FFFFh, access rights 93h); a
+protected-mode load takes the descriptor (see Protected mode).
 
 **Reset and trace.** `init_*` is the architectural state reset loads,
-CR0's MP and TS among it; a machine ties it to the 386 reset state, and the
-lockstep harness to a test's state. `trace_*` and `arch_*` show each
-retirement.
+CR0, CR2, CR3, GDTR and IDTR among it; a machine ties it to the 386 reset
+state, and the lockstep harness to a test's state. `trace_*` and `arch_*`
+show each retirement.
+
+## Protected mode
+
+Phase 2's first slice: protected mode at CPL 0 without gates, privilege
+transitions, the IDT, the LDT, TR, task switches, debug registers, V86 or
+paging, enough for unreal mode (the design's
+[segment-cache contract](../../../../docs/i386-cpu-design.md#architecture)).
+CR0.PE is a register that only a CR0 write changes, which jumps to the next
+instruction, so DC decodes with it (`pe`) and every stage sees one mode.
+
+- **Segment loads.** In protected mode MOV Sreg, POP Sreg and LES and its
+  kin load DS, ES, FS, GS and SS from the GDT in microcode
+  (`ucode.toml`'s `pseg`, `ppop` and `plptr`): DC's first uop puts the
+  selector in T0 (POP's slot read without moving ESP, LES's selector past
+  the offset); the ROM reads the descriptor's dwords into T2 and T3 at GDTR's
+  base plus the index times 8 (`desc`: the first checks the index against
+  GDTR's limit less 7, #GP(selector)); then one uop raises the descriptor's
+  checks (`segchk`, in M1) and stores the access byte with the accessed bit
+  set, which D drops when the bit is set already, and WB writes the segment
+  from the descriptor (`seg2_pm`). A null selector reads nothing and loads a
+  null cache (base and limit 0, access rights 10h, not present). LES's
+  offset goes into T1 and the register after the load; POP's ESP steps last
+  (`nochk`: no access and no check), at the width SS had for the read, as
+  Bochs pops before it loads. A TI=1 selector reads the LDT at LDTR's reset
+  base 0 and limit FFFFh: LLDT is not built.
+- **The checks,** at CPL 0, from Bochs's `load_seg_reg`: for DS, ES, FS and
+  GS a system descriptor or execute-only code, or data or non-conforming
+  code with DPL below RPL, is #GP(selector), and not present #NP(selector);
+  for SS a null selector is #GP(0), RPL or DPL not 0, a system descriptor,
+  code or read-only data #GP(selector), and not present #SS(selector).
+- **Far JMP** (`pjmp`, `pjmpm`) puts the selector in T0 and the offset in T1,
+  reads the descriptor and raises `jump_protected`'s checks: null is #GP(0);
+  a TSS, task gate or call gate is not built; any other system descriptor or
+  data is #GP(selector), as is non-conforming code with DPL or RPL not 0 or
+  conforming code with DPL not 0; not present is #NP(selector); an offset
+  past the new limit #GP(0). The accessed bit's store comes after them all,
+  then the jump writes CS (RPL 0) and jumps to the descriptor's base plus
+  the offset, which AG adds from T2 and T3.
+- **The descriptor's staging** (`ds_*`): each cycle registers, from T0 to
+  T3, what a load would write (base, scaled limit, access rights with the
+  accessed bit, `seg_chk_t`) and the checks it would raise for each kind of
+  segment. The uops that use them issue only once T0 to T3's writers have
+  retired, and nothing younger writes them first, so M1 reads the checks and
+  WB the cache from registers, off D's paths.
+- **Access checks.** Every access, in every mode, is checked against its
+  segment's cached limit and type as Bochs's `read_virtual_checks` and
+  `write_virtual_checks` make them (`seg_chk_t`, worked out at each load):
+  an expand-down segment faults at offsets up to its limit and past its
+  upper bound; a not-present segment, execute-only code on a read, and code
+  or read-only data on a write fault at any offset. Bochs skips the limit
+  check of a flat segment (base 0, limit FFFFFFFFh), so an access that wraps
+  past 4 GiB there faults only on the RTL.
+- **Leaving protected mode.** Clearing PE makes CS a writable data segment,
+  its limit, DPL, G and D/B kept, as Bochs's `handleCpuModeChange` does; the
+  real-mode far jump that follows takes the 386 values.
+- **Not built:** an exception or interrupt with PE set stops the CPU with
+  `trace_unimplemented` and `trace_pm_stop`: an exception's vector in
+  `trace_vector` and its error code in `trace_error` (a selector's, or 0),
+  an NMI as vector 2, an INTR as FFh before its INTA. At the boundary of a
+  CR0 write the mode is the one it leaves. Far CALL, RETF, IRET, INT n, INT3
+  and INTO in protected mode, and the instructions only protected mode
+  defines (LAR, LSL, VERR, VERW, ARPL, LLDT, LTR and the rest of group 6),
+  are FAULT_UNIMPLEMENTED; so is setting PG.
 
 ## Memory
 

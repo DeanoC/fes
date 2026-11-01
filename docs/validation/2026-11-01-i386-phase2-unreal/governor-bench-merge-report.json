@@ -1,0 +1,1371 @@
+{
+  "clock_hz": 61440000,
+  "yosys": null,
+  "window": 64,
+  "budget": 0.05,
+  "accepted": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "presets": {
+    "286-12": {
+      "name": "286-12",
+      "run": {
+        "cycles": 8809361,
+        "retired": 230458,
+        "halted": 1,
+        "debt_max": 132,
+        "hold_cycles": 8081974,
+        "charged": 1720440
+      },
+      "loops": [
+        {
+          "name": "alu",
+          "cycles": 368451,
+          "charged": 72002,
+          "table_clocks": 72002,
+          "table_cycles": 368650.2,
+          "error": -0.00054,
+          "beyond_cpu": false
+        },
+        {
+          "name": "memory",
+          "cycles": 691043,
+          "charged": 135002,
+          "table_clocks": 135002,
+          "table_cycles": 691210.2,
+          "error": -0.00024,
+          "beyond_cpu": false
+        },
+        {
+          "name": "dword",
+          "cycles": 568174,
+          "charged": 111002,
+          "table_clocks": 111002,
+          "table_cycles": 568330.2,
+          "error": -0.00027,
+          "beyond_cpu": false
+        },
+        {
+          "name": "branch",
+          "cycles": 691187,
+          "charged": 135002,
+          "table_clocks": 135002,
+          "table_cycles": 691210.2,
+          "error": -3e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "stack",
+          "cycles": 614461,
+          "charged": 120002,
+          "table_clocks": 120002,
+          "table_cycles": 614410.2,
+          "error": 8e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "muldiv",
+          "cycles": 455693,
+          "charged": 89002,
+          "table_clocks": 89002,
+          "table_cycles": 455690.2,
+          "error": 1e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "string",
+          "cycles": 303103,
+          "charged": 59202,
+          "table_clocks": 59202,
+          "table_cycles": 303114.2,
+          "error": -4e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "shift",
+          "cycles": 629616,
+          "charged": 123002,
+          "table_clocks": 123002,
+          "table_cycles": 629770.2,
+          "error": -0.00024,
+          "beyond_cpu": false
+        },
+        {
+          "name": "crt",
+          "cycles": 614384,
+          "charged": 119999,
+          "table_clocks": 119999,
+          "table_cycles": 614394.9,
+          "error": -2e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "io",
+          "cycles": 215045,
+          "charged": 42002,
+          "table_clocks": 42002,
+          "table_cycles": 215050.2,
+          "error": -2e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "int",
+          "cycles": 153628,
+          "charged": 30002,
+          "table_clocks": 30002,
+          "table_cycles": 153610.2,
+          "error": 0.00012,
+          "beyond_cpu": false
+        },
+        {
+          "name": "misc",
+          "cycles": 307083,
+          "charged": 60002,
+          "table_clocks": 60002,
+          "table_cycles": 307210.2,
+          "error": -0.00041,
+          "beyond_cpu": false
+        },
+        {
+          "name": "loop",
+          "cycles": 184296,
+          "charged": 36002,
+          "table_clocks": 36002,
+          "table_cycles": 184330.2,
+          "error": -0.00019,
+          "beyond_cpu": false
+        },
+        {
+          "name": "pusha",
+          "cycles": 158697,
+          "charged": 31002,
+          "table_clocks": 31002,
+          "table_cycles": 158730.2,
+          "error": -0.00021,
+          "beyond_cpu": false
+        },
+        {
+          "name": "i386",
+          "cycles": 245669,
+          "charged": 48002,
+          "table_clocks": 48002,
+          "table_cycles": 245770.2,
+          "error": -0.00041,
+          "beyond_cpu": false
+        },
+        {
+          "name": "direct",
+          "cycles": 307140,
+          "charged": 60002,
+          "table_clocks": 60002,
+          "table_cycles": 307210.2,
+          "error": -0.00023,
+          "beyond_cpu": false
+        }
+      ],
+      "latency": {
+        "count": 114,
+        "max_clocks": 84.8,
+        "mean_clocks": 60.3,
+        "bound_clocks": 115,
+        "debt_max": 132
+      }
+    },
+    "386SX-16": {
+      "name": "386SX-16",
+      "run": {
+        "cycles": 6479429,
+        "retired": 230371,
+        "halted": 1,
+        "debt_max": 124,
+        "hold_cycles": 5747798,
+        "charged": 1687082
+      },
+      "loops": [
+        {
+          "name": "alu",
+          "cycles": 276344,
+          "charged": 72009,
+          "table_clocks": 72009,
+          "table_cycles": 276514.6,
+          "error": -0.00062,
+          "beyond_cpu": false
+        },
+        {
+          "name": "memory",
+          "cycles": 483781,
+          "charged": 126009,
+          "table_clocks": 126009,
+          "table_cycles": 483874.6,
+          "error": -0.00019,
+          "beyond_cpu": false
+        },
+        {
+          "name": "dword",
+          "cycles": 334043,
+          "charged": 87009,
+          "table_clocks": 87009,
+          "table_cycles": 334114.6,
+          "error": -0.00021,
+          "beyond_cpu": false
+        },
+        {
+          "name": "branch",
+          "cycles": 506917,
+          "charged": 132009,
+          "table_clocks": 132009,
+          "table_cycles": 506914.6,
+          "error": 0.0,
+          "beyond_cpu": false
+        },
+        {
+          "name": "stack",
+          "cycles": 426354,
+          "charged": 111009,
+          "table_clocks": 111009,
+          "table_cycles": 426274.6,
+          "error": 0.00019,
+          "beyond_cpu": false
+        },
+        {
+          "name": "muldiv",
+          "cycles": 299593,
+          "charged": 78009,
+          "table_clocks": 78009,
+          "table_cycles": 299554.6,
+          "error": 0.00013,
+          "beyond_cpu": false
+        },
+        {
+          "name": "string",
+          "cycles": 255806,
+          "charged": 66609,
+          "table_clocks": 66609,
+          "table_cycles": 255778.6,
+          "error": 0.00011,
+          "beyond_cpu": false
+        },
+        {
+          "name": "shift",
+          "cycles": 426193,
+          "charged": 111009,
+          "table_clocks": 111009,
+          "table_cycles": 426274.6,
+          "error": -0.00019,
+          "beyond_cpu": false
+        },
+        {
+          "name": "crt",
+          "cycles": 422415,
+          "charged": 110006,
+          "table_clocks": 110006,
+          "table_cycles": 422423.0,
+          "error": -2e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "io",
+          "cycles": 261186,
+          "charged": 68009,
+          "table_clocks": 68009,
+          "table_cycles": 261154.6,
+          "error": 0.00012,
+          "beyond_cpu": false
+        },
+        {
+          "name": "int",
+          "cycles": 147918,
+          "charged": 38509,
+          "table_clocks": 38509,
+          "table_cycles": 147874.6,
+          "error": 0.00029,
+          "beyond_cpu": false
+        },
+        {
+          "name": "misc",
+          "cycles": 222674,
+          "charged": 58009,
+          "table_clocks": 58009,
+          "table_cycles": 222754.6,
+          "error": -0.00036,
+          "beyond_cpu": false
+        },
+        {
+          "name": "loop",
+          "cycles": 172805,
+          "charged": 45013,
+          "table_clocks": 45013,
+          "table_cycles": 172849.9,
+          "error": -0.00026,
+          "beyond_cpu": false
+        },
+        {
+          "name": "pusha",
+          "cycles": 130672,
+          "charged": 34009,
+          "table_clocks": 34009,
+          "table_cycles": 130594.6,
+          "error": 0.00059,
+          "beyond_cpu": false
+        },
+        {
+          "name": "i386",
+          "cycles": 184287,
+          "charged": 48009,
+          "table_clocks": 48009,
+          "table_cycles": 184354.6,
+          "error": -0.00037,
+          "beyond_cpu": false
+        },
+        {
+          "name": "direct",
+          "cycles": 207359,
+          "charged": 54009,
+          "table_clocks": 54009,
+          "table_cycles": 207394.6,
+          "error": -0.00017,
+          "beyond_cpu": false
+        }
+      ],
+      "latency": {
+        "count": 85,
+        "max_clocks": 95.1,
+        "mean_clocks": 86.9,
+        "bound_clocks": 128,
+        "debt_max": 124
+      }
+    },
+    "386DX-25": {
+      "name": "386DX-25",
+      "run": {
+        "cycles": 3529150,
+        "retired": 230233,
+        "halted": 1,
+        "debt_max": 114,
+        "hold_cycles": 2744263,
+        "charged": 1435622
+      },
+      "loops": [
+        {
+          "name": "alu",
+          "cycles": 176830,
+          "charged": 72009,
+          "table_clocks": 72009,
+          "table_cycles": 176969.3,
+          "error": -0.00079,
+          "beyond_cpu": false
+        },
+        {
+          "name": "memory",
+          "cycles": 265395,
+          "charged": 108009,
+          "table_clocks": 108009,
+          "table_cycles": 265442.9,
+          "error": -0.00018,
+          "beyond_cpu": false
+        },
+        {
+          "name": "dword",
+          "cycles": 154824,
+          "charged": 63009,
+          "table_clocks": 63009,
+          "table_cycles": 154850.9,
+          "error": -0.00017,
+          "beyond_cpu": false
+        },
+        {
+          "name": "branch",
+          "cycles": 309677,
+          "charged": 126009,
+          "table_clocks": 126009,
+          "table_cycles": 309679.7,
+          "error": -1e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "stack",
+          "cycles": 228563,
+          "charged": 93009,
+          "table_clocks": 93009,
+          "table_cycles": 228578.9,
+          "error": -7e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "muldiv",
+          "cycles": 191717,
+          "charged": 78009,
+          "table_clocks": 78009,
+          "table_cycles": 191714.9,
+          "error": 1e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "string",
+          "cycles": 122916,
+          "charged": 50009,
+          "table_clocks": 50009,
+          "table_cycles": 122902.1,
+          "error": 0.00011,
+          "beyond_cpu": false
+        },
+        {
+          "name": "shift",
+          "cycles": 258022,
+          "charged": 105009,
+          "table_clocks": 105009,
+          "table_cycles": 258070.1,
+          "error": -0.00019,
+          "beyond_cpu": false
+        },
+        {
+          "name": "crt",
+          "cycles": 258036,
+          "charged": 105007,
+          "table_clocks": 105007,
+          "table_cycles": 258065.2,
+          "error": -0.00011,
+          "beyond_cpu": false
+        },
+        {
+          "name": "io",
+          "cycles": 167154,
+          "charged": 68009,
+          "table_clocks": 68009,
+          "table_cycles": 167138.9,
+          "error": 9e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "int",
+          "cycles": 84833,
+          "charged": 34509,
+          "table_clocks": 34509,
+          "table_cycles": 84809.3,
+          "error": 0.00028,
+          "beyond_cpu": false
+        },
+        {
+          "name": "misc",
+          "cycles": 132727,
+          "charged": 54009,
+          "table_clocks": 54009,
+          "table_cycles": 132732.5,
+          "error": -4e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "loop",
+          "cycles": 110594,
+          "charged": 45013,
+          "table_clocks": 45013,
+          "table_cycles": 110623.9,
+          "error": -0.00027,
+          "beyond_cpu": false
+        },
+        {
+          "name": "pusha",
+          "cycles": 63965,
+          "charged": 26009,
+          "table_clocks": 26009,
+          "table_cycles": 63919.7,
+          "error": 0.00071,
+          "beyond_cpu": false
+        },
+        {
+          "name": "i386",
+          "cycles": 113071,
+          "charged": 46009,
+          "table_clocks": 46009,
+          "table_cycles": 113071.7,
+          "error": -1e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "direct",
+          "cycles": 117970,
+          "charged": 48009,
+          "table_clocks": 48009,
+          "table_cycles": 117986.9,
+          "error": -0.00014,
+          "beyond_cpu": false
+        }
+      ],
+      "latency": {
+        "count": 39,
+        "max_clocks": 71.2,
+        "mean_clocks": 62.0,
+        "bound_clocks": 123,
+        "debt_max": 114
+      }
+    },
+    "386DX-33": {
+      "name": "386DX-33",
+      "run": {
+        "cycles": 2648433,
+        "retired": 230203,
+        "halted": 1,
+        "debt_max": 112,
+        "hold_cycles": 1838972,
+        "charged": 1434932
+      },
+      "loops": [
+        {
+          "name": "alu",
+          "cycles": 132743,
+          "charged": 72009,
+          "table_clocks": 72009,
+          "table_cycles": 132859.8,
+          "error": -0.00088,
+          "beyond_cpu": false
+        },
+        {
+          "name": "memory",
+          "cycles": 199243,
+          "charged": 108009,
+          "table_clocks": 108009,
+          "table_cycles": 199281.5,
+          "error": -0.00019,
+          "beyond_cpu": false
+        },
+        {
+          "name": "dword",
+          "cycles": 116233,
+          "charged": 63009,
+          "table_clocks": 63009,
+          "table_cycles": 116254.4,
+          "error": -0.00018,
+          "beyond_cpu": false
+        },
+        {
+          "name": "branch",
+          "cycles": 232485,
+          "charged": 126009,
+          "table_clocks": 126009,
+          "table_cycles": 232492.3,
+          "error": -3e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "stack",
+          "cycles": 171590,
+          "charged": 93009,
+          "table_clocks": 93009,
+          "table_cycles": 171605.8,
+          "error": -9e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "muldiv",
+          "cycles": 143938,
+          "charged": 78009,
+          "table_clocks": 78009,
+          "table_cycles": 143930.1,
+          "error": 5e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "string",
+          "cycles": 92266,
+          "charged": 50009,
+          "table_clocks": 50009,
+          "table_cycles": 92268.9,
+          "error": -3e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "shift",
+          "cycles": 193702,
+          "charged": 105009,
+          "table_clocks": 105009,
+          "table_cycles": 193746.3,
+          "error": -0.00023,
+          "beyond_cpu": false
+        },
+        {
+          "name": "crt",
+          "cycles": 193703,
+          "charged": 105007,
+          "table_clocks": 105007,
+          "table_cycles": 193742.6,
+          "error": -0.0002,
+          "beyond_cpu": false
+        },
+        {
+          "name": "io",
+          "cycles": 125487,
+          "charged": 68009,
+          "table_clocks": 68009,
+          "table_cycles": 125479.7,
+          "error": 6e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "int",
+          "cycles": 63685,
+          "charged": 34509,
+          "table_clocks": 34509,
+          "table_cycles": 63670.7,
+          "error": 0.00023,
+          "beyond_cpu": false
+        },
+        {
+          "name": "misc",
+          "cycles": 99642,
+          "charged": 54009,
+          "table_clocks": 54009,
+          "table_cycles": 99649.0,
+          "error": -7e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "loop",
+          "cycles": 83027,
+          "charged": 45013,
+          "table_clocks": 45013,
+          "table_cycles": 83051.0,
+          "error": -0.00029,
+          "beyond_cpu": false
+        },
+        {
+          "name": "pusha",
+          "cycles": 47974,
+          "charged": 26009,
+          "table_clocks": 26009,
+          "table_cycles": 47987.8,
+          "error": -0.00029,
+          "beyond_cpu": false
+        },
+        {
+          "name": "i386",
+          "cycles": 84863,
+          "charged": 46009,
+          "table_clocks": 46009,
+          "table_cycles": 84888.7,
+          "error": -0.0003,
+          "beyond_cpu": false
+        },
+        {
+          "name": "direct",
+          "cycles": 88566,
+          "charged": 48009,
+          "table_clocks": 48009,
+          "table_cycles": 88578.8,
+          "error": -0.00014,
+          "beyond_cpu": false
+        }
+      ],
+      "latency": {
+        "count": 29,
+        "max_clocks": 70.5,
+        "mean_clocks": 62.1,
+        "bound_clocks": 123,
+        "debt_max": 112
+      }
+    },
+    "386DX-40": {
+      "name": "386DX-40",
+      "run": {
+        "cycles": 2204469,
+        "retired": 230188,
+        "halted": 1,
+        "debt_max": 111,
+        "hold_cycles": 1368599,
+        "charged": 1434587
+      },
+      "loops": [
+        {
+          "name": "alu",
+          "cycles": 110502,
+          "charged": 72009,
+          "table_clocks": 72009,
+          "table_cycles": 110605.8,
+          "error": -0.00094,
+          "beyond_cpu": false
+        },
+        {
+          "name": "memory",
+          "cycles": 165865,
+          "charged": 108009,
+          "table_clocks": 108009,
+          "table_cycles": 165901.8,
+          "error": -0.00022,
+          "beyond_cpu": false
+        },
+        {
+          "name": "dword",
+          "cycles": 96764,
+          "charged": 63009,
+          "table_clocks": 63009,
+          "table_cycles": 96781.8,
+          "error": -0.00018,
+          "beyond_cpu": false
+        },
+        {
+          "name": "branch",
+          "cycles": 193563,
+          "charged": 126009,
+          "table_clocks": 126009,
+          "table_cycles": 193549.8,
+          "error": 7e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "stack",
+          "cycles": 142848,
+          "charged": 93009,
+          "table_clocks": 93009,
+          "table_cycles": 142861.8,
+          "error": -0.0001,
+          "beyond_cpu": false
+        },
+        {
+          "name": "muldiv",
+          "cycles": 119827,
+          "charged": 78009,
+          "table_clocks": 78009,
+          "table_cycles": 119821.8,
+          "error": 4e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "string",
+          "cycles": 76811,
+          "charged": 50009,
+          "table_clocks": 50009,
+          "table_cycles": 76813.8,
+          "error": -4e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "shift",
+          "cycles": 161257,
+          "charged": 105009,
+          "table_clocks": 105009,
+          "table_cycles": 161293.8,
+          "error": -0.00023,
+          "beyond_cpu": false
+        },
+        {
+          "name": "crt",
+          "cycles": 161247,
+          "charged": 105007,
+          "table_clocks": 105007,
+          "table_cycles": 161290.8,
+          "error": -0.00027,
+          "beyond_cpu": false
+        },
+        {
+          "name": "io",
+          "cycles": 104466,
+          "charged": 68009,
+          "table_clocks": 68009,
+          "table_cycles": 104461.8,
+          "error": 4e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "int",
+          "cycles": 53016,
+          "charged": 34509,
+          "table_clocks": 34509,
+          "table_cycles": 53005.8,
+          "error": 0.00019,
+          "beyond_cpu": false
+        },
+        {
+          "name": "misc",
+          "cycles": 82951,
+          "charged": 54009,
+          "table_clocks": 54009,
+          "table_cycles": 82957.8,
+          "error": -8e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "loop",
+          "cycles": 69120,
+          "charged": 45013,
+          "table_clocks": 45013,
+          "table_cycles": 69140.0,
+          "error": -0.00029,
+          "beyond_cpu": false
+        },
+        {
+          "name": "pusha",
+          "cycles": 39941,
+          "charged": 26009,
+          "table_clocks": 26009,
+          "table_cycles": 39949.8,
+          "error": -0.00022,
+          "beyond_cpu": false
+        },
+        {
+          "name": "i386",
+          "cycles": 70649,
+          "charged": 46009,
+          "table_clocks": 46009,
+          "table_cycles": 70669.8,
+          "error": -0.00029,
+          "beyond_cpu": false
+        },
+        {
+          "name": "direct",
+          "cycles": 73732,
+          "charged": 48009,
+          "table_clocks": 48009,
+          "table_cycles": 73741.8,
+          "error": -0.00013,
+          "beyond_cpu": false
+        }
+      ],
+      "latency": {
+        "count": 24,
+        "max_clocks": 66.4,
+        "mean_clocks": 58.4,
+        "bound_clocks": 123,
+        "debt_max": 111
+      }
+    },
+    "486DX-33": {
+      "name": "486DX-33",
+      "run": {
+        "cycles": 1729307,
+        "retired": 230185,
+        "halted": 1,
+        "debt_max": 116,
+        "hold_cycles": 852658,
+        "charged": 898319
+      },
+      "loops": [
+        {
+          "name": "alu",
+          "cycles": 63999,
+          "charged": 32016,
+          "table_clocks": 32016,
+          "table_cycles": 59071.0,
+          "error": 0.08343,
+          "beyond_cpu": true
+        },
+        {
+          "name": "memory",
+          "cycles": 77473,
+          "charged": 42016,
+          "table_clocks": 42016,
+          "table_cycles": 77521.4,
+          "error": -0.00062,
+          "beyond_cpu": false
+        },
+        {
+          "name": "dword",
+          "cycles": 55374,
+          "charged": 30016,
+          "table_clocks": 30016,
+          "table_cycles": 55380.9,
+          "error": -0.00012,
+          "beyond_cpu": false
+        },
+        {
+          "name": "branch",
+          "cycles": 150168,
+          "charged": 51016,
+          "table_clocks": 51016,
+          "table_cycles": 94126.8,
+          "error": 0.59538,
+          "beyond_cpu": true
+        },
+        {
+          "name": "stack",
+          "cycles": 116161,
+          "charged": 63016,
+          "table_clocks": 63016,
+          "table_cycles": 116267.4,
+          "error": -0.00091,
+          "beyond_cpu": false
+        },
+        {
+          "name": "muldiv",
+          "cycles": 156859,
+          "charged": 85016,
+          "table_clocks": 85016,
+          "table_cycles": 156858.3,
+          "error": 0.0,
+          "beyond_cpu": false
+        },
+        {
+          "name": "string",
+          "cycles": 73478,
+          "charged": 39816,
+          "table_clocks": 39816,
+          "table_cycles": 73462.3,
+          "error": 0.00021,
+          "beyond_cpu": false
+        },
+        {
+          "name": "shift",
+          "cycles": 110744,
+          "charged": 60016,
+          "table_clocks": 60016,
+          "table_cycles": 110732.2,
+          "error": 0.00011,
+          "beyond_cpu": false
+        },
+        {
+          "name": "crt",
+          "cycles": 75008,
+          "charged": 40016,
+          "table_clocks": 40016,
+          "table_cycles": 73831.3,
+          "error": 0.01594,
+          "beyond_cpu": true
+        },
+        {
+          "name": "io",
+          "cycles": 129097,
+          "charged": 70016,
+          "table_clocks": 70016,
+          "table_cycles": 129182.7,
+          "error": -0.00066,
+          "beyond_cpu": false
+        },
+        {
+          "name": "int",
+          "cycles": 45256,
+          "charged": 24516,
+          "table_clocks": 24516,
+          "table_cycles": 45233.1,
+          "error": 0.00051,
+          "beyond_cpu": false
+        },
+        {
+          "name": "misc",
+          "cycles": 70146,
+          "charged": 38016,
+          "table_clocks": 38016,
+          "table_cycles": 70141.2,
+          "error": 7e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "loop",
+          "cycles": 44301,
+          "charged": 24017,
+          "table_clocks": 24017,
+          "table_cycles": 44312.4,
+          "error": -0.00026,
+          "beyond_cpu": false
+        },
+        {
+          "name": "pusha",
+          "cycles": 22557,
+          "charged": 12016,
+          "table_clocks": 12016,
+          "table_cycles": 22170.1,
+          "error": 0.01745,
+          "beyond_cpu": true
+        },
+        {
+          "name": "i386",
+          "cycles": 51610,
+          "charged": 28016,
+          "table_clocks": 28016,
+          "table_cycles": 51690.8,
+          "error": -0.00156,
+          "beyond_cpu": false
+        },
+        {
+          "name": "direct",
+          "cycles": 42032,
+          "charged": 18016,
+          "table_clocks": 18016,
+          "table_cycles": 33240.3,
+          "error": 0.26449,
+          "beyond_cpu": true
+        }
+      ],
+      "latency": {
+        "count": 23,
+        "max_clocks": 63.4,
+        "mean_clocks": 53.4,
+        "bound_clocks": 118,
+        "debt_max": 116
+      }
+    },
+    "486DX2-66": {
+      "name": "486DX2-66",
+      "run": {
+        "cycles": 1113106,
+        "retired": 230152,
+        "halted": 1,
+        "debt_max": 101,
+        "hold_cycles": 181008,
+        "charged": 897648
+      },
+      "loops": [
+        {
+          "name": "alu",
+          "cycles": 63999,
+          "charged": 32016,
+          "table_clocks": 32016,
+          "table_cycles": 29491.2,
+          "error": 1.1701,
+          "beyond_cpu": true
+        },
+        {
+          "name": "memory",
+          "cycles": 60100,
+          "charged": 42016,
+          "table_clocks": 42016,
+          "table_cycles": 38702.6,
+          "error": 0.55287,
+          "beyond_cpu": true
+        },
+        {
+          "name": "dword",
+          "cycles": 48001,
+          "charged": 30016,
+          "table_clocks": 30016,
+          "table_cycles": 27648.9,
+          "error": 0.73609,
+          "beyond_cpu": true
+        },
+        {
+          "name": "branch",
+          "cycles": 150115,
+          "charged": 51016,
+          "table_clocks": 51016,
+          "table_cycles": 46992.8,
+          "error": 2.19442,
+          "beyond_cpu": true
+        },
+        {
+          "name": "stack",
+          "cycles": 60000,
+          "charged": 63016,
+          "table_clocks": 63016,
+          "table_cycles": 58046.5,
+          "error": 0.03365,
+          "beyond_cpu": true
+        },
+        {
+          "name": "muldiv",
+          "cycles": 78247,
+          "charged": 85016,
+          "table_clocks": 85016,
+          "table_cycles": 78311.6,
+          "error": -0.00082,
+          "beyond_cpu": false
+        },
+        {
+          "name": "string",
+          "cycles": 36674,
+          "charged": 39816,
+          "table_clocks": 39816,
+          "table_cycles": 36676.1,
+          "error": -6e-05,
+          "beyond_cpu": false
+        },
+        {
+          "name": "shift",
+          "cycles": 55286,
+          "charged": 60016,
+          "table_clocks": 60016,
+          "table_cycles": 55283.1,
+          "error": 5e-05,
+          "beyond_cpu": true
+        },
+        {
+          "name": "crt",
+          "cycles": 75008,
+          "charged": 40016,
+          "table_clocks": 40016,
+          "table_cycles": 36860.3,
+          "error": 1.03493,
+          "beyond_cpu": true
+        },
+        {
+          "name": "io",
+          "cycles": 64441,
+          "charged": 70016,
+          "table_clocks": 70016,
+          "table_cycles": 64494.5,
+          "error": -0.00083,
+          "beyond_cpu": false
+        },
+        {
+          "name": "int",
+          "cycles": 28528,
+          "charged": 24516,
+          "table_clocks": 24516,
+          "table_cycles": 22582.7,
+          "error": 0.26327,
+          "beyond_cpu": true
+        },
+        {
+          "name": "misc",
+          "cycles": 39999,
+          "charged": 38016,
+          "table_clocks": 38016,
+          "table_cycles": 35018.0,
+          "error": 0.14224,
+          "beyond_cpu": true
+        },
+        {
+          "name": "loop",
+          "cycles": 35999,
+          "charged": 24017,
+          "table_clocks": 24017,
+          "table_cycles": 22123.0,
+          "error": 0.62722,
+          "beyond_cpu": true
+        },
+        {
+          "name": "pusha",
+          "cycles": 22499,
+          "charged": 12016,
+          "table_clocks": 12016,
+          "table_cycles": 11068.4,
+          "error": 1.03272,
+          "beyond_cpu": true
+        },
+        {
+          "name": "i386",
+          "cycles": 29999,
+          "charged": 28016,
+          "table_clocks": 28016,
+          "table_cycles": 25806.6,
+          "error": 0.16245,
+          "beyond_cpu": true
+        },
+        {
+          "name": "direct",
+          "cycles": 42032,
+          "charged": 18016,
+          "table_clocks": 18016,
+          "table_cycles": 16595.2,
+          "error": 1.53277,
+          "beyond_cpu": true
+        }
+      ],
+      "latency": {
+        "count": 12,
+        "max_clocks": 78.2,
+        "mean_clocks": 51.4,
+        "bound_clocks": 118,
+        "debt_max": 101
+      }
+    }
+  },
+  "max": {
+    "spans": [
+      {
+        "name": "alu",
+        "cycles": 63999,
+        "charged": 0
+      },
+      {
+        "name": "memory",
+        "cycles": 60100,
+        "charged": 0
+      },
+      {
+        "name": "dword",
+        "cycles": 48001,
+        "charged": 0
+      },
+      {
+        "name": "branch",
+        "cycles": 150115,
+        "charged": 0
+      },
+      {
+        "name": "stack",
+        "cycles": 60000,
+        "charged": 0
+      },
+      {
+        "name": "muldiv",
+        "cycles": 54999,
+        "charged": 0
+      },
+      {
+        "name": "string",
+        "cycles": 19059,
+        "charged": 0
+      },
+      {
+        "name": "shift",
+        "cycles": 54002,
+        "charged": 0
+      },
+      {
+        "name": "crt",
+        "cycles": 75008,
+        "charged": 0
+      },
+      {
+        "name": "io",
+        "cycles": 55998,
+        "charged": 0
+      },
+      {
+        "name": "int",
+        "cycles": 28528,
+        "charged": 0
+      },
+      {
+        "name": "misc",
+        "cycles": 39999,
+        "charged": 0
+      },
+      {
+        "name": "loop",
+        "cycles": 35999,
+        "charged": 0
+      },
+      {
+        "name": "pusha",
+        "cycles": 22499,
+        "charged": 0
+      },
+      {
+        "name": "i386",
+        "cycles": 29999,
+        "charged": 0
+      },
+      {
+        "name": "direct",
+        "cycles": 42032,
+        "charged": 0
+      }
+    ],
+    "run": {
+      "cycles": 960032,
+      "retired": 230134,
+      "halted": 1,
+      "debt_max": 0,
+      "hold_cycles": 0,
+      "charged": 0
+    },
+    "latency_cycles": [
+      72,
+      36,
+      36,
+      46,
+      36,
+      36
+    ]
+  },
+  "override": {
+    "preset": "286-12",
+    "frequency": 60,
+    "loops": [
+      {
+        "name": "alu",
+        "cycles": 736937,
+        "charged": 72002,
+        "error": -0.00049
+      },
+      {
+        "name": "memory",
+        "cycles": 1382079,
+        "charged": 135002,
+        "error": -0.00025
+      },
+      {
+        "name": "dword",
+        "cycles": 1136341,
+        "charged": 111002,
+        "error": -0.00028
+      },
+      {
+        "name": "branch",
+        "cycles": 1382372,
+        "charged": 135002,
+        "error": -4e-05
+      },
+      {
+        "name": "stack",
+        "cycles": 1228820,
+        "charged": 120002,
+        "error": -0.0
+      },
+      {
+        "name": "muldiv",
+        "cycles": 911394,
+        "charged": 89002,
+        "error": 1e-05
+      },
+      {
+        "name": "string",
+        "cycles": 606228,
+        "charged": 59202,
+        "error": -0.0
+      },
+      {
+        "name": "shift",
+        "cycles": 1259246,
+        "charged": 123002,
+        "error": -0.00023
+      },
+      {
+        "name": "crt",
+        "cycles": 1228820,
+        "charged": 119999,
+        "error": 2e-05
+      },
+      {
+        "name": "io",
+        "cycles": 430095,
+        "charged": 42002,
+        "error": -1e-05
+      },
+      {
+        "name": "int",
+        "cycles": 307152,
+        "charged": 30002,
+        "error": -0.00022
+      },
+      {
+        "name": "misc",
+        "cycles": 614175,
+        "charged": 60002,
+        "error": -0.0004
+      },
+      {
+        "name": "loop",
+        "cycles": 368591,
+        "charged": 36002,
+        "error": -0.00019
+      },
+      {
+        "name": "pusha",
+        "cycles": 317392,
+        "charged": 31002,
+        "error": -0.00022
+      },
+      {
+        "name": "i386",
+        "cycles": 491351,
+        "charged": 48002,
+        "error": -0.00039
+      },
+      {
+        "name": "direct",
+        "cycles": 614274,
+        "charged": 60002,
+        "error": -0.00024
+      }
+    ]
+  },
+  "turbo": {
+    "preset": "286-12",
+    "loops_as_max": 16,
+    "loops": 16
+  },
+  "failures": []
+}

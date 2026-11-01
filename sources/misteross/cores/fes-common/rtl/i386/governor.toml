@@ -829,6 +829,79 @@ name = "clts"
 stems = ["0F06"]
 cost = [2, 5, 7]
 
+# Group 7 and MOV to and from CR0, CR2 and CR3 (Phase 2). The descriptor
+# table forms have only a memory operand.
+[[class]]
+name = "sgdt"
+stems = ["0F01.0"]
+memory = true
+cost = [11, 9, 10]
+
+[[class]]
+name = "sidt"
+stems = ["0F01.1"]
+memory = true
+cost = [12, 9, 10]
+
+[[class]]
+name = "lgdt"
+stems = ["0F01.2"]
+memory = true
+cost = [11, 11, 11]
+
+[[class]]
+name = "lidt"
+stems = ["0F01.3"]
+memory = true
+cost = [12, 11, 11]
+
+[[class]]
+name = "smsw_r"
+stems = ["0F01.4/r"]
+cost = [2, 2, 2]
+
+[[class]]
+name = "smsw_m"
+stems = ["0F01.4/m"]
+memory = true
+cost = [3, 3, 3]
+
+[[class]]
+name = "lmsw_r"
+stems = ["0F01.6/r"]
+cost = [3, 10, 13]
+
+[[class]]
+name = "lmsw_m"
+stems = ["0F01.6/m"]
+memory = true
+cost = [6, 13, 13]
+
+# 0F01h /5 and /7 raise #UD on the 386, and a faulting instruction does not
+# retire (its delivery is charged as INT), so this cost is never charged.
+[[class]]
+name = "group7_ud"
+stems = ["0F01.5", "0F01.7"]
+cost = [2, 2, 1]
+
+# MOV r32, CRn: 6 on the 386 and 4 on the i486 for every register.
+[[class]]
+name = "mov_from_cr"
+stems = ["0F20"]
+cost = [6, 6, 4]
+
+# MOV CRn, r32: the data sheets' CR0 counts (10 and 16); CR2 and CR3 take 4
+# (CR1 and CR4 to CR7 raise #UD).
+[[class]]
+name = "mov_to_cr0"
+stems = ["0F22.0"]
+cost = [10, 10, 16]
+
+[[class]]
+name = "mov_to_cr"
+stems = ["0F22.1", "0F22.2", "0F22.3", "0F22.4", "0F22.5", "0F22.6", "0F22.7"]
+cost = [4, 4, 4]
+
 # SALC (D6h), which the data sheets leave out: a register ALU operation's cost.
 [[class]]
 name = "salc"

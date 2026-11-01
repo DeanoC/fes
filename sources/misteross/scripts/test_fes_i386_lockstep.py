@@ -128,6 +128,10 @@ SCOPE: frozenset[str] = frozenset([
     '27', '2F', '37', '3F',
     # CLTS and WAIT.
     '0F06', '9B',
+    # Phase 2: group 7 (SGDT, SIDT, LGDT, LIDT, SMSW, LMSW) and MOV to and
+    # from CR0, CR2 and CR3. The corpus has none; the random programs and
+    # the protected-mode cases run them.
+    '0F01', '0F20', '0F22',
 ])
 
 
@@ -142,6 +146,11 @@ def in_scope(stem: str) -> bool:
 
 # Opcodes whose MOO stem carries the ModRM reg field, as lockstep_tb.cpp's
 # grouped().
+# The protected-mode random programs: their seeds start here, and they have
+# this many protected-mode blocks per hundred items.
+PM_SEED = 1000
+PM_WEIGHT = 30
+
 GROUPED_ONE = frozenset([0x80, 0x81, 0x82, 0x83, 0xC0, 0xC1, 0xD0, 0xD1, 0xD2, 0xD3, 0xF6, 0xF7, 0xFE, 0xFF])
 
 
@@ -209,6 +218,21 @@ def run_directed(testbench: str, env: dict) -> dict:
     summary, failures = parse_output(result.stdout)
     if summary['runs'] != 40:
         raise LockstepError(f'directed cases: testbench ran {summary["runs"]} of 40 cases')
+    return {'summary': summary, 'failures': failures}
+
+
+def run_unreal(testbench: str, env: dict) -> dict:
+    """The directed unreal-mode cases (lockstep_tb.cpp's run_unreal_cases):
+    extended DS, ES, FS, GS and SS limits that survive real-mode reloads, a
+    normal GS and SS that fault at FFFFh, the 386 real-mode CS rule, and a
+    protected-mode MOV Sreg reading its selector from a segment's last word."""
+    env = dict(env, FES_I386_MODE='unreal', FES_I386_LATENCY='1')
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'unreal cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != 6:
+        raise LockstepError(f'unreal cases: testbench ran {summary["runs"]} of 6 cases')
     return {'summary': summary, 'failures': failures}
 
 
@@ -281,15 +305,17 @@ def run_biu_dma_test(verilator: str, jobs: int) -> dict:
 
 
 # What a governed run must share with max's (--same-as): every count but
-# timing's, and the trace hashes.
+# timing's, and the trace hashes, the protected-mode programs' with them. The
+# trace hash covers EIP, the GPRs and EFLAGS only, so the PE retirements and
+# real-mode CS loads under the 386 rule are compared as counts.
 SAME_CORPUS = ('tests', 'passed', 'retired_to_hlt', 'faults', 'retirements', 'mmio_runs', 'mmio_accesses',
                'io_accesses', 'interrupts')
 SAME_RANDOM = ('runs', 'passed', 'retirements', 'halts', 'faults', 'double_faults', 'retire_limits', 'io_accesses',
                'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops', 'window_code_stops',
-               'code_store_stops', 'stray_stops', 'mmio_runs', 'mmio_accesses')
+               'code_store_stops', 'stray_stops', 'mmio_runs', 'mmio_accesses', 'pm_retirements', 'cs_rule')
 SAME_MODE = ('runs', 'passed', 'failed', 'retirements', 'halts', 'interrupts', 'faults', 'fault_vectors',
              'double_faults', 'io_accesses', 'external_interrupts', 'nmis', 'rep_interrupts', 'divergence_retirements',
-             'trace_hash')
+             'pm_retirements', 'cs_rule', 'trace_hash')
 
 
 def same_as(report: dict, other: dict) -> list[str]:
@@ -312,7 +338,11 @@ def same_as(report: dict, other: dict) -> list[str]:
         compare(f'random {key}', report['random']['totals'].get(key), other['random']['totals'].get(key))
     for key in ('seeds', 'programs_per_seed', 'trace_hashes'):
         compare(f'random {key}', report['random'].get(key), other['random'].get(key))
-    for mode in ('directed_cases', 'memory_cases', 'reset_store'):
+    for key in SAME_RANDOM:
+        compare(f'pmode {key}', report['pmode']['totals'].get(key), other['pmode']['totals'].get(key))
+    for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'pm_stops'):
+        compare(f'pmode {key}', report['pmode'].get(key), other['pmode'].get(key))
+    for mode in ('directed_cases', 'unreal_cases', 'memory_cases', 'reset_store'):
         for key in SAME_MODE:
             compare(f'{mode} {key}', report[mode]['summary'].get(key), other[mode]['summary'].get(key))
     compare('unbuilt encodings', report['unbuilt']['encodings'], other['unbuilt']['encodings'])
@@ -371,9 +401,11 @@ def run_file(path: str, testbench: str, env: dict, revoked: frozenset[str], entr
     return {'stem': stem, 'tests': len(tests), 'summary': summary, 'failures': failures}
 
 
-def run_random(testbench: str, env: dict, seed: int, programs: int, latency: bool) -> dict:
+def run_random(testbench: str, env: dict, seed: int, programs: int, latency: bool, pm_weight: int = 2) -> dict:
+    """Random programs of one seed. pm_weight: protected-mode blocks per hundred
+    items (lockstep_tb.cpp's pm_block)."""
     env = dict(env, FES_I386_MODE='random', FES_I386_SEED=str(seed), FES_I386_PROGRAMS=str(programs),
-               FES_I386_LATENCY='1' if latency else '0')
+               FES_I386_LATENCY='1' if latency else '0', FES_I386_PM=str(pm_weight))
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
         raise LockstepError(f'random seed {seed}: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
@@ -391,6 +423,8 @@ def main() -> int:
     parser.add_argument('--random-programs', type=int, default=2000, help='random programs per seed (default 2000)')
     parser.add_argument('--random-seeds', type=int, default=16, help='seeds, run in parallel (default 16)')
     parser.add_argument('--seed', type=int, default=1, help='the first random seed')
+    parser.add_argument('--pm-programs', type=int, default=500,
+                        help='random programs per seed dense with protected-mode blocks (default 500)')
     parser.add_argument('--no-latency', action='store_true', help='no fetch latency in the corpus run')
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--yosys', help="simulate this Yosys's netlist of the CPU instead of the RTL")
@@ -405,7 +439,7 @@ def main() -> int:
         parser.error('--corpus must be absolute')
     if args.same_as is not None and not args.same_as.is_absolute():
         parser.error('--same-as must be absolute')
-    if args.random_programs < 0 or args.random_seeds < 1 or args.seed < 0:
+    if args.random_programs < 0 or args.pm_programs < 0 or args.random_seeds < 1 or args.seed < 0:
         parser.error('--random-programs must be nonnegative, --random-seeds positive, --seed nonnegative')
     if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
         parser.error('simulation does not use the shared compiler cache')
@@ -432,6 +466,7 @@ def main() -> int:
                    FES_I386_PRESET=str(args.preset))
         reset_store = run_reset_store(testbench, env)
         directed = run_directed(testbench, env)
+        unreal = run_unreal(testbench, env)
         memory = run_memory(testbench, env)
 
         corpus = args.corpus or vectors.OUTPUT / 'corpus' / vectors.REVISION
@@ -454,6 +489,11 @@ def main() -> int:
             # The same programs without latency must retire the same trace.
             steady = [executor.submit(run_random, testbench, env, args.seed + n, args.random_programs, False)
                       for n in range(min(2, args.random_seeds) if args.random_programs else 0)]
+            # Programs dense with protected-mode blocks (PM_WEIGHT per hundred
+            # items), from seeds of their own.
+            pmode = [executor.submit(run_random, testbench, env, PM_SEED + args.seed + n, args.pm_programs, True,
+                                     PM_WEIGHT)
+                     for n in range(args.random_seeds if args.pm_programs else 0)]
             unbuilt_lines = unbuilt_encodings()
             unbuilt_chunks = [unbuilt_lines[n::args.jobs] for n in range(args.jobs)]
             unbuilt = [executor.submit(run_unbuilt, testbench, env, chunk) for chunk in unbuilt_chunks if chunk]
@@ -461,6 +501,7 @@ def main() -> int:
             unbuilt_results = [future.result() for future in unbuilt]
             random_results = [future.result() for future in randoms]
             steady_results = [future.result() for future in steady]
+            pmode_results = [future.result() for future in pmode]
     except (OSError, oracle.OracleError, frontend.FrontendError, vectors.CorpusError, LockstepError,
             json.JSONDecodeError, KeyError) as error:
         print('i386 lockstep error:', error, file=sys.stderr)
@@ -484,15 +525,20 @@ def main() -> int:
     totals = sum(by_opcode.values(), Counter())
     fault_vectors = sum((Counter(result['summary']['fault_vectors']) for result in corpus_results), Counter())
     divergences = sum((Counter(result['summary']['divergence_retirements']) for result in corpus_results), Counter())
-    random_totals = sum((Counter({key: result['summary'][key] for key in
-                                  ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults',
-                                   'double_faults', 'retire_limits', 'load_wait_cycles', 'io_accesses',
-                                   'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops',
-                                   'window_code_stops', 'code_store_stops', 'stray_stops', 'mmio_runs',
-                                   'mmio_accesses', 'replays', 'smc_restarts', 'port0_reads', 'port0_writes')})
-                         for result in random_results),
-                         Counter())
-    random_failures = [line for result in random_results + steady_results for line in result['failures']]
+    def random_sum(results: list[dict]) -> Counter:
+        return sum((Counter({key: result['summary'][key] for key in
+                             ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults',
+                              'double_faults', 'retire_limits', 'load_wait_cycles', 'io_accesses',
+                              'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops',
+                              'window_code_stops', 'code_store_stops', 'stray_stops', 'mmio_runs',
+                              'mmio_accesses', 'replays', 'smc_restarts', 'port0_reads', 'port0_writes',
+                              'pm_retirements', 'cs_rule')})
+                    for result in results), Counter())
+    random_totals = random_sum(random_results)
+    pmode_totals = random_sum(pmode_results)
+    pm_stops = sum((Counter(result['summary']['pm_stops']) for result in random_results + pmode_results), Counter())
+    random_failures = [line for result in random_results + steady_results + pmode_results
+                       for line in result['failures']]
     hash_mismatches = [result['seed'] for result in steady_results
                        if result['summary']['trace_hash'] != next(
                            other['summary']['trace_hash'] for other in random_results if other['seed'] == result['seed'])]
@@ -510,7 +556,7 @@ def main() -> int:
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
     random_failures += held
     reset_store_failures = reset_store['failures']
-    directed_failures = directed['failures']
+    directed_failures = directed['failures'] + unreal['failures']
     memory_failures = memory['failures']
     if (biu_dma_failures or corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures
             or directed_failures or memory_failures):
@@ -519,6 +565,7 @@ def main() -> int:
         'biu_dma_test': biu_dma,
         'reset_store': reset_store,
         'directed_cases': directed,
+        'unreal_cases': unreal,
         'memory_cases': memory,
         'governor': {'preset': args.preset},
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
@@ -532,6 +579,9 @@ def main() -> int:
                    'trace_hashes': {str(result['seed']): result['summary']['trace_hash'] for result in random_results},
                    'trace_hash_mismatches': hash_mismatches, 'latency_free_gaps': gaps,
                    'failures': random_failures[:200]},
+        'pmode': {'seeds': [result['seed'] for result in pmode_results], 'programs_per_seed': args.pm_programs,
+                  'pm_weight': PM_WEIGHT, 'totals': dict(pmode_totals), 'pm_stops': dict(pm_stops),
+                  'trace_hashes': {str(result['seed']): result['summary']['trace_hash'] for result in pmode_results}},
     })
     if args.same_as is not None:
         differences = same_as(report, json.loads(args.same_as.read_text()))
@@ -564,6 +614,13 @@ def main() -> int:
               f"string's elements), {random_totals['failed']} fail; "
               f"latency-free reruns of seeds {[result['seed'] for result in steady_results]}: "
               f"{'trace unchanged' if not hash_mismatches else 'TRACE CHANGED for ' + str(hash_mismatches)}")
+    if pmode_results:
+        print(f"protected mode: {len(pmode_results)} seeds x {args.pm_programs} programs dense with protected-mode "
+              f"blocks, {pmode_totals['retirements']} retirements ({pmode_totals['pm_retirements'] + random_totals['pm_retirements']} "
+              f"with PE set in these and the random programs): {pmode_totals['passed']} pass, "
+              f"{pmode_totals['failed']} fail; {sum(pm_stops.values())} stopped at an exception or interrupt with PE set "
+              f"{dict(sorted(pm_stops.items(), key=lambda item: int(item[0])))}; "
+              f"{pmode_totals['cs_rule'] + random_totals['cs_rule']} real-mode CS loads under the 386 rule")
         def share(histogram: dict, cycles: int) -> str:
             total = sum(histogram.values())
             return f'{100 * histogram.get(cycles, 0) / total:.1f}%' if total else '-'
@@ -583,6 +640,8 @@ def main() -> int:
     print(f"BIU DMA/store: {biu_dma['output'] or 'FAIL'}")
     print(f"reset-store-on-reset: {reset_store['summary']['passed']} pass, {reset_store['summary']['failed']} fail")
     print(f"directed cases: {directed['summary']['passed']} pass, {directed['summary']['failed']} fail")
+    print(f"unreal-mode cases: {unreal['summary']['passed']} pass, {unreal['summary']['failed']} fail "
+          f"({unreal['summary']['cs_rule']} real-mode CS loads under the 386 rule)")
     print(f"memory cases (DMA, FLUSH): {memory['summary']['passed']} pass, {memory['summary']['failed']} fail")
     if args.preset:
         print(f'governor preset {args.preset}: the latency-free holds are not checked')

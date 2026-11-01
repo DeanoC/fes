@@ -34,18 +34,21 @@ FIELDS: tuple[tuple[str, int], ...] = (
     ('s1', 1), ('s1_idx', 3), ('s2', 1), ('s2_idx', 3),
     ('d', 1), ('d_space', 2), ('d_idx', 4),
     ('mkind', 2), ('mbytes', 2), ('in_a', 1), ('stk', 3), ('slot', 4), ('ivt', 1), ('sel_part', 1),
-    ('probe', 1), ('b', 2), ('seg', 3),
+    ('probe', 1), ('b', 3), ('seg', 3),
     ('far_jmp', 1), ('far_chk', 1), ('far_t', 1), ('sp_add', 1), ('sp_step', 1), ('a_t1', 1), ('popad_esp', 1),
     ('rd_cf', 1), ('rd_oszap', 1), ('wr_cf', 1), ('wr_oszap', 1), ('iret', 1), ('rg', 1), ('rm', 1), ('bound', 1),
+    ('desc', 2), ('segchk', 2), ('segw', 1), ('shadow', 1), ('nochk', 1), ('plus2', 1), ('sys', 3),
 )
 WIDTH = sum(width for _, width in FIELDS)
 
+TEMP = {'t0': 0, 't1': 8, 't2': 9, 't3': 10}
 GPR = {'eax': 0, 'ecx': 1, 'edx': 2, 'ebx': 3, 'esp': 4, 'ebp': 5, 'esi': 6, 'edi': 7}
 SEG = {'es': 0, 'cs': 1, 'ss': 2, 'ds': 3, 'fs': 4, 'gs': 5}
 # Named values; a field not listed takes an integer.
 VALUES: dict[str, dict[str, int]] = {
-    'cls': {'alu': 0, 'shift': 1, 'branch': 4, 'segment': 5, 'special': 7},
-    'op': {'cmp': 7, 'mov': 9, 'jmp': 1, 'movzx': 15, 'flags': 30},
+    'cls': {'alu': 0, 'shift': 1, 'branch': 4, 'segment': 5, 'system': 6, 'special': 7},
+    'op': {'cmp': 7, 'mov': 9, 'jmp': 1, 'movzx': 15, 'flags': 30,
+           'cr0': 1, 'lmsw': 2, 'cr2': 3, 'cr3': 4, 'gdtr': 5, 'idtr': 6},
     'size': {'osz': 0, '16': 1, '32': 2, '8': 3},
     'src_size': {'osz': 0, '16': 1, '32': 2, '8': 3},
     'mbytes': {'osz': 0, '2': 1, '4': 2, '1': 3},
@@ -53,8 +56,11 @@ VALUES: dict[str, dict[str, int]] = {
     'd_space': {'gpr': 0, 'temp': 1, 'seg': 2},
     'stk': {'none': 0, 'push': 1, 'pop': 2, 'peek': 5, 'retf': 6, 'probe': 7},
     'probe': {'none': 0, 'int': 1},
-    'b': {'src2': 0, 'eip': 1, 'sel': 2},
+    'b': {'src2': 0, 'eip': 1, 'sel': 2, 'far': 3, 't1': 4, 'sys': 5},
     'seg': SEG,
+    'desc': {'none': 0, 'lo': 1, 'hi': 2, 'acc': 3},
+    'segchk': {'none': 0, 'data': 1, 'ss': 2, 'cs': 3},
+    'sys': {'cr0': 0, 'cr2': 1, 'cr3': 2, 'gdtl': 3, 'gdtb': 4, 'idtl': 5, 'idtb': 6},
 }
 # Shorthands: a register as a source or destination.
 REGS = {'s1': 's1_idx', 's2': 's2_idx'}
@@ -84,11 +90,14 @@ def encode(uop: dict, last: bool, where: str) -> int:
                 raise UcodeError(f'{where}: a = {value!r}: only t1')
             values['a_t1'] = 1
         elif key == 'd':
-            # A GPR, T0 or T1, or a segment register.
+            # A GPR, the instruction's register (rg), a temporary (T0, or
+            # T1-T3 with index bit 3), or a segment register.
             if value in GPR:
                 values.update(d=1, d_space=0, d_idx=GPR[value])
-            elif value in ('t0', 't1'):
-                values.update(d=1, d_space=1, d_idx=8 if value == 't1' else 0)
+            elif value == 'reg':
+                values.update(d=1, d_space=0, rg=1)
+            elif value in TEMP:
+                values.update(d=1, d_space=1, d_idx=TEMP[value])
             elif value in SEG:
                 values.update(d=1, d_space=2, d_idx=SEG[value])
             else:

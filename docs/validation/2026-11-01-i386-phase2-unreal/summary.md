@@ -1,0 +1,541 @@
+# i386 Phase 2, first slice: protected-mode entry, descriptor loads and unreal mode, 1 November 2026
+
+Issue [#1370](https://github.com/DeanoC/fes/issues/1370), the CPU half of
+[#1369](https://github.com/DeanoC/fes/issues/1369), part of
+[#1267](https://github.com/DeanoC/fes/issues/1267) (pc386 M5) and the i386
+design's Phase 2. The kit runs of Ultima VII and Wolfenstein 3D with XMS
+need #1335's keyboard and mouse on main and stay with #1369
+([Not in this record](#not-in-this-record)).
+
+**Result:**
+- `fes_i386_cpu` now enters and leaves protected mode at CPL 0. It has MOV
+  to and from CR0, CR2 and CR3, LMSW and SMSW, LGDT, SGDT, LIDT and SIDT.
+  It loads DS, ES, FS, GS and SS from the GDT with their checks, error codes
+  and accessed bit, and far JMPs to a code descriptor. Data segments keep
+  their protected-mode cache in real mode (unreal mode); a real-mode CS load
+  takes the 386 values ([What the slice builds](#what-the-slice-builds)).
+- The RTL and the i386 lock's Yosys netlist match Bochs on every existing
+  lockstep run: 1,758,699 corpus states, 32,000 random programs, the
+  directed and memory cases. They also match on 8,000 new random programs
+  dense with protected-mode blocks, 417,342 retirements of them with PE set,
+  and on six directed unreal-mode cases ([Lockstep](#lockstep)).
+- The SingleStepTests vector runner and test386 give the same results as
+  main's adapter, byte for byte ([Oracle runners](#oracle-runners)).
+- FreeDOS boots with HIMEMX and no `/MAX=0` on the RTL CPU in the machine sim
+  and in `system_tb`. HIMEMX enters protected mode on the RTL to set up
+  unreal mode. MEM, run from the prompt and from AUTOEXEC.BAT, reports
+  15,360K of XMS, and FreeCOM's XMS swap runs it, with no stop and no oracle
+  step ([Machine](#freedos-with-himemx-on-the-rtl-cpu)). One `system_tb` run
+  met a bench gap in its DDR model after every check had passed; it is
+  filed as #1372.
+- On Kit B the sealed package boots FreeDOS with HIMEMX's full 15,360K of
+  XMS, and Ultima VII: The Black Gate plays its intro with sound and reaches
+  its main menu. That took two DOS set-up changes: no FreeCOM environment at
+  the top of memory, and HIMEMX on the 8042's A20 without `DOS=HIGH`. Both
+  first failed the same way on the Bochs CPU
+  ([Kit B](#kit-b-smoke-test-ultima-viis-intro-and-menu-on-hardware)).
+- Quartus 17.0.2 seals `fes.pc386` from a clean checkout at 61.44 MHz with
+  every analysis met: setup +0.584 ns (the pixel clock; the system clock
+  has +2.167 ns, 70.9 MHz at its slowest corner), hold +0.038 ns,
+  26,453 ALMs, about 2,210 more than main's last seal ([Seal](#quartus-seal)).
+- Codex's review found that a protected-mode MOV Sreg, m16 read four bytes.
+  It is fixed, with a directed case that fails without the fix
+  ([Review](#review)).
+- Main with #1335 (keyboard and mouse) and #1364 (the governor) is merged in
+  as `b7b4cb7dc`, and that tree is resealed: setup +1.049 ns, hold
+  +0.080 ns, system clock 72.4-74.8 MHz, 28,311 ALMs. The lockstep, the
+  pc386 suites and three Kit B runs of the new package pass, with the
+  governor invisible at `max` and under 286-12
+  ([Main merge](#main-merge-keyboard-mouse-and-the-governor)).
+
+## Main merge: keyboard, mouse and the governor
+
+`b7b4cb7dc` merges main `8120c22b1`, which brings #1335 (`011a16bf8`,
+keyboard and mouse, with its final keyboard RTL `385356c54` and `5957397c0`)
+and #1364 (`d70d6f353`, the speed governor). This seal is the one that covers
+them: neither of their final RTL trees had been sealed on main.
+
+**Conflicts.** Each side's behaviour is kept:
+- `fes_i386_cpu.sv`: both header paragraphs; the decoder port keeps this
+  branch's `.pe(cr0_pe)` and takes main's `q_opsize32`, which main routes
+  to `dc_q.opsize32` as before.
+- `pc386_system.sv`: this branch's CR0, CR2, CR3, GDTR and IDTR reset values
+  with main's sized `init_gpr` (DeanoC/yosys#71).
+- `spike_cpu.sv`: the protected-mode init and arch ports beside the
+  governor's, and both sets of trace bits in the signature.
+- `test_fes_i386_lockstep.py`: main's `--same-as` check beside
+  `--pm-programs`'.
+- `rtl/i386/README.md`: the governor and Phase 2 in the opening paragraph.
+
+`machine_tb.cpp`, `lockstep_tb.cpp`, `fes_i386_pkg.sv`, `sim_fes_pc386.py`
+and the design document merged without conflict.
+
+**Integration.** Two changes make the sides work together:
+- **Governor classes for the Phase 2 instructions.** The lockstep's SCOPE
+  gained 0F01, 0F20 and 0F22 in this branch, and the governor's unit test
+  requires every SCOPE stem to have a cost class. `governor.toml` now costs
+  them from the table's own source:
+
+  | Class | Stems | 286, 386, 486 |
+  | --- | --- | --- |
+  | `sgdt`, `sidt` | 0F01 /0, /1 (memory) | 11, 9, 10; 12, 9, 10 |
+  | `lgdt`, `lidt` | 0F01 /2, /3 (memory) | 11, 11, 11; 12, 11, 11 |
+  | `smsw_r`, `smsw_m` | 0F01 /4 | 2, 2, 2; 3, 3, 3 |
+  | `lmsw_r`, `lmsw_m` | 0F01 /6 | 3, 10, 13; 6, 13, 13 |
+  | `group7_ud` | 0F01 /5, /7 (#UD on a 386; never charged) | 2, 2, 1 |
+  | `mov_from_cr` | 0F20 | 6, 6, 4 |
+  | `mov_to_cr0`, `mov_to_cr` | 0F22 /0; the rest | 10, 10, 16; 4, 4, 4 |
+
+  The 286 has no MOV CRn, so it is charged as the 386, as the table's rule
+  says. A protected-mode descriptor load or far JMP is charged its
+  real-mode count, as every class is. The protected-mode far JMP's taken
+  uop carries `seg2`, so the governor does not charge it as a taken branch,
+  as for a real-mode far jump. `fes_i386_gov_pkg.sv` and `fes_i386_gov_rom.sv`
+  are regenerated, and `CLASS_BITS` stays 7.
+- **`--same-as` covers this branch's runs.** It also compares the
+  unreal-mode cases and the protected-mode programs: their totals, PM stops
+  and trace hashes, which the `pmode` section now reports. After Codex's
+  review it compares, in every section, the retirements with PE set and the
+  real-mode CS loads under the 386 rule, since the trace hash covers only
+  EIP, the GPRs and EFLAGS ([Review](#review)).
+
+**Checks at `b7b4cb7dc`:**
+
+| Run | Result |
+| --- | --- |
+| Lockstep at `max` ([report](lockstep-merge-max-report.json)) | Pass: corpus 1,758,699, random 32,000, protected-mode programs 8,000 (417,342 retirements with PE set, 11,765 compared PE=1 stops), unbuilt 53,344 stopped, directed 40, unreal-mode 6, memory 26. Every field equals the pre-merge report at `eee033a9d`, cycle counts included (174,952,748 corpus, 117,415,070 random, 10,375,784 protected-mode); only the new trace-hash and governor fields are added |
+| Lockstep under 286-12, `--preset 1 --same-as` the `max` report ([report](lockstep-merge-286-12-report.json)) | Pass, with every architectural result equal to `max`'s, the protected-mode programs and unreal-mode cases included. Cycles grow as they should: corpus 195,084,746, random 771,364,560, protected-mode 51,196,487. Rechecked against the review fix's comparison: no differences, with 417,342 retirements with PE set and 1,269 real-mode CS loads under the 386 rule in the random and protected-mode programs (75 and 2 in the unreal-mode cases), as at `max` |
+| test386.asm on the oracle | POST to FFh, 44,926 EE lines with none differing, final RAM `44597188…`: identical to the run before the merge |
+| `sim_fes_pc386.py --suite devices` ([report](devices-merge-report.json)) | 132 checks pass, #1335's keyboard and typematic checks among them |
+| `--suite boot` (oracle) ([report](boot-merge-oracle-report.json)) | `C:\>` at 4.3 s; the VGA replay has 0 mismatches |
+| `--suite boot --cpu rtl` ([report](boot-merge-rtl-report.json)) | `C:\>` at 2.35 s; all 113,545,269 instructions retired on the RTL, with 0 oracle steps and 0 stops; the VGA replay has 0 mismatches |
+| `--suite system` ([report](system-merge-report.json)) | 16 checks pass. `C:\>` at 3.309 s, `M5:Kb!`, `MOUSE X=+172 Y=-72 LEFT=2/2 RIGHT=1/1 PACKETS=10` and `KEYS 48E0 3B00 53E0 1E41`, as in #1335's record; the save, the record and its round trip pass |
+| Machine sim, RTL CPU, HIMEMX games image, `mem` typed ([report](machine-himem-merge-report.json)) | Pass: the prompt at 2.40 s and MEM's output by 3.65 s, with 15,360K of XMS, 159K used and 15,201K free. All 98,806,612 instructions retired on the RTL: 0 oracle steps, 0 stops, 1 protected-mode entry and 6 retirements with PE set, as before the merge |
+| `system_tb`, HIMEMX boot fixture with MEM, `--seed 1 --exercise-input 0` ([report](system-himem-merge-report.json)) | Pass: `C:\>` at 2.85 s after 47,423,516 instructions, the same count as before the merge. HIMEMX reports `XMS 3.00 80386 4G`, MEM shows 15,360K of XMS, 159K used and 15,201K free, and every check passes. #1335's bench types its keyboard and mouse exercise at the prompt by default; on this disk its typed echo passes, but the disk has no INPUT.COM for the mouse check, and the typing scrolls MEM away, so this run turns the exercise off |
+| `--suite governor` ([report](governor-merge-report.json)) | Pass. Passes in a tick, DelayCnt and passes in 18 ticks: `max` 210,892, 3,834, 3,796,053 (as #1364's record); 286-12 27,453, 499, 494,130; 386SX-16 39,932, 726, 718,749; 386DX-25 65,376, 1,188, 1,176,722; 386DX-40 104,610, 1,902, 1,882,937. Each is within 0.04% of the table and within 2 counts of #1364's run |
+| `test_fes_i386_governor.py` ([report](governor-bench-merge-report.json)) | Pass: every loop under presets 1-5 (286-12 to 386DX-40) within 0.1% of the table, interrupt latency within its bound under every preset, 286-12 at 6 MHz within 0.05%, and turbo charging nothing. The report equals the same bench run on main `8120c22b1`, field for field: this branch changes no cycle the bench measures, governed or not |
+| misteross unit tests | 1,612 pass, 74 skipped |
+| `make test-changed` against main `8120c22b1` | Every planned lane passes: the planner tests, whitespace, the parent Python regressions (1,051, 3 skipped), generated-consumer consistency, misteross's tests (1,612, 74 skipped) and `make sim-fes-pc386` |
+
+**Seal.** `make build-fes-pc386-quartus` at seed 1 from a clean worktree of
+`b7b4cb7dc` ([`seal-merge-summary.json`](seal-merge-summary.json)). All 109
+input hashes match `b7b4cb7dc`. They include main's `pc386_hid_keyboard.sv`
+(its final typematic fixes), `pc386_kbc.sv` with the mouse, and the
+governor's `fes_i386_governor.sv`, `fes_i386_gov_pkg.sv` and
+`fes_i386_gov_rom.sv`. Every analysis passes, with no illegal or
+unconstrained clocks.
+
+| | Merge seal, `b7b4cb7dc` | This branch, `eee033a9d` | This branch, `c4a1c23a4` | #1335, `2bcd5bc3e` | #1364, `ab30f6c11` |
+| --- | --- | --- | --- | --- | --- |
+| Build ID, package | `530f136f…`, `604cab9b…` | `e9629ee9…`, `cd427942…` | `0e6955d4…`, `6e0a663a…` | `4b5c4811…`, `52845102…` | `c210ae8b…`, `dcaea9ce…` |
+| System Fmax, slow corners (61.44 MHz) | 72.43-74.83 MHz, setup +2.470 ns | 70.88-74.25 MHz, +2.167 ns | 73.14-73.25 MHz | not recorded | 70.37 MHz at the slow corner |
+| Pixel Fmax (74.27 MHz) | 80.55-81.01 MHz | 77.64-78.24 MHz | 76.60-77.01 MHz | not recorded | not recorded |
+| Setup, hold slack | +1.049 (pixel), +0.080 ns | +0.584 (pixel), +0.038 ns | +0.409 (pixel), +0.064 ns | +1.318, +0.112 ns | +1.478, +0.092 ns |
+| Recovery, removal, pulse width | +5.948, +0.264, +1.122 ns | +5.576, +0.452, +1.122 ns | +7.922, +0.396, +1.122 ns | +7.584, +0.436, +1.122 ns | +7.631, +0.435, +1.122 ns |
+| ALMs | 28,311 of 41,910 (68%) | 26,453 | 26,436 | 25,654 | 24,318 |
+| Registers | 25,527 | 24,064 | 24,176 | not recorded | 22,315 |
+| RAM blocks | 257 | 256 | 256 | 254 | 257 |
+| DSP blocks | 32 | 29 | 29 | 30 | 31 |
+| RBF | 3,576,248 bytes, SHA-256 `a98aeb51…` | 3,556,688 bytes | 3,557,656 bytes | 3,563,352 bytes | not recorded |
+
+The worst setup path is the pixel clock's, +1.049 ns in the slow -40 C
+corner; the system clock has +2.470 ns there and +2.913 ns at 100 C. The
+worst hold path is the system clock's, +0.080 ns in the fast -40 C corner.
+Against this branch's last seal the tree adds #1335's keyboard and mouse
+(25,654 against 24,246 ALMs on main before it) and the governor (24,318),
+about 1,850 ALMs in all.
+
+**Kit B** (each run claimed and released on its own in Powerboat's
+`kitB-STATUS.md`, core-only on the kit's baseline: software
+`f786f7b3` from main `30595667`, image `f904961e`; nothing installed, no image
+change, no reboot, no host change; after each the baseline was unchanged,
+the agent idle and its lease free). All ran package `604cab9b…`:
+- **m5i8, keyboard and mouse** (23:00-23:01 EET,
+  [`kit-m5i8-result.json`](kit-m5i8-result.json),
+  [`kit-m5i8-report.png`](kit-m5i8-report.png)): #1335's runner and
+  FreeDOS disk with INPUT.COM (`51f3c8fe…`), driven through the agent's input
+  stream. `echo M5:Kb!` echoes, a held X repeats and stops at its release,
+  and INPUT.COM prints `MOUSE X=+172 Y=-72 LEFT=2/2 RIGHT=1/1 PACKETS=10`
+  and `KEYS 48E0 3B00 53E0 1E41`, as `system_tb` does. This is the
+  exact-package kit run that #1335's final keyboard RTL did not have.
+- **gov2, governor spot check** (23:01-23:02 EET,
+  [`kit-gov2-result.json`](kit-gov2-result.json)): #1364's runner and
+  governor test disk (`0cc048d2…`) at `max` and 286-12, with the screens
+  [`kit-gov2-max.png`](kit-gov2-max.png) and
+  [`kit-gov2-286-12.png`](kit-gov2-286-12.png):
+
+  | Preset | Passes in a tick | DelayCnt | Passes in 18 ticks | #1364's kit run gov1 |
+  | --- | ---: | ---: | ---: | --- |
+  | `max` | 210,892 | 3,834 | 3,796,053 | 210,892, 3,834, 3,796,054 |
+  | 286-12 | 27,454 | 499 | 494,129 | 27,454, 499, 494,128 |
+
+  The driver's record readback in `kit-gov2-result.json` read the wrong
+  file: it takes the newest `record.bin` by modification time, and the kit's
+  clock counts from 1970 at each boot, so a record from an earlier boot
+  sorted first. A read-only check under its own claim (run r1, 23:06 EET)
+  read the governor game's record itself: word 0 is 1 (286-12), and CMOS
+  70h-7Bh hold 27,454, 499 and 494,129 with the boot count at 6 and the A5h
+  finish mark.
+- **x1, FreeDOS with HIMEMX** (23:02-23:03 EET,
+  [`kit-x1-result.json`](kit-x1-result.json),
+  [`kit-x1-mem.png`](kit-x1-mem.png)): the HIMEMX games disk of the machine
+  run (`6aece8ad…`) as library game `p2-xms-merge`, with `mem` typed
+  through the agent's input stream. HimemX reports `XMS 3.00 80386 4G`, and
+  MEM shows 15,360K of XMS, 159K used and 15,201K free, as in the
+  simulations.
+
+## Inputs
+
+- FES branch `deano/i386-phase2-unreal`, from main `58edb6b3b`; main
+  `97668042d` merged in as `c4a1c23a4` (#1290 and #1367, neither touching
+  i386 or pc386 sources).
+- RTL revision `eee033a9d`, Codex's review fix: the seal, both lockstep
+  runs, both HIMEMX boots and the standard system suite. Two earlier seals
+  are data points: `c4a1c23a4`, before the fix, and `309d87186`, whose i386
+  and pc386 sources differ from `c4a1c23a4` only in three comments. Main
+  `e06789cd7` (#1365 and #1359, no misteross source) was merged before the
+  fix. Later commits change only this record or merge main `bdc7839e3`
+  (#1363 and #1375). That merge changes no sealed input: all 105 input
+  hashes in the seal summary match the merged tree.
+- Main `8120c22b1` (#1335, #1364, #1381 and others) merged as `b7b4cb7dc`,
+  which is resealed and rechecked
+  ([Main merge](#main-merge-keyboard-mouse-and-the-governor)). The sections
+  after it describe `eee033a9d`; the merge changes none of their results.
+- Oracle: Bochs 3.1 at CPU level 3 (the `fes-i386-oracle` build), corpus
+  SingleStepTests/80386 `459d49fbe628`, test386.asm `cfd052d1e64d`.
+- Verilator 5.032 on Powerboat. The netlist lockstep used the i386 lock's
+  Yosys `238eac9a4`. The seal used Quartus Prime Lite 17.0.2 with the
+  netlist from the pc386 lock's Yosys `0a7927bf`.
+
+## What the slice builds
+
+The [RTL README](../../../sources/misteross/cores/fes-common/rtl/i386/README.md#protected-mode)
+has the detail. In short:
+
+- **Control and table registers.** MOV r32, CRn and SMSW are an ALU move of
+  the register. MOV CRn, r32, LMSW, LGDT and LIDT end in a system uop that
+  writes at WB and jumps to the next instruction, so DC decodes what follows
+  under the new CR0. CR0 with PG and PE set stops the CPU as not built
+  (paging is Phase 5); PG with PE clear is #GP(0). Real-mode interrupts read
+  their vector through IDTR.
+- **Segment loads.** MOV Sreg, POP Sreg and LDS/LES/LFS/LGS/LSS in protected
+  mode run microcode (`pseg`, `ppop`, `plptr`): the descriptor's two dwords
+  into T2 and T3, the checks from Bochs's `load_seg_reg` with #GP, #SS and
+  #NP and their error codes, the accessed-bit store, then the cache write. A
+  null selector loads a null cache. TI=1 reads the LDT at the reset LDTR
+  (base 0, limit FFFFh), since LLDT is not built.
+- **Far JMP** at CPL 0 to a code descriptor (`pjmp`, `pjmpm`), with
+  `jump_protected`'s checks. A TSS, task gate or call gate stops the CPU as
+  not built.
+- **Access checks** in every mode against the cached limit and type, as
+  Bochs's `read_virtual_checks` and `write_virtual_checks` make them:
+  expand-down, G-scaled limits, not-present, execute-only and read-only
+  segments. Each load works these out once (`seg_chk_t`).
+- **Leaving protected mode.** Clearing PE makes CS a writable data segment,
+  as Bochs does; the real-mode far JMP after it sets CS's limit to FFFFh and
+  its access rights to 93h (the design's 386 rule). DS, ES, FS, GS and SS
+  keep the limit and type a protected-mode load gave them.
+- **Not built** (each stops the CPU with `trace_unimplemented`, and
+  `trace_pm_stop` with the vector and error code where PE is set):
+  exception and interrupt delivery with PE set; far CALL, RETF, IRET, INT n,
+  INT3 and INTO in protected mode; gates, privilege transitions, LLDT, LTR
+  and the rest of group 6, LAR, LSL, VERR, VERW, ARPL, task switches, debug
+  registers, V86 and paging.
+
+The design doc's [segment-cache contract](../../../sources/misteross/docs/i386-cpu-design.md#architecture)
+and Phase 2 row now say this.
+
+Nothing HIMEMX, Voodoo or FreeCOM runs needed more than the issue's scope.
+From its code, Ultima VII's `MAINMENU.EXE` builds a GDT with a flat 4 GiB
+data descriptor (18h), a 64 KiB data descriptor with B clear for SS (20h)
+and a 16-bit code descriptor of limit FFFFh (38h). Its IDT holds gates
+(selector 28h), which the CPU never reads, because Voodoo runs with
+interrupts off while PE is set. An oracle-CPU machine run
+(`machine_tb --cpu oracle --census`) of a scratch Black Gate disk with
+HIMEMX's full XMS ran Voodoo's protected-mode entry. With PE set it ran only
+MOV CR0, MOV Sreg, JMP FAR m16:16, CLI, JMP short, MOV r16 imm16, DEC and
+32-bit XOR, all built. The game then stopped short on conventional memory
+(it asks for 561,144 bytes). The kit disk for #1369's second PR has to leave
+that much free.
+
+## Lockstep
+
+`scripts/test_fes_i386_lockstep.py` at `eee033a9d`
+([report](lockstep-report.json)), and with `--yosys` on the i386 lock's
+Yosys `238eac9a4` ([report](lockstep-netlist-report.json)).
+The two reports are identical but for the netlist's `yosys` field:
+
+| Run | Result |
+| --- | --- |
+| Corpus (SingleStepTests/80386, 941 files) | 1,758,699 pass, 0 fail; 3,517,401 retirements compared |
+| Random programs (16 seeds × 2,000) | 32,000 pass, 0 fail; 8,718,916 retirements |
+| Protected-mode programs (16 seeds × 500, new) | 8,000 pass, 0 fail; 675,887 retirements, 417,342 of them (with the random programs') with PE set; 1,269 real-mode CS loads under the 386 rule |
+| Unbuilt encodings | 53,344 outside SCOPE, all stopped as not built |
+| Directed cases | 40 pass |
+| Unreal-mode cases (new) | 6 pass |
+| Memory cases (DMA, FLUSH) | 26 pass |
+
+The sequential-gap check still finds every retirement one cycle after the
+last.
+
+**The protected-mode programs** (seeds 1001-1016, `--pm-programs`) mix the
+random programs' real-mode code with blocks that build a 16-entry GDT of
+random descriptors (null, code and data of both sizes, expand-down, G set or
+clear, not present, DPLs and RPLs, TSSes and gates), LGDT it, set PE, load
+segments with MOV, POP and LDS-style instructions, far JMP between code
+descriptors and back to real mode, and run memory, string and stack
+instructions through what they loaded. 11,765 runs ended in an exception or
+interrupt with PE set, which stops the CPU as not built. The harness then
+compares the RTL's vector and error code with Bochs's first event:
+
+| Vector | Stops |
+| --- | --- |
+| #GP (13) | 9,697 |
+| #SS (12) | 995 |
+| INTR | 529 |
+| #NP (11) | 376 |
+| NMI (2) | 112 |
+| #UD (6) | 55 |
+| #DE (0) | 1 |
+
+**The unreal-mode cases** (`--mode unreal`): from real mode with a GDT of
+a 64 KiB 16-bit code descriptor, a 4 GiB data descriptor (G), a 64 KiB data
+descriptor and a 4 GiB 16-bit code descriptor, each enters protected mode,
+far-jumps to code, loads DS, ES, FS, GS and SS, clears PE, far-jumps to real
+mode, reloads the segments with real-mode values and then:
+- `unreal`: all five loaded from the 4 GiB descriptor read or write at
+  2 MiB through 32-bit addresses with no fault, and the RTL's caches hold
+  limit FFFFFFFFh;
+- `normal-gs`: GS from the 64 KiB descriptor faults #GP(0) on a word at
+  GS:FFFFh;
+- `normal-ss`: SS from it faults #SS(0) on a word at SS:FFFFh;
+- `cs-rule`: with the 4 GiB code descriptor, CS still reads at 10000h with
+  PE clear; after the real-mode far JMP a word at CS:FFFFh faults #GP(0);
+- `cs-rule-hlt`: the RTL's CS after that jump is limit FFFFh, access rights
+  93h, D/B and G clear;
+- `pm-sreg-limit`: in protected mode, with DS from the 64 KiB descriptor,
+  MOV ES, [FFFEh] reads the selector 10h from DS's last word without a fault
+  and loads ES; then HLT with PE set.
+
+Bochs 3.1 keeps CS's cache on a real-mode CS load. The lockstep gives the
+oracle the RTL's CS limit and access rights after each such load
+(`cs_rule`): 1,269 in the protected-mode programs, 2 in these cases. This is
+the design's known limit, not a divergence ([Known limits](#known-limits)).
+
+## Oracle runners
+
+The adapter gained the CPL (`State::cpl`, Bochs's CS RPL), so the
+oracle-only runners were rerun against main's adapter at `97668042d`. The
+adapter and both runners are unchanged since `0c624aaa1`, before these runs:
+- `test_fes_i386_vectors.py`: 1,758,700 tests, 1,437,596 pass and 321,103
+  fail on both. The fails are the divergence list's known cases. The two
+  `report.json` files are byte-identical.
+- `test_fes_i386_test386.py`: POST codes to FFh, 44,926 EE lines with none
+  differing from the reference, final RAM SHA-256 `44597188…` on both; the
+  output is identical.
+
+## FreeDOS with HIMEMX on the RTL CPU
+
+Scratch disks, built in a worktree of #1363's branch (`freedos-games.img`
+and `freedos.img` under its `build/sim/fes-pc386`) and not committed:
+- **Games image**: #1363's games image with its FDCONFIG.SYS line changed to
+  `DEVICE=C:\FDOS\BIN\HIMEMX.EXE /VERBOSE` (no `/MAX=0`), SHA-256
+  `6aece8ad…`. AUTOEXEC.BAT runs FESENV, CTMOUSE and VER.
+- **Boot fixture with HIMEMX**: the system bench's FreeDOS fixture with
+  #1363's HIMEMX 3.38 as `C:\HIMEMX.EXE`, FDCONFIG.SYS `DOS=HIGH` and
+  `DEVICE=C:\HIMEMX.EXE /VERBOSE`, and the games image's MEM.EXE run from
+  AUTOEXEC.BAT after VER, SHA-256 `9815e3b6…`.
+
+COMMAND.COM on both is FreeCOM 0.86 built with XMS swap (`XMS_Swap`): it
+copies itself to XMS before each external program and back after, so each
+external program means XMS moves. HIMEMX moves in unreal mode: its first
+move faults #GP at DS's 64 KiB limit, and its INT 0Dh handler enters
+protected mode, loads DS and ES from a 4 GiB descriptor and returns to real
+mode.
+
+| Run | Result |
+| --- | --- |
+| Machine sim, RTL CPU (`machine_tb --cpu rtl`), games image, `mem` typed at the prompt | Pass ([report](machine-himem-report.json)): the prompt at 2.40 s and MEM's output by 3.65 s, with 15,360K of XMS, 159K used and 15,201K free. All 98,807,423 instructions retired on the RTL: 0 oracle steps, 0 stops. The RTL entered protected mode once (`pe_entries`), and 6 retirements left PE set (`pe_retired`): HIMEMX's INT 0Dh handler loading its 4 GiB limits. FESENV and CTMOUSE ran before the prompt, through FreeCOM's swap |
+| `system_tb` (`pc386_system`, RTL CPU, no oracle: a stop ends the run), boot fixture with HIMEMX and MEM, `--seed 1` | Pass ([report](system-himem-report.json)): `C:\>` at 2.85 s after 47,423,516 instructions. HIMEMX reports `XMS 3.00 80386 4G`, and MEM shows 15,360K of XMS, 159K used and 15,201K free. Every check passes: the dirty map, the save, the record and its round trip |
+| `sim_fes_pc386.py --suite system`, the bench's own fixture (no HIMEMX) | Pass ([report](system-report.json)): `C:\>` at 2.70 s |
+
+The bench's write test puts `MD C:\M5` in AUTOEXEC.BAT's PATH line, so on
+the HIMEMX disk it runs MD, VER and MEM.
+
+The first `system_tb` run of that disk, at `c4a1c23a4` (before the review
+fix) with the default seed, booted the same way and passed every check through the record. At
+the round trip's release, 3 million clocks after the prompt, the bench
+stopped on its DDR model's port-2 check: `a write burst cut short, then
+another begun`. The bench holds a port by not driving it, where
+`fes_hps_ddr_guard` on a kit finishes a started write burst. A hold that
+lands inside a VGA capture burst leaves the model's burst open, and the
+capture's first burst after the next release fails the check. This is a
+bench gap outside the CPU; the guest's timing decides whether a run meets
+it. It is filed as
+[#1372](https://github.com/DeanoC/fes/issues/1372). Seed 1 changes only the
+DDR ports' timing draws, and with it the run passes, at `39581a878` and
+again at `eee033a9d` with the same counts. The machine run at `39581a878`
+also matched the one at `eee033a9d` exactly.
+
+## Kit B smoke test: Ultima VII's intro and menu on hardware
+
+Deano asked for an early look at Ultima VII on the FPGA before the kit
+acceptance runs. Three runs were claimed and released in Kit B's status file,
+all on 1 November 2026: u7a at 16:33, u7b 16:43-17:00 and u7c 17:56-18:05
+EET. Each was core-only on baseline software `b93cc239` (main `e06789cd`, OS
+`f904961e`): the sealed package `cd427942…` (`eee033a9d`) went through the
+agent's library launch, with no install, image change or reboot. The
+baseline was unchanged after each. Run u7a staged its disk and stopped on a
+bug in the scratch driver before it launched anything. The disks were
+scratch copies of the games image `876986c0` with HIMEMX's `/MAX=0`
+dropped and The Black Gate from Deano's eXoDOS zip (SHA-256 `75e6eb68…`).
+Game bytes stay off the repository.
+
+**Result: the intro plays with sound and reaches the main menu**
+([Lord British](kit-u7c-lord-british.png), [title](kit-u7c-title.png),
+[scenes](kit-u7c-intro.png), [menu](kit-u7c-menu.png)). With no input
+the game then loops back into the intro, as it does on a PC. The run's audio
+capture peaks at 16,812 with 1,554 of its 2,345 100 ms windows above
+-40 dBFS; a failed run's capture stays at the 4KPRO's DC offset. This needed
+two changes to the DOS set-up, both found here and both outside the CPU:
+
+1. **FreeCOM's environment sits at the top of memory.** MAINMENU.EXE first
+   stopped with `Ultima VII requires 561144 bytes of DOS memory!`
+   ([frame](kit-u7b-u7-freecom.png)) with 620K free
+   ([MEM](kit-u7b-mem.png)). It measures memory by walking the DOS
+   memory-control-block chain and adding its last two blocks, expecting
+   itself and then the free memory above it. FreeCOM 0.86 keeps its master
+   environment, the size `/E:` sets, as the last block
+   ([chain](kit-u7b-mcb-freecom.png): `9F7F Z 03FA 0040 COMMAND`). MAINMENU
+   then counts only the free memory above itself. `/LOW` leaves the block
+   there; `/E:256` shrinks it to 256 bytes. A 300-byte scratch shell
+   (`SHELL=`, it starts ULTIMA7.COM) ends the chain with the free block
+   ([chain](kit-u7b-mcb-u7run.png)), and the check passes.
+2. **HIMEMX's A20.** Voodoo then stopped in `freexmm.c`
+   ([kit](kit-u7b-u7-u7run.png), and the Bochs CPU in the machine sim on
+   the same disk: [frame](sim-bochs-u7-u7run.png)). The RTL machine sim of
+   that disk ran all 96,465,993 instructions on the RTL, with no stop and no
+   oracle step. It entered protected mode twice (Voodoo's set-up and its
+   clean-up, 23 retirements with PE set) and ended, as Bochs did, in the
+   shell's halt loop after ULTIMA7.COM returned. A trace of the Bochs
+   run's XMS calls showed why. MAINMENU exits after its checks so that
+   ULTIMA7.COM can start the intro, and its clean-up calls XMS 04h, global
+   disable A20. HIMEMX answered AX 0, BL 94h ("A20 still enabled"), and
+   Voodoo stops at `freexmm.c` line 191. HIMEMX had chosen its "Always on"
+   method: pc386's 8042 leaves reset with A20 enabled in its output port, and
+   the Bochs BIOS only uses port 92h. `/METHOD:KBC` makes HIMEMX switch A20
+   through the 8042 ([frame](kit-u7c-kbc.png)). With `DOS=HIGH` it still
+   failed, because the kernel holds a local A20 enable (XMS 05h). Without
+   `DOS=HIGH` the disable works and the intro runs.
+
+The working set-up is the scratch shell, `DEVICE=HIMEMX.EXE /METHOD:KBC`
+and no `DOS=HIGH`. The Bochs CPU stopped in the same places as the RTL on
+the kit for both failures. Choosing that set-up for the games profile (which
+runs FreeCOM), the keyboard and mouse to play past the menu (#1335), Serpent
+Isle and The Black Gate's preset check are #1369's second PR.
+
+## Quartus seal
+
+`make build-fes-pc386-quartus` at seed 1 from a clean checkout of
+`eee033a9d`: [`seal-summary.json`](seal-summary.json). Against main's last
+seal ([computer 1.1](../2026-10-31-pc386-m5-computer11/summary.md#quartus-seal),
+`e6de1a468`), with the seal before the review fix as a data point:
+
+| | Seal, `eee033a9d` | `c4a1c23a4` (before the fix) | Main's last seal, `e6de1a468` |
+| --- | --- | --- | --- |
+| Build ID, package | `e9629ee9…`, `cd427942…` | `0e6955d4…`, `6e0a663a…` | `d355dd17…`, `6823af43…` |
+| System Fmax, slow corners (61.44 MHz) | 70.88-74.25 MHz, setup slack +2.167 ns | 73.14-73.25 MHz, +2.603 ns | 70.86-71.66 MHz |
+| Pixel Fmax (74.27 MHz) | 77.64-78.24 MHz | 76.60-77.01 MHz | 83.03-84.13 MHz |
+| Setup, hold slack | +0.584 (pixel), +0.038 ns | +0.409 (pixel), +0.064 ns | +1.420, +0.113 ns |
+| Recovery, removal, pulse width | +5.576, +0.452, +1.122 ns | +7.922, +0.396, +1.122 ns | +7.851, +0.460, +1.122 ns |
+| ALMs | 26,453 of 41,910 (63%) | 26,436 | 24,246 |
+| Registers | 24,064 | 24,176 | 22,252 |
+| RAM blocks | 256 of 553 | 256 | 254 |
+| DSP blocks | 29 of 112 | 29 | 29 |
+| RBF | 3,556,688 bytes, SHA-256 `f3b57c70…` | 3,557,656 bytes | 3,492,112 bytes |
+
+The checkout was clean (`git status` empty before the build). Every
+analysis passes, with no illegal or unconstrained clocks. The worst setup
+path is the pixel clock's, +0.584 ns in the slow -40 C corner; the system
+clock has +2.167 ns there and +2.808 ns at 100 C. The worst hold path is the
+pixel clock's, +0.038 ns in the fast -40 C corner.
+
+The pixel domain holds no CPU logic, and its Fmax moves with placement. A
+third seal, at `309d87186`, has the same logic as `c4a1c23a4`: its sources
+differ only in three comments, which move Yosys's source-line attributes.
+It fitted the pixel clock at 86.02-86.95 MHz (setup +1.839 ns, hold
++0.105 ns, system 70.20-72.14 MHz, 26,421 ALMs).
+
+Against main's last seal, protected mode costs about 2,210 ALMs (9%),
+about 1,800 registers and 2 RAM blocks. The new registers are the
+descriptor staging (`ds_*`), each segment's low bound and type flags for the
+access checks, T2 and T3, CR2, CR3, GDTR and IDTR with their check limits,
+and the new uop fields through the pipeline. The seals of #1335 and #1364
+are on their branches, not on main.
+
+## Review
+
+Codex reviewed `a16aa6b5b` and found one P2: in protected mode, MOV Sreg,
+m16 read and limit-checked four bytes. The segment-load block in DC widened
+the move to 32 bits for T0 and left the access's width to follow it, so a
+selector in a segment's last word faulted #GP(0). `eee033a9d` gives the read
+its two bytes, as POP Sreg and LES already had. The directed case
+`pm-sreg-limit` fails on the old decode (the RTL stops with #GP where Bochs
+loads ES) and passes now. The random programs had missed it: they read their
+memory-form MOV Sreg selectors through a flat FS.
+
+Codex reviewed the main merge at `a21580c5e` and found one P2: `--same-as`
+left out the random programs' retirements with PE set and every section's
+real-mode CS loads under the 386 rule. The trace hash mixes only EIP, the
+GPRs and EFLAGS, so a governed run could differ from `max` in PE or in the
+real-mode CS cache and still be reported the same. The comparison now takes
+both counts in the random and protected-mode totals and in every mode's
+summary, with a unit test that fails without it. The comparison is a
+function of the two reports, so the recorded 286-12 report was rechecked
+against the `max` report with it, and nothing differs.
+
+## Yosys workarounds
+
+The pc386 sealer's Yosys elaboration rejected two constructs the first
+version used, which Verilator accepts. Both also fail on the i386 lock's
+Yosys. The RTL avoids them; each has a DeanoC fork issue with a repro on the
+locked binary:
+- [DeanoC/yosys#72](https://github.com/DeanoC/yosys/issues/72): a cast of a
+  non-constant expression as a `case` selector (`case (sys_rd_e'(sys_idx))`)
+  is `Static cast with non constant expression!`. The RTL cases on the vector
+  with size-cast labels, and `fault_vector` takes `logic [3:0]`.
+- [DeanoC/yosys#73](https://github.com/DeanoC/yosys/issues/73):
+  `{a[i], b[i]} <= d` is `incompatible mix of lookahead and non-lookahead
+  IDs` once `a[i]` is a variable-index target elsewhere in the block. The
+  segment-cache write is one statement per field.
+
+## Known limits
+
+The first five are in [`sim/i386/README.md`](../../../sources/misteross/cores/fes-common/sim/i386/README.md#known-limits);
+the last two are how the lockstep handles the reset alias and a stop:
+- A real-mode CS load: the RTL sets limit FFFFh and access rights 93h (the
+  386 rule), where Bochs 3.1 keeps the cache; the lockstep adopts the RTL's
+  values (`cs_rule`), and the unreal-mode cases check the rule.
+- Bochs skips the limit check of a flat segment (base 0, limit FFFFFFFFh),
+  so an access wrapping past 4 GiB faults only on the RTL. The generated
+  programs keep clear of it.
+- Bochs reads CR0's bits 30-5 as ones and forces ET (its 387); the lockstep
+  compares PE, MP, EM, TS and PG.
+- LLDT is not built: a TI=1 selector reads the reset LDTR's table.
+- Bochs keeps CPL as CS's RPL; the adapter carries it (`State::cpl`).
+- The FFFF0000h reset alias: the CPU's physical map and the lockstep's oracle
+  bus both alias FFFF0000h and up to F0000h.
+- Anything the CPU stops on as not built (above) ends a lockstep run as a
+  compared stop, not a pass of that instruction.
+
+## Not in this record
+
+- **The kit acceptance.** Serpent Isle at `max`, The Black Gate and
+  Wolfenstein 3D with XMS on a kit (beyond the smoke test above). #1363 is now on main, and its games image still runs
+  HIMEMX with `/MAX=0`. Its kit runs of Wolfenstein 3D and Ultima VI are
+  for that profile, so dropping `/MAX=0` goes with new kit runs. #1335's
+  keyboard and mouse and #1364's governor are now merged in, so the menus
+  can be driven and The Black Gate's 386-preset check can run. The profile
+  change and the runs come in #1369's second PR, from a seal of that tree.
+- Protected-mode test386 in RTL, gates, privilege, delivery through the IDT
+  and the rest of Phase 2's exit.

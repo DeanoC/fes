@@ -124,6 +124,15 @@ module fes_i386_gov_rom (
         rom[108] = 16'h0d0d;  // 286 bound
         rom[109] = 16'h0303;  // 286 wait
         rom[110] = 16'h0202;  // 286 clts
+        rom[111] = 16'h0b0b;  // 286 sgdt
+        rom[112] = 16'h0c0c;  // 286 sidt
+        rom[113] = 16'h0b0b;  // 286 lgdt
+        rom[114] = 16'h0c0c;  // 286 lidt
+        rom[115] = 16'h0303;  // 286 smsw_m
+        rom[116] = 16'h0303;  // 286 lmsw_r
+        rom[117] = 16'h0606;  // 286 lmsw_m
+        rom[118] = 16'h0606;  // 286 mov_from_cr
+        rom[119] = 16'h0a0a;  // 286 mov_to_cr0
         rom[128] = 16'h0202;  // 386 mov_r
         rom[129] = 16'h0404;  // 386 mov_load
         rom[130] = 16'h0202;  // 386 mov_store
@@ -235,6 +244,15 @@ module fes_i386_gov_rom (
         rom[236] = 16'h0a0a;  // 386 bound
         rom[237] = 16'h0606;  // 386 wait
         rom[238] = 16'h0505;  // 386 clts
+        rom[239] = 16'h0909;  // 386 sgdt
+        rom[240] = 16'h0909;  // 386 sidt
+        rom[241] = 16'h0b0b;  // 386 lgdt
+        rom[242] = 16'h0b0b;  // 386 lidt
+        rom[243] = 16'h0303;  // 386 smsw_m
+        rom[244] = 16'h0a0a;  // 386 lmsw_r
+        rom[245] = 16'h0d0d;  // 386 lmsw_m
+        rom[246] = 16'h0606;  // 386 mov_from_cr
+        rom[247] = 16'h0a0a;  // 386 mov_to_cr0
         rom[256] = 16'h0101;  // 486 mov_r
         rom[257] = 16'h0101;  // 486 mov_load
         rom[258] = 16'h0101;  // 486 mov_store
@@ -346,6 +364,15 @@ module fes_i386_gov_rom (
         rom[364] = 16'h0707;  // 486 bound
         rom[365] = 16'h0202;  // 486 wait
         rom[366] = 16'h0707;  // 486 clts
+        rom[367] = 16'h0a0a;  // 486 sgdt
+        rom[368] = 16'h0a0a;  // 486 sidt
+        rom[369] = 16'h0b0b;  // 486 lgdt
+        rom[370] = 16'h0b0b;  // 486 lidt
+        rom[371] = 16'h0303;  // 486 smsw_m
+        rom[372] = 16'h0d0d;  // 486 lmsw_r
+        rom[373] = 16'h0d0d;  // 486 lmsw_m
+        rom[374] = 16'h0404;  // 486 mov_from_cr
+        rom[375] = 16'h1010;  // 486 mov_to_cr0
     end
     always_ff @(posedge clk) q <= rom[addr];
 endmodule

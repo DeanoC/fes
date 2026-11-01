@@ -1,0 +1,128 @@
+{
+ "kit": "B",
+ "run": "gov2",
+ "package": "604cab9b8dca6b5c66819ecee04c9bf41af445725429159eba7768fe9ad29add.fcore",
+ "disk": "governor_test.img",
+ "game": "pc386-m5-governor",
+ "presets": [
+  0,
+  1
+ ],
+ "disk_sha256": "0cc048d2983b5fb919416eda10b80cd75c29c087ee446c8dcea472ebc75b0047",
+ "launches": [
+  {
+   "preset": 0,
+   "settings": {
+    "header": "0,0,0,0,544,7,1",
+    "machine": {
+     "preset": 0,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "d834352e891859678f79ac10d1955017cdf5b7d93b3efe64b92fcb1223e4266d"
+   },
+   "load": {
+    "state": "active"
+   },
+   "load_seconds": 7.14,
+   "stop": {
+    "state": "idle"
+   },
+   "record": {
+    "path": "/media/fat/fogcast/core-data/games/f912c54fa8adcc3a2a9d2a7960920d27c1b1bc9b09eb06eede5796cffe65c349/record.bin",
+    "words_0_7": [
+     0,
+     0,
+     0,
+     0,
+     544,
+     7,
+     1,
+     0
+    ],
+    "cmos_70_7b": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "tp": 0,
+    "delay_count": 0,
+    "c18": 0,
+    "boot_count": 0,
+    "finished": false
+   }
+  },
+  {
+   "preset": 1,
+   "settings": {
+    "header": "1,0,0,0,544,7,1",
+    "machine": {
+     "preset": 1,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "637cb5fface15f41d832987ce934a2b4734d00624fa1212aaaac979ba244ee62"
+   },
+   "load": {
+    "state": "active"
+   },
+   "load_seconds": 7.06,
+   "stop": {
+    "state": "idle"
+   },
+   "record": {
+    "path": "/media/fat/fogcast/core-data/games/f912c54fa8adcc3a2a9d2a7960920d27c1b1bc9b09eb06eede5796cffe65c349/record.bin",
+    "words_0_7": [
+     0,
+     0,
+     0,
+     0,
+     544,
+     7,
+     1,
+     0
+    ],
+    "cmos_70_7b": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "tp": 0,
+    "delay_count": 0,
+    "c18": 0,
+    "boot_count": 0,
+    "finished": false
+   }
+  }
+ ],
+ "after": {
+  "agent": "idle",
+  "lease": "revoking"
+ }
+}
