@@ -1,0 +1,3 @@
+=== RUN   TestReleaseWindowAllowsSameGenerationRemap
+--- PASS: TestReleaseWindowAllowsSameGenerationRemap (0.11s)
+PASS

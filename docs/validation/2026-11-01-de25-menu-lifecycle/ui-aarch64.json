@@ -1,0 +1,32 @@
+{
+  "status": "passed",
+  "classification": "static AArch64 build and five actual QEMU menu lifecycle/mapping tests; no physical-board or production startup acceptance",
+  "source": "9964f2aa9f26dee6c99a518e86135126ccc72e3b",
+  "tests": {
+    "gfx": [
+      "TestMenuPauseReleasesWindowOnlyAfterFrameDrains",
+      "TestMenuPausePropagatesWindowReleaseFailure",
+      "TestCancelledMenuPauseKeepsInflightMapping",
+      "TestResumedMenuPauseCannotReleaseANewFrameMapping"
+    ],
+    "menudisplay": [
+      "TestReleaseWindowAllowsSameGenerationRemap"
+    ]
+  },
+  "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
+  "cpu": "cortex-a53",
+  "go_version": "go version go1.24.4 linux/amd64",
+  "launcher_control": "-h is recognized and rejected with existing CLI status2 before startup; initial harness wrongly expected0. Original failed job retained; no launcher smoke claimed.",
+  "files_sha256": {
+    "tenfoot-help.log": "8cd424b194009c95a5da891c0350a22a6ccaca4c7e7244f51858dfa9579ffcf7",
+    "gfx-tests-arm64": "ceba9446c1656d8c14627a28e23a6df26ee37565bc545d8ce3fd2dd1cac18fcd",
+    "gfx-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gfx-qemu.log": "0519b58a3e5ca2d64a642a6b50dabb41769d4a879f2ea45e15517771ebbc6979",
+    "menudisplay-tests-arm64": "c01095058a2b8694d83a2a5fa43053f10157c271189dc4290bbcad8b38f2b800",
+    "tenfoot-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "parser-control-recheck.log": "8cd424b194009c95a5da891c0350a22a6ccaca4c7e7244f51858dfa9579ffcf7",
+    "menudisplay-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "fogcast-tenfoot-linux-arm64": "1ad6d9c8fc6f8f296339241dc0fec0b9037faf2c8e82a67d18afa06c31191fa7",
+    "menudisplay-qemu.log": "9e6a21d694f96f33d8204c1b48947bb1b5ede9fd1348b96b8044e31a92040ee5"
+  }
+}
