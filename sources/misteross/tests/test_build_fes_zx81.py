@@ -54,7 +54,10 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertNotIn("fes_audio_pll.v", qsf)
         self.assertIn("fes_audio_output.v", qsf)
         self.assertIn("fes_audio_i2s.v", qsf)
-        self.assertIn("fes_computer_gp.v", qsf)
+        self.assertNotIn("fes_computer_gp.v", qsf)
+        self.assertIn("cores/fes-common/rtl/fes_computer_mailbox.v", qsf)
+        self.assertIn("zx81_keyboard.v", qsf)
+        self.assertIn("zx81_tape_store.v", qsf)
         self.assertIn('VERILOG_MACRO "QUARTUS=1"', qsf)
         self.assertIn(build_fes_zx81.ROM_MIF, build_fes_zx81.PINNED_INPUTS)
         self.assertNotIn("tv80", qsf)
@@ -93,7 +96,7 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn('"pixel_clock_hz":74250000', text)
         self.assertIn('"audio_clock_hz":12288000', text)
         self.assertIn("scripts/build_fes_zx81.py", text)
-        self.assertIn("fes_simple_computer.vh", text)
+        self.assertIn("cores/fes-common/generated/fes_computer.vh", text)
 
     def test_missing_quartus_is_a_supported_failure(self) -> None:
         env = os.environ.copy()
