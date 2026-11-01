@@ -1,0 +1,18 @@
+{
+  "source_revision": "51d872c220a6635188c351004b68e94a96ca1986",
+  "command": [
+    "make",
+    "test-changed",
+    "PYTHON=/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python",
+    "TEST_CHANGED_ARGS=--base 199604662ea19a526e1884ad202fbca48e1c84d7"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-base-services-51d872c22",
+  "started_utc": "2026-11-01T15:22:41.434324+00:00",
+  "time_cap_seconds": 900,
+  "hardware_access": "not-performed",
+  "pid": 2364350,
+  "state": "passed",
+  "elapsed_seconds": 253.1,
+  "heartbeat_utc": "2026-11-01T15:26:54.553179+00:00",
+  "returncode": 0
+}

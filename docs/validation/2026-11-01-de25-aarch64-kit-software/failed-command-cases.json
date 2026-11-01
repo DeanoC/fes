@@ -1,0 +1,15 @@
+{
+  "original_failure_events": 12,
+  "methods": [
+    "test_build_fes_apple2.BuildFesApple2Tests.test_make_entrypoint",
+    "test_build_fes_c64.BuildFesC64Tests.test_make_entrypoint",
+    "test_build_fes_coleco.BuildFesColecoTests.test_make_entrypoints_use_both_recipes",
+    "test_build_fes_pong.BuildFesPongTests.test_make_entrypoint_uses_the_fixed_recipe",
+    "test_build_fes_sg1000.BuildFesSg1000Tests.test_make_entrypoints_use_both_recipes",
+    "test_build_fes_sms.BuildFesSmsTests.test_make_entrypoints_use_both_recipes",
+    "test_build_fes_zx81.BuildFesZx81Tests.test_make_entrypoint_uses_the_quartus_recipe",
+    "test_build_fes_zx81_oss.BuildFesZx81OssTests.test_make_entrypoint_uses_the_oss_recipe",
+    "test_fes_hip_lane.FesHipLaneTests.test_make_forwards_cache_root_to_fes_producers",
+    "test_pcxt_toolchain.PcxtToolchainTest.test_make_passes_cache_root_only_for_the_shared_lane"
+  ]
+}

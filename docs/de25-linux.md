@@ -89,6 +89,14 @@ The [MENU integration record](validation/2026-11-01-de25-managed-menu/README.md)
 separates native/QEMU software checks and the prepared owner-API-3 kernel/image
 from physical acceptance; those candidate components have not been installed.
 
+The normal [kit-software producer](kit-software-releases.md) also has explicit
+DE25/AArch64 selection using this image's authenticated SDK. The
+[producer and base-helper record](validation/2026-11-01-de25-aarch64-kit-software/README.md)
+retains actual runtime/agent/launcher builds, static supervisor/storage/Bluetooth
+helpers and bounded Cortex-A53 argument tests. A reviewed managed base and
+sealed MENU are still required; the headless image remains outside that update
+path. These compiler results establish no service or hardware acceptance.
+
 The [2026-10-28 AArch64 software validation record](validation/2026-10-28-de25-aarch64-runtime/README.md)
 retains the selected C++ SDK/image and runtime receipts, QEMU test logs, native
 retry and CI evidence. That record covers userspace software only; the later physical Linux/native-control

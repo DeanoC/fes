@@ -1,0 +1,16 @@
+{
+  "source_revision": "fd98d8f6c9d0d947cec351faf11df918e4a7102c",
+  "command": [
+    "python3",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-reviewed-async-final/finish-retention.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-reviewed-async-fd98d8f6c",
+  "started_utc": "2026-11-01T16:31:07.393604+00:00",
+  "time_cap_seconds": 180,
+  "hardware_access": "not-performed",
+  "pid": 3074451,
+  "state": "passed",
+  "elapsed_seconds": 5.1,
+  "heartbeat_utc": "2026-11-01T16:31:12.445874+00:00",
+  "returncode": 0
+}

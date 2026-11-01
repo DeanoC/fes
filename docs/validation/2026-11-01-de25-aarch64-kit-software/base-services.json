@@ -1,0 +1,33 @@
+{
+  "source_revision": "51d872c220a6635188c351004b68e94a96ca1986",
+  "status": "pass",
+  "elapsed_seconds": 1.086,
+  "classification": "actual AArch64 stable base-service build and early supervisor argument refusal",
+  "files": {
+    "fes-kit-software": {
+      "sha256": "a7d1bcbe6cc8afecf1920ccee9ebcffcbd5617571f44683891fe38ed21190eb8",
+      "bytes": 7078014
+    },
+    "fes-bluetooth": {
+      "sha256": "5b88dfefff3eef44dacaf1a09f4cd3fae71ae1857db606b273f2ba9994b6fec6",
+      "bytes": 2359422
+    }
+  },
+  "static_elf_validation": "ELF64 little-endian AArch64; no PT_INTERP/PT_DYNAMIC; entry in executable segment",
+  "armv7_default_rejects_both_outputs": true,
+  "qemu_case": {
+    "cpu": "cortex-a53",
+    "returncode": 1,
+    "scope": "invalid action before service or hardware startup"
+  },
+  "go_version": "go version go1.24.4 linux/amd64",
+  "platform_tree": "a987e2d7cb5cb709e569503854ce7b0bd44f00dc1758616fc752b256dff37b30",
+  "appliance_tree": "846b3120313a35382f7909cc39e7489e91fab8619fc815e299d34d67b0c76721",
+  "hardware_access": "not-performed",
+  "installed": false,
+  "not_proven": [
+    "DE25 managed rootfs/data/bootstrap",
+    "supervisor or Bluetooth startup on hardware",
+    "native MENU/catalog/update acceptance"
+  ]
+}
