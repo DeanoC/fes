@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "d4c6544e3a6f83ba4ea72fbe7d8b7c0c13828223",
+  "source_revision": "159bcf52cc3e92909ea463ed3add05734f35255f",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -114,7 +114,7 @@
     "sources/libmister-runtime/src/native/linux/input.hpp": "3a82eefc485b0926cec8d9c11dbab479abb83358c732919f7cd5c2ac31fd82e3",
     "sources/libmister-runtime/src/native/linux/i2c.hpp": "f848c7c3d2350f10390d43de3941ad16d67a8ddb062f0d6f1ac1214b0ad60eb7",
     "sources/libmister-runtime/src/native/linux/window_driver.hpp": "b12c19c1ab9ff252165cf94430a63f298a5e3715393c34f99aec98f8ce561309",
-    "sources/libmister-runtime/src/native/linux/de25_fpga_manager.hpp": "c06b34a8f58b4fe4c51f462c0c0ffe4f1ba68a6da8397f696526960795280f86",
+    "sources/libmister-runtime/src/native/linux/de25_fpga_manager.hpp": "55822b88d2a140fd0a7c4567b91c716f2fbfa16f9082fff7e19de51c6d5c85ea",
     "sources/misteross/boards/de25nano/zx81-hps/cosim/basic_observer.hpp": "f96bed7a258b3adc04cd9eaa19aaa253e99106f8291c575080dc9b7ecad57795",
     "sources/misteross/boards/de25nano/zx81-hps/cosim/wire.hpp": "6c4163f395e78f46d897fcc005e6486c5ecc49666e6bf05a00e5279a8f9fcee9",
     "sources/misteross/boards/de25nano/zx81-hps/cosim/basic.hpp": "c11fee9d475e29f35d90d795ab1b435938f30f97e3fd52f7af3752498b6aa952",
@@ -315,7 +315,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "c2694097c5a9c0b24a75add751a1a2458b0de4a924b614284333648c474e1186",
-    "Vfes_de25_combined_sim": "b4fe80fe22b041da41e4c2acddcf215b8f133b0a0c042cc5ea3d22523bfbbc6a",
+    "Vfes_de25_combined_sim": "819e27244f2b3694e30e6dfae00a5ad5315630d1c9654affd51cac4bb3351a81",
     "client-aarch64": "48b70db07d08a45c6a8412c502453f2ddbb121ef584443ae0d21ad1b01a4768f"
   },
   "physical_PR": "selection-mux-model-only",
