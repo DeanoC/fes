@@ -425,6 +425,37 @@ volatile SOFs and `nano-probe-sd.img`; it never writes a physical card.
 The kit directory's `u-boot.itb` is the native upload payload. Do not copy it
 over the card's root `u-boot.itb`, which belongs to recovery.
 
+## Compose the HPS-first FPGA diagnostic with native SPL
+
+`hps_boot.py` prepares regular files from the sealed
+[HPS-first FPGA diagnostic producer](../../../sources/misteross/prototypes/de25_board_control/README.md)
+and an existing matched native SPL/FIT/entry build:
+
+```sh
+python3 platform/embedded/nano/hps_boot.py \
+  --project out/de25-hps-first \
+  --uboot-build out/nano-uboot --entry-build out/nano-entry \
+  --quartus-pfg /absolute/path/quartus_pfg --output out/nano-hps-first
+```
+
+The tool reuses the package producer's source/archive/pair verification and
+the native packager's complete FIT/SPL/entry checks. The selected PFG wrapper
+and binary must match the FPGA build. It combines the raw HPS-first SOF with
+the native SPL, decodes every embedded SPL byte, preserves the other SOF
+sections, and independently splits the result again. Both split files must
+report the original HPS I/O hash, and the core payload must exactly match the
+canonical package. Each conversion or inspection has a 120-second bound and
+its own log. Failed checks leave diagnostics without a success receipt.
+
+The output contains `native-hps-first.sof`, `native-hps-first.hps.rbf`,
+`native-hps-first.core.rbf`, the native FIT/SPL/entry copies and `result.json`.
+The native phase-one identity is recorded separately from the original vendor
+SPL pair. The original sealed package and pair remain immutable. This is
+unqualified file composition: the receipt explicitly denies trusted live boot
+handoff and physical programming admission. It cannot replace the model's
+existing boot assertion or establish physical CPU mapping, DDR preservation,
+DMA ownership or active bridge return. No board, card or flash is accessed.
+
 ## Next bounded TRWU8CBL trial
 
 1. Claim the top board in its current status file, verify serial/cable/UART,

@@ -25,24 +25,14 @@ def sha(path):
     with path.open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
 
 
-def main():
-    parser=argparse.ArgumentParser(description=__doc__)
-    for name in ('uboot-build','entry-build','recovery-kit','vendor-sof','quartus-pfg','output'):
-        parser.add_argument('--'+name,required=True,type=Path)
-    args=parser.parse_args();output=args.output.absolute()
-    if (output.exists() or not output.is_relative_to(ROOT/'out') or '..' in output.parts or
-            any(p.is_symlink() for p in (output,*output.parents)) or any(c in str(output) for c in ',@')):
-        parser.error('output must be fresh and private below out/, without commas or @')
-    uboot,entry,recovery=(p.resolve(strict=True) for p in (args.uboot_build,args.entry_build,args.recovery_kit))
-    vendor,pfg=(p.resolve(strict=True) for p in (args.vendor_sof,args.quartus_pfg))
-    base=load_kit(recovery);base_record=json.loads((recovery/'result.json').read_text())
-    if sha(recovery/'network-recovery.sof')!=base_record['sof_sha256']:raise ValueError('recovery SOF differs')
+def checked_native(uboot,entry):
+    """Reuse the complete native FIT/SPL/entry/source checks for file composition."""
     fit,spl,image=uboot/'build/u-boot.itb',uboot/'build/spl/u-boot-spl-dtb.hex',entry/'entry.img'
     u=json.loads((uboot/'result.json').read_text());e=json.loads((entry/'result.json').read_text())
     checked_entry(entry)
     profile=selected_profile(e)
     native=u.get('native_handoff',{});config=(uboot/'build/.config').read_text()
-    if (sha(vendor)!=VENDOR_SOF or u.get('status')!='built' or u.get('bl31_bridge_mode')!='owned-cold-serial' or
+    if (u.get('status')!='built' or u.get('bl31_bridge_mode')!='owned-cold-serial' or
             u.get('fit_sha256')!=sha(fit) or u.get('spl_sha256')!=sha(spl) or not u.get('fit_atf_verified') or
             not 0<fit.stat().st_size<=MAX_FIT_SIZE or not native.get('preloaded_entry') or
             native.get('sealed_fit_sha256')!=sha(fit) or native.get('sealed_fit_size')!=fit.stat().st_size or
@@ -62,6 +52,24 @@ def main():
         raise ValueError('native SPL file, PIO or excluded-device configuration differs')
     for name,digest in native['producer_sources'].items():
         if sha(ROOT/name)!=digest:raise ValueError('native source changed: '+name)
+    return fit,spl,image,u,e,profile
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    for name in ('uboot-build','entry-build','recovery-kit','vendor-sof','quartus-pfg','output'):
+        parser.add_argument('--'+name,required=True,type=Path)
+    args=parser.parse_args();output=args.output.absolute()
+    if (output.exists() or not output.is_relative_to(ROOT/'out') or '..' in output.parts or
+            any(p.is_symlink() for p in (output,*output.parents)) or any(c in str(output) for c in ',@')):
+        parser.error('output must be fresh and private below out/, without commas or @')
+    uboot,entry,recovery=(p.resolve(strict=True) for p in (args.uboot_build,args.entry_build,args.recovery_kit))
+    vendor,pfg=(p.resolve(strict=True) for p in (args.vendor_sof,args.quartus_pfg))
+    base=load_kit(recovery);base_record=json.loads((recovery/'result.json').read_text())
+    if sha(recovery/'network-recovery.sof')!=base_record['sof_sha256']:raise ValueError('recovery SOF differs')
+    if sha(vendor)!=VENDOR_SOF:raise ValueError("recovery reference SOF differs")
+    fit,spl,image,u,e,profile=checked_native(uboot,entry)
+    native=u["native_handoff"]
     tools={name:Path(shutil.which(name) or '').absolute() for name in ('mcopy',)}
     if any(not p.is_file() for p in tools.values()):raise ValueError('mtools required')
     inputs={str(p):sha(p) for p in (fit,spl,image,vendor,pfg,uboot/'result.json',entry/'result.json',uboot/'build/.config',

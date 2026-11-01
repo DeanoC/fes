@@ -31,6 +31,10 @@ memory/device gate and matched SPL/FIT/SOF/test-SD files. The bounded serial
 earlier trials stopped at the firmware bridge gate. The subsequent
 [KSZ9031 recovery and native package trial](../../docs/validation/2026-11-01-de25-ksz9031-packages/README.md)
 passes its narrow CPU/SD path; other native peripherals remain unqualified.
+The [HPS-first native composition tool](nano/README.md#compose-the-hps-first-fpga-diagnostic-with-native-spl)
+now pairs the sealed FPGA diagnostic with the matched native SPL as regular
+files. It checks the embedded SPL and unchanged canonical core payload, while
+keeping live boot assertions and physical programming admission disabled.
 
 The initial [feasibility study](../../docs/design/de25-embedded-os.md) exercised
 a small protocol probe. This work goes further: retain the actual tenfoot
