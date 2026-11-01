@@ -1,6 +1,7 @@
 import copy
 import json
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from scripts.affected import CORES, LANES
@@ -25,6 +26,12 @@ def results_for(selected=(), cores=(), modes=None, tier='full'):
 
 
 class TierTests(unittest.TestCase):
+    def test_workflow_regression_runs_in_unconditional_check_step(self):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
+        step = workflow.split('      - name: Always-run planner and metadata checks\n', 1)[1].split(
+            '      - name: Documentation links and doc-reading checks\n', 1)[0]
+        self.assertIn('tests.test_ci_workflow', step)
+
     def test_smoke_tier_swaps_only_slow_families(self):
         from scripts.ci_simulations import SMOKE_TARGETS
         for core in CORES:
@@ -155,6 +162,13 @@ class GateTests(unittest.TestCase):
 
 
 class SimulationMatrixTests(unittest.TestCase):
+    def test_pc386_fesenv_simulation_runs_only_in_full_tier(self):
+        smoke = [row['target'] for row in simulation_matrix(['pc386'], 'smoke')['include']]
+        full = [row['target'] for row in simulation_matrix(['pc386'], 'full')['include']]
+        self.assertEqual(smoke, ['sim-fes-pc386'])
+        self.assertEqual(full, ['sim-fes-pc386', 'sim-fes-pc386-fesenv'])
+        self.assertNotIn('sim-fes-pc386-fesenv', smoke)
+
     def test_coleco_includes_every_default_and_oss_scenario(self):
         from scripts.ci_simulations import simulation_matrix
         rows = simulation_matrix(['coleco'])['include']

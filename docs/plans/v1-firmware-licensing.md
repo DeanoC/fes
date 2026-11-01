@@ -1,6 +1,6 @@
 # v1 firmware licensing
 
-**Status:** research record, 1 November 2026, for [#1343](https://github.com/DeanoC/fes/issues/1343). This is not legal advice. It records Deano's v1 decisions and feeds [#1344](https://github.com/DeanoC/fes/issues/1344) (bundle the legal firmware and add the first-use firmware card) and lines up with the licence-notice audit in [#387](https://github.com/DeanoC/fes/issues/387). The v1 scope is the four families Deano chose on 1 November: ZX81, Spectrum, C64 and Atari ST.
+**Status:** research record, 1 November 2026, for [#1343](https://github.com/DeanoC/fes/issues/1343). This is not legal advice. It records Deano's v1 decisions and feeds [#1344](https://github.com/DeanoC/fes/issues/1344) (bundle the legal firmware and add the first-use firmware card) and lines up with the licence-notice audit in [#387](https://github.com/DeanoC/fes/issues/387). The v1 scope is the four families Deano chose on 1 November: ZX81, Spectrum, C64 and Atari ST ([v1 first-release decisions](v1-first-release-first-boot-setup.md)).
 
 Every source below was fetched on 1 November 2026. Quotations are verbatim. **Unverified** marks a claim for which no primary source was found.
 

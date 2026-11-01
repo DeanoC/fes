@@ -4,6 +4,7 @@ device, audio, OPL2, presenter and port 2 benches, and the M5 system bench's
 report and producer inputs. No network access; the oracle boot and VGA
 replay are separate suites."""
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -61,11 +62,25 @@ class FreedosImageTest(unittest.TestCase):
     def test_lock_pins_each_package_at_the_release_tag(self):
         lock = freedos.lock()
         self.assertEqual(lock['tag'], 'FreeDOS-v1.4')
-        self.assertEqual(set(lock['packages']), {'kernel', 'freecom', 'fdisk'})
+        self.assertEqual(set(lock['packages']), {'kernel', 'freecom', 'fdisk', 'himemx', 'ctmouse', 'mem'})
+        self.assertEqual(set(lock['packages']), {name for spec in freedos.PROFILES.values() for name in spec['packages']})
         for spec in lock['packages'].values():
             self.assertRegex(spec['commit'], r'^[0-9a-f]{40}$')
             self.assertIn('GPL', spec['license'])
             self.assertIn('LICENSE', spec['files'])
+
+    def test_profile_binary_files_are_pinned_in_the_lock(self):
+        lock = freedos.lock()['packages']
+        for profile, spec in freedos.PROFILES.items():
+            for filename, source in spec['bin'].items():
+                with self.subTest(profile=profile, filename=filename):
+                    if source is None:
+                        self.assertEqual(filename, 'FESENV.COM')
+                        self.assertTrue(freedos.FESENV.is_file())
+                        continue
+                    package_name, package_path = source
+                    self.assertIn(package_name, spec['packages'])
+                    self.assertIn(package_path, lock[package_name]['files'])
 
     def test_geometry_and_partition_addresses(self):
         self.assertEqual(freedos.TOTAL_SECTORS, 65 * 16 * 63)
@@ -79,7 +94,7 @@ class FreedosImageTest(unittest.TestCase):
             image.write_bytes(b'disk')
             record = {'sha256': freedos.hashlib.sha256(b'disk').hexdigest(), 'inputs': freedos.inputs_key()}
             image.with_suffix('.json').write_text(json.dumps(record))
-            with mock.patch.object(freedos, 'IMAGE', image), \
+            with mock.patch.dict(freedos.PROFILES['boot'], {'image': image}), \
                     mock.patch.object(freedos, 'build', return_value='rebuilt') as build:
                 self.assertEqual(freedos.image(), image)
                 image.with_suffix('.json').write_text(json.dumps({**record, 'inputs': 'old'}))
@@ -90,6 +105,30 @@ class FreedosImageTest(unittest.TestCase):
                 image.with_suffix('.json').write_text('{')
                 self.assertEqual(freedos.image(), 'rebuilt')
                 self.assertEqual(build.call_count, 3)
+
+    def test_games_image_identity_tracks_its_local_com_program(self):
+        with tempfile.TemporaryDirectory(dir=freedos.ROOT) as directory:
+            root = Path(directory)
+            source = root / 'fesenv.asm'
+            source.write_bytes(b'first version')
+            image = root / 'freedos-games.img'
+            image.write_bytes(b'disk')
+            with mock.patch.object(freedos, 'FESENV', source), \
+                    mock.patch.dict(freedos.PROFILES['games'], {'image': image}):
+                boot_inputs = freedos.inputs_key('boot')
+                record = {'sha256': hashlib.sha256(b'disk').hexdigest(),
+                          'inputs': freedos.inputs_key('games')}
+                image.with_suffix('.json').write_text(json.dumps(record))
+                self.assertTrue(freedos.image_is_current('games'))
+                source.write_bytes(b'changed version')
+                self.assertNotEqual(record['inputs'], freedos.inputs_key('games'))
+                self.assertFalse(freedos.image_is_current('games'))
+                self.assertEqual(boot_inputs, freedos.inputs_key('boot'))
+
+    def test_profiles_use_separate_work_directories(self):
+        self.assertEqual(freedos.work_directory('boot'), freedos.BUILD / 'work-boot')
+        self.assertEqual(freedos.work_directory('games'), freedos.BUILD / 'work-games')
+        self.assertNotEqual(freedos.work_directory('boot'), freedos.work_directory('games'))
 
     def test_mbr_code_is_read_from_the_fdisk_array(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -163,6 +202,27 @@ END prompt steps=42 cycles=100 seconds=0.001
 
 
 class BootReportTest(unittest.TestCase):
+    def test_boot_suite_output_names_cover_image_and_cpu(self):
+        cases = (
+            ('boot', 'oracle', 'boot'),
+            ('games', 'oracle', 'boot-games'),
+            ('boot', 'rtl', 'boot-rtl'),
+            ('games', 'rtl', 'boot-games-rtl'),
+        )
+        for image, cpu, expected in cases:
+            with self.subTest(image=image, cpu=cpu):
+                self.assertEqual(sim.boot_suite(mock.Mock(image=image, cpu=cpu)), expected)
+
+    def test_non_boot_suites_reject_a_games_image(self):
+        for suite in ('sound', 'game', 'vga', 'system', 'all'):
+            with self.subTest(suite=suite), \
+                    mock.patch.object(sim.sys, 'argv', ['sim_fes_pc386.py', '--suite', suite, '--image', 'games']), \
+                    mock.patch('sys.stderr', new_callable=io.StringIO) as stderr:
+                with self.assertRaises(SystemExit) as error:
+                    sim.main()
+                self.assertEqual(error.exception.code, 2)
+                self.assertIn('--image is supported by the boot suite only', stderr.getvalue())
+
     def test_parse(self):
         report = sim.parse_boot(BOOT_OUTPUT)
         self.assertEqual(report['post'], [{'code': '00', 'cycle': 11397}])

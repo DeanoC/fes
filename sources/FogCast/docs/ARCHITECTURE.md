@@ -2805,6 +2805,12 @@ SDL scancodes, and the kit maps evdev `KEY_*`. There is no per-core character
 map; the core owns characters, shifted symbols, repeat and reset chords. The host
 attaches input for these sessions even without controller ports and passes the
 events through `POST /api/v1/session/input/event` and the host stream unchanged.
+On the kit, the linuxfb evdev loop reads `EV_KEY` records, maps Linux key codes
+through `internal/hidkeys.FromLinuxKey`, and passes the resulting usage to
+`HandlePlayHIDScancode` and the ordered `SendPlayHID` path. If connected evdev
+keyboards hold the same usage, tenfoot clears the releasing device's local
+held/modifier state immediately but sends the core release only after the last
+keyboard releases it.
 The 1.1 ABI retains its 1.0 keyboard and relative-mouse capabilities; an active
 `fes.mouse.relative` 1.0 interface receives the same supported-generation
 binding.

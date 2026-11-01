@@ -68,7 +68,7 @@ TEST_CONSUMER_GROUPS = {
 # Modules that assert against repository guides, rather than temporary Markdown
 # fixtures. Retain them for mixed code/docs edits without selecting all packages.
 DOCUMENTATION_MODULES = names('''check_doc_links image_assembly consistency
-    coordination core_build bundle v1_firmware_licensing_doc''')
+    coordination core_build bundle ci_workflow v1_firmware_licensing_doc''')
 
 
 def documentation(path):

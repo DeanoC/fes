@@ -1,5 +1,6 @@
 """Guard the source corrections in the v1 firmware licensing research note."""
 from pathlib import Path
+import re
 import unittest
 
 from scripts import parent_affected
@@ -19,10 +20,15 @@ def licensing_row(prefix):
 
 
 class V1FirmwareLicensingDocTests(unittest.TestCase):
-    def test_v1_scope_names_the_selected_families(self):
+    def test_v1_scope_links_to_local_decision_record(self):
         scope = DOC.split("\n\nEvery source", 1)[0]
         self.assertIn("The v1 scope is the four families Deano chose on 1 November", scope)
         self.assertIn("ZX81, Spectrum, C64 and Atari ST", scope)
+        match = re.search(r"\[v1 first-release decisions\]\(([^)]+)\)", scope)
+        self.assertIsNotNone(match)
+        target = match.group(1)
+        self.assertFalse(re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target))
+        self.assertTrue((ROOT / "docs/plans" / target).is_file())
 
     def test_recorded_deano_decisions_replace_open_questions(self):
         self.assertIn("Deano answered these decisions in the PR discussion", DOC)
