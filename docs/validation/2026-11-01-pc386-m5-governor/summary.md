@@ -107,9 +107,11 @@ games slice does both.
   - The governor bench's runs all halt with the same registers as `max`'s.
 - **FreeDOS under a preset.**
   - The RTL machine sim boots under 286-12 (`--suite boot --cpu rtl
-    --preset 1`): @@BOOT286@@
+    --preset 1`): running at the time of writing; its result lands in a
+    later commit.
   - `system_tb` boots through the record under 386DX-25 (`--suite system
-    --preset 3`): @@SYSTEM386@@
+    --preset 3`): running at the time of writing; its result lands in a
+    later commit.
 - **Charges and pacing.** `scripts/test_fes_i386_governor.py` runs fifteen
   loops under `max` and every preset at the sealed clock's
   `GOV_N`/`GOV_D` (table below).
@@ -208,6 +210,9 @@ Quartus 17.0.2 sealed `ab30f6c11` from a clean checkout (seed 1,
 
   The system clock is 61.44 MHz, with Fmax 70.37 MHz at the slow corner
   (the last seals were 67.6-72.9 MHz).
+- **Coverage.** The build record names `ab30f6c11`. All 108 pinned inputs
+  hash the same at this record's head: later commits change only documents
+  and `scripts/test_fes_i386_governor.py`, which is not an input.
 - **Resources.** 24,318 ALMs, 22,315 registers, 257 RAM blocks and 31 DSP
   blocks, against #1320's seal of the same shell without the governor:
   24,246 ALMs, 254 RAM blocks and 29 DSP blocks.

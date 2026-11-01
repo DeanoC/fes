@@ -300,7 +300,9 @@ the `fes.pc386.machine` record and the wall clock, with
     CPU samples at its reset, and words 2 and 4-6 its self-modifying-code
     profile and the Sound Blaster's port, IRQ and DMA, at each release. The
     producer sets the governor's `GOV_N`/`GOV_D` (100 kHz of the sealed
-    clock) with the other guest rates. The RTC loads CMOS 0Eh-7Fh from the
+    clock) with the other guest rates
+    ([governor record](../../../../docs/validation/2026-11-01-pc386-m5-governor/summary.md)).
+    The RTC loads CMOS 0Eh-7Fh from the
     record after every reset, then writes its configuration bytes, and every
     byte written to its RAM goes to the record. 00h-0Dh are the clock's
     registers, not RAM: Freeze reads them as the guest does, and a restore
