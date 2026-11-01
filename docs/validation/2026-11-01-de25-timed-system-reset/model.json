@@ -1,0 +1,20 @@
+{
+  "source_revision": "34c3a6cb4d2858c273e2f95a0a94fcb46f8b416b",
+  "command": [
+    "python3",
+    "sources/misteross/boards/de25nano/scanout/interconnect_sim.py",
+    "--project",
+    "/data/de25-timed-reset-34c3a6cb4/source/sources/misteross/build/de25-menu/ca03ea0a398d1bfa5104482d07fdc4c4/attempt-y3q32xlp/signoff/combined/hps/project",
+    "--output",
+    "/data/de25-timed-reset-34c3a6cb4/model"
+  ],
+  "cwd": "/data/de25-timed-reset-34c3a6cb4/source",
+  "started_utc": "2026-11-01T17:09:40.982700+00:00",
+  "time_cap_seconds": 300,
+  "hardware_access": "not-performed",
+  "pid": 2035661,
+  "state": "passed",
+  "elapsed_seconds": 70.9,
+  "heartbeat_utc": "2026-11-01T17:10:51.835452+00:00",
+  "returncode": 0
+}

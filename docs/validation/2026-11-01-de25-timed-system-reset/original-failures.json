@@ -1,0 +1,79 @@
+{
+  "source_revision": "3c95972b1f3d94608cdedf90e6c966329b966151",
+  "software": {
+    "source_revision": "3c95972b1f3d94608cdedf90e6c966329b966151",
+    "command": [
+      "env",
+      "-u",
+      "PYTHON",
+      "-u",
+      "MAKEFLAGS",
+      "-u",
+      "MAKEOVERRIDES",
+      "-u",
+      "MFLAGS",
+      "-u",
+      "MAKELEVEL",
+      "-u",
+      "GNUMAKEFLAGS",
+      "PATH=/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin:/home/deano/.local/bin:/home/deano/.cargo/bin:/home/deano/.local/bin:/home/deano/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games",
+      "make",
+      "test-changed",
+      "TEST_CHANGED_ARGS=--base bd7cae0139b918c96ce6928bef47536643cb7577"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-timed-reset-3c95972b1",
+    "started_utc": "2026-11-01T16:57:22.060024+00:00",
+    "time_cap_seconds": 2400,
+    "hardware_access": "not-performed",
+    "pid": 3653697,
+    "state": "failed",
+    "elapsed_seconds": 1.0,
+    "heartbeat_utc": "2026-11-01T16:57:23.091491+00:00",
+    "returncode": 2
+  },
+  "superseded_compile": {
+    "source_revision": "3c95972b1f3d94608cdedf90e6c966329b966151",
+    "command": [
+      "python3",
+      "/data/de25-timed-reset-3c95972b1/source/sources/misteross/scripts/build_de25_menu_package.py",
+      "--quartus-root",
+      "/data/altera_pro/26.3",
+      "--vendor-archive",
+      "/data/fes-de25-1297-9b36e4729/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+      "--compile-only"
+    ],
+    "cwd": "/data/de25-timed-reset-3c95972b1/source",
+    "started_utc": "2026-11-01T16:57:18.114462+00:00",
+    "time_cap_seconds": 2400,
+    "hardware_access": "not-performed",
+    "pid": 2021655,
+    "state": "failed",
+    "elapsed_seconds": 58.9,
+    "heartbeat_utc": "2026-11-01T16:58:17.053472+00:00",
+    "returncode": -15
+  },
+  "reason": {
+    "reason": "Superseded after byte-exact vendor fixture compression fixed committed-whitespace check. Test source lies in canonical closure, so corrected identity requires a fresh compile. First software job remains failed.",
+    "utc": "2026-11-01T16:58:16.996896+00:00",
+    "job_before": {
+      "source_revision": "3c95972b1f3d94608cdedf90e6c966329b966151",
+      "command": [
+        "python3",
+        "/data/de25-timed-reset-3c95972b1/source/sources/misteross/scripts/build_de25_menu_package.py",
+        "--quartus-root",
+        "/data/altera_pro/26.3",
+        "--vendor-archive",
+        "/data/fes-de25-1297-9b36e4729/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+        "--compile-only"
+      ],
+      "cwd": "/data/de25-timed-reset-3c95972b1/source",
+      "started_utc": "2026-11-01T16:57:18.114462+00:00",
+      "time_cap_seconds": 2400,
+      "hardware_access": "not-performed",
+      "pid": 2021655,
+      "state": "running",
+      "elapsed_seconds": 30.0,
+      "heartbeat_utc": "2026-11-01T16:57:48.114939+00:00"
+    }
+  }
+}

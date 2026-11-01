@@ -97,6 +97,13 @@ helpers and bounded Cortex-A53 argument tests. A reviewed managed base and
 sealed MENU are still required; the headless image remains outside that update
 path. These compiler results establish no service or hardware acceptance.
 
+The [canonical MENU reset-timing record](validation/2026-11-01-de25-timed-system-reset/README.md)
+covers the producer that restores timing checks on three same-clock reset
+receivers. Its fresh fit clears RES-50101, passes all 74 reported timing checks
+and retains only the approved two-input exception. HDMI output timing and other
+reset-domain coordination still block export; the candidate remains
+unprogrammed. Managed-image and native kit acceptance remain open.
+
 The [2026-10-28 AArch64 software validation record](validation/2026-10-28-de25-aarch64-runtime/README.md)
 retains the selected C++ SDK/image and runtime receipts, QEMU test logs, native
 retry and CI evidence. That record covers userspace software only; the later physical Linux/native-control

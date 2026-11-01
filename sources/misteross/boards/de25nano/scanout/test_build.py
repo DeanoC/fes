@@ -1,8 +1,11 @@
 """Actual upstream composition, retained-source and fail-closed mutation guards."""
+import gzip
 import importlib.util
 import json
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -47,9 +50,104 @@ class ScanoutBuildTests(unittest.TestCase):
         inputs = json.loads((directory / "inputs.json").read_text())
         self.assertEqual(inputs["scanout"]["build_id"], selected)
         self.assertEqual(inputs["scanout"]["build_identity_scheme"], "canonical-functional-record-v2")
+        self.assertEqual(inputs["scanout"]["reset_timing"], B.TIMED_RESET_RELEASE)
+        self.assertEqual(B.verify_reset_synchronizers(directory / "project")["sdc_clear_pins"], 8)
         self.assertIn("set_instance_parameter_value fes_scanout BUILD_ID 0x" + selected,
                       (directory / "project/integrate-mailbox.tcl").read_text())
         self.assertIn("set_global_assignment -name SEED 1\n", (directory / "project/golden_top.qsf").read_text())
+
+    def reset_timing_fixture(self):
+        # Timing-only fixture: normal preparation supplies the board/source
+        # snapshot; the actual vendor SDC comes from a retained 26.3 compile.
+        output, combined, hps, display = self.prepare(hps_first=True)
+        directory = output / "combined/hps"
+        inputs = json.loads((directory / "inputs.json").read_text())
+        inputs["f2sdram_master_profile"] = "scanout-only"
+        inputs["scanout"].update(build_identity_scheme="canonical-functional-record-v2",
+                                 reset_timing=B.TIMED_RESET_RELEASE)
+        path = directory / "project/fes_mailbox/clocks.sdc"
+        path.write_text(B.timed_scanout_sdc(path.read_text()))
+        inputs["scanout"]["source_sha256"]["clocks.sdc"] = B.sha(path.read_bytes())
+        (directory / "inputs.json").write_text(json.dumps(inputs))
+        vendor = gzip.decompress((B.HERE.parents[2] /
+            "tests/fixtures/de25_reset_controller.sdc.gz").read_bytes())
+        for i in range(6):
+            path = directory / f"project/generated-{i}/altera_reset_controller.sdc"
+            path.parent.mkdir()
+            path.write_bytes(vendor)
+        return output, directory, hps
+
+    def test_canonical_reset_repair_retains_vendor_inputs_and_checks_both_receipts(self):
+        _, directory, _ = self.reset_timing_fixture()
+        record = B.repair_generated_reset_timing(directory)
+        self.assertEqual(record["timed_instances"], list(B.TIMED_RESET_INSTANCES))
+        self.assertEqual(len(record["files"]), 6)
+        self.assertEqual(B.verify_generated_reset_timing(directory), record)
+        for name, row in record["files"].items():
+            self.assertEqual(row["before_sha256"], B.RESET_SDC_SHA256)
+            self.assertEqual(B.sha((directory / "reset-timing-originals" / name).read_bytes()), row["before_sha256"])
+            self.assertNotEqual(row["before_sha256"], row["after_sha256"])
+        for name in ("project/generated-0/altera_reset_controller.sdc",
+                     "reset-timing-originals/generated-0/altera_reset_controller.sdc",
+                     "project/fes_mailbox/clocks.sdc"):
+            path = directory / name
+            original = path.read_bytes()
+            try:
+                path.write_bytes(original + b"\n")
+                with self.subTest(path=name), self.assertRaises(ValueError):
+                    B.verify_generated_reset_timing(directory)
+            finally:
+                path.write_bytes(original)
+
+    def test_reset_repair_rejects_unknown_vendor_files_inventory_links_and_profile(self):
+        _, directory, _ = self.reset_timing_fixture()
+        path = directory / "project/generated-0/altera_reset_controller.sdc"
+        original = path.read_bytes()
+        for raw in (original + b"\n", original.replace(b"set_false_path", b"set_max_delay", 1)):
+            with self.assertRaisesRegex(ValueError, "reviewed Quartus 26.3"):
+                B.timed_vendor_reset_sdc(raw)
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, "six files"):
+            B.reset_sdc_files(directory / "project")
+        path.symlink_to(directory / "project/generated-1/altera_reset_controller.sdc")
+        with self.assertRaisesRegex(ValueError, "six files"):
+            B.reset_sdc_files(directory / "project")
+        inputs = json.loads((directory / "inputs.json").read_text())
+        for changed in (dict(inputs["scanout"], reset_timing="other"),
+                        dict(inputs["scanout"], build_identity_scheme="diagnostic-source-profile"),
+                        dict(inputs["scanout"], hps_initialization="AFTER INIT_DONE")):
+            with self.assertRaises(ValueError):
+                B.timed_reset_release(dict(inputs, scanout=changed))
+
+    @unittest.skipUnless(shutil.which("tclsh"), "Tcl interpreter is unavailable")
+    def test_actual_sdc_guard_times_only_three_instances_and_preserves_other_cuts(self):
+        raw = gzip.decompress((B.HERE.parents[2] /
+            "tests/fixtures/de25_reset_controller.sdc.gz").read_bytes())
+        changed = B.timed_vendor_reset_sdc(raw).decode()
+        conditions = re.findall(r"(?m)^if \{(\$(?:aclr|clrn)_counter > 0 && .+)\} \{$", changed)
+        self.assertEqual(len(conditions), 2)
+        others = ("soc_inst|rst_controller_001", "soc_inst|subsys_periph|fes_ctrl_cdc|fifo|read_reset_sync",
+                  "soc_inst|subsys_debug|fpga_m|rst_controller")
+        script = ["proc get_current_instance {} {return $::scope}", "set aclr_counter 1", "set clrn_counter 1"]
+        for condition in conditions:
+            for scope in (*B.TIMED_RESET_INSTANCES, *others):
+                script += ["set scope {" + scope + "}", "if {" + condition + "} {puts cut} else {puts timed}"]
+        result = subprocess.run([shutil.which("tclsh")], input="\n".join(script), text=True,
+                                capture_output=True, check=True, timeout=10)
+        self.assertEqual(result.stdout.splitlines(), ["timed"] * 3 + ["cut"] * 3 + ["timed"] * 3 + ["cut"] * 3)
+
+    def test_compile_refuses_regenerated_reset_cuts_before_linux_conversion(self):
+        output, directory, hps = self.reset_timing_fixture()
+        B.repair_generated_reset_timing(directory)
+        def compile_then_restore(*args):
+            path = directory / "project/generated-0/altera_reset_controller.sdc"
+            path.write_bytes((directory / "reset-timing-originals/generated-0/altera_reset_controller.sdc").read_bytes())
+            return directory / "not-reached.sof"
+        with mock.patch.object(hps, "compile_project", side_effect=compile_then_restore), \
+             mock.patch.object(hps, "linux_configuration_artifacts") as convert:
+            with self.assertRaisesRegex(ValueError, "same-clock reset constraints changed"):
+                B.compile_project(output, hps, None, None)
+        convert.assert_not_called()
 
     def test_retained_hdmi_derivation_and_input_binding_fail_closed(self):
         output, _, hps, _ = self.prepare()
