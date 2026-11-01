@@ -77,6 +77,11 @@ class OpenRomImageTest(unittest.TestCase):
     def setUpClass(cls):
         cls.directory = tempfile.TemporaryDirectory()
         cls.rom = build_zx81_openrom.build(Path(cls.directory.name))
+        cls.symbols = {
+            name: int(address, 16)
+            for address, name in (line.split() for line in
+                                  (Path(cls.directory.name) / "zx81-openrom.sym").read_text().splitlines())
+        }
 
     @classmethod
     def tearDownClass(cls):
@@ -96,6 +101,33 @@ class OpenRomImageTest(unittest.TestCase):
             self.assertEqual(self.rom[address], 0xc3, hex(address))
         self.at(0x0038, [0x0d, 0xc2])                     # INT: DEC C; JP NZ
         self.at(0x0066, [0x08, 0x3c, 0xfa])               # NMI: EX AF,AF'; INC A; JP M
+
+    def test_new_stops_display_before_rebuilding_dfile(self):
+        address = self.symbols["new_entry"]
+        self.assertEqual(self.rom[address:address + 2], bytes([0xd3, 0xfd]))
+        core = (build_zx81_openrom.SOURCE / "core.asm").read_text()
+        new = core.split("new_entry:", 1)[1].split("; Fresh machine stack", 1)[0]
+        dfile = new.index("ld (D_FILE),de")
+        self.assertLess(new.index("out (0xfd),a"), dfile)
+        self.assertLess(new.index("djnz .nl"), dfile)
+
+    def test_measure_and_fast_paths_preserve_their_contracts(self):
+        check_line = self.symbols["check_line"]
+        self.assertIn(bytes([0xa7, 0xc9]), self.rom[check_line:check_line + 16])
+
+        fast = self.symbols["fast"]
+        kscan = self.symbols["kscan"]
+        fast_code = self.rom[fast:kscan]
+        sampled = fast_code.index(bytes([0x3a, 0x34, 0x40, 0x5f]))  # LD A,(FRAMES); LD E,A
+        stopped = fast_code.index(bytes([0xfd, 0xcb, 0x3b, 0xbe]))  # RES 7,(IY+CDFLAG)
+        self.assertLess(sampled, stopped)
+
+    def test_decode_carry_matches_the_published_entry_point(self):
+        decode = self.symbols["decode"]
+        save_loop = self.symbols["save_loop"]
+        decode_code = self.rom[decode:save_loop]
+        self.assertEqual(decode_code.count(bytes([0xa7, 0xc9])), 2)  # failure clears carry
+        self.assertEqual(decode_code.count(bytes([0x37, 0xc9])), 1)  # success sets carry
 
     def test_key_tables(self):
         self.at(0x007e, [0x3f, 0x3d, 0x28, 0x3b])          # Z X C V

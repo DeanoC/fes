@@ -8,6 +8,7 @@ PW       equ FT+5               ; pointer-update scratch
 ; ---------------------------------------------------------------------
 ; NEW and power-on: everything below RAMTOP starts again.
 new_entry:
+        out (0xfd),a            ; stop SLOW display before clearing D_FILE
         ld hl,(RAMTOP)
         push hl
         ld hl,0x4000
@@ -29,12 +30,13 @@ new_entry:
         ld (LAST_K),hl
         ld (MEM),hl
         ld (FRAMES),hl
-        ld hl,PROG              ; CLS sets DF_SZ and DF_CC
-        ld (D_FILE),hl
+        ld hl,PROG
+        ld de,PROG
         ld b,25                 ; empty rows; CLS grows them in place
 .nl:    ld (hl),C_NL
         inc hl
         djnz .nl
+        ld (D_FILE),de          ; publish D_FILE after all rows are valid
         ld (VARS),hl
         ld (hl),0x80
         inc hl

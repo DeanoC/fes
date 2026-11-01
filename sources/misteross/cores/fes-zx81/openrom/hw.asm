@@ -257,13 +257,13 @@ slow:   set 6,(iy+Y_CDFLAG)
         set 7,(iy+Y_CDFLAG)
         jr start_frames
 
-; FAST: stop after the frame in progress.
-fast:   res 6,(iy+Y_CDFLAG)
-        bit 7,(iy+Y_CDFLAG)
+; FAST: stop after the frame in progress. Keep bit 6, the saved SLOW request;
+; bit 7 alone says whether frames are currently running.
+fast:   bit 7,(iy+Y_CDFLAG)
         ret z
-        res 7,(iy+Y_CDFLAG)
         ld a,(FRAMES)
         ld e,a
+        res 7,(iy+Y_CDFLAG)
         jr frame_spin
 
 ; Keyboard scan. Returns HL in the ZX81 KEYBOARD format: L has a zero bit
@@ -313,7 +313,7 @@ decode: ld a,c
         inc d
         bit 3,d
         jr z,.r
-        scf
+        and a                   ; no single row: carry clear
         ret
 .rf:    ld a,b
         rra
@@ -323,7 +323,7 @@ decode: ld a,c
         inc e
         bit 3,e
         jr z,.c
-        scf
+        and a                   ; no single column: carry clear
         ret
 .cf:    ld a,d
         add a,a
@@ -338,7 +338,7 @@ decode: ld a,c
         jr nz,.plain
         ld l,key_shift & 0xff   ; same page
 .plain: add hl,de
-        and a
+        scf                     ; a key was decoded successfully
         ret
 
 save_loop:

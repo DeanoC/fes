@@ -61,10 +61,11 @@ struct Machine {
     }
 
     // Run whole frames; fail if the display stops producing them.
-    void run_frames(unsigned n) {
+    void run_frames(unsigned n, uint64_t tick_budget = 0) {
         const unsigned target = frames + n;
         // FAST mode shows no frames while it computes: allow ~1.5 s.
-        const uint64_t limit = ticks + uint64_t(n + 2) * 2000000ull + 80000000ull;
+        const uint64_t limit = ticks + (tick_budget ? tick_budget :
+            uint64_t(n + 2) * 2000000ull + 80000000ull);
         while (frames < target) {
             tick();
             if (ticks >= limit) {
@@ -92,14 +93,46 @@ struct Machine {
     }
 
     // ZX81 keyboard rows 0..7 (A8..A15), columns 0..4; SHIFT is row 0 col 0.
-    void press(const std::vector<std::pair<int, int>> &keys) {
+    void press(const std::vector<std::pair<int, int>> &keys, bool acknowledge = false) {
         uint64_t bits = 0xffffffffffull;
         for (auto [row, col] : keys)
             bits &= ~(1ull << (row * 5 + col));
-        dut.keyboard = bits;    // long lines take a few frames to redraw
-        run_frames(6);
+        if (!acknowledge) {
+            dut.keyboard = bits;
+            run_frames(6);
+            dut.keyboard = 0xffffffffffull;
+            run_frames(6);
+            return;
+        }
+        // Wait for the editor to consume the key before releasing it. A
+        // fixed short pulse can be missed while a low-RAM display is being
+        // redrawn as the edit line grows.
         dut.keyboard = 0xffffffffffull;
-        run_frames(6);
+        bool released = false;
+        for (unsigned i = 0; i != 100; ++i) {
+            run_frames(1);
+            if (word(0x401f) == 0xffff) {
+                released = true;
+                break;
+            }
+        }
+        require(released, "keyboard did not return to the released state");
+        dut.keyboard = bits;
+        bool consumed = false;
+        for (unsigned i = 0; i != 100; ++i) {
+            run_frames(1);
+            if (word(0x401f) != 0xffff) {
+                consumed = true;
+                break;
+            }
+        }
+        require(consumed, "editor did not consume a key press");
+        dut.keyboard = 0xffffffffffull;
+        for (unsigned i = 0; i != 100; ++i) {
+            run_frames(1);
+            if (word(0x401f) == 0xffff) return;
+        }
+        fail("editor did not consume the key release");
     }
 };
 
@@ -116,7 +149,7 @@ std::pair<int, int> key(const std::string &name) {
     fail("no key " + name);
 }
 
-void type(Machine &m, const std::string &script) {
+void type(Machine &m, const std::string &script, bool acknowledge = false) {
     size_t i = 0;
     while (i < script.size()) {
         size_t j = script.find(' ', i);
@@ -125,9 +158,9 @@ void type(Machine &m, const std::string &script) {
         i = j + 1;
         if (word.empty()) continue;
         if (word.rfind("SHIFT+", 0) == 0)
-            m.press({key("SHIFT"), key(word.substr(6))});
+            m.press({key("SHIFT"), key(word.substr(6))}, acknowledge);
         else
-            m.press({key(word)});
+            m.press({key(word)}, acknowledge);
         if (word == "NL")
             m.run_frames(50);   // the line is stored or run before the next key
     }
@@ -138,10 +171,19 @@ std::string row_text(Machine &m, int row) {
     static const char *chars =
         " ##########\"#$:?()><=+-*/;,.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     uint16_t a = m.word(0x400c) + 1;
-    for (int r = 0; r != row; ++r)
-        while (m.peek(a++) != 0x76) {}
+    const uint16_t ramtop = m.word(0x4004);
+    for (int r = 0; r != row; ++r) {
+        bool found_newline = false;
+        while (a < ramtop) {
+            if (m.peek(a++) == 0x76) {
+                found_newline = true;
+                break;
+            }
+        }
+        require(found_newline, "display file has no newline before RAMTOP");
+    }
     std::string s;
-    for (uint8_t c; (c = m.peek(a++)) != 0x76 && s.size() < 40;)
+    for (uint8_t c; a < ramtop && (c = m.peek(a++)) != 0x76 && s.size() < 40;)
         s += (c & 0x40) ? '?' : chars[c & 0x3f];
     while (!s.empty() && s.back() == ' ') s.pop_back();
     return s;
@@ -283,6 +325,52 @@ int main(int argc, char **argv) {
     require(f.lines == 310 && f.sync == 6, "PAL frame is not 310 lines with 6 of sync");
     require(f.top == 243 && f.left == 36 && f.right == 43, "the K cursor is not where the ZX81 ROM puts it");
 
+    // NEW runs while SLOW is active. It must stop the display before clearing
+    // the system variables and publish a valid display file before restarting.
+    type(m, "A NL");
+    require(m.word(0x400c) >= 0x407d && m.word(0x400c) < m.word(0x4010),
+            "NEW did not rebuild D_FILE before returning to the editor");
+    m.run_frames(4);
+
+    // The cursor and all 36 letters must remain visible while editing a line
+    // longer than one 32-character screen row.
+    std::string long_edit = "9 0 P SHIFT+P";
+    for (int i = 0; i != 36; ++i) long_edit += " A";
+    long_edit += " SHIFT+P";
+    type(m, long_edit, true);
+    std::string visible_edit;
+    for (int row = 0; row != 24; ++row) {
+        const std::string text = row_text(m, row);
+        visible_edit += text;
+    }
+    const auto visible_as = std::count(visible_edit.begin(), visible_edit.end(), 'A');
+    if (visible_as != 36) {
+        for (int row = 20; row != 24; ++row)
+            std::cerr << "edit row " << row << ": '" << row_text(m, row) << "'\n";
+        const uint16_t edit_line = m.word(0x4014);
+        std::cerr << "E_LINE=" << std::hex << edit_line << " bytes:";
+        for (uint16_t a = edit_line; a < edit_line + 64; ++a) {
+            const uint8_t byte = m.peek(a);
+            std::cerr << ' ' << unsigned(byte);
+            if (byte == 0x76) break;
+        }
+        std::cerr << std::dec << " CDFLAG=" << unsigned(m.peek(0x403b))
+                  << " D_FILE=" << std::hex << m.word(0x400c)
+                  << " VARS=" << m.word(0x4010)
+                  << " S_POSN=" << m.word(0x4039)
+                  << " DF_SZ=" << unsigned(m.peek(0x4022))
+                  << " OFLAGS=" << unsigned(m.peek(0x4021))
+                  << " DF_CC=" << m.word(0x4037) << std::dec << '\n';
+        std::cerr << "display bytes:";
+        const uint16_t dfile = m.word(0x400c), vars = m.word(0x4010);
+        for (uint16_t a = dfile; a < vars; ++a)
+            std::cerr << ' ' << std::hex << unsigned(m.peek(a));
+        std::cerr << std::dec << '\n';
+        fail("edit display has " + std::to_string(visible_as) + " As, not 36");
+    }
+    type(m, "NL");
+    type(m, "A NL");             // discard the display-width fixture
+
     // A program typed on the keyboard; it SAVEs itself through the core's
     // capture while running.
     type(m, "1 0 P SHIFT+P H I SHIFT+P SHIFT+X 2 SHIFT+B 3 NL");
@@ -305,6 +393,8 @@ int main(int argc, char **argv) {
     }
     std::cout << "save: " << image.size() << " bytes\n";
     require(image.size() > 0x407d - 0x4009 && image[0] == 0, "the saved image is not a .p");
+    require((image[0x403b - 0x4009] & 0x40) != 0,
+            "SAVE did not preserve the SLOW request in CDFLAG");
 
     // NEW, then LOAD it back through the core's loader: the saved screen
     // returns and the program runs on from the line after SAVE.
@@ -317,6 +407,7 @@ int main(int argc, char **argv) {
     m.run_frames(20);
     std::cout << "load: '" << row_text(m, 0) << "' '" << row_text(m, 1) << "' report '"
               << row_text(m, 23) << "'\n";
+    require((m.peek(0x403b) & 0xc0) == 0xc0, "LOAD did not restore and run in SLOW mode");
     require(row_text(m, 0) == "HI6" && row_text(m, 1) == "AUTO", "LOAD did not restore and run on");
     require(row_text(m, 23) == "0/30", "the loaded program did not stop at 0/30");
 
@@ -332,6 +423,17 @@ int main(int argc, char **argv) {
               << row_text(m, 23) << "'\n";
     require(row_text(m, 21) == "30" && row_text(m, 20) == "29", "SCROLL lost the screen");
     require(row_text(m, 23) == "0/40", "the SCROLL loop did not end with 0/40");
-    std::cout << "FES ZX81 open ROM: display, keyboard, SAVE, LOAD and SCROLL pass\n";
+
+    // Exercise the display start/stop boundary repeatedly. The original
+    // frame-sampling order could wait forever after the NMI stopped frames.
+    if (ramtop == 0x8000) {
+        type(m, "A NL");
+        type(m, "1 0 SHIFT+D NL");
+        type(m, "2 0 SHIFT+F NL");
+        type(m, "3 0 G 1 0 NL");
+        type(m, "R NL");
+        m.run_frames(1200, 2000000000ull);
+    }
+    std::cout << "FES ZX81 open ROM: display, keyboard, edit, SAVE, LOAD, SCROLL and FAST/SLOW pass\n";
     return 0;
 }

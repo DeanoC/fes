@@ -66,7 +66,10 @@ put_char:
 ; the upper screen is full, unless OF_CLIP is set.
 check_line:
         bit OF_MEASURE,(iy+Y_OFLAGS)
-        ret nz
+        jr z,.normal
+        and a                   ; measuring must advance for every character
+        ret
+.normal:
         ld a,(S_POSN+1)
         bit OF_LOWER,(iy+Y_OFLAGS)
         jr z,.upper

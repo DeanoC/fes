@@ -193,7 +193,7 @@ k_mode: and a
 get_key:
         call get_key_raw
         call decode             ; HL -> key_plain or key_shift entry
-        jr c,get_key
+        jr nc,get_key
         ld b,0
         ld a,l
         cp key_shift & 0xff
