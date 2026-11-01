@@ -1049,23 +1049,33 @@ func (ins *nativeInputs) drop(app *App, lost *nativeInput) {
 }
 
 func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
-	remainingKeys := map[string]bool{}
+	app.mu.Lock()
+	// A key stays down while another keyboard holds the same key: the same HID
+	// usage in a fes.keyboard.hid session (F1 and keypad 5 have no name, and
+	// both Shifts share one), the same play-keyboard name otherwise.
+	hid := app.session.CoreKeyboardHID
+	identity := func(code uint16, name string) any {
+		if hid {
+			return nativeHIDUsage(code)
+		}
+		return name
+	}
+	remainingKeys := map[any]bool{}
 	for _, in := range ins.devices {
-		for _, name := range in.keysHeld {
-			remainingKeys[name] = true
+		for code, name := range in.keysHeld {
+			remainingKeys[identity(code, name)] = true
 		}
 	}
-	app.mu.Lock()
 	padEvents := releasePortLocked(app, lost)
 	var keyEvents []remoteinput.Event
 	for code, name := range lost.keysHeld {
-		if remainingKeys[name] {
+		if remainingKeys[identity(code, name)] {
 			continue
 		}
 		delete(app.playKeyHeld, name)
 		delete(app.playKeySuppressed, name)
 		event, ok := playhid.Event(name, false, app.session.CoreKeyboard)
-		if app.session.CoreKeyboardHID {
+		if hid {
 			event, ok = hidkeys.Event(nativeHIDUsage(code), false)
 		}
 		if ok {

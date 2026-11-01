@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -80,6 +81,40 @@ func TestNativeDisconnectReleasesOnlyLostDeviceHolds(t *testing.T) {
 	defer app.mu.Unlock()
 	if !app.playKeyHeld["a"] || app.playKeyHeld["q"] || app.stopPhase == "stopping" || app.sessionDisplayBusy {
 		t.Fatal("disconnect navigated or cleared surviving keyboard ownership")
+	}
+}
+
+func TestNativeDisconnectReleasesLostHIDKeysByUsage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
+	t.Cleanup(server.Close)
+	app, feed := kitDisplayApp(t, server)
+	app.mu.Lock()
+	app.session.CoreKeyboardHID = true
+	app.mu.Unlock()
+	now := time.Now()
+	// The lost keyboard holds F1 and left Shift; the other holds keypad 5 and
+	// right Shift. Neither pair shares a usage, though F1 and keypad 5 have no
+	// play-keyboard name and both Shifts are "shift".
+	lost := &nativeInput{kind: InputKeyboard, keysHeld: map[uint16]string{}}
+	other := &nativeInput{kind: InputKeyboard, keysHeld: map[uint16]string{}}
+	for _, hold := range []struct {
+		in   *nativeInput
+		code uint16
+	}{{lost, 59}, {lost, 42}, {other, 76}, {other, 54}} {
+		name := nativeKeyName(hold.code)
+		hold.in.keysHeld[hold.code] = name
+		app.HandlePlayHIDScancode(name, nativeHIDUsage(hold.code), true, now)
+	}
+	drainLocalKeyQueue(t, app)
+	inputs := &nativeInputs{devices: []*nativeInput{other}}
+	inputs.releaseLostPlayInput(app, lost)
+	drainLocalKeyQueue(t, app)
+	released := func(usage uint8) bool {
+		code, _ := hidkeys.Code(usage)
+		return feed.saw(code, remoteinput.ActionRelease)
+	}
+	if !released(0x3a) || !released(0xe1) || released(0x5d) || released(0xe5) {
+		t.Fatalf("disconnect left F1 or left Shift held, or released the other keyboard's keys: %+v", feed.snapshot())
 	}
 }
 
