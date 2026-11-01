@@ -83,7 +83,7 @@ adapters. Failed memory revocation remains sticky and blocks idle/replacement
 programming; closing a descriptor cannot clear it. This separates the proven
 DE25 DMA allocation path from DE10 window/cache rules without enabling a DE25
 MENU adapter or production factory. These interfaces and failure gates have
-software coverage only.
+[software validation only](../../docs/validation/2026-11-01-de25-menu-lifecycle/README.md).
 
 The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
 register contract through an exclusive injected `Mmio` backend and an injected
