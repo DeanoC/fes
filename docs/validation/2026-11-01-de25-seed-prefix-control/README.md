@@ -7,6 +7,10 @@ reads and unconditional park were observed. The CPU reported EL3 and
 park; it does not provide an initial trusted ownership proof or native/core-load
 acceptance. See [machine-readable evidence](evidence.json).
 
+The later [initial trace](../2026-11-01-de25-initial-trace/README.md) restores
+the early sample and all 18 checkpoints successfully with the preserved seed
+configuration. It replaced this control; initial native admission still rejects.
+
 ## Artifact and containment
 
 Frozen source: `a7b045916e969390b8eb73e940c337ff5dd67ee2`.

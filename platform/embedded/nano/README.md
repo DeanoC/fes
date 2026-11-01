@@ -31,6 +31,11 @@ EL3 and `MPIDR=0x81000000`. It retains the seed drivers and defers tracing until
 after console setup. Those later observations grant no initial ownership proof.
 This diagnostic is retained and parked with the original card inserted; the
 continuing claim is held under the user's optional factory-restore policy.
+The [subsequent full initial trace](../../../docs/validation/2026-11-01-de25-initial-trace/README.md)
+also passes with the preserved seed configuration: all 18 first-C-to-park
+checkpoints, EL3/MPIDR and first/fresh reset samples were captured. Initial
+admission still rejects `CPUINRESET=0xf`; no native gate was relaxed. This
+full trace is now the retained, parked diagnostic.
 
 The same spare card carries two paths:
 
