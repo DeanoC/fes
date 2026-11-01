@@ -334,6 +334,11 @@ int main(int argc, char** argv) {
             s.test_ram_storage_contract();
             require(s.read(FES_DE25_SCANOUT_ID_OFFSET) == FES_DE25_SCANOUT_IDENTITY, "wrong generated control decode");
             require(s.read(FES_DE25_SCANOUT_VERSION_OFFSET) == FES_DE25_SCANOUT_VERSION, "wrong register version");
+            const std::array<uint32_t, 4> build_id = {EXPECTED_BUILD_ID_0, EXPECTED_BUILD_ID_1,
+                                                     EXPECTED_BUILD_ID_2, EXPECTED_BUILD_ID_3};
+            for (unsigned word = 0; word < build_id.size(); ++word)
+                require(s.read(FES_DE25_SCANOUT_BUILD_ID0_OFFSET + word * 4) == build_id[word],
+                        "generated HDL build identity differs from verified producer");
             auto v = s.snapshot();
             require(v.status == (FES_DE25_SCANOUT_STATUS_DRAINED | FES_DE25_SCANOUT_STATUS_DISPLAY_READY) && !v.generation && !v.outstanding &&
                     !v.errors && !s.axi_bursts && !s.dut.video_de, "reset enabled traffic or display");

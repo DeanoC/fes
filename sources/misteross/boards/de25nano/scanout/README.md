@@ -243,3 +243,7 @@ The board still releases the control/memory bridges after initial clock lock,
 independently of a slow transmitter configuration. Software can wait through
 cold snapshots without enabling DMA. These changes await new exact-artifact
 compiler, kernel and board validation.
+
+The generated transport simulation requires Quartus’s explicit BUILD_ID forwarding
+and compares all four live build words with the verified generation receipt.
+This checks the actual generated endpoint wrapper as well as its IP metadata.

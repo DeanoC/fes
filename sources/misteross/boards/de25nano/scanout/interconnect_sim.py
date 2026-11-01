@@ -261,7 +261,7 @@ def source_closure(project):
         cdc_instances[instance] = {"kind": metadata.get("kind"), "version": metadata.get("version"),
                                    "module": module, "source": str(bodies[0][0].relative_to(project))}
     endpoint = definitions.get("peripheral_subsys_fes_scanout", [])
-    if len(endpoint) != 1 or not re.search(r"\bfes_de25_scanout\s+fes_scanout\s*\(", files[endpoint[0][0]][1]):
+    if len(endpoint) != 1 or not re.search(r"\bfes_de25_scanout\s*#\s*\(\s*\.BUILD_ID\s*\(\s*BUILD_ID\s*\)\s*\)\s+fes_scanout\s*\(", files[endpoint[0][0]][1]):
         raise ValueError("unsupported generated endpoint wrapper")
     sources = {p: files[p][0] for p in selected}
     sources[sopc] = sopc_data
@@ -465,6 +465,11 @@ def main(argv=None):
             raise ValueError("completed verified scanout IP-generation receipt is required")
         receipt["generation_sha256"] = sha(generation_data)
         receipt["generation_scanout"] = generation["scanout"]
+        build_id = generation["scanout"]["build_identity"]["build_id"]
+        if not isinstance(build_id, str) or not re.fullmatch(r"[0-9a-f]{32}", build_id) or int(build_id, 16) == 0:
+            raise ValueError("missing verified nonzero endpoint build identity")
+        build_words = [(int(build_id, 16) >> (32 * word)) & 0xffffffff for word in range(4)]
+        identity_flags = " ".join(f"-DEXPECTED_BUILD_ID_{word}=0x{value:08x}U" for word, value in enumerate(build_words))
         qips, periph, memory, module, sources, cdc_instances = source_closure(project)
         ram_sources, conditional_ram_sources = guard_ram_primitives(sources)
         ram_path = output / "modeled_m20k_storage.v"
@@ -518,7 +523,7 @@ def main(argv=None):
         receipt["elaboration_sha256"] = sha(xml_path.read_bytes())
         command = [verilator, "--cc", "--exe", "--build", "-j", "2", "-O2", "-Wno-fatal", "--assert",
                    "--top-module", TOP, "--Mdir", str(output / "obj"),
-                   "-CFLAGS", "-I" + str(output / "sources/fes_mailbox"),
+                   "-CFLAGS", "-I" + str(output / "sources/fes_mailbox") + " " + identity_flags,
                    *rtl_args, str(bench_copy)]
         receipt["build_command"] = command
         with (output / "build.log").open("w") as log:
