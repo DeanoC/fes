@@ -1,0 +1,68 @@
+{
+  "producer": "8cace007e4d1e8a9e23f1e52675279d1e83033bc",
+  "validator": "e531091e64b0497affe692228d855ff85ddf465b",
+  "compiled_model_match": true,
+  "source_files_matched": 175,
+  "qips_matched": 17,
+  "inputs_sha256": "4d20d01409cab73d90d4c26a20f40e2e8aa2041e70b0b5757d1a68b4402a647f",
+  "generation_sha256": "4bb4a9e782e12a7e02dc60c3186e430bfca3b81147cff34b09a580fda42afea8",
+  "build_id": "115a31ba8625086218d3335cf97a3cf6",
+  "artifacts": {
+    "linux-boot.core.rbf": {
+      "role": "Linux-fabric-configuration-candidate",
+      "sha256": "cfa6fe458af7f031a56229c479d2db50a49d44811f86650ad7b0ceda33ba11ea",
+      "size": 1744896
+    },
+    "linux-boot.hps.jic": {
+      "role": "HPS-first-QSPI-candidate-not-programmed",
+      "sha256": "274bab70b3e44ca3a4d56e946ae16a7ffc32b6c7b238b97e02a633210264c8bb",
+      "size": 16777449
+    },
+    "linux-complete.sof": {
+      "role": "volatile-JTAG-recovery-candidate",
+      "sha256": "135ffe7f737bf3293e993806d7c78f65f680c204ce8e773d912611e8b3e3935d",
+      "size": 1717281
+    }
+  },
+  "timing_report_sha256": "64305fe7da6615911f86d0a0ef42d1151e03e47405edcbbfb586476a2b5cab0a",
+  "timing_parser_sha256": "a8d0f4d5f4c690ee2123044aa33ea298e6da570d38632c9ed550d8bb9cc5c0c7",
+  "timing": {
+    "declared_failed_rules": 5,
+    "declared_total_rules": 85,
+    "nonzero_signoff_rules": [
+      {
+        "rule": "TMC-20012 - Missing Output Delay Constraint",
+        "count": 30,
+        "waived": 0,
+        "severity": "High"
+      },
+      {
+        "rule": "TMC-20011 - Missing Input Delay Constraint",
+        "count": 2,
+        "waived": 0,
+        "severity": "High"
+      },
+      {
+        "rule": "CDC-50002 - 1-Bit Asynchronous Transfer with Insufficient Constraints",
+        "count": 1,
+        "waived": 0,
+        "severity": "High"
+      },
+      {
+        "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+        "count": 2,
+        "waived": 0,
+        "severity": "Medium"
+      },
+      {
+        "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+        "count": 3,
+        "waived": 0,
+        "severity": "Low"
+      }
+    ]
+  },
+  "hardware_access": "not-performed",
+  "timing_acceptance": "not-qualified",
+  "analysis_scope": "artifact/model identity and all-family signoff inventory; failing rules retained without waiver"
+}

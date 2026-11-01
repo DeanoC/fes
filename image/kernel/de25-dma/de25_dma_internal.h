@@ -57,6 +57,7 @@ void fes_de25_dma_put(struct fes_de25_dma *grant);
 int fes_de25_dma_revoke_owned(struct fes_de25_dma *grant);
 int fes_de25_dma_poll(struct file *file, struct fes_de25_dma_info *info);
 void fes_de25_dma_info(struct file *file, struct fes_de25_dma_info *info);
+void fes_de25_dma_info_owned(struct fes_de25_dma *grant, struct fes_de25_dma_info *info);
 int fes_de25_dma_binding(struct device *dev);
 
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)

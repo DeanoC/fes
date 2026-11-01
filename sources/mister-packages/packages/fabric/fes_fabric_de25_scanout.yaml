@@ -9,10 +9,10 @@ description: >-
   The explicit Linux DMA build selects the generated SMMU stream/layout.
   This contract assigns no Linux device, firewall, boot or runtime admission. See docs/de25-scanout.md.
 major: 1
-minor: 0
+minor: 1
 constants:
   - {name: FesDe25ScanoutIdentity, value: 0x44325343}
-  - {name: FesDe25ScanoutVersion, value: 0x00010000}
+  - {name: FesDe25ScanoutVersion, value: 0x00010001}
   - {name: FesDe25ScanoutArchitecturalLwBase, value: 0x20000000}
   - {name: FesDe25ScanoutArchitecturalLwSpan, value: 0x20000000}
   - {name: FesDe25ScanoutPeripheralOffset, value: 0x00010200}
@@ -77,6 +77,10 @@ constants:
   - {name: FesDe25ScanoutSnapshotGrantLoOffset, value: 0x58}
   - {name: FesDe25ScanoutSnapshotGrantHiOffset, value: 0x5c}
   - {name: FesDe25ScanoutSnapshotGrantSpanOffset, value: 0x60}
+  - {name: FesDe25ScanoutBuildId0Offset, value: 0x64}
+  - {name: FesDe25ScanoutBuildId1Offset, value: 0x68}
+  - {name: FesDe25ScanoutBuildId2Offset, value: 0x6c}
+  - {name: FesDe25ScanoutBuildId3Offset, value: 0x70}
   - {name: FesDe25ScanoutCurrentSlotShift, value: 0}
   - {name: FesDe25ScanoutDisplayedSlotShift, value: 8}
   - {name: FesDe25ScanoutPendingSlotShift, value: 16}
@@ -92,7 +96,8 @@ constants:
   - {name: FesDe25ScanoutStatusDrained, value: 8}
   - {name: FesDe25ScanoutStatusFault, value: 16}
   - {name: FesDe25ScanoutStatusClockFault, value: 32}
-  - {name: FesDe25ScanoutStatusMask, value: 63}
+  - {name: FesDe25ScanoutStatusDisplayReady, value: 64}
+  - {name: FesDe25ScanoutStatusMask, value: 127}
   - {name: FesDe25ScanoutErrorDescriptor, value: 1}
   - {name: FesDe25ScanoutErrorCommand, value: 2}
   - {name: FesDe25ScanoutErrorResponse, value: 4}
@@ -100,4 +105,5 @@ constants:
   - {name: FesDe25ScanoutErrorClock, value: 16}
   - {name: FesDe25ScanoutErrorSequence, value: 32}
   - {name: FesDe25ScanoutErrorUnexpectedResponse, value: 64}
-  - {name: FesDe25ScanoutErrorMask, value: 127}
+  - {name: FesDe25ScanoutErrorDisplay, value: 128}
+  - {name: FesDe25ScanoutErrorMask, value: 255}

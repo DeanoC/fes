@@ -13,6 +13,7 @@
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
+#include <linux/uaccess.h>
 
 #include "de25_dma_internal.h"
 #include "de25_dma_guard.h"
@@ -160,8 +161,22 @@ static long owner_ioctl(struct file *control, unsigned int command, unsigned lon
 
 	if (!capable(CAP_SYS_RAWIO))
 		return -EPERM;
+	if (command == FES_DE25_DMA_OWNER_INFO) {
+		struct fes_de25_dma_info info;
+
+		mutex_lock(&owner->allocation_lock);
+		if (!owner->active) {
+			mutex_unlock(&owner->allocation_lock);
+			return -ENODATA;
+		}
+		fes_de25_dma_info_owned(owner->active, &info);
+		mutex_unlock(&owner->allocation_lock);
+		return copy_to_user((void __user *)argument, &info, sizeof(info)) ? -EFAULT : 0;
+	}
 	if (argument)
 		return -EINVAL;
+	if (command == FES_DE25_DMA_OWNER_ABI)
+		return FES_DE25_DMA_ABI_VERSION;
 	if (command == FES_DE25_DMA_OWNER_IDLE)
 		return owner_idle(owner);
 	if (command == FES_DE25_DMA_OWNER_REAP)

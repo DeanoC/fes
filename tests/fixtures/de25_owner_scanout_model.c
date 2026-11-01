@@ -41,6 +41,7 @@ void *__wrap_mmap(void *address, size_t size, int protection, int flags, int fd,
 		protection == (PROT_READ | PROT_WRITE) && flags == MAP_SHARED && fd == 101);
 	assert(offset == (off_t)((size_t)current.back_slot * size) && current.back_slot != current.displayed_slot);
 	assert(!mapped);
+	assert(current.hardware_status & FES_DE25_SCANOUT_STATUS_DISPLAY_READY);
 	if (is("mmap-error")) { errno = ENOMEM; return MAP_FAILED; }
 	mapped = 1; ++maps; seen_slots |= 1U << current.back_slot;
 	return backing + offset;
@@ -61,6 +62,10 @@ int __wrap_ioctl(int fd, unsigned long command, ...)
 {
 	va_list ap;
 	void *argument;
+    if (command == FES_DE25_DMA_OWNER_ABI) {
+        assert(fd == 100);
+        return is("abi-error") ? error() : is("old-abi") ? 2 : FES_DE25_DMA_ABI_VERSION;
+    }
 	if (command == FES_DE25_DMA_OWNER_ALLOC) {
 		assert(fd == 100 && !allocations++);
 		return is("alloc-error") ? error() : 101;
@@ -78,6 +83,7 @@ int __wrap_ioctl(int fd, unsigned long command, ...)
 		*(struct fes_de25_dma_info *)argument = current;
 		if (is("bad-version")) ((struct fes_de25_dma_info *)argument)->version++;
 		if (is("bad-geometry")) ((struct fes_de25_dma_info *)argument)->stride++;
+		if (is("zero-build")) memset(((struct fes_de25_dma_info *)argument)->build_id, 0, sizeof(current.build_id));
 		if (is("zero-generation")) ((struct fes_de25_dma_info *)argument)->generation = 0;
 		if (is("initial-outstanding")) ((struct fes_de25_dma_info *)argument)->outstanding = 1;
 		return 0;
@@ -91,6 +97,8 @@ int __wrap_ioctl(int fd, unsigned long command, ...)
 		current.pending_slot = p->slot;
 		current.back_slot = FES_DE25_DMA_NO_SLOT;
 		current.state = FES_DE25_DMA_EXPOSED | FES_DE25_DMA_PENDING;
+		current.hardware_status = FES_DE25_SCANOUT_STATUS_CONFIGURED | FES_DE25_SCANOUT_STATUS_RUNNING |
+			FES_DE25_SCANOUT_STATUS_PENDING | FES_DE25_SCANOUT_STATUS_DISPLAY_READY;
 		pending_polls = 0;
 		return 0;
 	}
@@ -98,6 +106,10 @@ int __wrap_ioctl(int fd, unsigned long command, ...)
 	struct fes_de25_dma_info *p = argument;
 	assert(p->generation == current.generation && p->version == current.version && !p->reserved);
 	++polls;
+	if (!(current.state & FES_DE25_DMA_EXPOSED)) {
+		ticks += 1000;
+		if (is("late-ready")) current.hardware_status |= FES_DE25_SCANOUT_STATUS_DISPLAY_READY;
+	}
 	if (is("poll-error")) return error();
 	if (current.state & FES_DE25_DMA_PENDING) {
 		if (is("timeout")) ticks += 1000;
@@ -107,11 +119,14 @@ int __wrap_ioctl(int fd, unsigned long command, ...)
 			current.back_slot = current.displayed_slot ^ 1U;
 			current.pending_sequence = 0; current.pending_slot = FES_DE25_DMA_NO_SLOT;
 			current.state = FES_DE25_DMA_EXPOSED;
+			current.hardware_status &= ~FES_DE25_SCANOUT_STATUS_PENDING;
 		}
 	}
 	*p = current;
 	if (is("wrong-ack") && current.displayed_sequence) p->displayed_slot ^= 1;
 	if (is("changed-generation")) p->generation++;
+	if (is("changed-build")) p->build_id[0] ^= 1;
+	if (is("ready-loss")) p->hardware_status &= ~FES_DE25_SCANOUT_STATUS_DISPLAY_READY;
 	if (is("underflow")) p->underflows = 1;
 	if (is("hardware-fault")) p->hardware_status = FES_DE25_SCANOUT_STATUS_FAULT;
 	if (is("uncertain")) p->state |= FES_DE25_DMA_UNCERTAIN;
@@ -125,7 +140,10 @@ int main(int argc, char **argv)
 		.allocation_bytes = FES_DE25_SCANOUT_ALLOCATION_BYTES, .slot_bytes = FES_DE25_SCANOUT_SLOT_BYTES,
 		.frame_bytes = FES_DE25_SCANOUT_FRAME_BYTES, .width = FES_DE25_SCANOUT_FRAME_WIDTH,
 		.height = FES_DE25_SCANOUT_FRAME_HEIGHT, .stride = FES_DE25_SCANOUT_FRAME_STRIDE,
+		.hardware_status = FES_DE25_SCANOUT_STATUS_DRAINED | FES_DE25_SCANOUT_STATUS_DISPLAY_READY,
+		.build_id = {0x76543210, 0xfedcba98, 0x89abcdef, 0x01234567},
 		.slots = 2, .pending_slot = FES_DE25_DMA_NO_SLOT, .back_slot = 1};
+	if (is("late-ready") || is("not-ready")) current.hardware_status &= ~FES_DE25_SCANOUT_STATUS_DISPLAY_READY;
 	int result = run_scanout(100, is("allocation-only"));
 	printf("{\"result\":%d,\"allocations\":%u,\"maps\":%u,\"unmaps\":%u,\"publishes\":%u,\"polls\":%u,\"reaps\":%u,\"closes\":%u,\"seen_slots\":%u}\n",
 		result, allocations, maps, unmaps, publishes, polls, reaps, closes, seen_slots);

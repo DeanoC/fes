@@ -49,6 +49,7 @@ struct fes_de25_dma {
 	u64 generation, epoch;
 	u32 sequence, accepted_sequence, displayed_sequence, displayed_slot, pending_slot;
 	u32 hardware_status, hardware_errors, underflows, outstanding;
+	u32 build_id[4];
 	bool revoked, exposed, uncertain, pending;
 #if IS_ENABLED(CONFIG_FES_DE25_DMA_KUNIT_TEST)
 	struct fes_de25_dma_test_observer *observer;
@@ -107,13 +108,21 @@ struct fes_de25_snapshot {
 	u64 generation, dma;
 	u32 status, accepted, displayed, current_sequence, slots, errors, underflows;
 	u32 outstanding, span;
+	u32 build_id[4];
 };
+
+static bool fes_de25_cold_snapshot(const struct fes_de25_snapshot *s)
+{
+	return (s->status & ~FES_DE25_SCANOUT_STATUS_DISPLAY_READY) == FES_DE25_SCANOUT_STATUS_DRAINED &&
+		!s->generation && !s->dma && !s->span && !s->accepted && !s->displayed &&
+		!s->current_sequence && !s->slots && !s->errors && !s->outstanding && !s->underflows;
+}
 
 static int fes_de25_snapshot(struct fes_de25_dma *grant, struct fes_de25_snapshot *snapshot)
 {
 	struct fes_de25_dma_backend *io = &grant->backend;
 	u32 old, serial, lo, hi;
-	unsigned int attempt;
+	unsigned int attempt, word;
 	int ret;
 
 	ret = io->read32(io->context, FES_DE25_SCANOUT_SNAPSHOT_SERIAL_OFFSET, &old);
@@ -161,6 +170,15 @@ static int fes_de25_snapshot(struct fes_de25_dma *grant, struct fes_de25_snapsho
 	snapshot->dma = (u64)hi << 32 | lo;
 	READ_SNAPSHOT(span, GRANT_SPAN);
 #undef READ_SNAPSHOT
+	/* Build words are immutable for this image. Pair them with the same serial
+	 * and epoch proof; a different loaded image must never inherit a grant.
+	 */
+	for (word = 0; word < ARRAY_SIZE(snapshot->build_id); word++) {
+		ret = io->read32(io->context, FES_DE25_SCANOUT_BUILD_ID0_OFFSET + word * sizeof(u32),
+				&snapshot->build_id[word]);
+		if (ret)
+			return ret;
+	}
 	ret = io->read32(io->context, FES_DE25_SCANOUT_SNAPSHOT_SERIAL_OFFSET, &lo);
 	if (ret)
 		return ret;
@@ -194,21 +212,26 @@ static void fes_de25_dma_info_locked(struct fes_de25_dma *grant, struct fes_de25
 	info->hardware_errors = grant->hardware_errors;
 	info->underflows = grant->underflows;
 	info->outstanding = grant->outstanding;
+	memcpy(info->build_id, grant->build_id, sizeof(info->build_id));
 }
 
-void fes_de25_dma_info(struct file *file, struct fes_de25_dma_info *info)
+void fes_de25_dma_info_owned(struct fes_de25_dma *grant, struct fes_de25_dma_info *info)
 {
-	struct fes_de25_dma *grant = file->private_data;
-
 	mutex_lock(&grant->lock);
 	fes_de25_dma_info_locked(grant, info);
 	mutex_unlock(&grant->lock);
 }
 
+void fes_de25_dma_info(struct file *file, struct fes_de25_dma_info *info)
+{
+	fes_de25_dma_info_owned(file->private_data, info);
+}
+
 static int fes_de25_dma_identity(struct fes_de25_dma *grant, const struct fes_de25_snapshot *snapshot)
 {
 	if (grant->backend.epoch(grant->backend.context) != grant->epoch ||
-	    snapshot->generation != grant->generation)
+	    snapshot->generation != grant->generation ||
+	    memcmp(snapshot->build_id, grant->build_id, sizeof(grant->build_id)))
 		return -ESTALE;
 	if ((snapshot->status & ~FES_DE25_SCANOUT_STATUS_MASK) ||
 	    !(snapshot->status & FES_DE25_SCANOUT_STATUS_CONFIGURED) ||
@@ -290,13 +313,19 @@ int fes_de25_dma_poll(struct file *file, struct fes_de25_dma_info *info)
 		ret = -EBUSY;
 		goto out;
 	}
-	if (grant->exposed) {
-		ret = fes_de25_snapshot(grant, &snapshot);
-		if (!ret)
-			ret = fes_de25_dma_update(grant, &snapshot);
-		if (ret)
-			grant->uncertain = true;
+	ret = fes_de25_snapshot(grant, &snapshot);
+	if (!ret && grant->exposed)
+		ret = fes_de25_dma_update(grant, &snapshot);
+	else if (!ret) {
+		if (!fes_de25_cold_snapshot(&snapshot) ||
+			grant->backend.epoch(grant->backend.context) != grant->epoch ||
+			memcmp(snapshot.build_id, grant->build_id, sizeof(grant->build_id)))
+			ret = -ESTALE;
+		else
+			grant->hardware_status = snapshot.status;
 	}
+	if (ret)
+		grant->uncertain = true;
 	if (!ret)
 		fes_de25_dma_info_locked(grant, info);
 out:
@@ -444,10 +473,9 @@ int fes_de25_dma_revoke_owned(struct fes_de25_dma *grant)
 		struct fes_de25_snapshot snapshot;
 
 		ret = fes_de25_snapshot(grant, &snapshot);
-		if (!ret && (snapshot.status != FES_DE25_SCANOUT_STATUS_DRAINED ||
-		    snapshot.generation || snapshot.dma || snapshot.span || snapshot.accepted ||
-		    snapshot.displayed || snapshot.current_sequence || snapshot.slots || snapshot.errors ||
-		    snapshot.outstanding || grant->backend.epoch(grant->backend.context) != grant->epoch))
+		if (!ret && (!fes_de25_cold_snapshot(&snapshot) ||
+		    memcmp(snapshot.build_id, grant->build_id, sizeof(grant->build_id)) ||
+		    grant->backend.epoch(grant->backend.context) != grant->epoch))
 			ret = -ESTALE;
 	}
 	if (ret)
@@ -682,13 +710,17 @@ struct file *fes_de25_dma_create(struct device *dev, const struct fes_de25_dma_b
 		ret = -EPROTONOSUPPORT;
 	if (!ret)
 		ret = fes_de25_snapshot(grant, &snapshot);
-	if (!ret && (snapshot.status != FES_DE25_SCANOUT_STATUS_DRAINED || snapshot.generation ||
-	    snapshot.accepted || snapshot.displayed || snapshot.current_sequence || snapshot.slots ||
-	    snapshot.outstanding || snapshot.errors || snapshot.dma || snapshot.span ||
-	    selected.epoch(selected.context) != epoch))
+	if (!ret && (!fes_de25_cold_snapshot(&snapshot) || selected.epoch(selected.context) != epoch))
 		ret = -EBUSY;
 	if (ret)
 		goto fail_lease;
+	if (!(snapshot.build_id[0] | snapshot.build_id[1] |
+	      snapshot.build_id[2] | snapshot.build_id[3])) {
+		ret = -EPROTONOSUPPORT;
+		goto fail_lease;
+	}
+	memcpy(grant->build_id, snapshot.build_id, sizeof(grant->build_id));
+	grant->hardware_status = snapshot.status;
 	kref_init(&grant->refs);
 	mutex_init(&grant->lock);
 	mutex_init(&grant->revoke_lock);

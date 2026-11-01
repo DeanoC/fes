@@ -1,0 +1,25 @@
+{
+  "source_revision": "8cace007e4d1e8a9e23f1e52675279d1e83033bc",
+  "command": [
+    "python3",
+    "scripts/de25_kernel_test.py",
+    "run",
+    "--cache",
+    "/home/deano/fes/out/cache/de25-linux-kernel.git",
+    "--image-output",
+    "/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image",
+    "--output",
+    "out/identity-ready-kernel",
+    "--jobs",
+    "4"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-menu",
+  "started_utc": "2026-11-01T11:23:55.745973+00:00",
+  "time_cap_seconds": 1800,
+  "hardware_access": "not-performed",
+  "pid": 3257525,
+  "state": "passed",
+  "elapsed_seconds": 102.4,
+  "heartbeat_utc": "2026-11-01T11:25:38.159804+00:00",
+  "returncode": 0
+}

@@ -6,7 +6,7 @@
 #include <linux/types.h>
 
 /* A separate, currently unbound diagnostic ABI; not the DE10 fes-window ABI. */
-#define FES_DE25_DMA_ABI_VERSION 2
+#define FES_DE25_DMA_ABI_VERSION 3
 
 struct fes_de25_dma_publish {
 	__u64 generation;
@@ -38,6 +38,10 @@ struct fes_de25_dma_info {
 	__u32 hardware_errors;
 	__u32 underflows;
 	__u32 outstanding;
+	/* Immutable observed hardware build identity, least-significant word first.
+	 * No physical or DMA address is exposed by these opaque identity words.
+	 */
+	__u32 build_id[4];
 };
 
 #define FES_DE25_DMA_REVOKED 1U
@@ -66,5 +70,13 @@ struct fes_de25_dma_info {
  * their maintenance lease and validate the configuration separately.
  */
 #define FES_DE25_DMA_OWNER_IDLE _IO(0xD5, 0x12)
+/* Read-only ABI version, returned as the positive ioctl result. Query before
+ * ALLOC so an older kernel cannot leave an unwanted legacy allocation behind.
+ */
+#define FES_DE25_DMA_OWNER_ABI _IO(0xD5, 0x13)
+/* Cached active-grant metadata for a privileged serialized lifecycle. Returns
+ * ENODATA without an owner handle. No MMIO, drain or reference release occurs.
+ */
+#define FES_DE25_DMA_OWNER_INFO _IOR(0xD5, 0x14, struct fes_de25_dma_info)
 
 #endif

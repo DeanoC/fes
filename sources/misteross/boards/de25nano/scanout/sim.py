@@ -32,7 +32,7 @@ if args.case in ("frame-ack", "all"):
     run("frame-ack", "fes_menu_video", [MISTEROSS / "cores/fes-menu/rtl/fes_menu_pattern_memory.v"],
         "frame_ack_tb.cpp", ("-GTEST_PATTERN=1'b1", "-GCOMPLETE_FRAME_ACK=1'b1"))
 if args.case in ("endpoint", "all"):
-    run("endpoint", "fes_de25_scanout", [HERE / "fes_de25_scanout.v"], "endpoint_tb.cpp")
+    run("endpoint", "fes_de25_scanout", [HERE / "fes_de25_scanout.v"], "endpoint_tb.cpp", ("-GBUILD_ID=128'h0123456789abcdeffedcba9876543210",))
 if args.case in ("board", "all"):
     run("board", "fes_de25_scanout_board", [HERE / "fes_de25_scanout_board.v",
         HERE.parent / "display/sim_models.v", HERE.parent / "hps/fes_de25_top_reset.v"], "board_tb.cpp", shared=False)

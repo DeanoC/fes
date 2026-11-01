@@ -29,6 +29,32 @@ class ScanoutBuildTests(unittest.TestCase):
         with mock.patch.object(B, "capture", return_value=self.sources):
             return B.prepare(self.fixture.archive, self.root / "prepared", revision, hps_first=hps_first, linux_dma=linux_dma)
 
+    def test_build_identity_binds_actual_sources_and_profile(self):
+        output, _, _, _ = self.prepare("a" * 40, hps_first=True)
+        directory = output / "combined/hps"
+        inputs = json.loads((directory / "inputs.json").read_text())
+        selected = inputs["scanout"]["build_id"]
+        self.assertRegex(selected, r"^[0-9a-f]{32}$")
+        self.assertIn("set_instance_parameter_value fes_scanout BUILD_ID 0x" + selected,
+                      (directory / "project/integrate-mailbox.tcl").read_text())
+        self.assertEqual(selected, B.build_identity(dict(reversed(list(self.sources.items()))), True, False))
+        self.assertNotEqual(selected, B.build_identity(self.sources, True, True))
+        changed = dict(self.sources)
+        changed[B.BOARD + "scanout/fes_de25_scanout.v"] += b"\n"
+        self.assertNotEqual(selected, B.build_identity(changed, True, False))
+
+    def test_generated_build_identity_refuses_zero_mismatch_and_overflow(self):
+        endpoint = ET.Element("module")
+        value = ET.SubElement(ET.SubElement(endpoint, "parameter", {"name": "BUILD_ID"}), "value")
+        expected = "0123456789abcdeffedcba9876543210"
+        for actual in ("0x" + expected, "128'h" + expected, str(int(expected, 16))):
+            value.text = actual
+            self.assertEqual(B.endpoint_build_identity(self.root, endpoint, None, expected)["build_id"], expected)
+        for actual in ("0", "0x1", str(1 << 128), "unknown"):
+            value.text = actual
+            with self.subTest(actual=actual), self.assertRaises(ValueError):
+                B.endpoint_build_identity(self.root, endpoint, None, expected)
+
     def test_visibility_cdc_cut_targets_only_the_registered_request_to_the_first_d_pin(self):
         sdc = self.sources[B.BOARD + "scanout/clocks.sdc"].decode()
         self.assertIn("set scanout_visible_source [get_registers {fes_video_inst|visible_request}]", sdc)
@@ -47,7 +73,7 @@ class ScanoutBuildTests(unittest.TestCase):
         # the synchronizer; lock loss still clears the pixel release at once.
         self.assertIn("always @(posedge system_clk or negedge top_reset_n)\n"
                       "        if (!top_reset_n) visible_request <= 1'b0;\n"
-                      "        else visible_request <= first_lock_seen && qualified_lock && !fault;", board)
+                      "        else visible_request <= first_lock_seen && qualified_lock && !fault && hdmi_ready_sync[1];", board)
         self.assertIn("fes_de25_top_reset visible_release (.clk(pixel_clk), .ninit_done(1'b0),\n"
                       "        .pll_locked(qualified_lock), .reset_n(visible_reset_n));", board)
         self.assertIn("always @(posedge pixel_clk or negedge visible_reset_n)", board)
@@ -204,6 +230,13 @@ class ScanoutBuildTests(unittest.TestCase):
         sdc_path.write_text(original_sdc.replace("set_false_path -from $scanout_visible_source -to $scanout_visible_head", "set_false_path -to $scanout_visible_head", 1))
         with self.assertRaisesRegex(ValueError, "cut only the registered visibility request"):
             B.verify_reset_synchronizers(project)
+        for before, after in (
+            ("fes_video_inst|hdmi_ready_sync[0]|d", "fes_video_inst|hdmi_ready_sync[1]|d"),
+            ("set_false_path -from $scanout_ready_source -to $scanout_ready_head", "set_false_path -to $scanout_ready_head"),
+        ):
+            sdc_path.write_text(original_sdc.replace(before, after, 1))
+            with self.subTest(after=after), self.assertRaisesRegex(ValueError, "HDMI-ready source to stage0 D"):
+                B.verify_reset_synchronizers(project)
         sdc_path.write_text(original_sdc.replace("$scanout_clear_count != 10", "$scanout_clear_count != 8", 1))
         with self.assertRaisesRegex(ValueError, "ten reset/visibility clear pins"):
             B.verify_reset_synchronizers(project)

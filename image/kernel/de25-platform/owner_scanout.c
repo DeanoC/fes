@@ -28,6 +28,7 @@ static int fail(const char *stage)
 static int geometry(const struct fes_de25_dma_info *i)
 {
 	return i->version == FES_DE25_DMA_ABI_VERSION && i->generation && !i->reserved &&
+		(i->build_id[0] | i->build_id[1] | i->build_id[2] | i->build_id[3]) &&
 		i->allocation_bytes == FES_DE25_SCANOUT_ALLOCATION_BYTES &&
 		i->slot_bytes == FES_DE25_SCANOUT_SLOT_BYTES &&
 		i->frame_bytes == FES_DE25_SCANOUT_FRAME_BYTES &&
@@ -52,7 +53,11 @@ static int run_scanout(int owner, bool allocation_only)
 	const uint32_t colors[] = {0x00ff0000, 0x0000ff00, 0x000000ff};
 	struct fes_de25_dma_info info = {0};
 	uint64_t generation;
-	int grant = ioctl(owner, FES_DE25_DMA_OWNER_ALLOC, 0UL), result = 1, flags;
+	uint32_t build_id[4];
+	int grant, result = 1, flags;
+	if (ioctl(owner, FES_DE25_DMA_OWNER_ABI, 0UL) != FES_DE25_DMA_ABI_VERSION)
+		return fail("owner ABI before allocation");
+	grant = ioctl(owner, FES_DE25_DMA_OWNER_ALLOC, 0UL);
 	if (grant < 0)
 		return fail("ALLOC");
 	flags = fcntl(grant, F_GETFD);
@@ -63,6 +68,9 @@ static int run_scanout(int owner, bool allocation_only)
 		fail("initial grant identity");
 		goto out;
 	}
+	memcpy(build_id, info.build_id, sizeof(build_id));
+	printf("DE25_OWNER_BUILD_ID=%08x%08x%08x%08x\n",
+		build_id[3], build_id[2], build_id[1], build_id[0]);
 	if (allocation_only) {
 		/* Unexposed allocation: no mapping, publication, POLL or frame DMA. */
 		if (ioctl(owner, FES_DE25_DMA_OWNER_REAP, 0UL)) {
@@ -74,6 +82,24 @@ static int run_scanout(int owner, bool allocation_only)
 		goto out;
 	}
 	generation = info.generation;
+	if (!(info.hardware_status & FES_DE25_SCANOUT_STATUS_DISPLAY_READY)) {
+		uint64_t start = now_ms();
+		if (start == UINT64_MAX || start > UINT64_MAX - 5000) {
+			fail("display readiness clock"); goto out;
+		}
+		while (!(info.hardware_status & FES_DE25_SCANOUT_STATUS_DISPLAY_READY)) {
+			info = (struct fes_de25_dma_info){.generation = generation, .version = FES_DE25_DMA_ABI_VERSION};
+			if (ioctl(grant, FES_DE25_DMA_POLL, &info) || !geometry(&info) || info.generation != generation ||
+				memcmp(info.build_id, build_id, sizeof(build_id)) || info.state || info.accepted_sequence ||
+				info.displayed_sequence || info.outstanding || now_ms() >= start + 5000) {
+				fail("display readiness before publication"); goto out;
+			}
+			if (!(info.hardware_status & FES_DE25_SCANOUT_STATUS_DISPLAY_READY)) {
+				struct timespec delay = {.tv_nsec = 10000000};
+				if (nanosleep(&delay, NULL)) { fail("display readiness wait"); goto out; }
+			}
+		}
+	}
 	for (uint32_t sequence = 1; sequence <= 3; ++sequence) {
 		uint32_t slot = info.back_slot;
 		struct fes_de25_dma_publish publish = {
@@ -119,7 +145,8 @@ static int run_scanout(int owner, bool allocation_only)
 			info = (struct fes_de25_dma_info){.generation = generation,
 				.version = FES_DE25_DMA_ABI_VERSION};
 			if (ioctl(grant, FES_DE25_DMA_POLL, &info) || !geometry(&info) ||
-			    info.generation != generation || info.accepted_sequence != sequence ||
+			    memcmp(info.build_id, build_id, sizeof(build_id)) ||
+			    !(info.hardware_status & FES_DE25_SCANOUT_STATUS_DISPLAY_READY) || info.generation != generation || info.accepted_sequence != sequence ||
 			    !(info.state & FES_DE25_DMA_EXPOSED)) {
 				fail("POLL identity or hardware fault");
 				goto out;
@@ -157,7 +184,8 @@ static int run_scanout(int owner, bool allocation_only)
 	}
 	/* Observe the final display before asking the owner to prove STOP/drain. */
 	if (ioctl(grant, FES_DE25_DMA_POLL, &info) || !geometry(&info) ||
-	    info.generation != generation || info.state != FES_DE25_DMA_EXPOSED ||
+	    memcmp(info.build_id, build_id, sizeof(build_id)) ||
+	    !(info.hardware_status & FES_DE25_SCANOUT_STATUS_DISPLAY_READY) || info.generation != generation || info.state != FES_DE25_DMA_EXPOSED ||
 	    info.displayed_sequence != 3 || info.accepted_sequence != 3 ||
 	    info.pending_sequence || info.pending_slot != FES_DE25_DMA_NO_SLOT ||
 	    info.displayed_slot != 1 || info.back_slot != 0) {

@@ -1,6 +1,6 @@
 # DE25 allocated-buffer scanout
 
-`fes.fabric.de25-scanout` 1.0 is a disabled-by-default two-slot diagnostic
+`fes.fabric.de25-scanout` 1.1 is a disabled-by-default two-slot diagnostic
 endpoint. It supplies no runtime profile, Linux resource, DMA stream binding,
 firewall permission or firmware/hardware acceptance. Its relative lightweight
 offset is `0x10200`, span 128 bytes; the architectural CPU candidate
@@ -12,6 +12,16 @@ must fit the configured 32-bit bus, be 32-byte aligned and end at most `2^32`.
 The span must be exactly 8 MiB. These are DMA bus/IOVA bounds, not proof of
 physical backing or an identity mapping. Generation is nonzero 64-bit;
 sequences are nonzero 32-bit and increase without wrapping inside a generation.
+
+The 128-bit build identity comes from the retained functional source closure
+and selected HPS-first/Linux-DMA profile, independently of checkout path or a
+documentation-only commit. The builder sets the actual Platform Designer HDL
+parameter and verifies its generated value against the retained inputs. The
+value is also recorded beside the RBF digest; those are distinct identities.
+Unbound HDL defaults to zero, which the Linux owner refuses before allocating
+storage. Interface version 1.1 is exact, so the new kernel refuses the previous
+1.0 endpoint before accessing these additional registers. This adds live image
+identification, not production MENU or hardware/timing admission.
 
 ## Commands and slot ownership
 
@@ -52,6 +62,13 @@ serial again. One exclusive controller serializes these operations. Snapshot
 can observe the state before a same-edge frame event; every field still belongs
 to the same observation. Other command combinations fault and stop new fetches.
 
+DisplayReady reports the board shell's registered HDMI visibility, after its
+configuration-complete result crosses through a registered source and the
+system/pixel synchronizers. It is observable while scanout is disabled; waiting
+for it never resets a live bridge. Loss during a running frame latches Display,
+stops new work and prevents a healthy complete-frame acknowledgement. Restoring
+readiness alone cannot clear that fault or retire outstanding memory traffic.
+
 ## Register layout
 
 Generated C/Verilog constants are authoritative. Offsets are bytes, registers
@@ -60,7 +77,7 @@ read-only writes have no effect.
 
 | Offset | Register |
 | --- | --- |
-| `00`, `04` | Identity `0x44325343`, version `0x00010000` |
+| `00`, `04` | Identity `0x44325343`, version `0x00010001` |
 | `08`, `0c` | Live status, command |
 | `10`, `14`, `18` | Staged DMA base low/high, allocation span |
 | `1c`, `20`, `24`, `28` | Staged generation low/high, sequence, slot |
@@ -70,10 +87,11 @@ read-only writes have no effect.
 | `48` | Frozen slots: current bit 0, displayed bit 8, pending bit 16 |
 | `4c`, `50`, `54` | Frozen errors, underflows, conservative outstanding beats |
 | `58`, `5c`, `60` | Frozen active DMA base low/high and allocation span |
+| `64`, `68`, `6c`, `70` | Immutable 128-bit build identity, least-significant word first |
 
 Status bits are Configured `1`, Running `2`, Pending `4`, Drained `8`, Fault
-`16`, ClockFault `32`. Error bits are Descriptor `1`, Command `2`, Response
-`4`, Underflow `8`, Clock `16`, Sequence `32`, UnexpectedResponse `64`.
+`16`, ClockFault `32`, DisplayReady `64`. Error bits are Descriptor `1`, Command `2`, Response
+`4`, Underflow `8`, Clock `16`, Sequence `32`, UnexpectedResponse `64`, Display `128`.
 Ordinary read errors and underflow stop and drain without successful display
 completion. An unexpected response breaks ownership accounting: it is terminal,
 never reports Drained and cannot be cleared locally. The outstanding count
@@ -82,7 +100,7 @@ includes a presented but unaccepted burst, so it cannot hide stalled traffic.
 ## System-clock control guard
 
 The CPU-facing control window is 256 bytes. Its lower 128 bytes forward to the
-unchanged pixel endpoint ABI 1.0; the upper half implements a distinct guard
+pixel endpoint ABI 1.1; the upper half implements a distinct guard
 identity/version on the 100 MHz peripheral clock. The guard uses the inherited
 peripheral reset, so its release does not wait for pixel PLL lock.
 
