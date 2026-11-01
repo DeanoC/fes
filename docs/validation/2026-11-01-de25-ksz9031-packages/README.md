@@ -102,3 +102,20 @@ The complete immutable physical trace is also a host regression fixture. All
 21 serial/SD/package observer tests passed after adding it, with its exact raw
 SHA-256, expected package identity and final containment required. No hardware
 was rerun for that observer regression.
+
+## Retained evidence
+
+`/home/deano/fes-retained/de25-nano-ksz9031-packages-20261101` retains the
+exact artifacts, traces, selected SDK sources and producer inputs: 1,769 archive
+members were individually hash-verified. Archive SHA-256:
+`76d2fb65add965c938a5dec64827e5412f9cdb3e758f6668b2e1e4cb9df65b11`.
+The incremental source bundle restores exact commit
+`ac418d96a7a608aafc77082dd8325ac0e876b861` and tree
+`0dbb18955b07d21265b4af428e27918b3c4eb775`, with explicit prerequisite
+`5e19858d9599bf0deb8c689e4aab26de573928ec`. A fresh private bare restore
+matched both identities and had no missing reachable objects. Follow the
+retained source-retention instructions; the source bundle is not standalone.
+Input snapshots correspond to their recorded source and must not be overlaid
+onto later checkouts. Private card backups, claim tokens and factory
+credentials were excluded. This retention note is subsequent documentation;
+`551a52903` remains the exact tested hardware source.
