@@ -424,8 +424,10 @@ module pc386_system #(
         .clk(clk), .cold_reset(cpu_cold), .reset(cpu_reset),
         // The reset state, Bochs's: CS F000h at FFFF0000h, EIP FFF0h, every
         // limit FFFFh and every attribute a present read/write data segment;
-        // CR0's MP and TS clear.
-        .init_gpr('0), .init_eflags(32'h2), .init_cr0(32'h0), .init_eip(32'hfff0),
+        // CR0's MP and TS clear. The GPRs' zero is sized: an unsized '0 on a
+        // parameterised cell's port asserts in the lock's Yosys under
+        // hierarchy -chparam (DeanoC/yosys#71).
+        .init_gpr(256'd0), .init_eflags(32'h2), .init_cr0(32'h0), .init_eip(32'hfff0),
         .init_sel({16'h0, 16'h0, 16'h0, 16'h0, 16'hf000, 16'h0}),
         .init_base({32'h0, 32'h0, 32'h0, 32'h0, 32'hffff0000, 32'h0}),
         .init_limit({6{32'hffff}}), .init_ar({6{16'h0093}}),
