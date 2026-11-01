@@ -493,6 +493,25 @@ def verify_memory_handoff(project, inputs):
     return "scanout_memory", verify_scanout_memory_handoff(project)
 
 
+def reviewed_hps_parameter_changes(inputs):
+    allowed = inputs.get("allowed_hps_parameter_changes", {})
+    hps_ip = "hps_subsys/ip/hps_subsys/agilex_hps.ip"
+    expected = {hps_ip: {"f2sdram_SMMU": {"before": "false", "after": "true"}}} if allowed else {}
+    scanout = inputs.get("scanout", {})
+    managed = scanout.get("managed_fabric")
+    if managed is not None:
+        if (managed != "managed-scanout-initiators-v3" or
+                scanout.get("build_identity_scheme") != "canonical-functional-record-v2" or
+                scanout.get("hps_initialization") != "HPS FIRST" or
+                inputs.get("f2sdram_master_profile") != "scanout-only"):
+            raise ValueError("unsupported managed HPS parameter profile")
+        expected = {hps_ip: {"f2sdram_SMMU": {"before": "false", "after": "true"},
+                             "f2s_data_width": {"before": "256", "after": "0"}}}
+    if allowed != expected:
+        raise ValueError("unsupported expected HPS/EMIF parameter change")
+    return allowed
+
+
 def generate_project(output, tool, version):
     project = output / "project"
     install = tool.parents[2]
@@ -516,10 +535,7 @@ def generate_project(output, tool, version):
                  for key, value in expected.items() if actual.get(key) != value}
         if delta:
             changes[name] = delta
-    allowed = inputs.get("allowed_hps_parameter_changes", {})
-    if allowed and allowed != {"hps_subsys/ip/hps_subsys/agilex_hps.ip": {
-            "f2sdram_SMMU": {"before": "false", "after": "true"}}}:
-        raise ValueError("unsupported expected HPS/EMIF parameter change")
+    allowed = reviewed_hps_parameter_changes(inputs)
     (output / "hps-emif-parameter-review.json").write_text(json.dumps({
         "changed_original_module_parameters": changes,
         "expected_original_module_parameter_changes": allowed,

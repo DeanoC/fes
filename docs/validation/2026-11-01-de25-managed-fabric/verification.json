@@ -1,0 +1,16 @@
+{
+  "source_revision": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "command": [
+    "python3",
+    "/data/fes-de25-managed-fabric-d8549cc79/check-final.py"
+  ],
+  "cwd": "/data/fes-de25-managed-fabric-d8549cc79/source",
+  "started_utc": "2026-11-01T19:29:10.283753+00:00",
+  "time_cap_seconds": 300,
+  "hardware_access": "not-performed",
+  "pid": 2117501,
+  "state": "passed",
+  "elapsed_seconds": 1.1,
+  "heartbeat_utc": "2026-11-01T19:29:11.420078+00:00",
+  "returncode": 0
+}

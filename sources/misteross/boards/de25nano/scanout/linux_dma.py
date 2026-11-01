@@ -1,10 +1,19 @@
 """Prepare the explicit, unadmitted Linux SMMU profile in a private project."""
 import hashlib
+import json
 from pathlib import Path
 import re
 
 HPS_IP = 'hps_subsys/ip/hps_subsys/agilex_hps.ip'
 ADAPTER = 'custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl'
+MANAGED_FABRIC = 'managed-scanout-initiators-v3'
+GHRD_SDC_SHA256 = '743b02b7fa6e3f6397890702f626ff7b27a5c7ab6aa9d1721c22d286900c7247'
+JTAG_SDC_SHA256 = '02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a'
+MANAGED_MASTERS = (
+    'subsys_hps_agilex_hps.hps2fpga', 'subsys_hps_agilex_hps.lwhps2fpga',
+    'subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout_guard.avm',
+    'subsys_periph_fes_ctrl_cdc.m0', 'subsys_periph_fes_scanout.avm',
+    'subsys_periph_fes_mem_cdc.m0', 'subsys_hps_f2sdram_adapter.axi4_man')
 
 
 def constant(definition, name):
@@ -58,7 +67,7 @@ def retarget_adapter(data, definition):
         'kernel_binding': 'not-admitted', 'physical_translation': 'not-qualified'}
 
 
-def configure(project, definition, hps):
+def configure(project, definition, hps, *, managed_fabric=False):
     path = project / ADAPTER
     data, profile = retarget_adapter(path.read_bytes(), definition)
     path.write_bytes(data)
@@ -69,7 +78,24 @@ load_component agilex_hps
 set_component_parameter_value f2sdram_SMMU true
 if {{[get_component_parameter_value f2sdram_SMMU] != 1}} {{error "SMMU port exposure was not enabled"}}
 save_component
-load_component f2sdram_adapter
+'''
+    changes = {HPS_IP: {'f2sdram_SMMU': {'before': 'false', 'after': 'true'}}}
+    if managed_fabric:
+        # Quartus 26.3 parameters_data.tcl: f2s_data_width=0 means Unused.
+        # An enabled F2H hard bridge must have its complete response interface
+        # connected; tying only request valids low is not a legal disable.
+        script += '''load_component agilex_hps
+if {[get_component_parameter_value f2s_data_width] != 256} {error "vendor F2H data width changed"}
+set_component_parameter_value f2s_data_width 0
+if {[get_component_parameter_value f2s_data_width] != 0} {error "unused F2H interface was not disabled"}
+save_component
+foreach {name target} {fpga2hps agilex_hps.fpga2hps fpga2hps_clk agilex_hps.fpga2hps_clock fpga2hps_rst agilex_hps.fpga2hps_reset} {
+    if {[string compare [get_interface_property $name EXPORT_OF] $target] != 0} {error "vendor F2H export changed: $name"}
+    remove_interface $name
+}
+'''
+        changes[HPS_IP]['f2s_data_width'] = {'before': '256', 'after': '0'}
+    script += f'''load_component f2sdram_adapter
 if {{[get_component_parameter_value DATA_WIDTH] != 256}} {{error "F2SDRAM adapter data width changed"}}
 foreach port {{man_aruser man_awuser}} {{
     if {{[get_component_interface_port_property axi4_man $port WIDTH] != 25}} {{error "SMMU USER width changed"}}
@@ -85,7 +111,7 @@ remove_interface hps_f2sdram_master
 remove_instance hps_f2sdram
 save_system {jtag}
 '''
-    return script, profile, {HPS_IP: {'f2sdram_SMMU': {'before': 'false', 'after': 'true'}}}
+    return script, profile, changes
 
 
 
@@ -109,6 +135,141 @@ def isolate_script(script, top_save):
     removal = ("# The Linux stream must have no diagnostic master.\n"
         "remove_instance ext_hps_f2sdram_master\n")
     return script.replace(top_save, removal + top_save)
+
+
+def isolate_managed_fabric_script(script, top_save):
+    if script.count(top_save) != 1 or script.count('remove_instance ext_hps_f2sdram_master\n') != 1:
+        raise ValueError('managed fabric requires the isolated memory profile')
+    removal = '''# Canonical MENU has no vendor maintenance initiators or F2H translator.
+foreach instance {subsys_debug ace5lite_cache_coherency_translator_0} {
+    if {[lsearch -exact [get_instances] $instance] < 0} {error "managed fabric removal target changed: $instance"}
+    remove_instance $instance
+}
+foreach connection [get_connections] {
+    if {[string match "*subsys_hps.fpga2hps*" $connection]} {
+        if {[lsearch -exact {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst} $connection] < 0} {error "vendor F2H connection changed: $connection"}
+        remove_connection $connection
+    }
+}
+'''
+    return script.replace(top_save, removal + top_save)
+
+
+def retired_jtag_sdc(original):
+    if hashlib.sha256(original).hexdigest() != GHRD_SDC_SHA256:
+        raise ValueError('managed fabric GHRD constraint input differs')
+    before = b'# sourcing JTAG related SDC\nsource ./jtag.sdc\n'
+    if original.count(before) != 1:
+        raise ValueError('managed fabric JTAG constraint source changed')
+    return original.replace(before, b'# Canonical MENU has no fabric JTAG interfaces.\n')
+
+
+def _debug_constraint_receipt(original, derived):
+    return {'policy': MANAGED_FABRIC, 'original_file': 'managed-constraints-originals/ghrd_timing.sdc',
+            'derived_file': 'project/ghrd_timing.sdc', 'retired_source': 'source ./jtag.sdc',
+            'original_sha256': hashlib.sha256(original).hexdigest(),
+            'derived_sha256': hashlib.sha256(derived).hexdigest(),
+            'retained_jtag_sdc_sha256': JTAG_SDC_SHA256}
+
+
+def retire_managed_jtag_constraints(project):
+    if hashlib.sha256((project / 'jtag.sdc').read_bytes()).hexdigest() != JTAG_SDC_SHA256:
+        raise ValueError('managed fabric vendor JTAG constraints differ')
+    path = project / 'ghrd_timing.sdc'
+    original = path.read_bytes()
+    derived = retired_jtag_sdc(original)
+    retained = project.parent / 'managed-constraints-originals'
+    retained.mkdir(exist_ok=False)
+    (retained / 'ghrd_timing.sdc').write_bytes(original)
+    path.write_bytes(derived)
+    receipt = _debug_constraint_receipt(original, derived)
+    (project.parent / 'managed-debug-constraints.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
+    return receipt
+
+
+def verify_managed_debug_constraints(project):
+    original = (project.parent / 'managed-constraints-originals/ghrd_timing.sdc').read_bytes()
+    derived = retired_jtag_sdc(original)
+    receipt = json.loads((project.parent / 'managed-debug-constraints.json').read_text())
+    if (hashlib.sha256((project / 'jtag.sdc').read_bytes()).hexdigest() != JTAG_SDC_SHA256 or
+            (project / 'ghrd_timing.sdc').read_bytes() != derived or
+            receipt != _debug_constraint_receipt(original, derived)):
+        raise ValueError('managed fabric retired JTAG constraint source or receipt changed')
+    return receipt
+
+
+def _managed_fabric_graph(project, hps):
+    import xml.etree.ElementTree as ET
+    sopc = project / 'qsys_top/qsys_top.sopcinfo'
+    tree = ET.parse(sopc)
+    modules = tree.findall('module')
+    removed = ('subsys_debug', 'ace5lite_cache_coherency_translator_0')
+    for module in modules:
+        name, kind = module.get('path') or '', module.get('kind') or ''
+        if (any(name == prefix or name.startswith(prefix + '.') for prefix in removed) or
+                kind in ('altera_jtag_avalon_master', 'altera_ace5lite_cache_coherency_translator')):
+            raise ValueError('managed fabric retains a maintenance initiator/translator: ' + name)
+    routes = [c for c in tree.findall('connection') if c.get('kind') == 'avalon']
+    masters = {c.get('start') for c in routes}
+    if masters != set(MANAGED_MASTERS):
+        raise ValueError('managed fabric initiator inventory differs')
+    ingress = [(c.get('start'), c.get('end')) for c in routes
+               if (c.get('end') or '').startswith('subsys_hps_agilex_hps.')]
+    expected_ingress = [('subsys_hps_f2sdram_adapter.axi4_man', 'subsys_hps_agilex_hps.f2sdram')]
+    if ingress != expected_ingress:
+        raise ValueError('managed fabric has an unexpected path into HPS')
+    definition = (project / 'fes_mailbox/generated/fes_de25_scanout.vh').read_text()
+    control = (
+        ('subsys_hps_agilex_hps.lwhps2fpga', 'subsys_periph_pb_cpu_0.s0', 0),
+        ('subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout_guard.avs', constant(definition, 'PERIPHERAL_OFFSET')),
+        ('subsys_periph_fes_scanout_guard.avm', 'subsys_periph_fes_ctrl_cdc.s0', 0),
+        ('subsys_periph_fes_ctrl_cdc.m0', 'subsys_periph_fes_scanout.avs', 0),
+        ('subsys_hps_agilex_hps.hps2fpga', 'ocm.axi_s1', 0))
+    for start, end, address in control:
+        matches = [c for c in routes if c.get('end') == end]
+        if (len(matches) != 1 or matches[0].get('start') != start or
+                int(matches[0].findtext("parameter[@name='baseAddress']/value") or '-1', 0) != address):
+            raise ValueError('managed fabric control/OCM route differs: ' + end)
+    native = [m for m in modules if m.get('path') == 'subsys_hps.agilex_hps']
+    if len(native) != 1 or hps.module_parameters(project / HPS_IP).get('f2s_data_width') != '0':
+        raise ValueError('managed fabric native F2H interface is not disabled')
+    definition = ET.fromstring(native[0].findtext("parameter[@name='componentDefinition']/value"))
+    interfaces = [p.findtext('name') for p in definition.findall('boundary/interfaces/interface')]
+    if any(name in interfaces for name in ('fpga2hps', 'fpga2hps_clock', 'fpga2hps_reset')):
+        raise ValueError('managed fabric generated native F2H interface remains exposed')
+    memory = hps.verify_scanout_memory_handoff(project)
+    return {'policy': MANAGED_FABRIC, 'initiator_endpoints': sorted(masters),
+            'initiator_count': len(masters), 'fabric_to_hps': [list(route) for route in ingress],
+            'control_and_ocm_routes': [list(route) for route in control],
+            'removed_instances': list(removed), 'sopcinfo_sha256': hps.digest(sopc),
+            'disabled_hps_parameter': {'f2s_data_width': '0'},
+            'hps_ip_sha256': hps.digest(project / HPS_IP),
+            'memory_handoff': memory, 'physical_lifetime': 'not-qualified', 'runtime_admission': 'not-qualified'}
+
+
+def _managed_parent(data):
+    source = re.sub(r'/\*.*?\*/|//[^\n]*', '', data.decode(), flags=re.S)
+    removed = ('subsys_debug', 'ace5lite_cache_coherency_translator_0')
+    if any(re.search(r'(?m)^\s*\w+\s+' + re.escape(name) + r'\s*\(', source) for name in removed):
+        raise ValueError('managed fabric generated parent retains a removed instance')
+    instances = re.findall(r'(?ms)^\t\w+ subsys_hps \(\n(.*?)^\t\);', source)
+    if len(instances) != 1:
+        raise ValueError('managed fabric generated HPS instance differs')
+    ports = re.findall(r'\.(\w+)\s*\(([^()]*)\)', instances[0])
+    if len(ports) != len(dict(ports)):
+        raise ValueError('managed fabric generated HPS port is duplicated')
+    ports = {name: value.strip() for name, value in ports}
+    return {name: value for name, value in ports.items() if name.startswith('fpga2hps_') or name == 'fpga2hps'}
+
+
+def verify_managed_fabric(project, hps):
+    """Check the complete graph and actual absence of the disabled interface."""
+    graph = _managed_fabric_graph(project, hps)
+    top = project / 'qsys_top/synth/qsys_top.v'
+    if _managed_parent(top.read_bytes()):
+        raise ValueError('managed fabric generated parent retains unused F2H ports')
+    return {**graph, 'unused_f2h_interface': 'disabled and absent', 'generated_parent_sha256': hps.digest(top),
+            'retired_debug_constraints': verify_managed_debug_constraints(project)}
 
 
 def verify(project, hps, profile):
