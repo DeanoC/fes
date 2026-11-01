@@ -195,3 +195,19 @@ from the kernel's INFO operation. This reads cached metadata without issuing
 another hardware snapshot, publication or reap. Last-close revocation can
 prove STOP/drain and CLEAR, which otherwise destroys the original fault record.
 The cached record is evidence about the failed attempt, not a drain proof.
+
+## DMA mapping observability
+
+The owner candidate now builds standard FTRACE, TRACEPOINTS, TRACING and
+EVENT_TRACING support. The running bring-up kernel had tracing disabled, which
+prevented observing the DMA mapping involved in a physical scanout response
+error. The `iommu:map` and `iommu:unmap` trace events provide kernel-derived
+IOVA/backing observations without adding addresses to the owner userspace ABI.
+Tracing remains inactive unless explicitly enabled through tracefs. This adds
+no alternate allocator, publication, physical-address input or DMA bypass.
+
+The first intended qualification is an allocation-only observation, with no
+frame submission, followed by the existing guarded owner reap. A trace-enabled
+candidate must be booted and its exact kernel notes verified before that test.
+The two failed frame tests on the earlier scanout image are retained; tracing
+support does not establish a fix or authorize repeated frame submissions.
