@@ -94,14 +94,17 @@ and the design document merged without conflict.
   are regenerated, and `CLASS_BITS` stays 7.
 - **`--same-as` covers this branch's runs.** It also compares the
   unreal-mode cases and the protected-mode programs: their totals, PM stops
-  and trace hashes, which the `pmode` section now reports.
+  and trace hashes, which the `pmode` section now reports. After Codex's
+  review it compares, in every section, the retirements with PE set and the
+  real-mode CS loads under the 386 rule, since the trace hash covers only
+  EIP, the GPRs and EFLAGS ([Review](#review)).
 
 **Checks at `b7b4cb7dc`:**
 
 | Run | Result |
 | --- | --- |
 | Lockstep at `max` ([report](lockstep-merge-max-report.json)) | Pass: corpus 1,758,699, random 32,000, protected-mode programs 8,000 (417,342 retirements with PE set, 11,765 compared PE=1 stops), unbuilt 53,344 stopped, directed 40, unreal-mode 6, memory 26. Every field equals the pre-merge report at `eee033a9d`, cycle counts included (174,952,748 corpus, 117,415,070 random, 10,375,784 protected-mode); only the new trace-hash and governor fields are added |
-| Lockstep under 286-12, `--preset 1 --same-as` the `max` report ([report](lockstep-merge-286-12-report.json)) | Pass, with every architectural result equal to `max`'s, the protected-mode programs and unreal-mode cases included. Cycles grow as they should: corpus 195,084,746, random 771,364,560, protected-mode 51,196,487 |
+| Lockstep under 286-12, `--preset 1 --same-as` the `max` report ([report](lockstep-merge-286-12-report.json)) | Pass, with every architectural result equal to `max`'s, the protected-mode programs and unreal-mode cases included. Cycles grow as they should: corpus 195,084,746, random 771,364,560, protected-mode 51,196,487. Rechecked against the review fix's comparison: no differences, with 417,342 retirements with PE set and 1,269 real-mode CS loads under the 386 rule in the random and protected-mode programs (75 and 2 in the unreal-mode cases), as at `max` |
 | test386.asm on the oracle | POST to FFh, 44,926 EE lines with none differing, final RAM `44597188…`: identical to the run before the merge |
 | `sim_fes_pc386.py --suite devices` ([report](devices-merge-report.json)) | 132 checks pass, #1335's keyboard and typematic checks among them |
 | `--suite boot` (oracle) ([report](boot-merge-oracle-report.json)) | `C:\>` at 4.3 s; the VGA replay has 0 mismatches |
@@ -480,6 +483,16 @@ its two bytes, as POP Sreg and LES already had. The directed case
 `pm-sreg-limit` fails on the old decode (the RTL stops with #GP where Bochs
 loads ES) and passes now. The random programs had missed it: they read their
 memory-form MOV Sreg selectors through a flat FS.
+
+Codex reviewed the main merge at `a21580c5e` and found one P2: `--same-as`
+left out the random programs' retirements with PE set and every section's
+real-mode CS loads under the 386 rule. The trace hash mixes only EIP, the
+GPRs and EFLAGS, so a governed run could differ from `max` in PE or in the
+real-mode CS cache and still be reported the same. The comparison now takes
+both counts in the random and protected-mode totals and in every mode's
+summary, with a unit test that fails without it. The comparison is a
+function of the two reports, so the recorded 286-12 report was rechecked
+against the `max` report with it, and nothing differs.
 
 ## Yosys workarounds
 

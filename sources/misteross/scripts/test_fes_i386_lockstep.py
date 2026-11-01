@@ -305,15 +305,17 @@ def run_biu_dma_test(verilator: str, jobs: int) -> dict:
 
 
 # What a governed run must share with max's (--same-as): every count but
-# timing's, and the trace hashes, the protected-mode programs' with them.
+# timing's, and the trace hashes, the protected-mode programs' with them. The
+# trace hash covers EIP, the GPRs and EFLAGS only, so the PE retirements and
+# real-mode CS loads under the 386 rule are compared as counts.
 SAME_CORPUS = ('tests', 'passed', 'retired_to_hlt', 'faults', 'retirements', 'mmio_runs', 'mmio_accesses',
                'io_accesses', 'interrupts')
 SAME_RANDOM = ('runs', 'passed', 'retirements', 'halts', 'faults', 'double_faults', 'retire_limits', 'io_accesses',
                'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops', 'window_code_stops',
-               'code_store_stops', 'stray_stops', 'mmio_runs', 'mmio_accesses')
+               'code_store_stops', 'stray_stops', 'mmio_runs', 'mmio_accesses', 'pm_retirements', 'cs_rule')
 SAME_MODE = ('runs', 'passed', 'failed', 'retirements', 'halts', 'interrupts', 'faults', 'fault_vectors',
              'double_faults', 'io_accesses', 'external_interrupts', 'nmis', 'rep_interrupts', 'divergence_retirements',
-             'trace_hash')
+             'pm_retirements', 'cs_rule', 'trace_hash')
 
 
 def same_as(report: dict, other: dict) -> list[str]:
@@ -336,7 +338,7 @@ def same_as(report: dict, other: dict) -> list[str]:
         compare(f'random {key}', report['random']['totals'].get(key), other['random']['totals'].get(key))
     for key in ('seeds', 'programs_per_seed', 'trace_hashes'):
         compare(f'random {key}', report['random'].get(key), other['random'].get(key))
-    for key in (*SAME_RANDOM, 'pm_retirements'):
+    for key in SAME_RANDOM:
         compare(f'pmode {key}', report['pmode']['totals'].get(key), other['pmode']['totals'].get(key))
     for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'pm_stops'):
         compare(f'pmode {key}', report['pmode'].get(key), other['pmode'].get(key))

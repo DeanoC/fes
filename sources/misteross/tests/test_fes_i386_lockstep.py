@@ -113,6 +113,20 @@ class OutputTest(unittest.TestCase):
                           'FAIL store hold: 3 after_store retirements 2 cycles apart',
                           'FAIL stack hold: 1 stack_stack retirements 2 cycles apart'])
 
+    def test_same_as_compares_the_protected_mode_counts(self):
+        def report(pm: int, cs: int) -> dict:
+            mode = {'summary': {'pm_retirements': pm, 'cs_rule': cs}}
+            runs = {'totals': {'pm_retirements': pm, 'cs_rule': cs}}
+            return {'corpus': {'totals': {}, 'by_opcode': {}}, 'random': runs, 'pmode': runs,
+                    'directed_cases': mode, 'unreal_cases': mode, 'memory_cases': mode, 'reset_store': mode,
+                    'unbuilt': {'encodings': 0}}
+        self.assertEqual(lockstep.same_as(report(75, 2), report(75, 2)), [])
+        differences = lockstep.same_as(report(74, 3), report(75, 2))
+        for where in ('random', 'pmode', 'directed_cases', 'unreal_cases', 'memory_cases', 'reset_store'):
+            with self.subTest(where=where):
+                self.assertIn(f'{where} pm_retirements: 74 here, 75 at max', differences)
+                self.assertIn(f'{where} cs_rule: 3 here, 2 at max', differences)
+
     def test_cpu_sources_exist(self):
         for name in lockstep.CPU_RTL:
             with self.subTest(source=name):
