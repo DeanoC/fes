@@ -21,6 +21,14 @@ def profile():
 
 
 class BoardProfileTests(unittest.TestCase):
+    def test_package_probe_requires_explicit_identity_and_owned_sd(self):
+        p=profile();p['sd_control']={'service':'fes-owned-sd-pio-v1'}
+        self.assertEqual(build.package_option('sdpackages','a'*64,p),'a'*64)
+        for value in (None,'','A'*64,'a'*63,'../package','a'*64+'; boot'):
+            with self.subTest(value=value),self.assertRaises(ValueError):build.package_option('sdpackages',value,p)
+        with self.assertRaises(ValueError):build.package_option('sdpackages','a'*64,profile())
+        with self.assertRaises(ValueError):build.package_option('storage','a'*64,p)
+        self.assertIsNone(build.package_option('storage',None,p))
     def test_explicit_profile(self):
         self.assertEqual(build.profile_constants(profile()), (0x82000000, 256 << 20, 0x82020000, 0, 60000000, None, None, None, 0))
 

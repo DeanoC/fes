@@ -2,7 +2,7 @@
 """Upload one experimental file through an already booted Nano recovery loader.
 
 Default is a file-only plan. --execute claims TRWU8CBL, verifies its recovery
-card, downloads to RAM, then writes ONLY FES/UPLOAD.BIN and verifies readback.
+card, downloads to RAM, then writes one fixed boot or package diagnostic file.
 No boot, flash, raw SD writes, boot FIT replacement or automatic activation.
 """
 import argparse
@@ -24,7 +24,7 @@ from cold_profile import EXPERIMENTAL_FILE, MAX_FIT_SIZE
 ROOT = Path(__file__).resolve().parents[3]
 BOARD = 'TRWU8CBL'
 LIMIT = MAX_FIT_SIZE
-DESTINATION = EXPERIMENTAL_FILE
+DESTINATIONS = {'boot':EXPERIMENTAL_FILE, 'package':'FES/PKGTEST.BIN'}
 PREFIX_SIZE = 32768 * 512
 
 
@@ -66,7 +66,13 @@ def settings(host, mac):
         raise ValueError('a unicast board MAC is required')
 
 
-def perform(console, kit, payload, host, mac, receipt, serve=Transfer, owns=lambda:True):
+def destination(purpose):
+    if not isinstance(purpose,str) or purpose not in DESTINATIONS:raise ValueError('unknown recovery upload purpose')
+    return DESTINATIONS[purpose]
+
+
+def perform(console, kit, payload, host, mac, receipt, serve=Transfer, owns=lambda:True, *, purpose='boot'):
+    target=destination(purpose)
     if not 0 < len(payload) <= LIMIT: raise ValueError('payload must be 1 byte through 8 MiB')
     settings(host,mac)
     def command(value, timeout=15):
@@ -91,6 +97,10 @@ def perform(console, kit, payload, host, mac, receipt, serve=Transfer, owns=lamb
         if not byte_count(command('fatload mmc 0:1 83000000 u-boot.itb', 30),len(kit['fit']),'read'):
             raise ValueError('boot FIT length differs')
         digest(0x83000000, len(kit['fit']), kit['fit_sha256'])
+    def recovery_manifest(address):
+        if not byte_count(command(f'fatload mmc 0:1 {address:x} FES/RECOVERY.JSON'),len(kit['manifest']),'read'):
+            raise ValueError('wrong recovery card manifest')
+        digest(address,len(kit['manifest']),sha(kit['manifest']))
     if 'U-Boot 2025.01-fes-nano-recovery-' not in command('version'):
         raise ValueError('not the expected recovery loader')
     info = command('bdinfo')
@@ -111,9 +121,7 @@ def perform(console, kit, payload, host, mac, receipt, serve=Transfer, owns=lamb
     if not re.search(r'(?m)^\s*1\s+32768\s+262144\s', command('mmc part')):
         raise ValueError('wrong spare partition layout')
     prefix(); boot_file()
-    if not byte_count(command('fatload mmc 0:1 82000000 FES/RECOVERY.JSON'),len(kit['manifest']),'read'):
-        raise ValueError('wrong recovery card manifest')
-    digest(0x82000000, len(kit['manifest']), sha(kit['manifest']))
+    recovery_manifest(0x82000000)
     receipt['card_verified'] = True
     for value in ('setenv autoload no', 'setenv netretry no', 'setenv bootpretryperiod 10000',
                   'setenv tftptimeout 1000', 'setenv tftptimeoutcountmax 3'):
@@ -165,18 +173,18 @@ def perform(console, kit, payload, host, mac, receipt, serve=Transfer, owns=lamb
     finally: server.close()
     receipt['download_verified'] = True
     receipt['sd_write_attempted'] = True
-    if not byte_count(command(f'fatwrite mmc 0:1 82000000 {DESTINATION} {len(payload):x}',60),len(payload),'written'):
+    if not byte_count(command(f'fatwrite mmc 0:1 82000000 {target} {len(payload):x}',60),len(payload),'written'):
         raise ValueError('incomplete SD write; experimental file may be partial')
     command(f'mw.b 82800000 a5 {len(payload):x}')
-    if not byte_count(command('fatload mmc 0:1 82800000 '+DESTINATION,60),len(payload),'read'):
+    if not byte_count(command('fatload mmc 0:1 82800000 '+target,60),len(payload),'read'):
         raise ValueError('incomplete SD readback')
     digest(0x82800000, len(payload), sha(payload))
     if f'{len(payload)} byte(s) were the same' not in command(f'cmp.b 82000000 82800000 {len(payload):x}', 30):
         raise ValueError('SD byte comparison failed')
     receipt['sd_readback_verified'] = True
-    prefix(); boot_file()
+    prefix(); boot_file(); recovery_manifest(0x83000000)
     receipt['boot_files_unchanged'] = True
-    receipt.update(status='verified', stage='complete', destination=DESTINATION)
+    receipt.update(status='verified', stage='complete', destination=target, purpose=purpose, recovery_manifest_unchanged=True)
 
 
 class Claim:
@@ -192,10 +200,11 @@ class Claim:
             if not start and self.token not in current[current.rfind('## Active claim'):]:
                 raise ValueError('upload claim ownership changed')
             with self.path.open('a') as out: out.write(text)
-    def start(self):
+    def start(self,purpose='boot'):
+        target=destination(purpose)
         self.append('\n## Active claim '+datetime.datetime.now(datetime.timezone.utc).isoformat()+
                     '\n- Owner: Nano uploader '+self.token+'; TRWU8CBL only.\n'
-                    '- Scope: existing recovery prompt, bounded Ethernet transfer and FES/UPLOAD.BIN write/readback; no boot/flash/raw SD changes.\n', True)
+                    '- Scope: existing recovery prompt, bounded Ethernet transfer and '+target+' write/readback; no boot/flash/raw SD changes.\n', True)
         self.claimed = True
     def owns(self):
         with open(str(self.path)+'.lock','a') as lock:
@@ -217,6 +226,7 @@ def main():
     parser.add_argument('--recovery-kit',required=True,type=Path)
     parser.add_argument('--host-ip',required=True)
     parser.add_argument('--mac',default='02:fe:25:08:cb:01')
+    parser.add_argument('--purpose',choices=tuple(DESTINATIONS),default='boot')
     parser.add_argument('--output',required=True,type=Path)
     parser.add_argument('--kit-status',type=Path)
     parser.add_argument('--execute',action='store_true')
@@ -236,16 +246,16 @@ def main():
     settings(args.host_ip,args.mac.lower())
     output.mkdir(parents=True)
     receipt={'format':1,'status':'planned','board_serial':BOARD,'payload_bytes':len(payload),'payload_sha256':sha(payload),
-             'recovery_image_sha256':kit['image_sha256'],'destination':DESTINATION,'activation':False,
+             'recovery_image_sha256':kit['image_sha256'],'destination':destination(args.purpose),'purpose':args.purpose,'activation':False,
              'commands':[],'sd_write_attempted':False,'started_utc':datetime.datetime.now(datetime.timezone.utc).isoformat()}
     claim=None;console=None
     try:
         if args.execute:
-            claim=Claim(status_file);claim.start()
+            claim=Claim(status_file);claim.start(args.purpose)
             with (output/'console.log').open('wb') as log:
                 try:
                     console=Console('/dev/serial/by-id/usb-TERASIC_DE25-Nano_'+BOARD+'-if02-port0',log)
-                    perform(console,kit,payload,args.host_ip,args.mac.lower(),receipt,owns=claim.owns)
+                    perform(console,kit,payload,args.host_ip,args.mac.lower(),receipt,owns=claim.owns,purpose=args.purpose)
                 finally:
                     if console is not None:
                         if not console.parked and claim.owns():

@@ -90,6 +90,13 @@ requires secure SD setup, a 15-byte SDHCI R2 CID, same-owner generations 3/4/6/7
 both expected reads and final containment. The board-trial caller separately
 checks the known spare-card capacity. Serial-only observations cannot grant SD.
 
+Passing `package={'package_id': ID, 'payload_sha256': HASH, 'payload_bytes': N,
+'build_id': BUILD}` selects the read-only package-retention observer instead.
+Those identities must come from the independently checked archive, not its
+serial output. It requires the same controlled SD setup and generations 3/4/6/7,
+retention, containment, resume/reread and final containment. It never reports
+core-load acceptance. The storage and package observer modes are exclusive.
+
 The same spare card carries two paths:
 
 | Volatile JTAG image | SPL boot file | Purpose |
@@ -106,8 +113,10 @@ source-bound diagnostic sequencing, not signed or measured secure boot.
 
 ## Repeatable network upload
 
-`upload.py` defaults to a file-only plan. It supports one experimental file,
-`FES/UPLOAD.BIN`, of 1 byte through 8 MiB. For a native candidate, supply the
+`upload.py` defaults to a file-only plan. It supports one fixed diagnostic file
+per invocation, of 1 byte through 8 MiB. The default `--purpose boot` writes
+`FES/UPLOAD.BIN`; `--purpose package` writes only `FES/PKGTEST.BIN` for the
+read-only package probe. Arbitrary destination paths are rejected. For a native candidate, supply the
 matched build's `build/u-boot.itb`:
 
 ```sh
@@ -143,8 +152,8 @@ Before the only FAT write, the tool checks the loader banner, live RAM and LMB
 reservations, spare-card capacity/partition layout, protected first 16 MiB,
 root recovery FIT and card manifest. It serves one randomized TFTP filename to
 one observed client, requires the final acknowledgement and verifies RAM SHA-256.
-It writes `FES/UPLOAD.BIN`, reads it into a separate buffer, checks SHA-256 and
-compares bytes, then rechecks the protected prefix and recovery FIT. The receipt
+It writes the selected fixed file, reads it into a separate buffer, checks SHA-256 and
+compares bytes, then rechecks the protected prefix, recovery FIT and card manifest. The receipt
 contains the commands, outputs and completion state.
 
 Timeouts, wrong cards, hashes, ownership loss and uncertain writes stop the
@@ -152,6 +161,24 @@ attempt. There is no automatic replay or activation. If the serial prompt is
 uncertain, the tool leaves its claim held for recovery. A completed write is
 verified readback, not an atomic FAT transaction or a power-loss guarantee;
 FAT metadata damage can still prevent recovery boot. Keep the factory card safe.
+
+## Read-only native package probe
+
+The [package store](../tamago/packagestore/README.md) joins the existing package
+validator to actual owned SD/FAT32. Cross-build `run.py sdpackages --board
+de25-nano --profile platform/embedded/nano/sd-profile.json --package-id
+"$PACKAGE_ID"`, with the same compiler/output options as the storage probe.
+The package ID is compiled into the diagnostic and recorded in its build
+receipt. Other programs and QEMU reject this option. Prepare fresh entry,
+BL31, U-Boot and matched native SOF/FIT artifacts from that exact build.
+
+Stage the FIT with the default upload purpose and the independently checked
+canonical format-2 Nano package with `--purpose package`. Use a **fresh recovery
+boot for each upload**, then the matched native SOF for one bounded serial run.
+The probe never programs the retained payload. A synthetic archive is appropriate
+for this storage diagnostic but supplies no FPGA or playable-core evidence.
+Physical activation, ROM linking on Agilex and storage return across actual FPGA
+transitions remain separate work.
 
 ## Actual cold ownership handoff
 

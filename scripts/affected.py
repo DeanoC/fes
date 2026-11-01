@@ -40,6 +40,9 @@ def embedded_control_input(path):
 def native_sd_input(path):
     return (path in EMBEDDED_BRIDGE_INPUTS or
             path.startswith(('platform/embedded/tamago/sdcontrol/',
+                             'platform/embedded/tamago/packagestore/',
+                             'platform/embedded/tamago/cmd/sdpackages/',
+                             'platform/embedded/tamago/fat/',
                              'platform/embedded/tamago/sdhci/')) or
             path in ('platform/embedded/firmware/nano_sd.h',
                      'platform/embedded/firmware/nano_sd.c',

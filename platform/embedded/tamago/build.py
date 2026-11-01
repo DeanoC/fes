@@ -183,6 +183,17 @@ def profile_constants(profile):
     return start, size, entry, frequency, usb_frequency, network, display, fpga, uart_index
 
 
+def package_option(program, package_id, profile):
+    if program == "sdpackages":
+        if (not isinstance(package_id,str) or not re.fullmatch('[0-9a-f]{64}',package_id) or
+                profile['sd_control'] is None):
+            raise ValueError('sdpackages requires an expected package ID and controlled SD profile')
+        return package_id
+    if package_id is not None:
+        raise ValueError('--package-id requires the sdpackages diagnostic')
+    return None
+
+
 def build(args):
     if args.interactive or args.disk is not None or args.qemu is not None or args.display is not None:
         raise ValueError("Nano selection cross-builds only; QEMU/disk/interactive/display options are not accepted")
@@ -193,6 +204,7 @@ def build(args):
     raw = args.profile.resolve().read_bytes()
     profile = json.loads(raw)
     start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
+    expected_package_id=package_option(args.program,args.package_id,profile)
     if args.program == "fpga" and fpga is None:
         raise ValueError("fpga probe requires an explicit read-only service profile")
     output = args.output.resolve()
@@ -258,7 +270,9 @@ def build(args):
                 files.update(directory / f for f in p.get(field, []))
     sources = {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}
     elf = output / (args.program + ".elf")
-    command = [str(compiler), "build", *options, "-trimpath", "-ldflags", f"-T {entry:#x} -R 0x1000", "-o", str(elf), "./cmd/" + args.program]
+    link_flags=f"-T {entry:#x} -R 0x1000"
+    if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
+    command = [str(compiler), "build", *options, "-trimpath", "-ldflags", link_flags, "-o", str(elf), "./cmd/" + args.program]
     with (output / "build.log").open("w") as log:
         subprocess.run(command, cwd=APP, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
     data = elf.read_bytes()
@@ -266,6 +280,7 @@ def build(args):
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}:
         raise ValueError("sources changed while building")
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
+              "expected_package_id":expected_package_id,
               "classification": "host-only cross-build; not boot or hardware acceptance",
               "firmware_profile_sha256": hashlib.sha256(raw).hexdigest(), "source_sha256": sources,
               "generated_profile_sha256": sha(generated), "generated_serial_profile_sha256": sha(serial_generated), "environment": {k: env[k] for k in ("GOOS", "GOARCH", "GOOSPKG", "GOTOOLCHAIN", "GOMODCACHE", "GOCACHE")},

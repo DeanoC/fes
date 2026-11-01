@@ -211,5 +211,81 @@ class NativeSDTraceTests(unittest.TestCase):
         self.assertEqual(report['last_checkpoint'],'sd_pass')
 
 
+class NativePackageTraceTests(unittest.TestCase):
+    expected={'package_id':'c'*64,'payload_sha256':'d'*64,'payload_bytes':12,'build_id':'e'*32}
+
+    def capture(self):
+        raw=fixture().replace(f'U-Boot 2025.01-fes-nano-{BUILD}',
+              f'NOTICE:  FES_NANO_SD_PLATFORM setup=1 ready=1\r\nU-Boot 2025.01-fes-nano-{BUILD}')
+        raw=raw[:raw.index('PASS volatile memory filesystem')]
+        identity=f'package_id={"c"*64} payload_sha256={"d"*64}'
+        return raw+'\r\n'.join((
+            'FES_SD_PACKAGE_PROBE board=de25-nano EL=1 counter=400000000Hz writes=disabled activation=unavailable',
+            f'FES_NANO_PACKAGE RETAINED {identity} payload_bytes=12 build_id={"e"*32} owner={OWNER:016x} generation=3',
+            f'FES_NANO_PACKAGE CONTAINED {identity} owner={OWNER:016x} generation=4',
+            f'FES_NANO_PACKAGE RESUMED {identity} owner={OWNER:016x} generation=6',
+            f'FES_NANO_PACKAGE PASS read-only {identity} payload_bytes=12 owner={OWNER:016x} generation=7',''))
+
+    def decode(self,raw):return trace.decode_native_boot(raw,BUILD,SEED,package=self.expected)
+
+    def test_retained_package_cycle_is_observation_without_activation_acceptance(self):
+        report=self.decode(self.capture())
+        self.assertTrue(report['complete'],report)
+        self.assertFalse(report['core_load_acceptance'])
+        self.assertEqual(report['last_checkpoint'],'package_pass')
+        prefix=self.capture().split('SOCFPGA_AGILEX5 # ')[0]+'SOCFPGA_AGILEX5 # '
+        self.assertTrue(self.decode(prefix)['loader_ready'])
+        self.assertFalse(self.decode(prefix)['complete'])
+
+    def test_fragments_cannot_complete_or_grant_storage_authority(self):
+        raw=self.capture().encode()
+        for end in range(len(raw)):
+            report=self.decode(raw[:end])
+            self.assertFalse(report['complete'],end)
+            self.assertEqual(report['errors'],[],(end,report))
+        self.assertFalse(trace.decode_native_boot(raw,BUILD,SEED)['complete'])
+        self.assertFalse(trace.decode_native_boot(raw,BUILD,SEED,storage=NativeSDTraceTests.expected)['complete'])
+
+    def test_identity_owner_generation_disabled_setup_and_failure_reject(self):
+        raw=self.capture()
+        for old,new in (('package_id='+'c'*64,'package_id='+'a'*64),
+                        ('payload_sha256='+'d'*64,'payload_sha256='+'0'*64),
+                        ('payload_bytes=12','payload_bytes=13'),('build_id='+'e'*32,'build_id='+'f'*32),
+                        ('setup=1 ready=1','setup=0 ready=0'),('generation=3','generation=2'),
+                        ('generation=4','generation=3'),('generation=6','generation=5'),
+                        ('generation=7','generation=6'),('activation=unavailable','activation=available'),
+                        (f'owner={OWNER:016x} generation',f'owner={OWNER+2:016x} generation')):
+            with self.subTest(new=new):
+                report=self.decode(raw.replace(old,new))
+                self.assertFalse(report['complete']);self.assertTrue(report['errors'])
+        for line in ('panic: package changed','FES_NANO_PACKAGE FAIL','FES_NANO_PACKAGE PASS'):
+            with self.subTest(line=line):
+                self.assertTrue(self.decode(raw+line+'\r\n')['errors'])
+
+    def test_missing_duplicate_and_reordered_stages_reject(self):
+        raw=self.capture();lines=raw.splitlines(keepends=True)
+        for row in self.decode(raw)['records']:
+            i=row['line']-1
+            with self.subTest(stage=row['stage']):
+                self.assertFalse(self.decode(''.join(lines[:i]+lines[i+1:]))['complete'])
+                self.assertFalse(self.decode(''.join(lines[:i]+[lines[i]]+lines[i:]))['complete'])
+        a=next(i for i,line in enumerate(lines) if 'FES_NANO_PACKAGE CONTAINED' in line)
+        b=next(i for i,line in enumerate(lines) if 'FES_NANO_PACKAGE RESUMED' in line)
+        lines[a],lines[b]=lines[b],lines[a]
+        self.assertFalse(self.decode(''.join(lines))['complete'])
+
+    def test_expected_package_must_be_selected_independently(self):
+        invalid=[{},dict(self.expected,extra=True)]
+        for key,value in (('package_id','A'*64),('package_id',None),('payload_sha256','d'*63),
+                          ('payload_bytes',True),('payload_bytes',0),('payload_bytes',(8<<20)+1),
+                          ('build_id','e'*16)):
+            invalid.append(dict(self.expected,**{key:value}))
+        for value in invalid:
+            with self.subTest(value=value),self.assertRaises(ValueError):
+                trace.decode_native_boot('',BUILD,SEED,package=value)
+        with self.assertRaises(ValueError):
+            trace.decode_native_boot('',BUILD,SEED,package=self.expected,storage=NativeSDTraceTests.expected)
+
+
 if __name__ == '__main__':
     unittest.main()

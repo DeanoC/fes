@@ -45,13 +45,18 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('contained', rf'FES_NANO_SD CONTAINED owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
     ('resumed', rf'FES_NANO_SD RESUMED bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
     ('sd_pass', rf'FES_NANO_SD PASS read-only owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
+    ('package_probe', r'FES_SD_PACKAGE_PROBE board=de25-nano EL=1 counter=400000000Hz writes=disabled activation=unavailable'),
+    ('package_retained', rf'FES_NANO_PACKAGE RETAINED package_id=(?P<package_id>[0-9a-f]{{64}}) payload_sha256=(?P<payload_sha256>[0-9a-f]{{64}}) payload_bytes=(?P<payload_bytes>[0-9]{{1,10}}) build_id=(?P<build_id>[0-9a-f]{{32}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
+    ('package_contained', rf'FES_NANO_PACKAGE CONTAINED package_id=(?P<package_id>[0-9a-f]{{64}}) payload_sha256=(?P<payload_sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
+    ('package_resumed', rf'FES_NANO_PACKAGE RESUMED package_id=(?P<package_id>[0-9a-f]{{64}}) payload_sha256=(?P<payload_sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
+    ('package_pass', rf'FES_NANO_PACKAGE PASS read-only package_id=(?P<package_id>[0-9a-f]{{64}}) payload_sha256=(?P<payload_sha256>[0-9a-f]{{64}}) payload_bytes=(?P<payload_bytes>[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
 )]
 DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter',
-           'cpu0', 'cpu1', 'cpu2', 'cpu3', 'setup', 'ready', 'bytes', 'sectors', 'sd_generation'}
-TEXT = {'id', 'phase', 'sha256', 'cid'}
+           'cpu0', 'cpu1', 'cpu2', 'cpu3', 'setup', 'ready', 'bytes', 'sectors', 'sd_generation', 'payload_bytes'}
+TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id'}
 
 
-def decode_native_boot(data, build_id, owner_seed, *, storage=None):
+def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -68,7 +73,20 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None):
             type(storage['bytes']) is not int or not 0<storage['bytes']<=1<<20 or
             not isinstance(storage['sha256'],str) or not re.fullmatch('[0-9a-f]{64}',storage['sha256'])):
         raise ValueError('independently checked recovery manifest size/hash required')
-    stages=STAGES if storage is None else STAGES[:7]+('sd_platform',)+STAGES[7:-1]+('storage','read','contained','resumed','sd_pass')
+    if package is not None and (not isinstance(package,dict) or
+            set(package)!={'package_id','payload_sha256','payload_bytes','build_id'} or
+            type(package['payload_bytes']) is not int or not 0<package['payload_bytes']<=8<<20 or
+            any(not isinstance(package[key],str) or not re.fullmatch('[0-9a-f]{'+str(size)+'}',package[key])
+                for key,size in (('package_id',64),('payload_sha256',64),('build_id',32)))):
+        raise ValueError('independently checked package/payload/build identities required')
+    if storage is not None and package is not None:
+        raise ValueError('select exactly one native SD diagnostic')
+    controlled = storage is not None or package is not None
+    stages=STAGES
+    if controlled:
+        suffix=(('storage','read','contained','resumed','sd_pass') if storage is not None else
+                ('package_probe','package_retained','package_contained','package_resumed','package_pass'))
+        stages=STAGES[:7]+('sd_platform',)+STAGES[7:-1]+suffix
     loader_stages=stages[:stages.index('prompt')+1]
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False}
@@ -96,7 +114,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None):
                       for key, value in match.groupdict().items()}
             if name == 'owned':
                 name = values['phase']
-            if name=='sd_platform' and storage is None:
+            if name=='sd_platform' and not controlled:
                 if ('sd_platform' in observed or not report['records'] or report['records'][-1]['stage']!='provider' or
                         values!={'setup':0,'ready':0}):
                     report['errors'].append(f'unexpected SD authority at line {number}')
@@ -112,7 +130,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None):
             observed.setdefault(name, values)
             break
         else:
-            if (line.startswith(('U-Boot ', 'FES_NANO_', 'FES_ENTRY', 'FES_NATIVE_GO_PROBE', 'FES_STORAGE_PROBE',
+            if (line.startswith(('U-Boot ', 'FES_NANO_', 'FES_ENTRY', 'FES_NATIVE_GO_PROBE', 'FES_STORAGE_PROBE', 'FES_SD_PACKAGE_PROBE',
                                  'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
                     line.startswith('NOTICE:') and 'FES_NANO_' in line):
                 report['errors'].append(f'malformed or unexpected probe marker at line {number}')
@@ -160,17 +178,25 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None):
                 'native CPU/counter scope differs')
         require(live['per0'] & MASTER_RESET == MASTER_RESET and live['bridge'] & BRIDGES == BRIDGES,
                 'native master/bridge scope differs')
-    if storage is not None:
+    if controlled:
         if 'sd_platform' in observed:
             require(observed['sd_platform']=={'setup':1,'ready':1},'controlled SD setup rejected')
-        for phase,generation in (('read',3),('contained',4),('resumed',6),('sd_pass',7)):
+        phases=(('read','contained','resumed','sd_pass') if storage is not None else
+                ('package_retained','package_contained','package_resumed','package_pass'))
+        for phase,generation in zip(phases,(3,4,6,7)):
             if phase in observed:
                 value=observed[phase]
                 require(seal is not None and value['owner']==seal['owner'] and value['sd_generation']==generation,
                         f'{phase} SD owner/generation differs')
-                if phase in ('read','resumed'):
+                if storage is not None and phase in ('read','resumed'):
                     require(value['bytes']==storage['bytes'] and value['sha256']==storage['sha256'],
                             f'{phase} recovery manifest differs')
+                if package is not None:
+                    require(all(value[key]==package[key] for key in ('package_id','payload_sha256')),
+                            f'{phase} retained package identity differs')
+                    for key in ('payload_bytes','build_id'):
+                        if key in value:
+                            require(value[key]==package[key],f'{phase} package {key} differs')
         if 'read' in observed:
             require(observed['read']['sectors']>0 and int(observed['read']['cid'],16)>0,
                     'SD card identity/capacity absent')

@@ -37,10 +37,10 @@ class Model:
             if name=='u-boot.itb':
                 self.boot_reads+=1
                 data=b'changed' if self.fault=='boot-change' and self.writes else self.kit['fit']
-            elif name=='FES/RECOVERY.JSON':data=b'wrong-card' if self.fault=='wrong-card' else self.kit['manifest']
+            elif name=='FES/RECOVERY.JSON':data=b'wrong-card' if self.fault=='wrong-card' or self.fault=='manifest-change' and self.writes else self.kit['manifest']
             else:data=b'corrupt' if self.fault=='readback' else self.payload
             self.memory[addr]=data
-            if (self.fault=='oversize-readback' and name=='FES/UPLOAD.BIN') or (self.fault=='oversize-boot' and name=='u-boot.itb'):
+            if (self.fault=='oversize-readback' and name in upload.DESTINATIONS.values()) or (self.fault=='oversize-boot' and name=='u-boot.itb'):
                 return f'1{len(data)} bytes read'
             return f'{len(data)} bytes read'
         if c.startswith('hash sha256'):
@@ -76,7 +76,7 @@ class NanoUploadTests(unittest.TestCase):
     def setUp(self):
         self.payload=b'experimental bytes'*127
         self.kit={'manifest':b'manifest','fit':b'bootfit','fit_sha256':upload.sha(b'bootfit'),'prefix_sha256':upload.sha(b'prefix')}
-    def run_upload(self,fault=''):
+    def run_upload(self,fault='',purpose='boot'):
         model=Model(self.kit,self.payload,fault);receipt={'commands':[],'sd_write_attempted':False}
         self.last_model=model
         class Server:
@@ -86,7 +86,7 @@ class NanoUploadTests(unittest.TestCase):
             def start(self):pass
             def close(self):self.closed=True
         with patch('builtins.print'),patch.object(upload.time,'sleep'):
-            upload.perform(model,self.kit,self.payload,'192.168.10.202','02:fe:25:08:cb:01',receipt,Server)
+            upload.perform(model,self.kit,self.payload,'192.168.10.202','02:fe:25:08:cb:01',receipt,Server,purpose=purpose)
         return model,receipt
     def test_success_changes_only_fixed_experimental_file(self):
         model,r=self.run_upload()
@@ -94,6 +94,24 @@ class NanoUploadTests(unittest.TestCase):
         self.assertEqual(model.writes,1);self.assertEqual(model.boot_reads,2)
         writes=[c for c in model.commands if c.startswith('fatwrite')]
         self.assertEqual(writes,[f'fatwrite mmc 0:1 82000000 FES/UPLOAD.BIN {len(self.payload):x}'])
+        self.assertTrue(r['recovery_manifest_unchanged'])
+    def test_package_upload_uses_only_the_separate_fixed_file_and_preserves_boot(self):
+        model,r=self.run_upload(purpose='package')
+        self.assertEqual(r['destination'],'FES/PKGTEST.BIN')
+        self.assertEqual(r['purpose'],'package')
+        self.assertTrue(r['boot_files_unchanged'] and r['recovery_manifest_unchanged'])
+        writes=[c for c in model.commands if c.startswith('fatwrite')]
+        self.assertEqual(writes,[f'fatwrite mmc 0:1 82000000 FES/PKGTEST.BIN {len(self.payload):x}'])
+        for fault in ('short-write','readback','boot-change','write-timeout','oversize-readback','manifest-change'):
+            with self.subTest(fault=fault),self.assertRaises((ValueError,TimeoutError)):
+                self.run_upload(fault,purpose='package')
+            self.assertEqual(self.last_model.writes,1)
+    def test_arbitrary_upload_destinations_reject_before_console_access(self):
+        for purpose in ('FES/RECOVERY.JSON','../u-boot.itb','package; boot','',None):
+            model=Model(self.kit,self.payload)
+            with self.subTest(purpose=purpose),self.assertRaises(ValueError):
+                upload.perform(model,self.kit,self.payload,'192.168.10.202','02:fe:25:08:cb:01',{},purpose=purpose)
+            self.assertEqual(model.commands,[])
     def test_identity_and_transfer_failures_never_write_sd(self):
         for fault in ('wrong-card','prefix','download-hash','interrupted','lost-final-ack','reserved','oversize-boot',
                       'wrong-mac','ethernet-device','phy-unknown','phy-malformed'):
@@ -109,7 +127,7 @@ class NanoUploadTests(unittest.TestCase):
                     upload.perform(model,self.kit,self.payload,'192.168.10.202','02:fe:25:08:cb:01',r,Server)
                 self.assertEqual(model.writes,0);self.assertFalse(r['sd_write_attempted'])
     def test_write_readback_and_boot_change_failures_are_not_replayed(self):
-        for fault in ('short-write','readback','boot-change','write-timeout','oversize-readback'):
+        for fault in ('short-write','readback','boot-change','write-timeout','oversize-readback','manifest-change'):
             with self.subTest(fault=fault):
                 with self.assertRaises((ValueError,TimeoutError)):
                     self.run_upload(fault)

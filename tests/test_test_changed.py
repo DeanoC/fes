@@ -40,12 +40,20 @@ class TestChangedTest(unittest.TestCase):
         result = self.plan()
         command = next(c for c in result["commands"] if c["label"] == "native SD firmware lease and PIO lifecycle")
         self.assertEqual(command["cwd"], "platform/embedded/tamago")
-        self.assertEqual(command["argv"], ["go", "test", "-race", "-count=1", "-timeout", "90s", "./sdcontrol", "./sdhci", "./fat"])
+        self.assertEqual(command["argv"], ["go", "test", "-race", "-count=1", "-timeout", "90s", "./sdcontrol", "./sdhci", "./fat", "./packagestore"])
         self.assertIn("cc", command["tools"])
         self.assertEqual(result["impact"]["cores"], [])
         self.assertFalse(any(result["impact"]["test_modes"].values()))
         parent = next(c for c in result["commands"] if c["label"] == "parent Python regressions")
         self.assertEqual(parent["argv"][2:6], ["--video", "false", "--media", "false"])
+
+    def test_package_store_and_fat_changes_keep_native_storage_checks(self):
+        for path in ('platform/embedded/tamago/packagestore/store.go','platform/embedded/tamago/cmd/sdpackages/main.go','platform/embedded/tamago/fat/fat.go'):
+            with self.subTest(path=path):
+                self.change(path)
+                command=next(c for c in self.plan()['commands'] if c['label']=='native SD firmware lease and PIO lifecycle')
+                self.assertIn('./packagestore',command['argv'])
+                self.assertIn('mformat',command['tools'])
 
     def test_native_fabric_changes_schedule_injected_firmware_rtl_integration(self):
         self.change("platform/embedded/tamago/nativefabric/endpoint.go")
