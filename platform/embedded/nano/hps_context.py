@@ -27,8 +27,11 @@ def digest(context):
 
 def inputs():
     return [Path(__file__), PROTOTYPE/'verify.py', PROTOTYPE/'seal.py',
+            PROTOTYPE.parent/'embedded_control/producer.py',
             ROOT/'sources/misteross/scripts/core_package.py',
             ROOT/'sources/misteross/scripts/export_core_package.py',
+            ROOT/'sources/misteross/scripts/compiler_read_audit.py',
+            ROOT/'sources/misteross/scripts/rfc3986_validator.py',
             ROOT/'sources/misteross/scripts/source_repository.py']
 
 
