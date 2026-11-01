@@ -37,6 +37,19 @@ games slice does both.
 - **Branch.** FES `deano/pc386-m5-governor-35a3f1`, from main `58edb6b3b`.
   [#1335](https://github.com/DeanoC/fes/pull/1335), the keyboard and mouse
   slice, was not on main yet.
+- **Main merge.** `3cf44fc41` merges main `81662e4ad`, with
+  [#1363](https://github.com/DeanoC/fes/pull/1363), in a plain merge. #1335
+  is still not on main. The merge changes no sealed input and no RTL.
+  After it, the governor suite gives the same counts on every preset. These
+  also pass:
+  - the pc386 device suite;
+  - main's FESENV boot of the games image;
+  - the 1,605 misteross unit tests;
+  - `test-changed`'s always and parent lanes.
+
+  The other cores' RTL simulations, which the merge doesn't touch, were
+  left to CI. Main's `boot_suite` test now covers governed names
+  (`57940e00e`).
 - **RTL.** `ab30f6c11`: sealed, and run on the kit. Its CPU RTL equals
   `b10c40664`'s, which the lockstep and governor bench ran.
 - **Governor suite.** Its five presets ran on `pc386_system` at
@@ -235,8 +248,8 @@ Quartus 17.0.2 sealed `ab30f6c11` from a clean checkout (seed 1,
   The system clock is 61.44 MHz, with Fmax 70.37 MHz at the slow corner
   (the last seals were 67.6-72.9 MHz).
 - **Coverage.** The build record names `ab30f6c11`. All 108 pinned inputs
-  hash the same at this record's head: later commits change only documents
-  and `scripts/test_fes_i386_governor.py`, which is not an input.
+  hash the same at this record's head, after the main merge. Of the
+  branch's later commits, none touches an input.
 - **Resources.** 24,318 ALMs, 22,315 registers, 257 RAM blocks and 31 DSP
   blocks, against #1320's seal of the same shell without the governor:
   24,246 ALMs, 254 RAM blocks and 29 DSP blocks.
