@@ -23,7 +23,9 @@ path FogCast's host uses for a session's keyboard and mouse.
 
 The system simulation does the same through the GP mailbox, as the runtime
 does, with the RTL CPU, and gets the same two lines. Quartus 17.0.2 sealed the
-package at 61.44 MHz with every analysis met.
+package at 61.44 MHz with every analysis met. The seal is of the branch with
+main's #1286 merged in (`f2b12145a`), and Kit B ran that package last (run
+m5i7).
 
 The slice's package from before Codex's review fixes, which has the same
 storage RTL, also made a disk save round trip on Kit B. A command typed at
@@ -39,10 +41,24 @@ of the four games, which are the next M5 slice.
 ## Inputs
 
 - FES branch `deano/pc386-m5-input`, cut from main `16afcb7cc` (#1268's
-  squash). Its first two commits are the slice; the record follows them.
+  squash). The slice's commits come first; the record follows them.
+- Merge `f2b12145a`: the branch with main `58edb6b3b` (#1286, the PC/XT
+  floppy) merged in. It is sealed, and on the kit as run m5i7. Devices,
+  storage, the system suite, the oracle boot, the Python tests, the support
+  matrix and FogCast's host checks ran on it. The final head differs from it
+  only in this record.
+  - Main's changes inside the pc386 build are the mailbox
+    (`fes_computer_mailbox.v` and its generated header) and
+    `pc386_system.sv`, which ties the mailbox's new `media_reset` low.
+  - The mailbox's new logic is behind `ENABLE_PCXT_FLOPPY`, which pc386
+    leaves off. Its identity read now returns 0 for word numbers past 16
+    instead of word 15's value, but the mailbox rejects those numbers before
+    the read.
+  - Only the system and storage benches build the mailbox, and both ran on
+    the merge.
 - RTL revision `5328606ca`, which has Codex's two review fixes in
-  `pc386_kbc.sv` (below). It is sealed, and on the kit as runs m5i4 and m5i5.
-  Devices, the system suite and the oracle boot ran on it.
+  `pc386_kbc.sv` (below). Its seal, before the merge, is on the kit as runs
+  m5i4 and m5i5. Devices, the system suite and the oracle boot ran on it.
 - RTL revision `b8cfc9668`, before those fixes. Its seal is on the kit as
   runs m5i2, m5i3 and m5i6. Storage and the Python tests ran on its tree, and
   the review fixes touch neither.
@@ -112,6 +128,8 @@ of the four games, which are the next M5 slice.
   unsigned before slicing them.
 - **FogCast.** The browser host UI forwarded keyboard HID and mouse only for
   `fes.computer` 1.0. It now takes 1.0 and 1.1, as `protocol.ComputerABI` does.
+  Main's #1286 made the same change (`supportedComputerABI`), so the merge
+  keeps main's function and test cases and drops the branch's copies.
   libmister-runtime, the agent and tenfoot already gate keyboard and mouse
   only on the declared interfaces.
   - That puts pc386 on the browser's mouse queue. Its cap of 64 waiting
@@ -123,7 +141,11 @@ of the four games, which are the next M5 slice.
 
 ## Simulation
 
-Every pc386 suite passes on the slice's tree:
+Every pc386 suite passes on the slice's tree. On the merge `f2b12145a`,
+devices (122 checks), storage, the system suite (16 checks, and identity
+words 7 and 16 read `0x310b` and `0x000f`) and the oracle boot passed again,
+as did the Python tests and the support matrix. The system report below is
+the merge's run.
 
 | Suite | Result |
 | --- | --- |
@@ -182,25 +204,26 @@ The oracle machine bench gives the same two lines from `machine_tb --mouse`
 and named keys. 46 Python tests and the support matrix pass. On the host side,
 FogCast's browser UI suites pass: `Makefile` line 51, 374 tests, including a
 full mouse queue that keeps a partial release and drops pure motion, and
-`ui_browser_test.js`, 78. So does `go test ./internal/hostapi/...`.
+`ui_browser_test.js`, 78. So does `go test ./internal/hostapi/...`. All three
+ran again on the merge.
 
 ## Quartus seal
 
-`make build-fes-pc386-quartus` at seed 1 and `5328606ca`:
+`make build-fes-pc386-quartus` at seed 1 and the merge `f2b12145a`:
 [`seal-summary.json`](seal-summary.json). Each checkout stayed clean.
 
-| | Seal, `5328606ca` | `b8cfc9668` (runs m5i2, m5i3, m5i6) | #1268's 1.1 seal |
-| --- | --- | --- | --- |
-| Build ID, package | `55ff1537…`, `52ab1d11…` | `09d8ac6f…`, `7ad66fc9…` | `d355dd17…`, `6823af43…` |
-| System Fmax, slow corners | 72.94-73.22 MHz | 71.48-71.74 MHz | 70.86-71.66 MHz |
-| Pixel Fmax | 78.10-78.59 MHz | 80.78-81.15 MHz | 83.03-84.13 MHz |
-| Setup, hold slack | +0.660, +0.116 ns | +1.084, +0.096 ns | +1.420, +0.113 ns |
-| Recovery, removal, pulse width | +7.589, +0.274, +1.122 ns | +7.150, +0.285, +1.122 ns | +7.851, +0.460, +1.122 ns |
-| ALMs | 24,987 of 41,910 (60%) | 25,097 | 24,246 |
-| Registers | 22,956 | 22,992 | 22,252 |
-| RAM blocks | 254 of 553 | 254 | 254 |
-| DSP blocks | 30 of 112 | 30 | 29 |
-| RBF | 3,530,876 bytes, SHA-256 `e4c91b37…` | 3,542,652 bytes | 3,492,112 bytes |
+| | Seal, `f2b12145a` (run m5i7) | `5328606ca` (runs m5i4, m5i5) | `b8cfc9668` (runs m5i2, m5i3, m5i6) | #1268's 1.1 seal |
+| --- | --- | --- | --- | --- |
+| Build ID, package | `4681e16d…`, `457444bf…` | `55ff1537…`, `52ab1d11…` | `09d8ac6f…`, `7ad66fc9…` | `d355dd17…`, `6823af43…` |
+| System Fmax, slow corners | 67.61-69.69 MHz | 72.94-73.22 MHz | 71.48-71.74 MHz | 70.86-71.66 MHz |
+| Pixel Fmax | 79.82-80.70 MHz | 78.10-78.59 MHz | 80.78-81.15 MHz | 83.03-84.13 MHz |
+| Setup, hold slack | +0.936, +0.074 ns | +0.660, +0.116 ns | +1.084, +0.096 ns | +1.420, +0.113 ns |
+| Recovery, removal, pulse width | +6.355, +0.399, +1.122 ns | +7.589, +0.274, +1.122 ns | +7.150, +0.285, +1.122 ns | +7.851, +0.460, +1.122 ns |
+| ALMs | 25,084 of 41,910 (60%) | 24,987 | 25,097 | 24,246 |
+| Registers | 22,936 | 22,956 | 22,992 | 22,252 |
+| RAM blocks | 254 of 553 | 254 | 254 | 254 |
+| DSP blocks | 30 of 112 | 30 | 30 | 29 |
+| RBF | 3,538,976 bytes, SHA-256 `7f855b52…` | 3,530,876 bytes | 3,542,652 bytes | 3,492,112 bytes |
 
 Run m5i1's seal (`83d8f241…`, package `c164d9ca…`, before #1268's last fix)
 had setup +0.233 ns, all on the pixel clock.
@@ -212,15 +235,28 @@ the slice's only multiply, so it is the likely user of that block; the
 flattened fit report does not name it. Setup slack depends on placement of
 the pixel clock's presenter path. It varied by 0.85 ns between the two seals
 of the slice, so neither +0.660 nor +1.084 ns is a regression.
+The merge's seal differs from `5328606ca`'s in three pinned inputs:
+`fes_computer_mailbox.v`, `fes_computer.vh` and `pc386_system.sv`. Its
+toolchain, firmware, guest rates and seed are the same.
+- Its worst setup path is again on the pixel clock.
+- Its system clock reached 67.61 MHz at the slow cold corner. That is the
+  lowest of the slice's seals, 5.3 MHz below `5328606ca`'s, and 6.17 MHz
+  above the 61.44 MHz it runs at.
+- The merge adds no logic that pc386 enables, so placement is the likely
+  difference. This record does not prove that.
+
 `5328606ca`'s seal differs from `b8cfc9668`'s in one pinned input,
 `pc386_kbc.sv`. `b8cfc9668`'s differs from m5i1's in one,
 `fes_computer_storage.v`.
 
 ## Kit B
 
-Six runs, each claimed in Kit B's status file and released FREE with its
+Seven runs, each claimed in Kit B's status file and released FREE with its
 baseline unchanged:
-- run m5i4, 00:36-00:37 EET on 1 November, with the seal's exact package
+- run m5i7, 07:41-07:42 EET on 1 November, with the merge's exact package
+  `457444bf…`: typing and the mouse, after the kits moved to main
+  `58edb6b3b`'s baseline;
+- run m5i4, 00:36-00:37 EET on 1 November, with the pre-merge seal's package
   `52ab1d11…`: typing and the mouse;
 - run m5i5, 00:38-00:39, the same package, with fast clicks;
 - runs m5i2 (00:04, typing and the mouse), m5i3 (00:13, the save round trip)
@@ -228,22 +264,27 @@ baseline unchanged:
 - run m5i1, 22:37 on 31 October, with package `c164d9ca…`, before #1268's
   last fix.
 
-- **Core-only.** The kits' baseline software (bundle `8dd4dc87`, main
-  `e3e1439d`) already carries the 1.1 runtime, the agent's disk-image routes
-  and its input stream. Nothing was installed, and there was no image change,
-  reboot or host change.
+- **Core-only.** The kits' baseline software already carries the 1.1
+  runtime, the agent's disk-image routes and its input stream. Nothing was
+  installed, and there was no image change, reboot or host change.
+  - Runs m5i1 to m5i6 ran on bundle `8dd4dc87` (main `e3e1439d`).
+  - Run m5i7 ran on the baseline Lander moved the kits to at 04:40: bundle
+    `86cc27b6` and the shared FogCast host, both from main `58edb6b3b`, on
+    image `f904961e`.
 - **Launch.** Under a kit lease, the driver staged the FreeDOS fixture with
   INPUT.COM (SHA-256 `51f3c8fe…`) and loaded the package as library game
   `pc386-m5i-freedos` with the disk (`/v1/library/core/load`). The runtime
   admitted it with `fes.keyboard.hid` and `fes.mouse.relative` among its
-  active interfaces ([`kit-m5i4-result.json`](kit-m5i4-result.json)).
+  active interfaces ([`kit-m5i7-result.json`](kit-m5i7-result.json),
+  [`kit-m5i4-result.json`](kit-m5i4-result.json)).
 - **Input.** The driver used the agent's remote-input stream, as FogCast's
   host does for a session: `/v1/input/attach`, `CONNECT /v1/input/stream`,
   the bridge hello, then 52-byte frames. Keys were HID usage frames held
   60 ms. Mouse frames carried the system bench's ten packets 60 ms apart.
   Enter after `input` was held 300 ms, through INPUT.COM's init (#1330).
-- **Result** ([`kit-m5i4-report.png`](kit-m5i4-report.png)), the same in
-  runs m5i1, m5i2 and m5i4:
+- **Result** ([`kit-m5i7-report.png`](kit-m5i7-report.png),
+  [`kit-m5i4-report.png`](kit-m5i4-report.png)), the same in runs m5i1,
+  m5i2, m5i4 and m5i7:
   - `echo M5:Kb!` printed `M5:Kb!`.
   - X held 1.6 s printed 14 x's: the make, the first repeat at 500 ms, then
     10.9 per second.
@@ -301,8 +342,12 @@ input stream is lease-guarded and per session, so the run used that instead.
   down. Modifiers neither repeat nor stop another key's repeat.
 - The kit's own keyboards cannot yet send F1–F11, the keypad, Print Screen or
   Pause: tenfoot's key map is partial
-  ([#1331](https://github.com/DeanoC/fes/issues/1331)). Home's computer shelf
-  hides 1.1 packages ([#1332](https://github.com/DeanoC/fes/issues/1332)).
+  ([#1331](https://github.com/DeanoC/fes/issues/1331)).
+- Home's computer shelf hid 1.1 packages
+  ([#1332](https://github.com/DeanoC/fes/issues/1332)). Main's #1286 changed
+  `shelfPlayableABI` to accept every `fes.computer` minor that
+  `protocol.ComputerABI` accepts, 1.1 included. That should fix it, but no kit
+  run here went through Home's shelf.
 - The Wolfenstein 3D and Ultima VI game suites were not rerun, because their
   game files share is not mounted on Powerboat. Their `--keys` input now goes
   through rows. The same path drove the oracle INPUT.COM run, which included

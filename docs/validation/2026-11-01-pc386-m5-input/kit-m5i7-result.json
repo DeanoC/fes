@@ -1,0 +1,31 @@
+{
+ "kit": "B",
+ "run": "m5i7",
+ "package": "457444bf9ae851f7d115e0df1a0cead19f1b84cbfa6b27f04e93f635f806df52.fcore",
+ "disk": "freedos-input.img",
+ "game": "pc386-m5i-freedos",
+ "disk_sha256": "51f3c8fe13ad1cefa71cb683fd065afa80c9c2f5fda7dd53e5c3552c95a8646f",
+ "load": {
+  "state": "active"
+ },
+ "active_interfaces": [
+  "fes.audio.pcm-s16-stereo-48k 1.0",
+  "fes.fabric.video.display-plane 1.0",
+  "fes.keyboard.hid 1.0",
+  "fes.media.ata-disk 1.0",
+  "fes.memory.hps-ddr 1.0",
+  "fes.mouse.relative 1.0",
+  "fes.pc386.machine 1.0",
+  "fes.persistence.words 1.0",
+  "fes.rtc.wall-clock 1.0",
+  "fes.video.fixed-720p60 1.0",
+  "fes.video.session-display 1.0"
+ ],
+ "stop": {
+  "state": "idle"
+ },
+ "after": {
+  "agent": "idle",
+  "lease": "free"
+ }
+}
