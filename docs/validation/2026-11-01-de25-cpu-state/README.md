@@ -77,11 +77,14 @@ status records TRWU8CBL idle and **released**.
 ## Remaining question
 
 Zero output does not locate the failure before or inside C/console setup.
-Disabling `CONFIG_SPL_ATF` also changes the pinned vendor's early
-[CPU/startup handling](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/arch/arm/mach-socfpga/lowlevel_init_soc64.S#L49)
-before either report. This is a possible confounder, not a demonstrated cause.
-The next contained experiment should retain that startup selection and isolate
-earlier milestones while keeping the unconditional pre-DDR/storage stop.
+The initial inspection cited the generic `lowlevel_init_soc64.S` and proposed
+its ATF branch as a possible confounder. The
+[subsequent startup audit](../2026-11-01-de25-cpu-trace-preparation/README.md)
+corrects that attribution: the Nano compiles `lowlevel_init_agilex5.S`, and
+the failed candidate's emitted reset, low-level and C startup text already
+matches the seed. The earlier proposed cause is therefore unsupported.
+The next contained experiment retains the vendor selections and isolates
+earlier C milestones while keeping the unconditional pre-DDR/storage stop.
 No reset predicate should be relaxed on the strength of this run.
 
 Evidence is summarized in [evidence.json](evidence.json). Receipts, empty

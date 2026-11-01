@@ -17,6 +17,9 @@ The subsequent [CPU-only TRWU8CBL observation](../../../docs/validation/2026-11-
 programmed successfully but captured no UART bytes within 40 seconds. It
 provided no new CPU/reset evidence. Factory boot was restored by reference-SOF
 JTAG and authenticated without a card swap or physical power cycle.
+The [next trace candidate](../../../docs/validation/2026-11-01-de25-cpu-trace-preparation/README.md)
+preserves the actual vendor startup and adds earlier checkpoints; it is
+prepared off-board and has not been programmed.
 
 The same spare card carries two paths:
 
@@ -77,8 +80,28 @@ tools/reference SOF. It keeps the first sample and fresh MPIDR/reset report,
 then unconditionally prints `FES_NANO_CPU_DIAG PARK no-ddr no-storage no-bl31`
 and spins with `yield`, including when admission would pass. The private
 `board_init_f` ends at that report; later DDR/device initialization is removed.
-SPL storage, ATF and watchdog options are disabled and the linked park and
-excluded symbols are checked. No native CPU/reset admission rule changes.
+SPL storage and watchdog options are disabled and the linked park and excluded
+symbols are checked. The vendor's `SPL_ATF` and its required `SPL_LOAD_FIT`
+selection stay enabled; the later ATF invocation is independently replaced by
+a stop and no firmware payload is supplied. The build checks the actual Nano
+startup sources and emitted startup text against the seed. No native CPU/reset
+admission rule changes.
+
+The trace records 18 checkpoints from first C entry through the cold sample,
+device setup, managers/pins, timer, mailbox, clocks, console, report and park.
+Its 304-byte record lives in loaded OCRAM data. Before clock setup returns it
+only writes that record. After clocks, guarded raw UART output can replay the
+record before normal console setup if UART1 is already released and in 8N1.
+Otherwise it tries after normal console initialization. It does not change
+UART reset, clock, divisor, framing or interrupts, and caps TX polling per line.
+Complete serial lines carry the build ID, stage, value, first-C MPIDR and EL.
+Partial, reordered, mixed-identity or inconsistent-affinity traces never count
+as a complete capture. None of these observations grants native admission.
+
+If execution stops before clock setup, a silent serial result can still be
+inconclusive. Earlier checkpoints remain in OCRAM, but their retrieval over
+JTAG has not been qualified. A host timeout also cannot preempt a stalled
+target MMIO operation.
 
 ```sh
 python3 platform/embedded/nano/cpu_diagnostic.py \

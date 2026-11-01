@@ -205,6 +205,14 @@
       "Other CPU reset admission predicates and their first/fresh register addresses are unchanged."
     ]
   },
+  "startup_inspection_correction": {
+    "actual_lowlevel_source": "arch/arm/mach-socfpga/lowlevel_init_agilex5.S",
+    "classification": "subsequent off-board correction; no additional hardware attempt",
+    "evidence": "../2026-11-01-de25-cpu-trace-preparation/evidence.json",
+    "failed_candidate_startup_text_matches_seed": true,
+    "generic_soc64_attribution_inapplicable": true,
+    "initial_startup_cause_inference_withdrawn": true
+  },
   "tested_source": "451126c49933d074212d1aa1a96c2a12ab298761",
   "timezone": "Europe/Sofia",
   "vendor_uboot_revision": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413"
