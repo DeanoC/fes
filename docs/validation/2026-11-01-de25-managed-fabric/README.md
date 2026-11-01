@@ -83,6 +83,51 @@ coordination still block export.** The raw inventory lists six system and six
 pixel chains; these counts are not observed faults or a waiver. No eligible
 independent identical-RBF rebuild or described package is produced.
 
+## Independent FIFO reset-release diagnostic
+
+The additional [finite reset test](../../../sources/misteross/tests/de25_reset_skew.py)
+uses the existing passing generated startup model. In private copies only, it
+adds a selectable one-cycle delay to each FIFO reset synchronizer's first stage.
+The original shift stages, final reset register, FIFO pointers, credits,
+interconnect and endpoint remain present. Elaboration checks all eight selected
+four-stage asynchronous reset chains and the modeled RAM cells. A receiving-edge
+monitor requires release on the exact fifth or sixth edge for each selection;
+the negative control omits a requested delay and must fail that monitor.
+
+The [actual result](reset-skew-summary.json) at `263a19e06` passes 2,304 cases in
+72.8 seconds: 2,048 healthy cases cover all 256 independent reset-delay masks
+at eight clock phases, including early control, accepted AXI reads and complete
+response draining. Another 256 cases hold the first-lock source beyond the
+control timeout, then verify that late release preserves poison and refuses
+DMA/re-entry. All 42 focused scanout/startup tests pass in 25.345 seconds.
+The initial `0ae1c7d40` harness fails elaboration after 0.6 seconds because
+Verilator does not support the deep `defparam` syntax. It never simulates and
+remains retained. The corrected private model passes parameters through the
+existing FIFO wrappers.
+
+The later helper at `ebb12c489` also refuses relocated absolute replay paths
+before copying or running commands. Its [derivation check](reset-skew-derivation.json)
+recreates all 130 model/source/bench inputs byte-for-byte against the executed
+test and exercises that refusal; it does not rerun unchanged simulation.
+The [retention record](reset-skew-retention.json) verifies 515 archived regular
+files, the original failure, raw results and logs, a restored source bundle and
+unchanged 374 MENU/59 combined-compiler/58 runtime-test inputs. The archive is
+26,706,305 bytes, SHA-256
+`ff5e168f8b1890e03289a5def1ddedf70a45feb8f0ea49c858788565b2f31711`.
+
+This diagnostic uses **MODELED M20K STORAGE** and covers eight of the twelve
+reported system/pixel reset chains. It excludes the outer top reset, lock
+qualifier and visibility release, analog metastability, live global reset,
+HPS/boot/allocation epochs and physical acceptance. **RDC-50003 remains open;
+no extra exception is accepted.** Inspection of the actual SDK/generated FIFO
+finds that `SYNC_RESET` changes the register reset style while retaining the
+unconditional read/write reset synchronizers. Changing that setting would not
+remove those chains. Altera's [rule guidance](https://resources.altera.com/quartushelp/current/da_rules/rdc_50003.htm)
+still requires common reset distribution or a justified crossing protocol.
+No production RTL, compiler input, fitted database, installed artifact or board
+state changes. The earlier FPGA and native/AArch64 proofs are reused only after
+source equality; their evidence levels and remaining gates stay unchanged.
+
 ## Preserved rejected attempts
 
 | Source | Actual outcome |

@@ -78,6 +78,13 @@ unreviewed findings remains mandatory; output-delay and reset findings still
 block package publication. These
 checks do not establish whole-board timing, physical reset/CDC acceptance or a
 managed-kit hardware pass. No build action programs hardware.
+`tests/de25_reset_skew.py` adds a separate finite diagnostic to an existing
+passing generated startup simulation. In private model copies it delays each
+of the eight FIFO reset first stages independently by zero or one receiving
+clock cycle. It monitors actual release edges and exercises early control,
+accepted/drained reads and late-release poisoning. The generated producer
+project is unchanged; this does not close RDC-50003 or qualify physical
+metastability, outer clock monitors, live global reset or boot/allocation epochs.
 DE25 package validation accepts only format 2 for its exact SCS device. The
 existing format-3/4 ROM-map encoding and destination geometry describe Cyclone V
 M10K storage and are refused for Agilex 5.
