@@ -248,6 +248,8 @@ module fes_i386_cpu #(
     logic [5:0][2:0]       seg_tiny;
     logic [5:0][31:0]      seg_low;
     logic [5:0]            seg_expd, seg_rbad, seg_wbad;
+    fes_i386_pkg::seg_chk_t [5:0] init_chk;  // reset's, from init_limit and init_ar
+    always_comb for (int k = 0; k < 6; k++) init_chk[k] = fes_i386_pkg::seg_chk(init_limit[k], init_ar[k]);
     logic             code32;
     assign code32 = seg_ar[SEG_CS][14];
     // EX's running EFLAGS (see EX), which D reads for a string's DF.
@@ -970,13 +972,13 @@ module fes_i386_cpu #(
     // A system register as src2's value (decoded_t b_sys).
     logic [31:0] sys_val;
     always_comb begin
-        case (fes_i386_pkg::sys_rd_e'(dc.sys_idx))
-            fes_i386_pkg::SYS_RD_CR0: sys_val = cr0_rd;
-            fes_i386_pkg::SYS_RD_CR2: sys_val = cr2;
-            fes_i386_pkg::SYS_RD_CR3: sys_val = cr3;
-            fes_i386_pkg::SYS_RD_GDTL: sys_val = {16'd0, gdtr_limit};
-            fes_i386_pkg::SYS_RD_GDTB: sys_val = gdtr_base;
-            fes_i386_pkg::SYS_RD_IDTL: sys_val = {16'd0, idtr_limit};
+        case (dc.sys_idx)
+            3'(fes_i386_pkg::SYS_RD_CR0): sys_val = cr0_rd;
+            3'(fes_i386_pkg::SYS_RD_CR2): sys_val = cr2;
+            3'(fes_i386_pkg::SYS_RD_CR3): sys_val = cr3;
+            3'(fes_i386_pkg::SYS_RD_GDTL): sys_val = {16'd0, gdtr_limit};
+            3'(fes_i386_pkg::SYS_RD_GDTB): sys_val = gdtr_base;
+            3'(fes_i386_pkg::SYS_RD_IDTL): sys_val = {16'd0, idtr_limit};
             default: sys_val = idtr_base;
         endcase
     end
@@ -1698,14 +1700,14 @@ module fes_i386_cpu #(
     // that names a selector (trace_error).
     always_ff @(posedge clk) exc_inject <= !reset && (exc_take || int_go);
     assign trace_vector = exc_vec;
-    function automatic logic [7:0] fault_vector(input fes_i386_pkg::fault_e f);
+    function automatic logic [7:0] fault_vector(input logic [3:0] f);
         case (f)
-            fes_i386_pkg::FAULT_UD: fault_vector = 8'd6;
-            fes_i386_pkg::FAULT_GP0, fes_i386_pkg::FAULT_GP_SEL: fault_vector = 8'd13;
-            fes_i386_pkg::FAULT_NM: fault_vector = 8'd7;
-            fes_i386_pkg::FAULT_DE: fault_vector = 8'd0;
-            fes_i386_pkg::FAULT_BR: fault_vector = 8'd5;
-            fes_i386_pkg::FAULT_NP_SEL: fault_vector = 8'd11;
+            4'(fes_i386_pkg::FAULT_UD): fault_vector = 8'd6;
+            4'(fes_i386_pkg::FAULT_GP0), 4'(fes_i386_pkg::FAULT_GP_SEL): fault_vector = 8'd13;
+            4'(fes_i386_pkg::FAULT_NM): fault_vector = 8'd7;
+            4'(fes_i386_pkg::FAULT_DE): fault_vector = 8'd0;
+            4'(fes_i386_pkg::FAULT_BR): fault_vector = 8'd5;
+            4'(fes_i386_pkg::FAULT_NP_SEL): fault_vector = 8'd11;
             default: fault_vector = 8'd12;  // FAULT_SS0, FAULT_SS_SEL
         endcase
     endfunction
@@ -1761,9 +1763,14 @@ module fes_i386_cpu #(
             seg_cs_small <= init_limit[SEG_CS] < 32'h0000_ffff;
             seg_ss_rm <= ss_rm(init_limit[SEG_SS], init_ar[SEG_SS]);
             seg_ss_big <= ss_big(init_limit[SEG_SS], init_ar[SEG_SS]);
-            for (int k = 0; k < 6; k++)
-                {seg_lim[k], seg_tiny[k], seg_low[k], seg_expd[k], seg_rbad[k], seg_wbad[k]}
-                    <= fes_i386_pkg::seg_chk(init_limit[k], init_ar[k]);
+            for (int k = 0; k < 6; k++) begin
+                seg_lim[k] <= init_chk[k].lim;
+                seg_tiny[k] <= init_chk[k].tiny;
+                seg_low[k] <= init_chk[k].low;
+                seg_expd[k] <= init_chk[k].expd;
+                seg_rbad[k] <= init_chk[k].rbad;
+                seg_wbad[k] <= init_chk[k].wbad;
+            end
             hlt <= 1'b0;
             halted <= 1'b0;
             trace_unimplemented <= 1'b0;
@@ -1779,7 +1786,7 @@ module fes_i386_cpu #(
         end else if (wb_s.valid && !halted && !freeze) begin
             if (exc_take) begin
                 exc_active <= 1'b1;
-                exc_vec <= fault_vector(fes_i386_pkg::fault_e'(wb_fault));
+                exc_vec <= fault_vector(wb_fault);
             end else if (wb_fault == fes_i386_pkg::FAULT_REPLAY) begin
                 // A replay: nothing retires, and the front end restarts (rp_go).
             end else if (wb_fault != fes_i386_pkg::FAULT_NONE) begin
@@ -1789,7 +1796,7 @@ module fes_i386_cpu #(
                 trace_unimplemented <= 1'b1;
                 trace_pm_stop <= cr0_pe && !exc_active && wb_fault != fes_i386_pkg::FAULT_UNIMPLEMENTED;
                 exc_vec <= wb_fault == fes_i386_pkg::FAULT_UNIMPLEMENTED ? 8'd0
-                         : cr0_pe && !exc_active ? fault_vector(fes_i386_pkg::fault_e'(wb_fault)) : 8'd8;
+                         : cr0_pe && !exc_active ? fault_vector(wb_fault) : 8'd8;
                 trace_error <= wb_fault == fes_i386_pkg::FAULT_GP_SEL || wb_fault == fes_i386_pkg::FAULT_NP_SEL
                             || wb_fault == fes_i386_pkg::FAULT_SS_SEL ? {t0[15:2], 2'b00} : 16'd0;
             end else begin
@@ -1864,15 +1871,24 @@ module fes_i386_cpu #(
                         seg_sel[seg_w_idx] <= seg_w_idx == 3'(SEG_CS) ? {t0[15:2], 2'b00} : t0;
                         seg_base[seg_w_idx] <= ds_base;
                         seg_hi1[seg_w_idx] <= ds_hi1;
-                        {seg_lim[seg_w_idx], seg_tiny[seg_w_idx], seg_low[seg_w_idx], seg_expd[seg_w_idx],
-                         seg_rbad[seg_w_idx], seg_wbad[seg_w_idx]} <= ds_chk;
+                        seg_lim[seg_w_idx] <= ds_chk.lim;
+                        seg_tiny[seg_w_idx] <= ds_chk.tiny;
+                        seg_low[seg_w_idx] <= ds_chk.low;
+                        seg_expd[seg_w_idx] <= ds_chk.expd;
+                        seg_rbad[seg_w_idx] <= ds_chk.rbad;
+                        seg_wbad[seg_w_idx] <= ds_chk.wbad;
                     end else begin
                         seg_sel[seg_w_idx] <= seg_w_sel;
                         seg_base[seg_w_idx] <= {12'd0, seg_w_sel, 4'd0};
                         seg_hi1[seg_w_idx] <= {11'd0, 5'(seg_w_sel[15:12]) + (* no_carry *) 5'd1};
                         if (seg_w_idx == 3'(SEG_CS)) begin
-                            {seg_lim[SEG_CS], seg_tiny[SEG_CS], seg_low[SEG_CS], seg_expd[SEG_CS], seg_rbad[SEG_CS],
-                             seg_wbad[SEG_CS]} <= fes_i386_pkg::seg_chk(32'h0000_ffff, 16'h0093);
+                            // seg_chk of limit FFFFh and access rights 93h.
+                            seg_lim[SEG_CS] <= {32'h0000_fffc, 32'h0000_fffe, 32'h0000_ffff};
+                            seg_tiny[SEG_CS] <= 3'b000;
+                            seg_low[SEG_CS] <= 32'h0000_ffff;
+                            seg_expd[SEG_CS] <= 1'b0;
+                            seg_rbad[SEG_CS] <= 1'b0;
+                            seg_wbad[SEG_CS] <= 1'b0;
                         end else begin
                             seg_rbad[seg_w_idx] <= rm_ar[3] && !rm_ar[1];
                             seg_wbad[seg_w_idx] <= rm_ar[3] || !rm_ar[1];
