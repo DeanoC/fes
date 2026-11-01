@@ -142,9 +142,11 @@ foreach instance {subsys_debug ace5lite_cache_coherency_translator_0} {
     if {[lsearch -exact [get_instances] $instance] < 0} {error "managed fabric removal target changed: $instance"}
     remove_instance $instance
 }
-foreach connection {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst} {
-    if {[lsearch -exact [get_connections] $connection] < 0} {error "vendor F2H connection changed: $connection"}
-    remove_connection $connection
+foreach connection [get_connections] {
+    if {[string match "*subsys_hps.fpga2hps*" $connection]} {
+        if {[lsearch -exact {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst} $connection] < 0} {error "vendor F2H connection changed: $connection"}
+        remove_connection $connection
+    }
 }
 '''
     return script.replace(top_save, removal + top_save)

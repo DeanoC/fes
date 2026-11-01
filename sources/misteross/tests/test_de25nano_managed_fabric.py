@@ -197,6 +197,18 @@ set connections {}
                                 text=True, capture_output=True, timeout=10)
         self.assertEqual(result.returncode, 4)
         self.assertIn('managed fabric removal target changed', result.stdout)
+        refreshed = prefix.replace('return {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst}', 'return {}')
+        result = subprocess.run(['tclsh'], input=refreshed + '\nif {[catch {\n' + script +
+                                '\n} message]} {puts $message; exit 4}\nputs $removed\n',
+                                text=True, capture_output=True, check=True, timeout=10)
+        self.assertEqual(result.stdout.strip(), 'ext_hps_f2sdram_master subsys_debug ace5lite_cache_coherency_translator_0')
+        unexpected = prefix.replace('return {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst}',
+                                    'return {unknown.master/subsys_hps.fpga2hps}')
+        result = subprocess.run(['tclsh'], input=unexpected + '\nif {[catch {\n' + script +
+                                '\n} message]} {puts $message; exit 4}\n',
+                                text=True, capture_output=True, timeout=10)
+        self.assertEqual(result.returncode, 4)
+        self.assertIn('vendor F2H connection changed', result.stdout)
         for bad in ('', 'save_system top.qsys\n', 'remove_instance ext_hps_f2sdram_master\nsave_system top.qsys\nsave_system top.qsys\n'):
             with self.assertRaises(ValueError):
                 D.isolate_managed_fabric_script(bad, 'save_system top.qsys\n')
