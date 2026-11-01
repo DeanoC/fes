@@ -29,10 +29,11 @@ need #1335's keyboard and mouse on main and stay with #1369
   met a bench gap in its DDR model after every check had passed; it is
   filed as #1372.
 - On Kit B the sealed package boots FreeDOS with HIMEMX's full 15,360K of
-  XMS. Ultima VII's start-up stops first on FreeDOS's memory layout, then in
-  Voodoo's XMS clean-up. The Bochs CPU stops in the same places, so the
-  game's kit work is DOS set-up for #1369's second PR
-  ([Kit B](#kit-b-smoke-test-xms-on-hardware-ultima-vii-blocked-by-dos)).
+  XMS, and Ultima VII: The Black Gate plays its intro with sound and reaches
+  its main menu. That took two DOS set-up changes: no FreeCOM environment at
+  the top of memory, and HIMEMX on the 8042's A20 without `DOS=HIGH`. Both
+  first failed the same way on the Bochs CPU
+  ([Kit B](#kit-b-smoke-test-ultima-viis-intro-and-menu-on-hardware)).
 - Quartus 17.0.2 seals `fes.pc386` from a clean checkout at 61.44 MHz with
   every analysis met: setup +0.584 ns (the pixel clock; the system clock
   has +2.167 ns, 70.9 MHz at its slowest corner), hold +0.038 ns,
@@ -230,41 +231,62 @@ DDR ports' timing draws, and with it the run passes, at `39581a878` and
 again at `eee033a9d` with the same counts. The machine run at `39581a878`
 also matched the one at `eee033a9d` exactly.
 
-## Kit B smoke test: XMS on hardware, Ultima VII blocked by DOS
+## Kit B smoke test: Ultima VII's intro and menu on hardware
 
 Deano asked for an early look at Ultima VII on the FPGA before the kit
-acceptance runs. Run u7b, 1 November 2026 16:43-17:00 EET, was claimed and
-released in Kit B's status file. It was core-only on baseline software
-`b93cc239` (main `e06789cd`, OS `f904961e`): the sealed package `cd427942…`
-(`eee033a9d`) went through the agent's library launch, with no install, image
-change or reboot, and the baseline was unchanged after it. Run u7a, at 16:33,
-staged its disk and stopped on a bug in the scratch driver before it
-launched anything. The disks were scratch copies of the games image
-`876986c0` with HIMEMX's `/MAX=0` dropped and The Black Gate from Deano's
-eXoDOS zip (SHA-256 `75e6eb68…`). Game bytes stay off the repository.
+acceptance runs. Three runs were claimed and released in Kit B's status file,
+all on 1 November 2026: u7a at 16:33, u7b 16:43-17:00 and u7c 17:56-18:05
+EET. Each was core-only on baseline software `b93cc239` (main `e06789cd`, OS
+`f904961e`): the sealed package `cd427942…` (`eee033a9d`) went through the
+agent's library launch, with no install, image change or reboot. The
+baseline was unchanged after each. Run u7a staged its disk and stopped on a
+bug in the scratch driver before it launched anything. The disks were
+scratch copies of the games image `876986c0` with HIMEMX's `/MAX=0`
+dropped and The Black Gate from Deano's eXoDOS zip (SHA-256 `75e6eb68…`).
+Game bytes stay off the repository.
 
-- **XMS on hardware.** FreeDOS boots with HIMEMX 3.38 (`XMS 3.00 80386 4G`).
-  MEM, run through FreeCOM's XMS swap, shows 15,360K of XMS (159K used) and
-  620K (634,480 bytes) of conventional memory free
-  ([frame](kit-u7b-mem.png)).
-- **Ultima VII stops on FreeDOS's memory layout, not on the CPU.** Its
-  MAINMENU.EXE stops with `Ultima VII requires 561144 bytes of DOS memory!`
-  ([frame](kit-u7b-u7-freecom.png)), as the Bochs CPU did in the machine sim.
-  MAINMENU measures memory by walking the DOS memory-control-block chain and
-  adding its last two blocks, expecting itself and then the free memory
-  above it. FreeCOM 0.86 keeps its master environment, the size `/E:` sets,
-  as the last block at the top of conventional memory
-  ([chain](kit-u7b-mcb-freecom.png): `9F7F Z 03FA 0040 COMMAND`). MAINMENU then
-  counts only the free memory above itself. `/LOW` leaves the block there;
-  `/E:256` shrinks it to 256 bytes.
-- With a scratch shell (`SHELL=` a 300-byte program that starts ULTIMA7.COM)
-  the chain ends with the free block ([chain](kit-u7b-mcb-u7run.png)) and
-  MAINMENU passes its memory check. Voodoo then stops in its `freexmm.c`
-  error path (`Program terminated by code.`, [frame](kit-u7b-u7-u7run.png)).
-  The Bochs CPU in the machine sim, on the same disk, ends with the same
-  screen ([frame](sim-bochs-u7-u7run.png)), so the RTL on the kit matches the
-  reference CPU here too. What Voodoo objects to in this DOS and XMS setup
-  is for #1369's second PR, which has to make the games disk run Ultima VII.
+**Result: the intro plays with sound and reaches the main menu**
+([Lord British](kit-u7c-lord-british.png), [title](kit-u7c-title.png),
+[scenes](kit-u7c-intro.png), [menu](kit-u7c-menu.png)). With no input
+the game then loops back into the intro, as it does on a PC. The run's audio
+capture peaks at 16,812 with 1,554 of its 2,345 100 ms windows above
+-40 dBFS; a failed run's capture stays at the 4KPRO's DC offset. This needed
+two changes to the DOS set-up, both found here and both outside the CPU:
+
+1. **FreeCOM's environment sits at the top of memory.** MAINMENU.EXE first
+   stopped with `Ultima VII requires 561144 bytes of DOS memory!`
+   ([frame](kit-u7b-u7-freecom.png)) with 620K free
+   ([MEM](kit-u7b-mem.png)). It measures memory by walking the DOS
+   memory-control-block chain and adding its last two blocks, expecting
+   itself and then the free memory above it. FreeCOM 0.86 keeps its master
+   environment, the size `/E:` sets, as the last block
+   ([chain](kit-u7b-mcb-freecom.png): `9F7F Z 03FA 0040 COMMAND`). MAINMENU
+   then counts only the free memory above itself. `/LOW` leaves the block
+   there; `/E:256` shrinks it to 256 bytes. A 300-byte scratch shell
+   (`SHELL=`, it starts ULTIMA7.COM) ends the chain with the free block
+   ([chain](kit-u7b-mcb-u7run.png)), and the check passes.
+2. **HIMEMX's A20.** Voodoo then stopped in `freexmm.c`
+   ([kit](kit-u7b-u7-u7run.png), and the Bochs CPU in the machine sim on
+   the same disk: [frame](sim-bochs-u7-u7run.png)). The RTL machine sim of
+   that disk ran all 96,465,993 instructions on the RTL, with no stop and no
+   oracle step. It entered protected mode twice (Voodoo's set-up and its
+   clean-up, 23 retirements with PE set) and ended, as Bochs did, in the
+   shell's halt loop after ULTIMA7.COM returned. A trace of the Bochs
+   run's XMS calls showed why. MAINMENU exits after its checks so that
+   ULTIMA7.COM can start the intro, and its clean-up calls XMS 04h, global
+   disable A20. HIMEMX answered AX 0, BL 94h ("A20 still enabled"), and
+   Voodoo stops at `freexmm.c` line 191. HIMEMX had chosen its "Always on"
+   method: pc386's 8042 leaves reset with A20 enabled in its output port, and
+   the Bochs BIOS only uses port 92h. `/METHOD:KBC` makes HIMEMX switch A20
+   through the 8042 ([frame](kit-u7c-kbc.png)). With `DOS=HIGH` it still
+   failed, because the kernel holds a local A20 enable (XMS 05h). Without
+   `DOS=HIGH` the disable works and the intro runs.
+
+The working set-up is the scratch shell, `DEVICE=HIMEMX.EXE /METHOD:KBC`
+and no `DOS=HIGH`. The Bochs CPU stopped in the same places as the RTL on
+the kit for both failures. Choosing that set-up for the games profile (which
+runs FreeCOM), the keyboard and mouse to play past the menu (#1335), Serpent
+Isle and The Black Gate's preset check are #1369's second PR.
 
 ## Quartus seal
 
