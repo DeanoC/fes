@@ -101,6 +101,9 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	L := r.L
 	out, machines := L.NewTable(), L.NewTable()
 	for _, m := range v.Machines {
+		if !r.coreShown(m.CoreID) {
+			continue
+		}
 		row := L.NewTable()
 		for k, s := range map[string]string{"game_id": m.GameID, "title": corenames.EntryTitle(m.CoreID, m.Title), "core_id": m.CoreID, "package_id": m.PackageID, "launch_package_id": m.LaunchPackageID, "unavailable_reason": m.UnavailableReason, "draft_expansion_id": m.DraftExpansionID, "media_id": m.MediaID, "media_name": m.MediaName} {
 			row.RawSetString(k, lua.LString(s))
@@ -129,6 +132,9 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	out.RawSetString("machines", machines)
 	computers := L.NewTable()
 	for _, c := range v.Computers {
+		if !r.coreShown(c.CoreID) {
+			continue
+		}
 		row := L.NewTable()
 		for k, s := range map[string]string{"game_id": c.GameID, "title": corenames.EntryTitle(c.CoreID, c.Title), "core_id": c.CoreID, "package_id": c.PackageID, "unavailable_reason": c.UnavailableReason} {
 			row.RawSetString(k, lua.LString(s))

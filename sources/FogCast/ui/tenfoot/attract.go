@@ -123,6 +123,8 @@ func (a *App) persistPrefsLocked(field string) {
 		existing.ReducedMotion = a.reducedMotion
 	case "surround":
 		existing.Surround = boolPtr(a.surround)
+	case "all-cores":
+		existing.AllCores = a.allCores
 	default:
 		return
 	}

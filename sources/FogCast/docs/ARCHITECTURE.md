@@ -2674,7 +2674,18 @@ errors.
 
 The embedded `example.fes-cores` Home room combines the kit-local package
 list from `kit.cores` with prepared host-library systems from
-`hardware.read`. Each host card publishes its library `game_id` and launches
+`hardware.read`. Tenfoot applies the v1 release scope to the core catalog and
+Home recents; recents keep scanning cursor pages until they have five visible
+entries or the host has no more. Games without a core ID remain visible.
+**Show all cores** removes that presentation filter and is available through
+Settings, `tenfoot.json` `all_cores`, or `FOGCAST_TENFOOT_ALL_CORES=1`. Room
+instances receive the same scope for local packages, hardware snapshots and
+the systems table; `room.core_shown` also keeps the core a room was opened for,
+so setup for a held-back running machine remains usable. Changing the setting
+stays in Settings until it closes, then returns Home and drops any stale room
+instance. A Home room is reused only when its release scope matches the current
+setting. The host catalog and Library grid remain complete. Each host card
+publishes its library `game_id` and launches
 through the library path; a ready host card replaces a blocked local row for
 the same core, while a launchable local row stays selected. Host readiness
 follows library launch admission, including selected video parts, required and
@@ -2824,8 +2835,10 @@ mister-agent observes `CoreObservation.KeyboardHID` (package and generation) and
 routes keyboard frames to `internal/input/keyboard_hid.go`. Host-stream and
 kit-local holds are kept per source and posted as their union; posts are ordered
 and do not hold the controller-port lock. Each change posts all nine rows with
-`set_keyboard_hid` for the observed generation (the runtime writes only changed
-rows). A failed post leaves the state unconfirmed, so a repeated press or release
+`set_keyboard_hid` for the observed generation. If the runtime does not know the
+prior core state, it clears all nine rows first. It applies releases before
+makes, so a mixed row can be written twice. A failed post leaves the
+state unconfirmed, so a repeated press or release
 posts it again rather than reporting success. A probe that does not confirm
 the core keeps that HID binding and its held keys. The kit-local release that
 meets that probe, and a later release while that generation stays bound, still

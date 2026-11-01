@@ -2973,8 +2973,8 @@ Existing linker layout admission remains closed until an exact shell and its
 physical sockets are qualified.
 
 The independent `fes.pcxt-dos` recipe selects the default-off `HARDWARE_DOS`
-top parameter. It enables the GLaBIOS XT/5160 ROM, a BAT-only XT keyboard
-responder, and the read-only floppy controller. The `fes.computer` 1.1
+top parameter. It enables the GLaBIOS XT/5160 ROM, a host HID to XT set-1
+keyboard frontend with BAT response, and the read-only floppy controller. The `fes.computer` 1.1
 mailbox accepts a 360 KiB runtime floppy and writes it into SDRAM. When an
 initial disk is being loaded, the first boot waits for complete physical writes
 and media commit. Releasing execution with an empty drive starts the BIOS so
@@ -3219,9 +3219,18 @@ READY stays low while PB7 holds the receiver clear, so an on-fabric producer
 does not retire a byte that cannot raise IRQ1. A byte already accepted still
 finishes its frame. Tests check timing, ordering, busy handling, held-clear
 admission and reset. Integrated CPU runs read switch profiles `2D` and `73`.
-FES HID
-translation, extended-key policy, typematic, keyboard reset/BAT responses and
-event queues remain unimplemented. This is an XT interface, not an AT 8042.
+The DOS profile translates settled FES HID snapshots into XT set-1 make and
+break bytes with modifier ordering and typematic. ISO HID usage `0x32` (`#~`)
+shares the XT backslash code `0x2b` with usage `0x31`. It combines the original
+XT keyboard's control, alternate and keypad/navigation aliases and ignores
+enhanced-only keys. A pending byte is held until the receiver accepts it;
+eight settled snapshots can wait while the link is stalled. On overflow,
+intermediate snapshots can coalesce, and the latest settled state is queued
+once space returns. A slow handover between equivalent keys in different HID
+rows can appear as a release and new press because the row protocol is not
+atomic. A long inhibit resets
+the frontend and gives BAT priority. Host keyboard use on a kit requires its
+own exact-artifact acceptance. This is an XT interface, not an AT 8042.
 
 Speaker transitions are integrated at 100 MHz into signed mono 48 kHz PCM
 with a roughly 30 Hz DC blocker. Tests cover PIT tones, static-drive decay and

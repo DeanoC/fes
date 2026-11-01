@@ -68,9 +68,10 @@ module media_diag_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0) (
         wire [1:0] source_enable;
         wire source_ready;
         wire [31:0] unused_unit_size;
+        wire [143:0] unused_keyboard_rows;
         fes_computer_mailbox_pcxt gp_mailbox (
             .clk(clk), .gpo(media_gpo), .build_id(128'd0), .gpi(media_gpi),
-            .exec_reset(runtime_hold), .media_reset(cold_reset),
+            .exec_reset(runtime_hold), .keyboard_rows(unused_keyboard_rows), .media_reset(cold_reset),
             .media_write_addr(source_addr), .media_write_data(source_data), .media_write_enable(source_enable),
             .media_write_ready(source_ready), .media_write_busy(1'b0), .unit0_state(media_state), .unit0_size(unused_unit_size));
         pcxt_media adapter (
@@ -81,7 +82,8 @@ module media_diag_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0) (
             .disk_data(active_disk_data), .disk_ready(active_disk_ready), .disk_done(active_disk_done));
         assign disk_load_ready = 1'b0;
         assign disk_load_done = 1'b0;
-        wire unused_direct = &{1'b0, media_present, disk_restart, disk_load_valid, disk_load_address, disk_load_data};
+        wire unused_direct = &{1'b0, media_present, disk_restart, disk_load_valid, disk_load_address, disk_load_data,
+                               unused_keyboard_rows};
     end else begin: direct_media
         assign runtime_hold = 1'b0;
         assign media_gpi = 0;

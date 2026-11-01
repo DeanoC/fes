@@ -180,6 +180,7 @@
       "id": "fes.pong",
       "label": "`fes.pong`",
       "tier": "stale",
+      "release": "held-back",
       "covers": [
         "fes-pong"
       ],
@@ -242,6 +243,7 @@
       "id": "fes.catch",
       "label": "`fes.catch`",
       "tier": "demo",
+      "release": "held-back",
       "covers": [
         "fes-catch"
       ],
@@ -305,6 +307,7 @@
       "id": "fes.ramtest",
       "label": "`fes.ramtest`",
       "tier": "current",
+      "release": "held-back",
       "covers": [
         "fes-ramtest"
       ],
@@ -372,6 +375,7 @@
       "id": "fes.zx81",
       "label": "`fes.zx81`",
       "tier": "current",
+      "release": "v1",
       "covers": [
         "fes-zx81"
       ],
@@ -438,6 +442,7 @@
       "id": "fes.zx80",
       "label": "`fes.zx80`",
       "tier": "current",
+      "release": "v1",
       "covers": [],
       "paths": [],
       "recipe": true,
@@ -498,6 +503,7 @@
       "id": "fes.ts1000",
       "label": "`fes.ts1000`",
       "tier": "current",
+      "release": "v1",
       "covers": [],
       "paths": [],
       "recipe": true,
@@ -558,6 +564,7 @@
       "id": "fes.ts1500",
       "label": "`fes.ts1500`",
       "tier": "current",
+      "release": "v1",
       "covers": [],
       "paths": [],
       "recipe": true,
@@ -618,6 +625,7 @@
       "id": "fes.coleco",
       "label": "`fes.coleco`",
       "tier": "aging",
+      "release": "held-back",
       "covers": [
         "fes-coleco"
       ],
@@ -695,6 +703,7 @@
       "id": "fes.sms",
       "label": "`fes.sms`",
       "tier": "aging",
+      "release": "held-back",
       "covers": [
         "fes-sms"
       ],
@@ -757,6 +766,7 @@
       "id": "fes.sg1000",
       "label": "`fes.sg1000`",
       "tier": "aging",
+      "release": "held-back",
       "covers": [
         "fes-sg1000"
       ],
@@ -822,6 +832,7 @@
       "id": "fes.apple2",
       "label": "`fes.apple2`",
       "tier": "aging",
+      "release": "held-back",
       "covers": [
         "fes-apple2"
       ],
@@ -889,6 +900,7 @@
       "id": "fes.c64",
       "label": "`fes.c64`",
       "tier": "current",
+      "release": "v1",
       "covers": [
         "fes-c64"
       ],
@@ -958,6 +970,7 @@
       "id": "fes.c64-ntsc",
       "label": "C64 NTSC",
       "tier": "bring-up-queued",
+      "release": "held-back",
       "covers": [],
       "paths": [],
       "recipe": false,
@@ -1006,6 +1019,7 @@
       "id": "fes.spectrum",
       "label": "`fes.spectrum`",
       "tier": "current",
+      "release": "v1",
       "covers": [
         "fes-spectrum"
       ],
@@ -1077,6 +1091,7 @@
       "id": "fes.spectrum128",
       "label": "`fes.spectrum128`",
       "tier": "current",
+      "release": "v1",
       "covers": [],
       "paths": [],
       "recipe": true,
@@ -1155,6 +1170,7 @@
       "id": "fes.spectrum-plus3",
       "label": "`fes.spectrum-plus3`",
       "tier": "current",
+      "release": "v1",
       "covers": [],
       "paths": [],
       "recipe": true,
@@ -1222,6 +1238,7 @@
       "id": "fes.pentagon",
       "label": "`fes.pentagon`",
       "tier": "current",
+      "release": "v1",
       "covers": [],
       "paths": [],
       "recipe": true,
@@ -1289,6 +1306,7 @@
       "id": "fes.atari-st",
       "label": "`fes.atari-st`",
       "tier": "current",
+      "release": "v1",
       "covers": [
         "fes-atari-st"
       ],
@@ -1364,6 +1382,7 @@
       "id": "fes.atari-ste",
       "label": "Atari STE",
       "tier": "bring-up-queued",
+      "release": "held-back",
       "covers": [],
       "paths": [],
       "recipe": false,
@@ -1412,6 +1431,7 @@
       "id": "fes.riscv",
       "label": "`fes.riscv`",
       "tier": "aging",
+      "release": "held-back",
       "covers": [
         "fes-riscv"
       ],
@@ -1477,6 +1497,7 @@
       "id": "fes.demo",
       "label": "`fes.demo`, `fes.demo-media`, `fes.demo-audio`",
       "tier": "reference",
+      "release": "held-back",
       "covers": [
         "fes-demo"
       ],
@@ -1574,6 +1595,7 @@
       "id": "fes.pcxt",
       "label": "`fes.pcxt`",
       "tier": "bring-up",
+      "release": "v2",
       "covers": [
         "fes-pcxt"
       ],
@@ -1643,6 +1665,7 @@
       "id": "fes.pcxt-dos",
       "label": "`fes.pcxt-dos`",
       "tier": "bring-up",
+      "release": "v2",
       "covers": [],
       "paths": [],
       "recipe": true,
@@ -1662,7 +1685,7 @@
       "primary_toolchain": "quartus",
       "router": "Quartus is the FreeDOS package producer. The floppy image is loaded at runtime through the media mailbox; Nextpnr remains advisory for the PC/XT core.",
       "quartus": "Quartus (primary, policy). policy: Deano 2026-10-29. The DOS recipe uses Quartus Lite 17.0.2 Build 602, a three-seed reported internal timing gate and an independent RBF repeat. Kit B recorded an A:\\> boot for package a93e3921 from source 72febda79, before the later sealed QSF and host upload changes present by source a22d567c9. That run does not qualify the current package; exact-current-artifact hardware acceptance remains open.",
-      "features": "Media: read-only 360 KiB FreeDOS floppy is loaded at runtime through the mailbox and physically copied into SDRAM before CPU release; there is no disk write path or write persistence. Input: no host HID keyboard frontend. HDMI: CGA Direct 720p. Host simulations cover the BIOS, DOS and runtime media paths. Kit B reached A:\\> on earlier package a93e3921 from source 72febda79; there is no exact-artifact hardware acceptance for the current package.",
+      "features": "Media: read-only 360 KiB FreeDOS floppy is loaded at runtime through the mailbox and physically copied into SDRAM before CPU release; there is no disk write path or write persistence. Input: host HID snapshots are translated into XT set-1 keyboard bytes. HDMI: CGA Direct 720p. Host simulations cover the BIOS, DOS and runtime media paths. Kit B reached A:\\> on earlier package a93e3921 from source 72febda79; there is no exact-artifact hardware acceptance for the current package.",
       "notes": "Experimental bring-up recipe outside the bootstrap image; catalog standing remains experimental. Kit B reached A:\\> on package a93e3921 from source 72febda79. Later PR source adds sealed QSF synchronizer assignments and changes the host upload path, so timing and exact-artifact Kit acceptance for the current source remain open.",
       "evidence": [
         "sources/misteross/cores/fes-pcxt/README.md",
@@ -1708,6 +1731,7 @@
       "id": "fes.pc386",
       "label": "`fes.pc386`",
       "tier": "bring-up",
+      "release": "v2",
       "covers": [
         "fes-pc386"
       ],
