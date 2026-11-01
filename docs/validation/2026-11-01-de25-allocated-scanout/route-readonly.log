@@ -1,0 +1,30 @@
+SMMU offset=000 value=080f7e3f
+SMMU offset=004 value=0e739d18
+SMMU offset=020 value=0000001d
+SMMU offset=024 value=0000001d
+SMMU offset=044 value=00000000
+SMMU offset=050 value=00000005
+SMMU offset=054 value=00000005
+SMMU offset=060 value=00000000
+SMMU offset=064 value=00000000
+SMMU offset=098 value=00004061
+SMMU offset=09c value=00004061
+SMMU_EVTQ offset=0a8 value=00000000
+SMMU_EVTQ offset=0ac value=00000000
+RSTMGR offset=02c value=00000000
+TBU2NOC_FW offset=000 value=00000001
+TBU2NOC_FW offset=010 value=80100000
+TBU2NOC_FW offset=014 value=00000000
+TBU2NOC_FW offset=018 value=bfffffff
+TBU2NOC_FW offset=01c value=00000000
+TBU2NOC_FW offset=020 value=00000000
+TBU2NOC_FW offset=024 value=00000000
+TBU2NOC_FW offset=028 value=0000ffff
+TBU2NOC_FW offset=02c value=00000000
+TBU2NOC_FW offset=030 value=00000000
+TBU2NOC_FW offset=034 value=00000000
+TBU2NOC_FW offset=038 value=0000ffff
+TBU2NOC_FW offset=03c value=00000000
+ 19:          0          0          0          0     GICv3 166 Edge      arm-smmu-v3-evtq
+ 21:          0          0          0          0     GICv3 161 Edge      arm-smmu-v3-gerror
+ROUTE_READ_ONLY_OBSERVATION_COMPLETE

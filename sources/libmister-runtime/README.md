@@ -42,7 +42,7 @@ is unchanged. This option supplies no address, DMA grant, supplier or topology
 property and does not request owner REAP or grant normal runtime admission.
 Unknown selections are refused before any staging/mount/programming mutation.
 Exact selected-overlay replacement checks, inherited-overlay refusal and sticky
-uncertainty apply to both selections. Physical scanout/DMA acceptance is pending.
+uncertainty apply to both selections. The [dated allocated-scanout trial](../../docs/validation/2026-11-01-de25-allocated-scanout/README.md) records two actual marker loads and allocations, an AXI read-response failure before displayed acknowledgement, and successful guarded recovery without reboot. Full physical scanout/DMA acceptance is pending.
 
 The internal `De25ComputerCoreDriver` now implements the shared driver lifecycle
 and optional HID/tape calls through that atomic client. It accepts only the
