@@ -154,7 +154,7 @@ normal runtime admission or establish hardware fencing after a failed load.
 ## Explicit allocated-buffer diagnostic
 
 `owner_scanout.c` is an uninstalled maintenance test for this kernel's owner
-ABI 2. It requires root, the exact AArch64 kernel/model/rootfs identity, an
+ABI 3, including a pre-allocation owner-version query and observed build identity. It requires root, the exact AArch64 kernel/model/rootfs identity, an
 observed boot UUID, the exclusive maintenance lease and a root-owned mode-0600
 owner control device whose device number matches sysfs. Compile with the
 selected AArch64 C SDK, with `-std=c11 -Wall -Wextra -Werror -O2`.

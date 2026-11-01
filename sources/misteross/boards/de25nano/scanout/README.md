@@ -228,3 +228,11 @@ DMA/device/domain and normal-kit acceptance requirements.
 The [isolated-stream compilation and transport proof](../../../../../docs/validation/2026-10-31-de25-isolated-stream/README.md)
 retains the actual sole-master graph, profile-bound artifacts, eight passing
 transport cases, original failures and open Linux/physical acceptance gates.
+
+The current endpoint is fabric version 1.1. Its read-only 128-bit build identity
+is bound to the selected functional source/profile, passed as an actual Qsys
+HDL parameter and checked in generated handoff metadata. The owner UAPI version
+3 checks this identity before allocation and across later snapshots. Unbound
+zero identities and the older endpoint/API versions are refused. These source
+changes require a matching new kernel and FPGA image; they do not extend the
+older physical diagnostic evidence or enable normal runtime startup.

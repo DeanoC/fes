@@ -64,6 +64,17 @@ def replace_once(source, before, after):
     return source.replace(before, after)
 
 
+def build_identity(sources, hps_first, linux_dma):
+    # Functional source and selected hardware profile, independent of a docs
+    # commit or checkout path. Payload bytes retain their separate RBF digest.
+    value = sha(json.dumps({"sources": {n: sha(d) for n, d in sources.items()},
+        "hps_first": hps_first, "linux_dma": linux_dma},
+        sort_keys=True, separators=(",", ":")).encode())[:32]
+    if value == "0" * 32:
+        raise ValueError("zero scanout build identity")
+    return value
+
+
 def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=False):
     if type(hps_first) is not bool:
         raise ValueError("HPS-first selection must be boolean")
@@ -71,6 +82,7 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
         raise ValueError("Linux DMA requires explicit HPS-first selection")
     boot_order = "HPS FIRST" if hps_first else "AFTER INIT_DONE"
     sources = capture(revision)
+    build_id = build_identity(sources, hps_first, linux_dma)
     selected = {"fes_revision": revision, "source_classification": "committed"} if revision else identity()
     if revision is None:
         selected = {"base_revision": selected.get("fes_revision", selected.get("base_revision")),
@@ -129,6 +141,7 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
     offset = re.search(r"^`define FES_DE25_SCANOUT_PERIPHERAL_OFFSET 32'h([0-9a-f]{8})$", definition, re.M)
     if not offset: raise ValueError("missing generated scanout register offset")
     addition = sources[BOARD + "scanout/integrate.tcl"].decode().replace("@SCANOUT_BASE@", hex(int(offset[1], 16)))
+    addition = addition.replace("@SCANOUT_BUILD_ID@", "0x" + build_id)
     script = (project / "integrate-mailbox.tcl").read_text()
     script = replace_once(script, "save_system $peripheral_system\n\n# Refresh", addition + "\nsave_system $peripheral_system\n\n# Refresh")
     anchor = "set_connection_parameter_value subsys_periph.fes_probe_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n"
@@ -168,7 +181,7 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
                     "pixel_pll_parameters", "pixel_clock_hz", "i2c_internal_clock", "configuration_release",
                     "warm_reset_ack_n", "debug_paths")}
     inputs["combined_display"].update(mode="allocated-buffer-scanout", ddr_scanout=True, runtime_menu=False)
-    inputs["scanout"] = {"hps_initialization": boot_order, "peripheral_offset": int(offset[1], 16), "default_enabled": False,
+    inputs["scanout"] = {"build_id": build_id, "hps_initialization": boot_order, "peripheral_offset": int(offset[1], 16), "default_enabled": False,
         "pixel_hz": 74250000, "system_hz": 100000000, "control_bridge": "system100 bounded guard -> mm_ccb19.4.1 DATA32 RESPONSE1",
         "memory_bridge": "mm_ccb19.4.1 DATA128 RESPONSE1 MAX16", "allocation_bytes": 8388608,
         "reset_release": {"assertion": "asynchronous",
@@ -289,6 +302,28 @@ def verify_reset_synchronizers(project):
             "sdc_clear_pins": 10}
 
 
+def endpoint_build_identity(project, endpoint, hps, expected):
+    if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{32}", expected) or expected == "0" * 32:
+        raise ValueError("invalid selected scanout build identity")
+    actual = endpoint.findtext("parameter[@name='BUILD_ID']/value")
+    logical = None
+    if actual is None:
+        parameters, logical = referenced_parameters(project, endpoint, hps)
+        actual = parameters.get("BUILD_ID")
+    text = str(actual).strip()
+    if re.fullmatch(r"128'[hH][0-9a-fA-F]{1,32}", text):
+        number = int(text[5:], 16)
+    elif re.fullmatch(r"0[xX][0-9a-fA-F]{1,32}", text):
+        number = int(text[2:], 16)
+    elif re.fullmatch(r"[0-9]+", text):
+        number = int(text, 10)
+    else:
+        raise ValueError("unsupported generated scanout build identity")
+    if not 0 < number < (1 << 128) or number != int(expected, 16):
+        raise ValueError("generated scanout build identity differs")
+    return {"build_id": expected, "parameter": actual, "logical_view": logical}
+
+
 def verify_handoff(project, hps):
     reset_synchronizers = verify_reset_synchronizers(project)
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
@@ -296,6 +331,8 @@ def verify_handoff(project, hps):
     endpoint = modules.get("subsys_periph.fes_scanout")
     if endpoint is None or endpoint.get("kind") != "fes_de25_scanout" or endpoint.get("version") != "1.0":
         raise ValueError("generated scanout endpoint differs")
+    build_id = json.loads((project.parent / "inputs.json").read_text())["scanout"]["build_id"]
+    build_identity = endpoint_build_identity(project, endpoint, hps, build_id)
     expected_master = {"address": ("Output", 32), "burstcount": ("Output", 5), "read": ("Output", 1),
         "byteenable": ("Output", 16), "waitrequest": ("Input", 1), "readdata": ("Input", 128),
         "readdatavalid": ("Input", 1), "response": ("Input", 2)}
@@ -386,7 +423,7 @@ def verify_handoff(project, hps):
     regions = [r for r in probe["peripheral_slave_map"] if r["name"] == "subsys_periph.fes_scanout_guard.avs"]
     if len(regions) != 1 or regions[0]["base"] != offset or regions[0]["span"] != 256:
         raise ValueError("generated scanout LW leaf region differs")
-    return {"instance": "subsys_periph.fes_scanout", "peripheral_offset": offset,
+    return {"instance": "subsys_periph.fes_scanout", "build_identity": build_identity, "peripheral_offset": offset,
         "pixel_hz": 74250000, "memory_hz": 100000000, "bridge_parameters": bridge_parameters,
         "read_only_master_ports": expected_master, "csr_write_completion": True, "control_guard": "100 MHz bounded, sticky poison, no cancellation or drain inference",
         "peripheral_slave_map": probe["peripheral_slave_map"], "ddr_scanout": True,
@@ -431,7 +468,7 @@ def compile_project(output, hps, display, tool):
     record = json.loads((directory / "build.json").read_text())
     record["post_compile_pixel_pll_parameters_unchanged"] = actual == expected
     record["scanout_generation_sha256"] = hps.digest(directory / "generation.json")
-    record["scanout"] = {"default_enabled": False, "ddr_scanout": True, "runtime_admission": "not-qualified",
+    record["scanout"] = {"build_id": inputs["scanout"]["build_id"], "default_enabled": False, "ddr_scanout": True, "runtime_admission": "not-qualified",
                          "f2sdram_master_profile": inputs.get("f2sdram_master_profile", "diagnostic"),
                          "linux_dma": inputs["scanout"].get("linux_dma")}
     (directory / "build.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
@@ -447,6 +484,7 @@ def compile_project(output, hps, display, tool):
                   "f2sdram_master_profile": inputs.get("f2sdram_master_profile", "diagnostic"),
                   "linux_dma": inputs["scanout"].get("linux_dma"),
                   "scanout_source_sha256": sha(json.dumps(inputs["functional_snapshot_sha256"], sort_keys=True).encode()),
+                  "scanout_build_id": inputs["scanout"]["build_id"],
                   **artifacts, "hardware_programming": "not-performed", "boot_compatibility": "not-qualified",
                   "Linux_load_acceptance": "not-qualified", "production_admission": False}
         (directory / "linux-programming.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")

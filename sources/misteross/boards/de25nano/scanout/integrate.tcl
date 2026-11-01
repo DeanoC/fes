@@ -18,6 +18,7 @@ foreach {instance clock edges} {
     set_interface_property $instance EXPORT_OF $instance.in_reset
 }
 add_instance fes_scanout fes_de25_scanout 1.0
+set_instance_parameter_value fes_scanout BUILD_ID @SCANOUT_BUILD_ID@
 add_connection fes_pixel_clk.out_clk fes_scanout.clk
 add_connection fes_scanout_pixel_reset.out_reset fes_scanout.reset
 add_interface fes_scanout_video conduit end

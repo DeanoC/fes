@@ -6,6 +6,11 @@ set_module_property GROUP "FES/Diagnostics"
 set_module_property AUTHOR "FES"
 set_module_property INSTANTIATE_IN_SYSTEM_MODULE true
 set_module_property EDITABLE false
+# Quartus 26.3 PRBS IP uses this 128-bit HDL parameter representation too.
+add_parameter BUILD_ID STD_LOGIC_VECTOR 0x0
+set_parameter_property BUILD_ID WIDTH 128
+set_parameter_property BUILD_ID HDL_PARAMETER true
+set_parameter_property BUILD_ID AFFECTS_GENERATION false
 add_fileset QUARTUS_SYNTH QUARTUS_SYNTH
 set_fileset_property QUARTUS_SYNTH TOP_LEVEL fes_de25_scanout
 add_fileset_file fes_de25_scanout.v VERILOG PATH fes_de25_scanout.v TOP_LEVEL_FILE

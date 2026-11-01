@@ -2,7 +2,9 @@
 // Registers, ownership and video/reader state all use the pixel clock. Platform
 // Designer bridges own both memory/control crossings; no split-word CDC here.
 `include "generated/fes_de25_scanout.vh"
-module fes_de25_scanout (
+module fes_de25_scanout #(
+    parameter [127:0] BUILD_ID = 128'd0
+) (
     input wire clk, reset_n,
     input wire clock_fault,
     input wire [6:0] address,
@@ -197,6 +199,10 @@ module fes_de25_scanout (
                     `FES_DE25_SCANOUT_SNAPSHOT_GRANT_LO_OFFSET: readdata <= frozen[10];
                     `FES_DE25_SCANOUT_SNAPSHOT_GRANT_HI_OFFSET: readdata <= frozen[11];
                     `FES_DE25_SCANOUT_SNAPSHOT_GRANT_SPAN_OFFSET: readdata <= frozen[12];
+                    `FES_DE25_SCANOUT_BUILD_ID0_OFFSET: readdata <= BUILD_ID[31:0];
+                    `FES_DE25_SCANOUT_BUILD_ID1_OFFSET: readdata <= BUILD_ID[63:32];
+                    `FES_DE25_SCANOUT_BUILD_ID2_OFFSET: readdata <= BUILD_ID[95:64];
+                    `FES_DE25_SCANOUT_BUILD_ID3_OFFSET: readdata <= BUILD_ID[127:96];
                     default: readdata <= 32'd0;
                 endcase
             end

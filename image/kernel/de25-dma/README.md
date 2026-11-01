@@ -12,7 +12,7 @@ The implementation has a separate ABI from ARMv7 `fes-window`. It does not map
 a reserved physical window, use `/dev/mem`, invoke PL310 cache operations, or
 accept a caller-provided physical/DMA address.
 
-## Allocation and ABI version 2
+## Allocation and ABI version 3
 
 The private constructor receives the actual DMA device and a driver-controlled
 register transport. Its mandatory `acquire` callback must exclusively lease the
@@ -38,10 +38,18 @@ two 4 MiB slots containing fixed 1280×720 BGRX8888 frames, stride 5120 bytes.
 
 Each grant has a unique anonymous inode. `INFO` returns geometry, a nonzero
 64-bit allocation generation, cached lifetime/frame state and the available
-back slot, without addresses. `PUBLISH` accepts version 2, that generation, a
-nonzero increasing 32-bit sequence, a slot and zero reserved bits. Old version 1
-requests are refused. Generation allocation saturates rather than wrapping;
+back slot, without addresses. `PUBLISH` accepts version 3, that generation, a
+nonzero increasing 32-bit sequence, a slot and zero reserved bits. Private versions 1 and 2
+are refused. Generation allocation saturates rather than wrapping;
 sequence exhaustion requires revocation and a new allocation.
+
+ABI 3 also reports the observed immutable 128-bit hardware build identity as
+four words, least-significant first. Creation checks interface version 1.1 and
+a nonzero build ID before allocating storage. Snapshot validation compares the
+image identity with the original grant, including before and after CLEAR;
+identity loss retains the uncertain exposure and provider lease. INFO remains
+a cached observation. No CPU or DMA address is added to the ABI. The previous
+INFO/POLL request sizes and legacy PUBLISH versions cannot select this ABI.
 
 Initially the logical front slot is zero and the first submission must use slot
 one. The kernel constructs all grant, generation, sequence and slot register
@@ -50,7 +58,7 @@ The first SUBMIT configures and starts fetching the intended slot atomically.
 There is one pending frame. Acceptance does not mean the frame was displayed,
 and neither the previous front nor pending slot is available for reuse.
 
-`POLL` requires version 2, the current allocation generation and zero reserved
+`POLL` requires version 3, the current allocation generation and zero reserved
 bits. It obtains a frozen hardware snapshot: read the serial, issue SNAPSHOT,
 order it, wait a bounded number of accesses for the serial to advance modulo
 32 bits, read the frozen fields, and recheck the serial. It validates the full
@@ -190,11 +198,14 @@ module build. Physical stream/domain and normal-kit admission remain open.
 
 `FES_DE25_DMA_PLATFORM` defaults off and requires a built-in driver, IOMMU API
 and OF overlays. It implements `/dev/fes-de25-scanout` (root only, also requiring
-CAP_SYS_RAWIO): OWNER_ALLOC returns a CLOEXEC grant file, and OWNER_REAP revokes
+CAP_SYS_RAWIO): OWNER_ABI returns the positive ABI version (3), even before a
+profile is ready, without MMIO or allocation. Clients require that exact value
+before OWNER_ALLOC; an old kernel's ENOTTY must refuse before any legacy grant
+is allocated. OWNER_ALLOC returns a CLOEXEC grant file, and OWNER_REAP revokes
 its grant through the existing checked drain path before releasing the owner's
 recovery handle. Existing client storage references still hold the resource
 lease, even after a successful reap. A failed reap retains the handle and lease.
-`OWNER_IDLE` is an additive, read-only version-2 control request with no
+`OWNER_IDLE` is a read-only control request with no
 argument. It returns zero only when the profile is ready and neither an active
 allocation nor a storage/client/VMA lease remains; otherwise it returns
 `EBUSY`, or `ENODEV` for an unready profile. It takes the allocation/owner locks

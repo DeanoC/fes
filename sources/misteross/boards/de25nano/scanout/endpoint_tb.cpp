@@ -62,6 +62,12 @@ public:
         dut.eval(); tick(); tick(); dut.reset_n = 1; idle(4);
         equal(read(FES_DE25_SCANOUT_ID_OFFSET), FES_DE25_SCANOUT_IDENTITY, "identity");
         equal(read(FES_DE25_SCANOUT_VERSION_OFFSET), FES_DE25_SCANOUT_VERSION, "version");
+        equal(read(FES_DE25_SCANOUT_BUILD_ID0_OFFSET), 0x76543210u, "build ID word0");
+        equal(read(FES_DE25_SCANOUT_BUILD_ID1_OFFSET), 0xfedcba98u, "build ID word1");
+        equal(read(FES_DE25_SCANOUT_BUILD_ID2_OFFSET), 0x89abcdefu, "build ID word2");
+        equal(read(FES_DE25_SCANOUT_BUILD_ID3_OFFSET), 0x01234567u, "build ID word3");
+        write(FES_DE25_SCANOUT_BUILD_ID0_OFFSET, 0xffffffffu);
+        equal(read(FES_DE25_SCANOUT_BUILD_ID0_OFFSET), 0x76543210u, "build identity is read-only");
         equal(read(FES_DE25_SCANOUT_STATUS_OFFSET), FES_DE25_SCANOUT_STATUS_DRAINED, "cold state");
         require(bursts.empty() && !dut.avm_read, "cold endpoint fetched memory");
     }

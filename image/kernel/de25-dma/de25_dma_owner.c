@@ -162,6 +162,8 @@ static long owner_ioctl(struct file *control, unsigned int command, unsigned lon
 		return -EPERM;
 	if (argument)
 		return -EINVAL;
+	if (command == FES_DE25_DMA_OWNER_ABI)
+		return FES_DE25_DMA_ABI_VERSION;
 	if (command == FES_DE25_DMA_OWNER_IDLE)
 		return owner_idle(owner);
 	if (command == FES_DE25_DMA_OWNER_REAP)

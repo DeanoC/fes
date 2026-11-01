@@ -36,7 +36,7 @@ class OwnerScanoutTests(unittest.TestCase):
 
     def test_invalid_initial_grant_never_maps_or_publishes(self):
         for name in ('alloc-error', 'fcntl-error', 'no-cloexec', 'bad-version',
-                     'bad-geometry', 'zero-generation', 'initial-outstanding', 'mmap-error'):
+                     'bad-geometry', 'zero-build', 'zero-generation', 'initial-outstanding', 'mmap-error'):
             with self.subTest(name=name):
                 r = self.scenario(name)
                 self.assertEqual(r['result'], 1)
@@ -44,9 +44,19 @@ class OwnerScanoutTests(unittest.TestCase):
                 self.assertEqual(r['reaps'], 0)
                 self.assertEqual(r['maps'], 0)
 
+    def test_owner_abi_refusal_precedes_allocation(self):
+        for name in ('abi-error', 'old-abi'):
+            with self.subTest(name=name):
+                r = self.scenario(name)
+                self.assertEqual(r['result'], 1)
+                self.assertEqual(r['allocations'], 0)
+                self.assertEqual(r['publishes'], 0)
+                self.assertEqual(r['reaps'], 0)
+                self.assertEqual(r['closes'], 0)
+
     def test_uncertainty_never_retries_or_reaps(self):
         for name in ('publish-error', 'poll-error', 'timeout', 'wrong-ack',
-                     'changed-generation', 'underflow', 'uncertain', 'clock-error', 'hardware-fault'):
+                     'changed-generation', 'changed-build', 'underflow', 'uncertain', 'clock-error', 'hardware-fault'):
             with self.subTest(name=name):
                 r = self.scenario(name)
                 self.assertEqual(r['result'], 1)

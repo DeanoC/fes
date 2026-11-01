@@ -398,7 +398,8 @@ cannot establish safety for the other fabric masters and HPS-origin traffic.
 
 The [Linux DMA ownership diagnostic](../image/kernel/de25-dma/README.md)
 implements kernel-owned coherent allocation, descriptor publication and
-revocable mappings. ABI 2 adds ordered scanout submission, explicit coherent
+revocable mappings. ABI 3 adds observed hardware build identity and a pre-allocation
+owner-version query, alongside ordered scanout submission, explicit coherent
 status polling and repeated-frame slot ownership: command acceptance does not
 release the old slot; a matching complete displayed frame does. The allocation
 stays pinned for the configured engine's lifetime until an identity-matched

@@ -61,6 +61,10 @@ int __wrap_ioctl(int fd, unsigned long command, ...)
 {
 	va_list ap;
 	void *argument;
+    if (command == FES_DE25_DMA_OWNER_ABI) {
+        assert(fd == 100);
+        return is("abi-error") ? error() : is("old-abi") ? 2 : FES_DE25_DMA_ABI_VERSION;
+    }
 	if (command == FES_DE25_DMA_OWNER_ALLOC) {
 		assert(fd == 100 && !allocations++);
 		return is("alloc-error") ? error() : 101;
@@ -78,6 +82,7 @@ int __wrap_ioctl(int fd, unsigned long command, ...)
 		*(struct fes_de25_dma_info *)argument = current;
 		if (is("bad-version")) ((struct fes_de25_dma_info *)argument)->version++;
 		if (is("bad-geometry")) ((struct fes_de25_dma_info *)argument)->stride++;
+		if (is("zero-build")) memset(((struct fes_de25_dma_info *)argument)->build_id, 0, sizeof(current.build_id));
 		if (is("zero-generation")) ((struct fes_de25_dma_info *)argument)->generation = 0;
 		if (is("initial-outstanding")) ((struct fes_de25_dma_info *)argument)->outstanding = 1;
 		return 0;
@@ -112,6 +117,7 @@ int __wrap_ioctl(int fd, unsigned long command, ...)
 	*p = current;
 	if (is("wrong-ack") && current.displayed_sequence) p->displayed_slot ^= 1;
 	if (is("changed-generation")) p->generation++;
+	if (is("changed-build")) p->build_id[0] ^= 1;
 	if (is("underflow")) p->underflows = 1;
 	if (is("hardware-fault")) p->hardware_status = FES_DE25_SCANOUT_STATUS_FAULT;
 	if (is("uncertain")) p->state |= FES_DE25_DMA_UNCERTAIN;
@@ -125,6 +131,7 @@ int main(int argc, char **argv)
 		.allocation_bytes = FES_DE25_SCANOUT_ALLOCATION_BYTES, .slot_bytes = FES_DE25_SCANOUT_SLOT_BYTES,
 		.frame_bytes = FES_DE25_SCANOUT_FRAME_BYTES, .width = FES_DE25_SCANOUT_FRAME_WIDTH,
 		.height = FES_DE25_SCANOUT_FRAME_HEIGHT, .stride = FES_DE25_SCANOUT_FRAME_STRIDE,
+		.build_id = {0x76543210, 0xfedcba98, 0x89abcdef, 0x01234567},
 		.slots = 2, .pending_slot = FES_DE25_DMA_NO_SLOT, .back_slot = 1};
 	int result = run_scanout(100, is("allocation-only"));
 	printf("{\"result\":%d,\"allocations\":%u,\"maps\":%u,\"unmaps\":%u,\"publishes\":%u,\"polls\":%u,\"reaps\":%u,\"closes\":%u,\"seen_slots\":%u}\n",
