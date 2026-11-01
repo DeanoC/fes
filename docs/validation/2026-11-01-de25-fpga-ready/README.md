@@ -37,16 +37,31 @@ redecodes that exact trace and checks these additional status-only bounds.
 The SDM readiness predicate did not pass. This is a current observation,
 consistent with the missing JTAG fabric services. The earlier stopped identity
 attempt did not sample this status, so its precise cause remains an inference.
-Next distinguish a missing phase-two core load from pending initialization or
-completion signaling before selecting a contained transfer or completion test.
-Keep data bridges and other masters held through readiness and live identity
-checks.
+The later JTAG observation below narrows the next test to a contained transfer
+of the exact matched phase-two core. Keep data bridges and other masters held
+through readiness and live identity checks.
 
 The [vendor HPS-first boot flow](https://docs.altera.com/r/docs/813762/25.3/hard-processor-system-booting-user-guide-agilextm-3-and-agilextm-5-socs/hps-boots-first)
 describes separate phase-one peripheral and phase-two core images. The prior
 [stopped CPU identity test](../2026-11-01-de25-cpu-fpga-identity/README.md) and its
 unqualified reclose remain retained independently. No reset-polarity repair
 was applied: the inspected generated route already has the required inversion.
+
+## Read-only JTAG corroboration
+
+After preserving the native test, one documented `quartus_pgm -device=1 -status`
+query selected only the top cable. [Its raw output](jtag-status.log) explicitly
+classifies the device as phase-one configuration complete without user mode.
+[The comparison](status-comparison.json) verifies all six returned words match
+the earlier native observation, including CONF_DONE=1 and INIT_DONE=0.
+The [vendor status-query documentation](https://docs.altera.com/r/docs/813773/26.1/device-configuration-user-guide-agilextm-5-fpgas-and-socs/understanding-configuration-status-using-quartus_pgm-command)
+describes this read-only operation.
+
+No new boot, reset, programming, FPGA endpoint access, UART opening or SD
+operation was requested. The cable clock read 15 MHz before and after; exact
+USB permissions were restored and the UART remained free. This corroborates
+current phase-one readiness only; it does not qualify a core transfer or
+retroactively establish the earlier stalled access's exact cause.
 
 ## Exact boot and transport
 

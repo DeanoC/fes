@@ -1,8 +1,8 @@
 {
   "files": {
     "README.md": {
-      "bytes": 6872,
-      "sha256": "6a04a1cc679058c51182fde960209cf4af3607e258694b7ba953959d05d28fc1"
+      "bytes": 7859,
+      "sha256": "95dfb9441d6fee97ba610a5722cdb1ec53a9875caa815a10bb2f667344c8c18f"
     },
     "audit-completion.json": {
       "bytes": 242,
@@ -52,6 +52,14 @@
       "bytes": 410,
       "sha256": "4caceb964ef73f2eece068468224f408fe30b8a36ad011eb7e0c3879e510e835"
     },
+    "jtag-status.json": {
+      "bytes": 934,
+      "sha256": "865428637232051e424a3ef57cadc87ef04a8bc7934d9673afc34db62d231a5e"
+    },
+    "jtag-status.log": {
+      "bytes": 2042,
+      "sha256": "85e3e12d026ff05e792a1b5ea9ea93337bb2eabebfbb71aa291cde37b3f93b84"
+    },
     "native-console.log": {
       "bytes": 4169,
       "sha256": "66872b6504bf919ec1aa4170e617c82f49eea9e6b7af13550562a1ad32c60397"
@@ -95,6 +103,10 @@
     "source-restore.json": {
       "bytes": 576,
       "sha256": "0fe57e0ed8fb7d141721b8637a11b1ee9702fd5990da2a56d0d077c8713361f6"
+    },
+    "status-comparison.json": {
+      "bytes": 841,
+      "sha256": "cf495e30cb8735595721983374dfc3e1ca1bdee5ea536ed4ae38abfc4b7950e6"
     },
     "uboot.json": {
       "bytes": 42872,

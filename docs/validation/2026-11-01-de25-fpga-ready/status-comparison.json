@@ -1,0 +1,22 @@
+{
+  "pass": true,
+  "scope": "native and later JTAG observation; not a new ownership or core identity proof",
+  "all_six_status_words_match": true,
+  "status_words": {
+    "state": 0,
+    "version": 1704704,
+    "pins": 3221225609,
+    "soft": 1,
+    "error_location": 0,
+    "error_details": 15
+  },
+  "quartus_interpretation": "phase 1 complete; user mode not entered",
+  "native_console_sha256": "66872b6504bf919ec1aa4170e617c82f49eea9e6b7af13550562a1ad32c60397",
+  "jtag_status_sha256": "85e3e12d026ff05e792a1b5ea9ea93337bb2eabebfbb71aa291cde37b3f93b84",
+  "query_receipt_sha256": "865428637232051e424a3ef57cadc87ef04a8bc7934d9673afc34db62d231a5e",
+  "no_programming_reset_endpoint_or_sd_access": true,
+  "clock_unchanged_15M": true,
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "utc": "2026-11-01T21:05:40.293108+00:00"
+}
