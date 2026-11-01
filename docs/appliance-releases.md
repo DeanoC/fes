@@ -17,6 +17,16 @@ The deterministic assembly receipts still mark their artifact hardware field
 The [current candidate record](validation/2026-09-08-appliance-release.md) lists
 the exact verified outputs and live acceptance scope.
 
+The normal CLI and bootstrap below target DE10. Low-level release export and
+storage also support an explicitly selected `de25-nano`: FES
+`export_release(..., board='de25-nano')` and the Go codec/store `ForBoard`
+entry points. Their defaults remain DE10-only, and neither selects a board
+from an uploaded manifest. A store pins its factory, staged and retained images
+to the selected board and stable kernel. Image assembly must independently
+verify the rootfs payload and ELF target before calling the exporter. This
+does not qualify a DE25 bootstrap, native update/recovery or managed image;
+the [normal-kit requirements](design/de25-linux-platform.md) remain open.
+
 ## Build once from selected inputs
 
 Start with clean selected component checkouts, then run the existing integration

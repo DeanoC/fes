@@ -58,10 +58,17 @@ def regular(path):
     return path
 
 
-def validate_manifest(data):
+def selected_board(board):
+    if type(board) is not str or board not in (BOARD, 'de25-nano'):
+        raise ValueError('unsupported selected release board')
+    return board
+
+
+def validate_manifest(data, *, board=BOARD):
+    selected_board(board)
     if not isinstance(data,dict) or not MANIFEST_FIELDS <= set(data) or set(data) - MANIFEST_FIELDS - OPTIONAL_MANIFEST_FIELDS:
         raise ValueError('release manifest has missing or unknown fields')
-    if type(data['format']) is not int or data['format'] != FORMAT or data['board'] != BOARD or data['boot_abi'] != BOOT_ABI:
+    if type(data['format']) is not int or data['format'] != FORMAT or data['board'] != board or data['boot_abi'] != BOOT_ABI:
         raise ValueError('unsupported release format, board or boot ABI')
     version = data['version']
     if (not isinstance(version,str) or not version or len(version.encode()) > 128 or version.strip() != version
@@ -99,12 +106,13 @@ def recorded_image_passes(directory, manifest):
     return passes
 
 
-def load_manifest(path):
+def load_manifest(path, *, board=BOARD):
+    selected_board(board)
     with regular(path).open('rb') as stream:
         raw = stream.read(MAX_MANIFEST_SIZE + 1)
     if len(raw) > MAX_MANIFEST_SIZE:
         raise ValueError('release manifest is too large')
-    return validate_manifest(json.loads(raw,object_pairs_hook=unique))
+    return validate_manifest(json.loads(raw,object_pairs_hook=unique), board=board)
 
 
 def validate_static_arm(path, architecture='armv7'):
@@ -261,24 +269,28 @@ def bootstrap_identity(binary_sha,factory,container,assembly_revision,recipe,pla
     return hashlib.sha256(canonical(payload)).hexdigest()
 
 
-def release_manifest(rootfs,*,version,provenance,image_passes=2):
+def release_manifest(rootfs,*,version,provenance,image_passes=2,board=BOARD):
+    selected_board(board)
     if type(image_passes) is not int or image_passes not in (1,2):
         raise ValueError('image passes must be 1 or 2')
     # The pass count stays out of this object. Deployed DecodeManifest
     # allow-lists reject any added field; evidence.json records image_passes.
-    data = {'format':FORMAT,'board':BOARD,'boot_abi':BOOT_ABI,'version':version,
+    data = {'format':FORMAT,'board':board,'boot_abi':BOOT_ABI,'version':version,
         'kernel_sha256':provenance.kernel_sha256,'image_sha256':provenance.rootfs_sha256,
         'image_size':regular(rootfs).stat().st_size,'fes_revision':provenance.fes_revision,
         'fogcast_revision':provenance.fogcast_revision,'runtime_revision':provenance.runtime_revision}
-    return validate_manifest(data)
+    return validate_manifest(data, board=board)
 
 
-def export_release(output,rootfs,kernel,*,version,provenance,image_passes=None):
+def export_release(output,rootfs,kernel,*,version,provenance,image_passes=None,board=BOARD):
     """Export caller-verified raw inputs, checking their explicit receipt hashes.
 
     The CLI obtains provenance from current cold-build validation. This lower
-    level function does not independently establish the provenance's origin.
+    level function does not independently establish the provenance's origin or
+    the board/ELF identity inside the rootfs. The board must be selected by the
+    verified image assembler; defaults and the current CLI remain DE10-only.
     """
+    selected_board(board)
     output = Path(output); rootfs = regular(rootfs); kernel = regular(kernel)
     if digest(rootfs) != provenance.rootfs_sha256: raise ValueError('rootfs differs from verified provenance')
     if digest(kernel) != provenance.kernel_sha256: raise ValueError('kernel differs from locked provenance')
@@ -287,7 +299,7 @@ def export_release(output,rootfs,kernel,*,version,provenance,image_passes=None):
     if image_passes != provenance.image_passes:
         raise ValueError("release pass count differs from verified image")
     if type(image_passes) is not int or image_passes not in (1,2): raise ValueError('image passes must be 1 or 2')
-    manifest = release_manifest(rootfs,version=version,provenance=provenance,image_passes=image_passes)
+    manifest = release_manifest(rootfs,version=version,provenance=provenance,image_passes=image_passes,board=board)
     evidence = {'format':1,'kind':'fes-appliance-release','provenance':asdict(provenance),
         'manifest_sha256':hashlib.sha256(canonical(manifest)).hexdigest(),'ext4_features':features,'hardware':'not-run'}
     evidence['image_passes'] = image_passes

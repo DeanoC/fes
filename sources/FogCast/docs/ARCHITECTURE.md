@@ -1593,6 +1593,16 @@ hold-reset `load_media`.
 
 ## FES appliance releases
 
+The release codec and store accept DE25 only through explicit selected-board
+entry points (`ValidateForBoard`, `DecodeManifestForBoard`, `CompatibleForBoard`
+and `store.NewForBoard`). The selection comes from the caller, not the uploaded
+manifest. Factory, staged and retained manifests must match that board and
+kernel; foreign uploads are refused before their body is read or storage is
+changed. Default entry points remain DE10-only. FES's Python release exporter
+also takes an explicit board for caller-verified images; the current image CLI,
+bootstrap and target-agent construction remain DE10 paths. This envelope/store
+support does not establish DE25 managed boot or hardware acceptance.
+
 FES owns compatible source selection, release/media assembly, and the fixed
 bootstrap. FogCast supplies the public appliance module, target update API, and
 `cmd/fes-update`. Before uploading, `fes-update` reads the image's
