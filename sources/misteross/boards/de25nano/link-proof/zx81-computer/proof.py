@@ -4,6 +4,7 @@ import argparse
 import concurrent.futures
 import importlib.util
 import json
+import os
 import re
 from pathlib import Path
 import shutil
@@ -84,7 +85,7 @@ def execute(args):
     helpers.run([args.verilator,"--cc","--exe","--build","-j","2","--public-flat-rw","--x-initial","unique",
         "-O3","--top-module","fes_de25_combined_sim","-Wno-fatal", "-I"+str(mailbox),"-I"+str(mailbox/"generated"),"-I"+str(local),
         "-DFES_DE25_PR_BUILD_ID=128'h"+args.build_id,"-DFES_DE25_COMPUTER_BUILD_ID=128'h"+args.build_id,
-        "-CFLAGS","-O3 -I"+str(bench),"--Mdir",str(obj),*map(str,rtl),str(bench/"sim_top.v"),str(bench/"server.cpp")],logs/"rtl-build.log",cwd=project,timeout=300)
+        "-CFLAGS","-O3 -I"+str(bench),"-MAKEFLAGS","OPT_FAST=-O3","--Mdir",str(obj),*map(str,rtl),str(bench/"sim_top.v"),str(bench/"server.cpp")],logs/"rtl-build.log",cwd=project,timeout=300)
     sources = [snapshot / "sources/libmister-runtime/src/native" / n for n in ("de25_computer.cpp", "de25_pr_control.cpp")]
     include = snapshot / "sources/libmister-runtime"
     flags=["-std=c++14","-O2","-Wall","-Wextra","-Werror","-pthread","-I"+str(include/"src"),"-I"+str(include/"include")]
@@ -96,7 +97,7 @@ def execute(args):
     if not args.native_only:
         if not all((args.builder_image,args.sdk_volume,args.sdk_cxx,args.qemu)):raise ValueError("AArch64 SDK image/volume/compiler and QEMU required")
         arm=output/"client-aarch64"
-        container=["docker","run","--rm","--network=none","--mount",f"type=volume,src={args.sdk_volume},dst=/build,readonly","--mount",f"type=bind,src={snapshot},dst=/src,readonly","--mount",f"type=bind,src={output},dst=/out",args.builder_image]
+        container=["docker","run","--rm","--network=none","--user",f"{os.getuid()}:{os.getgid()}","--mount",f"type=volume,src={args.sdk_volume},dst=/build,readonly","--mount",f"type=bind,src={snapshot},dst=/src,readonly","--mount",f"type=bind,src={output},dst=/out",args.builder_image]
         sdk_files=[args.sdk_cxx,args.sdk_cxx+".br_real"]
         before=helpers.run([*container,"sha256sum",*sdk_files],logs/"sdk-before.txt")
         container_include=Path("/src/sources/libmister-runtime"); container_bench=Path("/src")/HERE.relative_to(ROOT)
