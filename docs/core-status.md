@@ -343,8 +343,8 @@ Stop sequence ([result](validation/2026-10-30-pcxt-floppy-media/result-current-p
 the kit was restored and released. This is single-sector diagnostic evidence.
 The diagnostic
 runs its own firmware; inserting a disk does not restart its guest. An in-play
-display plane, write persistence, DOS/game compatibility and host keyboard
-remain open. See the
+display plane, floppy write persistence, DOS/game compatibility and hardware
+acceptance of host keyboard input remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
 ## pc386 machine, phases M1 to M5

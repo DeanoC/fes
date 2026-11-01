@@ -19,7 +19,7 @@ struct Bench {
         d.read_enable_n=1; d.chip_select_n=1; idle(4); return result;
     }
     void reset() {
-        d.reset=1; d.chip_select_n=d.read_enable_n=d.write_enable_n=1; idle(8);
+        d.reset=1; d.code_valid=0; d.code=0; d.chip_select_n=d.read_enable_n=d.write_enable_n=1; idle(8);
         d.reset=0; write(3,0x99); // BIOS PPI mode: port A/C input, B output.
         write(1,0x40); check(!d.clock_low && !d.keyboard_clear,"PPI setup");
     }
@@ -59,6 +59,19 @@ int main(int argc,char **argv) {
         b.request(); b.write(1,0x40); b.idle(13000);
         b.write(1,0x80); b.idle(2000000); b.quiet(50000);
         b.write(1,0xc0); b.quiet(10000); b.receive();
+        // A waiting key must not overtake the reset response. After the BIOS
+        // acknowledges BAT, the same byte is delivered through the real PPI.
+        b.request(); b.d.code=0x1e; b.d.code_valid=1;
+        b.idle(20); check(!b.d.code_ready,"key accepted while BAT pending");
+        b.write(1,0x40);
+        for (unsigned n=0; !b.d.keyboard_irq && n<100000; ++n) b.tick();
+        check(b.d.keyboard_irq && b.read(0)==0xaa,"key overtook BAT");
+        check(!b.d.code_ready,"key accepted before BAT acknowledgement");
+        b.idle(30000); // Let the BAT serializer finish before clearing IRQ.
+        b.write(1,0xc0); b.write(1,0x40); b.d.code_valid=0;
+        for (unsigned n=0; !b.d.keyboard_irq && n<100000; ++n) b.tick();
+        check(b.d.keyboard_irq && b.read(0)==0x1e,"key lost after BAT");
+        b.write(1,0xc0); b.write(1,0x40); b.quiet(100000);
         std::cout<<"PASS XT BAT: real PPI receive/IRQ/ack, inhibit, clear, re-reset and cancellation; "
                  <<b.ticks<<" clocks\n";
     } catch(const std::exception &e) { std::cerr<<"FAIL XT BAT: "<<e.what()<<'\n'; return 1; }

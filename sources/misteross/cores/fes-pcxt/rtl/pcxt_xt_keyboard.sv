@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Timed XT scan-code serializer for a future FES input frontend. The producer
-// supplies set-1 bytes and holds VALID/data until READY; translation, repeat
-// generation and keyboard self-test are outside this byte transport.
+// Timed XT set-1 scan-code serializer. The producer holds each byte until
+// READY; translation and repeat generation are outside this byte transport.
 module pcxt_xt_keyboard (
     input wire clk, reset,
     input wire code_valid,
