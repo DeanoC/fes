@@ -162,6 +162,18 @@ uncertain, the tool leaves its claim held for recovery. A completed write is
 verified readback, not an atomic FAT transaction or a power-loss guarantee;
 FAT metadata damage can still prevent recovery boot. Keep the factory card safe.
 
+The [package-retention trial](../../../docs/validation/2026-11-01-de25-sd-packages/README.md)
+stopped before download or SD writing when the previous generic-PHY recovery
+timed out during its first Ethernet start. The board's readback is KSZ9031
+`00221622`. Recovery now requires the matching Micrel driver and gigabit support,
+checks the linked driver function/registration independently during build and
+packaging, and retains the existing 4,000 ms negotiation limit. Its banner is
+`-fes-nano-recovery-ksz9031`; upload plans require this profile in both recovery
+metadata and the running loader, then check the live PHY ID before link/DHCP.
+An earlier positive status sample cannot bypass a failed Ethernet start.
+This corrected candidate still requires a fresh matched card and bounded test;
+the older recovery's success does not qualify it.
+
 ## Read-only native package probe
 
 The [package store](../tamago/packagestore/README.md) joins the existing package

@@ -84,3 +84,18 @@ stage the matched native FIT and test package in separate fresh recovery
 boots before the bounded native retention run. Writable native storage,
 active-fabric return, USB, native network/display, FPGA configuration and real
 core launch/return remain open.
+
+## Retention
+
+The failed candidate, traces, SDK inputs and matched artifacts are retained at
+`/home/deano/fes-retained/de25-nano-sd-packages-20261101`: 1,633 archive members
+were individually hash-verified. Archive SHA-256:
+`3c94030b33ef9e0c551af88442d9f23ca60a2783e41befeddee890329d9fffda`.
+The incremental source bundle restores exact commit
+`5e19858d9599bf0deb8c689e4aab26de573928ec` and tree
+`6a36e7f1b8b0891d617247d5ccf0f85f31976f69` using its explicit prerequisite
+`4e111b90ed873be193f4386df46ed53579332d35`. A fresh private bare restore
+matched the commit/tree and had no missing reachable objects. Follow the
+retained source-retention instructions; this bundle is not standalone and
+archived input snapshots must not be overlaid onto later source checkouts.
+Claim tokens and factory credentials were excluded.

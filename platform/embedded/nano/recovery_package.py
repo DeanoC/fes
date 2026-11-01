@@ -28,14 +28,17 @@ def checked_build(directory):
     mode = receipt.get('network_recovery', {})
     if (receipt.get('status') != 'built' or receipt.get('native_handoff') is not None or
             mode != {'profile_sha256': sha(HERE / 'recovery.py'), 'manual_prompt': True,
-                     'automatic_writes': False, 'random_mac': False, 'sd_dma': False, 'native_handoff': False} or
+                     'automatic_writes': False, 'random_mac': False, 'sd_dma': False, 'native_handoff': False,
+                     'phy':recovery.PHY, 'phy_driver_linked':True} or
             receipt.get('producer_sha256') != sha(HERE.parent / 'firmware/build_terasic_uboot.py') or
+            receipt.get('uboot_elf_sha256') != sha(directory/'build/u-boot') or
             receipt.get('fit_sha256') != sha(fit) or receipt.get('spl_sha256') != sha(spl) or
             receipt.get('config_sha256') != sha(config) or receipt.get('fit_atf_verified') is not True or
             not fit.stat().st_size or fit.stat().st_size > (EXPERIMENT_SECTOR - FIT_SECTOR) * 512):
         raise ValueError('not a current separate Nano recovery build')
     text = config.read_text()
     recovery.check(text)
+    recovery.check_linked(subprocess.check_output(['readelf','-Ws',directory/'build/u-boot'],text=True,timeout=30))
     if 'CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR=0x200\n' not in text:
         raise ValueError('recovery SPL raw FIT offset differs')
     # spl_soc64.c selects filesystem mode whenever SPL_FS_FAT is enabled.
@@ -99,7 +102,7 @@ def main():
     tools = {name: Path(shutil.which(name) or '').absolute() for name in ('mformat', 'mmd', 'mcopy')}
     if any(not p.is_file() for p in tools.values()):
         raise ValueError('mtools is required')
-    inputs = {str(p): sha(p) for p in (fit, spl, config, directory/'result.json', vendor, pfg,
+    inputs = {str(p): sha(p) for p in (fit, spl, config, directory/'build/u-boot', directory/'result.json', vendor, pfg,
                                        Path(__file__), HERE/'recovery.py', HERE.parent/'firmware/build_terasic_uboot.py')}
     inputs.update({str(p): sha(p) for p in tools.values()})
     output.mkdir(parents=True)
@@ -122,6 +125,7 @@ def main():
                 'sof_sha256':sha(sof), 'fit_raw_sector':FIT_SECTOR, 'fat32_start_sector':FAT_SECTOR,
                 'fat32_sectors':FAT_SECTORS, 'native_handoff':False, 'automatic_writes':False,
                 'spl_boot_mode':'fat', 'spl_payload_path':'u-boot.itb', 'spl_fat_partition':1,
+                'recovery_phy':recovery.PHY, 'phy_driver_linked':True,
                 'recovery_fit_reserved_end_sector':EXPERIMENT_SECTOR,
                 'future_experiment_fit_reserved_sectors':[EXPERIMENT_SECTOR,FAT_SECTOR],
                 'embedded_spl_independently_decoded':False,

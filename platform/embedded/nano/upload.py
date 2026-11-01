@@ -20,6 +20,7 @@ import time
 
 from upload_transport import Console, Transfer
 from cold_profile import EXPERIMENTAL_FILE, MAX_FIT_SIZE
+import recovery
 
 ROOT = Path(__file__).resolve().parents[3]
 BOARD = 'TRWU8CBL'
@@ -39,6 +40,7 @@ def load_kit(directory):
     description = json.loads(manifest)
     disk = directory / 'nano-recovery-sd.img'
     if (record.get('status') != 'prepared' or record.get('native_handoff') is not False or
+            record.get('recovery_phy') != recovery.PHY or record.get('phy_driver_linked') is not True or
             record.get('automatic_writes') is not False or record.get('spl_boot_mode') != 'fat' or
             record.get('spl_payload_path') != 'u-boot.itb' or record.get('spl_fat_partition') != 1 or
             record.get('fat32_start_sector') != 32768 or record.get('fat32_sectors') != 262144 or
@@ -50,7 +52,8 @@ def load_kit(directory):
         stream.seek(0); prefix = stream.read(PREFIX_SIZE)
     fit = (directory / 'u-boot.itb').read_bytes()
     required=('format','fit_sha256','spl_sha256','bl31_sha256','sof_sha256','fat32_start_sector',
-              'fat32_sectors','native_handoff','automatic_writes','spl_boot_mode','spl_payload_path','spl_fat_partition')
+              'fat32_sectors','native_handoff','automatic_writes','spl_boot_mode','spl_payload_path','spl_fat_partition',
+              'recovery_phy','phy_driver_linked')
     if (not fit or len(fit) > 8 << 20 or sha(fit) != record['fit_sha256'] or
             any(key not in description or description[key]!=record.get(key) for key in required) or
             any(description.get(k) != record.get(k) for k in description) or
@@ -101,7 +104,7 @@ def perform(console, kit, payload, host, mac, receipt, serve=Transfer, owns=lamb
         if not byte_count(command(f'fatload mmc 0:1 {address:x} FES/RECOVERY.JSON'),len(kit['manifest']),'read'):
             raise ValueError('wrong recovery card manifest')
         digest(address,len(kit['manifest']),sha(kit['manifest']))
-    if 'U-Boot 2025.01-fes-nano-recovery-' not in command('version'):
+    if 'U-Boot 2025.01'+recovery.LOCALVERSION+'-' not in command('version'):
         raise ValueError('not the expected recovery loader')
     info = command('bdinfo')
     banks = re.findall(r'-> start\s*=\s*(0x[0-9a-fA-F]+).*?-> size\s*=\s*(0x[0-9a-fA-F]+)', info, re.S)
@@ -141,12 +144,17 @@ def perform(console, kit, payload, host, mac, receipt, serve=Transfer, owns=lamb
     # a positive link observation must precede DHCP, not a fixed startup delay.
     if 'ethernet@10810000' not in command('net list'):
         raise ValueError('expected recovery Ethernet device absent')
+    def phy_read(register):
+        samples = re.findall(r'(?m)^([0-9a-fA-F]{4})\r?$', command(f'mii read {recovery.PHY["address"]:x} {register:x}',5))
+        if len(samples)!=1 or int(samples[0],16)==0xffff:raise ValueError('unknown recovery PHY register')
+        return int(samples[0],16)
+    phy_id=(phy_read(2)<<16)|phy_read(3)
+    if phy_id!=recovery.PHY['id']:raise ValueError('recovery PHY identity differs')
+    receipt['phy_id']=phy_id
     deadline = time.monotonic() + 20
     ready = 0
     while time.monotonic() < deadline:
-        samples = re.findall(r'(?m)^([0-9a-fA-F]{4})\r?$', command('mii read 1 1', 5))
-        if len(samples) != 1 or int(samples[0],16) == 0xffff: raise ValueError('unknown recovery PHY status')
-        status = int(samples[0],16)
+        status = phy_read(1)
         receipt.setdefault('phy_samples', []).append(status)
         # Pinned linux/mii.h: BMSR_LSTATUS=4, BMSR_ANEGCOMPLETE=32.
         ready = ready + 1 if status & 0x24 == 0x24 else 0

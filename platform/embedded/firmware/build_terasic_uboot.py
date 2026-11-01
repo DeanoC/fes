@@ -193,7 +193,7 @@ def main():
             run("recovery-enable-" + name, [*configure, "-e", name])
         run("recovery-bootcmd", [*configure, "--set-str", "BOOTCOMMAND", ""])
         run("recovery-bootdelay", [*configure, "--set-val", "BOOTDELAY", "-1"])
-        run("recovery-localversion", [*configure, "--set-str", "LOCALVERSION", "-fes-nano-recovery"])
+        run("recovery-localversion", [*configure, "--set-str", "LOCALVERSION", recovery.LOCALVERSION])
         run("recovery-olddefconfig", [*base, "olddefconfig"])
     if native is not None:
         configure = [build_repo / "scripts/config", "--file", build / ".config"]
@@ -317,10 +317,14 @@ def main():
     if recovery is not None:
         if sha(recovery_path) != recovery_hash:
             raise ValueError("recovery profile changed during compilation")
+        recovery_symbols=subprocess.check_output([tools['readelf']['path'],'-Ws',build/'u-boot'],env=env,text=True,timeout=30)
+        recovery.check_linked(recovery_symbols)
+        report['uboot_elf_sha256']=sha(build/'u-boot')
         report["classification"] = "off-board Nano Ethernet/SD-writing recovery U-Boot; no native handoff or board acceptance"
         report["network_recovery"] = {"profile_sha256": recovery_hash, "manual_prompt": True,
                                        "automatic_writes": False, "random_mac": False,
-                                       "sd_dma": False, "native_handoff": False}
+                                       "sd_dma": False, "native_handoff": False,
+                                       "phy":recovery.PHY, "phy_driver_linked":True}
         report["config_sha256"] = sha(build / ".config")
         report["limitations"] = ["requires matching SPL/SOF and explicit test-card preparation",
                                   "Ethernet PHY/link, supplied stable MAC and SD writes remain untested on Nano",

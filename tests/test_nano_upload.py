@@ -2,6 +2,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import socket
 import struct
 import sys
@@ -24,7 +25,8 @@ class Model:
         self.phy_reads=0
     def command(self,c,timeout):
         self.commands.append(c)
-        if c=='version':return 'U-Boot 2025.01-fes-nano-recovery-gd0f8813fd6bf'
+        if c=='version':
+            return 'U-Boot 2025.01-fes-nano-recovery-'+('' if self.fault=='old-loader' else 'ksz9031-')+'gd0f8813fd6bf'
         if c=='bdinfo':
             reserved='0x82000000-0x82100000' if self.fault=='reserved' else '0xbfa00000-0xbfffffff'
             return '-> start = 0x80000000\n-> size = 0x40000000\nrelocaddr = 0xbff00000\nreserved.count = 0x1\nreserved[0] ['+reserved+']'
@@ -48,12 +50,16 @@ class Model:
             result=self.kit['prefix_sha256'] if data is None else upload.sha(data)
             if (self.fault=='download-hash' and addr==0x82000000 and self.memory[addr]==self.payload) or self.fault=='prefix':result='0'*64
             return result
-        if c=='dhcp':return 'DHCP client bound to address 192.168.10.211 (3 ms)'
+        if c=='dhcp':
+            if self.fault=='renegotiation-timeout':raise ValueError('loader PHY startup timeout after pre-start link')
+            return 'DHCP client bound to address 192.168.10.211 (3 ms)'
         if c=='echo FES_UPLOAD_ETHADDR=${ethaddr}':return 'FES_UPLOAD_ETHADDR='+self.mac+'\r\n'
         if c.startswith('setenv ethaddr '):
             if self.mac:raise ValueError('loader MAC is write-once')
             self.mac=c.split()[2];return ''
         if c=='net list':return 'absent' if self.fault=='ethernet-device' else 'eth0 : ethernet@10810000'
+        if c=='mii read 1 2':return 'FFFF\r\n' if self.fault=='phy-id-missing' else '0022\r\n'
+        if c=='mii read 1 3':return '1621\r\n' if self.fault=='wrong-phy' else '1622\r\n'
         if c=='mii read 1 1':
             self.phy_reads+=1
             if self.fault=='phy-unknown':return 'FFFF\r\n'
@@ -92,6 +98,7 @@ class NanoUploadTests(unittest.TestCase):
         model,r=self.run_upload()
         self.assertEqual(r['status'],'verified');self.assertTrue(r['boot_files_unchanged'])
         self.assertEqual(model.writes,1);self.assertEqual(model.boot_reads,2)
+        self.assertEqual(r['phy_id'],0x00221622)
         writes=[c for c in model.commands if c.startswith('fatwrite')]
         self.assertEqual(writes,[f'fatwrite mmc 0:1 82000000 FES/UPLOAD.BIN {len(self.payload):x}'])
         self.assertTrue(r['recovery_manifest_unchanged'])
@@ -114,7 +121,7 @@ class NanoUploadTests(unittest.TestCase):
             self.assertEqual(model.commands,[])
     def test_identity_and_transfer_failures_never_write_sd(self):
         for fault in ('wrong-card','prefix','download-hash','interrupted','lost-final-ack','reserved','oversize-boot',
-                      'wrong-mac','ethernet-device','phy-unknown','phy-malformed'):
+                      'wrong-mac','ethernet-device','phy-unknown','phy-malformed','wrong-phy','phy-id-missing','old-loader'):
             with self.subTest(fault=fault):
                 model=Model(self.kit,self.payload,fault);r={'commands':[],'sd_write_attempted':False}
                 class Server:
@@ -126,6 +133,40 @@ class NanoUploadTests(unittest.TestCase):
                 with patch('builtins.print'),self.assertRaises((ValueError,TimeoutError)):
                     upload.perform(model,self.kit,self.payload,'192.168.10.202','02:fe:25:08:cb:01',r,Server)
                 self.assertEqual(model.writes,0);self.assertFalse(r['sd_write_attempted'])
+    def test_positive_prestart_status_cannot_bypass_failed_phy_startup(self):
+        with self.assertRaises(ValueError):self.run_upload('renegotiation-timeout')
+        model=self.last_model
+        self.assertGreaterEqual(model.phy_reads,2)
+        self.assertEqual(model.commands.count('dhcp'),1)
+        self.assertFalse(any(c.startswith(('tftpboot','fatwrite')) for c in model.commands))
+
+    @unittest.skipUnless(all(shutil.which(n) for n in ('mformat','mmd','mcopy')),'mtools required')
+    def test_recovery_kit_binds_the_actual_phy_profile_and_rejects_old_metadata(self):
+        import recovery_package
+        with tempfile.TemporaryDirectory() as temp:
+            base=Path(temp);source=base/'input.itb';source.write_bytes(b'synthetic recovery FIT')
+            root=base/'kit';root.mkdir();(root/'u-boot.itb').write_bytes(source.read_bytes())
+            manifest={'format':1,'fit_sha256':upload.sha(source.read_bytes()),'spl_sha256':'a'*64,
+                      'bl31_sha256':'b'*64,'sof_sha256':'c'*64,'fat32_start_sector':32768,'fat32_sectors':262144,
+                      'native_handoff':False,'automatic_writes':False,'spl_boot_mode':'fat','spl_payload_path':'u-boot.itb',
+                      'spl_fat_partition':1,'recovery_phy':dict(upload.recovery.PHY),'phy_driver_linked':True}
+            path=root/'RECOVERY.JSON';path.write_text(json.dumps(manifest))
+            tools={n:Path(shutil.which(n)).absolute() for n in ('mformat','mmd','mcopy')}
+            def run(label,argv):
+                import subprocess
+                subprocess.run([str(a) for a in argv],check=True,capture_output=True,timeout=20)
+            disk=recovery_package.make_card(root,source,tools,run)
+            with disk.open('rb') as f:digest=__import__('hashlib').file_digest(f,'sha256').hexdigest()
+            record=dict(manifest,status='prepared',sd_image_size=disk.stat().st_size,sd_image_sha256=digest)
+            receipt=root/'result.json';receipt.write_text(json.dumps(record))
+            self.assertEqual(upload.load_kit(root)['fit'],source.read_bytes())
+            for field,value in (('recovery_phy',None),('recovery_phy',dict(upload.recovery.PHY,id=0x001cc916)),
+                                ('phy_driver_linked',False)):
+                receipt.write_text(json.dumps(dict(record,**{field:value})))
+                with self.subTest(field=field,value=value),self.assertRaises(ValueError):upload.load_kit(root)
+            receipt.write_text(json.dumps(record));wrong=dict(manifest,recovery_phy=dict(upload.recovery.PHY,address=0))
+            path.write_text(json.dumps(wrong))
+            with self.assertRaises(ValueError):upload.load_kit(root)
     def test_write_readback_and_boot_change_failures_are_not_replayed(self):
         for fault in ('short-write','readback','boot-change','write-timeout','oversize-readback','manifest-change'):
             with self.subTest(fault=fault):
