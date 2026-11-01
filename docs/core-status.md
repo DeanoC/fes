@@ -290,11 +290,12 @@ SDRAM, ISA CGA/MDA and one Direct/Scanlines pipeline have host simulation
 coverage, including DMA and refresh. The diagnostic board builder supplies
 PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts under
 `sources/misteross/build/diagnostic/fes-pcxt/`. `fes.pcxt` has an installable
-format-2 diagnostic package with a minimal `fes.computer` identity/execution
-mailbox and fixed CGA Direct video. A separate `fes.pcxt-dos` recipe enables
-the GLaBIOS XT/5160 ROM and read-only floppy controller. It accepts a 360 KiB
-floppy image at runtime and stores it in SDRAM before releasing the 8088. The
-registered package producer uses Quartus with a common 100 MHz board,
+format-2 diagnostic package with `fes.computer` 1.1 live floppy media and
+fixed CGA Direct video. A separate `fes.pcxt-dos` recipe enables the GLaBIOS
+XT/5160 ROM and read-only floppy controller. It accepts a 360 KiB floppy image
+at runtime and stores it in SDRAM before releasing the 8088 when booting that
+image. Releasing execution with an empty drive starts the BIOS. The registered
+package producer uses Quartus with a common 100 MHz board,
 74.25 MHz CGA Direct video and a visible firmware-completion block. All declared
 seeds must pass reported internal timing; the first seed must reproduce its RBF.
 Nextpnr remains advisory under [#840](https://github.com/DeanoC/fes/issues/840).
@@ -330,9 +331,20 @@ FAT12 image loaded into an isolated SDRAM buffer; its whole-machine test checks
 a DOS prompt and directory listing. Neither simulation qualifies either
 package for BIOS or DOS boot on hardware. The FreeDOS test image is licensed
 GPL-2.0-or-later for the kernel and GPL-2.0 for FreeCOM; its source commits
-and SHA-256 are recorded in the core firmware notices. Floppy write persistence,
-DOS/game compatibility, hardware acceptance of host keyboard input and other
-profiles remain open. See the
+and SHA-256 are recorded in the core firmware notices. The diagnostic producer
+enables the `fes.computer` 1.1 path for live read-only floppy insertion and
+eject. On Kit B, the [media-enabled diagnostic](validation/2026-10-30-pcxt-floppy-media/result-parent-merge.json)
+accepted live inserts and ejects and verified one floppy sector through the
+guest FDC and DMA. That historical diagnostic does not qualify a DOS boot,
+writes, the full floppy buffer, or external interface timing. The diagnostic
+reread a matching sector on Kit B after merging #1286: exact package
+`65dd840f` from source `a54ea0cd` passed the empty, wrong, matching, eject and
+Stop sequence ([result](validation/2026-10-30-pcxt-floppy-media/result-current-parent-merge.json));
+the kit was restored and released. This is single-sector diagnostic evidence.
+The diagnostic
+runs its own firmware; inserting a disk does not restart its guest. An in-play
+display plane, floppy write persistence, DOS/game compatibility and hardware
+acceptance of host keyboard input remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
 ## pc386 machine, phases M1 to M5

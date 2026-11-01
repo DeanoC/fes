@@ -140,7 +140,7 @@ help:
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
 		"  sim-fes-pcxt-fdc  Test the XT floppy adapter over ISA/DMA" \
-		"  sim-fes-pcxt-media  Test the runtime floppy mailbox and SDRAM loader" \
+		"  sim-fes-pcxt-media  Test runtime XT floppy upload, replacement and diagnostic" \
 		"  sim-fes-pcxt-mailbox  Test the PC/XT media identity and mailbox handshake" \
 		"  sim-fes-pcxt-dos  Test XT BIOS POST and boot the pinned FreeDOS floppy (downloads fixtures)" \
 		"  sim-fes-pc386  Check pc386 devices, the fes.computer 1.1 exchanges, audio, OPL2, presenter and display plane on port 2" \
@@ -2672,11 +2672,12 @@ sim-fes-pcxt-fdc:
 
 sim-fes-pcxt-media:
 	$(require_local_sim)
-	$(PYTHON) scripts/sim_fes_pcxt_media.py
+	VERILATOR="$(VERILATOR)" $(PYTHON) scripts/sim_fes_pcxt_media.py
+	VERILATOR="$(VERILATOR)" $(PYTHON) scripts/sim_fes_pcxt_media_diag.py
 
 sim-fes-pcxt-mailbox:
 	$(require_local_sim)
-	$(PYTHON) scripts/sim_fes_pcxt_mailbox.py
+	VERILATOR="$(VERILATOR)" $(PYTHON) scripts/sim_fes_pcxt_mailbox.py
 
 sim-fes-pcxt-dos:
 	$(require_local_sim)

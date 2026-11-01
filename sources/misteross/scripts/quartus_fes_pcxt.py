@@ -98,8 +98,8 @@ def elaboration(source: Path, work: Path, library: Path, *, package_profile=Fals
     if package_profile:
         if not isinstance(build_id, str) or not re.fullmatch('[0-9a-f]{32}', build_id):
             raise ValueError('package profile requires an explicit BUILD_ID')
-        parameters += (" -set ENABLE_FES_COMPUTER 1 -set ENABLE_PCXT_MEDIA " +
-                       ('1' if dos_profile else '0') + " -set PHASED_HDMI_CLOCK 1 -set BUILD_ID 128'h" + build_id)
+        parameters += (" -set ENABLE_FES_COMPUTER 1 -set ENABLE_PCXT_MEDIA 1" +
+                       " -set PHASED_HDMI_CLOCK 1 -set BUILD_ID 128'h" + build_id)
     selected_rtl = RTL if dos_profile else tuple(path for path in RTL if path not in DOS_RTL)
     # The locked Yosys incorrectly drops the CGA font's asynchronous read
     # driver when memory_dff processes that shared two-port font ROM. Collect
@@ -383,7 +383,7 @@ def main(argv=None) -> int:
               'whole_board_qualified': False, 'device': DEVICE, 'seeds': seeds,
               'profile': {'MDA': 0, 'SCANLINES': 0, 'HALF_RATE_BOARD': int(not args.package_profile),
                           'ENABLE_FES_COMPUTER': int(args.package_profile),
-                          'ENABLE_PCXT_MEDIA': int(args.package_profile and args.dos_profile),
+                          'ENABLE_PCXT_MEDIA': int(args.package_profile),
                           'HARDWARE_DOS': int(args.dos_profile), 'BUILD_ID': args.build_id},
               'clock_targets_mhz': {'cpu': 100, 'board': 100 if args.package_profile else 50, 'pixel': 74.25},
               'operations': [], 'runs': [], 'hardware': False, 'status': 'preparing'}
