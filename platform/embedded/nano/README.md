@@ -66,6 +66,29 @@ FAT metadata damage can still prevent recovery boot. Keep the factory card safe.
 
 ## Actual cold ownership handoff
 
+For an observation that cannot proceed into the native chain, `cpu_diagnostic.py`
+builds a separate SPL from a completed cold serial build and its exact pinned
+tools/reference SOF. It keeps the first sample and fresh MPIDR/reset report,
+then unconditionally prints `FES_NANO_CPU_DIAG PARK no-ddr no-storage no-bl31`
+and spins with `yield`, including when admission would pass. The private
+`board_init_f` ends at that report; later DDR/device initialization is removed.
+SPL storage, ATF and watchdog options are disabled and the linked park and
+excluded symbols are checked. No native CPU/reset admission rule changes.
+
+```sh
+python3 platform/embedded/nano/cpu_diagnostic.py \
+  --reference-repo out/vendor-uboot --seed-build out/nano-uboot \
+  --entry-build out/nano-entry --cross-prefix /absolute/path/aarch64-linux-gnu- \
+  --vendor-sof /absolute/path/golden_top_hps.sof \
+  --quartus-pfg /absolute/path/quartus_pfg --output out/nano-cpu-observation
+```
+
+This prepares files only. A separately authorized bounded volatile JTAG run
+can keep the factory card inserted after a clean Linux shutdown. Capture the
+exact SPL banner, `BEGIN`, `SCOPE` and unconditional park; then restore and
+authenticate the factory system before releasing the kit. This fixture neither
+boots BL31 nor qualifies native execution, DDR, storage, ownership or drain.
+
 The dedicated SPL samples SDM boot kind, reset cause, peripheral/bridge resets
 and secondary CPU state before device initialization. The pinned
 [vendor DDR code](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/drivers/ddr/altera/sdram_agilex5.c)
