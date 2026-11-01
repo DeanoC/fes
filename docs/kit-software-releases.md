@@ -71,6 +71,13 @@ window module. Complete image/bootstrap wiring, physical runtime/MENU binding
 and an actual managed update remain integration work. No daemon admission or
 supervisor compatibility rule is relaxed by this change.
 
+The base-image platform producer also builds the stable software supervisor
+and Bluetooth helper with explicit `aarch64` selection. Their ELF validator
+requires ELF64/AArch64, an executable entry in a load segment and no dynamic
+loader; ARMv7 remains an explicit separate target. This adds build support for
+those base services, without changing appliance release board admission or
+the current ARMv7 boot-selector recipe.
+
 ## Image compatibility
 
 A bundle runs only on a base image it fits. Board, architecture, base ELF

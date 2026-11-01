@@ -318,8 +318,10 @@ def build_static_arm(root, fogcast, output, env):
     )
 
 
-def _arm_build(root, fogcast, env, output_name, package, workspace_prefix):
-    """Compile one static ARM platform command."""
+def _arm_build(root, fogcast, env, output_name, package, workspace_prefix, architecture='armv7'):
+    """Compile one static platform command for an explicit ARM target."""
+    if architecture not in ('armv7', 'aarch64'):
+        raise ValueError('unsupported platform architecture')
     root, fogcast = Path(root), Path(fogcast)
     _, appliance_dir = selected_appliance(fogcast)
     platform_dir = root / 'platform'
@@ -335,26 +337,30 @@ def _arm_build(root, fogcast, env, output_name, package, workspace_prefix):
             ['go', 'env', 'GOROOT'], cwd=platform_dir, env=probe_env, text=True).strip()
         go_bin = Path(goroot) / 'bin' / 'go'
         build_env = dict(env, **BUILD_ENV, GOWORK=str(workspace))
+        build_env.pop('GOARM64', None)
+        if architecture == 'aarch64':
+            build_env.pop('GOARM', None)
+            build_env.update(GOARCH='arm64', GOARM64='v8.0')
         subprocess.run(
             [str(go_bin), 'build', *BUILD_FLAGS, '-o', str(output), package],
             cwd=platform_dir, env=build_env, check=True)
     if before != (tree_identity(platform_dir), tree_identity(appliance_dir)):
         output.unlink(missing_ok=True)
         raise ValueError('platform sources changed during build')
-    return _appliance_module().validate_static_arm(output)
+    return _appliance_module().validate_static_arm(output, architecture)
 
 
-def build_bluetooth(root, fogcast, env):
+def build_bluetooth(root, fogcast, env, architecture='armv7'):
     """Build the base-image Bluetooth controller agent."""
-    return _arm_build(root, fogcast, env, 'fes-bluetooth-linux-armv7',
-                      './cmd/fes-bluetooth', 'fes-bluetooth-')
+    return _arm_build(root, fogcast, env, 'fes-bluetooth-linux-' + architecture,
+                      './cmd/fes-bluetooth', 'fes-bluetooth-', architecture)
 
 
-def build_kit_software(root, fogcast, env):
+def build_kit_software(root, fogcast, env, architecture='armv7'):
     """Build the base-image software supervisor against selected appliance code."""
-    digest = _arm_build(root, fogcast, env, 'fes-kit-software-linux-armv7',
-                        './cmd/fes-kit-software', 'fes-kit-software-')
-    build_bluetooth(root, fogcast, env)
+    digest = _arm_build(root, fogcast, env, 'fes-kit-software-linux-' + architecture,
+                        './cmd/fes-kit-software', 'fes-kit-software-', architecture)
+    build_bluetooth(root, fogcast, env, architecture)
     return digest
 
 
