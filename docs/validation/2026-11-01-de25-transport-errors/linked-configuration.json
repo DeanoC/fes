@@ -1,0 +1,37 @@
+{
+  "transport_failure_latch_linked": true,
+  "transport_diagnostics_linked": true,
+  "specialized_digest_verified": true,
+  "digest_policy": {
+    "algorithm_changed": false,
+    "cache_state_changed": false,
+    "flags": "-O3",
+    "generated_sha256": "29d00b767bf40349e7074283db6037c725288ef64d767385f693d2cfbd6d501d",
+    "header_sha256": "76a51a6aba59f84f754d9b8102394ff12ce0cdad1fb89cec61130543b73f66fb",
+    "loop_unroll": [
+      10,
+      16,
+      16
+    ],
+    "mode": "pinned-sha384-scalar-unroll-v1",
+    "reference_sha256": "b0e8cb2095a77957741a70f62b42443eaa8e4dfd502aef87bdd3b16f62785d58"
+  },
+  "transform_instruction_words": 2912,
+  "matched_offboard_object_code": true,
+  "passed": true,
+  "elf": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-mailbox-20261101/bl31-build-final/source/build/agilex5/release/bl31/bl31.elf",
+  "elf_sha256": "1757360a0715604ef6aec135f8ea62f3dcb59dd8f790482d3606e6f5bc108773",
+  "strong_symbols": {
+    "fes_nano_platform_configuration": "00000000800085e0 T fes_nano_platform_configuration",
+    "fes_nano_platform_configuration_setup": "00000000800085ec T fes_nano_platform_configuration_setup",
+    "fes_nano_configuration_before": "0000000080008a34 T fes_nano_configuration_before",
+    "fes_nano_configuration_after": "0000000080008c14 T fes_nano_configuration_after",
+    "sha384_init": "00000000800001a0 T sha384_init",
+    "sha384_update": "0000000080002fc0 T sha384_update",
+    "sha384_finish": "0000000080003200 T sha384_finish"
+  },
+  "header_sha256": "c615f7728a09b4359aaee3bef7d2943881878cc4bffdcf252838b8720bb8308c",
+  "configuration_enabled": true,
+  "bounded_core_bytes": 2027520,
+  "counter_and_digest_trace_linked": true
+}

@@ -1,0 +1,49 @@
+{
+  "source_commit": "d72926137ef5a66ea3c42b81b4c619c870a4616c",
+  "engine_observations": [
+    {
+      "credits": 4,
+      "block_bytes": 1048560,
+      "next_job": 0,
+      "owner": 16945765808763065953,
+      "generation": 1
+    }
+  ],
+  "transport_failures": [],
+  "panic_lines": [
+    "panic: late FPGA firmware return phase=completion elapsed_us=20040471 accepted=851968 completed=786432 outstanding=1 retained=2027520"
+  ],
+  "last_checkpoint": "configuration_poll",
+  "last_transfer_observation": {
+    "stage": "configuration_poll",
+    "line": 210,
+    "values": {
+      "phase": "poll",
+      "owner": 16945765808763065953,
+      "generation": 1,
+      "completed": 786432,
+      "pending": 65536,
+      "total": 2027520,
+      "base": 2491416576,
+      "counter": 16545970517,
+      "hash_ticks": 5067607403
+    }
+  },
+  "configuration_transfer": {
+    "complete": false,
+    "completed_bytes": 786432,
+    "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c",
+    "arena_base": 2491416576,
+    "arena_size": 8388608
+  },
+  "configuration_timing": {
+    "counter_frequency": 400000000,
+    "first_counter": 9409050313,
+    "last_counter": 16545970517,
+    "hash_ticks": 5067607403,
+    "interval_ticks": 7136920204,
+    "interval_hash_ticks": 4603474724
+  },
+  "core_load_acceptance": false,
+  "scope": "saved first-attempt observations only; transport status is not a hardware root-cause diagnosis"
+}

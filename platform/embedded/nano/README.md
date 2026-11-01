@@ -641,8 +641,12 @@ status and keeps the source pinned until reboot; only a genuine no-response
 result continues polling. The next matched image logs SDM limits and the first
 transport error with its transfer position. The host decoder checks the limit
 record's ownership/order, and failure records cannot qualify a completed load.
-This repair passes actual-engine/RTL and injected failure tests; its connection
-to the physical stall remains unproven until the next bounded board test.
+The [matched bounded trial](../../../docs/validation/2026-11-01-de25-transport-errors/README.md)
+reported four credits, a 1,048,560-byte block limit and no transport-failure
+record. It stopped at 20.040471 seconds with 786,432 bytes completed, 65,536
+bytes outstanding and all 2,027,520 source bytes retained. No identity or bridge
+opening followed. All eleven software groups passed, including the actual
+engine and both firmware pins; the physical missing completion remains open.
 
 This source-bound cold profile is a hardware-qualification candidate. No
 contained physical transfer is accepted yet. It enables neither an active

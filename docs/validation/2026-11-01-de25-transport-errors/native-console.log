@@ -1,0 +1,215 @@
+
+U-Boot SPL 2025.01-fes-nano-bddc1e9a9ea2c8f9 (Jun 27 2025 - 01:40:35 +0000)
+FES_NANO_SPL BEGIN cause=00000004 per0=ff7fbfff bridge=0000004f cpus=0000000f release=00000000 kind=4 valid=1
+FES_NANO_SPL SCOPE mpidr=81000000 core=0 cause_now=00000004 cpus_now=0000000f release_now=00000000 reset_timeouts=00000000
+Reset state: Cold
+MPU           800000 kHz
+L4 Main	      400000 kHz
+L4 sys free   100000 kHz
+L4 MP         200000 kHz
+L4 SP         100000 kHz
+SDMMC         200000 kHz
+is_ddr_csr_clkgen_locked: ddr csr io96b_0 clkgenA is successfully locked
+io96b_cal_status: Calibration for IO96B instance 0x18400400 done at 0 msec!
+init_mem_cal: Initial DDR calibration IO96B_0 succeed
+DDR: Calibration success
+io96b_mb_init: num_instance 1
+io96b_mb_init: get memory interface IO96B 0
+io96b_mb_init: IO96B 0 mem_interface 0: ip_type_ret: 0x1
+io96b_mb_init: IO96B 0 mem_interface 0: instance_id_ret: 0x0
+io96b_mb_init: IO96B 0: num_mem_interface: 0x1
+LPDDR4: 1024 MiB
+ecc_enable_status: ECC enable status: 0
+DDR: size check success
+DDR: firewall init success
+DDR: init success
+Bloblist at 72000 not found (err=-2)
+WDT:   Not starting watchdog@10d00200
+Trying to boot from MMC1
+FES_NANO_SPL FIT verified before parsing
+## Checking hash(es) for config board-0 ... OK
+## Checking hash(es) for Image atf ... crc32+ OK
+## Checking hash(es) for Image uboot ... crc32+ OK
+## Checking hash(es) for Image fdt-0 ... crc32+ OK
+## Checking hash(es) for Image fes-entry ... crc32+ OK
+FES_NANO_SPL HANDOFF owner=eb2b743876485661 epoch=163fdd2b3 per0=ff7fbfbf bridge=0000000f sd=01f700f0
+NOTICE:  SOCFPGA: Boot Core = 0
+NOTICE:  SOCFPGA: CPU ID = 0
+NOTICE:  SOCFPGA: Setting CLUSTERECTRL_EL1
+NOTICE:  BL31: v2.12.0(release):fes-nano-owned-unready-580dcb5c4e10
+NOTICE:  BL31: Built : 08:42:23, Jun 11 2025
+NOTICE:  FES_NANO_OWNED_BOOT provider=1 result=0 reset=0000000f
+NOTICE:  FES_NANO_SD_PLATFORM setup=0 ready=0
+
+
+U-Boot 2025.01-fes-nano-bddc1e9a9ea2c8f9 (Jun 27 2025 - 01:40:35 +0000)socfpga_agilex5
+
+CPU:   Intel FPGA SoCFPGA Platform (ARMv8 64bit Cortex-A55/A76)
+Model: SoCFPGA Agilex5 Terasic DE25-Nano
+DRAM:  1 GiB
+Core:  30 devices, 17 uclasses, devicetree: separate
+WDT:   Not starting watchdog@10d00200
+WDT:   Not starting watchdog@10d00300
+WDT:   Not starting watchdog@10d00400
+WDT:   Not starting watchdog@10d00500
+WDT:   Not starting watchdog@10d00600
+Loading Environment from <NULL>... OK
+In:    serial1@10c02100
+Out:   serial1@10c02100
+Err:   serial1@10c02100
+Fail to read JTAG Usercode. Default Board ID to 0
+SOCFPGA_AGILEX5 # fesboot
+FES_NANO_BOOT id=bddc1e9a9ea2c8f9
+FES_NANO_MEMORY ram_top=c0000000 sp=bfb5f880 malloc=bfb68000..bff6a000 reloc=bff6a000 fdt=bfb61ca0
+lmb_dump_all:
+ memory.count = 0x1
+ memory[0]	[0x80000000-0xbfffffff], 0x40000000 bytes, flags: none
+ reserved.count = 0x2
+ reserved[0]	[0x0-0xffffff], 0x1000000 bytes, flags: no-map
+ reserved[1]	[0xbeb5fff0-0xbfffffff], 0x14a0010 bytes, flags: no-overwrite
+FES_NANO_OWNED phase=before-entry status=0 flags=46424f31000000df owner=eb2b743876485661 generation=1
+## Flattened Device Tree blob at bfb61ca0
+   Booting using the fdt blob at 0xbfb61ca0
+Working FDT set to bfb61ca0
+   Loading Device Tree to 00000000beb56000, end 00000000beb5f137 ... OK
+Working FDT set to beb56000
+
+Starting kernel ...
+
+FES_NANO_OWNED phase=after-remove status=0 flags=46424f31000000df owner=eb2b743876485661 generation=1
+FES_NANO_HANDOFF affinity=0 counter=400000000 cpus=0,1,1,1 per0=ff7fbfbf bridges=0000000f
+FES_NANO_HANDOFF PASS serial-only
+FES_ENTRY EL2 CLEAN
+FES_ENTRY EL1 HANDOFF
+FES_NATIVE_HPS_CONTEXT PASS sha256=94da3557f175eae05144d70937c3afceda20c6c9f9ca9d25155535da3e0814fc package_id=6a730fa546d4d33ff94ab403881adb98803a51ca40212f88cacb60787de00b63 build_id=e25bb65a1d14a2bbbddf4c770ea033e5 owner=eb2b743876485661 generation=1 runtime_programming=unavailable
+NOTICE:  FES_NANO_CORE_TRANSFER phase=arm owner=eb2b743876485661 generation=1 completed=0 pending=0 total=2027520 base=94800000 counter=230d2b6c9 hash_ticks=1baa1a47
+NOTICE:  FES_NANO_CORE_TRANSFER phase=start owner=eb2b743876485661 generation=1 completed=0 pending=0 total=2027520 base=94800000 counter=255f059bd hash_ticks=3731ea82
+NOTICE:  FES_NANO_CORE_ENGINE credits=4 block_bytes=1048560 next_job=0 owner=eb2b743876485661 generation=1
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=eb2b743876485661 generation=1 completed=0 pending=65536 total=2027520 base=94800000 counter=2743cada6 hash_ticks=53c03823
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=0 pending=65536 total=2027520 base=94800000 counter=2771d07db hash_ticks=558a41c5
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=0 pending=65536 total=2027520 base=94800000 counter=27a039c48 hash_ticks=57545eaf
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=eb2b743876485661 generation=1 completed=65536 pending=65536 total=2027520 base=94800000 counter=27d2fd68b hash_ticks=591e6846
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=65536 pending=65536 total=2027520 base=94800000 counter=28012413a hash_ticks=5ae8707e
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=65536 pending=65536 total=2027520 base=94800000 counter=282fad16d hash_ticks=5cb28f1f
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=eb2b743876485661 generation=1 completed=131072 pending=65536 total=2027520 base=94800000 counter=286292bb2 hash_ticks=5e7ca64d
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=131072 pending=65536 total=2027520 base=94800000 counter=2890c217e hash_ticks=6046b42a
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=131072 pending=65536 total=2027520 base=94800000 counter=28bf53e6a hash_ticks=6210ddc4
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=eb2b743876485661 generation=1 completed=196608 pending=65536 total=2027520 base=94800000 counter=28f241a89 hash_ticks=63daf310
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=196608 pending=65536 total=2027520 base=94800000 counter=292071f05 hash_ticks=65a50d16
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=196608 pending=65536 total=2027520 base=94800000 counter=294f03cd9 hash_ticks=676f2fb9
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=eb2b743876485661 generation=1 completed=262144 pending=65536 total=2027520 base=94800000 counter=2981f36ae hash_ticks=693955af
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=262144 pending=65536 total=2027520 base=94800000 counter=29b022cf9 hash_ticks=6b035f24
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=262144 pending=65536 total=2027520 base=94800000 counter=29deb20eb hash_ticks=6ccd651c
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=eb2b743876485661 generation=1 completed=327680 pending=65536 total=2027520 base=94800000 counter=2a119f276 hash_ticks=6e976da2
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=327680 pending=65536 total=2027520 base=94800000 counter=2a3fce752 hash_ticks=70617b1f
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=327680 pending=65536 total=2027520 base=94800000 counter=2a6e5ed69 hash_ticks=722b950a
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=eb2b743876485661 generation=1 completed=393216 pending=65536 total=2027520 base=94800000 counter=2aa14c2cc hash_ticks=73f59aee
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=393216 pending=65536 total=2027520 base=94800000 counter=2acf7bfc1 hash_ticks=75bfa8b5
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=393216 pending=65536 total=2027520 base=94800000 counter=2afe0cad0 hash_ticks=7789b75a
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=eb2b743876485661 generation=1 completed=458752 pending=65536 total=2027520 base=94800000 counter=2b30fb091 hash_ticks=7953c541
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=458752 pending=65536 total=2027520 base=94800000 counter=2b5f29981 hash_ticks=7b1dc20c
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=458752 pending=65536 total=2027520 base=94800000 counter=2b8dbd9d0 hash_ticks=7ce7dd17
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=eb2b743876485661 generation=1 completed=524288 pending=65536 total=2027520 base=94800000 counter=2bc0ab6a5 hash_ticks=7eb1e39f
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=524288 pending=65536 total=2027520 base=94800000 counter=2beedb411 hash_ticks=807bf5e0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=524288 pending=65536 total=2027520 base=94800000 counter=2c1d6d0d2 hash_ticks=82461d53
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=eb2b743876485661 generation=1 completed=589824 pending=65536 total=2027520 base=94800000 counter=2c505bdf8 hash_ticks=8410390b
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=589824 pending=65536 total=2027520 base=94800000 counter=2c7e8bcc4 hash_ticks=85da51c9
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=589824 pending=65536 total=2027520 base=94800000 counter=2cad1cec7 hash_ticks=87a46c96
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=eb2b743876485661 generation=1 completed=655360 pending=65536 total=2027520 base=94800000 counter=2ce00acad hash_ticks=896e8138
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=655360 pending=65536 total=2027520 base=94800000 counter=2d0e3a8b3 hash_ticks=8b3892f1
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=655360 pending=65536 total=2027520 base=94800000 counter=2d3cccd51 hash_ticks=8d02b1ad
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=eb2b743876485661 generation=1 completed=720896 pending=65536 total=2027520 base=94800000 counter=2d6fbad6d hash_ticks=8eccc4cd
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=720896 pending=65536 total=2027520 base=94800000 counter=2d9de9499 hash_ticks=9096c8ad
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=720896 pending=65536 total=2027520 base=94800000 counter=2dcc7a9d5 hash_ticks=9260e9a8
+NOTICE:  FES_NANO_CORE_TRANSFER phase=write owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=2dff6889f hash_ticks=942af852
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=2e2d977c2 hash_ticks=95f4fb10
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=2e5c28121 hash_ticks=97bf0c43
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=2e8ab49cf hash_ticks=9989187d
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=2eb9440a8 hash_ticks=9b532ca6
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=2ee7d1ca9 hash_ticks=9d1d443e
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=2f165f407 hash_ticks=9ee75472
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=2f44ec0cb hash_ticks=a0b15f59
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=2f737b320 hash_ticks=a27b8420
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=2fa20948e hash_ticks=a4459013
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=2fd096b7a hash_ticks=a60fa71d
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=2fff23a42 hash_ticks=a7d9b80f
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=302db092c hash_ticks=a9a3be5b
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=305c3e0cc hash_ticks=ab6dd2f7
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=308aca582 hash_ticks=ad37d949
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=30b957b9a hash_ticks=af01ee86
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=30e7e4086 hash_ticks=b0cbf142
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3116718ef hash_ticks=b296075c
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3144fdb2e hash_ticks=b46009b9
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=31738b00b hash_ticks=b62a1f6a
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=31a217e24 hash_ticks=b7f43347
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=31d0a5c17 hash_ticks=b9be4d52
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=31ff33010 hash_ticks=bb8862b1
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=322dbf85b hash_ticks=bd527051
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=325c4d98b hash_ticks=bf1c80e8
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=328adbdaf hash_ticks=c0e6a108
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=32b9685ff hash_ticks=c2b0a952
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=32e7f6b46 hash_ticks=c47acd99
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=331683a78 hash_ticks=c644da08
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=33451077d hash_ticks=c80ede6f
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=33739f03a hash_ticks=c9d8efcb
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=33a22c0fc hash_ticks=cba2f1fc
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=33d0b8b9a hash_ticks=cd6d0172
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=33ff45edd hash_ticks=cf371e7b
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=342dd2d92 hash_ticks=d1011fda
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=345c611d8 hash_ticks=d2cb2749
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=348aef2bd hash_ticks=d4953050
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=34b97d9b0 hash_ticks=d65f5351
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=34e80a818 hash_ticks=d8297019
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=351698735 hash_ticks=d9f38c05
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=35452791a hash_ticks=dbbda323
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3573b613d hash_ticks=dd87caee
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=35a243121 hash_ticks=df51db38
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=35d0d1756 hash_ticks=e11be871
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=35ff5f5d7 hash_ticks=e2e6039f
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=362ded7ff hash_ticks=e4b011db
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=365c7b0d7 hash_ticks=e67a3037
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=368b08787 hash_ticks=e8444696
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=36b9960b9 hash_ticks=ea0e626d
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=36e824f66 hash_ticks=ebd87cf2
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3716b3a96 hash_ticks=eda28a4b
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=374540eb5 hash_ticks=ef6ca51a
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3773cd4ed hash_ticks=f136aaf4
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=37a25b8c3 hash_ticks=f300bece
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=37d0e94dd hash_ticks=f4cadbd2
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=37ff771d0 hash_ticks=f694f413
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=382e02f0b hash_ticks=f85ef45f
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=385c91b43 hash_ticks=fa291e43
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=388b1ef05 hash_ticks=fbf32b0a
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=38b9ad1b4 hash_ticks=fdbd4533
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=38e83bdac hash_ticks=ff876a68
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3916c94b3 hash_ticks=101517ed0
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=39455ff09 hash_ticks=1031b8a5c
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3973f505b hash_ticks=104e590d4
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=39a289d07 hash_ticks=106af96c9
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=39d11f5c8 hash_ticks=10879acc9
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=39ffb68ed hash_ticks=10a43d5f6
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3a2e4b332 hash_ticks=10c0dd93e
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3a5ce1116 hash_ticks=10dd7f074
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3a8b76de1 hash_ticks=10fa2047c
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3aba0d1d6 hash_ticks=1116c1a7b
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3ae8a24b5 hash_ticks=11336225a
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3b1739fd8 hash_ticks=115004eac
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3b45d0230 hash_ticks=116ca5efc
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3b746712c hash_ticks=11894757e
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3ba2fe2e6 hash_ticks=11a5e8fb7
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3bd195634 hash_ticks=11c28aa55
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3c002fff3 hash_ticks=11df2bdfd
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3c2ec7695 hash_ticks=11fbcd2ad
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3c5d5c623 hash_ticks=12186de9b
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3c8bf1480 hash_ticks=12350e526
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3cba87d10 hash_ticks=1251b009e
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3ce91d0ca hash_ticks=126e50f99
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3d17b4a75 hash_ticks=128af3c17
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3d464a7c0 hash_ticks=12a794a3d
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3d74e08df hash_ticks=12c436786
+NOTICE:  FES_NANO_CORE_TRANSFER phase=poll owner=eb2b743876485661 generation=1 completed=786432 pending=65536 total=2027520 base=94800000 counter=3da377955 hash_ticks=12e0d8d6b
+panic: late FPGA firmware return phase=completion elapsed_us=20040471 accepted=851968 completed=786432 outstanding=1 retained=2027520
+
+goroutine 1 [running]:
+main.main()
+	github.com/DeanoC/fes/platform/embedded/tamago/cmd/fpgaload/main.go:78 +0xccc

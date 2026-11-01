@@ -69,8 +69,12 @@ position before stopping. These are observations; no raw mailbox command or
 additional configuration authority is exposed. Empty error responses used to
 look like BUSY, and rejected asynchronous sends used to look submitted. The
 actual-engine regressions cover both defects, delayed responses, malformed
-statuses and late errors following an acknowledgement. The preserved physical
-stall still needs a matched test of this repair to identify its hardware cause.
+statuses and late errors following an acknowledgement. The
+[matched board trial](../../../docs/validation/2026-11-01-de25-transport-errors/README.md)
+reported four credits and a 1,048,560-byte block limit, but no transport-failure
+record before the same 786,432-byte completion stall. The fixed deadline and
+buffer retention held. Error propagation is repaired; the missing completion
+still needs mailbox queue/parser diagnosis.
 
 Invalid scope, changed bytes, uncertain replies or failed completion retire
 authority and keep memory owned until reboot. No reset-bit repair or implicit
