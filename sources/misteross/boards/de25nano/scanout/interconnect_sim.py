@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 TOP = "fes_de25_scanout_interconnect_test"
 MASTER = "subsys_periph_fes_scanout_mem_"
 SLAVE = "subsys_hps_f2sdram_adapter_axi4_sub_"
-CASES = ["reset_disabled", "atomic_snapshot", "complete_frames_and_slot_reuse", "linux_iova_last_8mib",
+CASES = ["reset_disabled", "atomic_snapshot", "complete_frames_and_slot_reuse", "linux_iova_last_8mib", "bounded_transaction_latency",
          "stop_drains_accepted_reads", "pixel_clock_stall_preserves_responses",
          "bounded_control_during_pixel_clock_loss", "axi_error_crosses_cdc", "clock_fault_is_sticky"]
 
