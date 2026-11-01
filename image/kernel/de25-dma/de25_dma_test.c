@@ -1744,6 +1744,53 @@ static void owner_overlay_failure_never_admits_a_guard(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 2U);
 }
 
+static void owner_idle_waits_for_last_client_mapping(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, true);
+	struct mm_struct *mm;
+	unsigned long address;
+	unsigned int reads, writes;
+	int ret;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	f->file = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(f->file));
+	fes_de25_dma_test_observe(f->file, &f->control_observer);
+	mm = test_mm(test);
+	if (!mm)
+		return;
+	kthread_use_mm(mm);
+	address = vm_mmap(f->file, TEST_ADDRESS, PAGE_SIZE,
+			PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, 0);
+	KUNIT_EXPECT_EQ(test, address, TEST_ADDRESS);
+	if (IS_ERR_VALUE(address))
+		goto out;
+	ret = fes_de25_owner_test_reap(f->owner);
+	KUNIT_EXPECT_EQ(test, ret, 0);
+	if (ret)
+		goto unmap;
+	/* No descriptor remains, but the revoked VMA still owns its storage. */
+	owner_fixture_close_client(f);
+	KUNIT_EXPECT_EQ(test, f->control_observer.freed, 0U);
+	reads = f->device->reads;
+	writes = f->device->writes;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -EBUSY);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	KUNIT_EXPECT_EQ(test, f->device->writes, writes);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_REMOVE), -EBUSY);
+unmap:
+	KUNIT_EXPECT_EQ(test, vm_munmap(address, PAGE_SIZE), 0);
+out:
+	kthread_unuse_mm(mm);
+	mmput(mm);
+	/* KUnit is a kernel thread, so run the final VMA file's deferred fput. */
+	flush_delayed_fput();
+	if (!IS_ERR_VALUE(address) && !f->file) {
+		KUNIT_EXPECT_EQ(test, f->control_observer.freed, 1U);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
+	}
+}
+
 static void owner_control_checks_capability_and_command_before_effects(struct kunit *test)
 {
 	struct owner_fixture *f = owner_fixture_create(test, false);
@@ -1774,6 +1821,7 @@ static void owner_control_checks_capability_and_command_before_effects(struct ku
 }
 
 static struct kunit_case fes_de25_dma_cases[] = {
+	KUNIT_CASE(owner_idle_waits_for_last_client_mapping),
 	KUNIT_CASE(owner_overlay_and_control_fd_complete_two_cycles),
 	KUNIT_CASE(owner_overlay_refuses_remove_after_uncertain_last_close),
 	KUNIT_CASE(owner_overlay_failure_never_admits_a_guard),
