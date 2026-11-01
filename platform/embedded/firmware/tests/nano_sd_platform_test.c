@@ -100,7 +100,7 @@ static int no_bridge(void *p,uint32_t m,unsigned f) {(void)p;(void)m;(void)f;ass
 static void boot(struct test *t)
 {
     memset(t,0,sizeof(*t));t->h.per0=FES_NANO_MASTER_RESET;t->h.bridge=15;
-    t->h.clock[4/4]=0x10100;t->h.clock[0x44/4]=1<<4;
+    t->h.clock[4/4]=0x02030300;t->h.clock[0x44/4]=1<<4;
     t->h.clock[0x48/4]=t->h.clock[0x9c/4]=1<<8;
     t->h.clock[0x6c/4]=t->h.clock[0xc0/4]=64;
     t->h.clock[0x68/4]=t->h.clock[0xb4/4]=0x08000004;
@@ -156,7 +156,7 @@ int main(void)
         assert(t.h.per0==FES_NANO_MASTER_RESET && !t.platform.active && !t.bridges.device_lease);
         assert(fes_nano_cold_owns(&t.cold,17,7)==1 && t.bridges.state.generation==4+cycle*3);
     }
-    for (unsigned mutation=0;mutation<10;mutation++) {
+    for (unsigned mutation=0;mutation<15;mutation++) {
         boot(&t);
         switch(mutation) {
         case 0:t.h.fault=1;break;case 1:t.h.fault=2;break;
@@ -164,6 +164,11 @@ int main(void)
         case 4:t.h.clock[0x48/4]=0;break;case 5:t.h.clock[0x68/4]=0x08000000;break;
         case 6:t.h.clock[0x6c/4]=63;break;case 7:t.h.clock[0x18/4]=4;break;
         case 8:t.h.clock[0x44/4]|=1<<16;break;case 9:t.h.per0&=~1U;break;
+        case 10:t.h.clock[4/4]&=~(1U<<9);break;
+        case 11:t.h.clock[4/4]&=~(1U<<17);break;
+        case 12:t.h.clock[4/4]|=1U;break;
+        case 13:t.h.clock[4/4]|=1U<<24;break;
+        case 14:t.h.clock[4/4]=0x10100;break;
         }
         assert(initialize(&t)<0 && t.platform.failed && !t.cold.valid);
         assert(!t.h.controller_accesses && !t.h.writes);

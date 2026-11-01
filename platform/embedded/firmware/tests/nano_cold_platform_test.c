@@ -49,7 +49,7 @@ uint32_t mmio_read_32(uintptr_t a)
     if(a>=FES_NANO_SD_CLKMGR && a<FES_NANO_SD_CLKMGR+0x100) {
         clock_reads++;
         switch(a-FES_NANO_SD_CLKMGR) {
-        case 0:return 0;case 4:return 0x10100;case 0x30:case 0x88:return 0;
+        case 0:return 0;case 4:return 0x02030300;case 0x30:case 0x88:return 0;
         case 0x40:return 0;case 0x44:return 0;
         case 0x48:case 0x9c:return 0x100;
         case 0x6c:case 0xc0:return invalid_sd_clock?31:32;

@@ -79,9 +79,11 @@ static int clocks(struct fes_nano_sd_platform *p, unsigned capture)
         if (read_reg(p,FES_NANO_SD_CLKMGR+clock_offsets[i],&v[i])) return -1;
         p->observed[i]=v[i];
     }
-    v[1] &= 0x01030301U; /* locks, transitions, boot mode and busy */
+    /* CS/R1 RC28: MAIN_TRANS/PERF_TRANS are completion bits, high when
+     * power-state transitions finish. BUSY alone has the opposite polarity. */
+    v[1] &= 0x01030301U;
     v[13] &= 12U; /* lost-lock indications; unrelated IRQs are independent */
-    if ((v[0]&1U) || v[1]!=0x10100U || (v[2]&0xf6U) || (v[3]&0xefU) ||
+    if ((v[0]&1U) || v[1]!=0x30300U || (v[2]&0xf6U) || (v[3]&0xefU) ||
         !(v[12]&32U) || v[13] || (v[5]&0x30000U)) return fail(p,-5);
     unsigned source=(v[4]>>16)&7U;
     if (source>1U) return fail(p,-22);

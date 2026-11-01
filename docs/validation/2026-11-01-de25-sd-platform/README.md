@@ -52,3 +52,11 @@ does not yet establish writable SD, USB, native Ethernet, display, FPGA/core
 loading, or full launch and return behavior on hardware.
 
 Software checks completed: 1210 parent regressions, 1571 FPGA build-tool tests, generated consistency, uncached C/Go SD race checks, native firmware/FPGA/tenfoot model integration, producer integration and RTL control tests. All eleven selected affected stages passed.
+
+## First hardware attempt and clock-status correction
+
+Candidate `19410f6a83a571e2`, source `1d0f8c044`, passed fresh recovery, Ethernet upload, SD readback and protected-file checks. Native SPL passed its initial scope, DDR, sealed FIT and SD-stop handoff. Secure setup then rejected Clock Manager STAT `0x02030300` before granting native SD access; no `fesboot` command was sent. The captured trace ends during the failure report; a later passive one-second read returned no bytes. No prompt or native SD acceptance is inferred. Original 15 MHz and USB attributes were restored.
+
+The [official CS/R1 RC28 register map](https://docs.altera.com/api/khub/documents/Z5suNak8Ubz6FMY3WjgxBQ/content) defines MAIN_TRANS bit 9 and PERF_TRANS bit 17 as completion bits: 1 is complete, 0 is in transition. The initial implementation had this polarity reversed. The correction requires both bits high, both PLL locks high, BUSY low and boot mode clear. The live 200 MHz derivation and every reset, route, PHY and ownership check remain required. Added failures cover each incomplete transition, BUSY, boot mode and the old locks-only value.
+
+All 44 direct C/platform/profile/export/trace tests passed after the correction. The unchanged broader software checks remain bound to the first candidate; a second full affected run is not claimed. A fresh matched firmware/FIT/SPL/SOF is required before another physical attempt.
