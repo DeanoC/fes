@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import subprocess
 import tomllib
 
 ROOT_FILES = {
@@ -146,6 +147,36 @@ def derive_tier(row: dict) -> str:
     return 'stale'
 
 
+def _git(root: Path, *args: str) -> str:
+    return subprocess.run(['git', '-C', str(root), *args], check=True,
+                          capture_output=True, text=True).stdout
+
+
+def owned_rtl(root: Path, row: dict) -> tuple[str, str, str] | None:
+    """Newest owned-RTL commit in the window for a shared row, as tier_rules defines it.
+
+    Owned: the subject names the core, or the core holds at least half of the
+    commit's RTL paths and at least two files. A one-file edit holding less
+    than half of another commit's RTL paths is never owned. Returns
+    (short sha, author date, subject), or None.
+    """
+    name = row['id'].removeprefix('fes.').lower()
+    log = _git(root, 'log', '--format=%h%x00%as%x00%s', '--', *row['paths'])
+    for line in log.splitlines():
+        sha, date, subject = line.split('\0', 2)
+        if not WINDOW_START <= date <= AS_OF:
+            continue
+        files = _git(root, 'show', '--format=', '--name-only', sha).split()
+        rtl = [path for path in files if '/rtl/' in path]
+        mine = [path for path in rtl if any(path.startswith(prefix + '/') for prefix in row['paths'])]
+        half = 2 * len(mine) >= len(rtl)
+        if len(mine) == 1 and not half:
+            continue
+        if name in subject.lower() or (half and len(mine) >= 2):
+            return sha, date, subject
+    return None
+
+
 def effective_tier(row: dict) -> str:
     """Displayed tier. A recorded override replaces the derived result."""
     override = row.get('tier_override')
@@ -269,13 +300,16 @@ def render(data: dict) -> str:
 
 
 def feature_union(ids: list[str]) -> str:
+    """Group feature cell. A feature that only some models have is marked (some);
+    the row's JSON features text says which."""
     order = ('tape', 'disk', 'cart', 'pad', 'keys', 'mouse', 'HDMI', 'sim')
-    words = set()
+    holders = {}
     for core_id in ids:
         for word in HIGHLIGHTS[core_id].split(', '):
             if word != '—':
-                words.add(word)
-    chosen = [word for word in order if word in words]
+                holders[word] = holders.get(word, 0) + 1
+    chosen = [word if holders[word] == len(ids) else word + ' (some)'
+              for word in order if word in holders]
     return ', '.join(chosen) if chosen else '—'
 
 
@@ -441,7 +475,7 @@ def validate(root: Path, data: dict) -> list[str]:
             'detail keys '
             f'missing {sorted(ids - set(DETAILS))} extra {sorted(set(DETAILS) - ids)}'
         )
-    if {tier['id'] for tier in data['tiers']} != tier_ids:
+    if len(data['tiers']) != len(tier_ids):
         errors.append('duplicate tier ids')
     for row in rows:
         if row.get('tier_role') not in TIER_ROLES:
@@ -529,6 +563,26 @@ def validate(root: Path, data: dict) -> list[str]:
     for core_id, (path, _title) in DETAILS.items():
         if not (root / path).is_file():
             errors.append(f'{core_id} detail doc is missing: {path}')
+    for row in rows:
+        if row.get('tier') not in tier_ids:
+            errors.append(f"{row['id']} has unknown tier {row.get('tier')!r}")
+    for row in rows:
+        if row.get('tier_role') != 'shared' or not row.get('paths'):
+            continue
+        signals = row.get('signals') or {}
+        try:
+            owned = owned_rtl(root, row)
+        except (OSError, subprocess.CalledProcessError) as error:
+            errors.append(f"{row['id']} owned-RTL history is unreadable: {error}")
+            continue
+        recorded = signals.get('last_rtl_change')
+        if owned is None:
+            if recorded or signals.get('last_rtl_sha'):
+                errors.append(f"{row['id']} records owned RTL {signals.get('last_rtl_sha')} but none qualifies in the window")
+        elif recorded != owned[1] or not signals.get('last_rtl_sha'):
+            errors.append(f"{row['id']} owned RTL is {owned[0]} on {owned[1]}, recorded {signals.get('last_rtl_sha')} on {recorded}")
+    if errors:
+        return errors
     rendered = render(data)
     if rendered.count(DE25_CELL) != 1:
         errors.append('DE25 policy line must appear once in the human page')
@@ -600,10 +654,10 @@ def main() -> None:
     root = args.root.resolve()
     data = load_json(root)
     errors = validate(root, data)
-    rendered = render(data)
-    target = root / MARKDOWN
     if errors:
         parser.exit(1, 'support matrix:\n' + '\n'.join(errors) + '\n')
+    rendered = render(data)
+    target = root / MARKDOWN
     if args.write:
         target.write_text(rendered)
         print(f'wrote {MARKDOWN}')

@@ -100,6 +100,34 @@ class SupportMatrixTests(unittest.TestCase):
             for name in last_pins
         ))
 
+    def test_duplicate_tier_ids_are_reported(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        data['tiers'].append(dict(data['tiers'][0]))
+        self.assertIn('duplicate tier ids', SUPPORT_MATRIX.validate(ROOT, data))
+
+    def test_invalid_rows_report_errors_instead_of_crashing(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        data['cores'][0]['tier'] = 'nonsense'
+        data['cores'].append(dict(data['cores'][1], id='fes.unknown'))
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertIn(f"{data['cores'][0]['id']} has unknown tier 'nonsense'", errors)
+        self.assertTrue(any(error.startswith('highlight keys') for error in errors))
+
+    def test_shared_rows_record_the_owned_rtl_commit(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        by_id = {row['id']: row for row in data['cores']}
+        self.assertEqual(SUPPORT_MATRIX.owned_rtl(ROOT, by_id['z80'])[:2], ('e4d7402bf', '2026-10-08'))
+        # A two-file edit inside a 43-path C64 commit is not owned cpu6502 RTL.
+        self.assertIsNone(SUPPORT_MATRIX.owned_rtl(ROOT, by_id['cpu6502']))
+        by_id['z80']['signals'].update(last_rtl_change='2026-10-24', last_rtl_sha='e93b15b24')
+        self.assertIn('z80 owned RTL is e4d7402bf on 2026-10-08, recorded e93b15b24 on 2026-10-24',
+                      SUPPORT_MATRIX.validate(ROOT, data))
+
+    def test_group_features_mark_what_only_some_models_have(self):
+        self.assertEqual('tape (some), disk (some), keys, HDMI', SUPPORT_MATRIX.feature_union(
+            ['fes.spectrum', 'fes.spectrum128', 'fes.spectrum-plus3', 'fes.pentagon']))
+        self.assertEqual('tape, keys, HDMI', SUPPORT_MATRIX.feature_union(['fes.zx81', 'fes.zx80']))
+
 
 if __name__ == '__main__':
     unittest.main()
