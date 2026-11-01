@@ -44,13 +44,17 @@ def source_fixture(base):
 
 class CPUOnlyTests(unittest.TestCase):
     def test_actual_report_always_parks_and_later_device_init_is_removed(self):
+        for console_control in (False,True):
+            with self.subTest(console_control=console_control):self.check_board(console_control)
+
+    def check_board(self,console_control):
         with tempfile.TemporaryDirectory() as temp:
             base=Path(temp);soc=source_fixture(base)
             report=soc/'fes_nano_spl.c'
             board=soc/'spl_agilex5.c'
-            cpu.contain_source(base)
+            cpu.contain_source(base,console_control)
             source=base/'test.c';binary=base/'test'
-            source.write_text(r'''
+            source.write_text('#define CONSOLE_CONTROL '+str(int(console_control))+r'''
 #include <assert.h>
 #include <setjmp.h>
 #include <stdint.h>
@@ -60,14 +64,17 @@ class CPUOnlyTests(unittest.TestCase):
 #include <stdio.h>
 static struct fes_nano_cold source;
 static jmp_buf stop;
-static unsigned consoles,reads,parks,core,mode,clock_ready,serials,stages[32],stage_count;
+static unsigned consoles,reads,parks,core,mode,clock_ready,serials,stages[32],stage_count,samples;
+volatile struct fes_cpu_trace fes_nano_cpu_trace_record={.magic=0x46544331U,.version=1};
+static uint64_t read_mpidr(void);
 struct udevice { unsigned unused; };
 enum { UCLASS_CLK=1, HPS_EXECUTION_STATE_FSBL=0 };
 void fes_nano_cpu_trace(unsigned stage,unsigned value){
     (void)value;assert(stage_count<32);stages[stage_count++]=stage;
+    if(stage_count==1){fes_nano_cpu_trace_record.mpidr=read_mpidr();fes_nano_cpu_trace_record.el=3;}
 }
 void fes_nano_cpu_trace_serial(void){assert(clock_ready);serials++;}
-static void fes_nano_spl_early(void){assert(stage_count==1 && stages[0]==FES_CPU_C_ENTRY);}
+void fes_nano_spl_early(void){samples++;assert(stage_count==1 && stages[0]==FES_CPU_C_ENTRY);}
 static int spl_early_init(void){return mode==1 ? -5 : 0;}
 static void socfpga_get_managers_addr(void){}
 static void sysmgr_pinmux_init(void){}
@@ -79,13 +86,16 @@ static int uclass_get_device(unsigned cl,unsigned n,struct udevice **out){
 }
 static uint64_t read_mpidr(void){return 0x80000000ULL|((uint64_t)core<<8);}
 static int fes_cold_hw_read(void *p,unsigned r,uint32_t *out){
-    (void)p;reads++;
+    (void)p;assert(consoles==1);reads++;
     if(r==FES_COLD_CAUSE)*out=4;
+    else if(r==FES_COLD_PER0)*out=0xff7fbfff;
+    else if(r==FES_COLD_BRG)*out=0x4f;
     else if(r==FES_COLD_CPUS)*out=15;
+    else if(r==FES_COLD_BOOT_KIND)*out=4;
     else {assert(r==FES_COLD_RELEASE);*out=0;}
     return 0;
 }
-static uint32_t mmio(uintptr_t a){assert(a==0x10d11008);return 0;}
+uint32_t mmio(uintptr_t a){assert(a==0x10d11008);return 0;}
 #define FES_COLD_READ32(a) mmio(a)
 static void preloader_console_init(void){consoles++;}
 static void fes_nano_cpu_diag_park(void){parks++;fes_nano_cpu_trace(FES_CPU_PARK,0);longjmp(stop,1);}
@@ -97,12 +107,13 @@ int main(int argc,char **argv){
     source.record.first=(struct fes_nano_cold_sample){4,0xff7fbfff,0x4f,15,0,4};
     if(!setjmp(stop)){board_init_f(0);assert(!"report returned");}
     if(!mode){
-        assert(parks==1 && consoles==1 && reads==3 && serials==2 && stage_count==18);
-        for(unsigned i=0;i<18;i++)assert(stages[i]==i+1);
+        assert(parks==1 && consoles==1 && reads==(CONSOLE_CONTROL ? 6 : 3) && serials==2 && stage_count==18);
+        for(unsigned i=0;i<18;i++)assert(stages[i]==(CONSOLE_CONTROL && i==1 ? FES_CPU_SAMPLE_SKIPPED : i+1));
     }else{
         assert(!parks && !consoles && !reads && !serials);
         assert(stages[stage_count-1]==(mode==1 ? FES_CPU_DM_ERROR : FES_CPU_CLOCK_ERROR));
     }
+    assert(samples==!CONSOLE_CONTROL);
     assert(source.failed==(unsigned)atoi(argv[1]));
     puts("CPU_ONLY_PARK_PASS");return 0;
 }
@@ -117,9 +128,13 @@ int main(int argc,char **argv){
                             r=subprocess.run([str(binary),str(failed),str(core),str(mode)],capture_output=True,text=True)
                             self.assertEqual(r.returncode,0,r.stderr)
                             self.assertIn('CPU_ONLY_PARK_PASS',r.stdout)
-                            if not mode:
+                            if not mode and not console_control:
                                 self.assertIn('valid='+str(1-failed),r.stdout)
                                 self.assertIn('core='+str(core),r.stdout)
+                            if not mode and console_control:
+                                self.assertIn('FES_NANO_CPU_CONTROL END no-initial-proof',r.stdout)
+                                self.assertNotIn('FES_NANO_SPL BEGIN',r.stdout)
+                                self.assertLess(r.stdout.index('READ index=0 before'),r.stdout.index('READ index=0 status=0'))
 
     def test_changed_report_or_ddr_boundary_rejects(self):
         for changed in ('report','board','checkpoint','late'):
@@ -215,5 +230,9 @@ int main(int argc,char **argv){
         error=cpu.decode_trace(''.join(line(i) for i in range(1,4))+line(0xe0),identity)
         self.assertTrue(error['sequence_valid']);self.assertEqual(error['last_checkpoint']['name'],'dm-error')
         self.assertFalse(error['complete']);self.assertFalse(error['native_admission'])
+        control=full.replace('stage=02','stage=e2')
+        self.assertTrue(cpu.decode_trace(control,identity,True)['complete'])
+        self.assertFalse(cpu.decode_trace(control,identity)['complete'])
+        self.assertFalse(cpu.decode_trace(control,identity,True)['native_admission'])
 
 if __name__=='__main__':unittest.main()

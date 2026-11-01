@@ -34,12 +34,12 @@ TRACE_STAGES={format(i,'02x'):name for i,name in enumerate((
     'c-entry','sample-done','dm-begin','dm-done','managers-done','pinmux-done',
     'timer-begin','timer-done','mailbox-begin','mailbox-done','notify-begin','notify-done',
     'clock-begin','clock-done','console-begin','console-done','report-begin','park'),1)}
-TRACE_STAGES.update(e0='dm-error',e1='clock-error')
+TRACE_STAGES.update(e0='dm-error',e1='clock-error',e2='sample-skipped-console-control')
 
 def sha(path):
     with Path(path).open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
 
-def decode_trace(data,identity):
+def decode_trace(data,identity,console_control=False):
     """Retain partial checkpoints without treating them as CPU/boot admission."""
     text=data.decode(errors='replace') if isinstance(data,bytes) else data
     records=re.findall(r'(?m)^FES_NANO_CPU_TRACE id=([0-9a-f]{16}) stage=([0-9a-f]{2}) value=([0-9a-f]{8}) mpidr=([0-9a-f]{16}) el=([0-3])\r?$',text)
@@ -47,6 +47,7 @@ def decode_trace(data,identity):
            'mpidr':mpidr,'el':int(el)} for seen,stage,value,mpidr,el in records if seen==identity]
     stages=[int(row['stage'],16) for row in rows]
     expected=list(range(1,19))
+    if console_control:expected[1]=0xe2
     prefix=stages==expected[:len(stages)] and len(stages)<=18
     error_prefix=(len(stages)>1 and stages[-1] in (0xe0,0xe1) and
                   stages[:-1]==expected[:len(stages)-1] and stages[-2]==(3 if stages[-1]==0xe0 else 13))
@@ -56,7 +57,7 @@ def decode_trace(data,identity):
             'sequence_valid':bool(rows) and (prefix or error_prefix) and not mismatch and same_scope,
             'complete':stages==expected and not mismatch and same_scope,'native_admission':False}
 
-def contain_source(source):
+def contain_source(source,console_control=False):
     """Keep observations unchanged, park for either admission result, remove later init."""
     report=source/'arch/arm/mach-socfpga/fes_nano_spl.c'
     text=report.read_text();anchor='    if (source.failed) hang();'
@@ -69,7 +70,29 @@ def contain_source(source):
 }
 '''
     text=text.replace('void fes_nano_spl_report(void)',park+'void fes_nano_spl_report(void)')
-    report.write_text('#include "cpu_trace.h"\n'+text.replace(anchor,'    fes_nano_cpu_diag_park();'))
+    text='#include "cpu_trace.h"\n'+text.replace(anchor,'    fes_nano_cpu_diag_park();')
+    if console_control:
+        old_report=function(text,'fes_nano_spl_report')
+        control='''void fes_nano_spl_report(void)
+{
+    static const unsigned regs[]={FES_COLD_CAUSE,FES_COLD_PER0,FES_COLD_BRG,
+                                  FES_COLD_CPUS,FES_COLD_RELEASE,FES_COLD_BOOT_KIND};
+    puts("FES_NANO_CPU_CONTROL BEGIN post-console-observation-only native-admission=0\\n");
+    printf("FES_NANO_CPU_CONTROL ENTRY mpidr=%llx el=%u\\n",
+           fes_nano_cpu_trace_record.mpidr,fes_nano_cpu_trace_record.el);
+    for (unsigned i=0;i<sizeof(regs)/sizeof(regs[0]);i++) {
+        unsigned value=0;
+        printf("FES_NANO_CPU_CONTROL READ index=%u before\\n",i);
+        int status=fes_cold_hw_read(NULL,regs[i],&value);
+        printf("FES_NANO_CPU_CONTROL READ index=%u status=%d value=%08x\\n",i,status,value);
+        if (status) fes_nano_cpu_diag_park();
+    }
+    puts("FES_NANO_CPU_CONTROL END no-initial-proof\\n");
+    fes_nano_cpu_diag_park();
+}
+'''
+        text=text.replace(old_report,control)
+    report.write_text(text)
     board=source/'arch/arm/mach-socfpga/spl_agilex5.c';text=board.read_text()
     old=function(text,'board_init_f');anchor='\tfes_nano_spl_report();'
     if old.count(anchor)!=1 or old.index(anchor)>old.index('uclass_get_device(UCLASS_RAM'):
@@ -89,6 +112,11 @@ def contain_source(source):
     for before,after in checkpoints:
         if new.count(before)!=1:raise ValueError('CPU checkpoint context changed: '+before.strip())
         new=new.replace(before,after)
+    if console_control:
+        # An isolated diagnostic control, never an alternative trusted boot
+        # producer: no early proof is made, and the only continuation is park.
+        new=new.replace('\tfes_nano_spl_early();\n','')
+        new=new.replace('FES_CPU_SAMPLE_DONE','FES_CPU_SAMPLE_SKIPPED')
     board.write_text('#include "cpu_trace.h"\n'+text.replace(old,new))
     # Keep SPL_ATF for the seed's configuration/startup selection, but remove
     # its later invocation independently. Native entry must remain impossible.
@@ -111,7 +139,9 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('reference-repo','seed-build','entry-build','vendor-sof','quartus-pfg','output'):
         p.add_argument('--'+name,required=True,type=Path)
-    p.add_argument('--cross-prefix',required=True);args=p.parse_args()
+    p.add_argument('--cross-prefix',required=True)
+    p.add_argument('--console-control',action='store_true',help='skip cold proof; observe registers only after console; always park')
+    args=p.parse_args()
     output=args.output.absolute()
     if (output.exists() or '..' in output.parts or not output.is_relative_to(ROOT/'out') or
             any(v.is_symlink() for v in (output,*output.parents))):p.error('output must be fresh/private under out/')
@@ -144,9 +174,10 @@ def main():
     with tarfile.open(fileobj=io.BytesIO(git('archive',PIN))) as archive:archive.extractall(source,filter='data')
     prepared=prepare_uboot.prepare(source,args.entry_build.resolve(strict=True),r['bl31_sha256'])
     if prepared['cold_boot_profile']!=native['cold_boot_profile']:raise ValueError('source chain differs from seed')
-    transformed=contain_source(source)
+    transformed=contain_source(source,args.console_control)
     if any(sha(source/name)!=digest for name,digest in startup.items()):raise ValueError('vendor startup modified')
-    identity=hashlib.sha256(json.dumps({'inputs':inputs,'transformed':transformed,'mode':'cpu-only-stop'},sort_keys=True).encode()).hexdigest()[:16]
+    mode='console-control' if args.console_control else 'cpu-state'
+    identity=hashlib.sha256(json.dumps({'inputs':inputs,'transformed':transformed,'mode':mode},sort_keys=True).encode()).hexdigest()[:16]
     header=source/'arch/arm/mach-socfpga/fes_cpu_diag_config.h'
     header.write_text('#define FES_CPU_DIAG_ID "'+identity+'"\n')
     transformed[str(header.relative_to(source))]=sha(header)
@@ -195,10 +226,11 @@ def main():
     if not block or 'yield' not in block[1] or re.search(r'\b(?:ret|wfi|wfe)\b',block[1]):raise ValueError('target park is not a non-sleeping stop')
     run('spl-symbols',[args.cross_prefix+'nm','-S',elf]);symbols=(output/'spl-symbols.log').read_text()
     forbidden=('mmc_init','spl_load_image_fat','spl_invoke_atf','fes_nano_spl_handoff','sdram_mmr_init','initr_watchdog')
+    if args.console_control:forbidden+=('fes_nano_cold_begin',)
     if any(re.search(r'(?m)\b'+v+r'$',symbols) for v in forbidden):raise ValueError('excluded code linked into CPU SPL')
     trace=re.findall(r'(?m)^([0-9a-f]+) ([0-9a-f]+) [dD] fes_nano_cpu_trace_record$',symbols)
     if len(trace)!=1 or not 0x1000<=int(trace[0][0],16)<0x40000-int(trace[0][1],16):raise ValueError('trace not in loaded OCRAM data')
-    for name in ('source','fes_nano_spl_record'):
+    for name in (() if args.console_control else ('source','fes_nano_spl_record')):
         data=re.findall(r'(?m)^([0-9a-f]+) ([0-9a-f]+) [dD] '+name+'$',symbols)
         if len(data)!=1 or not 0x1000<=int(data[0][0],16)<0x40000-int(data[0][1],16):raise ValueError('cold state not in loaded OCRAM data')
     candidate=output/'cpu-state.sof'
@@ -209,6 +241,7 @@ def main():
     if (any(sha(Path(v))!=h for v,h in inputs.items()) or any(sha(source/v)!=h for v,h in transformed.items()) or
             any(sha(source/name)!=digest for name,digest in startup.items())):raise ValueError('diagnostic inputs changed')
     report={'status':'prepared','classification':'CPU-only volatile SPL observation; unconditionally parks before DDR/storage/BL31; no native admission',
+            'diagnostic_mode':mode,'initial_proof_attempted':not args.console_control,
             'diagnostic_id':identity,'source_revision':PIN,'source_base':subprocess.check_output(['git','-C',ROOT,'rev-parse','HEAD'],text=True).strip(),
             'reference_chain_only':native['cold_boot_profile']['chain_sha256'],'sof_sha256':sha(candidate),'spl_sha256':sha(spl),'spl_elf_sha256':sha(elf),
             'reference_sof_sha256':REFERENCE_SOF,'config_sha256':sha(build/'.config'),'inputs':inputs,'transformed_sources':transformed,
