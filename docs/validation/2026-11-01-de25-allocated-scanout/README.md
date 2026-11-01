@@ -152,3 +152,13 @@ or allocation test, FPGA load, new-kernel/SD-image/QSPI/bundle install, baseline
 promotion or board release is performed during recovery. The claim remains
 retained. The trace-enabled image is still uninstalled because the reader
 reports a card smaller than the verified image.
+
+
+## Follow-up: candidate boot and allocation mapping
+
+The trace-enabled image has since passed its actual board boot, stable-MAC
+software reboot and allocation-only map/unmap observation. The
+[follow-up record](../2026-11-01-de25-trace-kernel/README.md) retains the exact
+identities, failed USB-reader control, full card readback, trace and successful
+cleanup. No frame is submitted and the original AXI response cause remains
+unresolved; earlier unbooted receipts retain their original time/scope.
