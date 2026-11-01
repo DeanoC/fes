@@ -3,6 +3,7 @@ import fcntl
 import hashlib
 import json
 import os
+import py_compile
 import shutil
 import signal
 import subprocess
@@ -15,6 +16,45 @@ from unittest import mock
 from scripts import pcxt_dos_application_acceptance as app
 from scripts import pcxt_dos_hil_acceptance as visual
 from tests.test_pcxt_dos_keyboard_acceptance import frame
+
+
+class PythonCacheIsolationTest(unittest.TestCase):
+    def test_nested_parser_ignores_timestamp_valid_stale_bytecode(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            scripts = root/'sources/misteross/scripts'; scripts.mkdir(parents=True)
+            parser = scripts/'core_package.py'
+            good = ("from types import SimpleNamespace\n"
+                    "def read_package(_): return SimpleNamespace(package_id='"+'a'*64+"')\n")
+            stale = good.replace('a'*64, 'b'*64)
+            parser.write_text(stale)
+            pyc = Path(py_compile.compile(str(parser), doraise=True))
+            timestamp = parser.stat().st_mtime_ns
+            parser.write_text(good)
+            os.utime(parser, ns=(timestamp, timestamp))
+            cache_before = pyc.read_bytes()
+            # A normal isolated -B interpreter still reads this valid stale pyc.
+            probe = ("import sys;sys.path.insert(0,sys.argv[1]);"
+                     "from scripts.core_package import read_package;print(read_package(None).package_id)")
+            control = subprocess.run([os.sys.executable, '-I', '-B', '-c', probe, str(scripts.parent)],
+                                     capture_output=True, text=True, check=True)
+            self.assertEqual(control.stdout.strip(), 'b'*64)
+            archive = b'package snapshot'
+            with mock.patch.object(app, '__file__', str(root/'scripts/pcxt_dos_application_acceptance.py')):
+                value = app.canonical_package_id(archive, hashlib.sha256(archive).hexdigest())
+            self.assertEqual(value, 'a'*64)
+            self.assertEqual(parser.read_text(), good)
+            self.assertEqual(pyc.read_bytes(), cache_before)
+
+    def test_top_level_help_runs_isolated_without_populating_cache(self):
+        with tempfile.TemporaryDirectory() as temp:
+            prefix = Path(temp)/'fresh-cache'
+            script = Path(app.__file__).resolve()
+            result = subprocess.run([os.sys.executable, '-I', '-B', '-X', f'pycache_prefix={prefix}',
+                                     str(script), '--help'], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('--queue-lock-fd', result.stdout)
+            self.assertFalse(prefix.exists())
 
 
 class COMVisualTest(unittest.TestCase):

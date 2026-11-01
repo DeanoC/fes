@@ -31,6 +31,9 @@ if __package__:
     from . import package_acceptance as pa
     from . import pcxt_dos_hil_acceptance as visual
 else:
+    # Isolated mode omits the script directory from sys.path. Load only
+    # the helpers adjacent to this diagnostic, even under python -I.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     import package_acceptance as pa
     import pcxt_dos_hil_acceptance as visual
 
@@ -448,7 +451,9 @@ print(json.dumps({'package_id':p.package_id}))
     with tempfile.TemporaryDirectory(prefix='pcxt-app-package-') as temp:
         path = Path(temp)/'core.fcore'
         path.write_bytes(archive)
-        result = subprocess.run([sys.executable, '-I', '-c', program, str(parser_root), str(path)],
+        result = subprocess.run([sys.executable, '-I', '-B', '-X',
+                                 'pycache_prefix='+str(Path(temp)/'empty-pycache'),
+                                 '-c', program, str(parser_root), str(path)],
                                 check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 text=True, timeout=30)
         value = json.loads(result.stdout)

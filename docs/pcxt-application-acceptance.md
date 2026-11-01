@@ -49,7 +49,9 @@ From the FES root, run one scenario at a time, substituting the **exact**
 identities from the prepared package, software receipt and owned session:
 
 ```sh
-python3 scripts/pcxt_dos_application_acceptance.py com --execute \
+# Use a new private directory, never a previously populated Python cache.
+PY_CACHE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/pcxt-app-pycache.XXXXXXXX")"
+python3 -I -B -X pycache_prefix="$PY_CACHE_DIR" scripts/pcxt_dos_application_acceptance.py com --execute \
   --kit A --owner "$KIT_OWNER" --queue-lock-fd "$KIT_LOCK_FD" \
   --host-receipt /private/host.json --host-receipt-sha256 "$HOST_RECEIPT_SHA256" \
   --host-binary /private/fogcast-api \
@@ -63,6 +65,10 @@ python3 scripts/pcxt_dos_application_acceptance.py com --execute \
   --disk /private/pcxt-com.img --capture-device /dev/v4l/by-id/fes-shadowcast-hil \
   --evidence /private/new-com-evidence
 ```
+
+Remove the private cache directory after the diagnostic exits. Each invocation
+must use a freshly created directory. The isolated interpreter avoids stale
+bytecode from a previous checkout, including in the nested package parser.
 
 For the game, replace `com` with `game`, select the separately built game
 floppy in a **new owned session**, and provide its path and a new evidence
