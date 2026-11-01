@@ -207,16 +207,24 @@ def build(args):
     profile = json.loads(raw)
     start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
     expected_package_id=package_option(args.program,args.package_id,profile)
-    context=control_map=None
+    context=control_map=configuration_map=None
+    core_payload=None
     hps_project=getattr(args,'hps_first_project',None)
-    if args.program in ('bootcontext','fpgacontext','fpgastatus'):
+    if args.program in ('bootcontext','fpgacontext','fpgastatus','fpgaload'):
         if hps_project is None or raw!=(APP.parent/'nano/probe-profile.json').read_bytes():
             raise ValueError('context diagnostics require a sealed HPS-first project and the source serial probe profile')
         spec=importlib.util.spec_from_file_location('fes_native_hps_context',APP.parent/'nano/hps_context.py')
         hps=importlib.util.module_from_spec(spec);spec.loader.exec_module(hps)
         hps_project=hps_project.resolve(strict=True)
         context=hps.derive(hps_project)
-        if args.program in ('fpgacontext','fpgastatus'):control_map=hps.control(hps_project)
+        if args.program in ('fpgacontext','fpgastatus','fpgaload'):control_map=hps.control(hps_project)
+        if args.program=='fpgaload':
+            configuration_map=hps.configuration(hps_project)
+            core_payload=hps.core_payload(hps_project,configuration_map)
+            arena_start,arena_end=configuration_map['base'],configuration_map['base']+configuration_map['size']
+            exclusions=[(start,start+size),(0x94000000,0x94800000)]+[(r['start'],r['start']+r['size']) for r in profile['reserved']]
+            if any(arena_start<end and begin<arena_end for begin,end in exclusions):
+                raise ValueError('configuration arena overlaps heap, sealed FIT or firmware')
     elif hps_project is not None:
         raise ValueError('--hps-first-project requires a native context diagnostic')
     if args.program == "fpga" and fpga is None:
@@ -228,11 +236,14 @@ def build(args):
     (output / "handoff.json").write_bytes(raw)
     if context is not None:(output/'hps-context.json').write_bytes(hps.encode(context))
     if control_map is not None:(output/'hps-control.json').write_bytes(hps.encode(control_map))
+    if configuration_map is not None:(output/'hps-configuration.json').write_bytes(hps.encode(configuration_map))
     uart_base = 0x10c02000 + uart_index * 0x100
     generated = output / "profile.go"
     generated.write_text("//go:build tamago && arm64 && de25nano\n\npackage de25nano\nconst (\n" +
                          f"profileRAMStart = {start}\nprofileRAMSize = {size}\nprofileSDControlEnabled = {str(profile['sd_control'] is not None).lower()}\nprofileSDInputClockHz = {frequency}\nprofileUSBPHYClockHz = {usb_frequency}\nprofileConsoleUARTBase = {uart_base}\n" +
                          f"profileFPGAProbeEnabled = {str(fpga is not None).lower()}\nprofileFPGAProbeBase = {fpga['base'] if fpga else 0}\nprofileFPGAProbeBytes = {fpga['size'] if fpga else 0}\n)\n")
+    with generated.open('a') as stream:
+        stream.write('const (\nprofileConfigurationBase = '+str(configuration_map['base'] if configuration_map else 0)+'\nprofileConfigurationBytes = '+str(configuration_map['size'] if configuration_map else 0)+'\n)\n')
     network_constants = {"profileNetworkEnabled": net is not None,
                          "profileNetworkBase": 0x10810000 + (net["mac_index"] * 0x10000) if net else 0,
                          "profileNetworkPHY": net["phy_address"] if net else 0,
@@ -259,10 +270,19 @@ def build(args):
     serial_generated.write_text("//go:build tamago && arm64 && de25nano\n\npackage serial\n" +
                                 f"const profileConsoleUARTBase = {uart_base}\n")
     overlay = output / "overlay.json"
-    overlay.write_text(json.dumps({"Replace": {
+    replacements={
         str(APP / "board/de25nano/profile.go"): str(generated),
         str(APP / "serial/profile-de25.go"): str(serial_generated),
-    }}))
+    }
+    generated_core=None
+    if core_payload is not None:
+        generated_core=output/'core-payload.go'
+        # Compiler input, not a shell/ldflags argument: even the small native
+        # core exceeds the host's per-argument limit when encoded as text.
+        generated_core.write_text('//go:build tamago && arm64 && de25nano\n\npackage main\nconst coreImage = "'+''.join('\\x%02x'%b for b in core_payload)+'"\n')
+        (output/'core.rbf').write_bytes(core_payload)
+        replacements[str(APP/'cmd/fpgaload/core_payload.go')]=str(generated_core)
+    overlay.write_text(json.dumps({'Replace':replacements}))
     env = dict(os.environ, GOOS="tamago", GOARCH="arm64", CGO_ENABLED="0", GOOSPKG="github.com/usbarmory/tamago",
                GOTOOLCHAIN="local", GOENV="off", GOWORK="off", GOPROXY="off", GOSUMDB="off",
                GOMODCACHE=str(args.module_cache.resolve()), GOCACHE=str(ROOT / "out/embedded-base-tools/tamago/cache"))
@@ -291,6 +311,7 @@ def build(args):
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if context is not None:link_flags+=' -X main.expectedBootContext='+base64.b64encode(hps.encode(context)).decode()
     if control_map is not None:link_flags+=' -X main.expectedControlMap='+base64.b64encode(hps.encode(control_map)).decode()
+    if configuration_map is not None:link_flags+=' -X main.expectedConfigurationMap='+base64.b64encode(hps.encode(configuration_map)).decode()
     command = [str(compiler), "build", *options, "-trimpath", "-ldflags", link_flags, "-o", str(elf), "./cmd/" + args.program]
     with (output / "build.log").open("w") as log:
         subprocess.run(command, cwd=APP, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -300,12 +321,18 @@ def build(args):
         raise ValueError('HPS source context changed or was not linked into the native image')
     if control_map is not None and (hps.control(hps_project)!=control_map or base64.b64encode(hps.encode(control_map)) not in data):
         raise ValueError('FPGA control map changed or was not linked into the native image')
+    if configuration_map is not None and (hps.configuration(hps_project)!=configuration_map or
+            base64.b64encode(hps.encode(configuration_map)) not in data or core_payload not in data):
+        raise ValueError('sealed configuration map or complete core bytes missing from native image')
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}:
         raise ValueError("sources changed while building")
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
               "expected_package_id":expected_package_id,
               "hps_context":context,"hps_context_sha256":hps.digest(context) if context else None,
               "hps_control":control_map,"hps_control_sha256":hps.digest(control_map) if control_map else None,
+              "hps_configuration":configuration_map,"hps_configuration_sha256":hps.digest(configuration_map) if configuration_map else None,
+              "configuration_payload_sha256":hashlib.sha256(core_payload).hexdigest() if core_payload is not None else None,
+              "generated_core_payload_sha256":sha(generated_core) if generated_core else None,
               "hps_project":str(hps_project) if context else None,
               "classification": "host-only cross-build; not boot or hardware acceptance",
               "firmware_profile_sha256": hashlib.sha256(raw).hexdigest(), "source_sha256": sources,

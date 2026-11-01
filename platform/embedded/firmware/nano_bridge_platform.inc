@@ -104,8 +104,9 @@ void fes_nano_bridge_platform_setup(void)
     if (available == 1 && result == 0) {
         fes_nano_bridge_platform_lock();
         int identity=fes_nano_platform_identity_setup();
+        int configuration=fes_nano_platform_configuration_setup();
         sd = fes_nano_platform_sd_setup();
-        if (sd < 0 || identity < 0) {
+        if (sd < 0 || identity < 0 || configuration < 0) {
             fes_nano_owned_sd.attempted = fes_nano_owned_sd.failed = 1;
             fes_nano_owned_bridges.failed = 1;
             fes_nano_boot_invalidate(&fes_nano_owned_boot);

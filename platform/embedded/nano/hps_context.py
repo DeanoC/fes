@@ -55,6 +55,41 @@ def control(project):
     return _worker(project, 'control')
 
 
+def configuration(project):
+    return _worker(project, 'configuration')
+
+
+def core_payload(project, mapping):
+    """Read only the verified package's exact phase-two bytes."""
+    if mapping != configuration(project):
+        raise ValueError('configuration memory map differs from the sealed source')
+    path=Path(project)/'board/hps/packages'/mapping['package_id']/'core.rbf'
+    if any(p.is_symlink() for p in (path,*path.parents)):
+        raise ValueError('configuration payload has a symlink component')
+    raw=path.read_bytes()
+    if len(raw)!=mapping['core_size'] or hashlib.sha256(raw).hexdigest()!=mapping['core_sha256']:
+        raise ValueError('configuration bytes changed after package verification')
+    return raw
+
+
+def _configuration(project):
+    context=_derive(project)
+    path=Path(project)/'board/hps/packages'/context['package_id']/'core.rbf'
+    if any(p.is_symlink() for p in (path,*path.parents)):
+        raise ValueError('configuration payload has a symlink component')
+    raw=path.read_bytes();chunk=65536
+    if (not raw or len(raw)>8<<20 or len(raw)&3 or len(raw)!=context['core_size'] or
+            hashlib.sha256(raw).hexdigest()!=context['core_sha256']):
+        raise ValueError('bounded word-aligned sealed core required for configuration')
+    # Outside Go RAM 84000000..94000000, sealed FIT 94000000..94800000,
+    # entry staging at 96080000 and the conservative high-DDR U-Boot envelope.
+    return {'format':1,'scope':'sealed-cold-configuration-v1',
+            'package_id':context['package_id'],'build_id':context['build_id'],
+            'core_sha256':context['core_sha256'],'core_sha384':hashlib.sha384(raw).hexdigest(),
+            'core_size':len(raw),'base':0x94800000,'size':8<<20,'dram_base':0x80000000,
+            'chunk_bytes':chunk,'chunk_sha384':[hashlib.sha384(raw[i:i+chunk]).hexdigest() for i in range(0,len(raw),chunk)]}
+
+
 def _derive(project):
     project = Path(project).absolute()
     if (not project.is_relative_to(ROOT/'out') or '..' in project.parts or
@@ -138,10 +173,10 @@ def _control(project):
 def checked(record, program_key='program'):
     keys = ('hps_context', 'hps_context_sha256', 'hps_project')
     if all(record.get(key) is None for key in keys):
-        if record.get(program_key) in ('bootcontext','fpgacontext','fpgastatus'):
+        if record.get(program_key) in ('bootcontext','fpgacontext','fpgastatus','fpgaload'):
             raise ValueError('native context image is missing its sealed HPS context')
         return None
-    if any(record.get(key) is None for key in keys) or record.get(program_key) not in ('bootcontext','fpgacontext','fpgastatus'):
+    if any(record.get(key) is None for key in keys) or record.get(program_key) not in ('bootcontext','fpgacontext','fpgastatus','fpgaload'):
         raise ValueError('HPS source context requires a dedicated native context image')
     expected = derive(record['hps_project'])
     if record['hps_context'] != expected or record['hps_context_sha256'] != digest(expected):
@@ -151,8 +186,8 @@ def checked(record, program_key='program'):
 
 def checked_control(record, program_key='program'):
     keys=('hps_control','hps_control_sha256')
-    if all(record.get(key) is None for key in keys) and record.get(program_key) not in ('fpgacontext','fpgastatus'):return None
-    if record.get(program_key) not in ('fpgacontext','fpgastatus') or any(record.get(key) is None for key in keys):
+    if all(record.get(key) is None for key in keys) and record.get(program_key) not in ('fpgacontext','fpgastatus','fpgaload'):return None
+    if record.get(program_key) not in ('fpgacontext','fpgastatus','fpgaload') or any(record.get(key) is None for key in keys):
         raise ValueError('dedicated native FPGA diagnostic and sealed control map required')
     checked(record,program_key)
     expected=control(record['hps_project'])
@@ -161,7 +196,20 @@ def checked_control(record, program_key='program'):
     return expected
 
 
+def checked_configuration(record, program_key='program'):
+    keys=('hps_configuration','hps_configuration_sha256')
+    if all(record.get(key) is None for key in keys) and record.get(program_key)!='fpgaload':return None
+    if record.get(program_key)!='fpgaload' or any(record.get(key) is None for key in keys):
+        raise ValueError('cold configuration requires a dedicated native image and sealed map')
+    checked_control(record,program_key)
+    expected=configuration(record['hps_project'])
+    if record['hps_configuration']!=expected or record['hps_configuration_sha256']!=digest(expected):
+        raise ValueError('cold configuration map differs from the sealed core')
+    return expected
+
+
 if __name__ == '__main__':
-    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2]!='control':
-        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control]')
-    sys.stdout.buffer.write(encode(_control(sys.argv[1]) if len(sys.argv)==3 else _derive(sys.argv[1])))
+    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in ('control','configuration'):
+        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control|configuration]')
+    action=_derive if len(sys.argv)==2 else _control if sys.argv[2]=='control' else _configuration
+    sys.stdout.buffer.write(encode(action(sys.argv[1])))

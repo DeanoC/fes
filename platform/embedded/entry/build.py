@@ -64,7 +64,7 @@ def main():
         parser.error("cross-prefix must be absolute and end in -")
     profile_bytes = receipt_bytes = None
     native_sources = None
-    native_context = native_control = None
+    native_context = native_control = native_configuration = None
     if args.target == "qemu":
         if args.nano_build or args.profile or args.image_address is not None:
             parser.error("Nano receipt, profile and load address are only valid with --target de25-nano")
@@ -93,10 +93,18 @@ def main():
         hps=importlib.util.module_from_spec(context_spec);context_spec.loader.exec_module(hps)
         native_context=hps.checked(receipt)
         native_control=hps.checked_control(receipt)
+        native_configuration=hps.checked_configuration(receipt)
         if native_context is not None and base64.b64encode(hps.encode(native_context)) not in payload.read_bytes():
             raise ValueError('HPS context is absent from the selected native ELF')
         if native_control is not None and base64.b64encode(hps.encode(native_control)) not in payload.read_bytes():
             raise ValueError('control map is absent from the selected native ELF')
+        if native_configuration is not None and base64.b64encode(hps.encode(native_configuration)) not in payload.read_bytes():
+            raise ValueError('configuration map is absent from the selected native ELF')
+        if native_configuration is not None:
+            core=hps.core_payload(receipt['hps_project'],native_configuration)
+            if (core not in payload.read_bytes() or receipt.get('configuration_payload_sha256')!=sha(core) or
+                    sha((args.nano_build/'core-payload.go').read_bytes())!=receipt.get('generated_core_payload_sha256')):
+                raise ValueError('native core bytes differ from the sealed build source')
         def check_native_sources():
             if not native_sources:raise ValueError("missing Nano selected-source proof")
             for name,expected in native_sources.items():
@@ -109,6 +117,8 @@ def main():
         uart_base = 0x10c02000 + uart * 0x100
         staging_lower, staging_upper = 0x80000000, 0xc0000000
         exclusions = [(ram_start, ram_end)] + [(r["start"], r["start"] + r["size"]) for r in profile["reserved"]]
+        if native_configuration is not None:
+            exclusions.append((native_configuration['base'],native_configuration['base']+native_configuration['size']))
         for arena, base, size_key in ((network, "dma_start", "dma_size"),
                                       (display, "base", "size"), (fpga, "base", "size")):
             if arena:
@@ -219,6 +229,8 @@ def main():
               "hps_context_sha256":hps.digest(native_context) if native_context is not None else None,
               "hps_control":native_control,
               "hps_control_sha256":hps.digest(native_control) if native_control is not None else None,
+              "hps_configuration":native_configuration,
+              "hps_configuration_sha256":hps.digest(native_configuration) if native_configuration is not None else None,
               "hps_project":receipt['hps_project'] if native_context is not None else None,
               "sources": frozen, "tools": tools, "environment": env, "commands": commands,
               "limitations": ["no physical Nano, DDR, peripheral, DMA, bridge or reset proof",

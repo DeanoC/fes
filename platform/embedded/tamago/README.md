@@ -48,6 +48,15 @@ The Nano-only `fpgastatus` program selects the separate secure configuration
 query, checks unchanged closed source ownership and reports SDM readiness.
 It uses the same compiled source/control-map inputs and matched boot chain,
 and performs no FPGA register access or bridge opening.
+The Nano-only `fpgaload` program adds a source-bound first phase-two transfer.
+Its build derives the core bytes and whole/chunk digests from the verified
+sealed package, excludes an uncached transfer arena from every other owner,
+and binds that descriptor into native code, SPL and BL31. Private preparation
+checks the actual staged bytes under unchanged closed ownership. The same
+`ConfigurationTransfer` engine used by the runtime then drives the contained
+firmware protocol, followed by readiness and live identity with control
+reclosed. This one-shot cold profile grants no runtime compatibility or data
+release. See [contained phase-two configuration](../nano/README.md#contained-phase-two-configuration).
 The QEMU `fabric` diagnostic also models the dedicated configuration protocol
 under a hypothetical held-bridge firmware contract. Its generation-bound drain,
 buffer ownership and identity-before-release checks do not enable Nano programming.
@@ -130,7 +139,7 @@ address or firmware assumption is a DE25 board constant.
 | Storage | VirtIO reads/writes/FLUSH; Nano hardware-tested read-only SD/FAT32/package retention with secure stop/resume | Native writes and storage return across FPGA transitions |
 | Preferences | Existing preallocated FAT32 JSON file; data and metadata flushes | Allocation/update strategy and power-loss-safe publication |
 | Network | Shared IPv4/TCP/HTTP; QEMU VirtIO; Nano XGMAC 2.10 with explicit DMA/PHY profile | Nano RGMII/PHY/cache/SMMU qualification, throughput and qualified entropy |
-| FPGA | Retained-package software lifecycle connected to tenfoot Play/Back; optional Nano read-only SDM probe | Runtime-owned configuration with bridges held, live identity, reset and DMA revocation |
+| FPGA | Retained-package lifecycle connected to tenfoot Play/Back; source-bound Nano first-load prototype and read-only probes | Physical runtime admission, active drain, repeated launch/return and DMA revocation |
 
 FAT32 writes update existing preallocated files only; they cannot create,
 allocate, rename or atomically replace them. The preference record reserves

@@ -13,12 +13,13 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
 {
     uint32_t detail = 0, count = 0, id = 0, addresses[3] = {0};
     int status = INTEL_SIP_SMC_STATUS_REJECTED;
+    struct fes_nano_configuration *configuration=fes_nano_platform_configuration();
     r[0] = INTEL_SIP_SMC_STATUS_REJECTED;
     r[1] = r[2] = r[3] = 0;
     fes_nano_bridge_platform_lock();
     if (fid == FES_EMBEDDED_SD_CALL && x3 == FES_EMBEDDED_SD_COOKIE) {
         fes_nano_sd_sip(&fes_nano_owned_sd, x1, x2, x4,
-                        request_type != NO_REQUEST, r);
+                        request_type != NO_REQUEST || fes_nano_configuration_busy(configuration), r);
         if (fes_nano_owned_sd.failed) fes_nano_platform_sd_report();
         goto out;
     }
@@ -30,38 +31,47 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
         }
         if (x1 == FES_EMBEDDED_BRIDGE_CONTEXT_PART0 || x1 == FES_EMBEDDED_BRIDGE_CONTEXT_PART1) {
             fes_nano_boot_context_sip(&fes_nano_owned_bridges, x1, x2, x4,
-                                      request_type != NO_REQUEST, fes_nano_hps_context, r);
+                                      request_type != NO_REQUEST || fes_nano_configuration_busy(configuration), fes_nano_hps_context, r);
             goto out;
         }
         if (x1 == FES_EMBEDDED_BRIDGE_PROBE_IDENTITY) {
             fes_nano_identity_sip(fes_nano_platform_identity_probe(),x2,x4,
-                                   request_type != NO_REQUEST,r);
+                                   request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r);
             fes_nano_platform_identity_report();
             goto out;
         }
         if (x1 == FES_EMBEDDED_BRIDGE_CONFIGURATION) {
             fes_nano_identity_configuration_sip(fes_nano_platform_identity_probe(),x2,x4,
-                                                request_type != NO_REQUEST,r);
+                                                request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r);
             fes_nano_platform_identity_report();
+            goto out;
+        }
+        if (x1 == FES_EMBEDDED_BRIDGE_PREPARE_CONFIGURATION) {
+            fes_nano_configuration_prepare(configuration,x2,x4,request_type != NO_REQUEST,r);
             goto out;
         }
 #ifdef FES_NANO_COLD_SERIAL
         if (x1 != FES_EMBEDDED_BRIDGE_SNAPSHOT || x2 || x4) goto out;
 #endif
         fes_nano_bridge_sip(&fes_nano_owned_bridges, x1, x2, x4,
-                            request_type != NO_REQUEST, r);
+                            request_type != NO_REQUEST || fes_nano_configuration_busy(configuration), r);
         goto out;
     }
     if (fes_nano_owned_bridges.device_lease) {
         r[0] = INTEL_SIP_SMC_STATUS_BUSY;
         goto out;
     }
-#ifdef FES_NANO_COLD_SERIAL
-    /* Serial-only cold boot does not authorize reconfiguration or new masters. */
-    goto out;
-#endif
     if (x3 || x4 || (fid != INTEL_SIP_SMC_FPGA_CONFIG_WRITE && x2)) goto out;
     if (fid == INTEL_SIP_SMC_FPGA_CONFIG_START && x1) goto out;
+#ifdef FES_NANO_COLD_SERIAL
+#if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
+    status=fes_nano_configuration_before(configuration,fid,x1,x2,request_type != NO_REQUEST);
+    if(status) { r[0]=(uint32_t)status;goto out; }
+#else
+    /* Other cold profiles grant no configuration authority. */
+    goto out;
+#endif
+#endif
     if (fes_nano_bridges_configuration_guard(&fes_nano_owned_bridges) != 0) {
         r[0] = INTEL_SIP_SMC_STATUS_ERROR;
         goto out;
@@ -97,5 +107,9 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
         (fid == INTEL_SIP_SMC_FPGA_CONFIG_ISDONE && status == 0 && r[1]))
         fes_nano_owned_bridges.failed = 1;
 out:
+#if defined(FES_NANO_COLD_SERIAL) && defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
+    if(configuration && configuration->issued && configuration->issued==fid)
+        fes_nano_configuration_after(configuration,fid,r);
+#endif
     fes_nano_bridge_platform_unlock();
 }

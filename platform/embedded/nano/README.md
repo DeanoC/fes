@@ -571,6 +571,52 @@ the independently checked `fpga_identity` descriptor/map to decode this path.
 Both ready values can complete this status diagnostic; neither accepts an
 endpoint identity or runtime core load. This path needs its own physical test.
 
+## Contained phase-two configuration
+
+`run.py fpgaload --board de25-nano` selects an explicit first-load prototype.
+It requires the same exact serial profile and sealed HPS-first project as the
+identity diagnostic. Its producer embeds that package's complete core payload
+and derives a configuration descriptor with SHA-256, SHA-384, per-chunk digests
+and the fixed transfer mapping. The SDK, entry, SPL and BL31 validators rederive
+the descriptor; omitted or changed core bytes, maps and staging exclusions
+reject. The FPGA core payload is not rebuilt or modified by this path.
+
+| Owner | Range |
+| --- | --- |
+| Native Go RAM | `0x84000000..0x94000000` |
+| Sealed FIT staging | `0x94000000..0x94800000` |
+| Boot-pinned configuration arena | `0x94800000..0x95000000` |
+| Entry image | Begins at `0x96080000`; checked against every exclusion |
+
+The board maps only the explicitly selected arena as normal uncached memory,
+copies the verified core, publishes writes and retains the reservation until
+reboot. A completed transfer cannot reassign this arena. Other native programs
+have no configuration mapping. Secure code accepts no pointer or digest from
+the preparation request: its fixed addresses and expected whole/chunk digests
+are compiled into the matched cold profile.
+
+Private operation 8 prepares one transfer under the existing owner lock and
+generation 1. The four existing contained configuration calls then validate
+the same closed bridge/master scope, exact chunk extents and SDM-relative
+completions. The native command uses the runtime's shared transfer engine;
+accepted BUSY writes cannot replay, and an uncertain response or deadline
+retains the issued memory. Context, SD and endpoint requests cannot interleave
+with a prepared/running transfer. No configuration call opens a bridge.
+
+After completion, native code verifies the same closed source ownership and
+reports the exact programmed-byte digest and count. A separate fresh SDM
+readiness query precedes the existing secure identity probe, which opens only
+control and closes it again before success. The serial decoder additionally
+checks the ordered transfer and complete byte count before accepting that
+live-identity observation. Ordinary probe decoders reject transfer traffic.
+
+This source-bound cold profile is a hardware-qualification candidate. No
+contained physical transfer is accepted yet. It enables neither an active
+reader nor data bridges, secondary CPUs, active drain, runtime package
+admission or repeated core launch/return. The production oracle continues to
+reject this diagnostic target, and `HPSContextVerifier` does not implement
+`BootHandoffVerifier`.
+
 ## Contained native boot procedure
 
 1. Claim the top board in its current status file, verify serial/cable/UART,

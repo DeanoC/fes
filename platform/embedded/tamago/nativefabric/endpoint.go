@@ -4,11 +4,9 @@
 package nativefabric
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"math"
 	"time"
 
@@ -56,24 +54,22 @@ type Options struct {
 }
 
 type Endpoint struct {
-	hooks          Hooks
-	owner          *fabricmodel.Controller
-	clock          func() time.Duration
-	ctrl           embeddedcontrol.Control
-	options        Options
-	command        *fabricmodel.Command
-	phase          string
-	cookie         uint64
-	target         embeddedcontrol.Identity
-	imageHash      [32]byte
-	chunkHashes    [][32]byte
-	region         *Region
-	offset, amount int
-	retained       []*Region
-	retired        bool
-	issued         fabricmodel.Operation
-	progressed     bool
-	pollBusy       bool
+	hooks      Hooks
+	owner      *fabricmodel.Controller
+	clock      func() time.Duration
+	ctrl       embeddedcontrol.Control
+	options    Options
+	command    *fabricmodel.Command
+	phase      string
+	cookie     uint64
+	target     embeddedcontrol.Identity
+	imageHash  [32]byte
+	transfer   *ConfigurationTransfer
+	retained   []*Region
+	retired    bool
+	issued     fabricmodel.Operation
+	progressed bool
+	pollBusy   bool
 }
 
 func New(hooks Hooks, options Options) (*Endpoint, error) {
@@ -125,7 +121,7 @@ func (e *Endpoint) Step(c *fabricmodel.Controller, now time.Duration) error {
 	e.issued = ""
 	e.progressed = false
 	e.pollBusy = false
-	beforeCommand, beforePhase, beforeOffset := e.command, e.phase, e.offset
+	beforeCommand, beforePhase := e.command, e.phase
 	next, err := c.Next(now)
 	if err != nil {
 		e.retired = true
@@ -146,7 +142,7 @@ func (e *Endpoint) Step(c *fabricmodel.Controller, now time.Duration) error {
 		return errors.New("native fabric: overlapping lifecycle commands")
 	}
 	done, result := e.advance()
-	e.progressed = next != nil || done || e.pollBusy || beforeCommand != e.command || beforePhase != e.phase || beforeOffset != e.offset
+	e.progressed = next != nil || done || e.pollBusy || beforeCommand != e.command || beforePhase != e.phase
 	if !done {
 		return nil
 	}
@@ -230,20 +226,7 @@ func (e *Endpoint) resolve(id fabricmodel.Identity) (embeddedcontrol.Identity, e
 	}
 	return identity, err
 }
-func (e *Endpoint) call(req [7]uint64) ([4]uint64, error) { return e.hooks.Invoke(req) }
-func plain(r [4]uint64) bool                              { return r[1] == 0 && r[2] == 0 && r[3] == 0 }
-func (e *Endpoint) stable() bool {
-	return e.region != nil && sha256.Sum256(e.region.Bytes) == e.imageHash && sha256.Sum256(e.command.Bytes) == e.imageHash
-}
-func (e *Endpoint) stableChunk() bool {
-	if e.region == nil || e.offset < 0 || e.amount <= 0 || e.offset+e.amount > len(e.region.Bytes) || e.offset+e.amount > len(e.command.Bytes) {
-		return false
-	}
-	index := e.offset / e.options.ChunkBytes
-	return index < len(e.chunkHashes) && sha256.Sum256(e.region.Bytes[e.offset:e.offset+e.amount]) == e.chunkHashes[index] &&
-		sha256.Sum256(e.command.Bytes[e.offset:e.offset+e.amount]) == e.chunkHashes[index]
-}
-
+func plain(r [4]uint64) bool { return r[1] == 0 && r[2] == 0 && r[3] == 0 }
 func (e *Endpoint) advance() (bool, fabricmodel.Completion) {
 	c := e.command
 	switch c.Operation {
@@ -369,8 +352,7 @@ func (e *Endpoint) advance() (bool, fabricmodel.Completion) {
 
 func (e *Endpoint) program() (bool, fabricmodel.Completion) {
 	c := e.command
-	switch e.phase {
-	case "begin":
+	if e.phase == "begin" {
 		if len(c.Bytes) == 0 {
 			return failed(errors.New("native fabric: empty image"), false)
 		}
@@ -389,106 +371,33 @@ func (e *Endpoint) program() (bool, fabricmodel.Completion) {
 		region, err := e.hooks.Reserve(c.Bytes)
 		if region != nil {
 			e.retained = append(e.retained, region)
-			e.region = region
 		}
 		if err != nil {
 			return failed(err, true)
 		}
-		if region == nil || region.Release == nil || len(region.Bytes) != len(c.Bytes) || !bytes.Equal(region.Bytes, c.Bytes) ||
-			region.Address%64 != 0 || region.Address <= e.options.DRAMBase || region.Address-e.options.DRAMBase > math.MaxUint32 ||
-			uint64(len(region.Bytes))-1 > math.MaxUint32-(region.Address-e.options.DRAMBase) ||
-			uint64(len(region.Bytes))-1 > math.MaxUint64-region.Address {
-			return failed(errors.New("native fabric: invalid reserved DMA region"), true)
-		}
-		e.offset = 0
-		e.chunkHashes = nil
-		for offset := 0; offset < len(c.Bytes); offset += e.options.ChunkBytes {
-			end := min(offset+e.options.ChunkBytes, len(c.Bytes))
-			e.chunkHashes = append(e.chunkHashes, sha256.Sum256(c.Bytes[offset:end]))
-		}
-		e.phase = "start"
-		return false, fabricmodel.Completion{}
-	case "start":
-		if !e.stable() {
-			return failed(errors.New("native fabric: staged image changed"), true)
-		}
-		if c.Identity.Package != (fabricmodel.PackageIdentity{}) {
-			if err := e.verifyBootHandoff(c.Identity.Package); err != nil {
-				return failed(err, true)
+		beforeStart := func() error {
+			if c.Identity.Package != (fabricmodel.PackageIdentity{}) {
+				return e.verifyBootHandoff(c.Identity.Package)
 			}
+			return nil
 		}
-		r, err := e.call([7]uint64{start})
-		if err != nil || r[0] != 0 || !plain(r) {
-			if err == nil {
-				err = fmt.Errorf("native fabric: START returned %v", r)
-			}
-			return failed(err, true)
-		}
-		e.phase = "write"
-		return false, fabricmodel.Completion{}
-	case "write":
-		if e.offset == len(e.region.Bytes) {
-			e.phase = "done"
-			return false, fabricmodel.Completion{}
-		}
-		e.amount = min(e.options.ChunkBytes, len(e.region.Bytes)-e.offset)
-		if !e.stableChunk() {
-			return failed(errors.New("native fabric: staged image changed"), true)
-		}
-		r, err := e.call([7]uint64{write, e.region.Address + uint64(e.offset), uint64(e.amount)})
-		if err != nil || (r[0] != 0 && r[0] != 1) || !plain(r) {
-			if err == nil {
-				err = fmt.Errorf("native fabric: WRITE returned %v", r)
-			}
-			return failed(err, true)
-		}
-		// BUSY also accepted this write. Never reissue it.
-		e.phase = "completion"
-		return false, fabricmodel.Completion{}
-	case "completion":
-		if !e.stableChunk() {
-			return failed(errors.New("native fabric: asynchronous image mutation"), true)
-		}
-		r, err := e.call([7]uint64{completed})
+		e.transfer, err = NewConfigurationTransfer(e.hooks, c.Bytes, region, e.options.DRAMBase, e.options.ChunkBytes, beforeStart)
 		if err != nil {
 			return failed(err, true)
 		}
-		if r[0] == 1 && plain(r) {
-			e.pollBusy = true
-			return false, fabricmodel.Completion{}
-		}
-		want := e.region.Address + uint64(e.offset) - e.options.DRAMBase
-		if r != ([4]uint64{0, want, 0, 0}) {
-			return failed(fmt.Errorf("native fabric: unexpected completion %v", r), true)
-		}
-		e.offset += e.amount
-		e.phase = "write"
+		e.phase = e.transfer.Status().Phase
 		return false, fabricmodel.Completion{}
-	case "done":
-		if !e.stable() {
-			return failed(errors.New("native fabric: staged image changed"), true)
-		}
-		r, err := e.call([7]uint64{isdone})
-		if err != nil {
-			return failed(err, true)
-		}
-		if r[0] == 1 && plain(r) {
-			e.pollBusy = true
-			return false, fabricmodel.Completion{}
-		}
-		if r != ([4]uint64{}) {
-			return failed(fmt.Errorf("native fabric: ISDONE returned %v", r), true)
-		}
-		e.phase = "retire"
-		return false, fabricmodel.Completion{}
-	case "retire":
-		if err := e.region.Release(); err != nil {
-			return failed(err, true)
-		}
-		e.retained = e.retained[:len(e.retained)-1]
-		e.region = nil
-		e.chunkHashes = nil
-		return true, fabricmodel.Completion{ProgrammedDigest: e.imageHash}
 	}
-	return failed(errors.New("native fabric: invalid program phase"), true)
+	done, busy, err := e.transfer.Advance()
+	e.pollBusy = busy
+	e.phase = e.transfer.Status().Phase
+	if err != nil {
+		return failed(err, true)
+	}
+	if !done {
+		return false, fabricmodel.Completion{}
+	}
+	e.retained = e.retained[:len(e.retained)-1]
+	e.transfer = nil
+	return true, fabricmodel.Completion{ProgrammedDigest: e.imageHash}
 }

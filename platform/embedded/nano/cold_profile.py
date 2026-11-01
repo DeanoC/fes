@@ -46,8 +46,11 @@ def entry(entry_build):
         if sha(ROOT/name)!=expected:raise ValueError('entry producer source changed: '+name)
     context=hps_context.checked(receipt,program_key='native_program')
     hps_context.checked_control(receipt,program_key='native_program')
+    configuration=hps_context.checked_configuration(receipt,program_key='native_program')
     if context is not None and profile.name!='probe-profile.json':
         raise ValueError('HPS context diagnostic requires the contained serial profile')
+    if configuration is not None and [configuration['base'],configuration['base']+configuration['size']] not in receipt.get('staging_exclusions',[]):
+        raise ValueError('cold configuration arena is not excluded from entry staging')
     return image,receipt_path
 
 
@@ -58,7 +61,7 @@ def sources():
                             'nano_boot.c','nano_bridges.h','nano_bridges.c','nano_bridge_platform.inc','nano_bridge_platform.h',
                             'nano_owned_sip.inc','prepare_nano_owned.py','prepare_tfa.py',
                             'nano_bridge_sip.c','nano_bridge_sip.h','generated/fes_embedded_bridges.h',
-                            'nano_identity.c','nano_identity.h','generated/fes_embedded_control.h',
+                            'nano_identity.c','nano_identity.h','nano_configuration.c','nano_configuration.h','generated/fes_embedded_control.h',
                             'generated/fes_embedded_control.hpp','nano_bridge_diag.h','nano_bridge_diag.inc',
                             'build_terasic.py','build_terasic_uboot.py','verify.py')]
 
@@ -68,6 +71,7 @@ def make(entry_build):
     build=json.loads(receipt.read_text());profile=selected_profile(build)
     context=hps_context.checked(build,program_key='native_program')
     control=hps_context.checked_control(build,program_key='native_program')
+    configuration=hps_context.checked_configuration(build,program_key='native_program')
     selected=sources()+ (hps_context.inputs() if context is not None else [])
     inputs={str(p.relative_to(ROOT)):sha(p) for p in selected}
     identity={'format':1,'profile':'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
@@ -79,7 +83,8 @@ def make(entry_build):
               'tfa_pin':'580dcb5c4e10aa7daff2bf69d493c076a6d3e665',
               'reference_sof_sha256':context['raw_sof_sha256'] if context else 'e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09',
               'hps_context':context,'hps_context_sha256':hps_context.digest(context) if context else None,
-              'hps_control':control,'hps_control_sha256':hps_context.digest(control) if control else None}
+              'hps_control':control,'hps_control_sha256':hps_context.digest(control) if control else None,
+              'hps_configuration':configuration,'hps_configuration_sha256':hps_context.digest(configuration) if configuration else None}
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     identity['owner_seed']=int(identity['chain_sha256'][:16],16)|1
     identity['entry_receipt_sha256']=sha(receipt)
@@ -95,6 +100,17 @@ def header(profile):
                 '#define FES_NANO_CONTROL_ABI '+hex(context['control_abi'])+'U\n'
                 '#define FES_NANO_CONTROL_BUILD {'+','.join('0x'+build[i:i+8]+'U' for i in (24,16,8,0))+'}\n'
                 '#define FES_NANO_CONTROL_MAP_SHA '+array(profile['hps_control_sha256'])+'\n')
+    configuration=profile.get('hps_configuration')
+    if configuration is not None and (control is None or profile['sd_pio']):
+        raise ValueError('cold configuration requires the contained control profile without SD')
+    extra+='#define FES_NANO_COLD_CONFIG '+str(int(configuration is not None))+'\n'
+    if configuration is not None:
+        extra+=('#define FES_NANO_CONFIG_BASE '+hex(configuration['base'])+'ULL\n'
+                '#define FES_NANO_CONFIG_ARENA_SIZE '+str(configuration['size'])+'U\n'
+                '#define FES_NANO_CONFIG_BYTES '+str(configuration['core_size'])+'U\n'
+                '#define FES_NANO_CONFIG_CHUNK '+str(configuration['chunk_bytes'])+'U\n'
+                '#define FES_NANO_CONFIG_SHA384 '+array(configuration['core_sha384'])+'\n'
+                '#define FES_NANO_CONFIG_CHUNK_DIGESTS {'+','.join(array(value) for value in configuration['chunk_sha384'])+'}\n')
     return ('/* Generated, same source-bound diagnostic chain in SPL and BL31. */\n'
             +extra+
             '#define FES_NANO_CONTROLLED_SD '+str(int(profile['sd_pio']))+'\n'

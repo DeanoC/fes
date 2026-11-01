@@ -59,10 +59,35 @@ void fes_nano_bridge_platform_unlock(void) {}
 #define FPGA_CONFIG_BUFFER_SIZE 1
 static unsigned request_type,engine_calls;
 static struct { unsigned write_requested; } fpga_config_buffers[1];
+#if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
+static unsigned configuration_mutation,configuration_polls;
+static uint32_t configuration_address;
+static int intel_fpga_config_start(uint64_t v) {
+    assert(!v && bridge==15);engine_calls++;request_type=RECONFIGURATION;
+    return configuration_mutation==50 ? 4 : 0;
+}
+static int intel_fpga_config_write(uint64_t a,uint64_t b) {
+    assert(a>=FES_NANO_CONFIG_BASE && a+b<=FES_NANO_CONFIG_BASE+FES_NANO_CONFIG_BYTES && b && b<=FES_NANO_CONFIG_CHUNK && bridge==15);
+    engine_calls++;configuration_address=(uint32_t)a;fpga_config_buffers[0].write_requested=1;return 1;
+}
+static int intel_fpga_config_completed_write(uint32_t *a,uint32_t *b,uint32_t *c) {
+    assert(configuration_address && bridge==15);engine_calls++;
+    a[0]=configuration_mutation==49 ? configuration_address : configuration_address-0x80000000U;
+    *b=1;*c=0;configuration_address=0;fpga_config_buffers[0].write_requested=0;
+    if(configuration_mutation==51)((uint8_t *)(uintptr_t)FES_NANO_CONFIG_BASE)[0]^=1;
+    return 0;
+}
+static int intel_mailbox_fpga_config_isdone(uint32_t *v) {
+    assert(!fpga_config_buffers[0].write_requested && bridge==15);engine_calls++;*v=0;
+    if(configuration_mutation==52 && !configuration_polls++)return 1;
+    request_type=NO_REQUEST;return 0;
+}
+#else
 static int intel_fpga_config_start(uint64_t v) { (void)v;engine_calls++;return 4; }
 static int intel_fpga_config_write(uint64_t a,uint64_t b) { (void)a;(void)b;engine_calls++;return 4; }
 static int intel_fpga_config_completed_write(uint32_t *a,uint32_t *b,uint32_t *c) { (void)a;(void)b;(void)c;engine_calls++;return 4; }
 static int intel_mailbox_fpga_config_isdone(uint32_t *v) { (void)v;engine_calls++;return 4; }
+#endif
 static uint32_t fes_contained_isdone_detail(uint32_t a,uint32_t b) { (void)a;return b; }
 #if !defined(FES_NANO_CONTROLLED_SD) || !FES_NANO_CONTROLLED_SD
 void fes_nano_platform_sd_report(void) {}
@@ -185,6 +210,80 @@ int main(int argc,char **argv)
     assert(reply[0]==0 && (uint32_t)reply[1]==0xdf && reply[2]==record.owner && reply[3]==1);
     assert(masters.owns(masters.context,record.owner,record.epoch)==1);
     fes_nano_owned_bridges=b;
+#if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
+    if(mutation==0 || mutation>=43) {
+        configuration_mutation=mutation;
+        uint8_t *data=mmap((void *)(uintptr_t)FES_NANO_CONFIG_BASE,FES_NANO_CONFIG_ARENA_SIZE,
+                           PROT_READ|PROT_WRITE,MAP_ANONYMOUS|MAP_PRIVATE|MAP_FIXED_NOREPLACE,-1,0);
+        assert(data==(void *)(uintptr_t)FES_NANO_CONFIG_BASE);
+        for(unsigned i=0;i<FES_NANO_CONFIG_BYTES;i++)data[i]=(uint8_t)i;
+        assert(fes_nano_platform_identity_setup()==1 && fes_nano_platform_configuration_setup()==1);
+        if(mutation==43)data[0]^=1;
+        if(mutation==44)sctlr=4;
+        if(mutation==45)power[1]=1;
+        if(mutation==56)per0&=~0x80U;
+        if(mutation==53) {
+            fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_START,0,0,0,0,reply);
+            assert(reply[0]==2 && !engine_calls);
+        }
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PREPARE_CONFIGURATION,
+                           record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        if(mutation==43 || mutation==44 || mutation==45 || mutation==56) {
+            assert(reply[0]==4 && !reply[2] && !reply[3] && !engine_calls && !fpga_reads && bridge==15);
+            assert(fes_nano_platform_configuration()->failed && fes_nano_owned_bridges.failed);return 0;
+        }
+        assert(!reply[0] && reply[1]==((uint64_t)FES_EMBEDDED_BRIDGE_PREPARATION_TAG<<32|FES_NANO_CONFIG_BYTES));
+        assert(reply[2]==record.owner && reply[3]==1 && !engine_calls);
+        for(unsigned op=4;op<=7;op++) {
+            fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,op,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+            assert(reply[0]==1 && !fpga_reads && !config_calls && !engine_calls);
+        }
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
+        assert(!reply[0] && reply[2]==record.owner && reply[3]==1 && (uint32_t)reply[1]==0xdf);
+        if(mutation==46)data[0]^=1;
+        if(mutation==57)fes_nano_owned_bridges.state.generation++;
+        fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_START,0,0,0,0,reply);
+        if(mutation==46 || mutation==50 || mutation==57) {
+            assert(reply[0]==4 && !fpga_reads && bridge==15 && fes_nano_platform_configuration()->failed);
+            assert(engine_calls==(mutation==50?1U:0U));return 0;
+        }
+        assert(!reply[0] && engine_calls==1);
+        uint32_t amount=FES_NANO_CONFIG_BYTES<FES_NANO_CONFIG_CHUNK ? FES_NANO_CONFIG_BYTES : FES_NANO_CONFIG_CHUNK;
+        fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_WRITE,FES_NANO_CONFIG_BASE+(mutation==47?64U:0U),
+                           amount,0,0,reply);
+        if(mutation==47) {assert(reply[0]==4 && engine_calls==1 && bridge==15 && fes_nano_platform_configuration()->failed);return 0;}
+        assert(reply[0]==1 && engine_calls==2);
+        if(mutation==48)data[0]^=1;
+        fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE,0,0,0,0,reply);
+        if(mutation==48 || mutation==49 || mutation==51) {
+            assert(reply[0]==4 && !reply[1] && !reply[2] && !reply[3] && bridge==15 && !fpga_reads);
+            assert(fes_nano_platform_configuration()->failed && fes_nano_platform_configuration()->pending==amount);
+            assert(engine_calls==(mutation==48?2U:3U));return 0;
+        }
+        assert(!reply[0] && reply[1]==FES_NANO_CONFIG_BASE-0x80000000ULL && !reply[2] && !reply[3]);
+        for(uint32_t offset=amount;offset<FES_NANO_CONFIG_BYTES;) {
+            amount=FES_NANO_CONFIG_BYTES-offset;
+            if(amount>FES_NANO_CONFIG_CHUNK)amount=FES_NANO_CONFIG_CHUNK;
+            fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_WRITE,FES_NANO_CONFIG_BASE+offset,amount,0,0,reply);
+            assert(reply[0]==1 && bridge==15);
+            fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE,0,0,0,0,reply);
+            assert(!reply[0] && reply[1]==FES_NANO_CONFIG_BASE+offset-0x80000000ULL && !reply[2] && !reply[3]);
+            offset+=amount;
+        }
+        fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_ISDONE,0,0,0,0,reply);
+        if(mutation==52) {
+            assert(reply[0]==1 && !reply[1]);
+            fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_ISDONE,0,0,0,0,reply);
+        }
+        assert(!reply[0] && !reply[1] && !reply[2] && !reply[3] && bridge==15);
+        assert(fes_nano_platform_configuration()->finished && !fes_nano_platform_configuration()->failed);
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
+        assert(!reply[0] && reply[2]==record.owner && reply[3]==1 && (uint32_t)reply[1]==0xdf);
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(!reply[0] && fpga_reads==30 && bridge==15 && fes_nano_owned_bridges.state.generation==3);
+        return 0;
+    }
+#endif
 #if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
     invalid_sd_clock=mutation==22;invalid_sd_route=mutation==23;
     if(mutation==24)per0|=FES_NANO_SD_PHY_RESET;

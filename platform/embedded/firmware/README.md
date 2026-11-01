@@ -1,9 +1,10 @@
 # Contained firmware and FPGA control prototype
 
-This is hardware-independent source and integration work for the Linux-free
-base. It supplies a pinned TF-A source transformation, a freestanding C++14
-control adapter, and verification against actual FPGA RTL. It is not a Nano
-boot image, a TamaGo programming binding or hardware acceptance.
+This is exploratory firmware and native integration for the Linux-free base.
+It supplies a pinned TF-A source transformation, a freestanding C++14 control
+adapter, and verification against actual FPGA RTL. These tools build firmware
+components; the Nano tools assemble the matched experimental boot images.
+Software tests and cross-builds remain distinct from hardware acceptance.
 
 The shared [contract](../../../sources/mister-packages/docs/embedded-control.md)
 owns the register offsets and private firmware query. Its generated C++ and
@@ -30,6 +31,29 @@ The contained variant:
 - Handles START's null remapper argument while preserving WRITE's CPU-to-SDM
   relative-address conversion.
 - Exposes the local experimental capability query documented in the contract.
+
+The source-bound `fpgaload` cold profile additionally installs
+`nano_configuration.c`. Private operation 8 prepares exactly the sealed core
+in its fixed, boot-pinned uncached DDR arena. The strong platform uses the
+already pinned vendor SHA-384 primitives to compare the whole core and every
+chunk with compiled digests; it does not use the convenience wrapper that
+touches the watchdog. The gate brackets these reads with live cold ownership
+checks and requires EL3 translation and data cache disabled.
+
+Only this explicitly generated profile enables the four existing configuration
+operations after preparation. Closed bridge masks, generation 1, never-enabled
+history and contained masters must remain unchanged. WRITE accepts only its
+next fixed chunk, including the final short chunk; accepted BUSY cannot replay
+it. Completion addresses use the reviewed SDM-relative namespace. Configuration
+does not open control or data. A later independent readiness query precedes
+the secure live-identity probe and control reclose.
+
+Invalid scope, changed bytes, uncertain replies or failed completion retire
+authority and keep memory owned until reboot. No reset-bit repair or implicit
+retry stands in for drain proof. Other cold profiles still deny configuration,
+and the capability query still supplies no runtime activation authority. This
+first-load profile permits one configuration per cold boot; active drain,
+ordinary launch/return and production admission remain unqualified.
 
 The Terasic source additionally sends an SDM isolation request during START.
 The contained variant rejects unsupported flags and disables bridges before

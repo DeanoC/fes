@@ -50,6 +50,26 @@ preserves the old core, with input retired, as in the existing lifecycle.
 
 ## Platform responsibilities
 
+`ConfigurationTransfer` is the shared START/WRITE/COMPLETED_WRITE/ISDONE engine
+used by this endpoint and the Nano's first contained phase-two loader. It owns
+no lifecycle, board policy or bridge operation. Its caller supplies the actual
+reserved DMA bytes, qualified transport, DRAM base and chunk size, checks the
+monotonic deadline before and after each step, and retains uncertain storage.
+Accepted BUSY writes are not replayed; only the exact outstanding relative
+address can complete a buffer. Mutation during calls, malformed replies and
+cancellation permanently retire the transfer. The final bytes are rechecked
+before release, and a failed release cannot be retried.
+
+The source-bound `HPSContextVerifier.PrepareConfiguration` method validates the
+compiled control and configuration maps, the staged whole/chunk digests and
+fresh closed ownership before issuing private operation 8. It carries no
+address or digest in the request. The secure provider independently checks its
+fixed arena and compiled digests. Preparation and transfer do not implement
+`BootHandoffVerifier`, admit a Nano programming profile or activate a core.
+The board's first-load arena remains pinned until reboot, including after
+successful DMA completion. Active drain and repeated runtime loads remain
+separate qualification work.
+
 Hooks are trusted and serialized. `Resolve` supplies identity only for the
 unpackaged idle/software-model fixtures. Admitted packages instead use the
 retained descriptor and an explicit `IdentityProfile`; callers must qualify

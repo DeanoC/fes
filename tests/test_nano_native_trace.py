@@ -311,6 +311,71 @@ class NativeFPGAConfigurationTraceTests(unittest.TestCase):
             with self.assertRaises(ValueError):trace.decode_native_boot(b'',BUILD,SEED,**extra)
 
 
+class NativeContainedConfigurationTraceTests(unittest.TestCase):
+    identity=NativeFPGAIdentityTraceTests.expected
+    configuration={'format':1,'scope':'sealed-cold-configuration-v1','package_id':identity['package_id'],
+                   'build_id':identity['build_id'],'core_sha256':'e'*64,'core_sha384':'f'*96,
+                   'core_size':65664,'base':0x94800000,'size':8<<20,'dram_base':0x80000000,
+                   'chunk_bytes':65536,'chunk_sha384':['1'*96,'2'*96]}
+
+    def capture(self):
+        raw=NativeFPGAConfigurationTraceTests().capture().replace('programming=unavailable','runtime_programming=unavailable')
+        def row(phase,completed,pending):
+            return f'NOTICE:  FES_NANO_CORE_TRANSFER phase={phase} owner={OWNER:x} generation=1 completed={completed} pending={pending} total=65664 base=94800000\r\n'
+        transfer=(row('arm',0,0)+row('start',0,0)+row('write',0,65536)+row('poll',0,65536)+
+                  row('poll',0,65536)+row('write',65536,128)+row('poll',65536,128)+
+                  row('status',65664,0)+row('status',65664,0)+row('complete',65664,0))
+        transfer+=f'FES_NATIVE_FPGA_PROGRAMMED PASS package_id={self.identity["package_id"]} core_sha256={"e"*64} bytes=65664 owner={OWNER:x} generation=1 data_held=1 activation=unavailable\r\n'
+        return raw.replace('FES_NANO_CONFIG_QUERY',transfer+'FES_NANO_CONFIG_QUERY',1)
+
+    def decode(self,raw):
+        return trace.decode_native_configuration(raw,BUILD,SEED,fpga_identity=self.identity,configuration=self.configuration)
+
+    def test_complete_transfer_then_live_identity_remains_contained_diagnostic(self):
+        raw=self.capture();result=self.decode(raw)
+        self.assertTrue(result['complete'],result)
+        self.assertTrue(result['configuration_transfer']['complete'])
+        self.assertEqual(result['configuration_transfer']['completed_bytes'],65664)
+        self.assertFalse(result['core_load_acceptance'])
+        self.assertEqual(result['last_checkpoint'],'fpga_identity')
+        self.assertEqual(sum(row['stage'].startswith('configuration_') for row in result['records']),11)
+        self.assertFalse(trace.decode_native_boot(raw,BUILD,SEED,fpga_identity=self.identity,fpga_configuration=True)['complete'])
+        ordinary=NativeFPGAConfigurationTraceTests().capture()
+        self.assertFalse(self.decode(ordinary)['complete'])
+
+    def test_omissions_duplicates_reordering_and_partial_transfer_never_complete(self):
+        raw=self.capture();result=self.decode(raw);lines=raw.splitlines(keepends=True)
+        rows=[row for row in result['records'] if row['stage'].startswith('configuration_')]
+        for row in rows:
+            index=row['line']-1
+            with self.subTest(stage=row['stage'],line=index):
+                optional=(row['stage'] in ('configuration_poll','configuration_status') and
+                          any(other is not row and other['stage']==row['stage'] and other['values']==row['values'] for other in rows))
+                self.assertEqual(self.decode(''.join(lines[:index]+lines[index+1:]))['complete'],optional)
+                if row['stage'] not in ('configuration_poll','configuration_status'):
+                    self.assertFalse(self.decode(''.join(lines[:index]+[lines[index]]+lines[index:]))['complete'])
+                self.assertFalse(self.decode(''.join(lines[:index])+lines[index].rstrip('\r\n'))['complete'])
+        first=rows[0]['line']-1;last=rows[-1]['line']-1
+        moved=list(lines);moved[first],moved[last]=moved[last],moved[first]
+        self.assertFalse(self.decode(''.join(moved))['complete'])
+        partial=self.decode(raw.split('FES_NANO_CORE_TRANSFER phase=write')[0])
+        self.assertFalse(partial['complete']);self.assertFalse(partial['errors'])
+
+    def test_changed_owner_extent_memory_identity_and_readiness_reject(self):
+        raw=self.capture()
+        mutations=(('phase=arm','phase=FAIL'),('total=65664','total=65660'),('base=94800000','base=94000000'),
+                   ('completed=65536 pending=128','completed=65532 pending=128'),
+                   ('completed=0 pending=65536','completed=0 pending=128'),
+                   ('phase=start','phase=write'),('generation=1 completed=','generation=2 completed='),
+                   (f'phase=arm owner={OWNER:x}',f'phase=arm owner={OWNER+2:x}'),
+                   ('bytes=65664 owner=','bytes=65660 owner='),('core_sha256='+'e'*64,'core_sha256='+'d'*64),
+                   ('soft=3','soft=1'),('ready=1','ready=0'))
+        for old,new in mutations:
+            with self.subTest(new=new):self.assertFalse(self.decode(raw.replace(old,new))['complete'])
+        with self.assertRaises(ValueError):
+            trace.decode_native_configuration(b'',BUILD,SEED,fpga_identity=self.identity,configuration=dict(self.configuration,base=0x94000000))
+
+
 class NativeSDTraceTests(unittest.TestCase):
     expected={'bytes':1098,'sha256':'a'*64}
     def capture(self):

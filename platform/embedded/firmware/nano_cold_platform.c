@@ -147,6 +147,67 @@ int fes_nano_platform_identity_setup(void)
 }
 #endif
 
+#if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
+#if !defined(FES_NANO_CONTROL_PROBE) || !FES_NANO_CONTROL_PROBE || FES_NANO_CONTROLLED_SD
+#error "Cold configuration requires the source-bound control profile without an SD lease"
+#endif
+#include "sha.h"
+static struct fes_nano_configuration configuration;
+static const uint8_t configuration_hash[48]=FES_NANO_CONFIG_SHA384;
+static const uint8_t configuration_chunks[][48]=FES_NANO_CONFIG_CHUNK_DIGESTS;
+struct fes_nano_configuration *fes_nano_platform_configuration(void) { return &configuration; }
+static int configuration_check(void *context, uint64_t address, uint32_t bytes, unsigned whole)
+{
+    struct fes_nano_cold *s=context;
+    uint8_t observed[48];const uint8_t *expected;
+    if(whole>1 || s->control_expected || (read_sctlr_el3()&5U) ||
+       fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ||
+       address<FES_NANO_CONFIG_BASE || address>FES_NANO_CONFIG_BASE+FES_NANO_CONFIG_BYTES ||
+       !bytes || bytes>FES_NANO_CONFIG_BYTES-(address-FES_NANO_CONFIG_BASE))return -1;
+    if(whole) {
+        if(address!=FES_NANO_CONFIG_BASE || bytes!=FES_NANO_CONFIG_BYTES)return -1;
+        expected=configuration_hash;
+    } else {
+        uint64_t offset=address-FES_NANO_CONFIG_BASE;
+        unsigned index=(unsigned)(offset/FES_NANO_CONFIG_CHUNK);
+        uint32_t amount=FES_NANO_CONFIG_BYTES-(uint32_t)offset;
+        if(amount>FES_NANO_CONFIG_CHUNK)amount=FES_NANO_CONFIG_CHUNK;
+        if(offset%FES_NANO_CONFIG_CHUNK || index>=sizeof(configuration_chunks)/48 || bytes!=amount)return -1;
+        expected=configuration_chunks[index];
+    }
+    dsbsy();
+    /* Use the already pinned vendor's pure SHA-384 primitives. Its convenience
+     * sha384_start wrapper also touches the watchdog and is not used here. */
+    sha512_context hash;
+    sha384_init(&hash);sha384_update(&hash,(const uint8_t *)(uintptr_t)address,bytes);sha384_finish(&hash,observed);
+    dsbsy();
+    return (read_sctlr_el3()&5U) || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ||
+           memcmp(expected,observed,48) ? -1 : 0;
+}
+static void configuration_trace(void *context, unsigned stage, uint32_t completed, uint32_t pending)
+{
+    (void)context;
+    static const char *names[]={"init","arm","start","write","poll","status","complete","FAIL"};
+    const char *name=stage<sizeof(names)/sizeof(names[0]) ? names[stage] : "FAIL";
+    NOTICE("FES_NANO_CORE_TRANSFER phase=%s owner=%llx generation=%llu completed=%u pending=%u total=%u base=%llx\n",
+           name,(unsigned long long)fes_nano_owned_bridges.state.owner,
+           (unsigned long long)fes_nano_owned_bridges.state.generation,
+           completed,pending,FES_NANO_CONFIG_BYTES,(unsigned long long)FES_NANO_CONFIG_BASE);
+}
+int fes_nano_platform_configuration_setup(void)
+{
+    unsigned nonzero=0;
+    for(unsigned i=0;i<48;i++)nonzero|=configuration_hash[i];
+    unsigned qualified=nonzero && !(read_sctlr_el3()&5U) &&
+        FES_NANO_CONFIG_BASE==0x94800000ULL && FES_NANO_CONFIG_ARENA_SIZE==(8U<<20) &&
+        FES_NANO_CONFIG_BYTES<=FES_NANO_CONFIG_ARENA_SIZE && FES_NANO_CONFIG_CHUNK==65536U &&
+        sizeof(configuration_chunks)/48==(FES_NANO_CONFIG_BYTES+FES_NANO_CONFIG_CHUNK-1)/FES_NANO_CONFIG_CHUNK;
+    struct fes_nano_configuration_ops io={.context=&provider,.check=configuration_check,.trace=configuration_trace};
+    return fes_nano_configuration_init(&configuration,&fes_nano_owned_bridges,io,FES_NANO_CONFIG_BASE,
+                                       FES_NANO_CONFIG_BYTES,FES_NANO_CONFIG_CHUNK,qualified) ? -1 : 1;
+}
+#endif
+
 #if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
 static struct fes_nano_sd_platform sd_platform;
 static unsigned sd_reported;

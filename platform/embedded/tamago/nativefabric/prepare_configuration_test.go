@@ -1,0 +1,190 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package nativefabric
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"testing"
+)
+
+func canonicalConfiguration(t *testing.T, value interface{}) []byte {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]json.RawMessage
+	if err = json.Unmarshal(raw, &fields); err != nil {
+		t.Fatal(err)
+	}
+	raw, err = json.Marshal(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return append(raw, '\n')
+}
+
+func configurationSource(t *testing.T) ([]byte, []byte, *Region) {
+	t.Helper()
+	data := bytes.Repeat([]byte{0x5a}, 128)
+	sum, sum384 := sha256.Sum256(data), sha512.Sum384(data)
+	var source HPSBootContext
+	if err := json.Unmarshal(hpsContextFixture(t), &source); err != nil {
+		t.Fatal(err)
+	}
+	source.CoreSHA256, source.CoreSize = hex.EncodeToString(sum[:]), int64(len(data))
+	mapping := coldConfigurationMap{Format: 1, Scope: "sealed-cold-configuration-v1", PackageID: source.PackageID,
+		BuildID: source.BuildID, CoreSHA256: source.CoreSHA256, CoreSHA384: hex.EncodeToString(sum384[:]),
+		CoreSize: len(data), Base: 0x94800000, Size: 8 << 20, DRAMBase: 0x80000000, ChunkBytes: 65536,
+		ChunkSHA384: []string{hex.EncodeToString(sum384[:])}}
+	return canonicalConfiguration(t, source), canonicalConfiguration(t, mapping),
+		&Region{Address: mapping.Base, Bytes: data, Release: func() error { t.Fatal("preparation released the reservation"); return nil }}
+}
+
+func TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest(t *testing.T) {
+	for _, name := range []string{"pass", "status", "tag", "size", "owner", "generation", "transport", "after-owner", "after-mask", "after-transport", "not-first"} {
+		t.Run(name, func(t *testing.T) {
+			raw, mapping, region := configurationSource(t)
+			replies := append(hpsContextReplies(sha256.Sum256(raw)), [4]uint64{0, 0x4643503100000080, 17, 1})
+			replies = append(replies, replies[0])
+			failure, maximum := -1, 5
+			switch name {
+			case "status":
+				replies[4][0] = 5
+			case "tag":
+				replies[4][1] ^= 1 << 32
+			case "size":
+				replies[4][1]++
+			case "owner":
+				replies[4][2]++
+			case "generation":
+				replies[4][3]++
+			case "transport":
+				failure = 4
+			case "after-owner":
+				replies[5][2]++
+				maximum = 6
+			case "after-mask":
+				replies[5][1] &^= 2
+				maximum = 6
+			case "after-transport":
+				failure = 5
+				maximum = 6
+			case "not-first":
+				replies[0][3] = 3
+				replies[3] = replies[0]
+				maximum = 4
+			}
+			calls := 0
+			operations := []uint64{0, 4, 5, 0, 8, 0}
+			cpu := bridgeFirmwareFunc(func(request [7]uint64) ([4]uint64, error) {
+				i := calls
+				calls++
+				if i >= len(operations) {
+					t.Fatal("preparation retried")
+				}
+				want := [7]uint64{0xc2000301, operations[i], 17, 0x46455342, replies[0][3]}
+				if operations[i] == 0 {
+					want[2], want[4] = 0, 0
+				}
+				if request != want {
+					t.Fatal("uncompiled address or mutation entered preparation", request)
+				}
+				if i == failure {
+					return [4]uint64{}, errors.New("lost preparation response")
+				}
+				return replies[i], nil
+			})
+			v, err := NewHPSContextVerifier(cpu, raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			observed, err := v.PrepareConfiguration(controlMapFixture(t), mapping, region)
+			if name == "pass" {
+				if err != nil || calls != 6 || observed.Bridges.Generation != 1 || !observed.Bridges.NeverEnabled {
+					t.Fatal(observed, err, calls)
+				}
+				if _, ok := interface{}(v).(BootHandoffVerifier); ok {
+					t.Fatal("cold preparation granted live boot admission")
+				}
+			} else if err == nil || observed != (HPSBootObservation{}) || calls != maximum {
+				t.Fatal(observed, err, calls, maximum)
+			}
+		})
+	}
+}
+
+func TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC(t *testing.T) {
+	for _, name := range []string{"control", "empty", "trailing", "unknown", "package", "build", "sha256", "sha384", "bytes", "base", "arena", "dram", "chunk", "chunk-count", "chunk-digest", "region", "region-base", "region-size", "region-data", "release"} {
+		t.Run(name, func(t *testing.T) {
+			raw, mapping, region := configurationSource(t)
+			control := controlMapFixture(t)
+			var fields map[string]interface{}
+			if err := json.Unmarshal(mapping, &fields); err != nil {
+				t.Fatal(err)
+			}
+			switch name {
+			case "control":
+				control = nil
+			case "empty":
+				mapping = nil
+			case "trailing":
+				mapping = append(mapping, []byte("{}")...)
+			case "unknown":
+				fields["allow_programming"] = true
+			case "package":
+				fields["package_id"] = "0" + fields["package_id"].(string)[1:]
+			case "build":
+				fields["build_id"] = "0" + fields["build_id"].(string)[1:]
+			case "sha256":
+				fields["core_sha256"] = string(bytes.Repeat([]byte{'f'}, 64))
+			case "sha384":
+				fields["core_sha384"] = string(bytes.Repeat([]byte{'f'}, 96))
+			case "bytes":
+				fields["core_size"] = float64(124)
+			case "base":
+				fields["base"] = float64(0x94000000)
+			case "arena":
+				fields["size"] = float64(2 << 20)
+			case "dram":
+				fields["dram_base"] = float64(0)
+			case "chunk":
+				fields["chunk_bytes"] = float64(64)
+			case "chunk-count":
+				fields["chunk_sha384"] = []string{}
+			case "chunk-digest":
+				fields["chunk_sha384"] = []string{string(bytes.Repeat([]byte{'f'}, 96))}
+			case "region":
+				region = nil
+			case "region-base":
+				region.Address += 64
+			case "region-size":
+				region.Bytes = region.Bytes[:124]
+			case "region-data":
+				region.Bytes[0] ^= 1
+			case "release":
+				region.Release = nil
+			}
+			if name != "empty" && name != "trailing" {
+				mapping = canonicalConfiguration(t, fields)
+			}
+			calls := 0
+			cpu := bridgeFirmwareFunc(func([7]uint64) ([4]uint64, error) {
+				calls++
+				t.Fatal("invalid staged configuration reached firmware")
+				return [4]uint64{}, nil
+			})
+			v, err := NewHPSContextVerifier(cpu, raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if observed, err := v.PrepareConfiguration(control, mapping, region); err == nil || observed != (HPSBootObservation{}) || calls != 0 {
+				t.Fatal(observed, err, calls)
+			}
+		})
+	}
+}

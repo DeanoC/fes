@@ -29,6 +29,49 @@ class HPSContextTests(unittest.TestCase):
                        'hps_context': self.descriptor,
                        'hps_context_sha256': context.digest(self.descriptor)}
 
+    def test_configuration_mapping_binds_actual_core_bytes_and_separate_memory(self):
+        raw=bytes(range(256))*300
+        descriptor=dict(self.descriptor,core_sha256=hashlib.sha256(raw).hexdigest(),core_size=len(raw))
+        with tempfile.TemporaryDirectory() as directory:
+            project=Path(directory)
+            payload=project/'board/hps/packages'/descriptor['package_id']/'core.rbf'
+            payload.parent.mkdir(parents=True);payload.write_bytes(raw)
+            with patch.object(context,'_derive',return_value=descriptor):
+                mapping=context._configuration(project)
+                self.assertEqual(mapping['core_size'],len(raw))
+                self.assertEqual(mapping['core_sha256'],hashlib.sha256(raw).hexdigest())
+                self.assertEqual(mapping['core_sha384'],hashlib.sha384(raw).hexdigest())
+                self.assertEqual(mapping['chunk_sha384'],[hashlib.sha384(raw[:65536]).hexdigest(),hashlib.sha384(raw[65536:]).hexdigest()])
+                self.assertEqual((mapping['base'],mapping['base']+mapping['size']),(0x94800000,0x95000000))
+                payload.write_bytes(raw[:-4]+b'bad!')
+                with self.assertRaisesRegex(ValueError,'sealed core'):
+                    context._configuration(project)
+            with patch.object(context,'configuration',return_value=mapping):
+                with self.assertRaisesRegex(ValueError,'changed after package verification'):
+                    context.core_payload(project,mapping)
+            payload.unlink();payload.symlink_to(project/'untrusted.rbf')
+            with patch.object(context,'_derive',return_value=descriptor):
+                with self.assertRaisesRegex(ValueError,'symlink'):
+                    context._configuration(project)
+
+    def test_configuration_receipt_requires_its_dedicated_source_and_map(self):
+        mapping={'format':1,'base':0x94800000,'size':8<<20,'core_size':128,
+                 'chunk_bytes':65536,'core_sha384':hashlib.sha384(bytes(128)).hexdigest(),
+                 'chunk_sha384':[hashlib.sha384(bytes(128)).hexdigest()]}
+        record=dict(self.record,program='fpgaload',hps_configuration=mapping,
+                    hps_configuration_sha256=context.digest(mapping))
+        with patch.object(context,'checked_control',return_value={'qualified-source':True}),patch.object(context,'configuration',return_value=mapping):
+            self.assertEqual(context.checked_configuration(record),mapping)
+            for key in ('hps_configuration','hps_configuration_sha256'):
+                missing=dict(record);missing.pop(key)
+                with self.subTest(key=key),self.assertRaises(ValueError):context.checked_configuration(missing)
+            for changed in (dict(record,program='fpgastatus'),
+                            dict(record,hps_configuration_sha256='0'*64),
+                            dict(record,hps_configuration=dict(mapping,base=0x94000000))):
+                with self.assertRaises(ValueError):context.checked_configuration(changed)
+        self.assertIsNone(context.checked_configuration({'program':'fpgastatus'}))
+        with self.assertRaises(ValueError):context.checked_configuration({'program':'fpgaload'})
+
     def test_canonical_descriptor_matches_both_consumers(self):
         self.assertEqual(context.encode(self.descriptor), GOLDEN.read_bytes())
         self.assertEqual(context.digest(self.descriptor),

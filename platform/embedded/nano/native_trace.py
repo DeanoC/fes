@@ -39,14 +39,14 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('el2', r'FES_ENTRY EL2 CLEAN'),
     ('el1', r'FES_ENTRY EL1 HANDOFF'),
     ('go', r'FES_NATIVE_GO_PROBE PASS os=tamago board=de25-nano'),
-    ('hps_context', rf'FES_NATIVE_HPS_CONTEXT PASS sha256=(?P<sha256>[0-9a-f]{{64}}) package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) programming=unavailable'),
+    ('hps_context', rf'FES_NATIVE_HPS_CONTEXT PASS sha256=(?P<sha256>[0-9a-f]{{64}}) package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) (?:runtime_)?programming=unavailable'),
     ('identity_transition', rf'(?:NOTICE:[ \t]+)?FES_NANO_IDENTITY phase=(?P<phase>[a-z-]{{1,24}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) reset=(?P<reset>{H}) base=(?P<base>{H})'),
     ('fpga_query', r'(?:NOTICE:[ \t]+)?FES_NANO_CONFIG_QUERY command=4 words=6'),
     ('fpga_status', rf'(?:NOTICE:[ \t]+)?FES_NANO_CONFIG_STATUS status=(?P<status>-?[0-9]{{1,10}}) words=(?P<words>[0-9]{{1,3}}) state=(?P<state>{H}) version=(?P<version>{H}) pins=(?P<pins>{H}) soft=(?P<soft>{H}) error_location=(?P<error_location>{H}) error_details=(?P<error_details>{H}) ready=(?P<ready>[01])'),
     ('identity_access', rf'(?:NOTICE:[ \t]+)?FES_NANO_IDENTITY_ACCESS phase=(?P<phase>before|after) ordinal=(?P<ordinal>[0-9]{{1,2}}) offset=(?P<offset>{H}) value=(?P<value>{H})'),
     ('fpga_unready', rf'FES_NATIVE_FPGA_UNREADY CLOSED owner=(?P<owner>{H}) generation=(?P<generation>{H}) programming=unavailable'),
     ('fpga_status_closed', rf'FES_NATIVE_FPGA_STATUS CLOSED ready=(?P<ready>[01]) owner=(?P<owner>{H}) generation=(?P<generation>{H}) programming=unavailable'),
-    ('fpga_identity', rf'FES_NATIVE_FPGA_IDENTITY PASS package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) abi=(?P<abi>{H}) base=(?P<base>{H}) map_sha256=(?P<map_sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) data_held=1 programming=unavailable'),
+    ('fpga_identity', rf'FES_NATIVE_FPGA_IDENTITY PASS package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) abi=(?P<abi>{H}) base=(?P<base>{H}) map_sha256=(?P<map_sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) data_held=1 (?:runtime_)?programming=unavailable'),
     ('storage', r'FES_STORAGE_PROBE board=de25-nano EL=1 counter=400000000Hz writes=disabled'),
     # SDHCI R2 supplies CID[127:8], exactly 15 bytes without CRC/end bits.
     ('read', rf'FES_NANO_SD READ bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}}) cid=(?P<cid>[0-9a-f]{{30}}) sectors=(?P<sectors>[0-9]{{1,20}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
@@ -173,7 +173,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             break
         else:
             if (line.startswith(('U-Boot ', 'FES_NANO_', 'FES_ENTRY', 'FES_NATIVE_GO_PROBE', 'FES_STORAGE_PROBE', 'FES_SD_PACKAGE_PROBE',
-                                 'FES_NATIVE_HPS_CONTEXT','FES_NATIVE_FPGA_IDENTITY','FES_NATIVE_FPGA_UNREADY','FES_NATIVE_FPGA_STATUS', 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
+                                 'FES_NATIVE_HPS_CONTEXT','FES_NATIVE_FPGA_IDENTITY','FES_NATIVE_FPGA_UNREADY','FES_NATIVE_FPGA_STATUS','FES_NATIVE_FPGA_PROGRAMMED', 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
                     line.startswith('NOTICE:') and 'FES_NANO_' in line):
                 report['errors'].append(f'malformed or unexpected probe marker at line {number}')
 
@@ -294,4 +294,101 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     report['loader_ready'] = not report['errors'] and names[:len(loader_stages)] == loader_stages
     report['complete'] = not report['errors'] and names == stages and not tail
     report['last_checkpoint'] = names[-1] if names else None
+    return report
+
+
+def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, configuration):
+    """Observe a contained phase-two transfer followed by reclosed live identity.
+
+    The maps come from independently checked build receipts. Variable-length
+    WRITE/completion polling is checked here, while the existing decoder still
+    checks every SPL, CPU, ownership, readiness and identity observation. Neither
+    completion establishes runtime activation or core launch/return acceptance.
+    """
+    fields={'format','scope','package_id','build_id','core_sha256','core_sha384','core_size',
+            'base','size','dram_base','chunk_bytes','chunk_sha384'}
+    def digest(value, length):return isinstance(value,str) and re.fullmatch('[0-9a-f]{'+str(length)+'}',value) is not None
+    if (not isinstance(configuration,dict) or set(configuration)!=fields or not isinstance(fpga_identity,dict) or
+        configuration['format']!=1 or type(configuration['format']) is not int or
+        configuration['scope']!='sealed-cold-configuration-v1' or
+        any(type(configuration[k]) is not int for k in ('core_size','base','size','dram_base','chunk_bytes')) or
+        not 0<configuration['core_size']<=8<<20 or configuration['core_size']&3 or
+        configuration['base']!=0x94800000 or configuration['size']!=8<<20 or configuration['dram_base']!=0x80000000 or
+        configuration['chunk_bytes']!=65536 or configuration['package_id']!=fpga_identity.get('package_id') or
+        configuration['build_id']!=fpga_identity.get('build_id') or not digest(configuration['core_sha256'],64) or
+        not digest(configuration['core_sha384'],96) or not isinstance(configuration['chunk_sha384'],list) or
+        len(configuration['chunk_sha384'])!=(configuration['core_size']+65535)//65536 or
+        not all(digest(value,96) for value in configuration['chunk_sha384'])):
+        raise ValueError('independently checked sealed configuration map required')
+    if not isinstance(data,(str,bytes,bytearray,memoryview)):
+        raise TypeError('serial bytes or text required')
+    raw=data.encode() if isinstance(data,str) else bytes(data)
+    if len(raw)>MAX_BYTES:
+        return decode_native_boot(raw,build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True)
+    core=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_CORE_TRANSFER phase=(?P<phase>[A-Za-z]{{1,16}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) completed=(?P<completed>[0-9]{{1,10}}) pending=(?P<pending>[0-9]{{1,10}}) total=(?P<total>[0-9]{{1,10}}) base=(?P<base>{H})')
+    programmed=re.compile(rf'FES_NATIVE_FPGA_PROGRAMMED PASS package_id=(?P<package_id>[0-9a-f]{{64}}) core_sha256=(?P<core_sha256>[0-9a-f]{{64}}) bytes=(?P<bytes>[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) data_held=1 activation=unavailable')
+    parts=raw.split(b'\n');extra=[];errors=[];last=None;offset=pending=0;complete=False;programmed_row=None
+    total=configuration['core_size'];chunk=configuration['chunk_bytes'];owner=None
+    def require(condition, reason):
+        if not condition:errors.append(reason)
+    for index,fragment in enumerate(parts[:-1]):
+        line=fragment.decode(errors='replace').rstrip('\r');match=core.fullmatch(line)
+        if match:
+            values={key:int(value,16 if key in ('owner','base') else 10) if key!='phase' else value for key,value in match.groupdict().items()}
+            phase=values['phase']
+            require(values['generation']==1 and values['total']==total and values['base']==configuration['base'],
+                    'configuration transfer changed generation, total or arena')
+            if owner is None:owner=values['owner']
+            require(values['owner']==owner and owner!=0,'configuration transfer changed owner')
+            if phase=='arm':
+                require(last is None and values['completed']==values['pending']==0,'configuration preparation repeated or reordered')
+            elif phase=='start':
+                require(last=='arm' and values['completed']==values['pending']==0,'configuration START repeated or reordered')
+            elif phase=='write':
+                if last=='poll':offset+=pending
+                require(last in ('start','poll') and offset<total and values['completed']==offset and
+                        values['pending']==min(chunk,total-offset),'configuration WRITE replay, gap or invalid extent')
+                pending=values['pending']
+            elif phase=='poll':
+                require(last in ('write','poll') and values['completed']==offset and values['pending']==pending and pending>0,
+                        'configuration completion has no matching issued buffer')
+            elif phase=='status':
+                if last=='poll':offset+=pending;pending=0
+                require(last in ('poll','status') and offset==total and values['completed']==total and values['pending']==0,
+                        'configuration final status preceded full transfer completion')
+            elif phase=='complete':
+                require(last=='status' and values['completed']==total and values['pending']==0,
+                        'configuration completion is missing verified final status')
+                complete=True
+            else:require(False,'failed or unknown configuration phase')
+            extra.append({'stage':'configuration_'+phase,'line':index+1,'values':values})
+            last=phase;parts[index]=b''
+        else:
+            match=programmed.fullmatch(line)
+            if not match:continue
+            values={key:int(value,16 if key=='owner' else 10) if key in ('owner','generation','bytes') else value for key,value in match.groupdict().items()}
+            require(complete and last=='complete' and programmed_row is None,'native programmed marker preceded or repeated transfer completion')
+            require(values['package_id']==configuration['package_id'] and values['core_sha256']==configuration['core_sha256'] and
+                    values['bytes']==total and values['owner']==owner and values['generation']==1,
+                    'native programmed identity, bytes or ownership differ')
+            programmed_row={'stage':'configuration_programmed','line':index+1,'values':values}
+            extra.append(programmed_row);last='programmed';parts[index]=b''
+    report=decode_native_boot(b'\n'.join(parts),build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True)
+    observed={row['stage']:row for row in report['records']}
+    source=observed.get('hps_context');query=observed.get('fpga_query')
+    if extra:
+        require(source is not None and source['line']<extra[0]['line'] and source['values']['owner']==owner,
+                'configuration preceded or changed the closed HPS source')
+    if query:
+        require(programmed_row is not None and programmed_row['line']<query['line'] and all(row['line']<query['line'] for row in extra),
+                'FPGA identity/readiness preceded contained configuration completion')
+    if report['complete']:
+        require(complete and programmed_row is not None,'native identity is missing contained configuration proof')
+    report['errors'].extend(errors)
+    report['complete']=report['complete'] and complete and programmed_row is not None and not report['errors']
+    report['records']=sorted(report['records']+extra,key=lambda row:row['line'])
+    report['last_checkpoint']=report['records'][-1]['stage'] if report['records'] else None
+    report['configuration_transfer']={'complete':complete and programmed_row is not None and not errors,
+                                      'completed_bytes':offset,'core_sha256':configuration['core_sha256'],
+                                      'arena_base':configuration['base'],'arena_size':configuration['size']}
     return report

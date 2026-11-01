@@ -1,6 +1,6 @@
 # Experimental owned firmware bridge channel
 
-`fes.fabric.embedded.bridges` 1.3 supplies generated C/Go constants for the
+`fes.fabric.embedded.bridges` 1.4 supplies generated C/Go constants for the
 Linux-free Nano firmware experiment. It adds no programming profile, package
 ABI, register mapping or production compatibility entry. The FPGA endpoint
 contract and its generated inputs are unchanged.
@@ -109,3 +109,26 @@ The `fpgastatus` native diagnostic uses operation 7 and verifies an identical
 closed Snapshot afterwards. It never invokes operation 6. Its completion
 reports SDM readiness only, regardless of whether fabric is ready; neither
 branch supplies live endpoint identity, HPS I/O measurement or admission.
+
+Operation 8 prepares one source-bound cold configuration under the existing
+owner lock. It takes the expected owner and generation through the same
+private cookie channel. A qualified secure provider requires generation 1,
+never-enabled history, closed bridges, contained masters and no device lease.
+It checks the fixed staged whole image against a compiled digest before
+returning `x0=0`, `x1=0x46435031 << 32 | core_bytes`, `x2=owner`, `x3=generation`.
+No address, bytes, digest or memory permission comes from the request.
+Default providers return NOT_READY. Other cold profiles still reject the four
+configuration operations.
+
+The prepared provider gates the existing START, WRITE, COMPLETED_WRITE and
+ISDONE operations, under the same lock and with every bridge kept closed.
+Only its fixed memory region and exact sequential chunks are accepted. Its
+trusted digest callback checks the whole image before START and after final
+status, and each issued chunk before WRITE and across asynchronous completion.
+Accepted BUSY writes are never submitted again. Completions must name exactly
+the outstanding SDM-relative address. Unexpected replies, lost scope or changed
+bytes retire authority and retain the pending memory until reboot. Bridge
+Snapshots remain available; context, identity, SD and configuration-status
+operations cannot interleave while the transfer is prepared or running.
+Preparation is consumed even on a failed check; configuration completes only
+once per cold boot. It supplies neither active drain nor runtime activation.
