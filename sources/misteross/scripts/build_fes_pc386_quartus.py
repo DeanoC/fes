@@ -103,9 +103,9 @@ MACHINE_SOURCES = (
     *(f"cores/fes-common/vendor/kf8253/{name}.sv" for name in ("KF8253", "KF8253_Control_Logic", "KF8253_Counter")),
     "cores/fes-common/rtl/fes_dma8237.sv",
     *(f"cores/fes-pc386/rtl/{name}.sv" for name in (
-        "pc386_rate", "pc386_io", "pc386_pic", "pc386_sysctl", "pc386_kbc", "pc386_rtc", "pc386_ata",
-        "pc386_at_core", "pc386_ram", "pc386_vga", "pc386_vga_scanout", "pc386_presenter", "pc386_plane_bridge",
-        "pc386_port2", "pc386_machine")),
+        "pc386_rate", "pc386_io", "pc386_pic", "pc386_sysctl", "pc386_hid_keyboard", "pc386_kbc", "pc386_rtc",
+        "pc386_ata", "pc386_at_core", "pc386_ram", "pc386_vga", "pc386_vga_scanout", "pc386_presenter",
+        "pc386_plane_bridge", "pc386_port2", "pc386_machine")),
     "cores/fes-common/rtl/fes_display_plane.v",
     "cores/fes-common/rtl/fes_display_cdc.v",
     "cores/fes-menu/rtl/fes_menu_control.v",
@@ -165,11 +165,11 @@ UNDERSCORE_KEYWORDS = frozenset({
 })
 CORE = {"id": "fes.pc386", "name": "FES pc386", "version": "0.1.0",
         "description": "A 386 AT: fes_i386_cpu, the Bochs BIOS and LGPL VGABios, VGA at 720p, OPL2 and Sound "
-                       "Blaster 2.0, and a hard disk of up to 128 MiB with its saves. Development only: "
-                       "there is no keyboard or mouse yet."}
-INTERFACES = ("fes.video.fixed-720p60", "fes.audio.pcm-s16-stereo-48k", "fes.memory.hps-ddr",
-              "fes.video.session-display", "fes.fabric.video.display-plane", "fes.media.ata-disk",
-              "fes.persistence.words", "fes.rtc.wall-clock", "fes.pc386.machine")
+                       "Blaster 2.0, a PS/2 keyboard and mouse, and a hard disk of up to 128 MiB with its saves. "
+                       "Development only."}
+INTERFACES = ("fes.video.fixed-720p60", "fes.keyboard.hid", "fes.audio.pcm-s16-stereo-48k", "fes.mouse.relative",
+              "fes.memory.hps-ddr", "fes.video.session-display", "fes.fabric.video.display-plane",
+              "fes.media.ata-disk", "fes.persistence.words", "fes.rtc.wall-clock", "fes.pc386.machine")
 # Every guest time base as a rational enable of the system clock
 # (docs/pc386-machine-design.md, "Clocks and timing"): N/D = rate / clock.
 GUEST_RATES = {

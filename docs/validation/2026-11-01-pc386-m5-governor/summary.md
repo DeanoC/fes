@@ -1,5 +1,11 @@
 # pc386 M5: the i386 speed governor, 1 November 2026
 
+**Evidence scope.** The seal and Kit B results below are historical evidence
+for the pre-merge RTL at `ab30f6c11`. This branch later merged `origin/main`
+and fixed the direct-address charge and merged system-suite behavior. The
+follow-up checks recorded below are host simulations; this merged head has not
+been resealed or run on a kit.
+
 [#1357](https://github.com/DeanoC/fes/issues/1357), part of
 [#1267](https://github.com/DeanoC/fes/issues/1267) (M5 = CPU Phase 3). The
 CPU now has the governor that
@@ -14,8 +20,9 @@ FogCast already writes:
 Ultima VI's 286-class preset and The Black Gate's 386-class one now have
 something to set.
 
-**On Kit B, the sealed package ran at the speed each preset set through the
-record, and matched the simulation to within one pass in 27,000.** Set to
+**Historical Kit B result:** the sealed package ran at the speed each preset
+set through the record, and matched the simulation to within one pass in
+27,000. Set to
 286-12, the Turbo Pascal–style calibration counts 27,454 delay-loop passes
 in a timer tick (DelayCnt 499); at `max` it counts 210,892 (DelayCnt 3,834).
 The table time is 27,463 at 286-12. Every governed preset ran within 0.04% of
@@ -35,11 +42,12 @@ games slice does both.
 ## Inputs
 
 - **Branch.** FES `deano/pc386-m5-governor-35a3f1`, from main `58edb6b3b`.
-  [#1335](https://github.com/DeanoC/fes/pull/1335), the keyboard and mouse
-  slice, was not on main yet.
-- **Main merge.** `3cf44fc41` merges main `81662e4ad`, with
-  [#1363](https://github.com/DeanoC/fes/pull/1363), in a plain merge. #1335
-  is still not on main. The merge changes no sealed input and no RTL.
+  At this snapshot, [#1335](https://github.com/DeanoC/fes/pull/1335), the
+  keyboard and mouse slice, had not merged; the later main merge below brings
+  that source into this branch.
+- **Earlier main merge.** `3cf44fc41` merges main `81662e4ad`, with
+  [#1363](https://github.com/DeanoC/fes/pull/1363), in a plain merge. That
+  merge changed no sealed input and no RTL. It predates the review follow-up.
   After it, the governor suite gives the same counts on every preset. These
   also pass:
   - the pc386 device suite;
@@ -247,9 +255,8 @@ Quartus 17.0.2 sealed `ab30f6c11` from a clean checkout (seed 1,
 
   The system clock is 61.44 MHz, with Fmax 70.37 MHz at the slow corner
   (the last seals were 67.6-72.9 MHz).
-- **Coverage.** The build record names `ab30f6c11`. All 108 pinned inputs
-  hash the same at this record's head, after the main merge. Of the
-  branch's later commits, none touches an input.
+  - **Coverage.** The build record names `ab30f6c11`; its input hashes and
+  timing apply to that sealed source only.
 - **Resources.** 24,318 ALMs, 22,315 registers, 257 RAM blocks and 31 DSP
   blocks, against #1320's seal of the same shell without the governor:
   24,246 ALMs, 254 RAM blocks and 29 DSP blocks.
@@ -308,3 +315,40 @@ directory in FogCast's data directories.
   [DeanoC/yosys#71](https://github.com/DeanoC/yosys/issues/71) under
   `hierarchy -chparam`. It is a second trigger of that issue, an unsized
   literal; the repro is posted there. FES sizes the literal.
+
+## PR #1364 review follow-up
+
+The branch normally merged `origin/main` through `011a16bf8`, which includes the
+keyboard and mouse slice from #1335 and resolves the PR's text conflicts.
+The clean `system_tb.cpp` merge keeps main's FreeDOS `INPUT.COM` exercise;
+the synthetic governor disk opts out with `--exercise-input 0`. The system
+suite still builds and runs `INPUT.COM`. The boot suite passes both its mouse
+packet and governor arguments. Governed report names include frequency and
+turbo overrides so separate runs do not overwrite each other's evidence.
+
+The governor classifier now excludes direct ModRM-free A1/A3 addresses from
+the base/index/displacement surcharge. The regression bench loops over
+`mov ax, [0x0040]` and `mov [0x0042], ax` and checks their exact table charge.
+
+Host validation on the merged source:
+
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_fes_i386_governor`:
+  8 tests passed.
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_pc386_machine.BootReportTest tests.test_build_fes_pc386_quartus`:
+  27 tests passed.
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v tests.test_pc386_machine.SystemTest`:
+  3 tests passed.
+- `PYTHONDONTWRITEBYTECODE=1 python3 scripts/test_fes_i386_governor.py --download`:
+  pass, including the direct-address load/store loop on every preset.
+- `PYTHONDONTWRITEBYTECODE=1 python3 scripts/sim_fes_pc386.py --suite governor --download --limit-seconds 20`:
+  pass on `pc386_system` for max and all four exercised governor presets; record
+  and CMOS checks pass.
+- `PYTHONDONTWRITEBYTECODE=1 python3 scripts/sim_fes_pc386.py --suite system --preset 1 --download --limit-seconds 30`:
+  pass. FreeDOS reached the prompt at 6.309 simulated seconds; typed echo,
+  INPUT.COM mouse initialization, all ten packets, accumulated mouse totals,
+  BIOS key codes, disk save and record checks passed. Governor held the CPU;
+  all system underflow/drop counters were zero.
+
+These are host simulation and unit-test results. No Quartus reseal or kit run
+was performed for the merged head; the seal and Kit B results above remain
+historical evidence for `ab30f6c11`.

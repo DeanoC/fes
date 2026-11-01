@@ -144,6 +144,7 @@ BENCHES: list[tuple[str, list[tuple[int, list[Op]]]]] = [
     ('loop', [(1, START + [r('mov_r')]), (2999, [r('nop'), taken('loop')]), (1, [r('nop'), r('loop')]), (1, END)]),
     ('pusha', loop(500, [m('pusha', 8), m('popa', 8)])),
     ('i386', loop(2000, [m('movx_m', 1), r('setcc_r'), r('bt_r')])),
+    ('direct', loop(3000, [m('mov_load', 1), m('mov_store', 1)])),
 ]
 IRQ_LOOP = [r('mov_r'), m('rep_movs', 0), element('rep_movs', 2), r('alu_ri'), r('mov_r'), r('alu_rr'),
             r('div16_r'), m('push_r', 1), m('pop_r', 1), r('alu_rr'), taken('jcc')]

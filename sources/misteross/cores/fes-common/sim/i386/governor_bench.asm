@@ -237,6 +237,16 @@ start:
     jnz .i386
     mark 29
 
+    ; 15: direct-address global load and store (A1/A3, not a ModRM EA).
+    mark 30
+    mov bp, 3000
+.direct:
+    mov ax, [0x0040]
+    mov [0x0042], ax
+    dec bp
+    jnz .direct
+    mark 31
+
     ; The interrupt latency run.
     mov si, DATA
     mov di, COPY

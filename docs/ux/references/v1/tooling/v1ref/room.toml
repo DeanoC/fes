@@ -1,0 +1,11 @@
+id = "v1ref.first-boot"
+title = "FES v1 reference"
+author = "FES docs"
+description = "Throwaway reference renders for docs/ux/references/v1. Not a product room."
+version = 1
+main = "main.lua"
+destination_panel = "hero"
+
+[theme]
+background = "#F4F0E8"
+accent = "#235A46"
