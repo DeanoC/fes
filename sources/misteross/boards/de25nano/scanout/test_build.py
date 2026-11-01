@@ -120,7 +120,7 @@ class ScanoutBuildTests(unittest.TestCase):
                 B.timed_reset_release(dict(inputs, scanout=changed))
 
     @unittest.skipUnless(shutil.which("tclsh"), "Tcl interpreter is unavailable")
-    def test_actual_sdc_guard_times_only_three_instances_and_preserves_other_cuts(self):
+    def test_actual_sdc_guard_times_only_five_instances_and_preserves_other_cuts(self):
         raw = gzip.decompress((B.HERE.parents[2] /
             "tests/fixtures/de25_reset_controller.sdc.gz").read_bytes())
         changed = B.timed_vendor_reset_sdc(raw).decode()
@@ -134,7 +134,8 @@ class ScanoutBuildTests(unittest.TestCase):
                 script += ["set scope {" + scope + "}", "if {" + condition + "} {puts cut} else {puts timed}"]
         result = subprocess.run([shutil.which("tclsh")], input="\n".join(script), text=True,
                                 capture_output=True, check=True, timeout=10)
-        self.assertEqual(result.stdout.splitlines(), ["timed"] * 3 + ["cut"] * 3 + ["timed"] * 3 + ["cut"] * 3)
+        self.assertEqual(len(B.TIMED_RESET_INSTANCES), 5)
+        self.assertEqual(result.stdout.splitlines(), (["timed"] * 5 + ["cut"] * 3) * 2)
 
     def test_compile_refuses_regenerated_reset_cuts_before_linux_conversion(self):
         output, directory, hps = self.reset_timing_fixture()

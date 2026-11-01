@@ -160,13 +160,15 @@ output paths remain timed. Generation rejects a board whose data/DE pins are not
 registered gate or an SDC that does not name the profile's exact clear pins. No HDMI IO
 delays are fabricated.
 
-The canonical `timed-system-reset-release-v1` profile also removes the generated
+The canonical `timed-system-reset-release-v2` profile also removes the generated
 reset-controller clear exceptions only for `soc_inst|rst_controller`,
-`soc_inst|subsys_periph|rst_controller` and `soc_inst|rst_controller_002`.
-All three receive a reset released by the same 100 MHz clock. The private build
+`soc_inst|subsys_periph|rst_controller`, `soc_inst|rst_controller_002` and the
+`altera_jtag_avalon_master_inst|rst_controller` within each preserved
+`soc_inst|subsys_debug|fpga_m` and `soc_inst|subsys_debug|hps_m` instance.
+All five receive a reset released by the same 100 MHz clock. The private build
 requires exactly six generated reset SDC files matching the reviewed Quartus
 26.3 bytes, retains their originals and changes only the two conditional clear
-exceptions. Pixel, FIFO and debug reset exceptions remain intact. Generation
+exceptions. Pixel, FIFO and internal JTAG reset exceptions remain intact. Generation
 and compilation verify the derived board SDC, all six generated files and their
 receipt; regenerated or changed constraints stop the build before Linux phase
 conversion. The canonical record binds this policy before IP generation.
@@ -261,6 +263,20 @@ compiler, kernel and board validation.
 The generated transport simulation requires Quartus’s explicit BUILD_ID forwarding
 and compares all four live build words with the verified generation receipt.
 This checks the actual generated endpoint wrapper as well as its IP metadata.
+
+Add `--startup` to `interconnect_sim.py` to test finite startup combinations
+using the compiled project's five actual parent reset-controller instances and
+their separate root and first-lock reset sources. The proof guards the QIP,
+passthrough reset bridges, controller parameters, clocks and seven downstream
+reset connections before building the model. It retains and hashes those inputs.
+Eight clock phases and nine first-lock delays exercise early control requests,
+disabled/grant-free startup and bounded timeout with permanent poison after a
+late release. Eight cases also submit a grant, traverse accepted AXI reads and
+responses, then STOP and drain. The existing explicit M20K storage model and
+FIFO validity guards remain active. This finite proof does not establish
+physical reset/metastability behavior, outer HPS/JTAG coordination, global
+reset or boot/allocation epoch acceptance; all raw reset-domain findings remain
+subject to signoff.
 
 HDMI configuration runs from CLOCK0_50 while the system PLL uses CLOCK2_50.
 The readiness crossing has a registered source and two receiving registers;

@@ -21,10 +21,12 @@ LOCAL = ("build.py", "linux_dma.py", "hdmi_inputs.py", "integrate.tcl", "clocks.
          "fes_de25_scanout_hw.tcl", "fes_de25_scanout_board.v",
          "fes_de25_scanout_guard.v", "fes_de25_scanout_guard_hw.tcl",
          "generated/fes_de25_scanout.vh", "generated/fes_de25_scanout.h")
-TIMED_RESET_RELEASE = "timed-system-reset-release-v1"
+TIMED_RESET_RELEASE = "timed-system-reset-release-v2"
 RESET_SDC_SHA256 = "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
 TIMED_RESET_INSTANCES = ("soc_inst|rst_controller", "soc_inst|subsys_periph|rst_controller",
-                         "soc_inst|rst_controller_002")
+                         "soc_inst|rst_controller_002",
+                         "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller",
+                         "soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller")
 
 
 def sha(data): return hashlib.sha256(data).hexdigest()

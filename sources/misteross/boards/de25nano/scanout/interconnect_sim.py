@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -443,6 +444,7 @@ def main(argv=None):
     parser.add_argument("--project", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True, help="new private output; never the producer project")
     parser.add_argument("--verilator", default="verilator")
+    parser.add_argument("--startup", action="store_true", help="finite startup phases using the actual parent reset controllers")
     args = parser.parse_args(argv)
     project = args.project.resolve(strict=True)
     output = args.output.resolve()
@@ -458,6 +460,26 @@ def main(argv=None):
                "not_modeled": ["HPS hard block", "MPFE/TBU", "SMMU translation", "firewall", "DDR controller",
                                "physical memory", "physical clock monitor", "reset/boot allocation epoch"]}
     try:
+        startup_model = None
+        cases = CASES
+        if args.startup:
+            startup_path = Path(__file__).with_name("startup.py").resolve(strict=True)
+            startup_data = startup_path.read_bytes()
+            spec = importlib.util.spec_from_file_location("scanout_startup", startup_path)
+            startup = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(startup)
+            startup_model = startup.Model(project)
+            cases = startup.CASES
+            receipt["classification"] = "finite-generated-reset-startup-control-transport-with-modeled-m20k-storage"
+            receipt["coverage"] = "five actual parent reset controllers, generated peripheral/CDC/AXI transport; finite clock phases and early control requests"
+            receipt["clock_model"]["pixel_initial_phase_units"] = list(startup.PHASES)
+            receipt["not_modeled"] += ["whole reset-domain coordination", "outer HPS/JTAG requesters", "physical reset/metastability behavior"]
+            receipt["startup"] = startup_model.metadata()
+            receipt["startup"]["helper_sha256"] = sha(startup_data)
+            for name, data in startup_model.inputs.items():
+                retained = output / "parent-reset-inputs" / name
+                retained.parent.mkdir(parents=True, exist_ok=True)
+                retained.write_bytes(data)
         generation_path = project.parent / "generation.json"
         generation_data = generation_path.read_bytes()
         generation = json.loads(generation_data)
@@ -471,6 +493,10 @@ def main(argv=None):
         build_words = [(int(build_id, 16) >> (32 * word)) & 0xffffffff for word in range(4)]
         identity_flags = " ".join(f"-DEXPECTED_BUILD_ID_{word}=0x{value:08x}U" for word, value in enumerate(build_words))
         qips, periph, memory, module, sources, cdc_instances = source_closure(project)
+        if startup_model:
+            for name in startup.GENERICS:
+                if sources.get((project / name).resolve()) != startup_model.inputs[name]:
+                    raise ValueError("parent reset controller source differs from the selected transport closure: " + name)
         ram_sources, conditional_ram_sources = guard_ram_primitives(sources)
         ram_path = output / "modeled_m20k_storage.v"
         ram_path.write_text(RAM_MODEL)
@@ -499,13 +525,20 @@ def main(argv=None):
             copy.parent.mkdir(parents=True, exist_ok=True)
             copy.write_bytes(data)
         wrapper_path = output / (TOP + ".v")
-        wrapper_path.write_text(wrapper(sources[periph].decode(), sources[memory].decode(), module))
+        wrapper_source = wrapper(sources[periph].decode(), sources[memory].decode(), module)
+        wrapper_path.write_text(startup_model.wrapper(wrapper_source) if startup_model else wrapper_source)
         receipt["wrapper_sha256"] = sha(wrapper_path.read_bytes())
         bench = Path(__file__).with_name("interconnect_tb.cpp").resolve(strict=True)
+        bench_sources = {bench: bench.read_bytes()}
+        if startup_model:
+            bench = bench.with_name("startup_tb.cpp").resolve(strict=True)
+            bench_sources[bench] = bench.read_bytes()
         bench_data = bench.read_bytes()
         bench_copy = output / bench.name
-        bench_copy.write_bytes(bench_data)
+        for path, data in bench_sources.items():
+            (output / path.name).write_bytes(data)
         receipt["bench_sha256"] = sha(bench_data)
+        receipt["bench_source_sha256"] = {path.name: sha(data) for path, data in bench_sources.items()}
         receipt["helper_sha256"] = sha(Path(__file__).read_bytes())
         verilator = shutil.which(args.verilator)
         if not verilator:
@@ -533,7 +566,7 @@ def main(argv=None):
         with (output / "simulation.log").open("w") as log:
             subprocess.run([str(executable)], check=True, stdout=log, stderr=subprocess.STDOUT)
         receipt["cases"] = [json.loads(line) for line in (output / "simulation.log").read_text().splitlines() if line.startswith("{")]
-        if [c.get("case") for c in receipt["cases"]] != CASES or not all(c.get("status") == "pass" for c in receipt["cases"]):
+        if [c.get("case") for c in receipt["cases"]] != cases or not all(c.get("status") == "pass" for c in receipt["cases"]):
             raise ValueError("simulation did not report every required case exactly once in order")
         if receipt["cases"][0].get("ram_storage_self_test_passed") is not True:
             raise ValueError("explicit RAM storage model contract self-test did not pass")
@@ -543,8 +576,12 @@ def main(argv=None):
             raise ValueError("producer inputs changed during simulation")
         if generation_path.read_bytes() != generation_data:
             raise ValueError("producer generation receipt changed during simulation")
-        if bench.read_bytes() != bench_data or sha(Path(__file__).read_bytes()) != receipt["helper_sha256"]:
+        if any(path.read_bytes() != data for path, data in bench_sources.items()) or sha(Path(__file__).read_bytes()) != receipt["helper_sha256"]:
             raise ValueError("simulation helper/bench source changed during simulation")
+        if startup_model:
+            startup_model.verify()
+            if startup_path.read_bytes() != startup_data:
+                raise ValueError("startup model helper changed during simulation")
         receipt["status"] = "pass"
     except (OSError, ValueError, ET.ParseError, subprocess.CalledProcessError) as error:
         receipt["error"] = str(error)
