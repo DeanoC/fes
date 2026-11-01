@@ -591,6 +591,12 @@ public:
         cpu.init_eflags = s.eflags;
         cpu.init_eip = s.eip;
         cpu.init_cr0 = s.cr0;
+        cpu.init_cr2 = s.cr2;
+        cpu.init_cr3 = s.cr3;
+        cpu.init_gdtr_base = s.gdtr.base;
+        cpu.init_gdtr_limit = s.gdtr.limit;
+        cpu.init_idtr_base = s.idtr.base;
+        cpu.init_idtr_limit = s.idtr.limit;
         for (int n = 0; n < 6; ++n) {
             set16(cpu.init_sel, n, s.seg[n].selector);
             cpu.init_base[n] = s.seg[n].base;
@@ -614,13 +620,20 @@ public:
     fes_i386::State state(fes_i386::State s) const {
         for (int n = 0; n < 8; ++n) s.gpr[n] = cpu.arch_gpr[n];
         s.eflags = cpu.arch_eflags & 0x3ffff;
-        s.cr0 = (s.cr0 & ~0xau) | (cpu.arch_cr0 & 0xau);
+        // CR0's ET is the RTL's (an empty socket), which Bochs's 387 sets.
+        s.cr0 = (s.cr0 & 0x10u) | (cpu.arch_cr0 & ~0x10u);
+        s.cr2 = cpu.arch_cr2;
+        s.cr3 = cpu.arch_cr3;
+        s.gdtr = {cpu.arch_gdtr_base, uint16_t(cpu.arch_gdtr_limit)};
+        s.idtr = {cpu.arch_idtr_base, uint16_t(cpu.arch_idtr_limit)};
+        s.cpl = 0;  // no privilege transition is built
         s.eip = cpu.arch_eip;
         for (int n = 0; n < 6; ++n) {
             s.seg[n].selector = get16(cpu.arch_sel, n);
             s.seg[n].base = cpu.arch_base[n];
             s.seg[n].limit = cpu.arch_limit[n];
             s.seg[n].ar = get16(cpu.arch_ar, n);
+            s.seg[n].valid = (s.seg[n].ar & 0x80) != 0;  // only a null selector's load clears P
         }
         return s;
     }
@@ -1149,10 +1162,6 @@ int main(int argc, char **argv) {
                             protected_steps += stretch_steps;
                             stretch_steps = 0;
                         }
-                        // What the RTL cannot take from the oracle's state.
-                        if (state.idtr.base != 0 || state.idtr.limit != 0xffff)
-                            notes.insert("real-mode IDTR moved");
-                        if (state.cr0 & 0xe) notes.insert("CR0 MP, EM or TS set");
                         rtl->start(state);
                         on_oracle = false;
                     }
@@ -1160,7 +1169,7 @@ int main(int argc, char **argv) {
             } else {
                 RtlCpu::Event event = rtl->run(64);
                 if (machine.cycles >= pixel_from) machine.start_pixel_clock();
-                if (event == RtlCpu::Event::Stopped && rtl->cpu.trace_vector == 8) {
+                if (event == RtlCpu::Event::Stopped && rtl->cpu.trace_vector == 8 && !rtl->cpu.trace_pm_stop) {
                     // A fault while an exception was delivered: the delivery
                     // has partly retired, so the oracle cannot take over.
                     fes_i386::State state = rtl->state(oracle->get_state());

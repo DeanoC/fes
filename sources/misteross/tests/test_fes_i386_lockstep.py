@@ -34,7 +34,7 @@ class ScopeTest(unittest.TestCase):
                      'F6.4', '66F7.5', '67F6.6', 'F7.7', '0FAF', '6669', '6B', 'D4', 'D5', 'A4', '67A5', '6766AF', 'C8',
                      '66C8', 'E4', '66E5', 'EE', '6C', '666D', '676F', '0FBA.4', '670FBA.7', '660FBC', '0FBD',
                      '0FA3', '670FAB', '660FB3', '67660FBB', '62', '676662', '0F06', '9B', '678F', '67668F',
-                     '27', '2F', '37', '3F'):
+                     '27', '2F', '37', '3F', '0F01', '660F01', '0F20', '0F22'):
             with self.subTest(stem=stem):
                 self.assertTrue(lockstep.in_scope(stem))
         # LOADALL; BT's group /0 to /3.
@@ -53,7 +53,7 @@ class ScopeTest(unittest.TestCase):
                          'f6e0', 'f7f8', '0fafc0', '69c0', '6b00', 'd40a', 'd500', 'a400', 'afff', 'c800',
                          'e4c0', 'ef00', '6c00', '6fff', '0fbae0', '0fba20', '0fbcc0', '0fbd00', '0fa3c0', '0fbb00',
                          '0fabc0', '0fb3c0', '0fbbc0', '27c0', '2f00', '37ff', '3f90', '6200', '62c0',
-                         '0f0600', '9bc0', '9bff', '9b90'):
+                         '0f0600', '9bc0', '9bff', '9b90', '0f0110', '0f01e0', '0f01f8', '0f20c0', '0f22d8'):
             with self.subTest(encoding=encoding):
                 self.assertNotIn(encoding, lines)
 
@@ -123,7 +123,8 @@ class OutputTest(unittest.TestCase):
 @unittest.skipUnless(VERILATOR and BOCHS and CORPUS, 'Verilator, the pinned Bochs checkout or the corpus is absent')
 class LockstepRunTest(unittest.TestCase):
     ARGS = ['--opcode', '00', '--opcode', 'D3.4', '--opcode', '670FAD', '--opcode', '678D', '--opcode', 'E2',
-            '--random-programs', '100', '--random-seeds', '2', '--jobs', str(min(os.cpu_count() or 2, 8))]
+            '--random-programs', '100', '--random-seeds', '2', '--pm-programs', '100',
+            '--jobs', str(min(os.cpu_count() or 2, 8))]
 
     def run_lockstep(self, *extra):
         env = dict(os.environ, VERILATOR=VERILATOR)
@@ -132,6 +133,8 @@ class LockstepRunTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(', 0 fail;', result.stdout)
         self.assertIn('directed cases: 40 pass, 0 fail', result.stdout)
+        self.assertIn('unreal-mode cases: 5 pass, 0 fail', result.stdout)
+        self.assertRegex(result.stdout, r'protected mode: 2 seeds x 100 programs .*: 200 pass, 0 fail;')
         self.assertIn('memory cases (DMA, FLUSH): 26 pass, 0 fail', result.stdout)
         self.assertIn('trace unchanged', result.stdout)
         return result.stdout

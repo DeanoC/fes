@@ -416,8 +416,11 @@ module pc386_system #(
         .clk(clk), .cold_reset(cpu_cold), .reset(cpu_reset),
         // The reset state, Bochs's: CS F000h at FFFF0000h, EIP FFF0h, every
         // limit FFFFh and every attribute a present read/write data segment;
-        // CR0's MP and TS clear.
-        .init_gpr('0), .init_eflags(32'h2), .init_cr0(32'h0), .init_eip(32'hfff0),
+        // CR0 clear (ET too: no 387), CR2 and CR3 0, GDTR and IDTR at 0
+        // with limit FFFFh.
+        .init_gpr('0), .init_eflags(32'h2), .init_cr0(32'h0), .init_cr2(32'h0), .init_cr3(32'h0),
+        .init_gdtr_base(32'h0), .init_gdtr_limit(16'hffff), .init_idtr_base(32'h0), .init_idtr_limit(16'hffff),
+        .init_eip(32'hfff0),
         .init_sel({16'h0, 16'h0, 16'h0, 16'h0, 16'hf000, 16'h0}),
         .init_base({32'h0, 32'h0, 32'h0, 32'h0, 32'hffff0000, 32'h0}),
         .init_limit({6{32'hffff}}), .init_ar({6{16'h0093}}),
@@ -436,11 +439,12 @@ module pc386_system #(
         .io_wdata(cpu_io_wdata), .io_ack(io_ack), .io_rdata(io_result),
         .intr(intr), .nmi(1'b0), .inta_req(cpu_inta_req), .inta_ack(inta_ack), .inta_vector(inta_result),
         .trace_retire(cpu_retire), .trace_exception(), .trace_vector(cpu_vector), .trace_halt(cpu_halt),
-        .trace_unimplemented(cpu_stopped), .trace_issue(), .trace_md_wait(), .trace_fetch(),
+        .trace_unimplemented(cpu_stopped), .trace_pm_stop(), .trace_error(), .trace_issue(), .trace_md_wait(), .trace_fetch(),
         .trace_fetch_block(), .trace_dread(), .trace_dread_addr(), .trace_mem_wait(),
         .trace_mem_idle(cpu_mem_idle), .trace_replay(), .trace_smc(), .trace_smc_open(), .trace_ex_store(),
         .trace_store(), .trace_store_addr(), .trace_store_data(), .trace_store_mask(), .arch_gpr(),
-        .arch_eflags(), .arch_cr0(), .arch_eip(cpu_eip), .arch_sel(cpu_sel),
+        .arch_eflags(), .arch_cr0(), .arch_cr2(), .arch_cr3(), .arch_gdtr_base(), .arch_gdtr_limit(),
+        .arch_idtr_base(), .arch_idtr_limit(), .arch_eip(cpu_eip), .arch_sel(cpu_sel),
         .arch_base(), .arch_limit(), .arch_ar()
     );
     /* verilator lint_on PINCONNECTEMPTY */
