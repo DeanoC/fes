@@ -11,9 +11,9 @@ import subprocess
 import tempfile
 
 try:
-    from .appliance import canonical,digest,load_manifest,validate_ext4,validate_static_arm
+    from .appliance import BOARD,bootstrap_architecture,canonical,digest,load_manifest,validate_ext4,validate_static_arm
 except ImportError:
-    from appliance import canonical,digest,load_manifest,validate_ext4,validate_static_arm
+    from appliance import BOARD,bootstrap_architecture,canonical,digest,load_manifest,validate_ext4,validate_static_arm
 
 EPOCH=1751459412
 UUID='46455331-626f-4f74-8000-000000000001'
@@ -31,16 +31,18 @@ def debugfs(image,command,*,write=False):
     return run(['debugfs',*(['-w'] if write else []),'-R',command,image])
 
 
-def assemble(output,binary,factory):
+def assemble(output,binary,factory,*,board=BOARD):
+    architecture=bootstrap_architecture(board)
     output=Path(output)
     if output.exists() or output.is_symlink():raise ValueError('bootstrap output already exists')
-    binary_sha=validate_static_arm(binary);manifest=load_manifest(factory)
+    binary_sha=validate_static_arm(binary,architecture);manifest=load_manifest(factory,board=board)
     output.parent.mkdir(parents=True,exist_ok=True)
     try:
         with tempfile.TemporaryDirectory(prefix='.bootstrap-tree-',dir=output.parent) as temporary:
             tree=Path(temporary)
             for name in DIRECTORIES:(tree/name).mkdir(mode=0o755,parents=True,exist_ok=True)
             shutil.copyfile(binary,tree/'sbin/init');(tree/'sbin/init').chmod(0o755)
+            (tree/'etc/fes-board').write_text(board+'\n');(tree/'etc/fes-board').chmod(0o444)
             (tree/'etc/fes/factory.json').write_bytes(canonical(manifest));(tree/'etc/fes/factory.json').chmod(0o444)
             (tree/'tmp').chmod(0o1777)
             for path in [*tree.rglob('*'),tree]:os.utime(path,(EPOCH,EPOCH),follow_symlinks=False)
@@ -73,7 +75,7 @@ def assemble(output,binary,factory):
             commands.write_text('\n'.join(lines)+'\n');run(['debugfs','-w','-f',commands,output])
             run(['e2fsck','-f','-n',output])
             features=validate_ext4(output)
-            for name in ('/sbin/init','/etc/fes/factory.json','/dev/console','/dev/null',*('/'+n for n in DIRECTORIES)):
+            for name in ('/sbin/init','/etc/fes-board','/etc/fes/factory.json','/dev/console','/dev/null',*('/'+n for n in DIRECTORIES)):
                 record=debugfs(output,'stat '+name)
                 if 'Inode:' not in record or 'User:     0' not in record:raise ValueError('bootstrap inode missing or incorrectly owned: '+name)
             if 'character special' not in debugfs(output,'stat /dev/console'):raise ValueError('bootstrap console is not a device')
@@ -89,8 +91,9 @@ def assemble(output,binary,factory):
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('command',choices=['assemble'])
     parser.add_argument('--output',type=Path,required=True);parser.add_argument('--binary',type=Path,required=True);parser.add_argument('--factory',type=Path,required=True)
+    parser.add_argument('--board',choices=(BOARD,'de25-nano'),default=BOARD)
     args=parser.parse_args()
-    try:print(json.dumps(assemble(args.output,args.binary,args.factory),sort_keys=True))
+    try:print(json.dumps(assemble(args.output,args.binary,args.factory,board=args.board),sort_keys=True))
     except (OSError,ValueError,subprocess.CalledProcessError) as error:parser.exit(1,f'appliance bootstrap: {error}\n')
 
 

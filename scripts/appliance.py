@@ -64,6 +64,10 @@ def selected_board(board):
     return board
 
 
+def bootstrap_architecture(board):
+    return 'aarch64' if selected_board(board) == 'de25-nano' else 'armv7'
+
+
 def validate_manifest(data, *, board=BOARD):
     selected_board(board)
     if not isinstance(data,dict) or not MANIFEST_FIELDS <= set(data) or set(data) - MANIFEST_FIELDS - OPTIONAL_MANIFEST_FIELDS:
@@ -261,11 +265,13 @@ def bootstrap_recipe(root):
     return {name:digest(regular(Path(root)/name)) for name in BOOTSTRAP_RECIPE_FILES}
 
 
-def bootstrap_identity(binary_sha,factory,container,assembly_revision,recipe,platform_build=None):
+def bootstrap_identity(binary_sha,factory,container,assembly_revision,recipe,platform_build=None,*,board=BOARD):
+    architecture=bootstrap_architecture(board)
+    if factory.get('board')!=board:raise ValueError('factory differs from selected bootstrap board')
     payload={'binary':binary_sha,'factory':factory,'container_identity':container,
         'assembly_revision':assembly_revision,'assembly_recipe':recipe}
     if platform_build is not None:
-        payload['platform_build']=fes_platform.validate_platform_build(platform_build)
+        payload['platform_build']=fes_platform.validate_platform_build(platform_build,architecture=architecture)
     return hashlib.sha256(canonical(payload)).hexdigest()
 
 
@@ -355,7 +361,7 @@ def cached_media_container(root,runtime,lock):
     return image
 
 
-def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,binary_source_revision=None,assembly_revision=None,platform_build=None):
+def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,binary_source_revision=None,assembly_revision=None,platform_build=None,board=BOARD):
     """Build two independent bootstrap files using a supplied pinned media Runner.
 
     binary_source_revision is supplied only by an integrator that built this
@@ -363,13 +369,14 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
     assembly_revision similarly identifies the selected FES assembly source.
     Output and temporary paths must be inside the supplied Runner filesystem.
     """
-    output=Path(output); binary_sha=validate_static_arm(bootstrap_binary)
-    factory=load_manifest(factory_manifest)
+    architecture=bootstrap_architecture(board)
+    output=Path(output); binary_sha=validate_static_arm(bootstrap_binary,architecture)
+    factory=load_manifest(factory_manifest,board=board)
     if digest(regular(kernel))!=factory['kernel_sha256']: raise ValueError('factory and bootstrap kernel differ')
     if assembly_revision is not None and not re.fullmatch('[0-9a-f]{40}',assembly_revision):
         raise ValueError('invalid bootstrap assembly revision')
     if platform_build is not None:
-        platform_build=fes_platform.validate_platform_build(platform_build)
+        platform_build=fes_platform.validate_platform_build(platform_build,architecture=architecture)
         if binary_source_revision is not None and platform_build['fogcast_revision']!=binary_source_revision:
             raise ValueError('platform build FogCast revision differs from bootstrap source revision')
     elif binary_source_revision is not None or assembly_revision is not None:
@@ -385,14 +392,14 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
         results=[]
         for name in ('first.img','second.img'):
             command=['python3','/work/scripts/appliance_inside.py','assemble','--output',runner.path(scratch/name),
-                '--binary',runner.path(binary),'--factory',runner.path(factory_path)]
+                '--binary',runner.path(binary),'--factory',runner.path(factory_path),'--board',board]
             results.append(json.loads(runner.disk(command)))
         first,second=results
         if first!=second or digest(scratch/'first.img')!=first['image_sha256'] or digest(scratch/'second.img')!=first['image_sha256']:
             raise ValueError('bootstrap two-pass reproducibility failed')
         if bootstrap_recipe(runner.root)!=recipe:
             raise ValueError('bootstrap assembly recipe changed during construction')
-        evidence={'format':1,'kind':'fes-stable-bootstrap','boot_abi':BOOT_ABI,'bootstrap_sha256':first['image_sha256'],
+        evidence={'format':1,'kind':'fes-stable-bootstrap','boot_abi':BOOT_ABI,'board':board,'bootstrap_sha256':first['image_sha256'],
             'bootstrap_binary_sha256':binary_sha,'binary_source_revision':binary_source_revision,
             'binary_source_proven':binary_source_revision is not None,
             'assembly_revision':assembly_revision,'assembly_recipe':recipe,'assembly_source_proven':assembly_revision is not None,

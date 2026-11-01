@@ -134,6 +134,21 @@ class PlatformWorkspaceTests(unittest.TestCase):
         self.assertNotEqual(identity, appliance.bootstrap_identity('2' * 64, factory, 'sha256:' + '3' * 64, '4' * 40, recipe, second))
         self.assertNotEqual(identity, appliance.bootstrap_identity('2' * 64, factory, 'sha256:' + '3' * 64, '4' * 40, recipe))
 
+    def test_aarch64_bootstrap_provenance_requires_explicit_cpu_selection(self):
+        record = fes_platform.platform_build_record('a' * 64, 'b' * 64, 'c' * 40,
+                                                    'go1.26.5', 'd' * 64, architecture='aarch64')
+        self.assertEqual(record['build_env']['GOARCH'], 'arm64')
+        self.assertEqual(record['build_env']['GOARM64'], 'v8.0')
+        self.assertNotIn('GOARM', record['build_env'])
+        fes_platform.validate_platform_build(record, architecture='aarch64')
+        with self.assertRaisesRegex(ValueError, 'environment'):
+            fes_platform.validate_platform_build(record)
+        de10 = fes_platform.platform_build_record('a' * 64, 'b' * 64, 'c' * 40, 'go1.26.5', 'd' * 64)
+        with self.assertRaisesRegex(ValueError, 'environment'):
+            fes_platform.validate_platform_build(de10, architecture='aarch64')
+        with self.assertRaisesRegex(ValueError, 'architecture'):
+            fes_platform.arm_build_environment('other')
+
 
 class PlatformBuildTests(unittest.TestCase):
     def test_build_static_arm_consumes_selected_module_without_copying(self):
