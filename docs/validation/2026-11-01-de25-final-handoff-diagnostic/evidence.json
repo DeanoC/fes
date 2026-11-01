@@ -776,5 +776,25 @@
     "scope": "off-board comparison; no boot acceptance or independently decoded SPL proof",
     "pfg_reproduction_byte_equal": true,
     "v13_and_v14_hps_chunks_match_built_spl": true
+  },
+  "subsequent_paired_controls": "../2026-11-01-de25-v14-startup-controls/evidence.json",
+  "current_board_state": {
+    "serial": "TRWU8CBL",
+    "state": "paired initial-proof CPU-only control parked before DDR/storage/BL31",
+    "diagnostic_id": "ff003d0f54b37fb7",
+    "native_admission": false,
+    "core_load_acceptance": false,
+    "initial_check_reported_valid": true,
+    "claim_held": true,
+    "uart_owner_absent": true,
+    "usb_node": "/dev/bus/usb/003/061",
+    "usb_permissions_restored": true,
+    "factory_restored": false,
+    "test_card_remains_inserted": true,
+    "jtag_clock": "15M",
+    "clock_changed": false,
+    "native_v14_remains_quarantined": true,
+    "control_result_sha256": "863d61c0055b76a4c15f2ed68984bbce69bdc2b80fe1f79d696f7bc3d38fa1a8",
+    "utc": "2026-11-01T13:17:08.018183+00:00"
   }
 }

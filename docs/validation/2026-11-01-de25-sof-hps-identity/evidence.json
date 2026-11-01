@@ -115,10 +115,46 @@
   },
   "focused_tests": 7,
   "focused_passed": true,
-  "affected_checks_status": "pending",
+  "affected_checks_status": "passed",
   "limits": [
     "observed gzip SOF/counted literal HPS format only",
     "no independent SDM command/security-hash/configuration-CRC verification",
     "v14 programming failures remain open; no new hardware execution"
-  ]
+  ],
+  "tested_commit": "6b27795bbb74a4d76715547febec1f5c55ba1eec",
+  "affected_results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ],
+  "parent_tests": 1234,
+  "parent_skipped": 40,
+  "affected_log_sha256": "e140ba6a4a75476bba279f1ec24b3ac78091fab007c1b839b8818816dfc083a9"
 }

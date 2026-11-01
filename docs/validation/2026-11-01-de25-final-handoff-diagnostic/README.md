@@ -60,7 +60,7 @@ SPL, with empty serial captures and no native command. The second attempt
 followed a successful known-recovery boot and independent read-only card
 checks, preserving the first failed attempt/fuse. Native v14 testing then
 stopped. Exact device identity remained observable, and the known recovery
-image booted again without a power cycle. TRWU8CBL stays at that loader prompt
+image booted again without a power cycle. TRWU8CBL was restored to that loader prompt
 with the test card inserted, no UART client and restored USB permissions. The
 factory card remains safe outside the board; no factory boot is claimed.
 
@@ -75,3 +75,7 @@ investigation must preserve this distinction and avoid unchanged retries.
 This remains serial-only diagnostic evidence. Active device drivers, secure
 firmware ownership during active traffic, tenfoot on the board and real core
 launch/return are still unqualified.
+
+The subsequent [paired startup controls](../2026-11-01-de25-v14-startup-controls/README.md)
+both booted and parked, including a positive initial-check observation. They
+are separate diagnostic images and leave the full v14 programming failure open.

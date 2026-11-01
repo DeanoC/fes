@@ -14,13 +14,14 @@ boundaries, one through four chunks, complete identity and rejection paths.
 The inspector decoded four retained real artifacts: native v12/v13/v14 and
 known recovery. The header word matches the chunk count: three in the native
 controls and four in recovery. A complete package build passed the guard and
-retained exactly the original v14 SOF/FIT/native-profile bytes. Affected checks
-are pending.
+retained exactly the original v14 SOF/FIT/native-profile bytes. All six affected checks pass, including 1,234 parent tests (40 skipped) and
+generated consistency. The tested source commit is recorded in the evidence.
 
 This is payload identity and preservation evidence. The limited decoder does
 not validate SDM command semantics, security hashes or configuration CRC, and
 it grants no programming/boot acceptance. The original
 [v14 programming failures](../2026-11-01-de25-final-handoff-diagnostic/README.md)
-remain open; the newly inspected package was not programmed. TRWU8CBL remains
-at the known recovery prompt with the test card inserted and its original
-factory card safe outside the board.
+remain open; the newly inspected package was not programmed. The kit was restored to known recovery after those failures. Subsequent
+[paired CPU controls](../2026-11-01-de25-v14-startup-controls/README.md) ran
+and parked; the test card remains inserted and the original factory card is safe
+outside the board.
