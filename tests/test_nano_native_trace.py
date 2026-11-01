@@ -152,7 +152,7 @@ class NativeSDTraceTests(unittest.TestCase):
         raw=raw[:raw.index('PASS volatile memory filesystem')]
         return raw+'\r\n'.join((
             'FES_STORAGE_PROBE board=de25-nano EL=1 counter=400000000Hz writes=disabled',
-            f'FES_NANO_SD READ bytes=1098 sha256={"a"*64} cid={"b"*32} sectors=7774208 owner={OWNER:016x} generation=3',
+            f'FES_NANO_SD READ bytes=1098 sha256={"a"*64} cid={"b"*30} sectors=7774208 owner={OWNER:016x} generation=3',
             f'FES_NANO_SD CONTAINED owner={OWNER:016x} generation=4',
             f'FES_NANO_SD RESUMED bytes=1098 sha256={"a"*64} owner={OWNER:016x} generation=6',
             f'FES_NANO_SD PASS read-only owner={OWNER:016x} generation=7',''))
@@ -176,7 +176,8 @@ class NativeSDTraceTests(unittest.TestCase):
         for old,new in (('setup=1 ready=1','setup=0 ready=0'),('bytes=1098','bytes=1099'),
                         ('sha256='+'a'*64,'sha256='+'0'*64),('generation=7','generation=6'),
                         ('generation=6','generation=5'),('generation=4','generation=3'),
-                        ('generation=3','generation=2'),('cid='+'b'*32,'cid='+'0'*32),
+                        ('generation=3','generation=2'),('cid='+'b'*30,'cid='+'0'*30),
+                        ('cid='+'b'*30,'cid='+'b'*32),('cid='+'b'*30,'cid='+'b'*28),
                         (f'owner={OWNER:016x} generation',f'owner={OWNER+2:016x} generation')):
             with self.subTest(new=new):
                 report=self.decode(raw.replace(old,new))
@@ -195,6 +196,19 @@ class NativeSDTraceTests(unittest.TestCase):
         disabled=fixture().replace(f'U-Boot 2025.01-fes-nano-{BUILD}',
                  f'NOTICE:  FES_NANO_SD_PLATFORM setup=0 ready=0\r\nU-Boot 2025.01-fes-nano-{BUILD}')
         self.assertTrue(trace.decode_native_boot(disabled,BUILD,SEED)['complete'])
+
+    def test_retained_physical_trace_has_exact_r2_cid_and_complete_containment(self):
+        import hashlib
+        folder=ROOT/'tests/fixtures/nano'
+        expected=json.loads((folder/'sd-native-complete.json').read_text())
+        raw=(ROOT/expected['console_path']).read_bytes()
+        self.assertEqual(hashlib.sha256(raw).hexdigest(),expected['console_sha256'])
+        report=trace.decode_native_boot(raw,expected['build_id'],expected['owner_seed'],storage=expected['storage'])
+        self.assertTrue(report['complete'],report)
+        read=next(row['values'] for row in report['records'] if row['stage']=='read')
+        self.assertEqual(len(read['cid']),30)
+        self.assertEqual(read['sectors'],expected['card_sectors'])
+        self.assertEqual(report['last_checkpoint'],'sd_pass')
 
 
 if __name__ == '__main__':

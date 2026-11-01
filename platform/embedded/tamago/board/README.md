@@ -143,9 +143,12 @@ Current plans are corrected; dated validation receipts retain their original
 bytes. Neither this controller fact nor the vendor development-kit examples
 qualify Nano pinmux, PHY sequencing or a boot recipe.
 
-The serial `probe` now passes on TRWU8CBL. Next qualify native SD reset,
-clock/ComboPHY and ownership transitions, then boot `storage`
-on disposable synthetic FAT32 media and verify its hash. Boot `keyboard` next
+The serial `probe` and the separate
+[controlled read-only SD cycle](../../../../docs/validation/2026-11-01-de25-sd-platform/README.md)
+now pass on TRWU8CBL for their exact matched candidates. The SD diagnostic
+read the protected FAT32 recovery manifest twice across firmware stop/resume,
+with matching hashes and final containment. Next connect verified package
+admission to this real read-only filesystem. Boot `keyboard` next
 to validate ULPI/VBUS, enumeration and actual key reports independently of display.
 Validate the network firmware contract and `network` HTTP probe next. Writable
 SD persistence and physical FPGA activation follow separately. A compatible Nano

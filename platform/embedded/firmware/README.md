@@ -238,6 +238,12 @@ actual callbacks, including two full leases and failed reset/PHY/clock/drain
 paths. Physical reads remain a separate gate. The matched cold diagnostic
 still advertises zero FPGA programming features and prevents secondary CPU release.
 
+That separate [read-only native SD gate](../../../docs/validation/2026-11-01-de25-sd-platform/README.md)
+now passes on TRWU8CBL for candidate `db7c01de309270e7`: two FAT32 reads across
+firmware containment/resume and final containment, with independently expected
+file hash and card capacity. Default unready/serial builds still grant no SD
+authority. This qualifies the closed-bridge diagnostic only.
+
 ### Actual cold serial producer and callbacks
 
 ```sh
@@ -304,7 +310,7 @@ Fresh diagnostic samples cannot replace failed early proof. The
 [later native Go test](../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
 now passes the matched cold serial handoff on TRWU8CBL, including both owned
 snapshots, EL2/EL1 entry and the actual Go probe. That is contained serial
-diagnostic acceptance. Native SD/USB/network resume,
+diagnostic acceptance. Native SD coexistence with active FPGA data, USB/network resume,
 active FPGA drain, signed secure boot and physical launch/return remain open.
 The [version-2 initial-parking trace](../../../docs/validation/2026-11-01-de25-initial-parking-v2/README.md)
 now accepts the observed core-0 startup with the independent power/selection

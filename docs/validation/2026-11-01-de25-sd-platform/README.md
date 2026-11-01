@@ -60,3 +60,21 @@ Candidate `19410f6a83a571e2`, source `1d0f8c044`, passed fresh recovery, Etherne
 The [official CS/R1 RC28 register map](https://docs.altera.com/api/khub/documents/Z5suNak8Ubz6FMY3WjgxBQ/content) defines MAIN_TRANS bit 9 and PERF_TRANS bit 17 as completion bits: 1 is complete, 0 is in transition. The initial implementation had this polarity reversed. The correction requires both bits high, both PLL locks high, BUSY low and boot mode clear. The live 200 MHz derivation and every reset, route, PHY and ownership check remain required. Added failures cover each incomplete transition, BUSY, boot mode and the old locks-only value.
 
 All 44 direct C/platform/profile/export/trace tests passed after the correction. The unchanged broader software checks remain bound to the first candidate; a second full affected run is not claimed. A fresh matched firmware/FIT/SPL/SOF is required before another physical attempt.
+
+## Verified native SD cycle
+
+The corrected candidate `db7c01de309270e7`, firmware source `0b55ff3826e85e0da3ee2d7ddf9c79d54861cf5e`, completed the read-only native SD cycle on TRWU8CBL. Its SOF SHA-256 is `448a6bc8d79540641a5fd5205d4b33cdd095f7be2341098f32511f1ff24f90e6`; FIT SHA-256 is `00e7198b8fc6daa74b754e15437f80a2488110dc89f57fb14dc1f8fcf026bcd6`. The unchanged native storage ELF/entry from the first candidate was reused.
+
+The first recovery-programming attempt for this candidate stopped with a JTAG-chain error, before upload or any SD write. A read-only scan returned the expected device ID. One bounded second recovery attempt succeeded, followed by Ethernet upload/readback with protected boot files unchanged, trusted SD setup, the original one-core EL2/EL1 handoff, native FAT32 reads and firmware-controlled containment.
+
+The [retained complete trace](native-sd-console.log) reports 1,098 bytes and the expected hash for both reads, card capacity 7,774,208 sectors, unchanged owner and generations 3, 4, 6 and 7. The final receipt is contained. Native SD writes were disabled throughout.
+
+The original automatic runner remains recorded as failed: its parser incorrectly expected 16 CID bytes. The actual driver explicitly reports the 15 CID bytes supplied by SDHCI R2, excluding the CRC/end byte. The observer now requires exactly that width and rejects shorter, longer and zero identities. All 15 observer tests, including the immutable physical trace, passed. `hardware-result.json` records successful validation of the saved complete bytes with the corrected observer; hardware was not rerun for this observer-only fix. Original failures and hashes are retained separately.
+
+Read-only post-test checks confirmed JTAG `4362C0DD`, original top-cable 15 MHz, restored USB permissions and no UART owner. The diagnostic, spare card and continuing claim remain on the exclusive top kit under the user's retained-diagnostic policy. Factory restore was not needed. This is narrow native SD diagnostic acceptance. Writable storage, USB, native Ethernet/display, FPGA activation and real core launch/return remain separate work.
+
+## Retention
+
+The artifact archive at `/home/deano/fes-retained/de25-nano-sd-platform-20261101/artifacts.tar.gz` contains 1,854 individually hash-verified members, including selected SDK sources, both matched firmware/bootloader candidates, entry and SOF/FIT bytes, source exports, recovery inputs, raw traces, original failures and bounded trial helpers. Its SHA-256 is `1cb0605f6aec9dd2520b605324610eedd4e85d001c7656deebf68b9817609772`. Claim tokens and factory credentials are excluded.
+
+The adjacent `source.bundle` retains this milestone's commits; it requires base `67b023808b24dfaeb4f60a453b6d40dbee026a94`, already retained by the preceding SD-lease milestone. It is an incremental source bundle, not a standalone repository. Final bundle identity and restore verification are recorded in the retained directory after commit.

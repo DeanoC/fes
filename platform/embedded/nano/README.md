@@ -9,6 +9,15 @@ preserve ownership through that transition. This serial diagnostic does not
 establish native SD/FAT32, USB/network/display, FPGA programming or physical
 core launch/return.
 
+The separate [controlled native SD diagnostic](../../../docs/validation/2026-11-01-de25-sd-platform/README.md)
+now passes on TRWU8CBL with candidate `db7c01de309270e7`: native FAT32 reads,
+secure containment, resume, a matching reread and final containment. It uses
+the real CPU/SMC and PIO paths, preserves the single-CPU cold scope and makes
+no native SD writes. Recovery upload/readback remains a separate stage.
+The original runner's CID-width rejection is retained; the corrected observer
+validates the complete saved trace without another hardware execution.
+This result does not qualify other peripherals or physical core loading.
+
 This prototype joins a repeatable recovery upload tool to a matched Linux-free
 SPL, BL31 and native serial probe. The [current validation](../../../docs/validation/2026-10-31-de25-cold-upload/README.md)
 records the first host tests, cross-builds and regular-file packaging. The
@@ -74,6 +83,12 @@ duplicate stages, failure markers and partial final lines cannot complete.
 Partial UART reads retain progress. A completed decode records the serial
 probe only; kit/card authorization, artifact verification and later device/core
 qualification remain with the caller.
+
+Passing `storage={'bytes': N, 'sha256': HASH}` selects the controlled SD
+observer, using the independently checked recovery manifest. It additionally
+requires secure SD setup, a 15-byte SDHCI R2 CID, same-owner generations 3/4/6/7,
+both expected reads and final containment. The board-trial caller separately
+checks the known spare-card capacity. Serial-only observations cannot grant SD.
 
 The same spare card carries two paths:
 
