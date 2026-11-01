@@ -45,6 +45,7 @@ SMOKE_TARGETS = {
     'spectrum': ('sim-fes-spectrum-smoke',),
     'pcxt': ('sim-fes-pcxt-smoke', 'sim-fes-pcxt-fdc',
              'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox'),
+    'pc386': ('sim-fes-pc386',),
     # Default and OSS unit benches, one board scenario, the diagnostic and the
     # integrated SGM bench; the other board scenarios and -oss twins are full.
     'coleco': ('sim-fes-coleco-unit', 'sim-fes-coleco-unit-oss', 'sim-fes-coleco-board-graphics',

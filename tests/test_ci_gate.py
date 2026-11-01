@@ -155,11 +155,12 @@ class GateTests(unittest.TestCase):
 
 
 class SimulationMatrixTests(unittest.TestCase):
-    def test_pc386_ci_includes_the_cmos_blaster_simulation(self):
+    def test_pc386_fesenv_simulation_runs_only_in_full_tier(self):
         smoke = [row['target'] for row in simulation_matrix(['pc386'], 'smoke')['include']]
         full = [row['target'] for row in simulation_matrix(['pc386'], 'full')['include']]
-        self.assertEqual(smoke, ['sim-fes-pc386', 'sim-fes-pc386-fesenv'])
-        self.assertEqual(full, smoke)
+        self.assertEqual(smoke, ['sim-fes-pc386'])
+        self.assertEqual(full, ['sim-fes-pc386', 'sim-fes-pc386-fesenv'])
+        self.assertNotIn('sim-fes-pc386-fesenv', smoke)
 
     def test_coleco_includes_every_default_and_oss_scenario(self):
         from scripts.ci_simulations import simulation_matrix

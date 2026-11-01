@@ -17,7 +17,8 @@ remote-input stream.
   - The setup is Sound Blaster and AdLib. The title screen and the menus work by keyboard
     and by mouse.
   - AdLib music and Sound Blaster digitised effects are audible.
-  - Turning gives a new frame in every 30 fps capture, with no torn frames.
+  - The capture showed 134 consecutive changed transitions during the turn. The tear check is
+    inconclusive: it flagged 1 of 135 turning pairs.
   - A saved game loads after a relaunch.
   - Nobody played a level through.
 - **Ultima VI.** The setup is VGA and AdLib, and its music plays. A character
@@ -203,7 +204,7 @@ Audio levels are with the capture's DC offset removed (see findings), from
 | AdLib music audible | Pass | Title −45.2 dBFS median and menu −43.2 dBFS, against −101.6 dBFS on the silent sign-on. Music is set to AdLib, so the OPL2 is its only source. |
 | Page flips without tearing | Partial: inconclusive | The automated candidate count is 0, but `tear_check` marks 1 of 135 turning pairs as torn. The retained record does not include the frames or a pair-level visual adjudication, so it does not support a zero-tear claim. |
 | Frame rate recorded from captured frames | Not measured | The capture shows new frames on 134 consecutive transitions during the turn, but the 30 fps card cannot measure above 30 fps. `metrics.json`'s 22.63 is the changed-transition rate over the full 5.97 s capture, including the still portion; it is not the game's active-turn frame rate. Kit A's capture was claimed by another session. |
-| A saved game loads after relaunch | Pass | Saved to slot 1 as "M5G", then Stop. After the relaunch, `SAVEGAM0.WL6` (19,273 bytes) is on the disk and Load Game lists "M5G". The loaded state is Floor 1, 2 lives, ammo 8; a new game starts with 3 lives. Against the frame before saving, 0.06% of pixels differ, all in the status bar's face. |
+| A saved game loads after relaunch | Pass | Saved to slot 1 as "M5G", then Stop. After the relaunch, `SAVEGAM0.WL6` (19,273 bytes) is on the disk and Load Game lists "M5G". The loaded state is Floor 1, 2 lives, ammo 8; a new game starts with 3 lives. The whole 480×270 frame comparison records 83 of 129,600 pixels changed (0.06%). The source frames and region masks were not retained, so the changed pixels cannot be localized. |
 
 ### Ultima VI
 
@@ -213,7 +214,7 @@ Audio levels are with the capture's DC offset removed (see findings), from
 | Music plays | Pass | The intro's music starts 1.7 s into the recording and runs at −38.4 dBFS median for 20 s. Its zero-crossing rate moves between about 1,000 and 2,200 per second, so it is changing notes, not a held tone. In game the level is −36.1 dBFS. |
 | PC speaker effects at the reference pitch under the 286 preset | Pending | Needs the governor |
 | Walking speed matches the reference | Pending | Needs the governor |
-| A saved game loads after relaunch | Pass | The eXoDOS save holds no character, so one was created on the kit: name Avatar, the gypsy's questions, the arrival at Lord British's castle. Three steps south, Ctrl-S, Y, Stop, at party HP 90, 84, 75 and 90. After the relaunch, Journey Onward shows the same HP, position and date. The party panel is identical, and 1.3% of the map area differs, where sprites animate. |
+| A saved game loads after relaunch | Pass | The eXoDOS save holds no character, so one was created on the kit: name Avatar, the gypsy's questions, the arrival at Lord British's castle. Three steps south, Ctrl-S, Y, Stop, at party HP 90, 84, 75 and 90. After the relaunch, Journey Onward shows the same HP, position and date. The whole 480×270 frame comparison records 1,696 of 129,600 pixels changed (1.31%). The source frames and region masks were not retained, so the changes cannot be attributed to the map or used to confirm that the party panel was identical. |
 
 ## Kit-path issues
 

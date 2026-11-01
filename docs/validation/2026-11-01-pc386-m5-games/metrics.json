@@ -185,28 +185,16 @@
  },
  "frames": {
   "wolf3d save before Stop vs load after relaunch (m5g3)": {
-   "whole": {
-    "pixels": 129600,
-    "changed": 83,
-    "fraction": 0.00064
-   },
-   "status_bar": {
-    "pixels": 129600,
-    "changed": 810,
-    "fraction": 0.00625
-   }
+   "scope": "whole 480x270 frame; source frames and region masks were not retained",
+   "pixels": 129600,
+   "changed": 83,
+   "fraction": 0.00064
   },
   "ultima6 save before Stop vs load after relaunch (m5g4)": {
-   "map": {
-    "pixels": 129600,
-    "changed": 1696,
-    "fraction": 0.01309
-   },
-   "party_panel": {
-    "pixels": 129600,
-    "changed": 0,
-    "fraction": 0.0
-   }
+   "scope": "whole 480x270 frame; source frames and region masks were not retained",
+   "pixels": 129600,
+   "changed": 1696,
+   "fraction": 0.01309
   }
  }
 }
