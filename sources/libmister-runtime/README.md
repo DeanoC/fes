@@ -4,9 +4,9 @@ Development lives in the FES repository under `sources/libmister-runtime`.
 The former standalone repository is archived.
 
 The C++14 library and local `mister-runtime` daemon own FPGA programming,
-physical lifecycle, media/input delivery, and recovery. FES described packages are the only product launch path. The installed driver supports
-`fes.simple-game`, `fes.simple-computer`, `fes.application`, and
-`fes.computer` through `fes-gp-v1`. Protocol 2 is the only local socket protocol.
+physical lifecycle, media/input delivery, and recovery. FES described packages are the only product launch path. DE10 supports `fes.simple-game`,
+`fes.simple-computer`, `fes.application` and `fes.computer` through `fes-gp-v1`.
+DE25 selects the two explicit profiles below. Protocol 2 is the only local socket protocol.
 
 Production hardware construction selects the board before constructing physical
 adapters. DE10 requires ARMv7 and the exact FES Cyclone V device-tree identity.

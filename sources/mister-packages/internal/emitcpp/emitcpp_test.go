@@ -269,9 +269,11 @@ func TestRealProgrammingRegistriesCoexist(t *testing.T) {
 #include "de25_nano.hpp"
 using namespace mister::native::generated;
 static_assert(kDe10NanoProgrammingProfilePairCount == 5, "DE10 rows unchanged");
-static_assert(kDe25NanoProgrammingProfilePairCount == 1, "DE25 computer row");
+static_assert(kDe25NanoProgrammingProfilePairCount == 2, "DE25 computer and allocated MENU rows");
 static_assert(kDe25NanoProgrammingProfilePairs[0].major == 1, "ABI major");
 static_assert(!kDe25NanoProgrammingProfilePairs[0].diagnostic_only, "described core pair");
+static_assert(kDe25NanoProgrammingProfilePairs[1].major == 1, "MENU ABI major");
+static_assert(!kDe25NanoProgrammingProfilePairs[1].diagnostic_only, "described MENU pair");
 `
 	if err := os.WriteFile(filepath.Join(dir, "test.cpp"), []byte(source), 0600); err != nil {
 		t.Fatal(err)

@@ -122,21 +122,20 @@ video/HID/tape interfaces.
 
 `NativeHardware` retains an explicitly selected platform and passes it to each
 package compatibility and registry check, including activation rechecks. DE25
-capabilities contain only the BRAM computer profile/interfaces, with no ROM
-linking, application, DDR or contained-development claims. Core video uses the
+capabilities contain the BRAM computer and allocated MENU application
+profiles/interfaces when their drivers/adapters are supplied, with no ROM
+linking, boot-latched DDR or contained-development claims. Core video uses the
 `CoreVideoBringup` interface: the fixed Linux I2C recipe supports DE10, while
-`De25VideoBringup` observes the actual client's video-ready status without any
-transmitter writes. A backend/platform mismatch is refused during admission
+`De25VideoBringup` asks the selected core driver for observed readiness without
+transmitter writes. MENU never probes the computer endpoint. A backend/platform mismatch is refused during admission
 and before replacement quiesce. Both managed profiles reach video setup and
 selected-driver Start; unsafe Identify failures retire the active identity.
 DE25 video quiesce has no separate hardware mutation; the selected driver's
 HOLD fences the CPU. It does not claim to blank the transmitter. The current
 Cyclone V splash recipe is refused on DE25 before any input, video or FPGA
-mutation. A managed DE25 idle/MENU package and restart adoption are still needed
-before the single production factory can construct this path.
-
-Production construction/startup remains closed. Scripted-register and selected-driver
-regressions are software evidence. The [2026-11-01 shared-lifecycle diagnostic](../../docs/validation/2026-11-01-de25-shared-lifecycle/README.md) runs this actual driver/video backend through two NativeHardware package loads, BASIC7 and software reboot; the factory and normal idle/MENU remain closed.
+mutation. The selected MENU package supplies idle startup; safe restart adoption and
+native factory/MENU acceptance remain open. Scripted-register and selected-driver
+regressions are software evidence. The [2026-11-01 shared-lifecycle diagnostic](../../docs/validation/2026-11-01-de25-shared-lifecycle/README.md) runs this actual driver/video backend through two NativeHardware package loads, BASIC7 and software reboot; that earlier result does not accept the new factory or normal idle/MENU path.
 
 ## DE25 PR-control diagnostic
 
@@ -154,13 +153,14 @@ constructed by the production factory or exposed by the runtime daemon.
 
 `De25Computer` is a separately instantiated protocol consumer for the generated
 `fes.fabric.de25-computer` register map. It reuses the abstract `Mmio` and
-`Clock` interfaces with resource-relative offsets. There is no Linux MMIO
-constructor, physical base, daemon operation or platform/profile admission for
-this client. Its callers are scripted-register unit tests and the native/AArch64
+`Clock` interfaces with resource-relative offsets. The client owns no Linux device opener or independent daemon operation;
+its selected driver and production binding supply MMIO/lifecycle ownership.
+Its software proofs include scripted-register tests and the native/AArch64
 DE25 ZX81 co-simulation in `misteross/boards/de25nano/zx81-hps/client_proof.py`.
 That test connects the actual client to the endpoint/machine RTL, with explicit
 simulation-time advances and separately labeled observation/transport faults.
-The production factory and its exact ARMv7/DE10 guard above are unchanged.
+The production factory binds the same client only after the explicit DE25
+board/lease/kernel/owner checks above; it does not expose a second control API.
 
 The client requires an explicit nonzero 128-bit build ID, bridge identity and
 version, exact `fes.computer` identity/capabilities, and live ZX81 tape limits
@@ -329,8 +329,8 @@ successful REAP it closes its grant and waits for OWNER_IDLE, including peer
 FD/VMA references. A failed retirement stays sticky and refuses another bind.
 The kernel retains uncertain exposure after local descriptors close. Synchronous
 ioctl completion is checked against the deadline but cannot be aborted by a
-userspace clock check. This adapter does not admit a package, adopt an existing
-configuration, or construct the DE25 production factory.
+userspace clock check. The selected driver and factory bind this adapter; it
+never adopts an inherited configuration or authorizes replacement from closure.
 
 `NativeHardware` consumes the `MenuDisplay` presentation and `MenuMemory`
 grant interfaces. `MenuDisplayDriver` and `MenuWindow` are the DE10 adapters;
