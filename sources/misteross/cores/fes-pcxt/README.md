@@ -338,9 +338,10 @@ The optional floppy profile uses physical SDRAM byte addresses
 Ordered host uploads can run while the guest runs. A new media transaction
 invalidates the current image, lets accepted writes drain, and keeps the medium
 hidden until every byte, including the last physical write, has completed and
-the mailbox commits the image. After a cold start, the guest stays in reset
-until the first complete image or until the host releases it with the drive
-empty; later eject and replacement do not reset the running guest. CPU/DMA,
+the mailbox commits the image. In the DOS profile (`fes.pcxt-dos`), after a
+cold start the guest stays in reset until the first complete image or until
+the host releases it with the drive empty; later eject and replacement do not
+reset the running guest. CPU/DMA,
 floppy reads and uploads share the controller with bounded arbitration and
 refresh, and an outstanding floppy read drains before an overwrite. Warm reset
 retains the image; cold reset invalidates it.

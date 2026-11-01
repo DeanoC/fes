@@ -191,7 +191,7 @@ omits tests and is not exhaustive green.
 | --- | --- | --- |
 | `video` | Parent suite omits the full-device video classes `RealProducerEvidenceTests`, `NativeProducerEvidenceTests`, `STProducerEvidenceTests` (`test_factory_video_parts.py`) and `FactoryVideoPublicationTests`, `RasterFactoryVideoPublicationTests` (`test_factory_video_publication.py`); lightweight classes in the same files still run | Video producer/admission inputs (`scripts/factory_video_parts.py`, `core_catalog.py`, `core_dev_accept.py`, `core_dev.py`, `package_acceptance_isolated.py`, `recipes.py`, `bundle.py`, `artifact_cache.py`, `core-recipes.toml`), `sources/misteross`, `sources/FogCast/corepackage`, `corecatalog`, and non-test `.go` under `catalog`/`fogcast` |
 | `media` | Parent suite omits the container drivers `ContainerImageTests`, `RealImageTests` (`test_media_image.py`), `ContainerTests`, `RealBootstrapTests` (`test_appliance.py`), `ContainerTests`, `RealCardTests` (`test_appliance_media.py`) | Image/platform/containers/profiles roots, `scripts/media*.py`, `scripts/appliance*.py`, `platform.py`, `image_toolchain.py`, `boot-media.lock.toml`, the three media test files, `sources/FogCast/appliance`, `cmd/target-image-lock` |
-| `full_race` | Host functional coverage is partitioned exactly once: the race-expensive `fogcast`/`corepackage` run all assertions non-race, and every other package runs its whole suite under `-race -short`. `fogcast`/`corepackage` additionally get concurrency-focused `-run` race instrumentation (`HOST_RACE_FOCUS`: Concurrent/Cancel/Session/Lifecycle/Stop/Target/Lock/Queued/Drain/Lease/Discovery/Watch/Input/Mesh names). Not exhaustive — full mode races every package in all three modules | Shared contracts (`sources/mister-packages`), unknown inputs and new branches select every mode; weekly schedule and manual dispatch always run all modes |
+| `full_race` | Host functional coverage is partitioned exactly once: the race-expensive `fogcast`/`corepackage` run all assertions non-race, and every other package runs its whole suite under `-race -short`. `fogcast`/`corepackage` additionally get concurrency-focused `-run` race instrumentation (`HOST_RACE_FOCUS`: Concurrent/Cancel/Session/Lifecycle/Stop/Target/Lock/Queued/Drain/Lease/Discovery/Watch/Input/Mesh names). Not exhaustive — full mode races every package in all three modules | Shared contracts (`sources/mister-packages`), unknown inputs and new branches select every mode; nightly schedule and manual dispatch always run all modes |
 
 Shared `scripts/build.py`, `inputs.py`, `native_dev.py`, `environment.py` and
 FogCast `go.mod`/`go.sum` select both video and media. CI validates
@@ -239,9 +239,9 @@ full tier. Coleco's full tier has 24 jobs: seven unit/board scenarios in default
 and registered OSS lanes (14 jobs), the CPU expansion probe, the diagnostic
 through the registered socket, the video-parts check and seven SGM cases. Its
 smoke tier runs five of them: unit, unit-oss, board-graphics, diagnostic and
-sgm-integrated. These preserve the cases and compiler flags in the local
-aggregate commands. Each job has isolated build output; the matrix runs at most
-eight jobs concurrently.
+sgm-integrated. The full tier preserves the cases and compiler flags in the
+local aggregate commands; the smoke tier runs the five listed jobs. Each job
+has isolated build output; the matrix runs at most eight jobs concurrently.
 
 PRs run against their merge result; pushes to `main` validate the merged result.
 Feature-branch pushes do not duplicate PR runs. Merge groups remain supported;

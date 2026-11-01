@@ -237,8 +237,9 @@ type warmingLocalCores struct {
 	warmLists atomic.Int32
 	// hiccups is how many queued-launch warm polls fail with a transient
 	// error, alternating a client timeout and a dropped socket, before the
-	// warm check runs. Only launchAfterWarm lists with an uncancellable
-	// context; the Home install loop's cancellable lists never see them.
+	// warm check runs. In these queued-launch tests, only launchAfterWarm
+	// lists with an uncancellable context; Home's install loop uses
+	// cancellable lists.
 	hiccups atomic.Int32
 }
 
