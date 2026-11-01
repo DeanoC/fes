@@ -436,7 +436,18 @@ func (a *App) ensureHomeRecentsLocked() {
 }
 
 func (a *App) loadHomeRecents(ctx context.Context, gen int) {
-	if a == nil || a.client == nil {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	client := a.client
+	allCores := a.allCores
+	current := gen == a.homeRecentsGen
+	a.mu.Unlock()
+	if !current {
+		return
+	}
+	if client == nil {
 		a.mu.Lock()
 		if gen == a.homeRecentsGen {
 			a.homeRecents = nil
@@ -449,31 +460,53 @@ func (a *App) loadHomeRecents(ctx context.Context, gen int) {
 	var games []hostclient.Game
 	var err error
 	fails := 0
+	cursor := ""
+	seenCursors := map[string]struct{}{}
 	for {
 		if ctx.Err() != nil {
 			return
 		}
-		games, _, err = a.client.ListGames(ctx, hostclient.GameListQuery{
+		var page []hostclient.Game
+		var next string
+		page, next, err = client.ListGames(ctx, hostclient.GameListQuery{
 			Collection: "recents",
 			Limit:      homeRecentLimit,
+			Cursor:     cursor,
 		})
-		if err == nil && len(games) > homeRecentLimit {
-			games = games[:homeRecentLimit]
+		if err != nil {
+			if !libraryNetRetry(err) {
+				break
+			}
+			a.mu.Lock()
+			stale := gen != a.homeRecentsGen
+			a.mu.Unlock()
+			if stale {
+				return
+			}
+			fails++
+			a.noteRecentsUnreachable(gen)
+			if !a.libraryRetryWait(ctx, fails, gen, true) {
+				return
+			}
+			continue
 		}
-		if err == nil || !libraryNetRetry(err) {
+		for _, game := range page {
+			if !allCores && game.CoreID != "" && !release.Shown(game.CoreID, false) {
+				continue
+			}
+			games = append(games, game)
+			if len(games) == homeRecentLimit {
+				break
+			}
+		}
+		if len(games) == homeRecentLimit || next == "" {
 			break
 		}
-		a.mu.Lock()
-		stale := gen != a.homeRecentsGen
-		a.mu.Unlock()
-		if stale {
-			return
+		if _, seen := seenCursors[next]; seen {
+			break
 		}
-		fails++
-		a.noteRecentsUnreachable(gen)
-		if !a.libraryRetryWait(ctx, fails, gen, true) {
-			return
-		}
+		seenCursors[next] = struct{}{}
+		cursor = next
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()

@@ -67,7 +67,7 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 			add("Browse published systems", "published")
 		}
 		for _, r := range s.Cores {
-			if s.FilterCoreID != "" && r.CoreID != s.FilterCoreID || !release.Shown(r.CoreID, a.allCores) {
+			if (s.FilterCoreID != "" && r.CoreID != s.FilterCoreID) || (s.FilterCoreID == "" && !release.Shown(r.CoreID, a.allCores)) {
 				continue
 			}
 			label := r.Label + " · " + r.Standing + " · " + r.ArtifactState

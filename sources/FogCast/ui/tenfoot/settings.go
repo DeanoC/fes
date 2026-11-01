@@ -1873,6 +1873,9 @@ func (a *App) setAllCoresLocked(on bool, persist bool) {
 		status = "all cores shown"
 	}
 	if a.settingsOpen && !a.sessionStopOfferedLocked() && a.launch.Phase != "launching" {
+		if !a.homeRooms {
+			a.closeAllRoomsLocked()
+		}
 		a.goHomeNowLocked()
 	}
 	a.status = status

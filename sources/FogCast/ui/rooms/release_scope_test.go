@@ -1,6 +1,8 @@
 package rooms
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/DeanoC/FogCast/hostclient"
@@ -67,5 +69,25 @@ function draw() end`
 	machines := r.hardwareTable(hostclient.HardwareSnapshot{Machines: []hostclient.HardwareMachine{{CoreID: "fes.apple2"}, {CoreID: "fes.coleco"}}}).RawGetString("machines").(interface{ Len() int })
 	if machines.Len() != 1 {
 		t.Fatalf("machines = %d", machines.Len())
+	}
+}
+
+func TestHomeDropsRememberedHeldBackCore(t *testing.T) {
+	storePath := filepath.Join(t.TempDir(), "home.state.json")
+	if err := os.WriteFile(storePath, []byte(`{"package_id":"`+corePongID+`","package_name":"Pong","package_core_id":"fes.pong"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeLocalCores{cores: []localcores.Core{
+		{PackageID: corePongID, CoreID: "fes.pong", Name: "Pong", Needs: "none", Launchable: true},
+		{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true},
+	}}
+	r := newRoom(t, examplePack(t, "example.fes-cores"), Options{Local: fake, Width: 1280, Height: 720, ReleaseOnly: true, StorePath: storePath})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	stepUntil(t, r, func(Frame) bool { return r.Destination().PackageID == coreZXID })
+	if got := r.Destination(); got.CoreID != "fes.zx81" || got.PackageID == corePongID {
+		t.Fatalf("remembered held-back card remained selected: %+v", got)
 	}
 }

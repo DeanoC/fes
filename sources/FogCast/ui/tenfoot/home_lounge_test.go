@@ -45,6 +45,10 @@ func startHomeLounge(t *testing.T, cores rooms.LocalCores, w, h int, pairedLease
 
 // startHomeLoungeIn is startHomeLounge with its prefs and room store in dir.
 func startHomeLoungeIn(t *testing.T, dir string, cores rooms.LocalCores, w, h int, pairedLease ...string) *App {
+	return startHomeLoungeInWithAllCores(t, dir, cores, w, h, true, pairedLease...)
+}
+
+func startHomeLoungeInWithAllCores(t *testing.T, dir string, cores rooms.LocalCores, w, h int, allCores bool, pairedLease ...string) *App {
 	t.Helper()
 	host := newRoomHost(t)
 	client := NewClient(host.server.URL, host.server.Client())
@@ -54,8 +58,7 @@ func startHomeLoungeIn(t *testing.T, dir string, cores rooms.LocalCores, w, h in
 		client.paired = true
 	}
 	app := NewApp(client, w, h, 50)
-	// The lounge fixtures install held-back cores such as Pong.
-	app.SetAllCores(true)
+	app.SetAllCores(allCores)
 	app.SetPrefsPath(filepath.Join(dir, "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
 	app.SetHomeRooms(true)
