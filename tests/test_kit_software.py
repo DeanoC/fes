@@ -1,10 +1,12 @@
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch, Mock
@@ -136,6 +138,88 @@ class SoftwareWorkflowTests(unittest.TestCase):
             self.assertEqual(kw['env']['CGO_ENABLED'], '0')
             self.assertIn('Revision=' + 'b' * 40, args[args.index('-ldflags') + 1])
         self.assertEqual((self.root / 'sources/FogCast/bin/kit-software.revision').read_text(), 'b'*40+'\n')
+
+    def test_de25_builds_arm64_targets_and_amd64_helper_without_ambient_cpu_flags(self):
+        (self.root / 'sources/FogCast').mkdir(parents=True)
+        goroot = self.root / 'go'
+        for name in ('bin/go', 'pkg/tool/linux_amd64/compile'):
+            path = goroot / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(b'compiler')
+        calls = []
+        def builder(args, **kw):
+            if args[:2] == ['go', 'build']:
+                calls.append((args, kw['env']))
+                Path(args[args.index('-o') + 1]).write_bytes(kw['env']['GOARCH'].encode())
+            return str(goroot) if args == ['go', 'env', 'GOROOT'] else 'go fixture'
+        with patch.object(kit, 'run', side_effect=builder):
+            result = kit.build_go(self.root, 'v1', 'b' * 40,
+                                  {'GOARM': '5', 'GOARM64': 'v9.5'}, 'de25-nano')
+        self.assertEqual([env['GOARCH'] for _, env in calls], ['arm64'] * 3 + ['amd64'])
+        for args, env in calls[:3]:
+            self.assertEqual(env['GOARM64'], 'v8.0')
+            self.assertNotIn('GOARM', env)
+            self.assertTrue(str(args[args.index('-o') + 1]).endswith('-linux-aarch64'))
+        self.assertNotIn('GOARM', calls[-1][1]); self.assertNotIn('GOARM64', calls[-1][1])
+        self.assertEqual(result['target'], 'linux/arm64 GOARM64=v8.0 CGO_ENABLED=0')
+
+    def de25_sdk_fixture(self, extra=None):
+        directory = self.root / 'de25-image'; directory.mkdir(exist_ok=True)
+        archive = directory / 'aarch64-sdk.tar.gz'
+        with tarfile.open(archive, 'w:gz') as sdk:
+            item = tarfile.TarInfo('sdk/bin/aarch64-buildroot-linux-gnu-g++')
+            item.size = 8; sdk.addfile(item, io.BytesIO(b'compiler'))
+            if extra is not None:
+                sdk.addfile(extra, io.BytesIO(b''))
+        config = directory / 'buildroot.config'
+        config.write_text('BR2_aarch64=y\nBR2_cortex_a53=y\nBR2_TOOLCHAIN_BUILDROOT_GLIBC=y\nBR2_TOOLCHAIN_BUILDROOT_CXX=y\n')
+        lane = kit.load(ROOT / 'image/de25-nano/build.py', 'test_de25_sdk_recipe')
+        record = {'format': 1, 'board': 'de25-nano', 'architecture': 'aarch64', 'fes_revision': 'b' * 40,
+                  'recipe_sha256': lane.recipe_key(ROOT), 'rootfs_key': lane.rootfs_key(ROOT),
+                  'builder_image': 'sha256:' + 'c' * 64,
+                  'files': {path.name: kit.sha(path) for path in (archive, config)}}
+        (directory / 'image.json').write_text(json.dumps(record))
+        return directory, record
+
+    def test_de25_sdk_checks_receipt_configuration_digest_and_archive_containment(self):
+        directory, record = self.de25_sdk_fixture()
+        self.assertEqual(kit.de25_sdk(ROOT, directory)['archive_sha256'], record['files']['aarch64-sdk.tar.gz'])
+        receipt = directory / 'image.json'
+        for field, value in [('board', 'de10-nano'), ('architecture', 'armv7'),
+                             ('rootfs_key', 'd' * 64), ('recipe_sha256', 'd' * 64)]:
+            receipt.write_text(json.dumps({**record, field: value}))
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, 'receipt differs'):
+                kit.de25_sdk(ROOT, directory)
+        receipt.write_text(json.dumps(record))
+        (directory / 'aarch64-sdk.tar.gz').write_bytes(b'corrupt')
+        with self.assertRaisesRegex(ValueError, 'input differs'):
+            kit.de25_sdk(ROOT, directory)
+        for name, target in [('sdk/../escape', None), ('sdk/link', '../../escape')]:
+            extra = tarfile.TarInfo(name)
+            if target:
+                extra.type = tarfile.SYMTYPE; extra.linkname = target
+            directory, record = self.de25_sdk_fixture(extra)
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'unsafe DE25 SDK'):
+                kit.de25_sdk(ROOT, directory)
+
+    def test_board_and_sdk_selection_fail_before_build(self):
+        for board, sdk in [('unknown', None), ('de25-nano', None), ('de10-nano', self.root)]:
+            with self.subTest(board=board), patch.object(kit, 'build_go') as go:
+                with self.assertRaisesRegex(ValueError, 'requires --board'):
+                    kit.publish(self.root, self.base, kit.sha(self.base), 'v1', self.root / 'release',
+                                board=board, de25_image=sdk)
+                go.assert_not_called()
+                self.assertFalse((self.root / 'release').exists())
+
+    def test_de25_script_extracts_private_sdk_without_building_de10_driver(self):
+        script = kit.runtime_script('b' * 40, None, 'de25-nano', 'c' * 64)
+        subprocess.run(['sh', '-n'], input=script, text=True, check=True)
+        self.assertIn('aarch64-buildroot-linux-gnu', script)
+        self.assertIn('sha256sum -c -', script)
+        self.assertIn('dump /etc/fes-board', script)
+        self.assertNotIn('fes-window', script)
+        self.assertNotIn('toolchain_cache.py', script)
+        for driver, digest in [(self.DRIVER, 'c' * 64), (None, None), (None, '$(bad)')]:
+            with self.assertRaises(ValueError):
+                kit.runtime_script('b' * 40, driver, 'de25-nano', digest)
 
     DRIVER = {'kernel_release': '5.15.1-MiSTer'}
 
@@ -354,6 +438,41 @@ class SoftwareWorkflowTests(unittest.TestCase):
         self.assertFalse(list(self.root.glob('.kit-software-*')))
         self.assertEqual(self.base.read_bytes(), b'authenticated image fixture')
         self.assertEqual((previous / 'bundle.tar').read_bytes(), b'old bundle')
+
+    def test_de25_pack_failure_never_builds_or_carries_de10_window_driver(self):
+        def clone(args, **kw):
+            if 'status' in args:
+                return ''
+            if args[:2] == ['git', 'clone']:
+                snapshot = Path(args[-1])
+                (snapshot / 'sources/FogCast/bin').mkdir(parents=True)
+                for name in ('mister-agent', 'fogcast-kit', 'fogcast-tenfoot'):
+                    (snapshot / ('sources/FogCast/bin/' + name + '-linux-aarch64')).write_bytes(b'arm64')
+                (snapshot / 'image/buildroot/board/fogcast-target/native-rootfs-overlay/usr/share/fogcast').mkdir(parents=True)
+            return 'b' * 40
+        def runtime(snapshot, cache, revision, env, driver, board):
+            self.assertIsNone(driver); self.assertEqual(board, 'de25-nano')
+            binary = snapshot / 'image/build/software/runtime/build/mister-runtime'
+            binary.parent.mkdir(parents=True); binary.write_bytes(b'arm64 runtime')
+            return {}
+        def fail(image, payload, output, *args):
+            self.assertFalse((payload / 'share/fes-window').exists())
+            self.assertEqual((payload / 'bin/mister-agent').read_bytes(), b'arm64')
+            output.write_bytes(b'partial failed pack')
+            raise ValueError('incompatible base')
+        with patch.object(kit, 'de25_sdk', return_value={}), \
+             patch.object(kit, 'package', side_effect=fail), \
+             patch.object(kit, 'run', side_effect=clone), \
+             patch.object(kit, 'build_go'), \
+             patch.object(kit, 'prepare_kernel_module') as driver, \
+             patch.object(kit, 'build_runtime', side_effect=runtime):
+            with self.assertRaisesRegex(ValueError, 'incompatible base'):
+                kit.publish(self.root, self.base, kit.sha(self.base), 'v1', self.root / 'new',
+                            board='de25-nano', de25_image=self.root)
+            driver.assert_not_called()
+        self.assertFalse((self.root / 'new').exists())
+        self.assertFalse(list(self.root.glob('.kit-software-*')))
+        self.assertEqual(self.base.read_bytes(), b'authenticated image fixture')
 
 
 if __name__ == '__main__':
