@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/DeanoC/FogCast/catalog"
@@ -511,6 +512,37 @@ func New(service Service, options ...ServerOption) http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, result)
+	})
+	mux.HandleFunc("POST /api/v1/session/input/tap", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			SessionID string             `json:"session_id"`
+			Event     *remoteinput.Event `json:"event"`
+		}
+		decoder := json.NewDecoder(io.LimitReader(r.Body, 4096))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&body); err != nil || body.SessionID == "" || body.Event == nil {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "input tap is invalid")
+			return
+		}
+		coordinator := requestSessionCoordinator(session, service, r, "")
+		duration, err := coordinator.tapCoreKey(r.Context(), body.SessionID, *body.Event)
+		if err != nil {
+			if errors.Is(err, host.ErrRemoteInputInvalid) {
+				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "input tap or session is invalid")
+				return
+			}
+			if errors.Is(err, host.ErrRemoteInputBusy) {
+				writeError(w, http.StatusConflict, "INPUT_BUSY", "input key or source is already held")
+				return
+			}
+			if errors.Is(err, host.ErrRemoteInputNoStream) {
+				writeError(w, http.StatusServiceUnavailable, "INPUT_UNAVAILABLE", "no live input stream")
+				return
+			}
+			writeSessionError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "host_duration_ms": float64(duration) / float64(time.Millisecond)})
 	})
 	mux.HandleFunc("POST /api/v1/session/input/event", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
