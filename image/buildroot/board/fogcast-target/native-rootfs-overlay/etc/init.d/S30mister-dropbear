@@ -3,8 +3,33 @@ set -eu
 
 case "${1:-start}" in
   start)
-    /bin/mkdir -p /run/dropbear
-    /bin/chmod 0700 /run/dropbear
+    board_file=${FES_DROPBEAR_BOARD_FILE:-/etc/fes-board}
+    board=de10-nano
+    if [ -f "$board_file" ]; then board=$(cat "$board_file"); fi
+    case "$board" in
+      de10-nano)
+        /bin/mkdir -p /run/dropbear
+        /bin/chmod 0700 /run/dropbear
+        ;;
+      de25-nano)
+        fat=${FES_DROPBEAR_FAT:-/media/fat}
+        mounts=${FES_DROPBEAR_MOUNTS:-/proc/mounts}
+        # The bootstrap supplied this exact writable volume. Never generate
+        # ephemeral keys when the persistent card mount is unavailable.
+        /usr/bin/awk -v path="$fat" '$1 == "/dev/mmcblk0p1" && $2 == path && $3 == "vfat" &&
+          ("," $4 ",") ~ /,rw,/ { found++ } END { exit found != 1 }' "$mounts" || {
+          echo 'mister-dropbear: DE25 persistent FAT mount is unavailable' >&2
+          exit 1
+        }
+        [ -d "$fat" ] && [ ! -L "$fat" ] || exit 1
+        for directory in "$fat/fogcast" "$fat/fogcast/ssh"; do
+          [ ! -L "$directory" ] || exit 1
+          /bin/mkdir -p "$directory"
+        done
+        /bin/chmod 0700 "$fat/fogcast/ssh"
+        ;;
+      *) echo 'mister-dropbear: unsupported image board' >&2; exit 1 ;;
+    esac
     ;;
   stop) : ;;
   *)

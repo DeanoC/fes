@@ -30,11 +30,15 @@ retains the failed FPGA-first/factory-start attempts.
 Shared release storage and the update agent/API have explicit DE25 board
 selection. The agent and storage gate bind the immutable image's board file to
 its CPU architecture, while the upload parser and client refuse cross-board
-payloads. The base storage helper builds for AArch64. These are software paths:
-The FES PID1 source also supports an explicitly selected DE25 bootstrap and
+payloads. The base storage helper builds for AArch64. The FES PID1 source also
+supports an explicitly selected DE25 bootstrap and
 reproducible AArch64 ext4 construction. Its CPU/root/volume checks and the
 refusal of unqualified trial boots are covered in the
 [bootstrap record](../validation/2026-11-01-de25-appliance-bootstrap/README.md).
+Explicit board/CPU artifact selection and the shared factory's AArch64,
+network, persistent SSH and software-bundle wiring are covered by the
+[factory-input record](../validation/2026-11-01-de25-factory-inputs/README.md).
+Its rootfs fixture is not a real CPU, package seal or physical boot proof.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.
 

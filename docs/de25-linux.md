@@ -115,6 +115,15 @@ are off-board evidence. The bootstrap is not installed; the managed factory,
 complete card layout and native boot still need integration. DE25 trial boots
 are refused before watchdog guard startup until native recovery is qualified.
 
+The [factory-input record](validation/2026-11-01-de25-factory-inputs/README.md)
+covers explicit DE25/AArch64 artifact selection and shared factory startup
+wiring, including persistent SSH keys and DHCP lease renewal. It executes both
+board variants through rootfs/bundle fixtures; the fixture's executables and
+package selector are stand-ins. A separate hash audit reuses the earlier real
+AArch64 ELF compatibility result and identifies the headless base's missing
+factory libraries/services. A managed Buildroot profile, matching kernel
+drivers, complete SD image and native boot remain required.
+
 The [managed-fabric record](validation/2026-11-01-de25-managed-fabric/README.md)
 covers the current canonical MENU profile: vendor maintenance masters removed,
 unused F2H disabled, and obsolete fabric JTAG constraints retired with their

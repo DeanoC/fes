@@ -17,11 +17,20 @@ import build
 
 MENU_INTERFACES = (('fes.video.fixed-720p60', 1, 0), ('fes.memory.hps-ddr', 1, 0),
                    ('fes.video.menu-display', 1, 0))
+DE25_MENU_INTERFACES = (('fes.video.fixed-720p60', 1, 0), ('fes.video.menu-display', 1, 0),
+                        ('fes.fabric.de25-scanout', 1, 1))
 needs_readelf = unittest.skipUnless(shutil.which('readelf'), 'needs readelf from binutils')
 
 
-def static_arm_elf():
+def static_arm_elf(architecture='armv7'):
     data = bytearray(256)
+    if architecture == 'aarch64':
+        data[:16] = b'\x7fELF\x02\x01\x01' + bytes(9)
+        struct.pack_into('<HHIQQQIHHHHHH', data, 16, 2, 183, 1, 0x400080, 64, 0,
+                         0, 64, 56, 1, 0, 0, 0)
+        struct.pack_into('<IIQQQQQQ', data, 64, 1, 5, 0, 0x400000, 0x400000,
+                         len(data), len(data), 4096)
+        return data
     data[:16] = b'\x7fELF\x01\x01\x01' + bytes(9)
     struct.pack_into('<HHIIIIIHHHHHH', data, 16, 2, 40, 1, 0x10054, 52, 0,
                      0x05000000, 52, 32, 1, 0, 0, 0)
@@ -30,11 +39,21 @@ def static_arm_elf():
     return data
 
 
-def runtime_elf(interfaces):
+def runtime_elf(interfaces, architecture='armv7'):
     """ARM runtime whose .fes_menu_interfaces section lists interfaces; None omits it."""
     names = [b'', b'.shstrtab'] + ([] if interfaces is None else [b'.fes_menu_interfaces'])
     strings = b'\0'.join(names) + b'\0'
     records = b''.join(f'{name}={major}.{minor}\0'.encode() for name, major, minor in interfaces or ())
+    if architecture == 'aarch64':
+        data = bytearray(64) + strings + (b'' if interfaces is None else records + b'\0')
+        sections = [bytes(64), struct.pack('<IIQQQQIIQQ', 1, 3, 0, 0, 64, len(strings), 0, 0, 1, 0)]
+        if interfaces is not None:
+            sections.append(struct.pack('<IIQQQQIIQQ', len(b'\0.shstrtab\0'), 1, 2, 0, 64 + len(strings),
+                                        len(records) + 1, 0, 0, 1, 0))
+        data[:16] = b'\x7fELF\x02\x01\x01' + bytes(9)
+        struct.pack_into('<HHIQQQIHHHHHH', data, 16, 2, 183, 1, 0, 0, len(data),
+                         0, 64, 0, 0, 64, len(sections), 1)
+        return bytes(data) + b''.join(sections)
     data = bytearray(52) + strings + (b'' if interfaces is None else records + b'\0')
     sections = [bytes(40), struct.pack('<10I', 1, 3, 0, 0, 52, len(strings), 0, 0, 1, 0)]
     if interfaces is not None:
@@ -46,9 +65,10 @@ def runtime_elf(interfaces):
     return bytes(data) + b''.join(sections)
 
 
-def menu_manifest(interfaces):
-    return ''.join(f'[[interfaces]]\nid = "{name}"\nmajor = {major}\nminor = {minor}\nrequired = true\n\n'
-                   for name, major, minor in interfaces)
+def menu_manifest(interfaces, board='de10-nano'):
+    return ('[target]\nplatform = "' + board.replace('-', '_') + '"\n\n' +
+            ''.join(f'[[interfaces]]\nid = "{name}"\nmajor = {major}\nminor = {minor}\nrequired = true\n\n'
+                    for name, major, minor in interfaces))
 
 
 def inspect_only(run=subprocess.run):
@@ -94,6 +114,67 @@ class ImageArtifactsTests(unittest.TestCase):
         (self.root / 'bin/mister-runtime').write_bytes(binary)
         self.manifest['binaries']['mister-runtime'] = artifacts.sha(self.root / 'bin/mister-runtime')
         self.write_manifest()
+
+    def select_de25(self):
+        for name in artifacts.BINARIES:
+            data = runtime_elf(DE25_MENU_INTERFACES, 'aarch64') if name == 'mister-runtime' else static_arm_elf('aarch64')
+            (self.root / 'bin' / name).write_bytes(data)
+        core = self.root / 'core-packages' / ('a' * 64)
+        (core / 'manifest.toml').write_text(menu_manifest(DE25_MENU_INTERFACES, 'de25-nano'))
+        self.manifest.update(board='de25-nano', architecture='aarch64')
+        self.manifest['binaries'] = {name: artifacts.sha(self.root / 'bin' / name) for name in artifacts.BINARIES}
+        self.manifest['packages'][0]['manifest_sha256'] = artifacts.sha(core / 'manifest.toml')
+        self.write_manifest()
+
+    @needs_readelf
+    def test_explicit_de25_stage_uses_aarch64_and_preserves_source_binding(self):
+        self.select_de25()
+        destination = self.root / 'snapshot'
+        destination.mkdir()
+        manifest, packages = artifacts.stage(self.root, destination, board='de25-nano')
+        self.assertEqual(manifest['board'], 'de25-nano')
+        self.assertEqual(len(packages), 1)
+        for name in artifacts.BINARIES:
+            self.assertEqual(artifacts.sha(destination / 'bin' / (name + '-linux-aarch64')),
+                             self.manifest['binaries'][name])
+            self.assertFalse((destination / 'bin' / (name + '-linux-armv7')).exists())
+
+    def test_foreign_board_artifacts_refused_before_staging_or_tools(self):
+        self.select_de25()
+        destination = self.root / 'missing-snapshot'
+        with patch('subprocess.run', side_effect=AssertionError('must stop before inspection')):
+            with self.assertRaisesRegex(ValueError, 'board or architecture'):
+                artifacts.stage(self.root, destination)
+        self.assertFalse(destination.exists())
+        self.manifest.update(board='de10-nano', architecture='armv7')
+        self.write_manifest()
+        with self.assertRaisesRegex(ValueError, 'board or architecture'):
+            artifacts.load(self.root, board='de25-nano')
+
+    @needs_readelf
+    def test_de25_menu_for_other_board_is_refused_even_with_matching_hash(self):
+        self.select_de25()
+        core = self.root / 'core-packages' / ('a' * 64)
+        (core / 'manifest.toml').write_text(menu_manifest(MENU_INTERFACES))
+        self.manifest['packages'][0]['manifest_sha256'] = artifacts.sha(core / 'manifest.toml')
+        self.write_manifest()
+        with self.assertRaisesRegex(ValueError, 'menu package target'):
+            artifacts.load(self.root, board='de25-nano')
+
+    @needs_readelf
+    def test_de25_pack_requires_explicit_board_and_records_cpu(self):
+        self.select_de25()
+        selection = self.root / 'fes-menu.package-selection.toml'
+        selection.chmod(0o644)
+        selection.write_text('core_id = "fes.menu"\npackage_id = "' + 'a' * 64 + '"\n')
+        selection.chmod(0o444)
+        args = (self.root/'bin', self.root/'core-packages'/('a'*64), selection, '1'*40, '2'*40)
+        with self.assertRaisesRegex(ValueError, 'ARM ELF'):
+            artifacts.pack(*args, self.root/'wrong-default')
+        self.assertFalse((self.root/'wrong-default').exists())
+        manifest = artifacts.pack(*args, self.root/'packed', board='de25-nano')
+        self.assertEqual((manifest['board'], manifest['architecture']), ('de25-nano', 'aarch64'))
+        artifacts.load(self.root/'packed', board='de25-nano')
 
     @needs_readelf
     def test_stage_preserves_original_provenance_and_binary(self):
