@@ -55,8 +55,10 @@ actual-C and decoder checks pass. Targeted firmware/producer checks and the
 frozen native integration check also pass. The first native integration run
 correctly rejected a concurrent test-fixture edit; its frozen rerun passed.
 
-Both v14 native programming attempts stopped with `JTAG chain broken` before
-SPL, with empty serial captures and no native command. The second attempt
+Both v14 native programming attempts reported `JTAG chain broken`, with no
+SPL serial output captured and no native command sent. This does not determine
+whether the CPU entered early SPL before UART setup; that boundary remains
+unknown. The second attempt
 followed a successful known-recovery boot and independent read-only card
 checks, preserving the first failed attempt/fuse. Native v14 testing then
 stopped. Exact device identity remained observable, and the known recovery

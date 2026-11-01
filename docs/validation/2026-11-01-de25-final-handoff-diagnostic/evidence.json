@@ -107,7 +107,7 @@
     "fit_sha256": "b1bb52b2d540fb001f071a64b4c8a021ed5d60d6a467fef1ede9ce6d1f139968",
     "sof_sha256": "b360202ec970fe3c0bc254590805eb631bbcba11c11681ef200655a2f4e0612e",
     "chain_sha256": "5fa0ed10f3a956e5faf9e3dd6a9c8dfcf0c4be6d73e5b86d02a7daca8f8cbc74",
-    "status": "v14 native hardware attempts stopped after two programmer failures before SPL"
+    "status": "v14 attempts stopped after two programmer failures with no SPL output captured"
   },
   "limits": [
     "DDR initialization is not independent memory qualification",
@@ -408,7 +408,7 @@
     "unused_ecc_diagnostics_must_remain_held": true,
     "idle_clock_stop_and_reset_readback_still_required": true,
     "source_chain_rebuild_required": true,
-    "hardware_status": "two programmer failures before SPL, no native execution; known recovery restored"
+    "hardware_status": "programmer failed twice; no SPL output or native entry command; early CPU entry unknown; known recovery restored"
   },
   "retention": "/home/deano/fes-retained/de25-nano-final-handoff-diagnostic-20261101/",
   "previous_candidate": {
@@ -763,7 +763,14 @@
       "finished_utc": "2026-11-01T12:38:07.961536+00:00"
     },
     "first_program_log_sha256": "136afacd5ed47db4f16fb30c65356708be02d3a3dd5ff808c1db30a6544c6d2a",
-    "second_program_log_sha256": "fa0c8031033e0fa1895be304d6a01e132775116e2125be3b673b3b647020a092"
+    "second_program_log_sha256": "fa0c8031033e0fa1895be304d6a01e132775116e2125be3b673b3b647020a092",
+    "observation_boundary": {
+      "programmer_completion_reported": false,
+      "spl_serial_output_observed": false,
+      "native_entry_command_sent": false,
+      "cpu_entry_before_uart_setup": "unknown",
+      "historical_retained_state_native_code_executed_field": "refers to native payload launch, not a proof that early SPL never executed"
+    }
   },
   "offline_comparison": {
     "startup_text_equal": {
