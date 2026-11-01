@@ -24,7 +24,8 @@ class HpsBootTests(unittest.TestCase):
         hps = project/'board/hps'
         (hps/'project/output_files').mkdir(parents=True)
         original = sof_fixture.rows(b'vendor SPL')
-        (hps/'project/output_files/golden_top.sof').write_bytes(sof_fixture.pack(original))
+        (hps/'project/output_files/golden_top.sof').write_bytes(sof_fixture.pack([row for row in original if row[0] != 62]))
+        (hps/'diagnostic-with-vendor-spl.sof').write_bytes(sof_fixture.pack(original))
         for name in ('seal-result.json', 'build-inputs.json'):
             (hps/name).write_text('{}')
         (hps/'hps-first.hps.rbf').write_bytes(b'vendor phase one')
@@ -100,6 +101,9 @@ else:raise SystemExit(9)
             self.assertFalse(result['trusted_boot_handoff'])
             self.assertFalse(result['physical_programming_admission'])
             self.assertEqual(result['hardware_acceptance'], 'not-run')
+            self.assertEqual(result['reference_combined_sof_sha256'], boot.sha(base/'project/board/hps/diagnostic-with-vendor-spl.sof'))
+            with self.assertRaisesRegex(ValueError, 'one HPS section'):
+                sof_fixture.sof.sections((base/'project/board/hps/project/output_files/golden_top.sof').read_bytes())
             calls = [json.loads(row) for row in (base/'calls.jsonl').read_text().splitlines()]
             self.assertEqual([row[0] for row in calls], ['-c', '-i', '-c', '-i', '-i'])
             self.assertTrue(all(row['returncode'] == 0 for row in result['commands']))

@@ -47,7 +47,10 @@ def prepare(project, uboot, entry, pfg, output):
     if identity != pair['pfg_identity']:
         raise ValueError('selected PFG differs from the sealed FPGA producer')
     raw_sof = hps/'project/output_files/golden_top.sof'
-    selected = (raw_sof, hps/'seal-result.json', hps/'build-inputs.json', hps/'hps-first-pair.json',
+    # The assembler SOF has no SPL section. Compare complete compositions with
+    # the same topology, using the producer's already sealed vendor-SPL SOF.
+    reference = hps/'diagnostic-with-vendor-spl.sof'
+    selected = (raw_sof, reference, hps/'seal-result.json', hps/'build-inputs.json', hps/'hps-first-pair.json',
                 hps/'hps-first.hps.rbf', hps/'hps-first.core.rbf', fit, spl, image,
                 uboot/'result.json', uboot/'build/.config', entry/'result.json', profile, pfg, binary,
                 Path(__file__), HERE/'package.py', HERE/'sof_hps.py',
@@ -69,7 +72,7 @@ def prepare(project, uboot, entry, pfg, output):
     if (re.findall(r'(?m)^Device name:\s*(\S+)\s*$', info) != [seal.DEVICE] or
             re.findall(r'(?m)^HPS/FPGA configuration order:\s*(\S+)\s*$', info) != ['HPS_FIRST']):
         raise ValueError('native composition changed the device or HPS-first order')
-    embedded = inspect(candidate.read_bytes(), selected_spl.read_bytes(), raw_sof.read_bytes())
+    embedded = inspect(candidate.read_bytes(), selected_spl.read_bytes(), reference.read_bytes())
     run('pfg-split', [pfg, '-c', candidate, output/'native-hps-first.rbf', '-o', 'hps=on'])
     phase1, core = output/'native-hps-first.hps.rbf', output/'native-hps-first.core.rbf'
     for label, path in (('hps', phase1), ('core', core)):
@@ -93,6 +96,7 @@ def prepare(project, uboot, entry, pfg, output):
         'package_id': pair['package_id'], 'build_id': pair['build_id'],
         'hps_io_hash': pair['hps_io_hash'], 'hps_initialization': 'HPS FIRST',
         'original_pair_sha256': sha(hps/'hps-first-pair.json'),
+        'reference_combined_sof_sha256': sha(reference),
         'original_phase1_sha256': pair['phase1_sha256'],
         'native_boot_id': native['native_handoff']['build_id'],
         'fit_sha256': sha(fit), 'spl_sha256': sha(spl), 'entry_sha256': sha(image),

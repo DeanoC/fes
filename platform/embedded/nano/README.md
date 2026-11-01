@@ -442,7 +442,9 @@ The tool reuses the package producer's source/archive/pair verification and
 the native packager's complete FIT/SPL/entry checks. The selected PFG wrapper
 and binary must match the FPGA build. It combines the raw HPS-first SOF with
 the native SPL, decodes every embedded SPL byte, preserves the other SOF
-sections, and independently splits the result again. Both split files must
+sections relative to the sealed vendor-SPL composition, and independently
+splits the result again. The assembler's raw SOF omits the SPL section and is
+not a complete reference for the strict SPL decoder. Both split files must
 report the original HPS I/O hash, and the core payload must exactly match the
 canonical package. Each conversion or inspection has a 120-second bound and
 its own log. Failed checks leave diagnostics without a success receipt.
