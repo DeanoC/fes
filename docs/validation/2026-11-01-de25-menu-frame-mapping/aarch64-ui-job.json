@@ -1,0 +1,16 @@
+{
+  "source_revision": "ba43ac5aa5acc3ba14225849515eef9538b3e154",
+  "command": [
+    "python3",
+    "out/frame-mapping-ui-aarch64-final.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-frame-client",
+  "started_utc": "2026-11-01T11:49:29.441025+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 3437647,
+  "state": "passed",
+  "elapsed_seconds": 7.8,
+  "heartbeat_utc": "2026-11-01T11:49:37.202567+00:00",
+  "returncode": 0
+}

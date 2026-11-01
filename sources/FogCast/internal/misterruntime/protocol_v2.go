@@ -39,6 +39,7 @@ type Protocol2Error struct {
 
 type Protocol2MenuDisplay struct {
 	Available      bool   `json:"available"`
+	FrameMapping   bool   `json:"frame_mapping,omitempty"`
 	Session        bool   `json:"session,omitempty"`
 	CoreGeneration uint64 `json:"core_generation,omitempty"`
 	// Focus is who receives input on a session plane. A shown plane with
@@ -669,7 +670,7 @@ func validateProtocol2Shape(line []byte) error {
 }
 
 func validateMenuDisplayShape(raw json.RawMessage) error {
-	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "slots", "format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation", "focus", "picture"})
+	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "slots", "format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation", "focus", "picture", "frame_mapping"})
 	if err != nil {
 		return err
 	}
@@ -681,6 +682,11 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 		"underflows": rawUnsigned, "error": rawNullableObject,
 	}); err != nil {
 		return err
+	}
+	if mapping, present := menu["frame_mapping"]; present {
+		if err := requireRawKind(mapping, rawBoolean); err != nil {
+			return err
+		}
 	}
 	if session, present := menu["session"]; present {
 		if !bytes.Equal(bytes.TrimSpace(session), []byte("true")) || requireRawKinds(menu, map[string]rawKind{"core_generation": rawUnsigned, "focus": rawString}) != nil {
