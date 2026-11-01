@@ -19,6 +19,9 @@ class Model:
     def __init__(self,kit,payload,fault=''):
         self.kit,self.payload,self.fault=kit,payload,fault
         self.writes=0;self.commands=[];self.memory={};self.boot_reads=0
+        self.mac = {'mac-present':'02:fe:25:08:cb:01','mac-uppercase':'02:FE:25:08:CB:01',
+                    'wrong-mac':'02:fe:25:08:cb:02'}.get(fault,'')
+        self.phy_reads=0
     def command(self,c,timeout):
         self.commands.append(c)
         if c=='version':return 'U-Boot 2025.01-fes-nano-recovery-gd0f8813fd6bf'
@@ -46,6 +49,17 @@ class Model:
             if (self.fault=='download-hash' and addr==0x82000000 and self.memory[addr]==self.payload) or self.fault=='prefix':result='0'*64
             return result
         if c=='dhcp':return 'DHCP client bound to address 192.168.10.211 (3 ms)'
+        if c=='echo FES_UPLOAD_ETHADDR=${ethaddr}':return 'FES_UPLOAD_ETHADDR='+self.mac+'\r\n'
+        if c.startswith('setenv ethaddr '):
+            if self.mac:raise ValueError('loader MAC is write-once')
+            self.mac=c.split()[2];return ''
+        if c=='net list':return 'absent' if self.fault=='ethernet-device' else 'eth0 : ethernet@10810000'
+        if c=='mii read 1 1':
+            self.phy_reads+=1
+            if self.fault=='phy-unknown':return 'FFFF\r\n'
+            if self.fault=='phy-malformed':return 'missing PHY\r\n'
+            if self.fault=='link-timeout' or (self.fault=='link-transient' and self.phy_reads==2):return '7949\r\n'
+            return '796D\r\n'
         if c.startswith('tftpboot'):
             if self.fault=='interrupted':raise TimeoutError('download interrupted')
             self.memory[0x82000000]=self.payload
@@ -71,7 +85,7 @@ class NanoUploadTests(unittest.TestCase):
             def __init__(self,*args):self.closed=False
             def start(self):pass
             def close(self):self.closed=True
-        with patch('builtins.print'):
+        with patch('builtins.print'),patch.object(upload.time,'sleep'):
             upload.perform(model,self.kit,self.payload,'192.168.10.202','02:fe:25:08:cb:01',receipt,Server)
         return model,receipt
     def test_success_changes_only_fixed_experimental_file(self):
@@ -81,7 +95,8 @@ class NanoUploadTests(unittest.TestCase):
         writes=[c for c in model.commands if c.startswith('fatwrite')]
         self.assertEqual(writes,[f'fatwrite mmc 0:1 82000000 FES/UPLOAD.BIN {len(self.payload):x}'])
     def test_identity_and_transfer_failures_never_write_sd(self):
-        for fault in ('wrong-card','prefix','download-hash','interrupted','lost-final-ack','reserved','oversize-boot'):
+        for fault in ('wrong-card','prefix','download-hash','interrupted','lost-final-ack','reserved','oversize-boot',
+                      'wrong-mac','ethernet-device','phy-unknown','phy-malformed'):
             with self.subTest(fault=fault):
                 model=Model(self.kit,self.payload,fault);r={'commands':[],'sd_write_attempted':False}
                 class Server:
@@ -99,6 +114,26 @@ class NanoUploadTests(unittest.TestCase):
                 with self.assertRaises((ValueError,TimeoutError)):
                     self.run_upload(fault)
                 self.assertEqual(self.last_model.writes,1)
+    def test_matching_write_once_mac_is_reused_and_other_mac_never_overwritten(self):
+        for fault in ('mac-present','mac-uppercase'):
+            model,r=self.run_upload(fault)
+            self.assertEqual(r['status'],'verified')
+            self.assertFalse(any(c.startswith('setenv ethaddr ') for c in model.commands))
+        model,r=self.run_upload()
+        self.assertEqual(sum(c.startswith('setenv ethaddr ') for c in model.commands),1)
+    def test_ethernet_probe_and_two_consecutive_link_reads_precede_dhcp(self):
+        for fault,reads in (('',2),('link-transient',4)):
+            model,r=self.run_upload(fault)
+            self.assertTrue(r['phy_link_verified']);self.assertEqual(model.phy_reads,reads)
+            self.assertLess(model.commands.index('net list'),model.commands.index('mii read 1 1'))
+            self.assertLess(max(i for i,c in enumerate(model.commands) if c=='mii read 1 1'),model.commands.index('dhcp'))
+    def test_phy_deadline_never_downloads_or_writes(self):
+        tick=iter(range(0,100,5))
+        with patch.object(upload.time,'monotonic',side_effect=lambda:next(tick)),self.assertRaisesRegex(TimeoutError,'PHY'):
+            self.run_upload('link-timeout')
+        self.assertNotIn('dhcp',self.last_model.commands)
+        self.assertFalse(any(c.startswith('tftpboot') for c in self.last_model.commands))
+        self.assertEqual(self.last_model.writes,0)
     def test_size_and_mac_rejected_before_console_commands(self):
         model=Model(self.kit,self.payload)
         for data,mac in ((b'','02:fe:25:08:cb:01'),(b'x'*(upload.LIMIT+1),'02:fe:25:08:cb:01'),(b'x','ff:ff:ff:ff:ff:ff')):

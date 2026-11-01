@@ -42,3 +42,20 @@ whitespace and generated-consumer consistency. The cleanup-focused suite has
 10 passing tests. The next step is a fresh matched cross-build and bounded
 hardware test of that cleanup repair. Native Go boot, active peripheral resume,
 FPGA programming and physical core launch/return remain unverified.
+
+V16 cross-build, independent SPL extraction and all affected checks passed
+(1,236 parent tests, 40 skips). Its first upload stopped on PHY negotiation;
+reusing that recovery then correctly hit the RAM-reservation gate. A fresh
+loader exposed lazy Ethernet probing, and an explicit probe exposed the
+write-once MAC environment setting. All these preparation failures preceded
+SD writes and any native-v16 attempt. Their individual receipts and fuses are
+preserved under the corresponding `out/nano-cold-cleanup-*` trial directories.
+
+The uploader now reuses an already matching MAC, rejects a different address,
+probes Ethernet and requires two consecutive link/negotiation observations
+before DHCP. Twelve upload tests cover success, write-once state, transient
+and missing link, unknown PHY/device, conflicting MAC, claims, readback and
+transfer failures. The existing RAM/reservation gate remains strict: each
+upload attempt requires a fresh recovery boot. The native v16 binary is
+unchanged; packaging must refresh the host-tool input receipt before the
+next bounded upload and native test.

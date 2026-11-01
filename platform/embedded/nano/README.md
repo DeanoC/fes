@@ -102,7 +102,7 @@ python3 platform/embedded/nano/upload.py \
 ```
 
 Use the **current** local Ethernet address for `--host-ip`. For an authorized
-live run, boot the exact recovery loader with the spare card and leave it at
+live run, freshly boot the exact recovery loader with the spare card and leave it at
 `SOCFPGA_AGILEX5 # `. Add `--execute` and choose a fresh output directory.
 The operator needs access to the Nano UART and permission to bind UDP port 69
 (normally run the same command using `sudo`). No system TFTP service is changed.
@@ -110,6 +110,18 @@ The tool claims `~/kit-status/de25-TRWU8CBL-STATUS.md` and selects only the stab
 TRWU8CBL UART `if02` link. It does not shut Linux down, program JTAG or boot a
 candidate. The default volatile MAC is `02:fe:25:08:cb:01`; DHCP supplies the
 board address, so no board IP is assumed.
+
+Use one upload attempt per fresh recovery boot. The pinned loader retains LMB
+reservations from FAT reads, including reads made before a failed transfer.
+A later invocation must not overwrite those reservations; restart recovery
+rather than clearing or ignoring its live memory map.
+
+The tool observes the current MAC, reuses a matching write-once value and sets
+it only when empty. A different address rejects. It explicitly probes the
+expected Ethernet device, then requires two consecutive PHY link/negotiation
+observations within 20 seconds before DHCP. Unknown PHY status or a missed
+deadline stops before download or SD writing; the PHY command is separately
+bounded. This initialization runs in recovery and grants no native ownership.
 
 Before the only FAT write, the tool checks the loader banner, live RAM and LMB
 reservations, spare-card capacity/partition layout, protected first 16 MiB,

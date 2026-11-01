@@ -16,6 +16,7 @@ import pwd
 from pathlib import Path
 import re
 import secrets
+import time
 
 from upload_transport import Console, Transfer
 from cold_profile import EXPERIMENTAL_FILE, MAX_FIT_SIZE
@@ -115,8 +116,36 @@ def perform(console, kit, payload, host, mac, receipt, serve=Transfer, owns=lamb
     digest(0x82000000, len(kit['manifest']), sha(kit['manifest']))
     receipt['card_verified'] = True
     for value in ('setenv autoload no', 'setenv netretry no', 'setenv bootpretryperiod 10000',
-                  'setenv ethaddr ' + mac, 'setenv tftptimeout 1000', 'setenv tftptimeoutcountmax 3'):
+                  'setenv tftptimeout 1000', 'setenv tftptimeoutcountmax 3'):
         command(value)
+    def current_mac():
+        match = re.search(r'(?m)^FES_UPLOAD_ETHADDR=([^\r\n]*)\r?$',
+                          command('echo FES_UPLOAD_ETHADDR=${ethaddr}'))
+        if not match: raise ValueError('recovery MAC observation missing')
+        return match[1].strip().lower()
+    observed = current_mac()
+    if not observed:
+        command('setenv ethaddr ' + mac)
+        observed = current_mac()
+    if observed != mac.lower(): raise ValueError('recovery MAC differs; no overwrite permitted')
+    receipt['recovery_mac'] = observed
+    # The loader probes Ethernet lazily. Probe before sampling its MDIO bus;
+    # a positive link observation must precede DHCP, not a fixed startup delay.
+    if 'ethernet@10810000' not in command('net list'):
+        raise ValueError('expected recovery Ethernet device absent')
+    deadline = time.monotonic() + 20
+    ready = 0
+    while time.monotonic() < deadline:
+        samples = re.findall(r'(?m)^([0-9a-fA-F]{4})\r?$', command('mii read 1 1', 5))
+        if len(samples) != 1 or int(samples[0],16) == 0xffff: raise ValueError('unknown recovery PHY status')
+        status = int(samples[0],16)
+        receipt.setdefault('phy_samples', []).append(status)
+        # Pinned linux/mii.h: BMSR_LSTATUS=4, BMSR_ANEGCOMPLETE=32.
+        ready = ready + 1 if status & 0x24 == 0x24 else 0
+        if ready == 2: break
+        time.sleep(.25)
+    else: raise TimeoutError('recovery PHY link/negotiation deadline')
+    receipt['phy_link_verified'] = True
     match = re.search(r'DHCP client bound to address (\d+\.\d+\.\d+\.\d+)', command('dhcp', 25))
     if not match: raise ValueError('no observed DHCP client')
     client = str(ipaddress.IPv4Address(match[1]))
