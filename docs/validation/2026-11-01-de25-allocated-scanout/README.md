@@ -73,9 +73,23 @@ also differs in 181 bytes in the same four blocks; 180 of those changed offsets
 are shared with the scanout comparison. Byte-hash differences alone therefore
 do not establish a bootstrap incompatibility or justify changing flash.
 
-The running kernel lacks FTRACE and mapping debug support. A separate candidate
-is being prepared with standard mapping tracepoints, to observe allocation
-without submitting another frame. A mapped domain is insufficient proof of
+The running kernel lacks FTRACE and mapping debug support. The separate
+[trace-enabled kernel candidate](tracing-kernel-build.json), producer
+`3dab0b06b`, builds successfully in 218.2 seconds; all six affected checks
+pass in 196.3 seconds. Its configuration enables the four required tracing
+flags, and System.map contains both mapping tracepoints. The matching image
+is assembled twice identically in 21.5 seconds and
+[independently verified](tracing-image-independent-verify.json), SHA256
+`7eb6266188823c9cd4810259fc7cc73eb70ec8f58129e5718f127fd17dd32a0b`.
+It includes the SD-CID-derived Ethernet address fix. It has not been written
+to a card or booted.
+
+The actual diagnostic adds `--allocation-only` at producer `5a99f2073`. Seven
+focused tests and [21 paired native/AArch64 model cases](allocation-only-cpu-results.json)
+pass, including the added case: one allocation, zero mappings, publications or
+POLLs, one owner reap and one close. Existing default frame-mode fault tests
+still pass. This prepares observation without another frame submission; it
+does not establish the physical mapping or fix the response fault. A mapped domain is insufficient proof of
 physical translation. No DMA bypass or raw-address userspace interface is added.
 Full normal MENU/catalog/runtime, safe restart, physical memory/translation,
 SAVE, failure/reset fencing and timing acceptance remain required.
