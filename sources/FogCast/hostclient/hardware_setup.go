@@ -94,6 +94,20 @@ func (c *Client) SelectCoreEntryMedia(ctx context.Context, game, pkg, expected, 
 	return result, err
 }
 
+// SetCoreEntryMediaName records the basename the selected cassette was
+// imported under. A host without this route refuses it; the selection stands.
+func (c *Client) SetCoreEntryMediaName(ctx context.Context, game, pkg, id, name string) (CoreEntry, error) {
+	if protocol.ValidateGameID(game) != nil || protocol.ValidateDigest(pkg) != nil || protocol.ValidateDigest(id) != nil {
+		return CoreEntry{}, fmt.Errorf("invalid media name identity")
+	}
+	var result CoreEntry
+	err := c.doJSON(ctx, http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(game)+"/media-name", map[string]string{"expected_package_id": pkg, "media_id": id, "media_name": name}, &result)
+	if err == nil && (result.GameID != game || result.PackageID != pkg || result.MediaID != id || result.MediaName != name) {
+		err = fmt.Errorf("host returned a different media name")
+	}
+	return result, err
+}
+
 func (c *Client) CoreEntry(ctx context.Context, game string) (CoreEntry, error) {
 	if protocol.ValidateGameID(game) != nil {
 		return CoreEntry{}, fmt.Errorf("invalid core entry identity")

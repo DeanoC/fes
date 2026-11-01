@@ -24,6 +24,8 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            With --cpu rtl, fes_i386_cpu is the CPU and the oracle runs only
            what it stops on (see machine_tb.cpp); writes boot-rtl/, whose
            report lists the stops by stem against the lockstep's scope.
+           --image games boots the games image (HIMEMX, CuteMouse, MEM and
+           BLASTER; build_pc386_freedos_image.py) and writes boot-games/.
   rtl-stops
            boots cores/fes-pc386/sim/rtl_stop_test.asm on the oracle and on
            the RTL: SMSW at two sites and a protected-mode stretch from LMSW
@@ -67,6 +69,7 @@ Examples:
   python3 scripts/sim_fes_pc386.py --suite opl2
   python3 scripts/sim_fes_pc386.py --suite boot --download
   python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl
+  python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|' --expect 'high memory area'
   python3 scripts/sim_fes_pc386.py --suite rtl-stops
   python3 scripts/sim_fes_pc386.py --suite sound --download
   python3 scripts/sim_fes_pc386.py --suite game --game ultima6
@@ -525,11 +528,18 @@ def run_replay(args, suite: str, trace: Path) -> dict:
     return report
 
 
+def boot_suite(args) -> str:
+    """The boot suite's output name: boot, boot-games, boot-rtl, boot-games-rtl,
+    with a governed run's -preset suffix."""
+    return 'boot' + ('' if args.image == 'boot' else f'-{args.image}') + ('-rtl' if args.cpu == 'rtl' else '') \
+        + suffix(args)
+
+
 def run_boot(args, linked: list[Path]) -> dict:
     images = firmware.images(args.download, args.jobs)
-    disk = freedos.build(args.download, args.jobs) if args.rebuild_image else freedos.image(args.download, args.jobs)
+    disk = (freedos.build if args.rebuild_image else freedos.image)(args.download, args.jobs, args.image)
     testbench = machine_testbench(args, linked)
-    suite = ('boot' if args.cpu == 'oracle' else 'boot-rtl') + suffix(args)
+    suite = boot_suite(args)
     trace = OUTPUT / suite / 'vga.trace'
     print(f'Booting FreeDOS in simulation on the {args.cpu} CPU (this takes minutes)', flush=True)
     report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
@@ -1186,6 +1196,8 @@ def main() -> int:
                         help='simulation suite to run')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
     parser.add_argument('--rebuild-image', action='store_true', help='rebuild the FreeDOS fixture')
+    parser.add_argument('--image', choices=sorted(freedos.PROFILES), default='boot',
+                        help='boot: the FreeDOS image profile to boot (build_pc386_freedos_image.py)')
     parser.add_argument('--limit-seconds', type=float, default=None, help='simulated seconds before giving up')
     parser.add_argument('--game', choices=sorted(GAMES), default='wolf3d', help='game: which game to start')
     parser.add_argument('--games-work', default=str(Path(tempfile.gettempdir()) / 'fes-pc386-games'),
@@ -1207,6 +1219,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.cpu == 'rtl' and args.suite not in ('boot', 'game'):
         parser.error('--cpu rtl runs the boot and game suites only')
+    if args.image != 'boot' and args.suite != 'boot':
+        parser.error('--image is supported by the boot suite only')
     if (args.preset or args.frequency or args.turbo) and not (
             args.suite in ('system', 'governor') or args.suite in ('boot', 'game') and args.cpu == 'rtl'):
         parser.error('the governor runs on the RTL CPU: system, governor, or boot and game with --cpu rtl')
@@ -1251,8 +1265,9 @@ def main() -> int:
             else:
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))
-            name = (f'game-{args.game}' if suite == 'game' else suite) + ('-rtl' if args.cpu == 'rtl' else '') \
-                + ('' if suite == 'governor' else suffix(args))
+            name = (f'game-{args.game}' + ('-rtl' if args.cpu == 'rtl' else '') + suffix(args) if suite == 'game' else
+                    boot_suite(args) if suite == 'boot' else
+                    suite + ('-rtl' if args.cpu == 'rtl' else '') + ('' if suite == 'governor' else suffix(args)))
             (OUTPUT / name).mkdir(parents=True, exist_ok=True)
             (OUTPUT / name / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
             if suite == 'system':

@@ -600,9 +600,9 @@ local function picture(part)
   button("import_card","Import expansion",776,514,188,28,machine and machine.socket.supported and not running() and not stale,function() hardware.import_expansion{game_id=machine.game_id,package_id=machine.package_id} end)
 
   -- The host cassette label, on its own row above the machine controls.
-  -- A starter uses its display name. An import is "Imported cassette" plus
-  -- a digest prefix; the filename is not on this record. A long label
-  -- keeps its start and its end.
+  -- A starter uses its display name. An import uses its recorded basename;
+  -- the digest label is the fallback when no filename is recorded. A long
+  -- label keeps its start and its end.
   rect(24,546,1072,2,C.line)
   local tape_name=machine and machine.media_name ~= "" and machine.media_name or "No cassette"
   text("Cassette",24,552,15,C.muted,84)
