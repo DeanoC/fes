@@ -768,9 +768,10 @@ replacement for a 1024×10 lane: payload bits `[7:0]`, padding bits
 `[9:8]` clear, four lanes per 40-bit word. The stored mux is that chunk
 after nextpnr's `permute_init` permutation and inversion. The ZX81 machine reads BASIC
 through `zx81_dpram` (`ADDRWIDTH` 14, address `{1'b0, rom_a[12], rom_a[11:0]}`)
-from the low 8 KiB of `zx8x.hex`. The OSS package uses `zx81_rom_link`
-instead and leaves those lanes empty. `make sim-fes-zx81-rom` checks the
-simulation port.
+from the user-supplied 8 KiB BASIC image (`FIRMWARE_INIT`). The OSS package
+uses `zx81_rom_link` instead and leaves those lanes empty.
+`FES_ZX81_ROM=<edition 3 ROM> make sim-fes-zx81-rom` checks the simulation
+port.
 `link_static_rbf.py init` applies one such lane to a placed RBF and reads
 the RAM muxes back from the recomposed bitstream. `init --basic` writes all
 eight lanes onto the column-26 proof sites. `init --machine` writes them
@@ -779,9 +780,9 @@ onto column 5, rows 73–80, and the receipt carries the 8 KiB image digest.
 `893_zx81_basic8` places the eight legal column-26 M10Ks
 (`26.1`, `26.2`, `26.5`, `26.6`, `26.9`, `26.10`, `26.13`, `26.14`).
 The OSS `fes.zx81` recipe instantiates `zx81_rom_link` under
-`FES_ZX81_ROM_LINK`, so the package inputs do not include `zx8x.hex`.
-Simulation keeps the `zx81_dpram` hex path. The sealed package stays the
-empty socket; launch splices BASIC into the programmed bitstream.
+`FES_ZX81_ROM_LINK`, so no ROM is a package input. Simulation keeps the
+`zx81_dpram` hex path. The sealed package stays the empty socket; launch
+splices BASIC into the programmed bitstream.
 
 
 The single-socket `expansion` Go path admits the versioned ZX81 full-height socket or
@@ -1472,9 +1473,14 @@ normal show/return does not use execution hold. The GP command crosses
 `cores/fes-zx81/rtl/zx81_machine.sv` is the first-slice ZX81 extracted from
 MiSTer-devel/ZX81_MiSTer `ZX81.sv` at Release 20260603: 16 KB RAM, PAL, no
 CHROMA/QS/YM2149/joystick. Keyboard rows and `.p` tape bytes come from the GP
-mailbox. Character ROM bytes are `cores/fes-zx81/rtl/zx8x.hex`, converted from
-the pinned `rtl/zx8x.mif`. The CPU is the shared first-party `fes_z80_nmos`,
-driven by positive and negative phase enables from the rational machine clock scheduler at an average
+mailbox. ZX81-family firmware is user-supplied, so no ROM bytes are committed.
+`scripts/zx81_rom.py` checks the 8 KiB edition 3 BASIC ROM named by
+`FES_ZX81_ROM` and writes the simulation hex or Quartus MIF under `build/`;
+the BASIC benches skip without it. `make sim-fes-zx81-smoke` includes the
+ROM-independent `sim-fes-zx81-variants` probes, so pull-request simulation still
+compiles and exercises the machine without user firmware. The CPU is the shared
+first-party `fes_z80_nmos`, driven by positive and negative phase enables from
+the rational machine clock scheduler at an average
 3.25 MHz. The machine passes WAIT, INT and NMI to that CPU and uses its native
 refresh bus cycle. The Zon X firmware diagnostic uses the same NMOS CPU and
 expansion socket as the machine and expansion simulations.
@@ -1519,8 +1525,9 @@ The compile defines `QUARTUS=1`. ROM, 16 KB RAM and the 16 KB media blob
 instantiate `zx81_dpram`. Its Quartus branch is `altsyncram` bidirectional
 dual-port M10K: the address is registered, the output is unregistered, and
 a same-port write returns `NEW_DATA_NO_NBE_READ`, which is one clock of
-read latency. ROM init is `zx8x.mif`. Simulation registers `q_a` and `q_b`
-on that clock and uses `zx8x.hex`, with the same one-cycle read. The 720p
+read latency. ROM init is the project's `zx81.mif`, written from
+`FES_ZX81_ROM` (`--rom`). Simulation registers `q_a` and `q_b` on that clock
+and uses the matching hex, with the same one-cycle read. The 720p
 capture buffer is a one-dimensional M10K array
 written on `clk_sys` and registered on `pixel_clk`.
 
@@ -1563,7 +1570,7 @@ the upper four lanes and keeps rows 73–76. Each lane has a synchronous read (`
 live `CLK1`, `B1EN` held high). The bank select is registered on that same
 edge, the lane mux is combinational, and the output register is the second
 stage, so the CPU-facing byte is two system clocks behind the address.
-`zx8x.hex` is not a package input; launch splices the low 8 KiB with
+No ROM is a package input; launch splices the user's 8 KiB BASIC image with
 `link_static_rbf.py init --machine`, and the ROM map requires
 `expected_async_read=0`. The 1 KiB shell RAM and the 16 KB media blob use
 `zx81_dpram`'s registered one-cycle read, which Yosys maps to synchronous
@@ -2973,8 +2980,8 @@ Existing linker layout admission remains closed until an exact shell and its
 physical sockets are qualified.
 
 The independent `fes.pcxt-dos` recipe selects the default-off `HARDWARE_DOS`
-top parameter. It enables the GLaBIOS XT/5160 ROM, a BAT-only XT keyboard
-responder, and the read-only floppy controller. The `fes.computer` 1.1
+top parameter. It enables the GLaBIOS XT/5160 ROM, a host HID to XT set-1
+keyboard frontend with BAT response, and the read-only floppy controller. The `fes.computer` 1.1
 mailbox accepts a 360 KiB runtime floppy and writes it into SDRAM. When an
 initial disk is being loaded, the first boot waits for complete physical writes
 and media commit. Releasing execution with an empty drive starts the BIOS so
@@ -3219,9 +3226,18 @@ READY stays low while PB7 holds the receiver clear, so an on-fabric producer
 does not retire a byte that cannot raise IRQ1. A byte already accepted still
 finishes its frame. Tests check timing, ordering, busy handling, held-clear
 admission and reset. Integrated CPU runs read switch profiles `2D` and `73`.
-FES HID
-translation, extended-key policy, typematic, keyboard reset/BAT responses and
-event queues remain unimplemented. This is an XT interface, not an AT 8042.
+The DOS profile translates settled FES HID snapshots into XT set-1 make and
+break bytes with modifier ordering and typematic. ISO HID usage `0x32` (`#~`)
+shares the XT backslash code `0x2b` with usage `0x31`. It combines the original
+XT keyboard's control, alternate and keypad/navigation aliases and ignores
+enhanced-only keys. A pending byte is held until the receiver accepts it;
+eight settled snapshots can wait while the link is stalled. On overflow,
+intermediate snapshots can coalesce, and the latest settled state is queued
+once space returns. A slow handover between equivalent keys in different HID
+rows can appear as a release and new press because the row protocol is not
+atomic. A long inhibit resets
+the frontend and gives BAT priority. Host keyboard use on a kit requires its
+own exact-artifact acceptance. This is an XT interface, not an AT 8042.
 
 Speaker transitions are integrated at 100 MHz into signed mono 48 kHz PCM
 with a roughly 30 Hz DC blocker. Tests cover PIT tones, static-drive decay and

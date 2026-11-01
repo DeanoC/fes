@@ -89,7 +89,7 @@ is retired for day-to-day.
 | Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60`; optional `fes.expansion.zx81-bus` |
 | Vacant shell | 1 KiB mirrored internal RAM when the expansion edge is vacant |
 | Expansion | Independent bus carts linked at load (`link_static_rbf.py`); no synthesis at launch |
-| Machine ROM | Sealed shell ROM M10Ks empty; launch splices `zx8x.hex` via `link_static_rbf.py init --machine` |
+| Machine ROM | Sealed shell ROM M10Ks empty; launch splices the user-supplied 8 KiB BASIC ROM via `link_static_rbf.py init --machine` |
 | Persistence | None; library launches are volatile |
 | Tape contract (docs) | Runtime `load_media` of a `.p`; empty `LOAD ""` reports `0/0` ([`fes-zx81.md`](fes-zx81.md)) |
 

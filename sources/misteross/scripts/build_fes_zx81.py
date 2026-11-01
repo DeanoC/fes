@@ -19,7 +19,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import source_provenance
+from scripts import source_provenance, zx81_rom
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package
 from scripts.quartus_tools import (
@@ -37,8 +37,8 @@ RECIPE = "scripts/build_fes_zx81.py"
 ABI_DEFINITION = "cores/fes-zx81/generated/fes_simple_computer.vh"
 QSF_PINS = "cores/fes-zx81/constraints.qsf"
 SDC = "cores/fes-zx81/clocks.sdc"
-ROM_HEX = "cores/fes-zx81/rtl/zx8x.hex"
-ROM_MIF = "cores/fes-zx81/rtl/zx8x.mif"
+# The user-supplied machine ROM, written into the project (never committed).
+ROM_MIF = "zx81.mif"
 VERILOG_SOURCES = (
     "cores/fes-zx81/rtl/sys_pll.v",
     "cores/fes-zx81/rtl/zx81_machine_clock.v",
@@ -68,14 +68,13 @@ PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/source_provenance.py",
     "scripts/quartus_tools.py",
+    "scripts/zx81_rom.py",
     ABI_DEFINITION,
     "cores/fes-common/generated/fes_application.vh",
     "cores/fes-common/generated/fes_display_plane.vh",
     QSF_PINS,
     SDC,
     "cores/fes-zx81/rtl/zx81_model.vh",
-    ROM_HEX,
-    ROM_MIF,
     *VERILOG_SOURCES,
     *SYSTEMVERILOG_SOURCES,
 )
@@ -177,6 +176,7 @@ def create_build_record(
             "audio_clock_hz": 12_288_000,
             "pixel_clock_hz": 74_250_000,
             "reference_clock_hz": 50_000_000,
+            "rom_sha256": zx81_rom.EDITION3_SHA256,
             "seed": 1,
             "sys_clock_hz": 52_224_000,
             "top": TOP,
@@ -210,6 +210,7 @@ def project_qsf(root: Path, project: Path, build_id: str) -> str:
         f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-zx81/rtl"',
         f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-common/generated"',
         'set_global_assignment -name VERILOG_MACRO "QUARTUS=1"',
+        f'set_parameter -name FIRMWARE_INIT "{ROM_MIF}"',
         f'set_global_assignment -name VERILOG_MACRO "FES_ZX81_BUILD_ID=128\'h{build_id}"',
         assignment("SDC_FILE", SDC),
     ]
@@ -221,7 +222,7 @@ def project_qsf(root: Path, project: Path, build_id: str) -> str:
     return "\n".join(lines) + "\n\n" + pins + "\n"
 
 
-def write_project(root: Path, output: Path, build_id: str) -> Path:
+def write_project(root: Path, output: Path, build_id: str, rom: bytes) -> Path:
     root = Path(root).resolve()
     output = Path(output).resolve()
     if output != root / OUTPUT_RELATIVE:
@@ -235,10 +236,7 @@ def write_project(root: Path, output: Path, build_id: str) -> Path:
         encoding="utf-8",
     )
     (project / "top.qsf").write_text(project_qsf(root, project, build_id), encoding="utf-8")
-    rom_dir = project / "cores" / "fes-zx81" / "rtl"
-    rom_dir.mkdir(parents=True)
-    shutil.copyfile(_regular_input(root, ROM_HEX), rom_dir / "zx8x.hex")
-    shutil.copyfile(_regular_input(root, ROM_MIF), rom_dir / "zx8x.mif")
+    (project / ROM_MIF).write_text(zx81_rom.mif_text(rom), encoding="utf-8")
     return project
 
 
@@ -390,8 +388,12 @@ def build(
     root: Path = ROOT,
     package_store: Path | None = None,
     *,
+    rom: Path | None = None,
     print_commands: bool = False,
 ) -> Path:
+    if not rom:
+        raise BuildError("set FES_ZX81_ROM to the user-supplied ZX81 edition 3 BASIC ROM")
+    rom_bytes = zx81_rom.load(rom)
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
@@ -403,7 +405,7 @@ def build(
     output = _prepare_output(root)
     _write_atomic(output / "build-inputs.json", record)
     build_id = build_identity(record)
-    project = write_project(root, output, build_id)
+    project = write_project(root, output, build_id, rom_bytes)
     command = compile_command(quartus_sh)
     if print_commands:
         print(f"quartus_version: {version}")
@@ -447,6 +449,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--package-output", type=Path)
+    parser.add_argument("--rom", type=Path, help="user-supplied ZX81 edition 3 BASIC ROM")
     parser.add_argument(
         "--print-commands",
         action="store_true",
@@ -458,7 +461,8 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     try:
-        print(build(arguments.root, arguments.package_output, print_commands=arguments.print_commands))
+        print(build(arguments.root, arguments.package_output, rom=arguments.rom,
+                    print_commands=arguments.print_commands))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-zx81-quartus: {exc}", file=sys.stderr)
         return 1

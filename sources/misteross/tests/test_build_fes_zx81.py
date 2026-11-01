@@ -40,6 +40,100 @@ class BuildFesZx81Tests(unittest.TestCase):
             f'python3 scripts/build_fes_zx81.py --root "{ROOT}"',
         )
 
+    def test_make_entrypoint_passes_a_supplied_rom(self) -> None:
+        result = subprocess.run(
+            ["make", "-n", "build-fes-zx81-quartus", "FES_ZX81_ROM=zx81.rom"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.strip(),
+            f'python3 scripts/build_fes_zx81.py --root "{ROOT}" --rom "zx81.rom"',
+        )
+
+    def test_missing_rom_make_entrypoint_reports_the_required_variable(self) -> None:
+        env = os.environ.copy()
+        env.pop("FES_ZX81_ROM", None)
+        result = subprocess.run(
+            ["make", "build-fes-zx81-quartus"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        output = result.stdout + result.stderr
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("set FES_ZX81_ROM", output)
+        self.assertNotIn("Is a directory", output)
+
+    def test_zx81_smoke_runs_machine_variants_without_a_user_rom(self) -> None:
+        env = os.environ.copy()
+        env.pop("FES_ZX81_ROM", None)
+        result = subprocess.run(
+            ["make", "-n", "sim-fes-zx81-smoke"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("SKIP sim-fes-zx81-rom", result.stdout)
+        self.assertIn("SKIP sim-fes-zx81-machine", result.stdout)
+        self.assertIn("variant_probe.hex", result.stdout)
+        self.assertIn("zx80_load_probe.hex", result.stdout)
+        self.assertIn('zx80:-DZX81_MODEL_ZX80', result.stdout)
+
+    def test_rom_benches_generate_and_use_hex_or_skip_without_rom(self) -> None:
+        targets = (
+            "sim-fes-zx81-rom",
+            "sim-fes-zx81-machine",
+            "sim-fes-zx81-save",
+        )
+        env = os.environ.copy()
+        env.pop("FES_ZX81_ROM", None)
+        skipped = subprocess.run(
+            ["make", "-n", *targets],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(skipped.returncode, 0, skipped.stderr)
+        for target in targets:
+            with self.subTest(target=target):
+                self.assertIn(f"SKIP {target}", skipped.stdout)
+
+        rom = subprocess.run(
+            ["make", "-n", *targets, "FES_ZX81_ROM=zx81.rom"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(rom.returncode, 0, rom.stderr)
+        hex_path = str(ROOT / "build/sim/zx81-rom/zx81.hex")
+        self.assertIn(
+            f'python3 scripts/zx81_rom.py --rom "zx81.rom" --hex "{hex_path}"',
+            rom.stdout,
+        )
+        self.assertIn(f"-GROM_INIT='\"{hex_path}\"'", rom.stdout)
+        self.assertEqual(rom.stdout.count(f"-GFIRMWARE_INIT='\"{hex_path}\"'"), 2)
+        self.assertIn("cores/fes-zx81/sim/rom_init_tb.cpp", rom.stdout)
+        self.assertIn("cores/fes-zx81/sim/machine_tb.cpp", rom.stdout)
+        self.assertIn("cores/fes-zx81/sim/save_tb.cpp", rom.stdout)
+
     def test_project_pins_nmos_z80_dual_pll_and_hdmi_i2c_site(self) -> None:
         qsf = project_qsf(ROOT, ROOT / "build/fes-zx81-quartus/project", "00112233445566778899aabbccddeeff")
         self.assertIn("fes_z80_nmos.sv", qsf)
@@ -56,7 +150,9 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn("fes_audio_i2s.v", qsf)
         self.assertIn("fes_computer_gp.v", qsf)
         self.assertIn('VERILOG_MACRO "QUARTUS=1"', qsf)
-        self.assertIn(build_fes_zx81.ROM_MIF, build_fes_zx81.PINNED_INPUTS)
+        self.assertIn('set_parameter -name FIRMWARE_INIT "zx81.mif"', qsf)
+        self.assertIn("scripts/zx81_rom.py", build_fes_zx81.PINNED_INPUTS)
+        self.assertFalse(any("zx8x" in path for path in build_fes_zx81.PINNED_INPUTS))
         self.assertNotIn("tv80", qsf)
         self.assertNotIn("t80pa.v", qsf)
         self.assertIn("128'h00112233445566778899aabbccddeeff", qsf)
@@ -94,6 +190,15 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn('"audio_clock_hz":12288000', text)
         self.assertIn("scripts/build_fes_zx81.py", text)
         self.assertIn("fes_simple_computer.vh", text)
+
+    def test_rom_is_user_supplied(self) -> None:
+        with self.assertRaisesRegex(BuildError, "FES_ZX81_ROM"):
+            build_fes_zx81.build(ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            wrong = Path(temporary) / "zx81.rom"
+            wrong.write_bytes(bytes(8192))
+            with self.assertRaisesRegex(ValueError, "edition 3"):
+                build_fes_zx81.build(ROOT, rom=wrong)
 
     def test_missing_quartus_is_a_supported_failure(self) -> None:
         env = os.environ.copy()
