@@ -1429,8 +1429,8 @@ mailbox vectors and the commands ST uses, including a completed snapshot
 read, against both endpoints and fails if they diverge. Other shells keep
 `fes_computer_mailbox` or the core.
 The core is `fes.computer` 1.0 unless a shell enables a 1.1 interface:
-`ENABLE_ATA_DISK`, `ENABLE_PERSISTENCE`, `ENABLE_PC386_MACHINE`,
-`ENABLE_WALL_CLOCK` and `ENABLE_PCXT_FLOPPY` expose capability bits 16..20
+`ENABLE_ATA_DISK`, `ENABLE_PERSISTENCE`, `ENABLE_WALL_CLOCK`,
+`ENABLE_PC386_MACHINE` and `ENABLE_PCXT_FLOPPY` expose capability bits 16..20
 respectively and make it minor 1, answering identity word 16. `fes.pc386`
 uses bits 16..19; `fes.pcxt` uses bit 20. `pc386_system` hands its storage
 opcodes to `fes_computer_storage` (`rtl/fes_computer_storage.v`) and holds each
