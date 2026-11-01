@@ -97,6 +97,14 @@ helpers and bounded Cortex-A53 argument tests. A reviewed managed base and
 sealed MENU are still required; the headless image remains outside that update
 path. These compiler results establish no service or hardware acceptance.
 
+The [board-bound update record](validation/2026-11-01-de25-board-bound-updates/README.md)
+covers explicit DE25 release storage, image/CPU selection in the agent/data gate,
+upload refusal before body reads and the matching update client. The storage
+helper's existing Make target builds for AArch64. Native, QEMU Cortex-A53 and
+the full affected parent/host/UI checks pass on their recorded sources. DE25
+bootstrap/media assembly and native update/watchdog acceptance remain open;
+these helpers and services are not installed by the headless image.
+
 The [managed-fabric record](validation/2026-11-01-de25-managed-fabric/README.md)
 covers the current canonical MENU profile: vendor maintenance masters removed,
 unused F2H disabled, and obsolete fabric JTAG constraints retired with their

@@ -46,13 +46,18 @@ func updateFixture(t *testing.T, trial bool, reboot func(context.Context) error,
 }
 
 func updateFixtureLogged(t *testing.T, trial bool, reboot func(context.Context) error, logger *slog.Logger, extra ...httpapi.Option) (http.Handler, *appliance.Store, release.Manifest, string, []byte) {
+	return updateFixtureForBoard(t, release.Board, trial, reboot, logger, extra...)
+}
+
+func updateFixtureForBoard(t *testing.T, board string, trial bool, reboot func(context.Context) error, logger *slog.Logger, extra ...httpapi.Option) (http.Handler, *appliance.Store, release.Manifest, string, []byte) {
 	t.Helper()
 	b := make([]byte, 4096)
 	b[1080] = 0x53
 	b[1081] = 0xef
 	b[1120] = 0x40
 	m := release.Manifest{Format: 1, Board: release.Board, BootABI: release.BootABI, Version: "test", KernelSHA256: strings.Repeat("a", 64), ImageSHA256: fmt.Sprintf("%x", sha256.Sum256(b)), ImageSize: int64(len(b)), FESRevision: strings.Repeat("b", 40), FogCastRevision: strings.Repeat("c", 40), RuntimeRevision: strings.Repeat("d", 40)}
-	s, e := appliance.New(t.TempDir(), m)
+	m.Board = board
+	s, e := appliance.NewForBoard(t.TempDir(), m, board)
 	if e != nil {
 		t.Fatal(e)
 	}

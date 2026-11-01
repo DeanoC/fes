@@ -77,7 +77,7 @@ func registerUpdateRoutes(mux *http.ServeMux, token string, s *applianceupdate.S
 			writeBadRequest(w, r, "invalid encoded release manifest")
 			return
 		}
-		m, ignored, err := release.DecodeManifest(bytes.NewReader(data))
+		m, ignored, err := release.DecodeManifestForBoard(bytes.NewReader(data), s.Board())
 		if err != nil || m.ImageSize != r.ContentLength {
 			writeBadRequest(w, r, "release manifest or upload length is invalid")
 			return

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	release "github.com/DeanoC/FogCast/appliance"
@@ -43,11 +44,19 @@ func guardedReboot(parent context.Context) error {
 }
 
 func loadApplianceUpdate(coordinator *agent.Coordinator, cleanup func(context.Context) error) (*applianceupdate.Service, error) {
-	return openApplianceUpdate(applianceFactory, "/proc/self/mountinfo", appliance.DefaultRoot, bootIDFile, coordinator, cleanup,
-		guardedReboot)
+	board, err := applianceupdate.ImageBoard(applianceFactory, "/etc/fes-board", runtime.GOARCH)
+	if err != nil {
+		return nil, err
+	}
+	return openApplianceUpdateForBoard(applianceFactory, "/proc/self/mountinfo", appliance.DefaultRoot, bootIDFile, coordinator, cleanup,
+		guardedReboot, board)
 }
 
 func openApplianceUpdate(factoryPath, mountInfoPath, root, bootPath string, coordinator *agent.Coordinator, cleanup, reboot func(context.Context) error) (*applianceupdate.Service, error) {
+	return openApplianceUpdateForBoard(factoryPath, mountInfoPath, root, bootPath, coordinator, cleanup, reboot, release.Board)
+}
+
+func openApplianceUpdateForBoard(factoryPath, mountInfoPath, root, bootPath string, coordinator *agent.Coordinator, cleanup, reboot func(context.Context) error, board string) (*applianceupdate.Service, error) {
 	info, err := os.Lstat(factoryPath)
 	if errors.Is(err, os.ErrNotExist) {
 		// A direct-root development image has no bootstrap. A mounted bootstrap
@@ -75,7 +84,7 @@ func openApplianceUpdate(factoryPath, mountInfoPath, root, bootPath string, coor
 	if err != nil {
 		return nil, err
 	}
-	factory, _, err := release.DecodeManifest(f)
+	factory, _, err := release.DecodeManifestForBoard(f, board)
 	f.Close()
 	if err != nil {
 		return nil, err
@@ -84,7 +93,7 @@ func openApplianceUpdate(factoryPath, mountInfoPath, root, bootPath string, coor
 	if err != nil {
 		return nil, err
 	}
-	store, err := appliance.New(root, factory)
+	store, err := appliance.NewForBoard(root, factory, board)
 	if err != nil {
 		return nil, err
 	}

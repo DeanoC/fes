@@ -65,6 +65,48 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             appliance.export_release(self.root/'release', self.rootfs, self.kernel, version='v2', provenance=provenance(self.rootfs, self.kernel))
 
+    def test_de25_export_requires_explicit_board_and_preserves_immutable_default(self):
+        result = appliance.export_release(self.root/'de25', self.rootfs, self.kernel,
+                                          version='v1', provenance=provenance(self.rootfs, self.kernel), board='de25-nano')
+        manifest = appliance.load_manifest(result.manifest, board='de25-nano')
+        self.assertEqual(manifest['board'], 'de25-nano')
+        self.assertEqual(result.image.read_bytes(), self.rootfs.read_bytes())
+        with self.assertRaisesRegex(ValueError, 'board'):
+            appliance.load_manifest(result.manifest)
+        original = result.manifest.read_bytes()
+        with self.assertRaisesRegex(ValueError, 'immutable release'):
+            appliance.export_release(result.directory, self.rootfs, self.kernel,
+                                     version='v1', provenance=provenance(self.rootfs, self.kernel))
+        self.assertEqual(result.manifest.read_bytes(), original)
+        default = appliance.export_release(self.root/'de10', self.rootfs, self.kernel,
+                                           version='v1', provenance=provenance(self.rootfs, self.kernel))
+        self.assertEqual(appliance.load_manifest(default.manifest)['board'], 'de10-nano')
+        with self.assertRaisesRegex(ValueError, 'board'):
+            appliance.load_manifest(default.manifest, board='de25-nano')
+
+    def test_unknown_release_board_is_refused_before_input_or_output_access(self):
+        for board in ('', 'de25_nano', 'de25-nano\n', 'other', True):
+            with self.subTest(board=board):
+                output = self.root/'unknown'
+                with self.assertRaisesRegex(ValueError, 'selected release board'):
+                    appliance.export_release(output, self.root/'missing-rootfs', self.root/'missing-kernel',
+                                             version='v1', provenance=provenance(self.rootfs, self.kernel), board=board)
+                self.assertFalse(output.exists())
+                with self.assertRaisesRegex(ValueError, 'selected release board'):
+                    appliance.load_manifest(self.root/'missing-manifest', board=board)
+
+    def test_selected_de25_release_retains_closed_fields_and_kernel_checks(self):
+        valid = appliance.release_manifest(self.rootfs, version='v1', provenance=provenance(self.rootfs, self.kernel), board='de25-nano')
+        for changed in (dict(valid, board='de10-nano'), dict(valid, boot_abi='other'),
+                        dict(valid, extra=True), dict(valid, kernel_sha256='bad')):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                appliance.validate_manifest(changed, board='de25-nano')
+        p = dataclasses.replace(provenance(self.rootfs, self.kernel), kernel_sha256='f'*64)
+        with self.assertRaisesRegex(ValueError, 'kernel differs'):
+            appliance.export_release(self.root/'wrong-kernel-de25', self.rootfs, self.kernel,
+                                     version='v1', provenance=p, board='de25-nano')
+        self.assertFalse((self.root/'wrong-kernel-de25').exists())
+
     def test_single_pass_release_records_pass_count_without_special_version(self):
         p=dataclasses.replace(provenance(self.rootfs,self.kernel),image_passes=1)
         result=appliance.export_release(self.root/'release-1p',self.rootfs,self.kernel,version='dev.1',provenance=p)

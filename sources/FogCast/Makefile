@@ -149,9 +149,15 @@ build-fes-update:
 # Stable storage helper stays in the base image; bundle builder runs in the
 # linux/amd64 image builder, independently of the development host architecture.
 .PHONY: build-fes-kit-data build-fes-kit-bundle-container
+FES_KIT_DATA_ARCH ?= armv7
 build-fes-kit-data:
 	mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fes-kit-data-linux-armv7 ./cmd/fes-kit-data
+	@case '$(FES_KIT_DATA_ARCH)' in \
+	  armv7) set -- GOARCH=arm GOARM=7 ;; \
+	  aarch64) set -- GOARCH=arm64 GOARM64=v8.0 ;; \
+	  *) echo 'unsupported fes-kit-data architecture' >&2; exit 2 ;; \
+	esac; \
+	env -u GOARM -u GOARM64 CGO_ENABLED=0 GOOS=linux "$$@" go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fes-kit-data-linux-$(FES_KIT_DATA_ARCH) ./cmd/fes-kit-data
 
 build-fes-kit-bundle-container:
 	mkdir -p bin

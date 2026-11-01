@@ -1593,6 +1593,25 @@ hold-reset `load_media`.
 
 ## FES appliance releases
 
+The release codec and store accept DE25 only through explicit selected-board
+entry points (`ValidateForBoard`, `DecodeManifestForBoard`, `CompatibleForBoard`
+and `store.NewForBoard`). The selection comes from the caller, not the uploaded
+manifest. Factory, staged and retained manifests must match that board and
+kernel; foreign uploads are refused before their body is read or storage is
+changed. Default entry points remain DE10-only. FES's Python release exporter
+also takes an explicit board for caller-verified images. With a bootstrap
+factory present, the target agent and storage gate select from the immutable
+image's `/etc/fes-board` and require the matching ARM/ARM64 CPU target. Older
+ARM DE10 images may lack that file; AArch64 requires exactly `de25-nano`.
+The API reports its store's board and validates upload headers against that
+selection before reading image bodies. `fes-update --board de25-nano` selects
+DE25 explicitly, requires the authenticated target to report DE25 before an
+upload and checks the image's AArch64 software base. A status without a board
+is accepted only by the DE10 client path. The base storage helper builds with
+`make build-fes-kit-data FES_KIT_DATA_ARCH=aarch64`; its default stays ARMv7.
+Bootstrap/media assembly is still DE10-specific. These software paths do not
+establish DE25 managed boot, watchdog recovery or hardware acceptance.
+
 FES owns compatible source selection, release/media assembly, and the fixed
 bootstrap. FogCast supplies the public appliance module, target update API, and
 `cmd/fes-update`. Before uploading, `fes-update` reads the image's

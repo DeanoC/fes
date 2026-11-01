@@ -1,0 +1,87 @@
+{
+  "Go_package_pass_runs": 136,
+  "base": "a0e5a70865987ea6fea38308bf42d33ad58251c8",
+  "commands": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "host Go and UI tests",
+      "lane": "host",
+      "returncode": 0
+    }
+  ],
+  "elapsed_seconds": 763.6,
+  "fixture_copies": 42,
+  "generated_consumers": 40,
+  "hardware_access": "not-performed",
+  "log_sha256": "901854460d4ee39fb4341a7d8056ef9bf6f2d2f43a69bf25ca943bb9f13de93a",
+  "parent_unittest_summaries": [
+    {
+      "outcome": "OK",
+      "seconds": 0.264,
+      "tests": 30
+    },
+    {
+      "outcome": "OK",
+      "seconds": 1.263,
+      "tests": 32
+    },
+    {
+      "outcome": "OK",
+      "seconds": 2.624,
+      "tests": 2
+    },
+    {
+      "outcome": "OK",
+      "seconds": 17.117,
+      "tests": 3
+    },
+    {
+      "outcome": "OK",
+      "seconds": 54.016,
+      "tests": 33
+    },
+    {
+      "outcome": "OK",
+      "seconds": 0.0,
+      "tests": 1
+    },
+    {
+      "outcome": "OK (skipped=40)",
+      "seconds": 293.787,
+      "tests": 1276
+    }
+  ],
+  "source_revision": "83e1c16b6a4b4cd19b92fe93e42a0902d52e1c3b",
+  "status": "passed",
+  "unittest_parent_skipped": 40,
+  "unittest_parent_tests": 1276
+}
