@@ -36,6 +36,18 @@ DE25 package validation accepts only format 2 for its exact SCS device. The
 existing format-3/4 ROM-map encoding and destination geometry describe Cyclone V
 M10K storage and are refused for Agilex 5.
 
+The scanout producer derives named HDMI cells from its locked Terasic sources.
+Two 50 MHz stages synchronize external SDA acknowledgements and INT, with
+pin-to-first-D exceptions only. Controller clocked assignments are normalized
+to nonblocking semantics; the initializer waits for busy after GO before
+accepting END, preventing stale completion from skipping the first LUT write.
+The existing divider and register values remain unchanged. Derived source
+hashes and synchronizer bindings are rechecked after generation/compilation.
+The retained-controller protocol proof checks all 33 writes, interrupt restart
+and three NACK positions, and checks synthesized controller equivalence with
+explicit reset modeling. External IO timing, analog/MTBF and asynchronous reset
+qualification remain separate gates.
+
 `boards/de25nano/` is an independent FPGA-only bring-up project for
 `A5EB013BB23BE4SCS` with Quartus Prime Pro 26.3.0. Its 50 MHz input and
 active-low LED pins follow Terasic's revision B resource package; the shared

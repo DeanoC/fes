@@ -17,7 +17,7 @@ import zipfile
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
 BOARD = "sources/misteross/boards/de25nano/"
-LOCAL = ("build.py", "linux_dma.py", "integrate.tcl", "clocks.sdc", "fes_de25_scanout.v",
+LOCAL = ("build.py", "linux_dma.py", "hdmi_inputs.py", "integrate.tcl", "clocks.sdc", "fes_de25_scanout.v",
          "fes_de25_scanout_hw.tcl", "fes_de25_scanout_board.v",
          "fes_de25_scanout_guard.v", "fes_de25_scanout_guard_hw.tcl",
          "generated/fes_de25_scanout.vh", "generated/fes_de25_scanout.h")
@@ -112,12 +112,27 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
     for name in LOCAL:
         target = local / staged_names[name]; target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(sources[BOARD + "scanout/" + name])
+    hdmi = load(snapshot / BOARD / "scanout/hdmi_inputs.py", "scanout_retained_hdmi_inputs")
+    vendor_hdmi = {name: (project / "fes_combined" / name).read_bytes()
+                   for name in ("I2C_HDMI_Config.v", "I2C_Controller.v")}
+    original_hdmi = output / "hdmi-vendor-inputs"
+    original_hdmi.mkdir()
+    for name, data in vendor_hdmi.items():
+        (original_hdmi / name).write_bytes(data)
+    hdmi_files, hdmi_inputs = hdmi.derive(vendor_hdmi["I2C_HDMI_Config.v"], vendor_hdmi["I2C_Controller.v"])
+    for name, data in hdmi_files.items():
+        (local / name).write_bytes(data)
     # The endpoint's Qsys fileset owns the actual generic reader/video RTL.
     for name in ("fes_menu_reader_de25.v", "fes_menu_video.v"):
         (local / name).write_bytes((project / "fes_combined" / name).read_bytes())
     for name in ("video.v", "fes_menu_reader_de25.v", "fes_menu_video.v", "fes_menu_pattern_memory.v"):
         (project / "fes_combined" / name).unlink()
     qsf = (project / "golden_top.qsf").read_text()
+    for before, after in (("I2C_HDMI_Config.v", "fes_de25_scanout_hdmi_config.v"),
+                          ("I2C_Controller.v", "fes_de25_scanout_i2c_controller.v")):
+        qsf = replace_once(qsf, "set_global_assignment -name VERILOG_FILE fes_combined/" + before + "\n",
+                           "set_global_assignment -name VERILOG_FILE fes_mailbox/" + after + "\n")
+        (project / "fes_combined" / before).unlink()
     for name in ("video.v", "fes_menu_reader_de25.v", "fes_menu_video.v", "fes_menu_pattern_memory.v"):
         qsf = replace_once(qsf, "set_global_assignment -name VERILOG_FILE fes_combined/" + name + "\n", "")
     qsf = replace_once(qsf, "set_global_assignment -name SDC_FILE fes_combined/clocks.sdc\n",
@@ -192,6 +207,7 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
                     "warm_reset_ack_n", "debug_paths")}
     inputs["combined_display"].update(mode="allocated-buffer-scanout", ddr_scanout=True, runtime_menu=False)
     inputs["scanout"] = {"build_id": build_id,
+        "hdmi_inputs": hdmi_inputs,
         "build_identity_scheme": "canonical-functional-record-v2" if package_build_id else "diagnostic-source-profile",
         "hps_initialization": boot_order, "peripheral_offset": int(offset[1], 16), "default_enabled": False,
         "pixel_hz": 74250000, "system_hz": 100000000, "control_bridge": "system100 bounded guard -> mm_ccb19.4.1 DATA32 RESPONSE1",
@@ -465,6 +481,8 @@ def verify_generated(output, hps, verifier_revision=None):
     generation = json.loads(path.read_text())
     generation["combined_display"]["ddr_scanout"] = True
     generation["scanout"] = verify_handoff(directory / "project", hps)
+    inputs = json.loads((directory / "inputs.json").read_text())
+    generation["scanout"]["hdmi_inputs"] = verify_hdmi_inputs(directory / "project", inputs, hps)
     selected = json.loads((directory / "inputs.json").read_text())["scanout"].get("linux_dma")
     if selected is not None:
         helper = load(directory / "project/fes_mailbox/linux_dma.py", "scanout_generated_linux_dma")
@@ -483,6 +501,7 @@ def compile_project(output, hps, display, tool):
     directory = output / "combined/hps"
     artifact = hps.compile_project(directory, tool)
     inputs = json.loads((directory / "inputs.json").read_text())
+    verify_hdmi_inputs(directory / "project", inputs, hps)
     expected = inputs["combined_display"]["pixel_pll_parameters"]
     actual = display.pll_parameters((directory / "project/fes_combined/sys_pll.ip").read_bytes())
     record = json.loads((directory / "build.json").read_text())
@@ -509,6 +528,28 @@ def compile_project(output, hps, display, tool):
                   "Linux_load_acceptance": "not-qualified", "production_admission": False}
         (directory / "linux-programming.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     return artifact
+
+
+def verify_hdmi_inputs(project, inputs, hps):
+    expected = inputs["scanout"]["hdmi_inputs"]
+    names = {"fes_de25_scanout_hdmi_config.v", "fes_de25_scanout_i2c_controller.v"}
+    if set(expected["derived_source_sha256"]) != names:
+        raise ValueError("HDMI derived source inventory differs")
+    for name, digest in expected["derived_source_sha256"].items():
+        if hps.digest(project / "fes_mailbox" / name) != digest:
+            raise ValueError("HDMI derived source changed: " + name)
+    board = (project / "fes_mailbox/fes_de25_scanout_board.v").read_text()
+    board = re.sub(r"\s+", "", re.sub(r"//[^\n]*", "", board))
+    if "always@(posedgeCLOCK0_50ornegedgeconfig_reset_n)beginif(!config_reset_n)beginhdmi_sda_sync<=2'b11;hdmi_int_sync<=2'b11;endelsebegin" not in board:
+        raise ValueError("HDMI input synchronizers require the 50 MHz reset/clock domain")
+    for name, pin in (("hdmi_sda_sync", "HDMI_I2C_SDA"), ("hdmi_int_sync", "HDMI_TX_INT")):
+        if name + "<={" + name + "[0]," + pin + "};" not in board:
+            raise ValueError("HDMI input first-stage binding changed")
+    for binding in (".I2C_SDAT_IN(hdmi_sda_sync[1])", ".HDMI_TX_INT(hdmi_int_sync[1])"):
+        if binding not in board:
+            raise ValueError("HDMI input controller bypassed synchronizer")
+    return {**expected, "input_clock_hz": 50000000, "input_stages": 2,
+            "physical_metastability_acceptance": "not-qualified"}
 
 
 def main(argv=None):

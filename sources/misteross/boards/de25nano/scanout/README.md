@@ -253,6 +253,33 @@ The readiness crossing has a registered source and two receiving registers;
 its SDC names exactly that source and stage0 D, with one-object checks. Later
 stages, fanout and reset recovery/removal remain timed. No clock group is cut.
 
+The scanout project derives its own named HDMI configuration/controller cells
+from the locked vendor inputs. SDA acknowledgements and the transmitter
+interrupt pass through two CLOCK0_50 input stages. Only each external pin's
+path to its first D input is cut; later stages, controller fanout and resets
+remain timed. The open-drain SDA output and the divide-by-5002 bus clock are
+preserved. The initializer waits for END to go low after GO before accepting
+completion, so the reset/previous completion cannot skip the first LUT row.
+Clocked controller assignments use nonblocking semantics to remove simulation
+races. The original vendor files are retained outside the compiler project;
+the project records and rechecks both original and derived hashes.
+
+`hdmi_io_sim.py --project /absolute/prepared/combined/hps/project --output
+/absolute/new/proof --yosys /absolute/yosys` exercises the actual retained
+derived controller with a digital open-drain slave. It checks every byte in all
+33 writes, a full interrupt-triggered reconfiguration, address/subaddress/data
+NACK retries, delayed acknowledgements and the original clock period. It also
+compares the controller assignment normalization with Yosys induction after
+`async2sync` reset modeling. That proof does not cover physical asynchronous
+reset timing or metastability. The clock/visibility bench retains its separate
+modeled configuration-completion boundary.
+
+External output timing remains unqualified. The
+[ADV7513 data sheet, revision B](https://www.analog.com/media/en/technical-documentation/data-sheets/ADV7513.pdf)
+specifies 100 ns I2C SDA setup/hold and 1.8 ns video setup/1.3 ns hold. Board
+propagation/skew budgets and physical acceptance are still required; no zero
+board delay or synthetic output constraint is supplied here.
+
 The separate canonical MENU producer runs from the misteross module:
 
 ```sh

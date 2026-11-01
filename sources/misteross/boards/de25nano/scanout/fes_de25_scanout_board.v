@@ -36,10 +36,25 @@ module fes_de25_scanout_board (
     // traffic or resets either live bridge.
     assign scanout_reset_n = first_lock_seen;
     assign clock_fault = fault;
+    // Both pins originate outside the FPGA clock domains. Raw SDA is used
+    // only by the first input stage and the unchanged open-drain driver.
+    // ACK sampling remains in the original slow controller; it sees the
+    // synchronized level after the existing full SCL-high interval.
+    (* preserve, dont_merge, async_reg="true", altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] hdmi_sda_sync = 2'b11;
+    (* preserve, dont_merge, async_reg="true", altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] hdmi_int_sync = 2'b11;
+    always @(posedge CLOCK0_50 or negedge config_reset_n) begin
+        if (!config_reset_n) begin hdmi_sda_sync <= 2'b11; hdmi_int_sync <= 2'b11; end
+        else begin
+            hdmi_sda_sync <= {hdmi_sda_sync[0], HDMI_I2C_SDA};
+            hdmi_int_sync <= {hdmi_int_sync[0], HDMI_TX_INT};
+        end
+    end
     wire hdmi_ready;
-    I2C_HDMI_Config hdmi_config (.iCLK(CLOCK0_50), .iRST_N(config_reset_n),
+    fes_de25_scanout_hdmi_config hdmi_config (.iCLK(CLOCK0_50), .iRST_N(config_reset_n),
         .I2C_SCLK(HDMI_I2C_SCL), .I2C_SDAT(HDMI_I2C_SDA),
-        .HDMI_TX_INT(HDMI_TX_INT), .READY(hdmi_ready));
+        .I2C_SDAT_IN(hdmi_sda_sync[1]), .HDMI_TX_INT(hdmi_int_sync[1]), .READY(hdmi_ready));
     assign {HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S} = 4'b0000;
     // Register the configuration result in its source domain before crossing
     // into the independent system clock. No combinational I2C state drives

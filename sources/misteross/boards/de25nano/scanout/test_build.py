@@ -51,6 +51,46 @@ class ScanoutBuildTests(unittest.TestCase):
                       (directory / "project/integrate-mailbox.tcl").read_text())
         self.assertIn("set_global_assignment -name SEED 1\n", (directory / "project/golden_top.qsf").read_text())
 
+    def test_retained_hdmi_derivation_and_input_binding_fail_closed(self):
+        output, _, hps, _ = self.prepare()
+        project = output / "combined/hps/project"
+        inputs = json.loads((project.parent / "inputs.json").read_text())
+        checked = B.verify_hdmi_inputs(project, inputs, hps)
+        self.assertEqual(checked["input_clock_hz"], 50000000)
+        self.assertEqual(checked["input_stages"], 2)
+        self.assertEqual(checked["acknowledge_samples_redirected"], ["ACK1", "ACK2", "ACK3"])
+        self.assertTrue((output / "hdmi-vendor-inputs/I2C_Controller.v").is_file())
+        self.assertFalse((project / "fes_combined/I2C_Controller.v").exists())
+        qsf = (project / "golden_top.qsf").read_text()
+        self.assertIn("VERILOG_FILE fes_mailbox/fes_de25_scanout_i2c_controller.v", qsf)
+        board = project / "fes_mailbox/fes_de25_scanout_board.v"
+        original = board.read_text()
+        for before, after in ((".I2C_SDAT_IN(hdmi_sda_sync[1])", ".I2C_SDAT_IN(HDMI_I2C_SDA)"),
+                (".HDMI_TX_INT(hdmi_int_sync[1])", ".HDMI_TX_INT(HDMI_TX_INT)"),
+                ("always @(posedge CLOCK0_50 or negedge config_reset_n) begin", "always @(posedge system_clk or negedge config_reset_n) begin")):
+            board.write_text(original.replace(before, after, 1))
+            with self.subTest(after=after), self.assertRaises(ValueError):
+                B.verify_hdmi_inputs(project, inputs, hps)
+        board.write_text(original)
+        controller = project / "fes_mailbox/fes_de25_scanout_i2c_controller.v"
+        controller.write_bytes(controller.read_bytes() + b"\n")
+        with self.assertRaisesRegex(ValueError, "derived source changed"):
+            B.verify_hdmi_inputs(project, inputs, hps)
+
+    def test_hdmi_derivation_refuses_unknown_raw_reads_and_incomplete_handshake(self):
+        output, _, _, _ = self.prepare()
+        helper = B.load(B.HERE / "hdmi_inputs.py", "hdmi_input_test")
+        raw = output / "hdmi-vendor-inputs"
+        config = (raw / "I2C_HDMI_Config.v").read_bytes()
+        controller = (raw / "I2C_Controller.v").read_bytes()
+        for changed in (controller + b"wire extra = I2C_SDAT;\n",
+                        controller.replace(b"ACK2=I2C_SDAT;", b"ACK2=1'b0;"),
+                        controller + b"always @(*) ACK1=I2C_SDAT;\n"):
+            with self.subTest(changed=changed[-40:]), self.assertRaises(ValueError):
+                helper.derive(config, changed)
+        with self.assertRaises(ValueError):
+            helper.derive(config.replace(b"mSetup_ST <= 1;", b"mSetup_ST <= 2;"), controller)
+
     def test_package_identity_rejects_wrong_profile_dirty_source_zero_and_invalid_ids(self):
         for revision, linux_dma, value in ((None, True, "a" * 32), ("b" * 40, False, "a" * 32),
                 ("b" * 40, True, "0" * 32), ("b" * 40, True, "A" * 32),
