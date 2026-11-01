@@ -21,6 +21,10 @@ LOCAL = ("build.py", "linux_dma.py", "hdmi_inputs.py", "integrate.tcl", "clocks.
          "fes_de25_scanout_hw.tcl", "fes_de25_scanout_board.v",
          "fes_de25_scanout_guard.v", "fes_de25_scanout_guard_hw.tcl",
          "generated/fes_de25_scanout.vh", "generated/fes_de25_scanout.h")
+TIMED_RESET_RELEASE = "timed-system-reset-release-v1"
+RESET_SDC_SHA256 = "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+TIMED_RESET_INSTANCES = ("soc_inst|rst_controller", "soc_inst|subsys_periph|rst_controller",
+                         "soc_inst|rst_controller_002")
 
 
 def sha(data): return hashlib.sha256(data).hexdigest()
@@ -62,6 +66,100 @@ def replace_once(source, before, after):
     if source.count(before) != 1:
         raise ValueError("scanout preparation target changed: " + before[:100])
     return source.replace(before, after)
+
+
+def timed_reset_release(inputs):
+    scanout = inputs["scanout"]
+    canonical = scanout["build_identity_scheme"] == "canonical-functional-record-v2"
+    policy = scanout.get("reset_timing")
+    if canonical:
+        if (policy != TIMED_RESET_RELEASE or scanout["hps_initialization"] != "HPS FIRST" or
+                inputs.get("f2sdram_master_profile") != "scanout-only"):
+            raise ValueError("canonical MENU requires the selected same-clock reset timing profile")
+    elif policy is not None:
+        raise ValueError("same-clock reset timing requires the canonical MENU profile")
+    return canonical
+
+
+def timed_scanout_sdc(source):
+    # The system reset source and receiver both use the 100 MHz system PLL.
+    # Keep the pixel reset and the independent lock/visibility clears cut.
+    for pin in ("aclr", "clrn"):
+        for stage in (0, 1):
+            source = replace_once(source, "soc_inst|rst_controller_002|alt_rst_sync_uq1|"
+                "altera_reset_synchronizer_int_chain[" + str(stage) + "]|" + pin + " ", "")
+    source = replace_once(source, "$scanout_clear_count != 10", "$scanout_clear_count != 8")
+    source = replace_once(source, "(expected 10)", "(expected 8)")
+    return replace_once(source, "exactly ten qualifier", "exactly eight qualifier")
+
+
+def timed_vendor_reset_sdc(original):
+    if sha(original) != RESET_SDC_SHA256:
+        raise ValueError("generated reset SDC differs from reviewed Quartus 26.3 source")
+    source = original.decode()
+    guard = "[lsearch -exact {" + " ".join(TIMED_RESET_INSTANCES) + "} [get_current_instance]] < 0"
+    for pin in ("aclr", "clrn"):
+        source = replace_once(source, "if {$" + pin + "_counter > 0} {",
+                              "if {$" + pin + "_counter > 0 && " + guard + "} {")
+    return source.encode()
+
+
+def reset_sdc_files(project):
+    files = sorted(project.rglob("altera_reset_controller.sdc"))
+    if len(files) != 6 or any(p.is_symlink() for p in project.rglob("*") if p.name == "altera_reset_controller.sdc"):
+        raise ValueError("generated reset SDC inventory differs from the reviewed six files")
+    for path in files:
+        if any(parent.is_symlink() for parent in path.parents if parent.is_relative_to(project)):
+            raise ValueError("generated reset SDC must remain inside the private project")
+    return files
+
+
+def repair_generated_reset_timing(directory):
+    if not timed_reset_release(json.loads((directory / "inputs.json").read_text())):
+        raise ValueError("same-clock reset repair requires canonical MENU")
+    project = directory / "project"
+    originals = directory / "reset-timing-originals"
+    originals.mkdir(exist_ok=False)
+    files = {}
+    for path in reset_sdc_files(project):
+        relative = path.relative_to(project).as_posix()
+        original = path.read_bytes()
+        changed = timed_vendor_reset_sdc(original)
+        retained = originals / relative
+        retained.parent.mkdir(parents=True, exist_ok=True)
+        retained.write_bytes(original)
+        path.write_bytes(changed)
+        files[relative] = {"before_sha256": sha(original), "after_sha256": sha(changed)}
+    record = {"policy": TIMED_RESET_RELEASE, "clock": "pll_inst|iopll_0_outclk0",
+              "timed_instances": list(TIMED_RESET_INSTANCES), "files": files}
+    (directory / "reset-timing.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    return verify_generated_reset_timing(directory)
+
+
+def verify_generated_reset_timing(directory):
+    inputs = json.loads((directory / "inputs.json").read_text())
+    if not timed_reset_release(inputs):
+        raise ValueError("same-clock reset verification requires canonical MENU")
+    record = json.loads((directory / "reset-timing.json").read_text())
+    project = directory / "project"
+    raw = directory.parents[1] / "functional-source" / BOARD / "scanout/clocks.sdc"
+    expected_sdc = timed_scanout_sdc(raw.read_text()).encode()
+    if ((project / "fes_mailbox/clocks.sdc").read_bytes() != expected_sdc or
+            inputs["scanout"]["source_sha256"]["clocks.sdc"] != sha(expected_sdc)):
+        raise ValueError("canonical MENU same-clock reset SDC differs from captured source")
+    verify_reset_synchronizers(project)
+    names = {p.relative_to(project).as_posix() for p in reset_sdc_files(project)}
+    if (set(record) != {"policy", "clock", "timed_instances", "files"} or
+            record["policy"] != TIMED_RESET_RELEASE or record["clock"] != "pll_inst|iopll_0_outclk0" or
+            record["timed_instances"] != list(TIMED_RESET_INSTANCES) or set(record["files"]) != names):
+        raise ValueError("same-clock reset timing receipt differs from the selected profile")
+    for name in names:
+        original = (directory / "reset-timing-originals" / name).read_bytes()
+        changed = timed_vendor_reset_sdc(original)
+        if (record["files"][name] != {"before_sha256": sha(original), "after_sha256": sha(changed)} or
+                (project / name).read_bytes() != changed):
+            raise ValueError("generated same-clock reset constraints changed: " + name)
+    return record
 
 
 def build_identity(sources, hps_first, linux_dma):
@@ -112,6 +210,9 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
     for name in LOCAL:
         target = local / staged_names[name]; target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(sources[BOARD + "scanout/" + name])
+    if package_build_id is not None:
+        path = local / "clocks.sdc"
+        path.write_text(timed_scanout_sdc(path.read_text()))
     hdmi = load(snapshot / BOARD / "scanout/hdmi_inputs.py", "scanout_retained_hdmi_inputs")
     vendor_hdmi = {name: (project / "fes_combined" / name).read_bytes()
                    for name in ("I2C_HDMI_Config.v", "I2C_Controller.v")}
@@ -220,6 +321,8 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
         "clock_loss": "sticky fault/blank/drain when pixel resumes; never reset live bridges",
         "global_reset_ownership": "not-qualified; active-low warm acknowledgement remains inactive1",
         "dma_admission": "not-qualified; SID/firewall/firmware/physical lifetime gates remain"}
+    if package_build_id is not None:
+        inputs["scanout"]["reset_timing"] = TIMED_RESET_RELEASE
     if dma_profile is not None:
         inputs["scanout"]["linux_dma"] = dma_profile
         inputs["allowed_hps_parameter_changes"] = parameter_changes
@@ -299,14 +402,18 @@ def verify_reset_synchronizers(project):
             "assignscanout_reset_n=first_lock_seen;" not in board):
         raise ValueError("scanout reset source no longer waits for first qualified lock")
 
+    timed_system = timed_reset_release(json.loads((project.parent / "inputs.json").read_text()))
     sdc = compact(project / "fes_mailbox/clocks.sdc")
-    for controller in ("rst_controller_001", "rst_controller_002"):
+    controllers = ("rst_controller_001",) if timed_system else ("rst_controller_001", "rst_controller_002")
+    for controller in controllers:
         for stage in (0, 1):
             target = ("soc_inst|" + controller + "|alt_rst_sync_uq1|"
                       "altera_reset_synchronizer_int_chain[" + str(stage) + "]|")
             if target + "aclr" not in sdc or target + "clrn" not in sdc:
                 raise ValueError("scanout SDC does not constrain the generated " + controller + " stage " + str(stage))
     cuts = "".join(re.findall(r"setscanout_(?:aclr|clrn)\[get_pins[^{]*\{[^}]*\}\]", sdc))
+    if timed_system and "soc_inst|rst_controller_002|" in cuts:
+        raise ValueError("canonical MENU must time the same-clock system reset release")
     for pin in ("aclr", "clrn"):
         if "fes_video_inst|visible_release|sync_regs*|" + pin not in cuts:
             raise ValueError("scanout SDC does not constrain the visibility release clear pin: " + pin)
@@ -326,14 +433,16 @@ def verify_reset_synchronizers(project):
             "set_false_path-from$scanout_ready_source-to$scanout_ready_head" not in sdc or
             "set_false_path-to$scanout_ready_head" in sdc):
         raise ValueError("scanout SDC must cut only the registered HDMI-ready source to stage0 D")
-    if "if{$scanout_clear_count!=10}" not in sdc:
-        raise ValueError("scanout SDC does not require all ten reset/visibility clear pins")
+    clear_pins = 8 if timed_system else 10
+    if "if{$scanout_clear_count!=" + str(clear_pins) + "}" not in sdc:
+        expected = "eight" if timed_system else "ten"
+        raise ValueError("scanout SDC does not require all " + expected + " reset/visibility clear pins")
     if "fes_scanout_pixel_reset|sync_regs*" in sdc or "fes_scanout_system_reset|sync_regs*" in sdc:
         raise ValueError("scanout SDC still targets nonexistent board reset registers")
     return {"pixel_clock": "74250000 Hz", "system_clock": "100000000 Hz",
             "assertion": "asynchronous", "deassertion": "synchronous per domain",
             "hdmi_data_de_gate": "pixel-registered; qualified-lock loss clears the pixel release immediately",
-            "sdc_clear_pins": 10}
+            "sdc_clear_pins": clear_pins}
 
 
 def endpoint_build_identity(project, endpoint, hps, expected):
@@ -472,6 +581,9 @@ def verify_handoff(project, hps):
 
 def generate(output, combined, hps, display, tool, version):
     combined.generate(output / "combined", hps, display, tool, version)
+    directory = output / "combined/hps"
+    if timed_reset_release(json.loads((directory / "inputs.json").read_text())):
+        repair_generated_reset_timing(directory)
     verify_generated(output, hps)
 
 
@@ -482,6 +594,8 @@ def verify_generated(output, hps, verifier_revision=None):
     generation["combined_display"]["ddr_scanout"] = True
     generation["scanout"] = verify_handoff(directory / "project", hps)
     inputs = json.loads((directory / "inputs.json").read_text())
+    if timed_reset_release(inputs):
+        generation["scanout"]["reset_timing"] = verify_generated_reset_timing(directory)
     generation["scanout"]["hdmi_inputs"] = verify_hdmi_inputs(directory / "project", inputs, hps)
     selected = json.loads((directory / "inputs.json").read_text())["scanout"].get("linux_dma")
     if selected is not None:
@@ -499,8 +613,14 @@ def verify_generated(output, hps, verifier_revision=None):
 
 def compile_project(output, hps, display, tool):
     directory = output / "combined/hps"
-    artifact = hps.compile_project(directory, tool)
     inputs = json.loads((directory / "inputs.json").read_text())
+    if timed_reset_release(inputs):
+        verify_generated_reset_timing(directory)
+    artifact = hps.compile_project(directory, tool)
+    if timed_reset_release(inputs):
+        checked = verify_generated_reset_timing(directory)
+        if json.loads((directory / "generation.json").read_text())["scanout"]["reset_timing"] != checked:
+            raise ValueError("compiled reset timing differs from the generated receipt")
     verify_hdmi_inputs(directory / "project", inputs, hps)
     expected = inputs["combined_display"]["pixel_pll_parameters"]
     actual = display.pll_parameters((directory / "project/fes_combined/sys_pll.ip").read_bytes())

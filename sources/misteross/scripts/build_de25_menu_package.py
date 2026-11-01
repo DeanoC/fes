@@ -33,6 +33,7 @@ from scripts.export_core_package import build_identity, encode_build_record, exp
 from scripts.fes_build_common import BuildError, _require_clean_source
 from scripts.functional_execution import execution_digest, execution_environment
 from boards.de25nano.scanout import async_inputs
+from boards.de25nano.scanout.build import TIMED_RESET_RELEASE
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = 'scripts/build_de25_menu_package.py'
@@ -146,6 +147,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
             'hps_initialization': 'HPS FIRST', 'linux_dma': True,
             'f2sdram_master_profile': 'scanout-only', 'seed': 1, 'threads': 2,
             'signoff_policy': async_inputs.POLICY,
+            'reset_release_timing': TIMED_RESET_RELEASE,
             'pixel_clock_hz': 74250000, 'system_clock_hz': 100000000,
             'execution_sha256': execution_digest(execution)}}
     return encode_build_record(fields)

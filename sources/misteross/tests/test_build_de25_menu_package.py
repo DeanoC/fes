@@ -238,6 +238,8 @@ class DE25MenuPackageTests(unittest.TestCase):
         def record(ids=identities, run=execution, selected=revision):
             return producer.create_build_record(self.root, 'https://github.com/DeanoC/fes', selected, ids, run, captured)
         original = record()
+        self.assertEqual(json.loads(original)['parameters']['reset_release_timing'],
+                         producer.TIMED_RESET_RELEASE)
         self.assertEqual(verify_record_source_at_revision(self.root, original)['source_inputs'], json.loads(original)['source_inputs'])
         self.assertEqual(build_identity(original), build_identity(record(selected='b' * 40)))
         changed = dict(identities, quartus='different actual compiler')

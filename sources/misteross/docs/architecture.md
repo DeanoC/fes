@@ -26,6 +26,14 @@ actual Quartus 26.3 Pro tools, complete selected installation and controlled
 execution. That record supplies the real Qsys BUILD_ID and explicit seed 1;
 the diagnostic source/profile identity remains the default for the standalone
 scanout recipe. `--compile-only` retains a candidate and never exports a package.
+The canonical `timed-system-reset-release-v1` profile times the three generated
+reset receivers released by the same 100 MHz system clock. It removes their
+clear exceptions from the private board/generated SDC copies, preserving pixel,
+FIFO and debug exceptions. The six generated reset SDC files must match the
+reviewed Quartus 26.3 input bytes. Original and derived bytes are retained and
+rechecked after generation and compilation, before Linux phase conversion;
+the canonical record binds the policy. The standalone diagnostic recipe keeps
+its original reset constraints.
 The package path requires the complete 85-rule signoff inventory and its detailed
 results, all reported setup/hold/recovery/removal/pulse-width/skew/net-delay checks, zero waived
 findings and an independent identical RBF before using the normal exporter.

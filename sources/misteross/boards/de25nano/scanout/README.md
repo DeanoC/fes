@@ -144,18 +144,32 @@ bridge parameters, response/write-completion interfaces, clocks and common
 reset connections, in addition to inherited mailbox/probe and HPS/EMIF
 checks. The pixel PLL parameters are checked after generation and compilation.
 Generated bridge FIFO constraints remain authoritative: no broad clock groups
-or pointer-path cuts are added. The board SDC cuts ten asynchronous clear
-pins: four on the configuration and lock-qualification synchronizers, four on
-the generated pixel and 100 MHz reset-bridge synchronizers, and two on the
-pixel-domain visibility release. The visibility synchronizer clears from that
+or pointer-path cuts are added. The standalone diagnostic board SDC cuts ten
+asynchronous clear pins: four on the configuration and lock-qualification
+synchronizers, four on the generated pixel and 100 MHz reset-bridge
+synchronizers, and two on the pixel-domain visibility release. The canonical
+MENU profile removes the two 100 MHz reset-bridge clear pins from that set,
+leaving eight. Its source and receiver share the 100 MHz system PLL, so reset
+recovery and removal must be timed. The visibility synchronizer clears from that
 release and the registered data/DE gate from the synchronizer, both
 pixel-clock registers, so their recovery and removal stay timed; the SDC only
 checks that those clear pins exist. It also cuts only the path from each
 registered source to the first D input of the sticky-fault and
 HDMI-visibility synchronizers; later synchronizer stages, line gating and
 output paths remain timed. Generation rejects a board whose data/DE pins are not driven by the
-registered gate or an SDC that does not name all ten clear pins. No HDMI IO
+registered gate or an SDC that does not name the profile's exact clear pins. No HDMI IO
 delays are fabricated.
+
+The canonical `timed-system-reset-release-v1` profile also removes the generated
+reset-controller clear exceptions only for `soc_inst|rst_controller`,
+`soc_inst|subsys_periph|rst_controller` and `soc_inst|rst_controller_002`.
+All three receive a reset released by the same 100 MHz clock. The private build
+requires exactly six generated reset SDC files matching the reviewed Quartus
+26.3 bytes, retains their originals and changes only the two conditional clear
+exceptions. Pixel, FIFO and debug reset exceptions remain intact. Generation
+and compilation verify the derived board SDC, all six generated files and their
+receipt; regenerated or changed constraints stop the build before Linux phase
+conversion. The canonical record binds this policy before IP generation.
 
 Native tests exercise the real reader/video/control RTL with the same guarded
 M20K hint adaptation used by the build. They cover complete frames and lane
