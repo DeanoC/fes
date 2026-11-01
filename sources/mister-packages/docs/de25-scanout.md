@@ -153,8 +153,8 @@ Local scanout drain cannot justify global warm ACK or hardware recovery.
 ## Explicit Linux SMMU build selection
 
 The generated stream ID is 13 (outside the selected vendor PSS IDs), with
-SID in AXI address USER bits 23:8 and nonsecure SECSID bit 24 clear. The lower
-8-bit vendor USER attributes remain 0xE0, giving address USER 0x0000DE0.
+SID in raw F2SDRAM AXI address USER bits 24:9 and nonsecure SECSID bit 8 clear. The lower
+8-bit vendor USER attributes remain 0xE0, giving address USER 0x0001AE0.
 These additive build constants do not change the endpoint register ABI.
 The opt-in FPGA recipe enables HPS SMMU port exposure and verifies the actual
 25-bit generated adapter/HPS path. It does not create a kernel device or
@@ -166,4 +166,9 @@ scanout path is not proof of physical isolation, translation, Linux domain or
 global reset lifetime. Physical allocation, translation, bounded control access,
 drain and reset qualification remain required.
 
-The packing follows Altera's [address USER/SMMU field table](https://docs.altera.com/r/docs/683130/25.3/embedded-peripherals-ip-user-guide/register-description?contentId=ubFvBQAlI8Vprt1qAASvfg).
+The raw port packing comes from the installed Quartus Pro 26.3 HPS parameter
+`f2sdram_SMMU` in `ip/altera/intel_hps/sm/common/parameters_data.tcl`.
+The ACE5-Lite translator CSR table uses a different layout and cannot define
+this raw port. The [correction and physical diagnostic](../../../docs/validation/2026-11-01-de25-raw-smmu-layout/README.md)
+retain the installed primary-source identity, failed old encoding and recovery
+boundaries.

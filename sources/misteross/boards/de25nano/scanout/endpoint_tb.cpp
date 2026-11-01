@@ -97,7 +97,8 @@ public:
                 require(allowed_slots_ & (1u << slot), "fetch of a slot before submission");
             }
             if (accepts) {
-                require(pending.empty(), "more than one accepted burst outstanding");
+                require(pending.size() + dut.avm_burstcount <= 256,
+                        "accepted responses exceed the entire reader FIFO capacity");
                 const auto address = std::uint64_t(dut.avm_address);
                 const auto slot = unsigned((address - base_) / FES_DE25_SCANOUT_SLOT_BYTES);
                 const auto start = base_ + std::uint64_t(slot) * FES_DE25_SCANOUT_SLOT_BYTES;
@@ -327,6 +328,18 @@ static void stop_keeps_stalled_command_and_accepted_responses() {
     equal(pending.displayed(), 0, "STOP acknowledged incomplete frame");
     e.stop_and_drain(); equal(e.returned, beats, "not all accepted responses retired");
 }
+static void read_ahead_reserves_capacity_and_stop_drains_every_accepted_beat() {
+    Endpoint e; Descriptor d; e.responses = false; e.submit(d); e.wait_request();
+    e.idle(1000);
+    equal(e.pending.size(), 256, "read-ahead did not fill exactly its bounded response reservation");
+    require(!e.dut.avm_read, "reader overcommitted a command after reserving the full FIFO");
+    auto full = e.snapshot(); equal(full.outstanding(), e.pending.size(), "overlapped response budget");
+    e.command(FES_DE25_SCANOUT_COMMAND_STOP);
+    auto stopping = e.snapshot();
+    require(!(stopping.status() & FES_DE25_SCANOUT_STATUS_DRAINED), "STOP released unreturned responses");
+    equal(stopping.outstanding(), 256, "STOP lost an overlapped response reservation");
+    e.stop_and_drain(); equal(e.returned, 256, "STOP did not retire all overlapped responses");
+}
 static void reset_midburst_restores_idle_submit_and_clear() {
     Endpoint e; Descriptor d; e.responses = false; e.submit(d); e.wait_request();
     e.idle();
@@ -459,6 +472,7 @@ int main(int argc, char** argv) {
         two_complete_frames(false); ++groups; std::cout << "PASS two_complete_frames_delayed\n";
         two_complete_frames(true); ++groups; std::cout << "PASS two_complete_frames_zero_latency\n";
         RUN(stop_keeps_stalled_command_and_accepted_responses);
+        RUN(read_ahead_reserves_capacity_and_stop_drains_every_accepted_beat);
         RUN(reset_midburst_restores_idle_submit_and_clear);
         RUN(reset_cancels_a_stalled_command);
         RUN(boundaries_and_low_iova);

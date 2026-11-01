@@ -51,7 +51,7 @@ set_interface_property avm associatedReset reset
 set_interface_property avm addressUnits SYMBOLS
 set_interface_property avm bitsPerSymbol 8
 set_interface_property avm burstcountUnits WORDS
-set_interface_property avm maximumPendingReadTransactions 1
+set_interface_property avm maximumPendingReadTransactions 16
 set_interface_property avm waitrequestAllowance 0
 set_interface_property avm linewrapBursts false
 set_interface_property avm burstOnBurstBoundariesOnly false

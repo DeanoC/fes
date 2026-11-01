@@ -385,14 +385,32 @@ class LinuxDmaTests(unittest.TestCase):
         self.source = "# vendor prefix\n" + "".join(
             f"add_interface_port axi4_man man_{c}user {c}user Output 8\n"
             + r"output wire \[7:0\]   man_" + c + "user,\n"
-            + f"assign man_{c}user = 8'hE0;\n" for c in ("ar", "aw")) + "# vendor suffix\n"
+            + f"assign man_{c}user = 8'hE0;\n" for c in ("ar", "aw")) + "".join(
+            f"set_interface_property {interface} {field} 1\n"
+            for interface, fields in (("axi4_man", ("readIssuingCapability", "combinedIssuingCapability")),
+                                      ("axi4_sub", ("readAcceptanceCapability", "combinedAcceptanceCapability")))
+            for field in fields) + "# vendor suffix\n"
 
     def test_exact_packing_preserves_vendor_attributes_and_nonsecure_context(self):
         data, profile = self.helper.retarget_adapter(self.source.encode(), self.definition)
         text = data.decode()
         self.assertEqual(profile["stream_id"], 13)
         self.assertFalse(profile["secure"])
-        self.assertEqual(text.count("25'h0000de0"), 2)
+        self.assertEqual(profile["read_transactions"], 16)
+        self.assertEqual(text.count("Capability 16\n"), 4)
+        self.assertEqual(text.count("25'h0001ae0"), 2)
+        # Independently decode the raw HPS port, rather than using generated
+        # shift constants to check the same packing expression against itself.
+        words = re.findall(r"assign man_(?:ar|aw)user = 25'h([0-9a-f]+);", text)
+        self.assertEqual(len(words), 2)
+        for encoded in words:
+            word = int(encoded, 16)
+            self.assertEqual((word >> 9) & 0xffff, 13)
+            self.assertEqual((word >> 8) & 1, 0)
+            self.assertEqual(word & 0xff, 0xe0)
+        # The previous CSR-derived encoding actually selects secure stream 6.
+        self.assertEqual((0x0000de0 >> 9) & 0xffff, 6)
+        self.assertEqual((0x0000de0 >> 8) & 1, 1)
         self.assertEqual(text.count("Output 25"), 2)
         self.assertEqual(text.count(r"\[24:0\]"), 2)
         self.assertTrue(text.startswith("# vendor prefix\n") and text.endswith("# vendor suffix\n"))
@@ -401,13 +419,16 @@ class LinuxDmaTests(unittest.TestCase):
     def test_changed_vendor_ports_attributes_or_duplicate_assignment_are_refused(self):
         for source in (self.source.replace("8'hE0", "8'h00", 1),
                        self.source.replace("Output 8", "Output 16", 1),
-                       self.source + "assign man_aruser = 8'hE0;\n"):
+                       self.source + "assign man_aruser = 8'hE0;\n",
+                       self.source.replace("readIssuingCapability 1", "readIssuingCapability 2"),
+                       self.source + "set_interface_property axi4_sub readAcceptanceCapability 1\n"):
             with self.assertRaises(ValueError):
                 self.helper.retarget_adapter(source.encode(), self.definition)
 
     def test_reserved_sid_and_changed_layout_are_refused(self):
         for definition in (self.definition.replace("SMMU_STREAM_ID 32'h0000000d", "SMMU_STREAM_ID 32'h0000000a"),
-                           self.definition.replace("SMMU_SID_SHIFT 32'h00000008", "SMMU_SID_SHIFT 32'h00000009")):
+                           self.definition.replace("SMMU_SID_SHIFT 32'h00000009", "SMMU_SID_SHIFT 32'h00000008"),
+                           self.definition.replace("SMMU_SECURE_BIT 32'h00000008", "SMMU_SECURE_BIT 32'h00000018")):
             with self.assertRaises(ValueError):
                 self.helper.retarget_adapter(self.source.encode(), definition)
 

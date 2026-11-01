@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 TOP = "fes_de25_scanout_interconnect_test"
 MASTER = "subsys_periph_fes_scanout_mem_"
 SLAVE = "subsys_hps_f2sdram_adapter_axi4_sub_"
-CASES = ["reset_disabled", "atomic_snapshot", "complete_frames_and_slot_reuse", "linux_iova_last_8mib",
+CASES = ["reset_disabled", "atomic_snapshot", "complete_frames_and_slot_reuse", "linux_iova_last_8mib", "bounded_transaction_latency",
          "stop_drains_accepted_reads", "pixel_clock_stall_preserves_responses",
          "bounded_control_during_pixel_clock_loss", "axi_error_crosses_cdc", "clock_fault_is_sticky"]
 
@@ -64,7 +64,7 @@ module altera_syncram #(
             widthad_a!=widthad_b || (1<<widthad_a)!=numwords_a || width_byteena_a!=1)
             $fatal(1,"unsupported modeled RAM parameter contract");
         if (!((numwords_a==4 && (width_a==47 || width_a==35 || width_a==184 || width_a==8)) ||
-              (numwords_a==32 && width_a==131)))
+              (numwords_a==256 && width_a==131)))
             $fatal(1,"unsupported modeled RAM shape");
     end
     // BYPASS means the clock-enable pins do not gate either used clock.
@@ -141,7 +141,7 @@ def guard_elaborated_ram(xml_path):
     modules = {m.get("name"): m for m in root.findall(".//module")}
     expected = {}
     for bridge, shapes in (("fes_ctrl_cdc", ((47, 4), (35, 4))),
-                           ("fes_mem_cdc", ((184, 4), (131, 32)))):
+                           ("fes_mem_cdc", ((184, 4), (131, 256)))):
         for role, shape in zip(("cmd", "rsp"), shapes):
             expected[f"{TOP}.periph.{bridge}.{bridge}.{role}_fifo.my_altera_avalon_dc_fifo_{role}_fifo.altera_syncram_component"] = shape
     expected[TOP + ".ram_contract_test"] = (8, 4)

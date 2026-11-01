@@ -357,7 +357,7 @@ def verify_handoff(project, hps):
         "subsys_periph.fes_scanout_system_reset": verify_reset_bridge(
             project, modules.get("subsys_periph.fes_scanout_system_reset"), hps, "DEASSERT")}
     bridge_parameters = {}
-    for name, width, address_bits, burst, depth in (("fes_ctrl_cdc", 32, 7, 1, 4), ("fes_mem_cdc", 128, 32, 16, 32)):
+    for name, width, address_bits, burst, depth in (("fes_ctrl_cdc", 32, 7, 1, 4), ("fes_mem_cdc", 128, 32, 16, 256)):
         module = modules.get("subsys_periph." + name)
         if module is None or module.get("kind") != "mm_ccb" or module.get("version") != "19.4.1":
             raise ValueError("generated clock crossing component differs: " + name)

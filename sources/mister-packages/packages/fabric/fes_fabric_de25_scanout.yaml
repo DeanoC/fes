@@ -38,8 +38,8 @@ constants:
   - {name: FesDe25ScanoutGuardFaultUnexpectedResponse, value: 4}
   - {name: FesDe25ScanoutGuardFaultAccess, value: 8}
   - {name: FesDe25ScanoutSmmuStreamId, value: 13}
-  - {name: FesDe25ScanoutSmmuSidShift, value: 8}
-  - {name: FesDe25ScanoutSmmuSecureBit, value: 24}
+  - {name: FesDe25ScanoutSmmuSidShift, value: 9}
+  - {name: FesDe25ScanoutSmmuSecureBit, value: 8}
   - {name: FesDe25ScanoutSmmuUserBits, value: 25}
   - {name: FesDe25ScanoutBeatBytes, value: 16}
   - {name: FesDe25ScanoutGrantAlignment, value: 32}

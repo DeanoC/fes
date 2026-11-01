@@ -1,0 +1,17 @@
+{
+  "fpga_source": "a82521947439e5773a1acee8f618c1bb824b6b95",
+  "kernel_source": "3dab0b06b3ba191444eec36c992b4d54f64301f8",
+  "client_rebuilt_source": "41d508610967bb2f224c08469aa64938bbcdf123",
+  "programmer_source": "a82521947439e5773a1acee8f618c1bb824b6b95",
+  "files": {
+    "program-scanout": "68a88ea830d3c189c18de9f5caea5e897cc92800167958dc5dbb4c3e569d3ea7",
+    "owner-scanout": "ad0b7ad30b40999cc5e874a3e588fe22d18eea00a0f04d8b9a336fda409c3efe",
+    "reap-owned": "a165693fdb5cfda2cc5ed5aa4129237803bbab0d13f594f264d8eea54a262b40",
+    "scanout.rbf": "774798756c26480c37ea996c832b60343c61e312f4db41bb154e79eea1586f9c",
+    "observe-mapping.sh": "bf54c619fdaa97412769be6edc38ead9b337f8a4bfb9c2c82da4c8ea50a27bee",
+    "program-scanout-a825": "4d2d7e031cdda897bc287326cd65233d187b630396d55a18597732c3823cbd5d"
+  },
+  "scope": "single explicit3frame/bothslots diagnostic with2secondobservationperframe; no automatic retries",
+  "initial_size_gate": "Original1683456byte-bound programmer correctly rejected new1736704byteimage beforeprogramming; retained.",
+  "new_programmer_negative_test": "compiled hash mismatch rejected beforemanager construction"
+}

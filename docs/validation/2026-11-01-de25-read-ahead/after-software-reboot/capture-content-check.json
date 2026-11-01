@@ -1,0 +1,186 @@
+{
+  "status": "passed",
+  "classification": "captured image colour/marker checks; not exhaustive pixel equivalence",
+  "samples": [
+    {
+      "file": "frame-0061.png",
+      "sha256": "b465443863838f4d183d95956e890e7d84c87a1a83197400df6baddddaedccbd",
+      "samples": [
+        {
+          "role": "marker",
+          "position": [
+            30,
+            30
+          ],
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "expected": [
+            255,
+            255,
+            255
+          ],
+          "tolerance": 15
+        },
+        {
+          "role": "body",
+          "position": [
+            480,
+            300
+          ],
+          "rgb": [
+            255,
+            0,
+            0
+          ],
+          "expected": [
+            255,
+            0,
+            0
+          ],
+          "tolerance": 15
+        },
+        {
+          "role": "panel",
+          "position": [
+            1300,
+            800
+          ],
+          "rgb": [
+            0,
+            255,
+            0
+          ],
+          "expected": [
+            0,
+            255,
+            0
+          ],
+          "tolerance": 15
+        }
+      ]
+    },
+    {
+      "file": "frame-0121.png",
+      "sha256": "5999108ab1246eb3154622664f816786f94df462014e8d5fcccccc8792763dff",
+      "samples": [
+        {
+          "role": "marker",
+          "position": [
+            30,
+            30
+          ],
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "expected": [
+            255,
+            255,
+            255
+          ],
+          "tolerance": 15
+        },
+        {
+          "role": "body",
+          "position": [
+            480,
+            300
+          ],
+          "rgb": [
+            0,
+            255,
+            0
+          ],
+          "expected": [
+            0,
+            255,
+            0
+          ],
+          "tolerance": 15
+        },
+        {
+          "role": "panel",
+          "position": [
+            1300,
+            800
+          ],
+          "rgb": [
+            0,
+            0,
+            255
+          ],
+          "expected": [
+            0,
+            0,
+            255
+          ],
+          "tolerance": 15
+        }
+      ]
+    },
+    {
+      "file": "frame-0181.png",
+      "sha256": "d54d38bcbd82a6bb37bf082d10c6e135f2e20fc43a68e3b3c2d1af02c9d0cb8c",
+      "samples": [
+        {
+          "role": "marker",
+          "position": [
+            30,
+            30
+          ],
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "expected": [
+            255,
+            255,
+            255
+          ],
+          "tolerance": 15
+        },
+        {
+          "role": "body",
+          "position": [
+            480,
+            300
+          ],
+          "rgb": [
+            0,
+            0,
+            255
+          ],
+          "expected": [
+            0,
+            0,
+            255
+          ],
+          "tolerance": 15
+        },
+        {
+          "role": "panel",
+          "position": [
+            1300,
+            800
+          ],
+          "rgb": [
+            255,
+            0,
+            0
+          ],
+          "expected": [
+            255,
+            0,
+            0
+          ],
+          "tolerance": 15
+        }
+      ]
+    }
+  ]
+}

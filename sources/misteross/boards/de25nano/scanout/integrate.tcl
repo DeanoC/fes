@@ -26,7 +26,7 @@ add_interface fes_scanout_clock_fault conduit end
 set_interface_property fes_scanout_clock_fault EXPORT_OF fes_scanout.clock_fault
 foreach {instance width address_bits max_burst response_depth} {
     fes_ctrl_cdc 32 7 1 4
-    fes_mem_cdc 128 32 16 32
+    fes_mem_cdc 128 32 16 256
 } {
     add_instance $instance mm_ccb 19.4.1
     foreach {name value} [list DATA_WIDTH $width SYMBOL_WIDTH 8 ADDRESS_WIDTH $address_bits \
