@@ -3224,7 +3224,9 @@ XT keyboard's control, alternate and keypad/navigation aliases and ignores
 enhanced-only keys. A pending byte is held until the receiver accepts it;
 eight settled snapshots can wait while the link is stalled. On overflow,
 intermediate snapshots can coalesce, and the latest settled state is queued
-once space returns. A long inhibit resets
+once space returns. A slow handover between equivalent keys in different HID
+rows can appear as a release and new press because the row protocol is not
+atomic. A long inhibit resets
 the frontend and gives BAT priority. Host keyboard use on a kit requires its
 own exact-artifact acceptance. This is an XT interface, not an AT 8042.
 

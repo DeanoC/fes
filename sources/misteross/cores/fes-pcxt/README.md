@@ -946,7 +946,9 @@ and generates typematic repeats. The original XT's Ctrl/Alt and navigation/
 keypad aliases are combined; enhanced-only keys are ignored. Eight settled
 snapshots can wait while the receiver is busy. If that queue fills, intermediate
 states can coalesce and the guest is brought to the latest settled state once
-space returns. It is not an AT 8042 or a
+space returns. HID rows are not an atomic snapshot: an unusually slow handover
+between equivalent keys in different rows can produce a release and new press.
+It is not an AT 8042 or a
 PS/2 protocol endpoint. Kit acceptance of host typing is separate.
 
 `pcxt_speaker.sv` integrates the gated PIT2 waveform over each 48 kHz sample

@@ -115,7 +115,9 @@ int main(int argc, char **argv) {
         if(done && kind==1) {
             trace<<cycles<<" "<<(wr?'W':'R')<<" "<<std::hex<<addr<<" "<<data<<std::dec<<"\n";
             if(!wr && (addr&0x3ff)==0x60) {
-                if(data==0xaa)++bat_reads;
+                // 0xaa is BAT during POST and the XT left-shift break after
+                // the prompt; classify it by phase, not by byte alone.
+                if(data==0xaa && !prompt)++bat_reads;
                 else {++key_reads; if(prompt)key_codes.push_back(data);}
             }
         }
@@ -221,6 +223,33 @@ int main(int argc, char **argv) {
     for(unsigned a=0;a<disk.size();++a)
         require(byte(0x100000+a)==disk[a],"uploaded disk differs in SDRAM",cycles);
     while(!prompt)step();
+    // Exercise the runtime's modifier ordering with delayed row exchanges.
+    // Its Shift+A -> B update releases A, releases Shift, then makes B; row
+    // snapshots are separate GP transactions and are not atomic.
+    auto row_and_expect=[&](unsigned row,unsigned bits,unsigned expected) {
+        const unsigned prior=key_codes.size();
+        exchange(3,row,bits);
+        const uint64_t deadline=cycles+20000000;
+        while(key_codes.size()==prior && cycles<deadline)step();
+        require(key_codes.size()==prior+1 && key_codes.back()==expected,
+                "host keyboard transition did not reach ISA in order",cycles);
+    };
+    row_and_expect(8,2,0x2a);      // left Shift make
+    row_and_expect(0,0x10,0x1e);   // A make
+    row_and_expect(0,0,0x9e);      // A break
+    row_and_expect(8,0,0xaa);      // left Shift break
+    row_and_expect(0,0x20,0x30);   // B make
+    row_and_expect(0,0,0xb0);      // B break
+    const uint64_t echo_deadline=cycles+30000000;
+    while(screen().find("A:\\>Ab")==std::string::npos && cycles<echo_deadline)
+        for(unsigned i=0;i<250000;++i)step();
+    require(screen().find("A:\\>Ab")!=std::string::npos,
+            "DOS did not echo Shift+A then unshifted b",cycles);
+    // Clear the test letters through the same mailbox and real keyboard.
+    for(unsigned i=0;i<2;++i) {
+        row_and_expect(2,1u<<10,0x0e); // Backspace make
+        row_and_expect(2,0,0x8e);      // Backspace break
+    }
     // USB HID usage snapshots enter the same mailbox used by the real host.
     // Wait for each actual ISA/PPI read before changing the next snapshot so
     // the test proves each make and break crossed the XT serial link.
@@ -233,7 +262,8 @@ int main(int argc, char **argv) {
             require(key_codes.size()==prior+1,"host keyboard transition did not reach ISA",cycles);
         }
     }
-    const std::vector<unsigned> expected{0x20,0xa0,0x17,0x97,0x13,0x93,0x1c,0x9c};
+    const std::vector<unsigned> expected{0x2a,0x1e,0x9e,0xaa,0x30,0xb0,
+        0x0e,0x8e,0x0e,0x8e,0x20,0xa0,0x17,0x97,0x13,0x93,0x1c,0x9c};
     require(key_codes==expected,"host HID to XT make/break ordering",cycles);
     while(!(post && boot && sector && directory && frame_complete))step();
     require(bat_reads==1,"keyboard self-test",cycles);
