@@ -1,0 +1,62 @@
+{
+  "classification": "PC/XT FreeDOS prompt capture diagnostic",
+  "width": 1920,
+  "height": 1080,
+  "capture_count": 4,
+  "boot_frames_changed": true,
+  "adjacent_changes": [
+    {
+      "changed_sample_fraction": 0.016,
+      "mean_max_channel_delta": 2.87,
+      "significant": true
+    },
+    {
+      "changed_sample_fraction": 0.0802,
+      "mean_max_channel_delta": 13.56,
+      "significant": true
+    },
+    {
+      "changed_sample_fraction": 0.0176,
+      "mean_max_channel_delta": 2.88,
+      "significant": true
+    }
+  ],
+  "prompt": {
+    "row": 21,
+    "column": 0,
+    "score": 1.0,
+    "foreground_rgb": [
+      175,
+      175,
+      175
+    ],
+    "background_rgb": [
+      0,
+      0,
+      0
+    ],
+    "alignment_dx": 0,
+    "alignment_dy": 0,
+    "text": "A:\\>"
+  },
+  "static_signature_rejected": true,
+  "whole_board_qualified": false,
+  "captures": [
+    {
+      "path": "empty.png",
+      "sha256": "4c6d2c8d8bbb3756757eacd65f2e662ac9a6f56594ea0e34760218bc21f02037"
+    },
+    {
+      "path": "boot-001.png",
+      "sha256": "644afc4c5932d0b57d16ea46049b7322ea9f6f699b669d9bfc314ce2fced55dc"
+    },
+    {
+      "path": "boot-002.png",
+      "sha256": "8dc7646b40f404f4a74d09318a8a19d75c53963fd7e064d96571d3c55232e860"
+    },
+    {
+      "path": "boot-003.png",
+      "sha256": "0b25c77a16f30db2736ec5e82204b9c47b7ebb5a819ae01d6a8ee633acef63f8"
+    }
+  ]
+}

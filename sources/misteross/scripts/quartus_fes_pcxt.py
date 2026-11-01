@@ -35,7 +35,9 @@ from scripts.pcxt_quartus_mailbox import validate_mailbox
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = Path('cores/fes-pcxt')
-RTL = SYSTEM_SOURCES + ('cores/fes-common/rtl/fes_computer_mailbox.v',
+DOS_RTL = ('cores/fes-pcxt/rtl/pcxt_xt_keyboard_bat.sv',)
+RTL = SYSTEM_SOURCES + DOS_RTL + (
+                        'cores/fes-common/rtl/fes_computer_mailbox.v',
                         str(CORE / 'rtl/fes_pcxt_top.sv'))
 ADAPTERS = CORE / 'quartus/adapters.v'
 AUDIT = CORE / 'quartus/audit.tcl'
@@ -78,7 +80,10 @@ def capture_sources(root: Path, output: Path) -> tuple[Path, dict[str, str]]:
     return frozen, identities
 
 
-def elaboration(source: Path, work: Path, library: Path, *, package_profile=False, build_id=None) -> str:
+def elaboration(source: Path, work: Path, library: Path, *, package_profile=False, build_id=None,
+                dos_profile=False) -> str:
+    if dos_profile and not package_profile:
+        raise ValueError('DOS profile requires the package profile')
     includes = [source / 'cores/fes-common/generated', work]
     includes += [source / ('cores/fes-common/vendor' if name in SHARED_VENDORS else CORE / 'vendor') / name
                  for name in CHIP_VENDORS]
@@ -88,29 +93,77 @@ def elaboration(source: Path, work: Path, library: Path, *, package_profile=Fals
         raise ValueError('Yosys include directories must not contain whitespace, quotes or semicolons')
     quote = lambda p: '"' + str(p).replace('\\', '\\\\').replace('"', '\\"') + '"'
     parameters = '-set MDA 0 -set SCANLINES 0 -set HALF_RATE_BOARD ' + ('0' if package_profile else '1')
+    parameters += ' -set HARDWARE_DOS ' + ('1' if dos_profile else '0')
     if package_profile:
         if not isinstance(build_id, str) or not re.fullmatch('[0-9a-f]{32}', build_id):
             raise ValueError('package profile requires an explicit BUILD_ID')
-        parameters += " -set ENABLE_FES_COMPUTER 1 -set PHASED_HDMI_CLOCK 1 -set BUILD_ID 128'h" + build_id
+        parameters += (" -set ENABLE_FES_COMPUTER 1 -set ENABLE_PCXT_MEDIA " +
+                       ('1' if dos_profile else '0') + " -set PHASED_HDMI_CLOCK 1 -set BUILD_ID 128'h" + build_id)
+    selected_rtl = RTL if dos_profile else tuple(path for path in RTL if path not in DOS_RTL)
+    # The locked Yosys incorrectly drops the CGA font's asynchronous read
+    # driver when memory_dff processes that shared two-port font ROM. Collect
+    # it without read-FF merging, then retain memory_dff for every other RAM
+    # and ROM. Assert the exact exception so naming drift fails closed.
+    memory_pass = ('memory -nomap -nordff; select -assert-count 1 c:dos_font.glyphs; '
+                   'memory_dff t:$mem_v2 c:dos_font.glyphs %d; ' if dos_profile
+                   else 'memory -nomap; ')
     return (
-        f'read_verilog -lib {quote(library)}; read_verilog -sv '
+        f'read_verilog -lib {quote(library)}; read_verilog -sv -defer '
         + ' '.join('-I ' + str(p) for p in includes) + ' '
-        + ' '.join(quote(source / p) for p in (str(ADAPTERS), *RTL))
+        + ' '.join(quote(source / p) for p in (str(ADAPTERS), *selected_rtl))
         + '; chparam ' + parameters + ' top; '
+        'hierarchy -check -top top; '
         # Both libraries spell disabled bus hold differently: OFF is the
         # board's Yosys primitive value, FALSE is Quartus's accepted spelling.
+        # Apply this after hierarchy because the RTL is read with -defer.
         'setparam -set enable_bus_hold "FALSE" t:altiobuf_bidir; '
-        'hierarchy -check -top top; proc -norom; flatten; opt -purge; '
+        'proc -norom; flatten; opt -purge; '
         # Combining byte writes before Verilog export lets Quartus infer the
         # existing dual-read VRAMs, including their OLD_DATA collision rules.
         # Small control arrays with multiple write processes become FFs.
-        'memory -nomap; memory_map t:$mem_v2 r:SIZE<=32 %i; opt -purge; '
+        + memory_pass + 'memory_map t:$mem_v2 r:SIZE<=32 %i; opt -purge; '
         'check -assert; write_json before-names.json; '
         # Quartus 17 crashes on flattened array names. This changes names only.
         # Keep this in the SAME Yosys execution: a JSON round trip loses signed
         # parameter metadata, which Quartus needs on PLL integer parameters.
         'rename -unescape; write_json elaborated.json; '
         'write_verilog -noattr elaborated.v\n')
+
+
+def prepare_elaboration_inputs(source: Path, work: Path, *, dos_profile=False) -> dict:
+    """Generate the profile's real ROM, microcode and disk inputs in work."""
+    spec = importlib.util.spec_from_file_location('pcxt_frozen_inputs', source / 'scripts/sim_fes_pcxt.py')
+    generator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(generator)
+    for vendor in ('kf8259', 'kf8253', 'kf8255'):
+        generator.verify_vendor(vendor)
+    if not dos_profile:
+        generator.board_inputs(work)
+        return {}
+
+    generator.cpu_roms(work)
+    core = source / CORE
+    metadata = json.loads((core / 'firmware/hardware-dos.json').read_text())
+    bios_spec = json.loads((core / 'sim/bios.lock').read_text())
+    bios_path = core / metadata['bios']['file']
+    bios = bios_path.read_bytes()
+    if (len(bios) != metadata['bios']['size']
+            or sha(bios_path) != metadata['bios']['sha256']
+            or bios_spec['bios']['sha256'] != metadata['bios']['sha256']):
+        raise ValueError('DOS BIOS differs from its locked provenance')
+    firmware = bytes([0xff]) * (65536 - len(bios)) + bios
+    generator.boot_roms(work, firmware, prefix='pcxt_glabios')
+    font = bytearray(4096)
+    offset = bios_spec['ascii_font']['rom_offset']
+    for char in range(128):
+        font[char * 16:char * 16 + 8] = bios[offset + char * 8:offset + char * 8 + 8]
+    (work / 'pcxt_glabios_font.hex').write_text(''.join(f'{byte:02x}\n' for byte in font))
+    return {
+        'glabios_rom_sha256': metadata['bios']['sha256'],
+        'glabios_font_sha256': hashlib.sha256(font).hexdigest(),
+        'loaded_into_sdram_before_cpu_release': True,
+        'guest_disk_reads_use_sdram_media_path': True,
+    }
 
 
 def validate_renaming(work: Path, *, package_profile=False) -> dict:
@@ -163,7 +216,8 @@ def validate_renaming(work: Path, *, package_profile=False) -> dict:
             'hps_primitive_instances': hps}
 
 
-def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False) -> str:
+def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False,
+                video_mailbox_contract=False) -> str:
     lines = [
         'set_global_assignment -name FAMILY "Cyclone V"',
         f'set_global_assignment -name DEVICE {DEVICE}',
@@ -180,6 +234,15 @@ def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False)
         'HPSINTERFACEPERIPHERALI2C_X52_Y60_N111 -entity top -to hdmi_i2c',
         (source / (PACKAGE_PINS if package_profile else PINS)).read_text(),
     ]
+    if video_mailbox_contract:
+        # Quartus 17 does not infer its fitter-protection policy from Yosys's
+        # portable async_reg marker. Identify only the six proven mailbox
+        # stages so router logic duplication cannot replicate a synchronizer.
+        lines.extend(
+            f'set_instance_assignment -name SYNCHRONIZER_IDENTIFICATION FORCED '
+            f'-to system_video_adapter_{role}_{stage}'
+            for role in ('ack', 'sent', 'hold')
+            for stage in ('meta', 'sync'))
     return '\n'.join(lines) + '\n'
 
 
@@ -300,6 +363,8 @@ def main(argv=None) -> int:
                         help='prove and bind the held video mailbox before applying its scoped diagnostic SDC')
     parser.add_argument('--output', type=Path, help='new output directory; existing evidence is never overwritten')
     parser.add_argument('--package-profile', action='store_true')
+    parser.add_argument('--dos-profile', action='store_true',
+                        help='elaborate the FreeDOS ROM and SDRAM floppy hardware profile')
     parser.add_argument('--build-id')
     args = parser.parse_args(argv)
     if args.package_profile and not args.video_mailbox_contract:
@@ -309,11 +374,16 @@ def main(argv=None) -> int:
         parser.error('seeds must be distinct positive signed 32-bit integers')
     if args.threads < 1:
         parser.error('--threads must be positive')
-    record = {'classification': 'whole-board Quartus diagnostic; not physical acceptance',
+    if args.dos_profile and not args.package_profile:
+        parser.error('DOS profile requires --package-profile')
+    record = {'classification': ('whole-board Quartus hardware DOS package profile; not physical acceptance'
+                                 if args.dos_profile else 'whole-board Quartus diagnostic; not physical acceptance'),
               'toolchain': 'quartus', 'video_mailbox_contract': args.video_mailbox_contract,
               'whole_board_qualified': False, 'device': DEVICE, 'seeds': seeds,
               'profile': {'MDA': 0, 'SCANLINES': 0, 'HALF_RATE_BOARD': int(not args.package_profile),
-                          'ENABLE_FES_COMPUTER': int(args.package_profile), 'BUILD_ID': args.build_id},
+                          'ENABLE_FES_COMPUTER': int(args.package_profile),
+                          'ENABLE_PCXT_MEDIA': int(args.package_profile and args.dos_profile),
+                          'HARDWARE_DOS': int(args.dos_profile), 'BUILD_ID': args.build_id},
               'clock_targets_mhz': {'cpu': 100, 'board': 100 if args.package_profile else 50, 'pixel': 74.25},
               'operations': [], 'runs': [], 'hardware': False, 'status': 'preparing'}
     output = None
@@ -362,13 +432,12 @@ def main(argv=None) -> int:
             record['mailbox_proof_log_sha256'] = sha(source / 'mailbox-proofs.log')
         work = output / 'elaboration'
         work.mkdir()
-        spec = importlib.util.spec_from_file_location('pcxt_frozen_inputs', source / 'scripts/sim_fes_pcxt.py')
-        generator = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(generator)
-        for vendor in ('kf8259', 'kf8253', 'kf8255'):
-            generator.verify_vendor(vendor)
-        generator.board_inputs(work)
-        (work / 'elaborate.ys').write_text(elaboration(source, work, library, package_profile=args.package_profile, build_id=args.build_id))
+        dos_inputs = prepare_elaboration_inputs(source, work, dos_profile=args.dos_profile)
+        if dos_inputs:
+            record['hardware_dos_inputs'] = dos_inputs
+        (work / 'elaborate.ys').write_text(elaboration(
+            source, work, library, package_profile=args.package_profile,
+            build_id=args.build_id, dos_profile=args.dos_profile))
         run([str(yosys), '-s', 'elaborate.ys'], work, 'elaborate.log', record)
         record['elaboration'] = validate_renaming(work, package_profile=args.package_profile)
         if args.video_mailbox_contract:
@@ -384,7 +453,9 @@ def main(argv=None) -> int:
             shutil.copy2(work / 'elaborated.v', fit / 'elaborated.v')
             shutil.copy2(source / AUDIT, fit / 'audit.tcl')
             (fit / 'top.qpf').write_text('QUARTUS_VERSION = "17.0";\nPROJECT_REVISION = "top";\n')
-            (fit / 'top.qsf').write_text(project_qsf(source, seed, args.threads, package_profile=args.package_profile))
+            (fit / 'top.qsf').write_text(project_qsf(
+                source, seed, args.threads, package_profile=args.package_profile,
+                video_mailbox_contract=args.video_mailbox_contract))
             (fit / 'clocks.sdc').write_text(SDC)
             if args.video_mailbox_contract:
                 shutil.copy2(source / MAILBOX, fit / 'mailbox.sdc')

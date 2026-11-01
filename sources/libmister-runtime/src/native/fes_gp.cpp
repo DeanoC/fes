@@ -148,7 +148,8 @@ constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 // Identity word 16 (ABI 1.1) carries capability bits 16..31.
 constexpr std::uint16_t kComputerHighCapabilityMask = static_cast<std::uint16_t>(
 	(FesComputerCapabilityMediaAtaDisk | FesComputerCapabilityPersistenceWords |
-	 FesComputerCapabilityRtcWallClock | FesComputerCapabilityPc386Machine) >> 16);
+	 FesComputerCapabilityRtcWallClock | FesComputerCapabilityPc386Machine |
+	 FesComputerCapabilityMediaPcxtFloppy) >> 16);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -488,6 +489,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesComputerCapabilityMediaC64Disk;
 			else if (interface.id == FesComputerInterfaceMediaAtariStFloppyID)
 				capabilities |= FesComputerCapabilityMediaAtariStFloppy;
+			else if (interface.id == FesComputerInterfaceMediaPcxtFloppyID)
+				capabilities |= FesComputerCapabilityMediaPcxtFloppy;
 			else if (interface.id == FesComputerInterfaceMemoryHpsDdrID &&
 				interface.required && interface.major == 1 && interface.minor == 0)
 				capabilities |= FesComputerCapabilityMemoryHpsDdr;
@@ -591,6 +594,7 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				return Mismatch("live FES GP capabilities do not match package interfaces",
 					"capabilities_high=" + std::to_string(expected[index]),
 					"capabilities_high=" + std::to_string(observed[index]));
+			if (safe_to_quiesce != nullptr) *safe_to_quiesce = true;
 			continue;
 		}
 		if (index == FesGpIdentityCapabilitiesIndex) {
@@ -625,8 +629,13 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				WordEvidence(index, expected[index]),
 				WordEvidence(index, observed[index]));
 		}
-		if (index == FesGpIdentityCapabilitiesIndex && safe_to_quiesce != nullptr)
+		if (index == FesGpIdentityCapabilitiesIndex && safe_to_quiesce != nullptr &&
+			!(home && extended))
 			*safe_to_quiesce = true;
+	}
+	if (!extended && (capabilities >> 16) != 0) {
+		if (safe_to_quiesce != nullptr) *safe_to_quiesce = false;
+		return Mismatch("FES computer interface requires extended identity", "ABI minor 1", "ABI minor 0");
 	}
 	if (observed_capabilities != nullptr)
 		*observed_capabilities = observed[FesGpIdentityCapabilitiesIndex] |
@@ -764,6 +773,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 				interface.id == FesComputerInterfaceMediaSpectrumDiskID ||
 				interface.id == FesComputerInterfaceMediaZx81TapeID ||
 				interface.id == FesComputerInterfaceMediaAtariStFloppyID ||
+				interface.id == FesComputerInterfaceMediaPcxtFloppyID ||
 				interface.id == FesComputerInterfaceMediaC64DiskID) {
 				MediaUnitCapability unit;
 				unit.unit = static_cast<std::uint8_t>(
@@ -775,6 +785,8 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 					FesComputerZx81TapeUnit :
 					interface.id == FesComputerInterfaceMediaC64DiskID ?
 					FesComputerC64DiskUnit :
+					interface.id == FesComputerInterfaceMediaPcxtFloppyID ?
+					FesComputerPcxtFloppyUnit :
 					interface.id == FesComputerInterfaceMediaAtariStFloppyID ?
 					FesComputerAtariStFloppyUnit : FesComputerApple2FloppyUnit);
 				unit.interface = {interface.id, interface.major, interface.minor};
@@ -808,6 +820,11 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
                  info.maximum != (MediaGeometryCapable(unit.unit) ? FesComputerAtariStFloppyGeometryMaxBytes : FesComputerAtariStFloppyBytes)))
 				error = Mismatch("Atari ST floppy live limits differ from its contract",
 					"limits matching the declared Atari ST geometry contract", "minimum=" + std::to_string(info.minimum) +
+					" maximum=" + std::to_string(info.maximum));
+			if (error.ok() && unit.interface.id == FesComputerInterfaceMediaPcxtFloppyID &&
+				(info.minimum != FesComputerPcxtFloppyBytes || info.maximum != FesComputerPcxtFloppyBytes))
+				error = Mismatch("PC/XT floppy live limits differ from its contract",
+					"exact 360 KiB medium", "minimum=" + std::to_string(info.minimum) +
 					" maximum=" + std::to_string(info.maximum));
 			if (!error.ok()) break;
 			unit.min_bytes = info.minimum;
@@ -1730,6 +1747,11 @@ Error FesGpCoreDriver::TransferMediaUnit(MediaUnitCapability& unit,
                  info.maximum != (MediaGeometryCapable(unit.unit) ? FesComputerAtariStFloppyGeometryMaxBytes : FesComputerAtariStFloppyBytes)))
 		return Mismatch("Atari ST floppy live limits differ from its contract",
 			"limits matching the declared Atari ST geometry contract", "minimum=" + std::to_string(info.minimum) +
+			" maximum=" + std::to_string(info.maximum));
+	if (unit.interface.id == FesComputerInterfaceMediaPcxtFloppyID &&
+		(info.minimum != FesComputerPcxtFloppyBytes || info.maximum != FesComputerPcxtFloppyBytes))
+		return Mismatch("PC/XT floppy live limits differ from its contract",
+			"exact 360 KiB medium", "minimum=" + std::to_string(info.minimum) +
 			" maximum=" + std::to_string(info.maximum));
 	unit.min_bytes = info.minimum;
 	unit.max_bytes = info.maximum;

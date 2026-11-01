@@ -61,6 +61,7 @@ DISPLAY_SOURCES = (
     'cores/fes-pcxt/expansions/pcxt_display_card.sv',
     'cores/fes-pcxt/expansions/pcxt_cga_card.sv',
     'cores/fes-pcxt/expansions/pcxt_mda_card.sv',
+    'cores/fes-pcxt/expansions/pcxt_fdc_card.sv',
     'cores/fes-pcxt/rtl/pcxt_display_bus.sv',
     'cores/fes-pcxt/sim/display_top.sv',
 )
@@ -86,17 +87,18 @@ MEMORY_SOURCES = (
 SYSTEM_SOURCES = (SOURCES[:4] + DISPLAY_SOURCES[:-1] + CHIPSET_SOURCES[:-1] +
                   tuple(s for s in CPU_SOURCES if s.endswith('.sv') and not s.endswith('/cpu_top.sv')) +
                   MEMORY_SOURCES[:2] + VIDEO_SOURCES[:-1] +
-                  ('cores/fes-pcxt/rtl/pcxt_machine.sv', 'cores/fes-pcxt/rtl/pcxt_system.sv',
-                   'cores/fes-pcxt/rtl/pcxt_boot.sv'))
+                  ('cores/fes-pcxt/rtl/pcxt_machine.sv', 'cores/fes-pcxt/rtl/pcxt_disk_loader.sv', 'cores/fes-pcxt/rtl/pcxt_system.sv',
+                   'cores/fes-pcxt/rtl/pcxt_media_writer.sv', 'cores/fes-pcxt/rtl/pcxt_media.sv',
+                   'cores/fes-pcxt/rtl/pcxt_boot.sv', 'cores/fes-pcxt/rtl/pcxt_boot_media_gate.sv'))
 
 
-def boot_roms(output, data):
+def boot_roms(output, data, prefix='pcxt_diagnostic'):
     """Emit eight contiguous 8 KiB banks for the local-address boot ROMs."""
     if len(data) != 65536:
         raise ValueError('PC/XT diagnostic must be exactly 64 KiB')
     for bank in range(8):
         payload = data[bank * 8192:(bank + 1) * 8192]
-        (output / f'pcxt_diagnostic.bank{bank}.hex').write_text(
+        (output / f'{prefix}.bank{bank}.hex').write_text(
             ''.join(f'{byte:02x}\n' for byte in payload))
 
 

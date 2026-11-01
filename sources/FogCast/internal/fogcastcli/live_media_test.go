@@ -156,7 +156,8 @@ func TestChangeDiskImportsExactImageAndEjectDiskClears(t *testing.T) {
 			iface, name string
 			size        int64
 		}{{protocol.Apple2FloppyInterface().ID, "dos33.dsk", protocol.Apple2FloppyBytes},
-			{protocol.AtariStFloppyInterface().ID, "desktop.st", protocol.AtariStFloppyBytes}} {
+			{protocol.AtariStFloppyInterface().ID, "desktop.st", protocol.AtariStFloppyBytes},
+			{protocol.PcxtFloppyInterface().ID, "dos.img", protocol.PcxtFloppyBytes}} {
 			t.Run(execution+"/"+disk.name, func(t *testing.T) { testChangeAndEjectDisk(t, execution, disk.iface, disk.size, disk.name) })
 		}
 	}
@@ -170,11 +171,15 @@ func testChangeAndEjectDisk(t *testing.T, execution, iface string, size int64, n
 	pkg := strings.Repeat("a", 64)
 	mediaID := strings.Repeat("c", 64)
 	session := func() map[string]any {
+		minor := 0
+		if iface == protocol.PcxtFloppyInterface().ID {
+			minor = 1
+		}
 		return map[string]any{
 			"id": "host-one", "target": "dev", "state": "active", "execution": execution,
 			"core_package": map[string]any{
 				"package_id": pkg, "generation": 3,
-				"abi":               map[string]any{"id": "fes.computer", "major": 1, "minor": 0},
+				"abi":               map[string]any{"id": "fes.computer", "major": 1, "minor": minor},
 				"active_interfaces": []map[string]any{{"id": "fes.keyboard.hid", "major": 1, "minor": 0}, {"id": iface, "major": 1, "minor": 0}},
 				"media_units": []map[string]any{{"unit": 0, "interface": map[string]any{"id": iface, "major": 1, "minor": 0},
 					"min_bytes": size, "max_bytes": size, "chunk_bytes": 512, "state": "empty"}},

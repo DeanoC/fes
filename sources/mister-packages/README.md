@@ -80,6 +80,10 @@ Required `fes.media.atari-st-floppy-geometry` 1.0 adds capability 10 for bounded
 Legacy 720 KiB behavior and durable record bytes remain unchanged; nonlegacy
 saved records use layout 1.1. See [computer I/O](docs/computer-io.md).
 
+`fes.media.pcxt-floppy` 1.0 describes a read-only 360 KiB raw XT floppy in
+unit 0. It uses bit 20 of the opt-in `fes.computer` 1.1 extended capability
+word; existing 1.0 endpoints retain their identities and behavior.
+
 `fes.computer` 1.1 adds identity word 16 for capability bits 16..31 and the
 pc386 contracts on them: the `fes.media.ata-disk` hard disk that the runtime
 writes into the DDR window, `fes.persistence.words` with the

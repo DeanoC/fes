@@ -47,6 +47,27 @@ func TestRemovableMediaUsesObservedFormatAndBounds(t *testing.T) {
 	}
 }
 
+func TestPcxtFloppyMediaRequiresLiveExtendedIdentity(t *testing.T) {
+	prior := removableSession(protocol.PcxtFloppyInterface(), 368640, 368640)
+	if RemovableMediaCapable(prior.CorePackage) {
+		t.Fatal("PC floppy accepted with 1.0 identity")
+	}
+	prior.CorePackage.ABI.Minor = 1
+	for _, name := range []string{"boot.img", "BOOT.IMA"} {
+		if !RemovableMediaCapable(prior.CorePackage) || !AdmitRemovableMedia(prior.CorePackage, name, 368640) {
+			t.Fatalf("PC floppy rejected %q", name)
+		}
+		if AdmitRemovableMedia(prior.CorePackage, name, 368639) || AdmitRemovableMedia(prior.CorePackage, name, 368641) {
+			t.Fatal("wrong PC floppy size accepted")
+		}
+	}
+	for _, name := range []string{"disk.st", "disk.d64", "disk.dsk", "../boot.img"} {
+		if AdmitRemovableMedia(prior.CorePackage, name, 368640) {
+			t.Fatalf("wrong format accepted %q", name)
+		}
+	}
+}
+
 // A Spectrum tape image is converted to the unit's PZX stream on insert, so
 // it is bounded as an image, not by the stream's observed limits.
 func TestRemovableMediaBoundsSpectrumTapeImages(t *testing.T) {

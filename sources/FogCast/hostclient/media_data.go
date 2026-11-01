@@ -11,7 +11,7 @@ import (
 )
 
 func DiskBinding(prior SessionResult) (protocol.MediaUnitBinding, error) {
-	if prior.ID == "" || prior.Target == "" || prior.State != "active" || prior.CorePackage == nil || prior.CorePackage.ABI != (SessionCoreABI{ID: "fes.computer", Major: 1}) {
+	if prior.ID == "" || prior.Target == "" || prior.State != "active" || prior.CorePackage == nil || !protocol.ComputerMediaABI(prior.CorePackage.ABI.ID, int64(prior.CorePackage.ABI.Major), int64(prior.CorePackage.ABI.Minor)) {
 		return protocol.MediaUnitBinding{}, protocol.MediaUnitIdentityError()
 	}
 	b := protocol.MediaUnitBinding{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, Unit: protocol.AtariStFloppyUnit, Target: prior.Target, TargetID: prior.TargetID}

@@ -17,9 +17,23 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 	"github.com/pelletier/go-toml/v2"
 )
+
+func TestPCFloppyStartsEmptyOnlyWithExtendedComputerABI(t *testing.T) {
+	iface := corepackage.Interface{ID: protocol.PcxtFloppyInterface().ID, Major: 1, Required: true}
+	for _, tc := range []struct {
+		minor int64
+		want  bool
+	}{{0, false}, {1, true}, {2, false}} {
+		d := corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: tc.minor}}
+		if computerEmptyStartup(d, iface) != tc.want {
+			t.Fatalf("computer 1.%d", tc.minor)
+		}
+	}
+}
 
 type coreOpts struct {
 	rom          []byte
@@ -535,6 +549,7 @@ func TestLaunchRequirementsComeFromDescriptor(t *testing.T) {
 			{ID: "fes.media.blob", Major: 1, Required: true},
 		}, needs: "unsupported"},
 		{name: "future computer floppy is not empty startup", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 2, Required: true}}, needs: "unsupported"},
+		{name: "extended computer retains existing empty drives", format: 2, abi: "fes.computer", abiMinor: 1, interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}, needs: "none", launchable: true},
 		{name: "future computer abi does not inherit empty drives", format: 2, abi: "fes.computer", abiMinor: 2, interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}, needs: "unsupported"},
 		{name: "optional computer blob", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1}}, needs: "none", launchable: true},
 		{name: "optional media", format: 2, abi: "fes.application", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1}}, needs: "none", launchable: true},

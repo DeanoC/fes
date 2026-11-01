@@ -4,17 +4,22 @@ This development slice runs an original diagnostic ROM on an 8088 CPU through
 an eight-slot virtual ISA backplane. The [machine design](../../docs/architecture.md#proposed-fes-ibm-pcxt-core)
 targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
 linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
-PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. It has no
-HID keyboard frontend, disk controller, BIOS or physical socket map. The
-registered `fes.pcxt` recipe builds a diagnostic package with fixed CGA Direct
-video and the standard identity/execution mailbox; it can start the built-in
-diagnostic, but cannot boot DOS or PC/XT games yet. The storage lane connects conventional RAM and firmware to the existing
+PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. An optional read-only XT floppy adapter is exercised in host simulation. The diagnostic package has no
+HID keyboard frontend, runtime floppy media transport or physical socket map.
+The registered `fes.pcxt` recipe builds a diagnostic package with fixed CGA
+Direct video and the standard identity/execution mailbox. The separate
+`fes.pcxt-dos` recipe builds an experimental runtime-floppy DOS profile with the
+GLaBIOS XT/5160 ROM and read-only floppy controller. Host simulation loads its
+pinned FreeDOS 1.4 boot image into SDRAM through the runtime mailbox and physical loader and reaches `A:\>`; exact-artifact hardware prompt
+acceptance remains open. The storage lane
+connects conventional RAM and firmware to the existing
 addon SDRAM controller and boots the display diagnostic through its physical
 command interface in host simulation. The normal package producer is Quartus Lite 17.0.2, with a common 100 MHz
 CPU/motherboard/SDRAM clock and 74.25 MHz CGA Direct output. It requires
 all declared seeds to pass reported internal setup, hold, recovery, removal
 and pulse-width checks, plus a byte-identical independent seed-1 rebuild.
-External SDRAM/HDMI, HPS and physical reset qualification remain open.
+External SDRAM/HDMI, HPS and physical reset qualification remain open for both
+packages. The DOS variant still requires exact-artifact hardware acceptance.
 Nextpnr is an advisory diagnostic, not the normal package producer.
 The existing RAM Tester
 [external timing model](../../docs/architecture.md#sdram-external-timing-model)
@@ -34,6 +39,31 @@ the four reset-chain and six video-crossing FFs.
 A scoped reset exception would additionally require validation of the complete
 chain, its synchronous consumers and timed interstage paths; the attribute alone
 is not a timing waiver.
+
+### FreeDOS DOS-profile package
+
+The `fes.pcxt-dos` recipe selects `HARDWARE_DOS` and keeps the diagnostic
+profile unchanged. It includes GLaBIOS and a BAT-only XT keyboard responder;
+keyboard input is not yet supported. A 360 KiB raw floppy is delivered at
+runtime through `fes.media.pcxt-floppy` and the complete ordered image is
+written into SDRAM. When an initial disk is being loaded, the guest stays in
+reset until its final physical write is committed. If the host releases
+execution with the drive empty, the BIOS starts and displays its POST/boot
+status instead of leaving a black screen. Eject and replacement after startup
+do not reset the running guest. A cold reset invalidates the image. Guest
+floppy reads use the SDRAM media path; there is no disk ROM in the FPGA and no
+write path.
+The FreeDOS fixture uses kernel 2043 and FreeCOM 0.86a; see
+[`firmware/THIRD-PARTY-NOTICES.md`](firmware/THIRD-PARTY-NOTICES.md) and
+[`sim/freedos.lock`](sim/freedos.lock). Hardware prompt acceptance remains
+separate from the host simulation and package build.
+
+The recipe registers `scripts/pcxt_dos_hil_acceptance.py` with preferred kit
+order B then A. It requires at least three complete changing
+captures and glyph-matches the final CGA `A:\>` prompt against the font
+embedded in the locked BIOS ROM. It rejects a static signature and reports a
+prompt-capture result only; it does not qualify external timing, whole-board IO,
+reset or broader PC/XT compatibility. A build or seal does not imply a kit run.
 
 ### Experimental CPU100 / board50 diagnostic
 
@@ -126,7 +156,9 @@ not qualify the package configuration.
 `--video-mailbox-contract` is a separate diagnostic opt-in. It runs the real
 CGA/MDA ownership proofs from the captured sources, binds the declarations
 through portable naming, checks the three exclusive two-stage chains and
-their common PLL-lock reset assertion, then applies `quartus/mailbox.sdc`.
+their common PLL-lock reset assertion, marks the six stages with Quartus 17's
+`SYNCHRONIZER_IDENTIFICATION FORCED` assignment to protect them from fitter
+duplication, then applies `quartus/mailbox.sdc`.
 It false-paths only three asynchronous pairs: `received` to `ack_meta`, `sent`
 to `sent_meta`, and `machine_reset` to `hold_meta`. The ownership proof checks
 that each bank stays stable for two pixel samples before adoption; a one-pixel-
@@ -280,8 +312,8 @@ payloads are retained independently of caller pins, with one completion and no
 repeat while VALID stays high. Reads select the requested halfword byte;
 DQM writes preserve its neighbour. Physical halfword offsets are guest byte
 addresses shifted right by one, interpreted in the controller's packed
-bank/row/column map. Only `00000–9FFFF` RAM and `F0000–FFFFF` firmware use
-storage. Defensive decode returns `FF` for ISA holes and suppresses ROM writes;
+bank/row/column map. The guest can address only `00000–9FFFF` RAM and
+`F0000–FFFFF` firmware. Defensive decode returns `FF` for ISA holes and suppresses ROM writes;
 video VRAM stays on the ISA cards. The router and defensive backend use
 A19:16 for these aligned 64 KiB regions (RAM below `A`, firmware at `F`),
 avoiding a wide carry-chain comparison in dispatch. Symbolic comparison with
@@ -292,8 +324,18 @@ A separate firmware byte VALID/READY/DONE port writes the 64 KiB firmware
 window, with a 16-bit offset. It admits writes only while the machine's warm
 reset is asserted. The caller must wait for SDRAM `initialized`, load the
 complete firmware window and wait for the final DONE before releasing reset.
-There is no bundled BIOS, image validation, ROM sealing or production HPS
-loader in this slice. Shorter BIOS images need a separately specified mapping.
+There is no bundled BIOS, production ROM sealing or HPS loader in this slice.
+The BIOS POST simulation below specifies and checks its own shorter-ROM mapping;
+that fixture is not a production firmware admission path.
+
+The optional floppy profile uses physical SDRAM byte addresses
+`100000–159FFF` for a read-only 360 KiB image, outside the guest address map.
+Its separate upload port accepts ordered bytes only while reset is asserted;
+the system holds the machine in reset and hides the medium until every byte,
+including the last physical write, has completed. Warm reset retains the
+image; cold reset invalidates it. CPU/DMA and floppy reads share the controller
+with bounded arbitration and refresh. A fixed boot image cannot be replaced
+without cold reset; this is not a runtime mount or eject interface.
 
 `cold_reset` restarts controller initialization and cancels all responses. It
 must assert during startup; the caller holds the CPU/motherboard reset until
@@ -472,6 +514,70 @@ are under `build/synth/fes-pcxt/video-{cga,mda}/{direct,scanlines}/`. These synt
 one adapter plus shared effect, not the CPU, ISA cards, font ROM or board shell.
 They provide no routed timing, physical containment or hardware acceptance.
 
+## XT floppy and DOS simulation
+
+The whole-machine DOS simulation begins with BIOS POST on the assembled 8088,
+motherboard, ISA CGA card and SDRAM controller. It loads the stock GLaBIOS
+0.4.2 8088 XT/5160 ROM selected in `sim/bios.lock` through the reset-only
+firmware port and uses the simulated XT keyboard. It checks POST status and
+text, an empty BIOS keyboard buffer after the BAT self-test, 640 KiB detection,
+the CGA plus one-floppy equipment profile, and the INT 19 bootstrap path before
+continuing into DOS. The keyboard then enters `DIR` through the guest-facing
+keyboard path. BIOS instructions and interrupts run on the RTL machine without
+firmware-call interception.
+
+The runner accepts only the exact BIOS bytes in the lock. It maps that 8 KiB
+ROM to the top of the 64 KiB firmware window and fills the rest with `FF`, then
+loads the complete window through the reset-only port. `--bios` supplies a
+local copy; `--download` explicitly fetches and verifies the selected release.
+The default simulation font derives the BIOS's lower 128 8-by-8 graphics glyphs
+into a 256-by-16-byte table, with the upper characters and unused rows blank.
+This is sufficient for readable ASCII during POST, not a complete CGA font.
+`--font` instead accepts an explicit 4096-byte normalized font.
+
+The optional inline `pcxt_fdc_card` implements the read-only 765-family command
+subset for one XT drive. It exposes the XT adapter registers, IRQ6 and DMA2,
+with guest-time motor, seek and transfer timing. The supported commands include
+Specify, Sense Drive, Sense Interrupt, Recalibrate, Seek, Read ID and DMA-mode
+MFM Read Data; writes report write protection. The controller obtains bytes
+through the SDRAM-backed read service, not by intercepting BIOS disk calls or
+treating the disk as guest RAM. The supported image is a raw 360 KiB disk:
+40 cylinders, two heads, nine 512-byte sectors per track. It is not a complete
+765 model or a representation of flux-level copy protection.
+
+The DOS fixture uses the 8086-compatible FreeDOS kernel and FreeCOM selected
+and hashed in `sim/freedos.lock`, with a FAT12 boot sector assembled using the
+pinned NASM release. The image contains `FESXT.TXT` and is generated under
+`build/sim/fes-pcxt/freedos/`; the generated fixture and external firmware are not
+packaged. The builder needs mtools. Downloads occur only with `--download`,
+which fetches missing pinned sources and the assembler; cached inputs are
+verified before use.
+
+```sh
+# From sources/misteross; the DOS target permits fixture downloads.
+make sim-fes-pcxt-fdc
+make sim-fes-pcxt-dos
+# Or build the disk separately, then provide it and a cached BIOS explicitly:
+python3 scripts/build_pcxt_freedos_image.py --download
+python3 scripts/sim_fes_pcxt_dos.py --bios /absolute/GLABIOS_0.4.2_8X.ROM --disk /absolute/freedos-360.img
+```
+
+The whole-machine test continues from POST by loading the complete floppy image
+through the real SDRAM controller, enabling the floppy adapter and checking
+that the disk's boot sector arrives at `0000:7C00` through DMA2. It compares
+every uploaded byte and every returned disk byte with the selected image, and
+checks that warm reset retains the medium and cold reset invalidates its
+admission. It requires a DOS prompt, types `DIR` over the simulated XT keyboard
+and checks `FESXT.TXT` in both text memory and the captured display. The
+rendered directory text is checked against the selected font and attributes.
+The runner validates the selected disk's boot code, FAT12 layout and file
+contents against the lock and records the actual disk hash. Outputs are under
+`build/sim/fes-pcxt/dos/`. This is host simulation. The `fes.pcxt-dos` package
+connects the runtime floppy media interface and keeps the medium read-only;
+hardware acceptance remains tied to the exact package and source recorded in
+the parent core-status matrix. Write persistence and broader compatibility are
+not implemented.
+
 ## Assembled board diagnostic
 
 `rtl/pcxt_machine.sv` owns the real 8088, motherboard and eight registered
@@ -507,9 +613,10 @@ PIT1/DMA0 refresh before enabling either display. The cold-start pattern thus
 requires DMA success; warm HOLD may still repeat the previous complete frame
 until new capture, as described above. A RAM success marker is checked by simulation. Each font
 address supplies the original diagnostic glyph byte `81` (two vertical strokes),
-so no IBM ROM/font is bundled. The reusable system retains an explicit firmware
-byte port for a later user-selected loader; no production HPS loader or sealed
-firmware map is claimed.
+so no IBM ROM/font is bundled. The reusable system exposes the firmware byte
+port, keyboard cable signals and font addresses/data to simulation or a future
+shell; the diagnostic board ties the keyboard inactive and supplies the same
+fixed glyph. No production HPS loader or sealed firmware map is claimed.
 
 `rtl/fes_pcxt_top.sv` supplies a 100 MHz controller clock, 180-degree 100 MHz
 fabric input capture clock, system-clock CPU ROM reads,
@@ -584,7 +691,7 @@ in parallel with next-count data. Guest-visible count/output updates and bus
 timing are unchanged.
 HDMI transmitter I2C uses the existing HPS peripheral bridge. The standalone
 `build_fes_pcxt.py` profile remains an autonomous power-on diagnostic without
-a runtime ABI, host session control or audio pins. The registered OSS package
+a runtime ABI, host session control or audio pins. The registered Quartus package
 producer enables only the standard execution mailbox and fixed video identity;
 keyboard and media interfaces remain disabled.
 

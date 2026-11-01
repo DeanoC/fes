@@ -1007,6 +1007,31 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	assert(check(minor).ok());
 	minor.abi.minor = 2;
 	assert(check(minor).code == mister::ErrorCode::unsupported_abi);
+	auto pcxt = video;
+	pcxt.abi.minor = 1;
+	pcxt.interfaces.push_back({"fes.media.pcxt-floppy", 1, 0, true});
+	assert(check(pcxt).ok());
+	// PC/XT floppy capability bit 20 is in identity word 16, so the ABI 1.0
+	// identity cannot carry it even though the media interface itself is 1.0.
+	pcxt.abi.minor = 0;
+	assert(check(pcxt).code == mister::ErrorCode::unsupported_abi);
+	pcxt.abi.minor = 1;
+	// The ATA unit needs DDR, and persistent machine words need their paired
+	// layout; declaring either alone remains unsupported.
+	for (const char* id : {"fes.media.ata-disk", "fes.persistence.words",
+		"fes.pc386.machine"}) {
+		auto unsupported = pcxt;
+		unsupported.interfaces.push_back({id, 1, 0, true});
+		assert(check(unsupported).code == mister::ErrorCode::unsupported_interface);
+	}
+	auto clock = pcxt;
+	clock.interfaces.push_back({"fes.rtc.wall-clock", 1, 0, true});
+	assert(check(clock).ok());
+	pcxt.interfaces.back().required = false;
+	assert(check(pcxt).code == mister::ErrorCode::unsupported_interface);
+	pcxt.interfaces.back().required = true;
+	pcxt.interfaces.push_back({"fes.media.apple2-floppy", 1, 0, true});
+	assert(check(pcxt).code == mister::ErrorCode::unsupported_interface);
 	{
 		// The hard disk is a unit-0 medium whose image lives in HPS DDR.
 		auto disk = descriptor;

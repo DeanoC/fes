@@ -44,6 +44,12 @@ module system_top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD),
                   .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD)) system (
+        .media_present(1'b0), .disk_restart(1'b0), .disk_load_valid(1'b0), .disk_load_address(19'b0),
+        .disk_load_data(8'b0), .disk_load_ready(), .disk_load_done(), .disk_loaded(),
+        .keyboard_clock(1'b1), .keyboard_data(1'b0),
+        .keyboard_clock_low(), .keyboard_data_low(), .keyboard_clear(),
+        .cga_font_address(), .mda_font_address(),
+        .cga_font_data(8'h81), .mda_font_data(8'h81),
         .clk(board_clock), .clk_cpu(clk), .clk_pin(board_clock), .sdram_ncs(controller_ncs),
         .audio_valid(), .audio_sample(), .*);
     /* verilator lint_on PINCONNECTEMPTY */

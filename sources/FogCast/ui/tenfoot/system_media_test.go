@@ -24,6 +24,7 @@ func TestSystemMediaImportSavesNextStartWithCapturedSelection(t *testing.T) {
 		{"fes.c64", "disk", ".d64", 174848},
 		{"fes.apple2", "disk", ".do", 143360},
 		{"fes.atari-st", "disk", ".st", 737280},
+		{"fes.pcxt", "disk", ".img", 368640},
 		{"fes.spectrum128", "cassette", ".tap", 16},
 	} {
 		t.Run(tc.core, func(t *testing.T) {
