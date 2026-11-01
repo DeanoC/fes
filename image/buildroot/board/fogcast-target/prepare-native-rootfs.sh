@@ -5,13 +5,25 @@ target=${1:?TARGET_DIR is required}
 script_dir=$(CDPATH='' cd -- "$(dirname "$0")" && pwd)
 repo=$(CDPATH='' cd -- "$script_dir/../../.." && pwd)
 fogcast=${FOGCAST_DIR:?FOGCAST_DIR is required}
-agent=$fogcast/bin/mister-agent-linux-armv7
-launcher=$fogcast/bin/fogcast-kit-linux-armv7
-tenfoot=$fogcast/bin/fogcast-tenfoot-linux-armv7
+board=${FES_TARGET_BOARD:-de10-nano}
+case "$board" in
+  de10-nano) architecture=armv7; loader=/lib/ld-linux-armhf.so.3 ;;
+  de25-nano)
+    architecture=aarch64; loader=/lib/ld-linux-aarch64.so.1
+    if [ -n "${FES_BLUETOOTH_MODULES_ARCHIVE:-}" ] || [ "${FES_BLUETOOTH_MODULES_REQUIRED:-0}" = 1 ]; then
+      printf '%s\n' 'post-build: DE25 requires its matching kernel drivers, not DE10 Bluetooth modules' >&2
+      exit 1
+    fi
+    ;;
+  *) printf '%s\n' 'post-build: unsupported target board' >&2; exit 2 ;;
+esac
+agent=$fogcast/bin/mister-agent-linux-$architecture
+launcher=$fogcast/bin/fogcast-kit-linux-$architecture
+tenfoot=$fogcast/bin/fogcast-tenfoot-linux-$architecture
 
 required_libraries() {
   printf '%s\n' \
-    /lib/ld-linux-armhf.so.3 \
+    "$loader" \
     /lib/libImlib2.so.1 \
     /lib/libbluetooth.so.3 \
     /lib/libbz2.so.1.0 \
@@ -35,6 +47,13 @@ case "$target" in
     ;;
 esac
 target=$(CDPATH='' cd -- "$target" && pwd -P)
+if [ "$board" = de25-nano ]; then
+  [ -f "$target/etc/fes-board" ] && [ ! -L "$target/etc/fes-board" ] &&
+    printf '%s\n' de25-nano | /usr/bin/cmp -s - "$target/etc/fes-board" || {
+    printf '%s\n' 'post-build: DE25 image board identity is missing or mismatched' >&2
+    exit 1
+  }
+fi
 [ -x "$agent" ] || {
   printf 'post-build: freshly built agent is missing: %s\n' "$agent" >&2
   exit 1
@@ -126,8 +145,20 @@ fi
   "$target/usr/sbin/fes-usb-quirk" \
   "$target/usr/sbin/fes-reboot-backstop"
 
+if [ "$board" = de25-nano ]; then
+  # Terasic's U-Boot does not consume DE10's linux/u-boot.txt. Set the same
+  # per-card identity as the headless DE25 before the shared DHCP service.
+  /bin/rm -f "$target/etc/init.d/S15fes-ethaddr" "$target/etc/init.d/S40network"
+  /usr/bin/install -m 0755 "$repo/de25-nano/rootfs/overlay/etc/init.d/S38fes-network-id" \
+    "$target/etc/init.d/S15fes-network-id"
+fi
+
 /bin/rm -rf "$target/etc/dropbear"
-/bin/ln -s /run/dropbear "$target/etc/dropbear"
+if [ "$board" = de25-nano ]; then
+  /bin/ln -s /media/fat/fogcast/ssh "$target/etc/dropbear"
+else
+  /bin/ln -s /run/dropbear "$target/etc/dropbear"
+fi
 
 # BlueZ link keys live at /run/fogcast/fesdata3/bluetooth on the FESDATA3 ext4
 # partition, not on the read-only root or FAT. S35 creates this directory.
@@ -157,12 +188,14 @@ do
   /usr/bin/install -m 0644 "$firmware_src/$fw" "$target/lib/firmware/rtl_bt/$fw"
 done
 
-modules_archive=${FES_BLUETOOTH_MODULES_ARCHIVE:-$repo/build/cache/target-image/image-creator/modules.tar.gz}
-if [ -f "$modules_archive" ]; then
-  "$repo/scripts/install-bluetooth-modules.sh" "$target" "$modules_archive"
-elif [ "${FES_BLUETOOTH_MODULES_REQUIRED:-0}" = 1 ]; then
-  printf 'post-build: bluetooth module archive is missing: %s\n' "$modules_archive" >&2
-  exit 1
+if [ "$board" = de10-nano ]; then
+  modules_archive=${FES_BLUETOOTH_MODULES_ARCHIVE:-$repo/build/cache/target-image/image-creator/modules.tar.gz}
+  if [ -f "$modules_archive" ]; then
+    "$repo/scripts/install-bluetooth-modules.sh" "$target" "$modules_archive"
+  elif [ "${FES_BLUETOOTH_MODULES_REQUIRED:-0}" = 1 ]; then
+    printf 'post-build: bluetooth module archive is missing: %s\n' "$modules_archive" >&2
+    exit 1
+  fi
 fi
 
 # GCC's GDB auto-load helper embeds the per-run Buildroot output path.

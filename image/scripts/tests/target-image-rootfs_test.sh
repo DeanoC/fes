@@ -75,12 +75,21 @@ mkdir "$fixture/tools"
 cat >"$fixture/tools/readelf" <<'READELF'
 #!/bin/sh
 if [ "$1" = -h ]; then
-  printf '%s\n' 'Class: ELF32' 'Machine: ARM' 'Data: little endian' 'Flags: Version5 EABI'
+  if [ "${FES_TARGET_BOARD:-de10-nano}" = de25-nano ]; then
+    printf '%s\n' 'Class: ELF64' 'Machine: AArch64' 'Data: little endian'
+  else
+    printf '%s\n' 'Class: ELF32' 'Machine: ARM' 'Data: little endian' 'Flags: Version5 EABI'
+  fi
 fi
 if [ "$1" = --string-dump=.fes_menu_interfaces ]; then
   printf '%s\n' "String dump of section '.fes_menu_interfaces':" \
-    '  [     0]  fes.video.fixed-720p60=1.0' '  [    1b]  fes.memory.hps-ddr=1.0' \
+    '  [     0]  fes.video.fixed-720p60=1.0' \
     '  [    32]  fes.video.menu-display=1.0'
+  if [ "${FES_TARGET_BOARD:-de10-nano}" = de25-nano ]; then
+    printf '%s\n' '  [    55]  fes.fabric.de25-scanout=1.1'
+  else
+    printf '%s\n' '  [    1b]  fes.memory.hps-ddr=1.0'
+  fi
 fi
 READELF
 chmod 0755 "$fixture/tools/readelf"
@@ -219,9 +228,19 @@ package_fixture() {
     "$package_core" "$package_id" >"$package_dir/manifest.toml"
   printf '%s package payload\n' "$package_core" >"$package_dir/core.rbf"
   if [ "$package_core" = menu ]; then
-    for interface in fes.video.fixed-720p60 fes.memory.hps-ddr fes.video.menu-display; do
-      printf "\n[[interfaces]]\nid = '%s'\nmajor = 1\nminor = 0\nrequired = true\n" \
-        "$interface" >>"$package_dir/manifest.toml"
+    if [ "${FES_TARGET_BOARD:-de10-nano}" = de25-nano ]; then
+      platform=de25_nano
+      menu_interfaces='fes.video.fixed-720p60 fes.fabric.de25-scanout fes.video.menu-display'
+    else
+      platform=de10_nano
+      menu_interfaces='fes.video.fixed-720p60 fes.memory.hps-ddr fes.video.menu-display'
+    fi
+    printf "\n[target]\nplatform = '%s'\n" "$platform" >>"$package_dir/manifest.toml"
+    for interface in $menu_interfaces; do
+      minor=0
+      [ "$interface" != fes.fabric.de25-scanout ] || minor=1
+      printf "\n[[interfaces]]\nid = '%s'\nmajor = 1\nminor = %s\nrequired = true\n" \
+        "$interface" "$minor" >>"$package_dir/manifest.toml"
     done
   fi
   if [ "$package_core" = ramtest ]; then
@@ -437,6 +456,66 @@ grep -Fq 'fes.ramtest_package_id=' \
 NATIVE_RUNTIME_MODE=package-only \
   TARGET_IMAGE_LOCK_BIN="$selector" \
   "$native_extra" verify-image "$cache" "$target"
+
+# Exercise the same factory scripts for DE25. These are rootfs-wiring fixtures:
+# readelf and package selection remain the explicit stand-ins above. No FPGA
+# seal, executable CPU behavior or kit acceptance is asserted by this section.
+(
+  export FES_TARGET_BOARD=de25-nano
+  unset FES_WINDOW_DRIVER_DIR FES_BLUETOOTH_MODULES_ARCHIVE FES_BLUETOOTH_MODULES_REQUIRED
+  unset FES_PONG_PACKAGE_DIR FES_PONG_PACKAGE_SELECTION FES_ZX81_PACKAGE_DIR FES_ZX81_PACKAGE_SELECTION
+  unset FES_COLECO_PACKAGE_DIR FES_COLECO_PACKAGE_SELECTION FES_SMS_PACKAGE_DIR FES_SMS_PACKAGE_SELECTION
+  unset FES_SG1000_PACKAGE_DIR FES_SG1000_PACKAGE_SELECTION FES_SPECTRUM_PACKAGE_DIR FES_SPECTRUM_PACKAGE_SELECTION
+  unset FES_RAMTEST_PACKAGE_DIR FES_RAMTEST_PACKAGE_SELECTION FES_ATARI_ST_PACKAGE_DIR FES_ATARI_ST_PACKAGE_SELECTION
+  FES_PACKAGE_IDS=fes.menu
+  export FES_PACKAGE_IDS
+  de25_target=$fixture/de25-target
+  mkdir -p "$de25_target/etc/init.d" "$de25_target/usr/sbin" "$de25_target/root" "$de25_target/usr/lib"
+  cp -R "$native_rootfs/." "$de25_target/"
+  printf '%s\n' de25-nano >"$de25_target/etc/fes-board"
+  cp "$target/etc/init.d/S30dbus" "$de25_target/etc/init.d/S30dbus"
+  cp "$target/etc/init.d/S40bluetooth" "$de25_target/etc/init.d/S40bluetooth"
+  printf '%s\n' runtime >"$de25_target/usr/sbin/mister-runtime"
+  chmod 0755 "$de25_target/usr/sbin/mister-runtime"
+  for name in mister-agent fogcast-kit fogcast-tenfoot fes-kit-data fes-kit-software fes-bluetooth; do
+    cp "$fogcast/bin/$name-linux-armv7" "$fogcast/bin/$name-linux-aarch64"
+  done
+  for library in ld-linux-aarch64.so.1 libImlib2.so.1 libbluetooth.so.3 libbz2.so.1.0 libc.so.6 libdl.so.2 \
+    libfreetype.so.6 libgcc_s.so.1 libm.so.6 libpng16.so.16 libpthread.so.0 librt.so.1 libstdc++.so.6 libz.so.1; do
+    mkdir -p "$de25_target/lib"
+    printf '%s\n' library >"$de25_target/lib/$library"
+  done
+  "$repo/buildroot/board/fogcast-target/prepare-native-rootfs.sh" "$de25_target"
+  test ! -e "$de25_target/etc/init.d/S15fes-ethaddr"
+  cmp "$repo/de25-nano/rootfs/overlay/etc/init.d/S38fes-network-id" "$de25_target/etc/init.d/S15fes-network-id"
+  test "$(readlink "$de25_target/etc/dropbear")" = /media/fat/fogcast/ssh
+  package_fixture menu 5
+  export FES_MENU_PACKAGE_DIR FES_MENU_PACKAGE_SELECTION
+  de25_idle=$FES_MENU_PACKAGE_DIR/core.rbf
+  de25_sha=$(sha256sum "$de25_idle" | awk '{print $1}')
+  de25_size=$(wc -c <"$de25_idle" | tr -d ' ')
+  sed -e "s/^sha256 = .*/sha256 = '$de25_sha'/" -e "s/^size = .*/size = $de25_size/" \
+    "$lock" >"$fixture/de25.lock.toml"
+  de25_cache=$fixture/de25-cache
+  mkdir "$de25_cache"
+  cp "$de25_idle" "$de25_cache/idle.rbf"
+  chmod 0444 "$de25_cache/idle.rbf"
+  NATIVE_RUNTIME_MODE=package-only TARGET_IMAGE_LOCK_BIN="$selector" "$native_extra" fetch "$de25_cache"
+  NATIVE_RUNTIME_MODE=package-only TARGET_IMAGE_LOCK_BIN="$selector" \
+    NATIVE_RUNTIME_INPUT_LOCK="$fixture/de25.lock.toml" NATIVE_RUNTIME_IDLE_FILE="$de25_cache/idle.rbf" \
+    "$native_post_build" "$de25_target"
+  grep -Fq '"board":"de25-nano"' "$de25_target/etc/fes/software-base.json"
+  grep -Fq '"architecture":"aarch64"' "$de25_target/etc/fes/software-base.json"
+  grep -Fq '"menu.fes.fabric.de25-scanout":"1.1"' "$de25_target/etc/fes/software-base.json"
+  test ! -e "$de25_target/usr/share/fes/software/share/fes-window"
+  test ! -e "$de25_target/lib/modules/5.15.1-MiSTer"
+  cmp "$de25_idle" "$de25_target/usr/share/mister-runtime/idle.rbf"
+  for helper in fes-kit-data fes-kit-software fes-bluetooth; do
+    cmp "$fogcast/bin/$helper-linux-aarch64" "$de25_target/usr/sbin/$helper"
+  done
+  test -x "$de25_target/etc/init.d/S40fes-kit-software"
+  test -L "$de25_target/usr/sbin/mister-runtime"
+)
 
 # Reuse the completed target while selecting a newer RAM Tester. Preparation
 # verifies the retained notice, package and record, then replaces stale launchers
