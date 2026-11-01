@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/joymatrix"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -336,6 +337,9 @@ func (r *RemoteInput) SendEvent(ctx context.Context, event remoteinput.Event, ca
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if r.source != "" && r.source != "desktop" {
 		return ErrRemoteInputBusy
 	}
@@ -366,6 +370,9 @@ func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Eve
 		return ErrRemoteInputNoStream
 	}
 	if err := r.ensureLiveStreamLocked(ctx); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if err := r.inputState.Apply(event); err != nil {
@@ -409,6 +416,110 @@ func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Eve
 		return streamUnavailable(sendErr)
 	}
 	return nil
+}
+
+// TapKey sends both edges while owning one input attachment. Its interval
+// measures host processing, not when the target applied either edge.
+func (r *RemoteInput) TapKey(ctx context.Context, sessionID string, event remoteinput.Event, checkOwnership func() error) (time.Duration, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	_, validUsage := hidkeys.Usage(event.Code)
+	if event.Player != 0 || event.Device != remoteinput.DeviceKeyboard || event.Kind != remoteinput.KindKey ||
+		event.Action != remoteinput.ActionPress || event.Value != 0 || !validUsage {
+		return 0, ErrRemoteInputInvalid
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if r.closed {
+		return 0, ErrRemoteInputClosed
+	}
+	if sessionID == "" || sessionID != r.sessionIDLocked() {
+		return 0, ErrRemoteInputInvalid
+	}
+	if r.source != "" && r.source != "desktop" {
+		return 0, ErrRemoteInputBusy
+	}
+	if r.inputState.Pressed(event.Code) {
+		return 0, ErrRemoteInputBusy
+	}
+	if checkOwnership == nil {
+		return 0, ErrRemoteInputInvalid
+	}
+	if err := checkOwnership(); err != nil {
+		return 0, err
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	// Do not reconnect or replay during a tap: an uncertain press must never
+	// be replayed as held while a reconnect handshake stalls.
+	if r.state != RemoteInputAttached || !r.connectionLiveLocked() {
+		return 0, ErrRemoteInputNoStream
+	}
+	r.source = "desktop"
+	started := time.Now()
+	failTap := func(err error) (time.Duration, error) {
+		// Disconnect first: the bridge releases its held controls. Clear the
+		// local state so no held key can be replayed into another attachment.
+		r.closeConnLocked()
+		r.inputState.ReleaseAll()
+		stopCtx, cancelStop := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		r.stopBridgeLocked(stopCtx)
+		cancelStop()
+		r.ready = false
+		r.state = RemoteInputFailed
+		return time.Since(started), err
+	}
+	if err := r.inputState.Apply(event); err != nil {
+		return 0, ErrRemoteInputInvalid
+	}
+	pressCtx, cancelPress := context.WithTimeout(ctx, 200*time.Millisecond)
+	pressErr := r.writeFrameLocked(pressCtx, r.frameForEventLocked(event, started), started)
+	cancelPress()
+	if pressErr != nil {
+		return failTap(pressErr)
+	}
+	timer := time.NewTimer(60 * time.Millisecond)
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+		pressErr = ctx.Err()
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	}
+	// Release independently of caller cancellation, before any other event or
+	// replacement attachment. An uncertain write disconnects the bridge.
+	event.Action = remoteinput.ActionRelease
+	if err := r.inputState.Apply(event); err != nil {
+		return failTap(err)
+	}
+	releaseCtx, cancelRelease := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	releasedAt := time.Now()
+	releaseErr := r.writeFrameLocked(releaseCtx, r.frameForEventLocked(event, releasedAt), releasedAt)
+	cancelRelease()
+	elapsed := time.Since(started)
+	if releaseErr != nil {
+		return failTap(releaseErr)
+	}
+
+	if pressErr != nil {
+		return elapsed, pressErr
+	}
+	if err := ctx.Err(); err != nil {
+		return elapsed, err
+	}
+	if elapsed > 400*time.Millisecond {
+		return elapsed, errors.New("input tap exceeded host timing bound")
+	}
+	return elapsed, nil
 }
 
 // Send is a convenience form for callers that do not have a separate capture

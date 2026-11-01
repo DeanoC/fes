@@ -1250,9 +1250,19 @@ Native SDL3 UI
   -> GET /v1/kit/lease on the selected target address (status-only lease strip)
   -> POST /api/v1/session/input/attach and /detach (empty body; FPGA-native now-playing)
   -> POST /api/v1/session/input/event (play-session HID; fail-closed on a foreign kit lease)
+  -> POST /api/v1/session/input/tap (one serialized HID key tap bound to the current input session)
   -> host session service
   -> existing FPGA launch path
 ```
+
+The input tap endpoint accepts `session_id` from the current input status and
+one HID keyboard press `event`. It checks the observed kit lease and input
+attachment after waiting for the input lock, then sends a press and a release
+under the same lock. A canceled request still releases a potentially applied
+press; an unconfirmed release closes the bridge and clears held input. The
+response includes `host_duration_ms` for the host operation. That duration
+is not a measurement of when either edge reached or was applied by the core.
+The endpoint does not turn uncertain delivery into a successful tap.
 
 `GET /api/v1/session/events` keeps the existing protocol 1 event object.
 The host also sets an optional `flight_id` UUID on those events: one new id

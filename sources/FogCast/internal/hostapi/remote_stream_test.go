@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/bridge"
 	"github.com/DeanoC/FogCast/internal/hostapi"
@@ -222,4 +223,54 @@ func eventJSON(line string) string {
 		return "null"
 	}
 	return string(packet.Event)
+}
+
+func TestSessionInputTapDeliversOrderedEdges(t *testing.T) {
+	rig := newStreamRig(t)
+	session := rig.attach(t)
+	handler := hostapi.New(&launcherService{}, hostapi.WithRemoteInput(rig.input))
+	body := `{"session_id":"` + session + `","event":{"Device":0,"Kind":0,"Action":1,"Code":4100,"Value":0}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/session/input/tap", strings.NewReader(body))
+	req.Host = "127.0.0.1"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("tap response: %d %s", rec.Code, rec.Body.String())
+	}
+	deadline := time.Now().Add(time.Second)
+	for rig.sink.count() < 2 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	rig.sink.mu.Lock()
+	defer rig.sink.mu.Unlock()
+	if len(rig.sink.events) != 2 || rig.sink.events[0].Code != 4100 || rig.sink.events[0].Action != 1 || rig.sink.events[1].Code != 4100 || rig.sink.events[1].Action != 0 {
+		t.Fatalf("unexpected tap frames: %+v", rig.sink.events)
+	}
+}
+
+func TestSessionInputTapRejectsForeignLeaseAndInvalidKey(t *testing.T) {
+	rig := newStreamRig(t)
+	session := rig.attach(t)
+	body := `{"session_id":"` + session + `","event":{"Device":0,"Kind":0,"Action":1,"Code":4100,"Value":0}}`
+	foreign := &busyTargetService{fakeService: &fakeService{}, conn: fogcast.TargetConnection{State: "busy", Owner: "someone-else"}}
+	for _, tc := range []struct {
+		service hostapi.Service
+		body    string
+		want    int
+	}{
+		{foreign, body, http.StatusForbidden},
+		{&launcherService{}, strings.Replace(body, "4100", "4224", 1), http.StatusBadRequest},
+	} {
+		handler := hostapi.New(tc.service, hostapi.WithRemoteInput(rig.input))
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/session/input/tap", strings.NewReader(tc.body))
+		req.Host = "127.0.0.1"
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != tc.want {
+			t.Fatalf("status %d want %d: %s", rec.Code, tc.want, rec.Body.String())
+		}
+	}
+	if got := rig.sink.count(); got != 0 {
+		t.Fatalf("rejected tap emitted %d events", got)
+	}
 }

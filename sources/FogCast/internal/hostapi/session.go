@@ -1690,6 +1690,34 @@ func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.
 	return sender.SendEvent(ctx, event, time.Now())
 }
 
+func (s *sessionCoordinator) tapCoreKey(ctx context.Context, sessionID string, event remoteinput.Event) (time.Duration, error) {
+	if s.playHIDForeign() {
+		return 0, playHIDLeaseError()
+	}
+	if s.remoteInput == nil {
+		return 0, host.ErrRemoteInputNoStream
+	}
+	tapper, ok := s.remoteInput.(interface {
+		TapKey(context.Context, string, remoteinput.Event, func() error) (time.Duration, error)
+	})
+	if !ok {
+		return 0, host.ErrRemoteInputNoStream
+	}
+	duration, err := tapper.TapKey(ctx, sessionID, event, func() error {
+		if s.playHIDForeign() {
+			return playHIDLeaseError()
+		}
+		return nil
+	})
+	if err != nil {
+		return duration, err
+	}
+	if s.playHIDForeign() {
+		return duration, playHIDLeaseError()
+	}
+	return duration, nil
+}
+
 func (s *sessionCoordinator) playHIDForeign() bool {
 	provider, ok := s.service.(interface {
 		TargetConnection() fogcast.TargetConnection
