@@ -1,14 +1,11 @@
 """Prepare the explicit, unadmitted Linux SMMU profile in a private project."""
 import hashlib
-import json
 from pathlib import Path
 import re
 
 HPS_IP = 'hps_subsys/ip/hps_subsys/agilex_hps.ip'
 ADAPTER = 'custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl'
-MANAGED_FABRIC = 'managed-scanout-initiators-v1'
-MANAGED_TERMINATION = 'unused-f2h-request-valid-zero-v1'
-F2H_REQUEST_PORTS = tuple(f'fpga2hps_{channel}valid' for channel in ('ar', 'aw', 'w'))
+MANAGED_FABRIC = 'managed-scanout-initiators-v2'
 MANAGED_MASTERS = (
     'subsys_hps_agilex_hps.hps2fpga', 'subsys_hps_agilex_hps.lwhps2fpga',
     'subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout_guard.avm',
@@ -67,7 +64,7 @@ def retarget_adapter(data, definition):
         'kernel_binding': 'not-admitted', 'physical_translation': 'not-qualified'}
 
 
-def configure(project, definition, hps):
+def configure(project, definition, hps, *, managed_fabric=False):
     path = project / ADAPTER
     data, profile = retarget_adapter(path.read_bytes(), definition)
     path.write_bytes(data)
@@ -78,7 +75,24 @@ load_component agilex_hps
 set_component_parameter_value f2sdram_SMMU true
 if {{[get_component_parameter_value f2sdram_SMMU] != 1}} {{error "SMMU port exposure was not enabled"}}
 save_component
-load_component f2sdram_adapter
+'''
+    changes = {HPS_IP: {'f2sdram_SMMU': {'before': 'false', 'after': 'true'}}}
+    if managed_fabric:
+        # Quartus 26.3 parameters_data.tcl: f2s_data_width=0 means Unused.
+        # An enabled F2H hard bridge must have its complete response interface
+        # connected; tying only request valids low is not a legal disable.
+        script += '''load_component agilex_hps
+if {[get_component_parameter_value f2s_data_width] != 256} {error "vendor F2H data width changed"}
+set_component_parameter_value f2s_data_width 0
+if {[get_component_parameter_value f2s_data_width] != 0} {error "unused F2H interface was not disabled"}
+save_component
+foreach {name target} {fpga2hps agilex_hps.fpga2hps fpga2hps_clk agilex_hps.fpga2hps_clock fpga2hps_rst agilex_hps.fpga2hps_reset} {
+    if {[string compare [get_interface_property $name EXPORT_OF] $target] != 0} {error "vendor F2H export changed: $name"}
+    remove_interface $name
+}
+'''
+        changes[HPS_IP]['f2s_data_width'] = {'before': '256', 'after': '0'}
+    script += f'''load_component f2sdram_adapter
 if {{[get_component_parameter_value DATA_WIDTH] != 256}} {{error "F2SDRAM adapter data width changed"}}
 foreach port {{man_aruser man_awuser}} {{
     if {{[get_component_interface_port_property axi4_man $port WIDTH] != 25}} {{error "SMMU USER width changed"}}
@@ -94,7 +108,7 @@ remove_interface hps_f2sdram_master
 remove_instance hps_f2sdram
 save_system {jtag}
 '''
-    return script, profile, {HPS_IP: {'f2sdram_SMMU': {'before': 'false', 'after': 'true'}}}
+    return script, profile, changes
 
 
 
@@ -127,6 +141,10 @@ def isolate_managed_fabric_script(script, top_save):
 foreach instance {subsys_debug ace5lite_cache_coherency_translator_0} {
     if {[lsearch -exact [get_instances] $instance] < 0} {error "managed fabric removal target changed: $instance"}
     remove_instance $instance
+}
+foreach connection {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst} {
+    if {[lsearch -exact [get_connections] $connection] < 0} {error "vendor F2H connection changed: $connection"}
+    remove_connection $connection
 }
 '''
     return script.replace(top_save, removal + top_save)
@@ -165,14 +183,19 @@ def _managed_fabric_graph(project, hps):
                 int(matches[0].findtext("parameter[@name='baseAddress']/value") or '-1', 0) != address):
             raise ValueError('managed fabric control/OCM route differs: ' + end)
     native = [m for m in modules if m.get('path') == 'subsys_hps.agilex_hps']
-    ports = hps.component_ports(native[0], 'fpga2hps') if len(native) == 1 else {}
-    if any(ports.get(channel + 'valid') != ('Input', 1) for channel in ('ar', 'aw', 'w')):
-        raise ValueError('managed fabric native F2H request direction/width differs')
+    if len(native) != 1 or hps.module_parameters(project / HPS_IP).get('f2s_data_width') != '0':
+        raise ValueError('managed fabric native F2H interface is not disabled')
+    definition = ET.fromstring(native[0].findtext("parameter[@name='componentDefinition']/value"))
+    interfaces = [p.findtext('name') for p in definition.findall('boundary/interfaces/interface')]
+    if any(name in interfaces for name in ('fpga2hps', 'fpga2hps_clock', 'fpga2hps_reset')):
+        raise ValueError('managed fabric generated native F2H interface remains exposed')
     memory = hps.verify_scanout_memory_handoff(project)
     return {'policy': MANAGED_FABRIC, 'initiator_endpoints': sorted(masters),
             'initiator_count': len(masters), 'fabric_to_hps': [list(route) for route in ingress],
             'control_and_ocm_routes': [list(route) for route in control],
             'removed_instances': list(removed), 'sopcinfo_sha256': hps.digest(sopc),
+            'disabled_hps_parameter': {'f2s_data_width': '0'},
+            'hps_ip_sha256': hps.digest(project / HPS_IP),
             'memory_handoff': memory, 'physical_lifetime': 'not-qualified', 'runtime_admission': 'not-qualified'}
 
 
@@ -188,68 +211,16 @@ def _managed_parent(data):
     if len(ports) != len(dict(ports)):
         raise ValueError('managed fabric generated HPS port is duplicated')
     ports = {name: value.strip() for name, value in ports}
-    return {port: ports.get(port) for port in F2H_REQUEST_PORTS}
-
-
-def terminated_managed_parent(original):
-    """Drive only the three reviewed, genuinely unconnected input valids."""
-    ports = _managed_parent(original)
-    if any(value != '' for value in ports.values()):
-        raise ValueError('managed fabric termination requires the three original floating request inputs')
-    text = original.decode()
-    matches = list(re.finditer(r'(?ms)^\t\w+ subsys_hps \(\n.*?^\t\);', text))
-    if len(matches) != 1:
-        raise ValueError('managed fabric raw HPS instance differs')
-    match = matches[0]
-    block = match[0]
-    for port in F2H_REQUEST_PORTS:
-        block, count = re.subn(r'(\.' + port + r'\s*\()\s*(\))',
-                              lambda m: m[1] + "1'b0" + m[2], block)
-        if count != 1:
-            raise ValueError('managed fabric raw floating input differs: ' + port)
-    return (text[:match.start()] + block + text[match.end():]).encode()
-
-
-def _termination_receipt(original, derived, graph):
-    return {'policy': MANAGED_TERMINATION, 'fabric_policy': MANAGED_FABRIC,
-            'original_file': 'managed-fabric-originals/qsys_top.v',
-            'derived_file': 'project/qsys_top/synth/qsys_top.v',
-            'original_sha256': hashlib.sha256(original).hexdigest(),
-            'derived_sha256': hashlib.sha256(derived).hexdigest(),
-            'sopcinfo_sha256': graph['sopcinfo_sha256'],
-            'ports': {port: "1'b0" for port in F2H_REQUEST_PORTS}}
-
-
-def terminate_managed_fabric(directory, hps):
-    project = directory / 'project'
-    graph = _managed_fabric_graph(project, hps)
-    top = project / 'qsys_top/synth/qsys_top.v'
-    original = top.read_bytes()
-    derived = terminated_managed_parent(original)
-    retained = directory / 'managed-fabric-originals'
-    retained.mkdir(exist_ok=False)
-    (retained / 'qsys_top.v').write_bytes(original)
-    top.write_bytes(derived)
-    receipt = _termination_receipt(original, derived, graph)
-    (directory / 'managed-fabric-tieoffs.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
-    return verify_managed_fabric(project, hps)
+    return {name: value for name, value in ports.items() if name.startswith('fpga2hps_') or name == 'fpga2hps'}
 
 
 def verify_managed_fabric(project, hps):
-    """Check the complete graph and source-derived, compiled request zeroes."""
+    """Check the complete graph and actual absence of the disabled interface."""
     graph = _managed_fabric_graph(project, hps)
     top = project / 'qsys_top/synth/qsys_top.v'
-    actual = top.read_bytes()
-    tieoffs = _managed_parent(actual)
-    if any(value != "1'b0" for value in tieoffs.values()):
-        raise ValueError('managed fabric unused F2H request valid is not tied low')
-    original = (project.parent / 'managed-fabric-originals/qsys_top.v').read_bytes()
-    derived = terminated_managed_parent(original)
-    receipt = json.loads((project.parent / 'managed-fabric-tieoffs.json').read_text())
-    if actual != derived or receipt != _termination_receipt(original, derived, graph):
-        raise ValueError('managed fabric generated termination or its retained receipt changed')
-    return {**graph, 'unused_f2h_request_valid': tieoffs, 'generated_parent_sha256': hps.digest(top),
-            'request_termination': receipt}
+    if _managed_parent(top.read_bytes()):
+        raise ValueError('managed fabric generated parent retains unused F2H ports')
+    return {**graph, 'unused_f2h_interface': 'disabled and absent', 'generated_parent_sha256': hps.digest(top)}
 
 
 def verify(project, hps, profile):

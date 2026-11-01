@@ -22,7 +22,7 @@ LOCAL = ("build.py", "linux_dma.py", "hdmi_inputs.py", "integrate.tcl", "clocks.
          "fes_de25_scanout_guard.v", "fes_de25_scanout_guard_hw.tcl",
          "generated/fes_de25_scanout.vh", "generated/fes_de25_scanout.h")
 TIMED_RESET_RELEASE = "timed-system-reset-release-v3"
-MANAGED_FABRIC = "managed-scanout-initiators-v1"
+MANAGED_FABRIC = "managed-scanout-initiators-v2"
 RESET_SDC_SHA256 = "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
 TIMED_RESET_INSTANCES = ("soc_inst|rst_controller", "soc_inst|subsys_periph|rst_controller",
                          "soc_inst|rst_controller_002")
@@ -297,7 +297,8 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
     dma_profile, parameter_changes = None, {}
     if linux_dma:
         dma = load(snapshot / BOARD / "scanout/linux_dma.py", "scanout_retained_linux_dma")
-        prefix, dma_profile, parameter_changes = dma.configure(project, definition, hps)
+        prefix, dma_profile, parameter_changes = dma.configure(project, definition, hps,
+                                                               managed_fabric=package_build_id is not None)
         script = dma.isolate_script(script, before)
         if package_build_id is not None:
             if dma.MANAGED_FABRIC != MANAGED_FABRIC:
@@ -336,7 +337,7 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
         inputs["f2sdram_master_profile"] = "scanout-only"
         inputs["combined_display"]["debug_paths"] = "JTAG F2SDRAM master/window removed; other JTAG/OCM/F2H paths preserved"
         if package_build_id is not None:
-            inputs["combined_display"]["debug_paths"] = "JTAG Avalon masters and F2H translator removed; HPS control/OCM and JTAG FPGA configuration preserved"
+            inputs["combined_display"]["debug_paths"] = "JTAG Avalon masters and F2H translator removed, unused native F2H disabled; HPS control/OCM and JTAG FPGA configuration preserved"
     (directory / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
     (output / "snapshot.json").write_text(json.dumps({**selected, "source_sha256": inputs["functional_snapshot_sha256"],
         "hps_output": "combined/hps", "upstream_preparation_inputs_sha256": sha(original_inputs)}, indent=2, sort_keys=True) + "\n")
@@ -593,7 +594,6 @@ def generate(output, combined, hps, display, tool, version):
     directory = output / "combined/hps"
     if timed_reset_release(json.loads((directory / "inputs.json").read_text())):
         repair_generated_reset_timing(directory)
-        managed_fabric_helper(directory).terminate_managed_fabric(directory, hps)
     verify_generated(output, hps)
 
 

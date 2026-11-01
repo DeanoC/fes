@@ -35,24 +35,25 @@ rechecked after generation and compilation, before Linux phase conversion;
 the canonical record binds the policy. The standalone diagnostic recipe keeps
 its original reset constraints.
 
-Canonical MENU also selects `managed-scanout-initiators-v1` before generation.
+Canonical MENU also selects `managed-scanout-initiators-v2` before generation.
 It removes the vendor JTAG Avalon masters and their separate ACE5-Lite F2H
 translator. The normal HPS lightweight control path, HPS-to-OCM access and sole
 SID13 scanout-to-F2SDRAM path remain required. The generator checks the exact
 eight initiator endpoints (including CPU bridges and relay stages), every
 control ingress and the sole fabric-to-HPS route. It also checks the actual
-generated parent RTL: removed instances must be absent, and unused HPS F2H
-ARVALID/AWVALID/WVALID must be literal zero. Captured verifier bytes and the
+generated parent RTL: removed instances and unused HPS F2H ports must be absent.
+The supported HPS `f2s_data_width=0` (Unused) setting disables that bridge;
+its child exports and parent clock/reset connections are removed as well.
+Captured verifier bytes and the
 complete generated graph receipt are checked before and after compilation;
 the compiled and Linux-conversion receipts retain this graph. The
-26.3 generator leaves these unused inputs open; a guarded derivation changes
-only the three empty request-valid bindings, preserving original parent RTL and
-before/after/SOPC hashes. The exact derivation is recomputed after generation and
-compilation; changed or regenerated inputs cannot pass Linux conversion.
+full vendor HPS/EMIF parameter review permits exactly the selected F2SDRAM SMMU
+exposure and F2H disable for canonical MENU. Actual HPS parameters, elaborated
+interfaces and generated parent ports are checked before and after compilation.
 The independent
 maintenance recipe keeps its debug paths, and JTAG FPGA configuration remains
-available. This profile changes no HPS parameters beyond the existing selected
-SMMU exposure and grants no IO, reset, physical DMA or native acceptance.
+available. The F2H parameter change has no boot-firmware acceptance yet and
+grants no IO, reset, physical DMA or native acceptance.
 
 The package path requires the complete 85-rule signoff inventory and its detailed
 results, all reported setup/hold/recovery/removal/pulse-width/skew/net-delay checks, zero waived

@@ -35,12 +35,22 @@ class ManagedFabricTests(unittest.TestCase):
         self.restore_fixture()
 
     def restore_fixture(self):
-        shutil.rmtree(self.directory / 'managed-fabric-originals', ignore_errors=True)
-        (self.directory / 'managed-fabric-tieoffs.json').unlink(missing_ok=True)
         for name, text in self.fixture['files'].items():
             path = self.project / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
+        self.set_hps_width('256')
+
+    def set_hps_width(self, width):
+        # A minimal synthetic IP-XACT parameter view for projected tests.
+        # Actual generation separately checks the complete vendor parameter set.
+        path = self.project / D.HPS_IP
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('<ip:component xmlns:ip="http://www.accellera.org/XMLSchema/IPXACT/1685-2014" '
+            'xmlns:a="http://www.altera.com/XMLSchema/IPXact2014/extensions"><ip:vendorExtensions>'
+            '<a:altera_module_parameters><ip:parameters><ip:parameter parameterId="f2s_data_width">'
+            '<ip:value>' + width + '</ip:value></ip:parameter></ip:parameters>'
+            '</a:altera_module_parameters></ip:vendorExtensions></ip:component>')
 
     def project_removals(self):
         # This is an explicitly synthetic projection of the old real graph.
@@ -54,18 +64,23 @@ class ManagedFabricTests(unittest.TestCase):
             elif node.tag == 'connection' and any(prefix in ' '.join(node.attrib.values())
                     for prefix in ('subsys_debug', 'ace5lite_cache_coherency_translator_0')):
                 tree.getroot().remove(node)
+        native = tree.find("module[@path='subsys_hps.agilex_hps']/parameter[@name='componentDefinition']/value")
+        definition = ET.fromstring(native.text)
+        interfaces = definition.find('boundary/interfaces')
+        for point in list(interfaces):
+            if point.findtext('name') in ('fpga2hps', 'fpga2hps_clock', 'fpga2hps_reset'):
+                interfaces.remove(point)
+        native.text = ET.tostring(definition, encoding='unicode')
         tree.write(path)
         path = self.project / 'qsys_top/synth/qsys_top.v'
         source = path.read_text()
         for name in ('subsys_debug', 'ace5lite_cache_coherency_translator_0'):
             source, count = re.subn(r'(?ms)^\t\w+ ' + name + r' \(\n.*?^\t\);\n', '', source)
             self.assertEqual(count, 1)
-        for channel in ('ar', 'aw', 'w'):
-            source, count = re.subn(r'(\.fpga2hps_' + channel + r'valid\s*\()[^()]+(\))',
-                                    lambda m: m[1] + m[2], source)
-            self.assertEqual(count, 1)
+        source, count = re.subn(r'(?m)^\s*\.fpga2hps_\w+\s*\([^()]*\),[^\n]*\n', '', source)
+        self.assertGreater(count, 3)
         path.write_text(source)
-        D.terminate_managed_fabric(self.directory, H)
+        self.set_hps_width('0')
 
     def mutate_routes(self, change):
         path = self.project / 'qsys_top/qsys_top.sopcinfo'
@@ -82,7 +97,7 @@ class ManagedFabricTests(unittest.TestCase):
         result = D.verify_managed_fabric(self.project, H)
         self.assertEqual(result['initiator_count'], 8)
         self.assertEqual(result['fabric_to_hps'], [['subsys_hps_f2sdram_adapter.axi4_man', 'subsys_hps_agilex_hps.f2sdram']])
-        self.assertEqual(set(result['unused_f2h_request_valid'].values()), {"1'b0"})
+        self.assertEqual(result['unused_f2h_interface'], 'disabled and absent')
         self.assertEqual(result['memory_handoff']['master_count'], 1)
         self.assertEqual(result['runtime_admission'], 'not-qualified')
 
@@ -121,57 +136,43 @@ class ManagedFabricTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'parent retains'):
             D.verify_managed_fabric(self.project, H)
 
-    def test_each_unused_f2h_request_must_be_a_real_constant_zero(self):
+    def test_native_bridge_must_be_disabled_and_generated_ports_absent(self):
         self.project_removals()
+        self.set_hps_width('256')
+        with self.assertRaisesRegex(ValueError, 'not disabled'):
+            D.verify_managed_fabric(self.project, H)
+        self.set_hps_width('0')
         path = self.project / 'qsys_top/synth/qsys_top.v'
         original = path.read_text()
-        for channel in ('ar', 'aw', 'w'):
-            with self.subTest(channel=channel):
-                source, count = re.subn(r'(\.fpga2hps_' + channel + r'valid\s*\()1\'b0(\))',
-                                       lambda m: m[1] + 'unowned_request' + m[2], original)
+        for value in ('', "1'b0", 'unowned_request'):
+            with self.subTest(value=value):
+                source, count = re.subn(r'(?m)^(\t\w+ subsys_hps \(\n)',
+                    lambda m: m[1] + '\t\t.fpga2hps_arvalid (' + value + '),\n', original)
                 self.assertEqual(count, 1)
                 path.write_text(source)
-                with self.assertRaisesRegex(ValueError, 'not tied low'):
+                with self.assertRaisesRegex(ValueError, 'parent retains unused'):
                     D.verify_managed_fabric(self.project, H)
         path.write_text(original)
 
-    def test_actual_floating_sdk_inputs_are_terminated_and_both_versions_retained(self):
+    def test_actual_failed_sdk_graph_with_enabled_floating_bridge_is_refused(self):
         fixture = json.loads(gzip.decompress((ROOT / 'tests/fixtures/de25_managed_fabric_floating.json.gz').read_bytes()))
         for name, text in fixture['files'].items():
             self.assertEqual(hashlib.sha256(text.encode()).hexdigest(), fixture['sha256'][name])
             path = self.project / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(text)
-        with self.assertRaisesRegex(ValueError, 'not tied low'):
+        with self.assertRaisesRegex(ValueError, 'not disabled'):
             D.verify_managed_fabric(self.project, H)
-        result = D.terminate_managed_fabric(self.directory, H)
-        original = (self.directory / 'managed-fabric-originals/qsys_top.v').read_bytes()
-        self.assertEqual(original.decode(), fixture['files']['qsys_top/synth/qsys_top.v'])
-        derived = (self.project / 'qsys_top/synth/qsys_top.v').read_bytes()
-        self.assertEqual(derived, D.terminated_managed_parent(original))
-        self.assertEqual(result, D.verify_managed_fabric(self.project, H))
-        self.assertEqual(result['request_termination']['ports'], {p: "1'b0" for p in D.F2H_REQUEST_PORTS})
-        with self.assertRaisesRegex(ValueError, 'original floating'):
-            D.terminated_managed_parent(derived)
 
-    def test_original_derived_and_termination_receipt_mutations_are_refused(self):
+    def test_generated_native_interface_cannot_remain_exposed(self):
         self.project_removals()
-        paths = (self.directory / 'managed-fabric-originals/qsys_top.v',
-                 self.project / 'qsys_top/synth/qsys_top.v', self.directory / 'managed-fabric-tieoffs.json')
-        for path in paths:
-            original = path.read_bytes()
-            try:
-                path.write_bytes(original + b'\n')
-                with self.subTest(path=path.name):
-                    if path.name.endswith('.json'):
-                        data = json.loads(path.read_text())
-                        data['derived_sha256'] = '0' * 64
-                        path.write_text(json.dumps(data))
-                    with self.assertRaisesRegex(ValueError, 'termination or its retained receipt changed'):
-                        D.verify_managed_fabric(self.project, H)
-            finally:
-                path.write_bytes(original)
-        regenerated = self.project / 'qsys_top/synth/qsys_top.v'
-        regenerated.write_bytes(paths[0].read_bytes())
-        with self.assertRaisesRegex(ValueError, 'not tied low'):
+        path = self.project / 'qsys_top/qsys_top.sopcinfo'
+        tree = ET.parse(path)
+        native = tree.find("module[@path='subsys_hps.agilex_hps']/parameter[@name='componentDefinition']/value")
+        definition = ET.fromstring(native.text)
+        point = ET.SubElement(definition.find('boundary/interfaces'), 'interface')
+        ET.SubElement(point, 'name').text = 'fpga2hps'
+        native.text = ET.tostring(definition, encoding='unicode')
+        tree.write(path)
+        with self.assertRaisesRegex(ValueError, 'remains exposed'):
             D.verify_managed_fabric(self.project, H)
 
     @unittest.skipUnless(shutil.which('tclsh'), 'requires Tcl')
@@ -181,8 +182,11 @@ class ManagedFabricTests(unittest.TestCase):
         prefix = '''set instances {ext_hps_f2sdram_master subsys_debug ace5lite_cache_coherency_translator_0 subsys_hps subsys_periph ocm}
 proc get_instances {} {return $::instances}
 proc remove_instance {name} {lappend ::removed $name}
+proc get_connections {} {return {clk_100.out_clk/subsys_hps.fpga2hps_clk rst_in.out_reset/subsys_hps.fpga2hps_rst}}
+proc remove_connection {name} {lappend ::connections $name}
 proc save_system {name} {}
 set removed {}
+set connections {}
 '''
         result = subprocess.run(['tclsh'], input=prefix + script + '\nputs $removed\n',
                                 text=True, capture_output=True, check=True, timeout=10)

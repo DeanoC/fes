@@ -173,7 +173,7 @@ and compilation verify the derived board SDC, all six generated files and their
 receipt; regenerated or changed constraints stop the build before Linux phase
 conversion. The canonical record binds this policy before IP generation.
 
-The canonical `managed-scanout-initiators-v1` profile removes the entire vendor
+The canonical `managed-scanout-initiators-v2` profile removes the entire vendor
 debug subsystem and its separate ACE5-Lite F2H translator. The maintenance
 Linux-DMA profile above retains its other debug paths. FPGA configuration over
 JTAG remains available; these removed components are Avalon transaction masters.
@@ -183,18 +183,19 @@ scanout-to-F2SDRAM route remain required.
 Generation checks all eight elaborated initiator endpoints, including the CPU
 bridges and relay stages; they are not eight independent DMA devices. Exactly
 one fabric path enters HPS, through the checked F2SDRAM adapter. Every control
-stage must have its single expected ingress, and the generated HPS instance
-must tie unused F2H ARVALID/AWVALID/WVALID to literal zero. Missing/extra masters,
+stage must have its single expected ingress. The unused native F2H bridge is
+disabled with the supported HPS `f2s_data_width=0` (Unused) parameter. Its child
+exports, top-level clock/reset connections and generated HPS ports must be
+absent. Missing/extra masters,
 control bypasses, retained debug instances, wrong routes and stale generated
-request signals fail closed. The captured verifier and the complete generated
+interfaces fail closed. The captured verifier and the complete generated
 graph receipt are rechecked before and after compilation, before conversion.
-Quartus 26.3 leaves those three request inputs open after removing the translator.
-After checking the complete pruned graph and each native input's direction/width,
-the producer changes only those three empty bindings to constant zero. It retains
-the original parent RTL under `managed-fabric-originals/` and records the original,
-derived and SOPC hashes in `managed-fabric-tieoffs.json`. Verification recomputes
-the exact derived bytes from the retained original. Changed originals, nonempty
-source bindings, receipt edits or regenerated open inputs stop conversion.
+The full vendor HPS/EMIF parameter review permits only the existing F2SDRAM
+SMMU exposure and this F2H disable for canonical MENU. Standalone maintenance
+keeps its existing bridge parameters. The disabled bridge is checked in the
+actual HPS IP, elaborated interface definition and generated parent RTL; no
+manual parent RTL tie-offs are used. This parameter change still requires
+separate boot-firmware and native acceptance.
 The canonical record selects this policy before generation. This removes
 unmanaged fabric paths; it does not establish physical DMA/reset lifetime or
 relax any timing, IO, package or native acceptance gate.

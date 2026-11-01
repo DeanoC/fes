@@ -624,6 +624,32 @@ class HpsBuildTests(unittest.TestCase):
             with self.subTest(fault=fault), self.assertRaisesRegex(ValueError, "DDR probe"):
                 BUILD.verify_probe_handoff(project)
 
+    def test_native_f2h_disable_is_limited_to_the_exact_canonical_menu_profile(self):
+        smmu = {HPS: {"f2sdram_SMMU": {"before": "false", "after": "true"}}}
+        self.assertEqual(BUILD.reviewed_hps_parameter_changes({}), {})
+        maintenance = {"allowed_hps_parameter_changes": smmu}
+        self.assertEqual(BUILD.reviewed_hps_parameter_changes(maintenance), smmu)
+        managed = copy.deepcopy(maintenance)
+        managed["scanout"] = {"managed_fabric": "managed-scanout-initiators-v2",
+            "build_identity_scheme": "canonical-functional-record-v2", "hps_initialization": "HPS FIRST"}
+        managed["f2sdram_master_profile"] = "scanout-only"
+        managed["allowed_hps_parameter_changes"][HPS]["f2s_data_width"] = {"before": "256", "after": "0"}
+        self.assertEqual(BUILD.reviewed_hps_parameter_changes(managed), managed["allowed_hps_parameter_changes"])
+        cases = []
+        for key, value in (("managed_fabric", "managed-scanout-initiators-v1"),
+                           ("build_identity_scheme", "diagnostic-source-profile"),
+                           ("hps_initialization", "FPGA FIRST")):
+            changed = copy.deepcopy(managed); changed["scanout"][key] = value; cases.append(changed)
+        for key in ("scanout", "f2sdram_master_profile", "allowed_hps_parameter_changes"):
+            changed = copy.deepcopy(managed); changed.pop(key); cases.append(changed)
+        for parameter, value in (("f2s_data_width", {"before": "256", "after": "128"}),
+                                 ("H2F_Width", {"before": "128", "after": "64"}),
+                                 ("f2sdram_data_width", {"before": "256", "after": "0"})):
+            changed = copy.deepcopy(managed); changed["allowed_hps_parameter_changes"][HPS][parameter] = value; cases.append(changed)
+        for changed in cases:
+            with self.subTest(profile=changed), self.assertRaises(ValueError):
+                BUILD.reviewed_hps_parameter_changes(changed)
+
     def test_generation_rejects_changed_original_hps_and_nested_ddr_parameters(self):
         cases = ((HPS, "H2F_Width", "64"), (EMIF, "MEM_CHANNEL_CS_WIDTH", "2"))
         for index, (name, parameter_id, value) in enumerate(cases):
