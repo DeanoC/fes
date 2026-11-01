@@ -257,6 +257,8 @@ local function place(list)
   end
   if selected then initial_game_id = "" end
   rev = rev + 1
+  -- selected_core is final here, including for an opening by game.
+  firmware_info(true)
 end
 local function place_selected(list, generation)
   if generation ~= library_generation then return end
@@ -357,9 +359,7 @@ end
 local function choose_core(core_id)
   if core_id == selected_core or not systems.by_id[core_id] then return end
   remember()
-  local previous_family = family().id
   selected_core = core_id
-  if family().id ~= previous_family then firmware_info(true) end
   initial_game_id = ""
   local previous = core_choices[core_id] or {}
   chosen, chosen_edition = previous.game_id or "", previous.edition_id or ""
@@ -624,7 +624,6 @@ local function boot_step()
 end
 
 function load()
-  firmware_info(true)
   last_hw = room.time
   read_hardware()
   library_generation = library_generation + 1
@@ -643,6 +642,7 @@ function load()
       entry_i, edition_i = 1, 1
       message = library_error
       rev = rev + 1
+      firmware_info(true)
       return
     end
     library_error = ""

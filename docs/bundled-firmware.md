@@ -120,12 +120,13 @@ That embed is gone: ZX81-family firmware is user-supplied in v1.
 
 ## The first-use card
 
-The system workbench asks tenfoot for a family's firmware card when it opens
-a family and when **Next system** moves to another family. Tenfoot shows it
+The system workbench asks tenfoot for a family's firmware card whenever it
+shows a family, including after **Next system**; the Sinclair setup room,
+which the Systems shelf opens for the ZX81 family, asks on opening. Tenfoot shows it
 once per family: **A** (*Continue to …*) records the family in `tenfoot.json`
 under `firmware_info_seen`; **B** closes the card and leaves the workbench
 without recording it, so it shows again next time. The workbench's
-**Firmware** button reopens it at any time.
+**Firmware** button in either room reopens it at any time.
 
 The card says which models' firmware is built in, with the licence name and
 notice, or which file each other model needs and that it is chosen in

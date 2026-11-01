@@ -6,6 +6,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -109,10 +110,16 @@ class BundledFirmwareTests(unittest.TestCase):
         (cache / 'roms.orig.tar.gz').write_bytes(self.tar)
         self.assertEqual(fw.fetch(self.archives['roms']['url'], self.archives['roms']['sha256'], cache), self.tar)
         (cache / 'roms.orig.tar.gz').write_bytes(b'tampered')
-        with self.assertRaises(OSError):
-            # A bad cache entry is refetched; the invalid host fails instead of
-            # returning the tampered bytes.
-            fw.fetch(self.archives['roms']['url'], self.archives['roms']['sha256'], cache)
+        # A bad cache entry is refetched, and a bad download is refused.
+        with patch.object(fw.urllib.request, 'urlopen') as urlopen:
+            urlopen.return_value.__enter__.return_value.read.return_value = self.tar
+            self.assertEqual(fw.fetch(self.archives['roms']['url'], self.archives['roms']['sha256'], cache), self.tar)
+            self.assertEqual((cache / 'roms.orig.tar.gz').read_bytes(), self.tar)
+            (cache / 'roms.orig.tar.gz').write_bytes(b'tampered')
+            urlopen.return_value.__enter__.return_value.read.return_value = b'also tampered'
+            with self.assertRaisesRegex(ValueError, 'does not match'):
+                fw.fetch(self.archives['roms']['url'], self.archives['roms']['sha256'], cache)
+        self.assertEqual((cache / 'roms.orig.tar.gz').read_bytes(), b'tampered')
 
     def test_fetch_sources_copies_only_free_software_sources(self):
         self.blobs['https://example.invalid/os-src.tar.gz'] = b'source'

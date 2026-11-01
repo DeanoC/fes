@@ -295,3 +295,32 @@ func TestSavedFamilyReopenUsesSelectedVariantHint(t *testing.T) {
 		t.Fatalf("saved Spectrum reopened with another model's hint:\n%s", text)
 	}
 }
+
+func TestWorkbenchAsksForFirmwareCardOfTheOpenedEntrysFamily(t *testing.T) {
+	games := spectrumFamilyEntries()
+	// Opened by game alone: the workbench starts on its default ZX81 core and
+	// only learns the entry's Spectrum +3 core from the library.
+	r := newRoom(t, examplePack(t, "example.system"), Options{Services: c64ServicesWithEmptyHardware{Services: &fakeServices{games: games}}, Width: 1280, Height: 720, StorePath: filepath.Join(t.TempDir(), "room.json"), InitialGameID: games[2].ID})
+	r.SetSessionState("idle")
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if req, ok := r.TakeFirmwareInfo(); ok {
+		t.Fatalf("asked for a firmware card before the core was known: %+v", req)
+	}
+	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), games[2].Title) })
+	req, ok := r.TakeFirmwareInfo()
+	if !ok || !req.FirstUse || req.Kind != ActionFirmwareInfo || req.FamilyID != "spectrum" || req.FamilyLabel != "ZX Spectrum" || req.CoreID != games[2].CoreID ||
+		strings.Join(req.CoreIDs, ",") != "fes.spectrum,fes.spectrum128,fes.spectrum-plus3,fes.pentagon" {
+		t.Fatalf("first-use request %+v %v", req, ok)
+	}
+	if acts := r.TakeActions(); len(acts) != 0 {
+		t.Fatalf("first-use request entered the action queue: %+v", acts)
+	}
+	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "Firmware") && strings.Contains(frameText(f), "Set up system") })
+	r.Activate("firmware")
+	acts := r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionFirmwareInfo || acts[0].FirstUse || acts[0].FamilyID != "spectrum" {
+		t.Fatalf("Firmware button: %+v", acts)
+	}
+}
