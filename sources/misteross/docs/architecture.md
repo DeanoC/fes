@@ -1429,15 +1429,17 @@ mailbox vectors and the commands ST uses, including a completed snapshot
 read, against both endpoints and fails if they diverge. Other shells keep
 `fes_computer_mailbox` or the core.
 The core is `fes.computer` 1.0 unless a shell enables a 1.1 interface:
-`ENABLE_ATA_DISK`, `ENABLE_PERSISTENCE`, `ENABLE_PC386_MACHINE` or
-`ENABLE_WALL_CLOCK` makes it minor 1, answering identity word 16 with
-capabilities 16..19. It hands their opcodes to `fes_computer_storage`
-(`rtl/fes_computer_storage.v`) and holds each until the reply, as it holds the
-menu opcodes for the display plane. That endpoint owns the ATA disk's unit
+`ENABLE_ATA_DISK`, `ENABLE_PERSISTENCE`, `ENABLE_PC386_MACHINE`,
+`ENABLE_WALL_CLOCK` and `ENABLE_PCXT_FLOPPY` expose capability bits 16..20
+respectively and make it minor 1, answering identity word 16. `fes.pc386`
+uses bits 16..19; `fes.pcxt` uses bit 20. `pc386_system` hands its storage
+opcodes to `fes_computer_storage` (`rtl/fes_computer_storage.v`) and holds each
+until the reply, as it does menu opcodes for the display plane. That endpoint
+owns the ATA disk's unit
 state, staged geometry, fence, dirty flag and epoch, the 72 words of the
 `fes.pc386.machine` record with its Freeze snapshot and restore staging, and
 the wall clock; the shell owns the image in the DDR window, the CRC pass and
-the dirty map. The pc386 shell is the only 1.1 consumer. Its storage suite
+the dirty map. Its storage suite
 (`scripts/sim_fes_pc386.py --suite storage`) replays every scenario of the
 1.1 golden exchanges, `cores/fes-common/generated/computer-exchanges-1.1.json`,
 compiled with that scenario's interfaces; the bench plays the machine's side.
