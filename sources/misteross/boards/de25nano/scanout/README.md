@@ -160,18 +160,37 @@ output paths remain timed. Generation rejects a board whose data/DE pins are not
 registered gate or an SDC that does not name the profile's exact clear pins. No HDMI IO
 delays are fabricated.
 
-The canonical `timed-system-reset-release-v2` profile also removes the generated
+The canonical `timed-system-reset-release-v3` profile also removes the generated
 reset-controller clear exceptions only for `soc_inst|rst_controller`,
-`soc_inst|subsys_periph|rst_controller`, `soc_inst|rst_controller_002` and the
-`altera_jtag_avalon_master_inst|rst_controller` within each preserved
-`soc_inst|subsys_debug|fpga_m` and `soc_inst|subsys_debug|hps_m` instance.
-All five receive a reset released by the same 100 MHz clock. The private build
+`soc_inst|subsys_periph|rst_controller` and `soc_inst|rst_controller_002`.
+All three receive a reset released by the same 100 MHz clock. Canonical MENU
+removes the vendor JTAG initiators, so their former reset receivers are absent.
+The private build
 requires exactly six generated reset SDC files matching the reviewed Quartus
 26.3 bytes, retains their originals and changes only the two conditional clear
 exceptions. Pixel, FIFO and internal JTAG reset exceptions remain intact. Generation
 and compilation verify the derived board SDC, all six generated files and their
 receipt; regenerated or changed constraints stop the build before Linux phase
 conversion. The canonical record binds this policy before IP generation.
+
+The canonical `managed-scanout-initiators-v1` profile removes the entire vendor
+debug subsystem and its separate ACE5-Lite F2H translator. The maintenance
+Linux-DMA profile above retains its other debug paths. FPGA configuration over
+JTAG remains available; these removed components are Avalon transaction masters.
+The normal HPS lightweight control route, HPS-to-OCM route and isolated SID13
+scanout-to-F2SDRAM route remain required.
+
+Generation checks all eight elaborated initiator endpoints, including the CPU
+bridges and relay stages; they are not eight independent DMA devices. Exactly
+one fabric path enters HPS, through the checked F2SDRAM adapter. Every control
+stage must have its single expected ingress, and the generated HPS instance
+must tie unused F2H ARVALID/AWVALID/WVALID to literal zero. Missing/extra masters,
+control bypasses, retained debug instances, wrong routes and stale generated
+request signals fail closed. The captured verifier and the complete generated
+graph receipt are rechecked before and after compilation, before conversion.
+The canonical record selects this policy before generation. This removes
+unmanaged fabric paths; it does not establish physical DMA/reset lifetime or
+relax any timing, IO, package or native acceptance gate.
 
 Native tests exercise the real reader/video/control RTL with the same guarded
 M20K hint adaptation used by the build. They cover complete frames and lane

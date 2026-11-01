@@ -5,6 +5,12 @@ import re
 
 HPS_IP = 'hps_subsys/ip/hps_subsys/agilex_hps.ip'
 ADAPTER = 'custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl'
+MANAGED_FABRIC = 'managed-scanout-initiators-v1'
+MANAGED_MASTERS = (
+    'subsys_hps_agilex_hps.hps2fpga', 'subsys_hps_agilex_hps.lwhps2fpga',
+    'subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout_guard.avm',
+    'subsys_periph_fes_ctrl_cdc.m0', 'subsys_periph_fes_scanout.avm',
+    'subsys_periph_fes_mem_cdc.m0', 'subsys_hps_f2sdram_adapter.axi4_man')
 
 
 def constant(definition, name):
@@ -109,6 +115,77 @@ def isolate_script(script, top_save):
     removal = ("# The Linux stream must have no diagnostic master.\n"
         "remove_instance ext_hps_f2sdram_master\n")
     return script.replace(top_save, removal + top_save)
+
+
+def isolate_managed_fabric_script(script, top_save):
+    if script.count(top_save) != 1 or script.count('remove_instance ext_hps_f2sdram_master\n') != 1:
+        raise ValueError('managed fabric requires the isolated memory profile')
+    removal = '''# Canonical MENU has no vendor maintenance initiators or F2H translator.
+foreach instance {subsys_debug ace5lite_cache_coherency_translator_0} {
+    if {[lsearch -exact [get_instances] $instance] < 0} {error "managed fabric removal target changed: $instance"}
+    remove_instance $instance
+}
+'''
+    return script.replace(top_save, removal + top_save)
+
+
+def verify_managed_fabric(project, hps):
+    """Check every elaborated initiator and the unused HPS request tieoffs."""
+    import xml.etree.ElementTree as ET
+    sopc = project / 'qsys_top/qsys_top.sopcinfo'
+    tree = ET.parse(sopc)
+    modules = tree.findall('module')
+    removed = ('subsys_debug', 'ace5lite_cache_coherency_translator_0')
+    for module in modules:
+        name, kind = module.get('path') or '', module.get('kind') or ''
+        if (any(name == prefix or name.startswith(prefix + '.') for prefix in removed) or
+                kind in ('altera_jtag_avalon_master', 'altera_ace5lite_cache_coherency_translator')):
+            raise ValueError('managed fabric retains a maintenance initiator/translator: ' + name)
+    routes = [c for c in tree.findall('connection') if c.get('kind') == 'avalon']
+    masters = {c.get('start') for c in routes}
+    if masters != set(MANAGED_MASTERS):
+        raise ValueError('managed fabric initiator inventory differs')
+    ingress = [(c.get('start'), c.get('end')) for c in routes
+               if (c.get('end') or '').startswith('subsys_hps_agilex_hps.')]
+    expected_ingress = [('subsys_hps_f2sdram_adapter.axi4_man', 'subsys_hps_agilex_hps.f2sdram')]
+    if ingress != expected_ingress:
+        raise ValueError('managed fabric has an unexpected path into HPS')
+    definition = (project / 'fes_mailbox/generated/fes_de25_scanout.vh').read_text()
+    control = (
+        ('subsys_hps_agilex_hps.lwhps2fpga', 'subsys_periph_pb_cpu_0.s0', 0),
+        ('subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout_guard.avs', constant(definition, 'PERIPHERAL_OFFSET')),
+        ('subsys_periph_fes_scanout_guard.avm', 'subsys_periph_fes_ctrl_cdc.s0', 0),
+        ('subsys_periph_fes_ctrl_cdc.m0', 'subsys_periph_fes_scanout.avs', 0),
+        ('subsys_hps_agilex_hps.hps2fpga', 'ocm.axi_s1', 0))
+    for start, end, address in control:
+        matches = [c for c in routes if c.get('end') == end]
+        if (len(matches) != 1 or matches[0].get('start') != start or
+                int(matches[0].findtext("parameter[@name='baseAddress']/value") or '-1', 0) != address):
+            raise ValueError('managed fabric control/OCM route differs: ' + end)
+    # An unconnected logical interface alone does not prove the emitted hard
+    # block cannot request a transaction. Require actual generated zeroes.
+    top = project / 'qsys_top/synth/qsys_top.v'
+    source = re.sub(r'/\*.*?\*/|//[^\n]*', '', top.read_text(), flags=re.S)
+    if any(re.search(r'(?m)^\s*\w+\s+' + re.escape(name) + r'\s*\(', source) for name in removed):
+        raise ValueError('managed fabric generated parent retains a removed instance')
+    instances = re.findall(r'(?ms)^\t\w+ subsys_hps \(\n(.*?)^\t\);', source)
+    if len(instances) != 1:
+        raise ValueError('managed fabric generated HPS instance differs')
+    ports = re.findall(r'\.(\w+)\s*\(([^()]*)\)', instances[0])
+    if len(ports) != len(dict(ports)):
+        raise ValueError('managed fabric generated HPS port is duplicated')
+    ports = {name: value.strip() for name, value in ports}
+    tieoffs = {f'fpga2hps_{channel}valid': ports.get(f'fpga2hps_{channel}valid') for channel in ('ar', 'aw', 'w')}
+    if any(value != "1'b0" for value in tieoffs.values()):
+        raise ValueError('managed fabric unused F2H request valid is not tied low')
+    # Keep the independently checked sole scanout-to-F2SDRAM graph too.
+    memory = hps.verify_scanout_memory_handoff(project)
+    return {'policy': MANAGED_FABRIC, 'initiator_endpoints': sorted(masters),
+            'initiator_count': len(masters), 'fabric_to_hps': [list(route) for route in ingress],
+            'control_and_ocm_routes': [list(route) for route in control],
+            'removed_instances': list(removed), 'unused_f2h_request_valid': tieoffs,
+            'sopcinfo_sha256': hps.digest(sopc), 'generated_parent_sha256': hps.digest(top),
+            'memory_handoff': memory, 'physical_lifetime': 'not-qualified', 'runtime_admission': 'not-qualified'}
 
 
 def verify(project, hps, profile):

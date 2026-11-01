@@ -26,7 +26,7 @@ actual Quartus 26.3 Pro tools, complete selected installation and controlled
 execution. That record supplies the real Qsys BUILD_ID and explicit seed 1;
 the diagnostic source/profile identity remains the default for the standalone
 scanout recipe. `--compile-only` retains a candidate and never exports a package.
-The canonical `timed-system-reset-release-v1` profile times the three generated
+The canonical `timed-system-reset-release-v3` profile times the three generated
 reset receivers released by the same 100 MHz system clock. It removes their
 clear exceptions from the private board/generated SDC copies, preserving pixel,
 FIFO and debug exceptions. The six generated reset SDC files must match the
@@ -34,6 +34,21 @@ reviewed Quartus 26.3 input bytes. Original and derived bytes are retained and
 rechecked after generation and compilation, before Linux phase conversion;
 the canonical record binds the policy. The standalone diagnostic recipe keeps
 its original reset constraints.
+
+Canonical MENU also selects `managed-scanout-initiators-v1` before generation.
+It removes the vendor JTAG Avalon masters and their separate ACE5-Lite F2H
+translator. The normal HPS lightweight control path, HPS-to-OCM access and sole
+SID13 scanout-to-F2SDRAM path remain required. The generator checks the exact
+eight initiator endpoints (including CPU bridges and relay stages), every
+control ingress and the sole fabric-to-HPS route. It also checks the actual
+generated parent RTL: removed instances must be absent, and unused HPS F2H
+ARVALID/AWVALID/WVALID must be literal zero. Captured verifier bytes and the
+complete generated graph receipt are checked before and after compilation;
+the compiled and Linux-conversion receipts retain this graph. The independent
+maintenance recipe keeps its debug paths, and JTAG FPGA configuration remains
+available. This profile changes no HPS parameters beyond the existing selected
+SMMU exposure and grants no IO, reset, physical DMA or native acceptance.
+
 The package path requires the complete 85-rule signoff inventory and its detailed
 results, all reported setup/hold/recovery/removal/pulse-width/skew/net-delay checks, zero waived
 findings and an independent identical RBF before using the normal exporter.

@@ -240,6 +240,8 @@ class DE25MenuPackageTests(unittest.TestCase):
         original = record()
         self.assertEqual(json.loads(original)['parameters']['reset_release_timing'],
                          producer.TIMED_RESET_RELEASE)
+        self.assertEqual(json.loads(original)['parameters']['fabric_initiator_policy'],
+                         producer.MANAGED_FABRIC)
         self.assertEqual(verify_record_source_at_revision(self.root, original)['source_inputs'], json.loads(original)['source_inputs'])
         self.assertEqual(build_identity(original), build_identity(record(selected='b' * 40)))
         changed = dict(identities, quartus='different actual compiler')

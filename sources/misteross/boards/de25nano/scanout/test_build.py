@@ -51,6 +51,7 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertEqual(inputs["scanout"]["build_id"], selected)
         self.assertEqual(inputs["scanout"]["build_identity_scheme"], "canonical-functional-record-v2")
         self.assertEqual(inputs["scanout"]["reset_timing"], B.TIMED_RESET_RELEASE)
+        self.assertEqual(inputs["scanout"]["managed_fabric"], B.MANAGED_FABRIC)
         self.assertEqual(B.verify_reset_synchronizers(directory / "project")["sdc_clear_pins"], 8)
         self.assertIn("set_instance_parameter_value fes_scanout BUILD_ID 0x" + selected,
                       (directory / "project/integrate-mailbox.tcl").read_text())
@@ -64,7 +65,7 @@ class ScanoutBuildTests(unittest.TestCase):
         inputs = json.loads((directory / "inputs.json").read_text())
         inputs["f2sdram_master_profile"] = "scanout-only"
         inputs["scanout"].update(build_identity_scheme="canonical-functional-record-v2",
-                                 reset_timing=B.TIMED_RESET_RELEASE)
+                                 reset_timing=B.TIMED_RESET_RELEASE, managed_fabric=B.MANAGED_FABRIC)
         path = directory / "project/fes_mailbox/clocks.sdc"
         path.write_text(B.timed_scanout_sdc(path.read_text()))
         inputs["scanout"]["source_sha256"]["clocks.sdc"] = B.sha(path.read_bytes())
@@ -114,13 +115,15 @@ class ScanoutBuildTests(unittest.TestCase):
             B.reset_sdc_files(directory / "project")
         inputs = json.loads((directory / "inputs.json").read_text())
         for changed in (dict(inputs["scanout"], reset_timing="other"),
+                        dict(inputs["scanout"], managed_fabric="other"),
+                        dict(inputs["scanout"], managed_fabric=None),
                         dict(inputs["scanout"], build_identity_scheme="diagnostic-source-profile"),
                         dict(inputs["scanout"], hps_initialization="AFTER INIT_DONE")):
             with self.assertRaises(ValueError):
                 B.timed_reset_release(dict(inputs, scanout=changed))
 
     @unittest.skipUnless(shutil.which("tclsh"), "Tcl interpreter is unavailable")
-    def test_actual_sdc_guard_times_only_five_instances_and_preserves_other_cuts(self):
+    def test_actual_sdc_guard_times_only_selected_receivers_and_preserves_other_cuts(self):
         raw = gzip.decompress((B.HERE.parents[2] /
             "tests/fixtures/de25_reset_controller.sdc.gz").read_bytes())
         changed = B.timed_vendor_reset_sdc(raw).decode()
@@ -134,8 +137,8 @@ class ScanoutBuildTests(unittest.TestCase):
                 script += ["set scope {" + scope + "}", "if {" + condition + "} {puts cut} else {puts timed}"]
         result = subprocess.run([shutil.which("tclsh")], input="\n".join(script), text=True,
                                 capture_output=True, check=True, timeout=10)
-        self.assertEqual(len(B.TIMED_RESET_INSTANCES), 5)
-        self.assertEqual(result.stdout.splitlines(), (["timed"] * 5 + ["cut"] * 3) * 2)
+        self.assertEqual(len(B.TIMED_RESET_INSTANCES), 3)
+        self.assertEqual(result.stdout.splitlines(), (["timed"] * 3 + ["cut"] * 3) * 2)
 
     def test_compile_refuses_regenerated_reset_cuts_before_linux_conversion(self):
         output, directory, hps = self.reset_timing_fixture()
@@ -144,11 +147,39 @@ class ScanoutBuildTests(unittest.TestCase):
             path = directory / "project/generated-0/altera_reset_controller.sdc"
             path.write_bytes((directory / "reset-timing-originals/generated-0/altera_reset_controller.sdc").read_bytes())
             return directory / "not-reached.sof"
+        generation = {"scanout": {"managed_fabric": {"fixture": True}}}
+        (directory / "generation.json").write_text(json.dumps(generation))
         with mock.patch.object(hps, "compile_project", side_effect=compile_then_restore), \
+             mock.patch.object(B, "verify_managed_fabric", return_value={"fixture": True}), \
              mock.patch.object(hps, "linux_configuration_artifacts") as convert:
             with self.assertRaisesRegex(ValueError, "same-clock reset constraints changed"):
                 B.compile_project(output, hps, None, None)
         convert.assert_not_called()
+
+    def test_managed_graph_changes_stop_before_compile_or_linux_conversion(self):
+        output, directory, hps = self.reset_timing_fixture()
+        reset = B.repair_generated_reset_timing(directory)
+        generation = {"scanout": {"managed_fabric": {"fixture": True}, "reset_timing": reset}}
+        (directory / "generation.json").write_text(json.dumps(generation))
+        for stage, values, compile_calls in (("before", [{"changed": True}], 0),
+                                            ("after", [{"fixture": True}, {"changed": True}], 1)):
+            with self.subTest(stage=stage), \
+                 mock.patch.object(B, "verify_managed_fabric", side_effect=values), \
+                 mock.patch.object(hps, "compile_project", return_value=directory / "candidate.sof") as compile, \
+                 mock.patch.object(hps, "linux_configuration_artifacts") as convert:
+                with self.assertRaisesRegex(ValueError, "managed fabric differs"):
+                    B.compile_project(output, hps, None, None)
+                self.assertEqual(compile.call_count, compile_calls)
+                convert.assert_not_called()
+
+    def test_captured_managed_verifier_is_checked_before_execution(self):
+        _, directory, hps = self.reset_timing_fixture()
+        path = directory / "project/fes_mailbox/linux_dma.py"
+        path.write_bytes(path.read_bytes() + b"\nraise RuntimeError('must not execute altered verifier')\n")
+        with mock.patch.object(B, "load") as load:
+            with self.assertRaisesRegex(ValueError, "differs from captured source"):
+                B.verify_managed_fabric(directory, hps)
+            load.assert_not_called()
 
     def test_retained_hdmi_derivation_and_input_binding_fail_closed(self):
         output, _, hps, _ = self.prepare()

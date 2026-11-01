@@ -21,12 +21,11 @@ LOCAL = ("build.py", "linux_dma.py", "hdmi_inputs.py", "integrate.tcl", "clocks.
          "fes_de25_scanout_hw.tcl", "fes_de25_scanout_board.v",
          "fes_de25_scanout_guard.v", "fes_de25_scanout_guard_hw.tcl",
          "generated/fes_de25_scanout.vh", "generated/fes_de25_scanout.h")
-TIMED_RESET_RELEASE = "timed-system-reset-release-v2"
+TIMED_RESET_RELEASE = "timed-system-reset-release-v3"
+MANAGED_FABRIC = "managed-scanout-initiators-v1"
 RESET_SDC_SHA256 = "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
 TIMED_RESET_INSTANCES = ("soc_inst|rst_controller", "soc_inst|subsys_periph|rst_controller",
-                         "soc_inst|rst_controller_002",
-                         "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|rst_controller",
-                         "soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|rst_controller")
+                         "soc_inst|rst_controller_002")
 
 
 def sha(data): return hashlib.sha256(data).hexdigest()
@@ -76,9 +75,10 @@ def timed_reset_release(inputs):
     policy = scanout.get("reset_timing")
     if canonical:
         if (policy != TIMED_RESET_RELEASE or scanout["hps_initialization"] != "HPS FIRST" or
-                inputs.get("f2sdram_master_profile") != "scanout-only"):
+                inputs.get("f2sdram_master_profile") != "scanout-only" or
+                scanout.get("managed_fabric") != MANAGED_FABRIC):
             raise ValueError("canonical MENU requires the selected same-clock reset timing profile")
-    elif policy is not None:
+    elif policy is not None or scanout.get("managed_fabric") is not None:
         raise ValueError("same-clock reset timing requires the canonical MENU profile")
     return canonical
 
@@ -299,6 +299,10 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
         dma = load(snapshot / BOARD / "scanout/linux_dma.py", "scanout_retained_linux_dma")
         prefix, dma_profile, parameter_changes = dma.configure(project, definition, hps)
         script = dma.isolate_script(script, before)
+        if package_build_id is not None:
+            if dma.MANAGED_FABRIC != MANAGED_FABRIC:
+                raise ValueError("managed fabric producer policy differs")
+            script = dma.isolate_managed_fabric_script(script, before)
         script = replace_once(script, "package require -exact qsys 26.3\n", "package require -exact qsys 26.3\n" + prefix)
     (project / "integrate-mailbox.tcl").write_text(script)
     inputs = json.loads(original_inputs)
@@ -325,11 +329,14 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
         "dma_admission": "not-qualified; SID/firewall/firmware/physical lifetime gates remain"}
     if package_build_id is not None:
         inputs["scanout"]["reset_timing"] = TIMED_RESET_RELEASE
+        inputs["scanout"]["managed_fabric"] = MANAGED_FABRIC
     if dma_profile is not None:
         inputs["scanout"]["linux_dma"] = dma_profile
         inputs["allowed_hps_parameter_changes"] = parameter_changes
         inputs["f2sdram_master_profile"] = "scanout-only"
         inputs["combined_display"]["debug_paths"] = "JTAG F2SDRAM master/window removed; other JTAG/OCM/F2H paths preserved"
+        if package_build_id is not None:
+            inputs["combined_display"]["debug_paths"] = "JTAG Avalon masters and F2H translator removed; HPS control/OCM and JTAG FPGA configuration preserved"
     (directory / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
     (output / "snapshot.json").write_text(json.dumps({**selected, "source_sha256": inputs["functional_snapshot_sha256"],
         "hps_output": "combined/hps", "upstream_preparation_inputs_sha256": sha(original_inputs)}, indent=2, sort_keys=True) + "\n")
@@ -599,6 +606,8 @@ def verify_generated(output, hps, verifier_revision=None):
     if timed_reset_release(inputs):
         generation["scanout"]["reset_timing"] = verify_generated_reset_timing(directory)
     generation["scanout"]["hdmi_inputs"] = verify_hdmi_inputs(directory / "project", inputs, hps)
+    if timed_reset_release(inputs):
+        generation["scanout"]["managed_fabric"] = verify_managed_fabric(directory, hps)
     selected = json.loads((directory / "inputs.json").read_text())["scanout"].get("linux_dma")
     if selected is not None:
         helper = load(directory / "project/fes_mailbox/linux_dma.py", "scanout_generated_linux_dma")
@@ -613,16 +622,36 @@ def verify_generated(output, hps, verifier_revision=None):
     path.write_text(json.dumps(generation, indent=2, sort_keys=True) + "\n")
 
 
+def verify_managed_fabric(directory, hps):
+    inputs = json.loads((directory / "inputs.json").read_text())
+    if not timed_reset_release(inputs):
+        raise ValueError("managed fabric requires canonical MENU")
+    path = directory / "project/fes_mailbox/linux_dma.py"
+    if sha(path.read_bytes()) != inputs["scanout"]["source_sha256"]["linux_dma.py"]:
+        raise ValueError("managed fabric verifier differs from captured source")
+    helper = load(path, "scanout_selected_managed_fabric")
+    if helper.MANAGED_FABRIC != MANAGED_FABRIC:
+        raise ValueError("managed fabric verifier policy differs")
+    return helper.verify_managed_fabric(directory / "project", hps)
+
+
 def compile_project(output, hps, display, tool):
     directory = output / "combined/hps"
     inputs = json.loads((directory / "inputs.json").read_text())
+    managed_fabric = None
     if timed_reset_release(inputs):
         verify_generated_reset_timing(directory)
+        managed_fabric = verify_managed_fabric(directory, hps)
+        if json.loads((directory / "generation.json").read_text())["scanout"]["managed_fabric"] != managed_fabric:
+            raise ValueError("managed fabric differs from the generated receipt")
     artifact = hps.compile_project(directory, tool)
     if timed_reset_release(inputs):
         checked = verify_generated_reset_timing(directory)
         if json.loads((directory / "generation.json").read_text())["scanout"]["reset_timing"] != checked:
             raise ValueError("compiled reset timing differs from the generated receipt")
+        managed_fabric = verify_managed_fabric(directory, hps)
+        if json.loads((directory / "generation.json").read_text())["scanout"]["managed_fabric"] != managed_fabric:
+            raise ValueError("compiled managed fabric differs from the generated receipt")
     verify_hdmi_inputs(directory / "project", inputs, hps)
     expected = inputs["combined_display"]["pixel_pll_parameters"]
     actual = display.pll_parameters((directory / "project/fes_combined/sys_pll.ip").read_bytes())
@@ -631,7 +660,8 @@ def compile_project(output, hps, display, tool):
     record["scanout_generation_sha256"] = hps.digest(directory / "generation.json")
     record["scanout"] = {"build_id": inputs["scanout"]["build_id"], "default_enabled": False, "ddr_scanout": True, "runtime_admission": "not-qualified",
                          "f2sdram_master_profile": inputs.get("f2sdram_master_profile", "diagnostic"),
-                         "linux_dma": inputs["scanout"].get("linux_dma")}
+                         "linux_dma": inputs["scanout"].get("linux_dma"),
+                         **({"managed_fabric": managed_fabric} if managed_fabric is not None else {})}
     (directory / "build.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     if actual != expected:
         raise ValueError("compile changed pixel PLL parameters; retained failed validation receipt")
@@ -644,6 +674,7 @@ def compile_project(output, hps, display, tool):
                   "generation_sha256": hps.digest(directory / "generation.json"),
                   "f2sdram_master_profile": inputs.get("f2sdram_master_profile", "diagnostic"),
                   "linux_dma": inputs["scanout"].get("linux_dma"),
+                  **({"managed_fabric": managed_fabric} if managed_fabric is not None else {}),
                   "scanout_source_sha256": sha(json.dumps(inputs["functional_snapshot_sha256"], sort_keys=True).encode()),
                   "scanout_build_id": inputs["scanout"]["build_id"],
                   **artifacts, "hardware_programming": "not-performed", "boot_compatibility": "not-qualified",
