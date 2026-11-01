@@ -1097,8 +1097,12 @@ requires its PASS message and a later DOS prompt. It checks the actual 720p
 frame against the BIOS font. The pinned base remains unchanged.
 
 `make sim-fes-pcxt-game PCXT_DIGGER_EXE=/path/to/DIGGER.EXE` tests the pinned
-real-mode Digger Remastered executable; obtain it separately. The image builder
-checks the executable and final 360 KiB disk hashes and does not download or
+real-mode Digger Remastered executable; obtain it separately. The selected
+executable has SHA-256
+`5cbe1c156502e08abbeb7f2a9f3e3c285038b4f33e1cc25085ff98a2d5833706`;
+the previously used distribution was `https://image.dosgamesarchive.com/games/digger.zip`
+(SHA-256 `f2b03165bffcfa5bca8053935632608c26efc90a301468c3d9092a2a7c2faf83`).
+The image builder checks the executable and final 360 KiB disk hashes and does not download or
 redistribute the game. The simulation compares the start and right-arrow
 branches to no-input branches at the same simulated cycles. Five output frames
 must match the SHA-256 references from the previously independently reviewed

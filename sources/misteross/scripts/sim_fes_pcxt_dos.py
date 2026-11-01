@@ -6,6 +6,7 @@ import json
 import hashlib
 import os
 import signal
+import shutil
 import time
 from pathlib import Path
 import subprocess
@@ -16,6 +17,76 @@ import pcxt_bios as bios
 import pcxt_acceptance_media as acceptance
 
 ROOT = sim.ROOT
+
+
+def check_space(path):
+    """Do not start long simulation work when the filesystem is nearly full."""
+    if shutil.disk_usage(path).free < 30 * 1024**3:
+        raise ValueError('PC/XT simulation requires at least 30 GiB free')
+
+
+def run_simulation(cmd, cwd, scenario, *, timeout=3 * 60 * 60, heartbeat=30, grace=5):
+    """Run and reap the simulator and its forked comparison processes.
+
+    A process group is owned by this invocation. SIGTERM and SIGINT take the
+    same bounded cleanup path as a timeout or other exception, including when
+    the simulator does not exit after TERM.
+    """
+    proc = None
+    interrupted = 0
+
+    def interrupt(signum, _frame):
+        # Do not raise during Popen: its child may already exist while the
+        # caller has not yet received a process handle to clean up.
+        nonlocal interrupted
+        interrupted = signum
+
+    previous = {sig: signal.signal(sig, interrupt) for sig in (signal.SIGTERM, signal.SIGINT)}
+    try:
+        proc = subprocess.Popen(cmd, cwd=cwd, start_new_session=True)
+        deadline = time.monotonic() + timeout
+        next_heartbeat = time.monotonic() + heartbeat
+        while True:
+            if interrupted:
+                raise SystemExit(128 + interrupted)
+            now = time.monotonic()
+            if now >= deadline:
+                raise TimeoutError('PC/XT simulation exceeded its time limit')
+            try:
+                status = proc.wait(timeout=min(0.5, max(0.01, deadline - now),
+                                               max(0.01, next_heartbeat - now)))
+                break
+            except subprocess.TimeoutExpired:
+                if time.monotonic() >= next_heartbeat:
+                    print('PC/XT ' + scenario + ' simulation is running', flush=True)
+                    next_heartbeat = time.monotonic() + heartbeat
+        if interrupted:
+            raise SystemExit(128 + interrupted)
+        if status:
+            raise subprocess.CalledProcessError(status, cmd)
+    except BaseException:
+        if proc is not None:
+            # Do not allow repeated termination to interrupt cleanup.
+            for sig in previous:
+                signal.signal(sig, signal.SIG_IGN)
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                proc.wait(timeout=grace)
+            except subprocess.TimeoutExpired:
+                pass
+            # A forked game-control child can outlive an exited parent.
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            proc.wait(timeout=grace)
+        raise
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
 
 
 def main():
@@ -47,6 +118,7 @@ def run(args):
                  'inputs.json', 'bus.log', 'candidate.json', 'title-before-start.ppm',
                  'start-control.ppm', 'start-key.ppm', 'right-control.ppm', 'right-key.ppm'):
         (build / name).unlink(missing_ok=True)
+    check_space(build)
     bios.fixture_inputs(build, args.bios, args.font, args.download)
     # Validate the exact bytes supplied to the device against the pinned boot
     # code, geometry and all 8086 FreeDOS files, while allowing harmless
@@ -101,27 +173,7 @@ def run(args):
         print('Inputs and simulation compilation complete; no simulation run.', flush=True)
         return
     cmd = [str(build / 'Vbios_top'), str(build / 'firmware.bin'), str(build / 'floppy.img'), args.scenario]
-    proc = subprocess.Popen(cmd, cwd=build, start_new_session=True)
-    deadline = time.monotonic() + 3 * 60 * 60
-    try:
-        while True:
-            try:
-                status = proc.wait(timeout=min(30, max(0.1, deadline - time.monotonic())))
-                break
-            except subprocess.TimeoutExpired:
-                if time.monotonic() >= deadline:
-                    raise TimeoutError('PC/XT simulation exceeded three hours')
-                print('PC/XT ' + args.scenario + ' simulation is running', flush=True)
-        if status:
-            raise subprocess.CalledProcessError(status, cmd)
-    except BaseException:
-        # The game comparison forks; stop the whole owned process group.
-        try:
-            os.killpg(proc.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        proc.wait()
-        raise
+    run_simulation(cmd, build, args.scenario)
     if args.scenario == 'game':
         verify_game(build)
         return

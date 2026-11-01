@@ -12,6 +12,19 @@ import sim_fes_pcxt_dos as dos
 
 
 class DosEvidenceTest(unittest.TestCase):
+    def test_low_disk_preflight_clears_old_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build = root / 'build/sim/fes-pcxt/dos'
+            build.mkdir(parents=True)
+            (build / 'result.json').write_text('old success')
+            args = SimpleNamespace(scenario='dos')
+            with patch.object(dos, 'ROOT', root), \
+                 patch.object(dos, 'check_space', side_effect=ValueError('low disk')):
+                with self.assertRaisesRegex(ValueError, 'low disk'):
+                    dos.run(args)
+            self.assertFalse((build / 'result.json').exists())
+
     def test_failed_fixture_preflight_removes_prior_result(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -21,8 +34,9 @@ class DosEvidenceTest(unittest.TestCase):
                      'inputs.json', 'bus.log')
             for name in names:
                 (build / name).write_text('old evidence')
-            args = SimpleNamespace(bios=None, font=None, download=False)
+            args = SimpleNamespace(scenario='dos', bios=None, font=None, download=False)
             with patch.object(dos, 'ROOT', root), \
+                 patch.object(dos, 'check_space'), \
                  patch.object(dos.bios, 'fixture_inputs', side_effect=ValueError('bad BIOS')):
                 with self.assertRaisesRegex(ValueError, 'bad BIOS'):
                     dos.run(args)
