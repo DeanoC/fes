@@ -78,6 +78,7 @@ func TestInstalledCoreSetupKeepsUsableSiblingPackages(t *testing.T) {
 				})
 			}
 			a := NewApp(NewClient(server.URL, httpClient), 1280, 720, 10)
+			a.SetAllCores(true) // Pong is held back from v1.
 			a.ctx = ctx
 			a.coreLibrary.Cores = []hostclient.AvailableCore{{Label: "cached"}}
 			a.mu.Lock()

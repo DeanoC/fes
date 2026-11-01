@@ -298,7 +298,8 @@ func TestLateDisplayTickDoesNotCountSchedulerDelayAsPoll(t *testing.T) {
 
 func TestFramebufferFullAppLoop(t *testing.T) {
 	server := framebufferFixture(t)
-	opts := Options{APIBase: server.URL, Width: 640, Height: 480, Smoke: true, PrefsPath: t.TempDir() + "/prefs.json"}.normalized()
+	// The catalog fixture is Pong, which is held back from v1.
+	opts := Options{APIBase: server.URL, Width: 640, Height: 480, Smoke: true, AllCores: true, PrefsPath: t.TempDir() + "/prefs.json"}.normalized()
 	app, err := configuredApp(opts)
 	if err != nil {
 		t.Fatal(err)

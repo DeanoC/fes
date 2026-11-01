@@ -94,8 +94,8 @@ type Options struct {
 	// Surround draws the TV surround around a running machine on kit HDMI,
 	// from tenfoot.json surround. It defaults on.
 	Surround bool
-	// AllCores lists cores outside the v1 release, from tenfoot.json
-	// all_cores or FOGCAST_TENFOOT_ALL_CORES.
+	// AllCores lists cores outside the v1 release. It is also set by
+	// FOGCAST_TENFOOT_ALL_CORES or tenfoot.json all_cores.
 	AllCores bool
 }
 
@@ -223,7 +223,7 @@ func (o Options) normalized() Options {
 		o.ReducedMotion = prefs.ReducedMotion
 	}
 	o.Surround = prefsErr != nil || prefs.Surround == nil || *prefs.Surround
-	o.AllCores = envTruthy(os.Getenv("FOGCAST_TENFOOT_ALL_CORES")) || prefsErr == nil && prefs.AllCores
+	o.AllCores = o.AllCores || envTruthy(os.Getenv("FOGCAST_TENFOOT_ALL_CORES")) || prefsErr == nil && prefs.AllCores
 	return o
 }
 

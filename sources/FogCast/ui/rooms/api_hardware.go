@@ -7,7 +7,6 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/corenames"
-	"github.com/DeanoC/FogCast/internal/release"
 	"github.com/DeanoC/FogCast/protocol"
 	lua "github.com/yuin/gopher-lua"
 )
@@ -102,7 +101,7 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	L := r.L
 	out, machines := L.NewTable(), L.NewTable()
 	for _, m := range v.Machines {
-		if !release.Shown(m.CoreID, !r.opts.ReleaseOnly) {
+		if !r.coreShown(m.CoreID) {
 			continue
 		}
 		row := L.NewTable()
@@ -133,7 +132,7 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	out.RawSetString("machines", machines)
 	computers := L.NewTable()
 	for _, c := range v.Computers {
-		if !release.Shown(c.CoreID, !r.opts.ReleaseOnly) {
+		if !r.coreShown(c.CoreID) {
 			continue
 		}
 		row := L.NewTable()

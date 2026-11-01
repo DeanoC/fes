@@ -52,3 +52,20 @@ func TestReleaseOnlyHardwareLeavesOutHeldBackCores(t *testing.T) {
 		t.Fatalf("machines=%d computers=%d", machines.Len(), computers.Len())
 	}
 }
+
+func TestReleaseOnlyRoomKeepsTheCoreItWasOpenedFor(t *testing.T) {
+	src := `systems = require "systems"
+function load() end
+function draw() end`
+	r := newRoom(t, memPack(t, "release-initial", src, nil), Options{ReleaseOnly: true, InitialCoreID: "fes.apple2"})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.CheckGlobal(`room.core_shown("fes.apple2") and systems.by_id["fes.apple2"] and not systems.by_id["fes.coleco"] and not room.core_shown("")`); err != nil {
+		t.Fatal(err)
+	}
+	machines := r.hardwareTable(hostclient.HardwareSnapshot{Machines: []hostclient.HardwareMachine{{CoreID: "fes.apple2"}, {CoreID: "fes.coleco"}}}).RawGetString("machines").(interface{ Len() int })
+	if machines.Len() != 1 {
+		t.Fatalf("machines = %d", machines.Len())
+	}
+}

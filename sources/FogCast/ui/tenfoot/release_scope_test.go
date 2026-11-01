@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/localcores"
 )
 
 func TestCoreLibraryListsOnlyReleaseCoresUnlessAllShown(t *testing.T) {
@@ -80,7 +81,10 @@ func TestAllCoresSettingTogglesAndPersists(t *testing.T) {
 		t.Fatalf("row = %#v", row)
 	}
 	app.HandleCommand(CmdSelect, now)
-	if row := app.Snapshot().Settings.Rows[settingsRowAllCores]; row.Value != "On" {
+	app.mu.Lock()
+	row := app.settingsRowsLocked()[settingsRowAllCores]
+	app.mu.Unlock()
+	if row.Value != "On" {
 		t.Fatalf("toggled row = %#v", row)
 	}
 	got, err := loadTenfootPrefs(path)
@@ -91,5 +95,25 @@ func TestAllCoresSettingTogglesAndPersists(t *testing.T) {
 	defer app.mu.Unlock()
 	if !app.allCores {
 		t.Fatal("toggle did not show all cores")
+	}
+}
+
+func TestAllCoresChangeFromSettingsRebuildsHome(t *testing.T) {
+	cores := &fakeLocalCores{cores: []localcores.Core{
+		{PackageID: tenfootPongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
+	}}
+	app := startHomeLounge(t, cores, 1280, 720)
+	waitFor(t, app, "home room", func(s Snapshot) bool { return s.Room.Open && s.Room.ID == installedCoresHomeID })
+	app.mu.Lock()
+	before := app.room
+	app.mu.Unlock()
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	focusSettingsRow(t, app, "all-cores", now)
+	app.HandleCommand(CmdSelect, now)
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.settingsOpen || app.room == nil || app.room == before || !app.room.ReleaseOnly() || app.room.ID() != installedCoresHomeID {
+		t.Fatalf("settings open %v, room %p (was %p), release only %v", app.settingsOpen, app.room, before, app.room != nil && app.room.ReleaseOnly())
 	}
 }

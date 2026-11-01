@@ -1858,19 +1858,24 @@ func (a *App) setSurroundLocked(on bool, persist bool) {
 	a.status = "TV surround off"
 }
 
-// setAllCoresLocked lists or hides cores outside the v1 release. Rooms opened
-// after the change, the core catalog view and Home recents follow it.
+// setAllCoresLocked lists or hides cores outside the v1 release. The core
+// catalog view and Home recents follow it at once. A room keeps the list it
+// was opened with, so a change from Settings goes Home, which is rebuilt
+// rather than reclaimed; while a machine runs, Home is rebuilt when next shown.
 func (a *App) setAllCoresLocked(on bool, persist bool) {
 	a.allCores = on
 	if !persist {
 		return
 	}
 	a.persistPrefsLocked("all-cores")
+	status := "v1 cores only"
 	if on {
-		a.status = "all cores shown"
-		return
+		status = "all cores shown"
 	}
-	a.status = "v1 cores only"
+	if a.settingsOpen && !a.sessionStopOfferedLocked() && a.launch.Phase != "launching" {
+		a.goHomeNowLocked()
+	}
+	a.status = status
 }
 
 func (a *App) SetAllCores(on bool) {

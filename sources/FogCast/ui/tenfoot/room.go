@@ -358,12 +358,12 @@ func (a *App) resolveHomeRoomLocked(id string) (rooms.Pack, string, bool) {
 func (a *App) reclaimHomeRoomLocked(id, revision string) bool {
 	var home *rooms.Instance
 	for _, parent := range a.roomStack {
-		if parent != nil && parent.ID() == id && parent.Revision() == revision && parent.Err() == nil {
+		if parent != nil && parent.ID() == id && parent.Revision() == revision && parent.Err() == nil && parent.ReleaseOnly() == !a.allCores {
 			home = parent
 			break
 		}
 	}
-	if home == nil && a.room != nil && a.room.ID() == id && a.room.Revision() == revision && a.room.Err() == nil {
+	if home == nil && a.room != nil && a.room.ID() == id && a.room.Revision() == revision && a.room.Err() == nil && a.room.ReleaseOnly() == !a.allCores {
 		home = a.room
 	}
 	if home == nil {
