@@ -500,7 +500,7 @@ def reviewed_hps_parameter_changes(inputs):
     scanout = inputs.get("scanout", {})
     managed = scanout.get("managed_fabric")
     if managed is not None:
-        if (managed != "managed-scanout-initiators-v2" or
+        if (managed != "managed-scanout-initiators-v3" or
                 scanout.get("build_identity_scheme") != "canonical-functional-record-v2" or
                 scanout.get("hps_initialization") != "HPS FIRST" or
                 inputs.get("f2sdram_master_profile") != "scanout-only"):

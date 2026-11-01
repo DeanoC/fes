@@ -173,7 +173,7 @@ and compilation verify the derived board SDC, all six generated files and their
 receipt; regenerated or changed constraints stop the build before Linux phase
 conversion. The canonical record binds this policy before IP generation.
 
-The canonical `managed-scanout-initiators-v2` profile removes the entire vendor
+The canonical `managed-scanout-initiators-v3` profile removes the entire vendor
 debug subsystem and its separate ACE5-Lite F2H translator. The maintenance
 Linux-DMA profile above retains its other debug paths. FPGA configuration over
 JTAG remains available; these removed components are Avalon transaction masters.
@@ -196,6 +196,11 @@ keeps its existing bridge parameters. The disabled bridge is checked in the
 actual HPS IP, elaborated interface definition and generated parent RTL; no
 manual parent RTL tie-offs are used. This parameter change still requires
 separate boot-firmware and native acceptance.
+The GHRD `source ./jtag.sdc` statement is also retired because the fabric JTAG
+interfaces it constrains are absent. Both reviewed SDC input hashes are required;
+the original GHRD constraints are retained beside the derived file and the exact
+derivation is checked before and after compilation. The original JTAG SDC stays
+unchanged in the retained project. Other clock/reset/IO constraints remain.
 The canonical record selects this policy before generation. This removes
 unmanaged fabric paths; it does not establish physical DMA/reset lifetime or
 relax any timing, IO, package or native acceptance gate.

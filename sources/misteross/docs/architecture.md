@@ -35,7 +35,7 @@ rechecked after generation and compilation, before Linux phase conversion;
 the canonical record binds the policy. The standalone diagnostic recipe keeps
 its original reset constraints.
 
-Canonical MENU also selects `managed-scanout-initiators-v2` before generation.
+Canonical MENU also selects `managed-scanout-initiators-v3` before generation.
 It removes the vendor JTAG Avalon masters and their separate ACE5-Lite F2H
 translator. The normal HPS lightweight control path, HPS-to-OCM access and sole
 SID13 scanout-to-F2SDRAM path remain required. The generator checks the exact
@@ -50,6 +50,11 @@ the compiled and Linux-conversion receipts retain this graph. The
 full vendor HPS/EMIF parameter review permits exactly the selected F2SDRAM SMMU
 exposure and F2H disable for canonical MENU. Actual HPS parameters, elaborated
 interfaces and generated parent ports are checked before and after compilation.
+This profile retires only the vendor GHRD's `source ./jtag.sdc` statement for
+the removed fabric JTAG interfaces. The reviewed original GHRD/JTAG SDC hashes
+are required, original and derived GHRD bytes are retained, and the exact
+derivation is rechecked before and after compilation. Other constraints remain
+present. This removes constraints for absent hardware and adds no exception.
 The independent
 maintenance recipe keeps its debug paths, and JTAG FPGA configuration remains
 available. The F2H parameter change has no boot-firmware acceptance yet and

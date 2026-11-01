@@ -1,11 +1,14 @@
 """Prepare the explicit, unadmitted Linux SMMU profile in a private project."""
 import hashlib
+import json
 from pathlib import Path
 import re
 
 HPS_IP = 'hps_subsys/ip/hps_subsys/agilex_hps.ip'
 ADAPTER = 'custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl'
-MANAGED_FABRIC = 'managed-scanout-initiators-v2'
+MANAGED_FABRIC = 'managed-scanout-initiators-v3'
+GHRD_SDC_SHA256 = '743b02b7fa6e3f6397890702f626ff7b27a5c7ab6aa9d1721c22d286900c7247'
+JTAG_SDC_SHA256 = '02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a'
 MANAGED_MASTERS = (
     'subsys_hps_agilex_hps.hps2fpga', 'subsys_hps_agilex_hps.lwhps2fpga',
     'subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout_guard.avm',
@@ -152,6 +155,49 @@ foreach connection [get_connections] {
     return script.replace(top_save, removal + top_save)
 
 
+def retired_jtag_sdc(original):
+    if hashlib.sha256(original).hexdigest() != GHRD_SDC_SHA256:
+        raise ValueError('managed fabric GHRD constraint input differs')
+    before = b'# sourcing JTAG related SDC\nsource ./jtag.sdc\n'
+    if original.count(before) != 1:
+        raise ValueError('managed fabric JTAG constraint source changed')
+    return original.replace(before, b'# Canonical MENU has no fabric JTAG interfaces.\n')
+
+
+def _debug_constraint_receipt(original, derived):
+    return {'policy': MANAGED_FABRIC, 'original_file': 'managed-constraints-originals/ghrd_timing.sdc',
+            'derived_file': 'project/ghrd_timing.sdc', 'retired_source': 'source ./jtag.sdc',
+            'original_sha256': hashlib.sha256(original).hexdigest(),
+            'derived_sha256': hashlib.sha256(derived).hexdigest(),
+            'retained_jtag_sdc_sha256': JTAG_SDC_SHA256}
+
+
+def retire_managed_jtag_constraints(project):
+    if hashlib.sha256((project / 'jtag.sdc').read_bytes()).hexdigest() != JTAG_SDC_SHA256:
+        raise ValueError('managed fabric vendor JTAG constraints differ')
+    path = project / 'ghrd_timing.sdc'
+    original = path.read_bytes()
+    derived = retired_jtag_sdc(original)
+    retained = project.parent / 'managed-constraints-originals'
+    retained.mkdir(exist_ok=False)
+    (retained / 'ghrd_timing.sdc').write_bytes(original)
+    path.write_bytes(derived)
+    receipt = _debug_constraint_receipt(original, derived)
+    (project.parent / 'managed-debug-constraints.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
+    return receipt
+
+
+def verify_managed_debug_constraints(project):
+    original = (project.parent / 'managed-constraints-originals/ghrd_timing.sdc').read_bytes()
+    derived = retired_jtag_sdc(original)
+    receipt = json.loads((project.parent / 'managed-debug-constraints.json').read_text())
+    if (hashlib.sha256((project / 'jtag.sdc').read_bytes()).hexdigest() != JTAG_SDC_SHA256 or
+            (project / 'ghrd_timing.sdc').read_bytes() != derived or
+            receipt != _debug_constraint_receipt(original, derived)):
+        raise ValueError('managed fabric retired JTAG constraint source or receipt changed')
+    return receipt
+
+
 def _managed_fabric_graph(project, hps):
     import xml.etree.ElementTree as ET
     sopc = project / 'qsys_top/qsys_top.sopcinfo'
@@ -222,7 +268,8 @@ def verify_managed_fabric(project, hps):
     top = project / 'qsys_top/synth/qsys_top.v'
     if _managed_parent(top.read_bytes()):
         raise ValueError('managed fabric generated parent retains unused F2H ports')
-    return {**graph, 'unused_f2h_interface': 'disabled and absent', 'generated_parent_sha256': hps.digest(top)}
+    return {**graph, 'unused_f2h_interface': 'disabled and absent', 'generated_parent_sha256': hps.digest(top),
+            'retired_debug_constraints': verify_managed_debug_constraints(project)}
 
 
 def verify(project, hps, profile):

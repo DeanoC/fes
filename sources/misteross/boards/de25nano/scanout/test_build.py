@@ -43,6 +43,7 @@ class ScanoutBuildTests(unittest.TestCase):
                 # its real conversion is exercised by LinuxDMAProfileTests.
                 module.configure = mock.Mock(return_value=("# fixture port configuration\n",
                     {"master_ownership": "scanout-only"}, {}))
+                module.retire_managed_jtag_constraints = mock.Mock(return_value={})
             return module
         with mock.patch.object(B, "load", side_effect=load):
             output, _, _, _ = self.prepare("a" * 40, hps_first=True, linux_dma=True, package_build_id=selected)

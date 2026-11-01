@@ -630,13 +630,13 @@ class HpsBuildTests(unittest.TestCase):
         maintenance = {"allowed_hps_parameter_changes": smmu}
         self.assertEqual(BUILD.reviewed_hps_parameter_changes(maintenance), smmu)
         managed = copy.deepcopy(maintenance)
-        managed["scanout"] = {"managed_fabric": "managed-scanout-initiators-v2",
+        managed["scanout"] = {"managed_fabric": "managed-scanout-initiators-v3",
             "build_identity_scheme": "canonical-functional-record-v2", "hps_initialization": "HPS FIRST"}
         managed["f2sdram_master_profile"] = "scanout-only"
         managed["allowed_hps_parameter_changes"][HPS]["f2s_data_width"] = {"before": "256", "after": "0"}
         self.assertEqual(BUILD.reviewed_hps_parameter_changes(managed), managed["allowed_hps_parameter_changes"])
         cases = []
-        for key, value in (("managed_fabric", "managed-scanout-initiators-v1"),
+        for key, value in (("managed_fabric", "managed-scanout-initiators-v2"),
                            ("build_identity_scheme", "diagnostic-source-profile"),
                            ("hps_initialization", "FPGA FIRST")):
             changed = copy.deepcopy(managed); changed["scanout"][key] = value; cases.append(changed)

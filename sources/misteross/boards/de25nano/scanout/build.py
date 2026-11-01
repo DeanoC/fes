@@ -22,7 +22,7 @@ LOCAL = ("build.py", "linux_dma.py", "hdmi_inputs.py", "integrate.tcl", "clocks.
          "fes_de25_scanout_guard.v", "fes_de25_scanout_guard_hw.tcl",
          "generated/fes_de25_scanout.vh", "generated/fes_de25_scanout.h")
 TIMED_RESET_RELEASE = "timed-system-reset-release-v3"
-MANAGED_FABRIC = "managed-scanout-initiators-v2"
+MANAGED_FABRIC = "managed-scanout-initiators-v3"
 RESET_SDC_SHA256 = "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
 TIMED_RESET_INSTANCES = ("soc_inst|rst_controller", "soc_inst|subsys_periph|rst_controller",
                          "soc_inst|rst_controller_002")
@@ -304,6 +304,7 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
             if dma.MANAGED_FABRIC != MANAGED_FABRIC:
                 raise ValueError("managed fabric producer policy differs")
             script = dma.isolate_managed_fabric_script(script, before)
+            dma.retire_managed_jtag_constraints(project)
         script = replace_once(script, "package require -exact qsys 26.3\n", "package require -exact qsys 26.3\n" + prefix)
     (project / "integrate-mailbox.tcl").write_text(script)
     inputs = json.loads(original_inputs)

@@ -35,11 +35,17 @@ class ManagedFabricTests(unittest.TestCase):
         self.restore_fixture()
 
     def restore_fixture(self):
+        shutil.rmtree(self.directory / 'managed-constraints-originals', ignore_errors=True)
+        (self.directory / 'managed-debug-constraints.json').unlink(missing_ok=True)
         for name, text in self.fixture['files'].items():
             path = self.project / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
         self.set_hps_width('256')
+        constraints = json.loads(gzip.decompress((ROOT / 'tests/fixtures/de25_managed_jtag_sdc.json.gz').read_bytes()))
+        for name, text in constraints['files'].items():
+            self.assertEqual(hashlib.sha256(text.encode()).hexdigest(), constraints['sha256'][name])
+            (self.project / name).write_text(text)
 
     def set_hps_width(self, width):
         # A minimal synthetic IP-XACT parameter view for projected tests.
@@ -81,6 +87,7 @@ class ManagedFabricTests(unittest.TestCase):
         self.assertGreater(count, 3)
         path.write_text(source)
         self.set_hps_width('0')
+        D.retire_managed_jtag_constraints(self.project)
 
     def mutate_routes(self, change):
         path = self.project / 'qsys_top/qsys_top.sopcinfo'
@@ -174,6 +181,40 @@ class ManagedFabricTests(unittest.TestCase):
         tree.write(path)
         with self.assertRaisesRegex(ValueError, 'remains exposed'):
             D.verify_managed_fabric(self.project, H)
+
+    def test_retired_jtag_source_preserves_all_other_constraints_and_original_bytes(self):
+        original = (self.project / 'ghrd_timing.sdc').read_bytes()
+        self.project_removals()
+        receipt = D.verify_managed_debug_constraints(self.project)
+        self.assertEqual((self.directory / receipt['original_file']).read_bytes(), original)
+        derived = (self.project / 'ghrd_timing.sdc').read_bytes()
+        self.assertEqual(derived, original.replace(b'# sourcing JTAG related SDC\nsource ./jtag.sdc\n',
+                          b'# Canonical MENU has no fabric JTAG interfaces.\n'))
+        self.assertIn(b'create_clock -name EMIF_REF_CLOCK', derived)
+        with self.assertRaisesRegex(ValueError, 'constraint input differs'):
+            D.retired_jtag_sdc(original + b'\n')
+        with self.assertRaisesRegex(ValueError, 'constraint input differs'):
+            D.retired_jtag_sdc(derived)
+
+    def test_retired_debug_constraints_and_their_retained_receipt_are_rechecked(self):
+        self.project_removals()
+        paths = [self.project / 'ghrd_timing.sdc', self.project / 'jtag.sdc',
+                 self.directory / 'managed-constraints-originals/ghrd_timing.sdc',
+                 self.directory / 'managed-debug-constraints.json']
+        for path in paths:
+            original = path.read_bytes()
+            try:
+                if path.suffix == '.json':
+                    data = json.loads(original); data['derived_sha256'] = '0' * 64
+                    path.write_text(json.dumps(data))
+                else:
+                    path.write_bytes(original + b'\n')
+                with self.subTest(path=str(path)), self.assertRaises(ValueError):
+                    D.verify_managed_fabric(self.project, H)
+            finally:
+                path.write_bytes(original)
+        self.assertEqual(D.verify_managed_fabric(self.project, H)['retired_debug_constraints'],
+                         D.verify_managed_debug_constraints(self.project))
 
     @unittest.skipUnless(shutil.which('tclsh'), 'requires Tcl')
     def test_actual_removal_script_checks_targets_and_keeps_hps_instances(self):
