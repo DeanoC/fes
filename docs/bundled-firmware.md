@@ -77,8 +77,10 @@ the rest still load.
 python3 scripts/bundled_firmware.py --output /tmp/fes-firmware
 ```
 
-Downloads are cached in `out/firmware-cache` and reused only while their
-digest matches.
+Downloads use the shared recipe cache at `out/cache/firmware` and are reused
+only while their digest matches. `FES_CACHE_ROOT` relocates the shared cache;
+the standalone downloader and `make kit-software` use the same firmware
+subdirectory.
 
 ## Where it ships
 
@@ -87,7 +89,8 @@ digest matches.
 The bundle receipt lists each object's ID, SHA-256 and size under
 `bundled_firmware`.
 
-The host that links firmware reads them from the directory its config names:
+The firmware-aware host bundle includes the config entry that points at its
+own firmware directory:
 
 ```toml
 [firmware]
@@ -97,18 +100,23 @@ bundled_dir = "/usr/share/fogcast/firmware"
 A host on a PC or Powerboat points `bundled_dir` at the output of
 `scripts/bundled_firmware.py` instead. With no `[firmware]` table, or a
 missing directory, the host has no bundled firmware and behaves as before.
+The setting ships with the firmware-aware host in its software bundle because
+older host binaries reject unknown config keys. Roll back the whole software
+bundle, including its config, when selecting an older host; remove the section
+if managing that config separately.
 
 ## Host behaviour
 
 At start the host imports every valid object into the core-media store; the
 media ID is the image's SHA-256, so a restart imports nothing new. When a
-format-3 title's package names a firmware ROM and the title has no selection,
-the first firmware read selects the bundled image for that core, ROM ID and
-exact size, with the existing compare-and-swap selection. A title with its
-own selection keeps it. After a package change, a title still on the bundled
-image moves to the new package if it names the same ROM ID and size; other
-selections stay as the [named ROM selection](../sources/FogCast/docs/core-package-library.md#named-rom-selection-for-format-3-packages)
-rules say. Library readiness (`firmware_ready`) and launch use the same path.
+format-3 title has no saved selection, its effective default is the bundled
+image whose core ID, ROM ID and exact size match the package. The default is
+derived for reads and launches, not saved as a user choice, so a future bundle
+update supplies the new default. An explicit user selection remains saved.
+Library readiness uses the startup-validated bundled object metadata without
+rehashing the same image for every title; launch still verifies the stored
+bytes. See the [named ROM selection](../sources/FogCast/docs/core-package-library.md#named-rom-selection-for-format-3-packages)
+rules for explicit selections and package changes.
 
 `GET /api/v1/library/firmware/bundled` lists the loaded objects without their
 bytes: `id`, `name`, `version`, `core_id`, `rom_id`, `size`, `media_id`,

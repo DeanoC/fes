@@ -16,6 +16,7 @@ import tomllib
 
 import bundled_firmware
 from environment import build_environment
+from recipes import shared_cache_root
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -267,7 +268,7 @@ def publish(root, base, base_sha, version, output):
         # Bundled firmware ships as separate objects beside the cores; the
         # kit's /usr/share/fogcast/firmware is the host's bundled_dir.
         firmware = [{'id': m['id'], 'sha256': m['sha256'], 'size': m['size']} for m in
-                    bundled_firmware.stage(payload / 'share/fogcast/firmware', Path(root) / 'out/firmware-cache')]
+                    bundled_firmware.stage(payload / 'share/fogcast/firmware', shared_cache_root() / 'firmware')]
         # The runtime loads its release's driver; see libmister-runtime window_driver.
         window = payload / 'share/fes-window'
         shutil.copytree(image / 'build/software/fes-window', window)

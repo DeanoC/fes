@@ -584,6 +584,9 @@ func TestZX81DamagedFirmwareSelectionCanBeReplacedAfterPackageSwitch(t *testing.
 		t.Fatalf("initial firmware readiness: %+v %v", initial[entry.GameID], err)
 	}
 	damagedMediaID := initial[entry.GameID].ROMMediaID
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "machine-rom", "", damagedMediaID); err != nil {
+		t.Fatalf("save explicit firmware choice before damage: %v", err)
+	}
 
 	db, err := sql.Open("sqlite", filepath.Join(root, "catalog.db"))
 	if err != nil {

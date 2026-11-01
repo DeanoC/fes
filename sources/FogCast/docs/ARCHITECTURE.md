@@ -3673,14 +3673,16 @@ hide the saved setup.
 A format-3 title whose firmware ROM has no selection gets the host's
 [bundled firmware](../../../docs/bundled-firmware.md) for that core, ROM ID and
 exact size, when the host loaded one from its `[firmware] bundled_dir`. The
-first firmware read binds it with the existing compare-and-swap selection
-API; an explicit selection is preserved. ZX81-family firmware is not bundled.
+host derives that default for reads and launches without saving it as a user
+selection, so a later bundle update changes the effective default. An explicit
+selection is preserved. Library readiness uses the validated bundled-object
+metadata rather than rehashing the image for every title; launch still verifies
+the stored bytes. ZX81-family firmware is not bundled.
 When a title switches between format-3 ZX81 packages that declare the same
 `machine-rom` firmware ID and exact source size, or a title on bundled
 firmware switches to a package naming the same ROM ID and size, the host
-rebinds the existing media ID to the selected package with the media-ID
-compare-and-swap API. This preserves a user-selected ZX81 image and the
-bundled image; a selection
+rebinds the existing saved media ID to the selected package with the media-ID
+compare-and-swap API. This preserves a user-selected ZX81 image; a selection
 whose ROM ID or size differs remains stale and blocks launch until explicitly
 replaced. If stored bytes fail integrity checks during rebind, readiness stays
 false while the old media ID remains available as the firmware picker's

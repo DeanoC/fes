@@ -6,6 +6,9 @@ upload_timeout_seconds = 60
 state = "/run/fogcast/catalog/state"
 staging = "/run/fogcast/catalog/staging"
 
+[firmware]
+bundled_dir = "/usr/share/fogcast/firmware"
+
 [[targets]]
 name = "kit"
 enabled = false

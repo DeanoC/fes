@@ -402,6 +402,9 @@ func (a *App) noteHomeRoomFallbackLocked(id, reason string) {
 
 // closeRoomLocked closes the current room only; parents on roomStack stay alive.
 func (a *App) closeRoomLocked() {
+	// A pending firmware lookup belongs to the room that requested it. Stop
+	// it when that room is closed so a late reply cannot overlay its successor.
+	a.closeFirmwareCardLocked()
 	if a.room == nil {
 		return
 	}

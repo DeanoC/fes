@@ -468,17 +468,21 @@ Content-Type: application/json
 {"package_id":"PACKAGE_ID","rom_id":"machine-rom","expected_media_id":"","media_id":"IMPORTED_SHA256"}
 ```
 
-`GET` on the same path returns the selection. To replace or clear it, supply
+`GET` on the same path returns the selection. When no explicit selection is
+saved and the package matches bundled firmware, it reports that effective
+default without storing it. To replace or clear an explicit selection, supply
 its current digest as `expected_media_id`; an empty `media_id` clears it.
 Selection verifies the binary's digest and exact declared source size. It
 binds the package ID and ROM name; replacing a title's package normally
-requires an explicit new ROM selection. The host rebinds the existing media ID
+requires an explicit new ROM selection. The host rebinds a saved media ID
 after a package switch only when the saved ROM ID and exact source size match
 the new firmware requirement and the title is a format-3 ZX81 (`machine-rom`)
 or still on [bundled firmware](../../../docs/bundled-firmware.md), using the
 media ID as the compare-and-swap value. Other mismatched selections remain
-stale and block launch. A firmware-role title with no selection gets the
-bundled image for its core, ROM ID and size, when the host has one. Import alone does not select content. These endpoints
+stale and block launch. A firmware-role title with no saved selection gets the
+current bundled image for its core, ROM ID and size, when the host has one.
+That default is recalculated after a bundle update; explicit selections stay
+unchanged. Import alone does not select content. These endpoints
 use the existing host API and catalog; the browser management panel continues
 to manage ordinary media separately.
 

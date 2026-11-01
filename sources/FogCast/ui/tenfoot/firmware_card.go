@@ -48,6 +48,7 @@ type firmwareCardContent struct {
 type firmwareCardState struct {
 	Open, Loading, FirstUse, LicenceView bool
 	Gen                                  int
+	Cancel                               context.CancelFunc
 	Family, FamilyLabel, CoreID          string
 	Content                              firmwareCardContent
 	Scroll                               int
@@ -62,7 +63,29 @@ type FirmwareCardSnapshot struct {
 }
 
 type firmwareCardModel struct {
-	CoreID, Label string
+	CoreID, Label, ROMID string
+	Size                 int64
+}
+
+// bundledFirmwareContracts mirrors the named ROM IDs and exact source sizes
+// used by the corresponding package producers. A core ID alone is not enough
+// to claim that a host's bundled image fits a model.
+var bundledFirmwareContracts = map[string]struct {
+	ROMID string
+	Size  int64
+}{
+	"fes.spectrum":       {ROMID: "spectrum-firmware", Size: 16 * 1024},
+	"fes.spectrum128":    {ROMID: "spectrum128-firmware", Size: 32 * 1024},
+	"fes.spectrum-plus3": {ROMID: "spectrum-plus3-firmware", Size: 64 * 1024},
+	"fes.atari-st":       {ROMID: "atari-st-firmware", Size: 192 * 1024},
+}
+
+func firmwareCardModelForCore(coreID, label string) firmwareCardModel {
+	model := firmwareCardModel{CoreID: coreID, Label: label}
+	if contract, ok := bundledFirmwareContracts[coreID]; ok {
+		model.ROMID, model.Size = contract.ROMID, contract.Size
+	}
+	return model
 }
 
 // firmwareCardCopy builds the card for a family from the host's bundled
@@ -71,7 +94,7 @@ func firmwareCardCopy(familyLabel string, models []firmwareCardModel, bundled []
 	var builtIn []protocol.BundledFirmware
 	var builtInLabels, needs []string
 	for _, m := range models {
-		if fw, ok := bundledForCore(bundled, m.CoreID); ok {
+		if fw, ok := bundledForModel(bundled, m); ok {
 			builtIn = append(builtIn, fw)
 			builtInLabels = append(builtInLabels, m.Label)
 			continue
@@ -97,20 +120,19 @@ func firmwareCardCopy(familyLabel string, models []firmwareCardModel, bundled []
 		c.Body = append(c.Body, "Every "+familyLabel+" model here starts with firmware that comes with FES, so there is nothing to add: "+strings.Join(builtInLabels, ", ")+".")
 	case len(builtIn) == 0:
 		c.Title = "The " + familyLabel + " needs your firmware"
-		c.Body = append(c.Body, "FES can't include this firmware. Put your own file on a USB drive or the SD card, then choose it in "+familyLabel+" › Set up system.")
+		c.Body = append(c.Body, "FES can't include this firmware. Put your own file on a USB drive or the SD card, then choose it in "+familyLabel+" › "+firmwareSetupAction(familyLabel)+".")
 	default:
 		c.Title = "Built-in firmware for most models"
-		c.Body = append(c.Body, "Firmware for "+strings.Join(builtInLabels, ", ")+" comes with FES. FES can't include the rest; choose your own file for them in "+familyLabel+" › Set up system.")
+		c.Body = append(c.Body, "Firmware for "+strings.Join(builtInLabels, ", ")+" comes with FES. FES can't include the rest; choose your own file for them in "+familyLabel+" › "+firmwareSetupAction(familyLabel)+".")
 	}
 	c.Body = append(c.Body, needs...)
 	seen := map[string]bool{}
 	for _, fw := range builtIn {
 		line := "Licence: " + fw.LicenceName + ". " + fw.Notice
-		if seen[line] {
-			continue
+		if !seen[line] {
+			seen[line] = true
+			c.Licence = append(c.Licence, line)
 		}
-		seen[line] = true
-		c.Licence = append(c.Licence, line)
 		c.LicenceView = append(c.LicenceView, fw.Name+" "+fw.Version, "Licence: "+fw.LicenceName+" ("+fw.Licence+")", fw.Notice, "Firmware from: "+fw.OriginURL)
 		if fw.SourceURL != "" {
 			c.LicenceView = append(c.LicenceView, "Source code: "+fw.SourceURL+" (SHA-256 "+fw.SourceSHA256+")")
@@ -122,9 +144,9 @@ func firmwareCardCopy(familyLabel string, models []firmwareCardModel, bundled []
 	}
 	if len(builtIn) > 0 {
 		c.Secondary = "Licence"
-		c.Footnote = append(c.Footnote, "Prefer your own firmware? Choose it in "+familyLabel+" › Set up system.")
+		c.Footnote = append(c.Footnote, "Prefer your own firmware? Choose it in "+familyLabel+" › "+firmwareSetupAction(familyLabel)+".")
 	} else {
-		c.Secondary = "Set up system"
+		c.Secondary = firmwareSetupAction(familyLabel)
 	}
 	if firstUse {
 		c.Footnote = append(c.Footnote, "Shown once. Open it again with Firmware in the "+familyLabel+" workbench.")
@@ -132,13 +154,23 @@ func firmwareCardCopy(familyLabel string, models []firmwareCardModel, bundled []
 	return c, true
 }
 
-func bundledForCore(list []protocol.BundledFirmware, coreID string) (protocol.BundledFirmware, bool) {
+func bundledForModel(list []protocol.BundledFirmware, model firmwareCardModel) (protocol.BundledFirmware, bool) {
+	if model.CoreID == "" || model.ROMID == "" || model.Size < 1 {
+		return protocol.BundledFirmware{}, false
+	}
 	for _, fw := range list {
-		if fw.CoreID == coreID {
+		if fw.CoreID == model.CoreID && fw.ROMID == model.ROMID && fw.Size == model.Size {
 			return fw, true
 		}
 	}
 	return protocol.BundledFirmware{}, false
+}
+
+func firmwareSetupAction(familyLabel string) string {
+	if strings.TrimSpace(familyLabel) == "ZX81" {
+		return "Set up ZX81"
+	}
+	return "Set up system"
 }
 
 // openFirmwareCardLocked handles a workbench's firmware_info request. A
@@ -163,22 +195,28 @@ func (a *App) openFirmwareCardLocked(action rooms.Action) {
 	}
 	models := make([]firmwareCardModel, 0, len(coreIDs))
 	for _, id := range coreIDs {
-		models = append(models, firmwareCardModel{CoreID: id, Label: corenames.Name(id, "")})
+		models = append(models, firmwareCardModelForCore(id, corenames.Name(id, "")))
 	}
 	a.firmwareCard.Gen++
 	gen := a.firmwareCard.Gen
-	a.firmwareCard.Loading = true
 	parent := a.ctx
 	if parent == nil {
 		parent = context.Background()
 	}
+	ctx, cancel := context.WithTimeout(parent, 20*time.Second)
+	room := a.room
+	a.firmwareCard = firmwareCardState{Loading: true, Gen: gen, Cancel: cancel, FirstUse: action.FirstUse, Family: family, FamilyLabel: label, CoreID: action.CoreID}
 	go func() {
-		ctx, cancel := context.WithTimeout(parent, 20*time.Second)
 		defer cancel()
 		bundled, err := a.client.BundledFirmware(ctx)
 		a.mu.Lock()
 		defer a.mu.Unlock()
 		if a.firmwareCard.Gen != gen {
+			return
+		}
+		a.firmwareCard.Cancel = nil
+		if a.room != room {
+			a.closeFirmwareCardLocked()
 			return
 		}
 		a.firmwareCard.Loading = false
@@ -200,6 +238,9 @@ func (a *App) openFirmwareCardLocked(action rooms.Action) {
 }
 
 func (a *App) closeFirmwareCardLocked() {
+	if a.firmwareCard.Cancel != nil {
+		a.firmwareCard.Cancel()
+	}
 	a.firmwareCard = firmwareCardState{Gen: a.firmwareCard.Gen + 1}
 }
 
@@ -249,7 +290,10 @@ func (a *App) handleFirmwareCardLocked(cmd Command) {
 		case "Licence":
 			card.LicenceView = true
 			card.Scroll = 0
-		case "Set up system":
+		default:
+			if !strings.HasPrefix(card.Content.Secondary, "Set up ") {
+				return
+			}
 			coreID, firstUse, family := card.CoreID, card.FirstUse, card.Family
 			if firstUse {
 				a.markFirmwareCardSeenLocked(family)

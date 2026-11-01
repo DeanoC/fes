@@ -69,23 +69,27 @@ func (s *Service) bundledFirmwareFor(coreID string, rom *corepackage.ROM) (proto
 	return protocol.BundledFirmware{}, false
 }
 
-// selectBundledFirmware binds the bundled image only when a title has no
-// firmware selection. A user-selected image is never replaced.
-func (s *Service) selectBundledFirmware(ctx context.Context, entry catalog.CoreEntry, requirement *corepackage.ROM, fw protocol.BundledFirmware) (catalog.CoreEntryROM, error) {
+// defaultBundledFirmware returns the current built-in object only while the
+// title has no saved selection. Defaults are derived for reads and launches;
+// saving one would make a later bundle update look like a user's choice.
+func (s *Service) defaultBundledFirmware(ctx context.Context, entry catalog.CoreEntry, requirement *corepackage.ROM) (protocol.BundledFirmware, bool) {
+	if requirement == nil || requirement.Role != protocol.FirmwareRole {
+		return protocol.BundledFirmware{}, false
+	}
 	roms, ok := s.catalog.(coreROMCatalog)
 	if !ok {
-		return catalog.CoreEntryROM{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+		return protocol.BundledFirmware{}, false
 	}
-	selected, err := roms.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, requirement.ID, requirement.SourceSize, "", fw.MediaID)
-	if err == nil {
-		return selected, nil
+	selected, err := roms.CoreEntryROM(ctx, entry.GameID)
+	if err != nil || selected.MediaID != "" {
+		return protocol.BundledFirmware{}, false
 	}
-	// Another request may have filled the empty selection after our initial
-	// read. Accept that winner without replacing it; the normal admission
-	// still checks its package, ROM identity, size and stored bytes.
-	current, readErr := roms.CoreEntryROM(ctx, entry.GameID)
-	if readErr == nil && current.MediaID != "" && current.PackageID == entry.PackageID && current.ROMID == requirement.ID && current.SourceSize == requirement.SourceSize {
-		return current, nil
+	return s.bundledFirmwareFor(entry.CoreID, requirement)
+}
+
+func bundledFirmwareSelection(entry catalog.CoreEntry, requirement *corepackage.ROM, fw protocol.BundledFirmware) catalog.CoreEntryROM {
+	return catalog.CoreEntryROM{
+		GameID: entry.GameID, PackageID: entry.PackageID, ROMID: requirement.ID,
+		MediaID: fw.MediaID, SourceSize: requirement.SourceSize,
 	}
-	return catalog.CoreEntryROM{}, romSelectionError(err)
 }

@@ -19,6 +19,8 @@ import tempfile
 import urllib.request
 from zipfile import ZipFile
 
+from recipes import shared_cache_root
+
 ROOT = Path(__file__).resolve().parents[1]
 MAX_ARCHIVE = 8 * 1024 * 1024
 
@@ -186,10 +188,14 @@ def fetch_sources(output, cache, firmware=FIRMWARE, fetcher=fetch):
     return written
 
 
+def default_cache_dir():
+    return shared_cache_root() / 'firmware'
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--output', type=Path, required=True, help='new directory for the firmware objects')
-    parser.add_argument('--cache', type=Path, default=ROOT / 'out/firmware-cache')
+    parser.add_argument('--cache', type=Path, default=default_cache_dir())
     parser.add_argument('--sources', type=Path, help='also copy corresponding source archives here')
     args = parser.parse_args()
     staged = stage(args.output, args.cache)

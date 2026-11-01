@@ -61,11 +61,26 @@ func (s *Service) CoreEntryROM(ctx context.Context, gameID string) (catalog.Core
 	if !ok {
 		return catalog.CoreEntryROM{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
 	}
-	if _, err := s.CoreEntry(ctx, gameID); err != nil {
+	entry, err := s.CoreEntry(ctx, gameID)
+	if err != nil {
 		return catalog.CoreEntryROM{}, err
 	}
 	result, err := store.CoreEntryROM(ctx, gameID)
-	return result, romSelectionError(err)
+	if err != nil {
+		return result, romSelectionError(err)
+	}
+	if result.MediaID != "" {
+		return result, nil
+	}
+	inspection, err := s.installedCoreInspection(ctx, entry.PackageID)
+	if err != nil || inspection.Descriptor.Format != 3 || inspection.Descriptor.Core.ID != entry.CoreID ||
+		inspection.Descriptor.ROM == nil || inspection.Descriptor.ROM.Role != protocol.FirmwareRole {
+		return result, nil
+	}
+	if fw, ok := s.defaultBundledFirmware(ctx, entry, inspection.Descriptor.ROM); ok {
+		return bundledFirmwareSelection(entry, inspection.Descriptor.ROM, fw), nil
+	}
+	return result, nil
 }
 func (s *Service) SelectCoreEntryROM(parent context.Context, gameID, packageID, romID, expected, mediaID string) (catalog.CoreEntryROM, error) {
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
@@ -104,6 +119,20 @@ func (s *Service) SelectCoreEntryROM(parent context.Context, gameID, packageID, 
 	} else if req == nil || req.ID != romID {
 		return catalog.CoreEntryROM{}, romAdmissionError()
 	}
+	if expected != "" {
+		current, currentErr := store.CoreEntryROM(ctx, gameID)
+		if currentErr != nil {
+			return catalog.CoreEntryROM{}, romSelectionError(currentErr)
+		}
+		// GET reports the effective bundled default even though that default
+		// is not saved. Translate its digest back to the empty stored value for
+		// the compare-and-swap when a user chooses or clears a ROM.
+		if current.MediaID == "" && inspected.Descriptor.Format == 3 && req != nil && req.Role == protocol.FirmwareRole {
+			if fw, ok := s.bundledFirmwareFor(entry.CoreID, req); ok && expected == fw.MediaID {
+				expected = ""
+			}
+		}
+	}
 	value, err := store.SelectCoreEntryROM(ctx, gameID, packageID, romID, sourceSize, expected, mediaID)
 	return value, romSelectionError(err)
 }
@@ -133,7 +162,7 @@ func (s *Service) readCoreEntryROM(ctx context.Context, entry catalog.CoreEntry,
 		zx81 := entry.CoreID == "fes.zx81" && reqID == "machine-rom" && reqSize == 8192
 		switch {
 		case selected.MediaID == "" && hasBundled:
-			selected, err = s.selectBundledFirmware(ctx, entry, descriptor.ROM, bundled)
+			selected = bundledFirmwareSelection(entry, descriptor.ROM, bundled)
 		case stale && (zx81 || hasBundled && selected.MediaID == bundled.MediaID):
 			selected, err = s.rebindCoreFirmware(ctx, entry, selected, descriptor.ROM)
 		}

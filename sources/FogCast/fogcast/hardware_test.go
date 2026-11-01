@@ -495,7 +495,11 @@ func TestBundledFirmwareIsSelectedWithoutReplacingUserSelection(t *testing.T) {
 	}
 	selected, err := s.CoreEntryROM(ctx, entry.GameID)
 	if err != nil || selected.PackageID != entry.PackageID || selected.ROMID != "machine-rom" || selected.SourceSize != 8192 || selected.MediaID != fmt.Sprintf("%x", sha256.Sum256(bundled)) {
-		t.Fatalf("bundled ROM selection = %+v err=%v", selected, err)
+		t.Fatalf("effective bundled ROM = %+v err=%v", selected, err)
+	}
+	saved, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID)
+	if err != nil || saved.MediaID != "" {
+		t.Fatalf("bundled default should not become a saved user selection: %+v err=%v", saved, err)
 	}
 	compositions, err := s.CoreCompositions(ctx, []string{entry.GameID})
 	if err != nil || !compositions[entry.GameID].FirmwareReady || compositions[entry.GameID].ROMMediaID != selected.MediaID {

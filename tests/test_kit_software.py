@@ -344,7 +344,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
             output.write_bytes(b'partial failed pack')
             raise ValueError('incompatible base')
         def stage(output, cache):
-            self.assertEqual(cache, self.root / 'out/firmware-cache')
+            self.assertEqual(cache, self.root / 'out/cache/firmware')
             (output / 'test-rom').mkdir(parents=True)
             (output / 'test-rom/manifest.json').write_text('{}')
             return [{'id': 'test-rom', 'sha256': 'f' * 64, 'size': 1}]
@@ -354,7 +354,8 @@ class SoftwareWorkflowTests(unittest.TestCase):
              patch.object(kit, 'run', side_effect=clone), \
              patch.object(kit, 'build_go', return_value='go test'), \
              patch.object(kit, 'prepare_kernel_module', return_value=dict(self.DRIVER)), \
-             patch.object(kit, 'build_runtime', side_effect=runtime):
+             patch.object(kit, 'build_runtime', side_effect=runtime), \
+             patch.object(kit, 'shared_cache_root', return_value=self.root / 'out/cache'):
             with self.assertRaisesRegex(ValueError, 'incompatible base'):
                 kit.publish(self.root, self.base, kit.sha(self.base), 'v1', self.root / 'new')
         self.assertFalse((self.root / 'new').exists())

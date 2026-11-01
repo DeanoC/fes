@@ -3,6 +3,7 @@ import importlib.util
 from io import BytesIO
 import json
 from pathlib import Path
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -10,6 +11,7 @@ from unittest.mock import patch
 from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
 
 
 def load(path, name):
@@ -68,6 +70,11 @@ class BundledFirmwareTests(unittest.TestCase):
                  source={'url': 'https://example.invalid/os-src.tar.gz', 'sha256': 'f' * 64}),
         )
         self.blobs = {self.archives['roms']['url']: self.tar, self.archives['os']['url']: self.zip}
+
+    def test_default_cache_is_shared_recipe_cache_firmware_subdir(self):
+        shared = Path(self.root) / 'out' / 'cache'
+        with patch.object(fw, 'shared_cache_root', return_value=shared):
+            self.assertEqual(fw.default_cache_dir(), shared / 'firmware')
 
     def fetcher(self, url, digest, cache):
         data = self.blobs[url]
