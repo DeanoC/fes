@@ -3,9 +3,9 @@ const {parseSession,mouseEventRequest,createAppController}=require('./ui_app.js'
 const core={package_id:'a'.repeat(64),generation:7,abi:{id:'fes.computer',major:1,minor:0},active_interfaces:[{id:'fes.mouse.relative',major:1,minor:0}]};
 test('mouse capability and signed packed request',()=>{
  assert.equal(parseSession({state:'active',core_package:core}).mouse_relative,true);
+ assert.equal(parseSession({state:'active',core_package:{...core,abi:{...core.abi,minor:1}}}).mouse_relative,true);
+ assert.equal(parseSession({state:'active',core_package:{...core,abi:{...core.abi,minor:2}}}).mouse_relative,undefined);
  assert.equal(parseSession({state:'active',core_package:{...core,active_interfaces:[{id:'fes.mouse.relative',major:1,minor:1}]}}).mouse_relative,undefined);
- assert.equal(parseSession({state:'active',core_package:{...core,abi:{id:'fes.computer',major:1,minor:1}}}).mouse_relative,true);
- assert.equal(parseSession({state:'active',core_package:{...core,abi:{id:'fes.computer',major:1,minor:2}}}).mouse_relative,undefined);
  const event=JSON.parse(mouseEventRequest(-32768,32767,3).options.body).event;
  assert.deepEqual(event,{Player:0,Device:2,Kind:4,Action:3,Code:3,Value:2147450880});
 });

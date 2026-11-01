@@ -67,6 +67,12 @@ func (s *Service) insertMediaUnitLocked(ctx context.Context, size int64, body io
 	return s.insertBoundMediaUnitLocked(ctx, size, body, b, nil)
 }
 func (s *Service) insertBoundMediaUnitLocked(ctx context.Context, size int64, body io.Reader, b protocol.MediaUnitBinding, library *protocol.LibraryMediaBinding, owners ...context.Context) (protocol.Status, error) {
+	return s.insertBoundMediaUnitWithInterface(ctx, size, body, b, library, nil, owners...)
+}
+
+// A named image must match the active unit's format, not merely its size:
+// a 360 KiB ST image and an XT floppy have the same byte count.
+func (s *Service) insertBoundMediaUnitWithInterface(ctx context.Context, size int64, body io.Reader, b protocol.MediaUnitBinding, library *protocol.LibraryMediaBinding, expected *protocol.RuntimeContract, owners ...context.Context) (protocol.Status, error) {
 	if !b.Valid() || b.Target == "" || body == nil {
 		return protocol.Status{}, mediaUnchanged(protocol.MediaUnitRequestError())
 	}
@@ -91,6 +97,9 @@ func (s *Service) insertBoundMediaUnitLocked(ctx context.Context, size int64, bo
 		return prior, mediaUnchanged(protocol.MediaUnitRequestError())
 	}
 	unit, _ := protocol.MediaUnit(prior.CorePackage, b.Unit)
+	if expected != nil && unit.Interface != *expected {
+		return prior, mediaUnchanged(protocol.DiskMediaRequestError())
+	}
 	if unit.Interface == protocol.AtariStFloppyInterface() && size != protocol.AtariStFloppyBytes {
 		data, err := io.ReadAll(io.LimitReader(body, size+1))
 		if err != nil || int64(len(data)) != size || !corepackage.ValidAtariStBase(data, protocol.AtariStFloppyGeometryCapable(prior.CorePackage)) {
@@ -149,6 +158,8 @@ func diskUnitBinding(name string, b protocol.DevelopmentMediaBinding) protocol.M
 		unit = protocol.C64DiskUnit
 	} else if protocol.AdmitAtariStFloppyName(name) {
 		unit = protocol.AtariStFloppyUnit
+	} else if protocol.AdmitPcxtFloppyName(name) {
+		unit = protocol.PcxtFloppyUnit
 	}
 	return protocol.MediaUnitBinding{PackageID: b.PackageID, Generation: b.Generation, Unit: unit, Target: b.Target, TargetID: b.TargetID}
 }
@@ -161,8 +172,25 @@ func diskImageBytes(name string) (int64, bool) {
 		return protocol.C64DiskBytes, true
 	case protocol.AdmitAtariStFloppyName(name):
 		return protocol.AtariStFloppyBytes, true
+	case protocol.AdmitPcxtFloppyName(name):
+		return protocol.PcxtFloppyBytes, true
 	default:
 		return 0, false
+	}
+}
+
+func diskImageInterface(name string) (protocol.RuntimeContract, bool) {
+	switch {
+	case protocol.AdmitDiskMediaName(name):
+		return protocol.Apple2FloppyInterface(), true
+	case protocol.AdmitC64DiskName(name):
+		return protocol.C64DiskInterface(), true
+	case protocol.AdmitAtariStFloppyName(name):
+		return protocol.AtariStFloppyInterface(), true
+	case protocol.AdmitPcxtFloppyName(name):
+		return protocol.PcxtFloppyInterface(), true
+	default:
+		return protocol.RuntimeContract{}, false
 	}
 }
 
@@ -181,7 +209,8 @@ func zx81TapeUnitBinding(b protocol.DevelopmentMediaBinding) protocol.MediaUnitB
 // replaceLiveDisk inserts a household disk image into the running machine.
 func (s *Service) replaceLiveDisk(parent context.Context, mediaID, name string, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	size, named := diskImageBytes(name)
-	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !named {
+	want, known := diskImageInterface(name)
+	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !named || !known {
 		return protocol.Status{}, protocol.DiskMediaRequestError()
 	}
 	ctx, cancel := serviceTimeout(parent, max(s.uploadTimeout, 150*time.Second))
@@ -211,7 +240,7 @@ func (s *Service) replaceLiveDisk(parent context.Context, mediaID, name string, 
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
 	unit := diskUnitBinding(name, b)
-	status, err := s.insertBoundMediaUnitLocked(ctx, info.Size, reader, unit, nil, parent)
+	status, err := s.insertBoundMediaUnitWithInterface(ctx, info.Size, reader, unit, nil, &want, parent)
 	if err != nil {
 		return status, err
 	}

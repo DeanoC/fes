@@ -976,6 +976,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesComputerInterfaceMediaAtaDiskID ||
 				interface.id == FesComputerInterfaceMediaC64DiskID ||
 				interface.id == FesComputerInterfaceMediaAtariStFloppyID ||
+				interface.id == FesComputerInterfaceMediaPcxtFloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
 				interface.id == FesComputerInterfaceMediaZx81TapeID;
 			const bool known = interface.id == FesComputerInterfaceVideoFixed720p60ID ||
@@ -1020,6 +1021,7 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.id == FesComputerInterfaceMediaSpectrumDiskID) spectrum_disk = true;
 			// Capability bits 16..31 are identity word 16, which only 1.1 has.
 			if (interface.id == FesComputerInterfaceMediaAtaDiskID ||
+				interface.id == FesComputerInterfaceMediaPcxtFloppyID ||
 				interface.id == FesComputerInterfacePersistenceWordsID ||
 				interface.id == FesComputerInterfacePc386MachineID ||
 				interface.id == FesComputerInterfaceRtcWallClockID) second_word = true;

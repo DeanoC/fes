@@ -19,3 +19,5 @@ lint_off -rule SYNCASYNCNET -file "*/sim/memory_machine_top.sv" -match "*reset*"
 // Production machine reset also reaches the imported asynchronous chips.
 lint_off -rule SYNCASYNCNET -file "*/rtl/pcxt_machine.sv" -match "*reset*"
 lint_off -rule SYNCASYNCNET -file "*/sim/system_top.sv" -match "*machine_reset*"
+// The BIOS fixture observes the same synchronous-FES/asynchronous-vendor boundary.
+lint_off -rule SYNCASYNCNET -file "*/sim/bios_top.sv" -match "*machine_reset*"

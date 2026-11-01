@@ -1,0 +1,42 @@
+{
+  "release": "FreeDOS 1.4",
+  "package_image": {
+    "file": "firmware/freedos-1.4-xt-360.img",
+    "bytes": 368640,
+    "sha256": "140a2d0a507f7452790e73416dd4dab2c66a89e09a71e26b2ca8f95d1f3c5e5c",
+    "license": "GPL-2.0-or-later kernel and GPL-2.0 FreeCOM",
+    "source_urls": [
+      "https://gitlab.com/FreeDOS/base/kernel.git",
+      "https://gitlab.com/FreeDOS/base/freecom.git"
+    ]
+  },
+  "packages": {
+    "kernel": {
+      "repository": "https://gitlab.com/FreeDOS/base/kernel.git",
+      "commit": "9afeadbdf7e38b5b988152944a96331d13868ad8",
+      "version": "2043, 8086 FAT12/FAT16",
+      "license": "GPL-2.0-or-later",
+      "files": {
+        "BIN/KERNL86N.SYS": "1e73b8bb76b9e696d556207e9915013d5940e5cccbf40df13072cca40619b9a6",
+        "SOURCE/KERNEL/boot/boot.asm": "1c903f5de249298f8954512fc0e16a8b95f1b9d772ef8883924ba2cc686c6688",
+        "LICENSE": "0f1e68d9b4a580cdcca4c5f4e3b8046f7a8759da05edd109cff081bc484b3c4b"
+      }
+    },
+    "freecom": {
+      "repository": "https://gitlab.com/FreeDOS/base/freecom.git",
+      "commit": "5df932d608cc9ba6a4bc830627cad7bd2da70d8e",
+      "version": "0.86a",
+      "license": "GPL-2.0",
+      "files": {
+        "BIN/COMMAND.COM": "077808379e896476f7f69d62e6c8989d8fc23e8ef58d1c8492db1ac106784107",
+        "LICENSE": "e6f390535d95dc536feb9750189daeb6efe6cd4922826a3885411c3d547a58a5"
+      }
+    }
+  },
+  "nasm": {
+    "version": "2.16.03",
+    "url": "https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/nasm-2.16.03.tar.xz",
+    "sha256": "1412a1c760bbd05db026b6c0d1657affd6631cd0a63cddb6f73cc6d4aa616148",
+    "boot_code_sha256": "e66f8ec0a17ab28666ec1d4bad74b14eb69cfea0c5360f398aa6e6840dfb230a"
+  }
+}

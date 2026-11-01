@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Eight registered logical slots; CGA slot 2 and MDA slot 3, remaining vacant.
+// Eight registered logical slots; CGA is logical index 1 and MDA index 2.
+// The optional floppy bridge occupies logical index 3.
 module display_top (
     input wire clk, reset, cycle_valid,
     output wire cycle_ready,
@@ -20,5 +21,8 @@ module display_top (
     output wire [1:0] pixel_ce, de, hs, vs, sof, eol, unsupported_interlace,
     output wire [7:0] rgbi
 );
-    pcxt_display_bus bus (.*);
+    /* verilator lint_off PINCONNECTEMPTY */
+    pcxt_display_bus bus (.media_present(1'b0), .media_read_valid(), .media_read_addr(),
+        .media_read_ready(1'b0), .media_read_data(8'b0), .*);
+    /* verilator lint_on PINCONNECTEMPTY */
 endmodule

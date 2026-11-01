@@ -7,8 +7,10 @@ the constants are generated from `packages/abi/fes_computer.yaml` into
 `src/native/generated/fes_computer.hpp`. The consumers are the FES Apple II
 ([pathfinder contract](../../../docs/superpowers/specs/2026-09-26-apple2-pathfinder-design.md)),
 the FES ZX Spectrum
-([pathfinder contract](../../../docs/superpowers/specs/2026-09-28-spectrum-pathfinder-design.md))
-the FES Commodore 64 and the FES Atari 520ST, all 1.0, and the FES pc386 on 1.1.
+([pathfinder contract](../../../docs/superpowers/specs/2026-09-28-spectrum-pathfinder-design.md)),
+the FES Commodore 64 and the FES Atari 520ST, all on ABI 1.0, and the FES pc386
+on ABI 1.1. The PC/XT read-only floppy endpoint is exercised in host simulation;
+hardware acceptance remains separate.
 Existing `fes.simple-game`, `fes.simple-computer` and `fes.application`
 packages keep their requirements, wire identities and startup behavior.
 
@@ -25,17 +27,20 @@ and exact-artifact acceptance.
 ## Admission
 
 A package declares `fes.computer` major 1 with `fes-gp-v1`. Minor versions
-above 1 and any `core.system` value are rejected. Minor 1 adds identity word
-16, capability bits 16..31, and their interfaces: `fes.media.ata-disk` 1.0
-(a unit-0 medium that requires `fes.memory.hps-ddr`), `fes.persistence.words`
-1.0 with its one layout `fes.pc386.machine` 1.0, and `fes.rtc.wall-clock` 1.0.
-A 1.0 package that declares any of them is refused as an unsupported ABI. `fes.video.fixed-720p60` 1.0
+0 and 1 are supported; versions above 1 and any `core.system` value are
+rejected. Minor 1 adds identity word 16 and capability bits 16..31 for
+`fes.media.ata-disk` 1.0 (unit 0, requiring `fes.memory.hps-ddr`),
+`fes.media.pcxt-floppy` 1.0, `fes.persistence.words` 1.0 with its
+`fes.pc386.machine` 1.0 layout, and `fes.rtc.wall-clock` 1.0. A 1.0 package
+that declares any of them is refused as an unsupported ABI. `fes.video.fixed-720p60` 1.0
 is required. The recognized operational set is `fes.video.fixed-720p60`,
 `fes.keyboard.hid`, `fes.gamepad.ports`, `fes.audio.pcm-s16-stereo-48k`,
-`fes.media.apple2-floppy`, `fes.media.zx81-tape`, `fes.media.c64-disk`
-`fes.media.atari-st-floppy` and `fes.media.spectrum-disk`, each 1.0, and
+`fes.media.apple2-floppy`, `fes.media.zx81-tape`, `fes.media.c64-disk`,
+`fes.media.atari-st-floppy`, `fes.media.pcxt-floppy`, `fes.media.ata-disk` and
+`fes.media.spectrum-disk`, each 1.0, and
 `fes.media.spectrum-tape` 2.0; each must be declared required when present. A
-shell declares at most one unit-0 medium, and `fes.media.spectrum-disk` only
+shell declares at most one unit-0 medium. The PC/XT floppy requires
+`fes.computer` 1.1; `fes.media.spectrum-disk` is supported only
 beside `fes.media.spectrum-tape` and `fes.memory.hps-ddr`. `fes.expansion.apple2-bus` 1.0,
 `fes.expansion.spectrum-bus` 1.0, `fes.expansion.c64-bus` 1.0 and
 `fes.expansion.atari-st-bus` 1.0 are manifest-only buses and must be optional.
@@ -52,9 +57,11 @@ Format 2 and format 3 with a `firmware` ROM are admitted. Format 3 with a
 after identity and has no media gate that could hold a linked cartridge.
 Firmware ROM packages activate through `load_rom_core`,
 `load_rom_library_core` or `load_rom_composed_core` with the existing
-`rom_link` receipt. The ABI has no core-scoped persistence interface; an
-explicit initial library disk or later library insertion supplies disk
-persistence and changes the active persistence mode.
+`rom_link` receipt. ABI 1.0 has no core-scoped persistence interface; ABI 1.1
+adds `fes.persistence.words` for the pc386 machine record. An explicit writable
+Atari ST initial library disk or later library insertion supplies its disk
+persistence and changes the active persistence mode. The PC/XT floppy is
+read-only and does not use that initial-library-disk path.
 
 Native capabilities advertise each minor as its own ABI entry, so a 1.0
 package keeps matching its exact ABI. The 1.0 entry has every recognized 1.0
@@ -71,21 +78,22 @@ presentation adapters are present, together with its shared plane
 `fes.fabric.video.display-plane` 1.0. That plane has no capability bit; a
 package declaring either one without the other is refused at compatibility. A
 computer that does not implement the plane leaves the session-display bit clear.
-The 1.1 entry has the same interfaces plus `fes.pc386.machine`,
+The 1.1 entry has the same interfaces plus `fes.media.pcxt-floppy`, `fes.pc386.machine`,
 `fes.persistence.words` and `fes.rtc.wall-clock`, each 1.0, and
 `fes.media.ata-disk` 1.0 when the DDR layout is latched and the window driver
 is available.
 
 ## Lifecycle
 
-Identity must equal the manifest: tag 4, the manifest's ABI minor, build ID,
-and live capability bits in the registered mask equal to the declared required
-recognized set. A 1.1 package's identity is 17 words; word 16 is compared like
-word 7 with the registered bits 16..31. Bits outside that mask are ignored, as for applications. Discovery
-then reads MediaInfo fields 0 through 5 for every declared media unit.
+Identity must equal the manifest: tag 4, the declared ABI version and build ID.
+For 1.0, the registered low capability bits must equal the declared required
+recognized set. Version 1.1 retains those identity words and reads word 16 for
+capability bits 16..31. Registered high bits must match the declared set;
+unassigned bits outside the registered mask are ignored. Bit 20 identifies
+`fes.media.pcxt-floppy`. Discovery then reads MediaInfo fields 0 through 5 for
+every declared media unit.
 `fes.media.apple2-floppy`, `fes.media.spectrum-tape`, `fes.media.zx81-tape`,
-`fes.media.c64-disk`
-and `fes.media.atari-st-floppy`
+`fes.media.c64-disk`, `fes.media.atari-st-floppy` and `fes.media.pcxt-floppy`
 are each unit 0, and a shell declares one of them; `fes.media.spectrum-disk`
 is unit 1. Each declared unit must be present
 and empty, with 512-byte chunks and 1 <= minimum <= maximum <=
@@ -93,12 +101,14 @@ and empty, with 512-byte chunks and 1 <= minimum <= maximum <=
 mismatch. The runtime does not substitute interface sizes for live Info: an
 Apple II core reports 143,360 for both limits, a Spectrum core reports 1 and
 65,536, and a Commodore 64 core reports 174,848 for both limits. The Atari ST
-contract requires exactly 737,280 for both limits at discovery and before
-each insertion; a changed limit is rejected before MediaBegin and follows
-the same failure-eject behavior as other live transfer failures.
+legacy contract requires exactly 737,280 for both limits; its geometry
+extension has different declared limits as described below. The PC/XT contract
+requires exactly 368,640 bytes for both limits: 40 cylinders, two heads, nine
+512-byte sectors per track. The runtime checks those limits at discovery and
+before insertion, rejecting a mismatch before MediaBegin.
 
-After verified identity the ADV7513 audio packets follow the audio
-declaration exactly as for applications. A library launch of a package with
+After verified identity, ADV7513 audio packets follow the audio declaration
+exactly as for applications. A library launch of a package with
 `fes.persistence.words` restores its game's 72-word `fes.pc386.machine`
 record (DataControl Begin, 72 DataWrite on opcodes 24..27, Commit) while
 held; a missing record restores the layout's defaults. A package with
@@ -152,8 +162,9 @@ name are deleted, and Saved is sent. A Stop with no dirty chunk publishes
 nothing. A failed save leaves the disk frozen and returns `save_failed`; recovery
 resumes the disk and any machine-data snapshot before restoring host input.
 Packages without a host input recipe still resume machine data. An explicit
-initial library disk is uploaded and confirmed ready before Start; otherwise
-the drive stays empty.
+Atari ST initial library disk is uploaded and confirmed ready before Start;
+otherwise the drive stays empty. The PC/XT floppy is read-only and does not
+use that initial-library-disk path.
 Start sends only Execution release, with no media gate and no neutral writes,
 because programming starts held with neutral input. No evdev
 input worker is opened. Stop and replacement send Execution hold before
@@ -223,7 +234,9 @@ never repeated. If that eject also fails the message gains
 `"; media eject failed: <cause>"` and the unit is reported `loading`
 (not known to be ready). Execution stays released and the generation stays
 active in every case; `eject_media` or another `insert_media` re-establishes
-the unit.
+the unit. Inserting a PC/XT disk into a running empty drive does not restart
+the guest or automatically retry a failed boot. A boot path needs suitable
+initial-media handling or an explicit guest retry or warm reset.
 
 ### `eject_media`
 
@@ -318,7 +331,7 @@ ready confirmation, ejection and socket composition; hardware acceptance is
 pending.
 
 Single-socket ZX81 composition admits optional `fes.expansion.zx81-bus` 1.0
-or 2.0 on `fes.simple-computer` 1.0 and `fes.computer` 1.0. Coleco requests
+or 2.0 on `fes.simple-computer` 1.0 and supported `fes.computer` 1.0 or 1.1. Coleco requests
 stay on `fes.application`. Neither shape composes the other bus.
 
 ## Evidence
@@ -329,7 +342,9 @@ identity, HID deltas, controller ports, release, hold and live media
 transfers against it, including the synthetic 1..1030-byte unit, CRC, lost and
 rejected requests and failed cleanup. Admission, protocol, runtime binding,
 multi-slot composition and a runtime lifecycle over native hardware are
-covered. No hardware support is claimed.
+covered. The PC/XT endpoint and 360 KiB insertion also have host simulation
+coverage. The diagnostic package producer enables this endpoint, but no
+physical PC/XT media acceptance is claimed.
 
 Stop and core replacement save before programming. Successful programming
 retires the previous disk's in-memory binding, including when Stop returns to

@@ -869,7 +869,12 @@ A `fes.computer` package projects media role `disk`
 `fes.media.c64-disk` 1.0 is format `c64-d64`, exactly 174,848 bytes, name
 `.d64`. `fes.media.atari-st-floppy` 1.0 is format `atari-st-floppy`, exactly
 737,280 bytes, name `.st`; the required geometry extension admits the bounded
-layouts described under [raw floppy geometry](#atari-st-raw-floppy-geometry). `fes.media.spectrum-tape` 2.0 is role `cassette`, format
+layouts described under [raw floppy geometry](#atari-st-raw-floppy-geometry).
+`fes.media.pcxt-floppy` 1.0 requires `fes.computer` 1.1 and exposes a read-only
+360 KiB raw PC/XT image as `pcxt-floppy`, with `.img` and `.ima` names. Its
+live insert and eject use the same generation-bound unit-0 path and leave the
+running session active. The interface does not itself provide a bootable PC/XT
+package or establish hardware acceptance. `fes.media.spectrum-tape` 2.0 is role `cassette`, format
 `spectrum-tape`, names `.tzx`, `.tap`, `.pzx` and `.csw` up to 32 MiB, on the
 same unit 0. The library keeps the image as imported; at insertion
 `internal/spectrumtapes` converts it to the unit's 10..16,777,216-byte PZX

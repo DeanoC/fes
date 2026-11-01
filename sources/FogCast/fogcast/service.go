@@ -1027,7 +1027,7 @@ func (s *Service) DevelopmentSessionState(ctx context.Context) (bool, string, er
 func RecognizedPlayABI(id string, major, minor int64) bool {
 	switch id {
 	case "fes.computer":
-		return protocol.ComputerABI(id, major, minor)
+		return protocol.ComputerMediaABI(id, major, minor)
 	case "fes.simple-computer", "fes.simple-game", "fes.application":
 		return major == 1 && minor == 0
 	default:

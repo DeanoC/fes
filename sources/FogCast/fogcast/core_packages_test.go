@@ -52,6 +52,28 @@ func libraryPackageFixture(t *testing.T, version string, extras ...string) []byt
 	for _, extra := range extras {
 		manifest = append(manifest, []byte(extra)...)
 	}
+	return corePackageArchiveFixture(t, manifest)
+}
+
+func pcxtDosLibraryPackageFixture(t *testing.T) []byte {
+	t.Helper()
+	base := "../corepackage/testdata/core-bundle-v2/"
+	manifest, err := os.ReadFile(base + "manifests/valid-basic.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest = bytes.Replace(manifest, []byte(`id = "fes.pong"`), []byte(`id = "fes.pcxt-dos"`), 1)
+	manifest = bytes.Replace(manifest, []byte(`id = "fes.simple-game"`), []byte(`id = "fes.computer"`), 1)
+	manifest = bytes.Replace(manifest,
+		[]byte("[abi]\nid = \"fes.computer\"\nmajor = 1\nminor = 0"),
+		[]byte("[abi]\nid = \"fes.computer\"\nmajor = 1\nminor = 1"), 1)
+	manifest = bytes.Replace(manifest, []byte(`id = "fes.gamepad"`), []byte(`id = "fes.media.pcxt-floppy"`), 1)
+	return corePackageArchiveFixture(t, manifest)
+}
+
+func corePackageArchiveFixture(t *testing.T, manifest []byte) []byte {
+	t.Helper()
+	base := "../corepackage/testdata/core-bundle-v2/"
 	payload, err := os.ReadFile(base + "payloads/fes-fixture.rbf")
 	if err != nil {
 		t.Fatal(err)
@@ -83,6 +105,39 @@ func libraryPackageFixture(t *testing.T, version string, extras ...string) []byt
 	}
 	out.Write(make([]byte, 1024))
 	return out.Bytes()
+}
+
+func TestCreateLibraryEntryForPcxtDosAfterRuntimeInspection(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	store, err := catalog.OpenContext(ctx, filepath.Join(root, "catalog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	packages, err := corepackage.NewStore(filepath.Join(root, "packages"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &packageLibraryClient{fakeServiceClient: &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}}
+	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	s.corePackages = packages
+	raw := pcxtDosLibraryPackageFixture(t)
+	installed, created, err := s.ImportCorePackage(ctx, int64(len(raw)), bytes.NewReader(raw))
+	if err != nil || !created {
+		t.Fatalf("import: %v new=%v", err, created)
+	}
+	if installed.Descriptor.Core.ID != "fes.pcxt-dos" || installed.Descriptor.ABI.ID != "fes.computer" || installed.Descriptor.ABI.Minor != 1 {
+		t.Fatalf("imported descriptor: %+v", installed.Descriptor)
+	}
+	client.inspection = protocol.CoreInspection{PackageID: installed.PackageID, Descriptor: installed.Descriptor, Compatible: true}
+	entry, err := s.CreateCoreEntry(ctx, "FreeDOS", installed.PackageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if entry.CoreID != "fes.pcxt-dos" || entry.PackageID != installed.PackageID || client.inspections != 1 {
+		t.Fatalf("created entry=%+v inspections=%d", entry, client.inspections)
+	}
 }
 
 func TestCoreEntryConflictMapsToStaleRevision(t *testing.T) {

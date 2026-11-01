@@ -1152,23 +1152,20 @@
     return Object.freeze(result);
   }
 
-  // The fes.computer versions the host speaks, as protocol.ComputerABI: 1.0,
-  // and 1.1, which adds interfaces but keeps 1.0's keyboard and mouse.
-  function computerABI(abi) {
+  // Both supported fes.computer minors retain the same input contracts.
+  function supportedComputerABI(abi) {
     return Boolean(abi && abi.id === 'fes.computer' && abi.major === 1 && (abi.minor === 0 || abi.minor === 1));
   }
-
-  // fes.computer packages with fes.keyboard.hid 1.0 take physical key state;
-  // other versions are not assumed compatible.
   function sessionHasKeyboardHID(core) {
     if (!core || typeof core !== 'object' || Array.isArray(core)) return false;
-    if (!computerABI(core.abi)) return false;
+    const abi = core.abi;
+    if (!supportedComputerABI(abi)) return false;
     return Array.isArray(core.active_interfaces) && core.active_interfaces.some(contract =>
       contract && contract.id === 'fes.keyboard.hid' && contract.major === 1 && contract.minor === 0);
   }
 
   function sessionHasMouse(core) {
-    return Boolean(core && computerABI(core.abi) &&
+    return Boolean(core && supportedComputerABI(core.abi) &&
       /^[a-f0-9]{64}$/.test(core.package_id) && Number.isSafeInteger(core.generation) && core.generation > 0 &&
       Array.isArray(core.active_interfaces) && core.active_interfaces.some(c => c && c.id === 'fes.mouse.relative' && c.major === 1 && c.minor === 0));
   }
