@@ -49,3 +49,17 @@ setup failures remain retained with their source. The final result includes
 both corrections and the close-before-unmap preparation cleanup correction.
 No physical board, kernel, FPGA, QSPI or installed bundle changes are made by
 these checks. The full normal development-kit acceptance remains open.
+
+The target agent's strict status reader also accepts the optional boolean
+`frame_mapping`; unknown fields and nonboolean values remain rejected.
+Producer `9d50eeacb3e094a95ebd07115bff350041e03275` passes the runtime-client
+and agent host packages and both named actual AArch64 status-decoder tests.
+The initial QEMU wrapper lacked the package fixture working directory; the
+same binary passes with that directory, without changing tests or limits.
+Both logs are retained. No hardware path is exercised.
+
+`go-build-info-correction.json` corrects the earlier UI receipt's compiler
+metadata: the outer Go launcher reported1.24.4, but all three ARM64 binaries'
+embedded build information identifies Go1.26.5, selected by the unchanged
+FogCast module. Their hashes still match the original receipt. The receipt and
+binaries are preserved; no source or binary was rebuilt for this correction.

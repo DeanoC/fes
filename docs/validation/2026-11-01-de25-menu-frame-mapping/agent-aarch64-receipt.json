@@ -1,0 +1,13 @@
+{
+  "source": "9d50eeacb3e094a95ebd07115bff350041e03275",
+  "state": "passed",
+  "scope": "same actualAArch64binary underCortexA53 with its requiredpackage fixturecwd; original missingfixturewrapper failure retained",
+  "tests": [
+    "TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle",
+    "TestClientRejectsWrongProtocolAndUnknownResponseFields"
+  ],
+  "go_version_in_module": "go version go1.26.5 linux/amd64",
+  "binary_sha256": "79951938e51670c32ee5d78ddfae36e9da94580425c9a2ece6ef4e27d186a557",
+  "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
+  "working_directory": "sources/FogCast/internal/misterruntime"
+}
