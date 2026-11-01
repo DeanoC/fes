@@ -202,7 +202,8 @@ when those keys are used. See [rooms-controller-bindings.md](rooms-controller-bi
 `room.id`, `room.title`, `room.width`, `room.height` (logical pixels of the
 safe content area; `0,0` is its top-left), `room.time` (seconds since
 load), `room.reduced_motion` (boolean; the launcher reduced-motion
-preference), `room.overlay` (boolean; true while the room is drawn over a
+preference), `room.core_shown(core_id)` (false for a core outside the v1
+release unless the launcher's Show all cores preference is on), `room.overlay` (boolean; true while the room is drawn over a
 running machine on the kit's HDMI session plane with launcher focus, false
 on host windows; a room that reads it can clear translucently so the machine
 stays visible, and must include it in any reused-picture key), `room.theme`
@@ -404,6 +405,9 @@ a launch is not Completed.
 On a host launcher `kit` is nil. When the launcher injects a client,
 `kit.cores(function(rows, err) end)` lists installed cores on a later tick.
 Each row is `{package_id, core_id, name, needs, launchable, block, inputs}`.
+Cores outside the v1 release are left out unless the launcher shows all cores;
+`hardware.read` machines and computers, and the `systems` stdlib table, follow
+the same rule.
 `name` is the plain model name for a registered first-party core, or the supplied
 manifest name for an unknown core. The local-control protocol retains raw
 metadata; this is the room presentation adapter. `needs` is `none`, `media`, `firmware`, `parts`

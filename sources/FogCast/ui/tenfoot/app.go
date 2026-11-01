@@ -490,6 +490,7 @@ type App struct {
 	gfxBackend          string
 	pinnedRooms         []string
 	reducedMotion       bool
+	allCores            bool // cores outside the v1 release are listed
 	homeRecents         []hostclient.Game
 	homeRecentsErr      string
 	homeRecentsLoaded   bool

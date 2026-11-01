@@ -809,6 +809,7 @@ func (a *App) newRoomInstanceLocked(pack rooms.Pack, initialGameID string, initi
 		Index:                  a.roomsIndex,
 		Theme:                  a.theme,
 		ReducedMotion:          a.reducedMotion,
+		ReleaseOnly:            !a.allCores,
 		InitialGameID:          initialGameID,
 		InitialCoreID:          coreID,
 		SessionDisplayRequired: a.needsSessionDisplayLocked(),

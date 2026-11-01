@@ -7,6 +7,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/corenames"
+	"github.com/DeanoC/FogCast/internal/release"
 	"github.com/DeanoC/FogCast/protocol"
 	lua "github.com/yuin/gopher-lua"
 )
@@ -101,6 +102,9 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	L := r.L
 	out, machines := L.NewTable(), L.NewTable()
 	for _, m := range v.Machines {
+		if !release.Shown(m.CoreID, !r.opts.ReleaseOnly) {
+			continue
+		}
 		row := L.NewTable()
 		for k, s := range map[string]string{"game_id": m.GameID, "title": corenames.EntryTitle(m.CoreID, m.Title), "core_id": m.CoreID, "package_id": m.PackageID, "launch_package_id": m.LaunchPackageID, "unavailable_reason": m.UnavailableReason, "draft_expansion_id": m.DraftExpansionID, "media_id": m.MediaID, "media_name": m.MediaName} {
 			row.RawSetString(k, lua.LString(s))
@@ -129,6 +133,9 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	out.RawSetString("machines", machines)
 	computers := L.NewTable()
 	for _, c := range v.Computers {
+		if !release.Shown(c.CoreID, !r.opts.ReleaseOnly) {
+			continue
+		}
 		row := L.NewTable()
 		for k, s := range map[string]string{"game_id": c.GameID, "title": corenames.EntryTitle(c.CoreID, c.Title), "core_id": c.CoreID, "package_id": c.PackageID, "unavailable_reason": c.UnavailableReason} {
 			row.RawSetString(k, lua.LString(s))

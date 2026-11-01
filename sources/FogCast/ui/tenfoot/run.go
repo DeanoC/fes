@@ -94,6 +94,9 @@ type Options struct {
 	// Surround draws the TV surround around a running machine on kit HDMI,
 	// from tenfoot.json surround. It defaults on.
 	Surround bool
+	// AllCores lists cores outside the v1 release, from tenfoot.json
+	// all_cores or FOGCAST_TENFOOT_ALL_CORES.
+	AllCores bool
 }
 
 // RoomInstallDirectory resolves the same room directory as the running launcher.
@@ -220,6 +223,7 @@ func (o Options) normalized() Options {
 		o.ReducedMotion = prefs.ReducedMotion
 	}
 	o.Surround = prefsErr != nil || prefs.Surround == nil || *prefs.Surround
+	o.AllCores = envTruthy(os.Getenv("FOGCAST_TENFOOT_ALL_CORES")) || prefsErr == nil && prefs.AllCores
 	return o
 }
 
@@ -319,6 +323,7 @@ func configuredApp(opts Options) (*App, error) {
 	app.SetSafeAreaPct(opts.SafeAreaPct)
 	app.SetReducedMotion(opts.ReducedMotion)
 	app.SetSurround(opts.Surround)
+	app.SetAllCores(opts.AllCores)
 	app.ConfigureAttract(opts.NoAttract, opts.attractForced())
 	// menu-display is the kit entry. Host SDL, software, and
 	// linuxfb leave the local-control client unset. A resolved catalog

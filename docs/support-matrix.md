@@ -65,6 +65,14 @@ Atari ST is still the only optional recipe (`FES_SKIP_OPTIONAL_CORES`). That fla
 | `fx68k` | Shared | — | — | — | [README](../sources/misteross/cores/fes-common/rtl/fx68k/README.md) |
 | TV80 | Shared | — | — | — | [alignment](core-alignment.md) |
 
+## Release scope
+
+The first release lists only v1 cores in tenfoot Home, the rooms and the core catalog view. The tenfoot Settings row Show all cores lists the rest, for development and HIL. The scope is not a tier, and v1 does not mean the exact release package has passed kit HIL.
+
+- **v1:** `fes.zx81`, `fes.zx80`, `fes.ts1000`, `fes.ts1500`, `fes.c64`, `fes.spectrum`, `fes.spectrum128`, `fes.spectrum-plus3`, `fes.pentagon`, `fes.atari-st`
+- **v2:** `fes.pcxt`, `fes.pcxt-dos`, `fes.pc386`
+- **Held back:** `fes.pong`, `fes.catch`, `fes.ramtest`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, C64 NTSC, Atari STE, `fes.riscv`, `fes.demo`, `fes.demo-media`, `fes.demo-audio`
+
 ## Open
 
 These cells are still open. The wording is in [`support-matrix.json`](support-matrix.json).

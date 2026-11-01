@@ -54,6 +54,8 @@ func startHomeLoungeIn(t *testing.T, dir string, cores rooms.LocalCores, w, h in
 		client.paired = true
 	}
 	app := NewApp(client, w, h, 50)
+	// The lounge fixtures install held-back cores such as Pong.
+	app.SetAllCores(true)
 	app.SetPrefsPath(filepath.Join(dir, "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
 	app.SetHomeRooms(true)

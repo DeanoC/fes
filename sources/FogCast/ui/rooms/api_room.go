@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DeanoC/FogCast/internal/release"
 	"github.com/DeanoC/FogCast/protocol"
 
 	lua "github.com/yuin/gopher-lua"
@@ -36,6 +37,12 @@ func (r *Instance) installRoom() *lua.LTable {
 	t.RawSetString("height", lua.LNumber(r.opts.Height))
 	t.RawSetString("time", lua.LNumber(0))
 	t.RawSetString("reduced_motion", lua.LBool(r.opts.ReducedMotion))
+	// room.core_shown(core_id) is false for a core outside the v1 release
+	// when the launcher lists only release cores.
+	t.RawSetString("core_shown", L.NewFunction(func(L *lua.LState) int {
+		L.Push(lua.LBool(release.Shown(L.CheckString(1), !r.opts.ReleaseOnly)))
+		return 1
+	}))
 	t.RawSetString("live_controls", lua.LBool(!r.opts.SessionDisplayRequired))
 	t.RawSetString("overlay", lua.LBool(false))
 	t.RawSetString("initial_game_id", lua.LString(r.opts.InitialGameID))

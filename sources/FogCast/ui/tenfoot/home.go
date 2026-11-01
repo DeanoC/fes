@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/release"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -179,7 +180,8 @@ func (a *App) roomPickerRowsLocked() []RoomPickerRow {
 		}
 		rows = append(rows, row)
 	}
-	for _, game := range a.homeRecents {
+	shown := a.shownRecentsLocked()
+	for _, game := range shown {
 		id := strings.TrimSpace(game.ID)
 		if id == "" {
 			continue
@@ -202,7 +204,7 @@ func (a *App) roomPickerRowsLocked() []RoomPickerRow {
 		recents.Detail = "loading recently played…"
 	case a.homeRecentsErr != "":
 		recents.Detail = a.homeRecentsErr
-	case len(a.homeRecents) == 0:
+	case len(shown) == 0:
 		recents.Detail = "no recently played games"
 	}
 	rows = append(rows, recents)
@@ -375,12 +377,24 @@ func (a *App) launchRecentFromHomeLocked(id string) {
 	a.startLaunchGameLocked(game)
 }
 
+// shownRecentsLocked is Home's recents without games for cores outside the v1
+// release, unless all cores are shown. A game with no core is kept.
+func (a *App) shownRecentsLocked() []hostclient.Game {
+	shown := make([]hostclient.Game, 0, len(a.homeRecents))
+	for _, game := range a.homeRecents {
+		if game.CoreID == "" || release.Shown(game.CoreID, a.allCores) {
+			shown = append(shown, game)
+		}
+	}
+	return shown
+}
+
 func (a *App) homeRecentByIDLocked(id string) (hostclient.Game, bool) {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return hostclient.Game{}, false
 	}
-	for _, game := range a.homeRecents {
+	for _, game := range a.shownRecentsLocked() {
 		if game.ID == id {
 			return game, true
 		}

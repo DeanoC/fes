@@ -97,6 +97,10 @@ type Options struct {
 	// drifting art). The launcher owns the preference; scripts read
 	// room.reduced_motion.
 	ReducedMotion bool
+	// ReleaseOnly leaves out cores outside the v1 release (release.Shown).
+	// The launcher sets it unless its Show all cores preference is on; a
+	// change applies to rooms opened after it.
+	ReleaseOnly bool
 	// InitialGameID carries the selected library entry into a nested setup
 	// room. Direct room opens leave it empty and use saved room navigation.
 	InitialGameID string

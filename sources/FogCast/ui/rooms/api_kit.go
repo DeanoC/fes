@@ -8,6 +8,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/corenames"
 	"github.com/DeanoC/FogCast/internal/localcores"
+	"github.com/DeanoC/FogCast/internal/release"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -96,6 +97,9 @@ func listLocalCores(ctx context.Context, client LocalCores, budget time.Duration
 func (r *Instance) coresTable(cores []localcores.Core) *lua.LTable {
 	t := r.L.NewTable()
 	for _, c := range cores {
+		if !release.Shown(c.CoreID, !r.opts.ReleaseOnly) {
+			continue
+		}
 		row := r.L.NewTable()
 		row.RawSetString("package_id", lua.LString(c.PackageID))
 		row.RawSetString("core_id", lua.LString(c.CoreID))
