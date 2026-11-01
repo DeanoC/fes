@@ -114,7 +114,9 @@ func (s *Service) SetCoreEntryMediaName(parent context.Context, gameID, expected
 	if !ok {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
 	}
-	entry, err := store.SetCoreEntryMediaName(parent, gameID, expectedPackage, mediaID, name)
+	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
+	defer cancel()
+	entry, err := store.SetCoreEntryMediaName(ctx, gameID, expectedPackage, mediaID, name)
 	return entry, mapCoreMediaError(err)
 }
 

@@ -246,7 +246,7 @@ fields. No API response exposes the archive's private filesystem location.
 | `GET /api/v1/core-packages/{id}/media-capabilities` | Offline declared-contract projection with separate host import policy and supported role limits |
 | `POST /api/v1/library/core-entries` | `{"title":"Standalone FES Pong","package_id":"..."}`, optionally `media_role:"blob",media_id:"..."`; returns entry |
 | `GET /api/v1/library/core-entries` | `{entries:[...]}` |
-| `GET /api/v1/library/core-entries/{game_id}` | `{game_id,title,core_id,package_id}`, plus `media_role,media_id` when selected |
+| `GET /api/v1/library/core-entries/{game_id}` | `{game_id,title,core_id,package_id}`, plus `media_role,media_id` when selected and `media_name` when recorded |
 | `PUT /api/v1/library/core-entries/{game_id}` | `{"package_id":"...","expected_package_id":"..."}`; returns entry |
 | `PUT /api/v1/library/core-entries/{game_id}/media` | `{"expected_package_id":"...","expected_media_id":"","media_role":"blob","media_id":"..."}` (`media_role` is `blob` or, for `fes.computer` disks, `disk`); both expected fields required; empty new role/ID clears |
 | `PUT /api/v1/library/core-entries/{game_id}/media-name` | `{"expected_package_id":"...","media_id":"...","media_name":"GAME.P"}`; records the `.p`/`.o` basename an imported cassette was chosen under, only while that package and media are still selected; any other media selection clears it. `GET /api/v1/library/hardware` shows it as `media_name` for an imported cassette |
