@@ -85,6 +85,7 @@ core_package.o
 de25_computer.o
 de25_core_driver.o
 de25_fpga_manager.o
+de25_menu.o
 de25_pr_control.o
 diagnostic.o
 fes_gp.o
