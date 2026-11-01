@@ -55,6 +55,14 @@ The real pinned Buildroot configuration and real AArch64 runtime installation
 pass; shared factory fixtures also cover the absent-startup-script transition.
 These are configuration and assembly-path checks. The current unsealed MENU
 still prevents a complete admitted factory build.
+The [disk-construction record](../validation/2026-11-02-de25-managed-media/README.md)
+adds DE25 to the shared regular-file disk constructor/reconstructor with 2 GiB
+FAT rollback capacity and a partition-2 bootstrap. Real vendor boot bytes,
+matching kernel/DTB and a fresh AArch64 boot selector reproduce the same disk
+in both construction paths, with an explicit factory/idle binding fixture.
+This establishes disk construction and payload checks, not factory admission,
+CPU execution or native boot. The high-level release path's image-level boot
+smoke requirement is preserved.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.
 

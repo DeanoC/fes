@@ -178,6 +178,15 @@ remain separate from admitted package and physical boot evidence. Complete
 factory/card assembly requires a sealed MENU; the current candidate remains
 unsealed. Native factory, watchdog and normal-kit acceptance remain open.
 
+The [disk-construction record](validation/2026-11-02-de25-managed-media/README.md)
+then exercises a 2 GiB FAT plus 32 MiB partition-2 bootstrap through the shared
+media constructor/reconstructor, preserving Terasic's boot script and U-Boot.
+Two independent constructions with actual vendor/kernel/boot-selector bytes
+match, using a clearly marked factory/idle binding fixture. Payload, geometry,
+padding and foreign-board refusals are checked. The upper release/media CLI
+still requires an admitted factory and image-level boot smoke result; these
+construction checks do not provide either or qualify native startup.
+
 The [managed-fabric record](validation/2026-11-01-de25-managed-fabric/README.md)
 covers the current canonical MENU profile: vendor maintenance masters removed,
 unused F2H disabled, and obsolete fabric JTAG constraints retired with their

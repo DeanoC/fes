@@ -1,0 +1,24 @@
+{
+  "appliance_module": "github.com/DeanoC/FogCast/appliance",
+  "appliance_module_sha256": "f7c16542236c4690875ea5b28ad74eb26b376d3683da626c71aa739580c06a30",
+  "build_env": {
+    "CGO_ENABLED": "0",
+    "GOARCH": "arm64",
+    "GOARM64": "v8.0",
+    "GOOS": "linux",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOTOOLCHAIN": "local"
+  },
+  "build_flags": [
+    "-trimpath",
+    "-buildvcs=false",
+    "-ldflags=-s -w -buildid="
+  ],
+  "fogcast_revision": "f9b522b6c597cf66b900897f20f23d9bb7886dc1",
+  "go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+  "go_version": "go1.26.5",
+  "package": "./cmd/fes-boot",
+  "platform_module": "github.com/DeanoC/fes/platform",
+  "platform_sha256": "59725c83306fe535ee0b408361d0e8f9752b9fb13650c26cbd9555dc2b36751e"
+}

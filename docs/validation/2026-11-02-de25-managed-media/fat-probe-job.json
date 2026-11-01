@@ -1,0 +1,16 @@
+{
+  "source_revision": "d6cf31c8ac322a46e3d4d845139b444b57e4e04d",
+  "command": [
+    "/usr/bin/python3",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-media/fat-geometry-probe.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-media-d6cf31c8a",
+  "started_utc": "2026-11-01T23:43:58.945141+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 530111,
+  "state": "failed",
+  "elapsed_seconds": 1.5,
+  "heartbeat_utc": "2026-11-01T23:44:00.491162+00:00",
+  "returncode": 1
+}

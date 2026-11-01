@@ -59,6 +59,22 @@ is not a managed factory or a bootable appliance card. Full DE25 factory/card
 assembly and native boot/update/recovery remain open; the normal Make/CLI card
 workflow below has not switched platforms.
 
+The shared disk constructor and two-pass reconstructor now also accept an
+explicit DE25 selection. Its layout reserves a 2 GiB FAT partition for the
+factory, Good, Previous and staged system images, and puts the shared 32 MiB
+bootstrap in partition 2. It preserves the vendor's `u-boot.itb`, boot script,
+reserved boot bytes, partition numbers and serial/root contract, while checking
+the selected owner kernel/DTB and every owned FAT payload. The pinned formatter
+uses 4,194,288 filesystem sectors within the 4,194,304-sector FAT partition;
+verification requires the exact geometry and its 8 KiB zero tail.
+
+This is the lower construction layer, with the
+[disk-construction evidence](validation/2026-11-02-de25-managed-media/README.md).
+The public release/media CLI still needs the actual admitted factory and its
+image-level boot smoke evidence. Construction fixtures do not satisfy those
+gates or establish a bootable normal kit. The existing release exporter has
+not been given fabricated QEMU evidence or a headless-root substitution.
+
 ## Build once from selected inputs
 
 Start with clean selected component checkouts, then run the existing integration
