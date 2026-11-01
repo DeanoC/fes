@@ -1,7 +1,7 @@
 {
   "status": "passed",
   "kind": "actual-dual-client-combined-ZX81-PR-RTL",
-  "source_revision": "6dcebf527edffb45ef8f85b169b410228654e0e6",
+  "source_revision": "739669eb46d67ebb6c8c62c0835598c36fbc7c3c",
   "production_source_committed": true,
   "test_source_committed": true,
   "compiler_source_sha256": {
@@ -75,7 +75,7 @@
     "sources/libmister-runtime/src/native/de25_core_driver.hpp": "6c6b49ef0382389518f90b0d65f7582099b3aac5f635e31ea9b79506d4a17047",
     "sources/libmister-runtime/src/native/artifacts.hpp": "1d1abad2c4bdbf02fe39e115b0b88cbc1c9ba7a66370d09a581d24955fcefeab",
     "sources/libmister-runtime/src/native/core_package.hpp": "e2854a4530977f764155397255d735210f56b60e33f9d882eec1b8a32f5daf5f",
-    "sources/libmister-runtime/src/native/menu_display.hpp": "736bff928cac9dfb5a1fcf9660fd9d589107f5618ba12d1f2b10041984cf12c1",
+    "sources/libmister-runtime/src/native/menu_display.hpp": "68d501fd143daa309f4fbac96a12e474b9d7ea63ce2b6497c2ef6e31ee35ee65",
     "sources/libmister-runtime/src/native/diagnostic.hpp": "778c93c96c5ae4c0eda141cc5c9fa498445ba5748e7b3ee651a370a075e78c7a",
     "sources/libmister-runtime/src/native/input.hpp": "b89b3a19150a5044cef8e74a346f88fe4cba737b2a2253c5fcdab657fe80bc37",
     "sources/libmister-runtime/src/native/core_driver.hpp": "f1ecce08a70866f865a1007cad07542689119c6efcc30ad9535014e243e4ede9",
@@ -97,11 +97,11 @@
     "sources/libmister-runtime/src/native/video_recipe.hpp": "b471a537d3ed136028465f5dd11db0e7fe52f2534a9762a28f63c8f89583e8c0",
     "sources/libmister-runtime/src/native/de25_computer.hpp": "b4d9232a6848bf705c9789e32ac56d2863e637ddfe4db8bb82b4394682330c52",
     "sources/libmister-runtime/src/native/video.hpp": "bc430856f204a579761af9f5ca821349836275a3af401a6133b4c43f7d48f50e",
-    "sources/libmister-runtime/src/native/hardware.hpp": "aad605eda5487b5e54574e773e9fed1598f608b26537e47ae90d4b217a488829",
+    "sources/libmister-runtime/src/native/hardware.hpp": "8d8a41422e310e2054198637833050bfd42792cada6ef2bac27fde7fe8be1119",
     "sources/libmister-runtime/src/native/linux/fpga_manager.hpp": "0f3ef48bf53f74aaf25a5d5311fa6c5d2a5d5d70d79eb328b5656ed045f8291f",
     "sources/libmister-runtime/src/native/linux/input.hpp": "3a82eefc485b0926cec8d9c11dbab479abb83358c732919f7cd5c2ac31fd82e3",
     "sources/libmister-runtime/src/native/linux/de25_fpga_manager.hpp": "55822b88d2a140fd0a7c4567b91c716f2fbfa16f9082fff7e19de51c6d5c85ea",
-    "sources/libmister-runtime/src/native/linux/menu_window.hpp": "fbc0ecd9f854d85333f625231f59f717901d7e65c73e845e747f041ab1cf84a1",
+    "sources/libmister-runtime/src/native/linux/menu_window.hpp": "234ecbd72fec7dad860aedcc6a75540a76d2d582363140b38f2a8e2da5df035c",
     "sources/libmister-runtime/src/native/linux/i2c.hpp": "f848c7c3d2350f10390d43de3941ad16d67a8ddb062f0d6f1ac1214b0ad60eb7",
     "sources/libmister-runtime/src/native/linux/mmio.hpp": "fcf064a53334c7e7d3d804245282cdba1f6d2f4a2fdffb61d0e1c12aca299eca",
     "sources/libmister-runtime/src/native/linux/window_driver.hpp": "b12c19c1ab9ff252165cf94430a63f298a5e3715393c34f99aec98f8ce561309",
@@ -315,7 +315,7 @@
   "selected_build_id": "00112233445566778899aabbccddeeff",
   "binaries_sha256": {
     "client-native": "0fdf85469214aa327e0dd99a8f96ebbb674e1ee946320fe253eafd8210ce0b26",
-    "Vfes_de25_combined_sim": "b6ca381321ea7d03273ce3fa52c455b24d6a445eb8d5412faf6d5c5331fbac3d",
+    "Vfes_de25_combined_sim": "43dd0eb105d3312a83c7a5160d8c5a3800e325859723c15cc7d483101a8e74bc",
     "client-aarch64": "48b70db07d08a45c6a8412c502453f2ddbb121ef584443ae0d21ad1b01a4768f"
   },
   "physical_PR": "selection-mux-model-only",
