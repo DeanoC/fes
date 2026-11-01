@@ -1,0 +1,913 @@
+# The speed governor's presets and reference costs (docs/i386-cpu-design.md,
+# "Speed control"; scripts/fes_i386_governor.py builds fes_i386_gov_pkg.sv and
+# fes_i386_gov_rom.sv from this, and the governor benches read it).
+#
+# A preset is a cost table, a frequency, a wait-state charge and a data bus
+# width. Its ID is word 0 of the fes.pc386.machine record (mister-packages
+# docs/computer-io.md); 0 is max, which has no table. frequency is in units of
+# 100 kHz, as the record's override (word 1) is. wait is charged for every
+# memory bus cycle. On a 16-bit bus a dword access takes two bus cycles: it
+# adds a second cycle's two clocks and its wait states. The wait states are
+# starting points for Phase 3's tuning by play.
+#
+# Each class lists the encodings it costs, by the lockstep's stems
+# (scripts/test_fes_i386_lockstep.py): opcode, or 0Fh and opcode, in hex;
+# ".n" the ModRM reg field; "/r" a register operand (mod 3), "/m" a memory
+# one; ":16" or ":32" the operand size; ":rep" or ":norep" a REP prefix; "a-b"
+# a range of opcodes. A class with no form costs every form.
+#
+# cost is the clock count in real address mode on the 80286, the Intel386 DX
+# and the i486, in that order, with the data sheets' m (the next
+# instruction's bytes or components) taken as one and no wait states. A
+# branch class also has taken: cost is then the count when it falls through.
+# INTO's "taken" is its JNO jumping, that is no interrupt. A REP string has
+# element, charged as each element retires; cost is then the base, charged
+# as the instruction ends. A range charges its middle, rounded up; a count n
+# that the instruction's bytes do not give is taken as 4 for a 286 shift and
+# 8 for a 386 bit scan, and ENTER as level 0. The 286 has no 32-bit operands
+# and no 386 instructions: its table charges a 32-bit form as the 16-bit one
+# and a 386 instruction as the 386 does. On every table an address of base,
+# index and displacement costs one more (memory = true classes).
+#
+# Sources: the 286, 386 and 486 columns of "80x86 Integer Instruction Set
+# (8088 - Pentium)" (https://www2.math.uni-wuppertal.de/~fpf/Uebungen/GdR-SS02/opcode_i.html),
+# which compiles the Intel data sheets' counts, checked against MAME's 386
+# and 486 tables (src/devices/cpu/i386/cycles.h) and 286 table
+# (src/devices/cpu/i86/i286.cpp). Where they differ the compiled table wins.
+
+[[preset]]
+id = 1
+name = "286-12"
+table = "286"
+frequency = 120
+wait = 1
+bus = 16
+
+[[preset]]
+id = 2
+name = "386SX-16"
+table = "386"
+frequency = 160
+wait = 1
+bus = 16
+
+[[preset]]
+id = 3
+name = "386DX-25"
+table = "386"
+frequency = 250
+wait = 0
+bus = 32
+
+[[preset]]
+id = 4
+name = "386DX-33"
+table = "386"
+frequency = 333
+wait = 0
+bus = 32
+
+[[preset]]
+id = 5
+name = "386DX-40"
+table = "386"
+frequency = 400
+wait = 0
+bus = 32
+
+[[preset]]
+id = 6
+name = "486DX-33"
+table = "486"
+frequency = 333
+wait = 0
+bus = 32
+
+[[preset]]
+id = 7
+name = "486DX2-66"
+table = "486"
+frequency = 667
+wait = 0
+bus = 32
+
+# ---- Data movement
+
+[[class]]
+name = "mov_r"
+stems = ["88/r", "89/r", "8A/r", "8B/r", "B0-BF", "C6/r", "C7/r"]
+cost = [2, 2, 1]
+
+[[class]]
+name = "mov_load"
+stems = ["8A/m", "8B/m", "A0", "A1"]
+memory = true
+cost = [5, 4, 1]
+
+[[class]]
+name = "mov_store"
+stems = ["88/m", "89/m", "C6/m", "C7/m", "A2", "A3"]
+memory = true
+cost = [3, 2, 1]
+
+[[class]]
+name = "mov_sreg_r"
+stems = ["8E/r"]
+cost = [2, 2, 3]
+
+[[class]]
+name = "mov_sreg_m"
+stems = ["8E/m"]
+memory = true
+cost = [5, 5, 3]
+
+[[class]]
+name = "mov_r_sreg"
+stems = ["8C/r"]
+cost = [2, 2, 3]
+
+[[class]]
+name = "mov_m_sreg"
+stems = ["8C/m"]
+memory = true
+cost = [3, 2, 3]
+
+[[class]]
+name = "movx_r"
+stems = ["0FB6/r", "0FB7/r", "0FBE/r", "0FBF/r"]
+cost = [3, 3, 3]
+
+[[class]]
+name = "movx_m"
+stems = ["0FB6/m", "0FB7/m", "0FBE/m", "0FBF/m"]
+memory = true
+cost = [6, 6, 3]
+
+[[class]]
+name = "lea"
+stems = ["8D"]
+memory = true
+cost = [3, 2, 1]
+
+[[class]]
+name = "xchg_r"
+stems = ["86/r", "87/r", "91-97"]
+cost = [3, 3, 3]
+
+[[class]]
+name = "xchg_m"
+stems = ["86/m", "87/m"]
+memory = true
+cost = [5, 5, 5]
+
+[[class]]
+name = "push_r"
+stems = ["50-57", "68", "6A", "FF.6/r"]
+cost = [3, 2, 1]
+
+[[class]]
+name = "push_sreg"
+stems = ["06", "0E", "16", "1E", "0FA0", "0FA8"]
+cost = [3, 2, 3]
+
+[[class]]
+name = "push_m"
+stems = ["FF.6/m"]
+memory = true
+cost = [5, 5, 4]
+
+[[class]]
+name = "pop_r"
+stems = ["58-5F", "8F/r"]
+cost = [5, 4, 1]
+
+[[class]]
+name = "pop_m"
+stems = ["8F/m"]
+memory = true
+cost = [5, 5, 6]
+
+[[class]]
+name = "pop_sreg"
+stems = ["07", "17", "1F", "0FA1", "0FA9"]
+cost = [5, 7, 3]
+
+[[class]]
+name = "pusha"
+stems = ["60"]
+cost = [17, 18, 11]
+
+[[class]]
+name = "popa"
+stems = ["61"]
+cost = [19, 24, 9]
+
+[[class]]
+name = "pushf"
+stems = ["9C"]
+cost = [3, 4, 4]
+
+[[class]]
+name = "popf"
+stems = ["9D"]
+cost = [5, 5, 9]
+
+[[class]]
+name = "lahf"
+stems = ["9F"]
+cost = [2, 2, 3]
+
+[[class]]
+name = "sahf"
+stems = ["9E"]
+cost = [2, 3, 2]
+
+[[class]]
+name = "cbw"
+stems = ["98"]
+cost = [2, 3, 3]
+
+[[class]]
+name = "cwd"
+stems = ["99"]
+cost = [2, 2, 3]
+
+[[class]]
+name = "lptr"
+stems = ["C4", "C5", "0FB2", "0FB4", "0FB5"]
+memory = true
+cost = [7, 7, 6]
+
+[[class]]
+name = "xlat"
+stems = ["D7"]
+cost = [5, 5, 4]
+
+# ---- Arithmetic and logic
+
+[[class]]
+name = "alu_rr"
+stems = [
+    "00/r", "01/r", "02/r", "03/r", "08/r", "09/r", "0A/r", "0B/r", "10/r", "11/r", "12/r", "13/r",
+    "18/r", "19/r", "1A/r", "1B/r", "20/r", "21/r", "22/r", "23/r", "28/r", "29/r", "2A/r", "2B/r",
+    "30/r", "31/r", "32/r", "33/r", "38/r", "39/r", "3A/r", "3B/r", "40-4F", "84/r", "85/r",
+    "F6.2/r", "F6.3/r", "F7.2/r", "F7.3/r", "FE.0/r", "FE.1/r", "FF.0/r", "FF.1/r",
+]
+cost = [2, 2, 1]
+
+[[class]]
+name = "alu_ri"
+stems = [
+    "04", "05", "0C", "0D", "14", "15", "1C", "1D", "24", "25", "2C", "2D", "34", "35", "3C", "3D",
+    "80/r", "81/r", "82/r", "83/r", "A8", "A9", "F6.0/r", "F6.1/r", "F7.0/r", "F7.1/r",
+]
+cost = [3, 2, 1]
+
+[[class]]
+name = "alu_load"
+stems = [
+    "02/m", "03/m", "0A/m", "0B/m", "12/m", "13/m", "1A/m", "1B/m", "22/m", "23/m", "2A/m", "2B/m",
+    "32/m", "33/m",
+]
+memory = true
+cost = [7, 6, 2]
+
+[[class]]
+name = "cmp_load"
+stems = ["3A/m", "3B/m"]
+memory = true
+cost = [6, 6, 2]
+
+[[class]]
+name = "alu_rmw"
+stems = [
+    "00/m", "01/m", "08/m", "09/m", "10/m", "11/m", "18/m", "19/m", "20/m", "21/m", "28/m", "29/m",
+    "30/m", "31/m",
+    "80.0/m", "80.1/m", "80.2/m", "80.3/m", "80.4/m", "80.5/m", "80.6/m",
+    "81.0/m", "81.1/m", "81.2/m", "81.3/m", "81.4/m", "81.5/m", "81.6/m",
+    "82.0/m", "82.1/m", "82.2/m", "82.3/m", "82.4/m", "82.5/m", "82.6/m",
+    "83.0/m", "83.1/m", "83.2/m", "83.3/m", "83.4/m", "83.5/m", "83.6/m",
+]
+memory = true
+cost = [7, 7, 3]
+
+[[class]]
+name = "cmp_mr"
+stems = ["38/m", "39/m"]
+memory = true
+cost = [7, 5, 2]
+
+[[class]]
+name = "test_m"
+stems = ["80.7/m", "81.7/m", "82.7/m", "83.7/m", "84/m", "85/m", "F6.0/m", "F6.1/m", "F7.0/m", "F7.1/m"]
+memory = true
+cost = [6, 5, 2]
+
+[[class]]
+name = "unary_m"
+stems = ["F6.2/m", "F6.3/m", "F7.2/m", "F7.3/m", "FE.0/m", "FE.1/m", "FF.0/m", "FF.1/m"]
+memory = true
+cost = [7, 6, 3]
+
+[[class]]
+name = "daa"
+stems = ["27", "2F"]
+cost = [3, 4, 2]
+
+[[class]]
+name = "aaa"
+stems = ["37", "3F"]
+cost = [3, 4, 3]
+
+[[class]]
+name = "aam"
+stems = ["D4"]
+cost = [16, 17, 15]
+
+[[class]]
+name = "aad"
+stems = ["D5"]
+cost = [14, 19, 14]
+
+# ---- Multiply and divide: the 386's and 486's early-out multiplies charge
+# the middle of their range.
+
+[[class]]
+name = "mul8_r"
+stems = ["F6.4/r", "F6.5/r"]
+cost = [13, 12, 16]
+
+[[class]]
+name = "mul8_m"
+stems = ["F6.4/m", "F6.5/m"]
+memory = true
+cost = [16, 15, 16]
+
+[[class]]
+name = "mul16_r"
+stems = ["F7.4/r:16", "F7.5/r:16", "0FAF/r:16", "69/r:16", "6B/r:16"]
+cost = [21, 16, 20]
+
+[[class]]
+name = "mul16_m"
+stems = ["F7.4/m:16", "F7.5/m:16", "0FAF/m:16", "69/m:16", "6B/m:16"]
+memory = true
+cost = [24, 19, 20]
+
+[[class]]
+name = "mul32_r"
+stems = ["F7.4/r:32", "F7.5/r:32", "0FAF/r:32", "69/r:32", "6B/r:32"]
+cost = [21, 24, 28]
+
+[[class]]
+name = "mul32_m"
+stems = ["F7.4/m:32", "F7.5/m:32", "0FAF/m:32", "69/m:32", "6B/m:32"]
+memory = true
+cost = [24, 27, 28]
+
+[[class]]
+name = "div8_r"
+stems = ["F6.6/r"]
+cost = [14, 14, 16]
+
+[[class]]
+name = "div8_m"
+stems = ["F6.6/m"]
+memory = true
+cost = [17, 17, 16]
+
+[[class]]
+name = "idiv8_r"
+stems = ["F6.7/r"]
+cost = [17, 19, 19]
+
+[[class]]
+name = "idiv8_m"
+stems = ["F6.7/m"]
+memory = true
+cost = [20, 22, 20]
+
+[[class]]
+name = "div16_r"
+stems = ["F7.6/r:16"]
+cost = [22, 22, 24]
+
+[[class]]
+name = "div16_m"
+stems = ["F7.6/m:16"]
+memory = true
+cost = [25, 25, 24]
+
+[[class]]
+name = "idiv16_r"
+stems = ["F7.7/r:16"]
+cost = [25, 27, 27]
+
+[[class]]
+name = "idiv16_m"
+stems = ["F7.7/m:16"]
+memory = true
+cost = [28, 30, 28]
+
+[[class]]
+name = "div32_r"
+stems = ["F7.6/r:32"]
+cost = [22, 38, 40]
+
+[[class]]
+name = "div32_m"
+stems = ["F7.6/m:32"]
+memory = true
+cost = [25, 41, 40]
+
+[[class]]
+name = "idiv32_r"
+stems = ["F7.7/r:32"]
+cost = [25, 43, 43]
+
+[[class]]
+name = "idiv32_m"
+stems = ["F7.7/m:32"]
+memory = true
+cost = [28, 46, 44]
+
+# ---- Shifts and rotates: RCL and RCR (/2, /3) apart. A 286 count from CL
+# or an immediate charges 5 + n (8 + n in memory), n taken as 4.
+
+[[class]]
+name = "shift1_r"
+stems = ["D0.0/r", "D0.1/r", "D0.4/r", "D0.5/r", "D0.6/r", "D0.7/r",
+         "D1.0/r", "D1.1/r", "D1.4/r", "D1.5/r", "D1.6/r", "D1.7/r"]
+cost = [2, 3, 3]
+
+[[class]]
+name = "shiftn_r"
+stems = ["D2.0/r", "D2.1/r", "D2.4/r", "D2.5/r", "D2.6/r", "D2.7/r",
+         "D3.0/r", "D3.1/r", "D3.4/r", "D3.5/r", "D3.6/r", "D3.7/r",
+         "C0.0/r", "C0.1/r", "C0.4/r", "C0.5/r", "C0.6/r", "C0.7/r",
+         "C1.0/r", "C1.1/r", "C1.4/r", "C1.5/r", "C1.6/r", "C1.7/r"]
+cost = [9, 3, 3]
+
+[[class]]
+name = "shift1_m"
+stems = ["D0.0/m", "D0.1/m", "D0.4/m", "D0.5/m", "D0.6/m", "D0.7/m",
+         "D1.0/m", "D1.1/m", "D1.4/m", "D1.5/m", "D1.6/m", "D1.7/m"]
+memory = true
+cost = [7, 7, 4]
+
+[[class]]
+name = "shiftn_m"
+stems = ["D2.0/m", "D2.1/m", "D2.4/m", "D2.5/m", "D2.6/m", "D2.7/m",
+         "D3.0/m", "D3.1/m", "D3.4/m", "D3.5/m", "D3.6/m", "D3.7/m",
+         "C0.0/m", "C0.1/m", "C0.4/m", "C0.5/m", "C0.6/m", "C0.7/m",
+         "C1.0/m", "C1.1/m", "C1.4/m", "C1.5/m", "C1.6/m", "C1.7/m"]
+memory = true
+cost = [12, 7, 4]
+
+[[class]]
+name = "rc1_r"
+stems = ["D0.2/r", "D0.3/r", "D1.2/r", "D1.3/r"]
+cost = [2, 9, 3]
+
+[[class]]
+name = "rcn_r"
+stems = ["D2.2/r", "D2.3/r", "D3.2/r", "D3.3/r", "C0.2/r", "C0.3/r", "C1.2/r", "C1.3/r"]
+cost = [9, 9, 19]
+
+[[class]]
+name = "rc1_m"
+stems = ["D0.2/m", "D0.3/m", "D1.2/m", "D1.3/m"]
+memory = true
+cost = [7, 10, 4]
+
+[[class]]
+name = "rcn_m"
+stems = ["D2.2/m", "D2.3/m", "D3.2/m", "D3.3/m", "C0.2/m", "C0.3/m", "C1.2/m", "C1.3/m"]
+memory = true
+cost = [12, 10, 20]
+
+[[class]]
+name = "shld_r"
+stems = ["0FA4/r", "0FA5/r", "0FAC/r", "0FAD/r"]
+cost = [3, 3, 3]
+
+[[class]]
+name = "shld_m"
+stems = ["0FA4/m", "0FA5/m", "0FAC/m", "0FAD/m"]
+memory = true
+cost = [7, 7, 4]
+
+# ---- Bits
+
+[[class]]
+name = "bt_r"
+stems = ["0FA3/r", "0FBA.4/r"]
+cost = [3, 3, 3]
+
+[[class]]
+name = "bt_m_imm"
+stems = ["0FBA.4/m"]
+memory = true
+cost = [6, 6, 3]
+
+[[class]]
+name = "bt_m_r"
+stems = ["0FA3/m"]
+memory = true
+cost = [12, 12, 8]
+
+[[class]]
+name = "bts_r"
+stems = ["0FAB/r", "0FB3/r", "0FBB/r", "0FBA.5/r", "0FBA.6/r", "0FBA.7/r"]
+cost = [6, 6, 6]
+
+[[class]]
+name = "bts_m_imm"
+stems = ["0FBA.5/m", "0FBA.6/m", "0FBA.7/m"]
+memory = true
+cost = [8, 8, 8]
+
+[[class]]
+name = "bts_m_r"
+stems = ["0FAB/m", "0FB3/m", "0FBB/m"]
+memory = true
+cost = [13, 13, 13]
+
+[[class]]
+name = "bsf_r"
+stems = ["0FBC/r", "0FBD/r"]
+cost = [34, 34, 24]
+
+[[class]]
+name = "bsf_m"
+stems = ["0FBC/m", "0FBD/m"]
+memory = true
+cost = [34, 34, 25]
+
+[[class]]
+name = "setcc_r"
+stems = ["0F90/r", "0F91/r", "0F92/r", "0F93/r", "0F94/r", "0F95/r", "0F96/r", "0F97/r",
+         "0F98/r", "0F99/r", "0F9A/r", "0F9B/r", "0F9C/r", "0F9D/r", "0F9E/r", "0F9F/r"]
+cost = [4, 4, 4]
+
+[[class]]
+name = "setcc_m"
+stems = ["0F90/m", "0F91/m", "0F92/m", "0F93/m", "0F94/m", "0F95/m", "0F96/m", "0F97/m",
+         "0F98/m", "0F99/m", "0F9A/m", "0F9B/m", "0F9C/m", "0F9D/m", "0F9E/m", "0F9F/m"]
+memory = true
+cost = [5, 5, 4]
+
+# ---- Control transfers
+
+[[class]]
+name = "jcc"
+stems = ["70-7F", "0F80-0F8F"]
+cost = [3, 3, 1]
+taken = [8, 8, 3]
+
+[[class]]
+name = "loop"
+stems = ["E2"]
+cost = [4, 11, 6]
+taken = [9, 12, 7]
+
+[[class]]
+name = "loopcc"
+stems = ["E0", "E1"]
+cost = [4, 11, 6]
+taken = [8, 12, 9]
+
+[[class]]
+name = "jcxz"
+stems = ["E3"]
+cost = [4, 5, 5]
+taken = [9, 10, 8]
+
+[[class]]
+name = "jmp"
+stems = ["E9", "EB"]
+cost = [8, 8, 3]
+
+[[class]]
+name = "jmp_r"
+stems = ["FF.4/r"]
+cost = [8, 8, 5]
+
+[[class]]
+name = "jmp_m"
+stems = ["FF.4/m"]
+memory = true
+cost = [12, 11, 5]
+
+[[class]]
+name = "jmpf"
+stems = ["EA"]
+cost = [12, 13, 17]
+
+[[class]]
+name = "jmpf_m"
+stems = ["FF.5"]
+memory = true
+cost = [16, 13, 13]
+
+[[class]]
+name = "call"
+stems = ["E8"]
+cost = [8, 8, 3]
+
+[[class]]
+name = "call_r"
+stems = ["FF.2/r"]
+cost = [8, 8, 5]
+
+[[class]]
+name = "call_m"
+stems = ["FF.2/m"]
+memory = true
+cost = [12, 11, 5]
+
+[[class]]
+name = "callf"
+stems = ["9A"]
+cost = [14, 18, 18]
+
+[[class]]
+name = "callf_m"
+stems = ["FF.3"]
+memory = true
+cost = [17, 23, 17]
+
+[[class]]
+name = "ret"
+stems = ["C2", "C3"]
+cost = [12, 11, 5]
+
+[[class]]
+name = "retf"
+stems = ["CB"]
+cost = [16, 19, 13]
+
+[[class]]
+name = "retf_imm"
+stems = ["CA"]
+cost = [16, 19, 14]
+
+# INT imm8; an exception or interrupt delivery is charged as one.
+[[class]]
+name = "int"
+stems = ["CD"]
+cost = [24, 37, 30]
+
+[[class]]
+name = "int3"
+stems = ["CC"]
+cost = [24, 33, 26]
+
+[[class]]
+name = "into"
+stems = ["CE"]
+cost = [25, 35, 28]
+taken = [3, 3, 3]
+
+[[class]]
+name = "iret"
+stems = ["CF"]
+cost = [18, 22, 15]
+
+# ---- Strings
+
+[[class]]
+name = "movs"
+stems = ["A4:norep", "A5:norep"]
+cost = [5, 7, 7]
+
+[[class]]
+name = "rep_movs"
+stems = ["A4:rep", "A5:rep"]
+cost = [5, 7, 12]
+element = [4, 4, 3]
+
+[[class]]
+name = "cmps"
+stems = ["A6:norep", "A7:norep"]
+cost = [8, 10, 8]
+
+[[class]]
+name = "rep_cmps"
+stems = ["A6:rep", "A7:rep"]
+cost = [5, 5, 7]
+element = [9, 9, 7]
+
+[[class]]
+name = "stos"
+stems = ["AA:norep", "AB:norep"]
+cost = [3, 4, 5]
+
+[[class]]
+name = "rep_stos"
+stems = ["AA:rep", "AB:rep"]
+cost = [4, 5, 7]
+element = [3, 5, 4]
+
+[[class]]
+name = "lods"
+stems = ["AC:norep", "AD:norep"]
+cost = [5, 5, 5]
+
+[[class]]
+name = "rep_lods"
+stems = ["AC:rep", "AD:rep"]
+cost = [5, 5, 7]
+element = [4, 5, 4]
+
+[[class]]
+name = "scas"
+stems = ["AE:norep", "AF:norep"]
+cost = [7, 7, 6]
+
+[[class]]
+name = "rep_scas"
+stems = ["AE:rep", "AF:rep"]
+cost = [5, 5, 7]
+element = [8, 8, 5]
+
+[[class]]
+name = "ins"
+stems = ["6C:norep", "6D:norep"]
+cost = [5, 15, 17]
+
+[[class]]
+name = "rep_ins"
+stems = ["6C:rep", "6D:rep"]
+cost = [5, 13, 16]
+element = [4, 6, 8]
+
+[[class]]
+name = "outs"
+stems = ["6E:norep", "6F:norep"]
+cost = [5, 14, 17]
+
+[[class]]
+name = "rep_outs"
+stems = ["6E:rep", "6F:rep"]
+cost = [5, 12, 17]
+element = [4, 5, 5]
+
+# ---- I/O: the instruction's own cost; the machine's device time is apart
+# (docs/pc386-machine-design.md, "I/O timing").
+
+[[class]]
+name = "in_imm"
+stems = ["E4", "E5"]
+cost = [5, 12, 14]
+
+[[class]]
+name = "in_dx"
+stems = ["EC", "ED"]
+cost = [5, 13, 14]
+
+[[class]]
+name = "out_imm"
+stems = ["E6", "E7"]
+cost = [3, 10, 16]
+
+[[class]]
+name = "out_dx"
+stems = ["EE", "EF"]
+cost = [3, 11, 16]
+
+# ---- Everything else
+
+[[class]]
+name = "flag"
+stems = ["F5", "F8", "F9", "FC", "FD"]
+cost = [2, 2, 2]
+
+[[class]]
+name = "cli"
+stems = ["FA"]
+cost = [3, 3, 5]
+
+[[class]]
+name = "sti"
+stems = ["FB"]
+cost = [2, 3, 5]
+
+[[class]]
+name = "nop"
+stems = ["90"]
+cost = [3, 3, 1]
+
+[[class]]
+name = "hlt"
+stems = ["F4"]
+cost = [2, 5, 4]
+
+[[class]]
+name = "enter"
+stems = ["C8"]
+cost = [11, 10, 14]
+
+[[class]]
+name = "leave"
+stems = ["C9"]
+cost = [5, 4, 5]
+
+[[class]]
+name = "bound"
+stems = ["62"]
+memory = true
+cost = [13, 10, 7]
+
+[[class]]
+name = "wait"
+stems = ["9B"]
+cost = [3, 6, 2]
+
+[[class]]
+name = "clts"
+stems = ["0F06"]
+cost = [2, 5, 7]
+
+# Group 7 and MOV to and from CR0, CR2 and CR3 (Phase 2). The descriptor
+# table forms have only a memory operand.
+[[class]]
+name = "sgdt"
+stems = ["0F01.0"]
+memory = true
+cost = [11, 9, 10]
+
+[[class]]
+name = "sidt"
+stems = ["0F01.1"]
+memory = true
+cost = [12, 9, 10]
+
+[[class]]
+name = "lgdt"
+stems = ["0F01.2"]
+memory = true
+cost = [11, 11, 11]
+
+[[class]]
+name = "lidt"
+stems = ["0F01.3"]
+memory = true
+cost = [12, 11, 11]
+
+[[class]]
+name = "smsw_r"
+stems = ["0F01.4/r"]
+cost = [2, 2, 2]
+
+[[class]]
+name = "smsw_m"
+stems = ["0F01.4/m"]
+memory = true
+cost = [3, 3, 3]
+
+[[class]]
+name = "lmsw_r"
+stems = ["0F01.6/r"]
+cost = [3, 10, 13]
+
+[[class]]
+name = "lmsw_m"
+stems = ["0F01.6/m"]
+memory = true
+cost = [6, 13, 13]
+
+# 0F01h /5 and /7 raise #UD on the 386, and a faulting instruction does not
+# retire (its delivery is charged as INT), so this cost is never charged.
+[[class]]
+name = "group7_ud"
+stems = ["0F01.5", "0F01.7"]
+cost = [2, 2, 1]
+
+# MOV r32, CRn: 6 on the 386 and 4 on the i486 for every register.
+[[class]]
+name = "mov_from_cr"
+stems = ["0F20"]
+cost = [6, 6, 4]
+
+# MOV CRn, r32: the data sheets' CR0 counts (10 and 16); CR2 and CR3 take 4
+# (CR1 and CR4 to CR7 raise #UD).
+[[class]]
+name = "mov_to_cr0"
+stems = ["0F22.0"]
+cost = [10, 10, 16]
+
+[[class]]
+name = "mov_to_cr"
+stems = ["0F22.1", "0F22.2", "0F22.3", "0F22.4", "0F22.5", "0F22.6", "0F22.7"]
+cost = [4, 4, 4]
+
+# SALC (D6h), which the data sheets leave out: a register ALU operation's cost.
+[[class]]
+name = "salc"
+stems = ["D6"]
+cost = [2, 2, 1]
+
+# What no class lists, which this build does not execute.
+[default]
+cost = [2, 2, 1]

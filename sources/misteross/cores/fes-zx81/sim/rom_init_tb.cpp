@@ -42,7 +42,7 @@ void tick(Vrom_init_window &dut) {
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     if (argc != 2)
-        fail("usage: Vrom_init_window zx8x.hex");
+        fail("usage: Vrom_init_window zx81.hex");
     const std::vector<uint8_t> image = load_hex(argv[1]);
     if (image.size() < kBasicBytes || image[0] != 0xd3 || image[1] != 0xfd)
         fail("BASIC image does not start with OUT (FD),A");

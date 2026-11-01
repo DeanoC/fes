@@ -1157,7 +1157,7 @@ no L2 between, and `cold_reset` empties the write buffer.
 | FLUSH | In | Invalidate L1; write back and invalidate L2. Completes while the CPU runs, is halted, is in shutdown or is held in reset |
 | Attribute map | In | The memory-type table above |
 | Profile | In | `i386dx` or `i486-isa`, `coherent` or `queue16`, sampled at reset |
-| Governor | In | Mode, reference cost table and frequency |
+| Governor | In | Preset (its reference cost table, frequency, wait states and bus), frequency override and turbo, sampled at reset; `GOV_N`/`GOV_D`, 100 kHz as a fraction of the clock ([speed control](#speed-control)) |
 | FERR, IGNNE | Out/in | x87 milestone |
 | Trace | Out | Retirement trace for simulation and kit diagnostics |
 
@@ -1176,29 +1176,67 @@ Requirements on the machine that matter for speed:
 
 Some games of the era run their logic in delay loops, or calibrate once and
 then overflow on a fast CPU; Turbo Pascal's CRT unit is the known case. The
-governor slows the CPU without changing any result.
+governor (`fes_i386_governor`, [RTL README](../cores/fes-common/rtl/i386/README.md#speed-governor))
+slows the CPU without changing any result.
 
 - **Modes:** `max`, and reference presets 286-12, 386SX-16, 386DX-25,
-  386DX-33, 386DX-40, 486DX-33 and 486DX2-66. A preset is a timing table and a
-  frequency, and a per-game setting may move the frequency. A turbo control
-  switches between the chosen preset and `max` while running.
-- **Mechanism:** each retired instruction adds its reference cycle cost to a
-  debt counter. Costs come from the 80286, Intel386 SX and DX, and i486
-  data-sheet timing tables, with their next-instruction term taken as one, a
-  per-preset
-  wait-state charge per memory operand, and for SX presets two bus cycles per
-  32-bit access. A fractional enable at the preset frequency pays the debt
-  down. D stops issuing new x86 instructions while the debt exceeds a window of
-  64 reference cycles, which keeps interrupt latency and pacing smooth.
+  386DX-33, 386DX-40, 486DX-33 and 486DX2-66. A preset is a timing table, a
+  frequency, a wait-state charge and a data bus width
+  ([`governor.toml`](../cores/fes-common/rtl/i386/governor.toml)), and a
+  per-game setting may move the frequency. A turbo control switches between
+  the chosen preset and `max`: at launch since [#1357](https://github.com/DeanoC/fes/issues/1357);
+  while running is [#1358](https://github.com/DeanoC/fes/issues/1358).
+
+  | ID | Preset | Table | Frequency | Wait states | Bus |
+  | ---: | --- | --- | ---: | ---: | ---: |
+  | 0 | `max` | — | — | — | — |
+  | 1 | 286-12 | 80286 | 12 MHz | 1 | 16 |
+  | 2 | 386SX-16 | Intel386 | 16 MHz | 1 | 16 |
+  | 3 | 386DX-25 | Intel386 | 25 MHz | 0 | 32 |
+  | 4 | 386DX-33 | Intel386 | 33.3 MHz | 0 | 32 |
+  | 5 | 386DX-40 | Intel386 | 40 MHz | 0 | 32 |
+  | 6 | 486DX-33 | i486 | 33.3 MHz | 0 | 32 |
+  | 7 | 486DX2-66 | i486 | 66.7 MHz | 0 | 32 |
+
+  The wait states are starting points; Phase 3 tunes the presets by play.
+- **Mechanism:** each instruction WB retires adds its reference cycle cost to
+  a debt counter. Costs come from the 80286, Intel386 SX and DX, and i486
+  data-sheet timing tables in real mode, with their next-instruction term
+  taken as one, one clock more for an address of base, index and
+  displacement, a per-preset wait-state charge per memory bus cycle (a
+  read-modify-write makes two), and for the 16-bit bus of the 286 and SX
+  presets a second bus cycle (two clocks and its waits) per dword access. A
+  branch WB takes charges the taken count. A REP string charges each element
+  as it retires and its base as it ends. A count the instruction's bytes do
+  not give takes a typical value (the middle of an early-out multiply's
+  range). A fractional enable at the preset frequency pays the debt down;
+  the debt stops at zero, so time the CPU spends waiting (I/O, memory, HLT)
+  banks nothing. D stops issuing new x86 instructions, and new REP elements,
+  while the debt exceeds a window of 64 reference cycles, which keeps
+  interrupt latency and pacing smooth. Prefixes, and the 386's and 486's
+  queue and cache effects, are not charged.
+- **Timing:** the class lookup, the cost ROM, the charge, the debt and its
+  compare are each a register, five clocks from a retirement to the hold, so
+  none of it is on D's or WB's paths; D's issue gains one registered term.
 - **Scope:** the governor never touches architectural state, timers or I/O
-  timing.
+  timing. It charges an I/O instruction's own reference cost, and the
+  machine's device time stays as its [I/O timing](pc386-machine-design.md#io-timing)
+  classes give it. While the CPU is ahead of the reference, device time
+  spends that lead, so a loop of port accesses takes the larger of its table
+  time and its device time.
 - **Setting:** a core setting persisted per library game through the
-  [core persistence](../../../docs/core-persistence.md) path. The default is
-  `max`; Ultima VI and The Black Gate carry presets
+  [core persistence](../../../docs/core-persistence.md) path: the
+  `fes.pc386.machine` record's words 0 (preset), 1 (frequency override, in
+  100 kHz units) and 3 (turbo at launch), which the CPU samples at its reset.
+  The default is `max`; Ultima VI and The Black Gate carry presets
   ([first acceptance games](#first-acceptance-games)).
+- **Reach:** the governor only slows the CPU. At 61.44 MHz the RTL is slower
+  than both 486 presets on loops with taken branches (a redirect costs about
+  11 cycles until Phase 4's prediction), so those loops run at its own speed
+  there; the 386 and 286 presets are within reach on every measured loop.
 - **Check:** microbenchmark loops retire within 5% of the preset's table time
   (budget), and the Turbo Pascal CRT delay calibration lands in the reference
-  machine's range.
+  machine's range ([governor record](../../../docs/validation/2026-11-01-pc386-m5-governor/summary.md)).
 
 ## x87
 

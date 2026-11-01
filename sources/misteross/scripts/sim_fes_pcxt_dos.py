@@ -58,11 +58,14 @@ def run(args):
     sim.cpu_roms(build)
     sources = tuple(p for p in sim.SYSTEM_SOURCES if not p.endswith('/pcxt_boot.sv')) + (
         'cores/fes-common/rtl/fes_computer_mailbox.v',
+        'cores/fes-pcxt/rtl/pcxt_hid_keyboard.sv',
+        'cores/fes-pcxt/rtl/pcxt_xt_keyboard_bat.sv',
         sim.MEMORY_SOURCES[-1], 'cores/fes-pcxt/sim/bios_top.sv', 'cores/fes-pcxt/sim/dos_tb.cpp')
     subprocess.run([args.verilator, '--cc', '--exe', '--build', '-j', '4', '-Wall',
         '--timescale-override', '1ns/1ps',
         str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt'), str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt'),
-        "-GWITH_FLOPPY=1'b1", "-GWITH_RUNTIME_MEDIA=1'b1", "-GWAIT_FOR_MEDIA=1'b1", '--top-module', 'bios_top', '--Mdir', str(build), '-I' + str(build),
+        "-GWITH_FLOPPY=1'b1", "-GWITH_RUNTIME_MEDIA=1'b1", "-GWAIT_FOR_MEDIA=1'b1",
+        "-GWITH_RUNTIME_KEYBOARD=1'b1", '--top-module', 'bios_top', '--Mdir', str(build), '-I' + str(build),
         '-I' + str(ROOT / 'cores/fes-common/generated'),
         *('-I' + str(sim.vendor_dir(name)) for name in sim.CHIP_VENDORS),
         '-CFLAGS', '-std=c++17 -O2', '-I' + str(ROOT / 'cores/fes-pcxt/sim'),

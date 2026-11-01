@@ -375,6 +375,8 @@ time, about 1 ms (11 bits at 10–16.7 kHz; estimate). Controller responses
 completion (AAh) 5 ms later rather than the half second some keyboards took.
 That is a recorded deviation; in M1 the Bochs BIOS's keyboard initialisation,
 which waits up to about 94 ms for each byte, passes with it.
+Host scan codes are held until BAT completes, so a key change during reset
+cannot appear between the reset ACK and AA.
 
 ### Keyboard model
 
@@ -405,6 +407,43 @@ Host keys reach the guest only while the machine has input focus; the runtime
 already neutralises the keyboard when the launcher takes focus
 ([session display](../../mister-packages/docs/session-display.md)).
 
+**As built** ([`pc386_hid_keyboard`](../cores/fes-pc386/rtl/pc386_hid_keyboard.sv),
+inside the 8042 ahead of its PS/2 keyboard):
+
+- The table is Microsoft's USB HID to PS/2 scan code translation for the
+  usages the rows carry, 00h–7Fh and the eight modifiers. The unit bench
+  checks every entry against Linux's HID and AT keyboard tables
+  ([`hid_set2_reference.py`](../cores/fes-pc386/sim/hid_set2_reference.py)),
+  which agree on every standard key; for F13–F24 Linux's AT driver uses other
+  codes, and Microsoft's are taken. Usages with no set 2 code (the HID error
+  codes, and Execute to Find at 74h–7Eh) are ignored.
+- The 1 ms is 1000 ticks of the 8042's microsecond enable. A change is
+  diffed one bit a clock, each group in usage order. The model tracks projected
+  and reported key state separately: a transition is projected when its final
+  byte enters the keyboard FIFO and committed when that byte reaches the 8042
+  output buffer. If F5, F6 or FF clears queued bytes, pending projections are
+  discarded and the complete transitions are reconciled again.
+- While scanning is disabled, host bytes are discarded and do not change the
+  guest-visible key state. Stable HID rows are reconciled against that state
+  when scanning resumes: a release of a key the guest saw is delivered, while
+  a press and release wholly inside the disabled window stays invisible.
+- Recorded deviations: no "fake shift" codes around E0 keys while Num Lock
+  or Shift is down, and Print Screen and Pause send their plain sequences
+  whatever modifiers are down, where a keyboard sends 84h for Alt+Print
+  Screen and E0 7E for Ctrl+Pause. The Bochs BIOS and the target games read
+  none of these.
+- Typematic: F3's byte sets the delay ((D + 1) × 250 ms) and the rate
+  ((8 + A) × 2^B / 240 s, exact on average); FF, F5 and F6 restore 2Bh and stop
+  the repeat, as they clear a keyboard's typematic key. As in Bochs's keyboard,
+  F5 and F6 also empty the keyboard's output buffer, and F6 enables scanning
+  where F5 disables it. The delay counts from
+  the end of the press's make. A release stops its repeat as soon as the break
+  is projected into the keyboard FIFO, before it can be queued behind an unread
+  8042 output byte. Modifiers neither repeat nor stop another key's
+  repeat (a PS/2 keyboard repeats a held Shift itself; nothing reads it). Pause
+  does not stop another key's repeat. A repeat that falls due while the
+  keyboard's FIFO is full is sent once, not queued.
+
 ### PS/2 aux mouse
 
 `fes.mouse.relative` delivers signed 8-bit dx and dy and two buttons per packet
@@ -428,6 +467,25 @@ The aux device accumulates them and reports standard 3-byte PS/2 packets.
   its dy sign; evdev and the ST's IKBD path use screen-down positive. The
   mister-packages change states the sign, and the aux device negates dy if it
   is screen-down.
+- **As built:** the aux device takes the mailbox's packet on the clock it is
+  offered once the machine is out of reset (`mouse_ready`), so the runtime's
+  acknowledge never reports a packet the device did not take. A button change
+  that arrives while streaming, before the previous change has been reported,
+  sends that pending packet at once when FIFO space is available (a recorded
+  deviation), so the guest sees both edges when it drains in time. If the
+  pending packet cannot fit within 50 ms, the latest button state is merged
+  and the input is accepted; a guest that has stopped reading the aux port
+  cannot hold the runtime's 100 ms acknowledgement open. Motion counts remain
+  accumulated. The runtime splits large moves into packets of −128 to 127 per
+  axis; the device's accumulator is wider than a packet, so a negated −128
+  arrives as +128.
+- **Limitation of the locked BIOS** ([#1330](https://github.com/DeanoC/fes/issues/1330)):
+  its INT 15h C2xx services wait for the mouse's bytes with interrupts off
+  and read the command byte without first emptying the output buffer, so a
+  key byte that reaches the 8042 during one of them hangs the guest.
+  CuteMouse uses these services, and so does a game's INT 33h reset. A real
+  8042 has the same window; production BIOSes disable the keyboard
+  interface around these sequences.
 
 ### A20 and CPU reset
 
@@ -1380,8 +1438,11 @@ the `fes.computer` 1.1 slice replaces it with the M0 contracts in the shell:
 the runtime's ATA disk with the core's CRC pass, save fence and dirty map on
 port 2, the `fes.pc386.machine` record (the straps, and CMOS through the RTC)
 and the wall clock, and the system simulation now launches and stops the
-machine through the mailbox as the runtime does. The four games
-follow; there is no keyboard or mouse in the package yet.
+machine through the mailbox as the runtime does. The keyboard and mouse
+slice declares `fes.keyboard.hid` and `fes.mouse.relative`: the mailbox's rows
+go to the HID row model ahead of the 8042's keyboard and its packets to the
+aux mouse, and the system simulation types at the FreeDOS prompt and drives
+the mouse through the BIOS's PS/2 services. The four games follow.
 
 After first playable: CPU Phase 5 brings JEMM386 and Wolfenstein 3D with EMS;
 CPU Phase 6 wires FERR to IRQ13 and port F0h. Machine follow-ups wait for a

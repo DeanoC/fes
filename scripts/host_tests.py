@@ -74,7 +74,7 @@ def plan_ui(root, paths, full=False, shard=None, environment=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--full', action='store_true',
-                        help='exhaustive race run for weekly/manual selection')
+                        help='exhaustive race run for nightly/manual or shared/unknown inputs')
     parser.add_argument('--plan-only', action='store_true')
     parser.add_argument('--build-host-if-needed', action='store_true',
                         help='include make host for non-test/full inputs, on shard 1 only')

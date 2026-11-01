@@ -202,16 +202,34 @@ END prompt steps=42 cycles=100 seconds=0.001
 
 
 class BootReportTest(unittest.TestCase):
-    def test_boot_suite_output_names_cover_image_and_cpu(self):
+    def test_boot_suite_output_names_cover_image_cpu_and_preset(self):
         cases = (
-            ('boot', 'oracle', 'boot'),
-            ('games', 'oracle', 'boot-games'),
-            ('boot', 'rtl', 'boot-rtl'),
-            ('games', 'rtl', 'boot-games-rtl'),
+            ('boot', 'oracle', 0, 0, 0, 'boot'),
+            ('games', 'oracle', 0, 0, 0, 'boot-games'),
+            ('boot', 'rtl', 0, 0, 0, 'boot-rtl'),
+            ('games', 'rtl', 0, 0, 0, 'boot-games-rtl'),
+            ('boot', 'rtl', 1, 0, 0, 'boot-rtl-preset1'),
+            ('games', 'rtl', 3, 0, 0, 'boot-games-rtl-preset3'),
+            ('boot', 'rtl', 1, 60, 0, 'boot-rtl-preset1-frequency60'),
+            ('boot', 'rtl', 1, 0, 1, 'boot-rtl-preset1-turbo'),
+            ('boot', 'rtl', 1, 60, 1, 'boot-rtl-preset1-frequency60-turbo'),
         )
-        for image, cpu, expected in cases:
-            with self.subTest(image=image, cpu=cpu):
-                self.assertEqual(sim.boot_suite(mock.Mock(image=image, cpu=cpu)), expected)
+        for image, cpu, preset, frequency, turbo, expected in cases:
+            with self.subTest(image=image, cpu=cpu, preset=preset, frequency=frequency, turbo=turbo):
+                args = mock.Mock(image=image, cpu=cpu, preset=preset, frequency=frequency, turbo=turbo)
+                self.assertEqual(sim.boot_suite(args), expected)
+
+    def test_governor_report_suffix_distinguishes_frequency_and_turbo(self):
+        cases = (
+            (1, 0, 0, '-preset1'),
+            (1, 60, 0, '-preset1-frequency60'),
+            (1, 0, 1, '-preset1-turbo'),
+            (1, 60, 1, '-preset1-frequency60-turbo'),
+        )
+        for preset, frequency, turbo, expected in cases:
+            with self.subTest(preset=preset, frequency=frequency, turbo=turbo):
+                args = mock.Mock(preset=preset, frequency=frequency, turbo=turbo)
+                self.assertEqual(sim.suffix(args), expected)
 
     def test_non_boot_suites_reject_a_games_image(self):
         for suite in ('sound', 'game', 'vga', 'system', 'all'):

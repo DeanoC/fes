@@ -31,6 +31,8 @@
 //        [--cycles-per-instruction N] [--prompt TEXT] [--type TEXT] [--expect TEXT]
 //        [--trace F] [--frames DIR] [--pixel-from S] [--until-debug TEXT]
 //        [--type-at S] [--key-gap S] [--wav F] [--opl2-log F] [--keys S:TEXT]... [--cpu oracle|rtl]
+//        [--preset N] [--frequency N] [--turbo N]
+//        [--mouse S:DX,DY,BUTTONS]...
 //        [--census F]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
@@ -40,9 +42,16 @@
 // equal one of them exactly. --frames writes the capture and the 720p frame. --until-debug ends the run when a debug line
 // contains the text.
 // --type-at types the --type text at that simulated time instead of at the
-// prompt (for a program that runs as the shell); --key-gap is applied after
-// each byte unless the next byte is the 0xf0 break prefix (default 0.03 s).
+// prompt (for a program that runs as the shell). Keys are fes.keyboard.hid
+// rows on the machine's keyboard_rows, a shifted character's Shift in the
+// same change: each --type character is held --key-gap (default 0.03 s) and
+// released for as long; each --keys character is held 0.2 s and released for
+// 0.1 s. In both, <up>, <down>, <left>, <right>, <f1>, <del> and <home> name
+// keys. --mouse sends one fes.mouse.relative packet at that time (dy
+// screen-down), as the mailbox delivers it.
 // PC386_TRACE_IO=1 prints every I/O but port 80h to stderr.
+// --preset, --frequency and --turbo are --cpu rtl's governor settings
+// (fes_i386_governor; fes.pc386.machine words 0, 1 and 3), max by default.
 //
 // --cpu rtl runs fes_i386_cpu in the oracle's place, clocked with the
 // machine at the system clock (RtlCpu), with its caches on HPS DDR port 0
@@ -101,26 +110,53 @@ std::vector<uint8_t> read_file(const std::string &path) {
     return std::vector<uint8_t>(std::istreambuf_iterator<char>(input), {});
 }
 
-// Set 2 make codes for the characters --type can send. Shifted characters
-// set the bool.
-bool set2(char c, uint8_t &code, bool &shift) {
+// The HID usages of the characters --type and --keys can send: E0h is left
+// Control and E1h left Shift. Shifted characters set the bool.
+bool hid(char c, uint8_t &usage, bool &shift) {
     static const std::map<char, uint8_t> plain = {
-        {'a', 0x1c}, {'b', 0x32}, {'c', 0x21}, {'d', 0x23}, {'e', 0x24}, {'f', 0x2b}, {'g', 0x34},
-        {'h', 0x33}, {'i', 0x43}, {'j', 0x3b}, {'k', 0x42}, {'l', 0x4b}, {'m', 0x3a}, {'n', 0x31},
-        {'o', 0x44}, {'p', 0x4d}, {'q', 0x15}, {'r', 0x2d}, {'s', 0x1b}, {'t', 0x2c}, {'u', 0x3c},
-        {'v', 0x2a}, {'w', 0x1d}, {'x', 0x22}, {'y', 0x35}, {'z', 0x1a}, {'0', 0x45}, {'1', 0x16},
-        {'2', 0x1e}, {'3', 0x26}, {'4', 0x25}, {'5', 0x2e}, {'6', 0x36}, {'7', 0x3d}, {'8', 0x3e},
-        {'9', 0x46}, {' ', 0x29}, {'\n', 0x5a}, {'.', 0x49}, {'\\', 0x5d}, {'/', 0x4a}, {'-', 0x4e},
-        {';', 0x4c}, {',', 0x41}, {'=', 0x55}};
+        {'0', 0x27}, {' ', 0x2c}, {'\n', 0x28}, {'.', 0x37}, {'\\', 0x31}, {'/', 0x38}, {'-', 0x2d},
+        {';', 0x33}, {',', 0x36}, {'=', 0x2e}};
     shift = false;
     if (c >= 'A' && c <= 'Z') { shift = true; c = char(c - 'A' + 'a'); }
     if (c == ':') { shift = true; c = ';'; }
-    if (c == '~') { code = 0x76; return true; }      // Esc
-    if (c == '^') { code = 0x14; return true; }      // left Ctrl
+    if (c >= 'a' && c <= 'z') { usage = uint8_t(0x04 + (c - 'a')); return true; }
+    if (c >= '1' && c <= '9') { usage = uint8_t(0x1e + (c - '1')); return true; }
+    if (c == '~') { usage = 0x29; return true; }     // Esc
+    if (c == '^') { usage = 0xe0; return true; }     // left Ctrl
     auto found = plain.find(c);
     if (found == plain.end()) return false;
-    code = found->second;
+    usage = found->second;
     return true;
+}
+
+// TEXT as key taps: characters, and the named keys in angle brackets.
+std::vector<std::pair<uint8_t, bool>> taps(const std::string &text) {
+    static const std::map<std::string, uint8_t> named = {
+        {"up", 0x52}, {"down", 0x51}, {"left", 0x50}, {"right", 0x4f}, {"f1", 0x3a}, {"del", 0x4c},
+        {"home", 0x4a}};
+    std::vector<std::pair<uint8_t, bool>> result;
+    for (size_t n = 0; n < text.size(); ++n) {
+        uint8_t usage; bool shift = false;
+        size_t close = text[n] == '<' ? text.find('>', n) : std::string::npos;
+        if (close != std::string::npos && named.count(text.substr(n + 1, close - n - 1))) {
+            usage = named.at(text.substr(n + 1, close - n - 1));
+            n = close;
+        } else if (!hid(text[n], usage, shift)) throw std::runtime_error("cannot type that");
+        result.push_back({usage, shift});
+    }
+    return result;
+}
+
+// One change of the keyboard rows, held for `hold` clocks before the next.
+struct KeyChange {
+    uint8_t usage;
+    bool shift, down;
+    uint64_t hold;
+};
+void set_key(VlWide<5> &rows, uint8_t usage, bool down) {
+    unsigned bit = usage >= 0xe0 ? 128u + (usage - 0xe0) : usage;
+    if (down) rows[bit / 32] |= 1u << (bit % 32);
+    else rows[bit / 32] &= ~(1u << (bit % 32));
 }
 
 pc386::PortSignals port1(Vpc386_machine &top) {
@@ -966,9 +1002,78 @@ struct Options {
     std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, trace, frames, until_debug;
     std::string wav, opl2_log, cpu = "oracle", census;
     double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03;
+    unsigned preset = 0, frequency = 0, turbo = 0;  // --cpu rtl's governor settings
     std::vector<std::pair<double, std::string>> keys;
+    struct Mouse { double at; int dx, dy, buttons; };
+    std::vector<Mouse> mouse;
     unsigned cycles_per_instruction = 4;
 };
+
+template <typename Top, typename Clock>
+bool mouse_cycle(Top &top, const Options::Mouse &packet, bool &pending, size_t &sent, Clock &&clock) {
+    if (!pending) pending = true;
+    // Keep the scheduled packet in the host queue until there is room. The
+    // machine may clock many times between calls here, so never leave valid
+    // asserted while ready is low or the same packet could be accepted again.
+    top.mouse_valid = 0;
+    top.eval();
+    if (!top.mouse_ready) { clock(); return false; }
+
+    top.mouse_dx = int8_t(packet.dx);
+    top.mouse_dy = int8_t(packet.dy);
+    top.mouse_buttons = uint8_t(packet.buttons);
+    top.mouse_valid = 1;
+    top.eval();
+    if (!top.mouse_ready) {
+        top.mouse_valid = 0;
+        top.eval();
+        clock();
+        return false;
+    }
+    clock();
+    top.mouse_valid = 0;
+    top.eval();
+    pending = false;
+    ++sent;
+    return true;
+}
+
+void mouse_input_self_test() {
+    struct FakeTop {
+        int mouse_valid = 0;
+        int8_t mouse_dx = 0, mouse_dy = 0;
+        uint8_t mouse_buttons = 0;
+        int mouse_ready = 0;
+        unsigned clocks = 0;
+        unsigned accepted = 0;
+        void eval() {}
+        void clock() {
+            if (mouse_valid && mouse_ready) ++accepted;
+            if (++clocks == 3) mouse_ready = 1;
+        }
+    } top;
+    const Options::Mouse packet{0, -7, 5, 1};
+    bool pending = false;
+    size_t sent = 0;
+    if (mouse_cycle(top, packet, pending, sent, [&] { top.clock(); }) ||
+        !pending || sent != 0 || top.mouse_valid)
+        throw std::runtime_error("mouse input was not held in the host queue while busy");
+    // Model the machine advancing outside mouse_cycle, as it does while an
+    // instruction or I/O access clocks the RTL. Ready rises during these
+    // clocks; a valid packet must not be accepted on every ready edge.
+    for (unsigned n = 0; n < 4; ++n) top.clock();
+    if (top.accepted != 0 || top.mouse_valid)
+        throw std::runtime_error("a busy mouse packet was accepted outside its driver step");
+    if (!mouse_cycle(top, packet, pending, sent, [&] { top.clock(); }) ||
+        pending || sent != 1 || top.mouse_valid || top.accepted != 1)
+        throw std::runtime_error("mouse packet was not accepted exactly once on a ready edge");
+    for (unsigned n = 0; n < 3; ++n) top.clock();
+    if (top.accepted != 1)
+        throw std::runtime_error("mouse packet remained valid after its ready edge");
+    if (top.mouse_dx != -7 || top.mouse_dy != 5 || top.mouse_buttons != 1)
+        throw std::runtime_error("mouse input changed while waiting for readiness");
+    std::printf("PASS machine mouse input is accepted once after readiness\n");
+}
 
 Options parse(int argc, char **argv) {
     Options options;
@@ -995,10 +1100,21 @@ Options parse(int argc, char **argv) {
         else if (flag == "--opl2-log") options.opl2_log = value;
         else if (flag == "--cpu") options.cpu = value;
         else if (flag == "--census") options.census = value;
+        else if (flag == "--preset") options.preset = unsigned(std::stoul(value));
+        else if (flag == "--frequency") options.frequency = unsigned(std::stoul(value));
+        else if (flag == "--turbo") options.turbo = unsigned(std::stoul(value));
         else if (flag == "--keys") {
             size_t colon = value.find(':');
             if (colon == std::string::npos) throw std::runtime_error("--keys takes SECONDS:TEXT");
             options.keys.push_back({std::stod(value.substr(0, colon)), value.substr(colon + 1)});
+        }
+        else if (flag == "--mouse") {
+            Options::Mouse packet{};
+            if (std::sscanf(value.c_str(), "%lf:%d,%d,%d", &packet.at, &packet.dx, &packet.dy, &packet.buttons) != 4 ||
+                packet.dx < -128 || packet.dx > 127 || packet.dy < -128 || packet.dy > 127 ||
+                packet.buttons < 0 || packet.buttons > 3)
+                throw std::runtime_error("--mouse takes SECONDS:DX,DY,BUTTONS, each delta -128..127");
+            options.mouse.push_back(packet);
         }
         else throw std::runtime_error("unknown option " + flag);
     }
@@ -1016,6 +1132,7 @@ int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     std::setvbuf(stdout, nullptr, _IOLBF, 0);
     try {
+        mouse_input_self_test();
         if (RtlCpu::physical(0xffff0000u, false) != 0xf0000u
             || RtlCpu::physical(0xffffffffu, true) != 0xfffffu
             || RtlCpu::physical(0x00100000u, true) != 0u)
@@ -1036,6 +1153,10 @@ int main(int argc, char **argv) {
         std::unique_ptr<RtlCpu> rtl;
         if (options.cpu == "rtl") {
             rtl = std::make_unique<RtlCpu>(machine);
+            // The governor's settings, which each reset of the CPU samples.
+            rtl->cpu.gov_preset = uint8_t(options.preset);
+            rtl->cpu.gov_frequency = uint16_t(options.frequency);
+            rtl->cpu.gov_turbo = uint8_t(options.turbo);
             rtl->length = [&](uint32_t linear) {
                 uint8_t bytes[15];
                 for (unsigned n = 0; n < 15; ++n) bytes[n] = rtl->read8(linear + n);
@@ -1099,9 +1220,14 @@ int main(int argc, char **argv) {
         // After the prompt appears, wait for the screen to settle, then type.
         uint64_t prompt_at = 0, settled_at = 0;
         size_t typed = 0;
-        std::vector<uint8_t> key_bytes;
-        std::deque<uint64_t> key_holds;
+        std::deque<KeyChange> keys;
         uint64_t next_key = 0;
+        bool mouse_pending = false;
+        size_t mouse_sent = 0;
+        auto mouse_due = [&] {
+            return mouse_sent < options.mouse.size() &&
+                   machine.cycles >= uint64_t(options.mouse[mouse_sent].at * CLOCK_HZ);
+        };
         size_t scheduled = 0;
         std::string last_screen;
         uint64_t screen_checked = 0;
@@ -1140,7 +1266,7 @@ int main(int argc, char **argv) {
                     fes_i386::State state = oracle->get_state();
                     if (!(state.eflags & 0x200)) { reason = "halt-with-interrupts-off"; break; }
                     while (!machine.top.intr && machine.cycles < limit && !machine.cpu_reset_seen &&
-                           !(key_bytes.size() && machine.cycles >= next_key))
+                           !(keys.size() && machine.cycles >= next_key) && !mouse_pending && !mouse_due())
                         machine.clock();
                 }
                 if (machine.cpu_reset_seen) {
@@ -1239,32 +1365,29 @@ int main(int argc, char **argv) {
             }
             if (finished && snap_name.empty()) { reason = "debug-marker"; break; }
 
-            if (scheduled < options.keys.size() && key_bytes.empty() &&
+            if (scheduled < options.keys.size() && keys.empty() &&
                 machine.cycles >= uint64_t(options.keys[scheduled].first * CLOCK_HZ)) {
-                for (char c : options.keys[scheduled].second) {
-                    uint8_t code; bool shift;
-                    if (!set2(c, code, shift) || shift) throw std::runtime_error("cannot press that");
-                    for (uint8_t byte : {code, uint8_t(0xf0), code}) key_bytes.push_back(byte);
-                    for (uint64_t hold : {uint64_t(0.2 * CLOCK_HZ), uint64_t(0), uint64_t(0.1 * CLOCK_HZ)})
-                        key_holds.push_back(hold);
+                for (auto [usage, shift] : taps(options.keys[scheduled].second)) {
+                    keys.push_back({usage, shift, true, uint64_t(0.2 * CLOCK_HZ)});
+                    keys.push_back({usage, shift, false, uint64_t(0.1 * CLOCK_HZ)});
                 }
                 next_key = machine.cycles;
                 ++scheduled;
             }
 
-            // Keyboard: one set 2 byte when ready; delay unless the next byte is 0xf0.
-            if (key_bytes.size() && machine.cycles >= next_key && machine.top.key_ready) {
-                machine.top.key_valid = 1;
-                machine.top.key_code = key_bytes.front();
-                if (on_oracle) machine.clock();
-                else rtl->cycle();
-                machine.top.key_valid = 0;
-                key_bytes.erase(key_bytes.begin());
-                uint64_t hold = key_holds.empty() ? 0 : key_holds.front();
-                if (!key_holds.empty()) key_holds.pop_front();
-                if (hold) next_key = machine.cycles + hold;
-                else if (key_bytes.empty() || key_bytes.front() != 0xf0)
-                    next_key = machine.cycles + uint64_t(options.key_gap * CLOCK_HZ);
+            // Keyboard: the next change of the rows once the last has been held.
+            if (keys.size() && machine.cycles >= next_key) {
+                const KeyChange &change = keys.front();
+                set_key(machine.top.keyboard_rows, change.usage, change.down);
+                if (change.shift) set_key(machine.top.keyboard_rows, 0xe1, change.down);
+                next_key = machine.cycles + change.hold;
+                keys.pop_front();
+            }
+            // Keep each scheduled packet pending until one ready handshake edge.
+            if (mouse_pending || mouse_due()) {
+                const Options::Mouse &packet = options.mouse[mouse_sent];
+                auto cycle = [&] { if (on_oracle) machine.clock(); else rtl->cycle(); };
+                mouse_cycle(machine.top, packet, mouse_pending, mouse_sent, cycle);
             }
 
             if (options.until_debug.empty() && machine.cycles - screen_checked >= uint64_t(0.05 * CLOCK_HZ)) {
@@ -1278,23 +1401,20 @@ int main(int argc, char **argv) {
                 bool settled = machine.cycles - settled_at >= uint64_t(0.5 * CLOCK_HZ);
                 bool type_now = options.type_at >= 0 ? machine.cycles >= uint64_t(options.type_at * CLOCK_HZ)
                                                      : prompt_at && settled;
-                if (type_now && typed < options.type.size() && key_bytes.empty()) {
+                if (type_now && typed < options.type.size() && keys.empty()) {
                     // Queue the rest of the text.
-                    for (; typed < options.type.size(); ++typed) {
-                        uint8_t code; bool shift;
-                        if (!set2(options.type[typed], code, shift)) throw std::runtime_error("cannot type that");
-                        if (shift) key_bytes.push_back(0x12);
-                        key_bytes.push_back(code);
-                        key_bytes.push_back(0xf0); key_bytes.push_back(code);
-                        if (shift) { key_bytes.push_back(0xf0); key_bytes.push_back(0x12); }
+                    const uint64_t gap = uint64_t(options.key_gap * CLOCK_HZ);
+                    for (auto [usage, shift] : taps(options.type)) {
+                        keys.push_back({usage, shift, true, gap});
+                        keys.push_back({usage, shift, false, gap});
                     }
-                    key_holds.resize(key_bytes.size(), 0);
+                    typed = options.type.size();
                     next_key = machine.cycles;
                     settled_at = machine.cycles;
                 }
                 // Done when everything is typed and the prompt is back on the
                 // last line, waiting for input.
-                if (prompt_at && settled && typed == options.type.size() && key_bytes.empty() &&
+                if (prompt_at && settled && typed == options.type.size() && keys.empty() &&
                     machine.last_row() == options.prompt) {
                     reason = "prompt";
                     break;
@@ -1364,6 +1484,7 @@ int main(int argc, char **argv) {
         if (!expected) reason = "expected-text-missing";
         if (snap_failures) reason = "presenter-mismatch";
         if (!options.wav.empty()) write_wav(options.wav, machine.link.samples);
+        std::printf("MOUSE sent=%zu scheduled=%zu\n", mouse_sent, options.mouse.size());
         std::printf("END %s steps=%llu cycles=%llu seconds=%.3f\n", reason, steps,
                     (unsigned long long)machine.cycles, seconds);
         if (!options.disk_out.empty())

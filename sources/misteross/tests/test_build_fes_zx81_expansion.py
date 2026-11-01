@@ -226,7 +226,8 @@ class ZX81SocketProducerTests(unittest.TestCase):
                     self.assertEqual("-Wno-SIMILARNAME" in result.stdout, supported)
                     self.assertIn("-Wno-UNUSEDPARAM", result.stdout)
                     expansion = subprocess.run(
-                        ["make", "-n", "sim-fes-zx81-expansion", f"VERILATOR={compiler}"],
+                        ["make", "-n", "sim-fes-zx81-expansion", f"VERILATOR={compiler}",
+                         "FES_ZX81_ROM=zx81.rom"],
                         cwd=root, text=True, capture_output=True, check=False)
                     self.assertEqual(expansion.returncode, 0, expansion.stderr)
                     self.assertEqual("-Wno-SIMILARNAME" in expansion.stdout, supported)

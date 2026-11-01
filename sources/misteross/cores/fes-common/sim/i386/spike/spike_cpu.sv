@@ -7,8 +7,9 @@
 // it: A0000h-BFFFFh MMIO, the two BIOS ranges read-only, 16 MiB of RAM.
 //
 // The reset state comes from the stimulus too, so CS's base and every
-// register stay variables as later far transfers will make them. Every
-// trace, port and architectural output feeds the signature.
+// register stay variables as later far transfers will make them, and so do
+// the governor's settings. Every trace, port and architectural output feeds
+// the signature.
 module spike_cpu (
     input  wire  FPGA_CLK1_50,
     input  wire  KEY0_N,
@@ -29,10 +30,15 @@ module spike_cpu (
     logic [15:0]      init_gdtr_limit, init_idtr_limit;
     logic [5:0][15:0] init_sel, init_ar;
     logic [5:0][31:0] init_base, init_limit;
-    logic             a20m, queue16;
+    logic             a20m, queue16, gov_turbo;
+    logic [2:0]       gov_preset;
+    logic [9:0]       gov_frequency;
     always_ff @(posedge clk) begin
         a20m <= &noise[7:6];
         queue16 <= noise[8];
+        gov_preset <= noise[11:9];
+        gov_frequency <= noise[21:12];
+        gov_turbo <= &noise[23:22];
         if (reset) begin
             init_gpr <= noise[511:256];
             init_eflags <= noise[415:384];
@@ -99,6 +105,9 @@ module spike_cpu (
     logic [31:0]      io_wdata;
     logic             trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_pm_stop, trace_issue, trace_md_wait;
     logic [15:0]      trace_error;
+    logic             trace_gov_hold;
+    logic [11:0]      trace_gov_debt;
+    logic [8:0]       trace_gov_charge;
     logic             trace_fetch, trace_dread, trace_mem_wait, trace_mem_idle, trace_replay, trace_smc, trace_smc_open,
                       trace_store, trace_ex_store;
     logic [31:0]      trace_dread_addr;
@@ -116,7 +125,7 @@ module spike_cpu (
     fes_i386_cpu dut (
         .clk, .cold_reset(reset), .reset, .init_gpr, .init_eflags, .init_eip, .init_cr0, .init_cr2, .init_cr3,
         .init_gdtr_base, .init_gdtr_limit, .init_idtr_base, .init_idtr_limit, .init_sel, .init_base, .init_limit,
-        .init_ar, .a20m, .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16,
+        .init_ar, .a20m, .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16, .gov_preset, .gov_frequency, .gov_turbo,
         .ddr_address, .ddr_burstcount, .ddr_read, .ddr_write, .ddr_writedata, .ddr_byteenable, .ddr_waitrequest,
         .ddr_readdata, .ddr_readdatavalid,
         .mmio_valid, .mmio_write, .mmio_address, .mmio_byteenable, .mmio_wdata, .mmio_ready, .mmio_rvalid, .mmio_rdata,
@@ -126,8 +135,8 @@ module spike_cpu (
         .trace_unimplemented, .trace_pm_stop, .trace_error, .trace_issue, .trace_md_wait, .trace_fetch, .trace_fetch_block, .trace_dread,
         .trace_mem_wait, .trace_mem_idle, .trace_replay, .trace_smc, .trace_smc_open, .trace_store, .trace_store_addr, .trace_store_data,
         .trace_store_mask, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar,
-        .trace_dread_addr, .trace_ex_store, .arch_cr0, .arch_cr2, .arch_cr3, .arch_gdtr_base, .arch_gdtr_limit,
-        .arch_idtr_base, .arch_idtr_limit
+        .trace_dread_addr, .trace_ex_store, .trace_gov_hold, .trace_gov_debt, .trace_gov_charge, .arch_cr0, .arch_cr2,
+        .arch_cr3, .arch_gdtr_base, .arch_gdtr_limit, .arch_idtr_base, .arch_idtr_limit
     );
 
     logic [31:0] signature, observed;
@@ -135,12 +144,12 @@ module spike_cpu (
         observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_vector}
                  ^ {trace_fetch_block, trace_fetch, trace_dread, trace_mem_wait, trace_replay ^ trace_smc ^ trace_smc_open}
                  ^ arch_cr0 ^ arch_cr2 ^ arch_cr3 ^ arch_gdtr_base ^ arch_idtr_base ^ {arch_gdtr_limit, arch_idtr_limit}
-                 ^ {15'd0, trace_pm_stop, trace_error} ^ trace_dread_addr ^ {31'd0, trace_ex_store}
+                 ^ {15'd0, trace_pm_stop, trace_error} ^ trace_dread_addr ^ {22'd0, trace_gov_charge, trace_ex_store}
                  ^ trace_store_addr ^ trace_store_data[3:0] ^ trace_store_data[7:4] ^ {23'b0, trace_store, trace_store_mask}
                  ^ {ddr_address, ddr_read, ddr_write, trace_mem_idle, trace_issue} ^ {ddr_burstcount, 8'd0, ddr_byteenable}
                  ^ ddr_writedata[31:0] ^ ddr_writedata[63:32] ^ ddr_writedata[95:64] ^ ddr_writedata[127:96]
                  ^ 32'({mmio_address, mmio_valid, mmio_write}) ^ {mmio_byteenable, 28'd0} ^ mmio_wdata
-                 ^ {dma_rdata, dma_done, flush_done, 21'd0, trace_md_wait}
+                 ^ {dma_rdata, dma_done, flush_done, 8'd0, trace_gov_debt, trace_gov_hold, trace_md_wait}
                  ^ io_wdata ^ {io_port, 11'b0, inta_req, io_req, io_write, io_size};
         for (int n = 0; n < 8; n++) observed ^= arch_gpr[n];
         for (int n = 0; n < 6; n++) observed ^= arch_base[n] ^ arch_limit[n] ^ {arch_sel[n], arch_ar[n]};

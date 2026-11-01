@@ -9,15 +9,19 @@ module keyboard_bat_top (
     input wire chip_select_n, read_enable_n, write_enable_n,
     input wire [1:0] address,
     input wire [7:0] wdata,
+    input wire code_valid,
+    input wire [7:0] code,
+    output wire code_ready, frontend_reset,
     output wire [7:0] rdata,
     output wire keyboard_irq, clock_low, data_low, keyboard_clear,
     output wire keyboard_clock, keyboard_data
 );
+    /* verilator lint_off PINCONNECTEMPTY */
     pcxt_xt_keyboard_bat keyboard (
         .clk(clk), .reset(reset), .clock_low(clock_low), .data_low(data_low),
+        .code_valid(code_valid), .code(code), .code_ready(code_ready), .frontend_reset(frontend_reset),
         .keyboard_clear(keyboard_clear), .keyboard_clock(keyboard_clock), .keyboard_data(keyboard_data)
     );
-    /* verilator lint_off PINCONNECTEMPTY */
     pcxt_xtio motherboard (
         .clk(clk), .reset(reset), .chip_select_n(chip_select_n),
         .read_enable_n(read_enable_n), .write_enable_n(write_enable_n),

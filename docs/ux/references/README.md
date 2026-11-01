@@ -12,6 +12,7 @@ references below.
 | The three PNGs below | Production native software-renderer captures with test fixtures | Identify the current layout and specific presentation gaps at the recorded source. They are not physical HDMI captures or evidence that the fixture games can run. |
 | [Library target](library-target.svg) | Editable vector design sheet with a 1280×720 product viewport | Implement the hierarchy, readable selection and visible action routes through the existing Library. The surrounding annotations are documentation, not product UI. |
 | [Original room concepts](../concepts/README.md) | Portable browser design studies and screenshots | Understand the wider Lounge, Club and Workshop direction. Their geometry and fictional device states do not specify native capabilities. |
+| [v1 first boot, Home and Settings](v1/README.md) | Proposed screens drawn by a throwaway room through the production rooms engine and software renderer, at 1280×720 and 1024×600 | Build the v1 first-run flow, Home and Settings (#1342). They are proposals, not captures of product screens. |
 
 ## Reviewed native baseline
 

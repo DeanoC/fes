@@ -92,20 +92,20 @@ SHELL_SOURCES = (
 # Yosys elaborates these into one netlist below the shell.
 MACHINE_SOURCES = (
     *(f"{I386}/{name}.sv" for name in (
-        "fes_i386_pkg", "fes_i386_oplen", "fes_i386_lendec", "fes_i386_lstage", "fes_i386_fetchbuf",
+        "fes_i386_pkg", "fes_i386_gov_pkg", "fes_i386_oplen", "fes_i386_lendec", "fes_i386_lstage", "fes_i386_fetchbuf",
         "fes_i386_qalign", "fes_i386_frontend", "fes_i386_amode", "fes_i386_dfwd", "fes_i386_agu",
         "fes_i386_ucode_pkg", "fes_i386_ucode_rom", "fes_i386_decode", "fes_i386_seq", "fes_i386_dops",
         "fes_i386_shift", "fes_i386_shflags", "fes_i386_exctl", "fes_i386_muldiv", "fes_i386_ex",
-        "fes_i386_l1i", "fes_i386_l1d", "fes_i386_biu", "fes_i386_cpu")),
+        "fes_i386_l1i", "fes_i386_l1d", "fes_i386_biu", "fes_i386_gov_rom", "fes_i386_governor", "fes_i386_cpu")),
     *(f"cores/fes-common/vendor/kf8259/{name}.sv" for name in (
         "KF8259", "KF8259_Bus_Control_Logic", "KF8259_Control_Logic", "KF8259_In_Service",
         "KF8259_Interrupt_Request", "KF8259_Priority_Resolver")),
     *(f"cores/fes-common/vendor/kf8253/{name}.sv" for name in ("KF8253", "KF8253_Control_Logic", "KF8253_Counter")),
     "cores/fes-common/rtl/fes_dma8237.sv",
     *(f"cores/fes-pc386/rtl/{name}.sv" for name in (
-        "pc386_rate", "pc386_io", "pc386_pic", "pc386_sysctl", "pc386_kbc", "pc386_rtc", "pc386_ata",
-        "pc386_at_core", "pc386_ram", "pc386_vga", "pc386_vga_scanout", "pc386_presenter", "pc386_plane_bridge",
-        "pc386_port2", "pc386_machine")),
+        "pc386_rate", "pc386_io", "pc386_pic", "pc386_sysctl", "pc386_hid_keyboard", "pc386_kbc", "pc386_rtc",
+        "pc386_ata", "pc386_at_core", "pc386_ram", "pc386_vga", "pc386_vga_scanout", "pc386_presenter",
+        "pc386_plane_bridge", "pc386_port2", "pc386_machine")),
     "cores/fes-common/rtl/fes_display_plane.v",
     "cores/fes-common/rtl/fes_display_cdc.v",
     "cores/fes-menu/rtl/fes_menu_control.v",
@@ -165,11 +165,11 @@ UNDERSCORE_KEYWORDS = frozenset({
 })
 CORE = {"id": "fes.pc386", "name": "FES pc386", "version": "0.1.0",
         "description": "A 386 AT: fes_i386_cpu, the Bochs BIOS and LGPL VGABios, VGA at 720p, OPL2 and Sound "
-                       "Blaster 2.0, and a hard disk of up to 128 MiB with its saves. Development only: "
-                       "there is no keyboard or mouse yet."}
-INTERFACES = ("fes.video.fixed-720p60", "fes.audio.pcm-s16-stereo-48k", "fes.memory.hps-ddr",
-              "fes.video.session-display", "fes.fabric.video.display-plane", "fes.media.ata-disk",
-              "fes.persistence.words", "fes.rtc.wall-clock", "fes.pc386.machine")
+                       "Blaster 2.0, a PS/2 keyboard and mouse, and a hard disk of up to 128 MiB with its saves. "
+                       "Development only."}
+INTERFACES = ("fes.video.fixed-720p60", "fes.keyboard.hid", "fes.audio.pcm-s16-stereo-48k", "fes.mouse.relative",
+              "fes.memory.hps-ddr", "fes.video.session-display", "fes.fabric.video.display-plane",
+              "fes.media.ata-disk", "fes.persistence.words", "fes.rtc.wall-clock", "fes.pc386.machine")
 # Every guest time base as a rational enable of the system clock
 # (docs/pc386-machine-design.md, "Clocks and timing"): N/D = rate / clock.
 GUEST_RATES = {
@@ -182,6 +182,7 @@ GUEST_RATES = {
     "DOT1": Fraction(28_322_000),
     "OPL2": Fraction(315_000_000, 88 * 72),   # 49,715.9 Hz OPL2 samples
     "AUDIO": Fraction(48_000),                # the mixer's frame request
+    "GOV": Fraction(100_000),                 # the governor's frequency unit (fes_i386_governor)
 }
 ATA_RESET_SECONDS = Fraction(1, 100_000)      # 10 us
 

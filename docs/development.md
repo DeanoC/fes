@@ -211,9 +211,11 @@ Verilator nor a development snapshot is substituted automatically. CI caches the
 installation by host architecture and bootstrap-script digest. One preparation
 job restores or builds it and shares the installation with the selected
 simulation jobs, so a cold cache does not compile Verilator separately for every
-core. Coleco runs 16 focused simulation jobs: seven unit/board scenarios in both
-default and OSS lanes, plus the CPU expansion probe and registered diagnostic
-through the socket. The [affected-check guide](test-changed.md#selection-and-coverage)
+core. Coleco's full simulation tier runs 24 jobs: seven unit/board scenarios in
+both default and OSS lanes, the CPU expansion probe, registered diagnostic
+through the socket, video-parts check and seven SGM cases. Its smoke tier runs
+5 jobs: unit, unit-OSS, board-graphics, diagnostic and integrated SGM. The
+[affected-check guide](test-changed.md#selection-and-coverage)
 describes CI job selection and the complete set of Coleco simulation cases. To reproduce it
 locally, install Git, a C++ compiler, Make, Autoconf, Bison, Flex, help2man and the
 Flex/zlib development libraries, then run:
@@ -369,6 +371,22 @@ records the uploaded file digest, not proof of immutable library-media selection
 This lane does not establish selected-media acceptance. For persistent library
 selection, use the [data-driven media commands](core-packages.md#library-media).
 Fresh Coleco entries receive no implicit controller diagnostic.
+
+For a PC/XT keyboard kit run, check the private host configuration before
+claiming a kit, then check captures from before and after entering `DIR`:
+
+```sh
+python3 scripts/pcxt_dos_keyboard_acceptance.py preflight --config /private/host.toml
+python3 scripts/pcxt_dos_keyboard_acceptance.py captures \
+  --before /private/before.png --after /private/after.png --output /private/directory-result.json
+```
+
+The preflight verifies that remote input is enabled without printing the
+configuration. The capture check uses locked GLaBIOS glyphs, requires the
+listing to be absent before input, and looks for `FESXT.TXT` followed by a new
+`A:\>` prompt. It checks only the images: the owning kit run must separately
+establish the exact package, selected floppy, input delivery, session identity,
+and restoration. It does not qualify disk writes or whole-board timing.
 
 Use `make build` and `make verify` for stabilized integration and release checks.
 A warm development image is diagnostic evidence and cannot satisfy those

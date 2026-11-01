@@ -124,6 +124,8 @@ func TestCoreLibraryInstallAndOfflineBrowse(t *testing.T) {
 	defer server.Close()
 	a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	a.ctx = context.Background()
+	// SMS and Coleco are held back from the v1 release.
+	a.SetAllCores(true)
 	a.mu.Lock()
 	a.openCoreLibraryLocked()
 	a.mu.Unlock()
@@ -189,6 +191,8 @@ func TestCoreLibraryVideoInventoryErrorBlocksInstall(t *testing.T) {
 	defer server.Close()
 	a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	a.ctx = context.Background()
+	// SMS and Coleco are held back from the v1 release.
+	a.SetAllCores(true)
 	a.mu.Lock()
 	a.openCoreLibraryLocked()
 	a.mu.Unlock()
@@ -354,7 +358,7 @@ func TestCoreLibraryInstalledCreationReportsOnlyTheAddedSetup(t *testing.T) {
 
 func TestCoreLibraryNavigationOwnsInputAndPointer(t *testing.T) {
 	a := NewApp(nil, 1280, 720, 10)
-	a.coreLibrary = coreLibraryState{Open: true, Online: true, Cores: []hostclient.AvailableCore{{Label: "SMS"}}}
+	a.coreLibrary = coreLibraryState{Open: true, Online: true, Cores: []hostclient.AvailableCore{{CoreReference: hostclient.CoreReference{CoreID: "fes.c64"}, Label: "C64"}}}
 	a.HandleCommand(CmdDown, time.Now())
 	if a.Snapshot().CoreLibrary.Index != 1 {
 		t.Fatal("pad did not navigate systems")
@@ -411,9 +415,9 @@ func TestCoreLibraryPendingRequestAllowsCancel(t *testing.T) {
 
 func TestCoreLibraryRowsCarryCatalogIdentity(t *testing.T) {
 	a := NewApp(nil, 1280, 720, 10)
-	a.coreLibrary.Cores = []hostclient.AvailableCore{{CoreReference: hostclient.CoreReference{CoreID: "fes.sms", PackageID: "a"}, Label: "same"}, {CoreReference: hostclient.CoreReference{CoreID: "fes.coleco", PackageID: "b"}, Label: "same"}}
+	a.coreLibrary.Cores = []hostclient.AvailableCore{{CoreReference: hostclient.CoreReference{CoreID: "fes.spectrum", PackageID: "a"}, Label: "same"}, {CoreReference: hostclient.CoreReference{CoreID: "fes.c64", PackageID: "b"}, Label: "same"}}
 	rows := a.coreLibraryRowsLocked()
-	if rows[1].Core == nil || rows[2].Core == nil || rows[1].Core.CoreID != "fes.sms" || rows[2].Core.CoreID != "fes.coleco" {
+	if rows[1].Core == nil || rows[2].Core == nil || rows[1].Core.CoreID != "fes.spectrum" || rows[2].Core.CoreID != "fes.c64" {
 		t.Fatalf("row identities lost: %#v", rows)
 	}
 }

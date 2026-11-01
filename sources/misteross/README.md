@@ -104,9 +104,10 @@ boots the Bochs BIOS and FreeDOS to a prompt in host simulation with the Bochs
 oracle as CPU. Phase M2 adds the RTL VGA, capture, presenter and display plane;
 phase M3 adds the speaker, OPL2, Sound Blaster 2.0 DSP and mixer.
 `make sim-fes-pc386` runs the device and audio checks plus the presenter,
-capture and plane benches. `make sim-fes-pc386-boot` boots FreeDOS and replays
-its VGA trace; `make sim-fes-pc386-vga` checks the marked VGA modes; and
-`make sim-fes-pc386-sound` runs the audio start-up exercise. See the
+capture and plane benches. `make sim-fes-pc386-boot` boots FreeDOS, sends a
+relative-mouse packet and replays its VGA trace; `make sim-fes-pc386-vga`
+checks the marked VGA modes; and `make sim-fes-pc386-sound` runs the audio
+start-up exercise. See the
 [core README](cores/fes-pc386/README.md).
 
 ## What builds now
@@ -179,6 +180,11 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | `fes.ramtest` | `make sim-fes-ramtest` | `make build-fes-ramtest-100` | `make build-fes-ramtest-quartus` | library utility, supported, OSS 100 MHz |
 | `fes.riscv` | `make sim-fes-riscv` | `make build-fes-riscv` | none | library, experimental |
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |
+
+Set `FES_ZX81_ROM` to the user-supplied edition 3 BASIC image for the BASIC,
+expansion and SAVE simulations or the Quartus oracle. Pull-request CI runs
+`make sim-fes-zx81-smoke`, which also exercises the ROM-independent model and
+ZX80 tape-load probes.
 
 `fes.sms` and `fes.sg1000` use the `fes.simple-computer` ABI with sealed, linked
 cartridge ROMs. Diagnostic builds retain the media mailbox; the SMS ROM-link

@@ -42,8 +42,8 @@ is not a timing waiver.
 ### FreeDOS DOS-profile package
 
 The `fes.pcxt-dos` recipe selects `HARDWARE_DOS` and keeps the diagnostic
-profile unchanged. It includes GLaBIOS and a BAT-only XT keyboard responder;
-keyboard input is not yet supported. A 360 KiB raw floppy is delivered at
+profile unchanged. It includes GLaBIOS, a host HID keyboard frontend and the XT
+keyboard reset response. A 360 KiB raw floppy is delivered at
 runtime through `fes.media.pcxt-floppy` and the complete ordered image is
 written into SDRAM. When an initial disk is being loaded, the guest stays in
 reset until its final physical write is committed. If the host releases
@@ -116,8 +116,8 @@ They do not qualify the IO, reset chains, physical board or a runtime package.
 
 The regular simulation command includes `clock-bridge`, `speaker100`,
 `speaker50`, `system-board50` and `system-board50-mda` regressions. The two
-whole-system cases retain the real diagnostic ROM, both boots, three SDRAM
-mask-delay cases and pixel/DMA checks; they tighten the refresh bound to
+whole-system cases retain the real diagnostic ROM, both boots, the strictest
+SDRAM mask delay (2) and pixel/DMA checks; they tighten the refresh bound to
 390 controller cycles at 50 MHz. Existing common-clock suites remain enabled.
 
 ### Whole-board Quartus diagnostic
@@ -848,7 +848,7 @@ cold loading, a pause near the end of loading, reset during an issued CPU
 SDRAM read, reset release, both real DMA
 directions, guest and physical refresh, two complete boots without firmware
 reload, HOLD/mute and every pixel of two 720p output frames after capture settles.
-CGA uses Direct and MDA uses Scanlines; each runs DQM delays 0/1/2. The framebuffer
+CGA uses Direct and MDA uses Scanlines; each runs at DQM delay 2. The framebuffer
 registers its read address before M10K fanout. Each of its three 64 KiB banks
 has a separate RAM read mux and local output register; bank selection then
 occurs alongside palette selection. Bank/subpixel/raster fields have matching
@@ -954,10 +954,16 @@ CTS, and clocks bits with 40 us high/low phases and at least 3 us data hold.
 Clock inhibit pauses transmission. READY also stays low while PB7 holds the
 receiver clear, so the frontend does not retire a byte the receiver cannot
 collect. A byte already accepted still finishes its frame. Reset cancels a partial frame. This is a
-single-byte transport. The DOS-only BAT responder sends the self-test byte
-after the reset handshake; HID mapping, extended-key policy, typematic
-generation and event queues remain future frontend work.
-It is not an AT 8042 or a PS/2 protocol endpoint.
+single-byte transport. The DOS shell translates debounced FES HID snapshots
+to original XT set-1 make/break codes, supplies BAT after a long host inhibit,
+and generates typematic repeats. The original XT's Ctrl/Alt and navigation/
+keypad aliases are combined; enhanced-only keys are ignored. Eight settled
+snapshots can wait while the receiver is busy. If that queue fills, intermediate
+states can coalesce and the guest is brought to the latest settled state once
+space returns. HID rows are not an atomic snapshot: an unusually slow handover
+between equivalent keys in different rows can produce a release and new press.
+It is not an AT 8042 or a
+PS/2 protocol endpoint. Kit acceptance of host typing is separate.
 
 `pcxt_speaker.sv` integrates the gated PIT2 waveform over each 48 kHz sample
 window (2083/2084 fabric clocks), then applies a roughly 30 Hz DC blocker.

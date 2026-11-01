@@ -186,8 +186,11 @@ The [2026-09-21 exact-artifact record](validation/2026-09-21-zx81-ram-compositio
 records five normal-library launches, visible 1 KiB/16 KiB validation-cart sizing,
 selection retention/clearing, negative admission and original-kit restoration.
 
-`make -C sources/misteross sim-fes-zx81-expansion` boots the actual ZX81 machine
-with and without the validation cart and checks RAMTOP and visible output. The standalone
+`FES_ZX81_ROM=<edition-3 ROM> make -C sources/misteross sim-fes-zx81-expansion`
+boots the actual ZX81 machine with and without the validation cart and checks
+RAMTOP and visible output. Without that ROM, the BASIC expansion bench prints
+`SKIP`; the pull-request smoke target still runs the ROM-independent model and
+ZX80 tape-load probes. The standalone
 Go module under `sources/misteross/expansion` tests exact Python golden bytes,
 framing/CRC failures, outside-slot changes and canonical asset admission.
 FogCast uses a compact retained synthetic RBF golden for always-run staging

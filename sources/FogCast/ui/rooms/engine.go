@@ -19,6 +19,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
+	"github.com/DeanoC/FogCast/internal/release"
 	"github.com/DeanoC/FogCast/ui/theme"
 )
 
@@ -97,6 +98,10 @@ type Options struct {
 	// drifting art). The launcher owns the preference; scripts read
 	// room.reduced_motion.
 	ReducedMotion bool
+	// ReleaseOnly leaves out cores outside the v1 release (release.Shown).
+	// The launcher sets it unless its Show all cores preference is on; a
+	// change applies to rooms opened after it.
+	ReleaseOnly bool
 	// InitialGameID carries the selected library entry into a nested setup
 	// room. Direct room opens leave it empty and use saved room navigation.
 	InitialGameID string
@@ -651,6 +656,16 @@ func (r *Instance) SetOverlay(on bool) {
 		r.roomTable.RawSetString("overlay", lua.LBool(on))
 	}
 }
+
+// coreShown reports whether the room lists a core: every core unless
+// ReleaseOnly, then a v1 core or the core the room was opened for, such as a
+// running held-back machine's setup room.
+func (r *Instance) coreShown(coreID string) bool {
+	return !r.opts.ReleaseOnly || release.Shown(coreID, false) || coreID != "" && coreID == r.opts.InitialCoreID
+}
+
+// ReleaseOnly reports whether the room was opened listing only v1 cores.
+func (r *Instance) ReleaseOnly() bool { return r.opts.ReleaseOnly }
 
 // SetReducedMotion updates room.reduced_motion on a live instance (settings).
 func (r *Instance) SetReducedMotion(on bool) {

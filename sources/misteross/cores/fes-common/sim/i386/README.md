@@ -434,6 +434,35 @@ python3 scripts/test_fes_i386_lockstep.py --yosys /abs/path/to/i386-locked/yosys
 `--yosys` simulates the netlist the i386 lock's Yosys writes from the CPU
 (after `proc -norom; flatten; opt -purge`) instead of the RTL.
 
+`--preset N` runs every mode under that governor preset
+([speed governor](../../rtl/i386/README.md#speed-governor)), which only holds
+D, so `--same-as` with max's `report.json` must find every architectural
+result unchanged: the counts, faults, interrupts, divergences and each
+file's and seed's trace hash. Timing (cycles, memory waits, replays, the
+latency-free gaps) is left out, and a governed run does not check the
+holds' cycle counts.
+
+## Governor bench
+
+`FES_I386_MODE=governor` runs a flat program on the RTL alone, at
+0000:1000h with port 0 at its fixed latency, and prints every OUT to ports
+80h-8Fh with its cycle and the reference clocks the governor had charged
+before it. [`governor_bench.asm`](governor_bench.asm) is fifteen loops
+between such marks (ALU, memory, dword, branches, stack, multiply and divide,
+strings, shifts, Turbo Pascal's CRT delay loop, I/O, INT and IRET, a far
+pointer load with XCHG and LEA, LOOP, PUSHA and POPA, 386 instructions), then
+a loop that the bench interrupts. `scripts/test_fes_i386_governor.py` runs it
+under max and every preset at the sealed clock's `GOV_N`/`GOV_D`: each
+loop's charge must equal the table's, which the script lists instruction by
+instruction, and its time must be within 5% of the table time unless max
+itself is slower (the 486 presets on branchy loops). It also checks the
+interrupt latency, the frequency override and turbo.
+
+```sh
+python3 scripts/test_fes_i386_governor.py
+python3 scripts/test_fes_i386_lockstep.py --preset 1 --same-as /abs/path/to/max/report.json
+```
+
 ## Timing spikes
 
 [`spike/`](spike) holds five routed spikes, each a block inside a

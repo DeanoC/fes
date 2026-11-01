@@ -72,12 +72,11 @@ module pc386_at_core #(
     output reg [15:0] debug_port,
     output reg [7:0] debug_byte,
     // Keyboard and mouse
-    input wire key_valid,
-    input wire [7:0] key_code,
-    output wire key_ready,
+    input wire [143:0] keyboard_rows,
     input wire mouse_valid,
     input wire signed [7:0] mouse_dx, mouse_dy,
     input wire [1:0] mouse_buttons,
+    output wire mouse_ready,
     // Configuration, written into CMOS after reset
     input wire [15:0] base_kib, extended_kib, above16m_64k,
     input wire [7:0] sb_base_high, sb_irq, sb_dma,
@@ -305,8 +304,9 @@ module pc386_at_core #(
         .clk(clk), .reset(reset), .access(access && select_kbc), .write(cycle_write), .a2(port[2]),
         .wdata(cycle_wdata[7:0]), .rdata(kbc_data), .irq1(irq1), .irq12(irq12),
         .a20(kbc_a20), .cpu_reset(kbc_reset),
-        .key_valid(key_valid), .key_code(key_code), .key_ready(key_ready),
-        .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy), .mouse_buttons(mouse_buttons)
+        .keyboard_rows(keyboard_rows),
+        .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy), .mouse_buttons(mouse_buttons),
+        .mouse_ready(mouse_ready)
     );
     assign a20m = !kbc_a20 && !port_a_a20;
 

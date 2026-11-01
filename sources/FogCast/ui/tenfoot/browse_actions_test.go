@@ -142,7 +142,7 @@ func TestHomeHeroActionsFollowSpatialDirectionsWithoutMovingSelection(t *testing
 	for _, size := range [][2]int{{1280, 720}, {1024, 600}} {
 		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
 			fake := &fakeLocalCores{cores: homeFixtureCores()}
-			app := startHomeLounge(t, fake, size[0], size[1])
+			app := startHomeLoungeAllCores(t, fake, size[0], size[1])
 			before := waitFor(t, app, "Pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
 			app.HandleCommand(CmdUp, time.Now())
 			snap := app.Snapshot()
@@ -231,7 +231,7 @@ func TestLibraryActionsStillWaitForTheirOwnPendingLoad(t *testing.T) {
 
 func TestHomeHeroActionsRejectAChangedDestination(t *testing.T) {
 	fake := &fakeLocalCores{cores: homeFixtureCores()}
-	app := startHomeLounge(t, fake, 1280, 720)
+	app := startHomeLoungeAllCores(t, fake, 1280, 720)
 	waitFor(t, app, "Pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
 	app.HandleCommand(CmdUp, time.Now())
 	app.mu.Lock()

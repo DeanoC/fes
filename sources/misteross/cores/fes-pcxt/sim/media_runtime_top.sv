@@ -28,11 +28,13 @@ module media_runtime_top (
     wire [1:0] source_enable;
     wire [31:0] unused_unit_size;
     wire source_ready, disk_restart, disk_valid, disk_ready, disk_done, storage_valid, storage_ready, storage_done;
+    /* verilator lint_off PINCONNECTEMPTY */
     fes_computer_mailbox_pcxt gp_mailbox (
         .clk(clk), .gpo(gpo), .build_id(128'd0), .gpi(gpi), .exec_reset(exec_reset),
         .media_reset(cold_reset), .media_write_addr(source_addr), .media_write_data(source_data),
         .media_write_enable(source_enable), .media_write_ready(source_ready), .media_write_busy(1'b0),
-        .unit0_state(unit_state), .unit0_size(unused_unit_size));
+        .unit0_state(unit_state), .unit0_size(unused_unit_size), .keyboard_rows());
+    /* verilator lint_on PINCONNECTEMPTY */
     pcxt_media media (
         .clk(clk), .cold_reset(cold_reset), .unit_state(unit_state), .source_addr(source_addr),
         .source_data(source_data), .source_enable(source_enable), .source_ready(source_ready),
