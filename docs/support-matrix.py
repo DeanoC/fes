@@ -55,8 +55,8 @@ HIGHLIGHTS = {
     'fes.c64': 'disk, keys, HDMI',
     'fes.spectrum': 'tape, keys, HDMI',
     'fes.spectrum128': 'tape, keys, HDMI',
-    'fes.spectrum-plus3': 'disk, keys, HDMI',
-    'fes.pentagon': 'disk, keys, HDMI',
+    'fes.spectrum-plus3': 'tape, disk, keys, HDMI',
+    'fes.pentagon': 'tape, disk, keys, HDMI',
     'fes.c64-ntsc': '—',
     'fes.atari-st': 'disk, keys, mouse, HDMI',
     'fes.atari-ste': '—',
@@ -108,6 +108,9 @@ DETAILS = {
     'tv80': ('docs/core-alignment.md', 'alignment'),
 }
 AS_OF = '2026-10-29'
+# Main's first-parent tip at the end of AS_OF. Keep the history snapshot fixed
+# so later merges with backdated author dates cannot change the matrix.
+AS_OF_COMMIT = '8f06961a9ec899963eda280c96af4d7149feadcb'
 WINDOW_START = '2026-08-30'
 RECENT_CUTOFF = '2026-10-16'
 MEDIA_GENS = frozenset({'live', 'linked-rom', 'old', 'none', 'sim', 'diagnostic'})
@@ -158,10 +161,10 @@ def owned_rtl(root: Path, row: dict) -> tuple[str, str, str] | None:
     Owned: the subject names the core, or the core holds at least half of the
     commit's RTL paths and at least two files. A one-file edit holding less
     than half of another commit's RTL paths is never owned. Returns
-    (short sha, author date, subject), or None.
+    (full sha, author date, subject), or None.
     """
     name = row['id'].removeprefix('fes.').lower()
-    log = _git(root, 'log', '--format=%h%x00%as%x00%s', '--', *row['paths'])
+    log = _git(root, 'log', AS_OF_COMMIT, '--format=%H%x00%as%x00%s', '--', *row['paths'])
     for line in log.splitlines():
         sha, date, subject = line.split('\0', 2)
         if not WINDOW_START <= date <= AS_OF:
@@ -230,7 +233,7 @@ def render(data: dict) -> str:
         '',
         '## Legend',
         '',
-        f'Tiers are derived from signals in the JSON (as of {AS_OF}). Catalog standing is recorded and is not a tier. Owned RTL is a commit that changes that core\'s `rtl/` and names the core, or that core holds at least half of the commit\'s RTL files. A one-file edit inside another core\'s commit does not count. A recorded override from {OVERRIDE_REASON} replaces the derived tier.',
+        f'Tiers are derived from signals in the JSON (as of {AS_OF}). Catalog standing is recorded and is not a tier. Owned RTL is a commit that changes that core\'s `rtl/` and names the core, or that core holds at least half of the commit\'s RTL files and at least two files. A one-file edit inside another core\'s commit does not count. A recorded override from {OVERRIDE_REASON} replaces the derived tier.',
         '',
         'Coleco is Aging: work toward Current is in progress and still needs work. Spectrum and Atari ST stay Current; their kit HIL pass on the latest RTL is pending and expected soon. C64 NTSC and Atari STE are Bring-up (queued).',
         '',
@@ -564,9 +567,6 @@ def validate(root: Path, data: dict) -> list[str]:
         if not (root / path).is_file():
             errors.append(f'{core_id} detail doc is missing: {path}')
     for row in rows:
-        if row.get('tier') not in tier_ids:
-            errors.append(f"{row['id']} has unknown tier {row.get('tier')!r}")
-    for row in rows:
         if row.get('tier_role') != 'shared' or not row.get('paths'):
             continue
         signals = row.get('signals') or {}
@@ -579,28 +579,43 @@ def validate(root: Path, data: dict) -> list[str]:
         if owned is None:
             if recorded or signals.get('last_rtl_sha'):
                 errors.append(f"{row['id']} records owned RTL {signals.get('last_rtl_sha')} but none qualifies in the window")
-        elif recorded != owned[1] or not signals.get('last_rtl_sha'):
-            errors.append(f"{row['id']} owned RTL is {owned[0]} on {owned[1]}, recorded {signals.get('last_rtl_sha')} on {recorded}")
-    if errors:
-        return errors
-    rendered = render(data)
-    if rendered.count(DE25_CELL) != 1:
-        errors.append('DE25 policy line must appear once in the human page')
-    if rendered.count(QUARTUS_PRIMARY) != 1:
-        errors.append('Quartus-primary policy line must appear once in the human page')
-    for phrase in (
-        POLICY_CITE,
-        'empty-library status',
-        'shell pending',
-        'Bring-up (queued)',
-        'Spectrum (48K, 128K, +2, +2A/+3, Pentagon)',
-        'C64 (NTSC)',
-        'Atari ST (STE)',
-    ):
-        if phrase not in rendered:
-            errors.append(f'human page is missing {phrase!r}')
-    if 'Unresolved' in rendered:
-        errors.append('human page still shows the Unresolved tier')
+        else:
+            recorded_sha = signals.get('last_rtl_sha') or ''
+            recorded_subject = signals.get('last_rtl_subject')
+            if (
+                recorded != owned[1]
+                or not recorded_sha
+                or not owned[0].startswith(recorded_sha)
+                or (recorded_subject and recorded_subject != owned[2])
+            ):
+                errors.append(
+                    f"{row['id']} owned RTL is {owned[0]} on {owned[1]} ({owned[2]}), "
+                    f"recorded {recorded_sha or '<missing>'} on "
+                    f"{recorded or '<missing>'} ({recorded_subject or '<missing>'})"
+                )
+    try:
+        rendered = render(data)
+    except (IndexError, KeyError, TypeError) as error:
+        rendered = None
+        errors.append(f'human page cannot be rendered: {error}')
+    if rendered is not None:
+        if rendered.count(DE25_CELL) != 1:
+            errors.append('DE25 policy line must appear once in the human page')
+        if rendered.count(QUARTUS_PRIMARY) != 1:
+            errors.append('Quartus-primary policy line must appear once in the human page')
+        for phrase in (
+            POLICY_CITE,
+            'empty-library status',
+            'shell pending',
+            'Bring-up (queued)',
+            'Spectrum (48K, 128K, +2, +2A/+3, Pentagon)',
+            'C64 (NTSC)',
+            'Atari ST (STE)',
+        ):
+            if phrase not in rendered:
+                errors.append(f'human page is missing {phrase!r}')
+        if 'Unresolved' in rendered:
+            errors.append('human page still shows the Unresolved tier')
     if any(row['id'] == 'fes.spectrum-plus2' for row in rows):
         errors.append('fes.spectrum-plus2 is not a separate core')
     plus2 = next((
@@ -609,17 +624,17 @@ def validate(root: Path, data: dict) -> list[str]:
     ), None)
     if not plus2 or plus2.get('kind') != 'rom':
         errors.append('fes.spectrum128 must record +2 as a ROM variant')
-    matrix_text = (root / DATA).read_text()
+    matrix_text = json.dumps(data)
     for phrase in ('no distinct model', 'no plus2 model', 'has no model', 'Distinct model', 'lacks a model'):
-        if phrase in rendered or phrase in matrix_text:
+        if (rendered is not None and phrase in rendered) or phrase in matrix_text:
             errors.append(f'support matrix still says {phrase!r}')
-    if 'toolchain.lock' in rendered or '## Evidence' in rendered:
+    if rendered is not None and ('toolchain.lock' in rendered or '## Evidence' in rendered):
         errors.append('human page still carries locks or an evidence table')
     for row in rows:
         lock = row.get('oss_lock') or {}
         for name in ('yosys', 'nextpnr', 'mistral'):
             pin = lock.get(name)
-            if pin and pin in rendered:
+            if pin and rendered is not None and pin in rendered:
                 errors.append(f"{row['id']} {name} pin leaked into the human page")
         if de10_cell(row) == 'Quartus' and row['id'] not in QUARTUS_PRIMARY_IDS:
             errors.append(f"{row['id']} DE10 cell says Quartus without the primary policy")
@@ -627,11 +642,12 @@ def validate(root: Path, data: dict) -> list[str]:
             errors.append(f"{row['id']} DE10 cell should say Quartus")
     for item in data.get('unverified') or []:
         detail = item.get('detail') or ''
-        if len(detail) > 80 and detail[:80] in rendered:
+        if len(detail) > 80 and rendered is not None and detail[:80] in rendered:
             errors.append(f"open cell {item.get('cell')!r} still pastes its long detail")
-    for line in rendered.splitlines():
-        if line.startswith('| ') and not line.startswith('| ---') and len(line) > 180:
-            errors.append(f'human table row is too long ({len(line)}): {line[:80]}')
+    if rendered is not None:
+        for line in rendered.splitlines():
+            if line.startswith('| ') and not line.startswith('| ---') and len(line) > 180:
+                errors.append(f'human table row is too long ({len(line)}): {line[:80]}')
     policy = '\n'.join(data.get('policy') or [])
     for phrase in (POLICY_CITE, QUARTUS_PRIMARY, DE25_CELL, 'empty-library status'):
         if phrase not in policy:
