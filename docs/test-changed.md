@@ -232,15 +232,20 @@ the CPU-bus probe and registered diagnostic-through-socket test. It
 never invokes a synthesis, placement, Quartus, image-building or deployment target.
 
 CI uses the same producer-test list and affected families, but runs independent
-components and simulation targets in separate jobs. Coleco has 16 focused jobs:
-seven unit/board scenarios in default and registered OSS lanes (14 jobs), plus
-the CPU expansion probe and diagnostic through the registered socket. These
-preserve the cases and compiler flags in the local aggregate commands. Each job
-has isolated build output; the matrix runs at most eight jobs concurrently.
+components and simulation targets in separate jobs. Simulations run in two
+tiers (`scripts/ci_simulations.py`). Pull requests, the merge queue and pushes
+to `main` run the smoke tier; the nightly regression and manual runs run the
+full tier. Coleco's full tier has 24 jobs: seven unit/board scenarios in default
+and registered OSS lanes (14 jobs), the CPU expansion probe, the diagnostic
+through the registered socket, the video-parts check and seven SGM cases. Its
+smoke tier runs five of them: unit, unit-oss, board-graphics, diagnostic and
+sgm-integrated. These preserve the cases and compiler flags in the local
+aggregate commands. Each job has isolated build output; the matrix runs at most
+eight jobs concurrently.
 
 PRs run against their merge result; pushes to `main` validate the merged result.
 Feature-branch pushes do not duplicate PR runs. Merge groups remain supported;
-weekly and manual runs select the complete suite. The stable `integration`
+nightly and manual runs select the complete suite. The stable `integration`
 check requires every planned job to succeed, including compiler preparation.
 Missing, skipped or cancelled required jobs fail the gate. Deliberately omitted
 jobs are recorded in the plan, not reported as successful tests in the CI receipt.
