@@ -145,13 +145,14 @@ type sessionCoordinator struct {
 }
 
 type sessionInputBinding struct {
-	core       string
-	packageID  string
-	generation uint64
-	keyboard   bool
-	gamepad    bool
-	keypad     bool
-	mouse      bool
+	core        string
+	packageID   string
+	generation  uint64
+	keyboard    bool
+	keyboardHID bool
+	gamepad     bool
+	keypad      bool
+	mouse       bool
 }
 
 type adoptionSnapshot struct {
@@ -1690,6 +1691,86 @@ func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.
 	return sender.SendEvent(ctx, event, time.Now())
 }
 
+func (s *sessionCoordinator) tapCoreKey(ctx context.Context, sessionID string, event remoteinput.Event) (time.Duration, error) {
+	if s.tapHIDForeign() {
+		return 0, playHIDLeaseError()
+	}
+	if s.remoteInput == nil {
+		return 0, host.ErrRemoteInputNoStream
+	}
+	// Only a negotiated HID keyboard accepts physical usages unchanged. The
+	// target silently drops unsupported usages on native and matrix cores.
+	status, err := s.service.Status(s.scoped(ctx))
+	if err != nil {
+		return 0, err
+	}
+	if !inputEligibleStatus(status) || !protocol.KeyboardHIDCapable(status.CorePackage) {
+		return 0, host.ErrRemoteInputNoStream
+	}
+	want := inputBindingForStatus(status)
+	s.mu.Lock()
+	bound := s.inputBinding == want
+	s.mu.Unlock()
+	if !bound {
+		return 0, host.ErrRemoteInputNoStream
+	}
+	tapper, ok := s.remoteInput.(interface {
+		TapKey(context.Context, string, remoteinput.Event, func() error) (time.Duration, error)
+	})
+	if !ok {
+		return 0, host.ErrRemoteInputNoStream
+	}
+	duration, err := tapper.TapKey(ctx, sessionID, event, func() error {
+		if s.tapHIDForeign() {
+			return playHIDLeaseError()
+		}
+		// The input lock is held here. Binding changes happen without holding
+		// s.mu while waiting for that lock, so this recheck cannot invert the
+		// lock order and rejects an attachment replaced while tap was queued.
+		s.mu.Lock()
+		current := s.inputBinding
+		s.mu.Unlock()
+		if current != want || !current.keyboardHID {
+			return host.ErrRemoteInputNoStream
+		}
+		return nil
+	})
+	if err != nil {
+		return duration, err
+	}
+	if s.tapHIDForeign() {
+		return duration, playHIDLeaseError()
+	}
+	return duration, nil
+}
+
+// Tap ownership must use the target selected by this coordinator, not the
+// global foreground kit. An unknown scoped connection fails closed.
+func (s *sessionCoordinator) tapHIDForeign() bool {
+	var c fogcast.TargetConnection
+	if s.target != "" {
+		provider, ok := s.service.(interface {
+			TargetConnectionForName(string) fogcast.TargetConnection
+		})
+		if !ok {
+			return true
+		}
+		c = provider.TargetConnectionForName(s.target)
+	} else {
+		provider, ok := s.service.(interface {
+			TargetConnection() fogcast.TargetConnection
+		})
+		if !ok {
+			return true
+		}
+		c = provider.TargetConnection()
+	}
+	// Discovery reports a usable target as ready or active. Missing,
+	// incompatible, or unknown observations do not establish ownership.
+	return (c.State != "ready" && c.State != "active") ||
+		kitlease.ForeignHID(kitlease.Status{State: c.State, Owner: c.Owner})
+}
+
 func (s *sessionCoordinator) playHIDForeign() bool {
 	provider, ok := s.service.(interface {
 		TargetConnection() fogcast.TargetConnection
@@ -1963,7 +2044,8 @@ func inputBindingForStatus(status protocol.Status) sessionInputBinding {
 	ports, keypad := protocol.ControllerPorts(status.CorePackage)
 	binding := sessionInputBinding{
 		core: sessionCore(status), keyboard: corePackageHasKeyboard(status),
-		gamepad: ports, keypad: keypad, mouse: protocol.MouseRelativeCapable(status.CorePackage),
+		keyboardHID: protocol.KeyboardHIDCapable(status.CorePackage),
+		gamepad:     ports, keypad: keypad, mouse: protocol.MouseRelativeCapable(status.CorePackage),
 	}
 	if status.CorePackage != nil {
 		binding.packageID = status.CorePackage.PackageID
