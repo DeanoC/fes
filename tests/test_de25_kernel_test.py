@@ -26,6 +26,7 @@ class KernelEvidenceTests(unittest.TestCase):
             kernel.config_from_image(oversized)
 
     def test_all_lifetime_and_revocation_cases_must_run_and_pass(self):
+        self.assertIn("owner_idle_waits_for_last_client_mapping", kernel.REQUIRED_CASES)
         cases = [{"name": name, "status": "PASS"} for name in sorted(kernel.REQUIRED_CASES)]
         good = {"sub_groups": [{"name": "fes-de25-dma", "test_cases": cases}]}
         self.assertEqual(set(kernel.passing_cases(good)), kernel.REQUIRED_CASES)
@@ -36,6 +37,8 @@ class KernelEvidenceTests(unittest.TestCase):
                 kernel.passing_cases(changed)
         for changed in ({}, {"sub_groups": good["sub_groups"] * 2},
                         {"sub_groups": [{"name": "fes-de25-dma", "test_cases": cases[:-1]}]},
+                        {"sub_groups": [{"name": "fes-de25-dma", "test_cases": [
+                            case for case in cases if case["name"] != "owner_idle_waits_for_last_client_mapping"]}]},
                         {"sub_groups": [{"name": "fes-de25-dma", "test_cases": cases + cases[:1]}]}):
             with self.assertRaises(ValueError):
                 kernel.passing_cases(changed)
