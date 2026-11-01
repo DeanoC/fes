@@ -51,8 +51,26 @@ sample. Holding that diagnostics reset alone grants no drain proof: DMA-off,
 two independent idle observations, clock-stop readback and final reset readback
 remain required. Faults in the held diagnostics reset before/during/after drain
 retire ownership. The serial decoder checks the same initial mask. Focused
-actual-C and decoder checks pass; integration and the fresh matched v14
-hardware trace remain pending.
+actual-C and decoder checks pass. Targeted firmware/producer checks and the
+frozen native integration check also pass. The first native integration run
+correctly rejected a concurrent test-fixture edit; its frozen rerun passed.
+
+Both v14 native programming attempts stopped with `JTAG chain broken` before
+SPL, with empty serial captures and no native command. The second attempt
+followed a successful known-recovery boot and independent read-only card
+checks, preserving the first failed attempt/fuse. Native v14 testing then
+stopped. Exact device identity remained observable, and the known recovery
+image booted again without a power cycle. TRWU8CBL stays at that loader prompt
+with the test card inserted, no UART client and restored USB permissions. The
+factory card remains safe outside the board; no factory boot is claimed.
+
+The v13/v14 vendor startup object instructions are identical, the private SPL
+record remains aligned/in bounds, and reproducing v14's PFG conversion gives
+identical SOF bytes. Independent extraction of its HPS literal chunks matches
+every built SPL byte. These are offline controls, not evidence that the SD
+correction executed on hardware. See the [first](v14-program.log) and
+[second](v14-second-program.log) programmer logs. The next programming-path
+investigation must preserve this distinction and avoid unchanged retries.
 
 This remains serial-only diagnostic evidence. Active device drivers, secure
 firmware ownership during active traffic, tenfoot on the board and real core

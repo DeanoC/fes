@@ -107,7 +107,7 @@
     "fit_sha256": "b1bb52b2d540fb001f071a64b4c8a021ed5d60d6a467fef1ede9ce6d1f139968",
     "sof_sha256": "b360202ec970fe3c0bc254590805eb631bbcba11c11681ef200655a2f4e0612e",
     "chain_sha256": "5fa0ed10f3a956e5faf9e3dd6a9c8dfcf0c4be6d73e5b86d02a7daca8f8cbc74",
-    "status": "prepared; frozen native integration check and physical trace pending"
+    "status": "v14 native hardware attempts stopped after two programmer failures before SPL"
   },
   "limits": [
     "DDR initialization is not independent memory qualification",
@@ -127,10 +127,10 @@
     "v13_fpga_skipped": 75,
     "v14_delta_cold_tests": 5,
     "v14_delta_trace_tests": 9,
-    "v14_delta_integration_status": "running",
+    "v14_delta_integration_status": "targeted firmware and producer checks passed; native integration frozen rerun passed",
     "v14_delta_firmware_integration_passed": true,
     "v14_delta_producer_integration_passed": true,
-    "v14_delta_native_integration": "first run rejected source change from concurrent fixture edit; frozen rerun required"
+    "v14_delta_native_integration": "passed on frozen source; earlier source-change-rejected run retained"
   },
   "v13": {
     "serial": "TRWU8CBL",
@@ -408,7 +408,7 @@
     "unused_ecc_diagnostics_must_remain_held": true,
     "idle_clock_stop_and_reset_readback_still_required": true,
     "source_chain_rebuild_required": true,
-    "hardware_status": "not attempted"
+    "hardware_status": "two programmer failures before SPL, no native execution; known recovery restored"
   },
   "retention": "/home/deano/fes-retained/de25-nano-final-handoff-diagnostic-20261101/",
   "previous_candidate": {
@@ -419,5 +419,362 @@
     "fit_sha256": "6b22ff8381c61b628d1fd9cbf75d87f8b174ede4326bb459f70e831f0fe0c9f3",
     "prepared_full_sd_image_sha256_not_written": "eb56cffe868ed10ab044a88a8d33f3b803b3d88c7c77fe07e88a66ea70b75be8",
     "chain_sha256": "51b3128f32ae5aa652fb120a1e3d88dcf5df6d2ab20df37f2b74565e9ae6053d"
+  },
+  "v14_hardware": {
+    "first_attempt": {
+      "serial": "TRWU8CBL",
+      "source_commit": "887f833ab3f42b0fb90dece5756e5b0105eeab41",
+      "phase": "native",
+      "sof_sha256": "b360202ec970fe3c0bc254590805eb631bbcba11c11681ef200655a2f4e0612e",
+      "initial_card_image_sha256": "f7c4a2c77e44de5c6679b8e2c274100dd9ebb4961c900e7a6de10f727a34850c",
+      "prepared_full_image_sha256_not_written": "35f8448c384eddce4b9e89e3fd1a6e29468b58e766231ae601512eaca7059d7a",
+      "fit_sha256": "b1bb52b2d540fb001f071a64b4c8a021ed5d60d6a467fef1ede9ce6d1f139968",
+      "started_utc": "2026-11-01T12:38:14.819050+00:00",
+      "stage": "volatile native programming",
+      "programming_attempted": true,
+      "fesboot_sent": false,
+      "pass": false,
+      "sd_write_commands_sent": false,
+      "network_update_receipt_sha256": "a6d00eca92a4beeb2a5829dc6b8aa1bbc2bea0401c1701c8312da23318b369e1",
+      "prior_stop_receipt_sha256": "40a0ac6444910ec78391b8f916a0c0619e3095179b885df64cea1805c7732b14",
+      "runner_sha256": "9dcad4a802f3f285a55691bfabb4f25808a2a0fec4c48ec0f7d9091178d16740",
+      "jtag_id": "4362C0DD",
+      "error": "programmer error: native-program.log",
+      "usb_permissions_restored": true,
+      "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "finished_utc": "2026-11-01T12:38:26.870371+00:00",
+      "boot_trace": {
+        "records": [],
+        "errors": [],
+        "loader_ready": false,
+        "complete": false,
+        "last_checkpoint": null,
+        "core_load_acceptance": false
+      },
+      "decoder_sha256": "4c9dab5fde6356c14e610eb2028956251594ad80bd02e4e23b0435d0fcebdeea"
+    },
+    "managed_recovery": {
+      "serial": "TRWU8CBL",
+      "source_commit": "887f833ab3f42b0fb90dece5756e5b0105eeab41",
+      "phase": "link-recovery",
+      "sof_sha256": "f5ec8595a88a0bbc9205e9b50cfa00def22e3cc9e65ddb1af8dcde1ad42ba3ec",
+      "initial_card_image_sha256": "f7c4a2c77e44de5c6679b8e2c274100dd9ebb4961c900e7a6de10f727a34850c",
+      "prepared_full_image_sha256_not_written": "12ab480664451db28c93d6dacd9f01e1533b31979e5924879c728b909f8ac485",
+      "fit_sha256": "71f413629a7714ab1a7bd4c6331969ba2670bdc447ddbc3bb8c103e52b525721",
+      "started_utc": "2026-11-01T12:40:15.762904+00:00",
+      "stage": "PASS link-recovery",
+      "programming_attempted": true,
+      "fesboot_sent": false,
+      "pass": true,
+      "sd_write_commands_sent": false,
+      "prior_stop_receipt_sha256": "1e0b1bc33ebe64170f85ec5f039e064ccc864c124b4a1ae8a3924e76b9772287",
+      "runner_sha256": "1f2fb9668d3f9c833d811885023260db095729373456d0ee6764260d177e9a15",
+      "jtag_id": "4362C0DD",
+      "programming_complete": true,
+      "prompt_verified": true,
+      "usb_permissions_restored": true,
+      "console_sha256": "6195d9678ccf2821345a7f9659ccbdd45fae47a30a236d7d305d09ba1609fe2f",
+      "finished_utc": "2026-11-01T12:40:24.096361+00:00",
+      "native_admission": false,
+      "decoder_sha256": "4c9dab5fde6356c14e610eb2028956251594ad80bd02e4e23b0435d0fcebdeea"
+    },
+    "read_only_card_check": {
+      "scope": "read-only live spare/boot-prefix/root-FIT/native-FIT verification after known recovery; no SD write, boot or flash command",
+      "serial": "TRWU8CBL",
+      "commands": [
+        {
+          "command": "version",
+          "output": "version; echo FES_UPLOAD_901c1b59c069=$?\r\nU-Boot 2025.01-fes-nano-recovery-gd0f8813fd6bf (Jun 27 2025 - 01:40:35 +0000)socfpga_agilex5\r\n\r\nFES_UPLOAD_901c1b59c069=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "bdinfo",
+          "output": "bdinfo; echo FES_UPLOAD_fe33342a3a47=$?\r\nboot_params = 0x0000000080000100\r\nDRAM bank   = 0x0000000000000000\r\n-> start    = 0x0000000080000000\r\n-> size     = 0x0000000040000000\r\nflashstart  = 0x0000000000000000\r\nflashsize   = 0x0000000000000000\r\nflashoffset = 0x0000000000000000\r\nbaudrate    = 115200 bps\r\nrelocaddr   = 0x00000000bfef7000\r\nreloc off   = 0x000000003fcf7000\r\nBuild       = 64-bit\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\ncurrent eth = unknown\r\neth-1addr   = (not set)\r\nIP addr     = <NULL>\r\nfdt_blob    = 0x00000000bfaee810\r\nlmb_dump_all:\r\n memory.count = 0x1\r\n memory[0]\t[0x80000000-0xbfffffff], 0x40000000 bytes, flags: none\r\n reserved.count = 0x2\r\n reserved[0]\t[0x0-0xffffff], 0x1000000 bytes, flags: no-map\r\n reserved[1]\t[0xbeaecff0-0xbfffffff], 0x1513010 bytes, flags: no-overwrite\r\ndevicetree  = separate\r\nserial addr = 0x0000000010c02100\r\n width      = 0x0000000000000004\r\n shift      = 0x0000000000000002\r\n offset     = 0x0000000000000000\r\n clock      = 0x0000000005f5e100\r\narch_number = 0x0000000000000000\r\nTLB addr    = 0x00000000bffe0000\r\nirq_sp      = 0x00000000bfaecff0\r\nsp start    = 0x00000000bfaecff0\r\nEarly malloc usage: 1780 / 2000\r\nFES_UPLOAD_fe33342a3a47=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "mmc dev 0",
+          "output": "mmc dev 0; echo FES_UPLOAD_824bc6bf4532=$?\r\nswitch to partitions #0, OK\r\nmmc0 is current device\r\nFES_UPLOAD_824bc6bf4532=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "mmcinfo",
+          "output": "mmcinfo; echo FES_UPLOAD_a5b782ebd8bf=$?\r\nDevice: mmc0@10808000\r\nManufacturer ID: 27\r\nOEM: 5048\r\nName: SD04G \r\nBus Speed: 50000000\r\nRd Block Len: 512\r\nSD version 3.0\r\nHigh Capacity: Yes\r\nCapacity: 3.7 GiB\r\nBus Width: 4-bit\r\nErase Group Size: 512 Bytes\r\nFES_UPLOAD_a5b782ebd8bf=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "mmc part",
+          "output": "mmc part; echo FES_UPLOAD_bf78c02e42c9=$?\r\n\r\nPartition Map for mmc device 0  --   Partition Type: DOS\r\n\r\nPart\tStart Sector\tNum Sectors\tUUID\t\tType\r\n  1\t32768     \t262144    \t00000000-01\t0c\r\nFES_UPLOAD_bf78c02e42c9=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "mmc read 83000000 0 8000",
+          "output": "mmc read 83000000 0 8000; echo FES_UPLOAD_443852cfd699=$?\r\nMMC read: dev # 0, block # 0, count 32768 ... 32768 blocks read: OK\r\nFES_UPLOAD_443852cfd699=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "hash sha256 83000000 1000000",
+          "output": "hash sha256 83000000 1000000; echo FES_UPLOAD_182f428c7c30=$?\r\nsha256 for 83000000 ... 83ffffff ==> 2586b521d2e8b69622c6c7d52156a540ef5a1c695ae410a38f2c1483054cad71\r\nFES_UPLOAD_182f428c7c30=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "fatload mmc 0:1 83000000 u-boot.itb",
+          "output": "fatload mmc 0:1 83000000 u-boot.itb; echo FES_UPLOAD_fd8a64465012=$?\r\n948272 bytes read in 89 ms (10.2 MiB/s)\r\nFES_UPLOAD_fd8a64465012=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "hash sha256 83000000 e7830",
+          "output": "hash sha256 83000000 e7830; echo FES_UPLOAD_55ac1bd57077=$?\r\nsha256 for 83000000 ... 830e782f ==> 71f413629a7714ab1a7bd4c6331969ba2670bdc447ddbc3bb8c103e52b525721\r\nFES_UPLOAD_55ac1bd57077=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "fatload mmc 0:1 82000000 FES/RECOVERY.JSON",
+          "output": "fatload mmc 0:1 82000000 FES/RECOVERY.JSON; echo FES_UPLOAD_db08ac6986a2=$?\r\n1098 bytes read in 21 ms (50.8 KiB/s)\r\nFES_UPLOAD_db08ac6986a2=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "hash sha256 82000000 44a",
+          "output": "hash sha256 82000000 44a; echo FES_UPLOAD_7cf3d56b6890=$?\r\nsha256 for 82000000 ... 82000449 ==> 1a345ddfefc37e1fcfc5cebd17c2cb33dea8b2b70c921b32aac36aec9fe93035\r\nFES_UPLOAD_7cf3d56b6890=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "fatload mmc 0:1 82800000 FES/UPLOAD.BIN",
+          "output": "fatload mmc 0:1 82800000 FES/UPLOAD.BIN; echo FES_UPLOAD_e132e529b982=$?\r\n4711676 bytes read in 398 ms (11.3 MiB/s)\r\nFES_UPLOAD_e132e529b982=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "hash sha256 82800000 47e4fc",
+          "output": "hash sha256 82800000 47e4fc; echo FES_UPLOAD_2161983f7e4a=$?\r\nsha256 for 82800000 ... 82c7e4fb ==> b1bb52b2d540fb001f071a64b4c8a021ed5d60d6a467fef1ede9ce6d1f139968\r\nFES_UPLOAD_2161983f7e4a=0\r\nSOCFPGA_AGILEX5 # "
+        }
+      ],
+      "sd_write_attempted": false,
+      "verified": true,
+      "payload_sha256": "b1bb52b2d540fb001f071a64b4c8a021ed5d60d6a467fef1ede9ce6d1f139968",
+      "source_commit": "887f833ab3f42b0fb90dece5756e5b0105eeab41",
+      "started_utc": "2026-11-01T12:41:24.188165+00:00",
+      "boot_files_unchanged": true,
+      "live_native_payload_verified": true,
+      "prompt_parked": true,
+      "finished_utc": "2026-11-01T12:41:27.001985+00:00"
+    },
+    "second_attempt": {
+      "serial": "TRWU8CBL",
+      "source_commit": "887f833ab3f42b0fb90dece5756e5b0105eeab41",
+      "phase": "native",
+      "sof_sha256": "b360202ec970fe3c0bc254590805eb631bbcba11c11681ef200655a2f4e0612e",
+      "initial_card_image_sha256": "f7c4a2c77e44de5c6679b8e2c274100dd9ebb4961c900e7a6de10f727a34850c",
+      "prepared_full_image_sha256_not_written": "35f8448c384eddce4b9e89e3fd1a6e29468b58e766231ae601512eaca7059d7a",
+      "fit_sha256": "b1bb52b2d540fb001f071a64b4c8a021ed5d60d6a467fef1ede9ce6d1f139968",
+      "started_utc": "2026-11-01T12:42:30.739462+00:00",
+      "stage": "volatile native programming",
+      "programming_attempted": true,
+      "fesboot_sent": false,
+      "pass": false,
+      "sd_write_commands_sent": false,
+      "qualified_recovery_receipt_sha256": "49cee2d3dcee85cf05112401ee9fda8d279ef720265e1e9f73476a8c0a4ecf09",
+      "live_card_receipt_sha256": "246c39f1a97d57783e5779dbccda95ed0b0149d5f2db01b1c93ff58493a407b6",
+      "network_update_receipt_sha256": "a6d00eca92a4beeb2a5829dc6b8aa1bbc2bea0401c1701c8312da23318b369e1",
+      "prior_stop_receipt_sha256": "1e0b1bc33ebe64170f85ec5f039e064ccc864c124b4a1ae8a3924e76b9772287",
+      "runner_sha256": "096aefb3a2edac81ef130a868e85c89e91e2f6fec2180fbc54db833f218b4105",
+      "jtag_id": "4362C0DD",
+      "error": "programmer error: native-after-recovery-program.log",
+      "usb_permissions_restored": true,
+      "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "finished_utc": "2026-11-01T12:42:42.982558+00:00",
+      "boot_trace": {
+        "records": [],
+        "errors": [],
+        "loader_ready": false,
+        "complete": false,
+        "last_checkpoint": null,
+        "core_load_acceptance": false
+      },
+      "decoder_sha256": "4c9dab5fde6356c14e610eb2028956251594ad80bd02e4e23b0435d0fcebdeea"
+    },
+    "final_recovery": {
+      "serial": "TRWU8CBL",
+      "source_commit": "887f833ab3f42b0fb90dece5756e5b0105eeab41",
+      "phase": "final-recovery",
+      "sof_sha256": "f5ec8595a88a0bbc9205e9b50cfa00def22e3cc9e65ddb1af8dcde1ad42ba3ec",
+      "initial_card_image_sha256": "f7c4a2c77e44de5c6679b8e2c274100dd9ebb4961c900e7a6de10f727a34850c",
+      "prepared_full_image_sha256_not_written": "12ab480664451db28c93d6dacd9f01e1533b31979e5924879c728b909f8ac485",
+      "fit_sha256": "71f413629a7714ab1a7bd4c6331969ba2670bdc447ddbc3bb8c103e52b525721",
+      "started_utc": "2026-11-01T12:45:44.081038+00:00",
+      "stage": "PASS final-recovery",
+      "programming_attempted": true,
+      "fesboot_sent": false,
+      "pass": true,
+      "sd_write_commands_sent": false,
+      "prior_stop_receipt_sha256": "4ba593944925103c1a7b57db45c46a2269b93e271e81423562e94fb4514d8186",
+      "runner_sha256": "a6b39b02192d2a5b067804435dfdb0c697ef1529aadd06a8e4dc38001748cf86",
+      "jtag_id": "4362C0DD",
+      "programming_complete": true,
+      "prompt_verified": true,
+      "usb_permissions_restored": true,
+      "console_sha256": "6195d9678ccf2821345a7f9659ccbdd45fae47a30a236d7d305d09ba1609fe2f",
+      "finished_utc": "2026-11-01T12:45:53.244089+00:00",
+      "native_admission": false,
+      "decoder_sha256": "4c9dab5fde6356c14e610eb2028956251594ad80bd02e4e23b0435d0fcebdeea"
+    },
+    "retained_state": {
+      "serial": "TRWU8CBL",
+      "state": "qualified known recovery loader prompt; test card remains inserted",
+      "uart_owner_absent": true,
+      "usb_node": "/dev/bus/usb/003/061",
+      "usb_permissions_restored": true,
+      "claim_held": true,
+      "factory_restored": false,
+      "native_v14_programming_failures": 2,
+      "native_code_executed": false,
+      "core_load_acceptance": false,
+      "test_card_contains_verified_v14_FIT": true,
+      "final_recovery_receipt_sha256": "17b3fb384d9b6ad79bb5197feafd8632a85e064a388c91bf774efb2069faaf18",
+      "utc": "2026-11-01T12:50:36.575810+00:00"
+    },
+    "upload": {
+      "format": 1,
+      "status": "verified",
+      "classification": "physical production upload core/transport under encompassing board-trial claim; standalone CLI claim lifecycle not exercised",
+      "board_serial": "TRWU8CBL",
+      "source_commit": "887f833ab3f42b0fb90dece5756e5b0105eeab41",
+      "payload_bytes": 4711676,
+      "payload_sha256": "b1bb52b2d540fb001f071a64b4c8a021ed5d60d6a467fef1ede9ce6d1f139968",
+      "commands": [
+        {
+          "command": "version",
+          "output": "version; echo FES_UPLOAD_126eb68713d8=$?\r\nU-Boot 2025.01-fes-nano-recovery-gd0f8813fd6bf (Jun 27 2025 - 01:40:35 +0000)socfpga_agilex5\r\n\r\nFES_UPLOAD_126eb68713d8=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "bdinfo",
+          "output": "bdinfo; echo FES_UPLOAD_2aba5bf6223f=$?\r\nboot_params = 0x0000000080000100\r\nDRAM bank   = 0x0000000000000000\r\n-> start    = 0x0000000080000000\r\n-> size     = 0x0000000040000000\r\nflashstart  = 0x0000000000000000\r\nflashsize   = 0x0000000000000000\r\nflashoffset = 0x0000000000000000\r\nbaudrate    = 115200 bps\r\nrelocaddr   = 0x00000000bfef7000\r\nreloc off   = 0x000000003fcf7000\r\nBuild       = 64-bit\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\n\r\nError: ethernet@10810000 No valid MAC address found.\r\ncurrent eth = unknown\r\neth-1addr   = (not set)\r\nIP addr     = <NULL>\r\nfdt_blob    = 0x00000000bfaee810\r\nlmb_dump_all:\r\n memory.count = 0x1\r\n memory[0]\t[0x80000000-0xbfffffff], 0x40000000 bytes, flags: none\r\n reserved.count = 0x2\r\n reserved[0]\t[0x0-0xffffff], 0x1000000 bytes, flags: no-map\r\n reserved[1]\t[0xbeaecff0-0xbfffffff], 0x1513010 bytes, flags: no-overwrite\r\ndevicetree  = separate\r\nserial addr = 0x0000000010c02100\r\n width      = 0x0000000000000004\r\n shift      = 0x0000000000000002\r\n offset     = 0x0000000000000000\r\n clock      = 0x0000000005f5e100\r\narch_number = 0x0000000000000000\r\nTLB addr    = 0x00000000bffe0000\r\nirq_sp      = 0x00000000bfaecff0\r\nsp start    = 0x00000000bfaecff0\r\nEarly malloc usage: 1780 / 2000\r\nFES_UPLOAD_2aba5bf6223f=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "mmc dev 0",
+          "output": "mmc dev 0; echo FES_UPLOAD_cb17deaba7a0=$?\r\nswitch to partitions #0, OK\r\nmmc0 is current device\r\nFES_UPLOAD_cb17deaba7a0=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "mmcinfo",
+          "output": "mmcinfo; echo FES_UPLOAD_a992464a8cb7=$?\r\nDevice: mmc0@10808000\r\nManufacturer ID: 27\r\nOEM: 5048\r\nName: SD04G \r\nBus Speed: 50000000\r\nRd Block Len: 512\r\nSD version 3.0\r\nHigh Capacity: Yes\r\nCapacity: 3.7 GiB\r\nBus Width: 4-bit\r\nErase Group Size: 512 Bytes\r\nFES_UPLOAD_a992464a8cb7=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "mmc part",
+          "output": "mmc part; echo FES_UPLOAD_f9caa4a2455e=$?\r\n\r\nPartition Map for mmc device 0  --   Partition Type: DOS\r\n\r\nPart\tStart Sector\tNum Sectors\tUUID\t\tType\r\n  1\t32768     \t262144    \t00000000-01\t0c\r\nFES_UPLOAD_f9caa4a2455e=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "mmc read 83000000 0 8000",
+          "output": "mmc read 83000000 0 8000; echo FES_UPLOAD_d68fcf904597=$?\r\nMMC read: dev # 0, block # 0, count 32768 ... 32768 blocks read: OK\r\nFES_UPLOAD_d68fcf904597=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "hash sha256 83000000 1000000",
+          "output": "hash sha256 83000000 1000000; echo FES_UPLOAD_7fbaa7d2c4a0=$?\r\nsha256 for 83000000 ... 83ffffff ==> 2586b521d2e8b69622c6c7d52156a540ef5a1c695ae410a38f2c1483054cad71\r\nFES_UPLOAD_7fbaa7d2c4a0=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "fatload mmc 0:1 83000000 u-boot.itb",
+          "output": "fatload mmc 0:1 83000000 u-boot.itb; echo FES_UPLOAD_4dbf7d507c7d=$?\r\n948272 bytes read in 90 ms (10 MiB/s)\r\nFES_UPLOAD_4dbf7d507c7d=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "hash sha256 83000000 e7830",
+          "output": "hash sha256 83000000 e7830; echo FES_UPLOAD_05b39747319b=$?\r\nsha256 for 83000000 ... 830e782f ==> 71f413629a7714ab1a7bd4c6331969ba2670bdc447ddbc3bb8c103e52b525721\r\nFES_UPLOAD_05b39747319b=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "fatload mmc 0:1 82000000 FES/RECOVERY.JSON",
+          "output": "fatload mmc 0:1 82000000 FES/RECOVERY.JSON; echo FES_UPLOAD_db6c2ff86092=$?\r\n1098 bytes read in 21 ms (50.8 KiB/s)\r\nFES_UPLOAD_db6c2ff86092=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "hash sha256 82000000 44a",
+          "output": "hash sha256 82000000 44a; echo FES_UPLOAD_767bdb809b9f=$?\r\nsha256 for 82000000 ... 82000449 ==> 1a345ddfefc37e1fcfc5cebd17c2cb33dea8b2b70c921b32aac36aec9fe93035\r\nFES_UPLOAD_767bdb809b9f=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "setenv autoload no",
+          "output": "setenv autoload no; echo FES_UPLOAD_160bc3a14162=$?\r\nFES_UPLOAD_160bc3a14162=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "setenv netretry no",
+          "output": "setenv netretry no; echo FES_UPLOAD_07f6f48c8467=$?\r\nFES_UPLOAD_07f6f48c8467=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "setenv bootpretryperiod 10000",
+          "output": "setenv bootpretryperiod 10000; echo FES_UPLOAD_192843a90f90=$?\r\nFES_UPLOAD_192843a90f90=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "setenv ethaddr 02:fe:25:08:cb:01",
+          "output": "setenv ethaddr 02:fe:25:08:cb:01; echo FES_UPLOAD_0515535a0a69=$?\r\nFES_UPLOAD_0515535a0a69=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "setenv tftptimeout 1000",
+          "output": "setenv tftptimeout 1000; echo FES_UPLOAD_1e5ebd0c6666=$?\r\nFES_UPLOAD_1e5ebd0c6666=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "setenv tftptimeoutcountmax 3",
+          "output": "setenv tftptimeoutcountmax 3; echo FES_UPLOAD_e0d8181a7d03=$?\r\nFES_UPLOAD_e0d8181a7d03=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "dhcp",
+          "output": "dhcp; echo FES_UPLOAD_4c41460e949b=$?\r\n\r\nWarning: ethernet@10810000 MAC addresses don't match:\r\nAddress in DT is\t\tff:ff:ff:ff:ff:ff\r\nAddress in environment is\t02:fe:25:08:cb:01\r\nethernet@10810000 Waiting for PHY auto negotiation to complete....... done\r\nBOOTP broadcast 1\r\nDHCP client bound to address 192.168.10.211 (5 ms)\r\nFES_UPLOAD_4c41460e949b=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "setenv serverip 192.168.10.202",
+          "output": "setenv serverip 192.168.10.202; echo FES_UPLOAD_0a99ab23ca87=$?\r\nFES_UPLOAD_0a99ab23ca87=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "tftpboot 82000000 U6B6514.BIN",
+          "output": "tftpboot 82000000 U6B6514.BIN; echo FES_UPLOAD_8cdd79f678bd=$?\r\nUsing ethernet@10810000 device\r\nTFTP from server 192.168.10.202; our IP address is 192.168.10.211\r\nFilename 'U6B6514.BIN'.\r\nLoad address: 0x82000000\r\nLoading: *\b#################################################################\r\n\t #################################################################\r\n\t #################################################################\r\n\t #################################################################\r\n\t #############################################################\r\n\t 11.2 MiB/s\r\ndone\r\nBytes transferred = 4711676 (47e4fc hex)\r\nFES_UPLOAD_8cdd79f678bd=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "hash sha256 82000000 47e4fc",
+          "output": "hash sha256 82000000 47e4fc; echo FES_UPLOAD_36586af9b771=$?\r\nsha256 for 82000000 ... 8247e4fb ==> b1bb52b2d540fb001f071a64b4c8a021ed5d60d6a467fef1ede9ce6d1f139968\r\nFES_UPLOAD_36586af9b771=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "fatwrite mmc 0:1 82000000 FES/UPLOAD.BIN 47e4fc",
+          "output": "fatwrite mmc 0:1 82000000 FES/UPLOAD.BIN 47e4fc; echo FES_UPLOAD_addee860376c=$?\r\n4711676 bytes written in 944 ms (4.8 MiB/s)\r\nFES_UPLOAD_addee860376c=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "mw.b 82800000 a5 47e4fc",
+          "output": "mw.b 82800000 a5 47e4fc; echo FES_UPLOAD_443da896e45b=$?\r\nFES_UPLOAD_443da896e45b=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "fatload mmc 0:1 82800000 FES/UPLOAD.BIN",
+          "output": "fatload mmc 0:1 82800000 FES/UPLOAD.BIN; echo FES_UPLOAD_d7601b71077b=$?\r\n4711676 bytes read in 396 ms (11.3 MiB/s)\r\nFES_UPLOAD_d7601b71077b=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "hash sha256 82800000 47e4fc",
+          "output": "hash sha256 82800000 47e4fc; echo FES_UPLOAD_f8298dd6798d=$?\r\nsha256 for 82800000 ... 82c7e4fb ==> b1bb52b2d540fb001f071a64b4c8a021ed5d60d6a467fef1ede9ce6d1f139968\r\nFES_UPLOAD_f8298dd6798d=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "cmp.b 82000000 82800000 47e4fc",
+          "output": "cmp.b 82000000 82800000 47e4fc; echo FES_UPLOAD_99c1f79a5f37=$?\r\nTotal of 4711676 byte(s) were the same\r\nFES_UPLOAD_99c1f79a5f37=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "mmc read 83000000 0 8000",
+          "output": "mmc read 83000000 0 8000; echo FES_UPLOAD_3bc9d9c2da61=$?\r\nMMC read: dev # 0, block # 0, count 32768 ... 32768 blocks read: OK\r\nFES_UPLOAD_3bc9d9c2da61=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "hash sha256 83000000 1000000",
+          "output": "hash sha256 83000000 1000000; echo FES_UPLOAD_8dc6e2f280fe=$?\r\nsha256 for 83000000 ... 83ffffff ==> 2586b521d2e8b69622c6c7d52156a540ef5a1c695ae410a38f2c1483054cad71\r\nFES_UPLOAD_8dc6e2f280fe=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "fatload mmc 0:1 83000000 u-boot.itb",
+          "output": "fatload mmc 0:1 83000000 u-boot.itb; echo FES_UPLOAD_2b29cc66cad3=$?\r\n948272 bytes read in 88 ms (10.3 MiB/s)\r\nFES_UPLOAD_2b29cc66cad3=0\r\nSOCFPGA_AGILEX5 # "
+        },
+        {
+          "command": "hash sha256 83000000 e7830",
+          "output": "hash sha256 83000000 e7830; echo FES_UPLOAD_d9f5113b1d89=$?\r\nsha256 for 83000000 ... 830e782f ==> 71f413629a7714ab1a7bd4c6331969ba2670bdc447ddbc3bb8c103e52b525721\r\nFES_UPLOAD_d9f5113b1d89=0\r\nSOCFPGA_AGILEX5 # "
+        }
+      ],
+      "sd_write_attempted": true,
+      "activation": false,
+      "started_utc": "2026-11-01T12:37:58.075619+00:00",
+      "stage": "complete",
+      "card_verified": true,
+      "client_ip": "192.168.10.211",
+      "download_verified": true,
+      "sd_readback_verified": true,
+      "boot_files_unchanged": true,
+      "destination": "FES/UPLOAD.BIN",
+      "prompt_parked": true,
+      "finished_utc": "2026-11-01T12:38:07.961536+00:00"
+    },
+    "first_program_log_sha256": "136afacd5ed47db4f16fb30c65356708be02d3a3dd5ff808c1db30a6544c6d2a",
+    "second_program_log_sha256": "fa0c8031033e0fa1895be304d6a01e132775116e2125be3b673b3b647020a092"
+  },
+  "offline_comparison": {
+    "startup_text_equal": {
+      "arch/arm/cpu/armv8/start.o": true,
+      "arch/arm/mach-socfpga/lowlevel_init_agilex5.o": true,
+      "arch/arm/lib/crt0_64.o": true
+    },
+    "common_sof_prefix_bytes": 1340048,
+    "zlib_stream_candidates": [],
+    "scope": "off-board comparison; no boot acceptance or independently decoded SPL proof",
+    "pfg_reproduction_byte_equal": true,
+    "v13_and_v14_hps_chunks_match_built_spl": true
   }
 }

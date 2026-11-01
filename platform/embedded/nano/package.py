@@ -64,7 +64,7 @@ def main():
     if any(not p.is_file() for p in tools.values()):raise ValueError('mtools required')
     inputs={str(p):sha(p) for p in (fit,spl,image,vendor,pfg,uboot/'result.json',entry/'result.json',uboot/'build/.config',
             recovery/'result.json',recovery/'nano-recovery-sd.img',recovery/'network-recovery.sof',
-            recovery/'u-boot.itb',recovery/'RECOVERY.JSON',Path(__file__),HERE/'upload.py',HERE/'upload_transport.py')}
+            recovery/'u-boot.itb',recovery/'RECOVERY.JSON',Path(__file__),HERE/'sof_hps.py',HERE/'upload.py',HERE/'upload_transport.py')}
     inputs.update({str(ROOT/name):digest for name,digest in native['producer_sources'].items()})
     inputs.update({str(p):sha(p) for p in tools.values()})
     output.mkdir(parents=True);commands=[]
@@ -80,6 +80,8 @@ def main():
     run('pfg-info',[pfg,'-i',candidate]);info=(output/'pfg-info.log').read_text(encoding='latin-1')
     if 'Device name: A5EB013BB23BE4SCS' not in info or 'HPS/FPGA configuration order: HPS_AFTER_INIT_DONE' not in info:
         raise ValueError('unexpected Nano device or configuration order')
+    from sof_hps import inspect
+    embedded_spl=inspect(candidate.read_bytes(),spl.read_bytes(),vendor.read_bytes())
     manifest={'format':2,'classification':'matched cold serial candidate and recovery card; hardware unqualified',
         'board_serial':'TRWU8CBL','native_entry_sha256':sha(image),'fit_sha256':sha(fit),'spl_sha256':sha(spl),
         'bl31_sha256':u['bl31_sha256'],'sof_sha256':sha(candidate),'recovery_reference_sof_sha256':VENDOR_SOF,
@@ -87,7 +89,8 @@ def main():
         'recovery_fit_sha256':base['fit_sha256'],'protected_prefix_sha256':base['prefix_sha256'],
         'profile_sha256':sha(HERE/'probe-profile.json'),'native_handoff':native,'experimental_fit_path':EXPERIMENTAL_FILE,
         'native_entry_delivery':'sealed FIT loadable at 0x96080000; no BL33 SD access',
-        'fat32_start_sector':PARTITION_SECTOR,'fat32_sectors':PARTITION_SECTORS,'embedded_spl_independently_decoded':False,
+        'fat32_start_sector':PARTITION_SECTOR,'fat32_sectors':PARTITION_SECTORS,'embedded_spl_independently_decoded':True,
+        'embedded_spl_identity':embedded_spl,
         'limitations':['cold serial source-bound candidate; not signed boot or hardware acceptance',
                        'no active USB/Ethernet/FPGA provider or native SD driver',
                        'no atomic FAT update or durability/rollback guarantee through power loss',

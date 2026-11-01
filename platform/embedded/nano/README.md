@@ -325,8 +325,15 @@ FIT is built, the builder compiles its exact size/hash into SPL and rebuilds
 only SPL, requiring the FIT to remain unchanged. The FIT does not contain SPL,
 so the seal has no hash cycle. PFG combines that SPL with the inventoried
 vendor SOF (`e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09`)
-and checks the Nano device and FPGA-first order. Embedded SPL bytes have not
-been independently decoded from the resulting SOF.
+and checks the Nano device and FPGA-first order. The packager additionally
+uses `sof_hps.py` to unpack the bounded gzip SOF, decode its counted
+literal HPS chunks and compare every SPL byte with the sealed Intel HEX.
+It requires contiguous OCRAM coverage from zero, checks the section topology,
+and preserves every reference section except the replaced HPS payload and
+generated hash/checksum fields. Unsupported formats or changed bytes reject
+before the SD image is assembled. The inspector's source hash is an input to
+the package receipt. This checks payload identity, not SDM command semantics,
+security hashes, configuration CRC, programming or boot acceptance.
 
 Packaging takes a corrected FAT-boot recovery kit, copies its regular-file SD
 image, and adds the native FIT at `FES/UPLOAD.BIN` plus `FES/BOOTCHAIN.JSON`.
