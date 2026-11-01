@@ -94,7 +94,7 @@ public:
 	// Word 7, and word 16 in bits 16..31 for a fes.computer 1.1 identity.
 	std::uint32_t observed_capabilities() const { return observed_capabilities_; }
 
-	// fes.computer 1.0. Rows that equal the last acknowledged state are not
+	// fes.computer. Rows that equal the last acknowledged state are not
 	// written; after Start every row is written once, in ascending order.
 	Error SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t deadline) override;
 	Error SendMouseRelative(std::int16_t dx, std::int16_t dy, std::uint8_t buttons,

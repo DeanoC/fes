@@ -1523,15 +1523,17 @@ mailbox vectors and the commands ST uses, including a completed snapshot
 read, against both endpoints and fails if they diverge. Other shells keep
 `fes_computer_mailbox` or the core.
 The core is `fes.computer` 1.0 unless a shell enables a 1.1 interface:
-`ENABLE_ATA_DISK`, `ENABLE_PERSISTENCE`, `ENABLE_PC386_MACHINE` or
-`ENABLE_WALL_CLOCK` makes it minor 1, answering identity word 16 with
-capabilities 16..19. It hands their opcodes to `fes_computer_storage`
-(`rtl/fes_computer_storage.v`) and holds each until the reply, as it holds the
-menu opcodes for the display plane. That endpoint owns the ATA disk's unit
+`ENABLE_ATA_DISK`, `ENABLE_PERSISTENCE`, `ENABLE_WALL_CLOCK`,
+`ENABLE_PC386_MACHINE` and `ENABLE_PCXT_FLOPPY` expose capability bits 16..20
+respectively and make it minor 1, answering identity word 16. `fes.pc386`
+uses bits 16..19; `fes.pcxt` uses bit 20. `pc386_system` hands its storage
+opcodes to `fes_computer_storage` (`rtl/fes_computer_storage.v`) and holds each
+until the reply, as it does menu opcodes for the display plane. That endpoint
+owns the ATA disk's unit
 state, staged geometry, fence, dirty flag and epoch, the 72 words of the
 `fes.pc386.machine` record with its Freeze snapshot and restore staging, and
 the wall clock; the shell owns the image in the DDR window, the CRC pass and
-the dirty map. The pc386 shell is the only 1.1 consumer. Its storage suite
+the dirty map. Its storage suite
 (`scripts/sim_fes_pc386.py --suite storage`) replays every scenario of the
 1.1 golden exchanges, `cores/fes-common/generated/computer-exchanges-1.1.json`,
 compiled with that scenario's interfaces; the bench plays the machine's side.
@@ -3035,6 +3037,16 @@ its [wire contract](../../mister-packages/docs/pcxt-isa.md) defines handshakes,
 reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
+The assembled machine exposes keyboard cable and font signals alongside the
+existing reset-only firmware byte port. A separate host simulation supplies a
+hash-pinned GLaBIOS XT/5160 ROM, an ASCII diagnostic font, and a timed XT
+keyboard, with no floppy installed. It loads the full top-aligned firmware
+window through the SDRAM controller; the BIOS runs on the RTL 8088. The test
+checks POST, the 640 KiB/CGA equipment profile, keyboard self-test and a typed
+key before bootstrap. This diskless fixture is not a packaged BIOS, a host HID
+path or kit acceptance. The diagnostic board ties its
+keyboard cable inactive and retains its fixed glyph input.
+
 **The full PC/XT product remains in development.** The registered `fes.pcxt`
 recipe now exports an installable format-2 diagnostic package with the standard
 identity/execution mailbox and fixed CGA Direct video. Its forwarded HDMI clock
@@ -3052,6 +3064,23 @@ attempt beneath the build ID. External physical timing/reset qualification and
 exact-artifact hardware acceptance remain separate from this diagnostic seal.
 Existing linker layout admission remains closed until an exact shell and its
 physical sockets are qualified.
+
+The independent `fes.pcxt-dos` recipe selects the default-off `HARDWARE_DOS`
+top parameter. It enables the GLaBIOS XT/5160 ROM, a BAT-only XT keyboard
+responder, and the read-only floppy controller. The `fes.computer` 1.1
+mailbox accepts a 360 KiB runtime floppy and writes it into SDRAM. When an
+initial disk is being loaded, the first boot waits for complete physical writes
+and media commit. Releasing execution with an empty drive starts the BIOS so
+the display reports its POST/boot state instead of remaining black. Subsequent
+eject or replacement does not reset the running guest, while cold reset
+invalidates media. Guest reads use the SDRAM media-read path. The pinned FreeDOS simulation
+fixture's exact source commits and SHA-256 are recorded in the core firmware
+notices and `sim/freedos.lock`. The registered recipe points its HIL
+gate at `scripts/pcxt_dos_hil_acceptance.py`, preferring Kit B and then Kit A.
+That checker requires at least three full, changing 16:9 HDMI captures and
+matches the final `A:\>` text using the font from the locked ROM. Static
+signatures fail. Passing this prompt check is DOS boot evidence only; external
+SDRAM/HDMI/HPS/reset qualification and broader compatibility remain separate.
 
 The target is software for an IBM 5160-class machine, including bootable
 floppy games and DOS games that access hardware directly. The baseline is an
@@ -3109,12 +3138,14 @@ exceptions or external budgets. A complete diagnostic capture can contain
 timing failures; it neither seals a package nor supplies physical acceptance.
 Its default-off `--video-mailbox-contract` mode additionally runs the captured
 ownership proof, verifies the declared chains and common reset assertion, and
-checks direct interstage paths at every corner. Its SDC false-paths only three
-asynchronous pairs: `received` to `ack_meta`, `sent` to `sent_meta`, and
-`machine_reset` to `hold_meta`. The held `published_bank` payload path to
-`front` remains timed with a one-pixel-period `set_max_delay`, matching the
-ownership proof's two-sample stability window. It adds no clock-group
-exception or physical acceptance.
+checks direct interstage paths at every corner. Its generated QSF identifies
+the six mailbox stages with Quartus 17's `SYNCHRONIZER_IDENTIFICATION FORCED`
+assignment so fitter logic duplication cannot replicate the synchronizers.
+Its SDC false-paths only three asynchronous pairs: `received` to `ack_meta`,
+`sent` to `sent_meta`, and `machine_reset` to `hold_meta`. The held
+`published_bank` payload path to `front` remains timed with a one-pixel-period
+`set_max_delay`, matching the ownership proof's two-sample stability window.
+It adds no clock-group exception or physical acceptance.
 
 ### Machine partition and timing
 
@@ -3525,11 +3556,26 @@ but require their own sound, IRQ and DMA qualification. Base audio is PC speaker
 
 ### FES integration and acceptance boundary
 
+The host simulation now has an optional inline XT 765-family adapter with a
+read-only command subset, IRQ6 and DMA2. Its byte service reads a 360 KiB raw
+image from physical SDRAM `100000–159FFF`, beyond the guest's address map.
+The ordered loader commits the first image before the CPU is released;
+warm reset retains it, and cold reset invalidates it. CPU/DMA, upload and media
+reads arbitrate while physical refresh continues. The DOS profile accepts runtime
+replacement and eject. The image has 40
+cylinders, two heads and nine 512-byte sectors per track. A pinned
+8086-compatible FreeDOS image and GLaBIOS run together in the whole-machine
+test. It checks BIOS POST, 640 KiB detection, keyboard BAT, INT 19, the boot
+sector, DOS prompt and directory listing through the RTL machine. The
+diagnostic package does not connect the runtime PC media ABI. Writes,
+persistence, flux images and physical acceptance remain outside this
+simulation path.
+
 Use `fes.computer` and implemented keyboard/audio/video services where their
-contracts fit. PC floppy and hard-disk transports need new versioned shared
-media definitions and runtime support before a package advertises them. Media
-uploads populate bounded buffers while the CPU is held; rotating-media events
-and sector transfers subsequently follow guest time. Start with 360 KiB raw
+contracts fit. PC floppy transport uses the versioned `fes.media.pcxt-floppy` interface;
+hard-disk transport remains future work. Initial media upload populates the
+bounded buffer before boot; rotating-media events and sector transfers follow
+guest time. Start with 360 KiB raw
 floppies and explicit geometry. Model seek, motor spin-up, command/result phases,
 IRQ6, DMA2, terminal count and write protection. Raw sector images cannot express
 all copy protection; such games need a later flux/track representation.
@@ -3541,8 +3587,8 @@ warm guest reset, cold machine reset and physical Stop have distinct semantics.
 FogCast owns selection and sessions; the runtime owns upload and FPGA lifecycle.
 
 The transaction RTL lives under `cores/fes-pcxt/`; put a reusable CPU under
-`cores/fes-common/rtl/x86/` only when implemented. A future producer must use
-the shared locked HIP lane and authenticate firmware, character ROM, CPU mode,
+`cores/fes-common/rtl/x86/` only when implemented. A future BIOS/floppy producer
+must authenticate firmware, character ROM, CPU mode,
 adapter set, RAM geometry and disk-controller configuration. Resource estimates
 must account for CPU microcode/prefetch, adapter VRAM, SDRAM arbitration, frame
 capture, audio and reserved linkable socket fences. No fit or frequency is claimed.

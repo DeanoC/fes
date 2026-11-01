@@ -1228,6 +1228,9 @@ func validMediaUnits(response Protocol2Response) bool {
 			(index > 0 && response.Capabilities.MediaUnits[index-1].Unit >= unit.Unit) {
 			return false
 		}
+		if unit.Interface == protocol.PcxtFloppyInterface() && active.Descriptor.ABI.Minor < protocol.ComputerExtendedMinor {
+			return false
+		}
 		found := false
 		for _, contract := range response.Capabilities.ActiveInterfaces {
 			if contract.ID == unit.Interface.ID && contract.Major == unit.Interface.Major && contract.Minor == unit.Interface.Minor {
@@ -1253,13 +1256,13 @@ func validMediaUnits(response Protocol2Response) bool {
 	return true
 }
 
-// validSlotComposition binds a v2 tuple to an exact fes.computer 1.0 shell
+// validSlotComposition binds a v2 tuple to an exact supported fes.computer shell
 // declaring one optional slot bus; every slot is a physical socket.
 func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePackage) bool {
 	id, err := expansion.SlotCompositionID(c.PackageID, c.Expansions, c.PayloadSHA256)
 	if err != nil || id != c.ID || c.PackageID != active.PackageID || !protocol2Hex64.MatchString(c.ShellSHA256) ||
 		c.ShellSHA256 != active.Descriptor.Payload.SHA256 || c.PayloadSize < 40408 || c.PayloadSize > corepackage.MaxPayloadSize ||
-		(active.PersistenceMode == "persistent" && !descriptorMediaWrite(active.Descriptor)) || !protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
+		(active.PersistenceMode == "persistent" && !descriptorMediaWrite(active.Descriptor)) || !protocol.ComputerMediaABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
 		return false
 	}
 	var bus string
@@ -1328,14 +1331,25 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 		return false
 	}
 	if c := active.Composition; c != nil {
-		if !validComposition(*c, active.PackageID) || c.ShellSHA256 != active.Descriptor.Payload.SHA256 || active.PersistenceMode == "persistent" || active.Descriptor.ABI.Major != 1 || active.Descriptor.ABI.Minor != 0 {
+		if !validComposition(*c, active.PackageID) || c.ShellSHA256 != active.Descriptor.Payload.SHA256 || active.PersistenceMode == "persistent" {
 			return false
 		}
 		var socketID string
 		switch active.Descriptor.ABI.ID {
 		case "fes.simple-computer":
+			if active.Descriptor.ABI.Major != 1 || active.Descriptor.ABI.Minor != 0 {
+				return false
+			}
+			socketID = "fes.expansion.zx81-bus"
+		case "fes.computer":
+			if !protocol.ComputerMediaABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
+				return false
+			}
 			socketID = "fes.expansion.zx81-bus"
 		case "fes.application":
+			if active.Descriptor.ABI.Major != 1 || active.Descriptor.ABI.Minor != 0 {
+				return false
+			}
 			socketID = "fes.expansion.coleco-bus"
 		default:
 			return false
@@ -1416,6 +1430,14 @@ func validInspection(inspection Protocol2Inspection, capabilities Protocol2Capab
 func matchingABI(capabilities Protocol2Capabilities, descriptor corepackage.Descriptor) *Protocol2ABI {
 	for index := range capabilities.ABIs {
 		candidate := &capabilities.ABIs[index]
+		if descriptor.ABI.ID == protocol.ComputerABIID {
+			if protocol.ComputerMediaABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) &&
+				protocol.ComputerMediaABI(candidate.ID, int64(candidate.Major), int64(candidate.Minor)) &&
+				int64(candidate.Minor) >= descriptor.ABI.Minor {
+				return candidate
+			}
+			continue
+		}
 		if candidate.ID == descriptor.ABI.ID && int64(candidate.Major) == descriptor.ABI.Major &&
 			int64(candidate.Minor) == descriptor.ABI.Minor {
 			return candidate
@@ -1566,7 +1588,7 @@ func descriptorMediaWrite(d corepackage.Descriptor) bool {
 			write = true
 		}
 	}
-	return protocol.ComputerABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) && base && write
+	return protocol.ComputerMediaABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) && base && write
 }
 
 func descriptorPersistentMedia(d corepackage.Descriptor, units []protocol.MediaUnitStatus) bool {

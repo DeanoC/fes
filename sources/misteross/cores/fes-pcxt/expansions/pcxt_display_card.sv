@@ -120,21 +120,22 @@ module pcxt_display_card #(
     // One physical-cycle renderer pipeline. Capture all rendering inputs on
     // every clock so dot enable does not become another high-fanout enable.
     // The valid bit and raster markers travel with the same pixel snapshot.
-    reg [46:0] render_inputs;
+    reg [38:0] render_inputs;
+    reg [7:0] render_font;
     reg [4:0] render_markers;
     reg render_valid;
     wire [15:0] render_word;
-    wire [7:0] render_font;
     wire [3:0] render_dot;
     wire [4:0] render_ra;
     wire [5:0] render_mode, render_colour;
     wire render_cursor, render_blink;
     wire render_de, render_hs, render_vs, render_sof, render_eol;
-    assign {render_word, render_font, render_dot, render_ra, render_mode,
+    assign {render_word, render_dot, render_ra, render_mode,
             render_colour, render_cursor, render_blink} = render_inputs;
     assign {render_de, render_hs, render_vs, render_sof, render_eol} = render_markers;
     always @(posedge clk) begin : display_input_stage
-        render_inputs <= {video_word, font_data, dot, ra, mode, colour, cursor, blink_frames[4]};
+        render_inputs <= {video_word, dot, ra, mode, colour, cursor, blink_frames[4]};
+        render_font <= font_data;
         render_markers <= {crtc_de, crtc_hs, crtc_vs, first_pixel, dot == last_dot && line_end};
         render_valid <= !clear && dot_ce;
     end

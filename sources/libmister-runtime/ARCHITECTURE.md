@@ -560,6 +560,15 @@ with 512-byte chunks. A changed limit is rejected before MediaBegin. The same
 transfer, ready confirmation and failure-eject path handles the full disk
 while the machine runs.
 
+`fes.computer` 1.1 extends identity with a high capability word. The runtime
+reads it only for a 1.1 package and requires its complete value to match the
+required declarations. `fes.media.pcxt-floppy` 1.0 uses bit 20 for unit 0;
+discovery and every insertion require exact 368,640-byte live limits and
+512-byte chunks. The existing ordered, CRC-checked transfer and ready
+confirmation support read-only insertion and eject without changing execution
+state. No writeback or hardware acceptance is implied. Legacy 1.0 identity
+continues to use exactly the original sixteen words.
+
 The additive `fes.media.atari-st-floppy-write` 1.0 contract (capability 9)
 requires the base floppy contract. WD1772 Write Sector gathers one aligned
 512-byte DMA sector into staging before committing it to disk RAM. A cancelled

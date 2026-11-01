@@ -317,9 +317,13 @@ func TestKitComputerMediaPresentsFramesAndRestoresVideo(t *testing.T) {
 		{"apple2", protocol.Apple2FloppyInterface(), 143360, 143360},
 		{"c64", protocol.C64DiskInterface(), 174848, 174848},
 		{"atari-st", protocol.AtariStFloppyInterface(), 737280, 737280},
+		{"pcxt", protocol.PcxtFloppyInterface(), 368640, 368640},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			prior := computerTapeDisplaySession()
+			if tc.contract == protocol.PcxtFloppyInterface() {
+				prior.CorePackage.ABI.Minor = 1
+			}
 			prior.CorePackage.ActiveInterfaces[0] = hostclient.SessionCoreInterface{ID: tc.contract.ID, Major: tc.contract.Major, Minor: tc.contract.Minor}
 			prior.CorePackage.MediaUnits[0] = protocol.MediaUnitStatus{Unit: 0, Interface: tc.contract, MinBytes: tc.minBytes, MaxBytes: tc.maxBytes, ChunkBytes: 512, State: "empty"}
 			testKitComputerMediaDisplay(t, prior)

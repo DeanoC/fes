@@ -31,6 +31,7 @@ constexpr std::uint32_t FesComputerTransportMinor = 0x0u;
 constexpr std::uint32_t FesComputerAbiTag = 0x4u;
 constexpr std::uint32_t FesComputerAbiMajor = 0x1u;
 constexpr std::uint32_t FesComputerAbiMinor = 0x1u;
+constexpr std::uint32_t FesComputerExtendedAbiMinor = 0x1u;
 constexpr std::uint32_t FesComputerIdentityMagic0Index = 0x0u;
 constexpr std::uint32_t FesComputerIdentityMagic1Index = 0x1u;
 constexpr std::uint32_t FesComputerIdentityTransportMajorIndex = 0x2u;
@@ -146,6 +147,8 @@ constexpr std::uint32_t FesComputerZx81TapeLayoutMajor = 0x1u;
 constexpr std::uint32_t FesComputerZx81TapeLayoutMinor = 0x0u;
 constexpr std::uint32_t FesComputerC64DiskUnit = 0x0u;
 constexpr std::uint32_t FesComputerC64DiskBytes = 0x2ab00u;
+constexpr std::uint32_t FesComputerPcxtFloppyUnit = 0x0u;
+constexpr std::uint32_t FesComputerPcxtFloppyBytes = 0x5a000u;
 constexpr std::uint32_t FesComputerSpectrumDiskUnit = 0x1u;
 constexpr std::uint32_t FesComputerSpectrumDiskMinBytes = 0x2000u;
 constexpr std::uint32_t FesComputerSpectrumDiskMaxBytes = 0x2b4000u;
@@ -326,6 +329,10 @@ constexpr const char* FesComputerInterfacePc386MachineID = "fes.pc386.machine";
 constexpr std::uint16_t FesComputerInterfacePc386MachineMajor = 1u;
 constexpr std::uint16_t FesComputerInterfacePc386MachineMinor = 0u;
 constexpr std::uint32_t FesComputerCapabilityPc386Machine = 0x80000u;
+constexpr const char* FesComputerInterfaceMediaPcxtFloppyID = "fes.media.pcxt-floppy";
+constexpr std::uint16_t FesComputerInterfaceMediaPcxtFloppyMajor = 1u;
+constexpr std::uint16_t FesComputerInterfaceMediaPcxtFloppyMinor = 0u;
+constexpr std::uint32_t FesComputerCapabilityMediaPcxtFloppy = 0x100000u;
 
 } // namespace generated
 } // namespace native

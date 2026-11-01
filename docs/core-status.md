@@ -283,20 +283,37 @@ populated free menu are restored, and the private host/credential copy removed.
 Full current-image acceptance remains separate; opened-region RGB still crops
 to ordinary 320×200, and later demo sections/audio fidelity remain unqualified.
 
-## PC/XT development diagnostic
+## PC/XT development packages
 
 PC/XT is outside the factory image package set. Its assembled 8088, motherboard,
 SDRAM, ISA CGA/MDA and one Direct/Scanlines pipeline have host simulation
 coverage, including DMA and refresh. The diagnostic board builder supplies
 PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts under
-`sources/misteross/build/diagnostic/fes-pcxt/`. `fes.pcxt` now has an installable
+`sources/misteross/build/diagnostic/fes-pcxt/`. `fes.pcxt` has an installable
 format-2 diagnostic package with a minimal `fes.computer` identity/execution
-mailbox and fixed CGA Direct video. The registered package producer uses Quartus with a common 100 MHz board,
+mailbox and fixed CGA Direct video. A separate `fes.pcxt-dos` recipe enables
+the GLaBIOS XT/5160 ROM and read-only floppy controller. It accepts a 360 KiB
+floppy image at runtime and stores it in SDRAM before releasing the 8088. The
+registered package producer uses Quartus with a common 100 MHz board,
 74.25 MHz CGA Direct video and a visible firmware-completion block. All declared
 seeds must pass reported internal timing; the first seed must reproduce its RBF.
 Nextpnr remains advisory under [#840](https://github.com/DeanoC/fes/issues/840).
 Build success does not establish external SDRAM/HDMI/HPS/reset qualification
 or physical socket containment; hardware acceptance needs its own dated run.
+The DOS package's HIL checker requires at least three complete frames with a meaningful change
+and matches the final `A:\>` prompt using glyphs extracted from the locked
+BIOS ROM; a static signature fails. The recipe prefers Kit B then Kit A.
+The [31 October Kit B DOS boot](validation/2026-10-31-pcxt-dos-boot/README.md)
+accepted exact package `7f282f3b` from source `0fdae134`: after a runtime
+FreeDOS floppy upload, captured video progressed through BIOS and reached
+`A:\>`. The kit was restored and released. This does not qualify floppy
+writes, host keyboard input or external interface timing. That package used
+the earlier PC/XT capability bit 16. The [post-merge Kit B run](validation/2026-10-31-pcxt-main-merge/README.md)
+separately booted exact package `a93e3921` from source `72febda79` with the
+merged bit-20 interface and restored the kit afterward. Later QSF synchronizer
+assignments and host upload changes present by PR source `a22d567c9` postdate
+that run; current-source Quartus timing and exact-artifact Kit acceptance
+remain open.
 The [reviewed 29 October Quartus diagnostic](validation/2026-10-29-pcxt-quartus-package/review-followup.json)
 passes three seeds and a byte-identical independent rebuild at producer `38ef151bfa`.
 Independent review found four package/acceptance defects, now fixed and re-reviewed.
@@ -304,7 +321,17 @@ Kit A accepts package `9d46fefc49f516b2` through normal import/launch/Stop in a
 private host HOME/catalog: three captures match the static stripes and all eight
 firmware-completion scanlines.
 The baseline image/bundle are retained and the kit is idle/lease-free.
-BIOS/DOS/game compatibility, keyboard and other profiles remain open. See the
+A host-only GLaBIOS XT/5160 POST fixture now drives the assembled machine's
+firmware loader, CGA font input and XT keyboard cable. It checks the 640 KiB
+diskless profile, keyboard self-test and a typed key; its inputs and intended
+checks are described in the core guide. A separate host simulation adds a
+read-only XT floppy adapter using IRQ6 and DMA2 with a pinned FreeDOS 360 KiB
+FAT12 image loaded into an isolated SDRAM buffer; its whole-machine test checks
+a DOS prompt and directory listing. Neither simulation qualifies either
+package for BIOS or DOS boot on hardware. The FreeDOS test image is licensed
+GPL-2.0-or-later for the kernel and GPL-2.0 for FreeCOM; its source commits
+and SHA-256 are recorded in the core firmware notices. Floppy write persistence,
+DOS/game compatibility, host keyboard and other profiles remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
 ## pc386 machine, phases M1 to M5

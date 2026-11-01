@@ -98,7 +98,7 @@ func SessionDisplayCapable(p *CorePackageStatus) bool {
 		return false
 	}
 	simple := p.ABI == (RuntimeContract{ID: "fes.simple-computer", Major: 1})
-	computer := ComputerABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor))
+	computer := ComputerMediaABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor))
 	if !simple && !computer && !applicationMachine(p) {
 		return false
 	}
@@ -147,7 +147,7 @@ func (b DevelopmentMediaBinding) MatchesSessionDisplay(s Status) bool {
 		return false
 	}
 	switch unit.Interface {
-	case Apple2FloppyInterface(), C64DiskInterface(), AtariStFloppyInterface(), SpectrumTapeInterface():
+	case Apple2FloppyInterface(), C64DiskInterface(), AtariStFloppyInterface(), PcxtFloppyInterface(), SpectrumTapeInterface():
 		return true
 	}
 	return false

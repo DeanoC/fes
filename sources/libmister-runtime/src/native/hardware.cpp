@@ -942,6 +942,9 @@ Capabilities NativeHardware::capabilities() const
 		computer_11.interfaces.push_back({generated::FesComputerInterfacePersistenceWordsID, 1, 0});
 		computer_11.interfaces.push_back({generated::FesComputerInterfacePc386MachineID, 1, 0});
 		computer_11.interfaces.push_back({generated::FesComputerInterfaceRtcWallClockID, 1, 0});
+		computer_11.interfaces.push_back({generated::FesComputerInterfaceMediaPcxtFloppyID,
+			generated::FesComputerInterfaceMediaPcxtFloppyMajor,
+			generated::FesComputerInterfaceMediaPcxtFloppyMinor});
 		if (fpga_.BootHpsDdrLayout() && disk_window_)
 			computer_11.interfaces.push_back({generated::FesComputerInterfaceMediaAtaDiskID, 1, 0});
 		std::sort(computer_11.interfaces.begin(), computer_11.interfaces.end(),

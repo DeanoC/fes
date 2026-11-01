@@ -1,0 +1,30 @@
+{
+  "floppy": {
+    "name": "FreeDOS 1.4 XT 360 KiB boot floppy",
+    "file": "firmware/freedos-1.4-xt-360.img",
+    "size": 368640,
+    "sha256": "140a2d0a507f7452790e73416dd4dab2c66a89e09a71e26b2ca8f95d1f3c5e5c",
+    "license": "GPL-2.0-or-later kernel and GPL-2.0 FreeCOM",
+    "sources": [
+      {
+        "url": "https://gitlab.com/FreeDOS/base/kernel.git",
+        "commit": "9afeadbdf7e38b5b988152944a96331d13868ad8",
+        "license": "GPL-2.0-or-later"
+      },
+      {
+        "url": "https://gitlab.com/FreeDOS/base/freecom.git",
+        "commit": "5df932d608cc9ba6a4bc830627cad7bd2da70d8e",
+        "license": "GPL-2.0"
+      }
+    ]
+  },
+  "bios": {
+    "name": "GLaBIOS 0.4.2 8088 XT/5160 8X ROM",
+    "file": "firmware/GLABIOS_0.4.2_8X.ROM",
+    "size": 8192,
+    "sha256": "c2bc9ec1893c0ea4098433c862b97e546c4877c6a21c5bc23792ea2b6639c7d4",
+    "url": "https://github.com/640-KB/GLaBIOS/releases/download/v0.4.2/GLABIOS_0.4.2_8X.ROM",
+    "source": "https://github.com/640-KB/GLaBIOS/tree/v0.4.2",
+    "license": "GPL-3.0; included font credited upstream to VileR under CC-BY-SA-4.0"
+  }
+}

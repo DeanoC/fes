@@ -224,3 +224,9 @@ before releasing execution. Missing readiness, reserved bits or a failed read
 send no Run command. The board owns HDMI initialization; this read-only gate
 adds no Linux I2C recipe. New RTL/driver bytes have software coverage only
 until their matching bitstream and board acceptance are complete.
+
+The PC/XT read-only floppy interface uses `fes.computer` 1.1 extended
+capability discovery and `fes.media.pcxt-floppy` 1.0 for exact 368,640-byte
+images on unit 0. Insertion and ejection preserve the running session; the
+runtime checks the live limits and complete transfer before reporting ready.
+This path has host software coverage; PC/XT hardware acceptance is pending.

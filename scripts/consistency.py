@@ -42,6 +42,7 @@ GENERATED = (
     ('emit-cpp', 'packages/programming/de25_nano.yaml', 'libmister-runtime', 'src/native/generated/de25_nano_programming.hpp'),
     ('emit-cpp', 'packages/abi/fes_computer.yaml', 'libmister-runtime', 'src/native/generated/fes_computer.hpp'),
     ('emit-go', 'packages/abi/fes_computer.yaml', 'FogCast', 'protocol/internal/generated/fes_computer.go'),
+    ('emit-go', 'packages/abi/fes_computer.yaml', 'FogCast', 'corepackage/internal/generated/fes_computer.go'),
     ('emit-verilog', 'packages/abi/fes_computer.yaml', 'misteross', 'cores/fes-common/generated/fes_computer.vh'),
 )
 COPIED_TREES = (
