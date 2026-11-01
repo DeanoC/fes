@@ -358,8 +358,12 @@ int main(int argc, char** argv) {
                     (b.status & FES_DE25_SCANOUT_STATUS_DRAINED), "second snapshot lost command ordering/new state");
             s.stop_and_drain(); s.report("atomic_snapshot");
         }
-        {
+        for (bool linux_iova : {false, true}) {
             Simulation s;
+            // Observed on the physical trace-enabled kernel: an 8 MiB grant
+            // at the very top of the 32-bit IOVA space. Keep modeled HPS
+            // responses; this does not establish physical SMMU translation.
+            if (linux_iova) s.base = 0xff800000U;
             std::array<unsigned, 2> frames_at_submit = s.complete_frames;
             s.submit(1, 1);
             for (unsigned sequence = 1; sequence <= 3; ++sequence) {
@@ -387,7 +391,7 @@ int main(int argc, char** argv) {
                             (pending.status & FES_DE25_SCANOUT_STATUS_PENDING), "acceptance released current front slot");
                 }
             }
-            s.stop_and_drain(); s.report("complete_frames_and_slot_reuse");
+            s.stop_and_drain(); s.report(linux_iova ? "linux_iova_last_8mib" : "complete_frames_and_slot_reuse");
         }
         {
             Simulation s; s.hold_responses = true; s.submit(1, 1); s.wait_request(); s.wait_axi_request();
