@@ -174,6 +174,13 @@ def main():
     if not image or label.encode() not in image:
         raise ValueError("expected nonempty Agilex5 BL31 and AArch64 ELF")
     entry, segments = bl31_load_segments(image_elf)
+    if owned and owned.get("configuration_mailbox_observer") is not None:
+        import nano_mailbox
+        binding = owned["configuration_mailbox_observer"]
+        if (digest((source / nano_mailbox.SOURCE).read_bytes()) != binding["generated_sha256"] or
+                digest((source / nano_mailbox.HEADER).read_bytes()) != binding["header_sha256"] or
+                digest((source / nano_mailbox.HEADER).with_name("nano_mailbox_observe.h").read_bytes()) != binding["observer_header_sha256"]):
+            raise ValueError("bound mailbox observation source changed during compilation")
     if (target.read_bytes() != patched or reset_target.read_bytes() != reset_patched or
             diag_header.read_bytes() != prepare_tfa.DIAG_HEADER.read_bytes() or
             revision != git(repo, "rev-parse", "HEAD^{commit}").decode().strip() or

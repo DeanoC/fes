@@ -328,9 +328,11 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
     core=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_CORE_TRANSFER phase=(?P<phase>[A-Za-z]{{1,16}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) completed=(?P<completed>[0-9]{{1,10}}) pending=(?P<pending>[0-9]{{1,10}}) total=(?P<total>[0-9]{{1,10}}) base=(?P<base>{H})(?: counter=(?P<counter>{H}) hash_ticks=(?P<hash_ticks>{H}))?')
     programmed=re.compile(rf'FES_NATIVE_FPGA_PROGRAMMED PASS package_id=(?P<package_id>[0-9a-f]{{64}}) core_sha256=(?P<core_sha256>[0-9a-f]{{64}}) bytes=(?P<bytes>[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) data_held=1 activation=unavailable')
     engine=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_CORE_ENGINE credits=(?P<credits>[0-9]{{1,10}}) block_bytes=(?P<block_bytes>[0-9]{{1,10}}) next_job=(?P<next_job>[0-9]{{1,2}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}})')
+    mailbox=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_CORE_MAILBOX phase=(?P<phase>[1-3]) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) completed=(?P<completed>[0-9]{{1,10}}) pending=(?P<pending>[0-9]{{1,10}}) job=(?P<job>[0-9]{{1,2}}) cin=(?P<cin>[0-9a-f]{{1,8}}) cout=(?P<cout>[0-9a-f]{{1,8}}) rin=(?P<rin>[0-9a-f]{{1,8}}) rout=(?P<rout>[0-9a-f]{{1,8}}) bell=(?P<bell>[0-9a-f]{{1,8}}) status=(?P<status>[0-9a-f]{{1,8}}) state=(?P<state>[0-9]) next=(?P<next>[0-9]) slot=(?P<slot>-1|[0-9]{{1,2}}) cmd_used=(?P<cmd_used>[0-9]{{1,2}}) resp_used=(?P<resp_used>[0-9]{{1,2}})')
     parts=raw.split(b'\n');extra=[];errors=[];last=None;offset=pending=0;complete=False;programmed_row=None
     total=configuration['core_size'];chunk=configuration['chunk_bytes'];owner=None
     timed=None;first_counter=first_hash=previous_counter=previous_hash=None;engine_row=None
+    core_line=None;mailbox_sources=set()
     def require(condition, reason):
         if not condition:errors.append(reason)
     for index,fragment in enumerate(parts[:-1]):
@@ -379,8 +381,28 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
                 complete=True
             else:require(False,'failed or unknown configuration phase')
             extra.append({'stage':'configuration_'+phase,'line':index+1,'values':values})
-            last=phase;parts[index]=b''
+            last=phase;core_line=index+1;parts[index]=b''
         else:
+            match=mailbox.fullmatch(line)
+            if match:
+                values={key:int(value,16 if key in ('owner','cin','cout','rin','rout','bell','status') else 10)
+                        for key,value in match.groupdict().items()}
+                phase=values['phase']
+                require(engine_row is not None and core_line not in mailbox_sources and
+                        last=={1:'start',2:'write',3:'poll'}[phase],
+                        'configuration mailbox observation repeated or misplaced')
+                mailbox_sources.add(core_line)
+                extents={(0,0)} if phase==1 else {(offset,pending)}
+                if phase==3:extents.add((offset+pending,0))
+                require(values['owner']==owner and values['generation']==1 and values['job']<14 and
+                        (values['completed'],values['pending']) in extents and
+                        values['state']<=3 and values['next']<=3 and -1<=values['slot']<32 and
+                        values['cmd_used']<=32 and values['resp_used']<=32,
+                        'configuration mailbox observation has invalid scope or state')
+                # Raw hardware indices/status are observations, not constraints
+                # or transfer acknowledgements. Never advance authority here.
+                extra.append({'stage':'configuration_mailbox','line':index+1,'values':values})
+                parts[index]=b'';continue
             match=engine.fullmatch(line)
             if match:
                 values={key:int(value,16 if key=='owner' else 10) for key,value in match.groupdict().items()}

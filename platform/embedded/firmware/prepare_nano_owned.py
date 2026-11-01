@@ -5,6 +5,7 @@ from pathlib import Path
 
 import prepare_tfa
 import nano_digest
+import nano_mailbox
 from verify import function
 
 HERE = Path(__file__).resolve().parent
@@ -60,7 +61,7 @@ def reset_source(data):
 
 
 def inputs():
-    return [HERE / name for name in ("prepare_nano_owned.py", "nano_digest.py", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "generated/fes_embedded_bridges.h", "nano_sd.h", "nano_sd.c", "generated/fes_embedded_sd.h", "nano_identity.h", "nano_identity.c", "nano_configuration.h", "nano_configuration.c", "generated/fes_embedded_control.h")]
+    return [HERE / name for name in ("prepare_nano_owned.py", "nano_digest.py", "nano_mailbox.py", "nano_mailbox_observe.inc", "nano_mailbox_observe.h", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "generated/fes_embedded_bridges.h", "nano_sd.h", "nano_sd.c", "generated/fes_embedded_sd.h", "nano_identity.h", "nano_identity.c", "nano_configuration.h", "nano_configuration.c", "generated/fes_embedded_control.h")]
 
 
 def psci_source(text, cold_serial=False):
@@ -107,6 +108,8 @@ int fes_nano_cold_cpu_release_locked(void)
 def install(source, cold_profile=None, cold_header=None):
     digest = nano_digest.install(source, cold_profile is not None and
                                 cold_profile.get('hps_configuration') is not None)
+    mailbox = nano_mailbox.install(source, cold_profile is not None and
+                                  cold_profile.get('hps_configuration') is not None)
     service = source / prepare_tfa.SOURCE
     reset = source / prepare_tfa.RESET_SOURCE
     original, raw = service.read_bytes(), reset.read_bytes()
@@ -154,5 +157,6 @@ def install(source, cold_profile=None, cold_header=None):
             "psci_frontend_sha256": hashlib.sha256(frontend.read_bytes()).hexdigest() if cold_profile is not None else None,
             "boot_proof_installed": cold_profile is not None,
             "configuration_digest": digest,
+            "configuration_mailbox_observer": mailbox,
             "secondary_release_locked": cold_profile is not None,
             "expected_boot_state": "validated cold serial record or rejection; hardware unqualified" if cold_profile else "recognized owned service, NOT_READY"}

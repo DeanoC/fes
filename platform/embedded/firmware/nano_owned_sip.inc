@@ -9,6 +9,9 @@ static const uint8_t fes_nano_hps_context[32] = {0};
 #endif
 #if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
 #include <common/debug.h>
+#include <stdbool.h>
+#include "nano_mailbox_observe.h"
+static unsigned fes_nano_mailbox_polls;
 #endif
 
 static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
@@ -17,6 +20,9 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
     uint32_t detail = 0, count = 0, id = 0, addresses[3] = {0};
     int status = INTEL_SIP_SMC_STATUS_REJECTED;
     struct fes_nano_configuration *configuration=fes_nano_platform_configuration();
+#if defined(FES_NANO_COLD_SERIAL) && defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
+    bool configuration_call;
+#endif
     r[0] = INTEL_SIP_SMC_STATUS_REJECTED;
     r[1] = r[2] = r[3] = 0;
     fes_nano_bridge_platform_lock();
@@ -111,12 +117,27 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
         fes_nano_owned_bridges.failed = 1;
 out:
 #if defined(FES_NANO_COLD_SERIAL) && defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
-    if(configuration && configuration->issued && configuration->issued==fid)
+    configuration_call=configuration && configuration->issued && configuration->issued==fid;
+    if(configuration_call)
         fes_nano_configuration_after(configuration,fid,r);
     if (fid==INTEL_SIP_SMC_FPGA_CONFIG_START && r[0]==0 && configuration && !configuration->failed)
         NOTICE("FES_NANO_CORE_ENGINE credits=%d block_bytes=%u next_job=%u owner=%llx generation=%llu\n",
                max_blocks,bytes_per_block,send_id,(unsigned long long)fes_nano_owned_bridges.state.owner,
                (unsigned long long)fes_nano_owned_bridges.state.generation);
+    if (configuration_call && !configuration->failed) {
+        unsigned observe = 0;
+        if (fid==INTEL_SIP_SMC_FPGA_CONFIG_START || fid==INTEL_SIP_SMC_FPGA_CONFIG_WRITE) {
+            fes_nano_mailbox_polls=0;
+            observe=fid==INTEL_SIP_SMC_FPGA_CONFIG_START ? 1U : 2U;
+        } else if (fid==INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE) {
+            if(fes_nano_mailbox_polls<65)fes_nano_mailbox_polls++;
+            if(fes_nano_mailbox_polls==1 || fes_nano_mailbox_polls==2 ||
+               fes_nano_mailbox_polls==16 || fes_nano_mailbox_polls==64)observe=3;
+        }
+        if(observe)fes_nano_mailbox_observe(observe,configuration->completed,configuration->pending,
+                                           send_id,fes_nano_owned_bridges.state.owner,
+                                           fes_nano_owned_bridges.state.generation);
+    }
     if (fes_contained_transport_status)
         NOTICE("FES_NANO_CORE_TRANSPORT_FAILURE phase=%u status=%d completed=%d submitted=%u next_job=%u credits=%d\n",
                fes_contained_transport_phase,fes_contained_transport_status,current_block,blocks_submitted,send_id,max_blocks);

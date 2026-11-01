@@ -76,6 +76,23 @@ record before the same 786,432-byte completion stall. The fixed deadline and
 buffer retention held. Error propagation is repaired; the missing completion
 still needs mailbox queue/parser diagnosis.
 
+The next cold diagnostic adds sampled `FES_NANO_CORE_MAILBOX` observations.
+The exact pinned mailbox source and header are checked before appending a
+read-only observer. It reads CIN/COUT, RIN/ROUT, the incoming doorbell and status,
+plus parser state and descriptor counts. No FIFO contents or write-only
+register are read; no mailbox command, clear, response consumption or restart
+is added. Samples follow START/WRITE and completion polls 1, 2, 16 and 64 per
+buffer. They are non-atomic observations and cannot acknowledge bytes or grant
+bridge authority. This image has not been tested on the board yet.
+
+The actual pinned FIFO transport, mailbox-v3 parser and contained engine pass
+64 host cases covering every response-ring starting position, a full
+2,027,520-byte stream, command/response and job-ID wrap, delayed ACKs, an empty
+error reply and a missing reply. Missing replies reproduce a pending transfer
+after 786,432 bytes; supplied replies complete. The observer changes neither
+registers nor the service database in those checks. This narrows the software
+search without proving what the physical SDM is doing.
+
 Invalid scope, changed bytes, uncertain replies or failed completion retire
 authority and keep memory owned until reboot. No reset-bit repair or implicit
 retry stands in for drain proof. Other cold profiles still deny configuration,

@@ -648,6 +648,14 @@ bytes outstanding and all 2,027,520 source bytes retained. No identity or bridge
 opening followed. All eleven software groups passed, including the actual
 engine and both firmware pins; the physical missing completion remains open.
 
+The next candidate samples the real mailbox queues through the cold platform
+path, with no new mailbox command or control authority. Its host regression
+runs the pinned vendor parser and FIFO transport against a synthetic SDM from
+all sixteen response-ring positions, including full-stream and job wrap,
+delayed, missing and error replies. Only real acknowledgements advance the
+transfer; passive queue records cannot do so. The bounded sampler and trace
+decoder are tested off-board. Physical queue observations are still pending.
+
 This source-bound cold profile is a hardware-qualification candidate. No
 contained physical transfer is accepted yet. It enables neither an active
 reader nor data bridges, secondary CPUs, active drain, runtime package

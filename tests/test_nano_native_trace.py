@@ -425,6 +425,40 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
         partial=self.decode(''.join(lines[:first])+engine)
         self.assertFalse(partial['complete']);self.assertFalse(partial['errors'])
 
+    def test_mailbox_observations_do_not_advance_transfer_authority(self):
+        lines=self.capture().splitlines(keepends=True)
+        start=next(i for i,line in enumerate(lines) if 'phase=start ' in line)
+        write=next(i for i,line in enumerate(lines) if 'phase=write ' in line)
+        poll=next(i for i,line in enumerate(lines) if 'phase=poll ' in line)
+        engine=f'NOTICE:  FES_NANO_CORE_ENGINE credits=4 block_bytes=1048560 next_job=0 owner={OWNER:x} generation=1\r\n'
+        def observation(phase,completed,pending):
+            return (f'NOTICE:  FES_NANO_CORE_MAILBOX phase={phase} owner={OWNER:x} generation=1 '
+                    f'completed={completed} pending={pending} job=1 cin=4 cout=4 rin=0 rout=0 bell=0 status=0 '
+                    'state=0 next=0 slot=-1 cmd_used=0 resp_used=0\r\n')
+        prepared=observation(1,0,0);queued=observation(2,0,65536);acked=observation(3,65536,0)
+        raw=''.join(lines[:start+1]+[engine,prepared]+lines[start+1:write+1]+[queued]+
+                    lines[write+1:poll+1]+[acked]+lines[poll+1:])
+        report=self.decode(raw);self.assertTrue(report['complete'],report)
+        self.assertEqual(sum(r['stage']=='configuration_mailbox' for r in report['records']),3)
+        for old,new in (('generation=1','generation=2'),(f'owner={OWNER:x}',f'owner={OWNER+2:x}'),
+                        ('job=1','job=14'),('completed=65536','completed=65664'),('pending=0','pending=1'),
+                        ('state=0','state=4'),('next=0','next=4'),('slot=-1','slot=32'),
+                        ('cmd_used=0','cmd_used=33'),('resp_used=0','resp_used=33')):
+            with self.subTest(new=new):
+                self.assertFalse(self.decode(raw.replace(acked,acked.replace(old,new)))['complete'])
+        self.assertFalse(self.decode(raw.replace(prepared,prepared+prepared))['complete'])
+        self.assertFalse(self.decode(raw.replace(engine,''))['complete'])
+        self.assertFalse(self.decode(raw.replace(queued,acked))['complete'])
+        # Preserve unknown raw register values for diagnosis; do not interpret
+        # them as a transfer acknowledgement or as permission to open bridges.
+        unusual=self.decode(raw.replace('cin=4','cin=ffffffff').replace('rin=0','rin=ffffffff'))
+        self.assertTrue(unusual['complete'],unusual)
+        partial=''.join(lines[:start+1])+engine+prepared+''.join(lines[start+1:write+1])+queued+''.join(lines[write+1:poll+1])+acked
+        report=self.decode(partial);self.assertFalse(report['complete']);self.assertFalse(report['errors'])
+        self.assertEqual(report['configuration_transfer']['completed_bytes'],0)
+        self.assertFalse(report['core_load_acceptance'])
+        self.assertFalse(self.decode(raw+'panic: late firmware failure\r\n')['complete'])
+
 
 class NativeSDTraceTests(unittest.TestCase):
     expected={'bytes':1098,'sha256':'a'*64}
