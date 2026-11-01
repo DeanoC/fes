@@ -60,6 +60,8 @@ static void spin_unlock(spinlock_t *p) { assert(*p);*p=0; }
 static spinlock_t mbox_db_lock,mbox_read_lock,mbox_write_lock;
 static mailbox_service_t mbox_svc;
 static uint8_t async_v1_job_id;
+static mailbox_payload_t mailbox_resp_payload;
+static mailbox_container_t mailbox_resp_ctr={0,0,&mailbox_resp_payload};
 static int fes_contained_transport_status;
 static unsigned fes_contained_transport_phase;
 #define FPGA_CONFIG_BUFFER_SIZE 4
@@ -79,7 +81,7 @@ static void test_notice(const char *,...);
 #define NOTICE(...) test_notice(__VA_ARGS__)
 """
 
-DRIVER_FUNCTIONS=('is_mailbox_cmdbuf_full', 'is_mailbox_cmdbuf_empty', 'wait_for_mailbox_cmdbuf_empty', 'write_mailbox_cmd_buffer', 'fill_mailbox_circular_buffer', 'mailbox_send_cmd_async', 'mailbox_send_cmd', 'mailbox_poll_response', 'mailbox_clear_response', 'mailbox_get_free_cmd_desc', 'mailbox_free_cmd_desc', 'mailbox_get_free_resp_desc', 'mailbox_free_resp_desc', 'mailbox_get_cmd_desc', 'mailbox_fill_cmd_desc', 'mailbox_get_resp_desc', 'mailbox_get_resp_desc_cid', 'mailbox_response_parser', 'mailbox_response_handler_fsm', 'mailbox_read_response_v3', 'mailbox_poll_response_v3', 'mailbox_read_response', 'mailbox_init_v3', 'mailbox_send_fpga_config_comp')
+DRIVER_FUNCTIONS=('is_mailbox_cmdbuf_full', 'is_mailbox_cmdbuf_empty', 'wait_for_mailbox_cmdbuf_empty', 'write_mailbox_cmd_buffer', 'fill_mailbox_circular_buffer', 'mailbox_send_cmd_async', 'mailbox_send_cmd', 'mailbox_poll_response', 'mailbox_clear_response', 'mailbox_get_free_cmd_desc', 'mailbox_free_cmd_desc', 'mailbox_get_free_resp_desc', 'mailbox_free_resp_desc', 'mailbox_get_cmd_desc', 'mailbox_fill_cmd_desc', 'mailbox_get_resp_desc', 'mailbox_get_resp_desc_cid', 'mailbox_response_parser', 'mailbox_response_handler_fsm', 'mailbox_read_response_v3', 'mailbox_poll_response_v3', 'mailbox_read_response_async', 'mailbox_init_v3', 'mailbox_send_fpga_config_comp')
 ENGINE_FUNCTIONS=('fes_contained_transport_failure', 'intel_fpga_sdm_write_buffer', 'intel_fpga_sdm_write_all', 'mark_last_buffer_xfer_completed', 'intel_fpga_config_completed_write', 'intel_fpga_config_start', 'is_fpga_config_buffer_full', 'is_address_in_ddr_range', 'intel_fpga_config_write', 'intel_smmu_hps_remapper_init')
 
 class NanoMailboxTests(unittest.TestCase):
@@ -127,7 +129,7 @@ class NanoMailboxTests(unittest.TestCase):
                      '-fsanitize=address,undefined','-fno-sanitize-recover=all','-I'+str(inc),'-I'+str(FW),str(model),'-o',str(binary)]
             compiled=subprocess.run(command,capture_output=True,text=True,timeout=30)
             self.assertEqual(compiled.returncode,0,compiled.stderr)
-            for mode in range(4):
+            for mode in range(5):
                 for initial in range(16):
                     with self.subTest(mode=mode,initial=initial):
                         result=subprocess.run([str(binary),str(mode),str(initial)],capture_output=True,text=True,timeout=10)

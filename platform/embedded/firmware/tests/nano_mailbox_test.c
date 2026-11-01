@@ -20,7 +20,7 @@ static void advance(void) {
  if(qread==qwrite)return;
  if(mode==1 && ++delays%3)return;
  if(mode==2 && acknowledged==12)return; /* peer stops replying, not a parser defect */
- unsigned job=queue[qread++%64];reply(job,mode==3 && acknowledged==12 ? 17:0,0,NULL);acknowledged++;
+ unsigned job=queue[qread++%64];reply(job,acknowledged==12 ? (mode==3 ? 17 : mode==4 ? 2 : 0) : 0,0,NULL);acknowledged++;
 }
 static void consume(void) {
  uint32_t *cout=reg(MBOX_COUT),cin=*reg(MBOX_CIN);
@@ -75,7 +75,7 @@ static void observe(unsigned completed,unsigned pending) {
 }
 int main(int argc,char **argv) {
  assert(argc==3);mode=(unsigned)strtoul(argv[1],NULL,10);unsigned initial=(unsigned)strtoul(argv[2],NULL,10);
- assert(initial<16 && mode<4);*reg(MBOX_RIN)=*reg(MBOX_ROUT)=initial;*reg(MBOX_CIN)=*reg(MBOX_COUT)=30;
+ assert(initial<16 && mode<5);*reg(MBOX_RIN)=*reg(MBOX_ROUT)=initial;*reg(MBOX_CIN)=*reg(MBOX_COUT)=30;
  mailbox_init_v3();assert(intel_fpga_config_start(0)==0);assert(max_blocks==4 && bytes_per_block==1048560);
  unsigned done=0,polls=0,total=2027520;
  while(done<total) {
@@ -85,7 +85,7 @@ int main(int argc,char **argv) {
   for(unsigned tries=0;;tries++) {
    assert(tries<=10);advance();count=0;
    status=intel_fpga_config_completed_write(addresses,&count,&job);polls++;observe(done,count?0:chunk);
-   if(status==4) { assert(mode==3 && done==786432 && !count && fes_contained_transport_status==-17);goto stopped; }
+   if(status==4) { assert((mode==3 || mode==4) && done==786432 && !count && fes_contained_transport_status==(mode==3 ? -17:-2));goto stopped; }
    if(count) { assert(status==0 && count==1 && addresses[0]==0x14800000+done);break; }
    assert(status==1);
    if(mode==2 && tries==10) { assert(done==786432 && !fes_contained_transport_status);goto stopped; }

@@ -45,7 +45,7 @@ uint32_t mmio_read_32(uintptr_t);
 void mmio_write_32(uintptr_t,uint32_t);
 int mailbox_send_cmd(int,int,const uint32_t*,unsigned int,int,uint32_t*,unsigned int*);
 int mailbox_send_cmd_async(uint32_t*,int,const uint32_t*,unsigned int,int);
-int mailbox_read_response(uint32_t*,uint32_t*,unsigned int*);
+int mailbox_read_response_async(uint32_t*,uint32_t*,uint32_t*,unsigned int*,uint8_t);
 void mailbox_clear_response(void);
 #ifdef FES_TEST_TERASIC_TFA
 int intel_mailbox_get_config_status(uint32_t,bool,uint32_t*);

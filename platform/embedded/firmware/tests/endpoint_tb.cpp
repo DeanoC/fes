@@ -55,9 +55,9 @@ extern "C" int mailbox_send_cmd_async(uint32_t*,int command,const uint32_t* a,un
     if(!world.async_error)world.responses.push_back(index);
     return world.async_error?-1:0;
 }
-extern "C" int mailbox_read_response(uint32_t*,uint32_t*,unsigned* n){
+extern "C" int mailbox_read_response_async(uint32_t*,uint32_t* header,uint32_t*,unsigned* n,uint8_t){
     *n=0;if(world.responses.empty())return MBOX_NO_RESPONSE;
-    world.responses.pop_front();return 0;
+    world.responses.pop_front();*header=0x10000000U;return 0;
 }
 #ifdef FES_TEST_TERASIC_TFA
 extern "C" int mailbox_send_fpga_config_comp(void){

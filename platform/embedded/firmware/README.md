@@ -29,8 +29,9 @@ The contained variant:
 - Checks CANCEL failure and RECONFIG response shape/zero credits or block size.
 - Propagates asynchronous submission failures and every completion error,
   including zero-word errors and errors after an earlier acknowledgement.
-- Treats only `MBOX_NO_RESPONSE` as pending; timeouts retire the engine. Failed
-  transfers retain their buffers; the engine initiates no response flush, replay
+- Treats `MBOX_NO_RESPONSE` with no response header as pending; timeouts retire
+  the engine. Failed transfers retain their buffers; the engine initiates no
+  response flush, replay
   or restart.
 - Makes ISDONE leave every data bridge closed, including repeated status polls.
 - Handles START's null remapper argument while preserving WRITE's CPU-to-SDM
@@ -86,12 +87,22 @@ buffer. They are non-atomic observations and cannot acknowledge bytes or grant
 bridge authority. This image has not been tested on the board yet.
 
 The actual pinned FIFO transport, mailbox-v3 parser and contained engine pass
-64 host cases covering every response-ring starting position, a full
+80 host cases covering every response-ring starting position, a full
 2,027,520-byte stream, command/response and job-ID wrap, delayed ACKs, an empty
-error reply and a missing reply. Missing replies reproduce a pending transfer
+error reply, an SDM error 2 and a missing reply. Missing replies reproduce a pending transfer
 after 786,432 bytes; supplied replies complete. The observer changes neither
 registers nor the service database in those checks. This narrows the software
 search without proving what the physical SDM is doing.
+
+The vendor API also returns `-2` for both `MBOX_NO_RESPONSE` and an SDM error 2.
+The latter consumes a real response header despite having no argument words.
+The contained engine now uses the existing header-returning API and clears its
+local header before every read, including reads following an acknowledgement.
+Only `-2` without a header remains pending; `-2` with a packet retires authority
+and preserves the original error code. The actual-parser regression reproduced
+the old 786,432-byte stall with an injected error 2 and passes with this repair.
+This establishes a software defect, not the cause of the physical stall; the
+header-aware image still needs a matched bounded board test.
 
 Invalid scope, changed bytes, uncertain replies or failed completion retire
 authority and keep memory owned until reboot. No reset-bit repair or implicit

@@ -656,6 +656,14 @@ delayed, missing and error replies. Only real acknowledgements advance the
 transfer; passive queue records cannot do so. The bounded sampler and trace
 decoder are tested off-board. Physical queue observations are still pending.
 
+An additional actual-parser case exposed the vendor API's `-2` alias: it means
+both no response and a consumed SDM error 2. The contained completion path now
+checks the returned header to distinguish them. A genuine missing reply stays
+pending; a consumed error retires authority immediately with the source pinned.
+The 80-case parser matrix includes both cases and clears the header on every
+read so that an earlier ACK cannot turn later silence into an error. This repair
+has not established the cause of the physical stop yet.
+
 This source-bound cold profile is a hardware-qualification candidate. No
 contained physical transfer is accepted yet. It enables neither an active
 reader nor data bridges, secondary CPUs, active drain, runtime package

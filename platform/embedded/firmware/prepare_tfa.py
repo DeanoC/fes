@@ -169,8 +169,16 @@ static int fes_contained_transport_failure(unsigned phase, int status)
             "\t*count = 0;\n"
             "\tif (fes_contained_transport_status != 0) return INTEL_SIP_SMC_STATUS_ERROR;\n\n"
             "\twhile (*count < 3) {")
+    # The vendor API aliases an SDM error 2 to MBOX_NO_RESPONSE (-2).
+    # A nonzero returned header proves a packet was consumed, even with no
+    # argument words. Clear it on each read, including after a good ACK.
+    replace("\t\tstatus = mailbox_read_response(job_id,\n"
+            "\t\t\t\tresp, &resp_len);",
+            "\t\tuint32_t resp_header = 0;\n"
+            "\t\tstatus = mailbox_read_response_async(job_id, &resp_header,\n"
+            "\t\t\t\tresp, &resp_len, 0);")
     replace("\t\tif (status < 0) {\n\t\t\tbreak;\n\t\t}\n\n\t\tmax_blocks++;",
-            "\t\tif (status == MBOX_NO_RESPONSE) break;\n"
+            "\t\tif (status == MBOX_NO_RESPONSE && resp_header == 0) break;\n"
             "\t\tif (status != 0) {\n\t\t\t*count = 0;\n"
             "\t\t\treturn fes_contained_transport_failure(2U, status);\n\t\t}\n\n"
             "\t\tmax_blocks++;")

@@ -60,14 +60,16 @@ int mailbox_send_cmd_async(uint32_t *job,int command,const uint32_t *a,unsigned 
  if(mode==1)return -17;
  queued++;return 0;
 }
-int mailbox_read_response(uint32_t *job,uint32_t *response,unsigned *n) {
- (void)response;reads++;*job=0;*n=0;
+int mailbox_read_response_async(uint32_t *job,uint32_t *header,uint32_t *response,unsigned *n,uint8_t ignore) {
+ (void)response;(void)ignore;reads++;*job=0;*n=0;
  if(mode==5 && reads==3)return -17; /* valid ACK followed by empty error */
  if(!queued)return MBOX_NO_RESPONSE;
  if(mode==2) { queued--;return -17; }
  if(mode==3) { queued--;return MBOX_TIMEOUT; }
  if(mode==4 && reads<4)return MBOX_NO_RESPONSE;
  if(mode==6) { queued--;return 7; }
+ *header=0x10000000U;
+ if(mode==7) { queued--;return MBOX_NO_RESPONSE; } /* consumed packet with aliased error */
  queued--;return 0;
 }
 int main(int argc,char **argv) {
@@ -107,7 +109,7 @@ int main(int argc,char **argv) {
                                      '-fsanitize=undefined','-fno-sanitize-recover=all','-DFES_TEST_TERASIC_TFA',
                                      '-I'+str(FW/'tests'),str(path),'-o',str(binary)],capture_output=True,text=True,timeout=30)
             self.assertEqual(compiled.returncode,0,compiled.stderr)
-            for mode in range(7):
+            for mode in range(8):
                 with self.subTest(mode=mode):
                     result=subprocess.run([binary,str(mode)],capture_output=True,text=True,timeout=10)
                     self.assertEqual(result.returncode,0,result.stderr)
