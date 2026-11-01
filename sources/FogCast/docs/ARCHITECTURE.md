@@ -1250,9 +1250,24 @@ Native SDL3 UI
   -> GET /v1/kit/lease on the selected target address (status-only lease strip)
   -> POST /api/v1/session/input/attach and /detach (empty body; FPGA-native now-playing)
   -> POST /api/v1/session/input/event (play-session HID; fail-closed on a foreign kit lease)
+  -> POST /api/v1/session/input/tap (one serialized HID key tap bound to the current input session)
   -> host session service
   -> existing FPGA launch path
 ```
+
+The input tap endpoint accepts `session_id` from the current input status and
+one HID keyboard press `event` only for an active session with a negotiated
+`fes.keyboard.hid` 1.0 interface. Native gamepad and legacy matrix sessions
+are rejected instead of silently dropping or remapping physical keys. It
+checks the selected kit's connection and lease and input attachment after
+waiting for the input lock. It rejects missing, incompatible, or unknown target
+observations, then sends a press and a release
+under the same lock. A canceled request still releases a potentially applied
+press; an unconfirmed release closes the bridge and clears held input. The
+response includes `host_duration_ms` for the host operation. That duration
+is not a measurement of when either edge reached or was applied by the core.
+Successful writes do not acknowledge guest delivery. The endpoint does not
+turn an uncertain host transport write into a successful tap.
 
 `GET /api/v1/session/events` keeps the existing protocol 1 event object.
 The host also sets an optional `flight_id` UUID on those events: one new id
@@ -3638,6 +3653,12 @@ bundled starter cassettes appear only for `fes.zx81`. ZX80 next-start setup
 imports raw `.o` cassettes; ZX81 and Timex setups import `.p` programs. The
 live-media selector continues to admit `.p` only. Machine-bound
 tape-shelf reads apply the same starter filter, including the live picker.
+After a successful ZX81 or ZX80 cassette import and media selection, tenfoot
+records the picked basename with the strict `PUT /api/v1/library/core-entries/{game_id}/media-name`
+route. The request includes the expected package and selected media ID. Schema
+20 stores the name on the core entry and accepts it only while that package and
+media remain selected. Changing or clearing media removes it. The paired launcher admits this strict single-slug
+route so the kit request reaches the host catalog.
 The workbench may suggest a same-target ZX81 package with required
 session-display, HPS DDR and ABI-specific media interfaces when the selected
 package lacks them. Optional declarations count only when the exact package is
@@ -3721,8 +3742,10 @@ The name is presentation only; admission continues to use the captured session, 
 package and generation.
 
 It also admits the core-entry list, exact single-entry reads, and exact
-package, ROM, expansion and media selection routes used by setup. Core-entry
-routes require one validated game ID and the expected path suffix. Installed
+package, ROM, expansion, media and media-name selection routes used by setup.
+Core-entry routes require one validated game ID and the expected path suffix.
+The media-name write is forwarded unchanged after bearer and paired-target
+checks. Installed
 core-package inventory and exact descriptor/media-capability reads are
 available; package import and compatibility mutation remain outside the paired
 listener.
