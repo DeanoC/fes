@@ -604,6 +604,23 @@ func TestFramebufferControllerLongHold(t *testing.T) {
 	}
 }
 
+func TestNativeHIDUsageCarriesEveryKitKey(t *testing.T) {
+	for code, want := range map[uint16]uint8{
+		// Keys the old partial table already carried.
+		1: 0x29, 2: 0x1e, 11: 0x27, 16: 0x14, 28: 0x28, 29: 0xe0, 42: 0xe1, 57: 0x2c, 103: 0x52, 125: 0xe3,
+		// F1-F11 (F12 is the running selector), the keypad, Print Screen, Scroll Lock and Pause (#1331).
+		59: 0x3a, 68: 0x43, 87: 0x44, 69: 0x53, 55: 0x55, 71: 0x5f, 79: 0x59, 82: 0x62, 83: 0x63, 96: 0x58,
+		98: 0x54, 99: 0x46, 70: 0x47, 119: 0x48,
+	} {
+		if got := nativeHIDUsage(code); got != want {
+			t.Errorf("key %d: usage %#x, want %#x", code, got, want)
+		}
+	}
+	if got := nativeHIDUsage(240); got != 0 {
+		t.Errorf("unmapped key: usage %#x, want 0", got)
+	}
+}
+
 func TestNativeDeviceClassification(t *testing.T) {
 	keys := make([]byte, 96)
 	set := func(code int) { keys[code/8] |= 1 << uint(code%8) }

@@ -2901,7 +2901,7 @@ func (a *App) HandlePlayHIDScancode(name string, usage uint8, down bool, now tim
 	if a == nil {
 		return false
 	}
-	if a.consumeSuppressedPlayKey(name, down) {
+	if a.consumeSuppressedPlayKey(name, usage, down) {
 		return true
 	}
 	if mediaSelectorKey(name, usage) {
@@ -2976,7 +2976,7 @@ func (a *App) ConsumePlayHID() bool {
 // active package can arm a mailbox. Other keys encode for the attached core.
 // Letter s is a ZX81/core key, not chrome stop.
 func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
-	if a.consumeSuppressedPlayKey(name, down) {
+	if a.consumeSuppressedPlayKey(name, 0, down) {
 		return true
 	}
 	return a.handlePlayHIDKey(name, down, now)

@@ -308,7 +308,8 @@ CREATE INDEX core_entries_core_id ON core_entries(core_id);
 PRAGMA user_version = 19;
 `
 
-// Schema 20 records the basename of selected removable media for host views.
+// Schema 20 keeps the admitted basename of the selected media, so a host
+// view can name an imported cassette. Empty means no name was recorded.
 const schemaV20 = `
 ALTER TABLE core_entries ADD COLUMN media_name TEXT NOT NULL DEFAULT '';
 PRAGMA user_version = 20;

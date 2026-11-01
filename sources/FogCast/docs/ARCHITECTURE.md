@@ -2820,6 +2820,12 @@ SDL scancodes, and the kit maps evdev `KEY_*`. There is no per-core character
 map; the core owns characters, shifted symbols, repeat and reset chords. The host
 attaches input for these sessions even without controller ports and passes the
 events through `POST /api/v1/session/input/event` and the host stream unchanged.
+On the kit, the linuxfb evdev loop reads `EV_KEY` records, maps Linux key codes
+through `internal/hidkeys.FromLinuxKey`, and passes the resulting usage to
+`HandlePlayHIDScancode` and the ordered `SendPlayHID` path. If connected evdev
+keyboards hold the same usage, tenfoot clears the releasing device's local
+held/modifier state immediately but sends the core release only after the last
+keyboard releases it.
 The 1.1 ABI retains its 1.0 keyboard and relative-mouse capabilities; an active
 `fes.mouse.relative` 1.0 interface receives the same supported-generation
 binding.
@@ -3668,6 +3674,12 @@ bundled starter cassettes appear only for `fes.zx81`. ZX80 next-start setup
 imports raw `.o` cassettes; ZX81 and Timex setups import `.p` programs. The
 live-media selector continues to admit `.p` only. Machine-bound
 tape-shelf reads apply the same starter filter, including the live picker.
+After a successful ZX81 or ZX80 cassette import and media selection, tenfoot
+records the picked basename with the strict `PUT /api/v1/library/core-entries/{game_id}/media-name`
+route. The request includes the expected package and selected media ID. Schema
+20 stores the name on the core entry and accepts it only while that package and
+media remain selected. Changing or clearing media removes it. The paired launcher admits this strict single-slug
+route so the kit request reaches the host catalog.
 The workbench may suggest a same-target ZX81 package with required
 session-display, HPS DDR and ABI-specific media interfaces when the selected
 package lacks them. Optional declarations count only when the exact package is
@@ -3751,8 +3763,10 @@ The name is presentation only; admission continues to use the captured session, 
 package and generation.
 
 It also admits the core-entry list, exact single-entry reads, and exact
-package, ROM, expansion and media selection routes used by setup. Core-entry
-routes require one validated game ID and the expected path suffix. Installed
+package, ROM, expansion, media and media-name selection routes used by setup.
+Core-entry routes require one validated game ID and the expected path suffix.
+The media-name write is forwarded unchanged after bearer and paired-target
+checks. Installed
 core-package inventory and exact descriptor/media-capability reads are
 available; package import and compatibility mutation remain outside the paired
 listener.
