@@ -3696,7 +3696,9 @@ host derives that default for reads and launches without saving it as a user
 selection, so a later bundle update changes the effective default. An explicit
 selection is preserved. Library readiness uses the validated bundled-object
 metadata rather than rehashing the image for every title; launch still verifies
-the stored bytes. ZX81-family firmware is not bundled.
+the stored bytes. When a format-3 ZX81 `machine-rom` has no selection and no
+matching configured bundle object, the host imports its verified built-in
+machine image and saves it to that title. A saved user choice remains intact.
 When a title switches between format-3 ZX81 packages that declare the same
 `machine-rom` firmware ID and exact source size, or a title on bundled
 firmware switches to a package naming the same ROM ID and size, the host

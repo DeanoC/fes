@@ -482,14 +482,10 @@ func TestBundledFirmwareIsSelectedWithoutReplacingUserSelection(t *testing.T) {
 	if err != nil || before.MediaID != "" {
 		t.Fatalf("fixture should start without a ROM selection: %+v err=%v", before, err)
 	}
-	view, err := s.Hardware(ctx)
-	if err != nil || len(view) != 1 || view[0].Ready || view[0].FirmwareReady {
-		t.Fatalf("a title with no bundled firmware and no selection must need firmware: %+v err=%v", view, err)
-	}
 
 	bundled := bytes.Repeat([]byte{0x42}, 8192)
 	s.LoadBundledFirmware(ctx, bundledFirmwareFixture(t, "fes.zx81", "machine-rom", bundled))
-	view, err = s.Hardware(ctx)
+	view, err := s.Hardware(ctx)
 	if err != nil || len(view) != 1 || !view[0].Ready || !view[0].FirmwareReady {
 		t.Fatalf("missing-ROM setup did not select bundled firmware: %+v err=%v", view, err)
 	}

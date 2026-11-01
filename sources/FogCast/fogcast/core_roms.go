@@ -12,6 +12,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/zx81machine"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -163,6 +164,8 @@ func (s *Service) readCoreEntryROM(ctx context.Context, entry catalog.CoreEntry,
 		switch {
 		case selected.MediaID == "" && hasBundled:
 			selected = bundledFirmwareSelection(entry, descriptor.ROM, bundled)
+		case selected.MediaID == "" && zx81:
+			selected, err = s.provisionZX81MachineROM(ctx, entry, descriptor.ROM)
 		case stale && (zx81 || hasBundled && selected.MediaID == bundled.MediaID):
 			selected, err = s.rebindCoreFirmware(ctx, entry, selected, descriptor.ROM)
 		}
@@ -194,6 +197,41 @@ func (s *Service) readCoreEntryROM(ctx context.Context, entry catalog.CoreEntry,
 		return selected, nil, romAdmissionError()
 	}
 	return selected, data, nil
+}
+
+// provisionZX81MachineROM imports the built-in ZX81 machine image only when a
+// title has no firmware selection. A saved user choice always takes priority.
+func (s *Service) provisionZX81MachineROM(ctx context.Context, entry catalog.CoreEntry, requirement *corepackage.ROM) (catalog.CoreEntryROM, error) {
+	if requirement == nil || requirement.ID != "machine-rom" || requirement.Role != protocol.FirmwareRole || requirement.SourceSize != zx81machine.MachineROMBytes {
+		return catalog.CoreEntryROM{}, romAdmissionError()
+	}
+	roms, ok := s.catalog.(coreROMCatalog)
+	if !ok {
+		return catalog.CoreEntryROM{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	mediaStore, ok := s.catalog.(coreMediaCatalog)
+	if !ok {
+		return catalog.CoreEntryROM{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+	}
+	image, err := zx81machine.MachineROM()
+	if err != nil || int64(len(image)) != requirement.SourceSize {
+		return catalog.CoreEntryROM{}, romAdmissionError()
+	}
+	media, _, err := mediaStore.ImportCoreMediaStream(ctx, int64(len(image)), bytes.NewReader(image))
+	if err != nil {
+		return catalog.CoreEntryROM{}, mapCoreMediaError(err)
+	}
+	selected, err := roms.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, requirement.ID, requirement.SourceSize, "", media.MediaID)
+	if err == nil {
+		return selected, nil
+	}
+	// A concurrent request may have filled the empty selection after our read.
+	// Accept it only when it now matches this package's exact firmware contract.
+	current, readErr := roms.CoreEntryROM(ctx, entry.GameID)
+	if readErr == nil && current.MediaID != "" && current.PackageID == entry.PackageID && current.ROMID == requirement.ID && current.SourceSize == requirement.SourceSize {
+		return current, nil
+	}
+	return catalog.CoreEntryROM{}, romSelectionError(err)
 }
 
 // rebindCoreFirmware carries a saved firmware binary across package changes
