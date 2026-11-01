@@ -82,6 +82,12 @@ def prepare(proof, output):
     receipt = json.loads(receipt_data)
     require(receipt.get('status') == 'pass' and len(receipt.get('cases', [])) == 72 and
             'startup' in receipt, 'passing actual parent startup proof required')
+    # The recorded commands contain absolute output paths. Refuse a relocated
+    # receipt before replay could write back into its original proof directory.
+    elaborate, compile_command = receipt['elaboration_command'], receipt['build_command']
+    require(elaborate[elaborate.index('--xml-output') + 1] == str(proof / 'elaboration.xml') and
+            compile_command[compile_command.index('--Mdir') + 1] == str(proof / 'obj'),
+            'startup proof moved; use its original directory with the recorded absolute paths')
     helper = ROOT / 'boards/de25nano/scanout/interconnect_sim.py'
     require(sha(helper.read_bytes()) == receipt['helper_sha256'], 'transport helper changed')
     spec = importlib.util.spec_from_file_location('reset_skew_transport', helper)
