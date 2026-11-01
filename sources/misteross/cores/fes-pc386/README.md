@@ -388,17 +388,28 @@ disk builder's image will be
 `build/sim/fes-pc386/freedos-games.img`: the boot fixture's kernel and FreeCOM,
 with HIMEMX 3.38, CuteMouse 2.1b4 and MEM 1.12 from their FreeDOS 1.4 package
 archives in `C:\FDOS\BIN`, pinned in [`sim/freedos.lock`](sim/freedos.lock).
-- `FDCONFIG.SYS` loads HIMEMX and `DOS=HIGH`.
+- `FDCONFIG.SYS` loads HIMEMX with all extended memory as XMS (15,360K on a
+  16 MiB machine) and keeps the kernel in low memory.
 - `AUTOEXEC.BAT` runs [`FESENV.COM`](sim/fesenv.asm) into
   `C:\FDOS\FESENV.BAT` and calls it, so `BLASTER` follows the Sound Blaster
   setting in CMOS 60h-62h at every boot, then loads CuteMouse.
-- HIMEMX runs with `/MAX=0`: it manages the HMA and A20 and offers no
-  extended memory. HimemX's block move (XMS function 0Bh) runs SMSW and then
-  enters unreal mode, and `fes_i386_cpu` has neither yet. With free XMS,
-  FreeDOS 1.4's FreeCOM (its XMS_Swap build) would copy itself there at
-  start-up, and Wolfenstein 3D's page manager would cache pages there; both
-  would stop the CPU. The limit goes when the CPU has protected mode, which
-  Ultima VII's 2 MiB of XMS needs anyway.
+- HIMEMX switches A20 through the 8042 (`/METHOD:KBC`). Left to itself it
+  finds A20 already on (the 8042's output port leaves reset with A20 enabled,
+  and the BIOS only uses port 92h) and takes its "Always on" method, under
+  which XMS function 04h (global disable A20) always fails.
+- No `DOS=HIGH`: with the kernel in the HMA, its entry code enables A20 with
+  XMS function 05h whenever a program has left it off and never releases it,
+  so HIMEMX's lock count stays above zero and function 04h fails too. Ultima
+  VII's Voodoo memory manager calls 04h as it exits and stops
+  (`freexmm.c` / `Program terminated by code.`) when it fails. The kernel in
+  low memory costs about 50K: 567K is free with CuteMouse loaded.
+- [`FREETOP.COM`](sim/freetop.asm) in `C:\FDOS\BIN` runs a program with the
+  top of conventional memory free: `FREETOP ULTIMA7.COM` in the game's
+  directory. FreeCOM 0.86 keeps its master environment in the last memory
+  block, and Ultima VII's MAINMENU.EXE measures DOS memory as the last two
+  blocks of the chain, so started from the prompt it reports
+  `Ultima VII requires 561144 bytes of DOS memory!`. FREETOP moves that block
+  aside for the program's run and puts it back.
 
 The images are test fixtures and are never distributed. The games
 themselves are user-supplied and go onto a copy of the image only for a kit

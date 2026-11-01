@@ -75,8 +75,8 @@ class FreedosImageTest(unittest.TestCase):
             for filename, source in spec['bin'].items():
                 with self.subTest(profile=profile, filename=filename):
                     if source is None:
-                        self.assertEqual(filename, 'FESENV.COM')
-                        self.assertTrue(freedos.FESENV.is_file())
+                        self.assertIn(filename, freedos.local_sources())
+                        self.assertTrue(freedos.local_sources()[filename].is_file())
                         continue
                     package_name, package_path = source
                     self.assertIn(package_name, spec['packages'])
@@ -106,24 +106,25 @@ class FreedosImageTest(unittest.TestCase):
                 self.assertEqual(freedos.image(), 'rebuilt')
                 self.assertEqual(build.call_count, 3)
 
-    def test_games_image_identity_tracks_its_local_com_program(self):
-        with tempfile.TemporaryDirectory(dir=freedos.ROOT) as directory:
-            root = Path(directory)
-            source = root / 'fesenv.asm'
-            source.write_bytes(b'first version')
-            image = root / 'freedos-games.img'
-            image.write_bytes(b'disk')
-            with mock.patch.object(freedos, 'FESENV', source), \
-                    mock.patch.dict(freedos.PROFILES['games'], {'image': image}):
-                boot_inputs = freedos.inputs_key('boot')
-                record = {'sha256': hashlib.sha256(b'disk').hexdigest(),
-                          'inputs': freedos.inputs_key('games')}
-                image.with_suffix('.json').write_text(json.dumps(record))
-                self.assertTrue(freedos.image_is_current('games'))
-                source.write_bytes(b'changed version')
-                self.assertNotEqual(record['inputs'], freedos.inputs_key('games'))
-                self.assertFalse(freedos.image_is_current('games'))
-                self.assertEqual(boot_inputs, freedos.inputs_key('boot'))
+    def test_games_image_identity_tracks_its_local_com_programs(self):
+        for attribute, name in (('FESENV', 'fesenv.asm'), ('FREETOP', 'freetop.asm')):
+            with self.subTest(source=name), tempfile.TemporaryDirectory(dir=freedos.ROOT) as directory:
+                root = Path(directory)
+                source = root / name
+                source.write_bytes(b'first version')
+                image = root / 'freedos-games.img'
+                image.write_bytes(b'disk')
+                with mock.patch.object(freedos, attribute, source), \
+                        mock.patch.dict(freedos.PROFILES['games'], {'image': image}):
+                    boot_inputs = freedos.inputs_key('boot')
+                    record = {'sha256': hashlib.sha256(b'disk').hexdigest(),
+                              'inputs': freedos.inputs_key('games')}
+                    image.with_suffix('.json').write_text(json.dumps(record))
+                    self.assertTrue(freedos.image_is_current('games'))
+                    source.write_bytes(b'changed version')
+                    self.assertNotEqual(record['inputs'], freedos.inputs_key('games'))
+                    self.assertFalse(freedos.image_is_current('games'))
+                    self.assertEqual(boot_inputs, freedos.inputs_key('boot'))
 
     def test_profiles_use_separate_work_directories(self):
         self.assertEqual(freedos.work_directory('boot'), freedos.BUILD / 'work-boot')
