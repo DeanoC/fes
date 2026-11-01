@@ -558,6 +558,9 @@ public:
     Machine &m;
     uint64_t retired = 0;        // instructions the RTL retired
     uint64_t tf_retired = 0;     // ... with TF set, which the RTL does not trap on
+    uint64_t pe_retired = 0;     // ... leaving CR0.PE set
+    uint64_t pe_entries = 0;     // retirements that set CR0.PE
+    bool pe = false;
     uint64_t parked_clocks = 0;  // clocks only the machine ran (see run)
     uint64_t vga_loads = 0;      // MMIO reads the VGA took
     uint64_t replays = 0;        // instructions restarted for an MMIO load not the oldest
@@ -813,6 +816,8 @@ public:
             ++retired;
             last_retire = m.cycles;
             if (cpu.arch_eflags & 0x100) ++tf_retired;
+            if (cpu.arch_cr0 & 1) { ++pe_retired; if (!pe) ++pe_entries; }
+            pe = cpu.arch_cr0 & 1;
             const uint32_t start = retire_next;
             retire_next = physical(cpu.arch_base[fes_i386::SEG_CS] + cpu.arch_eip, a20m);
             uint32_t byte = 0;
@@ -1314,11 +1319,13 @@ int main(int argc, char **argv) {
             for (const std::string &line : rtl->smc_sites) std::printf("SMC %s\n", line.c_str());
             for (const std::string &note : notes) std::printf("NOTE %s\n", note.c_str());
             std::printf("RTL retired=%llu oracle_steps=%llu protected_steps=%llu parked_clocks=%llu tf_retired=%llu "
+                        "pe_retired=%llu pe_entries=%llu "
                         "vga_loads=%llu replays=%llu port0_reads=%llu port0_writes=%llu smc_stores=%llu "
                         "smc_addresses=%zu smc_executed=%llu smc_restarts=%llu\n",
                         (unsigned long long)rtl->retired, (unsigned long long)oracle_steps,
                         (unsigned long long)protected_steps, (unsigned long long)rtl->parked_clocks,
-                        (unsigned long long)rtl->tf_retired, (unsigned long long)rtl->vga_loads,
+                        (unsigned long long)rtl->tf_retired, (unsigned long long)rtl->pe_retired,
+                        (unsigned long long)rtl->pe_entries, (unsigned long long)rtl->vga_loads,
                         (unsigned long long)rtl->replays, (unsigned long long)rtl->port0.beats_read,
                         (unsigned long long)rtl->port0.beats_written,
                         (unsigned long long)rtl->smc_stores, rtl->smc_addresses.size(),
