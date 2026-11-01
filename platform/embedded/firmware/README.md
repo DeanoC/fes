@@ -46,7 +46,9 @@ adds `-O3` to the BL31 `sha.o` target alone. Removing the hints reproduces the
 original source bytes. The build receipt records the original/generated hashes
 and compilation policy. Other profiles retain the original digest source and
 flags. This scalar specialization changes no digest, cache state or verification
-coverage; its physical speedup remains unqualified until a matched board test.
+coverage. The [matched board trial](../../../docs/validation/2026-11-01-de25-scalar-digest-load/README.md)
+measures a 2.761x faster first whole-image digest, then stops on an outstanding
+configuration completion. Complete core loading remains unqualified.
 
 Only this explicitly generated profile enables the four existing configuration
 operations after preparation. Closed bridge masks, generation 1, never-enabled

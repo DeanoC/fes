@@ -614,17 +614,26 @@ The [first physical transfer](../../../docs/validation/2026-11-01-de25-contained
 stopped at its unchanged 20-second native deadline after 786,432 confirmed
 bytes, before identity or bridge opening. Transfer markers now include the
 physical counter and cumulative SHA-384 ticks to separate digest cost from
-other elapsed work on the next bounded test. These observations grant no
+other elapsed work. These observations grant no
 authority. Timed traces require monotonic counters and digest accounting
 within elapsed time; the earlier untimed trace remains independently decodable.
 
 The [bounded timing experiment](../../../docs/validation/2026-11-01-de25-configuration-timing/README.md)
 measured at least 16.837575 seconds of secure hashing before a 20.121780-second
-late-return stop. The next candidate specializes the same pinned scalar digest
+late-return stop. The cold configuration profile specializes the same pinned scalar digest
 with three loop-unrolling hints and `-O3` on its object alone, preserving every
 whole-image/chunk check, ownership rule, CPU/cache state and the 20-second
 deadline. Independent digest vectors and injected secure-provider paths pass;
 code inspection is not a physical speedup or configuration-acceptance result.
+
+The [scalar-digest board trial](../../../docs/validation/2026-11-01-de25-scalar-digest-load/README.md)
+measures the first whole-core digest at 1.164858 seconds, compared with
+3.216320 seconds in the instrumented baseline. Configuration still stops at
+the same 20-second bound: 786,432 bytes complete, with the next 65,536-byte
+buffer outstanding for 10.523879 seconds across 86 polls. All source bytes stay
+retained; no identity or bridge-opening marker follows. This paired digest
+measurement does not qualify a complete core load. Mailbox/configuration
+accounting and SDM state need further bounded diagnosis.
 
 This source-bound cold profile is a hardware-qualification candidate. No
 contained physical transfer is accepted yet. It enables neither an active
