@@ -209,14 +209,14 @@ def build(args):
     expected_package_id=package_option(args.program,args.package_id,profile)
     context=control_map=None
     hps_project=getattr(args,'hps_first_project',None)
-    if args.program in ('bootcontext','fpgacontext'):
+    if args.program in ('bootcontext','fpgacontext','fpgastatus'):
         if hps_project is None or raw!=(APP.parent/'nano/probe-profile.json').read_bytes():
             raise ValueError('context diagnostics require a sealed HPS-first project and the source serial probe profile')
         spec=importlib.util.spec_from_file_location('fes_native_hps_context',APP.parent/'nano/hps_context.py')
         hps=importlib.util.module_from_spec(spec);spec.loader.exec_module(hps)
         hps_project=hps_project.resolve(strict=True)
         context=hps.derive(hps_project)
-        if args.program=='fpgacontext':control_map=hps.control(hps_project)
+        if args.program in ('fpgacontext','fpgastatus'):control_map=hps.control(hps_project)
     elif hps_project is not None:
         raise ValueError('--hps-first-project requires a native context diagnostic')
     if args.program == "fpga" and fpga is None:

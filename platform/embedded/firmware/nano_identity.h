@@ -7,6 +7,9 @@
 
 struct fes_nano_identity_ops {
     void *context;
+    /* Read-only SDM status: exactly 1 ready, 0 not ready, negative on error.
+     * No bridge mutation or endpoint access is permitted by this callback. */
+    int (*configured)(void *);
     /* Fixed platform aperture only; no address or write comes from NS. */
     int (*read32)(void *, uint32_t offset, uint32_t *);
     /* Assert control reset and independently check data containment. Retire
@@ -18,12 +21,12 @@ struct fes_nano_identity_probe {
     struct fes_nano_bridges *bridges;
     struct fes_nano_identity_ops io;
     uint32_t abi, build[4];
-    unsigned initialized, failed, attempted, active, stage, reads;
+    unsigned initialized, failed, attempted, queried, active, stage, reads;
     int first_error, cleanup_error;
 };
 enum fes_nano_identity_stage {
     FES_ID_NONE, FES_ID_INIT, FES_ID_OPEN, FES_ID_READ, FES_ID_MATCH,
-    FES_ID_CLOSE, FES_ID_CONTAIN, FES_ID_COMPLETE
+    FES_ID_CLOSE, FES_ID_CONTAIN, FES_ID_COMPLETE, FES_ID_CONFIG
 };
 #ifdef __cplusplus
 extern "C" {
@@ -32,6 +35,8 @@ int fes_nano_identity_init(struct fes_nano_identity_probe *, struct fes_nano_bri
                              struct fes_nano_identity_ops, uint32_t abi,
                              const uint32_t build[4], unsigned qualified);
 void fes_nano_identity_sip(struct fes_nano_identity_probe *, uint64_t owner,
+                            uint64_t generation, unsigned configuring, uint64_t result[4]);
+void fes_nano_identity_configuration_sip(struct fes_nano_identity_probe *, uint64_t owner,
                             uint64_t generation, unsigned configuring, uint64_t result[4]);
 /* Secure platform only. Default weak providers return no probe/permission. */
 struct fes_nano_identity_probe *fes_nano_platform_identity_probe(void);

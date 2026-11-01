@@ -138,10 +138,10 @@ def _control(project):
 def checked(record, program_key='program'):
     keys = ('hps_context', 'hps_context_sha256', 'hps_project')
     if all(record.get(key) is None for key in keys):
-        if record.get(program_key) in ('bootcontext','fpgacontext'):
+        if record.get(program_key) in ('bootcontext','fpgacontext','fpgastatus'):
             raise ValueError('native context image is missing its sealed HPS context')
         return None
-    if any(record.get(key) is None for key in keys) or record.get(program_key) not in ('bootcontext','fpgacontext'):
+    if any(record.get(key) is None for key in keys) or record.get(program_key) not in ('bootcontext','fpgacontext','fpgastatus'):
         raise ValueError('HPS source context requires a dedicated native context image')
     expected = derive(record['hps_project'])
     if record['hps_context'] != expected or record['hps_context_sha256'] != digest(expected):
@@ -151,9 +151,9 @@ def checked(record, program_key='program'):
 
 def checked_control(record, program_key='program'):
     keys=('hps_control','hps_control_sha256')
-    if all(record.get(key) is None for key in keys) and record.get(program_key)!='fpgacontext':return None
-    if record.get(program_key)!='fpgacontext' or any(record.get(key) is None for key in keys):
-        raise ValueError('dedicated fpgacontext image and sealed control map required')
+    if all(record.get(key) is None for key in keys) and record.get(program_key) not in ('fpgacontext','fpgastatus'):return None
+    if record.get(program_key) not in ('fpgacontext','fpgastatus') or any(record.get(key) is None for key in keys):
+        raise ValueError('dedicated native FPGA diagnostic and sealed control map required')
     checked(record,program_key)
     expected=control(record['hps_project'])
     if record['hps_control']!=expected or record['hps_control_sha256']!=digest(expected):

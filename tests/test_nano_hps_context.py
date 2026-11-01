@@ -75,9 +75,10 @@ class HPSContextTests(unittest.TestCase):
             output = Path(temp)/'not-created'
             common = [sys.executable, str(ROOT/'platform/embedded/tamago/run.py'),
                       '--compiler', '/bin/false', '--output', str(output)]
-            for args in (['bootcontext'], ['fpgacontext'],
+            for args in (['bootcontext'], ['fpgacontext'], ['fpgastatus'],
                          ['bootcontext', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],
                          ['fpgacontext', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],
+                         ['fpgastatus', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],
                          ['fpgacontext', '--board', 'de25-nano', '--profile', str(NANO/'sd-profile.json'),
                           '--hps-first-project', 'absent'],
                          ['probe', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json'),
@@ -150,6 +151,7 @@ assert callable(prepare_nano_owned.function)
         record=dict(self.record,program='fpgacontext',hps_control=mapping,hps_control_sha256=context.digest(mapping))
         with patch.object(context,'derive',return_value=self.descriptor),patch.object(context,'control',return_value=mapping):
             self.assertEqual(context.checked_control(record),mapping)
+            self.assertEqual(context.checked_control(dict(record,program='fpgastatus')),mapping)
             for changed in (dict(record,program='bootcontext'),dict(record,hps_control=None),
                             dict(record,hps_control_sha256='f'*64),
                             dict(record,hps_control=dict(mapping,cpu_base=0xff210400))):

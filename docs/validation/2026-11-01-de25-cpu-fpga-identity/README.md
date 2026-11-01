@@ -86,3 +86,27 @@ have no probe provider. There is no runtime core admission, active fabric or
 device drain acceptance, live HPS I/O measurement, runtime programming, native
 SD coexistence, USB/network resume or HDMI qualification. `HPSContextVerifier`
 does not implement `BootHandoffVerifier`.
+
+
+## Follow-up inspection before another boot
+
+A separate read-only top-device inventory sees the exact TRWU8CBL JTAG target,
+but no master, jtag_debug or SLD services. System Console refuses to link the
+matched image metadata because the visible SLD agents differ. No master was
+claimed, no endpoint register was accessed, no clock changed and no reset or
+programming occurred during this inventory. The exact USB permissions were
+restored. [Service inventory](jtag-service-inventory.log) and
+[link rejection](jtag-link-mismatch.log) retain the observations.
+
+The [actual generated reset route](reset-route-inspection.json) derives control
+reset from configuration/PLL reset and includes the correct inversion into the
+HPS IP's active-high lightweight reset. This is structural inspection, not a
+measurement of the running clock or reset. No polarity repair is inferred.
+
+The missing services are consistent with fabric not yet configured. The
+[Agilex 5 HPS-first boot guide](https://docs.altera.com/r/docs/813762/25.3/hard-processor-system-booting-user-guide-agilextm-3-and-agilextm-5-socs/hps-boots-first)
+describes a separate core/fabric configuration step after HPS boot. That is a
+working diagnosis, not a measured SDM state. The next candidate queries SDM
+configuration status before any control opening, rejects incomplete/unready
+status while closed, and adds individual access markers if fabric is ready.
+It sends no configuration command and grants no runtime programming permission.

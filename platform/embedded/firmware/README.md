@@ -324,6 +324,24 @@ retires ownership, preserving the first failure and cleanup result. The
 held-data close supplies no fresh fabric acknowledgement or active data drain.
 This is an aperture qualification diagnostic, not a runtime admission provider.
 
+The probe now checks SDM readiness before opening control. It sends only
+`CONFIG_STATUS`, keeps a zero-initialized six-word response on the secure
+stack, requires exact transport/length and the complete ready flags, and
+rechecks the original closed ownership. An unconfigured fabric returns
+NOT_READY with generation 1 and no bridge or endpoint access. A malformed
+query retires authority. This read avoids the legacy `FPGA_CONFIG_ISDONE`
+frontend and does not authorize configuration. Per-register before/after
+markers localize a subsequent access stall. A hung CPU transaction may prevent
+the cleanup callback from running; the host retains that stopped trace and
+does not infer closure from its timeout.
+
+The separate `fpgastatus` diagnostic invokes private operation 7: one fixed
+configuration-status query under the original closed owner, followed by an
+unchanged Snapshot. It does not invoke the identity operation. The firmware
+returns a readiness bit with the unchanged owner/generation and never opens
+control or touches an endpoint register through this query. Default providers
+remain unready; malformed replies and lost scope retire authority.
+
 The [Nano guide](../nano/README.md) describes matched builds, a preserved
 recovery card and repeatable network uploads of `FES/UPLOAD.BIN`. The
 [current validation](../../../docs/validation/2026-10-31-de25-cold-upload/README.md)

@@ -44,6 +44,10 @@ the same required sealed project/profile and matched boot chain. See the
 [CPU identity diagnostic](../nano/README.md#cpu-fpga-identity-diagnostic) for
 the exact containment and failure contract; physical runtime admission remains
 unavailable.
+The Nano-only `fpgastatus` program selects the separate secure configuration
+query, checks unchanged closed source ownership and reports SDM readiness.
+It uses the same compiled source/control-map inputs and matched boot chain,
+and performs no FPGA register access or bridge opening.
 The QEMU `fabric` diagnostic also models the dedicated configuration protocol
 under a hypothetical held-bridge firmware contract. Its generation-bound drain,
 buffer ownership and identity-before-release checks do not enable Nano programming.

@@ -231,6 +231,86 @@ class NativeFPGAIdentityTraceTests(unittest.TestCase):
             trace.decode_native_boot(b'',BUILD,SEED,fpga_identity=self.expected,hps_context=NativeHPSContextTraceTests.expected)
 
 
+class NativeFPGAConfigurationTraceTests(unittest.TestCase):
+    expected=NativeFPGAIdentityTraceTests.expected
+
+    def capture(self,unready=False):
+        status=('FES_NANO_CONFIG_QUERY command=4 words=6\r\n'
+                'FES_NANO_CONFIG_STATUS status=0 words=6 state=0 version=10203 pins=80000000 soft='+
+                ('1' if unready else '3')+' error_location=0 error_details=0 ready='+str(int(not unready))+'\r\n')
+        if unready:
+            return NativeHPSContextTraceTests().capture()+status+f'FES_NATIVE_FPGA_UNREADY CLOSED owner={OWNER:x} generation=1 programming=unavailable\r\n'
+        raw=NativeFPGAIdentityTraceTests().capture()
+        raw=raw.replace('NOTICE:  FES_NANO_IDENTITY phase=open',status+'NOTICE:  FES_NANO_IDENTITY phase=open')
+        offsets=(0,4,8,12,16,20,24,28,32,64,68,72,76,56,60)
+        values=(0x46455345,0x10000,0x10203040,0xcccccccc,0xcccccccc,0xcccccccc,0xcccccccc,0,0,0,0,0,0,0,0)
+        access=''
+        for ordinal in range(1,31):
+            index=(ordinal-1)%15
+            for phase,value in (('before',0),('after',values[index])):
+                access+=f'FES_NANO_IDENTITY_ACCESS phase={phase} ordinal={ordinal} offset={offsets[index]:x} value={value:x}\r\n'
+        return raw.replace('NOTICE:  FES_NANO_IDENTITY phase=close',access+'NOTICE:  FES_NANO_IDENTITY phase=close',1)
+
+    def decode(self,raw,unready=False):
+        return trace.decode_native_boot(raw,BUILD,SEED,fpga_identity=self.expected,
+                                       fpga_configuration=True,fpga_unready=unready)
+
+    def test_complete_configuration_and_each_register_return_remain_diagnostic(self):
+        r=self.decode(self.capture());self.assertTrue(r['complete'],r)
+        self.assertEqual(sum(row['stage'].startswith('identity_access_') for row in r['records']),60)
+        self.assertFalse(r['core_load_acceptance'])
+        self.assertFalse(trace.decode_native_boot(self.capture(),BUILD,SEED,fpga_identity=self.expected)['complete'])
+        self.assertFalse(self.decode(NativeFPGAIdentityTraceTests().capture())['complete'])
+
+    def test_unready_requires_the_complete_sdm_response_and_original_closed_owner(self):
+        raw=self.capture(True);r=self.decode(raw,True)
+        self.assertTrue(r['complete'],r);self.assertEqual(r['last_checkpoint'],'fpga_unready')
+        self.assertFalse(any(row['stage'].startswith('identity_') for row in r['records']))
+        self.assertFalse(r['core_load_acceptance'])
+        for old,new in (('status=0 words=6','status=4 words=6'),('words=6 state=','words=5 state='),
+                        ('ready=0','ready=1'),('soft=1','soft=3'),('generation=1 programming=','generation=3 programming='),
+                        (f'CLOSED owner={OWNER:x}',f'CLOSED owner={OWNER+2:x}'),('error_details=0','error_details=100000000')):
+            with self.subTest(new=new):self.assertFalse(self.decode(raw.replace(old,new),True)['complete'])
+        for line in ('FES_NANO_CONFIG_QUERY','FES_NANO_CONFIG_STATUS','FES_NATIVE_FPGA_UNREADY'):
+            partial=''.join(row for row in raw.splitlines(keepends=True) if line not in row)
+            self.assertFalse(self.decode(partial,True)['complete'])
+        self.assertFalse(self.decode(raw)['complete'])
+        self.assertFalse(self.decode(raw.rstrip('\r\n'),True)['complete'])
+        self.assertFalse(self.decode(raw+'panic: late failure\r\n',True)['complete'])
+
+    def test_missing_or_changed_accesses_and_unsupported_profiles_reject(self):
+        raw=self.capture();lines=raw.splitlines(keepends=True)
+        for row in self.decode(raw)['records']:
+            if row['stage'].startswith(('fpga_','identity_access_')):
+                index=row['line']-1
+                self.assertFalse(self.decode(''.join(lines[:index]+lines[index+1:]))['complete'],row)
+        for old,new in (('ordinal=1 offset=0','ordinal=2 offset=0'),('offset=0 value=0','offset=4 value=0'),
+                        ('value=46455345','value=ffffffff'),('soft=3','soft=1'),('ready=1','ready=0')):
+            with self.subTest(new=new):self.assertFalse(self.decode(raw.replace(old,new))['complete'])
+        for extra in ({'fpga_configuration':True},{'fpga_unready':True},{'fpga_configuration':1},
+                      {'fpga_identity':self.expected,'fpga_unready':True}):
+            with self.subTest(extra=extra),self.assertRaises(ValueError):trace.decode_native_boot(b'',BUILD,SEED,**extra)
+
+    def test_status_only_observation_never_requires_or_accepts_a_control_open(self):
+        for ready in (0,1):
+            raw=self.capture(True).replace('FES_NATIVE_FPGA_UNREADY CLOSED',f'FES_NATIVE_FPGA_STATUS CLOSED ready={ready}')
+            if ready:raw=raw.replace('soft=1','soft=3').replace('ready=0','ready=1')
+            def decode(data):return trace.decode_native_boot(data,BUILD,SEED,fpga_identity=self.expected,
+                                                           fpga_configuration=True,fpga_status_only=True)
+            r=decode(raw);self.assertTrue(r['complete'],r)
+            self.assertEqual(r['last_checkpoint'],'fpga_status_closed');self.assertFalse(r['core_load_acceptance'])
+            self.assertFalse(any(row['stage'].startswith('identity_') for row in r['records']))
+            for old,new in (('generation=1 programming=','generation=3 programming='),
+                            (f'CLOSED ready={ready}',f'CLOSED ready={1-ready}')):
+                self.assertFalse(decode(raw.replace(old,new))['complete'])
+            extra=f'NOTICE:  FES_NANO_IDENTITY phase=open owner={OWNER:x} generation=1 reset=f base=20010400\r\n'
+            self.assertFalse(decode(raw+extra)['complete'])
+            self.assertFalse(decode(raw.rstrip('\r\n'))['complete'])
+        for extra in ({'fpga_status_only':True},{'fpga_configuration':True,'fpga_status_only':True},
+                      {'fpga_identity':self.expected,'fpga_configuration':True,'fpga_status_only':True,'fpga_unready':True}):
+            with self.assertRaises(ValueError):trace.decode_native_boot(b'',BUILD,SEED,**extra)
+
+
 class NativeSDTraceTests(unittest.TestCase):
     expected={'bytes':1098,'sha256':'a'*64}
     def capture(self):

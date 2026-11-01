@@ -520,7 +520,12 @@ address space. The current sealed project's candidate is `0x20010400`.
 
 After the source-context marker, native Go invokes one secure identity
 operation with the current owner/generation and no physical address. Firmware
-requires EL3 translation and data cache disabled, opens only control, reads
+first requires a complete read-only SDM configuration-status response with
+CONF_DONE and INIT_DONE. Unready fabric leaves the original bridges closed
+at generation 1 and returns NOT_READY. Native Go rechecks the same source
+ownership before reporting `FES_NATIVE_FPGA_UNREADY CLOSED`. Ordinary missing
+providers also return NOT_READY; only the raw SDM response distinguishes them.
+For a ready fabric, firmware requires EL3 translation and data cache disabled, opens only control, reads
 two complete identity/idle snapshots, verifies magic/version/ABI/build and
 zero generation/pending/acknowledgement state, then closes control. Data
 bridges and masters stay contained and spare CPU release stays denied. A
@@ -538,6 +543,27 @@ Even a successful physical identity read cannot grant runtime core admission,
 measure the live HPS I/O configuration, authorize SDM programming or prove an
 active fabric/master drain. `HPSContextVerifier` remains separate from
 `BootHandoffVerifier`.
+
+The [first CPU identity attempt](../../../docs/validation/2026-11-01-de25-cpu-fpga-identity/README.md)
+passed upload and cold native handoff, then stopped after control opened; no
+endpoint identity or reclose is accepted. This is why readiness precedes
+aperture access. HPS-first boot has a separate fabric-configuration step; a
+successful HPS boot is not fabric readiness. The new readiness path is a
+separate diagnostic until physically observed. Select
+`fpga_configuration=True` in the decoder to require the SDM query/reply and
+all 30 per-register before/after pairs. Select `fpga_unready=True` as well
+for the closed, not-ready branch; that completion proves no endpoint identity.
+An abort or hung MMIO may prevent C cleanup from running. The host timeout
+retains the first failure rather than establishing a safe reclose.
+
+`run.py fpgastatus --board de25-nano` uses the same sealed project, source
+profile and matched chain as `fpgacontext`. It selects the separate read-only
+configuration operation, checks the unchanged closed Snapshot, and prints
+`FES_NATIVE_FPGA_STATUS CLOSED ready=0|1`. It never requests endpoint identity
+or control opening. Use `fpga_configuration=True, fpga_status_only=True` with
+the independently checked `fpga_identity` descriptor/map to decode this path.
+Both ready values can complete this status diagnostic; neither accepts an
+endpoint identity or runtime core load. This path needs its own physical test.
 
 ## Contained native boot procedure
 

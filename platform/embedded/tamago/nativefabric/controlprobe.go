@@ -36,27 +36,28 @@ type FPGAIdentityObservation struct {
 	ControlMapSHA256 [32]byte
 }
 
-// ProbeIdentity uses the dedicated one-shot firmware operation. No physical
-// address is passed through the non-secure call. The compiled control map is
-// checked locally; firmware supplies its own immutable address and identity.
-// HPSContextVerifier deliberately remains separate from BootHandoffVerifier.
-func (v *HPSContextVerifier) ProbeIdentity(raw []byte) (FPGAIdentityObservation, error) {
+// ErrIdentityNotReady reports an unavailable probe without a partial identity.
+// It does not distinguish an absent provider from unconfigured fabric. Readers
+// must independently recheck closed ownership before reporting containment.
+var ErrIdentityNotReady = errors.New("native fabric: secure FPGA identity probe not ready")
+
+func (v *HPSContextVerifier) checkedControlMap(raw []byte) (hpsControlMap, error) {
 	if v == nil || len(raw) == 0 || len(raw) > 4096 {
-		return FPGAIdentityObservation{}, errors.New("native fabric: bounded compiled control map required")
+		return hpsControlMap{}, errors.New("native fabric: bounded compiled control map required")
 	}
 	var m hpsControlMap
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()
 	if err := d.Decode(&m); err != nil {
-		return FPGAIdentityObservation{}, err
+		return hpsControlMap{}, err
 	}
 	var extra interface{}
 	if d.Decode(&extra) != io.EOF {
-		return FPGAIdentityObservation{}, errors.New("native fabric: trailing control map")
+		return hpsControlMap{}, errors.New("native fabric: trailing control map")
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil {
-		return FPGAIdentityObservation{}, err
+		return hpsControlMap{}, err
 	}
 	canonical, err := json.Marshal(fields)
 	if err != nil || len(fields) != 10 || !bytes.Equal(raw, append(canonical, '\n')) ||
@@ -64,8 +65,21 @@ func (v *HPSContextVerifier) ProbeIdentity(raw []byte) (FPGAIdentityObservation,
 		m.PeripheralOffset != uint64(v.context.PeripheralOffset) || m.Span != uint64(v.context.PeripheralSpan) ||
 		m.CPUBase != m.ArchitecturalLWBase+m.PeripheralOffset || !nonzeroDigest(m.HandoffSHA256) ||
 		m.PackageID != v.context.PackageID || m.BuildID != v.context.BuildID {
-		return FPGAIdentityObservation{}, errors.New("native fabric: control map differs from compiled HPS source")
+		return hpsControlMap{}, errors.New("native fabric: control map differs from compiled HPS source")
 	}
+	return m, nil
+}
+
+// ProbeIdentity uses the dedicated one-shot firmware operation. No physical
+// address is passed through the non-secure call. The compiled control map is
+// checked locally; firmware supplies its own immutable address and identity.
+// HPSContextVerifier deliberately remains separate from BootHandoffVerifier.
+func (v *HPSContextVerifier) ProbeIdentity(raw []byte) (FPGAIdentityObservation, error) {
+	m, err := v.checkedControlMap(raw)
+	if err != nil {
+		return FPGAIdentityObservation{}, err
+	}
+
 	source, err := v.Verify(v.Identity())
 	if err != nil {
 		return FPGAIdentityObservation{}, err
@@ -77,6 +91,9 @@ func (v *HPSContextVerifier) ProbeIdentity(raw []byte) (FPGAIdentityObservation,
 	r, err := v.cpu.Invoke([7]uint64{uint64(g.FesEmbeddedBridgeCall), uint64(g.FesEmbeddedBridgeProbeIdentity), before.Owner, uint64(g.FesEmbeddedBridgeCookie), before.Generation})
 	if err != nil {
 		return FPGAIdentityObservation{}, err
+	}
+	if r == ([4]uint64{uint64(g.FesEmbeddedBridgeNotReady), uint64(g.FesEmbeddedBridgeIdentityTag) << 32}) {
+		return FPGAIdentityObservation{}, ErrIdentityNotReady
 	}
 	if r[0] != 0 || uint32(r[1]>>32) != g.FesEmbeddedBridgeIdentityTag || uint32(r[1]) != v.context.ControlABI {
 		return FPGAIdentityObservation{}, fmt.Errorf("native fabric: secure FPGA identity rejected, status %d", r[0])

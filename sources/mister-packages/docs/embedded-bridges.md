@@ -1,6 +1,6 @@
 # Experimental owned firmware bridge channel
 
-`fes.fabric.embedded.bridges` 1.2 supplies generated C/Go constants for the
+`fes.fabric.embedded.bridges` 1.3 supplies generated C/Go constants for the
 Linux-free Nano firmware experiment. It adds no programming profile, package
 ABI, register mapping or production compatibility entry. The FPGA endpoint
 contract and its generated inputs are unchanged.
@@ -51,7 +51,7 @@ The source context binds the sealed HPS-first FPGA package before native SPL
 construction, avoiding a self-referential SPL hash. Its digest is compiled
 into the matched secure firmware and native image. It is not live FPGA
 identity, measured boot, CPU mapping qualification or programming admission.
-The contained `bootcontext` and `fpgacontext` diagnostics select it. The default
+The contained `bootcontext`, `fpgacontext` and `fpgastatus` diagnostics select it. The default
 provider returns NOT_READY, and the cold dispatcher still denies generic bridge
 mutations and configuration. The fabric warning capability describes the
 optional warning handshake, not the presence of a configured FPGA core.
@@ -61,7 +61,14 @@ matched `fpgacontext` cold chain. Its fixed CPU aperture, ABI and build ID come
 from the sealed project's compiler handoff and are compiled into secure
 firmware. The request contains no address or FPGA write. It requires the
 current owner, generation 1, never-enabled evidence, contained masters and
-closed bridges. Under the owned lock it opens only control (reset mask `0xd`,
+closed bridges. Before opening it performs one read-only SDM `CONFIG_STATUS`
+query, requires the complete six-word reply, state zero, NSTATUS high, both
+CONF_DONE and INIT_DONE, and no SEU fault. It rechecks closed ownership after
+the query. Not-ready fabric returns status 5 without opening control, accessing
+the endpoint or changing bridge generation; the one attempt is consumed.
+Malformed/failed queries retire authority. This never calls the legacy
+`FPGA_CONFIG_ISDONE` frontend or sends a configuration command.
+Under the owned lock it opens only control (reset mask `0xd`,
 generation 2), reads two complete identity/idle snapshots, compares them with
 the compiled target, and closes control (mask `0xf`, generation 3). Data
 bridges remain reset and secondary CPU release remains denied throughout.
@@ -70,7 +77,7 @@ unsupported CPU context rejects without changing that context.
 
 On success `x0=0`, `x1=0x46454931 << 32 | ABI`, and `x2/x3` contain the full
 128-bit observed build ID, each packed most-significant word first. The
-reader checks a final owned Snapshot at generation 3. Failure returns no
+reader checks a final owned Snapshot at generation 3. An in-flight failure returns no
 identity words, attempts to assert only control reset, and retires this boot's
 probe and ownership. It preserves both the first error and cleanup result and
 never retries the read. Invalid requests do not consume a valid probe.
@@ -78,3 +85,27 @@ This operation supplies no active data drain, HPS I/O measurement, SDM
 programming permission or production core admission. Ordinary cold builds
 have no probe provider; operations 1/2/3 remain unavailable from non-secure
 code in every cold diagnostic.
+
+Status 5 alone does not distinguish an absent probe provider from unconfigured
+fabric. Native code rechecks its original closed source ownership before
+reporting `FES_NATIVE_FPGA_UNREADY CLOSED`. The hardware readiness diagnostic
+additionally requires the saved complete SDM response. It accepts no FPGA
+identity or programming authority. A CPU abort or hung MMIO/SMC can prevent
+error-return cleanup; the host timeout supplies no proof of control reclose.
+
+Operation 7 queries configuration readiness without an endpoint access or
+control opening. It requires the same current owner, generation 1, initial
+never-enabled scope and contained masters as the identity probe. The secure
+provider issues only fixed `CONFIG_STATUS`, checks the complete response and
+rechecks unchanged closed ownership. Successful replies carry `x0=0`,
+`x1=0x46435331 << 32 | ready` (ready exactly 0/1), `x2=owner`, `x3=generation`.
+Not-ready fabric is a successful observation with ready zero. Provider absence,
+busy, invalid scope and errors return no successful state. The query is
+one-shot per boot and does not consume the identity attempt; a later identity
+operation always queries readiness again. A failed query retires authority
+and may assert control reset for containment, without opening any bridge.
+
+The `fpgastatus` native diagnostic uses operation 7 and verifies an identical
+closed Snapshot afterwards. It never invokes operation 6. Its completion
+reports SDM readiness only, regardless of whether fabric is ready; neither
+branch supplies live endpoint identity, HPS I/O measurement or admission.

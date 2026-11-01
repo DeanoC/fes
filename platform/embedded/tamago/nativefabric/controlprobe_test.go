@@ -170,3 +170,18 @@ func TestControlProbeRejectsUncompiledMapBeforeFirmware(t *testing.T) {
 		})
 	}
 }
+
+func TestControlProbeUnreadyReturnsNoIdentityAndDoesNotRetry(t *testing.T) {
+	raw := hpsContextFixture(t)
+	replies := controlProbeReplies(raw)
+	replies[4] = [4]uint64{5, 0x4645493100000000}
+	calls := 0
+	v, err := NewHPSContextVerifier(controlProbeCPU(t, replies, -1, &calls), raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observed, err := v.ProbeIdentity(controlMapFixture(t))
+	if !errors.Is(err, ErrIdentityNotReady) || observed != (FPGAIdentityObservation{}) || calls != 5 {
+		t.Fatal(observed, err, calls)
+	}
+}

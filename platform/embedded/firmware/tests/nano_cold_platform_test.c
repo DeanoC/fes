@@ -16,7 +16,28 @@ static uint32_t power[4]={0x90000021,0,0,0},pch_request=0x23,pch_status=0x23,boo
 static unsigned release_locked=1,current_el=12;
 static uint64_t mpidr,sctlr;
 #if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
+#include <socfpga_mailbox.h>
 static unsigned fpga_reads,bad_magic,bad_build,flip_cache,lose_data,bad_open,bad_close;
+static unsigned config_calls,config_fault;
+int mailbox_send_cmd(uint32_t job,uint32_t cmd,uint32_t *args,unsigned length,uint32_t urgent,
+                       uint32_t *response,unsigned *words)
+{
+    assert(job==MBOX_JOB_ID && cmd==MBOX_CONFIG_STATUS && !args && !length && urgent==CMD_CASUAL);
+    assert(bridge==15 && !fpga_reads && *words==6);config_calls++;
+    uint32_t values[6]={0,0x10203,PIN_STATUS_NSTATUS,3,0,0};
+    if(config_fault==1)values[3]=1;
+    if(config_fault==2)values[3]=2;
+    if(config_fault==3)values[2]=0;
+    if(config_fault==4)values[3]|=8;
+    if(config_fault==5)values[0]=0x10000000;
+    if(config_fault==6)values[0]=0xf0000004;
+    memcpy(response,values,sizeof(values));
+    if(config_fault==7)*words=5;
+    if(config_fault==8)return -7;
+    if(config_fault==9)per0&=~0x80U;
+    if(config_fault==10)*words=7;
+    return 0;
+}
 #endif
 static unsigned invalid_sd_clock,invalid_sd_route,sd_mmio,clock_reads;
 int fes_nano_cold_cpu_release_locked(void) { return release_locked; }
@@ -223,9 +244,36 @@ int main(int argc,char **argv)
         assert(reply[0]==4 && !fpga_reads && bridge==15);return 0;
     }
     assert(setup==1);
+    if(mutation>=40) {
+        config_fault=mutation==40?0:mutation==41?1:7;
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONFIGURATION,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(config_calls==1 && !fpga_reads && bridge==15 && !engine_calls);
+        assert(fes_nano_owned_bridges.state.generation==1 && fes_nano_owned_bridges.state.never_enabled);
+        if(config_fault<7) {
+            assert(!reply[0] && reply[1]==((uint64_t)FES_EMBEDDED_BRIDGE_CONFIGURATION_TAG<<32|(config_fault?0U:1U)));
+            assert(reply[2]==record.owner && reply[3]==1 && !fes_nano_owned_bridges.failed);
+        } else assert(reply[0]==4 && !reply[2] && !reply[3] && fes_nano_owned_bridges.failed);
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONFIGURATION,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(reply[0]!=0 && config_calls==1 && !fpga_reads && bridge==15);return 0;
+    }
     bad_magic=mutation==23;bad_build=mutation==24;flip_cache=mutation==25;lose_data=mutation==26;
     bad_open=mutation==27;bad_close=mutation==28;
+    if(mutation>=30)config_fault=mutation-29;
     fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+    if(mutation>=30) {
+        assert(config_calls==1 && !fpga_reads && bridge==15 && !engine_calls);
+        assert(!reply[2] && !reply[3] && fes_nano_owned_bridges.state.generation==1);
+        if(config_fault<=6) {
+            assert(reply[0]==FES_EMBEDDED_BRIDGE_NOT_READY && !fes_nano_owned_bridges.failed);
+            assert(masters.owns(masters.context,record.owner,record.epoch)==1);
+        } else {
+            assert(reply[0]==4 && fes_nano_owned_bridges.failed);
+            assert(masters.owns(masters.context,record.owner,record.epoch)!=1);
+        }
+        unsigned calls=config_calls;
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(reply[0]!=0 && calls==config_calls && !fpga_reads && bridge==15);return 0;
+    }
     if(mutation>=23) {
         assert(reply[0]==4 && !reply[2] && !reply[3] && (bridge&2U) && !engine_calls);
         assert(fes_nano_owned_bridges.failed && masters.owns(masters.context,record.owner,record.epoch)!=1);

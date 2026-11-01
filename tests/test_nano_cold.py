@@ -105,6 +105,7 @@ int main(void) {
             (inc/'lib/mmio.h').write_text('#include <stdint.h>\nuint32_t mmio_read_32(uintptr_t);\nuint16_t mmio_read_16(uintptr_t);\nvoid mmio_write_32(uintptr_t,uint32_t);\nvoid mmio_write_16(uintptr_t,uint16_t);\n')
             (inc/'common').mkdir()
             (inc/'common/debug.h').write_text('#include <stdio.h>\n#define NOTICE(...) printf(__VA_ARGS__)\n')
+            (inc/'socfpga_mailbox.h').write_text('#include <stdint.h>\n#define MBOX_JOB_ID 1U\n#define MBOX_CONFIG_STATUS 4U\n#define CMD_CASUAL 0U\n#define PIN_STATUS_NSTATUS (1U<<31)\n#define SOFTFUNC_STATUS_CONF_DONE 1U\n#define SOFTFUNC_STATUS_INIT_DONE 2U\n#define SOFTFUNC_STATUS_SEU_ERROR 8U\nint mailbox_send_cmd(uint32_t,uint32_t,uint32_t*,unsigned,uint32_t,uint32_t*,unsigned*);\n')
             header='#define FES_NANO_COLD_CHAIN {0x42,0x17}\n#define FES_NANO_COLD_OWNER_SEED 17ULL\n'
             command=['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
                      '-I'+str(inc),'-I'+str(FW),*(str(FW/name) for name in ('nano_cold_platform.c','nano_cold.c','nano_boot.c','nano_bridges.c','nano_bridge_sip.c','nano_sd.c','nano_sd_platform.c','nano_identity.c','tests/nano_cold_platform_test.c'))]
@@ -119,7 +120,7 @@ int main(void) {
                 binary=base/('platform-'+str(sd)+'-'+str(context)+'-'+str(probe))
                 r=subprocess.run(command+['-DFES_NANO_CONTROLLED_SD='+str(sd),*(['-DFES_TEST_HPS_CONTEXT'] if context else []),'-o',str(binary)],capture_output=True,text=True)
                 self.assertEqual(r.returncode,0,r.stderr)
-                for mutation in range(30 if probe and context else 25 if sd else 22):
+                for mutation in range(43 if probe and context else 25 if sd else 22):
                     with self.subTest(sd=sd,context=context,probe=probe,mutation=mutation):
                         r=subprocess.run([str(binary),str(mutation)],capture_output=True,text=True)
                         self.assertEqual(r.returncode,0,r.stderr)

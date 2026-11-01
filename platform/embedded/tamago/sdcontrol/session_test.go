@@ -146,6 +146,7 @@ func TestFirmwareAndPIOReadQuiesceResume(t *testing.T) {
 	for _, a := range [][7]uint64{
 		{uint64(g.FesEmbeddedBridgeCall), 0, 0, uint64(g.FesEmbeddedBridgeCookie)},
 		{uint64(g.FesEmbeddedBridgeCall), uint64(g.FesEmbeddedBridgeProbeIdentity), 17, uint64(g.FesEmbeddedBridgeCookie), 1},
+		{uint64(g.FesEmbeddedBridgeCall), uint64(g.FesEmbeddedBridgeConfiguration), 17, uint64(g.FesEmbeddedBridgeCookie), 1},
 		{0xc2000001},
 	} {
 		reply, err := firmware.Invoke(a)

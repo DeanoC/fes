@@ -18,6 +18,12 @@ static int fail(struct fes_nano_identity_probe *p, int error)
 }
 static int closed(struct fes_nano_bridge_snapshot *s)
 { return s->reset==FES_NANO_BRIDGES_ALL && s->masters_contained; }
+static void recover(struct fes_nano_identity_probe *p, uint64_t result[4])
+{
+    trace(p,FES_ID_CONTAIN);
+    p->cleanup_error=p->io.contain(p->io.context);
+    p->active=0;p->failed=1;p->bridges->failed=1;result[0]=4;
+}
 int fes_nano_identity_init(struct fes_nano_identity_probe *p, struct fes_nano_bridges *b,
                              struct fes_nano_identity_ops io, uint32_t abi,
                              const uint32_t build[4], unsigned qualified)
@@ -27,7 +33,7 @@ int fes_nano_identity_init(struct fes_nano_identity_probe *p, struct fes_nano_br
     p->initialized=1;p->stage=FES_ID_INIT;
     unsigned nonzero=0;
     if (build) for (unsigned i=0;i<4;i++) nonzero|=build[i];
-    if (qualified!=1 || !b || !io.read32 || !io.contain || !abi || !nonzero ||
+    if (qualified!=1 || !b || !io.configured || !io.read32 || !io.contain || !abi || !nonzero ||
         fes_nano_bridges_observe(b,&s) || !closed(&s) || !s.never_enabled || s.generation!=1)
         return fail(p,-1);
     p->bridges=b;p->io=io;p->abi=abi;memcpy(p->build,build,sizeof(p->build));
@@ -56,10 +62,30 @@ static int identity_read(struct fes_nano_identity_probe *p, const struct fes_nan
     }
     return control_owned(p,control);
 }
+void fes_nano_identity_configuration_sip(struct fes_nano_identity_probe *p, uint64_t owner,
+                            uint64_t generation, unsigned configuring, uint64_t result[4])
+{
+    struct fes_nano_bridge_snapshot s;
+    result[0]=2;result[1]=(uint64_t)FES_EMBEDDED_BRIDGE_CONFIGURATION_TAG<<32;result[2]=result[3]=0;
+    if(configuring || (p && p->bridges && p->bridges->device_lease)){result[0]=1;return;}
+    if(!p || !p->initialized){result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return;}
+    if(p->failed){result[0]=4;return;}
+    if(!owner || generation!=1 || p->queried || p->bridges->state.owner!=owner)return;
+    if(fes_nano_bridges_observe(p->bridges,&s) || !closed(&s) ||
+       s.generation!=generation || !s.never_enabled){result[0]=4;return;}
+    p->queried=1;p->stage=FES_ID_CONFIG;
+    int ready=p->io.configured(p->io.context);
+    if(ready<0 || ready>1){fail(p,ready);recover(p,result);return;}
+    if(fes_nano_bridges_observe(p->bridges,&s) || !closed(&s) ||
+       s.owner!=owner || s.generation!=generation || !s.never_enabled){
+        fail(p,-1);recover(p,result);return;
+    }
+    result[0]=0;result[1]|=(unsigned)ready;result[2]=owner;result[3]=generation;
+}
 void fes_nano_identity_sip(struct fes_nano_identity_probe *p, uint64_t owner,
                             uint64_t generation, unsigned configuring, uint64_t result[4])
 {
-    struct fes_nano_bridge_snapshot before,control;
+    struct fes_nano_bridge_snapshot before,control,current;
     struct fes_nano_bridge_closure after;
     uint32_t first[15],second[15];
     result[0]=2;result[1]=(uint64_t)FES_EMBEDDED_BRIDGE_IDENTITY_TAG<<32;result[2]=result[3]=0;
@@ -69,7 +95,15 @@ void fes_nano_identity_sip(struct fes_nano_identity_probe *p, uint64_t owner,
     if (!owner || generation!=1 || p->attempted || p->bridges->state.owner!=owner) return;
     if (fes_nano_bridges_observe(p->bridges,&before) || !closed(&before) ||
         before.generation!=generation || !before.never_enabled) { result[0]=4;return; }
-    p->attempted=p->active=1;p->stage=FES_ID_OPEN;
+    p->attempted=1;p->stage=FES_ID_CONFIG;
+    int ready=p->io.configured(p->io.context);
+    if (ready<0 || ready>1) { fail(p,ready);goto recover; }
+    if (fes_nano_bridges_observe(p->bridges,&current) || !closed(&current) ||
+        current.owner!=owner || current.generation!=generation || !current.never_enabled) {
+        fail(p,-1);goto recover;
+    }
+    if (!ready) { result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return; }
+    p->active=1;p->stage=FES_ID_OPEN;
     trace(p,FES_ID_OPEN);
     if (fes_nano_bridges_open(p->bridges,owner,generation,FES_NANO_BRIDGES_CONTROL,&control)) {
         fail(p,-1);goto recover;
@@ -99,7 +133,5 @@ close:
 recover:
     /* Even a partially failed enable can have opened control. Close that path
      * independently, preserve the first error, and retire this boot's proof. */
-    trace(p,FES_ID_CONTAIN);
-    p->cleanup_error=p->io.contain(p->io.context);
-    p->active=0;p->failed=1;p->bridges->failed=1;result[0]=4;
+    recover(p,result);
 }

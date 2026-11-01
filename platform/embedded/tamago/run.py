@@ -56,7 +56,7 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard", "network", "display", "fpga", "sdpackages", "bootcontext", "fpgacontext"))
+    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard", "network", "display", "fpga", "sdpackages", "bootcontext", "fpgacontext", "fpgastatus"))
     parser.add_argument("--compiler", required=True, type=Path)
     parser.add_argument("--qemu", type=Path)
     parser.add_argument("--board", choices=("qemu", "de25-nano"), default="qemu")
@@ -88,7 +88,7 @@ def main():
         return
     if args.profile is not None or args.package_id is not None or args.hps_first_project is not None:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")
-    if args.program in ("fpga", "sdpackages", "bootcontext", "fpgacontext"):
+    if args.program in ("fpga", "sdpackages", "bootcontext", "fpgacontext", "fpgastatus"):
         parser.error("this diagnostic requires the Nano firmware service; QEMU does not emulate it")
     if args.qemu is None:
         parser.error("--board qemu requires --qemu")

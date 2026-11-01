@@ -101,14 +101,15 @@ the stated resources. The test fixture's profile is synthetic and must not be
 used on a board. Output is a diagnostic file only; the builder does not install,
 boot, sign, program, or otherwise contact a device.
 
-For Nano `bootcontext` and `fpgacontext` payloads, the builder also revalidates the sealed
+For Nano `bootcontext`, `fpgacontext` and `fpgastatus` payloads, the builder also revalidates the sealed
 HPS-first project, descriptor digest and linked descriptor bytes. It passes
 this source context to the matched SPL/BL31 cold-chain producer. Missing or
 changed context rejects; the descriptor grants no physical handoff authority.
-For `fpgacontext` it also rederives the CPU control map from the exact compiler
+For `fpgacontext` and `fpgastatus` it also rederives the CPU control map from the exact compiler
 handoff and checks its linked bytes and digest before passing it into the
 cold-chain producer. The diagnostic's secure control permission is limited to
 one identity read with continuously contained data paths.
+`fpgastatus` instead requests only configuration status and keeps control closed.
 
 Before a physical attempt, derive and review a Nano-specific RAM/firmware and
 device handoff from the matched boot chain; verify other CPU and DMA ownership,

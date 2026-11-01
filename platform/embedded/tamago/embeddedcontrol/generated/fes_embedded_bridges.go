@@ -16,6 +16,8 @@ const (
 	FesEmbeddedBridgeContextTag         uint32 = 0x46484331
 	FesEmbeddedBridgeProbeIdentity      uint32 = 0x6
 	FesEmbeddedBridgeIdentityTag        uint32 = 0x46454931
+	FesEmbeddedBridgeConfiguration      uint32 = 0x7
+	FesEmbeddedBridgeConfigurationTag   uint32 = 0x46435331
 	FesEmbeddedBridgeRequestFabric      uint32 = 0x100
 	FesEmbeddedBridgeRequestHeld        uint32 = 0x200
 	FesEmbeddedBridgeNotReady           uint32 = 0x5

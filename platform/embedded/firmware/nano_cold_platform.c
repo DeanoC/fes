@@ -15,6 +15,7 @@
 #include "nano_cold_mmio.inc"
 #if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
 #include <common/debug.h>
+#include <socfpga_mailbox.h>
 #endif
 #if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
 #include <common/debug.h>
@@ -55,6 +56,24 @@ int fes_nano_platform_boot_record(struct fes_nano_boot_record *record,
 static struct fes_nano_identity_probe identity_probe;
 static unsigned identity_reported;
 struct fes_nano_identity_probe *fes_nano_platform_identity_probe(void) { return &identity_probe; }
+static int identity_configured(void *context)
+{
+    struct fes_nano_cold *s=context;
+    uint32_t response[6]={0};unsigned words=6;
+    if (s->control_expected || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1) return -1;
+    /* CONFIG_STATUS only. The legacy ISDONE frontend can mutate bridge state.
+     * Keep the response on the secure stack and require its complete shape. */
+    NOTICE("FES_NANO_CONFIG_QUERY command=4 words=6\n");
+    int status=mailbox_send_cmd(MBOX_JOB_ID,MBOX_CONFIG_STATUS,0,0,CMD_CASUAL,response,&words);
+    unsigned valid=status==0 && words==6;
+    unsigned ready=valid && response[0]==0 && (response[2]&PIN_STATUS_NSTATUS) &&
+        (response[3]&(SOFTFUNC_STATUS_CONF_DONE|SOFTFUNC_STATUS_INIT_DONE))==
+            (SOFTFUNC_STATUS_CONF_DONE|SOFTFUNC_STATUS_INIT_DONE) &&
+        !(response[3]&SOFTFUNC_STATUS_SEU_ERROR);
+    NOTICE("FES_NANO_CONFIG_STATUS status=%d words=%u state=%x version=%x pins=%x soft=%x error_location=%x error_details=%x ready=%u\n",
+           status,words,response[0],response[1],response[2],response[3],response[4],response[5],ready);
+    return valid ? (int)ready : -5;
+}
 void fes_nano_platform_identity_report(void)
 {
     if (!identity_probe.failed || identity_reported++) return;
@@ -87,7 +106,11 @@ static int identity_read(void *context, uint32_t offset, uint32_t *value)
     if (!identity_probe.active || !s->control_expected || (read_sctlr_el3()&5U) ||
         offset>FES_EMBEDDED_REG_ACK_COOKIE_HI || offset&3U ||
         fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1) return -1;
-    dsbsy();*value=mmio_read_32(FES_NANO_CONTROL_BASE+offset);dsbsy();
+    dsbsy();
+    NOTICE("FES_NANO_IDENTITY_ACCESS phase=before ordinal=%u offset=%x value=0\n",identity_probe.reads,offset);
+    *value=mmio_read_32(FES_NANO_CONTROL_BASE+offset);
+    NOTICE("FES_NANO_IDENTITY_ACCESS phase=after ordinal=%u offset=%x value=%x\n",identity_probe.reads,offset,*value);
+    dsbsy();
     return (read_sctlr_el3()&5U) || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ? -1 : 0;
 }
 static int identity_contain(void *context)
@@ -114,7 +137,7 @@ int fes_nano_platform_identity_setup(void)
     unsigned qualified=context_nonzero && map_nonzero && !(sctlr&5U) &&
         FES_NANO_CONTROL_BASE>=0x20000000UL && FES_NANO_CONTROL_BASE<=0x3fffff00UL &&
         !(FES_NANO_CONTROL_BASE&3U) && !(FES_NANO_CONTROLLED_SD);
-    struct fes_nano_identity_ops io={.context=&provider,.read32=identity_read,.contain=identity_contain,.trace=identity_trace};
+    struct fes_nano_identity_ops io={.context=&provider,.configured=identity_configured,.read32=identity_read,.contain=identity_contain,.trace=identity_trace};
     int result=fes_nano_identity_init(&identity_probe,&fes_nano_owned_bridges,io,
                                       FES_NANO_CONTROL_ABI,build,qualified);
     if (result) NOTICE("FES_NANO_IDENTITY_FAILURE stage=%u error=%d sctlr=%llx base=%lx\n",

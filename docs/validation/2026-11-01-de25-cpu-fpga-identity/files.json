@@ -22,5 +22,9 @@
   "uboot-build.json": "db3c9d1b128d082b38affc4f04600fb5acf43297eccae62f45deca11a2689b25",
   "upload-console.log": "63d6b0aa138bd6ba6e544d483fe538ba5bf2a9490e08cdbaab8f5789a9980f26",
   "upload.json": "d65693f40381db6bf345318fd0655ed59c7d9482e9374249a255cefd117338f1",
-  "wrapper-fixtures.json": "bbd8e57bad8f9b9ebb4247a6ddfc3a351f407a836eb958ff01592385da731976"
+  "wrapper-fixtures.json": "bbd8e57bad8f9b9ebb4247a6ddfc3a351f407a836eb958ff01592385da731976",
+  "jtag-link-mismatch.log": "1049fbed8316c56b47a1536a3948e263726b9613aedab0708866e3eede8f8c6b",
+  "jtag-service-inventory.log": "3838a4cd1058a737d43571877db2aa0ee6ccac93414ebfee93ffa76da1befbde",
+  "jtag-service-inventory.json": "1dab12a0c32aa06b569da40a2771d98276f9df3062ca9b6a8e87a7d0d1ce99fb",
+  "reset-route-inspection.json": "b130a614b5ef7b6f8ce325b5c1f932146b981a842faaaa3e589654133ea1237e"
 }

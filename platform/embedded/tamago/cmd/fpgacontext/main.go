@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"runtime"
 
@@ -41,6 +42,14 @@ func main() {
 		panic(err)
 	}
 	observed, err := v.ProbeIdentity(control)
+	if errors.Is(err, nativefabric.ErrIdentityNotReady) {
+		after, check := v.Verify(id)
+		if check != nil || after != source || !after.Bridges.NeverEnabled || after.Bridges.Generation != 1 {
+			panic("unready FPGA probe lost closed source ownership")
+		}
+		fmt.Printf("FES_NATIVE_FPGA_UNREADY CLOSED owner=%x generation=1 programming=unavailable\n", source.Bridges.Owner)
+		return
+	}
 	if err != nil {
 		panic(err)
 	}
