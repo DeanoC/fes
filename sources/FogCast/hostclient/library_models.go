@@ -185,6 +185,7 @@ func (g Game) HostOnly() bool {
 type CoreEntry struct {
 	MediaID          string `json:"media_id,omitempty"`
 	MediaRole        string `json:"media_role,omitempty"`
+	MediaName        string `json:"media_name,omitempty"`
 	FirmwareRequired bool   `json:"firmware_required,omitempty"`
 	GameID           string `json:"game_id"`
 	Title            string `json:"title"`

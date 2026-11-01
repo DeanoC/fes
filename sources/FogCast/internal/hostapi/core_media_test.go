@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -49,6 +50,11 @@ func (s *coreMediaAPIService) SelectCoreEntryMedia(_ context.Context, game, pkg,
 	s.calls++
 	s.args = []string{game, pkg, expected, role, id}
 	return catalog.CoreEntry{GameID: game, PackageID: pkg, MediaRole: role, MediaID: id}, s.err
+}
+func (s *coreMediaAPIService) SetCoreEntryMediaName(_ context.Context, game, pkg, id, name string) (catalog.CoreEntry, error) {
+	s.calls++
+	s.args = []string{game, pkg, id, name}
+	return catalog.CoreEntry{GameID: game, PackageID: pkg, MediaID: id, MediaName: name}, s.err
 }
 func (s *coreMediaAPIService) TargetConnection() fogcast.TargetConnection {
 	return fogcast.TargetConnection{TargetID: launcherID, State: "ready"}
@@ -310,5 +316,61 @@ func TestLauncherAdmitsCoreMediaSelection(t *testing.T) {
 		if out.Code != http.StatusNotFound || s.calls != 1 {
 			t.Fatalf("status=%d calls=%d body=%s", out.Code, s.calls, out.Body)
 		}
+	}
+}
+
+func TestLauncherAdmitsCoreMediaName(t *testing.T) {
+	s := &coreMediaAPIService{}
+	handler, err := hostapi.NewLauncherHandler(hostapi.New(s), hostapi.LauncherConfig{Token: launcherToken, TargetID: launcherID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg, media := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	body := `{"expected_package_id":"` + pkg + `","media_id":"` + media + `","media_name":"MAZE.P"}`
+	req := launcherRequest(http.MethodPut, "http://192.0.2.1:8789/api/v1/library/core-entries/fpga-zx81/media-name", strings.NewReader(body))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	if response.Code != http.StatusOK || s.calls != 1 || !reflect.DeepEqual(s.args, []string{"fpga-zx81", pkg, media, "MAZE.P"}) {
+		t.Fatalf("name status=%d calls=%d args=%v body=%s", response.Code, s.calls, s.args, response.Body)
+	}
+	for _, path := range []string{
+		"/api/v1/library/core-entries/Nope/media-name",
+		"/api/v1/library/core-entries/fpga-zx81/media-name/extra",
+	} {
+		req := launcherRequest(http.MethodPut, "http://192.0.2.1:8789"+path, strings.NewReader(body))
+		out := httptest.NewRecorder()
+		handler.ServeHTTP(out, req)
+		if out.Code != http.StatusNotFound || s.calls != 1 {
+			t.Fatalf("%s: status=%d calls=%d body=%s", path, out.Code, s.calls, out.Body)
+		}
+	}
+}
+
+func TestCoreEntryMediaNameRoute(t *testing.T) {
+	pkg, id := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	path := "/api/v1/library/core-entries/test-zx81/media-name"
+	body := func(name string) string {
+		return `{"expected_package_id":"` + pkg + `","media_id":"` + id + `","media_name":` + strconv.Quote(name) + `}`
+	}
+	s := &coreMediaAPIService{}
+	out := mediaRequest(hostapi.New(s), "PUT", path, body("MAZE.P"), "application/json")
+	var got catalog.CoreEntry
+	if out.Code != 200 || json.Unmarshal(out.Body.Bytes(), &got) != nil || got.MediaName != "MAZE.P" ||
+		!reflect.DeepEqual(s.args, []string{"test-zx81", pkg, id, "MAZE.P"}) {
+		t.Fatalf("status=%d body=%s args=%v", out.Code, out.Body, s.args)
+	}
+	for _, bad := range []string{
+		body(""), body("maze.txt"), body("dir/maze.p"), body("ma\nze.p"),
+		`{"expected_package_id":"` + pkg + `","media_id":"` + id + `"}`,
+		`{"expected_package_id":"` + pkg + `","media_id":"","media_name":"MAZE.P"}`,
+		`{"expected_package_id":"` + pkg + `","media_id":"` + id + `","media_name":"MAZE.P","extra":1}`,
+	} {
+		s := &coreMediaAPIService{}
+		if out := mediaRequest(hostapi.New(s), "PUT", path, bad, "application/json"); out.Code != 400 || s.calls != 0 {
+			t.Fatalf("%s: status=%d calls=%d", bad, out.Code, s.calls)
+		}
+	}
+	if out := mediaRequest(hostapi.New(&coreLibraryAPIService{}), "PUT", path, body("MAZE.P"), "application/json"); out.Code != 501 {
+		t.Fatalf("unsupported service status=%d", out.Code)
 	}
 }
