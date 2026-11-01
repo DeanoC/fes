@@ -1,0 +1,16 @@
+{
+  "source_revision": "09d0be9e2b17141562029866cfaa5ac6ca5d209a",
+  "command": [
+    "python3",
+    "out/menu-profile-focused.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-frame-client",
+  "started_utc": "2026-11-01T12:42:59.390990+00:00",
+  "time_cap_seconds": 900,
+  "hardware_access": "not-performed",
+  "pid": 43248,
+  "state": "passed",
+  "elapsed_seconds": 111.2,
+  "heartbeat_utc": "2026-11-01T12:44:50.634357+00:00",
+  "returncode": 0
+}
