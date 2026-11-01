@@ -43,8 +43,8 @@ func TestNativeDisconnectReleasesOnlyLostDeviceHolds(t *testing.T) {
 	app.HandleLocalPad(a, now)
 	app.HandleLocalPad(b, now)
 	app.HandleLocalPad(otherA, now)
-	app.HandlePlayHIDKey("a", true, now)
-	app.HandlePlayHIDKey("q", true, now)
+	app.HandlePlayHIDScancode("a", nativeHIDUsage(30), true, now)
+	app.HandlePlayHIDScancode("q", nativeHIDUsage(16), true, now)
 	drainLocalKeyQueue(t, app)
 	lost := &nativeInput{kind: InputGamepad, player: 0, padHeld: map[padKey]remoteinput.Event{{0, a.Code}: a, {0, b.Code}: b}, keysHeld: map[uint16]string{30: "a", 16: "q"}}
 	other := &nativeInput{kind: InputGamepad, player: 1, padHeld: map[padKey]remoteinput.Event{{1, a.Code}: otherA}, keysHeld: map[uint16]string{30: "a"}}
@@ -79,7 +79,7 @@ func TestNativeDisconnectReleasesOnlyLostDeviceHolds(t *testing.T) {
 	}
 	app.mu.Lock()
 	defer app.mu.Unlock()
-	if !app.playKeyHeld["a"] || app.playKeyHeld["q"] || app.stopPhase == "stopping" || app.sessionDisplayBusy {
+	if !app.playKeyHeld[playHeldKey("a", nativeHIDUsage(30))] || app.playKeyHeld[playHeldKey("q", nativeHIDUsage(16))] || app.stopPhase == "stopping" || app.sessionDisplayBusy {
 		t.Fatal("disconnect navigated or cleared surviving keyboard ownership")
 	}
 }
@@ -182,4 +182,91 @@ func TestKitKeyboardIsNeutralBeforeOpeningAndNeedsNewPress(t *testing.T) {
 	if len(feed.snapshot()) != before+1 {
 		t.Fatal("fresh keyboard press did not reach the same machine")
 	}
+}
+
+func TestHeldKeyMatchesItsReleaseAcrossAHIDSessionChange(t *testing.T) {
+	for _, pressedHID := range []bool{false, true} {
+		server := httptest.NewServer(http.HandlerFunc(http.NotFound))
+		t.Cleanup(server.Close)
+		app, _ := kitDisplayApp(t, server)
+		now := time.Now()
+		// Enter launches a core and is released after the session changes
+		// whether it carries fes.keyboard.hid.
+		app.mu.Lock()
+		app.session.CoreKeyboardHID = pressedHID
+		app.mu.Unlock()
+		app.HandlePlayHIDScancode(nativeKeyName(28), nativeHIDUsage(28), true, now)
+		app.mu.Lock()
+		app.session.CoreKeyboardHID = !pressedHID
+		app.mu.Unlock()
+		app.HandlePlayHIDScancode(nativeKeyName(28), nativeHIDUsage(28), false, now)
+		drainLocalKeyQueue(t, app)
+		app.mu.Lock()
+		held := len(app.playKeyHeld)
+		app.suppressHeldPlayKeysLocked()
+		app.session.CoreKeyboardHID = pressedHID
+		app.mu.Unlock()
+		if held != 0 {
+			t.Fatalf("pressed in HID session %v: Enter still held after its release", pressedHID)
+		}
+		if app.consumeSuppressedPlayKey(nativeKeyName(28), nativeHIDUsage(28), true) {
+			t.Fatalf("pressed in HID session %v: the next Enter after a hand-off was swallowed", pressedHID)
+		}
+	}
+}
+
+func TestNativeDisconnectKeepsSharedNameButDropsLostPhysicalKey(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
+	t.Cleanup(server.Close)
+	app, feed := kitDisplayApp(t, server)
+	now := time.Now()
+	// Outside fes.keyboard.hid both Shifts send the core's one shift key.
+	lost := &nativeInput{kind: InputKeyboard, keysHeld: map[uint16]string{42: nativeKeyName(42)}}
+	other := &nativeInput{kind: InputKeyboard, keysHeld: map[uint16]string{54: nativeKeyName(54)}}
+	app.HandlePlayHIDScancode(nativeKeyName(42), nativeHIDUsage(42), true, now)
+	app.HandlePlayHIDScancode(nativeKeyName(54), nativeHIDUsage(54), true, now)
+	drainLocalKeyQueue(t, app)
+	before := len(feed.snapshot())
+	inputs := &nativeInputs{devices: []*nativeInput{other}}
+	inputs.releaseLostPlayInput(app, lost)
+	drainLocalKeyQueue(t, app)
+	for _, event := range feed.snapshot()[before:] {
+		if event.Device == remoteinput.DeviceKeyboard {
+			t.Fatalf("disconnect released shift while right Shift is still held: %+v", event)
+		}
+	}
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.playKeyHeld[playHeldKey("", nativeHIDUsage(42))] || !app.playKeyHeld[playHeldKey("", nativeHIDUsage(54))] {
+		t.Fatalf("disconnect kept left Shift or dropped right Shift: %v", app.playKeyHeld)
+	}
+}
+
+func TestNativeDisconnectReleasesKeyThatASuppressedKeyShares(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
+	t.Cleanup(server.Close)
+	app, feed := kitDisplayApp(t, server)
+	now := time.Now()
+	// Right Shift is held through a hand-off, so the core never saw it. Left
+	// Shift on the lost keyboard did reach the core, as its shift key.
+	app.HandlePlayHIDScancode(nativeKeyName(54), nativeHIDUsage(54), true, now)
+	drainLocalKeyQueue(t, app)
+	app.mu.Lock()
+	app.releasePlayHIDLocked()
+	app.suppressHeldPlayKeysLocked()
+	app.mu.Unlock()
+	app.HandlePlayHIDScancode(nativeKeyName(42), nativeHIDUsage(42), true, now)
+	drainLocalKeyQueue(t, app)
+	before := len(feed.snapshot())
+	lost := &nativeInput{kind: InputKeyboard, keysHeld: map[uint16]string{42: nativeKeyName(42)}}
+	other := &nativeInput{kind: InputKeyboard, keysHeld: map[uint16]string{54: nativeKeyName(54)}}
+	inputs := &nativeInputs{devices: []*nativeInput{other}}
+	inputs.releaseLostPlayInput(app, lost)
+	drainLocalKeyQueue(t, app)
+	for _, event := range feed.snapshot()[before:] {
+		if event.Device == remoteinput.DeviceKeyboard && event.Action == remoteinput.ActionRelease {
+			return
+		}
+	}
+	t.Fatalf("disconnect left the core's shift down behind a suppressed Right Shift: %+v", feed.snapshot()[before:])
 }

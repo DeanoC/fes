@@ -1050,34 +1050,46 @@ func (ins *nativeInputs) drop(app *App, lost *nativeInput) {
 
 func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 	app.mu.Lock()
-	// A key stays down while another keyboard holds the same key
-	// (playHeldKey: its HID usage in a fes.keyboard.hid session).
-	hid := app.session.CoreKeyboardHID
+	// The core sees a key's release only when no other keyboard still holds a
+	// key that sends the same core key; the suppression record goes with the
+	// lost keyboard's physical key unless another keyboard holds that key too.
+	release := func(code uint16, name string) (remoteinput.Event, bool) {
+		if app.session.CoreKeyboardHID {
+			return hidkeys.Event(nativeHIDUsage(code), false)
+		}
+		return playhid.Event(name, false, app.session.CoreKeyboard)
+	}
 	remainingKeys := map[string]bool{}
+	remainingCore := map[playHIDKey]bool{}
 	for _, in := range ins.devices {
 		for code, name := range in.keysHeld {
-			remainingKeys[playHeldKey(name, nativeHIDUsage(code), hid)] = true
+			key := playHeldKey(name, nativeHIDUsage(code))
+			remainingKeys[key] = true
+			// A suppressed key never reached the core, and its release will
+			// not either, so it cannot keep the core's key down.
+			if app.playKeySuppressed[key] {
+				continue
+			}
+			if event, ok := release(code, name); ok {
+				remainingCore[playHIDKey{event.Player, event.Device, event.Kind, event.Code}] = true
+			}
 		}
 	}
 	padEvents := releasePortLocked(app, lost)
 	var keyEvents []remoteinput.Event
 	for code, name := range lost.keysHeld {
-		key := playHeldKey(name, nativeHIDUsage(code), hid)
-		if remainingKeys[key] {
+		if key := playHeldKey(name, nativeHIDUsage(code)); !remainingKeys[key] {
+			delete(app.playKeyHeld, key)
+			delete(app.playKeySuppressed, key)
+		}
+		event, ok := release(code, name)
+		if !ok {
 			continue
 		}
-		delete(app.playKeyHeld, key)
-		delete(app.playKeySuppressed, key)
-		event, ok := playhid.Event(name, false, app.session.CoreKeyboard)
-		if hid {
-			event, ok = hidkeys.Event(nativeHIDUsage(code), false)
-		}
-		if ok {
-			key := playHIDKey{event.Player, event.Device, event.Kind, event.Code}
-			if _, held := app.playHIDHeld[key]; held {
-				delete(app.playHIDHeld, key)
-				keyEvents = append(keyEvents, event)
-			}
+		key := playHIDKey{event.Player, event.Device, event.Kind, event.Code}
+		if _, held := app.playHIDHeld[key]; held && !remainingCore[key] {
+			delete(app.playHIDHeld, key)
+			keyEvents = append(keyEvents, event)
 		}
 	}
 	feed := app.localFeed

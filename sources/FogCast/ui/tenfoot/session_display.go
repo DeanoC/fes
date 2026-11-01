@@ -59,12 +59,13 @@ func (a *App) suppressHeldPlayKeysLocked() {
 	}
 }
 
-// playHeldKey names one held key in playKeyHeld and playKeySuppressed. A
-// fes.keyboard.hid session (hid) names a key by its HID usage: keys such as F1
-// and the keypad have no play-keyboard name, and the left and right modifiers
-// share one. Other sessions, and a key with no usage, use the name.
-func playHeldKey(name string, usage uint8, hid bool) string {
-	if hid && usage != 0 {
+// playHeldKey names one physical key in playKeyHeld and playKeySuppressed: its
+// HID usage, or its name when the caller has no usage. Keys such as F1 and the
+// keypad have no play-keyboard name, and the left and right modifiers share
+// one. The name does not depend on the session, so a key pressed before a
+// fes.keyboard.hid session starts or ends still matches its release.
+func playHeldKey(name string, usage uint8) string {
+	if usage != 0 {
 		return fmt.Sprintf("hid:%02x", usage)
 	}
 	return strings.ToLower(strings.TrimSpace(name))
@@ -80,7 +81,7 @@ func (a *App) consumeSuppressedPlayKey(name string, usage uint8, down bool) bool
 	name = strings.ToLower(strings.TrimSpace(name))
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	key := playHeldKey(name, usage, a.session.CoreKeyboardHID)
+	key := playHeldKey(name, usage)
 	if a.playKeyHeld == nil {
 		a.playKeyHeld = make(map[string]bool)
 	}
