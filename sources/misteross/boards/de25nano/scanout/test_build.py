@@ -1,4 +1,5 @@
 """Actual upstream composition, retained-source and fail-closed mutation guards."""
+import gzip
 import importlib.util
 import json
 from pathlib import Path
@@ -68,7 +69,8 @@ class ScanoutBuildTests(unittest.TestCase):
         path.write_text(B.timed_scanout_sdc(path.read_text()))
         inputs["scanout"]["source_sha256"]["clocks.sdc"] = B.sha(path.read_bytes())
         (directory / "inputs.json").write_text(json.dumps(inputs))
-        vendor = (B.HERE.parents[2] / "tests/fixtures/de25_reset_controller.sdc").read_bytes()
+        vendor = gzip.decompress((B.HERE.parents[2] /
+            "tests/fixtures/de25_reset_controller.sdc.gz").read_bytes())
         for i in range(6):
             path = directory / f"project/generated-{i}/altera_reset_controller.sdc"
             path.parent.mkdir()
@@ -119,7 +121,8 @@ class ScanoutBuildTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("tclsh"), "Tcl interpreter is unavailable")
     def test_actual_sdc_guard_times_only_three_instances_and_preserves_other_cuts(self):
-        raw = (B.HERE.parents[2] / "tests/fixtures/de25_reset_controller.sdc").read_bytes()
+        raw = gzip.decompress((B.HERE.parents[2] /
+            "tests/fixtures/de25_reset_controller.sdc.gz").read_bytes())
         changed = B.timed_vendor_reset_sdc(raw).decode()
         conditions = re.findall(r"(?m)^if \{(\$(?:aclr|clrn)_counter > 0 && .+)\} \{$", changed)
         self.assertEqual(len(conditions), 2)
