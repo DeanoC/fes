@@ -95,3 +95,11 @@ class KernelPlatformTests(unittest.TestCase):
                                      'CONFIG_FES_DE25_DMA_KUNIT_TEST=y')):
             with self.assertRaises(ValueError):
                 platform.verify_config(changed)
+
+    def test_usb_bluetooth_and_input_require_builtins_in_the_owner_image(self):
+        text = ''.join('CONFIG_' + n + '=y\n' for n in platform.ENABLED)
+        text += 'CONFIG_LOCALVERSION="-fes-de25-owner"\n'
+        platform.verify_config(text)
+        for name in ('RFKILL', 'BT', 'BT_HCIBTUSB', 'BT_RTL', 'BT_HIDP', 'UHID', 'INPUT_UINPUT'):
+            with self.subTest(setting=name), self.assertRaisesRegex(ValueError, name):
+                platform.verify_config(text.replace('CONFIG_'+name+'=y\n', 'CONFIG_'+name+'=m\n'))

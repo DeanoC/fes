@@ -25,7 +25,10 @@ ENABLED = ("FES_DE25_DMA", "FES_DE25_DMA_PLATFORM", "OF_OVERLAY", "OF_CONFIGFS",
            "CONFIGFS_FS", "FPGA", "FPGA_MGR_STRATIX10_SOC", "FPGA_BRIDGE",
            "FPGA_REGION", "OF_FPGA_REGION", "INTEL_STRATIX10_SERVICE", "ARM_SMMU_V3",
            "IOMMU_DEFAULT_DMA_STRICT", "DMA_CMA", "OF",
-           "FTRACE", "TRACEPOINTS", "TRACING", "EVENT_TRACING")
+           "FTRACE", "TRACEPOINTS", "TRACING", "EVENT_TRACING",
+           "RFKILL", "BT", "BT_BREDR", "BT_LE", "BT_RFCOMM", "BT_RFCOMM_TTY", "BT_HIDP",
+           "BT_HCIBTUSB", "BT_HCIBTUSB_BCM", "BT_HCIBTUSB_RTL", "BT_INTEL", "BT_BCM", "BT_RTL",
+           "INPUT_EVDEV", "INPUT_UINPUT", "UHID", "HID_GENERIC", "USB_HID")
 DISABLED = ("LOCALVERSION_AUTO", "FES_DE25_DMA_KUNIT_TEST")
 
 
@@ -140,7 +143,8 @@ def inside(jobs, revision):
     dep.checked([verifier, dtb])
     symbols = (build / "System.map").read_text()
     for name in ("fes_de25_owner_probe", "fes_de25_dma_create", "s10_probe", "of_fpga_region_probe",
-                 "simple_pm_bus_probe"):
+                 "simple_pm_bus_probe", "hci_register_dev", "btusb_probe", "rfkill_register",
+                 "uhid_init", "uinput_init"):
         if not re.search(r" [tT] " + name + r"(?:\.[^\s]+)?$", symbols, re.M):
             raise ValueError("required built-in symbol missing: " + name)
     files = {"Image": build / "arch/arm64/boot/Image", "kernel.config": config,
@@ -149,7 +153,7 @@ def inside(jobs, revision):
     result = {"format": 1, "classification": "unbooted opt-in permanent-owner kernel preparation",
               "fes_revision": revision, "kernel": dep.selected_lock(), "release": release,
               "suppliers": profile, "candidate_enabled": True, "normal_runtime_admission": "closed",
-              "hardware_acceptance": "not-run", "modules": "FPGA/owner built-in; no vendor modules reused",
+              "hardware_acceptance": "not-run", "modules": "FPGA/owner and USB Bluetooth/HID built-in; no vendor modules reused",
               "compiler": subprocess.check_output([str(prefix) + "gcc", "--version"], text=True).splitlines()[0], "files": {}}
     for name, path in files.items():
         shutil.copyfile(path, export / name)
