@@ -753,6 +753,13 @@ func (ins *nativeInputs) key(app *App, in *nativeInput, code uint16, value int32
 					for heldCode := range other.keysHeld {
 						if nativeHIDUsage(heldCode) == usage {
 							delete(in.keysHeld, code)
+							if (code == 42 || code == 54) && in.shifts != nil {
+								in.shifts[code] = false
+							}
+							if in.commands != nil {
+								app.Release(in.commands[code])
+								delete(in.commands, code)
+							}
 							return false
 						}
 					}

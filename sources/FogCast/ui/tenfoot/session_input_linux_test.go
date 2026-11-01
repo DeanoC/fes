@@ -152,9 +152,9 @@ func TestNativeKeyboardsReleaseSharedHIDUsageAfterLastHolder(t *testing.T) {
 	if !ok {
 		t.Fatal("F1 has no HID event code")
 	}
-	writeKey := func(writer *os.File, value int32) {
+	writeKey := func(writer *os.File, code uint16, value int32) {
 		t.Helper()
-		if _, err := writer.Write(nativeTestEvent(1, 59, value)); err != nil { // Linux KEY_F1.
+		if _, err := writer.Write(nativeTestEvent(1, code, value)); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := inputs.poll(app, now); err != nil {
@@ -173,15 +173,30 @@ func TestNativeKeyboardsReleaseSharedHIDUsageAfterLastHolder(t *testing.T) {
 		return count
 	}
 
-	writeKey(firstWriter, 1)
-	writeKey(secondWriter, 1)
-	writeKey(firstWriter, 0)
+	writeKey(firstWriter, 59, 1) // Linux KEY_F1.
+	writeKey(secondWriter, 59, 1)
+	writeKey(firstWriter, 59, 0)
 	if got := releases(); got != 0 {
 		t.Fatalf("first keyboard released F1 while the second still held it: %+v", feed.snapshot())
 	}
-	writeKey(secondWriter, 0)
+	writeKey(secondWriter, 59, 0)
 	if got := releases(); got != 1 {
 		t.Fatalf("last keyboard release count = %d, want 1: %+v", got, feed.snapshot())
+	}
+
+	writeKey(firstWriter, 42, 1) // Linux KEY_LEFTSHIFT.
+	writeKey(secondWriter, 42, 1)
+	writeKey(firstWriter, 42, 0)
+	writeKey(secondWriter, 42, 0)
+	app.mu.Lock()
+	app.session.State = "idle"
+	app.session.CoreKeyboardHID = false
+	app.session.Input = nil
+	app.mu.Unlock()
+	app.HandleCommand(CmdSearch, now)
+	writeKey(firstWriter, 2, 1) // Linux KEY_1 must not inherit either Shift hold.
+	if got := app.Snapshot().OSK.Buffer; got != "1" {
+		t.Fatalf("menu text after shared Shift releases = %q, want 1", got)
 	}
 }
 
