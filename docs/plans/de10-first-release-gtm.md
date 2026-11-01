@@ -4,6 +4,9 @@
 
 This is a release plan, not an acceptance record. The default image currently contains the `fes.menu` display package and the locked idle/splash RBF; playable cores are installed separately. A library `supported` label describes catalog standing, not hardware acceptance of the current bytes. The working scope below is re-derived from per-core Git history, dated kit records, and concrete model/package variants. The maintained [core support matrix](../support-matrix.md) is the inventory reference; this remains a product proposal, not a matrix tier or acceptance claim.
 
+
+**First boot and setup:** the v1 decisions (four families, Home, folders, firmware, controllers) and milestone issues are in [v1 first-release first-boot & setup plan](v1-first-release-first-boot-setup.md).
+
 ## 1. Release scope
 
 ### Evidence-derived v1 qualification scope
