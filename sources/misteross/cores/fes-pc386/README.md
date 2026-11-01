@@ -61,7 +61,8 @@ Quartus 17.0.2.
 | [`sim/capture_tb.cpp`](sim/capture_tb.cpp), [`sim/vga_capture_top.sv`](sim/vga_capture_top.sv) | Forces capture FIFO overflow and checks that the damaged frame is discarded and a later frame completes |
 | [`sim/plane_tb.cpp`](sim/plane_tb.cpp), [`sim/plane_top.sv`](sim/plane_top.sv) | The plane through the bridge and the port 2 arbiter beside the presenter and capture traffic |
 | [`sim/pc386_ddr_model.h`](sim/pc386_ddr_model.h) | The DDR window and 64-bit port model with the measured latency |
-| [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS 1.4 package commits and file hashes of the simulation disk |
+| [`sim/freedos.lock`](sim/freedos.lock) | The FreeDOS 1.4 package commits and file hashes of the simulation and games disks |
+| [`sim/fesenv.asm`](sim/fesenv.asm) | FESENV.COM: the games disk's `BLASTER` line from CMOS 60h-62h |
 
 The 8254 is the shared KF8253 with `READ_BACK = 1`; the DMA controllers are the
 shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
@@ -71,6 +72,7 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 ```sh
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
+python3 scripts/build_pc386_freedos_image.py --profile games --download  # the games image (HIMEMX, CuteMouse, MEM, BLASTER)
 python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
 python3 scripts/sim_fes_pc386.py --suite storage        # the fes.computer 1.1 golden exchanges, about 2 min
 python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixer, about 1 min
@@ -78,6 +80,7 @@ python3 scripts/sim_fes_pc386.py --suite opl2           # OPL2 against Nuked-OPL
 python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture overflow recovery and display plane on port 2
 python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt and its VGA replay
 python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl   # the RTL must reach the prompt without stops, stalls or oracle steps
+python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|' --expect 'high memory area'  # the games image
 python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path on the stop test disk, against the oracle
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
@@ -357,6 +360,32 @@ M5 replaced it: the CPU now drives the same machine, and the bus master, its
 ring, the port fence its machine reset needed, the diagnostic tool and the
 nextpnr producer are gone. Its last open exit, the disk round trip with the
 runtime, waits on the M0 contracts either way.
+
+## M5 games
+
+The games image is what the acceptance games run in on a kit, as the FogCast
+disk builder's image will be
+([FreeDOS in the builder](../../docs/pc386-machine-design.md#freedos-in-the-fogcast-disk-builder)).
+`build_pc386_freedos_image.py --profile games` writes
+`build/sim/fes-pc386/freedos-games.img`: the boot fixture's kernel and FreeCOM,
+with HIMEMX 3.38, CuteMouse 2.1b4 and MEM 1.12 from their FreeDOS 1.4 package
+archives in `C:\FDOS\BIN`, pinned in [`sim/freedos.lock`](sim/freedos.lock).
+- `FDCONFIG.SYS` loads HIMEMX and `DOS=HIGH`.
+- `AUTOEXEC.BAT` runs [`FESENV.COM`](sim/fesenv.asm) into
+  `C:\FDOS\FESENV.BAT` and calls it, so `BLASTER` follows the Sound Blaster
+  setting in CMOS 60h-62h at every boot, then loads CuteMouse.
+- HIMEMX runs with `/MAX=0`: it manages the HMA and A20 and offers no
+  extended memory. HimemX's block move (XMS function 0Bh) runs SMSW and then
+  enters unreal mode, and `fes_i386_cpu` has neither yet. With free XMS,
+  FreeDOS 1.4's FreeCOM (its XMS_Swap build) would copy itself there at
+  start-up, and Wolfenstein 3D's page manager would cache pages there; both
+  would stop the CPU. The limit goes when the CPU has protected mode, which
+  Ultima VII's 2 MiB of XMS needs anyway.
+
+The images are test fixtures and are never distributed. The games
+themselves are user-supplied and go onto a copy of the image only for a kit
+run. The [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
+has the kit runs.
 
 ## Not built yet
 

@@ -61,7 +61,8 @@ class FreedosImageTest(unittest.TestCase):
     def test_lock_pins_each_package_at_the_release_tag(self):
         lock = freedos.lock()
         self.assertEqual(lock['tag'], 'FreeDOS-v1.4')
-        self.assertEqual(set(lock['packages']), {'kernel', 'freecom', 'fdisk'})
+        self.assertEqual(set(lock['packages']), {'kernel', 'freecom', 'fdisk', 'himemx', 'ctmouse', 'mem'})
+        self.assertEqual(set(lock['packages']), {name for spec in freedos.PROFILES.values() for name in spec['packages']})
         for spec in lock['packages'].values():
             self.assertRegex(spec['commit'], r'^[0-9a-f]{40}$')
             self.assertIn('GPL', spec['license'])
@@ -79,7 +80,7 @@ class FreedosImageTest(unittest.TestCase):
             image.write_bytes(b'disk')
             record = {'sha256': freedos.hashlib.sha256(b'disk').hexdigest(), 'inputs': freedos.inputs_key()}
             image.with_suffix('.json').write_text(json.dumps(record))
-            with mock.patch.object(freedos, 'IMAGE', image), \
+            with mock.patch.dict(freedos.PROFILES['boot'], {'image': image}), \
                     mock.patch.object(freedos, 'build', return_value='rebuilt') as build:
                 self.assertEqual(freedos.image(), image)
                 image.with_suffix('.json').write_text(json.dumps({**record, 'inputs': 'old'}))
@@ -90,6 +91,19 @@ class FreedosImageTest(unittest.TestCase):
                 image.with_suffix('.json').write_text('{')
                 self.assertEqual(freedos.image(), 'rebuilt')
                 self.assertEqual(build.call_count, 3)
+
+    def test_each_profile_has_its_own_inputs(self):
+        self.assertNotEqual(freedos.inputs_key('boot'), freedos.inputs_key('games'))
+        with tempfile.TemporaryDirectory() as directory:
+            image = Path(directory) / 'freedos-games.img'
+            image.write_bytes(b'disk')
+            record = {'sha256': freedos.hashlib.sha256(b'disk').hexdigest(), 'inputs': freedos.inputs_key('boot')}
+            image.with_suffix('.json').write_text(json.dumps(record))
+            with mock.patch.dict(freedos.PROFILES['games'], {'image': image}):
+                self.assertFalse(freedos.image_is_current('games'))
+                record['inputs'] = freedos.inputs_key('games')
+                image.with_suffix('.json').write_text(json.dumps(record))
+                self.assertTrue(freedos.image_is_current('games'))
 
     def test_mbr_code_is_read_from_the_fdisk_array(self):
         with tempfile.TemporaryDirectory() as directory:

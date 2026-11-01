@@ -1,12 +1,28 @@
 #!/usr/bin/env python3
-"""Build the FreeDOS hard-disk image the pc386 machine simulation boots.
+"""Build the FreeDOS hard-disk images the pc386 machine boots in simulation and
+on kit runs.
 
-The image is a simulation fixture only. It is written into the ignored build
-directory and is never distributed, packaged or committed. Distributing
+The images are test fixtures only. They are written into the ignored build
+directory and are never distributed, packaged or committed. Distributing
 FreeDOS images, with the GPL source obligations that brings, is the FogCast
 disk builder's job (docs/pc386-machine-design.md, "FreeDOS in the FogCast disk
 builder"); this tool uses the same pinned FreeDOS 1.4 package archives so the
 two agree.
+
+Two profiles:
+
+  boot   build/sim/fes-pc386/freedos.img: the kernel, FreeCOM and nothing
+         else. The simulation suites boot it.
+  games  build/sim/fes-pc386/freedos-games.img: the setup the acceptance games
+         run in, as the FogCast builder's image will be. FDCONFIG.SYS loads
+         HIMEMX and DOS=HIGH; AUTOEXEC.BAT sets BLASTER from CMOS 60h-62h with
+         FESENV.COM (cores/fes-pc386/sim/fesenv.asm) and loads CuteMouse. MEM
+         is in C:\\FDOS\\BIN with them. HIMEMX runs with /MAX=0, so it manages
+         the HMA and no extended memory: every XMS block move (function 0Bh)
+         runs SMSW and enters unreal mode, and fes_i386_cpu has no protected
+         mode yet. With no free XMS, FreeCOM (the FreeDOS 1.4 build swaps
+         through XMS) and Wolfenstein 3D's page manager never move a block.
+         The limit goes when the CPU has protected mode.
 
 No network access occurs unless --download is given. The packages are fetched
 at the commits in cores/fes-pc386/sim/freedos.lock (each package repository's
@@ -16,6 +32,9 @@ FreeDOS-v1.4 tag) and every file used is checked against its pinned SHA-256:
            boot sector, assembled with the test386 runner's pinned NASM
   freecom  COMMAND.COM
   fdisk    bootnorm.c, the bytes of Free FDISK's master boot record
+  himemx   HIMEMX.EXE (games)
+  ctmouse  CTMOUSE.EXE (games)
+  mem      MEM.EXE (games)
 
 The disk is 65 cylinders of 16 heads and 63 sectors (32.0 MiB). One active
 FAT16 partition (type 06h) starts at cylinder 0, head 1; mtools formats it and
@@ -24,8 +43,9 @@ does. The partition entry's end CHS states the geometry, which is how the
 machine (and FogCast) infer it. The image is reproducible: file times, the
 volume serial and the label are fixed.
 
-Example:
+Examples:
   python3 scripts/build_pc386_freedos_image.py --download
+  python3 scripts/build_pc386_freedos_image.py --profile games --download
 """
 from __future__ import annotations
 
@@ -46,8 +66,8 @@ from scripts import test_fes_i386_test386 as test386
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / 'cores/fes-pc386/sim/freedos.lock'
+FESENV = ROOT / 'cores/fes-pc386/sim/fesenv.asm'
 BUILD = ROOT / 'build/sim/fes-pc386/freedos'
-IMAGE = ROOT / 'build/sim/fes-pc386/freedos.img'
 
 CYLINDERS, HEADS, SPT = 65, 16, 63
 TOTAL_SECTORS = CYLINDERS * HEADS * SPT
@@ -57,8 +77,28 @@ VOLUME_SERIAL = 0x1386_0026
 # 2026-10-26 12:00 UTC: the file times on the image.
 FILE_TIME = 1793016000
 
-FDCONFIG = 'FILES=20\r\nBUFFERS=20\r\nSHELL=C:\\COMMAND.COM C:\\ /E:1024 /P=C:\\AUTOEXEC.BAT\r\n'
-AUTOEXEC = '@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\\r\nVER\r\n'
+SHELL = 'SHELL=C:\\COMMAND.COM C:\\ /E:1024 /P=C:\\AUTOEXEC.BAT\r\n'
+# Each profile: its image, the lock's packages it takes, its FDCONFIG.SYS and
+# AUTOEXEC.BAT, and the files in C:\FDOS\BIN (a package file, or fesenv.asm).
+PROFILES = {
+    'boot': {
+        'image': ROOT / 'build/sim/fes-pc386/freedos.img',
+        'packages': ('kernel', 'freecom', 'fdisk'),
+        'fdconfig': 'FILES=20\r\nBUFFERS=20\r\n' + SHELL,
+        'autoexec': '@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\\r\nVER\r\n',
+        'bin': {},
+    },
+    'games': {
+        'image': ROOT / 'build/sim/fes-pc386/freedos-games.img',
+        'packages': ('kernel', 'freecom', 'fdisk', 'himemx', 'ctmouse', 'mem'),
+        'fdconfig': ('FILES=20\r\nBUFFERS=20\r\nDOS=HIGH\r\n'
+                     'DEVICE=C:\\FDOS\\BIN\\HIMEMX.EXE /MAX=0 /VERBOSE\r\n' + SHELL),
+        'autoexec': ('@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\FDOS\\BIN;C:\\\r\n'
+                     'FESENV > C:\\FDOS\\FESENV.BAT\r\nCALL C:\\FDOS\\FESENV.BAT\r\nCTMOUSE\r\nVER\r\n'),
+        'bin': {'HIMEMX.EXE': ('himemx', 'BIN/HimemX.exe'), 'CTMOUSE.EXE': ('ctmouse', 'BIN/CTMOUSE.EXE'),
+                'MEM.EXE': ('mem', 'BIN/MEM.EXE'), 'FESENV.COM': None},
+    },
+}
 
 
 class ImageError(RuntimeError):
@@ -69,11 +109,15 @@ def lock() -> dict:
     return json.loads(LOCK.read_text())
 
 
-def inputs_key() -> str:
-    """Identity of everything the image is built from: the lock (package
-    commits and file hashes), the builder, NASM helper and assembler version."""
-    digest = hashlib.sha256()
-    for path in (LOCK.resolve(), Path(__file__).resolve(), Path(test386.__file__).resolve()):
+def inputs_key(profile: str = 'boot') -> str:
+    """Identity of everything a profile's image is built from: the profile, the
+    lock (package commits and file hashes), the builder, NASM helper and
+    assembler version, and FESENV's source when the image carries it."""
+    digest = hashlib.sha256(profile.encode() + b'\0')
+    sources = [LOCK.resolve(), Path(__file__).resolve(), Path(test386.__file__).resolve()]
+    if 'FESENV.COM' in PROFILES[profile]['bin']:
+        sources.append(FESENV.resolve())
+    for path in sources:
         digest.update(path.relative_to(ROOT).as_posix().encode())
         digest.update(b'\0')
         digest.update(path.read_bytes())
@@ -82,15 +126,15 @@ def inputs_key() -> str:
     return digest.hexdigest()
 
 
-def image_is_current(image: Path | None = None) -> bool:
+def image_is_current(profile: str = 'boot') -> bool:
     """Check both the fixture's input identity and the image bytes."""
-    image = IMAGE if image is None else image
+    image = PROFILES[profile]['image']
     try:
         record = json.loads(image.with_suffix('.json').read_text())
         image_digest = hashlib.sha256(image.read_bytes()).hexdigest()
     except (OSError, ValueError):
         return False
-    return (isinstance(record, dict) and record.get('inputs') == inputs_key() and
+    return (isinstance(record, dict) and record.get('inputs') == inputs_key(profile) and
             record.get('sha256') == image_digest)
 
 
@@ -135,13 +179,16 @@ def chs(lba: int) -> bytes:
     return bytes((head, ((cylinder >> 2) & 0xc0) | (sector + 1), cylinder & 0xff))
 
 
-def boot_sector(kernel: Path, nasm: Path, work: Path) -> bytes:
-    output = work / 'fat16com.bin'
-    result = subprocess.run([str(nasm), '-dISFAT16', '-f', 'bin', str(kernel / 'SOURCE/KERNEL/boot/boot.asm'),
-                             '-o', str(output)], capture_output=True, text=True)
+def assemble(nasm: Path, source: Path, output: Path, *options: str) -> bytes:
+    result = subprocess.run([str(nasm), *options, '-f', 'bin', str(source), '-o', str(output)],
+                            capture_output=True, text=True)
     if result.returncode:
-        raise ImageError('NASM failed on boot.asm:\n' + result.stderr)
-    data = output.read_bytes()
+        raise ImageError(f'NASM failed on {source.name}:\n' + result.stderr)
+    return output.read_bytes()
+
+
+def boot_sector(kernel: Path, nasm: Path, work: Path) -> bytes:
+    data = assemble(nasm, kernel / 'SOURCE/KERNEL/boot/boot.asm', work / 'fat16com.bin', '-dISFAT16')
     if len(data) != 512 or data[510:] != b'\x55\xaa':
         raise ImageError('boot.asm did not assemble to a boot sector')
     return data
@@ -153,9 +200,10 @@ def mtools(*command: str, env: dict) -> None:
         raise ImageError(' '.join(command) + ' failed:\n' + result.stdout + result.stderr)
 
 
-def build(download: bool = False, jobs: int = 4) -> Path:
-    packages = lock()['packages']
-    trees = {name: package(name, spec, download) for name, spec in packages.items()}
+def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
+    spec = PROFILES[profile]
+    packages = {name: lock()['packages'][name] for name in spec['packages']}
+    trees = {name: package(name, pins, download) for name, pins in packages.items()}
     nasm = test386.nasm(download, jobs)
     work = BUILD / 'work'
     shutil.rmtree(work, ignore_errors=True)
@@ -198,42 +246,54 @@ def build(download: bool = False, jobs: int = 4) -> Path:
     staged.mkdir()
     for target, source in files.items():
         shutil.copyfile(source, staged / target)
-    (staged / 'FDCONFIG.SYS').write_bytes(FDCONFIG.encode())
-    (staged / 'AUTOEXEC.BAT').write_bytes(AUTOEXEC.encode())
+    (staged / 'FDCONFIG.SYS').write_bytes(spec['fdconfig'].encode())
+    (staged / 'AUTOEXEC.BAT').write_bytes(spec['autoexec'].encode())
     # KERNEL.SYS first, as SYS places it, then the rest in a fixed order.
     for name in ('KERNEL.SYS', 'COMMAND.COM', 'FDCONFIG.SYS', 'AUTOEXEC.BAT'):
         os.utime(staged / name, (FILE_TIME, FILE_TIME))
         mtools('mcopy', '-m', '-i', volume, str(staged / name), '::' + name, env=env)
+    if spec['bin']:
+        mtools('mmd', '-i', volume, '::FDOS', '::FDOS/BIN', env=env)
+    for name, source in spec['bin'].items():
+        if source is None:
+            assemble(nasm, FESENV, staged / name)
+        else:
+            shutil.copyfile(trees[source[0]] / source[1], staged / name)
+        os.utime(staged / name, (FILE_TIME, FILE_TIME))
+        mtools('mcopy', '-m', '-i', volume, str(staged / name), '::FDOS/BIN/' + name, env=env)
 
-    IMAGE.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(disk, IMAGE)
+    target = spec['image']
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(disk, target)
     record = {
-        'image': str(IMAGE.relative_to(ROOT)),
-        'sha256': hashlib.sha256(IMAGE.read_bytes()).hexdigest(),
+        'image': str(target.relative_to(ROOT)),
+        'profile': profile,
+        'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
         'geometry': {'cylinders': CYLINDERS, 'heads': HEADS, 'sectors_per_track': SPT},
-        'packages': {name: {'commit': spec['commit'], 'version': spec['version'], 'license': spec['license']}
-                     for name, spec in packages.items()},
-        'distribution': 'simulation fixture only; never distributed',
-        'inputs': inputs_key(),
+        'packages': {name: {'commit': pins['commit'], 'version': pins['version'], 'license': pins['license']}
+                     for name, pins in packages.items()},
+        'distribution': 'test fixture only; never distributed',
+        'inputs': inputs_key(profile),
     }
-    IMAGE.with_suffix('.json').write_text(json.dumps(record, indent=2) + '\n')
-    return IMAGE
+    target.with_suffix('.json').write_text(json.dumps(record, indent=2) + '\n')
+    return target
 
 
-def image(download: bool = False, jobs: int = 4) -> Path:
-    """The image, rebuilt unless the one in build/ came from the current inputs."""
-    if image_is_current():
-        return IMAGE
-    return build(download, jobs)
+def image(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
+    """A profile's image, rebuilt unless the one in build/ came from the current inputs."""
+    if image_is_current(profile):
+        return PROFILES[profile]['image']
+    return build(download, jobs, profile)
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--profile', choices=sorted(PROFILES), default='boot', help='which image to build')
     parser.add_argument('--download', action='store_true', help='fetch the pinned packages and NASM if missing')
     parser.add_argument('--jobs', type=int, default=os.cpu_count() or 4)
     args = parser.parse_args(argv)
     try:
-        image = build(args.download, args.jobs)
+        image = build(args.download, args.jobs, args.profile)
     except (ImageError, test386.Test386Error) as error:
         print(f'build_pc386_freedos_image: {error}', file=sys.stderr)
         return 1
