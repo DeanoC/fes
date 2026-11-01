@@ -486,7 +486,7 @@ devices:
 					} else if button := nativeButton(code); button != ButtonNone {
 						in.button(app, button, value, now)
 					} else if code < 256 {
-						if in.key(app, code, value, now) {
+						if ins.key(app, in, code, value, now) {
 							return true, nil
 						}
 					}
@@ -735,6 +735,32 @@ func nativeDirectionButton(cmd Command) Button {
 	default:
 		return ButtonNone
 	}
+}
+
+// key keeps a shared HID usage held until every connected evdev keyboard that
+// pressed it has released it, including during a session-display hand-off.
+func (ins *nativeInputs) key(app *App, in *nativeInput, code uint16, value int32, now time.Time) bool {
+	if value == 0 && in.kind == InputKeyboard && app != nil {
+		if usage := nativeHIDUsage(code); usage != 0 {
+			app.mu.Lock()
+			keyboardHID := app.session.CoreKeyboardHID
+			app.mu.Unlock()
+			if keyboardHID {
+				for _, other := range ins.devices {
+					if other == nil || other == in || other.kind != InputKeyboard {
+						continue
+					}
+					for heldCode := range other.keysHeld {
+						if nativeHIDUsage(heldCode) == usage {
+							delete(in.keysHeld, code)
+							return false
+						}
+					}
+				}
+			}
+		}
+	}
+	return in.key(app, code, value, now)
 }
 
 // nativeKeyF12 is MiSTer's menu key. A kit-local core treats a press as Stop.

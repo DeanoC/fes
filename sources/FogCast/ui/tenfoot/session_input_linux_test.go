@@ -3,15 +3,17 @@
 package tenfoot
 
 import (
-	"github.com/DeanoC/FogCast/internal/testwait"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/hidkeys"
+	"github.com/DeanoC/FogCast/internal/testwait"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"golang.org/x/sys/unix"
 )
 
 func drainLocalKeyQueue(t *testing.T, app *App) {
@@ -115,6 +117,71 @@ func TestNativeDisconnectReleasesLostHIDKeysByUsage(t *testing.T) {
 	}
 	if !released(0x3a) || !released(0xe1) || released(0x5d) || released(0xe5) {
 		t.Fatalf("disconnect left F1 or left Shift held, or released the other keyboard's keys: %+v", feed.snapshot())
+	}
+}
+
+func TestNativeKeyboardsReleaseSharedHIDUsageAfterLastHolder(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(http.NotFound))
+	t.Cleanup(server.Close)
+	app, feed := kitDisplayApp(t, server)
+	app.mu.Lock()
+	app.session.CoreKeyboardHID = true
+	app.mu.Unlock()
+
+	openKeyboard := func() (*nativeInput, *os.File) {
+		t.Helper()
+		reader, writer, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			_ = reader.Close()
+			_ = writer.Close()
+		})
+		fd := int(reader.Fd())
+		if err := unix.SetNonblock(fd, true); err != nil {
+			t.Fatal(err)
+		}
+		return &nativeInput{fd: fd, kind: InputKeyboard}, writer
+	}
+	first, firstWriter := openKeyboard()
+	second, secondWriter := openKeyboard()
+	inputs := &nativeInputs{devices: []*nativeInput{first, second}}
+	now := time.Now()
+	usageCode, ok := hidkeys.Code(0x3a) // USB HID F1.
+	if !ok {
+		t.Fatal("F1 has no HID event code")
+	}
+	writeKey := func(writer *os.File, value int32) {
+		t.Helper()
+		if _, err := writer.Write(nativeTestEvent(1, 59, value)); err != nil { // Linux KEY_F1.
+			t.Fatal(err)
+		}
+		if _, err := inputs.poll(app, now); err != nil {
+			t.Fatal(err)
+		}
+		drainLocalKeyQueue(t, app)
+	}
+	releases := func() int {
+		t.Helper()
+		count := 0
+		for _, event := range feed.snapshot() {
+			if event.Device == remoteinput.DeviceKeyboard && event.Code == usageCode && event.Action == remoteinput.ActionRelease {
+				count++
+			}
+		}
+		return count
+	}
+
+	writeKey(firstWriter, 1)
+	writeKey(secondWriter, 1)
+	writeKey(firstWriter, 0)
+	if got := releases(); got != 0 {
+		t.Fatalf("first keyboard released F1 while the second still held it: %+v", feed.snapshot())
+	}
+	writeKey(secondWriter, 0)
+	if got := releases(); got != 1 {
+		t.Fatalf("last keyboard release count = %d, want 1: %+v", got, feed.snapshot())
 	}
 }
 
