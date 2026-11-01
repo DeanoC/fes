@@ -193,7 +193,7 @@ func TestSchemaMigrationsKeepExistingSelections(t *testing.T) {
 		t.Fatalf("ROM selection lost: %+v %v", rom, err)
 	}
 	entry, err := store.CoreEntry(ctx, gameID)
-	if err != nil || entry.MediaRole != "blob" || entry.MediaID != mediaID || !entry.FirmwareRequired || entry.PackageID != packageID {
+	if err != nil || entry.MediaRole != "blob" || entry.MediaID != mediaID || entry.MediaName != "" || !entry.FirmwareRequired || entry.PackageID != packageID {
 		t.Fatalf("entry changed: %+v %v", entry, err)
 	}
 	disk, err := store.SelectCoreEntryMedia(ctx, gameID, packageID, mediaID, "disk", mediaID)

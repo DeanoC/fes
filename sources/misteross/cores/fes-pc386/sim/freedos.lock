@@ -32,6 +32,36 @@
         "SOURCE/FDISK/bootnorm.c": "0dcfe2855b9c1b99a4fe995454ae9b31eb97d7aa76feef41998f3769e4131503",
         "LICENSE": "1b74ca46888e48fb3825350bb1b95d1954624f25de15ca2f9a8c800a5b320bab"
       }
+    },
+    "himemx": {
+      "repository": "https://gitlab.com/FreeDOS/base/himemx.git",
+      "commit": "6a47f8469d4d7c8add7237bd3bb8abe1b9ea29f2",
+      "version": "3.38",
+      "license": "Public domain (Japheth's changes) over FD Himem, GPL and/or Artistic",
+      "files": {
+        "BIN/HimemX.exe": "abd7a5f5cae2a3a34e577e20097076062dd9177bb754058b35d754537d32fbbd",
+        "LICENSE": "0f01c95da3a84a7c77bda6b21d05df1bd36290e0f11e678d1124ea7dffd6da5f"
+      }
+    },
+    "ctmouse": {
+      "repository": "https://gitlab.com/FreeDOS/base/ctmouse.git",
+      "commit": "39339c705aa22578da11eb999a1404fc8013a3ab",
+      "version": "2.1b4",
+      "license": "GPL-2.0",
+      "files": {
+        "BIN/CTMOUSE.EXE": "822cf550c9e19a22785722d2306aa08ede10ff20bfe931d5a81a15f77c5f363e",
+        "LICENSE": "75050be5fedb1f8c255dafc662bde92525bbdc92eb7e2361b63e27ca9080d91c"
+      }
+    },
+    "mem": {
+      "repository": "https://gitlab.com/FreeDOS/base/mem.git",
+      "commit": "ca0bf88a055d44d2f4eb778e5274ec4eae2fd12c",
+      "version": "1.12",
+      "license": "GPL-2.0",
+      "files": {
+        "BIN/MEM.EXE": "6f850921e0fdd40ad172099ec126831c17397e250963402fb03f4eb7c79dc9f4",
+        "LICENSE": "596cc0ba0061eb8e45ac8e93e2fdc8c84613272c0fec69491a81a951934f3dfe"
+      }
     }
   }
 }

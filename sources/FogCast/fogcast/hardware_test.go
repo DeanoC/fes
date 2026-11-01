@@ -725,3 +725,31 @@ func TestHardwareSnapshotSerializesSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestHardwareNamesImportedCassetteByRecordedBasename(t *testing.T) {
+	ctx := context.Background()
+	archive, _ := hardwareZX81ContractFixture(t, false, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("2", 40))
+	s, _, entry, _ := newCoreEntryLaunchFixture(t, archive, "Tape ZX81")
+	s.SetMachineROMLinker(fakeROM{})
+	media, _, err := s.ImportCoreMedia(ctx, int64(len("maze tape")), strings.NewReader("maze tape"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, "", protocol.CassetteRole, media.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Hardware(ctx)
+	if err != nil || len(view) != 1 || view[0].MediaName != "Imported cassette "+media.MediaID[:8] {
+		t.Fatalf("unnamed import = %+v, %v", view, err)
+	}
+	if _, err := s.SetCoreEntryMediaName(ctx, entry.GameID, entry.PackageID, media.MediaID, "MAZE.P"); err != nil {
+		t.Fatal(err)
+	}
+	view, err = s.Hardware(ctx)
+	if err != nil || len(view) != 1 || view[0].MediaID != media.MediaID || view[0].MediaName != "MAZE.P" {
+		t.Fatalf("named import = %+v, %v", view, err)
+	}
+	if _, err := s.SetCoreEntryMediaName(ctx, entry.GameID, entry.PackageID, media.MediaID, "/srv/MAZE.P"); err == nil {
+		t.Fatal("path accepted as a cassette name")
+	}
+}

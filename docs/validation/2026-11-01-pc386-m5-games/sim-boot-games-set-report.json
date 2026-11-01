@@ -1,0 +1,176 @@
+{
+  "post": [
+    {
+      "code": "00",
+      "cycle": 11328
+    },
+    {
+      "code": "21",
+      "cycle": 2470910
+    },
+    {
+      "code": "31",
+      "cycle": 2571106
+    },
+    {
+      "code": "41",
+      "cycle": 2971306
+    },
+    {
+      "code": "71",
+      "cycle": 3072414
+    },
+    {
+      "code": "77",
+      "cycle": 3172440
+    }
+  ],
+  "debug": [
+    {
+      "port": "402",
+      "text": "BIOS BUILD DATE: 10/26/26"
+    },
+    {
+      "port": "500",
+      "text": "VGABios ID: vgabios.c 2026-08-07"
+    },
+    {
+      "port": "402",
+      "text": "ata0-0: PCHS=65/16/63 translation=none LCHS=65/16/63"
+    },
+    {
+      "port": "402",
+      "text": "IDE time out"
+    },
+    {
+      "port": "402",
+      "text": "Booting from 0000:7c00"
+    }
+  ],
+  "panic": [],
+  "io": {
+    "isa16 2": {
+      "38": 154368
+    },
+    "isa8 1": {
+      "74": 80818
+    },
+    "vga-in 1": {
+      "6": 6
+    },
+    "vga-out 1": {
+      "4": 823
+    },
+    "vga-out 2": {
+      "7": 3347
+    }
+  },
+  "io_wait": {},
+  "inta": {
+    "146": 80
+  },
+  "screen": [
+    "                                                                                ",
+    "(C) Copyright 1995-2012 Pasquale J. Villani and The FreeDOS Project.            ",
+    "All Rights Reserved. This is free software and comes with ABSOLUTELY NO         ",
+    "WARRANTY; you can redistribute it and/or modify it under the terms of the       ",
+    "GNU General Public License as published by the Free Software Foundation;        ",
+    "either version 2, or (at your option) any later version.                        ",
+    "C: HD1, Pri[ 1], CHS=    0-1-1, start=     0 MB, size=    31 MB                 ",
+    "HimemX 3.38 [11/21/22] (c) 1995 Till Gerken, 2001-2006 tom ehlert               ",
+    "Interface : XMS 3.00 80386 4G                                                   ",
+    "Maximum XMS: 0K                                                                 ",
+    "Always on A20 method used                                                       ",
+    "Kernel: allocated 46 Diskbuffers = 24472 Bytes in HMA                           ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "                                                                                ",
+    "CuteMouse v2.1 beta4 [FreeDOS]                                                  ",
+    "Installed at PS/2 port                                                          ",
+    "                                                                                ",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+    "C:\\>set                                                                         ",
+    "PATH=C:\\FDOS\\BIN;C:\\                                                            ",
+    "COMSPEC=C:\\COMMAND.COM                                                          ",
+    "PROMPT=$P$G                                                                     ",
+    "BLASTER=A220 I7 D1 T3                                                           ",
+    "C:\\>                                                                            "
+  ],
+  "end": {
+    "reason": "prompt",
+    "steps": 87973514,
+    "cycles": 365003696,
+    "seconds": 3.65
+  },
+  "prompt_cycle": 245003684,
+  "cpu_resets": 0,
+  "snaps": {},
+  "present": {},
+  "vga": {
+    "frames": 10267,
+    "scanout_underflows": 0,
+    "capture_drops": 0,
+    "present_underflows": 0,
+    "plane_underflows": 0,
+    "frames_shown": 0,
+    "port1_commands": 16751475,
+    "port2_commands": 2340810
+  },
+  "marks": {},
+  "opl2": {
+    "samples": 181464,
+    "exact": 181464,
+    "nonzero": 0,
+    "writes": 0
+  },
+  "opl2_mismatch": null,
+  "audio_samples": 175201,
+  "sb": {
+    "resets": 0,
+    "commands": 0,
+    "dma": 0,
+    "irqs": 0
+  },
+  "command": [
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+    "--bios",
+    "build/firmware/pc386/pc386-bios.bin",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "build/sim/fes-pc386/freedos-games.img",
+    "--limit-seconds",
+    "10.0",
+    "--type",
+    "set|",
+    "--expect",
+    "BLASTER=A220 I7 D1 T3",
+    "--trace",
+    "build/sim/fes-pc386/boot-games/vga.trace",
+    "--cpu",
+    "oracle"
+  ],
+  "exit": 0,
+  "failures": [],
+  "replay": {
+    "exit": 0,
+    "counts": {
+      "events-I": 6,
+      "events-O": 4170,
+      "events-R": 32657,
+      "events-W": 56188,
+      "frames": 10234,
+      "frames-blink-phase": 101,
+      "frames-compared": 100,
+      "frames-divergence-reference-unprogrammed": 10009,
+      "frames-matched": 100,
+      "frames-matched-720x400-text": 100,
+      "frames-unstable": 24,
+      "scanout_underflows": 0,
+      "capture_drops": 0
+    },
+    "mismatches": [],
+    "summary": "match events=93021 replay_mismatches=0 read_mismatches=0 vram_mismatches=0 frame_mismatches=0 end_vram_bytes_differing=0",
+    "failures": []
+  }
+}
