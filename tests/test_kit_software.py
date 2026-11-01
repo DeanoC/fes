@@ -200,6 +200,68 @@ class SoftwareWorkflowTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'unsafe DE25 SDK'):
                 kit.de25_sdk(ROOT, directory)
 
+    def managed_sdk_fixture(self):
+        repository = self.root / 'producer'; repository.mkdir()
+        names = subprocess.check_output(['git', '-C', ROOT, 'ls-files', '-z', '--', 'image', 'scripts']).decode().split('\0')
+        for name in filter(None, names):
+            source, destination = ROOT / name, repository / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if source.is_symlink():
+                destination.symlink_to(os.readlink(source))
+            else:
+                shutil.copy2(source, destination)
+        subprocess.run(['git', 'init', '-q', repository], check=True)
+        subprocess.run(['git', '-C', repository, 'add', 'image', 'scripts'], check=True)
+        subprocess.run(['git', '-C', repository, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                        'commit', '-qm', 'managed base producer fixture'], check=True)
+        producer = subprocess.check_output(['git', '-C', repository, 'rev-parse', 'HEAD'], text=True).strip()
+        managed = kit.load(ROOT / 'image/de25-nano/managed_base.py', 'managed_sdk_fixture_recipe')
+        directory = self.root / 'managed-image'; directory.mkdir()
+        for name in managed.artifact_names():
+            path = directory / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(b'fixture only')
+        with tarfile.open(directory / 'aarch64-sdk.tar.gz', 'w:gz') as archive:
+            item = tarfile.TarInfo('sdk/bin/aarch64-buildroot-linux-gnu-g++'); item.size = 8
+            archive.addfile(item, io.BytesIO(b'compiler'))
+        (directory / 'buildroot.config').write_text('BR2_aarch64=y\nBR2_cortex_a53=y\nBR2_TOOLCHAIN_EXTERNAL_CUSTOM_GLIBC=y\nBR2_TOOLCHAIN_EXTERNAL_CXX=y\n')
+        record = {'format': 1, 'board': 'de25-nano', 'architecture': 'aarch64',
+                  'classification': 'managed-base-intermediate', 'fes_revision': producer,
+                  'recipe_sha256': managed.recipe_key(repository), 'sdk_sha256': managed.sdk_lock()['sdk_sha256'],
+                  'builder_image': managed.sdk_lock()['builder_image'], 'normal_runtime_admission': 'closed'}
+        inputs = {key: record[key] for key in ('fes_revision', 'recipe_sha256', 'sdk_sha256')}
+        (directory / 'base-inputs.json').write_text(json.dumps(inputs))
+        record['files'] = {name: kit.sha(directory / name) for name in managed.artifact_names()}
+        (directory / 'base.json').write_text(json.dumps(record))
+        return repository, directory, record, managed.owner
+
+    def test_managed_sdk_authenticates_producer_and_survives_later_consumer_changes(self):
+        repository, directory, record, owner = self.managed_sdk_fixture()
+        consumer = repository / 'scripts/kit_software.py'
+        consumer.write_text(consumer.read_text() + '\n# A later software-only consumer change.\n')
+        subprocess.run(['git', '-C', repository, 'add', 'scripts/kit_software.py'], check=True)
+        subprocess.run(['git', '-C', repository, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                        'commit', '-qm', 'later consumer fixture'], check=True)
+        with patch.object(owner, 'selected_kernel', return_value={}):
+            selected = kit.de25_sdk(repository, directory)
+            self.assertEqual(selected['producer_revision'], record['fes_revision'])
+            self.assertEqual(selected['key'], 'managed-' + record['recipe_sha256'])
+            self.assertEqual(selected['base_rootfs_sha256'], record['files']['rootfs.ext4'])
+            (directory / 'rootfs.ext4').write_bytes(b'tampered base')
+            with self.assertRaisesRegex(ValueError, 'artifact differs'):
+                kit.de25_sdk(repository, directory)
+
+    def test_managed_sdk_never_falls_back_from_a_bad_or_ambiguous_receipt(self):
+        repository, directory, record, owner = self.managed_sdk_fixture()
+        with patch.object(owner, 'selected_kernel', return_value={}):
+            (directory / 'image.json').write_text('{}')
+            with self.assertRaisesRegex(ValueError, 'ambiguous'):
+                kit.de25_sdk(repository, directory)
+            (directory / 'image.json').unlink()
+            for key, value in (('board', 'de10-nano'), ('recipe_sha256', '0' * 64),
+                               ('fes_revision', '0' * 40)):
+                (directory / 'base.json').write_text(json.dumps({**record, key: value}))
+                with self.subTest(key=key), self.assertRaises(ValueError):
+                    kit.de25_sdk(repository, directory)
+
     def test_board_and_sdk_selection_fail_before_build(self):
         for board, sdk in [('unknown', None), ('de25-nano', None), ('de10-nano', self.root)]:
             with self.subTest(board=board), patch.object(kit, 'build_go') as go:

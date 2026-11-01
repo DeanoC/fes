@@ -11,10 +11,12 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import posixpath
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import tomllib
 
@@ -52,19 +54,20 @@ def sdk_lock():
     return tomllib.loads((ROOT / 'image/kernel/de25-dma/linux.lock.toml').read_text())
 
 
-def recipe_key():
-    paths = set(image.recipe_files())
+def recipe_key(root=ROOT):
+    root = Path(root)
+    paths = set(image.recipe_files(root))
     for directory in ('image/buildroot', 'image/firmware/rtl_bt', 'image/kernel/de25-platform'):
-        paths.update(p for p in (ROOT / directory).rglob('*') if p.is_file() and
+        paths.update(p for p in (root / directory).rglob('*') if p.is_file() and
                      '__pycache__' not in p.parts and p.suffix != '.md')
-    paths.update(ROOT / p for p in (
+    paths.update(root / p for p in (
         'image/scripts/kit-software.py', 'image/scripts/ramtest-notices.py',
         'image/scripts/scan-target-image-secrets.sh', 'image/kernel/de25-dma/linux.lock.toml',
         'scripts/de25_owner_image.py', 'scripts/de25_kernel_platform.py',
         'scripts/de25_kernel_test.py', 'scripts/kit_software.py', 'scripts/platform.py'))
     value = hashlib.sha256(b'FES-DE25-MANAGED-BASE-1\n')
     for path in sorted(paths):
-        value.update(path.relative_to(ROOT).as_posix().encode() + b'\0' + path.read_bytes())
+        value.update(path.relative_to(root).as_posix().encode() + b'\0' + path.read_bytes())
     return value.hexdigest()
 
 
@@ -219,7 +222,8 @@ def inside(action, jobs):
     sdks = list((work / 'images').glob('*_sdk-buildroot.tar.gz'))
     if len(sdks) != 1:
         raise ValueError('managed base did not publish exactly one AArch64 SDK')
-    shutil.copyfile(sdks[0], output / 'aarch64-sdk.tar.gz')
+    changes = export_sdk(sdks[0], output / 'aarch64-sdk.tar.gz', work / 'host')
+    (output / 'sdk-export.json').write_text(json.dumps({'links': changes}, indent=2, sort_keys=True) + '\n')
     shutil.copyfile(work / '.config', output / 'buildroot.config')
     (output / 'base-verify.json').write_text(json.dumps(verify_rootfs(output), indent=2, sort_keys=True) + '\n')
 
@@ -229,13 +233,59 @@ def artifact_names():
             *('kernel/' + name for name in KERNEL_FILES))
 
 
-def verify_receipt(output):
+def export_sdk(source, destination, host):
+    """Make the built SDK's host and sysroot links self-contained."""
+    changes = []
+    with tarfile.open(source) as old, tarfile.open(destination, 'w:gz', compresslevel=6) as new:
+        members = old.getmembers()
+        names = {item.name.rstrip('/') for item in members}
+        roots = {item.name.split('/', 1)[0] for item in members}
+        if len(roots) != 1 or len(names) != len(members):
+            raise ValueError('SDK export requires unique paths beneath one archive root')
+        root = next(iter(roots))
+        for item in members:
+            if (item.name.startswith('/') or '..' in Path(item.name).parts or
+                    not (item.isfile() or item.isdir() or item.issym() or item.islnk())):
+                raise ValueError('unsafe SDK export member')
+            if item.issym() and item.linkname.startswith('/'):
+                before = item.linkname
+                if (item.name == root + '/share/gettext' and
+                        before == str(host / 'usr/share/gettext-tiny')):
+                    # Buildroot 2021.02.4 creates this absolute host alias.
+                    # Export the installed share tree through a relative link.
+                    target = root + '/share/gettext-tiny'
+                elif before.startswith(str(host) + '/'):
+                    target = root + '/' + before[len(str(host)) + 1:]
+                elif '/sysroot/' in item.name:
+                    target = item.name.split('/sysroot/', 1)[0] + '/sysroot/' + before.lstrip('/')
+                else:
+                    raise ValueError('SDK absolute link is outside its host/sysroot')
+                target = posixpath.normpath(target)
+                if target not in names:
+                    raise ValueError('SDK absolute link target is absent from export: ' + item.name)
+                item.linkname = posixpath.relpath(target, posixpath.dirname(item.name))
+                changes.append({'path': item.name, 'before': before, 'after': item.linkname})
+            if item.issym() or item.islnk():
+                target = posixpath.normpath(posixpath.join(posixpath.dirname(item.name), item.linkname)
+                                           if item.issym() else item.linkname)
+                if item.linkname.startswith('/') or not (target == root or target.startswith(root + '/')):
+                    raise ValueError('SDK export link escapes its archive root')
+            new.addfile(item, old.extractfile(item) if item.isfile() else None)
+    return changes
+
+
+def verify_receipt(output, *, producer_root=None):
+    """Check artifacts and current kernel policy against their producer recipe.
+
+    SDK consumers may supply the receipt's authenticated Git source tree. A
+    software update need not rebuild its compatible, immutable base image.
+    """
     record = json.loads((output / 'base.json').read_text())
     if (record.get('format') != 1 or record.get('board') != 'de25-nano' or
             record.get('architecture') != 'aarch64' or
             record.get('classification') != 'managed-base-intermediate' or
             not re.fullmatch(r'[0-9a-f]{40}', record.get('fes_revision', '')) or
-            record.get('recipe_sha256') != recipe_key() or
+            record.get('recipe_sha256') != recipe_key(ROOT if producer_root is None else producer_root) or
             record.get('sdk_sha256') != sdk_lock()['sdk_sha256'] or
             record.get('builder_image') != sdk_lock()['builder_image'] or
             record.get('normal_runtime_admission') != 'closed' or

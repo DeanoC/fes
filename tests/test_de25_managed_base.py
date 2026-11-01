@@ -1,12 +1,14 @@
 """Managed-base provenance and staging refusal checks; no hardware or Docker."""
 import copy
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import tarfile
 import unittest
 from unittest import mock
 
@@ -18,6 +20,36 @@ SPEC.loader.exec_module(BASE)
 
 
 class ManagedBaseTests(unittest.TestCase):
+    def test_sdk_export_keeps_host_and_sysroot_aliases_inside_the_archive(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); source = root / 'sdk.tar.gz'; output = root / 'export.tar.gz'
+            with tarfile.open(source, 'w:gz') as archive:
+                for name in ('sdk/share/gettext-tiny',):
+                    item = tarfile.TarInfo(name); item.type = tarfile.DIRTYPE; archive.addfile(item)
+                for name in ('sdk/share/gettext-tiny/ABOUT-NLS', 'sdk/target/sysroot/usr/bin/ntfs-3g'):
+                    item = tarfile.TarInfo(name); item.size = 7; archive.addfile(item, io.BytesIO(b'payload'))
+                for name, target in (
+                    ('sdk/share/gettext', '/build/key/host/usr/share/gettext-tiny'),
+                    ('sdk/target/sysroot/usr/sbin/mount.ntfs-3g', '/usr/bin/ntfs-3g'),
+                    ('sdk/bin/alias', '/build/key/host/share/gettext-tiny/ABOUT-NLS'),
+                ):
+                    item = tarfile.TarInfo(name); item.type = tarfile.SYMTYPE; item.linkname = target; archive.addfile(item)
+            changes = BASE.export_sdk(source, output, Path('/build/key/host'))
+            self.assertEqual(len(changes), 3)
+            with tarfile.open(output) as archive:
+                self.assertEqual(archive.getmember('sdk/share/gettext').linkname, 'gettext-tiny')
+                self.assertEqual(archive.getmember('sdk/target/sysroot/usr/sbin/mount.ntfs-3g').linkname, '../bin/ntfs-3g')
+                self.assertEqual(archive.extractfile('sdk/share/gettext-tiny/ABOUT-NLS').read(), b'payload')
+
+    def test_sdk_export_refuses_unknown_absolute_and_escaping_links(self):
+        for target in ('/etc/passwd', '../../outside'):
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary); source = root / 'sdk.tar.gz'
+                with tarfile.open(source, 'w:gz') as archive:
+                    item = tarfile.TarInfo('sdk/bin/unsafe'); item.type = tarfile.SYMTYPE; item.linkname = target; archive.addfile(item)
+                with self.assertRaises(ValueError):
+                    BASE.export_sdk(source, root / 'export.tar.gz', Path('/build/key/host'))
+
     def test_shared_managed_policy_and_matching_external_toolchain(self):
         configured = BASE.configuration().splitlines()
         for line in ('BR2_aarch64=y', 'BR2_cortex_a53=y', 'BR2_ROOTFS_MERGED_USR=y',

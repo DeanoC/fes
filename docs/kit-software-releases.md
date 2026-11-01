@@ -63,8 +63,10 @@ and menu requirements, and rejects a DE10 window-driver input. DE25 uses its
 built-in DMA owner. DE10 keeps its required versioned window module. The
 selected MENU package must target the chosen board before bundle assembly;
 the runtime's interface records cover both board-specific contracts. The
-standalone cross-build producer accepts explicit DE25 selection with the
-retained headless-image SDK. It checks that SDK's recipe, configuration and
+standalone cross-build producer accepts explicit DE25 selection with a retained
+headless-image or managed-base SDK. A managed SDK is authenticated against its
+actual Git producer, allowing later software changes to reuse the immutable
+base. It checks the complete artifact set, current kernel policy, board, configuration and
 archive, then extracts and relocates a private copy in the matched builder.
 Go targets ARM64 v8.0 while the pack helper stays on amd64. DE25 builds no
 window module. Complete image/bootstrap wiring, physical runtime/MENU binding
@@ -472,9 +474,9 @@ make kit-software \
 ```
 
 The base must already be a managed DE25 image with authenticated factory
-software, its base contract and MENU requirements. The headless bring-up image
-supplies the SDK but is not such a managed base; it cannot accept an update
-bundle. SDK choice does not establish kernel, MENU, hardware or update
+software, its base contract and MENU requirements. Both the headless bring-up
+image and the managed-base intermediate can supply an SDK; neither has the
+factory metadata needed to accept an update bundle. SDK choice does not establish kernel, MENU, hardware or update
 acceptance. Both targets retain the same reviewed-base hash, ELF/library,
 interface and immutable-publication checks.
 

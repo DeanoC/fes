@@ -71,19 +71,57 @@ def build_go(snapshot, version, revision, env, board='de10-nano'):
                       ' CGO_ENABLED=0', 'helper': 'linux/amd64 CGO_ENABLED=0'}
 
 
-def de25_sdk(root, directory):
-    """Select only the SDK/configuration bound to the current DE25 image recipe."""
-    directory = Path(directory)
-    lane = load(Path(root) / 'image/de25-nano/build.py', 'kit_de25_image')
-    receipt = directory / 'image.json'
+def de25_managed_sdk(root, directory):
+    """Authenticate a reusable managed SDK against its actual Git producer."""
+    receipt = directory / 'base.json'
+    if receipt.is_symlink() or not receipt.is_file():
+        raise ValueError('DE25 managed SDK requires a regular base receipt')
     record = json.loads(receipt.read_text())
-    if (record.get('format') != 1 or record.get('board') != 'de25-nano' or
-            record.get('architecture') != 'aarch64' or
-            record.get('recipe_sha256') != lane.recipe_key(root) or
-            record.get('rootfs_key') != lane.rootfs_key(root) or
-            not re.fullmatch('[0-9a-f]{40}', record.get('fes_revision', '')) or
-            not re.fullmatch('sha256:[0-9a-f]{64}', record.get('builder_image', ''))):
-        raise ValueError('DE25 SDK receipt differs from the selected image recipe')
+    producer = record.get('fes_revision', '')
+    if not re.fullmatch('[0-9a-f]{40}', producer):
+        raise ValueError('DE25 managed SDK producer is invalid')
+    try:
+        actual = run(['git', '-C', root, 'rev-parse', '--verify', '--end-of-options', producer + '^{commit}'])
+    except subprocess.CalledProcessError as error:
+        raise ValueError('DE25 managed SDK producer commit is unavailable') from error
+    if actual != producer:
+        raise ValueError('DE25 managed SDK producer commit differs')
+    managed = load(Path(root) / 'image/de25-nano/managed_base.py', 'kit_de25_managed_image')
+    with tempfile.TemporaryDirectory(prefix='fes-de25-sdk-source-') as temporary:
+        source, archive = Path(temporary) / 'producer', Path(temporary) / 'source.tar'
+        source.mkdir()
+        # Read trusted repository objects as data; never execute old source.
+        run(['git', '-C', root, 'archive', '--format=tar', '--output', archive,
+             producer, 'image', 'scripts'])
+        run(['tar', '-xf', archive, '-C', source, '--no-same-owner'])
+        record = managed.verify_receipt(directory, producer_root=source)
+    return receipt, record
+
+
+def de25_sdk(root, directory):
+    """Select authenticated headless or managed AArch64 SDK artifacts."""
+    directory = Path(directory)
+    managed_receipt = directory / 'base.json'
+    managed = managed_receipt.exists() or managed_receipt.is_symlink()
+    if managed:
+        if (directory / 'image.json').exists() or (directory / 'image.json').is_symlink():
+            raise ValueError('DE25 SDK directory has ambiguous headless and managed receipts')
+        receipt, record = de25_managed_sdk(root, directory)
+        key = 'managed-' + record['recipe_sha256']
+        required = {'BR2_TOOLCHAIN_EXTERNAL_CUSTOM_GLIBC=y', 'BR2_TOOLCHAIN_EXTERNAL_CXX=y'}
+    else:
+        lane = load(Path(root) / 'image/de25-nano/build.py', 'kit_de25_image')
+        receipt = directory / 'image.json'
+        record = json.loads(receipt.read_text())
+        if (record.get('format') != 1 or record.get('board') != 'de25-nano' or
+                record.get('architecture') != 'aarch64' or
+                record.get('recipe_sha256') != lane.recipe_key(root) or
+                record.get('rootfs_key') != lane.rootfs_key(root) or
+                not re.fullmatch('[0-9a-f]{40}', record.get('fes_revision', '')) or
+                not re.fullmatch('sha256:[0-9a-f]{64}', record.get('builder_image', ''))):
+            raise ValueError('DE25 SDK receipt differs from the selected image recipe')
+        key = record['rootfs_key']
+        required = {'BR2_TOOLCHAIN_BUILDROOT_GLIBC=y', 'BR2_TOOLCHAIN_BUILDROOT_CXX=y'}
     for name in ('aarch64-sdk.tar.gz', 'buildroot.config'):
         path = directory / name
         expected = record.get('files', {}).get(name, '')
@@ -91,8 +129,7 @@ def de25_sdk(root, directory):
                 or sha(path) != expected):
             raise ValueError('DE25 SDK input differs from its receipt: ' + name)
     options = set((directory / 'buildroot.config').read_text().splitlines())
-    if not {'BR2_aarch64=y', 'BR2_cortex_a53=y', 'BR2_TOOLCHAIN_BUILDROOT_GLIBC=y',
-            'BR2_TOOLCHAIN_BUILDROOT_CXX=y'} <= options or 'BR2_arm=y' in options:
+    if not {'BR2_aarch64=y', 'BR2_cortex_a53=y', *required} <= options or 'BR2_arm=y' in options:
         raise ValueError('DE25 SDK configuration is not the selected AArch64 C++ target')
     # Validate before extraction into the private container workspace. A link
     # cannot escape the single SDK root, and special device entries are invalid.
@@ -113,9 +150,11 @@ def de25_sdk(root, directory):
                     raise ValueError('unsafe DE25 SDK archive link')
         if archive_root + '/bin/aarch64-buildroot-linux-gnu-g++' not in {p.name for p in members}:
             raise ValueError('DE25 SDK lacks its AArch64 C++ compiler')
-    return {'key': record['rootfs_key'], 'archive_sha256': record['files']['aarch64-sdk.tar.gz'],
+    return {'key': key, 'archive_sha256': record['files']['aarch64-sdk.tar.gz'],
             'image_receipt_sha256': sha(receipt), 'producer_revision': record['fes_revision'],
-            'builder_image': record['builder_image']}
+            'builder_image': record['builder_image'],
+            **({'profile': 'managed-base', 'base_rootfs_sha256': record['files']['rootfs.ext4'],
+                'kernel_image_sha256': record['files']['kernel/Image']} if managed else {})}
 
 
 def pinned_kernel(tree):
