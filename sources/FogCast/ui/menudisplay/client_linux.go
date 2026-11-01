@@ -629,7 +629,7 @@ func (c *Client) begin(ctx context.Context, w *window, generation uint64) (*net.
 	}
 	p := prepared.MenuFrame
 	if len(fds) != 0 || p == nil || p.Generation != generation || p.Slot == nil || *p.Slot < 0 || *p.Slot >= Slots || p.Preparation == 0 || p.DisplayedSequence != nil {
-		return abort(err)ors.New("invalid menu preparation")
+		return abort(errors.New("invalid menu preparation"))
 	}
 	w.prepared = p.Preparation
 	return conn, *p.Slot, nil
