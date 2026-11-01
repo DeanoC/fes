@@ -81,6 +81,7 @@ python3 scripts/sim_fes_pc386.py --suite benches        # presenter, capture ove
 python3 scripts/sim_fes_pc386.py --suite boot --download  # BIOS POST to the FreeDOS prompt and its VGA replay
 python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl   # the RTL must reach the prompt without stops, stalls or oracle steps
 python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|' --expect 'high memory area'  # the games image
+python3 scripts/sim_fes_pc386.py --suite boot --image games --type 'set|' --expect 'BLASTER=A220 I7 D1 T3'  # FESENV from CMOS
 python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path on the stop test disk, against the oracle
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
@@ -389,6 +390,10 @@ has the kit runs.
 
 ## Not built yet
 
-The HID nine-row keyboard model and typematic repeat, so the package has no
-keyboard or mouse yet; the `fes.mouse.relative` wiring; the CPU's governor,
-which the record's preset, frequency and turbo words wait for; the CPU's L2.
+The main branch package does not yet include the HID nine-row keyboard model,
+typematic repeat or `fes.mouse.relative` wiring. The M5 Kit B runs recorded in
+the [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
+used the separate sealed package from #1335, which includes those inputs; they
+must be rerun on the package built after #1335 lands. The CPU's governor, which
+the record's preset, frequency and turbo words wait for, and the CPU's L2 also
+remain unbuilt.

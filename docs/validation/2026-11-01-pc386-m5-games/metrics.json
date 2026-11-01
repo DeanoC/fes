@@ -167,7 +167,7 @@
    "captures": 180,
    "capture_seconds": 5.97,
    "changed_transitions": 135,
-   "game_fps": 22.63,
+   "capture_average_changed_transitions_per_second": 22.63,
    "consecutive_changed": 134,
    "torn_candidates": 0,
    "repeat_histogram": {

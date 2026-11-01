@@ -1059,6 +1059,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.cpu == 'rtl' and args.suite not in ('boot', 'game'):
         parser.error('--cpu rtl runs the boot and game suites only')
+    if args.image != 'boot' and args.suite != 'boot':
+        parser.error('--image is supported by the boot suite only')
     limit_seconds, typed, expect = args.limit_seconds, args.type, args.expect
     args.limit_seconds_given = limit_seconds
     if shutil.which(args.verilator) is None:

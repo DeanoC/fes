@@ -138,6 +138,11 @@ def image_is_current(profile: str = 'boot') -> bool:
             record.get('sha256') == image_digest)
 
 
+def work_directory(profile: str) -> Path:
+    """Keep simultaneous profile builds from deleting each other's scratch files."""
+    return BUILD / f'work-{profile}'
+
+
 def package(name: str, spec: dict, download: bool) -> Path:
     """Return the pinned checkout of one FreeDOS package, its files verified."""
     tree = BUILD / f'{name}-{spec["commit"]}'
@@ -205,7 +210,7 @@ def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
     packages = {name: lock()['packages'][name] for name in spec['packages']}
     trees = {name: package(name, pins, download) for name, pins in packages.items()}
     nasm = test386.nasm(download, jobs)
-    work = BUILD / 'work'
+    work = work_directory(profile)
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
 

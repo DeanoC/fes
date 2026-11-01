@@ -50,9 +50,9 @@ seal, and the record says below why a rerun is owed once #1335 lands.
     `pc386_kbc.sv` and `pc386_hid_keyboard.sv` after that seal.
   - The package for main's pc386 tree once #1335 lands will therefore be a new
     seal. The kit runs below are owed again on that package.
-- **Kit.** Kit B on its baseline: image `f904961e`, kit-software bundle `86cc27b6`,
-  both from main `58edb6b3b`. All five runs were core-only: no install, image
-  change, reboot or host change.
+- **Kit.** Kit B on its baseline: image `f904961e` (`0.2.0-base-802b0cf4`, built
+  from main `802b0cf4` on 2026-10-26) and kit-software bundle `86cc27b6`. All five
+  runs were core-only: no install, image change, reboot or host change.
 - **FreeDOS.** The FreeDOS 1.4 packages are pinned in
   `sources/misteross/cores/fes-pc386/sim/freedos.lock`. The games image
   (`build_pc386_freedos_image.py --profile games`) is
@@ -122,26 +122,29 @@ memory, so none of these moves happens. MEM then reports 15,360K of XMS, all use
 (561,712 bytes, the largest executable). `MEM /C` lists SYSTEM 14,032 bytes, HIMEMX 2,192,
 COMMAND 73,040 and CTMOUSE 3,104
 ([`kit-m5g2-mem-c.png`](kit-m5g2-mem-c.png)). The CPU design's game table gives
-575 KiB for Wolfenstein 3D. The game runs from this prompt in 549K, and its sign-on
-screen shows about 256K of main memory for its own use. Upper memory blocks (Jemm's
-UMBM over C8000-EFFFF, which is RAM) would free FreeCOM's 71K if a later title needs
-it.
+575 KiB free conventional memory for Wolfenstein 3D, so this image is about 26 KiB
+short. Wolfenstein reached its sign-on, title and menu and briefly entered E1L1,
+but no level was completed and the documented memory requirement is not met.
+Jemm's UMBM over C8000-EFFFF is listed as a possible way to free FreeCOM's 71K;
+it is not included or tested in this image.
 
 ## Simulation
 
 | Check | Result |
 | --- | --- |
-| `sim_fes_pc386.py --suite boot --image games --type 'mem\|'`, oracle CPU | Pass ([`sim-boot-games-report.json`](sim-boot-games-report.json)): the prompt at 3.7 s simulated. The screen shows "Always on A20 method used", the kernel's 46 buffers in the HMA, CuteMouse "Installed at PS/2 port", and MEM's 549K. The VGA replay matches Bochs (0 mismatches). |
+| `sim_fes_pc386.py --suite boot --image games --type 'mem|' --expect executable --limit-seconds 10 --cpu oracle` | Pass ([`sim-boot-games-report.json`](sim-boot-games-report.json)): first prompt at 2.45 s simulated; the run ended at 3.70 s after `mem` completed. The screen shows "Always on A20 method used", the kernel's 46 buffers in the HMA, CuteMouse "Installed at PS/2 port", and MEM's 549K. The VGA replay matches Bochs (0 mismatches). |
 | The same on the RTL CPU (`--cpu rtl`) | Pass, no stop, oracle step or protected-mode step ([RTL boot](#rtl-boot)) |
-| `tests/test_pc386_machine.py` | 26 tests pass, including the new profile test |
-| Both images rebuilt | Byte-identical: boot `b9d36549…` (unchanged), games `876986c0…` |
+| `tests/test_pc386_machine.py` | 30 tests pass, including profile lock, identity, scratch-path, suite-name and option checks |
+| Games-image `set` simulation | Pass ([`sim-boot-games-set-report.json`](sim-boot-games-set-report.json)): `set` printed `BLASTER=A220 I7 D1 T3`; the CI target asserts this result |
+| Both profiles rebuilt after the scratch-path change | Byte-identical to the recorded images: boot `b9d36549…`, games `876986c0…` |
 
 ### RTL boot
 
-`sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|'` passes
-([`sim-boot-games-rtl-report.json`](sim-boot-games-rtl-report.json)). `fes_i386_cpu`
-alone, with no stop, no oracle step and no protected-mode step, retired 98,946,812 instructions
-from reset to the prompt at 3.65 s simulated. On the way it ran HimemX, CuteMouse's
+`sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|' --expect executable --limit-seconds 10`
+passes ([`sim-boot-games-rtl-report.json`](sim-boot-games-rtl-report.json)). The first
+prompt came at 2.40 s simulated. `fes_i386_cpu` alone, with no stop, no oracle step
+and no protected-mode step, retired 98,946,812 instructions through completion of
+the typed `mem` command; the run ended at 3.65 s simulated. On the way it ran HimemX, CuteMouse's
 INT 15h C2xx set-up, FESENV and MEM, and the screen ends as the oracle's and the
 kit's do. The boot's VGA trace replays against Bochs's VGA with 0 mismatches.
 The run took about 70 minutes of wall time on a shared Powerboat.
@@ -182,8 +185,8 @@ Audio levels are with the capture's DC offset removed (see findings), from
 | Boots from the ATA image to a prompt | Pass | m5g1 to m5g5, every launch ([`kit-m5g1-boot.png`](kit-m5g1-boot.png)) |
 | HIMEMX loads and its A20 test passes | Pass | HimemX 3.38 loads with `Interface : XMS 3.00 80386 4G`. Its A20 test found A20 on, as the Bochs BIOS leaves it, so HimemX chose its "Always on" method. The kernel moved into the HMA with its 46 buffers ("FreeDOS is resident in the high memory area"), which needs A20. The 8042 and port 92h A20 gate's own checks are in the devices suite. |
 | CuteMouse finds the PS/2 mouse | Pass | "CuteMouse v2.1 beta4 [FreeDOS] / Installed at PS/2 port" at every boot. Through its INT 33h, the mouse moves Wolfenstein 3D's menu cursor and a click selects. Ultima VI shows its pointer. |
-| `MEM` shows the free conventional memory each game needs | Pass | 549K, 561,712 bytes ([`kit-m5g1-mem.png`](kit-m5g1-mem.png)). Both games run from that prompt. |
-| Date and time match the kit | Fail, blocked by the kit's clock | The kit reads 1970-01-01 17:49 UTC. Image `f904961e` predates [#1279](https://github.com/DeanoC/fes/pull/1279)'s NTP, and the kits have no RTC. The `fes.rtc.wall-clock` contract clamps a time before 1980 to 1980-01-01 00:00:00, a Tuesday. DOS showed `Tue 01-01-1980` and 00:00:46 46 s after release, and 00:00:40 after the relaunch ([`kit-m5g1-clock-file.png`](kit-m5g1-clock-file.png)). The wall-clock path does what the contract says, but the kit has no real time to give it. Rerun on an image with #1279. |
+| `MEM` shows the free conventional memory required for Wolfenstein 3D | Partial: below the documented requirement | 549K, 561,712 bytes, about 26 KiB below the design table's 575 KiB ([`kit-m5g1-mem.png`](kit-m5g1-mem.png)). The game reached its menus and E1L1, but no level was completed; this does not pass the memory requirement. UMBM was not loaded. |
+| Date and time match the kit | Fail, blocked by the kit's clock | The kit reads 1970-01-01 17:49 UTC. Image `f904961e` (`0.2.0-base-802b0cf4`, built from main `802b0cf4` before [#1279](https://github.com/DeanoC/fes/pull/1279)'s NTP) predates that change, and the kits have no RTC. The `fes.rtc.wall-clock` contract clamps a time before 1980 to 1980-01-01 00:00:00, a Tuesday. DOS showed `Tue 01-01-1980` and 00:00:46 46 s after release, and 00:00:40 after the relaunch ([`kit-m5g1-clock-file.png`](kit-m5g1-clock-file.png)). The wall-clock path does what the contract says, but the kit has no real time to give it. Rerun on an image with #1279. |
 | A file written before Stop is there after relaunch | Pass | `echo … >C:\M5G.TXT`, Stop, relaunch, `type` ([`kit-m5g1-relaunch.png`](kit-m5g1-relaunch.png)) |
 | `BLASTER` matches the setting | Pass | `BLASTER=A220 I7 D1 T3` with no record ([`kit-m5g1-set.png`](kit-m5g1-set.png)). `/v1/library/core/settings` wrote `0,0,0,0,576,5,1` to game `pc386-m5g-sb240`, moving revision `absent` to `a89af05d…`. The next launch showed `BLASTER=A240 I5 D1 T3` ([`kit-m5g4-set-240.png`](kit-m5g4-set-240.png)). |
 | …and a game's sound still works there once its setup has been rerun | Pass | Wolfenstein 3D at 240h and IRQ 5. Its sign-on lights Sound Blaster. In its sound setup (the game has no separate setup program; it reads `BLASTER` at every start), effects and music were set to None and digitised sound to Sound Blaster. Five shots made five bursts 1.2 s apart, up to −19.7 dBFS. Ammo went from 8 to 3. |
@@ -198,8 +201,8 @@ Audio levels are with the capture's DC offset removed (see findings), from
 | A level played through | Not done | m5g3 played into E1L1: a new game, five shots, a turn, the player killed once and respawned. m5g5 tried the level on the easiest difficulty, steering from grabs. The first guard behind the first door killed the player before the next step. The game runs in real time, and each remote step (send keys, grab, look) took about 30 s. A play-through needs a person at a controller, or a scripted route. |
 | Digitised effects (Sound Blaster DMA) audible | Pass | At 220h and IRQ 7, with effects and music set to None and digitised sound to Sound Blaster, five shots made five bursts 1.2 s apart. The loudest 100 ms window was −19.4 dBFS, against −96 dBFS between shots. |
 | AdLib music audible | Pass | Title −45.2 dBFS median and menu −43.2 dBFS, against −101.6 dBFS on the silent sign-on. Music is set to AdLib, so the OPL2 is its only source. |
-| Page flips without tearing | Pass | A 4.5 s left turn captured at 30 fps gave 135 turning pairs and 0 torn. In a pure turn every band of wall rows shifts by the same amount, and a frame torn across a flip splits into two plateaus a frame's turn apart. One pair had a single outlying band, where the top wall edge slants; both of its frames look clean. |
-| Frame rate recorded from captured frames | Partial: at least 30 fps | Every one of the 134 consecutive transitions during the turn was a new frame. The 4KPRO's only mode is 1920x1080 at 30 fps, so the game's rate above 30 cannot be measured on Kit B. Kit A's capture was claimed by another session. |
+| Page flips without tearing | Partial: inconclusive | The automated candidate count is 0, but `tear_check` marks 1 of 135 turning pairs as torn. The retained record does not include the frames or a pair-level visual adjudication, so it does not support a zero-tear claim. |
+| Frame rate recorded from captured frames | Not measured | The capture shows new frames on 134 consecutive transitions during the turn, but the 30 fps card cannot measure above 30 fps. `metrics.json`'s 22.63 is the changed-transition rate over the full 5.97 s capture, including the still portion; it is not the game's active-turn frame rate. Kit A's capture was claimed by another session. |
 | A saved game loads after relaunch | Pass | Saved to slot 1 as "M5G", then Stop. After the relaunch, `SAVEGAM0.WL6` (19,273 bytes) is on the disk and Load Game lists "M5G". The loaded state is Floor 1, 2 lives, ammo 8; a new game starts with 3 lives. Against the frame before saving, 0.06% of pixels differ, all in the status bar's face. |
 
 ### Ultima VI
