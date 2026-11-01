@@ -4,7 +4,7 @@ Issue [#1370](https://github.com/DeanoC/fes/issues/1370), the CPU half of
 [#1369](https://github.com/DeanoC/fes/issues/1369), part of
 [#1267](https://github.com/DeanoC/fes/issues/1267) (pc386 M5) and the i386
 design's Phase 2. The kit runs of Ultima VII and Wolfenstein 3D with XMS
-need #1335 and #1363 on main and stay with #1369
+need #1335's keyboard and mouse on main and stay with #1369
 ([Not in this record](#not-in-this-record)).
 
 **Result:**
@@ -46,7 +46,9 @@ need #1335 and #1363 on main and stay with #1369
   are data points: `c4a1c23a4`, before the fix, and `309d87186`, whose i386
   and pc386 sources differ from `c4a1c23a4` only in three comments. Main
   `e06789cd7` (#1365 and #1359, no misteross source) was merged before the
-  fix. Later commits change only this record.
+  fix. Later commits change only this record or merge main `bdc7839e3`
+  (#1363 and #1375). That merge changes no sealed input: all 105 input
+  hashes in the seal summary match the merged tree.
 - Oracle: Bochs 3.1 at CPU level 3 (the `fes-i386-oracle` build), corpus
   SingleStepTests/80386 `459d49fbe628`, test386.asm `cfd052d1e64d`.
 - Verilator 5.032 on Powerboat. The netlist lockstep used the i386 lock's
@@ -310,10 +312,12 @@ the last two are how the lockstep handles the reset alias and a stop:
 ## Not in this record
 
 - **The kit.** Serpent Isle at `max`, The Black Gate and Wolfenstein 3D with
-  XMS on a kit. The games profile keeps HIMEMX's `/MAX=0` until #1363 is on
-  main, and nothing on a kit can drive Ultima VII's menus until #1335's
-  keyboard and mouse are there. Both come in #1369's second PR, from a seal
-  of that tree; The Black Gate's 386-preset check waits for the governor
+  XMS on a kit. #1363 is now on main, and its games image still runs
+  HIMEMX with `/MAX=0`. Its kit runs of Wolfenstein 3D and Ultima VI are
+  for that profile, so dropping `/MAX=0` goes with new kit runs. Nothing on
+  a kit can drive Ultima VII's menus until #1335's keyboard and mouse are
+  there. The profile change and the runs come in #1369's second PR, from a
+  seal of that tree. The Black Gate's 386-preset check waits for the governor
   (#1364).
 - Protected-mode test386 in RTL, gates, privilege, delivery through the IDT
   and the rest of Phase 2's exit.
