@@ -10,6 +10,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/corenames"
+	"github.com/DeanoC/FogCast/internal/release"
 	"github.com/DeanoC/FogCast/internal/zx81family"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/storage"
@@ -68,7 +69,7 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 			add("Browse published systems", "published")
 		}
 		for _, r := range s.Cores {
-			if s.FilterCoreID != "" && r.CoreID != s.FilterCoreID {
+			if (s.FilterCoreID != "" && r.CoreID != s.FilterCoreID) || (s.FilterCoreID == "" && !release.Shown(r.CoreID, a.allCores)) {
 				continue
 			}
 			label := r.Label + " · " + r.Standing + " · " + r.ArtifactState

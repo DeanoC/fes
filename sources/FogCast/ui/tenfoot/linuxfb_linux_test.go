@@ -298,7 +298,8 @@ func TestLateDisplayTickDoesNotCountSchedulerDelayAsPoll(t *testing.T) {
 
 func TestFramebufferFullAppLoop(t *testing.T) {
 	server := framebufferFixture(t)
-	opts := Options{APIBase: server.URL, Width: 640, Height: 480, Smoke: true, PrefsPath: t.TempDir() + "/prefs.json"}.normalized()
+	// The catalog fixture is Pong, which is held back from v1.
+	opts := Options{APIBase: server.URL, Width: 640, Height: 480, Smoke: true, AllCores: true, PrefsPath: t.TempDir() + "/prefs.json"}.normalized()
 	app, err := configuredApp(opts)
 	if err != nil {
 		t.Fatal(err)
@@ -600,6 +601,23 @@ func TestFramebufferControllerLongHold(t *testing.T) {
 	a.Tick(now.Add(longPressMin + time.Millisecond))
 	if !a.Snapshot().ViewPicker {
 		t.Fatal("long South did not open view picker")
+	}
+}
+
+func TestNativeHIDUsageCarriesEveryKitKey(t *testing.T) {
+	for code, want := range map[uint16]uint8{
+		// Keys the old partial table already carried.
+		1: 0x29, 2: 0x1e, 11: 0x27, 16: 0x14, 28: 0x28, 29: 0xe0, 42: 0xe1, 57: 0x2c, 103: 0x52, 125: 0xe3,
+		// F1-F11 (F12 is the running selector), the keypad, Print Screen, Scroll Lock and Pause (#1331).
+		59: 0x3a, 68: 0x43, 87: 0x44, 69: 0x53, 55: 0x55, 71: 0x5f, 79: 0x59, 82: 0x62, 83: 0x63, 96: 0x58,
+		98: 0x54, 99: 0x46, 70: 0x47, 119: 0x48,
+	} {
+		if got := nativeHIDUsage(code); got != want {
+			t.Errorf("key %d: usage %#x, want %#x", code, got, want)
+		}
+	}
+	if got := nativeHIDUsage(240); got != 0 {
+		t.Errorf("unmapped key: usage %#x, want 0", got)
 	}
 }
 

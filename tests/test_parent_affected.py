@@ -232,6 +232,7 @@ class ParentAffectedTests(unittest.TestCase):
     def test_documentation_modules_exist_and_belong_to_reviewed_groups(self):
         assigned = set().union(*policy.GROUPS.values())
         self.assertTrue(policy.DOCUMENTATION_MODULES <= assigned)
+        self.assertIn('test_ci_workflow', policy.DOCUMENTATION_MODULES)
         for module in policy.DOCUMENTATION_MODULES:
             self.assertTrue((ROOT / 'tests' / (module + '.py')).is_file())
 

@@ -2674,7 +2674,18 @@ errors.
 
 The embedded `example.fes-cores` Home room combines the kit-local package
 list from `kit.cores` with prepared host-library systems from
-`hardware.read`. Each host card publishes its library `game_id` and launches
+`hardware.read`. Tenfoot applies the v1 release scope to the core catalog and
+Home recents; recents keep scanning cursor pages until they have five visible
+entries or the host has no more. Games without a core ID remain visible.
+**Show all cores** removes that presentation filter and is available through
+Settings, `tenfoot.json` `all_cores`, or `FOGCAST_TENFOOT_ALL_CORES=1`. Room
+instances receive the same scope for local packages, hardware snapshots and
+the systems table; `room.core_shown` also keeps the core a room was opened for,
+so setup for a held-back running machine remains usable. Changing the setting
+stays in Settings until it closes, then returns Home and drops any stale room
+instance. A Home room is reused only when its release scope matches the current
+setting. The host catalog and Library grid remain complete. Each host card
+publishes its library `game_id` and launches
 through the library path; a ready host card replaces a blocked local row for
 the same core, while a launchable local row stays selected. Host readiness
 follows library launch admission, including selected video parts, required and
@@ -2805,6 +2816,12 @@ SDL scancodes, and the kit maps evdev `KEY_*`. There is no per-core character
 map; the core owns characters, shifted symbols, repeat and reset chords. The host
 attaches input for these sessions even without controller ports and passes the
 events through `POST /api/v1/session/input/event` and the host stream unchanged.
+On the kit, the linuxfb evdev loop reads `EV_KEY` records, maps Linux key codes
+through `internal/hidkeys.FromLinuxKey`, and passes the resulting usage to
+`HandlePlayHIDScancode` and the ordered `SendPlayHID` path. If connected evdev
+keyboards hold the same usage, tenfoot clears the releasing device's local
+held/modifier state immediately but sends the core release only after the last
+keyboard releases it.
 The 1.1 ABI retains its 1.0 keyboard and relative-mouse capabilities; an active
 `fes.mouse.relative` 1.0 interface receives the same supported-generation
 binding.

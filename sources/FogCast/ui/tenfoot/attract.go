@@ -125,6 +125,8 @@ func (a *App) persistPrefsLocked(field string) {
 		existing.Surround = boolPtr(a.surround)
 	case "firmware-info":
 		existing.FirmwareInfoSeen = a.firmwareCardSeenListLocked()
+	case "all-cores":
+		existing.AllCores = a.allCores
 	default:
 		return
 	}

@@ -96,6 +96,9 @@ func listLocalCores(ctx context.Context, client LocalCores, budget time.Duration
 func (r *Instance) coresTable(cores []localcores.Core) *lua.LTable {
 	t := r.L.NewTable()
 	for _, c := range cores {
+		if !r.coreShown(c.CoreID) {
+			continue
+		}
 		row := r.L.NewTable()
 		row.RawSetString("package_id", lua.LString(c.PackageID))
 		row.RawSetString("core_id", lua.LString(c.CoreID))

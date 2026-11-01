@@ -120,6 +120,8 @@ type tenfootPrefs struct {
 	// Surround draws the TV surround around a running machine on kit HDMI.
 	// Unset is on.
 	Surround *bool `json:"surround,omitempty"`
+	// AllCores lists cores outside the v1 release, for development and HIL.
+	AllCores bool `json:"all_cores,omitempty"`
 	// RoomsDir overrides the room pack directory.
 	RoomsDir string `json:"rooms_dir,omitempty"`
 	// Controllers holds kit pads' saved profiles, keyed by the GUID tenfoot
