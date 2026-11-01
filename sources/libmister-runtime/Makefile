@@ -54,6 +54,7 @@ LIB_SOURCES := \
 	src/native/de25_pr_control.cpp \
 	src/native/menu_display.cpp \
 	src/native/linux/menu_window.cpp \
+	src/native/linux/de25_menu.cpp \
 	src/native/diagnostic.cpp \
 	src/native/sha256.cpp \
 	src/native/input.cpp \
@@ -83,6 +84,7 @@ TEST_BINS := \
  $(BUILD_DIR)/tests/unit/production_hardware_test \
  $(BUILD_DIR)/tests/unit/menu_frame_transport_test \
 	$(BUILD_DIR)/tests/unit/menu_window_test \
+	$(BUILD_DIR)/tests/unit/de25_menu_test \
 	$(BUILD_DIR)/tests/unit/menu_display_test \
 	$(BUILD_DIR)/tests/unit/runtime_test \
 	$(BUILD_DIR)/tests/unit/diagnostic_test \
@@ -529,6 +531,10 @@ clean:
 -include $(DEPENDENCIES) $(BUILD_DIR)/tools/menu-pattern-client.d
 
 $(BUILD_DIR)/tests/unit/menu_display_test: tests/unit/menu_display_test.cpp src/native/menu_display.cpp src/native/fes_gp.cpp src/native/artifacts.cpp src/native/diagnostic.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
+
+$(BUILD_DIR)/tests/unit/de25_menu_test: tests/unit/de25_menu_test.cpp src/native/linux/de25_menu.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) $(filter %.cpp,$^) -o "$@"
 

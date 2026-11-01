@@ -92,6 +92,16 @@ frame, so a failed frame can recover before its reply without retaining a peer
 VMA. Existing persistent DE10 windows keep their contract. This is a software
 interface addition; the DE25 presenter and production construction stay closed.
 
+The internal `LinuxDe25Menu` implements MENU memory and presentation through
+one Linux DMA allocation. It binds an expected build identity after checking
+owner ABI3, waits for HDMI readiness, and confirms black frames in slots1/0
+before translating hardware sequence2 to logical initial sequence0. Subsequent
+frames preserve the kernel's pending-slot and completion rules. Revocation
+waits for kernel drain and the final peer reference; errors remain sticky.
+No physical addresses, PL310 operations, frame copies or inherited-configuration
+adoption are introduced. A profile, selected core driver and production factory
+still need to connect this adapter; no new hardware acceptance is claimed.
+
 The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
 register contract through an exclusive injected `Mmio` backend and an injected
 persona-configuration operation. It validates the selected base identity,

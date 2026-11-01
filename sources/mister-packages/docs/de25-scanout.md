@@ -23,6 +23,11 @@ storage. Interface version 1.1 is exact, so the new kernel refuses the previous
 1.0 endpoint before accessing these additional registers. This adds live image
 identification, not production MENU or hardware/timing admission.
 
+The runtime has a generated C++ consumer of these constants. Its Linux UAPI
+consumer is copied from the canonical kernel header by `make generate` and
+byte-checked by `make check`; it is not a separately maintained ioctl layout.
+The internal MENU adapter is not a production profile or factory admission.
+
 ## Commands and slot ownership
 
 SUBMIT (`1`) snapshots the staged descriptor. The first submit requires a

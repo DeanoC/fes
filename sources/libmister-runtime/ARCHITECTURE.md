@@ -306,6 +306,26 @@ verify construction and reject old mutation authority.
 
 ## Menu presentation primitives
 
+`LinuxDe25Menu` supplies both interfaces for one allocated Linux grant. Its
+constructor performs no physical access. Bind checks owner ABI3 before ALLOC,
+then requires the expected build identity, geometry and empty drained state.
+Activation keeps that same kernel-cleared allocation. Configure waits for
+DisplayReady and observes two complete black frames (hardware sequences1/2,
+slots1/0), establishing logical sequence0/front0. Later submissions add2 with
+checked exhaustion. ReadInfo reports observed running/pending/completion state;
+there is no synthetic enable register or frame acknowledgement.
+
+Its memory clean validates the back slot and rectangles; coherent CPU writes
+are ordered by kernel PUBLISH, without runtime mmap, PL310 calls or copies.
+Clients require the per-frame mapping agreement. Retirement polls only the
+kernel's EAGAIN drain observation, without reset; other errors stop it. After
+successful REAP it closes its grant and waits for OWNER_IDLE, including peer
+FD/VMA references. A failed retirement stays sticky and refuses another bind.
+The kernel retains uncertain exposure after local descriptors close. Synchronous
+ioctl completion is checked against the deadline but cannot be aborted by a
+userspace clock check. This adapter does not admit a package, adopt an existing
+configuration, or construct the DE25 production factory.
+
 `NativeHardware` consumes the `MenuDisplay` presentation and `MenuMemory`
 grant interfaces. `MenuDisplayDriver` and `MenuWindow` are the DE10 adapters;
 board-independent lifecycle code does not require their concrete transports.
