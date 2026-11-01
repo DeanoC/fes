@@ -1,0 +1,236 @@
+{
+  "format": 1,
+  "root": "/home/deano/fes/out/dev/de25-scanout-loader",
+  "base": "159bcf52cc3e92909ea463ed3add05734f35255f",
+  "head": "93f6c9f44efb44d2a0961eb8c6dff33d79ef9007",
+  "checkout_head": "93f6c9f44efb44d2a0961eb8c6dff33d79ef9007",
+  "merge_base": "159bcf52cc3e92909ea463ed3add05734f35255f",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": false
+    },
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts",
+      "fpga"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": true,
+      "full_race": false
+    },
+    "paths": [
+      "docs/validation/2026-11-01-de25-allocated-scanout/README.md",
+      "docs/validation/2026-11-01-de25-allocated-scanout/allocation-only-cpu-results.json",
+      "docs/validation/2026-11-01-de25-allocated-scanout/client-cpu-results.json",
+      "docs/validation/2026-11-01-de25-allocated-scanout/manifest.json",
+      "docs/validation/2026-11-01-de25-allocated-scanout/phase-comparison.json",
+      "docs/validation/2026-11-01-de25-allocated-scanout/phase-control-comparison.json",
+      "docs/validation/2026-11-01-de25-allocated-scanout/programmer-aarch64-job.json",
+      "docs/validation/2026-11-01-de25-allocated-scanout/programmer-native-job.json",
+      "docs/validation/2026-11-01-de25-allocated-scanout/results.json",
+      "docs/validation/2026-11-01-de25-allocated-scanout/route-readonly.log",
+      "docs/validation/2026-11-01-de25-allocated-scanout/second-allocated-frames.log",
+      "docs/validation/2026-11-01-de25-allocated-scanout/second-cleanup.log",
+      "docs/validation/2026-11-01-de25-allocated-scanout/second-observe.log",
+      "docs/validation/2026-11-01-de25-allocated-scanout/second-reap.log",
+      "docs/validation/2026-11-01-de25-allocated-scanout/tracing-affected-job.json",
+      "docs/validation/2026-11-01-de25-allocated-scanout/tracing-candidate.json",
+      "docs/validation/2026-11-01-de25-allocated-scanout/tracing-image-independent-verify.json",
+      "docs/validation/2026-11-01-de25-allocated-scanout/tracing-kernel-build.json",
+      "docs/validation/2026-11-01-de25-allocated-scanout/tracing-kernel-job.json",
+      "docs/validation/2026-11-01-de25-allocated-scanout/transport-receipt.json",
+      "image/kernel/de25-platform/README.md",
+      "image/kernel/de25-platform/owner_scanout.c",
+      "scripts/de25_kernel_platform.py",
+      "sources/libmister-runtime/ARCHITECTURE.md",
+      "sources/libmister-runtime/README.md",
+      "sources/libmister-runtime/docs/support-matrix.md",
+      "tests/fixtures/de25_owner_scanout_model.c",
+      "tests/test_de25_owner_scanout.py"
+    ],
+    "reasons": [
+      "image/kernel/de25-platform/owner_scanout.c: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/de25_kernel_platform.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/fixtures/de25_owner_scanout_model.c: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_de25_owner_scanout.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "159bcf52cc3e92909ea463ed3add05734f35255f",
+        "--head",
+        "93f6c9f44efb44d2a0961eb8c6dff33d79ef9007"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "true",
+        "--paths-json",
+        "[\"docs/validation/2026-11-01-de25-allocated-scanout/README.md\", \"docs/validation/2026-11-01-de25-allocated-scanout/allocation-only-cpu-results.json\", \"docs/validation/2026-11-01-de25-allocated-scanout/client-cpu-results.json\", \"docs/validation/2026-11-01-de25-allocated-scanout/manifest.json\", \"docs/validation/2026-11-01-de25-allocated-scanout/phase-comparison.json\", \"docs/validation/2026-11-01-de25-allocated-scanout/phase-control-comparison.json\", \"docs/validation/2026-11-01-de25-allocated-scanout/programmer-aarch64-job.json\", \"docs/validation/2026-11-01-de25-allocated-scanout/programmer-native-job.json\", \"docs/validation/2026-11-01-de25-allocated-scanout/results.json\", \"docs/validation/2026-11-01-de25-allocated-scanout/route-readonly.log\", \"docs/validation/2026-11-01-de25-allocated-scanout/second-allocated-frames.log\", \"docs/validation/2026-11-01-de25-allocated-scanout/second-cleanup.log\", \"docs/validation/2026-11-01-de25-allocated-scanout/second-observe.log\", \"docs/validation/2026-11-01-de25-allocated-scanout/second-reap.log\", \"docs/validation/2026-11-01-de25-allocated-scanout/tracing-affected-job.json\", \"docs/validation/2026-11-01-de25-allocated-scanout/tracing-candidate.json\", \"docs/validation/2026-11-01-de25-allocated-scanout/tracing-image-independent-verify.json\", \"docs/validation/2026-11-01-de25-allocated-scanout/tracing-kernel-build.json\", \"docs/validation/2026-11-01-de25-allocated-scanout/tracing-kernel-job.json\", \"docs/validation/2026-11-01-de25-allocated-scanout/transport-receipt.json\", \"image/kernel/de25-platform/README.md\", \"image/kernel/de25-platform/owner_scanout.c\", \"scripts/de25_kernel_platform.py\", \"sources/libmister-runtime/ARCHITECTURE.md\", \"sources/libmister-runtime/README.md\", \"sources/libmister-runtime/docs/support-matrix.md\", \"tests/fixtures/de25_owner_scanout_model.c\", \"tests/test_de25_owner_scanout.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "docker",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "passed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ]
+}

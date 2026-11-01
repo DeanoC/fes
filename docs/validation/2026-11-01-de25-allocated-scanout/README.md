@@ -93,3 +93,21 @@ does not establish the physical mapping or fix the response fault. A mapped doma
 physical translation. No DMA bypass or raw-address userspace interface is added.
 Full normal MENU/catalog/runtime, safe restart, physical memory/translation,
 SAVE, failure/reset fencing and timing acceptance remain required.
+
+
+## Integration after the programmer change
+
+The fresh [combined endpoint/client/ZX81/PR RTL run](programmer-combined-proof.json)
+passes all 14 native and QEMU-AArch64 cases at `159bcf52c` in 1,412.8 seconds.
+The actual report refreshes the branch fixture; all 16 source-closure recipe
+checks pass after integration. This is model evidence, including BASIC
+LOAD/RUN/reload, rather than a new board or physical persona-programming pass.
+The allocation-only and trace-kernel changes do not alter that captured
+compiler/runtime input closure. Generated consistency passes with 38 consumers
+and 41 fixture copies; documentation links and whitespace checks pass.
+
+The [six-command affected regression run](allocation-trace-affected-results.json)
+passes at integrated source `93f6c9f44` in 284.3 seconds, including the selected
+parent Python/media checks. Its code is identical after the final child merge;
+only the actual combined-proof fixture and dated evidence are subsequently
+updated. This is a separate run from the earlier trace-only affected checks.
