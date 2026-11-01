@@ -214,7 +214,7 @@ simulation jobs, so a cold cache does not compile Verilator separately for every
 core. Coleco's full simulation tier runs 24 jobs: seven unit/board scenarios in
 both default and OSS lanes, the CPU expansion probe, registered diagnostic
 through the socket, video-parts check and seven SGM cases. Its smoke tier runs
-five jobs: unit, unit-OSS, board-graphics, diagnostic and integrated SGM. The
+5 jobs: unit, unit-OSS, board-graphics, diagnostic and integrated SGM. The
 [affected-check guide](test-changed.md#selection-and-coverage)
 describes CI job selection and the complete set of Coleco simulation cases. To reproduce it
 locally, install Git, a C++ compiler, Make, Autoconf, Bison, Flex, help2man and the
