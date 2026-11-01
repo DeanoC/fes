@@ -139,7 +139,12 @@ class SourceProvenanceTests(unittest.TestCase):
                                   return_value=(Path('/fixture'), Path('/fixture/quartus_sh'), '17.0.2', 'fixture')), \
                      patch.object(producer, '_run_quartus', side_effect=AssertionError('compiler forbidden')), \
                      patch('sys.stdout', new=io.StringIO()) as stdout:
-                    producer.build(module, print_commands=True)
+                    if producer.__name__ == 'scripts.build_fes_zx81':
+                        # The ZX81 oracle needs the user-supplied ROM.
+                        with patch.object(producer.zx81_rom, 'load', return_value=bytes(8192)):
+                            producer.build(module, rom=Path('zx81.rom'), print_commands=True)
+                    else:
+                        producer.build(module, print_commands=True)
                 self.assertIn('command:', stdout.getvalue())
                 self.assertEqual(git(repo, 'status', '--porcelain'), '')
 

@@ -4,7 +4,7 @@
 // ZX81_ROM_4K (the ZX80) keeps the low four lanes, rows 73-76, and ties
 // the upper four to zero. The default compile still instantiates all eight.
 // The sealed OSS image leaves these lanes empty. Launch splices BASIC
-// into the RAM muxes; this file does not read zx8x.hex.
+// into the RAM muxes; this file reads no ROM image.
 `include "zx81_model.vh"
 //
 // Cyclone V M10K cannot do a true asynchronous read, so each lane registers
