@@ -1,0 +1,348 @@
+{
+  "aarch64_groups": {
+    "aarch64-boot-run": 2,
+    "aarch64-bootlinux-run": 15
+  },
+  "binaries": {
+    "aarch64": {
+      "platform_build": {
+        "appliance_module": "github.com/DeanoC/FogCast/appliance",
+        "appliance_module_sha256": "f7c16542236c4690875ea5b28ad74eb26b376d3683da626c71aa739580c06a30",
+        "build_env": {
+          "CGO_ENABLED": "0",
+          "GOARCH": "arm64",
+          "GOARM64": "v8.0",
+          "GOOS": "linux",
+          "GOPROXY": "off",
+          "GOSUMDB": "off",
+          "GOTOOLCHAIN": "local"
+        },
+        "build_flags": [
+          "-trimpath",
+          "-buildvcs=false",
+          "-ldflags=-s -w -buildid="
+        ],
+        "fogcast_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0",
+        "go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+        "go_version": "go1.26.5",
+        "package": "./cmd/fes-boot",
+        "platform_module": "github.com/DeanoC/fes/platform",
+        "platform_sha256": "59725c83306fe535ee0b408361d0e8f9752b9fb13650c26cbd9555dc2b36751e"
+      },
+      "sha256": "e6f2c62258353b114fc7829b03892d4103a3f43bcaa2f4cccae65a8af0f9b564"
+    },
+    "armv7": {
+      "platform_build": {
+        "appliance_module": "github.com/DeanoC/FogCast/appliance",
+        "appliance_module_sha256": "f7c16542236c4690875ea5b28ad74eb26b376d3683da626c71aa739580c06a30",
+        "build_env": {
+          "CGO_ENABLED": "0",
+          "GOARCH": "arm",
+          "GOARM": "7",
+          "GOOS": "linux",
+          "GOPROXY": "off",
+          "GOSUMDB": "off",
+          "GOTOOLCHAIN": "local"
+        },
+        "build_flags": [
+          "-trimpath",
+          "-buildvcs=false",
+          "-ldflags=-s -w -buildid="
+        ],
+        "fogcast_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0",
+        "go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+        "go_version": "go1.26.5",
+        "package": "./cmd/fes-boot",
+        "platform_module": "github.com/DeanoC/fes/platform",
+        "platform_sha256": "59725c83306fe535ee0b408361d0e8f9752b9fb13650c26cbd9555dc2b36751e"
+      },
+      "sha256": "e1f463cb48af74e48c1444a9d733bd28409e5813746c460bcf609a1e4e39d3cc"
+    }
+  },
+  "bootstrap": {
+    "assembly_recipe": {
+      "scripts/appliance.py": "5f9219cc0f004b835e176d8bad194399bbf380042f8ca8af5a204fa1c756b63e",
+      "scripts/appliance_inside.py": "d160d927652f32a16600d874a3b0506d54b71d2aa88855d5a5f3f54016068478",
+      "scripts/media.py": "84a138f9bbc439dde27fec3385c7806266254813fc4d821688da2d5365e7c178",
+      "scripts/media_container.py": "4bfdf614235b555b7514695c5d465b24e31111d92ba941ca481b2d9ed9ad19e2",
+      "scripts/media_inputs.py": "c53410eceaf77b3d13dabf397f80171909b5a3208f1850b5378f8da31dc691c1",
+      "scripts/media_uboot.py": "604cb96daef1e68204fb444c8c76f52d582eb1f3674803d203f475fab97621b2",
+      "scripts/platform.py": "1c590635f8e6c1e8fdac2f0e5a53ac5b7916deb7f7e0047dfa10d81a4282ac3a"
+    },
+    "assembly_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0",
+    "assembly_source_proven": true,
+    "binary_source_proven": true,
+    "binary_source_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0",
+    "board": "de25-nano",
+    "boot_abi": "fes-bootstrap-v1",
+    "bootstrap_binary_sha256": "e6f2c62258353b114fc7829b03892d4103a3f43bcaa2f4cccae65a8af0f9b564",
+    "bootstrap_sha256": "11fde77d2c03fffa6979c6c5e1a757420acb054011a140260ebcdb3e51d105cd",
+    "classification": "source-bound-host-artifact",
+    "container_identity": "sha256:44b7b0c76728be2a697e5cd7150a1ef7ddfda6c880212d11f9fef43d950a2af6",
+    "factory_image_sha256": "d88380ff3766475e6dbe4862e7f614a90e6a782658b4583fabcae09495b2aeaa",
+    "factory_manifest_sha256": "a69f215455084a7574b0ea9599994d04b5b158684ecfe59ecf8649c0894eddc7",
+    "format": 1,
+    "hardware": "not-run",
+    "kernel_sha256": "0a429367e4f70e9082f04459ee6475cd31245e7739526ba149ff5e1fd29eca6d",
+    "kind": "fes-stable-bootstrap",
+    "platform_build": {
+      "appliance_module": "github.com/DeanoC/FogCast/appliance",
+      "appliance_module_sha256": "f7c16542236c4690875ea5b28ad74eb26b376d3683da626c71aa739580c06a30",
+      "build_env": {
+        "CGO_ENABLED": "0",
+        "GOARCH": "arm64",
+        "GOARM64": "v8.0",
+        "GOOS": "linux",
+        "GOPROXY": "off",
+        "GOSUMDB": "off",
+        "GOTOOLCHAIN": "local"
+      },
+      "build_flags": [
+        "-trimpath",
+        "-buildvcs=false",
+        "-ldflags=-s -w -buildid="
+      ],
+      "fogcast_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0",
+      "go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+      "go_version": "go1.26.5",
+      "package": "./cmd/fes-boot",
+      "platform_module": "github.com/DeanoC/fes/platform",
+      "platform_sha256": "59725c83306fe535ee0b408361d0e8f9752b9fb13650c26cbd9555dc2b36751e"
+    },
+    "tool_evidence": {
+      "binary_sha256": "e6f2c62258353b114fc7829b03892d4103a3f43bcaa2f4cccae65a8af0f9b564",
+      "debugfs_version": "debugfs 1.47.0 (5-Feb-2023)\n\tUsing EXT2FS Library version 1.47.0",
+      "ext4_features": {
+        "block_size": 1024,
+        "compat": 32,
+        "incompat": 66,
+        "ro_compat": 3
+      },
+      "factory_manifest_sha256": "a69f215455084a7574b0ea9599994d04b5b158684ecfe59ecf8649c0894eddc7",
+      "filesystem_uuid": "46455331-626f-4f74-8000-000000000001",
+      "image_sha256": "11fde77d2c03fffa6979c6c5e1a757420acb054011a140260ebcdb3e51d105cd",
+      "image_size": 33554432,
+      "mke2fs_version": "mke2fs 1.47.0 (5-Feb-2023)\n\tUsing EXT2FS Library version 1.47.0",
+      "source_date_epoch": 1751459412
+    },
+    "two_pass_reproducibility": "pass"
+  },
+  "cpu_source_equivalence": {
+    "aarch64_groups": "reused 2 executables after complete source equality",
+    "appliance_tree_sha256": "f7c16542236c4690875ea5b28ad74eb26b376d3683da626c71aa739580c06a30",
+    "hardware_access": false,
+    "native_boot_tests": "reused after complete source equality",
+    "platform_tree_sha256": "59725c83306fe535ee0b408361d0e8f9752b9fb13650c26cbd9555dc2b36751e",
+    "prior_source": "b07487a8b713607810bdff80b3581130621c25a8",
+    "source": "e06d5e3a1f32170cf6458c172288259baf04aae0"
+  },
+  "finish": {
+    "command": [
+      "python3",
+      "/home/deano/fes/out/dev/de25-managed-image/out/de25-bootstrap-platform/finish.py",
+      "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-finish",
+      "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-finish/out/bootstrap-proof"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-finish",
+    "elapsed_seconds": 26.8,
+    "hardware_access": "not-performed",
+    "heartbeat_utc": "2026-11-01T21:18:04.174165+00:00",
+    "pid": 2301359,
+    "returncode": 0,
+    "source_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0",
+    "started_utc": "2026-11-01T21:17:37.340846+00:00",
+    "state": "passed",
+    "time_cap_seconds": 1200
+  },
+  "finish_checks": {
+    "checks": [
+      {
+        "command": [
+          "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+          "-m",
+          "unittest",
+          "tests.test_platform.PlatformWorkspaceTests.test_go_toolchain_probe_ignores_inherited_cross_cpu_settings",
+          "-v"
+        ],
+        "label": "probe-regression",
+        "log_sha256": "1ef758c1469fbfe1095cfb6cfd718cbb5a100148d64f86006a7a2f013f404881",
+        "returncode": 0,
+        "seconds": 0.103
+      },
+      {
+        "command": [
+          "/home/deano/fes/out/dev/de25-software-abi/out/board-abi/root/qemu-aarch64-static",
+          "-cpu",
+          "cortex-a53",
+          "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-finish/out/bootstrap-proof/fes-boot-aarch64"
+        ],
+        "label": "aarch64-fes-boot-refusal",
+        "log_sha256": "9194a2f2dc5a646f3c9f63ea0ee2f075a70d7e02cd76863bcac6e82279620de3",
+        "returncode": 1,
+        "seconds": 0.072
+      }
+    ],
+    "hardware_access": false,
+    "source": "e06d5e3a1f32170cf6458c172288259baf04aae0"
+  },
+  "hardware_access": false,
+  "initial_checks": {
+    "checks": [
+      {
+        "command": [
+          "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+          "-m",
+          "unittest",
+          "tests.test_appliance",
+          "tests.test_platform",
+          "-v"
+        ],
+        "label": "python-focused",
+        "log_sha256": "11b13a6d5608ec2587f98d95b51a144bb319d9c10b340223fad61b41264d83ad",
+        "returncode": 0,
+        "seconds": 5.15
+      },
+      {
+        "command": [
+          "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+          "test",
+          "-json",
+          "./cmd/fes-boot",
+          "./internal/bootlinux"
+        ],
+        "label": "native-boot-tests",
+        "log_sha256": "54ab5ec0bf1389165d9c805b2ec970df940b5fbee15054a6e8fc17bf725d8618",
+        "returncode": 0,
+        "seconds": 0.71
+      },
+      {
+        "command": [
+          "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+          "test",
+          "-c",
+          "-o",
+          "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-b07487a8b/out/bootstrap-proof/boot.test",
+          "./cmd/fes-boot"
+        ],
+        "label": "aarch64-boot-build",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "returncode": 0,
+        "seconds": 0.889
+      },
+      {
+        "command": [
+          "/home/deano/fes/out/dev/de25-software-abi/out/board-abi/root/qemu-aarch64-static",
+          "-cpu",
+          "cortex-a53",
+          "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-b07487a8b/out/bootstrap-proof/boot.test",
+          "-test.v",
+          "-test.run",
+          "TestBootStoreUsesSelectedBoard|TestUnqualifiedDe25TrialRefusedBeforeGuardStart"
+        ],
+        "label": "aarch64-boot-run",
+        "log_sha256": "5575db38bddf7e63b942af5071a2202957981f332e65f593d40a35fc00640beb",
+        "returncode": 0,
+        "seconds": 0.148
+      },
+      {
+        "command": [
+          "/home/deano/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.26.5.linux-amd64/bin/go",
+          "test",
+          "-c",
+          "-o",
+          "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-b07487a8b/out/bootstrap-proof/bootlinux.test",
+          "./internal/bootlinux"
+        ],
+        "label": "aarch64-bootlinux-build",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "returncode": 0,
+        "seconds": 0.324
+      },
+      {
+        "command": [
+          "/home/deano/fes/out/dev/de25-software-abi/out/board-abi/root/qemu-aarch64-static",
+          "-cpu",
+          "cortex-a53",
+          "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-b07487a8b/out/bootstrap-proof/bootlinux.test",
+          "-test.v",
+          "-test.run",
+          "TestBootstrapBoardRequiresExactImageAndCPU|TestDe25PartitionBootstrapAdmission"
+        ],
+        "label": "aarch64-bootlinux-run",
+        "log_sha256": "316a0f5dea452a7e24670de25b9bf0cfce2e823200ff45fd4c3e050a84e890b1",
+        "returncode": 0,
+        "seconds": 0.13
+      }
+    ],
+    "hardware_access": false,
+    "source": "b07487a8b713607810bdff80b3581130621c25a8"
+  },
+  "kernel_prerequisites": {
+    "builtin_settings": {
+      "ARM_SMC_WATCHDOG": true,
+      "BLK_DEV_LOOP": true,
+      "DEVTMPFS": true,
+      "DEVTMPFS_MOUNT": true,
+      "DW_WATCHDOG": true,
+      "EXT4_FS": true,
+      "FAT_FS": true,
+      "NAMESPACES": true,
+      "NLS": true,
+      "NLS_CODEPAGE_437": true,
+      "NLS_ISO8859_1": true,
+      "TMPFS": true,
+      "VFAT_FS": true,
+      "WATCHDOG": true
+    },
+    "hardware_access": false,
+    "installed": false,
+    "kernel_Image_sha256": "0a429367e4f70e9082f04459ee6475cd31245e7739526ba149ff5e1fd29eca6d",
+    "kernel_config_sha256": "5966573caf24959a7c13894259e030b09aa21819e1e78782c773cc97b48eb52f",
+    "native_watchdog_recovery": "not-qualified",
+    "source": "09d0be9e2b17141562029866cfaa5ac6ca5d209a"
+  },
+  "limits": [
+    "No physical board or new syscalls against DE25 mounts executed",
+    "Headless rootfs manifest is a construction binding fixture, not managed factory or bootable card",
+    "DE25 trial watchdog is explicitly refused; no native recovery qualification",
+    "No new FPGA, native DDR or global-reset acceptance"
+  ],
+  "native_pass_test_subtest_events": 58,
+  "native_skip_events": 1,
+  "original_proof": {
+    "command": [
+      "python3",
+      "/home/deano/fes/out/dev/de25-managed-image/out/de25-bootstrap-platform/proof.py",
+      "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-b07487a8b",
+      "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-b07487a8b/out/bootstrap-proof"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-b07487a8b",
+    "elapsed_seconds": 7.6,
+    "hardware_access": "not-performed",
+    "heartbeat_utc": "2026-11-01T21:16:54.082391+00:00",
+    "pid": 2295719,
+    "returncode": 1,
+    "source_revision": "b07487a8b713607810bdff80b3581130621c25a8",
+    "started_utc": "2026-11-01T21:16:46.496204+00:00",
+    "state": "failed",
+    "time_cap_seconds": 1200
+  },
+  "original_source_revision": "b07487a8b713607810bdff80b3581130621c25a8",
+  "platform": {
+    "command": [
+      "make",
+      "platform-test"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-bootstrap-finish",
+    "elapsed_seconds": 37.6,
+    "hardware_access": "not-performed",
+    "heartbeat_utc": "2026-11-01T21:18:42.364738+00:00",
+    "pid": 2311064,
+    "returncode": 0,
+    "source_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0",
+    "started_utc": "2026-11-01T21:18:04.761724+00:00",
+    "state": "passed",
+    "time_cap_seconds": 1200
+  },
+  "source_revision": "e06d5e3a1f32170cf6458c172288259baf04aae0"
+}

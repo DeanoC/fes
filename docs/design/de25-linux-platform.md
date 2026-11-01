@@ -31,8 +31,12 @@ Shared release storage and the update agent/API have explicit DE25 board
 selection. The agent and storage gate bind the immutable image's board file to
 its CPU architecture, while the upload parser and client refuse cross-board
 payloads. The base storage helper builds for AArch64. These are software paths:
-DE25 bootstrap/media assembly, managed image installation, watchdog/reboot
-recovery and the native workflow in the table remain unqualified.
+The FES PID1 source also supports an explicitly selected DE25 bootstrap and
+reproducible AArch64 ext4 construction. Its CPU/root/volume checks and the
+refusal of unqualified trial boots are covered in the
+[bootstrap record](../validation/2026-11-01-de25-appliance-bootstrap/README.md).
+Complete DE25 card/media and managed factory assembly, installation,
+watchdog/reboot recovery and the native workflow in the table remain open.
 
 The approved bottom-board baseline is the existing FES SD plus the exact
 HPS-first QSPI in the [persistent bootstrap trial](../de25-reboot-bootstrap.md).

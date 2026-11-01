@@ -102,8 +102,18 @@ covers explicit DE25 release storage, image/CPU selection in the agent/data gate
 upload refusal before body reads and the matching update client. The storage
 helper's existing Make target builds for AArch64. Native, QEMU Cortex-A53 and
 the full affected parent/host/UI checks pass on their recorded sources. DE25
-bootstrap/media assembly and native update/watchdog acceptance remain open;
+complete media assembly and native update/watchdog acceptance remain open;
 these helpers and services are not installed by the headless image.
+
+The [AArch64 bootstrap record](validation/2026-11-01-de25-appliance-bootstrap/README.md)
+covers the FES PID1 source and a reproducible 32 MiB bootstrap ext4 image. An
+explicit DE25 selection binds its board file, AArch64 executable, factory
+manifest and stable kernel. It admits Terasic's partition-2 ext4 root, makes
+that bootstrap read-only and mounts partition 1 at `/media/fat` for the shared
+release store before root switching. CPU admission tests and image construction
+are off-board evidence. The bootstrap is not installed; the managed factory,
+complete card layout and native boot still need integration. DE25 trial boots
+are refused before watchdog guard startup until native recovery is qualified.
 
 The [managed-fabric record](validation/2026-11-01-de25-managed-fabric/README.md)
 covers the current canonical MENU profile: vendor maintenance masters removed,
@@ -305,9 +315,10 @@ rejected before changing the interface. Physical reboot verification of this
 initialization remains pending; record the MAC and DHCP address during board
 qualification, including distinct addresses when testing both boards.
 
-The normal FES appliance bootstrap is not used. Its current kernel contract,
-trial watchdog reset preparation and software bundle identities target
-DE10-Nano. The DE25 image does not accept DE10 bundles or claim managed update,
+This headless image does not use the FES appliance bootstrap. The separate
+AArch64 bootstrap source and image proof above do not change its direct-root
+boot or install a managed factory. Trial watchdog reset preparation remains
+DE10-only. The DE25 image does not accept DE10 bundles or claim managed update,
 rollback, FPGA programming, HPS DDR or display compatibility.
 
 ## First-boot evidence collection
