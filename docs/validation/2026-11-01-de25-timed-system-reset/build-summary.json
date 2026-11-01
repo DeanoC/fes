@@ -1,0 +1,9 @@
+{
+  "build_id": "ca03ea0a398d1bfa5104482d07fdc4c4",
+  "classification": "de25-menu-compile-candidate",
+  "hardware_acceptance": false,
+  "normal_kit_acceptance": false,
+  "package_timing_admission": false,
+  "rbf_sha256": "58181300c2ce74ba5092d154d3f04779334da7a8b4b4c8938717c95c9ccae5db",
+  "revision": "34c3a6cb4d2858c273e2f95a0a94fcb46f8b416b"
+}
