@@ -8,22 +8,23 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/DeanoC/FogCast/appliance"
 )
 
-type selectedBoardUpload struct{ read bool }
+type selectedBoardUpload struct{ read atomic.Bool }
 
-func (r *selectedBoardUpload) Read([]byte) (int, error) { r.read = true; return 0, io.EOF }
+func (r *selectedBoardUpload) Read([]byte) (int, error) { r.read.Store(true); return 0, io.EOF }
 
 func TestSelectedBoardRejectsForeignTargetBeforeUpload(t *testing.T) {
 	for _, reported := range []string{"", appliance.Board, "unknown"} {
 		t.Run("reported-"+reported, func(t *testing.T) {
-			posts := 0
+			var posts atomic.Int32
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method != http.MethodGet {
-					posts++
+					posts.Add(1)
 				}
 				switch r.URL.Path {
 				case "/v1/health":
@@ -43,10 +44,10 @@ func TestSelectedBoardRejectsForeignTargetBeforeUpload(t *testing.T) {
 			if _, err := c.UpdateApplianceForBoard(context.Background(), "kit", m, body, nil, appliance.BoardDE25); err == nil || !strings.Contains(err.Error(), "board differs") {
 				t.Fatalf("wrong target accepted: %v", err)
 			}
-			if posts != 0 || body.read {
-				t.Fatalf("foreign target mutated or consumed body: posts=%d read=%t", posts, body.read)
+			if posts.Load() != 0 || body.read.Load() {
+				t.Fatalf("foreign target mutated or consumed body: posts=%d read=%t", posts.Load(), body.read.Load())
 			}
-			if err := c.StageAppliance(context.Background(), m, body); err == nil || body.read {
+			if err := c.StageAppliance(context.Background(), m, body); err == nil || body.read.Load() {
 				t.Fatal("DE10 default staging admitted DE25")
 			}
 		})

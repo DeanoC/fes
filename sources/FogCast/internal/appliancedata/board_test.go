@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	release "github.com/DeanoC/FogCast/appliance"
-	"github.com/DeanoC/FogCast/appliance/store"
+	store "github.com/DeanoC/FogCast/appliance/store"
 )
 
 func TestSelectedBoardUpdateGate(t *testing.T) {
