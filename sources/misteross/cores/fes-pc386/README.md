@@ -308,10 +308,15 @@ the wall clock, with
     runs to its end, and the ACK waits for every accepted sector to land with
     its dirty mark. The map survives machine resets; Prepare, Eject and Saved
     clear it.
-  - *Record.* Settings words 2 and 4-6 are the CPU's self-modifying-code
-    profile and the Sound Blaster's port, IRQ and DMA at each release; the
-    governor's preset, frequency and turbo words are kept for the governor,
-    which the CPU does not have yet. The RTC loads CMOS 0Eh-7Fh from the
+  - *Record.* Settings words 0, 1 and 3 are the CPU's governor preset,
+    frequency override and turbo at launch
+    ([speed control](../../docs/i386-cpu-design.md#speed-control)), which the
+    CPU samples at its reset, and words 2 and 4-6 its self-modifying-code
+    profile and the Sound Blaster's port, IRQ and DMA, at each release. The
+    producer sets the governor's `GOV_N`/`GOV_D` (100 kHz of the sealed
+    clock) with the other guest rates
+    ([governor record](../../../../docs/validation/2026-11-01-pc386-m5-governor/summary.md)).
+    The RTC loads CMOS 0Eh-7Fh from the
     record after every reset, then writes its configuration bytes, and every
     byte written to its RAM goes to the record. 00h-0Dh are the clock's
     registers, not RAM: Freeze reads them as the guest does, and a restore
@@ -411,7 +416,6 @@ The main branch package does not yet include the HID nine-row keyboard model,
 typematic repeat or `fes.mouse.relative` wiring. The M5 Kit B runs recorded in
 the [games record](../../../../docs/validation/2026-11-01-pc386-m5-games/summary.md)
 used the separate sealed package from #1335, which includes those inputs. Those
-runs are historical and do not qualify this RTL update; this change needs a
-fresh seal and exact-artifact HIL on the new PR head. The CPU's governor, which
-the record's preset, frequency and turbo words wait for, and the CPU's L2 also
+runs are historical and do not qualify this RTL update. Turbo while running
+([#1358](https://github.com/DeanoC/fes/issues/1358)) and the CPU's L2 also
 remain unbuilt.

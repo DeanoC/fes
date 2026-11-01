@@ -63,9 +63,13 @@
 // or a mailbox step that failed.
 //
 // --seed N changes every DDR port's timing draws (pc386_ddr_model.h), so a
-// rare latency tail lands elsewhere.
+// rare latency tail lands elsewhere. --preset, --frequency and --turbo set
+// the restored record's words 0, 1 and 3, the governor's settings, as
+// FogCast writes them (default 0: max). --exercise-input 0 skips the
+// FreeDOS keyboard and mouse exercise for a synthetic-disk prompt.
 //
 // usage: system_tb --disk F [--clock-hz N] [--limit-seconds S] [--prompt TEXT] [--seed N]
+//                  [--preset N] [--frequency N] [--turbo N] [--exercise-input 0|1]
 #include "Vpc386_system.h"
 #include "pc386_ddr_model.h"
 
@@ -93,8 +97,9 @@ enum : uint16_t { PREPARE = 0, COMMIT = 1, FREEZE = 3, SAVED = 5 };
 enum : uint16_t { DATA_FREEZE = 0, DATA_BEGIN = 1, DATA_COMMIT = 2 };
 constexpr uint16_t READY = 3, LOADING = 2, VERIFYING = 4, FLAG_ERROR = 8;
 constexpr unsigned WORDS = 72;
-// The record the bench restores: preset max, the Sound Blaster at 240h, IRQ 5,
-// DMA 1, and a byte in the free CMOS (50h) that only the record writes.
+// The record the bench restores: preset max unless --preset says, the Sound
+// Blaster at 240h, IRQ 5, DMA 1, and a byte in the free CMOS (50h) that only
+// the record writes.
 constexpr uint16_t SETTINGS[8] = {0, 0, 0, 0, 0x240, 5, 1, 0};
 constexpr unsigned MARKER_BYTE = 0x50, MARKER = 0xa5;
 // The input exercise: the echoed text, INPUT.COM's mouse packets (dx, dy
@@ -155,10 +160,15 @@ struct MailboxError : std::runtime_error {
 
 class Bench {
 public:
-    Bench(std::vector<uint8_t> image, uint32_t clock_hz, double limit_seconds, std::string prompt, uint64_t seed)
+    Bench(std::vector<uint8_t> image, uint32_t clock_hz, double limit_seconds, std::string prompt, uint64_t seed,
+          const uint16_t (&governor)[3], bool do_input_exercise)
         : ddr0{port0_memory, 0x5eed0020 ^ seed, "port 0"}, ddr1{window, 0x5eed0021 ^ seed, "port 1"},
           ddr2{window, 0x5eed0022 ^ seed, "port 2"}, image(std::move(image)), clock_hz(clock_hz),
-          prompt(std::move(prompt)) {
+          prompt(std::move(prompt)), do_input_exercise(do_input_exercise) {
+        std::copy(SETTINGS, SETTINGS + 8, settings);
+        settings[0] = governor[0];
+        settings[1] = governor[1];
+        settings[3] = governor[2];
         if (this->image.size() % 512 || this->image.size() < (1u << 20) || this->image.size() > (128u << 20))
             throw std::runtime_error("bad disk image size");
         sys_ps = 1e12 / clock_hz;
@@ -181,7 +191,7 @@ public:
                 if (cycles % 16 == 0) watch();
                 if (cycles > limit) reason = "limit";
             }
-            if (reason == "prompt") exercise_input();
+            if (reason == "prompt" && do_input_exercise) exercise_input();
             for (int row = 0; row < 25; ++row) std::printf("SCREEN %d |%s|\n", row, screen_row(row).c_str());
             print_status();
             if (reason == "prompt") stop();
@@ -206,6 +216,7 @@ private:
     std::vector<uint8_t> image;
     uint32_t clock_hz;
     std::string prompt, reason, debug_line;
+    uint16_t settings[8];
     uint16_t cylinders = 0;
     uint8_t heads = 0, spt = 0;
     uint8_t hold_sync[2] = {1, 1};  // fes_hps_ddr's synchroniser from ddr_hold
@@ -214,7 +225,7 @@ private:
     int last_post = -1, checks_failed = 0;
     bool write_tested = false;
     uint64_t counters[5] = {};
-    bool prompt_seen = false, toggle = false, booted = false;
+    bool prompt_seen = false, toggle = false, booted = false, do_input_exercise = true;
     std::vector<std::string> debug_lines;
     uint16_t rows[9] = {};
 
@@ -357,7 +368,7 @@ private:
     void launch() {
         identify();
         std::vector<uint16_t> record(WORDS, 0);
-        std::copy(SETTINGS, SETTINGS + 8, record.begin());
+        std::copy(settings, settings + 8, record.begin());
         record[8 + MARKER_BYTE / 2] = uint16_t(MARKER << (8 * (MARKER_BYTE & 1)));
         restore(record);
         std::printf("RESTORE %llu\n", (unsigned long long)cycles);
@@ -537,8 +548,7 @@ private:
         std::vector<uint16_t> record = capture();
         std::printf("RECORD %s\n", join(record).c_str());
         exchange(OP_EXECUTION, 0, 0);
-        bool settings = std::equal(SETTINGS, SETTINGS + 8, record.begin());
-        check(settings, "the record keeps the restored settings");
+        check(std::equal(settings, settings + 8, record.begin()), "the record keeps the restored settings");
         check(cmos(record, MARKER_BYTE) == MARKER, "CMOS 50h keeps the restored byte");
         check(cmos(record, 0x60) == 0x24 && cmos(record, 0x61) == 5 && cmos(record, 0x62) == 1,
               "CMOS 60h-62h hold the restored Sound Blaster setting");
@@ -627,13 +637,14 @@ private:
 
     void print_status() {
         uint64_t s0 = status(0), s1 = status(1);
-        std::printf("STATUS running=%llu halted=%llu stopped=%llu a20m=%llu intr=%llu post=%02llx cpu_resets=%llu "
+        std::printf("STATUS running=%llu halted=%llu stopped=%llu a20m=%llu intr=%llu governed=%llu post=%02llx cpu_resets=%llu "
                     "retired=%llu cs=%04llx vector=%02llx eip=%08llx frames_shown=%llu scanout_underflows=%llu "
                     "capture_drops=%llu present_underflows=%llu plane_underflows=%llu samples=%llu "
                     "dma_cycles=%llu opl2_samples=%llu\n",
                     (unsigned long long)((s0 >> 4) & 1), (unsigned long long)(s0 & 1),
                     (unsigned long long)((s0 >> 1) & 1), (unsigned long long)((s0 >> 2) & 1),
-                    (unsigned long long)((s0 >> 3) & 1), (unsigned long long)((s0 >> 8) & 0xff),
+                    (unsigned long long)((s0 >> 3) & 1), (unsigned long long)((s0 >> 5) & 1),
+                    (unsigned long long)((s0 >> 8) & 0xff),
                     (unsigned long long)((s0 >> 16) & 0xff), (unsigned long long)(s0 >> 32),
                     (unsigned long long)(s1 & 0xffff), (unsigned long long)((s1 >> 24) & 0xff),
                     (unsigned long long)(s1 >> 32), (unsigned long long)uint32_t(status(2)),
@@ -652,6 +663,8 @@ int main(int argc, char **argv) {
     double limit_seconds = 12;
     uint32_t clock_hz = 61440000;
     uint64_t seed = 0;
+    uint16_t governor[3] = {0, 0, 0};  // the record's words 0, 1 and 3
+    bool do_input_exercise = true;
     for (int n = 1; n + 1 < argc; n += 2) {
         std::string flag = argv[n], value = argv[n + 1];
         if (flag == "--disk") disk = value;
@@ -659,14 +672,19 @@ int main(int argc, char **argv) {
         else if (flag == "--limit-seconds") limit_seconds = std::stod(value);
         else if (flag == "--prompt") prompt = value;
         else if (flag == "--seed") seed = std::stoull(value, nullptr, 0);
+        else if (flag == "--preset") governor[0] = uint16_t(std::stoul(value));
+        else if (flag == "--frequency") governor[1] = uint16_t(std::stoul(value));
+        else if (flag == "--turbo") governor[2] = uint16_t(std::stoul(value));
+        else if (flag == "--exercise-input") do_input_exercise = std::stoul(value) != 0;
         else { std::fprintf(stderr, "system_tb: unknown flag %s\n", flag.c_str()); return 2; }
     }
     if (disk.empty()) {
-        std::fprintf(stderr, "usage: system_tb --disk F [--clock-hz N] [--limit-seconds S] [--prompt TEXT] [--seed N]\n");
+        std::fprintf(stderr, "usage: system_tb --disk F [--clock-hz N] [--limit-seconds S] [--prompt TEXT] [--seed N] "
+                             "[--preset N] [--frequency N] [--turbo N] [--exercise-input 0|1]\n");
         return 2;
     }
     try {
-        Bench bench(read_file(disk), clock_hz, limit_seconds, prompt, seed);
+        Bench bench(read_file(disk), clock_hz, limit_seconds, prompt, seed, governor, do_input_exercise);
         return bench.run() == "prompt" ? 0 : 1;
     } catch (const std::exception &error) {
         std::fprintf(stderr, "system_tb: %s\n", error.what());

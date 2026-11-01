@@ -374,6 +374,9 @@ the disk and settings in the DDR window until the `fes.computer` 1.1 contracts.
 It boots FreeDOS to its prompt in simulation and on Kit B on 2026-10-29
 ([M5 record](validation/2026-10-29-pc386-m5-system/summary.md)). nextpnr
 builds of pc386 are parked ([#1235](https://github.com/DeanoC/fes/issues/1235)).
+The CPU's speed governor takes its preset, frequency and turbo from the
+`fes.pc386.machine` record and paces the sealed package on Kit B
+([governor record](validation/2026-11-01-pc386-m5-governor/summary.md)).
 The four games, the keyboard and mouse, the `fes.computer` 1.1 mailbox and
 the disk round trip with the runtime remain open.
 
