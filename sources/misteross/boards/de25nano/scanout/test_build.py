@@ -392,7 +392,19 @@ class LinuxDmaTests(unittest.TestCase):
         text = data.decode()
         self.assertEqual(profile["stream_id"], 13)
         self.assertFalse(profile["secure"])
-        self.assertEqual(text.count("25'h0000de0"), 2)
+        self.assertEqual(text.count("25'h0001ae0"), 2)
+        # Independently decode the raw HPS port, rather than using generated
+        # shift constants to check the same packing expression against itself.
+        words = re.findall(r"assign man_(?:ar|aw)user = 25'h([0-9a-f]+);", text)
+        self.assertEqual(len(words), 2)
+        for encoded in words:
+            word = int(encoded, 16)
+            self.assertEqual((word >> 9) & 0xffff, 13)
+            self.assertEqual((word >> 8) & 1, 0)
+            self.assertEqual(word & 0xff, 0xe0)
+        # The previous CSR-derived encoding actually selects secure stream 6.
+        self.assertEqual((0x0000de0 >> 9) & 0xffff, 6)
+        self.assertEqual((0x0000de0 >> 8) & 1, 1)
         self.assertEqual(text.count("Output 25"), 2)
         self.assertEqual(text.count(r"\[24:0\]"), 2)
         self.assertTrue(text.startswith("# vendor prefix\n") and text.endswith("# vendor suffix\n"))
@@ -407,7 +419,8 @@ class LinuxDmaTests(unittest.TestCase):
 
     def test_reserved_sid_and_changed_layout_are_refused(self):
         for definition in (self.definition.replace("SMMU_STREAM_ID 32'h0000000d", "SMMU_STREAM_ID 32'h0000000a"),
-                           self.definition.replace("SMMU_SID_SHIFT 32'h00000008", "SMMU_SID_SHIFT 32'h00000009")):
+                           self.definition.replace("SMMU_SID_SHIFT 32'h00000009", "SMMU_SID_SHIFT 32'h00000008"),
+                           self.definition.replace("SMMU_SECURE_BIT 32'h00000008", "SMMU_SECURE_BIT 32'h00000018")):
             with self.assertRaises(ValueError):
                 self.helper.retarget_adapter(self.source.encode(), definition)
 

@@ -16,11 +16,14 @@ def constant(definition, name):
 
 def retarget_adapter(data, definition):
     """Keep vendor AXI behavior; extend only fixed address USER fields."""
+    # Quartus 26.3 intel_hps/sm/common/parameters_data.tcl, f2sdram_SMMU:
+    # raw AxUSER[8] is AxMMUSECSID and [24:9] is AxMMUSID.
+    # The ACE5-Lite translator CSR uses a different register layout.
     sid = constant(definition, 'SMMU_STREAM_ID')
     shift = constant(definition, 'SMMU_SID_SHIFT')
     secure_bit = constant(definition, 'SMMU_SECURE_BIT')
     width = constant(definition, 'SMMU_USER_BITS')
-    if sid <= 11 or sid > 65535 or (shift, secure_bit, width) != (8, 24, 25):
+    if sid <= 11 or sid > 65535 or (shift, secure_bit, width) != (9, 8, 25):
         raise ValueError('invalid selected SMMU stream/layout')
     text = data.decode()
     for channel in ('ar', 'aw'):
@@ -116,7 +119,7 @@ def verify(project, hps, profile):
         ports = hps.component_ports(modules[name], interface)
         if any(ports.get(channel + 'user') != (direction, 25) for channel in ('ar', 'aw')):
             raise ValueError('generated SMMU USER path width differs')
-    word = (sid << 8) | 0xe0
+    word = (sid << constant(definition, 'SMMU_SID_SHIFT')) | 0xe0
     sources = []
     directory = project / 'hps_subsys/ip/hps_subsys/f2sdram_adapter'
     qip = directory / 'f2sdram_adapter.qip'
