@@ -22,6 +22,7 @@ const (
 	settingsRowHome
 	settingsRowReducedMotion
 	settingsRowSurround
+	settingsRowAllCores
 	settingsRowDrives
 	settingsRowFixedCount
 )
@@ -173,6 +174,10 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 	if a.surround {
 		surround = "On"
 	}
+	allCores := "Off"
+	if a.allCores {
+		allCores = "On"
+	}
 	idle := "—"
 	if a.settingsHydrated {
 		idle = fmt.Sprintf("%ds", a.settingsDraftIdle)
@@ -203,6 +208,7 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 		{ID: "home", Label: "Home", Value: a.settingsHomeValueLocked()},
 		{ID: "reduced-motion", Label: "Reduced motion", Value: motion},
 		{ID: "surround", Label: "TV surround · kit HDMI", Value: surround},
+		{ID: "all-cores", Label: "Show all cores · not in this release", Value: allCores},
 		{ID: "drives", Label: "BIOS & media drives", Value: "Browse USB and SMB · kit or host"},
 	}
 	for i, draft := range a.settingsDraftTargets {
@@ -322,6 +328,7 @@ func (a *App) openSettingsLocked() {
 	a.closeFiltersLocked()
 	a.closeDetailLocked()
 	a.settingsOpen = true
+	a.settingsScopeChanged = false
 	a.settingsIndex = 0
 	a.settingsStatus = ""
 	a.settingsBusy = false
@@ -349,6 +356,8 @@ func (a *App) closeSettingsLocked() {
 	if !a.settingsOpen {
 		return
 	}
+	refreshHome := a.settingsScopeChanged
+	a.settingsScopeChanged = false
 	a.settingsOpen = false
 	a.settingsBusy = false
 	a.settingsLoading = false
@@ -356,6 +365,11 @@ func (a *App) closeSettingsLocked() {
 	a.closeSettingsOSKLocked()
 	a.settingsGen++
 	a.discardSettingsDraftsLocked()
+	if refreshHome && !a.sessionStopOfferedLocked() && a.launch.Phase != "launching" {
+		a.closeAllRoomsLocked()
+		a.discardLibraryOriginLocked()
+		a.goHomeNowLocked()
+	}
 }
 
 func (a *App) discardSettingsDraftsLocked() {
@@ -483,6 +497,11 @@ func (a *App) handleSettingsLocked(cmd Command) {
 		switch cmd {
 		case CmdLeft, CmdRight, CmdSelect:
 			a.setSurroundLocked(!a.surround, true)
+		}
+	case settingsRowAllCores:
+		switch cmd {
+		case CmdLeft, CmdRight, CmdSelect:
+			a.setAllCoresLocked(!a.allCores, true)
 		}
 	case settingsRowDrives:
 		if cmd == CmdSelect {
@@ -1591,7 +1610,7 @@ func (a *App) settingsHintLocked() string {
 	if a.settingsIndex == settingsRowHome {
 		return settingsActionHint(kind, "go home", "Left/Right start screen")
 	}
-	if a.settingsIndex == settingsRowReducedMotion || a.settingsIndex == settingsRowSurround {
+	if a.settingsIndex == settingsRowReducedMotion || a.settingsIndex == settingsRowSurround || a.settingsIndex == settingsRowAllCores {
 		return settingsActionHint(kind, "toggle", "Left/Right")
 	}
 	targetKind, targetIndex, field := a.settingsTargetRowLocked()
@@ -1845,6 +1864,31 @@ func (a *App) setSurroundLocked(on bool, persist bool) {
 		return
 	}
 	a.status = "TV surround off"
+}
+
+// setAllCoresLocked lists or hides cores outside the v1 release. The core
+// catalog view and Home recents follow it at once. A room keeps the list it
+// was opened with, so a change from Settings rebuilds Home when Settings closes.
+func (a *App) setAllCoresLocked(on bool, persist bool) {
+	a.allCores = on
+	if !persist {
+		return
+	}
+	a.persistPrefsLocked("all-cores")
+	status := "v1 cores only"
+	if on {
+		status = "all cores shown"
+	}
+	if a.settingsOpen && !a.sessionStopOfferedLocked() && a.launch.Phase != "launching" {
+		a.settingsScopeChanged = true
+	}
+	a.status = status
+}
+
+func (a *App) SetAllCores(on bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.setAllCoresLocked(on, false)
 }
 
 func (a *App) SetSurround(on bool) {

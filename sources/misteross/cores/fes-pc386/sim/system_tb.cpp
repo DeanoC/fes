@@ -15,7 +15,16 @@
 //
 // It then follows the boot until the prompt. So that the boot writes the disk,
 // the bench's copy of the FreeDOS fixture runs MD C:\M5 in AUTOEXEC.BAT in
-// place of PATH C:\ (the same length, so the file's size stands). At Stop it
+// place of PATH C:\ (the same length, so the file's size stands). At the
+// prompt it types as the runtime sends a keyboard, KeyboardHid rows (each
+// key held 8 ms, 8 ms apart, Shift in the same change): ECHO M5:Kb!, whose
+// output must be M5:Kb!, then INPUT, which runs the disk's INPUT.COM
+// (input_test.asm), with Enter held until it reports MOUSE READY (#1330).
+// Then it sends ten
+// MouseRelative packets 20 ms apart (moves of 127 and -128, button presses
+// and releases on zero moves) and taps Up, F1, Delete, Shift+A and q; the
+// guest's sums must be the host's, with Y counted up, and its key codes the
+// BIOS's for those keys. At Stop it
 // saves as the runtime does: DiskControl Freeze, the 128 DiskDirty words, the
 // dirty chunks read from the window, Saved; DataControl Freeze and the 72
 // DataReads; Execution hold. Every chunk the guest changed must be dirty.
@@ -39,6 +48,8 @@
 //   COUNTER <name>=<value> <cycle>           each change of an underflow or drop counter
 //   DEBUG <text>                             each line of debug-port text
 //   PROMPT <cycle>                           the prompt on the screen's last row
+//   TYPED <cycle> <text>                     a line typed through KeyboardHid
+//   MOUSE <cycle> <dx> <dy> <buttons>        a MouseRelative packet sent
 //   SCREEN <row> |<80 characters>|           the text screen at the end, from VRAM
 //   STATUS <field>=<value> ...               the status words at the end
 //   SAVE dirty=<n> chunks=<list> epoch=<n> changed_bytes=<n> changed_chunks=<list>
@@ -62,6 +73,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <stdexcept>
 #include <string>
@@ -73,8 +85,9 @@ constexpr uint32_t IMAGE = 0x08000000u, CHUNK = 65536;
 constexpr double PIXEL_HZ = 74.25e6;
 // fes.computer 1.1 opcodes, errors and states (mister-packages fes_computer.yaml).
 enum : uint8_t {
-    OP_IDENTITY = 1, OP_EXECUTION = 2, OP_DISK_INFO = 16, OP_DISK_CONTROL = 17, OP_DISK_COMMIT = 22,
-    OP_DISK_DIRTY = 23, OP_DATA_CONTROL = 24, OP_DATA_READ = 25, OP_DATA_WRITE = 26, OP_WALL_CLOCK = 28,
+    OP_IDENTITY = 1, OP_EXECUTION = 2, OP_KEYBOARD_HID = 3, OP_MOUSE_RELATIVE = 11, OP_DISK_INFO = 16,
+    OP_DISK_CONTROL = 17, OP_DISK_COMMIT = 22, OP_DISK_DIRTY = 23, OP_DATA_CONTROL = 24, OP_DATA_READ = 25,
+    OP_DATA_WRITE = 26, OP_WALL_CLOCK = 28,
 };
 enum : uint16_t { PREPARE = 0, COMMIT = 1, FREEZE = 3, SAVED = 5 };
 enum : uint16_t { DATA_FREEZE = 0, DATA_BEGIN = 1, DATA_COMMIT = 2 };
@@ -84,6 +97,15 @@ constexpr unsigned WORDS = 72;
 // DMA 1, and a byte in the free CMOS (50h) that only the record writes.
 constexpr uint16_t SETTINGS[8] = {0, 0, 0, 0, 0x240, 5, 1, 0};
 constexpr unsigned MARKER_BYTE = 0x50, MARKER = 0xa5;
+// The input exercise: the echoed text, INPUT.COM's mouse packets (dx, dy
+// screen-down, buttons) and its expected report. The sums are 172 right and
+// 72 down, which PS/2 counts as Y -72.
+const char *const ECHO_TEXT = "M5:Kb!";
+constexpr int PACKETS[10][3] = {{127, 0, 0}, {127, 100, 0}, {46, 100, 0}, {0, 0, 1}, {-128, -128, 1},
+                                {0, 0, 0},   {0, 0, 2},     {0, 0, 0},    {0, 0, 1}, {0, 0, 0}};
+const char *const MOUSE_REPORT = "MOUSE X=+172 Y=-72 LEFT=2/2 RIGHT=1/1 PACKETS=10";
+// INT 16h AH=10h: Up and Delete with the E0 prefix (AL E0h), F1, Shift+A.
+const char *const KEYS_REPORT = "KEYS 48E0 3B00 53E0 1E41";
 
 // Port 0 as fes_i386_cpu names it, for pc386::Port0.
 struct Port0Signals {
@@ -159,6 +181,7 @@ public:
                 if (cycles % 16 == 0) watch();
                 if (cycles > limit) reason = "limit";
             }
+            if (reason == "prompt") exercise_input();
             for (int row = 0; row < 25; ++row) std::printf("SCREEN %d |%s|\n", row, screen_row(row).c_str());
             print_status();
             if (reason == "prompt") stop();
@@ -191,7 +214,9 @@ private:
     int last_post = -1, checks_failed = 0;
     bool write_tested = false;
     uint64_t counters[5] = {};
-    bool prompt_seen = false, toggle = false;
+    bool prompt_seen = false, toggle = false, booted = false;
+    std::vector<std::string> debug_lines;
+    uint16_t rows[9] = {};
 
     // The geometry machine_tb infers: the first partition's end head and
     // sector, else 16 heads of 63 sectors.
@@ -246,7 +271,11 @@ private:
         }
         if (top.debug_valid) {
             char c = char(top.debug_byte);
-            if (c == '\n') { std::printf("DEBUG %s\n", debug_line.c_str()); debug_line.clear(); }
+            if (c == '\n') {
+                std::printf("DEBUG %s\n", debug_line.c_str());
+                debug_lines.push_back(debug_line);
+                debug_line.clear();
+            }
             else if (c != '\r') debug_line.push_back(c);
         }
     }
@@ -283,9 +312,10 @@ private:
         }
         std::printf("IDENTITY %s\n", words.c_str());
         // Magic, transport 1.0, fes.computer 1.1, then the capability words:
-        // video, audio, HPS DDR and session display; bits 16-19.
+        // video, keyboard, audio, mouse, HPS DDR and session display; bits
+        // 16-19.
         if (w[0] != 0x4546 || w[1] != 0x3153 || w[2] != 1 || w[3] != 0 || w[4] != 4 || w[5] != 1 || w[6] != 1 ||
-            w[7] != 0x3009 || w[16] != 0x000f)
+            w[7] != 0x310b || w[16] != 0x000f)
             throw MailboxError("identity is not fes.computer 1.1 with the pc386 interfaces");
     }
 
@@ -353,6 +383,105 @@ private:
         exchange(OP_EXECUTION, 0, 1);
         progress_at = cycles;
         std::printf("RELEASE %llu\n", (unsigned long long)cycles);
+    }
+
+    // Clocks, following the machine, for `seconds`, or until `done`; false
+    // if the CPU stopped or stalled first, or time ran out.
+    bool run_until(double seconds, const std::function<bool()> &done = nullptr) {
+        uint64_t end = cycles + uint64_t(seconds * clock_hz);
+        while (cycles < end) {
+            clock();
+            if (cycles % 16 == 0) {
+                watch();
+                if (reason != "prompt") return false;
+                if (done && cycles % 4096 == 0 && done()) return true;
+            }
+        }
+        return !done;
+    }
+    // A HID key's change, written as the runtime writes rows: every row that
+    // changed, in order.
+    void key_rows(uint8_t usage, bool shift, bool down) {
+        uint16_t next[9];
+        std::copy(rows, rows + 9, next);
+        unsigned bit = usage >= 0xe0 ? 128u + (usage - 0xe0) : usage;
+        auto set = [&](unsigned b) {
+            if (down) next[b / 16] |= uint16_t(1u << (b % 16));
+            else next[b / 16] &= uint16_t(~(1u << (b % 16)));
+        };
+        set(bit);
+        if (shift) set(128 + 1);                // left Shift
+        for (uint8_t row = 0; row < 9; ++row)
+            if (next[row] != rows[row]) exchange(OP_KEYBOARD_HID, row, next[row]);
+        std::copy(next, next + 9, rows);
+    }
+    bool tap(uint8_t usage, bool shift) {
+        key_rows(usage, shift, true);
+        if (!run_until(0.008)) return false;
+        key_rows(usage, shift, false);
+        return run_until(0.008);
+    }
+    bool type(const std::string &text) {
+        std::string shown = text;
+        std::replace(shown.begin(), shown.end(), '\n', '|');
+        std::printf("TYPED %llu %s\n", (unsigned long long)cycles, shown.c_str());
+        for (char c : text) {
+            bool shift = (c >= 'A' && c <= 'Z') || c == ':' || c == '!';
+            char lower = c >= 'A' && c <= 'Z' ? char(c - 'A' + 'a') : c;
+            uint8_t usage = lower >= 'a' && lower <= 'z' ? uint8_t(0x04 + lower - 'a')
+                          : lower >= '1' && lower <= '9' ? uint8_t(0x1e + lower - '1')
+                          : lower == '!' ? 0x1e : lower == ':' ? 0x33 : lower == ' ' ? 0x2c : lower == '\n' ? 0x28 : 0;
+            if (!usage) throw std::runtime_error("system_tb cannot type that");
+            if (!tap(usage, shift)) return false;
+        }
+        return true;
+    }
+    bool debug_seen(const std::string &prefix, std::string *line = nullptr) {
+        for (const std::string &text : debug_lines)
+            if (text.compare(0, prefix.size(), prefix) == 0) { if (line) *line = text; return true; }
+        return false;
+    }
+    bool screen_has(const std::string &text) {
+        for (int row = 0; row < 25; ++row) {
+            std::string line = screen_row(row);
+            line.erase(line.find_last_not_of(' ') + 1);
+            if (line == text) return true;
+        }
+        return false;
+    }
+
+    // Keyboard and mouse at the prompt, as the runtime delivers them.
+    void exercise_input() {
+        booted = true;
+        bool echoed = type(std::string("echo ") + ECHO_TEXT + "\n") &&
+                      run_until(2, [&] { return screen_has(ECHO_TEXT) && last_row() == prompt; });
+        check(echoed, std::string("the typed echo printed ") + ECHO_TEXT);
+        if (reason != "prompt") return;
+        // Enter stays down until INPUT.COM has its mouse: the BIOS's INT 15h
+        // C2xx services spin with interrupts off if a key byte reaches the
+        // 8042 during them (#1330). Its init takes far less than the 500 ms
+        // typematic delay.
+        bool typed = type("input");
+        if (typed) key_rows(0x28, false, true);
+        bool ready = typed && run_until(3, [&] { return debug_seen("MOUSE READY"); });
+        if (typed) key_rows(0x28, false, false);
+        check(ready, "INPUT.COM enabled the mouse through INT 15h C2xx");
+        if (!ready) return;
+        for (const auto &packet : PACKETS) {
+            std::printf("MOUSE %llu %d %d %d\n", (unsigned long long)cycles, packet[0], packet[1], packet[2]);
+            exchange(OP_MOUSE_RELATIVE, uint8_t(packet[2]), uint16_t(uint8_t(packet[1]) << 8 | uint8_t(packet[0])));
+            if (!run_until(0.02)) return;
+        }
+        // Up, F1, Delete, Shift+A, then q ends it.
+        for (auto [usage, shift] : {std::pair<uint8_t, bool>{0x52, false}, {0x3a, false}, {0x4c, false},
+                                    {0x04, true}, {0x14, false}})
+            if (!tap(usage, shift)) return;
+        std::string mouse, keys;
+        bool reported = run_until(2, [&] { return debug_seen("KEYS") && last_row() == prompt; });
+        debug_seen("MOUSE X=", &mouse);
+        debug_seen("KEYS", &keys);
+        check(reported && mouse == MOUSE_REPORT, "the guest's mouse sums, button changes and Y sign: " + mouse);
+        check(reported && keys == KEYS_REPORT, "the guest's codes for Up, F1, Delete and Shift+A: " + keys);
     }
 
     void check(bool ok, const std::string &what) {
@@ -487,7 +616,7 @@ private:
         if ((s0 >> 32) != retired) { retired = s0 >> 32; progress_at = cycles; }
         else if (cycles - progress_at > uint64_t(clock_hz) * 2) { reason = "stalled"; return; }
         // The screen, every 50 ms: the prompt alone on the last row, twice.
-        if (cycles - last_screen >= clock_hz / 20) {
+        if (!booted && cycles - last_screen >= clock_hz / 20) {
             last_screen = cycles;
             bool shown = last_row() == prompt;
             if (shown && prompt_seen) reason = "prompt";

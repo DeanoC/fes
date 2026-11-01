@@ -32,8 +32,13 @@ local groups = {
   ["fes.spectrum-plus3"] = {id="spectrum", label="ZX Spectrum"},
   ["fes.pentagon"] = {id="spectrum", label="ZX Spectrum"},
 }
-local by_id, ids, families, family_by_core, by_family = {}, {}, {}, {}, {}
+-- Cores outside the v1 release are left out unless the launcher shows all
+-- cores (room.core_shown).
+local shown, by_id, ids, families, family_by_core, by_family = {}, {}, {}, {}, {}, {}
 for _, row in ipairs(rows) do
+  if room.core_shown(row.id) then shown[#shown+1] = row end
+end
+for _, row in ipairs(shown) do
   by_id[row.id] = row
   ids[#ids+1] = row.id
   local group = groups[row.id] or {id=row.id, label=row.label}
@@ -46,4 +51,4 @@ for _, row in ipairs(rows) do
   family.variants[#family.variants+1] = row
   family_by_core[row.id] = family
 end
-return {rows=rows, by_id=by_id, ids=ids, families=families, family_by_core=family_by_core}
+return {rows=shown, by_id=by_id, ids=ids, families=families, family_by_core=family_by_core}

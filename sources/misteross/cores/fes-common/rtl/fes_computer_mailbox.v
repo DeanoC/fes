@@ -781,12 +781,13 @@ endmodule
 
 // PC/XT has a resettable SDRAM medium. Keep that physical invalidation
 // explicit instead of changing the port contract of existing 1.0 shells.
-module fes_computer_mailbox_pcxt (
+module fes_computer_mailbox_pcxt #(parameter bit ENABLE_KEYBOARD = 0) (
     input wire clk,
     input wire [31:0] gpo,
     input wire [127:0] build_id,
     output wire [31:0] gpi,
     output wire exec_reset,
+    output wire [143:0] keyboard_rows,
     input wire media_reset,
     output wire [18:0] media_write_addr,
     output wire [15:0] media_write_data,
@@ -798,12 +799,12 @@ module fes_computer_mailbox_pcxt (
 );
     /* verilator lint_off PINCONNECTEMPTY */
     fes_computer_mailbox_core #(
-        .ENABLE_PCXT_FLOPPY(1), .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(19),
+        .ENABLE_PCXT_FLOPPY(1), .ENABLE_KEYBOARD(ENABLE_KEYBOARD), .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(19),
         .UNIT0_MIN(`FES_COMPUTER_PCXT_FLOPPY_BYTES),
         .UNIT0_MAX(`FES_COMPUTER_PCXT_FLOPPY_BYTES)
     ) core (
         .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi), .exec_reset(exec_reset),
-        .keyboard_rows(), .controller_buttons(), .mouse_valid(), .mouse_dx(), .mouse_dy(),
+        .keyboard_rows(keyboard_rows), .controller_buttons(), .mouse_valid(), .mouse_dx(), .mouse_dy(),
         .mouse_buttons(), .mouse_ready(1'b0),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
         .media_write_enable(media_write_enable), .media_write_unit(),

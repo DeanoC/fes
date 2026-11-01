@@ -2214,6 +2214,96 @@ void ExpectFinalState(const mister_test::ComputerEndpoint& endpoint,
 	}
 }
 
+void TestComputerKeyboardOrderedSnapshots()
+{
+	// A row can settle on the FPGA for milliseconds before the next GP
+	// transaction. Exercise both ABI minors and inspect every intermediate
+	// state, including a same-row swap and a failed modifier exchange.
+	for (unsigned minor : {0u, 1u}) {
+		auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
+			FesComputerInterfaceKeyboardHidID});
+		descriptor.abi.minor = static_cast<std::uint16_t>(minor);
+		ComputerFixture f(FesComputerCapabilityVideoFixed720p60 |
+			FesComputerCapabilityKeyboardHid, {}, std::move(descriptor));
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+		using RowWrite = std::pair<unsigned, unsigned>;
+		auto change = [&](const mister::KeyboardHidRows& target,
+			const std::vector<RowWrite>& expected) {
+			const auto start = f.endpoint.requests.size();
+			auto before = f.endpoint.rows;
+			std::vector<std::vector<std::uint16_t>> observed;
+			std::vector<std::uint64_t> times;
+			f.endpoint.reject_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+				if (request.opcode == FesComputerOpcodeKeyboardHid) {
+					observed.push_back(f.endpoint.rows);
+					times.push_back(f.clock.now_);
+					f.clock.now_ += 3; // greater than the core's debounce interval
+				}
+				return 0u;
+			};
+			assert(f.driver.SetKeyboardHid(target, kComputerDeadline).ok());
+			f.endpoint.reject_request = {};
+			const auto written = f.Since(start);
+			assert(written.size() == expected.size() && observed.size() == expected.size());
+			for (std::size_t i = 0; i < expected.size(); ++i) {
+				assert(written[i].opcode == FesComputerOpcodeKeyboardHid &&
+					written[i].index == expected[i].first && written[i].argument == expected[i].second);
+				assert(observed[i] == before);
+				before[expected[i].first] = static_cast<std::uint16_t>(expected[i].second);
+				if (i) assert(times[i] >= times[i - 1] + 3);
+			}
+			assert(f.endpoint.rows == before);
+		};
+
+		mister::KeyboardHidRows target{};
+		target[0] = 0x0010; target[8] = 0x0002; // Shift+A
+		std::vector<RowWrite> initial;
+		for (unsigned row = 0; row < 9; ++row) initial.emplace_back(row, 0);
+		initial.emplace_back(8, 2); initial.emplace_back(0, 0x10);
+		change(target, initial); // unknown state: neutralize first
+		change(target, {});      // known identical snapshot is a no-op
+
+		target[0] = 0x0020; target[8] = 0; // Shift+A -> B
+		change(target, {{0, 0}, {8, 0}, {0, 0x20}});
+		target[0] = 0x00c0; // B -> C+D in the same row
+		change(target, {{0, 0}, {0, 0xc0}});
+		target[0] = 0x0040; target[8] = 0x0003; // release D; press Ctrl+Shift
+		change(target, {{0, 0x40}, {8, 3}});
+		target[0] = 0x0080; target[8] = 0x0024; // C+Ctrl+Shift -> D+Alt+right Shift
+		change(target, {{0, 0}, {8, 0}, {8, 0x24}, {0, 0x80}});
+
+		bool reject = true;
+		f.endpoint.reject_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+			if (reject && request.opcode == FesComputerOpcodeKeyboardHid && request.index == 8) {
+				reject = false; return unsigned(FesComputerErrorInvalidState);
+			}
+			return 0u;
+		};
+		target[0] = 0x0020; target[8] = 0;
+		assert(f.driver.SetKeyboardHid(target, kComputerDeadline).code == mister::ErrorCode::io_failed);
+		f.endpoint.reject_request = {};
+		std::vector<RowWrite> retry;
+		for (unsigned row = 0; row < 9; ++row) retry.emplace_back(row, 0);
+		retry.emplace_back(0, 0x20);
+		change(target, retry); // failure made the cache unknown again
+		change(target, {});
+
+		// The core may accept a row even when the transport loses its reply.
+		// The GP becomes poisoned, and a retry must not replay that edge.
+		f.endpoint.fail_after_request = [](const mister_test::ComputerEndpoint::Request& request) {
+			return request.opcode == FesComputerOpcodeKeyboardHid && request.index == 8;
+		};
+		target[8] = 2;
+		assert(f.driver.SetKeyboardHid(target, kComputerDeadline).code == mister::ErrorCode::io_failed);
+		assert(f.gp.Poisoned() && f.endpoint.rows[8] == 2);
+		f.endpoint.fail_after_request = {};
+		const auto before_retry = f.endpoint.requests.size();
+		assert(f.driver.SetKeyboardHid(target, kComputerDeadline).code == mister::ErrorCode::io_failed);
+		assert(f.endpoint.requests.size() == before_retry);
+	}
+}
+
 void TestComputerReplaysSharedWireFixturesThroughDriver()
 {
 	const auto scenarios = ReadComputerScenarios();
@@ -2276,12 +2366,12 @@ void TestComputerReplaysSharedWireFixturesThroughDriver()
 		auto start = f.endpoint.requests.size();
 		assert(f.driver.SetKeyboardHid(rows, kComputerDeadline).ok());
 		auto written = f.Since(start);
-		assert(written.size() == 9); // no acknowledged state before Start
+		assert(written.size() == 11); // unknown state: neutralize all, then shift and A
 		for (unsigned row = 0; row < 9; ++row)
 			assert(written[row].opcode == FesComputerOpcodeKeyboardHid && written[row].index == row &&
-				written[row].argument == rows[row]);
-		assert(SameRequest(written[0], input.Named("keyboard-a-held")));
-		assert(SameRequest(written[8], input.Named("keyboard-left-shift")));
+				written[row].argument == 0);
+		assert(SameRequest(written[9], input.Named("keyboard-left-shift")));
+		assert(SameRequest(written[10], input.Named("keyboard-a-held")));
 		start = f.endpoint.requests.size();
 		assert(f.driver.SetController(0, 0x11, 0, kComputerDeadline).ok());
 		assert(f.driver.SetController(1, 0x28, 0, kComputerDeadline).ok());
@@ -2293,8 +2383,8 @@ void TestComputerReplaysSharedWireFixturesThroughDriver()
 		rows[2] = 0x0100; // Return
 		start = f.endpoint.requests.size();
 		assert(f.driver.SetKeyboardHid(rows, kComputerDeadline).ok());
-		assert(f.Since(start).size() == 9); // all nine after Start
-		assert(SameRequest(f.Since(start)[2], input.Named("keyboard-return-while-running")));
+		assert(f.Since(start).size() == 12); // neutralize all, then shift, A and Return
+		assert(SameRequest(f.Since(start)[11], input.Named("keyboard-return-while-running")));
 		start = f.endpoint.requests.size();
 		assert(f.driver.SetKeyboardHid(rows, kComputerDeadline).ok());
 		assert(f.Since(start).empty());
@@ -2319,8 +2409,8 @@ void TestComputerReplaysSharedWireFixturesThroughDriver()
 		escape[2] = 0x0200;
 		start = f.endpoint.requests.size();
 		assert(f.driver.SetKeyboardHid(escape, kComputerDeadline).ok());
-		assert(f.Since(start).size() == 9);
-		assert(SameRequest(f.Since(start)[2], input.Named("keyboard-escape")));
+		assert(f.Since(start).size() == 10);
+		assert(SameRequest(f.Since(start)[9], input.Named("keyboard-escape")));
 		ExpectFinalState(f.endpoint, input);
 		// Media requests are rejected by the driver before any exchange.
 		start = f.endpoint.requests.size();
@@ -2784,10 +2874,10 @@ void TestComputerInputValidationAndPartialRows()
 	const auto error = driver.SetKeyboardHid(rows, kComputerDeadline);
 	assert(error.code == mister::ErrorCode::io_failed && error.phase == "input");
 	assert(mmio.writes.size() == before + 4);
-	for (unsigned i = 0; i < 9; ++i) reply();
+	for (unsigned i = 0; i < 11; ++i) reply();
 	before = mmio.writes.size();
 	assert(driver.SetKeyboardHid(rows, kComputerDeadline).ok());
-	assert(mmio.writes.size() == before + 18);
+	assert(mmio.writes.size() == before + 22);
 	reply(1); // nonzero acknowledgement is not success
 	rows[3] = 0;
 	assert(driver.SetKeyboardHid(rows, kComputerDeadline).code == mister::ErrorCode::io_failed);
@@ -3359,6 +3449,7 @@ int main()
 	TestCoreDriverExposesOnlyVerifiedFesGpSessionsForCleanup();
 	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();
 	TestComputerReplaysSharedWireFixturesThroughDriver();
+	TestComputerKeyboardOrderedSnapshots();
 	TestComputer11ReplaysSharedFixtureThroughEndpoint();
 	TestPc386IdentityPersistenceAndWallClock();
 	TestPc386AtaDiskCommitPollAndDirtyMap();

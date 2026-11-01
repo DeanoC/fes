@@ -35,6 +35,21 @@ class SupportMatrixTests(unittest.TestCase):
         self.assertEqual('Quartus', SUPPORT_MATRIX.de10_cell(row))
         self.assertIn('| PC/XT (FreeDOS) | Bring-up | Quartus |', SUPPORT_MATRIX.render(data))
 
+    def test_every_release_package_records_its_scope(self):
+        data = SUPPORT_MATRIX.load_json(ROOT)
+        self.assertEqual([], SUPPORT_MATRIX.validate(ROOT, data))
+        by_id = {row['id']: row for row in data['cores']}
+        self.assertEqual('v1', by_id['fes.atari-st']['release'])
+        self.assertEqual('v2', by_id['fes.pc386']['release'])
+        self.assertEqual('held-back', by_id['fes.coleco']['release'])
+        self.assertNotIn('release', by_id['fes.menu'])
+        self.assertIn('- **v2:** `fes.pcxt`, `fes.pcxt-dos`, `fes.pc386`', SUPPORT_MATRIX.render(data))
+        del by_id['fes.sms']['release']
+        by_id['z80']['release'] = 'v1'
+        errors = SUPPORT_MATRIX.validate(ROOT, data)
+        self.assertIn("fes.sms release None is not one of v1, v2, held-back", errors)
+        self.assertIn('z80 is not a release package but records release', errors)
+
     def test_de25_cell_is_blank_for_rows_without_board_bitstreams(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
         by_id = {row['id']: row for row in data['cores']}

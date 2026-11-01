@@ -394,6 +394,7 @@ type App struct {
 	hideHacks              bool
 	facets                 hostclient.FacetValues
 	settingsOpen           bool
+	settingsScopeChanged   bool
 	settingsIndex          int
 	settingsGen            int
 	settingsWriteGen       int
@@ -490,6 +491,7 @@ type App struct {
 	gfxBackend          string
 	pinnedRooms         []string
 	reducedMotion       bool
+	allCores            bool // cores outside the v1 release are listed
 	homeRecents         []hostclient.Game
 	homeRecentsErr      string
 	homeRecentsLoaded   bool

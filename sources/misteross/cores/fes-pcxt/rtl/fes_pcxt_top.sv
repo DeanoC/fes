@@ -81,6 +81,7 @@ module top #(
         assign board_reset_live = sys_reset[1];
     end endgenerate
     wire exec_reset;
+    wire [143:0] keyboard_rows;
     localparam bit LIVE_MEDIA = ENABLE_FES_COMPUTER && ENABLE_PCXT_MEDIA;
     wire media_present, disk_restart, disk_load_valid, disk_load_ready, disk_load_done, disk_loaded;
     wire [1:0] media_unit_state;
@@ -95,9 +96,9 @@ module top #(
             wire [15:0] source_data;
             wire [1:0] source_enable;
             wire source_ready;
-            fes_computer_mailbox_pcxt gp_mailbox (
+            fes_computer_mailbox_pcxt #(.ENABLE_KEYBOARD(HARDWARE_DOS)) gp_mailbox (
                 .clk(clk_memory), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
-                .exec_reset(exec_reset), .media_reset(board_reset_live),
+                .exec_reset(exec_reset), .keyboard_rows(keyboard_rows), .media_reset(board_reset_live),
                 .media_write_addr(source_addr), .media_write_data(source_data),
                 .media_write_enable(source_enable), .media_write_ready(source_ready),
                 .media_write_busy(1'b0), .unit0_state(media_unit_state), .unit0_size());
@@ -108,6 +109,7 @@ module top #(
                 .disk_loaded(disk_loaded), .disk_valid(disk_load_valid), .disk_address(disk_load_address),
                 .disk_data(disk_load_data), .disk_ready(disk_load_ready), .disk_done(disk_load_done));
         end else begin: diagnostic_mailbox
+            assign keyboard_rows = 144'b0;
             fes_computer_mailbox gp_mailbox (
                 .clk(clk), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
                 .exec_reset(exec_reset), .keyboard_rows(), .controller_buttons(),
@@ -120,6 +122,7 @@ module top #(
         end
     end else begin: standalone_diagnostic
         assign exec_reset = 1'b0;
+        assign keyboard_rows = 144'b0;
         assign media_unit_state = 2'd1;
     end endgenerate
     wire firmware_valid, firmware_ready, firmware_done, firmware_loaded;
@@ -152,8 +155,15 @@ module top #(
     wire machine_reset, keyboard_clock, keyboard_data;
     wire keyboard_clock_low, keyboard_data_low, keyboard_clear;
     generate if (HARDWARE_DOS) begin: dos_keyboard
+        wire code_valid, code_ready, frontend_reset;
+        wire [7:0] code;
+        pcxt_hid_keyboard frontend (
+            .clk(clk_memory), .reset(frontend_reset), .rows(keyboard_rows),
+            .code_valid(code_valid), .code(code), .code_ready(code_ready)
+        );
         pcxt_xt_keyboard_bat keyboard (
             .clk(clk_memory), .reset(machine_reset),
+            .code_valid(code_valid), .code(code), .code_ready(code_ready), .frontend_reset(frontend_reset),
             .clock_low(keyboard_clock_low), .data_low(keyboard_data_low),
             .keyboard_clear(keyboard_clear),
             .keyboard_clock(keyboard_clock), .keyboard_data(keyboard_data)
