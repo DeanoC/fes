@@ -235,24 +235,19 @@ type warmingLocalCores struct {
 	*fakeLocalCores
 	warm      atomic.Bool
 	warmLists atomic.Int32
-	// hiccups is how many queued-launch warm polls fail with a transient
-	// error, alternating a client timeout and a dropped socket, before the
-	// warm check runs. In these queued-launch tests, only launchAfterWarm
-	// lists with an uncancellable context; Home's install loop uses
-	// cancellable lists.
+	// hiccups is how many lists fail with a transient error, alternating a
+	// client timeout and a dropped socket, before the warm check runs.
 	hiccups atomic.Int32
 }
 
 func (w *warmingLocalCores) List(ctx context.Context) ([]localcores.Core, error) {
-	if ctx.Done() == nil {
-		if n := w.hiccups.Add(-1); n >= 0 {
-			if n%2 == 0 {
-				return nil, context.DeadlineExceeded
-			}
-			return nil, localcores.ErrUnavailable
+	if n := w.hiccups.Add(-1); n >= 0 {
+		if n%2 == 0 {
+			return nil, context.DeadlineExceeded
 		}
-		w.hiccups.Store(0)
+		return nil, localcores.ErrUnavailable
 	}
+	w.hiccups.Store(0)
 	if !w.warm.Load() {
 		w.warmLists.Add(1)
 		return nil, localcores.ErrWarming

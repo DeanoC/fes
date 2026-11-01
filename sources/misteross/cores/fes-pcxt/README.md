@@ -116,8 +116,8 @@ They do not qualify the IO, reset chains, physical board or a runtime package.
 
 The regular simulation command includes `clock-bridge`, `speaker100`,
 `speaker50`, `system-board50` and `system-board50-mda` regressions. The two
-whole-system cases retain the real diagnostic ROM, both boots, the strictest
-SDRAM mask delay (2) and pixel/DMA checks; they tighten the refresh bound to
+whole-system cases retain the real diagnostic ROM, both boots, three SDRAM
+mask-delay cases and pixel/DMA checks; they tighten the refresh bound to
 390 controller cycles at 50 MHz. Existing common-clock suites remain enabled.
 
 ### Whole-board Quartus diagnostic
@@ -335,16 +335,11 @@ that fixture is not a production firmware admission path.
 
 The optional floppy profile uses physical SDRAM byte addresses
 `100000–159FFF` for a read-only 360 KiB image, outside the guest address map.
-Ordered host uploads can run while the guest runs. A new media transaction
-invalidates the current image, lets accepted writes drain, and keeps the medium
-hidden until every byte, including the last physical write, has completed and
-the mailbox commits the image. In the DOS profile (`fes.pcxt-dos`), after a
-cold start the guest stays in reset until the first complete image or until
-the host releases it with the drive empty; later eject and replacement do not
-reset the running guest. CPU/DMA,
-floppy reads and uploads share the controller with bounded arbitration and
-refresh, and an outstanding floppy read drains before an overwrite. Warm reset
-retains the image; cold reset invalidates it.
+Ordered host uploads can run while the guest runs, and the medium stays hidden
+until every byte has physically completed and the mailbox commits the image.
+CPU/DMA, floppy reads and uploads share the controller with bounded arbitration
+and refresh; an outstanding floppy read drains before an overwrite. Warm reset
+retains the image and cold reset invalidates it.
 
 `cold_reset` restarts controller initialization and cancels all responses. It
 must assert during startup; the caller holds the CPU/motherboard reset until
@@ -853,7 +848,7 @@ cold loading, a pause near the end of loading, reset during an issued CPU
 SDRAM read, reset release, both real DMA
 directions, guest and physical refresh, two complete boots without firmware
 reload, HOLD/mute and every pixel of two 720p output frames after capture settles.
-CGA uses Direct and MDA uses Scanlines; each runs at DQM delay 2. The framebuffer
+CGA uses Direct and MDA uses Scanlines; each runs DQM delays 0/1/2. The framebuffer
 registers its read address before M10K fanout. Each of its three 64 KiB banks
 has a separate RAM read mux and local output register; bank selection then
 occurs alongside palette selection. Bank/subpixel/raster fields have matching

@@ -10,9 +10,39 @@ import textwrap
 import unittest
 
 from scripts.affected import plan
+from scripts.ci_simulations import simulation_matrix, tier_for_event
 
 
 class ParentWorkflowTests(unittest.TestCase):
+    def test_simulation_tier_docs_match_ci_matrix_and_triggers(self):
+        repository = Path(__file__).resolve().parents[1]
+        smoke = simulation_matrix(['coleco'], 'smoke')['include']
+        full = simulation_matrix(['coleco'], 'full')['include']
+        self.assertEqual([job['target'] for job in smoke], [
+            'sim-fes-coleco-unit', 'sim-fes-coleco-unit-oss',
+            'sim-fes-coleco-board-graphics', 'sim-fes-coleco-diagnostic',
+            'sim-fes-coleco-sgm-integrated',
+        ])
+        self.assertEqual(len(full), 24)
+        self.assertEqual({event: tier_for_event(event) for event in
+                          ('pull_request', 'merge_group', 'push')},
+                         {'pull_request': 'smoke', 'merge_group': 'smoke', 'push': 'smoke'})
+        self.assertEqual({event: tier_for_event(event) for event in
+                          ('schedule', 'workflow_dispatch', 'workflow_call')},
+                         {'schedule': 'full', 'workflow_dispatch': 'full', 'workflow_call': 'full'})
+
+        readme = ' '.join((repository / 'README.md').read_text().split())
+        changed = ' '.join((repository / 'docs/test-changed.md').read_text().split())
+        development = ' '.join((repository / 'docs/development.md').read_text().split())
+        self.assertIn('run the smoke simulation tier; nightly and manual runs select the full tier', readme)
+        self.assertIn("Coleco's full tier has 24 jobs", changed)
+        self.assertIn('Its smoke tier runs five of them', changed)
+        self.assertIn("Coleco's full simulation tier runs 24", development)
+        self.assertIn('Its smoke tier runs five jobs', development)
+        self.assertNotIn('16 focused simulation jobs', development)
+        self.assertNotIn('weekly/manual', (repository / 'scripts/test_policy.py').read_text())
+        self.assertNotIn('weekly/manual', (repository / 'scripts/host_tests.py').read_text())
+
     def test_host_workflow_delegates_build_and_ui_selection_and_keeps_test_shards(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
         host = workflow.split('  host:\n', 1)[1].split('  runtime:\n', 1)[0]
