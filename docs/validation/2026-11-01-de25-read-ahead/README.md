@@ -72,3 +72,13 @@ or bundle installation was required. The board remains claimed with its
 stopped diagnostic in SRAM; it was not promoted or released as a baseline.
 Managed MENU, production startup/restart, normal catalog ZX81 lifecycle,
 tape SAVE, global reset/failure/whole-load bounds and timing issue #1284 remain.
+
+A subsequent [ordinary software reboot](software-reboot-result.json) passed
+after this known successful STOP/drain/unmap and cleanup. The boot UUID changed
+from `e5e896ba-e01e-4ab4-9b2f-a236045b7d39` to
+`469d5abb-2fab-425d-93bc-aa92aac8c32b`. Authenticated pinned-host-key SSH verified
+the unchanged card CID, kernel notes, root receipt, MAC, IP and protected owner
+node/group. A new strict boot-UUID guard then passed independently. No physical
+power operation or configuration update was used. This covers reboot after a
+quiesced diagnostic; reset during active traffic and factory FPGA restoration
+remain separate acceptance gates.
