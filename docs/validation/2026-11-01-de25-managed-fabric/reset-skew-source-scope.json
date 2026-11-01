@@ -1,0 +1,8 @@
+{
+  "canonical_menu_inputs_verified": 374,
+  "compiler_source_sha256_verified": 59,
+  "restored_tree": "c0c94c50df179ef518f9c308f008a25d99548ad9",
+  "source_bundle_sha256": "b85c94328886fc06979e1225cbbad6f3fc2d180ebf32c7993b85597271d4a7f3",
+  "source_revision": "ebb12c489c6733e73205a685ae6538b8c6755b05",
+  "test_runtime_source_sha256_verified": 58
+}

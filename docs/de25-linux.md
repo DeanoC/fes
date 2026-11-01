@@ -105,7 +105,10 @@ MODELED M20K STORAGE, 24 fitted reset-path checks and zero fitted fabric JTAG
 ports/clocks pass. The original failed aggregate, refreshed native/AArch64
 combined proof and final focused checks retain separate source identities. HDMI output timing, whole reset
 coordination and firmware/native acceptance still block packages and normal-kit
-acceptance. The earlier [staggered startup/JTAG reset record](validation/2026-11-01-de25-staggered-startup/README.md)
+acceptance. An additional 2,304-case finite FIFO reset-release diagnostic and
+42 focused tests pass with modeled storage. It covers independent one-cycle
+release delays in eight FIFO chains and grants no reset-rule exception or
+physical/global-reset acceptance. The earlier [staggered startup/JTAG reset record](validation/2026-11-01-de25-staggered-startup/README.md)
 retains its five-receiver candidate and original evidence.
 
 The [canonical MENU reset-timing record](validation/2026-11-01-de25-timed-system-reset/README.md)

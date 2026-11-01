@@ -1,0 +1,21 @@
+{
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "sources/misteross/tests",
+    "-p",
+    "test_de25nano_scanout*.py",
+    "-q"
+  ],
+  "elapsed_seconds": 25.345,
+  "environment_prefix": "PYTHONPATH=scripts:/home/deano/fes/out/dev/de25-managed-image",
+  "evidence": "completed exec session87255 terminal output; actual stdout retained below",
+  "hardware_access": "not-performed",
+  "returncode": 0,
+  "source_revision": "ebb12c489c6733e73205a685ae6538b8c6755b05",
+  "status": "pass",
+  "tests": 42
+}
