@@ -129,5 +129,26 @@ the command, then timed out with no output; passive UART, a console newline and
 ICMP also returned no response. No register value was obtained, so this provides
 no conclusion about firewall state or the original AXI response error's cause.
 No DMA allocation/frame or FPGA/kernel/boot-flash replacement was requested.
-The board claim remains retained and recovery by power cycle is pending.
-Temporary-reader cleanup and restored baseline must be verified after recovery.
+The board claim remained retained while a power cycle was requested.
+Recovery was then verified as described below.
+
+
+## Recovery after the user power cycle
+
+The [actual recovery receipt](tcu-recovery.json) verifies new boot
+`a61aeca9-95e3-4ab3-a8f8-6c52f50022e2`, the same SD CID, kernel notes and root
+receipt as before the failed register access. UART independently supplies the
+new Ethernet address `192.168.10.99` and the same retained SSH public key;
+[pinned-key SSH succeeds](tcu-recovery-ssh.log). The owner device is again
+root:root0600, major10/minor124. The temporary reader is absent, the firmware
+directory is empty and configfs is unmounted with no overlays. All diagnostic
+SSH/UART clients are closed. No further TCU-register access is attempted.
+
+The [kernel record](tcu-recovery-kernel.log) retains the initial service-channel
+probe deferral followed by FPGA manager and region registration. The permanent
+owner joins IOMMU group0 in translated DMA mode; that does not qualify physical
+SID/translation/DDR or establish the original response error's cause. No frame
+or allocation test, FPGA load, new-kernel/SD-image/QSPI/bundle install, baseline
+promotion or board release is performed during recovery. The claim remains
+retained. The trace-enabled image is still uninstalled because the reader
+reports a card smaller than the verified image.
