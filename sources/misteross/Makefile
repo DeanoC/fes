@@ -143,6 +143,8 @@ help:
 		"  sim-fes-pcxt-media  Test runtime XT floppy upload, replacement and diagnostic" \
 		"  sim-fes-pcxt-mailbox  Test the PC/XT media identity and mailbox handshake" \
 		"  sim-fes-pcxt-dos  Test XT BIOS POST and boot the pinned FreeDOS floppy (downloads fixtures)" \
+		"  sim-fes-pcxt-com  Run a DOS executable on the XT machine" \
+		"  sim-fes-pcxt-game  Test Digger with PCXT_DIGGER_EXE=<local executable>" \
 		"  sim-fes-pc386  Check pc386 devices, the fes.computer 1.1 exchanges, audio, OPL2, presenter and display plane on port 2" \
 		"  sim-fes-pc386-boot  Boot the Bochs BIOS and FreeDOS on the pc386 machine with the oracle CPU; replay its VGA trace" \
 		"  sim-fes-pc386-fesenv  Boot the games image and check FESENV sets BLASTER from CMOS" \
@@ -2666,7 +2668,7 @@ sim-fes-pcxt:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt.py --verilator "$(VERILATOR)"
 
-.PHONY: sim-fes-pcxt-fdc sim-fes-pcxt-media sim-fes-pcxt-mailbox sim-fes-pcxt-dos
+.PHONY: sim-fes-pcxt-fdc sim-fes-pcxt-media sim-fes-pcxt-mailbox sim-fes-pcxt-dos sim-fes-pcxt-com sim-fes-pcxt-game
 sim-fes-pcxt-fdc:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt_fdc.py --verilator "$(VERILATOR)"
@@ -2683,6 +2685,15 @@ sim-fes-pcxt-mailbox:
 sim-fes-pcxt-dos:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt_dos.py --download --verilator "$(VERILATOR)"
+
+sim-fes-pcxt-com:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pcxt_dos.py --scenario com --download --verilator "$(VERILATOR)"
+
+sim-fes-pcxt-game:
+	$(require_local_sim)
+	@test -n "$(PCXT_DIGGER_EXE)" || { echo "Set PCXT_DIGGER_EXE to the separately acquired pinned executable" >&2; exit 1; }
+	$(PYTHON) scripts/sim_fes_pcxt_dos.py --scenario game --download --digger-exe "$(PCXT_DIGGER_EXE)" --verilator "$(VERILATOR)"
 
 .PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
 sim-fes-pc386:
