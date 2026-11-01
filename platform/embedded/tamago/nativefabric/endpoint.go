@@ -122,6 +122,7 @@ func (e *Endpoint) Step(c *fabricmodel.Controller, now time.Duration) error {
 	e.progressed = false
 	e.pollBusy = false
 	beforeCommand, beforePhase := e.command, e.phase
+	beforeTransfer := e.transfer.Status()
 	next, err := c.Next(now)
 	if err != nil {
 		e.retired = true
@@ -142,7 +143,8 @@ func (e *Endpoint) Step(c *fabricmodel.Controller, now time.Duration) error {
 		return errors.New("native fabric: overlapping lifecycle commands")
 	}
 	done, result := e.advance()
-	e.progressed = next != nil || done || e.pollBusy || beforeCommand != e.command || beforePhase != e.phase
+	e.progressed = next != nil || done || e.pollBusy || beforeCommand != e.command ||
+		beforePhase != e.phase || beforeTransfer != e.transfer.Status()
 	if !done {
 		return nil
 	}
