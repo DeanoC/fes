@@ -227,7 +227,7 @@ def verilate(verilator: str, name: str, top: str, rtl: tuple[Path, ...], testben
 def parse_boot(text: str) -> dict:
     report = {'post': [], 'debug': [], 'panic': [], 'io': {}, 'io_wait': {}, 'inta': {}, 'screen': [], 'end': None,
               'prompt_cycle': None, 'cpu_resets': 0, 'snaps': {}, 'present': {}, 'vga': {}, 'marks': {},
-              'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None}
+              'opl2': None, 'opl2_mismatch': None, 'audio_samples': None, 'sb': None, 'mouse': None}
     rtl = {'stops': [], 'pmode': [], 'gaps': [], 'smc': [], 'notes': [], 'counters': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
@@ -294,6 +294,8 @@ def parse_boot(text: str) -> dict:
             report['audio_samples'] = int(rest.partition('=')[2])
         elif kind == 'SB':
             report['sb'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
+        elif kind == 'MOUSE':
+            report['mouse'] = {key: int(value) for key, value in (field.split('=') for field in rest.split())}
         elif kind == 'END':
             fields = rest.split()
             report['end'] = {'reason': fields[0], **{k: float(v) if '.' in v else int(v)
@@ -374,6 +376,9 @@ def run_machine(testbench: Path, suite: str, arguments: list[str], images: dict)
     if result.returncode != 0:
         report['failures'].append(f'machine_tb exited {result.returncode}: {(report["end"] or {}).get("reason")}'
                                   f' {result.stderr.strip()}')
+    if report['mouse'] and report['mouse']['sent'] != report['mouse']['scheduled']:
+        report['failures'].append(f'mouse packets accepted: {report["mouse"]["sent"]}/'
+                                  f'{report["mouse"]["scheduled"]}')
     if report['panic']:
         report['failures'].append(f'BIOS panic ports written: {report["panic"]}')
     opl2 = report['opl2'] or {}
@@ -527,7 +532,7 @@ def run_boot(args, linked: list[Path]) -> dict:
     print(f'Booting FreeDOS in simulation on the {args.cpu} CPU (this takes minutes)', flush=True)
     report = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
                                             '--type', args.type, '--expect', args.expect, '--trace', str(trace),
-                                            '--cpu', args.cpu], images)
+                                            '--cpu', args.cpu, '--mouse', '0:0,0,0'], images)
     report['failures'] += rtl_boot_failures(report, args.cpu)
     print('Replaying the boot\'s VGA trace against Bochs\'s VGA', flush=True)
     report['replay'] = run_replay(args, suite, trace)

@@ -989,23 +989,31 @@ struct Options {
 
 template <typename Top, typename Clock>
 bool mouse_cycle(Top &top, const Options::Mouse &packet, bool &pending, size_t &sent, Clock &&clock) {
-    if (!pending) {
-        top.mouse_valid = 1;
-        top.mouse_dx = int8_t(packet.dx);
-        top.mouse_dy = int8_t(packet.dy);
-        top.mouse_buttons = uint8_t(packet.buttons);
-        pending = true;
-    }
+    if (!pending) pending = true;
+    // Keep the scheduled packet in the host queue until there is room. The
+    // machine may clock many times between calls here, so never leave valid
+    // asserted while ready is low or the same packet could be accepted again.
+    top.mouse_valid = 0;
     top.eval();
-    const bool accepted = top.mouse_ready;
-    clock();
-    if (accepted) {
+    if (!top.mouse_ready) { clock(); return false; }
+
+    top.mouse_dx = int8_t(packet.dx);
+    top.mouse_dy = int8_t(packet.dy);
+    top.mouse_buttons = uint8_t(packet.buttons);
+    top.mouse_valid = 1;
+    top.eval();
+    if (!top.mouse_ready) {
         top.mouse_valid = 0;
         top.eval();
-        pending = false;
-        ++sent;
+        clock();
+        return false;
     }
-    return accepted;
+    clock();
+    top.mouse_valid = 0;
+    top.eval();
+    pending = false;
+    ++sent;
+    return true;
 }
 
 void mouse_input_self_test() {
@@ -1015,23 +1023,34 @@ void mouse_input_self_test() {
         uint8_t mouse_buttons = 0;
         int mouse_ready = 0;
         unsigned clocks = 0;
+        unsigned accepted = 0;
         void eval() {}
+        void clock() {
+            if (mouse_valid && mouse_ready) ++accepted;
+            if (++clocks == 3) mouse_ready = 1;
+        }
     } top;
     const Options::Mouse packet{0, -7, 5, 1};
     bool pending = false;
     size_t sent = 0;
-    for (unsigned n = 0; n < 4; ++n) {
-        const bool accepted = mouse_cycle(top, packet, pending, sent, [&] {
-            if (++top.clocks >= 3) top.mouse_ready = 1;
-        });
-        if (n < 3 && (accepted || !pending || sent != 0 || !top.mouse_valid))
-            throw std::runtime_error("mouse input did not stay valid while the device was busy");
-        if (n == 3 && (!accepted || pending || sent != 1 || top.mouse_valid))
-            throw std::runtime_error("mouse input was not accepted on the ready clock");
-    }
+    if (mouse_cycle(top, packet, pending, sent, [&] { top.clock(); }) ||
+        !pending || sent != 0 || top.mouse_valid)
+        throw std::runtime_error("mouse input was not held in the host queue while busy");
+    // Model the machine advancing outside mouse_cycle, as it does while an
+    // instruction or I/O access clocks the RTL. Ready rises during these
+    // clocks; a valid packet must not be accepted on every ready edge.
+    for (unsigned n = 0; n < 4; ++n) top.clock();
+    if (top.accepted != 0 || top.mouse_valid)
+        throw std::runtime_error("a busy mouse packet was accepted outside its driver step");
+    if (!mouse_cycle(top, packet, pending, sent, [&] { top.clock(); }) ||
+        pending || sent != 1 || top.mouse_valid || top.accepted != 1)
+        throw std::runtime_error("mouse packet was not accepted exactly once on a ready edge");
+    for (unsigned n = 0; n < 3; ++n) top.clock();
+    if (top.accepted != 1)
+        throw std::runtime_error("mouse packet remained valid after its ready edge");
     if (top.mouse_dx != -7 || top.mouse_dy != 5 || top.mouse_buttons != 1)
         throw std::runtime_error("mouse input changed while waiting for readiness");
-    std::printf("PASS machine mouse input waits for ready with valid held\n");
+    std::printf("PASS machine mouse input is accepted once after readiness\n");
 }
 
 Options parse(int argc, char **argv) {
@@ -1339,7 +1358,7 @@ int main(int argc, char **argv) {
                 next_key = machine.cycles + change.hold;
                 keys.pop_front();
             }
-            // Hold each offered packet valid until the ready handshake edge.
+            // Keep each scheduled packet pending until one ready handshake edge.
             if (mouse_pending || mouse_due()) {
                 const Options::Mouse &packet = options.mouse[mouse_sent];
                 auto cycle = [&] { if (on_oracle) machine.clock(); else rtl->cycle(); };
@@ -1438,6 +1457,7 @@ int main(int argc, char **argv) {
         if (!expected) reason = "expected-text-missing";
         if (snap_failures) reason = "presenter-mismatch";
         if (!options.wav.empty()) write_wav(options.wav, machine.link.samples);
+        std::printf("MOUSE sent=%zu scheduled=%zu\n", mouse_sent, options.mouse.size());
         std::printf("END %s steps=%llu cycles=%llu seconds=%.3f\n", reason, steps,
                     (unsigned long long)machine.cycles, seconds);
         if (!options.disk_out.empty())

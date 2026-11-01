@@ -197,7 +197,8 @@ module pc386_hid_keyboard (
     wire repeat_key_held = stable[repeat_bit] && queued[repeat_bit];
     wire repeat_cancel = repeating && !repeat_key_held;
     wire repeat_start = key_scanning && repeat_key_held && !key_valid && !diffing && !take && repeat_due;
-    wire pressed = key_complete && !complete_repeat && complete_make && !complete_bit[7] && complete_bit != 8'h48;
+    wire pressed = key_complete && !complete_repeat && complete_make && queued[complete_bit] &&
+                   !complete_bit[7] && complete_bit != 8'h48;
     wire released = key_complete && !complete_repeat && !complete_make && complete_bit == repeat_bit;
     wire [21:0] limit = waiting_delay ? delay_thirds(typematic[6:5]) : period_thirds(typematic[4:0]);
     wire [21:0] elapsed_next = elapsed + 22'd3;
