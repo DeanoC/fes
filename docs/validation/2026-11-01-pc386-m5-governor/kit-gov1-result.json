@@ -1,0 +1,240 @@
+{
+ "kit": "B",
+ "run": "gov1",
+ "package": "dcaea9ce12763cae10badebbff300d3683b535d25e598a22aad7be63bb9051fb.fcore",
+ "disk": "governor_test.img",
+ "game": "pc386-m5-governor",
+ "presets": [
+  0,
+  1,
+  3,
+  5
+ ],
+ "disk_sha256": "0cc048d2983b5fb919416eda10b80cd75c29c087ee446c8dcea472ebc75b0047",
+ "launches": [
+  {
+   "preset": 0,
+   "settings": {
+    "header": "0,0,0,0,544,7,1",
+    "machine": {
+     "preset": 0,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "b6374a8b32008092b3fd8a8d1fe5910e3374b710cbf28056e627d607a75b570a"
+   },
+   "load": {
+    "state": "active"
+   },
+   "load_seconds": 6.86,
+   "stop": {
+    "state": "idle"
+   },
+   "record": {
+    "path": "/media/fat/fogcast/core-data/games/091c91aa8c6752f22fe46197d9ec4fcf2dffa8dd0149e6ad7f2dc5058f4adc15/record.bin",
+    "words_0_7": [
+     0,
+     0,
+     0,
+     0,
+     544,
+     7,
+     1,
+     0
+    ],
+    "cmos_70_7b": [
+     204,
+     55,
+     3,
+     0,
+     250,
+     14,
+     86,
+     236,
+     57,
+     0,
+     1,
+     165
+    ],
+    "tp": 210892,
+    "delay_count": 3834,
+    "c18": 3796054,
+    "boot_count": 1,
+    "finished": true
+   }
+  },
+  {
+   "preset": 1,
+   "settings": {
+    "header": "1,0,0,0,544,7,1",
+    "machine": {
+     "preset": 1,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "602216391e87d1dec27f77b70af3c72ca46b01f34e3c263c1c9efac21bd2588b"
+   },
+   "load": {
+    "state": "active"
+   },
+   "load_seconds": 6.83,
+   "stop": {
+    "state": "idle"
+   },
+   "record": {
+    "path": "/media/fat/fogcast/core-data/games/091c91aa8c6752f22fe46197d9ec4fcf2dffa8dd0149e6ad7f2dc5058f4adc15/record.bin",
+    "words_0_7": [
+     1,
+     0,
+     0,
+     0,
+     544,
+     7,
+     1,
+     0
+    ],
+    "cmos_70_7b": [
+     62,
+     107,
+     0,
+     0,
+     243,
+     1,
+     48,
+     138,
+     7,
+     0,
+     2,
+     165
+    ],
+    "tp": 27454,
+    "delay_count": 499,
+    "c18": 494128,
+    "boot_count": 2,
+    "finished": true
+   }
+  },
+  {
+   "preset": 3,
+   "settings": {
+    "header": "3,0,0,0,544,7,1",
+    "machine": {
+     "preset": 3,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "c4a0e17b865c882be29405ebdc915b9a2da09a84fd23ab2943d2785ee1de4a7a"
+   },
+   "load": {
+    "state": "active"
+   },
+   "load_seconds": 7.04,
+   "stop": {
+    "state": "idle"
+   },
+   "record": {
+    "path": "/media/fat/fogcast/core-data/games/091c91aa8c6752f22fe46197d9ec4fcf2dffa8dd0149e6ad7f2dc5058f4adc15/record.bin",
+    "words_0_7": [
+     3,
+     0,
+     0,
+     0,
+     544,
+     7,
+     1,
+     0
+    ],
+    "cmos_70_7b": [
+     95,
+     255,
+     0,
+     0,
+     164,
+     4,
+     145,
+     244,
+     17,
+     0,
+     3,
+     165
+    ],
+    "tp": 65375,
+    "delay_count": 1188,
+    "c18": 1176721,
+    "boot_count": 3,
+    "finished": true
+   }
+  },
+  {
+   "preset": 5,
+   "settings": {
+    "header": "5,0,0,0,544,7,1",
+    "machine": {
+     "preset": 5,
+     "frequency": 0,
+     "code_profile": 0,
+     "turbo": 0,
+     "sb_base": 544,
+     "sb_irq": 7,
+     "sb_dma": 1
+    },
+    "revision": "d3358ccf7897992113c96658b83ee2547da0fbe9eadc39940ae7ea7093b81762"
+   },
+   "load": {
+    "state": "active"
+   },
+   "load_seconds": 7.03,
+   "stop": {
+    "state": "idle"
+   },
+   "record": {
+    "path": "/media/fat/fogcast/core-data/games/091c91aa8c6752f22fe46197d9ec4fcf2dffa8dd0149e6ad7f2dc5058f4adc15/record.bin",
+    "words_0_7": [
+     5,
+     0,
+     0,
+     0,
+     544,
+     7,
+     1,
+     0
+    ],
+    "cmos_70_7b": [
+     162,
+     152,
+     1,
+     0,
+     110,
+     7,
+     54,
+     187,
+     28,
+     0,
+     4,
+     165
+    ],
+    "tp": 104610,
+    "delay_count": 1902,
+    "c18": 1882934,
+    "boot_count": 4,
+    "finished": true
+   }
+  }
+ ],
+ "after": {
+  "agent": "idle",
+  "lease": "revoking"
+ }
+}

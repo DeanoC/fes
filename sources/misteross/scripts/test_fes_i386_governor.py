@@ -31,8 +31,14 @@ preset every latency, in reference clocks, must stay within the window, the
 largest instruction or element charge the loop makes, and the delivery's own
 charge. Every run must halt with the same registers as max's.
 
+With --yosys the CPU is first run through that Yosys (read, proc -norom,
+flatten, opt), as test_fes_i386_lockstep.py --yosys does, and the netlist is
+simulated instead, at the CPU's default GOV_N/GOV_D (a 100 MHz clock), since
+Yosys has elaborated the parameters away.
+
   python3 scripts/test_fes_i386_governor.py
   python3 scripts/test_fes_i386_governor.py --preset 1 --preset 3
+  python3 scripts/test_fes_i386_governor.py --yosys /abs/path/to/pc386-locked/yosys
 
 Writes build/sim/fes-i386-governor/report.json.
 """
@@ -217,12 +223,18 @@ def main() -> int:
                         help='cycles from one handler to the next INTR (default 20000)')
     parser.add_argument('--download', action='store_true', help='fetch the pinned oracle and NASM if missing')
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
+    parser.add_argument('--yosys', help="simulate this Yosys's netlist of the CPU instead of the RTL")
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 8))
     args = parser.parse_args()
     verilator = shutil.which(args.verilator)
     if verilator is None:
         print(f'selected Verilator not found: {args.verilator}', file=sys.stderr)
         return 2
+    yosys = shutil.which(args.yosys) if args.yosys else None
+    if args.yosys and yosys is None:
+        print(f'selected Yosys not found: {args.yosys}', file=sys.stderr)
+        return 2
+    clock_hz = 100_000_000 if yosys else CLOCK_HZ
     OUTPUT.mkdir(parents=True, exist_ok=True)
     table = governor.load()
     presets = {p.id: p for p in table.presets}
@@ -234,9 +246,9 @@ def main() -> int:
                                    capture_output=True, text=True)
         if assembled.returncode:
             raise GovernorBenchError('nasm failed on governor_bench.asm\n' + assembled.stderr)
-        rates = producer.guest_rates(CLOCK_HZ)
-        testbench = lockstep.verilate(verilator, oracle.link_inputs(args.jobs, args.download), args.jobs, None,
-                                      {'GOV_N': rates['GOV_N'], 'GOV_D': rates['GOV_D']})
+        rates = producer.guest_rates(clock_hz)
+        testbench = lockstep.verilate(verilator, oracle.link_inputs(args.jobs, args.download), args.jobs, yosys,
+                                      None if yosys else {'GOV_N': rates['GOV_N'], 'GOV_D': rates['GOV_D']})
         with ThreadPoolExecutor(max_workers=args.jobs) as executor:
             futures = {preset: executor.submit(run, testbench, program, preset, args.irq_period)
                        for preset in [0, *chosen]}
@@ -250,7 +262,7 @@ def main() -> int:
         return 2
 
     failures = []
-    report = {'clock_hz': CLOCK_HZ, 'window': WINDOW, 'budget': BUDGET, 'accepted': list(ACCEPTED), 'presets': {}}
+    report = {'clock_hz': clock_hz, 'yosys': yosys, 'window': WINDOW, 'budget': BUDGET, 'accepted': list(ACCEPTED), 'presets': {}}
     base = spans(results[0])
     for span in base:
         if span['charged']:
@@ -267,7 +279,7 @@ def main() -> int:
         hz = preset.frequency * 100_000
         for span, at_max, (name, parts) in zip(spans(result), base, BENCHES):
             want = expected(table, preset, parts)
-            table_cycles = want * CLOCK_HZ / hz
+            table_cycles = want * clock_hz / hz
             error = span['cycles'] / table_cycles - 1
             beyond = at_max['cycles'] > table_cycles * (1 - BUDGET)
             loop_entry = {'name': name, 'cycles': span['cycles'], 'charged': span['charged'], 'table_clocks': want,
@@ -287,7 +299,7 @@ def main() -> int:
             rows[name].append(f'{span["cycles"]:9} {error:+7.2%}{" beyond" if beyond else "       "}')
         # Interrupt latency: within the window, the largest charge the loop
         # makes, and the delivery's.
-        lat = [cycles * hz / CLOCK_HZ for cycles in latencies(result)]
+        lat = [cycles * hz / clock_hz for cycles in latencies(result)]
         bound = WINDOW + max(charge(table, preset, op) for op in IRQ_LOOP) + sum(
             charge(table, preset, op) for op in DELIVERY)
         entry['latency'] = {'count': len(lat), 'max_clocks': round(max(lat), 1) if lat else None,
@@ -310,7 +322,7 @@ def main() -> int:
     entry = {'preset': preset.name, 'frequency': OVERRIDE[1], 'loops': []}
     for span, (name, parts) in zip(spans(override), BENCHES):
         want = expected(table, preset, parts)
-        error = span['cycles'] / (want * CLOCK_HZ / hz) - 1
+        error = span['cycles'] / (want * clock_hz / hz) - 1
         entry['loops'].append({'name': name, 'cycles': span['cycles'], 'charged': span['charged'], 'error': round(error, 5)})
         if span['charged'] != want or abs(error) > BUDGET:
             failures.append(f'{preset.name} at {hz / 1e6:g} MHz {name}: {span["cycles"]} cycles ({error:+.2%}), '
@@ -325,11 +337,11 @@ def main() -> int:
         failures.append(f'{preset.name} with turbo: {sum(same)} of {len(same)} loops ran as at max')
     print(f'{preset.name} with turbo (word 3): {sum(same)} of {len(same)} loops in max\'s cycles, nothing charged')
     report['failures'] = failures
-    (OUTPUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
+    (OUTPUT / ('report-netlist.json' if yosys else 'report.json')).write_text(json.dumps(report, indent=2) + '\n')
     for failure in failures:
         print('FAIL', failure)
     print(('FAIL' if failures else 'PASS') + ' i386 governor (host simulation only; report: '
-          f'{OUTPUT / "report.json"})')
+          f'{OUTPUT / ("report-netlist.json" if yosys else "report.json")})')
     return 1 if failures else 0
 
 
