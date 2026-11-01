@@ -28,6 +28,11 @@ need #1335's keyboard and mouse on main and stay with #1369
   step ([Machine](#freedos-with-himemx-on-the-rtl-cpu)). One `system_tb` run
   met a bench gap in its DDR model after every check had passed; it is
   filed as #1372.
+- On Kit B the sealed package boots FreeDOS with HIMEMX's full 15,360K of
+  XMS. Ultima VII's start-up stops first on FreeDOS's memory layout, then in
+  Voodoo's XMS clean-up. The Bochs CPU stops in the same places, so the
+  game's kit work is DOS set-up for #1369's second PR
+  ([Kit B](#kit-b-smoke-test-xms-on-hardware-ultima-vii-blocked-by-dos)).
 - Quartus 17.0.2 seals `fes.pc386` from a clean checkout at 61.44 MHz with
   every analysis met: setup +0.584 ns (the pixel clock; the system clock
   has +2.167 ns, 70.9 MHz at its slowest corner), hold +0.038 ns,
@@ -225,6 +230,42 @@ DDR ports' timing draws, and with it the run passes, at `39581a878` and
 again at `eee033a9d` with the same counts. The machine run at `39581a878`
 also matched the one at `eee033a9d` exactly.
 
+## Kit B smoke test: XMS on hardware, Ultima VII blocked by DOS
+
+Deano asked for an early look at Ultima VII on the FPGA before the kit
+acceptance runs. Run u7b, 1 November 2026 16:43-17:00 EET, was claimed and
+released in Kit B's status file. It was core-only on baseline software
+`b93cc239` (main `e06789cd`, OS `f904961e`): the sealed package `cd427942…`
+(`eee033a9d`) went through the agent's library launch, with no install, image
+change or reboot, and the baseline was unchanged after it. Run u7a, at 16:33,
+staged its disk and stopped on a bug in the scratch driver before it
+launched anything. The disks were scratch copies of the games image
+`876986c0` with HIMEMX's `/MAX=0` dropped and The Black Gate from Deano's
+eXoDOS zip (SHA-256 `75e6eb68…`). Game bytes stay off the repository.
+
+- **XMS on hardware.** FreeDOS boots with HIMEMX 3.38 (`XMS 3.00 80386 4G`).
+  MEM, run through FreeCOM's XMS swap, shows 15,360K of XMS (159K used) and
+  620K (634,480 bytes) of conventional memory free
+  ([frame](kit-u7b-mem.png)).
+- **Ultima VII stops on FreeDOS's memory layout, not on the CPU.** Its
+  MAINMENU.EXE stops with `Ultima VII requires 561144 bytes of DOS memory!`
+  ([frame](kit-u7b-u7-freecom.png)), as the Bochs CPU did in the machine sim.
+  MAINMENU measures memory by walking the DOS memory-control-block chain and
+  adding its last two blocks, expecting itself and then the free memory
+  above it. FreeCOM 0.86 keeps its master environment, the size `/E:` sets,
+  as the last block at the top of conventional memory
+  ([chain](kit-u7b-mcb-freecom.png): `9F7F Z 03FA 0040 COMMAND`). MAINMENU then
+  counts only the free memory above itself. `/LOW` leaves the block there;
+  `/E:256` shrinks it to 256 bytes.
+- With a scratch shell (`SHELL=` a 300-byte program that starts ULTIMA7.COM)
+  the chain ends with the free block ([chain](kit-u7b-mcb-u7run.png)) and
+  MAINMENU passes its memory check. Voodoo then stops in its `freexmm.c`
+  error path (`Program terminated by code.`, [frame](kit-u7b-u7-u7run.png)).
+  The Bochs CPU in the machine sim, on the same disk, ends with the same
+  screen ([frame](sim-bochs-u7-u7run.png)), so the RTL on the kit matches the
+  reference CPU here too. What Voodoo objects to in this DOS and XMS setup
+  is for #1369's second PR, which has to make the games disk run Ultima VII.
+
 ## Quartus seal
 
 `make build-fes-pc386-quartus` at seed 1 from a clean checkout of
@@ -311,8 +352,8 @@ the last two are how the lockstep handles the reset alias and a stop:
 
 ## Not in this record
 
-- **The kit.** Serpent Isle at `max`, The Black Gate and Wolfenstein 3D with
-  XMS on a kit. #1363 is now on main, and its games image still runs
+- **The kit acceptance.** Serpent Isle at `max`, The Black Gate and
+  Wolfenstein 3D with XMS on a kit (beyond the smoke test above). #1363 is now on main, and its games image still runs
   HIMEMX with `/MAX=0`. Its kit runs of Wolfenstein 3D and Ultima VI are
   for that profile, so dropping `/MAX=0` goes with new kit runs. Nothing on
   a kit can drive Ultima VII's menus until #1335's keyboard and mouse are
