@@ -82,3 +82,13 @@ node/group. A new strict boot-UUID guard then passed independently. No physical
 power operation or configuration update was used. This covers reboot after a
 quiesced diagnostic; reset during active traffic and factory FPGA restoration
 remain separate acceptance gates.
+
+The [fresh reload after that reboot](after-software-reboot/result.json) also
+passed with the same RBF and artifact-bound programmer. A new allocation
+(generation 1 in the new boot) completed slots 1, 0, 1, continued scanning for
+two seconds per submission, passed final health checks and fully unmapped all
+8 MiB. The synchronized second capture recorded another 450 frames. All nine
+white-marker/body/panel colour probes matched the expected three patterns.
+Known-success cleanup and the new boot's strict identity guard passed again.
+Together these are two physical scanout sessions separated by software reboot,
+with no physical power operation; they do not qualify reset during active DMA.

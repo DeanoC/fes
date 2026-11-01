@@ -1,0 +1,15 @@
+{
+  "classification": "physical read-ahead diagnostic; shared HDMI alias only",
+  "pid": 2200270,
+  "started_utc": "2026-11-01T09:42:25.529026+00:00",
+  "client_started": true,
+  "time_cap_seconds": 65,
+  "capture_pid": 2200274,
+  "state": "passed",
+  "elapsed_seconds": 15.11,
+  "client_started_utc": "2026-11-01T09:42:25.630097+00:00",
+  "client_finished_utc": "2026-11-01T09:42:34.636320+00:00",
+  "client_returncode": 0,
+  "capture_returncode": 0,
+  "capture_frames": 450
+}
