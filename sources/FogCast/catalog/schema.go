@@ -505,7 +505,6 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 		if _, err := connection.ExecContext(ctx, schemaV20); err != nil {
 			return fmt.Errorf("apply catalog schema version 20: %w", err)
 		}
-		version = 20
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("commit catalog migration: %w", err)

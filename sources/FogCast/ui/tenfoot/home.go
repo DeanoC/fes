@@ -19,7 +19,10 @@ const (
 	HomeKindLibrary = "library"
 )
 
-const homeRecentLimit = 5
+const (
+	homeRecentLimit     = 5
+	homeRecentPageLimit = 50
+)
 
 func (r RoomPickerRow) key() string {
 	switch r.Kind {
@@ -337,7 +340,9 @@ func (a *App) activateHomeRowLocked(row RoomPickerRow) {
 		}
 		if a.room != nil && a.room.ID() == row.ID {
 			if ok && pack.Revision == a.room.Revision() {
-				return
+				if a.room.ReleaseOnly() == !a.allCores {
+					return
+				}
 			}
 		}
 		if a.sessionStopOfferedLocked() || a.launch.Phase == "launching" {
@@ -470,7 +475,7 @@ func (a *App) loadHomeRecents(ctx context.Context, gen int) {
 		var next string
 		page, next, err = client.ListGames(ctx, hostclient.GameListQuery{
 			Collection: "recents",
-			Limit:      homeRecentLimit,
+			Limit:      homeRecentPageLimit,
 			Cursor:     cursor,
 		})
 		if err != nil {
@@ -484,7 +489,7 @@ func (a *App) loadHomeRecents(ctx context.Context, gen int) {
 				return
 			}
 			fails++
-			a.noteRecentsUnreachable(gen)
+			a.noteRecentsUnreachable(gen, games)
 			if !a.libraryRetryWait(ctx, fails, gen, true) {
 				return
 			}
@@ -518,7 +523,7 @@ func (a *App) loadHomeRecents(ctx context.Context, gen int) {
 		key = a.homeFocusKeyLocked()
 	}
 	a.homeRecentsLoaded = true
-	if err != nil {
+	if err != nil && len(games) == 0 {
 		a.homeRecents = nil
 		a.homeRecentsErr = "couldn't load recently played"
 		if a.roomPickerOpen {
@@ -533,7 +538,7 @@ func (a *App) loadHomeRecents(ctx context.Context, gen int) {
 	}
 }
 
-func (a *App) noteRecentsUnreachable(gen int) {
+func (a *App) noteRecentsUnreachable(gen int, games []hostclient.Game) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if gen != a.homeRecentsGen {
@@ -543,8 +548,13 @@ func (a *App) noteRecentsUnreachable(gen int) {
 	if a.roomPickerOpen {
 		key = a.homeFocusKeyLocked()
 	}
-	a.homeRecents = nil
-	a.homeRecentsErr = "couldn't load recently played"
+	if len(games) > 0 {
+		a.homeRecents = append([]hostclient.Game(nil), games...)
+		a.homeRecentsErr = ""
+	} else {
+		a.homeRecents = nil
+		a.homeRecentsErr = "couldn't load recently played"
+	}
 	a.homeRecentsLoaded = true
 	if a.roomPickerOpen {
 		a.restoreHomeFocusLocked(key)

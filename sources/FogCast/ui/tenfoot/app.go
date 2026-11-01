@@ -394,6 +394,7 @@ type App struct {
 	hideHacks              bool
 	facets                 hostclient.FacetValues
 	settingsOpen           bool
+	settingsScopeChanged   bool
 	settingsIndex          int
 	settingsGen            int
 	settingsWriteGen       int

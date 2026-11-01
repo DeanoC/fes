@@ -342,11 +342,6 @@ load settings. Other explicit configs use their declared state and staging
 paths or writable storage beside the config, subject to the existing
 read-only storage fallbacks.
 
-The user catalog has its own SQLite schema version. Schema 20 adds the
-`core_entries.media_name` value used by host views; it is additive, so
-catalog revisions that do not consume that value can open the database while
-retaining the stored names.
-
 Tenfoot applies the paired kit-lease state to installed-core destinations as
 well as FPGA titles. On a paired kit, a foreign lease displays the shared
 in-use copy and refuses Confirm; unavailable lease status fails closed. Core
@@ -2687,8 +2682,9 @@ Settings, `tenfoot.json` `all_cores`, or `FOGCAST_TENFOOT_ALL_CORES=1`. Room
 instances receive the same scope for local packages, hardware snapshots and
 the systems table; `room.core_shown` also keeps the core a room was opened for,
 so setup for a held-back running machine remains usable. Changing the setting
-from Settings returns to Home and drops any stale room instance before the next
-selection. The host catalog and Library grid remain complete. Each host card
+stays in Settings until it closes, then returns Home and drops any stale room
+instance. A Home room is reused only when its release scope matches the current
+setting. The host catalog and Library grid remain complete. Each host card
 publishes its library `game_id` and launches
 through the library path; a ready host card replaces a blocked local row for
 the same core, while a launchable local row stays selected. Host readiness

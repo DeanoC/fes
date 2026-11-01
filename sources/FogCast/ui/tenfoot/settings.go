@@ -328,6 +328,7 @@ func (a *App) openSettingsLocked() {
 	a.closeFiltersLocked()
 	a.closeDetailLocked()
 	a.settingsOpen = true
+	a.settingsScopeChanged = false
 	a.settingsIndex = 0
 	a.settingsStatus = ""
 	a.settingsBusy = false
@@ -355,6 +356,8 @@ func (a *App) closeSettingsLocked() {
 	if !a.settingsOpen {
 		return
 	}
+	refreshHome := a.settingsScopeChanged
+	a.settingsScopeChanged = false
 	a.settingsOpen = false
 	a.settingsBusy = false
 	a.settingsLoading = false
@@ -362,6 +365,11 @@ func (a *App) closeSettingsLocked() {
 	a.closeSettingsOSKLocked()
 	a.settingsGen++
 	a.discardSettingsDraftsLocked()
+	if refreshHome && !a.sessionStopOfferedLocked() && a.launch.Phase != "launching" {
+		a.closeAllRoomsLocked()
+		a.discardLibraryOriginLocked()
+		a.goHomeNowLocked()
+	}
 }
 
 func (a *App) discardSettingsDraftsLocked() {
@@ -1860,8 +1868,7 @@ func (a *App) setSurroundLocked(on bool, persist bool) {
 
 // setAllCoresLocked lists or hides cores outside the v1 release. The core
 // catalog view and Home recents follow it at once. A room keeps the list it
-// was opened with, so a change from Settings goes Home, which is rebuilt
-// rather than reclaimed; while a machine runs, Home is rebuilt when next shown.
+// was opened with, so a change from Settings rebuilds Home when Settings closes.
 func (a *App) setAllCoresLocked(on bool, persist bool) {
 	a.allCores = on
 	if !persist {
@@ -1873,10 +1880,7 @@ func (a *App) setAllCoresLocked(on bool, persist bool) {
 		status = "all cores shown"
 	}
 	if a.settingsOpen && !a.sessionStopOfferedLocked() && a.launch.Phase != "launching" {
-		if !a.homeRooms {
-			a.closeAllRoomsLocked()
-		}
-		a.goHomeNowLocked()
+		a.settingsScopeChanged = true
 	}
 	a.status = status
 }
