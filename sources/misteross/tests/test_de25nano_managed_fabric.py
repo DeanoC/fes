@@ -1,5 +1,6 @@
 """Canonical MENU rejects unowned fabric initiators and stale generated RTL."""
 import gzip
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -28,11 +29,14 @@ class ManagedFabricTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.project = Path(self.temp.name)
+        self.directory = Path(self.temp.name)
+        self.project = self.directory / 'project'
         self.fixture = json.loads(gzip.decompress((ROOT / 'tests/fixtures/de25_managed_fabric.json.gz').read_bytes()))
         self.restore_fixture()
 
     def restore_fixture(self):
+        shutil.rmtree(self.directory / 'managed-fabric-originals', ignore_errors=True)
+        (self.directory / 'managed-fabric-tieoffs.json').unlink(missing_ok=True)
         for name, text in self.fixture['files'].items():
             path = self.project / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -58,9 +62,10 @@ class ManagedFabricTests(unittest.TestCase):
             self.assertEqual(count, 1)
         for channel in ('ar', 'aw', 'w'):
             source, count = re.subn(r'(\.fpga2hps_' + channel + r'valid\s*\()[^()]+(\))',
-                                    lambda m: m[1] + "1'b0" + m[2], source)
+                                    lambda m: m[1] + m[2], source)
             self.assertEqual(count, 1)
         path.write_text(source)
+        D.terminate_managed_fabric(self.directory, H)
 
     def mutate_routes(self, change):
         path = self.project / 'qsys_top/qsys_top.sopcinfo'
@@ -129,6 +134,45 @@ class ManagedFabricTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'not tied low'):
                     D.verify_managed_fabric(self.project, H)
         path.write_text(original)
+
+    def test_actual_floating_sdk_inputs_are_terminated_and_both_versions_retained(self):
+        fixture = json.loads(gzip.decompress((ROOT / 'tests/fixtures/de25_managed_fabric_floating.json.gz').read_bytes()))
+        for name, text in fixture['files'].items():
+            self.assertEqual(hashlib.sha256(text.encode()).hexdigest(), fixture['sha256'][name])
+            path = self.project / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(text)
+        with self.assertRaisesRegex(ValueError, 'not tied low'):
+            D.verify_managed_fabric(self.project, H)
+        result = D.terminate_managed_fabric(self.directory, H)
+        original = (self.directory / 'managed-fabric-originals/qsys_top.v').read_bytes()
+        self.assertEqual(original.decode(), fixture['files']['qsys_top/synth/qsys_top.v'])
+        derived = (self.project / 'qsys_top/synth/qsys_top.v').read_bytes()
+        self.assertEqual(derived, D.terminated_managed_parent(original))
+        self.assertEqual(result, D.verify_managed_fabric(self.project, H))
+        self.assertEqual(result['request_termination']['ports'], {p: "1'b0" for p in D.F2H_REQUEST_PORTS})
+        with self.assertRaisesRegex(ValueError, 'original floating'):
+            D.terminated_managed_parent(derived)
+
+    def test_original_derived_and_termination_receipt_mutations_are_refused(self):
+        self.project_removals()
+        paths = (self.directory / 'managed-fabric-originals/qsys_top.v',
+                 self.project / 'qsys_top/synth/qsys_top.v', self.directory / 'managed-fabric-tieoffs.json')
+        for path in paths:
+            original = path.read_bytes()
+            try:
+                path.write_bytes(original + b'\n')
+                with self.subTest(path=path.name):
+                    if path.name.endswith('.json'):
+                        data = json.loads(path.read_text())
+                        data['derived_sha256'] = '0' * 64
+                        path.write_text(json.dumps(data))
+                    with self.assertRaisesRegex(ValueError, 'termination or its retained receipt changed'):
+                        D.verify_managed_fabric(self.project, H)
+            finally:
+                path.write_bytes(original)
+        regenerated = self.project / 'qsys_top/synth/qsys_top.v'
+        regenerated.write_bytes(paths[0].read_bytes())
+        with self.assertRaisesRegex(ValueError, 'not tied low'):
+            D.verify_managed_fabric(self.project, H)
 
     @unittest.skipUnless(shutil.which('tclsh'), 'requires Tcl')
     def test_actual_removal_script_checks_targets_and_keeps_hps_instances(self):

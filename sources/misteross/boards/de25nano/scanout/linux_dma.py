@@ -1,11 +1,14 @@
 """Prepare the explicit, unadmitted Linux SMMU profile in a private project."""
 import hashlib
+import json
 from pathlib import Path
 import re
 
 HPS_IP = 'hps_subsys/ip/hps_subsys/agilex_hps.ip'
 ADAPTER = 'custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl'
 MANAGED_FABRIC = 'managed-scanout-initiators-v1'
+MANAGED_TERMINATION = 'unused-f2h-request-valid-zero-v1'
+F2H_REQUEST_PORTS = tuple(f'fpga2hps_{channel}valid' for channel in ('ar', 'aw', 'w'))
 MANAGED_MASTERS = (
     'subsys_hps_agilex_hps.hps2fpga', 'subsys_hps_agilex_hps.lwhps2fpga',
     'subsys_periph_pb_cpu_0.m0', 'subsys_periph_fes_scanout_guard.avm',
@@ -129,8 +132,7 @@ foreach instance {subsys_debug ace5lite_cache_coherency_translator_0} {
     return script.replace(top_save, removal + top_save)
 
 
-def verify_managed_fabric(project, hps):
-    """Check every elaborated initiator and the unused HPS request tieoffs."""
+def _managed_fabric_graph(project, hps):
     import xml.etree.ElementTree as ET
     sopc = project / 'qsys_top/qsys_top.sopcinfo'
     tree = ET.parse(sopc)
@@ -162,10 +164,21 @@ def verify_managed_fabric(project, hps):
         if (len(matches) != 1 or matches[0].get('start') != start or
                 int(matches[0].findtext("parameter[@name='baseAddress']/value") or '-1', 0) != address):
             raise ValueError('managed fabric control/OCM route differs: ' + end)
-    # An unconnected logical interface alone does not prove the emitted hard
-    # block cannot request a transaction. Require actual generated zeroes.
-    top = project / 'qsys_top/synth/qsys_top.v'
-    source = re.sub(r'/\*.*?\*/|//[^\n]*', '', top.read_text(), flags=re.S)
+    native = [m for m in modules if m.get('path') == 'subsys_hps.agilex_hps']
+    ports = hps.component_ports(native[0], 'fpga2hps') if len(native) == 1 else {}
+    if any(ports.get(channel + 'valid') != ('Input', 1) for channel in ('ar', 'aw', 'w')):
+        raise ValueError('managed fabric native F2H request direction/width differs')
+    memory = hps.verify_scanout_memory_handoff(project)
+    return {'policy': MANAGED_FABRIC, 'initiator_endpoints': sorted(masters),
+            'initiator_count': len(masters), 'fabric_to_hps': [list(route) for route in ingress],
+            'control_and_ocm_routes': [list(route) for route in control],
+            'removed_instances': list(removed), 'sopcinfo_sha256': hps.digest(sopc),
+            'memory_handoff': memory, 'physical_lifetime': 'not-qualified', 'runtime_admission': 'not-qualified'}
+
+
+def _managed_parent(data):
+    source = re.sub(r'/\*.*?\*/|//[^\n]*', '', data.decode(), flags=re.S)
+    removed = ('subsys_debug', 'ace5lite_cache_coherency_translator_0')
     if any(re.search(r'(?m)^\s*\w+\s+' + re.escape(name) + r'\s*\(', source) for name in removed):
         raise ValueError('managed fabric generated parent retains a removed instance')
     instances = re.findall(r'(?ms)^\t\w+ subsys_hps \(\n(.*?)^\t\);', source)
@@ -175,17 +188,68 @@ def verify_managed_fabric(project, hps):
     if len(ports) != len(dict(ports)):
         raise ValueError('managed fabric generated HPS port is duplicated')
     ports = {name: value.strip() for name, value in ports}
-    tieoffs = {f'fpga2hps_{channel}valid': ports.get(f'fpga2hps_{channel}valid') for channel in ('ar', 'aw', 'w')}
+    return {port: ports.get(port) for port in F2H_REQUEST_PORTS}
+
+
+def terminated_managed_parent(original):
+    """Drive only the three reviewed, genuinely unconnected input valids."""
+    ports = _managed_parent(original)
+    if any(value != '' for value in ports.values()):
+        raise ValueError('managed fabric termination requires the three original floating request inputs')
+    text = original.decode()
+    matches = list(re.finditer(r'(?ms)^\t\w+ subsys_hps \(\n.*?^\t\);', text))
+    if len(matches) != 1:
+        raise ValueError('managed fabric raw HPS instance differs')
+    match = matches[0]
+    block = match[0]
+    for port in F2H_REQUEST_PORTS:
+        block, count = re.subn(r'(\.' + port + r'\s*\()\s*(\))',
+                              lambda m: m[1] + "1'b0" + m[2], block)
+        if count != 1:
+            raise ValueError('managed fabric raw floating input differs: ' + port)
+    return (text[:match.start()] + block + text[match.end():]).encode()
+
+
+def _termination_receipt(original, derived, graph):
+    return {'policy': MANAGED_TERMINATION, 'fabric_policy': MANAGED_FABRIC,
+            'original_file': 'managed-fabric-originals/qsys_top.v',
+            'derived_file': 'project/qsys_top/synth/qsys_top.v',
+            'original_sha256': hashlib.sha256(original).hexdigest(),
+            'derived_sha256': hashlib.sha256(derived).hexdigest(),
+            'sopcinfo_sha256': graph['sopcinfo_sha256'],
+            'ports': {port: "1'b0" for port in F2H_REQUEST_PORTS}}
+
+
+def terminate_managed_fabric(directory, hps):
+    project = directory / 'project'
+    graph = _managed_fabric_graph(project, hps)
+    top = project / 'qsys_top/synth/qsys_top.v'
+    original = top.read_bytes()
+    derived = terminated_managed_parent(original)
+    retained = directory / 'managed-fabric-originals'
+    retained.mkdir(exist_ok=False)
+    (retained / 'qsys_top.v').write_bytes(original)
+    top.write_bytes(derived)
+    receipt = _termination_receipt(original, derived, graph)
+    (directory / 'managed-fabric-tieoffs.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
+    return verify_managed_fabric(project, hps)
+
+
+def verify_managed_fabric(project, hps):
+    """Check the complete graph and source-derived, compiled request zeroes."""
+    graph = _managed_fabric_graph(project, hps)
+    top = project / 'qsys_top/synth/qsys_top.v'
+    actual = top.read_bytes()
+    tieoffs = _managed_parent(actual)
     if any(value != "1'b0" for value in tieoffs.values()):
         raise ValueError('managed fabric unused F2H request valid is not tied low')
-    # Keep the independently checked sole scanout-to-F2SDRAM graph too.
-    memory = hps.verify_scanout_memory_handoff(project)
-    return {'policy': MANAGED_FABRIC, 'initiator_endpoints': sorted(masters),
-            'initiator_count': len(masters), 'fabric_to_hps': [list(route) for route in ingress],
-            'control_and_ocm_routes': [list(route) for route in control],
-            'removed_instances': list(removed), 'unused_f2h_request_valid': tieoffs,
-            'sopcinfo_sha256': hps.digest(sopc), 'generated_parent_sha256': hps.digest(top),
-            'memory_handoff': memory, 'physical_lifetime': 'not-qualified', 'runtime_admission': 'not-qualified'}
+    original = (project.parent / 'managed-fabric-originals/qsys_top.v').read_bytes()
+    derived = terminated_managed_parent(original)
+    receipt = json.loads((project.parent / 'managed-fabric-tieoffs.json').read_text())
+    if actual != derived or receipt != _termination_receipt(original, derived, graph):
+        raise ValueError('managed fabric generated termination or its retained receipt changed')
+    return {**graph, 'unused_f2h_request_valid': tieoffs, 'generated_parent_sha256': hps.digest(top),
+            'request_termination': receipt}
 
 
 def verify(project, hps, profile):

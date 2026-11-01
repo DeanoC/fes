@@ -593,6 +593,7 @@ def generate(output, combined, hps, display, tool, version):
     directory = output / "combined/hps"
     if timed_reset_release(json.loads((directory / "inputs.json").read_text())):
         repair_generated_reset_timing(directory)
+        managed_fabric_helper(directory).terminate_managed_fabric(directory, hps)
     verify_generated(output, hps)
 
 
@@ -622,7 +623,7 @@ def verify_generated(output, hps, verifier_revision=None):
     path.write_text(json.dumps(generation, indent=2, sort_keys=True) + "\n")
 
 
-def verify_managed_fabric(directory, hps):
+def managed_fabric_helper(directory):
     inputs = json.loads((directory / "inputs.json").read_text())
     if not timed_reset_release(inputs):
         raise ValueError("managed fabric requires canonical MENU")
@@ -632,7 +633,11 @@ def verify_managed_fabric(directory, hps):
     helper = load(path, "scanout_selected_managed_fabric")
     if helper.MANAGED_FABRIC != MANAGED_FABRIC:
         raise ValueError("managed fabric verifier policy differs")
-    return helper.verify_managed_fabric(directory / "project", hps)
+    return helper
+
+
+def verify_managed_fabric(directory, hps):
+    return managed_fabric_helper(directory).verify_managed_fabric(directory / "project", hps)
 
 
 def compile_project(output, hps, display, tool):

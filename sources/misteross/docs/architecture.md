@@ -45,6 +45,11 @@ generated parent RTL: removed instances must be absent, and unused HPS F2H
 ARVALID/AWVALID/WVALID must be literal zero. Captured verifier bytes and the
 complete generated graph receipt are checked before and after compilation;
 the compiled and Linux-conversion receipts retain this graph. The independent
+26.3 generator leaves these unused inputs open; a guarded derivation changes
+only the three empty request-valid bindings, preserving original parent RTL and
+before/after/SOPC hashes. The exact derivation is recomputed after generation and
+compilation; changed or regenerated inputs cannot pass Linux conversion.
+The independent
 maintenance recipe keeps its debug paths, and JTAG FPGA configuration remains
 available. This profile changes no HPS parameters beyond the existing selected
 SMMU exposure and grants no IO, reset, physical DMA or native acceptance.

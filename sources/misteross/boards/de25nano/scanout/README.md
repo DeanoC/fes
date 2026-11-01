@@ -188,6 +188,13 @@ must tie unused F2H ARVALID/AWVALID/WVALID to literal zero. Missing/extra master
 control bypasses, retained debug instances, wrong routes and stale generated
 request signals fail closed. The captured verifier and the complete generated
 graph receipt are rechecked before and after compilation, before conversion.
+Quartus 26.3 leaves those three request inputs open after removing the translator.
+After checking the complete pruned graph and each native input's direction/width,
+the producer changes only those three empty bindings to constant zero. It retains
+the original parent RTL under `managed-fabric-originals/` and records the original,
+derived and SOPC hashes in `managed-fabric-tieoffs.json`. Verification recomputes
+the exact derived bytes from the retained original. Changed originals, nonempty
+source bindings, receipt edits or regenerated open inputs stop conversion.
 The canonical record selects this policy before generation. This removes
 unmanaged fabric paths; it does not establish physical DMA/reset lifetime or
 relax any timing, IO, package or native acceptance gate.
