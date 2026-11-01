@@ -1651,12 +1651,15 @@ static void owner_overlay_and_control_fd_complete_two_cycles(struct kunit *test)
 	KUNIT_ASSERT_NOT_NULL(test, f);
 	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
 	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -ENODEV);
 	for (cycle = 1; cycle <= 2; cycle++) {
 		KUNIT_ASSERT_EQ(test, owner_fixture_apply(f), 0);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
 		KUNIT_EXPECT_EQ(test, f->programs, cycle);
 		KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], cycle);
 		f->fd = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0);
 		KUNIT_ASSERT_GE(test, f->fd, 0);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -EBUSY);
 		spin_lock(&current->files->file_lock);
 		cloexec = close_on_exec(f->fd, current->files);
 		spin_unlock(&current->files->file_lock);
@@ -1674,14 +1677,18 @@ static void owner_overlay_and_control_fd_complete_two_cycles(struct kunit *test)
 		KUNIT_EXPECT_NOT_NULL(test, node);
 		of_node_put(node);
 		KUNIT_ASSERT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_REAP, 0), 0);
+		/* Drained hardware does not retire a peer's storage reference. */
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -EBUSY);
 		KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->profile_overlay), -EBUSY);
 		KUNIT_EXPECT_EQ(test, f->control_observer.freed, cycle - 1);
 		owner_fixture_close_client(f);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
 		KUNIT_EXPECT_EQ(test, f->control_observer.freed, cycle);
 		KUNIT_ASSERT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
 		KUNIT_EXPECT_EQ(test, f->removes, cycle);
 		KUNIT_EXPECT_EQ(test, f->profile_overlay, 0);
 		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0), -ENODEV);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -ENODEV);
 	}
 }
 
@@ -1704,11 +1711,13 @@ static void owner_overlay_refuses_remove_after_uncertain_last_close(struct kunit
 	owner_fixture_close_client(f);
 	KUNIT_EXPECT_EQ(test, f->control_observer.freed, 0U);
 	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_REAP, 0), -EAGAIN);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -EBUSY);
 	KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->profile_overlay), -EBUSY);
 	KUNIT_EXPECT_EQ(test, f->removes, 0U);
 	f->device->endpoint->drain_error = 0;
 	KUNIT_ASSERT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_REAP, 0), 0);
 	KUNIT_EXPECT_EQ(test, f->control_observer.freed, 1U);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
 	KUNIT_EXPECT_EQ(test, of_overlay_remove(&f->profile_overlay), 0);
 }
 
@@ -1735,32 +1744,84 @@ static void owner_overlay_failure_never_admits_a_guard(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, f->device->regs[FES_DE25_SCANOUT_GUARD_EPOCH_OFFSET / 4], 2U);
 }
 
+static void owner_idle_waits_for_last_client_mapping(struct kunit *test)
+{
+	struct owner_fixture *f = owner_fixture_create(test, true);
+	struct mm_struct *mm;
+	unsigned long address;
+	unsigned int reads, writes;
+	int ret;
+
+	KUNIT_ASSERT_NOT_NULL(test, f);
+	f->file = fes_de25_owner_test_allocate(f->owner);
+	KUNIT_ASSERT_FALSE(test, IS_ERR(f->file));
+	fes_de25_dma_test_observe(f->file, &f->control_observer);
+	mm = test_mm(test);
+	if (!mm)
+		return;
+	kthread_use_mm(mm);
+	address = vm_mmap(f->file, TEST_ADDRESS, PAGE_SIZE,
+			PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, 0);
+	KUNIT_EXPECT_EQ(test, address, TEST_ADDRESS);
+	if (IS_ERR_VALUE(address))
+		goto out;
+	ret = fes_de25_owner_test_reap(f->owner);
+	KUNIT_EXPECT_EQ(test, ret, 0);
+	if (ret)
+		goto unmap;
+	/* No descriptor remains, but the revoked VMA still owns its storage. */
+	owner_fixture_close_client(f);
+	KUNIT_EXPECT_EQ(test, f->control_observer.freed, 0U);
+	reads = f->device->reads;
+	writes = f->device->writes;
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), -EBUSY);
+	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
+	KUNIT_EXPECT_EQ(test, f->device->writes, writes);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_notify(f->owner, OF_OVERLAY_PRE_REMOVE), -EBUSY);
+unmap:
+	KUNIT_EXPECT_EQ(test, vm_munmap(address, PAGE_SIZE), 0);
+out:
+	kthread_unuse_mm(mm);
+	mmput(mm);
+	/* KUnit is a kernel thread, so run the final VMA file's deferred fput. */
+	flush_delayed_fput();
+	if (!IS_ERR_VALUE(address) && !f->file) {
+		KUNIT_EXPECT_EQ(test, f->control_observer.freed, 1U);
+		KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
+	}
+}
+
 static void owner_control_checks_capability_and_command_before_effects(struct kunit *test)
 {
 	struct owner_fixture *f = owner_fixture_create(test, false);
 	struct cred *denied;
 	const struct cred *saved;
 	unsigned int reads;
-	long ret;
+	long ret, idle_ret;
 
 	KUNIT_ASSERT_NOT_NULL(test, f);
 	KUNIT_ASSERT_EQ(test, owner_fixture_overlay_setup(f), 0);
 	KUNIT_ASSERT_EQ(test, owner_fixture_apply(f), 0);
 	reads = f->device->reads;
 	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 1), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 1), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0), 0);
 	KUNIT_EXPECT_EQ(test, fes_de25_owner_test_ioctl(f->owner, 0, 0), -ENOTTY);
 	denied = prepare_creds();
 	KUNIT_ASSERT_NOT_NULL(test, denied);
 	cap_lower(denied->cap_effective, CAP_SYS_RAWIO);
 	saved = override_creds(denied);
 	ret = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_ALLOC, 0);
+	idle_ret = fes_de25_owner_test_ioctl(f->owner, FES_DE25_DMA_OWNER_IDLE, 0);
 	revert_creds(saved);
 	put_cred(denied);
 	KUNIT_EXPECT_EQ(test, ret, -EPERM);
+	KUNIT_EXPECT_EQ(test, idle_ret, -EPERM);
 	KUNIT_EXPECT_EQ(test, f->device->reads, reads);
 }
 
 static struct kunit_case fes_de25_dma_cases[] = {
+	KUNIT_CASE(owner_idle_waits_for_last_client_mapping),
 	KUNIT_CASE(owner_overlay_and_control_fd_complete_two_cycles),
 	KUNIT_CASE(owner_overlay_refuses_remove_after_uncertain_last_close),
 	KUNIT_CASE(owner_overlay_failure_never_admits_a_guard),

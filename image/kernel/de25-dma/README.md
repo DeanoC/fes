@@ -194,6 +194,20 @@ CAP_SYS_RAWIO): OWNER_ALLOC returns a CLOEXEC grant file, and OWNER_REAP revokes
 its grant through the existing checked drain path before releasing the owner's
 recovery handle. Existing client storage references still hold the resource
 lease, even after a successful reap. A failed reap retains the handle and lease.
+`OWNER_IDLE` is an additive, read-only version-2 control request with no
+argument. It returns zero only when the profile is ready and neither an active
+allocation nor a storage/client/VMA lease remains; otherwise it returns
+`EBUSY`, or `ENODEV` for an unready profile. It takes the allocation/owner locks
+and performs no MMIO, allocation, revocation, REAP or lease acquisition.
+In particular, successful REAP can still leave it busy until the last client's
+descriptor and mapping are gone. This lets a serialized lifecycle distinguish
+retained peer references before attempting overlay removal. The result is an
+observation, not a reservation, DMA drain proof, configuration identity check
+or permission to program. Existing maintenance serialization and the strict
+overlay exclusion remain required. An older installed kernel returns `ENOTTY`;
+callers must not interpret that as idle. The query has kernel software tests;
+it is not yet installed or tested on the physical board.
+
 An abandoned handle can be reaped by a later owner-control connection.
 
 The base device must be permanent, outside overlays, with exactly one 256-byte
