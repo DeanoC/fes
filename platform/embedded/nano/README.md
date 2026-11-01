@@ -51,6 +51,21 @@ passes its first check and all 32 records, then parks before DDR/storage/BL31.
 The matched native handoff and firmware release restriction still need their
 own physical test.
 
+`native_trace.py` checks the serial observations for that next probe. Its
+`decode_native_boot(capture, build_id, owner_seed)` takes the build ID and
+cold-chain owner seed from the checked matched U-Boot receipt. `loader_ready`
+requires the ordered SPL, sealed FIT, secure-provider, loader and RAM reports
+through the manual prompt. `complete` additionally requires the entry command,
+both ownership snapshots, live CPU state and ordered EL2/EL1/Go checkpoints.
+The SPL owner must derive from the expected seed and reported epoch and must
+match both later snapshots. The public snapshot tag, flags and generation are
+exact. Raw bridge reset words use the same four-bit mask as the firmware:
+`0x4f` and `0x0f` both retain the required bits. Mixed builds, reordered or
+duplicate stages, failure markers and partial final lines cannot complete.
+Partial UART reads retain progress. A completed decode records the serial
+probe only; kit/card authorization, artifact verification and later device/core
+qualification remain with the caller.
+
 The same spare card carries two paths:
 
 | Volatile JTAG image | SPL boot file | Purpose |
