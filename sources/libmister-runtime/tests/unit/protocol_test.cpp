@@ -1278,9 +1278,19 @@ void TestMenuProtocolRequestsAndStatus()
  assert(blitter.find("\"menu_frame\":{\"generation\":1,\"format\":\"bgrx8888\",\"slots\":2,\"slot_bytes\":4194304,"
   "\"blitter\":{\"minor\":1,\"list_offset\":8388608,\"commands\":32768,\"command_bytes\":32,\"heap_offset\":16777216,\"heap_bytes\":67108864}}")!=std::string::npos);
 
+ status.menu_display.frame_mapping=true;granted.frame_mapping=true;granted.blitter=false;
+ const auto frame_mapping=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&granted);
+ const auto marker=frame_mapping.find("\"frame_mapping\":true");
+ assert(marker!=std::string::npos&&frame_mapping.find("\"frame_mapping\":true",marker+1)!=std::string::npos);
+
  Request request;
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_grant","expected_generation":7})",&request).ok());
  assert(request.operation==mister::daemon::Operation::menu_frame_grant&&request.expected_generation==7);
+ assert(!request.frame_mapping);
+ assert(Parse(R"({"protocol":2,"operation":"menu_frame_grant","expected_generation":7,"frame_mapping":true})",&request).ok()&&request.frame_mapping);
+ assert(!Parse(R"({"protocol":2,"operation":"menu_frame_grant","expected_generation":7,"frame_mapping":1})",&request).ok());
+ assert(!Parse(R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":7,"frame_mapping":true})",&request).ok());
+
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":18446744073709551615})",&request).ok());
  assert(request.operation==mister::daemon::Operation::menu_frame_begin&&request.expected_generation==UINT64_MAX);
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_commit","generation":1,"slot":1})",&request).ok());

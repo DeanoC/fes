@@ -85,6 +85,13 @@ DE25 DMA allocation path from DE10 window/cache rules without enabling a DE25
 MENU adapter or production factory. These interfaces and failure gates have
 [software validation only](../../docs/validation/2026-11-01-de25-menu-lifecycle/README.md).
 
+MENU memory adapters can require explicit per-frame mapping agreement. The
+runtime refuses an unaware peer before sharing a descriptor. The UI negotiates
+that flag, unmaps before committing and remaps the same generation for its next
+frame, so a failed frame can recover before its reply without retaining a peer
+VMA. Existing persistent DE10 windows keep their contract. This is a software
+interface addition; the DE25 presenter and production construction stay closed.
+
 The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
 register contract through an exclusive injected `Mmio` backend and an injected
 persona-configuration operation. It validates the selected base identity,

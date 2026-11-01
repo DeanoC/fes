@@ -1894,7 +1894,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
     error={ErrorCode::io_failed,"menu blitter initial state is not idle","menu"};
    if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
    menu_status_={};menu_status_.available=true;menu_status_.package_id=admitted->opened_.package_id;
-   menu_status_.geometry=info.geometry;menu_status_.blitter=blitter;menu_slot_=0;
+   menu_status_.geometry=info.geometry;menu_status_.blitter=blitter;menu_status_.frame_mapping=menu_window_->FrameMapping();menu_slot_=0;
    menu_status_.blitter_minor=blitter?MenuBlitterMinor(admitted->opened_.descriptor):0;
   } else if(session_display) {
    MenuDisplayInfo info;error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);

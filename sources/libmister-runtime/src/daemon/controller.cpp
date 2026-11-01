@@ -195,7 +195,7 @@ std::string Controller::GrantMenuWindow(const Request& request,int* fd)
 {
  *fd=-1;
  MenuFrameReply reply;reply.kind=MenuFrameReply::Kind::granted;reply.generation=request.expected_generation;
- const auto error=runtime_.ShareMenuWindow(request.expected_generation,fd,&reply.blitter,&reply.blitter_minor);
+ const auto error=runtime_.ShareMenuWindow(request.expected_generation,fd,&reply.blitter,&reply.blitter_minor,request.frame_mapping,&reply.frame_mapping);
  return Respond(request.protocol,error,nullptr,nullptr,error.ok()?&reply:nullptr);
 }
 std::string Controller::BeginMenuFrame(const Request& request,std::unique_ptr<MenuFrame>* frame)
