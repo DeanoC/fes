@@ -195,3 +195,10 @@ from the kernel's INFO operation. This reads cached metadata without issuing
 another hardware snapshot, publication or reap. Last-close revocation can
 prove STOP/drain and CLEAR, which otherwise destroys the original fault record.
 The cached record is evidence about the failed attempt, not a drain proof.
+
+For mapping observation, `owner_scanout --boot-id UUID --allocation-only`
+validates the same initial grant and reaps it while still unexposed. It never
+maps pixels, issues PUBLISH/POLL, or starts frame reads. Kernel `iommu:map`
+and `iommu:unmap` tracing can observe that allocation; the tool still accepts
+and exposes no CPU physical or DMA address. The model checks that no mapping,
+publication or POLL occurs and exactly one reap consumes the unexposed grant.

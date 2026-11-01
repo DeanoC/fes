@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,7 +47,7 @@ static uint64_t now_ms(void)
 	return (uint64_t)t.tv_sec * 1000 + t.tv_nsec / 1000000;
 }
 
-static int run_scanout(int owner)
+static int run_scanout(int owner, bool allocation_only)
 {
 	const uint32_t colors[] = {0x00ff0000, 0x0000ff00, 0x000000ff};
 	struct fes_de25_dma_info info = {0};
@@ -60,6 +61,16 @@ static int run_scanout(int owner)
 	    info.state || info.outstanding || info.accepted_sequence || info.displayed_sequence || info.displayed_slot != 0 ||
 	    info.pending_sequence || info.pending_slot != FES_DE25_DMA_NO_SLOT || info.back_slot != 1) {
 		fail("initial grant identity");
+		goto out;
+	}
+	if (allocation_only) {
+		/* Unexposed allocation: no mapping, publication, POLL or frame DMA. */
+		if (ioctl(owner, FES_DE25_DMA_OWNER_REAP, 0UL)) {
+			fail("unexposed owner reap");
+			goto out;
+		}
+		puts("DE25_OWNER_ALLOCATION_ONLY_PASS publication_requested=false allocation_reaped=true");
+		result = 0;
 		goto out;
 	}
 	generation = info.generation;
@@ -204,9 +215,10 @@ int main(int argc, char **argv)
 	char boot[64], board[32], model[128], sysdev[64], extra;
 	unsigned int device_major, device_minor;
 	int lease, owner, result;
-	if (argc != 3 || strcmp(argv[1], "--boot-id") || strlen(argv[2]) != 36 ||
+	if ((argc != 3 && argc != 4) || (argc == 4 && strcmp(argv[3], "--allocation-only")) ||
+	    strcmp(argv[1], "--boot-id") || strlen(argv[2]) != 36 ||
 	    strspn(argv[2], "0123456789abcdef-") != 36)
-		return fail("usage: owner_scanout --boot-id <verified boot UUID>");
+		return fail("usage: owner_scanout --boot-id <verified boot UUID> [--allocation-only]");
 	if (geteuid() || uname(&u) || strcmp(u.machine, "aarch64") ||
 	    strcmp(u.release, "6.12.11-fes-de25-owner") ||
 	    read_text("/etc/fes-board", board, sizeof(board)) || strcmp(board, "de25-nano") ||
@@ -226,7 +238,7 @@ int main(int argc, char **argv)
 		result = fail("owner device identity");
 	} else {
 		alarm(30);
-		result = run_scanout(owner);
+		result = run_scanout(owner, argc == 4);
 		alarm(0);
 	}
 	if (owner >= 0)

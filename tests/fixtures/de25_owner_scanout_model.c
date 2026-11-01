@@ -66,7 +66,9 @@ int __wrap_ioctl(int fd, unsigned long command, ...)
 		return is("alloc-error") ? error() : 101;
 	}
 	if (command == FES_DE25_DMA_OWNER_REAP) {
-		assert(fd == 100 && !mapped && publishes == 3 && current.displayed_sequence == 3);
+		assert(fd == 100 && !mapped);
+		assert(is("allocation-only") ? (!publishes && !maps && !polls && !current.state) :
+		       (publishes == 3 && current.displayed_sequence == 3));
 		++reaps;
 		return is("reap-error") ? error() : 0;
 	}
@@ -124,7 +126,7 @@ int main(int argc, char **argv)
 		.frame_bytes = FES_DE25_SCANOUT_FRAME_BYTES, .width = FES_DE25_SCANOUT_FRAME_WIDTH,
 		.height = FES_DE25_SCANOUT_FRAME_HEIGHT, .stride = FES_DE25_SCANOUT_FRAME_STRIDE,
 		.slots = 2, .pending_slot = FES_DE25_DMA_NO_SLOT, .back_slot = 1};
-	int result = run_scanout(100);
+	int result = run_scanout(100, is("allocation-only"));
 	printf("{\"result\":%d,\"allocations\":%u,\"maps\":%u,\"unmaps\":%u,\"publishes\":%u,\"polls\":%u,\"reaps\":%u,\"closes\":%u,\"seen_slots\":%u}\n",
 		result, allocations, maps, unmaps, publishes, polls, reaps, closes, seen_slots);
 	return 0;

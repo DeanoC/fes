@@ -75,3 +75,8 @@ class OwnerScanoutTests(unittest.TestCase):
             self.assertEqual(r['reaps'], 0)
             self.assertEqual(r['publishes'], 1)
             self.assertEqual(r['polls'], 1 if name == 'poll-error' else 0)
+
+    def test_allocation_observation_never_maps_publishes_or_polls(self):
+        r = self.scenario('allocation-only')
+        self.assertEqual(r, dict(result=0, allocations=1, maps=0, unmaps=0,
+                                 publishes=0, polls=0, reaps=1, closes=1, seen_slots=0))
