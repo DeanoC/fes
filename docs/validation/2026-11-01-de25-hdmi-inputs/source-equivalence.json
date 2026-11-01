@@ -1,0 +1,13 @@
+{
+  "previous_publication": "537331fe2d4845777f945adf88273a0fb2fa2992",
+  "compiler_and_software_producer": "d8b23267cc8301361bdc5c2ef7db89593462f4a6",
+  "unchanged_trees_or_blobs": {
+    "sources/FogCast": "43e276b92b099b97d121f58f56694ef550cefc16",
+    "sources/libmister-runtime": "76fd790345deed71592c70bc373e76346c664707",
+    "sources/mister-packages": "ef006ed0adb1b60b596bf05fc8c5096252b65754",
+    "image": "d4eb712e4c9b15fb627ebb799b2e7678bf5b8f66",
+    "scripts/kit_software.py": "57a1793ab50a28f4b4dddefbe9363bfe3c208782"
+  },
+  "compiler_module_tree": "d0eee55a330939e52a34cb5dd855ad1c1c9a3688",
+  "scope": "existing runtime/agent/contracts/kernel/headless-image evidence remains at its named producer; this candidate grants no new physical acceptance"
+}
