@@ -1,0 +1,212 @@
+{
+ "audio": {
+  "wolf3d sign-on (silent)": {
+   "run": "m5g2",
+   "seconds": 11.5,
+   "dc_lsb": -185.9,
+   "ac_median_dbfs": -101.6,
+   "ac_max_dbfs": -60.8,
+   "ac_min_dbfs": -101.7,
+   "bursts_over_minus40_dbfs_s": []
+  },
+  "wolf3d title": {
+   "run": "m5g3",
+   "seconds": 8.5,
+   "dc_lsb": -185.5,
+   "ac_median_dbfs": -45.2,
+   "ac_max_dbfs": -42.0,
+   "ac_min_dbfs": -53.7,
+   "bursts_over_minus40_dbfs_s": []
+  },
+  "wolf3d menu": {
+   "run": "m5g3",
+   "seconds": 8.5,
+   "dc_lsb": -185.4,
+   "ac_median_dbfs": -43.2,
+   "ac_max_dbfs": -37.5,
+   "ac_min_dbfs": -55.6,
+   "bursts_over_minus40_dbfs_s": [
+    [
+     3.9,
+     4.0
+    ],
+    [
+     5.1,
+     5.3
+    ],
+    [
+     5.5,
+     5.6
+    ],
+    [
+     5.7,
+     5.8
+    ],
+    [
+     6.2,
+     6.3
+    ],
+    [
+     6.7,
+     7.0
+    ]
+   ]
+  },
+  "wolf3d five shots, digitised only, 220h IRQ 7": {
+   "run": "m5g3",
+   "seconds": 8.19,
+   "dc_lsb": -185.5,
+   "ac_median_dbfs": -96.3,
+   "ac_max_dbfs": -19.4,
+   "ac_min_dbfs": -114.6,
+   "bursts_over_minus40_dbfs_s": [
+    [
+     1.6,
+     1.9
+    ],
+    [
+     2.0,
+     2.4
+    ],
+    [
+     2.8,
+     3.2
+    ],
+    [
+     4.0,
+     4.4
+    ],
+    [
+     5.2,
+     5.6
+    ],
+    [
+     6.4,
+     6.8
+    ]
+   ]
+  },
+  "wolf3d five shots, digitised only, 240h IRQ 5": {
+   "run": "m5g4",
+   "seconds": 8.99,
+   "dc_lsb": -185.6,
+   "ac_median_dbfs": -58.5,
+   "ac_max_dbfs": -19.7,
+   "ac_min_dbfs": -77.0,
+   "bursts_over_minus40_dbfs_s": [
+    [
+     1.6,
+     2.0
+    ],
+    [
+     2.1,
+     2.3
+    ],
+    [
+     2.4,
+     3.2
+    ],
+    [
+     4.0,
+     4.4
+    ],
+    [
+     5.2,
+     5.6
+    ],
+    [
+     6.4,
+     6.8
+    ]
+   ]
+  },
+  "ultima6 intro": {
+   "run": "m5g4",
+   "seconds": 22.0,
+   "dc_lsb": -185.5,
+   "ac_median_dbfs": -38.4,
+   "ac_max_dbfs": -36.8,
+   "ac_min_dbfs": -96.8,
+   "bursts_over_minus40_dbfs_s": [
+    [
+     1.7,
+     16.9
+    ],
+    [
+     17.1,
+     21.9
+    ]
+   ]
+  },
+  "ultima6 in game": {
+   "run": "m5g4",
+   "seconds": 8.01,
+   "dc_lsb": -184.3,
+   "ac_median_dbfs": -36.1,
+   "ac_max_dbfs": -34.6,
+   "ac_min_dbfs": -42.1,
+   "bursts_over_minus40_dbfs_s": [
+    [
+     0.0,
+     1.3
+    ],
+    [
+     1.5,
+     1.7
+    ],
+    [
+     1.8,
+     8.0
+    ]
+   ]
+  }
+ },
+ "video": {
+  "wolf3d turning left 4.5 s (m5g3)": {
+   "capture": "1920x1080 YUYV at 30 fps (the card's only mode), scaled to 480x270 gray",
+   "captures": 180,
+   "capture_seconds": 5.97,
+   "changed_transitions": 135,
+   "game_fps": 22.63,
+   "consecutive_changed": 134,
+   "torn_candidates": 0,
+   "repeat_histogram": {
+    "42": 1
+   },
+   "tear_check": {
+    "turning_pairs": 135,
+    "torn_pairs": 1,
+    "pairs_spread_over_2px": 28,
+    "max_spread_px": 22,
+    "median_shift_px": 15
+   },
+   "tear_check_rows": "x 72-408, y 40-152 of 480x270, 7 bands (walls; the pistol sprite is below y 152)"
+  }
+ },
+ "frames": {
+  "wolf3d save before Stop vs load after relaunch (m5g3)": {
+   "whole": {
+    "pixels": 129600,
+    "changed": 83,
+    "fraction": 0.00064
+   },
+   "status_bar": {
+    "pixels": 129600,
+    "changed": 810,
+    "fraction": 0.00625
+   }
+  },
+  "ultima6 save before Stop vs load after relaunch (m5g4)": {
+   "map": {
+    "pixels": 129600,
+    "changed": 1696,
+    "fraction": 0.01309
+   },
+   "party_panel": {
+    "pixels": 129600,
+    "changed": 0,
+    "fraction": 0.0
+   }
+  }
+ }
+}
