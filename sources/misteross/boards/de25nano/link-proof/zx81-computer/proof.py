@@ -84,7 +84,7 @@ def execute(args):
     helpers.run([args.verilator,"--cc","--exe","--build","-j","2","--public-flat-rw","--x-initial","unique",
         "-O3","--top-module","fes_de25_combined_sim","-Wno-fatal", "-I"+str(mailbox),"-I"+str(mailbox/"generated"),"-I"+str(local),
         "-DFES_DE25_PR_BUILD_ID=128'h"+args.build_id,"-DFES_DE25_COMPUTER_BUILD_ID=128'h"+args.build_id,
-        "-CFLAGS","-O3 -I"+str(bench),"--Mdir",str(obj),*map(str,rtl),str(bench/"sim_top.v"),str(bench/"server.cpp")],logs/"rtl-build.log",cwd=project,timeout=300)
+        "-CFLAGS","-O3 -I"+str(bench),"-MAKEFLAGS","OPT_FAST=-O3","--Mdir",str(obj),*map(str,rtl),str(bench/"sim_top.v"),str(bench/"server.cpp")],logs/"rtl-build.log",cwd=project,timeout=300)
     sources = [snapshot / "sources/libmister-runtime/src/native" / n for n in ("de25_computer.cpp", "de25_pr_control.cpp")]
     include = snapshot / "sources/libmister-runtime"
     flags=["-std=c++14","-O2","-Wall","-Wextra","-Werror","-pthread","-I"+str(include/"src"),"-I"+str(include/"include")]
