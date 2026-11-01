@@ -62,7 +62,7 @@ def snapshot_digest(sources):
 def tool_snapshot(tool, version):
     """Record selected executable identities; this is not toolchain authentication."""
     tool = Path(tool)
-    names = ("quartus_sh", "quartus_ipgenerate", "quartus_map", "quartus_fit", "quartus_sta", "quartus_asm", "quartus_pfg")
+    names = ("quartus_sh", "quartus_ipgenerate", "quartus_syn", "quartus_fit", "quartus_sta", "quartus_asm", "quartus_pfg")
     tools = {"quartus-version": version.splitlines()[1].strip()}
     for name in names:
         wrapper = tool.parent / name
@@ -99,6 +99,7 @@ def make_record(inputs, revision, repository, tools):
                        "device": DEVICE, "control_abi": CONTROL_ABI, "peripheral_offset": 0x10400,
                        "system_hz": 100000000, "pixel_hz": 74250000,
                        "spl_member": SPL_MEMBER, "hps_initialization": order,
+                       "compile_flow": "quartus-pro-bounded-tasks-v1",
                        "conversion": "hps-first-split-rbf-v1" if order == "HPS FIRST" else "sof+hps-hex-to-sof;sof-to-rbf"},
     }
     return encode_build_record(fields)

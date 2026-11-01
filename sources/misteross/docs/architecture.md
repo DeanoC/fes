@@ -54,6 +54,13 @@ It does not prove containment of inherited masters, firmware operation, physical
 MMIO, a Nano profile, reset lifetime or production admission. The overlay never
 programs hardware. The hardware-independent verifier also exercises the same
 Avalon adapter through the native Go control code.
+
+The diagnostic uses the standard Quartus Pro compile tasks separately, from
+IP generation and synthesis through every fitter stage, signoff timing and
+assembly. Each task has a 120-second limit, heartbeat and retained log. Failed
+tasks stop sealing and terminate only their owned process group. The recipe
+changes no timing constraint, seed or optimization mode. Its canonical record
+binds this bounded flow and the actual `quartus_syn` executable.
 The [physical diagnostic](../../../docs/validation/2026-10-30-de25-embedded-control-hardware/README.md)
 checks that endpoint and its local responder on one exact DE25 SOF through JTAG;
 it does not change the physical-DDR, firmware or package-admission boundaries.

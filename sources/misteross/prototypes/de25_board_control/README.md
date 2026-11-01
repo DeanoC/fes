@@ -43,6 +43,14 @@ labelled diagnostic. No command programs hardware, writes media, creates an RBF
 or registers a FES profile in the default mode. Timing, boot pairing, physical access, firmware
 containment and board acceptance require separate evidence.
 
+Compilation runs the standard Quartus Pro leaf tasks in order, through
+elaboration/synthesis, all fitter stages, signoff timing and assembly. Each
+task has its own 120-second limit, log and heartbeat. A failure stops before
+sealing and terminates only that task's process group; partial outputs remain
+for diagnosis. No timing option, seed, constraint or optimization mode changes.
+The canonical record binds this recipe and the actual `quartus_syn` executable;
+it does not use the older `quartus_map` identity as a synthesis proxy.
+
 For a content-sealed diagnostic format-2 package, add `--sealed-diagnostic` to
 the `build` command. This requires a clean checkout and uses the selected
 board commit, all captured source hashes, vendor archive hash, selected

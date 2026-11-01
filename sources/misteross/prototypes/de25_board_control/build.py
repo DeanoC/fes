@@ -14,8 +14,10 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import subprocess
 import sys
+import time
 import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
@@ -31,6 +33,80 @@ BOOTSTRAP = ("build.py", "display/build.py", "zx81/build.py", "zx81-hps/build.py
 BASE = 0x10400
 SPAN = 0x100
 CONTROL_ABI = 0x10203040
+COMPILE_TASKS = ('dni_ipgenerate', 'dni_elaboration', 'dni_synthesis',
+                 'fitter_plan', 'fitter_place', 'fitter_route', 'fitter_retime',
+                 'fitter_finalize', 'sta_signoff', 'assembler')
+PHASE_LIMIT_SECONDS = 120
+
+
+def run_phase(command, directory, log):
+    """Bound one standard Quartus task and stop only its own process group."""
+    command = [str(value) for value in command]
+    print('+ ' + ' '.join(command), flush=True)
+    started = time.monotonic()
+    with log.open('xb') as stream:
+        child = subprocess.Popen(command, cwd=directory, stdout=stream,
+                                 stderr=subprocess.STDOUT, start_new_session=True)
+        beat = started + 12
+        completed = False
+        try:
+            while child.poll() is None:
+                now = time.monotonic()
+                if now - started >= PHASE_LIMIT_SECONDS:
+                    raise subprocess.TimeoutExpired(command, PHASE_LIMIT_SECONDS)
+                if now >= beat:
+                    print('Quartus task ' + command[-1] + ': ' + str(int(now-started)) + 's', flush=True)
+                    beat = now + 12
+                time.sleep(.1)
+            if child.returncode:
+                raise subprocess.CalledProcessError(child.returncode, command)
+            completed = True
+        finally:
+            if not completed:
+                try:
+                    os.killpg(child.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                try:
+                    child.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
+                # A failed shell can exit before its compiler workers. Stop
+                # that owned group even when the direct child was reaped.
+                try:
+                    os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                child.wait(timeout=5)
+    return {'argv': command, 'elapsed_seconds': time.monotonic()-started,
+            'log_sha256': digest(log.read_bytes()), 'returncode': child.returncode}
+
+
+def compile_project(output, tool):
+    """Keep the standard flow, with an independent bound for every leaf task."""
+    project = output/'project'
+    commands = []
+    for task in COMPILE_TASKS:
+        command = [tool, '--flow', 'compile', 'golden_top', '-start', task, '-end', task]
+        commands.append(run_phase(command, project, output/('compile-'+task+'.log')))
+    artifact = project/'output_files/golden_top.sof'
+    if not artifact.is_file() or not artifact.stat().st_size:
+        raise ValueError('Quartus produced no nonempty HPS diagnostic SOF')
+    files = {str(path.relative_to(project)): digest(path.read_bytes()) for path in project.rglob('*')
+             if path.is_file() and (path.suffix in ('.sdc', '.sopcinfo') or 'handoff' in str(path))}
+    reports = {str(path.relative_to(project)): digest(path.read_bytes()) for path in (project/'output_files').glob('*')
+               if path.is_file() and path.suffix in ('.rpt', '.summary')}
+    record = {'diagnostic_only': True, 'board': 'de25_nano', 'device': 'A5EB013BB23BE4SCS',
+              'fes_revision': json.loads((output/'inputs.json').read_text()).get('fes_revision'),
+              'artifact': str(artifact.relative_to(output)), 'sha256': digest(artifact.read_bytes()),
+              'quartus_version': (output/'quartus-version.txt').read_text().strip(),
+              'commands': commands, 'phase_limit_seconds': PHASE_LIMIT_SECONDS,
+              'inputs_sha256': digest((output/'inputs.json').read_bytes()),
+              'report_sha256': reports, 'generated_handoff_and_sdc_sha256': files,
+              'timing_acceptance': 'not-qualified', 'hardware_acceptance': 'not-run',
+              'boot_firmware_compatibility': 'not-qualified'}
+    (output/'build.json').write_text(json.dumps(record,indent=2,sort_keys=True)+'\n')
+    return artifact
 
 
 def digest(data):
@@ -234,7 +310,7 @@ def main():
             evidence["embedded_control"] = verify_control(result / "hps/project", hps, board)
             generation.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
             if args.action == "build":
-                artifact = hps.compile_project(result / "hps", tool)
+                artifact = compile_project(result / "hps", tool)
                 checks = {"system": board.pll_review(result / "hps/project/ip/pll", 100000000),
                           "pixel": board.pll_review(result / "hps/project/sys_pll", 74250000)}
                 if checks != evidence["computer"]["pll_reviews"]:
