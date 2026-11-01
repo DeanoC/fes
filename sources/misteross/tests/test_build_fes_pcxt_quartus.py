@@ -19,7 +19,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                     'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
                     'fes_computer_runtime_hps_gp': 'cyclonev_hps_interface_mpu_general_purpose'}},
                 'profile': {'HALF_RATE_BOARD': 0, 'ENABLE_FES_COMPUTER': 1,
-                            'ENABLE_PCXT_MEDIA': 0, 'HARDWARE_DOS': 0}, 'runs': [{
+                            'ENABLE_PCXT_MEDIA': 1, 'HARDWARE_DOS': 0}, 'runs': [{
                     'seed': 1, 'capture_complete': True, 'reported_endpoint_checks_pass': True,
                     'minimum_pulse_width': {str(c): {'failures': 0} for c in range(4)},
                     'mailbox_interstage': [{'slack_ns': '0.123'} for _ in range(24)],
@@ -36,7 +36,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                      lambda s: s['runs'][0]['mailbox_interstage'][0].update(slack_ns='-0.000'),
                      lambda s: s['runs'][0]['timing_coverage_issues'].update(generated_clock=1),
                      lambda s: s['profile'].update(HALF_RATE_BOARD=1),
-                     lambda s: s['profile'].update(ENABLE_PCXT_MEDIA=1),
+                     lambda s: s['profile'].update(ENABLE_PCXT_MEDIA=0),
                      lambda s: s['profile'].pop('ENABLE_PCXT_MEDIA'),
                      lambda s: s['profile'].update(HARDWARE_DOS=1),
                      lambda s: s['profile'].pop('HARDWARE_DOS'),
@@ -198,7 +198,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(fields['format'], 2)
         self.assertEqual(fields['toolchain'], 'quartus')
         self.assertNotIn('gpu_device', fields['parameters'])
-        self.assertFalse(fields['parameters']['enable_pcxt_media'])
+        self.assertTrue(fields['parameters']['enable_pcxt_media'])
         before = build_identity(record)
         fields.pop('toolchain')
         self.assertNotEqual(build_identity(encode_build_record(fields)), before)
@@ -234,7 +234,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                                              package_profile=True, build_id='1234567890abcdef'*2)
         self.assertIn('-set HALF_RATE_BOARD 0', program)
         self.assertIn('-set ENABLE_FES_COMPUTER 1', program)
-        self.assertIn('-set ENABLE_PCXT_MEDIA 0', program)
+        self.assertIn('-set ENABLE_PCXT_MEDIA 1', program)
         self.assertIn('-set PHASED_HDMI_CLOCK 1', program)
         dos_program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                                  producer.ROOT / 'unused-library',
@@ -255,9 +255,9 @@ class PCXTQuartusPackageTests(unittest.TestCase):
             payload = Path(directory) / 'core.rbf'
             payload.write_bytes(b'test diagnostic')
             manifest = tomllib.loads(producer.manifest(record, payload).decode())
-        self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 0})
+        self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
         interfaces = {i['id']: i for i in manifest['interfaces']}
-        self.assertNotIn('fes.media.pcxt-floppy', interfaces)
+        self.assertTrue(interfaces['fes.media.pcxt-floppy']['required'])
         self.assertTrue(interfaces['fes.video.fixed-720p60']['required'])
 
     def test_dos_manifest_declares_runtime_floppy(self):
