@@ -15,7 +15,7 @@ def constant(definition, name):
 
 
 def retarget_adapter(data, definition):
-    """Keep vendor AXI behavior; extend only fixed address USER fields."""
+    """Retarget SMMU fields and bounded read credits for isolated scanout."""
     # Quartus 26.3 intel_hps/sm/common/parameters_data.tcl, f2sdram_SMMU:
     # raw AxUSER[8] is AxMMUSECSID and [24:9] is AxMMUSID.
     # The ACE5-Lite translator CSR uses a different register layout.
@@ -39,8 +39,20 @@ def retarget_adapter(data, definition):
         text, count = re.subn(pattern, lambda m: m[1] + f"25'h{((sid << shift) | 0xe0):07x}" + m[2], text)
         if count != 1:
             raise ValueError('vendor address USER fixed attributes changed')
+    # The vendor adapter is an ID-preserving AXI pass-through. Its original
+    # one-transaction metadata makes Platform Designer insert a serializing
+    # limiter, even when the reader and CDC can reserve sixteen bursts. The
+    # selected HPS F2SDRAM interface accepts sixteen reads; match that limit
+    # only in this isolated, read-only Linux profile. Write credits stay one.
+    for interface, fields in (('axi4_man', ('readIssuingCapability', 'combinedIssuingCapability')),
+                              ('axi4_sub', ('readAcceptanceCapability', 'combinedAcceptanceCapability'))):
+        for field in fields:
+            before = f'set_interface_property {interface} {field} 1\n'
+            if text.count(before) != 1:
+                raise ValueError('vendor AXI transaction capability changed')
+            text = text.replace(before, before.replace(' 1\n', ' 16\n'))
     return text.encode(), {'stream_id': sid, 'user_bits': width, 'sid_shift': shift,
-        'secure_bit': secure_bit, 'secure': False, 'attributes': 0xe0,
+        'secure_bit': secure_bit, 'secure': False, 'attributes': 0xe0, 'read_transactions': 16,
         'scope': 'scanout-only generated F2SDRAM path', 'master_ownership': 'scanout-only',
         'original_sha256': hashlib.sha256(data).hexdigest(), 'derived_sha256': hashlib.sha256(text.encode()).hexdigest(),
         'kernel_binding': 'not-admitted', 'physical_translation': 'not-qualified'}
@@ -119,6 +131,22 @@ def verify(project, hps, profile):
         ports = hps.component_ports(modules[name], interface)
         if any(ports.get(channel + 'user') != (direction, 25) for channel in ('ar', 'aw')):
             raise ValueError('generated SMMU USER path width differs')
+    if profile.get('read_transactions') != 16:
+        raise ValueError('Linux scanout read transaction limit differs')
+    for module, interface, fields in (
+            ('subsys_hps.f2sdram_adapter', 'axi4_man',
+             {'readIssuingCapability': '16', 'combinedIssuingCapability': '16', 'writeIssuingCapability': '1'}),
+            ('subsys_hps.f2sdram_adapter', 'axi4_sub',
+             {'readAcceptanceCapability': '16', 'combinedAcceptanceCapability': '16', 'writeAcceptanceCapability': '1'}),
+            ('subsys_hps.agilex_hps', 'f2sdram',
+             {'readAcceptanceCapability': '16', 'combinedAcceptanceCapability': '16'})):
+        selected = modules[module].find("interface[@name='" + interface + "']")
+        if selected is None:
+            raise ValueError('missing generated transaction capability interface')
+        for field, value in fields.items():
+            rows = selected.findall("parameter[@name='" + field + "']/value")
+            if len(rows) != 1 or rows[0].text != value:
+                raise ValueError('generated AXI transaction capability differs: ' + module + '.' + interface + '.' + field)
     word = (sid << constant(definition, 'SMMU_SID_SHIFT')) | 0xe0
     sources = []
     directory = project / 'hps_subsys/ip/hps_subsys/f2sdram_adapter'

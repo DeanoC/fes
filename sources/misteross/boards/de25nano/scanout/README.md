@@ -201,7 +201,11 @@ as 0xE0. The raw word is 0x0001AE0; the translator CSR layout is different. Gene
 Only the captured `f2sdram_SMMU` false-to-true HPS parameter change is permitted;
 other HPS/EMIF or boot-data changes still fail. This profile removes the DDR
 probe instance/control window/export and the memory JTAG master/export/address
-window. Other JTAG/OCM/F2H paths remain. Generation requires exactly one route
+window. In this isolated profile only, the ID-preserving adapter's AXI
+read and combined credits are raised from one to sixteen, matching the selected
+HPS interface. Write credits remain one. Generation verifies both adapter
+interfaces and the HPS read/combined limits from their actual handoff metadata.
+Other JTAG/OCM/F2H paths remain. Generation requires exactly one route
 into the F2SDRAM adapter, from scanout's memory crossing, and exactly one adapter
 route into HPS F2SDRAM; retained probe/debug instances, duplicate/extra masters,
 nonzero address translations and additional HPS F2SDRAM paths fail. The default

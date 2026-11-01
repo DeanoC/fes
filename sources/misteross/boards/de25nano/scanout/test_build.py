@@ -385,13 +385,19 @@ class LinuxDmaTests(unittest.TestCase):
         self.source = "# vendor prefix\n" + "".join(
             f"add_interface_port axi4_man man_{c}user {c}user Output 8\n"
             + r"output wire \[7:0\]   man_" + c + "user,\n"
-            + f"assign man_{c}user = 8'hE0;\n" for c in ("ar", "aw")) + "# vendor suffix\n"
+            + f"assign man_{c}user = 8'hE0;\n" for c in ("ar", "aw")) + "".join(
+            f"set_interface_property {interface} {field} 1\n"
+            for interface, fields in (("axi4_man", ("readIssuingCapability", "combinedIssuingCapability")),
+                                      ("axi4_sub", ("readAcceptanceCapability", "combinedAcceptanceCapability")))
+            for field in fields) + "# vendor suffix\n"
 
     def test_exact_packing_preserves_vendor_attributes_and_nonsecure_context(self):
         data, profile = self.helper.retarget_adapter(self.source.encode(), self.definition)
         text = data.decode()
         self.assertEqual(profile["stream_id"], 13)
         self.assertFalse(profile["secure"])
+        self.assertEqual(profile["read_transactions"], 16)
+        self.assertEqual(text.count("Capability 16\n"), 4)
         self.assertEqual(text.count("25'h0001ae0"), 2)
         # Independently decode the raw HPS port, rather than using generated
         # shift constants to check the same packing expression against itself.
@@ -413,7 +419,9 @@ class LinuxDmaTests(unittest.TestCase):
     def test_changed_vendor_ports_attributes_or_duplicate_assignment_are_refused(self):
         for source in (self.source.replace("8'hE0", "8'h00", 1),
                        self.source.replace("Output 8", "Output 16", 1),
-                       self.source + "assign man_aruser = 8'hE0;\n"):
+                       self.source + "assign man_aruser = 8'hE0;\n",
+                       self.source.replace("readIssuingCapability 1", "readIssuingCapability 2"),
+                       self.source + "set_interface_property axi4_sub readAcceptanceCapability 1\n"):
             with self.assertRaises(ValueError):
                 self.helper.retarget_adapter(source.encode(), self.definition)
 
