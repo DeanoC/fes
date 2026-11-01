@@ -247,3 +247,8 @@ compiler, kernel and board validation.
 The generated transport simulation requires Quartus’s explicit BUILD_ID forwarding
 and compares all four live build words with the verified generation receipt.
 This checks the actual generated endpoint wrapper as well as its IP metadata.
+
+HDMI configuration runs from CLOCK0_50 while the system PLL uses CLOCK2_50.
+The readiness crossing has a registered source and two receiving registers;
+its SDC names exactly that source and stage0 D, with one-object checks. Later
+stages, fanout and reset recovery/removal remain timed. No clock group is cut.

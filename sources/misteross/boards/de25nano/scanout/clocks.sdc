@@ -38,5 +38,13 @@ set scanout_visible_head [get_pins -compatibility_mode -nocase -nowarn {fes_vide
 if {[get_collection_size $scanout_visible_source] != 1 || [get_collection_size $scanout_visible_head] != 1} {error "DE25 scanout visibility synchronizer ingress changed"}
 set_false_path -from $scanout_visible_source -to $scanout_visible_head
 post_message -type info "DE25 scanout visibility CDC ingress: one source and one stage0 D pin"
+# HDMI configuration uses CLOCK0_50; the 100 MHz system PLL uses CLOCK2_50.
+# These are independent sources. Only the registered readiness level enters
+# stage0 asynchronously; stage0->1 and all system-domain consumers stay timed.
+set scanout_ready_source [get_registers {fes_video_inst|hdmi_ready_source}]
+set scanout_ready_head [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|hdmi_ready_sync[0]|d}]
+if {[get_collection_size $scanout_ready_source] != 1 || [get_collection_size $scanout_ready_head] != 1} {error "DE25 scanout HDMI-ready synchronizer ingress changed"}
+set_false_path -from $scanout_ready_source -to $scanout_ready_head
+post_message -type info "DE25 scanout HDMI-ready CDC ingress: one source and one stage0 D pin"
 # No clock groups or FIFO pointer cuts: mm_ccb owns its CDC constraints.
 # External HDMI/I2C delay and electrical contracts remain unqualified.

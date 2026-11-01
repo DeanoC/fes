@@ -230,6 +230,13 @@ class ScanoutBuildTests(unittest.TestCase):
         sdc_path.write_text(original_sdc.replace("set_false_path -from $scanout_visible_source -to $scanout_visible_head", "set_false_path -to $scanout_visible_head", 1))
         with self.assertRaisesRegex(ValueError, "cut only the registered visibility request"):
             B.verify_reset_synchronizers(project)
+        for before, after in (
+            ("fes_video_inst|hdmi_ready_sync[0]|d", "fes_video_inst|hdmi_ready_sync[1]|d"),
+            ("set_false_path -from $scanout_ready_source -to $scanout_ready_head", "set_false_path -to $scanout_ready_head"),
+        ):
+            sdc_path.write_text(original_sdc.replace(before, after, 1))
+            with self.subTest(after=after), self.assertRaisesRegex(ValueError, "HDMI-ready source to stage0 D"):
+                B.verify_reset_synchronizers(project)
         sdc_path.write_text(original_sdc.replace("$scanout_clear_count != 10", "$scanout_clear_count != 8", 1))
         with self.assertRaisesRegex(ValueError, "ten reset/visibility clear pins"):
             B.verify_reset_synchronizers(project)

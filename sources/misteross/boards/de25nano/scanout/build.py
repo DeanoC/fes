@@ -293,6 +293,12 @@ def verify_reset_synchronizers(project):
     if ("setscanout_visible_source[get_registers{fes_video_inst|visible_request}]" not in sdc or
             "set_false_path-from$scanout_visible_source-to$scanout_visible_head" not in sdc):
         raise ValueError("scanout SDC must cut only the registered visibility request to the first synchronizer stage")
+    if ("setscanout_ready_source[get_registers{fes_video_inst|hdmi_ready_source}]" not in sdc or
+            "setscanout_ready_head[get_pins-compatibility_mode-nocase-nowarn{fes_video_inst|hdmi_ready_sync[0]|d}]" not in sdc or
+            "if{[get_collection_size$scanout_ready_source]!=1||[get_collection_size$scanout_ready_head]!=1}" not in sdc or
+            "set_false_path-from$scanout_ready_source-to$scanout_ready_head" not in sdc or
+            "set_false_path-to$scanout_ready_head" in sdc):
+        raise ValueError("scanout SDC must cut only the registered HDMI-ready source to stage0 D")
     if "if{$scanout_clear_count!=10}" not in sdc:
         raise ValueError("scanout SDC does not require all ten reset/visibility clear pins")
     if "fes_scanout_pixel_reset|sync_regs*" in sdc or "fes_scanout_system_reset|sync_regs*" in sdc:
