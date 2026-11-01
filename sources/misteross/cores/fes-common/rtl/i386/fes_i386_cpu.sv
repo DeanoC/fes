@@ -972,7 +972,7 @@ module fes_i386_cpu #(
     // A system register as src2's value (decoded_t b_sys).
     logic [31:0] sys_val;
     always_comb begin
-        case (dc.sys_idx)
+        case (dc.sys_idx)  // not cast to sys_rd_e: DeanoC/yosys#72
             3'(fes_i386_pkg::SYS_RD_CR0): sys_val = cr0_rd;
             3'(fes_i386_pkg::SYS_RD_CR2): sys_val = cr2;
             3'(fes_i386_pkg::SYS_RD_CR3): sys_val = cr3;
@@ -1700,7 +1700,7 @@ module fes_i386_cpu #(
     // that names a selector (trace_error).
     always_ff @(posedge clk) exc_inject <= !reset && (exc_take || int_go);
     assign trace_vector = exc_vec;
-    function automatic logic [7:0] fault_vector(input logic [3:0] f);
+    function automatic logic [7:0] fault_vector(input logic [3:0] f);  // not fault_e: DeanoC/yosys#72
         case (f)
             4'(fes_i386_pkg::FAULT_UD): fault_vector = 8'd6;
             4'(fes_i386_pkg::FAULT_GP0), 4'(fes_i386_pkg::FAULT_GP_SEL): fault_vector = 8'd13;
@@ -1871,6 +1871,7 @@ module fes_i386_cpu #(
                         seg_sel[seg_w_idx] <= seg_w_idx == 3'(SEG_CS) ? {t0[15:2], 2'b00} : t0;
                         seg_base[seg_w_idx] <= ds_base;
                         seg_hi1[seg_w_idx] <= ds_hi1;
+                        // One target per statement: DeanoC/yosys#73.
                         seg_lim[seg_w_idx] <= ds_chk.lim;
                         seg_tiny[seg_w_idx] <= ds_chk.tiny;
                         seg_low[seg_w_idx] <= ds_chk.low;
