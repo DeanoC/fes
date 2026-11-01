@@ -111,3 +111,23 @@ passes at integrated source `93f6c9f44` in 284.3 seconds, including the selected
 parent Python/media checks. Its code is identical after the final child merge;
 only the actual combined-proof fixture and dated evidence are subsequently
 updated. This is a separate run from the earlier trace-only affected checks.
+
+
+## Subsequent TCU firewall access failure
+
+After the two frame failures were recovered, a separate root-only read attempt
+against NOC TCU firewall control `0x10d21400` left the bottom board unresponsive.
+The address is described in Altera's
+[F2SDRAM prerequisites](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/step-0-prerequisites-ccu-and-noc-firewall-configuration?contentId=hIwxujW21igM_buXtAWanA).
+Its accessibility from non-secure Linux had not been established; that omission
+made the probe unjustified. It must not be repeated from Linux on this basis.
+
+The [incident receipt](tcu-access-failure.json) records the exact preflight boot,
+CID, kernel notes and root receipt, reader source/binary hashes, read-only file
+and mapping permissions and exclusive lease. SSH authenticated and submitted
+the command, then timed out with no output; passive UART, a console newline and
+ICMP also returned no response. No register value was obtained, so this provides
+no conclusion about firewall state or the original AXI response error's cause.
+No DMA allocation/frame or FPGA/kernel/boot-flash replacement was requested.
+The board claim remains retained and recovery by power cycle is pending.
+Temporary-reader cleanup and restored baseline must be verified after recovery.
