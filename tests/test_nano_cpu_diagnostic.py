@@ -101,13 +101,13 @@ static int fes_cold_hw_read(void *p,unsigned r,uint32_t *out){
 uint32_t mmio(uintptr_t a){assert(a==0x10d11008);return 0;}
 #define FES_COLD_READ32(a) mmio(a)
 static void preloader_console_init(void){if(CONSOLE_CONTROL)assert(!stage_count && !samples);consoles++;}
-#define CONFIG_IS_ENABLED(v) 0
+#define CONFIG_IS_ENABLED(v) 1
 void initr_watchdog(void){assert(!"diagnostic must not start a watchdog");}
 static void fes_nano_cpu_diag_park(void){parks++;fes_nano_cpu_trace(FES_CPU_PARK,0);longjmp(stop,1);}
 void hang(void){assert(mode);longjmp(stop,2);}
 ''' + cpu.function(report.read_text(),'fes_nano_spl_report') +
                 cpu.function(board.read_text(),'board_init_f') +
-                (cpu.function((base/'common/spl/spl.c').read_text(),'board_init_r') if console_control else '') + r'''
+                cpu.function((base/'common/spl/spl.c').read_text(),'board_init_r') + r'''
 int main(int argc,char **argv){
     assert(argc==4);source.failed=atoi(argv[1]);core=atoi(argv[2]);mode=atoi(argv[3]);
     source.record.first=(struct fes_nano_cold_sample){4,0xff7fbfff,0x4f,15,0,4};
@@ -123,11 +123,9 @@ int main(int argc,char **argv){
     }
     assert(samples==!CONSOLE_CONTROL);
     assert(source.failed==(unsigned)atoi(argv[1]));
-#if CONSOLE_CONTROL
     unsigned before=reads,was_parked=parks;mode=3;
     if(!setjmp(stop)){board_init_r();assert(!"late diagnostic entry returned");}
     assert(reads==before && parks==was_parked);
-#endif
     puts("CPU_ONLY_PARK_PASS");return 0;
 }
 ''')

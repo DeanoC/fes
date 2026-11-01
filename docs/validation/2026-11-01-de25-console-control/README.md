@@ -5,6 +5,10 @@ control also emitted no UART bytes. Neither result establishes CPU execution,
 park, cold ownership, DDR, native boot or core loading. The native admission
 contract is unchanged. See [machine-readable evidence](evidence.json).
 
+The later [seed-configuration control](../2026-11-01-de25-seed-prefix-control/README.md)
+restored console/register output and confirmed unconditional park. It replaced
+the image described here; this record preserves the earlier failed comparison.
+
 ## HPS readback
 
 The original `15a3809e5598e76c` trace remained loaded during one bounded

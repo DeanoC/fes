@@ -24,8 +24,13 @@ programmed successfully but again captured no UART bytes. JTAG still responds;
 the user permits retaining this exclusive kit's diagnostic without factory
 restoration. A subsequent [debug readback and console control](../../../docs/validation/2026-11-01-de25-console-control/README.md)
 found that the SOF disables HPS DAP access; no OCRAM dump was obtained. Removing
-the pre-console cold sample also left UART silent. The control diagnostic is
-retained and the claim is held. Target execution and park remain unconfirmed.
+the pre-console cold sample also left UART silent. The [seed-configuration
+control](../../../docs/validation/2026-11-01-de25-seed-prefix-control/README.md)
+then reached console, six register observations and unconditional park, reporting
+EL3 and `MPIDR=0x81000000`. It retains the seed drivers and defers tracing until
+after console setup. Those later observations grant no initial ownership proof.
+This diagnostic is retained and parked with the original card inserted; the
+continuing claim is held under the user's optional factory-restore policy.
 
 The same spare card carries two paths:
 
@@ -86,8 +91,10 @@ tools/reference SOF. It keeps the first sample and fresh MPIDR/reset report,
 then unconditionally prints `FES_NANO_CPU_DIAG PARK no-ddr no-storage no-bl31`
 and spins with `yield`, including when admission would pass. The private
 `board_init_f` ends at that report; later DDR/device initialization is removed.
-SPL storage and watchdog options are disabled and the linked park and excluded
-symbols are checked. The vendor's `SPL_ATF` and its required `SPL_LOAD_FIT`
+The seed configuration is retained except for the diagnostic identity; drivers
+can stay linked. Both watchdog-start paths are removed, and the later SPL
+initializer independently stops on entry. The linked park and excluded
+watchdog-start/firmware-entry symbols are checked. The vendor's `SPL_ATF` and its required `SPL_LOAD_FIT`
 selection stay enabled; the later ATF invocation is independently replaced by
 a stop and no firmware payload is supplied. The build checks the actual Nano
 startup sources and emitted startup text against the seed. No native CPU/reset
@@ -104,8 +111,7 @@ Complete serial lines carry the build ID, stage, value, first-C MPIDR and EL.
 Partial, reordered, mixed-identity or inconsistent-affinity traces never count
 as a complete capture. None of these observations grants native admission.
 
-`--console-control` prepares a separate contained comparison. It retains the
-seed configuration except for the build identity and performs no cold proof
+`--console-control` prepares a separate contained comparison. It performs no cold proof
 or tracing before normal console initialization. Both watchdog-start paths
 are removed: the first board initializer ends in the unconditional diagnostic
 park, and the later SPL initializer independently stops on entry. The linked
