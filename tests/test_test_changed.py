@@ -40,7 +40,7 @@ class TestChangedTest(unittest.TestCase):
         result = self.plan()
         command = next(c for c in result["commands"] if c["label"] == "native SD firmware lease and PIO lifecycle")
         self.assertEqual(command["cwd"], "platform/embedded/tamago")
-        self.assertEqual(command["argv"], ["go", "test", "-race", "-timeout", "90s", "./sdcontrol", "./sdhci", "./fat"])
+        self.assertEqual(command["argv"], ["go", "test", "-race", "-count=1", "-timeout", "90s", "./sdcontrol", "./sdhci", "./fat"])
         self.assertIn("cc", command["tools"])
         self.assertEqual(result["impact"]["cores"], [])
         self.assertFalse(any(result["impact"]["test_modes"].values()))

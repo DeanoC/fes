@@ -28,3 +28,9 @@ The caller retains unresolved ownership until a separately qualified recovery.
 This first mode keeps all bridges reset. Loading packages into retained CPU RAM
 before configuration can use it once the real platform hooks are qualified.
 Concurrent SD/core access and adoption by the native fabric actor are pending.
+
+Run host checks with `go test -race -count=1 -timeout 90s ./sdcontrol ./sdhci
+./fat` from the TamaGo module. The SD Session tests compile the actual C
+firmware/dispatcher with the host C compiler; `-count=1` prevents Go's result
+cache from hiding changes to those external C inputs. The affected runner uses
+this command automatically.

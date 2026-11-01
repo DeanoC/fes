@@ -85,3 +85,11 @@ does not recheck every upstream SDK file. This is identifiable old serial code,
 not evidence that the new SD Session runs on hardware. The controlled-SD test
 must build a fresh native payload/entry, verify its selected-source receipt and
 use an explicit new profile. No source guard is bypassed by this milestone.
+
+The first routine parent run completed 1,202 cases and found one stale expected
+inventory in `test_consistency`: the new C/Go consumers raise the count from 31
+to 33 and add the SD definition to the validated-source set. Both explicit
+expectations are updated; the 11 focused consistency fixtures pass. The final
+SD command uses `-count=1` because its C compiler reads firmware outside Go's
+package cache boundary. Failed/canceled attempts remain retained; none is a
+passing hardware or integration gate.
