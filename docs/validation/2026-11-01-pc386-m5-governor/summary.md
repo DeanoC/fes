@@ -39,9 +39,11 @@ games slice does both.
   slice, was not on main yet.
 - **RTL.** `ab30f6c11`: sealed, and run on the kit. Its CPU RTL equals
   `b10c40664`'s, which the lockstep and governor bench ran.
-- **Governor suite.** It ran on `pc386_system` at `4a6826570`. That commit
-  differs from `ab30f6c11` only in `.init_gpr('0)`, which `ab30f6c11` writes
-  as `256'd0` (the Yosys workaround below).
+- **Governor suite.** Its five presets ran on `pc386_system` at
+  `4a6826570`. That commit differs from `ab30f6c11` only in
+  `.init_gpr('0)`, which `ab30f6c11` writes as `256'd0` (the Yosys
+  workaround below). The 6 MHz override run and the FreeDOS system boot
+  under 386DX-25 ran at the head's RTL.
 - **Tools.**
   - Verilator 5.032 on Powerboat, and NASM 2.16.03, the test386 runner's pin.
   - Quartus Prime Lite 17.0.2 for the seal, with the netlist from the pc386
@@ -110,8 +112,14 @@ games slice does both.
     --preset 1`): running at the time of writing; its result lands in a
     later commit.
   - `system_tb` boots through the record under 386DX-25 (`--suite system
-    --preset 3`): running at the time of writing; its result lands in a
-    later commit.
+    --preset 3`,
+    [`system-freedos-386dx25-report.json`](system-freedos-386dx25-report.json))
+    and passes. FreeDOS reaches `C:\>` at 3.646 simulated seconds, against
+    2.746 at `max` on main, with no stop and every underflow counter at zero.
+    The governor held the CPU, and the record's 12 checks pass, its word 0
+    holding the preset. The boot retired 19,276,848 instructions against
+    45,544,393 at `max`: its time-paced loops run fewer passes on a slower
+    CPU.
 - **Charges and pacing.** `scripts/test_fes_i386_governor.py` runs fifteen
   loops under `max` and every preset at the sealed clock's
   `GOV_N`/`GOV_D` (table below).
@@ -158,7 +166,13 @@ games slice does both.
   | 386DX-40 | 104,609 | 104,620 (−0.01%) | 1,901 | 1,882,935 | 1,883,157 (−0.01%) |
 
   Each run's record, captured at Stop, holds the same figures in CMOS
-  70h-79h with A5h in 7Bh, and its record checks pass.
+  70h-79h with A5h in 7Bh, and its record checks pass. Those runs were at
+  `4a6826570`. After Codex's review, at `1b3a348ba`, the suite passes
+  `--frequency` and `--turbo` into the record with `--preset`. With 286-12
+  overridden to 6 MHz (`--preset 1 --frequency 60`), it counts 13,722 passes
+  in a tick and 246,964 in 18, against the table's 13,731 (−0.07%) and
+  247,164 (−0.08%)
+  ([`system-governor-6mhz-report.json`](system-governor-6mhz-report.json)).
 - **Unit tests.** `tests/test_fes_i386_governor.py` (8),
   `tests/test_build_fes_pc386_quartus.py` (21) and
   `tests/test_fes_i386_ucode.py` pass, and `fes_i386_governor.py --check`.
