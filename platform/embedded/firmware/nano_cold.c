@@ -117,8 +117,9 @@ int fes_nano_cold_finish(struct fes_nano_cold *s, unsigned entry_verified,
     if (!initial(&s->before,r->core)) return fail(s);
     s->finish_stage=FES_COLD_FINISH_STABLE;
     if (!stable(&r->first,&s->before,r->core)) return fail(s);
-    /* SD must have been used by the synchronous PIO SPL. Missing clock/reset
-     * access or an unexpected DMA mode rejects before peripheral resets. */
+    /* The synchronous PIO SPL releases the controller reset, while unused ECC
+     * diagnostics stay held by initial(). A held ECC reset is not evidence of
+     * controller idle: prove mode, drain and card-clock stop independently. */
     s->finish_stage=FES_COLD_FINISH_SD_RESET;
     if (s->before.per0 & FES_NANO_COLD_SD_RESET) return fail(s);
     s->finish_stage=FES_COLD_FINISH_MODE_READ;

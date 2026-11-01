@@ -12,7 +12,11 @@
 /* CS/R1 register map RC28: STAT[0] SDM cold, STAT[2] sticky last POR.
  * These flags are not boot-history proof; the SDM boot kind is independent. */
 #define FES_NANO_COLD_CAUSE_ALLOWED 0x5U
-#define FES_NANO_COLD_SD_RESET 0x8080U
+/* RC28 PER0MODRST: bit7 resets the controller; bit15 resets SDMMC ECC OCP
+ * diagnostics. The PIO SPL releases only bit7. Keep unused diagnostics held,
+ * independently of proving the controller idle and stopping its card clock. */
+#define FES_NANO_COLD_SD_RESET 0x80U
+#define FES_NANO_COLD_SD_ECC_RESET 0x8000U
 #define FES_NANO_COLD_UNUSED (FES_NANO_MASTER_RESET & ~FES_NANO_COLD_SD_RESET)
 #define FES_NANO_COLD_SD_BUSY 0xb07U
 #define FES_NANO_COLD_POLLS 1000U

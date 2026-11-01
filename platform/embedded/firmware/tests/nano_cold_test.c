@@ -32,7 +32,8 @@ static int write_reg(void *p,unsigned reg,uint32_t v)
         h->resets++;
         assert(v==(h->resets==1 ? FES_NANO_MASTER_FUNCTION:FES_NANO_MASTER_RESET));
         if (h->fault==5)return -1;
-        if (!(h->fault==6 && h->resets==2))h->r[reg]|=v;
+        if (h->fault==6 && h->resets==2)h->r[reg]&=~FES_NANO_COLD_SD_ECC_RESET;
+        else h->r[reg]|=v;
         if (h->fault==7)h->r[FES_COLD_CPUS]&=~2U;
         if (h->resets==2 && h->change_reg)h->r[h->change_reg-1]^=h->change_bit;
     } else if (!(h->fault==3 && reg==FES_COLD_SD_CLOCK))h->r[reg]=v;
@@ -120,15 +121,21 @@ int main(void)
         h.r[FES_COLD_BRG]=0x4f;h.r[FES_COLD_CPUS]|=1U<<core;
         struct fes_nano_cold spl={0},bl31={0};struct fes_nano_cold_record r;
         assert(!fes_nano_cold_begin(&spl,ops(&h),chain,17,7,core));
-        h.r[FES_COLD_PER0]&=~FES_NANO_COLD_SD_RESET; /* modeled synchronous SPL load */
+        /* Actual v13 pre-drain value: SD controller/PHY released, ECC held.
+         * Keep this literal independent of the policy's reset mask. */
+        h.r[FES_COLD_PER0]=0xff7fbf3f;
+        h.r[FES_COLD_BRG]=15; /* observed vendor setup clears an unrelated bit */
+        assert(h.r[FES_COLD_PER0]&FES_NANO_COLD_SD_ECC_RESET);
         if(bit) {
             h.r[FES_COLD_CPUS]^=1U<<core;h.r[FES_COLD_CPU0_POWER+core]^=0x81234567U;
             h.r[FES_COLD_PCH_REQUEST]^=0x21U;h.r[FES_COLD_PCH_STATUS]^=0x21U;
         }
         assert(!fes_nano_cold_finish(&spl,1,&r));
+        assert(spl.finish_stage==FES_COLD_FINISH_COMPLETE && h.idle_reads>=2 && h.resets==2);
         assert(!fes_nano_cold_consume(&bl31,&r,ops(&h),chain,17));cases++;
     }
     for (unsigned core=0;core<=2;core+=2) {
+        cases+=parking_failures(core,FES_COLD_PER0,FES_NANO_COLD_SD_ECC_RESET);
         for(unsigned spare=0;spare<4;spare++) if(spare!=core) {
             for(unsigned bit=0;bit<32;bit++)cases+=parking_failures(core,FES_COLD_CPU0_POWER+spare,1U<<bit);
             cases+=parking_failures(core,FES_COLD_CPUS,1U<<spare);

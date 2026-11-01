@@ -74,6 +74,7 @@ class NativeTraceTests(unittest.TestCase):
         self.assertTrue(ready['loader_ready'], ready)
         self.assertFalse(ready['complete'])
         for old, new in (('provider=1', 'provider=0'), ('valid=1', 'valid=0'),
+                         ('per0=ff7fbfff', 'per0=ff7f3fff'),  # unused SD ECC reset released
                          (f'owner={OWNER:x} epoch=101', f'owner={OWNER + 2:x} epoch=101'),
                          ('reset=0000004f', 'reset=0000004b'), ('MMC1', 'MMC2')):
             with self.subTest(new=new):

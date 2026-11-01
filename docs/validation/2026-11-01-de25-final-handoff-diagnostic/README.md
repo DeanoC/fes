@@ -24,10 +24,35 @@ failure can be incomplete, and unreached values are not hardware observations.
 
 Focused tests exercise the actual C drain implementation, first-failure
 retention and unchanged caller output, plus the actual SPL reporting code with
-injected EL/FIT/entry/drain failures and successful handoff. The new matched
-v13 BL31/SPL/FIT/SOF builds are prepared. Integration checks and its bounded
-physical trace remain pending. The card can be updated using the separately
-qualified recovery/TFTP/file-write/readback path without a physical card swap.
+injected EL/FIT/entry/drain failures and successful handoff.
+
+The matched v13 chain passed all ten affected software checks: 1,227 parent
+tests (40 skipped), 1,571 FPGA tests (75 skipped), generated consistency and
+native/producer/firmware RTL integration. Its actual recovery boot and production
+Ethernet upload verified the 4,711,676-byte FIT, independent SD hash/byte
+comparison and unchanged protected prefix/root FIT. No physical card swap or
+factory restore was needed.
+
+The [v13 console](v13-console.log) identifies the first stopped gate as stage 5,
+before any SD state/clock read or reset write. EL3, sealed FIT and entry hash
+checks passed, and all saved CPU/power/boot scope checks passed. PER0MODRST was
+`ff7fbf3f`, with bit7 clear and bit15 set. The official
+[CS/R1 RC28 register map](https://docs.altera.com/v/u/resources/864455/agilex-5-cs-and-r1-suffix-opn-hps-register-map)
+identifies bit7 as the controller reset and bit15 as the SDMMC ECC OCP
+diagnostics reset. The pinned Cadence driver releases only the named controller
+reset; SDMA and ADMA are disabled. This also agrees with the
+[Agilex 5 SD reset description](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/resets?contentId=mqCLMO89AedWC3j2hHrc1g).
+The v13 gate incorrectly required both resets to be clear. No native command
+was sent; the stopped diagnostic and exact chain were retained.
+
+The v14 correction requires the controller to be running before its drain,
+while the unused ECC diagnostics reset must stay asserted from the first
+sample. Holding that diagnostics reset alone grants no drain proof: DMA-off,
+two independent idle observations, clock-stop readback and final reset readback
+remain required. Faults in the held diagnostics reset before/during/after drain
+retire ownership. The serial decoder checks the same initial mask. Focused
+actual-C and decoder checks pass; integration and the fresh matched v14
+hardware trace remain pending.
 
 This remains serial-only diagnostic evidence. Active device drivers, secure
 firmware ownership during active traffic, tenfoot on the board and real core

@@ -7,7 +7,7 @@ import re
 
 MAX_BYTES = 1 << 20
 MASTER_RESET = 0xff21bfbf  # nano_boot.h: functional and OCP resets
-SD_RESET = 0x8080
+SD_RESET = 0x80  # controller only; unused SD ECC diagnostics must stay held
 SD_BUSY = 0xb07
 BRIDGES = 0xf
 OWNED_FLAGS = (0x46424f31 << 32) | 0xdf

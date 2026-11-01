@@ -225,6 +225,10 @@ disables the card clock and checks readback. It then asserts functional resets
 followed by OCP resets, with barriers/readback. Failed drain observations stop
 before those resets. See the separate functional/OCP ordering in the
 [HPS reset sequence](https://docs.altera.com/r/docs/814346/26.1/hard-processor-system-technical-reference-manual-agilextm-5-socs/reset-de-assertion-sequence?contentId=Z8zFZqWjknEOqRcvl2Xvbw).
+The CS/R1 register map distinguishes the SD controller reset (PER0 bit7) from
+its ECC OCP diagnostics reset (bit15). The PIO-only profile releases the
+controller and keeps unused diagnostics held from the first sample. A held
+diagnostics reset does not replace the independent SD drain/clock checks.
 
 The record stays in SPL's loaded OCRAM data, not its DDR BSS. SPL passes its
 pointer/cookie directly to early EL3 setup. BL31 bounds-checks and copies it

@@ -1,0 +1,41 @@
+
+U-Boot SPL 2025.01-fes-nano-941a41222363d2e5 (Jun 27 2025 - 01:40:35 +0000)
+FES_NANO_SPL BEGIN cause=00000004 per0=ff7fbfff bridge=0000004f cpus=0000000f release=00000000 kind=4 valid=1
+FES_NANO_SPL SCOPE mpidr=81000000 core=0 cause_now=00000004 cpus_now=0000000f release_now=00000000 reset_timeouts=00000000
+Reset state: Cold
+MPU           800000 kHz
+L4 Main	      400000 kHz
+L4 sys free   100000 kHz
+L4 MP         200000 kHz
+L4 SP         100000 kHz
+SDMMC         200000 kHz
+is_ddr_csr_clkgen_locked: ddr csr io96b_0 clkgenA is successfully locked
+io96b_cal_status: Calibration for IO96B instance 0x18400400 done at 0 msec!
+init_mem_cal: Initial DDR calibration IO96B_0 succeed
+DDR: Calibration success
+io96b_mb_init: num_instance 1
+io96b_mb_init: get memory interface IO96B 0
+io96b_mb_init: IO96B 0 mem_interface 0: ip_type_ret: 0x1
+io96b_mb_init: IO96B 0 mem_interface 0: instance_id_ret: 0x0
+io96b_mb_init: IO96B 0: num_mem_interface: 0x1
+LPDDR4: 1024 MiB
+ecc_enable_status: ECC enable status: 0
+DDR: size check success
+DDR: firewall init success
+DDR: init success
+Bloblist at 72000 not found (err=-2)
+WDT:   Not starting watchdog@10d00200
+Trying to boot from MMC1
+FES_NANO_SPL FIT verified before parsing
+## Checking hash(es) for config board-0 ... OK
+## Checking hash(es) for Image atf ... crc32+ OK
+## Checking hash(es) for Image uboot ... crc32+ OK
+## Checking hash(es) for Image fdt-0 ... crc32+ OK
+## Checking hash(es) for Image fes-entry ... crc32+ OK
+NANO_COLD_SAMPLE phase=first cause=00000004 per0=ff7fbfff bridge=0000004f cpus=0000000f release=00000000 kind=4 power=90000021,00000000,00000000,00000000 request=00000023 status=00000023 config=0070021e
+NANO_COLD_SAMPLE phase=before cause=00000004 per0=ff7fbf3f bridge=0000000f cpus=0000000f release=00000000 kind=4 power=90000021,00000000,00000000,00000000 request=00000023 status=00000023 config=0070021e
+NANO_COLD_SAMPLE phase=last cause=00000000 per0=00000000 bridge=00000000 cpus=00000000 release=00000000 kind=0 power=00000000,00000000,00000000,00000000 request=00000000 status=00000000 config=00000000
+NANO_COLD_SD mode=00000000 before=00000000 after=00000000 clock_before=00000000 clock_after=00000000 reset_readback=00000000
+NANO_COLD_ENTRY actual=1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950 expected=1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950
+FES_NANO_SPL REJECT handoff el=3 fit=1 entry=1 cold_stage=5
+### ERROR ### Please RESET the board ###
