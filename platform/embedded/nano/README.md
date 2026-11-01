@@ -1,12 +1,13 @@
 # Nano recovery uploads and cold serial boot
 
-The [cookie and cleanup diagnostics](../../../docs/validation/2026-11-01-de25-cold-cookie-cleanup/README.md)
-now reach the actual secure provider and first loader ownership snapshot at
-6 MHz JTAG. The shared cookie repair passes that hardware boundary; vendor
-device cleanup then releases USB/NAND/DMA resets and ownership correctly
-rejects before native entry. The dedicated cold loader now retains those resets
-during cleanup; its fresh matched hardware test is still pending. These serial
-diagnostics do not establish active peripherals or core launch/return.
+The [native Go hardware diagnostic](../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
+now passes the actual secure provider, both loader ownership snapshots and
+EL2/EL1 entry on TRWU8CBL, ending in the TamaGo Go probe. Timer, goroutine,
+allocation, GC and volatile memory-filesystem checks passed. The
+[cookie and cleanup repairs](../../../docs/validation/2026-11-01-de25-cold-cookie-cleanup/README.md)
+preserve ownership through that transition. This serial diagnostic does not
+establish native SD/FAT32, USB/network/display, FPGA programming or physical
+core launch/return.
 
 This prototype joins a repeatable recovery upload tool to a matched Linux-free
 SPL, BL31 and native serial probe. The [current validation](../../../docs/validation/2026-10-31-de25-cold-upload/README.md)

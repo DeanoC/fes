@@ -267,8 +267,11 @@ records real cross-builds and injected host tests. The later
 passes the upload core/transport but rejects the first SPL CPU/reset proof.
 The documented sticky POR flag is now accepted alongside SDM cold reset;
 independent boot-kind proof and every CPU/ownership gate remain required.
-Fresh diagnostic samples cannot replace failed early proof. This native
-handoff still has no board acceptance. Native SD/USB/network resume,
+Fresh diagnostic samples cannot replace failed early proof. The
+[later native Go test](../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
+now passes the matched cold serial handoff on TRWU8CBL, including both owned
+snapshots, EL2/EL1 entry and the actual Go probe. That is contained serial
+diagnostic acceptance. Native SD/USB/network resume,
 active FPGA drain, signed secure boot and physical launch/return remain open.
 The [version-2 initial-parking trace](../../../docs/validation/2026-11-01-de25-initial-parking-v2/README.md)
 now accepts the observed core-0 startup with the independent power/selection
