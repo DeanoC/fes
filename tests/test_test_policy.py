@@ -67,6 +67,24 @@ class SelectTestModesTests(unittest.TestCase):
             with self.subTest(other=other):
                 self.assertTrue(test_policy.select_test_modes([path, other])['media'])
 
+    def test_private_bridge_wire_keeps_its_native_and_firmware_checks(self):
+        import affected
+        paths = ['sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml',
+                 'sources/mister-packages/testdata/oracles/fes-embedded-bridges.json']
+        self.assertEqual(test_policy.select_test_modes(paths), ALL_FALSE)
+        plan = affected.plan(paths)
+        self.assertTrue(plan['lanes']['parent'])
+        self.assertTrue(plan['lanes']['contracts'])
+        self.assertTrue(plan['lanes']['fpga'])
+        for path in paths:
+            self.assertTrue(affected.native_fabric_input(path))
+            self.assertTrue(affected.embedded_control_input(path))
+        for path in ('sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges_other.yaml',
+                     'sources/mister-packages/packages/fabric/fes_fabric_embedded_control.yaml'):
+            self.assertEqual(test_policy.select_test_modes([*paths, path]), ALL_TRUE)
+        self.assertTrue(test_policy.select_test_modes([*paths, 'scripts/factory_video_parts.py'])['video'])
+        self.assertTrue(test_policy.select_test_modes([*paths, 'image/Makefile'])['media'])
+
     def test_de25_linux_does_not_select_unrelated_de10_media_suites(self):
         de25 = ['image/de25-nano/build.py', 'image/de25-nano/vendor.lock.toml',
                 'image/de25-nano/rootfs/overlay/etc/inittab']
