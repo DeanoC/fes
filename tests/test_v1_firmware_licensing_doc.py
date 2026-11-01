@@ -2,8 +2,11 @@
 from pathlib import Path
 import unittest
 
+from scripts import parent_affected
 
-DOC = (Path(__file__).resolve().parents[1] / "docs/plans/v1-firmware-licensing.md").read_text()
+
+ROOT = Path(__file__).resolve().parents[1]
+DOC = (ROOT / "docs/plans/v1-firmware-licensing.md").read_text()
 
 
 def evidence_line(prefix):
@@ -16,9 +19,28 @@ def licensing_row(prefix):
 
 
 class V1FirmwareLicensingDocTests(unittest.TestCase):
-    def test_v1_scope_links_to_the_decision_record(self):
+    def test_v1_scope_names_the_selected_families(self):
         scope = DOC.split("\n\nEvery source", 1)[0]
-        self.assertIn("docs/plans/v1-first-release-first-boot-setup.md", scope)
+        self.assertIn("The v1 scope is the four families Deano chose on 1 November", scope)
+        self.assertIn("ZX81, Spectrum, C64 and Atari ST", scope)
+
+    def test_recorded_deano_decisions_replace_open_questions(self):
+        self.assertIn("Deano answered these decisions in the PR discussion", DOC)
+        self.assertIn("1. **Ship Amstrad's Spectrum ROMs in the free download? Agreed.**", DOC)
+        self.assertIn("2. **Sold or preinstalled hardware. Noted.**", DOC)
+        self.assertIn("3. **Which Spectrum ROM versions to recognise? Agreed.**", DOC)
+        self.assertIn("4. **Pentagon firmware composition. Agreed.**", DOC)
+        self.assertIn("5. **ZX81 family. Agreed.**", DOC)
+        self.assertIn("6. **EmuTOS image and source. Agreed.**", DOC)
+        self.assertIn("7. **Commercial C64 licence. Agreed.**", DOC)
+        self.assertNotIn("if Deano accepts Decision 1", DOC)
+
+    def test_test_module_has_a_narrow_parent_group(self):
+        path = "tests/test_v1_firmware_licensing_doc.py"
+        module = "test_v1_firmware_licensing_doc"
+        self.assertEqual({"policy"}, parent_affected.parent_groups(path))
+        self.assertIn(module, parent_affected.GROUPS["policy"])
+        self.assertIn(module, parent_affected.DOCUMENTATION_MODULES)
 
     def test_debian_vice_rom_claim_matches_its_sources(self):
         claim = evidence_line("- **C3.**")
@@ -28,24 +50,30 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
 
     def test_ts1500_evidence_does_not_claim_a_timex_grant(self):
         row = licensing_row("| `fes.ts1500` |")
-        decision = evidence_line("5. **Ask Nine Tiles and Timex.**")
+        decision = evidence_line("5. **ZX81 family. Agreed.**")
         self.assertIn("neither establishes TS1500 permission", row)
         self.assertNotIn("Timex permits distribution", row)
         self.assertIn("TS2000 BASIC", evidence_line("- **Z1.**"))
-        self.assertIn("Nine Tiles grant alone would not clear the TS1500-specific bytes", decision)
-        self.assertNotIn("all four ZX81-family cores could ship", decision)
+        self.assertIn("write to Nine Tiles Networks to ask permission", decision)
+        self.assertIn("TS1500's 61 changed bytes remain unverified", decision)
 
-    def test_emutos_uses_upstream_license_and_same_page_source_access(self):
+    def test_emutos_obligations_and_label_match_the_evidence(self):
         top = evidence_line("- **EmuTOS 1.4 for `fes.atari-st`: yes.**")
         row = licensing_row("| `fes.atari-st` |")
-        decision = evidence_line("6. **EmuTOS image and where its source goes.**")
+        decision = evidence_line("6. **EmuTOS image and source. Agreed.**")
         notes = evidence_line("- `fetch_atari_st_emutos.py`")
+        self.assertIn("full GPL text from `doc/license.txt`", top)
         self.assertIn("same release page as the binary", top)
-        self.assertIn("not be embedded in an image or sealed package", top)
-        self.assertIn("explicit release-level statement", row)
+        self.assertIn("preinstalled on a physical kit", top)
+        self.assertIn("corresponding source on the card or provide a valid written offer", top)
+        self.assertIn("GPL-2.0-or-later", row)
+        self.assertNotIn("GPL-2.0-only", row)
+        self.assertIn("upstream tag `VERSION_1_4`", row)
+        self.assertNotIn("as in `fetch_atari_st_emutos.py`", row)
         self.assertIn("same release page as the binary", decision)
-        self.assertIn("explicit statement that the project is distributed under GPL version 2", notes)
-        self.assertNotIn("absence of \"or later\"", row)
+        self.assertIn("preinstalled card needs the source on the card or a valid written offer", decision)
+        self.assertIn("Keep that existing label for the bundle", notes)
+        self.assertIn("does not say \"only\"", notes)
 
     def test_emutos_turrican_sources_are_reported_as_conflicting(self):
         claim = evidence_line("- **E6.**")
@@ -58,16 +86,18 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
         practice = DOC.split("**FPGA practice (A4–A5).**", 1)[1].split(
             "**Consumer emulator practice (A6).**", 1
         )[0]
+        a6 = evidence_line("- **The Spectrum (Retro Games, 2025)**")
         self.assertNotIn("The Spectrum", practice)
-        self.assertIn("The Spectrum (Retro Games, 2025)** is an Arm/Linux emulator", DOC)
-        self.assertIn("consumer-emulator practice, not FPGA distribution evidence", DOC)
-        self.assertIn("users may load an original ROM image they own", DOC)
+        self.assertIn("Amstrad permitted non-commercial distribution, so this is legal, but RGL can't sell it that way", a6)
+        self.assertIn("support page separately says users may load an original ROM image they own", a6)
+        self.assertIn("does not establish permission to redistribute ROMs", a6)
+        self.assertIn("consumer-emulator practice, not FPGA distribution evidence", a6)
 
     def test_kit_passed_spectrum_roms_require_firmware_digests(self):
-        decision = evidence_line("3. **Which Spectrum ROM versions to recognise.**")
-        self.assertIn("package and RBF hashes but not firmware digests", decision)
-        self.assertIn("#1344/#1353 record each ROM's SHA-256", decision)
-        self.assertIn("before describing a version as having passed a kit check", decision)
+        decision = evidence_line("3. **Which Spectrum ROM versions to recognise?")
+        self.assertIn("48K kit record already includes the ROM SHA-256", decision)
+        self.assertIn("later 128K, +3 and Pentagon kit checks omit firmware digests", decision)
+        self.assertIn("record those missing digests before describing those versions as kit-checked", decision)
 
 
 if __name__ == "__main__":
