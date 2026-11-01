@@ -27,7 +27,7 @@ Late binding matters for licensing. A bundled ROM can be a separate file with it
 | `fes.spectrum` | `spectrum-firmware` | 16 KiB | 48K ROM |
 | `fes.spectrum128` | `spectrum128-firmware` | 32 KiB | 128K or +2 ROM 0 (editor), then ROM 1 (48 BASIC) |
 | `fes.spectrum-plus3` | `spectrum-plus3-firmware` | 64 KiB | +2A/+3 ROMs 0–3, including +3DOS in ROM 2 |
-| `fes.pentagon` | `pentagon-firmware` | 48 KiB | The standard 128K ROMs (32 KiB), then TR-DOS (16 KiB). Kit B used "the real 128 ROM and TR-DOS 5.03" ([TR-DOS record](../validation/2026-10-25-spectrum-trdos.md)), not a modified Pentagon 128p ROM. |
+| `fes.pentagon` | `pentagon-firmware` | 48 KiB | The standard 128K ROMs (32 KiB), then TR-DOS (16 KiB). The Pentagon simulation that matches Fuse ran "the real 128 ROM and TR-DOS 5.03" ([TR-DOS record](../validation/2026-10-25-spectrum-trdos.md)), not a modified Pentagon 128p ROM. |
 | `fes.c64` | `c64-firmware` | 36 KiB | BASIC (8 KiB), KERNAL (8 KiB), character ROM (4 KiB), then 1541 DOS (16 KiB) ([fes-c64](../../sources/misteross/cores/fes-c64/README.md)) |
 | `fes.atari-st` | `atari-st-firmware` | 192 KiB | Any 196,608-byte ST ROM at `$FC0000`. EmuTOS `etos192*.img` fits as shipped. |
 
