@@ -264,6 +264,19 @@ func TestProtocol2StatusAcceptsMenuDisplayEvidenceForIdle(t *testing.T) {
 	if _, err := decodeProtocol2Response([]byte(malformed)); !errors.Is(err, errInvalidRuntimeResponse) {
 		t.Fatalf("unknown menu evidence accepted: %v", err)
 	}
+	for _, value := range []string{"true", "false"} {
+		framed := strings.Replace(withMenu, `"available":false`, `"available":false,"frame_mapping":`+value, 1)
+		decoded, err := decodeProtocol2Response([]byte(framed))
+		if err != nil || decoded.MenuDisplay == nil || decoded.MenuDisplay.FrameMapping != (value == "true") {
+			t.Fatalf("mapping lifetime lost: %#v, %v", decoded.MenuDisplay, err)
+		}
+	}
+	for _, value := range []string{`null`, `1`, `"true"`, `{}`} {
+		framed := strings.Replace(withMenu, `"available":false`, `"available":false,"frame_mapping":`+value, 1)
+		if _, err := decodeProtocol2Response([]byte(framed)); !errors.Is(err, errInvalidRuntimeResponse) {
+			t.Fatalf("nonboolean mapping lifetime accepted: %s, %v", value, err)
+		}
+	}
 	// Clients draw into granted slots; the staging format and damage
 	// capability of the copying runtime are no longer status fields.
 	for _, stale := range []string{

@@ -3753,6 +3753,8 @@ runtime recovery finish before a failed commit reply without pinning storage
 through a peer VMA. Older persistent-window servers receive the existing grant
 request, and DE10 keeps its persistent mapping and blitter behavior. This
 prepares allocation-backed MENU; it does not enable a DE25 physical presenter.
+The target agent also accepts this optional boolean in strict runtime status
+validation; nonbooleans and unrelated unknown fields remain errors.
 
 The runtime opens a separate display generation. The asynchronous presenter pins
 package, core and display generations instead of following a replacement;
