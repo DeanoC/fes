@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "elf": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phase2-20261101/bl31-build-final/source/build/agilex5/release/bl31/bl31.elf",
+  "elf_sha256": "4a6a6c31073266a21e017ea06d04735937de0edef971bd1f92ee8e335782593b",
+  "strong_symbols": {
+    "fes_nano_platform_configuration": "0000000080005adc T fes_nano_platform_configuration",
+    "fes_nano_platform_configuration_setup": "0000000080005ae8 T fes_nano_platform_configuration_setup",
+    "fes_nano_configuration_before": "0000000080005f30 T fes_nano_configuration_before",
+    "fes_nano_configuration_after": "0000000080006110 T fes_nano_configuration_after",
+    "sha384_init": "0000000080003158 T sha384_init",
+    "sha384_update": "0000000080003904 T sha384_update",
+    "sha384_finish": "0000000080003778 T sha384_finish"
+  },
+  "header_sha256": "85dbed77bbdf40ee177bb578f60a8c684825257ba918fa0b8a9ed32b0936ed87",
+  "configuration_enabled": true,
+  "bounded_core_bytes": 2027520
+}
