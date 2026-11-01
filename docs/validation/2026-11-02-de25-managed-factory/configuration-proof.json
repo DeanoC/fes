@@ -1,0 +1,19 @@
+{
+  "classification": "actual pinned Buildroot defconfig and real AArch64 prebuilt runtime installation only",
+  "required_config": [
+    "BR2_aarch64=y",
+    "BR2_cortex_a53=y",
+    "BR2_PACKAGE_FOGCAST_MISTER_RUNTIME=y",
+    "BR2_ROOTFS_MERGED_USR=y",
+    "# BR2_TARGET_GENERIC_REMOUNT_ROOTFS_RW is not set",
+    "BR2_PACKAGE_BLUEZ5_UTILS=y",
+    "BR2_PACKAGE_DBUS=y"
+  ],
+  "compiler_machine": "aarch64-buildroot-linux-gnu",
+  "compiler_sha256": "e82814dae98497c53ce9488ee7ca92491020acfc8b1f2fa53853e4548b2261e0",
+  "runtime_sha256": "05c25c74d9c53a073625d56c36e04ef63a407c71c823a25e4e50448c6325dffd",
+  "configuration_sha256": "fbdf8f544cd752b121c716be8e5c6bb44939cd869f27c44b96765d993e4549a2",
+  "factory_rootfs": "not-built",
+  "MENU_seal": "not-tested; no package supplied to this configuration proof",
+  "hardware_access": "not-performed"
+}

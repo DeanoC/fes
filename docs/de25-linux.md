@@ -163,8 +163,20 @@ wiring, including persistent SSH keys and DHCP lease renewal. It executes both
 board variants through rootfs/bundle fixtures; the fixture's executables and
 package selector are stand-ins. A separate hash audit reuses the earlier real
 AArch64 ELF compatibility result and identifies the headless base's missing
-factory libraries/services. A managed Buildroot profile, matching kernel
-drivers, complete SD image and native boot remain required.
+factory libraries/services. The later
+[managed-base](validation/2026-11-02-de25-managed-base/README.md) and
+[SDK/runtime](validation/2026-11-02-de25-managed-sdk/README.md) records supply
+the real base, matching built-in drivers and normal runtime build.
+
+The [factory action record](validation/2026-11-02-de25-managed-factory/README.md)
+covers the existing DE25 builder's `managed-factory` and `verify-factory` actions,
+which consume the explicit artifact selection through the shared package,
+Buildroot runtime and software-bundle paths. It also fixes factory activation
+when the intermediate omitted its startup script. The actual pinned Buildroot
+configuration and real AArch64 runtime installation pass; rootfs-wiring fixtures
+remain separate from admitted package and physical boot evidence. Complete
+factory/card assembly requires a sealed MENU; the current candidate remains
+unsealed. Native factory, watchdog and normal-kit acceptance remain open.
 
 The [managed-fabric record](validation/2026-11-01-de25-managed-fabric/README.md)
 covers the current canonical MENU profile: vendor maintenance masters removed,

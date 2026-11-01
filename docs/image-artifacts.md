@@ -87,12 +87,38 @@ The normal package-selection and interface/ELF-closure checks still run.
 DE25 SSH keys live on the bootstrap's checked persistent FAT mount. Shared DHCP
 retains its client for lease renewal and uses the configured hostname.
 
-This is assembly support, with the exact
-[factory-wiring validation scope](validation/2026-11-01-de25-factory-inputs/README.md).
+The existing DE25 builder can assemble an explicitly selected factory candidate:
+
+```sh
+python3 image/de25-nano/build.py managed-factory \
+  --kernel /absolute/matching-owner-kernel \
+  --sdk /absolute/pinned-owner-toolchain.tar.gz \
+  --artifacts /absolute/artifacts/de25-bootstrap \
+  --output /absolute/new-de25-factory
+python3 image/de25-nano/build.py verify-factory --output /absolute/new-de25-factory
+```
+
+The compiler input is the archive pinned by the owner-kernel lock. Artifact
+selection supplies the six target binaries and sealed DE25 MENU. Assembly
+builds the shared host validators and Bluetooth helper, runs the ordinary
+package selector before the OS build, and uses the shared native factory
+post-build and software-bundle packer. It installs the selected runtime through
+the existing hash-before-replacement Buildroot recipe. The factory step installs
+its current startup script after successful bundle assembly, including when the
+preceding managed base deliberately omitted that script.
+
+Outputs include `rootfs.ext4`, `rootfs.tar`, the SDK, matching kernel files,
+selected artifacts and `factory.json`. Verification checks the bundle/base/MENU
+contracts, executable aliases, source hashes and critical tar/ext4 payloads.
+The output is an uninstalled candidate with closed normal admission. See the
+[factory action validation](validation/2026-11-02-de25-managed-factory/README.md)
+for its exact test coverage; complete factory assembly has not been run because
+the current MENU remains unsealed.
+
 The top-level `make image`, source-image `export` and complete media builder
-still select the DE10 profile. A full managed DE25 Buildroot base/card and
-sealed MENU are required before a deployable image or native acceptance can
-be produced. The headless image is unchanged by selecting these APIs.
+still select the DE10 profile. Complete DE25 card assembly and native acceptance
+remain required. Earlier shared-script fixtures retain their
+[factory-wiring validation scope](validation/2026-11-01-de25-factory-inputs/README.md).
 
 The six bootstrap binaries are `mister-agent`, `mister-runtime`, `fogcast-kit`,
 `fogcast-tenfoot`, `fes-kit-data` and `fes-kit-software`. The last two implement
