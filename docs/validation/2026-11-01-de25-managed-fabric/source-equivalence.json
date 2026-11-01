@@ -1,0 +1,13 @@
+{
+  "tested_menu_producer": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "tested_combined_producer": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "receipt_commit": "c8ef6635c41bccaa43bdc3b2f752f36c0e2ffe6e",
+  "subsequent_module_changes": [
+    "sources/misteross/tests/fixtures/de25-combined-proof.json"
+  ],
+  "canonical_inputs_verified": 374,
+  "combined_compiler_inputs_verified": 59,
+  "combined_runtime_test_inputs_verified": 58,
+  "fixture_sha256": "dbfe7aaa907e70ec0cd2aeb2b50d8de4ae3ab2cdb781332912a6940dc32aacbd",
+  "scope": "test receipt only after tested producer; all compiled/model/runtime/recipe input bytes match; no final full aggregate claim"
+}

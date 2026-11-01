@@ -1,0 +1,17 @@
+{
+  "source_revision": "c8ef6635c41bccaa43bdc3b2f752f36c0e2ffe6e",
+  "command": [
+    "python3",
+    "sources/misteross/boards/de25nano/link-proof/build_test.py",
+    "-v"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image",
+  "started_utc": "2026-11-01T20:07:08.425682+00:00",
+  "time_cap_seconds": 300,
+  "hardware_access": "not-performed",
+  "pid": 1711505,
+  "state": "passed",
+  "elapsed_seconds": 0.2,
+  "heartbeat_utc": "2026-11-01T20:07:08.659897+00:00",
+  "returncode": 0
+}

@@ -1,0 +1,468 @@
+{
+  "clock_hz": 100000000,
+  "combined_display": {
+    "ddr_scanout": true,
+    "pixel_pll_parameters_unchanged": true,
+    "warm_reset_ack_n": "constant1; unsupported"
+  },
+  "mailbox_instance": "subsys_periph.fes_mailbox",
+  "peripheral_offset": 65696,
+  "physical_mailbox_address": "not-established",
+  "scanout": {
+    "bridge_parameters": {
+      "fes_ctrl_cdc": {
+        "logical_view": {
+          "path": "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ctrl_cdc.ip",
+          "sha256": "49c272cd13e8ef4c87f618ff14002f627d0f7465c62a6ad8b296490e9753df27"
+        },
+        "parameters": {
+          "ADDRESS_WIDTH": "7",
+          "COMMAND_FIFO_DEPTH": "4",
+          "DATA_WIDTH": "32",
+          "ENABLE_RESPONSE": "1",
+          "MASTER_SYNC_DEPTH": "2",
+          "MAX_BURST_SIZE": "1",
+          "PIPELINE_ENABLE": "0",
+          "RESPONSE_FIFO_DEPTH": "4",
+          "SLAVE_SYNC_DEPTH": "2",
+          "SYMBOL_WIDTH": "8",
+          "SYNC_RESET": "0",
+          "USE_AUTO_ADDRESS_WIDTH": "0"
+        }
+      },
+      "fes_mem_cdc": {
+        "logical_view": {
+          "path": "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mem_cdc.ip",
+          "sha256": "62ccb0cab9f26971c2a37d3067a456076bf405c4270ebdea625e1560679d3407"
+        },
+        "parameters": {
+          "ADDRESS_WIDTH": "32",
+          "COMMAND_FIFO_DEPTH": "4",
+          "DATA_WIDTH": "128",
+          "ENABLE_RESPONSE": "1",
+          "MASTER_SYNC_DEPTH": "2",
+          "MAX_BURST_SIZE": "16",
+          "PIPELINE_ENABLE": "0",
+          "RESPONSE_FIFO_DEPTH": "256",
+          "SLAVE_SYNC_DEPTH": "2",
+          "SYMBOL_WIDTH": "8",
+          "SYNC_RESET": "0",
+          "USE_AUTO_ADDRESS_WIDTH": "0"
+        }
+      }
+    },
+    "build_identity": {
+      "build_id": "546f89796e415930cc4a87eafaacd67b",
+      "logical_view": {
+        "path": "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout.ip",
+        "sha256": "589cfeb6419c6d6e66834b7b6f6821b15b8b3b6c4249039207c3aaefad205417"
+      },
+      "parameter": "112234284908076016144923934916212479611"
+    },
+    "control_guard": "100 MHz bounded, sticky poison, no cancellation or drain inference",
+    "csr_write_completion": true,
+    "ddr_scanout": true,
+    "global_reset_ownership": "not-qualified",
+    "hdmi_inputs": {
+      "acknowledge_samples_redirected": [
+        "ACK1",
+        "ACK2",
+        "ACK3"
+      ],
+      "bus_clock_divider_and_register_values": "unchanged; every LUT row is issued",
+      "derived_source_sha256": {
+        "fes_de25_scanout_hdmi_config.v": "7c19cd75782206c63ce4b222653f1c3e2ae3cfd35731c6b40abbb36925f77434",
+        "fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a"
+      },
+      "input_clock_hz": 50000000,
+      "input_stages": 2,
+      "physical_metastability_acceptance": "not-qualified",
+      "raw_sda_use": "open-drain output only; input sampled through board synchronizer",
+      "sequential_assignments_normalized": 53,
+      "start_handshake": "wait END low after GO before accepting END high",
+      "vendor_source_sha256": {
+        "I2C_Controller.v": "4ac2feae20095dc7287dedec70bdeb8949b086ea6ce3c3a33583063e978003ab",
+        "I2C_HDMI_Config.v": "b9b7c477173fee9b6cb5e3d6a6ba1122c7a0b539f205d807b1d61b22048fd391"
+      }
+    },
+    "instance": "subsys_periph.fes_scanout",
+    "linux_dma": {
+      "address_user_word": 6880,
+      "attributes": 224,
+      "derived_sha256": "741f42bfc8f5cf495d2a128713ef396e978906624f1706dde60f0a8cfb1adb31",
+      "generated_adapter": "hps_subsys/ip/hps_subsys/f2sdram_adapter/f2sdram_adapter_10/synth/f2sdram_adapter_f2sdram_adapter_10_ebbsmiq.v",
+      "generated_adapter_sha256": "12ba7a32f92000b5ab5c411cead7b915bd78c15a88f80c8f6399b0c17de9d9ea",
+      "generated_qip_sha256": "80f616afa33fe3f048386e7bcbf9a9f5350d1abb224ea00d25fb397557a30f29",
+      "kernel_binding": "not-admitted",
+      "master_handoff": {
+        "dma_admission": "not-qualified",
+        "master": "subsys_periph_fes_mem_cdc.m0",
+        "master_count": 1,
+        "peripheral_slave_map": [
+          {
+            "base": 65536,
+            "name": "subsys_periph.sysid.control_slave",
+            "span": 8
+          },
+          {
+            "base": 65632,
+            "name": "subsys_periph.button_pio.s1",
+            "span": 16
+          },
+          {
+            "base": 65648,
+            "name": "subsys_periph.dipsw_pio.s1",
+            "span": 16
+          },
+          {
+            "base": 65664,
+            "name": "subsys_periph.led_pio.s1",
+            "span": 16
+          },
+          {
+            "base": 65696,
+            "name": "subsys_periph.fes_mailbox.avs",
+            "span": 32
+          },
+          {
+            "base": 66048,
+            "name": "subsys_periph.fes_scanout_guard.avs",
+            "span": 256
+          }
+        ],
+        "physical_translation": "not-qualified",
+        "removed_masters": [
+          "subsys_periph.fes_ddr_probe",
+          "ext_hps_f2sdram_master",
+          "subsys_debug.hps_f2sdram"
+        ],
+        "scope": "scanout-only F2SDRAM path"
+      },
+      "master_ownership": "scanout-only",
+      "original_sha256": "29da61c67255e9efd98b7ca9a63d9fcbfc37d9b1175d33f0cfd62f46f8c637ad",
+      "physical_translation": "not-qualified",
+      "read_transactions": 16,
+      "scope": "scanout-only generated F2SDRAM path",
+      "secure": false,
+      "secure_bit": 8,
+      "sid_shift": 9,
+      "stream_id": 13,
+      "user_bits": 25
+    },
+    "managed_fabric": {
+      "control_and_ocm_routes": [
+        [
+          "subsys_hps_agilex_hps.lwhps2fpga",
+          "subsys_periph_pb_cpu_0.s0",
+          0
+        ],
+        [
+          "subsys_periph_pb_cpu_0.m0",
+          "subsys_periph_fes_scanout_guard.avs",
+          66048
+        ],
+        [
+          "subsys_periph_fes_scanout_guard.avm",
+          "subsys_periph_fes_ctrl_cdc.s0",
+          0
+        ],
+        [
+          "subsys_periph_fes_ctrl_cdc.m0",
+          "subsys_periph_fes_scanout.avs",
+          0
+        ],
+        [
+          "subsys_hps_agilex_hps.hps2fpga",
+          "ocm.axi_s1",
+          0
+        ]
+      ],
+      "disabled_hps_parameter": {
+        "f2s_data_width": "0"
+      },
+      "fabric_to_hps": [
+        [
+          "subsys_hps_f2sdram_adapter.axi4_man",
+          "subsys_hps_agilex_hps.f2sdram"
+        ]
+      ],
+      "generated_parent_sha256": "2be8675d0a9f3e1d0ca78b7b57120a97c9f8784873b583ac057e2882b9a0966a",
+      "hps_ip_sha256": "193843e40c7079352430b675aed38960c164bcb76003d24b48711e6f44764913",
+      "initiator_count": 8,
+      "initiator_endpoints": [
+        "subsys_hps_agilex_hps.hps2fpga",
+        "subsys_hps_agilex_hps.lwhps2fpga",
+        "subsys_hps_f2sdram_adapter.axi4_man",
+        "subsys_periph_fes_ctrl_cdc.m0",
+        "subsys_periph_fes_mem_cdc.m0",
+        "subsys_periph_fes_scanout.avm",
+        "subsys_periph_fes_scanout_guard.avm",
+        "subsys_periph_pb_cpu_0.m0"
+      ],
+      "memory_handoff": {
+        "dma_admission": "not-qualified",
+        "master": "subsys_periph_fes_mem_cdc.m0",
+        "master_count": 1,
+        "peripheral_slave_map": [
+          {
+            "base": 65536,
+            "name": "subsys_periph.sysid.control_slave",
+            "span": 8
+          },
+          {
+            "base": 65632,
+            "name": "subsys_periph.button_pio.s1",
+            "span": 16
+          },
+          {
+            "base": 65648,
+            "name": "subsys_periph.dipsw_pio.s1",
+            "span": 16
+          },
+          {
+            "base": 65664,
+            "name": "subsys_periph.led_pio.s1",
+            "span": 16
+          },
+          {
+            "base": 65696,
+            "name": "subsys_periph.fes_mailbox.avs",
+            "span": 32
+          },
+          {
+            "base": 66048,
+            "name": "subsys_periph.fes_scanout_guard.avs",
+            "span": 256
+          }
+        ],
+        "physical_translation": "not-qualified",
+        "removed_masters": [
+          "subsys_periph.fes_ddr_probe",
+          "ext_hps_f2sdram_master",
+          "subsys_debug.hps_f2sdram"
+        ],
+        "scope": "scanout-only F2SDRAM path"
+      },
+      "physical_lifetime": "not-qualified",
+      "policy": "managed-scanout-initiators-v3",
+      "removed_instances": [
+        "subsys_debug",
+        "ace5lite_cache_coherency_translator_0"
+      ],
+      "retired_debug_constraints": {
+        "derived_file": "project/ghrd_timing.sdc",
+        "derived_sha256": "abf34be146818993465c0757c799689afc1d87f1eccd43ca5918be613b12ac80",
+        "original_file": "managed-constraints-originals/ghrd_timing.sdc",
+        "original_sha256": "743b02b7fa6e3f6397890702f626ff7b27a5c7ab6aa9d1721c22d286900c7247",
+        "policy": "managed-scanout-initiators-v3",
+        "retained_jtag_sdc_sha256": "02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a",
+        "retired_source": "source ./jtag.sdc"
+      },
+      "runtime_admission": "not-qualified",
+      "sopcinfo_sha256": "584751a809d0565f6eba87a318b9da746479c9991b18421d4a2d96a5662081b3",
+      "unused_f2h_interface": "disabled and absent"
+    },
+    "memory_hz": 100000000,
+    "peripheral_offset": 66048,
+    "peripheral_slave_map": [
+      {
+        "base": 65536,
+        "name": "subsys_periph.sysid.control_slave",
+        "span": 8
+      },
+      {
+        "base": 65632,
+        "name": "subsys_periph.button_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65648,
+        "name": "subsys_periph.dipsw_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65664,
+        "name": "subsys_periph.led_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65696,
+        "name": "subsys_periph.fes_mailbox.avs",
+        "span": 32
+      },
+      {
+        "base": 66048,
+        "name": "subsys_periph.fes_scanout_guard.avs",
+        "span": 256
+      }
+    ],
+    "pixel_hz": 74250000,
+    "read_only_master_ports": {
+      "address": [
+        "Output",
+        32
+      ],
+      "burstcount": [
+        "Output",
+        5
+      ],
+      "byteenable": [
+        "Output",
+        16
+      ],
+      "read": [
+        "Output",
+        1
+      ],
+      "readdata": [
+        "Input",
+        128
+      ],
+      "readdatavalid": [
+        "Input",
+        1
+      ],
+      "response": [
+        "Input",
+        2
+      ],
+      "waitrequest": [
+        "Input",
+        1
+      ]
+    },
+    "reset_bridges": {
+      "fes_scanout_top_reset": {
+        "logical_view": {
+          "path": "ip/qsys_top/qsys_top_fes_scanout_top_reset.ip",
+          "sha256": "21c405374c7e492a16263887b5fcc2eccec41806ecc1c65ccbb343c98741a0be"
+        },
+        "parameters": {
+          "ACTIVE_LOW_RESET": "1",
+          "NUM_RESET_OUTPUTS": "1",
+          "O_SYNCHRONOUS_EDGES": "none (elaborated output synchronousEdges=NONE)",
+          "SYNCHRONOUS_EDGES": "none",
+          "USE_RESET_REQUEST": "0"
+        }
+      },
+      "subsys_periph.fes_scanout_pixel_reset": {
+        "logical_view": {
+          "path": "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout_pixel_reset.ip",
+          "sha256": "260c03058608d8931ad2a3e025be953d5caac34ff2c6abead6469f317378d1f7"
+        },
+        "parameters": {
+          "ACTIVE_LOW_RESET": "1",
+          "NUM_RESET_OUTPUTS": "1",
+          "O_SYNCHRONOUS_EDGES": "deassert (elaborated output synchronousEdges=DEASSERT)",
+          "SYNCHRONOUS_EDGES": "deassert",
+          "USE_RESET_REQUEST": "0"
+        }
+      },
+      "subsys_periph.fes_scanout_system_reset": {
+        "logical_view": {
+          "path": "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout_system_reset.ip",
+          "sha256": "e73e31bc1c451665d6086ceb9588e8537dd88b8f0c1550c366b1b3fbd8e5fc4b"
+        },
+        "parameters": {
+          "ACTIVE_LOW_RESET": "1",
+          "NUM_RESET_OUTPUTS": "1",
+          "O_SYNCHRONOUS_EDGES": "deassert (elaborated output synchronousEdges=DEASSERT)",
+          "SYNCHRONOUS_EDGES": "deassert",
+          "USE_RESET_REQUEST": "0"
+        }
+      }
+    },
+    "reset_synchronizers": {
+      "assertion": "asynchronous",
+      "deassertion": "synchronous per domain",
+      "hdmi_data_de_gate": "pixel-registered; qualified-lock loss clears the pixel release immediately",
+      "pixel_clock": "74250000 Hz",
+      "sdc_clear_pins": 8,
+      "system_clock": "100000000 Hz"
+    },
+    "reset_timing": {
+      "clock": "pll_inst|iopll_0_outclk0",
+      "files": {
+        "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+          "after_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+          "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+        },
+        "jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+          "after_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+          "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+        },
+        "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+          "after_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+          "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+        },
+        "jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+          "after_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+          "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+        },
+        "peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+          "after_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+          "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+        },
+        "qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc": {
+          "after_sha256": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+          "before_sha256": "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
+        }
+      },
+      "policy": "timed-system-reset-release-v3",
+      "timed_instances": [
+        "soc_inst|rst_controller",
+        "soc_inst|subsys_periph|rst_controller",
+        "soc_inst|rst_controller_002"
+      ]
+    },
+    "runtime_admission": "not-qualified",
+    "top_pixel_clock_bridge": "74.25 MHz clock bridge drives the nested pixel-clock sink",
+    "top_reset_source": "fes_scanout_top_reset.out_reset -> pixel and 100 MHz reset bridge inputs"
+  },
+  "scanout_memory": {
+    "dma_admission": "not-qualified",
+    "master": "subsys_periph_fes_mem_cdc.m0",
+    "master_count": 1,
+    "peripheral_slave_map": [
+      {
+        "base": 65536,
+        "name": "subsys_periph.sysid.control_slave",
+        "span": 8
+      },
+      {
+        "base": 65632,
+        "name": "subsys_periph.button_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65648,
+        "name": "subsys_periph.dipsw_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65664,
+        "name": "subsys_periph.led_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65696,
+        "name": "subsys_periph.fes_mailbox.avs",
+        "span": 32
+      },
+      {
+        "base": 66048,
+        "name": "subsys_periph.fes_scanout_guard.avs",
+        "span": 256
+      }
+    ],
+    "physical_translation": "not-qualified",
+    "removed_masters": [
+      "subsys_periph.fes_ddr_probe",
+      "ext_hps_f2sdram_master",
+      "subsys_debug.hps_f2sdram"
+    ],
+    "scope": "scanout-only F2SDRAM path"
+  },
+  "sha256": "584751a809d0565f6eba87a318b9da746479c9991b18421d4a2d96a5662081b3",
+  "top_system_handoff": "qsys_top/qsys_top.sopcinfo"
+}

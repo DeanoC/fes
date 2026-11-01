@@ -1,0 +1,25 @@
+{
+  "precursor_full_affected_source": "e7d7d4d64ffe052e463a77b35e5a793ad3452342",
+  "final_constraint_repair_source": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "changed_paths": [
+    "sources/misteross/boards/de25nano/hps/build.py",
+    "sources/misteross/boards/de25nano/hps/test_build.py",
+    "sources/misteross/boards/de25nano/scanout/README.md",
+    "sources/misteross/boards/de25nano/scanout/build.py",
+    "sources/misteross/boards/de25nano/scanout/linux_dma.py",
+    "sources/misteross/boards/de25nano/scanout/test_build.py",
+    "sources/misteross/docs/architecture.md",
+    "sources/misteross/tests/fixtures/de25_managed_jtag_sdc.json.gz",
+    "sources/misteross/tests/test_de25nano_managed_fabric.py"
+  ],
+  "unchanged_scope_trees": {
+    "sources/FogCast": "43e276b92b099b97d121f58f56694ef550cefc16",
+    "sources/libmister-runtime": "76fd790345deed71592c70bc373e76346c664707",
+    "sources/mister-packages": "ef006ed0adb1b60b596bf05fc8c5096252b65754",
+    "image": "d4eb712e4c9b15fb627ebb799b2e7678bf5b8f66",
+    "platform": "8a71368192d468d650ca87f0f1eb3d6ed34dd7d0",
+    "scripts": "0a61e52e2466b511e8afe9ea6c2fb5b7ca80ba4c"
+  },
+  "full_affected_on_final_source": false,
+  "classification": "source equivalence for unchanged consumers; final FPGA recipe/constraint cleanup has separate83focused checks and fresh compiler/model evidence; no final full-aggregate claim"
+}

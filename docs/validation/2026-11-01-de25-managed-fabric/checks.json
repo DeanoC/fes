@@ -1,0 +1,198 @@
+{
+  "producer_revision": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "build_id": "546f89796e415930cc4a87eafaacd67b",
+  "canonical_source_files_verified": 374,
+  "compiled_model_sources_matched": 125,
+  "compiled_model_qips_matched": 17,
+  "model_cases": 10,
+  "reused_hdmi_protocol_cases": 4,
+  "hdmi_protocol_original_producer": "d8b23267cc8301361bdc5c2ef7db89593462f4a6",
+  "unchanged_protocol_source_files": {
+    "/data/fes-de25-managed-fabric-d8549cc79/source/sources/misteross/boards/de25nano/display/sim_models.v": "816d8abfff2b1bd03cd719a264dbbfbd494431e02231024409c0522eec1ef927",
+    "/data/fes-de25-managed-fabric-d8549cc79/source/sources/misteross/boards/de25nano/scanout/hdmi_inputs.py": "fdc043a63a277b797692ba399b1e43bbb438313cffdd50761cc2dd03d36edcb0",
+    "/data/fes-de25-managed-fabric-d8549cc79/source/sources/misteross/boards/de25nano/scanout/hdmi_io_tb.cpp": "34dc788fd4b627e8edce7f8b40a8e2c3e8afe800b71d0ba00b54cecdd31d375f",
+    "/data/fes-de25-managed-fabric-d8549cc79/source/sources/misteross/boards/de25nano/scanout/hdmi_io_tb.v": "428c81f1e073f420b34f15bae5d1d6d47a5a94dc0d8a6f4330123df688d46a14",
+    "/data/fes-de25-managed-fabric-d8549cc79/source/sources/misteross/build/de25-menu/546f89796e415930cc4a87eafaacd67b/attempt-6m2mexcz/signoff/combined/hps/project/fes_mailbox/fes_de25_scanout_board.v": "7bdaefcf9c9ecfa031519b941adb5ed24050121496ab3ee2de0e470a2c7a5e7c",
+    "/data/fes-de25-managed-fabric-d8549cc79/source/sources/misteross/build/de25-menu/546f89796e415930cc4a87eafaacd67b/attempt-6m2mexcz/signoff/combined/hps/project/fes_mailbox/fes_de25_scanout_hdmi_config.v": "7c19cd75782206c63ce4b222653f1c3e2ae3cfd35731c6b40abbb36925f77434",
+    "/data/fes-de25-managed-fabric-d8549cc79/source/sources/misteross/build/de25-menu/546f89796e415930cc4a87eafaacd67b/attempt-6m2mexcz/signoff/combined/hps/project/fes_mailbox/fes_de25_scanout_i2c_controller.v": "57dd988f8a8989008a33be7bbac04ea8ee77f579b66294502414f315bd35fd2a",
+    "/data/fes-de25-managed-fabric-d8549cc79/source/sources/misteross/build/de25-menu/546f89796e415930cc4a87eafaacd67b/attempt-6m2mexcz/signoff/combined/hps/project/fes_mailbox/fes_de25_top_reset.v": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+    "/data/fes-de25-managed-fabric-d8549cc79/source/sources/misteross/build/de25-menu/546f89796e415930cc4a87eafaacd67b/attempt-6m2mexcz/signoff/hdmi-vendor-inputs/I2C_Controller.v": "4ac2feae20095dc7287dedec70bdeb8949b086ea6ce3c3a33583063e978003ab",
+    "/data/fes-de25-managed-fabric-d8549cc79/source/sources/misteross/build/de25-menu/546f89796e415930cc4a87eafaacd67b/attempt-6m2mexcz/signoff/hdmi-vendor-inputs/I2C_HDMI_Config.v": "b9b7c477173fee9b6cb5e3d6a6ba1122c7a0b539f205d807b1d61b22048fd391"
+  },
+  "hdmi_controller_equiv_cells": 40,
+  "hdmi_equivalence_reset_model": "async2sync",
+  "hdmi_protocol_receipt_sha256": "2c413b39247d354fa0621e3c4eb8520912b71c1198f663de95868bbe64beae40",
+  "rbf_sha256": "b6eab6805067050a69cb66b40f5708543e868a9d898250662b78eda77eba3eb2",
+  "rbf_size": 1425408,
+  "canonical_record_sha256": "03020c9b4f2554218eb216cb45f99d00f0a20409c253f37b2b0719e79c57970c",
+  "execution_sha256": "f6e3d8789e9b0377286b8b7ea8d44c96326ebe7038a49fc4d0046ed53e5e7e6b",
+  "build_inputs_sha256": "79f2a0eaaf7248716ea2ccd5b33861f2b4ba0bf04529f88f3186307e444fff76",
+  "generation_sha256": "a7c434303262f507490395d1e335a22d4cf8ef00b3cf9c9a9f026435c46f02c0",
+  "all_reported_timing_pass": true,
+  "timing_checks": 69,
+  "signoff_rules": 85,
+  "failed_rules": 3,
+  "unreviewed_failed_rules": 2,
+  "reviewed_input_violations": 2,
+  "async_review_receipt_sha256": "9ff257fe9789825ee7e000c519be73d021c6e99f13d18b6e5c8a31199886ee10",
+  "reset_policy": "timed-system-reset-release-v3",
+  "reset_instances": [
+    "soc_inst|rst_controller",
+    "soc_inst|subsys_periph|rst_controller",
+    "soc_inst|rst_controller_002"
+  ],
+  "reset_sdc_files_verified": 6,
+  "reset_timing_receipt_sha256": "2415d815c19ea5c515eef0cace8f86999d5e531e525767f1aef67c7c3e1f1250",
+  "generic_export_provenance_gate": "pass-in-memory-validation-only",
+  "package_exported": false,
+  "hardware_access": "not-performed",
+  "hardware_acceptance": false,
+  "normal_kit_acceptance": false,
+  "reset_timing_corners": [
+    "4_slow_fix4_100c",
+    "4_slow_fix4_0c",
+    "4_slow_fix4a_0c",
+    "MIN_fast_fix4_0c"
+  ],
+  "reset_path_checks": 24,
+  "worst_reset_recovery_ns": "7.806",
+  "worst_reset_removal_ns": "0.357",
+  "reset_path_diagnostic_sha256": "8ebc8b68d58441b4754f79f12e8c1c467dff88fa4a57f6c9bf21c72db3abfb19",
+  "external_output_timing_qualified": false,
+  "startup_cases": 72,
+  "startup_dma_submit_stop_drain_cases": 8,
+  "startup_receipt_sha256": "04e956ad0bb176698c7b970647e29e1827369f62c574bb47142ef0d02dcaa3d1",
+  "whole_reset_boundary_qualified": false,
+  "managed_fabric": {
+    "policy": "managed-scanout-initiators-v3",
+    "initiator_endpoints": [
+      "subsys_hps_agilex_hps.hps2fpga",
+      "subsys_hps_agilex_hps.lwhps2fpga",
+      "subsys_hps_f2sdram_adapter.axi4_man",
+      "subsys_periph_fes_ctrl_cdc.m0",
+      "subsys_periph_fes_mem_cdc.m0",
+      "subsys_periph_fes_scanout.avm",
+      "subsys_periph_fes_scanout_guard.avm",
+      "subsys_periph_pb_cpu_0.m0"
+    ],
+    "initiator_count": 8,
+    "fabric_to_hps": [
+      [
+        "subsys_hps_f2sdram_adapter.axi4_man",
+        "subsys_hps_agilex_hps.f2sdram"
+      ]
+    ],
+    "control_and_ocm_routes": [
+      [
+        "subsys_hps_agilex_hps.lwhps2fpga",
+        "subsys_periph_pb_cpu_0.s0",
+        0
+      ],
+      [
+        "subsys_periph_pb_cpu_0.m0",
+        "subsys_periph_fes_scanout_guard.avs",
+        66048
+      ],
+      [
+        "subsys_periph_fes_scanout_guard.avm",
+        "subsys_periph_fes_ctrl_cdc.s0",
+        0
+      ],
+      [
+        "subsys_periph_fes_ctrl_cdc.m0",
+        "subsys_periph_fes_scanout.avs",
+        0
+      ],
+      [
+        "subsys_hps_agilex_hps.hps2fpga",
+        "ocm.axi_s1",
+        0
+      ]
+    ],
+    "removed_instances": [
+      "subsys_debug",
+      "ace5lite_cache_coherency_translator_0"
+    ],
+    "sopcinfo_sha256": "584751a809d0565f6eba87a318b9da746479c9991b18421d4a2d96a5662081b3",
+    "disabled_hps_parameter": {
+      "f2s_data_width": "0"
+    },
+    "hps_ip_sha256": "193843e40c7079352430b675aed38960c164bcb76003d24b48711e6f44764913",
+    "memory_handoff": {
+      "master": "subsys_periph_fes_mem_cdc.m0",
+      "master_count": 1,
+      "removed_masters": [
+        "subsys_periph.fes_ddr_probe",
+        "ext_hps_f2sdram_master",
+        "subsys_debug.hps_f2sdram"
+      ],
+      "scope": "scanout-only F2SDRAM path",
+      "peripheral_slave_map": [
+        {
+          "name": "subsys_periph.sysid.control_slave",
+          "base": 65536,
+          "span": 8
+        },
+        {
+          "name": "subsys_periph.button_pio.s1",
+          "base": 65632,
+          "span": 16
+        },
+        {
+          "name": "subsys_periph.dipsw_pio.s1",
+          "base": 65648,
+          "span": 16
+        },
+        {
+          "name": "subsys_periph.led_pio.s1",
+          "base": 65664,
+          "span": 16
+        },
+        {
+          "name": "subsys_periph.fes_mailbox.avs",
+          "base": 65696,
+          "span": 32
+        },
+        {
+          "name": "subsys_periph.fes_scanout_guard.avs",
+          "base": 66048,
+          "span": 256
+        }
+      ],
+      "dma_admission": "not-qualified",
+      "physical_translation": "not-qualified"
+    },
+    "physical_lifetime": "not-qualified",
+    "runtime_admission": "not-qualified",
+    "unused_f2h_interface": "disabled and absent",
+    "generated_parent_sha256": "2be8675d0a9f3e1d0ca78b7b57120a97c9f8784873b583ac057e2882b9a0966a",
+    "retired_debug_constraints": {
+      "derived_file": "project/ghrd_timing.sdc",
+      "derived_sha256": "abf34be146818993465c0757c799689afc1d87f1eccd43ca5918be613b12ac80",
+      "original_file": "managed-constraints-originals/ghrd_timing.sdc",
+      "original_sha256": "743b02b7fa6e3f6397890702f626ff7b27a5c7ab6aa9d1721c22d286900c7247",
+      "policy": "managed-scanout-initiators-v3",
+      "retained_jtag_sdc_sha256": "02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a",
+      "retired_source": "source ./jtag.sdc"
+    }
+  },
+  "hps_parameter_changes": {
+    "hps_subsys/ip/hps_subsys/agilex_hps.ip": {
+      "f2sdram_SMMU": {
+        "before": "false",
+        "after": "true"
+      },
+      "f2s_data_width": {
+        "before": "256",
+        "after": "0"
+      }
+    }
+  },
+  "hps_parameter_review_sha256": "7314c0415198992203a3cfd8d41ccf719f13ac7a6c2058a5eef66e2e97acadb9",
+  "boot_firmware_compatibility": "not-qualified",
+  "retired_debug_constraint_receipt_sha256": "3e9ae391083add85e5e22c8b57fc74de5321ead934226b51963e68cede71931f",
+  "fabric_jtag_inventory": {
+    "ports": "0",
+    "clocks": "0"
+  }
+}
