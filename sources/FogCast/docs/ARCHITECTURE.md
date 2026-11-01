@@ -3744,6 +3744,16 @@ For described cores, enrichment requires the observed package and core generatio
 to match the record. This keeps the captured game identity consistent between
 session reads and display replies.
 
+MENU generations that advertise `frame_mapping` require the client to opt in
+when requesting their grant. The client checks the returned lifetime, closes
+the received fd and unmaps before sending a frame commit. Its pixels remain in
+the runtime's allocation; the next frame remaps the same generation while
+preserving damage history. Grant inspection also releases the view. This lets
+runtime recovery finish before a failed commit reply without pinning storage
+through a peer VMA. Older persistent-window servers receive the existing grant
+request, and DE10 keeps its persistent mapping and blitter behavior. This
+prepares allocation-backed MENU; it does not enable a DE25 physical presenter.
+
 The runtime opens a separate display generation. The asynchronous presenter pins
 package, core and display generations instead of following a replacement;
 idle presenters cannot acquire an active session plane. ZX81 selects launcher

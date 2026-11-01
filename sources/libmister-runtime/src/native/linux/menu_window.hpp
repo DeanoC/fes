@@ -36,6 +36,8 @@ class MenuMemory {
 public:
  virtual ~MenuMemory() {}
  virtual Error Activate(bool clear,bool blitter)=0;
+ // True only for grants whose peer references must end before frame commit.
+ virtual bool FrameMapping() const {return false;}
  // Failure means replacement must not proceed. Closing a descriptor alone
  // does not establish that peer mappings or DMA storage are safe to reuse.
  virtual Error Revoke()=0;

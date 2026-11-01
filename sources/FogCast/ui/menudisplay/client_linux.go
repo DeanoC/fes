@@ -44,8 +44,9 @@ type Client struct {
 // window is one generation's grant, mapped once: both slots, and on a
 // blitter grant the list region and texture heap too.
 type window struct {
-	generation uint64
-	mapping    []byte
+	generation   uint64
+	mapping      []byte
+	frameMapping bool
 	// held[s] is the displayed sequence of the frame slot s holds, zero
 	// when unknown. damage is the shown frame's damage against the frame
 	// before it, nil for a whole frame.
@@ -61,6 +62,7 @@ type window struct {
 }
 type Status struct {
 	Available         bool   `json:"available"`
+	FrameMapping      bool   `json:"frame_mapping"`
 	Session           bool   `json:"session"`
 	PackageID         string `json:"package_id"`
 	CoreGeneration    uint64 `json:"core_generation"`
@@ -89,6 +91,7 @@ type reply struct {
 	MenuDisplay *Status `json:"menu_display"`
 	MenuFrame   *struct {
 		Generation        uint64  `json:"generation"`
+		FrameMapping      bool    `json:"frame_mapping"`
 		Slot              *int    `json:"slot"`
 		Preparation       uint64  `json:"preparation"`
 		Format            string  `json:"format"`
@@ -278,8 +281,10 @@ func (c *Client) closeWindowLocked() error {
 	if c.window == nil {
 		return nil
 	}
-	if err := unix.Munmap(c.window.mapping); err != nil {
-		return err
+	if len(c.window.mapping) != 0 {
+		if err := unix.Munmap(c.window.mapping); err != nil {
+			return err
+		}
 	}
 	c.window = nil
 	return nil
@@ -288,18 +293,39 @@ func (c *Client) closeWindowLocked() error {
 // windowLocked maps generation's grant, once per generation. A blitter
 // grant is mapped through its heap; any other grant covers the two slots.
 func (c *Client) windowLocked(ctx context.Context, generation uint64) (*window, error) {
-	if c.window != nil && c.window.generation == generation {
-		return c.window, nil
-	}
-	if err := c.closeWindowLocked(); err != nil {
-		return nil, err
+	current := c.window != nil && c.window.generation == generation
+	frameMapping := false
+	if current {
+		if len(c.window.mapping) != 0 {
+			return c.window, nil
+		}
+		frameMapping = c.window.frameMapping
+	} else {
+		if err := c.closeWindowLocked(); err != nil {
+			return nil, err
+		}
+		// Only send the new opt-in when this generation advertises it. A
+		// persistent server, including an older runtime, sees the same grant
+		// request. An older client cannot claim a frame-mapped grant.
+		status, err := c.Status(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if !status.Available || status.Generation != generation {
+			return nil, errors.New("menu generation unavailable")
+		}
+		frameMapping = status.FrameMapping
 	}
 	conn, err := c.dial(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
-	if err := send(conn, map[string]any{"protocol": 2, "operation": "menu_frame_grant", "expected_generation": generation}, -1); err != nil {
+	request := map[string]any{"protocol": 2, "operation": "menu_frame_grant", "expected_generation": generation}
+	if frameMapping {
+		request["frame_mapping"] = true
+	}
+	if err := send(conn, request, -1); err != nil {
 		return nil, err
 	}
 	granted, fds, err := receive(conn)
@@ -314,7 +340,8 @@ func (c *Client) windowLocked(ctx context.Context, generation uint64) (*window, 
 	}
 	defer unix.Close(fds[0])
 	g := granted.MenuFrame
-	if g == nil || g.Generation != generation || g.Format != Format || g.Slots != Slots || g.SlotBytes != SlotBytes {
+	if g == nil || g.Generation != generation || g.Format != Format || g.Slots != Slots || g.SlotBytes != SlotBytes ||
+		g.FrameMapping != frameMapping || (g.FrameMapping && g.Blitter != nil) {
 		return nil, errors.New("invalid menu grant")
 	}
 	size := Slots * SlotBytes
@@ -329,12 +356,29 @@ func (c *Client) windowLocked(ctx context.Context, generation uint64) (*window, 
 	if err != nil {
 		return nil, err
 	}
-	c.window = &window{generation: generation, mapping: mapping}
+	if current {
+		c.window.mapping = mapping
+		return c.window, nil
+	}
+	c.window = &window{generation: generation, mapping: mapping, frameMapping: frameMapping}
 	if g.Blitter != nil {
 		c.window.heap = newBlitHeap()
 		c.window.minor = g.Blitter.Minor
 	}
 	return c.window, nil
+}
+
+// releaseFrameMapping preserves the slot/damage history for a remap of the
+// same allocation. A failed unmap retains the mapping and refuses commit.
+func (c *Client) releaseFrameMapping(w *window) error {
+	if !w.frameMapping || len(w.mapping) == 0 {
+		return nil
+	}
+	if err := unix.Munmap(w.mapping); err != nil {
+		return err
+	}
+	w.mapping = nil
+	return nil
 }
 
 // write draws rects of frame into slot.
@@ -376,6 +420,9 @@ func (c *Client) Grant(ctx context.Context, generation uint64) (Grant, error) {
 	if err != nil {
 		return Grant{}, err
 	}
+	if err := c.releaseFrameMapping(w); err != nil {
+		return Grant{}, err
+	}
 	return Grant{Blitter: w.heap != nil, BlitterMinor: w.minor}, nil
 }
 
@@ -406,6 +453,12 @@ func (c *Client) present(ctx context.Context, generation uint64, pix []byte, dam
 	if err != nil {
 		return Result{}, err
 	}
+	releaseAttempted := false
+	defer func() {
+		if !releaseAttempted {
+			_ = c.releaseFrameMapping(w)
+		}
+	}()
 	conn, slot, err := c.begin(ctx, w, generation)
 	if err != nil {
 		return Result{}, err
@@ -433,6 +486,10 @@ func (c *Client) present(ctx context.Context, generation uint64, pix []byte, dam
 			written[i] = [4]int{r.X, r.Y, r.W, r.H}
 		}
 		commit["written"] = written
+	}
+	releaseAttempted = true
+	if err := c.releaseFrameMapping(w); err != nil {
+		return Result{}, err
 	}
 	result, err := finishFrame(conn, commit, generation, slot, committed, &timing)
 	if err != nil {
@@ -467,6 +524,12 @@ func (c *Client) PresentBlit(ctx context.Context, generation uint64, frame BlitF
 	w, err := c.windowLocked(ctx, generation)
 	if err != nil {
 		return Result{}, err
+	}
+	if w.frameMapping {
+		if err := c.releaseFrameMapping(w); err != nil {
+			return Result{}, err
+		}
+		return Result{}, errors.New("frame-mapped menu grant has no blitter")
 	}
 	if w.heap == nil {
 		return Result{}, errors.New("menu grant has no blitter")
