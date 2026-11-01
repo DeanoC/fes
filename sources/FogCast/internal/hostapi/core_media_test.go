@@ -319,6 +319,33 @@ func TestLauncherAdmitsCoreMediaSelection(t *testing.T) {
 	}
 }
 
+func TestLauncherAdmitsCoreMediaName(t *testing.T) {
+	s := &coreMediaAPIService{}
+	handler, err := hostapi.NewLauncherHandler(hostapi.New(s), hostapi.LauncherConfig{Token: launcherToken, TargetID: launcherID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg, media := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	body := `{"expected_package_id":"` + pkg + `","media_id":"` + media + `","media_name":"MAZE.P"}`
+	req := launcherRequest(http.MethodPut, "http://192.0.2.1:8789/api/v1/library/core-entries/fpga-zx81/media-name", strings.NewReader(body))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	if response.Code != http.StatusOK || s.calls != 1 || !reflect.DeepEqual(s.args, []string{"fpga-zx81", pkg, media, "MAZE.P"}) {
+		t.Fatalf("name status=%d calls=%d args=%v body=%s", response.Code, s.calls, s.args, response.Body)
+	}
+	for _, path := range []string{
+		"/api/v1/library/core-entries/Nope/media-name",
+		"/api/v1/library/core-entries/fpga-zx81/media-name/extra",
+	} {
+		req := launcherRequest(http.MethodPut, "http://192.0.2.1:8789"+path, strings.NewReader(body))
+		out := httptest.NewRecorder()
+		handler.ServeHTTP(out, req)
+		if out.Code != http.StatusNotFound || s.calls != 1 {
+			t.Fatalf("%s: status=%d calls=%d body=%s", path, out.Code, s.calls, out.Body)
+		}
+	}
+}
+
 func TestCoreEntryMediaNameRoute(t *testing.T) {
 	pkg, id := strings.Repeat("a", 64), strings.Repeat("b", 64)
 	path := "/api/v1/library/core-entries/test-zx81/media-name"

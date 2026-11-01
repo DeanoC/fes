@@ -15,6 +15,10 @@ func TestLauncherCoreEntryMediaSelectionPath(t *testing.T) {
 		{http.MethodPut, "/api/v1/library/core-entries/fpga-zx81/media/extra", false},
 		{http.MethodPut, "/api/v1/library/core-entries/fpga-zx81/media/", false},
 		{http.MethodGet, "/api/v1/library/core-entries/fpga-zx81/media", false},
+		{http.MethodPut, "/api/v1/library/core-entries/fpga-zx81/media-name", true},
+		{http.MethodPut, "/api/v1/library/core-entries/Nope/media-name", false},
+		{http.MethodPut, "/api/v1/library/core-entries/fpga-zx81/media-name/extra", false},
+		{http.MethodGet, "/api/v1/library/core-entries/fpga-zx81/media-name", false},
 	} {
 		if got := launcherOperation(tc.method, tc.path); got != tc.allowed {
 			t.Errorf("%s %s: got %v, want %v", tc.method, tc.path, got, tc.allowed)
