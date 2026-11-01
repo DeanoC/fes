@@ -222,15 +222,20 @@ def verify_rootfs(directory, additions):
 
 
 def prepare_boot(base, candidate, output, epoch):
+    return prepare_kernel_boot(base / 'vendor-boot', candidate, output, epoch)
+
+
+def prepare_kernel_boot(vendor_boot, candidate, output, epoch, *, vendor=None):
+    """Verify the kernel/DTB replacement while preserving the boot dependencies."""
     tree = output / 'boot'
-    shutil.copytree(base / 'vendor-boot', tree)
+    shutil.copytree(vendor_boot, tree)
     for source, name in [('Image', 'Image'), ('de25-owner.dtb', 'socfpga_agilex5_de25_nano.dtb')]:
         (tree / name).chmod(0o644)
         shutil.copyfile(candidate / source, tree / name)
         os.utime(tree / name, (epoch, epoch))
     prefix = tree / 'vendor-boot-prefix.bin'
     prefix.chmod(0o644)
-    vendor = boot.load_lock()
+    vendor = boot.load_lock() if vendor is None else vendor
     offset = vendor['partitions'][0]['start_sector'] * 512
     device = str(prefix) + '@@' + str(offset)
     for name in ['Image', 'socfpga_agilex5_de25_nano.dtb']:

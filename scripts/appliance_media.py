@@ -26,7 +26,10 @@ except ImportError:
 PROFILE='native-integration-dev'
 RECIPE_FILES=('scripts/appliance.py','scripts/appliance_inside.py','scripts/appliance_media.py','scripts/appliance_media_inside.py',
     'scripts/media.py','scripts/media_inputs.py','scripts/media_uboot.py','scripts/media_inside.py','scripts/media_container.py','scripts/platform.py','scripts/prepare_launcher.py',
-    'boot-media.lock.toml','containers/boot-media/Dockerfile','containers/boot-media/create-builder-user.sh','containers/boot-media/packages.sha256')
+    'boot-media.lock.toml','containers/boot-media/Dockerfile','containers/boot-media/create-builder-user.sh','containers/boot-media/packages.sha256',
+    'image/de25-nano/managed_media.py','image/de25-nano/boot.py','image/de25-nano/vendor.lock.toml',
+    'scripts/de25_owner_image.py','scripts/de25_boot_contract.py','scripts/de25_kernel_platform.py','scripts/de25_kernel_test.py',
+    'image/kernel/de25-platform/source.json','image/kernel/de25-dma/linux.lock.toml')
 
 
 @dataclass(frozen=True)
@@ -164,13 +167,18 @@ def prepare(root,profile,release_directory,bootstrap_directory,scratch,*,agent_c
     return inputs,bindings,runner,lock
 
 
-def reconstruct(scratch,inputs,bindings,runner):
+def reconstruct(scratch,inputs,bindings,runner,*,board=appliance.BOARD):
+    appliance.selected_board(board)
+    if bindings.get('board',board)!=board:
+        raise ValueError('card bindings differ from selected board')
     arguments={name:runner.path(path) if path is not None else None for name,path in asdict(inputs).items()}
     specification=scratch/'inputs.json';specification.write_bytes(appliance.canonical(arguments));specification.chmod(0o600)
     results=[]
     for name in ('first.img','second.img'):
-        results.append(json.loads(runner.disk(['python3','/work/scripts/appliance_media_inside.py','assemble',
-            '--output',runner.path(scratch/name),'--inputs',runner.path(specification)])))
+        command=['python3','/work/scripts/appliance_media_inside.py','assemble',
+            '--output',runner.path(scratch/name),'--inputs',runner.path(specification)]
+        if board!=appliance.BOARD:command+=['--board',board]
+        results.append(json.loads(runner.disk(command)))
     if results[0]!=results[1]:raise ValueError('independent appliance card assembly results differ')
     compare_card(scratch/'first.img',scratch/'second.img')
     if digest(scratch/'first.img')!=results[0]['image_sha256']:raise ValueError('card assembly evidence differs from bytes')
@@ -178,6 +186,8 @@ def reconstruct(scratch,inputs,bindings,runner):
         'layout_id':results[0]['layout_id'],'geometry':results[0]['geometry'],
         'assembly_sha256':[results[0]['image_sha256'],results[1]['image_sha256']],
         'checks':{'structural':'pass','two_pass_reproducibility':'pass'},'owned_paths':results[0]['paths']}
+    if board!=appliance.BOARD:
+        evidence.update(board=board,boot_contract=results[0]['boot_contract'])
     evidence_path=scratch/'evidence.json';evidence_path.write_bytes(appliance.canonical(evidence));evidence_path.chmod(0o600)
     return scratch/'first.img',evidence_path
 
