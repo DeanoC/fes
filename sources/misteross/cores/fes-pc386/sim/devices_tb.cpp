@@ -490,6 +490,25 @@ void kbc(Bench &b) {
     bool leds = typematic_ok(repeat_times(4), 500, 1000.0 / 240 * 22, led_detail);
     check("an ED LED byte does not change the typematic setting", leds, led_detail);
 
+    // Keep A's make unread in the 8042 while its repeat and break queue in
+    // the keyboard FIFO. Typematic must stop when that break is projected,
+    // or a later repeat will be delivered after the break.
+    b.key(0x04, true);
+    bool unread_make = b.output_within(300000);
+    b.run(55000000);
+    b.key(0x04, false);
+    b.run(30000000);
+    std::vector<uint8_t> unread_release = b.drain();
+    auto break_at = std::find(unread_release.begin(), unread_release.end(), uint8_t(0x9e));
+    bool repeat_before_break = break_at != unread_release.end() &&
+        std::find(unread_release.begin() + 1, break_at, uint8_t(0x1e)) != break_at;
+    bool no_repeat_after_break = break_at != unread_release.end() &&
+        std::find(break_at + 1, unread_release.end(), uint8_t(0x1e)) == unread_release.end();
+    check("typematic stops when a break is queued behind unread 8042 data",
+          unread_make && !unread_release.empty() && unread_release.front() == 0x1e &&
+              repeat_before_break && no_repeat_after_break,
+          hex_bytes(unread_release));
+
     // F5 stops scanning and F6 starts it again, as Bochs's keyboard has them.
     auto first = [](const std::vector<uint8_t> &bytes) { return bytes.empty() ? 0 : int(bytes[0]); };
     b.key(0x04, true);

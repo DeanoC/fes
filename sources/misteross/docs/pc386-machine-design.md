@@ -437,7 +437,9 @@ inside the 8042 ahead of its PS/2 keyboard):
   the repeat, as they clear a keyboard's typematic key. As in Bochs's keyboard,
   F5 and F6 also empty the keyboard's output buffer, and F6 enables scanning
   where F5 disables it. The delay counts from
-  the end of the press's make. Modifiers neither repeat nor stop another key's
+  the end of the press's make. A release stops its repeat as soon as the break
+  is projected into the keyboard FIFO, before it can be queued behind an unread
+  8042 output byte. Modifiers neither repeat nor stop another key's
   repeat (a PS/2 keyboard repeats a held Shift itself; nothing reads it). Pause
   does not stop another key's repeat. A repeat that falls due while the
   keyboard's FIFO is full is sent once, not queued.

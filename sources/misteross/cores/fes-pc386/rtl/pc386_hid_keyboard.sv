@@ -191,7 +191,12 @@ module pc386_hid_keyboard (
     reg repeating, waiting_delay, repeat_due;
     reg [7:0] repeat_bit;
     reg [21:0] elapsed;
-    wire repeat_start = key_scanning && !key_valid && !diffing && !take && repeat_due;
+    // Stop against the projected state as soon as a break has entered the
+    // keyboard FIFO. The 8042 may still have an unread byte in its output
+    // buffer, so waiting for key_complete could queue a make behind that break.
+    wire repeat_key_held = stable[repeat_bit] && queued[repeat_bit];
+    wire repeat_cancel = repeating && !repeat_key_held;
+    wire repeat_start = key_scanning && repeat_key_held && !key_valid && !diffing && !take && repeat_due;
     wire pressed = key_complete && !complete_repeat && complete_make && !complete_bit[7] && complete_bit != 8'h48;
     wire released = key_complete && !complete_repeat && !complete_make && complete_bit == repeat_bit;
     wire [21:0] limit = waiting_delay ? delay_thirds(typematic[6:5]) : period_thirds(typematic[4:0]);
@@ -268,7 +273,7 @@ module pc386_hid_keyboard (
     // Typematic timing, from the end of the press's make. A stop wins over a
     // new press, which wins over the timer.
     always @(posedge clk) begin
-        if (reset || typematic_clear || released) begin
+        if (reset || typematic_clear || released || repeat_cancel) begin
             repeating <= 0; repeat_due <= 0;
             if (reset) begin waiting_delay <= 0; repeat_bit <= 0; elapsed <= 0; end
         end else if (pressed) begin

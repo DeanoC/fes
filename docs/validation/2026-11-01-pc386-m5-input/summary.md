@@ -402,3 +402,11 @@ on the PR branch, without merging main.
 - No kit was touched under this task's restriction. The old Kit B package and
   run remain historical, so current-head exact-artifact HIL is still open and
   must pass before the PR's hardware gate is satisfied.
+
+## Released-key typematic follow-up
+
+The simulation results and Quartus seal above predate the follow-up RTL fix
+that stops typematic as soon as a key's break is projected into the keyboard
+FIFO. The earlier Kit B package also does not contain this fix. This updated
+RTL needs a fresh seal and exact-artifact HIL on the new PR head; neither is
+claimed here.
