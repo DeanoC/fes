@@ -9,7 +9,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -401,10 +404,11 @@ func (s *Store) SelectCoreEntryMedia(ctx context.Context, gameID, expectedPackag
 			return CoreEntry{}, err
 		}
 	}
-	// A geometry override belongs to its image: selecting the same image
-	// again keeps it, and any other selection clears it.
+	// A geometry override and a recorded name belong to their image:
+	// selecting the same image again keeps them, and any other selection
+	// clears them.
 	same := mediaRole == entry.MediaRole && mediaID == entry.MediaID
-	update := `UPDATE core_entries SET media_role = ?, media_id = ?,
+	update := `UPDATE core_entries SET media_role = ?, media_id = ?, media_name = '',
 		disk_cylinders = 0, disk_heads = 0, disk_sectors = 0 WHERE game_id = ? AND package_id = ? AND media_id = ?`
 	if same {
 		update = `UPDATE core_entries SET media_role = ?, media_id = ? WHERE game_id = ? AND package_id = ? AND media_id = ?`
@@ -425,7 +429,54 @@ func (s *Store) SelectCoreEntryMedia(ctx context.Context, gameID, expectedPackag
 	}
 	entry.MediaRole, entry.MediaID = mediaRole, mediaID
 	if !same {
+		entry.MediaName = ""
 		entry.DiskGeometry = nil
 	}
 	return entry, nil
+}
+
+// SetCoreEntryMediaName records the basename the entry's selected cassette
+// was imported under. It writes only while the package and media IDs still
+// match the caller's selection. The name is display text and never a path.
+func (s *Store) SetCoreEntryMediaName(ctx context.Context, gameID, expectedPackageID, mediaID, name string) (CoreEntry, error) {
+	if protocol.ValidateGameID(gameID) != nil || protocol.ValidateDigest(expectedPackageID) != nil || protocol.ValidateDigest(mediaID) != nil {
+		return CoreEntry{}, fmt.Errorf("%w: invalid media name identity", ErrInvalidCoreEntry)
+	}
+	if !AdmitCoreEntryMediaName(name) {
+		return CoreEntry{}, fmt.Errorf("%w: invalid media name", ErrInvalidCoreMedia)
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return CoreEntry{}, fmt.Errorf("begin core entry media name: %w", err)
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `UPDATE core_entries SET media_name = ? WHERE game_id = ? AND package_id = ? AND media_id = ?`, name, gameID, expectedPackageID, mediaID)
+	if err != nil {
+		return CoreEntry{}, fmt.Errorf("update core entry media name: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return CoreEntry{}, fmt.Errorf("count core entry media name: %w", err)
+	}
+	if changed != 1 {
+		if _, err := scanCoreEntry(tx.QueryRowContext(ctx, coreEntrySelect+` WHERE e.game_id = ?`, gameID).Scan); errors.Is(err, sql.ErrNoRows) {
+			return CoreEntry{}, ErrCoreEntryNotFound
+		}
+		return CoreEntry{}, ErrCoreEntryConflict
+	}
+	entry, err := scanCoreEntry(tx.QueryRowContext(ctx, coreEntrySelect+` WHERE e.game_id = ?`, gameID).Scan)
+	if err != nil {
+		return CoreEntry{}, fmt.Errorf("read core entry media name: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return CoreEntry{}, fmt.Errorf("commit core entry media name: %w", err)
+	}
+	return entry, nil
+}
+
+// AdmitCoreEntryMediaName accepts the cassette basenames a ZX81-family
+// import admits: .p / .P, or .o / .O for the ZX80.
+func AdmitCoreEntryMediaName(name string) bool {
+	return len(name) <= 255 && utf8.ValidString(name) && !strings.ContainsFunc(name, unicode.IsControl) &&
+		(protocol.AdmitTapeMediaName(name) || protocol.AdmitZx80TapeMediaName(name))
 }

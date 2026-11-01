@@ -249,6 +249,7 @@ fields. No API response exposes the archive's private filesystem location.
 | `GET /api/v1/library/core-entries/{game_id}` | `{game_id,title,core_id,package_id}`, plus `media_role,media_id` when selected |
 | `PUT /api/v1/library/core-entries/{game_id}` | `{"package_id":"...","expected_package_id":"..."}`; returns entry |
 | `PUT /api/v1/library/core-entries/{game_id}/media` | `{"expected_package_id":"...","expected_media_id":"","media_role":"blob","media_id":"..."}` (`media_role` is `blob` or, for `fes.computer` disks, `disk`); both expected fields required; empty new role/ID clears |
+| `PUT /api/v1/library/core-entries/{game_id}/media-name` | `{"expected_package_id":"...","media_id":"...","media_name":"GAME.P"}`; records the `.p`/`.o` basename an imported cassette was chosen under, only while that package and media are still selected; any other media selection clears it. `GET /api/v1/library/hardware` shows it as `media_name` for an imported cassette |
 | `GET /api/v1/library/core-entries/{game_id}/expansions` | Multi-socket shell slot cards: `{game_id,package_id,bus,map,sockets,expansions:[{slot,expansion_id,ready}],ready}` |
 | `PUT /api/v1/library/core-entries/{game_id}/expansions/{slot}` | `{"package_id":"...","expected_expansion_id":"","expansion_id":"..."}`; compare-and-swap on one physical slot; empty `expansion_id` clears |
 | `POST /api/v1/session/launch` | Existing `{"game_id":"..."}` request |
