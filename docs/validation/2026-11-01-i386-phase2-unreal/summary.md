@@ -43,7 +43,8 @@ need #1335 and #1363 on main and stay with #1369
   which adds two counters to the machine bench and changes no RTL. The
   netlist lockstep and a data-point seal are at `309d87186`, whose i386 and
   pc386 sources differ from `c4a1c23a4` only in three comments. Later
-  commits change only this record.
+  commits add this record or merge main `e06789cd7` (#1365 and #1359, no
+  misteross source).
 - Oracle: Bochs 3.1 at CPU level 3 (the `fes-i386-oracle` build), corpus
   SingleStepTests/80386 `459d49fbe628`, test386.asm `cfd052d1e64d`.
 - Verilator 5.032 on Powerboat. The netlist lockstep used the i386 lock's
