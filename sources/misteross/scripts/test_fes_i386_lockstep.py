@@ -119,6 +119,10 @@ SCOPE: frozenset[str] = frozenset([
     '27', '2F', '37', '3F',
     # CLTS and WAIT.
     '0F06', '9B',
+    # Phase 2: group 7 (SGDT, SIDT, LGDT, LIDT, SMSW, LMSW) and MOV to and
+    # from CR0, CR2 and CR3. The corpus has none; the random programs and
+    # the protected-mode cases run them.
+    '0F01', '0F20', '0F22',
 ])
 
 

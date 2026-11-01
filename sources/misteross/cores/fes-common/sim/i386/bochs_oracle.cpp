@@ -345,6 +345,7 @@ public:
         state.gdtr = {Bit32u(bx_cpu.gdtr.base), bx_cpu.gdtr.limit};
         state.idtr = {Bit32u(bx_cpu.idtr.base), bx_cpu.idtr.limit};
         state.cr0 = bx_cpu.cr0.get32();
+        state.cpl = uint8_t(bx_cpu.sregs[BX_SEG_REG_CS].selector.rpl);
         state.cr2 = Bit32u(bx_cpu.cr2);
         state.cr3 = Bit32u(bx_cpu.cr3);
         for (int n = 0; n < 4; ++n) state.dr[n] = Bit32u(bx_cpu.dr[n]);
@@ -369,6 +370,13 @@ public:
         bx_cpu.idtr.base = state.idtr.base;
         bx_cpu.idtr.limit = state.idtr.limit;
         for (int n = 0; n < SEG_COUNT; ++n) write_segment(bx_cpu.sregs[n], state.seg[n]);
+        // In real mode a selector's RPL is 0, as Bochs's own real-mode loads
+        // leave it. Bochs keeps CPL as CS's RPL, which protected-mode entry
+        // leaves at 0 whatever CS's selector: state.cpl.
+        if (!(state.cr0 & 1))
+            for (int n = 0; n < SEG_COUNT; ++n) bx_cpu.sregs[n].selector.rpl = 0;
+        else
+            bx_cpu.sregs[BX_SEG_REG_CS].selector.rpl = state.cpl & 3;
         write_segment(bx_cpu.ldtr, state.ldtr);
         write_segment(bx_cpu.tr, state.tr);
         bx_cpu.activity_state = BX_CPU_C::BX_ACTIVITY_STATE_ACTIVE;

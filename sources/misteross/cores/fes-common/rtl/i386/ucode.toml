@@ -15,6 +15,26 @@
 # DC's first uop carries in src1, and rm = true addresses the instruction's
 # ModRM operand. bound = true makes a CMP BOUND's check: #BR (vector 5) when
 # src1's value is below src2's, signed; it writes no flags.
+# b = "far" takes src2's value from the far pointer's selector (JMP ptr's),
+# "t1" from T1, "sys" from the system register sys names. plus2 = true
+# addresses the ModRM operand plus 2, wrapped by address size. d also names
+# T2 and T3, and "reg", the instruction's register.
+#
+# Protected mode (fes_i386_cpu, "Protected mode"). desc = "lo" or "hi" reads
+# the low or high dword of the descriptor T0's selector names, at GDTR's
+# base plus the selector's index times 8: "lo" checks the index against
+# GDTR's limit (#GP(selector)), and for a null selector D drops both reads. A
+# TI=1 selector names the LDT, which LLDT (not built) leaves at its reset
+# base 0 and limit FFFFh. desc = "acc" stores the
+# descriptor's access byte with the accessed bit set, which D drops when the
+# bit is set already or the selector is null; its uop's segchk raises the
+# descriptor's checks first (M1): "data" for DS, ES, FS and GS (SS when the
+# instruction loads SS), "cs" for a far jump, each #GP, #NP or #SS with the
+# selector, or #GP(0) for a null SS or CS or a jump past the new limit. segw
+# = true writes the instruction's segment register (the far jump's: CS)
+# from the descriptor at WB; shadow = true, on the uop that ends a MOV SS or
+# POP SS, starts the interrupt shadow. nochk = true makes POP's step of ESP
+# an access of nothing, checked against nothing.
 
 # PUSHA and PUSHAD. Each register goes to its own slot below ESP, from the
 # lowest address up, as the 386EX stores them, and ESP moves only at the
@@ -113,4 +133,126 @@ name = "bound"
 uops = [
     { cls = "alu", op = "cmp", s1 = "reg", mkind = "load", rm = true, bound = true },
     { cls = "alu", op = "cmp", a = "t1", s2 = "reg", bound = true },
+]
+
+# MOV CRn, r32 and LMSW: DC puts the source in T1; the write, at WB, jumps
+# to the next instruction, so every instruction after it decodes and reads
+# CR0 anew. D raises #GP(0) for a CR0 with PG set and PE clear, and stops a
+# CR0 with both set as not built: paging is not.
+[[routine]]
+name = "wcr0"
+uops = [
+    { cls = "system", op = "cr0", b = "t1" },
+]
+
+[[routine]]
+name = "wcr2"
+uops = [
+    { cls = "system", op = "cr2", b = "t1" },
+]
+
+[[routine]]
+name = "wcr3"
+uops = [
+    { cls = "system", op = "cr3", b = "t1" },
+]
+
+[[routine]]
+name = "lmsw"
+uops = [
+    { cls = "system", op = "lmsw", b = "t1" },
+]
+
+# LGDT and LIDT: DC loads the limit's word into T0; the base's dword, 2
+# bytes on, goes into T1, and the table register takes both, its base's top
+# byte cleared at a 16-bit operand size, with a jump to the next
+# instruction. Both reads check their limits before the write.
+[[routine]]
+name = "lgdt"
+uops = [
+    { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", mbytes = "4", rm = true, plus2 = true },
+    { cls = "system", op = "gdtr", b = "t1" },
+]
+
+[[routine]]
+name = "lidt"
+uops = [
+    { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", mbytes = "4", rm = true, plus2 = true },
+    { cls = "system", op = "idtr", b = "t1" },
+]
+
+# SGDT and SIDT: DC stores the limit's word; the base's dword goes 2 bytes
+# on, all 32 bits whatever the operand size, as Bochs stores it.
+[[routine]]
+name = "sgdt"
+uops = [
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, plus2 = true, b = "sys", sys = "gdtb" },
+]
+
+[[routine]]
+name = "sidt"
+uops = [
+    { cls = "alu", op = "mov", size = "32", mkind = "store", mbytes = "4", in_a = true, rm = true, plus2 = true, b = "sys", sys = "idtb" },
+]
+
+# MOV Sreg, r/m16 in protected mode: DC puts the selector in T0. The
+# descriptor's dwords into T2 and T3, then its checks, the accessed bit and
+# the segment's write.
+[[routine]]
+name = "pseg"
+uops = [
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "data", segw = true, shadow = true },
+]
+
+# POP Sreg in protected mode: DC reads the selector's word at SS:ESP into T0,
+# ESP unmoved. After the load, ESP steps by the operand size, at the width
+# of the SS the load leaves, as Bochs steps it.
+[[routine]]
+name = "ppop"
+uops = [
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "data", segw = true },
+    { cls = "alu", op = "mov", mkind = "load", stk = "pop", nochk = true, shadow = true },
+]
+
+# LES, LDS, LSS, LFS and LGS in protected mode: DC loads the selector, past
+# the offset by the operand size, into T0. The offset into T1, the
+# segment's load, then the register from T1.
+[[routine]]
+name = "plptr"
+uops = [
+    { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", rm = true },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "data", segw = true },
+    { cls = "alu", op = "mov", s1 = "reg", d = "reg", b = "t1" },
+]
+
+# A far JMP in protected mode, at CPL 0 to a code segment (no gates): JMP
+# ptr's offset is in T1 (DC) and its selector goes into T0; JMP m16:16/32's
+# selector is in T0 (DC) and its offset goes into T1. The descriptor's
+# dwords, its checks with the offset's against the new limit and the
+# accessed bit, then the jump, which writes CS from the descriptor, its
+# selector's RPL 0.
+[[routine]]
+name = "pjmp"
+uops = [
+    { cls = "alu", op = "mov", d = "t0", size = "32", b = "far" },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "cs" },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true },
+]
+
+[[routine]]
+name = "pjmpm"
+uops = [
+    { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", rm = true },
+    { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
+    { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
+    { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "cs" },
+    { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true },
 ]

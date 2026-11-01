@@ -365,6 +365,12 @@ public:
         top.init_eflags = s.eflags;
         top.init_eip = s.eip;
         top.init_cr0 = s.cr0;
+        top.init_cr2 = s.cr2;
+        top.init_cr3 = s.cr3;
+        top.init_gdtr_base = s.gdtr.base;
+        top.init_gdtr_limit = s.gdtr.limit;
+        top.init_idtr_base = s.idtr.base;
+        top.init_idtr_limit = s.idtr.limit;
         for (int n = 0; n < 6; ++n) {
             set16(top.init_sel, n, s.seg[n].selector);
             top.init_base[n] = s.seg[n].base;
@@ -596,13 +602,20 @@ public:
         State s;
         for (int n = 0; n < 8; ++n) s.gpr[n] = top.arch_gpr[n];
         s.eflags = top.arch_eflags & EFLAGS_MASK;
-        s.cr0 = (s.cr0 & ~0xau) | (top.arch_cr0 & 0xau);
+        s.cr0 = top.arch_cr0;
+        s.cr2 = top.arch_cr2;
+        s.cr3 = top.arch_cr3;
+        s.gdtr = {top.arch_gdtr_base, uint16_t(top.arch_gdtr_limit)};
+        s.idtr = {top.arch_idtr_base, uint16_t(top.arch_idtr_limit)};
         s.eip = top.arch_eip;
         for (int n = 0; n < 6; ++n) {
             s.seg[n].selector = get16(top.arch_sel, n);
             s.seg[n].base = top.arch_base[n];
             s.seg[n].limit = top.arch_limit[n];
             s.seg[n].ar = get16(top.arch_ar, n);
+            // Bochs's cache is invalid only after a null selector's load,
+            // which leaves P clear.
+            s.seg[n].valid = (s.seg[n].ar & 0x80) != 0;
         }
         return s;
     }
@@ -987,10 +1000,24 @@ void set_window(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, bool on) {
 // Code at linear address a stays 16 bytes clear of the window.
 bool clear_of_window(uint32_t a) { return a + 16 <= MMIO_LO || a >= window_top() + 16; }
 
+// The CR0 bits the CPU holds and Bochs agrees on: PE, MP, EM, TS and PG.
+// Bochs's 387 forces ET (a known limit), and the bits Bochs's 386 reads as
+// ones are left as a state loads them (the corpus's 386EX reads bit 16 as 0).
+constexpr uint32_t CR0_MASK = 0x8000000fu;
+
 // RTL against the oracle, leaving out skip's fields.
 void compare(const State &want, const State &got, const Fields &skip, const std::string &at, Mismatches &out) {
     if (skip.all) return;
     if (!skip.has("eip") && want.eip != got.eip) out.add(at + "eip", want.eip, got.eip);
+    if ((want.cr0 ^ got.cr0) & CR0_MASK) out.add(at + "cr0", want.cr0 & CR0_MASK, got.cr0 & CR0_MASK);
+    // The RTL runs at CPL 0 (its state's cpl): no privilege transition is built.
+    if ((want.cr0 & 1) && want.cpl != got.cpl) out.add(at + "cpl", want.cpl, got.cpl);
+    if (want.cr2 != got.cr2) out.add(at + "cr2", want.cr2, got.cr2);
+    if (want.cr3 != got.cr3) out.add(at + "cr3", want.cr3, got.cr3);
+    if (want.gdtr.base != got.gdtr.base || want.gdtr.limit != got.gdtr.limit)
+        out.add(at + "gdtr", uint64_t(want.gdtr.base) << 16 | want.gdtr.limit, uint64_t(got.gdtr.base) << 16 | got.gdtr.limit);
+    if (want.idtr.base != got.idtr.base || want.idtr.limit != got.idtr.limit)
+        out.add(at + "idtr", uint64_t(want.idtr.base) << 16 | want.idtr.limit, uint64_t(got.idtr.base) << 16 | got.idtr.limit);
     for (int n = 0; n < 8; ++n)
         if (!skip.has(GPR_NAMES[n]) && want.gpr[n] != got.gpr[n]) out.add(at + GPR_NAMES[n], want.gpr[n], got.gpr[n]);
     const uint32_t mask = EFLAGS_MASK & ~skip.eflags;
@@ -1077,6 +1104,12 @@ struct Summary {
     uint64_t window_code = 0;     // runs stopped at code in the MMIO window
     uint64_t code_stores = 0;     // runs stopped at a store into their code that they did not plan
     uint64_t stray = 0;           // ... at code outside the program, or TF set (mixed memory)
+    // Protected mode: retirements with PE set; runs stopped at an exception
+    // or interrupt there (whose delivery through the IDT is not built), by
+    // vector (256: INTR); real-mode CS loads where the oracle took the RTL's
+    // 386 values (the known limit).
+    uint64_t pm_retirements = 0, cs_rule = 0;
+    std::map<int, uint64_t> pm_stops;
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -1314,6 +1347,7 @@ struct Outcome {
     // leads to is then anything.
     bool stray = false;
     int interrupt = -1;    // the last software interrupt both sides took (INT n, INT3, INTO)
+    bool pm_stop = false;  // stopped at an exception or interrupt in protected mode (trace_pm_stop)
     std::string code;      // the last instruction's first bytes, for a failure's line
 };
 
@@ -1371,7 +1405,11 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             if (wake) irq->intr_next = true;
             else irq->intr_at = 0;
         }
-        const bool nmi = !wake && !irq->nmi_last && (*irq->random)() % (edge ? 8 : 256) == 0;
+        // No NMI in protected mode, where it would stop the RTL (its
+        // delivery through the IDT is not built): a run stops there only on
+        // its own instructions.
+        const bool nmi = !wake && !irq->nmi_last && !(oracle.get_state().cr0 & 1)
+                      && (*irq->random)() % (edge ? 8 : 256) == 0;
         if (nmi) {
             rtl.pic.nmi = true;
             irq->nmi_at = 0;
@@ -1417,10 +1455,16 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         outcome.code.clear();
         for (int i = 0; i < 12; ++i) outcome.code += (i ? " " : "") + hex(code[i] | 0x100).substr(1);
         if (std::getenv("FES_I386_VERBOSE"))
-            std::fprintf(stderr, "step %llu eip %x [%s] esp %x ebp %x ss.base %x\n", (unsigned long long)step,
+            std::fprintf(stderr, "step %llu eip %x [%s] esp %x ebp %x ss.base %x cr0 %x gdtr %x/%x\n", (unsigned long long)step,
                          before.eip, outcome.code.c_str(), before.gpr[fes_i386::REG_ESP], before.gpr[fes_i386::REG_EBP],
-                         before.seg[fes_i386::SEG_SS].base);
+                         before.seg[fes_i386::SEG_SS].base, before.cr0, before.gdtr.base, before.gdtr.limit);
         const bool code32 = before.seg[fes_i386::SEG_CS].ar & 0x4000;
+        if (const char *dump = std::getenv("FES_I386_DUMP")) {
+            const uint32_t a = uint32_t(std::strtoul(dump, nullptr, 16));
+            std::fprintf(stderr, "  dump %x:", a);
+            for (uint32_t i = 0; i < 8; ++i) std::fprintf(stderr, " %02x", a + i < RAM_BYTES ? bus.ram[a + i] : 0);
+            std::fprintf(stderr, "  cs.sel %x cs.ar %x cs.limit %x rtl.cs %x/%x/%x\n", before.seg[fes_i386::SEG_CS].selector, before.seg[fes_i386::SEG_CS].ar, before.seg[fes_i386::SEG_CS].limit, rtl.state().seg[1].selector, rtl.state().seg[1].ar, rtl.state().seg[1].limit);
+        }
 
         if (irq) {
             if (irq->intr_next) {
@@ -1486,6 +1530,9 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                          irq->intr_at, irq->nmi_at, intr_plan, nmi_plan);
         const Rtl::Event event = rtl.next(watch);
         if (verbose && irq) std::fprintf(stderr, "  rtl raised at %d %d\n", irq->intr_at, irq->nmi_at);
+        if (verbose)
+            std::fprintf(stderr, "  rtl event %d vector %x pm %d error %x\n", int(event), unsigned(rtl.top.trace_vector),
+                         int(rtl.top.trace_pm_stop), unsigned(rtl.top.trace_error));
 
         // The oracle raises each line the RTL raised as element m retired
         // after its iteration m + 1; one the step does not reach, before its
@@ -1524,7 +1571,8 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         if (verbose)
             for (const auto &e : result.events)
-                std::fprintf(stderr, "  event %d vector %x writes_before %u\n", int(e.kind), e.vector, e.writes_before);
+                std::fprintf(stderr, "  event %d vector %x error %x writes_before %u\n", int(e.kind), e.vector,
+                             e.error_code, e.writes_before);
         if (irq && !bus.pic.intr) oracle.set_intr(false);  // its INTA dropped it
         const std::string at = "@" + hex(before.eip) + ".";
         // Under queue16 an instruction may run bytes from before a store.
@@ -1578,6 +1626,42 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             return outcome;
         }
         const bool delivered = event == Rtl::Event::Retired && rtl.top.trace_exception;
+        // Protected mode: an exception or interrupt there stops the RTL with
+        // nothing of the instruction retired (trace_pm_stop), its delivery
+        // through the IDT not built. The oracle's first event must be the
+        // same exception with the same error code, or an NMI (the RTL's
+        // vector 2) or an INTR (FFh). Whatever the oracle's delivery then does
+        // (the IDT is the real-mode one, so usually a double fault and a
+        // shutdown) is not compared.
+        if (event == Rtl::Event::Unimplemented && rtl.top.trace_pm_stop) {
+            const fes_i386::Event *first = result.events.empty() ? nullptr : &result.events[0];
+            const unsigned got = rtl.top.trace_vector;
+            if (!first) {
+                out.add(at + "pm-stop", 0x100, got);
+            } else if (first->kind == fes_i386::EventKind::Exception) {
+                if (first->vector != got) out.add(at + "pm-vector", first->vector, got);
+                if (first->error_code != rtl.top.trace_error)
+                    out.add(at + "pm-error-code", first->error_code, rtl.top.trace_error);
+            } else if (first->kind == fes_i386::EventKind::Nmi) {
+                if (got != 2) out.add(at + "pm-nmi", 2, got);
+            } else if (first->kind == fes_i386::EventKind::ExternalInterrupt) {
+                if (got != 0xff) out.add(at + "pm-intr", 0xff, got);
+            } else {
+                out.add(at + "pm-software-interrupt", first->vector, got);
+            }
+            // Nothing of the instruction stands but what it wrote before its
+            // fault, which the oracle wrote too (a REP string's elements).
+            const size_t own = first ? first->writes_before : result.writes.size();
+            std::set<uint32_t> own_writes;
+            for (size_t k = 0; k < own && k < result.writes.size(); ++k)
+                for (unsigned i = 0; i < result.writes[k].length; ++i) own_writes.insert(result.writes[k].physical + i);
+            for (uint32_t address : rtl.step_writes)
+                if (!own_writes.count(address)) out.add(at + "pm-fault-write", address, 0);
+            if (own == 0) compare(before, rtl.state(), skip, at, out);
+            ++summary.pm_stops[first && first->kind == fes_i386::EventKind::ExternalInterrupt ? 256 : int(got)];
+            outcome.pm_stop = true;
+            return outcome;
+        }
         if (oracle_exceptions > 1 || result.shutdown) {
             // A fault in an exception's delivery (or in an INT's, then in
             // the exception's): a double fault, then shutdown. The RTL stops
@@ -1813,6 +1897,24 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             out.add(at + "inta", bus.pic.acks | bus.pic.unexpected << 32, rtl.pic.acks | rtl.pic.unexpected << 32);
         State oracle_state = oracle.get_state();
         const State rtl_state = rtl.state();
+        // A real-mode CS load: the RTL sets CS's limit and attributes to the
+        // 386's real-mode values (FFFFh, 93h), where Bochs 3.1 keeps CS's
+        // cache (docs/i386-cpu-design.md, the 386 real-mode CS rule): a known
+        // limit, not a divergence. The oracle takes the RTL's, so both run on
+        // alike.
+        {
+            auto &ocs = oracle_state.seg[fes_i386::SEG_CS];
+            const auto &rcs = rtl_state.seg[fes_i386::SEG_CS];
+            if (!(oracle_state.cr0 & 1) && rcs.limit == 0xffff && rcs.ar == 0x93 && (ocs.limit != 0xffff || ocs.ar != 0x93)
+                && ocs.selector == rcs.selector && ocs.base == rcs.base) {
+                ocs.limit = rcs.limit;
+                ocs.ar = rcs.ar;
+                ocs.valid = true;
+                oracle.set_state(oracle_state);
+                ++summary.cs_rule;
+            }
+        }
+        summary.pm_retirements += (oracle_state.cr0 & 1) != 0;
         compare(oracle_state, rtl_state, skip, at, out);
         hash_state(summary, rtl_state);
         if (!out.items.empty()) return outcome;
@@ -1823,7 +1925,9 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // An entry that leaves every field to the corpus decides whether the
         // RTL halts too: a REP that stores over the HLT after it, which the
         // RTL has fetched, as the 386EX had.
-        if (result.halted || rtl.stopped()) {
+        // An interrupt at the boundary after a protected-mode instruction
+        // stops the RTL there (trace_pm_stop): the next step compares it.
+        if (result.halted || rtl.stopped() && !rtl.top.trace_pm_stop) {
             if (!(result.halted && rtl.stopped()) && !(skip.all && rtl.stopped()))
                 out.add(at + "halt", result.halted, rtl.stopped());
             // A HLT before the program's last, with IF set, wakes on INTR.
@@ -2434,13 +2538,21 @@ public:
         // MOV stores for an indirect one. NEAR_ABS: the target's EIP, which a
         // MOV loads or stores for a CALL r/m, plus target_byte (a store that
         // rewrites the target).
-        enum { NEAR, FAR_PTR, FAR_OFF, FAR_SEL, NEAR_ABS } far = NEAR;
+        // PM_OFF: a protected-mode far transfer's offset at rel_at, the
+        // target's EIP under the program's own CS base, which the code
+        // descriptors take (pm_block); its selector is in the bytes already.
+        enum { NEAR, FAR_PTR, FAR_OFF, FAR_SEL, NEAR_ABS, PM_OFF } far = NEAR;
         unsigned target_byte = 0;
         unsigned rewrites = 0;  // the bytes from there a store rewrites (smc_block)
     };
 
     // The linear addresses the last program's stores rewrite.
     std::set<uint32_t> rewritten;
+    // Protected-mode blocks per hundred items (pm_block), and the memory
+    // the last program's blocks read: its GDT, LGDT's pointer and a scratch
+    // area (image, poked before the run).
+    unsigned pm_weight = 2;
+    std::vector<std::pair<uint32_t, uint8_t>> image;
 
     // base: the program's linear address, which far targets need; eip: its
     // first instruction's EIP, which near absolute targets need.
@@ -2450,6 +2562,7 @@ public:
         cs_moved = false;
         program_base = base;
         program_eip = eip;
+        gdt_table();
         while (items.size() < count) {
             const unsigned kind = pick(100);
             if (kind < 6) forward_branch();
@@ -2469,6 +2582,7 @@ public:
                 items.push_back(Item{{0xf4}, -1, 0, 0});
             } else if (kind < 37) shadow_block();
             else if (kind < 39) smc_block();
+            else if (kind < 39 + pm_weight) pm_block();
             else items.push_back(Item{instruction(false), -1, 0, 0});
         }
         items.push_back(Item{{0xf4}, -1, 0, 0});
@@ -3311,6 +3425,293 @@ private:
     }
     // A CS:IP for a linear address: the selector 2000h below its paragraph,
     // so the offset stays near 8000h and the code after it well inside CS.
+    // ---- Protected mode (pm_block) ------------------------------------------
+    // Each program has a GDT of 16 descriptors at gdt_lin, out of its code's
+    // way: below it at 9F000h, or above it at 3000h. LGDT's pointer follows
+    // at +80h and a scratch area for far pointers and selectors at +90h,
+    // which the block reaches through FS loaded with the flat data segment
+    // (selector 10h) and a 32-bit offset. Descriptors (selector index * 8):
+    //   1 data RW 64K at a random base     9 data, not present
+    //   2 flat data RW, 4 GiB              10 data RW, DPL 1-3
+    //   3 flat data RW, D/B set            11 data RW, random base, limit, G, D/B
+    //   4 data read-only, random limit     12 a system descriptor, random type
+    //   5 data RW expand-down              13 data RW 64K at 0 (a stack)
+    //   6 code RX 16-bit at the program's CS base, 64K
+    //   7 code execute-only, the same      14 code RX 16-bit, the same, 4 GiB
+    //   8 code conforming, DPL mostly 0    15 eight random bytes
+    // Accessed bits at random, so loads write them now and then.
+    uint32_t gdt_lin = 0;
+    uint16_t gdt_limit = 0;
+    struct Desc { uint32_t base, limit; bool g, db; uint8_t ar; };  // ar: P DPL S type
+    std::array<Desc, 16> gdt{};
+    static uint64_t desc_bytes(const Desc &d) {
+        const uint64_t lo = (d.limit & 0xffff) | (uint64_t(d.base & 0xffff) << 16);
+        const uint64_t hi = ((d.base >> 16) & 0xff) | (uint64_t(d.ar) << 8) | (uint64_t((d.limit >> 16) & 0xf) << 16)
+                          | (uint64_t(d.db) << 22) | (uint64_t(d.g) << 23) | (uint64_t(d.base >> 24) << 24);
+        return lo | hi << 32;
+    }
+    void gdt_table() {
+        image.clear();
+        gdt_lin = program_base < 0x80000 ? 0x9f000 : 0x3000;
+        const uint32_t cs_base = program_base - program_eip;
+        auto acc = [&]() { return uint8_t(pick(2)); };
+        auto rnd_base = [&]() { return uint32_t(pick(0x10000)) << 4; };
+        gdt[0] = Desc{0, 0, false, false, 0};
+        gdt[1] = Desc{rnd_base(), 0xffff, false, false, uint8_t(0x92 | acc())};
+        gdt[2] = Desc{0, 0xfffff, true, false, uint8_t(0x92 | acc())};
+        gdt[3] = Desc{0, 0xfffff, true, true, uint8_t(0x92 | acc())};
+        gdt[4] = Desc{rnd_base(), pick(2) ? 0xffffu : pick(0x10000), pick(4) == 0, false, uint8_t(0x90 | acc())};
+        gdt[5] = Desc{rnd_base(), 0x0fff + pick(0xe000), false, pick(3) == 0, uint8_t(0x96 | acc())};
+        gdt[6] = Desc{cs_base, 0xffff, false, false, uint8_t(0x9a | acc())};
+        gdt[7] = Desc{cs_base, 0xffff, false, false, uint8_t(0x98 | acc())};
+        gdt[8] = Desc{cs_base, 0xffff, false, false, uint8_t(0x9e | acc() | (pick(4) == 0 ? (1 + pick(3)) << 5 : 0))};
+        gdt[9] = Desc{rnd_base(), 0xffff, false, false, uint8_t(0x12 | acc())};
+        gdt[10] = Desc{rnd_base(), 0xffff, false, false, uint8_t(0x92 | acc() | (1 + pick(3)) << 5)};
+        gdt[11] = Desc{pick(2) ? rnd_base() : uint32_t(rng()) & 0xfffff0, pick(0x100000), pick(2) == 0, pick(2) == 0,
+                       uint8_t(0x92 | acc())};
+        gdt[12] = Desc{rnd_base(), 0xffff, false, false, uint8_t(0x80 | pick(16) | pick(4) << 5)};
+        gdt[13] = Desc{0, 0xffff, false, false, uint8_t(0x92 | acc())};
+        gdt[14] = Desc{cs_base, 0xfffff, true, false, uint8_t(0x9a | acc())};
+        gdt_limit = pick(6) == 0 ? uint16_t(8 * (1 + pick(16)) - 1) : 0x7f;
+        for (unsigned n = 0; n < 16; ++n) {
+            const uint64_t d = n == 15 ? rng() : desc_bytes(gdt[n]);
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(gdt_lin + 8 * n + i, uint8_t(d >> (8 * i)));
+        }
+        for (unsigned i = 0; i < 6; ++i)
+            image.emplace_back(gdt_lin + 0x80 + i, uint8_t((uint64_t(gdt_lin) << 16 | gdt_limit) >> (8 * i)));
+    }
+    // A selector: mostly one of the GDT's 16, now and then past its limit;
+    // RPL mostly 0. TI (the LDT) is not built, so never set.
+    uint16_t selector() {
+        const unsigned index = pick(12) == 0 ? 16 + pick(16) : pick(16);
+        return uint16_t(index << 3 | (pick(5) == 0 ? pick(4) : 0));
+    }
+    // A sane one for a segment register, which the block's exit loads.
+    uint16_t sane(bool ss) { return ss ? (pick(2) ? 0x68 : 0x10) : uint16_t(pick(3) == 0 ? 0x08 : pick(2) ? 0x10 : 0x68); }
+    void emit(std::initializer_list<uint8_t> bytes) { items.push_back(Item{std::vector<uint8_t>(bytes), -1, 0, 0}); }
+    void emit(const std::vector<uint8_t> &bytes) { items.push_back(Item{bytes, -1, 0, 0}); }
+    static void put32(std::vector<uint8_t> &out, uint32_t v) {
+        for (int i = 0; i < 4; ++i) out.push_back(uint8_t(v >> (8 * i)));
+    }
+    // MOV AX, selector; MOV Sreg, AX (0 ES, 2 SS, 3 DS, 4 FS, 5 GS).
+    void load_seg(unsigned sreg, uint16_t sel) {
+        emit({0xb8, uint8_t(sel), uint8_t(sel >> 8)});
+        emit({0x8e, uint8_t(0xc0 | sreg << 3)});
+    }
+    // FS as the flat data segment, for the scratch area.
+    void flat_fs() { load_seg(4, 0x10); }
+    // The scratch area's dword at k, through FS: 64h 67h, ModRM mod 00
+    // r/m 101 and a 32-bit displacement.
+    void scratch_modrm(std::vector<uint8_t> &out, uint8_t op, unsigned reg, unsigned k) {
+        out.insert(out.end(), {0x64, 0x67, op, uint8_t(reg << 3 | 5)});
+        put32(out, gdt_lin + 0x90 + 4 * k);
+    }
+    // A far jump to code descriptor sel at the next item, direct (EA) or
+    // through a pointer the block stores first (JMP m16:16).
+    void pm_far_jump(uint16_t sel) {
+        if (pick(3) == 0) {
+            flat_fs();
+            Item store;  // MOV dword FS:[scratch], offset | selector << 16
+            store.bytes.push_back(0x66);
+            scratch_modrm(store.bytes, 0xc7, 0, 0);
+            store.rel_at = unsigned(store.bytes.size());
+            store.rel_size = 2;
+            store.bytes.insert(store.bytes.end(), {0, 0, uint8_t(sel), uint8_t(sel >> 8)});
+            store.far = Item::PM_OFF;
+            const int at = int(items.size());
+            items.push_back(store);
+            Item jump;
+            scratch_modrm(jump.bytes, 0xff, 5, 0);
+            items.push_back(jump);
+            items[size_t(at)].target = int(items.size());
+        } else {
+            Item jump;
+            jump.bytes = {0xea, 0, 0, uint8_t(sel), uint8_t(sel >> 8)};
+            jump.rel_at = 1;
+            jump.rel_size = 2;
+            jump.far = Item::PM_OFF;
+            jump.target = int(items.size()) + 1;
+            items.push_back(jump);
+        }
+    }
+    // A segment register load in protected mode: MOV Sreg, r16; MOV Sreg,
+    // m16 or POP Sreg (the selector stored or pushed first); or LES, LDS,
+    // LSS, LFS or LGS from a far pointer in the scratch area.
+    void pm_seg_load() {
+        static const unsigned regs[] = {0, 2, 3, 4, 5};
+        const unsigned sreg = regs[pick(5)];
+        const uint16_t sel = pick(4) == 0 ? selector() : sane(sreg == 2);
+        switch (pick(4)) {
+        case 0: load_seg(sreg, sel); break;
+        case 1: {  // MOV word FS:[scratch + 4], sel; MOV Sreg, FS:[scratch + 4]
+            flat_fs();
+            std::vector<uint8_t> store;
+            scratch_modrm(store, 0xc7, 0, 1);
+            store.insert(store.end(), {uint8_t(sel), uint8_t(sel >> 8)});
+            emit(store);
+            std::vector<uint8_t> load;
+            scratch_modrm(load, 0x8e, sreg, 1);
+            emit(load);
+            break;
+        }
+        case 2: {  // PUSH sel; POP Sreg
+            emit({0x68, uint8_t(sel), uint8_t(sel >> 8)});
+            if (sreg == 4 || sreg == 5) emit({0x0f, uint8_t(sreg == 4 ? 0xa1 : 0xa9)});
+            else emit({uint8_t(0x07 | sreg << 3)});
+            break;
+        }
+        default: {  // a far pointer (16- or 32-bit), then LES/LDS/LSS/LFS/LGS r, FS:[scratch + 8]
+            flat_fs();
+            const bool os32 = pick(2) == 0;
+            std::vector<uint8_t> off;
+            off.push_back(0x66);
+            scratch_modrm(off, 0xc7, 0, 2);
+            put32(off, uint32_t(rng()));
+            emit(off);
+            // The selector's word follows the offset: at +4 (32-bit) or +2.
+            std::vector<uint8_t> seg{0x64, 0x67, 0xc7, 0x05};
+            put32(seg, gdt_lin + 0x90 + 8 + (os32 ? 4 : 2));
+            seg.insert(seg.end(), {uint8_t(sel), uint8_t(sel >> 8)});
+            emit(seg);
+            std::vector<uint8_t> lp;
+            if (os32) lp.push_back(0x66);
+            unsigned reg = pick(7);  // not ESP
+            if (reg >= 4) ++reg;
+            if (sreg == 0 || sreg == 3) {
+                scratch_modrm(lp, sreg == 0 ? 0xc4 : 0xc5, reg, 2);
+            } else {
+                lp.insert(lp.end(), {0x64, 0x67, 0x0f, uint8_t(sreg == 2 ? 0xb2 : sreg == 4 ? 0xb4 : 0xb5),
+                                     uint8_t(reg << 3 | 5)});
+                put32(lp, gdt_lin + 0x98);
+            }
+            emit(lp);
+            break;
+        }
+        }
+    }
+    // A data access through a segment register, a word or dword at a 16- or
+    // 32-bit offset, often near its descriptor's limit.
+    void pm_access() {
+        static const uint8_t prefix[] = {0x26, 0x36, 0x3e, 0x64, 0x65};
+        std::vector<uint8_t> out;
+        out.push_back(prefix[pick(5)]);
+        const bool os32 = pick(3) == 0, as32 = pick(2) == 0;
+        if (os32) out.push_back(0x66);
+        if (as32) out.push_back(0x67);
+        out.push_back(pick(2) ? 0x8b : 0x89);  // MOV r, m or MOV m, r
+        unsigned reg = pick(7);  // not ESP
+        if (reg >= 4) ++reg;
+        uint32_t off = pick(3) == 0 ? uint32_t(rng()) & (as32 ? 0xfffff : 0xffff)
+                     : pick(2) ? 0xffff - pick(8) : 0x0fff + pick(16) - 8;
+        if (as32 && pick(3) == 0) off = 0x10000 + pick(0x10000);
+        out.push_back(uint8_t(reg << 3 | (as32 ? 5 : 6)));
+        if (as32) put32(out, off);
+        else out.insert(out.end(), {uint8_t(off), uint8_t(off >> 8)});
+        emit(out);
+    }
+    // A random instruction that loads no segment register: in protected
+    // mode a random selector would mostly name the LDT, which is not built.
+    std::vector<uint8_t> pm_instruction() {
+        for (;;) {
+            std::vector<uint8_t> out = instruction(false);
+            unsigned i = 0;
+            while (i < out.size() && is_prefix(out[i])) ++i;
+            const uint8_t op = i < out.size() ? out[i] : 0, op2 = i + 1 < out.size() ? out[i + 1] : 0;
+            if (op == 0x8e || op == 0x07 || op == 0x17 || op == 0x1f || op == 0xc4 || op == 0xc5) continue;
+            if (op == 0x0f && (op2 == 0xa1 || op2 == 0xa9 || op2 == 0xb2 || op2 == 0xb4 || op2 == 0xb5)) continue;
+            return out;
+        }
+    }
+    // Protected mode, entered from real mode and left again: CLI (mostly),
+    // DS at the GDT's paragraph and LGDT; PE set by MOV CR0 or LMSW; now and
+    // then a far jump to a code descriptor; segment loads, data accesses,
+    // CR and table reads and writes, stack operations and random
+    // instructions; then sane segments (64K or 4 GiB, SS a 16-bit stack),
+    // PE clear by MOV CR0, and mostly a real-mode far jump, whose CS load
+    // takes the 386's values. Any fault on the way stops the run
+    // (trace_pm_stop).
+    void pm_block() {
+        if (pick(20)) emit({0xfa});  // CLI
+        load_seg(3, uint16_t(gdt_lin >> 4));
+        {
+            std::vector<uint8_t> lgdt;
+            if (pick(2)) lgdt.push_back(0x66);
+            lgdt.insert(lgdt.end(), {0x0f, 0x01, 0x16, uint8_t((gdt_lin & 15) + 0x80), 0});
+            emit(lgdt);
+        }
+        switch (pick(3)) {
+        case 0: emit({0x0f, 0x20, 0xc0}); emit({0x0c, 0x01}); emit({0x0f, 0x22, 0xc0}); break;  // MOV EAX, CR0; OR AL, 1; MOV CR0, EAX
+        case 1: emit({0x0f, 0x01, 0xe0}); emit({0x0c, 0x01}); emit({0x0f, 0x01, 0xf0}); break;  // SMSW AX; OR AL, 1; LMSW AX
+        default: {  // MOV EAX, imm32: PE, ET and MP, EM, TS at random; MOV CR0, EAX
+            std::vector<uint8_t> mov{0x66, 0xb8};
+            put32(mov, 0x11 | pick(8) << 1);
+            emit(mov);
+            emit({0x0f, 0x22, 0xc0});
+        }
+        }
+        if (pick(2)) emit({0xeb, 0x00});  // JMP $+2
+        if (pick(2)) pm_far_jump(pick(4) ? 0x30 : pick(2) ? 0x70 : 0x40);
+        const unsigned ops = 1 + pick(8);
+        for (unsigned n = 0; n < ops; ++n) {
+            switch (pick(12)) {
+            case 0: case 1: case 2: case 3: pm_seg_load(); break;
+            case 4: case 5: pm_access(); break;
+            case 6: {  // CR and table reads and writes
+                switch (pick(6)) {
+                case 0: emit({0x0f, 0x01, uint8_t(0xe0 | pick(8))}); break;            // SMSW r16
+                case 1: emit({0x0f, 0x20, uint8_t(0xc0 | (pick(3) ? 0 : 2 + pick(2)) << 3 | pick(8))}); break;  // MOV r32, CRn
+                case 2: emit({0x0f, 0x22, uint8_t(0xc0 | (2 + pick(2)) << 3 | pick(8))}); break;  // MOV CR2/CR3, r32
+                case 3: {  // SGDT or SIDT to the scratch area, then LGDT or LIDT back from it
+                    flat_fs();
+                    const unsigned t = pick(2);
+                    std::vector<uint8_t> st;
+                    scratch_modrm(st, 0x01, t, 4);
+                    st.insert(st.begin() + 2, 0x0f);
+                    emit(st);
+                    std::vector<uint8_t> ld;
+                    if (pick(2)) ld.push_back(0x66);
+                    scratch_modrm(ld, 0x01, 2 + t, 4);
+                    ld.insert(ld.begin() + (ld[0] == 0x66 ? 3 : 2), 0x0f);
+                    emit(ld);
+                    break;
+                }
+                default: emit({0x0f, 0x01, uint8_t(0xe0 | pick(8))}); break;
+                }
+                break;
+            }
+            case 7: if (pick(2)) pm_far_jump(pick(3) ? 0x30 : pick(2) ? 0x70 : pick(2) ? 0x40 : selector()); break;
+            case 8: {  // PUSH r, POP r (not ESP)
+                unsigned reg = pick(7);
+                if (reg >= 4) ++reg;
+                emit({uint8_t(0x50 | pick(8))});
+                emit({uint8_t(0x58 | reg)});
+                break;
+            }
+            default: emit(pm_instruction()); break;
+            }
+        }
+        // The exit: sane segments, then PE clear and a real-mode far jump.
+        for (unsigned sreg : {0u, 3u, 4u, 5u})
+            if (pick(5)) load_seg(sreg, sane(false));
+        load_seg(2, sane(true));
+        emit({0x0f, 0x20, 0xc0});
+        emit({0x24, 0xfe});                // AND AL, FEh
+        emit({0x0f, 0x22, 0xc0});
+        if (pick(8)) {
+            cs_moved = true;
+            Item jump;
+            jump.bytes = {0xea, 0, 0, 0, 0};
+            jump.rel_at = 1;
+            jump.rel_size = 2;
+            jump.far = Item::FAR_PTR;
+            jump.target = int(items.size()) + 1;
+            items.push_back(jump);
+        }
+        if (pick(2)) emit({0xfb});  // STI
+        // Unreal mode: a few accesses past 64K through the segments kept.
+        for (unsigned n = pick(3); n > 0; --n) pm_access();
+    }
+
     static void far_point(uint32_t linear, uint16_t &sel, uint32_t &off) {
         const uint32_t para = linear >> 4;
         const uint32_t s = para > 0x800 ? std::min<uint32_t>(para - 0x800, 0xffff) : 0;
@@ -3464,6 +3865,9 @@ private:
                 for (unsigned i = 0; i < item.rewrites; ++i)
                     rewritten.insert(program_base + offset[size_t(item.target)] + item.target_byte + i);
                 for (unsigned i = 0; i < item.rel_size; ++i) item.bytes[item.rel_at + i] = uint8_t(value >> (8 * i));
+            } else if (item.target >= 0 && item.far == Item::PM_OFF) {
+                const uint32_t value = program_eip + offset[size_t(item.target)];
+                for (unsigned i = 0; i < item.rel_size; ++i) item.bytes[item.rel_at + i] = uint8_t(value >> (8 * i));
             } else if (item.target >= 0 && item.far != Item::NEAR) {
                 uint16_t sel;
                 uint32_t off;
@@ -3494,6 +3898,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
                Summary &summary, uint64_t seed, uint64_t programs, uint64_t retire_limit, uint64_t first) {
     std::mt19937_64 random(seed);
     Generator generator(random);
+    if (const char *weight = std::getenv("FES_I386_PM")) generator.pm_weight = unsigned(std::strtoul(weight, nullptr, 0));
     for (uint64_t n = 0; n < programs; ++n) {
         State state;
         for (auto &r : state.gpr) r = uint32_t(random());
@@ -3501,6 +3906,9 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         state.eflags = (uint32_t(random()) & 0x0ed5) | 0x2;
         for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(uint16_t(random()));
         state.eip = 0x100 + uint32_t(random() % 0xd000);
+        // CR0 as Bochs's 386 reads it after reset (ET, bits 30-5 ones), so
+        // SMSW and MOV r32, CR0 agree.
+        state.cr0 = 0x7ffffff0;
         const uint32_t base = state.seg[fes_i386::SEG_CS].base + state.eip;
         const std::vector<uint8_t> code = generator.program(20 + unsigned(random() % 180), base, state.eip);
         if (n < first) continue;
@@ -3523,6 +3931,8 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         for (uint32_t vector : {2u, 8u, 9u, 10u, 11u, 12u, 13u, 14u, 15u})
             for (uint32_t i = 0; i < 4; ++i) image.emplace_back(vector * 4 + i, uint8_t(0xffffffe0u >> (8 * i)));
         static_assert(0xffff0 + 0xffe0 == IRQ_HANDLER);
+        // The protected-mode blocks' GDT, LGDT's pointer and scratch area.
+        image.insert(image.end(), generator.image.begin(), generator.image.end());
         for (auto [address, value] : image) {
             bus.ram[address] = rtl.poke(address, value);
             oracle.invalidate(address, 1);
@@ -3553,7 +3963,7 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
         }
         if (out.items.empty() && !outcome.halted && !outcome.limit && outcome.exception < 0 &&
             !outcome.double_fault && !outcome.vector_moved && !outcome.window_code && !outcome.code_store &&
-            !outcome.stray)
+            !outcome.stray && !outcome.pm_stop)
             out.add("halt", 1, 0);
         summary.window_code += outcome.window_code;
         summary.code_stores += outcome.code_store;
@@ -4083,6 +4493,9 @@ int main(int argc, char **argv) {
         vectors += (vectors.empty() ? "" : ", ") + std::string("\"") + std::to_string(vector) + "\": " + std::to_string(count);
     for (auto &[id, count] : summary.divergences)
         divergences += (divergences.empty() ? "" : ", ") + std::string("\"") + id + "\": " + std::to_string(count);
+    std::string pm_stops;
+    for (auto &[vector, count] : summary.pm_stops)
+        pm_stops += (pm_stops.empty() ? "" : ", ") + std::string("\"") + std::to_string(vector) + "\": " + std::to_string(count);
     // The FAIL lines go through std::cout, unsynced with stdio: flush them
     // first, so the summary line is whole after them.
     std::cout.flush();
@@ -4099,7 +4512,8 @@ int main(int argc, char **argv) {
                 "\"several\": %s, \"after_string\": %s, \"after_io\": %s, \"memory\": %s, \"smc\": %s}, "
                 "\"mmio_accesses\": %llu, \"mmio_runs\": %llu, \"replays\": %llu, \"smc_restarts\": %llu, "
                 "\"window_code_stops\": %llu, \"code_store_stops\": %llu, \"stray_stops\": %llu, "
-                "\"port0_reads\": %llu, \"port0_writes\": %llu}\n",
+                "\"port0_reads\": %llu, \"port0_writes\": %llu, "
+                "\"pm_retirements\": %llu, \"cs_rule\": %llu, \"pm_stops\": {%s}}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
@@ -4126,6 +4540,7 @@ int main(int argc, char **argv) {
                 (unsigned long long)summary.window_code, (unsigned long long)summary.code_stores,
                 (unsigned long long)summary.stray,
                 (unsigned long long)rtl.port0.beats_read,
-                (unsigned long long)rtl.port0.beats_written);
+                (unsigned long long)rtl.port0.beats_written,
+                (unsigned long long)summary.pm_retirements, (unsigned long long)summary.cs_rule, pm_stops.c_str());
     return summary.failed ? 1 : 0;
 }
