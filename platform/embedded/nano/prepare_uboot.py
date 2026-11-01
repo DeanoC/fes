@@ -14,6 +14,28 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def cold_reset_source(text):
+    # Terasic d0f8813f: OS_PREPARE releases USB/NAND/DMA unconditionally.
+    # SPL/BL31 own these resets in this profile; cleanup must retain them.
+    if hashlib.sha256(text.encode()).hexdigest() != 'e8441d7467106dfc5e0b9c2b9373d8ecf44da279f66796776a48955a8ace155b':
+        raise ValueError('unreviewed Nano reset cleanup source')
+    for name, replacement in (
+        ('static bool socfpga_reset_keep_enabled(void)', ''),
+        ('static int socfpga_reset_remove(struct udevice *dev)', '''static int socfpga_reset_remove(struct udevice *dev)
+{
+\t/* Cold serial ownership requires all drained HPS masters to stay held.
+\t * Neither OS cleanup nor a legacy environment variable may release them. */
+\t(void)dev;
+\treturn 0;
+}
+'''),
+    ):
+        text, count = re.subn(re.escape(name) + r'\n\{.*?\n\}\n', replacement, text, count=1, flags=re.S)
+        if count != 1:
+            raise ValueError('Nano reset cleanup context changed')
+    return text
+
+
 def prepare(source, entry_build, bl31_sha256):
     if len(bl31_sha256) != 64 or any(c not in "0123456789abcdef" for c in bl31_sha256):
         raise ValueError("missing exact BL31 identity for the matched Nano loader")
@@ -22,6 +44,8 @@ def prepare(source, entry_build, bl31_sha256):
     image, receipt_path=cold.entry(entry_build)
     profile=HERE/'probe-profile.json'
     chain=cold.make(entry_build)
+    reset=source/'drivers/reset/reset-socfpga.c'
+    reset.write_text(cold_reset_source(reset.read_text()))
     bootm = source / "arch/arm/lib/bootm.c"
     text = bootm.read_text()
     anchor = "\tdm_remove_devices_active();\n\n\tcleanup_before_linux();"

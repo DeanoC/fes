@@ -1,0 +1,48 @@
+
+/home/deano/fes/out/dev/de25-embedded-os/out/nano-cold-serial-uboot-v14/build/spl/u-boot-spl:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+0000000000003690 <spl_invoke_atf>:
+    3690:	a9bd7bfd 	stp	x29, x30, [sp, #-48]!
+    3694:	52800341 	mov	w1, #0x1a                  	// #26
+    3698:	910003fd 	mov	x29, sp
+    369c:	a90153f3 	stp	x19, x20, [sp, #16]
+    36a0:	aa0003f4 	mov	x20, x0
+    36a4:	f90013f5 	str	x21, [sp, #32]
+    36a8:	f9401015 	ldr	x21, [x0, #32]
+    36ac:	aa1503e0 	mov	x0, x21
+    36b0:	97ffff81 	bl	34b4 <spl_fit_images_find>
+    36b4:	37f80380 	tbnz	w0, #31, 3724 <spl_invoke_atf+0x94>
+    36b8:	2a0003e1 	mov	w1, w0
+    36bc:	aa1503e0 	mov	x0, x21
+    36c0:	97ffffe4 	bl	3650 <spl_fit_images_get_entry>
+    36c4:	aa0003f3 	mov	x19, x0
+    36c8:	52800221 	mov	w1, #0x11                  	// #17
+    36cc:	aa1503e0 	mov	x0, x21
+    36d0:	97ffff79 	bl	34b4 <spl_fit_images_find>
+    36d4:	2a0003e1 	mov	w1, w0
+    36d8:	37f802a0 	tbnz	w0, #31, 372c <spl_invoke_atf+0x9c>
+    36dc:	aa1503e0 	mov	x0, x21
+    36e0:	97ffffdc 	bl	3650 <spl_fit_images_get_entry>
+    36e4:	aa0003e1 	mov	x1, x0
+    36e8:	f9400e94 	ldr	x20, [x20, #24]
+    36ec:	aa1303e0 	mov	x0, x19
+    36f0:	d2800002 	mov	x2, #0x0                   	// #0
+    36f4:	97ffffd6 	bl	364c <bl2_plat_get_bl31_params>
+    36f8:	aa0003f3 	mov	x19, x0
+    36fc:	52807800 	mov	w0, #0x3c0                 	// #960
+    3700:	d51b4220 	msr	daif, x0
+    3704:	97fff83e 	bl	17fc <fes_nano_spl_handoff>
+    3708:	aa0003e2 	mov	x2, x0
+    370c:	d2800023 	mov	x3, #0x1                   	// #1
+    3710:	aa1303e0 	mov	x0, x19
+    3714:	f2c86623 	movk	x3, #0x4331, lsl #32
+    3718:	d2800001 	mov	x1, #0x0                   	// #0
+    371c:	f2e8c9c3 	movk	x3, #0x464e, lsl #48
+    3720:	d63f0280 	blr	x20
+    3724:	d2800013 	mov	x19, #0x0                   	// #0
+    3728:	17ffffe8 	b	36c8 <spl_invoke_atf+0x38>
+    372c:	d2b00401 	mov	x1, #0x80200000            	// #2149580800
+    3730:	17ffffee 	b	36e8 <spl_invoke_atf+0x58>

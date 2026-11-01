@@ -3,6 +3,7 @@ import ctypes
 import importlib.util
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -97,6 +98,8 @@ class NanoExportTests(unittest.TestCase):
         (source/'arch/arm/dts/socfpga_agilex5_de25_nano-u-boot.dtsi').write_text('// pinned board fixture\n')
         (source/'include/configs').mkdir(parents=True)
         (source/'include/configs/socfpga_agilex5_de25_nano.h').write_text('#include <configs/socfpga_soc64_common.h>\n')
+        (source/'drivers/reset').mkdir(parents=True)
+        shutil.copyfile(Path(__file__).parent/'fixtures/nano/reset-socfpga.c',source/'drivers/reset/reset-socfpga.c')
         entry.mkdir()
         image = entry / "entry.img"; image.write_bytes(bytes(64))
         receipt = {"status": "built", "target": "de25-nano", "entry_image_address": 0x96080000,
@@ -168,6 +171,94 @@ int main(void)
                             '-fsanitize=undefined','-fno-sanitize-recover=all','-I'+str(include),
                             str(test),'-o',str(binary)],check=True)
             subprocess.run([str(binary)],check=True)
+
+    def test_actual_reset_cleanup_retains_owner_while_vendor_cleanup_retires_it(self):
+        """Run the pinned removal callback against the actual cold owner implementation."""
+        reference=(Path(__file__).parent/'fixtures/nano/reset-socfpga.c').read_text()
+        patched=prepare.cold_reset_source(reference)
+        with self.assertRaisesRegex(ValueError,'unreviewed Nano reset cleanup source'):
+            prepare.cold_reset_source(reference+'\n')
+        prefix=reference[reference.index('#define BANK_INCREMENT'):reference.index('/*\n * For compatibility')]
+        for retained,text in ((False,reference),(True,patched)):
+            functions='\n'.join(re.findall(
+                r'static (?:bool socfpga_reset_keep_enabled\(void\)|int socfpga_reset_remove\(struct udevice \*dev\))\n\{.*?\n\}',
+                text,re.S))
+            with tempfile.TemporaryDirectory() as tmp:
+                base=Path(tmp);test=base/'reset.c';binary=base/'reset'
+                test.write_text(r'''
+#include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "nano_cold.h"
+#define __iomem
+#define BIT(n) (1U<<(n))
+#define GENMASK(h,l) ((~0U<<(l)) & (~0U>>(31-(h))))
+#define CONFIG_TARGET_SOCFPGA_AGILEX5 1
+#define CONFIG_IS_ENABLED(option) 1
+#define RSTMGR_SOC64_PER0MODRST 0x24
+typedef uint32_t u32;
+struct udevice { unsigned unused; };
+'''+prefix+r'''
+static uint32_t per0=0xff7fbfbf,per1=0x12345678;
+static unsigned writes,legacy;
+static struct socfpga_reset_data data={.modrst_base=(void *)0x10d11024UL};
+void *dev_get_priv(struct udevice *dev) { (void)dev;return &data; }
+uintptr_t socfpga_get_rstmgr_addr(void) { return 0x10d11000UL; }
+const char *env_get(const char *key) { assert(!strcmp(key,"socfpga_legacy_reset_compat"));return legacy?"1":NULL; }
+long simple_strtol(const char *s,char **end,unsigned base) { return strtol(s,end,base); }
+void clrbits_le32(uintptr_t address,uint32_t bits) { assert(address==0x10d11024UL);writes++;per0&=~bits; }
+void writel(uint32_t value,void *address) { assert(address==(void *)0x10d11028UL);writes++;per1=value; }
+static int read_reg(void *context,unsigned reg,uint32_t *value)
+{
+    (void)context;
+    switch(reg) {
+    case FES_COLD_CAUSE:*value=4;break;case FES_COLD_PER0:*value=per0;break;
+    case FES_COLD_BRG:case FES_COLD_CPUS:*value=15;break;
+    case FES_COLD_RELEASE:case FES_COLD_CPU1_POWER:case FES_COLD_CPU2_POWER:case FES_COLD_CPU3_POWER:*value=0;break;
+    case FES_COLD_BOOT_KIND:*value=4;break;case FES_COLD_CPU0_POWER:*value=0x90000021;break;
+    case FES_COLD_PCH_REQUEST:case FES_COLD_PCH_STATUS:*value=0x23;break;
+    case FES_COLD_BOOT_CONFIG:*value=0x0070021e;break;default:assert(0);return -1;
+    }
+    return 0;
+}
+static int write_reg(void *p,unsigned reg,uint32_t value) { (void)p;(void)reg;(void)value;assert(0);return -1; }
+static void barrier(void *p) { (void)p; }
+'''+functions+f'\n#define EXPECT_RETAINED {int(retained)}\n'+r'''
+int main(int argc,char **argv)
+{
+    assert(argc==2);legacy=strtoul(argv[1],0,0);
+    static const uint8_t chain[32]={0x42};
+    struct fes_nano_cold_record r={.magic=FES_NANO_COLD_MAGIC,.version=FES_NANO_COLD_VERSION,.size=sizeof(r),.flags=FES_NANO_COLD_FLAGS,
+        .boot={.magic=FES_NANO_BOOT_MAGIC,.version=1,.size=sizeof(r.boot),.owner=17,.epoch=7,.history=1,.fabric=1,.producers=FES_NANO_PRODUCERS_ALL},
+        .first={.cause=4,.per0=0xff7fbfbf,.bridge=15,.cpus=15,.boot_kind=4,
+                .power={0x90000021,0,0,0},.pch_request=0x23,.pch_status=0x23,.boot_config=0x0070021e}};
+    r.last=r.first;memcpy(r.boot.chain,chain,32);r.checksum=fes_nano_cold_checksum(&r);
+    struct fes_nano_cold owner={0};
+    struct fes_nano_cold_io io={.read=read_reg,.write=write_reg,.barrier=barrier,.wait=barrier};
+    assert(!fes_nano_cold_consume(&owner,&r,io,chain,17));
+    assert(fes_nano_cold_owns(&owner,17,7)==1);
+    struct udevice dev={0};assert(!socfpga_reset_remove(&dev));
+    if(EXPECT_RETAINED) {
+        assert(!writes && per0==0xff7fbfbf && per1==0x12345678);
+        assert(fes_nano_cold_owns(&owner,17,7)==1);
+        puts("PASS cleanup retains cold owner");
+    } else {
+        assert(writes==1+legacy && per0!=(uint32_t)0xff7fbfbf);
+        assert(fes_nano_cold_owns(&owner,17,7)!=1);
+        per0=0xff7fbfbf;assert(fes_nano_cold_owns(&owner,17,7)!=1);
+        puts("PASS vendor cleanup retires cold owner");
+    }
+}
+''')
+                subprocess.run([shutil.which('cc'),'-std=c11','-Wall','-Wextra','-Werror',
+                                '-fsanitize=undefined','-fno-sanitize-recover=all',
+                                '-I'+str(HERE.parent/'firmware'),str(test),str(HERE.parent/'firmware/nano_cold.c'),'-o',str(binary)],check=True)
+                for legacy in (0,1):
+                    result=subprocess.run([str(binary),str(legacy)],capture_output=True,text=True,check=True)
+                    self.assertIn('PASS cleanup retains cold owner' if retained else 'PASS vendor cleanup retires cold owner',result.stdout)
 
 
 class NanoOwnedSnapshotTests(unittest.TestCase):

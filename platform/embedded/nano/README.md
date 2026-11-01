@@ -1,5 +1,13 @@
 # Nano recovery uploads and cold serial boot
 
+The [cookie and cleanup diagnostics](../../../docs/validation/2026-11-01-de25-cold-cookie-cleanup/README.md)
+now reach the actual secure provider and first loader ownership snapshot at
+6 MHz JTAG. The shared cookie repair passes that hardware boundary; vendor
+device cleanup then releases USB/NAND/DMA resets and ownership correctly
+rejects before native entry. The dedicated cold loader now retains those resets
+during cleanup; its fresh matched hardware test is still pending. These serial
+diagnostics do not establish active peripherals or core launch/return.
+
 This prototype joins a repeatable recovery upload tool to a matched Linux-free
 SPL, BL31 and native serial probe. The [current validation](../../../docs/validation/2026-10-31-de25-cold-upload/README.md)
 records the first host tests, cross-builds and regular-file packaging. The

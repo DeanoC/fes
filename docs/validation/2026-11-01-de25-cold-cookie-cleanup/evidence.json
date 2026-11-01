@@ -1,0 +1,167 @@
+{
+  "format": 1,
+  "classification": "exact diagnostic artifacts: v14 SPL drain/BL31 rejection and v15 secure acceptance/cleanup rejection; no native Go or core acceptance",
+  "v14_test_source": "53c5945edf3af8db3c92313fe4f1d884d44f00c7",
+  "v15_test_source": "c768ef002b2208fc67d3d3238f82a6a5d42cc5a5",
+  "cookie_fix_commit": "c768ef002b2208fc67d3d3238f82a6a5d42cc5a5",
+  "hardware": {
+    "serial": "TRWU8CBL",
+    "jtag_condition": "6M on exact top cable for each bounded trial; original15M restored/read back",
+    "other_kits_touched": false,
+    "native_go_entered": false,
+    "core_load_acceptance": false
+  },
+  "source_diagnosis": {
+    "prior_cookie": "0x464e433100000001",
+    "required_cookie": "0x464e433200000002",
+    "pinned_reset_source_sha256": "e8441d7467106dfc5e0b9c2b9373d8ecf44da279f66796776a48955a8ace155b",
+    "reset_remove_release_mask": "ff010030",
+    "cleanup_repair_hardware_tested": false,
+    "policy_relaxed": false
+  },
+  "validation": {
+    "cookie-tests-v15": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_embedded_nano_handoff.py",
+        "-v"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.40088093106169254,
+      "log_sha256": "c601247e9ce31a24e534f3ed0b9353f227ed6583dfd075e9178fbbceb4e5d6c1"
+    },
+    "cold-tests-v15": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_nano_cold.py",
+        "-v"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.8010472879977897,
+      "log_sha256": "8f13331619109c1fef2d45e0e8b17ded3425f6c8cb881672679190eebbba8145"
+    },
+    "bl31-cookie-v15": {
+      "argv": [
+        "python3",
+        "platform/embedded/firmware/build_terasic.py",
+        "--reference-repo",
+        "out/terasic-git-restore-tfa",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--nano-owned-bridges",
+        "--nano-cold-serial-entry",
+        "out/nano-handoff-entry-v1",
+        "--jobs",
+        "4",
+        "--output",
+        "out/nano-cold-serial-bl31-v15"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.4022569339722395,
+      "log_sha256": "48a695477eb400e5cd3ec4e3305cdcc3a71cb083d417c16d585d1755a9f08f1c"
+    },
+    "uboot-cookie-v15": {
+      "argv": [
+        "python3",
+        "platform/embedded/firmware/build_terasic_uboot.py",
+        "--reference-repo",
+        "out/terasic-git-restore-uboot",
+        "--bl31-build",
+        "out/nano-cold-serial-bl31-v15",
+        "--cross-prefix",
+        "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+        "--native-entry-build",
+        "out/nano-handoff-entry-v1",
+        "--jobs",
+        "4",
+        "--output",
+        "out/nano-cold-serial-uboot-v15"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 20.81639653397724,
+      "log_sha256": "99da6fa6c3483e4e582d0b613858cd5c6679cf5a73393f86e40e08ed2709aa8d"
+    },
+    "package-cookie-v15": {
+      "argv": [
+        "python3",
+        "platform/embedded/nano/package.py",
+        "--uboot-build",
+        "out/nano-cold-serial-uboot-v15",
+        "--entry-build",
+        "out/nano-handoff-entry-v1",
+        "--recovery-kit",
+        "out/nano-boot-recovery-kit-v3",
+        "--vendor-sof",
+        "/home/deano/fes-retained/de25-top-recovery-inventory-20261031/golden_top_hps.sof",
+        "--quartus-pfg",
+        "/data/altera_pro/26.3/quartus/bin/quartus_pfg",
+        "--output",
+        "out/nano-cold-cookie-v15-20261101"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 2.6018341609742492,
+      "log_sha256": "8efedc3167bba5211be44e1538b68b30049d72d90672722c555274473837a6e1"
+    },
+    "affected-cookie-v15": {
+      "argv": [
+        "python3",
+        "scripts/test_changed.py",
+        "--base",
+        "53c5945edf3af8db3c92313fe4f1d884d44f00c7"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 256.77138803806156,
+      "log_sha256": "6316066416612b6da7e1a29ad85b2afaa91e4e0f90ac9ebf7277634088428714"
+    },
+    "cleanup-tests-v16-r2": {
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_embedded_nano_handoff.py",
+        "-v"
+      ],
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.6007230639224872,
+      "log_sha256": "bdae39f4d171cb7923910a559be92f6986c9b88a687a0af7a5921669c838352d"
+    }
+  },
+  "files": {
+    "v14-native-console.log": "fc2805f6b8476f07404951e3fa9a307ad574cc079e3b79ebdfebd0420cf4de84",
+    "v14-native-result.json": "8982dc34c2f4aa3a257072ea5203afbbf15e8f76c10b5243415382874de28747",
+    "v14-experiment-result.json": "8f7759f677060bb234bcc5d70035f14bf0b385cb9f107f776184587eda869b33",
+    "v14-retained-state.json": "20912234177aa280a670fcdeab0f37405c5362a538274d2303c381ac078d4fb3",
+    "v15-native-console.log": "946df6c10cd7a8a977cbb8461bd800cae72e3a7166ba2770a6037ae26b4434c6",
+    "v15-native-result.json": "5119ccc12bc9441b356e77fd0a40672ea5c1a750cd0947ed6753c503719c3fa8",
+    "v15-experiment-result.json": "bed2416004c1d34f90da1469440f8ad4b5dce1017718707c69ea3317695afca7",
+    "v15-retained-state.json": "5abcee185f4fd4b484ad74a8cce815d1dc7d1ea09b49dd3246b43221982e757d",
+    "cookie-abi.json": "9d30ba566d81fd47035b4f47e6cd5fde7c0eeeec35a001a229c403004e3c83c4",
+    "compiled-atf-call.log": "86074b56abefaef4e78cdd68b586d646bf4071f7ae06f60f6e80ba784ae0368c",
+    "prior-compiled-atf-call.log": "d23aa18d9e52f6f374558ab0168cadaea7a82d02c83f2acc4f098cbf42b0419d",
+    "v15-upload-result.json": "3f5a32a357d1d09c4f75bac9f850c8ea12ff11573b0a463e4b76663d57e934da"
+  },
+  "next": "Cross-build and independently package a fresh matched cleanup-fixed chain, upload only the experimental FIT through recovery, then one bounded test with all existing secure gates."
+}
