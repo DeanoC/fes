@@ -175,6 +175,13 @@ def arm_build_environment(architecture='armv7'):
     return selected
 
 
+def arm_probe_environment(env):
+    probe = dict(env, GOWORK='off', GOPROXY='off')
+    for name in ('GOOS', 'GOARCH', 'GOARM', 'GOARM64'):
+        probe.pop(name, None)
+    return probe
+
+
 def platform_build_record(platform_sha256, appliance_module_sha256, fogcast_revision, go_version, go_sha256, *, architecture='armv7'):
     return {
         'appliance_module': APPLIANCE_MODULE,
@@ -299,9 +306,7 @@ def build_static_arm(root, fogcast, output, env, *, architecture='armv7'):
     revision = git_revision(fogcast_root)
     platform_sha = tree_identity(platform_dir)
     appliance_sha = tree_identity(appliance_dir)
-    probe_env = dict(env)
-    probe_env['GOPROXY'] = 'off'
-    probe_env['GOWORK'] = 'off'
+    probe_env = arm_probe_environment(env)
     with tempfile.TemporaryDirectory(prefix='fes-platform-work-') as temporary:
         workspace = write_workspace(temporary, platform_dir, appliance_dir)
         goroot = subprocess.check_output(['go', 'env', 'GOROOT'], cwd=platform_dir, env=probe_env, text=True).strip()
@@ -346,7 +351,7 @@ def _arm_build(root, fogcast, env, output_name, package, workspace_prefix, archi
     before = (tree_identity(platform_dir), tree_identity(appliance_dir))
     with tempfile.TemporaryDirectory(prefix=workspace_prefix) as temporary:
         workspace = write_workspace(temporary, platform_dir, appliance_dir)
-        probe_env = dict(env, GOWORK='off', GOPROXY='off')
+        probe_env = arm_probe_environment(env)
         goroot = subprocess.check_output(
             ['go', 'env', 'GOROOT'], cwd=platform_dir, env=probe_env, text=True).strip()
         go_bin = Path(goroot) / 'bin' / 'go'

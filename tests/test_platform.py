@@ -149,6 +149,14 @@ class PlatformWorkspaceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'architecture'):
             fes_platform.arm_build_environment('other')
 
+    def test_go_toolchain_probe_ignores_inherited_cross_cpu_settings(self):
+        ambient = {'GOOS':'other', 'GOARCH':'other', 'GOARM':'bad-arm', 'GOARM64':'bad-arm64', 'GOTOOLCHAIN':'auto'}
+        probe = fes_platform.arm_probe_environment(ambient)
+        self.assertFalse(set(probe) & {'GOOS', 'GOARCH', 'GOARM', 'GOARM64'})
+        self.assertEqual(probe['GOTOOLCHAIN'], 'auto')
+        self.assertEqual(probe['GOWORK'], 'off')
+        self.assertEqual(ambient['GOARM64'], 'bad-arm64')
+
 
 class PlatformBuildTests(unittest.TestCase):
     def test_build_static_arm_consumes_selected_module_without_copying(self):
