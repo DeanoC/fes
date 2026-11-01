@@ -55,6 +55,7 @@ struct Bench {
     Vpc386_hid_keyboard top;
     uint64_t cycles = 0;
     bool ready = true;
+    bool scanning = true;
     std::vector<Byte> bytes;
 
     Bench() {
@@ -66,7 +67,8 @@ struct Bench {
     void clock() {
         top.us_tick = cycles % US == US - 1;
         top.key_ready = ready;
-        if (top.key_valid && top.key_ready) bytes.push_back({cycles, top.key_code});
+        top.key_scanning = scanning;
+        if (top.key_valid && top.key_ready && scanning) bytes.push_back({cycles, top.key_code});
         top.clk = 1; top.eval();
         top.clk = 0; top.eval();
         ++cycles;
@@ -336,6 +338,66 @@ void typematic(Bench &b) {
     b.collect(1200);
     check("a sequence sent against a busy keyboard arrives whole",
           paced == std::vector<uint8_t>{0xe1, 0x14, 0x77, 0xe1, 0xf0, 0x14, 0xf0, 0x77}, hex(paced));
+
+    b.top.typematic = 0x2b;
+    b.key(A, true);
+    std::vector<uint8_t> letter = b.collect(1200);
+    b.key(PAUSE, true);
+    std::vector<uint8_t> pause_keeps_letter = b.collect(520000);
+    check("Pause does not stop another key's typematic",
+          letter == std::vector<uint8_t>{0x1c} &&
+              pause_keeps_letter == std::vector<uint8_t>{0xe1, 0x14, 0x77, 0xe1, 0xf0, 0x14, 0xf0, 0x77, 0x1c},
+          hex(letter) + " / " + hex(pause_keeps_letter));
+    b.key(PAUSE, false);
+    b.key(A, false);
+    std::vector<uint8_t> released = b.collect(1200);
+    check("the held letter still releases after Pause", released == std::vector<uint8_t>{0xf0, 0x1c}, hex(released));
+}
+
+void scanning(Bench &b) {
+    b.key(A, true);
+    std::vector<uint8_t> delivered_make = b.collect(1200);
+    b.scanning = false;
+    b.top.typematic_clear = 1;
+    b.clock();
+    b.top.typematic_clear = 0;
+    b.key(A, false);
+    std::vector<uint8_t> hidden_break = b.collect(1200);
+    b.scanning = true;
+    std::vector<uint8_t> resumed_break = b.collect(1200);
+    check("a break during disabled scanning is sent when scanning resumes",
+          delivered_make == std::vector<uint8_t>{0x1c} && hidden_break.empty() &&
+              resumed_break == std::vector<uint8_t>{0xf0, 0x1c},
+          hex(delivered_make) + " / " + hex(hidden_break) + " / " + hex(resumed_break));
+
+    b.scanning = false;
+    b.top.typematic_clear = 1;
+    b.clock();
+    b.top.typematic_clear = 0;
+    b.key(B, true);
+    std::vector<uint8_t> hidden_make = b.collect(1200);
+    b.key(B, false);
+    std::vector<uint8_t> hidden_release = b.collect(1200);
+    b.scanning = true;
+    std::vector<uint8_t> hidden_tap_after_resume = b.collect(1200);
+    check("a press and release wholly inside disabled scanning stay invisible",
+          hidden_make.empty() && hidden_release.empty() && hidden_tap_after_resume.empty(),
+          hex(hidden_make) + " / " + hex(hidden_release) + " / " + hex(hidden_tap_after_resume));
+
+    b.scanning = false;
+    b.top.typematic_clear = 1;
+    b.clock();
+    b.top.typematic_clear = 0;
+    b.key(C, true);
+    std::vector<uint8_t> disabled_press = b.collect(600000);
+    b.scanning = true;
+    std::vector<uint8_t> resumed_press = b.collect(200000);
+    b.key(C, false);
+    std::vector<uint8_t> released = b.collect(1200);
+    check("a key held through re-enable starts typematic after its delivered make",
+          disabled_press.empty() && resumed_press == std::vector<uint8_t>{0x21} &&
+              released == std::vector<uint8_t>{0xf0, 0x21},
+          hex(disabled_press) + " / " + hex(resumed_press) + " / " + hex(released));
 }
 
 }  // namespace
@@ -347,5 +409,6 @@ int main(int argc, char **argv) {
     ordering(b);
     stability(b);
     typematic(b);
+    scanning(b);
     return failures ? 1 : 0;
 }

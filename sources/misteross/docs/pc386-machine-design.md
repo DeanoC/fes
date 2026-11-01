@@ -418,6 +418,10 @@ inside the 8042 ahead of its PS/2 keyboard):
 - The 1 ms is 1000 ticks of the 8042's microsecond enable. A change is
   diffed one bit a clock, each group in usage order, and the next change is
   taken once every byte of this one has gone to the keyboard.
+- While scanning is disabled, host bytes are discarded and do not change the
+  guest-visible key state. Stable HID rows are reconciled against that state
+  when scanning resumes: a release of a key the guest saw is delivered, while
+  a press and release wholly inside the disabled window stays invisible.
 - Recorded deviations: no "fake shift" codes around E0 keys while Num Lock
   or Shift is down, and Print Screen and Pause send their plain sequences
   whatever modifiers are down, where a keyboard sends 84h for Alt+Print
@@ -429,9 +433,9 @@ inside the 8042 ahead of its PS/2 keyboard):
   F5 and F6 also empty the keyboard's output buffer, and F6 enables scanning
   where F5 disables it. The delay counts from
   the end of the press's make. Modifiers neither repeat nor stop another key's
-  repeat (a PS/2 keyboard repeats a held Shift itself; nothing reads it). A
-  repeat that falls due while the keyboard's FIFO is full is sent once, not
-  queued.
+  repeat (a PS/2 keyboard repeats a held Shift itself; nothing reads it). Pause
+  does not stop another key's repeat. A repeat that falls due while the
+  keyboard's FIFO is full is sent once, not queued.
 
 ### PS/2 aux mouse
 

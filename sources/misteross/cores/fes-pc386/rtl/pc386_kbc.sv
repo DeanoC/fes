@@ -66,20 +66,20 @@ module pc386_kbc #(
     wire keyboard_valid, aux_valid;
     wire [7:0] keyboard_byte, aux_byte;
     reg keyboard_take, aux_take;
-    wire key_valid, key_ready, typematic_clear;
+    wire key_valid, key_ready, key_scanning, typematic_clear;
     wire [7:0] key_code;
     wire [6:0] typematic;
     pc386_hid_keyboard host_keyboard (
         .clk(clk), .reset(reset), .us_tick(us_tick), .rows(keyboard_rows),
         .typematic(typematic), .typematic_clear(typematic_clear),
-        .key_valid(key_valid), .key_code(key_code), .key_ready(key_ready)
+        .key_valid(key_valid), .key_code(key_code), .key_ready(key_ready), .key_scanning(key_scanning)
     );
     pc386_ps2_keyboard #(.BAT_US(BAT_US)) keyboard (
         .clk(clk), .reset(reset), .us_tick(us_tick),
         .rx_valid(keyboard_rx), .rx_byte(device_byte),
         .tx_valid(keyboard_valid), .tx_byte(keyboard_byte), .tx_take(keyboard_take),
         .key_valid(key_valid), .key_code(key_code), .key_ready(key_ready),
-        .typematic(typematic), .typematic_clear(typematic_clear)
+        .typematic(typematic), .typematic_clear(typematic_clear), .scanning(key_scanning)
     );
     pc386_ps2_mouse #(.DY_DOWN(MOUSE_DY_DOWN)) mouse (
         .clk(clk), .reset(reset), .us_tick(us_tick),
@@ -300,9 +300,9 @@ module pc386_ps2_keyboard #(
     input wire [7:0] key_code,
     output wire key_ready,             // a byte is taken while valid and ready
     output reg [6:0] typematic,
-    output reg typematic_clear
+    output reg typematic_clear,
+    output reg scanning
 );
-    reg scanning;
     reg [1:0] argument;                  // 1 LEDs, 2 scan-code set, 3 typematic
     reg [7:0] last_sent;
     reg [15:0] bat;

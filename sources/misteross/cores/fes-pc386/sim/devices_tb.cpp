@@ -485,22 +485,35 @@ void kbc(Bench &b) {
 
     // F5 stops scanning and F6 starts it again, as Bochs's keyboard has them.
     auto first = [](const std::vector<uint8_t> &bytes) { return bytes.empty() ? 0 : int(bytes[0]); };
+    b.key(0x04, true);
+    std::vector<uint8_t> prior_make = b.drain();
     b.out(0x60, 0xf5);
     int f5_reply = first(b.drain());
+    b.key(0x04, false);
+    std::vector<uint8_t> straddling_break = b.drain();
     b.key(0x05, true);
-    std::vector<uint8_t> unscanned = b.drain();
+    std::vector<uint8_t> unscanned_make = b.drain();
     b.key(0x05, false);
-    unscanned = b.drain();
+    std::vector<uint8_t> unscanned_break = b.drain();
     b.out(0x60, 0xf6);
-    int f6_reply = first(b.drain());
+    std::vector<uint8_t> f6_response = b.drain();
+    int f6_reply = first(f6_response);
+    std::vector<uint8_t> resumed_break;
+    if (!f6_response.empty()) resumed_break.insert(resumed_break.end(), f6_response.begin() + 1, f6_response.end());
+    std::vector<uint8_t> after_f6 = b.drain();
+    resumed_break.insert(resumed_break.end(), after_f6.begin(), after_f6.end());
     b.key(0x05, true);
     std::vector<uint8_t> rescanned = b.drain();
     b.key(0x05, false);
     std::vector<uint8_t> rereleased = b.drain();
-    check("keyboard F5 stops scanning and F6 starts it again",
-          f5_reply == 0xfa && unscanned.empty() && f6_reply == 0xfa && rescanned == std::vector<uint8_t>{0x30} &&
+    check("F5 hides an in-window tap but F6 sends a straddling break",
+          prior_make == std::vector<uint8_t>{0x1e} && f5_reply == 0xfa && straddling_break.empty() &&
+              unscanned_make.empty() && unscanned_break.empty() && f6_reply == 0xfa &&
+              resumed_break == std::vector<uint8_t>{0x9e} && rescanned == std::vector<uint8_t>{0x30} &&
               rereleased == std::vector<uint8_t>{0xb0},
-          hex(f5_reply) + " " + hex(f6_reply) + " " + hex_bytes(rescanned) + " / " + hex_bytes(rereleased));
+          hex_bytes(prior_make) + " / " + hex(f5_reply) + " " + hex_bytes(straddling_break) + " " +
+              hex_bytes(unscanned_make) + " / " + hex_bytes(unscanned_break) + " / " + hex(f6_reply) + " " +
+              hex_bytes(resumed_break) + " " + hex_bytes(rescanned) + " / " + hex_bytes(rereleased));
     b.out(0x60, 0xf2);
     uint8_t id[3] = {};
     for (auto &byte : id) {

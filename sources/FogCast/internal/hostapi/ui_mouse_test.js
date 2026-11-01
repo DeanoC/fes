@@ -29,10 +29,38 @@ test('a full queue drops motion but keeps every button change',async()=>{
  for(let n=1;n<64;n++)queued.push(controller.sendMouseRelative(1,0,3));
  assert.equal(await controller.sendMouseRelative(1,0,3),false,'pure motion at depth 64 is dropped');
  const release=controller.sendMouseRelative(0,0,1);
- assert.equal(await controller.sendMouseRelative(0,0,1),false,'an unchanged repeat is dropped');
+ const fallback=controller.sendMouseRelative(0,0,1);
+ assert.equal(await controller.sendMouseRelative(0,0,1),false,'only one fallback is kept for the unconfirmed release');
  open();
  assert.deepEqual(await Promise.all(queued),new Array(64).fill(true));
  assert.equal(await release,true);
- assert.equal(sent.length,65);
+ assert.equal(await fallback,true);
+ assert.equal(sent.length,66);
  assert.deepEqual(sent[64],{Player:0,Device:2,Kind:4,Action:3,Code:1,Value:0});
+ assert.deepEqual(sent[65],{Player:0,Device:2,Kind:4,Action:3,Code:1,Value:0});
+});
+test('a full queue keeps one later button event when the first request fails',async()=>{
+ const input={state:'attached',ready:true,metrics:{frames_sent:0,state_resyncs:0,sequence_gaps:0,releases:0,capture_to_bridge_p95_ms:0,bridge_to_uinput_p95_ms:0,rtt_ms:0,bridge_to_uinput_measurable:false}};
+ let open;const gate=new Promise(resolve=>{open=resolve;});const sent=[];
+ const controller=createAppController({fetchImpl:async(path,options)=>{
+  if(path==='/api/v1/session')return {ok:true,status:200,json:async()=>({state:'active',core_package:core,input})};
+  const event=JSON.parse(options.body).event;sent.push(event);
+  if(sent.length<=64){await gate;return {ok:true,status:200,json:async()=>({ok:true})};}
+  if(sent.length===65)throw new Error('lost button response');
+  return {ok:true,status:200,json:async()=>({ok:true})};
+ }});
+ await controller.loadSession();
+ const queued=[];
+ for(let n=0;n<64;n++)queued.push(controller.sendMouseRelative(1,0,0));
+ const failed=controller.sendMouseRelative(0,0,1);
+ const retry=controller.sendMouseRelative(2,0,1);
+ assert.equal(await controller.sendMouseRelative(3,0,1),false,'only one same-state fallback is kept while unconfirmed');
+ open();
+ const results=await Promise.all([...queued,failed,retry]);
+ assert.deepEqual(results.slice(0,64),new Array(64).fill(true));
+ assert.equal(results[64],false);
+ assert.equal(results[65],true);
+ assert.equal(sent.length,66);
+ assert.equal(sent[64].Code,1);
+ assert.equal(sent[65].Code,1);
 });
