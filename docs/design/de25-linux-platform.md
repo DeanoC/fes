@@ -39,6 +39,11 @@ Explicit board/CPU artifact selection and the shared factory's AArch64,
 network, persistent SSH and software-bundle wiring are covered by the
 [factory-input record](../validation/2026-11-01-de25-factory-inputs/README.md).
 Its rootfs fixture is not a real CPU, package seal or physical boot proof.
+The subsequent [managed-base record](../validation/2026-11-02-de25-managed-base/README.md)
+builds a real AArch64 rootfs and SDK with the shared policy, matching built-in
+USB Bluetooth/HID kernel and actual FES helpers. Filesystem/ELF checks and an
+isolated SDK/C++/QEMU/SSH-banner proof pass. This intermediate retains its
+bootstrap guard, lacks runtime/factory/MENU and has no native boot acceptance.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.
 

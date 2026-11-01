@@ -83,6 +83,10 @@ disabled. It contains no runtime, factory bundle, RBF or card image. Final
 factory assembly must use the existing bundle and sealed-package checks with a
 validated DE25 MENU; this action does not bypass those checks or change a board.
 
+The [managed-base and isolated SDK record](validation/2026-11-02-de25-managed-base/README.md)
+contains the real Buildroot result, kernel/SDK/file identities and completed
+offboard checks. Complete factory/card assembly and native acceptance remain open.
+
 ## AArch64 runtime and agent checks without a board
 
 After building the C/C++ SDK, run:
