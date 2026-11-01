@@ -43,6 +43,9 @@ class TestChangedTest(unittest.TestCase):
         self.assertEqual(command["argv"], ["go", "test", "-race", "-timeout", "90s", "./sdcontrol", "./sdhci", "./fat"])
         self.assertIn("cc", command["tools"])
         self.assertEqual(result["impact"]["cores"], [])
+        self.assertFalse(any(result["impact"]["test_modes"].values()))
+        parent = next(c for c in result["commands"] if c["label"] == "parent Python regressions")
+        self.assertEqual(parent["argv"][2:6], ["--video", "false", "--media", "false"])
 
     def test_native_fabric_changes_schedule_injected_firmware_rtl_integration(self):
         self.change("platform/embedded/tamago/nativefabric/endpoint.go")

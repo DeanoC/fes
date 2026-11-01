@@ -36,6 +36,28 @@ class SelectTestModesTests(unittest.TestCase):
                 self.assertEqual(test_policy.select_test_modes([path]), ALL_FALSE)
         self.assertTrue(test_policy.select_test_modes(['sources/misteross/cores/fes-common/rtl/unknown.sv'])['video'])
 
+    def test_embedded_sd_consumers_stay_routine_and_mixed_inputs_keep_extended_checks(self):
+        paths = ['sources/mister-packages/packages/fabric/fes_fabric_embedded_sd.yaml',
+                 'sources/mister-packages/testdata/oracles/fes-embedded-sd.json',
+                 'platform/embedded/firmware/nano_sd.c',
+                 'platform/embedded/tamago/sdcontrol/session.go',
+                 'platform/embedded/tamago/sdhci/sdhci.go',
+                 'platform/embedded/nano/cold_profile.py',
+                 'platform/embedded/entry/build.py']
+        self.assertEqual(test_policy.select_test_modes(paths), ALL_FALSE)
+        for path in ('sources/mister-packages/packages/fabric/fes_fabric_embedded_sd_other.yaml',
+                     'sources/mister-packages/packages/abi/fes_application.yaml',
+                     'unknown/new.bin'):
+            self.assertEqual(test_policy.select_test_modes([*paths, path]), ALL_TRUE)
+        for path in ('platform/internal/applianceboot/boot.go',
+                     'platform/embedded-other/boot.go',
+                     'platform/embedded/../internal/applianceboot/boot.go',
+                     'image/Makefile'):
+            self.assertEqual(test_policy.select_test_modes([*paths, path]),
+                             {'video': False, 'media': True, 'full_race': False})
+        self.assertEqual(test_policy.select_test_modes([*paths, 'scripts/factory_video_parts.py']),
+                         {'video': True, 'media': False, 'full_race': False})
+
     def test_private_de25_dma_test_kernel_has_no_appliance_media_consumer(self):
         path = 'image/kernel/de25-dma/de25_dma.c'
         self.assertEqual(test_policy.select_test_modes([path]), ALL_FALSE)

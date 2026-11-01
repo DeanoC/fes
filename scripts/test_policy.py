@@ -15,6 +15,13 @@ DE25_BOARD_DEFINITION = 'sources/mister-packages/packages/board/de25_nano.yaml'
 # Generated consumers live only in the standalone diagnostic board tree.
 DE25_DDR_PROBE_DEFINITION = 'sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml'
 
+# This private channel emits only the embedded C/Go service/client constants.
+# It changes no deployed ABI, FPGA endpoint or Linux image/video consumer.
+EMBEDDED_SD_CONTRACT_INPUTS = frozenset({
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_sd.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-sd.json',
+})
+
 # Video producer, package-admission and host library consumer inputs. Changes
 # here re-include the real-device video suites in the parent run.
 VIDEO_FILES = frozenset({
@@ -92,10 +99,11 @@ def _documentation(path):
 def _classify(path):
     if path == '<new-branch>':
         return dict.fromkeys(TEST_MODE_KEYS, True)
-    # This prototype builds only a host simulation and cannot affect the
-    # video producer or the deployed image/media assembly.
-    if (path in ('platform/embedded/tamago/nativefabric/producer_integration_test.go',
-                     'platform/embedded/tamago/nativefabric/verify_producer.py')):
+    # Standalone Linux-free boot/runtime prototypes have their own firmware,
+    # SD PIO, QEMU and native lifecycle checks. The Linux appliance does not
+    # compile the nested TamaGo module or consume these firmware/entry images.
+    if ((_under(path, 'platform/embedded') and '..' not in Path(path).parts) or
+            path in EMBEDDED_SD_CONTRACT_INPUTS):
         return dict.fromkeys(TEST_MODE_KEYS, False)
     # The standalone DE25 headless image has its own build/verification checks.
     # It consumes no DE10 image, core package, runtime or media assembly input.

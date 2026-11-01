@@ -68,3 +68,20 @@ existing `FES/RECOVERY.JSON`, quiesce/contain, resume the same card and compare 
 again. Concurrent core/SD access and coordinated adoption of device generations
 by the native fabric actor are still pending. Programming features remain zero
 in the current cold serial profile.
+
+The initial broad affected run was stopped after the shared contract selected
+unrelated DE10 full-device video and Linux-media suites. The reviewed mapping
+now treats `platform/embedded` as its standalone Linux-free consumer tree and
+the exact new SD definition/oracle as C/Go-only inputs. Focused native checks,
+all routine assertions, generated/schema checks and the existing launch/return
+checks remain selected. Mixed Linux-image/video or unknown shared inputs still
+select their extended suites. The 92 policy/planner tests pass; the canceled
+run is retained and is not a passing check.
+
+A read-only boundary check corrected an earlier assumption: `cold_profile.entry`
+still accepts the frozen entry-v1 serial image after SDK edits. Its seven source
+checks cover wrapper/build files, along with image/layout/profile hashes; it
+does not recheck every upstream SDK file. This is identifiable old serial code,
+not evidence that the new SD Session runs on hardware. The controlled-SD test
+must build a fresh native payload/entry, verify its selected-source receipt and
+use an explicit new profile. No source guard is bypassed by this milestone.
