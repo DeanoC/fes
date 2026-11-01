@@ -3,9 +3,6 @@ from pathlib import Path
 import re
 import unittest
 
-from scripts import parent_affected
-
-
 ROOT = Path(__file__).resolve().parents[1]
 DOC = (ROOT / "docs/plans/v1-firmware-licensing.md").read_text()
 
@@ -36,17 +33,32 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
         self.assertIn("2. **Sold or preinstalled hardware. Noted.**", DOC)
         self.assertIn("3. **Which Spectrum ROM versions to recognise? Agreed.**", DOC)
         self.assertIn("4. **Pentagon firmware composition. Agreed.**", DOC)
-        self.assertIn("5. **ZX81 family. Agreed.**", DOC)
+        self.assertIn("5. **ZX81 family. Deano's decision needed.**", DOC)
         self.assertIn("6. **EmuTOS image and source. Agreed.**", DOC)
         self.assertIn("7. **Commercial C64 licence. Agreed.**", DOC)
         self.assertNotIn("if Deano accepts Decision 1", DOC)
+        decision1 = evidence_line("1. **Ship Amstrad's Spectrum ROMs")
+        decision6 = evidence_line("6. **EmuTOS image and source.")
+        self.assertIn("remove the ROMs if a rights holder objects", decision1)
+        self.assertIn("release HIL passes on the PAL core", decision6)
 
-    def test_test_module_has_a_narrow_parent_group(self):
-        path = "tests/test_v1_firmware_licensing_doc.py"
-        module = "test_v1_firmware_licensing_doc"
-        self.assertEqual({"policy"}, parent_affected.parent_groups(path))
-        self.assertIn(module, parent_affected.GROUPS["policy"])
-        self.assertIn(module, parent_affected.DOCUMENTATION_MODULES)
+    def test_zx81_rom_bundling_is_recorded_and_deferred_to_deano(self):
+        state = evidence_line("Firmware bytes are already in Git:")
+        evidence = evidence_line("- **Z0.")
+        decision = evidence_line("5. **ZX81 family.")
+        self.assertIn("machine.rom", state)
+        self.assertIn("core_roms.go", state)
+        self.assertIn("build_fes_zx81.py", state)
+        self.assertIn("zx8x.mif", evidence)
+        self.assertIn("not permission to redistribute", evidence)
+        self.assertIn("Deano's decision needed", decision)
+        self.assertIn("removing them is a separate PR", decision)
+        self.assertIn("Pentagon's entire 48 KiB image", DOC)
+
+    def test_decision_links_use_the_current_heading_anchor(self):
+        self.assertIn("## Decisions recorded 1 November 2026", DOC)
+        self.assertEqual(DOC.count("#decisions-recorded-1-november-2026"), 3)
+        self.assertNotIn("#decisions-for-deano", DOC)
 
     def test_debian_vice_rom_claim_matches_its_sources(self):
         claim = evidence_line("- **C3.**")
@@ -56,7 +68,7 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
 
     def test_ts1500_evidence_does_not_claim_a_timex_grant(self):
         row = licensing_row("| `fes.ts1500` |")
-        decision = evidence_line("5. **ZX81 family. Agreed.**")
+        decision = evidence_line("5. **ZX81 family. Deano's decision needed.**")
         self.assertIn("neither establishes TS1500 permission", row)
         self.assertNotIn("Timex permits distribution", row)
         self.assertIn("TS2000 BASIC", evidence_line("- **Z1.**"))
@@ -68,6 +80,7 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
         row = licensing_row("| `fes.atari-st` |")
         decision = evidence_line("6. **EmuTOS image and source. Agreed.**")
         notes = evidence_line("- `fetch_atari_st_emutos.py`")
+        e1 = evidence_line("- **E1.**")
         self.assertIn("full GPL text from `doc/license.txt`", top)
         self.assertIn("same release page as the binary", top)
         self.assertIn("preinstalled on a physical kit", top)
@@ -80,6 +93,9 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
         self.assertIn("preinstalled card needs the source on the card or a valid written offer", decision)
         self.assertIn("Keep that existing label for the bundle", notes)
         self.assertIn("does not say \"only\"", notes)
+        self.assertIn("GPL-2.0-or-later label", e1)
+        self.assertIn("does not say \"only\"", e1)
+        self.assertNotIn("release-level label", e1)
 
     def test_emutos_turrican_sources_are_reported_as_conflicting(self):
         claim = evidence_line("- **E6.**")

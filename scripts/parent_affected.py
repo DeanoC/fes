@@ -55,9 +55,11 @@ PARENT_INPUT_GROUPS.update({
         'scripts/affected.py', 'scripts/ci_gate.py', 'scripts/check_diff.py',
         'tests/test_affected.py', 'tests/test_ci_gate.py',
         'tests/test_check_diff.py', 'tests/test_test_changed.py',
-        'tests/test_v1_firmware_licensing_doc.py',
     )
 })
+
+# This source-claim regression suite is a narrow policy input, not a selector test.
+PARENT_INPUT_GROUPS['tests/test_v1_firmware_licensing_doc.py'] = frozenset({'policy'})
 
 # Test modules may supply fixtures to another group. Keep their consumers too.
 # Other current cross-test imports stay within a group or in baseline policy.
