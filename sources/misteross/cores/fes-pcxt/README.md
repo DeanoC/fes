@@ -57,8 +57,10 @@ The FreeDOS fixture uses kernel 2043 and FreeCOM 0.86a; see
 [`sim/freedos.lock`](sim/freedos.lock). Hardware prompt acceptance remains
 separate from the host simulation and package build.
 
-The DOS profile supplies an XT keyboard self-test response over the existing
-serial cable after the BIOS reset handshake. It does not yet accept host keys.
+The DOS profile accepts host HID keyboard snapshots through the runtime mailbox
+and serializes them onto the XT keyboard cable. It also supplies the keyboard
+self-test response after the BIOS reset handshake. Guest-visible key delivery
+remains a separate simulation and kit acceptance check.
 
 The recipe registers `scripts/pcxt_dos_hil_acceptance.py` with preferred kit
 order B then A. It requires at least three complete captures with a meaningful
@@ -1121,7 +1123,9 @@ Both targets are long full-machine host simulations, with a three-hour limit
 and periodic progress. Results and input/source/testbench hashes live under
 `build/sim/fes-pcxt/dos-com/` or `dos-game/`. A host simulation is not a kit
 or whole-board qualification. To reuse a previously built exact disk, invoke
-`scripts/sim_fes_pcxt_dos.py --scenario com|game --disk /path/to/image`.
+`scripts/sim_fes_pcxt_dos.py --scenario com|game --disk /path/to/image`. The
+[owned-session hardware diagnostic](../../../../docs/pcxt-application-acceptance.md)
+records the separate kit observation and cleanup requirements.
 
 ## Validation
 
