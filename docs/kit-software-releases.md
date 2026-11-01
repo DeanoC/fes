@@ -61,6 +61,8 @@ The factory assembler also accepts explicit `--board de25-nano`. It validates
 AArch64 executables and the base ELF closure, seals the same immutable bundle
 and menu requirements, and rejects a DE10 window-driver input. DE25 uses its
 built-in DMA owner. DE10 keeps its required versioned window module. The
+selected MENU package must target the chosen board before bundle assembly;
+the runtime's interface records cover both board-specific contracts. The
 standalone cross-build producer still selects DE10; DE25 SDK selection,
 complete image/bootstrap wiring, physical runtime/MENU binding and
 an actual managed update remain integration work. No daemon admission or

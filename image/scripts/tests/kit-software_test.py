@@ -84,6 +84,13 @@ class SoftwareABI(unittest.TestCase):
                     menu(root, bad)
                     with self.assertRaises(ValueError):
                         software.menu_requirements(root)
+            menu(root, [('fes.video.menu-display', 1, 0, True)])
+            selected = root / 'usr/share/mister-runtime/core-packages' / ('d' * 64) / 'manifest.toml'
+            original = selected.read_text()
+            for wrong in ('target = "de10_nano"', 'target = []'):
+                selected.write_text(original.replace('[target]\nplatform = "de10_nano"', wrong))
+                with self.assertRaisesRegex(ValueError, 'target differs'):
+                    software.menu_requirements(root)
             (root / software.MENU_SELECTION).write_text("package_id = '../escape'\n")
             with self.assertRaisesRegex(ValueError, 'invalid menu package selection'):
                 software.menu_requirements(root)
@@ -290,6 +297,14 @@ class SoftwareABI(unittest.TestCase):
                            cwd=module, env=build_env, check=True, timeout=120)
             menu(root, [('fes.video.fixed-720p60', 1, 0, True),
                         ('fes.video.menu-display', 1, 0, True), ('fes.fabric.de25-scanout', 1, 1, True)])
+            with patch.object(software, 'base_contract') as inspect:
+                with self.assertRaisesRegex(ValueError, 'target differs'):
+                    software.assemble(root, fogcast, 'b' * 40, board='de25-nano')
+                inspect.assert_not_called()
+            self.assertFalse((root / 'usr/share/fes/software').exists())
+            menu(root, [('fes.video.fixed-720p60', 1, 0, True),
+                        ('fes.video.menu-display', 1, 0, True), ('fes.fabric.de25-scanout', 1, 1, True)],
+                 board='de25-nano')
             provides = {'menu.fes.video.fixed-720p60': '1.0', 'menu.fes.video.menu-display': '1.0',
                         'menu.fes.fabric.de25-scanout': '1.1'}
             with patch.object(software, 'runtime_menu_interfaces', return_value=provides):
@@ -329,7 +344,7 @@ class SoftwareABI(unittest.TestCase):
                     software.base_contract(root, [binary], 'de25-nano')
 
 
-def menu(root, interfaces):
+def menu(root, interfaces, board='de10-nano'):
     """Write a sealed menu selection and its package manifest under root."""
     package = 'd' * 64
     selection = root / software.MENU_SELECTION
@@ -338,6 +353,7 @@ def menu(root, interfaces):
     manifest = root / 'usr/share/mister-runtime/core-packages' / package / 'manifest.toml'
     manifest.parent.mkdir(parents=True, exist_ok=True)
     lines = ['format = 2'] + ([] if interfaces else ['interfaces = []'])
+    lines += ['', '[target]', f'platform = "{board.replace("-", "_")}"']
     for name, major, minor, required in interfaces:
         lines += ['', '[[interfaces]]', f'id = "{name}"', f'major = {major}', f'minor = {minor}',
                   f'required = {str(required).lower()}']
