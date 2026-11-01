@@ -74,11 +74,18 @@ func (d *Device) Identity() Identity { return Identity{CID: d.cid, Sectors: d.se
 
 // Config describes the actual input clock established by firmware, not the
 // requested SD bus rate. The initial transport stays at <=400 kHz, one bit.
-type Config struct{ InputClockHz uint32 }
+type Config struct {
+	InputClockHz uint32
+	// PrepareClock, when supplied, runs after host software reset and stable
+	// internal clock, before enabling card clocks or issuing any command.
+	// A firmware-controlled platform uses it for its qualified PHY preparation.
+	PrepareClock func() error
+}
 
 // Open resets the SDHCI host, power-cycles and discovers a block-addressed SD
-// card. SDSC, SDUC and eMMC reject. The SoC's ComboPHY/clock/reset/pinmux must
-// already permit register and identification-clock access; this is not a PHY port.
+// card. SDSC, SDUC and eMMC reject. Platform clocks/reset/pinmux must permit
+// register access. PrepareClock, or prior firmware setup, must establish PHY
+// readiness before the driver enables card clocks.
 func Open(io Registers, config Config) (*Device, error) {
 	if io == nil || config.InputClockHz < 400000 || config.InputClockHz > 200000000 {
 		return nil, fmt.Errorf("sdhci: invalid firmware input clock")
@@ -131,6 +138,14 @@ func (d *Device) initialize(config Config) error {
 	d.io.Write32(clock, uint32(divisor)<<8|14<<16|1)
 	if err := d.wait(clock, 2, 2, false); err != nil {
 		return err
+	}
+	if config.PrepareClock != nil {
+		if err := config.PrepareClock(); err != nil {
+			return fmt.Errorf("sdhci: prepare controller clock: %w", err)
+		}
+		if d.io.Read32(clock)&(7|7<<24) != 3 || d.io.Read32(signalEnable) != 0 {
+			return fmt.Errorf("sdhci: clock or interrupt state changed during platform preparation")
+		}
 	}
 	d.io.Write32(clock, d.io.Read32(clock)|4)
 	if err := d.pause(time.Millisecond); err != nil {

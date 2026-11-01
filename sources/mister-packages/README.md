@@ -55,6 +55,9 @@ It registers no production ABI or Nano programming profile.
 The separate [owned firmware bridge channel](docs/embedded-bridges.md) generates
 C/Go constants for an opt-in Nano SiP experiment. It supplies no boot proof or
 physical admission and does not change FPGA endpoint build inputs.
+The [firmware-owned SD lease](docs/embedded-sd.md) supplies a separate C/Go
+channel sharing that owner and generation. It remains unready without trusted
+platform initialization and permits only closed-bridge PIO.
 
 Run `make test` with Python `jsonschema` available and Go installed.
 Use `make fixtures` to regenerate canonical fixtures and `make check-fixtures`

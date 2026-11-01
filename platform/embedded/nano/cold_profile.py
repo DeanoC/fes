@@ -29,6 +29,7 @@ def entry(entry_build):
 def sources():
     return [HERE/name for name in ('cold_profile.py','spl_cold.c','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json')]+[
         FW/name for name in ('nano_cold.h','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
+                            'nano_sd.h','nano_sd.c','generated/fes_embedded_sd.h',
                             'nano_boot.c','nano_bridges.h','nano_bridges.c','nano_bridge_platform.inc','nano_bridge_platform.h',
                             'nano_owned_sip.inc','prepare_nano_owned.py','prepare_tfa.py',
                             'nano_bridge_sip.c','nano_bridge_sip.h','generated/fes_embedded_bridges.h',

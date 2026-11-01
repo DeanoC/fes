@@ -1,0 +1,29 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.embedded.sd
+major: 1
+minor: 0
+description: >-
+  Experimental firmware-owned Nano SD PIO lease with continuously reset data
+  bridges. Shares the bridge owner and generation. No non-secure initialization,
+  production programming profile or board qualification is supplied.
+constants:
+  - {name: FesEmbeddedSdCall, value: 0xc2000302}
+  - {name: FesEmbeddedSdCookie, value: 0x46455353}
+  - {name: FesEmbeddedSdTag, value: 0x46534431}
+  - {name: FesEmbeddedSdQuery, value: 0x0}
+  - {name: FesEmbeddedSdResume, value: 0x1}
+  - {name: FesEmbeddedSdPrepare, value: 0x2}
+  - {name: FesEmbeddedSdStop, value: 0x3}
+  - {name: FesEmbeddedSdOK, value: 0x0}
+  - {name: FesEmbeddedSdBusy, value: 0x1}
+  - {name: FesEmbeddedSdRejected, value: 0x2}
+  - {name: FesEmbeddedSdError, value: 0x4}
+  - {name: FesEmbeddedSdNotReady, value: 0x5}
+  - {name: FesEmbeddedSdSupported, value: 0x1}
+  - {name: FesEmbeddedSdActive, value: 0x2}
+  - {name: FesEmbeddedSdPrepared, value: 0x4}
+  - {name: FesEmbeddedSdContained, value: 0x8}
+  - {name: FesEmbeddedSdDataHeld, value: 0x10}
+  - {name: FesEmbeddedSdClosedOnly, value: 0x20}
+  - {name: FesEmbeddedSdFlags, value: 0x3f}

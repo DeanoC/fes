@@ -106,7 +106,7 @@ int main(void) {
             (inc/'fes_nano_cold_profile.h').write_text('#define FES_NANO_COLD_CHAIN {0x42,0x17}\n#define FES_NANO_COLD_OWNER_SEED 17ULL\n')
             binary=base/'platform'
             command=['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
-                     '-I'+str(inc),'-I'+str(FW),*(str(FW/name) for name in ('nano_cold_platform.c','nano_cold.c','nano_boot.c','nano_bridges.c','nano_bridge_sip.c','tests/nano_cold_platform_test.c')),'-o',str(binary)]
+                     '-I'+str(inc),'-I'+str(FW),*(str(FW/name) for name in ('nano_cold_platform.c','nano_cold.c','nano_boot.c','nano_bridges.c','nano_bridge_sip.c','nano_sd.c','tests/nano_cold_platform_test.c')),'-o',str(binary)]
             r=subprocess.run(command,capture_output=True,text=True);self.assertEqual(r.returncode,0,r.stderr)
             for mutation in range(22):
                 with self.subTest(mutation=mutation):

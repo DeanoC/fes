@@ -3,7 +3,9 @@
 #define FES_NANO_BRIDGE_PLATFORM_H
 #include "nano_bridge_sip.h"
 #include "nano_boot.h"
+#include "nano_sd.h"
 extern struct fes_nano_bridges fes_nano_owned_bridges;
+extern struct fes_nano_sd fes_nano_owned_sd;
 void fes_nano_bridge_platform_setup(void);
 void fes_nano_bridge_platform_lock(void);
 void fes_nano_bridge_platform_unlock(void);

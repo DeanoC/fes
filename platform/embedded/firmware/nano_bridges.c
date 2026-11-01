@@ -14,7 +14,7 @@ static int read_state(struct fes_nano_bridges *b, uint32_t *reset, unsigned *mas
 {
     uint32_t first, second;
     int contained;
-    if (!b || !b->initialized || b->failed) return UNPROVEN;
+    if (!b || !b->initialized || b->failed || b->device_lease) return UNPROVEN;
     if (b->ops.owns(b->ops.context, b->state.owner, b->epoch) != 1)
         return fail(b, UNPROVEN);
     if (b->ops.read_reset(b->ops.context, &first) != 0)

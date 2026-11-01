@@ -42,30 +42,31 @@ class AffectedTests(unittest.TestCase):
         self.assertEqual({k for k,v in r['lanes'].items() if v}, {'parent','fpga','contracts'})
         self.assertEqual(set(plan(['sources/misteross/cores/fes-common/rtl/unknown.sv'])['cores']), set(CORES))
 
-    def test_owned_bridge_definition_has_only_embedded_c_and_go_consumers(self):
-        definition = 'packages/fabric/fes_fabric_embedded_bridges.yaml'
-        source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
-        registry = next(node.value for node in ast.parse(source.read_text()).body
-                        if isinstance(node, ast.Assign) and
-                        any(isinstance(name, ast.Name) and name.id == 'GENERATED' for name in node.targets))
-        consumers = {(module, path) for _, item, module, path in ast.literal_eval(registry)
-                     if item == definition}
-        self.assertEqual(consumers, {
-            ('FES', 'platform/embedded/firmware/generated/fes_embedded_bridges.h'),
-            ('FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go'),
-        })
-        paths = ['sources/mister-packages/' + definition,
-                 'sources/mister-packages/testdata/oracles/fes-embedded-bridges.json']
-        for path in paths:
-            with self.subTest(path=path):
-                result = plan([path])
-                self.assertEqual(result['cores'], [])
-                self.assertEqual({k for k, v in result['lanes'].items() if v},
-                                 {'parent', 'fpga', 'contracts'})
-        # Unreviewed neighbors retain the conservative all-consumer rule.
-        for path in ('sources/mister-packages/packages/fabric/unknown.yaml',
-                     'sources/mister-packages/testdata/oracles/unknown.json'):
-            self.assertEqual(set(plan([*paths, path])['cores']), set(CORES))
+    def test_owned_firmware_definitions_have_only_embedded_c_and_go_consumers(self):
+        for stem in ('bridges', 'sd'):
+            definition = 'packages/fabric/fes_fabric_embedded_' + stem + '.yaml'
+            source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
+            registry = next(node.value for node in ast.parse(source.read_text()).body
+                            if isinstance(node, ast.Assign) and
+                            any(isinstance(name, ast.Name) and name.id == 'GENERATED' for name in node.targets))
+            consumers = {(module, path) for _, item, module, path in ast.literal_eval(registry)
+                         if item == definition}
+            self.assertEqual(consumers, {
+                ('FES', 'platform/embedded/firmware/generated/fes_embedded_' + stem + '.h'),
+                ('FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_' + stem + '.go'),
+            })
+            paths = ['sources/mister-packages/' + definition,
+                     'sources/mister-packages/testdata/oracles/fes-embedded-' + stem + '.json']
+            for path in paths:
+                with self.subTest(path=path):
+                    result = plan([path])
+                    self.assertEqual(result['cores'], [])
+                    self.assertEqual({k for k, v in result['lanes'].items() if v},
+                                     {'parent', 'fpga', 'contracts'})
+            # Unreviewed neighbors retain the conservative all-consumer rule.
+            for path in ('sources/mister-packages/packages/fabric/unknown.yaml',
+                         'sources/mister-packages/testdata/oracles/unknown.json'):
+                self.assertEqual(set(plan([*paths, path])['cores']), set(CORES))
 
     def test_de25_linux_selects_parent_without_existing_core_consumers(self):
         paths = ['image/de25-nano/' + name for name in

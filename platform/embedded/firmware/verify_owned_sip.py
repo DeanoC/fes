@@ -15,6 +15,8 @@ def build(reference, subset, output, run):
 #define INTEL_SIP_SMC_FPGA_CONFIG_WRITE 0x42000002U
 #define INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE 0xc2000003U
 #define INTEL_SIP_SMC_FPGA_CONFIG_ISDONE 0xc2000004U
+#include "nano_sd.h"
+struct fes_nano_sd fes_nano_owned_sd;
 #include "nano_owned_sip.inc"
 typedef uint64_t u_register_t;
 typedef struct { uint64_t r[4]; } Reply;
@@ -49,4 +51,6 @@ unsigned fes_tfa_legacy_routes(void) { return legacy_routes; }
     # host buffer fixture mixes signed sizes and unsigned block lengths.
     run("owned-sip-compile", ["cc", *(f for f in flags if f != "-Wextra"), "-c", path, "-o", engine])
     run("owned-codec-compile", ["cc", *flags, "-c", HERE / "nano_bridge_sip.c", "-o", codec])
-    return [engine, codec], {"controlled_service_sha256": hashlib.sha256(owned.encode()).hexdigest(), "host_subset_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+    sd = output / "nano_sd.o"
+    run("owned-sd-compile", ["cc", *flags, "-c", HERE / "nano_sd.c", "-o", sd])
+    return [engine, codec, sd], {"controlled_service_sha256": hashlib.sha256(owned.encode()).hexdigest(), "host_subset_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}

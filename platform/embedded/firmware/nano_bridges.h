@@ -39,7 +39,9 @@ struct fes_nano_bridges {
     struct fes_nano_bridge_ops ops;
     struct fes_nano_bridge_snapshot state;
     uint64_t epoch;
-    unsigned initialized, failed, access;
+    /* A trusted device lease blocks observations/mutations until independent
+     * containment restores the cached all-master state. */
+    unsigned initialized, failed, access, device_lease;
 };
 
 /* Zero-initialize once per boot. Only trusted boot/platform code may initialize

@@ -5,6 +5,9 @@
 #include "nano_bridge_platform.h"
 
 struct fes_nano_bridges fes_nano_owned_bridges;
+/* No default SD authority. A reviewed secure platform must install its ops
+ * under this same lock after accepting the matched boot record. */
+struct fes_nano_sd fes_nano_owned_sd;
 static struct fes_nano_boot fes_nano_owned_boot;
 static spinlock_t fes_nano_owned_lock;
 void fes_nano_bridge_platform_lock(void) { spin_lock(&fes_nano_owned_lock); }

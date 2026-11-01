@@ -35,6 +35,15 @@ class TestChangedTest(unittest.TestCase):
         command = next(c for c in self.plan()["commands"] if c["label"] == "embedded producer identity and native control integration")
         self.assertNotIn("--allow-dirty", command["argv"])
 
+    def test_native_sd_changes_schedule_c_go_pio_lifecycle(self):
+        self.change("platform/embedded/tamago/sdcontrol/session.go")
+        result = self.plan()
+        command = next(c for c in result["commands"] if c["label"] == "native SD firmware lease and PIO lifecycle")
+        self.assertEqual(command["cwd"], "platform/embedded/tamago")
+        self.assertEqual(command["argv"], ["go", "test", "-race", "-timeout", "90s", "./sdcontrol", "./sdhci", "./fat"])
+        self.assertIn("cc", command["tools"])
+        self.assertEqual(result["impact"]["cores"], [])
+
     def test_native_fabric_changes_schedule_injected_firmware_rtl_integration(self):
         self.change("platform/embedded/tamago/nativefabric/endpoint.go")
         result = self.plan()

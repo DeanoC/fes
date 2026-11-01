@@ -67,6 +67,10 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
         add("parent", "working-tree generated consumer consistency", ".",
             [sys.executable, "-c", "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"],
             tools=["go"], files=["scripts/consistency.py"])
+        if any(affected.native_sd_input(path) for path in impact["paths"]):
+            add("parent", "native SD firmware lease and PIO lifecycle", "platform/embedded/tamago",
+                ["go", "test", "-race", "-timeout", "90s", "./sdcontrol", "./sdhci", "./fat"],
+                tools=["go", "cc"], files=["sdcontrol/session_test.go", "sdhci/sdhci.go"])
         if any(affected.native_fabric_input(path) for path in impact["paths"]):
             add("parent", "native runtime firmware and FPGA launch integration", ".",
                 [sys.executable, "platform/embedded/tamago/nativefabric/verify.py"],

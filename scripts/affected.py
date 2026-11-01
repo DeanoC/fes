@@ -27,12 +27,28 @@ EMBEDDED_CONTROL_INPUTS = frozenset({
 EMBEDDED_BRIDGE_INPUTS = frozenset({
     'sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml',
     'sources/mister-packages/testdata/oracles/fes-embedded-bridges.json',
+    'sources/mister-packages/packages/fabric/fes_fabric_embedded_sd.yaml',
+    'sources/mister-packages/testdata/oracles/fes-embedded-sd.json',
 })
 
 
 def embedded_control_input(path):
     return (path in EMBEDDED_CONTROL_INPUTS or path in EMBEDDED_BRIDGE_INPUTS or
             path.startswith('platform/embedded/firmware/'))
+
+
+def native_sd_input(path):
+    return (path in EMBEDDED_BRIDGE_INPUTS or
+            path.startswith(('platform/embedded/tamago/sdcontrol/',
+                             'platform/embedded/tamago/sdhci/')) or
+            path in ('platform/embedded/firmware/nano_sd.h',
+                     'platform/embedded/firmware/nano_sd.c',
+                     'platform/embedded/firmware/nano_owned_sip.inc',
+                     'platform/embedded/firmware/nano_bridges.c',
+                     'platform/embedded/firmware/nano_bridges.h',
+                     'platform/embedded/firmware/tests/nano_sd_rpc.c',
+                     'platform/embedded/firmware/tests/nano_sd_test.c',
+                     'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_sd.go'))
 
 
 def embedded_producer_input(path):

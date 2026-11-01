@@ -205,6 +205,25 @@ Recovery packaging requires `strict`; the native loader now requires its exact
 matched `owned-cold-serial` profile. Both reject the default unready variant.
 Earlier producer receipts remain historical evidence.
 
+### Closed-bridge SD lease
+
+The [SD wire channel](../../../sources/mister-packages/docs/embedded-sd.md)
+shares the bridge owner and generation. `nano_sd.c` requires secure-only
+initialization with scope, controller resume, clock/PHY preparation and
+independent drain/reset callbacks. A leased SD controller blocks bridge
+snapshots, mutations and FPGA configuration before all-master cold callbacks.
+Successful Stop restores the old cold scope before publishing containment;
+any uncertain transition retires both services and retains the lease.
+
+The owned dispatcher recognizes the SD channel under the same platform lock.
+Default owned and cold serial builds leave it NOT_READY; they install no
+SD authority. The [native session](../tamago/sdcontrol/README.md) binds the
+actual PIO driver to this service through injectable transport/registers.
+C/Go tests inject scope and MMIO and exercise read/quiesce/resume, changed cards
+and retained failures. Real Nano callbacks, a controlled SD profile and
+physical reads remain pending. The cold serial profile still advertises zero
+programming features.
+
 ### Actual cold serial producer and callbacks
 
 ```sh

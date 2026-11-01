@@ -44,5 +44,8 @@ reads, DMA/IRQ/clock/drain failures, media changes, reset/reinitialization
 errors, RCA changes and preserved read-only media. The
 [pinned Altera register/low-level source](https://github.com/altera-fpga/baremetal-drivers/blob/66bdcc347564c5698a8997169bce83a31647d618/drivers/sdmmc/socfpga_sdmmc_ll.c)
 and [Terasic ComboPHY source](https://github.com/terasic/u-boot-socfpga/blob/d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413/drivers/phy/cadence/phy-cadence-combophy.c)
-describe separate controller and PHY setup. Firmware resume/stop binding and
-physical PHY/read qualification are the next integration gate.
+describe separate controller and PHY setup. The [SD lease session](../sdcontrol/README.md) now connects the actual driver
+lifecycle and the `PrepareClock` boundary to an injected firmware service.
+`PrepareClock` runs after host reset/internal-clock stability and before card
+clocks or commands, and reruns on resume. Native Nano platform callbacks,
+profile selection and physical PHY/read qualification remain pending.

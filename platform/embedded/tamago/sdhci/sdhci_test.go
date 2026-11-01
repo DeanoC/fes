@@ -647,3 +647,55 @@ func TestQuiesceFencesQueuedReadsAndStopsBatchAtSectorBoundary(t *testing.T) {
 		t.Fatal("sector boundary or unfinished output changed")
 	}
 }
+
+func TestPrepareClockBeforeCommandsAndOnResume(t *testing.T) {
+	c := newCard()
+	preparations := 0
+	sentinel := errors.New("PHY prepare failed")
+	cfg := Config{InputClockHz: 200000000, PrepareClock: func() error {
+		preparations++
+		if c.regs[clock]&(7|7<<24) != 3 || len(c.commands) != 0 {
+			t.Fatalf("preparation boundary clock=%x commands=%d", c.regs[clock], len(c.commands))
+		}
+		return nil
+	}}
+	d, err := Open(c, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = d.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+	c.commands = nil
+	if err = d.Resume(); err != nil {
+		t.Fatal(err)
+	}
+	if preparations != 2 {
+		t.Fatal(preparations)
+	}
+	c = newCard()
+	cfg.PrepareClock = func() error { return sentinel }
+	if _, err = Open(c, cfg); !errors.Is(err, sentinel) {
+		t.Fatal(err)
+	}
+	if len(c.commands) != 0 || c.regs[clock]&4 != 0 {
+		t.Fatal("failed PHY preparation enabled card transport")
+	}
+	for _, changed := range []uint32{clock, signalEnable} {
+		c = newCard()
+		cfg.PrepareClock = func() error {
+			if changed == clock {
+				c.regs[clock] &^= 2
+			} else {
+				c.regs[signalEnable] = 1
+			}
+			return nil
+		}
+		if _, err = Open(c, cfg); err == nil {
+			t.Fatal("unsafe platform preparation accepted")
+		}
+		if len(c.commands) != 0 || c.regs[clock]&4 != 0 {
+			t.Fatal("unsafe preparation enabled card transport")
+		}
+	}
+}

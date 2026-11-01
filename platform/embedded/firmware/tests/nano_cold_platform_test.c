@@ -16,6 +16,7 @@ static unsigned release_locked=1,current_el=12;
 static uint64_t mpidr;
 int fes_nano_cold_cpu_release_locked(void) { return release_locked; }
 struct fes_nano_bridges fes_nano_owned_bridges;
+struct fes_nano_sd fes_nano_owned_sd;
 void fes_nano_bridge_platform_lock(void) {}
 void fes_nano_bridge_platform_unlock(void) {}
 #define FES_NANO_COLD_SERIAL 1
@@ -105,6 +106,12 @@ int main(int argc,char **argv)
     assert(reply[0]==0 && (uint32_t)reply[1]==0xdf && reply[2]==record.owner && reply[3]==1);
     assert(masters.owns(masters.context,record.owner,record.epoch)==1);
     fes_nano_owned_bridges=b;
+    /* Adding the channel grants no SD authority to the serial profile. */
+    for (unsigned op=0; op<4; op++) {
+        fes_nano_owned_call(FES_EMBEDDED_SD_CALL,op,op?record.owner:0,FES_EMBEDDED_SD_COOKIE,op?1:0,reply);
+        assert(reply[0]==FES_EMBEDDED_SD_NOT_READY && reply[1]==(uint64_t)FES_EMBEDDED_SD_TAG<<32 && !reply[2] && !reply[3]);
+        assert(!fes_nano_owned_sd.attempted && !fes_nano_owned_bridges.failed && !engine_calls);
+    }
     fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
     assert(reply[0]==0 && reply[2]==record.owner);
     for(unsigned op=1;op<=4;op++) {

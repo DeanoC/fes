@@ -24,6 +24,7 @@ def service_source(data, cold_serial=False):
     marker = "\tuint32_t cmd = smc_fid & INTEL_SIP_SMC_CMD_MASK;\n"
     guard = '''
 	if ((smc_fid == FES_EMBEDDED_BRIDGE_CALL && x3 == FES_EMBEDDED_BRIDGE_COOKIE) ||
+	    (smc_fid == FES_EMBEDDED_SD_CALL && x3 == FES_EMBEDDED_SD_COOKIE) ||
 	    smc_fid == INTEL_SIP_SMC_FPGA_CONFIG_START || smc_fid == INTEL_SIP_SMC_FPGA_CONFIG_WRITE ||
 	    smc_fid == INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE || smc_fid == INTEL_SIP_SMC_FPGA_CONFIG_ISDONE) {
 		uint64_t result[4];
@@ -58,7 +59,7 @@ def reset_source(data):
 
 
 def inputs():
-    return [HERE / name for name in ("prepare_nano_owned.py", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "generated/fes_embedded_bridges.h")]
+    return [HERE / name for name in ("prepare_nano_owned.py", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "generated/fes_embedded_bridges.h", "nano_sd.h", "nano_sd.c", "generated/fes_embedded_sd.h")]
 
 
 def psci_source(text, cold_serial=False):
@@ -109,14 +110,15 @@ def install(source, cold_profile=None, cold_header=None):
     service.write_bytes(service_source(original,cold_serial=cold_profile is not None))
     reset.write_bytes(reset_source(raw))
     include = source / "plat/intel/soc/common/include"
-    for name in ("nano_bridges.h", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_boot.h"):
+    for name in ("nano_bridges.h", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_boot.h", "nano_sd.h"):
         (include / name).write_bytes((HERE / name).read_bytes())
     (include / "generated").mkdir(exist_ok=True)
     (include / "generated/fes_embedded_bridges.h").write_bytes((HERE / "generated/fes_embedded_bridges.h").read_bytes())
-    for name in ("nano_bridges.c", "nano_bridge_sip.c", "nano_boot.c"):
+    (include / "generated/fes_embedded_sd.h").write_bytes((HERE / "generated/fes_embedded_sd.h").read_bytes())
+    for name in ("nano_bridges.c", "nano_bridge_sip.c", "nano_boot.c", "nano_sd.c"):
         (source / "plat/intel/soc/common" / name).write_bytes((HERE / name).read_bytes())
     mk = source / MAKEFILE
-    mk.write_text(mk.read_text() + "\nBL31_SOURCES += plat/intel/soc/common/nano_bridges.c plat/intel/soc/common/nano_bridge_sip.c plat/intel/soc/common/nano_boot.c\n")
+    mk.write_text(mk.read_text() + "\nBL31_SOURCES += plat/intel/soc/common/nano_bridges.c plat/intel/soc/common/nano_bridge_sip.c plat/intel/soc/common/nano_boot.c plat/intel/soc/common/nano_sd.c\n")
     setup = source / SETUP
     text = setup.read_text()
     marker = "\tsocfpga_delay_timer_init();\n"
