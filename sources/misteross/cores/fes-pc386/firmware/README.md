@@ -33,6 +33,22 @@ a modified library:
   PCI BIOS; upstream it is unconditional and does not assemble without it.
 - `rombios.c`: INT 16h AH=03h AL=00h/05h sets the typematic rate and delay
   with keyboard command F3h, and INT 16h AH=09h reports it.
+- `rombios.c`: A20 goes through both of pc386's controls, the 8042's output
+  port bit 1 and port 92h bit 1, since A20 is on while either is set.
+  - **POST** gates A20 off for the OS through both. It reads the output port
+    with D0h and writes it back with D1h, with bit 1 clear and bit 0 set (clear
+    resets the CPU). This happens in `keyboard_init` while the keyboard is
+    disabled and the aux interface is off, so the D0h response cannot meet a
+    device byte. A shutdown-byte resume skips it and keeps its A20 state.
+  - **`set_enable_a20`** (INT 15h AX=2400h/2401h, 87h and 89h) enables
+    through port 92h only when A20 is off. To disable, it clears port 92h and
+    then, if A20 is still on, writes the output port with the AT BIOS's DDh.
+    So 87h puts back exactly the state it found.
+  - **AX=2402h** reports the state memory sees (`get_enable_a20`, a wrap test
+    at 500h).
+
+  Upstream drove port 92h alone, so on pc386 A20 stayed on through POST and
+  through every BIOS disable.
 
 The boot order and disk-only boot need no patch: the machine writes CMOS 2Dh,
 38h, 3Dh and 3Fh. The floppy POST and INT 13h floppy paths stay; CMOS 10h says
