@@ -31,8 +31,8 @@ boot-flash update is part of this correction.
 The corrected source `41d508610` passed 22 builder tests and the 39 generated /
 41 fixture consistency checks. Quartus completed in 483.6 seconds. All 19
 recorded report hashes match; all 74 timing-summary slack rows are nonnegative.
-Control/video setup are +2.920/+7.323 ns. Three nonzero signoff-summary rules
-remain (missing input/output delays and low-severity reset false path), so this
+Control/video setup are +2.920/+7.323 ns. Four nonzero signoff-summary rules
+remain (missing input/output delays, multiple asynchronous reset synchronizers and low-severity reset false path), so this
 is still a timing-unqualified diagnostic. The actual generated transport
 passed nine modeled-memory cases, including the observed high IOVA. The
 rebuilt plain-C client passed 21 native/AArch64 modeled-kernel pairs.
@@ -53,3 +53,8 @@ QSPI update, SMMU bypass or firewall change was required. The board remains
 claimed on its candidate Linux card, with the stopped diagnostic in SRAM.
 Next: investigate sustained-reader latency/throughput under concurrent CPU
 back-buffer writes, and synchronize the next capture with the client.
+
+Timing-analysis correction: the original short summary filtered rule families
+and omitted medium-severity RDC-50003 (two violations). The unchanged compiler
+report declares **4 of 85 rules failed**. The corrected analysis checks every
+rule family and both declared totals. No waiver or admission changed.

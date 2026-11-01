@@ -47,7 +47,7 @@
   },
   "cleanup": "PASS under exclusive lock; owned overlay/firmware/configfs/tracefs/temp absent; same boot/MAC/owner0600 verified; all SSH/UART/capture closed; SRAM stopped7747diagnostic remains, no factory restoration/baseline promotion/release",
   "limitations": [
-    "three timing signoff summary rules open",
+    "four timing signoff summary rules open, including medium RDC-50003 (two violations)",
     "single allocation/selected stream and buffer, not general SID/firewall/aperture qualification",
     "managed idle/MENU, production factory, normal catalog/core lifecycle and safe daemon restart not complete",
     "global warm reset, broader failure and whole-load bounds, tape SAVE and timing1284 still open"

@@ -51,7 +51,7 @@ against the final compiled project before the physical trial.
 
 Quartus Pro 26.3 completed in 507.2 seconds. All 19 recorded report hashes and
 74 nonnegative timing-summary slack rows were verified. Missing input/output
-delays and the low-severity reset false-path rule remain, so full timing is
+delays, multiple asynchronous reset synchronizers, and the low-severity reset false-path rule remain, so full timing is
 unqualified. The actual endpoint/board/guard/frame-ACK RTL checks passed in
 37.6 seconds, including exact 256-beat reservation and complete STOP drain.
 The default shared reader/video regressions passed in 12.1 seconds. All 22
@@ -92,3 +92,8 @@ white-marker/body/panel colour probes matched the expected three patterns.
 Known-success cleanup and the new boot's strict identity guard passed again.
 Together these are two physical scanout sessions separated by software reboot,
 with no physical power operation; they do not qualify reset during active DMA.
+
+Timing-analysis correction: the original short summary filtered rule families
+and omitted medium-severity RDC-50003 (two violations). The unchanged compiler
+report declares **4 of 85 rules failed**. The corrected analysis checks every
+rule family and both declared totals. No waiver or admission changed.
