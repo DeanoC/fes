@@ -6,7 +6,12 @@ The keyboard and mouse slice of [#1267](https://github.com/DeanoC/fes/issues/126
 model to the 8042's PS/2 keyboard, and its MouseRelative packets go to the
 PS/2 aux mouse.
 
-**On Kit B, a remote keyboard and mouse drive FreeDOS on the sealed package.**
+> The seal, system and Kit B evidence below records earlier revisions of this
+> slice. It does not qualify the review-fix RTL in this PR. The current-head
+> follow-up is recorded under “Review-fix rerun” at the end; this task does not
+> touch kits, so the earlier Kit B run remains historical evidence only.
+
+**Historical Kit B run: a remote keyboard and mouse drove FreeDOS on the then-sealed package.**
 The package launched through the FogCast agent's library launch with a staged
 FreeDOS disk. Input went in through the agent's own remote-input stream, the
 path FogCast's host uses for a session's keyboard and mouse.
@@ -21,11 +26,10 @@ path FogCast's host uses for a session's keyboard and mouse.
 - Up, F1, Delete and Shift+A reached INT 16h as `KEYS 48E0 3B00 53E0 1E41`:
   the E0 keys with AL E0h, as the BIOS codes them.
 
-The system simulation does the same through the GP mailbox, as the runtime
-does, with the RTL CPU, and gets the same two lines. Quartus 17.0.2 sealed the
-package at 61.44 MHz with every analysis met. The seal is of the branch with
-main's #1286 merged in (`f2b12145a`), and Kit B ran that package last (run
-m5i7).
+At that earlier revision, the system simulation did the same through the GP
+mailbox with the RTL CPU, and Quartus 17.0.2 sealed the package at 61.44 MHz
+with every analysis met. The seal is of the branch with main's #1286 merged in
+(`f2b12145a`), and Kit B ran that package last (run m5i7).
 
 The slice's package from before Codex's review fixes, which has the same
 storage RTL, also made a disk save round trip on Kit B. A command typed at
@@ -33,10 +37,12 @@ the prompt wrote the disk, Stop saved the change, and a relaunch from the
 saved delta found it. This is the first kit run of #1268's last storage fix
 ([#1334](https://github.com/DeanoC/fes/issues/1334)).
 
-This record has host-only checks (unit benches, directed device checks, the
-system simulation, fixture replay), a sealed package, and exact-artifact
-hardware evidence for keyboard and mouse input and the disk save on Kit B. It is not acceptance
-of the four games, which are the next M5 slice.
+That earlier revision has host-only checks (unit benches, directed device
+checks, the system simulation, fixture replay), a sealed package, and
+exact-artifact hardware evidence for keyboard and mouse input and the disk
+save on Kit B. None of those package or hardware results is current-head
+acceptance. It is not acceptance of the four games, which are the next M5
+slice.
 
 ## Inputs
 
@@ -110,13 +116,14 @@ of the four games, which are the next M5 slice.
   - Codex's other finding: a button-down and button-up taken before the
     device could report (sample interval running, or FIFO full) merged into
     the up, so the click was lost.
-  - Now, while streaming, a second button change that arrives before the
-    first is reported sends the pending packet at once, outside the sample
-    interval. `mouse_ready` is low only while that packet cannot be queued,
-    which lasts a few milliseconds while the guest reads.
+  - At the historical revision, while streaming, a second button change that
+    arrived before the first was reported sent the pending packet at once
+    when it fit. The review found that `mouse_ready` could still stay low
+    indefinitely when the FIFO was full and the guest stopped reading; the
+    50 ms merge bound is in the current-head follow-up below.
   - With reporting off, or in remote mode, changes still merge as a mouse's
-    do. The runtime treats an acknowledge stalled past 100 ms as a fault, so
-    the device never waits on a guest that is not reading.
+    do. The earlier claim that the runtime's 100 ms acknowledgement could
+    never wait on a non-reading guest was incomplete and is superseded below.
 - **Identity.** The mailbox has `ENABLE_KEYBOARD` and `ENABLE_MOUSE` set. Word 7
   is `0x310b` (video, keyboard, audio, mouse, HPS DDR, session display), the
   low word the golden 1.1 pc386 scenarios already advertise, so the fixture
@@ -136,8 +143,9 @@ of the four games, which are the next M5 slice.
     requests (from #511) dropped every event except a full release, so
     letting go of one button while holding the other could be lost (Codex's
     third finding).
-  - A full queue now drops only events that leave the buttons it last queued
-    unchanged. Every button change, a partial release included, is sent.
+  - The current queue retains an extra same-state event per unconfirmed button
+    state. If the first request succeeds, this can send a duplicate; the UI
+    review found this behavior correct.
 
 ## Simulation
 
@@ -202,7 +210,7 @@ The system bench drives the whole shell as the runtime does, with the RTL CPU:
 
 The oracle machine bench gives the same two lines from `machine_tb --mouse`
 and named keys. 46 Python tests and the support matrix pass. On the host side,
-FogCast's browser UI suites pass: `Makefile` line 51, 374 tests, including a
+FogCast's browser UI suites pass: `Makefile` line 51, 375 tests, including a
 full mouse queue that keeps a partial release and drops pure motion, and
 `ui_browser_test.js`, 78. So does `go test ./internal/hostapi/...`. All three
 ran again on the merge.
@@ -352,3 +360,31 @@ input stream is lease-guarded and per session, so the run used that instead.
   game files share is not mounted on Powerboat. Their `--keys` input now goes
   through rows. The same path drove the oracle INPUT.COM run, which included
   Shift and named keys.
+
+## Review-fix rerun (2026-11-01)
+
+These checks use the review-fix source commit `15e295719b0b4c58166ed717b3276a769a04dae6`
+on the PR branch, without merging main.
+
+- From `sources/misteross`, `python3 scripts/sim_fes_pc386.py --suite devices`
+  passed 130 checks: 99 device checks and 31 keyboard checks, with no failures.
+  Directed coverage includes FA/BAT AA ordering, retry after F5 clears a queued
+  make, broken-prefix retry, the 520 ms typematic observation, and the 50 ms
+  full-mouse-FIFO readiness bound.
+- `python3 scripts/sim_fes_pc386.py --suite boot --download` passed. The
+  `machine_tb --mouse` handshake check passed with `mouse_valid` held through
+  readiness. FreeDOS reached the prompt after 4.3 simulated seconds; fixture
+  replay matched 85,234 events with zero replay, read, VRAM or frame mismatches.
+- `python3 scripts/sim_fes_pc386.py --suite system --download` passed all 16
+  checks. FreeDOS printed `M5:Kb!`, `MOUSE X=+172 Y=-72 LEFT=2/2 RIGHT=1/1
+  PACKETS=10`, and `KEYS 48E0 3B00 53E0 1E41`, then returned to the prompt after
+  3.309 simulated seconds. The disk save and settings round trip also passed.
+- The review-fix Quartus seal and exact-artifact kit acceptance are not
+  represented by the earlier seal or Kit B runs above. The first fresh seed-1
+  Quartus 17.0.2 flow completed fitter and TimeQuest successfully, but package
+  export rejected the source checkout after this validation record changed
+  during the build. That run is retained as an unsealed candidate under
+  `sources/misteross/build/fes-pc386-quartus-failed-dirty-15e/`. A clean-source
+  rerun is required. No kit was touched under this task's restriction, so
+  current-head HIL remains open until exact-artifact acceptance is authorized
+  and passes.
