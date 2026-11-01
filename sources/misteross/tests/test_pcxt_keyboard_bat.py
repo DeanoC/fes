@@ -1,12 +1,13 @@
 """Exercise the DOS BAT device through the real XT PPI/cable receiver."""
 from pathlib import Path
+import os
 import shutil
 import subprocess
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-VERILATOR = shutil.which('verilator')
+VERILATOR = shutil.which(os.environ.get('VERILATOR', 'verilator'))
 
 
 @unittest.skipUnless(VERILATOR, 'requires Verilator')

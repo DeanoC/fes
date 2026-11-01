@@ -331,7 +331,8 @@ a DOS prompt and directory listing. Neither simulation qualifies either
 package for BIOS or DOS boot on hardware. The FreeDOS test image is licensed
 GPL-2.0-or-later for the kernel and GPL-2.0 for FreeCOM; its source commits
 and SHA-256 are recorded in the core firmware notices. Floppy write persistence,
-DOS/game compatibility, host keyboard and other profiles remain open. See the
+DOS/game compatibility, hardware acceptance of host keyboard input and other
+profiles remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 
 ## pc386 machine, phases M1 to M5
