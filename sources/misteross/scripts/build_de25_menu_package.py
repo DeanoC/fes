@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build the DE25 MENU with a canonical pre-synthesis identity; never program it.
 
-Compile-only retains a candidate. Package export additionally requires every
-reported signoff rule (including waived findings) and timing check to pass,
+Compile-only retains a candidate. Package export additionally requires zero
+unreviewed or waived signoff findings and every reported timing check to pass,
 and an independent compilation to reproduce the RBF. Physical qualification
 and managed-kit acceptance remain separate gates.
 """
@@ -32,6 +32,7 @@ from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
 from scripts.fes_build_common import BuildError, _require_clean_source
 from scripts.functional_execution import execution_digest, execution_environment
+from boards.de25nano.scanout import async_inputs
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = 'scripts/build_de25_menu_package.py'
@@ -144,12 +145,13 @@ def create_build_record(root, repository, revision, identities, execution, captu
         'tools': dict(identities), 'parameters': {'core_id': 'fes.menu', 'device': DEVICE,
             'hps_initialization': 'HPS FIRST', 'linux_dma': True,
             'f2sdram_master_profile': 'scanout-only', 'seed': 1, 'threads': 2,
+            'signoff_policy': async_inputs.POLICY,
             'pixel_clock_hz': 74250000, 'system_clock_hz': 100000000,
             'execution_sha256': execution_digest(execution)}}
     return encode_build_record(fields)
 
 
-def timing_evidence(directory):
+def timing_evidence(directory, *, async_review=None):
     reports = Path(directory) / 'combined/hps/project/output_files'
     drc = (reports / 'golden_top.tq.drc.signoff.rpt').read_text()
     declared = set(re.findall(r'Design Assistant \(Signoff\) Results - (\d+) of (\d+) Rules Failed', drc))
@@ -198,13 +200,26 @@ def timing_evidence(directory):
         passing = all(Decimal(v).is_finite() and Decimal(v) >= 0 for r in checks for v in r[2:4])
     except InvalidOperation as error:
         raise BuildError('invalid DE25 timing number') from error
+    reviewed = []
+    proof = None
+    if async_review is not None:
+        proof = async_inputs.verify(directory, async_review)
+        findings = next(r for r in rows if r[0] == 'TMC-20011')
+        if int(findings[2]):
+            if findings[2:] != ('2', '0'):
+                raise BuildError('DE25 reviewed input finding count/waivers changed')
+            reviewed.append({'id': 'TMC-20011', 'violations': 2,
+                             'ports': async_inputs.input_findings(drc)})
+    unreviewed = failed - len(reviewed)
     return {'signoff_rules': total, 'failed_rules': failed,
+        'unreviewed_failed_rules': unreviewed, 'reviewed_findings': reviewed,
+        **({'async_input_review': proof} if proof is not None else {}),
         'rules': [{'id': n, 'severity': s, 'violations': int(v), 'waived': int(w)} for n, s, v, w in rows],
         'timing_checks': [{'type': t, 'clock': c, 'slack_ns': s,
             **({'tns_ns': n} if t not in ('Max Skew', 'Net Delay') else {}),
             **({'corner': k} if k != 'not-reported' else {})} for t, c, s, n, k in checks],
         'all_reported_timing_pass': passing,
-        'package_timing_admission': passing and failed == 0 and all(int(r[3]) == 0 for r in rows),
+        'package_timing_admission': passing and unreviewed == 0 and all(int(r[3]) == 0 for r in rows),
         'reports_sha256': {name: sha(reports / name) for name in ('golden_top.sta.summary', 'golden_top.tq.drc.signoff.rpt')}}
 
 
@@ -266,7 +281,8 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
             version = identities['quartus'].split(' sha256:')[0]
             builder.generate(selected, combined, hps, display, paths['quartus'], version)
             builder.compile_project(selected, hps, display, paths['quartus'])
-            timing = timing_evidence(selected)
+            review = async_inputs.collect(selected, paths['quartus'].with_name('quartus_sta'))
+            timing = timing_evidence(selected, async_review=review)
             (output / 'timing.json').write_text(json.dumps(timing, sort_keys=True, indent=2) + '\n')
             if not compile_only:
                 if not timing['package_timing_admission']:
@@ -275,7 +291,8 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
                     hps_first=True, linux_dma=True, package_build_id=selected_id)
                 builder.generate(repeated, c2, h2, d2, paths['quartus'], version)
                 builder.compile_project(repeated, h2, d2, paths['quartus'])
-                repeat_timing = timing_evidence(repeated)
+                repeat_review = async_inputs.collect(repeated, paths['quartus'].with_name('quartus_sta'))
+                repeat_timing = timing_evidence(repeated, async_review=repeat_review)
                 (output / 'repeat-timing.json').write_text(json.dumps(repeat_timing, sort_keys=True, indent=2) + '\n')
                 if not repeat_timing['package_timing_admission'] or sha(selected / 'combined/hps/linux-boot.core.rbf') != sha(repeated / 'combined/hps/linux-boot.core.rbf'):
                     raise BuildError('DE25 MENU independent rebuild failed timing or changed RBF')

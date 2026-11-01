@@ -29,7 +29,18 @@ scanout recipe. `--compile-only` retains a candidate and never exports a package
 The package path requires the complete 85-rule signoff inventory and its detailed
 results, all reported setup/hold/recovery/removal/pulse-width/skew/net-delay checks, zero waived
 findings and an independent identical RBF before using the normal exporter.
-Outstanding signoff findings therefore still block package publication. These
+The approved `de25-menu-reviewed-async-inputs-v1` policy accepts only TMC-20011
+for `HDMI_I2C_SDA` and `HDMI_TX_INT`. Each compilation and independent rebuild
+queries a private copy of the final fitted database: raw input and first-stage
+fanout must follow the reviewed two-register chain, with only its intended
+controller consumers, passing stage setup/hold timing and no internal SDC
+exception. Both chains must retain 50 MHz, two registers in one tile, included
+MTBF above the tool's one-billion-year cap and the default 6.25 million
+transitions/second assumption. The source record, RBF, compiled database and
+raw reports bind that review; raw failed rules stay visible. This is a modeled
+estimate for those chains, not a physical reliability measurement. Zero
+unreviewed findings remains mandatory; output-delay and reset findings still
+block package publication. These
 checks do not establish whole-board timing, physical reset/CDC acceptance or a
 managed-kit hardware pass. No build action programs hardware.
 DE25 package validation accepts only format 2 for its exact SCS device. The

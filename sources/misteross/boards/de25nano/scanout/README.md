@@ -290,8 +290,21 @@ It hashes the actual tool installation and controlled execution, writes
 `build-inputs.json` before preparation, and passes its canonical identity into
 the actual Qsys BUILD_ID parameter. Outputs default to a fresh attempt under
 `build/de25-menu/<build-id>/`. Compile-only creates no manifest or package.
-Without `--compile-only`, all reported timing and all 85 signoff rules must
-pass without waived findings, and a second compilation must reproduce the RBF,
+Without `--compile-only`, all reported timing checks must pass, the complete
+85-rule inventory must have zero unreviewed or waived findings, and a second
+compilation must reproduce the RBF,
 before the unchanged normal package exporter runs. Current external IO/reset
 findings block that export. Candidate compilation does not open any physical
 or normal-kit acceptance gate.
+
+The explicitly approved exception accepts only the missing-input-delay
+findings on `HDMI_I2C_SDA` and `HDMI_TX_INT`. After each compilation,
+`async_inputs.py` runs `async_inputs.tcl` on a private copy of the final fitted
+project. It checks the exact raw-input/first-stage fanout, intended controller
+consumers, same-tile two-stage chain, timed 50 MHz stage setup/hold and the
+included MTBF calculation at Quartus's default 6.25 million transitions/second.
+Both modeled worst-case MTBF values must exceed the tool's one-billion-year
+reporting cap. This is a model result for those two chains, not physical or
+whole-board qualification. The canonical build record includes the policy;
+the review binds its raw reports to that record, RBF and compiled database.
+No clocks, toggle rates, constraints or waived findings are changed.
