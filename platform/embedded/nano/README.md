@@ -18,8 +18,12 @@ programmed successfully but captured no UART bytes within 40 seconds. It
 provided no new CPU/reset evidence. Factory boot was restored by reference-SOF
 JTAG and authenticated without a card swap or physical power cycle.
 The [next trace candidate](../../../docs/validation/2026-11-01-de25-cpu-trace-preparation/README.md)
-preserves the actual vendor startup and adds earlier checkpoints; it is
-prepared off-board and has not been programmed.
+preserves the actual vendor startup and adds earlier checkpoints. Its
+[bounded TRWU8CBL trial](../../../docs/validation/2026-11-01-de25-cpu-trace-trial/README.md)
+programmed successfully but again captured no UART bytes. JTAG still responds;
+the user permits retaining this exclusive kit's diagnostic without factory
+restoration. The image remains loaded and the claim is held to preserve any
+OCRAM trace. Target execution and park remain unconfirmed.
 
 The same spare card carries two paths:
 
@@ -113,8 +117,11 @@ python3 platform/embedded/nano/cpu_diagnostic.py \
 
 This prepares files only. A separately authorized bounded volatile JTAG run
 can keep the factory card inserted after a clean Linux shutdown. Capture the
-exact SPL banner, `BEGIN`, `SCOPE` and unconditional park; then restore and
-authenticate the factory system before releasing the kit. This fixture neither
+exact SPL banner, `BEGIN`, `SCOPE` and unconditional park. Restore and authenticate
+the factory system when recovery is needed or the baseline is required. For
+TRWU8CBL the user explicitly permits leaving the diagnostic loaded; record the
+actual state and hold the claim when execution/park are uncertain. A responding
+JTAG chain does not prove CPU execution or a factory boot. This fixture neither
 boots BL31 nor qualifies native execution, DDR, storage, ownership or drain.
 
 The dedicated SPL samples SDM boot kind, reset cause, peripheral/bridge resets
