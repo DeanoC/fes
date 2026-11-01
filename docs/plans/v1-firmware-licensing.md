@@ -52,7 +52,7 @@ The core sizes and IDs come from `build_fes_zx81_oss.py`, `build_fes_spectrum_os
 
 ### Amstrad and the Sinclair ROMs
 
-**Primary statement (A1).** Cliff Lawson of Amstrad plc posted it on comp.sys.sinclair on 31 August 1999 and cross-posted it to comp.sys.amstrad.8bit. World of Spectrum archived it as `permits/amstrad-roms.txt` ([archive](https://web.archive.org/web/20021021124228/http://www.worldofspectrum.org:80/permits/amstrad-roms.txt); [thread](https://groups.google.com/g/comp.sys.amstrad.8bit/c/HtpBU2Bzv_U/m/HhNDSU3MksAJ)). The relevant answers:
+**Primary statement (A1).** Cliff Lawson of Amstrad plc posted it on comp.sys.sinclair on 31 August 1999 and cross-posted it to comp.sys.amstrad.8bit. World of Spectrum archived it as `permits/amstrad-roms.txt` ([archive](https://web.archive.org/web/20021021124228/http://www.worldofspectrum.org:80/permits/amstrad-roms.txt); [comp.sys.amstrad.8bit cross-post](https://groups.google.com/g/comp.sys.amstrad.8bit/c/HtpBU2Bzv_U/m/HhNDSU3MksAJ)). The relevant answers:
 
 > 1) … Amstrad are happy for emulator writers to include images of our copyrighted code as long as the (c)opyright messages are not altered and we appreciate it if the program/manual includes a note to the effect that "Amstrad have kindly given their permission for the redistribution of their copyrighted material but retain that copyright".
 
@@ -111,8 +111,8 @@ Open replacements: OpenSE BASIC ([SourceForge](https://sourceforge.net/projects/
   - §3 requires either (a) the "complete corresponding machine-readable source code" or (b) "a written offer, valid for at least three years".
   - §3(c), passing on an offer you received, is "allowed only for noncommercial distribution and only if you received the program in object code or executable form with such an offer". FES received no offer, so (c) is unavailable.
   - §3's last paragraph says that "offering equivalent access to copy the source code from the same place counts as distribution of the source code".
-  - The GPL FAQ says the source must "correspond exactly to the binaries" ([FAQ](https://www.gnu.org/licenses/gpl-faq.html#AnonFTPAndSendSources)).
-  - The FAQ's "source on a different site" answer relies on GPLv3 §6(d) and does not apply to v2.
+  - "Corresponding" source means the source of the exact binary shipped, which is why the version pin matters.
+  - For v2, the GPL FAQ says: "If you distribute binaries via FTP, you should distribute source via FTP" ([FAQ](https://www.gnu.org/licenses/gpl-faq.html#DistributeWithSourceOnInternet)). Its answers that allow source on another server rely on GPLv3 §6 and do not apply to v2.
 - **E4.** Aggregation: GPL v2 §2 says "mere aggregation of another work not based on the Program with the Program … on a volume of a storage or distribution medium does not bring the other work under the scope of this License" ([FAQ](https://www.gnu.org/licenses/gpl-faq.html#MereAggregation)). This holds while the `.img` stays a separate file that the kit loads at launch, and FES's late binding already works that way.
 - **E5.** Image choice: `doc/install.txt` puts `etos192*.img` at `0x00fc0000`, the 520ST address. `readme-192k.txt` says the 192 KiB images suit "ST / STf, Mega ST", "only work with a plain 68000 CPU", and have "limited desktop features (comparable to Atari TOS 1)".
 - **E6.** Compatibility ([`doc/incompatible.txt`](https://raw.githubusercontent.com/emutos/emutos/master/doc/incompatible.txt)): failures are "invariably caused by the use of undocumented addresses or interfaces". Some floppy-only games "use very low memory areas that are also used by TOS… This can never work with EmuTOS" (Turrican is the example). STOS games lose input. Hatari, on the other hand, lists Bombjack, Nebulus, Oids, Super Hang-On and Xenon as working.
@@ -122,7 +122,7 @@ Open replacements: OpenSE BASIC ([SourceForge](https://sourceforge.net/projects/
 
 ### Commodore 64
 
-- **C1.** Cloanto's [KB 13-122](https://www.c64forever.com/kb/13-122) (updated 6 June 2026) says "the older CBM 8-bit system ROMs (PET/CBM, C64, etc.), are copyrighted works owned and published by Amiga, and may only be used or distributed under license". It adds that its licences "include the right to sublicense, and are not limited to emulation purposes".
+- **C1.** Cloanto's [KB 13-122](https://www.c64forever.com/kb/13-122) says "the older CBM 8-bit system ROMs (PET/CBM, C64, etc.), are copyrighted works owned and published by Amiga, and may only be used or distributed under license". It adds that its licences "include the right to sublicense, and are not limited to emulation purposes".
 - **C2.** The [VICE README](https://raw.githubusercontent.com/VICE-Team/svn-mirror/main/vice/README) says only: "The ROM files in the `C128', `C64' … `DRIVES' … directories are Copyright C by Commodore Business Machines". It gives no permission. VICE's inclusion is therefore not a basis for FES to redistribute.
 - **C3.** Debian removes the ROMs from VICE. Its [`README.ROMs`](https://sources.debian.org/data/contrib/v/vice/3.9+dfsg-1/debian/README.ROMs) (2020) records that "redistribution is not permitted".
 - **C4.** The [X16 ROM licence](https://raw.githubusercontent.com/X16Community/x16-rom/master/LICENSE.md) points users to Cloanto for its Commodore KERNAL and BASIC.
