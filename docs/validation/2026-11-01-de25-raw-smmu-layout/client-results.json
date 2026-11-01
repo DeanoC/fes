@@ -1,0 +1,548 @@
+{
+  "format": 1,
+  "classification": "actual diagnostic control flow with modeled kernel ABI; no physical DMA",
+  "source_revision": "41d508610967bb2f224c08469aa64938bbcdf123",
+  "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "sdk_volume": "fes-de25-kunit-b118ba148f145469",
+  "sdk_gcc_before_after": "e82814dae98497c53ce9488ee7ca92491020acfc8b1f2fa53853e4548b2261e0  /build/sdk/bin/aarch64-buildroot-linux-gnu-gcc\n",
+  "qemu_sha256": "4f55e2e88dc05dc0f619562d5795b8eb25ed2ad2547504fb4835207a6911c350",
+  "source_sha256": {
+    "image/kernel/de25-platform/owner_scanout.c": "a8da4ea9207cb81349a9bcd58717480c6e972a5ed6209703215e0b0586bc5534",
+    "image/kernel/de25-dma/de25_dma.h": "94aa72875dfd230c44453944f66e7cb0312a6270e2fb86ac2c20291c9c73ef53",
+    "image/kernel/de25-dma/generated/fes_de25_scanout.h": "ff829f6d89331742e6560bd95837536f29ba3ad97456e78187ce8d0a0868d3ca",
+    "tests/fixtures/de25_owner_scanout_model.c": "6ccb6a74ee0b46c62e74953534938bd9a3af5c0def6cee739f86a91b519adb89"
+  },
+  "binaries_sha256": {
+    "native-model": "e88aeb447f7897107ea9851c6a8b81008666a326998ac0108dbccf909d6edfdc",
+    "aarch64-model": "eb5f80bafb85c45f76e03537448948959fc633f610958c53cea53d74bf7d4b00",
+    "owner_scanout": "ad0b7ad30b40999cc5e874a3e588fe22d18eea00a0f04d8b9a336fda409c3efe"
+  },
+  "results": [
+    {
+      "scenario": "success",
+      "native": {
+        "result": 0,
+        "allocations": 1,
+        "maps": 3,
+        "unmaps": 3,
+        "publishes": 3,
+        "polls": 7,
+        "reaps": 1,
+        "closes": 1,
+        "seen_slots": 3
+      },
+      "aarch64": {
+        "result": 0,
+        "allocations": 1,
+        "maps": 3,
+        "unmaps": 3,
+        "publishes": 3,
+        "polls": 7,
+        "reaps": 1,
+        "closes": 1,
+        "seen_slots": 3
+      }
+    },
+    {
+      "scenario": "alloc-error",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 0,
+        "seen_slots": 0
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 0,
+        "seen_slots": 0
+      }
+    },
+    {
+      "scenario": "fcntl-error",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      }
+    },
+    {
+      "scenario": "no-cloexec",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      }
+    },
+    {
+      "scenario": "bad-version",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      }
+    },
+    {
+      "scenario": "bad-geometry",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      }
+    },
+    {
+      "scenario": "zero-generation",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      }
+    },
+    {
+      "scenario": "initial-outstanding",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      }
+    },
+    {
+      "scenario": "mmap-error",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 0
+      }
+    },
+    {
+      "scenario": "publish-error",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      }
+    },
+    {
+      "scenario": "poll-error",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 1,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 1,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      }
+    },
+    {
+      "scenario": "timeout",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 5,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 5,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      }
+    },
+    {
+      "scenario": "wrong-ack",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 2,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 2,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      }
+    },
+    {
+      "scenario": "changed-generation",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 1,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 1,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      }
+    },
+    {
+      "scenario": "underflow",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 1,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 1,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      }
+    },
+    {
+      "scenario": "uncertain",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 1,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 1,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      }
+    },
+    {
+      "scenario": "clock-error",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 0,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      }
+    },
+    {
+      "scenario": "hardware-fault",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 1,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 1,
+        "unmaps": 1,
+        "publishes": 1,
+        "polls": 1,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 2
+      }
+    },
+    {
+      "scenario": "late-fault",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 3,
+        "unmaps": 3,
+        "publishes": 3,
+        "polls": 7,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 3
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 3,
+        "unmaps": 3,
+        "publishes": 3,
+        "polls": 7,
+        "reaps": 0,
+        "closes": 1,
+        "seen_slots": 3
+      }
+    },
+    {
+      "scenario": "reap-error",
+      "native": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 3,
+        "unmaps": 3,
+        "publishes": 3,
+        "polls": 7,
+        "reaps": 1,
+        "closes": 1,
+        "seen_slots": 3
+      },
+      "aarch64": {
+        "result": 1,
+        "allocations": 1,
+        "maps": 3,
+        "unmaps": 3,
+        "publishes": 3,
+        "polls": 7,
+        "reaps": 1,
+        "closes": 1,
+        "seen_slots": 3
+      }
+    },
+    {
+      "scenario": "allocation-only",
+      "native": {
+        "result": 0,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 1,
+        "closes": 1,
+        "seen_slots": 0
+      },
+      "aarch64": {
+        "result": 0,
+        "allocations": 1,
+        "maps": 0,
+        "unmaps": 0,
+        "publishes": 0,
+        "polls": 0,
+        "reaps": 1,
+        "closes": 1,
+        "seen_slots": 0
+      }
+    }
+  ],
+  "hardware": "not-run"
+}

@@ -27,3 +27,29 @@ failed image is not retried. A new source-frozen compiler run, generated
 transport validation and artifact verification are required before a bounded
 physical frame trial. No SMMU bypass, firewall widening, TCU register probe or
 boot-flash update is part of this correction.
+
+The corrected source `41d508610` passed 22 builder tests and the 39 generated /
+41 fixture consistency checks. Quartus completed in 483.6 seconds. All 19
+recorded report hashes match; all 74 timing-summary slack rows are nonnegative.
+Control/video setup are +2.920/+7.323 ns. Three nonzero signoff-summary rules
+remain (missing input/output delays and low-severity reset false path), so this
+is still a timing-unqualified diagnostic. The actual generated transport
+passed nine modeled-memory cases, including the observed high IOVA. The
+rebuilt plain-C client passed 21 native/AArch64 modeled-kernel pairs.
+
+The [physical trial](hardware-result.json) loaded the new RBF through Linux
+and received a complete-frame acknowledgement for sequence 1, slot 1. It then
+failed the second publication with one pixel underflow (`errors=8`), rather
+than the previous AXI-response error (`errors=4`). This is partial progress,
+not a sustained scanout pass. The HDMI capture ended before the client began;
+its black frames establish no picture acceptance. No second trial was made.
+
+After retaining the failure, a separate single supported owner recovery
+verified STOP/drain with the unchanged allocation identity before CLEAR and
+release. The [kernel trace](recovery.trace) records the full 8 MiB unmap.
+Owned diagnostic files, overlay and trace mounts were cleaned up, and the same
+Linux boot, MAC and protected owner device were verified. No power cycle,
+QSPI update, SMMU bypass or firewall change was required. The board remains
+claimed on its candidate Linux card, with the stopped diagnostic in SRAM.
+Next: investigate sustained-reader latency/throughput under concurrent CPU
+back-buffer writes, and synchronize the next capture with the client.

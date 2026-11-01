@@ -1,0 +1,30 @@
+{
+  "source": "41d508610967bb2f224c08469aa64938bbcdf123",
+  "rbf": {
+    "role": "Linux-fabric-configuration-candidate",
+    "sha256": "9bb9c0af28607232bae237eb10fbbee86326aa55326f81de9388e3a8a0ff2766",
+    "size": 1683456
+  },
+  "report_count": 19,
+  "summary_nonnegative_rows": 74,
+  "setup_control_ns": 2.92,
+  "setup_video_ns": 7.323,
+  "nonzero_signoff_rules": [
+    {
+      "rule": "TMC-20012 - Missing Output Delay Constraint",
+      "count": 30,
+      "severity": "High"
+    },
+    {
+      "rule": "TMC-20011 - Missing Input Delay Constraint",
+      "count": 2,
+      "severity": "High"
+    },
+    {
+      "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+      "count": 3,
+      "severity": "Low"
+    }
+  ],
+  "classification": "diagnostic candidate; timing unqualified; no hardware access yet"
+}
