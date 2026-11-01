@@ -45,8 +45,11 @@ The [EL3 power inventory](../../../docs/validation/2026-11-01-de25-el3-power-inv
 now captures all 32 records: first/pre-park values agree, with spare CPU status
 words zero and CPU-channel request/status masks selecting only core0. The
 diagnostic is parked with the original card inserted. These observations do
-not grant native ownership. The version-2 trusted-parking contract and
-secondary-release restriction still require a fresh physical test.
+not grant native ownership. The subsequent
+[version-2 initial-parking trace](../../../docs/validation/2026-11-01-de25-initial-parking-v2/README.md)
+passes its first check and all 32 records, then parks before DDR/storage/BL31.
+The matched native handoff and firmware release restriction still need their
+own physical test.
 
 The same spare card carries two paths:
 

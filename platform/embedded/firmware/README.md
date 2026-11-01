@@ -270,6 +270,10 @@ independent boot-kind proof and every CPU/ownership gate remain required.
 Fresh diagnostic samples cannot replace failed early proof. This native
 handoff still has no board acceptance. Native SD/USB/network resume,
 active FPGA drain, signed secure boot and physical launch/return remain open.
+The [version-2 initial-parking trace](../../../docs/validation/2026-11-01-de25-initial-parking-v2/README.md)
+now accepts the observed core-0 startup with the independent power/selection
+checks, then unconditionally parks before DDR/storage/BL31. That result does
+not exercise the matched secure firmware, SD drain or native handoff.
 
 ## Board-specific off-board candidate
 
