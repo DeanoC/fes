@@ -198,6 +198,8 @@ def fpga_cores(path):
             return ('z80',), 'standalone Z80 diagnostic/qualification recipe'
         if parts[1] in ('sim_fes_zx81_session.py', 'sim_fes_display_plane.py'):
             return ('zx81',), 'session-display plane simulation recipe'
+        if parts[1] in ('build_zx81_openrom.py', 'z80asm.py'):
+            return ('zx81',), 'open ZX81 ROM and its assembler'
         if parts[1] in APPLE2_SCRIPTS:
             return ('apple2',), 'Apple II socket/card recipe'
         if parts[1] in C64_SCRIPTS:

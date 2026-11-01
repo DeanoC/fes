@@ -115,6 +115,47 @@ bundle ([kit software releases](kit-software-releases.md#activation-and-recovery
 Install and activate the `make kit-software` bundle, then restore the baseline
 bundle afterwards.
 
+## Open ROM
+
+`make zx81-openrom` (in `sources/misteross`) assembles a clean-room,
+GPL-2.0-or-later ZX81 ROM from `cores/fes-zx81/openrom` into
+`build/zx81-openrom/zx81-openrom.bin`, so the machine runs without Sinclair's
+firmware. Select that 8192-byte file as the `machine-rom` like any other
+firmware; the package and ROM map are unchanged. The assembler
+(`scripts/z80asm.py`) and the character set (`font.txt`, an original design)
+are part of the source.
+
+The ROM keeps the published ZX81 interface that programs and `.p` files depend
+on: system variables, restarts, the display interrupt and NMI routines, the
+keyboard tables, the core's tape trap addresses and the commonly called entry
+points (KEYBOARD `$02BB`, DECODE `$07BD`, PRINT-AT `$08F5`, CLS `$0A2A`, FAST
+`$0F23`, SLOW `$0F2B`, BREAK-1 `$0F46`). The rest of the layout is its own.
+Display timing matches the original on the core (PAL 310 lines, NTSC 262), with
+the collapsed display file below 3.25 KiB of RAM. Tape `LOAD`/`SAVE` use the
+core's `.p` traps, and a loaded program keeps its FAST/SLOW state and autorun
+line.
+
+This is stage 1: the editor, the BASIC statements and arithmetic needed by
+ordinary programs, strings and slicing, numeric arrays, `FOR`/`GOSUB`, `RND`,
+`INKEY$`, `PEEK`/`POKE`/`USR`, `PLOT`/`UNPLOT`, `SCROLL` and `PAUSE`. Known gaps:
+
+- `SIN`, `COS`, `TAN`, `ASN`, `ACS`, `ATN`, `LN`, `EXP`, `SQR`, non-integer
+  `**` and machine code calling the `RST 28` calculator stop with report A.
+- No string arrays; a `FOR` loop that should run zero times runs once.
+- No up/down listing cursor keys (use `LIST n` and EDIT); no E-notation input
+  (output is supported); `POKE` takes 0 to 255 only.
+- No syntax check on entry: errors are reported when the line runs.
+- No printer: `LPRINT`, `LLIST` and `COPY` do nothing.
+- `LOAD`/`SAVE` ignore the name and work only through the core's tape unit.
+- `fes.zx80`'s 4 KiB ROM has no open substitute.
+
+`make sim-fes-zx81-openrom` (part of `make sim-fes-zx81`) boots the ROM on the
+machine RTL with 1 KiB and 16 KiB RAM, checks the display geometry against the
+original, enters and runs a program, saves it through the tape trap, loads it
+back with autorun, and scrolls the screen. `tests/test_zx81_openrom.py` checks
+the assembler and the image's fixed interface bytes. The ROM has no kit
+acceptance yet.
+
 ## Validation
 
 Component tests and Verilator live in `sources/misteross` in this FES repository.
