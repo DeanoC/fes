@@ -861,16 +861,11 @@ func nativeKeyText(code uint16, shift bool) string {
 	return strings.ToUpper(name)
 }
 
-// Linux keycodes are not USB HID usages. Preserve the shared play-keyboard path.
+// Linux keycodes are not USB HID usages. Every key the kernel's hid-input
+// table names reaches a fes.keyboard.hid core; an unmapped key is usage 0.
 func nativeHIDUsage(code uint16) uint8 {
-	name := nativeKeyName(code)
-	if len(name) == 1 && name[0] >= 'a' && name[0] <= 'z' {
-		return name[0] - 'a' + 4
-	}
-	if code >= 2 && code <= 11 {
-		return uint8(code + 28)
-	}
-	return map[uint16]uint8{1: 41, 12: 45, 13: 46, 14: 42, 15: 43, 26: 47, 27: 48, 28: 40, 29: 224, 39: 51, 40: 52, 41: 53, 42: 225, 43: 49, 51: 54, 52: 55, 53: 56, 54: 229, 56: 226, 57: 44, 58: 57, 97: 228, 100: 230, 102: 74, 103: 82, 104: 75, 105: 80, 106: 79, 107: 77, 108: 81, 109: 78, 110: 73, 111: 76, 125: 227, 126: 231}[code]
+	usage, _ := hidkeys.FromLinuxKey(code)
+	return usage
 }
 
 // EVIOCGBIT(EV_KEY, 96) reads the Linux key capability bitmap. Only actual
