@@ -36,7 +36,7 @@ class NanoConfigurationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             base=Path(directory);inc=base/'include'
             for name in ('drivers','lib','common'): (inc/name).mkdir(parents=True,exist_ok=True)
-            (inc/'arch_helpers.h').write_text('#include <stdint.h>\n#define MODE_EL3 3\n#define GET_EL(v) (((v)>>2)&3)\n#define MPIDR_AFFLVL1_VAL(v) (((v)>>8)&255)\nuint64_t read_current_el(void);\nuint64_t read_mpidr(void);\nuint64_t read_sctlr_el3(void);\nvoid dsbsy(void);\n')
+            (inc/'arch_helpers.h').write_text('#include <stdint.h>\n#define MODE_EL3 3\n#define GET_EL(v) (((v)>>2)&3)\n#define MPIDR_AFFLVL1_VAL(v) (((v)>>8)&255)\nuint64_t read_current_el(void);\nuint64_t read_mpidr(void);\nuint64_t read_sctlr_el3(void);\nuint64_t read_cntpct_el0(void);\nvoid dsbsy(void);\n')
             (inc/'drivers/delay_timer.h').write_text('void udelay(unsigned);\n')
             (inc/'lib/mmio.h').write_text('#include <stdint.h>\nuint32_t mmio_read_32(uintptr_t);\nuint16_t mmio_read_16(uintptr_t);\nvoid mmio_write_32(uintptr_t,uint32_t);\nvoid mmio_write_16(uintptr_t,uint16_t);\n')
             (inc/'common/debug.h').write_text('#include <stdio.h>\n#define NOTICE(...) printf(__VA_ARGS__)\n')
@@ -72,6 +72,15 @@ class NanoConfigurationTests(unittest.TestCase):
                 with self.subTest(mutation=mutation):
                     result=subprocess.run([binary,str(mutation)],capture_output=True,text=True,timeout=15)
                     self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-2000:])
+                    timings=re.findall(r'FES_NANO_CORE_TRANSFER [^\n]* counter=([0-9a-f]+) hash_ticks=([0-9a-f]+)',result.stdout)
+                    self.assertTrue(timings)
+                    last_counter=last_hash=0
+                    for counter,checked in timings:
+                        counter,checked=int(counter,16),int(checked,16)
+                        self.assertGreater(counter,last_counter)
+                        self.assertGreaterEqual(checked,last_hash)
+                        self.assertLessEqual(checked-last_hash,counter-last_counter)
+                        last_counter,last_hash=counter,checked
                     if mutation in (0,52,53):
                         self.assertIn('phase=complete',result.stdout)
                         self.assertIn('phase=closed',result.stdout)

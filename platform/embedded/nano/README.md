@@ -610,6 +610,14 @@ control and closes it again before success. The serial decoder additionally
 checks the ordered transfer and complete byte count before accepting that
 live-identity observation. Ordinary probe decoders reject transfer traffic.
 
+The [first physical transfer](../../../docs/validation/2026-11-01-de25-contained-configuration/README.md)
+stopped at its unchanged 20-second native deadline after 786,432 confirmed
+bytes, before identity or bridge opening. Transfer markers now include the
+physical counter and cumulative SHA-384 ticks to separate digest cost from
+other elapsed work on the next bounded test. These observations grant no
+authority. Timed traces require monotonic counters and digest accounting
+within elapsed time; the earlier untimed trace remains independently decodable.
+
 This source-bound cold profile is a hardware-qualification candidate. No
 contained physical transfer is accepted yet. It enables neither an active
 reader nor data bridges, secondary CPUs, active drain, runtime package

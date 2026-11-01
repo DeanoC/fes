@@ -60,6 +60,7 @@ void fes_nano_bridge_platform_unlock(void) {}
 static unsigned request_type,engine_calls;
 static struct { unsigned write_requested; } fpga_config_buffers[1];
 #if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
+uint64_t read_cntpct_el0(void) { static uint64_t ticks;return ticks+=100; }
 static unsigned configuration_mutation,configuration_polls;
 static uint32_t configuration_address;
 static int intel_fpga_config_start(uint64_t v) {

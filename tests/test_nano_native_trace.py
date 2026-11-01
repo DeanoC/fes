@@ -375,6 +375,33 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             trace.decode_native_configuration(b'',BUILD,SEED,fpga_identity=self.identity,configuration=dict(self.configuration,base=0x94000000))
 
+    def test_counter_and_digest_costs_are_observations_with_strict_accounting(self):
+        lines=self.capture().splitlines(keepends=True);count=0
+        for i,line in enumerate(lines):
+            if 'FES_NANO_CORE_TRANSFER' in line:
+                count+=1
+                lines[i]=line.rstrip('\r\n')+f' counter={0x100000+count*0x1000:x} hash_ticks={count*0x100:x}\r\n'
+        raw=''.join(lines);result=self.decode(raw)
+        self.assertTrue(result['complete'],result)
+        self.assertFalse(result['core_load_acceptance'])
+        timing=result['configuration_timing']
+        self.assertEqual(timing,{'counter_frequency':400000000,'first_counter':0x101000,
+                                'last_counter':0x100000+count*0x1000,'hash_ticks':count*0x100,
+                                'interval_ticks':(count-1)*0x1000,'interval_hash_ticks':(count-1)*0x100})
+        self.assertNotIn('configuration_timing',self.decode(self.capture()))
+        mutations=(('counter=102000','counter=100000'),('hash_ticks=200','hash_ticks=ff'),
+                   ('hash_ticks=200','hash_ticks=200000'),(' counter=102000 hash_ticks=200',''),
+                   (' hash_ticks=200',''),('counter=102000','counter=0'))
+        for old,new in mutations:
+            with self.subTest(new=new):
+                report=self.decode(raw.replace(old,new))
+                self.assertFalse(report['complete']);self.assertTrue(report['errors'])
+        partial=raw[:raw.index('FES_NANO_CORE_TRANSFER phase=write')]
+        report=self.decode(partial)
+        self.assertFalse(report['complete']);self.assertFalse(report['errors'])
+        self.assertIn('configuration_timing',report)
+        self.assertFalse(self.decode(raw+'panic: late FPGA firmware return\r\n')['complete'])
+
 
 class NativeSDTraceTests(unittest.TestCase):
     expected={'bytes':1098,'sha256':'a'*64}

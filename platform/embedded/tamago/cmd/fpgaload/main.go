@@ -64,15 +64,19 @@ func main() {
 	if err != nil {
 		panic(err) // Board reservation remains pinned, including constructor errors.
 	}
-	deadline := time.Now().Add(20 * time.Second)
+	started := time.Now()
+	deadline := started.Add(20 * time.Second)
 	for {
+		phase := retained.Status().Phase
 		if !time.Now().Before(deadline) {
 			panic(retained.Cancel(fmt.Errorf("FPGA configuration deadline")))
 		}
 		done, busy, err := retained.Advance()
 		if !time.Now().Before(deadline) {
 			_ = retained.Cancel(fmt.Errorf("late FPGA firmware return"))
-			panic("late FPGA firmware return")
+			status := retained.Status()
+			panic(fmt.Sprintf("late FPGA firmware return phase=%s elapsed_us=%d accepted=%d completed=%d outstanding=%d retained=%d",
+				phase, time.Since(started).Microseconds(), status.AcceptedBytes, status.CompletedBytes, status.Outstanding, status.RetainedBytes))
 		}
 		if err != nil {
 			panic(err)

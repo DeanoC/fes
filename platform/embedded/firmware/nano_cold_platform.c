@@ -153,6 +153,8 @@ int fes_nano_platform_identity_setup(void)
 #endif
 #include "sha.h"
 static struct fes_nano_configuration configuration;
+/* Diagnostic time only; these counters never grant configuration authority. */
+static uint64_t configuration_hash_ticks;
 static const uint8_t configuration_hash[48]=FES_NANO_CONFIG_SHA384;
 static const uint8_t configuration_chunks[][48]=FES_NANO_CONFIG_CHUNK_DIGESTS;
 struct fes_nano_configuration *fes_nano_platform_configuration(void) { return &configuration; }
@@ -178,9 +180,11 @@ static int configuration_check(void *context, uint64_t address, uint32_t bytes, 
     dsbsy();
     /* Use the already pinned vendor's pure SHA-384 primitives. Its convenience
      * sha384_start wrapper also touches the watchdog and is not used here. */
+    uint64_t before=read_cntpct_el0();
     sha512_context hash;
     sha384_init(&hash);sha384_update(&hash,(const uint8_t *)(uintptr_t)address,bytes);sha384_finish(&hash,observed);
     dsbsy();
+    configuration_hash_ticks+=read_cntpct_el0()-before;
     return (read_sctlr_el3()&5U) || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ||
            memcmp(expected,observed,48) ? -1 : 0;
 }
@@ -189,10 +193,11 @@ static void configuration_trace(void *context, unsigned stage, uint32_t complete
     (void)context;
     static const char *names[]={"init","arm","start","write","poll","status","complete","FAIL"};
     const char *name=stage<sizeof(names)/sizeof(names[0]) ? names[stage] : "FAIL";
-    NOTICE("FES_NANO_CORE_TRANSFER phase=%s owner=%llx generation=%llu completed=%u pending=%u total=%u base=%llx\n",
+    NOTICE("FES_NANO_CORE_TRANSFER phase=%s owner=%llx generation=%llu completed=%u pending=%u total=%u base=%llx counter=%llx hash_ticks=%llx\n",
            name,(unsigned long long)fes_nano_owned_bridges.state.owner,
            (unsigned long long)fes_nano_owned_bridges.state.generation,
-           completed,pending,FES_NANO_CONFIG_BYTES,(unsigned long long)FES_NANO_CONFIG_BASE);
+           completed,pending,FES_NANO_CONFIG_BYTES,(unsigned long long)FES_NANO_CONFIG_BASE,
+           (unsigned long long)read_cntpct_el0(),(unsigned long long)configuration_hash_ticks);
 }
 int fes_nano_platform_configuration_setup(void)
 {
