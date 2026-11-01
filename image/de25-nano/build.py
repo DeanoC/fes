@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and inspect the DE25-Nano headless Linux image; never write a device."""
+"""Build and inspect DE25-Nano headless or managed Linux artifacts; never write a device."""
 from __future__ import annotations
 
 import argparse
@@ -181,7 +181,7 @@ def ensure_builder(source, runtime, volume):
 def container(source, runtime, image, volume, cache, output, action, jobs, inputs=None):
     mounts = [] if inputs is None else ["--volume", f"{inputs}:/inputs:ro"]
     return run([runtime, "run", "--rm", "--platform", "linux/amd64",
-                "--network", "bridge" if action in ("fetch", "base-fetch") else "none",
+                "--network", "bridge" if action in ("fetch", "base-fetch", "factory-fetch") else "none",
                 "--user", f"{os.getuid()}:{os.getgid()}", "--ulimit", "core=0:0",
                 # Buildroot's fakeroot closes every possible descriptor at
                 # startup; container hosts may otherwise expose a billion.
@@ -193,7 +193,7 @@ def container(source, runtime, image, volume, cache, output, action, jobs, input
                 "python3", "/src/image/de25-nano/build.py", "_inside", action, str(jobs)])
 
 
-def prepare_buildroot(modules_overlay=None, *, managed=False):
+def prepare_buildroot(modules_overlay=None, *, managed=False, factory_key=None):
     data = lock()
     archive = Path("/cache") / data["buildroot"]["file"]
     if digest(archive) != data["buildroot"]["sha256"]:
@@ -207,11 +207,13 @@ def prepare_buildroot(modules_overlay=None, *, managed=False):
     run(["tar", "-xf", archive, "--strip-components=1", "-C", source])
     if managed:
         import managed_base
-    output = Path("/build") / (managed_base.recipe_key() if managed else rootfs_key())
+    if factory_key is not None and (not managed or not re.fullmatch('factory-[0-9a-f]{64}', factory_key)):
+        raise ValueError("invalid managed factory build key")
+    output = Path("/build") / (factory_key or (managed_base.recipe_key() if managed else rootfs_key()))
     output.mkdir(parents=True, exist_ok=True)
     config = output / "de25_defconfig"
     if managed:
-        config.write_text(managed_base.configuration())
+        config.write_text(managed_base.configuration(factory_key=factory_key))
     elif modules_overlay is None:
         raise ValueError("DE25 rootfs requires the verified kernel-module overlay")
     else:
@@ -424,18 +426,23 @@ def artifact_names(source=ROOT):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("fetch", "build", "verify", "smoke", "managed-base", "verify-base", "_inside"),
-                        metavar="{fetch,build,verify,smoke,managed-base,verify-base}")
+    parser.add_argument("action", choices=("fetch", "build", "verify", "smoke", "managed-base", "verify-base",
+                                          "managed-factory", "verify-factory", "_inside"))
     parser.add_argument("inside_action", nargs="?", help=argparse.SUPPRESS)
     parser.add_argument("inside_jobs", nargs="?", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--output", type=Path, default=ROOT / "out/de25-nano-linux")
     parser.add_argument("--cache", type=Path, default=ROOT / "out/de25-linux-cache")
     parser.add_argument("--jobs", type=int, default=min(8, os.cpu_count() or 1))
     parser.add_argument("--container-runtime", default="docker")
-    parser.add_argument("--kernel", type=Path, help="verified matching owner-kernel build for managed-base")
+    parser.add_argument("--kernel", type=Path, help="verified matching owner kernel for managed base or factory")
     parser.add_argument("--sdk", type=Path, help="AArch64 SDK archive pinned by the owner-kernel source lock")
+    parser.add_argument("--artifacts", type=Path, help="selected DE25 image-artifact set for managed-factory")
     args = parser.parse_args(argv)
     if args.action == "_inside":
+        if str(ROOT) == "/src" and args.inside_action in ("factory-fetch", "factory-build", "factory-verify"):
+            import managed_factory
+            managed_factory.inside(args.inside_action, args.inside_jobs)
+            return 0
         if str(ROOT) != "/src" or args.inside_action not in ("fetch", "build", "verify", "smoke", "base-fetch", "base-build", "base-verify"):
             parser.error("internal action requires the isolated DE25 builder")
         inside(args.inside_action, args.inside_jobs)
@@ -444,6 +451,14 @@ def main(argv=None):
         parser.error("--jobs must be between 1 and 64")
     if args.inside_action is not None or args.inside_jobs is not None:
         parser.error("unexpected positional arguments")
+    if args.action in ("managed-factory", "verify-factory"):
+        import managed_factory
+        try:
+            return managed_factory.publish(args)
+        except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
+            parser.exit(1, f"de25-managed-factory: {error}\n")
+    if args.artifacts is not None:
+        parser.error("--artifacts applies only to managed-factory")
     if args.action in ("managed-base", "verify-base"):
         import managed_base
         try:

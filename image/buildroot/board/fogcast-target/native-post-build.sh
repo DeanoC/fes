@@ -149,7 +149,6 @@ if [ "$native_mode" = package-only ]; then
   /bin/mkdir -p "$target/usr/share/mister-runtime"
   /usr/bin/install -m 0644 "$idle_input" \
     "$target/usr/share/mister-runtime/idle.rbf"
-  /bin/chmod 0755 "$target/etc/init.d/S40fes-kit-software"
   # The stable supervisor and storage bootstrap are base-image components.
   for helper in fes-kit-data fes-kit-software fes-bluetooth; do
     /usr/bin/install -m 0755 "$fogcast/bin/$helper-linux-$architecture" "$target/usr/sbin/$helper"
@@ -187,6 +186,8 @@ if [ "$native_mode" = package-only ]; then
   if [ "$board" = de25-nano ]; then
     /usr/bin/python3 "$repo/scripts/kit-software.py" --target "$target" \
       --fogcast "$fogcast" --runtime-revision "$runtime_commit" --board de25-nano
+    /usr/bin/install -m 0755 "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S40fes-kit-software" \
+      "$target/etc/init.d/S40fes-kit-software"
     exit 0
   fi
   # The factory runtime loads the fes-window driver its software carries.
@@ -211,5 +212,7 @@ if [ "$native_mode" = package-only ]; then
   fi
   /usr/bin/python3 "$repo/scripts/kit-software.py" --target "$target" \
     --fogcast "$fogcast" --runtime-revision "$runtime_commit" --window-driver "$window_driver"
+  /usr/bin/install -m 0755 "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S40fes-kit-software" \
+    "$target/etc/init.d/S40fes-kit-software"
   exit 0
 fi

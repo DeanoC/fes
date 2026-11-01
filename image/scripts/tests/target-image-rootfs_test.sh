@@ -501,6 +501,19 @@ NATIVE_RUNTIME_MODE=package-only \
   cp "$de25_idle" "$de25_cache/idle.rbf"
   chmod 0444 "$de25_cache/idle.rbf"
   NATIVE_RUNTIME_MODE=package-only TARGET_IMAGE_LOCK_BIN="$selector" "$native_extra" fetch "$de25_cache"
+  # Managed base intermediates omit S40. A rejected bundle must leave it
+  # disabled; a successful factory assembly installs this source's script.
+  rm "$de25_target/etc/init.d/S40fes-kit-software"
+  printf '%s\n' invalid >"$fogcast/bin/kit-software.revision"
+  if NATIVE_RUNTIME_MODE=package-only TARGET_IMAGE_LOCK_BIN="$selector" \
+    NATIVE_RUNTIME_INPUT_LOCK="$fixture/de25.lock.toml" NATIVE_RUNTIME_IDLE_FILE="$de25_cache/idle.rbf" \
+    "$native_post_build" "$de25_target" >"$fixture/de25-rejected-bundle.log" 2>&1; then
+    printf '%s\n' 'factory accepted invalid software provenance' >&2
+    exit 1
+  fi
+  test ! -e "$de25_target/etc/init.d/S40fes-kit-software"
+  test ! -e "$de25_target/usr/share/fes/software/manifest.json"
+  printf '%s\n' 1111111111111111111111111111111111111111 >"$fogcast/bin/kit-software.revision"
   NATIVE_RUNTIME_MODE=package-only TARGET_IMAGE_LOCK_BIN="$selector" \
     NATIVE_RUNTIME_INPUT_LOCK="$fixture/de25.lock.toml" NATIVE_RUNTIME_IDLE_FILE="$de25_cache/idle.rbf" \
     "$native_post_build" "$de25_target"
@@ -514,6 +527,7 @@ NATIVE_RUNTIME_MODE=package-only \
     cmp "$fogcast/bin/$helper-linux-aarch64" "$de25_target/usr/sbin/$helper"
   done
   test -x "$de25_target/etc/init.d/S40fes-kit-software"
+  cmp "$native_runtime" "$de25_target/etc/init.d/S40fes-kit-software"
   test -L "$de25_target/usr/sbin/mister-runtime"
 )
 

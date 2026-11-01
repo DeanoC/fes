@@ -71,7 +71,7 @@ def recipe_key(root=ROOT):
     return value.hexdigest()
 
 
-def configuration():
+def configuration(*, factory_key=None):
     common = (ROOT / 'image/buildroot/configs/fogcast_target_native_dev_defconfig').read_text()
     lines = [line for line in common.splitlines() if not line.startswith((
         'BR2_PACKAGE_FOGCAST_MISTER_RUNTIME=', 'BR2_ROOTFS_POST_BUILD_SCRIPT=',
@@ -80,7 +80,7 @@ def configuration():
         'BR2_aarch64=y', 'BR2_cortex_a53=y', 'BR2_REPRODUCIBLE=y',
         'BR2_TOOLCHAIN_EXTERNAL=y', 'BR2_TOOLCHAIN_EXTERNAL_CUSTOM=y',
         'BR2_TOOLCHAIN_EXTERNAL_PREINSTALLED=y',
-        f'BR2_TOOLCHAIN_EXTERNAL_PATH="{toolchain_path()}"',
+        f'BR2_TOOLCHAIN_EXTERNAL_PATH="{toolchain_path(factory_key)}"',
         'BR2_TOOLCHAIN_EXTERNAL_CUSTOM_PREFIX="aarch64-buildroot-linux-gnu"',
         'BR2_TOOLCHAIN_EXTERNAL_GCC_9=y', 'BR2_TOOLCHAIN_EXTERNAL_HEADERS_5_10=y',
         'BR2_TOOLCHAIN_EXTERNAL_CUSTOM_GLIBC=y', 'BR2_TOOLCHAIN_EXTERNAL_CXX=y',
@@ -91,21 +91,24 @@ def configuration():
         'BR2_TARGET_ROOTFS_EXT2_SIZE="256M"', 'BR2_TARGET_ROOTFS_TAR=y',
         f'BR2_ROOTFS_POST_BUILD_SCRIPT="{LANE}/managed-base-post-build.sh"',
     ]
+    if factory_key is not None:
+        lines.remove('# BR2_PACKAGE_FOGCAST_MISTER_RUNTIME is not set')
+        lines.append('BR2_PACKAGE_FOGCAST_MISTER_RUNTIME=y')
     return '\n'.join(lines) + '\n'
 
 
-def toolchain_path():
+def toolchain_path(factory_key=None):
     # Buildroot exports HOST_DIR as its SDK. Keeping the pinned compiler here
     # makes its tool links and compiler-wrapper paths relative to that export.
-    return Path('/build') / recipe_key() / 'host/opt' / ('sdk-' + sdk_lock()['sdk_sha256'])
+    return Path('/build') / (factory_key or recipe_key()) / 'host/opt' / ('sdk-' + sdk_lock()['sdk_sha256'])
 
 
-def prepare_sdk():
+def prepare_sdk(factory_key=None):
     selected = sdk_lock()
     archive = Path('/cache') / ('aarch64-sdk-' + selected['sdk_sha256'] + '.tar.gz')
     if archive.is_symlink() or image.digest(archive) != selected['sdk_sha256']:
         raise ValueError('managed base SDK differs from owner-kernel source lock')
-    destination = toolchain_path()
+    destination = toolchain_path(factory_key)
     if destination.exists():
         shutil.rmtree(destination)
     destination.mkdir(parents=True)
@@ -137,6 +140,10 @@ def post_build(target):
     for name in ('fes-kit-software', 'fes-bluetooth', 'fes-kit-data'):
         shutil.copyfile(ROOT / 'sources/FogCast/bin' / BINARIES[name], target / 'usr/sbin' / name)
         (target / 'usr/sbin' / name).chmod(0o755)
+    if inputs.get('profile') == 'managed-factory':
+        import managed_factory
+        managed_factory.post_build(target, inputs)
+        return
     # PID1 retains the original root at this immutable mount point. Full
     # factory assembly must install its selected bundle before enabling S40.
     (target / '.fes-bootstrap').mkdir(exist_ok=True)
@@ -311,6 +318,29 @@ def verify_receipt(output, *, producer_root=None):
     return record
 
 
+def stage_kernel_sdk(kernel, sdk, output, cache):
+    """Copy the matching kernel and locked compiler without modifying inputs."""
+    owner.selected_kernel(kernel.resolve())
+    if sdk.is_symlink() or not sdk.is_file() or image.digest(sdk) != sdk_lock()['sdk_sha256']:
+        raise ValueError('SDK archive differs from owner-kernel source lock')
+    cached_sdk = cache / ('aarch64-sdk-' + sdk_lock()['sdk_sha256'] + '.tar.gz')
+    if cached_sdk.is_symlink() or cached_sdk.exists() and not cached_sdk.is_file():
+        raise ValueError('SDK cache destination must be a regular file')
+    with tempfile.NamedTemporaryFile(prefix='managed-sdk-', dir=cache, delete=False) as stream:
+        temporary = Path(stream.name)
+    try:
+        shutil.copyfile(sdk, temporary)
+        if image.digest(temporary) != sdk_lock()['sdk_sha256']:
+            raise ValueError('SDK archive changed during copying')
+        temporary.replace(cached_sdk)
+    finally:
+        temporary.unlink(missing_ok=True)
+    kernel_dir = output / 'kernel'
+    kernel_dir.mkdir(exist_ok=True)
+    for name in KERNEL_FILES:
+        shutil.copyfile(kernel / name, kernel_dir / name)
+
+
 def publish(args):
     output, cache = args.output.resolve(), args.cache.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -334,25 +364,7 @@ def publish(args):
             return 0
         (output / 'base.json').unlink(missing_ok=True)
         (output / 'base-verify.json').unlink(missing_ok=True)
-        owner.selected_kernel(args.kernel.resolve())
-        if args.sdk.is_symlink() or not args.sdk.is_file() or image.digest(args.sdk) != sdk_lock()['sdk_sha256']:
-            raise ValueError('SDK archive differs from owner-kernel source lock')
-        cached_sdk = cache / ('aarch64-sdk-' + sdk_lock()['sdk_sha256'] + '.tar.gz')
-        if cached_sdk.is_symlink() or cached_sdk.exists() and not cached_sdk.is_file():
-            raise ValueError('SDK cache destination must be a regular file')
-        with tempfile.NamedTemporaryFile(prefix='managed-sdk-', dir=cache, delete=False) as stream:
-            temporary = Path(stream.name)
-        try:
-            shutil.copyfile(args.sdk, temporary)
-            if image.digest(temporary) != sdk_lock()['sdk_sha256']:
-                raise ValueError('SDK archive changed during copying')
-            temporary.replace(cached_sdk)
-        finally:
-            temporary.unlink(missing_ok=True)
-        kernel_dir = output / 'kernel'
-        kernel_dir.mkdir(exist_ok=True)
-        for name in KERNEL_FILES:
-            shutil.copyfile(args.kernel / name, kernel_dir / name)
+        stage_kernel_sdk(args.kernel, args.sdk, output, cache)
         environment = build_environment()
         go = kit_software.build_go(source, 'de25-base-' + revision[:12], revision, environment, 'de25-nano')
         platform_build.build_kit_software(source, source / 'sources/FogCast', environment, 'aarch64')

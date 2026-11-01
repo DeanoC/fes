@@ -424,3 +424,26 @@ FOGCAST_DIR="$selected_fogcast" FES_PREBUILT_RUNTIME_SHA256="$prebuilt_sha" \
   TARGET_DIR="$fixture/prebuilt-target" INSTALL=install
 cmp "$selected_fogcast/bin/mister-runtime-linux-armv7" "$fixture/prebuilt-target/usr/sbin/mister-runtime" || fail 'prebuilt runtime installation differs'
 printf '%s\n' 'prebuilt runtime verification and installation passed'
+
+# The selected board chooses its own binary; the other board's executable
+# must never satisfy its digest check, even when both are staged.
+if FES_TARGET_BOARD=de25-nano FOGCAST_DIR="$selected_fogcast" FES_PREBUILT_RUNTIME_SHA256="$prebuilt_sha" \
+  sh "$repo/scripts/verify-native-runtime-inputs.sh" \
+  "$fixture/selected.lock" /missing-runtime-source "$cache/idle.rbf" "$cache/splash.rbf" > /dev/null 2>&1; then
+  fail 'DE25 accepted only an ARMv7 runtime'
+fi
+printf '%s\n' 'AArch64 runtime fixture' >"$selected_fogcast/bin/mister-runtime-linux-aarch64"
+de25_sha=$(sha256sum "$selected_fogcast/bin/mister-runtime-linux-aarch64" | awk '{print $1}')
+FES_TARGET_BOARD=de25-nano FOGCAST_DIR="$selected_fogcast" FES_PREBUILT_RUNTIME_SHA256="$de25_sha" \
+  sh "$repo/scripts/verify-native-runtime-inputs.sh" \
+  "$fixture/selected.lock" /missing-runtime-source "$cache/idle.rbf" "$cache/splash.rbf" > /dev/null
+if FES_TARGET_BOARD=de25-nano FOGCAST_DIR="$selected_fogcast" FES_PREBUILT_RUNTIME_SHA256="$prebuilt_sha" \
+  sh "$repo/scripts/verify-native-runtime-inputs.sh" \
+  "$fixture/selected.lock" /missing-runtime-source "$cache/idle.rbf" "$cache/splash.rbf" > /dev/null 2>&1; then
+  fail 'DE25 used the staged ARMv7 runtime instead of AArch64'
+fi
+if FES_TARGET_BOARD=unknown-board sh "$repo/scripts/verify-native-runtime-inputs.sh" \
+  "$fixture/selected.lock" /missing-runtime-source "$cache/idle.rbf" "$cache/splash.rbf" > /dev/null 2>&1; then
+  fail 'unknown board accepted'
+fi
+printf '%s\n' 'DE25 runtime selection and cross-board refusal passed'
