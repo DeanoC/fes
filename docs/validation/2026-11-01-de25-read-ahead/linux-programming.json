@@ -1,0 +1,48 @@
+{
+  "Linux_load_acceptance": "not-qualified",
+  "artifacts": {
+    "linux-boot.core.rbf": {
+      "role": "Linux-fabric-configuration-candidate",
+      "sha256": "774798756c26480c37ea996c832b60343c61e312f4db41bb154e79eea1586f9c",
+      "size": 1736704
+    },
+    "linux-boot.hps.jic": {
+      "role": "HPS-first-QSPI-candidate-not-programmed",
+      "sha256": "d25254eebe20ed2054899707ab4cfb768bc5760f946fdc97a6a189688a2dec89",
+      "size": 16777449
+    },
+    "linux-complete.sof": {
+      "role": "volatile-JTAG-recovery-candidate",
+      "sha256": "7b3478ff265fb0eec805703dba3368dbc180006fe62fca90e8bf0755a8c8a4f8",
+      "size": 1708682
+    }
+  },
+  "boot_compatibility": "not-qualified",
+  "bootloader_sha256": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823",
+  "classification": "unadmitted-HPS-first-scanout",
+  "compiled_sof_sha256": "c21408c22f279fabeed6cedf42f9cd491c7286bd3e268ea5a33623d2211e715c",
+  "f2sdram_master_profile": "scanout-only",
+  "fes_revision": "a82521947439e5773a1acee8f618c1bb824b6b95",
+  "format": 1,
+  "generation_sha256": "9f54439cc8f4ea5dc3f82e7c6765e9432c2106202450cc61065ae87b53d9d315",
+  "hardware_programming": "not-performed",
+  "hps_initialization": "HPS FIRST",
+  "inputs_sha256": "33015e26f0d50468243963563495e48eb34e5c60b1fb54ef981473313a6bad12",
+  "linux_dma": {
+    "attributes": 224,
+    "derived_sha256": "741f42bfc8f5cf495d2a128713ef396e978906624f1706dde60f0a8cfb1adb31",
+    "kernel_binding": "not-admitted",
+    "master_ownership": "scanout-only",
+    "original_sha256": "29da61c67255e9efd98b7ca9a63d9fcbfc37d9b1175d33f0cfd62f46f8c637ad",
+    "physical_translation": "not-qualified",
+    "read_transactions": 16,
+    "scope": "scanout-only generated F2SDRAM path",
+    "secure": false,
+    "secure_bit": 8,
+    "sid_shift": 9,
+    "stream_id": 13,
+    "user_bits": 25
+  },
+  "production_admission": false,
+  "scanout_source_sha256": "2733dc6068be54ac603737a507fdcfe6cd948541dafb1e478cf3a5e21a6f7964"
+}

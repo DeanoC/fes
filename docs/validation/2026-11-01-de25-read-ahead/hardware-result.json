@@ -1,0 +1,55 @@
+{
+  "classification": "exact-artifact physical allocated-buffer diagnostic; not production/normal-kit acceptance",
+  "fpga_producer": "a82521947439e5773a1acee8f618c1bb824b6b95",
+  "rbf_sha256": "774798756c26480c37ea996c832b60343c61e312f4db41bb154e79eea1586f9c",
+  "rbf_bytes": 1736704,
+  "kernel_producer": "3dab0b06b3ba191444eec36c992b4d54f64301f8",
+  "boot_id": "e5e896ba-e01e-4ab4-9b2f-a236045b7d39",
+  "board": "TRWU8J8G",
+  "attempt": 1,
+  "result": "passed",
+  "frames": 3,
+  "slot_sequence": [
+    1,
+    0,
+    1
+  ],
+  "generation": 3,
+  "observation_seconds_per_frame": 2,
+  "final_geometry_identity_errors_underflows": "passed actual client checks before owner REAP",
+  "allocation": {
+    "iova": "0xff800000",
+    "physical": "0xbcd00000",
+    "bytes": 8388608,
+    "client_pid": 698,
+    "full_unmap_bytes": 8388608,
+    "trace_drops_overruns": 0
+  },
+  "capture": {
+    "alias": "/dev/v4l/by-id/fes-ms2109-hil",
+    "frames": 450,
+    "duration_seconds": 15,
+    "native_resolution": [
+      1920,
+      1080
+    ],
+    "inspected_frames": [
+      61,
+      121,
+      181
+    ],
+    "picture": "matching red/green, green/blue, blue/red full-frame patterns and white64x64source corner (upscaled capture); transition evidence present",
+    "files_sha256": {
+      "red-green.png": "b465443863838f4d183d95956e890e7d84c87a1a83197400df6baddddaedccbd",
+      "green-blue.png": "5999108ab1246eb3154622664f816786f94df462014e8d5fcccccc8792763dff",
+      "blue-red.png": "d54d38bcbd82a6bb37bf082d10c6e135f2e20fc43a68e3b3c2d1af02c9d0cb8c"
+    }
+  },
+  "cleanup": "PASS under exclusive lock; owned overlay/firmware/configfs/tracefs/temp absent; same boot/MAC/owner0600 verified; all SSH/UART/capture closed; SRAM stopped7747diagnostic remains, no factory restoration/baseline promotion/release",
+  "limitations": [
+    "three timing signoff summary rules open",
+    "single allocation/selected stream and buffer, not general SID/firewall/aperture qualification",
+    "managed idle/MENU, production factory, normal catalog/core lifecycle and safe daemon restart not complete",
+    "global warm reset, broader failure and whole-load bounds, tape SAVE and timing1284 still open"
+  ]
+}
