@@ -29,6 +29,8 @@ module pcxt_hid_keyboard #(
             // XT has only one physical control and alternate key.
             k[128] = raw[128] | raw[132]; k[132] = 0;
             k[130] = raw[130] | raw[134]; k[134] = 0;
+            // ISO #~ has no separate XT code; it shares the backslash key.
+            k[8'h31] = raw[8'h31] | raw[8'h32]; k[8'h32] = 0;
             // The original XT keyboard shares these keys with the keypad.
             k[8'h62] = raw[8'h62] | raw[8'h49]; // insert
             k[8'h5f] = raw[8'h5f] | raw[8'h4a]; // home

@@ -2803,8 +2803,10 @@ mister-agent observes `CoreObservation.KeyboardHID` (package and generation) and
 routes keyboard frames to `internal/input/keyboard_hid.go`. Host-stream and
 kit-local holds are kept per source and posted as their union; posts are ordered
 and do not hold the controller-port lock. Each change posts all nine rows with
-`set_keyboard_hid` for the observed generation (the runtime writes only changed
-rows). A failed post leaves the state unconfirmed, so a repeated press or release
+`set_keyboard_hid` for the observed generation. If the runtime does not know the
+prior core state, it clears all nine rows first. It applies releases before
+makes, so a mixed row can be written twice. A failed post leaves the
+state unconfirmed, so a repeated press or release
 posts it again rather than reporting success. A probe that does not confirm
 the core keeps that HID binding and its held keys. The kit-local release that
 meets that probe, and a later release while that generation stays bound, still

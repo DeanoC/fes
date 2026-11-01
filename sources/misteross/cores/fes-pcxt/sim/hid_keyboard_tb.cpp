@@ -73,6 +73,14 @@ int main(int argc, char **argv) {
     d.reset=1; run(2); d.reset=0; run(1000); expect({0x12}, "held key remade after reset");
     key(8,false); run(1000); expect({0x92}, "E break after reset");
     key(0x44,true); run(1000); key(0x44,false); run(1000); expect({}, "unsupported F11");
+    // ISO usage 0x32 shares the XT backslash byte with usage 0x31. Treat
+    // them as one logical key so either usage can remain held independently.
+    key(0x31,true); run(1000); expect({0x2b}, "US backslash make");
+    key(0x32,true); run(1000); expect({}, "ISO #~ aliases backslash");
+    key(0x31,false); run(1000); expect({}, "ISO #~ keeps aliased backslash held");
+    key(0x32,false); run(1000); expect({0xab}, "ISO #~ alias release");
+    key(0x32,true); run(1000); expect({0x2b}, "ISO #~ make");
+    key(0x32,false); run(1000); expect({0xab}, "ISO #~ break");
     // Independent set-1 reference for ordinary DOS text and keyboard controls.
     const uint8_t letters[][2] = {{0x04,0x1e},{0x05,0x30},{0x06,0x2e},{0x07,0x20},
         {0x08,0x12},{0x09,0x21},{0x0a,0x22},{0x0b,0x23},{0x0c,0x17},{0x0d,0x24},

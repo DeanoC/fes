@@ -3219,7 +3219,8 @@ does not retire a byte that cannot raise IRQ1. A byte already accepted still
 finishes its frame. Tests check timing, ordering, busy handling, held-clear
 admission and reset. Integrated CPU runs read switch profiles `2D` and `73`.
 The DOS profile translates settled FES HID snapshots into XT set-1 make and
-break bytes with modifier ordering and typematic. It combines the original
+break bytes with modifier ordering and typematic. ISO HID usage `0x32` (`#~`)
+shares the XT backslash code `0x2b` with usage `0x31`. It combines the original
 XT keyboard's control, alternate and keypad/navigation aliases and ignores
 enhanced-only keys. A pending byte is held until the receiver accepts it;
 eight settled snapshots can wait while the link is stalled. On overflow,

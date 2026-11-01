@@ -63,7 +63,7 @@ HIGHLIGHTS = {
     'fes.demo': 'pad, HDMI',
     'sim.pong': '—',
     'fes.pcxt': 'HDMI',
-    'fes.pcxt-dos': 'disk, HDMI',
+    'fes.pcxt-dos': 'disk, keys, HDMI',
     'fes.pc386': 'sim',
     'i386': '—',
     'z80': '—',
