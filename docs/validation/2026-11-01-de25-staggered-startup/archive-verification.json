@@ -1,0 +1,16 @@
+{
+  "source_revision": "6fa9d210fe19eddc83866b75b12b95c8585d3ede",
+  "command": [
+    "python3",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-startup-6fa9d210f/collect-compiler.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-startup-6fa9d210f",
+  "started_utc": "2026-11-01T18:09:44.633911+00:00",
+  "time_cap_seconds": 300,
+  "hardware_access": "not-performed",
+  "pid": 337327,
+  "state": "passed",
+  "elapsed_seconds": 8.7,
+  "heartbeat_utc": "2026-11-01T18:09:53.295815+00:00",
+  "returncode": 0
+}

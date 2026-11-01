@@ -97,6 +97,12 @@ helpers and bounded Cortex-A53 argument tests. A reviewed managed base and
 sealed MENU are still required; the headless image remains outside that update
 path. These compiler results establish no service or hardware acceptance.
 
+The [staggered startup and JTAG reset record](validation/2026-11-01-de25-staggered-startup/README.md)
+covers the current five-receiver timing profile, 82 generated transport/startup
+cases WITH MODELED M20K STORAGE and 40 fitted reset-path checks. Complete affected
+software checks pass. HDMI output timing and whole reset-domain coordination
+still block packages; this candidate remains unprogrammed and unsealed.
+
 The [canonical MENU reset-timing record](validation/2026-11-01-de25-timed-system-reset/README.md)
 covers the producer that restores timing checks on three same-clock reset
 receivers. Its fresh fit clears RES-50101, passes all 74 reported timing checks

@@ -1,0 +1,16 @@
+{
+  "source_revision": "6fa9d210fe19eddc83866b75b12b95c8585d3ede",
+  "command": [
+    "python3",
+    "/data/fes-de25-startup-6fa9d210f/conditional-hdmi-skew.py"
+  ],
+  "cwd": "/data/fes-de25-startup-6fa9d210f/source",
+  "started_utc": "2026-11-01T18:06:20.825853+00:00",
+  "time_cap_seconds": 60,
+  "hardware_access": "not-performed",
+  "pid": 2070560,
+  "state": "passed",
+  "elapsed_seconds": 0.1,
+  "heartbeat_utc": "2026-11-01T18:06:20.877081+00:00",
+  "returncode": 0
+}

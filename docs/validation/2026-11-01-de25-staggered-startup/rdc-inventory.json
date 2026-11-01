@@ -1,0 +1,58 @@
+{
+  "source_revision": "6fa9d210fe19eddc83866b75b12b95c8585d3ede",
+  "rbf_sha256": "89170e090035474a803ce33c16572e84b08af3fe801e84ed163af19d845b1652",
+  "raw_report_sha256": "8afc110ded367cfe063c7d3859ec1793ccf7df45207e4034e6144bf88a991349",
+  "classification": "raw fitted reset-chain inventory only; no whole-boundary coordination proof, waiver or hardware acceptance",
+  "groups": [
+    {
+      "clock": "pll_inst|iopll_0_outclk0",
+      "reported_chains": 10,
+      "heads": [
+        "fes_top_reset_inst|sync_regs[0]",
+        "fes_video_inst|lock_qualifier|sync_regs[0]",
+        "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|sink_crosser|alt_rst_req_sync_in_rst|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|sink_crosser|alt_rst_req_sync_in_rst|altera_reset_synchronizer_int_chain[1]",
+        "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+        "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+        "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+        "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+        "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1",
+        "soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n_synchronizer|din_s1"
+      ],
+      "reset_sources": [
+        "pll_inst|iopll_0|tennm_ph2_iopll~pll_ctrl_reg",
+        "fes_video_inst|video_clock|iopll_0|tennm_ph2_iopll~pll_ctrl_reg",
+        "auto_fab_0|alt_sld_fab_0|alt_sld_fab_0|configresetfabric|conf_reset_src|ag.sdm_gpo_out_user_reset~internal_ctrl_clock.reg",
+        "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out",
+        "fes_top_reset_inst|sync_regs[1]",
+        "soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out",
+        "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|synchronizer|dreg[1]",
+        "soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|synchronizer|dreg[1]",
+        "soc_inst|subsys_debug|fpga_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n",
+        "soc_inst|subsys_debug|hps_m|altera_jtag_avalon_master_inst|jtag_phy_embedded_in_jtag_master|normal.jtag_dc_streaming|jtag_streaming|clock_sense_reset_n"
+      ],
+      "waived": false
+    },
+    {
+      "clock": "fes_video_inst|video_clock|iopll_0_outclk0",
+      "reported_chains": 6,
+      "heads": [
+        "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]",
+        "fes_video_inst|visible_release|sync_regs[0]",
+        "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+        "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|read_reset_sync|altera_reset_synchronizer_int_chain[3]",
+        "soc_inst|subsys_periph|fes_mem_cdc|fes_mem_cdc|cmd_fifo|my_altera_avalon_dc_fifo_cmd_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]",
+        "soc_inst|subsys_periph|fes_ctrl_cdc|fes_ctrl_cdc|rsp_fifo|my_altera_avalon_dc_fifo_rsp_fifo|write_reset_sync|altera_reset_synchronizer_int_chain[3]"
+      ],
+      "reset_sources": [
+        "soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out",
+        "fes_video_inst|first_lock_seen",
+        "soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out",
+        "fes_video_inst|lock_qualifier|sync_regs[1]"
+      ],
+      "waived": false
+    }
+  ],
+  "guidance": "https://resources.altera.com/quartushelp/current/da_rules/rdc_50003.htm",
+  "transport_model_limit": "72 finite startup combinations now modeled with5 actual parent controllers; no whole boundary, HPS/JTAG, physical reset or boot/allocation epoch acceptance"
+}
