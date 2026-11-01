@@ -1,0 +1,18 @@
+{
+  "kernel_image_sha256": "0a429367e4f70e9082f04459ee6475cd31245e7739526ba149ff5e1fd29eca6d",
+  "kernel_config_sha256": "5966573caf24959a7c13894259e030b09aa21819e1e78782c773cc97b48eb52f",
+  "settings": {
+    "BT": "m",
+    "BT_HCIBTUSB": "m",
+    "BT_RTL": "m",
+    "BT_INTEL": "m",
+    "BT_BCM": "m",
+    "HID_GENERIC": "y",
+    "USB_HID": "y"
+  },
+  "matching_drivers_shipped_in_owner_image": false,
+  "next": "managed kernel needs built-in Bluetooth or modules from the exact owner kernel build; preserve owner/SMMU supplier policy; never reuse vendor or DE10 modules",
+  "native_acceptance": false,
+  "shipped_kernel_manifest_sha256": "d021cbf55b152d8658f25cc3bdfcf7b71d3f0529336b385defaf556f5ef257cd",
+  "shipped_module_list": []
+}

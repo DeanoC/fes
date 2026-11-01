@@ -62,6 +62,38 @@ compiled in this path. The existing rootfs checks validate software-bundle
 binaries against the new base's ELF libraries before sealing the factory bundle.
 This is interface validation, not kit acceptance.
 
+The same selector has an explicit DE25 lane:
+
+```sh
+python3 scripts/image_artifacts.py pack --board de25-nano \
+  --bin-dir /absolute/selected-aarch64-binaries \
+  --menu-package /absolute/selected-de25-menu \
+  --menu-selection /absolute/fes-menu.package-selection.toml \
+  --fogcast-revision FULL_SOURCE_COMMIT --runtime-revision FULL_SOURCE_COMMIT \
+  --output /absolute/artifacts/de25-bootstrap
+python3 scripts/image_artifacts.py check --board de25-nano /absolute/artifacts/de25-bootstrap
+```
+
+DE25 requires matching board/architecture fields, little-endian AArch64 ELF
+inputs, static base helpers and a MENU manifest targeting `de25_nano`. The
+operator chooses the board; uploaded metadata cannot select it. The default
+remains DE10. `stage(..., board='de25-nano')` copies into the existing AArch64
+binary names and preserves the selected source provenance.
+
+The shared factory post-build scripts also accept `FES_TARGET_BOARD=de25-nano`.
+They require the exact image board file, select AArch64 helpers, pin idle to
+that image's selected MENU and use the built-in owner instead of `fes-window`.
+The normal package-selection and interface/ELF-closure checks still run.
+DE25 SSH keys live on the bootstrap's checked persistent FAT mount. Shared DHCP
+retains its client for lease renewal and uses the configured hostname.
+
+This is assembly support, with the exact
+[factory-wiring validation scope](validation/2026-11-01-de25-factory-inputs/README.md).
+The top-level `make image`, source-image `export` and complete media builder
+still select the DE10 profile. A full managed DE25 Buildroot base/card and
+sealed MENU are required before a deployable image or native acceptance can
+be produced. The headless image is unchanged by selecting these APIs.
+
 The six bootstrap binaries are `mister-agent`, `mister-runtime`, `fogcast-kit`,
 `fogcast-tenfoot`, `fes-kit-data` and `fes-kit-software`. The last two implement
 base storage and software activation. Assembly still builds its host-side

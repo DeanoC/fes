@@ -1,0 +1,34 @@
+{
+  "source": "164d3fe49317bc8c2fbda014058bd5f95f1c35fd",
+  "results": [
+    {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "tests.test_image_artifacts",
+        "tests.test_de25_factory_rootfs",
+        "-v"
+      ],
+      "returncode": 0,
+      "seconds": 0.51
+    },
+    {
+      "command": [
+        "sh",
+        "image/scripts/tests/target-image-rootfs_test.sh"
+      ],
+      "returncode": 0,
+      "seconds": 6.385
+    },
+    {
+      "command": [
+        "sh",
+        "image/scripts/tests/build-fes-window_test.sh"
+      ],
+      "returncode": 0,
+      "seconds": 0.292
+    }
+  ],
+  "hardware_access": false
+}

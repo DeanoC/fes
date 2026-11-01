@@ -1,0 +1,227 @@
+{
+  "archive_sha256": "ae07aed6694aed52bf4bc4587fb350dc765cd06ee9025d9111415b8de4f31c08",
+  "archive_size": 6678,
+  "archived_regular_files_verified": 16,
+  "classification": "shared factory wiring fixtures and exact retained ELF-base audit; no deployable managed image or native acceptance",
+  "completed_jobs": [
+    {
+      "command": [
+        "python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-factory-inputs/focus.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-factory-inputs",
+      "elapsed_seconds": 7.3,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-01T21:35:42.077040+00:00",
+      "pid": 2394663,
+      "returncode": 0,
+      "source_revision": "164d3fe49317bc8c2fbda014058bd5f95f1c35fd",
+      "started_utc": "2026-11-01T21:35:34.821495+00:00",
+      "state": "passed",
+      "time_cap_seconds": 1200
+    },
+    {
+      "command": [
+        "python3",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-factory-inputs/check-retained-base.py"
+      ],
+      "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-factory-inputs",
+      "elapsed_seconds": 0.2,
+      "hardware_access": "not-performed",
+      "heartbeat_utc": "2026-11-01T21:38:43.240648+00:00",
+      "pid": 2416533,
+      "returncode": 0,
+      "source_revision": "164d3fe49317bc8c2fbda014058bd5f95f1c35fd",
+      "started_utc": "2026-11-01T21:38:43.031634+00:00",
+      "state": "passed",
+      "time_cap_seconds": 300
+    }
+  ],
+  "completed_own_pids_pgids": [
+    2394626,
+    2394663,
+    2409521,
+    2409550,
+    2416509,
+    2416533,
+    2475228,
+    2475251
+  ],
+  "files": {
+    "affected-job/job.json": {
+      "sha256": "a3e11fd199edb7721fdcd453c4f80372010b34662e5de0011c092bda8de394c4",
+      "size": 536
+    },
+    "affected-job/stdout.log": {
+      "sha256": "5a7d608aff4c8f76d90d2f991413a9417f3ea83c5c4578ffcfed5a3ff3936cfb",
+      "size": 368794
+    },
+    "affected-launch.json": {
+      "sha256": "7dad885474fe5f48dd607ed7b088d3ea6b7620c59d44fab005793489d893aa89",
+      "size": 442
+    },
+    "affected-summary.json": {
+      "sha256": "5375e1f96ef22cffcbeaa7c0ade01212869812d92a071d05a3c4e0b5705a28e1",
+      "size": 1502
+    },
+    "archive-members.json": {
+      "sha256": "63bf594704524a1b75bd2be43e2732457fc29e1598ca1c36aa636cc1414225f9",
+      "size": 2378
+    },
+    "focused-checks.json": {
+      "sha256": "3d98eb879289dbc5ed8f49dda09ca12f0a990afb0e0ef7e6ac19b499b14b8ea7",
+      "size": 653
+    },
+    "kernel-driver-audit.json": {
+      "sha256": "f027914f4d21029ad2038843b62e864f2bf4b751c41cf9f0397825ba22134d3a",
+      "size": 738
+    },
+    "proofs.tar.gz": {
+      "sha256": "ae07aed6694aed52bf4bc4587fb350dc765cd06ee9025d9111415b8de4f31c08",
+      "size": 6678
+    },
+    "retain.py": {
+      "sha256": "0182585500523b855999a5fe258844533f2f818799ebd8960c5afd33746a5920",
+      "size": 5421
+    },
+    "retained-base-audit.json": {
+      "sha256": "f40ff0a8cff040c898bca2fc8f22cb4bb18cc61460a8b217a935a2ebf4353714",
+      "size": 5777
+    },
+    "retention-job/job.json": {
+      "sha256": "ebdb115f1135c0d87644651309de4db3bb56e257421007e07bbb7aee95078596",
+      "size": 528
+    },
+    "retention-job/stdout.log": {
+      "sha256": "f1b7ab1767cf4261a2525eefeac98da1127aa3415b7320b07d9a4da0700704bd",
+      "size": 2223
+    },
+    "retention-launch.json": {
+      "sha256": "a20977cad17ffd19f8bad54aae5efc53eaf011ab2b05e634b13a4dd05cb944dd",
+      "size": 436
+    },
+    "source-1c86.bundle": {
+      "sha256": "982875cc8819bf52fa6545f237db71ad3f48dc2066c05b500f7c73968688c3c7",
+      "size": 12704
+    },
+    "source-a0e.bundle": {
+      "sha256": "4410a655efad665a1a81ef1402daab0212e567e29ef4e8121163c1045ec1c33c",
+      "size": 15746
+    },
+    "source-base.bundle": {
+      "sha256": "b85c94328886fc06979e1225cbbad6f3fc2d180ebf32c7993b85597271d4a7f3",
+      "size": 286062917
+    },
+    "source-bootstrap.bundle": {
+      "sha256": "18a71bae9296aa71058cf9ef78f716f0baea5468c460f2745af14a3f6a505256",
+      "size": 9128
+    },
+    "source-e0fa.bundle": {
+      "sha256": "e1f778126ac54547abc24ca2c6ff28da2d4902db35ee5eb210764e73b85b94d0",
+      "size": 10099
+    },
+    "source-factory.bundle": {
+      "sha256": "54c0a07bf05dd8fa92af1b4be6597f9e5da126e4955424e9e2645030bff62946",
+      "size": 13683
+    },
+    "source-incremental.bundle": {
+      "sha256": "d8251c612c1ea54b8567e01f52c4037ae3ed6e51094a164fd30b21cff0dd9356",
+      "size": 17427
+    },
+    "source-scope.json": {
+      "sha256": "a8f02557bfa0f3e28a42de6e5270be86e0d5faeade28855ac60221b50aca35d6",
+      "size": 474
+    }
+  },
+  "full_affected": {
+    "base": "1c86e672d9fd337782ae1a3456aa3651b51f8b11",
+    "commands": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "parent Python regressions",
+        "lane": "parent",
+        "returncode": 0
+      },
+      {
+        "label": "working-tree generated consumer consistency",
+        "lane": "parent",
+        "returncode": 0
+      }
+    ],
+    "elapsed_seconds": 373.6,
+    "hardware_access": false,
+    "log_sha256": "5a7d608aff4c8f76d90d2f991413a9417f3ea83c5c4578ffcfed5a3ff3936cfb",
+    "source_revision": "164d3fe49317bc8c2fbda014058bd5f95f1c35fd",
+    "status": "passed",
+    "unittest_summaries": [
+      {
+        "outcome": "OK",
+        "seconds": 0.168,
+        "tests": 30
+      },
+      {
+        "outcome": "OK",
+        "seconds": 0.9,
+        "tests": 32
+      },
+      {
+        "outcome": "OK",
+        "seconds": 2.974,
+        "tests": 3
+      },
+      {
+        "outcome": "OK",
+        "seconds": 24.431,
+        "tests": 3
+      },
+      {
+        "outcome": "OK",
+        "seconds": 76.555,
+        "tests": 33
+      },
+      {
+        "outcome": "OK",
+        "seconds": 0.0,
+        "tests": 1
+      },
+      {
+        "outcome": "OK (skipped=41)",
+        "seconds": 364.379,
+        "tests": 1288
+      }
+    ]
+  },
+  "hardware_access": false,
+  "live_completed_processes": [],
+  "scope": {
+    "appliance_tree": "f7c16542236c4690875ea5b28ad74eb26b376d3683da626c71aa739580c06a30",
+    "canonical_menu_inputs_verified": 374,
+    "combined_compiler_inputs_verified": 59,
+    "hardware_access": false,
+    "platform_tree": "59725c83306fe535ee0b408361d0e8f9752b9fb13650c26cbd9555dc2b36751e",
+    "runtime_test_inputs_verified": 58,
+    "source_restored": true,
+    "source_revision": "164d3fe49317bc8c2fbda014058bd5f95f1c35fd",
+    "tree": "707d44e46bb198f9b787f093d04df0d8004b923a"
+  },
+  "source_revision": "164d3fe49317bc8c2fbda014058bd5f95f1c35fd"
+}
