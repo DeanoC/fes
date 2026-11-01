@@ -145,11 +145,11 @@
       "mode": "unreal",
       "seed": 1,
       "latency": true,
-      "runs": 5,
-      "passed": 5,
+      "runs": 6,
+      "passed": 6,
       "failed": 0,
-      "retirements": 144,
-      "cycles": 2124,
+      "retirements": 165,
+      "cycles": 2517,
       "halts": 0,
       "interrupts": 0,
       "faults": 0,
@@ -163,16 +163,16 @@
       "rep_interrupts": 0,
       "vector_moved_stops": 0,
       "divergence_retirements": {},
-      "trace_hash": "81cbca499c8b7345",
+      "trace_hash": "fdcd18e3edf8dcdb",
       "gaps": {
         "sequential": {
-          "1": 20
+          "1": 23
         },
         "prefixed": {},
         "lea": {},
         "selector": {},
         "after_taken": {
-          "11": 5
+          "11": 6
         },
         "after_not_taken": {},
         "shift_consumer": {},
@@ -186,23 +186,25 @@
         "several": {
           "1": 5,
           "8": 3,
-          "20": 21
+          "20": 27
         },
         "after_string": {},
         "after_io": {},
         "memory": {
-          "1": 41,
+          "1": 45,
           "2": 2,
-          "8": 7,
-          "11": 15,
-          "20": 2,
+          "8": 8,
+          "11": 16,
+          "20": 3,
           "35": 1,
+          "37": 1,
           "40": 1,
           "41": 1,
           "50": 2,
           "51": 2,
           "52": 1,
-          "53": 2,
+          "53": 3,
+          "65": 1,
           "66": 4,
           "67": 1
         },
@@ -215,9 +217,9 @@
       "window_code_stops": 0,
       "code_store_stops": 0,
       "stray_stops": 0,
-      "port0_reads": 94,
-      "port0_writes": 14,
-      "pm_retirements": 60,
+      "port0_reads": 110,
+      "port0_writes": 16,
+      "pm_retirements": 75,
       "cs_rule": 2,
       "pm_stops": {}
     },

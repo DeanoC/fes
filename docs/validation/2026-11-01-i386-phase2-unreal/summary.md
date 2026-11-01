@@ -18,7 +18,7 @@ need #1335 and #1363 on main and stay with #1369
   lockstep run: 1,758,699 corpus states, 32,000 random programs, the
   directed and memory cases. They also match on 8,000 new random programs
   dense with protected-mode blocks, 417,342 retirements of them with PE set,
-  and on five directed unreal-mode cases ([Lockstep](#lockstep)).
+  and on six directed unreal-mode cases ([Lockstep](#lockstep)).
 - The SingleStepTests vector runner and test386 give the same results as
   main's adapter, byte for byte ([Oracle runners](#oracle-runners)).
 - FreeDOS boots with HIMEMX and no `/MAX=0` on the RTL CPU in the machine sim
@@ -29,22 +29,24 @@ need #1335 and #1363 on main and stay with #1369
   met a bench gap in its DDR model after every check had passed; it is
   filed as #1372.
 - Quartus 17.0.2 seals `fes.pc386` from a clean checkout at 61.44 MHz with
-  every analysis met: setup +0.409 ns (the pixel clock; the system clock
-  has +2.603 ns and 73.1 MHz), hold +0.064 ns, 26,436 ALMs, about 2,190
-  more than main's last seal ([Seal](#quartus-seal)).
+  every analysis met: setup +0.584 ns (the pixel clock; the system clock
+  has +2.167 ns, 70.9 MHz at its slowest corner), hold +0.038 ns,
+  26,453 ALMs, about 2,210 more than main's last seal ([Seal](#quartus-seal)).
+- Codex's review found that a protected-mode MOV Sreg, m16 read four bytes.
+  It is fixed, with a directed case that fails without the fix
+  ([Review](#review)).
 
 ## Inputs
 
 - FES branch `deano/i386-phase2-unreal`, from main `58edb6b3b`; main
   `97668042d` merged in as `c4a1c23a4` (#1290 and #1367, neither touching
   i386 or pc386 sources).
-- RTL revision `c4a1c23a4`: the seal, the RTL lockstep and the standard
-  system suite. The HIMEMX machine and `system_tb` runs are at `39581a878`,
-  which adds two counters to the machine bench and changes no RTL. The
-  netlist lockstep and a data-point seal are at `309d87186`, whose i386 and
-  pc386 sources differ from `c4a1c23a4` only in three comments. Later
-  commits add this record or merge main `e06789cd7` (#1365 and #1359, no
-  misteross source).
+- RTL revision `eee033a9d`, Codex's review fix: the seal, both lockstep
+  runs, both HIMEMX boots and the standard system suite. Two earlier seals
+  are data points: `c4a1c23a4`, before the fix, and `309d87186`, whose i386
+  and pc386 sources differ from `c4a1c23a4` only in three comments. Main
+  `e06789cd7` (#1365 and #1359, no misteross source) was merged before the
+  fix. Later commits change only this record.
 - Oracle: Bochs 3.1 at CPU level 3 (the `fes-i386-oracle` build), corpus
   SingleStepTests/80386 `459d49fbe628`, test386.asm `cfd052d1e64d`.
 - Verilator 5.032 on Powerboat. The netlist lockstep used the i386 lock's
@@ -104,9 +106,9 @@ that much free.
 
 ## Lockstep
 
-`scripts/test_fes_i386_lockstep.py` at `c4a1c23a4`
+`scripts/test_fes_i386_lockstep.py` at `eee033a9d`
 ([report](lockstep-report.json)), and with `--yosys` on the i386 lock's
-Yosys `238eac9a4` at `309d87186` ([report](lockstep-netlist-report.json)).
+Yosys `238eac9a4` ([report](lockstep-netlist-report.json)).
 The two reports are identical but for the netlist's `yosys` field:
 
 | Run | Result |
@@ -116,7 +118,7 @@ The two reports are identical but for the netlist's `yosys` field:
 | Protected-mode programs (16 seeds × 500, new) | 8,000 pass, 0 fail; 675,887 retirements, 417,342 of them (with the random programs') with PE set; 1,269 real-mode CS loads under the 386 rule |
 | Unbuilt encodings | 53,344 outside SCOPE, all stopped as not built |
 | Directed cases | 40 pass |
-| Unreal-mode cases (new) | 5 pass |
+| Unreal-mode cases (new) | 6 pass |
 | Memory cases (DMA, FLUSH) | 26 pass |
 
 The sequential-gap check still finds every retirement one cycle after the
@@ -156,7 +158,10 @@ mode, reloads the segments with real-mode values and then:
 - `cs-rule`: with the 4 GiB code descriptor, CS still reads at 10000h with
   PE clear; after the real-mode far JMP a word at CS:FFFFh faults #GP(0);
 - `cs-rule-hlt`: the RTL's CS after that jump is limit FFFFh, access rights
-  93h, D/B and G clear.
+  93h, D/B and G clear;
+- `pm-sreg-limit`: in protected mode, with DS from the 64 KiB descriptor,
+  MOV ES, [FFFEh] reads the selector 10h from DS's last word without a fault
+  and loads ES; then HLT with PE set.
 
 Bochs 3.1 keeps CS's cache on a real-mode CS load. The lockstep gives the
 oracle the RTL's CS limit and access rights after each such load
@@ -166,7 +171,8 @@ the design's known limit, not a divergence ([Known limits](#known-limits)).
 ## Oracle runners
 
 The adapter gained the CPL (`State::cpl`, Bochs's CS RPL), so the
-oracle-only runners were rerun against main's adapter at `97668042d`:
+oracle-only runners were rerun against main's adapter at `97668042d`. The
+adapter and both runners are unchanged since `0c624aaa1`, before these runs:
 - `test_fes_i386_vectors.py`: 1,758,700 tests, 1,437,596 pass and 321,103
   fail on both. The fails are the divergence list's known cases. The two
   `report.json` files are byte-identical.
@@ -195,15 +201,15 @@ mode.
 
 | Run | Result |
 | --- | --- |
-| Machine sim, RTL CPU (`machine_tb --cpu rtl`), games image, `mem` typed at the prompt, at `39581a878` | Pass ([report](machine-himem-report.json)): the prompt at 2.40 s and MEM's output by 3.65 s, with 15,360K of XMS, 159K used and 15,201K free. All 98,807,423 instructions retired on the RTL: 0 oracle steps, 0 stops. The RTL entered protected mode once (`pe_entries`), and 6 retirements left PE set (`pe_retired`): HIMEMX's INT 0Dh handler loading its 4 GiB limits. FESENV and CTMOUSE ran before the prompt, through FreeCOM's swap |
-| `system_tb` (`pc386_system`, RTL CPU, no oracle: a stop ends the run), boot fixture with HIMEMX and MEM, `--seed 1`, at `39581a878` | Pass ([report](system-himem-report.json)): `C:\>` at 2.85 s after 47,423,516 instructions. HIMEMX reports `XMS 3.00 80386 4G`, and MEM shows 15,360K of XMS, 159K used and 15,201K free. Every check passes: the dirty map, the save, the record and its round trip |
-| `sim_fes_pc386.py --suite system`, the bench's own fixture (no HIMEMX), at `c4a1c23a4` | Pass ([report](system-report.json)): `C:\>` at 2.75 s |
+| Machine sim, RTL CPU (`machine_tb --cpu rtl`), games image, `mem` typed at the prompt | Pass ([report](machine-himem-report.json)): the prompt at 2.40 s and MEM's output by 3.65 s, with 15,360K of XMS, 159K used and 15,201K free. All 98,807,423 instructions retired on the RTL: 0 oracle steps, 0 stops. The RTL entered protected mode once (`pe_entries`), and 6 retirements left PE set (`pe_retired`): HIMEMX's INT 0Dh handler loading its 4 GiB limits. FESENV and CTMOUSE ran before the prompt, through FreeCOM's swap |
+| `system_tb` (`pc386_system`, RTL CPU, no oracle: a stop ends the run), boot fixture with HIMEMX and MEM, `--seed 1` | Pass ([report](system-himem-report.json)): `C:\>` at 2.85 s after 47,423,516 instructions. HIMEMX reports `XMS 3.00 80386 4G`, and MEM shows 15,360K of XMS, 159K used and 15,201K free. Every check passes: the dirty map, the save, the record and its round trip |
+| `sim_fes_pc386.py --suite system`, the bench's own fixture (no HIMEMX) | Pass ([report](system-report.json)): `C:\>` at 2.70 s |
 
 The bench's write test puts `MD C:\M5` in AUTOEXEC.BAT's PATH line, so on
 the HIMEMX disk it runs MD, VER and MEM.
 
-The first `system_tb` run of that disk, at `c4a1c23a4` with the default
-seed, booted the same way and passed every check through the record. At
+The first `system_tb` run of that disk, at `c4a1c23a4` (before the review
+fix) with the default seed, booted the same way and passed every check through the record. At
 the round trip's release, 3 million clocks after the prompt, the bench
 stopped on its DDR model's port-2 check: `a write burst cut short, then
 another begun`. The bench holds a port by not driving it, where
@@ -213,43 +219,59 @@ capture's first burst after the next release fails the check. This is a
 bench gap outside the CPU; the guest's timing decides whether a run meets
 it. It is filed as
 [#1372](https://github.com/DeanoC/fes/issues/1372). Seed 1 changes only the
-DDR ports' timing draws, and with it the run passes.
+DDR ports' timing draws, and with it the run passes, at `39581a878` and
+again at `eee033a9d` with the same counts. The machine run at `39581a878`
+also matched the one at `eee033a9d` exactly.
 
 ## Quartus seal
 
 `make build-fes-pc386-quartus` at seed 1 from a clean checkout of
-`c4a1c23a4`: [`seal-summary.json`](seal-summary.json). Against main's last
+`eee033a9d`: [`seal-summary.json`](seal-summary.json). Against main's last
 seal ([computer 1.1](../2026-10-31-pc386-m5-computer11/summary.md#quartus-seal),
-`e6de1a468`):
+`e6de1a468`), with the seal before the review fix as a data point:
 
-| | Seal, `c4a1c23a4` | `309d87186` (data point) | Main's last seal, `e6de1a468` |
+| | Seal, `eee033a9d` | `c4a1c23a4` (before the fix) | Main's last seal, `e6de1a468` |
 | --- | --- | --- | --- |
-| Build ID, package | `0e6955d4…`, `6e0a663a…` | `aeb21d95…`, `529057f9…` | `d355dd17…`, `6823af43…` |
-| System Fmax, slow corners (61.44 MHz) | 73.14-73.25 MHz, setup slack +2.603 ns | 70.20-72.14 MHz | 70.86-71.66 MHz |
-| Pixel Fmax (74.27 MHz) | 76.60-77.01 MHz | 86.02-86.95 MHz | 83.03-84.13 MHz |
-| Setup, hold slack | +0.409 (pixel), +0.064 ns | +1.839, +0.105 ns | +1.420, +0.113 ns |
-| Recovery, removal, pulse width | +7.922, +0.396, +1.122 ns | +6.893, +0.270, +1.122 ns | +7.851, +0.460, +1.122 ns |
-| ALMs | 26,436 of 41,910 (63%) | 26,421 | 24,246 |
-| Registers | 24,176 | 24,136 | 22,252 |
+| Build ID, package | `e9629ee9…`, `cd427942…` | `0e6955d4…`, `6e0a663a…` | `d355dd17…`, `6823af43…` |
+| System Fmax, slow corners (61.44 MHz) | 70.88-74.25 MHz, setup slack +2.167 ns | 73.14-73.25 MHz, +2.603 ns | 70.86-71.66 MHz |
+| Pixel Fmax (74.27 MHz) | 77.64-78.24 MHz | 76.60-77.01 MHz | 83.03-84.13 MHz |
+| Setup, hold slack | +0.584 (pixel), +0.038 ns | +0.409 (pixel), +0.064 ns | +1.420, +0.113 ns |
+| Recovery, removal, pulse width | +5.576, +0.452, +1.122 ns | +7.922, +0.396, +1.122 ns | +7.851, +0.460, +1.122 ns |
+| ALMs | 26,453 of 41,910 (63%) | 26,436 | 24,246 |
+| Registers | 24,064 | 24,176 | 22,252 |
 | RAM blocks | 256 of 553 | 256 | 254 |
 | DSP blocks | 29 of 112 | 29 | 29 |
-| RBF | 3,557,656 bytes, SHA-256 `840e7c0e…` | 3,563,752 bytes | 3,492,112 bytes |
+| RBF | 3,556,688 bytes, SHA-256 `f3b57c70…` | 3,557,656 bytes | 3,492,112 bytes |
 
 The checkout was clean (`git status` empty before the build). Every
 analysis passes, with no illegal or unconstrained clocks. The worst setup
-path is now the pixel clock's, at +0.409 ns in the slow -40 C corner; the
-system clock has +2.603 ns. `309d87186` has the same RTL but for three
-comments and the main merge, which touch no pc386 source; the comments move
-Yosys's source-line attributes, so its fit is a second placement of the same
-logic. Its pixel clock had 86 MHz: the drop to 77 MHz is placement, not
-logic, and the pixel domain has no CPU logic.
+path is the pixel clock's, +0.584 ns in the slow -40 C corner; the system
+clock has +2.167 ns there and +2.808 ns at 100 C. The worst hold path is the
+pixel clock's, +0.038 ns in the fast -40 C corner.
 
-Against main's last seal, protected mode costs about 2,190 ALMs (9%),
-1,924 registers and 2 RAM blocks. The new registers are the descriptor
-staging (`ds_*`), each segment's low bound and type flags for the access
-checks, T2 and T3, CR2, CR3, GDTR and IDTR with their check limits, and the
-new uop fields through the pipeline. The seals of #1335 and #1364 are on
-their branches, not on main.
+The pixel domain holds no CPU logic, and its Fmax moves with placement. A
+third seal, at `309d87186`, has the same logic as `c4a1c23a4`: its sources
+differ only in three comments, which move Yosys's source-line attributes.
+It fitted the pixel clock at 86.02-86.95 MHz (setup +1.839 ns, hold
++0.105 ns, system 70.20-72.14 MHz, 26,421 ALMs).
+
+Against main's last seal, protected mode costs about 2,210 ALMs (9%),
+about 1,800 registers and 2 RAM blocks. The new registers are the
+descriptor staging (`ds_*`), each segment's low bound and type flags for the
+access checks, T2 and T3, CR2, CR3, GDTR and IDTR with their check limits,
+and the new uop fields through the pipeline. The seals of #1335 and #1364
+are on their branches, not on main.
+
+## Review
+
+Codex reviewed `a16aa6b5b` and found one P2: in protected mode, MOV Sreg,
+m16 read and limit-checked four bytes. The segment-load block in DC widened
+the move to 32 bits for T0 and left the access's width to follow it, so a
+selector in a segment's last word faulted #GP(0). `eee033a9d` gives the read
+its two bytes, as POP Sreg and LES already had. The directed case
+`pm-sreg-limit` fails on the old decode (the RTL stops with #GP where Bochs
+loads ES) and passes now. The random programs had missed it: they read their
+memory-form MOV Sreg selectors through a flat FS.
 
 ## Yosys workarounds
 

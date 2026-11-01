@@ -338,7 +338,7 @@
  "command": [
   "/home/deano/fes/out/dev/i386-phase2-machine/sources/misteross/build/sim/fes-pc386/system/obj/Vpc386_system",
   "--disk",
-  "/home/deano/fes-scratch/p2/himem/sys-himem-mem-s1.img",
+  "/home/deano/fes-scratch/p2/himem/sys-himem-mem-s1b.img",
   "--clock-hz",
   "61440000",
   "--limit-seconds",

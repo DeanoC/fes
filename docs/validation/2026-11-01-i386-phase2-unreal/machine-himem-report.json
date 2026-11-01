@@ -233,7 +233,7 @@
   "--vgabios",
   "build/firmware/pc386/pc386-vgabios.bin",
   "--disk",
-  "/home/deano/fes-scratch/p2/himem/himem-head.img",
+  "/home/deano/fes-scratch/p2/himem/himem-head2.img",
   "--limit-seconds",
   "10",
   "--type",
@@ -243,7 +243,7 @@
   "--cpu",
   "rtl",
   "--census",
-  "build/sim/fes-pc386/himem-rtl-head/census.txt"
+  "build/sim/fes-pc386/himem-rtl-head2/census.txt"
  ],
  "exit": 0,
  "failures": []
