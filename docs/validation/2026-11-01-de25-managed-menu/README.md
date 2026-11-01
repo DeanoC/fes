@@ -56,6 +56,10 @@ These are source-bound software and image results:
   actual AArch64 ELF inspection and a real bundle pack/verify round trip.
   That assembly case supplies the runtime section metadata through a test
   seam; a separate actual stripped-ELF test exercises the section reader.
+  Final producer `eee83ee91` passes the same fourteen tests (0.5 seconds),
+  including cross-board and malformed MENU target rejection before library
+  inspection or bundle writes. The ELF interface union cannot select a MENU
+  from the other board.
 - Five AArch64 target binaries are prepared with actual ELF architecture
   checks: agent, kit client, launcher, software supervisor and the qualified `791b`
   runtime. The Go builder is 1.26.5. The existing platform workspace resolves

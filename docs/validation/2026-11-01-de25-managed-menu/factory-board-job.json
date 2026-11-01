@@ -1,0 +1,16 @@
+{
+  "source_revision": "154dcfd81ff2e9bffc206965e61061fb57854845",
+  "command": [
+    "python3",
+    "image/scripts/tests/kit-software_test.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image",
+  "started_utc": "2026-11-01T13:18:14.347762+00:00",
+  "time_cap_seconds": 300,
+  "hardware_access": "not-performed",
+  "pid": 706260,
+  "state": "passed",
+  "elapsed_seconds": 0.5,
+  "heartbeat_utc": "2026-11-01T13:18:14.840681+00:00",
+  "returncode": 0
+}
