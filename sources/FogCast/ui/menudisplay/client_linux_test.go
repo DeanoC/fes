@@ -296,7 +296,18 @@ func TestStatusGrantAndPresentWriteTheSlotInScanoutOrder(t *testing.T) {
 }
 
 func TestPresentDamageWritesWhatTheSlotMissed(t *testing.T) {
+	testPresentDamageWritesWhatTheSlotMissed(t, false)
+}
+
+func TestFrameMappingPreservesDamageAcrossRemap(t *testing.T) {
+	testPresentDamageWritesWhatTheSlotMissed(t, true)
+}
+
+func testPresentDamageWritesWhatTheSlotMissed(t *testing.T, frameMapping bool) {
 	runtime, path := newFakeRuntime(t)
+	runtime.mu.Lock()
+	runtime.frameMapping = frameMapping
+	runtime.mu.Unlock()
 	client := New(path)
 	defer client.Close()
 	ctx := context.Background()
@@ -513,6 +524,7 @@ func grantMappingCount(fd int) (int, error) {
 
 func TestFrameMappingEndsBeforeCommitAndFailureReply(t *testing.T) {
 	f, path := newFakeRuntime(t)
+	f.mu.Lock()
 	f.frameMapping = true
 	baseline, err := grantMappingCount(f.window)
 	if err != nil {
@@ -528,6 +540,7 @@ func TestFrameMappingEndsBeforeCommitAndFailureReply(t *testing.T) {
 		}
 		return nil
 	}
+	f.mu.Unlock()
 	c := New(path)
 	defer c.Close()
 	if _, err := c.Grant(context.Background(), f.generation); err != nil {
@@ -575,7 +588,9 @@ func TestFrameMappingEndsBeforeCommitAndFailureReply(t *testing.T) {
 
 func TestFrameMappingGrantMustMatchNegotiatedStatus(t *testing.T) {
 	f, path := newFakeRuntime(t)
+	f.mu.Lock()
 	f.frameMapping, f.misreportFrameMapping = true, true
+	f.mu.Unlock()
 	c := New(path)
 	defer c.Close()
 	if _, err := c.Grant(context.Background(), f.generation); err == nil {
