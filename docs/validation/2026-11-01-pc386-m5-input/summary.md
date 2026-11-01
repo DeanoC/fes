@@ -428,6 +428,8 @@ These checks use source commit `5957397c079f84b31a2ae42a6861e00b86d54120`.
   (99 device and 32 keyboard checks). The ADh/AEh regression holds A through
   typematic, disables the keyboard interface, releases A, then verifies that
   re-enabling the interface produces no make after A's break.
+- That regression fails against the reviewed original RTL at `0ca1c64` with
+  `1e 1e 9e 1e 1e 1e`; it passes with the current keyboard fix.
 - `python3 scripts/sim_fes_pc386.py --suite boot` passed with one real mouse
   packet accepted once (`MOUSE sent=1 scheduled=1`). FreeDOS reached the prompt
   after 4.3 simulated seconds; fixture replay matched 85,234 events with zero
