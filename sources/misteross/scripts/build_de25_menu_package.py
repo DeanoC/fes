@@ -58,6 +58,11 @@ def authenticate_tools(builder, quartus_root):
     # accepting a caller-supplied version string or a project-only placeholder.
     board = builder.load(builder.HERE.parent / 'build.py', 'de25_menu_tool_locator')
     tool, version = board.locate_quartus(quartus_root)
+    lines = [line.strip() for line in version.splitlines()
+             if re.search(r'\bVersion 26\.3\.0(?![0-9.])', line) and 'Pro Edition' in line]
+    if len(lines) != 1:
+        raise BuildError('expected one actual Quartus 26.3.0 Pro version line')
+    version = lines[0]
     tool = tool.resolve()
     install = tool.parent.parent.parent
     paths = {'quartus': tool, 'qsys': install / 'qsys/bin/qsys-script'}
