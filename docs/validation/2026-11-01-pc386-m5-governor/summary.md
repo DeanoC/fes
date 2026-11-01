@@ -115,8 +115,12 @@ games slice does both.
     seconds, against 4.1 at `max` on main. The RTL ran alone (no oracle
     steps, no stops), and its VGA trace replays against Bochs's VGA with no
     mismatch. It retired 52,708,504 instructions against 113,546,092 at
-    `max`. The same boot under 286-12 was still running at the time of
-    writing.
+    `max`. Under 286-12 (`--preset 1`,
+    [`boot-rtl-286-12-report.json`](boot-rtl-286-12-report.json)) it passes
+    too: `dir` at the prompt at 14.0 simulated seconds, the RTL alone, the
+    VGA replay matching, 30,826,678 instructions retired. Its longest stretch
+    without screen output (FreeDOS loading its shell) is the 386DX-40 run's
+    1.73 s grown with the slower preset.
   - `system_tb` boots through the record under 386DX-25 (`--suite system
     --preset 3`,
     [`system-freedos-386dx25-report.json`](system-freedos-386dx25-report.json))
