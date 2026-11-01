@@ -18,6 +18,13 @@ The original runner's CID-width rejection is retained; the corrected observer
 validates the complete saved trace without another hardware execution.
 This result does not qualify other peripherals or physical core loading.
 
+The [KSZ9031 recovery and native package diagnostic](../../../docs/validation/2026-11-01-de25-ksz9031-packages/README.md)
+now also passes on TRWU8CBL. Two fresh recovery boots uploaded and independently
+read back the native FIT and synthetic package, preserving protected boot files.
+The matched Linux-free probe retained the expected package, contained SD,
+consumed retained RAM bytes, resumed/reread, and contained again with one owner
+and generations 3/4/6/7. No native SD write or FPGA payload activation occurred.
+
 This prototype joins a repeatable recovery upload tool to a matched Linux-free
 SPL, BL31 and native serial probe. The [current validation](../../../docs/validation/2026-10-31-de25-cold-upload/README.md)
 records the first host tests, cross-builds and regular-file packaging. The
@@ -171,8 +178,9 @@ packaging, and retains the existing 4,000 ms negotiation limit. Its banner is
 `-fes-nano-recovery-ksz9031`; upload plans require this profile in both recovery
 metadata and the running loader, then check the live PHY ID before link/DHCP.
 An earlier positive status sample cannot bypass a failed Ethernet start.
-This corrected candidate still requires a fresh matched card and bounded test;
-the older recovery's success does not qualify it.
+The matched corrected card and bounded test now pass as described above.
+This qualifies recovery Ethernet and the diagnostic's read-only package path;
+native Go Ethernet and physical FPGA admission remain separate work.
 
 ## Read-only native package probe
 

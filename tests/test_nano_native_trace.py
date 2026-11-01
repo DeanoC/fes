@@ -286,6 +286,16 @@ class NativePackageTraceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             trace.decode_native_boot('',BUILD,SEED,package=self.expected,storage=NativeSDTraceTests.expected)
 
+    def test_retained_physical_package_trace_keeps_exact_identity_and_containment(self):
+        import hashlib
+        expected=json.loads((ROOT/'tests/fixtures/nano/packages-native-complete.json').read_text())
+        raw=(ROOT/expected['console_path']).read_bytes()
+        self.assertEqual(hashlib.sha256(raw).hexdigest(),expected['console_sha256'])
+        report=trace.decode_native_boot(raw,expected['build_id'],expected['owner_seed'],package=expected['package'])
+        self.assertTrue(report['complete'],report)
+        self.assertEqual(report['last_checkpoint'],'package_pass')
+        self.assertFalse(report['core_load_acceptance'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -111,7 +111,7 @@ address or firmware assumption is a DE25 board constant.
 | CPU/RAM/time | AArch64 runtime; separate QEMU and Nano UART/counter hooks; validated Nano RAM profile | Actual Nano firmware/DDR/EL1/cache handoff and IRQ qualification |
 | Display | Shared RGBA-to-XRGB copier; QEMU RAMFB; optional Nano boot-owned window | Matching Nano scanout firmware, HDMI qualification and proven drain/handoff |
 | Input | QEMU xHCI, real USB boot-keyboard control/interrupt transfers; optional PL011; Nano DWC2 PIO direct keyboard | Nano PHY/VBUS and real input qualification, hubs and gamepads |
-| Storage | VirtIO reads/writes/FLUSH; Nano hardware-tested read-only SD/FAT32 with secure stop/resume; [retained package store](packagestore/README.md) | Physical package retention, writes and storage return across FPGA transitions |
+| Storage | VirtIO reads/writes/FLUSH; Nano hardware-tested read-only SD/FAT32/package retention with secure stop/resume | Native writes and storage return across FPGA transitions |
 | Preferences | Existing preallocated FAT32 JSON file; data and metadata flushes | Allocation/update strategy and power-loss-safe publication |
 | Network | Shared IPv4/TCP/HTTP; QEMU VirtIO; Nano XGMAC 2.10 with explicit DMA/PHY profile | Nano RGMII/PHY/cache/SMMU qualification, throughput and qualified entropy |
 | FPGA | Retained-package software lifecycle connected to tenfoot Play/Back; optional Nano read-only SDM probe | Runtime-owned configuration with bridges held, live identity, reset and DMA revocation |

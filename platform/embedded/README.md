@@ -1,7 +1,8 @@
 # Embedded FES base
 
-This directory develops the Linux-free DE25-Nano base. Its first target is
-emulation, not a flashable DE25 image. FES owns
+This directory develops the Linux-free DE25-Nano base. QEMU supplies combined
+launcher integration, while bounded Nano CPU/SD/package diagnostics now run on
+the top kit. Playable-core readiness remains open. FES owns
 the base image; FogCast owns tenfoot and its application services; the runtime
 owns FPGA programming, reset, input delivery and DMA lifetime.
 
@@ -15,19 +16,21 @@ and memory are qualified.
 
 The opt-in [owned bridge SiP binding](../../docs/validation/2026-10-31-de25-owned-sip/README.md)
 now cross-builds inside BL31 and connects to the native runtime through the
-shared wire contract. Its actual setup remains unready until trusted boot code
-supplies qualified ownership and containment proof. Launch/return and failure
-tests use injected platform state; the variant cannot enter card packaging.
+shared wire contract. The matched cold-boot diagnostic now supplies trusted
+ownership for its closed-bridge, read-only SD subset. Active-fabric launch/return
+and failure tests still use injected platform state and require further board
+qualification.
 
 The experimental [native boot entry](entry/README.md) uses the vendor U-Boot
 source in QEMU to cleanly hand a validated ELF to the Go runtime at EL1. A Nano
-candidate can be cross-built with an explicit firmware profile, but the board
-handoff and recovery path remain unverified.
+candidate uses an explicit firmware profile; bounded EL2/EL1 handoff and
+read-only SD/package retention now pass on TRWU8CBL.
 
 The [Nano serial-probe recipe](nano/README.md) now assembles a source-derived
 memory/device gate and matched SPL/FIT/SOF/test-SD files. The bounded serial
-trials stopped at the firmware bridge gate before native entry; native
-peripherals remain disabled for that probe.
+earlier trials stopped at the firmware bridge gate. The subsequent
+[KSZ9031 recovery and native package trial](../../docs/validation/2026-11-01-de25-ksz9031-packages/README.md)
+passes its narrow CPU/SD path; other native peripherals remain unqualified.
 
 The initial [feasibility study](../../docs/design/de25-embedded-os.md) exercised
 a small protocol probe. This work goes further: retain the actual tenfoot
@@ -100,7 +103,8 @@ The independent [Zephyr reference](zephyr/README.md) owns separate tests.
 | Native package inspection | Existing FES format-2/3/4 validator reads and retains canonical archives from FAT32; no hardware admission |
 | Separate Zephyr storage reference | NVMe FAT32 mount and boot-config read |
 | Separate Zephyr TCP reference | Builds/starts; E1000 packet exchange remains unverified |
-| Physical SD, USB, Ethernet, display and FPGA | Await controller implementation and board verification |
+| Physical CPU and read-only SD | Bounded native boot, FAT32/package retention and secure SD stop/resume pass |
+| Physical USB, native Ethernet, display and FPGA | Require board verification and qualified lifecycle integration |
 
 The native software renderer yields in small raster/copy chunks on TamaGo,
 so network goroutines can progress during a frame. A controlled renderer-plus-

@@ -44,3 +44,7 @@ and rereads, then contains again. It performs no SD write or FPGA activation.
 See [the bounded Nano procedure](../../nano/README.md) for staging and observing
 that diagnostic. A synthetic package proves retention only, never a playable
 or programmable core.
+
+The [bounded TRWU8CBL trial](../../../../docs/validation/2026-11-01-de25-ksz9031-packages/README.md)
+now passes that real SD retention/contain/resume/reread cycle. Active-fabric
+storage return and physical runtime admission remain unqualified.
