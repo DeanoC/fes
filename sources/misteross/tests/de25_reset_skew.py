@@ -129,14 +129,42 @@ def prepare(proof, output):
     model = replace(model, 'altera_reset_synchronizer_int_chain[DEPTH-1] <= 0;',
                     'altera_reset_synchronizer_int_chain[DEPTH-1] <= fes_hold_first;')
     (output / 'sources' / RESET).write_text(model)
+    fifo_definitions, fifo_wrappers = 0, 0
+    for name in receipt['source_sha256']:
+        path = output / 'sources' / name
+        if path.suffix != '.v':
+            continue
+        source = path.read_text()
+        if '/st_dc_fifo_1953/synth/' in name and 'wire reset_merged;' in source:
+            source = replace(source, '    parameter SYNC_RESET = 0;',
+                             '    parameter SYNC_RESET = 0;\n    parameter FES_DELAY_BASE = -1;')
+            for offset, side in enumerate(('write', 'read')):
+                pattern = (r"(altera_reset_synchronizer\s*#\(\s*\.ASYNC_RESET\s*\(1'b1\),\s*)"
+                           r'\.DEPTH\s*\(4\)(\s*\)\s*' + side + r'_reset_sync\s*\()')
+                source, count = re.subn(pattern, r'\g<1>.DEPTH(4), .FES_DELAY_INDEX(FES_DELAY_BASE + ' + str(offset) + r')\g<2>', source)
+                require(count == 1, 'FIFO reset instance changed: ' + name + ':' + side)
+            path.write_text(source)
+            fifo_definitions += 1
+        elif '/mm_ccb_1941/synth/' in name:
+            role = re.findall(r'\)\s+my_altera_avalon_dc_fifo_(cmd|rsp)_fifo\s*\(', source)
+            if not role:
+                continue
+            require(len(role) == 1, 'FIFO wrapper instance changed')
+            require(('fes_ctrl_cdc' in name) != ('fes_mem_cdc' in name), 'unknown FIFO wrapper')
+            base = (4 if 'fes_mem_cdc' in name else 0) + (2 if role[0] == 'rsp' else 0)
+            source, count = re.subn(r'(\.SYNC_RESET\s*\(0\),)',
+                                   r'\g<1>\n        .FES_DELAY_BASE(' + str(base) + ') ,', source)
+            require(count == 1, 'FIFO wrapper reset parameter changed')
+            path.write_text(source)
+            fifo_wrappers += 1
+    require((fifo_definitions, fifo_wrappers) == (2, 4), 'expected two FIFO definitions and four wrappers')
     wrapper = (output / (TOP + '.v')).read_text()
     wrapper = replace(wrapper, 'module ' + TOP + ' (', 'module ' + TOP + ''' (
     input wire [7:0] fifo_reset_delay_mask,
     output wire [7:0] fifo_reset_merged, fifo_reset_active,''')
     bindings = []
     for i, chain in enumerate(CHAINS):
-        bindings += [f'defparam {chain}.FES_DELAY_INDEX = {i};',
-                     f'assign fifo_reset_merged[{i}] = {chain}.reset_in;',
+        bindings += [f'assign fifo_reset_merged[{i}] = {chain}.reset_in;',
                      f'assign fifo_reset_active[{i}] = {chain}.reset_out;']
     wrapper = replace(wrapper, 'endmodule', '\n'.join(bindings) + '\nendmodule')
     (output / (TOP + '.v')).write_text(wrapper)
