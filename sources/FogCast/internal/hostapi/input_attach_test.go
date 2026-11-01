@@ -11,7 +11,7 @@ import (
 )
 
 func TestExplicitInputAttachPreservesOnlyReadyMatchingBinding(t *testing.T) {
-	for _, change := range []string{"none", "generation", "package", "core", "keyboard", "gamepad", "keypad", "mouse", "not_ready"} {
+	for _, change := range []string{"none", "generation", "package", "core", "keyboard", "hid", "gamepad", "keypad", "mouse", "not_ready"} {
 		t.Run(change, func(t *testing.T) {
 			core := "fes.c64"
 			status := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core,
@@ -39,6 +39,8 @@ func TestExplicitInputAttachPreservesOnlyReadyMatchingBinding(t *testing.T) {
 				service.status.ObservedCore = &other
 			case "keyboard":
 				service.status.CorePackage.ActiveInterfaces = append(service.status.CorePackage.ActiveInterfaces, protocol.RuntimeInterface{ID: "fes.keyboard", Major: 1})
+			case "hid":
+				service.status.CorePackage.ActiveInterfaces = []protocol.RuntimeInterface{{ID: "fes.gamepad.ports", Major: 1}}
 			case "gamepad":
 				service.status.CorePackage.ActiveInterfaces = []protocol.RuntimeInterface{{ID: "fes.keyboard.hid", Major: 1}}
 			case "keypad":

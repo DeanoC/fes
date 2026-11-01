@@ -1245,6 +1245,9 @@ func (s *RemoteInputSource) SendEvent(ctx context.Context, event remoteinput.Eve
 	r := s.owner
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if !s.validLocked() {
 		return ErrRemoteInputInvalid
 	}

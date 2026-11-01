@@ -1256,13 +1256,18 @@ Native SDL3 UI
 ```
 
 The input tap endpoint accepts `session_id` from the current input status and
-one HID keyboard press `event`. It checks the observed kit lease and input
-attachment after waiting for the input lock, then sends a press and a release
+one HID keyboard press `event` only for an active session with a negotiated
+`fes.keyboard.hid` 1.0 interface. Native gamepad and legacy matrix sessions
+are rejected instead of silently dropping or remapping physical keys. It
+checks the selected kit's connection and lease and input attachment after
+waiting for the input lock. It rejects missing, incompatible, or unknown target
+observations, then sends a press and a release
 under the same lock. A canceled request still releases a potentially applied
 press; an unconfirmed release closes the bridge and clears held input. The
 response includes `host_duration_ms` for the host operation. That duration
 is not a measurement of when either edge reached or was applied by the core.
-The endpoint does not turn uncertain delivery into a successful tap.
+Successful writes do not acknowledge guest delivery. The endpoint does not
+turn an uncertain host transport write into a successful tap.
 
 `GET /api/v1/session/events` keeps the existing protocol 1 event object.
 The host also sets an optional `flight_id` UUID on those events: one new id
