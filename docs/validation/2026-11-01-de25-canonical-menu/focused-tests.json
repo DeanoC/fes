@@ -1,0 +1,19 @@
+{
+  "source_revision": "262ee72db716f44b34018f43375672006c45d713",
+  "source_binding": "final working-tree bytes tested, then committed without edits",
+  "groups": [
+    {
+      "command": "PYTHONPATH=sources/misteross python3 -m unittest -q sources/misteross/tests/test_build_de25_menu_package.py sources/misteross/tests/test_core_package.py sources/misteross/tests/test_core_package_v3.py sources/misteross/tests/test_export_core_package.py",
+      "tests": 39,
+      "seconds": 1.131,
+      "state": "passed"
+    },
+    {
+      "command": "python3 -m unittest discover -s sources/misteross/boards/de25nano/scanout -p test_build.py",
+      "tests": 26,
+      "seconds": 0.702,
+      "state": "passed"
+    }
+  ],
+  "scope": "source/provenance/package/parser and board preparation; no hardware access"
+}
