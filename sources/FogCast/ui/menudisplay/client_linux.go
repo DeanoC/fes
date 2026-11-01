@@ -453,17 +453,19 @@ func (c *Client) present(ctx context.Context, generation uint64, pix []byte, dam
 	if err != nil {
 		return Result{}, err
 	}
+	conn, slot, err := c.begin(ctx, w, generation)
+	if err != nil {
+		return Result{}, err
+	}
 	releaseAttempted := false
 	defer func() {
 		if !releaseAttempted {
 			_ = c.releaseFrameMapping(w)
 		}
+		// Closing abandons a preparation and can unblock lifecycle recovery.
+		// End the peer mapping before signaling that abandonment too.
+		conn.Close()
 	}()
-	conn, slot, err := c.begin(ctx, w, generation)
-	if err != nil {
-		return Result{}, err
-	}
-	defer conn.Close()
 	staged := time.Now()
 	timing.BeginUS = staged.Sub(began).Microseconds()
 	rects := fullFrame
@@ -603,25 +605,31 @@ func (c *Client) PresentBlit(ctx context.Context, generation uint64, frame BlitF
 // records the preparation in w.
 func (c *Client) begin(ctx context.Context, w *window, generation uint64) (*net.UnixConn, int, error) {
 	conn, err := c.dial(ctx)
+	abort := func(failure error) (*net.UnixConn, int, error) {
+		if release := c.releaseFrameMapping(w); release != nil {
+			failure = fmt.Errorf("%w; frame unmap failed: %v", failure, release)
+		}
+		if conn != nil {
+			conn.Close()
+		}
+		return nil, 0, failure
+	}
 	if err != nil {
-		return nil, 0, err
+		return abort(err)
 	}
 	if err := send(conn, map[string]any{"protocol": 2, "operation": "menu_frame_begin", "expected_generation": generation}, -1); err != nil {
-		conn.Close()
-		return nil, 0, err
+		return abort(err)
 	}
 	prepared, fds, err := receive(conn)
 	for _, fd := range fds {
 		unix.Close(fd)
 	}
 	if err != nil {
-		conn.Close()
-		return nil, 0, err
+		return abort(err)
 	}
 	p := prepared.MenuFrame
 	if len(fds) != 0 || p == nil || p.Generation != generation || p.Slot == nil || *p.Slot < 0 || *p.Slot >= Slots || p.Preparation == 0 || p.DisplayedSequence != nil {
-		conn.Close()
-		return nil, 0, errors.New("invalid menu preparation")
+		return abort(err)ors.New("invalid menu preparation")
 	}
 	w.prepared = p.Preparation
 	return conn, *p.Slot, nil

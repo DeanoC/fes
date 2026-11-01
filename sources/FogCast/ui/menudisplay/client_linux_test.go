@@ -41,6 +41,8 @@ type fakeRuntime struct {
 	frameMapping          bool
 	misreportFrameMapping bool
 	checkCommit           func() error
+	badPreparation        bool
+	onAbandon             func()
 	// blitterMinor is the menu-blitter minor a blitter grant declares.
 	blitterMinor int
 	// listedGen is the generation whose grant took a list.
@@ -143,10 +145,17 @@ func (f *fakeRuntime) handle(conn *net.UnixConn) {
 			f.preparedGen, f.preparations = f.generation, 0
 		}
 		f.preparations++
-		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"slot":%d,"preparation":%d}}`, f.generation, slot, f.preparations), -1)
+		preparedGeneration := f.generation
+		if f.badPreparation {
+			preparedGeneration++
+		}
+		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"slot":%d,"preparation":%d}}`, preparedGeneration, slot, f.preparations), -1)
 		line, fds, err := readLine(conn)
 		if err != nil || len(fds) != 0 || json.Unmarshal(line, &request) != nil ||
 			request["operation"] != "menu_frame_commit" || request["slot"] != float64(slot) {
+			if f.onAbandon != nil {
+				f.onAbandon()
+			}
 			write(`{"protocol":2,"ok":false,"error":{"code":"invalid_request","message":"bad commit"}}`, -1)
 			return
 		}
@@ -598,5 +607,40 @@ func TestFrameMappingGrantMustMatchNegotiatedStatus(t *testing.T) {
 	}
 	if c.window != nil {
 		t.Fatal("mapped contradictory grant")
+	}
+}
+
+func TestFrameMappingEndsBeforePreparationAbandonment(t *testing.T) {
+	f, path := newFakeRuntime(t)
+	baseline, err := grantMappingCount(f.window)
+	if err != nil {
+		t.Fatal(err)
+	}
+	abandoned := make(chan error, 1)
+	f.mu.Lock()
+	f.frameMapping, f.badPreparation = true, true
+	f.onAbandon = func() {
+		count, err := grantMappingCount(f.window)
+		if err == nil && count != baseline {
+			err = fmt.Errorf("client mapping live at abandonment: %d vs %d", count, baseline)
+		}
+		abandoned <- err
+	}
+	f.mu.Unlock()
+	c := New(path)
+	defer c.Close()
+	if _, err := c.Present(context.Background(), f.generation, make([]byte, FrameBytes)); err == nil {
+		t.Fatal("accepted invalid preparation")
+	}
+	select {
+	case err := <-abandoned:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("preparation connection did not close")
+	}
+	if c.window == nil || len(c.window.mapping) != 0 {
+		t.Fatal("preparation failure did not release peer view")
 	}
 }
