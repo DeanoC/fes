@@ -1,5 +1,6 @@
 """Execute shared startup and early DE25 factory gates without a board."""
 import os
+import hashlib
 from pathlib import Path
 import shutil
 import subprocess
@@ -13,6 +14,32 @@ OVERLAY = BOARD / 'native-rootfs-overlay'
 
 
 class DE25FactoryRootfsTests(unittest.TestCase):
+    def test_prebuilt_runtime_recipe_selects_cpu_and_checks_hash_before_replacement(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); site = root/'site'; site.mkdir()
+            recipe = root/'Makefile'
+            recipe.write_text('generic-package =\nINSTALL = install\ninclude ' +
+                              str(ROOT/'image/buildroot/package/mister-runtime/mister-runtime.mk') +
+                              '\n' + str(site/'install') + ':\n\t$(MISTER_RUNTIME_INSTALL_TARGET_CMDS)\n')
+            for flag, suffix in [('BR2_arm=y', 'armv7'), ('BR2_aarch64=y', 'aarch64')]:
+                payload = ('selected runtime '+suffix).encode()
+                (site/('mister-runtime-linux-'+suffix)).write_bytes(payload)
+                target = root/suffix
+                args = ['make', '-s', '-f', str(recipe), str(site/'install'), flag,
+                        'TARGET_DIR='+str(target), 'FES_PREBUILT_RUNTIME_SHA256='+hashlib.sha256(payload).hexdigest()]
+                result = subprocess.run(args, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                binary = target/'usr/sbin/mister-runtime'
+                self.assertEqual(binary.read_bytes(), payload)
+                binary.write_bytes(b'retained previous runtime')
+                result = subprocess.run([*args[:-1], 'FES_PREBUILT_RUNTIME_SHA256='+'0'*64], capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(binary.read_bytes(), b'retained previous runtime')
+            result = subprocess.run(['make', '-s', '-f', str(recipe), str(site/'install'), 'BR2_x86_64=y',
+                                     'TARGET_DIR='+str(root/'unknown'), 'FES_PREBUILT_RUNTIME_SHA256='+'0'*64], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((root/'unknown').exists())
+
     def test_foreign_board_and_cyclone_v_inputs_refused_before_target_writes(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -84,6 +111,8 @@ class DE25FactoryRootfsTests(unittest.TestCase):
                 subprocess.run(['sh', script, 'stop'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, timeout=8)
                 self.assertFalse(pidfile.exists())
             finally:
+                if pid is None and pidfile.exists():
+                    pid = int(pidfile.read_text())
                 if pid is not None:
                     try: os.kill(pid, 15)
                     except ProcessLookupError: pass
