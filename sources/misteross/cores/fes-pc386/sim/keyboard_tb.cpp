@@ -56,6 +56,8 @@ struct Bench {
     uint64_t cycles = 0;
     bool ready = true;
     bool scanning = true;
+    bool cancel = false, complete_pending = false;
+    uint8_t complete_bit = 0, complete_make = 0, complete_repeat = 0;
     std::vector<Byte> bytes;
 
     Bench() {
@@ -68,9 +70,26 @@ struct Bench {
         top.us_tick = cycles % US == US - 1;
         top.key_ready = ready;
         top.key_scanning = scanning;
+        top.key_cancel = cancel;
+        top.key_complete = complete_pending;
+        top.complete_bit = complete_bit;
+        top.complete_make = complete_make;
+        top.complete_repeat = complete_repeat;
+        top.eval();
+        const bool completes = top.key_valid && top.key_ready && scanning && top.key_last;
+        const uint8_t report_bit = top.key_report_bit;
+        const uint8_t report_make = top.key_report_make;
+        const uint8_t report_repeat = top.key_report_repeat;
         if (top.key_valid && top.key_ready && scanning) bytes.push_back({cycles, top.key_code});
         top.clk = 1; top.eval();
         top.clk = 0; top.eval();
+        complete_pending = completes;
+        if (completes) {
+            complete_bit = report_bit;
+            complete_make = report_make;
+            complete_repeat = report_repeat;
+        }
+        cancel = false;
         ++cycles;
     }
     void run_us(uint64_t us) { for (uint64_t n = 0; n < us * US; ++n) clock(); }
@@ -391,13 +410,30 @@ void scanning(Bench &b) {
     b.key(C, true);
     std::vector<uint8_t> disabled_press = b.collect(600000);
     b.scanning = true;
-    std::vector<uint8_t> resumed_press = b.collect(200000);
+    std::vector<uint8_t> resumed_press = b.collect(520000);
     b.key(C, false);
     std::vector<uint8_t> released = b.collect(1200);
     check("a key held through re-enable starts typematic after its delivered make",
-          disabled_press.empty() && resumed_press == std::vector<uint8_t>{0x21} &&
+          disabled_press.empty() && resumed_press == std::vector<uint8_t>{0x21, 0x21} &&
               released == std::vector<uint8_t>{0xf0, 0x21},
           hex(disabled_press) + " / " + hex(resumed_press) + " / " + hex(released));
+
+    b.key(A, true);
+    b.collect(1200);
+    b.key(A, false);
+    const size_t before_break = b.bytes.size();
+    for (unsigned n = 0; n < 1200 * US && b.bytes.size() == before_break; ++n) b.clock();
+    const bool prefix_accepted = b.bytes.size() == before_break + 1 && b.bytes.back().value == 0xf0;
+    b.ready = false;
+    b.cancel = true;
+    b.top.typematic_clear = 1;
+    b.clock();
+    b.top.typematic_clear = 0;
+    b.bytes.resize(before_break);  // the keyboard FIFO was cleared with the command
+    b.ready = true;
+    std::vector<uint8_t> retried_break = b.collect(1200);
+    check("a flushed break retries from F0 instead of sending a bare key code",
+          prefix_accepted && retried_break == std::vector<uint8_t>{0xf0, 0x1c}, hex(retried_break));
 }
 
 }  // namespace

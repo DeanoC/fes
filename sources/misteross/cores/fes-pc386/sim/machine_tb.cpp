@@ -987,6 +987,53 @@ struct Options {
     unsigned cycles_per_instruction = 4;
 };
 
+template <typename Top, typename Clock>
+bool mouse_cycle(Top &top, const Options::Mouse &packet, bool &pending, size_t &sent, Clock &&clock) {
+    if (!pending) {
+        top.mouse_valid = 1;
+        top.mouse_dx = int8_t(packet.dx);
+        top.mouse_dy = int8_t(packet.dy);
+        top.mouse_buttons = uint8_t(packet.buttons);
+        pending = true;
+    }
+    top.eval();
+    const bool accepted = top.mouse_ready;
+    clock();
+    if (accepted) {
+        top.mouse_valid = 0;
+        top.eval();
+        pending = false;
+        ++sent;
+    }
+    return accepted;
+}
+
+void mouse_input_self_test() {
+    struct FakeTop {
+        int mouse_valid = 0;
+        int8_t mouse_dx = 0, mouse_dy = 0;
+        uint8_t mouse_buttons = 0;
+        int mouse_ready = 0;
+        unsigned clocks = 0;
+        void eval() {}
+    } top;
+    const Options::Mouse packet{0, -7, 5, 1};
+    bool pending = false;
+    size_t sent = 0;
+    for (unsigned n = 0; n < 4; ++n) {
+        const bool accepted = mouse_cycle(top, packet, pending, sent, [&] {
+            if (++top.clocks >= 3) top.mouse_ready = 1;
+        });
+        if (n < 3 && (accepted || !pending || sent != 0 || !top.mouse_valid))
+            throw std::runtime_error("mouse input did not stay valid while the device was busy");
+        if (n == 3 && (!accepted || pending || sent != 1 || top.mouse_valid))
+            throw std::runtime_error("mouse input was not accepted on the ready clock");
+    }
+    if (top.mouse_dx != -7 || top.mouse_dy != 5 || top.mouse_buttons != 1)
+        throw std::runtime_error("mouse input changed while waiting for readiness");
+    std::printf("PASS machine mouse input waits for ready with valid held\n");
+}
+
 Options parse(int argc, char **argv) {
     Options options;
     for (int n = 1; n < argc; ++n) {
@@ -1041,6 +1088,7 @@ int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     std::setvbuf(stdout, nullptr, _IOLBF, 0);
     try {
+        mouse_input_self_test();
         if (RtlCpu::physical(0xffff0000u, false) != 0xf0000u
             || RtlCpu::physical(0xffffffffu, true) != 0xfffffu
             || RtlCpu::physical(0x00100000u, true) != 0u)
@@ -1126,6 +1174,7 @@ int main(int argc, char **argv) {
         size_t typed = 0;
         std::deque<KeyChange> keys;
         uint64_t next_key = 0;
+        bool mouse_pending = false;
         size_t mouse_sent = 0;
         auto mouse_due = [&] {
             return mouse_sent < options.mouse.size() &&
@@ -1169,7 +1218,7 @@ int main(int argc, char **argv) {
                     fes_i386::State state = oracle->get_state();
                     if (!(state.eflags & 0x200)) { reason = "halt-with-interrupts-off"; break; }
                     while (!machine.top.intr && machine.cycles < limit && !machine.cpu_reset_seen &&
-                           !(keys.size() && machine.cycles >= next_key) && !mouse_due())
+                           !(keys.size() && machine.cycles >= next_key) && !mouse_pending && !mouse_due())
                         machine.clock();
                 }
                 if (machine.cpu_reset_seen) {
@@ -1290,16 +1339,11 @@ int main(int argc, char **argv) {
                 next_key = machine.cycles + change.hold;
                 keys.pop_front();
             }
-            // Mouse: a packet is taken on a clock with mouse_ready.
-            if (mouse_due() && machine.top.mouse_ready) {
-                const Options::Mouse &packet = options.mouse[mouse_sent++];
-                machine.top.mouse_valid = 1;
-                machine.top.mouse_dx = int8_t(packet.dx);
-                machine.top.mouse_dy = int8_t(packet.dy);
-                machine.top.mouse_buttons = uint8_t(packet.buttons);
-                if (on_oracle) machine.clock();
-                else rtl->cycle();
-                machine.top.mouse_valid = 0;
+            // Hold each offered packet valid until the ready handshake edge.
+            if (mouse_pending || mouse_due()) {
+                const Options::Mouse &packet = options.mouse[mouse_sent];
+                auto cycle = [&] { if (on_oracle) machine.clock(); else rtl->cycle(); };
+                mouse_cycle(machine.top, packet, mouse_pending, mouse_sent, cycle);
             }
 
             if (options.until_debug.empty() && machine.cycles - screen_checked >= uint64_t(0.05 * CLOCK_HZ)) {

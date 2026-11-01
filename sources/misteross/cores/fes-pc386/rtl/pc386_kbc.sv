@@ -66,19 +66,28 @@ module pc386_kbc #(
     wire keyboard_valid, aux_valid;
     wire [7:0] keyboard_byte, aux_byte;
     reg keyboard_take, aux_take;
-    wire key_valid, key_ready, key_scanning, typematic_clear;
+    wire key_valid, key_ready, key_scanning, typematic_clear, key_last, key_complete, key_cancel;
+    wire [7:0] key_report_bit, complete_bit;
+    wire key_report_make, key_report_repeat, complete_make, complete_repeat;
     wire [7:0] key_code;
     wire [6:0] typematic;
     pc386_hid_keyboard host_keyboard (
         .clk(clk), .reset(reset), .us_tick(us_tick), .rows(keyboard_rows),
         .typematic(typematic), .typematic_clear(typematic_clear),
-        .key_valid(key_valid), .key_code(key_code), .key_ready(key_ready), .key_scanning(key_scanning)
+        .key_valid(key_valid), .key_code(key_code), .key_last(key_last),
+        .key_report_bit(key_report_bit), .key_report_make(key_report_make), .key_report_repeat(key_report_repeat),
+        .key_ready(key_ready), .key_scanning(key_scanning), .key_complete(key_complete),
+        .complete_bit(complete_bit), .complete_make(complete_make), .complete_repeat(complete_repeat),
+        .key_cancel(key_cancel)
     );
     pc386_ps2_keyboard #(.BAT_US(BAT_US)) keyboard (
         .clk(clk), .reset(reset), .us_tick(us_tick),
         .rx_valid(keyboard_rx), .rx_byte(device_byte),
         .tx_valid(keyboard_valid), .tx_byte(keyboard_byte), .tx_take(keyboard_take),
-        .key_valid(key_valid), .key_code(key_code), .key_ready(key_ready),
+        .key_valid(key_valid), .key_code(key_code), .key_last(key_last),
+        .key_report_bit(key_report_bit), .key_report_make(key_report_make), .key_report_repeat(key_report_repeat),
+        .key_ready(key_ready), .key_complete(key_complete), .complete_bit(complete_bit),
+        .complete_make(complete_make), .complete_repeat(complete_repeat), .key_cancel(key_cancel),
         .typematic(typematic), .typematic_clear(typematic_clear), .scanning(key_scanning)
     );
     pc386_ps2_mouse #(.DY_DOWN(MOUSE_DY_DOWN)) mouse (
@@ -248,17 +257,33 @@ endmodule
 module pc386_ps2_fifo (
     input wire clk, clear,             // clear empties it before this clock's push
     input wire push,
+    input wire push_last,
+    input wire [7:0] push_key_bit,
+    input wire push_key_make,
+    input wire push_key_repeat,
     input wire [7:0] push_byte,
     input wire pop,
     output wire valid,
     output wire [7:0] head,
+    output wire head_last,
+    output wire [7:0] head_key_bit,
+    output wire head_key_make,
+    output wire head_key_repeat,
     output wire [4:0] space
 );
     reg [7:0] bytes [0:15];
+    reg last_bytes [0:15];
+    reg [7:0] key_bits [0:15];
+    reg key_makes [0:15];
+    reg key_repeats [0:15];
     reg [3:0] read_at, write_at;
     reg [4:0] count;
     assign valid = count != 0;
     assign head = bytes[read_at];
+    assign head_last = last_bytes[read_at];
+    assign head_key_bit = key_bits[read_at];
+    assign head_key_make = key_makes[read_at];
+    assign head_key_repeat = key_repeats[read_at];
     assign space = 5'd16 - count;
     always @(posedge clk) begin
         if (clear) begin
@@ -266,10 +291,17 @@ module pc386_ps2_fifo (
             read_at <= 0;
             write_at <= {3'b0, push};
             count <= {4'b0, push};
-            if (push) bytes[0] <= push_byte;
+            if (push) begin
+                bytes[0] <= push_byte; last_bytes[0] <= push_last;
+                key_bits[0] <= push_key_bit; key_makes[0] <= push_key_make; key_repeats[0] <= push_key_repeat;
+            end
         end else begin
             if (push && count != 16) begin
                 bytes[write_at] <= push_byte;
+                last_bytes[write_at] <= push_last;
+                key_bits[write_at] <= push_key_bit;
+                key_makes[write_at] <= push_key_make;
+                key_repeats[write_at] <= push_key_repeat;
                 write_at <= write_at + 1'b1;
             end
             if (pop && count != 0) read_at <= read_at + 1'b1;
@@ -298,7 +330,16 @@ module pc386_ps2_keyboard #(
     input wire tx_take,
     input wire key_valid,
     input wire [7:0] key_code,
+    input wire key_last,
+    input wire [7:0] key_report_bit,
+    input wire key_report_make,
+    input wire key_report_repeat,
     output wire key_ready,             // a byte is taken while valid and ready
+    output wire key_complete,
+    output wire [7:0] complete_bit,
+    output wire complete_make,
+    output wire complete_repeat,
+    output reg key_cancel,
     output reg [6:0] typematic,
     output reg typematic_clear,
     output reg scanning
@@ -310,16 +351,32 @@ module pc386_ps2_keyboard #(
     reg [7:0] queue [0:2];
     wire [4:0] space;
     // One response of up to three bytes is pushed a byte per clock. Host
-    // codes leave room for the largest response; a keyboard that is not
-    // scanning drops them.
+    // codes leave room for the largest response and wait while scanning is
+    // disabled, a response is pending, or BAT is running.
     reg [1:0] pushing;
     // Require four free slots before accepting a host byte, leaving three
     // for a command reply after the key is queued.
-    assign key_ready = pushing == 0 && !rx_valid && space >= 4;
-    wire push = (pushing != 0 && space != 0) || (key_valid && key_ready && scanning);
+    assign key_ready = pushing == 0 && !rx_valid && !clear && bat == 0 && scanning && space >= 4;
+    wire key_push = key_valid && key_ready;
+    wire push = (pushing != 0 && space != 0) || key_push;
     wire [7:0] push_byte = pushing != 0 ? queue[3 - pushing] : key_code;
-    pc386_ps2_fifo fifo (.clk(clk), .clear(clear || reset), .push(push), .push_byte(push_byte),
-                         .pop(tx_take), .valid(tx_valid), .head(tx_byte), .space(space));
+    wire fifo_key_last;
+    assign key_complete = tx_take && fifo_key_last;
+    wire [7:0] fifo_key_bit;
+    wire fifo_key_make, fifo_key_repeat;
+    assign complete_bit = fifo_key_bit;
+    assign complete_make = fifo_key_make;
+    assign complete_repeat = fifo_key_repeat;
+    wire clear_command = rx_valid && argument == 0 &&
+                         (rx_byte == 8'hff || rx_byte == 8'hf6 || rx_byte == 8'hf5);
+    pc386_ps2_fifo fifo (.clk(clk), .clear(clear || reset), .push(push),
+                         .push_last(pushing == 0 && key_push && key_last), .push_byte(push_byte),
+                         .push_key_bit(pushing == 0 && key_push ? key_report_bit : 8'd0),
+                         .push_key_make(pushing == 0 && key_push && key_report_make),
+                         .push_key_repeat(pushing == 0 && key_push && key_report_repeat),
+                         .pop(tx_take), .valid(tx_valid), .head(tx_byte), .head_last(fifo_key_last),
+                         .head_key_bit(fifo_key_bit), .head_key_make(fifo_key_make),
+                         .head_key_repeat(fifo_key_repeat), .space(space));
 
     task automatic respond(input [1:0] count, input [7:0] first, input [7:0] second, input [7:0] third);
         queue[0] <= count == 3 ? first : count == 2 ? 8'h00 : 8'h00;
@@ -331,11 +388,13 @@ module pc386_ps2_keyboard #(
     always @(posedge clk) begin
         clear <= 0;
         typematic_clear <= 0;
+        key_cancel <= 0;
         if (reset) begin
             scanning <= 1; argument <= 0; last_sent <= 8'hfa; bat <= 0; pushing <= 0; typematic <= 7'h2b;
         end else begin
             if (pushing != 0 && space != 0) pushing <= pushing - 1'b1;
             if (tx_take) last_sent <= tx_byte;
+            if (clear_command) key_cancel <= 1;
             if (bat != 0 && us_tick) begin
                 bat <= bat - 1'b1;
                 if (bat == 1) respond(2'd1, 8'haa, 8'h00, 8'h00);
@@ -381,12 +440,12 @@ endmodule
 // PS/2 table to stream packets. Wrap mode echoes every byte but ECh and FFh.
 // A host packet is taken on a clock move_valid and move_ready are both high.
 // A button change that arrives while streaming, before the last one has been
-// reported, sends that pending packet at once, outside the sample interval,
-// so the guest sees every click; move_ready is low only while that packet
-// cannot be queued, a few milliseconds while the guest reads. With reporting
-// off, or in remote mode, button changes merge, as a mouse's do.
+// reported, sends that pending packet at once when it fits. If the guest does
+// not drain the FIFO within BUTTON_WAIT_US, the latest button state is merged
+// instead, so a stuck guest cannot hold the runtime's input acknowledgement.
 module pc386_ps2_mouse #(
-    parameter integer DY_DOWN = 1
+    parameter integer DY_DOWN = 1,
+    parameter integer BUTTON_WAIT_US = 50000
 ) (
     input wire clk, reset, us_tick,
     input wire rx_valid,
@@ -408,12 +467,17 @@ module pc386_ps2_mouse #(
     reg buttons_changed;
     reg signed [19:0] x, y;              // quarter counts
     reg [16:0] sample_timer;
+    reg [15:0] button_wait;
     reg [2:0] pushing;
     reg [7:0] queue [0:3];
     reg clear, read_data;
     wire [4:0] space;
+    /* verilator lint_off PINCONNECTEMPTY */
     pc386_ps2_fifo fifo (.clk(clk), .clear(clear || reset), .push(pushing != 0), .push_byte(queue[4 - pushing]),
-                         .pop(tx_take), .valid(tx_valid), .head(tx_byte), .space(space));
+                         .push_last(1'b0), .push_key_bit(8'd0), .push_key_make(1'b0), .push_key_repeat(1'b0),
+                         .pop(tx_take), .valid(tx_valid), .head(tx_byte), .head_last(), .head_key_bit(),
+                         .head_key_make(), .head_key_repeat(), .space(space));
+    /* verilator lint_on PINCONNECTEMPTY */
 
     // This packet's counts: whole counts, clamped to +-255.
     // Arithmetic right shift rounds negative fractions down. Add one back
@@ -456,9 +520,11 @@ module pc386_ps2_mouse #(
     wire [7:0] packet_head = {2'b00, sent_y[9], sent_x[9], 1'b1, 1'b0, buttons[1], buttons[0]};
     wire streaming = enabled && !remote && !wrap;
     wire flush_needed = move_valid && move_buttons != buttons && buttons_changed && streaming;
-    assign move_ready = !flush_needed || (pushing == 0 && !rx_valid && space >= 7);
+    wire flush_room = pushing == 0 && !rx_valid && space >= 7;
+    wire flush_expired = button_wait >= 16'(BUTTON_WAIT_US);
+    assign move_ready = !flush_needed || flush_room || flush_expired;
     wire accept = move_valid && move_ready;
-    wire flush = accept && flush_needed;
+    wire flush = accept && flush_needed && flush_room;
     wire signed [19:0] add_x = 20'(move_dx) <<< resolution;
     wire signed [19:0] add_y = DY_DOWN != 0 ? -(20'(move_dy) <<< resolution) : (20'(move_dy) <<< resolution);
 
@@ -466,11 +532,13 @@ module pc386_ps2_mouse #(
         clear <= 0;
         if (reset) begin
             defaults(); wrap <= 0; argument <= 0; last_sent <= 8'hfa; buttons <= 0; buttons_changed <= 0;
-            x <= 0; y <= 0; sample_timer <= 0; pushing <= 0; read_data <= 0;
+            x <= 0; y <= 0; sample_timer <= 0; button_wait <= 0; pushing <= 0; read_data <= 0;
         end else begin
             if (pushing != 0) pushing <= pushing - 1'b1;
             if (tx_take) last_sent <= tx_byte;
             if (us_tick && sample_timer != 0) sample_timer <= sample_timer - 1'b1;
+            if (!flush_needed || flush_room || accept) button_wait <= 0;
+            else if (us_tick && button_wait < 16'(BUTTON_WAIT_US)) button_wait <= button_wait + 1'b1;
             if (accept) begin
                 // A flush reports the pending change with the movement so far.
                 x <= x + add_x - (flush ? 20'(report_x) <<< 2 : 20'sd0);

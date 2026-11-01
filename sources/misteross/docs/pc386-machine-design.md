@@ -375,6 +375,8 @@ time, about 1 ms (11 bits at 10–16.7 kHz; estimate). Controller responses
 completion (AAh) 5 ms later rather than the half second some keyboards took.
 That is a recorded deviation; in M1 the Bochs BIOS's keyboard initialisation,
 which waits up to about 94 ms for each byte, passes with it.
+Host scan codes are held until BAT completes, so a key change during reset
+cannot appear between the reset ACK and AA.
 
 ### Keyboard model
 
@@ -416,8 +418,11 @@ inside the 8042 ahead of its PS/2 keyboard):
   codes, and Microsoft's are taken. Usages with no set 2 code (the HID error
   codes, and Execute to Find at 74h–7Eh) are ignored.
 - The 1 ms is 1000 ticks of the 8042's microsecond enable. A change is
-  diffed one bit a clock, each group in usage order, and the next change is
-  taken once every byte of this one has gone to the keyboard.
+  diffed one bit a clock, each group in usage order. The model tracks projected
+  and reported key state separately: a transition is projected when its final
+  byte enters the keyboard FIFO and committed when that byte reaches the 8042
+  output buffer. If F5, F6 or FF clears queued bytes, pending projections are
+  discarded and the complete transitions are reconciled again.
 - While scanning is disabled, host bytes are discarded and do not change the
   guest-visible key state. Stable HID rows are reconciled against that state
   when scanning resumes: a release of a key the guest saw is delivered, while
@@ -464,14 +469,14 @@ The aux device accumulates them and reports standard 3-byte PS/2 packets.
   offered once the machine is out of reset (`mouse_ready`), so the runtime's
   acknowledge never reports a packet the device did not take. A button change
   that arrives while streaming, before the previous change has been reported,
-  sends that pending packet at once, outside the sample interval (a recorded
-  deviation), so the guest sees every click. `mouse_ready` is low only while
-  that packet cannot be queued, which lasts the few milliseconds the guest
-  takes to read. The runtime treats an acknowledge that stalls past 100 ms as
-  a fault, so the device never waits on a guest that is not reporting: with
-  reporting off, or in remote mode, button changes merge as a mouse's do. The runtime
-  splits large moves into packets of −128 to 127 per axis; the device's
-  accumulator is wider than a packet, so a negated −128 arrives as +128.
+  sends that pending packet at once when FIFO space is available (a recorded
+  deviation), so the guest sees both edges when it drains in time. If the
+  pending packet cannot fit within 50 ms, the latest button state is merged
+  and the input is accepted; a guest that has stopped reading the aux port
+  cannot hold the runtime's 100 ms acknowledgement open. Motion counts remain
+  accumulated. The runtime splits large moves into packets of −128 to 127 per
+  axis; the device's accumulator is wider than a packet, so a negated −128
+  arrives as +128.
 - **Limitation of the locked BIOS** ([#1330](https://github.com/DeanoC/fes/issues/1330)):
   its INT 15h C2xx services wait for the mouse's bytes with interrupts off
   and read the command byte without first emptying the output buffer, so a

@@ -384,12 +384,19 @@ void kbc(Bench &b) {
     b.wait([&] { return (b.in(0x64) & 1) != 0; }, 2000000);
     uint64_t ack_time = b.cycles - sent;
     uint8_t ack = b.in(0x60);
-    b.wait([&] { return (b.in(0x64) & 1) != 0; }, 2000000);
+    b.key(0x04, true);
+    b.run(300000);  // a key changes during the 5 ms BAT window
+    bool bat_ready = b.wait([&] { return (b.in(0x64) & 1) != 0; }, 2000000);
     uint8_t bat = b.in(0x60);
+    bool key_ready = b.wait([&] { return (b.in(0x64) & 1) != 0; }, 300000);
+    uint8_t after_bat = b.in(0x60);
     // The byte time is BYTE_US ticks of the 1 us enable, so it is 1 ms less
     // up to one tick (100 clocks), as the enable's phase falls.
-    check("keyboard FF: FA no sooner than one PS/2 byte time (1 ms), then AA", ack == 0xfa && bat == 0xaa &&
-          ack_time > 100000 - 100, hex(ack) + " " + hex(bat) + " " + std::to_string(ack_time));
+    check("keyboard FF: FA, BAT AA before a key changed during self-test", ack == 0xfa && bat_ready && bat == 0xaa &&
+          key_ready && after_bat == 0x1e && ack_time > 100000 - 100,
+          hex(ack) + " " + hex(bat) + " " + hex(after_bat) + " " + std::to_string(ack_time));
+    b.key(0x04, false);
+    b.drain();
 
     // Translation and IRQ1, from the host keyboard model's rows: the change
     // is taken 1 ms after the rows last changed.
@@ -546,6 +553,23 @@ void kbc(Bench &b) {
     bool all_broken = breaks.size() == 16;
     for (size_t n = 0; n < breaks.size() && all_broken; ++n) all_broken = breaks[n] == (SET1[n] | 0x80);
     check("the sixteen breaks follow in usage order", all_broken, hex_bytes(breaks));
+
+    // Leave a controller byte in OBF so the host key make stays in the
+    // keyboard FIFO. F5 clears it; the held key must be reconciled after F4.
+    b.out(0x64, 0x20);
+    b.run(100);
+    b.key(0x04, true);
+    b.run(200000);
+    b.out(0x60, 0xf5);
+    b.out(0x60, 0xf4);
+    uint8_t old_obf = b.in(0x60);
+    std::vector<uint8_t> replayed_make = b.drain();
+    b.key(0x04, false);
+    std::vector<uint8_t> replayed_break = b.drain();
+    check("F5 FIFO clear retries a held make before its later break",
+          old_obf != 0 && replayed_make == std::vector<uint8_t>{0xfa, 0xfa, 0x1e} &&
+              replayed_break == std::vector<uint8_t>{0x9e},
+          hex(old_obf) + " / " + hex_bytes(replayed_make) + " / " + hex_bytes(replayed_break));
 
     // Aux mouse: enable, then one movement packet with dy negated.
     b.out(0x64, 0xa8);
@@ -726,6 +750,34 @@ void kbc(Bench &b) {
     b.out(0x64, 0xa7);
     b.run(200000);
     while (b.in(0x64) & 1) b.in(0x60);
+
+    // A guest that never reads the aux FIFO must not keep the mailbox's
+    // button-up acknowledgement pending beyond the runtime's 100 ms limit.
+    for (int n = 0; n < 4; ++n) {
+        b.top.mouse_valid = 1; b.top.mouse_dx = 1; b.top.mouse_dy = 0; b.top.mouse_buttons = 0;
+        b.top.eval();
+        if (!b.top.mouse_ready) b.run(5000000);
+        b.clock();
+        b.top.mouse_valid = 0;
+        b.run(1100000);  // sample one three-byte packet into the undrained FIFO
+    }
+    b.top.mouse_valid = 1; b.top.mouse_dx = 0; b.top.mouse_dy = 0; b.top.mouse_buttons = 1;
+    b.top.eval();
+    bool down_ready = b.top.mouse_ready;
+    b.clock();
+    b.top.mouse_valid = 0;
+    b.run(1100000);  // leave the down pending because only four FIFO slots remain
+    b.top.mouse_valid = 1; b.top.mouse_dx = 0; b.top.mouse_dy = 0; b.top.mouse_buttons = 0;
+    b.top.eval();
+    bool up_blocked = !b.top.mouse_ready;
+    uint64_t wait_from = b.cycles;
+    while (!b.top.mouse_ready && b.cycles - wait_from < 5200000) b.clock();
+    uint64_t wait_clocks = b.cycles - wait_from;
+    bool up_ready = b.top.mouse_ready;
+    if (up_ready) b.clock();
+    b.top.mouse_valid = 0;
+    check("a full aux FIFO bounds a click wait to 50 ms", down_ready && up_blocked && up_ready &&
+          wait_clocks >= 4900000 && wait_clocks <= 5100000, std::to_string(wait_clocks));
 
     // A full scan-code queue still leaves room for a command's reply: with
     // the keyboard interface disabled, 13 of 20 makes are queued when F2

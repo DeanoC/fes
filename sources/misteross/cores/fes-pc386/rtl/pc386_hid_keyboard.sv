@@ -6,12 +6,14 @@
 // rows bits 0-127 are Keyboard/Keypad usages 00h-7Fh and bits 128-135 the
 // modifiers E0h-E7h (mister-packages docs/computer-io.md, "Keyboard"); bits
 // 136-143 are zero. The rows count as one change once they have been
-// unchanged for 1000 us_ticks (1 ms). A change is diffed against the state the
-// guest has been sent, one bit a clock, in four passes: other keys' releases,
+// unchanged for 1000 us_ticks (1 ms). A change is diffed against the projected
+// guest state, one bit a clock, in four passes: other keys' releases,
 // modifiers' releases, modifiers' presses, other keys' presses, each in usage
-// order. The next change is taken only once every byte of this one is out.
-// While scanning is disabled, bytes are consumed by the host model but not
-// counted as sent; on resume, stable rows are reconciled against guest state.
+// order. A transition is projected when its final byte enters the keyboard
+// FIFO, and committed only once that byte reaches the 8042 output buffer. A
+// command that clears the FIFO discards pending projections so they can be
+// retried. While scanning is disabled, rows are tracked without scan codes;
+// on resume, stable rows are reconciled against reported state.
 // Usages without a set 2 code are ignored.
 //
 // Typematic: the most recently pressed key other than a modifier or Pause
@@ -28,8 +30,17 @@ module pc386_hid_keyboard (
     input wire typematic_clear,
     output reg key_valid,                // set 2 bytes, as pc386_ps2_keyboard takes them
     output wire [7:0] key_code,
+    output wire key_last,
+    output wire [7:0] key_report_bit,
+    output wire key_report_make,
+    output wire key_report_repeat,
     input wire key_ready,
-    input wire key_scanning
+    input wire key_scanning,
+    input wire key_complete,
+    input wire [7:0] complete_bit,
+    input wire complete_make,
+    input wire complete_repeat,
+    input wire key_cancel
 );
     localparam [1:0] NONE = 2'd0, PLAIN = 2'd1, EXTENDED = 2'd2, SPECIAL = 2'd3;
     localparam [7:0] PRINT_SCREEN = 8'h7c, PAUSE = 8'h77;   // SPECIAL's codes
@@ -146,7 +157,7 @@ module pc386_hid_keyboard (
         period_thirds = (22'(4'd8 + {1'b0, rate[2:0]}) * 22'd12500) << rate[4:3];
     endfunction
 
-    reg [135:0] observed, stable, sent;
+    reg [135:0] observed, stable, sent, queued;
     reg [9:0] age;
     // The diff: pass 0 key releases, 1 modifier releases, 2 modifier presses,
     // 3 key presses.
@@ -156,13 +167,14 @@ module pc386_hid_keyboard (
     wire modifier_pass = pass == 2'd1 || pass == 2'd2;
     wire [7:0] bit_index = modifier_pass ? {5'b10000, position[2:0]} : {1'b0, position};
     wire want_press = pass[1];
-    wire differs = stable[bit_index] != sent[bit_index] && stable[bit_index] == want_press;
+    wire differs = stable[bit_index] != queued[bit_index] && stable[bit_index] == want_press;
     wire [9:0] entry = set2(bit_index);
     wire pass_end = modifier_pass ? position[2:0] == 3'd7 : position == 7'd127;
-    wire start = !key_valid && diffing && differs && length(entry[9:8], entry[7:0], want_press) != 0;
+    wire start = !key_valid && diffing && differs && key_scanning &&
+                 length(entry[9:8], entry[7:0], want_press) != 0;
     wire silent = !key_valid && diffing && differs && !start;   // no code, or Pause's release
     wire take = !key_valid && !diffing && age == STABLE_US &&
-                (observed != stable || (key_scanning && stable != sent));
+                (observed != stable || (key_scanning && stable != queued));
     // The sequence being sent.
     reg [1:0] kind;
     reg [7:0] code;
@@ -170,24 +182,36 @@ module pc386_hid_keyboard (
     reg [7:0] sending_bit;
     reg [2:0] step;
     assign key_code = sequence_byte(kind, code, make, step);
-    wire last_byte = key_valid && key_ready && 4'(step) + 4'd1 == length(kind, code, make);
+    assign key_last = key_valid && 4'(step) + 4'd1 == length(kind, code, make);
+    assign key_report_bit = sending_bit;
+    assign key_report_make = make;
+    assign key_report_repeat = repeat_send;
+    wire last_byte = key_valid && key_ready && key_scanning && key_last;
     // Typematic
     reg repeating, waiting_delay, repeat_due;
     reg [7:0] repeat_bit;
     reg [21:0] elapsed;
     wire repeat_start = key_scanning && !key_valid && !diffing && !take && repeat_due;
-    wire pressed = key_scanning && last_byte && !repeat_send && make && !sending_bit[7] &&
-                   !(kind == SPECIAL && code == PAUSE);
-    wire released = (last_byte && !repeat_send && !make && sending_bit == repeat_bit) ||
-                    (silent && !want_press && bit_index == repeat_bit);
+    wire pressed = key_complete && !complete_repeat && complete_make && !complete_bit[7] && complete_bit != 8'h48;
+    wire released = key_complete && !complete_repeat && !complete_make && complete_bit == repeat_bit;
     wire [21:0] limit = waiting_delay ? delay_thirds(typematic[6:5]) : period_thirds(typematic[4:0]);
     wire [21:0] elapsed_next = elapsed + 22'd3;
 
     always @(posedge clk) begin
         if (reset) begin
-            observed <= 0; stable <= 0; sent <= 0; age <= 0;
+            observed <= 0; stable <= 0; sent <= 0; queued <= 0; age <= 0;
             diffing <= 0; pass <= 0; position <= 0;
             key_valid <= 0; kind <= NONE; code <= 0; make <= 0; repeat_send <= 0; sending_bit <= 0; step <= 0;
+        end else if (key_cancel) begin
+            // F5/F6/FF empty the keyboard FIFO. Discard queued transitions,
+            // retaining only keys whose final byte already reached the 8042.
+            key_valid <= 0; step <= 0;
+            queued <= sent;
+            if (key_complete && !complete_repeat) begin
+                sent[complete_bit] <= complete_make;
+                queued[complete_bit] <= complete_make;
+            end
+            diffing <= 0; pass <= 0; position <= 0;
         end else begin
             // Stability
             if (rows[135:0] != observed) begin
@@ -195,12 +219,15 @@ module pc386_hid_keyboard (
                 age <= 0;
             end else if (us_tick && age != STABLE_US) age <= age + 10'd1;
 
-            if (key_valid && key_ready) begin
+            if (key_valid && key_ready && key_scanning) begin
                 step <= step + 3'd1;
                 if (last_byte) begin
                     key_valid <= 0;
-                    if (!repeat_send && key_scanning) sent[sending_bit] <= make;
+                    if (!repeat_send) queued[sending_bit] <= make;
                 end
+            end
+            if (key_complete && !complete_repeat) begin
+                sent[complete_bit] <= complete_make;
             end
             if (start) begin
                 key_valid <= 1;
@@ -210,7 +237,10 @@ module pc386_hid_keyboard (
                 sending_bit <= bit_index;
                 step <= 0;
             end
-            if (silent && key_scanning) sent[bit_index] <= want_press;
+            if (silent && key_scanning) begin
+                sent[bit_index] <= want_press;
+                queued[bit_index] <= want_press;
+            end
             if (!key_valid && diffing) begin
                 position <= pass_end ? 7'd0 : position + 7'd1;
                 if (pass_end) begin
@@ -242,9 +272,8 @@ module pc386_hid_keyboard (
             repeating <= 0; repeat_due <= 0;
             if (reset) begin waiting_delay <= 0; repeat_bit <= 0; elapsed <= 0; end
         end else if (pressed) begin
-            // A key press: it repeats unless it is Pause.
-            repeating <= !(kind == SPECIAL && code == PAUSE);
-            repeat_bit <= sending_bit;
+            repeating <= 1'b1;
+            repeat_bit <= complete_bit;
             waiting_delay <= 1;
             repeat_due <= 0;
             elapsed <= 0;
