@@ -76,7 +76,7 @@ shared [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv) with AT parameters.
 ```sh
 python3 scripts/build_pc386_firmware.py --download     # dev86, then both ROMs, checked against the lock
 python3 scripts/build_pc386_freedos_image.py --download  # the FreeDOS fixture in build/
-python3 scripts/build_pc386_freedos_image.py --profile games --download  # the games image (HIMEMX, CuteMouse, MEM, BLASTER)
+python3 scripts/build_pc386_freedos_image.py --profile games --download  # the games image (HIMEMX, UMBM, CuteMouse, MEM, BLASTER)
 python3 scripts/sim_fes_pc386.py --suite devices        # directed device checks, about 10 s
 python3 scripts/sim_fes_pc386.py --suite storage        # the fes.computer 1.1 golden exchanges, about 2 min
 python3 scripts/sim_fes_pc386.py --suite audio          # DSP, OPL2 timers, mixer, about 1 min
@@ -386,13 +386,19 @@ disk builder's image will be
 ([FreeDOS in the builder](../../docs/pc386-machine-design.md#freedos-in-the-fogcast-disk-builder)).
 `build_pc386_freedos_image.py --profile games` writes
 `build/sim/fes-pc386/freedos-games.img`: the boot fixture's kernel and FreeCOM,
-with HIMEMX 3.38, CuteMouse 2.1b4 and MEM 1.12 from their FreeDOS 1.4 package
-archives in `C:\FDOS\BIN`, pinned in [`sim/freedos.lock`](sim/freedos.lock).
-- `FDCONFIG.SYS` loads HIMEMX with all extended memory as XMS (15,360K on a
-  16 MiB machine) and keeps the kernel in low memory.
+with HIMEMX 3.38, UMBM from Jemm 5.85, CuteMouse 2.1b4 and MEM 1.12 from their
+FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
+[`sim/freedos.lock`](sim/freedos.lock).
+- `FDCONFIG.SYS` loads UMBM with `/I=C800-EFFF`, `DOS=UMB`, then HIMEMX high
+  with all extended memory as XMS (15,360K on a 16 MiB machine). UMBM hands
+  the machine's upper RAM to DOS as upper memory blocks without V86 and then
+  unloads; it finds only UMBPCI's tables by itself, so the range is named.
+  All 160K of C8000-EFFFF becomes upper memory.
 - `AUTOEXEC.BAT` runs [`FESENV.COM`](sim/fesenv.asm) into
   `C:\FDOS\FESENV.BAT` and calls it, so `BLASTER` follows the Sound Blaster
-  setting in CMOS 60h-62h at every boot, then loads CuteMouse.
+  setting in CMOS 60h-62h at every boot, then loads CuteMouse high.
+- MEM shows 573K (586,416 bytes) of conventional memory free and 154K of
+  upper memory free, largest block 81K.
 - HIMEMX switches A20 through the 8042 (`/METHOD:KBC`). Left to itself it
   finds A20 already on (the 8042's output port leaves reset with A20 enabled,
   and the BIOS only uses port 92h) and takes its "Always on" method, under
@@ -401,15 +407,15 @@ archives in `C:\FDOS\BIN`, pinned in [`sim/freedos.lock`](sim/freedos.lock).
   XMS function 05h whenever a program has left it off and never releases it,
   so HIMEMX's lock count stays above zero and function 04h fails too. Ultima
   VII's Voodoo memory manager calls 04h as it exits and stops
-  (`freexmm.c` / `Program terminated by code.`) when it fails. The kernel in
-  low memory costs about 50K: 567K is free with CuteMouse loaded.
-- [`FREETOP.COM`](sim/freetop.asm) in `C:\FDOS\BIN` runs a program with the
-  top of conventional memory free: `FREETOP ULTIMA7.COM` in the game's
-  directory. FreeCOM 0.86 keeps its master environment in the last memory
-  block, and Ultima VII's MAINMENU.EXE measures DOS memory as the last two
-  blocks of the chain, so started from the prompt it reports
-  `Ultima VII requires 561144 bytes of DOS memory!`. FREETOP moves that block
-  aside for the program's run and puts it back.
+  (`freexmm.c` / `Program terminated by code.`) when it fails.
+- The upper memory blocks also keep Ultima VII's memory check working from
+  the prompt. Its MAINMENU.EXE measures DOS memory as the last two blocks of
+  the memory chain. FreeCOM 0.86 keeps its master environment (and, while a
+  program runs, its copy) in the last block of conventional memory when
+  there is no upper memory, where MAINMENU then counts only the memory above
+  itself and reports `Ultima VII requires 561144 bytes of DOS memory!`. With
+  upper memory FreeCOM puts both there, and with the UMB link off, as DOS
+  leaves it for programs, conventional memory ends in free memory.
 
 The images are test fixtures and are never distributed. The games
 themselves are user-supplied and go onto a copy of the image only for a kit

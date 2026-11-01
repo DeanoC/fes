@@ -170,9 +170,15 @@ ranges itself ([`pc386_rom`](../cores/fes-pc386/rtl/pc386_rom.sv), M5);
 without V86, which the Ultima VII games forbid. UMBM from the Jemm package
 (public domain) is such a driver: it hands RAM it finds in the upper area to
 DOS and then unloads. Its documentation pairs it with UMBPCI, which turns on
-chipset shadow RAM; here the RAM is already on. Phase 3 confirms UMBM finds it
-and checks whether the acceptance setups need it for their free-memory
-figures. Real AT clones with shadow-capable chipsets offered the same.
+chipset shadow RAM; here the RAM is already on. By itself UMBM finds only the
+regions UMBPCI's tables list, so the games image names the range
+(`UMBM.EXE /I=C800-EFFF`); it then tests every 4 KiB of it and DOS gets all
+160K as upper memory. The acceptance setup needs it: with the kernel kept out
+of the HMA for Ultima VII (no `DOS=HIGH`), HIMEMX and CuteMouse loaded high
+leave 573K of conventional memory free, and FreeCOM's environment goes to
+upper memory, where Ultima VII's memory check needs it
+([games image](../cores/fes-pc386/README.md)). Real AT clones with
+shadow-capable chipsets offered the same.
 
 Guest RAM is 16 MiB, the AT's DMA reach. The CPU design allows up to 64 MiB;
 a RAM-size setting is later work.

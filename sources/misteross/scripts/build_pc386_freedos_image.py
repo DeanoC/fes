@@ -15,14 +15,13 @@ Two profiles:
          else. The simulation suites boot it.
   games  build/sim/fes-pc386/freedos-games.img: the setup the acceptance games
          run in, as the FogCast builder's image will be. FDCONFIG.SYS loads
-         HIMEMX with all extended memory as XMS, switching A20 through the
-         8042 (/METHOD:KBC), and keeps the kernel low (no DOS=HIGH), so that
-         Ultima VII's Voodoo memory manager can turn A20 off again on exit.
-         AUTOEXEC.BAT sets BLASTER from CMOS 60h-62h with FESENV.COM
-         (cores/fes-pc386/sim/fesenv.asm) and loads CuteMouse. MEM and
-         FREETOP.COM (cores/fes-pc386/sim/freetop.asm), which starts Ultima VII
-         with FreeCOM's top memory block out of the way, are in C:\\FDOS\\BIN
-         with them.
+         UMBM, which hands the machine's upper RAM (C800h-EFFFh) to DOS as
+         upper memory blocks (DOS=UMB), then HIMEMX high with all extended
+         memory as XMS, switching A20 through the 8042 (/METHOD:KBC). The
+         kernel stays low (no DOS=HIGH), so Ultima VII's Voodoo memory manager
+         can turn A20 off again on exit. AUTOEXEC.BAT sets BLASTER from CMOS
+         60h-62h with FESENV.COM (cores/fes-pc386/sim/fesenv.asm) and loads
+         CuteMouse high. MEM is in C:\\FDOS\\BIN with them.
 
 No network access occurs unless --download is given. The packages are fetched
 at the commits in cores/fes-pc386/sim/freedos.lock (each package repository's
@@ -33,6 +32,7 @@ FreeDOS-v1.4 tag) and every file used is checked against its pinned SHA-256:
   freecom  COMMAND.COM
   fdisk    bootnorm.c, the bytes of Free FDISK's master boot record
   himemx   HIMEMX.EXE (games)
+  jemm     UMBM.EXE (games)
   ctmouse  CTMOUSE.EXE (games)
   mem      MEM.EXE (games)
 
@@ -67,7 +67,6 @@ from scripts import test_fes_i386_test386 as test386
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / 'cores/fes-pc386/sim/freedos.lock'
 FESENV = ROOT / 'cores/fes-pc386/sim/fesenv.asm'
-FREETOP = ROOT / 'cores/fes-pc386/sim/freetop.asm'
 BUILD = ROOT / 'build/sim/fes-pc386/freedos'
 
 CYLINDERS, HEADS, SPT = 65, 16, 63
@@ -80,8 +79,7 @@ FILE_TIME = 1793016000
 
 SHELL = 'SHELL=C:\\COMMAND.COM C:\\ /E:1024 /P=C:\\AUTOEXEC.BAT\r\n'
 # Each profile: its image, the lock's packages it takes, its FDCONFIG.SYS and
-# AUTOEXEC.BAT, and the files in C:\FDOS\BIN (a package file, or None for a
-# program assembled from its source here: local_sources).
+# AUTOEXEC.BAT, and the files in C:\FDOS\BIN (a package file, or fesenv.asm).
 PROFILES = {
     'boot': {
         'image': ROOT / 'build/sim/fes-pc386/freedos.img',
@@ -92,13 +90,15 @@ PROFILES = {
     },
     'games': {
         'image': ROOT / 'build/sim/fes-pc386/freedos-games.img',
-        'packages': ('kernel', 'freecom', 'fdisk', 'himemx', 'ctmouse', 'mem'),
-        'fdconfig': ('FILES=20\r\nBUFFERS=20\r\n'
-                     'DEVICE=C:\\FDOS\\BIN\\HIMEMX.EXE /METHOD:KBC /VERBOSE\r\n' + SHELL),
+        'packages': ('kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem'),
+        'fdconfig': ('FILES=20\r\nBUFFERS=20\r\nDOS=UMB\r\n'
+                     'DEVICE=C:\\FDOS\\BIN\\UMBM.EXE /I=C800-EFFF\r\n'
+                     'DEVICEHIGH=C:\\FDOS\\BIN\\HIMEMX.EXE /METHOD:KBC /VERBOSE\r\n' + SHELL),
         'autoexec': ('@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\FDOS\\BIN;C:\\\r\n'
-                     'FESENV > C:\\FDOS\\FESENV.BAT\r\nCALL C:\\FDOS\\FESENV.BAT\r\nCTMOUSE\r\nVER\r\n'),
-        'bin': {'HIMEMX.EXE': ('himemx', 'BIN/HimemX.exe'), 'CTMOUSE.EXE': ('ctmouse', 'BIN/CTMOUSE.EXE'),
-                'MEM.EXE': ('mem', 'BIN/MEM.EXE'), 'FESENV.COM': None, 'FREETOP.COM': None},
+                     'FESENV > C:\\FDOS\\FESENV.BAT\r\nCALL C:\\FDOS\\FESENV.BAT\r\nLH CTMOUSE\r\nVER\r\n'),
+        'bin': {'HIMEMX.EXE': ('himemx', 'BIN/HimemX.exe'), 'UMBM.EXE': ('jemm', 'BIN/UMBM.EXE'),
+                'CTMOUSE.EXE': ('ctmouse', 'BIN/CTMOUSE.EXE'), 'MEM.EXE': ('mem', 'BIN/MEM.EXE'),
+                'FESENV.COM': None},
     },
 }
 
@@ -111,19 +111,14 @@ def lock() -> dict:
     return json.loads(LOCK.read_text())
 
 
-def local_sources() -> dict[str, Path]:
-    """The programs a profile's C:\\FDOS\\BIN may carry that are assembled here."""
-    return {'FESENV.COM': FESENV, 'FREETOP.COM': FREETOP}
-
-
 def inputs_key(profile: str = 'boot') -> str:
     """Identity of everything a profile's image is built from: the profile, the
     lock (package commits and file hashes), the builder, NASM helper and
-    assembler version, and the source of each program the image carries that
-    is assembled here."""
+    assembler version, and FESENV's source when the image carries it."""
     digest = hashlib.sha256(profile.encode() + b'\0')
     sources = [LOCK.resolve(), Path(__file__).resolve(), Path(test386.__file__).resolve()]
-    sources += [path.resolve() for name, path in local_sources().items() if name in PROFILES[profile]['bin']]
+    if 'FESENV.COM' in PROFILES[profile]['bin']:
+        sources.append(FESENV.resolve())
     for path in sources:
         digest.update(path.relative_to(ROOT).as_posix().encode())
         digest.update(b'\0')
@@ -268,7 +263,7 @@ def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
         mtools('mmd', '-i', volume, '::FDOS', '::FDOS/BIN', env=env)
     for name, source in spec['bin'].items():
         if source is None:
-            assemble(nasm, local_sources()[name], staged / name)
+            assemble(nasm, FESENV, staged / name)
         else:
             shutil.copyfile(trees[source[0]] / source[1], staged / name)
         os.utime(staged / name, (FILE_TIME, FILE_TIME))
