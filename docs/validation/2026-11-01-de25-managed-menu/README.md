@@ -67,8 +67,13 @@ These are source-bound software and image results:
 The independent retention directory on Powerboat is
 `/home/deano/fes/out/artifacts/de25-menu-integration/09d0be9e2/`, with source
 bundles, original failures, target/native artifacts and the complete kernel/SD
-image. The fresh combined ZX81/PR proof and canonical source-closure refresh
-are separate from these completed checks.
+image. The fresh combined ZX81/PR proof at actual producer `09d0be9e2` passes
+all fourteen native/Cortex-A76 client/RTL cases in 1,656.3 seconds, including
+BASIC LOAD/RUN, ROM SAVE and reload. Every captured compiler/runtime input
+matches the publication tree exactly before refreshing the canonical receipt;
+its producer identity remains unchanged. This is a client/RTL model result,
+with behavioral memory and modeled persona selection. It does not execute the
+MENU kernel adapter or establish physical SAVE, native MENU or catalog play.
 
 The physical bottom board remains on its earlier ABI 2 tracing kernel/card and
 last verified stopped `774798` diagnostic. No new kernel, RBF, software bundle, SD or QSPI
