@@ -70,6 +70,15 @@ void fes_nano_spl_report(void)
            FES_COLD_READ32(FES_NANO_COLD_RSTMGR+0x8));
     if (source.failed) hang();
 }
+static void fes_nano_spl_sample_report(const char *phase, const struct fes_nano_cold_sample *v)
+{
+    /* Saved observations only: do not retry reads or touch an SD block that
+     * may already have been reset by the failed policy. A sample-stage failure
+     * can leave the corresponding saved sample incomplete. */
+    printf("NANO_COLD_SAMPLE phase=%s cause=%08x per0=%08x bridge=%08x cpus=%08x release=%08x kind=%u power=%08x,%08x,%08x,%08x request=%08x status=%08x config=%08x\n",
+           phase,v->cause,v->per0,v->bridge,v->cpus,v->release,v->boot_kind,
+           v->power[0],v->power[1],v->power[2],v->power[3],v->pch_request,v->pch_status,v->boot_config);
+}
 const void *fes_nano_spl_handoff(void)
 {
     static const uint8_t expected[32]=FES_NANO_COLD_ENTRY_SHA;
@@ -78,8 +87,22 @@ const void *fes_nano_spl_handoff(void)
     asm volatile("mrs %0, cntpct_el0" : "=r"(epoch));
     source.record.boot.epoch=epoch|1U;
     source.record.boot.owner=(FES_NANO_COLD_OWNER_SEED ^ source.record.boot.epoch)|1U;
-    if (current_el()!=3 || !fit_verified || memcmp(hash,expected,32) || fes_nano_cold_finish(&source,1,&fes_nano_spl_record)) {
-        puts("FES_NANO_SPL REJECT handoff/PIO drain\n");hang();
+    unsigned el=current_el(), entry_verified=!memcmp(hash,expected,32);
+    if (el!=3 || !fit_verified || !entry_verified || fes_nano_cold_finish(&source,1,&fes_nano_spl_record)) {
+        fes_nano_spl_sample_report("first",&source.record.first);
+        fes_nano_spl_sample_report("before",&source.before);
+        fes_nano_spl_sample_report("last",&source.record.last);
+        printf("NANO_COLD_SD mode=%08x before=%08x after=%08x clock_before=%08x clock_after=%08x reset_readback=%08x\n",
+               source.record.sd_mode,source.record.sd_before,source.record.sd_after,
+               source.sd_clock_before,source.record.sd_clock,source.reset_readback);
+        puts("NANO_COLD_ENTRY actual=");
+        for (unsigned i=0;i<32;i++) printf("%02x",hash[i]);
+        puts(" expected=");
+        for (unsigned i=0;i<32;i++) printf("%02x",expected[i]);
+        puts("\n");
+        printf("FES_NANO_SPL REJECT handoff el=%u fit=%u entry=%u cold_stage=%u\n",
+               el,fit_verified,entry_verified,source.finish_stage);
+        hang();
     }
     printf("FES_NANO_SPL HANDOFF owner=%llx epoch=%llx per0=%08x bridge=%08x sd=%08x\n",
            (unsigned long long)source.record.boot.owner,(unsigned long long)source.record.boot.epoch,

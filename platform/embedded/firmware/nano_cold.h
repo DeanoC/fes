@@ -46,10 +46,27 @@ struct fes_nano_cold_record {
     struct fes_nano_cold_sample first, last;
     uint32_t core, flags, sd_before, sd_after, sd_mode, sd_clock;
 };
+/* Local first-failure observations, never part of the sealed handoff record.
+ * A stopped stage retains only reads already made by the original policy. */
+enum fes_nano_cold_finish_stage {
+    FES_COLD_FINISH_NONE, FES_COLD_FINISH_ENTRY, FES_COLD_FINISH_SAMPLE,
+    FES_COLD_FINISH_INITIAL, FES_COLD_FINISH_STABLE, FES_COLD_FINISH_SD_RESET,
+    FES_COLD_FINISH_MODE_READ, FES_COLD_FINISH_DMA,
+    FES_COLD_FINISH_INT, FES_COLD_FINISH_SIGNAL, FES_COLD_FINISH_IDLE_BEFORE,
+    FES_COLD_FINISH_CLOCK_READ, FES_COLD_FINISH_CLOCK_STOP,
+    FES_COLD_FINISH_IDLE_AFTER, FES_COLD_FINISH_CLOCK_READBACK,
+    FES_COLD_FINISH_CLOCK_CHECK, FES_COLD_FINISH_FUNCTION_RESET,
+    FES_COLD_FINISH_ALL_RESET, FES_COLD_FINISH_SAMPLE_LAST,
+    FES_COLD_FINISH_STABLE_LAST, FES_COLD_FINISH_RESET_CHECK,
+    FES_COLD_FINISH_COMPLETE
+};
 struct fes_nano_cold {
     struct fes_nano_cold_io io;
     struct fes_nano_cold_record record;
     unsigned attempted, valid, failed;
+    struct fes_nano_cold_sample before;
+    unsigned finish_stage;
+    uint32_t sd_clock_before, reset_readback;
 };
 uint32_t fes_nano_cold_checksum(const struct fes_nano_cold_record *);
 int fes_nano_cold_begin(struct fes_nano_cold *, struct fes_nano_cold_io,

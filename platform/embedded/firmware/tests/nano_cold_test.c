@@ -7,13 +7,14 @@
 
 struct hw {
     uint32_t r[FES_COLD_REGISTER_COUNT];
-    unsigned fault, writes, resets, waits, idle_reads, fail_read, change_reg;
+    unsigned fault, writes, resets, waits, idle_reads, fail_read, change_reg, fail_write;
     uint32_t change_bit;
 };
 static int read_reg(void *p,unsigned reg,uint32_t *v)
 {
     struct hw *h=p;assert(reg<FES_COLD_REGISTER_COUNT);
     if (h->fail_read==reg+1)return -1;
+    if (h->fault==9 && h->resets==2 && reg==FES_COLD_CAUSE)return -1;
     if (reg==FES_COLD_SD_STATE) {
         /* A controller held in reset must never be read by BL31 callbacks. */
         assert(!(h->r[FES_COLD_PER0]&0x80));h->idle_reads++;
@@ -25,6 +26,7 @@ static int read_reg(void *p,unsigned reg,uint32_t *v)
 static int write_reg(void *p,unsigned reg,uint32_t v)
 {
     struct hw *h=p;h->writes++;
+    if (h->fail_write==reg+1)return -1;
     if (reg==FES_COLD_PER0) {
         assert(h->idle_reads>=2 && !(h->r[FES_COLD_SD_STATE]&FES_NANO_COLD_SD_BUSY) && !(h->r[FES_COLD_SD_CLOCK]&4));
         h->resets++;
@@ -167,6 +169,8 @@ int main(void)
         struct hw h;init(&h,core);struct fes_nano_cold spl={0},bl31={0};struct fes_nano_cold_record record;
         assert(!fes_nano_cold_begin(&spl,ops(&h),chain,17,7,core));
         assert(!fes_nano_cold_finish(&spl,1,&record));assert(h.resets==2 && h.idle_reads>=2);
+        assert(spl.finish_stage==FES_COLD_FINISH_COMPLETE && spl.sd_clock_before==7 &&
+               !(spl.record.sd_clock&4) && (spl.reset_readback&FES_NANO_MASTER_RESET)==FES_NANO_MASTER_RESET);
         assert(!fes_nano_cold_consume(&bl31,&record,ops(&h),chain,17));
         record.boot.owner++;assert(fes_nano_cold_owns(&bl31,17,7)==1); /* private copy */
         unsigned reads=h.idle_reads,writes=h.writes;
@@ -206,9 +210,45 @@ int main(void)
         assert(!fes_nano_cold_begin(&s,ops(&h),chain,17,7,0));h.fault=fault;
         if(fault==2)h.r[FES_COLD_SD_MODE]=1;
         assert(fes_nano_cold_finish(&s,fault==8?0:1,&r)<0 && !memcmp(&r,&before,sizeof(r)));
+        static const unsigned stages[]={0,FES_COLD_FINISH_IDLE_BEFORE,FES_COLD_FINISH_DMA,
+            FES_COLD_FINISH_CLOCK_CHECK,FES_COLD_FINISH_MODE_READ,FES_COLD_FINISH_FUNCTION_RESET,
+            FES_COLD_FINISH_ALL_RESET,FES_COLD_FINISH_STABLE_LAST,FES_COLD_FINISH_ENTRY};
+        assert(s.finish_stage==stages[fault]);
         if(fault<=4 || fault==8)assert(!h.resets);
         if(fault==1)assert(h.waits==1000);
-        unsigned writes=h.writes;assert(fes_nano_cold_finish(&s,1,&r)<0 && writes==h.writes);cases++;
+        unsigned writes=h.writes;h.fault=0;h.r[FES_COLD_SD_MODE]=0;
+        assert(fes_nano_cold_finish(&s,1,&r)<0 && writes==h.writes && s.finish_stage==stages[fault]);cases++;
+    }
+    /* Stage reporting must neither probe a stopped device again nor replace
+     * the first failed stage after its injected fault is removed. */
+    for(unsigned fault=0;fault<9;fault++) {
+        struct hw h;init(&h,0);struct fes_nano_cold s={0};struct fes_nano_cold_record r;
+        memset(&r,0xa5,sizeof(r));struct fes_nano_cold_record untouched=r;
+        assert(!fes_nano_cold_begin(&s,ops(&h),chain,17,7,0));
+        static const unsigned stages[]={FES_COLD_FINISH_SAMPLE,FES_COLD_FINISH_INITIAL,
+            FES_COLD_FINISH_STABLE,FES_COLD_FINISH_SD_RESET,FES_COLD_FINISH_INT,
+            FES_COLD_FINISH_SIGNAL,FES_COLD_FINISH_CLOCK_READ,FES_COLD_FINISH_CLOCK_STOP,
+            FES_COLD_FINISH_SAMPLE_LAST};
+        switch(fault) {
+        case 0:h.fail_read=FES_COLD_PCH_STATUS+1;break;
+        case 1:h.r[FES_COLD_PCH_STATUS]|=4;break;
+        case 2:h.r[FES_COLD_BOOT_KIND]=2;break;
+        case 3:h.r[FES_COLD_PER0]|=FES_NANO_COLD_SD_RESET;break;
+        case 4:h.fail_write=FES_COLD_SD_INT+1;break;
+        case 5:h.fail_write=FES_COLD_SD_SIGNAL+1;break;
+        case 6:h.fail_read=FES_COLD_SD_CLOCK+1;break;
+        case 7:h.fail_write=FES_COLD_SD_CLOCK+1;break;
+        case 8:h.fault=9;break;
+        }
+        /* The last-sample read fails only after both reset assertions. */
+        assert(fes_nano_cold_finish(&s,1,&r)<0 && s.finish_stage==stages[fault]);
+        assert(!memcmp(&r,&untouched,sizeof(r)));
+        if(fault<4)assert(!h.writes);
+        else if(fault<8)assert(!h.resets);
+        unsigned writes=h.writes,reads=h.idle_reads;
+        h.fail_read=h.fail_write=h.fault=0;
+        assert(fes_nano_cold_finish(&s,1,&r)<0 && writes==h.writes && reads==h.idle_reads &&
+               s.finish_stage==stages[fault]);cases++;
     }
     struct hw h;init(&h,0);struct fes_nano_cold s={0};struct fes_nano_cold_record r;
     assert(!fes_nano_cold_begin(&s,ops(&h),chain,17,7,0)&&!fes_nano_cold_finish(&s,1,&r));

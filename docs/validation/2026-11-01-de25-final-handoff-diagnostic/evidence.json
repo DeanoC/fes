@@ -1,0 +1,126 @@
+{
+  "format": 1,
+  "scope": "bounded physical v12 native boot stopped in SPL; v13 first-failure instrumentation",
+  "v12": {
+    "serial": "TRWU8CBL",
+    "source_commit": "1a6bde4acc95e9d1edbb3adc3fbea4605e28ec1b",
+    "phase": "native",
+    "sof_sha256": "d2500b04c2362df268e9100cf9d5bf7b1e724772b9f7693d8fac9a0e0296f11f",
+    "image_sha256": "f7c4a2c77e44de5c6679b8e2c274100dd9ebb4961c900e7a6de10f727a34850c",
+    "fit_sha256": "feed856b8dcefc565c780ca90ad679b0afb78666a000ea890865b463358222bf",
+    "started_utc": "2026-11-01T12:15:34.155825+00:00",
+    "stage": "matched native prompt",
+    "programming_attempted": true,
+    "fesboot_sent": false,
+    "pass": false,
+    "sd_write_commands_sent": false,
+    "prior_park_receipt_sha256": "9fb2063a9b562dc8011a02d100f78861e34998c263b8712539d98a467fba846b",
+    "runner_sha256": "a45f9cb40ccfa05c0821f03cfc784aa3c6a35186cb90bd70dfaa8c5ed337bdc6",
+    "jtag_id": "4362C0DD",
+    "boot_trace": {
+      "records": [
+        {
+          "stage": "spl",
+          "line": 2,
+          "values": {
+            "id": "06b099286afb8b39"
+          }
+        },
+        {
+          "stage": "initial",
+          "line": 3,
+          "values": {
+            "cause": 4,
+            "per0": 4286562303,
+            "bridge": 79,
+            "cpus": 15,
+            "release": 0,
+            "kind": 4,
+            "valid": 1
+          }
+        },
+        {
+          "stage": "scope",
+          "line": 4,
+          "values": {
+            "mpidr": 2164260864,
+            "core": 0,
+            "cause": 4,
+            "cpus": 15,
+            "release": 0,
+            "timeouts": 0
+          }
+        },
+        {
+          "stage": "mmc",
+          "line": 28,
+          "values": {}
+        },
+        {
+          "stage": "fit",
+          "line": 29,
+          "values": {}
+        }
+      ],
+      "errors": [
+        "failure marker at line 35",
+        "malformed or unexpected probe marker at line 35"
+      ],
+      "loader_ready": false,
+      "complete": false,
+      "last_checkpoint": "fit",
+      "core_load_acceptance": false
+    },
+    "programming_complete": true,
+    "error": "native boot trace rejected: ['failure marker at line 35', 'malformed or unexpected probe marker at line 35']",
+    "usb_permissions_restored": true,
+    "console_sha256": "c0cf3a07a9e0f423b963416185c6302a515bf8ba2a68add0eaa792c51d8058eb",
+    "finished_utc": "2026-11-01T12:15:50.946197+00:00",
+    "decoder_sha256": "2dc27fb7eb70a95584ddc4af2f13d36d9aedb763cc6ff38a8d175053f35215fa"
+  },
+  "post_stop": {
+    "serial": "TRWU8CBL",
+    "scope": "one read-only exact-cable identity query; diagnostic image retained",
+    "started_utc": "2026-11-01T12:18:28.183060+00:00",
+    "jtag_id_observed": true,
+    "returncode": 0,
+    "jtag_id": "4362C0DD",
+    "usb_node": "/dev/bus/usb/003/061",
+    "usb_permissions_restored": true,
+    "finished_utc": "2026-11-01T12:18:29.086965+00:00",
+    "helper_sha256": "05eb836901916418bad5f0e0d24e00edd439fac55d6b5cd482b63f8a16d26f8a"
+  },
+  "physical_card_confirmation": {
+    "serial": "TRWU8CBL",
+    "user_reply": "Test card inserted in TRWU8CBL",
+    "instruction_followed": "original factory card kept safe and power unchanged",
+    "image_sha256": "f7c4a2c77e44de5c6679b8e2c274100dd9ebb4961c900e7a6de10f727a34850c",
+    "source_commit": "1a6bde4acc95e9d1edbb3adc3fbea4605e28ec1b",
+    "same_USB_connection_verified": true,
+    "claim_owned": true,
+    "uart_owner_absent": true,
+    "confirmed_utc": "2026-11-01T12:15:33.989788+00:00"
+  },
+  "next_candidate": {
+    "build": "v13",
+    "status": "prepared; integration checks pending; not run on hardware",
+    "build_id": "941a41222363d2e5",
+    "sof_sha256": "70e9e7812698d6b96f1a8cb69f392afb642927ce2d067a1144e615e112e1fdfc",
+    "fit_sha256": "6b22ff8381c61b628d1fd9cbf75d87f8b174ede4326bb459f70e831f0fe0c9f3",
+    "prepared_full_sd_image_sha256_not_written": "eb56cffe868ed10ab044a88a8d33f3b803b3d88c7c77fe07e88a66ea70b75be8",
+    "chain_sha256": "51b3128f32ae5aa652fb120a1e3d88dcf5df6d2ab20df37f2b74565e9ae6053d"
+  },
+  "limits": [
+    "DDR initialization is not independent memory qualification",
+    "No BL31 or native command reached",
+    "Serial probe completion would not qualify active devices or real core loading"
+  ],
+  "software": {
+    "focused_tests": 5,
+    "focused_passed": true,
+    "injected_Spl_reporting_paths": 5,
+    "native_helper_fixture_cases": 9,
+    "recovery_helper_fixture_cases": 6,
+    "integration_status": "running"
+  }
+}

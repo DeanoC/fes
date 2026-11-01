@@ -237,8 +237,21 @@ registers and reset timeout status after clock/console setup. It cannot replace
 a failed first sample. The initial and pre-park
 [power diagnostic](../../../docs/validation/2026-11-01-de25-el3-power-inventory/README.md)
 supplied the additional observations used by the version-2 prototype. That
-diagnostic kept the old gate and rejected admission; the replacement contract
-still requires a fresh matched build and physical native handoff test.
+diagnostic kept the old gate and rejected admission. The first matched v12
+native attempt accepted the initial parking check, initialized 1 GiB DDR and
+verified the sealed FIT, then stopped at the combined final handoff/drain gate.
+It did not enter BL31 or run the native command. See the
+[final handoff diagnostic](../../../docs/validation/2026-11-01-de25-final-handoff-diagnostic/README.md).
+
+On a final handoff rejection, SPL now prints saved first/before/last samples,
+SD observations, actual/expected entry hashes, individual EL/FIT/entry gates
+and the first stopped `fes_nano_cold_finish_stage` from `nano_cold.h`.
+`NANO_COLD_*` lines are failure context, not admission evidence. Stage 2 or 18
+means the corresponding before/last sample may be incomplete; zero fields
+after an unreached stage do not mean hardware was read as zero. Reporting
+performs no new device reads. The stage and saved intermediate values stay in
+the local context, outside the version-2 sealed record. A failed source remains
+retired; the diagnostics do not change checks, ordering or timeouts.
 
 This cold serial firmware permits only read-only ownership Snapshot. It denies
 bridge opening, reconfiguration and release, and reports zero configuration

@@ -75,6 +75,9 @@ int fes_nano_cold_begin(struct fes_nano_cold *s, struct fes_nano_cold_io io,
     if (!io_valid(io) || !chain || !owner || !epoch || core > 3) return fail(s);
     s->io = io;
     memset(&s->record,0,sizeof(s->record));
+    memset(&s->before,0,sizeof(s->before));
+    s->finish_stage=FES_COLD_FINISH_NONE;
+    s->sd_clock_before=s->reset_readback=0;
     struct fes_nano_cold_record *r = &s->record;
     r->magic=FES_NANO_COLD_MAGIC; r->version=FES_NANO_COLD_VERSION; r->size=sizeof(*r); r->core=core;
     r->boot=(struct fes_nano_boot_record){.magic=FES_NANO_BOOT_MAGIC,.version=1,.size=sizeof(r->boot),
@@ -95,34 +98,63 @@ static int idle(struct fes_nano_cold *s, uint32_t *state)
 }
 static int hold(struct fes_nano_cold *s, uint32_t mask)
 {
-    uint32_t value;
     if (s->io.write(s->io.context,FES_COLD_PER0,mask)) return fail(s);
     (s->io.barrier)(s->io.context);
-    if (s->io.read(s->io.context,FES_COLD_PER0,&value) || (value & mask) != mask) return fail(s);
+    if (s->io.read(s->io.context,FES_COLD_PER0,&s->reset_readback) ||
+        (s->reset_readback & mask) != mask) return fail(s);
     return 0;
 }
 int fes_nano_cold_finish(struct fes_nano_cold *s, unsigned entry_verified,
                           struct fes_nano_cold_record *out)
 {
-    struct fes_nano_cold_sample before;
-    uint32_t clock;
     if (!s || !out || !s->attempted || s->failed || s->valid) return -1;
     struct fes_nano_cold_record *r=&s->record;
-    if (entry_verified != 1 || sample(s,&before) || !initial(&before,r->core) || !stable(&r->first,&before,r->core)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_ENTRY;
+    if (entry_verified != 1) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_SAMPLE;
+    if (sample(s,&s->before)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_INITIAL;
+    if (!initial(&s->before,r->core)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_STABLE;
+    if (!stable(&r->first,&s->before,r->core)) return fail(s);
     /* SD must have been used by the synchronous PIO SPL. Missing clock/reset
      * access or an unexpected DMA mode rejects before peripheral resets. */
-    if (before.per0 & FES_NANO_COLD_SD_RESET) return fail(s);
-    if (s->io.read(s->io.context,FES_COLD_SD_MODE,&r->sd_mode) || (r->sd_mode & 1U) ||
-        s->io.write(s->io.context,FES_COLD_SD_INT,0) || s->io.write(s->io.context,FES_COLD_SD_SIGNAL,0) ||
-        idle(s,&r->sd_before) || s->io.read(s->io.context,FES_COLD_SD_CLOCK,&clock) ||
-        s->io.write(s->io.context,FES_COLD_SD_CLOCK,clock & ~4U)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_SD_RESET;
+    if (s->before.per0 & FES_NANO_COLD_SD_RESET) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_MODE_READ;
+    if (s->io.read(s->io.context,FES_COLD_SD_MODE,&r->sd_mode)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_DMA;
+    if (r->sd_mode & 1U) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_INT;
+    if (s->io.write(s->io.context,FES_COLD_SD_INT,0)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_SIGNAL;
+    if (s->io.write(s->io.context,FES_COLD_SD_SIGNAL,0)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_IDLE_BEFORE;
+    if (idle(s,&r->sd_before)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_CLOCK_READ;
+    if (s->io.read(s->io.context,FES_COLD_SD_CLOCK,&s->sd_clock_before)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_CLOCK_STOP;
+    if (s->io.write(s->io.context,FES_COLD_SD_CLOCK,s->sd_clock_before & ~4U)) return fail(s);
     (s->io.barrier)(s->io.context);
-    if (idle(s,&r->sd_after) || s->io.read(s->io.context,FES_COLD_SD_CLOCK,&r->sd_clock) || (r->sd_clock & 4U)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_IDLE_AFTER;
+    if (idle(s,&r->sd_after)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_CLOCK_READBACK;
+    if (s->io.read(s->io.context,FES_COLD_SD_CLOCK,&r->sd_clock)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_CLOCK_CHECK;
+    if (r->sd_clock & 4U) return fail(s);
     /* The independent idle observation precedes functional and OCP reset. */
-    if (hold(s,FES_NANO_MASTER_FUNCTION) || hold(s,FES_NANO_MASTER_RESET) ||
-        sample(s,&r->last) || !stable(&r->first,&r->last,r->core) ||
-        (r->last.per0 & FES_NANO_MASTER_RESET) != FES_NANO_MASTER_RESET) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_FUNCTION_RESET;
+    if (hold(s,FES_NANO_MASTER_FUNCTION)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_ALL_RESET;
+    if (hold(s,FES_NANO_MASTER_RESET)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_SAMPLE_LAST;
+    if (sample(s,&r->last)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_STABLE_LAST;
+    if (!stable(&r->first,&r->last,r->core)) return fail(s);
+    s->finish_stage=FES_COLD_FINISH_RESET_CHECK;
+    if ((r->last.per0 & FES_NANO_MASTER_RESET) != FES_NANO_MASTER_RESET) return fail(s);
     r->flags=FES_NANO_COLD_FLAGS; r->checksum=fes_nano_cold_checksum(r);
+    s->finish_stage=FES_COLD_FINISH_COMPLETE;
     s->valid=1; *out=*r;
     return 0;
 }

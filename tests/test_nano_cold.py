@@ -113,6 +113,86 @@ int main(void) {
                     r=subprocess.run([str(binary),str(mutation)],capture_output=True,text=True)
                     self.assertEqual(r.returncode,0,r.stderr)
 
+    def test_actual_spl_handoff_reports_saved_failure_before_reject(self):
+        source=(ROOT/'platform/embedded/nano/spl_cold.c').read_text()
+        fragment=source[source.index('static void fes_nano_spl_sample_report('):]
+        counter='asm volatile("mrs %0, cntpct_el0" : "=r"(epoch));'
+        barrier='asm volatile("dsb sy" ::: "memory");'
+        self.assertEqual(fragment.count(counter),1)
+        self.assertEqual(fragment.count(barrier),1)
+        fragment=fragment.replace(counter,'epoch=9;').replace(barrier,'barriers++;')
+        with tempfile.TemporaryDirectory() as temp:
+            base=Path(temp);test=base/'handoff.c';binary=base/'handoff'
+            test.write_text(r'''
+#include <assert.h>
+#include <setjmp.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "nano_cold.h"
+#define FES_NANO_COLD_ENTRY_SHA {0x5a}
+#define FES_NANO_COLD_ENTRY_SIZE 16
+#define FES_NANO_COLD_OWNER_SEED 17ULL
+static struct fes_nano_cold source;
+static struct fes_nano_cold_record fes_nano_spl_record;
+static unsigned fit_verified=1,mode,calls,barriers;
+static jmp_buf stopped;
+#define puts(text) fputs((text),stdout) /* U-Boot puts does not append a newline. */
+static unsigned current_el(void) { return mode==1 ? 2 : 3; }
+static void sha256_csum_wd(const unsigned char *p,unsigned long n,uint8_t *hash,unsigned chunk) {
+    assert(p==(void *)0x96080000UL && n==16 && chunk==65536);
+    memset(hash,0,32);hash[0]=mode==3 ? 0xa5 : 0x5a;
+}
+static int finish(struct fes_nano_cold *s,unsigned entry,struct fes_nano_cold_record *r) {
+    assert(s==&source && entry==1 && r==&fes_nano_spl_record);calls++;
+    s->finish_stage=mode==4 ? FES_COLD_FINISH_IDLE_BEFORE : FES_COLD_FINISH_COMPLETE;
+    s->before.per0=0xfeedbeef;s->record.sd_before=mode==4 ? 0x101 : 0;
+    s->sd_clock_before=7;
+    if(mode==4){s->failed=1;return -1;}
+    *r=s->record;return 0;
+}
+#define fes_nano_cold_finish finish
+static void hang(void) { longjmp(stopped,1); }
+''' + fragment + r'''
+int main(int argc,char **argv) {
+    assert(argc==2);mode=strtoul(argv[1],0,0);if(mode==2)fit_verified=0;
+    source.record.first.cause=4;source.record.first.power[2]=0x12345678;
+    if(!setjmp(stopped)) {
+        const void *r=fes_nano_spl_handoff();
+        assert(!mode && r==&fes_nano_spl_record && barriers==1);
+    }else assert(mode && !barriers);
+    assert(calls==(mode==0 || mode==4));
+    assert(source.record.boot.epoch==9 && source.record.boot.owner==25);
+    puts("HANDOFF_REPORT_TEST_PASS");return 0;
+}
+''')
+            r=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
+                              '-I'+str(FW),str(test),'-o',str(binary)],capture_output=True,text=True)
+            self.assertEqual(r.returncode,0,r.stderr)
+            for mode in range(5):
+                with self.subTest(mode=mode):
+                    r=subprocess.run([str(binary),str(mode)],capture_output=True,text=True)
+                    self.assertEqual(r.returncode,0,r.stderr)
+                    self.assertIn('HANDOFF_REPORT_TEST_PASS',r.stdout)
+                    if not mode:
+                        self.assertIn('FES_NANO_SPL HANDOFF ',r.stdout)
+                        self.assertNotIn('NANO_COLD_',r.stdout)
+                    else:
+                        lines=r.stdout.splitlines()
+                        reject=next(i for i,line in enumerate(lines) if line.startswith('FES_NANO_SPL REJECT '))
+                        self.assertEqual(reject,5)
+                        self.assertIn('phase=first cause=00000004',lines[0])
+                        self.assertIn('power=00000000,00000000,12345678,00000000',lines[0])
+                        self.assertIn('phase=before',lines[1]);self.assertIn('phase=last',lines[2])
+                        self.assertTrue(lines[3].startswith('NANO_COLD_SD '))
+                        self.assertTrue(lines[4].startswith('NANO_COLD_ENTRY actual='))
+                        self.assertIn('cold_stage='+str(10 if mode==4 else 0),lines[reject])
+                        self.assertIn('el='+str(2 if mode==1 else 3),lines[reject])
+                        self.assertIn('fit='+str(int(mode!=2)),lines[reject])
+                        self.assertIn('entry='+str(int(mode!=3)),lines[reject])
+                        self.assertNotIn('FES_NANO_SPL HANDOFF ',r.stdout)
+
     def test_actual_spl_seal_rejects_before_parse_and_reads_verified_ram(self):
         """Exercise the shipped SPL functions with FAT and SHA API substitutes.
 
