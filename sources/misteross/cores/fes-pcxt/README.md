@@ -1088,6 +1088,37 @@ at 256. Memory transfers and DMA use separate state. Terminal count is counted
 once per committed DMA byte that carries it. The card is a test device, not a
 historical ISA adapter.
 
+## DOS application acceptance
+
+From `sources/misteross`, `make sim-fes-pcxt-com` builds an original 8086
+COM fixture onto a copy of the pinned FreeDOS floppy, boots it through the
+runtime mailbox and floppy/DMA path, types the program name and key, and
+requires its PASS message and a later DOS prompt. It checks the actual 720p
+frame against the BIOS font. The pinned base remains unchanged.
+
+`make sim-fes-pcxt-game PCXT_DIGGER_EXE=/path/to/DIGGER.EXE` tests the pinned
+real-mode Digger Remastered executable; obtain it separately. The image builder
+checks the executable and final 360 KiB disk hashes and does not download or
+redistribute the game. The simulation compares the start and right-arrow
+branches to no-input branches at the same simulated cycles. Five output frames
+must match the SHA-256 references from the previously independently reviewed
+title, playfield and player movement captures; an unexpected frame fails for
+review rather than treating a pixel change alone as proof. These exact hashes
+are tied to the pinned game, BIOS and calibrated timing and may need independent
+review if the display pipeline changes. The references were produced on source
+`028704027ca8e1854d516997c9fbe747da369289` with the game disk SHA-256
+`8621217fce4d72cf0ec976d34b9dd302be136b21e5ff15197fee4d499b923fa3`.
+The individually named frame hashes in `sim_fes_pcxt_dos.py` correspond to a
+reviewed title, no-input title, Enter playfield, no-input player position and
+rightward player position. They are not regenerated automatically. The game is silent (`/Q`) and the medium
+is read-only; neither audio nor score persistence is tested.
+
+Both targets are long full-machine host simulations, with a three-hour limit
+and periodic progress. Results and input/source/testbench hashes live under
+`build/sim/fes-pcxt/dos-com/` or `dos-game/`. A host simulation is not a kit
+or whole-board qualification. To reuse a previously built exact disk, invoke
+`scripts/sim_fes_pcxt_dos.py --scenario com|game --disk /path/to/image`.
+
 ## Validation
 
 From `sources/misteross`:
