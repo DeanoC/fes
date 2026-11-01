@@ -1,0 +1,19 @@
+{
+  "source_revision": "d8b23267cc8301361bdc5c2ef7db89593462f4a6",
+  "command": [
+    "python3",
+    "sources/misteross/boards/de25nano/scanout/hdmi_io_sim.py",
+    "--project",
+    "/data/fes-de25-menu-canonical-d8b23267c/source/sources/misteross/build/de25-menu/4db01378ee1bdf8877a83e162fff93ce/attempt-n4cknshs/signoff/combined/hps/project",
+    "--output",
+    "/data/fes-de25-menu-canonical-d8b23267c/i2c",
+    "--yosys",
+    "/usr/bin/yosys"
+  ],
+  "started_utc": "2026-11-01T14:45:57.866052+00:00",
+  "time_cap_seconds": 300,
+  "state": "passed",
+  "elapsed_seconds": 5.6,
+  "returncode": 0,
+  "hardware_access": "not-performed"
+}

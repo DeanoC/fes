@@ -1,0 +1,13 @@
+{
+  "source_revision": "d8b23267cc8301361bdc5c2ef7db89593462f4a6",
+  "command": [
+    "python3",
+    "/data/fes-de25-menu-canonical-d8b23267c/check-hdmi-menu-final.py"
+  ],
+  "started_utc": "2026-11-01T14:47:56.120697+00:00",
+  "time_cap_seconds": 300,
+  "state": "passed",
+  "elapsed_seconds": 0.8,
+  "returncode": 0,
+  "hardware_access": "not-performed"
+}
