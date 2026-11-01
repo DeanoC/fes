@@ -288,6 +288,16 @@ def render(data: dict) -> str:
         )) + ' |')
     lines += [
         '',
+        '## Release scope',
+        '',
+        'The first release lists only v1 cores in tenfoot Home, the rooms and the core catalog view. The tenfoot Settings row Show all cores lists the rest, for development and HIL. The scope is not a tier, and v1 does not mean the exact release package has passed kit HIL.',
+        '',
+    ]
+    for scope, title in RELEASE_SCOPES.items():
+        names = [row['label'] for row in data['cores'] if row.get('release') == scope]
+        lines.append(f"- **{title}:** {', '.join(names)}")
+    lines += [
+        '',
         '## Open',
         '',
         'These cells are still open. The wording is in [`support-matrix.json`](support-matrix.json).',
@@ -320,6 +330,14 @@ def _pins(path: Path) -> dict:
     data = tomllib.loads(path.read_text())
     tools = data['tool']
     return {name: tools[name]['commit'][:8] for name in ('yosys', 'mistral', 'nextpnr')}
+
+
+RELEASE_SCOPES = {'v1': 'v1', 'v2': 'v2', 'held-back': 'Held back'}
+
+
+def release_row(row: dict) -> bool:
+    """A package row other than the idle menu records its release scope."""
+    return row['id'].startswith('fes.') and row['id'] != 'fes.menu'
 
 
 def validate(root: Path, data: dict) -> list[str]:
@@ -388,6 +406,10 @@ def validate(root: Path, data: dict) -> list[str]:
             errors.append(f'{core_id} lock file is missing: {lock}')
 
     for row in rows:
+        if release_row(row) and row.get('release') not in RELEASE_SCOPES:
+            errors.append(f"{row['id']} release {row.get('release')!r} is not one of {', '.join(RELEASE_SCOPES)}")
+        if not release_row(row) and 'release' in row:
+            errors.append(f"{row['id']} is not a release package but records release")
         if row['tier'] not in tier_ids:
             errors.append(f"{row['id']} uses unknown tier {row['tier']}")
         if row['board'] not in BOARDS:

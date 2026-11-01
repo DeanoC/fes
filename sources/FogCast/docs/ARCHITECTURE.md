@@ -2674,7 +2674,18 @@ errors.
 
 The embedded `example.fes-cores` Home room combines the kit-local package
 list from `kit.cores` with prepared host-library systems from
-`hardware.read`. Each host card publishes its library `game_id` and launches
+`hardware.read`. Tenfoot applies the v1 release scope to the core catalog and
+Home recents; recents keep scanning cursor pages until they have five visible
+entries or the host has no more. Games without a core ID remain visible.
+**Show all cores** removes that presentation filter and is available through
+Settings, `tenfoot.json` `all_cores`, or `FOGCAST_TENFOOT_ALL_CORES=1`. Room
+instances receive the same scope for local packages, hardware snapshots and
+the systems table; `room.core_shown` also keeps the core a room was opened for,
+so setup for a held-back running machine remains usable. Changing the setting
+stays in Settings until it closes, then returns Home and drops any stale room
+instance. A Home room is reused only when its release scope matches the current
+setting. The host catalog and Library grid remain complete. Each host card
+publishes its library `game_id` and launches
 through the library path; a ready host card replaces a blocked local row for
 the same core, while a launchable local row stays selected. Host readiness
 follows library launch admission, including selected video parts, required and

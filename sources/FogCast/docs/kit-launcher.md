@@ -20,6 +20,15 @@ ignored, so older cards still load. Tenfoot preferences and per-room state live
 under `/media/fat/fogcast/state/FogCast/` (`tenfoot.json` and
 `rooms/<id>.state.json`).
 
+Home, the rooms and the core catalog view list only the v1 release cores
+(`internal/release`, recorded in `docs/support-matrix.md` as v1, v2 or held
+back). Settings › Show all cores, `tenfoot.json` `all_cores`, or
+`FOGCAST_TENFOOT_ALL_CORES=1` lists every core for development and HIL.
+Changing it in Settings keeps Settings open until it closes, then returns Home
+with the new list. Tenfoot reuses a Home room only while its release scope
+matches the current setting. A setup room opened for a running machine always
+keeps that machine.
+
 `cmd/fogcast-kit` is a stub. Base images whose supervisor runs
 `fogcast-kit --print-kit-ui` before starting the launcher get `tenfoot`; any
 other invocation fails. Kit software bundles still ship it for those bases.

@@ -36,6 +36,12 @@ func (r *Instance) installRoom() *lua.LTable {
 	t.RawSetString("height", lua.LNumber(r.opts.Height))
 	t.RawSetString("time", lua.LNumber(0))
 	t.RawSetString("reduced_motion", lua.LBool(r.opts.ReducedMotion))
+	// room.core_shown(core_id) follows coreShown: release-only rooms hide
+	// held-back cores except for the core this room was opened for.
+	t.RawSetString("core_shown", L.NewFunction(func(L *lua.LState) int {
+		L.Push(lua.LBool(r.coreShown(L.CheckString(1))))
+		return 1
+	}))
 	t.RawSetString("live_controls", lua.LBool(!r.opts.SessionDisplayRequired))
 	t.RawSetString("overlay", lua.LBool(false))
 	t.RawSetString("initial_game_id", lua.LString(r.opts.InitialGameID))
