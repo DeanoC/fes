@@ -229,7 +229,8 @@ func AdmitAtariStFloppySize(size int64) bool {
 }
 
 // ComputerABI reports a fes.computer contract FogCast speaks: 1.0, or 1.1,
-// which adds identity word 16 and the pc386 interfaces on bits 16..19.
+// which adds identity word 16, the pc386 interfaces on bits 16..19 and the
+// PC/XT floppy on bit 20.
 func ComputerABI(id string, major, minor int64) bool {
 	return id == ComputerABIID && major == int64(generated.FesComputerABIMajor) && minor >= 0 && minor <= int64(generated.FesComputerABIMinor)
 }
