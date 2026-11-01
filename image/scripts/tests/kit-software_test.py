@@ -84,6 +84,13 @@ class SoftwareABI(unittest.TestCase):
                     menu(root, bad)
                     with self.assertRaises(ValueError):
                         software.menu_requirements(root)
+            menu(root, [('fes.video.menu-display', 1, 0, True)])
+            selected = root / 'usr/share/mister-runtime/core-packages' / ('d' * 64) / 'manifest.toml'
+            original = selected.read_text()
+            for wrong in ('target = "de10_nano"', 'target = []'):
+                selected.write_text(original.replace('[target]\nplatform = "de10_nano"', wrong))
+                with self.assertRaisesRegex(ValueError, 'target differs'):
+                    software.menu_requirements(root)
             (root / software.MENU_SELECTION).write_text("package_id = '../escape'\n")
             with self.assertRaisesRegex(ValueError, 'invalid menu package selection'):
                 software.menu_requirements(root)

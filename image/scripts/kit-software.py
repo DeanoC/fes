@@ -175,7 +175,8 @@ def menu_package_requirements(manifest, board=None):
     """
     fields = tomllib.loads(manifest.read_text())
     if board is not None:
-        if board not in TARGET_ABIS or fields.get('target', {}).get('platform') != board.replace('-', '_'):
+        target = fields.get('target')
+        if board not in TARGET_ABIS or not isinstance(target, dict) or target.get('platform') != board.replace('-', '_'):
             raise ValueError('menu package target differs from the selected software board')
     interfaces = fields.get('interfaces')
     if not isinstance(interfaces, list) or not interfaces:
