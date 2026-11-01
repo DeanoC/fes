@@ -41,6 +41,145 @@ need #1335's keyboard and mouse on main and stay with #1369
 - Codex's review found that a protected-mode MOV Sreg, m16 read four bytes.
   It is fixed, with a directed case that fails without the fix
   ([Review](#review)).
+- Main with #1335 (keyboard and mouse) and #1364 (the governor) is merged in
+  as `b7b4cb7dc`, and that tree is resealed: setup +1.049 ns, hold
+  +0.080 ns, system clock 72.4-74.8 MHz, 28,311 ALMs. The lockstep, the
+  pc386 suites and three Kit B runs of the new package pass, with the
+  governor invisible at `max` and under 286-12
+  ([Main merge](#main-merge-keyboard-mouse-and-the-governor)).
+
+## Main merge: keyboard, mouse and the governor
+
+`b7b4cb7dc` merges main `8120c22b1`, which brings #1335 (`011a16bf8`,
+keyboard and mouse, with its final keyboard RTL `385356c54` and `5957397c0`)
+and #1364 (`d70d6f353`, the speed governor). This seal is the one that covers
+them: neither of their final RTL trees had been sealed on main.
+
+**Conflicts.** Each side's behaviour is kept:
+- `fes_i386_cpu.sv`: both header paragraphs; the decoder port keeps this
+  branch's `.pe(cr0_pe)` and takes main's `q_opsize32`, which main routes
+  to `dc_q.opsize32` as before.
+- `pc386_system.sv`: this branch's CR0, CR2, CR3, GDTR and IDTR reset values
+  with main's sized `init_gpr` (DeanoC/yosys#71).
+- `spike_cpu.sv`: the protected-mode init and arch ports beside the
+  governor's, and both sets of trace bits in the signature.
+- `test_fes_i386_lockstep.py`: main's `--same-as` check beside
+  `--pm-programs`'.
+- `rtl/i386/README.md`: the governor and Phase 2 in the opening paragraph.
+
+`machine_tb.cpp`, `lockstep_tb.cpp`, `fes_i386_pkg.sv`, `sim_fes_pc386.py`
+and the design document merged without conflict.
+
+**Integration.** Two changes make the sides work together:
+- **Governor classes for the Phase 2 instructions.** The lockstep's SCOPE
+  gained 0F01, 0F20 and 0F22 in this branch, and the governor's unit test
+  requires every SCOPE stem to have a cost class. `governor.toml` now costs
+  them from the table's own source:
+
+  | Class | Stems | 286, 386, 486 |
+  | --- | --- | --- |
+  | `sgdt`, `sidt` | 0F01 /0, /1 (memory) | 11, 9, 10; 12, 9, 10 |
+  | `lgdt`, `lidt` | 0F01 /2, /3 (memory) | 11, 11, 11; 12, 11, 11 |
+  | `smsw_r`, `smsw_m` | 0F01 /4 | 2, 2, 2; 3, 3, 3 |
+  | `lmsw_r`, `lmsw_m` | 0F01 /6 | 3, 10, 13; 6, 13, 13 |
+  | `group7_ud` | 0F01 /5, /7 (#UD on a 386; never charged) | 2, 2, 1 |
+  | `mov_from_cr` | 0F20 | 6, 6, 4 |
+  | `mov_to_cr0`, `mov_to_cr` | 0F22 /0; the rest | 10, 10, 16; 4, 4, 4 |
+
+  The 286 has no MOV CRn, so it is charged as the 386, as the table's rule
+  says. A protected-mode descriptor load or far JMP is charged its
+  real-mode count, as every class is. The protected-mode far JMP's taken
+  uop carries `seg2`, so the governor does not charge it as a taken branch,
+  as for a real-mode far jump. `fes_i386_gov_pkg.sv` and `fes_i386_gov_rom.sv`
+  are regenerated, and `CLASS_BITS` stays 7.
+- **`--same-as` covers this branch's runs.** It also compares the
+  unreal-mode cases and the protected-mode programs: their totals, PM stops
+  and trace hashes, which the `pmode` section now reports.
+
+**Checks at `b7b4cb7dc`:**
+
+| Run | Result |
+| --- | --- |
+| Lockstep at `max` ([report](lockstep-merge-max-report.json)) | Pass: corpus 1,758,699, random 32,000, protected-mode programs 8,000 (417,342 retirements with PE set, 11,765 compared PE=1 stops), unbuilt 53,344 stopped, directed 40, unreal-mode 6, memory 26. Every field equals the pre-merge report at `eee033a9d`, cycle counts included (174,952,748 corpus, 117,415,070 random, 10,375,784 protected-mode); only the new trace-hash and governor fields are added |
+| Lockstep under 286-12, `--preset 1 --same-as` the `max` report ([report](lockstep-merge-286-12-report.json)) | Pass, with every architectural result equal to `max`'s, the protected-mode programs and unreal-mode cases included. Cycles grow as they should: corpus 195,084,746, random 771,364,560, protected-mode 51,196,487 |
+| test386.asm on the oracle | POST to FFh, 44,926 EE lines with none differing, final RAM `44597188…`: identical to the run before the merge |
+| `sim_fes_pc386.py --suite devices` ([report](devices-merge-report.json)) | 132 checks pass, #1335's keyboard and typematic checks among them |
+| `--suite boot` (oracle) ([report](boot-merge-oracle-report.json)) | `C:\>` at 4.3 s; the VGA replay has 0 mismatches |
+| `--suite boot --cpu rtl` ([report](boot-merge-rtl-report.json)) | `C:\>` at 2.35 s; all 113,545,269 instructions retired on the RTL, with 0 oracle steps and 0 stops; the VGA replay has 0 mismatches |
+| `--suite system` ([report](system-merge-report.json)) | 16 checks pass. `C:\>` at 3.309 s, `M5:Kb!`, `MOUSE X=+172 Y=-72 LEFT=2/2 RIGHT=1/1 PACKETS=10` and `KEYS 48E0 3B00 53E0 1E41`, as in #1335's record; the save, the record and its round trip pass |
+| Machine sim, RTL CPU, HIMEMX games image, `mem` typed ([report](machine-himem-merge-report.json)) | Pass: the prompt at 2.40 s and MEM's output by 3.65 s, with 15,360K of XMS, 159K used and 15,201K free. All 98,806,612 instructions retired on the RTL: 0 oracle steps, 0 stops, 1 protected-mode entry and 6 retirements with PE set, as before the merge |
+| `system_tb`, HIMEMX boot fixture with MEM, `--seed 1 --exercise-input 0` ([report](system-himem-merge-report.json)) | Pass: `C:\>` at 2.85 s after 47,423,516 instructions, the same count as before the merge. HIMEMX reports `XMS 3.00 80386 4G`, MEM shows 15,360K of XMS, 159K used and 15,201K free, and every check passes. #1335's bench types its keyboard and mouse exercise at the prompt by default; on this disk its typed echo passes, but the disk has no INPUT.COM for the mouse check, and the typing scrolls MEM away, so this run turns the exercise off |
+| `--suite governor` ([report](governor-merge-report.json)) | Pass. Passes in a tick, DelayCnt and passes in 18 ticks: `max` 210,892, 3,834, 3,796,053 (as #1364's record); 286-12 27,453, 499, 494,130; 386SX-16 39,932, 726, 718,749; 386DX-25 65,376, 1,188, 1,176,722; 386DX-40 104,610, 1,902, 1,882,937. Each is within 0.04% of the table and within 2 counts of #1364's run |
+| `test_fes_i386_governor.py` ([report](governor-bench-merge-report.json)) | Pass: every loop under presets 1-5 (286-12 to 386DX-40) within 0.1% of the table, interrupt latency within its bound under every preset, 286-12 at 6 MHz within 0.05%, and turbo charging nothing. The report equals the same bench run on main `8120c22b1`, field for field: this branch changes no cycle the bench measures, governed or not |
+| misteross unit tests | 1,612 pass, 74 skipped |
+| `make test-changed` against main `8120c22b1` | Every planned lane passes: the planner tests, whitespace, the parent Python regressions (1,051, 3 skipped), generated-consumer consistency, misteross's tests (1,612, 74 skipped) and `make sim-fes-pc386` |
+
+**Seal.** `make build-fes-pc386-quartus` at seed 1 from a clean worktree of
+`b7b4cb7dc` ([`seal-merge-summary.json`](seal-merge-summary.json)). All 109
+input hashes match `b7b4cb7dc`. They include main's `pc386_hid_keyboard.sv`
+(its final typematic fixes), `pc386_kbc.sv` with the mouse, and the
+governor's `fes_i386_governor.sv`, `fes_i386_gov_pkg.sv` and
+`fes_i386_gov_rom.sv`. Every analysis passes, with no illegal or
+unconstrained clocks.
+
+| | Merge seal, `b7b4cb7dc` | This branch, `eee033a9d` | This branch, `c4a1c23a4` | #1335, `2bcd5bc3e` | #1364, `ab30f6c11` |
+| --- | --- | --- | --- | --- | --- |
+| Build ID, package | `530f136f…`, `604cab9b…` | `e9629ee9…`, `cd427942…` | `0e6955d4…`, `6e0a663a…` | `4b5c4811…`, `52845102…` | `c210ae8b…`, `dcaea9ce…` |
+| System Fmax, slow corners (61.44 MHz) | 72.43-74.83 MHz, setup +2.470 ns | 70.88-74.25 MHz, +2.167 ns | 73.14-73.25 MHz | not recorded | 70.37 MHz at the slow corner |
+| Pixel Fmax (74.27 MHz) | 80.55-81.01 MHz | 77.64-78.24 MHz | 76.60-77.01 MHz | not recorded | not recorded |
+| Setup, hold slack | +1.049 (pixel), +0.080 ns | +0.584 (pixel), +0.038 ns | +0.409 (pixel), +0.064 ns | +1.318, +0.112 ns | +1.478, +0.092 ns |
+| Recovery, removal, pulse width | +5.948, +0.264, +1.122 ns | +5.576, +0.452, +1.122 ns | +7.922, +0.396, +1.122 ns | +7.584, +0.436, +1.122 ns | +7.631, +0.435, +1.122 ns |
+| ALMs | 28,311 of 41,910 (68%) | 26,453 | 26,436 | 25,654 | 24,318 |
+| Registers | 25,527 | 24,064 | 24,176 | not recorded | 22,315 |
+| RAM blocks | 257 | 256 | 256 | 254 | 257 |
+| DSP blocks | 32 | 29 | 29 | 30 | 31 |
+| RBF | 3,576,248 bytes, SHA-256 `a98aeb51…` | 3,556,688 bytes | 3,557,656 bytes | 3,563,352 bytes | not recorded |
+
+The worst setup path is the pixel clock's, +1.049 ns in the slow -40 C
+corner; the system clock has +2.470 ns there and +2.913 ns at 100 C. The
+worst hold path is the system clock's, +0.080 ns in the fast -40 C corner.
+Against this branch's last seal the tree adds #1335's keyboard and mouse
+(25,654 against 24,246 ALMs on main before it) and the governor (24,318),
+about 1,850 ALMs in all.
+
+**Kit B** (each run claimed and released on its own in Powerboat's
+`kitB-STATUS.md`, core-only on the kit's baseline: software
+`f786f7b3` from main `30595667`, image `f904961e`; nothing installed, no image
+change, no reboot, no host change; after each the baseline was unchanged,
+the agent idle and its lease free). All ran package `604cab9b…`:
+- **m5i8, keyboard and mouse** (23:00-23:01 EET,
+  [`kit-m5i8-result.json`](kit-m5i8-result.json),
+  [`kit-m5i8-report.png`](kit-m5i8-report.png)): #1335's runner and
+  FreeDOS disk with INPUT.COM (`51f3c8fe…`), driven through the agent's input
+  stream. `echo M5:Kb!` echoes, a held X repeats and stops at its release,
+  and INPUT.COM prints `MOUSE X=+172 Y=-72 LEFT=2/2 RIGHT=1/1 PACKETS=10`
+  and `KEYS 48E0 3B00 53E0 1E41`, as `system_tb` does. This is the
+  exact-package kit run that #1335's final keyboard RTL did not have.
+- **gov2, governor spot check** (23:01-23:02 EET,
+  [`kit-gov2-result.json`](kit-gov2-result.json)): #1364's runner and
+  governor test disk (`0cc048d2…`) at `max` and 286-12, with the screens
+  [`kit-gov2-max.png`](kit-gov2-max.png) and
+  [`kit-gov2-286-12.png`](kit-gov2-286-12.png):
+
+  | Preset | Passes in a tick | DelayCnt | Passes in 18 ticks | #1364's kit run gov1 |
+  | --- | ---: | ---: | ---: | --- |
+  | `max` | 210,892 | 3,834 | 3,796,053 | 210,892, 3,834, 3,796,054 |
+  | 286-12 | 27,454 | 499 | 494,129 | 27,454, 499, 494,128 |
+
+  The driver's record readback in `kit-gov2-result.json` read the wrong
+  file: it takes the newest `record.bin` by modification time, and the kit's
+  clock counts from 1970 at each boot, so a record from an earlier boot
+  sorted first. A read-only check under its own claim (run r1, 23:06 EET)
+  read the governor game's record itself: word 0 is 1 (286-12), and CMOS
+  70h-7Bh hold 27,454, 499 and 494,129 with the boot count at 6 and the A5h
+  finish mark.
+- **x1, FreeDOS with HIMEMX** (23:02-23:03 EET,
+  [`kit-x1-result.json`](kit-x1-result.json),
+  [`kit-x1-mem.png`](kit-x1-mem.png)): the HIMEMX games disk of the machine
+  run (`6aece8ad…`) as library game `p2-xms-merge`, with `mem` typed
+  through the agent's input stream. HimemX reports `XMS 3.00 80386 4G`, and
+  MEM shows 15,360K of XMS, 159K used and 15,201K free, as in the
+  simulations.
 
 ## Inputs
 
@@ -55,6 +194,10 @@ need #1335's keyboard and mouse on main and stay with #1369
   fix. Later commits change only this record or merge main `bdc7839e3`
   (#1363 and #1375). That merge changes no sealed input: all 105 input
   hashes in the seal summary match the merged tree.
+- Main `8120c22b1` (#1335, #1364, #1381 and others) merged as `b7b4cb7dc`,
+  which is resealed and rechecked
+  ([Main merge](#main-merge-keyboard-mouse-and-the-governor)). The sections
+  after it describe `eee033a9d`; the merge changes none of their results.
 - Oracle: Bochs 3.1 at CPU level 3 (the `fes-i386-oracle` build), corpus
   SingleStepTests/80386 `459d49fbe628`, test386.asm `cfd052d1e64d`.
 - Verilator 5.032 on Powerboat. The netlist lockstep used the i386 lock's
@@ -377,10 +520,9 @@ the last two are how the lockstep handles the reset alias and a stop:
 - **The kit acceptance.** Serpent Isle at `max`, The Black Gate and
   Wolfenstein 3D with XMS on a kit (beyond the smoke test above). #1363 is now on main, and its games image still runs
   HIMEMX with `/MAX=0`. Its kit runs of Wolfenstein 3D and Ultima VI are
-  for that profile, so dropping `/MAX=0` goes with new kit runs. Nothing on
-  a kit can drive Ultima VII's menus until #1335's keyboard and mouse are
-  there. The profile change and the runs come in #1369's second PR, from a
-  seal of that tree. The Black Gate's 386-preset check waits for the governor
-  (#1364).
+  for that profile, so dropping `/MAX=0` goes with new kit runs. #1335's
+  keyboard and mouse and #1364's governor are now merged in, so the menus
+  can be driven and The Black Gate's 386-preset check can run. The profile
+  change and the runs come in #1369's second PR, from a seal of that tree.
 - Protected-mode test386 in RTL, gates, privilege, delivery through the IDT
   and the rest of Phase 2's exit.

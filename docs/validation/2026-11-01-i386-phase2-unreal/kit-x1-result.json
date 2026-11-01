@@ -1,0 +1,150 @@
+{
+ "kit": "B",
+ "run": "x1",
+ "package": "604cab9b8dca6b5c66819ecee04c9bf41af445725429159eba7768fe9ad29add.fcore",
+ "disk": "xms-himem.img",
+ "game": "p2-xms-merge",
+ "events": [
+  {
+   "op": "stage",
+   "disk": "xms-himem.img",
+   "sha256": "6aece8ad5c6209613d4ea266a697572e24580cba518db98933113b395ec60587",
+   "reply_sha256": "6aece8ad5c6209613d4ea266a697572e24580cba518db98933113b395ec60587",
+   "size": 33546240,
+   "staged": true,
+   "seconds": 12.65,
+   "t": "2026-11-01 23:02:55"
+  },
+  {
+   "seq": 1,
+   "cmd": {
+    "op": "load",
+    "game": "p2-xms-merge"
+   },
+   "result": {
+    "load": {
+     "state": "active"
+    },
+    "seconds": 10.33,
+    "active_interfaces": [
+     "fes.audio.pcm-s16-stereo-48k 1.0",
+     "fes.fabric.video.display-plane 1.0",
+     "fes.keyboard.hid 1.0",
+     "fes.media.ata-disk 1.0",
+     "fes.memory.hps-ddr 1.0",
+     "fes.mouse.relative 1.0",
+     "fes.pc386.machine 1.0",
+     "fes.persistence.words 1.0",
+     "fes.rtc.wall-clock 1.0",
+     "fes.video.fixed-720p60 1.0",
+     "fes.video.session-display 1.0"
+    ]
+   },
+   "t": "2026-11-01 23:03:06"
+  },
+  {
+   "seq": 2,
+   "cmd": {
+    "op": "grab",
+    "name": "a00"
+   },
+   "result": {
+    "ok": true
+   },
+   "t": "2026-11-01 23:03:06"
+  },
+  {
+   "seq": 3,
+   "cmd": {
+    "op": "sleep",
+    "s": 15
+   },
+   "result": {},
+   "t": "2026-11-01 23:03:21"
+  },
+  {
+   "seq": 4,
+   "cmd": {
+    "op": "grab",
+    "name": "a01"
+   },
+   "result": {
+    "ok": true
+   },
+   "t": "2026-11-01 23:03:22"
+  },
+  {
+   "seq": 5,
+   "cmd": {
+    "op": "type",
+    "text": "mem\n"
+   },
+   "result": {},
+   "t": "2026-11-01 23:03:22"
+  },
+  {
+   "seq": 6,
+   "cmd": {
+    "op": "sleep",
+    "s": 4
+   },
+   "result": {},
+   "t": "2026-11-01 23:03:26"
+  },
+  {
+   "seq": 7,
+   "cmd": {
+    "op": "grab",
+    "name": "a02"
+   },
+   "result": {
+    "ok": true
+   },
+   "t": "2026-11-01 23:03:27"
+  },
+  {
+   "seq": 8,
+   "cmd": {
+    "op": "type",
+    "text": "ver\n"
+   },
+   "result": {},
+   "t": "2026-11-01 23:03:27"
+  },
+  {
+   "seq": 9,
+   "cmd": {
+    "op": "sleep",
+    "s": 2
+   },
+   "result": {},
+   "t": "2026-11-01 23:03:29"
+  },
+  {
+   "seq": 10,
+   "cmd": {
+    "op": "grab",
+    "name": "a03"
+   },
+   "result": {
+    "ok": true
+   },
+   "t": "2026-11-01 23:03:30"
+  },
+  {
+   "seq": 11,
+   "cmd": {
+    "op": "stop"
+   },
+   "result": {
+    "state": "idle"
+   },
+   "t": "2026-11-01 23:03:33"
+  }
+ ],
+ "disk_sha256": "6aece8ad5c6209613d4ea266a697572e24580cba518db98933113b395ec60587",
+ "after": {
+  "agent": "idle",
+  "lease": "revoking"
+ }
+}
