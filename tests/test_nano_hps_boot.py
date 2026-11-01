@@ -19,7 +19,7 @@ spec.loader.exec_module(boot)
 
 
 class HpsBootTests(unittest.TestCase):
-    def run_candidate(self, base, mode='pass', order='HPS FIRST', sealed=True, context=None):
+    def run_candidate(self, base, mode='pass', order='HPS FIRST', sealed=True, context=None, control=None):
         project = base/'project'
         hps = project/'board/hps'
         (hps/'project/output_files').mkdir(parents=True)
@@ -86,6 +86,8 @@ else:raise SystemExit(9)
         native = {'native_handoff': {'build_id': '1234567890abcdef'}, 'bl31_sha256': 'e'*64}
         if context is not None:
             native['native_handoff']['cold_boot_profile'] = {'hps_context': context}
+        if control is not None:
+            native['native_handoff'].setdefault('cold_boot_profile', {})['hps_control'] = control
         output = base/'output'
         with patch.object(boot, 'producer_module', side_effect=lambda name, filename:
                           verifier if filename == 'verify.py' else real_module(name, filename)), \
@@ -146,6 +148,28 @@ else:raise SystemExit(9)
                         result = self.run_candidate(base, context=context)
                         self.assertTrue(result['source_context_bound'])
                         self.assertEqual(result['hps_context_sha256'], boot.hps_context.digest(context))
+                        self.assertFalse(result['trusted_boot_handoff'])
+                        self.assertFalse(result['physical_programming_admission'])
+
+    def test_control_probe_requires_the_same_compiled_address_map_before_conversion(self):
+        fixture = ROOT/'platform/embedded/tamago/nativefabric/testdata'
+        context = json.loads((fixture/'hps-context.json').read_bytes())
+        control = json.loads((fixture/'hps-control.json').read_bytes())
+        for changed in (False, True):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as temp:
+                base = Path(temp)
+                actual = dict(control, cpu_base=0xff200000) if changed else control
+                with patch.object(boot.hps_context, 'derive', return_value=context), \
+                        patch.object(boot.hps_context, 'control', return_value=actual):
+                    if changed:
+                        with self.assertRaisesRegex(ValueError, 'control map'):
+                            self.run_candidate(base, context=context, control=control)
+                        self.assertFalse((base/'calls.jsonl').exists())
+                        self.assertFalse((base/'output').exists())
+                    else:
+                        result = self.run_candidate(base, context=context, control=control)
+                        self.assertTrue(result['control_probe'])
+                        self.assertEqual(result['hps_control_sha256'], boot.hps_context.digest(control))
                         self.assertFalse(result['trusted_boot_handoff'])
                         self.assertFalse(result['physical_programming_admission'])
 

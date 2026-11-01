@@ -294,8 +294,10 @@ The actual `owns`, `quiesce` and `quiescent` callbacks verify continued cold
 containment through live registers; they do not access an SD controller held
 in reset. A changed boot/reset scope, restarted master, active bridge or
 replay retires the proof. This is not an active-device drain provider. The
-cold dispatcher admits read-only Snapshot and optional source-context reads, denies all bridge mutations
-and configuration operations, and advertises zero configuration features.
+cold dispatcher admits read-only Snapshot and optional source-context reads,
+denies generic bridge mutations and configuration operations, and advertises
+zero configuration features. The dedicated identity diagnostic below has its
+own contained secure transaction.
 The general controlled service and strict recovery behavior are unchanged.
 
 The dedicated native `bootcontext` build derives its source descriptor from a
@@ -306,6 +308,21 @@ unchanged owned, closed scope. A missing digest returns NOT_READY. This is
 source consistency, not measured boot or live FPGA admission; it supplies no
 new master-stop, control-opening or configuration permission. See the
 [wire contract](../../../sources/mister-packages/docs/embedded-bridges.md).
+
+The separate `fpgacontext` build also binds the actual compiler-produced
+lightweight control route. Its secure one-shot operation opens only that
+control bridge, reads the generated endpoint identity and idle registers
+twice, checks the sealed ABI/build, and closes control before replying. The
+provider's private expected mask changes only around the serialized secure
+transition; all data bridges, spare CPUs and peripheral masters retain their
+cold containment. Generic non-secure Control/Release/Close operations and
+SDM configuration remain denied. Default builds have no identity provider.
+The diagnostic requires EL3 translation and data cache disabled, matching
+the inspected vendor startup; a different CPU memory setup rejects without
+altering it. A failed transaction independently asserts control reset and
+retires ownership, preserving the first failure and cleanup result. The
+held-data close supplies no fresh fabric acknowledgement or active data drain.
+This is an aperture qualification diagnostic, not a runtime admission provider.
 
 The [Nano guide](../nano/README.md) describes matched builds, a preserved
 recovery card and repeatable network uploads of `FES/UPLOAD.BIN`. The

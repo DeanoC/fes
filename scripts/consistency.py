@@ -11,6 +11,7 @@ GENERATED = (
     ('emit-go', 'packages/fabric/fes_fabric_embedded_bridges.yaml', 'FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go'),
     ('emit-verilog', 'packages/fabric/fes_fabric_embedded_control.yaml', 'misteross', 'cores/fes-common/generated/fes_embedded_control.vh'),
     ('emit-cpp', 'packages/fabric/fes_fabric_embedded_control.yaml', 'FES', 'platform/embedded/firmware/generated/fes_embedded_control.hpp'),
+    ('emit-c', 'packages/fabric/fes_fabric_embedded_control.yaml', 'FES', 'platform/embedded/firmware/generated/fes_embedded_control.h'),
     ('emit-go', 'packages/fabric/fes_fabric_embedded_control.yaml', 'FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go'),
     ('emit-c', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'FES', 'image/kernel/de25-dma/generated/fes_de25_ddr_probe.h'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),

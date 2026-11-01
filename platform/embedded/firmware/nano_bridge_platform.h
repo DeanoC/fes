@@ -4,6 +4,7 @@
 #include "nano_bridge_sip.h"
 #include "nano_boot.h"
 #include "nano_sd.h"
+#include "nano_identity.h"
 extern struct fes_nano_bridges fes_nano_owned_bridges;
 extern struct fes_nano_sd fes_nano_owned_sd;
 void fes_nano_bridge_platform_setup(void);

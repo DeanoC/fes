@@ -55,6 +55,16 @@ static int per_read(void *p,uint32_t *v) { struct fes_nano_cold *s=p;return s->i
 static int per_assert(void *p,uint32_t bits) { struct fes_nano_cold *s=p;return s->io.write(s->io.context,FES_COLD_PER0,bits); }
 static int br_read(void *p,uint32_t *v) { struct fes_nano_cold *s=p;return s->io.read(s->io.context,FES_COLD_BRG,v); }
 static int disabled(void *p,uint32_t m,unsigned f) { (void)p;(void)m;(void)f;return -1; }
+static int control_change(void *p, uint32_t mask, unsigned fabric, unsigned open)
+{
+    struct fes_nano_cold *s=p;
+    if (mask!=FES_NANO_BRIDGES_CONTROL || fabric!=FES_NANO_FABRIC_ABSENT ||
+        fes_nano_cold_control_target(s,17,7,open)) return -1;
+    uint32_t value=s->control_expected ? FES_NANO_BRIDGES_DATA : FES_NANO_BRIDGES_ALL;
+    return s->io.write(s->io.context,FES_COLD_BRG,value);
+}
+static int control_enable(void *p,uint32_t m,unsigned f) { return control_change(p,m,f,1); }
+static int control_disable(void *p,uint32_t m,unsigned f) { return control_change(p,m,f,0); }
 static const uint8_t chain[32]={0x42,0x17};
 /* A spare can change during SD drain or after a valid seal. Each stage must
  * reject independently; a restored register cannot resurrect its owner. */
@@ -196,6 +206,60 @@ int main(void)
         h.r[FES_COLD_BRG]=0;assert(fes_nano_cold_quiesce(&bl31,FES_NANO_PRODUCERS_ALL)<0);
         h.r[FES_COLD_BRG]=15;assert(fes_nano_cold_owns(&bl31,17,7)!=1); /* no replay */
         cases++;
+    }
+    for (unsigned core=0;core<=2;core+=2) {
+        struct hw h;init(&h,core);struct fes_nano_cold spl={0},bl31={0};struct fes_nano_cold_record r;
+        assert(!fes_nano_cold_begin(&spl,ops(&h),chain,17,7,core));
+        assert(!fes_nano_cold_finish(&spl,1,&r));
+        assert(!fes_nano_cold_consume(&bl31,&r,ops(&h),chain,17));
+        struct fes_nano_boot boot={0};struct fes_nano_bridges b={0};
+        struct fes_nano_boot_policy policy={.qualifications=15,.history=1,.fabric=1,.producers=FES_NANO_PRODUCERS_ALL};
+        memcpy(policy.chain,chain,32);
+        struct fes_nano_master_ops m={&bl31,fes_nano_cold_owns,fes_nano_cold_quiesce,fes_nano_cold_quiescent,per_read,per_assert,barrier,barrier};
+        struct fes_nano_bridge_ops raw={&bl31,0,br_read,0,0,control_disable,control_enable};
+        assert(!fes_nano_boot_accept(&boot,&b,&r.boot,&policy,m,raw));
+        unsigned writes=h.writes,reads=h.idle_reads;
+        assert(fes_nano_cold_control_target(&bl31,18,7,1)<0 && !bl31.control_expected);
+        struct fes_nano_bridge_snapshot opened;
+        assert(!fes_nano_bridges_open(&b,17,1,FES_NANO_BRIDGES_CONTROL,&opened));
+        assert(opened.reset==FES_NANO_BRIDGES_DATA && opened.generation==2 &&
+               opened.masters_contained && !opened.never_enabled && bl31.control_expected);
+        assert(fes_nano_cold_sd_scope(&bl31,17,7,1)<0 && fes_nano_cold_owns(&bl31,17,7)==1);
+        struct fes_nano_bridge_closure closed;
+        assert(!fes_nano_bridges_close(&b,17,2,0,1,&closed));
+        assert(closed.after.reset==15 && closed.after.generation==3 && !bl31.control_expected);
+        assert(closed.data_remained_contained && closed.producers_quiescent &&
+               !closed.fabric_acknowledged && !closed.hardware_drained);
+        assert(h.writes==writes+2 && h.idle_reads==reads && !memcmp(&r,&bl31.record,sizeof(r)));
+        assert(fes_nano_cold_owns(&bl31,17,7)==1);cases++;
+    }
+    /* An armed control target permits exactly the control bit to change.
+     * An unexpected mask permanently retires the cold proof, even if restored. */
+    for (unsigned mask=0;mask<16;mask++) {
+        struct hw h;init(&h,0);struct fes_nano_cold s={0};struct fes_nano_cold_record r;
+        assert(!fes_nano_cold_begin(&s,ops(&h),chain,17,7,0));
+        assert(!fes_nano_cold_finish(&s,1,&r));
+        unsigned writes=h.writes;
+        assert(!fes_nano_cold_control_target(&s,17,7,1));
+        h.r[FES_COLD_BRG]=mask;
+        assert((fes_nano_cold_owns(&s,17,7)==1)==(mask==FES_NANO_BRIDGES_DATA));
+        if (mask!=FES_NANO_BRIDGES_DATA) {
+            h.r[FES_COLD_BRG]=FES_NANO_BRIDGES_DATA;
+            assert(fes_nano_cold_owns(&s,17,7)!=1);
+        } else {
+            h.r[FES_COLD_PER0]&=~1U;
+            assert(fes_nano_cold_owns(&s,17,7)!=1);
+            h.r[FES_COLD_PER0]|=1U;
+            assert(fes_nano_cold_owns(&s,17,7)!=1);
+        }
+        assert(h.writes==writes);cases++;
+    }
+    {
+        struct hw h;init(&h,0);struct fes_nano_cold s={0};struct fes_nano_cold_record r;
+        assert(!fes_nano_cold_begin(&s,ops(&h),chain,17,7,0));assert(!fes_nano_cold_finish(&s,1,&r));
+        h.r[FES_COLD_BRG]=FES_NANO_BRIDGES_DATA;
+        assert(fes_nano_cold_owns(&s,17,7)!=1); /* no trusted transition */
+        h.r[FES_COLD_BRG]=15;assert(fes_nano_cold_owns(&s,17,7)!=1);cases++;
     }
     for (unsigned fault=0;fault<7;fault++) {
         struct hw h;init(&h,0);struct fes_nano_cold s={0};

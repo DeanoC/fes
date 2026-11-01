@@ -64,7 +64,7 @@ def main():
         parser.error("cross-prefix must be absolute and end in -")
     profile_bytes = receipt_bytes = None
     native_sources = None
-    native_context = None
+    native_context = native_control = None
     if args.target == "qemu":
         if args.nano_build or args.profile or args.image_address is not None:
             parser.error("Nano receipt, profile and load address are only valid with --target de25-nano")
@@ -92,8 +92,11 @@ def main():
         context_spec=importlib.util.spec_from_file_location('fes_entry_hps_context',HERE.parent/'nano/hps_context.py')
         hps=importlib.util.module_from_spec(context_spec);context_spec.loader.exec_module(hps)
         native_context=hps.checked(receipt)
+        native_control=hps.checked_control(receipt)
         if native_context is not None and base64.b64encode(hps.encode(native_context)) not in payload.read_bytes():
             raise ValueError('HPS context is absent from the selected native ELF')
+        if native_control is not None and base64.b64encode(hps.encode(native_control)) not in payload.read_bytes():
+            raise ValueError('control map is absent from the selected native ELF')
         def check_native_sources():
             if not native_sources:raise ValueError("missing Nano selected-source proof")
             for name,expected in native_sources.items():
@@ -214,6 +217,8 @@ def main():
               "native_program":receipt['program'] if receipt_bytes is not None else None,
               "hps_context":native_context,
               "hps_context_sha256":hps.digest(native_context) if native_context is not None else None,
+              "hps_control":native_control,
+              "hps_control_sha256":hps.digest(native_control) if native_control is not None else None,
               "hps_project":receipt['hps_project'] if native_context is not None else None,
               "sources": frozen, "tools": tools, "environment": env, "commands": commands,
               "limitations": ["no physical Nano, DDR, peripheral, DMA, bridge or reset proof",

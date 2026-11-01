@@ -45,6 +45,7 @@ def entry(entry_build):
     for name,expected in receipt['sources'].items():
         if sha(ROOT/name)!=expected:raise ValueError('entry producer source changed: '+name)
     context=hps_context.checked(receipt,program_key='native_program')
+    hps_context.checked_control(receipt,program_key='native_program')
     if context is not None and profile.name!='probe-profile.json':
         raise ValueError('HPS context diagnostic requires the contained serial profile')
     return image,receipt_path
@@ -57,6 +58,7 @@ def sources():
                             'nano_boot.c','nano_bridges.h','nano_bridges.c','nano_bridge_platform.inc','nano_bridge_platform.h',
                             'nano_owned_sip.inc','prepare_nano_owned.py','prepare_tfa.py',
                             'nano_bridge_sip.c','nano_bridge_sip.h','generated/fes_embedded_bridges.h',
+                            'nano_identity.c','nano_identity.h','generated/fes_embedded_control.h',
                             'generated/fes_embedded_control.hpp','nano_bridge_diag.h','nano_bridge_diag.inc',
                             'build_terasic.py','build_terasic_uboot.py','verify.py')]
 
@@ -65,6 +67,7 @@ def make(entry_build):
     image,receipt=entry(entry_build)
     build=json.loads(receipt.read_text());profile=selected_profile(build)
     context=hps_context.checked(build,program_key='native_program')
+    control=hps_context.checked_control(build,program_key='native_program')
     selected=sources()+ (hps_context.inputs() if context is not None else [])
     inputs={str(p.relative_to(ROOT)):sha(p) for p in selected}
     identity={'format':1,'profile':'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
@@ -75,7 +78,8 @@ def make(entry_build):
               'uboot_pin':'d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413',
               'tfa_pin':'580dcb5c4e10aa7daff2bf69d493c076a6d3e665',
               'reference_sof_sha256':context['raw_sof_sha256'] if context else 'e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09',
-              'hps_context':context,'hps_context_sha256':hps_context.digest(context) if context else None}
+              'hps_context':context,'hps_context_sha256':hps_context.digest(context) if context else None,
+              'hps_control':control,'hps_control_sha256':hps_context.digest(control) if control else None}
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     identity['owner_seed']=int(identity['chain_sha256'][:16],16)|1
     identity['entry_receipt_sha256']=sha(receipt)
@@ -84,7 +88,15 @@ def make(entry_build):
 
 def header(profile):
     def array(value):return '{'+','.join('0x'+value[i:i+2] for i in range(0,len(value),2))+'}'
+    control=profile.get('hps_control');extra='#define FES_NANO_CONTROL_PROBE '+str(int(control is not None))+'\n'
+    if control is not None:
+        context=profile['hps_context'];build=context['build_id']
+        extra+=('#define FES_NANO_CONTROL_BASE '+hex(control['cpu_base'])+'UL\n'
+                '#define FES_NANO_CONTROL_ABI '+hex(context['control_abi'])+'U\n'
+                '#define FES_NANO_CONTROL_BUILD {'+','.join('0x'+build[i:i+8]+'U' for i in (24,16,8,0))+'}\n'
+                '#define FES_NANO_CONTROL_MAP_SHA '+array(profile['hps_control_sha256'])+'\n')
     return ('/* Generated, same source-bound diagnostic chain in SPL and BL31. */\n'
+            +extra+
             '#define FES_NANO_CONTROLLED_SD '+str(int(profile['sd_pio']))+'\n'
             '#define FES_NANO_COLD_CHAIN '+array(profile['chain_sha256'])+'\n'
             '#define FES_NANO_COLD_OWNER_SEED '+hex(profile['owner_seed'])+'ULL\n'

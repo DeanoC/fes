@@ -56,13 +56,13 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard", "network", "display", "fpga", "sdpackages", "bootcontext"))
+    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard", "network", "display", "fpga", "sdpackages", "bootcontext", "fpgacontext"))
     parser.add_argument("--compiler", required=True, type=Path)
     parser.add_argument("--qemu", type=Path)
     parser.add_argument("--board", choices=("qemu", "de25-nano"), default="qemu")
     parser.add_argument("--profile", type=Path, help="required firmware handoff JSON for Nano cross-build")
     parser.add_argument("--package-id", help="independently expected package ID for the Nano sdpackages diagnostic")
-    parser.add_argument("--hps-first-project", type=Path, help="sealed HPS-first project for the Nano bootcontext diagnostic")
+    parser.add_argument("--hps-first-project", type=Path, help="sealed HPS-first project for the Nano context diagnostics")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--module-cache", type=Path,
                         default=ROOT / "out/embedded-base-tools/tamago/mod")
@@ -88,7 +88,7 @@ def main():
         return
     if args.profile is not None or args.package_id is not None or args.hps_first_project is not None:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")
-    if args.program in ("fpga", "sdpackages", "bootcontext"):
+    if args.program in ("fpga", "sdpackages", "bootcontext", "fpgacontext"):
         parser.error("this diagnostic requires the Nano firmware service; QEMU does not emulate it")
     if args.qemu is None:
         parser.error("--board qemu requires --qemu")

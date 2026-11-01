@@ -40,6 +40,8 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('el1', r'FES_ENTRY EL1 HANDOFF'),
     ('go', r'FES_NATIVE_GO_PROBE PASS os=tamago board=de25-nano'),
     ('hps_context', rf'FES_NATIVE_HPS_CONTEXT PASS sha256=(?P<sha256>[0-9a-f]{{64}}) package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) programming=unavailable'),
+    ('identity_transition', rf'(?:NOTICE:[ \t]+)?FES_NANO_IDENTITY phase=(?P<phase>[a-z-]{{1,24}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) reset=(?P<reset>{H}) base=(?P<base>{H})'),
+    ('fpga_identity', rf'FES_NATIVE_FPGA_IDENTITY PASS package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) abi=(?P<abi>{H}) base=(?P<base>{H}) map_sha256=(?P<map_sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) data_held=1 programming=unavailable'),
     ('storage', r'FES_STORAGE_PROBE board=de25-nano EL=1 counter=400000000Hz writes=disabled'),
     # SDHCI R2 supplies CID[127:8], exactly 15 bytes without CRC/end bits.
     ('read', rf'FES_NANO_SD READ bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}}) cid=(?P<cid>[0-9a-f]{{30}}) sectors=(?P<sectors>[0-9]{{1,20}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
@@ -54,10 +56,10 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
 )]
 DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter',
            'cpu0', 'cpu1', 'cpu2', 'cpu3', 'setup', 'ready', 'bytes', 'sectors', 'sd_generation', 'payload_bytes'}
-TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id'}
+TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id','map_sha256'}
 
 
-def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None):
+def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, fpga_identity=None):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -82,6 +84,16 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         raise ValueError('independently checked package/payload/build identities required')
     if storage is not None and package is not None:
         raise ValueError('select exactly one native SD diagnostic')
+    if fpga_identity is not None:
+        if (not isinstance(fpga_identity,dict) or set(fpga_identity)!={'sha256','package_id','build_id','control_abi','cpu_base','map_sha256'} or
+                type(fpga_identity['control_abi']) is not int or fpga_identity['control_abi']!=0x10203040 or
+                type(fpga_identity['cpu_base']) is not int or fpga_identity['cpu_base']!=0x20010400 or
+                not isinstance(fpga_identity['map_sha256'],str) or not re.fullmatch('[0-9a-f]{64}',fpga_identity['map_sha256']) or
+                int(fpga_identity['map_sha256'],16)==0):
+            raise ValueError('independently checked source, endpoint and control-map identities required')
+        if hps_context is not None or storage is not None or package is not None:
+            raise ValueError('select exactly one native diagnostic')
+        hps_context={key:fpga_identity[key] for key in ('sha256','package_id','build_id')}
     if hps_context is not None:
         if (not isinstance(hps_context,dict) or set(hps_context)!={'sha256','package_id','build_id'} or
                 any(not isinstance(hps_context[key],str) or not re.fullmatch('[0-9a-f]{'+str(size)+'}',hps_context[key]) or
@@ -92,6 +104,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     controlled = storage is not None or package is not None
     stages=STAGES
     if hps_context is not None:stages=STAGES[:-1]+('hps_context',)
+    if fpga_identity is not None:
+        stages+=('identity_open','identity_read','identity_close','identity_closed','fpga_identity')
     if controlled:
         suffix=(('storage','read','contained','resumed','sd_pass') if storage is not None else
                 ('package_probe','package_retained','package_contained','package_resumed','package_pass'))
@@ -123,6 +137,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                       for key, value in match.groupdict().items()}
             if name == 'owned':
                 name = values['phase']
+            if name=='identity_transition':name='identity_'+values['phase']
             if name=='sd_platform' and not controlled:
                 if ('sd_platform' in observed or not report['records'] or report['records'][-1]['stage']!='provider' or
                         values!={'setup':0,'ready':0}):
@@ -140,7 +155,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             break
         else:
             if (line.startswith(('U-Boot ', 'FES_NANO_', 'FES_ENTRY', 'FES_NATIVE_GO_PROBE', 'FES_STORAGE_PROBE', 'FES_SD_PACKAGE_PROBE',
-                                 'FES_NATIVE_HPS_CONTEXT', 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
+                                 'FES_NATIVE_HPS_CONTEXT','FES_NATIVE_FPGA_IDENTITY', 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
                     line.startswith('NOTICE:') and 'FES_NANO_' in line):
                 report['errors'].append(f'malformed or unexpected probe marker at line {number}')
 
@@ -193,6 +208,20 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 'native HPS source context differs')
         require(seal is not None and value['owner']==seal['owner'] and value['generation']==1,
                 'native HPS source-context owner/generation differs')
+    if fpga_identity is not None:
+        for phase,generation,reset in (('open',1,15),('read',2,13),('close',2,13),('closed',3,15)):
+            value=observed.get('identity_'+phase)
+            if value:
+                require(seal is not None and value['owner']==seal['owner'] and value['generation']==generation and
+                        value['reset']==reset and value['base']==fpga_identity['cpu_base'],
+                        'FPGA identity transition lost owned control/data scope: '+phase)
+        value=observed.get('fpga_identity')
+        if value:
+            require(all(value[key]==fpga_identity[key] for key in ('package_id','build_id','map_sha256')) and
+                    value['abi']==fpga_identity['control_abi'] and value['base']==fpga_identity['cpu_base'],
+                    'live FPGA identity differs from the compiled package/control map')
+            require(seal is not None and value['owner']==seal['owner'] and value['generation']==3,
+                    'FPGA identity returned outside the same closed owner')
     if controlled:
         if 'sd_platform' in observed:
             require(observed['sd_platform']=={'setup':1,'ready':1},'controlled SD setup rejected')

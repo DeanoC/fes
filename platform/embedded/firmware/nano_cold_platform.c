@@ -13,6 +13,9 @@
 #define FES_COLD_BARRIER() dsbsy()
 #define FES_COLD_WAIT() udelay(10)
 #include "nano_cold_mmio.inc"
+#if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
+#include <common/debug.h>
+#endif
 #if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
 #include <common/debug.h>
 #include "nano_sd_platform.h"
@@ -47,6 +50,79 @@ int fes_nano_platform_boot_record(struct fes_nano_boot_record *record,
         .quiesce=fes_nano_cold_quiesce,.quiescent=fes_nano_cold_quiescent};
     return 1;
 }
+
+#if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
+static struct fes_nano_identity_probe identity_probe;
+static unsigned identity_reported;
+struct fes_nano_identity_probe *fes_nano_platform_identity_probe(void) { return &identity_probe; }
+void fes_nano_platform_identity_report(void)
+{
+    if (!identity_probe.failed || identity_reported++) return;
+    NOTICE("FES_NANO_IDENTITY_FAILURE stage=%u error=%d cleanup=%d reads=%u base=%lx\n",
+           identity_probe.stage,identity_probe.first_error,identity_probe.cleanup_error,
+           identity_probe.reads,(unsigned long)FES_NANO_CONTROL_BASE);
+}
+static void identity_trace(void *context, unsigned stage)
+{
+    (void)context;
+    const char *name=stage==FES_ID_OPEN?"open":stage==FES_ID_READ?"read":
+                     stage==FES_ID_CLOSE?"close":stage==FES_ID_COMPLETE?"closed":"contain";
+    NOTICE("FES_NANO_IDENTITY phase=%s owner=%llx generation=%llu reset=%x base=%lx\n",name,
+           (unsigned long long)fes_nano_owned_bridges.state.owner,
+           (unsigned long long)fes_nano_owned_bridges.state.generation,
+           fes_nano_owned_bridges.state.reset,(unsigned long)FES_NANO_CONTROL_BASE);
+}
+int fes_nano_platform_control_target(unsigned open)
+{
+    if (!identity_probe.active || identity_probe.bridges!=&fes_nano_owned_bridges) return -1;
+    return fes_nano_cold_control_target(&provider,fes_nano_owned_bridges.state.owner,
+                                          fes_nano_owned_bridges.epoch,open);
+}
+static int identity_read(void *context, uint32_t offset, uint32_t *value)
+{
+    struct fes_nano_cold *s=context;
+    /* The inspected pin has no EL3 MMU setup. This diagnostic requires both
+     * translation and data cache disabled. A changed context needs separate
+     * qualification; never turn translation off as a fallback. */
+    if (!identity_probe.active || !s->control_expected || (read_sctlr_el3()&5U) ||
+        offset>FES_EMBEDDED_REG_ACK_COOKIE_HI || offset&3U ||
+        fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1) return -1;
+    dsbsy();*value=mmio_read_32(FES_NANO_CONTROL_BASE+offset);dsbsy();
+    return (read_sctlr_el3()&5U) || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ? -1 : 0;
+}
+static int identity_contain(void *context)
+{
+    struct fes_nano_cold *s=context;
+    uintptr_t address=FES_NANO_COLD_RSTMGR+0x2c;
+    uint32_t before=mmio_read_32(address);
+    /* Failure recovery asserts only control reset. An unexpected data path
+     * opening remains a failure; this callback supplies no active data drain. */
+    mmio_write_32(address,before|FES_NANO_BRIDGES_CONTROL);dsbsy();
+    uint32_t after=mmio_read_32(address);dsbsy();
+    s->failed=1;s->valid=0;
+    return (before&FES_NANO_BRIDGES_DATA)==FES_NANO_BRIDGES_DATA &&
+           (after&FES_NANO_BRIDGES_ALL)==FES_NANO_BRIDGES_ALL ? 0 : -1;
+}
+int fes_nano_platform_identity_setup(void)
+{
+    static const uint8_t context[32]=FES_NANO_HPS_CONTEXT_SHA;
+    static const uint8_t map[32]=FES_NANO_CONTROL_MAP_SHA;
+    static const uint32_t build[4]=FES_NANO_CONTROL_BUILD;
+    unsigned context_nonzero=0,map_nonzero=0;
+    for(unsigned i=0;i<32;i++) { context_nonzero|=context[i];map_nonzero|=map[i]; }
+    uint64_t sctlr=read_sctlr_el3();
+    unsigned qualified=context_nonzero && map_nonzero && !(sctlr&5U) &&
+        FES_NANO_CONTROL_BASE>=0x20000000UL && FES_NANO_CONTROL_BASE<=0x3fffff00UL &&
+        !(FES_NANO_CONTROL_BASE&3U) && !(FES_NANO_CONTROLLED_SD);
+    struct fes_nano_identity_ops io={.context=&provider,.read32=identity_read,.contain=identity_contain,.trace=identity_trace};
+    int result=fes_nano_identity_init(&identity_probe,&fes_nano_owned_bridges,io,
+                                      FES_NANO_CONTROL_ABI,build,qualified);
+    if (result) NOTICE("FES_NANO_IDENTITY_FAILURE stage=%u error=%d sctlr=%llx base=%lx\n",
+                      identity_probe.stage,identity_probe.first_error,(unsigned long long)sctlr,
+                      (unsigned long)FES_NANO_CONTROL_BASE);
+    return result ? -1 : 1;
+}
+#endif
 
 #if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
 static struct fes_nano_sd_platform sd_platform;

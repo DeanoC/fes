@@ -34,10 +34,12 @@ static int fes_nano_owned_enable(void *context, uint32_t mask, unsigned fabric)
 {
     (void)context;
 #ifdef FES_NANO_COLD_SERIAL
-    /* The cold serial provider qualifies no active fabric producer. */
-    (void)fes_nano_raw_enable;
-    (void)mask; (void)fabric;
-    return -1;
+    /* Only the serialized, secure read-only probe can reach this path. All
+     * non-control bridges and masters retain their cold containment. */
+    struct fes_nano_identity_probe *probe=fes_nano_platform_identity_probe();
+    if (!probe || !probe->active || mask!=FES_NANO_BRIDGES_CONTROL ||
+        fabric!=FES_NANO_FABRIC_ABSENT || fes_nano_platform_control_target(1)) return -1;
+    return fes_nano_raw_enable(mask);
 #else
     if (fabric != fes_nano_owned_bridges.state.fabric) return -1;
     return fes_nano_raw_enable(mask);
@@ -47,6 +49,11 @@ static int fes_nano_owned_disable(void *context, uint32_t mask, unsigned fabric)
 {
     (void)context;
     if (fabric != fes_nano_owned_bridges.state.fabric) return -1;
+#ifdef FES_NANO_COLD_SERIAL
+    struct fes_nano_identity_probe *probe=fes_nano_platform_identity_probe();
+    if (!probe || !probe->active || mask!=FES_NANO_BRIDGES_CONTROL ||
+        fes_nano_platform_control_target(0)) return -1;
+#endif
     fes_nano_bridge_diag_reset();
     return fes_nano_raw_disable(mask);
 }
@@ -96,8 +103,9 @@ void fes_nano_bridge_platform_setup(void)
     else if (available != 0) fes_nano_bridge_platform_invalidate();
     if (available == 1 && result == 0) {
         fes_nano_bridge_platform_lock();
+        int identity=fes_nano_platform_identity_setup();
         sd = fes_nano_platform_sd_setup();
-        if (sd < 0) {
+        if (sd < 0 || identity < 0) {
             fes_nano_owned_sd.attempted = fes_nano_owned_sd.failed = 1;
             fes_nano_owned_bridges.failed = 1;
             fes_nano_boot_invalidate(&fes_nano_owned_boot);

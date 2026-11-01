@@ -340,9 +340,11 @@ performs no new device reads. The stage and saved intermediate values stay in
 the local context, outside the version-2 sealed record. A failed source remains
 retired; the diagnostics do not change checks, ordering or timeouts.
 
-This cold serial firmware permits only read-only ownership Snapshot. It denies
-bridge opening, reconfiguration and release, and reports zero configuration
-features. It supplies no active USB, Ethernet or FPGA traffic-drain policy.
+The ordinary cold serial firmware permits read-only ownership Snapshot and
+optional source-context reads. Generic bridge opening, reconfiguration and
+release are denied, and configuration features remain zero. The dedicated
+identity diagnostic below has one contained secure control transaction.
+These profiles supply no active USB, Ethernet or FPGA traffic-drain policy.
 The default controlled firmware still has an unready provider; recovery uses
 the separate strict firmware. See the [firmware guide](../firmware/README.md).
 
@@ -503,6 +505,40 @@ clock and USB permissions are restored; the spare and diagnostic remain in
 place under the user's retained-diagnostic policy. This does not qualify CPU
 FPGA MMIO or runtime core loading.
 
+## CPU FPGA identity diagnostic
+
+`run.py fpgacontext --board de25-nano` uses the same required profile,
+`--hps-first-project`, compiler and matched entry/SPL/BL31/composition steps as
+`bootcontext`. It additionally verifies the actual generated
+`qsys_top.sopcinfo` against both compiler and generator hashes, follows the
+lightweight bridge to the sealed endpoint, and rejects ambiguous or
+overlapping routes. The canonical `hps-control.json` and its digest are
+compiled into the native image and secure cold chain. The CPU aperture uses
+the [Agilex 5 MPU lightweight base](https://altera-fpga.github.io/rel-25.1/embedded-designs/agilex-5/e-series/premium/gsrd/ug-gsrd-agx5e-premium/#lightweight-hps-to-fpga-address-map)
+`0x20000000` plus the verified route offset; it does not use the JTAG master's
+address space. The current sealed project's candidate is `0x20010400`.
+
+After the source-context marker, native Go invokes one secure identity
+operation with the current owner/generation and no physical address. Firmware
+requires EL3 translation and data cache disabled, opens only control, reads
+two complete identity/idle snapshots, verifies magic/version/ABI/build and
+zero generation/pending/acknowledgement state, then closes control. Data
+bridges and masters stay contained and spare CPU release stays denied. A
+failure asserts control reset independently, retires ownership and does not
+retry. The raw trace preserves open/read/close/closed stages and saved
+failure details without speculative extra reads.
+
+`decode_native_boot(..., fpga_identity={sha256,package_id,build_id,control_abi,
+cpu_base,map_sha256})` requires independently checked descriptor/map values,
+the same SPL owner, bridge generations `1/2/2/3`, reset masks `f/d/d/f`, and
+the final `FES_NATIVE_FPGA_IDENTITY PASS`. The native reader separately
+checks a closed generation-3 Snapshot before reporting success. This source
+path and its injected failure tests do not establish physical CPU access.
+Even a successful physical identity read cannot grant runtime core admission,
+measure the live HPS I/O configuration, authorize SDM programming or prove an
+active fabric/master drain. `HPSContextVerifier` remains separate from
+`BootHandoffVerifier`.
+
 ## Contained native boot procedure
 
 1. Claim the top board in its current status file, verify serial/cable/UART,
@@ -522,6 +558,8 @@ FPGA MMIO or runtime core loading.
    markers and the selected program's complete marker sequence. A baseline
    probe prints `FES_NATIVE_GO_PROBE PASS`; `bootcontext` requires the independently
    checked context/package/build values in `FES_NATIVE_HPS_CONTEXT PASS`.
+   `fpgacontext` additionally requires the complete secure transition and
+   independently checked FPGA identity sequence described above.
 5. Stop on a failure or incomplete marker sequence and retain its first trace.
    Restore the original cable clock and USB permissions, and close the UART.
    Follow the user's board-retention policy: retain and record the diagnostic

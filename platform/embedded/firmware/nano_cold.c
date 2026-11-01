@@ -164,15 +164,29 @@ int fes_nano_cold_owns(void *p, uint64_t owner, uint64_t epoch)
     struct fes_nano_cold *s=p;
     struct fes_nano_cold_sample now;
     if (!s || !s->valid || s->failed || owner!=s->record.boot.owner || epoch!=s->record.boot.epoch) return 0;
-    if (sample(s,&now) || !stable(&s->record.last,&now,s->record.core) ||
+    struct fes_nano_cold_sample expected=s->record.last;
+    if (s->control_expected > 1) return fail(s);
+    if (s->control_expected) expected.bridge &= ~FES_NANO_BRIDGES_CONTROL;
+    if (sample(s,&now) || !stable(&expected,&now,s->record.core) ||
         (now.per0 & FES_NANO_MASTER_RESET) != FES_NANO_MASTER_RESET) return fail(s);
     return 1;
+}
+int fes_nano_cold_control_target(struct fes_nano_cold *s, uint64_t owner,
+                                  uint64_t epoch, unsigned control_open)
+{
+    /* Internal secure-driver transition, serialized by the owned SiP lock.
+     * Validate the old mask before arming the exact new mask. Until hardware
+     * reaches that mask the next ownership observation must reject. */
+    if (!s || control_open > 1 || control_open == s->control_expected ||
+        fes_nano_cold_owns(s,owner,epoch)!=1) return -1;
+    s->control_expected=control_open;
+    return 0;
 }
 int fes_nano_cold_sd_scope(struct fes_nano_cold *s, uint64_t owner,
                            uint64_t epoch, unsigned active)
 {
     struct fes_nano_cold_sample first, last;
-    if (!s || !s->valid || s->failed || active > 1 ||
+    if (!s || !s->valid || s->failed || s->control_expected || active > 1 ||
         owner != s->record.boot.owner || epoch != s->record.boot.epoch) return -1;
     uint32_t expected = FES_NANO_MASTER_RESET & ~(active ? FES_NANO_COLD_SD_RESET : 0U);
     if (sample(s, &first) || !stable(&s->record.last, &first, s->record.core) ||
@@ -203,8 +217,9 @@ int fes_nano_cold_quiesce(void *p, uint32_t producers)
 {
     struct fes_nano_cold *s=p;
     if (!s || producers!=FES_NANO_PRODUCERS_ALL) return -1;
-    /* This serial profile never opens a bridge or restarts a device. Active
-     * traffic needs a different qualified provider; never manufacture its ACK. */
+    /* A secure read-only control transaction starts no new producer. All data
+     * bridges, other CPUs and peripheral masters retain their cold containment.
+     * This supplies no active-device/fabric drain or acknowledgement. */
     return fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)==1 ? 0 : fail(s);
 }
 int fes_nano_cold_quiescent(void *p, uint32_t *producers)

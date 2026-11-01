@@ -53,4 +53,6 @@ unsigned fes_tfa_legacy_routes(void) { return legacy_routes; }
     run("owned-codec-compile", ["cc", *flags, "-c", HERE / "nano_bridge_sip.c", "-o", codec])
     sd = output / "nano_sd.o"
     run("owned-sd-compile", ["cc", *flags, "-c", HERE / "nano_sd.c", "-o", sd])
-    return [engine, codec, sd], {"controlled_service_sha256": hashlib.sha256(owned.encode()).hexdigest(), "host_subset_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+    identity = output / "nano_identity.o"
+    run("owned-identity-compile", ["cc", *flags, "-c", HERE / "nano_identity.c", "-o", identity])
+    return [engine, codec, sd, identity], {"controlled_service_sha256": hashlib.sha256(owned.encode()).hexdigest(), "host_subset_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}

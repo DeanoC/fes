@@ -1,14 +1,14 @@
 {
   "source": {
     "repository": "DeanoC/fes",
-    "commit": "cc47b121103f35524ad78a75de795b931b2f081d",
+    "commit": "30c8f7cb97d98caa776e3504e1e7a92843fcd22e",
     "file": "platform/embedded/firmware/generated/fes_embedded_bridges.h",
-    "note": "Base FES firmware revision. This change adds two read-only source-context digest parts; no bridge mutation or physical programming admission."
+    "note": "Base FES firmware revision. Adds a one-shot secure CPU identity read with data held, control reclosed before reply, and no programming admission."
   },
   "fabric": {
     "id": "fes.fabric.embedded.bridges",
     "major": 1,
-    "minor": 1
+    "minor": 2
   },
   "constants": {
     "FesEmbeddedBridgeCall": 3254780673,
@@ -35,6 +35,8 @@
     "FesEmbeddedBridgeClosureFlags": 32767,
     "FesEmbeddedBridgeContextPart0": 4,
     "FesEmbeddedBridgeContextPart1": 5,
-    "FesEmbeddedBridgeContextTag": 1179140913
+    "FesEmbeddedBridgeContextTag": 1179140913,
+    "FesEmbeddedBridgeProbeIdentity": 6,
+    "FesEmbeddedBridgeIdentityTag": 1178945841
   }
 }

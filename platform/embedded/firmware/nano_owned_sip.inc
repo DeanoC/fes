@@ -33,6 +33,12 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
                                       request_type != NO_REQUEST, fes_nano_hps_context, r);
             goto out;
         }
+        if (x1 == FES_EMBEDDED_BRIDGE_PROBE_IDENTITY) {
+            fes_nano_identity_sip(fes_nano_platform_identity_probe(),x2,x4,
+                                   request_type != NO_REQUEST,r);
+            fes_nano_platform_identity_report();
+            goto out;
+        }
 #ifdef FES_NANO_COLD_SERIAL
         if (x1 != FES_EMBEDDED_BRIDGE_SNAPSHOT || x2 || x4) goto out;
 #endif

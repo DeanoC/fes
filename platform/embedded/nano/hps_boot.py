@@ -46,6 +46,9 @@ def prepare(project, uboot, entry, pfg, output):
     source_context=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_context')
     if source_context is not None and source_context!=hps_context.derive(project):
         raise ValueError('native HPS source context differs from the sealed FPGA project')
+    control_map=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_control')
+    if control_map is not None and control_map!=hps_context.control(project):
+        raise ValueError('native CPU control map differs from the sealed FPGA project')
     binary = pfg.parent.parent/'linux64/quartus_pfg'
     identity = 'wrapper-sha256:'+sha(pfg)+'; binary-sha256:'+sha(binary)
     if identity != pair['pfg_identity']:
@@ -110,6 +113,8 @@ def prepare(project, uboot, entry, pfg, output):
         'core_payload_unchanged': True, 'embedded_spl_identity': embedded,
         'source_context_bound': source_context is not None,
         'hps_context_sha256': hps_context.digest(source_context) if source_context is not None else None,
+        'control_probe':control_map is not None,
+        'hps_control_sha256':hps_context.digest(control_map) if control_map is not None else None,
         'trusted_boot_handoff': False, 'physical_programming_admission': False,
         'hardware_acceptance': 'not-run', 'inputs': hashes, 'commands': commands,
         'limitations': ['file composition only; no board, SD card or flash touched',

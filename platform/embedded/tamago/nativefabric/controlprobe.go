@@ -1,0 +1,96 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package nativefabric
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol"
+	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
+)
+
+type hpsControlMap struct {
+	Format              int    `json:"format"`
+	Scope               string `json:"scope"`
+	ArchitecturalLWBase uint64 `json:"architectural_lw_base"`
+	BridgeBase          uint64 `json:"bridge_base"`
+	PeripheralOffset    uint64 `json:"peripheral_offset"`
+	Span                uint64 `json:"span"`
+	CPUBase             uint64 `json:"cpu_base"`
+	HandoffSHA256       string `json:"handoff_sha256"`
+	PackageID           string `json:"package_id"`
+	BuildID             string `json:"build_id"`
+}
+
+// FPGAIdentityObservation records a secure CPU read with control reclosed.
+// It does not qualify programming, live HPS I/O or an active-device drain.
+type FPGAIdentityObservation struct {
+	Source           HPSBootObservation
+	Identity         embeddedcontrol.Identity
+	After            BridgeSnapshot
+	CPUBase          uint64
+	ControlMapSHA256 [32]byte
+}
+
+// ProbeIdentity uses the dedicated one-shot firmware operation. No physical
+// address is passed through the non-secure call. The compiled control map is
+// checked locally; firmware supplies its own immutable address and identity.
+// HPSContextVerifier deliberately remains separate from BootHandoffVerifier.
+func (v *HPSContextVerifier) ProbeIdentity(raw []byte) (FPGAIdentityObservation, error) {
+	if v == nil || len(raw) == 0 || len(raw) > 4096 {
+		return FPGAIdentityObservation{}, errors.New("native fabric: bounded compiled control map required")
+	}
+	var m hpsControlMap
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.DisallowUnknownFields()
+	if err := d.Decode(&m); err != nil {
+		return FPGAIdentityObservation{}, err
+	}
+	var extra interface{}
+	if d.Decode(&extra) != io.EOF {
+		return FPGAIdentityObservation{}, errors.New("native fabric: trailing control map")
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return FPGAIdentityObservation{}, err
+	}
+	canonical, err := json.Marshal(fields)
+	if err != nil || len(fields) != 10 || !bytes.Equal(raw, append(canonical, '\n')) ||
+		m.Format != 1 || m.Scope != "sealed-lw-identity-probe-v1" || m.ArchitecturalLWBase != 0x20000000 || m.BridgeBase != 0 ||
+		m.PeripheralOffset != uint64(v.context.PeripheralOffset) || m.Span != uint64(v.context.PeripheralSpan) ||
+		m.CPUBase != m.ArchitecturalLWBase+m.PeripheralOffset || !nonzeroDigest(m.HandoffSHA256) ||
+		m.PackageID != v.context.PackageID || m.BuildID != v.context.BuildID {
+		return FPGAIdentityObservation{}, errors.New("native fabric: control map differs from compiled HPS source")
+	}
+	source, err := v.Verify(v.Identity())
+	if err != nil {
+		return FPGAIdentityObservation{}, err
+	}
+	before := source.Bridges
+	if !before.NeverEnabled || before.Generation != 1 || before.Capabilities.FabricHandshake != FabricHandshakeAbsent {
+		return FPGAIdentityObservation{}, errors.New("native fabric: identity probe requires fresh closed cold scope")
+	}
+	r, err := v.cpu.Invoke([7]uint64{uint64(g.FesEmbeddedBridgeCall), uint64(g.FesEmbeddedBridgeProbeIdentity), before.Owner, uint64(g.FesEmbeddedBridgeCookie), before.Generation})
+	if err != nil {
+		return FPGAIdentityObservation{}, err
+	}
+	if r[0] != 0 || uint32(r[1]>>32) != g.FesEmbeddedBridgeIdentityTag || uint32(r[1]) != v.context.ControlABI {
+		return FPGAIdentityObservation{}, fmt.Errorf("native fabric: secure FPGA identity rejected, status %d", r[0])
+	}
+	id := embeddedcontrol.Identity{ABI: uint32(r[1]), Build: [4]uint32{uint32(r[3]), uint32(r[3] >> 32), uint32(r[2]), uint32(r[2] >> 32)}}
+	want, err := BuildWords(v.context.BuildID)
+	if err != nil || id.Build != want {
+		return FPGAIdentityObservation{}, errors.New("native fabric: live FPGA build differs from sealed package")
+	}
+	after, err := (&FirmwareBridges{cpu: v.cpu}).ObserveBridges()
+	if err != nil || after.Owner != before.Owner || after.Generation != before.Generation+2 ||
+		after.Capabilities != before.Capabilities || after.ResetMask != after.Capabilities.Mask ||
+		!after.MastersContained || after.NeverEnabled {
+		return FPGAIdentityObservation{}, errors.New("native fabric: FPGA identity probe lost closed ownership")
+	}
+	return FPGAIdentityObservation{source, id, after, m.CPUBase, sha256.Sum256(raw)}, nil
+}

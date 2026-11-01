@@ -190,6 +190,47 @@ class NativeHPSContextTraceTests(unittest.TestCase):
                                      storage={'bytes': 1, 'sha256': 'a'*64})
 
 
+class NativeFPGAIdentityTraceTests(unittest.TestCase):
+    expected=dict(NativeHPSContextTraceTests.expected,control_abi=0x10203040,cpu_base=0x20010400,map_sha256='d'*64)
+
+    def capture(self):
+        raw=NativeHPSContextTraceTests().capture()
+        for phase,generation,reset in (('open',1,15),('read',2,13),('close',2,13),('closed',3,15)):
+            raw+=f'NOTICE:  FES_NANO_IDENTITY phase={phase} owner={OWNER:x} generation={generation} reset={reset:x} base=20010400\r\n'
+        return raw+('FES_NATIVE_FPGA_IDENTITY PASS package_id='+'b'*64+' build_id='+'c'*32+
+                    ' abi=10203040 base=20010400 map_sha256='+'d'*64+
+                    f' owner={OWNER:x} generation=3 data_held=1 programming=unavailable\r\n')
+
+    def decode(self,raw):return trace.decode_native_boot(raw,BUILD,SEED,fpga_identity=self.expected)
+
+    def test_complete_cpu_identity_read_and_reclosed_control_remain_diagnostic(self):
+        r=self.decode(self.capture());self.assertTrue(r['complete'],r)
+        self.assertEqual(r['last_checkpoint'],'fpga_identity');self.assertFalse(r['core_load_acceptance'])
+        self.assertFalse(self.decode(self.capture().rstrip('\r\n'))['complete'])
+        self.assertFalse(trace.decode_native_boot(self.capture(),BUILD,SEED,hps_context=NativeHPSContextTraceTests.expected)['complete'])
+
+    def test_each_missing_phase_and_wrong_transition_or_identity_reject(self):
+        raw=self.capture();lines=raw.splitlines(keepends=True)
+        for row in self.decode(raw)['records']:
+            i=row['line']-1
+            self.assertFalse(self.decode(''.join(lines[:i]+lines[i+1:]))['complete'],row)
+        for old,new in (('reset=d','reset=9'),('phase=read','phase=open'),('generation=2 reset=d','generation=1 reset=d'),
+                        ('generation=3 reset=f','generation=2 reset=f'),('base=20010400','base=ff210400'),
+                        ('abi=10203040','abi=10203041'),('map_sha256='+'d'*64,'map_sha256='+'e'*64),
+                        ('generation=3 data_held=1','generation=1 data_held=1'),('data_held=1','data_held=0'),
+                        ('programming=unavailable','programming=available')):
+            with self.subTest(new=new):
+                r=self.decode(raw.replace(old,new));self.assertFalse(r['complete'],r);self.assertTrue(r['errors'])
+        self.assertFalse(self.decode(raw+'NOTICE: FES_NANO_IDENTITY_FAILURE stage=3 error=-5\n')['complete'])
+
+    def test_independent_expected_map_and_profile_are_required(self):
+        for data in ({},dict(self.expected,cpu_base=0xff210400),dict(self.expected,map_sha256='0'*64),
+                     dict(self.expected,control_abi=True)):
+            with self.subTest(data=data),self.assertRaises(ValueError):trace.decode_native_boot(b'',BUILD,SEED,fpga_identity=data)
+        with self.assertRaises(ValueError):
+            trace.decode_native_boot(b'',BUILD,SEED,fpga_identity=self.expected,hps_context=NativeHPSContextTraceTests.expected)
+
+
 class NativeSDTraceTests(unittest.TestCase):
     expected={'bytes':1098,'sha256':'a'*64}
     def capture(self):

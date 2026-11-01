@@ -207,17 +207,18 @@ def build(args):
     profile = json.loads(raw)
     start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
     expected_package_id=package_option(args.program,args.package_id,profile)
-    context=None
+    context=control_map=None
     hps_project=getattr(args,'hps_first_project',None)
-    if args.program=='bootcontext':
+    if args.program in ('bootcontext','fpgacontext'):
         if hps_project is None or raw!=(APP.parent/'nano/probe-profile.json').read_bytes():
-            raise ValueError('bootcontext requires a sealed HPS-first project and the source serial probe profile')
+            raise ValueError('context diagnostics require a sealed HPS-first project and the source serial probe profile')
         spec=importlib.util.spec_from_file_location('fes_native_hps_context',APP.parent/'nano/hps_context.py')
         hps=importlib.util.module_from_spec(spec);spec.loader.exec_module(hps)
         hps_project=hps_project.resolve(strict=True)
         context=hps.derive(hps_project)
+        if args.program=='fpgacontext':control_map=hps.control(hps_project)
     elif hps_project is not None:
-        raise ValueError('--hps-first-project requires the bootcontext diagnostic')
+        raise ValueError('--hps-first-project requires a native context diagnostic')
     if args.program == "fpga" and fpga is None:
         raise ValueError("fpga probe requires an explicit read-only service profile")
     output = args.output.resolve()
@@ -226,6 +227,7 @@ def build(args):
     output.mkdir(parents=True)
     (output / "handoff.json").write_bytes(raw)
     if context is not None:(output/'hps-context.json').write_bytes(hps.encode(context))
+    if control_map is not None:(output/'hps-control.json').write_bytes(hps.encode(control_map))
     uart_base = 0x10c02000 + uart_index * 0x100
     generated = output / "profile.go"
     generated.write_text("//go:build tamago && arm64 && de25nano\n\npackage de25nano\nconst (\n" +
@@ -288,6 +290,7 @@ def build(args):
     link_flags=f"-T {entry:#x} -R 0x1000"
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if context is not None:link_flags+=' -X main.expectedBootContext='+base64.b64encode(hps.encode(context)).decode()
+    if control_map is not None:link_flags+=' -X main.expectedControlMap='+base64.b64encode(hps.encode(control_map)).decode()
     command = [str(compiler), "build", *options, "-trimpath", "-ldflags", link_flags, "-o", str(elf), "./cmd/" + args.program]
     with (output / "build.log").open("w") as log:
         subprocess.run(command, cwd=APP, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -295,11 +298,14 @@ def build(args):
     validate_native_elf(data, start, size, entry)
     if context is not None and (hps.derive(hps_project)!=context or base64.b64encode(hps.encode(context)) not in data):
         raise ValueError('HPS source context changed or was not linked into the native image')
+    if control_map is not None and (hps.control(hps_project)!=control_map or base64.b64encode(hps.encode(control_map)) not in data):
+        raise ValueError('FPGA control map changed or was not linked into the native image')
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}:
         raise ValueError("sources changed while building")
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
               "expected_package_id":expected_package_id,
               "hps_context":context,"hps_context_sha256":hps.digest(context) if context else None,
+              "hps_control":control_map,"hps_control_sha256":hps.digest(control_map) if control_map else None,
               "hps_project":str(hps_project) if context else None,
               "classification": "host-only cross-build; not boot or hardware acceptance",
               "firmware_profile_sha256": hashlib.sha256(raw).hexdigest(), "source_sha256": sources,

@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
@@ -35,15 +36,23 @@ def inputs():
             ROOT/'sources/misteross/scripts/source_repository.py']
 
 
-def derive(project):
+def _worker(project, mode=None):
     # The FPGA producer imports private modules named seal/scripts/verify and
     # adjusts sys.path. Isolate those imports from the firmware builders, whose
     # own verify module must remain authoritative after this call returns.
-    result = subprocess.run([sys.executable, str(Path(__file__).resolve()), str(project)],
+    result = subprocess.run([sys.executable, str(Path(__file__).resolve()), str(project), *([mode] if mode else [])],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
     if result.returncode:
         raise ValueError('sealed HPS context verification failed: '+result.stderr.decode(errors='replace')[-4096:])
     return json.loads(result.stdout)
+
+
+def derive(project):
+    return _worker(project)
+
+
+def control(project):
+    return _worker(project, 'control')
 
 
 def _derive(project):
@@ -81,21 +90,78 @@ def _derive(project):
     }
 
 
+def _control(project):
+    context=_derive(project)
+    hps=Path(project).absolute()/'board/hps'
+    generation=json.loads((hps/'generation.json').read_text())
+    build=json.loads((hps/'build.json').read_text())
+    name=generation['top_system_handoff']
+    if name!='qsys_top/qsys_top.sopcinfo':
+        raise ValueError('unexpected top-level FPGA address handoff')
+    path=hps/'project'/name
+    if any(p.is_symlink() for p in (path,*path.parents)) or path.stat().st_size>64<<20:
+        raise ValueError('private bounded FPGA address handoff required')
+    raw=path.read_bytes();sha=hashlib.sha256(raw).hexdigest()
+    if sha!=generation['sha256'] or sha!=build['generated_handoff_and_sdc_sha256'][name]:
+        raise ValueError('FPGA address handoff differs from compiler/generator receipts')
+    connections=list(ET.fromstring(raw).iter('connection'))
+    def parameters(start,end):
+        found=[c for c in connections if c.get('kind')=='avalon' and c.get('start')==start and c.get('end')==end]
+        if len(found)!=1:raise ValueError('ambiguous/missing FPGA control route')
+        values={}
+        for p in found[0].findall('parameter'):
+            key=p.get('name')
+            if key in values:raise ValueError('duplicate FPGA connection parameter')
+            values[key]=(p.findtext('value') or '').strip()
+        return values
+    lw=parameters('subsys_hps_agilex_hps.lwhps2fpga','subsys_periph_pb_cpu_0.s0')
+    endpoint=parameters('subsys_periph_pb_cpu_0.m0','subsys_periph_fes_embedded.avs')
+    bridge=int(lw['baseAddress'],0);offset=int(endpoint['baseAddress'],0)
+    slaves=list(ET.fromstring(lw['addressMapSysInfo']).iter('slave'))
+    matches=[s for s in slaves if s.get('name')=='subsys_periph.fes_embedded.avs']
+    if len(matches)!=1:raise ValueError('ambiguous/missing FPGA endpoint address')
+    slave=matches[0];start=int(slave.get('start'),0);end=int(slave.get('end'),0)
+    if (bridge!=0 or offset!=context['peripheral_offset'] or start!=offset or
+            end-start!=context['peripheral_span'] or slave.get('datawidth')!='32'):
+        raise ValueError('FPGA control route differs from the sealed endpoint')
+    for other in slaves:
+        if other is not slave and int(other.get('start'),0)<end and start<int(other.get('end'),0):
+            raise ValueError('overlapping FPGA control route')
+    # Altera Agilex 5 GSRD, MPU lightweight HPS-to-FPGA address map:
+    # https://altera-fpga.github.io/rel-25.1/embedded-designs/agilex-5/e-series/premium/gsrd/ug-gsrd-agx5e-premium/#lightweight-hps-to-fpga-address-map
+    base=0x20000000
+    return {'format':1,'scope':'sealed-lw-identity-probe-v1','architectural_lw_base':base,
+            'bridge_base':bridge,'peripheral_offset':offset,'span':end-start,'cpu_base':base+bridge+offset,
+            'handoff_sha256':sha,'package_id':context['package_id'],'build_id':context['build_id']}
+
+
 def checked(record, program_key='program'):
     keys = ('hps_context', 'hps_context_sha256', 'hps_project')
     if all(record.get(key) is None for key in keys):
-        if record.get(program_key) == 'bootcontext':
-            raise ValueError('native bootcontext image is missing its sealed HPS context')
+        if record.get(program_key) in ('bootcontext','fpgacontext'):
+            raise ValueError('native context image is missing its sealed HPS context')
         return None
-    if any(record.get(key) is None for key in keys) or record.get(program_key) != 'bootcontext':
-        raise ValueError('HPS source context requires the dedicated native bootcontext image')
+    if any(record.get(key) is None for key in keys) or record.get(program_key) not in ('bootcontext','fpgacontext'):
+        raise ValueError('HPS source context requires a dedicated native context image')
     expected = derive(record['hps_project'])
     if record['hps_context'] != expected or record['hps_context_sha256'] != digest(expected):
         raise ValueError('native HPS context differs from the sealed FPGA source')
     return expected
 
 
+def checked_control(record, program_key='program'):
+    keys=('hps_control','hps_control_sha256')
+    if all(record.get(key) is None for key in keys) and record.get(program_key)!='fpgacontext':return None
+    if record.get(program_key)!='fpgacontext' or any(record.get(key) is None for key in keys):
+        raise ValueError('dedicated fpgacontext image and sealed control map required')
+    checked(record,program_key)
+    expected=control(record['hps_project'])
+    if record['hps_control']!=expected or record['hps_control_sha256']!=digest(expected):
+        raise ValueError('native control map differs from the compiled FPGA hierarchy')
+    return expected
+
+
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        raise SystemExit('usage: hps_context.py SEALED_PROJECT')
-    sys.stdout.buffer.write(encode(_derive(sys.argv[1])))
+    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2]!='control':
+        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control]')
+    sys.stdout.buffer.write(encode(_control(sys.argv[1]) if len(sys.argv)==3 else _derive(sys.argv[1])))

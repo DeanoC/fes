@@ -2,7 +2,7 @@ schema: mister-packages.v1
 kind: fabric
 id: fes.fabric.embedded.bridges
 major: 1
-minor: 1
+minor: 2
 description: >-
   Experimental owned Nano firmware bridge channel. A private call number and
   opt-in cookie select this channel. The number is unused in the inspected pin, not an
@@ -18,6 +18,8 @@ constants:
   - {name: FesEmbeddedBridgeContextPart0, value: 4}
   - {name: FesEmbeddedBridgeContextPart1, value: 5}
   - {name: FesEmbeddedBridgeContextTag, value: 0x46484331}
+  - {name: FesEmbeddedBridgeProbeIdentity, value: 6}
+  - {name: FesEmbeddedBridgeIdentityTag, value: 0x46454931}
   - {name: FesEmbeddedBridgeRequestFabric, value: 0x100}
   - {name: FesEmbeddedBridgeRequestHeld, value: 0x200}
   - {name: FesEmbeddedBridgeNotReady, value: 5}

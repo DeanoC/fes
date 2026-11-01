@@ -37,6 +37,13 @@ descriptor with a read-only secure-firmware digest under the same closed
 owner/generation. It requires `--hps-first-project` and the exact source serial
 probe profile. The [matched build](../nano/README.md#source-context-readback)
 does not grant physical core admission or implement `BootHandoffVerifier`.
+The separate `fpgacontext` program binds the compiler-derived CPU control map
+as well, requests one secure identity read with data held, and checks that
+control has closed again before reporting the observed ABI/build. It uses
+the same required sealed project/profile and matched boot chain. See the
+[CPU identity diagnostic](../nano/README.md#cpu-fpga-identity-diagnostic) for
+the exact containment and failure contract; physical runtime admission remains
+unavailable.
 The QEMU `fabric` diagnostic also models the dedicated configuration protocol
 under a hypothetical held-bridge firmware contract. Its generation-bound drain,
 buffer ownership and identity-before-release checks do not enable Nano programming.

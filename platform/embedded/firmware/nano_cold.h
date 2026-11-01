@@ -68,6 +68,10 @@ struct fes_nano_cold {
     struct fes_nano_cold_io io;
     struct fes_nano_cold_record record;
     unsigned attempted, valid, failed;
+    /* Secure read-only control transaction only. The trusted raw driver arms
+     * the expected mask before its write, then owns() verifies the readback.
+     * No non-secure operation can supply this field or open a data path. */
+    unsigned control_expected;
     struct fes_nano_cold_sample before;
     unsigned finish_stage;
     uint32_t sd_clock_before, reset_readback;
@@ -80,6 +84,8 @@ int fes_nano_cold_finish(struct fes_nano_cold *, unsigned entry_verified,
 int fes_nano_cold_consume(struct fes_nano_cold *, const struct fes_nano_cold_record *,
                            struct fes_nano_cold_io, const uint8_t chain[32], uint64_t owner);
 int fes_nano_cold_owns(void *, uint64_t owner, uint64_t epoch);
+int fes_nano_cold_control_target(struct fes_nano_cold *, uint64_t owner,
+                                  uint64_t epoch, unsigned control_open);
 /* Trusted SD platform only: validate the original boot with exactly SD's
  * controller reset released when active=1. This never grants bridge access
  * or changes the strict all-master semantics of cold_owns. */

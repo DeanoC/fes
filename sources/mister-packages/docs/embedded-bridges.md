@@ -1,6 +1,6 @@
 # Experimental owned firmware bridge channel
 
-`fes.fabric.embedded.bridges` 1.1 supplies generated C/Go constants for the
+`fes.fabric.embedded.bridges` 1.2 supplies generated C/Go constants for the
 Linux-free Nano firmware experiment. It adds no programming profile, package
 ABI, register mapping or production compatibility entry. The FPGA endpoint
 contract and its generated inputs are unchanged.
@@ -51,7 +51,30 @@ The source context binds the sealed HPS-first FPGA package before native SPL
 construction, avoiding a self-referential SPL hash. Its digest is compiled
 into the matched secure firmware and native image. It is not live FPGA
 identity, measured boot, CPU mapping qualification or programming admission.
-Only the dedicated contained `bootcontext` diagnostic selects it. The default
-provider returns NOT_READY, and the cold dispatcher still denies all bridge
+The contained `bootcontext` and `fpgacontext` diagnostics select it. The default
+provider returns NOT_READY, and the cold dispatcher still denies generic bridge
 mutations and configuration. The fabric warning capability describes the
 optional warning handshake, not the presence of a configured FPGA core.
+
+Operation 6 is a separate one-shot secure identity probe, available only in a
+matched `fpgacontext` cold chain. Its fixed CPU aperture, ABI and build ID come
+from the sealed project's compiler handoff and are compiled into secure
+firmware. The request contains no address or FPGA write. It requires the
+current owner, generation 1, never-enabled evidence, contained masters and
+closed bridges. Under the owned lock it opens only control (reset mask `0xd`,
+generation 2), reads two complete identity/idle snapshots, compares them with
+the compiled target, and closes control (mask `0xf`, generation 3). Data
+bridges remain reset and secondary CPU release remains denied throughout.
+The pinned platform requires EL3 translation and data cache disabled; an
+unsupported CPU context rejects without changing that context.
+
+On success `x0=0`, `x1=0x46454931 << 32 | ABI`, and `x2/x3` contain the full
+128-bit observed build ID, each packed most-significant word first. The
+reader checks a final owned Snapshot at generation 3. Failure returns no
+identity words, attempts to assert only control reset, and retires this boot's
+probe and ownership. It preserves both the first error and cleanup result and
+never retries the read. Invalid requests do not consume a valid probe.
+This operation supplies no active data drain, HPS I/O measurement, SDM
+programming permission or production core admission. Ordinary cold builds
+have no probe provider; operations 1/2/3 remain unavailable from non-secure
+code in every cold diagnostic.

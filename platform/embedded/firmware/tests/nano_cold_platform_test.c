@@ -14,7 +14,10 @@ void fes_nano_cold_capture(uintptr_t,uint64_t);
 static uint32_t per0=FES_NANO_MASTER_RESET,bridge=15;
 static uint32_t power[4]={0x90000021,0,0,0},pch_request=0x23,pch_status=0x23,boot_config=0x0070021e;
 static unsigned release_locked=1,current_el=12;
-static uint64_t mpidr;
+static uint64_t mpidr,sctlr;
+#if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
+static unsigned fpga_reads,bad_magic,bad_build,flip_cache,lose_data,bad_open,bad_close;
+#endif
 static unsigned invalid_sd_clock,invalid_sd_route,sd_mmio,clock_reads;
 int fes_nano_cold_cpu_release_locked(void) { return release_locked; }
 struct fes_nano_bridges fes_nano_owned_bridges;
@@ -46,6 +49,21 @@ void fes_nano_platform_sd_report(void) {}
 #include "nano_owned_sip.inc"
 uint32_t mmio_read_32(uintptr_t a)
 {
+#if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
+    if(a>=FES_NANO_CONTROL_BASE && a<FES_NANO_CONTROL_BASE+0x100) {
+        assert(bridge==FES_NANO_BRIDGES_DATA);fpga_reads++;
+        uint32_t offset=(uint32_t)(a-FES_NANO_CONTROL_BASE),value=0;
+        static const uint32_t build[4]=FES_NANO_CONTROL_BUILD;
+        if(offset==FES_EMBEDDED_REG_MAGIC)value=FES_EMBEDDED_MAGIC^(bad_magic?1:0);
+        else if(offset==FES_EMBEDDED_REG_VERSION)value=FES_EMBEDDED_VERSION;
+        else if(offset==FES_EMBEDDED_REG_ABI)value=FES_NANO_CONTROL_ABI;
+        else if(offset>=FES_EMBEDDED_REG_BUILD0 && offset<=FES_EMBEDDED_REG_BUILD3)
+            value=build[(offset-FES_EMBEDDED_REG_BUILD0)/4]^(bad_build?1:0);
+        if(flip_cache && fpga_reads==8)sctlr=4;
+        if(lose_data && fpga_reads==15)bridge&=~4U;
+        return value;
+    }
+#endif
     if(a>=FES_NANO_SD_CLKMGR && a<FES_NANO_SD_CLKMGR+0x100) {
         clock_reads++;
         switch(a-FES_NANO_SD_CLKMGR) {
@@ -75,16 +93,34 @@ uint32_t mmio_read_32(uintptr_t a)
     }
 }
 uint16_t mmio_read_16(uintptr_t a) { (void)a;assert(0);return 0; }
-void mmio_write_32(uintptr_t a,uint32_t v) { (void)a;(void)v;assert(0); }
+void mmio_write_32(uintptr_t a,uint32_t v) {
+#if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
+    assert(a==FES_NANO_COLD_RSTMGR+0x2c && (v&13U)==(bridge&13U));bridge=v;
+#else
+    (void)a;(void)v;assert(0);
+#endif
+}
 void mmio_write_16(uintptr_t a,uint16_t v) { (void)a;(void)v;assert(0); }
 uint64_t read_current_el(void) { return current_el; }
 uint64_t read_mpidr(void) { return mpidr; }
+uint64_t read_sctlr_el3(void) { return sctlr; }
 void dsbsy(void) {}
 void udelay(unsigned n) { (void)n;assert(0); }
 static int reset_read(void *p,uint32_t *v) { (void)p;*v=bridge;return 0; }
 static int per_read(void *p,uint32_t *v) { (void)p;*v=per0;return 0; }
 static int per_assert(void *p,uint32_t v) { (void)p;(void)v;assert(0);return -1; }
 static int driver(void *p,uint32_t m,unsigned f) { (void)p;(void)m;(void)f;return -1; }
+#if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
+static int control_enable(void *p,uint32_t m,unsigned f) {
+    (void)p;assert(m==2 && f==1);if(fes_nano_platform_control_target(1))return -1;
+    bridge&=~2U;return bad_open?-1:0;
+}
+static int control_disable(void *p,uint32_t m,unsigned f) {
+    (void)p;assert(m==2 && f==1);if(fes_nano_platform_control_target(0))return -1;
+    if(bad_close)return -1;
+    bridge|=2U;return 0;
+}
+#endif
 static void barrier(void *p) { (void)p; }
 int main(int argc,char **argv)
 {
@@ -120,6 +156,9 @@ int main(int argc,char **argv)
     struct fes_nano_boot boot={0};struct fes_nano_bridges b={0};
     masters.read_per0=per_read;masters.assert_per0=per_assert;masters.barrier=barrier;masters.wait=barrier;
     struct fes_nano_bridge_ops raw={0};raw.read_reset=reset_read;raw.disable=raw.enable=driver;
+#if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
+    raw.enable=control_enable;raw.disable=control_disable;
+#endif
     assert(!fes_nano_boot_accept(&boot,&b,&record,&policy,masters,raw));
     uint64_t reply[4];fes_nano_bridge_sip(&b,0,0,0,0,reply);
     assert(reply[0]==0 && (uint32_t)reply[1]==0xdf && reply[2]==record.owner && reply[3]==1);
@@ -170,6 +209,37 @@ int main(int argc,char **argv)
     }
     const uint32_t commands[]={INTEL_SIP_SMC_FPGA_CONFIG_START,INTEL_SIP_SMC_FPGA_CONFIG_WRITE,INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE,INTEL_SIP_SMC_FPGA_CONFIG_ISDONE};
     for(unsigned i=0;i<4;i++) {fes_nano_owned_call(commands[i],0,0,0,0,reply);assert(reply[0]==2 && !engine_calls);}
+#if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
+    if(mutation==22)sctlr=1;
+    if(mutation==29)sctlr=4;
+    int setup=fes_nano_platform_identity_setup();
+    if(mutation==22 || mutation==29
+#ifndef FES_TEST_HPS_CONTEXT
+       || 1
+#endif
+       ) {
+        assert(setup<0 && !fpga_reads && bridge==15);
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(reply[0]==4 && !fpga_reads && bridge==15);return 0;
+    }
+    assert(setup==1);
+    bad_magic=mutation==23;bad_build=mutation==24;flip_cache=mutation==25;lose_data=mutation==26;
+    bad_open=mutation==27;bad_close=mutation==28;
+    fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+    if(mutation>=23) {
+        assert(reply[0]==4 && !reply[2] && !reply[3] && (bridge&2U) && !engine_calls);
+        assert(fes_nano_owned_bridges.failed && masters.owns(masters.context,record.owner,record.epoch)!=1);
+        unsigned reads=fpga_reads;
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(reply[0]==4 && reads==fpga_reads);return 0;
+    }
+    assert(!reply[0] && reply[1]==((uint64_t)FES_EMBEDDED_BRIDGE_IDENTITY_TAG<<32|FES_NANO_CONTROL_ABI));
+    assert(reply[2]==0x778899aabbccddeeULL && reply[3]==0x0011223344556677ULL);
+    assert(bridge==15 && fpga_reads==30 && fes_nano_owned_bridges.state.generation==3 && !engine_calls);
+#else
+    fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+    assert(reply[0]==FES_EMBEDDED_BRIDGE_NOT_READY && !reply[2] && !reply[3]);
+#endif
     per0&=~0x80U;assert(masters.quiesce(masters.context,FES_NANO_PRODUCERS_ALL)<0);
     per0|=0x80U;assert(masters.owns(masters.context,record.owner,record.epoch)!=1);
     assert(fes_nano_platform_boot_record(&record,&policy,&masters)<0);
