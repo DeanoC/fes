@@ -156,24 +156,28 @@ def base_contract(target, executables, board='de10-nano'):
             'base_contract': 'fes-kit-base-v1-' + digest, 'interfaces': INTERFACES}
 
 
-def menu_requirements(target):
+def menu_requirements(target, board='de10-nano'):
     """Interfaces the image's sealed menu package declares, as menu.<id> keys."""
     selection = tomllib.loads((target / MENU_SELECTION).read_text())
     package = selection.get('package_id')
     if not isinstance(package, str) or not re.fullmatch('[0-9a-f]{64}', package):
         raise ValueError('invalid menu package selection')
     return menu_package_requirements(
-        target / 'usr/share/mister-runtime/core-packages' / package / 'manifest.toml')
+        target / 'usr/share/mister-runtime/core-packages' / package / 'manifest.toml', board)
 
 
-def menu_package_requirements(manifest):
+def menu_package_requirements(manifest, board=None):
     """Interfaces a menu package manifest declares, as menu.<id> keys.
 
     The runtime counts every declared interface when it admits the menu, so
     optional declarations are required of the software too. Bootstrap artifact
     selection (scripts/image_artifacts.py) applies the same check.
     """
-    interfaces = tomllib.loads(manifest.read_text()).get('interfaces')
+    fields = tomllib.loads(manifest.read_text())
+    if board is not None:
+        if board not in TARGET_ABIS or fields.get('target', {}).get('platform') != board.replace('-', '_'):
+            raise ValueError('menu package target differs from the selected software board')
+    interfaces = fields.get('interfaces')
     if not isinstance(interfaces, list) or not interfaces:
         raise ValueError('menu package declares no interfaces')
     requires = {}
@@ -228,9 +232,9 @@ def assemble(target, fogcast, runtime_revision, window_driver=None, board='de10-
     for p in inputs:
         if p.is_symlink() or not p.is_file():
             raise ValueError(f'fresh regular executable required: {p}')
-    contract = base_contract(target, inputs, board)
     # The image records what its sealed menu needs; its own runtime must admit it.
-    requires = menu_requirements(target)
+    requires = menu_requirements(target, board)
+    contract = base_contract(target, inputs, board)
     provides = runtime_menu_interfaces(target / 'usr/sbin/mister-runtime')
     if missing := unmet(provides, requires):
         raise ValueError('factory runtime does not accept the menu package interfaces: ' + ', '.join(missing))
