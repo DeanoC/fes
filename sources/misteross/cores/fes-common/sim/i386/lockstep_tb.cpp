@@ -227,6 +227,9 @@ uint32_t physical(uint32_t linear, bool a20m) {
     if (linear >= 0xffff0000u) return 0xf0000u | (linear & 0xffffu);
     return a20m ? linear & ~(1u << 20) : linear;
 }
+// The oracle's physical address as the CPU's map sees it: FFFF0000h-FFFFFFFFh
+// is the F0000h shadow (fes_i386_pkg::phys), which a flat segment reaches.
+uint32_t alias(uint32_t paddr) { return paddr >= 0xffff0000u ? 0xf0000u | (paddr & 0xffffu) : paddr; }
 
 // The oracle's memory: 16 MiB of RAM, its I/O space and its PIC. With the
 // MMIO window on, its bytes are reached through read and write, logged.
@@ -240,13 +243,14 @@ public:
     std::vector<MmioAccess> mmio_log;
     uint64_t step = 0;
     uint8_t *page(uint32_t paddr, bool write) override {
+        paddr = alias(paddr);
         if (mmio_window && (in_window(paddr) || in_hole(paddr) || in_rom(paddr))) return nullptr;
         return paddr < RAM_BYTES ? &ram[paddr & ~0xfffu] : nullptr;
     }
     // A write to read-only RAM or a hole is dropped; a hole reads FFh.
     void read(uint32_t paddr, unsigned length, uint8_t *data) override {
         for (unsigned i = 0; i < length; ++i) {
-            const uint32_t at = paddr + i;
+            const uint32_t at = alias(paddr + i);
             data[i] = mmio_window && in_window(at) ? device_read(at, ram[at])
                     : mmio_window && in_rom(at)    ? ram[at]
                                                    : 0xff;
@@ -256,7 +260,7 @@ public:
     }
     void write(uint32_t paddr, unsigned length, const uint8_t *data) override {
         for (unsigned i = 0; i < length; ++i) {
-            const uint32_t at = paddr + i;
+            const uint32_t at = alias(paddr + i);
             if (!(mmio_window && in_window(at))) continue;
             ram[at] = data[i];
             mmio_log.push_back({true, at, data[i], step});
@@ -1329,6 +1333,12 @@ bool branch_taken(const uint8_t *code, const State &s, bool code32, bool &taken)
              op == 0xca || op == 0xcb || op == 0xcc || op == 0xcd || op == 0xce || op == 0xcf)
         taken = true;
     else if (op == 0xff && ((code[i + 1] >> 3) & 7) >= 2 && ((code[i + 1] >> 3) & 7) <= 5) taken = true;
+    // CLTS, MOV CRn, LGDT, LIDT and LMSW write at WB with a jump to the next
+    // instruction.
+    else if (op == 0x0f && (code[i + 1] == 0x06 || code[i + 1] == 0x22 ||
+                            (code[i + 1] == 0x01 && (((code[i + 2] >> 3) & 7) == 2 || ((code[i + 2] >> 3) & 7) == 3 ||
+                                                     ((code[i + 2] >> 3) & 7) == 6))))
+        taken = true;
     else if (op == 0xe2) taken = count != 1;
     else if (op == 0xe1) taken = count != 1 && zf;
     else if (op == 0xe0) taken = count != 1 && !zf;
@@ -1623,7 +1633,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
 
         // Every byte the oracle writes is cleared after the run.
         for (const auto &w : result.writes)
-            for (unsigned i = 0; i < w.length; ++i) rtl.written.insert(w.physical + i);
+            for (unsigned i = 0; i < w.length; ++i) rtl.written.insert(alias(w.physical + i));
         // An injected interrupt through a vector entry the program rewrote,
         // or to a handler it wrote over, runs data from here: stop. (Bochs's
         // step also takes a fault of what it fetches there.)
@@ -1660,7 +1670,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             const size_t own = first ? first->writes_before : result.writes.size();
             std::set<uint32_t> own_writes;
             for (size_t k = 0; k < own && k < result.writes.size(); ++k)
-                for (unsigned i = 0; i < result.writes[k].length; ++i) own_writes.insert(result.writes[k].physical + i);
+                for (unsigned i = 0; i < result.writes[k].length; ++i) own_writes.insert(alias(result.writes[k].physical + i));
             for (uint32_t address : rtl.step_writes)
                 if (!own_writes.count(address)) out.add(at + "pm-fault-write", address, 0);
             if (own == 0) compare(before, rtl.state(), skip, at, out);
@@ -1694,7 +1704,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 std::set<uint32_t> own_writes, later_writes;
                 for (size_t k = 0; k < result.writes.size(); ++k)
                     for (unsigned i = 0; i < result.writes[k].length; ++i)
-                        (k < own ? own_writes : later_writes).insert(result.writes[k].physical + i);
+                        (k < own ? own_writes : later_writes).insert(alias(result.writes[k].physical + i));
                 for (uint32_t address : rtl.step_writes) {
                     if (!own_writes.count(address))
                         out.add(at + "fault-write", address, address < RAM_BYTES ? rtl.ram[address] : 0);
@@ -1753,8 +1763,15 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             const MemUse use = mem_use(code);
             const bool xchg = op == 0x86 || op == 0x87 || (op >= 0x91 && op <= 0x97);
             const bool muldiv = is_muldiv(code);
+            // Group 7 and the CR moves run several uops or wait on T1, and
+            // so do protected-mode segment loads and far jumps (microcode).
+            const bool system = (op == 0x0f && (code[prefixes + 1] == 0x01 || code[prefixes + 1] == 0x20 ||
+                                                code[prefixes + 1] == 0x22))
+                             || ((before.cr0 & 1) && (loads_segment(code) || op == 0xea ||
+                                                      (op == 0xff && ((code[prefixes + 1] >> 3) & 7) == 5)));
             if (retired_before) {
                 auto &gaps = branch_before ? (taken_before ? summary.gap_after_taken : summary.gap_after_not_taken)
+                           : system ? summary.gap_several
                            : io_before ? summary.gap_after_io
                            : since_string < 6 ? summary.gap_after_string
                            : prefixes > 1 ? summary.gap_prefixed
@@ -1799,7 +1816,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             // leaves memory to the corpus: then the oracle takes the RTL's.
             std::set<uint32_t> oracle_writes;
             for (const auto &w : result.writes)
-                for (unsigned i = 0; i < w.length; ++i) oracle_writes.insert(w.physical + i);
+                for (unsigned i = 0; i < w.length; ++i) oracle_writes.insert(alias(w.physical + i));
             if (skip.has("ram")) {
                 std::set<uint32_t> both = oracle_writes;
                 both.insert(rtl.step_writes.begin(), rtl.step_writes.end());
