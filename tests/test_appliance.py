@@ -27,6 +27,14 @@ def arm_elf():
     return data
 
 
+def aarch64_elf():
+    data = bytearray(256)
+    data[:16] = b'\x7fELF\x02\x01\x01' + bytes(9)
+    struct.pack_into('<HHIQQQIHHHHHH', data, 16, 2, 183, 1, 0x400080, 64, 0, 0, 64, 56, 1, 0, 0, 0)
+    struct.pack_into('<IIQQQQQQ', data, 64, 1, 5, 0, 0x400000, 0x400000, len(data), len(data), 4096)
+    return data
+
+
 def provenance(rootfs, kernel):
     return appliance.ReleaseProvenance('a'*40, 'b'*40, 'c'*40, appliance.digest(rootfs), appliance.digest(kernel), 'd'*64, 'e'*64, 'f'*64)
 
@@ -193,6 +201,20 @@ class ReleaseTests(unittest.TestCase):
         for offset,value in ((18,62),(52,3),(52,2)):
             data=arm_elf();struct.pack_into('<H' if offset==18 else '<I',data,offset,value);binary.write_bytes(data)
             with self.assertRaises(ValueError):appliance.validate_static_arm(binary)
+
+    def test_aarch64_static_validation_requires_explicit_target_and_closed_segments(self):
+        binary = self.root / 'helper'; binary.write_bytes(aarch64_elf())
+        self.assertEqual(appliance.validate_static_arm(binary, 'aarch64'), appliance.digest(binary))
+        with self.assertRaises(ValueError):
+            appliance.validate_static_arm(binary)
+        for offset, layout, value in [(18, '<H', 62), (64, '<I', 2), (64, '<I', 3),
+                                       (24, '<Q', 0x500000), (96, '<Q', 1024), (48, '<I', 1)]:
+            data = aarch64_elf(); struct.pack_into(layout, data, offset, value); binary.write_bytes(data)
+            with self.subTest(offset=offset, value=value), self.assertRaises(ValueError):
+                appliance.validate_static_arm(binary, 'aarch64')
+        binary.write_bytes(arm_elf())
+        with self.assertRaises(ValueError):
+            appliance.validate_static_arm(binary, 'aarch64')
 
     def test_bootstrap_source_may_differ_from_packaged_software_revision(self):
         software=provenance(self.rootfs,self.kernel)

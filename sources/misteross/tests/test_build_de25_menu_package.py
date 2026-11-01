@@ -5,10 +5,12 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 import tomllib
 import unittest
+from unittest import mock
 
 from scripts import build_de25_menu_package as producer
 from scripts.core_package import PackageError, encode_manifest
@@ -19,7 +21,7 @@ class DE25MenuPackageTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix='de25-menu-package-test-')
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name) / 'fit'
         self.reports = self.root / 'combined/hps/project/output_files'
         self.reports.mkdir(parents=True)
         self.fixture = json.loads(gzip.decompress((Path(__file__).parent /
@@ -85,6 +87,134 @@ class DE25MenuPackageTests(unittest.TestCase):
                 self.write_reports(summary=changed)
                 with self.assertRaises(producer.BuildError):
                     producer.timing_evidence(self.root)
+
+    def async_reports(self, directory, name='de25_menu_async_inputs.json.gz'):
+        fixture = json.loads(gzip.decompress((Path(__file__).parent /
+            'fixtures' / name).read_bytes()))
+        directory.mkdir(parents=True, exist_ok=True)
+        for name, text in fixture.items():
+            (directory / name).write_text(text)
+        return fixture
+
+    def prepare_async_fit(self):
+        revision, captured, identities, execution = self.prepare_repository()
+        record = producer.create_build_record(self.root, 'https://github.com/DeanoC/fes', revision,
+                                               identities, execution, captured)
+        (self.root.parent / 'build-inputs.json').write_bytes(record)
+        hps = self.root / 'combined/hps'
+        (hps / 'inputs.json').write_text(json.dumps({'fes_revision': revision,
+            'scanout': {'build_id': build_identity(record)}}))
+        (hps / 'generation.json').write_text('{}')
+        (hps / 'linux-boot.core.rbf').write_bytes(b'fitted RBF fixture')
+        (hps / 'project/golden_top.qsf').write_text('fitted project fixture')
+        database = hps / 'project/qdb/final.cdb'
+        database.parent.mkdir()
+        database.write_bytes(b'fitted database fixture')
+        return hps
+
+    def collect_async_fixture(self):
+        def report(command, **kwargs):
+            self.assertEqual(kwargs['timeout'], 240)
+            self.assertTrue(kwargs['check'])
+            self.assertNotEqual(Path(command[-2]), self.root / 'combined/hps/project')
+            self.assertTrue((Path(command[-2]) / 'qdb/final.cdb').is_file())
+            self.async_reports(Path(command[-1]))
+        with mock.patch.object(producer.async_inputs.subprocess, 'run', side_effect=report):
+            return producer.async_inputs.collect(self.root, Path('/usr/bin/python3'))
+
+    def test_actual_fitted_input_reports_require_the_reviewed_topology_timing_and_mtbf(self):
+        directory = self.root.parent / 'reports'
+        self.async_reports(directory)
+        proof = producer.async_inputs.review_reports(directory)
+        self.assertEqual(set(proof), {'HDMI_I2C_SDA', 'HDMI_TX_INT'})
+        self.assertEqual(proof['HDMI_I2C_SDA']['timing']['hold']['slack_ns'], '0.102')
+        self.assertEqual(proof['HDMI_TX_INT']['modeled_worst_case_mtbf_years'], 'Greater than 1 Billion')
+        mutations = [
+            ('inventory.tsv', 'HDMI_I2C_SDA\tinput-fanout\tfes_video_inst|hdmi_sda_sync[0]',
+             'HDMI_I2C_SDA\tinput-fanout\tfes_video_inst|hdmi_sda_sync[0],unreviewed_consumer'),
+            ('inventory.tsv', 'HDMI_TX_INT\tstage0-fanout\tfes_video_inst|hdmi_int_sync[1]',
+             'HDMI_TX_INT\tstage0-fanout\tunreviewed_consumer'),
+            ('inventory.tsv', 'fes_video_inst|hdmi_config|u0|ACK3', 'other_ack'),
+            ('inventory.tsv', 'fes_video_inst|hdmi_config|LUT_INDEX[5]', 'other_state'),
+            ('inventory.tsv', 'FF_X74_Y10_N28', 'FF_X75_Y10_N28'),
+            ('hdmi_sda_sync-setup.rpt', '; 19.590 ', '; -0.001 '),
+            ('hdmi_sda_sync-hold.rpt', '; 0.102 ', '; NaN '),
+            ('hdmi_int_sync-setup.rpt', 'No SDC Exception on Path', 'False Path'),
+            ('hdmi_int_sync-hold.rpt', 'Snapshot:\n    final', 'Snapshot:\n    synthesized'),
+            ('metastability.rpt', '; Yes ', '; No '),
+            ('metastability.rpt', 'Greater than 1 Billion', '1000000'),
+            ('metastability.rpt', '; 6.25 ', '; 0.01 '),
+            ('metastability.rpt', '; 50.0 ', '; 25.0 '),
+            ('metastability.rpt', 'The MTBF calculation used a default data toggle rate', 'Manual toggle rate'),
+        ]
+        for name, before, after in mutations:
+            with self.subTest(report=name, mutation=after):
+                original = self.async_reports(directory)[name]
+                self.assertIn(before, original)
+                (directory / name).write_text(original.replace(before, after))
+                with self.assertRaises(producer.BuildError):
+                    producer.async_inputs.review_reports(directory)
+
+    def test_review_preserves_raw_failures_and_blocks_other_rules_and_waivers(self):
+        self.prepare_async_fit()
+        review = self.collect_async_fixture()
+        original = producer.timing_evidence(self.root, async_review=review)
+        self.assertEqual(original['failed_rules'], 4)
+        self.assertEqual(original['unreviewed_failed_rules'], 3)
+        self.assertEqual(original['reviewed_findings'], [{'id': 'TMC-20011', 'violations': 2,
+            'ports': ['HDMI_I2C_SDA', 'HDMI_TX_INT']}])
+        self.assertFalse(original['package_timing_admission'])
+        # A synthetic zero-other-finding report tests the admission decision;
+        # it is never used as compiler or package evidence.
+        raw = self.fixture['golden_top.tq.drc.signoff.rpt']
+        raw_input = next(s for s in re.split(r'(?m)^Status:', raw)[1:] if '; TMC-20011 - ' in s)
+        sections = re.split(r'(?m)^Status:', self.passing_signoff())
+        text = 'Status:'.join(raw_input if i and '; TMC-20011 - ' in s else s for i, s in enumerate(sections))
+        text = text.replace('0 of 85 Rules Failed', '1 of 85 Rules Failed')
+        text = re.sub(r'(?m)^(; TMC-20011 - [^;]+; High\s*;)\s*0\s*;', r'\1 2 ;', text)
+        self.write_reports(signoff=text)
+        # Regenerate the test review because the raw signoff binding changed.
+        shutil.rmtree(review)
+        review = self.collect_async_fixture()
+        self.assertTrue(producer.timing_evidence(self.root, async_review=review)['package_timing_admission'])
+        self.assertFalse(producer.timing_evidence(self.root)['package_timing_admission'])
+        for changed in (text.replace('; HDMI_TX_INT ', '; OTHER_INPUT '),
+                        text.replace('No input delay was set on the input port.', 'Different finding.'),
+                        re.sub(r'(?m)^(; TMC-20012 - [^;]+; High\s*;\s*0\s*;)\s*0\s*;', r'\1 1 ;', text)):
+            self.write_reports(signoff=changed)
+            shutil.rmtree(review)
+            review = self.collect_async_fixture()
+            try:
+                evidence = producer.timing_evidence(self.root, async_review=review)
+            except producer.BuildError:
+                continue
+            self.assertFalse(evidence['package_timing_admission'])
+
+    def test_actual_fit_with_ack_copies_keeps_only_the_reviewed_logical_consumers(self):
+        directory = self.root.parent / 'reports'
+        fixture = self.async_reports(directory, 'de25_menu_async_inputs_ack_copies.json.gz')
+        proof = producer.async_inputs.review_reports(directory)
+        self.assertIn('fes_video_inst|hdmi_config|u0|ACK1~DUPLICATE', proof['HDMI_I2C_SDA']['consumers'])
+        self.assertIn('fes_video_inst|hdmi_config|u0|ACK3~DUPLICATE', proof['HDMI_I2C_SDA']['consumers'])
+        for bad in ('ACK4~DUPLICATE', 'ACK1~DUPLICATE_OTHER'):
+            (directory / 'inventory.tsv').write_text(fixture['inventory.tsv'].replace('ACK1~DUPLICATE', bad))
+            with self.assertRaises(producer.BuildError):
+                producer.async_inputs.review_reports(directory)
+
+    def test_source_artifact_database_and_report_substitution_invalidate_review(self):
+        hps = self.prepare_async_fit()
+        review = self.collect_async_fixture()
+        self.assertEqual(producer.async_inputs.verify(self.root, review)['policy'], producer.async_inputs.POLICY)
+        for path in (hps / 'linux-boot.core.rbf', hps / 'project/qdb/final.cdb', hps / 'generation.json',
+                     self.root.parent / 'build-inputs.json', review / 'reports/inventory.tsv'):
+            with self.subTest(path=path):
+                original = path.read_bytes()
+                try:
+                    path.write_bytes(original + b'\n')
+                    with self.assertRaises(ValueError):
+                        producer.async_inputs.verify(self.root, review)
+                finally:
+                    path.write_bytes(original)
 
     def prepare_repository(self):
         paths = {producer.RECIPE: b'actual recipe', producer.ABI: b'actual ABI',

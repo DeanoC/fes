@@ -158,8 +158,10 @@ kit-sdk:
 
 .PHONY: kit-software
 KIT_SOFTWARE_OUTPUT ?= out/kit-software/$(KIT_SOFTWARE_VERSION)
+KIT_SOFTWARE_BOARD ?= de10-nano
+KIT_SOFTWARE_DE25_IMAGE ?=
 kit-software:
 	$(if $(strip $(KIT_SOFTWARE_BASE)),,$(error kit-software requires KIT_SOFTWARE_BASE=/absolute/linux.img))
 	$(if $(strip $(KIT_SOFTWARE_BASE_SHA256)),,$(error kit-software requires KIT_SOFTWARE_BASE_SHA256=<reviewed image SHA-256>))
 	$(if $(strip $(KIT_SOFTWARE_VERSION)),,$(error kit-software requires KIT_SOFTWARE_VERSION=<release version>))
-	$(PYTHON) scripts/kit_software.py --base "$(KIT_SOFTWARE_BASE)" --base-sha256 "$(KIT_SOFTWARE_BASE_SHA256)" --version "$(KIT_SOFTWARE_VERSION)" --output "$(KIT_SOFTWARE_OUTPUT)"
+	$(PYTHON) scripts/kit_software.py --base "$(KIT_SOFTWARE_BASE)" --base-sha256 "$(KIT_SOFTWARE_BASE_SHA256)" --version "$(KIT_SOFTWARE_VERSION)" --output "$(KIT_SOFTWARE_OUTPUT)" --board "$(KIT_SOFTWARE_BOARD)" $(if $(strip $(KIT_SOFTWARE_DE25_IMAGE)),--de25-image "$(KIT_SOFTWARE_DE25_IMAGE)")

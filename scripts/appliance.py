@@ -107,23 +107,34 @@ def load_manifest(path):
     return validate_manifest(json.loads(raw,object_pairs_hook=unique))
 
 
-def validate_static_arm(path):
+def validate_static_arm(path, architecture='armv7'):
+    if architecture not in ('armv7', 'aarch64'):
+        raise ValueError('unsupported static ARM architecture')
     path = regular(path)
     size = path.stat().st_size
     if size < 84 or size > 24 << 20:
         raise ValueError('bootstrap ELF size is invalid')
     with path.open('rb') as stream:
-        header = stream.read(52)
-        if header[:7] != b'\x7fELF\x01\x01\x01':
-            raise ValueError('bootstrap must be ELF32 little-endian ARM')
-        kind,machine,version,entry,phoff,_,flags,ehsize,phsize,phnum,_,_,_ = struct.unpack_from('<HHIIIIIHHHHHH',header,16)
-        if (kind != 2 or machine != 40 or version != 1 or flags >> 24 != 5 or ehsize != 52
-                or phsize != 32 or not 1 <= phnum <= 128 or phoff < 52 or phoff + phnum*phsize > size):
-            raise ValueError('bootstrap must be a static ARM EABI5 executable')
+        wide = architecture == 'aarch64'
+        header_size, segment_size = (64, 56) if wide else (52, 32)
+        header = stream.read(header_size)
+        if header[:7] != b'\x7fELF' + bytes((2 if wide else 1, 1, 1)):
+            raise ValueError('bootstrap ELF class or byte order differs from selected ARM target')
+        layout = '<HHIQQQIHHHHHH' if wide else '<HHIIIIIHHHHHH'
+        kind,machine,version,entry,phoff,_,flags,ehsize,phsize,phnum,_,_,_ = struct.unpack_from(layout,header,16)
+        if (kind != 2 or machine != (183 if wide else 40) or version != 1
+                or (flags != 0 if wide else flags >> 24 != 5) or ehsize != header_size
+                or phsize != segment_size or not 1 <= phnum <= 128 or phoff < header_size
+                or phoff + phnum*phsize > size):
+            raise ValueError('bootstrap must be a static executable for the selected ARM ABI')
         executable_entry = False
         stream.seek(phoff)
         for _ in range(phnum):
-            ptype,offset,address,_,filesz,memsz,pflags,_ = struct.unpack('<IIIIIIII',stream.read(32))
+            segment = stream.read(segment_size)
+            if wide:
+                ptype,pflags,offset,address,_,filesz,memsz,_ = struct.unpack('<IIQQQQQQ',segment)
+            else:
+                ptype,offset,address,_,filesz,memsz,pflags,_ = struct.unpack('<IIIIIIII',segment)
             if ptype in (2,3):
                 raise ValueError('bootstrap may not require a dynamic loader')
             if offset + filesz > size or filesz > memsz:

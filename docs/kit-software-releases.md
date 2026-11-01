@@ -63,10 +63,20 @@ and menu requirements, and rejects a DE10 window-driver input. DE25 uses its
 built-in DMA owner. DE10 keeps its required versioned window module. The
 selected MENU package must target the chosen board before bundle assembly;
 the runtime's interface records cover both board-specific contracts. The
-standalone cross-build producer still selects DE10; DE25 SDK selection,
-complete image/bootstrap wiring, physical runtime/MENU binding and
-an actual managed update remain integration work. No daemon admission or
+standalone cross-build producer accepts explicit DE25 selection with the
+retained headless-image SDK. It checks that SDK's recipe, configuration and
+archive, then extracts and relocates a private copy in the matched builder.
+Go targets ARM64 v8.0 while the pack helper stays on amd64. DE25 builds no
+window module. Complete image/bootstrap wiring, physical runtime/MENU binding
+and an actual managed update remain integration work. No daemon admission or
 supervisor compatibility rule is relaxed by this change.
+
+The base-image platform producer also builds the stable software supervisor
+and Bluetooth helper with explicit `aarch64` selection. Their ELF validator
+requires ELF64/AArch64, an executable entry in a load segment and no dynamic
+loader; ARMv7 remains an explicit separate target. This adds build support for
+those base services, without changing appliance release board admission or
+the current ARMv7 boot-selector recipe.
 
 ## Image compatibility
 
@@ -448,6 +458,25 @@ It also refuses a runtime that does not accept every interface the base
 image's menu requires, and lists the runtime's menu interfaces in the bundle
 manifest.
 The supplied image stays unchanged.
+
+For a DE25 software update, select the board and retain the output directory of
+the matching `image/de25-nano/build.py` build:
+
+```sh
+make kit-software \
+  KIT_SOFTWARE_BOARD=de25-nano \
+  KIT_SOFTWARE_DE25_IMAGE=/absolute/path/de25-linux-output \
+  KIT_SOFTWARE_BASE=/absolute/path/managed-de25-rootfs.img \
+  KIT_SOFTWARE_BASE_SHA256=REVIEWED_IMAGE_SHA256 \
+  KIT_SOFTWARE_VERSION=de25-dev.1
+```
+
+The base must already be a managed DE25 image with authenticated factory
+software, its base contract and MENU requirements. The headless bring-up image
+supplies the SDK but is not such a managed base; it cannot accept an update
+bundle. SDK choice does not establish kernel, MENU, hardware or update
+acceptance. Both targets retain the same reviewed-base hash, ELF/library,
+interface and immutable-publication checks.
 
 The default output is the new directory `out/kit-software/<version>/`, containing
 `bundle.tar` and `receipt.json`. Override the directory with

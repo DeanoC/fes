@@ -1,0 +1,394 @@
+{
+  "format": 1,
+  "state": "compiler/helper proofs retained; original aggregate software failure and successful focused continuation retained",
+  "producer_source": "199604662ea19a526e1884ad202fbca48e1c84d7",
+  "services_source": "51d872c220a6635188c351004b68e94a96ca1986",
+  "source_bundles_restored": true,
+  "compiler_archive_payload_hashes_verified": true,
+  "builder_decompressed_sha256": "0e23ed80a9c9611747b88b633ed2effefe478d201910673075933892b0c06f8d",
+  "retention_original_failure": "raw commit SHA supplied instead of a bundle ref; original failed128 retained; complete archive reused, no recompilation",
+  "hardware_access": "not-performed",
+  "package_exported": false,
+  "files": {
+    "compiled-199-receipt.json": {
+      "bytes": 4180,
+      "sha256": "f49c26432c33fe523e69e5e5ffa5f1b5cb2daa2bba33d496f60ff0266db3c720"
+    },
+    "compiled-199.tar.gz": {
+      "bytes": 238727679,
+      "sha256": "65c113fa2336a30923020dc5ee46d322ec6cf4a84dd6b6e8acdaaa230d525d7c"
+    },
+    "matched-builder.tar.gz": {
+      "bytes": 315517638,
+      "sha256": "9e897455988ceff110c0aaacb21aad16e8fd27ea628b25748c84dc4c89ba49ed"
+    },
+    "producer199/completed-jobs/command-checks-imports-job/job.json": {
+      "bytes": 566,
+      "sha256": "a13badb6c049de67bb3d3859d310b8382e8130538c07f7572ace706cbb376669"
+    },
+    "producer199/completed-jobs/command-checks-imports-job/stdout.log": {
+      "bytes": 1357,
+      "sha256": "2e79fbe83e55ff61f04c3f2bc6383ac691c1db22d8e3f68d8b8156e05c974db9"
+    },
+    "producer199/completed-jobs/command-checks-imports-supervisor.log": {
+      "bytes": 1043,
+      "sha256": "9ec45e522e20c145b1d1cbb6b7d68e3f54b234a9a9b42c3d20f8c1dd3d0897e2"
+    },
+    "producer199/completed-jobs/command-checks-job/job.json": {
+      "bytes": 557,
+      "sha256": "053430629854def9b0ec179a1b964f24dcc96ec7987eb83ffc69317a4c11e188"
+    },
+    "producer199/completed-jobs/command-checks-job/stdout.log": {
+      "bytes": 7441,
+      "sha256": "025c7f53125b81c8a5a2a77abebffadcec0ecbd2a853ad8e6d9d80a6f346993f"
+    },
+    "producer199/completed-jobs/failed-command-checks.json": {
+      "bytes": 904,
+      "sha256": "fec2616a1d8e4320a320a03cd60527944684a6953d98aba56240ded5dd40ba6e"
+    },
+    "producer199/completed-jobs/run-failed-command-checks-imports.py": {
+      "bytes": 796,
+      "sha256": "2f59e8f763f1da6f2fcdf9a8eb408d6e54cb51a52e8662dec7f57bb502f59d9f"
+    },
+    "producer199/completed-jobs/run-failed-command-checks.py": {
+      "bytes": 761,
+      "sha256": "5f752b5887d922a40332ffc153b79e7fb9e021fcc1f146946fc53fadcbbfd766"
+    },
+    "producer199/completed-jobs/software-equipped-job/job.json": {
+      "bytes": 650,
+      "sha256": "cab7d190b9815b1015e0eca5a89efbb8b4514863a2f03619a1bf22a512510b55"
+    },
+    "producer199/completed-jobs/software-equipped-job/stdout.log": {
+      "bytes": 1648605,
+      "sha256": "932f4876793296dd16a7b0d417d932c1357c3a94ed58872f994f8c4b5e674739"
+    },
+    "producer199/completed-jobs/software-equipped-launch.json": {
+      "bytes": 556,
+      "sha256": "e3fb374a7ce21c7a390857b0befbdc6d46d8da58475f0a550cfa16a704c3628a"
+    },
+    "producer199/completed-jobs/software-equipped-supervisor.log": {
+      "bytes": 39507,
+      "sha256": "42d7866f018e0735d0145f505adae2f7637439961f1da2e52cedb29016c5275c"
+    },
+    "producer199/completed-jobs/test-environment.txt": {
+      "bytes": 132,
+      "sha256": "85ed49f3948c87dbc1a27973656195fc871025ad6d2ad1d439ac24967e708dd6"
+    },
+    "producer199/jobs/actual-build/job/job.json": {
+      "bytes": 562,
+      "sha256": "d208ef8144529b214cd01d53ba3acb1f3943c69b9feecd5d029ce735c160c288"
+    },
+    "producer199/jobs/actual-build/job/stdout.log": {
+      "bytes": 4765,
+      "sha256": "a97cd8bb091390755c1d79df949c30a2f983aa081aa127a215c6efaab9f04823"
+    },
+    "producer199/jobs/actual-build/launch.json": {
+      "bytes": 465,
+      "sha256": "b62020ec2117e9794ee2a48bb09cab8e990c645384e3c89a1160a7518a5e9303"
+    },
+    "producer199/jobs/actual-build/supervisor.log": {
+      "bytes": 1545,
+      "sha256": "48b781f8a9ec1e2837278642aef90f43151f5dc56e54264d024eddbc38a710c9"
+    },
+    "producer199/jobs/completion/job/job.json": {
+      "bytes": 561,
+      "sha256": "2dd9ee53d68e2172a8e64a827d3c403311935560829fb63ffe357dccb969af19"
+    },
+    "producer199/jobs/completion/job/stdout.log": {
+      "bytes": 615,
+      "sha256": "6c84aeefd92ba690a5124ce49c6472a617f38057b46c355e2e8378013335100b"
+    },
+    "producer199/jobs/completion/launch.json": {
+      "bytes": 463,
+      "sha256": "c409c070993d0c7ede1b8c1ee91f913c10218c12a502db546ba68d6946820b4c"
+    },
+    "producer199/jobs/completion/supervisor.log": {
+      "bytes": 1034,
+      "sha256": "2eb58e5a5ad77cf18ba2a8028fc05cfc21e13e0b2fa9f3d2cf07de1c37392966"
+    },
+    "producer199/jobs/completion-matched/job/job.json": {
+      "bytes": 569,
+      "sha256": "ff731cd4d2688e59322b410fdf8df9caddf1932fc8f65f74b70cf4515bd3a9c3"
+    },
+    "producer199/jobs/completion-matched/job/stdout.log": {
+      "bytes": 2763,
+      "sha256": "541faaff828091d108b95e983e029525f02523efed3eac4d41b7c782838c56f0"
+    },
+    "producer199/jobs/completion-matched/launch.json": {
+      "bytes": 479,
+      "sha256": "b567960fc3202bb7260de61053285e30311bff98f5ff5ebbc4459af292f8f022"
+    },
+    "producer199/jobs/completion-matched/supervisor.log": {
+      "bytes": 1050,
+      "sha256": "9fc6cf47b2e9a8fa51cd5f0877605cd0e357a25e99263d56c6d162949ce4ab07"
+    },
+    "producer199/jobs/completion-static/job/job.json": {
+      "bytes": 568,
+      "sha256": "efe36d99d844cf8d5470690bc7901ae51edb59d72141e8cee12ab6a85ca2cc6d"
+    },
+    "producer199/jobs/completion-static/job/stdout.log": {
+      "bytes": 369,
+      "sha256": "b2b662a80705fe77d15484eaa13db3af725da1bf40ebe38b24f08693d11e1988"
+    },
+    "producer199/jobs/completion-static/launch.json": {
+      "bytes": 477,
+      "sha256": "8b87acd912e853c0e0116ea3056f126a3d8f2494b638d147e2b0ed0d03ead70c"
+    },
+    "producer199/jobs/completion-static/supervisor.log": {
+      "bytes": 1048,
+      "sha256": "aeb705f5521a01130206326cd7d5590314c259531bdd90bcc3776f93e99861de"
+    },
+    "producer199/jobs/finalize/job/job.json": {
+      "bytes": 561,
+      "sha256": "bbb827732d3b5c426d37d261c423e63f676896c3a6bb96dcd31d02024464f2f6"
+    },
+    "producer199/jobs/finalize/job/stdout.log": {
+      "bytes": 374,
+      "sha256": "44ce01ebb906607046d8012a6bea6e9f2e93040671d42bab2bca6afc9177c19b"
+    },
+    "producer199/jobs/finalize/launch.json": {
+      "bytes": 461,
+      "sha256": "13c3a41157bebdd0ee15a8848d01710eedc13b43b06de2faa2cea073da056528"
+    },
+    "producer199/jobs/finalize/supervisor.log": {
+      "bytes": 1034,
+      "sha256": "31068d848bb6fced039fb8076d5b2aaf38641f67177540a71caacde317e173d6"
+    },
+    "producer199/jobs/finalize-scoped/job/job.json": {
+      "bytes": 559,
+      "sha256": "1399db9ae62a3343443671fe56fabbf90660bd6f6091ef67c7ede5b2a4e13470"
+    },
+    "producer199/jobs/finalize-scoped/job/stdout.log": {
+      "bytes": 99,
+      "sha256": "a74b436998edcd4a9da54ee40f571b9e46cde834c2dbee9e24579f20fb6304d7"
+    },
+    "producer199/jobs/finalize-scoped/launch.json": {
+      "bytes": 466,
+      "sha256": "9e9eb47bbc1214f3a40e8f8a71849ccad6291519eff2fff7b8fd38c9b7d7a8fe"
+    },
+    "producer199/jobs/finalize-scoped/supervisor.log": {
+      "bytes": 1030,
+      "sha256": "7258170659e04680ef7bdad357cad896072b88b21d8b0edd7ec18ef4d008400a"
+    },
+    "producer199/jobs/software/job/job.json": {
+      "bytes": 542,
+      "sha256": "3b3c9661b35c00ce1dc7b10a812470eedad465d4f83ee1463e274ebfd2ebdbe7"
+    },
+    "producer199/jobs/software/job/stdout.log": {
+      "bytes": 486,
+      "sha256": "4d7a8616d36b95329117f4bc984a9387e1e812bd71909a05d46747690fc2d590"
+    },
+    "producer199/jobs/software/launch.json": {
+      "bytes": 591,
+      "sha256": "feaf7196bc5f8ea7caf9c293f800f4616bd98156028d9f4ea6efcf8c2976b2c8"
+    },
+    "producer199/jobs/software/supervisor.log": {
+      "bytes": 988,
+      "sha256": "c2bc2928eb94f1bbd3b3046545b7a0ae3feb9e9bbde8bf68f4d68789d6ecaad4"
+    },
+    "producer199/jobs/transport/job/job.json": {
+      "bytes": 555,
+      "sha256": "e152777d10ae2dd5e4abf507db23028b05833eaff268dfd4cc0b6fabbdc21428"
+    },
+    "producer199/jobs/transport/job/stdout.log": {
+      "bytes": 862,
+      "sha256": "bcab12bd437c83403032b78584198271d0f931d0ce1227a66192aac83ba7e122"
+    },
+    "producer199/jobs/transport/launch.json": {
+      "bytes": 455,
+      "sha256": "5de00bb294e1b6420b500d40741f422154e0c66a5cf9c661f270ea96929e0e4e"
+    },
+    "producer199/jobs/transport/supervisor.log": {
+      "bytes": 1524,
+      "sha256": "6578e61e4a88d58194c7a00db4cf9455c25a69ed504d55223de6eb46bff67bec"
+    },
+    "services51/actual-proof/fes-bluetooth-build-info.txt": {
+      "bytes": 382,
+      "sha256": "8031ea8ae11bc590fbff404783bbb4279b069df86c9adc29f6598172f8efbd00"
+    },
+    "services51/actual-proof/fes-kit-software-build-info.txt": {
+      "bytes": 516,
+      "sha256": "e2b4f74a978ae0094bd85289f8d551857b5688adb0422bfcf8f2705c822464be"
+    },
+    "services51/actual-proof/receipt.json": {
+      "bytes": 1249,
+      "sha256": "c6225f5120732c86b2d6d77d7a7d74f3d350fea8a46a7596e835ad67f66c271f"
+    },
+    "services51/actual-proof/supervisor-argument-refusal.log": {
+      "bytes": 113,
+      "sha256": "33dd3876756a4b4cabe5d869c144e627c767f7821ef392142ede7bd3111e62d2"
+    },
+    "services51/actual-services-proof-env.py": {
+      "bytes": 3284,
+      "sha256": "2bee509fee66052936d90c54cb358d91adacafe2d5413a15d63fb5cdecbdaa55"
+    },
+    "services51/actual-services-proof.py": {
+      "bytes": 3243,
+      "sha256": "16726f6a3b8ad520817eaef49a9f05651eed39479af832c14fd1bdcc6f45df7e"
+    },
+    "services51/bin/fes-bluetooth-linux-aarch64": {
+      "bytes": 2359422,
+      "sha256": "5b88dfefff3eef44dacaf1a09f4cd3fae71ae1857db606b273f2ba9994b6fec6"
+    },
+    "services51/bin/fes-kit-software-linux-aarch64": {
+      "bytes": 7078014,
+      "sha256": "a7d1bcbe6cc8afecf1920ccee9ebcffcbd5617571f44683891fe38ed21190eb8"
+    },
+    "services51/completed-jobs/finish-retention.py": {
+      "bytes": 3995,
+      "sha256": "587487dc9134e89a91b5c04b49d4b3b7d25610edebc3462e34190fc860ffd5cd"
+    },
+    "services51/completed-jobs/retention-finish-job/job.json": {
+      "bytes": 546,
+      "sha256": "162e9824dbc7d7aa1967261e65af706fa1fb0ff0c976f43e1d874a0450e8bfef"
+    },
+    "services51/completed-jobs/retention-finish-job/stdout.log": {
+      "bytes": 1583,
+      "sha256": "7d9aea681e544b9b499ed01a11c06f7aa699b2d4312e7599b4f65ce3e738456b"
+    },
+    "services51/completed-jobs/retention-finish-launch.json": {
+      "bytes": 449,
+      "sha256": "7f30edc21ba73ed7e286d737713fec4662adb38488075b58797941125ab2177f"
+    },
+    "services51/completed-jobs/retention-finish-supervisor.log": {
+      "bytes": 1003,
+      "sha256": "0b606cd81fcac0363a8edb2efd1a5071d720ef0fabc33355e1b02f40c5dca149"
+    },
+    "services51/completed-jobs/software-job/job.json": {
+      "bytes": 649,
+      "sha256": "985b710366cfb3d201ce97f3dd50efeff2f8ef485e6c3014234d1010a08c5629"
+    },
+    "services51/completed-jobs/software-job/stdout.log": {
+      "bytes": 362503,
+      "sha256": "8055cbe0b9a9e882f93c8e456832d5da172bbc871b96e5ffd1cbacbabe3ca6c5"
+    },
+    "services51/jobs/actual/job/job.json": {
+      "bytes": 718,
+      "sha256": "c0c6b5fe335aa16c20cff68262afec549bb355729613ec9b377c88ddb4c0fea3"
+    },
+    "services51/jobs/actual/job/stdout.log": {
+      "bytes": 431,
+      "sha256": "75246695c7fc5972c592ffa2074aa41d197949a982fbd5911eb7687114eb7572"
+    },
+    "services51/jobs/actual/launch.json": {
+      "bytes": 612,
+      "sha256": "3c09fc8b681646038538f3012162d857087e586364d9364a835cd509be774cf1"
+    },
+    "services51/jobs/actual/supervisor.log": {
+      "bytes": 1332,
+      "sha256": "293f151de57c7bb67b669638203b471840daa91dff706a10c44ffb8ae05310fe"
+    },
+    "services51/jobs/actual-env/job/job.json": {
+      "bytes": 726,
+      "sha256": "a6bd24d4ea8be022699a78f8db1bd139db6f11c930cd1dd74a2d902a2327bf85"
+    },
+    "services51/jobs/actual-env/job/stdout.log": {
+      "bytes": 49,
+      "sha256": "9950c36eb58f26d771c15e931a7d080fdb2d79c532f14731988984b880702eca"
+    },
+    "services51/jobs/actual-env/launch.json": {
+      "bytes": 624,
+      "sha256": "6d7a8bbd7e51a5ec77b2c022161fab78a89e9b16c689953cbd6ada330b0abff6"
+    },
+    "services51/jobs/actual-env/supervisor.log": {
+      "bytes": 1348,
+      "sha256": "b504b16310231342aa23710b51ca3aaa3a7dcc2f7654a54f71f4121f4c85856b"
+    },
+    "services51/jobs/retention-original/job/job.json": {
+      "bytes": 553,
+      "sha256": "1b77e595e3eae7e9d7563b60400307cc45c07bfbe81188e483096daa4a5b2640"
+    },
+    "services51/jobs/retention-original/job/stdout.log": {
+      "bytes": 1060,
+      "sha256": "3a1e8086100cee0ae97210a714579e86810cbb8c9690794d1e4852e500d4660c"
+    },
+    "services51/jobs/retention-original/launch.json": {
+      "bytes": 449,
+      "sha256": "7ecbb2f9f97ff0f8b8654b74f2e8c42e6d3c5784f4c9b793f3f10b21482583b5"
+    },
+    "services51/jobs/retention-original/supervisor.log": {
+      "bytes": 1017,
+      "sha256": "d354a7a65a3d688e35f4e59a44493a2c7a3da6fe4802d02ee70272cd1c22e94f"
+    },
+    "services51/jobs/software/job/job.json": {
+      "bytes": 649,
+      "sha256": "985b710366cfb3d201ce97f3dd50efeff2f8ef485e6c3014234d1010a08c5629"
+    },
+    "services51/jobs/software/job/stdout.log": {
+      "bytes": 362503,
+      "sha256": "8055cbe0b9a9e882f93c8e456832d5da172bbc871b96e5ffd1cbacbabe3ca6c5"
+    },
+    "services51/jobs/software/launch.json": {
+      "bytes": 543,
+      "sha256": "cdb88e6da9d3152c3200d11c9cee052f192e9a5cf7c166d80371c99edd1b8059"
+    },
+    "services51/jobs/software/supervisor.log": {
+      "bytes": 5901,
+      "sha256": "6a7767c7fd53d5fe70feec9f36acfaea9a8b65c3feae0327127d85105a0a6b4a"
+    },
+    "services51/retain-completed-builds.py": {
+      "bytes": 4995,
+      "sha256": "8d730f944a32eee5ce20c786da7cc85ded341bd0dd33d8be9bb8796adb33a219"
+    },
+    "services51/selected-test_kit_software.py.log": {
+      "bytes": 3757,
+      "sha256": "767fdc69ae85a901281539a72bf46c2f0847431ee7753d20cd33a017673aeea8"
+    },
+    "services51/selected-test_platform.py.log": {
+      "bytes": 1977,
+      "sha256": "3e72bfeeb29b7e1a08190a3da91251fb53c4a1d647a3ce16c08b0d07d4de06ba"
+    },
+    "services51/test_appliance.py.log": {
+      "bytes": 4203,
+      "sha256": "942ef56ffd42efafedb4afbc3de1705e5bb4362d64d578e691975a4e94a03ae4"
+    },
+    "services51/test_platform.py.log": {
+      "bytes": 1065,
+      "sha256": "443aada7803b87d5dcb1081bf3befc14b7376ef20d3c9e6e99914dc8748cb9fc"
+    },
+    "source-199.bundle": {
+      "bytes": 285099269,
+      "sha256": "c031492dc9c884ad09cfafd30b1fb2fefd6577f54d3e6905d33ac6c5c964dbfc"
+    },
+    "source-51.bundle": {
+      "bytes": 285105012,
+      "sha256": "b520645380e04e673c528b06a06b8f96585ce2c949ba75d404ce955b0b4711b8"
+    }
+  },
+  "updated_utc": "2026-11-01T15:56:18.314125+00:00",
+  "original_aggregate_software": {
+    "source_revision": "199604662ea19a526e1884ad202fbca48e1c84d7",
+    "command": [
+      "make",
+      "test-changed",
+      "PYTHON=/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python",
+      "TEST_CHANGED_ARGS=--base 9be8238e1eb8d6aeac8dae91addb68b4ce7cbfe7"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-kit-software-199604662",
+    "started_utc": "2026-11-01T15:10:25.264953+00:00",
+    "time_cap_seconds": 4800,
+    "hardware_access": "not-performed",
+    "pid": 2241968,
+    "state": "failed",
+    "elapsed_seconds": 1960.1,
+    "heartbeat_utc": "2026-11-01T15:43:05.371340+00:00",
+    "returncode": 2
+  },
+  "focused_command_checks": {
+    "source_revision": "199604662ea19a526e1884ad202fbca48e1c84d7",
+    "command": [
+      "python3",
+      "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/run-failed-command-checks-imports.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-kit-software-199604662",
+    "started_utc": "2026-11-01T15:50:59.013045+00:00",
+    "time_cap_seconds": 180,
+    "hardware_access": "not-performed",
+    "pid": 2575471,
+    "state": "passed",
+    "elapsed_seconds": 26.4,
+    "heartbeat_utc": "2026-11-01T15:51:25.420916+00:00",
+    "returncode": 0
+  },
+  "software_correction": "The original make PYTHON override leaked into nested make-entrypoint assertions. The 10 failed methods passed with the same source, venv selected through PATH and make/PYTHON overrides cleared. An initial focused wrapper import error is retained. Previously passing host/runtime/contracts/parent/FPGA cases were not repeated."
+}
