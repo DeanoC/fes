@@ -27,7 +27,7 @@ from decimal import Decimal, InvalidOperation
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.build_fes_pcxt_quartus import runtime_dependencies, tree_digest
+from scripts.build_fes_pcxt_quartus import tree_digest
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
 from scripts.fes_build_common import BuildError, _require_clean_source
@@ -90,12 +90,30 @@ def execution_inputs(paths, env):
     executables = [*helpers.values(),
         *(native / ('quartus_' + name) for name in ('sh', 'map', 'fit', 'asm', 'sta', 'pfg')),
         *(Path(p) for p in support if p.endswith('.so'))]
-    libraries = runtime_dependencies(executables, env, native)
+    # Pro's actual adm/qenv.sh prepends BOTH directories. The 17.0 PC/XT
+    # inspector uses only quartus/linux64 and cannot resolve Pro's qcore DLLs.
+    loader_paths = (native, install / 'qcore/linux64')
+    if not all(path.is_dir() for path in loader_paths):
+        raise BuildError('missing Quartus Pro native/qcore loader directory')
+    libraries = {}
+    for binary in sorted(set(executables)):
+        with binary.open('rb') as stream:
+            if stream.read(4) != b'\x7fELF':
+                continue
+        probe_env = dict(env, LD_LIBRARY_PATH=':'.join(map(str, loader_paths))) if binary.parent == native else env
+        result = subprocess.run(['/usr/bin/ldd', str(binary)], env=probe_env, capture_output=True, text=True)
+        output = result.stdout + result.stderr
+        if 'not found' in output or (result.returncode and
+                'not a dynamic executable' not in output and 'statically linked' not in output):
+            raise BuildError('cannot identify runtime libraries for ' + str(binary))
+        for name in re.findall(r'(?:=>\s+|^\s*)(/[^\s]+)', result.stdout, re.M):
+            libraries[name] = sha(name)
     for name in ('/etc/os-release', '/etc/ld.so.cache'):
         if Path(name).is_file():
             libraries[name] = sha(name)
     return {'version': 2, 'toolchain': 'quartus',
         'installations': {str(install): tree_digest(install)},
+        'quartus_native_loader_paths': list(map(str, loader_paths)),
         'helpers': {name: {'path': str(p), 'sha256': sha(p)} for name, p in helpers.items()},
         'python': {'executable': sys.executable, 'version': sys.version,
                    'prefix': sys.prefix, 'base_prefix': sys.base_prefix, 'support': support},
