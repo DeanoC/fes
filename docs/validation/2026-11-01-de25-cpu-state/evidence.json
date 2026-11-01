@@ -1,0 +1,211 @@
+{
+  "artifact": {
+    "config_sha256": "34d25e5c214bbcbc3a5e9dd37fd8a6c687dc6c2510e74bd1d4ca5dddf3f39a0b",
+    "reference_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+    "sof_sha256": "9976eccd08aadc1675cd085c3639e06a526a83031e5b02f21c7e97b9ffd562bb",
+    "spl_elf_sha256": "9b073f93af660e6a4aec14886336bbb7bf1fdeb87a563f900897d05d48ffe27e",
+    "spl_sha256": "67aba46e50b9d65f0ce32230f5763b4a9c26567057b1fb0a9107fb5d99f56035"
+  },
+  "board_serial": "TRWU8CBL",
+  "build_receipt_base": "7f1c676a0263f0670bb026ae9fa0acf36e44b1a7",
+  "candidate_retries": 0,
+  "classification": "bounded physical diagnostic inconclusive: programming succeeded, zero serial bytes; factory restored and kit released",
+  "cleanup": {
+    "claim_released": true,
+    "factory_baseline_verified": true,
+    "factory_card_retained": true,
+    "finished_utc": "2026-11-01T07:22:07.093143+00:00",
+    "flash_programmed": false,
+    "fresh_boot_uuid": "0eb170d3-ba69-4169-a365-fd19cfa4300b",
+    "jtag_id": "4362C0DD",
+    "physical_power_cycle_needed": false,
+    "reference_sof_programmed": true,
+    "sd_writes_attempted": false,
+    "shared_broker_unchanged": true,
+    "uart_clients": [],
+    "usb_gid": 0,
+    "usb_mode": "0o664",
+    "usb_node": "/dev/bus/usb/003/061",
+    "usb_uid": 0
+  },
+  "client_date": "2026-11-01",
+  "diagnostic_id": "72cacf59c17352cf",
+  "factory_after": {
+    "BOOT_ID": "0eb170d3-ba69-4169-a365-fd19cfa4300b",
+    "CARD_SECTORS": "61069312",
+    "KERNEL": "6.12.11-gd7d192a9ddd9",
+    "MODEL": "SoCFPGA Agilex5 Terasic DE25-Nano",
+    "ROOT": "/dev/mmcblk0p2 ext3"
+  },
+  "factory_before": {
+    "BOOT_ID": "3dc3f7ca-7b12-467a-9291-eca23caf6190",
+    "CARD_SECTORS": "61069312",
+    "KERNEL": "6.12.11-gd7d192a9ddd9",
+    "MODEL": "SoCFPGA Agilex5 Terasic DE25-Nano",
+    "ROOT": "/dev/mmcblk0p2 ext3"
+  },
+  "factory_card_cid_sha256": "630825446173160e558b6a515b132dcd61c38076be7d4e1433ea7dd9d2f5cb28",
+  "factory_card_retained": true,
+  "factory_reference_load": {
+    "console_sha256": "96d6857b08bae2a1983ad21b5e8b8845ce74dd33188aaf88a32586bae26032c6",
+    "diagnostic_id": "72cacf59c17352cf",
+    "factory_card_retained": true,
+    "fesboot_sent": false,
+    "finished_utc": "2026-11-01T07:21:29.810268+00:00",
+    "jtag_id": "4362C0DD",
+    "login_observed": true,
+    "pass": true,
+    "phase": "reference",
+    "preflight_sha256": "4b8f82717d708a75fbf9e0d5e5fdbef0cbd4e135b4ee159dd650ec2573786790",
+    "programming_attempted": true,
+    "programming_complete": true,
+    "runner_sha256": "a30ed7b962da9c61bde7fd4816a480a8f13c13c686095cb3a049f45f4fb80fdf",
+    "sd_write_commands_sent": false,
+    "serial": "TRWU8CBL",
+    "sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+    "source_commit": "451126c49933d074212d1aa1a96c2a12ab298761",
+    "stage": "observation captured",
+    "started_utc": "2026-11-01T07:20:59.241532+00:00",
+    "usb_permissions_restored": true
+  },
+  "factory_restoration": {
+    "factory_baseline_verified": true,
+    "finished_utc": "2026-11-01T07:21:37.711535+00:00",
+    "logged_out": true,
+    "qspi_power_on_boot_retested": false,
+    "restoration_action": {
+      "action": "one exact reference SOF volatile JTAG attempt; original factory card retained",
+      "factory_login_observed": true,
+      "reference_programming_complete": true,
+      "reference_sof_sha256": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+      "started_utc": "2026-11-01T07:20:59.112317+00:00",
+      "user_power_cycle_reported": false
+    },
+    "restoration_method": "factory card retained; restoration action recorded separately",
+    "serial": "TRWU8CBL",
+    "stage": "factory-baseline-verified"
+  },
+  "flash_programmed": false,
+  "format": 1,
+  "live_attempts": 1,
+  "local_evidence": "out/nano-cpu-state-trial-20261101",
+  "not_qualified": [
+    "CPU/reset first or fresh tuple",
+    "target report/park execution",
+    "DDR/SD/native boot",
+    "EL3 ownership or master drain",
+    "tenfoot or FPGA launch/return",
+    "autonomous QSPI power-on boot"
+  ],
+  "off_board": {
+    "affected_checks": 6,
+    "artifact_checks": {
+      "diagnostic_id": "72cacf59c17352cf",
+      "model": "SoCFPGA Agilex5 Terasic DE25-Nano",
+      "note": "Vendor DE25 defconfig also enables SIMICS; inherited unchanged, not a new target switch. SPL_BSS stays in DDR but board_init_f never returns to BSS clearing.",
+      "ocram_data": {
+        "fes_nano_spl_record": {
+          "address": "0xd488",
+          "size": 168
+        },
+        "source": {
+          "address": "0xd530",
+          "size": 224
+        }
+      },
+      "seed_simics_option_preserved": true,
+      "sof_sha256": "9976eccd08aadc1675cd085c3639e06a526a83031e5b02f21c7e97b9ffd562bb",
+      "spl_sha256": "67aba46e50b9d65f0ce32230f5763b4a9c26567057b1fb0a9107fb5d99f56035",
+      "status": "verified"
+    },
+    "checks": [
+      {
+        "argv": [
+          "python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_nano_cpu_diagnostic.py",
+          "-v"
+        ],
+        "label": "focused",
+        "returncode": 0
+      },
+      {
+        "argv": [
+          "python3",
+          "scripts/test_changed.py",
+          "--base",
+          "7f1c676a0263f0670bb026ae9fa0acf36e44b1a7"
+        ],
+        "label": "affected",
+        "returncode": 0
+      }
+    ],
+    "classification": "host/cross-build/structural; no native execution acceptance",
+    "focused_tests": 2
+  },
+  "physical_attempt": {
+    "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "diagnostic_id": "72cacf59c17352cf",
+    "error": "expected serial observation absent",
+    "factory_card_retained": true,
+    "fesboot_sent": false,
+    "finished_utc": "2026-11-01T07:20:42.175021+00:00",
+    "jtag_id": "4362C0DD",
+    "pass": false,
+    "phase": "cpu",
+    "preflight_sha256": "4b8f82717d708a75fbf9e0d5e5fdbef0cbd4e135b4ee159dd650ec2573786790",
+    "programming_attempted": true,
+    "programming_complete": true,
+    "runner_sha256": "a30ed7b962da9c61bde7fd4816a480a8f13c13c686095cb3a049f45f4fb80fdf",
+    "sd_write_commands_sent": false,
+    "serial": "TRWU8CBL",
+    "sof_sha256": "9976eccd08aadc1675cd085c3639e06a526a83031e5b02f21c7e97b9ffd562bb",
+    "source_commit": "451126c49933d074212d1aa1a96c2a12ab298761",
+    "stage": "serial observation",
+    "started_utc": "2026-11-01T07:19:56.069840+00:00",
+    "usb_permissions_restored": true
+  },
+  "receipts_sha256": {
+    "affected-checks.log": "a4a2d0af7cc0f24e7d89ccdded9132e74ef493e1966cade1e8330f5dce2d1903",
+    "checks-result.json": "1bb0ed8c49798962ae585a370aa24958c23688891ca3d41f1e9e934945e369ed",
+    "cleanup.json": "34ec86d7d589ba8cbf96e8fa988ac0c9551fdd02433b969a7a06b0a6c53425fa",
+    "cpu-console.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cpu-diagnostic-v6/result.json": "f98c89652d22e675d9c8dba93ebd307b5d935feaa6f0c4ed34ae6cc3ff60e305",
+    "cpu-jtag-query.log": "bd4fb29bfb949a5cceeecce362be2db53d529590205bc499c29db7b0c09c05f8",
+    "cpu-program.log": "c9a750b63dd5dbee5541ae957948821f3c39de9833c54a6738b9f8b59f3018f7",
+    "cpu-result.json": "273aaab92676baf865c7d88cdab1a3b18dcf78d17ea6baf559e1ddec3de2b907",
+    "focused-checks.log": "c4c19cce35fdc9ab32917f90bfe89d2c4c31e34e20473e5dee4facea76e0ef8d",
+    "preflight.json": "4b8f82717d708a75fbf9e0d5e5fdbef0cbd4e135b4ee159dd650ec2573786790",
+    "reference-console.log": "96d6857b08bae2a1983ad21b5e8b8845ce74dd33188aaf88a32586bae26032c6",
+    "reference-program.log": "3b7a5b335de483b3382cd5b9c4f3e7d53f7e7528872da85172367fac9b284106",
+    "reference-result.json": "507b7d8a0dfda55f04599de66f499e6e0a209390ef654a12382aff47743dbf22",
+    "restored-jtag-result.json": "719304e44bcd8cc665395787f36d5fee078b1104bca2995990c16b6643d0b49a",
+    "restored-result.json": "522c63524bd5cd7e148f5e3214808e7693ddebe3c6d7e95995e175ec58e280d8"
+  },
+  "retained_evidence": "/home/deano/fes-retained/de25-nano-cpu-state-20261101",
+  "sd_write_attempted": false,
+  "startup_inspection": {
+    "classification": "off-board source inspection after the failed physical observation; no located failure PC",
+    "files": {
+      "arch/arm/cpu/armv8/start.S": "8ffccace8fdd794ef149bfcf49f228bb87be718dc93fed106b8887eb5de759fd",
+      "arch/arm/include/asm/macro.h": "184b19fe0cbfc2bf9160f5ec05947a9dad60c3d08bbbfcfe6e5d404ba1f6b7a1",
+      "arch/arm/mach-socfpga/lowlevel_init_soc64.S": "9c39ab4d4628ece33deec7a593c3ea2a9be0d320e1bd390fd76556a409c0021d"
+    },
+    "inference": "The changed early startup path is a possible confounder. Zero serial bytes do not identify the failing instruction, reset state or whether C entry was reached.",
+    "next_step": "Preserve the vendor early ATF startup selection and isolate pre-console milestones before another separately bounded hardware attempt; keep unconditional pre-DDR/storage stop and native admission closed.",
+    "vendor_revision": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413",
+    "verified_differences": [
+      "CPU diagnostic disables CONFIG_SPL_ATF whereas seed has it enabled.",
+      "Pinned lowlevel_init_soc64.S branches on CONFIG_SPL_ATF before C/console, including boot-scratch/CPU-release handling.",
+      "Other CPU reset admission predicates and their first/fresh register addresses are unchanged."
+    ]
+  },
+  "tested_source": "451126c49933d074212d1aa1a96c2a12ab298761",
+  "timezone": "Europe/Sofia",
+  "vendor_uboot_revision": "d0f8813fd6bf8191d49c8b8d2035ffd2ae10c413"
+}

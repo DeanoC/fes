@@ -13,6 +13,11 @@ MPIDR and fresh CPU/reset diagnostics and remains hardware unqualified. The earl
 passed with the separate recovery loader; that result does not qualify these
 new artifacts.
 
+The subsequent [CPU-only TRWU8CBL observation](../../../docs/validation/2026-11-01-de25-cpu-state/README.md)
+programmed successfully but captured no UART bytes within 40 seconds. It
+provided no new CPU/reset evidence. Factory boot was restored by reference-SOF
+JTAG and authenticated without a card swap or physical power cycle.
+
 The same spare card carries two paths:
 
 | Volatile JTAG image | SPL boot file | Purpose |
