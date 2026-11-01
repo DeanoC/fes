@@ -491,7 +491,8 @@ func idleHandoffError(settled, presented bool, err error) error {
 
 // Pause prevents new submissions, discards queued frames, forgets the last
 // submitted frame, clears change-driven backoff, and waits for the current
-// runtime transaction to finish before a game mutation begins.
+// runtime transaction to finish before releasing the client's grant mapping.
+// A retained mapping can pin a kernel-owned allocation even after DMA drains.
 func (d *MenuDisplay) Pause(ctx context.Context) error {
 	return d.pause(ctx, false)
 }
@@ -525,14 +526,29 @@ func (d *MenuDisplay) pause(ctx context.Context, keepReadyWhileLaunchPending boo
 	flight := d.flight
 	d.mu.Unlock()
 	if flight == nil {
-		return nil
+		return d.releasePausedWindow()
 	}
 	select {
 	case <-flight:
-		return nil
+		return d.releasePausedWindow()
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (d *MenuDisplay) releasePausedWindow() error {
+	release, ok := d.client.(interface{ ReleaseWindow() error })
+	if !ok {
+		return nil
+	}
+	// Keep Resume from starting a new frame between checking the paused state
+	// and releasing its mapping. The worker clears flight before signalling.
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !d.paused || d.flight != nil || d.closed {
+		return errors.New("menu display resumed or closed before pause completed")
+	}
+	return release.ReleaseWindow()
 }
 
 // InvalidateSoftwareReady clears idle-launcher readiness after an accepted

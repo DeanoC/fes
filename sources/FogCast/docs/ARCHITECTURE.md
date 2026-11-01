@@ -1490,7 +1490,14 @@ complete pixels; Pause, Resume, rebinding and any failure drop both
 shortcuts. On this backend tenfoot opens
 the kit-local control socket and submits one room launch overlay frame with
 phase and elapsed time. Dispatch waits until that frame has been presented,
-then pauses presents and dispatches the local launch. A failed or unpresented
+then pauses presents and dispatches the local launch. A completed pause also
+releases the menu client's grant mapping after its last frame transaction has
+finished. This permits a kernel-owned allocation to retire when the runtime
+revokes it, rather than leaving the paused UI's VMA holding the device lease.
+An unmap error or cancelled drain refuses launch; a concurrent Resume prevents
+the old pause from releasing a new mapping. Resume after a rejected launch
+can remap the same generation without clearing its pixels. This uses the
+existing menu client/socket and changes no programming authority. A failed or unpresented
 frame aborts dispatch. A status probe acknowledges only the submission
 sequence that was presented, so a healthy status for an older frame does not
 accept a newer frame that never reached the display. Late adoption submits no
