@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "base_commit": "dfeb1e1932abee706dcab96976dccf0760fa4a42",
+  "classification": "actual Go SD PIO implementation under modeled registers/card, race detector and ARM64 cross-build; no board operation or SD hardware acceptance",
+  "source_sha256": {
+    "platform/embedded/tamago/sdhci/sdhci.go": "30cb6e1e8ead357649e126f9ae637f74ea238b964964044aabb7eaaefcfcd4ff",
+    "platform/embedded/tamago/sdhci/sdhci_test.go": "9d94b147f21c5000cbdac11d07e797d22bd816b959fcd4cce0fd774082d5e491",
+    "platform/embedded/tamago/sdhci/fat_test.go": "962f1547a6c3f1c26ec26b8dc8e12f2d0bdfd1f1584fef2f1a2c639f50e00e99"
+  },
+  "validation": [
+    "go test -race -timeout 90s ./sdhci ./fat",
+    "Nano ARM64 storage cross-build using synthetic explicitly unqualified profile"
+  ],
+  "shared_firmware_wire_abi_changed": false,
+  "native_sd_profile_enabled": false,
+  "hardware_operations": false,
+  "physical_sd_acceptance": false,
+  "core_load_acceptance": false,
+  "next": "Connect qualified firmware SD resume/stop grants and restore Cadence/ComboPHY preparation, then test native FAT32 on the spare card; serial cold ownership cannot authorize reset release."
+}

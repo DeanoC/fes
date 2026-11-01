@@ -6,6 +6,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 )
@@ -25,10 +27,15 @@ type card struct {
 	resets                                        int
 	image                                         []byte
 	readyAfter, powerPolls                        int
+	cid                                           [4]uint32
+	accesses                                      int
+	quiesceFault                                  string
+	assignedRCA                                   uint16
 }
 
 func newCard() *card {
-	return &card{regs: map[uint32]uint32{host: 1 << 8, clock: 7, 0x240: 1 << 24}, tick: time.Unix(1, 0)}
+	return &card{regs: map[uint32]uint32{host: 1 << 8, clock: 7, 0x240: 1 << 24}, tick: time.Unix(1, 0),
+		cid: [4]uint32{0xa1b2c300, 0x34567890, 0x54455354, 0x00123456}, assignedRCA: 7}
 }
 func (c *card) Now() time.Time {
 	if !c.frozen {
@@ -37,6 +44,7 @@ func (c *card) Now() time.Time {
 	return c.tick
 }
 func (c *card) Read32(reg uint32) uint32 {
+	c.accesses++
 	if reg == dataPort {
 		c.words++
 		if c.words == 128 && !c.short {
@@ -51,11 +59,26 @@ func (c *card) Read32(reg uint32) uint32 {
 	return c.regs[reg]
 }
 func (c *card) Write32(reg, value uint32) {
+	c.accesses++
+	if (c.quiesceFault == "signal-mask" && reg == signalEnable && value == 0) ||
+		(c.quiesceFault == "status-mask" && reg == statusEnable && value == 0) {
+		return
+	}
 	if reg == status {
 		c.regs[status] &= ^value
 		return
 	}
 	if reg == clock {
+		stopping := c.regs[clock]&4 != 0 && value&4 == 0
+		if stopping && c.quiesceFault == "clock-stop" {
+			value |= 4
+		}
+		if stopping && c.quiesceFault == "late-busy" {
+			c.regs[present] |= 1 << 9
+		}
+		if stopping && c.quiesceFault == "late-error" {
+			c.regs[status] |= 1 << 15
+		}
 		if value&(7<<24) != 0 {
 			c.resets++
 			if c.coldFault == "reset" {
@@ -115,12 +138,21 @@ func (c *card) Write32(reg, value uint32) {
 		}
 	case 2:
 		c.state = 2
+		for i, value := range c.cid {
+			if c.coldFault == "cid-zero" {
+				value = 0
+			}
+			if c.coldFault == "cid-ones" {
+				value = ^uint32(0)
+			}
+			c.regs[response+uint32(i)*4] = value
+		}
 	case 3:
 		if c.state != 2 {
 			panic("CMD3 without identification")
 		}
 		c.state = 3
-		c.regs[response] = 7 << 16
+		c.regs[response] = uint32(c.assignedRCA) << 16
 		if c.coldFault == "r6err" {
 			c.regs[response] |= 0x8000
 		}
@@ -128,7 +160,7 @@ func (c *card) Write32(reg, value uint32) {
 			c.regs[response] = 0
 		}
 	case 9:
-		if c.state != 3 || c.regs[argument] != 7<<16 {
+		if c.state != 3 || c.regs[argument] != uint32(c.assignedRCA)<<16 {
 			panic("CSD outside standby/address")
 		}
 		c.regs[response+12] = 1 << 22
@@ -146,13 +178,25 @@ func (c *card) Write32(reg, value uint32) {
 			c.regs[response+12] = 0
 		}
 	case 7:
-		if c.state != 3 {
+		if c.state != 3 || c.regs[argument] != uint32(c.assignedRCA)<<16 {
 			panic("select outside standby")
 		}
 		c.state = 4
 		c.regs[status] |= 2
 	case 13:
+		if c.regs[argument] != uint32(c.assignedRCA)<<16 {
+			panic("status query used stale RCA")
+		}
 		c.regs[response] = uint32(c.state)<<9 | 1<<8
+		if c.quiesceFault == "clock-change" {
+			c.regs[clock] &^= 2
+		}
+		if c.quiesceFault == "dma-change" {
+			c.regs[command] |= 1
+		}
+		if c.quiesceFault == "busy-after-ready" {
+			c.regs[present] |= 1 << 9
+		}
 	case 17:
 		if c.state != 4 {
 			panic("read outside transfer")
@@ -279,7 +323,7 @@ func TestTransferFailurePoisonsDevice(t *testing.T) {
 	}
 }
 func TestColdStartupRejected(t *testing.T) {
-	for _, mode := range []string{"reset", "clock", "power", "echo", "app", "powerup", "sdsc", "ocr", "rca", "r6err", "csd", "csd3", "ready", "response"} {
+	for _, mode := range []string{"reset", "clock", "power", "echo", "app", "powerup", "sdsc", "ocr", "rca", "r6err", "csd", "csd3", "ready", "response", "cid-zero", "cid-ones"} {
 		t.Run(mode, func(t *testing.T) {
 			c := newCard()
 			c.coldFault = mode
@@ -390,5 +434,216 @@ func TestDelayedCardPowerUp(t *testing.T) {
 	}
 	if c.powerPolls != 4 || d.SectorCount() != 8192 {
 		t.Fatal("power-up loop did not finish discovery")
+	}
+}
+
+func assertRetiredNoMMIO(t *testing.T, d *Device, c *card) {
+	t.Helper()
+	before := c.accesses
+	for _, operation := range []func() error{func() error { return d.ReadSectors(0, make([]byte, 512)) }, d.Flush, d.Quiesce, d.Resume} {
+		if err := operation(); !errors.Is(err, ErrRetired) {
+			t.Fatalf("retired operation: %v", err)
+		}
+	}
+	if c.accesses != before {
+		t.Fatal("retired device touched MMIO")
+	}
+}
+
+func TestQuiesceAndFreshControllerResume(t *testing.T) {
+	c := newCard()
+	d, err := Open(c, Config{InputClockHz: 200000000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := c.accesses
+	if err = d.Resume(); err == nil || c.accesses != before {
+		t.Fatal("active device reinitialized")
+	}
+	id := d.Identity()
+	wantCID := [15]byte{0x12, 0x34, 0x56, 0x54, 0x45, 0x53, 0x54, 0x34, 0x56, 0x78, 0x90, 0xa1, 0xb2, 0xc3, 0}
+	if id.CID != wantCID || id.Sectors != 8192 {
+		t.Fatalf("R2 CID/geometry: %+v", id)
+	}
+	id.CID[0] ^= 0xff
+	if d.Identity().CID != wantCID {
+		t.Fatal("identity getter aliases stored identity")
+	}
+	if err = d.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+	if c.regs[clock]&7 != 3 || c.regs[signalEnable] != 0 || c.regs[statusEnable] != 0 {
+		t.Fatal("card clock or interrupts remain active")
+	}
+	before = c.accesses
+	for _, operation := range []func() error{func() error { return d.ReadSectors(0, make([]byte, 512)) }, d.Flush, d.Quiesce} {
+		if err = operation(); !errors.Is(err, ErrQuiesced) {
+			t.Fatalf("quiesced operation: %v", err)
+		}
+	}
+	if c.accesses != before {
+		t.Fatal("quiesced device touched MMIO")
+	}
+	// Model a fresh controller after the platform reset/regrant. Card identity
+	// survives; no SDHCI configuration is carried over from the earlier run.
+	c.regs = map[uint32]uint32{0x240: 1 << 24}
+	c.assignedRCA = 11
+	c.cid[3] |= 0xa5000000 // SDHCI's reserved R2 high byte is not CID identity.
+	if err = d.Resume(); err != nil {
+		t.Fatal(err)
+	}
+	if d.Identity().CID != wantCID || d.Identity().Sectors != 8192 {
+		t.Fatal("identity changed on resume")
+	}
+	if err = d.ReadSectors(7, make([]byte, 512)); err != nil {
+		t.Fatal(err)
+	}
+	if d.rca != 11 {
+		t.Fatal("new card address was not adopted")
+	}
+	if err = d.Flush(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestResumeRejectsChangedCardAndCapacity(t *testing.T) {
+	for _, change := range []string{"cid", "capacity"} {
+		t.Run(change, func(t *testing.T) {
+			c := newCard()
+			d, err := Open(c, Config{InputClockHz: 100000000})
+			if err != nil {
+				t.Fatal(err)
+			}
+			original := d.Identity()
+			if err = d.Quiesce(); err != nil {
+				t.Fatal(err)
+			}
+			if change == "cid" {
+				c.cid[0] ^= 0x100
+			} else {
+				c.coldFault = "max"
+			}
+			if err = d.Resume(); !errors.Is(err, ErrCardChanged) {
+				t.Fatalf("changed media accepted: %v", err)
+			}
+			if d.Identity() != original || len(c.reads) != 0 {
+				t.Fatal("replacement published or read as the old card")
+			}
+			assertRetiredNoMMIO(t, d, c)
+		})
+	}
+}
+
+func TestResumeFailureRetiresDevice(t *testing.T) {
+	for _, fault := range []string{"reset", "clock", "echo", "cid-zero", "cid-ones", "r6err", "csd3"} {
+		t.Run(fault, func(t *testing.T) {
+			c := newCard()
+			d, err := Open(c, Config{InputClockHz: 100000000})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = d.Quiesce(); err != nil {
+				t.Fatal(err)
+			}
+			c.coldFault = fault
+			if err = d.Resume(); err == nil {
+				t.Fatal("failed initialization resumed")
+			}
+			assertRetiredNoMMIO(t, d, c)
+		})
+	}
+}
+
+func TestQuiesceFailureRetiresDevice(t *testing.T) {
+	for _, fault := range []string{"dma", "clock-off", "pending-error", "busy-before", "signal-mask", "status-mask", "clock-stop", "late-busy", "late-error", "clock-change", "dma-change", "busy-after-ready", "card-not-ready"} {
+		t.Run(fault, func(t *testing.T) {
+			c := newCard()
+			d, err := Open(c, Config{InputClockHz: 100000000})
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.quiesceFault = fault
+			switch fault {
+			case "dma":
+				c.regs[command] |= 1
+			case "clock-off":
+				c.regs[clock] &^= 4
+			case "pending-error":
+				c.regs[status] |= 1 << 15
+			case "busy-before":
+				c.regs[present] |= 1 << 9
+			case "signal-mask":
+				c.regs[signalEnable] = 1
+			case "card-not-ready":
+				c.notReady = true
+			}
+			if err = d.Quiesce(); err == nil {
+				t.Fatal("uncertain stop accepted")
+			}
+			if fault == "dma-change" && c.regs[clock]&4 == 0 {
+				t.Fatal("card clock stopped after DMA ownership changed")
+			}
+			assertRetiredNoMMIO(t, d, c)
+		})
+	}
+}
+
+type heldSector struct {
+	Registers
+	once             sync.Once
+	entered, release chan struct{}
+}
+
+func (h *heldSector) Read32(reg uint32) uint32 {
+	if reg == dataPort {
+		h.once.Do(func() { close(h.entered); <-h.release })
+	}
+	return h.Registers.Read32(reg)
+}
+
+func TestQuiesceFencesQueuedReadsAndStopsBatchAtSectorBoundary(t *testing.T) {
+	c := newCard()
+	held := &heldSector{Registers: c, entered: make(chan struct{}), release: make(chan struct{})}
+	d, err := Open(held, Config{InputClockHz: 100000000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst := bytes.Repeat([]byte{0xaa}, 1024)
+	readDone := make(chan error, 1)
+	go func() { readDone <- d.ReadSectors(0, dst) }()
+	<-held.entered
+	quiesceDone := make(chan error, 1)
+	go func() { quiesceDone <- d.Quiesce() }()
+	deadline := time.Now().Add(time.Second)
+	for !d.stopRequested.Load() {
+		if time.Now().After(deadline) {
+			close(held.release)
+			t.Fatal("quiesce did not fence admission")
+		}
+		runtime.Gosched()
+	}
+	queuedDone := make(chan error, 1)
+	go func() { queuedDone <- d.ReadSectors(2, make([]byte, 512)) }()
+	select {
+	case err := <-quiesceDone:
+		close(held.release)
+		t.Fatalf("stopped before current sector completed: %v", err)
+	default:
+	}
+	close(held.release)
+	if err = <-readDone; !errors.Is(err, ErrQuiesced) {
+		t.Fatalf("batch did not stop: %v", err)
+	}
+	if err = <-queuedDone; !errors.Is(err, ErrQuiesced) {
+		t.Fatalf("queued read admitted: %v", err)
+	}
+	if err = <-quiesceDone; err != nil {
+		t.Fatal(err)
+	}
+	if len(c.reads) != 1 || c.reads[0] != 0 {
+		t.Fatal("another sector issued after stop request", c.reads)
+	}
+	if !bytes.Equal(dst[:512], bytes.Repeat([]byte{0, 1, 2, 3}, 128)) || !bytes.Equal(dst[512:], bytes.Repeat([]byte{0xaa}, 512)) {
+		t.Fatal("sector boundary or unfinished output changed")
 	}
 }

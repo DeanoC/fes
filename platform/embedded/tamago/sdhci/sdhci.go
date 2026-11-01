@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/block"
@@ -31,6 +32,13 @@ const (
 	statusEnable = 0x234
 	signalEnable = 0x238
 	statusErrors = uint32(0xffff8000)
+	busy         = uint32(0xb07)
+)
+
+var (
+	ErrQuiesced    = errors.New("sdhci: device quiesced")
+	ErrRetired     = errors.New("sdhci: prior failure requires fresh controller ownership and a new filesystem mount")
+	ErrCardChanged = errors.New("sdhci: card identity changed across resume")
 )
 
 // Registers supplies ordered 32-bit device accesses relative to controller base.
@@ -42,12 +50,27 @@ type Registers interface {
 }
 
 type Device struct {
-	mu      sync.Mutex
-	io      Registers
-	sectors uint64
-	rca     uint16
-	failed  bool
+	lifecycle     sync.Mutex
+	mu            sync.Mutex
+	io            Registers
+	sectors       uint64
+	rca           uint16
+	failed        bool
+	quiesced      bool
+	config        Config
+	cid           [15]byte
+	stopRequested atomic.Bool
 }
+
+// Identity contains the CID bits supplied by SDHCI's R2 registers (CID[127:8],
+// excluding the CRC/end byte) and discovered geometry. Both remain immutable
+// for this Device, including while quiesced or retired.
+type Identity struct {
+	CID     [15]byte
+	Sectors uint64
+}
+
+func (d *Device) Identity() Identity { return Identity{CID: d.cid, Sectors: d.sectors} }
 
 // Config describes the actual input clock established by firmware, not the
 // requested SD bus rate. The initial transport stays at <=400 kHz, one bit.
@@ -60,7 +83,7 @@ func Open(io Registers, config Config) (*Device, error) {
 	if io == nil || config.InputClockHz < 400000 || config.InputClockHz > 200000000 {
 		return nil, fmt.Errorf("sdhci: invalid firmware input clock")
 	}
-	d := &Device{io: io}
+	d := &Device{io: io, config: config}
 	if err := d.initialize(config); err != nil {
 		return nil, err
 	}
@@ -155,6 +178,20 @@ func (d *Device) initialize(config Config) error {
 	}
 	if err := d.issue(2, 0, responseR2, false); err != nil {
 		return err
+	}
+	// R2 strips the final CRC/end byte and shifts the remaining bits down.
+	top := d.io.Read32(response + 12)
+	d.cid[0], d.cid[1], d.cid[2] = byte(top>>16), byte(top>>8), byte(top)
+	binary.BigEndian.PutUint32(d.cid[3:7], d.io.Read32(response+8))
+	binary.BigEndian.PutUint32(d.cid[7:11], d.io.Read32(response+4))
+	binary.BigEndian.PutUint32(d.cid[11:15], d.io.Read32(response))
+	var nonzero, notFF byte
+	for _, value := range d.cid {
+		nonzero |= value
+		notFF |= ^value
+	}
+	if nonzero == 0 || notFF == 0 {
+		return fmt.Errorf("sdhci: invalid card CID")
 	}
 	if err := d.issue(3, 0, responseR6, false); err != nil {
 		return err
@@ -268,9 +305,15 @@ func (d *Device) ReadSectors(lba uint64, dst []byte) error {
 		return err
 	}
 	if d.failed {
-		return fmt.Errorf("sdhci: prior failure requires a fresh cold initialization")
+		return ErrRetired
+	}
+	if d.quiesced || d.stopRequested.Load() {
+		return ErrQuiesced
 	}
 	for n := 0; n < len(dst); n += 512 {
+		if d.stopRequested.Load() {
+			return ErrQuiesced
+		}
 		// Stage each sector until transfer completion; uncertain data never appears
 		// as a successful sector. Earlier sectors may have completed on batch error.
 		var sector [512]byte
@@ -306,11 +349,97 @@ func (d *Device) Flush() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.failed {
-		return fmt.Errorf("sdhci: prior failure requires a fresh cold initialization")
+		return ErrRetired
+	}
+	if d.quiesced || d.stopRequested.Load() {
+		return ErrQuiesced
 	}
 	if err := d.ready(); err != nil {
 		d.failed = true
 		return err
 	}
+	return nil
+}
+
+// Quiesce serializes with reads, stops further access and independently observes
+// controller idle before and after stopping the card clock. Firmware can then
+// assert its SoC resets under its own ownership contract. Success covers this
+// PIO controller only; the platform must separately contain other masters and
+// verify reset/bridge state. A repeated call supplies no fresh stop receipt.
+func (d *Device) Quiesce() error {
+	d.lifecycle.Lock()
+	defer d.lifecycle.Unlock()
+	d.stopRequested.Store(true)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.failed {
+		return ErrRetired
+	}
+	if d.quiesced {
+		return ErrQuiesced
+	}
+	fail := func(err error) error { d.failed = true; return err }
+	if d.io.Read32(command)&1 != 0 || d.io.Read32(clock)&(7|7<<24) != 7 || d.io.Read32(status)&statusErrors != 0 {
+		return fail(fmt.Errorf("sdhci: unexpected DMA, clock or pending error before quiesce"))
+	}
+	d.io.Write32(signalEnable, 0)
+	if d.io.Read32(signalEnable) != 0 {
+		return fail(fmt.Errorf("sdhci: interrupt signals did not stop"))
+	}
+	if err := d.wait(present, busy, 0, true); err != nil {
+		return fail(err)
+	}
+	// Query the selected card while command-complete status is still enabled.
+	if err := d.ready(); err != nil {
+		return fail(err)
+	}
+	d.io.Write32(statusEnable, 0)
+	if err := d.wait(present, busy, 0, true); err != nil {
+		return fail(err)
+	}
+	value := d.io.Read32(clock)
+	if value&(7|7<<24) != 7 || d.io.Read32(command)&1 != 0 || d.io.Read32(signalEnable) != 0 ||
+		d.io.Read32(statusEnable) != 0 || d.io.Read32(status)&statusErrors != 0 {
+		return fail(fmt.Errorf("sdhci: controller changed during quiesce"))
+	}
+	d.io.Write32(clock, value&^4)
+	if err := d.wait(present, busy, 0, true); err != nil {
+		return fail(err)
+	}
+	if d.io.Read32(clock)&(7|7<<24) != 3 || d.io.Read32(signalEnable) != 0 ||
+		d.io.Read32(statusEnable) != 0 || d.io.Read32(command)&1 != 0 || d.io.Read32(status)&statusErrors != 0 {
+		return fail(fmt.Errorf("sdhci: quiesce readback changed"))
+	}
+	d.quiesced = true
+	return nil
+}
+
+// Resume requires the caller to reestablish exclusive firmware ownership and
+// SoC clock/ComboPHY/reset readiness first. Reinitialization can change RCA,
+// but CID and geometry must match before the existing filesystem can read.
+// Failure retires this Device; the caller retains its unresolved hardware lease.
+func (d *Device) Resume() error {
+	d.lifecycle.Lock()
+	defer d.lifecycle.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.failed {
+		return ErrRetired
+	}
+	if !d.quiesced {
+		return errors.New("sdhci: resume requires quiescence")
+	}
+	next := &Device{io: d.io, config: d.config}
+	if err := next.initialize(d.config); err != nil {
+		d.failed = true
+		return err
+	}
+	if next.Identity() != d.Identity() {
+		d.failed = true
+		return ErrCardChanged
+	}
+	d.rca = next.rca
+	d.quiesced = false
+	d.stopRequested.Store(false)
 	return nil
 }

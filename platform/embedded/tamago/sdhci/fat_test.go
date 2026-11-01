@@ -4,6 +4,7 @@ package sdhci
 import (
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -64,6 +65,28 @@ func TestColdPIOFAT32(t *testing.T) {
 	}
 	if sha256.Sum256(c.image) != before {
 		t.Fatal("read-only transport changed image")
+	}
+	identity := disk.Identity()
+	if err = disk.Quiesce(); err != nil {
+		t.Fatal(err)
+	}
+	accesses := c.accesses
+	if _, err = volume.ReadFile("FES/BOOT.JSON"); !errors.Is(err, ErrQuiesced) {
+		t.Fatalf("filesystem access during containment: %v", err)
+	}
+	if c.accesses != accesses {
+		t.Fatal("quiesced filesystem touched controller")
+	}
+	c.regs = map[uint32]uint32{0x240: 1 << 24}
+	if err = disk.Resume(); err != nil {
+		t.Fatal(err)
+	}
+	got, err = volume.ReadFile("FES/BOOT.JSON")
+	if err != nil || !bytes.Equal(got, payload) || disk.Identity() != identity {
+		t.Fatalf("retained FAT32 volume after resume: %s %v", got, err)
+	}
+	if sha256.Sum256(c.image) != before {
+		t.Fatal("quiesce/resume wrote image")
 	}
 	c.coldFault = "removed"
 	if _, err = volume.ReadFile("FES/BOOT.JSON"); err == nil {

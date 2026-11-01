@@ -28,8 +28,11 @@ first bring-up programs; `keyboard` reports keys over serial, while `storage` mo
 
 ## Firmware handoff
 
-No default Nano resource profile is shipped. The delivery board revision,
-firmware recipe and actual memory reservations have not been verified.
+No default active-device Nano resource profile is shipped. The
+[contained serial profile](../../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
+has booted Go on TRWU8CBL with native SD, USB, network and display disabled.
+An active SD profile still needs trusted reset/clock/ComboPHY ownership and
+physical qualification.
 The build runner requires an exact schema-7 JSON object with these fields:
 
 - `firmware`: identifying string for the firmware producing this handoff.
@@ -87,6 +90,13 @@ Device. There is no automatic replay into an existing filesystem after possible
 removal. A fresh cold Open and FAT mount is required; the board wrapper requires
 a reboot before another attempt. Reinsertion, eMMC, SDSC and SDUC are unsupported.
 
+The [SD driver lifecycle](../sdhci/README.md) now fences queued reads, drains
+PIO and stops the card clock through `Quiesce`. After the platform's ownership
+and PHY preparation, `Resume` reinitializes and checks CID/capacity before the
+same Device can serve its retained FAT volume again. Failures retire it. The
+board wrapper does not yet wire the required firmware grant/stop operations;
+the serial cold owner remains strict and native SD stays disabled there.
+
 If USB is admitted, firmware must also configure the 60 MHz ULPI PHY and the
 board's VBUS supply/Type-C host role with DMA off and all channels released.
 See the [DWC2 contract](../dwc2/README.md) for its supported subset and limits.
@@ -129,8 +139,8 @@ Current plans are corrected; dated validation receipts retain their original
 bytes. Neither this controller fact nor the vendor development-kit examples
 qualify Nano pinmux, PHY sequencing or a boot recipe.
 
-On delivery: identify board revision and matching Terasic firmware; establish
-actual reservations/entry contract; boot `probe` over serial; then boot `storage`
+The serial `probe` now passes on TRWU8CBL. Next qualify native SD reset,
+clock/ComboPHY and ownership transitions, then boot `storage`
 on disposable synthetic FAT32 media and verify its hash. Boot `keyboard` next
 to validate ULPI/VBUS, enumeration and actual key reports independently of display.
 Validate the network firmware contract and `network` HTTP probe next. Writable
