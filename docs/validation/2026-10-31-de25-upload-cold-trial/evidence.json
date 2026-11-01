@@ -11,15 +11,18 @@
   "factory_card_cid_sha256": "630825446173160e558b6a515b132dcd61c38076be7d4e1433ea7dd9d2f5cb28",
   "factory_card_or_flash_reimaged": false,
   "factory_restoration": {
-    "kit_claim": "held",
-    "last_serial_observation": {
-      "login_observed": false,
-      "scope": "one bounded serial observation; no login or boot command",
-      "started_utc": "2026-10-31T19:45:45.441615+00:00"
-    },
-    "original_factory_card_confirmed": true,
-    "user_power_cycle_requested": true,
-    "verified": false
+    "boot_id": "3dc3f7ca-7b12-467a-9291-eca23caf6190",
+    "card_capacity_model_match": true,
+    "client_date": "2026-11-01",
+    "kernel": "6.12.11-gd7d192a9ddd9",
+    "kit_claim": "released",
+    "logged_out": true,
+    "method": "original factory SD and user-reported reboot after power-cycle request; no successful reference JTAG programming",
+    "physical_reset_method_independently_observed": false,
+    "qspi_power_on_boot_retested": false,
+    "root": "/dev/mmcblk0p2 ext3",
+    "user_report": "rebooted",
+    "verified": true
   },
   "failed_restoration_attempt": {
     "error": "expected FPGA ID absent",
@@ -179,7 +182,8 @@
     "header_allowed_cause_mask": 5,
     "physical_tuple_still_rejected": true,
     "record_address": 135872,
-    "record_size": 168
+    "record_size": 168,
+    "source_commit": "def25f9279fe82f5c566d7c0c658983c2d54b3e7"
   },
   "format": 1,
   "hardware_helper_sha256": {
@@ -187,7 +191,7 @@
     "baseline_serial.py": "937994b3f20886e68c1d6e1f86dac4e04558352e8092e4d64d42ce2d5ee14161",
     "boot.py": "bd0084c5f772b044c6e31562eae3734e95b8224de853c1b32f0fb9e06cfb83f8",
     "check_recovery_link.py": "08be196bcdb8db04545ff98ed925079751ded81945abfa1c25ee0e46eafb5c1c",
-    "collect_evidence.py": "c907d2c48b6dbcc19a57df52ec9f8478bb4094c300df1aaf2053259c1cddd369",
+    "collect_evidence.py": "070a12e6da0c8152e13d2cd280f197e2ed9524af44c9c6c16bd4e36a417fed7e",
     "common.py": "cd624dc50feec2b6568f64ee946ab4cff34cee93536353bee6e0f67cc8ea7068",
     "observe_factory.py": "6785ebbe0708168b4994883b98a03eb554f8eaba00004e8ed1d4904b6b4173ff",
     "prepare_spare.py": "a42dabd3e65cf413b4dbb0ffddfbcf8bca0be84f2d0beb230a4cf90d3f1495fe",
@@ -195,18 +199,22 @@
     "shutdown_serial.py": "a4dc9ef1b431876a2c894cf05636c22f024086b6af3703f0ad1a15c8b39829d6",
     "upload_trial.py": "d1c1cbcf39be29e57049287c5999cb764814fbd628011deeb2b9d95a9bc2dc11",
     "validate.py": "337ce32661ed14206986fbb83788735660ce573e71837f900509be8c4f8e4c4f",
-    "verify_factory.py": "e766512891b3291d46574db033f29e7198978c54d87b7f98b6fd60fcab4702d2"
+    "verify_factory.py": "86d51055a95c3b5933d7ce9f009c9b2ad1bd76e6a5d3de32e7ad4a2a6520cb24",
+    "verify_restored_jtag.py": "396adbbd3c570b208a892ce1a21b5018eb52e17753aa61238d11f42a2976a9cd"
   },
   "host_cleanup": {
-    "claim_still_owned": true,
-    "factory_restore_verified": false,
+    "claim_released": true,
+    "client_date": "2026-11-01",
+    "factory_boot_id": "3dc3f7ca-7b12-467a-9291-eca23caf6190",
+    "factory_restore_verified": true,
+    "jtag_id_observed": true,
     "own_programmer_uart_tftp_closed": true,
     "shared_jtag_service_unchanged": true,
     "target_usb_node": "/dev/bus/usb/003/061",
     "usb_gid": 0,
     "usb_mode": "0o664",
     "usb_uid": 0,
-    "utc": "2026-10-31T19:54:10.446917+00:00"
+    "utc": "2026-11-01T06:45:23.737379+00:00"
   },
   "initial_state_analysis": {
     "classification": "offline evaluation of retained initial hardware tuple against exact tested predicates; no new hardware observation",
@@ -264,6 +272,8 @@
     "recovery-console.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "recovery-jtag-query.log": "005be485abf0105f20716f07e9f027ef519d8cef3be599396718c6bb17d23b74",
     "recovery-slow-chain.log": "abc7beed90321eed05dc3f0b21f9a765c683b7584c2cc48d20b419ea74bbb8bf",
+    "restored-console.log": "e57900f13f6490a0a86370abbe1d12bba7e30bcc2aec766597814effa3fb6ab4",
+    "restored-jtag-query.log": "4055c21638b1045de92fd424463fb127c11044c04af9410c2ff78764862b58c6",
     "shutdown-console.log": "83c866a4d9792a3af324c3cfd010b849dc1868148ae4f0f05cb0b6bb2af33094",
     "validation-heartbeat.log": "c19e370763f44985eb6da4496d5022401043e5fcca1adcdf605c2f09f2d0c7fc"
   },
@@ -288,7 +298,7 @@
   },
   "original_tested_artifact_retention": "/home/deano/fes-retained/de25-nano-cold-upload-20261031",
   "other_boards_touched": false,
-  "recorded_utc": "2026-10-31T19:55:04.802795+00:00",
+  "recorded_utc": "2026-11-01T06:46:04.542299+00:00",
   "recovery_boot": {
     "console_sha256": "6195d9678ccf2821345a7f9659ccbdd45fae47a30a236d7d305d09ba1609fe2f",
     "fesboot_sent": false,
@@ -379,6 +389,46 @@
     "version": "CS/R1 revB0 RC28",
     "zip_sha256": "c4720c039263d5423662994fc41cd1c9a324f9fcf3bc1187a3a742f532537925"
   },
+  "restoration_record_validation": {
+    "affected_results": [
+      {
+        "label": "test_affected.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "test_test_changed.py",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "committed whitespace",
+        "lane": "always",
+        "returncode": 0
+      },
+      {
+        "label": "working whitespace",
+        "lane": "always",
+        "returncode": 0
+      }
+    ],
+    "documentation_links": "passed",
+    "log_sha256": {
+      "restoration-checks.log": "699cd2ce310328902b8d66acb7929e7c674b9556e9d01adcf84784b64654f137",
+      "restoration-doc-links.log": "112ab742576d07de470e5efa97b5e38a5efe2f0f6adabfdaeec5618439afe125"
+    },
+    "status": "passed"
+  },
+  "restored_jtag": {
+    "finished_utc": "2026-11-01T06:44:19.181163+00:00",
+    "jtag_id": "4362C0DD",
+    "jtag_id_observed": true,
+    "returncode": 0,
+    "scope": "one read-only exact-cable chain query after user reboot and factory verification",
+    "serial": "TRWU8CBL",
+    "started_utc": "2026-11-01T06:44:18.015993+00:00",
+    "usb_permissions_restored": true
+  },
   "retained_directory": "/home/deano/fes-retained/de25-nano-upload-cold-trial-20261031",
   "spare_card": {
     "capacity": 3980394496,
@@ -390,7 +440,7 @@
     "stage": "readback-verified",
     "target_by_id": "/dev/disk/by-id/usb-Generic_STORAGE_DEVICE-0:0"
   },
-  "status": "completed partial diagnostic; factory restoration awaiting user power cycle",
+  "status": "completed partial diagnostic; factory restored",
   "tested_cold_profile": {
     "chain_sha256": "2f23ec149a2568ccec02e31c1b3e4e99cb4cde329f006f7ba4022d334a542457",
     "entry_image_sha256": "1b1aae754864be3055b18c3b962f937cee3d443ff4c43d099bd84ccdf93e8950",

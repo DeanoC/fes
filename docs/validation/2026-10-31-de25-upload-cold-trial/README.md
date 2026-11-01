@@ -108,13 +108,24 @@ programming because the exact cable reported a broken JTAG chain. One
 lower-clock check also failed; the original 15 MHz setting and USB permissions
 were restored. No shared JTAG service was restarted and no other board was used.
 The cause of the broken chain is not established. A later bounded serial
-observation did not find the factory login. User power-cycle confirmation and
-authenticated factory verification are still pending; the claim remains held.
-There are no owned UART, programmer or TFTP clients left running. The factory
-card and flash have not been programmed or reimaged by this trial.
+observation initially did not find the factory login.
+
+On 2026-11-01 (Europe/Sofia), the user reported the requested reboot completed.
+Authenticated UART verification matched the factory kernel
+`6.12.11-gd7d192a9ddd9`, root `/dev/mmcblk0p2 ext3`, original card CID/capacity
+and board model, with fresh boot UUID `3dc3f7ca-7b12-467a-9291-eca23caf6190`.
+The read-only exact-cable query recovered JTAG ID `4362C0DD`. No further FPGA
+programming was needed. The physical reset method was user-reported; independent
+electrical power-on or exact QSPI artifact qualification is not claimed.
+
+The UART session logged out and closed, programmer/TFTP clients are closed,
+no UDP 69 listener remains, and the exact top USB node is restored to
+root:root mode `0664`. TRWU8CBL is idle and **released** in its authoritative
+status file. The factory card and flash were not programmed or reimaged;
+normal login accounting may change the existing root filesystem.
 
 The [evidence record](evidence.json) contains the partial physical result,
-pending restoration state, completed software validation and exact artifact/
+verified restoration, completed software validation and exact artifact/
 log identities. Retention is
 `/home/deano/fes-retained/de25-nano-upload-cold-trial-20261031`.
 The earlier physically tested pair and image remain in the preceding
