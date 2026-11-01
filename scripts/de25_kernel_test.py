@@ -22,7 +22,16 @@ REQUIRED_CASES = frozenset((
     "kernel_owns_descriptor_and_drain_lifetime", "failed_start_is_held_until_drain",
     "unreadable_epoch_retains_exposed_storage",
     "coherent_mapping_uapi_and_revoke", "rejects_invalid_mapping_shapes",
+    "refused_mapping_releases_new_mm_reference",
     "revoke_catches_inflight_mmap_link",
+    "acceptance_is_not_display_and_slots_alternate",
+    "ordered_descriptor_precedes_first_submit",
+    "stale_generation_and_reset_cannot_prove_drain",
+    "faults_never_release_pending_slot",
+    "snapshot_handshake_is_bounded_and_consistent",
+    "sequence_and_generation_never_wrap",
+    "poll_identity_rejects_before_register_effects",
+    "mismatched_completion_never_releases_slot",
 ))
 
 

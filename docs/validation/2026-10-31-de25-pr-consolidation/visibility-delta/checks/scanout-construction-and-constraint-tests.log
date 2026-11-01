@@ -1,0 +1,18 @@
+test_actual_logical_view_parameters_and_derived_reset_polarity_edges_are_guarded (test_build.ScanoutBuildTests.test_actual_logical_view_parameters_and_derived_reset_polarity_edges_are_guarded) ... ok
+test_actual_preparation_replaces_pattern_with_response_preserving_real_scanout (test_build.ScanoutBuildTests.test_actual_preparation_replaces_pattern_with_response_preserving_real_scanout) ... ok
+test_clock_fault_ingress_has_quartus_native_identification (test_build.ScanoutBuildTests.test_clock_fault_ingress_has_quartus_native_identification) ... ok
+test_generation_marks_actual_scanout_and_requires_handoff_validation (test_build.ScanoutBuildTests.test_generation_marks_actual_scanout_and_requires_handoff_validation) ... ok
+test_generation_reset_guard_rejects_unregistered_gate_or_stale_sdc_targets (test_build.ScanoutBuildTests.test_generation_reset_guard_rejects_unregistered_gate_or_stale_sdc_targets) ... ok
+test_hdmi_data_and_de_use_registered_visibility_with_lock_assertion (test_build.ScanoutBuildTests.test_hdmi_data_and_de_use_registered_visibility_with_lock_assertion) ... ok
+test_logical_view_resolution_rejects_duplicate_files_and_escaped_paths (test_build.ScanoutBuildTests.test_logical_view_resolution_rejects_duplicate_files_and_escaped_paths) ... ok
+test_postcompile_pll_mutation_is_rejected_with_failed_receipt_retained (test_build.ScanoutBuildTests.test_postcompile_pll_mutation_is_rejected_with_failed_receipt_retained) ... ok
+test_rendered_register_offset_comes_from_selected_generated_definition (test_build.ScanoutBuildTests.test_rendered_register_offset_comes_from_selected_generated_definition) ... ok
+test_sdc_targets_the_generated_pixel_and_system_reset_synchronizers (test_build.ScanoutBuildTests.test_sdc_targets_the_generated_pixel_and_system_reset_synchronizers) ... ok
+test_source_snapshot_survives_later_working_source_mutation (test_build.ScanoutBuildTests.test_source_snapshot_survives_later_working_source_mutation) ... ok
+test_top_reset_source_feeds_both_domain_synchronizers_without_changing_board_port (test_build.ScanoutBuildTests.test_top_reset_source_feeds_both_domain_synchronizers_without_changing_board_port) ... ok
+test_visibility_cdc_cut_targets_only_the_registered_request_to_the_first_d_pin (test_build.ScanoutBuildTests.test_visibility_cdc_cut_targets_only_the_registered_request_to_the_first_d_pin) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.642s
+
+OK

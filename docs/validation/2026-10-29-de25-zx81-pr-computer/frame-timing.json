@@ -1,0 +1,29 @@
+{
+  "base": {
+    "maximum_metadata_flight_ns": 4.034,
+    "minimum_hold_slack_ns": 0.01,
+    "minimum_recovery_slack_ns": 12.677,
+    "minimum_removal_slack_ns": 0.219,
+    "minimum_setup_slack_ns": 3.56,
+    "paths_sha256": "9d96158ca63c4a39ae0a1721d70ec8abf46878514c322975982e0cfbbd32fa1a",
+    "rows": 136
+  },
+  "persona_a": {
+    "maximum_metadata_flight_ns": 4.034,
+    "minimum_hold_slack_ns": 0.01,
+    "minimum_recovery_slack_ns": 12.677,
+    "minimum_removal_slack_ns": 0.219,
+    "minimum_setup_slack_ns": 3.56,
+    "paths_sha256": "9d96158ca63c4a39ae0a1721d70ec8abf46878514c322975982e0cfbbd32fa1a",
+    "rows": 136
+  },
+  "persona_b": {
+    "maximum_metadata_flight_ns": 4.034,
+    "minimum_hold_slack_ns": 0.01,
+    "minimum_recovery_slack_ns": 12.677,
+    "minimum_removal_slack_ns": 0.219,
+    "minimum_setup_slack_ns": 3.56,
+    "paths_sha256": "9d96158ca63c4a39ae0a1721d70ec8abf46878514c322975982e0cfbbd32fa1a",
+    "rows": 136
+  }
+}

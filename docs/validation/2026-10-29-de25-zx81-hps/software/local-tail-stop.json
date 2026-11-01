@@ -1,0 +1,11 @@
+{
+  "reason": "Matching full-tree CI40812839901 now passes every executed job; stop duplicate local affected tail after parent/consistency and partial host coverage. This local command is not an aggregate pass.",
+  "root_pids": [
+    3320120
+  ],
+  "terminated_owned_pids": [
+    3320120,
+    3362438,
+    3407719
+  ]
+}

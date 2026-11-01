@@ -1,0 +1,144 @@
+{
+  "artifact": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps/out/de25-zx81-hps-5a7382c4b5/hps/project/output_files/golden_top.sof",
+  "artifact_bytes": 1792663,
+  "artifact_sha256": "6f1c6cf7cbcd8f27d9fa7a9fe8cadfa26179af5e6196ba39536bb32e1edf0b77",
+  "compile_exit": 0,
+  "errors": 0,
+  "global_reset_fencing": "not-established",
+  "hardware_acceptance": "not-run",
+  "producer": "5a7382c4b5c17173f48bd074847acc0acc22de93",
+  "production_runtime_admission": "closed",
+  "result": "compiled-diagnostic-only",
+  "retained_files": {
+    "build.json": {
+      "original_bytes": 70370,
+      "original_sha256": "c4fb3086067de678e3928cf2e51219ad01a860e8feaaa5da0a65f057d804dbe8",
+      "retained_sha256": "c4fb3086067de678e3928cf2e51219ad01a860e8feaaa5da0a65f057d804dbe8"
+    },
+    "compile.log.gz": {
+      "original_bytes": 268492,
+      "original_sha256": "8425ad03ecef561f0f2d0a6832d5ddfddfeb7c53cda2433878715caa1d0bf30b",
+      "retained_sha256": "47673b5aa304452fed6b5030584d60fd23f10e7e58beed3a046ad50b8c64087d"
+    },
+    "generation.json": {
+      "original_bytes": 3370,
+      "original_sha256": "2baa14303b263b1c070cfc59846d5e999c447ebf1c87fe9507bae37dbd98cf8b",
+      "retained_sha256": "2baa14303b263b1c070cfc59846d5e999c447ebf1c87fe9507bae37dbd98cf8b"
+    },
+    "golden_top.fit.rpt.gz": {
+      "original_bytes": 2437935,
+      "original_sha256": "1bddfe4f12dc79e64d7d642304195052e0ad2e7c788d0949a115173be74db27a",
+      "retained_sha256": "4cc83a3027313ba11e9b5f5dbcb9af9499cbfb51345e6a6adafbac4e59c09b16"
+    },
+    "golden_top.fit.summary": {
+      "original_bytes": 612,
+      "original_sha256": "834e86c7a6de1040218b30618733823170c97c31d2d35007c209a9e83d7bf32f",
+      "retained_sha256": "834e86c7a6de1040218b30618733823170c97c31d2d35007c209a9e83d7bf32f"
+    },
+    "golden_top.flow.rpt.gz": {
+      "original_bytes": 534536,
+      "original_sha256": "ecd9cb6b100f0f7a67825a116ad9217859e8a8fd0d86a1e22ccc6fa32b99129e",
+      "retained_sha256": "c1eea34520faad426aa035535faf17fa9cd451c6428e69546a8ec8a4ccb806d1"
+    },
+    "golden_top.qsf": {
+      "original_bytes": 49011,
+      "original_sha256": "e20413edb52f31ecae6705932e6a9ba9d0f400987f62923bb25e667180c4903f",
+      "retained_sha256": "e20413edb52f31ecae6705932e6a9ba9d0f400987f62923bb25e667180c4903f"
+    },
+    "golden_top.sdc_constraints.rpt": {
+      "original_bytes": 2327,
+      "original_sha256": "e608b3393aa848b40c11e7cb7ddb9dabe206d8146ac761d2f3e2eb6daa33b528",
+      "retained_sha256": "e608b3393aa848b40c11e7cb7ddb9dabe206d8146ac761d2f3e2eb6daa33b528"
+    },
+    "golden_top.sta.rpt.gz": {
+      "original_bytes": 3125683,
+      "original_sha256": "579b8c6ef3eee1f861bcf2d6b77037e1ba37de4d183638e80060c102cc55daaf",
+      "retained_sha256": "d12450c423f8ca2e80c4ff56c6b7fd7e32634407d451236870d031079387001c"
+    },
+    "golden_top.sta.summary": {
+      "original_bytes": 4986,
+      "original_sha256": "5a08bb8e2c764e90e78f86adad72388d6093672869f6aef2493aad609efeadcc",
+      "retained_sha256": "5a08bb8e2c764e90e78f86adad72388d6093672869f6aef2493aad609efeadcc"
+    },
+    "golden_top.syn.summary": {
+      "original_bytes": 373,
+      "original_sha256": "84b426b49ffb5a5e6fe106ad632e7995870de0d99c3bb85de6c4094fdab635aa",
+      "retained_sha256": "84b426b49ffb5a5e6fe106ad632e7995870de0d99c3bb85de6c4094fdab635aa"
+    },
+    "golden_top.tq.drc.signoff.rpt.gz": {
+      "original_bytes": 77566,
+      "original_sha256": "64bc353d324fe6d1fbd19f4c7310fd0186947b6bf5078c77be809b9ba11f6ade",
+      "retained_sha256": "e37ee740ff4b209a59c9ee4139980b892404656fa7fac08e51a9fecd49600136"
+    },
+    "inputs.json": {
+      "original_bytes": 47603,
+      "original_sha256": "b43684fae45ddc5b0905ab72845625a11f8d164211b5f5f0f13da6c07b10e9f2",
+      "retained_sha256": "b43684fae45ddc5b0905ab72845625a11f8d164211b5f5f0f13da6c07b10e9f2"
+    },
+    "quartus-version.txt": {
+      "original_bytes": 132,
+      "original_sha256": "67e962ce5b26d55c897ea2e1ce5937d822e07ee3d2a3068e3e4d74a01bc5e1e1",
+      "retained_sha256": "67e962ce5b26d55c897ea2e1ce5937d822e07ee3d2a3068e3e4d74a01bc5e1e1"
+    },
+    "vendor-inputs.json": {
+      "original_bytes": 11912,
+      "original_sha256": "ce04b2ae52aa1a79354d7e24d61ee05f697baf37417a135849263b218ad7e286",
+      "retained_sha256": "ce04b2ae52aa1a79354d7e24d61ee05f697baf37417a135849263b218ad7e286"
+    }
+  },
+  "source_and_constraints": {
+    "allowed_qsf_changes": [
+      "Remove duplicate older LAST_QUARTUS_VERSION25.1.1 declaration; selected26.3 declaration stays.",
+      "Append four exact Platform Designer diagnostic component IP files.",
+      "Normalize only the unchanged FAMILY declaration line ending from CRLF to LF."
+    ],
+    "compiled_qsf_sha256": "e20413edb52f31ecae6705932e6a9ba9d0f400987f62923bb25e667180c4903f",
+    "prepared_qsf_sha256": "09a4ed8b8e40d454d8369f318b507b4d18e18cee1f4a4444d830288b41e32981",
+    "qsf_comparison": "Exact bytes after only the three reviewed edits; no other normalization.",
+    "scope": "Top RTL, board-local selected RTL/headers/SDC/init and vendor software. Vendor-generated subsystem HDL is regenerated by Platform Designer, not compared against ZIP stubs.",
+    "source_revision_is_not_later_evidence_commits": true,
+    "unchanged_prepared_selected_source_files": {
+      "fes_mailbox/I2C_Controller.v": "4ac2feae20095dc7287dedec70bdeb8949b086ea6ce3c3a33583063e978003ab",
+      "fes_mailbox/I2C_HDMI_Config.v": "b9b7c477173fee9b6cb5e3d6a6ba1122c7a0b539f205d807b1d61b22048fd391",
+      "fes_mailbox/board.v": "a0d7f396a31746a1fa6a977f24d9aeef09a2f38a68537a50f85e7524ea08ff0b",
+      "fes_mailbox/clocks.sdc": "7dd4138b073207f00dc6f819134375322b2e09a20c809eb9347f872608e761fc",
+      "fes_mailbox/fes_computer_mailbox.v": "e89431a63c4b91bef2ac377ceeeec5cea67d3aa3ad09a3f518cfdb579aa1daa0",
+      "fes_mailbox/fes_de25_computer.v": "26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a",
+      "fes_mailbox/fes_de25_ddr_probe.v": "884512e8259f8ac1becdeae5dd2845de450ee6ec3dc5b977f67fb11bb676d498",
+      "fes_mailbox/fes_de25_mailbox.v": "c7cb18157ad5476b0c2824e56a88855dd29f81f6470f8820405434acd301945e",
+      "fes_mailbox/fes_de25_top.sdc": "bfeec4459f58d8287a55119b899bd663805942f7d51e915bc7c8e2dc7d77c2e7",
+      "fes_mailbox/fes_de25_top_reset.v": "02b156aa9c08bbe5e1e4244f6c068fcfba84ea96f4132624d14de4034e79ce8a",
+      "fes_mailbox/fes_z80_alu.sv": "c7ce86810a6537150ccc482b91135031422c10ff4de257a6d4d8e54f3a4f43d9",
+      "fes_mailbox/fes_z80_bus.sv": "1946158638c97ee46f993b4a53e168cd4f44f209af01b4be0f11faa69c331b2a",
+      "fes_mailbox/fes_z80_engine.sv": "f40dad3d2b4909c4b93fa507479a417ad9b197d708580d8cc100f8f46954113b",
+      "fes_mailbox/fes_z80_nmos.sv": "d09a07cb9fcadf0c7811132dfe830554f0185f964a36c52fdc3792ad7e1ef1c0",
+      "fes_mailbox/generated/fes_computer.vh": "fd64d373df04b1ec3220938c95cb598a4e448f9b78a6d789e0fc5cec535dfc59",
+      "fes_mailbox/generated/fes_de25_computer.vh": "c3ea3892d2ffdf0ccb9961e7d1e195d74918d3e93f93b04e955cf82b63faac87",
+      "fes_mailbox/generated/fes_de25_ddr_probe.vh": "5e79081cdf4daca60057540a3c3ce4eb12ad6f88eceb475a828779588ac717c3",
+      "fes_mailbox/generated/fes_de25_mailbox.vh": "f0404bd1898a0f825a6fbdab20018d7efe95e48e06e57640477266d4a2f5cd9a",
+      "fes_mailbox/tape_store.v": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f",
+      "fes_mailbox/zx81_dpram.v": "a72d4bb2c2311813f07575c12ea96e51d1269882eed795753c3061b30c006038",
+      "fes_mailbox/zx81_dpram_de25.v": "c8b6b1e922633255c43e099eb6047bd3d84b57eafba7fdcb53c0836f03e11ea2",
+      "fes_mailbox/zx81_keyboard.v": "684185761646e975608fd29c57366d50c12d8710d36e5c69696baf1ae453b45f",
+      "fes_mailbox/zx81_machine.sv": "37744e9b25bb44e600d7e843bff4722d4db70cf614514dd04ef6e5368627187d",
+      "fes_mailbox/zx81_machine_clock.v": "d222d14bc64a9f7dd9cf1e3bad33be7708a70e0bfc94a9a6bf713d4d5ebbd501",
+      "fes_mailbox/zx81_model.vh": "c421b4ec19d294bc6e2dc98562ebf99fb9ce1100efa78fea1ed15ffabd2c3d2f",
+      "fes_mailbox/zx81_tape_store.v": "796fdc6a9b1f044f96431ce64ab0f73a5676790770f7c814bb387c4df6a475fb",
+      "fes_mailbox/zx81_tape_store_de25.v": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f",
+      "fes_mailbox/zx81_video_720p.v": "caf509f34eed2278ae78edb3f4bc3c8b68876d27aaf0edc30edff8854147f231",
+      "fes_mailbox/zx81_video_720p_de25.v": "12f650c237598ecbc9d9cbf11241c49277a057def899e665ff4389b260c23135",
+      "fes_mailbox/zx8x.hex": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b",
+      "fes_mailbox/zx8x.mif": "ad341356e97fa931be11064a8d5b0418dd8fdcaf51205a3a2ff1efedc8173dc3",
+      "ghrd_timing.sdc": "743b02b7fa6e3f6397890702f626ff7b27a5c7ab6aa9d1721c22d286900c7247",
+      "golden_top.v": "b6f5ac7a9dea7442468d2c3ad6b81354f5e79ab94605e5126d317c168c80af27",
+      "jtag.sdc": "02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a",
+      "software/hps_debug/README.md": "3712c47713d6ec9358834844beb6564e2933c2764444efc367021ae83f7368ef",
+      "software/hps_debug/build.sh": "f49ce3b45cb06d86d0e9cad7311484708a5c954e694f0ee9b0bccc37cfb23591",
+      "software/hps_debug/hps_wipe.s": "7ea170d8eebda9c8488caf9bd3533bd3c9e2a78a54d67922f42cba38717dcbc4",
+      "software/u-boot/spl/u-boot-spl-dtb.hex": "096f53ea0bb0ba6e7449b2acf012eae734840dbcdd2943b506567bad2f72f823",
+      "zx8x.hex": "93afab88ef8f12e6848700f4824f4268f193651657d23acbd30f8e9bb131131b",
+      "zx8x.mif": "ad341356e97fa931be11064a8d5b0418dd8fdcaf51205a3a2ff1efedc8173dc3"
+    }
+  },
+  "warnings": 330
+}

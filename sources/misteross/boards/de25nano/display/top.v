@@ -52,6 +52,8 @@ module de25nano_display #(
         // Real menu reader, FIFO and scanout; local responder only. Its private
         // synthetic addresses are not a physical DDR map or an HPS interface.
         fes_menu_video #(.TEST_PATTERN(1'b1)) scanout (
+            .window_base(32'd0), .window_base_valid(1'b0), .response(2'b00),
+            .current_sequence(), .current_slot(), .memory_errors(), .outstanding_beats(),
             .clk(pixel_clk), .rst(!pixel_reset_n), .enable(pixel_reset_n), .quiesce(1'b0),
             .raster_h(11'd0), .raster_v(10'd0),
             .submit_valid(desired_sequence != displayed_sequence),

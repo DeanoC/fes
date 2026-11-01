@@ -1,0 +1,24 @@
+{
+  "base": "d1bca43f02ef935d2d44e88ad745378f98407140",
+  "source_sha256": {
+    "scripts/env.sh": "6b92448000047f467ce3b430e2aa676505c49e5f1dd14dc5cc342d688a0f3386",
+    "tests/test_bootstrap_interface.py": "95092ab3873f4b1c7e875bb0ea38e7b6b03b679acb866c91709e115ba803707e"
+  },
+  "results": [
+    {
+      "path_label": "plain",
+      "passed": true,
+      "failures": 0,
+      "errors": 0,
+      "log": ".\n----------------------------------------------------------------------\nRan 1 test in 0.003s\n\nOK\n"
+    },
+    {
+      "path_label": "quartus-label",
+      "passed": false,
+      "failures": 1,
+      "errors": 0,
+      "log": "F\n======================================================================\nFAIL: test_environment_prepends_repository_local_install_bin (bootstrap_path_control_quartus_label.BootstrapInterfaceTests.test_environment_prepends_repository_local_install_bin)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/tmp/fes-proof-path-control-95dfp0g4/quartus-label/tests/test_bootstrap_interface.py\", line 516, in test_environment_prepends_repository_local_install_bin\n    self.assertNotIn(\"quartus\", result.stdout.lower() + result.stderr.lower())\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'quartus' unexpectedly found in '/tmp/fes-proof-path-control-95dfp0g4/quartus-label\\n/tmp/fes-proof-path-control-95dfp0g4/quartus-label/build/toolchain/install/bin\\n/tmp/fes-proof-path-control-95dfp0g4/quartus-label/build/toolchain/install/lib/pkgconfig\\n'\n\n----------------------------------------------------------------------\nRan 1 test in 0.003s\n\nFAILED (failures=1)\n"
+    }
+  ],
+  "scope": "unchanged-base paired path-label control; no repository test or source edits"
+}

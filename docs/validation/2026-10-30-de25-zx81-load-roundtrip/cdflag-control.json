@@ -1,0 +1,13 @@
+{
+  "control": "unchanged internal 16K model and native client; only copied CDFLAG bit7 cleared and post-LOAD editor observation added",
+  "client_returncode": 0,
+  "server_returncode": 0,
+  "client_source_sha256": "aad76db99bec0269275283ad9f230922367f7c69293be713086ce88319ac9a8b",
+  "classification": "diagnostic control only; final proof must use actual ROM SAVE output, not patched bytes",
+  "server.cpp_sha256": "a392376311226b1d9d25003a4b7616ecf922862fa47bfe3e97a0b872d7503116",
+  "server_sha256": "95d7196a79fee41e4a4d602d71c7bc588b36024a64bff91c3c36905dcdcba579",
+  "client.cpp_sha256": "aad76db99bec0269275283ad9f230922367f7c69293be713086ce88319ac9a8b",
+  "client_sha256": "67af66ec9104bf47703c6873004dd11252c6fd3c5182155fc5306a336a0ec592",
+  "unchanged_model_archive_sha256": "f37c919cdd10fa3994b7683cc4faa840b64a8dffaf01a3f3c39ffbe1ed16fe9e",
+  "observer_change": "only expected CDFLAG bit7 masked to match control upload; no RTL or guest memory mutation"
+}

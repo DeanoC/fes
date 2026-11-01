@@ -1,0 +1,18 @@
+{
+  "acquisition": "apt-get download iverilog; dpkg-deb -x into private out/de25-tape-tools/extracted; no system installation",
+  "executable_sha256": {
+    "out/de25-tape-tools/extracted/usr/bin/iverilog": "99633b21371b5fc6ddc3156c9402c10e2915a94feb99ddc5eb01ba8f02758462",
+    "out/de25-tape-tools/extracted/usr/bin/vvp": "dc287630d71c187dcf258a9d3c7d4aa77d2c3c2c4c7515debe91d000ea40c1df",
+    "out/de25-tape-tools/extracted/usr/lib/x86_64-linux-gnu/ivl/ivl": "57d7449f4b78d204383e8acf5fd35db0c22bfe956260f62ee14bba6fff9aa9fd",
+    "out/de25-tape-tools/extracted/usr/lib/x86_64-linux-gnu/ivl/ivlpp": "0a98b3c26a40d3a5c7463934d3e74d96d6fc0bc662c4ea48dd786afa1d44bf44"
+  },
+  "iverilog_version": "Icarus Verilog version 12.0 (stable) ()",
+  "package": {
+    "architecture": "amd64",
+    "name": "iverilog",
+    "path": "out/de25-tape-tools/iverilog_12.0-2+b1_amd64.deb",
+    "sha256": "febe027d2d3f5a7e570844d55758339ab5490acc09f404f214a8719d89d07056",
+    "version": "12.0-2+b1"
+  },
+  "vvp_version": "Icarus Verilog runtime version 12.0 (stable) ()"
+}

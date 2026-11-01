@@ -1,0 +1,68 @@
+{
+  "source_revision": "2243c34a250867b324d6b26146fd32acdb778882",
+  "base": "808a7b464105be5936ced07062d971e4684704e8",
+  "classification": "resume only unstarted commands after stale receipt failure",
+  "results": [
+    {
+      "label": "c64 RTL simulation",
+      "argv": [
+        "make",
+        "sim-fes-c64",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "cwd": "sources/misteross",
+      "returncode": 0
+    },
+    {
+      "label": "coleco RTL simulation",
+      "argv": [
+        "make",
+        "sim-fes-coleco",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "cwd": "sources/misteross",
+      "returncode": 0
+    },
+    {
+      "label": "menu RTL simulation",
+      "argv": [
+        "make",
+        "sim-fes-menu",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "cwd": "sources/misteross",
+      "returncode": 0
+    },
+    {
+      "label": "pc386 RTL simulation",
+      "argv": [
+        "make",
+        "sim-fes-pc386",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "cwd": "sources/misteross",
+      "returncode": 0
+    },
+    {
+      "label": "spectrum RTL simulation",
+      "argv": [
+        "make",
+        "sim-fes-spectrum",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "cwd": "sources/misteross",
+      "returncode": 0
+    },
+    {
+      "label": "zx81 RTL simulation",
+      "argv": [
+        "make",
+        "sim-fes-zx81",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "cwd": "sources/misteross",
+      "returncode": 0
+    }
+  ],
+  "status": "passed"
+}

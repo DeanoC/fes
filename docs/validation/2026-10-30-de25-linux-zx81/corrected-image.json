@@ -1,0 +1,26 @@
+{
+  "architecture": "aarch64",
+  "board": "de25-nano",
+  "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "classification": "headless-bringup",
+  "fes_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+  "files": {
+    "aarch64-sdk.tar.gz": "526aa1624677f77ace7057112f9c9f5ac8afcf79ba2c78161fe1a43c6dea2bd1",
+    "buildroot.config": "e6ccd0d504e3723359dceda77b2e2984e89da3345100eb0f119ec0effbda75d5",
+    "fes-de25-nano.img": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "rootfs.ext4": "6dad8f1f44828b17dfa6f19a55dc9b98bc9d3ce588ad6bc0c40228c2def7be32",
+    "rootfs.tar": "282d8bf77317ac445a1e13c0557864645f66a98df62e6c4da35e94b79d3b1d12",
+    "vendor-boot/Image": "874f75d81f6452406f0f0ea5e0849ea269e92599fe728eb02b1bdbb56ada1aa8",
+    "vendor-boot/boot.scr.uimg": "b38747a4b43abcc04d84b8f46ea514594e9cc59c8188633e4d24ba36da3728ef",
+    "vendor-boot/factory-boot/golden_top_hps.jic": "e3d20c2d066761fd02897422ba361aa19faafcd0240dd2782965754cc61b38a4",
+    "vendor-boot/factory-boot/resource-golden_top_hps.sof": "e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09",
+    "vendor-boot/factory-boot/vendor-readme.txt": "bb81c63795a18a22f30001eed7a2bd4acea2704d1ebed20c4ad60092001eb5cc",
+    "vendor-boot/socfpga_agilex5_de25_nano.dtb": "d9bd893fc94e45359fb442ca06741aa63c5881e9376473fb9397ebf6d6be4d13",
+    "vendor-boot/u-boot.itb": "bb6a48c77d2559a2f9710153cc616a242bfe701ff891cb5a14bddba33eaf2cf7",
+    "vendor-boot/vendor-boot-prefix.bin": "8e84382c3d19210d4e0d431628dd877f1177bd0a388c31ed6498c635f98bb519"
+  },
+  "format": 1,
+  "hardware_acceptance": "not-run",
+  "recipe_sha256": "dd955a2bc173f39b5915740f88da8f0dacdee9d3aa29bbdfcaf2d958b2a1467d",
+  "rootfs_key": "78a00d995ab4d91e33ef29863cbce0f8a6c1489488c20bfe4f0e63bbc697febc"
+}

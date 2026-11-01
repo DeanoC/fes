@@ -1,0 +1,51 @@
+{
+  "base_revision": "786e6383b32617af8baeb32e9de6cf99231a19f9",
+  "board_source_sha256": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f",
+  "evidence_class": "host functional differential plus isolated Quartus synthesis mapping; no full-board/timing/hardware acceptance",
+  "portable_source_sha256": "796fdc6a9b1f044f96431ce64ab0f73a5676790770f7c814bb387c4df6a475fb",
+  "synthesis_02": {
+    "alm_estimate": 59,
+    "bank_depth": 8192,
+    "bank_width": 8,
+    "block_memory_bits": 131072,
+    "dedicated_logic_registers": 5,
+    "device": "A5EB013BB23BE4SCS",
+    "logical_banks": 2,
+    "mixed_port_read_during_write": "OLD_DATA",
+    "mlab_bits": 0,
+    "quartus_version": "26.3.0 Build114 SC Pro Edition",
+    "ram_type": "M20K Simple Dual Port",
+    "source_sha256": "f8f9c1b7635d33853cca4f69a41b0a1f7d5afcec32ea00c1c7dfa7a5ad08361f",
+    "status": "successful",
+    "warnings": [
+      {
+        "id": 20759,
+        "meaning": "isolated mapping project omits Reset Release IP; not a programmable board image"
+      }
+    ]
+  },
+  "synthesis_failed_01": {
+    "cause": "unused clock1 connected to0 instead of default1",
+    "error": 272006,
+    "source_sha256": "ae0865e3b86963d2195ea423f94651151d6ec6d13d8fb4b366c4d6af7de1cd18",
+    "status": "rejected"
+  },
+  "unchanged_native_branch": "verbatim whole portable module under else; unwritten array bytes undefined",
+  "vendor_model": {
+    "cycles": 155660,
+    "defined_read_comparisons": 147468,
+    "enable_counts_00_01_10_11": [
+      49084,
+      32896,
+      32797,
+      40883
+    ],
+    "full_16k_readbacks": 2,
+    "model_boundary": "supplied generic model falls back to AUTO for Agilex5; physical M20K mapping established separately by synthesis-02",
+    "odd_writes": 49319,
+    "old_high_collisions": 16383,
+    "old_low_collisions": 65587,
+    "run": "out/de25-tape-store-vendor-03",
+    "terminal_high_suppressions": 8
+  }
+}

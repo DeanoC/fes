@@ -1,0 +1,17 @@
+{
+  "source_revision": "ae8b394b61d815ab69eb090f5158e8fc2a0951c1",
+  "evidence_class": "digital RTL simulation; no physical M20K, PLL or HDMI acceptance",
+  "verilator_random_memory_seed": 37,
+  "pixel_checks": 21567202,
+  "results": [
+    "PASS DE25 video: sys-half=5 pix-half=7 publications=10 swaps=9 checked-pixels=7103294; startup, geometry, scaled edges, short/long lines, clock loss, HOLD and stopped-clock reset",
+    "PASS DE25 video: sys-half=11 pix-half=3 publications=10 swaps=9 checked-pixels=7724199; startup, geometry, scaled edges, short/long lines, clock loss, HOLD and stopped-clock reset",
+    "PASS DE25 video: sys-half=3 pix-half=13 publications=10 swaps=9 checked-pixels=6739709; startup, geometry, scaled edges, short/long lines, clock loss, HOLD and stopped-clock reset"
+  ],
+  "source_sha256": {
+    "video.v": "73a4ed20dd1d19440e8ef4ceb6e766f4ff25e61b9354a4cc9c9cabb5c631f605",
+    "video_tb.cpp": "b74a7d9c8b04041f497711cdc269992adc7a2e686e1c3e404976dd46a4bc6512",
+    "video_sim.py": "746f9d93acf0957655899401eca69441d7bada4c3f19b1372c145111fd379cad"
+  },
+  "binary_sha256": "969f71f87d8f2f053abb5fbfda27ad3ae13c1fb0f57162d0a0d3cbd2c7ad5611"
+}

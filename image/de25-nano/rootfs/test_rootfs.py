@@ -32,10 +32,10 @@ class RootfsTests(unittest.TestCase):
         root_password = next(line for line in config if line.startswith("BR2_TARGET_GENERIC_ROOT_PASSWD="))
         self.assertIn(root_password, native.read_text().splitlines())
 
-    def test_overlay_has_only_headless_board_and_dhcp_configuration(self):
+    def test_overlay_has_board_network_and_fpga_initialization(self):
         files = {path.relative_to(ROOTFS / "overlay").as_posix()
                  for path in (ROOTFS / "overlay").rglob("*") if path.is_file()}
-        self.assertEqual(files, {"etc/fes-board", "etc/network/interfaces"})
+        self.assertEqual(files, {"etc/fes-board", "etc/network/interfaces", "etc/init.d/S15fpga"})
         self.assertEqual((ROOTFS / "overlay/etc/fes-board").read_text(), "de25-nano\n")
         interfaces = (ROOTFS / "overlay/etc/network/interfaces").read_text()
         self.assertIn("auto eth0\niface eth0 inet dhcp\n", interfaces)

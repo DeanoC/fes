@@ -1,0 +1,273 @@
+{
+  "rows": [
+    {
+      "path": "scripts/affected.py",
+      "class": "none",
+      "component": null,
+      "rule": "scripts/affected.py"
+    },
+    {
+      "path": "scripts/consistency.py",
+      "class": "none",
+      "component": null,
+      "rule": "scripts/consistency.py"
+    },
+    {
+      "path": "scripts/hil_plan.py",
+      "class": "none",
+      "component": null,
+      "rule": "scripts/hil_plan.py"
+    },
+    {
+      "path": "scripts/test_policy.py",
+      "class": "none",
+      "component": null,
+      "rule": "scripts/test_policy.py"
+    },
+    {
+      "path": "sources/libmister-runtime/ARCHITECTURE.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/libmister-runtime/Makefile",
+      "class": "overlay",
+      "component": "mister-runtime",
+      "rule": "sources/libmister-runtime/**"
+    },
+    {
+      "path": "sources/libmister-runtime/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/libmister-runtime/docs/support-matrix.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/libmister-runtime/scripts/check-active-tree.sh",
+      "class": "overlay",
+      "component": "mister-runtime",
+      "rule": "sources/libmister-runtime/**"
+    },
+    {
+      "path": "sources/libmister-runtime/src/native/de25_pr_control.cpp",
+      "class": "overlay",
+      "component": "mister-runtime",
+      "rule": "sources/libmister-runtime/**"
+    },
+    {
+      "path": "sources/libmister-runtime/src/native/de25_pr_control.hpp",
+      "class": "overlay",
+      "component": "mister-runtime",
+      "rule": "sources/libmister-runtime/**"
+    },
+    {
+      "path": "sources/libmister-runtime/src/native/generated/fes_de25_pr_control.hpp",
+      "class": "overlay",
+      "component": "mister-runtime",
+      "rule": "sources/libmister-runtime/**"
+    },
+    {
+      "path": "sources/libmister-runtime/tests/active_tree_test.sh",
+      "class": "none",
+      "component": null,
+      "rule": "sources/*/tests/**"
+    },
+    {
+      "path": "sources/libmister-runtime/tests/unit/de25_pr_control_test.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/*/tests/**"
+    },
+    {
+      "path": "sources/mister-packages/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/mister-packages/docs/de25-pr-control.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml",
+      "class": "none",
+      "component": null,
+      "rule": "sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/Makefile",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/build.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/build_test.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/build_timing.tcl",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/clocks.sdc",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/control_proof.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/cosim/client.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/cosim/server.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/fpga/fes_de25_pr_control_hw.tcl",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/fpga/personas.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/fpga/shell.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/fpga/sim_top.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/fpga/tb.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/fpga/top.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/generated/fes_de25_pr_control.hpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/generated/fes_de25_pr_control.vh",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/proof.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/target/main.go",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/target/main_test.go",
+      "class": "none",
+      "component": null,
+      "rule": "**/*_test.go"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/link-proof/target/manifest.go",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/docs/architecture.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/tests/test_de25nano_link_proof.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/*/tests/**"
+    },
+    {
+      "path": "tests/test_affected.py",
+      "class": "none",
+      "component": null,
+      "rule": "tests/**"
+    },
+    {
+      "path": "tests/test_consistency.py",
+      "class": "none",
+      "component": null,
+      "rule": "tests/**"
+    },
+    {
+      "path": "tests/test_hil_plan.py",
+      "class": "none",
+      "component": null,
+      "rule": "tests/**"
+    },
+    {
+      "path": "tests/test_test_policy.py",
+      "class": "none",
+      "component": null,
+      "rule": "tests/**"
+    }
+  ],
+  "class": "overlay",
+  "components": [
+    "mister-runtime"
+  ],
+  "decision": "OVERLAY mister-runtime"
+}

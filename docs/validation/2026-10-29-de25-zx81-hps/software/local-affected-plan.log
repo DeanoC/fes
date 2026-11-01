@@ -1,0 +1,356 @@
+python3 scripts/test_changed.py --base 1db4ba71e973aa01fc521fe42ed0a901061ad8b0 --plan-only
+{
+  "format": 1,
+  "root": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps",
+  "base": "1db4ba71e973aa01fc521fe42ed0a901061ad8b0",
+  "head": "1db4ba71e973aa01fc521fe42ed0a901061ad8b0",
+  "checkout_head": "1db4ba71e973aa01fc521fe42ed0a901061ad8b0",
+  "merge_base": "1db4ba71e973aa01fc521fe42ed0a901061ad8b0",
+  "local_paths": [
+    "docs/README.md",
+    "scripts/affected.py",
+    "scripts/consistency.py",
+    "scripts/hil_plan.py",
+    "scripts/test_policy.py",
+    "sources/mister-packages/README.md",
+    "sources/mister-packages/docs/de25-computer.md",
+    "sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml",
+    "sources/misteross/boards/de25nano/README.md",
+    "sources/misteross/boards/de25nano/zx81-hps/Makefile",
+    "sources/misteross/boards/de25nano/zx81-hps/README.md",
+    "sources/misteross/boards/de25nano/zx81-hps/board.v",
+    "sources/misteross/boards/de25nano/zx81-hps/build.py",
+    "sources/misteross/boards/de25nano/zx81-hps/client.py",
+    "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc",
+    "sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp",
+    "sources/misteross/boards/de25nano/zx81-hps/endpoint_tb.cpp",
+    "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v",
+    "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl",
+    "sources/misteross/boards/de25nano/zx81-hps/generated/fes_computer.vh",
+    "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp",
+    "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.vh",
+    "sources/misteross/boards/de25nano/zx81-hps/integrate.tcl",
+    "sources/misteross/boards/de25nano/zx81-hps/sim.py",
+    "sources/misteross/boards/de25nano/zx81-hps/test_build.py",
+    "sources/misteross/boards/de25nano/zx81-hps/test_client.py",
+    "sources/misteross/docs/architecture.md",
+    "sources/misteross/tests/test_de25nano_zx81_hps.py",
+    "tests/test_affected.py",
+    "tests/test_consistency.py",
+    "tests/test_hil_plan.py",
+    "tests/test_test_policy.py"
+  ],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": true,
+      "runtime": true,
+      "contracts": true,
+      "fpga": true
+    },
+    "skipped": [],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "docs/README.md",
+      "scripts/affected.py",
+      "scripts/consistency.py",
+      "scripts/hil_plan.py",
+      "scripts/test_policy.py",
+      "sources/mister-packages/README.md",
+      "sources/mister-packages/docs/de25-computer.md",
+      "sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml",
+      "sources/misteross/boards/de25nano/README.md",
+      "sources/misteross/boards/de25nano/zx81-hps/Makefile",
+      "sources/misteross/boards/de25nano/zx81-hps/README.md",
+      "sources/misteross/boards/de25nano/zx81-hps/board.v",
+      "sources/misteross/boards/de25nano/zx81-hps/build.py",
+      "sources/misteross/boards/de25nano/zx81-hps/client.py",
+      "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc",
+      "sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp",
+      "sources/misteross/boards/de25nano/zx81-hps/endpoint_tb.cpp",
+      "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v",
+      "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl",
+      "sources/misteross/boards/de25nano/zx81-hps/generated/fes_computer.vh",
+      "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp",
+      "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.vh",
+      "sources/misteross/boards/de25nano/zx81-hps/integrate.tcl",
+      "sources/misteross/boards/de25nano/zx81-hps/sim.py",
+      "sources/misteross/boards/de25nano/zx81-hps/test_build.py",
+      "sources/misteross/boards/de25nano/zx81-hps/test_client.py",
+      "sources/misteross/docs/architecture.md",
+      "sources/misteross/tests/test_de25nano_zx81_hps.py",
+      "tests/test_affected.py",
+      "tests/test_consistency.py",
+      "tests/test_hil_plan.py",
+      "tests/test_test_policy.py"
+    ],
+    "reasons": [
+      "scripts/affected.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/consistency.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/hil_plan.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/test_policy.py: software CI infrastructure; RTL unchanged",
+      "sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml: standalone DE25 diagnostic consumers; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/Makefile: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/board.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/client.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/clocks.sdc: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/endpoint_tb.cpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/generated/fes_computer.vh: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.vh: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/integrate.tcl: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/sim.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/test_client.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/tests/test_de25nano_zx81_hps.py: FPGA producer/package software tests; RTL unchanged",
+      "tests/test_affected.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_consistency.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_hil_plan.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_test_policy.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "1db4ba71e973aa01fc521fe42ed0a901061ad8b0",
+        "--head",
+        "1db4ba71e973aa01fc521fe42ed0a901061ad8b0"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"docs/README.md\", \"scripts/affected.py\", \"scripts/consistency.py\", \"scripts/hil_plan.py\", \"scripts/test_policy.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/docs/de25-computer.md\", \"sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml\", \"sources/misteross/boards/de25nano/README.md\", \"sources/misteross/boards/de25nano/zx81-hps/Makefile\", \"sources/misteross/boards/de25nano/zx81-hps/README.md\", \"sources/misteross/boards/de25nano/zx81-hps/board.v\", \"sources/misteross/boards/de25nano/zx81-hps/build.py\", \"sources/misteross/boards/de25nano/zx81-hps/client.py\", \"sources/misteross/boards/de25nano/zx81-hps/clocks.sdc\", \"sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp\", \"sources/misteross/boards/de25nano/zx81-hps/endpoint_tb.cpp\", \"sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v\", \"sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl\", \"sources/misteross/boards/de25nano/zx81-hps/generated/fes_computer.vh\", \"sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp\", \"sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.vh\", \"sources/misteross/boards/de25nano/zx81-hps/integrate.tcl\", \"sources/misteross/boards/de25nano/zx81-hps/sim.py\", \"sources/misteross/boards/de25nano/zx81-hps/test_build.py\", \"sources/misteross/boards/de25nano/zx81-hps/test_client.py\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/tests/test_de25nano_zx81_hps.py\", \"tests/test_affected.py\", \"tests/test_consistency.py\", \"tests/test_hil_plan.py\", \"tests/test_test_policy.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "host",
+      "label": "host Go and UI tests",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/host_tests.py",
+        "--ui-if-needed",
+        "--paths-json",
+        "[\"docs/README.md\", \"scripts/affected.py\", \"scripts/consistency.py\", \"scripts/hil_plan.py\", \"scripts/test_policy.py\", \"sources/mister-packages/README.md\", \"sources/mister-packages/docs/de25-computer.md\", \"sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml\", \"sources/misteross/boards/de25nano/README.md\", \"sources/misteross/boards/de25nano/zx81-hps/Makefile\", \"sources/misteross/boards/de25nano/zx81-hps/README.md\", \"sources/misteross/boards/de25nano/zx81-hps/board.v\", \"sources/misteross/boards/de25nano/zx81-hps/build.py\", \"sources/misteross/boards/de25nano/zx81-hps/client.py\", \"sources/misteross/boards/de25nano/zx81-hps/clocks.sdc\", \"sources/misteross/boards/de25nano/zx81-hps/computer_tb.cpp\", \"sources/misteross/boards/de25nano/zx81-hps/endpoint_tb.cpp\", \"sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer.v\", \"sources/misteross/boards/de25nano/zx81-hps/fes_de25_computer_hw.tcl\", \"sources/misteross/boards/de25nano/zx81-hps/generated/fes_computer.vh\", \"sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp\", \"sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.vh\", \"sources/misteross/boards/de25nano/zx81-hps/integrate.tcl\", \"sources/misteross/boards/de25nano/zx81-hps/sim.py\", \"sources/misteross/boards/de25nano/zx81-hps/test_build.py\", \"sources/misteross/boards/de25nano/zx81-hps/test_client.py\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/tests/test_de25nano_zx81_hps.py\", \"tests/test_affected.py\", \"tests/test_consistency.py\", \"tests/test_hil_plan.py\", \"tests/test_test_policy.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "cc",
+        "go",
+        "make",
+        "node",
+        "rg",
+        "sh"
+      ],
+      "files": [
+        "scripts/host_tests.py",
+        "sources/FogCast/Makefile",
+        "sources/FogCast/go.mod",
+        "sources/FogCast/appliance/go.mod",
+        "sources/misteross/expansion/go.mod"
+      ],
+      "host_ui": {
+        "required": true,
+        "scheduled": true,
+        "boundary_scheduled": false,
+        "command_scheduled": true,
+        "target": "test-ui",
+        "reason": "UI/API, production/full or uncertain inputs"
+      }
+    },
+    {
+      "lane": "runtime",
+      "label": "runtime software tests",
+      "cwd": "sources/libmister-runtime",
+      "argv": [
+        "make",
+        "-j2",
+        "test"
+      ],
+      "tools": [
+        "ar",
+        "c++",
+        "c++filt",
+        "make",
+        "nm",
+        "rg",
+        "sh"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "contracts",
+      "label": "contract schemas and generated fixtures",
+      "cwd": "sources/mister-packages",
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "tools": [
+        "go",
+        "make"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "planned"
+}

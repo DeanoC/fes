@@ -209,7 +209,8 @@ class HilPlanTest(unittest.TestCase):
 
     def test_ci_selection_scripts_are_none(self):
         plan = hil_module()
-        for name in ('affected', 'hil_plan', 'host_tests', 'test_changed', 'de25_runtime', 'de25_boot_contract', 'de25_dma_descriptor', 'de25_kernel_test'):
+        for name in ('affected', 'hil_plan', 'host_tests', 'test_changed', 'de25_runtime',
+                     'de25_boot_contract', 'de25_first_boot', 'de25_dma_descriptor', 'de25_kernel_test'):
             path = f'scripts/{name}.py'
             with self.subTest(path=path):
                 row = plan.classify_path(path)
@@ -550,16 +551,27 @@ class HilPlanTest(unittest.TestCase):
         planner = hil_module()
         paths = ['sources/mister-packages/packages/board/de25_nano.yaml',
                  'sources/mister-packages/packages/fabric/fes_fabric_de25_ddr_probe.yaml',
+                 'sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml',
+                 'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml',
+                 'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml',
+                 'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml',
                  'image/kernel/de25-dma/de25_dma.c',
                  *['sources/misteross/boards/de25nano/' + name
                    for name in ('blinky.sv', 'pins.qsf', 'clocks.sdc', 'Makefile',
-                                'test_de25nano.py', 'sim/blinky_tb.cpp')]]
+                                'test_de25nano.py', 'sim/blinky_tb.cpp',
+                                'ramtest/endpoint.v', 'ramtest/jtag.tcl',
+                                'ramtest/generated/fes_de25_ramtest.vh')]]
         result = planner.plan(paths, texts={})
         self.assertEqual(result['decision'], 'NO_DEPLOY_CHANGE')
         self.assertTrue(all(row['class'] == 'none' for row in result['rows']))
+        self.assertEqual(planner.plan([
+            'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml',
+            'sources/libmister-runtime/src/native/de25_pr_control.cpp'], texts={})['decision'],
+            'OVERLAY mister-runtime')
         for path in ('sources/mister-packages/packages/board/de10_nano.yaml',
                      'sources/mister-packages/packages/board/de25_nano_other.yaml',
                      'sources/mister-packages/packages/platform/de25_nano.yaml',
+                     'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest_other.yaml',
                      'sources/mister-packages/packages/abi/fes_application.yaml'):
             with self.subTest(path=path):
                 self.assertEqual(planner.plan([*paths, path], texts={})['decision'], 'FULL_IMAGE')

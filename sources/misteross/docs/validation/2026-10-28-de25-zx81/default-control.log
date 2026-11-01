@@ -1,0 +1,11 @@
+FES ZX81: BASIC ready after 30670848 clocks
+FES ZX81: D_FILE=407d video_hits=4
+ still waiting for idle at 33554432 E_LINE=4165
+ still waiting for idle at 67108864 E_LINE=4243
+ still waiting for idle at 100663296 E_LINE=4328
+ idle E_LINE=4397 bytes=7f 76 0 0 0 0 0 0  LAST_K=ffff DEBOUNCE=0
+ J E_LINE=4397 bytes=ef 7f 76 0 0 0 0 0  LAST_K=efbf DEBOUNCE=ff
+ quote1 E_LINE=4397 bytes=ef b 7f 76 0 0 0 0  LAST_K=fcdf DEBOUNCE=ff
+ quote2 E_LINE=4397 bytes=ef b b 7f 76 0 0 0  LAST_K=fcdf DEBOUNCE=ff
+ ENTER E_LINE=0 bytes=ff 80 fc 7f 0 80 0 fe  LAST_K=fdbf DEBOUNCE=f
+FES ZX81 machine simulation passed (tape_addr=15 loader=1)

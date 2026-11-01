@@ -1,0 +1,12 @@
+...................................test_marker (tests.test_test_policy.ParentFilterTests.test_main_report_stdout_stays_json_when_tests_print.<locals>.ChattyTests.test_marker) ... incidental stdout from a test case
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK
+....................................................
+----------------------------------------------------------------------
+Ran 87 tests in 25.152s
+
+OK

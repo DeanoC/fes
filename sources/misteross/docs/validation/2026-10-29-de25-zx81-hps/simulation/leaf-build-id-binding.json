@@ -1,0 +1,10 @@
+{
+  "evidence_scope": "Historical leaf comparison at reference commit 786e6383b32617af8baeb32e9de6cf99231a19f9; the 8615-byte guarded leaf predates the HDMI frame gate at PR head d715651b4171da7a69fa0d896dc1bd67168dd064 and is not the current PR leaf.",
+  "tested_leaf_size_recorded_by_verilator": 8479,
+  "guarded_reference_leaf_sha256": "26ce1e51454000f2762045cc442fbbae881404a98b94334eea8ba11e43a9ad0a",
+  "guarded_reference_leaf_size": 8615,
+  "reconstructed_pre_guard_leaf_sha256": "bf6531f22a934adf5eee493050a10aff71c19863f46faf7497933aca46a6f87d",
+  "reconstructed_pre_guard_leaf_size": 8479,
+  "reported_change_between_selected_and_guarded_reference_leaf": "BUILD_ID macro default guard; simulation parameter remains 128-bit zero; producer embeds a separate build identity",
+  "reconstruction_basis": "RTL owner confirms only guard edit between the original machine selection and guarded reference leaf; reconstructed byte count matches selected source metadata; the original run did not capture an exact source hash"
+}

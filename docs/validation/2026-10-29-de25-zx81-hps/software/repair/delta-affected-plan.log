@@ -1,0 +1,276 @@
+{
+  "format": 1,
+  "root": "/home/deano/.codex/worktrees/c134/fes/out/dev/de25-zx81-hps",
+  "base": "786e6383b32617af8baeb32e9de6cf99231a19f9",
+  "head": "5a7382c4b5c17173f48bd074847acc0acc22de93",
+  "checkout_head": "5a7382c4b5c17173f48bd074847acc0acc22de93",
+  "merge_base": "786e6383b32617af8baeb32e9de6cf99231a19f9",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": true
+    },
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "docs/validation/2026-10-29-de25-zx81-hps/software/README.md",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/ci-affected-plan.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/ci-final.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/ci-initial.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123246961987-summary.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247091941-summary.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247091948-summary.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247091950-summary.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247091992-summary.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247092015-summary.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247092019-summary.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247092041-summary.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247092070-summary.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123249607940-summary.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/consistency.log",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/doclinks-tests.log",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/doclinks.log",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/focused-28.log",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/local-affected-partial.log",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/local-affected-plan.log",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/local-log-manifest.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/local-tail-stop.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/plan-coverage.json",
+      "docs/validation/2026-10-29-de25-zx81-hps/software/planner-87.log",
+      "sources/mister-packages/docs/de25-computer.md",
+      "sources/misteross/boards/de25nano/zx81-hps/README.md",
+      "sources/misteross/boards/de25nano/zx81-hps/build.py",
+      "sources/misteross/boards/de25nano/zx81-hps/tape_store.v",
+      "sources/misteross/boards/de25nano/zx81-hps/tape_store_tb.sv",
+      "sources/misteross/boards/de25nano/zx81-hps/test_build.py",
+      "sources/misteross/boards/de25nano/zx81-hps/test_tape_store.py",
+      "sources/misteross/docs/architecture.md",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/README.md",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/compile.log.gz",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/generation.json",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/golden_top.fit.place.rpt.gz",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/golden_top.fit.summary",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/golden_top.syn.rpt.gz",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/golden_top.syn.summary",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/inputs.json",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/quartus-version.txt",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/receipt.json",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/generated/README.md",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/generated/audit.py",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/generated/receipt.json",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/README.md",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/SHA256SUMS",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/captured-new.json",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/default-elaboration-binding.json",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/default-elaboration-diff.log.gz",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/endpoint-native-compile.log",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/endpoint-native-receipt.json",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/endpoint-native.log",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/endpoint-runner.log",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/input-hashes.json",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/leaf-build-id-binding.json",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/machine-verilator-files.dat",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/machine.log",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/README.md",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/SHA256SUMS",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/receipt.json",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/synthesis.log",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.qpf",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.qsf",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.sdc",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.syn.rpt",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.syn.summary",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.v",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/synthesis.log",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.qpf",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.qsf",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.sdc",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.syn.rpt",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.v",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/toolchain.json",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/vendor-model/compile.log",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/vendor-model/receipt.json",
+      "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/vendor-model/simulation.log"
+    ],
+    "reasons": [
+      "sources/misteross/boards/de25nano/zx81-hps/build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/tape_store.v: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/tape_store_tb.sv: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/test_build.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer",
+      "sources/misteross/boards/de25nano/zx81-hps/test_tape_store.py: standalone DE25-Nano diagnostic; FPGA software tests; no existing core consumer"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "786e6383b32617af8baeb32e9de6cf99231a19f9",
+        "--head",
+        "5a7382c4b5c17173f48bd074847acc0acc22de93"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"docs/validation/2026-10-29-de25-zx81-hps/software/README.md\", \"docs/validation/2026-10-29-de25-zx81-hps/software/ci-affected-plan.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/ci-final.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/ci-initial.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123246961987-summary.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247091941-summary.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247091948-summary.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247091950-summary.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247091992-summary.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247092015-summary.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247092019-summary.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247092041-summary.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123247092070-summary.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/ci-job-123249607940-summary.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/consistency.log\", \"docs/validation/2026-10-29-de25-zx81-hps/software/doclinks-tests.log\", \"docs/validation/2026-10-29-de25-zx81-hps/software/doclinks.log\", \"docs/validation/2026-10-29-de25-zx81-hps/software/focused-28.log\", \"docs/validation/2026-10-29-de25-zx81-hps/software/local-affected-partial.log\", \"docs/validation/2026-10-29-de25-zx81-hps/software/local-affected-plan.log\", \"docs/validation/2026-10-29-de25-zx81-hps/software/local-log-manifest.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/local-tail-stop.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/plan-coverage.json\", \"docs/validation/2026-10-29-de25-zx81-hps/software/planner-87.log\", \"sources/mister-packages/docs/de25-computer.md\", \"sources/misteross/boards/de25nano/zx81-hps/README.md\", \"sources/misteross/boards/de25nano/zx81-hps/build.py\", \"sources/misteross/boards/de25nano/zx81-hps/tape_store.v\", \"sources/misteross/boards/de25nano/zx81-hps/tape_store_tb.sv\", \"sources/misteross/boards/de25nano/zx81-hps/test_build.py\", \"sources/misteross/boards/de25nano/zx81-hps/test_tape_store.py\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/README.md\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/compile.log.gz\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/generation.json\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/golden_top.fit.place.rpt.gz\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/golden_top.fit.summary\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/golden_top.syn.rpt.gz\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/golden_top.syn.summary\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/inputs.json\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/quartus-version.txt\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/failed-786e6383b3/receipt.json\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/generated/README.md\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/generated/audit.py\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/generated/receipt.json\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/README.md\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/SHA256SUMS\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/captured-new.json\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/default-elaboration-binding.json\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/default-elaboration-diff.log.gz\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/endpoint-native-compile.log\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/endpoint-native-receipt.json\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/endpoint-native.log\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/endpoint-runner.log\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/input-hashes.json\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/leaf-build-id-binding.json\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/machine-verilator-files.dat\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/simulation/machine.log\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/README.md\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/SHA256SUMS\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/receipt.json\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/synthesis.log\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.qpf\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.qsf\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.sdc\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.syn.rpt\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.syn.summary\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-02/tape_store.v\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/synthesis.log\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.qpf\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.qsf\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.sdc\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.syn.rpt\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/synthesis-failed-01/tape_store.v\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/toolchain.json\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/vendor-model/compile.log\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/vendor-model/receipt.json\", \"sources/misteross/docs/validation/2026-10-29-de25-zx81-hps/tape-store/vendor-model/simulation.log\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "planned"
+}

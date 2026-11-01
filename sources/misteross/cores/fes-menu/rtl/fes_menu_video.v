@@ -7,15 +7,28 @@ module fes_menu_video #(
     // Session planes share the machine's raster and acknowledge only a fully
     // scanned frame. Defaults preserve the standalone idle-menu contract.
     parameter [0:0] EXTERNAL_RASTER = 1'b0,
-    parameter [0:0] COMPLETE_FRAME_ACK = 1'b0
+    parameter [0:0] COMPLETE_FRAME_ACK = 1'b0,
+    parameter [0:0] DYNAMIC_BASE = 1'b0,
+    parameter [7:0] MAX_BURST_BEATS = 8'd128,
+    parameter [0:0] CHECK_RESPONSE = 1'b0,
+    parameter [0:0] RESET_ABORTS_TRAFFIC = 1'b0,
+    // Board shells may need stable HDMI sync while resetting scanout ownership.
+    // Keep the fixed raster free-running while the reader/video state resets.
+    parameter [0:0] PRESERVE_RASTER_ON_RESET = 1'b0
 ) (
     input wire clk, rst, enable, quiesce,
+    input wire [31:0] window_base,
+    input wire window_base_valid,
     input wire [10:0] raster_h,
     input wire [9:0] raster_v,
     input wire submit_valid, submit_slot,
     input wire [31:0] submit_sequence,
     output wire submit_ready,
     output reg [31:0] displayed_sequence = 32'd0,
+    output reg [31:0] current_sequence = 32'd0,
+    output reg current_slot = 1'b0,
+    output wire [1:0] memory_errors,
+    output wire [8:0] outstanding_beats,
     output wire quiesced,
     output reg [31:0] underflows = 32'd0,
     output wire [23:0] rgb,
@@ -27,7 +40,8 @@ module fes_menu_video #(
     output wire read,
     input wire waitrequest,
     input wire [127:0] readdata,
-    input wire readdatavalid
+    input wire readdatavalid,
+    input wire [1:0] response
 );
     localparam [1:0] DRAIN = 2'd0, START = 2'd1, FETCH = 2'd2, DISPLAY = 2'd3;
     reg [1:0] state = DRAIN;
@@ -41,10 +55,9 @@ module fes_menu_video #(
     reg armed = 1'b0;
     reg pending_slot = 1'b0;
     reg [31:0] pending_sequence = 32'd0;
-    reg current_slot = 1'b0;
     reg fetch_slot = 1'b0;
     reg [31:0] fetch_sequence = 32'd0;
-    wire running = enable && !quiesce && !rst;
+    wire running = enable && !quiesce && !rst && memory_errors == 2'b00;
     wire frame_end = h == 11'd1649 && v == 10'd749;
     wire blank_start = h == 11'd1279 && v == 10'd719;
     wire reader_idle;
@@ -68,6 +81,7 @@ module fes_menu_video #(
     wire [7:0] reader_burstcount;
     wire reader_read, reader_waitrequest, reader_readdatavalid;
     wire [127:0] reader_readdata;
+    wire [1:0] reader_response;
     generate if (TEST_PATTERN) begin : pattern_source
         fes_menu_pattern_memory memory (
             .clk(clk), .address(reader_address), .burstcount(reader_burstcount),
@@ -77,6 +91,7 @@ module fes_menu_video #(
         assign address = 28'd0;
         assign burstcount = 8'd0;
         assign read = 1'b0;
+        assign reader_response = 2'b00;
     end else begin : ddr_source
         assign address = reader_address;
         assign burstcount = reader_burstcount;
@@ -84,16 +99,22 @@ module fes_menu_video #(
         assign reader_waitrequest = waitrequest;
         assign reader_readdata = readdata;
         assign reader_readdatavalid = readdatavalid;
+        assign reader_response = response;
     end endgenerate
 
-    fes_menu_reader #(.WINDOW_BASE(TEST_PATTERN ? 32'h00001000 : WINDOW_BASE)) reader (
+    fes_menu_reader #(.WINDOW_BASE(TEST_PATTERN ? 32'h00001000 : WINDOW_BASE),
+        .DYNAMIC_BASE(DYNAMIC_BASE), .MAX_BURST_BEATS(MAX_BURST_BEATS),
+        .CHECK_RESPONSE(CHECK_RESPONSE), .RESET_ABORTS_TRAFFIC(RESET_ABORTS_TRAFFIC)) reader (
         .clk(clk), .rst(rst), .enable(reader_enable), .slot(fetch_slot),
+        .window_base(TEST_PATTERN ? 32'h00001000 : window_base),
+        .window_base_valid(TEST_PATTERN ? 1'b1 : window_base_valid),
         .start(state == START && running), .pixel_ready(pixel_ready),
         .pixel_valid(pixel_valid), .pixel_bgrx(pixel_bgrx),
         .pixel_index(pixel_index), .done(), .idle(reader_idle),
         .address(reader_address), .burstcount(reader_burstcount), .read(reader_read),
         .waitrequest(reader_waitrequest), .readdata(reader_readdata),
-        .readdatavalid(reader_readdatavalid)
+        .readdatavalid(reader_readdatavalid), .response(reader_response),
+        .memory_errors(memory_errors), .outstanding_beats(outstanding_beats)
     );
     always @(posedge clk) begin
         if (!EXTERNAL_RASTER) begin
@@ -126,6 +147,7 @@ module fes_menu_video #(
                     if (pixel_valid && pixel_index == 20'd0) begin
                         state <= DISPLAY;
                         current_slot <= fetch_slot;
+                        current_sequence <= fetch_sequence;
                         frame_complete <= 1'b1;
                         if (!COMPLETE_FRAME_ACK) begin
                             displayed_sequence <= fetch_sequence;
@@ -142,7 +164,7 @@ module fes_menu_video #(
                             displayed_sequence <= fetch_sequence;
                             // A new submission received during this frame
                             // belongs to the next fetch, not this completion.
-                            if (pending_sequence == fetch_sequence) pending <= 1'b0;
+                            if (pending && pending_sequence == fetch_sequence) pending <= 1'b0;
                         end
                     end
                 end
@@ -155,15 +177,18 @@ module fes_menu_video #(
         end
         if (de && armed && running && !pixel_matches && underflows != 32'hffffffff)
             underflows <= underflows + 32'd1;
-        if (rst) begin
+        if (rst && !PRESERVE_RASTER_ON_RESET) begin
             internal_h <= 11'd0;
             internal_v <= 10'd720;
+        end
+        if (rst) begin
             frame_complete <= 1'b0;
             raster_index <= 20'd0;
             displayed_sequence <= 32'd0;
             underflows <= 32'd0;
             armed <= 1'b0;
             current_slot <= 1'b0;
+            current_sequence <= 32'd0;
         end
     end
 endmodule

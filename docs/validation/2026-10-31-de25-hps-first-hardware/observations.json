@@ -1,0 +1,53 @@
+{
+  "classification": "physical Linux core-loading and native maintenance diagnostic",
+  "board_serial": "TRWU8J8G",
+  "initial_factory_boot_id": "3f226fc8-3866-45da-9874-d1480c2198fe",
+  "programmed_boot_id": "c9344a6c-5fbf-4ea8-afc8-7cc937bcdee0",
+  "successful_linux_loads_same_boot": 2,
+  "manager_state": "operating",
+  "overlay_state": "applied",
+  "basic_load_run_captures": [
+    "run.png",
+    "second-run.png"
+  ],
+  "explicit_post_load_reset_required": true,
+  "run_without_post_load_reset_observation": "blank display, retained in reloaded-rom.png",
+  "hold_reset_run_observation": "K prompt, retained in reloaded-reset-rom.png",
+  "ordinary_reboot": "clean-shutdown-then-no-boot-within-90s",
+  "identical_complete_sof_recovery": "passed",
+  "recovered_boot_id": "d3b91c46-64d5-48d2-bd08-548a7883dd74",
+  "kernel_recovery_patch_installed": false,
+  "production_runtime_admitted": false,
+  "flash_or_sd_writes": false,
+  "factory_direct_linux_load": {
+    "status": "failed",
+    "boot_id": "e29bcc8c-f48a-43b9-9742-2fcd6f57b9aa",
+    "sdm_version": "25.1.1",
+    "manager_state": "write",
+    "error": "timeout waiting for svc layer buffers",
+    "blocked_cleanup": "kthread_stop via stratix10_svc_done",
+    "ssh_same_boot_after_timeout": true,
+    "cpu_fabric_mmio_after_failure": false
+  },
+  "hps_only_bootstrap": {
+    "boot_id": "35618839-7f3d-4d5c-94ae-51c3118750aa",
+    "jtag_hps_rbf_only": true,
+    "core_load": "Linux FPGA manager applied/operating",
+    "same_linux_boot_after_load": true,
+    "basic_run": "HDMI 7 and 0/1",
+    "initial_rom_capture": "blank immediately after reset; later LOAD/RUN successful",
+    "baseline_restore": "verified"
+  },
+  "final_baseline": {
+    "boot_id": "6be1a9f6-6771-4082-8143-787804dffbf5",
+    "factory_fpga_sld": "7BD008B4D4BF4BC62777",
+    "fes_sd_cid_matches": true,
+    "kernel": "6.12.11-gd7d192a9ddd9",
+    "temporary_target_files_absent": true,
+    "kernel_modules_empty": true,
+    "firmware_search_override_empty": true,
+    "task_hardware_sessions_closed": true,
+    "usb_permissions": "root:root0664",
+    "claim": "released"
+  }
+}

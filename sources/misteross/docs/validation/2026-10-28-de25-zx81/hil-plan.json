@@ -1,0 +1,112 @@
+{
+  "rows": [
+    {
+      "path": "docs/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "docs/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81/Makefile",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81/README.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/*.md"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81/board_tb.cpp",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81/build.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81/clocks.sdc",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81/keyboard.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81/sim.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81/sim_models.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81/test_build.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/boards/de25nano/zx81/top.v",
+      "class": "none",
+      "component": null,
+      "rule": "sources/misteross/boards/de25nano/**"
+    },
+    {
+      "path": "sources/misteross/cores/fes-zx81/rtl/zx81_machine.sv",
+      "class": "overlay",
+      "component": "core:zx81",
+      "rule": "sources/misteross/cores/*/**",
+      "consumers": [
+        "core:ALL"
+      ]
+    },
+    {
+      "path": "sources/misteross/cores/fes-zx81/rtl/zx81_machine_clock.v",
+      "class": "overlay",
+      "component": "core:zx81",
+      "rule": "sources/misteross/cores/*/**",
+      "consumers": [
+        "core:ALL"
+      ]
+    },
+    {
+      "path": "sources/misteross/docs/architecture.md",
+      "class": "none",
+      "component": null,
+      "rule": "**/docs/**"
+    },
+    {
+      "path": "sources/misteross/tests/test_de25nano_zx81.py",
+      "class": "none",
+      "component": null,
+      "rule": "sources/*/tests/**"
+    }
+  ],
+  "class": "overlay",
+  "components": [
+    "core:ALL",
+    "core:zx81"
+  ],
+  "decision": "OVERLAY core:ALL core:zx81"
+}

@@ -28,6 +28,18 @@ defines bounded, read-only DMA diagnostic registers. [DE25 DDR](docs/de25-ddr.md
 specifies its drain behavior, address domains and planned Linux-owned MENU
 allocation. It adds no production runtime or GP interface.
 
+[`fes.fabric.de25-scanout`](packages/fabric/fes_fabric_de25_scanout.yaml) adds
+the separate allocated-buffer display diagnostic. [DE25 scanout](docs/de25-scanout.md)
+specifies coherent snapshots, accepted/current/displayed identities, slot
+ownership and cross-clock drain/reset limits. It grants no hardware admission.
+
+[`fes.fabric.de25-computer`](packages/fabric/fes_fabric_de25_computer.yaml)
+defines the standalone HPS-to-ZX81 command transport. [DE25 computer](docs/de25-computer.md)
+describes atomic GPO submission, retained ACK state, keyboard/tape delivery and
+permanent fault containment. Its generated C++ consumer also serves the
+scripted-register native runtime diagnostic client. It adds no runtime
+programming or MMIO admission.
+
 The fabric-only `emit-c` command supplies standalone constant headers for C
 consumers such as the DE25 kernel diagnostic. From this module:
 
@@ -38,6 +50,17 @@ go run ./cmd/mister-packages emit-c packages/fabric/fes_fabric_de25_ddr_probe.ya
 The guarded header contains unsigned 32-bit `#define` constants with the same
 uppercase macro names as the Verilog consumer. It needs no system headers;
 emitting constants grants no Linux device binding or DMA admission.
+
+The standalone [DE25 RAM Tester fabric](packages/fabric/fes_fabric_de25_ramtest.yaml)
+defines diagnostic register constants for its three memory channels. Its
+generated consumers stay in the [DE25 board diagnostic](../misteross/boards/de25nano/ramtest/README.md);
+the definition creates no core package, runtime ABI or ownership of HPS DDR.
+
+[`fes.fabric.de25-pr-control`](packages/fabric/fes_fabric_de25_pr_control.yaml)
+defines the diagnostic HPS-controlled freeze/drain/reset/resume contract for one
+DE25 PR slot. [DE25 PR control](docs/de25-pr-control.md) specifies its base and
+persona identity checks, command completion and permanent fault rules. It
+does not admit physical programming or a production device backend.
 
 The programming registry contains `fes-gp-v1` for `fes.simple-game`,
 `fes.simple-computer`, `fes.application` and `fes.computer`, plus the diagnostic-only

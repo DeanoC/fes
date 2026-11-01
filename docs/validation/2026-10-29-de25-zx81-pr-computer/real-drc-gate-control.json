@@ -1,0 +1,41 @@
+{
+  "combined-quartus-05": {
+    "accepted_internal_gate": false,
+    "error": "base: unqualified internal Design Assistant failure CDC-50001 - 1-Bit Asynchronous Transfer Not Synchronized"
+  },
+  "combined-quartus-06": {
+    "accepted_internal_gate": true,
+    "remaining_findings": [
+      {
+        "rule": "TMC-20012 - Missing Output Delay Constraint",
+        "severity": "High",
+        "violations": 30
+      },
+      {
+        "rule": "TMC-20011 - Missing Input Delay Constraint",
+        "severity": "High",
+        "violations": 2
+      },
+      {
+        "rule": "LNT-30023 - Reset Nets with Polarity Conflict",
+        "severity": "Medium",
+        "violations": 2
+      },
+      {
+        "rule": "RDC-50003 - Multiple Asynchronous Reset Synchronizers in the Same Clock Domain",
+        "severity": "Medium",
+        "violations": 2
+      },
+      {
+        "rule": "RES-50101 - Intra-Clock False Path Reset Synchronizer",
+        "severity": "Low",
+        "violations": 3
+      },
+      {
+        "rule": "LNT-30010 - Nets Driving both Reset and Clock Enable Signals",
+        "severity": "Low",
+        "violations": 1
+      }
+    ]
+  }
+}

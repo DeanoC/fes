@@ -1,0 +1,17 @@
+Fitter Status : Successful - Thu Oct 29 10:54:56 2026
+Quartus Prime Version : 26.3.0 Build 114 10/14/2026 SC Pro Edition
+Revision Name : golden_top
+Top-level Entity Name : golden_top
+Family : Agilex 5
+Device : A5EB013BB23BE4SCS
+Timing Models : Final
+Power Models : Final
+Device Status : Final
+Logic utilization (in ALMs) : 26,966 / 46,800 ( 58 % )
+Total dedicated logic registers : 51350
+Total pins : 356 / 351 ( 101 % )
+Total block memory bits : 2,106,944 / 7,331,840 ( 29 % )
+Total RAM Blocks : 138 / 358 ( 39 % )
+Total DSP Blocks : 0 / 188 ( 0 % )
+Total HSSI HPS : 1 / 1 ( 100 % )
+Total PLLs : 3 / 11 ( 27 % )

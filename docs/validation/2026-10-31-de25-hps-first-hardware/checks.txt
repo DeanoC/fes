@@ -1,0 +1,5 @@
+PASS make test-changed --base 3af76f1273d7fa0b59149e2ef46b142dec973626 (affected-plan tests and whitespace; docs/evidence-only selection)
+PASS published evidence scan: no private IPv4/MAC, password JSON or private-key markers
+PASS physical HPS-only boot, Linux core load, native BASIC LOAD/RUN, observed HDMI7/0/1
+PASS final factory FPGA plus approved FES Linux restoration, UART and pinned SSH
+Unchanged source artifacts reuse producer #1302 software/compile checks; no repeated full core build.

@@ -1,0 +1,178 @@
+[
+  {
+    "command": "keys",
+    "arguments": [
+      "28"
+    ],
+    "started_unix": 1793430696.8817365,
+    "completed_unix": 1793430697.3215904,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "35618839-7f3d-4d5c-94ae-51c3118750aa",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "bootstrap_hps_rbf_sha256": "1a0d681a00efdb34ecc3ff1866da5dc343c3fe625fb6019351647144452b18de",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "keys",
+      "status": "passed",
+      "register_reads": 604,
+      "register_writes": 40,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    }
+  },
+  {
+    "command": "hold",
+    "arguments": [],
+    "started_unix": 1793430744.3569324,
+    "completed_unix": 1793430744.4945362,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "35618839-7f3d-4d5c-94ae-51c3118750aa",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "bootstrap_hps_rbf_sha256": "1a0d681a00efdb34ecc3ff1866da5dc343c3fe625fb6019351647144452b18de",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "hold",
+      "status": "passed",
+      "register_reads": 349,
+      "register_writes": 23,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    }
+  },
+  {
+    "command": "media",
+    "arguments": [
+      "unused"
+    ],
+    "started_unix": 1793430695.601543,
+    "completed_unix": 1793430695.7533019,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "35618839-7f3d-4d5c-94ae-51c3118750aa",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "bootstrap_hps_rbf_sha256": "1a0d681a00efdb34ecc3ff1866da5dc343c3fe625fb6019351647144452b18de",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "media",
+      "status": "passed",
+      "register_reads": 7519,
+      "register_writes": 501,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    }
+  },
+  {
+    "command": "probe",
+    "arguments": [],
+    "started_unix": 1793430692.080297,
+    "completed_unix": 1793430692.2224922,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "35618839-7f3d-4d5c-94ae-51c3118750aa",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "bootstrap_hps_rbf_sha256": "1a0d681a00efdb34ecc3ff1866da5dc343c3fe625fb6019351647144452b18de",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "probe",
+      "status": "passed",
+      "register_reads": 2,
+      "register_writes": 0,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    }
+  },
+  {
+    "command": "reset",
+    "arguments": [],
+    "started_unix": 1793430692.2548134,
+    "completed_unix": 1793430692.393656,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "35618839-7f3d-4d5c-94ae-51c3118750aa",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "bootstrap_hps_rbf_sha256": "1a0d681a00efdb34ecc3ff1866da5dc343c3fe625fb6019351647144452b18de",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "reset",
+      "status": "passed",
+      "register_reads": 364,
+      "register_writes": 24,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    }
+  },
+  {
+    "command": "keys",
+    "arguments": [
+      "15,28"
+    ],
+    "started_unix": 1793430730.0969267,
+    "completed_unix": 1793430730.8416126,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "35618839-7f3d-4d5c-94ae-51c3118750aa",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "bootstrap_hps_rbf_sha256": "1a0d681a00efdb34ecc3ff1866da5dc343c3fe625fb6019351647144452b18de",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "keys",
+      "status": "passed",
+      "register_reads": 874,
+      "register_writes": 58,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    }
+  },
+  {
+    "command": "keys",
+    "arguments": [
+      "0d,13s,13s"
+    ],
+    "started_unix": 1793430695.785703,
+    "completed_unix": 1793430696.8531818,
+    "returncode": 0,
+    "serial": "TRWU8J8G",
+    "boot_id": "35618839-7f3d-4d5c-94ae-51c3118750aa",
+    "linux_image_sha256": "d1952df9a36843095f6e5bef6981ea37f8012c86c8c3d1db5d78fe8c7edb6e46",
+    "linux_image_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "binary_sha256": "13d8fd22d7f16e4c93f6f4adcb7120da555d966752f80f31782808af6f1a3539",
+    "client_source_revision": "24fc445a2c68a8cb8945bf852bc9c61846b06b01",
+    "bootstrap_hps_rbf_sha256": "1a0d681a00efdb34ecc3ff1866da5dc343c3fe625fb6019351647144452b18de",
+    "cpu_resource_base": "0x20010300",
+    "jtag_transactions_during_client": 0,
+    "client": {
+      "command": "keys",
+      "status": "passed",
+      "register_reads": 1684,
+      "register_writes": 112,
+      "physical_cpu_mmio": true,
+      "production_runtime_admission": false
+    }
+  }
+]

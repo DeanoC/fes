@@ -14,12 +14,22 @@
 
 #define TEST_ADDRESS 0x10000000UL
 
+/* Scripted register device, not a second allocation/lifetime implementation.
+ * The driver under test writes its real descriptor and consumes frozen tuples.
+ */
+struct test_descriptor {
+	u64 dma, generation;
+	u32 span, sequence, slot;
+};
 struct test_transport {
 	u64 epoch;
-	bool epoch_unknown, lose_epoch_after_start;
+	bool epoch_unknown, lose_epoch_after_start, freeze_serial, corrupt_serial;
 	int start_error, stop_error, drain_error;
-	unsigned int starts, stops, drains;
-	struct fes_de25_dma_descriptor descriptor;
+	unsigned int starts, stops, drains, clears, snapshots, writes, barriers;
+	u32 regs[32], live[13], frozen[13], serial;
+	u32 trace_offset[128], trace_value[128];
+	unsigned int trace_count;
+	struct test_descriptor descriptor;
 	unsigned long revoked_address;
 	bool writes_revoked_before_stop;
 };
@@ -38,39 +48,121 @@ static u64 transport_epoch(void *context)
 	return transport->epoch_unknown ? 0 : transport->epoch;
 }
 
-static int transport_start(void *context, const struct fes_de25_dma_descriptor *descriptor)
+static int transport_read(void *context, u32 offset, u32 *value)
 {
-	struct test_transport *transport = context;
+	struct test_transport *t = context;
 
-	transport->starts++;
-	transport->descriptor = *descriptor;
-	if (transport->lose_epoch_after_start)
-		transport->epoch_unknown = true;
-	return transport->start_error;
+	if (offset == FES_DE25_SCANOUT_ID_OFFSET)
+		*value = FES_DE25_SCANOUT_IDENTITY;
+	else if (offset == FES_DE25_SCANOUT_VERSION_OFFSET)
+		*value = FES_DE25_SCANOUT_VERSION;
+	else if (offset == FES_DE25_SCANOUT_SNAPSHOT_SERIAL_OFFSET)
+		*value = t->serial;
+	else if (offset >= FES_DE25_SCANOUT_SNAPSHOT_STATUS_OFFSET &&
+		 offset <= FES_DE25_SCANOUT_SNAPSHOT_GRANT_SPAN_OFFSET) {
+		*value = t->frozen[(offset - FES_DE25_SCANOUT_SNAPSHOT_STATUS_OFFSET) / 4];
+		if (t->corrupt_serial && offset == FES_DE25_SCANOUT_SNAPSHOT_GRANT_SPAN_OFFSET)
+			t->serial++;
+	} else
+		return -EINVAL;
+	return 0;
 }
 
-static int transport_stop(void *context, u64 generation)
+static int transport_write(void *context, u32 offset, u32 value)
 {
-	struct test_transport *transport = context;
-	u32 value = 0x12345678;
+	struct test_transport *t = context;
+	u32 test_value = 0x12345678;
 
-	transport->stops++;
-	if (generation != transport->descriptor.generation)
-		return -EINVAL;
-	if (transport->revoked_address)
-		transport->writes_revoked_before_stop =
-			copy_to_user((void __user *)transport->revoked_address, &value, sizeof(value)) != 0;
-	return transport->stop_error;
+	t->writes++;
+	if (t->trace_count < ARRAY_SIZE(t->trace_offset)) {
+		t->trace_offset[t->trace_count] = offset;
+		t->trace_value[t->trace_count++] = value;
+	}
+	if (offset != FES_DE25_SCANOUT_COMMAND_OFFSET) {
+		if (offset < FES_DE25_SCANOUT_GRANT_LO_OFFSET || offset > FES_DE25_SCANOUT_SLOT_OFFSET)
+			return -EINVAL;
+		t->regs[offset / 4] = value;
+		return 0;
+	}
+	if (value == FES_DE25_SCANOUT_COMMAND_SNAPSHOT) {
+		t->snapshots++;
+		/* Explicit hardware tuple, atomically copied by CMD SNAPSHOT. */
+		t->live[0] = t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4];
+		t->live[1] = lower_32_bits(t->descriptor.generation);
+		t->live[2] = upper_32_bits(t->descriptor.generation);
+		memcpy(t->frozen, t->live, sizeof(t->frozen));
+		if (!t->freeze_serial)
+			t->serial++;
+		return 0;
+	}
+	if (value == FES_DE25_SCANOUT_COMMAND_SUBMIT) {
+		t->starts++;
+		t->descriptor.dma = (u64)t->regs[FES_DE25_SCANOUT_GRANT_HI_OFFSET / 4] << 32 |
+			t->regs[FES_DE25_SCANOUT_GRANT_LO_OFFSET / 4];
+		t->descriptor.generation = (u64)t->regs[FES_DE25_SCANOUT_GENERATION_HI_OFFSET / 4] << 32 |
+			t->regs[FES_DE25_SCANOUT_GENERATION_LO_OFFSET / 4];
+		t->descriptor.span = t->regs[FES_DE25_SCANOUT_GRANT_SPAN_OFFSET / 4];
+		t->descriptor.sequence = t->regs[FES_DE25_SCANOUT_SEQUENCE_OFFSET / 4];
+		t->descriptor.slot = t->regs[FES_DE25_SCANOUT_SLOT_OFFSET / 4];
+		t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_CONFIGURED |
+			FES_DE25_SCANOUT_STATUS_RUNNING | FES_DE25_SCANOUT_STATUS_PENDING;
+		t->live[3] = t->descriptor.sequence;
+		t->live[6] = (t->live[6] & 0x101U) | t->descriptor.slot << 16;
+		t->live[10] = lower_32_bits(t->descriptor.dma);
+		t->live[11] = upper_32_bits(t->descriptor.dma);
+		t->live[12] = t->descriptor.span;
+		if (t->lose_epoch_after_start)
+			t->epoch_unknown = true;
+		return t->start_error;
+	}
+	if (value == FES_DE25_SCANOUT_COMMAND_STOP) {
+		t->stops++;
+		if (t->revoked_address)
+			t->writes_revoked_before_stop = copy_to_user((void __user *)t->revoked_address,
+				&test_value, sizeof(test_value)) != 0;
+		if (t->stop_error)
+			return t->stop_error;
+		t->drains++;
+		t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_CONFIGURED |
+			(t->drain_error ? 0 : FES_DE25_SCANOUT_STATUS_DRAINED);
+		t->live[9] = t->drain_error ? 1 : 0;
+		return 0;
+	}
+	if (value == FES_DE25_SCANOUT_COMMAND_CLEAR) {
+		t->clears++;
+		memset(&t->descriptor, 0, sizeof(t->descriptor));
+		memset(t->live, 0, sizeof(t->live));
+		t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
+		return 0;
+	}
+	return -EINVAL;
 }
 
-static int transport_drain(void *context, u64 generation)
+static int transport_barrier(void *context)
 {
-	struct test_transport *transport = context;
+	struct test_transport *t = context;
 
-	transport->drains++;
-	if (generation != transport->descriptor.generation)
-		return -EINVAL;
-	return transport->drain_error;
+	t->barriers++;
+	if (t->trace_count < ARRAY_SIZE(t->trace_offset)) {
+		t->trace_offset[t->trace_count] = ~0U;
+		t->trace_value[t->trace_count++] = 0;
+	}
+	return 0;
+}
+
+static void transport_display(struct test_transport *t)
+{
+	t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] =
+		FES_DE25_SCANOUT_STATUS_CONFIGURED | FES_DE25_SCANOUT_STATUS_RUNNING;
+	t->live[4] = t->descriptor.sequence;
+	t->live[5] = t->descriptor.sequence;
+	t->live[6] = t->descriptor.slot | t->descriptor.slot << 8;
+}
+
+static int poll_file(struct file *file, struct fes_de25_dma_info *info)
+{
+	fes_de25_dma_info(file, info);
+	return fes_de25_dma_poll(file, info);
 }
 
 static void fixture_cleanup(void *context)
@@ -83,6 +175,10 @@ static void fixture_cleanup(void *context)
 		 */
 		fixture->transport.stop_error = 0;
 		fixture->transport.drain_error = 0;
+		fixture->transport.freeze_serial = false;
+		fixture->transport.corrupt_serial = false;
+		fixture->transport.epoch_unknown = false;
+		fixture->transport.epoch = 1;
 		fixture->observer.mmap_entered = NULL;
 		fixture->observer.revoked = NULL;
 		__fput_sync(fixture->file);
@@ -101,10 +197,11 @@ static int fixture_init(struct kunit *test)
 	if (IS_ERR(fixture->dev))
 		return PTR_ERR(fixture->dev);
 	fixture->transport.epoch = 1;
+	fixture->transport.regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] = FES_DE25_SCANOUT_STATUS_DRAINED;
 	backend.epoch = transport_epoch;
-	backend.start = transport_start;
-	backend.stop = transport_stop;
-	backend.drain = transport_drain;
+	backend.read32 = transport_read;
+	backend.write32 = transport_write;
+	backend.io_fence = transport_barrier;
 	backend.context = &fixture->transport;
 	fixture->file = fes_de25_dma_create(fixture->dev, &backend);
 	if (IS_ERR(fixture->file))
@@ -121,6 +218,7 @@ static struct fes_de25_dma_publish publish_for(struct file *file)
 
 	fes_de25_dma_info(file, &info);
 	publish.generation = info.generation;
+	publish.version = FES_DE25_DMA_ABI_VERSION;
 	publish.sequence = 1;
 	publish.slot = 1;
 	return publish;
@@ -153,6 +251,10 @@ static void rejects_bad_publish_before_effects(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(fixture->file, &changed), -EINVAL);
 	changed = valid; changed.slot = 2;
 	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(fixture->file, &changed), -EINVAL);
+	changed = valid; changed.version = 1;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(fixture->file, &changed), -EINVAL);
+	changed = valid; changed.slot = 0;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(fixture->file, &changed), -EINVAL);
 	changed = valid; changed.reserved = 1;
 	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(fixture->file, &changed), -EINVAL);
 	fixture->transport.epoch = 2;
@@ -167,23 +269,36 @@ static void kernel_owns_descriptor_and_drain_lifetime(struct kunit *test)
 	struct dma_fixture *fixture = test->priv;
 	struct fes_de25_dma_publish publish = publish_for(fixture->file);
 	struct fes_de25_dma_info info;
-	struct fes_de25_dma_descriptor *descriptor = &fixture->transport.descriptor;
+	struct test_descriptor *descriptor = &fixture->transport.descriptor;
+	struct fes_de25_dma_backend competing = {
+		.epoch = transport_epoch, .read32 = transport_read,
+		.write32 = transport_write, .io_fence = transport_barrier,
+		.context = &fixture->transport,
+	};
+	struct file *other;
 
 	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
 	KUNIT_EXPECT_EQ(test, descriptor->span, FES_DE25_DMA_ALLOCATION_BYTES);
-	KUNIT_EXPECT_EQ(test, descriptor->offset, FES_DE25_DMA_SLOT_BYTES);
-	KUNIT_EXPECT_EQ(test, descriptor->bytes, FES_DE25_DMA_FRAME_BYTES);
+	KUNIT_EXPECT_EQ(test, descriptor->slot, 1U);
 	KUNIT_EXPECT_EQ(test, descriptor->generation, publish.generation);
 	KUNIT_EXPECT_EQ(test, descriptor->sequence, publish.sequence);
 	KUNIT_EXPECT_TRUE(test, IS_ALIGNED(descriptor->dma, 32));
 	KUNIT_EXPECT_LE(test, (u64)descriptor->dma + descriptor->span, 1ULL << 32);
+	/* The constructor must not clear a configured engine to steal ownership. */
+	other = fes_de25_dma_create(fixture->dev, &competing);
+	KUNIT_EXPECT_TRUE(test, IS_ERR(other));
+	if (IS_ERR(other))
+		KUNIT_EXPECT_EQ(test, PTR_ERR(other), (long)-EBUSY);
+	else
+		__fput_sync(other);
+	KUNIT_EXPECT_EQ(test, fixture->transport.clears, 0U);
 	publish.sequence++;
 	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), -EBUSY);
 	KUNIT_EXPECT_EQ(test, fixture->transport.starts, 1U);
 	fixture->transport.drain_error = -ETIMEDOUT;
-	KUNIT_EXPECT_EQ(test, fixture->file->f_op->unlocked_ioctl(fixture->file, FES_DE25_DMA_REVOKE, 0), -ETIMEDOUT);
+	KUNIT_EXPECT_EQ(test, fixture->file->f_op->unlocked_ioctl(fixture->file, FES_DE25_DMA_REVOKE, 0), -EAGAIN);
 	fes_de25_dma_info(fixture->file, &info);
-	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_REVOKED | FES_DE25_DMA_EXPOSED | FES_DE25_DMA_UNCERTAIN);
+	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_REVOKED | FES_DE25_DMA_EXPOSED | FES_DE25_DMA_UNCERTAIN | FES_DE25_DMA_PENDING);
 	KUNIT_EXPECT_EQ(test, fixture->observer.freed, 0U);
 	KUNIT_EXPECT_EQ(test, fixture->transport.stops, 1U);
 	KUNIT_EXPECT_EQ(test, fixture->transport.drains, 1U);
@@ -205,7 +320,7 @@ static void failed_start_is_held_until_drain(struct kunit *test)
 	fixture->transport.start_error = -EIO;
 	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), -EIO);
 	fes_de25_dma_info(fixture->file, &info);
-	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_EXPOSED | FES_DE25_DMA_UNCERTAIN);
+	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_EXPOSED | FES_DE25_DMA_UNCERTAIN | FES_DE25_DMA_PENDING);
 	fixture->transport.stop_error = -EIO;
 	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), -EIO);
 	KUNIT_EXPECT_EQ(test, fixture->transport.drains, 0U);
@@ -226,12 +341,207 @@ static void unreadable_epoch_retains_exposed_storage(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), -ESTALE);
 	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), -ESTALE);
 	fes_de25_dma_info(fixture->file, &info);
-	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_REVOKED | FES_DE25_DMA_EXPOSED | FES_DE25_DMA_UNCERTAIN);
+	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_REVOKED | FES_DE25_DMA_EXPOSED | FES_DE25_DMA_UNCERTAIN | FES_DE25_DMA_PENDING);
 	KUNIT_EXPECT_EQ(test, fixture->transport.stops, 0U);
 	KUNIT_EXPECT_EQ(test, fixture->observer.freed, 0U);
 	/* Restore visibility of the ORIGINAL epoch, not a reset/epoch override. */
 	fixture->transport.epoch_unknown = false;
 	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
+}
+
+static void acceptance_is_not_display_and_slots_alternate(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_publish publish = publish_for(fixture->file);
+	struct fes_de25_dma_info info;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
+	KUNIT_ASSERT_EQ(test, poll_file(fixture->file, &info), 0);
+	KUNIT_EXPECT_EQ(test, info.accepted_sequence, 1U);
+	KUNIT_EXPECT_EQ(test, info.displayed_sequence, 0U);
+	KUNIT_EXPECT_EQ(test, info.displayed_slot, 0U);
+	KUNIT_EXPECT_EQ(test, info.pending_slot, 1U);
+	KUNIT_EXPECT_EQ(test, info.back_slot, FES_DE25_DMA_NO_SLOT);
+	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_EXPOSED | FES_DE25_DMA_PENDING);
+	publish.sequence = 2; publish.slot = 0;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), -EBUSY);
+	/* Fetch switching to the new slot is still not full-frame completion. */
+	t->live[5] = 1; t->live[6] |= 1;
+	KUNIT_ASSERT_EQ(test, poll_file(fixture->file, &info), 0);
+	KUNIT_EXPECT_EQ(test, info.back_slot, FES_DE25_DMA_NO_SLOT);
+	transport_display(t);
+	KUNIT_ASSERT_EQ(test, poll_file(fixture->file, &info), 0);
+	KUNIT_EXPECT_EQ(test, info.displayed_sequence, 1U);
+	KUNIT_EXPECT_EQ(test, info.displayed_slot, 1U);
+	KUNIT_EXPECT_EQ(test, info.back_slot, 0U);
+	KUNIT_EXPECT_EQ(test, info.state, FES_DE25_DMA_EXPOSED);
+	KUNIT_EXPECT_EQ(test, fixture->observer.freed, 0U);
+	publish.slot = 1;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), -EINVAL);
+	publish.slot = 0;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
+	KUNIT_ASSERT_EQ(test, poll_file(fixture->file, &info), 0);
+	/* The old displayed acknowledgement must not release the next slot. */
+	KUNIT_EXPECT_EQ(test, info.displayed_sequence, 1U);
+	KUNIT_EXPECT_EQ(test, info.pending_sequence, 2U);
+	KUNIT_EXPECT_EQ(test, info.back_slot, FES_DE25_DMA_NO_SLOT);
+	transport_display(t);
+	KUNIT_ASSERT_EQ(test, poll_file(fixture->file, &info), 0);
+	KUNIT_EXPECT_EQ(test, info.displayed_slot, 0U);
+	KUNIT_EXPECT_EQ(test, info.back_slot, 1U);
+	KUNIT_EXPECT_EQ(test, t->starts, 2U);
+	KUNIT_EXPECT_EQ(test, t->stops, 0U);
+	KUNIT_EXPECT_EQ(test, fixture->observer.freed, 0U);
+}
+
+static void ordered_descriptor_precedes_first_submit(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_publish publish = publish_for(fixture->file);
+	const u32 offsets[] = { FES_DE25_SCANOUT_GRANT_LO_OFFSET, FES_DE25_SCANOUT_GRANT_HI_OFFSET,
+		FES_DE25_SCANOUT_GRANT_SPAN_OFFSET, FES_DE25_SCANOUT_GENERATION_LO_OFFSET,
+		FES_DE25_SCANOUT_GENERATION_HI_OFFSET, FES_DE25_SCANOUT_SEQUENCE_OFFSET,
+		FES_DE25_SCANOUT_SLOT_OFFSET, ~0U, FES_DE25_SCANOUT_COMMAND_OFFSET, ~0U };
+	unsigned int i;
+
+	t->trace_count = 0;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
+	KUNIT_ASSERT_GE(test, t->trace_count, (unsigned int)ARRAY_SIZE(offsets));
+	for (i = 0; i < ARRAY_SIZE(offsets); i++)
+		KUNIT_EXPECT_EQ(test, t->trace_offset[i], offsets[i]);
+	KUNIT_EXPECT_EQ(test, t->trace_value[8], FES_DE25_SCANOUT_COMMAND_SUBMIT);
+	KUNIT_EXPECT_EQ(test, t->trace_value[6], 1U);
+	KUNIT_EXPECT_EQ(test, t->descriptor.generation, publish.generation);
+}
+
+static void stale_generation_and_reset_cannot_prove_drain(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_publish publish = publish_for(fixture->file);
+	struct fes_de25_dma_info info;
+	u64 generation;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
+	generation = t->descriptor.generation;
+	/* Same low32 bits still fail when the high32 generation differs. */
+	t->descriptor.generation ^= 1ULL << 32;
+	KUNIT_EXPECT_EQ(test, poll_file(fixture->file, &info), -ESTALE);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), -ESTALE);
+	KUNIT_EXPECT_EQ(test, fixture->observer.freed, 0U);
+	/* Reset can make idle/drained true, but destroys the old ownership proof. */
+	t->descriptor.generation = 0;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), -ESTALE);
+	KUNIT_EXPECT_EQ(test, fixture->observer.freed, 0U);
+	/* Test fixture restores its original scripted device, never a user flag. */
+	t->descriptor.generation = generation;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
+}
+
+static void mismatched_completion_never_releases_slot(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_publish publish = publish_for(fixture->file);
+	struct fes_de25_dma_info info;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
+	/* A new displayed tuple with the old slot still current cannot free it. */
+	t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] &= ~FES_DE25_SCANOUT_STATUS_PENDING;
+	t->live[4] = publish.sequence;
+	t->live[6] = 1U << FES_DE25_SCANOUT_DISPLAYED_SLOT_SHIFT;
+	KUNIT_EXPECT_EQ(test, poll_file(fixture->file, &info), -EPROTO);
+	fes_de25_dma_info(fixture->file, &info);
+	KUNIT_EXPECT_EQ(test, info.displayed_sequence, 0U);
+	KUNIT_EXPECT_EQ(test, info.back_slot, FES_DE25_DMA_NO_SLOT);
+	KUNIT_EXPECT_NE(test, info.state & FES_DE25_DMA_EXPOSED, 0U);
+	KUNIT_EXPECT_EQ(test, fixture->observer.freed, 0U);
+}
+
+static void faults_never_release_pending_slot(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_publish publish = publish_for(fixture->file);
+	struct fes_de25_dma_info info;
+
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
+	/* Even a matching displayed counter is not success when frame errored. */
+	transport_display(t);
+	t->live[7] = FES_DE25_SCANOUT_ERROR_UNDERFLOW;
+	t->live[8] = 1;
+	t->regs[FES_DE25_SCANOUT_STATUS_OFFSET / 4] |= FES_DE25_SCANOUT_STATUS_FAULT;
+	KUNIT_EXPECT_EQ(test, poll_file(fixture->file, &info), -EIO);
+	fes_de25_dma_info(fixture->file, &info);
+	KUNIT_EXPECT_EQ(test, info.displayed_sequence, 0U);
+	KUNIT_EXPECT_EQ(test, info.back_slot, FES_DE25_DMA_NO_SLOT);
+	KUNIT_EXPECT_NE(test, info.state & FES_DE25_DMA_PENDING, 0U);
+	KUNIT_EXPECT_NE(test, info.state & FES_DE25_DMA_UNCERTAIN, 0U);
+	KUNIT_EXPECT_EQ(test, info.hardware_errors, FES_DE25_SCANOUT_ERROR_UNDERFLOW);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
+}
+
+static void snapshot_handshake_is_bounded_and_consistent(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct test_transport *t = &fixture->transport;
+	struct fes_de25_dma_publish publish = publish_for(fixture->file);
+	struct fes_de25_dma_info info;
+
+	/* Serial is modular independently of the never-wrapping lease identity. */
+	t->serial = U32_MAX;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
+	t->freeze_serial = true;
+	KUNIT_EXPECT_EQ(test, poll_file(fixture->file, &info), -ETIMEDOUT);
+	KUNIT_EXPECT_EQ(test, fixture->observer.freed, 0U);
+	t->freeze_serial = false;
+	t->corrupt_serial = true;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), -EPROTO);
+	KUNIT_EXPECT_EQ(test, fixture->observer.freed, 0U);
+	t->corrupt_serial = false;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_revoke(fixture->file), 0);
+}
+
+static void sequence_and_generation_never_wrap(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct fes_de25_dma_publish publish = publish_for(fixture->file);
+	struct fes_de25_dma_info info;
+	atomic64_t counter = ATOMIC64_INIT(S64_MAX);
+
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_test_next_generation(&counter), 1ULL << 63);
+	atomic64_set(&counter, -2);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_test_next_generation(&counter), U64_MAX);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_test_next_generation(&counter), 0ULL);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_test_next_generation(&counter), 0ULL);
+	publish.sequence = U32_MAX;
+	KUNIT_ASSERT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), 0);
+	transport_display(&fixture->transport);
+	KUNIT_ASSERT_EQ(test, poll_file(fixture->file, &info), 0);
+	publish.sequence = 0; publish.slot = 0;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), -EINVAL);
+	publish.sequence = 1;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_publish(fixture->file, &publish), -EINVAL);
+}
+
+static void poll_identity_rejects_before_register_effects(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct fes_de25_dma_info info;
+	unsigned int writes = fixture->transport.writes;
+
+	fes_de25_dma_info(fixture->file, &info);
+	info.version = 1;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_poll(fixture->file, &info), -EINVAL);
+	fes_de25_dma_info(fixture->file, &info);
+	info.generation++;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_poll(fixture->file, &info), -EINVAL);
+	fes_de25_dma_info(fixture->file, &info);
+	info.reserved = 1;
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_poll(fixture->file, &info), -EINVAL);
+	KUNIT_EXPECT_EQ(test, fixture->transport.writes, writes);
 }
 
 static struct mm_struct *test_mm(struct kunit *test)
@@ -291,6 +601,13 @@ static void coherent_mapping_uapi_and_revoke(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, info.allocation_bytes, FES_DE25_DMA_ALLOCATION_BYTES);
 	KUNIT_EXPECT_EQ(test, copy_to_user((void __user *)address, &publish, sizeof(publish)), 0UL);
 	KUNIT_EXPECT_EQ(test, fixture->file->f_op->unlocked_ioctl(fixture->file, FES_DE25_DMA_PUBLISH, address), 0L);
+	/* Exercise the actual bidirectional POLL ioctl copy path too. */
+	fes_de25_dma_info(fixture->file, &info);
+	KUNIT_EXPECT_EQ(test, copy_to_user((void __user *)address, &info, sizeof(info)), 0UL);
+	KUNIT_EXPECT_EQ(test, fixture->file->f_op->unlocked_ioctl(fixture->file, FES_DE25_DMA_POLL, address), 0L);
+	KUNIT_EXPECT_EQ(test, copy_from_user(&info, (void __user *)address, sizeof(info)), 0UL);
+	KUNIT_EXPECT_EQ(test, info.accepted_sequence, publish.sequence);
+	KUNIT_EXPECT_EQ(test, info.displayed_sequence, 0U);
 	fixture->transport.revoked_address = address;
 	KUNIT_EXPECT_EQ(test, fixture->file->f_op->unlocked_ioctl(fixture->file, FES_DE25_DMA_REVOKE, 0), 0L);
 	KUNIT_EXPECT_TRUE(test, fixture->transport.writes_revoked_before_stop);
@@ -319,6 +636,28 @@ static void rejects_invalid_mapping_shapes(struct kunit *test)
 			PROT_READ, MAP_FIXED | MAP_SHARED, 0), (unsigned long)-EINVAL);
 	KUNIT_EXPECT_EQ(test, vm_mmap(fixture->file, TEST_ADDRESS, PAGE_SIZE,
 			PROT_READ, MAP_FIXED | MAP_SHARED, FES_DE25_DMA_ALLOCATION_BYTES), (unsigned long)-EINVAL);
+	kthread_unuse_mm(mm);
+	mmput(mm);
+}
+
+static void refused_mapping_releases_new_mm_reference(struct kunit *test)
+{
+	struct dma_fixture *fixture = test->priv;
+	struct mm_struct *mm = test_mm(test);
+	unsigned long address;
+	int refs;
+
+	if (!mm)
+		return;
+	kthread_use_mm(mm);
+	refs = atomic_read(&mm->mm_count);
+	fixture->observer.mmap_refuse = true;
+	address = vm_mmap(fixture->file, TEST_ADDRESS, PAGE_SIZE,
+			PROT_READ | PROT_WRITE, MAP_FIXED | MAP_SHARED, 0);
+	KUNIT_EXPECT_EQ(test, address, (unsigned long)-EOPNOTSUPP);
+	KUNIT_EXPECT_EQ(test, fes_de25_dma_test_mmap_count(fixture->file), 0U);
+	KUNIT_EXPECT_EQ(test, atomic_read(&mm->mm_count), refs);
+	fixture->observer.mmap_refuse = false;
 	kthread_unuse_mm(mm);
 	mmput(mm);
 }
@@ -422,8 +761,17 @@ static struct kunit_case fes_de25_dma_cases[] = {
 	KUNIT_CASE(kernel_owns_descriptor_and_drain_lifetime),
 	KUNIT_CASE(failed_start_is_held_until_drain),
 	KUNIT_CASE(unreadable_epoch_retains_exposed_storage),
+	KUNIT_CASE(acceptance_is_not_display_and_slots_alternate),
+	KUNIT_CASE(ordered_descriptor_precedes_first_submit),
+	KUNIT_CASE(stale_generation_and_reset_cannot_prove_drain),
+	KUNIT_CASE(mismatched_completion_never_releases_slot),
+	KUNIT_CASE(faults_never_release_pending_slot),
+	KUNIT_CASE(snapshot_handshake_is_bounded_and_consistent),
+	KUNIT_CASE(sequence_and_generation_never_wrap),
+	KUNIT_CASE(poll_identity_rejects_before_register_effects),
 	KUNIT_CASE(coherent_mapping_uapi_and_revoke),
 	KUNIT_CASE(rejects_invalid_mapping_shapes),
+	KUNIT_CASE(refused_mapping_releases_new_mm_reference),
 	KUNIT_CASE(revoke_catches_inflight_mmap_link),
 	{ }
 };

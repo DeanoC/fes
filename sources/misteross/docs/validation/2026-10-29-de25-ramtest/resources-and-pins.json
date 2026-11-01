@@ -1,0 +1,2184 @@
+{
+  "additional_emif_reference_pin": "LPDDR4B_REFCLK_p(n)",
+  "all_selected_locations_match": true,
+  "bank_usage_rows": [
+    [
+      "I/O Bank",
+      "Usage",
+      "VCCIO Voltage",
+      "VREF Voltage"
+    ],
+    [
+      "SDM",
+      "17 / 33 ( 52 % )",
+      "--",
+      "--"
+    ],
+    [
+      "HPS",
+      "41 / 48 ( 85 % )",
+      "--",
+      "--"
+    ],
+    [
+      "2A_T",
+      "39 / 48 ( 81 % )",
+      "1.1V",
+      "--"
+    ],
+    [
+      "2A_B",
+      "48 / 48 ( 100 % )",
+      "1.1V",
+      "--"
+    ],
+    [
+      "3A_T",
+      "24 / 48 ( 50 % )",
+      "1.1V",
+      "--"
+    ],
+    [
+      "3A_B",
+      "48 / 48 ( 100 % )",
+      "1.1V",
+      "--"
+    ],
+    [
+      "6A",
+      "20 / 20 ( 100 % )",
+      "3.3V",
+      "--"
+    ],
+    [
+      "6B",
+      "20 / 20 ( 100 % )",
+      "3.3V",
+      "--"
+    ],
+    [
+      "6C",
+      "20 / 20 ( 100 % )",
+      "3.3V",
+      "--"
+    ],
+    [
+      "6D",
+      "19 / 19 ( 100 % )",
+      "3.3V",
+      "--"
+    ],
+    [
+      "6E",
+      "20 / 20 ( 100 % )",
+      "3.3V",
+      "--"
+    ],
+    [
+      "6F",
+      "17 / 20 ( 85 % )",
+      "3.3V",
+      "--"
+    ],
+    [
+      "6G",
+      "20 / 20 ( 100 % )",
+      "1.8V",
+      "--"
+    ],
+    [
+      "6H",
+      "20 / 20 ( 100 % )",
+      "1.8V",
+      "--"
+    ],
+    [
+      "1A",
+      "0 / 0 ( -- )",
+      "--",
+      "--"
+    ]
+  ],
+  "declared_memory_pin_count": 97,
+  "fitter_report": {
+    "bytes": 2721677,
+    "path": "out/de25-ramtest-calibration-contract/hps/project/output_files/golden_top.fit.rpt",
+    "sha256": "6bbf18168ad5133661f4caceec09ad5c5c329faedabbea57ecb2755ec426f3a3"
+  },
+  "format": 1,
+  "global_resource_rows": [
+    [
+      "Resource",
+      "Usage",
+      "%"
+    ],
+    [
+      "Usage Report Generated after: Finalize",
+      "",
+      ""
+    ],
+    [
+      "",
+      "",
+      ""
+    ],
+    [
+      "Logic utilization (ALMs needed / total ALMs on device)",
+      "26,966 / 46,800",
+      "58 %"
+    ],
+    [
+      "ALMs needed [=A-B+C]",
+      "26,966",
+      ""
+    ],
+    [
+      "[A] ALMs used in final placement [=a+b+c+d]",
+      "28,511 / 46,800",
+      "61 %"
+    ],
+    [
+      "[a] ALMs used for LUT logic and register circuitry",
+      "18,314",
+      ""
+    ],
+    [
+      "[b] ALMs used for LUT logic",
+      "5,916",
+      ""
+    ],
+    [
+      "[c] ALMs used for register circuitry",
+      "3,631",
+      ""
+    ],
+    [
+      "[d] ALMs used for memory (up to half of total ALMs)",
+      "650",
+      ""
+    ],
+    [
+      "[B] Estimate of ALMs recoverable by dense packing",
+      "1,600 / 46,800",
+      "3 %"
+    ],
+    [
+      "[C] Estimate of ALMs unavailable [=a+b+c+d]",
+      "55 / 46,800",
+      "< 1 %"
+    ],
+    [
+      "[a] Due to location constrained logic",
+      "0",
+      ""
+    ],
+    [
+      "[b] Due to LAB-wide signal conflicts",
+      "5",
+      ""
+    ],
+    [
+      "[c] Due to LAB input limits",
+      "50",
+      ""
+    ],
+    [
+      "[d] Due to virtual I/Os",
+      "0",
+      ""
+    ],
+    [
+      "",
+      "",
+      ""
+    ],
+    [
+      "Difficulty packing design",
+      "Low",
+      ""
+    ],
+    [
+      "",
+      "",
+      ""
+    ],
+    [
+      "Total LABs:  partially or completely used",
+      "3,814 / 4,680",
+      "81 %"
+    ],
+    [
+      "-- Logic LABs",
+      "3,749",
+      ""
+    ],
+    [
+      "-- Memory LABs (up to half of total LABs)",
+      "65",
+      ""
+    ],
+    [
+      "",
+      "",
+      ""
+    ],
+    [
+      "Combinational ALUT usage for logic",
+      "45,147",
+      ""
+    ],
+    [
+      "-- 8 input functions",
+      "856",
+      ""
+    ],
+    [
+      "-- 7 input functions",
+      "203",
+      ""
+    ],
+    [
+      "-- 6 input functions",
+      "1,440",
+      ""
+    ],
+    [
+      "-- 5 input functions",
+      "2,937",
+      ""
+    ],
+    [
+      "-- 4 input functions",
+      "5,972",
+      ""
+    ],
+    [
+      "-- <=3 input functions",
+      "33,739",
+      ""
+    ],
+    [
+      "Combinational ALUT usage for route-throughs",
+      "5,207",
+      ""
+    ],
+    [
+      "Memory ALUT usage",
+      "1,202",
+      ""
+    ],
+    [
+      "-- 64-address deep",
+      "0",
+      ""
+    ],
+    [
+      "-- 32-address deep",
+      "1,202",
+      ""
+    ],
+    [
+      "",
+      "",
+      ""
+    ],
+    [
+      "",
+      "",
+      ""
+    ],
+    [
+      "Dedicated logic registers",
+      "51,350",
+      ""
+    ],
+    [
+      "-- By type:",
+      "",
+      ""
+    ],
+    [
+      "-- LAB logic registers:",
+      "",
+      ""
+    ],
+    [
+      "-- Primary logic registers",
+      "43,888 / 93,600",
+      "47 %"
+    ],
+    [
+      "-- Secondary logic registers",
+      "4,483 / 93,600",
+      "5 %"
+    ],
+    [
+      "-- Hyper-Registers:",
+      "2,979",
+      ""
+    ],
+    [
+      "",
+      "",
+      ""
+    ],
+    [
+      "Register control circuitry for power estimation",
+      "10,699",
+      ""
+    ],
+    [
+      "",
+      "",
+      ""
+    ],
+    [
+      "ALMs adjustment for power estimation",
+      "5,936",
+      ""
+    ],
+    [
+      "",
+      "",
+      ""
+    ],
+    [
+      "I/O pins",
+      "356 / 351",
+      "101 %"
+    ],
+    [
+      "-- Clock pins",
+      "12 / 16",
+      "75 %"
+    ],
+    [
+      "-- Dedicated input pins",
+      "6 / 6",
+      "100 %"
+    ],
+    [
+      "",
+      "",
+      ""
+    ],
+    [
+      "M20K blocks",
+      "138 / 358",
+      "39 %"
+    ],
+    [
+      "Total MLAB memory bits",
+      "9,664",
+      ""
+    ],
+    [
+      "Total block memory bits",
+      "2,106,944 / 7,331,840",
+      "29 %"
+    ],
+    [
+      "",
+      "",
+      ""
+    ],
+    [
+      "DSP Blocks Needed [=A+B+C-D]",
+      "0 / 188",
+      "0 %"
+    ],
+    [
+      "[A] Total Fixed Point DSP Blocks",
+      "0",
+      ""
+    ],
+    [
+      "[B] Total Floating Point DSP Blocks",
+      "0",
+      ""
+    ],
+    [
+      "[C] Total DSP_PRIME Blocks",
+      "0",
+      ""
+    ],
+    [
+      "[D] Estimate of DSP Blocks recoverable by dense merging",
+      "0",
+      ""
+    ],
+    [
+      "",
+      "",
+      ""
+    ],
+    [
+      "IOPLLs",
+      "3 / 11",
+      "27 %"
+    ],
+    [
+      "Global signals",
+      "3",
+      ""
+    ],
+    [
+      "LVDS_RX blocks",
+      "0 / 96",
+      "0 %"
+    ],
+    [
+      "HMC blocks",
+      "2 / 4",
+      "50 %"
+    ],
+    [
+      "Average interconnect usage (total/H/V)",
+      "13.1% / 12.9% / 13.3%",
+      ""
+    ],
+    [
+      "Peak interconnect usage (total/H/V)",
+      "26.4% / 25.5% / 30.3%",
+      ""
+    ],
+    [
+      "Maximum fan-out",
+      "51149",
+      ""
+    ],
+    [
+      "Highest non-global fan-out",
+      "1169",
+      ""
+    ],
+    [
+      "Total fan-out",
+      "355371",
+      ""
+    ],
+    [
+      "Average fan-out",
+      "3.54",
+      ""
+    ]
+  ],
+  "ignored_assignment_counts": {
+    "Force Hyper Register for Periphery to Core Transfer": 1,
+    "Global Signal": 1,
+    "Hyper Register Delay Chain": 4,
+    "I/O Standard": 124,
+    "Location": 10,
+    "Synchronizer Identification": 1
+  },
+  "ignored_b_assignment_rows": [
+    [
+      "Hyper Register Delay Chain",
+      "golden_top",
+      "",
+      "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_fahmc_wide|gen_hmc_c2p_reg_350.gen_c2p_ff[19].inst_ff",
+      "350",
+      "Compiler or HDL Assignment"
+    ],
+    [
+      "Hyper Register Delay Chain",
+      "golden_top",
+      "",
+      "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_fahmc_wide|gen_hmc_c2p_reg_350.gen_c2p_ff[23].inst_ff",
+      "350",
+      "Compiler or HDL Assignment"
+    ],
+    [
+      "Hyper Register Delay Chain",
+      "golden_top",
+      "",
+      "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_fahmc_wide|gen_hmc_c2p_reg_350.gen_c2p_ff[89].inst_ff",
+      "350",
+      "Compiler or HDL Assignment"
+    ],
+    [
+      "Hyper Register Delay Chain",
+      "golden_top",
+      "",
+      "soc_inst|ramtest_b|emif_lpddr4b|emif_qsys_emif_ddr4a_0|emif_arch_top|arch_emif_0.arch0_1ch_per_io.arch_0|wrapper_fahmc_wide|gen_hmc_c2p_reg_350.gen_c2p_ff[93].inst_ff",
+      "350",
+      "Compiler or HDL Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_CA[0]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_CA[1]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_CA[2]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_CA[3]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_CA[4]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_CA[5]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_CK",
+      "DIFFERENTIAL 1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_CKE",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_CK_n",
+      "DIFFERENTIAL 1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_CS_n",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DM[0]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DM[1]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DM[2]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DM[3]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQS[0]",
+      "DIFFERENTIAL 1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQS[1]",
+      "DIFFERENTIAL 1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQS[2]",
+      "DIFFERENTIAL 1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQS[3]",
+      "DIFFERENTIAL 1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQS_n[0]",
+      "DIFFERENTIAL 1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQS_n[1]",
+      "DIFFERENTIAL 1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQS_n[2]",
+      "DIFFERENTIAL 1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQS_n[3]",
+      "DIFFERENTIAL 1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[0]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[10]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[11]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[12]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[13]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[14]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[15]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[16]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[17]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[18]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[19]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[1]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[20]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[21]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[22]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[23]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[24]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[25]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[26]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[27]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[28]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[29]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[2]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[30]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[31]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[3]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[4]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[5]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[6]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[7]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[8]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_DQ[9]",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_REFCLK_p",
+      "1.1-V TRUE DIFFERENTIAL SIGNALING",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_RESET_n",
+      "1.1-V LVSTL",
+      "QSF Assignment"
+    ],
+    [
+      "I/O Standard",
+      "golden_top",
+      "",
+      "LPDDR4B_RZQ",
+      "1.1-V",
+      "QSF Assignment"
+    ]
+  ],
+  "ignored_location_rows": [
+    [
+      "Location",
+      "",
+      "",
+      "CAM_CLK_n",
+      "PIN_DN30",
+      "QSF Assignment"
+    ],
+    [
+      "Location",
+      "",
+      "",
+      "CAM_CLK_p",
+      "PIN_DP33",
+      "QSF Assignment"
+    ],
+    [
+      "Location",
+      "",
+      "",
+      "CAM_D_n[0]",
+      "PIN_DN33",
+      "QSF Assignment"
+    ],
+    [
+      "Location",
+      "",
+      "",
+      "CAM_D_n[1]",
+      "PIN_DN38",
+      "QSF Assignment"
+    ],
+    [
+      "Location",
+      "",
+      "",
+      "CAM_D_p[0]",
+      "PIN_DP36",
+      "QSF Assignment"
+    ],
+    [
+      "Location",
+      "",
+      "",
+      "CAM_D_p[1]",
+      "PIN_DP38",
+      "QSF Assignment"
+    ],
+    [
+      "Location",
+      "",
+      "",
+      "CAM_GPIO",
+      "PIN_BR8",
+      "QSF Assignment"
+    ],
+    [
+      "Location",
+      "",
+      "",
+      "CAM_I2C_SCL",
+      "PIN_BP2",
+      "QSF Assignment"
+    ],
+    [
+      "Location",
+      "",
+      "",
+      "CAM_I2C_SDA",
+      "PIN_BP1",
+      "QSF Assignment"
+    ],
+    [
+      "Location",
+      "",
+      "",
+      "CAM_RZQ1",
+      "PIN_DD35",
+      "QSF Assignment"
+    ]
+  ],
+  "pin_report": {
+    "bytes": 109571,
+    "path": "out/de25-ramtest-calibration-contract/hps/project/output_files/golden_top.pin",
+    "sha256": "c0d32ae593a22817a52fe00919a99d0e44bdb0d926fa0d8f95d60c04961ff265"
+  },
+  "pin_report_accounting": {
+    "dedicated_hps_used": 41,
+    "dedicated_sdm_named_pins_used": 14,
+    "fpga_bank_capacity": 351,
+    "fpga_bank_used": 315,
+    "interpretation": "summary numerator includes FPGA+HPS while denominator matches FPGA-only bank capacity; all individual bank usage remains bounded; no electrical signoff",
+    "observed_summary_numerator_equals_fpga_plus_hps": 356,
+    "unique_named_package_locations": 370
+  },
+  "pins": {
+    "CLOCK1_50": {
+      "assigned": "Y",
+      "bank": "6C",
+      "direction": "input",
+      "location": "V16",
+      "name": "CLOCK1_50",
+      "pin_delay": "110ps",
+      "standard": "3.3-V LVCMOS",
+      "voltage": "3.3V"
+    },
+    "DRAM_ADDR[0]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "output",
+      "location": "AC1",
+      "name": "DRAM_ADDR[0]",
+      "pin_delay": "99ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_ADDR[10]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "output",
+      "location": "BE8",
+      "name": "DRAM_ADDR[10]",
+      "pin_delay": "134ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_ADDR[11]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "R6",
+      "name": "DRAM_ADDR[11]",
+      "pin_delay": "100ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_ADDR[12]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "AH11",
+      "name": "DRAM_ADDR[12]",
+      "pin_delay": "92ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_ADDR[1]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "AH6",
+      "name": "DRAM_ADDR[1]",
+      "pin_delay": "95ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_ADDR[2]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "output",
+      "location": "AC2",
+      "name": "DRAM_ADDR[2]",
+      "pin_delay": "101ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_ADDR[3]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "R8",
+      "name": "DRAM_ADDR[3]",
+      "pin_delay": "93ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_ADDR[4]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "AE11",
+      "name": "DRAM_ADDR[4]",
+      "pin_delay": "89ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_ADDR[5]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "AH14",
+      "name": "DRAM_ADDR[5]",
+      "pin_delay": "115ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_ADDR[6]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "V4",
+      "name": "DRAM_ADDR[6]",
+      "pin_delay": "102ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_ADDR[7]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "AG26",
+      "name": "DRAM_ADDR[7]",
+      "pin_delay": "141ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_ADDR[8]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "AG23",
+      "name": "DRAM_ADDR[8]",
+      "pin_delay": "123ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_ADDR[9]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "V11",
+      "name": "DRAM_ADDR[9]",
+      "pin_delay": "95ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_BA[0]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "AT6",
+      "name": "DRAM_BA[0]",
+      "pin_delay": "82ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_BA[1]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "AV4",
+      "name": "DRAM_BA[1]",
+      "pin_delay": "97ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_CAS_n": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "AE6",
+      "name": "DRAM_CAS_n",
+      "pin_delay": "94ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_CKE": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "AE8",
+      "name": "DRAM_CKE",
+      "pin_delay": "87ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_CLK": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "R11",
+      "name": "DRAM_CLK",
+      "pin_delay": "92ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_CS_n[0]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "output",
+      "location": "AF1",
+      "name": "DRAM_CS_n[0]",
+      "pin_delay": "97ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_CS_n[1]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "AE14",
+      "name": "DRAM_CS_n[1]",
+      "pin_delay": "131ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[0]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "AU1",
+      "name": "DRAM_DQ[0]",
+      "pin_delay": "86ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[10]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "BH6",
+      "name": "DRAM_DQ[10]",
+      "pin_delay": "106ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[11]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "AU2",
+      "name": "DRAM_DQ[11]",
+      "pin_delay": "80ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[12]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "BE6",
+      "name": "DRAM_DQ[12]",
+      "pin_delay": "125ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[13]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "BD2",
+      "name": "DRAM_DQ[13]",
+      "pin_delay": "79ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[14]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "BG2",
+      "name": "DRAM_DQ[14]",
+      "pin_delay": "78ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[15]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "BL2",
+      "name": "DRAM_DQ[15]",
+      "pin_delay": "75ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[1]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "AJ1",
+      "name": "DRAM_DQ[1]",
+      "pin_delay": "92ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[2]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "BA1",
+      "name": "DRAM_DQ[2]",
+      "pin_delay": "83ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[3]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "AP1",
+      "name": "DRAM_DQ[3]",
+      "pin_delay": "88ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[4]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "AM2",
+      "name": "DRAM_DQ[4]",
+      "pin_delay": "85ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[5]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "BL1",
+      "name": "DRAM_DQ[5]",
+      "pin_delay": "81ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[6]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "AJ2",
+      "name": "DRAM_DQ[6]",
+      "pin_delay": "90ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[7]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "AP2",
+      "name": "DRAM_DQ[7]",
+      "pin_delay": "81ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[8]": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "bidir",
+      "location": "BH4",
+      "name": "DRAM_DQ[8]",
+      "pin_delay": "95ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_DQ[9]": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "bidir",
+      "location": "AH4",
+      "name": "DRAM_DQ[9]",
+      "pin_delay": "98ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_LDQM": {
+      "assigned": "Y",
+      "bank": "6H",
+      "direction": "output",
+      "location": "BD1",
+      "name": "DRAM_LDQM",
+      "pin_delay": "84ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_RAS_n": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "V6",
+      "name": "DRAM_RAS_n",
+      "pin_delay": "97ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_UDQM": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "AT8",
+      "name": "DRAM_UDQM",
+      "pin_delay": "102ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "DRAM_WE_n": {
+      "assigned": "Y",
+      "bank": "6G",
+      "direction": "output",
+      "location": "AV6",
+      "name": "DRAM_WE_n",
+      "pin_delay": "84ps",
+      "standard": "1.8-V LVCMOS",
+      "voltage": "1.8V"
+    },
+    "LPDDR4B_CA[0]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "output",
+      "location": "DJ51",
+      "name": "LPDDR4B_CA[0]",
+      "pin_delay": "83ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_CA[1]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "output",
+      "location": "DF51",
+      "name": "LPDDR4B_CA[1]",
+      "pin_delay": "81ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_CA[2]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "output",
+      "location": "DD51",
+      "name": "LPDDR4B_CA[2]",
+      "pin_delay": "104ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_CA[3]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "output",
+      "location": "DD48",
+      "name": "LPDDR4B_CA[3]",
+      "pin_delay": "103ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_CA[4]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "output",
+      "location": "DK48",
+      "name": "LPDDR4B_CA[4]",
+      "pin_delay": "82ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_CA[5]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "output",
+      "location": "DJ48",
+      "name": "LPDDR4B_CA[5]",
+      "pin_delay": "81ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_CK": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "output",
+      "location": "DP47",
+      "name": "LPDDR4B_CK",
+      "pin_delay": "80ps",
+      "standard": "Differential 1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_CKE": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "output",
+      "location": "DJ42",
+      "name": "LPDDR4B_CKE",
+      "pin_delay": "84ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_CK_n": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "output",
+      "location": "DN45",
+      "name": "LPDDR4B_CK_n",
+      "pin_delay": "81ps",
+      "standard": "Differential 1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_CS_n": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "output",
+      "location": "DD42",
+      "name": "LPDDR4B_CS_n",
+      "pin_delay": "79ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DM[0]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DJ59",
+      "name": "LPDDR4B_DM[0]",
+      "pin_delay": "95ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DM[1]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DP66",
+      "name": "LPDDR4B_DM[1]",
+      "pin_delay": "101ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DM[2]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DP10",
+      "name": "LPDDR4B_DM[2]",
+      "pin_delay": "123ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DM[3]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DJ12",
+      "name": "LPDDR4B_DM[3]",
+      "pin_delay": "94ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQS[0]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DK62",
+      "name": "LPDDR4B_DQS[0]",
+      "pin_delay": "107ps",
+      "standard": "Differential 1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQS[1]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DP68",
+      "name": "LPDDR4B_DQS[1]",
+      "pin_delay": "113ps",
+      "standard": "Differential 1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQS[2]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DP15",
+      "name": "LPDDR4B_DQS[2]",
+      "pin_delay": "96ps",
+      "standard": "Differential 1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQS[3]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DK18",
+      "name": "LPDDR4B_DQS[3]",
+      "pin_delay": "82ps",
+      "standard": "Differential 1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQS_n[0]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DJ62",
+      "name": "LPDDR4B_DQS_n[0]",
+      "pin_delay": "107ps",
+      "standard": "Differential 1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQS_n[1]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DN66",
+      "name": "LPDDR4B_DQS_n[1]",
+      "pin_delay": "112ps",
+      "standard": "Differential 1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQS_n[2]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DN15",
+      "name": "LPDDR4B_DQS_n[2]",
+      "pin_delay": "95ps",
+      "standard": "Differential 1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQS_n[3]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DJ18",
+      "name": "LPDDR4B_DQS_n[3]",
+      "pin_delay": "80ps",
+      "standard": "Differential 1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[0]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DJ65",
+      "name": "LPDDR4B_DQ[0]",
+      "pin_delay": "123ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[10]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DP60",
+      "name": "LPDDR4B_DQ[10]",
+      "pin_delay": "89ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[11]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DN58",
+      "name": "LPDDR4B_DQ[11]",
+      "pin_delay": "88ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[12]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DN61",
+      "name": "LPDDR4B_DQ[12]",
+      "pin_delay": "96ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[13]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DP61",
+      "name": "LPDDR4B_DQ[13]",
+      "pin_delay": "97ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[14]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DN68",
+      "name": "LPDDR4B_DQ[14]",
+      "pin_delay": "126ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[15]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DP70",
+      "name": "LPDDR4B_DQ[15]",
+      "pin_delay": "125ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[16]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DN10",
+      "name": "LPDDR4B_DQ[16]",
+      "pin_delay": "97ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[17]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DN17",
+      "name": "LPDDR4B_DQ[17]",
+      "pin_delay": "88ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[18]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DP20",
+      "name": "LPDDR4B_DQ[18]",
+      "pin_delay": "90ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[19]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DN20",
+      "name": "LPDDR4B_DQ[19]",
+      "pin_delay": "86ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[1]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DF65",
+      "name": "LPDDR4B_DQ[1]",
+      "pin_delay": "123ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[20]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DP7",
+      "name": "LPDDR4B_DQ[20]",
+      "pin_delay": "98ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[21]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DP22",
+      "name": "LPDDR4B_DQ[21]",
+      "pin_delay": "87ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[22]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DN3",
+      "name": "LPDDR4B_DQ[22]",
+      "pin_delay": "107ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[23]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DN7",
+      "name": "LPDDR4B_DQ[23]",
+      "pin_delay": "107ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[24]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DD9",
+      "name": "LPDDR4B_DQ[24]",
+      "pin_delay": "100ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[25]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DD12",
+      "name": "LPDDR4B_DQ[25]",
+      "pin_delay": "99ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[26]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DJ21",
+      "name": "LPDDR4B_DQ[26]",
+      "pin_delay": "96ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[27]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DD21",
+      "name": "LPDDR4B_DQ[27]",
+      "pin_delay": "84ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[28]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DF21",
+      "name": "LPDDR4B_DQ[28]",
+      "pin_delay": "96ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[29]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DD18",
+      "name": "LPDDR4B_DQ[29]",
+      "pin_delay": "85ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[2]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DD59",
+      "name": "LPDDR4B_DQ[2]",
+      "pin_delay": "104ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[30]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DJ9",
+      "name": "LPDDR4B_DQ[30]",
+      "pin_delay": "89ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[31]": {
+      "assigned": "Y",
+      "bank": "2A_T",
+      "direction": "bidir",
+      "location": "DK9",
+      "name": "LPDDR4B_DQ[31]",
+      "pin_delay": "89ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[3]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DJ56",
+      "name": "LPDDR4B_DQ[3]",
+      "pin_delay": "78ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[4]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DD56",
+      "name": "LPDDR4B_DQ[4]",
+      "pin_delay": "105ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[5]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DK56",
+      "name": "LPDDR4B_DQ[5]",
+      "pin_delay": "79ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[6]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DD65",
+      "name": "LPDDR4B_DQ[6]",
+      "pin_delay": "126ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[7]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DD62",
+      "name": "LPDDR4B_DQ[7]",
+      "pin_delay": "126ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[8]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DN73",
+      "name": "LPDDR4B_DQ[8]",
+      "pin_delay": "134ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_DQ[9]": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "bidir",
+      "location": "DN74",
+      "name": "LPDDR4B_DQ[9]",
+      "pin_delay": "134ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_REFCLK_p": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "input",
+      "location": "DK39",
+      "name": "LPDDR4B_REFCLK_p",
+      "pin_delay": "65ps",
+      "standard": "1.1-V True Differential Signaling",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_REFCLK_p(n)": {
+      "assigned": "N",
+      "bank": "2A_B",
+      "direction": "input",
+      "location": "DJ39",
+      "name": "LPDDR4B_REFCLK_p(n)",
+      "pin_delay": "64ps",
+      "standard": "1.1-V True Differential Signaling",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_RESET_n": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "output",
+      "location": "DN55",
+      "name": "LPDDR4B_RESET_n",
+      "pin_delay": "95ps",
+      "standard": "1.1-V LVSTL",
+      "voltage": "1.1V"
+    },
+    "LPDDR4B_RZQ": {
+      "assigned": "Y",
+      "bank": "2A_B",
+      "direction": "input",
+      "location": "DP58",
+      "name": "LPDDR4B_RZQ",
+      "pin_delay": "95ps",
+      "standard": "1.1-V",
+      "voltage": "1.1V"
+    }
+  },
+  "qualification": "fitted placement/pin preservation; no PCB/electrical/calibration or memory-function acceptance",
+  "sdram_standards_match_original_qsf": true,
+  "selected_clock_pin_count": 1,
+  "selected_fitted_entities": {
+    "soc_inst|ramtest_b": {
+      "ALMs needed [=A-B+C]": "350.4 (0.0)",
+      "ALMs used for memory": "10.0 (0.0)",
+      "Block Memory Bits": "8256",
+      "Combinational ALUTs": "527 (0)",
+      "Compilation Hierarchy Node": "|ramtest_b|",
+      "DSP Blocks needed [=A-B]": "0",
+      "Dedicated Logic Registers": "1168 (0)",
+      "Entity Name": "ramtest_b",
+      "Full Hierarchy Name": "soc_inst|ramtest_b",
+      "I/O Registers": "0 (0)",
+      "IOPLLs": "1 (0)",
+      "Library Name": "ramtest_b",
+      "M20Ks": "7.0 (0.0)",
+      "Pins": "14",
+      "[A] ALMs used in final placement": "381.4 (0.0)",
+      "[A] DSP Blocks used in final placement": "0",
+      "[B] Estimate of ALMs recoverable by dense packing": "31.1 (0.0)",
+      "[B] Estimate of DSPs recoverable by dense merging": "0",
+      "[C] Estimate of ALMs unavailable": "0.0 (0.0)"
+    },
+    "soc_inst|ramtest_b|emif_lpddr4b": {
+      "ALMs needed [=A-B+C]": "350.4 (0.0)",
+      "ALMs used for memory": "10.0 (0.0)",
+      "Block Memory Bits": "8256",
+      "Combinational ALUTs": "527 (0)",
+      "Compilation Hierarchy Node": "|emif_lpddr4b|",
+      "DSP Blocks needed [=A-B]": "0",
+      "Dedicated Logic Registers": "1168 (0)",
+      "Entity Name": "EMIF_Qsys_emif_ddr4a_0",
+      "Full Hierarchy Name": "soc_inst|ramtest_b|emif_lpddr4b",
+      "I/O Registers": "0 (0)",
+      "IOPLLs": "1 (0)",
+      "Library Name": "EMIF_Qsys_emif_ddr4a_0",
+      "M20Ks": "7.0 (0.0)",
+      "Pins": "14",
+      "[A] ALMs used in final placement": "381.4 (0.0)",
+      "[A] DSP Blocks used in final placement": "0",
+      "[B] Estimate of ALMs recoverable by dense packing": "31.1 (0.0)",
+      "[B] Estimate of DSPs recoverable by dense merging": "0",
+      "[C] Estimate of ALMs unavailable": "0.0 (0.0)"
+    },
+    "soc_inst|subsys_periph|fes_ramtest_fpga": {
+      "ALMs needed [=A-B+C]": "2314.9 (0.0)",
+      "ALMs used for memory": "0.0 (0.0)",
+      "Block Memory Bits": "0",
+      "Combinational ALUTs": "3027 (0)",
+      "Compilation Hierarchy Node": "|fes_ramtest_fpga|",
+      "DSP Blocks needed [=A-B]": "0",
+      "Dedicated Logic Registers": "3140 (0)",
+      "Entity Name": "peripheral_subsys_fes_ramtest_fpga",
+      "Full Hierarchy Name": "soc_inst|subsys_periph|fes_ramtest_fpga",
+      "I/O Registers": "0 (0)",
+      "IOPLLs": "0 (0)",
+      "Library Name": "peripheral_subsys_fes_ramtest_fpga",
+      "M20Ks": "0.0 (0.0)",
+      "Pins": "0",
+      "[A] ALMs used in final placement": "2482.7 (0.0)",
+      "[A] DSP Blocks used in final placement": "0",
+      "[B] Estimate of ALMs recoverable by dense packing": "178.3 (0.0)",
+      "[B] Estimate of DSPs recoverable by dense merging": "0",
+      "[C] Estimate of ALMs unavailable": "10.5 (0.0)"
+    },
+    "soc_inst|subsys_periph|fes_ramtest_hps": {
+      "ALMs needed [=A-B+C]": "347.4 (0.0)",
+      "ALMs used for memory": "0.0 (0.0)",
+      "Block Memory Bits": "0",
+      "Combinational ALUTs": "299 (0)",
+      "Compilation Hierarchy Node": "|fes_ramtest_hps|",
+      "DSP Blocks needed [=A-B]": "0",
+      "Dedicated Logic Registers": "602 (0)",
+      "Entity Name": "peripheral_subsys_fes_ramtest_hps",
+      "Full Hierarchy Name": "soc_inst|subsys_periph|fes_ramtest_hps",
+      "I/O Registers": "0 (0)",
+      "IOPLLs": "0 (0)",
+      "Library Name": "peripheral_subsys_fes_ramtest_hps",
+      "M20Ks": "0.0 (0.0)",
+      "Pins": "0",
+      "[A] ALMs used in final placement": "417.3 (0.0)",
+      "[A] DSP Blocks used in final placement": "0",
+      "[B] Estimate of ALMs recoverable by dense packing": "72.7 (0.0)",
+      "[B] Estimate of DSPs recoverable by dense merging": "0",
+      "[C] Estimate of ALMs unavailable": "2.8 (0.0)"
+    },
+    "soc_inst|subsys_periph|fes_ramtest_sdram": {
+      "ALMs needed [=A-B+C]": "1902.6 (0.0)",
+      "ALMs used for memory": "0.0 (0.0)",
+      "Block Memory Bits": "0",
+      "Combinational ALUTs": "2701 (0)",
+      "Compilation Hierarchy Node": "|fes_ramtest_sdram|",
+      "DSP Blocks needed [=A-B]": "0",
+      "Dedicated Logic Registers": "2697 (0)",
+      "Entity Name": "peripheral_subsys_fes_ramtest_sdram",
+      "Full Hierarchy Name": "soc_inst|subsys_periph|fes_ramtest_sdram",
+      "I/O Registers": "0 (0)",
+      "IOPLLs": "0 (0)",
+      "Library Name": "peripheral_subsys_fes_ramtest_sdram",
+      "M20Ks": "0.0 (0.0)",
+      "Pins": "0",
+      "[A] ALMs used in final placement": "2075.4 (0.0)",
+      "[A] DSP Blocks used in final placement": "0",
+      "[B] Estimate of ALMs recoverable by dense packing": "182.0 (0.0)",
+      "[B] Estimate of DSPs recoverable by dense merging": "0",
+      "[C] Estimate of ALMs unavailable": "9.2 (0.0)"
+    },
+    "soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory": {
+      "ALMs needed [=A-B+C]": "191.2 (191.2)",
+      "ALMs used for memory": "0.0 (0.0)",
+      "Block Memory Bits": "0",
+      "Combinational ALUTs": "312 (312)",
+      "Compilation Hierarchy Node": "|memory|",
+      "DSP Blocks needed [=A-B]": "0",
+      "Dedicated Logic Registers": "274 (274)",
+      "Entity Name": "fes_de25_sdram",
+      "Full Hierarchy Name": "soc_inst|subsys_periph|fes_ramtest_sdram|fes_ramtest_sdram|memory",
+      "I/O Registers": "0 (0)",
+      "IOPLLs": "0 (0)",
+      "Library Name": "fes_de25_sdram_ramtest_10",
+      "M20Ks": "0.0 (0.0)",
+      "Pins": "0",
+      "[A] ALMs used in final placement": "199.3 (199.3)",
+      "[A] DSP Blocks used in final placement": "0",
+      "[B] Estimate of ALMs recoverable by dense packing": "8.7 (8.7)",
+      "[B] Estimate of DSPs recoverable by dense merging": "0",
+      "[C] Estimate of ALMs unavailable": "0.5 (0.5)"
+    }
+  },
+  "source_producer": "43c248d2dfbad7fa2d0ef4c72fa006fe21214dc9"
+}

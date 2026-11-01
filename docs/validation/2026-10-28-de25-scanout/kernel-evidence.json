@@ -1,0 +1,284 @@
+{
+  "boundaries": {
+    "dma_admission": "not-qualified",
+    "hardware_access": "not-performed",
+    "hardware_boot_dma_display_menu_acceptance": "open",
+    "kernel_abi": 2,
+    "physical_mmio_backend": "absent",
+    "production_probe": "EOPNOTSUPP",
+    "shared_existing_consumer_hil": "FULL_IMAGE / core:menu; package and hardware acceptance open",
+    "shipping_kernel_configuration": "not-selected",
+    "vendor_kernel_module_loadability": "not-tested"
+  },
+  "classification": "off-board kernel software evidence",
+  "comparison_revision": "cd9e7cf8960f69463424b4918e948aadc4f763d7",
+  "date": "2026-10-28",
+  "dependency_audit": {
+    "kernel_extraction_check": "listed source files checked against exact pinned Git objects; not a full extraction-tree rehash",
+    "kernel_extraction_sample_sha256": {
+      "Makefile": "8176c7e1de779bf09d0508b54f9afdf6c9a7790b85ad19394b9d9a6abcf7a065",
+      "drivers/iommu/dma-iommu.c": "bb45562181d13082ad0317af47008f4e085322297d8cfeeac930582fc3ea0066",
+      "fs/anon_inodes.c": "64b7afc4d14837ceae6360c64c17cc133728a3d559d1e6b5c3553dc436e469f3",
+      "include/linux/compiler.h": "a7c395d26d9803c840f611b181e35b96cca3487b658940e0b98281e10c75042d",
+      "include/linux/mm.h": "bc7c0c65578af6a98555cabd5391765eb28594a9c6524a81b8c19d2c9a058f2d",
+      "kernel/dma/direct.c": "e61656eed1e44fb09b87228df3cda436b0a152fa68162d044dcb5c4c5ea01ecc",
+      "kernel/dma/mapping.c": "5530924b11bfac7e81b82390305592a499bce75822d425cb00f4c70863d9ec40",
+      "mm/gup.c": "d86fc62594cd07f5fca3a7225debbfd6eadfedaeeea80e7788959197bd42172a",
+      "mm/memory.c": "87b95e9b7b8f13254b49b6b0a5fcd6f0420b12e0243911e073770b052e139a54"
+    },
+    "kernel_git_revision_verified": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+    "sdk_archive_hash_verified": true,
+    "vendor_image_hash_verified": true
+  },
+  "format": 1,
+  "locked_dependencies": {
+    "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+    "format": 1,
+    "repository": "https://github.com/terasic/linux-socfpga.git",
+    "revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+    "sdk_sha256": "e4c09c2ebe908a4fa1077b98122a9b561712345435ae1b2fe7d4c563d1ac12c7",
+    "vendor_config_sha256": "3ec2812cffb3c37bf677941283c9b65c3f5620b519cb58a4ded5f230cadbcdf7",
+    "vendor_image_sha256": "874f75d81f6452406f0f0ea5e0849ea269e92599fe728eb02b1bdbb56ada1aa8"
+  },
+  "object_headers": {
+    "de25_dma.o": {
+      "class": "ELF64",
+      "compiler_comment": "GCC: (Buildroot 2021.02.4) 9.4.0",
+      "endianness": "little",
+      "machine": "AArch64",
+      "type": "REL"
+    },
+    "de25_dma_test.o": {
+      "class": "ELF64",
+      "compiler_comment": "GCC: (Buildroot 2021.02.4) 9.4.0",
+      "endianness": "little",
+      "machine": "AArch64",
+      "type": "REL"
+    }
+  },
+  "preserved_failed_candidate": {
+    "cause": "private identifiers current and barrier collided with kernel macros",
+    "fix": "rename snapshot field current_sequence and backend callback io_fence; no warning suppression",
+    "fix_revision": "44de76eea08b679da18cbb7e6ac3c03c40b96c54",
+    "result": "compile failed before QEMU; no passing receipt",
+    "retained_output": "out/de25-kunit-e719af5eff",
+    "revision": "e719af5eff41e85fd32c036a4a878fda28085ff6",
+    "run_log_sha256": "1b37fcccb8819335132a0405fb9ba18cecdc5cd947e2af2319e6579ad473923f"
+  },
+  "producer_checks": {
+    "cases": [
+      "binding_stays_closed",
+      "rejects_bad_publish_before_effects",
+      "kernel_owns_descriptor_and_drain_lifetime",
+      "failed_start_is_held_until_drain",
+      "unreadable_epoch_retains_exposed_storage",
+      "acceptance_is_not_display_and_slots_alternate",
+      "ordered_descriptor_precedes_first_submit",
+      "stale_generation_and_reset_cannot_prove_drain",
+      "mismatched_completion_never_releases_slot",
+      "faults_never_release_pending_slot",
+      "snapshot_handshake_is_bounded_and_consistent",
+      "sequence_and_generation_never_wrap",
+      "poll_identity_rejects_before_register_effects",
+      "coherent_mapping_uapi_and_revoke",
+      "rejects_invalid_mapping_shapes",
+      "revoke_catches_inflight_mmap_link"
+    ],
+    "classification": "AArch64 QEMU kernel DMA ownership tests",
+    "command": [
+      "/usr/bin/python3",
+      "/build/linux/tools/testing/kunit/kunit.py",
+      "run",
+      "--arch=arm64",
+      "--cross_compile=/build/sdk/bin/aarch64-buildroot-linux-gnu-",
+      "--build_dir=/build/kunit",
+      "--kunitconfig=/build/linux/drivers/misc/fes-de25-dma/.kunitconfig",
+      "--jobs=8",
+      "--timeout=180",
+      "--json=/export/kunit.json",
+      "fes-de25-dma*"
+    ],
+    "compiler": "aarch64-buildroot-linux-gnu-gcc.br_real (Buildroot 2021.02.4) 9.4.0",
+    "dma_admission": "not-qualified",
+    "fes_revision": "44de76eea08b679da18cbb7e6ac3c03c40b96c54",
+    "files": {
+      "de25_dma.o": "89d127cc470a782fa7adfb0a3c8cb8607d7146e74fc4ea98385a5d3336593aa3",
+      "de25_dma_test.o": "cf79a6f70be6642b0a6466c099b54a3da19f36a7a663aa91b881fc6daa6569ec",
+      "inputs.json": "01ee17d6f5b7fcd1108bc0a90ced734810d81de6ef3526ba5c0f3a10325e1fe7",
+      "kunit-Image": "8fc88cf84f42bdf6b378921b8273319ef82a8149ed7f5a4f074562189ac6f6a8",
+      "kunit-raw.log": "b177f7423eb439dd0f0ee46667c3ad2b2377dbabd2db42c83486d053344716ae",
+      "kunit-run.log": "b39112c0d76bb4eb4540a6b9d09c795cac63dae934fc05980735a45c034ef2c6",
+      "kunit.config": "a0ea492994714343964f54f0ca354fe820d0079405baa11a7430d09b89f74e72",
+      "kunit.json": "36ca3788dcc7ff0fcde149dcf14d17176d9eacbd58cbff98e29d5313e2129848",
+      "vendor.config": "3ec2812cffb3c37bf677941283c9b65c3f5620b519cb58a4ded5f230cadbcdf7"
+    },
+    "hardware_access": "not-performed",
+    "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+    "module_loadability_on_vendor_kernel": "not-tested",
+    "not_modeled": [
+      "DE25 HPS",
+      "FPGA",
+      "SMMU stream binding",
+      "firewall",
+      "physical DDR visibility"
+    ],
+    "qemu": "QEMU emulator version 7.2.22 (Debian 1:7.2+dfsg-7+deb12u18+b3)"
+  },
+  "producer_checks_sha256": "157ae4823b1f19bc04b71e25f37ce9c55e921be521ed2cb68dd9c98a7a944b4a",
+  "producer_revision": "44de76eea08b679da18cbb7e6ac3c03c40b96c54",
+  "producer_tree": "a4b085fc713ae23b21da016fbd93f38fae8cd4e7",
+  "raw_log_audit": {
+    "boot_version_line": "Linux version 6.12.11 (fes@de25-kunit) (aarch64-buildroot-linux-gnu-gcc.br_real (Buildroot 2021.02.4) 9.4.0, GNU ld (GNU Binutils) 2.35.2) #1 SMP Wed Oct 28 17:54:33 UTC 2026",
+    "diagnostic_patterns": [
+      "\\bWARNING:",
+      "\\bBUG:",
+      "\\bOops:",
+      "\\bCall trace:",
+      "\\bKASAN:",
+      "\\bKernel panic",
+      "\\bInternal error:",
+      "\\bwarning:",
+      "\\berror:"
+    ],
+    "machine": "linux,dummy-virt",
+    "matches": [],
+    "raw_log_sha256": "b177f7423eb439dd0f0ee46667c3ad2b2377dbabd2db42c83486d053344716ae",
+    "run_log_sha256": "b39112c0d76bb4eb4540a6b9d09c795cac63dae934fc05980735a45c034ef2c6",
+    "test_kernel_boot": "QEMU virt only"
+  },
+  "retained_output": "out/de25-kunit-44de76eea0",
+  "source_unchanged_since_producer": true,
+  "test_kernel_config": {
+    "CMA": "y",
+    "CMA_SIZE_MBYTES": "32",
+    "DMA_CMA": "y",
+    "FES_DE25_DMA": "y",
+    "FES_DE25_DMA_KUNIT_TEST": "y",
+    "KUNIT": "y",
+    "MMU": "y",
+    "OF": "y"
+  },
+  "test_result": {
+    "cases": [
+      {
+        "name": "binding_stays_closed",
+        "status": "PASS"
+      },
+      {
+        "name": "rejects_bad_publish_before_effects",
+        "status": "PASS"
+      },
+      {
+        "name": "kernel_owns_descriptor_and_drain_lifetime",
+        "status": "PASS"
+      },
+      {
+        "name": "failed_start_is_held_until_drain",
+        "status": "PASS"
+      },
+      {
+        "name": "unreadable_epoch_retains_exposed_storage",
+        "status": "PASS"
+      },
+      {
+        "name": "acceptance_is_not_display_and_slots_alternate",
+        "status": "PASS"
+      },
+      {
+        "name": "ordered_descriptor_precedes_first_submit",
+        "status": "PASS"
+      },
+      {
+        "name": "stale_generation_and_reset_cannot_prove_drain",
+        "status": "PASS"
+      },
+      {
+        "name": "mismatched_completion_never_releases_slot",
+        "status": "PASS"
+      },
+      {
+        "name": "faults_never_release_pending_slot",
+        "status": "PASS"
+      },
+      {
+        "name": "snapshot_handshake_is_bounded_and_consistent",
+        "status": "PASS"
+      },
+      {
+        "name": "sequence_and_generation_never_wrap",
+        "status": "PASS"
+      },
+      {
+        "name": "poll_identity_rejects_before_register_effects",
+        "status": "PASS"
+      },
+      {
+        "name": "coherent_mapping_uapi_and_revoke",
+        "status": "PASS"
+      },
+      {
+        "name": "rejects_invalid_mapping_shapes",
+        "status": "PASS"
+      },
+      {
+        "name": "revoke_catches_inflight_mmap_link",
+        "status": "PASS"
+      }
+    ],
+    "failed": 0,
+    "passed": 16,
+    "skipped": 0,
+    "suite": "fes-de25-dma"
+  },
+  "verified_files": {
+    "de25_dma.o": {
+      "bytes": 17040,
+      "sha256": "89d127cc470a782fa7adfb0a3c8cb8607d7146e74fc4ea98385a5d3336593aa3"
+    },
+    "de25_dma_test.o": {
+      "bytes": 92488,
+      "sha256": "cf79a6f70be6642b0a6466c099b54a3da19f36a7a663aa91b881fc6daa6569ec"
+    },
+    "inputs.json": {
+      "bytes": 1839,
+      "sha256": "01ee17d6f5b7fcd1108bc0a90ced734810d81de6ef3526ba5c0f3a10325e1fe7"
+    },
+    "kunit-Image": {
+      "bytes": 5726720,
+      "sha256": "8fc88cf84f42bdf6b378921b8273319ef82a8149ed7f5a4f074562189ac6f6a8"
+    },
+    "kunit-raw.log": {
+      "bytes": 6291,
+      "sha256": "b177f7423eb439dd0f0ee46667c3ad2b2377dbabd2db42c83486d053344716ae"
+    },
+    "kunit-run.log": {
+      "bytes": 2286,
+      "sha256": "b39112c0d76bb4eb4540a6b9d09c795cac63dae934fc05980735a45c034ef2c6"
+    },
+    "kunit.config": {
+      "bytes": 50804,
+      "sha256": "a0ea492994714343964f54f0ca354fe820d0079405baa11a7430d09b89f74e72"
+    },
+    "kunit.json": {
+      "bytes": 2927,
+      "sha256": "36ca3788dcc7ff0fcde149dcf14d17176d9eacbd58cbff98e29d5313e2129848"
+    },
+    "vendor.config": {
+      "bytes": 301969,
+      "sha256": "3ec2812cffb3c37bf677941283c9b65c3f5620b519cb58a4ded5f230cadbcdf7"
+    }
+  },
+  "verified_runner_sha256": "a8ad2ab6cf9361a21d500409f77fe9f94a1ef9a1fa8bfd282349f03f2427bd26",
+  "verified_source_sha256": {
+    "image/kernel/de25-dma/.kunitconfig": "16eb3ccfc929a326dbe53fd4003d5fea1ad076b52c45e8bd17274012c3b66682",
+    "image/kernel/de25-dma/Kconfig": "b22cb29d2c345becdfd0e03aaa5f174ce110c4c6922b8e6120dc88e096d60956",
+    "image/kernel/de25-dma/Makefile": "f927dfb3939e67b42d87d890bd5872197e99f7ce0a7e3810259103227819c838",
+    "image/kernel/de25-dma/README.md": "31fe0ab8cd08c0ba9d204c0d0d0e30d13f75a4dbd6e00cabb4235e2bd3c616c7",
+    "image/kernel/de25-dma/de25_dma.c": "efad9291d8fd1503dedc2564ae5cf690aa7bd5f7b7efb7771f0eb4abcaf9d77b",
+    "image/kernel/de25-dma/de25_dma.h": "add29742c88700838d54eb6ade32b6a5e7cc7da010d41fa535d18b92dbfb97d2",
+    "image/kernel/de25-dma/de25_dma_internal.h": "e1c6a4a2727a2f762887b7e47e873d6b85ea60ad08243744d0981c4ca6e318bb",
+    "image/kernel/de25-dma/de25_dma_test.c": "b94ee23de10ae88c7df496cb68b0aff950b206624493d94564ffe6b1efeeabd2",
+    "image/kernel/de25-dma/generated/fes_de25_scanout.h": "2a16380147be3884f43d2963bd76b0084061c1724f19aaf1198725e5f364e6ec",
+    "image/kernel/de25-dma/linux.lock.toml": "fcd64180bd23acb5603d9c1e12b4259fc5a848d180f13aba860c89b6dc00af75"
+  }
+}

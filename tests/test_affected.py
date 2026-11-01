@@ -11,6 +11,50 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
 
 
 class AffectedTests(unittest.TestCase):
+    def test_de25_pr_control_tracks_generated_rtl_and_native_controller(self):
+        definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_pr_control.yaml'
+        result = plan([definition])
+        self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
+                         {'parent', 'contracts', 'fpga', 'runtime'})
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+        self.assertEqual(set(plan([definition, definition.replace('pr_control.yaml', 'pr_control_other.yaml')])['cores']), set(CORES))
+
+    def test_de25_ramtest_definition_has_only_standalone_generated_consumers(self):
+        definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_ramtest.yaml'
+        source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
+        registry = next(node.value for node in ast.parse(source.read_text()).body
+                        if isinstance(node, ast.Assign) and
+                        any(isinstance(name, ast.Name) and name.id == 'GENERATED' for name in node.targets))
+        consumers = {(module, path) for _, item, module, path in ast.literal_eval(registry)
+                     if 'sources/mister-packages/' + item == definition}
+        self.assertEqual(consumers, {
+            ('misteross', 'boards/de25nano/ramtest/generated/fes_de25_ramtest.vh'),
+            ('misteross', 'boards/de25nano/ramtest/generated/fes_de25_ramtest.hpp'),
+        })
+        result = plan([definition, 'sources/misteross/boards/de25nano/ramtest/endpoint.v'])
+        self.assertEqual({name for name, enabled in result['lanes'].items() if enabled},
+                         {'parent', 'contracts', 'fpga'})
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+        for other in (definition.replace('ramtest.yaml', 'ramtest_other.yaml'),
+                      'sources/mister-packages/packages/abi/fes_application.yaml'):
+            with self.subTest(other=other):
+                self.assertEqual(set(plan([definition, other])['cores']), set(CORES))
+        mixed = plan([definition, 'sources/misteross/cores/fes-ramtest/rtl/ramtest.v'])
+        self.assertIn('ramtest', mixed['cores'])
+
+    def test_de25_computer_contract_has_only_diagnostic_consumers(self):
+        definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml'
+        result = plan([definition])
+        self.assertEqual({name for name, selected in result['lanes'].items() if selected},
+                         {'parent', 'contracts', 'fpga'})
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+        self.assertEqual(set(plan([definition, definition.replace('computer.yaml', 'computer_other.yaml')])['cores']), set(CORES))
+        result = plan([definition, 'sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v'])
+        self.assertTrue(result['cores'])
+
     def test_de25_linux_selects_parent_without_existing_core_consumers(self):
         paths = ['image/de25-nano/' + name for name in
                  ('build.py', 'boot.py', 'vendor.lock.toml', 'rootfs/config',
@@ -86,7 +130,6 @@ class AffectedTests(unittest.TestCase):
         consumers = [(module, path) for _, source, module, path in ast.literal_eval(registry)
                      if 'sources/mister-packages/' + source == definition]
         self.assertEqual(set(consumers), {
-            ('FES', 'image/kernel/de25-dma/generated/fes_de25_ddr_probe.h'),
             ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
             ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
         })
@@ -99,6 +142,29 @@ class AffectedTests(unittest.TestCase):
                       'sources/mister-packages/packages/abi/fes_application.yaml'):
             with self.subTest(other=other):
                 self.assertEqual(set(plan([definition, other])['cores']), set(CORES))
+
+    def test_de25_scanout_contract_tracks_its_diagnostic_consumers(self):
+        definition = 'sources/mister-packages/packages/fabric/fes_fabric_de25_scanout.yaml'
+        source = Path(__file__).resolve().parents[1] / 'scripts/consistency.py'
+        registry = next(node.value for node in ast.parse(source.read_text()).body
+                        if isinstance(node, ast.Assign) and
+                        any(isinstance(name, ast.Name) and name.id == 'GENERATED' for name in node.targets))
+        consumers = {(module, path) for _, item, module, path in ast.literal_eval(registry)
+                     if 'sources/mister-packages/' + item == definition}
+        self.assertEqual(consumers, {
+            ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
+            ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
+            ('FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),
+        })
+        result = plan([definition])
+        self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
+                         {'parent', 'contracts', 'fpga'})
+        self.assertEqual(result['cores'], [])
+        self.assertFalse(any(result['test_modes'].values()))
+        mixed = plan([definition, 'sources/misteross/cores/fes-menu/rtl/fes_menu_video.v'])
+        self.assertIn('menu', mixed['cores'])
+        self.assertIn('zx81', mixed['cores'])
+
     def test_parent_owned_roots_select_only_the_parent_lane(self):
         self.assertEqual(PARENT_ROOTS,
                          ('scripts', 'tests', 'image', 'platform', 'profiles', 'containers'))
@@ -346,8 +412,18 @@ class AffectedTests(unittest.TestCase):
                 result = plan(['sources/misteross/' + path])
                 self.assertEqual(result['cores'], [])
                 self.assertTrue(result['lanes']['fpga'])
+
         # The rule is the i386 directory only: a new shared RTL unit still fails broad.
         self.assertEqual(set(plan(['sources/misteross/cores/fes-common/rtl/fes_i386.sv'])['cores']), set(CORES))
+
+    def test_pcxt_diagnostic_helpers_run_software_without_core_simulations(self):
+        for name in ('audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'pcxt_quartus_mailbox.py',
+                     'audit_fes_pcxt_hps_i2c.py', 'characterize_fes_pcxt_hps_i2c.py',
+                     'screen_fes_pcxt_uncertainty.py'):
+            with self.subTest(script=name):
+                selected = plan(['sources/misteross/scripts/' + name])
+                self.assertTrue(selected['lanes']['fpga'])
+                self.assertEqual(selected['cores'], [])
 
     def test_unclassified_fpga_inputs_fail_broad(self):
         for path in ('', 'Makefile', 'toolchain.lock',
@@ -359,15 +435,6 @@ class AffectedTests(unittest.TestCase):
                 result = plan(['sources/misteross' + ('/' + path if path else '')])
                 self.assertEqual(set(result['cores']), set(CORES))
                 self.assertTrue(result['lanes']['fpga'])
-
-    def test_pcxt_diagnostic_helpers_run_software_without_core_simulations(self):
-        for name in ('audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'pcxt_quartus_mailbox.py',
-                     'audit_fes_pcxt_hps_i2c.py', 'characterize_fes_pcxt_hps_i2c.py',
-                     'screen_fes_pcxt_uncertainty.py'):
-            with self.subTest(script=name):
-                selected = plan(['sources/misteross/scripts/' + name])
-                self.assertTrue(selected['lanes']['fpga'])
-                self.assertEqual(selected['cores'], [])
 
     def test_misteross_tests_run_software_without_simulations(self):
         for path in ('tests/test_new_behavior.py', 'tests/producer_fixture.py',

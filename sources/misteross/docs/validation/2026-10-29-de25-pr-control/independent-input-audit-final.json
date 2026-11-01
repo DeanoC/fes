@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "producer": "9663da282aade3e61de1702455636c3e3ec058c5",
+  "phase": "final",
+  "result": "passed",
+  "source_files": 23,
+  "project_files": 16,
+  "generated_files": 587,
+  "preserved_hps_emif_modules": 3,
+  "preserved_hps_emif_parameter_count": 497,
+  "preserved_boot_files": 4,
+  "control": {
+    "clock_hz": 100000000,
+    "module": "subsys_periph.fes_pr_control",
+    "peripheral_offset": 67328,
+    "physical_mmio": "not-established"
+  },
+  "control_build_id": "6aede5b08dad99a7139ed4f03b063d20",
+  "lw_regions": 7,
+  "manifest_sha256": {
+    "inputs.json": "7e18874af9f3de69d1b7a634c737897d91d78b7cddb5b2a28525bf2d0df9b325",
+    "generated-inputs.json": "a3b01b1164f67d5751fea40e7adb0f147bc58be431daa39e62c948ba55c7da55",
+    "hps-handoff.json": "241675d549eea0007e8613ce415f1ce39ee345f4676d88ad64f8a815d8a0aa28"
+  },
+  "source_errors": [],
+  "file_errors": [],
+  "parameter_errors": [],
+  "boot_errors": [],
+  "physical_acceptance": "not-run"
+}

@@ -47,6 +47,8 @@ module fes_menu_ddr #(
     end
     assign quiesced = drained_q && quiesce && !faulted;
     fes_menu_video #(.WINDOW_BASE(`FES_APPLICATION_HPS_DDR_WINDOW_BASE)) video (
+        .window_base(32'd0), .window_base_valid(1'b0), .response(2'b00),
+        .current_sequence(), .current_slot(), .memory_errors(), .outstanding_beats(),
         .raster_h(11'd0), .raster_v(10'd0),
         .clk(clk), .rst(port_reset), .enable(enable && !faulted), .quiesce(quiesce),
         .submit_valid(submit_valid), .submit_slot(submit_slot), .submit_sequence(submit_sequence),
