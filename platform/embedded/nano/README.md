@@ -22,8 +22,10 @@ preserves the actual vendor startup and adds earlier checkpoints. Its
 [bounded TRWU8CBL trial](../../../docs/validation/2026-11-01-de25-cpu-trace-trial/README.md)
 programmed successfully but again captured no UART bytes. JTAG still responds;
 the user permits retaining this exclusive kit's diagnostic without factory
-restoration. The image remains loaded and the claim is held to preserve any
-OCRAM trace. Target execution and park remain unconfirmed.
+restoration. A subsequent [debug readback and console control](../../../docs/validation/2026-11-01-de25-console-control/README.md)
+found that the SOF disables HPS DAP access; no OCRAM dump was obtained. Removing
+the pre-console cold sample also left UART silent. The control diagnostic is
+retained and the claim is held. Target execution and park remain unconfirmed.
 
 The same spare card carries two paths:
 
@@ -102,10 +104,24 @@ Complete serial lines carry the build ID, stage, value, first-C MPIDR and EL.
 Partial, reordered, mixed-identity or inconsistent-affinity traces never count
 as a complete capture. None of these observations grants native admission.
 
+`--console-control` prepares a separate contained comparison. It retains the
+seed configuration except for the build identity and performs no cold proof
+or tracing before normal console initialization. Both watchdog-start paths
+are removed: the first board initializer ends in the unconditional diagnostic
+park, and the later SPL initializer independently stops on entry. The linked
+image is checked for absent watchdog-start, cold-proof and firmware-entry
+symbols. DDR/storage drivers can remain linked with this configuration; the
+two initializers cannot proceed to their later initialization/loading paths.
+This control emits only checkpoints `10`, `11` and `12`. Six bracketed register
+observations run between the report checkpoint and park. Its MPIDR/EL scope is
+after console initialization, not first C entry. Those observations never
+supply the initial trusted ownership proof or grant native admission.
+
 If execution stops before clock setup, a silent serial result can still be
 inconclusive. Earlier checkpoints remain in OCRAM, but their retrieval over
-JTAG has not been qualified. A host timeout also cannot preempt a stalled
-target MMIO operation.
+JTAG has not been qualified. The retained reference SOF has HPS DAP disabled;
+an HPS debug configuration would need a separately built and checked image.
+A host timeout also cannot preempt a stalled target MMIO operation.
 
 ```sh
 python3 platform/embedded/nano/cpu_diagnostic.py \

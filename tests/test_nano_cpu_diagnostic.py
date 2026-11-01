@@ -25,6 +25,8 @@ BOARD='''void board_init_f(unsigned dummy)
 \tmbox_hps_stage_notify(HPS_EXECUTION_STATE_FSBL);
 \tret = uclass_get_device(UCLASS_CLK, 0, &dev);
     if (ret) hang();
+\t\tif (CONFIG_IS_ENABLED(WDT))
+\t\t\tinitr_watchdog();
 \tpreloader_console_init();
 \tfes_nano_spl_report();
     uclass_get_device(UCLASS_RAM,0,0);
@@ -38,7 +40,7 @@ def source_fixture(base):
     (soc/'spl_agilex5.c').write_text(BOARD)
     (soc/'Makefile').write_text('obj-y += spl_agilex5.o\n')
     (base/'common/spl').mkdir(parents=True)
-    (base/'common/spl/spl.c').write_text('\t\tjump_to_image = &spl_invoke_atf;\n')
+    (base/'common/spl/spl.c').write_text('void board_init_r(void) {\n\t\tjump_to_image = &spl_invoke_atf;\n\tinitr_watchdog();\n\tforbidden_storage_initialization();\n}\n')
     (base/'Makefile').write_text('dts/dt.dtb: dtbs_prepare u-boot\n')
     return soc
 
@@ -70,6 +72,7 @@ static uint64_t read_mpidr(void);
 struct udevice { unsigned unused; };
 enum { UCLASS_CLK=1, HPS_EXECUTION_STATE_FSBL=0 };
 void fes_nano_cpu_trace(unsigned stage,unsigned value){
+    if(CONSOLE_CONTROL)assert(consoles==1);
     (void)value;assert(stage_count<32);stages[stage_count++]=stage;
     if(stage_count==1){fes_nano_cpu_trace_record.mpidr=read_mpidr();fes_nano_cpu_trace_record.el=3;}
 }
@@ -97,24 +100,34 @@ static int fes_cold_hw_read(void *p,unsigned r,uint32_t *out){
 }
 uint32_t mmio(uintptr_t a){assert(a==0x10d11008);return 0;}
 #define FES_COLD_READ32(a) mmio(a)
-static void preloader_console_init(void){consoles++;}
+static void preloader_console_init(void){if(CONSOLE_CONTROL)assert(!stage_count && !samples);consoles++;}
+#define CONFIG_IS_ENABLED(v) 0
+void initr_watchdog(void){assert(!"diagnostic must not start a watchdog");}
 static void fes_nano_cpu_diag_park(void){parks++;fes_nano_cpu_trace(FES_CPU_PARK,0);longjmp(stop,1);}
 void hang(void){assert(mode);longjmp(stop,2);}
 ''' + cpu.function(report.read_text(),'fes_nano_spl_report') +
-                cpu.function(board.read_text(),'board_init_f') + r'''
+                cpu.function(board.read_text(),'board_init_f') +
+                (cpu.function((base/'common/spl/spl.c').read_text(),'board_init_r') if console_control else '') + r'''
 int main(int argc,char **argv){
     assert(argc==4);source.failed=atoi(argv[1]);core=atoi(argv[2]);mode=atoi(argv[3]);
     source.record.first=(struct fes_nano_cold_sample){4,0xff7fbfff,0x4f,15,0,4};
     if(!setjmp(stop)){board_init_f(0);assert(!"report returned");}
     if(!mode){
-        assert(parks==1 && consoles==1 && reads==(CONSOLE_CONTROL ? 6 : 3) && serials==2 && stage_count==18);
-        for(unsigned i=0;i<18;i++)assert(stages[i]==(CONSOLE_CONTROL && i==1 ? FES_CPU_SAMPLE_SKIPPED : i+1));
+        assert(parks==1 && consoles==1 && reads==(CONSOLE_CONTROL ? 6 : 3));
+        assert(serials==(CONSOLE_CONTROL ? 1 : 2) && stage_count==(CONSOLE_CONTROL ? 3 : 18));
+        for(unsigned i=0;i<stage_count;i++)assert(stages[i]==i+(CONSOLE_CONTROL ? 16 : 1));
     }else{
         assert(!parks && !consoles && !reads && !serials);
-        assert(stages[stage_count-1]==(mode==1 ? FES_CPU_DM_ERROR : FES_CPU_CLOCK_ERROR));
+        if(CONSOLE_CONTROL)assert(!stage_count);
+        else assert(stages[stage_count-1]==(mode==1 ? FES_CPU_DM_ERROR : FES_CPU_CLOCK_ERROR));
     }
     assert(samples==!CONSOLE_CONTROL);
     assert(source.failed==(unsigned)atoi(argv[1]));
+#if CONSOLE_CONTROL
+    unsigned before=reads,was_parked=parks;mode=3;
+    if(!setjmp(stop)){board_init_r();assert(!"late diagnostic entry returned");}
+    assert(reads==before && parks==was_parked);
+#endif
     puts("CPU_ONLY_PARK_PASS");return 0;
 }
 ''')
@@ -230,7 +243,7 @@ int main(int argc,char **argv){
         error=cpu.decode_trace(''.join(line(i) for i in range(1,4))+line(0xe0),identity)
         self.assertTrue(error['sequence_valid']);self.assertEqual(error['last_checkpoint']['name'],'dm-error')
         self.assertFalse(error['complete']);self.assertFalse(error['native_admission'])
-        control=full.replace('stage=02','stage=e2')
+        control=''.join(line(i) for i in range(16,19))
         self.assertTrue(cpu.decode_trace(control,identity,True)['complete'])
         self.assertFalse(cpu.decode_trace(control,identity)['complete'])
         self.assertFalse(cpu.decode_trace(control,identity,True)['native_admission'])

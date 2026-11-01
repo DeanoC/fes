@@ -15,6 +15,11 @@ for subsequent inspection. It has not been reset or replaced by the reference
 image. The kit claim remains **held**; factory boot was not restored or verified
 after this attempt, and target execution/park remain unconfirmed.
 
+Subsequently, the [debug readback and changed console control](../2026-11-01-de25-console-control/README.md)
+found the image's HPS DAP disabled and produced no OCRAM dump. That later trial
+replaced this diagnostic with its separately identified control image. The
+retention statements below describe the end of this original attempt.
+
 ## Tested artifact and procedure
 
 Tested source: `41499b5b7288349edac20ba873ba1ce8f9062a2a`.

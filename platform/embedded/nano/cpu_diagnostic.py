@@ -34,7 +34,7 @@ TRACE_STAGES={format(i,'02x'):name for i,name in enumerate((
     'c-entry','sample-done','dm-begin','dm-done','managers-done','pinmux-done',
     'timer-begin','timer-done','mailbox-begin','mailbox-done','notify-begin','notify-done',
     'clock-begin','clock-done','console-begin','console-done','report-begin','park'),1)}
-TRACE_STAGES.update(e0='dm-error',e1='clock-error',e2='sample-skipped-console-control')
+TRACE_STAGES.update(e0='dm-error',e1='clock-error')
 
 def sha(path):
     with Path(path).open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
@@ -46,10 +46,9 @@ def decode_trace(data,identity,console_control=False):
     rows=[{'stage':stage,'name':TRACE_STAGES.get(stage,'unknown'),'value':int(value,16),
            'mpidr':mpidr,'el':int(el)} for seen,stage,value,mpidr,el in records if seen==identity]
     stages=[int(row['stage'],16) for row in rows]
-    expected=list(range(1,19))
-    if console_control:expected[1]=0xe2
-    prefix=stages==expected[:len(stages)] and len(stages)<=18
-    error_prefix=(len(stages)>1 and stages[-1] in (0xe0,0xe1) and
+    expected=list(range(16 if console_control else 1,19))
+    prefix=stages==expected[:len(stages)] and len(stages)<=len(expected)
+    error_prefix=(not console_control and len(stages)>1 and stages[-1] in (0xe0,0xe1) and
                   stages[:-1]==expected[:len(stages)-1] and stages[-2]==(3 if stages[-1]==0xe0 else 13))
     mismatch=any(seen!=identity for seen in re.findall(r'(?m)^FES_NANO_CPU_TRACE id=([0-9a-f]{16})',text))
     same_scope=len({(row['mpidr'],row['el']) for row in rows})<=1
@@ -113,16 +112,33 @@ def contain_source(source,console_control=False):
         if new.count(before)!=1:raise ValueError('CPU checkpoint context changed: '+before.strip())
         new=new.replace(before,after)
     if console_control:
-        # An isolated diagnostic control, never an alternative trusted boot
-        # producer: no early proof is made, and the only continuation is park.
-        new=new.replace('\tfes_nano_spl_early();\n','')
-        new=new.replace('FES_CPU_SAMPLE_DONE','FES_CPU_SAMPLE_SKIPPED')
+        # Keep the seed's prefix without pre-console instrumentation or proof.
+        # Leave its driver configuration intact, but never start a watchdog.
+        # The first trace scope is after console setup, not first C entry.
+        prefix=old[:old.index('\tpreloader_console_init();')]
+        if prefix.count('\t\t\tinitr_watchdog();')!=1:
+            raise ValueError('pinned early watchdog start changed')
+        prefix=prefix.replace('\tfes_nano_spl_early();\n','')
+        prefix=prefix.replace('\t\t\tinitr_watchdog();','\t\t\t(void)0; /* Contained diagnostic never starts a watchdog. */')
+        new=prefix+'''\tpreloader_console_init();
+\tfes_nano_cpu_trace(FES_CPU_CONSOLE_DONE,0);
+\tfes_nano_cpu_trace_serial();
+\tfes_nano_cpu_trace(FES_CPU_REPORT_BEGIN,0);
+\tfes_nano_spl_report();
+\thang(); /* Defensive stop if a diagnostic ABI ever returns. */
+}
+'''
     board.write_text('#include "cpu_trace.h"\n'+text.replace(old,new))
     # Keep SPL_ATF for the seed's configuration/startup selection, but remove
     # its later invocation independently. Native entry must remain impossible.
     late=source/'common/spl/spl.c';text=late.read_text();anchor='\t\tjump_to_image = &spl_invoke_atf;'
     if text.count(anchor)!=1:raise ValueError('pinned late ATF invocation changed')
-    late.write_text(text.replace(anchor,'\t\thang(); /* CPU diagnostic never invokes firmware. */'))
+    text=text.replace(anchor,'\t\thang(); /* CPU diagnostic never invokes firmware. */')
+    if console_control:
+        late_init=function(text,'board_init_r')
+        stop=late_init[:late_init.index('{')+1]+'\n\thang(); /* Independent stop before later watchdog/storage/payload work. */\n}\n'
+        text=text.replace(late_init,stop)
+    late.write_text(text)
     soc=report.parent
     trace=[soc/name for name in ('cpu_trace.c','cpu_trace.h')]
     for path in trace:shutil.copyfile(HERE/path.name,path)
@@ -197,14 +213,19 @@ def main():
                 time.sleep(.1)
             if child.returncode:raise RuntimeError(label+' failed; inspect '+str(output/(label+'.log')))
     config=[source/'scripts/config','--file',build/'.config']
-    for option in DISABLE:run('disable-'+option,[*config,'-d',option])
+    disabled=() if args.console_control else DISABLE
+    for option in disabled:run('disable-'+option,[*config,'-d',option])
     run('localversion',[*config,'--set-str','LOCALVERSION','-fes-nano-cpu-'+identity])
     # Select only the physical board's DT while retaining the seed's exact
     # target selection; no unrelated board trees are needed for observation.
     make=['make','-C',source,'O='+str(build),'CROSS_COMPILE='+args.cross_prefix,
           'dtb-y=socfpga_agilex5_de25_nano.dtb']
     run('olddefconfig',[*make,'olddefconfig']);text=(build/'.config').read_text()
-    if any('CONFIG_'+v+'=y\n' in text for v in DISABLE):raise ValueError('CPU-only exclusion reenabled')
+    if any('CONFIG_'+v+'=y\n' in text for v in disabled):raise ValueError('CPU-only exclusion reenabled')
+    if args.console_control:
+        without_version=lambda value:[line for line in value.splitlines() if not line.startswith('CONFIG_LOCALVERSION=')]
+        if without_version(text)!=without_version((seed/'build/.config').read_text()):
+            raise ValueError('console control changed seed configuration')
     if 'CONFIG_SPL_ATF=y\n' not in text or 'CONFIG_SPL_ATF=y\n' not in (seed/'build/.config').read_text():
         raise ValueError('vendor SPL_ATF selection was not retained')
     if ('CONFIG_TARGET_SOCFPGA_AGILEX5_DE25_NANO=y\n' not in text or
@@ -225,8 +246,8 @@ def main():
     block=re.search(r'<fes_nano_cpu_diag_park>:(.*?)(?=\n[0-9a-f]+ <|\Z)',assembly,re.S)
     if not block or 'yield' not in block[1] or re.search(r'\b(?:ret|wfi|wfe)\b',block[1]):raise ValueError('target park is not a non-sleeping stop')
     run('spl-symbols',[args.cross_prefix+'nm','-S',elf]);symbols=(output/'spl-symbols.log').read_text()
-    forbidden=('mmc_init','spl_load_image_fat','spl_invoke_atf','fes_nano_spl_handoff','sdram_mmr_init','initr_watchdog')
-    if args.console_control:forbidden+=('fes_nano_cold_begin',)
+    forbidden=('spl_invoke_atf','fes_nano_spl_handoff','initr_watchdog')
+    forbidden+=('fes_nano_cold_begin',) if args.console_control else ('mmc_init','spl_load_image_fat','sdram_mmr_init')
     if any(re.search(r'(?m)\b'+v+r'$',symbols) for v in forbidden):raise ValueError('excluded code linked into CPU SPL')
     trace=re.findall(r'(?m)^([0-9a-f]+) ([0-9a-f]+) [dD] fes_nano_cpu_trace_record$',symbols)
     if len(trace)!=1 or not 0x1000<=int(trace[0][0],16)<0x40000-int(trace[0][1],16):raise ValueError('trace not in loaded OCRAM data')
@@ -242,6 +263,7 @@ def main():
             any(sha(source/name)!=digest for name,digest in startup.items())):raise ValueError('diagnostic inputs changed')
     report={'status':'prepared','classification':'CPU-only volatile SPL observation; unconditionally parks before DDR/storage/BL31; no native admission',
             'diagnostic_mode':mode,'initial_proof_attempted':not args.console_control,
+            'seed_configuration_retained_except_identity':args.console_control,'pre_console_trace':not args.console_control,
             'diagnostic_id':identity,'source_revision':PIN,'source_base':subprocess.check_output(['git','-C',ROOT,'rev-parse','HEAD'],text=True).strip(),
             'reference_chain_only':native['cold_boot_profile']['chain_sha256'],'sof_sha256':sha(candidate),'spl_sha256':sha(spl),'spl_elf_sha256':sha(elf),
             'reference_sof_sha256':REFERENCE_SOF,'config_sha256':sha(build/'.config'),'inputs':inputs,'transformed_sources':transformed,
@@ -249,7 +271,7 @@ def main():
             'trace':{'ocram_address':int(trace[0][0],16),'bytes':int(trace[0][1],16),'capacity':32,'line_poll_limit':262144,
                      'serial_before_clocks':False,'uart_configuration_modified':False,'early_readback_over_jtag_qualified':False,
                      'stages':TRACE_STAGES},
-            'excluded_symbols':list(forbidden),'disabled_options':list(DISABLE),'commands':commands,
+            'excluded_symbols':list(forbidden),'disabled_options':list(disabled),'commands':commands,
             'limitations':['not a native boot chain or signed boot','no DDR/storage/EL3/Go/drain qualification','embedded SPL not independently decoded from SOF',
                           'pre-clock checkpoints are OCRAM only; JTAG trace readback is unqualified','bounded UART polls cannot preempt a stalled MMIO read']}
     (output/'result.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n');print('Prepared CPU-only diagnostic:',output,flush=True)
