@@ -1,0 +1,21 @@
+{
+  "source_revision": "6fa9d210fe19eddc83866b75b12b95c8585d3ede",
+  "command": [
+    "python3",
+    "sources/misteross/boards/de25nano/scanout/interconnect_sim.py",
+    "--startup",
+    "--project",
+    "/data/fes-de25-startup-6fa9d210f/source/sources/misteross/build/de25-menu/53f324a13a4d552e62584ab968af5f22/attempt-oihpw3uh/signoff/combined/hps/project",
+    "--output",
+    "/data/fes-de25-startup-6fa9d210f/startup"
+  ],
+  "cwd": "/data/fes-de25-startup-6fa9d210f/source",
+  "started_utc": "2026-11-01T18:05:48.392905+00:00",
+  "time_cap_seconds": 300,
+  "hardware_access": "not-performed",
+  "pid": 2069946,
+  "state": "passed",
+  "elapsed_seconds": 18.9,
+  "heartbeat_utc": "2026-11-01T18:06:07.310354+00:00",
+  "returncode": 0
+}
