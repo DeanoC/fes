@@ -42,8 +42,8 @@ as not built.
 - DOOM's start on `machine_tb --cpu rtl` no longer stops for CS limits.
   DOS/4GW's kernel runs on the RTL under its small CS limits: 6,080,047
   instructions with PE set and none stepped on Bochs. DOOM reaches `R_Init`,
-  as on Bochs. The only stops left are DOS/4GW's real-mode FPU probe, the
-  empty-387-socket ESC forms ([DOOM](#dooms-start-on-the-rtl)).
+  as on Bochs. The only stops left are real-mode ESC forms, DOS/4GW's FPU
+  probe among them: the empty-387-socket work ([DOOM](#dooms-start-on-the-rtl)).
 
 ## Inputs
 
