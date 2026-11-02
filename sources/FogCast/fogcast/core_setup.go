@@ -98,8 +98,8 @@ func (s *Service) CoreSetup(ctx context.Context, sourceID, coreID, packageID str
 }
 
 // Creation and retries only change the local library. Launch owns compatibility
-// checks. ROM saves are separate durable writes; retry can finish an empty slot,
-// but cannot replace an existing selection.
+// checks. ROM saves are separate durable writes; a selected bundled default stays
+// derived, and retry can finish an empty slot but cannot replace a saved choice.
 func (s *Service) CreateCoreSetupEntry(parent context.Context, req CoreSetupRequest) (catalog.CoreEntry, error) {
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
@@ -194,6 +194,11 @@ func (s *Service) CreateCoreSetupEntry(parent context.Context, req CoreSetupRequ
 		}
 		if current.MediaID != "" {
 			return entry, mapCoreEntryError(catalog.ErrCoreEntryConflict)
+		}
+		if requirement := setup.Descriptor.ROM; requirement != nil && requirement.ID == r.ID && requirement.SourceSize == r.SourceSize {
+			if fw, ok := s.bundledFirmwareFor(entry.CoreID, requirement); ok && id == fw.MediaID {
+				continue
+			}
 		}
 		_, err = romStore.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, r.ID, r.SourceSize, "", id)
 		if err != nil {

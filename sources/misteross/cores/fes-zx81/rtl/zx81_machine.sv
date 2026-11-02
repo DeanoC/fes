@@ -258,12 +258,9 @@ module zx81_machine #(
         .data(rom_out)
     );
 `else
-`ifdef QUARTUS
-    localparam ROM_INIT = FIRMWARE_INIT == "" ? "cores/fes-zx81/rtl/zx8x.mif" : FIRMWARE_INIT;
-`else
-    localparam ROM_INIT = FIRMWARE_INIT == "" ? "cores/fes-zx81/rtl/zx8x.hex" : FIRMWARE_INIT;
-`endif
-    zx81_dpram #(.ADDRWIDTH(14), .NUMWORDS(16384), .MEM_INIT_FILE(ROM_INIT)) rom (
+    // No ROM bytes are committed. FIRMWARE_INIT names a user-supplied image
+    // (scripts/zx81_rom.py); empty leaves the ROM blank.
+    zx81_dpram #(.ADDRWIDTH(14), .NUMWORDS(16384), .MEM_INIT_FILE(FIRMWARE_INIT)) rom (
         .clock(clk_sys),
 `ifdef ZX81_MODEL_ZX80
         .address_a({2'b00, rom_a[11:0]}),

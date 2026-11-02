@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = (
@@ -177,6 +178,11 @@ def main():
     args = parser.parse_args()
     if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
         parser.error('simulation does not use the shared compiler cache')
+    if args.suite in ('all', 'system'):
+        environment = dict(os.environ, VERILATOR=args.verilator)
+        subprocess.run([sys.executable, '-m', 'unittest',
+                        'tests.test_pcxt_hid_keyboard', 'tests.test_pcxt_keyboard_bat'],
+                       cwd=ROOT, env=environment, check=True)
     output = ROOT / 'build/sim/fes-pcxt'
     output.mkdir(parents=True, exist_ok=True)
     for suite in ('system', 'system-mda', 'system-board50', 'system-board50-mda', 'memory', 'memory-machine', 'isa', 'cpu', 'cpu-timing', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'display-machine', 'video', 'video-mda', 'video-machine', 'clock-bridge', 'speaker100', 'speaker50') if args.suite == 'all' else (args.suite,):

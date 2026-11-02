@@ -152,10 +152,12 @@ func (c *Client) SelectCoreEntryROM(ctx context.Context, game, pkg, rom, expecte
 }
 
 type CoreEntryROMSelection struct {
-	GameID    string `json:"game_id"`
-	PackageID string `json:"package_id"`
-	ROMID     string `json:"rom_id"`
-	MediaID   string `json:"media_id"`
+	GameID         string `json:"game_id"`
+	PackageID      string `json:"package_id"`
+	ROMID          string `json:"rom_id"`
+	MediaID        string `json:"media_id"`
+	BundledMediaID string `json:"bundled_media_id"`
+	BundledDefault bool   `json:"bundled_default"`
 }
 
 func (c *Client) ImportCoreExpansion(ctx context.Context, size int64, content io.Reader) (CoreEntryExpansionAsset, error) {
@@ -343,7 +345,9 @@ func (c *Client) CreateInstalledCoreEntry(ctx context.Context, setup CoreSetup, 
 		if err = c.getJSON(ctx, path, &binding); err != nil {
 			return entry, err
 		}
-		if binding.GameID != entry.GameID || binding.PackageID != "" && binding.PackageID != entry.PackageID {
+		if binding.GameID != entry.GameID || (binding.PackageID != "" && binding.PackageID != entry.PackageID) ||
+			binding.BundledDefault && (binding.MediaID != "" || binding.BundledMediaID == "" || binding.ROMID != rom.ID) ||
+			!binding.BundledDefault && binding.BundledMediaID != "" {
 			return entry, fmt.Errorf("ROM selection identity changed")
 		}
 		id := roms[rom.ID]
@@ -353,7 +357,14 @@ func (c *Client) CreateInstalledCoreEntry(ctx context.Context, setup CoreSetup, 
 			}
 			continue
 		}
-		if _, err = c.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, rom.ID, "", id); err != nil {
+		if binding.BundledDefault && binding.BundledMediaID == id {
+			continue
+		}
+		expected := ""
+		if binding.BundledDefault {
+			expected = binding.BundledMediaID
+		}
+		if _, err = c.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, rom.ID, expected, id); err != nil {
 			return entry, err
 		}
 	}

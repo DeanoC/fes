@@ -26,7 +26,7 @@ Hardware-supported package paths: 0.
 | `fes.computer` admission, identity, firmware ROM activation and persistence words/layout pairing before programming, including volatile developer loads | covered | none |
 | `fes.computer` 1.1: identity word 16, the per-game `fes.pc386.machine` record, the wall-clock seed, and input-fault capture of the record with no ATA disk declared, with an empty ATA unit and with a bound disk on a poisoned mailbox | covered by host tests and the shared 1.1 fixture, including fresh record capture after failed-save recovery without a host input recipe | pc386 exact-artifact acceptance pending |
 | `fes.media.ata-disk`: complete window load with delta chunks and CRC commit, regular-file base admission without blocking on FIFOs, fixed while running, dirty-chunk save at Stop/fault cleanup and manifest publication; empty-unit insert/eject rejection retains package persistence | covered by host tests with a scripted window and the shared 1.1 fixture | pc386 machine diagnostic (Phase M4) pending |
-| `fes.computer` HID keyboard rows and controller ports | covered | none |
+| `fes.computer` HID keyboard rows and controller ports; key/modifier row ordering | covered by software tests; row snapshots remain non-atomic | hardware acceptance of the updated ordering pending |
 | `fes.computer` live media units (insert/eject without reset hold) | covered | none |
 | `fes.computer` Spectrum snapshot metadata reported from declared optional interfaces | covered by runtime activation tests | none |
 | `fes.computer` Spectrum disk on media unit 1 beside the unit-0 cassette: discovery, admission with the cassette and HPS DDR, and unit-addressed transfers | covered by runtime and mailbox simulation tests | none |

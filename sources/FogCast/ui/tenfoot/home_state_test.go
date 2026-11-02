@@ -35,6 +35,8 @@ func startHomeState(t *testing.T, cores []localcores.Core) *App {
 	t.Helper()
 	host := newRoomHost(t)
 	app := NewApp(NewClient(host.server.URL, host.server.Client()), 1280, 720, 50)
+	// The Home fixtures install Pong, which is held back from v1.
+	app.SetAllCores(true)
 	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
 	app.SetHomeRooms(true)
 	app.SetHomeRoom(installedCoresHomeID)

@@ -44,6 +44,50 @@ func TestCoreSetupRepeatPreservesSelections(t *testing.T) {
 	}
 }
 
+func TestCoreSetupKeepsBundledFirmwareAsDerivedDefault(t *testing.T) {
+	s, _ := catalogServiceFixture(t)
+	ctx := context.Background()
+	image := bytes.Repeat([]byte{0x42}, 1024)
+	s.LoadBundledFirmware(ctx, bundledFirmwareFixture(t, "fes.spectrum", "spectrum-firmware", image))
+	archive := libraryROMPackageFixture(t, "firmware",
+		func(data []byte) []byte {
+			return bytes.Replace(data, []byte(`id = "fes.zx81"`), []byte(`id = "fes.spectrum"`), 1)
+		},
+		func(data []byte) []byte {
+			return bytes.Replace(data, []byte(`id = "machine-rom"`), []byte(`id = "spectrum-firmware"`), 1)
+		},
+	)
+	coreID, packageID := publishSetupFixture(t, s, archive)
+	if coreID != "fes.spectrum" {
+		t.Fatalf("fixture core ID = %q", coreID)
+	}
+	setup, err := s.CoreSetup(ctx, "fes-first-party", coreID, packageID)
+	if err != nil || len(setup.ROMs) != 1 || setup.ROMs[0].ID != "spectrum-firmware" {
+		t.Fatalf("setup %+v, err %v", setup, err)
+	}
+	bundled, err := s.BundledFirmware(ctx)
+	if err != nil || len(bundled.Firmware) != 1 {
+		t.Fatalf("bundled firmware %+v, err %v", bundled, err)
+	}
+	entry, err := s.CreateCoreSetupEntry(ctx, CoreSetupRequest{
+		LibrarySourceID: "test-library", SourceID: "fes-first-party", CoreID: coreID,
+		PackageID: packageID, Title: "Spectrum with default firmware",
+		ROMs: map[string]string{"spectrum-firmware": bundled.Firmware[0].MediaID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := s.catalog.(coreROMCatalog)
+	raw, err := store.CoreEntryROM(ctx, entry.GameID)
+	if err != nil || raw.MediaID != "" {
+		t.Fatalf("raw ROM selection was saved: %+v, err %v", raw, err)
+	}
+	effective, err := s.CoreEntryROM(ctx, entry.GameID)
+	if err != nil || effective.MediaID != bundled.Firmware[0].MediaID || !effective.BundledDefault {
+		t.Fatalf("effective default %+v, err %v", effective, err)
+	}
+}
+
 func publishSetupFixture(t *testing.T, s *Service, raw []byte) (string, string) {
 	t.Helper()
 	ctx := context.Background()

@@ -217,7 +217,7 @@ func TestRoomDetailsKeepsLongSummaryAndCuratorNoteInsidePane(t *testing.T) {
 }
 
 func TestLibraryBackReturnsToTheSameHomeAndSelection(t *testing.T) {
-	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
+	app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
 	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
 	app.HandleCommand(CmdRight, time.Now())
 	waitFor(t, app, "zx81", func(s Snapshot) bool { return s.Room.Destination.Label == "Sinclair ZX81" })
@@ -247,7 +247,7 @@ func TestLibraryBackReturnsToTheSameHomeAndSelection(t *testing.T) {
 }
 
 func TestLibraryHomeKeyReclaimsTheSuspendedHome(t *testing.T) {
-	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
+	app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
 	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
 	app.mu.Lock()
 	home := app.room

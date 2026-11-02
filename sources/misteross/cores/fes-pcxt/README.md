@@ -42,8 +42,8 @@ is not a timing waiver.
 ### FreeDOS DOS-profile package
 
 The `fes.pcxt-dos` recipe selects `HARDWARE_DOS` and keeps the diagnostic
-profile unchanged. It includes GLaBIOS and a BAT-only XT keyboard responder;
-keyboard input is not yet supported. A 360 KiB raw floppy is delivered at
+profile unchanged. It includes GLaBIOS, a host HID keyboard frontend and the XT
+keyboard reset response. A 360 KiB raw floppy is delivered at
 runtime through `fes.media.pcxt-floppy` and the complete ordered image is
 written into SDRAM. When an initial disk is being loaded, the guest stays in
 reset until its final physical write is committed. If the host releases
@@ -57,8 +57,10 @@ The FreeDOS fixture uses kernel 2043 and FreeCOM 0.86a; see
 [`sim/freedos.lock`](sim/freedos.lock). Hardware prompt acceptance remains
 separate from the host simulation and package build.
 
-The DOS profile supplies an XT keyboard self-test response over the existing
-serial cable after the BIOS reset handshake. It does not yet accept host keys.
+The DOS profile accepts host HID keyboard snapshots through the runtime mailbox
+and serializes them onto the XT keyboard cable. It also supplies the keyboard
+self-test response after the BIOS reset handshake. Guest-visible key delivery
+remains a separate simulation and kit acceptance check.
 
 The recipe registers `scripts/pcxt_dos_hil_acceptance.py` with preferred kit
 order B then A. It requires at least three complete captures with a meaningful
@@ -954,10 +956,16 @@ CTS, and clocks bits with 40 us high/low phases and at least 3 us data hold.
 Clock inhibit pauses transmission. READY also stays low while PB7 holds the
 receiver clear, so the frontend does not retire a byte the receiver cannot
 collect. A byte already accepted still finishes its frame. Reset cancels a partial frame. This is a
-single-byte transport. The DOS-only BAT responder sends the self-test byte
-after the reset handshake; HID mapping, extended-key policy, typematic
-generation and event queues remain future frontend work.
-It is not an AT 8042 or a PS/2 protocol endpoint.
+single-byte transport. The DOS shell translates debounced FES HID snapshots
+to original XT set-1 make/break codes, supplies BAT after a long host inhibit,
+and generates typematic repeats. The original XT's Ctrl/Alt and navigation/
+keypad aliases are combined; enhanced-only keys are ignored. Eight settled
+snapshots can wait while the receiver is busy. If that queue fills, intermediate
+states can coalesce and the guest is brought to the latest settled state once
+space returns. HID rows are not an atomic snapshot: an unusually slow handover
+between equivalent keys in different rows can produce a release and new press.
+It is not an AT 8042 or a
+PS/2 protocol endpoint. Kit acceptance of host typing is separate.
 
 `pcxt_speaker.sv` integrates the gated PIT2 waveform over each 48 kHz sample
 window (2083/2084 fabric clocks), then applies a roughly 30 Hz DC blocker.
@@ -1081,6 +1089,43 @@ registers; all I/O reads increment the read counter at commit. Counters wrap
 at 256. Memory transfers and DMA use separate state. Terminal count is counted
 once per committed DMA byte that carries it. The card is a test device, not a
 historical ISA adapter.
+
+## DOS application acceptance
+
+From `sources/misteross`, `make sim-fes-pcxt-com` builds an original 8086
+COM fixture onto a copy of the pinned FreeDOS floppy, boots it through the
+runtime mailbox and floppy/DMA path, types the program name and key, and
+requires its PASS message and a later DOS prompt. It checks the actual 720p
+frame against the BIOS font. The pinned base remains unchanged.
+
+`make sim-fes-pcxt-game PCXT_DIGGER_EXE=/path/to/DIGGER.EXE` tests the pinned
+real-mode Digger Remastered executable; obtain it separately. The selected
+executable has SHA-256
+`5cbe1c156502e08abbeb7f2a9f3e3c285038b4f33e1cc25085ff98a2d5833706`;
+the previously used distribution was `https://image.dosgamesarchive.com/games/digger.zip`
+(SHA-256 `f2b03165bffcfa5bca8053935632608c26efc90a301468c3d9092a2a7c2faf83`).
+The image builder checks the executable and final 360 KiB disk hashes and does not download or
+redistribute the game. The simulation compares the start and right-arrow
+branches to no-input branches at the same simulated cycles. Five output frames
+must match the SHA-256 references from the previously independently reviewed
+title, playfield and player movement captures; an unexpected frame fails for
+review rather than treating a pixel change alone as proof. These exact hashes
+are tied to the pinned game, BIOS and calibrated timing and may need independent
+review if the display pipeline changes. The references were produced on source
+`028704027ca8e1854d516997c9fbe747da369289` with the game disk SHA-256
+`8621217fce4d72cf0ec976d34b9dd302be136b21e5ff15197fee4d499b923fa3`.
+The individually named frame hashes in `sim_fes_pcxt_dos.py` correspond to a
+reviewed title, no-input title, Enter playfield, no-input player position and
+rightward player position. They are not regenerated automatically. The game is silent (`/Q`) and the medium
+is read-only; neither audio nor score persistence is tested.
+
+Both targets are long full-machine host simulations, with a three-hour limit
+and periodic progress. Results and input/source/testbench hashes live under
+`build/sim/fes-pcxt/dos-com/` or `dos-game/`. A host simulation is not a kit
+or whole-board qualification. To reuse a previously built exact disk, invoke
+`scripts/sim_fes_pcxt_dos.py --scenario com|game --disk /path/to/image`. The
+[owned-session hardware diagnostic](../../../../docs/pcxt-application-acceptance.md)
+records the separate kit observation and cleanup requirements.
 
 ## Validation
 

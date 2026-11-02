@@ -5,13 +5,14 @@
   "license": "LGPL-2.1-or-later",
   "local_changes": [
     "2026-10-26 rombios.h: BX_PCIBIOS, BX_APM and BX_PNPBIOS set to 0; pc386 has no PCI bus, APM or PnP. rombios.c: the POST call to pci_set_pam_regs_ro is built only with BX_PCIBIOS, as it does not assemble without it.",
-    "2026-10-26 rombios.c: INT 16h AH=03h AL=00h/05h sets the typematic rate and delay through keyboard command F3h; INT 16h AH=09h reports AX=0300h and 0305h as supported."
+    "2026-10-26 rombios.c: INT 16h AH=03h AL=00h/05h sets the typematic rate and delay through keyboard command F3h; INT 16h AH=09h reports AX=0300h and 0305h as supported.",
+    "2026-11-01 rombios.c: POST gates A20 off for the OS through both pc386 controls, the 8042 output port (D0h, then D1h with bit 1 clear and bit 0 set) and port 92h bit 1; set_enable_a20 drives both and INT 15h AX=2402h reports the state memory sees (get_enable_a20, a wrap test at 500h)."
   ],
   "files": [
     {
       "path": "rombios.c",
       "upstream_path": "bochs/bios/rombios.c",
-      "sha256": "503622d39cac2c7d853ec5f60f5fbc7b97088f00837f3e738c7149e1b374d68d",
+      "sha256": "98a07add870969611996b73b8ecd83dd4b21c830bfb39037479bc33d351188aa",
       "upstream_sha256": "1684aa54044872c8faf59dae2d6a465cb5fe1274f3c8ff0112f27e7eaea21703"
     },
     {

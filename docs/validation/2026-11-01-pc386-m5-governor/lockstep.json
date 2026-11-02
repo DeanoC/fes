@@ -1,0 +1,202 @@
+{
+ "main_58edb6b3b": {
+  "corpus": {
+   "tests": 1758699,
+   "passed": 1758699,
+   "retired_to_hlt": 1758699,
+   "faults": 147537,
+   "retirements": 3517401,
+   "mmio_runs": 1596334,
+   "mmio_accesses": 522789,
+   "cycles": 174952748,
+   "io_accesses": 106349,
+   "replays": 2357,
+   "interrupts": 2767
+  },
+  "random": {
+   "runs": 32000,
+   "passed": 32000,
+   "retirements": 11609894,
+   "cycles": 154243909,
+   "halts": 15211,
+   "faults": 10246,
+   "double_faults": 510,
+   "retire_limits": 3575,
+   "load_wait_cycles": 42856337,
+   "io_accesses": 109172,
+   "external_interrupts": 1041743,
+   "nmis": 416929,
+   "rep_interrupts": 11648,
+   "vector_moved_stops": 320,
+   "window_code_stops": 111,
+   "code_store_stops": 103,
+   "stray_stops": 1926,
+   "mmio_runs": 27018,
+   "mmio_accesses": 1749545,
+   "replays": 148203,
+   "smc_restarts": 17243,
+   "port0_reads": 2852798,
+   "port0_writes": 5265478
+  },
+  "directed": {
+   "runs": 40,
+   "passed": 40,
+   "failed": 0,
+   "trace_hash": "68d44755edca35dc"
+  },
+  "memory": {
+   "runs": 26,
+   "passed": 26,
+   "failed": 0
+  },
+  "unbuilt": 54112,
+  "governor": null
+ },
+ "branch_max": {
+  "corpus": {
+   "tests": 1758699,
+   "passed": 1758699,
+   "retired_to_hlt": 1758699,
+   "faults": 147537,
+   "retirements": 3517401,
+   "mmio_runs": 1596334,
+   "mmio_accesses": 522789,
+   "cycles": 174952748,
+   "io_accesses": 106349,
+   "replays": 2357,
+   "interrupts": 2767
+  },
+  "random": {
+   "runs": 32000,
+   "passed": 32000,
+   "retirements": 11609894,
+   "cycles": 154243909,
+   "halts": 15211,
+   "faults": 10246,
+   "double_faults": 510,
+   "retire_limits": 3575,
+   "load_wait_cycles": 42856337,
+   "io_accesses": 109172,
+   "external_interrupts": 1041743,
+   "nmis": 416929,
+   "rep_interrupts": 11648,
+   "vector_moved_stops": 320,
+   "window_code_stops": 111,
+   "code_store_stops": 103,
+   "stray_stops": 1926,
+   "mmio_runs": 27018,
+   "mmio_accesses": 1749545,
+   "replays": 148203,
+   "smc_restarts": 17243,
+   "port0_reads": 2852798,
+   "port0_writes": 5265478
+  },
+  "directed": {
+   "runs": 40,
+   "passed": 40,
+   "failed": 0,
+   "trace_hash": "68d44755edca35dc"
+  },
+  "memory": {
+   "runs": 26,
+   "passed": 26,
+   "failed": 0
+  },
+  "unbuilt": 54112,
+  "governor": {
+   "preset": 0
+  },
+  "random_trace_hashes": {
+   "1": "c95967316efe7c17",
+   "2": "46f699d67ee0198e",
+   "3": "580cb5344376b146",
+   "4": "a68d77bd09f72a71",
+   "5": "d5cee85f82b144db",
+   "6": "53c0a93a79888388",
+   "7": "5fae99b180b8bf27",
+   "8": "f709f712da85842c",
+   "9": "2d8d267e7f90ffbe",
+   "10": "c924d7753a554c2a",
+   "11": "7551f6ef9901dd96",
+   "12": "3a954bb8776a158b",
+   "13": "c0231d37c1ea7e1f",
+   "14": "cc0f3bf7857cb9c3",
+   "15": "743fab069a194a66",
+   "16": "25e4fde8e58ecc66"
+  }
+ },
+ "branch_preset1_286_12": {
+  "corpus": {
+   "tests": 1758699,
+   "passed": 1758699,
+   "retired_to_hlt": 1758699,
+   "faults": 147537,
+   "retirements": 3517401,
+   "mmio_runs": 1596334,
+   "mmio_accesses": 522789,
+   "cycles": 195084746,
+   "io_accesses": 106349,
+   "replays": 2357,
+   "interrupts": 2767
+  },
+  "random": {
+   "runs": 32000,
+   "passed": 32000,
+   "retirements": 11609894,
+   "cycles": 1053497554,
+   "halts": 15211,
+   "faults": 10246,
+   "double_faults": 510,
+   "retire_limits": 3575,
+   "load_wait_cycles": 42061529,
+   "io_accesses": 109172,
+   "external_interrupts": 1041743,
+   "nmis": 416929,
+   "rep_interrupts": 11648,
+   "vector_moved_stops": 320,
+   "window_code_stops": 111,
+   "code_store_stops": 103,
+   "stray_stops": 1926,
+   "mmio_runs": 27018,
+   "mmio_accesses": 1749545,
+   "replays": 146273,
+   "smc_restarts": 17241,
+   "port0_reads": 2789226,
+   "port0_writes": 5283622
+  },
+  "directed": {
+   "runs": 40,
+   "passed": 40,
+   "failed": 0,
+   "trace_hash": "68d44755edca35dc"
+  },
+  "memory": {
+   "runs": 26,
+   "passed": 26,
+   "failed": 0
+  },
+  "unbuilt": 54112,
+  "governor": {
+   "preset": 1
+  },
+  "random_trace_hashes": {
+   "1": "c95967316efe7c17",
+   "2": "46f699d67ee0198e",
+   "3": "580cb5344376b146",
+   "4": "a68d77bd09f72a71",
+   "5": "d5cee85f82b144db",
+   "6": "53c0a93a79888388",
+   "7": "5fae99b180b8bf27",
+   "8": "f709f712da85842c",
+   "9": "2d8d267e7f90ffbe",
+   "10": "c924d7753a554c2a",
+   "11": "7551f6ef9901dd96",
+   "12": "3a954bb8776a158b",
+   "13": "c0231d37c1ea7e1f",
+   "14": "cc0f3bf7857cb9c3",
+   "15": "743fab069a194a66",
+   "16": "25e4fde8e58ecc66"
+  },
+  "same_as_max_differences": []
+ }
+}

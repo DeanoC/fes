@@ -372,6 +372,22 @@ This lane does not establish selected-media acceptance. For persistent library
 selection, use the [data-driven media commands](core-packages.md#library-media).
 Fresh Coleco entries receive no implicit controller diagnostic.
 
+For a PC/XT keyboard kit run, check the private host configuration before
+claiming a kit, then check captures from before and after entering `DIR`:
+
+```sh
+python3 scripts/pcxt_dos_keyboard_acceptance.py preflight --config /private/host.toml
+python3 scripts/pcxt_dos_keyboard_acceptance.py captures \
+  --before /private/before.png --after /private/after.png --output /private/directory-result.json
+```
+
+The preflight verifies that remote input is enabled without printing the
+configuration. The capture check uses locked GLaBIOS glyphs, requires the
+listing to be absent before input, and looks for `FESXT.TXT` followed by a new
+`A:\>` prompt. It checks only the images: the owning kit run must separately
+establish the exact package, selected floppy, input delivery, session identity,
+and restoration. It does not qualify disk writes or whole-board timing.
+
 Use `make build` and `make verify` for stabilized integration and release checks.
 A warm development image is diagnostic evidence and cannot satisfy those
 commands' release receipts. `make rebuild` still forces the full cold build.

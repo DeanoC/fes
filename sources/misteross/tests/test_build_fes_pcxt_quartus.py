@@ -275,7 +275,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
         self.assertIn('image is optional', manifest['core']['description'])
         self.assertIn('empty drive', manifest['core']['description'])
-        self.assertEqual([i['id'] for i in manifest['interfaces']], ['fes.video.fixed-720p60', 'fes.media.pcxt-floppy'])
+        self.assertEqual([i['id'] for i in manifest['interfaces']],
+                         ['fes.video.fixed-720p60', 'fes.media.pcxt-floppy', 'fes.keyboard.hid'])
         self.assertTrue(manifest['interfaces'][1]['required'])
         self.assertIn('runtime floppy image is optional', producer.build_limits(True)[1])
         self.assertNotIn('required', producer.build_limits(True)[1])
@@ -344,6 +345,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                     build_id='1234567890abcdef' * 2, dos_profile=dos_profile)
                 self.assertNotIn('pcxt_disk_boot.sv', program)
                 self.assertEqual('pcxt_xt_keyboard_bat.sv' in program, dos_profile)
+                self.assertEqual('pcxt_hid_keyboard.sv' in program, dos_profile)
                 self.assertEqual('c:dos_font.glyphs' in program, dos_profile)
                 (work / 'elaborate.ys').write_text(program)
                 result = subprocess.run([str(yosys), '-s', 'elaborate.ys'], cwd=work,

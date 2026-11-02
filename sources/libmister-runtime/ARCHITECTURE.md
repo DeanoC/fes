@@ -350,8 +350,11 @@ and empty. Audio packets follow the declaration as for applications. Start
 only releases execution: there is no media gate, no neutral write and no evdev
 worker. A ROM-linked writable ST may explicitly request an initial library
 floppy; native activation inserts and confirms that disk before Start. Stop holds execution first; the hold neutralizes keys and ports in the
-core. `set_keyboard_hid` sends a complete nine-row USB HID snapshot and the
-driver writes only changed rows, all nine after Start. `set_controller` uses
+core. `set_keyboard_hid` sends a nine-row USB HID snapshot. Since rows update
+independently, the driver sends key releases, modifier releases, modifier
+presses, then key presses; it neutralizes all nine first when its cache is
+unknown. A slow multi-row update can still expose intermediate states; this is
+not an atomic snapshot. `set_controller` uses
 opcode 4 with a zero keypad. `insert_media` transfers into one declared unit
 while the machine keeps running and confirms MediaInfo ready; any failure after
 its first exchange ejects that unit once, realigning and re-identifying an
