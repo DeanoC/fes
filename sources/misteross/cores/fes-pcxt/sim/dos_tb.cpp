@@ -9,6 +9,9 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 static std::vector<unsigned char> read_file(const char *path) {
     std::ifstream input(path, std::ios::binary);
@@ -18,7 +21,9 @@ static std::vector<unsigned char> read_file(const char *path) {
 
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
-    require(argc == 3, "firmware and floppy image arguments", 0);
+    require(argc == 3 || argc == 4, "firmware, floppy and optional scenario arguments", 0);
+    const std::string scenario=argc==4 ? argv[3] : "dos";
+    require(scenario=="dos" || scenario=="com" || scenario=="game", "unknown DOS scenario", 0);
     const auto firmware = read_file(argv[1]);
     const auto disk = read_file(argv[2]);
     require(firmware.size() == 65536, "64 KiB firmware window", 0);
@@ -33,6 +38,8 @@ int main(int argc, char **argv) {
     bool pending=false, last_dma=false, last_irq=false, post=false, boot=false, sector=false, live=false;
     uint64_t instructions=0;
     bool prompt=false, directory=false, frame_complete=false, collecting=false;
+    bool game_launch=false, graphics_mode=false;
+    uint64_t graphics_writes=0, frame_after_cycle=0, com_cycle=0;
     std::vector<unsigned char> frame(1280*720*3);
     unsigned frame_pixels=0;
     auto byte=[&](unsigned a) { return unsigned((ram.words.at(a/2) >> (8*(a&1)))&255); };
@@ -58,7 +65,7 @@ int main(int argc, char **argv) {
             d.clk_pixel=!d.clk_pixel;d.eval();
             // Let the CPU and video capture settle for two full guest frames
             // after DIR before capturing the next complete 720p surface.
-            if(rising && directory && cycles-dir_cycle>=4000000 && !frame_complete) {
+            if(rising && directory && cycles-frame_after_cycle>=4000000 && !frame_complete) {
                 if(d.video_request&(1u<<28)) {frame_pixels=0;collecting=true;}
                 if(collecting && (d.video_response&(1u<<24))) {
                     require(frame_pixels<1280*720,"720p frame overflow",cycles);
@@ -112,6 +119,8 @@ int main(int argc, char **argv) {
                 sector=true;sector_cycle=cycles;
             }
         }
+        if(done && game_launch && wr && kind==0 && addr>=0xb8000 && addr<0xbc000) ++graphics_writes;
+        if(done && game_launch && wr && kind==1 && (addr&0xffff)==0x3d8 && (data&2)) graphics_mode=true;
         if(done && kind==1) {
             trace<<cycles<<" "<<(wr?'W':'R')<<" "<<std::hex<<addr<<" "<<data<<std::dec<<"\n";
             if(!wr && (addr&0x3ff)==0x60) {
@@ -122,7 +131,7 @@ int main(int argc, char **argv) {
             }
         }
         if(cycles%5000000==0) {
-            const auto text=screen();
+            const auto text=game_launch ? std::string() : screen();
             if(!prompt && sector && text.find("A:\\>")!=std::string::npos) {
                 prompt=true;prompt_cycle=cycles;
             }
@@ -136,7 +145,7 @@ int main(int argc, char **argv) {
                     const auto extension=text.find("TXT",entry);
                     if(end!=std::string::npos && extension!=std::string::npos && extension<end &&
                        text.find("A:\\>",end)!=std::string::npos) {
-                        directory=true;dir_cycle=cycles;break;
+                        directory=true;dir_cycle=frame_after_cycle=cycles;break;
                     }
                 }
             }
@@ -144,14 +153,14 @@ int main(int argc, char **argv) {
                 std::cerr<<"cycles="<<cycles<<" IP="<<std::hex<<ip<<" BP="<<flags<<std::dec
                          <<" disk="<<media_reads<<" DMA2="<<dma2_completions<<" IRQ6="<<irq6_edges
                          <<" POST="<<post<<" BOOT="<<boot<<" SECTOR="<<sector
-                         <<" PROMPT="<<prompt<<" DIR="<<directory<<"\n";
+                         <<" PROMPT="<<prompt<<" DIR="<<directory<<" GFX="<<graphics_mode<<" GFX_WRITES="<<graphics_writes<<"\n";
                 trace.flush();
             }
             ram.ram_writes.clear();
         }
         require(d.fault==0,"CPU/ISA/DMA fault",cycles);
         if(live) require(!d.machine_reset,"media operation reset the running guest",cycles);
-        require(cycles<6000000000ULL,"BIOS/DOS boot timeout",cycles);
+        require(cycles<(scenario=="game" ? 8000000000ULL : 6000000000ULL),"BIOS/DOS boot timeout",cycles);
     };
     d.cold_reset=d.reset_pixel=1;d.warm_reset=0;d.hold=0;d.firmware_valid=0;d.code_valid=0;d.key_code=0;
     d.media_present=0;d.disk_restart=0;d.disk_load_valid=0;d.disk_load_address=0;d.disk_load_data=0;d.media_gpo=0;
@@ -266,6 +275,115 @@ int main(int argc, char **argv) {
         0x0e,0x8e,0x0e,0x8e,0x20,0xa0,0x17,0x97,0x13,0x93,0x1c,0x9c};
     require(key_codes==expected,"host HID to XT make/break ordering",cycles);
     while(!(post && boot && sector && directory && frame_complete))step();
+    if(scenario=="game") {
+        // The image contains the exact real-mode Digger executable. Typing enters
+        // the same host mailbox / XT keyboard / BIOS / DOS path as the COM test.
+        const uint64_t directory_observed_cycle=dir_cycle;
+        game_launch=true;
+        const std::array<unsigned,13> usage{7,12,10,10,8,21,44,56,6,44,56,20,40};
+        const std::array<unsigned,13> make {0x20,0x17,0x22,0x22,0x12,0x13,0x39,0x35,0x2e,0x39,0x35,0x10,0x1c};
+        for(unsigned i=0;i<usage.size();++i) {
+            row_and_expect(usage[i]/16,1u<<(usage[i]%16),make[i]);
+            row_and_expect(usage[i]/16,0,make[i]|0x80);
+        }
+        const uint64_t deadline=cycles+1200000000ULL;
+        while((!graphics_mode || graphics_writes<1000) && cycles<deadline)step();
+        require(graphics_mode && graphics_writes>=1000,
+                "Digger did not enter CGA graphics and write display memory",cycles);
+        const auto mode_cycle=cycles;
+        // Allow six simulated seconds for title graphics after graphics writes begin.
+        // Kit A showed a blank screen at 17 seconds and title at 20 seconds;
+        // the exact graphics-mode write was not measured. This delay is a
+        // conservative estimate, and the title still needs visual inspection.
+        // Capture a full surface. These are
+        // unmodified generated video pixels, not a synthetic renderer.
+        for(uint64_t end=cycles+600000000;cycles<end;)step();
+        auto capture_to=[&](const std::string& name) {
+            frame_complete=false;collecting=false;frame_pixels=0;frame_after_cycle=cycles;
+            while(!frame_complete)step();
+            std::ofstream pic(name+".ppm",std::ios::binary);
+            pic<<"P6\n1280 720\n255\n";
+            pic.write(reinterpret_cast<const char*>(frame.data()),frame.size());
+            require(bool(pic),"cannot save complete game frame",cycles);
+        };
+        capture_to("title-before-start");
+        // Fork only after flushing/closing the log: children inherit the exact
+        // same Verilated machine, SDRAM, disk and cycle count. Each checkpoint
+        // runs a no-key control and an actual host-key path to the SAME cycle,
+        // then captures the same video frame number. Differences therefore cannot
+        // be explained merely by the game animating between screenshots.
+        trace.flush(); trace.close();
+        auto checkpoint=[&](const std::string& name,unsigned key,unsigned code,
+                            uint64_t hold,uint64_t settle) {
+            std::cout.flush();std::cerr.flush();
+            const uint64_t start=cycles;
+            const pid_t child=fork();
+            require(child>=0,"fork paired control",cycles);
+            if(child==0) {
+                while(cycles<start+hold+settle)step();
+                capture_to(name+"-control");
+                _exit(0);
+            }
+            row_and_expect(key/16,1u<<(key%16),code);
+            while(cycles<start+hold)step();
+            row_and_expect(key/16,0,code|0x80);
+            require(cycles<=start+hold+settle,"keyboard handling exceeded comparison window",cycles);
+            while(cycles<start+hold+settle)step();
+            capture_to(name+"-key");
+            int status=0; require(waitpid(child,&status,0)==child && WIFEXITED(status) && WEXITSTATUS(status)==0,
+                                  "paired no-key control failed",cycles);
+        };
+        // Return starts the title sequence. Allow eight simulated seconds in the
+        // paired branches: Kit A had not drawn the player until about six seconds
+        // after Enter. Compare Right only after that conservative settling period.
+        checkpoint("start",40,0x1c,20000000,780000000);
+        checkpoint("right",79,0x4d,20000000,100000000);
+        require(graphics_writes>=1000,"game did not draw graphics",cycles);
+        std::ofstream result("result-pending.json");
+        result<<"{\"classification\":\"host simulation, pending screenshot review\","
+              <<"\"graphics_mode_cycle\":"<<mode_cycle<<",\"graphics_memory_writes\":"<<graphics_writes
+              <<",\"post_cycle\":"<<post_cycle<<",\"boot_cycle\":"<<boot_cycle
+              <<",\"boot_sector_cycle\":"<<sector_cycle<<",\"prompt_cycle\":"<<prompt_cycle
+              <<",\"dir_cycle\":"<<directory_observed_cycle<<",\"cycles\":"<<cycles
+              <<",\"media_reads\":"<<media_reads<<",\"dma2_completions\":"<<dma2_completions
+              <<",\"irq6_edges\":"<<irq6_edges<<"}\n";
+        std::cout<<"Graphics and paired input captures complete; manual game state review required. "
+                 <<cycles<<" fabric clocks, "<<media_reads<<" disk bytes\n";
+        return 0;
+    }
+    if(scenario=="com") {
+        // Launch an actual 101-byte DOS COM file from the runtime-loaded floppy.
+        // Each make and break crosses the same mailbox, XT cable and PPI as a host key.
+        const std::array<unsigned,7> program_usage{9,8,22,6,18,16,40};
+        const std::array<unsigned,7> program_make{0x21,0x12,0x1f,0x2e,0x18,0x32,0x1c};
+        for(unsigned i=0;i<program_usage.size();++i) {
+            const unsigned usage=program_usage[i];
+            row_and_expect(usage/16,1u<<(usage%16),program_make[i]);
+            row_and_expect(usage/16,0,program_make[i]|0x80);
+        }
+        const uint64_t ready_deadline=cycles+700000000;
+        std::string app_text;
+        do { for(unsigned i=0;i<5000000;++i)step(); app_text=screen(); }
+        while(app_text.find("FES COM READY (PRESS K)")==std::string::npos && cycles<ready_deadline);
+        require(app_text.find("FES COM READY (PRESS K)")!=std::string::npos,
+                "COM program did not reach keyboard read",cycles);
+        // DOS INT 21h/AH=01h waits for and echoes the lowercase k.
+        row_and_expect(0,1u<<14,0x25);  // K make
+        row_and_expect(0,0,0xa5);       // K break
+        const uint64_t pass_deadline=cycles+100000000;
+        bool program_returned=false;
+        do {
+            for(unsigned i=0;i<5000000;++i)step(); app_text=screen();
+            const auto pass=app_text.find("FES COM PASS");
+            program_returned = pass!=std::string::npos && app_text.find("A:\\>",pass)!=std::string::npos;
+        } while(!program_returned && cycles<pass_deadline);
+        require(program_returned && app_text.find("FES COM FAIL")==std::string::npos,
+                "COM did not print PASS and return to DOS prompt",cycles);
+        com_cycle=cycles;
+        // Capture the actual changed framebuffer, not the earlier DIR frame.
+        frame_complete=false; collecting=false; frame_pixels=0; frame_after_cycle=cycles;
+        while(!frame_complete)step();
+    }
     require(bat_reads==1,"keyboard self-test",cycles);
     require(key_reads>=8,"DIR make/break bytes not delivered",cycles);
     require(word(0x413)==640,"BIOS did not detect 640 KiB",cycles);
@@ -312,7 +430,8 @@ int main(int argc, char **argv) {
           <<",\"irq6_edges\":"<<irq6_edges<<",\"post_cycle\":"<<post_cycle
           <<",\"boot_cycle\":"<<boot_cycle<<",\"boot_sector_cycle\":"<<sector_cycle
           <<",\"prompt_cycle\":"<<prompt_cycle<<",\"dir_cycle\":"<<dir_cycle
-          <<",\"cycles\":"<<cycles<<",\"sdram_refreshes\":"<<ram.refreshes<<"}\n";
-    std::cout<<"PASS XT: SDRAM floppy -> real BIOS -> DMA2 DOS boot -> typed DIR listing; "
+          <<",\"com_cycle\":"<<com_cycle<<",\"cycles\":"<<cycles<<",\"sdram_refreshes\":"<<ram.refreshes<<"}\n";
+    std::cout<<(scenario=="com" ? "PASS XT COM: DOS executable returned to prompt; " :
+                 "PASS XT: SDRAM floppy -> real BIOS -> DMA2 DOS boot -> typed DIR listing; ")
              <<cycles<<" fabric clocks, "<<media_reads<<" disk bytes\n";
 }
