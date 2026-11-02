@@ -16,7 +16,7 @@ PR #1373).
   and ARPL ([What the slice builds](#what-the-slice-builds)).
 - The RTL and the i386 lock's Yosys netlist match Bochs on every lockstep
   run: 1,758,699 corpus states, 32,000 random programs, 8,000 protected-mode
-  programs with 13,640 deliveries through the IDT and 1,427 shutdowns, 46
+  programs with 13,640 deliveries through the IDT and 1,427 shutdowns, 47
   new directed protected-mode cases, and the directed, unreal-mode and memory
   cases. Against slice 1's report only timing differs: one corpus test
   (23 cycles) and the two real-mode nested-fault cases, which now run on to
@@ -30,11 +30,11 @@ PR #1373).
   system suites pass, the governor bench equals slice 1's field for field,
   and the governor suite passes but for 386DX-25, which meets the bench gap
   #1372 after its test finishes, as on main ([Machine](#freedos-with-himemx-and-the-pc386-suites)).
-- Quartus 17.0.2 seals `fes.pc386` from a clean checkout of `43bff581b` at
-  61.44 MHz with every analysis met: setup +1.162 ns (the pixel clock; the
-  system clock has +1.481 ns, 67.59-71.13 MHz at its slow corners), hold
-  +0.077 ns, 28,535 ALMs, 224 more than slice 1's merge seal
-  ([Seal](#quartus-seal)).
+- Quartus 17.0.2 seals `fes.pc386` from a clean checkout of `7224b11f6`
+  (with the review fix) at 61.44 MHz with every analysis met: setup
+  +1.231 ns (the pixel clock; the system clock has +1.889 ns, 69.51-69.88 MHz
+  at its slow corners), hold +0.085 ns, 28,831 ALMs, 520 more than slice
+  1's merge seal ([Seal](#quartus-seal)).
 - **DOOM under DOS/4GW, the target that sets the boundary**, uses only CPL 0
   without paging, V86 or task switches: INT 31h, 21h, 10h and 33h and IRQ 0
   through 386 interrupt gates, far CALL and RETF, LLDT, LAR and LSL, and
@@ -55,10 +55,13 @@ PR #1373).
 - FES branch `deano/i386-phase2-idt-8f1dd2`, from main `d1d6c67e9` (after
   slice 1's merge, `8de99b4bb`). Main `3d2e17f84` (#1385 and #1387, ZX81
   and PC/XT only, no i386 or pc386 source) is merged in as `43bff581b`.
-- The seal and the kit runs are of `43bff581b`. The other runs used these
-  trees; their i386 and pc386 RTL equals `43bff581b`'s but for a
-  `FES_I386_DEBUG` block in `fes_i386_cpu.sv`, which nothing defines and
-  `9314cad59` removed:
+- `7baa2a6f3` is Codex's review fix: a protected-mode IRET with NT set
+  stops as not built ([Review](#review)). The final seal, the lockstep and
+  the netlist lockstep are of `7224b11f6`, which has it.
+- The first seal and the kit runs are of `43bff581b`, before the fix, which
+  changes nothing they reached. The other runs used these trees, whose i386
+  and pc386 RTL equals `43bff581b`'s but for a `FES_I386_DEBUG` block in
+  `fes_i386_cpu.sv`, which nothing defines and `9314cad59` removed:
   - `32cbe9b30` (whose `pipe_t.sdisp` was still declared signed, the same
     bits): test386 on the RTL;
   - `10956ac5c`: the HIMEMX machine run, the DOOM census and RTL machine
@@ -66,10 +69,11 @@ PR #1373).
   - `9314cad59`'s lockstep testbench on `10956ac5c`'s RTL (Verilator had
     read the CPU before the block was removed): the lockstep; `9314cad59`:
     the HIMEMX `system_tb` run;
-  - `ad2ab3544`: the netlist lockstep, the vectors runner, the pc386 suites
-    and the 386DX-25 rerun, the unit tests and `make test-changed`.
+  - `ad2ab3544`: the vectors runner, the pc386 suites and the 386DX-25
+    rerun, the unit tests and `make test-changed`.
 
-  Later commits change only this record and the design doc's Phase 2 row.
+  Later commits change only this record, the design doc's Phase 2 row, the
+  sim README and the review fix.
 - Oracle: Bochs 3.1 at CPU level 3 (the `fes-i386-oracle` build), corpus
   SingleStepTests/80386 `459d49fbe628`, test386.asm `cfd052d1e64d`.
 - Verilator 5.032 on Powerboat. The netlist lockstep used the i386 lock's
@@ -205,12 +209,12 @@ Phase 2, which the design means to be enough for DOS extenders.
 
 ## Lockstep
 
-`scripts/test_fes_i386_lockstep.py` at `9314cad59`, and with `--yosys` on
-the i386 lock's Yosys `238eac9a4` at `ad2ab3544`
-([report](lockstep-netlist-report.json)). The two reports are identical but
-for the netlist's `yosys` field. After Codex's review the RTL lockstep was
-rerun with the 46th protected-mode case ([report](lockstep-report.json));
-every field outside that section is unchanged.
+`scripts/test_fes_i386_lockstep.py` at `7224b11f6`, after the review's
+fix ([report](lockstep-report.json)), and with `--yosys` on the i386 lock's
+Yosys `238eac9a4` ([report](lockstep-netlist-report.json)). The two reports
+are identical but for the netlist's `yosys` field. Against the run at
+`9314cad59`, before the review, only the protected-mode cases differ (two
+new ones); every other field is unchanged.
 
 | Run | Result |
 | --- | --- |
@@ -220,7 +224,7 @@ every field outside that section is unchanged.
 | Unbuilt encodings | 52,320 outside SCOPE, all stopped as not built |
 | Directed cases | 40 pass |
 | Unreal-mode cases | 6 pass |
-| Protected-mode cases (new) | 46 pass |
+| Protected-mode cases (new) | 47 pass |
 | Memory cases (DMA, FLUSH) | 26 pass |
 
 The latency-free reruns of seeds 1 and 2 retire the same trace, and the
@@ -310,7 +314,7 @@ Two harness rules are new:
   gives #SS(0), and the harness takes the oracle's error code from the
   frame at the handler's SS:ESP.
 
-**The protected-mode cases** (`--mode pmode`, new, 46): from real mode,
+**The protected-mode cases** (`--mode pmode`, new, 47): from real mode,
 LGDT, LIDT, PE set and a far jump to 16-bit code, then each of:
 - `#UD`; `#NP(sel)`; `#GP(sel)` past the GDT; `#GP(sel)` and `#SS(sel)` for
   SS; `#GP(0)` and `#SS(0)` at FFFFh; `#DE` through a 386 and a 286 gate;
@@ -325,6 +329,8 @@ LGDT, LIDT, PE set and a far jump to 16-bit code, then each of:
   IRET and IRETD back, INTO, INT3, a trap gate keeping IF; a task gate (not
   built); an IRETD whose image sets RF returning to a 16-bit IRET (added
   after Codex's review, [Review](#review));
+- IRET after POPFD sets NT, a return from a nested task (not built; added
+  after Codex's review);
 - far CALL ptr16:16, ptr16:32 and m16:16 to RETF or RETF imm16, past CS's
   limit, to a not-present CS, and with SP 2 (no 64 KiB wrap: #SS(0), then
   #DF, then shutdown); RETF to data, IRET to a not-present CS, RETF to RPL 3
@@ -423,33 +429,35 @@ changes no cycle the bench measures, governed or not.
 ## Quartus seal
 
 `make build-fes-pc386-quartus` at seed 1 from a clean checkout of
-`43bff581b` ([`seal-summary.json`](seal-summary.json)), Quartus Prime Lite
-17.0.2 on the pc386 lock's Yosys `0a7927bf` netlist. All 109 input hashes
-match the branch head. Every analysis passes, with no illegal or
-unconstrained clocks.
+`7224b11f6`, the review fix's head ([`seal-summary.json`](seal-summary.json)),
+Quartus Prime Lite 17.0.2 on the pc386 lock's Yosys `0a7927bf` netlist. All
+109 input hashes match the branch head. Every analysis passes, with no
+illegal or unconstrained clocks. Two earlier seals of this branch are data
+points: `43bff581b`, before the fix, whose package the kit ran
+([summary](seal-43bff581b-summary.json)), and `10956ac5c`.
 
-| | This branch, `43bff581b` | This branch, `10956ac5c` (first seal) | Slice 1's merge seal, `b7b4cb7dc` |
-| --- | --- | --- | --- |
-| Build ID, package | `80b66665…`, `faf63b2f…` | `da4662c5…`, `fb241da6…` | `530f136f…`, `604cab9b…` |
-| System Fmax, slow corners (61.44 MHz) | 67.59-71.13 MHz, setup +1.481 ns | 71.51-72.22 MHz | 72.43-74.83 MHz, setup +2.470 ns |
-| Pixel Fmax (74.27 MHz) | 81.29-81.96 MHz | 80.60-81.69 MHz | 80.55-81.01 MHz |
-| Setup, hold slack | +1.162 (pixel), +0.077 ns | +1.057 (pixel), +0.091 ns | +1.049 (pixel), +0.080 ns |
-| Recovery, removal, pulse width | +7.292, +0.268, +1.122 ns | +7.990, +0.265, +1.122 ns | +5.948, +0.264, +1.122 ns |
-| ALMs | 28,535 of 41,910 (68%) | 28,674 | 28,311 |
-| Registers | 25,714 | 25,699 | 25,527 |
-| RAM blocks | 259 | 259 | 257 |
-| DSP blocks | 32 | 32 | 32 |
-| RBF | 3,631,716 bytes, SHA-256 `b49ac5c4…` | 3,628,660 bytes | 3,576,248 bytes |
+| | Final, `7224b11f6` | `43bff581b` (kit runs) | `10956ac5c` | Slice 1's merge seal, `b7b4cb7dc` |
+| --- | --- | --- | --- | --- |
+| Build ID, package | `b70597c6…`, `ad844e72…` | `80b66665…`, `faf63b2f…` | `da4662c5…`, `fb241da6…` | `530f136f…`, `604cab9b…` |
+| System Fmax, slow corners (61.44 MHz) | 69.51-69.88 MHz, setup +1.889 ns | 67.59-71.13 MHz, +1.481 ns | 71.51-72.22 MHz | 72.43-74.83 MHz, +2.470 ns |
+| Pixel Fmax (74.27 MHz) | 81.75-82.56 MHz | 81.29-81.96 MHz | 80.60-81.69 MHz | 80.55-81.01 MHz |
+| Setup, hold slack | +1.231 (pixel), +0.085 ns | +1.162 (pixel), +0.077 ns | +1.057 (pixel), +0.091 ns | +1.049 (pixel), +0.080 ns |
+| Recovery, removal, pulse width | +7.183, +1.190, +1.122 ns | +7.292, +0.268, +1.122 ns | +7.990, +0.265, +1.122 ns | +5.948, +0.264, +1.122 ns |
+| ALMs | 28,831 of 41,910 (69%) | 28,535 | 28,674 | 28,311 |
+| Registers | 25,755 | 25,714 | 25,699 | 25,527 |
+| RAM blocks | 259 | 259 | 259 | 257 |
+| DSP blocks | 32 | 32 | 32 | 32 |
+| RBF | 3,644,880 bytes, SHA-256 `12f96a06…` | 3,631,716 bytes | 3,628,660 bytes | 3,576,248 bytes |
 
-Against slice 1's merge seal the slice costs about 220 ALMs, 190 registers
-and two RAM blocks; the microcode ROM's words grew from 79 bits to 90, and
-130 of its 256 are used (59 before). The system
-clock's slowest corner falls from 72.43 to 67.59 MHz, still 1.48 ns of
-setup slack at 61.44 MHz. The first seal's 109 inputs equal the final
-one's but for `fes_i386_cpu.sv`, whose `FES_I386_DEBUG` block (which nothing
-defines) `9314cad59` removed; main's merge changes no input. The two
-results' spread (71.51-72.22 MHz against 67.59-71.13 MHz) is Quartus's
-placement noise on the same design.
+Against slice 1's merge seal the slice costs 220-520 ALMs across the three
+seals (the two seals of one design differ by 139), 170-230 registers and two
+RAM blocks. The microcode ROM's words grew from 79 bits to 90, and 130
+of its 256 are used (59 before). The system clock's slowest corner falls
+from 72.43 MHz to 67.6-71.5 MHz across the three seals, which keeps
+1.48-2.0 ns of setup slack at 61.44 MHz. The `10956ac5c` and `43bff581b`
+seals' inputs differ only in `fes_i386_cpu.sv`'s `FES_I386_DEBUG` block,
+which nothing defines; main's merge changes no input. Their spread is
+Quartus's placement noise on one design.
 
 ## Kit B smoke test: FreeDOS with HIMEMX, and DOOM's start
 
@@ -500,6 +508,22 @@ its behaviour, which is Bochs's and the architecture's:
   the IRET, as the RTL does. With the RTL changed never to load RF, it
   fails at the IRETD (Bochs has EFLAGS `10082h`), so the case does reach
   RF set.
+
+Codex's review of `bd86096a7` found a real gap (P2): a protected-mode IRET
+with EFLAGS.NT set returns from a nested task through the TSS backlink,
+which this build does not do, yet it ran the same-privilege IRET. NT is
+reachable at CPL 0 through POPFD or IRETD. `7baa2a6f3` stops it as not
+built:
+- IRET's first uop in protected mode carries `ntchk`. EX checks NT in the
+  in-order EFLAGS as it runs that uop, so a POPFD or IRETD just ahead of
+  the IRET counts, and stops it with `WHY_TASK_RETURN`.
+- The stop stands over that uop's stack-read fault, since Bochs takes the
+  task return before it reads the stack.
+- The lockstep's not-built rule takes a fault or a TR change as the like for
+  this reason.
+- A directed case, `iret-nt` (POPFD with NT set, then IRET), passes: the
+  RTL stops as not built and Bochs faults on TR's backlink. Without the
+  check it fails: Bochs raises #TS and the RTL returned and then took #GP.
 
 ## Yosys workarounds
 
