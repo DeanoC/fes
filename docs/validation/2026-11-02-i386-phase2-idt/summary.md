@@ -16,7 +16,7 @@ PR #1373).
   and ARPL ([What the slice builds](#what-the-slice-builds)).
 - The RTL and the i386 lock's Yosys netlist match Bochs on every lockstep
   run: 1,758,699 corpus states, 32,000 random programs, 8,000 protected-mode
-  programs with 13,640 deliveries through the IDT and 1,427 shutdowns, 45
+  programs with 13,640 deliveries through the IDT and 1,427 shutdowns, 46
   new directed protected-mode cases, and the directed, unreal-mode and memory
   cases. Against slice 1's report only timing differs: one corpus test
   (23 cycles) and the two real-mode nested-fault cases, which now run on to
@@ -205,10 +205,12 @@ Phase 2, which the design means to be enough for DOS extenders.
 
 ## Lockstep
 
-`scripts/test_fes_i386_lockstep.py` at `9314cad59` ([report](lockstep-report.json)),
-and with `--yosys` on the i386 lock's Yosys `238eac9a4` at `ad2ab3544`
+`scripts/test_fes_i386_lockstep.py` at `9314cad59`, and with `--yosys` on
+the i386 lock's Yosys `238eac9a4` at `ad2ab3544`
 ([report](lockstep-netlist-report.json)). The two reports are identical but
-for the netlist's `yosys` field.
+for the netlist's `yosys` field. After Codex's review the RTL lockstep was
+rerun with the 46th protected-mode case ([report](lockstep-report.json));
+every field outside that section is unchanged.
 
 | Run | Result |
 | --- | --- |
@@ -218,7 +220,7 @@ for the netlist's `yosys` field.
 | Unbuilt encodings | 52,320 outside SCOPE, all stopped as not built |
 | Directed cases | 40 pass |
 | Unreal-mode cases | 6 pass |
-| Protected-mode cases (new) | 45 pass |
+| Protected-mode cases (new) | 46 pass |
 | Memory cases (DMA, FLUSH) | 26 pass |
 
 The latency-free reruns of seeds 1 and 2 retire the same trace, and the
@@ -308,7 +310,7 @@ Two harness rules are new:
   gives #SS(0), and the harness takes the oracle's error code from the
   frame at the handler's SS:ESP.
 
-**The protected-mode cases** (`--mode pmode`, new, 45): from real mode,
+**The protected-mode cases** (`--mode pmode`, new, 46): from real mode,
 LGDT, LIDT, PE set and a far jump to 16-bit code, then each of:
 - `#UD`; `#NP(sel)`; `#GP(sel)` past the GDT; `#GP(sel)` and `#SS(sel)` for
   SS; `#GP(0)` and `#SS(0)` at FFFFh; `#DE` through a 386 and a 286 gate;
@@ -321,7 +323,8 @@ LGDT, LIDT, PE set and a far jump to 16-bit code, then each of:
   and one in the double fault's (shutdown);
 - INT n through a 286 interrupt gate and a 386 trap gate whose handlers
   IRET and IRETD back, INTO, INT3, a trap gate keeping IF; a task gate (not
-  built);
+  built); an IRETD whose image sets RF returning to a 16-bit IRET (added
+  after Codex's review, [Review](#review));
 - far CALL ptr16:16, ptr16:32 and m16:16 to RETF or RETF imm16, past CS's
   limit, to a not-present CS, and with SP 2 (no 64 KiB wrap: #SS(0), then
   #DF, then shutdown); RETF to data, IRET to a not-present CS, RETF to RPL 3
@@ -476,6 +479,27 @@ that, DOS/4GW's 16-bit code segments would stop it too
 ([census](#the-boundary-from-a-real-target-doom-under-dos4gw)).
 [`kit-p2k2-result.json`](kit-p2k2-result.json) has the run's commands and
 acknowledgements.
+
+## Review
+
+Codex reviewed `b541e25e1` with one P2 finding: a 16-bit IRET that begins
+with RF set (after an IRETD that set it) clears RF at its flags-load uop,
+where it "does not load RF and must retain the existing bit". The RTL keeps
+its behaviour, which is Bochs's and the architecture's:
+- Bochs sets RF with `assert_RF()`, which invalidates the prefetch queue,
+  and `prefetch()` (`cpu/cpu.cc`) clears RF before the next instruction
+  runs. A 16-bit IRET after an IRETD that set RF therefore starts with RF
+  clear and leaves it clear; RF is architecturally cleared as each
+  instruction completes, except by an IRETD that loads it.
+- In the RTL every uop but IRET's last clears RF, so the 16-bit IRET's
+  first uops clear it and its last keeps the 0. The architectural EFLAGS
+  shows IRETD's RF until the next instruction retires, as Bochs's does.
+- A new directed case, `iretd-rf-iret16`, runs exactly this: an IRETD
+  whose image sets RF returns to a 16-bit IRET. It passes, comparing RF
+  after each retirement: Bochs has RF set after the IRETD and clear after
+  the IRET, as the RTL does. With the RTL changed never to load RF, it
+  fails at the IRETD (Bochs has EFLAGS `10082h`), so the case does reach
+  RF set.
 
 ## Yosys workarounds
 

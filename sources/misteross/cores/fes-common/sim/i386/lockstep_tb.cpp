@@ -4658,6 +4658,18 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         {"int-iret", [](Asm &a) { a.op({0x31, 0xc0, 0xcd, 0x20, 0x40}); }, -1, -1, {}, false, 0x20},  // INT 20h; INC AX
         {"int-trap-iretd", [](Asm &a) { a.op({0xfb, 0xcd, 0x29}); }, -1, -1, {}, false, 0x29},       // STI; INT 29h
         {"into", [](Asm &a) { a.op({0xb0, 0x7f, 0x04, 0x01, 0xce}); }, -1, -1, {}, false, 4},        // MOV AL, 7Fh; ADD AL, 1; INTO
+        // IRETD with RF set in its image to a 16-bit IRET: Bochs clears RF
+        // as the next instruction is fetched, so the IRET leaves it clear.
+        {"iretd-rf-iret16", [](Asm &a) {
+             const size_t iret16 = a.here() + 27, done = iret16 + 1;
+             a.op({0x9c, 0x0e, 0x68}); a.w(uint16_t(CODE + done));          // PUSHF; PUSH CS; PUSH done
+             a.op({0x66, 0x9c, 0x89, 0xe5});                                // PUSHFD; MOV BP, SP
+             a.op({0x66, 0x81, 0x4e, 0x00}); a.d(0x10000);                  // OR dword [BP], RF
+             a.op({0x66, 0x0e, 0x66, 0x68}); a.d(uint32_t(CODE + iret16));  // PUSH CS (32); PUSH iret16 (32)
+             a.op({0x66, 0xcf});                                            // IRETD
+             a.op({0xcf});                                                  // iret16: IRET
+             a.op({0x9c});                                                  // done: PUSHF
+         }, -1, -1, {}, false},
         {"int3", [](Asm &a) { a.op({0xcc}); }, -1, -1, {}, false, 3},
         {"trap-gate", [](Asm &a) { a.op({0xfb, 0xcd, 0x27}); }, -1, -1, {}, false, 0x27},            // STI; INT 27h: IF kept
         {"task-gate", [](Asm &a) { a.op({0xcd, 0x28}); }, -3, -1, {}, false},
