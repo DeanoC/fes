@@ -60,10 +60,18 @@ The renderer's two-stage pixel release is shared with the computer readiness
 crossing through `pixel_reset_n`. The duplicate release chain in the parent is
 removed, so these two consumers observe one physical reset release. Its raw
 ingress keeps the existing renderer exception; downstream recovery/removal,
-readiness stages and frame-mask paths stay timed. The board's distinct
-PLL/configuration reset continues to control HDMI visibility independently;
-this sharing neither merges those reset sources nor qualifies whole-reset
-coordination or physical behaviour.
+readiness stages and frame-mask paths stay timed. The board qualifies its
+distinct PLL/configuration reset on the existing 50 MHz reference; it has no
+separate asynchronous pixel reset chain. A retained token/reply handshake
+requires the pixel side to observe allow-low and close the visible line before
+the reference controller permits rearming. Repeated lock losses keep the same
+outstanding token. Pixel visibility then resumes only at a later complete HS
+pulse outside VS. All four single-bit data crossings have two stages and
+source-to-first-D exceptions; interstage and downstream paths stay timed.
+HDMI completion and returned pixel activity feed registered reference-domain
+readiness. Lock loss restarts HDMI configuration and immediately blanks data
+and readiness without clipping sync. This does not merge the renderer's reset
+with PLL loss or establish fitted reset coordination or physical acceptance.
 
 `scripts/build_de25_menu_package.py` prepares the allocated-buffer MENU with a
 canonical format-2 functional record before generating IP. Its record binds the
@@ -244,7 +252,7 @@ It reuses the current `fes_computer_mailbox`, HID mapper and CRC-checked tape
 store. Control and the machine share 100 MHz, with 13/200 ULA enables; the
 renderer remains at 74.25 MHz. Readiness crosses a two-stage pixel-clock
 synchronizer, and the computer's first-picture mask changes only at the
-renderer frame tick. The board shell blanks RGB/DE on pixel reset or PLL loss,
+renderer frame tick. The board shell blanks RGB/DE on configuration reset or PLL loss,
 then changes HDMI visibility and resumes picture only after a complete HS
 pulse outside VS; active sync is not reset-gated.
 No control CCB is required and stopped PIX

@@ -82,7 +82,7 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertNotIn("set_false_path -to $ready_stage1_reg", sdc)
         self.assertNotIn("set_clock_groups", sdc)
 
-    def test_readiness_cdc_cut_is_narrow_and_same_domain_visibility_stays_timed(self):
+    def test_readiness_and_visibility_cut_only_registered_first_stage_data(self):
         sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()
         self.assertIn("{soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]|D}", sdc)
         self.assertIn("set_false_path -to $computer_pixel_ready_stage0_d", sdc)
@@ -95,16 +95,23 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertIn("posedge pixel_clk or negedge pixel_transport_reset_n", computer)
         self.assertIn("assign pixel_reset_n = pix_release[1];", video)
         self.assertIn("Stage-to-stage paths and both generated clocks stay timed", sdc)
-        # The board's pixel_reset_n is released by a pixel-clock chain whose
-        # clear pins are already cut, so its visibility synchronizer D path is
-        # same-domain and must remain timed.
-        self.assertNotIn("visible_sync", sdc)
+        for source, destination in (("visible_allow", "visible_sync"),
+                                    ("visibility_epoch", "visibility_epoch_sync"),
+                                    ("visibility_ack", "visibility_ack_sync"),
+                                    ("video_active", "active_sync")):
+            self.assertIn("{fes_video_inst|" + source + "} {fes_video_inst|" +
+                          destination + "[0]} {fes_video_inst|" + destination + "[1]}", sdc)
+        self.assertIn('"${visibility_stage0}|D"', sdc)
+        self.assertIn("set_false_path -from $visibility_source_reg -to $visibility_stage0_d", sdc)
+        self.assertIn('if {[get_collection_size $visibility_nodes] != 1}', sdc)
+        self.assertNotIn("set_false_path -to $visibility_stage1_reg", sdc)
+        self.assertNotIn("fes_video_inst|pixel_reset", sdc)
         self.assertNotIn("transport_ready_meta", sdc)
         self.assertNotIn("set_clock_groups", sdc)
 
     def test_frame_ownership_constraints_and_reset_pin_counts_match_rtl(self):
         sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()
-        self.assertIn("if {$computer_clear_count != 4}", sdc)
+        self.assertIn("if {$computer_clear_count != 2}", sdc)
         self.assertIn("request {*|video|request} {*|video|request_sync[0]}", sdc)
         self.assertIn("acknowledge {*|video|acknowledge} {*|video|acknowledge_sync[0]}", sdc)
         self.assertIn("if {[get_collection_size $owner_rows_source] != 9 || [get_collection_size $owner_rows_sink] != 9}", sdc)

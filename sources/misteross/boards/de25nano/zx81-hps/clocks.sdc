@@ -2,13 +2,13 @@
 set hdmi_config_clock [get_registers {fes_video_inst|hdmi_config|mI2C_CTRL_CLK}]
 if {[get_collection_size $hdmi_config_clock] != 1} {error "DE25 computer I2C clock register changed"}
 create_generated_clock -name adv7513_config -source [get_ports CLOCK0_50] -divide_by 5002 $hdmi_config_clock
-set computer_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|pixel_reset|sync_regs*|aclr}]
-set computer_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|pixel_reset|sync_regs*|clrn}]
+set computer_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr}]
+set computer_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn}]
 set computer_clear_count [expr {[get_collection_size $computer_aclr] + [get_collection_size $computer_clrn]}]
-if {$computer_clear_count != 4} {error "DE25 computer requires four HDMI reset ingress pins"}
+if {$computer_clear_count != 2} {error "DE25 computer requires two reference HDMI reset ingress pins"}
 if {[get_collection_size $computer_aclr] > 0} {set_false_path -to $computer_aclr}
 if {[get_collection_size $computer_clrn] > 0} {set_false_path -to $computer_clrn}
-post_message -type info "DE25 computer HDMI reset ingress pins: $computer_clear_count (expected4)"
+post_message -type info "DE25 computer HDMI reset ingress pins: $computer_clear_count (expected2)"
 # The computer runs on the preserved peripheral clock. No new GP control CDC,
 # clock groups, FIFO cuts or external HDMI/I2C delay assumptions are introduced.
 
@@ -60,7 +60,30 @@ foreach computer_pixel_ready_nodes [list $computer_pixel_ready_source $computer_
 set_false_path -to $computer_pixel_ready_stage0_d
 post_message -type info "DE25 computer pixel readiness crossing: one first-stage ingress, shared renderer reset release, timed stage-to-stage and frame-gate paths"
 
-# FPGA-owned HDMI readiness crosses 50 MHz -> pixel -> control. Each source is
+# The board qualifies PLL/configuration reset in the reference domain. Pixel
+# visibility uses a retained token/reply handshake with ordinary data crossings;
+# there is no second asynchronous reset release in the pixel domain. The token
+# stays outstanding across repeated faults until allow-low and a closed line
+# are acknowledged. Cut only each registered source-to-first-stage D path.
+foreach {visibility_source visibility_stage0 visibility_stage1} {
+    {fes_video_inst|visible_allow} {fes_video_inst|visible_sync[0]} {fes_video_inst|visible_sync[1]}
+    {fes_video_inst|visibility_epoch} {fes_video_inst|visibility_epoch_sync[0]} {fes_video_inst|visibility_epoch_sync[1]}
+    {fes_video_inst|visibility_ack} {fes_video_inst|visibility_ack_sync[0]} {fes_video_inst|visibility_ack_sync[1]}
+    {fes_video_inst|video_active} {fes_video_inst|active_sync[0]} {fes_video_inst|active_sync[1]}
+} {
+    set visibility_source_reg [get_registers $visibility_source]
+    set visibility_stage0_reg [get_registers $visibility_stage0]
+    set visibility_stage1_reg [get_registers $visibility_stage1]
+    set visibility_stage0_d [get_pins -compatibility_mode -nocase -nowarn "${visibility_stage0}|D"]
+    foreach visibility_nodes [list $visibility_source_reg $visibility_stage0_reg $visibility_stage1_reg $visibility_stage0_d] {
+        if {[get_collection_size $visibility_nodes] != 1} {error "DE25 visibility requires one source, two stages and the first D pin"}
+    }
+    set_false_path -from $visibility_source_reg -to $visibility_stage0_d
+}
+post_message -type info "DE25 visibility: 4 registered sources and first-stage ingress exceptions; stage-to-stage and downstream paths timed"
+
+# HDMI completion crosses its generated I2C clock into reference, then control
+# readiness crosses reference -> control. Each source is
 # registered and each destination is a two-stage synchronizer. Constrain only
 # the asynchronous source-to-first-stage D path; all stage-to-stage data and
 # locally released reset recovery/removal paths remain timed.

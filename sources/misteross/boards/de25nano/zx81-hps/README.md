@@ -12,7 +12,8 @@ It runs entirely on the existing 100 MHz peripheral clock, using 13/200
 enables for the unchanged 6.5 MHz ULA and 3.25 MHz CPU. HDMI uses its separate
 74.25 MHz PLL. Transport readiness crosses a two-stage pixel-clock
 synchronizer, and the RGB/DE/HS/VS mask changes only at the renderer's 720p
-frame boundary. The board shell tracks pixel reset/PLL lock: RGB and DE blank
+frame boundary. The board shell qualifies configuration reset and PLL lock on
+the existing 50 MHz reference clock: RGB and DE blank
 immediately, while sync visibility and picture resume wait for a complete
 horizontal sync pulse outside vertical sync. Pixel-clock loss does not stop
 CPU, control or tape. The renderer packs eight monochrome pixels per RAM word
@@ -32,8 +33,14 @@ the synchronized readiness gate closes. Each domain releases reset through
 its own two-stage synchronizer.
 The renderer's final pixel-release stage also resets the computer readiness
 crossing. There is one physical release chain for this peripheral-reset source
-in the pixel domain. The board's PLL/configuration reset still independently
-controls HDMI visibility; a stopped pixel clock cannot release a frame bank.
+in the pixel domain. The board has no independent pixel reset chain. Its
+reference controller retains one pending visibility token across repeated PLL
+losses, waits for a pixel reply confirming allow-low and a closed visible line,
+then permits rearming at a later complete horizontal sync pulse. The four
+single-bit handshake crossings each have two stages; only first-stage data
+paths are cut. HDMI completion and returned pixel activity are synchronized
+into reference before registered readiness crosses to control. PLL loss also
+restarts HDMI configuration. A stopped pixel clock cannot release a frame bank.
 DE, sync and the scaled pixel selector share the RAM's registered read latency.
 The two single-bit crossings cut only their first synchronizer stages. The
 held row-count metadata has explicit 10 ns net-delay, datapath-delay,

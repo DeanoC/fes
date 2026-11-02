@@ -14,43 +14,76 @@ module fes_de25_zx81_board (
     inout wire HDMI_I2C_SDA,
     output wire HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S
 );
-    wire pll_locked, config_reset_n, pixel_reset_n, hdmi_config_ready;
+    wire pll_locked, config_reset_n, hdmi_config_ready;
     sys_pll video_clock (.refclk(CLOCK0_50), .rst(ninit_done),
                          .outclk_0(pixel_clk), .locked(pll_locked));
     fes_de25_top_reset config_reset (.clk(CLOCK0_50), .ninit_done(ninit_done),
-                                     .pll_locked(1'b1), .reset_n(config_reset_n));
-    fes_de25_top_reset pixel_reset (.clk(pixel_clk), .ninit_done(ninit_done),
-                                    .pll_locked(pll_locked), .reset_n(pixel_reset_n));
+                                     .pll_locked(pll_locked), .reset_n(config_reset_n));
     I2C_HDMI_Config hdmi_config (.iCLK(CLOCK0_50), .iRST_N(config_reset_n),
         .I2C_SCLK(HDMI_I2C_SCL), .I2C_SDAT(HDMI_I2C_SDA), .HDMI_TX_INT(HDMI_TX_INT), .READY(hdmi_config_ready));
     assign {HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S} = 4'b0000;
     assign HDMI_TX_CLK = pixel_clk;
-    wire visible_request = pixel_reset_n;
-    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] hdmi_ready_sync = 2'b00;
-    always @(posedge pixel_clk or negedge pixel_reset_n)
-        if (!pixel_reset_n) hdmi_ready_sync <= 2'b00;
-        else hdmi_ready_sync <= {hdmi_ready_sync[0], hdmi_config_ready};
-    (* async_reg = "true" *) reg [1:0] visible_sync = 2'b00;
-    reg previous_hs = 1'b0;
-    reg visible_line = 1'b0;
-    reg video_active = 1'b0;
-    always @(posedge pixel_clk) begin
-        visible_sync <= {visible_sync[0], visible_request};
-        previous_hs <= video_hs;
-        // Blank data immediately on lock/reset loss. Re-enable only after a
-        // complete HS pulse in the horizontal porch, outside vertical sync.
-        if (previous_hs && !video_hs && !video_vs) begin
-            visible_line <= visible_sync[1];
-            video_active <= visible_sync[1];
-        end else if (!visible_sync[1]) video_active <= 1'b0;
+    // The reference domain owns asynchronous lock/configuration qualification.
+    // Retain an outstanding token across repeated faults until the pixel side
+    // has observed allow-low and closed its visible line for that token.
+    reg visibility_epoch = 0, visibility_pending = 0, visible_allow = 0;
+    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] visibility_ack_sync = 0, active_sync = 0;
+    always @(posedge CLOCK0_50) begin
+        visibility_ack_sync <= {visibility_ack_sync[0], visibility_ack};
+        active_sync <= {active_sync[0], video_active};
+        if (!config_reset_n) begin
+            visible_allow <= 0;
+            if (!visibility_pending) begin
+                visibility_epoch <= !visibility_epoch;
+                visibility_pending <= 1;
+            end
+        end else if (visibility_pending) begin
+            visible_allow <= 0;
+            if (visibility_ack_sync[1] == visibility_epoch && !active_sync[1])
+                visibility_pending <= 0;
+        end else visible_allow <= 1;
     end
-    // Cross a registered observation into the computer clock domain, never a
-    // combinational collection of independently changing status/reset terms.
-    (* preserve *) reg video_ready_source = 1'b0;
-    always @(posedge pixel_clk or negedge pixel_reset_n)
-        if (!pixel_reset_n) video_ready_source <= 1'b0;
-        else video_ready_source <= video_active && hdmi_ready_sync[1];
+
+    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] hdmi_ready_sync = 0;
+    (* preserve *) reg video_ready_source = 0;
+    always @(posedge CLOCK0_50 or negedge config_reset_n) begin
+        if (!config_reset_n) begin
+            hdmi_ready_sync <= 0;
+            video_ready_source <= 0;
+        end else begin
+            hdmi_ready_sync <= {hdmi_ready_sync[0], hdmi_config_ready};
+            video_ready_source <= visible_allow && active_sync[1] && hdmi_ready_sync[1];
+        end
+    end
     assign video_ready = video_ready_source;
+
+    // These are ordinary data crossings. Their state is retained through PLL
+    // loss; the token handshake requires a real blanking observation on resume.
+    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+    reg [1:0] visible_sync = 0, visibility_epoch_sync = 0;
+    reg visibility_ack = 0, previous_hs = 0, visible_line = 0, video_active = 0;
+    wire line_boundary = previous_hs && !video_hs && !video_vs;
+    wire epoch_changed = visibility_epoch_sync[1] != visibility_ack;
+    always @(posedge pixel_clk) begin
+        visible_sync <= {visible_sync[0], visible_allow};
+        visibility_epoch_sync <= {visibility_epoch_sync[0], visibility_epoch};
+        previous_hs <= video_hs;
+        if (epoch_changed || !visible_sync[1]) begin
+            video_active <= 0;
+            if (!visible_sync[1] && !visible_line)
+                visibility_ack <= visibility_epoch_sync[1];
+            if (line_boundary) begin
+                visible_line <= 0;
+                if (!visible_sync[1]) visibility_ack <= visibility_epoch_sync[1];
+            end
+        end else if (line_boundary) begin
+            visible_line <= 1;
+            video_active <= 1;
+        end
+    end
+    wire visible_request = config_reset_n && visible_allow;
     assign HDMI_TX_DE = visible_request && visible_sync[1] && visible_line && video_active && video_de;
     assign HDMI_TX_HS = visible_line && video_hs;
     assign HDMI_TX_VS = visible_line && video_vs;
