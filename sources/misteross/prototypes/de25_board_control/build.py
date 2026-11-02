@@ -205,7 +205,11 @@ def overlay_project(output, board, sources, identity, record=None):
         # primitive with unconnected outputs (Quartus 129015/24265).
         child = (f'load_system {{{project / "hps_subsys/hps_subsys.qsys"}}}\n'
                  'remove_interface fpga2hps\nremove_interface fpga2hps_clk\nremove_interface fpga2hps_rst\n'
-                 'set_instance_parameter_value agilex_hps f2s_data_width 0\n'
+                 # Saved vendor instances are generic components; their
+                 # parameters belong to the loaded child IP, not the wrapper.
+                 'load_component agilex_hps\n'
+                 'set_component_parameter_value f2s_data_width 0\n'
+                 'save_component\n'
                  f'save_system {{{project / "hps_subsys/hps_subsys.qsys"}}}\n'
                  f'load_system {{{project / "jtag_subsys/jtag_subsys.qsys"}}}\n'
                  'remove_interface hps_m_master\nremove_instance hps_m\n'
@@ -217,11 +221,10 @@ def overlay_project(output, board, sources, identity, record=None):
         ends = [i for i,line in enumerate(lines) if line.startswith('save_system ') and str(project/'qsys_top.qsys') in line]
         if len(ends) != 1:
             raise ValueError('captured top-system save anchor differs')
-        lines.insert(ends[0], 'remove_connection subsys_debug.hps_m_master/ace5lite_cache_coherency_translator_0.s_axi\n'
-                     'remove_connection ace5lite_cache_coherency_translator_0.m_ace5lite/subsys_hps.fpga2hps\n'
-                     'remove_connection clk_100.out_clk/subsys_hps.fpga2hps_clk\n'
-                     'remove_connection rst_in.out_reset/subsys_hps.fpga2hps_rst\n'
-                     'remove_instance ace5lite_cache_coherency_translator_0\n'
+        # Reloading the parent after removing child exports already drops
+        # their connections. Removing the remaining translator also removes
+        # its clock/reset routes; do not remove the vanished routes twice.
+        lines.insert(ends[0], 'remove_instance ace5lite_cache_coherency_translator_0\n'
                      'add_connection subsys_periph.fes_embedded_mem subsys_hps.f2sdram_adapter_axi4_sub\n'
                      'set_connection_parameter_value subsys_periph.fes_embedded_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n'
                      '# Hold both remaining maintenance masters; the coherent path is removed.\n'
