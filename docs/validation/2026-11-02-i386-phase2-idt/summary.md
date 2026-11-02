@@ -16,11 +16,15 @@ PR #1373).
   and ARPL ([What the slice builds](#what-the-slice-builds)).
 - The RTL and the i386 lock's Yosys netlist match Bochs on every lockstep
   run: 1,758,699 corpus states, 32,000 random programs, 8,000 protected-mode
-  programs with 13,640 deliveries through the IDT and 1,427 shutdowns, 47
+  programs with 13,640 deliveries through the IDT and 1,427 shutdowns, 51
   new directed protected-mode cases, and the directed, unreal-mode and memory
   cases. Against slice 1's report only timing differs: one corpus test
   (23 cycles) and the two real-mode nested-fault cases, which now run on to
   shutdown ([Lockstep](#lockstep)).
+- A protected-mode IRET and RETF read their stack slots in Bochs's order,
+  from the top, so a frame past a 16-bit stack's limit raises #SS(0) before
+  any read ([#1424](https://github.com/DeanoC/fes/issues/1424), found by the
+  CS-limit follow-up's random programs; [Review](#review)).
 - The SingleStepTests runner gives slice 1's results. test386.asm on the RTL
   passes its real-mode part and stops at POST 08h, which turns paging on
   with protected mode; none of its protected-mode part can run before
@@ -73,7 +77,14 @@ PR #1373).
     rerun, the unit tests and `make test-changed`.
 
   Later commits change only this record, the design doc's Phase 2 row, the
-  sim README and the review fix.
+  sim README, the review fix and `d9773b8f2`.
+- `d9773b8f2` is the #1424 fix: protected-mode IRET and RETF read their slots
+  in Bochs's order. The lockstep and the netlist lockstep below are of it
+  (the RTL run's testbench was built just before a comment in
+  `fes_i386_decode.sv` was reworded for the commit). The seal is of
+  `7224b11f6`, before it: under the pc386 reseal exemption a post-seal RTL
+  fix needs no reseal before merge, and the next sealing PR covers it
+  ([Seal](#quartus-seal)).
 - Oracle: Bochs 3.1 at CPU level 3 (the `fes-i386-oracle` build), corpus
   SingleStepTests/80386 `459d49fbe628`, test386.asm `cfd052d1e64d`.
 - Verilator 5.032 on Powerboat. The netlist lockstep used the i386 lock's
@@ -112,14 +123,15 @@ has the detail. In short, at CPL 0, following Bochs 3.1's
   AT's shutdown detect does. Real mode uses the same rules (an IVT read past
   IDTR's limit is #GP there).
 - **IRET and IRETD** (`piret`) to the same privilege, with
-  `iret_protected`'s CS and offset checks. IRETD loads RF; an image with VM
-  set (a return to V86 mode) stops as not built, as does a return to RPL
-  above 0.
+  `iret_protected`'s CS and offset checks. They read EFLAGS's slot, then
+  CS's, then the offset's, as Bochs does, so a frame past the stack's limit
+  raises #SS(0) before any read. IRETD loads RF; an image with VM set (a
+  return to V86 mode) stops as not built, as does a return to RPL above 0.
 - **Far CALL** direct and through m16:16 or m16:32 (`pcall`, `pcallm`) and
   **RETF** and **RETF imm16** (`pretf`) to a code descriptor at the same
-  privilege, with `call_protected`'s and `return_protected`'s checks. A
-  call gate, TSS or task gate, or a return to an outer privilege, stops as
-  not built.
+  privilege, with `call_protected`'s and `return_protected`'s checks. RETF
+  reads CS's slot before the offset's, as Bochs does. A call gate, TSS or
+  task gate, or a return to an outer privilege, stops as not built.
 - **LLDT and SLDT** (`plldt`); selectors with TI=1 now read the LDT that
   LLDT loaded, checked against its limit. A null LLDT leaves LDTR invalid,
   so every TI=1 selector then faults.
@@ -209,12 +221,29 @@ Phase 2, which the design means to be enough for DOS extenders.
 
 ## Lockstep
 
-`scripts/test_fes_i386_lockstep.py` at `7224b11f6`, after the review's
-fix ([report](lockstep-report.json)), and with `--yosys` on the i386 lock's
-Yosys `238eac9a4` ([report](lockstep-netlist-report.json)). The two reports
-are identical but for the netlist's `yosys` field. Against the run at
-`9314cad59`, before the review, only the protected-mode cases differ (two
-new ones); every other field is unchanged.
+`scripts/test_fes_i386_lockstep.py` at `d9773b8f2`, with the review's fix
+and #1424's ([report](lockstep-report.json)), and with `--yosys` on the
+i386 lock's Yosys `238eac9a4` ([report](lockstep-netlist-report.json)).
+The two reports are identical but for the netlist's `yosys` field. Against
+the run at `7224b11f6`, before #1424's fix, the protected-mode cases differ
+(four new), and the random and protected-mode programs' timing moves with
+the new read order: 417 more cycles of 115,115,194 in the random programs
+and 1,914 fewer of 9,543,771 in the protected-mode ones, with a few more
+port 0 reads (74 and 100) as their loads reach the cache in another order.
+Every pass, retirement, delivery and stop count is unchanged, and so is
+every corpus, directed, unreal-mode and memory field.
+
+Sixteen more seeds of random programs (17-32, 2,000 each, `d9773b8f2`'s
+testbench), past the 16 the lockstep runs and among them #1424's
+`random#17#229`, give 31,999 passes and one failure, `random#26#1633`. It
+fails the same way on the RTL before the #1424 fix and without fetch
+latency: an INTR delivered in real mode on an unreal stack (SS base
+C5000000h, ESP 0, the frame past the lockstep's 16 MiB of RAM), after whose
+three pushes Bochs nests a #GP(0) that the RTL does not raise. Bochs's
+`real_mode_int` raises #GP there only for a vector whose IP is past CS's
+cached limit, yet the reported CS limit was FFFFh throughout, so whether the
+RTL, the harness or the oracle is at fault is still open:
+[#1428](https://github.com/DeanoC/fes/issues/1428).
 
 | Run | Result |
 | --- | --- |
@@ -224,7 +253,7 @@ new ones); every other field is unchanged.
 | Unbuilt encodings | 52,320 outside SCOPE, all stopped as not built |
 | Directed cases | 40 pass |
 | Unreal-mode cases | 6 pass |
-| Protected-mode cases (new) | 47 pass |
+| Protected-mode cases (new) | 51 pass |
 | Memory cases (DMA, FLUSH) | 26 pass |
 
 The latency-free reruns of seeds 1 and 2 retire the same trace, and the
@@ -314,7 +343,7 @@ Two harness rules are new:
   gives #SS(0), and the harness takes the oracle's error code from the
   frame at the handler's SS:ESP.
 
-**The protected-mode cases** (`--mode pmode`, new, 47): from real mode,
+**The protected-mode cases** (`--mode pmode`, new, 51): from real mode,
 LGDT, LIDT, PE set and a far jump to 16-bit code, then each of:
 - `#UD`; `#NP(sel)`; `#GP(sel)` past the GDT; `#GP(sel)` and `#SS(sel)` for
   SS; `#GP(0)` and `#SS(0)` at FFFFh; `#DE` through a 386 and a 286 gate;
@@ -335,6 +364,10 @@ LGDT, LIDT, PE set and a far jump to 16-bit code, then each of:
   limit, to a not-present CS, and with SP 2 (no 64 KiB wrap: #SS(0), then
   #DF, then shutdown); RETF to data, IRET to a not-present CS, RETF to RPL 3
   (not built);
+- IRET, IRETD, RETF and 32-bit RETF whose frame runs past a 16-bit stack's
+  limit at 10000h, with SS based at A0000h so the stack is in the MMIO
+  window: #SS(0) with no read, as Bochs reads the top slot first (added for
+  #1424, [Review](#review));
 - LLDT and LDT loads, a not-present LDT descriptor, a TI=1 load after a null
   LLDT, LLDT of a data descriptor; LTR with STR, LTR of a busy TSS, LTR of a
   null selector; LAR, LSL, VERR and VERW of code, data, a TSS and a selector
@@ -390,11 +423,13 @@ Scratch disks, not committed:
 | `--suite governor` ([report](governor-report.json)) | `max`, 286-12, 386SX-16 and 386DX-40 pass: TP 210,892, 27,453, 39,932 and 104,609, as in slice 1's record, each within 0.04% of the table. 386DX-25 prints `GOV TP=0000FF5F DC=04A4 C18=0011F492` (65,375, 1,188, 1,176,722: within one count of slice 1's), then `system_tb` throws `port 2: a write burst cut short, then another begun at clock 119811804`, the bench gap [#1372](https://github.com/DeanoC/fes/issues/1372) that main's A20 record documents for the same run at the same clock. `--seed 1` gives TP 65,376 and the same throw |
 
 These pc386 runs are of trees before the review fix (`7baa2a6f3`), which
-changes only a protected-mode IRET with NT set; the boot retires nothing
-with PE set (`pe_entries` 0), and the HIMEMX boots run only HIMEMX's
-unreal-mode set-up with PE set. A rerun of `--suite boot --cpu rtl` at
-`7224b11f6` hit this session's 90-minute cap on a loaded host before it
-finished, so it gives no result either way.
+changes only a protected-mode IRET with NT set, and before the #1424 fix
+(`d9773b8f2`), which changes only the order of a protected-mode IRET's and
+RETF's stack reads. The boot retires nothing with PE set (`pe_entries` 0),
+and the HIMEMX boots run only HIMEMX's unreal-mode set-up with PE set, no
+IRET or RETF among it, so none of them reaches either change. A rerun of
+`--suite boot --cpu rtl` at `7224b11f6` hit this session's 90-minute cap
+on a loaded host before it finished, so it gives no result either way.
 
 The misteross unit tests pass (1,627, 74 skipped), and `make test-changed`
 against main `3d2e17f84` passes every lane it plans: the planner's tests,
@@ -466,6 +501,12 @@ seals' inputs differ only in `fes_i386_cpu.sv`'s `FES_I386_DEBUG` block,
 which nothing defines; main's merge changes no input. Their spread is
 Quartus's placement noise on one design.
 
+`d9773b8f2`, the #1424 fix, comes after the final seal and is not sealed:
+it changes two microcode words and the decoded first uop of a
+protected-mode IRET and RETF (its slot, its temporary, and `vmchk` on
+IRET's). The pc386 reseal exemption lets a post-seal RTL fix merge without
+a reseal; the next sealing PR covers the tree.
+
 ## Kit B smoke test: FreeDOS with HIMEMX, and DOOM's start
 
 Two runs, claimed and released in Kit B's status file on 2 November 2026:
@@ -532,6 +573,32 @@ built:
   RTL stops as not built and Bochs faults on TR's backlink. Without the
   check it fails: Bochs raises #TS and the RTL returned and then took #GP.
 
+The CS-limit follow-up's random programs (validating #1414) found one more,
+filed as [#1424](https://github.com/DeanoC/fes/issues/1424): with an
+injected interrupt's frame wrapped to the top of a 16-bit stack, the
+handler's IRET reads its slots at SP, SP+2 and 10000h, past the limit.
+Bochs's `iret_protected` reads EFLAGS's slot first, then CS's, then the
+offset's, so it raises #SS(0) before reading anything; the RTL read the
+offset's and CS's slots first. With the stack in the lockstep's MMIO window
+those were device reads Bochs never made (`random#17#229`, a seed past the
+16 the lockstep runs, fails `mmio-reads.0.4`). `return_protected` likewise
+reads RETF's CS slot before its offset's, which the RTL read first.
+`d9773b8f2` reads both in Bochs's order:
+- In protected mode DC's first uop reads IRET's EFLAGS slot into T4,
+  carrying `vmchk` (under `ntchk`, which still wins in EX), or RETF's CS
+  slot into T0. `piret` then reads CS's slot and the offset's, and `pretf`
+  the offset's. No routine grows; two ROM words change.
+- `random#17#229` now passes: #SS(0) with no device read.
+- Four directed cases (`iret-ss-limit`, `iretd-ss-limit`, `retf-ss-limit`,
+  `retf32-ss-limit`) put SS at A0000h and the frame past its limit. They
+  pass, and with the RTL before the fix they fail, the RTL reading 4, 8, 2
+  and 4 device bytes before the #SS.
+
+The follow-up also filed [#1425](https://github.com/DeanoC/fes/issues/1425),
+a harness gap for a REP string that stores over its own bytes in a run
+without the window; it is the lockstep's, not this slice's, and is not in
+this record.
+
 ## Yosys workarounds
 
 None. `10956ac5c` made a packed struct's 8-bit stack-slot displacement
@@ -573,3 +640,6 @@ lists them; new or changed in this slice:
 - **The general CS-limit check**, for code under a limit other than FFFFh
   (16-bit) or FFFFFFFFh (32-bit): DOS/4GW's kernel runs in such segments.
 - **The bench gap #1372**, which 386DX-25's governor run meets.
+- **[#1428](https://github.com/DeanoC/fes/issues/1428)**, `random#26#1633`
+  from the extra seeds ([Lockstep](#lockstep)), and the CS-limit
+  follow-up's harness gap [#1425](https://github.com/DeanoC/fes/issues/1425).
