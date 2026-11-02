@@ -77,6 +77,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
         'parameters': {'core_id': 'fes.zx81', 'device': DEVICE, 'hps_initialization': 'HPS FIRST',
             'f2sdram_master_profile': 'bram-computer', 'fabric_initiator_policy': FABRIC,
             'f2s_data_width': 0, 'f2sdram_data_width': 0, 'hps_warm_reset_handshake': True,
+            'reset_timing_policy': 'timed-bram-system-reset-release-v1',
             'signoff_policy': async_inputs.POLICY, 'seed': 1, 'threads': 2,
             'pixel_clock_hz': 74250000, 'system_clock_hz': 100000000,
             'execution_sha256': execution_digest(execution)}})

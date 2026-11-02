@@ -96,11 +96,15 @@ def timed_scanout_sdc(source):
     return replace_once(source, "exactly ten qualifier", "exactly eight qualifier")
 
 
-def timed_vendor_reset_sdc(original):
+def timed_vendor_reset_sdc(original, *, timed_instances=TIMED_RESET_INSTANCES):
     if sha(original) != RESET_SDC_SHA256:
         raise ValueError("generated reset SDC differs from reviewed Quartus 26.3 source")
+    # MENU has a third system receiver for its scanout bridge. BRAM ZX81
+    # shares only the original top/peripheral pair; no other scope is reviewed.
+    if timed_instances not in (TIMED_RESET_INSTANCES, TIMED_RESET_INSTANCES[:2]):
+        raise ValueError("unreviewed same-clock reset receiver selection")
     source = original.decode()
-    guard = "[lsearch -exact {" + " ".join(TIMED_RESET_INSTANCES) + "} [get_current_instance]] < 0"
+    guard = "[lsearch -exact {" + " ".join(timed_instances) + "} [get_current_instance]] < 0"
     for pin in ("aclr", "clrn"):
         source = replace_once(source, "if {$" + pin + "_counter > 0} {",
                               "if {$" + pin + "_counter > 0 && " + guard + "} {")

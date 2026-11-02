@@ -21,6 +21,8 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
 BOARD = "sources/misteross/boards/de25nano/"
 JTAG_CONTROL_BRIDGE_BASE = 0x00100000
+TIMED_RESET_RELEASE = "timed-bram-system-reset-release-v1"
+TIMED_RESET_INSTANCES = ("soc_inst|rst_controller", "soc_inst|subsys_periph|rst_controller")
 LOCAL = ("build.py", "board.v", "clocks.sdc", "integrate.tcl",
          "managed_bram.py",
          "fes_de25_computer.v", "fes_de25_computer_hw.tcl", "tape_store.v", "video.v",
@@ -272,8 +274,8 @@ def prepare_canonical(directory, hps, sources, snapshot, build_id):
     clock_source = sources[BOARD + "scanout/clocks.sdc"].decode()
     start = clock_source.index("# The two external inputs terminate")
     stop = clock_source.index("# Configuration release,", start)
-    with (local / "clocks.sdc").open("a") as constraints:
-        constraints.write("\n" + clock_source[start:stop])
+    (local / "clocks.sdc").write_text(timed_computer_sdc(
+        sources[BOARD + "zx81-hps/clocks.sdc"].decode()) + "\n" + clock_source[start:stop])
     hw = local / "fes_de25_computer_hw.tcl"
     hw.write_text(replace_once(hw.read_text(), "add_fileset QUARTUS_SYNTH QUARTUS_SYNTH\n",
         "add_parameter BUILD_ID STD_LOGIC_VECTOR 0x0\n"
@@ -290,12 +292,104 @@ def prepare_canonical(directory, hps, sources, snapshot, build_id):
     computer = inputs["computer"]
     computer.update(build_id=build_id, build_identity_scheme="canonical-functional-record-v2",
         managed_fabric=managed.POLICY, managed_verifier_sha256=sha(sources[BOARD + "zx81-hps/managed_bram.py"]),
+        reset_timing=TIMED_RESET_RELEASE,
         inherited_probe_and_debug_masters=False, hdmi_inputs=hdmi_receipt,
         jtag_control_bridge_base=None, top_sha256=hps.digest(project / "golden_top.v"),
         integration_sha256=hps.digest(script), qsf_sha256=hps.digest(project / "golden_top.qsf"))
     computer["source_sha256"] = {name: hps.digest(local / name) for name in computer["source_sha256"]}
     computer["source_sha256"].update({name: sha(data) for name, data in files.items()})
     (directory / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
+
+
+def timed_computer_sdc(source):
+    # The peripheral reset is already released by the same 100 MHz clock as
+    # sys_release. Keep both pixel-domain ingress cuts and time system ingress.
+    for pin in ("aclr", "clrn"):
+        source = replace_once(source, "*|video|sys_release*|" + pin + " ", "")
+    source = replace_once(source, "get_collection_size $owner_reset_pins] != 4",
+                          "get_collection_size $owner_reset_pins] != 2")
+    source = replace_once(source, "4 reset ingress pins", "2 pixel reset ingress pins")
+    return replace_once(source,
+        "# Raw epoch reset enters two per-domain release chains. Recovery/removal from\n"
+        "# their locally synchronized outputs to owner state remain timed.",
+        "# Peripheral reset release and sys_release share the 100 MHz system clock;\n"
+        "# time that ingress and its downstream owner state. Only pixel ingress is asynchronous.")
+
+
+def reset_timing_helper(directory):
+    inputs = json.loads((directory / "inputs.json").read_text())
+    computer = inputs.get("computer", {})
+    if (inputs.get("f2sdram_master_profile") != "bram-computer" or
+            computer.get("build_identity_scheme") != "canonical-functional-record-v2" or
+            computer.get("hps_initialization") != "HPS FIRST" or
+            computer.get("reset_timing") != TIMED_RESET_RELEASE):
+        raise ValueError("same-clock computer reset timing requires canonical HPS-first BRAM ZX81")
+    return load(directory.parent / "functional-source" / BOARD / "scanout/build.py",
+                "canonical_bram_reset_timing")
+
+
+def repair_generated_reset_timing(directory):
+    scanout = reset_timing_helper(directory)
+    project = directory / "project"
+    originals = directory / "reset-timing-originals"
+    originals.mkdir(exist_ok=False)
+    files = {}
+    for path in scanout.reset_sdc_files(project):
+        name = path.relative_to(project).as_posix()
+        original = path.read_bytes()
+        changed = scanout.timed_vendor_reset_sdc(original, timed_instances=TIMED_RESET_INSTANCES)
+        retained = originals / name
+        retained.parent.mkdir(parents=True, exist_ok=True)
+        retained.write_bytes(original)
+        path.write_bytes(changed)
+        files[name] = {"before_sha256": sha(original), "after_sha256": sha(changed)}
+    receipt = {"policy": TIMED_RESET_RELEASE, "clock": "pll_inst|iopll_0_outclk0",
+               "timed_instances": list(TIMED_RESET_INSTANCES), "files": files}
+    (directory / "reset-timing.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+    return verify_generated_reset_timing(directory)
+
+
+def verify_system_reset_receivers(project):
+    for name, clock, reset in (
+            ("qsys_top/synth/qsys_top.v", "clk_100_out_clk_clk", "~rst_in_out_reset_reset"),
+            ("peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v",
+             "periph_clk_out_clk_clk", "~periph_rst_in_out_reset_reset")):
+        source = re.sub(r"/\*.*?\*/|//[^\n]*", "", (project / name).read_text(), flags=re.S)
+        blocks = re.findall(r"\baltera_reset_controller\s*#\((.*?)\)\s+rst_controller\s*\((.*?)\);", source, re.S)
+        if len(blocks) != 1:
+            raise ValueError("computer system reset receiver inventory differs: " + name)
+        parameters, ports = ({key: value.strip() for key, value in re.findall(r"\.(\w+)\s*\(([^()]*)\)", text)}
+                             for text in blocks[0])
+        if (any(parameters.get(key) != value for key, value in {
+                "NUM_RESET_INPUTS": "1", "OUTPUT_RESET_SYNC_EDGES": '"deassert"', "SYNC_DEPTH": "2"}.items()) or
+                ports.get("clk") != clock or ports.get("reset_in0") != reset):
+            raise ValueError("computer system reset receiver clock/source/release differs: " + name)
+
+
+def verify_generated_reset_timing(directory):
+    scanout = reset_timing_helper(directory)
+    project = directory / "project"
+    verify_system_reset_receivers(project)
+    receipt = json.loads((directory / "reset-timing.json").read_text())
+    names = {p.relative_to(project).as_posix() for p in scanout.reset_sdc_files(project)}
+    if (set(receipt) != {"policy", "clock", "timed_instances", "files"} or
+            receipt["policy"] != TIMED_RESET_RELEASE or receipt["clock"] != "pll_inst|iopll_0_outclk0" or
+            receipt["timed_instances"] != list(TIMED_RESET_INSTANCES) or set(receipt["files"]) != names):
+        raise ValueError("computer same-clock reset timing receipt differs from the selected profile")
+    for name in names:
+        original = (directory / "reset-timing-originals" / name).read_bytes()
+        changed = scanout.timed_vendor_reset_sdc(original, timed_instances=TIMED_RESET_INSTANCES)
+        if (receipt["files"][name] != {"before_sha256": sha(original), "after_sha256": sha(changed)} or
+                (project / name).read_bytes() != changed):
+            raise ValueError("generated computer reset constraints changed: " + name)
+    raw = directory.parent / "functional-source" / BOARD
+    scanout_sdc = (raw / "scanout/clocks.sdc").read_text()
+    start = scanout_sdc.index("# The two external inputs terminate")
+    stop = scanout_sdc.index("# Configuration release,", start)
+    expected = timed_computer_sdc((raw / "zx81-hps/clocks.sdc").read_text()) + "\n" + scanout_sdc[start:stop]
+    if (project / "fes_mailbox/clocks.sdc").read_text() != expected:
+        raise ValueError("computer same-clock reset SDC differs from captured source")
+    return receipt
 
 
 def generated_computer_qsf(prepared):
@@ -334,7 +428,8 @@ def verify_canonical(directory, hps):
     hdmi = scanout.verify_hdmi_inputs(project, inputs, hps, profile="computer", board_file="board.v")
     dma = load(directory.parent / "functional-source" / BOARD / "scanout/linux_dma.py", "canonical_bram_sdc_review")
     return {"identity": identity, "fabric": helper.verify(project, hps.module_parameters, hps.digest),
-            "hdmi_inputs": hdmi, "retired_debug_constraints": dma.verify_managed_debug_constraints(project)}
+            "hdmi_inputs": hdmi, "retired_debug_constraints": dma.verify_managed_debug_constraints(project),
+            "reset_timing": verify_generated_reset_timing(directory)}
 
 
 def pll_review(folder, expected):
@@ -416,6 +511,9 @@ def verify_computer(project, hps):
 def generate(output, hps, tool, version):
     directory = output / "hps"; project = directory / "project"
     hps.generate_project(directory, tool, version)
+    inputs = json.loads((directory / "inputs.json").read_text())
+    if inputs.get("f2sdram_master_profile") == "bram-computer":
+        repair_generated_reset_timing(directory)
     generation = json.loads((directory / "generation.json").read_text())
     generation["computer"] = verify_computer(project, hps)
     generation["computer"]["pll_reviews"] = {"system": pll_review(project / "ip/pll", 100000000),

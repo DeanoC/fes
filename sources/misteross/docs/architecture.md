@@ -47,6 +47,15 @@ candidate. Firmware pairing, electrical/reset timing and native catalog
 launch/return/relaunch acceptance remain separate; this recipe supplies no
 in-play allocated display capability. The maintenance recipe keeps its
 diagnostic profile and cannot substitute for canonical source production.
+The canonical `timed-bram-system-reset-release-v1` profile removes the clear
+exceptions from the two generated 100 MHz top/peripheral reset receivers and
+the video owner's same-clock system release. Pixel reset ingress keeps its
+asynchronous exceptions. The six generated reset SDCs must match the reviewed
+Quartus 26.3 originals; preparation and generation retain the selected policy,
+original bytes and derived hashes, and compilation rechecks both the generated
+and board constraints before Linux phase conversion. This enables reset
+recovery/removal analysis; other reset findings and physical acceptance remain
+required. The standalone maintenance constraints keep their diagnostic profile.
 
 `scripts/build_de25_menu_package.py` prepares the allocated-buffer MENU with a
 canonical format-2 functional record before generating IP. Its record binds the

@@ -128,19 +128,23 @@ class ScanoutBuildTests(unittest.TestCase):
     def test_actual_sdc_guard_times_only_selected_receivers_and_preserves_other_cuts(self):
         raw = gzip.decompress((B.HERE.parents[2] /
             "tests/fixtures/de25_reset_controller.sdc.gz").read_bytes())
-        changed = B.timed_vendor_reset_sdc(raw).decode()
-        conditions = re.findall(r"(?m)^if \{(\$(?:aclr|clrn)_counter > 0 && .+)\} \{$", changed)
-        self.assertEqual(len(conditions), 2)
         others = ("soc_inst|rst_controller_001", "soc_inst|subsys_periph|fes_ctrl_cdc|fifo|read_reset_sync",
                   "soc_inst|subsys_debug|fpga_m|rst_controller")
-        script = ["proc get_current_instance {} {return $::scope}", "set aclr_counter 1", "set clrn_counter 1"]
-        for condition in conditions:
-            for scope in (*B.TIMED_RESET_INSTANCES, *others):
-                script += ["set scope {" + scope + "}", "if {" + condition + "} {puts cut} else {puts timed}"]
-        result = subprocess.run([shutil.which("tclsh")], input="\n".join(script), text=True,
-                                capture_output=True, check=True, timeout=10)
-        self.assertEqual(len(B.TIMED_RESET_INSTANCES), 3)
-        self.assertEqual(result.stdout.splitlines(), (["timed"] * 3 + ["cut"] * 3) * 2)
+        for selected in (B.TIMED_RESET_INSTANCES, B.TIMED_RESET_INSTANCES[:2]):
+            changed = B.timed_vendor_reset_sdc(raw, timed_instances=selected).decode()
+            conditions = re.findall(r"(?m)^if \{(\$(?:aclr|clrn)_counter > 0 && .+)\} \{$", changed)
+            self.assertEqual(len(conditions), 2)
+            script = ["proc get_current_instance {} {return $::scope}", "set aclr_counter 1", "set clrn_counter 1"]
+            for condition in conditions:
+                for scope in (*B.TIMED_RESET_INSTANCES, *others):
+                    script += ["set scope {" + scope + "}", "if {" + condition + "} {puts cut} else {puts timed}"]
+            result = subprocess.run([shutil.which("tclsh")], input="\n".join(script), text=True,
+                                    capture_output=True, check=True, timeout=10)
+            expected = ["timed" if scope in selected else "cut" for scope in (*B.TIMED_RESET_INSTANCES, *others)] * 2
+            self.assertEqual(result.stdout.splitlines(), expected)
+        for selected in ((), B.TIMED_RESET_INSTANCES[:1], (*B.TIMED_RESET_INSTANCES, "other")):
+            with self.assertRaisesRegex(ValueError, "unreviewed.*receiver"):
+                B.timed_vendor_reset_sdc(raw, timed_instances=selected)
 
     def test_compile_refuses_regenerated_reset_cuts_before_linux_conversion(self):
         output, directory, hps = self.reset_timing_fixture()

@@ -44,6 +44,7 @@ class ZX81ProducerTests(unittest.TestCase):
         self.assertEqual(value['parameters']['fabric_initiator_policy'],producer.FABRIC)
         self.assertEqual((value['parameters']['f2s_data_width'],value['parameters']['f2sdram_data_width']),(0,0))
         self.assertEqual(value['parameters']['hps_initialization'],'HPS FIRST')
+        self.assertEqual(value['parameters']['reset_timing_policy'],'timed-bram-system-reset-release-v1')
         changed=dict(self.tools,quartus='changed actual compiler')
         other=producer.create_build_record(self.root,'https://github.com/DeanoC/fes',self.revision,changed,self.execution,self.captured)
         self.assertNotEqual(build_identity(record),build_identity(other))

@@ -1,5 +1,6 @@
 """Focused source, PLL and generated-topology guards for the HPS ZX81 lane."""
 import hashlib
+import gzip
 import importlib.util
 import io
 import json
@@ -106,6 +107,73 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertIn("sys_release*|aclr", sdc)
         self.assertIn("pix_release*|aclr", sdc)
         self.assertNotIn("set_clock_groups", sdc)
+
+    def reset_timing_fixture(self):
+        directory = self.root / "hps"
+        project = directory / "project"
+        (project / "fes_mailbox").mkdir(parents=True)
+        raw = self.root / "functional-source" / B.BOARD
+        for name in ("scanout/build.py", "scanout/clocks.sdc", "zx81-hps/clocks.sdc"):
+            path = raw / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes((B.HERE.parent / name).read_bytes())
+        scanout_sdc = (raw / "scanout/clocks.sdc").read_text()
+        start = scanout_sdc.index("# The two external inputs terminate")
+        stop = scanout_sdc.index("# Configuration release,", start)
+        (project / "fes_mailbox/clocks.sdc").write_text(B.timed_computer_sdc(
+            (raw / "zx81-hps/clocks.sdc").read_text()) + "\n" + scanout_sdc[start:stop])
+        (directory / "inputs.json").write_text(json.dumps({"f2sdram_master_profile": "bram-computer",
+            "computer": {"build_identity_scheme": "canonical-functional-record-v2", "hps_initialization": "HPS FIRST",
+                         "reset_timing": B.TIMED_RESET_RELEASE}}))
+        vendor = gzip.decompress((B.HERE.parents[2] / "tests/fixtures/de25_reset_controller.sdc.gz").read_bytes())
+        for index in range(6):
+            path = project / f"generated-{index}/altera_reset_controller.sdc"
+            path.parent.mkdir()
+            path.write_bytes(vendor)
+        for name, clock, reset in (
+                ("qsys_top/synth/qsys_top.v", "clk_100_out_clk_clk", "~rst_in_out_reset_reset"),
+                ("peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v",
+                 "periph_clk_out_clk_clk", "~periph_rst_in_out_reset_reset")):
+            path = project / name
+            path.parent.mkdir(parents=True)
+            path.write_text('altera_reset_controller #(.NUM_RESET_INPUTS(1), .OUTPUT_RESET_SYNC_EDGES("deassert"), '
+                '.SYNC_DEPTH(2)) rst_controller (.clk(' + clock + '), .reset_in0(' + reset + '));\n')
+        return directory
+
+    def test_canonical_reset_derivation_keeps_pixel_cuts_and_rechecks_vendor_and_board_inputs(self):
+        directory = self.reset_timing_fixture()
+        record = B.repair_generated_reset_timing(directory)
+        self.assertEqual(record["timed_instances"], list(B.TIMED_RESET_INSTANCES))
+        self.assertEqual(len(record["files"]), 6)
+        self.assertEqual(B.verify_generated_reset_timing(directory), record)
+        sdc = (directory / "project/fes_mailbox/clocks.sdc").read_text()
+        self.assertNotIn("sys_release*|", sdc)
+        self.assertIn("pix_release*|aclr", sdc)
+        for name in ("project/generated-0/altera_reset_controller.sdc",
+                     "reset-timing-originals/generated-0/altera_reset_controller.sdc", "project/fes_mailbox/clocks.sdc"):
+            path = directory / name
+            original = path.read_bytes()
+            try:
+                path.write_bytes(original + b"\n")
+                with self.subTest(name=name), self.assertRaises(ValueError):
+                    B.verify_generated_reset_timing(directory)
+            finally:
+                path.write_bytes(original)
+
+    def test_reset_repair_refuses_changed_controller_clock_reset_or_release(self):
+        directory = self.reset_timing_fixture()
+        B.repair_generated_reset_timing(directory)
+        path = directory / "project/qsys_top/synth/qsys_top.v"
+        original = path.read_text()
+        for before, after in (("clk_100_out_clk_clk", "other_clock"),
+                              ("~rst_in_out_reset_reset", "other_reset"), ('"deassert"', '"both"'),
+                              ("SYNC_DEPTH(2)", "SYNC_DEPTH(3)")):
+            try:
+                path.write_text(original.replace(before, after))
+                with self.subTest(before=before), self.assertRaisesRegex(ValueError, "clock/source/release differs"):
+                    B.verify_generated_reset_timing(directory)
+            finally:
+                path.write_text(original)
 
     def test_historical_quartus_report_is_not_presented_as_current_head_evidence(self):
         record = B.ROOT / "sources/misteross/docs/validation/2026-10-29-de25-zx81-hps"
