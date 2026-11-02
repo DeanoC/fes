@@ -133,6 +133,15 @@ and retains the eleven exact generated inputs and verifies the derived wiring
 before and after compilation. Existing reset SDCs stay unchanged. This source
 repair does not close the remaining reset or HDMI signoff findings; package
 and native acceptance remain separate gates.
+The canonical BRAM ZX81 producer is `scripts/build_de25_zx81_package.py`.
+Its board-selected recipe binds the actual Quartus tools and source before
+generation, removes inherited memory/maintenance initiators and disables both
+fabric-to-HPS memory interfaces through supported IP settings. HPS control and
+the warm-reset conduit remain. It reuses the reviewed HDMI controller/input
+derivation and the complete signoff/independent-RBF package gate. Compile-only
+retains an unadmitted candidate; firmware pairing and native catalog/kit
+acceptance remain required. The standalone ZX81 maintenance recipe remains
+explicitly diagnostic.
 The existing DE10-Nano producers, package admission and Quartus 17.0.2
 oracles retain their current target. DE25-Nano HPS, boot media, runtime,
 HDMI and memory integration are not implemented by this diagnostic.

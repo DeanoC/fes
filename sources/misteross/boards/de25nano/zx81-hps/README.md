@@ -178,6 +178,24 @@ conduit. It gates execution with PR RUNNING as well as the mailbox's RUN and
 transport health; freeze registers a complete idle memory request. This
 standalone diagnostic retains its internal-RAM selection and no PR control.
 
+## Canonical source package
+
+The normal board-selected producer is
+`scripts/build_de25_zx81_package.py`, selected by the parent registry for
+`fes.zx81` on `de25-nano`. It supplies a functional identity before generation,
+removes all inherited fabric memory/debug initiators and disables both fabric
+memory bridges using the supported HPS settings. The generated complete
+initiator/port inventory, source hashes, actual BUILD_ID, HDMI derivation and
+PLL values are rechecked before and after compilation. HPS CPU control and
+the warm-reset conduit remain. This is the existing BRAM computer contract;
+it adds no DMA or in-play allocated MENU plane.
+
+Use the producer's `--compile-only` option to retain an unadmitted candidate.
+Package export requires the shared complete timing/signoff gate, the two
+previously approved inputs' fresh fitted review and an independent identical
+RBF. No command programs hardware. The three HPS setting changes require their
+own firmware/native acceptance; a diagnostic or source build grants neither.
+
 ## HPS-first Linux loading candidate
 
 For the Linux FPGA-manager path, explicitly select the HPS-first profile:

@@ -19,6 +19,29 @@ selection and transfer. libmister-runtime programs the FPGA.
 
 ## DE25-Nano board diagnostic
 
+`scripts/build_de25_zx81_package.py` provides the canonical format-2 BRAM ZX81
+recipe for explicit `fes.zx81`/`de25-nano` lookup. It binds captured machine,
+transport, ROM, board, producer and actual installed Quartus execution inputs
+before Qsys generation and uses that BUILD_ID in both the HDL parameter and
+the project macro. Its managed profile removes the DDR probe, external/JTAG
+masters, ACE5-Lite translator and unused F2SDRAM adapter. Supported
+`f2s_data_width=0` and `f2sdram_data_width=0` settings disable both fabric memory
+interfaces; `Rst_hps_warm_en=true` preserves the warm-reset conduit. Only those
+three original HPS parameters may change. HPS lightweight computer/mailbox
+control and HPS-to-OCM remain; the complete generated graph permits only those
+three CPU/relay initiators, no fabric ingress into HPS and no disabled parent
+ports. The captured verifier and staged sources are checked before and after
+compilation. The existing firmware-only programming profile leaves the
+permanent Linux owner unavailable for DMA while retaining its programming
+exclusion; this BRAM package advertises no DDR or allocated scanout interface.
+The current reviewed two-input HDMI derivation and fitted review apply, with
+all 85 signoff rules, every timing family, zero additional exceptions/waivers
+and an independent identical RBF required for export. Compile-only retains a
+candidate. Firmware pairing, electrical/reset timing and native catalog
+launch/return/relaunch acceptance remain separate; this recipe supplies no
+in-play allocated display capability. The maintenance recipe keeps its
+diagnostic profile and cannot substitute for canonical source production.
+
 `scripts/build_de25_menu_package.py` prepares the allocated-buffer MENU with a
 canonical format-2 functional record before generating IP. Its record binds the
 tracked board/MENU/splash/producer source closure, locked vendor resource archive,

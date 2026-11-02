@@ -650,6 +650,36 @@ class HpsBuildTests(unittest.TestCase):
             with self.subTest(profile=changed), self.assertRaises(ValueError):
                 BUILD.reviewed_hps_parameter_changes(changed)
 
+    def bram_inputs(self):
+        return {"f2sdram_master_profile": "bram-computer",
+            "computer": {"managed_fabric": "managed-bram-computer-initiators-v1",
+                "build_identity_scheme": "canonical-functional-record-v2", "hps_initialization": "HPS FIRST",
+                "managed_verifier_sha256": BUILD.digest(HERE.parent / "zx81-hps/managed_bram.py")},
+            "allowed_hps_parameter_changes": {HPS: {
+                "f2s_data_width": {"before": "256", "after": "0"},
+                "f2sdram_data_width": {"before": "256", "after": "0"},
+                "Rst_hps_warm_en": {"before": "false", "after": "true"}}}}
+
+    def test_bram_parameter_profile_requires_exact_selection_and_three_changes(self):
+        selected = self.bram_inputs()
+        self.assertEqual(BUILD.reviewed_hps_parameter_changes(selected), selected["allowed_hps_parameter_changes"])
+        for key, value in (("hps_initialization", "AFTER INIT_DONE"),
+                           ("build_identity_scheme", "diagnostic-source-profile"),
+                           ("managed_fabric", "unreviewed")):
+            changed = copy.deepcopy(selected); changed["computer"][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):BUILD.reviewed_hps_parameter_changes(changed)
+        changed = copy.deepcopy(selected); changed["allowed_hps_parameter_changes"][HPS]["H2F_Width"] = {"before":"128","after":"64"}
+        with self.assertRaisesRegex(ValueError, "unsupported expected"):BUILD.reviewed_hps_parameter_changes(changed)
+        changed = copy.deepcopy(selected); changed["scanout"] = {}
+        with self.assertRaisesRegex(ValueError, "BRAM computer profile"):BUILD.reviewed_hps_parameter_changes(changed)
+
+    def test_bram_verifier_substitution_is_refused_before_execution(self):
+        selected = self.bram_inputs(); selected["computer"]["managed_verifier_sha256"] = "0" * 64
+        with mock.patch.object(BUILD.importlib.util, "spec_from_file_location") as load:
+            with self.assertRaisesRegex(ValueError, "differs from captured source"):
+                BUILD.reviewed_hps_parameter_changes(selected)
+        load.assert_not_called()
+
     def test_generation_rejects_changed_original_hps_and_nested_ddr_parameters(self):
         cases = ((HPS, "H2F_Width", "64"), (EMIF, "MEM_CHANNEL_CS_WIDTH", "2"))
         for index, (name, parameter_id, value) in enumerate(cases):

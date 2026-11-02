@@ -1972,3 +1972,22 @@ quartus_role = "primary DE25 MENU package producer"
 version = "26.3.0"
 seeds = [1]
 threads = 2
+
+[[recipes]]
+core_id = "fes.zx81"
+board = "de25-nano"
+toolchain = "quartus"
+identity_version = 2
+producer_script = "scripts/build_de25_zx81_package.py"
+producer_module = "scripts.build_de25_zx81_package"
+authenticate = "_authenticate_tools"
+lock_path = "boards/de25nano/hps/vendor.lock.toml"
+selection_filename = "fes-zx81.package-selection.toml"
+package_dir_env = "FES_ZX81_PACKAGE_DIR"
+package_selection_env = "FES_ZX81_PACKAGE_SELECTION"
+quartus_role = "primary DE25 BRAM ZX81 package producer"
+
+[recipes.quartus]
+version = "26.3.0"
+seeds = [1]
+threads = 2

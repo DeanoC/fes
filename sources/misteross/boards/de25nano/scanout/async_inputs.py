@@ -143,9 +143,14 @@ def bindings(directory):
     directory = Path(directory)
     hps = directory / 'combined/hps'
     record = (directory.parent / 'build-inputs.json').read_bytes()
+    fields = json.loads(record)
+    selection = {'fes.menu': ('scanout', 'scripts/build_de25_menu_package.py'),
+                 'fes.zx81': ('computer', 'scripts/build_de25_zx81_package.py')}.get(fields['parameters']['core_id'])
+    require(selection is not None and fields['recipe'] == selection[1], 'unsupported canonical input-review core/recipe')
+    profile = selection[0]
     inputs = json.loads((hps / 'inputs.json').read_text())
-    require(inputs['fes_revision'] == json.loads(record)['revision'] and
-            inputs['scanout']['build_id'] == build_identity(record), 'source/BUILD_ID mismatch')
+    require(inputs['fes_revision'] == fields['revision'] and
+            inputs[profile]['build_id'] == build_identity(record), 'source/BUILD_ID mismatch')
     database = hps / 'project/qdb'
     files = sorted(p for p in database.rglob('*') if p.is_file())
     require(files and not any(p.is_symlink() for p in database.rglob('*')), 'missing/linked compiled database')

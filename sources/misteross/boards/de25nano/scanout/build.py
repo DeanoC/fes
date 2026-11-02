@@ -712,15 +712,15 @@ def compile_project(output, hps, display, tool):
     return artifact
 
 
-def verify_hdmi_inputs(project, inputs, hps):
-    expected = inputs["scanout"]["hdmi_inputs"]
+def verify_hdmi_inputs(project, inputs, hps, *, profile="scanout", board_file="fes_de25_scanout_board.v"):
+    expected = inputs[profile]["hdmi_inputs"]
     names = {"fes_de25_scanout_hdmi_config.v", "fes_de25_scanout_i2c_controller.v"}
     if set(expected["derived_source_sha256"]) != names:
         raise ValueError("HDMI derived source inventory differs")
     for name, digest in expected["derived_source_sha256"].items():
         if hps.digest(project / "fes_mailbox" / name) != digest:
             raise ValueError("HDMI derived source changed: " + name)
-    board = (project / "fes_mailbox/fes_de25_scanout_board.v").read_text()
+    board = (project / "fes_mailbox" / board_file).read_text()
     board = re.sub(r"\s+", "", re.sub(r"//[^\n]*", "", board))
     if "always@(posedgeCLOCK0_50ornegedgeconfig_reset_n)beginif(!config_reset_n)beginhdmi_sda_sync<=2'b11;hdmi_int_sync<=2'b11;endelsebegin" not in board:
         raise ValueError("HDMI input synchronizers require the 50 MHz reset/clock domain")

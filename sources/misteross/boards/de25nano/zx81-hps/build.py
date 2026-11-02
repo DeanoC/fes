@@ -22,6 +22,7 @@ ROOT = HERE.parents[4]
 BOARD = "sources/misteross/boards/de25nano/"
 JTAG_CONTROL_BRIDGE_BASE = 0x00100000
 LOCAL = ("build.py", "board.v", "clocks.sdc", "integrate.tcl",
+         "managed_bram.py",
          "fes_de25_computer.v", "fes_de25_computer_hw.tcl", "tape_store.v", "video.v",
          "generated/fes_de25_computer.vh", "generated/fes_de25_computer.hpp",
          "generated/fes_computer.vh")
@@ -80,6 +81,8 @@ def capture(revision=None):
     paths |= {"sources/misteross/cores/fes-common/rtl/z80/" + n + ".sv" for n in
               ("fes_z80_alu", "fes_z80_engine", "fes_z80_bus", "fes_z80_nmos")}
     paths.add("sources/misteross/cores/fes-common/rtl/fes_computer_mailbox.v")
+    paths |= {BOARD + "scanout/" + name for name in
+              ("build.py", "linux_dma.py", "hdmi_inputs.py", "clocks.sdc", "fes_de25_scanout_board.v")}
     return {p: hps_source if p == hps_path else read(p) for p in sorted(paths)}
 
 
@@ -94,7 +97,11 @@ def transport_constant(source, name):
     return int(values[0], 16)
 
 
-def prepare(archive, output=None, revision=None, *, hps_first=False):
+def prepare(archive, output=None, revision=None, *, hps_first=False, package_build_id=None):
+    if package_build_id is not None and (not hps_first or not revision or
+            not isinstance(package_build_id, str) or not re.fullmatch(r"[0-9a-f]{32}", package_build_id) or
+            package_build_id == "0" * 32):
+        raise ValueError("canonical computer requires committed HPS-first source and a nonzero build identity")
     sources = capture(revision)
     selected = {"fes_revision": revision, "source_classification": "committed"} if revision else identity()
     if revision is None:
@@ -106,13 +113,19 @@ def prepare(archive, output=None, revision=None, *, hps_first=False):
         output = Path(tempfile.mkdtemp(prefix="run-", dir=base))
     else:
         output = Path(output).resolve(); output.mkdir(parents=True, exist_ok=False)
-    return prepare_captured(archive, output, sources, selected, hps_first=hps_first)
+    return prepare_captured(archive, output, sources, selected, hps_first=hps_first,
+                            package_build_id=package_build_id)
 
 
-def prepare_captured(archive, output, sources, selected, *, hps_first=False):
+def prepare_captured(archive, output, sources, selected, *, hps_first=False, package_build_id=None):
     """Prepare a caller-owned private output from explicitly captured bytes."""
     if type(hps_first) is not bool:
         raise ValueError("HPS-first selection must be boolean")
+    if package_build_id is not None and (not hps_first or not selected.get("fes_revision") or
+            selected.get("source_classification") != "committed" or
+            not isinstance(package_build_id, str) or not re.fullmatch(r"[0-9a-f]{32}", package_build_id) or
+            package_build_id == "0" * 32):
+        raise ValueError("canonical computer requires committed HPS-first source and a nonzero build identity")
     boot_order = "HPS FIRST" if hps_first else "AFTER INIT_DONE"
     snapshot = output / "functional-source"
     for name, data in sources.items():
@@ -225,7 +238,88 @@ endmodule
         "new_dma_master": False, "inherited_probe_and_debug_masters": True,
         "runtime_admission": "not-qualified", "physical_mmio": "not-established", "warm_reset_ack_n": 1}
     (directory / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
+    if package_build_id is not None:
+        prepare_canonical(directory, hps, sources, snapshot, package_build_id)
     return output, hps, helpers
+
+
+def prepare_canonical(directory, hps, sources, snapshot, build_id):
+    project = directory / "project"
+    local = project / "fes_mailbox"
+    managed = load(snapshot / BOARD / "zx81-hps/managed_bram.py", "canonical_bram_preparation")
+    dma = load(snapshot / BOARD / "scanout/linux_dma.py", "canonical_bram_debug_constraints")
+    hdmi = load(snapshot / BOARD / "scanout/hdmi_inputs.py", "canonical_bram_hdmi")
+    inputs = json.loads((directory / "inputs.json").read_text())
+    files, hdmi_receipt = hdmi.derive((local / "I2C_HDMI_Config.v").read_bytes(),
+                                     (local / "I2C_Controller.v").read_bytes())
+    board = managed.hdmi_board((local / "board.v").read_text(),
+        sources[BOARD + "scanout/fes_de25_scanout_board.v"].decode())
+    (local / "board.v").write_text(board)
+    for name, data in files.items():
+        (local / name).write_bytes(data)
+    qsf = (project / "golden_top.qsf").read_text()
+    for before, after in (("I2C_HDMI_Config.v", "fes_de25_scanout_hdmi_config.v"),
+                          ("I2C_Controller.v", "fes_de25_scanout_i2c_controller.v")):
+        qsf = replace_once(qsf, "-name VERILOG_FILE fes_mailbox/" + before,
+                           "-name VERILOG_FILE fes_mailbox/" + after)
+        (local / before).unlink()
+    qsf, count = re.subn(r"FES_DE25_COMPUTER_BUILD_ID=128'h[0-9a-f]{32}",
+                         "FES_DE25_COMPUTER_BUILD_ID=128'h" + build_id, qsf)
+    if count != 1:
+        raise ValueError("canonical computer macro identity differs")
+    (project / "golden_top.qsf").write_text(qsf)
+    clock_source = sources[BOARD + "scanout/clocks.sdc"].decode()
+    start = clock_source.index("# The two external inputs terminate")
+    stop = clock_source.index("# Configuration release,", start)
+    with (local / "clocks.sdc").open("a") as constraints:
+        constraints.write("\n" + clock_source[start:stop])
+    hw = local / "fes_de25_computer_hw.tcl"
+    hw.write_text(replace_once(hw.read_text(), "add_fileset QUARTUS_SYNTH QUARTUS_SYNTH\n",
+        "add_parameter BUILD_ID STD_LOGIC_VECTOR 0x0\n"
+        "set_parameter_property BUILD_ID WIDTH 128\n"
+        "set_parameter_property BUILD_ID HDL_PARAMETER true\n"
+        "set_parameter_property BUILD_ID AFFECTS_GENERATION false\n"
+        "add_fileset QUARTUS_SYNTH QUARTUS_SYNTH\n"))
+    script = project / "integrate-mailbox.tcl"
+    script.write_text(replace_once(script.read_text(), "add_instance fes_computer fes_de25_computer 1.1\n",
+        "add_instance fes_computer fes_de25_computer 1.1\n"
+        "set_instance_parameter_value fes_computer BUILD_ID 0x" + build_id + "\n"))
+    inputs["allowed_hps_parameter_changes"] = managed.configure(project, hps, dma)
+    inputs["f2sdram_master_profile"] = "bram-computer"
+    computer = inputs["computer"]
+    computer.update(build_id=build_id, build_identity_scheme="canonical-functional-record-v2",
+        managed_fabric=managed.POLICY, managed_verifier_sha256=sha(sources[BOARD + "zx81-hps/managed_bram.py"]),
+        inherited_probe_and_debug_masters=False, hdmi_inputs=hdmi_receipt,
+        jtag_control_bridge_base=None, top_sha256=hps.digest(project / "golden_top.v"),
+        integration_sha256=hps.digest(script), qsf_sha256=hps.digest(project / "golden_top.qsf"))
+    computer["source_sha256"] = {name: hps.digest(local / name) for name in computer["source_sha256"]}
+    computer["source_sha256"].update({name: sha(data) for name, data in files.items()})
+    (directory / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
+
+
+def verify_canonical(directory, hps):
+    inputs = json.loads((directory / "inputs.json").read_text())
+    computer = inputs["computer"]
+    helper = hps.bram_computer_helper(inputs)
+    project = directory / "project"
+    for name, expected in computer["source_sha256"].items():
+        if hps.digest(project / "fes_mailbox" / name) != expected:
+            raise ValueError("canonical computer staged source differs: " + name)
+    for name, field in (("golden_top.v", "top_sha256"), ("golden_top.qsf", "qsf_sha256"),
+                        ("integrate-mailbox.tcl", "integration_sha256")):
+        if hps.digest(project / name) != computer[field]:
+            raise ValueError("canonical computer project input differs: " + name)
+    retained = directory.parent / "functional-source" / BOARD / "scanout/build.py"
+    scanout = load(retained, "canonical_bram_identity_review")
+    tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
+    components = [m for m in tree.findall("module") if m.get("path") == "subsys_periph.fes_computer"]
+    if len(components) != 1:
+        raise ValueError("canonical computer instance differs")
+    identity = scanout.endpoint_build_identity(project, components[0], hps, computer["build_id"])
+    hdmi = scanout.verify_hdmi_inputs(project, inputs, hps, profile="computer", board_file="board.v")
+    dma = load(directory.parent / "functional-source" / BOARD / "scanout/linux_dma.py", "canonical_bram_sdc_review")
+    return {"identity": identity, "fabric": helper.verify(project, hps.module_parameters, hps.digest),
+            "hdmi_inputs": hdmi, "retired_debug_constraints": dma.verify_managed_debug_constraints(project)}
 
 
 def pll_review(folder, expected):
@@ -284,6 +378,11 @@ def verify_computer(project, hps):
     regions = hps.peripheral_slave_map(lw.findtext("parameter[@name='addressMapSysInfo']/value"), hps.probe_base())
     region = [r for r in regions if r["name"] == "subsys_periph.fes_computer.avs"]
     if len(region) != 1 or region[0]["base"] != offset or region[0]["span"] != span: raise ValueError("computer slave span differs")
+    inputs = json.loads((project.parent / "inputs.json").read_text())
+    if inputs.get("f2sdram_master_profile") == "bram-computer":
+        return {"instance": component.get("path"), "peripheral_slave_map": regions,
+                "clock_hz": 100000000, "pixel_hz": 74250000,
+                "canonical": verify_canonical(project.parent, hps), "physical_mmio": "not-established"}
     jtag = connections.get(("avalon", "subsys_debug_fpga_m.master", "subsys_periph_pb_cpu_0.s0"))
     if jtag is None or int(jtag.findtext("parameter[@name='baseAddress']/value", "-1"), 0) != JTAG_CONTROL_BRIDGE_BASE:
         raise ValueError("generated JTAG control bridge missing or base differs")
@@ -305,6 +404,25 @@ def generate(output, hps, tool, version):
     generation["computer"]["pll_reviews"] = {"system": pll_review(project / "ip/pll", 100000000),
                                             "pixel": pll_review(project / "sys_pll", 74250000)}
     (directory / "generation.json").write_text(json.dumps(generation, indent=2, sort_keys=True) + "\n")
+
+
+def compile_canonical(output, hps, tool):
+    directory = output / "hps"
+    project = directory / "project"
+    expected = json.loads((directory / "generation.json").read_text())["computer"]
+    def review():
+        actual = verify_computer(project, hps)
+        if "canonical" not in actual:
+            raise ValueError("canonical computer compilation requires its managed profile")
+        actual["pll_reviews"] = {"system": pll_review(project / "ip/pll", 100000000),
+                                 "pixel": pll_review(project / "sys_pll", 74250000)}
+        if actual != expected:
+            raise ValueError("canonical computer source/handoff differs from generation")
+    review()
+    artifact = hps.compile_project(directory, tool)
+    review()
+    package_hps_first(output, hps, tool, artifact)
+    return artifact
 
 
 

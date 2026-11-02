@@ -483,6 +483,9 @@ def verify_scanout_memory_handoff(project):
 
 def verify_memory_handoff(project, inputs):
     profile = inputs.get("f2sdram_master_profile", "diagnostic")
+    if profile == "bram-computer":
+        helper = bram_computer_helper(inputs)
+        return "bram_computer_fabric", helper.verify(project, module_parameters, digest)
     if profile == "diagnostic":
         if inputs.get("scanout", {}).get("linux_dma") is not None:
             raise ValueError("Linux DMA requires the scanout-only master profile")
@@ -493,10 +496,29 @@ def verify_memory_handoff(project, inputs):
     return "scanout_memory", verify_scanout_memory_handoff(project)
 
 
+def bram_computer_helper(inputs):
+    computer = inputs.get("computer", {})
+    if (computer.get("managed_fabric") != "managed-bram-computer-initiators-v1" or
+            computer.get("build_identity_scheme") != "canonical-functional-record-v2" or
+            computer.get("hps_initialization") != "HPS FIRST" or
+            inputs.get("f2sdram_master_profile") != "bram-computer" or inputs.get("scanout") is not None):
+        raise ValueError("unsupported managed BRAM computer profile")
+    path = HERE.parent / "zx81-hps/managed_bram.py"
+    if digest(path) != computer.get("managed_verifier_sha256"):
+        raise ValueError("managed BRAM verifier differs from captured source")
+    spec = importlib.util.spec_from_file_location("de25_selected_bram_verifier", path)
+    helper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(helper)
+    return helper
+
+
 def reviewed_hps_parameter_changes(inputs):
     allowed = inputs.get("allowed_hps_parameter_changes", {})
     hps_ip = "hps_subsys/ip/hps_subsys/agilex_hps.ip"
     expected = {hps_ip: {"f2sdram_SMMU": {"before": "false", "after": "true"}}} if allowed else {}
+    if inputs.get("f2sdram_master_profile") == "bram-computer":
+        helper = bram_computer_helper(inputs)
+        expected = {hps_ip: helper.PARAMETERS}
     scanout = inputs.get("scanout", {})
     managed = scanout.get("managed_fabric")
     if managed is not None:

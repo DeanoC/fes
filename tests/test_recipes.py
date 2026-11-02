@@ -61,7 +61,11 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertIsNone(selected.pnr)
         with patch.dict(os.environ, {'BOARD': 'de25-nano', 'FES_TARGET_BOARD': 'de25-nano'}):
             self.assertIs(recipes.recipe_for('fes.menu'), default)
-        for core, board in (('fes.zx81', 'de25-nano'), ('fes.menu', 'unknown')):
+        zx81 = recipes.recipe_for('fes.zx81', board='de25-nano')
+        self.assertEqual(zx81.producer_module, 'scripts.build_de25_zx81_package')
+        self.assertEqual(zx81.toolchain, 'quartus')
+        self.assertEqual(recipes.recipe_for('fes.zx81').board, 'de10-nano')
+        for core, board in (('fes.zx80', 'de25-nano'), ('fes.menu', 'unknown')):
             with self.subTest(core=core, board=board), self.assertRaises(ValueError):
                 recipes.recipe_for(core, board=board)
         env = recipes.producer_environment({'FES_TOOLCHAIN_GPU_ROUTER': 'HIP',
@@ -343,7 +347,7 @@ class RecipeDataTest(unittest.TestCase):
     def test_board_namespaces_keep_defaults_and_reject_invalid_foreign_entries(self):
         document = self.document()
         self.assertEqual(self.load_document(document), recipes.FORMAT2_RECIPES)
-        self.assertEqual(set(self.load_document(document, board='de25-nano')), {'fes.menu'})
+        self.assertEqual(set(self.load_document(document, board='de25-nano')), {'fes.menu', 'fes.zx81'})
         variant = next(r for r in document['recipes'] if r.get('board') == 'de25-nano')
         # The same core/selection/environment names on different boards are
         # intentional. Duplicates within either board remain an error.

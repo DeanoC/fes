@@ -341,6 +341,7 @@ class HpsZX81BuildTests(unittest.TestCase):
 
     def sopc(self):
         project = self.root / "project"
+        (self.root / "inputs.json").write_text("{}\n")
         handoff = project / "qsys_top/qsys_top.sopcinfo"
         handoff.parent.mkdir(parents=True, exist_ok=True)
         definition_path = project / "fes_mailbox/generated/fes_de25_computer.vh"
