@@ -43,6 +43,7 @@ MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
     "scripts/media_inside.py", "scripts/platform.py", "scripts/prepare_launcher.py", "boot-media.lock.toml",
     "scripts/appliance.py", "scripts/appliance_inside.py",
     "scripts/appliance_media.py", "scripts/appliance_media_inside.py",
+    "scripts/de25_appliance.py",
     "containers/boot-media/Dockerfile", "containers/boot-media/create-builder-user.sh",
     "containers/boot-media/packages.sha256"))
 # Media-owned scripts stay out of the generic build fingerprint. Cold-image
