@@ -56,6 +56,14 @@ original bytes and derived hashes, and compilation rechecks both the generated
 and board constraints before Linux phase conversion. This enables reset
 recovery/removal analysis; other reset findings and physical acceptance remain
 required. The standalone maintenance constraints keep their diagnostic profile.
+The renderer's two-stage pixel release is shared with the computer readiness
+crossing through `pixel_reset_n`. The duplicate release chain in the parent is
+removed, so these two consumers observe one physical reset release. Its raw
+ingress keeps the existing renderer exception; downstream recovery/removal,
+readiness stages and frame-mask paths stay timed. The board's distinct
+PLL/configuration reset continues to control HDMI visibility independently;
+this sharing neither merges those reset sources nor qualifies whole-reset
+coordination or physical behaviour.
 
 `scripts/build_de25_menu_package.py` prepares the allocated-buffer MENU with a
 canonical format-2 functional record before generating IP. Its record binds the

@@ -30,6 +30,10 @@ with clocks stopped. The raster, sync and selected scanout bank keep running
 through the current frame; presentation is hidden at the frame boundary where
 the synchronized readiness gate closes. Each domain releases reset through
 its own two-stage synchronizer.
+The renderer's final pixel-release stage also resets the computer readiness
+crossing. There is one physical release chain for this peripheral-reset source
+in the pixel domain. The board's PLL/configuration reset still independently
+controls HDMI visibility; a stopped pixel clock cannot release a frame bank.
 DE, sync and the scaled pixel selector share the RAM's registered read latency.
 The two single-bit crossings cut only their first synchronizer stages. The
 held row-count metadata has explicit 10 ns net-delay, datapath-delay,

@@ -86,9 +86,14 @@ class HpsZX81BuildTests(unittest.TestCase):
         sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()
         self.assertIn("{soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]|D}", sdc)
         self.assertIn("set_false_path -to $computer_pixel_ready_stage0_d", sdc)
-        self.assertIn("if {$computer_pixel_ready_clear_count != 2}", sdc)
-        self.assertIn("pixel_transport_reset_release[0]|aclr", sdc)
-        self.assertIn("pixel_transport_reset_release[1]|aclr", sdc)
+        self.assertNotIn("pixel_transport_reset_release", sdc)
+        self.assertIn("shared renderer reset release", sdc)
+        computer = B.capture()[B.BOARD + "zx81-hps/fes_de25_computer.v"].decode()
+        video = B.capture()[B.BOARD + "zx81-hps/video.v"].decode()
+        self.assertNotIn("pixel_transport_reset_release", computer)
+        self.assertIn(".pixel_reset_n(pixel_transport_reset_n)", computer)
+        self.assertIn("posedge pixel_clk or negedge pixel_transport_reset_n", computer)
+        self.assertIn("assign pixel_reset_n = pix_release[1];", video)
         self.assertIn("Stage-to-stage paths and both generated clocks stay timed", sdc)
         # The board's pixel_reset_n is released by a pixel-clock chain whose
         # clear pins are already cut, so its visibility synchronizer D path is

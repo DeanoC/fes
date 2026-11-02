@@ -223,15 +223,14 @@ module fes_de25_computer #(
     always @(posedge clk or negedge reset_n)
         if (!reset_n) pixel_transport_ready_source <= 0;
         else pixel_transport_ready_source <= transport_ready;
-    (* async_reg="true", altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
-    reg [1:0] pixel_transport_reset_release = 0;
-    always @(posedge pixel_clk or negedge reset_n)
-        if (!reset_n) pixel_transport_reset_release <= 0;
-        else pixel_transport_reset_release <= {pixel_transport_reset_release[0], 1'b1};
+    // The renderer owns the one peripheral-reset release chain in this domain.
+    // Reuse its final stage so readiness and frame ownership cannot release on
+    // different pixel edges after the same asynchronous reset event.
+    wire pixel_transport_reset_n;
     (* async_reg="true", altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
     reg [1:0] pixel_transport_ready_sync = 0;
-    always @(posedge pixel_clk or negedge pixel_transport_reset_release[1])
-        if (!pixel_transport_reset_release[1]) pixel_transport_ready_sync <= 0;
+    always @(posedge pixel_clk or negedge pixel_transport_reset_n)
+        if (!pixel_transport_reset_n) pixel_transport_ready_sync <= 0;
         else pixel_transport_ready_sync <= {pixel_transport_ready_sync[0], pixel_transport_ready_source};
     wire pixel_transport_ready = pixel_transport_ready_sync[1];
     // Keep the complete-frame capture path and change its external mask only
@@ -242,7 +241,7 @@ module fes_de25_computer #(
         .reset_n(reset_n), .held(machine_reset),
         .clk_sys(clk), .ce_6m5(ce_6m5), .zx_pixel(video_pixel), .hblank(hblank), .vblank(vblank),
         .pixel_clk(pixel_clk), .red(red), .green(green), .blue(blue), .de(de), .hsync(hs), .vsync(vs),
-        .frame_tick(frame_tick));
+        .frame_tick(frame_tick), .pixel_reset_n(pixel_transport_reset_n));
     assign video_rgb = video_ready_frame ? {red, green, blue} : 24'd0;
     assign video_de = video_ready_frame && de;
     assign video_hs = video_ready_frame && hs;
