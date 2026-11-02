@@ -656,7 +656,7 @@ public:
  Error PresentMenuFrame(std::uint64_t,MenuFrame&,MenuDisplayInfo*);
 	Status status() const;
 	Error LoadCore(const std::string& directory,
-		const std::string& expected_package_id);
+		const std::string& expected_package_id, const InitialComputerMedia* initial_media = nullptr);
 	// The game ID keys a fes.computer package's per-game record.
 	Error LoadLibraryCore(const std::string&, const std::string&, const std::string&,
 		const std::string& game_id = "", const AtaDiskImage* disk = nullptr);

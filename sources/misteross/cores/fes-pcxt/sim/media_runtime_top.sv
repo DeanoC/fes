@@ -32,7 +32,8 @@ module media_runtime_top (
     fes_computer_mailbox_pcxt gp_mailbox (
         .clk(clk), .gpo(gpo), .build_id(128'd0), .gpi(gpi), .exec_reset(exec_reset),
         .media_reset(cold_reset), .media_write_addr(source_addr), .media_write_data(source_data),
-        .media_write_enable(source_enable), .media_write_ready(source_ready), .media_write_busy(1'b0),
+        .media_write_enable(source_enable), .media_write_ready(source_ready), .media_changed(1'b0), .media_frozen(), .media_read_req(), .media_read_addr(),
+            .media_read_ready(1'b0), .media_read_data(8'b0), .media_write_busy(1'b0),
         .unit0_state(unit_state), .unit0_size(unused_unit_size), .keyboard_rows());
     /* verilator lint_on PINCONNECTEMPTY */
     pcxt_media media (
@@ -58,7 +59,7 @@ module media_runtime_top (
         .firmware_valid(1'b0), .firmware_ready(), .firmware_address(16'd0), .firmware_data(8'd0), .firmware_done(),
         .disk_load_valid(storage_valid), .disk_load_ready(storage_ready), .disk_load_address(disk_address),
         .disk_load_data(disk_data), .disk_load_done(storage_done),
-        .media_read_valid(media_read_valid), .media_read_addr(media_read_addr),
+        .media_read_valid(media_read_valid), .media_read_reset_safe(1'b0), .media_read_addr(media_read_addr),
         .media_read_ready(media_read_ready), .media_read_data(media_read_data),
         .sdram_clk(sdram_clk), .sdram_cke(sdram_cke), .sdram_ncs(sdram_ncs), .sdram_nras(sdram_nras),
         .sdram_ncas(sdram_ncas), .sdram_nwe(sdram_nwe), .sdram_ba(sdram_ba), .sdram_a(sdram_a),

@@ -27,6 +27,25 @@ def main():
         str(ROOT / 'cores/fes-common/rtl/fes_computer_mailbox.v'),
         str(ROOT / 'cores/fes-common/sim/computer_mailbox_pcxt_tb.cpp')], check=True)
     subprocess.run([str(dos / 'Vfes_computer_mailbox_pcxt')], cwd=ROOT, check=True)
+    writable = output.parent / 'mailbox-write'
+    writable.mkdir(parents=True, exist_ok=True)
+    subprocess.run([os.environ.get('VERILATOR', 'verilator'), '--cc', '--exe', '--build',
+        '--top-module', 'fes_computer_mailbox_pcxt', '-Wall', "-GENABLE_WRITE=1'b1",
+        '-I' + str(ROOT / 'cores/fes-common/generated'), '--Mdir', str(writable),
+        '-CFLAGS', '-std=c++17 -O2 -DPCXT_WRITE_TEST=1',
+        str(ROOT / 'cores/fes-common/rtl/fes_computer_mailbox.v'),
+        str(ROOT / 'cores/fes-common/sim/computer_mailbox_pcxt_tb.cpp')], check=True)
+    subprocess.run([str(writable / 'Vfes_computer_mailbox_pcxt')], cwd=ROOT, check=True)
+    combined = output.parent / 'mailbox-dos-write'
+    combined.mkdir(parents=True, exist_ok=True)
+    subprocess.run([os.environ.get('VERILATOR', 'verilator'), '--cc', '--exe', '--build',
+        '--top-module', 'fes_computer_mailbox_pcxt', '-Wall',
+        "-GENABLE_WRITE=1'b1", "-GENABLE_AUDIO=1'b1", "-GENABLE_KEYBOARD=1'b1",
+        '-I' + str(ROOT / 'cores/fes-common/generated'), '--Mdir', str(combined),
+        '-CFLAGS', '-std=c++17 -O2 -DPCXT_WRITE_TEST=1 -DPCXT_DOS_CAPABILITIES',
+        str(ROOT / 'cores/fes-common/rtl/fes_computer_mailbox.v'),
+        str(ROOT / 'cores/fes-common/sim/computer_mailbox_pcxt_tb.cpp')], check=True)
+    subprocess.run([str(combined / 'Vfes_computer_mailbox_pcxt')], cwd=ROOT, check=True)
     abi = output / 'abi-union'
     abi.mkdir(parents=True, exist_ok=True)
     subprocess.run([os.environ.get('VERILATOR', 'verilator'), '--cc', '--exe', '--build',

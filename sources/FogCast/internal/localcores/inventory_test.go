@@ -35,6 +35,26 @@ func TestPCFloppyStartsEmptyOnlyWithExtendedComputerABI(t *testing.T) {
 	}
 }
 
+func TestPcxtWriteStartsEmptyOnlyWithRequiredBaseAndExtendedABI(t *testing.T) {
+	base := corepackage.Interface{ID: protocol.PcxtFloppyInterface().ID, Major: 1, Required: true}
+	write := corepackage.Interface{ID: protocol.PcxtFloppyWriteInterface().ID, Major: 1, Required: true}
+	for _, tc := range []struct {
+		minor int64
+		base  corepackage.Interface
+		want  bool
+	}{
+		{1, base, true}, {0, base, false}, {2, base, false},
+		{1, corepackage.Interface{ID: base.ID, Major: 1}, false},
+		{1, corepackage.Interface{ID: base.ID, Major: 2, Required: true}, false},
+		{1, corepackage.Interface{}, false},
+	} {
+		d := corepackage.Descriptor{ABI: corepackage.Contract{ID: "fes.computer", Major: 1, Minor: tc.minor}, Interfaces: []corepackage.Interface{tc.base, write}}
+		if got := computerEmptyStartup(d, write); got != tc.want {
+			t.Fatalf("minor=%d base=%+v got=%v", tc.minor, tc.base, got)
+		}
+	}
+}
+
 type coreOpts struct {
 	rom          []byte
 	romRole      string

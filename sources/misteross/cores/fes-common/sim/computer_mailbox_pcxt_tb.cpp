@@ -17,11 +17,18 @@ struct Test {
     std::vector<uint8_t> image = std::vector<uint8_t>(368640, 0);
     uint64_t writes = 0;
     Test() {
-        d.clk=0; d.gpo=0; d.media_reset=0; d.media_write_ready=1; d.media_write_busy=0;
+        d.clk=0; d.gpo=0; d.media_reset=0; d.media_write_ready=1; d.media_write_busy=0; d.media_changed=0; d.media_read_ready=0; d.media_read_data=0;
         for (int i=0;i<4;++i) d.build_id[i]=0;
         d.eval(); for(int i=0;i<6;++i) tick();
     }
     void tick() {
+        d.eval();
+        d.media_read_ready=d.media_read_req;
+        if (d.media_read_req) {
+            require(d.media_read_addr<image.size(), "snapshot address outside image");
+            d.media_read_data=image[d.media_read_addr];
+        }
+        d.eval();
         if (d.media_write_ready && d.media_write_enable) {
             require(d.media_write_addr<image.size(), "write address outside image");
             if (d.media_write_enable&1) { image[d.media_write_addr]=d.media_write_data; ++writes; }
@@ -74,10 +81,15 @@ int main(int argc,char **argv) {
 #else
     constexpr uint16_t low_capabilities=0x0001; // floppy only
 #endif
+#ifdef PCXT_WRITE_TEST
+    constexpr uint16_t high_capabilities=48; // runtime floppy and writable snapshots
+#else
+    constexpr uint16_t high_capabilities=16; // runtime floppy only
+#endif
     const auto minor=t.good(1,6), caps=t.good(1,7), caps_high=t.good(1,16);
-    if (minor!=1 || caps!=low_capabilities || caps_high!=16)
+    if (minor!=1 || caps!=low_capabilities || caps_high!=high_capabilities)
         std::cerr << "identity: " << minor << ", " << caps << ", " << caps_high << '\n';
-    require(minor==1 && caps==low_capabilities && caps_high==16, "1.1 capability identity");
+    require(minor==1 && caps==low_capabilities && caps_high==high_capabilities, "1.1 capability identity");
     t.bad(1,17,0,2);
     require(t.good(5,0)==0xa000 && t.good(5,1)==5 && t.good(5,2)==0xa000 &&
             t.good(5,3)==5 && t.good(5,4)==512 && t.good(5,5)==1,"PC floppy geometry and empty state");
@@ -97,12 +109,41 @@ int main(int argc,char **argv) {
     require(t.writes==t.image.size(),"upload writes exactly once");
     for(unsigned a=0;a<t.image.size();++a) require(t.image[a]==payload(a),"image data differs");
     t.good(9,0); require(t.d.unit0_state==3 && t.d.unit0_size==t.image.size(),"commit publishes image");
+#ifdef PCXT_WRITE_TEST
+    t.image[513]=0x5a; t.d.media_changed=1; t.tick();t.d.media_changed=0;
+    require(t.good(12,0)==3 && t.good(12,1)==4 && t.good(12,2)==1 && t.good(12,3)==0 &&
+            t.good(12,4)==0xa000 && t.good(12,5)==5 && t.good(12,6)==512 && t.good(12,7)==1,
+            "writable snapshot identity or dirty epoch");
+    t.d.media_write_busy=1;t.begin_request(13,0,0);
+    for(int i=0;i<10;++i) {
+        t.tick();require((((t.d.gpi>>23)&1)!=t.toggle),"freeze acknowledged before write drain");
+    }
+    require(t.d.media_frozen,"freeze did not fence the medium");
+    t.d.media_write_busy=0;t.finish_request();
+    require(t.good(12,0)==7,"freeze status");
+    for(unsigned offset=0;offset<t.image.size();offset+=512) {
+        t.good(14,0,offset);t.good(14,1,offset>>16);t.good(14,2,512);
+        for(unsigned n=0;n<256;++n)
+            require(t.good(15,n)==(unsigned(t.image[offset+2*n]) | unsigned(t.image[offset+2*n+1])<<8),
+                    "snapshot returned wrong byte");
+    }
+    t.good(13,0,2);require(t.good(12,0)==5,"Saved did not clear dirty");
+    t.good(13,0,1);require(t.good(12,0)==1,"Resume did not clear frozen");
+    t.d.media_changed=1;t.tick();t.d.media_changed=0;t.good(13,0,0);
+    t.good(14,0,0);t.good(14,1,0);t.good(14,2,512);t.good(15,0);
+#endif
     // A physical cold reset invalidates READY without changing execution or
     // identity. After reset the old transfer cannot be committed again.
     t.d.media_reset=1; for(int i=0;i<4;++i)t.tick();
     require(t.d.unit0_state==1 && t.d.unit0_size==0 && !t.d.exec_reset,"reset invalidation/execution");
     t.d.media_reset=0; for(int i=0;i<5;++i)t.tick();
+#ifdef PCXT_WRITE_TEST
+    require(t.good(1,16)==48 && t.good(5,5)==1,"identity or empty state changed after reset");
+    require(t.good(12,0)==0 && t.good(12,7)==0 && !t.d.media_frozen,
+            "cold reset retained snapshot ownership or epoch");
+#else
     require(t.good(1,16)==16 && t.good(5,5)==1,"identity or empty state changed after reset");
+#endif
     t.bad(9,0,0,4);
     // Partially collected header is cancelled and a fresh Begin starts at 0.
     t.good(6,0,0xa000); t.good(6,1,5);

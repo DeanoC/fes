@@ -27,20 +27,40 @@ func ValidMediaGameID(id string) bool { return len(id) <= 256 && mediaGameID.Mat
 func AtariStFloppyWriteInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtariStFloppyWriteID, Major: generated.FesComputerInterfaceMediaAtariStFloppyWriteMajor, Minor: generated.FesComputerInterfaceMediaAtariStFloppyWriteMinor}
 }
+func PcxtFloppyWriteInterface() RuntimeContract {
+	return RuntimeContract{ID: generated.FesComputerInterfaceMediaPcxtFloppyWriteID, Major: generated.FesComputerInterfaceMediaPcxtFloppyWriteMajor, Minor: generated.FesComputerInterfaceMediaPcxtFloppyWriteMinor}
+}
 func MediaWriteCapable(p *CorePackageStatus) bool {
 	return p != nil && ComputerMediaABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) &&
-		activeInterface(p, AtariStFloppyInterface()) && activeInterface(p, AtariStFloppyWriteInterface())
+		((activeInterface(p, AtariStFloppyInterface()) && activeInterface(p, AtariStFloppyWriteInterface())) ||
+			(int64(p.ABI.Minor) >= int64(generated.FesComputerExtendedAbiMinor) && activeInterface(p, PcxtFloppyInterface()) && activeInterface(p, PcxtFloppyWriteInterface())))
+}
+
+// FloppyWriteUnitCapable requires the matching write extension for this unit.
+func FloppyWriteUnitCapable(p *CorePackageStatus, unit MediaUnitStatus) bool {
+	if !activeComputer(p) || !unit.Valid() || !activeInterface(p, unit.Interface) {
+		return false
+	}
+	switch unit.Interface {
+	case AtariStFloppyInterface():
+		return unit.Unit == AtariStFloppyUnit && activeInterface(p, AtariStFloppyWriteInterface())
+	case PcxtFloppyInterface():
+		return unit.Unit == PcxtFloppyUnit && int64(p.ABI.Minor) >= int64(generated.FesComputerExtendedAbiMinor) && activeInterface(p, PcxtFloppyWriteInterface())
+	}
+	return false
 }
 
 // PersistentMediaUnitCapable admits a durable binding only for the writable
-// ST floppy or the fixed ATA disk, whose binding cannot be checkpointed live.
+// ST or PC/XT floppy, or the fixed ATA disk, whose binding cannot be checkpointed live.
 func PersistentMediaUnitCapable(p *CorePackageStatus, unit MediaUnitStatus) bool {
 	if !activeComputer(p) || unit.Persistence == nil || !unit.Valid() || !activeInterface(p, unit.Interface) {
 		return false
 	}
 	switch unit.Interface {
 	case AtariStFloppyInterface():
-		return unit.Unit == AtariStFloppyUnit && MediaWriteCapable(p)
+		return FloppyWriteUnitCapable(p, unit)
+	case PcxtFloppyInterface():
+		return FloppyWriteUnitCapable(p, unit)
 	case AtaDiskInterface():
 		return ComputerAtaDiskABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) && unit.Unit == AtaDiskUnit && !unit.CanSave()
 	default:
@@ -49,7 +69,7 @@ func PersistentMediaUnitCapable(p *CorePackageStatus, unit MediaUnitStatus) bool
 }
 
 // PersistentMediaBound reports any valid durable disk binding, including the
-// pc386 fixed disk. MediaDataBound remains the ST live-save predicate.
+// pc386 fixed disk. MediaDataBound remains the live-save floppy predicate.
 func PersistentMediaBound(p *CorePackageStatus) bool {
 	if !activeComputer(p) {
 		return false
@@ -88,14 +108,14 @@ func MediaDataBound(p *CorePackageStatus) bool {
 		return false
 	}
 	for _, u := range p.MediaUnits {
-		if _, ok := MediaUnit(p, u.Unit); ok && u.Persistence != nil {
+		if PersistentMediaUnitCapable(p, u) && u.Interface != AtaDiskInterface() {
 			return true
 		}
 	}
 	return false
 }
 
-// MatchesForSave admits only a ready durable ST disk in the same active
+// MatchesForSave admits only a ready durable floppy in the same active
 // generation. A retained save failure permits one explicit Save; other media
 // and input operations continue to use the error-free Matches predicate.
 func (b MediaUnitBinding) MatchesForSave(s Status) bool {
@@ -107,7 +127,7 @@ func (b MediaUnitBinding) MatchesForSave(s Status) bool {
 		return false
 	}
 	u, ok := MediaUnit(s.CorePackage, b.Unit)
-	return ok && u.CanSave() && u.State == MediaUnitReady && u.Persistence != nil && u.Persistence.Valid()
+	return ok && PersistentMediaUnitCapable(s.CorePackage, u) && u.CanSave() && u.State == MediaUnitReady && u.Persistence.Valid()
 }
 
 // MatchesSaveResult requires a confirmed, error-free checkpoint for the same

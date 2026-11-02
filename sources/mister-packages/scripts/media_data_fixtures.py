@@ -10,18 +10,19 @@ import zlib
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "testdata/media-data-v1/atari-st.json"
 
-def fixture(size=737280):
-    core, game, base, unit = "fes.atari-st", "atari-st-desktop", "a" * 64, 0
-    layout = b"fes.atari-st-floppy.image"
+def fixture(size=737280, pcxt=False):
+    core, game, base, unit = ("fes.pcxt-dos" if pcxt else "fes.atari-st"), ("dos-game" if pcxt else "atari-st-desktop"), "a" * 64, 0
+    layout = b"fes.pcxt-floppy.image" if pcxt else b"fes.atari-st-floppy.image"
     payload = bytes((at * 17 + (at >> 9)) & 255 for at in range(size))
     sha = lambda data: hashlib.sha256(data).digest()
-    header = (b"FESDISK1" + sha(core.encode()) + sha(game.encode()) + bytes.fromhex(base)
-              + struct.pack("<HHHHI", unit, 1, 0 if size == 737280 else 1, len(layout), len(payload)) + layout)
+    minor = 0 if pcxt or size == 737280 else 1
+    header = ((b"FESPCXT1" if pcxt else b"FESDISK1") + sha(core.encode()) + sha(game.encode()) + bytes.fromhex(base)
+              + struct.pack("<HHHHI", unit, 1, minor, len(layout), len(payload)) + layout)
     checksum = sha(header + payload)
     record = header + payload + checksum
     namespace = b"fes-media-data-v1\0" + core.encode() + b"\0" + game.encode() + b"\0" + str(unit).encode() + b"\0" + base.encode()
     return {"format": 1, "core_id": core, "game_id": game, "base_media_id": base,
-            "unit": unit, "layout_id": layout.decode(), "layout_major": 1, "layout_minor": 0 if size == 737280 else 1,
+            "unit": unit, "layout_id": layout.decode(), "layout_major": 1, "layout_minor": minor,
             "payload_size": len(payload), "payload_pattern": "(offset * 17 + (offset >> 9)) & 255",
             "payload_sha256": sha(payload).hex(), "header_hex": header.hex(),
             "checksum_hex": checksum.hex(), "record_size": len(record),
@@ -101,6 +102,7 @@ def main():
     args = parser.parse_args()
     for path, value in [(OUTPUT, lambda: fixture(737280)),
                         (OUTPUT.with_name("atari-st-geometry.json"), lambda: fixture(839680)),
+                        (OUTPUT.with_name("pcxt-floppy.json"), lambda: fixture(368640, pcxt=True)),
                         (OUTPUT.with_name("ata-disk-delta.json"), delta_fixture)]:
         data = json.dumps(value(), indent=2) + "\n"
         if args.check:

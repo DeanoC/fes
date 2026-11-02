@@ -35,6 +35,7 @@ module fes_computer_mailbox_core #(
     parameter bit ENABLE_APPLE2_FLOPPY = 0,
     parameter bit ENABLE_C64_DISK = 0,
     parameter bit ENABLE_PCXT_FLOPPY = 0,
+    parameter bit ENABLE_PCXT_FLOPPY_WRITE = 0,
     parameter bit ENABLE_SPECTRUM_TAPE = 0,
     parameter bit ENABLE_ZX81_TAPE = 0,
     parameter bit ENABLE_SESSION_DISPLAY = 0,
@@ -108,7 +109,9 @@ module fes_computer_mailbox_core #(
 );
     // Unit 0 is one drive. A shell enables one of the three media parameters.
     localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_C64_DISK | ENABLE_PCXT_FLOPPY | ENABLE_SPECTRUM_TAPE | ENABLE_ZX81_TAPE | ENABLE_ATARI_ST_FLOPPY;
-    localparam bit WRITABLE = ENABLE_ATARI_ST_FLOPPY_WRITE && ENABLE_ATARI_ST_FLOPPY;
+    localparam bit ST_WRITE = ENABLE_ATARI_ST_FLOPPY_WRITE && ENABLE_ATARI_ST_FLOPPY;
+    localparam bit PCXT_WRITE = ENABLE_PCXT_FLOPPY_WRITE && ENABLE_PCXT_FLOPPY;
+    localparam bit WRITABLE = ST_WRITE || PCXT_WRITE;
     localparam bit ZX81_WRITE = ENABLE_ZX81_TAPE && ENABLE_ZX81_TAPE_WRITE;
     localparam bit SNAPSHOT = WRITABLE || ZX81_WRITE;
     localparam bit GEOMETRY = ENABLE_ATARI_ST_FLOPPY && ENABLE_ATARI_ST_FLOPPY_GEOMETRY;
@@ -127,7 +130,7 @@ module fes_computer_mailbox_core #(
         (ENABLE_ZX81_TAPE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ZX81_TAPE_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_ATARI_ST_FLOPPY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_CAPABILITY_MASK) : 16'd0) |
         (GEOMETRY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_GEOMETRY_CAPABILITY_MASK) : 16'd0) |
-        (WRITABLE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_WRITE_CAPABILITY_MASK) : 16'd0) |
+        (ST_WRITE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_WRITE_CAPABILITY_MASK) : 16'd0) |
         (ZX81_WRITE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ZX81_TAPE_WRITE_CAPABILITY_MASK) : 16'd0) |
         (UNIT1 ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_SPECTRUM_DISK_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_SESSION_DISPLAY ? 16'(`FES_COMPUTER_INTERFACE_MEMORY_HPS_DDR_CAPABILITY_MASK) : 16'd0) |
@@ -138,7 +141,8 @@ module fes_computer_mailbox_core #(
         (ENABLE_PERSISTENCE ? `FES_COMPUTER_INTERFACE_PERSISTENCE_WORDS_CAPABILITY_MASK : 32'd0) |
         (ENABLE_WALL_CLOCK ? `FES_COMPUTER_INTERFACE_RTC_WALL_CLOCK_CAPABILITY_MASK : 32'd0) |
         (ENABLE_PC386_MACHINE ? `FES_COMPUTER_INTERFACE_PC386_MACHINE_CAPABILITY_MASK : 32'd0) |
-        (ENABLE_PCXT_FLOPPY ? `FES_COMPUTER_INTERFACE_MEDIA_PCXT_FLOPPY_CAPABILITY_MASK : 32'd0);
+        (ENABLE_PCXT_FLOPPY ? `FES_COMPUTER_INTERFACE_MEDIA_PCXT_FLOPPY_CAPABILITY_MASK : 32'd0) |
+        (PCXT_WRITE ? `FES_COMPUTER_INTERFACE_MEDIA_PCXT_FLOPPY_WRITE_CAPABILITY_MASK : 32'd0);
     localparam [15:0] CAPABILITIES_HIGH = CAPABILITIES_1_1[31:16];
     localparam bit MINOR_1 = CAPABILITIES_HIGH != 16'd0;
     localparam bit DATA = ENABLE_PERSISTENCE && ENABLE_PC386_MACHINE;
@@ -375,6 +379,10 @@ module fes_computer_mailbox_core #(
             // acknowledged as if its physical write had survived reset.
             unit0_state <= EMPTY;
             unit0_size <= 32'd0;
+            media_frozen <= 1'b0; snapshot_dirty <= 1'b0; saved_authorized <= 1'b0;
+            snapshot_epoch <= 0; snapshot_next <= 0; snapshot0 <= 0; snapshot1 <= 0;
+            snapshot_received <= 0; snapshot_length <= 0; snapshot_cursor <= 0;
+            snapshot_ordinal <= 0; read_phase <= 0; read_low <= 0;
             cancel_transfer;
             begin0 <= 0; begin1 <= 0; begin2 <= 0;
             chunk0 <= 0; chunk1 <= 0;
@@ -655,9 +663,10 @@ module fes_computer_mailbox_core #(
                     else if (argument != 16'd0) reject(E_ARGUMENT);
                     else case (field)
                         3'd0: response_data <= snapshot_flags;
-                        3'd1: response_data <= ZX81_WRITE ? 16'(`FES_COMPUTER_ZX81_TAPE_LAYOUT_TAG) : 16'd1;
+                        3'd1: response_data <= PCXT_WRITE ? 16'(`FES_COMPUTER_PCXT_FLOPPY_LAYOUT_TAG) :
+                            (ZX81_WRITE ? 16'(`FES_COMPUTER_ZX81_TAPE_LAYOUT_TAG) : 16'd1);
                         3'd2: response_data <= 16'd1;
-                        3'd3: response_data <= ZX81_WRITE ? 16'd0 :
+                        3'd3: response_data <= (ZX81_WRITE || PCXT_WRITE) ? 16'd0 :
                             (GEOMETRY && unit0_size != 32'd737280 ? 16'd1 : 16'd0);
                         3'd4: response_data <= snap_size[15:0];
                         3'd5: response_data <= snap_size[31:16];
@@ -781,7 +790,9 @@ endmodule
 
 // PC/XT has a resettable SDRAM medium. Keep that physical invalidation
 // explicit instead of changing the port contract of existing 1.0 shells.
-module fes_computer_mailbox_pcxt #(parameter bit ENABLE_KEYBOARD = 0, ENABLE_AUDIO = 0) (
+module fes_computer_mailbox_pcxt #(
+    parameter bit ENABLE_KEYBOARD = 0, ENABLE_AUDIO = 0, ENABLE_WRITE = 0
+) (
     input wire clk,
     input wire [31:0] gpo,
     input wire [127:0] build_id,
@@ -793,13 +804,18 @@ module fes_computer_mailbox_pcxt #(parameter bit ENABLE_KEYBOARD = 0, ENABLE_AUD
     output wire [15:0] media_write_data,
     output wire [1:0] media_write_enable,
     input wire media_write_ready,
-    input wire media_write_busy,
+    input wire media_write_busy, media_changed,
+    output wire media_frozen, media_read_req,
+    output wire [19:0] media_read_addr,
+    input wire media_read_ready,
+    input wire [7:0] media_read_data,
     output wire [1:0] unit0_state,
     output wire [31:0] unit0_size
 );
     /* verilator lint_off PINCONNECTEMPTY */
     fes_computer_mailbox_core #(
-        .ENABLE_PCXT_FLOPPY(1), .ENABLE_KEYBOARD(ENABLE_KEYBOARD), .ENABLE_AUDIO(ENABLE_AUDIO),
+        .ENABLE_PCXT_FLOPPY(1), .ENABLE_PCXT_FLOPPY_WRITE(ENABLE_WRITE),
+        .ENABLE_KEYBOARD(ENABLE_KEYBOARD), .ENABLE_AUDIO(ENABLE_AUDIO),
         .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(19),
         .UNIT0_MIN(`FES_COMPUTER_PCXT_FLOPPY_BYTES),
         .UNIT0_MAX(`FES_COMPUTER_PCXT_FLOPPY_BYTES)
@@ -810,8 +826,9 @@ module fes_computer_mailbox_pcxt #(parameter bit ENABLE_KEYBOARD = 0, ENABLE_AUD
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
         .media_write_enable(media_write_enable), .media_write_unit(),
         .media_write_ready(media_write_ready), .media_write_busy(media_write_busy),
-        .media_changed(1'b0), .media_reset(media_reset), .media_frozen(),
-        .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'b0),
+        .media_changed(media_changed), .media_reset(media_reset), .media_frozen(media_frozen),
+        .media_read_req(media_read_req), .media_read_addr(media_read_addr),
+        .media_read_ready(media_read_ready), .media_read_data(media_read_data),
         .save_ready(1'b0), .save_busy(1'b0), .save_size(15'd0),
         .unit0_state(unit0_state), .unit0_size(unit0_size), .unit1_state(), .unit1_size(),
         .display_request(), .display_opcode(), .display_index(), .display_argument(),

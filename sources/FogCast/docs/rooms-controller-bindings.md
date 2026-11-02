@@ -98,13 +98,15 @@ shoulder buttons that are not Back / Home / Settings are passed through:
 | Guide | settings overlay (not delivered). A room can publish an allowlisted Settings destination; that is not this button |
 | hold B | Home (`CmdHome`; not delivered). Opens `home_room` when that pack can be opened; otherwise the rooms picker |
 
-Home and Systems use the selected destination's primary action. Home keeps
-Confirm-to-Play on the shelf; Up enters Play/Details, another Up reaches
-Library, Systems and Settings. Left/Right chooses within a row and Back returns
-to the selected machine. Library Down from the bottom visible item row enters
-its Play/Details controls. Systems Confirm launches and its Set up control opens
-the selected model's setup. Independently installed rooms can publish game,
-library and nested-room destinations through the same API.
+Home's family tiles open their workbench; they do not launch a core. Play on a
+Recently played title starts that game. Up moves from the family tiles to the
+recent row when present, then to the hero actions and header. In the v1 release
+scope, Settings is the only Home header route and Back at the Home root keeps
+Home open. Show all cores restores Library and Systems routes. Library Down
+from the bottom visible item row enters its Play/Details controls. Systems
+Confirm launches and its Set up control opens the selected model's setup.
+Independently installed rooms can publish game, library and nested-room
+destinations through the same API.
 
 ---
 
@@ -146,12 +148,12 @@ binding drive-by:
    does not apply inside an open room. No on-screen settings control.
 3. **Pads without a GUIDE button** have no gamepad System menu. Keyboard
    `o` is the tap fallback. Start remains Quit. Kit Home
-   (`example.fes-cores`) puts Library, Systems and Settings above its action row
-   and shelf in the hero layout and when the compact routes share a
-   row, so Direction and Confirm reach Settings there. When the compact
-   routes stack, Down and Up walk that column and then the cores, and Up
-   from the first core lands on Settings. Other
-   rooms still depend on GUIDE, `o`, or their own Settings destination.
+   (`example.fes-cores`) keeps Settings reachable from the hero layout and the
+   compact family list. Up from the family tiles reaches Recently played when
+   it is present, then the hero actions and Settings. Show all cores restores
+   the Library and Systems routes. Back at release Home keeps the root room
+   open; the room picker is used when Home cannot open. Other rooms still depend
+   on GUIDE, `o`, or their own Settings destination.
    During kit-local play, keyboard F12 or a pad's Guide button stops the
    core with one press. Neither is ever forwarded to a core. Holding Select
    and Start for one second still works and is the only route on a pad

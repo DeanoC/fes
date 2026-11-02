@@ -24,6 +24,7 @@ const (
 	settingsRowSurround
 	settingsRowAllCores
 	settingsRowDrives
+	settingsRowSetupAgain
 	settingsRowFixedCount
 )
 
@@ -210,6 +211,7 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 		{ID: "surround", Label: "TV surround · kit HDMI", Value: surround},
 		{ID: "all-cores", Label: "Show all cores · not in this release", Value: allCores},
 		{ID: "drives", Label: "BIOS & media drives", Value: "Browse USB and SMB · kit or host"},
+		{ID: "setup-again", Label: "Run setup again", Value: "A start from the welcome screen"},
 	}
 	for i, draft := range a.settingsDraftTargets {
 		name := strings.TrimSpace(draft.Name)
@@ -506,6 +508,10 @@ func (a *App) handleSettingsLocked(cmd Command) {
 	case settingsRowDrives:
 		if cmd == CmdSelect {
 			a.openDriveSettingsLocked()
+		}
+	case settingsRowSetupAgain:
+		if cmd == CmdSelect {
+			a.runSetupAgainLocked()
 		}
 	case settingsRowIdle:
 		if !a.settingsHydrated {

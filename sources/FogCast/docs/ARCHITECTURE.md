@@ -26,6 +26,12 @@ The entry points are `internal/hostapi`, `fogcast`, `internal/agent`,
 `internal/httpapi`, and `internal/misterruntime`. `internal/systems/table.go`
 retains library platform metadata; it does not describe raw-core launch recipes.
 
+Writable PC/XT library floppy launches send the exact immutable 360 KiB disk
+with the format-2 package. The target seals and validates both before asking
+the runtime to restore the bound revision and load the disk while the CPU is
+held. It accepts launch only after the runtime reports the requested ready,
+persistent game and base identity. Raw development inserts are volatile.
+
 The browser, kit launcher, and ordinary CLI send a game ID to the same
 persistent host session. `hostclient` owns the UI-independent GET
 `/api/v1/session` response model and decoder, and catalog launch
@@ -980,8 +986,11 @@ binding identity or weaken composition validation.
 The host routes `POST /api/v1/session/disk/insert` and `…/disk/save` retain the
 captured session ID and package/generation/target/unit binding. Insert takes
 JSON `{game_id,base_media_id}` and verifies the selected library entry and base;
-Save has an empty body. CLI `insert-library-disk GAME_ID BASE_MEDIA_ID` restores
-that explicit library disk into the running ST, and `save-disk` publishes a
+Save has an empty body. Successful active-session responses for disk, live-media,
+display and input operations retain the coordinator's execution classification,
+as does session status, even when the target reports a recognized library
+package as a development load. CLI `insert-library-disk GAME_ID BASE_MEDIA_ID`
+restores that explicit library disk into the running ST, and `save-disk` publishes a
 checkpoint. `eject-disk`, Stop and replacement automatically save a bound disk.
 Failure keeps the disk/session binding available for recovery; a lost mutation
 reply is never replayed. One explicit Save may retry a retained `SAVE_FAILED`
@@ -1197,10 +1206,10 @@ hit-tested on both room and parked now-playing screens. Stop, failures and
 return still use the ordinary session lifecycle. Per-room state preserves
 focus and selection, not hardware configuration or running RAM.
 
-Kit Home reuses its presented display list while core-list identity, status,
-focus, shelf position, title and content size are unchanged. An asynchronous
-list result, pointer or direction focus change, resize, or unpresented frame
-forces a redraw. Its completed redraw uses `gfx.paint` for the background;
+Kit Home reuses its presented display list while data generation, selected row
+and body, recent/family/menu selection, title and content size are unchanged.
+An asynchronous result, pointer or direction focus change, resize, or
+unpresented frame forces a redraw. Its completed redraw uses `gfx.paint` for the background;
 a soft overrun can therefore present the finished picture for reuse on the
 next frame. State-save debounce continues in `update` during reused frames.
 
@@ -1293,9 +1302,37 @@ could not be opened. `ui.launcher_action` records an id the allowlist
 rejected. Neither is a kit mutation.
 
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
-attract on/off gate, reduced motion, the look name, the optional debug HUD, and Home
-(`home` start screen, optional `home_room` id, plus `pinned_rooms`) are local to the tenfoot process (CLI `-safe-area` /
-`-layout` / `-no-attract` / `-theme` / `-debug-hud` / `-home` / `-home-room` and optional `tenfoot.json` prefs). When `home` is `rooms` and `home_room` names a pack that can be opened, start and Home open that room as the root; otherwise the Home overlay lists pinned rooms, recently played games, installed rooms, and the library. A library or recents read that fails in the network stack shows the temporary unreachable copy and retries with the presentation backoff, from 400 ms up to 8 s, until the host answers or the load is replaced. A host API error is not retried. An empty catalog stays the empty-library copy. The retry does not launch a title. On `menu-display`, a rooms home with no room selected by flag, saved preferences or `FOGCAST_HOME_ROOM` defaults to kit Home (`example.fes-cores`, titled Home). That room uses `destination_panel = "hero"`: tenfoot draws the selected core's title, required inputs, readiness, "Plays on this TV" and its actions in a large FES-owned panel (`ui/tenfoot/room_hero.go`, geometry `rooms.HeroPanel`), the room draws the shelf, artwork motifs and the Library / Systems / Settings routes, and the footer shows full-size prompts and only actionable status. Details keeps the kit's verbatim block when the column has to drop lines to fit. On a content box under 480×360, `room.hero` is nil and the room draws a compact list of the visible cores and those same routes above the destination strip, each with a pointer hit. When those routes do not fit on one row they stack, and Direction walks Library, Systems, Settings and then the cores; Up from the first core returns to Settings. A compact row that fits, and the hero, keep Left and Right along the routes and the shelf. Confirm while the core list is still Checking is acknowledged and not queued. Changing Home from Library to Rooms in Settings applies that same default for the rest of the session. The implicit room stays out of `tenfoot.json`. An already selected room stays selected. Library home is unchanged. Load/update/draw and asynchronous room callback errors identify their callback; deadline-expiry errors also report elapsed wall time and, on Linux, the script run's wall time with the callback thread's own CPU time and its voluntary/involuntary context switches over that run, so a kit report separates slow script work from waiting for a CPU (`ui/rooms/thread_usage.go`). Elapsed covers the whole callback, including pinning and sampling its OS thread and the cleanup after the script; the callback deadline starts with it and the soft and hard budget checks compare it. A room retired after consecutive soft overruns lists each overrun's elapsed time with that script-run usage, the process-wide Go GC cycles completed during that run (context beside those times, not pause time inside the callbacks), and the most images the launcher had already been asked to fetch, so a kit report can correlate GC or decode contention with the script's own work (`ui/rooms/overrun_streak.go`). Scheduler pauses count against the unchanged callback deadline. Installed-core listing retries transient startup socket/time-out and catalog-warming failures for up to 60 seconds; leaving the room cancels those reads. Back opens the Home overlay, retaining library navigation. Opening the Library from a room, the Home overlay's Library row or Recents suspends that room and its nested parents instead of closing them (`ui/tenfoot/library_return.go`); Back from the Library resumes the same instance with its selection, and Home reclaims a suspended home room and resumes it; either way the Library's Details, filters and view overlays close first. A Library refusal is cleared on that return, so the resumed room does not show it as a launch failure. Opening another room discards the suspended one. Library Details shows the focused title's readiness pill, block headline and the launcher's own reason (`classifyLibraryGame` with the snapshot's `KitPlay`: `libraryPlayDestination` plus the paired kit's unknown status or foreign lease, checked in the same order as Confirm; in a room, a chosen edition is classified itself). The Library header's readiness word, list rows and cover cells use the same classifier. A Ready title on a paired client that is not host-only also says "Plays on this TV", because a paired launch targets that kit, the creator beside the title, and offers A only for what Confirm will do (play, or import the Coleco BIOS). A blocked Confirm opens Details for the title that was refused, including a Home recent that is not the focused Library row. Favorite, pointer confirm, and presentation for that Details follow the same title. When a paired kit cannot report its status, the headline is that unknown status. Cancelling the BIOS picker returns to that Details. A Coleco BIOS import also refreshes a suspended room's cached titles, so Back shows the updated readiness. Library cells that cannot play carry a labelled tag from that classifier, keeping a catalog reason such as Needs BIOS, and missing art names the platform. Other backends keep their existing defaults. A room may publish an allowlisted `settings` action; Confirm opens Settings when the launcher can, and otherwise shows a short status. There is no host
+attract on/off gate, reduced motion, the look name, the optional debug HUD, and
+Home (`home` start screen, optional `home_room` id, plus `pinned_rooms`) are
+local to the tenfoot process (CLI `-safe-area` / `-layout` / `-no-attract` /
+`-theme` / `-debug-hud` / `-home` / `-home-room` and optional `tenfoot.json`
+prefs). When `home` is `rooms` and `home_room` names an openable pack, start and
+Home open it as the root. If the selected Home room cannot open, the room
+picker is the fallback. A library or recents read that fails in the network
+stack shows the temporary unreachable copy and retries with the presentation
+backoff, from 400 ms up to 8 s, until the host answers or the load is replaced.
+A host API error is not retried. An empty catalog stays the empty-library copy.
+The retry does not launch a title. On `menu-display`, a rooms home with no room
+selected by flag, saved preferences or `FOGCAST_HOME_ROOM` defaults to kit Home
+(`example.fes-cores`, titled Home). That room uses `destination_panel =
+"hero"`: tenfoot draws the selected family's or recent title's identity,
+readiness, explanation and action in a large FES-owned panel
+(`ui/tenfoot/room_hero.go`, geometry `rooms.HeroPanel`), while the room draws
+the family tiles, artwork motifs and Home routes. Family Open enters the
+workbench; Play on a recent title starts that title. In the v1 release scope,
+Settings is the only header route and Back at Home's root keeps Home open.
+Show all cores restores Library and Systems routes and the remaining families.
+The footer shows full-size prompts and only actionable status. Details keeps
+the selected family's model/state information or a core's verbatim block when
+the column has to drop lines to fit. On a content box under 480×360,
+`room.hero` is nil and the room draws a compact family list with Settings above
+the destination strip; Recently played is hidden. Each family row has a pointer
+hit, and Up/Down navigate the list and the Settings route. Changing Home from
+Library to Rooms in Settings applies that default for the rest of the session.
+The implicit room stays out of `tenfoot.json`. An already selected room stays
+selected. Library home is unchanged.
+
+Load/update/draw and asynchronous room callback errors identify their callback; deadline-expiry errors also report elapsed wall time and, on Linux, the script run's wall time with the callback thread's own CPU time and its voluntary/involuntary context switches over that run, so a kit report separates slow script work from waiting for a CPU (`ui/rooms/thread_usage.go`). Elapsed covers the whole callback, including pinning and sampling its OS thread and the cleanup after the script; the callback deadline starts with it and the soft and hard budget checks compare it. A room retired after consecutive soft overruns lists each overrun's elapsed time with that script-run usage, the process-wide Go GC cycles completed during that run (context beside those times, not pause time inside the callbacks), and the most images the launcher had already been asked to fetch, so a kit report can correlate GC or decode contention with the script's own work (`ui/rooms/overrun_streak.go`). Scheduler pauses count against the unchanged callback deadline. Installed-core listing retries transient startup socket/time-out and catalog-warming failures for up to 60 seconds; leaving the room cancels those reads. Back from a nested room resumes its parent; Back from a root room opens the picker, except release-scoped Home stays open. Opening the Library from a room, the Home overlay's Library row or Recents suspends that room and its nested parents instead of closing them (`ui/tenfoot/library_return.go`); Back from the Library resumes the same instance with its selection, and Home reclaims a suspended home room and resumes it; either way the Library's Details, filters and view overlays close first. A Library refusal is cleared on that return, so the resumed room does not show it as a launch failure. Opening another room discards the suspended one. Library Details shows the focused title's readiness pill, block headline and the launcher's own reason (`classifyLibraryGame` with the snapshot's `KitPlay`: `libraryPlayDestination` plus the paired kit's unknown status or foreign lease, checked in the same order as Confirm; in a room, a chosen edition is classified itself). The Library header's readiness word, list rows and cover cells use the same classifier. A Ready title on a paired client that is not host-only also says "Plays on this TV", because a paired launch targets that kit, the creator beside the title, and offers A only for what Confirm will do (play, or import the Coleco BIOS). A blocked Confirm opens Details for the title that was refused, including a Home recent that is not the focused Library row. Favorite, pointer confirm, and presentation for that Details follow the same title. When a paired kit cannot report its status, the headline is that unknown status. Cancelling the BIOS picker returns to that Details. A Coleco BIOS import also refreshes a suspended room's cached titles, so Back shows the updated readiness. Library cells that cannot play carry a labelled tag from that classifier, keeping a catalog reason such as Needs BIOS, and missing art names the platform. Other backends keep their existing defaults. A room may publish an allowlisted `settings` action; Confirm opens Settings when the launcher can, and otherwise shows a short status. There is no host
 safe-area or layout API. Host attract idle, preferred regions, selected target, library roots, and
 targets use the existing public library settings endpoints. Tenfoot can add,
 edit, and remove targets from the sofa settings overlay. Agent secrets are
@@ -1523,12 +1560,17 @@ browse-only. This option does not install or select menu firmware in an image.
 
 The built-in room set contains Home, Systems, System setup and Sinclair setup.
 The last two are internal templates opened with an exact model/entry, excluded
-from room and default-home pickers. Home routes directly to Systems. The old
-Lobby, Amiga Workbench, Mario, SNES, TMS and Coleco demo rooms and redundant
-C64 wrapper are removed; the installed-room framework and public widgets stay.
-Systems rereads its playable shelf on resume after nested setup and ignores
-callbacks from earlier refreshes. Sinclair setup queues a refresh requested
-during a read and performs it after the current snapshot arrives.
+from room and default-home pickers. Release Home presents recent titles and
+computer-family tiles; opening a family enters its workbench, while Play on a
+recent title launches that title. Settings is its only header route in the v1
+scope. Show all cores restores Library and Systems routes and the remaining
+families. Back at release Home's root keeps Home open; the room picker is the
+fallback when Home cannot open. The old Lobby, Amiga Workbench, Mario, SNES,
+TMS and Coleco demo rooms and redundant C64 wrapper are removed; the
+installed-room framework and public widgets stay. Systems rereads its
+playable shelf on resume after nested setup and ignores callbacks from earlier
+refreshes. Sinclair setup queues a refresh requested during a read and
+performs it after the current snapshot arrives.
 Missing saved-home IDs use the existing fallback without replacement aliases.
 
 `internal/corenames` supplies plain display names for 18 exact first-party
@@ -1559,12 +1601,14 @@ next-start setup remain distinct.
 `ui/tenfoot/browse_actions.go` owns launcher-local action focus. Direct Confirm
 on a Ready item still launches. Down from Library's bottom visible row enters
 Play/Details; Left/Right selects an action, Up/Back returns to the same item.
-On Home, Up from the shelf enters hero actions and another Up reaches the
-header; Down/Back returns to the shelf. `Snapshot.BrowseActions` feeds paint and
-contextual hints. The captured destination, readiness intent, room/client and
-session generation must still match before activation. The builtin Home room
-accepts private hover IDs to synchronize its shelf outline, without changing
-the public Lua API or destination schema. Opening Details preserves the browse
+On Home, Up from family tiles reaches Recently played when present, then hero
+actions and the header; Back closes Details and otherwise keeps release Home
+at the root. `Snapshot.BrowseActions` feeds paint and contextual hints. The
+captured destination, readiness intent, room/client and session generation
+must still match before activation. Home family destinations use the public
+`kind = "family"` schema (`room_id`, `core_id`, `game_id`, `availability`,
+`status`, `explain`, `models`, `needs`, and `details`); private hover IDs
+synchronize the family-tile outline. Opening Details preserves the browse
 selection and position.
 
 Tenfoot looks are data-driven. `ui/theme` loads colour, spacing,
@@ -1631,8 +1675,11 @@ Kit UI state stays on that FAT tree at `/media/fat/fogcast/state`. The software
 supervisor creates the directory when `/media/fat/fogcast` is already present
 and sets `XDG_CONFIG_HOME` and `XDG_STATE_HOME` to it for the runtime, agent
 and launcher. Tenfoot writes `FogCast/tenfoot.json` and
-`FogCast/rooms/<room-id>.state.json` there. Home's last selected package is
-`package_id` in `FogCast/rooms/example.fes-cores.state.json`, restored when that package is still installed. A fresh visit, or a saved id that is missing or unavailable, focuses the first installed core. Selecting an omitted core does not replace the saved id. The directory is
+`FogCast/rooms/<room-id>.state.json` there. Home saves focus as
+`recent:<game-id>` or `family:<family-id>` in
+`FogCast/rooms/example.fes-cores.state.json` and restores it when the title or
+family is still visible. A fresh visit chooses a recent title when available,
+otherwise the first Ready family or the first family. The directory is
 not a FESDATA3 bind mount. Tenfoot keeps the user config directory
 (`XDG_CONFIG_HOME`, otherwise `$HOME/.config`) when that directory is
 writable, when a missing path can be created because its nearest existing
@@ -2674,34 +2721,31 @@ conflict responses, and unexpected storage failures remain internal errors.
 Malformed archives or incompatible compositions are rejected as admission
 errors.
 
-### FES Home system shelf
+### FES Home families
 
-The embedded `example.fes-cores` Home room combines the kit-local package
-list from `kit.cores` with prepared host-library systems from
-`hardware.read`. Tenfoot applies the v1 release scope to the core catalog and
-Home recents; recents keep scanning cursor pages until they have five visible
-entries or the host has no more. Games without a core ID remain visible.
-**Show all cores** removes that presentation filter and is available through
-Settings, `tenfoot.json` `all_cores`, or `FOGCAST_TENFOOT_ALL_CORES=1`. Room
-instances receive the same scope for local packages, hardware snapshots and
-the systems table; `room.core_shown` also keeps the core a room was opened for,
-so setup for a held-back running machine remains usable. Changing the setting
-stays in Settings until it closes, then returns Home and drops any stale room
-instance. A Home room is reused only when its release scope matches the current
-setting. The host catalog and Library grid remain complete. Each host card
-publishes its library `game_id` and launches
-through the library path; a ready host card replaces a blocked local row for
-the same core, while a launchable local row stays selected. Host readiness
-follows library launch admission, including selected video parts, required and
-selected removable media, package composition, and the format-2 ZX81 machine
-ROM linker. The format-2 ZX81 local row is blocked because local `LoadCore`
-loads only the installed archive and does not splice the machine ROM. If
-kit-local listing fails, Home still reads the host shelf and shows any
-available host cards; with no host cards, it shows the kit-listing error. Once
-the opening selection is listed, Home persists it in that frame so a player
-can press Play immediately and still get the remembered pending card next
-time. Later shelf navigation keeps its one-second save debounce. The saved card
-also carries the package's keyboard and mouse needs into its pending display.
+The embedded `example.fes-cores` Home room presents computer families and a
+Recently played row. It queries the host library for each family's machine
+entries and titles, and uses `kit.cores` as the readiness source when the host
+has no entry for a model. The v1 release scope shows its fixed families;
+**Show all cores**, available through Settings, `tenfoot.json` `all_cores`, or
+`FOGCAST_TENFOOT_ALL_CORES=1`, adds the remaining families in `systems.lua`
+order and restores the Library and Systems routes. The host Library remains
+complete in either scope.
+
+A family tile summarizes its models and readiness. Its Open action enters the
+matching workbench with a machine entry's `game_id` and `core_id`; it never
+launches a core directly. Add firmware enters the same workbench when a family
+has no ready model. Details groups the models by state and shows the library
+count. Recently played launches its selected title directly. On compact Home,
+the recent row is hidden and the family tiles use a list layout.
+
+Home persists focus as `family:<family-id>` or `recent:<game-id>` in its room
+state, so a workbench visit or play return can restore the same destination.
+The opening selection waits for the recent titles, kit inventory and family
+library reads to settle, preventing focus from moving as asynchronous results
+arrive. A Home instance is reused only when its release scope matches the
+current setting. Changing Show all cores stays in Settings until it closes,
+then returns Home with an instance built for the new scope.
 
 ### Home-computer packages and slot cards
 
