@@ -13,8 +13,10 @@ import (
 // SpooledInput is one launch body written once to a private file in the
 // staging root and read back through a read-only mapping (#863). Staging reads
 // its bytes without a heap copy, and a ROM input publishes the same file as its
-// input.tar by hard link instead of writing the envelope again. The bytes stay
-// valid until Close; nothing staged from them may keep a reference.
+// input.tar by hard link instead of writing the envelope again, so the staging
+// root must be on a filesystem with hard links (the kit's is tmpfs; FAT is
+// not). The bytes stay valid until Close; nothing staged from them may keep a
+// reference, and nothing may write to them.
 type SpooledInput struct {
 	data     []byte
 	unmap    func() error
