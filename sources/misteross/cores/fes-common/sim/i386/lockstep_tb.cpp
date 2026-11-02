@@ -86,6 +86,11 @@
 //             an INT and a fault whose delivery faults must stop with nothing
 //             written.
 //   unreal    the directed unreal-mode cases (run_unreal_cases).
+//   test386   test386.asm on the RTL alone (run_test386).
+//   pmode     the directed protected-mode cases (run_pmode_cases): each
+//             fault's vector and error code, EXT, a double fault and
+//             shutdown, INT n and IRET, far CALL and RETF, LLDT, LTR, LAR,
+//             LSL, VERR, VERW, ARPL, and what stops as not built.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
@@ -1147,6 +1152,7 @@ struct Summary {
     // RTL (a known limit).
     uint64_t pm_retirements = 0, cs_rule = 0, ss_error_rule = 0;
     std::map<int, uint64_t> pm_deliveries, unbuilt;
+    std::map<std::string, uint64_t> pm_kinds;  // retirements with PE set of this slice's instructions, by kind
 };
 
 void hash_state(Summary &summary, const State &s) {
@@ -1383,7 +1389,8 @@ struct Outcome {
     bool window_code = false;   // stopped at code in the MMIO window, which neither side fetches
     bool code_store = false;    // stopped at a store into its code that it did not plan
     // With mixed memory, stopped at code outside the program (own) and the
-    // injected interrupts' handler, at code other than the 16 bytes from the
+    // injected interrupts' handlers (the real-mode one and the protected-mode
+    // IDT's), at code other than the 16 bytes from the
     // instruction before if that one read the mixing device, the ROM or the
     // hole, or with TF set: a return address, far pointer or flags image read
     // back from mixed memory is no longer the program's, and the code it
@@ -1489,7 +1496,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 outcome.window_code = true;
                 return outcome;
             }
-            const bool handler = irq && at - irq->handler < 2;
+            const bool handler = irq && (at - irq->handler < 2 || at - irq->pm_h32 < 2 || at - irq->pm_h16 < 2);
             if (mixed && own && (!(at >= own->lo && at < own->hi) && !handler || now.eflags & 0x100
                                  || bus.mixed_read && at - mixed_from >= 16 && !handler)) {
                 outcome.stray = true;
@@ -1881,13 +1888,16 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
                 }
             } else {
                 // A delivery's pushed FLAGS image, at SS:SP - 2 before the
-                // instruction, may differ in the flags an entry leaves to the
-                // corpus (stack.flags): the oracle takes the RTL's.
+                // instruction (- 4 through a protected-mode 386 gate), may
+                // differ in the flags an entry leaves to the corpus
+                // (stack.flags): the oracle takes the RTL's.
                 if (delivered && skip.stack_flags) {
                     const auto &ss = before.seg[fes_i386::SEG_SS];
                     const uint32_t esp = before.gpr[fes_i386::REG_ESP];
+                    const uint32_t gate = before.idtr.base + rtl.top.trace_vector * 8u + 5;
+                    const uint32_t image = (before.cr0 & 1) && gate < RAM_BYTES && (bus.ram[gate] & 8) ? 4 : 2;
                     for (uint32_t k = 0; k < 2; ++k) {
-                        const uint32_t at = ss.base + ((ss.ar & 0x4000) ? esp - 2 + k : (esp - 2 + k) & 0xffff);
+                        const uint32_t at = ss.base + ((ss.ar & 0x4000) ? esp - image + k : (esp - image + k) & 0xffff);
                         const uint8_t mask = uint8_t(skip.stack_flags >> (8 * k));
                         if (at < RAM_BYTES && oracle_writes.count(at) && !((bus.ram[at] ^ rtl.ram[at]) & ~mask)) {
                             bus.ram[at] = rtl.ram[at];
@@ -2039,6 +2049,24 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             }
         }
         summary.pm_retirements += (oracle_state.cr0 & 1) != 0;
+        // What the protected-mode instructions of this slice retired, with
+        // PE set before them.
+        if ((before.cr0 & 1) && !delivered) {
+            unsigned i = 0;
+            while (i < 15 && is_prefix(code[i])) ++i;
+            const uint8_t op = code[i], op2 = code[i + 1], reg = (code[i + 2] >> 3) & 7;
+            const char *kind = op == 0xcd || op == 0xcc || op == 0xce ? (taken >= 0 ? "int" : nullptr)
+                             : op == 0xcf ? "iret" : op == 0x9a || op == 0xff && ((op2 >> 3) & 7) == 3 ? "call-far"
+                             : op == 0xca || op == 0xcb ? "retf" : op == 0x63 ? "arpl"
+                             : op == 0x0f && op2 == 0x02 ? "lar" : op == 0x0f && op2 == 0x03 ? "lsl"
+                             : op == 0x0f && op2 == 0x00 ? (reg == 0 ? "sldt" : reg == 1 ? "str" : reg == 2 ? "lldt"
+                                                            : reg == 3 ? "ltr" : reg == 4 ? "verr" : reg == 5 ? "verw" : nullptr)
+                             : nullptr;
+            if (kind) ++summary.pm_kinds[kind];
+            for (int n = 0; n < 6; ++n)
+                if (oracle_state.seg[n].selector != before.seg[n].selector && (oracle_state.seg[n].selector & 4))
+                    ++summary.pm_kinds["ldt-load"];
+        }
         compare(oracle_state, rtl_state, skip, at, out);
         hash_state(summary, rtl_state);
         if (!out.items.empty()) return outcome;
@@ -4009,8 +4037,13 @@ private:
         }
     }
     // INT n (any vector of the IDT's, or past it), INT3, or INTO; the
-    // handlers IRET back.
+    // handlers IRET back, to CS: the block far-jumps first, mostly, if it
+    // has not, so CS holds a GDT selector to return to.
     void pm_int() {
+        if (!pm_cs && pick(8)) {
+            pm_far_jump(0x30);
+            pm_cs = true;
+        }
         switch (pick(6)) {
         case 0: emit({0xcc}); break;
         case 1: emit({0xce}); break;
@@ -4444,6 +4477,340 @@ int run_random(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::ve
 // ---- Unreal mode (directed) ---------------------------------------------------------
 // docs/i386-cpu-design.md's planned unreal-mode test, against the oracle with
 // the RTL-only checks of the 386 real-mode CS rule. Each case runs from
+// test386.asm on the RTL alone (FES_I386_MODE=test386), as test386_tb.cpp
+// runs it on the oracle: the ROM (FES_I386_ROM, 128 KiB) at E0000h, read-only
+// in the attribute map, and below 4 GiB through the reset alias; RAM below
+// it; every port reads all ones. It prints the same lines: POST <code> <n>
+// for each byte the ROM writes to port FES_I386_POST, ERROR <linear> <n> when
+// the error routine (FES_I386_ERROR) is entered, FORGIVEN <linear> <n> where
+// a listed check (FES_I386_FORGIVE, <linear>:<length>,...) failed and was
+// stepped over, then END <reason> <retirements> <cs> <eip>; and for a stop
+// as not built, STOP <why> <vector> <linear> <bytes>. The text the ROM
+// writes to port FES_I386_OUTPUT goes to FES_I386_TEXT.
+int run_test386(fes_i386::Oracle &oracle, Rtl &rtl) {
+    auto number = [](const char *name) { return std::strtoul(std::getenv(name) ? std::getenv(name) : "0", nullptr, 0); };
+    const char *rom_path = std::getenv("FES_I386_ROM");
+    if (!rom_path) throw std::runtime_error("FES_I386_ROM is required");
+    std::ifstream input(rom_path, std::ios::binary);
+    const std::vector<uint8_t> rom((std::istreambuf_iterator<char>(input)), {});
+    if (rom.size() != 0x20000) throw std::runtime_error("the ROM must be 128 KiB");
+    const uint16_t post = uint16_t(number("FES_I386_POST")), output = uint16_t(number("FES_I386_OUTPUT"));
+    const uint32_t error = uint32_t(number("FES_I386_ERROR"));
+    const uint64_t limit = number("FES_I386_LIMIT") ? number("FES_I386_LIMIT") : 30000000;
+    std::map<uint32_t, uint32_t> forgive;
+    if (const char *list = std::getenv("FES_I386_FORGIVE")) {
+        std::stringstream items(list);
+        std::string item;
+        while (std::getline(items, item, ','))
+            if (const size_t colon = item.find(':'); colon != std::string::npos)
+                forgive[uint32_t(std::stoul(item.substr(0, colon), nullptr, 0))] =
+                    uint32_t(std::stoul(item.substr(colon + 1), nullptr, 0));
+    }
+    for (uint32_t i = 0; i < rom.size(); ++i) rtl.poke(0xe0000 + i, rom[i]);
+    // A0000h-DFFFFh RAM, E0000h-FFFFFh read-only (ATTR_ROM) in 16 KiB slots.
+    uint64_t map = 0;
+    for (int slot = 16; slot < 24; ++slot) map |= uint64_t(1) << (2 * slot);
+    rtl.top.attr_upper = map;
+    rtl.io.reset(true);
+    oracle.reset();
+    rtl.start(oracle.get_state());
+    std::string text;
+    const char *reason = "limit";
+    uint64_t n = 0;
+    auto linear = [](const State &state) { return state.seg[fes_i386::SEG_CS].base + state.eip; };
+    for (; n < limit; ++n) {
+        const State before = rtl.state();
+        const uint32_t from = linear(before);
+        const Rtl::Event event = rtl.next();
+        for (const IoAccess &access : rtl.io.log) {
+            if (!access.write) continue;
+            if (access.port == post) std::printf("POST %02x %llu\n", access.data & 0xff, (unsigned long long)n);
+            else if (output && access.port == output) text.push_back(char(access.data & 0xff));
+        }
+        if (event == Rtl::Event::Unimplemented) {
+            reason = "unbuilt";
+            uint8_t bytes[15];
+            std::string hex_bytes;
+            for (unsigned i = 0; i < 15; ++i) {
+                bytes[i] = rtl.ram[physical(from + i, false) % RAM_BYTES];
+                char t[4];
+                std::snprintf(t, sizeof t, "%02x", bytes[i]);
+                hex_bytes += t;
+            }
+            std::printf("STOP %u %02x %08x %s\n", unsigned(rtl.top.trace_unbuilt), unsigned(rtl.top.trace_vector), from,
+                        hex_bytes.c_str());
+            break;
+        }
+        if (event == Rtl::Event::Shutdown) { reason = "shutdown"; break; }
+        if (event == Rtl::Event::Timeout) {
+            // HLT with IF clear: test386's end, on completion and on error.
+            reason = rtl.top.trace_halt && !(rtl.top.arch_eflags & 0x200) ? "halt" : "timeout";
+            break;
+        }
+        const State after = rtl.state();
+        if (const auto f = forgive.find(from); f != forgive.end() && linear(after) != from + f->second) {
+            std::printf("FORGIVEN %08x %llu\n", from, (unsigned long long)n);
+            State next = before;
+            next.eip += f->second;
+            rtl.start(next);
+            continue;
+        }
+        if (linear(after) == error && from != error) std::printf("ERROR %08x %llu\n", from, (unsigned long long)n);
+    }
+    const State state = rtl.state();
+    std::printf("END %s %llu %04x %08x\n", reason, (unsigned long long)n, state.seg[fes_i386::SEG_CS].selector, state.eip);
+    if (const char *path = std::getenv("FES_I386_TEXT")) std::ofstream(path, std::ios::binary) << text;
+    return 0;
+}
+
+// The directed protected-mode cases (Phase 2's second slice), each from
+// 0000:1000 in real mode, against Bochs. The prologue: CLI, LGDT, LIDT of
+// the IDT at 3000h (48 gates; LIDT's pointer at 2108h), PE set, JMP 08h:pm;
+// DS, ES, FS and GS 10h, SS 10h with SP 0F00h. The GDT at 2000h:
+//   08h code 16-bit, base 0, 64K        38h TSS, 386, available, at 2500h
+//   10h data, base 0, 64K               40h code 16-bit, base 0, limit FFFh
+//   18h code 32-bit, flat               48h data read-only, base 0, 64K
+//   20h data, flat (G, B)               50h TSS, 286, available, at 2580h
+//   28h data, not present               58h code 16-bit, not present
+//   30h LDT at 2400h, 4 descriptors     60h code 16-bit, conforming
+//   68h data DPL 3                      70h code 16-bit, DPL 3
+//   78h past the limit (77h)
+// The LDT: 04h null, 0Ch data base 5000h 64K, 14h code 16-bit base 0,
+// 1Ch data not present. Gates: every vector a 386 interrupt gate to
+// 08h:1800h, where HLT ends the case, but those a case sets: 20h a 286
+// interrupt gate to 08h:1810h (INC AX; IRET), 21h not present, 22h a data
+// descriptor, 23h a null CS, 24h CS 10h (data), 25h CS 58h (not present),
+// 26h 40h:2000h (past its limit), 27h a 386 trap gate to 08h:1800h, 28h a
+// task gate (not built), 29h a 386 trap gate to 18h:1820h (IRETD in 32-bit
+// code). Subroutines for far calls at 1900h (INC AX; RETF 0) and 1910h
+// (INC AX; RETF 4, 32-bit), and a far pointer to the first at 1920h. Each
+// case's ending: HLT, after the software interrupt it names if any; the
+// exception the delivery's handler halts in, with its error code (the
+// frame's last push); shutdown; or a stop as not built.
+int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
+                    Summary &summary) {
+    struct Asm {
+        std::vector<uint8_t> b;
+        void op(std::initializer_list<uint8_t> bytes) { b.insert(b.end(), bytes); }
+        void w(uint16_t v) { b.push_back(uint8_t(v)); b.push_back(uint8_t(v >> 8)); }
+        void d(uint32_t v) { w(uint16_t(v)); w(uint16_t(v >> 16)); }
+        size_t here() const { return b.size(); }
+        void ax(uint16_t v) { op({0xb8}); w(v); }  // MOV AX, v
+    };
+    constexpr uint32_t CODE = 0x1000, GDT = 0x2000, IDT = 0x3000, LDT = 0x2400;
+    auto desc = [](uint32_t base, uint32_t limit, uint8_t ar, bool g, bool db) {
+        return uint64_t(limit & 0xffff) | uint64_t(base & 0xffff) << 16 | uint64_t((base >> 16) & 0xff) << 32
+             | uint64_t(ar) << 40 | uint64_t((limit >> 16) & 0xf) << 48 | uint64_t(db) << 54 | uint64_t(g) << 55
+             | uint64_t(base >> 24) << 56;
+    };
+    auto gate = [](uint16_t sel, uint32_t off, uint8_t ar) {
+        return (off & 0xffff) | uint64_t(sel) << 16 | uint64_t(ar) << 40 | uint64_t(off >> 16) << 48;
+    };
+    const uint64_t gdt[15] = {0, desc(0, 0xffff, 0x9b, false, false), desc(0, 0xffff, 0x93, false, false),
+                              desc(0, 0xfffff, 0x9b, true, true), desc(0, 0xfffff, 0x93, true, true),
+                              desc(0, 0xffff, 0x13, false, false), desc(LDT, 0x1f, 0x82, false, false),
+                              desc(0x2500, 0x67, 0x89, false, false), desc(0, 0xfff, 0x9b, false, false),
+                              desc(0, 0xffff, 0x91, false, false), desc(0x2580, 0x2b, 0x81, false, false),
+                              desc(0, 0xffff, 0x1b, false, false), desc(0, 0xffff, 0x9f, false, false),
+                              desc(0, 0xffff, 0xf3, false, false), desc(0, 0xffff, 0xfb, false, false)};
+    const uint64_t ldt[4] = {0, desc(0x5000, 0xffff, 0x93, false, false), desc(0, 0xffff, 0x9b, false, false),
+                             desc(0x5000, 0xffff, 0x13, false, false)};
+    // ending: -1 HLT (after software interrupt soft, if not -1), -2
+    // shutdown, -3 not built, else the vector, with its error code if not
+    // -1.
+    struct Case { const char *label; std::function<void(Asm &)> body; int ending; int error;
+                  std::vector<std::pair<unsigned, uint64_t>> gates; bool real; int soft = -1; };
+    const uint64_t absent = gate(0x08, 0x1800, 0x0e);  // a 386 interrupt gate, not present
+    const std::vector<Case> cases = {
+        {"ud", [](Asm &a) { a.op({0x8e, 0xc8}); }, 6, -1, {}, false},                                // MOV CS, AX
+        {"np-sel", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd8}); }, 11, 0x28, {}, false},             // MOV DS, 28h
+        {"gp-sel", [](Asm &a) { a.ax(0x7b); a.op({0x8e, 0xd8}); }, 13, 0x78, {}, false},             // past the GDT
+        {"gp-ss-ro", [](Asm &a) { a.ax(0x48); a.op({0x8e, 0xd0}); }, 13, 0x48, {}, false},           // MOV SS, read-only
+        {"ss-sel", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0}); }, 12, 0x28, {}, false},             // MOV SS, not present
+        {"gp0", [](Asm &a) { a.op({0x8b, 0x06, 0xff, 0xff}); }, 13, 0, {}, false},                   // MOV AX, [FFFFh]
+        {"ss0", [](Asm &a) { a.op({0xbb, 0xff, 0xff, 0x36, 0x8b, 0x07}); }, 12, 0, {}, false},       // MOV AX, SS:[FFFFh]
+        // DIV CX by 0 (the divergence div-flags: the frame's FLAGS image
+        // is the RTL's), through a 386 gate and a 286 one.
+        {"de", [](Asm &a) { a.op({0x31, 0xc9, 0xf7, 0xf1}); }, 0, -1, {}, false},
+        {"de-286", [](Asm &a) { a.op({0x31, 0xc9, 0xf7, 0xf1}); }, 0, -1, {{0, gate(0x08, 0x1800, 0x86)}}, false},
+        {"gp-idt-limit", [](Asm &a) { a.op({0xcd, 0x40}); }, 13, 0x40 * 8 + 2, {}, false},           // INT 40h past the IDT
+        {"np-idt", [](Asm &a) { a.op({0xcd, 0x21}); }, 11, 0x21 * 8 + 2, {}, false},
+        {"gp-idt-type", [](Asm &a) { a.op({0xcd, 0x22}); }, 13, 0x22 * 8 + 2, {}, false},
+        {"gp-gate-null", [](Asm &a) { a.op({0xcd, 0x23}); }, 13, 0, {}, false},
+        {"gp-gate-data", [](Asm &a) { a.op({0xcd, 0x24}); }, 13, 0x10, {}, false},
+        {"np-gate-cs", [](Asm &a) { a.op({0xcd, 0x25}); }, 11, 0x58, {}, false},
+        {"gp-gate-off", [](Asm &a) { a.op({0xcd, 0x26}); }, 13, 0, {}, false},
+        // A fault in a hardware exception's delivery: #UD's gate not
+        // present, #NP with EXT; then #NP's too, a double fault; then #DF's,
+        // shutdown.
+        {"ext", [](Asm &a) { a.op({0x8e, 0xc8}); }, 11, 6 * 8 + 3, {{6, absent}}, false},
+        {"df", [](Asm &a) { a.op({0x8b, 0x06, 0xff, 0xff}); }, 8, 0, {{13, absent}}, false},
+        {"shutdown", [](Asm &a) { a.op({0x8b, 0x06, 0xff, 0xff}); }, -2, -1, {{13, absent}, {8, absent}}, false},
+        {"int-iret", [](Asm &a) { a.op({0x31, 0xc0, 0xcd, 0x20, 0x40}); }, -1, -1, {}, false, 0x20},  // INT 20h; INC AX
+        {"int-trap-iretd", [](Asm &a) { a.op({0xfb, 0xcd, 0x29}); }, -1, -1, {}, false, 0x29},       // STI; INT 29h
+        {"into", [](Asm &a) { a.op({0xb0, 0x7f, 0x04, 0x01, 0xce}); }, -1, -1, {}, false, 4},        // MOV AL, 7Fh; ADD AL, 1; INTO
+        {"int3", [](Asm &a) { a.op({0xcc}); }, -1, -1, {}, false, 3},
+        {"trap-gate", [](Asm &a) { a.op({0xfb, 0xcd, 0x27}); }, -1, -1, {}, false, 0x27},            // STI; INT 27h: IF kept
+        {"task-gate", [](Asm &a) { a.op({0xcd, 0x28}); }, -3, -1, {}, false},
+        // CALL 08h:sub (16- and 32-bit, direct and through memory); sub:
+        // INC AX; RETF imm16 or RETF.
+        {"callf-retf", [](Asm &a) { a.op({0x31, 0xc0, 0x9a}); a.w(0x1900); a.w(0x08); }, -1, -1, {}, false},
+        {"callf32-retf", [](Asm &a) { a.op({0x66, 0x9a}); a.d(0x1910); a.w(0x08); }, -1, -1, {}, false},
+        {"callfm-retf", [](Asm &a) { a.op({0xff, 0x1e}); a.w(0x1920); }, -1, -1, {}, false},           // CALL FAR [1920h]
+        {"callf-gp-off", [](Asm &a) { a.op({0x9a}); a.w(0x2000); a.w(0x40); }, 13, 0, {}, false},   // past 40h's limit
+        // SP 2: the second slot is at FFFFFFFEh without the 64 KiB wrap,
+        // #SS(0); its delivery's frame then wraps misaligned, a double
+        // fault, and shutdown (with the wrap the call would reach its HLT).
+        {"callf-ss-nowrap", [](Asm &a) { a.op({0xbc, 0x02, 0x00, 0x9a}); a.w(0x1800); a.w(0x08); }, -2, -1, {}, false},
+        {"callf-np", [](Asm &a) { a.op({0x9a}); a.w(0x1800); a.w(0x58); }, 11, 0x58, {}, false},
+        {"retf-gp-data", [](Asm &a) { a.op({0x6a, 0x10, 0x6a, 0x00, 0xcb}); }, 13, 0x10, {}, false},  // PUSH 10h; PUSH 0; RETF
+        {"iret-np", [](Asm &a) { a.op({0x9c, 0x6a, 0x58, 0x6a, 0x00, 0xcf}); }, 11, 0x58, {}, false}, // PUSHF; PUSH 58h; PUSH 0; IRET
+        {"retf-outer", [](Asm &a) { a.op({0x6a, 0x73, 0x6a, 0x00, 0xcb}); }, -3, -1, {}, false},      // RETF to 70h, RPL 3: not built
+        {"lldt-ldt", [](Asm &a) {
+             a.ax(0x30); a.op({0x0f, 0x00, 0xd0});                                        // LLDT AX
+             a.ax(0x0c); a.op({0x8e, 0xd8, 0x8e, 0xc0});                                  // MOV DS, ES, LDT 0Ch
+             a.op({0x0f, 0x00, 0xc3, 0x89, 0x1e, 0x00, 0x01, 0xf4});                      // SLDT BX; MOV [100h], BX; HLT
+         }, -1, -1, {}, false},
+        {"lldt-np", [](Asm &a) { a.ax(0x30); a.op({0x0f, 0x00, 0xd0}); a.ax(0x1c); a.op({0x8e, 0xd8}); }, 11, 0x1c, {}, false},
+        {"lldt-null-ti", [](Asm &a) { a.ax(0x00); a.op({0x0f, 0x00, 0xd0}); a.ax(0x0c); a.op({0x8e, 0xd8}); }, 13, 0x0c, {}, false},
+        {"lldt-gp", [](Asm &a) { a.ax(0x10); a.op({0x0f, 0x00, 0xd0}); }, 13, 0x10, {}, false},
+        {"ltr-str", [](Asm &a) { a.ax(0x38); a.op({0x0f, 0x00, 0xd8, 0x0f, 0x00, 0xcb, 0xf4}); }, -1, -1, {}, false},  // LTR AX; STR BX
+        {"ltr-busy", [](Asm &a) { a.ax(0x38); a.op({0x0f, 0x00, 0xd8, 0x0f, 0x00, 0xd8}); }, 13, 0x38, {}, false},
+        {"ltr-null", [](Asm &a) { a.ax(0x03); a.op({0x0f, 0x00, 0xd8}); }, 13, 0, {}, false},
+        {"lar-lsl-verr-verw", [](Asm &a) {
+             a.op({0xbb, 0x40, 0x00, 0x0f, 0x02, 0xc3});                                   // MOV BX, 40h; LAR AX, BX
+             a.op({0x66, 0x0f, 0x03, 0xcb});                                               // LSL ECX, BX
+             a.op({0xbb, 0x48, 0x00, 0x0f, 0x00, 0xe3, 0x9c});                             // VERR BX; PUSHF
+             a.op({0x0f, 0x00, 0xeb, 0x9c});                                               // VERW BX; PUSHF
+             a.op({0xbb, 0x38, 0x00, 0x0f, 0x02, 0xd3, 0x9c});                             // LAR DX, 38h (TSS); PUSHF
+             a.op({0xbb, 0x78, 0x00, 0x0f, 0x03, 0xf3, 0x9c, 0xf4});                       // LSL SI, 78h (past); PUSHF; HLT
+         }, -1, -1, {}, false},
+        {"arpl", [](Asm &a) {
+             a.op({0xc7, 0x06, 0x00, 0x01, 0x08, 0x00});                                   // MOV word [100h], 08h
+             a.op({0xbb, 0x03, 0x00, 0x63, 0x1e, 0x00, 0x01, 0x9c});                       // MOV BX, 3; ARPL [100h], BX; PUSHF
+             a.op({0x63, 0x1e, 0x00, 0x01, 0x9c});                                         // ARPL again: no adjust
+             a.op({0xb9, 0x02, 0x00, 0x63, 0xd9, 0xf4});                                   // MOV CX, 2; ARPL CX, BX; HLT
+         }, -1, -1, {}, false},
+        {"real-lldt-ud", [](Asm &a) { a.op({0x0f, 0x00, 0xd0}); }, 6, -1, {}, true},
+        {"real-arpl-ud", [](Asm &a) { a.op({0x63, 0xc0}); }, 6, -1, {}, true},
+    };
+    for (const Case &c : cases) {
+        Asm a;
+        if (!c.real) {
+            a.op({0xfa, 0x31, 0xc0, 0x8e, 0xd8});                // CLI; XOR AX, AX; MOV DS, AX
+            a.op({0x0f, 0x01, 0x16}); a.w(0x2100);              // LGDT [2100h]
+            a.op({0x0f, 0x01, 0x1e}); a.w(0x2108);              // LIDT [2108h]
+            a.op({0x0f, 0x20, 0xc0, 0x0c, 0x01, 0x0f, 0x22, 0xc0});  // MOV EAX, CR0; OR AL, 1; MOV CR0, EAX
+            const size_t jmp_pm = a.here();
+            a.op({0xea}); a.w(0); a.w(0x08);                    // JMP 08h:pm
+            const uint16_t pm = uint16_t(CODE + a.here());
+            a.b[jmp_pm + 1] = uint8_t(pm); a.b[jmp_pm + 2] = uint8_t(pm >> 8);
+            a.op({0xb8, 0x10, 0x00, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xe0, 0x8e, 0xe8, 0x8e, 0xd0});  // DS ES FS GS SS 10h
+            a.op({0xbc, 0x00, 0x0f});                           // MOV SP, 0F00h
+        }
+        c.body(a);
+        a.op({0xf4});
+        std::vector<std::pair<uint32_t, uint8_t>> image;
+        for (size_t i = 0; i < a.b.size(); ++i) image.emplace_back(CODE + uint32_t(i), a.b[i]);
+        for (unsigned n = 0; n < 15; ++n)
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(GDT + 8 * n + i, uint8_t(gdt[n] >> (8 * i)));
+        for (unsigned n = 0; n < 4; ++n)
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(LDT + 8 * n + i, uint8_t(ldt[n] >> (8 * i)));
+        std::array<uint64_t, 48> idt;
+        for (unsigned v = 0; v < 48; ++v) idt[v] = gate(0x08, 0x1800, 0x8e);
+        idt[0x20] = gate(0x08, 0x1810, 0x86);
+        idt[0x21] = gate(0x08, 0x1800, 0x0e);
+        idt[0x22] = desc(0, 0xffff, 0x92, false, false);
+        idt[0x23] = gate(0x00, 0x1800, 0x8e);
+        idt[0x24] = gate(0x10, 0x1800, 0x8e);
+        idt[0x25] = gate(0x58, 0x1800, 0x8e);
+        idt[0x26] = gate(0x40, 0x2000, 0x8e);
+        idt[0x27] = gate(0x08, 0x1800, 0x8f);
+        idt[0x28] = gate(0x38, 0, 0x85);
+        idt[0x29] = gate(0x18, 0x1820, 0x8f);
+        for (auto [v, g] : c.gates) idt[v] = g;
+        for (unsigned v = 0; v < 48; ++v)
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(IDT + 8 * v + i, uint8_t(idt[v] >> (8 * i)));
+        for (unsigned i = 0; i < 6; ++i) {
+            image.emplace_back(0x2100 + i, uint8_t((uint64_t(GDT) << 16 | 0x77) >> (8 * i)));
+            image.emplace_back(0x2108 + i, uint8_t((uint64_t(IDT) << 16 | (48 * 8 - 1)) >> (8 * i)));
+        }
+        image.emplace_back(0x1800, 0xf4);                                    // HLT
+        image.emplace_back(0x1810, 0x40);                                    // INC AX
+        image.emplace_back(0x1811, 0xcf);                                    // IRET
+        image.emplace_back(0x1820, 0xcf);                                    // IRETD (32-bit code)
+        const uint8_t subs[] = {0x40, 0xca, 0x00, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   // 1900h: INC AX; RETF 0
+                                0x40, 0x66, 0xca, 0x04, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 1910h: INC AX; RETF 4
+                                0x00, 0x19, 0x08, 0x00};                                        // 1920h: 08h:1900h
+        for (unsigned i = 0; i < sizeof subs; ++i) image.emplace_back(0x1900 + i, subs[i]);
+        // The real-mode cases' #UD: the vector table's entry at the HLT.
+        image.emplace_back(6 * 4, 0x00); image.emplace_back(6 * 4 + 1, 0x18);
+        image.emplace_back(6 * 4 + 2, 0x00); image.emplace_back(6 * 4 + 3, 0x00);
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, value);
+            oracle.invalidate(address, 1);
+        }
+        State state;
+        for (int k = 0; k < 6; ++k) state.seg[k] = fes_i386::real_mode_segment(0);
+        state.eip = CODE;
+        state.gpr[fes_i386::REG_ESP] = 0x0f00;
+        state.cr0 = 0x7ffffff0;
+        oracle.reset();
+        oracle.set_state(state);
+        rtl.start(state);
+        Mismatches out;
+        Outcome outcome;
+        try {
+            outcome = lockstep(oracle, bus, rtl, entries, Fields{}, 64, true, summary, out, CODE + uint32_t(a.b.size()));
+        } catch (const std::exception &error) {
+            out.add(std::string(c.label) + ".oracle-error:" + error.what(), 0, 1);
+            oracle.reset();
+        }
+        const State s = rtl.state();
+        const std::string label = c.label;
+        if (c.ending == -1) {
+            if (!outcome.halted) out.add(label + ".halt", 1, 0);
+            if (outcome.exception >= 0) out.add(label + ".exception", 0xff, uint32_t(outcome.exception));
+            if (outcome.interrupt != c.soft) out.add(label + ".interrupt", uint32_t(c.soft), uint32_t(outcome.interrupt));
+        } else if (c.ending == -2) {
+            if (!outcome.shutdown) out.add(label + ".shutdown", 1, 0);
+        } else if (c.ending == -3) {
+            if (outcome.unbuilt < 0) out.add(label + ".unbuilt", 1, 0);
+        } else {
+            if (outcome.exception != c.ending)
+                out.add(label + ".exception", uint32_t(c.ending), outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
+            // The error code: the frame's last push, at SS:ESP.
+            if (c.error >= 0 && outcome.exception == c.ending) {
+                const uint32_t at = s.seg[fes_i386::SEG_SS].base + (s.gpr[fes_i386::REG_ESP] & 0xffff);
+                const uint32_t got = rtl.ram[at] | uint32_t(rtl.ram[at + 1]) << 8;
+                if (got != uint32_t(c.error)) out.add(label + ".error-code", uint32_t(c.error), got);
+            }
+        }
+        end_run(bus, rtl, outcome.halted, out);
+        summary.cycles += rtl.cycles;
+        rtl.cycles = 0;
+        for (auto [address, value] : image) {
+            bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        for (uint32_t address : rtl.written) {
+            if (address < RAM_BYTES) bus.ram[address] = rtl.poke(address, 0);
+            oracle.invalidate(address, 1);
+        }
+        rtl.written.clear();
+        ++summary.runs;
+        if (out.items.empty()) {
+            ++summary.passed;
+        } else {
+            ++summary.failed;
+            std::cout << "FAIL pmode:" << label;
+            for (const auto &item : out.items) std::cout << ' ' << item;
+            std::cout << '\n';
+        }
+    }
+    return 0;
+}
+
 // 0000:1000 in real mode with a GDT at 2000h (LGDT's pointer at 2100h):
 //   08h code, 16-bit, base 0, 64K      18h data, base 0, 64K
 //   10h data, base 0, 4 GiB (G)        20h code, 16-bit, base 0, 4 GiB (G)
@@ -5185,6 +5552,10 @@ int main(int argc, char **argv) {
         run_smc_cases(*oracle, bus, rtl, entries, summary);
     } else if (mode == "unreal") {
         run_unreal_cases(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "pmode") {
+        run_pmode_cases(*oracle, bus, rtl, entries, summary);
+    } else if (mode == "test386") {
+        return run_test386(*oracle, rtl);
     } else if (mode == "unbuilt") {
         run_unbuilt(rtl, summary);
     } else if (mode == "memory") {
@@ -5218,6 +5589,9 @@ int main(int argc, char **argv) {
         return text;
     };
     const std::string pm_deliveries = counts(summary.pm_deliveries), unbuilt = counts(summary.unbuilt);
+    std::string pm_kinds;
+    for (auto &[kind, count] : summary.pm_kinds)
+        pm_kinds += (pm_kinds.empty() ? "" : ", ") + std::string("\"") + kind + "\": " + std::to_string(count);
     // The FAIL lines go through std::cout, unsynced with stdio: flush them
     // first, so the summary line is whole after them.
     std::cout.flush();
@@ -5236,7 +5610,7 @@ int main(int argc, char **argv) {
                 "\"window_code_stops\": %llu, \"code_store_stops\": %llu, \"stray_stops\": %llu, "
                 "\"port0_reads\": %llu, \"port0_writes\": %llu, "
                 "\"pm_retirements\": %llu, \"cs_rule\": %llu, \"ss_error_rule\": %llu, \"pm_deliveries\": {%s}, "
-                "\"unbuilt_stops\": {%s}}\n",
+                "\"unbuilt_stops\": {%s}, \"pm_kinds\": {%s}}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
@@ -5267,6 +5641,6 @@ int main(int argc, char **argv) {
                 (unsigned long long)rtl.port0.beats_written,
                 (unsigned long long)summary.pm_retirements, (unsigned long long)summary.cs_rule,
                 (unsigned long long)summary.ss_error_rule, pm_deliveries.c_str(),
-                unbuilt.c_str());
+                unbuilt.c_str(), pm_kinds.c_str());
     return summary.failed ? 1 : 0;
 }
