@@ -32,7 +32,9 @@ rollback directory comes from the verified FES Linux build's
 The same tool accepts the current computer and MENU/scanout HPS-first producers.
 Their classified `computer_build_id` or `scanout_build_id` remains bound to the
 package; missing, unknown, malformed or mixed identities are refused before
-conversion. Packaging preserves diagnostic status and grants no board acceptance.
+conversion. The [MENU boot-package proof](validation/2026-11-02-de25-menu-bootstrap/README.md)
+retains an actual current-source compilation, conversion and independent restore.
+Packaging preserves diagnostic status and grants no board acceptance.
 
 ```sh
 python3 scripts/de25_bootstrap.py prepare \
@@ -49,7 +51,7 @@ complete SOF, and requires the resulting core RBF to match the selected core.
 It inspects both JICs for MT25QU128 and the candidate/recovery metadata for
 matching HPS IO hashes and HPS_FIRST sections without a core section. It
 publishes a closed file set only after verification. `bootstrap.json` binds
-all file hashes and preserves the producer/computer identity. Verification
+all file hashes and preserves the producer and typed computer/scanout identity. Verification
 rejects missing, changed, extra or symlinked payloads. These checks establish
 file consistency, not a signature or hardware acceptance.
 
