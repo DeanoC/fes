@@ -170,6 +170,29 @@ class PrepareTest(unittest.TestCase):
             core_dev.prepare("unknown", self.output)
         self.stage.assert_not_called()
 
+    def test_de25_rejects_a_de10_only_core_before_source_validation(self):
+        with patch("sys.stderr", new=io.StringIO()) as errors:
+            result = core_dev.main(["prepare", "--board", "de25-nano", "--core", "fes.pong",
+                                    "--output", str(self.output)])
+        self.assertEqual(result, 1)
+        self.assertIn("for de25-nano", errors.getvalue())
+        self.validate.assert_not_called()
+        self.stage.assert_not_called()
+        self.resolve.assert_not_called()
+        self.assertFalse(self.output.exists())
+
+    def test_de25_producer_failure_preserves_failure_without_switching_recipe(self):
+        selected = core_dev.recipes.recipe_for("fes.zx81", board="de25-nano")
+        self.resolve.side_effect = ValueError("DE25 ZX81 package blocked by timing/signoff findings")
+        with patch("sys.stderr", new=io.StringIO()):
+            result = core_dev.main(["prepare", "--board", "de25-nano", "--core", "fes.zx81",
+                                    "--output", str(self.output)])
+        self.assertEqual(result, 1)
+        self.assertEqual(self.resolve.call_args.kwargs["recipe"], selected)
+        self.assertEqual(self.resolve.call_count, 1)
+        self.assert_failed()
+        self.assertFalse((self.output / "core.fcore").exists())
+
     def test_dirty_selected_input_fails_before_stage(self):
         self.validate.side_effect = ValueError("source checkout is dirty")
         with self.assertRaisesRegex(ValueError, "dirty"):
@@ -315,6 +338,14 @@ toolchain = "test"
 
 
 class CachedPreparationTest(unittest.TestCase):
+    core_id = "fes.pong"
+    board = "de10-nano"
+    target_platform = "de10_nano"
+    target_device = "5CSEBA6U23I7"
+    programming_profile = "fes-gp-v1"
+    abi_id = "fes.simple-game"
+    interfaces = "[]"
+
     def setUp(self):
         self.source = Path(__file__).resolve().parents[1] / "sources/misteross"
         if not (self.source / "scripts/export_core_package.py").is_file():
@@ -323,26 +354,26 @@ class CachedPreparationTest(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.output = self.root / "prepared"
-        self.recipe = replace(core_dev.recipes.recipe_for("fes.pong"), identity_version=2)
+        self.recipe = replace(core_dev.recipes.recipe_for(self.core_id, board=self.board), identity_version=2)
         self.pins = {name: "c" * 40 for name in core_dev.inputs.COMPONENTS}
         self.payload = b"original cached payload"
         self.manifest = f'''format = 2
-interfaces = []
+interfaces = {self.interfaces}
 [core]
-id = "fes.pong"
+id = "{self.core_id}"
 name = "Cached"
 description = ""
 version = "1.0.0"
 [target]
-platform = "de10_nano"
-device = "5CSEBA6U23I7"
-programming_profile = "fes-gp-v1"
+platform = "{self.target_platform}"
+device = "{self.target_device}"
+programming_profile = "{self.programming_profile}"
 [payload]
 file = "core.rbf"
 size = {len(self.payload)}
 sha256 = "{sha(self.payload)}"
 [abi]
-id = "fes.simple-game"
+id = "{self.abi_id}"
 major = 1
 minor = 0
 [build]
@@ -397,7 +428,7 @@ toolchain = "test"
     def test_real_cache_directory_reconstructs_archive_and_preserves_original_identity(self):
         import core_dev_accept
         self.assertFalse((self.source / "build/packages" / (self.package_id + ".fcore")).exists())
-        receipt = core_dev.prepare("fes.pong", self.output)
+        receipt = core_dev.prepare(self.core_id, self.output, board=self.board)
         self.assertEqual(receipt["format"], 2)
         self.assertEqual(self.candidates.call_count, 2)
         self.assertIn("store_override", self.candidates.call_args.kwargs)
@@ -416,6 +447,21 @@ toolchain = "test"
         self.assertEqual(args[args.index("--expected-package-id") + 1], self.package_id)
         self.assertEqual((self.output / "core.fcore").stat().st_mode & 0o777, 0o444)
 
+    def test_cli_keeps_the_selected_package_target_and_provenance(self):
+        with patch("sys.stdout", new=io.StringIO()):
+            result = core_dev.main(["prepare", "--board", self.board, "--core", self.core_id,
+                                    "--output", str(self.output)])
+        self.assertEqual(result, 0)
+        receipt = json.loads((self.output / "prepared.json").read_text())
+        self.assertEqual(receipt["core_id"], self.core_id)
+        self.assertEqual(receipt["package_id"], self.package_id)
+        self.assertEqual(receipt["selection"]["path"], self.recipe.selection_filename)
+        with tarfile.open(self.output / "core.fcore") as stream:
+            manifest = tomllib.loads(stream.extractfile("manifest.toml").read().decode())
+        self.assertEqual(manifest["target"], {"platform": self.target_platform,
+                         "device": self.target_device, "programming_profile": self.programming_profile})
+        self.producer.assert_not_called()
+
     def test_reconstruction_failure_removes_partial_archive_and_provenance(self):
         original = core_dev.subprocess.run
         def fail(*args, **kwargs):
@@ -425,21 +471,21 @@ toolchain = "test"
             return original(*args, **kwargs)
         with patch.object(core_dev.subprocess, "run", side_effect=fail):
             with self.assertRaises(subprocess.CalledProcessError):
-                core_dev.prepare("fes.pong", self.output)
+                core_dev.prepare(self.core_id, self.output, board=self.board)
         self.assertFalse((self.output / "core.fcore").exists())
         self.assertFalse((self.output / ".core.fcore.tmp").exists())
         self.assertFalse((self.output / "prepared.json").exists())
-        self.assertFalse((self.output / "fes-pong.package-selection.provenance.json").exists())
+        self.assertFalse((self.output / Path(self.recipe.selection_filename).with_suffix(".provenance.json")).exists())
         self.assertTrue((self.output / "failure.json").is_file())
         self.producer.assert_not_called()
 
     def test_reconstructed_identity_failure_removes_published_archive_and_sidecar(self):
         with patch.object(core_dev, "inspect_archive", return_value={}):
             with self.assertRaisesRegex(ValueError, "archive identity"):
-                core_dev.prepare("fes.pong", self.output)
+                core_dev.prepare(self.core_id, self.output, board=self.board)
         self.assertFalse((self.output / "core.fcore").exists())
         self.assertFalse((self.output / "prepared.json").exists())
-        self.assertFalse((self.output / "fes-pong.package-selection.provenance.json").exists())
+        self.assertFalse((self.output / Path(self.recipe.selection_filename).with_suffix(".provenance.json")).exists())
         self.assertEqual(self.record_path.read_bytes(), self.original_record)
 
     def test_cached_member_bounds_and_sealing_are_enforced(self):
@@ -454,6 +500,19 @@ toolchain = "test"
         with self.assertRaisesRegex(ValueError, "exceeds"):
             core_dev.reconstruct_archive(self.source, self.package, self.root / "bad.fcore", self.recipe, record)
         self.assertFalse((self.root / "bad.fcore").exists())
+
+
+class DE25CachedPreparationTest(CachedPreparationTest):
+    """Unqualified package fixtures exercise the real parser and archive path."""
+    core_id = "fes.zx81"
+    board = "de25-nano"
+    target_platform = "de25_nano"
+    target_device = "A5EB013BB23BE4SCS"
+    programming_profile = "de25-hps-first-v1"
+    abi_id = "fes.computer"
+    interfaces = '[' + ', '.join(
+        '{id = "' + name + '", major = 1, minor = 0, required = true}'
+        for name in ("fes.video.fixed-720p60", "fes.keyboard.hid", "fes.media.zx81-tape")) + ']'
 
 
 class ROMArchiveReconstructionTest(unittest.TestCase):

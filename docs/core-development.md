@@ -2,19 +2,19 @@
 
 Use this lane to prepare one described core for an **already-compatible**
 platform. It never assembles `linux.img`, changes the factory package set,
-updates target software, or silently falls back to Quartus. FES has accepted
-labelled Quartus product variants as policy, but the current recipe registry
-and this workflow still prepare only HIP/nextpnr packages; variant selection
-is part of the rollout in [Quartus-built cores](design/quartus-cores.md).
+or updates target software. Preparation selects the registered producer for
+the requested board; the default is DE10-Nano. DE25-Nano explicitly selects
+its Quartus Pro MENU or BRAM ZX81 recipe. General labelled product variants
+remain part of the rollout in [Quartus-built cores](design/quartus-cores.md).
 
 ## Ownership and source of truth
 
-`config/core-recipes.toml` maps core IDs to the selected misteross producer,
+`config/core-recipes.toml` maps board/core pairs to the selected misteross producer,
 authentication function and toolchain lock. It is versioned, strictly validated
-data, not a list of shell commands. All current producers use HIP/nextpnr.
-An OSS failure never triggers a Quartus fallback. The accepted Quartus policy
-does not add a Quartus selector to this workflow yet. The existing image
-builder and the developer command consume the same registry.
+data, not a list of shell commands. DE10 playable recipes use HIP/nextpnr;
+the PC/XT diagnostic and DE25 recipes select their registered Quartus producers.
+A failed producer remains failed. The existing image builder and the developer
+command consume the same board-scoped registry.
 
 Keep ABI, programming profile and interface declarations in the sealed package
 manifest, generated from the owning shared/core definitions. Runtime compatibility
@@ -48,6 +48,23 @@ The archive is checked against the resolved manifest/payload identity before
 publishing that receipt. Partial failures have no success receipt. Do not edit
 the frozen candidate to follow a newer branch; prepare a new candidate instead.
 Video-socket candidates also retain their sealed Direct/Scanlines inventory.
+
+To select DE25-Nano through the same command, pass the preparation board
+explicitly:
+
+```sh
+make core-dev CORE_DEV_ARGS='prepare --board de25-nano --core fes.zx81 --output out/core-dev/de25-zx81-001'
+```
+
+`fes.menu` also has a DE25 recipe. Unsupported board/core pairs fail before
+source staging or compilation. DE25 uses its authenticated Quartus Pro
+producer, vendor source archive and complete timing/signoff gate, including
+independent RBF reproduction before package export. An ineligible candidate
+cannot produce a successful preparation receipt. The package's sealed target,
+programming profile, interfaces and source provenance remain authoritative;
+preparation grants no native kit acceptance. See the
+[DE25 development plan](design/de25-linux-platform.md) for remaining factory
+and hardware acceptance.
 
 For format-3 SMS or SG-1000, prepare the package without a startup media blob:
 

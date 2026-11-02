@@ -125,8 +125,9 @@ with open(sys.argv[3], 'xb') as stream:
         temporary.unlink(missing_ok=True)
 
 
-def prepare(core_id, output, library_media=None, expected_media_sha256=None):
-    recipe = recipes.recipe_for(core_id)
+def prepare(core_id, output, library_media=None, expected_media_sha256=None, *,
+            board=recipes.DEFAULT_BOARD):
+    recipe = recipes.recipe_for(core_id, board=board)
     output = Path(output).absolute()
     if output.exists() or output.is_symlink():
         raise ValueError("output must be a new directory")
@@ -228,13 +229,15 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     command = commands.add_parser("prepare")
+    command.add_argument("--board", choices=recipes.BOARDS, default=recipes.DEFAULT_BOARD)
     command.add_argument("--core", required=True)
     command.add_argument("--output", required=True)
     command.add_argument("--library-media")
     command.add_argument("--expected-media-sha256")
     args = parser.parse_args(argv)
     try:
-        prepare(args.core, args.output, args.library_media, args.expected_media_sha256)
+        prepare(args.core, args.output, args.library_media, args.expected_media_sha256,
+                board=args.board)
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"core prepare: {error}", file=sys.stderr)
         return 1

@@ -107,6 +107,12 @@ and MENU admission are required. Complete immutable generations and verified
 cache hits preserve old output on failure; no artifact-only alias replaces
 source compilation. Host/doctor use the shared frontend. An actual admitted
 MENU, complete source-produced factory and native acceptance remain open.
+The ordinary [one-core preparation command](../core-development.md#prepare-one-package-without-an-image-build)
+also accepts `prepare --board de25-nano` for MENU or BRAM ZX81. It selects that
+same registered resolver before staging source, preserves sealed package and
+source-selection provenance, and rejects unsupported board/core pairs or
+failed producer admission. Its default remains DE10-Nano; board selection
+adds no package, factory or native admission.
 The [source-workflow record](../validation/2026-11-02-de25-source-workflow/README.md)
 retains actual AArch64 software/CPU and host/cache checks, full parent validation
 and the public Make/vendor-input refusal. Standard verification now accepts source
