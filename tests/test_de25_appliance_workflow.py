@@ -9,7 +9,8 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
-from scripts import appliance, appliance_media, de25_appliance, media
+from scripts import appliance, appliance_media, de25_appliance
+import media
 
 ROOT = Path(__file__).resolve().parents[1]
 
