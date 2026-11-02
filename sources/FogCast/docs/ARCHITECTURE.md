@@ -82,6 +82,11 @@ uses read-only ownership/status observations to discard stale local authority;
 it never stops or releases the replacement owner's session. A subsequent
 explicit launch uses an ordinary claim, which still refuses a foreign holder.
 Input reconnect stops immediately on an explicit lease-denied or busy response.
+When an identified target's current endpoint has a transient health transport
+failure, the host probes that same authenticated endpoint once more within the
+existing observation deadline before discovery. An identity, protocol or
+ownership failure is never retried as a transport failure; an actual endpoint,
+boot or lease change still invalidates the old input attachment.
 A CONNECT `/v1/input/stream` refusal of 403 `KIT_LEASE_REQUIRED` — the kit has
 already revoked, expired, or superseded the grant — is read from a bounded
 response and mapped to the same sanitized `KIT_LEASE_DENIED` before reconnect
