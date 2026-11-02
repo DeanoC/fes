@@ -13,17 +13,18 @@ import sim_fes_pcxt_dos as dos
 
 class DosEvidenceTest(unittest.TestCase):
     def test_failed_fixture_preflight_removes_prior_result(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            build = root / 'build/sim/fes-pcxt/dos'
-            build.mkdir(parents=True)
-            names = ('result.json', 'result-pending.json', 'dos.ppm', 'screen.bin', 'screen.txt',
-                     'inputs.json', 'bus.log')
-            for name in names:
-                (build / name).write_text('old evidence')
-            args = SimpleNamespace(bios=None, font=None, download=False)
-            with patch.object(dos, 'ROOT', root), \
-                 patch.object(dos.bios, 'fixture_inputs', side_effect=ValueError('bad BIOS')):
-                with self.assertRaisesRegex(ValueError, 'bad BIOS'):
-                    dos.run(args)
-            self.assertFalse(any((build / name).exists() for name in names))
+        for writable in (False, True):
+            with self.subTest(writable=writable), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                build = root / ('build/sim/fes-pcxt/dos-write' if writable else 'build/sim/fes-pcxt/dos')
+                build.mkdir(parents=True)
+                names = ('result.json', 'result-pending.json', 'dos.ppm', 'screen.bin', 'screen.txt',
+                         'inputs.json', 'bus.log', 'saved-floppy.img')
+                for name in names:
+                    (build / name).write_text('old evidence')
+                args = SimpleNamespace(bios=None, font=None, download=False, writable_test=writable)
+                with patch.object(dos, 'ROOT', root), \
+                     patch.object(dos.bios, 'fixture_inputs', side_effect=ValueError('bad BIOS')):
+                    with self.assertRaisesRegex(ValueError, 'bad BIOS'):
+                        dos.run(args)
+                self.assertFalse(any((build / name).exists() for name in names))
