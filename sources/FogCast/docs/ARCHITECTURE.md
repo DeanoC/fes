@@ -26,6 +26,12 @@ The entry points are `internal/hostapi`, `fogcast`, `internal/agent`,
 `internal/httpapi`, and `internal/misterruntime`. `internal/systems/table.go`
 retains library platform metadata; it does not describe raw-core launch recipes.
 
+Writable PC/XT library floppy launches send the exact immutable 360 KiB disk
+with the format-2 package. The target seals and validates both before asking
+the runtime to restore the bound revision and load the disk while the CPU is
+held. It accepts launch only after the runtime reports the requested ready,
+persistent game and base identity. Raw development inserts are volatile.
+
 The browser, kit launcher, and ordinary CLI send a game ID to the same
 persistent host session. `hostclient` owns the UI-independent GET
 `/api/v1/session` response model and decoder, and catalog launch
@@ -976,8 +982,11 @@ binding identity or weaken composition validation.
 The host routes `POST /api/v1/session/disk/insert` and `…/disk/save` retain the
 captured session ID and package/generation/target/unit binding. Insert takes
 JSON `{game_id,base_media_id}` and verifies the selected library entry and base;
-Save has an empty body. CLI `insert-library-disk GAME_ID BASE_MEDIA_ID` restores
-that explicit library disk into the running ST, and `save-disk` publishes a
+Save has an empty body. Successful active-session responses for disk, live-media,
+display and input operations retain the coordinator's execution classification,
+as does session status, even when the target reports a recognized library
+package as a development load. CLI `insert-library-disk GAME_ID BASE_MEDIA_ID`
+restores that explicit library disk into the running ST, and `save-disk` publishes a
 checkpoint. `eject-disk`, Stop and replacement automatically save a bound disk.
 Failure keeps the disk/session binding available for recovery; a lost mutation
 reply is never replayed. One explicit Save may retry a retained `SAVE_FAILED`

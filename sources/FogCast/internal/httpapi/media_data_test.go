@@ -68,6 +68,9 @@ func TestLibraryDiskRoutesRequireLeaseExactBindingAndFraming(t *testing.T) {
 	if send("/v1/library/media/insert", disk, nil) != 200 || c.libraryCalls != 1 || c.library != b {
 		t.Fatal("bound insert")
 	}
+	if send("/v1/library/media/insert", strings.Repeat("p", int(protocol.PcxtFloppyBytes)), nil) != 200 || c.libraryCalls != 2 {
+		t.Fatal("PC/XT upload rejected")
+	}
 	if send("/v1/library/media/save", "", nil) != 200 || c.saveCalls != 1 {
 		t.Fatal("save")
 	}
@@ -76,7 +79,7 @@ func TestLibraryDiskRoutesRequireLeaseExactBindingAndFraming(t *testing.T) {
 			t.Fatal("bad library upload admitted")
 		}
 	}
-	if send("/v1/library/media/save", "x", nil) == 200 || c.libraryCalls != 1 || c.saveCalls != 1 {
+	if send("/v1/library/media/save", "x", nil) == 200 || c.libraryCalls != 2 || c.saveCalls != 1 {
 		t.Fatal("invalid body dispatched")
 	}
 }

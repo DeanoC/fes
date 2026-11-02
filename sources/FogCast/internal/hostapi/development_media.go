@@ -57,7 +57,7 @@ func (s *sessionCoordinator) loadDevelopmentMedia(ctx context.Context, id string
 	if err != nil {
 		return sessionResult{}, err
 	}
-	result := s.publicSession(status, nil)
+	result := s.publicCurrentSession(status)
 	s.recordStamp("session.development_media", result, nil, clientStamp{})
 	return result, nil
 }

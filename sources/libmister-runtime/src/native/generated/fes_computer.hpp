@@ -149,6 +149,9 @@ constexpr std::uint32_t FesComputerC64DiskUnit = 0x0u;
 constexpr std::uint32_t FesComputerC64DiskBytes = 0x2ab00u;
 constexpr std::uint32_t FesComputerPcxtFloppyUnit = 0x0u;
 constexpr std::uint32_t FesComputerPcxtFloppyBytes = 0x5a000u;
+constexpr std::uint32_t FesComputerPcxtFloppyLayoutTag = 0x4u;
+constexpr std::uint32_t FesComputerPcxtFloppyLayoutMajor = 0x1u;
+constexpr std::uint32_t FesComputerPcxtFloppyLayoutMinor = 0x0u;
 constexpr std::uint32_t FesComputerSpectrumDiskUnit = 0x1u;
 constexpr std::uint32_t FesComputerSpectrumDiskMinBytes = 0x2000u;
 constexpr std::uint32_t FesComputerSpectrumDiskMaxBytes = 0x2b4000u;
@@ -333,6 +336,10 @@ constexpr const char* FesComputerInterfaceMediaPcxtFloppyID = "fes.media.pcxt-fl
 constexpr std::uint16_t FesComputerInterfaceMediaPcxtFloppyMajor = 1u;
 constexpr std::uint16_t FesComputerInterfaceMediaPcxtFloppyMinor = 0u;
 constexpr std::uint32_t FesComputerCapabilityMediaPcxtFloppy = 0x100000u;
+constexpr const char* FesComputerInterfaceMediaPcxtFloppyWriteID = "fes.media.pcxt-floppy-write";
+constexpr std::uint16_t FesComputerInterfaceMediaPcxtFloppyWriteMajor = 1u;
+constexpr std::uint16_t FesComputerInterfaceMediaPcxtFloppyWriteMinor = 0u;
+constexpr std::uint32_t FesComputerCapabilityMediaPcxtFloppyWrite = 0x200000u;
 
 } // namespace generated
 } // namespace native

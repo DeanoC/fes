@@ -349,7 +349,13 @@ func (s *Service) readTwoROMFirmware(ctx context.Context, descriptor corepackage
 func (s coreLoadSource) matchesLoadedIdentity(status *protocol.CorePackageStatus) bool {
 	if s.initialMedia != nil {
 		u, ok := protocol.MediaUnit(status, s.initialMedia.Unit)
-		if !ok || u.State != protocol.MediaUnitReady || status.PersistenceMode != "persistent" || u.Persistence == nil || u.Persistence.Mode != "persistent" || u.Persistence.GameID != s.initialMedia.GameID || u.Persistence.BaseMediaID != s.initialMedia.BaseMediaID {
+		expected, core := protocol.AtariStFloppyInterface(), "fes.atari-st"
+		if s.initialMedia.InterfaceID == protocol.PcxtFloppyInterface().ID {
+			expected, core = protocol.PcxtFloppyInterface(), "fes.pcxt-dos"
+		} else if s.initialMedia.InterfaceID != "" && s.initialMedia.InterfaceID != expected.ID {
+			return false
+		}
+		if !ok || status.CoreID != core || u.Interface != expected || !protocol.PersistentMediaUnitCapable(status, u) || u.State != protocol.MediaUnitReady || status.PersistenceMode != "persistent" || u.Persistence == nil || !u.Persistence.Valid() || u.Persistence.GameID != s.initialMedia.GameID || u.Persistence.BaseMediaID != s.initialMedia.BaseMediaID {
 			return false
 		}
 	}

@@ -84,7 +84,7 @@ func (s *sessionCoordinator) setSessionDisplay(ctx context.Context, id string, d
 	if err != nil {
 		return sessionResult{}, err
 	}
-	result := s.publicSession(status, nil)
+	result := s.publicCurrentSession(status)
 	s.recordStamp("session.display", result, nil, clientStamp{})
 	return result, nil
 }

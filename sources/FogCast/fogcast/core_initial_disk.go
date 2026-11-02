@@ -22,6 +22,31 @@ func initialSTDisk(d corepackage.Descriptor, media *coreEntryMedia) bool {
 	return false
 }
 
+func initialPcxtDisk(d corepackage.Descriptor, media *coreEntryMedia) bool {
+	if d.Format != 2 || d.Core.ID != "fes.pcxt-dos" || media == nil || media.unit == nil || *media.unit != protocol.PcxtFloppyUnit {
+		return false
+	}
+	base, write := false, false
+	for _, iface := range d.Interfaces {
+		if iface.Required && iface.Major == 1 && iface.Minor == 0 {
+			base = base || iface.ID == protocol.PcxtFloppyInterface().ID
+			write = write || iface.ID == protocol.PcxtFloppyWriteInterface().ID
+		}
+	}
+	return base && write
+}
+
+func snapshotInitialPcxtDisk(entry catalog.CoreEntry, media *coreEntryMedia) (*corepackage.InitialMedia, error) {
+	if media.size != protocol.PcxtFloppyBytes {
+		return nil, protocol.DiskMediaRequestError()
+	}
+	data, err := io.ReadAll(io.LimitReader(media, media.size+1))
+	if err != nil || int64(len(data)) != media.size || fmt.Sprintf("%x", sha256.Sum256(data)) != entry.MediaID {
+		return nil, protocol.DiskMediaRequestError()
+	}
+	return &corepackage.InitialMedia{InterfaceID: protocol.PcxtFloppyInterface().ID, GameID: entry.GameID, BaseMediaID: entry.MediaID, Unit: *media.unit, Bytes: data}, nil
+}
+
 // Snapshot the selected immutable disk before any target mutation. The ROM
 // envelope carries explicit library context; the runtime restores saved bytes
 // and commits drive A before releasing execution.

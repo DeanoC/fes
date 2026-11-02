@@ -149,7 +149,7 @@ constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 constexpr std::uint16_t kComputerHighCapabilityMask = static_cast<std::uint16_t>(
 	(FesComputerCapabilityMediaAtaDisk | FesComputerCapabilityPersistenceWords |
 	 FesComputerCapabilityRtcWallClock | FesComputerCapabilityPc386Machine |
-	 FesComputerCapabilityMediaPcxtFloppy) >> 16);
+	 FesComputerCapabilityMediaPcxtFloppy | FesComputerCapabilityMediaPcxtFloppyWrite) >> 16);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -491,6 +491,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesComputerCapabilityMediaAtariStFloppy;
 			else if (interface.id == FesComputerInterfaceMediaPcxtFloppyID)
 				capabilities |= FesComputerCapabilityMediaPcxtFloppy;
+			else if (interface.id == FesComputerInterfaceMediaPcxtFloppyWriteID)
+				capabilities |= FesComputerCapabilityMediaPcxtFloppyWrite;
 			else if (interface.id == FesComputerInterfaceMemoryHpsDdrID &&
 				interface.required && interface.major == 1 && interface.minor == 0)
 				capabilities |= FesComputerCapabilityMemoryHpsDdr;
@@ -666,6 +668,7 @@ void FesGpCoreDriver::BeginSession()
 	keyboard_hid_ = false;
 	mouse_relative_ = false;
 	floppy_write_ = false;
+	pcxt_floppy_write_ = false;
 	tape_write_ = false;
 	hid_rows_ = {};
 	hid_rows_known_ = false;
@@ -752,6 +755,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 	keyboard_hid_ = false;
 	mouse_relative_ = false;
 	floppy_write_ = false;
+	pcxt_floppy_write_ = false;
 	tape_write_ = false;
 	hid_rows_ = {};
 	hid_rows_known_ = false;
@@ -764,6 +768,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			if (interface.id == FesComputerInterfaceKeyboardHidID) keyboard_hid_ = true;
 			if (interface.id == FesComputerInterfaceMouseRelativeID) mouse_relative_ = true;
 			if (interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID) floppy_write_ = true;
+			if (interface.id == FesComputerInterfaceMediaPcxtFloppyWriteID) pcxt_floppy_write_ = true;
 			if (interface.id == FesComputerInterfaceMediaZx81TapeWriteID) tape_write_ = true;
 			if (interface.id == FesComputerInterfaceGamepadPortsID) controller_ports_ = true;
 			if (interface.id == FesComputerInterfaceRtcWallClockID) wall_clock_ = true;
@@ -849,6 +854,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			keyboard_hid_ = false;
 			mouse_relative_ = false;
 			floppy_write_ = false;
+			pcxt_floppy_write_ = false;
 			tape_write_ = false;
 			wall_clock_ = false;
 			ata_disk_ = false;
@@ -1372,9 +1378,10 @@ bool FesGpCoreDriver::TapeWriteCapable() const
 
 bool FesGpCoreDriver::MediaWriteCapable(std::uint8_t unit) const
 {
-	if (!home_computer_ || !floppy_write_ || unit != 0) return false;
+	if (!home_computer_ || unit != 0) return false;
 	for (const auto& info : media_units_)
-		if (info.unit == unit && info.interface.id == FesComputerInterfaceMediaAtariStFloppyID) return true;
+		if (info.unit == unit && ((floppy_write_ && info.interface.id == FesComputerInterfaceMediaAtariStFloppyID) ||
+			(pcxt_floppy_write_ && info.interface.id == FesComputerInterfaceMediaPcxtFloppyID))) return true;
 	return false;
 }
 
@@ -1424,13 +1431,19 @@ Error FesGpCoreDriver::CaptureMedia(std::uint8_t unit, Clock& clock, std::uint64
 		if (!error.ok()) return WithPhase(error, "input");
 	}
 	const std::uint32_t size = info[FesComputerMediaSnapshotSizeLoField] | (static_cast<std::uint32_t>(info[FesComputerMediaSnapshotSizeHiField]) << 16);
+	const auto* medium = FindMediaUnit(unit);
+	const bool pcxt = medium && medium->interface.id == FesComputerInterfaceMediaPcxtFloppyID;
+	const bool valid_layout = pcxt ?
+		info[FesComputerMediaSnapshotLayoutTagField] == FesComputerPcxtFloppyLayoutTag &&
+		info[FesComputerMediaSnapshotLayoutMajorField] == FesComputerPcxtFloppyLayoutMajor &&
+		info[FesComputerMediaSnapshotLayoutMinorField] == FesComputerPcxtFloppyLayoutMinor && size == FesComputerPcxtFloppyBytes :
+		info[FesComputerMediaSnapshotLayoutTagField] == FesComputerAtariStFloppyLayoutTag &&
+		info[FesComputerMediaSnapshotLayoutMajorField] == FesComputerAtariStFloppyLayoutMajor &&
+		info[FesComputerMediaSnapshotLayoutMinorField] == (size == FesComputerAtariStFloppyBytes ? FesComputerAtariStFloppyLayoutMinor : FesComputerAtariStFloppyGeometryLayoutMinor) && AtariStSizeAdmitted(size, MediaGeometryCapable(unit));
 	if ((info[FesComputerMediaSnapshotFlagsField] & ~(FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotDirtyMask | FesComputerMediaSnapshotFrozenMask | FesComputerMediaSnapshotBusyMask)) != 0 ||
 		(info[FesComputerMediaSnapshotFlagsField] & (FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotFrozenMask | FesComputerMediaSnapshotBusyMask)) != (FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotFrozenMask) ||
-		info[FesComputerMediaSnapshotLayoutTagField] != FesComputerAtariStFloppyLayoutTag ||
-		info[FesComputerMediaSnapshotLayoutMajorField] != FesComputerAtariStFloppyLayoutMajor ||
-		info[FesComputerMediaSnapshotLayoutMinorField] != (size == FesComputerAtariStFloppyBytes ? FesComputerAtariStFloppyLayoutMinor : FesComputerAtariStFloppyGeometryLayoutMinor) ||
-        !AtariStSizeAdmitted(size, MediaGeometryCapable(unit)) || info[FesComputerMediaSnapshotChunkMaxField] != FesComputerMediaChunkMaxBytes)
-		return Io("invalid frozen Atari ST media snapshot identity");
+		!valid_layout || info[FesComputerMediaSnapshotChunkMaxField] != FesComputerMediaChunkMaxBytes)
+		return Io("invalid frozen floppy media snapshot identity");
 	std::vector<unsigned char> bytes;
 	bytes.reserve(size);
 	for (std::uint32_t offset = 0; offset < size; offset += FesComputerMediaChunkMaxBytes) {

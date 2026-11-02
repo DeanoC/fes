@@ -112,6 +112,9 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
                 add("fpga", "pcxt XT floppy RTL simulation", fpga,
                     ["make", "sim-fes-pcxt-fdc", "PYTHON=" + sys.executable],
                     tools=["verilator", "c++"], files=["Makefile"])
+                add("fpga", "pcxt floppy sector writer and media arbiter RTL simulation", fpga,
+                    ["make", "sim-fes-pcxt-write", "PYTHON=" + sys.executable],
+                    tools=["verilator", "c++"], files=["Makefile"])
                 add("fpga", "pcxt runtime floppy RTL simulation", fpga,
                     ["make", "sim-fes-pcxt-media", "PYTHON=" + sys.executable],
                     tools=["verilator", "c++"], files=["Makefile"])

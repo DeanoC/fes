@@ -20,7 +20,47 @@ type InitialMediaRequest struct {
 }
 
 func validInitialMediaRequest(media *InitialMediaRequest) bool {
-	return media == nil || (validRuntimePath(media.Path) && protocol.AdmitAtariStFloppySize(int64(media.Size)) && media.Unit == protocol.AtariStFloppyUnit && media.DataRoot == MediaDataRoot && protocol.ValidMediaGameID(media.GameID) && protocol.ValidateDigest(media.BaseMediaID) == nil)
+	return media == nil || (validRuntimePath(media.Path) && protocol.AdmitLibraryFloppySize(int64(media.Size)) && media.Unit == protocol.AtariStFloppyUnit && media.DataRoot == MediaDataRoot && protocol.ValidMediaGameID(media.GameID) && protocol.ValidateDigest(media.BaseMediaID) == nil)
+}
+
+type protocol2InitialCoreControl interface {
+	LoadCoreWithInitialMedia(context.Context, string, string, *InitialMediaRequest) (Protocol2Response, error)
+}
+
+func (r *Runtime) loadInitialCore(ctx context.Context, staged corepackage.Staged) (Protocol2Response, error) {
+	m := staged.InitialMedia
+	initial := &InitialMediaRequest{Path: m.Path, Size: uint32(m.Size), Unit: m.Unit, DataRoot: MediaDataRoot, GameID: m.GameID, BaseMediaID: m.BaseMediaID}
+	response, err := r.control.(protocol2InitialCoreControl).LoadCoreWithInitialMedia(ctx, staged.Directory, staged.PackageID, initial)
+	r.noteDispatch("load_core", err == nil)
+	return response, err
+}
+
+func (client *Client) LoadCoreWithInitialMedia(ctx context.Context, path, packageID string, initial *InitialMediaRequest) (Protocol2Response, error) {
+	if !validRuntimePath(path) || !protocol2Hex64.MatchString(packageID) || initial == nil || !validInitialMediaRequest(initial) || int64(initial.Size) != protocol.PcxtFloppyBytes {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	before, err := client.Protocol2Status(ctx)
+	if err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: false}
+	}
+	line, attempted, err := client.callRawTracked(ctx, struct {
+		Protocol     int                  `json:"protocol"`
+		Operation    string               `json:"operation"`
+		PackagePath  string               `json:"package_path"`
+		PackageID    string               `json:"package_id"`
+		InitialMedia *InitialMediaRequest `json:"initial_media"`
+	}{2, "load_core", path, packageID, initial})
+	if err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
+	}
+	response, err := decodeProtocol2Response(line)
+	if err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: true}
+	}
+	if response.InspectedPackage != nil || (response.OK && (response.ActivePackage == nil || response.ActivePackage.PackageID != packageID || !initialPcxtRequestMatches(response, initial) || !initialMediaGenerationMatches(response, &before, &corepackage.StagedInitialMedia{GameID: initial.GameID, BaseMediaID: initial.BaseMediaID, Unit: initial.Unit, Size: int64(initial.Size)}))) {
+		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
+	}
+	return response, nil
 }
 
 type protocol2InitialROMControl interface {
@@ -83,7 +123,22 @@ func initialMediaMatches(response Protocol2Response, initial *corepackage.Staged
 		return false
 	}
 	unit, ok := protocol.MediaUnit(p, initial.Unit)
-	return ok && (initial.Size == 0 || (initial.Size >= int64(unit.MinBytes) && initial.Size <= int64(unit.MaxBytes))) && unit.State == protocol.MediaUnitReady && unit.Persistence != nil && unit.Persistence.Valid() && unit.Persistence.GameID == initial.GameID && unit.Persistence.BaseMediaID == initial.BaseMediaID
+	expected := protocol.AtariStFloppyInterface()
+	core := "fes.atari-st"
+	format := int64(3)
+	if initial.InterfaceID == protocol.PcxtFloppyInterface().ID {
+		expected, core, format = protocol.PcxtFloppyInterface(), "fes.pcxt-dos", 2
+	} else if initial.InterfaceID != "" && initial.InterfaceID != expected.ID {
+		return false
+	}
+	d := response.ActivePackage.Descriptor
+	return d.Core.ID == core && d.Format == format && descriptorMediaWriteFor(d, expected) && (expected != protocol.AtariStFloppyInterface() || (d.ROM != nil && d.ROM.Role == "firmware")) && (expected != protocol.PcxtFloppyInterface() || (d.ROM == nil && len(d.ROMs) == 0)) && ok && unit.Interface == expected && protocol.PersistentMediaUnitCapable(p, unit) && (initial.Size == 0 || (initial.Size >= int64(unit.MinBytes) && initial.Size <= int64(unit.MaxBytes))) && unit.State == protocol.MediaUnitReady && unit.Persistence != nil && unit.Persistence.Valid() && unit.Persistence.GameID == initial.GameID && unit.Persistence.BaseMediaID == initial.BaseMediaID
+}
+func initialPcxtRequestMatches(response Protocol2Response, initial *InitialMediaRequest) bool {
+	if initial == nil {
+		return true
+	}
+	return initialMediaMatches(response, &corepackage.StagedInitialMedia{InterfaceID: protocol.PcxtFloppyInterface().ID, GameID: initial.GameID, BaseMediaID: initial.BaseMediaID, Unit: initial.Unit, Size: int64(initial.Size)})
 }
 func initialRequestMatches(response Protocol2Response, initial *InitialMediaRequest) bool {
 	if initial == nil {

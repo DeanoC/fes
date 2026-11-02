@@ -5,6 +5,7 @@
 #include "Vbios_top.h"
 #include "verilated.h"
 #include "memory_model.hpp"
+#include <algorithm>
 #include <array>
 #include <fstream>
 #include <string>
@@ -25,7 +26,13 @@ int main(int argc, char **argv) {
     const std::string scenario=argc==4 ? argv[3] : "dos";
     require(scenario=="dos" || scenario=="com" || scenario=="game", "unknown DOS scenario", 0);
     const auto firmware = read_file(argv[1]);
-    const auto disk = read_file(argv[2]);
+    auto disk = read_file(argv[2]);
+    bool disk_modified=false;
+#ifdef PCXT_WRITABLE_TEST
+    bool track_saved_sector=false;
+    unsigned saved_sector_address=0, saved_sector_bytes=0;
+    std::array<bool,512> saved_sector_seen{};
+#endif
     require(firmware.size() == 65536, "64 KiB firmware window", 0);
     require(disk.size() == 40*2*9*512, "360 KiB floppy geometry", 0);
     Vbios_top d;
@@ -38,6 +45,7 @@ int main(int argc, char **argv) {
     bool pending=false, last_dma=false, last_irq=false, post=false, boot=false, sector=false, live=false;
     uint64_t instructions=0;
     bool prompt=false, directory=false, frame_complete=false, collecting=false;
+    bool restored_prompt_needs_clear=false;
     bool game_launch=false, graphics_mode=false;
     uint64_t graphics_writes=0, frame_after_cycle=0, com_cycle=0;
     std::vector<unsigned char> frame(1280*720*3);
@@ -95,7 +103,13 @@ int main(int argc, char **argv) {
         const bool dma=d.dma2_done, irq=d.fdc_irq;
         d.clk=1;d.eval();pixel_edge();++cycles;
         if(media_taken) {
-            require(media_data==disk[pending_address],"SDRAM floppy byte differs from image",cycles);
+            if (!disk_modified) require(media_data==disk[pending_address],"SDRAM floppy byte differs from image",cycles);
+#ifdef PCXT_WRITABLE_TEST
+            if(track_saved_sector && pending_address>=saved_sector_address && pending_address<saved_sector_address+512) {
+                const unsigned index=pending_address-saved_sector_address;
+                if(!saved_sector_seen[index]) {saved_sector_seen[index]=true;++saved_sector_bytes;}
+            }
+#endif
             pending=false;++media_reads;
         }
         if(dma && !last_dma)++dma2_completions;
@@ -132,7 +146,9 @@ int main(int argc, char **argv) {
         }
         if(cycles%5000000==0) {
             const auto text=game_launch ? std::string() : screen();
-            if(!prompt && sector && text.find("A:\\>")!=std::string::npos) {
+            if(restored_prompt_needs_clear && text.find("A:\\>")==std::string::npos)
+                restored_prompt_needs_clear=false;
+            if(!prompt && !restored_prompt_needs_clear && sector && text.find("A:\\>")!=std::string::npos) {
                 prompt=true;prompt_cycle=cycles;
             }
             // Require the listed file on one line and a *subsequent* prompt;
@@ -221,7 +237,7 @@ int main(int argc, char **argv) {
         exchange(9,0,0);
         require(d.media_state==3,"committed disk not ready",cycles);
     };
-    require(exchange(1,6,0)==1 && exchange(1,16,0)==16 && (exchange(1,7,0)&2),
+    require(exchange(1,6,0)==1 && (exchange(1,16,0)&16) && (exchange(1,7,0)&2),
             "runtime PC floppy and keyboard identity",cycles);
     // An abandoned partial image must be hidden and restart from offset zero.
     begin_image();chunk(0,3);exchange(10,0,0);
@@ -390,6 +406,86 @@ int main(int argc, char **argv) {
     require((word(0x410)&0x31)==0x21,"CGA and one floppy equipment profile",cycles);
     require(irq6_edges>=2,"floppy interrupts not observed",cycles);
     screen();
+#ifdef PCXT_WRITABLE_TEST
+    require((exchange(1,16,0)&0x20)!=0,"writable media capability missing",cycles);
+    // Copy an existing file using DOS, exercising the real guest FDC/DMA
+    // writes and filesystem metadata rather than injecting sector contents.
+    disk_modified=true;
+    const std::string copy_command="copy fesxt.txt save.txt";
+    unsigned copy_chars=0;
+    for(unsigned usage:std::array<unsigned,24>{6,18,19,28,44,9,8,22,27,23,55,23,27,23,44,22,4,25,8,55,23,27,23,40}) {
+        for(bool down:{true,false}) {
+            const unsigned prior=key_codes.size();
+            exchange(3,usage/16,down ? 1u<<(usage%16) : 0);
+            const uint64_t deadline=cycles+20000000;
+            while(key_codes.size()==prior && cycles<deadline)step();
+            require(key_codes.size()==prior+1,"COPY key was not delivered",cycles);
+        }
+        // ISA reads prove delivery to the PPI, not that DOS has consumed the
+        // character. Fence each key on the visible echo to avoid overflowing
+        // the real BIOS keyboard buffer during a long command.
+        if (usage != 40) {
+            ++copy_chars;
+            const uint64_t echo_deadline=cycles+20000000;
+            const auto expected_copy=std::string("A:\\>")+copy_command.substr(0,copy_chars);
+            while(screen().find(expected_copy)==std::string::npos && cycles<echo_deadline)
+                for(unsigned i=0;i<250000;++i)step();
+            require(screen().find(expected_copy)!=std::string::npos,"DOS did not echo COPY key",cycles);
+        }
+    }
+    const uint64_t copy_deadline=cycles+800000000;
+    bool copied=false;
+    while(cycles<copy_deadline && !copied) {
+        for(unsigned i=0;i<500000;++i)step();
+        const auto text=screen();
+        const auto command=text.find(std::string("A:\\>")+copy_command);
+        const auto line=command==std::string::npos ? std::string::npos :
+            text.find("fesxt.txt => save.txt",command+copy_command.size()+4);
+        const auto append_line=command==std::string::npos ? std::string::npos :
+            text.find("fesxt.txt =>> save.txt",command+copy_command.size()+4);
+        const auto result=std::min(line,append_line);
+        copied=result!=std::string::npos &&
+            text.find("A:\\>",result+22)!=std::string::npos;
+    }
+    require(copied,"DOS copy did not complete",cycles);
+    require((exchange(12,0,0)&3)==3 && exchange(12,1,0)==4 && exchange(12,2,0)==1 &&
+            exchange(12,3,0)==0 && exchange(12,4,0)==0xa000 && exchange(12,5,0)==5,
+            "dirty PC/XT snapshot identity",cycles);
+    const auto epoch=exchange(12,7,0);
+    require(epoch>0,"guest writes did not advance snapshot epoch",cycles);
+    // Deliberately hold the CPU before freezing: snapshot reads must still
+    // work while the machine reset is asserted.
+    exchange(2,0,0);
+    for(unsigned i=0;i<16;++i)step();
+    require(d.machine_reset,"hold did not reset machine",cycles);
+    exchange(13,0,0);
+    require((exchange(12,0,0)&15)==7,"freeze did not wait for sector drain",cycles);
+    std::vector<unsigned char> captured;captured.reserve(disk.size());
+    for(unsigned offset=0;offset<disk.size();offset+=512) {
+        exchange(14,0,offset&65535);exchange(14,1,offset>>16);exchange(14,2,512);
+        for(unsigned n=0;n<256;++n) {
+            const unsigned value=exchange(15,n,0);
+            captured.push_back(value&255);captured.push_back(value>>8);
+        }
+    }
+    require(captured!=disk && captured.size()==disk.size(),"captured disk did not change",cycles);
+    for(unsigned a=0;a<captured.size();++a)
+        require(byte(0x100000+a)==captured[a],"snapshot differs from physical SDRAM",cycles);
+    std::ofstream snapshot("saved-floppy.img",std::ios::binary);
+    snapshot.write(reinterpret_cast<const char*>(captured.data()),captured.size());snapshot.close();
+    require(bool(snapshot) && read_file("saved-floppy.img")==captured,
+            "retained snapshot file differs from captured image",cycles);
+    exchange(13,0,2); // Durable publication is modeled by the test output.
+    require((exchange(12,0,0)&3)==1,"Saved did not clear dirty",cycles);
+    exchange(13,0,1);
+    // Subsequent replacement uses exactly the captured image and CRC, so the
+    // existing live upload and warm-reset checks exercise restoration.
+    disk=std::move(captured);disk_modified=false;crc=0xffffffffu;
+    for(auto b:disk) {crc^=b;for(unsigned i=0;i<8;++i)crc=(crc&1)?(crc>>1)^0xedb88320u:crc>>1;}
+    crc^=0xffffffffu;
+    exchange(2,0,1);
+    for(unsigned i=0;i<16;++i)step();
+#endif
     // Eject, abandon a partial replacement, then insert the complete image
     // while the DOS session remains live. No host execution Hold is sent.
     live=true;
@@ -412,7 +508,74 @@ int main(int argc, char **argv) {
     require(d.machine_reset && d.disk_loaded && d.firmware_loaded,"warm reset lost disk or firmware",cycles);
     for(unsigned a=0;a<disk.size();++a)
         require(byte(0x100000+a)==disk[a],"warm reset changed disk bytes",cycles);
-    d.warm_reset=0;d.cold_reset=1;ram.cold_reset();
+#ifdef PCXT_WRITABLE_TEST
+    // Locate the saved file's actual FAT12 data sector in the restored image.
+    // DOS may cache it during boot, so record device reads from reset release
+    // through TYPE rather than demanding another sector transaction at TYPE.
+    auto disk_u16=[&](unsigned offset) {return unsigned(disk.at(offset)) | (unsigned(disk.at(offset+1))<<8);};
+    const unsigned bytes_per_sector=disk_u16(11), sectors_per_cluster=disk.at(13);
+    const unsigned root_sector=disk_u16(14)+unsigned(disk.at(16))*disk_u16(22);
+    const unsigned root_entries=disk_u16(17);
+    require(bytes_per_sector==512 && sectors_per_cluster!=0 && root_entries!=0,
+            "restored FAT12 geometry",cycles);
+    const unsigned data_sector=root_sector+(root_entries*32+511)/512;
+    bool found_saved=false;
+    for(unsigned i=0;i<root_entries;++i) {
+        const unsigned entry=root_sector*512+i*32;
+        require(entry+32<=disk.size(),"restored FAT12 root bounds",cycles);
+        if(std::string(disk.begin()+entry,disk.begin()+entry+11)=="SAVE    TXT") {
+            const unsigned cluster=disk_u16(entry+26);
+            require(!found_saved && cluster>=2,"invalid saved file directory entry",cycles);
+            saved_sector_address=(data_sector+(cluster-2)*sectors_per_cluster)*512;
+            require(saved_sector_address+512<=disk.size(),"saved file data outside floppy",cycles);
+            found_saved=true;
+        }
+    }
+    require(found_saved,"restored image lacks saved file",cycles);
+    const unsigned reads_before_restored_boot=media_reads, dma_before_restored_boot=dma2_completions;
+    track_saved_sector=true;
+#endif
+    d.warm_reset=0;
+#ifdef PCXT_WRITABLE_TEST
+    // Boot from the restored bytes and make DOS read the saved file itself.
+    // Old CGA text can survive warm reset; do not mistake its prompt for
+    // the one produced by the restored DOS boot.
+    prompt=false;sector=false;restored_prompt_needs_clear=true;
+    while(!prompt)step();
+    require(media_reads>=reads_before_restored_boot+512 && dma2_completions>=dma_before_restored_boot+512,
+            "restored boot did not read the floppy through DMA",cycles);
+    const std::string type_command="type save.txt";
+    unsigned type_chars=0;
+    for(unsigned usage:std::array<unsigned,14>{23,28,19,8,44,22,4,25,8,55,23,27,23,40}) {
+        for(bool down:{true,false}) {
+            const unsigned prior=key_codes.size();
+            exchange(3,usage/16,down ? 1u<<(usage%16) : 0);
+            const uint64_t deadline=cycles+20000000;
+            while(key_codes.size()==prior && cycles<deadline)step();
+            require(key_codes.size()==prior+1,"TYPE key was not delivered",cycles);
+        }
+        if (usage != 40) {
+            ++type_chars;
+            const uint64_t echo_deadline=cycles+20000000;
+            const auto expected_type=std::string("A:\\>")+type_command.substr(0,type_chars);
+            while(screen().find(expected_type)==std::string::npos && cycles<echo_deadline)
+                for(unsigned i=0;i<250000;++i)step();
+            require(screen().find(expected_type)!=std::string::npos,"DOS did not echo TYPE key",cycles);
+        }
+    }
+    const uint64_t type_deadline=cycles+500000000;
+    bool read_saved=false;
+    while(cycles<type_deadline && !read_saved) {
+        for(unsigned i=0;i<500000;++i)step();
+        const auto text=screen();
+        const auto command=text.find("A:\\>"+type_command);
+        const auto marker=command==std::string::npos ? std::string::npos : text.find("FES PC/XT DOS boot",command);
+        read_saved=marker!=std::string::npos && text.find("A:\\>",marker)!=std::string::npos;
+    }
+    require(read_saved,"DOS did not read the restored file",cycles);
+    require(saved_sector_bytes==512,"restored file data sector did not traverse the FDC",cycles);
+#endif
+    d.cold_reset=1;ram.cold_reset();
     for(unsigned i=0;i<64;++i)step();
     require(d.machine_reset && !d.disk_loaded && d.media_state==1,"cold reset retained disk admission",cycles);
     d.cold_reset=0;
