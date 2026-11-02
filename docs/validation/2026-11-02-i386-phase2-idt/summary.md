@@ -243,7 +243,10 @@ three pushes Bochs nests a #GP(0) that the RTL does not raise. Bochs's
 `real_mode_int` raises #GP there only for a vector whose IP is past CS's
 cached limit, yet the reported CS limit was FFFFh throughout, so whether the
 RTL, the harness or the oracle is at fault is still open:
-[#1428](https://github.com/DeanoC/fes/issues/1428).
+[#1428](https://github.com/DeanoC/fes/issues/1428). "Before the fix" is
+still this branch's RTL: main cannot run this program (its generator draws
+other programs, and its protected-mode block's LLDT stops slice 1's RTL as
+not built), so whether the failure predates this slice is not shown.
 
 | Run | Result |
 | --- | --- |
@@ -466,7 +469,10 @@ class's count, as every class is.
 
 `test_fes_i386_governor.py` ([report](governor-bench-report.json)) passes,
 and its report equals slice 1's merge report field for field: this branch
-changes no cycle the bench measures, governed or not.
+changes no cycle the bench measures, governed or not. It ran at
+`10956ac5c` and was not rerun after the #1424 fix: `governor_bench.asm`
+runs in real mode only (no CR0 write, LMSW or LGDT), and the fix changes
+only a protected-mode IRET and RETF.
 
 ## Quartus seal
 
