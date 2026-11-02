@@ -517,3 +517,14 @@ or managed-factory output; the reviewed software base must be a managed
 factory containing authenticated software and MENU metadata. The shared board
 and image defaults retain the explicit `KIT_SOFTWARE_BOARD`,
 `KIT_SOFTWARE_DE25_IMAGE` and `KIT_SDK_DE25_IMAGE` overrides.
+
+DE25's existing managed-factory producer now reuses its compiler/base packages
+across software revisions. The same worktree/cache selection shares one
+serialized volume; recipe, owner compiler, kernel and additional policy inputs
+still select independent base work directories. Software, helper and MENU
+changes stay in the complete generation key and receipt. Every actual factory
+build first refreshes the selected prebuilt runtime with Buildroot, then runs
+the shared post-build replacement and full image/boot checks. Factory outputs
+remain immutable. See the [executed cache proof](validation/2026-11-02-de25-factory-incremental/README.md).
+This does not enable `make dev BOARD=de25-nano`; its source/MENU selection and
+incremental integration frontend remain open.

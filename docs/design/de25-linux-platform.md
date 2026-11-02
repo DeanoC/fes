@@ -91,6 +91,13 @@ the existing private runtime builder. Actual Make cache/import, C++ and
 Cortex-A76 QEMU checks pass; complete bundle publication still requires the
 unavailable admitted factory. Factory SDK receipt cases use unqualified unit
 fixtures, not a produced factory.
+The [factory base-cache repair](../validation/2026-11-02-de25-factory-incremental/README.md)
+separates compiler/base policy from selected software generations and refreshes
+the prebuilt runtime on every actual factory build. A real pinned Buildroot
+control retains stale software without that refresh, then installs the newly
+selected runtime while keeping 59 prerequisite stamps unchanged. All factory
+package, ABI, image and boot gates remain required. This is the reuse foundation;
+the ordinary DE25 source/incremental frontend is still incomplete.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.
 
