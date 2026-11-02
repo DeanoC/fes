@@ -1083,9 +1083,8 @@ Paired-kit lease and launch guards use this projection; selected-target host
 health remains available for host-mode clients. If the projection is
 unavailable, the paired kit's lease is unknown and input fails closed. The
 endpoint exposes no host paths. On the paired listener the settings overlay
-does not request host settings. Its host rows stay inert, local preferences
-still apply, and the footer says host settings are managed on the FogCast
-computer.
+does not request host settings. It leaves the host rows out, and local
+preferences still apply.
 
 ## Native 10-foot launcher
 

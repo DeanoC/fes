@@ -63,7 +63,7 @@ func BenchmarkCPUBackend(b *testing.B) {
 						app.grid.Focus = i % min(12, app.grid.Columns*app.grid.VisibleRows)
 					}
 					if scene == "SettingsNavigation" {
-						app.settingsIndex = i % settingsRowFixedCount
+						app.settingsIndex = i % len(app.settingsRowsLocked())
 					}
 					app.Tick(now)
 					snap := app.Snapshot()
@@ -121,7 +121,7 @@ func TestCachedCPURendererTracksVisibleAppChanges(t *testing.T) {
 	app.HandleCommand(CmdSettings, time.Now())
 	check()
 	check()
-	for i := 0; i < settingsRowFixedCount; i++ {
+	for i := range app.settingsRowsLocked() {
 		app.settingsIndex = i
 		check()
 	}

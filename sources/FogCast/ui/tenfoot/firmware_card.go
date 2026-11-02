@@ -300,6 +300,8 @@ func (a *App) handleFirmwareCardLocked(cmd Command) {
 			}
 			a.closeFirmwareCardLocked()
 			if a.session.State != "active" {
+				// From Settings › Firmware, system setup replaces Settings.
+				a.closeSettingsLocked()
 				a.openInstalledCoreSetupLocked(coreID)
 			}
 		}

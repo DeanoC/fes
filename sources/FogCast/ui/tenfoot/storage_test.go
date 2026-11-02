@@ -170,9 +170,7 @@ func TestPairedKitSettingsRemembersUSBFolderWithoutHostSettings(t *testing.T) {
 	manager := pickerDriveManager(t)
 	app.driveManager = manager
 	app.HandleCommand(CmdSettings, time.Now())
-	app.mu.Lock()
-	app.settingsIndex = settingsRowDrives
-	app.mu.Unlock()
+	focusSettingsRow(t, app, "drives", time.Now())
 	app.HandleCommand(CmdSelect, time.Now())
 	waitFor(t, app, "USB discovery", func(s Snapshot) bool { return s.Storage.Open && !s.Storage.Busy && len(s.Storage.Rows) > 4 })
 	id := ""

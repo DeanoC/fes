@@ -12,7 +12,7 @@ local BUTTONS = {
   { label = "Skip setup", action = "setup_skip" },
 }
 local NEXT = "Next: your controller, then where your games are. It takes a couple of minutes."
-local SKIP = "Skip goes straight to Home. Home shows what is still to do, and Settings › Run setup again brings this back."
+local SKIP = "Skip goes straight to Home. Home shows what is still to do, and Settings › About & help › Run setup again brings this back."
 
 local focus = 1
 
