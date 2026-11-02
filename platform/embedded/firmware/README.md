@@ -136,7 +136,12 @@ configuration/bridge authority, then issues one bounded HPS-client
 mailbox, use the active parser, acknowledge DMA buffers or open bridges. It
 accepts no addresses from the caller. A successful retirement reply still
 requires every source and outstanding descriptor to remain owned until reboot.
-The new reader and retirement path require their own matched hardware trial.
+The [matched retirement trial](../../../docs/validation/2026-11-02-de25-hps-failure-status/README.md)
+confirms retirement at the original 786,432-byte stall with all four buffers
+held. The HPS status request reaches its 10,000-poll bound with no response
+words; the original deadline failure is preserved. A subsequent JTAG general
+status query still responds and reports incomplete configuration. The HPS
+reconfiguration state and physical cause remain unknown.
 
 Invalid scope, changed bytes, uncertain replies or failed completion retire
 authority and keep memory owned until reboot. No reset-bit repair or implicit

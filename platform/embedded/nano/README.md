@@ -694,8 +694,13 @@ and bridge authority, then collects one bounded HPS-client `RECONFIG_STATUS`
 reply. The original transfer failure remains fatal. All possible DMA buffers
 and source bytes stay pinned even if the diagnostic reports a ready FPGA.
 The separate reader has no retry, mailbox restart, configuration acknowledgement
-or bridge opening. This path is tested without hardware and still needs a
-matched boot; the failed four-buffer hardware result above remains current.
+or bridge opening. The [matched boot](../../../docs/validation/2026-11-02-de25-hps-failure-status/README.md)
+confirms retirement and retention at 786,432 completed bytes with four possible
+outstanding buffers. The HPS status request receives no words in 10,000 polls,
+and the original 20.184137-second transfer failure remains fatal. A later JTAG
+management-status read still responds with CONF_DONE and INIT_DONE clear.
+The diagnostic supplies no HPS reconfiguration state or core-load acceptance;
+the physical cause remains open.
 
 This source-bound cold profile is a hardware-qualification candidate. No
 contained physical transfer is accepted yet. It enables neither an active

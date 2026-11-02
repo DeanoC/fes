@@ -1,0 +1,17 @@
+{
+  "audit_passed": true,
+  "source_commit": "42f2586b24a07dbbf1cfb8fd40dadf07ec7b6e65",
+  "parked_native_source": "42f2586b24a07dbbf1cfb8fd40dadf07ec7b6e65",
+  "jtag_management_reply": true,
+  "conf_done": false,
+  "init_done": false,
+  "hps_reconfiguration_state": "not supplied by general JTAG status",
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "claim_retained": true,
+  "programming_requested": false,
+  "sd_writes_requested": false,
+  "runtime_admission": false,
+  "core_load_acceptance": false
+}
