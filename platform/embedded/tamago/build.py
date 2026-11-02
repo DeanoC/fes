@@ -209,7 +209,7 @@ def build(args):
         raise ValueError('the source-bound SMMU profile permits only the serial probe')
     start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
     expected_package_id=package_option(args.program,args.package_id,profile)
-    context=control_map=configuration_map=reader_memory_map=ddr_read_map=computer_map=None
+    context=io_map=control_map=configuration_map=reader_memory_map=ddr_read_map=computer_map=None
     active_ddr=getattr(args,'ddr_read',False)
     if type(active_ddr) is not bool or active_ddr and args.program!='fpgaload':
         raise ValueError('--ddr-read requires the Nano fpgaload diagnostic')
@@ -221,7 +221,7 @@ def build(args):
         raise ValueError('--computer-reload requires the explicitly selected computer-control diagnostic')
     package_archive=None
     hps_project=getattr(args,'hps_first_project',None)
-    if args.program in ('bootcontext','fpgacontext','fpgastatus','fpgaload'):
+    if args.program in ('bootcontext','hpsio','fpgacontext','fpgastatus','fpgaload'):
         required_profile='sd-profile.json' if args.program=='fpgaload' else 'probe-profile.json'
         if hps_project is None or raw!=(APP.parent/'nano'/required_profile).read_bytes():
             raise ValueError('context diagnostics require a sealed HPS-first project and their source-derived serial/SD profile')
@@ -229,6 +229,7 @@ def build(args):
         hps=importlib.util.module_from_spec(spec);spec.loader.exec_module(hps)
         hps_project=hps_project.resolve(strict=True)
         context=hps.derive(hps_project)
+        if args.program=='hpsio':io_map=hps.hps_io(hps_project)
         if args.program in ('fpgacontext','fpgastatus','fpgaload'):control_map=hps.control(hps_project)
         if args.program=='fpgaload':
             configuration_map=hps.configuration(hps_project)
@@ -254,6 +255,7 @@ def build(args):
     output.mkdir(parents=True)
     (output / "handoff.json").write_bytes(raw)
     if context is not None:(output/'hps-context.json').write_bytes(hps.encode(context))
+    if io_map is not None:(output/'hps-io.json').write_bytes(hps.encode(io_map))
     if control_map is not None:(output/'hps-control.json').write_bytes(hps.encode(control_map))
     if configuration_map is not None:(output/'hps-configuration.json').write_bytes(hps.encode(configuration_map))
     if reader_memory_map is not None:(output/'hps-reader-memory.json').write_bytes(hps.encode(reader_memory_map))
@@ -327,6 +329,7 @@ def build(args):
     link_flags=f"-T {entry:#x} -R 0x1000"
     if expected_package_id:link_flags+=' -X main.expectedPackageID='+expected_package_id
     if context is not None:link_flags+=' -X main.expectedBootContext='+base64.b64encode(hps.encode(context)).decode()
+    if io_map is not None:link_flags+=' -X main.expectedHPSIO='+base64.b64encode(hps.encode(io_map)).decode()
     if control_map is not None:link_flags+=' -X main.expectedControlMap='+base64.b64encode(hps.encode(control_map)).decode()
     if configuration_map is not None:link_flags+=' -X main.expectedConfigurationMap='+base64.b64encode(hps.encode(configuration_map)).decode()
     if reader_memory_map is not None:link_flags+=' -X main.expectedReaderMemoryMap='+base64.b64encode(hps.encode(reader_memory_map)).decode()
@@ -340,6 +343,8 @@ def build(args):
     validate_native_elf(data, start, size, entry)
     if context is not None and (hps.derive(hps_project)!=context or base64.b64encode(hps.encode(context)) not in data):
         raise ValueError('HPS source context changed or was not linked into the native image')
+    if io_map is not None and (hps.hps_io(hps_project)!=io_map or base64.b64encode(hps.encode(io_map)) not in data):
+        raise ValueError('HPS I/O map changed or was not linked into the native image')
     if control_map is not None and (hps.control(hps_project)!=control_map or base64.b64encode(hps.encode(control_map)) not in data):
         raise ValueError('FPGA control map changed or was not linked into the native image')
     if configuration_map is not None and (hps.configuration(hps_project)!=configuration_map or
@@ -359,6 +364,7 @@ def build(args):
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
               "expected_package_id":expected_package_id,
               "hps_context":context,"hps_context_sha256":hps.digest(context) if context else None,
+              "hps_io":io_map,"hps_io_sha256":hps.digest(io_map) if io_map else None,
               "hps_control":control_map,"hps_control_sha256":hps.digest(control_map) if control_map else None,
               "hps_configuration":configuration_map,"hps_configuration_sha256":hps.digest(configuration_map) if configuration_map else None,
               "hps_reader_memory":reader_memory_map,"hps_reader_memory_sha256":hps.digest(reader_memory_map) if reader_memory_map else None,

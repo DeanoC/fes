@@ -619,6 +619,17 @@ unqualified; the original vendor-SPL pair is unchanged.
 
 ## Source context readback
 
+The separate `hpsio` native diagnostic selects `probe-profile.json` and
+`--hps-first-project`. It derives the complete expected pinmux map from that
+sealed build's compiled handoff, carries its digest through the SDK, entry,
+cold SPL/BL31 and HPS-first composition, then requests two read-only secure
+samples. The strict serial decoder requires all 328 ordered register records,
+both secure response boundaries and the matching native result under the
+same cold owner/generation. It observes 164 Agilex 5 registers and excludes
+the generic handoff entries omitted by the pinned vendor code. It performs
+no FPGA load or device opening and does not qualify general boot admission,
+clocks or RAM. Physical acceptance of this new observation is pending.
+
 `hps_context.py` derives a canonical descriptor from a verified sealed
 HPS-first project. It names the package, build inputs, unchanged core, HPS
 I/O hash, original SOF/pair and source/tool identities. It excludes the native

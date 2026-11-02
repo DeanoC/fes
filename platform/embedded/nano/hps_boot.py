@@ -46,6 +46,9 @@ def prepare(project, uboot, entry, pfg, output):
     source_context=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_context')
     if source_context is not None and source_context!=hps_context.derive(project):
         raise ValueError('native HPS source context differs from the sealed FPGA project')
+    io_map=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_io')
+    if io_map is not None and io_map!=hps_context.hps_io(project):
+        raise ValueError('native HPS I/O map differs from the sealed compiled handoff')
     control_map=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_control')
     if control_map is not None and control_map!=hps_context.control(project):
         raise ValueError('native CPU control map differs from the sealed FPGA project')
@@ -66,7 +69,7 @@ def prepare(project, uboot, entry, pfg, output):
     selected = (raw_sof, reference, hps/'seal-result.json', hps/'build-inputs.json', hps/'hps-first-pair.json',
                 hps/'hps-first.hps.rbf', hps/'hps-first.core.rbf', fit, spl, image,
                 uboot/'result.json', uboot/'build/.config', entry/'result.json', profile, pfg, binary,
-                Path(__file__), HERE/'package.py', HERE/'sof_hps.py',
+                Path(__file__), HERE/'package.py', HERE/'sof_hps.py', HERE/'hps_context.py', HERE/'hps_io.py',
                 PROTOTYPE/'verify.py', PROTOTYPE/'build.py', PROTOTYPE/'seal.py')
     hashes = {str(path): sha(path) for path in selected}
     output.mkdir(parents=True)
@@ -119,6 +122,8 @@ def prepare(project, uboot, entry, pfg, output):
         'core_payload_unchanged': True, 'embedded_spl_identity': embedded,
         'source_context_bound': source_context is not None,
         'hps_context_sha256': hps_context.digest(source_context) if source_context is not None else None,
+        'hps_io_observe':io_map is not None,
+        'hps_io_sha256':hps_context.digest(io_map) if io_map is not None else None,
         'control_probe':control_map is not None,
         'hps_control_sha256':hps_context.digest(control_map) if control_map is not None else None,
         'bounded_ddr_read':ddr_read is not None,

@@ -28,6 +28,9 @@ const (
 	FesEmbeddedBridgeReaderTag            uint32 = 0x46524431
 	FesEmbeddedBridgeRearmConfiguration   uint32 = 0xb
 	FesEmbeddedBridgeRearmTag             uint32 = 0x46575231
+	FesEmbeddedBridgeHpsIoPart0           uint32 = 0xc
+	FesEmbeddedBridgeHpsIoPart1           uint32 = 0xd
+	FesEmbeddedBridgeHpsIoTag             uint32 = 0x46484931
 	FesEmbeddedBridgeRequestFabric        uint32 = 0x100
 	FesEmbeddedBridgeRequestHeld          uint32 = 0x200
 	FesEmbeddedBridgeNotReady             uint32 = 0x5

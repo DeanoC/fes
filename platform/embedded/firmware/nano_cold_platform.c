@@ -9,6 +9,7 @@
 #include "nano_fabric_stop.h"
 #include "nano_ddr_firewall.h"
 #include "nano_ddr_read.h"
+#include "nano_hps_io.h"
 #include "generated/fes_de25_ddr_probe.h"
 #include "fes_nano_cold_profile.h"
 #define FES_COLD_READ32(a) mmio_read_32(a)
@@ -18,7 +19,7 @@
 #define FES_COLD_BARRIER() dsbsy()
 #define FES_COLD_WAIT() udelay(10)
 #include "nano_cold_mmio.inc"
-#if (defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE) || (defined(FES_NANO_SMMU_BOOT_OBSERVE) && FES_NANO_SMMU_BOOT_OBSERVE)
+#if (defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE) || (defined(FES_NANO_SMMU_BOOT_OBSERVE) && FES_NANO_SMMU_BOOT_OBSERVE) || (defined(FES_NANO_HPS_IO_OBSERVE) && FES_NANO_HPS_IO_OBSERVE)
 #include <common/debug.h>
 #endif
 #if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
@@ -32,6 +33,51 @@
 static struct fes_nano_cold_record captured;
 static struct fes_nano_cold provider;
 static unsigned capture_attempted, capture_valid;
+#if defined(FES_NANO_HPS_IO_OBSERVE) && FES_NANO_HPS_IO_OBSERVE
+static struct fes_nano_hps_io hps_io;
+static const struct fes_nano_hps_io_register hps_io_registers[FES_NANO_HPS_IO_COUNT]=FES_NANO_HPS_IO_REGISTERS;
+static const uint8_t hps_io_digest[32]=FES_NANO_HPS_IO_SHA;
+static int hps_io_owns(void *context,uint64_t owner,uint64_t generation)
+{
+    struct fes_nano_cold *s=context;
+    struct fes_nano_bridge_snapshot observed={0};
+    return GET_EL(read_current_el())==MODE_EL3 && !(read_sctlr_el3()&5U) &&
+        fes_nano_cold_cpu_release_locked()==1 && captured.core==MPIDR_AFFLVL1_VAL(read_mpidr()) &&
+        !s->control_expected && !s->ddr_expected && !fes_nano_owned_bridges.device_lease &&
+        fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)==1 &&
+        fes_nano_bridges_observe(&fes_nano_owned_bridges,&observed)==0 &&
+        observed.owner==owner && observed.generation==generation && observed.never_enabled &&
+        observed.reset==FES_NANO_BRIDGES_ALL && observed.masters_contained;
+}
+static int hps_io_read(void *context,uint32_t offset,uint32_t *value)
+{
+    (void)context;
+    if (!fes_nano_hps_io_offset(offset)) return -1;
+    *value=mmio_read_32(FES_NANO_HPS_IO_BASE+offset);
+    return 0;
+}
+static void hps_io_barrier(void *context) { (void)context;dsbsy(); }
+static void hps_io_trace(void *context,unsigned pass,unsigned index,uint32_t offset,uint32_t expected,uint32_t observed)
+{
+    (void)context;
+    NOTICE("FES_NANO_HPS_IO_ROW pass=%u index=%u offset=%x expected=%x observed=%x\n",pass,index,offset,expected,observed);
+}
+void fes_nano_platform_hps_io_sip(uint64_t operation,uint64_t owner,uint64_t generation,
+                                unsigned busy,uint64_t result[4])
+{
+    if (!hps_io.initialized && !hps_io.failed) {
+        struct fes_nano_hps_io_ops io={&provider,hps_io_owns,hps_io_read,hps_io_barrier,hps_io_trace};
+        (void)fes_nano_hps_io_init(&hps_io,io,hps_io_registers,FES_NANO_HPS_IO_COUNT,hps_io_digest);
+    }
+    NOTICE("FES_NANO_HPS_IO_BEGIN part=%u owner=%llx generation=%llu count=%u busy=%u\n",
+        operation==FES_EMBEDDED_BRIDGE_HPS_IO_PART1 ? 1U : 0U,(unsigned long long)owner,
+        (unsigned long long)generation,FES_NANO_HPS_IO_COUNT,busy);
+    fes_nano_hps_io_sip(&hps_io,operation,owner,generation,busy,result);
+    NOTICE("FES_NANO_HPS_IO_END part=%u status=%llu reads=%u error=%d owner=%llx generation=%llu data=held\n",
+        operation==FES_EMBEDDED_BRIDGE_HPS_IO_PART1 ? 1U : 0U,(unsigned long long)result[0],
+        hps_io.reads,hps_io.first_error,(unsigned long long)owner,(unsigned long long)generation);
+}
+#endif
 #ifdef FES_NANO_READER_CPU_BASE
 static int cold_master_owns(void *,uint64_t,uint64_t);
 static int cold_master_quiesce(void *,uint32_t);

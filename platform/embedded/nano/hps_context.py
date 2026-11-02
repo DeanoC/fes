@@ -31,7 +31,7 @@ def digest(context):
 
 
 def inputs():
-    return [Path(__file__), PROTOTYPE/'verify.py', PROTOTYPE/'seal.py', PROTOTYPE/'reader_memory.py', PROTOTYPE/'build.py',
+    return [Path(__file__), HERE/'hps_io.py', PROTOTYPE/'verify.py', PROTOTYPE/'seal.py', PROTOTYPE/'reader_memory.py', PROTOTYPE/'build.py',
             ROOT/'sources/misteross/boards/de25nano/hps/build.py', ROOT/'sources/misteross/boards/de25nano/build.py',
             PROTOTYPE.parent/'embedded_control/producer.py',
             ROOT/'sources/misteross/scripts/core_package.py',
@@ -58,6 +58,24 @@ def derive(project):
 
 def control(project):
     return _worker(project, 'control')
+
+
+def hps_io(project):
+    return _worker(project, 'hps-io')
+
+
+def _pinmux_module():
+    spec=importlib.util.spec_from_file_location('fes_hps_io_map',HERE/'hps_io.py')
+    pinmux=importlib.util.module_from_spec(spec);spec.loader.exec_module(pinmux)
+    return pinmux
+
+
+def validate_hps_io(mapping, context):
+    return _pinmux_module().validate(mapping,context)
+
+
+def _hps_io(project):
+    return _pinmux_module().derive(project, _derive(project))
 
 
 def computer(project):
@@ -414,14 +432,27 @@ def _fabric_stop_inventory(project):
 def checked(record, program_key='program'):
     keys = ('hps_context', 'hps_context_sha256', 'hps_project')
     if all(record.get(key) is None for key in keys):
-        if record.get(program_key) in ('bootcontext','fpgacontext','fpgastatus','fpgaload'):
+        if record.get(program_key) in ('bootcontext','hpsio','fpgacontext','fpgastatus','fpgaload'):
             raise ValueError('native context image is missing its sealed HPS context')
         return None
-    if any(record.get(key) is None for key in keys) or record.get(program_key) not in ('bootcontext','fpgacontext','fpgastatus','fpgaload'):
+    if any(record.get(key) is None for key in keys) or record.get(program_key) not in ('bootcontext','hpsio','fpgacontext','fpgastatus','fpgaload'):
         raise ValueError('HPS source context requires a dedicated native context image')
     expected = derive(record['hps_project'])
     if record['hps_context'] != expected or record['hps_context_sha256'] != digest(expected):
         raise ValueError('native HPS context differs from the sealed FPGA source')
+    return expected
+
+
+def checked_hps_io(record, program_key='program'):
+    keys=('hps_io','hps_io_sha256')
+    if record.get(program_key)!='hpsio':
+        if any(record.get(key) is not None for key in keys):
+            raise ValueError('live HPS I/O observation requires its dedicated native image')
+        return None
+    checked(record,program_key)
+    expected=hps_io(record['hps_project'])
+    if record.get(keys[0])!=expected or record.get(keys[1])!=digest(expected):
+        raise ValueError('HPS I/O observation map differs from the sealed compiled handoff')
     return expected
 
 
@@ -492,7 +523,7 @@ def checked_computer(record, program_key='program'):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in ('control','configuration','package','reader-memory','ddr-read','computer'):
-        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control|configuration|package|reader-memory|ddr-read|computer]')
-    action=_derive if len(sys.argv)==2 else {'control':_control,'configuration':_configuration,'package':_package,'reader-memory':_reader_memory,'ddr-read':_ddr_read,'computer':_computer}[sys.argv[2]]
+    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in ('control','configuration','package','reader-memory','ddr-read','computer','hps-io'):
+        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control|configuration|package|reader-memory|ddr-read|computer|hps-io]')
+    action=_derive if len(sys.argv)==2 else {'control':_control,'configuration':_configuration,'package':_package,'reader-memory':_reader_memory,'ddr-read':_ddr_read,'computer':_computer,'hps-io':_hps_io}[sys.argv[2]]
     sys.stdout.buffer.write(encode(action(sys.argv[1])))

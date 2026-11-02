@@ -49,6 +49,11 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
                                       request_type != NO_REQUEST || fes_nano_configuration_busy(configuration), fes_nano_hps_context, r);
             goto out;
         }
+        if (x1 == FES_EMBEDDED_BRIDGE_HPS_IO_PART0 || x1 == FES_EMBEDDED_BRIDGE_HPS_IO_PART1) {
+            fes_nano_platform_hps_io_sip(x1,x2,x4,
+                request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r);
+            goto out;
+        }
         if (x1 == FES_EMBEDDED_BRIDGE_PROBE_IDENTITY) {
             fes_nano_identity_sip(fes_nano_platform_identity_probe(),x2,x4,
                                    request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r);

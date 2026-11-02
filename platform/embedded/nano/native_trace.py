@@ -6,6 +6,7 @@ No device, programmer, firmware or filesystem operations are performed here.
 import hashlib
 import re
 from hps_context import reader_pattern, digest as context_digest
+from hps_io import validate as validate_hps_io
 from reader_trace import extract as extract_reader_trace,validate as validate_reader_trace
 
 MAX_BYTES = 1 << 20
@@ -53,6 +54,11 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('el1', r'FES_ENTRY EL1 HANDOFF'),
     ('go', r'FES_NATIVE_GO_PROBE PASS os=tamago board=de25-nano'),
     ('hps_context', rf'FES_NATIVE_HPS_CONTEXT PASS sha256=(?P<sha256>[0-9a-f]{{64}}) package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) (?:runtime_)?programming=unavailable'),
+    ('hps_io_begin', rf'(?:NOTICE:[ \t]+)?FES_NANO_HPS_IO_BEGIN part=(?P<part>[01]) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) count=(?P<count>[0-9]{{1,3}}) busy=(?P<busy>[01])'),
+    ('hps_io_row', r'(?:NOTICE:[ \t]+)?FES_NANO_HPS_IO_ROW pass=(?P<pass>[01]) index=(?P<index>[0-9]{1,3}) '+
+        ' '.join(key+r'=(?P<'+key+r'>[0-9a-f]{1,8})' for key in ('offset','expected','observed'))),
+    ('hps_io_end', rf'(?:NOTICE:[ \t]+)?FES_NANO_HPS_IO_END part=(?P<part>[01]) status=(?P<status>[0-9]{{1,10}}) reads=(?P<reads>[0-9]{{1,3}}) error=(?P<error>-?[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) data=held'),
+    ('hps_io_pass', rf'FES_NATIVE_HPS_IO PASS map_sha256=(?P<map_sha256>[0-9a-f]{{64}}) count=(?P<count>[0-9]{{1,3}}) reads=(?P<reads>[0-9]{{1,3}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) data_held=1 runtime_admission=unavailable'),
     ('configuration_package', rf'FES_NANO_LOAD_PACKAGE CONTAINED package_id=(?P<package_id>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}}) source=sd storage_active=0'),
     ('identity_transition', rf'(?:NOTICE:[ \t]+)?FES_NANO_IDENTITY phase=(?P<phase>[a-z-]{{1,24}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) reset=(?P<reset>{H}) base=(?P<base>{H})'),
     ('fpga_query', r'(?:NOTICE:[ \t]+)?FES_NANO_CONFIG_QUERY command=4 words=6'),
@@ -85,7 +91,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
 DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter',
            'cpu0', 'cpu1', 'cpu2', 'cpu3', 'setup', 'ready', 'bytes', 'sectors', 'sd_generation', 'payload_bytes','words','ordinal',
            'reads','identified','settled','bypass_controls_clear','arena_bytes','reader_reads','reader_polls','disable','probe_polls','cancel','complete',
-           'index','layout_known','window_covered','mpfe_reset','fetches','execution_observed'}
+           'index','layout_known','window_covered','mpfe_reset','fetches','execution_observed','part','pass','count','busy','error'}
 TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id','map_sha256','pattern_sha256'}
 
 
@@ -96,7 +102,7 @@ class _ComputerContinuation:
         self.owner,self.generation,self.previous=owner,generation,previous
 
 
-def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, fpga_identity=None,
+def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, hps_io=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
                        smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, capture_trace=True, atf=None, _continuation=None):
     """Retain partial progress, but qualify only one ordered, coherent boot.
@@ -167,6 +173,10 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             raise ValueError('independently checked HPS source-context identities required')
         if storage is not None or package is not None:
             raise ValueError('select exactly one SD or HPS context diagnostic')
+    if hps_io is not None:
+        if hps_context is None or fpga_identity is not None or not isinstance(hps_io,dict):
+            raise ValueError('HPS I/O requires its separate compiled source-context diagnostic')
+        validate_hps_io(hps_io,{'hps_io_hash':hps_io.get('hps_io_hash')})
     if type(configuration_storage) is not bool or (configuration_storage and
             (fpga_identity is None or not fpga_configuration or fpga_unready or fpga_status_only)):
         raise ValueError('stored configuration requires the complete FPGA configuration diagnostic')
@@ -200,6 +210,9 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     if continued:base_stages=()
     stages=base_stages
     if hps_context is not None:stages=base_stages[:-1]+('hps_context',)
+    if hps_io is not None:
+        stages+=('hps_io_begin_0',)+tuple('hps_io_row_'+str(p)+'_'+str(i) for p in range(2) for i in range(164))+(
+            'hps_io_end_0','hps_io_begin_1','hps_io_end_1','hps_io_pass')
     if fpga_identity is not None:
         if fpga_configuration:stages+=('fpga_query','fpga_status')
         if fpga_status_only:stages+=('fpga_status_closed',)
@@ -254,7 +267,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             match = pattern.fullmatch(line)
             if match is None:
                 continue
-            values = {key: value if key in TEXT else int(value, 10 if key in DECIMAL or name in ('reader_memory','master_stop','ddr_blocked','ddr_firewall','computer_control') and key=='generation' else 16)
+            values = {key: value if key in TEXT else int(value, 10 if key in DECIMAL or name in ('reader_memory','master_stop','ddr_blocked','ddr_firewall','computer_control','hps_io_begin','hps_io_end') and key=='generation' else 16)
                       for key, value in match.groupdict().items()}
             if name=='computer_control' and not computer_activity and values['execution_observed']==0:
                 # Preserve the already retained control-only record shape.
@@ -268,6 +281,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             if name=='identity_access':name='identity_access_'+str(values['ordinal'])+'_'+values['phase']
             if name=='computer_activity':name+='_'+values['phase']
             if name=='ddr_region':name+='_'+str(values['index'])
+            if name in ('hps_io_begin','hps_io_end'):name+='_'+str(values['part'])
+            if name=='hps_io_row':name+='_'+str(values['pass'])+'_'+str(values['index'])
             if name=='sd_platform' and not controlled:
                 if ('sd_platform' in observed or not report['records'] or report['records'][-1]['stage']!='provider' or
                         values!={'setup':0,'ready':0}):
@@ -285,7 +300,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             break
         else:
             if (line.startswith(('U-Boot ', 'FES_NANO_', 'FES_ENTRY', 'FES_NATIVE_GO_PROBE', 'FES_STORAGE_PROBE', 'FES_SD_PACKAGE_PROBE',
-                                 'FES_NATIVE_HPS_CONTEXT','FES_NATIVE_FPGA_IDENTITY','FES_NATIVE_FPGA_UNREADY','FES_NATIVE_FPGA_STATUS','FES_NATIVE_FPGA_PROGRAMMED','FES_NATIVE_COMPUTER_CONTROL','FES_NATIVE_COMPUTER_ACTIVITY', 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
+                                 'FES_NATIVE_HPS_CONTEXT','FES_NATIVE_HPS_IO','FES_NATIVE_FPGA_IDENTITY','FES_NATIVE_FPGA_UNREADY','FES_NATIVE_FPGA_STATUS','FES_NATIVE_FPGA_PROGRAMMED','FES_NATIVE_COMPUTER_CONTROL','FES_NATIVE_COMPUTER_ACTIVITY', 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
                     line.startswith('NOTICE:') and 'FES_NANO_' in line):
                 report['errors'].append(f'malformed or unexpected probe marker at line {number}')
 
@@ -376,6 +391,27 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 'native HPS source context differs')
         require(matched_owner is not None and value['owner']==matched_owner and value['generation']==source_generation,
                 'native HPS source-context owner/generation differs')
+    if hps_io is not None:
+        for part in range(2):
+            for kind in ('begin','end'):
+                value=observed.get('hps_io_'+kind+'_'+str(part))
+                if value is None:continue
+                require(matched_owner is not None and value['owner']==matched_owner and value['generation']==1,
+                        'HPS I/O secure ownership changed')
+                require(value['count']==164 and value['busy']==0 if kind=='begin' else
+                        value['status']==0 and value['reads']==328 and value['error']==0,
+                        'HPS I/O secure observation failed or is incomplete')
+        for p in range(2):
+            for index,row in enumerate(hps_io['registers']):
+                value=observed.get('hps_io_row_'+str(p)+'_'+str(index))
+                if value is not None:
+                    require(value['offset']==row['offset'] and value['expected']==value['observed']==row['value'],
+                            'HPS I/O register differs from the sealed compiled handoff')
+        value=observed.get('hps_io_pass')
+        if value is not None:
+            require(value['map_sha256']==context_digest(hps_io) and value['count']==164 and value['reads']==328 and
+                    matched_owner is not None and value['owner']==matched_owner and value['generation']==1,
+                    'native HPS I/O result differs from the compiled map or scope')
     if fpga_identity is not None:
         value=observed.get('fpga_status')
         if value:
@@ -512,6 +548,10 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     names = tuple(row['stage'] for row in report['records'])
     report['loader_ready'] = not continued and not report['errors'] and names[:len(loader_stages)] == loader_stages
     report['complete'] = not report['errors'] and names == stages and not tail
+    if hps_io is not None:
+        report['hps_io_observation']={'complete':report['complete'],'map_sha256':context_digest(hps_io),
+            'registers':164,'reads':sum(row['stage'].startswith('hps_io_row_') for row in report['records']),
+            'runtime_admission':False}
     if computer_activity:
         report['computer_activity']={'complete':report['complete'],'kind':'z80-instruction-fetch-bus',
                                      'counter_bits':32,'samples':activity,'runtime_admission':False}

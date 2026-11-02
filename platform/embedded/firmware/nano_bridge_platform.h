@@ -21,6 +21,9 @@ int fes_nano_platform_boot_record(struct fes_nano_boot_record *, struct fes_nano
 int fes_nano_platform_sd_setup(void);
 /* Report saved first-failure observations only; never sample failed hardware. */
 void fes_nano_platform_sd_report(void);
+/* Read-only sealed pinmux observation. The weak unbound platform is not ready. */
+void fes_nano_platform_hps_io_sip(uint64_t operation, uint64_t owner,
+                                 uint64_t generation, unsigned busy, uint64_t result[4]);
 int fes_nano_bridge_platform_handoff(const struct fes_nano_boot_record *,
                                      const struct fes_nano_boot_policy *, struct fes_nano_master_ops);
 #endif

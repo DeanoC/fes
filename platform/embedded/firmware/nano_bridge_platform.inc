@@ -99,6 +99,15 @@ __attribute__((weak)) int fes_nano_platform_boot_record(struct fes_nano_boot_rec
 }
 __attribute__((weak)) int fes_nano_platform_sd_setup(void) { return 0; }
 __attribute__((weak)) void fes_nano_platform_sd_report(void) {}
+__attribute__((weak)) void fes_nano_platform_hps_io_sip(uint64_t operation,uint64_t owner,
+                                      uint64_t generation,unsigned busy,uint64_t result[4])
+{
+    (void)owner;(void)generation;(void)busy;
+    result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;
+    result[1]=((uint64_t)FES_EMBEDDED_BRIDGE_HPS_IO_TAG<<32) |
+        (operation==FES_EMBEDDED_BRIDGE_HPS_IO_PART1 ? 1U : 0U);
+    result[2]=result[3]=0;
+}
 void fes_nano_bridge_platform_setup(void)
 {
     struct fes_nano_boot_record record = {0};

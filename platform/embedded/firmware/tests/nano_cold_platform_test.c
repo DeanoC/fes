@@ -9,8 +9,10 @@
 #include "nano_smmu.h"
 #include "generated/fes_de25_ddr_probe.h"
 #include "nano_ddr_firewall.h"
+#include "nano_hps_io.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
 
@@ -19,6 +21,17 @@ static uint32_t per0=FES_NANO_MASTER_RESET,bridge=15;
 static uint32_t power[4]={0x90000021,0,0,0},pch_request=0x23,pch_status=0x23,boot_config=0x0070021e;
 static unsigned release_locked=1,current_el=12;
 static uint64_t mpidr,sctlr;
+#if defined(FES_NANO_HPS_IO_OBSERVE) && FES_NANO_HPS_IO_OBSERVE
+static unsigned hps_io_reads,hps_io_fault;
+static const struct fes_nano_hps_io_register hps_io_rows[FES_NANO_HPS_IO_COUNT]=FES_NANO_HPS_IO_REGISTERS;
+#else
+void fes_nano_platform_hps_io_sip(uint64_t op,uint64_t owner,uint64_t generation,unsigned busy,uint64_t r[4])
+{
+    (void)owner;(void)generation;(void)busy;r[0]=5;
+    r[1]=(uint64_t)FES_EMBEDDED_BRIDGE_HPS_IO_TAG<<32 | (op==FES_EMBEDDED_BRIDGE_HPS_IO_PART1);
+    r[2]=r[3]=0;
+}
+#endif
 #if defined(FES_NANO_READER_CPU_BASE) || (defined(FES_NANO_SMMU_BOOT_OBSERVE) && FES_NANO_SMMU_BOOT_OBSERVE)
 static unsigned smmu_reads,smmu_fault;
 #endif
@@ -180,6 +193,24 @@ void fes_nano_platform_sd_report(void) {}
 #include "nano_owned_sip.inc"
 uint32_t mmio_read_32(uintptr_t a)
 {
+#if defined(FES_NANO_HPS_IO_OBSERVE) && FES_NANO_HPS_IO_OBSERVE
+    if(a>=FES_NANO_HPS_IO_BASE+0x1000 && a<=FES_NANO_HPS_IO_BASE+0x14bc) {
+        unsigned i=hps_io_reads++%FES_NANO_HPS_IO_COUNT;
+        assert(a==FES_NANO_HPS_IO_BASE+hps_io_rows[i].offset && bridge==15 && !engine_calls);
+        if(hps_io_reads==1) {
+            if(hps_io_fault==3)fes_nano_owned_bridges.state.owner++;
+            if(hps_io_fault==5)per0&=~0x80U;
+            if(hps_io_fault==6)sctlr=4;
+            if(hps_io_fault==7)release_locked=0;
+            if(hps_io_fault==8)mpidr=0x200;
+            if(hps_io_fault==9)current_el=8;
+            if(hps_io_fault==10)bridge=13;
+            if(hps_io_fault==11)fes_nano_owned_bridges.device_lease=1;
+        }
+        if(hps_io_reads==165 && hps_io_fault==4)fes_nano_owned_bridges.state.generation++;
+        return hps_io_rows[i].value ^ ((hps_io_fault==1 && hps_io_reads==1) || (hps_io_fault==2 && hps_io_reads==328));
+    }
+#endif
 #if defined(FES_NANO_READER_CPU_BASE) || (defined(FES_NANO_SMMU_BOOT_OBSERVE) && FES_NANO_SMMU_BOOT_OBSERVE)
     if(a>=FES_NANO_SMMU_BASE && a<FES_NANO_SMMU_BASE+0x10000) {
 #ifdef FES_TEST_CONFIGURATION_EPOCHS
@@ -512,6 +543,33 @@ int main(int argc,char **argv)
     assert(reply[0]==0 && (uint32_t)reply[1]==0xdf && reply[2]==record.owner && reply[3]==1);
     assert(masters.owns(masters.context,record.owner,record.epoch)==1);
     fes_nano_owned_bridges=b;
+#if defined(FES_NANO_HPS_IO_OBSERVE) && FES_NANO_HPS_IO_OBSERVE
+    assert(mutation>=138 && mutation<=153);hps_io_fault=mutation-138;
+    for(unsigned op=1;op<=3;op++) {
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,op,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(reply[0]==2 && !engine_calls && !hps_io_reads && bridge==15);
+    }
+    if(hps_io_fault==13) {
+        request_type=RECONFIGURATION;
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_HPS_IO_PART0,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(reply[0]==1 && !hps_io_reads);request_type=NO_REQUEST;
+    }
+    unsigned operation=hps_io_fault==14 ? FES_EMBEDDED_BRIDGE_HPS_IO_PART1 : FES_EMBEDDED_BRIDGE_HPS_IO_PART0;
+    fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,operation,record.owner+(hps_io_fault==12),FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+    if(hps_io_fault && hps_io_fault!=13 && hps_io_fault!=15) {
+        assert(reply[0] && !reply[2] && !reply[3]);
+        unsigned reads=hps_io_reads;
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_HPS_IO_PART0,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(reply[0] && hps_io_reads==reads && !clock_reads && !sd_mmio && !engine_calls);
+        return 0;
+    }
+    assert(!reply[0] && hps_io_reads==328 && reply[1]==((uint64_t)FES_EMBEDDED_BRIDGE_HPS_IO_TAG<<32));
+    if(hps_io_fault==15)release_locked=0;
+    fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_HPS_IO_PART1,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+    assert((reply[0]!=0)==(hps_io_fault==15));
+    assert(hps_io_reads==328 && !clock_reads && !sd_mmio && !engine_calls && bridge==15);
+    puts("HPS_IO_STRONG_PROVIDER_PASS");return 0;
+#endif
 #ifdef FES_NANO_READER_CPU_BASE
     uint32_t initial_producers=0;
     assert(!masters.quiescent(masters.context,&initial_producers) && initial_producers==FES_NANO_PRODUCERS_HPS);

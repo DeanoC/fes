@@ -1,6 +1,6 @@
 # Experimental owned firmware bridge channel
 
-`fes.fabric.embedded.bridges` 1.9 supplies generated C/Go constants for the
+`fes.fabric.embedded.bridges` 1.10 supplies generated C/Go constants for the
 Linux-free Nano firmware experiment. It adds no programming profile, package
 ABI, register mapping or production compatibility entry. The FPGA endpoint
 contract and its generated inputs are unchanged.
@@ -92,6 +92,28 @@ The contained `bootcontext`, `fpgacontext` and `fpgastatus` diagnostics select i
 provider returns NOT_READY, and the cold dispatcher still denies generic bridge
 mutations and configuration. The fabric warning capability describes the
 optional warning handshake, not the presence of a configured FPGA core.
+
+Operations 12/13 return two halves of the fixed HPS I/O observation digest.
+Replies carry status in `x0`, `0x46484931 << 32 | part` in `x1` and 16
+big-endian digest bytes in `x2/x3`. The request has the existing cookie and
+expected owner/generation; it contains no register address, pointer or value.
+Default providers return status 5. The separate `hpsio` cold profile compiles
+the complete 164-register Agilex 5 pinmux map from the sealed compiler handoff.
+It explicitly excludes the two generic FPGA handoff entries that the pinned
+Agilex 5 vendor initialization omits. All remaining masks are full-width.
+
+Part 0 reads the entire fixed map twice, with unchanged owned closed cold
+scope checked before and after every read. Both samples must match every
+compiled value. Only then can it return the first half. Part 1 checks that
+same pending owner/generation and returns the second half without resampling.
+A duplicate, premature or changed-scope request retires the observation;
+read errors, value mismatches and ownership loss preserve the first failure.
+BUSY consumes no observation or pending response. A completed pair can be
+observed afresh; a failed pair cannot be retried into a success.
+Native readers additionally bracket the pair with the same verified source
+context and closed Snapshots. The digest and serial markers describe this
+pinmux subset; they supply no signed boot, clock/RAM qualification, generic
+bridge mutation, secondary CPU release or runtime programming admission.
 
 Operation 6 is a separate one-shot secure identity probe, available only in a
 matched source-bound cold chain (`fpgacontext` or `fpgaload`). Its fixed CPU aperture, ABI and build ID come

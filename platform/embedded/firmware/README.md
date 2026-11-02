@@ -6,6 +6,18 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The separate `hpsio` cold serial profile compiles a fixed map from the sealed
+FPGA build's `hps_bootloader_handoff.bin`. Its read-only provider samples all
+164 Agilex 5 pinmux registers twice, checking the expected owner/generation,
+closed bridges, contained masters, boot CPU, locked secondary CPU release and
+EL3 cache/translation state around every read. The pinned vendor initialization
+omits two generic FPGA handoff entries; this observer excludes those exact
+entries too. No request supplies an address or value. A mismatch or scope loss
+retires the observation and returns no successful digest. Its two-part result
+is separate from source context and grants no bridge opening or runtime
+admission. Off-board tests cover every read position and the actual strong
+provider/dispatcher; this candidate has no physical I/O observation yet.
+
 The matched native SPL now verifies the loaded BL31 bytes and records the exact
 branch target, argument pointers and CPU control registers after cold containment.
 Its compiled digest/size and parameter ranges come from the checked BL31/FIT

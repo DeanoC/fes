@@ -64,7 +64,7 @@ def main():
         parser.error("cross-prefix must be absolute and end in -")
     profile_bytes = receipt_bytes = None
     native_sources = None
-    native_context = native_control = native_configuration = native_reader_memory = native_ddr_read = native_computer = None
+    native_context = native_io = native_control = native_configuration = native_reader_memory = native_ddr_read = native_computer = None
     native_reload = False
     if args.target == "qemu":
         if args.nano_build or args.profile or args.image_address is not None:
@@ -93,6 +93,7 @@ def main():
         context_spec=importlib.util.spec_from_file_location('fes_entry_hps_context',HERE.parent/'nano/hps_context.py')
         hps=importlib.util.module_from_spec(context_spec);context_spec.loader.exec_module(hps)
         native_context=hps.checked(receipt)
+        native_io=hps.checked_hps_io(receipt)
         native_control=hps.checked_control(receipt)
         native_configuration=hps.checked_configuration(receipt)
         native_reader_memory=hps.checked_reader_memory(receipt)
@@ -105,6 +106,8 @@ def main():
             raise ValueError('computer reload selection differs from the native link command')
         if native_context is not None and base64.b64encode(hps.encode(native_context)) not in payload.read_bytes():
             raise ValueError('HPS context is absent from the selected native ELF')
+        if native_io is not None and base64.b64encode(hps.encode(native_io)) not in payload.read_bytes():
+            raise ValueError('HPS I/O map is absent from the selected native ELF')
         if native_control is not None and base64.b64encode(hps.encode(native_control)) not in payload.read_bytes():
             raise ValueError('control map is absent from the selected native ELF')
         if native_configuration is not None and base64.b64encode(hps.encode(native_configuration)) not in payload.read_bytes():
@@ -246,6 +249,8 @@ def main():
               "native_program":receipt['program'] if receipt_bytes is not None else None,
               "hps_context":native_context,
               "hps_context_sha256":hps.digest(native_context) if native_context is not None else None,
+              "hps_io":native_io,
+              "hps_io_sha256":hps.digest(native_io) if native_io is not None else None,
               "hps_control":native_control,
               "hps_control_sha256":hps.digest(native_control) if native_control is not None else None,
               "hps_configuration":native_configuration,

@@ -1,14 +1,14 @@
 {
   "source": {
     "repository": "DeanoC/fes",
-    "commit": "96ea54bd5b54b1db77668b866f78ce3344479d0d",
+    "commit": "2b3dca63b3d6e6ae04b863dbf8891ad883c0862e",
     "file": "platform/embedded/firmware/generated/fes_embedded_bridges.h",
-    "note": "Source base for explicit fixed-source reconfiguration rearm after successful completion and a newer owned all-master close. Existing cold preparation stays one-shot. Failures, pending/issued buffers, stale generations, active bridges and device leases cannot rearm; no address or digest is accepted from the caller. No ordinary runtime or physical admission is granted."
+    "note": "Source base for read-only, owner/generation-bound verification of the sealed Agilex 5 pinmux handoff. Two complete CSR samples precede digest part0; part1 consumes the same scoped observation. No address, value, boot grant, bridge opening or configuration permission is supplied by the caller."
   },
   "fabric": {
     "id": "fes.fabric.embedded.bridges",
     "major": 1,
-    "minor": 9
+    "minor": 10
   },
   "constants": {
     "FesEmbeddedBridgeCall": 3254780673,
@@ -49,6 +49,9 @@
     "FesEmbeddedBridgeProbeReader": 10,
     "FesEmbeddedBridgeReaderTag": 1179796529,
     "FesEmbeddedBridgeRearmConfiguration": 11,
-    "FesEmbeddedBridgeRearmTag": 1180127793
+    "FesEmbeddedBridgeRearmTag": 1180127793,
+    "FesEmbeddedBridgeHpsIoPart0": 12,
+    "FesEmbeddedBridgeHpsIoPart1": 13,
+    "FesEmbeddedBridgeHpsIoTag": 1179142449
   }
 }

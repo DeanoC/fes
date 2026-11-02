@@ -439,8 +439,8 @@ int main(void) {
             (inc/'socfpga_mailbox.h').write_text('#include <stdint.h>\n#define MBOX_JOB_ID 1U\n#define MBOX_CONFIG_STATUS 4U\n#define CMD_CASUAL 0U\n#define PIN_STATUS_NSTATUS (1U<<31)\n#define SOFTFUNC_STATUS_CONF_DONE 1U\n#define SOFTFUNC_STATUS_INIT_DONE 2U\n#define SOFTFUNC_STATUS_SEU_ERROR 8U\nint mailbox_send_cmd(uint32_t,uint32_t,uint32_t*,unsigned,uint32_t,uint32_t*,unsigned*);\n')
             header='#define FES_NANO_COLD_CHAIN {0x42,0x17}\n#define FES_NANO_COLD_OWNER_SEED 17ULL\n'
             command=['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
-                     '-I'+str(inc),'-I'+str(FW),*(str(FW/name) for name in ('nano_cold_platform.c','nano_cold.c','nano_boot.c','nano_bridges.c','nano_bridge_sip.c','nano_sd.c','nano_sd_platform.c','nano_identity.c','nano_configuration.c','nano_smmu.c','nano_fabric_stop.c','nano_probe_stop.c','nano_ddr_firewall.c','nano_ddr_read.c','tests/nano_cold_platform_test.c'))]
-            for sd,context,probe,ddr,smmu_boot,active in ((0,0,0,0,0,0),(0,1,0,0,0,0),(1,0,0,0,0,0),(1,1,0,0,0,0),(0,0,1,0,0,0),(0,1,1,0,0,0),(0,1,1,1,0,0),(0,0,0,0,1,0),(0,1,1,1,0,1)):
+                     '-I'+str(inc),'-I'+str(FW),*(str(FW/name) for name in ('nano_cold_platform.c','nano_cold.c','nano_boot.c','nano_bridges.c','nano_bridge_sip.c','nano_sd.c','nano_sd_platform.c','nano_identity.c','nano_configuration.c','nano_smmu.c','nano_fabric_stop.c','nano_probe_stop.c','nano_ddr_firewall.c','nano_ddr_read.c','nano_hps_io.c','tests/nano_cold_platform_test.c'))]
+            for sd,context,probe,ddr,smmu_boot,active,io_probe in ((0,0,0,0,0,0,0),(0,1,0,0,0,0,0),(1,0,0,0,0,0,0),(1,1,0,0,0,0,0),(0,0,1,0,0,0,0),(0,1,1,0,0,0,0),(0,1,1,1,0,0,0),(0,0,0,0,1,0,0),(0,1,1,1,0,1,0),(0,1,0,0,0,0,1)):
                 values=','.join(str(i) for i in range(32)) if context else '0'
                 extra=('#define FES_NANO_CONTROL_PROBE '+str(probe)+'\n'
                        '#define FES_NANO_SMMU_BOOT_OBSERVE '+str(smmu_boot)+'\n'
@@ -456,16 +456,27 @@ int main(void) {
                                '#define FES_NANO_PROBE_SPAN 128U\n')
                 if active:extra+=('#define FES_NANO_DDR_READ_DIAGNOSTIC 1\n'
                                   '#define FES_NANO_DDR_READ_ATTRS_VERIFIED 1\n')
+                if io_probe:
+                    import json
+                    rows=json.loads((ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-io.json').read_bytes())['registers']
+                    extra+='#define FES_NANO_HPS_IO_OBSERVE 1\n#define FES_NANO_HPS_IO_SHA {1,2,3}\n'
+                    extra+='#define FES_NANO_HPS_IO_REGISTERS {'+','.join('{'+str(r['offset'])+','+str(r['value'])+',0xffffffffU}' for r in rows)+'}\n'
                 (inc/'fes_nano_cold_profile.h').write_text(header+'#define FES_NANO_HPS_CONTEXT_SHA {'+values+'}\n'+extra)
-                binary=base/('platform-'+str(sd)+'-'+str(context)+'-'+str(probe)+'-'+str(ddr)+'-'+str(smmu_boot)+'-'+str(active))
+                binary=base/('platform-'+str(sd)+'-'+str(context)+'-'+str(probe)+'-'+str(ddr)+'-'+str(smmu_boot)+'-'+str(active)+'-'+str(io_probe))
                 r=subprocess.run(command+['-DFES_NANO_CONTROLLED_SD='+str(sd),*(['-DFES_TEST_HPS_CONTEXT'] if context else []),'-o',str(binary)],capture_output=True,text=True)
                 self.assertEqual(r.returncode,0,r.stderr)
                 mutations=list(range(43 if probe and context else 25 if sd else 22))+ (list(range(82,96)) if ddr or smmu_boot else [])+(list(range(96,124)) if ddr else [])
                 if active:mutations=list(range(124,138))
+                if io_probe:mutations=list(range(138,154))
                 for mutation in mutations:
                     with self.subTest(sd=sd,context=context,probe=probe,ddr=ddr,smmu_boot=smmu_boot,mutation=mutation):
                         r=subprocess.run([str(binary),str(mutation)],capture_output=True,text=True)
                         self.assertEqual(r.returncode,0,r.stderr+r.stdout[-6000:])
+                        if io_probe and mutation==138:
+                            from test_nano_hps_io import io_trace,trace,BUILD,SEED
+                            raw,expected,mapping=io_trace(r.stdout)
+                            observed=trace.decode_native_boot(raw,BUILD,SEED,hps_context=expected,hps_io=mapping)
+                            self.assertTrue(observed['complete'],observed['errors'])
                         if not active and (ddr or smmu_boot) and mutation>=82:
                             self.assertIn('access=unqualified',r.stdout)
                             if mutation<92:self.assertIn('bypass_controls_clear='+str(int(mutation==82)),r.stdout)

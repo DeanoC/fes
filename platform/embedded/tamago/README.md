@@ -32,6 +32,13 @@ now pass; other physical device and core-launch qualification remains open.
 The Nano-only `fpga` program cross-builds a read-only TF-A SDM mailbox probe.
 It reports silicon IDCODE and configuration status, without programming,
 opening bridges or establishing a live package identity. See [SDM](sdm/README.md).
+The Nano-only `hpsio` program uses a sealed HPS-first project and the contained
+serial profile to request two exact read-only samples of 164 HPS pinmux
+registers from matched secure firmware. It verifies both digest halves and
+unchanged cold source ownership before reporting the result. It has no FPGA
+configuration or device-opening operation. The observation covers this fixed
+I/O subset; `HPSContextVerifier` still supplies no general boot admission.
+
 The Nano-only `bootcontext` program compares the compiled HPS-first package
 descriptor with a read-only secure-firmware digest under the same closed
 owner/generation. It requires `--hps-first-project` and the exact source serial

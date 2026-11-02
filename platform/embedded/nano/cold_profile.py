@@ -47,6 +47,7 @@ def entry(entry_build):
     for name,expected in receipt['sources'].items():
         if sha(ROOT/name)!=expected:raise ValueError('entry producer source changed: '+name)
     context=hps_context.checked(receipt,program_key='native_program')
+    hps_context.checked_hps_io(receipt,program_key='native_program')
     hps_context.checked_control(receipt,program_key='native_program')
     configuration=hps_context.checked_configuration(receipt,program_key='native_program')
     reader_memory=hps_context.checked_reader_memory(receipt,program_key='native_program')
@@ -62,7 +63,7 @@ def entry(entry_build):
 
 
 def sources():
-    return [HERE/name for name in ('cold_profile.py','hps_context.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','smmu-profile.json')]+[
+    return [HERE/name for name in ('cold_profile.py','hps_context.py','hps_io.py','spl_cold.c','spl_console.inc','prepare_uboot.py','uboot.c','handoff.c','handoff.h','probe-profile.json','sd-profile.json','smmu-profile.json')]+[
         FW/name for name in ('nano_cold.h','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_boot.c','nano_bridges.h','nano_bridges.c','nano_bridge_platform.inc','nano_bridge_platform.h',
@@ -71,7 +72,7 @@ def sources():
                             'nano_bridge_sip.c','nano_bridge_sip.h','generated/fes_embedded_bridges.h',
                             'nano_identity.c','nano_identity.h','nano_configuration.c','nano_configuration.h','nano_smmu.c','nano_smmu.h',
                             'nano_fabric_stop.c','nano_fabric_stop.h','nano_probe_stop.c','nano_probe_stop.h','generated/fes_de25_ddr_probe.h','generated/fes_embedded_control.h',
-                            'nano_ddr_firewall.c','nano_ddr_firewall.h','nano_ddr_read.c','nano_ddr_read.h',
+                            'nano_ddr_firewall.c','nano_ddr_firewall.h','nano_ddr_read.c','nano_ddr_read.h','nano_hps_io.c','nano_hps_io.h',
                             'generated/fes_embedded_control.hpp','nano_bridge_diag.h','nano_bridge_diag.inc',
                             'build_terasic.py','build_terasic_uboot.py','verify.py')]
 
@@ -80,6 +81,7 @@ def make(entry_build):
     image,receipt=entry(entry_build)
     build=json.loads(receipt.read_text());profile=selected_profile(build)
     context=hps_context.checked(build,program_key='native_program')
+    io_map=hps_context.checked_hps_io(build,program_key='native_program')
     control=hps_context.checked_control(build,program_key='native_program')
     configuration=hps_context.checked_configuration(build,program_key='native_program')
     reader_memory=hps_context.checked_reader_memory(build,program_key='native_program')
@@ -99,6 +101,7 @@ def make(entry_build):
               'tfa_pin':'580dcb5c4e10aa7daff2bf69d493c076a6d3e665',
               'reference_sof_sha256':context['raw_sof_sha256'] if context else 'e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09',
               'hps_context':context,'hps_context_sha256':hps_context.digest(context) if context else None,
+              'hps_io':io_map,'hps_io_sha256':hps_context.digest(io_map) if io_map else None,
               'hps_control':control,'hps_control_sha256':hps_context.digest(control) if control else None,
               'hps_configuration':configuration,'hps_configuration_sha256':hps_context.digest(configuration) if configuration else None,
               'hps_reader_memory':reader_memory,'hps_reader_memory_sha256':hps_context.digest(reader_memory) if reader_memory else None,
@@ -115,9 +118,22 @@ def header(profile):
     def array(value):return '{'+','.join('0x'+value[i:i+2] for i in range(0,len(value),2))+'}'
     smmu=profile.get('smmu_observe',False)
     if type(smmu) is not bool or smmu and (profile['sd_pio'] or
-            any(profile.get(key) is not None for key in ('hps_context','hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_computer'))):
+            any(profile.get(key) is not None for key in ('hps_context','hps_io','hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_computer'))):
         raise ValueError('boot SMMU observation requires its separate serial-only profile')
     control=profile.get('hps_control');extra='#define FES_NANO_CONTROL_PROBE '+str(int(control is not None))+'\n'
+    io_map=profile.get('hps_io')
+    extra+='#define FES_NANO_HPS_IO_OBSERVE '+str(int(io_map is not None))+'\n'
+    if io_map is not None:
+        if (profile['sd_pio'] or profile.get('hps_context') is None or
+                any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_computer')) or
+                profile.get('hps_io_sha256')!=hps_context.digest(io_map)):
+            raise ValueError('HPS I/O observation requires its separate sealed serial-only context')
+        hps_context.validate_hps_io(io_map,profile['hps_context'])
+        extra+='#define FES_NANO_HPS_IO_SHA '+array(profile['hps_io_sha256'])+'\n'
+        extra+='#define FES_NANO_HPS_IO_REGISTERS {'+','.join(
+            '{'+hex(row['offset'])+'U,'+hex(row['value'])+'U,0xffffffffU}' for row in io_map['registers'])+'}\n'
+    elif profile.get('hps_io_sha256') is not None:
+        raise ValueError('HPS I/O digest has no complete observation map')
     if control is not None:
         context=profile['hps_context'];build=context['build_id']
         extra+=('#define FES_NANO_CONTROL_BASE '+hex(control['cpu_base'])+'UL\n'
