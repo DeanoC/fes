@@ -119,7 +119,15 @@ Errors retain all possibly issued buffers until reboot. No new address range,
 bridge permission or deadline is introduced. The 144-case actual-parser matrix
 includes queued lookahead, batched completions, persistent silence and an error
 after a valid ACK. A strong-provider test also verifies two queued chunks through
-the real digest/dispatch path. This windowed candidate has no physical result yet.
+the real digest/dispatch path. The [matched four-buffer trial](../../../docs/validation/2026-11-02-de25-configuration-window/README.md)
+still stopped after 786,432 completed bytes, now with 262,144 bytes outstanding.
+All four descriptors were submitted; sampled command and response queues were
+empty, with an idle parser and no local descriptors. The unchanged deadline
+stopped the attempt and all source bytes stayed owned. This rules out the
+one-buffer limitation as a sufficient explanation; the physical cause remains
+open. The same source also repairs endpoint progress scheduling for consecutive
+successful writes, and passes Tenfoot launch/return and identity-failure tests
+under the existing two-second controller deadline.
 
 Invalid scope, changed bytes, uncertain replies or failed completion retire
 authority and keep memory owned until reboot. No reset-bit repair or implicit

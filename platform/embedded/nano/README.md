@@ -675,8 +675,17 @@ The secure gate checks every pending chunk in the same fixed arena and rejects
 overlap, a fifth write, invented acknowledgements or malformed batches. The
 original serial client stalls against an injected peer needing later data;
 the queued client completes the core-sized stream. Actual-parser, strong-provider
-and trace tests cover the window without hardware. The physical cause and
-matched windowed boot result remain unproven.
+and trace tests cover the window without hardware. The [matched windowed
+trial](../../../docs/validation/2026-11-02-de25-configuration-window/README.md)
+passed recovery, Ethernet upload and independent SD readback, then stopped at
+the same 786,432-byte completed prefix with all four buffers outstanding
+(262,144 bytes). The sampled command/response queues were empty and the parser
+idle. The source remained held and no identity or bridge opening followed.
+The original 15 MHz JTAG clock and USB permissions were restored and the UART
+was verified free. Filling the window did not resolve the physical stall; its
+cause remains open. This source also counts byte progress inside an unchanged
+endpoint phase, keeping Tenfoot launch/return and wrong-identity recovery within
+the unchanged two-second controller deadline.
 
 This source-bound cold profile is a hardware-qualification candidate. No
 contained physical transfer is accepted yet. It enables neither an active
