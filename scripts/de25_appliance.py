@@ -80,12 +80,25 @@ def verified_inputs(root, profile, directory):
             root / 'sources/FogCast', build_environment(), selected)
 
 
+def verification_output(root, output):
+    """Select an artifact kind, never infer a board or fall back after failure."""
+    if output is not None:
+        return Path(output)
+    workspace = Path(root) / 'out/de25-nano'
+    source = any((workspace / name).exists() or (workspace / name).is_symlink()
+                 for name in ('image.json', 'development.json', 'inputs.json'))
+    factory = workspace / 'factory'
+    if source and (factory.exists() or factory.is_symlink()):
+        raise ValueError('DE25 has both source and explicit factory outputs; select --output')
+    return workspace if source else factory
+
+
 def image_action(root, args):
     """Route ordinary image commands through the existing factory producer."""
     import image_artifacts
     import media
     root = Path(root).resolve()
-    output = args.output or root / 'out/de25-nano/factory'
+    output = (args.output or root / 'out/de25-nano/factory') if args.action == 'image' else verification_output(root, args.output)
     if args.action == 'image':
         if any(value is None for value in (args.kernel, args.sdk, args.artifacts)):
             raise ValueError('DE25 image assembly requires --kernel, --sdk and --artifacts')
@@ -101,7 +114,12 @@ def image_action(root, args):
         raise ValueError('unsupported DE25 image action')
     provided = image_artifacts.load(args.artifacts, board=BOARD)[0] if args.artifacts else None
     with media.operation(root, PROFILE, board=BOARD):
-        _, _, _, _, _, selected = verified_inputs(root, PROFILE, output)
+        if any((output / name).exists() or (output / name).is_symlink()
+               for name in ('image.json', 'development.json', 'inputs.json')):
+            from native_dev import verify_de25_development
+            selected = verify_de25_development(root, output)
+        else:
+            _, _, _, _, _, selected = verified_inputs(root, PROFILE, output)
         if provided is not None:
             fields = ('format', 'board', 'architecture', 'provenance', 'binaries', 'packages')
             if any(provided.get(key) != selected.artifacts.get(key) for key in fields):
@@ -115,7 +133,7 @@ def image_action(root, args):
                         raise ValueError('DE25 factory differs from supplied kernel')
             if args.sdk is not None and digest(appliance.regular(args.sdk)) != base.sdk_lock()['sdk_sha256']:
                 raise ValueError('DE25 factory differs from supplied owner compiler')
-    print('DE25 factory structure and bound virtual boot verified; native acceptance remains open.')
+    print('DE25 image structure, selected inputs and bound virtual boot verified; native acceptance remains open.')
 
 
 def export_artifacts(root, directory, output):

@@ -27,6 +27,130 @@ from inputs import git
 WORK = '/target-image-output/work-{passes}-native-dev'
 EXPORT = '/work/build/output/target-image/fes-development'
 
+DE25_SOURCE_RECIPES = (
+    'scripts/build.py', 'scripts/native_dev.py', 'scripts/de25_appliance.py',
+    'scripts/kit_software.py', 'scripts/kit_sdk.py', 'scripts/environment.py',
+    'scripts/image_artifacts.py', 'scripts/recipes.py',
+    'config/core-recipes.toml', 'profiles/de25-nano.toml')
+DE25_SOURCE_INPUTS = ('board', 'architecture', 'sources', 'profile', 'go', 'sdk',
+                      'kernel', 'owner_sdk_sha256', 'factory_recipe_sha256', 'recipe')
+
+
+def de25_source_selection(root):
+    import build as parent
+    profile = tomllib.loads((root / 'profiles/de25-nano.toml').read_text())
+    if profile.get('board') != 'de25-nano':
+        raise ValueError('DE25 source profile differs from independently selected board')
+    revisions = parent.validate(root, profile)
+    if parent.git(root, 'status', '--porcelain', '--untracked-files=all'):
+        raise ValueError('DE25 source builds require clean committed FES source')
+    if parent.selected_packages(profile, 'de25-nano', board='de25-nano') != ('fes.menu',):
+        raise ValueError('DE25 source builds require exactly the MENU firmware recipe')
+    return profile, revisions
+
+
+def verify_de25_development(root, output, *, expected_fingerprint=None):
+    """Read a source workspace without resolving packages or producing software.
+
+    The receipt is insufficient by itself: bind current source policy, the real
+    factory verifier and its package selection, then compare every flat copy.
+    """
+    import build as parent
+    import image_artifacts
+    from scripts import de25_appliance
+
+    root, output = Path(root).resolve(), Path(output).resolve()
+    regular = de25_appliance.appliance.regular
+    profile, revisions = de25_source_selection(root)
+    present = {name for name in ('image.json', 'development.json', 'factory.json', 'base.json')
+               if (output / name).exists() or (output / name).is_symlink()}
+    if present not in ({'image.json'}, {'development.json'}):
+        raise ValueError('DE25 source workspace requires one image or development receipt')
+    kind = 'image' if 'image.json' in present else 'development'
+    info = json.loads(regular(output / 'inputs.json').read_text())
+    base, factory, _, _ = de25_appliance.modules(root)
+    if (not isinstance(info, dict) or
+            set(info) != set(DE25_SOURCE_INPUTS) | {'fpga_packages', 'image_base_fingerprint',
+                'image_fingerprint', 'build_mode', 'factory', 'structural', 'two_pass_reproducibility'} or
+            info['board'] != 'de25-nano' or info['architecture'] != 'aarch64' or
+            info['sources'] != revisions or info['profile'] != profile or
+            info['owner_sdk_sha256'] != base.sdk_lock()['sdk_sha256'] or
+            info['factory_recipe_sha256'] != factory.recipe_key(root) or
+            info['recipe'] != {name: parent.digest(regular(root / name)) for name in DE25_SOURCE_RECIPES} or
+            info['structural'] != 'pass' or info['two_pass_reproducibility'] != 'not-run-single-pass' or
+            info['build_mode'] != ('committed-source' if kind == 'image' else 'incremental-development')):
+        raise ValueError('DE25 source workspace differs from selected source or recipe')
+    source_key = hashlib.sha256(json.dumps(
+        {name: info[name] for name in DE25_SOURCE_INPUTS}, sort_keys=True).encode()).hexdigest()
+    if source_key != info['image_base_fingerprint']:
+        raise ValueError('DE25 source fingerprint differs from its recorded inputs')
+    fingerprint = parent.recorded_image_fingerprint(info)
+    if expected_fingerprint is not None and expected_fingerprint != fingerprint:
+        raise ValueError('DE25 source workspace differs from selected build inputs')
+    if type(info['factory']) is not str:
+        raise ValueError('DE25 cached factory path differs from its source workspace')
+    relative = Path(info['factory'])
+    if (relative.is_absolute() or '..' in relative.parts or len(relative.parts) != 3 or
+            relative.parts[0] != 'generations' or relative.parts[-1] != 'factory' or
+            not re.fullmatch(re.escape(fingerprint) + r'(?:-[a-z0-9_]+)?', relative.parts[1]) or
+            any((output / Path(*relative.parts[:i])).is_symlink() for i in range(1, 4))):
+        raise ValueError('DE25 cached factory path differs from its source workspace')
+    receipt = json.loads(regular(output / (kind + '.json')).read_text())
+    if not isinstance(receipt, dict) or set(receipt) != (
+            {'inputs', 'files', 'fes_revision'} if kind == 'image' else {'inputs', 'files'}):
+        raise ValueError('DE25 source receipt metadata differs')
+    hit, reason = parent.reuse_status(output, kind, fingerprint)
+    if not hit:
+        raise ValueError('DE25 source outputs are missing, changed, or stale: ' + reason)
+    _, _, _, _, _, result = de25_appliance.verified_inputs(root, 'de25-nano', output / relative)
+    if (result.receipt['fes_revision'] != parent.git(root, 'rev-parse', 'HEAD') or
+            (kind == 'image' and receipt['fes_revision'] != result.receipt['fes_revision']) or
+            result.artifacts['provenance'] != {
+                'fogcast': revisions['FogCast'], 'runtime': revisions['libmister-runtime']} or
+            len(result.artifacts['packages']) != 1 or len(info['fpga_packages']) != 1 or any(
+                info['fpga_packages'][0].get(key) != value
+                for key, value in result.artifacts['packages'][0].items())):
+        raise ValueError('DE25 source factory differs from selected component revisions or MENU')
+    if info['kernel'] != {name: result.receipt['files']['kernel/' + name] for name in base.KERNEL_FILES}:
+        raise ValueError('DE25 source kernel differs from its verified factory')
+    packages = image_artifacts.packages_at(output / relative / 'artifacts',
+                                           result.artifacts['packages'], board='de25-nano')
+    names = parent.verify_package_outputs(output, packages, board='de25-nano')
+    for name, target in (('linux.img', 'rootfs.ext4'), ('Image', 'kernel/Image'),
+                         ('de25-owner.dtb', 'kernel/de25-owner.dtb')):
+        if parent.digest(regular(output / name)) != result.receipt['files'][target]:
+            raise ValueError('DE25 cached development output differs from its verified factory')
+        names.append(name)
+    software = regular(output / relative.parent / 'software-build.json')
+    if parent.digest(regular(output / 'software-build.json')) != parent.digest(software):
+        raise ValueError('DE25 source software record differs from its generation')
+    software = json.loads(software.read_text())
+    go, sdk = info['go'], info['sdk']
+    if (not isinstance(go, dict) or set(go) != {'version', 'go_sha256', 'compile_sha256'} or
+            not isinstance(go['version'], str) or not go['version'] or any(
+                not isinstance(go[name], str) or not re.fullmatch('[0-9a-f]{64}', go[name])
+                for name in ('go_sha256', 'compile_sha256')) or
+            not isinstance(sdk, dict) or sdk.get('profile') not in ('managed-base', 'managed-factory') or
+            sdk.get('kernel_image_sha256') != info['kernel']['Image'] or
+            sdk.get('builder_image') != base.sdk_lock()['builder_image'] or
+            not isinstance(software, dict) or set(software) != {'go', 'runtime'} or
+            not isinstance(software['go'], dict) or not isinstance(software['runtime'], dict) or
+            any(software['go'].get(name) != value for name, value in go.items()) or
+            software['go'].get('target') != 'linux/arm64 GOARM64=v8.0 CGO_ENABLED=0' or
+            software['runtime'].get('de25_image_sdk') != sdk or
+            software['runtime'].get('key') != sdk.get('key') or
+            software['runtime'].get('archive_sha256') != sdk.get('archive_sha256') or
+            software['runtime'].get('container_id') != sdk.get('builder_image')):
+        raise ValueError('DE25 source software differs from its recorded Go compiler or authenticated SDK')
+    names.extend(('software-build.json', 'inputs.json', str(relative / 'factory.json')))
+    if set(receipt['files']) != set(names):
+        raise ValueError('DE25 source receipt does not cover the complete output selection')
+    if kind == 'image':
+        host_fp, _ = parent.host_fingerprint(revisions, profile, info['go']['version'])
+        if not parent.reuse_status(output, 'host', host_fp)[0]:
+            raise ValueError('DE25 cold source workspace requires its matching verified host outputs')
+    return result
+
 
 def build_de25_development(root, args):
     """Build committed DE25 sources through the shared software/factory builders.
@@ -42,15 +166,7 @@ def build_de25_development(root, args):
     import image_artifacts
 
     root = Path(root).resolve()
-    profile = tomllib.loads((root / 'profiles/de25-nano.toml').read_text())
-    if profile.get('board') != 'de25-nano':
-        raise ValueError('DE25 source profile differs from independently selected board')
-    revisions = parent.validate(root, profile)
-    if parent.git(root, 'status', '--porcelain', '--untracked-files=all'):
-        raise ValueError('DE25 source builds require clean committed FES source')
-    packages = parent.selected_packages(profile, args.profile, board='de25-nano')
-    if packages != ('fes.menu',):
-        raise ValueError('DE25 source builds require exactly the MENU firmware recipe')
+    profile, revisions = de25_source_selection(root)
     if platform.system() != 'Linux' or platform.machine() not in ('x86_64', 'amd64'):
         raise ValueError('DE25 source builds require Linux amd64')
     workspace = Path(args.output).resolve() if args.output is not None else root / 'out/de25-nano'
@@ -100,11 +216,7 @@ def build_de25_development(root, args):
                 'sdk': sdk, 'kernel': kernel,
                 'owner_sdk_sha256': base.sdk_lock()['sdk_sha256'],
                 'factory_recipe_sha256': factory.recipe_key(root),
-                'recipe': {name: parent.digest(root / name) for name in (
-                    'scripts/build.py', 'scripts/native_dev.py', 'scripts/de25_appliance.py',
-                    'scripts/kit_software.py', 'scripts/kit_sdk.py', 'scripts/environment.py',
-                    'scripts/image_artifacts.py', 'scripts/recipes.py',
-                    'config/core-recipes.toml', 'profiles/de25-nano.toml')}}
+                'recipe': {name: parent.digest(root / name) for name in DE25_SOURCE_RECIPES}}
         fingerprint = hashlib.sha256(json.dumps(info, sort_keys=True).encode()).hexdigest()
         fingerprint, info = parent.image_fingerprint(fingerprint, info, selected)
         output.mkdir(parents=True, exist_ok=True)
@@ -132,16 +244,7 @@ def build_de25_development(root, args):
                 ['make', '-C', fogcast, 'CONTAINER_RUNTIME=' + container, 'VERSION=' + profile['version']],
                 env, force=force, diagnostics=diagnostics)
         if hit and not force:
-            recorded = json.loads((output / 'inputs.json').read_text())
-            relative = Path(recorded.get('factory', ''))
-            if (relative.is_absolute() or '..' in relative.parts or len(relative.parts) != 3 or
-                    relative.parts[0] != 'generations' or relative.parts[-1] != 'factory'):
-                raise ValueError('DE25 cached factory path differs from its source workspace')
-            result = verify_generation(output / relative.parent)
-            for name, target in (('linux.img', 'rootfs.ext4'), ('Image', 'kernel/Image'),
-                                 ('de25-owner.dtb', 'kernel/de25-owner.dtb')):
-                if parent.digest(output / name) != result.receipt['files'][target]:
-                    raise ValueError('DE25 cached development output differs from its verified factory')
+            verify_de25_development(root, output, expected_fingerprint=fingerprint)
             print('DE25 development: reusing verified source generation', flush=True)
             return
         generation.parent.mkdir(parents=True, exist_ok=True)
@@ -198,7 +301,10 @@ def build_de25_development(root, args):
         info = dict(info, build_mode='incremental-development' if kind == 'development' else 'committed-source',
                     factory=str((generation / 'factory').relative_to(output)),
                     structural='pass', two_pass_reproducibility='not-run-single-pass')
-        names = []
+        _, published_packages = factory.selected(generation / 'factory/artifacts')
+        selections = {name: generation / 'factory/artifacts' / name
+                      for name in parent.package_selection_names(published_packages, board='de25-nano')}
+        names = parent.publish_package_state(published_packages, selections, output, board='de25-nano')
         for source, destination in (('rootfs.ext4', 'linux.img'), ('kernel/Image', 'Image'),
                                     ('kernel/de25-owner.dtb', 'de25-owner.dtb')):
             parent.publish_file(generation / 'factory' / source, output / destination)

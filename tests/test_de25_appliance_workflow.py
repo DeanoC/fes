@@ -16,6 +16,32 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_default_verification_selects_source_or_factory_and_refuses_ambiguity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); workspace = root / 'out/de25-nano'; workspace.mkdir(parents=True)
+            factory = workspace / 'factory'
+            self.assertEqual(de25_appliance.verification_output(root, None), factory)
+            (workspace / 'image.json').write_text('{}')
+            self.assertEqual(de25_appliance.verification_output(root, None), workspace)
+            factory.mkdir()
+            with self.assertRaisesRegex(ValueError, 'both source and explicit factory'):
+                de25_appliance.verification_output(root, None)
+            self.assertEqual(de25_appliance.verification_output(root, factory), factory)
+            self.assertEqual(de25_appliance.verification_output(root, workspace), workspace)
+
+    def test_verify_routes_source_receipts_without_package_resolution_or_fallback(self):
+        import native_dev
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); (root / 'development.json').write_text('{}')
+            args = SimpleNamespace(action='verify', output=root, artifacts=None, kernel=None, sdk=None)
+            with mock.patch.object(media, 'operation', return_value=contextlib.nullcontext()), \
+                    mock.patch.object(native_dev, 'verify_de25_development', side_effect=ValueError('stale source')) as source, \
+                    mock.patch.object(de25_appliance, 'verified_inputs') as factory:
+                with self.assertRaisesRegex(ValueError, 'stale source'):
+                    de25_appliance.image_action(ROOT, args)
+                source.assert_called_once_with(ROOT, root)
+                factory.assert_not_called()
+
     def test_profile_and_factory_cannot_override_independent_board_selection(self):
         for board, profile, factory in (
                 ('de25-nano', None, None), ('de10-nano', None, Path('/factory')),

@@ -109,8 +109,10 @@ source compilation. Host/doctor use the shared frontend. An actual admitted
 MENU, complete source-produced factory and native acceptance remain open.
 The [source-workflow record](../validation/2026-11-02-de25-source-workflow/README.md)
 retains actual AArch64 software/CPU and host/cache checks, full parent validation
-and the public Make/vendor-input refusal. Standard source-workspace verification
-and flat package-selection/acceptance integration remain to be connected.
+and the public Make/vendor-input refusal. Standard verification now accepts source
+workspaces or explicit factories, and source publication supplies the shared closed
+package-selection set. Its offline acceptance reader does not establish native
+readiness.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.
 

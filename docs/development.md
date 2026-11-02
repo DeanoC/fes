@@ -555,19 +555,19 @@ an admitted MENU; this command wiring does not qualify one.
 The shared Go/C++ builders compile the selected component commits. The existing
 managed-factory producer assembles and verifies each generation, including its
 actual kernel/rootfs virtual boot. It retains compiler/base packages and refreshes
-the changed runtime. `dev` publishes `linux.img`, `Image`, `de25-owner.dtb`, bound
-inputs/software-build data and `development.json` under
+the changed runtime. `dev` publishes `linux.img`, `Image`, `de25-owner.dtb`, the
+closed MENU package/selection set, bound inputs/software-build data and `development.json` under
 `out/de25-nano/development/`. Complete factory generations remain in that output's
 `generations/` directory. Cache hits reauthenticate the inputs, verify the
-recorded factory, and compare the flat image/kernel copies. A failed build
+recorded factory, and compare the flat image/kernel/package copies. A failed build
 preserves the previous complete generation and receipt; it cannot satisfy the
 new input key. Failed attempts remain diagnostic.
 
 `make build` also builds the ordinary host pair and writes a cold image receipt
 under `out/de25-nano/`; `make rebuild` explicitly rebuilds MENU/software/factory
 and preserves previous generations. `IMAGE_OUTPUT` overrides the source-workspace
-directory for these three actions; for `image`/`verify` it still selects the
-factory directory itself. DE25 records one actual image-build pass and rejects
+directory for these three actions; for `image` it selects the factory directory.
+DE25 records one actual image-build pass and rejects
 `IMAGE_PASSES=2`. `make host BOARD=de25-nano` and `make doctor BOARD=de25-nano`
 use the shared host/profile checks without a target image build.
 
@@ -575,10 +575,18 @@ These source commands require clean committed integration source. Development
 snapshot release authority is not added. Nothing deploys or grants native kit
 acceptance; use the complete factory path printed by the build with the existing
 release/bootstrap/card commands once their own gates pass.
-For source outputs, `make verify BOARD=de25-nano` currently needs
-`IMAGE_OUTPUT=/absolute/generations/input-key/factory`. Automatic source-workspace
-verification and its flat package-selection set for standard target acceptance
-remain to be connected. The
+`make verify BOARD=de25-nano` verifies the cold source workspace at
+`out/de25-nano/`, or the default assembled factory when it is the only output.
+If both exist, choose one explicitly with `IMAGE_OUTPUT`. Verify a development
+generation with `IMAGE_OUTPUT=/absolute/source-workspace/development`; an explicit
+complete factory directory is also accepted. Verification reads the selected
+workspace without resolving/building MENU or compiling target software. It checks
+the current committed sources/profile/recipes, real factory verification and bound
+virtual boot, complete package selection, compiler records and flat copies. Cold
+source outputs also require the matching host receipt. It preserves output files
+and rejects an incomplete, stale or ambiguous selection. The flat source workspace
+now supplies the existing target-acceptance selection reader; running that reader
+alone grants no native acceptance. The
 [executed source-workflow record](validation/2026-11-02-de25-source-workflow/README.md)
 separates actual AArch64/host production, CPU checks and public-command refusal
 from orchestration fixtures and the remaining factory/native gates.

@@ -1779,7 +1779,7 @@ def main():
     parser.add_argument('--kernel', type=Path, help='matching DE25 owner-kernel directory')
     parser.add_argument('--sdk', type=Path, help='DE25 owner compiler archive, pinned by its source lock')
     parser.add_argument('--de25-image', type=Path, help='verified managed DE25 image supplying the source-build SDK and base ABI')
-    parser.add_argument('--output', type=Path, help='DE25 factory directory for image/verify, or workspace for build/rebuild/dev')
+    parser.add_argument('--output', type=Path, help='DE25 factory directory for image, source workspace for build/rebuild/dev; verify accepts either')
     args = parser.parse_args()
     expected_profile = 'de25-nano' if args.board == 'de25-nano' else 'native-integration-dev'
     args.profile = expected_profile if args.profile is None else args.profile
