@@ -133,7 +133,8 @@ points (KEYBOARD `$02BB`, DECODE `$07BD`, PRINT-AT `$08F5`, CLS `$0A2A`, FAST
 Display timing matches the original on the core (PAL 310 lines, NTSC 262), with
 the collapsed display file below 3.25 KiB of RAM. Tape `LOAD`/`SAVE` use the
 core's `.p` traps, and a loaded program keeps its FAST/SLOW state and autorun
-line.
+line. The FAST statement and `$0F23` clear the saved SLOW request; the internal
+`$02E7` entry preserves it.
 
 This is stage 1: the editor, the BASIC statements and arithmetic needed by
 ordinary programs, strings and slicing, numeric arrays, `FOR`/`GOSUB`, `RND`,
@@ -151,10 +152,11 @@ ordinary programs, strings and slicing, numeric arrays, `FOR`/`GOSUB`, `RND`,
 
 `make sim-fes-zx81-openrom` (part of `make sim-fes-zx81`) boots the ROM on the
 machine RTL with 1 KiB and 16 KiB RAM, checks the display geometry against the
-original, enters and runs a program, saves it through the tape trap, loads it
-back with autorun, and scrolls the screen. `tests/test_zx81_openrom.py` checks
-the assembler and the image's fixed interface bytes. The ROM has no kit
-acceptance yet.
+original, enters and runs a program, checks `INKEY$` with no key and with Q
+held, saves and loads programs in both FAST and SLOW modes through the tape
+trap, scrolls the screen, and exercises the FAST/SLOW end-of-frame loop.
+`tests/test_zx81_openrom.py` checks the assembler and the image's fixed
+interface bytes. The ROM has no kit acceptance yet.
 
 ## Validation
 

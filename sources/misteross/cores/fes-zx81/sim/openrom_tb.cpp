@@ -14,6 +14,7 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include <initializer_list>
 #include <iterator>
 #include <string>
 #include <vector>
@@ -164,6 +165,65 @@ void type(Machine &m, const std::string &script, bool acknowledge = false) {
         if (word == "NL")
             m.run_frames(50);   // the line is stored or run before the next key
     }
+}
+
+uint64_t key_state(std::initializer_list<const char *> names) {
+    uint64_t bits = 0xffffffffffull;
+    for (const char *name : names) {
+        const auto [row, col] = key(name);
+        bits &= ~(1ull << (row * 5 + col));
+    }
+    return bits;
+}
+
+// Submit Enter without holding it through several display frames. This lets
+// tests change the physical keyboard after the editor consumes Enter but
+// before the just-started BASIC command samples it (for INKEY$).
+void submit_enter(Machine &m, uint64_t next_keys = 0xffffffffffull) {
+    const uint16_t previous = m.word(0x401f);
+    m.dut.keyboard = key_state({"NL"});
+    const uint64_t deadline = m.ticks + 10000000ull;
+    while (m.word(0x401f) == previous && m.ticks < deadline) m.tick();
+    require(m.word(0x401f) != previous, "editor did not consume Enter");
+    m.dut.keyboard = next_keys;
+}
+
+std::vector<uint8_t> save_image(Machine &m) {
+    require(m.dut.save_ready, "SAVE did not complete the core's capture");
+    std::vector<uint8_t> image(m.dut.save_size);
+    for (unsigned i = 0; i != image.size(); ++i) {
+        m.dut.save_addr = i;
+        m.dut.eval();
+        m.tick();
+        m.tick();
+        image[i] = m.dut.save_q;
+    }
+    return image;
+}
+
+void wait_for_save(Machine &m) {
+    const uint64_t deadline = m.ticks + 50000000ull;
+    bool saw_clear = !m.dut.save_ready;
+    while (m.ticks < deadline) {
+        m.tick();
+        if (!m.dut.save_ready) saw_clear = true;
+        else if (saw_clear) return;
+    }
+    fail("SAVE did not complete in FAST mode");
+}
+
+void observe_fast_slow_modes(Machine &m) {
+    bool saw_slow_request = false;
+    bool saw_fast_request = false;
+    const uint64_t deadline = m.ticks + 20000000ull;
+    while ((!saw_slow_request || !saw_fast_request) && m.ticks < deadline) {
+        for (unsigned i = 0; i != 256; ++i) m.tick();
+        const uint8_t flags = m.peek(0x403b);
+        saw_slow_request |= (flags & 0x40) != 0;
+        saw_fast_request |= (flags & 0x40) == 0;
+    }
+    require(saw_slow_request && saw_fast_request,
+            "FAST/SLOW loop did not toggle the saved CDFLAG request");
 }
 
 // ZX81 character codes of a display row, from the display file.
@@ -325,11 +385,14 @@ int main(int argc, char **argv) {
     require(f.lines == 310 && f.sync == 6, "PAL frame is not 310 lines with 6 of sync");
     require(f.top == 243 && f.left == 36 && f.right == 43, "the K cursor is not where the ZX81 ROM puts it");
 
-    // NEW runs while SLOW is active. It must stop the display before clearing
-    // the system variables and publish a valid display file before restarting.
+    // Enter is consumed by the end-of-frame keyboard scan, so NEW runs at the
+    // NMI boundary. It must stop the display before clearing the system
+    // variables, then publish a valid display file and restart SLOW mode.
     type(m, "A NL");
     require(m.word(0x400c) >= 0x407d && m.word(0x400c) < m.word(0x4010),
             "NEW did not rebuild D_FILE before returning to the editor");
+    require((m.peek(0x403b) & 0xc0) == 0xc0,
+            "NEW did not restore the saved and active SLOW flags");
     m.run_frames(4);
 
     // The cursor and all 36 letters must remain visible while editing a line
@@ -411,6 +474,69 @@ int main(int argc, char **argv) {
     require(row_text(m, 0) == "HI6" && row_text(m, 1) == "AUTO", "LOAD did not restore and run on");
     require(row_text(m, 23) == "0/30", "the loaded program did not stop at 0/30");
 
+    // INKEY$ returns the empty string when no key is held and the key itself
+    // while one key is held. Submit Enter separately so it is released before
+    // the BASIC expression samples the physical matrix.
+    type(m, "A NL");
+    type(m, "3 0 P SHIFT+P SHIFT+N SHIFT+P SHIFT+X SHIFT+NL B SHIFT+X SHIFT+P SHIFT+M SHIFT+P NL");
+    type(m, "R");
+    submit_enter(m);
+    m.run_frames(4);
+    const std::string empty_inkey = row_text(m, 0);
+    if (empty_inkey != "<>") {
+        std::cerr << "INKEY$ no-key row0='" << empty_inkey << "' row23='"
+                  << row_text(m, 23) << "' ERR_NR=" << unsigned(m.peek(0x4000))
+                  << " CDFLAG=" << unsigned(m.peek(0x403b)) << '\n';
+    }
+    require(empty_inkey == "<>", "INKEY$ without a key did not print <>");
+
+    type(m, "R");
+    submit_enter(m, key_state({"Q"}));
+    bool q_printed = false;
+    const uint64_t inkey_deadline = m.ticks + 10000000ull;
+    while (!q_printed && m.ticks < inkey_deadline) {
+        for (unsigned i = 0; i != 1024; ++i) m.tick();
+        q_printed = row_text(m, 0) == "<Q>";
+    }
+    m.dut.keyboard = 0xffffffffffull;
+    require(q_printed, "INKEY$ with Q held did not print <Q>");
+    m.run_frames(4);
+
+    // An explicit FAST statement clears the saved SLOW request. The published
+    // $02E7 entry and internal fast paths remain state-preserving.
+    type(m, "A NL");
+    type(m, "1 0 SHIFT+F NL");
+    type(m, "2 0 S SHIFT+P P SHIFT+P NL");
+    type(m, "R");
+    submit_enter(m);
+    wait_for_save(m);
+    std::vector<uint8_t> fast_image = save_image(m);
+    const size_t cdf_offset = 0x403b - 0x4009;
+    require(fast_image.size() > cdf_offset && (fast_image[cdf_offset] & 0x40) == 0,
+            "FAST then SAVE stored CDFLAG with the SLOW request set");
+    require((m.peek(0x403b) & 0xc0) == 0,
+            "FAST then SAVE returned with the display or saved mode still SLOW");
+
+    // LOAD the FAST image and allow the tape loader and auto-run return to
+    // finish without waiting for frames, which FAST intentionally suppresses.
+    type(m, "A NL");
+    m.tape = fast_image;
+    m.dut.tape_ready = 1;
+    m.dut.tape_size = m.tape.size();
+    type(m, "J SHIFT+P SHIFT+P");
+    submit_enter(m);
+    bool saw_tape_busy = false;
+    const uint64_t load_deadline = m.ticks + 50000000ull;
+    while (m.ticks < load_deadline) {
+        m.tick();
+        saw_tape_busy |= m.dut.tape_busy;
+        if (saw_tape_busy && !m.dut.tape_busy) break;
+    }
+    require(saw_tape_busy && !m.dut.tape_busy, "FAST LOAD did not complete the tape transfer");
+    for (unsigned i = 0; i != 100000; ++i) m.tick();
+    require((m.peek(0x403b) & 0xc0) == 0,
+            "LOAD did not restore the saved FAST mode");
+
     // SCROLL while frames run: the display file keeps its rows throughout.
     type(m, "A NL");
     type(m, "1 0 F I SHIFT+L 1 SHIFT+4 3 0 NL");
@@ -429,11 +555,13 @@ int main(int argc, char **argv) {
     if (ramtop == 0x8000) {
         type(m, "A NL");
         type(m, "1 0 SHIFT+D NL");
-        type(m, "2 0 SHIFT+F NL");
-        type(m, "3 0 G 1 0 NL");
+        type(m, "2 0 M 1 NL");
+        type(m, "3 0 SHIFT+F NL");
+        type(m, "4 0 G 1 0 NL");
         type(m, "R NL");
         m.run_frames(1200, 2000000000ull);
+        observe_fast_slow_modes(m);
     }
-    std::cout << "FES ZX81 open ROM: display, keyboard, edit, SAVE, LOAD, SCROLL and FAST/SLOW pass\n";
+    std::cout << "FES ZX81 open ROM: display, keyboard, edit, INKEY$, FAST/SLOW SAVE/LOAD, SCROLL and NMI-boundary loop pass\n";
     return 0;
 }

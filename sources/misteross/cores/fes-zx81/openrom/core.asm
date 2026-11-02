@@ -497,7 +497,7 @@ stmt_end:
 
 ; LPRINT, LLIST and COPY do nothing: there is no printer.
 stmt_table:
-        dw to_line_end, to_line_end, st_stop, slow, fast, new_entry
+        dw to_line_end, to_line_end, st_stop, slow, fast_entry, new_entry
         dw scroll, st_cont, st_dim, to_line_end, st_for, st_goto
         dw st_gosub, st_input, st_load, st_list, st_let, st_pause
         dw st_next, st_poke, st_print, st_plot, st_run, st_save

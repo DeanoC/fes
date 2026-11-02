@@ -181,7 +181,9 @@ print_at_entry: jp print_at     ; PRINT-AT
         org 0x0a2a
 cls_entry: jp cls               ; CLS
         org 0x0f23
-fast_entry: jp fast             ; FAST
+fast_entry:
+        res 6,(iy+Y_CDFLAG)
+        jp fast                  ; FAST clears the saved SLOW request
         org 0x0f2b
 slow_entry: jp slow             ; SLOW
         org 0x0f46
@@ -305,7 +307,7 @@ break_1:
         ret
 
 ; DECODE: BC = KEYBOARD result. Returns HL -> the key's character in
-; key_plain or key_shift; carry set if no single key is down.
+; key_plain or key_shift; carry set if exactly one key is down.
 decode: ld a,c
         ld d,0
 .r:     rra

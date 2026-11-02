@@ -141,9 +141,21 @@ class OpenRomImageTest(unittest.TestCase):
         self.at(0x0347, [0xaf, 0x37, 0x30, 0xfc, 0xc3, 0x07, 0x02])
 
     def test_published_entry_points(self):
-        for address in (0x02bb, 0x02e7, 0x07bd, 0x08f5, 0x0a2a, 0x0f23, 0x0f2b, 0x0f46):
+        for address in (0x02bb, 0x02e7, 0x07bd, 0x08f5, 0x0a2a, 0x0f2b, 0x0f46):
             self.assertEqual(self.rom[address], 0xc3, hex(address))
         self.assertEqual(self.rom[0x0281], 0xcd)           # display IX routine
+        self.assertEqual(self.rom[0x02e7:0x02ea],
+                         bytes([0xc3, self.symbols["fast"] & 0xff,
+                                self.symbols["fast"] >> 8]))
+        self.assertEqual(self.rom[0x0f23:0x0f2a],
+                         bytes([0xfd, 0xcb, 0x3b, 0xb6, 0xc3,
+                                self.symbols["fast"] & 0xff,
+                                self.symbols["fast"] >> 8]))
+
+    def test_explicit_fast_clears_saved_slow_request(self):
+        address = self.symbols["fast_entry"]
+        self.assertEqual(address, 0x0f23)
+        self.assertEqual(self.rom[address:address + 4], bytes([0xfd, 0xcb, 0x3b, 0xb6]))
 
     def test_character_set(self):
         font = self.rom[0x1e00:]

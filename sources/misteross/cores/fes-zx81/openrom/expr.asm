@@ -167,7 +167,7 @@ op_inkey:
         ld b,h
         ld c,l
         call decode
-        jr c,.none
+        jr nc,.none
         ld a,(hl)
         jr str_char
 .none:  ld bc,0                  ; "" (any address)
