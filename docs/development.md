@@ -526,5 +526,11 @@ changes stay in the complete generation key and receipt. Every actual factory
 build first refreshes the selected prebuilt runtime with Buildroot, then runs
 the shared post-build replacement and full image/boot checks. Factory outputs
 remain immutable. See the [executed cache proof](validation/2026-11-02-de25-factory-incremental/README.md).
-This does not enable `make dev BOARD=de25-nano`; its source/MENU selection and
-incremental integration frontend remain open.
+The shared registry and package resolver now select the DE25 Quartus Pro MENU
+producer explicitly and carry the board through package inspection,
+publication and artifact export. The default 21 DE10 recipes and the DE10
+nightly selection remain unchanged. See the
+[executed selection checks](validation/2026-11-02-de25-board-recipes/README.md).
+`make dev BOARD=de25-nano` remains refused: the AArch64 source consumers and
+incremental integration frontend still need connection, and MENU needs its
+remaining timing, independent-rebuild and native acceptance checks.

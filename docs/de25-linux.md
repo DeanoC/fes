@@ -234,7 +234,19 @@ assembling and checking the image. The
 [incremental factory-base record](validation/2026-11-02-de25-factory-incremental/README.md)
 proves stale-runtime prevention and compiler-prerequisite reuse against real
 pinned Buildroot. It does not produce an admitted factory or enable DE25
-`make dev`; source integration and MENU qualification remain required.
+`make dev`.
+
+The shared core registry now selects `fes.menu` for `de25-nano` explicitly,
+using the existing Quartus Pro producer and common resolver API. Package
+inspection, publication and artifact export carry that board selection, and
+unregistered DE25 cores are refused. Default DE10 recipes and the DE10 nightly
+remain on their original producers. The
+[board-selection record](validation/2026-11-02-de25-board-recipes/README.md)
+includes actual Pro 26.3 source/tool authentication and read-only package
+lookup, which found no eligible DE25 package. The producer API change alters
+the canonical source/recipe identity; previous fitted candidates retain their
+original evidence and do not qualify this source. AArch64 source integration,
+the normal incremental frontend and remaining MENU qualification are open.
 
 The [managed-fabric record](validation/2026-11-01-de25-managed-fabric/README.md)
 covers the current canonical MENU profile: vendor maintenance masters removed,

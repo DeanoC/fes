@@ -96,8 +96,13 @@ separates compiler/base policy from selected software generations and refreshes
 the prebuilt runtime on every actual factory build. A real pinned Buildroot
 control retains stale software without that refresh, then installs the newly
 selected runtime while keeping 59 prerequisite stamps unchanged. All factory
-package, ABI, image and boot gates remain required. This is the reuse foundation;
-the ordinary DE25 source/incremental frontend is still incomplete.
+package, ABI, image and boot gates remain required. This is the reuse foundation.
+The [board-scoped registry](../validation/2026-11-02-de25-board-recipes/README.md)
+now selects the existing DE25 Quartus Pro MENU producer through the shared
+resolver API, preserves DE10 defaults and binds package inspection/publication
+to the requested board. Actual source/tool authentication passes with no
+eligible DE25 package. The AArch64 source consumers and ordinary incremental
+frontend remain incomplete; this does not enable `make dev BOARD=de25-nano`.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.
 

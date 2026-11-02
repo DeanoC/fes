@@ -1,0 +1,41 @@
+{
+  "authenticated_tools": {
+    "ipgenerate": "Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+    "pfg": "Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+    "qsys": "Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:a0c811ed4010961b2ae4e92711492a172be969c900709b380f3c66db875d3f75",
+    "quartus": "Version 26.3.0 Build 114 10/14/2026 SC Pro Edition sha256:06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14"
+  },
+  "canonical_record_sha256": "df04c2a2a7e341b15bbb36f56ea8f15a6a40d1d24edcf83316bfa392bc931f06",
+  "canonical_source_files": 374,
+  "changed_canonical_sources": {
+    "scripts/build_de25_menu_package.py": {
+      "after": "020c2b514a6126b0426ef766ce67295f802a37b92d9e94bdfe65adb89337b809",
+      "before": "d7ceb6db588cfab77b0bc25f7135163519e6090c6194063ddec05ab8ee3b6f22"
+    }
+  },
+  "classification": "Actual shared-resolver canonical source/tool/execution authentication and read-only package lookup; no synthesis, package export or hardware acceptance",
+  "eligible_cached_packages": 0,
+  "functional_key": "267d7051c43aa59b84e3bef9d900f89f7cfc7963dbf8186a76343a195b90ad99",
+  "hardware_access": "not-performed",
+  "new_Quartus_compile": false,
+  "normal_kit_acceptance": false,
+  "old_candidate_is_not_requalified": true,
+  "old_compiler_source_revision": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "parameters": {
+    "core_id": "fes.menu",
+    "device": "A5EB013BB23BE4SCS",
+    "execution_sha256": "f6e3d8789e9b0377286b8b7ea8d44c96326ebe7038a49fc4d0046ed53e5e7e6b",
+    "f2sdram_master_profile": "scanout-only",
+    "fabric_initiator_policy": "managed-scanout-initiators-v3",
+    "hps_initialization": "HPS FIRST",
+    "linux_dma": true,
+    "pixel_clock_hz": 74250000,
+    "reset_release_timing": "timed-system-reset-release-v3",
+    "seed": 1,
+    "signoff_policy": "de25-menu-reviewed-async-inputs-v1",
+    "system_clock_hz": 100000000,
+    "threads": 2
+  },
+  "quartus_root": "/data/altera_pro/26.3",
+  "source_revision": "6909f1afdd6bcb72943e0f2f247d44740c2212f9"
+}
