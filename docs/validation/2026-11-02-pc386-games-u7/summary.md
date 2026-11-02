@@ -152,13 +152,13 @@ no disk delta from an earlier run applied.
 
 | Run | Game, preset | Result |
 | --- | --- | --- |
-| k1 | The Black Gate, max | Pass. The kit boots the image with "Fast A20 method used" ([frame](kit-k1-boot-fast-a20.png)); MEM shows 573K conventional, 154K upper and 15,360K XMS ([frame](kit-k1-mem.png)). `ULTIMA7` plays the whole introduction with sound, through the Guardian ([frame](kit-k1-u7bg-guardian.png)) and the moongate, to the main menu ([frame](kit-k1-u7bg-menu.png)). Start New Game, a name, Journey Onward: the Avatar arrives in Trinsic and Iolo speaks ([frame](kit-k1-u7bg-trinsic.png)). Each step from MAINMENU to INTRO and to the game exits Voodoo, whose exit is the XMS 04h that `/METHOD:KBC` used to stand in for. |
-| k2, k3 | Serpent Isle, max | Fail, [#1426](https://github.com/DeanoC/fes/issues/1426). `SERPENT` comes back to the prompt at once. A second `MAINMENU` then reports "requires 1024000 bytes of extended memory! You only have 0 available" ([frame](kit-k3-si-message.png)). k3 removed the eXoDOS `XMMHAND.DAT` leftover: no change. |
-| k4 | Wolfenstein 3D, max | Pass. The sign-on shows all 1,000K of XMS available, the mouse and the Sound Blaster ([frame](kit-k4-wolf3d-signon.png)). New game, E1L1: moves, turns and fires, ammo 8 → 7 ([frame](kit-k4-wolf3d-e1l1.png)). F10 quits to DOS, and MEM shows 15,201K of XMS free again ([frame](kit-k4-mem-after-wolf3d.png)). Audio peak 22,957. |
-| k5 | Ultima VI, max | Pass. Intro with music, menu, character creation (the gypsy's questions), into the game in Lord British's throne room ([frame](kit-k5-ultima6-start.png)). Holding Down for 3 s and then Right for 3 s walked the Avatar out of the throne room into the next room ([frame](kit-k5-ultima6-after-walk.png)). |
-| k6 | Ultima VI, 286-12 (preset 1) | Pass to the game. The preset was written to the fresh game id before its first load (the record reads back `preset: 1`). Menu ([frame](kit-k6-ultima6-286-menu.png)), character creation and the game start as at max, with longer waits. The same held keys walked the Avatar about two tiles ([frame](kit-k6-ultima6-286-after-walk.png)). |
-| k7 | The Black Gate, 386DX-25 (preset 3) | Partial, [#1427](https://github.com/DeanoC/fes/issues/1427). The introduction plays through to the main menu, and Start New Game opens the character screen ([frame](kit-k7-u7bg-dx25-create.png)). The screen takes keys ([frame](kit-k7-u7bg-dx25-keys.png)), but in 25 minutes no click on Journey Onward or Return to Menu landed. |
-| k8 | Serpent Isle, diagnosis | `MAINMENU` alone on a fresh boot says "Type SERPENT to play Serpent Isle." with XMS untouched ([frame](kit-k8-si-mainmenu-direct.png)), so k2/k3's message is a symptom: the first `SERPENT` run leaves the whole XMS block allocated. A scratch copy of the disk with `HIMEMX /METHOD:KBC` ("KBC A20 method used", [frame](kit-k8-si-kbc-boot.png)) fails the same way and leaves 0K of XMS free ([frame](kit-k8-si-kbc-mem-after.png)). So dropping `/METHOD:KBC` is not the cause. |
+| k1 | The Black Gate, max | Pass. The kit boots the image with "Fast A20 method used" ([frame](kit-k1-boot-fast-a20.png)); MEM shows 573K conventional, 154K upper and 15,360K XMS ([frame](kit-k1-mem.png)). `ULTIMA7` plays the whole introduction with sound, through the Guardian (frame `050237f8849c`) and the moongate, to the main menu (frame `4248faccbc28`). Start New Game, a name, Journey Onward: the Avatar arrives in Trinsic and Iolo speaks (frame `3228bb170a72`). Each step from MAINMENU to INTRO and to the game exits Voodoo, whose exit is the XMS 04h that `/METHOD:KBC` used to stand in for. |
+| k2, k3 | Serpent Isle, max | Fail, [#1426](https://github.com/DeanoC/fes/issues/1426). `SERPENT` comes back to the prompt at once. A second `MAINMENU` then reports "requires 1024000 bytes of extended memory! You only have 0 available" (frame `7e16e91a38ea`). k3 removed the eXoDOS `XMMHAND.DAT` leftover: no change. |
+| k4 | Wolfenstein 3D, max | Pass. The sign-on shows all 1,000K of XMS available, the mouse and the Sound Blaster (frame `57a8838cbb59`). New game, E1L1: moves, turns and fires, ammo 8 → 7 (frame `4bf603c63c59`). F10 quits to DOS, and MEM shows 15,201K of XMS free again ([frame](kit-k4-mem-after-wolf3d.png)). Audio peak 22,957. |
+| k5 | Ultima VI, max | Pass. Intro with music, menu, character creation (the gypsy's questions), into the game in Lord British's throne room (frame `ba063754f830`). Holding Down for 3 s and then Right for 3 s walked the Avatar out of the throne room into the next room (frame `9fa1f1749156`). |
+| k6 | Ultima VI, 286-12 (preset 1) | Pass to the game. The preset was written to the fresh game id before its first load (the record reads back `preset: 1`). Menu (frame `32d393953a3a`), character creation and the game start as at max, with longer waits. The same held keys walked the Avatar about two tiles (frame `5b30a255fe3d`). |
+| k7 | The Black Gate, 386DX-25 (preset 3) | Partial, [#1427](https://github.com/DeanoC/fes/issues/1427). The introduction plays through to the main menu, and Start New Game opens the character screen (frame `073a496c156b`). The screen takes keys (frame `9f1b72a8ad94`), but in 25 minutes no click on Journey Onward or Return to Menu landed. |
+| k8 | Serpent Isle, diagnosis | `MAINMENU` alone on a fresh boot says "Type SERPENT to play Serpent Isle." with XMS untouched (frame `48e151e9ad32`), so k2/k3's message is a symptom: the first `SERPENT` run leaves the whole XMS block allocated. A scratch copy of the disk with `HIMEMX /METHOD:KBC` ("KBC A20 method used", [frame](kit-k8-si-kbc-boot.png)) fails the same way and leaves 0K of XMS free (frame `1849fa25be0d`). So dropping `/METHOD:KBC` is not the cause. |
 | k9 | Serpent Isle, XMS capped | Scratch copies with `HIMEMX /MAX=6144` and `/MAX=2048` ("Maximum XMS: 2048K", [frame](kit-k9-si-max2048-boot.png)) fail the same way. Serpent Isle is said to fail on real hardware with more than about 7000K of XMS; that may matter once #1426 is fixed, but it is not what stops it here. |
 
 **Measurements for #1368's 286 checks.** In k5 and k6 the same script held
@@ -182,6 +182,28 @@ hash: none is staged. The agent has no delete route for per-game data: the
 disk deltas (`core-data/media/<id>`, whole 64 KiB slices of the disks that
 were written) and game records (`core-data/games/<id>`) of these runs stay on
 Kit B, listed per run in `kit-runs.json`.
+
+**Frames.** Only frames of FreeDOS, HIMEMX, MEM and SCRUBX output are in this
+record. Frames that show what a game drew are not committed: the table gives
+each one's SHA-256 (the 1920x1080 HDMI grab), its file in the run directory
+under `~/fes-scratch/games/runs/` on Powerboat, and what was on the screen.
+
+| SHA-256 | Grab | On screen |
+| --- | --- | --- |
+| `050237f8849cab910bb5ab7f51579046997903b05a07a28a6e1e9ff7fc011013` | `g1409-k1/fr/i17.png` | The Black Gate introduction: the Guardian's face speaking, about 70 s in. |
+| `4248faccbc28f63aafe55be1b099b56ac92e6fab93a5289acbcf311ca9ee542f` | `g1409-k1/fr/i36.png` | The Black Gate main menu after the whole introduction: View Introduction, Start New Game, Journey Onward, View Credits. |
+| `3228bb170a72022abb455da647061c39fd4930bee2d644828ec363620b87bb00` | `g1409-k1/fr/h23.png` | The Black Gate new game: the Avatar beside the red moongate in Trinsic, with Iolo's portrait and his opening line. |
+| `57a8838cbb5975d2de66cf6e5108b92ff05609e2486cde6fc02261fc36ea7096` | `g1409-k4/fr/w01.png` | Wolfenstein 3D sign-on: main memory to 256K, EMS none, XMS all ten bars (1,000K); Mouse and Sound Blaster lit. |
+| `4bf603c63c59949210b1f8c906f1da7ccc1c1a69ce59765e9c50689bfc7a5003` | `g1409-k4/fr/p3.png` | Wolfenstein 3D E1L1 after moving, firing and turning: floor 1, score 0, 3 lives, health 100%, ammo 7. |
+| `ba063754f8309b55e7c421889d545a3d6df1dc6646cdbf8abf636a3bb0104565` | `g1409-k5/fr/start.png` | Ultima VI at max: the game's start in Lord British's throne room, party of four at 90 HP, gargoyles present. |
+| `9fa1f1749156332a2891d9659cc8d44f1f9d6519343e473c7e6824924f0659ab` | `g1409-k5/fr/after-walk.png` | Ultima VI at max after 3 s Down and 3 s Right: the Avatar in the room south of the throne room. |
+| `32d393953a3a9fe98477412f04e0010081794130a6d53028eaf660871d76e41c` | `g1409-k6/fr/menu.png` | Ultima VI at 286-12: the main menu (Introduction, Create a Character, Transfer, Acknowledgements, Journey Onward). |
+| `5b30a255fe3d3568663bb558feb034b41c224ca766eb32dfbadde9958ed3d068` | `g1409-k6/fr/after-walk.png` | Ultima VI at 286-12 after the same keys: the Avatar about two tiles south and east of the start, still in the throne room. |
+| `073a496c156b1cfd2a047df33886d059ee9da1fb915607d8eaa47eec338817d4` | `g1409-k7/fr/f4.png` | The Black Gate at 386DX-25: the character screen (Name, Sex: Male, portrait, Journey Onward, Return to Menu) after the menu click. |
+| `9f1b72a8ad944e9f6b015eae6217fcb9f459f7e351719b933fd48745242155c4` | `g1409-k7/fr/esc1.png` | The Black Gate at 386DX-25: the same screen 25 minutes later; the name field reads "Avatarx" (typed keys arrive), the cursor is over Return to Menu. |
+| `48e151e9ad32038f1f339262fded109ebb5efe0147f4da96282f101b6940bb32` | `g1409-k8/fr/a-mainmenu2.png` | Serpent Isle: MAINMENU run alone on a fresh boot prints "Type SERPENT to play Serpent Isle." and returns to the prompt. |
+| `1849fa25be0d79cc6353174feca1db0c3a4bef2194e9b6f09b0dc70f94a4eae4` | `g1409-k8/fr/b-mem.png` | Serpent Isle, /METHOD:KBC disk, after `serpent`: MEM in the game's loaded text font shows Extended (XMS) 15,360K used, 0K free. |
+| `7e16e91a38ea57432ef9b32889cdece4839136b9eb4d93fb39e0f7884278f0b3` | `g1409-k3/fr/dir.png` | Serpent Isle: a second MAINMENU prints "Serpent Isle requires 1024000 bytes of extended memory! You only have 0 available.", then a DIR /W of C:\SERPENT. |
 
 ## Not done here
 

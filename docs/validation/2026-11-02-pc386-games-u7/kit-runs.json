@@ -528,5 +528,161 @@
     "31442dc102872e3ec965fec03c4d29b241d85962165e0de1823fa3abf8e38550": false
    }
   }
+ ],
+ "frames": [
+  {
+   "run": "g1409-k1",
+   "grab": "g1409-k1/fr/b07.png",
+   "sha256": "b3589173ebe2fa08c86b20f41f95e65b20fe8e9aedb9c579a78b30d4a369e2e5",
+   "record_file": "kit-k1-boot-fast-a20.png",
+   "on_screen": "FreeDOS boot on the games image: UMBM, HIMEMX \"Fast A20 method used\", FreeCOM, CuteMouse, the prompt."
+  },
+  {
+   "run": "g1409-k1",
+   "grab": "g1409-k1/fr/h23.png",
+   "sha256": "3228bb170a72022abb455da647061c39fd4930bee2d644828ec363620b87bb00",
+   "record_file": null,
+   "on_screen": "The Black Gate new game: the Avatar beside the red moongate in Trinsic, with Iolo's portrait and his opening line.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k1",
+   "grab": "g1409-k1/fr/i17.png",
+   "sha256": "050237f8849cab910bb5ab7f51579046997903b05a07a28a6e1e9ff7fc011013",
+   "record_file": null,
+   "on_screen": "The Black Gate introduction: the Guardian's face speaking, about 70 s in.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k1",
+   "grab": "g1409-k1/fr/i36.png",
+   "sha256": "4248faccbc28f63aafe55be1b099b56ac92e6fab93a5289acbcf311ca9ee542f",
+   "record_file": null,
+   "on_screen": "The Black Gate main menu after the whole introduction: View Introduction, Start New Game, Journey Onward, View Credits.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k1",
+   "grab": "g1409-k1/fr/mem.png",
+   "sha256": "98828e441d6d8222d5cbf1b9dda79e43f04db7da2e033e6f6c266d7065c8c287",
+   "record_file": "kit-k1-mem.png",
+   "on_screen": "FreeDOS MEM on the games image: 573K conventional, 154K upper, 15,360K XMS."
+  },
+  {
+   "run": "g1409-k1",
+   "grab": "g1409-k1/fr/s09.png",
+   "sha256": "4c27ea57cb159f5f499c40abfa93c9f44455fef87bd3579cf7704884554bd42e",
+   "record_file": "kit-k1-scrub.png",
+   "on_screen": "SCRUBX report: each region counted and zeroed, conventional memory nz=4D1B4h before."
+  },
+  {
+   "run": "g1409-k3",
+   "grab": "g1409-k3/fr/dir.png",
+   "sha256": "7e16e91a38ea57432ef9b32889cdece4839136b9eb4d93fb39e0f7884278f0b3",
+   "record_file": null,
+   "on_screen": "Serpent Isle: a second MAINMENU prints \"Serpent Isle requires 1024000 bytes of extended memory! You only have 0 available.\", then a DIR /W of C:\\SERPENT.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k4",
+   "grab": "g1409-k4/fr/p3.png",
+   "sha256": "4bf603c63c59949210b1f8c906f1da7ccc1c1a69ce59765e9c50689bfc7a5003",
+   "record_file": null,
+   "on_screen": "Wolfenstein 3D E1L1 after moving, firing and turning: floor 1, score 0, 3 lives, health 100%, ammo 7.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k4",
+   "grab": "g1409-k4/fr/q2.png",
+   "sha256": "300e68e8e138a6ce3396d3cc53ae328b6a97aadd19228f543280448b81c727e8",
+   "record_file": "kit-k4-mem-after-wolf3d.png",
+   "on_screen": "FreeDOS MEM after Wolfenstein 3D quit: 15,201K XMS free."
+  },
+  {
+   "run": "g1409-k4",
+   "grab": "g1409-k4/fr/w01.png",
+   "sha256": "57a8838cbb5975d2de66cf6e5108b92ff05609e2486cde6fc02261fc36ea7096",
+   "record_file": null,
+   "on_screen": "Wolfenstein 3D sign-on: main memory to 256K, EMS none, XMS all ten bars (1,000K); Mouse and Sound Blaster lit.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k5",
+   "grab": "g1409-k5/fr/after-walk.png",
+   "sha256": "9fa1f1749156332a2891d9659cc8d44f1f9d6519343e473c7e6824924f0659ab",
+   "record_file": null,
+   "on_screen": "Ultima VI at max after 3 s Down and 3 s Right: the Avatar in the room south of the throne room.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k5",
+   "grab": "g1409-k5/fr/start.png",
+   "sha256": "ba063754f8309b55e7c421889d545a3d6df1dc6646cdbf8abf636a3bb0104565",
+   "record_file": null,
+   "on_screen": "Ultima VI at max: the game's start in Lord British's throne room, party of four at 90 HP, gargoyles present.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k6",
+   "grab": "g1409-k6/fr/after-walk.png",
+   "sha256": "5b30a255fe3d3568663bb558feb034b41c224ca766eb32dfbadde9958ed3d068",
+   "record_file": null,
+   "on_screen": "Ultima VI at 286-12 after the same keys: the Avatar about two tiles south and east of the start, still in the throne room.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k6",
+   "grab": "g1409-k6/fr/menu.png",
+   "sha256": "32d393953a3a9fe98477412f04e0010081794130a6d53028eaf660871d76e41c",
+   "record_file": null,
+   "on_screen": "Ultima VI at 286-12: the main menu (Introduction, Create a Character, Transfer, Acknowledgements, Journey Onward).",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k7",
+   "grab": "g1409-k7/fr/esc1.png",
+   "sha256": "9f1b72a8ad944e9f6b015eae6217fcb9f459f7e351719b933fd48745242155c4",
+   "record_file": null,
+   "on_screen": "The Black Gate at 386DX-25: the same screen 25 minutes later; the name field reads \"Avatarx\" (typed keys arrive), the cursor is over Return to Menu.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k7",
+   "grab": "g1409-k7/fr/f4.png",
+   "sha256": "073a496c156b1cfd2a047df33886d059ee9da1fb915607d8eaa47eec338817d4",
+   "record_file": null,
+   "on_screen": "The Black Gate at 386DX-25: the character screen (Name, Sex: Male, portrait, Journey Onward, Return to Menu) after the menu click.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k8",
+   "grab": "g1409-k8/fr/a-mainmenu2.png",
+   "sha256": "48e151e9ad32038f1f339262fded109ebb5efe0147f4da96282f101b6940bb32",
+   "record_file": null,
+   "on_screen": "Serpent Isle: MAINMENU run alone on a fresh boot prints \"Type SERPENT to play Serpent Isle.\" and returns to the prompt.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k8",
+   "grab": "g1409-k8/fr/b-boot.png",
+   "sha256": "a16e8d98ae5f20c5ad9bfe1331f1a8b657ffeb08ae43ba7345dc993862a1b869",
+   "record_file": "kit-k8-si-kbc-boot.png",
+   "on_screen": "FreeDOS boot of the /METHOD:KBC diagnostic disk: HIMEMX \"KBC A20 method used\"."
+  },
+  {
+   "run": "g1409-k8",
+   "grab": "g1409-k8/fr/b-mem.png",
+   "sha256": "1849fa25be0d79cc6353174feca1db0c3a4bef2194e9b6f09b0dc70f94a4eae4",
+   "record_file": null,
+   "on_screen": "Serpent Isle, /METHOD:KBC disk, after `serpent`: MEM in the game's loaded text font shows Extended (XMS) 15,360K used, 0K free.",
+   "note": "game output: not committed"
+  },
+  {
+   "run": "g1409-k9",
+   "grab": "g1409-k9/fr/c-boot.png",
+   "sha256": "251bc1a91516c37e640433c4251c4e6ea473ff45fb71a245542d3a552b1a1b11",
+   "record_file": "kit-k9-si-max2048-boot.png",
+   "on_screen": "FreeDOS boot of the /MAX=2048 diagnostic disk: HIMEMX \"Maximum XMS: 2048K\"."
+  }
  ]
 }
