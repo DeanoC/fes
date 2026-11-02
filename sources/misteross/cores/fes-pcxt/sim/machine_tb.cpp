@@ -28,12 +28,18 @@ int main(int argc,char** argv) {
             unsigned audio_phase=0, bit_pos=0, serial_word=0, left_word=0, stereo_frames=0, nonzero_frames=0, silent_frames=0;
             int serial_min=32767, serial_max=-32768;
             bool old_sclk=0, old_lrclk=0, left_valid=false;
+            unsigned audio_test_state=0, audio_test_start=0, audio_test_silent=0, audio_test_nonzero=0;
             // 12.288 MHz MCLK sampled against the 100 MHz motherboard clock.
             auto audio_step = [&]() {
                 audio_phase += 3072;
                 if (audio_phase < 12500) return;
                 audio_phase -= 12500;
                 d.audio_clk = !d.audio_clk; d.eval();
+                if (!d.audio_locked) {
+                    left_valid=false; old_sclk=d.i2s_sclk; old_lrclk=d.i2s_lrclk;
+                    bit_pos=0; serial_word=0;
+                    return;
+                }
                 if (!old_sclk && d.i2s_sclk) {
                     bool lr = d.i2s_lrclk;
                     if (lr != old_lrclk) { bit_pos=0; serial_word=0; old_lrclk=lr; }
@@ -66,6 +72,27 @@ int main(int argc,char** argv) {
                     if(pw && pa==0x600) {
                         if(pd==0xee)throw std::runtime_error("ROM failure phase "+std::to_string(mem[0x601]));
                         check(pd==0xaa,"invalid success marker");passed=true;
+                    }
+                }
+                if (mem[0x601]==4) {
+                    if (audio_test_state==0 && nonzero_frames>4) {
+                        d.audio_hold=1; audio_test_start=ticks; audio_test_state=1;
+                    } else if (audio_test_state==1 && ticks-audio_test_start==10000) {
+                        audio_test_silent=silent_frames; audio_test_nonzero=nonzero_frames; audio_test_state=2;
+                    } else if (audio_test_state==2 && ticks-audio_test_start==20000) {
+                        check(silent_frames>audio_test_silent+2 && nonzero_frames==audio_test_nonzero,
+                              "active-tone hold did not mute I2S");
+                        d.audio_hold=0; audio_test_start=ticks; audio_test_state=3;
+                    } else if (audio_test_state==3 && ticks-audio_test_start==20000) {
+                        check(nonzero_frames>audio_test_nonzero+2, "tone did not resume after hold");
+                        d.audio_locked=0; left_valid=false; audio_test_start=ticks; audio_test_state=4;
+                    } else if (audio_test_state==4 && ticks-audio_test_start==1000) {
+                        check(!d.i2s_data, "I2S data active without PLL lock");
+                        d.audio_locked=1; left_valid=false; old_lrclk=d.i2s_lrclk; old_sclk=d.i2s_sclk; bit_pos=0;
+                        audio_test_nonzero=nonzero_frames; audio_test_start=ticks; audio_test_state=5;
+                    } else if (audio_test_state==5 && ticks-audio_test_start==20000) {
+                        check(nonzero_frames>audio_test_nonzero+2, "tone did not resume after PLL relock");
+                        audio_test_state=6;
                     }
                 }
                 d.code_valid=mem[0x601]==4 && keys<2;
@@ -124,13 +151,7 @@ int main(int argc,char** argv) {
             check(!d.speaker,"ROM did not mute speaker");
             check(stereo_frames>20 && nonzero_frames>5 && serial_max-serial_min>7000,
                   "guest tone did not reach I2S");
-            // Holding the board output must silence both channels within two frames.
-            d.audio_hold=1;
-            for(unsigned i=0;i<10000;i++){d.clk=0;d.eval();audio_step();d.clk=1;d.eval();}
-            unsigned muted_start=silent_frames, unmuted_start=nonzero_frames;
-            for(unsigned i=0;i<10000;i++){d.clk=0;d.eval();audio_step();d.clk=1;d.eval();}
-            check(silent_frames>muted_start+2 && nonzero_frames==unmuted_start,
-                  "audio hold did not mute I2S");
+            check(audio_test_state==6, "active-tone hold and lock recovery not exercised");
             check(dma2==8 && dma3==4 && terminal_bytes==2,"DMA byte/TC coverage");
             check(refreshes>1000 && locked_memory>=160 && mem[0x5100]==40,"refresh/LOCK coverage");
             for(unsigned a=0x3000;a<0x3008;a++)check(mem[a]==0x6d,"DMA RAM result");

@@ -1,4 +1,5 @@
 """Quartus package gates must preserve timing failures and artifact identity."""
+import copy
 import json
 import os
 from pathlib import Path
@@ -52,7 +53,21 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         summary = self.summary()
         summary['profile']['HARDWARE_DOS'] = 1
         summary['profile']['ENABLE_PCXT_MEDIA'] = 1
+        summary['audio_binding'] = {'chains': [{}, {}, {}, {}]}
+        summary['audio_proof_log_sha256'] = 'a' * 64
+        summary['runs'][0].update(audio_clock='audio', audio_interstage=[{}] * 32, audio_payload=[{}])
         producer.require_timing(summary, [1], dos_profile=True)
+        for key in ('audio_clock', 'audio_interstage', 'audio_payload'):
+            broken = copy.deepcopy(summary)
+            broken['runs'][0].pop(key)
+            with self.assertRaises(producer.BuildError):
+                producer.require_timing(broken, [1], dos_profile=True)
+        broken = copy.deepcopy(summary); broken.pop('audio_proof_log_sha256')
+        with self.assertRaises(producer.BuildError):
+            producer.require_timing(broken, [1], dos_profile=True)
+        broken = copy.deepcopy(summary); broken.pop('audio_binding')
+        with self.assertRaises(producer.BuildError):
+            producer.require_timing(broken, [1], dos_profile=True)
         with self.assertRaises(producer.BuildError):
             producer.require_timing(summary, [1])
 
@@ -372,6 +387,30 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                 before = json.loads((work / 'before-names.json').read_text())['modules']['top']
                 after = json.loads((work / 'elaborated.json').read_text())['modules']['top']
                 producer.board.validate_mailbox(before, after, half_rate_board=False)
+                if dos_profile:
+                    binding = producer.board.validate_audio(before, after)
+                    self.assertEqual(len(binding['chains']), 4)
+                    # An extra interstage consumer invalidates the binding.
+                    head = binding['chains'][0]['head']
+                    broken = copy.deepcopy(after)
+                    bit = broken['netnames'][head]['bits']
+                    broken['cells']['extra_audio_fanout'] = {
+                        'type': '$not', 'port_directions': {'A': 'input', 'Y': 'output'},
+                        'connections': {'A': bit, 'Y': [999999]}}
+                    with self.assertRaisesRegex(ValueError, 'interstage'):
+                        producer.board.validate_audio(before, broken)
+                    broken = copy.deepcopy(after)
+                    pcm = broken['netnames']['speaker_output_audio_output_stage_pcm']['bits']
+                    pcm_ff = next(c for c in broken['cells'].values() if c['connections'].get('Q') == pcm)
+                    pcm_ff['connections']['D'][0] = '0'
+                    with self.assertRaisesRegex(ValueError, 'payload'):
+                        producer.board.validate_audio(before, broken)
+                    broken = copy.deepcopy(after)
+                    hold = broken['netnames']['speaker_output_audio_hold']['bits']
+                    hold_gate = next(c for c in broken['cells'].values() if c['connections'].get('Y') == hold)
+                    hold_gate['connections']['B'] = ['0']
+                    with self.assertRaisesRegex(ValueError, 'hold sources'):
+                        producer.board.validate_audio(before, broken)
                 elaborated_verilog = (work / 'elaborated.v').read_text()
                 bus_hold_parameters = elaborated_verilog.count('.enable_bus_hold("FALSE")')
                 self.assertEqual(bus_hold_parameters, 16,

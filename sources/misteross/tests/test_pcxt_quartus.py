@@ -20,12 +20,50 @@ YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
 
 
 class AudioClockAuditTests(unittest.TestCase):
-    def test_audio_clock_requires_active_inventory_fmax_and_bidirectional_paths(self):
+    def test_audio_synchronizer_protection_and_interstage_validation(self):
+        qsf = builder.project_qsf(builder.ROOT, 1, 1, audio_contract=True)
+        diagnostic = builder.project_qsf(builder.ROOT, 1, 1)
+        prefix = 'speaker_output_audio_output_stage_'
+        rows = []
+        for corner in ('slow', 'fast'):
+            for kind in ('setup', 'hold'):
+                for role in ('request', 'ack', 'hold', 'lock'):
+                    for stage in ('meta', 'sync'):
+                        self.assertIn('-to ' + prefix + role + '_' + stage, qsf)
+                        self.assertNotIn('-to ' + prefix + role + '_' + stage, diagnostic)
+                    rows.append({'corner': corner, 'kind': kind, 'from': prefix + role + '_meta',
+                                 'to': prefix + role + '_sync', 'slack_ns': '0.125'})
+        builder.validate_audio_interstage(rows, {'slow', 'fast'})
+        with self.assertRaisesRegex(ValueError, 'interstage'):
+            builder.validate_audio_interstage(rows[:-1], {'slow', 'fast'})
+        rows[0]['slack_ns'] = '-0.001'
+        with self.assertRaisesRegex(ValueError, 'slack'):
+            builder.validate_audio_interstage(rows, {'slow', 'fast'})
+
+    def test_payload_endpoint_coverage_and_narrow_constraints(self):
+        prefix = 'speaker_output_audio_output_stage_'
+        registers = [{'role': role, 'name': prefix + role + '[0]'} for role in ('held_sample', 'pcm')]
+        rows = [{'corner': c, 'kind': k, 'from': registers[0]['name'], 'to': registers[1]['name'],
+                 'slack_ns': '0.1', 'relationship_ns': '1', 'data_delay_ns': '2'}
+                for c in ('slow', 'fast') for k in ('setup', 'hold')]
+        builder.validate_audio_payload(rows, registers, {'slow', 'fast'})
+        with self.assertRaisesRegex(ValueError, 'endpoint checks'):
+            builder.validate_audio_payload(rows[:-1], registers, {'slow', 'fast'})
+        rows[0]['data_delay_ns'] = '100'
+        with self.assertRaisesRegex(ValueError, 'timing failed'):
+            builder.validate_audio_payload(rows, registers, {'slow', 'fast'})
+        sdc = (builder.ROOT / builder.AUDIO_SDC).read_text()
+        self.assertEqual(sdc.count('set_false_path'), 3)
+        self.assertIn('set_max_delay $period -from $held -to $pcm', sdc)
+        self.assertIn('set_min_delay 0 -from $held -to $pcm', sdc)
+        self.assertNotIn('set_clock_groups', sdc)
+
+    def test_audio_clock_requires_active_inventory_fmax_and_payload_paths(self):
         corners = {'slow', 'fast'}
         clocks = [{'name': 'audio', 'period_ns': '81.380208', 'positive_registers': '20'},
                   {'name': 'board', 'period_ns': '10.0', 'positive_registers': '100'}]
         counts = {(c, k, a, b): 1 for c in corners for k in ('setup', 'hold')
-                  for a, b in (('audio', 'audio'), ('audio', 'board'), ('board', 'audio'))}
+                  for a, b in (('audio', 'audio'), ('board', 'audio'))}
         fmax = [{'corner': c, 'clock': 'audio'} for c in corners]
         audit = builder.validate_audio_clock_audit
         self.assertEqual(audit(clocks, counts, fmax, corners), 'audio')

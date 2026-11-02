@@ -258,6 +258,9 @@ def require_timing(summary, seeds, *, dos_profile=False):
                 'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
                 'fes_computer_runtime_hps_gp': 'cyclonev_hps_interface_mpu_general_purpose'}):
         raise BuildError('incomplete or mismatched Quartus package configuration')
+    if dos_profile and (len(summary.get('audio_binding', {}).get('chains', [])) != 4
+                        or not re.fullmatch(r'[0-9a-f]{64}', summary.get('audio_proof_log_sha256', ''))):
+        raise BuildError('missing PC/XT audio synchronizer binding')
     for seed, run in zip(seeds, summary['runs']):
         if (run.get('seed') != seed or not run.get('capture_complete')
                 or not run.get('reported_endpoint_checks_pass')
@@ -273,6 +276,9 @@ def require_timing(summary, seeds, *, dos_profile=False):
                 or any(not re.fullmatch(r'(hdmi_i2c|fes_computer_runtime_hps_gp)~FF_[0-9]+', name)
                        for name in run.get('no_clock_registers', []))):
             raise BuildError('Quartus internal timing failed for seed ' + str(seed))
+        if dos_profile and (not run.get('audio_clock') or len(run.get('audio_interstage', [])) != 32
+                            or not run.get('audio_payload')):
+            raise BuildError('missing audio timing coverage for seed ' + str(seed))
 
 
 def build_limits(dos_profile):
