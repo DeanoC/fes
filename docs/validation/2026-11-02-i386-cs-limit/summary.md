@@ -39,8 +39,11 @@ as not built.
   every analysis passes at 61.44 MHz, the system clock at 72.76-73.53 MHz
   across the slow corners (setup +2.533 ns; slice 2's final seal 69.5-69.9
   MHz), for 28 more ALMs and 198 more registers ([Seal](#quartus-seal)).
-- DOOM's start on `machine_tb --cpu rtl`: DOOM
-  ([DOOM](#dooms-start-on-the-rtl)).
+- DOOM's start on `machine_tb --cpu rtl` no longer stops for CS limits.
+  DOS/4GW's kernel runs on the RTL under its small CS limits: 6,080,047
+  instructions with PE set and none stepped on Bochs. DOOM reaches `R_Init`,
+  as on Bochs. The only stops left are DOS/4GW's real-mode FPU probe, the
+  empty-387-socket ESC forms ([DOOM](#dooms-start-on-the-rtl)).
 
 ## Inputs
 
@@ -51,18 +54,18 @@ as not built.
   protected-mode IRET's and RETF's stack reads, and its four directed cases.
 - The CS-limit RTL is `5d231b804`'s; later commits change only docs, this
   record and, by the merge, the #1424 fix. Which tree each run used:
-  - `5d231b804`, a clean checkout: the seal; also DOOM on the RTL.
+  - `5d231b804`, a clean checkout: the seal.
   - `9683e2cb0`, the merge: the lockstep and the netlist lockstep, and
-    `--suite boot --cpu rtl`.
+    `--suite boot --cpu rtl`. DOOM on the RTL ran at `9abfcb26d`, which
+    differs from the merge only in this record.
   - `9adde623c` (`5d231b804` with the README, sim README and design doc):
     the other pc386 suites, the governor bench and test386.
   The runs before the merge do not depend on the #1424 fix. It changes only
   which slot a protected-mode IRET or RETF reads first, which matters only
   when the frame runs past the stack's limit. The system, governor and
   devices suites run real-mode DOS, and test386 stops as it enters
-  protected mode, before any IRET or RETF; DOOM's protected-mode returns
-  would read the same slots either way unless a frame faulted. The seal is
-  before the merge too: under the pc386 reseal exemption a post-seal RTL fix
+  protected mode, before any IRET or RETF. The seal is before the merge
+  too: under the pc386 reseal exemption a post-seal RTL fix
   needs no reseal before merge, as #1411's own record says of `d9773b8f2`.
 - Oracle: Bochs 3.1 at CPU level 3 (the `fes-i386-oracle` build), corpus
   SingleStepTests/80386 `459d49fbe628`.
@@ -290,7 +293,31 @@ Where the slack is, from TimeQuest on the sealed project at the slow
 
 ## DOOM's start on the RTL
 
-DOOM
+`machine_tb --cpu rtl` at `9abfcb26d` on slice 2's census disk (SHA-256
+`fa26f60b…`, a scratch copy), typing `cd doom` and `doom` at the prompt, 8
+simulated seconds (1 h 53 min on Powerboat). As in slice 2's run, the bench
+steps each not-built instruction on Bochs and then resumes the RTL.
+
+The screen at 8 s matches the Bochs census's at 10 s. It runs from `DOOM
+System Startup v1.9` through `DPMI memory: 0xdba000, 0x800000 allocated
+for zone`, `W_Init` and `M_Init`, to the `R_Init` progress bar. The RTL ran
+all the protected-mode code DOS/4GW and DOOM reached:
+
+| | This branch, 8 s | Slice 2's RTL, through 4.6 s |
+| --- | --- | --- |
+| Instructions retired with PE set, on the RTL | 6,080,047 | — |
+| Entries to protected mode, on the RTL | 3,352 | — |
+| Instructions stepped on Bochs with PE set | 0 | 687,098 |
+| Stops | 11, of 3 stems | 789, of 271 stems |
+
+The 11 stops are all ESC forms with PE clear. `DB /4` stopped 9 times at 5
+sites, and `DD /7` and `D9 /7` once each. The five the bench printed are
+slice 2's FPU-probe stops: `FNINIT`, `FNSTSW m16` and `FNSTCW m16` at 0727:68B0, then
+`FNINIT` at 07A2:021D and `FSETPM` (DB E4) at 07A2:0243. None is under CS
+0070h, 0080h, 0088h, 0018h or 0090h, and no instruction stopped in protected
+mode. The ESC forms are the empty-387-socket work, outside this issue. The
+bench ends at its time limit (`END limit`, exit 1, as any run that ends at
+its time limit does).
 
 ## Known limits
 
