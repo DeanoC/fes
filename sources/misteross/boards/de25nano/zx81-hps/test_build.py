@@ -402,6 +402,36 @@ class HpsZX81BuildTests(unittest.TestCase):
         self.assertEqual((computer["base"], computer["span"]), (0x10300, 32))
         self.assertEqual(result["jtag_computer_base"], 0x110300)
 
+    def test_canonical_computer_requires_no_probe_before_its_separate_fabric_review(self):
+        project, handoff, root = self.sopc()
+        (project.parent / "inputs.json").write_text(json.dumps({"f2sdram_master_profile": "bram-computer"}))
+        with self.assertRaisesRegex(ValueError, "retains the DDR probe"):
+            B.verify_computer(project, HPS)
+        lw = next(c for c in root.findall("connection") if c.get("start") == "subsys_hps_agilex_hps.lwhps2fpga")
+        parameter = lw.find("parameter[@name='addressMapSysInfo']/value")
+        mapping = ET.fromstring(parameter.text)
+        mapping.remove(next(n for n in mapping if n.get("name") == "subsys_periph.fes_ddr_probe.avs"))
+        parameter.text = ET.tostring(mapping, encoding="unicode")
+        ET.ElementTree(root).write(handoff)
+        # This seam checks profile selection only. The real graph verifier and
+        # real generated project are tested separately; this stub is unqualified.
+        with mock.patch.object(B, "verify_canonical", return_value={"unqualified_fixture": True}) as review:
+            result = B.verify_computer(project, HPS)
+        review.assert_called_once_with(project.parent, HPS)
+        self.assertNotIn("jtag_slave_map", result)
+
+    def test_generated_qsf_derivation_preserves_inputs_and_requires_exact_vendor_version(self):
+        raw = ('set_global_assignment -name DEVICE A5EB013BB23BE4SCS\n'
+               'set_global_assignment -name LAST_QUARTUS_VERSION "25.1.1 Pro Edition"\n'
+               'set_global_assignment -name LAST_QUARTUS_VERSION "26.3.0 Pro Edition"\n')
+        derived = B.generated_computer_qsf(raw)
+        self.assertIn('set_global_assignment -name DEVICE A5EB013BB23BE4SCS\n', derived)
+        self.assertIn('LAST_QUARTUS_VERSION "26.3.0 Pro Edition"', derived)
+        self.assertNotIn('25.1.1', derived)
+        self.assertEqual(derived.count('set_global_assignment -name IP_FILE '), 3)
+        with self.assertRaisesRegex(ValueError, "patch target changed"):
+            B.generated_computer_qsf(raw.replace('25.1.1', 'unreviewed'))
+
     def test_generated_computer_missing_routes_wrong_clock_base_or_overlapping_slave_fail(self):
         for index in range(4):
             project, handoff, root = self.sopc()

@@ -268,6 +268,7 @@ def prepare_canonical(directory, hps, sources, snapshot, build_id):
     if count != 1:
         raise ValueError("canonical computer macro identity differs")
     (project / "golden_top.qsf").write_text(qsf)
+    (directory / "prepared-computer.qsf").write_text(qsf)
     clock_source = sources[BOARD + "scanout/clocks.sdc"].decode()
     start = clock_source.index("# The two external inputs terminate")
     stop = clock_source.index("# Configuration release,", start)
@@ -297,6 +298,16 @@ def prepare_canonical(directory, hps, sources, snapshot, build_id):
     (directory / "inputs.json").write_text(json.dumps(inputs, indent=2, sort_keys=True) + "\n")
 
 
+def generated_computer_qsf(prepared):
+    # The actual 26.3 Qsys run retires the duplicate vendor version and
+    # registers exactly these three generated IPs. Retain/check every byte.
+    return replace_once(prepared,
+        'set_global_assignment -name LAST_QUARTUS_VERSION "25.1.1 Pro Edition"\n', '') + ''.join(
+        'set_global_assignment -name IP_FILE peripheral_subsys/ip/peripheral_subsys/' + name + '.ip\n'
+        for name in ('peripheral_subsys_fes_mailbox', 'peripheral_subsys_fes_computer_pixel_clk',
+                     'peripheral_subsys_fes_computer'))
+
+
 def verify_canonical(directory, hps):
     inputs = json.loads((directory / "inputs.json").read_text())
     computer = inputs["computer"]
@@ -305,10 +316,14 @@ def verify_canonical(directory, hps):
     for name, expected in computer["source_sha256"].items():
         if hps.digest(project / "fes_mailbox" / name) != expected:
             raise ValueError("canonical computer staged source differs: " + name)
-    for name, field in (("golden_top.v", "top_sha256"), ("golden_top.qsf", "qsf_sha256"),
+    for name, field in (("golden_top.v", "top_sha256"),
                         ("integrate-mailbox.tcl", "integration_sha256")):
         if hps.digest(project / name) != computer[field]:
             raise ValueError("canonical computer project input differs: " + name)
+    prepared = directory / "prepared-computer.qsf"
+    if (hps.digest(prepared) != computer["qsf_sha256"] or
+            (project / "golden_top.qsf").read_text() != generated_computer_qsf(prepared.read_text())):
+        raise ValueError("canonical computer generated QSF differs from reviewed preparation")
     retained = directory.parent / "functional-source" / BOARD / "scanout/build.py"
     scanout = load(retained, "canonical_bram_identity_review")
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
@@ -375,11 +390,13 @@ def verify_computer(project, hps):
     if connections[required[3]].findtext("parameter[@name='clockRateSysInfo']/value") != "74250000":
         raise ValueError("generated computer pixel clock differs")
     lw = connections[("avalon", "subsys_hps_agilex_hps.lwhps2fpga", "subsys_periph_pb_cpu_0.s0")]
-    regions = hps.peripheral_slave_map(lw.findtext("parameter[@name='addressMapSysInfo']/value"), hps.probe_base())
+    inputs = json.loads((project.parent / "inputs.json").read_text())
+    canonical = inputs.get("f2sdram_master_profile") == "bram-computer"
+    regions = hps.peripheral_slave_map(lw.findtext("parameter[@name='addressMapSysInfo']/value"),
+                                       None if canonical else hps.probe_base())
     region = [r for r in regions if r["name"] == "subsys_periph.fes_computer.avs"]
     if len(region) != 1 or region[0]["base"] != offset or region[0]["span"] != span: raise ValueError("computer slave span differs")
-    inputs = json.loads((project.parent / "inputs.json").read_text())
-    if inputs.get("f2sdram_master_profile") == "bram-computer":
+    if canonical:
         return {"instance": component.get("path"), "peripheral_slave_map": regions,
                 "clock_hz": 100000000, "pixel_hz": 74250000,
                 "canonical": verify_canonical(project.parent, hps), "physical_mmio": "not-established"}

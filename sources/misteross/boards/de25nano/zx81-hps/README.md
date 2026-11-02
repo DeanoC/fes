@@ -189,6 +189,8 @@ initiator/port inventory, source hashes, actual BUILD_ID, HDMI derivation and
 PLL values are rechecked before and after compilation. HPS CPU control and
 the warm-reset conduit remain. This is the existing BRAM computer contract;
 it adds no DMA or in-play allocated MENU plane.
+The raw prepared QSF is retained; only the reviewed version-line retirement
+and three generated IP references may change during Qsys generation.
 
 Use the producer's `--compile-only` option to retain an unadmitted candidate.
 Package export requires the shared complete timing/signoff gate, the two

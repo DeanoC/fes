@@ -30,7 +30,10 @@ interfaces; `Rst_hps_warm_en=true` preserves the warm-reset conduit. Only those
 three original HPS parameters may change. HPS lightweight computer/mailbox
 control and HPS-to-OCM remain; the complete generated graph permits only those
 three CPU/relay initiators, no fabric ingress into HPS and no disabled parent
-ports. The captured verifier and staged sources are checked before and after
+ports. Preparation retains its raw QSF; generation may retire only the exact
+duplicate vendor version line and add the three declared mailbox/computer IP
+references. The resulting bytes are checked throughout compilation. The
+captured verifier and staged sources are checked before and after
 compilation. The existing firmware-only programming profile leaves the
 permanent Linux owner unavailable for DMA while retaining its programming
 exclusion; this BRAM package advertises no DDR or allocated scanout interface.
