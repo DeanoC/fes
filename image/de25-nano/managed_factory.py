@@ -220,7 +220,8 @@ def inside(action, jobs):
 
 def artifact_names(directory):
     manifest, packages = selected(directory / 'artifacts')
-    names = list(base.artifact_names()) + [LOCK, 'artifacts/artifacts.json', 'boot.json', 'qemu-smoke.log']
+    names = list(base.artifact_names()) + [LOCK, 'artifacts/artifacts.json',
+                                         'factory-verify.json', 'boot.json', 'qemu-smoke.log']
     names += ['artifacts/bin/' + name for name in image_artifacts.BINARIES]
     names += ['artifacts/' + p.relative_to(directory / 'artifacts').as_posix()
               for package in packages for p in [package['selection_path'], *package['directory'].iterdir()]]
@@ -235,6 +236,7 @@ def verify_receipt(output, *, producer_root=None):
             record.get('recipe_sha256') != recipe_key(ROOT if producer_root is None else producer_root) or
             record.get('builder_image') != base.sdk_lock()['builder_image'] or
             record.get('normal_runtime_admission') != 'closed' or
+            type(record.get('image_passes')) is not int or record['image_passes'] != 1 or
             not re.fullmatch('[0-9a-f]{40}', record.get('fes_revision', '')) or
             record.get('fes_revision') != inputs.get('fes_revision') or
             inputs.get('recipe_sha256') != record.get('recipe_sha256') or
@@ -311,7 +313,7 @@ def publish(args):
             save(output / 'factory.json', {'format': 1, 'board': 'de25-nano', 'architecture': 'aarch64',
                  'classification': 'managed-factory-candidate', 'fes_revision': revision,
                  'recipe_sha256': recipe_key(), 'builder_image': builder,
-                 'normal_runtime_admission': 'closed', 'hardware_acceptance': 'not-run',
+                 'normal_runtime_admission': 'closed', 'hardware_acceptance': 'not-run', 'image_passes': 1,
                  'files': {name: image.digest(output / name) for name in artifact_names(output)}})
         verify_receipt(output)
         print(json.dumps({'status': 'passed', 'classification': 'managed-factory-candidate',

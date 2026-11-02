@@ -15,6 +15,8 @@ import sys
 import tempfile
 import unicodedata
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 try:
     from . import platform as fes_platform
     from .media_inputs import digest
@@ -35,7 +37,8 @@ MANIFEST_FIELDS = {'format','board','boot_abi','version','kernel_sha256','image_
 OPTIONAL_MANIFEST_FIELDS = {'image_passes'}
 BOOTSTRAP_RECIPE_FILES = ('scripts/appliance.py','scripts/appliance_inside.py','scripts/media.py',
                           'scripts/media_container.py','scripts/media_inputs.py','scripts/media_uboot.py',
-                          'scripts/platform.py')
+                          'scripts/platform.py','scripts/de25_appliance.py')
+PROFILES = {BOARD: 'native-integration-dev', 'de25-nano': 'de25-nano'}
 
 
 def canonical(data):
@@ -66,6 +69,31 @@ def selected_board(board):
 
 def bootstrap_architecture(board):
     return 'aarch64' if selected_board(board) == 'de25-nano' else 'armv7'
+
+
+def selection(board, profile, factory):
+    selected_board(board)
+    profile = PROFILES[board] if profile is None else profile
+    if profile != PROFILES[board]:
+        raise ValueError('appliance profile differs from independently selected board')
+    if board == BOARD and factory is not None:
+        raise ValueError('--factory applies only to explicitly selected DE25')
+    if board != BOARD and factory is None:
+        raise ValueError('DE25 appliance selection requires --factory')
+    return profile
+
+
+def add_selection_arguments(parser):
+    parser.add_argument('--board', choices=list(PROFILES), default=BOARD)
+    parser.add_argument('--profile', choices=list(PROFILES.values()))
+    parser.add_argument('--factory', type=Path, help='verified DE25 managed-factory directory')
+
+
+def media_container(root, runtime, lock, board):
+    if selected_board(board) == BOARD:
+        return cached_media_container(root, runtime, lock)
+    from scripts.media_container import ensure_media_tools
+    return ensure_media_tools(root, runtime)
 
 
 def validate_manifest(data, *, board=BOARD):
@@ -294,7 +322,7 @@ def export_release(output,rootfs,kernel,*,version,provenance,image_passes=None,b
     The CLI obtains provenance from current cold-build validation. This lower
     level function does not independently establish the provenance's origin or
     the board/ELF identity inside the rootfs. The board must be selected by the
-    verified image assembler; defaults and the current CLI remain DE10-only.
+    verified image assembler; the default board remains DE10.
     """
     selected_board(board)
     output = Path(output); rootfs = regular(rootfs); kernel = regular(kernel)
@@ -420,7 +448,11 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
     return result
 
 
-def verified_inputs(root,profile):
+def verified_inputs(root,profile,*,board=BOARD,factory=None):
+    selection(board, profile, factory)
+    if board != BOARD:
+        from scripts import de25_appliance
+        return de25_appliance.verified_inputs(root, profile, factory)
     # Existing modules use script-style imports; keep this import boundary local.
     sys.path.insert(0,str(Path(__file__).resolve().parent))
     import media
@@ -446,7 +478,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     commands=parser.add_subparsers(dest='command',required=True)
     for command in ('release','bootstrap'):
-        child=commands.add_parser(command);child.add_argument('--profile',default='native-integration-dev',choices=['native-integration-dev'])
+        child=commands.add_parser(command);add_selection_arguments(child)
         child.add_argument('--output',type=Path)
         if command=='release':
             child.add_argument('--version',required=True);child.add_argument('--image-passes',type=int,default=validate_image_passes(),choices=(1,2))
@@ -454,6 +486,9 @@ def main():
             child.add_argument('--release',type=Path,required=True)
     args=parser.parse_args();root=Path(__file__).resolve().parents[1]
     try:
+        args.profile=selection(args.board,args.profile,args.factory)
+        board_args={} if args.board==BOARD else {'board':args.board,'factory':args.factory}
+        artifact_args={} if args.board==BOARD else {'board':args.board}
         if args.command == 'release':
             validate_image_passes(args.image_passes)
         if args.output is not None:
@@ -461,36 +496,37 @@ def main():
             if args.command=='bootstrap' and not args.output.is_relative_to(root):
                 raise ValueError('bootstrap output must be inside the FES checkout')
         sys.path.insert(0,str(root/'scripts'));import media
-        with media.operation(root,args.profile):
-            rootfs,kernel,p,fogcast,env,lock=verified_inputs(root,args.profile)
+        with media.operation(root,args.profile,**artifact_args):
+            rootfs,kernel,p,fogcast,env,lock=verified_inputs(root,args.profile,**board_args)
             if args.command=='release':
                 if p.image_passes != args.image_passes:
                     raise ValueError('release pass count differs from verified image')
                 version=args.version
-                manifest=release_manifest(rootfs,version=version,provenance=p,image_passes=args.image_passes)
+                manifest=release_manifest(rootfs,version=version,provenance=p,image_passes=args.image_passes,**artifact_args)
                 # Identical rootfs and manifest bytes can carry one- or two-pass evidence.
                 output=args.output or root/'out'/args.profile/'appliance/releases'/p.rootfs_sha256/(hashlib.sha256(canonical(manifest)).hexdigest()+f'-{p.image_passes}pass')
-                result=export_release(output,rootfs,kernel,version=version,provenance=p,image_passes=args.image_passes)
+                result=export_release(output,rootfs,kernel,version=version,provenance=p,image_passes=args.image_passes,**artifact_args)
             else:
-                factory=load_manifest(args.release/'release.json')
+                factory=load_manifest(args.release/'release.json',**artifact_args)
                 if recorded_image_passes(args.release, factory) != p.image_passes:
                     raise ValueError('release pass count differs from verified image')
-                if factory!=release_manifest(rootfs,version=factory['version'],provenance=p) or digest(regular(args.release/'rootfs.img'))!=p.rootfs_sha256:
+                if factory!=release_manifest(rootfs,version=factory['version'],provenance=p,**artifact_args) or digest(regular(args.release/'rootfs.img'))!=p.rootfs_sha256:
                     raise ValueError('release differs from current verified cold image')
                 runtime=os.environ.get('CONTAINER_RUNTIME','docker')
-                container=cached_media_container(root,runtime,lock)
+                container=media_container(root,runtime,lock,args.board)
                 runner=object.__new__(media.Runner);runner.root=root;runner.runtime=runtime;runner.container=container
                 scratch_root=root/'out/tmp';scratch_root.mkdir(parents=True,exist_ok=True)
                 with tempfile.TemporaryDirectory(prefix='fes-boot-build-',dir=scratch_root) as temporary:
                     binary=Path(temporary)/'fes-boot'
                     factory_snapshot=Path(temporary)/'factory.json'
                     factory_snapshot.write_bytes(canonical(factory))
-                    binary_sha,platform_build=fes_platform.build_static_arm(root,fogcast,binary,env)
+                    build_args={} if args.board==BOARD else {'architecture':bootstrap_architecture(args.board)}
+                    binary_sha,platform_build=fes_platform.build_static_arm(root,fogcast,binary,env,**build_args)
                     assembly_revision=media.cold_build.git(root,'rev-parse','HEAD')
-                    identity=bootstrap_identity(binary_sha,factory,container,assembly_revision,bootstrap_recipe(root),platform_build)
+                    identity=bootstrap_identity(binary_sha,factory,container,assembly_revision,bootstrap_recipe(root),platform_build,**artifact_args)
                     output=args.output or root/'out'/args.profile/'appliance/bootstrap'/identity
                     result=assemble_bootstrap(output,binary,factory_snapshot,kernel,runner=runner,
-                        binary_source_revision=platform_build['fogcast_revision'],assembly_revision=assembly_revision,platform_build=platform_build)
+                        binary_source_revision=platform_build['fogcast_revision'],assembly_revision=assembly_revision,platform_build=platform_build,**artifact_args)
         print(result.directory)
         print('Host-only artifact; hardware acceptance not run.')
     except (OSError,ValueError,subprocess.CalledProcessError) as error:
