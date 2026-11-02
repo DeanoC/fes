@@ -274,7 +274,10 @@ edit_draw:
         ld b,a
         ld a,25
         sub b                   ; rows used (at least one)
-        ld b,a
+        cp 25
+        jr c,.rows
+        ld a,24                 ; a line may be taller than the display
+.rows:  ld b,a
         inc a
         cp 25
         jr c,.sz2
@@ -288,7 +291,9 @@ edit_draw:
         ld b,a
         ld c,0
         call print_at
+        set OF_CLIP,(iy+Y_OFLAGS)
         call print_eline
+        res OF_CLIP,(iy+Y_OFLAGS)
         res OF_LOWER,(iy+Y_OFLAGS)
         ret
 

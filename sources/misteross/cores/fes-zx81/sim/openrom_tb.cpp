@@ -22,6 +22,9 @@
 
 namespace {
 
+constexpr uint16_t kTapeBase = 0x4009;
+constexpr uint16_t kProgram = 0x407d;
+
 [[noreturn]] void fail(const std::string &message) {
     std::cerr << "FES ZX81 open ROM: " << message << '\n';
     std::exit(EXIT_FAILURE);
@@ -96,7 +99,8 @@ struct Machine {
     }
 
     // ZX81 keyboard rows 0..7 (A8..A15), columns 0..4; SHIFT is row 0 col 0.
-    void press(const std::vector<std::pair<int, int>> &keys, bool acknowledge = false) {
+    void press(const std::vector<std::pair<int, int>> &keys, bool acknowledge = false,
+               unsigned frame_limit = 100) {
         uint64_t bits = 0xffffffffffull;
         for (auto [row, col] : keys)
             bits &= ~(1ull << (row * 5 + col));
@@ -112,7 +116,7 @@ struct Machine {
         // redrawn as the edit line grows.
         dut.keyboard = 0xffffffffffull;
         bool released = false;
-        for (unsigned i = 0; i != 100; ++i) {
+        for (unsigned i = 0; i != frame_limit; ++i) {
             run_frames(1);
             if (word(0x401f) == 0xffff) {
                 released = true;
@@ -122,7 +126,7 @@ struct Machine {
         require(released, "keyboard did not return to the released state");
         dut.keyboard = bits;
         bool consumed = false;
-        for (unsigned i = 0; i != 100; ++i) {
+        for (unsigned i = 0; i != frame_limit; ++i) {
             run_frames(1);
             if (word(0x401f) != 0xffff) {
                 consumed = true;
@@ -131,7 +135,7 @@ struct Machine {
         }
         require(consumed, "editor did not consume a key press");
         dut.keyboard = 0xffffffffffull;
-        for (unsigned i = 0; i != 100; ++i) {
+        for (unsigned i = 0; i != frame_limit; ++i) {
             run_frames(1);
             if (word(0x401f) == 0xffff) return;
         }
@@ -205,6 +209,102 @@ std::vector<uint8_t> save_image(Machine &m) {
     return image;
 }
 
+std::vector<uint8_t> snapshot_to_eline(Machine &m) {
+    const uint16_t end = m.word(0x4014);
+    require(end >= kTapeBase && end <= 0x8000, "E_LINE is outside the .p image window");
+    std::vector<uint8_t> image(end - kTapeBase);
+    for (unsigned i = 0; i != image.size(); ++i)
+        image[i] = m.peek(uint16_t(kTapeBase + i));
+    return image;
+}
+
+uint16_t image_word(const std::vector<uint8_t> &image, uint16_t address) {
+    const size_t offset = address - kTapeBase;
+    require(offset + 1 < image.size(), "system variable is outside the .p image");
+    return uint16_t(image[offset] | uint16_t(image[offset + 1]) << 8);
+}
+
+void set_image_word(std::vector<uint8_t> &image, uint16_t address, uint16_t value) {
+    const size_t offset = address - kTapeBase;
+    require(offset + 1 < image.size(), "system variable is outside the .p image");
+    image[offset] = uint8_t(value);
+    image[offset + 1] = uint8_t(value >> 8);
+}
+
+void shift_image_pointers(std::vector<uint8_t> &image, uint16_t at, uint16_t old_end,
+                          unsigned amount) {
+    static constexpr uint16_t pointers[] = {
+        0x400c, 0x400e, 0x4010, 0x4012, 0x4014, 0x4016,
+        0x4018, 0x401a, 0x401c, 0x4029, 0x407b};
+    for (uint16_t address : pointers) {
+        const uint16_t value = image_word(image, address);
+        if (value >= at && (value <= old_end || value == uint16_t(old_end + 1)))
+            set_image_word(image, address, uint16_t(value + amount));
+    }
+}
+
+std::vector<uint8_t> program_line(uint16_t number, const std::vector<uint8_t> &body) {
+    const uint16_t length = uint16_t(body.size() + 1); // include NEWLINE
+    std::vector<uint8_t> line = {
+        uint8_t(number >> 8), uint8_t(number), uint8_t(length), uint8_t(length >> 8)};
+    line.insert(line.end(), body.begin(), body.end());
+    line.push_back(0x76);
+    return line;
+}
+
+std::vector<uint8_t> image_with_program(Machine &m, const std::vector<uint8_t> &program,
+                                        uint16_t selected_line, bool autostart) {
+    auto image = snapshot_to_eline(m);
+    const uint16_t old_end = m.word(0x4014);
+    const uint16_t dfile = m.word(0x400c);
+    require(dfile == kProgram, "test image must start from a cleared BASIC program");
+    const size_t offset = dfile - kTapeBase;
+    image.insert(image.begin() + offset, program.begin(), program.end());
+    shift_image_pointers(image, dfile, old_end, program.size());
+    set_image_word(image, 0x4010, uint16_t(m.word(0x4010) + program.size())); // VARS
+    set_image_word(image, 0x400c, uint16_t(dfile + program.size()));          // D_FILE
+    set_image_word(image, 0x400e, uint16_t(dfile + program.size() + 1));      // DF_CC
+    set_image_word(image, 0x400a, selected_line);                              // E_PPC
+    set_image_word(image, 0x4029, autostart ? kProgram : 0);                   // NXTLIN
+    set_image_word(image, 0x401f, 0);                                         // stale MEM from the tape
+    return image;
+}
+
+std::vector<uint8_t> grow_first_rem_line(Machine &m, unsigned amount, bool autostart) {
+    auto image = snapshot_to_eline(m);
+    const uint16_t old_end = m.word(0x4014);
+    const uint16_t dfile = m.word(0x400c);
+    const uint16_t length = image_word(image, kProgram + 2);
+    require(length >= 3 && kProgram + 4 + length <= dfile,
+            "test image has no first program line");
+    const size_t newline = size_t(kProgram + 4 + length - 1 - kTapeBase);
+    require(image[kProgram - kTapeBase + 4] == 0xea, "first test line is not REM");
+    std::vector<uint8_t> filler(amount, 0x26); // REM text: repeated A characters
+    image.insert(image.begin() + newline, filler.begin(), filler.end());
+    shift_image_pointers(image, uint16_t(kProgram + 4 + length - 1), old_end, amount);
+    set_image_word(image, kProgram + 2, uint16_t(length + amount));
+    set_image_word(image, 0x4029, autostart ? kProgram : 0);
+    set_image_word(image, 0x401f, 0);
+    return image;
+}
+
+void load_image(Machine &m, std::vector<uint8_t> image) {
+    m.tape = std::move(image);
+    m.dut.tape_ready = 1;
+    m.dut.tape_size = m.tape.size();
+    type(m, "A NL");
+    type(m, "J SHIFT+P SHIFT+P NL");
+}
+
+uint16_t pad_with_edit_guard(std::vector<uint8_t> &image, uint16_t ramtop) {
+    const uint16_t dfile = image_word(image, 0x400c);
+    const uint32_t guard = uint32_t(dfile) + 8416;
+    require(guard < ramtop, "edit guard is outside RAMTOP");
+    image.resize(guard - kTapeBase + 1, 0x5a);
+    image[guard - kTapeBase] = 0xa5;
+    return uint16_t(guard);
+}
+
 void wait_for_save(Machine &m) {
     const uint64_t deadline = m.ticks + 50000000ull;
     bool saw_clear = !m.dut.save_ready;
@@ -259,6 +359,135 @@ std::string row_text(Machine &m, int row) {
         s += (c & 0x40) ? '?' : chars[c & 0x3f];
     while (!s.empty() && s.back() == ' ') s.pop_back();
     return s;
+}
+
+void test_low_memory_report(Machine &m) {
+    require(m.word(0x4004) == 0x4400, "low-memory test needs the 1 KiB ZX81 profile");
+    m.acknowledge_keys = true;
+    type(m, "A NL");
+    type(m, "1 0 E A NL");
+    type(m, "2 0 D A SHIFT+I 1 0 0 SHIFT+O NL");
+    const int free_before = int(m.word(0x4004) - 4) - int(m.word(0x407b));
+    require(free_before > 100, "low-memory fixture has insufficient base room");
+    const unsigned extra = unsigned(free_before - 73);
+    auto low_memory_tape = grow_first_rem_line(m, extra, true);
+    const int low_memory_gap = int(m.word(0x4004) - 4) -
+                               int(image_word(low_memory_tape, 0x4014) + 1);
+    if (low_memory_gap < 73 || low_memory_gap > 74)
+        std::cerr << "low-memory image leaves " << low_memory_gap << " bytes before the stack\n";
+    require(low_memory_gap >= 73 && low_memory_gap <= 74,
+            "low-memory fixture does not leave 73-74 bytes before the machine stack");
+    load_image(m, std::move(low_memory_tape));
+    if (row_text(m, 23) != "4/20")
+        std::cerr << "low-memory report row23='" << row_text(m, 23)
+                  << "' ERR_NR=" << unsigned(m.peek(0x4000))
+                  << " WORKSP=" << std::hex << m.word(0x407b)
+                  << " STKEND=" << m.word(0x401c) << std::dec << '\n';
+    require(row_text(m, 23) == "4/20",
+            "1 KiB out-of-memory report did not return as 4/20");
+    std::cout << "1 KiB low-memory DIM: report 4/20 returned to the editor\n";
+}
+
+void test_loaded_input_key(Machine &m) {
+    type(m, "A NL");
+    type(m, "L A SHIFT+L 0 NL"); // INPUT requires an existing numeric target
+    auto input_tape = image_with_program(
+        m, program_line(10, {0xee, 0x26}), 10, true); // 10 INPUT A
+    m.tape = std::move(input_tape);
+    m.dut.tape_ready = 1;
+    m.dut.tape_size = m.tape.size();
+    type(m, "J SHIFT+P SHIFT+P");
+    submit_enter(m, key_state({"NL"}));
+    const uint64_t tape_deadline = m.ticks + 20000000ull;
+    bool saw_tape_load = false;
+    while (!saw_tape_load && m.ticks < tape_deadline) {
+        m.tick();
+        saw_tape_load = m.dut.tape_busy;
+    }
+    require(saw_tape_load, "LOAD did not start for the autorun tape");
+    while (m.dut.tape_busy && m.ticks < tape_deadline) m.tick();
+    require(!m.dut.tape_busy, "autorun tape did not finish while NEWLINE was held");
+    m.run_frames(6);             // keep NEWLINE down for about 120 ms after LOAD
+    const bool waiting_for_input = (m.peek(0x4021) & 0x02) != 0;
+    if (!waiting_for_input)
+        std::cerr << "LOAD autorun state: report='" << row_text(m, 23)
+                  << "' input=" << ((m.peek(0x4021) & 0x02) != 0)
+                  << " ERR_NR=" << unsigned(m.peek(0x4000))
+                  << " PPC=" << m.word(0x4007)
+                  << " NXTLIN=" << m.word(0x4029)
+                  << " E_PPC=" << m.word(0x400a)
+                  << " MEM=" << m.word(0x401f)
+                  << " LAST_K=" << m.word(0x4025)
+                  << " DEBOUNCE=" << unsigned(m.peek(0x4027)) << '\n';
+    m.dut.keyboard = 0xffffffffffull;
+    require(waiting_for_input, "LOAD treated its held NEWLINE as INPUT data");
+    m.run_frames(8);
+    require((m.peek(0x4021) & 0x02) != 0 && row_text(m, 23) != "C/10",
+            "held NEWLINE ended the autorun INPUT before debounce");
+    std::cout << "LOAD autorun: held NEWLINE stayed out of INPUT\n";
+}
+
+void test_overlong_edit_line(Machine &m) {
+    type(m, "A NL");
+    std::vector<uint8_t> rem_body(1, 0xea);
+    rem_body.insert(rem_body.end(), 150, 0xf5); // PRINT tokens expand on the edit display
+    rem_body.insert(rem_body.end(), 32, 0x26);
+    auto long_tape = image_with_program(m, program_line(10, rem_body), 10, false);
+    const uint16_t guard = pad_with_edit_guard(long_tape, 0x8000);
+    load_image(m, std::move(long_tape));
+    const uint16_t dfile = m.word(0x400c);
+    const uint16_t vars = m.word(0x4010);
+    require(guard == dfile + 8416, "long-line guard moved unexpectedly");
+    require(m.peek(guard) == 0xa5, "long tape did not install the edit guard");
+    m.press({key("SHIFT"), key("1")}, true, 500);
+    require(m.peek(guard) == 0xa5, "EDIT wrote beyond its 24-row display");
+    require(m.word(0x400c) == dfile && m.word(0x4010) == vars && m.peek(vars) == 0x80,
+            "long EDIT changed the display or variables boundary");
+    std::cout << "EDIT: over-24-row REM stayed inside the display file\n";
+    type(m, "NL");                // leave EDIT mode before the next fixture
+}
+
+void test_slow_stop_continue(Machine &m) {
+    type(m, "A NL");
+    type(m, "1 0 F A SHIFT+L 1 SHIFT+4 5 0 NL");
+    type(m, "2 0 SHIFT+A NL");
+    type(m, "3 0 N A NL");
+    type(m, "R NL");
+    const uint16_t err_sp = m.word(0x4002);
+    const uint16_t report_return = m.word(err_sp);
+    require(row_text(m, 23) == "9/20", "STOP did not produce report 9/20");
+    for (int i = 0; i != 20; ++i) {
+        m.press({key("C")}, true);
+        submit_enter(m);
+        bool report_cleared = false;
+        bool report_returned = false;
+        for (unsigned frame = 0; frame != 30 && !report_returned; ++frame) {
+            m.run_frames(1);
+            const std::string report = row_text(m, 23);
+            if (report != "9/20") report_cleared = true;
+            else report_returned = report_cleared;
+        }
+        if (!report_returned)
+            std::cerr << "CONT iteration " << i << " report='" << row_text(m, 23)
+                      << "' ERR_NR=" << unsigned(m.peek(0x4000))
+                      << " PPC=" << m.word(0x4007)
+                      << " NXTLIN=" << m.word(0x4029)
+                      << " OLDPPC=" << m.word(0x402b)
+                      << " ERR_SP=" << std::hex << m.word(0x4002)
+                      << " slot=" << m.word(m.word(0x4002)) << std::dec << '\n';
+        require(report_returned, "CONT loop lost its STOP report");
+        require(m.word(0x4002) == err_sp && m.word(err_sp) == report_return,
+                "repeated SLOW reports corrupted the error return slot");
+    }
+    std::cout << "STOP/CONT: 20 SLOW reports preserved ERR_SP\n";
+}
+
+void test_16k_regressions(Machine &m) {
+    require(m.word(0x4004) == 0x8000, "16 KiB regressions need the 16 KiB ZX81 profile");
+    m.acknowledge_keys = true;
+    test_overlong_edit_line(m);
+    test_slow_stop_continue(m);
+    test_loaded_input_key(m);
 }
 
 struct Frame {
@@ -384,7 +613,22 @@ int main(int argc, char **argv) {
             if (!row_text(m, r).empty()) std::cout << row_text(m, r) << '\n';
         return 0;
     }
-    require(mode == "check", "usage: geometry | check | load TAPE.p | shot OUT.pgm KEYS");
+    if (mode == "lowmem") {
+        test_low_memory_report(m);
+        return 0;
+    }
+    if (mode == "regress") {
+        require(m.word(0x4004) == 0x8000, "regress mode needs the 16 KiB ZX81 profile");
+        m.run_frames(1);
+        test_16k_regressions(m);
+        return 0;
+    }
+    if (mode == "overlong") {
+        require(m.word(0x4004) == 0x8000, "overlong mode needs the 16 KiB ZX81 profile");
+        test_overlong_edit_line(m);
+        return 0;
+    }
+    require(mode == "check", "usage: geometry | check | load TAPE.p | lowmem | regress | overlong | shot OUT.pgm KEYS");
 
     // Boot: the same frame and picture position as the Sinclair ROM on this
     // core. PAL: 310 lines, the K cursor's cell at lines 243-250, pixels
@@ -654,7 +898,27 @@ int main(int argc, char **argv) {
         type(m, "R NL");
         m.run_frames(1200, 2000000000ull);
         observe_fast_slow_modes(m);
+        m.dut.keyboard = key_state({"SP"});
+        bool nmi_loop_stopped = false;
+        for (unsigned i = 0; i != 50 && !nmi_loop_stopped; ++i) {
+            m.run_frames(1);
+            nmi_loop_stopped = m.peek(0x4000) == 0x0c;
+        }
+        m.dut.keyboard = 0xffffffffffull;
+        m.run_frames(6);
+        require(nmi_loop_stopped, "BREAK did not leave the FAST/SLOW loop test");
     }
+
+    // A memory report must discard temporary calculator values before it
+    // grows the collapsed display. Fill a 1 KiB image so DIM fails with only
+    // the dimension value occupying the workspace.
+    if (ramtop == 0x4400) {
+        test_low_memory_report(m);
+    }
+
+    // Exercise the held-key, overlong-line and SLOW STOP/CONT regressions.
+    if (ramtop == 0x8000) test_16k_regressions(m);
+
     std::cout << "FES ZX81 open ROM: display, keyboard and rollover, edit, PRINT AT, INPUT, RETURN, INKEY$, "
                  "FAST/SLOW SAVE/LOAD, SCROLL and NMI-boundary loop pass\n";
     return 0;

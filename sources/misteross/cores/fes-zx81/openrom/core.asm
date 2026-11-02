@@ -77,8 +77,8 @@ error_2:                        ; RST 8 continues here
 ; Show the report as code/line at the bottom. CONT goes back to the line
 ; that failed, or on past a STOP, a BREAK or the end.
 main_report:
-        dec sp                  ; keep the error slot
-        dec sp
+        ld sp,(ERR_SP)          ; restore atomically; NMI may land here
+        call line_workspace     ; discard temporary strings and calculator stack
         ld iy,0x4000
         xor a
         ld (iy+Y_MODE),a

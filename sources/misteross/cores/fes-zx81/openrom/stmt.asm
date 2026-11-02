@@ -820,6 +820,11 @@ after_load:
         pop af
         add a,a                 ; the mode the program asked for: bit 6
         call tape_mode
+        call wait_frame         ; refresh the key scan after tape mode resumes
+        call wait_frame         ; ignore the stale state from the transition frame
+        ld hl,(LAST_K)
+        ld (MEM),hl
+        ld (iy+Y_DEBOUNCE),24
         ld hl,(NXTLIN)          ; autostart: NXTLIN inside the program
         ld de,PROG
         call cp_hl_de
