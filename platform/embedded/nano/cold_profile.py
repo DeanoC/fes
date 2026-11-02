@@ -69,6 +69,7 @@ def sources():
                             'nano_bridge_sip.c','nano_bridge_sip.h','generated/fes_embedded_bridges.h',
                             'nano_identity.c','nano_identity.h','nano_configuration.c','nano_configuration.h','nano_smmu.c','nano_smmu.h',
                             'nano_fabric_stop.c','nano_fabric_stop.h','nano_probe_stop.c','nano_probe_stop.h','generated/fes_de25_ddr_probe.h','generated/fes_embedded_control.h',
+                            'nano_ddr_firewall.c','nano_ddr_firewall.h',
                             'generated/fes_embedded_control.hpp','nano_bridge_diag.h','nano_bridge_diag.inc',
                             'build_terasic.py','build_terasic_uboot.py','verify.py')]
 

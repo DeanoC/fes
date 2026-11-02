@@ -7,6 +7,7 @@
 #include "nano_cold.h"
 #include "nano_smmu.h"
 #include "nano_fabric_stop.h"
+#include "nano_ddr_firewall.h"
 #include "generated/fes_de25_ddr_probe.h"
 #include "fes_nano_cold_profile.h"
 #define FES_COLD_READ32(a) mmio_read_32(a)
@@ -107,6 +108,39 @@ _Static_assert(FES_NANO_CONTROL_ABI==0x10203041U && FES_NANO_READER_CPU_BASE==0x
     FES_NANO_READER_BUS_BASE==0x95000000ULL && FES_NANO_READER_BYTES==8192U &&
     FES_NANO_READER_ARENA_BYTES==(2U<<20) && FES_NANO_PROBE_CPU_BASE==0x20010100UL &&
     FES_NANO_PROBE_SPAN==FES_DE25_DDR_PROBE_SPAN,"source-bound cold DDR reader profile");
+_Static_assert(FES_NANO_READER_BUS_BASE==FES_NANO_DDR_FIREWALL_WINDOW &&
+    FES_NANO_READER_BYTES==FES_NANO_DDR_FIREWALL_BYTES,"fixed observed DDR firewall window");
+static uint32_t firewall_bridge;
+static int firewall_owns(void *context)
+{
+    if (smmu_owns(context)!=1) return 0;
+    /* RC28 BRGMODRST.MPFE: never sample its CSR while MPFE is reset. */
+    dsbsy();firewall_bridge=mmio_read_32(FES_NANO_COLD_RSTMGR+0x2c);dsbsy();
+    return !(firewall_bridge&0x40U) && smmu_owns(context)==1;
+}
+static int firewall_read(void *context,uint32_t offset,uint32_t *value)
+{
+    if (!fes_nano_ddr_firewall_offset(offset) || firewall_owns(context)!=1) return -1;
+    dsbsy();*value=mmio_read_32(FES_NANO_DDR_FIREWALL_BASE+offset);dsbsy();
+    return firewall_owns(context)==1 ? 0 : -1;
+}
+static int firewall_report(struct fes_nano_cold *s)
+{
+    struct fes_nano_ddr_firewall_probe probe={.io={s,firewall_owns,firewall_read}};
+    struct fes_nano_ddr_firewall_observation observation={0};
+    firewall_bridge=0;
+    int status=fes_nano_ddr_firewall_observe(&probe,&observation);
+    NOTICE("FES_NANO_DDR_FIREWALL status=%d owner=%llx generation=%llu reset=%x mpfe_reset=%u reads=%u enable=%x base=%llx bytes=%u access=unqualified\n",
+        status,(unsigned long long)fes_nano_owned_bridges.state.owner,
+        (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,
+        !!(firewall_bridge&0x40U),probe.reads,observation.registers.enable,(unsigned long long)FES_NANO_DDR_FIREWALL_WINDOW,FES_NANO_DDR_FIREWALL_BYTES);
+    for (unsigned i=0;i<8;i++) {
+        const struct fes_nano_ddr_region *r=&observation.registers.region[i];
+        NOTICE("FES_NANO_DDR_REGION index=%u base=%x baseext=%x limit=%x limitext=%x\n",i,r->base,r->baseext,r->limit,r->limitext);
+    }
+    NOTICE("FES_NANO_DDR_FIREWALL_END layout_known=%u window_covered=%u access=unqualified\n",observation.layout_known,observation.window_covered);
+    return status;
+}
 static struct fes_nano_fabric_stop fabric_stop;
 static uint64_t fabric_generation;
 static unsigned fabric_reported;
@@ -175,8 +209,10 @@ static int cold_master_quiesce(void *context,uint32_t producers)
         return master_failure(s,-1);
     if (!fabric_stop.attempted) fabric_generation=fes_nano_owned_bridges.state.generation;
     int error=fes_nano_fabric_stop(&fabric_stop);
-    if (!fabric_reported++) NOTICE("FES_NANO_MASTER_STOP status=%d reader_reads=%u reader_polls=%u disable=%u probe_polls=%u cancel=%u complete=%u data=held\n",
-        error,fabric_stop.reads,fabric_stop.polls,fabric_stop.disable_issued,fabric_stop.probe.polls,
+    if (!fabric_reported++) NOTICE("FES_NANO_MASTER_STOP status=%d owner=%llx generation=%llu reset=%x reader_reads=%u reader_polls=%u disable=%u probe_polls=%u cancel=%u complete=%u data=held\n",
+        error,(unsigned long long)fes_nano_owned_bridges.state.owner,
+        (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,
+        fabric_stop.reads,fabric_stop.polls,fabric_stop.disable_issued,fabric_stop.probe.polls,
         fabric_stop.probe.cancel_issued,fabric_stop.done);
     return error ? master_failure(s,error) : 0;
 }
@@ -212,7 +248,7 @@ static int identity_configured(void *context)
     NOTICE("FES_NANO_CONFIG_STATUS status=%d words=%u state=%x version=%x pins=%x soft=%x error_location=%x error_details=%x ready=%u\n",
            status,words,response[0],response[1],response[2],response[3],response[4],response[5],ready);
 #ifdef FES_NANO_READER_CPU_BASE
-    if (valid && smmu_report(s)) return -5;
+    if (valid && (smmu_report(s) || firewall_report(s))) return -5;
 #endif
     return valid ? (int)ready : -5;
 }

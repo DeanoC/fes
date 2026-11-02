@@ -764,11 +764,20 @@ without reading fabric; a completed stop receipt remains owned after control
 closes, without MMIO through the reset aperture. Actual C/RTL and strong-provider
 tests cover idle, active, missing-response and ownership/failure paths.
 
+`decode_native_configuration(..., reader_memory=checked_map, from_storage=True)`
+requires the distinct DDR ABI, exact pinned-memory record, read-only SMMU and
+eight-region firewall observations, idle master-stop receipt, reclosed identity
+and final explicit DDR-blocked record. It independently checks raw register
+interpretations and rejects missing, duplicate, reordered or contradictory
+records. The firmware reports the stop's owner/generation/reset scope. Neither
+firewall coverage nor clear translation controls grants access in this mode;
+the final record must still report unqualified translation/drain and held data.
+
 This new DDR profile remains a hardware-qualification candidate. It enables
 neither an active reader nor data bridges, secondary CPUs, runtime package
 admission or repeated core launch/return. The callbacks' software evidence
 does not establish physical DDR drain, memory attributes or firewalls. A matched
-DDR serial observer and bounded hardware read/drain/reclose remain open; prior
+DDR hardware observation and bounded read/drain/reclose remain open; prior
 on-chip evidence does not qualify this profile. The production oracle continues to
 reject this diagnostic target, and `HPSContextVerifier` does not implement
 `BootHandoffVerifier`.

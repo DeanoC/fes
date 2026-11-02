@@ -200,15 +200,31 @@ def overlay_project(output, board, sources, identity, record=None):
     mode = int(memory['backend'] == 'hps-ddr')
     script = script.replace('@MEMORY_BACKEND@', str(mode)).replace('@DDR_BASE@', str(memory['bus_base'])).replace('@DDR_BYTES@', str(memory['bytes']))
     if mode:
+        # The held coherent maintenance manager is pruned during synthesis.
+        # Disable its unused hard F2H port instead of leaving an enabled HPS
+        # primitive with unconnected outputs (Quartus 129015/24265).
+        child = (f'load_system {{{project / "hps_subsys/hps_subsys.qsys"}}}\n'
+                 'remove_interface fpga2hps\nremove_interface fpga2hps_clk\nremove_interface fpga2hps_rst\n'
+                 'set_instance_parameter_value agilex_hps f2s_data_width 0\n'
+                 f'save_system {{{project / "hps_subsys/hps_subsys.qsys"}}}\n'
+                 f'load_system {{{project / "jtag_subsys/jtag_subsys.qsys"}}}\n'
+                 'remove_interface hps_m_master\nremove_instance hps_m\n'
+                 f'save_system {{{project / "jtag_subsys/jtag_subsys.qsys"}}}\n\n')
+        script=replace_once(script,'# Refresh the changed child interface',child+'# Refresh the changed child interface')
         # The captured producer has already expanded @TOP_SYSTEM@. Insert
         # while the top system, not its child subsystem, is loaded.
         lines = script.splitlines(keepends=True)
-        ends = [i for i,line in enumerate(lines) if line.startswith('save_system ') and '$peripheral_system' not in line]
+        ends = [i for i,line in enumerate(lines) if line.startswith('save_system ') and str(project/'qsys_top.qsys') in line]
         if len(ends) != 1:
             raise ValueError('captured top-system save anchor differs')
-        lines.insert(ends[0], 'add_connection subsys_periph.fes_embedded_mem subsys_hps.f2sdram_adapter_axi4_sub\n'
+        lines.insert(ends[0], 'remove_connection subsys_debug.hps_m_master/ace5lite_cache_coherency_translator_0.s_axi\n'
+                     'remove_connection ace5lite_cache_coherency_translator_0.m_ace5lite/subsys_hps.fpga2hps\n'
+                     'remove_connection clk_100.out_clk/subsys_hps.fpga2hps_clk\n'
+                     'remove_connection rst_in.out_reset/subsys_hps.fpga2hps_rst\n'
+                     'remove_instance ace5lite_cache_coherency_translator_0\n'
+                     'add_connection subsys_periph.fes_embedded_mem subsys_hps.f2sdram_adapter_axi4_sub\n'
                      'set_connection_parameter_value subsys_periph.fes_embedded_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n'
-                     '# Hold every maintenance master, including the coherent HPS path.\n'
+                     '# Hold both remaining maintenance masters; the coherent path is removed.\n'
                      'remove_connection rst_in.out_reset/subsys_debug.reset\n'
                      'add_connection subsys_periph.fes_maintenance_reset subsys_debug.reset\n')
         script = ''.join(lines)
@@ -328,15 +344,20 @@ def verify_control(project, hps, board, memory=None):
             raise ValueError('generated HPS DDR adapter is not connected to HPS memory')
         if hps.component_ports(component,'maintenance_reset') != {'reset_n':('Output',1)}:
             raise ValueError('generated maintenance hold reset interface differs')
+        if (hps.component_ports(modules['subsys_hps.agilex_hps'],'fpga2hps') or
+                hps.component_ports(modules['subsys_hps.agilex_hps'],'fpga2hps_clock') or
+                hps.component_ports(modules['subsys_hps.agilex_hps'],'fpga2hps_reset') or
+                'subsys_debug.hps_m' in modules or 'ace5lite_cache_coherency_translator_0' in modules or
+                any(c.get('start','').endswith('.fpga2hps') or c.get('end','').endswith('.fpga2hps') for c in tree.findall('connection'))):
+            raise ValueError('unused coherent F2H maintenance path remains enabled')
         maintenance = ('subsys_debug_jtag_rst_in.in_reset',
                        'subsys_debug_fpga_m.clk_reset',
-                       'subsys_debug_hps_f2sdram.clk_reset',
-                       'subsys_debug_hps_m.clk_reset')
-        expected_debug={'subsys_debug.fpga_m','subsys_debug.hps_f2sdram','subsys_debug.hps_m'}
+                       'subsys_debug_hps_f2sdram.clk_reset')
+        expected_debug={'subsys_debug.fpga_m','subsys_debug.hps_f2sdram'}
         actual_debug={m.get('path') for m in tree.findall('module') if m.get('kind')=='altera_jtag_avalon_master'}
         if actual_debug!=expected_debug:
             raise ValueError('generated maintenance master inventory differs')
-        sources = ('subsys_periph_fes_embedded.maintenance_reset',) + ('subsys_debug_jtag_rst_in.out_reset',)*3
+        sources = ('subsys_periph_fes_embedded.maintenance_reset',) + ('subsys_debug_jtag_rst_in.out_reset',)*2
         for target, source in zip(maintenance,sources):
             incoming = [c for c in tree.findall('connection') if c.get('kind')=='reset' and c.get('end')==target]
             if len(incoming)!=1 or incoming[0].get('start')!=source:

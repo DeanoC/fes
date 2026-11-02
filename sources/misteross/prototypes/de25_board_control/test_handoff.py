@@ -61,8 +61,8 @@ def mutate(project, kind):
         port=next(p for p in interface.findall('ports/port') if p.findtext('role')=='wdata')
         port.find('width').text='129'
         value.text=ET.tostring(definition,encoding='unicode')
-    elif kind in ('missing-maintenance-hold','live-maintenance-reset','duplicate-maintenance-reset','live-coherent-master'):
-        target='subsys_debug_hps_m.clk_reset' if kind=='live-coherent-master' else 'subsys_debug_jtag_rst_in.in_reset'
+    elif kind in ('missing-maintenance-hold','live-maintenance-reset','duplicate-maintenance-reset'):
+        target='subsys_debug_jtag_rst_in.in_reset'
         connection=next(c for c in root.findall('connection') if c.get('kind')=='reset' and c.get('end')==target)
         if kind=='missing-maintenance-hold':root.remove(connection)
         elif kind=='duplicate-maintenance-reset':root.append(ET.fromstring(ET.tostring(connection)))
@@ -70,6 +70,10 @@ def mutate(project, kind):
     elif kind=='extra-ddr-master':
         c=ET.SubElement(root,'connection',kind='avalon',start='unqualified.master',end='subsys_hps_f2sdram_adapter.axi4_sub')
         c.set('name','unqualified.master/subsys_hps_f2sdram_adapter.axi4_sub')
+    elif kind=='coherent-master':
+        ET.SubElement(root,'module',path='subsys_debug.hps_m',kind='altera_jtag_avalon_master')
+    elif kind=='coherent-route':
+        ET.SubElement(root,'connection',kind='avalon',start='unqualified.master',end='subsys_hps_agilex_hps.fpga2hps')
     else:
         raise ValueError("unknown handoff mutation")
     tree.write(handoff, encoding="utf-8", xml_declaration=True)
@@ -108,7 +112,8 @@ def main():
                       ('untied-write','generated embedded source differs'),
                       ('untied-maintenance','generated embedded source differs'))
             cases += tuple((name,'maintenance master reset hold route differs') for name in
-                           ('missing-maintenance-hold','live-maintenance-reset','duplicate-maintenance-reset','live-coherent-master'))
+                           ('missing-maintenance-hold','live-maintenance-reset','duplicate-maintenance-reset'))
+            cases += tuple((name,'unused coherent F2H maintenance path remains enabled') for name in ('coherent-master','coherent-route'))
             cases += (('extra-ddr-master','DDR master inventory differs'),)
         for name, expected in cases:
             trial = out / name

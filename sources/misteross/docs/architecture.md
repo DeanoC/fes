@@ -56,9 +56,11 @@ window and one 4 KiB page, permits one burst at a time, and uses actual AXI
 response/error/backpressure signals. Backend, window and distinct control ABI
 enter the source/vendor fingerprint and canonical functional identity. Its
 generated interface and HPS route are checked separately from its external-bus
-RTL model. DDR mode additionally holds the three maintenance JTAG managers in
-reset through a checked generated reset route, including their coherent HPS
-path. The inherited probe retains independent cancellation/drain requirements;
+RTL model. DDR mode disables the unused coherent F2H hard interface and removes
+its maintenance manager/translator. Holding that manager in reset otherwise
+lets synthesis prune its connection while leaving an enabled hard port
+unconnected. Both remaining maintenance JTAG managers stay in reset through
+checked generated routes. The inherited probe retains independent cancellation/drain requirements;
 its actual Avalon RTL is tested with the native firmware stop helper. This
 structural and model evidence does not prove complete master containment,
 firmware operation, physical

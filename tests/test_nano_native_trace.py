@@ -448,6 +448,86 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
         ordinary=NativeFPGAConfigurationTraceTests().capture()
         self.assertFalse(self.decode(ordinary)['complete'])
         self.check_reader_trace()
+        self.check_ddr_trace()
+
+    def check_ddr_trace(self):
+        """The DDR source remains blocked after pinned-memory/idle-stop proof."""
+        memory=json.loads((ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-reader-memory.json').read_text())
+        memory.update(package_id=self.identity['package_id'],build_id=self.identity['build_id'])
+        identity=dict(self.identity,control_abi=0x10203041)
+        raw=self.stored_capture().replace('10203040','10203041')
+        pinned=(f'FES_NATIVE_FPGA_READER_MEMORY PINNED cpu_base=95000000 bus_base=95000000 bytes=8192 arena_bytes=2097152 '
+                f'map_sha256={trace.context_digest(memory)} pattern_sha256={memory["pattern_sha256"]} '
+                f'owner={OWNER:x} generation=4 fpga_access=unqualified\r\n')
+        smmu=('NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=080f7e3f idr1=0e739d18 aidr=1 s_idr1=80000018 '
+              'cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 '
+              'identified=1 settled=1 bypass_controls_clear=1 access=unqualified\r\n')
+        firewall=(f'NOTICE:  FES_NANO_DDR_FIREWALL status=0 owner={OWNER:x} generation=4 reset=f mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=8192 access=unqualified\r\n')
+        for i in range(8):
+            firewall+=f'NOTICE:  FES_NANO_DDR_REGION index={i} base={"80000000" if not i else "0"} baseext=0 limit={"bfffffff" if not i else "ffff"} limitext=0\r\n'
+        firewall+='NOTICE:  FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified\r\n'
+        stop=(f'NOTICE:  FES_NANO_MASTER_STOP status=0 owner={OWNER:x} generation=5 reset=d '
+              'reader_reads=88 reader_polls=1 disable=0 probe_polls=2 cancel=0 complete=1 data=held\r\n')
+        blocked=(f'FES_NATIVE_FPGA_DDR_READER BLOCKED owner={OWNER:x} generation=6 data_held=1 '
+                 'translation=unqualified drain=unqualified runtime_programming=unavailable\r\n')
+        raw=raw.replace('FES_NATIVE_HPS_CONTEXT',pinned+'FES_NATIVE_HPS_CONTEXT',1)
+        raw=raw.replace('NOTICE:  FES_NANO_IDENTITY phase=open',smmu+firewall+'NOTICE:  FES_NANO_IDENTITY phase=open',1)
+        raw=raw.replace('NOTICE:  FES_NANO_IDENTITY phase=closed',stop+'NOTICE:  FES_NANO_IDENTITY phase=closed',1)+blocked
+        def decode(data,**changes):
+            options={'fpga_identity':identity,'configuration':self.configuration,'from_storage':True,'reader_memory':memory}
+            options.update(changes)
+            return trace.decode_native_configuration(data,BUILD,SEED,**options)
+        result=decode(raw)
+        self.assertTrue(result['complete'],result)
+        self.assertEqual(result['last_checkpoint'],'ddr_blocked')
+        self.assertFalse(result['core_load_acceptance'])
+        self.assertFalse(result['reader_memory_observation']['fpga_access_qualified'])
+        self.assertFalse(result['master_stop_observation']['physical_ddr_drain_qualified'])
+        self.assertTrue(result['smmu_observation']['bypass_controls_clear'])
+        self.assertFalse(result['smmu_observation']['access_qualified'])
+        self.assertTrue(result['ddr_firewall_observation']['window_covered'])
+        self.assertFalse(result['ddr_firewall_observation']['access_qualified'])
+        # A truthful enabled-translation observation is still a valid contained
+        # diagnostic. It must not turn into an access qualification.
+        enabled=raw.replace('cr0=0 ack=0','cr0=1 ack=1',1).replace('bypass_controls_clear=1','bypass_controls_clear=0')
+        self.assertTrue(decode(enabled)['complete'])
+        closed=raw.replace('enable=1 base=','enable=0 base=',1).replace('window_covered=1','window_covered=0')
+        self.assertTrue(decode(closed)['complete'])
+        self.assertFalse(decode(closed)['ddr_firewall_observation']['window_covered'])
+        for row in (pinned,smmu,stop,blocked,*firewall.splitlines(keepends=True)):
+            for changed in (raw.replace(row,''),raw.replace(row,row+row),raw.replace(row,'')+row,
+                            raw.replace(row,row.replace('=',':',1))):
+                # Moving the last record to its existing position is unchanged.
+                if changed==raw:continue
+                self.assertFalse(decode(changed)['complete'],row)
+        for old,new in (('bytes=8192 arena_bytes=','bytes=4096 arena_bytes='),
+                        ('bus_base=95000000','bus_base=95001000'),('arena_bytes=2097152','arena_bytes=8192'),
+                        ('map_sha256='+trace.context_digest(memory),'map_sha256='+'f'*64),
+                        ('pattern_sha256='+memory['pattern_sha256'],'pattern_sha256='+'f'*64),
+                        ('generation=4 fpga_access=','generation=3 fpga_access='),
+                        ('fpga_access=unqualified','fpga_access=qualified'),('reader_reads=88','reader_reads=44'),
+                        ('reader_polls=1','reader_polls=0'),('probe_polls=2','probe_polls=1'),('disable=0','disable=1'),
+                        ('cancel=0','cancel=1'),('complete=1 data=held','complete=0 data=held'),
+                        ('generation=5 reset=d reader_reads=','generation=4 reset=d reader_reads='),
+                        ('reset=d reader_reads=','reset=5 reader_reads='),('status=0 owner=','status=-7 owner='),
+                        ('generation=6 data_held=1 translation=','generation=5 data_held=1 translation='),
+                        ('translation=unqualified','translation=qualified')):
+            with self.subTest(ddr_change=new):self.assertFalse(decode(raw.replace(old,new))['complete'])
+        for old,new in (('reads=66 enable=','reads=33 enable='),('enable=1 base=','enable=0 base='),
+                        ('index=0 base=80000000','index=0 base=96000000'),('index=0 base=80000000','index=0 base=80000001'),
+                        ('index=1 base=0 baseext=0','index=1 base=0 baseext=100'),
+                        ('window_covered=1','window_covered=0'),('layout_known=1','layout_known=0'),
+                        ('mpfe_reset=0','mpfe_reset=1'),
+                        ('generation=4 reset=f mpfe_reset=','generation=5 reset=f mpfe_reset=')):
+            with self.subTest(firewall_change=new):self.assertFalse(decode(raw.replace(old,new))['complete'])
+        self.assertFalse(decode(raw.rstrip('\r\n'))['complete'])
+        self.assertFalse(decode(raw+'panic: late failure\r\n')['complete'])
+        for expected in ({},dict(memory,format=True),dict(memory,cpu_attributes='cached'),
+                         dict(memory,fpga_addressing='physical-identity-qualified'),dict(memory,bytes=4096),
+                         dict(memory,pattern_sha256='f'*64)):
+            with self.subTest(ddr_expected=expected),self.assertRaises(ValueError):decode(raw,reader_memory=expected)
+        for changes in ({'reader_memory':None},{'fpga_identity':self.identity},{'from_storage':False}):
+            with self.subTest(ddr_mode=changes),self.assertRaises(ValueError):decode(raw,**changes)
 
     def reader_capture(self,stored=True,waits=0):
         raw=self.stored_capture() if stored else self.capture()

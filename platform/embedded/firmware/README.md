@@ -15,6 +15,16 @@ SDM readiness. `bypass_controls_clear` describes the sampled words only: MPFE
 traffic attributes, address/firewall proof and complete master drain remain
 separate requirements. No observer result grants a bridge or DMA capability.
 
+The cold DDR profile also observes all eight F2SDRAM firewall regions twice
+through `nano_ddr_firewall.c`. It checks the RC28 register layout and whether
+an enabled region covers the fixed 8192-byte bus window. The provider requires
+closed cold ownership, EL3 with MMU/cache off, and MPFE out of reset around
+every read. Unstable samples, access failures and lost scope retire the
+observation without replay. The helper has no write or bridge callbacks.
+The serial decoder recomputes layout/coverage from the raw region words;
+coverage stays an observation, with access unqualified. See the Altera
+[F2SDRAM firewall description](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/f2sdram-firewall?contentId=JZo73fDtBno9kTQOAdevlQ).
+
 The [contained large-block TRWU8CBL trial](../../../docs/validation/2026-11-02-de25-large-blocks/README.md)
 now completes the exact sealed 2,027,520-byte phase-two image through native
 CPU/firmware calls, reports ready and verifies the live build identity with
@@ -266,9 +276,12 @@ FPGA/HPS producer.
 The source-bound cold DDR configuration provider now installs
 `nano_fabric_stop.c` through the existing master callbacks. Its control map
 binds the inherited probe's separately decoded CPU aperture and rechecks the
-generated DDR master inventory, all three maintenance reset routes and the
+generated DDR master inventory, both remaining maintenance managers' reset routes and the
 generated sources against the seal. The native map decoder and cold header
 reject an omitted, changed or foreign stop map.
+The DDR producer disables the unused coherent F2H interface and removes its
+translator/JTAG manager; an enabled hard port must not be left unconnected
+when reset containment lets synthesis remove that maintenance path.
 
 Before the live identity match these callbacks report only the independently
 contained HPS producers, while every data bridge stays held. Closing control

@@ -7,6 +7,7 @@
 #include "fes_nano_cold_profile.h"
 #include "nano_smmu.h"
 #include "generated/fes_de25_ddr_probe.h"
+#include "nano_ddr_firewall.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +27,7 @@ static unsigned fpga_reads,bad_magic,bad_build,flip_cache,lose_data,bad_open,bad
 static unsigned config_calls,config_fault;
 #ifdef FES_NANO_READER_CPU_BASE
 static unsigned probe_reads,probe_writes,master_fault;
+static unsigned firewall_reads,firewall_fault;
 #endif
 #ifdef FES_TEST_READER_RTL
 static unsigned fpga_writes;
@@ -177,11 +179,31 @@ uint32_t mmio_read_32(uintptr_t a)
         if(smmu_fault==11 && smmu_reads==1)sctlr=4;
         if(smmu_fault==12 && smmu_reads==1)per0&=~0x80U;
         if(smmu_fault==13 && smmu_reads==1)bridge&=~2U;
+#ifdef FES_NANO_READER_CPU_BASE
+        if(firewall_fault==8 && smmu_reads==26)bridge|=0x40U;
+#endif
         return value;
     }
 #endif
 #if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
 #ifdef FES_NANO_READER_CPU_BASE
+    if(a>=FES_NANO_DDR_FIREWALL_BASE && a<FES_NANO_DDR_FIREWALL_BASE+0x90) {
+        assert(bridge==15 && !fpga_reads && !engine_calls);
+        uint32_t offset=(uint32_t)(a-FES_NANO_DDR_FIREWALL_BASE),value=0;
+        assert(fes_nano_ddr_firewall_offset(offset));firewall_reads++;
+        if(!offset)value=firewall_fault==1?0:firewall_fault==10?0x101:1;
+        else if((offset-0x10)%16==8)value=offset==0x18?0xbfffffff:0xffff;
+        else if(offset==0x10)value=0x80000000;
+        if(firewall_fault==2 && offset==0x10)value|=1;
+        if(firewall_fault==3 && offset==0x14)value=256;
+        if(firewall_fault==4 && firewall_reads==34)value^=1;
+        if(firewall_fault==5 && firewall_reads==1)sctlr=4;
+        if(firewall_fault==6 && firewall_reads==1)per0&=~0x80U;
+        if(firewall_fault==7 && firewall_reads==1)bridge&=~2U;
+        if(firewall_fault==9 && firewall_reads==1)bridge|=0x40U;
+        if(firewall_fault==11 && offset==0x18)value=0;
+        return value;
+    }
     if(a>=FES_NANO_PROBE_CPU_BASE && a<FES_NANO_PROBE_CPU_BASE+FES_NANO_PROBE_SPAN) {
         assert(bridge==13 && fpga_reads>30);probe_reads++;
         uint32_t offset=(uint32_t)(a-FES_NANO_PROBE_CPU_BASE),value=0;
@@ -639,6 +661,21 @@ configured_bytes:
     }
     assert(setup==1);
 #ifdef FES_NANO_READER_CPU_BASE
+    if(mutation>=112 && mutation<124) {
+        firewall_fault=mutation-112;
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONFIGURATION,
+                           record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(config_calls==1 && !fpga_reads && !probe_reads && !engine_calls);
+        if(firewall_fault>=4 && firewall_fault<=9) {
+            assert(reply[0]==4 && fes_nano_owned_bridges.failed);
+            unsigned reads=firewall_reads;
+            fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,
+                               record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+            assert(reply[0]==4 && firewall_reads==reads && !fpga_reads && !probe_reads);
+            if(firewall_fault==8)assert(!firewall_reads);
+        } else assert(!reply[0] && firewall_reads==66 && bridge==15 && !fes_nano_owned_bridges.failed);
+        return 0;
+    }
     if(mutation>=96 && mutation<112) {
         master_fault=mutation-96;
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,

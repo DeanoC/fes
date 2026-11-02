@@ -21,8 +21,9 @@ DDR selection requires `--ddr-bus-base` and `--ddr-bytes`: a nonempty,
 page-aligned 32-bit **bus** window. Both the ordinary fingerprint and canonical
 functional build record bind the backend and window. These numbers do not
 establish the CPU mapping, a live DDR reservation or permission to release
-bridges. The native cold/serial firmware remains scoped to the on-chip reader;
-its physical pass does not qualify this changed producer or the DDR variant.
+bridges. The native cold DDR diagnostic can observe its pinned buffer, SMMU,
+firewalls and source-bound idle master receipts with data held. Its earlier
+on-chip physical pass does not qualify this changed producer or DDR traffic.
 
 The DDR reader offers one burst at a time, rejecting unaligned, out-of-window,
 wrapping and 4 KiB-crossing requests before AXI traffic. It snapshots a staged
@@ -42,11 +43,14 @@ bytes/XOR checksum, `0xa0..0xac` the last four data words, and `0xb0`/`0xb4` the
 compiled bus window. They observe bus data even while disable drains a burst.
 They do not implement scanout, CPU cache ownership or other-master shutdown.
 
-DDR mode also exports an active-low constant reset for the maintenance
-subsystem. From configuration onward it holds all three JTAG Avalon managers,
-including the coherent HPS memory path; the SDM programming/recovery link is
-separate. The generated handoff checks the entire maintenance reset route and
-exact manager inventory. Read-only offset `0xb8` reports the local hold output.
+DDR mode disables the unused coherent F2H hard interface and removes its JTAG
+manager and translator. Otherwise constant reset containment lets synthesis
+prune their connection while leaving the enabled HPS primitive illegally
+unconnected. Both remaining JTAG Avalon managers stay held by the exported
+active-low constant maintenance reset from configuration onward. The SDM
+programming/recovery link is separate. The generated handoff checks disabled
+F2H, the exact remaining manager inventory and every reset route. Read-only
+offset `0xb8` reports the local hold output.
 The inherited DDR probe keeps its separate control map and still requires an
 independent CANCEL/idle/accepted-versus-completed proof. The DDR model joins
 the actual probe RTL to the firmware's `nano_probe_stop.c` helper. Neither the
