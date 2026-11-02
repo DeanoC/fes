@@ -178,7 +178,7 @@ func TestDiskDataHostRoutesKeepSessionAndRejectStaleBinding(t *testing.T) {
 		return w
 	}
 	body := `{"game_id":"st-desktop","base_media_id":"` + b.BaseMediaID + `"}`
-	if live := liveInsert("old.d64"); live.Code != http.StatusOK || !strings.Contains(live.Body.String(), `"media_name":"old.d64"`) {
+	if live := liveInsert("old.d64"); live.Code != http.StatusOK || !strings.Contains(live.Body.String(), `"media_name":"old.d64"`) || !strings.Contains(live.Body.String(), `"execution":"fpga_native"`) {
 		t.Fatalf("live insert status=%d body=%s", live.Code, live.Body)
 	}
 	dir := t.TempDir()
