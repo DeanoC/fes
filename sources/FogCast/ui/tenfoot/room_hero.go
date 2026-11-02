@@ -449,7 +449,12 @@ func planHero(c heroCopy, w, avail int) heroPlan {
 	if c.Meta != "" {
 		fixed += gfx.TextHeight(heroMetaPx)
 	}
-	fixed += 12
+	if c.Kicker == "Computer" {
+		// Leave enough room for the family kicker in the default 720p safe area.
+		fixed += 6
+	} else {
+		fixed += 12
+	}
 	if c.State != "" || c.Headline != "" {
 		fixed += max(gfx.TextHeight(heroLinePx), gfx.TextHeightWeight(heroStatePx, gfx.WeightBold)+10) + 8
 	}
