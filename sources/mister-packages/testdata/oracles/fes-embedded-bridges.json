@@ -1,7 +1,7 @@
 {
   "source": {
     "repository": "DeanoC/fes",
-    "commit": "09c5c6317071649bcad7c2c327251a299640522d",
+    "commit": "1a0cf9d46f6d30f4c4cead17a7f5252109b41ba2",
     "file": "platform/embedded/firmware/generated/fes_embedded_bridges.h",
     "note": "Private cold transfer retirement and bounded same-client failure status; no drain or memory release authority."
   },

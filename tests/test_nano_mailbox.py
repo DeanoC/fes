@@ -138,3 +138,19 @@ class NanoMailboxTests(unittest.TestCase):
                         self.assertEqual(result.returncode,0,result.stderr)
                         expected=2027520 if mode<2 or mode==5 else 786432
                         self.assertIn('completed='+str(expected),result.stdout)
+
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory);inc=base/'include';(inc/'lib').mkdir(parents=True)
+            (inc/'lib/utils_def.h').write_text('#define BIT(n) (1U << (n))\n#define U(n) n##U\n')
+            (inc/'socfpga_mailbox.h').write_bytes(header)
+            binary=base/'status'
+            result=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-Wshadow','-fsanitize=address,undefined',
+                '-fno-sanitize-recover=all','-I'+str(inc),'-I'+str(FW),str(FW/'tests/nano_mailbox_status_test.c'),'-o',str(binary)],capture_output=True,text=True,timeout=30)
+            self.assertEqual(result.returncode,0,result.stderr)
+            for mode in range(20):
+                for initial in range(16):
+                    with self.subTest(mode=mode,initial=initial):
+                        result=subprocess.run([str(binary),str(mode),str(initial)],capture_output=True,text=True,timeout=5)
+                        self.assertEqual(result.returncode,0,result.stderr)
+                        self.assertIn('PASS retired-status',result.stdout)
+            print("PASS320 bounded retired-status FIFO cases")

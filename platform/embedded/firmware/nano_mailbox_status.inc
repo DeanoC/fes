@@ -31,7 +31,7 @@ void fes_nano_mailbox_retired_status(struct fes_nano_retired_status *s)
     s->sent=1;s->status=MBOX_TIMEOUT;
     for(;s->polls<FES_NANO_RETIRED_STATUS_POLLS &&
           s->fifo_words<FES_NANO_RETIRED_STATUS_FIFO_WORDS;s->polls++) {
-        uint32_t rin=mmio_read_32(MBOX_OFFSET+MBOX_RIN);
+        rin=mmio_read_32(MBOX_OFFSET+MBOX_RIN);
         if(rin>=MBOX_RESP_BUFFER_SIZE || mmio_read_32(MBOX_OFFSET+MBOX_ROUT)!=rout) {
             s->status=MBOX_RET_ERROR;goto out;
         }
