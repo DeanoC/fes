@@ -17,8 +17,10 @@ The deterministic assembly receipts still mark their artifact hardware field
 The [current candidate record](validation/2026-09-08-appliance-release.md) lists
 the exact verified outputs and live acceptance scope.
 
-The CLI defaults and card workflow below target DE10. Release export and
-storage also support an explicitly selected `de25-nano`: FES
+The CLI defaults and ordinary examples below target DE10. The shared release,
+bootstrap and card commands also accept an explicitly selected `de25-nano`
+with a verified managed factory; see [DE25 selection](#de25-factory-selection).
+Release export and storage support that same explicit board: FES
 `export_release(..., board='de25-nano')` and the Go codec/store `ForBoard`
 entry points. Their defaults remain DE10-only, and neither selects a board
 from an uploaded manifest. A store pins its factory, staged and retained images
@@ -56,8 +58,8 @@ The [bootstrap record](validation/2026-11-01-de25-appliance-bootstrap/README.md)
 retains native/AArch64 CPU checks and a reproducible bootstrap image whose
 manifest uses the existing headless rootfs as a binding fixture. That fixture
 is not a managed factory or a bootable appliance card. Full DE25 factory/card
-assembly and native boot/update/recovery remain open; the normal Make/CLI card
-workflow below has not switched platforms.
+assembly and native boot/update/recovery remain open. The Make/CLI default
+continues to select DE10; DE25 requires the explicit factory path below.
 
 The shared disk constructor and two-pass reconstructor now also accept an
 explicit DE25 selection. Its layout reserves a 2 GiB FAT partition for the
@@ -82,9 +84,45 @@ producer binds its boot report/log into the factory receipt. The retained
 managed-base intermediate passes the filesystem smoke. A subsequent
 [D-Bus repair and fresh image boot](validation/2026-11-02-de25-dbus-rootfs/README.md)
 also establishes responsive virtual system-bus startup. These do not supply
-factory acceptance. The high-level
-release/media adapter still needs explicit DE25 receipt selection and an
-admitted factory with its own successful boot evidence.
+factory acceptance. The high-level release/media adapter now accepts explicit
+DE25 receipt selection, requiring an admitted factory with its own successful
+boot evidence and a freshly recomputed structural/package verification report.
+
+## DE25 factory selection
+
+Use the actual output of the existing DE25 `managed-factory` action. A managed
+base, headless image, construction fixture or saved pass claim is refused.
+The selected factory must retain its sealed MENU, matching owner kernel and
+the original image producer's exact artifact hashes. The shared workflow runs
+`verify-factory` and binds its report and real image boot log into release
+provenance. Current factory receipts honestly record one image-build pass;
+requesting two passes cannot promote that evidence.
+
+```sh
+make release APPLIANCE_BOARD=de25-nano \
+  APPLIANCE_FACTORY=/absolute/managed-factory RELEASE_VERSION=0.2.0-dev.1
+make bootstrap APPLIANCE_BOARD=de25-nano \
+  APPLIANCE_FACTORY=/absolute/managed-factory RELEASE=/absolute/release
+make appliance-media APPLIANCE_BOARD=de25-nano \
+  APPLIANCE_FACTORY=/absolute/managed-factory \
+  APPLIANCE_VENDOR_BOOT=/absolute/prepared-vendor-boot \
+  RELEASE=/absolute/release BOOTSTRAP=/absolute/bootstrap OUTPUT=/absolute/card
+```
+
+Use `verify-appliance-media` with the same inputs to reconstruct and compare an
+existing card file. The Python commands expose `--board de25-nano --factory`;
+the profile is `de25-nano`, and card commands also require `--vendor-boot`.
+Board selection is independent of all uploaded or supplied JSON. The default
+DE10 path rejects DE25 factory arguments. DE25 uses the existing media lease,
+static AArch64 bootstrap builder and two-pass regular-file card constructor,
+preserving Terasic's locked boot dependencies and owner Image/DTB.
+
+The [workflow evidence](validation/2026-11-02-de25-appliance-workflow/README.md)
+distinguishes routing/integrity fixtures from actual public refusals. No
+complete admitted DE25 factory/card has been produced: sealed MENU still
+depends on output/reset signoff and its remaining qualification gates. Native
+boot, watchdog, updates, peripherals and MENU/catalog ZX81 remain required.
+These commands do not write a physical device or authorize deployment.
 
 ## Build once from selected inputs
 

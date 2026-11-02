@@ -72,6 +72,12 @@ distinct. The subsequent
 fixes that observed machine-ID failure and passes a freshly rebuilt image's
 stronger virtual boot check, including a live system-bus response.
 This does not establish full factory services, physical boot or native recovery.
+The [public appliance workflow](../validation/2026-11-02-de25-appliance-workflow/README.md)
+adds explicit DE25 factory selection to the existing release/bootstrap/card
+commands, binds structural verification into factory hashes and reuses the
+shared AArch64 builder, media lease and card reconstructor. Public commands
+refuse the real intermediate as an incomplete factory. Positive routing and
+integrity fixtures do not qualify a package or produce an admitted factory.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.
 

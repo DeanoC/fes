@@ -1,0 +1,18 @@
+{
+  "actual_managed_sdk_verified": {
+    "archive_sha256": "d5bac20323fe6225b984e5a0f35ac087bfb4379dca2b40245e4eab97bd019bf7",
+    "base_rootfs_sha256": "2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06",
+    "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+    "image_receipt_sha256": "70dc18e1fe4d45ea4c58825f046a287c4799d784caa65b63ae2287dc84e11e40",
+    "kernel_image_sha256": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+    "key": "managed-7ce855a899c1e64c915e52d0ad11c85e63e29f20940e8ff87641bddba0e980eb",
+    "producer_revision": "dfaffa8696fb164bf30576a6f7a1d7cd1844dd48",
+    "profile": "managed-base"
+  },
+  "canonical_menu_inputs_verified": 374,
+  "combined_compiler_inputs_verified": 59,
+  "hardware_access": "not-performed",
+  "new_image_Quartus_or_combined_CPU_model_run": false,
+  "runtime_test_inputs_verified": 58,
+  "source_revision": "c68b96d12362a15dee715bf492c25a72c35db2f4"
+}

@@ -197,8 +197,14 @@ The initial log exposes a read-only D-Bus machine-ID write failure. The
 [subsequent repair](validation/2026-11-02-de25-dbus-rootfs/README.md) redirects
 the parent directory to `/run` and passes a clean actual-image rebuild and
 virtual boot with a responsive system bus, while retaining the old failing image.
-Upper release/media selection, complete services and native acceptance remain
-open; userspace-only `smoke` results cannot replace this boot evidence.
+The [shared appliance workflow](validation/2026-11-02-de25-appliance-workflow/README.md)
+now selects DE25 explicitly for release, bootstrap and regular-file card
+construction. It requires the actual managed factory, a freshly recomputed
+package/rootfs verification report and its bound real boot log. The real base
+is correctly refused as an incomplete factory. See the
+[release commands](appliance-releases.md#de25-factory-selection).
+Complete factory/services and native acceptance remain open; userspace-only
+`smoke` results cannot replace this boot evidence.
 
 The [managed-fabric record](validation/2026-11-01-de25-managed-fabric/README.md)
 covers the current canonical MENU profile: vendor maintenance masters removed,

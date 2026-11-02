@@ -115,9 +115,13 @@ The output is an uninstalled candidate with closed normal admission. See the
 for its exact test coverage; complete factory assembly has not been run because
 the current MENU remains unsealed.
 
-The top-level `make image`, source-image `export` and complete media builder
-still select the DE10 profile. Complete DE25 card assembly and native acceptance
-remain required. Earlier shared-script fixtures retain their
+The top-level `make image` and source-image `export` still select the DE10
+profile. The [shared appliance commands](appliance-releases.md#de25-factory-selection)
+now accept explicit DE25 factory selection for release, AArch64 bootstrap and
+regular-file card construction/verification. They require the actual factory,
+its bound structural report and successful image boot evidence; the real
+managed base is correctly refused. Complete admitted DE25 factory/card assembly
+and native acceptance remain required. Earlier shared-script fixtures retain their
 [factory-wiring validation scope](validation/2026-11-01-de25-factory-inputs/README.md).
 
 The six bootstrap binaries are `mister-agent`, `mister-runtime`, `fogcast-kit`,
