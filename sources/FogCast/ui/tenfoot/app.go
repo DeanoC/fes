@@ -556,6 +556,7 @@ type App struct {
 	firmwarePickerOpen       bool
 	firmwareCard             firmwareCardState
 	firmwareCardSeen         map[string]bool
+	setup                    setupState // first-run setup (setup.go)
 	firmwarePickerAtRoots    bool
 	firmwarePickerBusy       bool
 	firmwarePickerIndex      int
@@ -698,6 +699,7 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 	grid := Grid{}
 	grid.Layout(width, height)
 	return &App{
+		setup:              setupState{step: -1},
 		client:             client,
 		games:              []hostclient.Game{},
 		grid:               grid,

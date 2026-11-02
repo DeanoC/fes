@@ -215,6 +215,13 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 		c.Headline = "Browse every title in your library."
 		c.Primary, c.Filled = "Open library", true
 	case rooms.KindAction:
+		if d.LauncherAction == "setup_resume" {
+			c.Kicker = "Get started"
+			c.Headline = "Setup isn't finished"
+			c.Explain = "Pick up where you left off. Your choices so far are kept."
+			c.Primary, c.Filled = "Finish setup", true
+			break
+		}
 		c.Kicker = "System"
 		c.Headline = "Display, home screen, targets and kit tools."
 		c.Primary, c.Filled = "Open", true

@@ -310,6 +310,11 @@ func (a *App) handleRoomLocked(cmd Command) {
 			return
 		}
 	}
+	if cmd == CmdBack && a.setupRoomOpenLocked() {
+		// Back goes one setup step back; Welcome has nowhere to go.
+		a.runSetupActionLocked("setup_back")
+		return
+	}
 	if cmd == CmdBack && a.roomHeroDetail != "" {
 		a.roomHeroDetail = ""
 		return
@@ -486,6 +491,8 @@ func (a *App) runLauncherActionLocked(id string) {
 		return
 	}
 	switch id {
+	case "setup_continue", "setup_back", "setup_skip", "setup_finish", "setup_resume":
+		a.runSetupActionLocked(id)
 	case "settings":
 		if a.settingsBlockedLocked() {
 			a.status = "Settings are unavailable during play."
