@@ -42,9 +42,11 @@
 // SEQ_UCODE: a microcode routine. Its uops after the first come from the
 // ROM (fes_i386_ucode_rom, word w, at d.upc), each expanded here into dc
 // with the instruction's operand size, vector and memory operand kept. A
-// word's memory operand is a stack slot, the vector's entry, or (rm) the
-// instruction's ModRM operand; its registers are GPRs, or (rg) the
-// instruction's register, which the first uop carries in src1.
+// word's memory operand is a stack slot, the vector's entry, (rm) the
+// instruction's ModRM operand, or (desc) a part of the descriptor T0's
+// selector names; its registers are GPRs, or (rg) the instruction's
+// register, which the first uop carries in src1. A segment load's segment
+// register is the first uop's seg2_idx; the far jump's is CS.
 //
 // The moves through T1, each waiting for T1's load to retire (b_t1):
 //   SEQ_XCHGM  (XCHG r/m, r with a memory operand): the operand into T1;
@@ -249,6 +251,15 @@ module fes_i386_seq (
         n.uop.iret = 1'b0;
         n.uop.bound = 1'b0;
         n.uop.bound_pair = 1'b0;
+        n.uop.desc = 2'd0;
+        n.uop.segchk = 2'd0;
+        n.uop.seg2_pm = 1'b0;
+        n.uop.shadow = 1'b0;
+        n.b_far = 1'b0;
+        n.b_sys = 1'b0;
+        n.sys_idx = 3'd0;
+        n.plus2 = 1'b0;
+        n.nochk = 1'b0;
         // The rewritten fields, from the first uop.
         n.uop.sp_write = d0.uop.sp_write;
         n.uop.cls = d0.uop.cls;
@@ -371,21 +382,28 @@ module fes_i386_seq (
                                index: {1'b0, w.rg ? d0.uop.src1.index[2:0] : w.s1_idx}, hi8: 1'b0};
                 n.uop.src2 = '{valid: w.s2, space: fes_i386_pkg::RS_GPR,
                                index: {1'b0, w.rg ? d0.uop.src1.index[2:0] : w.s2_idx}, hi8: 1'b0};
-                n.uop.dst = '{valid: w.d, space: fes_i386_pkg::reg_space_e'(w.d_space), index: w.d_idx, hi8: 1'b0};
+                n.uop.dst = '{valid: w.d, space: fes_i386_pkg::reg_space_e'(w.d_space),
+                              index: w.rg && w.d_space == 2'd0 ? {1'b0, d0.uop.src1.index[2:0]} : w.d_idx, hi8: 1'b0};
                 n.uop.mem.kind = fes_i386_pkg::mem_kind_e'(w.mkind);
                 n.uop.mem.bytes = w.mbytes == 2'd0 ? (d.opsize32 ? 4'd4 : 4'd2)
                                 : w.mbytes == 2'd1 ? 4'd2 : w.mbytes == 2'd2 ? 4'd4 : 4'd1;
                 n.uop.mem.in_a = w.in_a;
-                n.uop.mem.system = w.ivt;
+                n.uop.mem.system = w.ivt || w.desc != 2'd0;
+                n.uop.desc = w.desc;
+                n.uop.segchk = w.segchk == 2'd1 && d0.uop.seg2_idx == 3'(fes_i386_pkg::SEG_SS) ? 2'd2 : w.segchk;
+                n.uop.shadow = w.shadow && d0.uop.seg2_idx == 3'(fes_i386_pkg::SEG_SS);
+                n.plus2 = w.plus2;
+                n.nochk = w.nochk;
                 // A stack access is SS's; the vector table's reads come
                 // before any, so they have the first uop's segment.
                 if (w.stk != 3'd0) n.uop.mem.seg = fes_i386_pkg::SEG_SS;
                 n.uop.probe = w.probe;
                 n.uop.sp_write = w.stk == 3'(fes_i386_pkg::STK_PUSH) || w.stk == 3'(fes_i386_pkg::STK_POP) || w.sp_step;
                 n.uop.sp_add = w.sp_add;
-                n.uop.seg2 = w.far_jmp;
-                n.uop.seg2_idx = 3'd1;  // CS
+                n.uop.seg2 = w.far_jmp || w.segw;
+                n.uop.seg2_idx = w.far_jmp ? 3'd1 : d0.uop.seg2_idx;  // CS for a far jump
                 n.uop.seg2_t = 1'b0;
+                n.uop.seg2_pm = w.segw;
                 n.uop.flags = '{read: '{oszap: w.rd_oszap, cf: w.rd_cf}, write: '{oszap: w.wr_oszap, cf: w.wr_cf}};
                 n.uop.ctl.end_of_instruction = w.last;
                 n.uop.ctl.fault = fes_i386_pkg::FAULT_NONE;
@@ -403,15 +421,19 @@ module fes_i386_seq (
                 n.base = w.rm ? d0.base : 3'd4;
                 n.has_index = w.rm && d0.has_index;
                 n.scale = w.rm ? d0.scale : 2'd0;
-                n.push_eip = w.b == 2'd1;
+                n.push_eip = w.b == 3'd1;
                 n.a_t1 = w.a_t1;
                 n.popad_esp = w.popad_esp;
-                n.reads_seg = w.b == 2'd2;
+                n.reads_seg = w.b == 3'd2;
+                n.b_far = w.b == 3'd3;
+                n.b_t1 = w.b == 3'd4;
+                n.b_sys = w.b == 3'd5;
+                n.sys_idx = w.sys;
                 n.seg_index = w.seg;
                 n.far_jmp = w.far_jmp;
                 n.far_chk = w.far_chk;
                 n.far_t = w.far_t;
-                n.wseg = w.far_jmp ? 6'b000010 : 6'd0;
+                n.wseg = w.far_jmp ? 6'b000010 : w.segw ? 6'(1) << d0.uop.seg2_idx : 6'd0;
             end
             fes_i386_pkg::SEQ_XCHG: begin
                 // Odd steps swap the first uop's registers.
@@ -684,6 +706,8 @@ module fes_i386_seq (
         endcase
         n.rd_str = fes_i386_pkg::str_reads(n.uop, n.lea, n.has_base, n.base, n.has_index, n.index);
         // One bit for D's wait on a temporary, so the wait reads one register.
-        n.t_rd = n.far_t || n.a_t1 || n.b_t1;
+        // A descriptor's access reads T0 for its address, and the accessed
+        // bit's write T3.
+        n.t_rd = n.far_t || n.a_t1 || n.b_t1 || n.uop.desc != 2'd0;
     end
 endmodule
