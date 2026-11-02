@@ -104,7 +104,7 @@ class NanoExportTests(unittest.TestCase):
         (source/'common/spl').mkdir(parents=True)
         (source/'common/spl/spl_atf.c').write_text('struct bl31_params;\n'
             'typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params);\n'
-            'static void invoke_atf(struct bl31_params *bl31_params, unsigned long fdt_addr, atf_entry_t atf_entry)\n{\n'
+            'static void invoke_atf(uintptr_t bl31_entry, uintptr_t bl32_entry, uintptr_t bl33_entry, struct bl31_params *bl31_params, unsigned long fdt_addr, atf_entry_t atf_entry)\n{\n'
             '\tatf_entry(bl31_params, (void *)fdt_addr);\n}\n')
         (source/'common/spl/spl_fat.c').write_text('static ulong spl_fit_read(struct spl_load_info *load, ulong file_offset, ulong size, void *buf)\n{\n\treturn 0;\n}\nvoid load(void) {\n\terr = spl_register_fat_device(block_dev, partition);\n\tif (err)\n\t\tgoto end;\nend:;\n}\n')
         (source/'common/board_r.c').write_text('static int initr_mmc(void)\n{\n\treturn 0;\n}\n\tinitr_mmc,\n')
@@ -127,20 +127,25 @@ class NanoExportTests(unittest.TestCase):
     def test_actual_adapter_is_installed_after_device_remove_before_cpu_cleanup(self):
         with tempfile.TemporaryDirectory() as tmp:
             source, entry, bootm = self.fixture(Path(tmp))
-            result = prepare.prepare(source, entry, "a" * 64)
+            result = prepare.prepare(source, entry, "a" * 64, 16)
             text = bootm.read_text()
             self.assertLess(text.index("dm_remove_devices_active();"), text.index("fes_nano_late_handoff();"))
             self.assertLess(text.index("fes_nano_late_handoff();"), text.index("cleanup_before_linux();"))
             self.assertNotIn("smp_kick_all_cpus();", text)
             self.assertEqual((source / "cmd/fes_nano.c").read_bytes(), (HERE / "uboot.c").read_bytes())
             self.assertEqual(len(result["build_id"]), 16)
+            self.assertEqual(result['atf_handoff']['bytes'],16)
+            self.assertEqual(result['atf_handoff']['sha256'],'a'*64)
+            self.assertTrue(result['cold_boot_profile']['spl_atf_trace'])
+            self.assertIn('#define FES_NANO_ATF_SIZE 16UL',
+                          (source/'arch/arm/mach-socfpga/fes_nano_atf_seal.h').read_text())
 
     def test_mutated_image_rejects_before_export_is_changed(self):
         with tempfile.TemporaryDirectory() as tmp:
             source, entry, bootm = self.fixture(Path(tmp)); before = bootm.read_bytes()
             (entry / "entry.img").write_bytes(b"changed")
             with self.assertRaises(ValueError):
-                prepare.prepare(source, entry, "a" * 64)
+                prepare.prepare(source, entry, "a" * 64, 16)
             self.assertEqual(bootm.read_bytes(), before)
 
     def test_controlled_sd_selects_only_the_exact_source_profile(self):
@@ -149,7 +154,7 @@ class NanoExportTests(unittest.TestCase):
             path=entry/'result.json';receipt=json.loads(path.read_text())
             receipt['firmware_profile_sha256']=prepare.sha(HERE/'sd-profile.json')
             path.write_text(json.dumps(receipt))
-            result=prepare.prepare(source,entry,'a'*64)
+            result=prepare.prepare(source,entry,'a'*64, 16)
             self.assertEqual(result['profile_sha256'],prepare.sha(HERE/'sd-profile.json'))
             self.assertTrue(result['cold_boot_profile']['sd_pio'])
             self.assertIn('#define FES_NANO_CONTROLLED_SD 1',
@@ -159,14 +164,14 @@ class NanoExportTests(unittest.TestCase):
             path=entry/'result.json';receipt=json.loads(path.read_text())
             receipt['firmware_profile_sha256']=prepare.sha(HERE/'smmu-profile.json')
             receipt['native_program']='probe';path.write_text(json.dumps(receipt))
-            result=prepare.prepare(source,entry,'a'*64)
+            result=prepare.prepare(source,entry,'a'*64, 16)
             self.assertTrue(result['cold_boot_profile']['smmu_observe'])
             self.assertFalse(result['cold_boot_profile']['sd_pio'])
             header=(source/'arch/arm/mach-socfpga/fes_nano_cold_profile.h').read_text()
             self.assertIn('#define FES_NANO_SMMU_BOOT_OBSERVE 1',header)
             receipt['native_program']='storage';path.write_text(json.dumps(receipt))
             with self.assertRaisesRegex(ValueError,'source-bound serial probe'):
-                prepare.prepare(source,entry,'a'*64)
+                prepare.prepare(source,entry,'a'*64, 16)
 
     def test_stale_native_sources_and_unknown_profiles_reject_before_export(self):
         for mutation in ('source','missing','escape','profile'):
@@ -178,7 +183,7 @@ class NanoExportTests(unittest.TestCase):
                 elif mutation=='escape':receipt['native_build_sources']={'../AGENTS.md':'0'*64}
                 else:receipt['firmware_profile_sha256']='a'*64
                 path.write_text(json.dumps(receipt))
-                with self.assertRaises(ValueError):prepare.prepare(source,entry,'a'*64)
+                with self.assertRaises(ValueError):prepare.prepare(source,entry,'a'*64, 16)
                 self.assertEqual(bootm.read_bytes(),before)
 
     def test_firmware_identity_changes_loader_identity(self):
@@ -186,7 +191,7 @@ class NanoExportTests(unittest.TestCase):
         for digest in ("a" * 64, "b" * 64):
             with tempfile.TemporaryDirectory() as tmp:
                 source, entry, _ = self.fixture(Path(tmp))
-                result = prepare.prepare(source, entry, digest)
+                result = prepare.prepare(source, entry, digest, 16)
                 self.assertEqual(result["bl31_sha256"], digest)
                 self.assertEqual((source / "cmd/fes_embedded_bridges.h").read_bytes(),
                                  (HERE.parent / "firmware/generated/fes_embedded_bridges.h").read_bytes())
@@ -199,25 +204,33 @@ class NanoExportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             base=Path(tmp)
             source,entry,_=self.fixture(base)
-            prepare.prepare(source,entry,"a"*64)
+            prepare.prepare(source,entry,"a"*64, 16)
             include=source/'include'
             (include/'linux').mkdir()
             (include/'linux/types.h').write_text('#include <stdint.h>\n')
             test=base/'atf-call.c';binary=base/'atf-call'
             test.write_text('#include <assert.h>\n#include <stdint.h>\n#define __noreturn\n'+
                 (source/'common/spl/spl_atf.c').read_text()+r'''
-static unsigned record,calls;
+static unsigned record,calls,observations;
+static uintptr_t target_expected;
 const void *fes_nano_spl_handoff(void) { calls++;return &record; }
+void fes_nano_spl_atf_trace(uintptr_t target,uintptr_t bl32,uintptr_t bl33,uintptr_t fdt,uintptr_t params,uintptr_t cold)
+{
+    assert(calls==1 && !observations++ && target==target_expected);
+    assert(bl32==0 && bl33==0x80200000 && fdt==0x94000000 && params==0x10000);
+    assert(cold==(uintptr_t)&record);
+}
 static void capture(struct bl31_params *params,void *fdt,const void *cold,unsigned long cookie)
 {
     assert(params==(void *)0x10000 && fdt==(void *)0x94000000);
-    assert(cold==&record && calls==1);
+    assert(cold==&record && calls==1 && observations==1);
     assert(cookie==FES_NANO_COLD_COOKIE && cookie!=0x464e433100000001ULL);
 }
 int main(void)
 {
-    invoke_atf((void *)0x10000,0x94000000,capture);
-    assert(calls==1);
+    target_expected=(uintptr_t)capture;
+    invoke_atf(target_expected,0,0x80200000,(void *)0x10000,0x94000000,capture);
+    assert(calls==1 && observations==1);
 }
 ''')
             subprocess.run([shutil.which('cc'),'-std=c11','-Wall','-Wextra','-Werror',
