@@ -2,8 +2,8 @@
 
 The separate `HPSContextVerifier.OpenComputer` path connects the native
 [`computer` driver](../computer/README.md) to a source-derived 32-byte Avalon
-window and the existing owned bridge service. It requires the original cold
-closed scope and permits only a control-only opening. Every register operation
+window and the existing owned bridge service. It requires a completed
+compiled-source transfer and permits only a control-only opening. Every register operation
 checks the same secure owner/generation before and after physical access.
 This includes the read-only version-1.1 fetch count/address pair. Ownership
 loss during an observation retires it; a retained client cannot observe after
@@ -15,6 +15,12 @@ Its Hold receipt is command acceptance, not independent proof of CPU stop.
 The matched firmware must explicitly enable `fpgaload --computer-control`;
 ordinary cold images reject its bridge opening. This diagnostic path grants
 no data release or ordinary runtime admission and needs physical qualification.
+Each completed transfer permits one opening. A later opening requires both a
+new completed rearm under its exact closed generation and the preceding native
+session's successful Hold/containment/source-verified return. Failed openings,
+failed returns, generic transfers and consumed completion bindings cannot grant
+another opening. The native `fpgaload` caller supplies its actual completed
+transfer; retaining an old client or forging a public observation grants no access.
 
 This experimental Go endpoint connects the existing `fabricmodel.Controller`
 to injected firmware calls, the generated FPGA identity/drain registers and
@@ -92,9 +98,11 @@ fresh closed ownership before issuing private operation 8. It carries no
 address or digest in the request. The secure provider independently checks its
 fixed arena and compiled digests. Preparation and transfer do not implement
 `BootHandoffVerifier`, admit a Nano programming profile or activate a core.
-The board's first-load arena remains pinned until reboot, including after
-successful DMA completion. Active drain and repeated runtime loads remain
-separate qualification work.
+The board's full arena remains pinned until reboot. `ConfigurationArena` permits
+a fresh lease only after the preceding transfer has checked every completion,
+final bytes and successful status and invoked Release. It never unmaps memory;
+outstanding or uncertain leases cannot be overwritten. Stale/duplicate callbacks
+cannot release a later lease, and copy/ordering failures retire the arena.
 
 `PrepareReconfiguration` and `NewReconfigurationTransfer` use private operation
 11 to request another transfer of that same compiled source after a newer owned
@@ -103,8 +111,10 @@ secure provider separately requires a successful prior transfer. Preparation
 is deferred until START and checks that ownership still matches the captured
 return. Failed transfers retain their region and cannot replay. This is tested
 with injected firmware, including changed ownership, malformed acknowledgements
-and transfer failures. The board allocator still grants only its first lease;
-no repeated physical load or fresh computer opening is enabled by these APIs.
+and transfer failures. Joined native tests drive three successive arena leases,
+transfers, computer Run/Close cycles and old-client revocation. The matching
+strong C fixture drives the second opening/close and uncertain readiness/open/
+close paths. These are software checks; repeated physical loads remain unqualified.
 
 `HPSContextVerifier.ProbeReader` adds a distinct owned firmware operation for
 the sealed diagnostic's on-chip reader. It checks the same compiled source and
@@ -129,6 +139,14 @@ and only then reserves DMA memory. Deferred preparation rechecks the handoff;
 resume or changed ownership cannot reach START. No filesystem is reopened and
 no failed reservation/transfer frees memory. This source-bound path does not
 supply the runtime compatibility decision for arbitrary packages.
+
+`NewStoredReconfigurationTransfer` consumes that same retained archive after
+this verifier's successful computer return. It requires the matching newer live
+closure and unchanged inactive SD lease. The older storage receipt proves only
+continued retention; it never substitutes for current FPGA ownership. Deferred
+preparation rejects a store resume before START. The hardware diagnostic caller
+still selects its initial load; a bounded two-load caller and multi-cycle trace
+decoder remain required before the next physical reload trial.
 
 `NewColdConfigurationTransfer` takes the DRAM base and block size from that
 compiled map and performs preparation immediately before START, requiring the

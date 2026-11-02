@@ -16,6 +16,18 @@ import (
 // used after containment. A reservation and uncertain transfer stay owned by
 // the caller, including on error; this function never releases either device.
 func (v *HPSContextVerifier) NewStoredConfigurationTransfer(control, configuration []byte, handoff *packagestore.Handoff, reserve func([]byte) (*Region, error)) (*ConfigurationTransfer, HPSBootObservation, error) {
+	return v.newStoredConfigurationTransfer(control, configuration, handoff, reserve, false)
+}
+
+// NewStoredReconfigurationTransfer reuses the privately retained archive after
+// this verifier's successful computer return. It never resumes storage or treats
+// the older SD receipt as current FPGA authority. Secure rearming remains bound
+// to the new live closure and the same compiled package.
+func (v *HPSContextVerifier) NewStoredReconfigurationTransfer(control, configuration []byte, handoff *packagestore.Handoff, reserve func([]byte) (*Region, error)) (*ConfigurationTransfer, HPSBootObservation, error) {
+	return v.newStoredConfigurationTransfer(control, configuration, handoff, reserve, true)
+}
+
+func (v *HPSContextVerifier) newStoredConfigurationTransfer(control, configuration []byte, handoff *packagestore.Handoff, reserve func([]byte) (*Region, error), rearm bool) (*ConfigurationTransfer, HPSBootObservation, error) {
 	m, err := v.configurationMap(configuration)
 	if err != nil {
 		return nil, HPSBootObservation{}, err
@@ -43,8 +55,16 @@ func (v *HPSContextVerifier) NewStoredConfigurationTransfer(control, configurati
 	if err != nil {
 		return nil, HPSBootObservation{}, err
 	}
-	if !v.coldSource(source) || receipt.Active || receipt.Prepared || receipt.Owner != source.Bridges.Owner || receipt.Generation != source.Bridges.Generation {
-		return nil, HPSBootObservation{}, errors.New("native fabric: storage containment differs from live cold ownership")
+	held, generation := v.coldSource(source), receipt.Generation == source.Bridges.Generation
+	if rearm {
+		v.computerMu.Lock()
+		returned := v.computerClosed && source.Bridges.Generation > 2 && v.computerGeneration == source.Bridges.Generation-2
+		v.computerMu.Unlock()
+		held = v.reconfigurationSource(source) && returned
+		generation = receipt.Generation < source.Bridges.Generation
+	}
+	if !held || !generation || receipt.Active || receipt.Prepared || receipt.Owner != source.Bridges.Owner {
+		return nil, HPSBootObservation{}, errors.New("native fabric: retained storage or computer return differs from live ownership")
 	}
 	data, err := io.ReadAll(io.LimitReader(selection.Archive().Payload(), int64(m.CoreSize)+1))
 	if err != nil {
@@ -58,7 +78,7 @@ func (v *HPSContextVerifier) NewStoredConfigurationTransfer(control, configurati
 	if err != nil {
 		return nil, HPSBootObservation{}, err
 	}
-	transfer, err := v.NewColdConfigurationTransfer(control, configuration, region, source)
+	transfer, err := v.newSourceConfigurationTransfer(control, configuration, region, source, rearm)
 	if err != nil {
 		return nil, HPSBootObservation{}, err
 	}

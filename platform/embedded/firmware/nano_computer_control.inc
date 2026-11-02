@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 /* Opt-in cold computer scope. Called under the existing SiP platform lock.
- * Reuses the owned bridge codec: one control-only opening, one held close.
+ * Reuses the owned bridge codec: one opening/held close per completed transfer.
  * No data release, new owner, reset retry or address comes from non-secure code.
  */
 #if defined(FES_NANO_COLD_COMPUTER) && FES_NANO_COLD_COMPUTER
@@ -8,6 +8,7 @@
 #error "cold computer control requires the sealed configuration path"
 #endif
 static unsigned fes_nano_computer_phase; /* 0 fresh, 1 owned open, 2 retired */
+static uint64_t fes_nano_computer_generation; /* Last consumed configuration. */
 
 static int fes_nano_computer_control(uint32_t fid, uint64_t operation,
                                     uint64_t owner, uint64_t cookie, uint64_t generation,
@@ -19,7 +20,8 @@ static int fes_nano_computer_control(uint32_t fid, uint64_t operation,
     unsigned snapshot = bridge && operation == FES_EMBEDDED_BRIDGE_SNAPSHOT && !owner && !generation;
     unsigned context = bridge && (operation == FES_EMBEDDED_BRIDGE_CONTEXT_PART0 || operation == FES_EMBEDDED_BRIDGE_CONTEXT_PART1);
     unsigned close = bridge && operation == (FES_EMBEDDED_BRIDGE_CLOSE | FES_EMBEDDED_BRIDGE_REQUEST_HELD);
-    if (fes_nano_computer_phase == 2) {
+    unsigned control = bridge && operation == FES_EMBEDDED_BRIDGE_CONTROL;
+    if (fes_nano_computer_phase == 2 && !control) {
         unsigned rearm = bridge && operation == FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION;
         unsigned transfer = c && c->rearmed && c->prepared && !c->finished && !c->failed &&
             (fid == FES_NANO_CONFIG_START || fid == FES_NANO_CONFIG_WRITE ||
@@ -40,15 +42,20 @@ static int fes_nano_computer_control(uint32_t fid, uint64_t operation,
         p->active=0;p->stage=FES_ID_COMPLETE;
         return 1;
     }
-    if (!bridge || operation != FES_EMBEDDED_BRIDGE_CONTROL) return 0;
+    if (!control) return 0;
     /* Configuration completion is trusted secure state, not a caller claim.
      * Its original owner/generation must still be the unchanged closed scope.
      */
     if (!c || !c->initialized || !c->attempted || !c->prepared || !c->started ||
-        !c->finished || c->failed || c->pending || c->completed != c->bytes || !c->bytes ||
+        !c->finished || c->failed || c->pending || c->issued || c->completed != c->bytes || !c->bytes ||
         c->owner != owner || c->generation != generation || busy || !c->bridges ||
-        c->bridges->device_lease || !p || !p->initialized || p->failed || p->attempted || p->bridges!=c->bridges || !p->io.configured) return 1;
+        c->bridges->device_lease || !p || !p->initialized || p->failed || p->active ||
+        p->first_error || p->cleanup_error || p->bridges!=c->bridges || !p->io.configured) return 1;
+    if (fes_nano_computer_phase == 0 ? (c->rearmed || p->attempted) :
+        (!c->rearmed || !p->attempted || p->stage!=FES_ID_COMPLETE ||
+         c->generation<=fes_nano_computer_generation)) return 1;
     fes_nano_computer_phase = 2;
+    fes_nano_computer_generation=c->generation; /* Consume before any hardware access. */
     p->attempted=1;p->stage=FES_ID_CONFIG;
     int ready=p->io.configured(p->io.context);
     if (ready!=1) {

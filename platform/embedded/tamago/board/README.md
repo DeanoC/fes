@@ -20,6 +20,13 @@ All native applications now obtain peripherals through `board`.
 
 Nano builds exclude VirtIO, xHCI, RAMFB and QEMU's DMA/page-table setup.
 The shared USB descriptor/report decoder remains usable in both builds.
+The sealed FPGA diagnostic's excluded configuration arena remains pinned until
+reboot. Its native lease allocator now permits reuse only after checked transfer
+completion; outstanding or uncertain memory cannot be overwritten, and stale
+completion callbacks cannot release a later lease. The native computer hook
+also requires that exact completed transfer and a successful preceding return
+before reopening. These repeated-load hooks have software evidence only; the
+hardware caller and trace gate still select one initial configuration.
 A successful cross-build does **not** mean tenfoot can display or launch on
 hardware: display is disabled unless an explicit compatible firmware handoff is supplied.
 `probe`, `storage`, `keyboard`, `network` and `display` are the

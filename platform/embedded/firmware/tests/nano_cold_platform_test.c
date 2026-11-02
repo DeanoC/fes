@@ -667,7 +667,7 @@ configured_bytes:
         assert(fes_nano_platform_configuration()->finished && !fes_nano_platform_configuration()->failed);
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
         assert(!reply[0] && reply[2]==record.owner && reply[3]==configuration_generation && (uint32_t)reply[1]==0xdf);
-        if (mutation>=90 && mutation<=99) {
+        if (mutation>=90 && mutation<=102) {
             if (mutation==93) bad_open=1;
             fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONTROL,
                                record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
@@ -744,10 +744,36 @@ configured_bytes:
                 fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,
                                    record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
                 assert(reply[0]==2 && engine_calls==calls);
+                if(mutation==100)bad_open=1;
+                if(mutation==102)config_fault=7;
                 fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONTROL,
                                    record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
-                assert(reply[0] && bridge==15);
-                puts("PASS strong computer rearm and second fixed-source transfer");return 0;
+                if(mutation==100 || mutation==102) {
+                    assert(reply[0] && bridge==15 && fes_nano_platform_identity_probe()->failed);
+                    unsigned queries=config_calls;
+                    fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONTROL,
+                                       record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
+                    assert(reply[0] && bridge==15 && engine_calls==calls && config_calls==queries);
+                    puts("PASS strong computer renewed opening failure without replay");return 0;
+                }
+                assert(!reply[0] && bridge==13 && reply[3]==configuration_generation+1 &&
+                       fes_nano_platform_identity_probe()->active);
+                if(mutation==101)bad_close=1;
+                fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CLOSE|FES_EMBEDDED_BRIDGE_REQUEST_HELD,
+                                   record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation+1,reply);
+                if(mutation==101) {
+                    assert(reply[0] && bridge==15 && fes_nano_owned_bridges.failed);
+                    fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,
+                                       record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation+2,reply);
+                    assert(reply[0] && engine_calls==calls);
+                    puts("PASS strong computer renewed closure failure retained");return 0;
+                }
+                assert(!reply[0] && bridge==15 && reply[3]==configuration_generation+2 &&
+                       !fes_nano_platform_identity_probe()->active);
+                fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONTROL,
+                                   record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation+2,reply);
+                assert(reply[0] && bridge==15 && engine_calls==calls);
+                puts("PASS strong computer rearm, second transfer, renewed opening and reclosure");return 0;
             }
             puts("PASS strong computer control scope, exclusion and reclosure");
 #else

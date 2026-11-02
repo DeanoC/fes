@@ -31,6 +31,15 @@ type ConfigurationTransfer struct {
 	done        bool
 
 	diagnosticAttempted bool
+	binding             *configurationBinding
+}
+
+// Only the compiled-source constructor can bind completion to computer access.
+// A generic transfer, a copied descriptor or a source observation is insufficient.
+type configurationBinding struct {
+	verifier *HPSContextVerifier
+	source   HPSBootObservation
+	rearm    bool
 }
 
 // The pinned SiP engine has four buffer descriptors. BUSY accepts the latest

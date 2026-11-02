@@ -12,35 +12,33 @@ import (
 )
 
 var configurationMu sync.Mutex
-var configurationAttempted, configurationCompleted bool
-var configurationRegion *nativefabric.Region
+var configurationAttempted bool
+var configurationArena *nativefabric.ConfigurationArena
 
 // ReserveConfiguration copies into the build's explicitly excluded uncached
-// arena. This cold reservation stays pinned until reboot, even after protocol
-// completion, a constructor error or failed SMC. No ordinary profile supplies
-// these constants, and no later call can reuse an ambiguous reservation.
+// arena. The mapping stays pinned until reboot; a new lease can overwrite it
+// only after the previous transfer has completed. An uncertain lease or failed
+// initialization cannot be reused. No ordinary profile supplies these constants.
 func ReserveConfiguration(source []byte) (*nativefabric.Region, error) {
 	configurationMu.Lock()
 	defer configurationMu.Unlock()
-	if configurationAttempted || profileConfigurationBase != 0x94800000 || profileConfigurationBytes != 8<<20 || len(source) == 0 || len(source) > profileConfigurationBytes {
+	if profileConfigurationBase != 0x94800000 || profileConfigurationBytes != 8<<20 || len(source) == 0 || len(source) > profileConfigurationBytes {
 		return nil, errors.New("DE25: cold configuration reservation unavailable")
 	}
-	configurationAttempted = true
-	if err := InitDevices(); err != nil {
-		return nil, err
-	}
-	data := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(profileConfigurationBase))), len(source))
-	copy(data, source)
-	memoryBarrier()
-	configurationRegion = &nativefabric.Region{Address: profileConfigurationBase, Bytes: data, Release: func() error {
-		configurationMu.Lock()
-		defer configurationMu.Unlock()
-		if configurationCompleted {
-			return errors.New("DE25: cold configuration completion was already consumed")
+	if configurationArena == nil {
+		if configurationAttempted {
+			return nil, errors.New("DE25: configuration arena initialization was already attempted")
 		}
-		memoryBarrier()
-		configurationCompleted = true
-		return nil // Lifetime remains boot-pinned; this does not release the arena.
-	}}
-	return configurationRegion, nil
+		configurationAttempted = true
+		if err := InitDevices(); err != nil {
+			return nil, err
+		}
+		data := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(profileConfigurationBase))), profileConfigurationBytes)
+		arena, err := nativefabric.NewConfigurationArena(profileConfigurationBase, data, func() error { memoryBarrier(); return nil })
+		if err != nil {
+			return nil, err
+		}
+		configurationArena = arena
+	}
+	return configurationArena.Reserve(source)
 }

@@ -192,13 +192,22 @@ func computerFixture(t *testing.T, build string) (*HPSContextVerifier, *computer
 	}
 	return v, cpu, control, mapping
 }
+
+// Scope-only fixtures model an already completed compiled-source transfer.
+// The joined reload fixture separately drives real ConfigurationTransfer steps.
+func computerCompletionFixture(v *HPSContextVerifier, cpu *computerCPU) *ConfigurationTransfer {
+	return &ConfigurationTransfer{done: true, phase: "complete", source: []byte{1}, accepted: 1, offset: 1,
+		binding: &configurationBinding{verifier: v, source: HPSBootObservation{Digest: v.digest, Bridges: cpu.state}, rearm: !cpu.state.NeverEnabled}}
+}
+
 func computerLimits() computer.Limits {
 	return computer.Limits{Timeout: time.Second, MaxPolls: 4, Now: func() time.Time { return time.Unix(100, 0) }, Yield: func() {}}
 }
 
 func TestNativeComputerScopeClosesAndRevokesIO(t *testing.T) {
 	v, cpu, control, mapping := computerFixture(t, "")
-	s, err := v.OpenComputer(context.Background(), control, mapping, computerLimits())
+	completed := computerCompletionFixture(v, cpu)
+	s, err := v.OpenComputer(context.Background(), control, mapping, completed, computerLimits())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +229,7 @@ func TestNativeComputerScopeClosesAndRevokesIO(t *testing.T) {
 	if _, err := s.Close(context.Background()); err == nil {
 		t.Fatal("close replayed")
 	}
-	if _, err := v.OpenComputer(context.Background(), control, mapping, computerLimits()); err == nil {
+	if _, err := v.OpenComputer(context.Background(), control, mapping, completed, computerLimits()); err == nil {
 		t.Fatal("open replayed")
 	}
 	if cpu.calls != before || cpu.writes != writes {
@@ -234,7 +243,7 @@ func TestNativeComputerScopeClosesAndRevokesIO(t *testing.T) {
 func TestNativeComputerActivityKeepsOwnershipAndRevocation(t *testing.T) {
 	for _, loseOwnership := range []bool{false, true} {
 		v, cpu, control, mapping := computerFixture(t, "")
-		s, err := v.OpenComputer(context.Background(), control, mapping, computerLimits())
+		s, err := v.OpenComputer(context.Background(), control, mapping, computerCompletionFixture(v, cpu), computerLimits())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -274,7 +283,7 @@ func TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay(t *testing.T) {
 			case "lost-open":
 				cpu.loseOpen = true
 			}
-			s, err := v.OpenComputer(context.Background(), control, mapping, computerLimits())
+			s, err := v.OpenComputer(context.Background(), control, mapping, computerCompletionFixture(v, cpu), computerLimits())
 			if mode == "wrong-build" || mode == "changed-owner" || mode == "lost-open" {
 				if err == nil || s != nil {
 					t.Fatal("uncertain open accepted")
@@ -320,7 +329,7 @@ func TestNativeComputerFailuresKeepAdmissionClosedAndDoNotReplay(t *testing.T) {
 
 func TestNativeComputerClosureRejectsNewRunBeforeItsFinalHoldCanRace(t *testing.T) {
 	v, cpu, control, mapping := computerFixture(t, "")
-	s, err := v.OpenComputer(context.Background(), control, mapping, computerLimits())
+	s, err := v.OpenComputer(context.Background(), control, mapping, computerCompletionFixture(v, cpu), computerLimits())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,7 +367,7 @@ func TestNativeComputerRejectsUncompiledMapBeforeFirmware(t *testing.T) {
 			if key == "duplicate" {
 				mapping = append([]byte("{\"format\":1,"), mapping[1:]...)
 			}
-			if _, err := v.OpenComputer(context.Background(), control, mapping, computerLimits()); err == nil || cpu.calls != 0 || cpu.reads != 0 {
+			if _, err := v.OpenComputer(context.Background(), control, mapping, computerCompletionFixture(v, cpu), computerLimits()); err == nil || cpu.calls != 0 || cpu.reads != 0 {
 				t.Fatal("uncompiled map touched firmware", err, cpu.calls)
 			}
 		})
@@ -397,7 +406,7 @@ func TestSelectedComputerRTLUsesOwnedNativeScope(t *testing.T) {
 	limit := computerLimits()
 	limit.Timeout = 20 * time.Second
 	limit.Now = time.Now
-	s, err := v.OpenComputer(context.Background(), control, mapping, limit)
+	s, err := v.OpenComputer(context.Background(), control, mapping, computerCompletionFixture(v, cpu), limit)
 	if err != nil {
 		t.Fatal(err)
 	}

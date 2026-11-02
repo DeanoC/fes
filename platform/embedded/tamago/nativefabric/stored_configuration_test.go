@@ -302,3 +302,93 @@ func TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure(t
 		})
 	}
 }
+
+func TestStoredReloadKeepsArchiveContainedAndRequiresSuccessfulReturn(t *testing.T) {
+	for _, mode := range []string{"pass", "no-return", "stale-return", "cold-source", "wrong-owner", "resume-before-constructor", "resume-in-reserve"} {
+		t.Run(mode, func(t *testing.T) {
+			raw, control, mapping, data, files, _, store, handoff := storedPackage(t)
+			opens := files.opens
+			replies := hpsContextReplies(sha256.Sum256(raw))
+			for _, i := range []int{0, 3} {
+				replies[i][1] &^= 64
+				replies[i][3] = 6
+				if mode == "cold-source" {
+					replies[i][1] |= 64
+				}
+				if mode == "wrong-owner" {
+					replies[i][2]++
+				}
+			}
+			replies = append(replies, replies...)
+			replies = append(replies, [4]uint64{0, 0x4657523100000000 | uint64(len(data)), 17, 6}, replies[0])
+			calls, starts, reservations, releases := 0, 0, 0, 0
+			operations := []uint64{0, 4, 5, 0, 0, 4, 5, 0, 11, 0}
+			cpu := bridgeFirmwareFunc(func(a [7]uint64) ([4]uint64, error) {
+				if a[0] == start {
+					if calls != 10 {
+						t.Fatal("stored reload START preceded preparation")
+					}
+					starts++
+					return [4]uint64{}, nil
+				}
+				if calls >= len(replies) || a[1] != operations[calls] {
+					t.Fatal("unexpected stored reload request", a)
+				}
+				r := replies[calls]
+				calls++
+				return r, nil
+			})
+			v, err := NewHPSContextVerifier(cpu, raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// The separate joined cycle drives this state through real Close.
+			v.computerGeneration, v.computerClosed = 4, true
+			if mode == "no-return" {
+				v.computerClosed = false
+			}
+			if mode == "stale-return" {
+				v.computerGeneration = 6
+			}
+			if mode == "resume-before-constructor" {
+				if err := store.Resume(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			reserve := func(source []byte) (*Region, error) {
+				reservations++
+				if !bytes.Equal(source, data) {
+					t.Fatal("retained package changed")
+				}
+				if mode == "resume-in-reserve" {
+					if err := store.Resume(); err != nil {
+						t.Fatal(err)
+					}
+				}
+				return &Region{Address: 0x94800000, Bytes: bytes.Clone(source), Release: func() error { releases++; return nil }}, nil
+			}
+			transfer, source, err := v.NewStoredReconfigurationTransfer(control, mapping, handoff, reserve)
+			if mode != "pass" && mode != "resume-in-reserve" {
+				if err == nil || transfer != nil || reservations != 0 || starts != 0 || files.opens != opens {
+					t.Fatal("invalid stored return reached reservation", err)
+				}
+				return
+			}
+			if err != nil || reservations != 1 || source.Bridges.Generation != 6 || source.Bridges.NeverEnabled || handoff.Receipt().Generation != 4 {
+				t.Fatal(source, err)
+			}
+			_, _, err = transfer.Advance()
+			if mode == "pass" {
+				if err != nil || starts != 1 || calls != 10 {
+					t.Fatal("retained reload not prepared", err, calls, starts)
+				}
+				_ = transfer.Cancel(errors.New("test retains unfinished transfer"))
+			} else if err == nil || starts != 0 || !transfer.Status().Failed {
+				t.Fatal("resumed SD reached START", err)
+			}
+			if releases != 0 || files.opens != opens || transfer.Status().RetainedBytes != len(data) {
+				t.Fatal("stored reload reopened SD or released pending memory")
+			}
+		})
+	}
+}

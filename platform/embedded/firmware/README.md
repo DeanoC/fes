@@ -131,11 +131,15 @@ the exact owner/generation, cleared never-enabled history, contained masters,
 no active lease and no pending transfer before consuming the new generation and
 checking the compiled whole-image digest again. Failed or ambiguous transfers
 remain terminal. The computer scope passes this explicit request and its armed
-transfer calls to the existing configuration gate after a completed return;
-it does not authorize another computer opening. Injected tests cover three
+transfer calls to the existing configuration gate after a completed return.
+Only successful completion of that rearm permits a new control-only opening,
+once for its exact configuration generation. The preceding probe scope must
+have closed successfully; its attempted flag and all error state remain intact.
+Readiness is checked again before reopening. Injected tests cover three
 successive rearm/transfer/control-close cycles and stale, busy, incomplete,
 corrupt and lost-ownership paths. The changed firmware has no physical reload
-qualification, and the native board arena remains a single boot-pinned lease.
+qualification. The native board arena stays pinned until reboot, but grants a
+fresh lease after checked transfer completion; uncertain leases cannot be reused.
 
 Only that cold configuration profile also selects `nano_digest.py`: it verifies
 the exact pinned SHA source/header, inserts three GCC loop-unrolling hints and
@@ -238,8 +242,8 @@ Invalid scope, changed bytes, uncertain replies or failed completion retire
 authority and keep memory owned until reboot. No reset-bit repair or implicit
 retry stands in for drain proof. Other cold profiles still deny configuration,
 and the capability query still supplies no runtime activation authority. This
-native first-load caller still reserves only one arena lease per cold boot;
-the secure rearm prerequisite does not enable physical repeated loads.
+native diagnostic caller still selects one load per boot; the reusable arena
+and generation-bound computer opening have not qualified physical repeated loads.
 Active drain, ordinary launch/return and production admission remain unqualified.
 
 The Terasic source additionally sends an SDM isolation request during START.
@@ -586,13 +590,17 @@ The general controlled service and strict recovery behavior are unchanged.
 The explicit `fpgaload --computer-control` matched build adds one exception for
 the sealed internal-RAM ZX81 computer. After complete checked configuration,
 the dispatcher rechecks read-only SDM readiness, borrows the existing secure
-probe/platform scope and admits one owned control-only opening. The original
+probe/platform scope and admits one owned control-only opening per completed
+configuration. The original
 owner/generation and completed configuration state must agree. While open it
 permits only ownership snapshots and its exact held close; SD, configuration,
 source-context reads and data release reject. Close runs the existing complete
 master-stop callbacks. Failure retires authority and invokes the established
 control containment callback without replay; a completed scope permits
 read-only source/snapshot checks and the separately guarded fixed-source rearm.
+A completed rearm can open the computer again only with its newer configuration
+generation; a changed bridge generation alone cannot grant access. Uncertain
+renewed readiness, opening or closure cannot replay or produce another grant.
 The separate source-derived computer map is
 bound into the native/entry/SPL/BL31 chain. This mode does not grant an ordinary
 runtime profile, DDR access or physical core-execution acceptance.

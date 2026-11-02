@@ -149,9 +149,10 @@ type ComputerSession struct {
 func (s *ComputerSession) Computer() *computer.Computer { return s.control }
 
 // OpenComputer uses a source-derived compiled map and the actual owned bridge
-// hooks. The matched firmware must explicitly enable its one-shot computer
-// mode after the complete sealed configuration. Other cold profiles reject it.
-func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []byte, limits computer.Limits) (_ *ComputerSession, err error) {
+// hooks after the supplied compiled-source transfer has completed. Each transfer
+// permits one opening; subsequent openings also require a successful prior
+// return and a newly completed rearm. Other cold profiles reject this mode.
+func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []byte, transfer *ConfigurationTransfer, limits computer.Limits) (_ *ComputerSession, err error) {
 	m, err := v.checkedComputerMap(control, raw)
 	if err != nil {
 		return nil, err
@@ -164,11 +165,19 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 		return nil, errors.New("native fabric: bounded computer context and limits required")
 	}
 	v.computerMu.Lock()
-	if v.computerAttempted {
+	if transfer == nil || !transfer.done || transfer.err != nil || transfer.region != nil || transfer.phase != "complete" ||
+		len(transfer.source) == 0 || len(transfer.pending) != 0 || transfer.offset != len(transfer.source) ||
+		transfer.accepted != len(transfer.source) || transfer.binding == nil || transfer.binding.verifier != v {
 		v.computerMu.Unlock()
-		return nil, errors.New("native fabric: computer scope already attempted")
+		return nil, errors.New("native fabric: completed compiled-source transfer required for computer opening")
 	}
-	v.computerAttempted = true
+	binding := *transfer.binding
+	if binding.source.Bridges.Generation <= v.computerGeneration ||
+		(v.computerGeneration == 0 && binding.rearm) || (v.computerGeneration != 0 && (!v.computerClosed || !binding.rearm)) {
+		v.computerMu.Unlock()
+		return nil, errors.New("native fabric: computer configuration consumed or prior return incomplete")
+	}
+	v.computerGeneration, v.computerClosed = binding.source.Bridges.Generation, false
 	v.computerMu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -177,8 +186,12 @@ func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []by
 	if err != nil {
 		return nil, err
 	}
-	if !v.coldSource(source) || source.Bridges.Generation > math.MaxUint64-2 {
-		return nil, errors.New("native fabric: computer requires unchanged cold closed ownership")
+	held := v.coldSource(source)
+	if binding.rearm {
+		held = v.reconfigurationSource(source)
+	}
+	if !held || source != binding.source || source.Bridges.Generation > math.MaxUint64-2 {
+		return nil, errors.New("native fabric: computer requires the completed transfer's unchanged closed ownership")
 	}
 	b := &FirmwareBridges{cpu: cpu}
 	opened, err := b.OpenBridges(BridgeOpenRequest{Before: source.Bridges, Mask: source.Bridges.Capabilities.ControlMask})
@@ -246,5 +259,12 @@ func (s *ComputerSession) Close(ctx context.Context) (out ComputerObservation, e
 	out.After = want
 	out.CPUBase = s.port.base
 	out.MapSHA256 = s.mapSHA
+	if err == nil && out.HoldAcknowledged {
+		s.v.computerMu.Lock()
+		if s.v.computerGeneration == s.source.Bridges.Generation {
+			s.v.computerClosed = true
+		}
+		s.v.computerMu.Unlock()
+	}
 	return out, err
 }

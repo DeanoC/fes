@@ -150,7 +150,7 @@ class NanoConfigurationTests(unittest.TestCase):
             (inc/'fes_nano_cold_profile.h').write_text(profile.replace('#define FES_NANO_CONTROLLED_SD 0', '#define FES_NANO_CONTROLLED_SD 1')+'\n#define FES_NANO_COLD_COMPUTER 1\n')
             compiled=subprocess.run(['cc',*flags,'-Wextra','-DFES_TEST_HPS_CONTEXT',*(str(FW/name) for name in sources),str(sha_object),'-o',str(binary)],capture_output=True,text=True,timeout=30)
             self.assertEqual(compiled.returncode,0,compiled.stderr)
-            for mutation in (*range(90,95),96,97,98,99):
+            for mutation in (*range(90,95),*range(96,103)):
                 with self.subTest(computer_configuration=mutation):
                     result=subprocess.run([binary,str(mutation)],capture_output=True,text=True,timeout=15)
                     self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-3000:])

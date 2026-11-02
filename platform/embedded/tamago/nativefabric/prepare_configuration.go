@@ -118,7 +118,12 @@ func (v *HPSContextVerifier) newSourceConfigurationTransfer(control, configurati
 		}
 		return nil
 	}
-	return NewConfigurationTransfer(v.cpu, region.Bytes, region, m.DRAMBase, m.ChunkBytes, beforeStart)
+	transfer, err := NewConfigurationTransfer(v.cpu, region.Bytes, region, m.DRAMBase, m.ChunkBytes, beforeStart)
+	if err != nil {
+		return nil, err
+	}
+	transfer.binding = &configurationBinding{v, source, rearm}
+	return transfer, nil
 }
 
 // PrepareConfiguration checks the compiled map, staged bytes and fresh closed

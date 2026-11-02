@@ -183,8 +183,12 @@ whole-image digest. Success returns `x0=0`,
 The request carries no address, size or digest. Duplicate or stale rearming
 cannot authorize START. Subsequent transfer calls retain the same closure and
 digest checks as the cold transfer. This software-tested prerequisite grants
-no fresh computer opening, memory reuse, runtime admission or physical reload
-qualification.
+no computer opening by itself, runtime admission or physical reload qualification.
+The opt-in sealed computer provider can grant one control-only opening after
+the rearm has fully completed under that exact new generation and the prior
+computer scope closed successfully. It consumes the configuration generation
+before checking readiness or opening hardware. A failed scope or reused
+completion cannot grant another opening.
 
 
 Operation 9 irreversibly retires a failed caller's still-running cold
