@@ -403,8 +403,11 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
 - `AUTOEXEC.BAT` runs [`FESENV.COM`](sim/fesenv.asm) into
   `C:\FDOS\FESENV.BAT` and calls it, so `BLASTER` follows the Sound Blaster
   setting in CMOS 60h-62h at every boot, then loads CuteMouse high.
-- MEM shows 573K (586,416 bytes) of conventional memory free and 154K of
-  upper memory free, largest block 81K.
+- The games profile sets `BUFFERS=16`. MEM shows 575K (588,544 bytes) of
+  conventional memory free and 154K of upper memory free, largest block 81K.
+  This is 1,792 bytes above Serpent Isle's published 573K (586,752-byte)
+  requirement. The games-image MEM simulation requires at least 1,024 bytes
+  above that requirement.
 - HIMEMX picks its A20 method by itself. POST hands DOS a machine with A20
   off ([A20 and CPU reset](../../docs/pc386-machine-design.md#a20-and-cpu-reset)),
   so HIMEMX takes port 92h ("Fast A20 method used"), and XMS function 04h

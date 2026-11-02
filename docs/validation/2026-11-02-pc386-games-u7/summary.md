@@ -102,6 +102,21 @@ combined #1373 + #1391 tree, and the kit runs on that package.
 | CI | Green on `6d4c86227`: consistency, fpga-producer, the pc386 simulation lane, integration, parent tests, simulation tools. |
 | Codex | One P1 on `d3cb4c239` (an RTL A20 run could pass with oracle steps), fixed in `21fc68592` with a unit test; clean on `21fc68592`. |
 
+## Review follow-up: conventional memory
+
+The games profile now uses `BUFFERS=16` (down from 20). With the pinned
+Verilator 5.032 and Bochs oracle CPU, the games-image MEM boot reports 588,544
+free conventional bytes. Serpent Isle's published 573K requirement is
+586,752 bytes, leaving 1,792 bytes; the simulation check requires at least
+1,024 bytes of headroom. The exact report is
+[`boot-games-memory-report.json`](boot-games-memory-report.json). The VGA
+replay matched with zero event, read, VRAM or frame mismatches.
+
+This is host simulation evidence only. The kit runs above used the earlier
+20-buffer image; Serpent Isle has not been retried on a kit or with a checked
+`SERPENT.CFG` here. Issue [#1426](https://github.com/DeanoC/fes/issues/1426)
+remains open pending that game check.
+
 ## Seal
 
 Quartus 17.0.2 sealed `3f2e47ebe` from a clean checkout (seed 1,

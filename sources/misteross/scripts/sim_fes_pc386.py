@@ -209,6 +209,8 @@ VGA_RTL = (
     CORE / 'rtl/pc386_vga_scanout.sv',
     CORE / 'sim/vga_replay_top.sv',
 )
+SERPENT_ISLE_MIN_CONVENTIONAL_BYTES = 573 * 1024
+GAMES_CONVENTIONAL_HEADROOM_BYTES = 1024
 PRESENTER_RTL = (CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_presenter.sv')
 CAPTURE_RTL = (
     CORE / 'rtl/pc386_rate.sv', CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_vga_scanout.sv',
@@ -566,11 +568,29 @@ def run_boot(args, linked: list[Path]) -> dict:
                                             '--type', args.type, '--expect', args.expect, '--trace', str(trace),
                                             '--cpu', args.cpu, '--mouse', '0:0,0,0',
                                             *governor_arguments(args)], images)
+    typed_commands = {command.strip().lower() for command in args.type.split('|')}
+    if args.image == 'games' and 'mem' in typed_commands:
+        report['failures'] += games_memory_failures(report['screen'])
     report['failures'] += rtl_boot_failures(report, args.cpu)
     print('Replaying the boot\'s VGA trace against Bochs\'s VGA', flush=True)
     report['replay'] = run_replay(args, suite, trace)
     report['failures'] += report['replay']['failures']
     return report
+
+
+def games_memory_failures(screen: list[str]) -> list[str]:
+    """Check MEM's exact conventional-memory count against the Serpent Isle requirement."""
+    text = '\n'.join(screen)
+    match = re.search(r'Largest executable program size\s+\d+K\s+\(\s*([\d,]+) bytes\)', text)
+    if not match:
+        return ['games image MEM output is missing the largest executable program size']
+    available = int(match.group(1).replace(',', ''))
+    required = SERPENT_ISLE_MIN_CONVENTIONAL_BYTES + GAMES_CONVENTIONAL_HEADROOM_BYTES
+    if available < required:
+        return [f'games image has {available:,} conventional bytes free; '
+                f'Serpent Isle needs {SERPENT_ISLE_MIN_CONVENTIONAL_BYTES:,} bytes '
+                f'with {GAMES_CONVENTIONAL_HEADROOM_BYTES:,} bytes of headroom ({required:,} total)']
+    return []
 
 
 def vga_test_disk(args) -> Path:

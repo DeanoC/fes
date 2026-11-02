@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -59,6 +60,13 @@ class FirmwareTest(unittest.TestCase):
 
 
 class FreedosImageTest(unittest.TestCase):
+    def test_games_profile_reduces_buffers_for_serpent_isle_memory(self):
+        config = freedos.PROFILES['games']['fdconfig']
+        match = re.search(r'(?m)^BUFFERS=(\d+)\r?$', config)
+        self.assertIsNotNone(match)
+        self.assertLess(int(match.group(1)), 20)
+        self.assertIn('DOS=UMB\r\n', config)
+
     def test_lock_pins_each_package_at_the_release_tag(self):
         lock = freedos.lock()
         self.assertEqual(lock['tag'], 'FreeDOS-v1.4')
@@ -243,6 +251,13 @@ class A20TestTest(unittest.TestCase):
 
 
 class BootReportTest(unittest.TestCase):
+    def test_games_mem_requires_exact_serpent_isle_memory_with_headroom(self):
+        old_mem = ['Largest executable program size       573K (586,416 bytes)']
+        enough_mem = ['Largest executable program size       574K (587,776 bytes)']
+        self.assertEqual(len(sim.games_memory_failures([])), 1)
+        self.assertEqual(len(sim.games_memory_failures(old_mem)), 1)
+        self.assertEqual(sim.games_memory_failures(enough_mem), [])
+
     def test_boot_suite_output_names_cover_image_cpu_and_preset(self):
         cases = (
             ('boot', 'oracle', 0, 0, 0, 'boot'),

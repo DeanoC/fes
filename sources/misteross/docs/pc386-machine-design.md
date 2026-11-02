@@ -173,12 +173,14 @@ DOS and then unloads. Its documentation pairs it with UMBPCI, which turns on
 chipset shadow RAM; here the RAM is already on. By itself UMBM finds only the
 regions UMBPCI's tables list, so the games image names the range
 (`UMBM.EXE /I=C800-EFFF`); it then tests every 4 KiB of it and DOS gets all
-160K as upper memory. The acceptance setup needs it: with the kernel kept out
-of the HMA for Ultima VII (no `DOS=HIGH`), HIMEMX and CuteMouse loaded high
-leave 573K of conventional memory free, and FreeCOM's environment goes to
-upper memory, where Ultima VII's memory check needs it
-([games image](../cores/fes-pc386/README.md)). Real AT clones with
-shadow-capable chipsets offered the same.
+160K as upper memory. The games image uses `BUFFERS=16`. With the kernel kept
+out of the HMA for Ultima VII (no `DOS=HIGH`), HIMEMX and CuteMouse loaded high
+leave 575K (588,544 bytes) of conventional memory free, and FreeCOM's
+environment goes to upper memory, where Ultima VII's memory check needs it.
+That is 1,792 bytes above Serpent Isle's published 573K (586,752-byte)
+requirement; the games-image MEM simulation enforces at least 1,024 bytes of
+headroom. See the [games image profile](../cores/fes-pc386/README.md) for its
+MEM count. Real AT clones with shadow-capable chipsets offered the same.
 
 Guest RAM is 16 MiB, the AT's DMA reach. The CPU design allows up to 64 MiB;
 a RAM-size setting is later work.

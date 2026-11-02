@@ -92,7 +92,7 @@ PROFILES = {
     'games': {
         'image': ROOT / 'build/sim/fes-pc386/freedos-games.img',
         'packages': ('kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem'),
-        'fdconfig': ('FILES=20\r\nBUFFERS=20\r\nDOS=UMB\r\n'
+        'fdconfig': ('FILES=20\r\nBUFFERS=16\r\nDOS=UMB\r\n'
                      'DEVICE=C:\\FDOS\\BIN\\UMBM.EXE /I=C800-EFFF\r\n'
                      'DEVICEHIGH=C:\\FDOS\\BIN\\HIMEMX.EXE /VERBOSE\r\n' + SHELL),
         'autoexec': ('@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\FDOS\\BIN;C:\\\r\n'
