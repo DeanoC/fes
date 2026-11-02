@@ -277,9 +277,10 @@ Where the slack is, from TimeQuest on the sealed project at the slow
   `scanout_f_row` and `f_base`), +2.533 ns.
 - The CPU's worst path is the L1I's block to the BIU's line, +2.932 ns.
 - The new D-stage compare is not near either. Its paths from `d_eip` and
-  `cs_fl` into D's stop and its fault keep +5.6 to +6.3 ns. The worst into
-  D's stop is from the decode's registers, +5.37 ns. The worst into
-  `cs_fl`, at a CS write, +8.43 ns.
+  `cs_fl` into D's stop and its fault keep +5.6 to +6.3 ns. The worst path
+  into D's stop, +5.37 ns, starts at a register Yosys left unnamed that
+  also feeds `d_eip` (DC's output, by its fan-out). The worst into
+  `cs_fl`, at a CS write, has +8.43 ns.
 
 ## DOOM's start on the RTL
 
