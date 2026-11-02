@@ -218,13 +218,13 @@ func TestRoomDetailsKeepsLongSummaryAndCuratorNoteInsidePane(t *testing.T) {
 
 func TestLibraryBackReturnsToTheSameHomeAndSelection(t *testing.T) {
 	app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
-	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
+	waitFor(t, app, "first family", homeFamilySettled)
 	app.HandleCommand(CmdRight, time.Now())
-	waitFor(t, app, "zx81", func(s Snapshot) bool { return s.Room.Destination.Label == "Sinclair ZX81" })
+	waitFor(t, app, "spectrum", func(s Snapshot) bool { return s.Room.Destination.Label == "ZX Spectrum" })
 	app.mu.Lock()
 	home := app.room
 	app.mu.Unlock()
-	app.HandleCommand(CmdUp, time.Now()) // Hero actions above the shelf.
+	app.HandleCommand(CmdUp, time.Now()) // Hero actions above the tiles.
 	app.HandleCommand(CmdUp, time.Now()) // Header routes above the actions.
 	waitFor(t, app, "library route", func(s Snapshot) bool { return s.Room.Destination.Label == "Library" })
 	app.HandleCommand(CmdSelect, time.Now())
@@ -241,18 +241,18 @@ func TestLibraryBackReturnsToTheSameHomeAndSelection(t *testing.T) {
 		t.Fatalf("Back did not resume the same Home instance (same=%v backTo=%q)", same, snap.LibraryBackTo)
 	}
 	app.HandleCommand(CmdDown, time.Now())
-	if got := waitFor(t, app, "shelf", func(s Snapshot) bool { return s.Room.Destination.Kind == "core" }); got.Room.Destination.Label != "Sinclair ZX81" {
+	if got := waitFor(t, app, "tiles", func(s Snapshot) bool { return s.Room.Destination.Kind == rooms.KindFamily }); got.Room.Destination.Label != "ZX Spectrum" {
 		t.Fatalf("Home lost its selection: %+v", got.Room.Destination)
 	}
 }
 
 func TestLibraryHomeKeyReclaimsTheSuspendedHome(t *testing.T) {
 	app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
-	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
+	waitFor(t, app, "first family", homeFamilySettled)
 	app.mu.Lock()
 	home := app.room
 	app.mu.Unlock()
-	app.HandleCommand(CmdUp, time.Now()) // Hero actions above the shelf.
+	app.HandleCommand(CmdUp, time.Now()) // Hero actions above the tiles.
 	app.HandleCommand(CmdUp, time.Now()) // Header routes above the actions.
 	app.HandleCommand(CmdSelect, time.Now())
 	if app.Snapshot().Room.Open {

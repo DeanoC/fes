@@ -49,11 +49,15 @@ title. Existing generated machine titles are presented cleanly; genuine custom
 and game titles remain intact. Core, package, media and saved-selection IDs do
 not depend on these display names.
 
-Home routes directly to Library, Systems and Settings. System setup and Sinclair
-setup are internal templates opened from a selected system/session, excluded
-from room and startup pickers. The former Lobby, Amiga, Mario, SNES, TMS and
-Coleco demo rooms and separate C64 wrapper are removed. Independently installed
-room packs remain available through the native menu.
+Release Home presents family tiles and Recently played. Opening a family enters
+its workbench; Play on a recent title starts that game. Settings is the only
+Home header route in the v1 release scope. Show all cores restores the Library
+and Systems routes and the additional families. At release Home's root, Back
+keeps Home open; the room picker is the fallback when Home cannot open. System
+setup and Sinclair setup remain internal templates opened from a selected
+system/session, excluded from room and startup pickers. The former Lobby, Amiga,
+Mario, SNES, TMS and Coleco demo rooms and separate C64 wrapper are removed.
+Independently installed room packs remain available through the native menu.
 
 ## Palette seed
 

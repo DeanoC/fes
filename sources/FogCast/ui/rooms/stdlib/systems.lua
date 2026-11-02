@@ -1,17 +1,18 @@
 -- Registered playable systems. Package manifests remain the authority for
 -- admission, media size and launch support; these labels guide navigation.
+-- model is the short name Home lists under a family.
 local rows = {
-  {id="fes.zx81", label="Sinclair ZX81", mark="ZX81", media="Cassette .p", hint="Type LOAD \"\", then RUN."},
-  {id="fes.zx80", label="Sinclair ZX80", mark="ZX80", media="Cassette .p", hint="Choose a saved program before starting."},
-  {id="fes.ts1000", label="Timex Sinclair 1000", mark="TS1000", media="Cassette .p", hint="Type LOAD \"\", then RUN."},
-  {id="fes.ts1500", label="Timex Sinclair 1500", mark="TS1500", media="Cassette .p", hint="Type LOAD \"\", then RUN."},
-  {id="fes.c64", label="Commodore 64", mark="C64", media="Disk .d64", hint="Drive  ·  1541  ·  unit 0"},
-  {id="fes.spectrum", label="ZX Spectrum 48K", mark="48K", media="Tape or snapshot", hint="Tape .tzx / .tap / .pzx / .csw; snapshot .z80 / .sna"},
-  {id="fes.spectrum128", label="ZX Spectrum 128K", mark="128K", media="Tape or snapshot", hint="Tape .tzx / .tap / .pzx / .csw; snapshot .z80 / .sna"},
-  {id="fes.spectrum-plus3", label="ZX Spectrum +3", mark="+3", media="Tape, snapshot or disk", disk="Disk .dsk", cassette="Tape or snapshot", hint="Disk .dsk; snapshot .z80 / .sna"},
-  {id="fes.pentagon", label="Pentagon 128", mark="128", media="Tape, snapshot or disk", disk="Disk .trd", cassette="Tape or snapshot", hint="Disk .trd; tape .tzx / .tap / .pzx / .csw"},
+  {id="fes.zx81", label="Sinclair ZX81", mark="ZX81", model="ZX81", media="Cassette .p", hint="Type LOAD \"\", then RUN."},
+  {id="fes.zx80", label="Sinclair ZX80", mark="ZX80", model="ZX80", media="Cassette .p", hint="Choose a saved program before starting."},
+  {id="fes.ts1000", label="Timex Sinclair 1000", mark="TS1000", model="TS1000", media="Cassette .p", hint="Type LOAD \"\", then RUN."},
+  {id="fes.ts1500", label="Timex Sinclair 1500", mark="TS1500", model="TS1500", media="Cassette .p", hint="Type LOAD \"\", then RUN."},
+  {id="fes.c64", label="Commodore 64", mark="C64", model="C64 PAL", media="Disk .d64", hint="Drive  ·  1541  ·  unit 0"},
+  {id="fes.spectrum", label="ZX Spectrum 48K", mark="48K", model="48K", media="Tape or snapshot", hint="Tape .tzx / .tap / .pzx / .csw; snapshot .z80 / .sna"},
+  {id="fes.spectrum128", label="ZX Spectrum 128K", mark="128K", model="128K/+2", media="Tape or snapshot", hint="Tape .tzx / .tap / .pzx / .csw; snapshot .z80 / .sna"},
+  {id="fes.spectrum-plus3", label="ZX Spectrum +3", mark="+3", model="+2A/+3", media="Tape, snapshot or disk", disk="Disk .dsk", cassette="Tape or snapshot", hint="Disk .dsk; snapshot .z80 / .sna"},
+  {id="fes.pentagon", label="Pentagon 128", mark="128", model="Pentagon", media="Tape, snapshot or disk", disk="Disk .trd", cassette="Tape or snapshot", hint="Disk .trd; tape .tzx / .tap / .pzx / .csw"},
   {id="fes.apple2", label="Apple II", mark="APPLE II", media="Disk .dsk / .do", hint="Drive  ·  Disk II  ·  unit 0"},
-  {id="fes.atari-st", label="Atari ST", mark="ST", media="Disk .st", hint="Drive A  ·  writable raw .st disk"},
+  {id="fes.atari-st", label="Atari ST", mark="ST", model="520ST", media="Disk .st", hint="Drive A  ·  writable raw .st disk"},
   {id="fes.coleco", label="ColecoVision", mark="COLECO", media="Linked cartridge", hint="Select the cartridge ROM in system setup."},
   {id="fes.sms", label="Sega Master System", mark="SMS", media="Linked cartridge", hint="Select the cartridge ROM in system setup."},
   {id="fes.sg1000", label="Sega SG-1000", mark="SG-1000", media="Linked cartridge", hint="Select the cartridge ROM in system setup."},
