@@ -342,6 +342,8 @@ local function remembered_card()
   if type(name) ~= "string" or name == "" then return nil end
   local core_id = store.get("package_core_id", "")
   if type(core_id) ~= "string" then core_id = "" end
+  -- A core saved while all cores were shown stays off Home once it is not.
+  if not room.core_shown(core_id) then return nil end
   local inputs = saved_inputs(store.get("package_inputs", {}))
   return { {
     package_id = id,

@@ -4022,6 +4022,93 @@ uint64_t env(const char *name, uint64_t fallback) {
     return value ? std::strtoull(value, nullptr, 0) : fallback;
 }
 
+// ---- Governor -------------------------------------------------------------------------
+// The governor bench (scripts/test_fes_i386_governor.py): the RTL alone runs
+// the flat program FES_I386_PROGRAM at 0000:1000h in real mode, under the
+// governor settings main set, until it halts with IF clear. Every OUT to
+// ports 80h-8Fh prints, with the cycle the access completed and the reference
+// clocks the governor had charged before that OUT (trace_gov_charge, summed
+// two cycles later, so it holds every instruction before the OUT and not
+// the OUT itself):
+//   MARK <port> <value> <cycle> <charged>
+// With FES_I386_IRQ_PERIOD set, once the program marks 40h on port 80h it
+// raises INTR (vector 20h) that many cycles after the last one's handler
+// marked port 81h, until it marks port 8Fh, and prints each:
+//   IRQ <cycle>
+// Last, the GPRs, EFLAGS and EIP it halted with, and the run:
+//   STATE <eax> <ecx> <edx> <ebx> <esp> <ebp> <esi> <edi> <eflags> <eip>
+//   GOVERNOR cycles=<n> retired=<n> halted=<0|1> debt_max=<n> hold_cycles=<n> charged=<n>
+void run_governor(Rtl &rtl, Summary &summary) {
+    const char *path = std::getenv("FES_I386_PROGRAM");
+    if (!path) throw std::runtime_error("governor: FES_I386_PROGRAM names the program");
+    std::ifstream file(path, std::ios::binary);
+    const std::vector<uint8_t> program{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+    if (program.empty() || program.size() > 0x6000) throw std::runtime_error("governor: no program, or too long");
+    constexpr uint32_t ORIGIN = 0x1000;
+    for (uint32_t i = 0; i < program.size(); ++i) rtl.poke(ORIGIN + i, program[i]);
+    State state;
+    for (int n = 0; n < 6; ++n) state.seg[n] = fes_i386::real_mode_segment(0);
+    state.eip = ORIGIN;
+    rtl.start(state);
+
+    const uint64_t limit = env("FES_I386_CYCLE_LIMIT", 400000000);
+    const uint64_t period = env("FES_I386_IRQ_PERIOD", 0);
+    struct Mark {
+        uint16_t port;
+        uint32_t value;
+        uint64_t cycle;
+    };
+    std::deque<Mark> marks;
+    uint64_t cycle = 0, charged = 0, retired = 0, hold_cycles = 0, halted_for = 0, next_irq = 0;
+    unsigned debt_max = 0;
+    bool armed = false, done = false, handled = true;
+    size_t seen = 0;
+    while (cycle < limit) {
+        if (armed && !done && handled && period && cycle >= next_irq) {
+            rtl.pic.intr = true;
+            rtl.pic.vector = 0x20;
+            handled = false;
+            std::printf("IRQ %llu\n", (unsigned long long)cycle);
+        }
+        rtl.clock();
+        charged += rtl.top.trace_gov_charge;
+        debt_max = std::max(debt_max, unsigned(rtl.top.trace_gov_debt));
+        hold_cycles += rtl.top.trace_gov_hold;
+        retired += rtl.top.trace_retire;
+        for (; seen < rtl.io.log.size(); ++seen) {
+            const IoAccess &access = rtl.io.log[seen];
+            if (!access.write || access.port < 0x80 || access.port > 0x8f) continue;
+            marks.push_back({access.port, access.data, cycle});
+            if (access.port == 0x80 && access.data == 0x40) armed = true;
+            if (access.port == 0x81) {
+                handled = true;
+                next_irq = cycle + period;
+            }
+            if (access.port == 0x8f) done = true;
+        }
+        while (!marks.empty() && cycle >= marks.front().cycle + 2) {
+            const Mark &m = marks.front();
+            std::printf("MARK %02x %u %llu %llu\n", m.port, m.value, (unsigned long long)m.cycle,
+                        (unsigned long long)charged);
+            marks.pop_front();
+        }
+        halted_for = rtl.top.trace_halt ? halted_for + 1 : 0;
+        if (halted_for > 1000 && marks.empty()) break;
+        ++cycle;
+    }
+    const bool halted = rtl.top.trace_halt && !rtl.top.trace_unimplemented;
+    const State s = rtl.state();
+    std::printf("STATE");
+    for (uint32_t r : s.gpr) std::printf(" %08x", r);
+    std::printf(" %08x %08x\n", s.eflags, s.eip);
+    ++summary.runs;
+    if (halted && done) ++summary.passed;
+    else ++summary.failed;
+    std::printf("GOVERNOR cycles=%llu retired=%llu halted=%d debt_max=%u hold_cycles=%llu charged=%llu\n",
+                (unsigned long long)cycle, (unsigned long long)retired, int(halted && done), debt_max,
+                (unsigned long long)hold_cycles, (unsigned long long)charged);
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -4035,6 +4122,11 @@ int main(int argc, char **argv) {
     std::unique_ptr<fes_i386::Oracle> oracle = fes_i386::make_oracle(bus);
     VerilatedContext context;
     Rtl rtl(context);
+    // The governor's settings, which every reset samples: the preset, its
+    // frequency (100 kHz units, 0 the preset's) and turbo; max (0) when unset.
+    rtl.top.gov_preset = uint8_t(env("FES_I386_PRESET", 0));
+    rtl.top.gov_frequency = uint16_t(env("FES_I386_FREQUENCY", 0));
+    rtl.top.gov_turbo = uint8_t(env("FES_I386_TURBO", 0));
     rtl.length = [&](uint32_t linear) {
         uint8_t bytes[15];
         for (uint32_t n = 0; n < 15; ++n) bytes[n] = linear + n < RAM_BYTES ? rtl.ram[linear + n] : 0xff;
@@ -4063,6 +4155,8 @@ int main(int argc, char **argv) {
         run_unbuilt(rtl, summary);
     } else if (mode == "memory") {
         run_memory_cases(rtl, summary);
+    } else if (mode == "governor") {
+        run_governor(rtl, summary);
     } else if (mode == "random") {
         run_random(*oracle, bus, rtl, entries, summary, seed, env("FES_I386_PROGRAMS", 1000),
                    env("FES_I386_RETIRE_LIMIT", 2000), env("FES_I386_FIRST", 0));

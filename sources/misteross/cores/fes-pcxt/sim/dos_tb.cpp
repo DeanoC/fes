@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Run a real BIOS and DOS on the assembled 8088. The only simulated devices
-// are physical SDRAM pins and an XT keyboard. The disk is uploaded through
-// the same mailbox and SDRAM loader used by the runtime.
+// is physical SDRAM. The disk and the host keyboard snapshots enter through
+// the same mailbox and devices used by the runtime.
 #include "Vbios_top.h"
 #include "verilated.h"
 #include "memory_model.hpp"
 #include <array>
-#include <deque>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -26,10 +25,10 @@ int main(int argc, char **argv) {
     require(disk.size() == 40*2*9*512, "360 KiB floppy geometry", 0);
     Vbios_top d;
     Sdram<Vbios_top> ram;
-    std::deque<unsigned> keys;
+    std::vector<unsigned> key_codes;
     std::ofstream trace("bus.log");
     uint64_t cycles=0, post_cycle=0, boot_cycle=0, sector_cycle=0, prompt_cycle=0, dir_cycle=0;
-    unsigned pixel_phase=0, held=0, bat_sent=0, bat_reads=0, key_reads=0, media_reads=0;
+    unsigned pixel_phase=0, bat_reads=0, key_reads=0, media_reads=0;
     unsigned dma2_completions=0, irq6_edges=0, pending_address=0;
     bool pending=false, last_dma=false, last_irq=false, post=false, boot=false, sector=false, live=false;
     uint64_t instructions=0;
@@ -82,7 +81,6 @@ int main(int argc, char **argv) {
         const bool media_taken=!d.cold_reset && !d.warm_reset && !d.machine_reset &&
                                d.media_read_valid && d.media_read_ready;
         const unsigned media_data=d.media_read_data;
-        const bool code_taken=d.code_valid && d.code_ready;
         const bool done=d.bus_done, wr=d.bus_write;
         const unsigned addr=d.bus_address, data=d.bus_data, kind=d.bus_kind;
         const bool consumed=d.instruction_consumed;
@@ -93,7 +91,6 @@ int main(int argc, char **argv) {
             require(media_data==disk[pending_address],"SDRAM floppy byte differs from image",cycles);
             pending=false;++media_reads;
         }
-        if(code_taken) {require(!keys.empty(),"keyboard accepted without offer",cycles);if(keys.front()==0xaa)++bat_sent;keys.pop_front();}
         if(dma && !last_dma)++dma2_completions;
         if(irq && !last_irq)++irq6_edges;
         last_dma=dma;last_irq=irq;
@@ -118,25 +115,21 @@ int main(int argc, char **argv) {
         if(done && kind==1) {
             trace<<cycles<<" "<<(wr?'W':'R')<<" "<<std::hex<<addr<<" "<<data<<std::dec<<"\n";
             if(!wr && (addr&0x3ff)==0x60) {
-                if(data==0xaa)++bat_reads;
-                else ++key_reads;
+                // 0xaa is BAT during POST and the XT left-shift break after
+                // the prompt; classify it by phase, not by byte alone.
+                if(data==0xaa && !prompt)++bat_reads;
+                else {++key_reads; if(prompt)key_codes.push_back(data);}
             }
         }
-        if(!d.machine_reset) {
-            if(d.keyboard_clock_low) {if(held<2000000)++held;}
-            else {if(held>=2000000)keys.push_back(0xaa);held=0;}
-        }
-        d.code_valid=!keys.empty();d.key_code=keys.empty()?0:keys.front();
         if(cycles%5000000==0) {
             const auto text=screen();
             if(!prompt && sector && text.find("A:\\>")!=std::string::npos) {
                 prompt=true;prompt_cycle=cycles;
-                for(auto c:std::array<unsigned,8>{0x20,0xa0,0x17,0x97,0x13,0x93,0x1c,0x9c})keys.push_back(c);
             }
             // Require the listed file on one line and a *subsequent* prompt;
             // the volume label also contains FESXT, and the original prompt
             // remains on screen while DIR is still producing output.
-            if(prompt && !directory && key_reads>=8) {
+            if(prompt && !directory && key_codes.size()>=8) {
                 for(auto entry=text.find("FESXT"); entry!=std::string::npos;
                     entry=text.find("FESXT",entry+5)) {
                     const auto end=text.find('\n',entry);
@@ -219,7 +212,8 @@ int main(int argc, char **argv) {
         exchange(9,0,0);
         require(d.media_state==3,"committed disk not ready",cycles);
     };
-    require(exchange(1,6,0)==1 && exchange(1,16,0)==16,"runtime PC floppy identity",cycles);
+    require(exchange(1,6,0)==1 && exchange(1,16,0)==16 && (exchange(1,7,0)&2),
+            "runtime PC floppy and keyboard identity",cycles);
     // An abandoned partial image must be hidden and restart from offset zero.
     begin_image();chunk(0,3);exchange(10,0,0);
     for(unsigned i=0;i<3;++i)step();
@@ -228,8 +222,51 @@ int main(int argc, char **argv) {
     exchange(2,0,1); // Release only after the complete initial disk is committed.
     for(unsigned a=0;a<disk.size();++a)
         require(byte(0x100000+a)==disk[a],"uploaded disk differs in SDRAM",cycles);
-    while(!(post && boot && sector && prompt && directory && frame_complete))step();
-    require(bat_sent==1 && bat_reads==1,"keyboard self-test",cycles);
+    while(!prompt)step();
+    // Exercise the runtime's modifier ordering with delayed row exchanges.
+    // Its Shift+A -> B update releases A, releases Shift, then makes B; row
+    // snapshots are separate GP transactions and are not atomic.
+    auto row_and_expect=[&](unsigned row,unsigned bits,unsigned expected) {
+        const unsigned prior=key_codes.size();
+        exchange(3,row,bits);
+        const uint64_t deadline=cycles+20000000;
+        while(key_codes.size()==prior && cycles<deadline)step();
+        require(key_codes.size()==prior+1 && key_codes.back()==expected,
+                "host keyboard transition did not reach ISA in order",cycles);
+    };
+    row_and_expect(8,2,0x2a);      // left Shift make
+    row_and_expect(0,0x10,0x1e);   // A make
+    row_and_expect(0,0,0x9e);      // A break
+    row_and_expect(8,0,0xaa);      // left Shift break
+    row_and_expect(0,0x20,0x30);   // B make
+    row_and_expect(0,0,0xb0);      // B break
+    const uint64_t echo_deadline=cycles+30000000;
+    while(screen().find("A:\\>Ab")==std::string::npos && cycles<echo_deadline)
+        for(unsigned i=0;i<250000;++i)step();
+    require(screen().find("A:\\>Ab")!=std::string::npos,
+            "DOS did not echo Shift+A then unshifted b",cycles);
+    // Clear the test letters through the same mailbox and real keyboard.
+    for(unsigned i=0;i<2;++i) {
+        row_and_expect(2,1u<<10,0x0e); // Backspace make
+        row_and_expect(2,0,0x8e);      // Backspace break
+    }
+    // USB HID usage snapshots enter the same mailbox used by the real host.
+    // Wait for each actual ISA/PPI read before changing the next snapshot so
+    // the test proves each make and break crossed the XT serial link.
+    for(unsigned usage:std::array<unsigned,4>{7,12,21,40}) { // D, I, R, Enter
+        for(bool down:{true,false}) {
+            const unsigned prior=key_codes.size();
+            exchange(3,usage/16,down ? 1u<<(usage%16) : 0);
+            const uint64_t deadline=cycles+20000000;
+            while(key_codes.size()==prior && cycles<deadline)step();
+            require(key_codes.size()==prior+1,"host keyboard transition did not reach ISA",cycles);
+        }
+    }
+    const std::vector<unsigned> expected{0x2a,0x1e,0x9e,0xaa,0x30,0xb0,
+        0x0e,0x8e,0x0e,0x8e,0x20,0xa0,0x17,0x97,0x13,0x93,0x1c,0x9c};
+    require(key_codes==expected,"host HID to XT make/break ordering",cycles);
+    while(!(post && boot && sector && directory && frame_complete))step();
+    require(bat_reads==1,"keyboard self-test",cycles);
     require(key_reads>=8,"DIR make/break bytes not delivered",cycles);
     require(word(0x413)==640,"BIOS did not detect 640 KiB",cycles);
     require((word(0x410)&0x31)==0x21,"CGA and one floppy equipment profile",cycles);

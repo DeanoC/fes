@@ -33,7 +33,9 @@ func computerResponseMatches(response Protocol2Response, packageID string, gener
 }
 
 // SetKeyboardHID sends one complete nine-row key state bound to the exact
-// active fes.computer package generation. The runtime writes only changed rows.
+// active fes.computer package generation. The runtime clears all rows when its
+// prior state is unknown, then applies releases before makes; a mixed row can
+// therefore be written twice.
 func (client *Client) SetKeyboardHID(ctx context.Context, packageID string, generation uint64, rows KeyboardHIDRows) (Protocol2Response, error) {
 	if !protocol2Hex64.MatchString(packageID) || generation == 0 || !rows.Valid() {
 		return Protocol2Response{}, errInvalidRuntimeRequest

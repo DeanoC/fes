@@ -358,12 +358,12 @@ func (a *App) resolveHomeRoomLocked(id string) (rooms.Pack, string, bool) {
 func (a *App) reclaimHomeRoomLocked(id, revision string) bool {
 	var home *rooms.Instance
 	for _, parent := range a.roomStack {
-		if parent != nil && parent.ID() == id && parent.Revision() == revision && parent.Err() == nil {
+		if parent != nil && parent.ID() == id && parent.Revision() == revision && parent.Err() == nil && parent.ReleaseOnly() == !a.allCores {
 			home = parent
 			break
 		}
 	}
-	if home == nil && a.room != nil && a.room.ID() == id && a.room.Revision() == revision && a.room.Err() == nil {
+	if home == nil && a.room != nil && a.room.ID() == id && a.room.Revision() == revision && a.room.Err() == nil && a.room.ReleaseOnly() == !a.allCores {
 		home = a.room
 	}
 	if home == nil {
@@ -402,6 +402,9 @@ func (a *App) noteHomeRoomFallbackLocked(id, reason string) {
 
 // closeRoomLocked closes the current room only; parents on roomStack stay alive.
 func (a *App) closeRoomLocked() {
+	// A pending firmware lookup belongs to the room that requested it. Stop
+	// it when that room is closed so a late reply cannot overlay its successor.
+	a.closeFirmwareCardLocked()
 	if a.room == nil {
 		return
 	}
@@ -486,6 +489,9 @@ func (a *App) applyRoomActionsLocked() {
 	if a.room == nil {
 		return
 	}
+	if req, ok := a.room.TakeFirmwareInfo(); ok {
+		a.openFirmwareCardLocked(req)
+	}
 	for _, act := range a.room.TakeActions() {
 		switch act.Kind {
 		case rooms.ActionHardwareSetup:
@@ -498,6 +504,8 @@ func (a *App) applyRoomActionsLocked() {
 			a.openSystemMediaLocked(act)
 		case rooms.ActionHardwareExpansions:
 			a.openSystemExpansionsLocked(act)
+		case rooms.ActionFirmwareInfo:
+			a.openFirmwareCardLocked(act)
 		case rooms.ActionLaunch:
 			a.launchFromRoomWithPackageLocked(act.GameID, act.PackageID, act.ExpectedPackageID)
 		case rooms.ActionStop:
@@ -809,6 +817,7 @@ func (a *App) newRoomInstanceLocked(pack rooms.Pack, initialGameID string, initi
 		Index:                  a.roomsIndex,
 		Theme:                  a.theme,
 		ReducedMotion:          a.reducedMotion,
+		ReleaseOnly:            !a.allCores,
 		InitialGameID:          initialGameID,
 		InitialCoreID:          coreID,
 		SessionDisplayRequired: a.needsSessionDisplayLocked(),

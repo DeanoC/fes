@@ -155,6 +155,13 @@ class GoTestOnlyParentTests(unittest.TestCase):
 
 
 class ParentAffectedTests(unittest.TestCase):
+    def test_v1_firmware_documentation_regressions_use_narrow_policy_group(self):
+        path = 'tests/test_v1_firmware_licensing_doc.py'
+        module = 'test_v1_firmware_licensing_doc'
+        self.assertEqual({'policy'}, policy.parent_groups(path))
+        self.assertIn(module, policy.GROUPS['policy'])
+        self.assertIn(module, policy.DOCUMENTATION_MODULES)
+
     def test_rooms_keep_build_and_policy_without_media_or_core_diagnostics(self):
         groups = policy.select_groups([ROOM])
         self.assertEqual(groups, {'policy', 'build'})
@@ -232,6 +239,7 @@ class ParentAffectedTests(unittest.TestCase):
     def test_documentation_modules_exist_and_belong_to_reviewed_groups(self):
         assigned = set().union(*policy.GROUPS.values())
         self.assertTrue(policy.DOCUMENTATION_MODULES <= assigned)
+        self.assertIn('test_ci_workflow', policy.DOCUMENTATION_MODULES)
         for module in policy.DOCUMENTATION_MODULES:
             self.assertTrue((ROOT / 'tests' / (module + '.py')).is_file())
 

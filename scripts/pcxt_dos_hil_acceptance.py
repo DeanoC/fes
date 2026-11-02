@@ -18,6 +18,25 @@ CORE = ROOT / 'sources/misteross/cores/fes-pcxt'
 PROMPT = b'A:\\>'
 
 
+def _median_color(samples):
+    """Use the weighted median in each channel for a sampled color class."""
+    total = sum(samples.values())
+    if not total:
+        raise ValueError('empty color class')
+    result = []
+    for channel in range(3):
+        levels = Counter()
+        for color, count in samples.items():
+            levels[color[channel]] += count
+        cumulative = 0
+        for level, count in sorted(levels.items()):
+            cumulative += count
+            if cumulative > total // 2:
+                result.append(level)
+                break
+    return tuple(result)
+
+
 def load_font(root=ROOT):
     """Extract the exact 8x8 ASCII glyphs embedded in the locked BIOS ROM."""
     core = Path(root) / 'sources/misteross/cores/fes-pcxt'
@@ -85,10 +104,19 @@ def find_prompt(width, height, rgb, font):
                                 blank_count += 1
                 if not ink_count or not blank_count:
                     continue
-                fg = foreground.most_common(1)[0][0]
                 bg = background.most_common(1)[0][0]
+                # If no sampled ink channel is far enough from the background,
+                # its median cannot meet the existing contrast gate either.
+                if not any(max(abs(a - b) for a, b in zip(color, bg)) >= 64
+                           for color in foreground):
+                    continue
+                # Scaling and capture color conversion can make the most
+                # common ink shade unusually bright. A weighted median keeps
+                # the representative color within the central ink range,
+                # without changing the proximity or glyph-shape thresholds.
+                fg = _median_color(foreground)
                 # HDMI capture can quantize adjacent pixels of one flat color
-                # differently. Compare each class with its most common RGB,
+                # differently. Compare each class with its representative RGB,
                 # while still requiring a strong color separation and the
                 # original high spatial agreement with all four ROM glyphs.
                 def near(color, reference):

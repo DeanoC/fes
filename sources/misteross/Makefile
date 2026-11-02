@@ -1038,7 +1038,7 @@ sim-fes-coleco-board-sprites sim-fes-coleco-board-sprites-oss: coleco-sprite-dia
 		build/diagnostics/fes-coleco/sprites-16k.rom build/diagnostics/fes-coleco/sprites.rom
 
 build-fes-zx81-quartus:
-	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)" --rom "$(FES_ZX81_ROM)"
+	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"$(if $(strip $(FES_ZX81_ROM)), --rom "$(FES_ZX81_ROM)",)
 
 build-fes-zx81:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(filter 1,$(BEST_FMAX)), --best-fmax$(if $(strip $(GPU_DEVICES)), --gpu-devices "$(GPU_DEVICES)",),)
@@ -2822,7 +2822,7 @@ sim-fes-c64-session:
 # targets above run in the nightly/manual regression; pushes use smoke.
 .PHONY: sim-fes-zx81-smoke sim-fes-c64-smoke sim-fes-atari-st-smoke sim-fes-spectrum-smoke sim-fes-pcxt-smoke
 # The ZX81 diagnostic needs no ROM; the BASIC benches run when FES_ZX81_ROM is set.
-sim-fes-zx81-smoke: sim-fes-zx81-diagnostic sim-fes-zx81-rom sim-fes-zx81-machine
+sim-fes-zx81-smoke: sim-fes-zx81-diagnostic sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-variants
 
 sim-fes-c64-smoke: c64-diagnostic
 	$(require_local_sim)

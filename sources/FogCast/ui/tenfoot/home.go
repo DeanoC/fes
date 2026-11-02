@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/release"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -18,7 +19,10 @@ const (
 	HomeKindLibrary = "library"
 )
 
-const homeRecentLimit = 5
+const (
+	homeRecentLimit     = 5
+	homeRecentPageLimit = 50
+)
 
 func (r RoomPickerRow) key() string {
 	switch r.Kind {
@@ -179,7 +183,8 @@ func (a *App) roomPickerRowsLocked() []RoomPickerRow {
 		}
 		rows = append(rows, row)
 	}
-	for _, game := range a.homeRecents {
+	shown := a.shownRecentsLocked()
+	for _, game := range shown {
 		id := strings.TrimSpace(game.ID)
 		if id == "" {
 			continue
@@ -202,7 +207,7 @@ func (a *App) roomPickerRowsLocked() []RoomPickerRow {
 		recents.Detail = "loading recently played…"
 	case a.homeRecentsErr != "":
 		recents.Detail = a.homeRecentsErr
-	case len(a.homeRecents) == 0:
+	case len(shown) == 0:
 		recents.Detail = "no recently played games"
 	}
 	rows = append(rows, recents)
@@ -335,7 +340,9 @@ func (a *App) activateHomeRowLocked(row RoomPickerRow) {
 		}
 		if a.room != nil && a.room.ID() == row.ID {
 			if ok && pack.Revision == a.room.Revision() {
-				return
+				if a.room.ReleaseOnly() == !a.allCores {
+					return
+				}
 			}
 		}
 		if a.sessionStopOfferedLocked() || a.launch.Phase == "launching" {
@@ -375,12 +382,24 @@ func (a *App) launchRecentFromHomeLocked(id string) {
 	a.startLaunchGameLocked(game)
 }
 
+// shownRecentsLocked is Home's recents without games for cores outside the v1
+// release, unless all cores are shown. A game with no core is kept.
+func (a *App) shownRecentsLocked() []hostclient.Game {
+	shown := make([]hostclient.Game, 0, len(a.homeRecents))
+	for _, game := range a.homeRecents {
+		if game.CoreID == "" || release.Shown(game.CoreID, a.allCores) {
+			shown = append(shown, game)
+		}
+	}
+	return shown
+}
+
 func (a *App) homeRecentByIDLocked(id string) (hostclient.Game, bool) {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return hostclient.Game{}, false
 	}
-	for _, game := range a.homeRecents {
+	for _, game := range a.shownRecentsLocked() {
 		if game.ID == id {
 			return game, true
 		}
@@ -422,7 +441,18 @@ func (a *App) ensureHomeRecentsLocked() {
 }
 
 func (a *App) loadHomeRecents(ctx context.Context, gen int) {
-	if a == nil || a.client == nil {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	client := a.client
+	allCores := a.allCores
+	current := gen == a.homeRecentsGen
+	a.mu.Unlock()
+	if !current {
+		return
+	}
+	if client == nil {
 		a.mu.Lock()
 		if gen == a.homeRecentsGen {
 			a.homeRecents = nil
@@ -435,31 +465,53 @@ func (a *App) loadHomeRecents(ctx context.Context, gen int) {
 	var games []hostclient.Game
 	var err error
 	fails := 0
+	cursor := ""
+	seenCursors := map[string]struct{}{}
 	for {
 		if ctx.Err() != nil {
 			return
 		}
-		games, _, err = a.client.ListGames(ctx, hostclient.GameListQuery{
+		var page []hostclient.Game
+		var next string
+		page, next, err = client.ListGames(ctx, hostclient.GameListQuery{
 			Collection: "recents",
-			Limit:      homeRecentLimit,
+			Limit:      homeRecentPageLimit,
+			Cursor:     cursor,
 		})
-		if err == nil && len(games) > homeRecentLimit {
-			games = games[:homeRecentLimit]
+		if err != nil {
+			if !libraryNetRetry(err) {
+				break
+			}
+			a.mu.Lock()
+			stale := gen != a.homeRecentsGen
+			a.mu.Unlock()
+			if stale {
+				return
+			}
+			fails++
+			a.noteRecentsUnreachable(gen, games)
+			if !a.libraryRetryWait(ctx, fails, gen, true) {
+				return
+			}
+			continue
 		}
-		if err == nil || !libraryNetRetry(err) {
+		for _, game := range page {
+			if !allCores && game.CoreID != "" && !release.Shown(game.CoreID, false) {
+				continue
+			}
+			games = append(games, game)
+			if len(games) == homeRecentLimit {
+				break
+			}
+		}
+		if len(games) == homeRecentLimit || next == "" {
 			break
 		}
-		a.mu.Lock()
-		stale := gen != a.homeRecentsGen
-		a.mu.Unlock()
-		if stale {
-			return
+		if _, seen := seenCursors[next]; seen {
+			break
 		}
-		fails++
-		a.noteRecentsUnreachable(gen)
-		if !a.libraryRetryWait(ctx, fails, gen, true) {
-			return
-		}
+		seenCursors[next] = struct{}{}
+		cursor = next
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -471,7 +523,7 @@ func (a *App) loadHomeRecents(ctx context.Context, gen int) {
 		key = a.homeFocusKeyLocked()
 	}
 	a.homeRecentsLoaded = true
-	if err != nil {
+	if err != nil && len(games) == 0 {
 		a.homeRecents = nil
 		a.homeRecentsErr = "couldn't load recently played"
 		if a.roomPickerOpen {
@@ -486,7 +538,7 @@ func (a *App) loadHomeRecents(ctx context.Context, gen int) {
 	}
 }
 
-func (a *App) noteRecentsUnreachable(gen int) {
+func (a *App) noteRecentsUnreachable(gen int, games []hostclient.Game) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if gen != a.homeRecentsGen {
@@ -496,8 +548,13 @@ func (a *App) noteRecentsUnreachable(gen int) {
 	if a.roomPickerOpen {
 		key = a.homeFocusKeyLocked()
 	}
-	a.homeRecents = nil
-	a.homeRecentsErr = "couldn't load recently played"
+	if len(games) > 0 {
+		a.homeRecents = append([]hostclient.Game(nil), games...)
+		a.homeRecentsErr = ""
+	} else {
+		a.homeRecents = nil
+		a.homeRecentsErr = "couldn't load recently played"
+	}
 	a.homeRecentsLoaded = true
 	if a.roomPickerOpen {
 		a.restoreHomeFocusLocked(key)

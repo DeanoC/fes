@@ -2674,7 +2674,18 @@ errors.
 
 The embedded `example.fes-cores` Home room combines the kit-local package
 list from `kit.cores` with prepared host-library systems from
-`hardware.read`. Each host card publishes its library `game_id` and launches
+`hardware.read`. Tenfoot applies the v1 release scope to the core catalog and
+Home recents; recents keep scanning cursor pages until they have five visible
+entries or the host has no more. Games without a core ID remain visible.
+**Show all cores** removes that presentation filter and is available through
+Settings, `tenfoot.json` `all_cores`, or `FOGCAST_TENFOOT_ALL_CORES=1`. Room
+instances receive the same scope for local packages, hardware snapshots and
+the systems table; `room.core_shown` also keeps the core a room was opened for,
+so setup for a held-back running machine remains usable. Changing the setting
+stays in Settings until it closes, then returns Home and drops any stale room
+instance. A Home room is reused only when its release scope matches the current
+setting. The host catalog and Library grid remain complete. Each host card
+publishes its library `game_id` and launches
 through the library path; a ready host card replaces a blocked local row for
 the same core, while a launchable local row stays selected. Host readiness
 follows library launch admission, including selected video parts, required and
@@ -2824,8 +2835,10 @@ mister-agent observes `CoreObservation.KeyboardHID` (package and generation) and
 routes keyboard frames to `internal/input/keyboard_hid.go`. Host-stream and
 kit-local holds are kept per source and posted as their union; posts are ordered
 and do not hold the controller-port lock. Each change posts all nine rows with
-`set_keyboard_hid` for the observed generation (the runtime writes only changed
-rows). A failed post leaves the state unconfirmed, so a repeated press or release
+`set_keyboard_hid` for the observed generation. If the runtime does not know the
+prior core state, it clears all nine rows first. It applies releases before
+makes, so a mixed row can be written twice. A failed post leaves the
+state unconfirmed, so a repeated press or release
 posts it again rather than reporting success. A probe that does not confirm
 the core keeps that HID binding and its held keys. The kit-local release that
 meets that probe, and a later release while that generation stays bound, still
@@ -3676,18 +3689,24 @@ incompatible candidate. For format-3 packages, candidates must share the
 differ. A package-inventory error omits that optional suggestion;
 the selected package is inspected separately so an unrelated bad archive does not
 hide the saved setup.
-For the supported format-3 ZX81 package's 8 KiB `machine-rom` requirement, the
-host bundles the standard image from `misteross/cores/fes-zx81/rtl/zx8x.hex`
-with SHA-256 `14ad84f4243efcd41587ff46ab932d11087043e8d455a1ed2a227b9657828dfa`.
-When a matching library entry has no firmware selection, the first firmware
-read imports this verified image into the existing core-media store and binds
-it with the existing compare-and-swap selection API. An explicit selection is
-preserved. This lets the normal Workshop start path satisfy firmware admission
-without opening the import prompt.
+A format-3 title whose firmware ROM has no selection gets the host's
+[bundled firmware](../../../docs/bundled-firmware.md) for that core, ROM ID and
+exact size, when the host loaded one from its `[firmware] bundled_dir`. The
+host derives that default for reads and launches without saving it as a user
+selection, so a later bundle update changes the effective default. An explicit
+selection is preserved. Catalog setup also leaves a selected bundled default
+unsaved. `GET /api/v1/library/core-entries/{game_id}/rom` returns an empty
+`media_id` for that unsaved default, with its digest in `bundled_media_id` and
+`bundled_default: true`. Installed setup can use that digest as the
+compare-and-swap expectation when replacing it. Library readiness uses the
+validated bundled-object metadata rather than rehashing the image for every
+title; launch still verifies the stored bytes. ZX81-family firmware is not
+bundled.
 When a title switches between format-3 ZX81 packages that declare the same
-`machine-rom` firmware ID and exact source size, the host rebinds the existing
-media ID to the selected package with the media-ID compare-and-swap API. This
-preserves both the provisioned image and a user-selected image; a selection
+`machine-rom` firmware ID and exact source size, or a title on bundled
+firmware switches to a package naming the same ROM ID and size, the host
+rebinds the existing saved media ID to the selected package with the media-ID
+compare-and-swap API. This preserves a user-selected ZX81 image; a selection
 whose ROM ID or size differs remains stale and blocks launch until explicitly
 replaced. If stored bytes fail integrity checks during rebind, readiness stays
 false while the old media ID remains available as the firmware picker's

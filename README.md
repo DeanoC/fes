@@ -203,9 +203,9 @@ for exact commands and how several agents can work independently.
 
 CI computes affected modules and dependent consumers, then runs independent
 software checks and core simulation cases in parallel with an always-reported
-integration result. PRs, main-branch pushes and merge groups receive affected
-checks; weekly and manual runs cover the full suite. Feature-branch pushes do
-not duplicate PR runs. Routine runs also skip the full-device video and
+integration result. PRs, main-branch pushes and merge groups run the smoke
+simulation tier; nightly and manual runs cover the complete suite in the full
+tier. Feature-branch pushes do not duplicate PR runs. Routine runs also skip the full-device video and
 real-media suites and use concurrency-focused race checks; those extended
 modes return when their inputs change or on scheduled/manual runs. See
 [selection and coverage](docs/test-changed.md#selection-and-coverage).

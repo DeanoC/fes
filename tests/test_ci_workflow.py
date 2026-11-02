@@ -10,9 +10,71 @@ import textwrap
 import unittest
 
 from scripts.affected import plan
+from scripts.ci_simulations import simulation_matrix, tier_for_event
+
+
+def workflow_events(path):
+    lines = path.read_text().splitlines()
+    start = lines.index('on:')
+    events = set()
+    for line in lines[start + 1:]:
+        if line and not line.startswith((' ', '\t')):
+            break
+        match = re.fullmatch(r'  ([A-Za-z_][A-Za-z0-9_-]*):(?:\s*#.*)?', line)
+        if match:
+            events.add(match.group(1))
+    return events
 
 
 class ParentWorkflowTests(unittest.TestCase):
+    def test_simulation_tier_docs_match_workflow_events_and_matrix(self):
+        repository = Path(__file__).resolve().parents[1]
+        smoke = simulation_matrix(['coleco'], 'smoke')['include']
+        full = simulation_matrix(['coleco'], 'full')['include']
+        check_workflow = repository / '.github/workflows/check.yml'
+        nightly_workflow = repository / '.github/workflows/nightly.yml'
+        check_events = workflow_events(check_workflow)
+        nightly_events = workflow_events(nightly_workflow)
+        self.assertEqual(check_events, {
+            'push', 'pull_request', 'merge_group', 'workflow_dispatch', 'workflow_call',
+        })
+        self.assertEqual(nightly_events, {'schedule', 'workflow_dispatch'})
+        nightly = nightly_workflow.read_text()
+        self.assertIn('uses: ./.github/workflows/check.yml', nightly)
+
+        # workflow_call enables reuse, but github.event_name remains the event
+        # that called this workflow (schedule or workflow_dispatch).
+        effective_events = (check_events - {'workflow_call'}) | nightly_events
+        self.assertEqual({event: tier_for_event(event) for event in effective_events}, {
+            'pull_request': 'smoke', 'merge_group': 'smoke', 'push': 'smoke',
+            'schedule': 'full', 'workflow_dispatch': 'full',
+        })
+
+        readme = ' '.join((repository / 'README.md').read_text().split())
+        changed = ' '.join((repository / 'docs/test-changed.md').read_text().split())
+        development = ' '.join((repository / 'docs/development.md').read_text().split())
+        self.assertIn('nightly and manual runs cover the complete suite', readme)
+        self.assertIn('nightly and manual runs cover the complete suite', changed)
+        self.assertIn(f"Coleco's full tier has {len(full)} jobs", changed)
+        self.assertIn(f'smoke tier runs {len(smoke)} of those jobs', changed)
+        self.assertIn('Outside Coleco, the smoke matrix reduces coverage for ZX81, C64, Atari ST, Spectrum, PC/XT and PC/386', changed)
+        self.assertIn(f"Coleco's full simulation tier runs {len(full)} jobs", development)
+        self.assertIn(f'Its smoke tier runs {len(smoke)} jobs', development)
+        self.assertNotIn('16 focused simulation jobs', development)
+        self.assertNotIn('weekly/manual', (repository / 'scripts/test_policy.py').read_text())
+        self.assertNotIn('weekly/manual', (repository / 'scripts/host_tests.py').read_text())
+
+    def test_pcxt_system_delay_docs_match_simulator(self):
+        repository = Path(__file__).resolve().parents[1]
+        readme = ' '.join((repository / 'sources/misteross/cores/fes-pcxt/README.md').read_text().split())
+        simulator = (repository / 'sources/misteross/scripts/sim_fes_pcxt.py').read_text()
+        delay_selection = re.search(r"\(2,\) if suite in \(([^)]*)\)", ' '.join(simulator.split()))
+        self.assertIsNotNone(delay_selection)
+        for suite in ('system', 'system-mda', 'system-board50', 'system-board50-mda'):
+            self.assertIn(repr(suite), delay_selection.group(1))
+        self.assertIn('the strictest SDRAM mask delay (2)', readme)
+        self.assertIn('each runs at DQM delay 2', readme)
+
     def test_pc386_fesenv_simulation_installs_mtools_on_its_runner(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
         step = workflow.split('      - name: Install PC/XT and PC386 image tools\n', 1)[1].split(

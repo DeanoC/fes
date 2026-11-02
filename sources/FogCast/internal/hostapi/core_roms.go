@@ -12,6 +12,30 @@ type coreROMService interface {
 	SelectCoreEntryROM(context.Context, string, string, string, string, string) (catalog.CoreEntryROM, error)
 }
 
+type coreROMResponse struct {
+	GameID         string `json:"game_id"`
+	PackageID      string `json:"package_id,omitempty"`
+	ROMID          string `json:"rom_id,omitempty"`
+	MediaID        string `json:"media_id"`
+	BundledMediaID string `json:"bundled_media_id,omitempty"`
+	BundledDefault bool   `json:"bundled_default,omitempty"`
+	SourceSize     int64  `json:"source_size,omitempty"`
+}
+
+func coreROMResponseFor(value catalog.CoreEntryROM) coreROMResponse {
+	response := coreROMResponse{
+		GameID: value.GameID, PackageID: value.PackageID, ROMID: value.ROMID,
+		SourceSize: value.SourceSize,
+	}
+	if value.BundledDefault {
+		response.BundledMediaID = value.MediaID
+		response.BundledDefault = true
+	} else {
+		response.MediaID = value.MediaID
+	}
+	return response
+}
+
 func registerCoreROMs(mux *http.ServeMux, service Service) {
 	withService := func(fn func(http.ResponseWriter, *http.Request, coreROMService)) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -32,7 +56,7 @@ func registerCoreROMs(mux *http.ServeMux, service Service) {
 			writeCoreLibraryError(w, err)
 			return
 		}
-		writeJSON(w, 200, value)
+		writeJSON(w, 200, coreROMResponseFor(value))
 	}))
 	mux.HandleFunc("PUT /api/v1/library/core-entries/{game_id}/rom", withService(func(w http.ResponseWriter, r *http.Request, s coreROMService) {
 		var request struct {

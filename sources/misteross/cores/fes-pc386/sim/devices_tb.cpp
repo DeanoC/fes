@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -158,7 +159,26 @@ struct Bench {
     }
     uint8_t cmos(uint8_t index) { out(0x70, index); return in(0x71); }
     void cmos_write(uint8_t index, uint8_t value) { out(0x70, index); out(0x71, value); }
+    // fes.keyboard.hid: usages 00h-7Fh are bits 0-127, the modifiers E0h-E7h
+    // bits 128-135.
+    void key(uint8_t usage, bool down) {
+        unsigned bit = usage >= 0xe0 ? 128u + (usage - 0xe0) : usage;
+        if (down) top.keyboard_rows[bit / 32] |= 1u << (bit % 32);
+        else top.keyboard_rows[bit / 32] &= ~(1u << (bit % 32));
+    }
+    // Every byte the 8042 delivers until none has come for `quiet` clocks.
+    std::vector<uint8_t> drain(uint64_t quiet = 300000) {
+        std::vector<uint8_t> bytes;
+        while (output_within(quiet)) bytes.push_back(in(0x60));
+        return bytes;
+    }
 };
+
+std::string hex_bytes(const std::vector<uint8_t> &bytes) {
+    std::string text;
+    for (uint8_t byte : bytes) text += (text.empty() ? "" : " ") + hex(byte);
+    return text.empty() ? "-" : text;
+}
 
 void timing(Bench &b) {
     b.out(0x80, 0x12);
@@ -364,30 +384,164 @@ void kbc(Bench &b) {
     b.wait([&] { return (b.in(0x64) & 1) != 0; }, 2000000);
     uint64_t ack_time = b.cycles - sent;
     uint8_t ack = b.in(0x60);
-    b.wait([&] { return (b.in(0x64) & 1) != 0; }, 2000000);
+    b.key(0x04, true);
+    b.run(300000);  // a key changes during the 5 ms BAT window
+    bool bat_ready = b.wait([&] { return (b.in(0x64) & 1) != 0; }, 2000000);
     uint8_t bat = b.in(0x60);
+    bool key_ready = b.wait([&] { return (b.in(0x64) & 1) != 0; }, 300000);
+    uint8_t after_bat = b.in(0x60);
     // The byte time is BYTE_US ticks of the 1 us enable, so it is 1 ms less
     // up to one tick (100 clocks), as the enable's phase falls.
-    check("keyboard FF: FA no sooner than one PS/2 byte time (1 ms), then AA", ack == 0xfa && bat == 0xaa &&
-          ack_time > 100000 - 100, hex(ack) + " " + hex(bat) + " " + std::to_string(ack_time));
+    check("keyboard FF: FA, BAT AA before a key changed during self-test", ack == 0xfa && bat_ready && bat == 0xaa &&
+          key_ready && after_bat == 0x1e && ack_time > 100000 - 100,
+          hex(ack) + " " + hex(bat) + " " + hex(after_bat) + " " + std::to_string(ack_time));
+    b.key(0x04, false);
+    b.drain();
 
-    // Translation and IRQ1.
+    // Translation and IRQ1, from the host keyboard model's rows: the change
+    // is taken 1 ms after the rows last changed.
     pic_init(b);
     b.out(0x21, 0xfd);
-    auto key = [&](uint8_t code) {
-        b.wait([&] { return bool(b.top.key_ready); }, 1000);
-        b.top.key_valid = 1; b.top.key_code = code; b.clock(); b.top.key_valid = 0;
-    };
-    key(0x1c);
+    uint64_t pressed_at = b.cycles;
+    b.key(0x04, true);
+    bool early = b.wait([&] { return b.top.intr; }, 99000);
     bool raised = b.wait([&] { return b.top.intr; }, 300000);
+    uint64_t make_at = b.cycles - pressed_at;
     uint8_t vector = raised ? b.inta() : 0;
     uint8_t make = b.in(0x60);
     b.out(0x20, 0x20);
-    key(0xf0); key(0x1c);
+    b.key(0x04, false);
     b.wait([&] { return (b.in(0x64) & 1) != 0; }, 300000);
     uint8_t brk = b.in(0x60);
-    check("set 2 1Ch (A) arrives as set 1 1Eh on IRQ1, its break as 9Eh", raised && vector == 0x09 && make == 0x1e &&
-          brk == 0x9e, hex(vector) + " " + hex(make) + " " + hex(brk));
+    check("HID A (04h) arrives as set 1 1Eh on IRQ1 once the rows have settled for 1 ms, its break as 9Eh",
+          !early && raised && make_at < 110000 && vector == 0x09 && make == 0x1e && brk == 0x9e,
+          hex(vector) + " " + hex(make) + " " + hex(brk) + " after " + std::to_string(make_at));
+    b.out(0x21, 0xff);
+
+    // E0 keys, Print Screen and Pause through XLAT.
+    auto press = [&](uint8_t usage, bool down) { b.key(usage, down); return b.drain(); };
+    std::vector<uint8_t> up_make = press(0x52, true), up_break = press(0x52, false);
+    check("Up arrives as E0 48, its break as E0 C8",
+          up_make == std::vector<uint8_t>{0xe0, 0x48} && up_break == std::vector<uint8_t>{0xe0, 0xc8},
+          hex_bytes(up_make) + " / " + hex_bytes(up_break));
+    std::vector<uint8_t> print_make = press(0x46, true), print_break = press(0x46, false);
+    check("Print Screen arrives as E0 2A E0 37, its break as E0 B7 E0 AA",
+          print_make == std::vector<uint8_t>{0xe0, 0x2a, 0xe0, 0x37} &&
+              print_break == std::vector<uint8_t>{0xe0, 0xb7, 0xe0, 0xaa},
+          hex_bytes(print_make) + " / " + hex_bytes(print_break));
+    std::vector<uint8_t> pause_make = press(0x48, true), pause_break = press(0x48, false);
+    check("Pause arrives as E1 1D 45 E1 9D C5, with nothing at its release",
+          pause_make == std::vector<uint8_t>{0xe1, 0x1d, 0x45, 0xe1, 0x9d, 0xc5} && pause_break.empty(),
+          hex_bytes(pause_make) + " / " + hex_bytes(pause_break));
+    b.key(0xe1, true);
+    b.key(0x1e, true);
+    std::vector<uint8_t> shifted = b.drain();
+    b.key(0xe1, false);
+    b.key(0x1e, false);
+    std::vector<uint8_t> unshifted = b.drain();
+    check("Shift and 1 written together arrive Shift first and leave Shift last",
+          shifted == std::vector<uint8_t>{0x2a, 0x02} && unshifted == std::vector<uint8_t>{0x82, 0xaa},
+          hex_bytes(shifted) + " / " + hex_bytes(unshifted));
+
+    // Typematic through the 8042: F3 00h is 250 ms then 30 per second; F6
+    // restores 500 ms and 10.9 per second. The guest polls 60h, so each
+    // byte is seen within the 8042's pacing and a poll (1.1 ms).
+    auto repeat_times = [&](unsigned count) {
+        std::vector<uint64_t> at;
+        b.key(0x04, true);
+        while (at.size() < count && b.output_within(110000000)) {
+            at.push_back(b.cycles);
+            b.in(0x60);
+        }
+        b.key(0x04, false);
+        b.drain();
+        return at;
+    };
+    auto typematic_ok = [](const std::vector<uint64_t> &at, double delay_ms, double period_ms, std::string &detail) {
+        if (at.size() < 4) { detail = std::to_string(at.size()) + " bytes"; return false; }
+        double delay = (at[1] - at[0]) / 1e5;
+        bool ok = std::abs(delay - delay_ms) < 1.1;
+        detail = "delay " + std::to_string(delay) + " ms, periods";
+        for (size_t n = 2; n < at.size(); ++n) {
+            double period = (at[n] - at[n - 1]) / 1e5;
+            ok &= std::abs(period - period_ms) < 1.1;
+            detail += " " + std::to_string(period);
+        }
+        return ok;
+    };
+    b.out(0x60, 0xf3);
+    uint8_t f3_ack = b.drain()[0];
+    b.out(0x60, 0x00);
+    uint8_t rate_ack = b.drain()[0];
+    std::string fast_detail, slow_detail;
+    bool quick = typematic_ok(repeat_times(5), 250, 1000.0 / 30, fast_detail);
+    check("keyboard F3 00h: A repeats after 250 ms at 30 per second", f3_ack == 0xfa && rate_ack == 0xfa && quick,
+          fast_detail);
+    b.out(0x60, 0xf6);
+    uint8_t f6_ack = b.drain()[0];
+    bool slow = typematic_ok(repeat_times(4), 500, 1000.0 / 240 * 22, slow_detail);
+    check("keyboard F6 restores the typematic default, 500 ms and 10.9 per second", f6_ack == 0xfa && slow,
+          slow_detail);
+    b.out(0x60, 0xed);
+    b.drain();
+    b.out(0x60, 0x07);
+    b.drain();
+    std::string led_detail;
+    bool leds = typematic_ok(repeat_times(4), 500, 1000.0 / 240 * 22, led_detail);
+    check("an ED LED byte does not change the typematic setting", leds, led_detail);
+
+    // Keep A's make unread in the 8042 while it repeats, disable the keyboard
+    // interface, release A, then resume it. Typematic must stop when that
+    // break is projected, or a later repeat will be delivered after it.
+    b.key(0x04, true);
+    bool unread_make = b.output_within(300000);
+    b.run(55000000);
+    b.out(0x64, 0xad);
+    b.key(0x04, false);
+    b.run(30000000);
+    b.out(0x64, 0xae);
+    std::vector<uint8_t> unread_release = b.drain();
+    auto break_at = std::find(unread_release.begin(), unread_release.end(), uint8_t(0x9e));
+    bool repeat_before_break = break_at != unread_release.end() &&
+        std::find(unread_release.begin() + 1, break_at, uint8_t(0x1e)) != break_at;
+    bool no_repeat_after_break = break_at != unread_release.end() &&
+        std::find(break_at + 1, unread_release.end(), uint8_t(0x1e)) == unread_release.end();
+    check("ADh release and AEh resume deliver no repeat after A's break",
+          unread_make && !unread_release.empty() && unread_release.front() == 0x1e &&
+              repeat_before_break && no_repeat_after_break,
+          hex_bytes(unread_release));
+
+    // F5 stops scanning and F6 starts it again, as Bochs's keyboard has them.
+    auto first = [](const std::vector<uint8_t> &bytes) { return bytes.empty() ? 0 : int(bytes[0]); };
+    b.key(0x04, true);
+    std::vector<uint8_t> prior_make = b.drain();
+    b.out(0x60, 0xf5);
+    int f5_reply = first(b.drain());
+    b.key(0x04, false);
+    std::vector<uint8_t> straddling_break = b.drain();
+    b.key(0x05, true);
+    std::vector<uint8_t> unscanned_make = b.drain();
+    b.key(0x05, false);
+    std::vector<uint8_t> unscanned_break = b.drain();
+    b.out(0x60, 0xf6);
+    std::vector<uint8_t> f6_response = b.drain();
+    int f6_reply = first(f6_response);
+    std::vector<uint8_t> resumed_break;
+    if (!f6_response.empty()) resumed_break.insert(resumed_break.end(), f6_response.begin() + 1, f6_response.end());
+    std::vector<uint8_t> after_f6 = b.drain();
+    resumed_break.insert(resumed_break.end(), after_f6.begin(), after_f6.end());
+    b.key(0x05, true);
+    std::vector<uint8_t> rescanned = b.drain();
+    b.key(0x05, false);
+    std::vector<uint8_t> rereleased = b.drain();
+    check("F5 hides an in-window tap but F6 sends a straddling break",
+          prior_make == std::vector<uint8_t>{0x1e} && f5_reply == 0xfa && straddling_break.empty() &&
+              unscanned_make.empty() && unscanned_break.empty() && f6_reply == 0xfa &&
+              resumed_break == std::vector<uint8_t>{0x9e} && rescanned == std::vector<uint8_t>{0x30} &&
+              rereleased == std::vector<uint8_t>{0xb0},
+          hex_bytes(prior_make) + " / " + hex(f5_reply) + " " + hex_bytes(straddling_break) + " " +
+              hex_bytes(unscanned_make) + " / " + hex_bytes(unscanned_break) + " / " + hex(f6_reply) + " " +
+              hex_bytes(resumed_break) + " " + hex_bytes(rescanned) + " / " + hex_bytes(rereleased));
     b.out(0x60, 0xf2);
     uint8_t id[3] = {};
     for (auto &byte : id) {
@@ -397,49 +551,46 @@ void kbc(Bench &b) {
     check("keyboard F2 identifies as AB 83, translated to AB 41", id[0] == 0xfa && id[1] == 0xab && id[2] == 0x41,
           hex(id[0]) + " " + hex(id[1]) + " " + hex(id[2]));
 
-    // Keep the scan-code FIFO near full, then require the three-byte F2 reply
-    // to arrive intact after the queued make codes.
-    int queued_keys = 0;
-    while (queued_keys < 32 && b.top.key_ready) {
-        b.top.key_valid = 1; b.top.key_code = 0x1c; b.clock(); b.top.key_valid = 0;
-        ++queued_keys;
-    }
-    bool fifo_near_full = !b.top.key_ready;
-    bool reply_seen = false;
-    std::vector<uint8_t> tail;
+    // Sixteen keys in one change: the 8042 holds the first make, the
+    // keyboard's FIFO the next 13, and the model waits with two. F2's
+    // three-byte reply fills the FIFO, EE's echo waits for a free slot, and
+    // the last two makes follow it; nothing is dropped. Set 1 makes of
+    // usages 04h-13h (A to P).
+    static const uint8_t SET1[16] = {0x1e, 0x30, 0x2e, 0x20, 0x12, 0x21, 0x22, 0x23,
+                                     0x17, 0x24, 0x25, 0x26, 0x32, 0x31, 0x18, 0x19};
+    for (uint8_t usage = 0x04; usage < 0x14; ++usage) b.key(usage, true);
+    b.run(300000);              // settled, scanned, and the FIFO full
     b.out(0x60, 0xf2);
-    for (int n = 0; n < 24 && !reply_seen; ++n) {
-        if (!b.wait([&] { return (b.in(0x64) & 1) != 0; }, 300000)) break;
-        tail.push_back(b.in(0x60));
-        if (tail.size() > 3) tail.erase(tail.begin());
-        reply_seen = tail.size() == 3 && tail[0] == 0xfa && tail[1] == 0xab && tail[2] == 0x41;
-    }
-    check("keyboard keeps F2 reply intact with scan-code FIFO nearly full", queued_keys > 0 && fifo_near_full && reply_seen,
-          std::to_string(queued_keys) + " " + std::to_string(fifo_near_full) + " " + std::to_string(reply_seen));
+    b.run(8);                   // the reply takes the last three slots
+    b.out(0x60, 0xee);          // its echo waits while the FIFO is full
+    std::vector<uint8_t> queued = b.drain();
+    std::vector<uint8_t> expected(SET1, SET1 + 14);
+    for (uint8_t byte : {uint8_t(0xfa), uint8_t(0xab), uint8_t(0x41), uint8_t(0xee), SET1[14], SET1[15]})
+        expected.push_back(byte);
+    check("keyboard keeps F2's reply intact behind a nearly full FIFO, and EE's echo waits for a slot",
+          queued == expected, hex_bytes(queued));
+    for (uint8_t usage = 0x04; usage < 0x14; ++usage) b.key(usage, false);
+    std::vector<uint8_t> breaks = b.drain();
+    bool all_broken = breaks.size() == 16;
+    for (size_t n = 0; n < breaks.size() && all_broken; ++n) all_broken = breaks[n] == (SET1[n] | 0x80);
+    check("the sixteen breaks follow in usage order", all_broken, hex_bytes(breaks));
 
-    queued_keys = 0;
-    while (queued_keys < 32 && b.top.key_ready) {
-        b.top.key_valid = 1; b.top.key_code = 0x1c; b.clock(); b.top.key_valid = 0;
-        ++queued_keys;
-    }
-    b.out(0x60, 0xf2);
-    b.run(8);                   // fill the last three FIFO slots with the reply
-    b.out(0x60, 0xee);          // its response waits while the FIFO is full
-    std::vector<uint8_t> full_reply;
-    for (int n = 0; n < queued_keys + 4; ++n) {
-        if (!b.wait([&] { return (b.in(0x64) & 1) != 0; }, 300000)) break;
-        full_reply.push_back(b.in(0x60));
-    }
-    bool full_reply_intact = full_reply.size() == size_t(queued_keys + 4) &&
-                             std::all_of(full_reply.begin(), full_reply.begin() + queued_keys,
-                                         [](uint8_t byte) { return byte == 0x1e; }) &&
-                             full_reply[queued_keys] == 0xfa && full_reply[queued_keys + 1] == 0xab &&
-                             full_reply[queued_keys + 2] == 0x41 && full_reply.back() == 0xee;
-    std::string full_reply_detail = std::to_string(queued_keys) + " " + std::to_string(full_reply.size());
-    if (!full_reply.empty()) full_reply_detail += " " + hex(full_reply.back());
-    check("keyboard reply waits for FIFO space instead of dropping bytes", full_reply_intact,
-          full_reply_detail);
-    b.out(0x21, 0xff);
+    // Leave a controller byte in OBF so the host key make stays in the
+    // keyboard FIFO. F5 clears it; the held key must be reconciled after F4.
+    b.out(0x64, 0x20);
+    b.run(100);
+    b.key(0x04, true);
+    b.run(200000);
+    b.out(0x60, 0xf5);
+    b.out(0x60, 0xf4);
+    uint8_t old_obf = b.in(0x60);
+    std::vector<uint8_t> replayed_make = b.drain();
+    b.key(0x04, false);
+    std::vector<uint8_t> replayed_break = b.drain();
+    check("F5 FIFO clear retries a held make before its later break",
+          old_obf != 0 && replayed_make == std::vector<uint8_t>{0xfa, 0xfa, 0x1e} &&
+              replayed_break == std::vector<uint8_t>{0x9e},
+          hex(old_obf) + " / " + hex_bytes(replayed_make) + " / " + hex_bytes(replayed_break));
 
     // Aux mouse: enable, then one movement packet with dy negated.
     b.out(0x64, 0xa8);
@@ -473,6 +624,19 @@ void kbc(Bench &b) {
         total += (p[0] & 0x10) ? int(p[1]) - 256 : int(p[1]);
     }
     check("movement beyond 255 is carried into the next packet", total == 381, std::to_string(total));
+    // The runtime's packets reach -128: host dy -128 (up) is PS/2 +128.
+    bool ready = b.top.mouse_ready;
+    b.top.mouse_valid = 1; b.top.mouse_dx = -128; b.top.mouse_dy = -128; b.top.mouse_buttons = 0;
+    b.clock();
+    b.top.mouse_valid = 0;
+    uint8_t extreme[3] = {};
+    for (auto &byte : extreme) {
+        b.wait([&] { return (b.in(0x64) & 1) != 0; }, 3000000);
+        byte = b.in(0x60);
+    }
+    check("the aux device takes packets out of reset; dx -128 and dy -128 arrive as -128 and +128",
+          ready && extreme[0] == 0x18 && extreme[1] == 0x80 && extreme[2] == 0x80,
+          hex(extreme[0]) + " " + hex(extreme[1]) + " " + hex(extreme[2]));
 
     auto mouse_command = [&](uint8_t command) {
         b.out(0x64, 0xd4); b.out(0x60, command);
@@ -544,6 +708,7 @@ void kbc(Bench &b) {
     mouse_command(0xe8); mouse_command(0x02);
     mouse_command(0xf3); mouse_command(10);
     std::vector<uint64_t> packets;
+    const uint64_t sampling_from = b.cycles;
     while (packets.size() < 2) {
         move(4);
         uint64_t polled = b.cycles;
@@ -554,25 +719,100 @@ void kbc(Bench &b) {
                 b.in(0x60);
             }
         }
-        if (packets.empty() && b.cycles > 40000000) break;
+        if (packets.empty() && b.cycles - sampling_from > 40000000) break;
     }
     uint64_t gap = packets.size() == 2 ? packets[1] - packets[0] : 0;
     // Detected within one 20,000-clock poll window of the packet.
     check("sample rate 10: stream packets 100 ms apart", gap >= 9980000 && gap < 10040000, std::to_string(gap));
     mouse_command(0xf3); mouse_command(100);
+
+    // A click while the guest is not reading. With the 8042's aux interface
+    // off, four moves fill the device's FIFO (12 bytes, leaving the four a
+    // command reply needs) and a fifth waits in the sums. A button-down is
+    // taken; the button-up after it waits (mouse_ready low) until the
+    // pending down can be queued, and the guest sees both edges and every
+    // count. The mouse is
+    // reset first: the sample-rate check leaves movement to report.
+    mouse_command(0xff);
+    while (b.output_within(3000000)) b.in(0x60);  // AA 00
+    mouse_command(0xf4);
+    while (b.output_within(3000000)) b.in(0x60);
+    b.run(11000000);  // the 10 per second check's sample interval runs out
+    struct Offer { bool pending = false; int dx = 0, buttons = 0; } offer;
+    b.each_clock = [&] {
+        b.top.mouse_valid = offer.pending;
+        if (!offer.pending) return;
+        b.top.mouse_dx = int8_t(offer.dx); b.top.mouse_dy = 0; b.top.mouse_buttons = uint8_t(offer.buttons);
+        b.top.eval();
+        if (b.top.mouse_ready) offer.pending = false;  // taken on this clock's edge
+    };
+    auto send = [&](int dx, int buttons) { offer = {true, dx, buttons}; };
+    b.out(0x64, 0xa7);
+    for (int n = 0; n < 5; ++n) { send(1, 0); b.run(1200000); }  // a packet per 10 ms sample
+    send(0, 1);
+    b.run(100000);
+    bool down_taken = !offer.pending;
+    send(0, 0);
+    b.run(300000);
+    bool up_held = offer.pending;
+    b.out(0x64, 0xa8);
+    std::vector<uint8_t> clicked;
+    while (b.output_within(3000000)) clicked.push_back(b.in(0x60));
+    bool up_taken = !offer.pending;
+    b.each_clock = nullptr;
+    b.top.mouse_valid = 0;
+    std::vector<uint8_t> want;
+    for (int n = 0; n < 4; ++n) for (uint8_t byte : {0x08, 0x01, 0x00}) want.push_back(byte);
+    for (uint8_t byte : {0x09, 0x01, 0x00, 0x08, 0x00, 0x00}) want.push_back(byte);
+    check("a click while the aux FIFO is full: the up waits for room, and the guest sees both edges",
+          down_taken && up_held && up_taken && clicked == want,
+          std::to_string(down_taken) + std::to_string(up_held) + std::to_string(up_taken) + " " + hex_bytes(clicked));
+
     b.out(0x64, 0xa7);
     b.run(200000);
     while (b.in(0x64) & 1) b.in(0x60);
 
-    // A full scan-code queue still leaves room for a command's reply.
+    // A guest that never reads the aux FIFO must not keep the mailbox's
+    // button-up acknowledgement pending beyond the runtime's 100 ms limit.
+    for (int n = 0; n < 4; ++n) {
+        b.top.mouse_valid = 1; b.top.mouse_dx = 1; b.top.mouse_dy = 0; b.top.mouse_buttons = 0;
+        b.top.eval();
+        if (!b.top.mouse_ready) b.run(5000000);
+        b.clock();
+        b.top.mouse_valid = 0;
+        b.run(1100000);  // sample one three-byte packet into the undrained FIFO
+    }
+    b.top.mouse_valid = 1; b.top.mouse_dx = 0; b.top.mouse_dy = 0; b.top.mouse_buttons = 1;
+    b.top.eval();
+    bool down_ready = b.top.mouse_ready;
+    b.clock();
+    b.top.mouse_valid = 0;
+    b.run(1100000);  // leave the down pending because only four FIFO slots remain
+    b.top.mouse_valid = 1; b.top.mouse_dx = 0; b.top.mouse_dy = 0; b.top.mouse_buttons = 0;
+    b.top.eval();
+    bool up_blocked = !b.top.mouse_ready;
+    uint64_t wait_from = b.cycles;
+    while (!b.top.mouse_ready && b.cycles - wait_from < 5200000) b.clock();
+    uint64_t wait_clocks = b.cycles - wait_from;
+    bool up_ready = b.top.mouse_ready;
+    if (up_ready) b.clock();
+    b.top.mouse_valid = 0;
+    check("a full aux FIFO bounds a click wait to 50 ms", down_ready && up_blocked && up_ready &&
+          wait_clocks >= 4900000 && wait_clocks <= 5100000, std::to_string(wait_clocks));
+
+    // A full scan-code queue still leaves room for a command's reply: with
+    // the keyboard interface disabled, 13 of 20 makes are queued when F2
+    // (which enables it again) is sent; the other 7 follow its reply.
     b.out(0x64, 0xad);
-    for (int n = 0; n < 20; ++n) if (b.top.key_ready) key(0x1c);
+    for (uint8_t usage = 0x04; usage < 0x18; ++usage) b.key(usage, true);
+    b.run(300000);
     b.out(0x60, 0xf2);
-    std::vector<uint8_t> drained;
-    while (b.output_within(3000000)) drained.push_back(b.in(0x60));
+    std::vector<uint8_t> drained = b.drain(3000000);
     size_t n = drained.size();
-    check("an F2 reply fits behind a full scan-code queue", n >= 3 && drained[n - 3] == 0xfa &&
-          drained[n - 2] == 0xab && drained[n - 1] == 0x41, std::to_string(n));
+    check("an F2 reply fits behind a full scan-code queue", n == 23 && drained[13] == 0xfa &&
+          drained[14] == 0xab && drained[15] == 0x41, hex_bytes(drained));
+    for (uint8_t usage = 0x04; usage < 0x18; ++usage) b.key(usage, false);
+    b.drain(3000000);
 }
 
 void rtc(Bench &b) {

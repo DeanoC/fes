@@ -224,6 +224,7 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
                   'hardware_dos': dos_profile,
                   'half_rate_board': False, 'phased_hdmi_clock': True,
                   'enable_fes_computer': True, 'enable_pcxt_media': True,
+                  'enable_keyboard': dos_profile,
                   'diagnostic_completion_marker': not dos_profile,
                   'video_mailbox_contract': True,
                   'system_clock_hz': 100000000, 'pixel_clock_hz': 74250000,
@@ -275,7 +276,7 @@ def require_timing(summary, seeds, *, dos_profile=False):
 def build_limits(dos_profile):
     return [
         'external IO/HPS timing and physical reset qualification remain open',
-        ('runtime floppy image is optional; host keyboard and exact-artifact hardware acceptance remain open'
+        ('runtime floppy image is optional; exact-artifact keyboard and hardware acceptance remain open'
          if dos_profile else
          'BIOS, DOS boot, host keyboard and in-play display plane are not implemented'),
     ]
@@ -287,7 +288,8 @@ def manifest(record, payload, *, dos_profile=False, metadata=None):
     expected_core_id = 'fes.pcxt-dos' if dos_profile else 'fes.pcxt'
     if (not isinstance(dos_profile, bool) or parameters.get('core_id') != expected_core_id
             or parameters.get('hardware_dos') is not dos_profile
-            or parameters.get('enable_pcxt_media') is not True):
+            or parameters.get('enable_pcxt_media') is not True
+            or parameters.get('enable_keyboard') is not dos_profile):
         raise BuildError('PC/XT manifest profile does not match its build record')
     if dos_profile:
         description = ('XT-compatible BIOS and read-only 360 KiB floppy loaded '
@@ -300,6 +302,8 @@ def manifest(record, payload, *, dos_profile=False, metadata=None):
                 'description': 'Quartus 8088 SDRAM/DMA diagnostic with a runtime floppy sector check'}
     interfaces = [{'id': 'fes.video.fixed-720p60', 'major': 1, 'minor': 0, 'required': True}]
     interfaces.append({'id': 'fes.media.pcxt-floppy', 'major': 1, 'minor': 0, 'required': True})
+    if dos_profile:
+        interfaces.append({'id': 'fes.keyboard.hid', 'major': 1, 'minor': 0, 'required': True})
     return encode_manifest({'format': 2,
         'core': core,
         'target': {'platform': 'de10_nano', 'device': board.DEVICE, 'programming_profile': 'fes-gp-v1'},

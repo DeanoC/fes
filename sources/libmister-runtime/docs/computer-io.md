@@ -188,12 +188,22 @@ requests are serialized with each other, Stop and replacement.
 and row 8 bits 8..15 must be zero. The active generation must be a
 `fes.computer` package declaring required `fes.keyboard.hid` 1.0; otherwise the
 result is `unsupported_interface` (phase `compatibility`). The request is a
-complete snapshot. The driver writes KeyboardHid (opcode 3) only for rows that
-differ from the last acknowledged state, in ascending row order; the first
-snapshot after Start writes all nine rows. A multi-row change is several
-ordered transactions, not an atomic update. A failed row exchange retires the
-generation through the one-shot input-fault cleanup, as for `set_controller`,
-and the next snapshot would write every row again.
+complete snapshot. KeyboardHid (opcode 3) replaces a single row, so the driver
+sends ordinary-key releases, modifier releases, modifier presses, then ordinary
+key presses. It writes rows in ascending order within each phase and skips
+unchanged rows; a row with both releases and presses is written twice. When the
+last acknowledged state is unknown, including after Start or an error, the
+driver first writes all eight ordinary rows and then the modifier row to zero,
+then applies the requested modifiers and ordinary keys. A failed row exchange
+retires the generation through the one-shot input-fault cleanup, as for
+`set_controller`.
+
+These exchanges are not an atomic snapshot. The interface requires the core
+to group row bursts, and the host must space each press and release by about a
+millisecond. A slow multi-row handover can expose intermediate states, including
+when two physical usages map to the same machine key. This order reduces
+modifier/key inversions but does not turn the existing interface into an atomic
+one or guarantee arbitrarily short taps.
 
 ### `set_controller`
 

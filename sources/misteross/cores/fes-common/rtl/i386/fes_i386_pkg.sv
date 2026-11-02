@@ -318,9 +318,26 @@ package fes_i386_pkg;
 
     // ---- Pipeline ---------------------------------------------------------------
 
+    // What the speed governor charges an instruction by (fes_i386_governor),
+    // taken from Q's bytes in DC and carried by each of its uops to WB: the
+    // opcode (two: after 0Fh), the ModRM byte's reg field (mreg) and whether its
+    // operand is a register (mod 3), the operand size, a REP prefix, and an
+    // address of base, index and displacement (ea3). The ModRM fields mean
+    // nothing for an opcode without one; the governor's classes ignore them.
+    typedef struct packed {
+        logic       two;
+        logic [7:0] op;
+        logic [2:0] mreg;
+        logic       rm_reg;
+        logic       o32;
+        logic       rep;
+        logic       ea3;
+    } gov_t;
+
     // An instruction decoded in DC, as D takes it (fes_i386_decode and
     // fes_i386_amode on Q's output register; fes_i386_cpu).
     typedef struct packed {
+        gov_t        gov;
         uop_t        uop;
         logic [3:0]  length;
         logic        opsize32;
@@ -570,6 +587,7 @@ package fes_i386_pkg;
     typedef struct packed {
         logic        valid;
         uop_t        uop;
+        gov_t        gov;         // D: the instruction's governor fields (decoded_t gov)
         logic [31:0] eip;         // the x86 instruction's EIP
         logic [31:0] eip_next;    // the next instruction's, sequentially
         logic [31:0] a;

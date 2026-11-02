@@ -81,6 +81,9 @@ type Action struct {
 	RoomID            string
 	Platform          string
 	CoreIDs           []string
+	FamilyID          string
+	FamilyLabel       string
+	FirstUse          bool
 	Collection        string
 	Layout            string
 	SessionID         string
@@ -105,4 +108,5 @@ const (
 	ActionHardwareImportExpansion
 	ActionHardwareMedia
 	ActionHardwareExpansions
+	ActionFirmwareInfo
 )
