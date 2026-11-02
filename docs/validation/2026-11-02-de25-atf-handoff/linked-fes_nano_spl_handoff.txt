@@ -1,0 +1,124 @@
+
+out/nano-atf-handoff-20261102/native-uboot/build/spl/u-boot-spl:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+0000000000001a60 <fes_nano_spl_handoff>:
+    1a60:	a9b97bfd 	stp	x29, x30, [sp, #-112]!
+    1a64:	529b9621 	mov	w1, #0xdcb1                	// #56497
+    1a68:	52a00023 	mov	w3, #0x10000               	// #65536
+    1a6c:	910003fd 	mov	x29, sp
+    1a70:	72a00b41 	movk	w1, #0x5a, lsl #16
+    1a74:	a90363f7 	stp	x23, x24, [sp, #48]
+    1a78:	910143f8 	add	x24, sp, #0x50
+    1a7c:	aa1803e2 	mov	x2, x24
+    1a80:	d2b2c100 	mov	x0, #0x96080000            	// #2517106688
+    1a84:	a90153f3 	stp	x19, x20, [sp, #16]
+    1a88:	a9025bf5 	stp	x21, x22, [sp, #32]
+    1a8c:	f90023f9 	str	x25, [sp, #64]
+    1a90:	9400271d 	bl	b704 <sha256_csum_wd>
+    1a94:	d53be021 	mrs	x1, cntpct_el0
+    1a98:	d291e320 	mov	x0, #0x8f19                	// #36633
+    1a9c:	90000113 	adrp	x19, 21000 <_ctype+0x35cf>
+    1aa0:	f2ac6d80 	movk	x0, #0x636c, lsl #16
+    1aa4:	91324273 	add	x19, x19, #0xc90
+    1aa8:	b2400021 	orr	x1, x1, #0x1
+    1aac:	f2d5ec80 	movk	x0, #0xaf64, lsl #32
+    1ab0:	f2f2cf40 	movk	x0, #0x967a, lsl #48
+    1ab4:	ca000020 	eor	x0, x1, x0
+    1ab8:	b2400000 	orr	x0, x0, #0x1
+    1abc:	a9048660 	stp	x0, x1, [x19, #72]
+    1ac0:	d5384255 	mrs	x21, currentel
+    1ac4:	90000119 	adrp	x25, 21000 <_ctype+0x35cf>
+    1ac8:	912a1b39 	add	x25, x25, #0xa86
+    1acc:	aa1903e1 	mov	x1, x25
+    1ad0:	aa1803e0 	mov	x0, x24
+    1ad4:	d2800402 	mov	x2, #0x20                  	// #32
+    1ad8:	53020eb5 	ubfx	w21, w21, #2, #2
+    1adc:	94003071 	bl	dca0 <memcmp>
+    1ae0:	2a0003f6 	mov	w22, w0
+    1ae4:	71000ebf 	cmp	w21, #0x3
+    1ae8:	54000740 	b.eq	1bd0 <fes_nano_spl_handoff+0x170>  // b.none
+    1aec:	90000101 	adrp	x1, 21000 <_ctype+0x35cf>
+    1af0:	b00000e0 	adrp	x0, 1e000 <_ctype+0x5cf>
+    1af4:	91346021 	add	x1, x1, #0xd18
+    1af8:	91024c00 	add	x0, x0, #0x93
+    1afc:	97fffe8d 	bl	1530 <fes_nano_spl_sample_report>
+    1b00:	900000f7 	adrp	x23, 1d000 <sdhci_cdns_phy_cfgs+0x60>
+    1b04:	90000101 	adrp	x1, 21000 <_ctype+0x35cf>
+    1b08:	b00000e0 	adrp	x0, 1e000 <_ctype+0x5cf>
+    1b0c:	9136b021 	add	x1, x1, #0xdac
+    1b10:	91026400 	add	x0, x0, #0x99
+    1b14:	97fffe87 	bl	1530 <fes_nano_spl_sample_report>
+    1b18:	913c82f7 	add	x23, x23, #0xf20
+    1b1c:	90000101 	adrp	x1, 21000 <_ctype+0x35cf>
+    1b20:	b00000e0 	adrp	x0, 1e000 <_ctype+0x5cf>
+    1b24:	91353021 	add	x1, x1, #0xd4c
+    1b28:	91028000 	add	x0, x0, #0xa0
+    1b2c:	97fffe81 	bl	1530 <fes_nano_spl_sample_report>
+    1b30:	d2800014 	mov	x20, #0x0                   	// #0
+    1b34:	9104b267 	add	x7, x19, #0x12c
+    1b38:	b00000e0 	adrp	x0, 1e000 <_ctype+0x5cf>
+    1b3c:	295f0e62 	ldp	w2, w3, [x19, #248]
+    1b40:	91029400 	add	x0, x0, #0xa5
+    1b44:	297a94e1 	ldp	w1, w5, [x7, #-44]
+    1b48:	294518e4 	ldp	w4, w6, [x7, #40]
+    1b4c:	94003522 	bl	efd4 <printf>
+    1b50:	b00000e0 	adrp	x0, 1e000 <_ctype+0x5cf>
+    1b54:	91042c00 	add	x0, x0, #0x10b
+    1b58:	940010a4 	bl	5de8 <puts>
+    1b5c:	38746b01 	ldrb	w1, [x24, x20]
+    1b60:	aa1703e0 	mov	x0, x23
+    1b64:	91000694 	add	x20, x20, #0x1
+    1b68:	9400351b 	bl	efd4 <printf>
+    1b6c:	f100829f 	cmp	x20, #0x20
+    1b70:	54ffff61 	b.ne	1b5c <fes_nano_spl_handoff+0xfc>  // b.any
+    1b74:	d2800014 	mov	x20, #0x0                   	// #0
+    1b78:	900000e0 	adrp	x0, 1d000 <sdhci_cdns_phy_cfgs+0x60>
+    1b7c:	913c9400 	add	x0, x0, #0xf25
+    1b80:	9400109a 	bl	5de8 <puts>
+    1b84:	38746b21 	ldrb	w1, [x25, x20]
+    1b88:	aa1703e0 	mov	x0, x23
+    1b8c:	91000694 	add	x20, x20, #0x1
+    1b90:	94003511 	bl	efd4 <printf>
+    1b94:	f100829f 	cmp	x20, #0x20
+    1b98:	54ffff61 	b.ne	1b84 <fes_nano_spl_handoff+0x124>  // b.any
+    1b9c:	b00000e0 	adrp	x0, 1e000 <_ctype+0x5cf>
+    1ba0:	910ed400 	add	x0, x0, #0x3b5
+    1ba4:	94001091 	bl	5de8 <puts>
+    1ba8:	90000100 	adrp	x0, 21000 <_ctype+0x35cf>
+    1bac:	b9415264 	ldr	w4, [x19, #336]
+    1bb0:	710002df 	cmp	w22, #0x0
+    1bb4:	2a1503e1 	mov	w1, w21
+    1bb8:	b94ba802 	ldr	w2, [x0, #2984]
+    1bbc:	1a9f17e3 	cset	w3, eq	// eq = none
+    1bc0:	b00000e0 	adrp	x0, 1e000 <_ctype+0x5cf>
+    1bc4:	91048c00 	add	x0, x0, #0x123
+    1bc8:	94003503 	bl	efd4 <printf>
+    1bcc:	94002f55 	bl	d920 <hang>
+    1bd0:	90000100 	adrp	x0, 21000 <_ctype+0x35cf>
+    1bd4:	b94ba800 	ldr	w0, [x0, #2984]
+    1bd8:	34fff8a0 	cbz	w0, 1aec <fes_nano_spl_handoff+0x8c>
+    1bdc:	35fff896 	cbnz	w22, 1aec <fes_nano_spl_handoff+0x8c>
+    1be0:	90000114 	adrp	x20, 21000 <_ctype+0x35cf>
+    1be4:	912ec294 	add	x20, x20, #0xbb0
+    1be8:	aa1403e2 	mov	x2, x20
+    1bec:	aa1303e0 	mov	x0, x19
+    1bf0:	52800021 	mov	w1, #0x1                   	// #1
+    1bf4:	9400016c 	bl	21a4 <fes_nano_cold_finish>
+    1bf8:	35fff7a0 	cbnz	w0, 1aec <fes_nano_spl_handoff+0x8c>
+    1bfc:	a9448a61 	ldp	x1, x2, [x19, #72]
+    1c00:	b00000e0 	adrp	x0, 1e000 <_ctype+0x5cf>
+    1c04:	29581263 	ldp	w3, w4, [x19, #192]
+    1c08:	91059000 	add	x0, x0, #0x164
+    1c0c:	b940fe65 	ldr	w5, [x19, #252]
+    1c10:	940034f1 	bl	efd4 <printf>
+    1c14:	d5033f9f 	dsb	sy
+    1c18:	f94023f9 	ldr	x25, [sp, #64]
+    1c1c:	aa1403e0 	mov	x0, x20
+    1c20:	a94153f3 	ldp	x19, x20, [sp, #16]
+    1c24:	a9425bf5 	ldp	x21, x22, [sp, #32]
+    1c28:	a94363f7 	ldp	x23, x24, [sp, #48]
+    1c2c:	a8c77bfd 	ldp	x29, x30, [sp], #112
+    1c30:	d65f03c0 	ret

@@ -12,6 +12,12 @@ Its compiled digest/size and parameter ranges come from the checked BL31/FIT
 build. A mismatch rejects before entry. This read-only observation preserves
 vendor BL31 startup and supplies no bridge or runtime permission; it is intended
 to narrow the unresolved SPL-to-EL3 stop before the first console marker.
+The [bounded trial](../../../docs/validation/2026-11-02-de25-atf-handoff/README.md)
+stops after SPL's handoff line without reaching this final observation. The
+remaining interval includes its barrier, return and loaded-memory guard;
+neither a precise fault location nor BL31 entry is established. Firmware/package
+upload and independent SD readback pass; native DDR and runtime admission remain
+unqualified.
 
 The optional source-bound SMMU serial profile now runs a read-only observation
 inside the trusted cold provider. It samples the non-secure controls and only

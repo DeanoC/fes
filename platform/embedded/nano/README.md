@@ -12,8 +12,12 @@ serial/configuration decoder. Current file composition requires that descriptor
 and `spl_atf_trace=true`; the decoder requires its ordered observation and matches
 the later capture pointer/cookie to the final SPL arguments. Historical captures
 keep their explicit base observation scope. A completed ATF observation proves
-neither execution of BL31 nor runtime admission. This candidate still needs its
-matched bounded hardware test.
+neither execution of BL31 nor runtime admission. Its
+[bounded TRWU8CBL trial](../../../docs/validation/2026-11-02-de25-atf-handoff/README.md)
+verifies the firmware/package uploads but stops after SPL handoff before the
+final ATF observation. The unresolved interval includes the final barrier,
+return and loaded-memory guard; BL31 entry is unobserved. No DDR read/drain
+or runtime admission is qualified.
 
 `smmu-profile.json` selects a separate serial-only `probe` image. Its source-bound
 SPL/BL31 chain enables a read-only SMMUv3 observation after trusted cold ownership

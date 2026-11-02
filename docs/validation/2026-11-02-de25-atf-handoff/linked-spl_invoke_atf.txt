@@ -1,0 +1,58 @@
+
+out/nano-atf-handoff-20261102/native-uboot/build/spl/u-boot-spl:     file format elf64-littleaarch64
+
+
+Disassembly of section .text:
+
+00000000000038f0 <spl_invoke_atf>:
+    38f0:	a9bc7bfd 	stp	x29, x30, [sp, #-64]!
+    38f4:	52800341 	mov	w1, #0x1a                  	// #26
+    38f8:	910003fd 	mov	x29, sp
+    38fc:	a90153f3 	stp	x19, x20, [sp, #16]
+    3900:	a9025bf5 	stp	x21, x22, [sp, #32]
+    3904:	aa0003f5 	mov	x21, x0
+    3908:	f9001bf7 	str	x23, [sp, #48]
+    390c:	f9401014 	ldr	x20, [x0, #32]
+    3910:	aa1403e0 	mov	x0, x20
+    3914:	97ffff80 	bl	3714 <spl_fit_images_find>
+    3918:	37f804a0 	tbnz	w0, #31, 39ac <spl_invoke_atf+0xbc>
+    391c:	2a0003e1 	mov	w1, w0
+    3920:	aa1403e0 	mov	x0, x20
+    3924:	97ffffe3 	bl	38b0 <spl_fit_images_get_entry>
+    3928:	aa0003f3 	mov	x19, x0
+    392c:	52800221 	mov	w1, #0x11                  	// #17
+    3930:	aa1403e0 	mov	x0, x20
+    3934:	97ffff78 	bl	3714 <spl_fit_images_find>
+    3938:	2a0003e1 	mov	w1, w0
+    393c:	37f803c0 	tbnz	w0, #31, 39b4 <spl_invoke_atf+0xc4>
+    3940:	aa1403e0 	mov	x0, x20
+    3944:	97ffffdb 	bl	38b0 <spl_fit_images_get_entry>
+    3948:	aa0003f4 	mov	x20, x0
+    394c:	f9400eb7 	ldr	x23, [x21, #24]
+    3950:	aa1403e1 	mov	x1, x20
+    3954:	aa1303e0 	mov	x0, x19
+    3958:	d2800002 	mov	x2, #0x0                   	// #0
+    395c:	97ffffd4 	bl	38ac <bl2_plat_get_bl31_params>
+    3960:	aa0003f5 	mov	x21, x0
+    3964:	52807800 	mov	w0, #0x3c0                 	// #960
+    3968:	d51b4220 	msr	daif, x0
+    396c:	97fff83d 	bl	1a60 <fes_nano_spl_handoff>
+    3970:	aa0003f6 	mov	x22, x0
+    3974:	aa0003e5 	mov	x5, x0
+    3978:	aa1403e2 	mov	x2, x20
+    397c:	aa1303e1 	mov	x1, x19
+    3980:	aa1703e0 	mov	x0, x23
+    3984:	d2800003 	mov	x3, #0x0                   	// #0
+    3988:	aa1503e4 	mov	x4, x21
+    398c:	97fff74e 	bl	16c4 <fes_nano_spl_atf_trace>
+    3990:	d2800043 	mov	x3, #0x2                   	// #2
+    3994:	aa1603e2 	mov	x2, x22
+    3998:	f2c86643 	movk	x3, #0x4332, lsl #32
+    399c:	aa1503e0 	mov	x0, x21
+    39a0:	f2e8c9c3 	movk	x3, #0x464e, lsl #48
+    39a4:	d2800001 	mov	x1, #0x0                   	// #0
+    39a8:	d63f02e0 	blr	x23
+    39ac:	d2800013 	mov	x19, #0x0                   	// #0
+    39b0:	17ffffdf 	b	392c <spl_invoke_atf+0x3c>
+    39b4:	d2b00414 	mov	x20, #0x80200000            	// #2149580800
+    39b8:	17ffffe5 	b	394c <spl_invoke_atf+0x5c>
