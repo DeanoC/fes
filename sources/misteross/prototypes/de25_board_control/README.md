@@ -8,6 +8,20 @@ generation. The fingerprint is not a sealed FES package identity. An explicit
 `--sealed-diagnostic` build instead computes the existing canonical functional
 build ID before synthesis and installs it in both endpoints.
 
+The overlay owns its version-1.1 `fes_de25_computer.v` transport and generated
+register headers, installed over the captured board's original transport.
+Those bytes enter the same functional source snapshot, fingerprint and seal.
+Generation and verification compare both installed and actual generated HDL
+against them. The GP ABI, aperture size, clocks, master inventory and execution
+commands retain their existing contracts.
+
+Read-only offsets 24/28 observe actual Z80 fetch bus cycles and their sampled
+last address. The count uses M1/MREQ/RD and the CPU bus clock; GP acknowledgements
+do not advance or reset it. Reading the count captures a coherent address while
+the CPU keeps running. Hold leaves the counter intact so a bounded observer can
+check run progress, held stability and relaunch. This is not a retired-instruction,
+video, memory-containment or production-acceptance measurement.
+
 The new 256-byte Avalon aperture is at peripheral-relative `0x10400`. The
 generated handoff must also show it at `0x00110400` in the existing JTAG master.
 Neither address is a verified CPU physical address. The default read responder

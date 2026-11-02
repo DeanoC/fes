@@ -5,6 +5,9 @@ The separate `HPSContextVerifier.OpenComputer` path connects the native
 window and the existing owned bridge service. It requires the original cold
 closed scope and permits only a control-only opening. Every register operation
 checks the same secure owner/generation before and after physical access.
+This includes the read-only version-1.1 fetch count/address pair. Ownership
+loss during an observation retires it; a retained client cannot observe after
+Close. The counter adds no bridge grant or data access.
 `ComputerSession.Close` requests Hold once through a usable driver, retires
 register access, verifies complete master-stop/bridge reclosure and rechecks the
 secure source context. Failed commands and unknown closure are not replayed.

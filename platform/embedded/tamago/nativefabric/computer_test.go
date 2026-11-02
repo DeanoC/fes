@@ -24,9 +24,11 @@ type computerCPU struct {
 	port                                   computer.IO
 	words                                  [16]uint16
 	gpo, gpi, status                       uint32
+	fetches, fetchAddress                  uint32
 	calls, reads, writes, opens, closes    int
 	stall, loseOpen, loseClose, badClosure bool
 	changeAfterRead                        bool
+	changeOnFetch                          bool
 }
 
 func (c *computerCPU) Invoke(r [7]uint64) ([4]uint64, error) {
@@ -104,6 +106,9 @@ func (c *computerCPU) ReadPhysical32(address uint64) (uint32, error) {
 		c.state.Generation++
 	}
 	offset := uint32(address - 0x20010300)
+	if c.changeOnFetch && offset == cg.FesDe25ComputerFetchCountOffset {
+		c.state.Generation++
+	}
 	if c.port != nil {
 		return c.port.Read32(offset)
 	}
@@ -120,6 +125,10 @@ func (c *computerCPU) ReadPhysical32(address uint64) (uint32, error) {
 		return c.gpi, nil
 	case cg.FesDe25ComputerFaultOffset:
 		return 0, nil
+	case cg.FesDe25ComputerFetchCountOffset:
+		return c.fetches, nil
+	case cg.FesDe25ComputerFetchAddressOffset:
+		return c.fetchAddress, nil
 	}
 	return 0, errors.New("undefined computer CSR")
 }
@@ -219,6 +228,37 @@ func TestNativeComputerScopeClosesAndRevokesIO(t *testing.T) {
 	}
 	if _, ok := any(v).(BootHandoffVerifier); ok {
 		t.Fatal("computer scope became ordinary runtime admission")
+	}
+}
+
+func TestNativeComputerActivityKeepsOwnershipAndRevocation(t *testing.T) {
+	for _, loseOwnership := range []bool{false, true} {
+		v, cpu, control, mapping := computerFixture(t, "")
+		s, err := v.OpenComputer(context.Background(), control, mapping, computerLimits())
+		if err != nil {
+			t.Fatal(err)
+		}
+		cpu.fetches, cpu.fetchAddress = 37, 0x1234
+		writes := cpu.writes
+		observed, err := s.Computer().Activity(context.Background())
+		if err != nil || observed != (computer.FetchActivity{Cycles: 37, Address: 0x1234}) || cpu.writes != writes {
+			t.Fatal(observed, err, cpu)
+		}
+		if loseOwnership {
+			cpu.changeOnFetch = true
+			if _, err := s.Computer().Activity(context.Background()); err == nil {
+				t.Fatal("activity accepted ownership loss during its count read")
+			}
+		} else if _, err := s.Close(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		calls, reads, writes := cpu.calls, cpu.reads, cpu.writes
+		if _, err := s.Computer().Activity(context.Background()); err == nil {
+			t.Fatal("retired session observed activity")
+		}
+		if cpu.calls != calls || cpu.reads != reads || cpu.writes != writes {
+			t.Fatal("retired observation touched firmware or physical registers")
+		}
 	}
 }
 
@@ -370,6 +410,27 @@ func TestSelectedComputerRTLUsesOwnedNativeScope(t *testing.T) {
 	state, err := p.call("inspect")
 	if err != nil || len(state) != 5 || state[0] != 0 || state[1] < 100 {
 		t.Fatal(state, err)
+	}
+	active, err := s.Computer().Activity(context.Background())
+	if err != nil || active.Cycles == 0 {
+		t.Fatal("owned native scope missed actual fetches", active, err)
+	}
+	if err := s.Computer().Hold(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.call("advance %x", 1000); err != nil {
+		t.Fatal(err)
+	}
+	held, err := s.Computer().Activity(context.Background())
+	if err != nil || held.Cycles < active.Cycles {
+		t.Fatal("native Hold erased fetch observations", active, held, err)
+	}
+	if _, err := p.call("advance %x", 10000); err != nil {
+		t.Fatal(err)
+	}
+	next, err := s.Computer().Activity(context.Background())
+	if err != nil || next != held {
+		t.Fatal("native held fetches continued", held, next, err)
 	}
 	if err := s.Computer().LoadTape(context.Background(), []byte{1, 2, 3, 4, 5}); err != nil {
 		t.Fatal(err)

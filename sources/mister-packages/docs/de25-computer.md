@@ -2,15 +2,22 @@
 
 [`fes.fabric.de25-computer`](../packages/fabric/fes_fabric_de25_computer.yaml)
 describes the 32-byte, peripheral-relative Avalon CSR adapter around the
-existing `fes.computer` GP transport. Its definition is imported unchanged
-from the selected board producer at FES revision
-`79d616e85e19d65f0d645b67a85ffe7e142dcdfc`. The FES native
+existing `fes.computer` GP transport. Its original map comes from the selected
+board producer at FES revision `79d616e85e19d65f0d645b67a85ffe7e142dcdfc`.
+The current overlay extends its register version to 1.1 with independent
+read-only fetch observations. The FES native
 [computer driver](../../../platform/embedded/tamago/computer/README.md)
 consumes generated Go constants alongside the shared GP ABI constants.
 
 Identity/version, status, GPO, GPI and sticky fault registers occupy offsets
-0, 4, 8, 12, 16 and 20. The reserved addresses are not safe probes: an undefined
-access faults the adapter. GPO writes are atomic full-width submissions and
+0, 4, 8, 12, 16 and 20. Version 1.1 adds a 32-bit fetch count at 24 and its
+sampled 16-bit last-fetch address at 28. Reading the count captures the matching
+address for a later address read. The counter observes rising CPU bus clock
+edges with M1, MREQ and RD active, wraps modulo 2^32 and initializes only on
+FPGA configuration. Hold, GP traffic and transport reset/fault state do not
+clear or advance it. It measures fetch bus activity, not retired instructions,
+correct emulation or video. Both registers reject writes. An undefined access
+faults the adapter. GPO writes are atomic full-width submissions and
 must toggle bit 31 exactly once; a partial write, busy write or repeated toggle
 faults. Avalon completion acknowledges submission, and the separate GP ACK
 acknowledges command execution. GP errors still require consumer handling.

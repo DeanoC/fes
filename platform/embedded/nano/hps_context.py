@@ -327,6 +327,15 @@ def _computer(project):
     span=constant('generated/fes_de25_computer.vh','FES_DE25_COMPUTER_SPAN')
     if (offset,span)!=(0x10300,32) or constant('generated/fes_computer.vh','FES_COMPUTER_ABI_MINOR')!=0:
         raise ValueError('unsupported computer CSR/ABI version')
+    if any(constant('generated/fes_de25_computer.vh',key)!=value for key,value in
+            {'FES_DE25_COMPUTER_VERSION':0x10001,'FES_DE25_COMPUTER_FETCH_COUNT_OFFSET':24,
+             'FES_DE25_COMPUTER_FETCH_ADDRESS_OFFSET':28}.items()):
+        raise ValueError('computer transport lacks the compiled fetch observation contract')
+    material=hps/'project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth'
+    for name in ('fes_de25_computer.v','generated/fes_de25_computer.vh'):
+        path=material/name
+        if any(p.is_symlink() for p in (path,*path.parents)) or path.read_bytes()!=(local/name).read_bytes():
+            raise ValueError('generated computer activity source differs from the selected endpoint')
     path=hps/'project/qsys_top/qsys_top.sopcinfo';raw=path.read_bytes()
     if hashlib.sha256(raw).hexdigest()!=control_map['handoff_sha256']:
         raise ValueError('computer and control use different generated handoffs')

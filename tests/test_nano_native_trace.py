@@ -1062,6 +1062,78 @@ class NativeComputerTraceTests(unittest.TestCase):
             self.assertFalse(self.decode(changed,atf=expected)['complete'])
 
 
+class NativeComputerActivityTraceTests(unittest.TestCase):
+    """Synthetic UART integration; real fetch signals are tested by the RTL model."""
+    def setUp(self):
+        self.base=NativeComputerTraceTests()
+        self.base.setUp()
+
+    def decode(self,raw,**changes):
+        options={'computer_activity':True};options.update(changes)
+        return self.base.decode(raw,**options)
+
+    def capture(self,counts=(17,17,117,121,121,221,225,225)):
+        raw=self.base.capture().replace('execution_observed=0','execution_observed=1')
+        addresses=(0x10,0x10,0x36,0x42,0x42,0x56,0x60,0x60)
+        samples=''.join(f'FES_NATIVE_COMPUTER_ACTIVITY phase={phase} fetches={count} address={address:x}\r\n'
+                        for phase,count,address in zip(trace.ACTIVITY_PHASES,counts,addresses))
+        return raw.replace('NOTICE:  FES_NANO_MASTER_STOP',samples+'NOTICE:  FES_NANO_MASTER_STOP')
+
+    def test_two_runs_and_three_held_intervals_require_actual_fetch_progress(self):
+        report=self.decode(self.capture())
+        self.assertTrue(report['complete'],report)
+        self.assertTrue(report['computer_activity']['complete'])
+        self.assertEqual(report['computer_activity']['kind'],'z80-instruction-fetch-bus')
+        self.assertEqual(len(report['computer_activity']['samples']),8)
+        self.assertTrue(report['computer_control_observation']['execution_observed'])
+        self.assertFalse(report['computer_control_observation']['runtime_admission'])
+        self.assertFalse(report['core_load_acceptance'])
+        wrapped=self.capture((0xfffffff1,0xfffffff1,17,21,21,117,130,130))
+        self.assertTrue(self.decode(wrapped)['complete'])
+        self.assertFalse(self.decode(self.base.capture())['complete'])
+        self.assertFalse(self.decode(self.capture(),computer_activity=False)['complete'])
+
+    def test_missing_replayed_reordered_or_malformed_samples_never_qualify_execution(self):
+        raw=self.capture();lines=raw.splitlines(keepends=True)
+        for index,line in enumerate(lines):
+            if not line.startswith('FES_NATIVE_COMPUTER_ACTIVITY'):continue
+            for changed in (''.join(lines[:index]+lines[index+1:]),
+                            ''.join(lines[:index]+[line,line]+lines[index+1:]),
+                            ''.join(lines[:index]+lines[index+1:]+[line]),
+                            raw.replace(line,line.replace('=',':',1))):
+                report=self.decode(changed)
+                self.assertFalse(report['complete'])
+                self.assertFalse(report['computer_activity']['complete'])
+                self.assertFalse(report.get('computer_control_observation',{}).get('execution_observed',False))
+
+    def test_stalled_runs_held_activity_resets_and_invalid_widths_reject(self):
+        for counts in ((17,17,17,21,21,31,35,35),(17,18,117,121,121,221,225,225),
+                       (17,17,117,0,0,100,104,104),(17,17,117,121,121,121,125,125),
+                       (17,17,117,121,121,221,225,226),(17,17,0x80000011,0x80000021,0x80000021,0x80000031,0x80000035,0x80000035),
+                       (17,17,0x100000011,0x100000021,0x100000021,0x100000031,0x100000035,0x100000035)):
+            with self.subTest(counts=counts):self.assertFalse(self.decode(self.capture(counts))['complete'])
+        raw=self.capture()
+        for old,new in (('address=42','address=10000'),('address=42','address=43'),
+                        ('phase=initial-held','phase=held'),('fetches=17','fetches=-1'),
+                        ('runtime_admission=unavailable','runtime_admission=available'),
+                        ('execution_observed=1','execution_observed=0')):
+            self.assertIn(old,raw)
+            changed=raw.replace(old,new,1)
+            with self.subTest(new=new):self.assertFalse(self.decode(changed)['complete'])
+
+    def test_partial_or_failed_configuration_cannot_leave_an_execution_claim(self):
+        raw=self.capture()
+        for changed in (raw[:raw.index('FES_NATIVE_COMPUTER_CONTROL')],raw.rstrip(),
+                        raw.replace('bytes=65664 owner=','bytes=65660 owner='),
+                        raw+'panic: late failure\n',raw.replace('complete=1 data=held','complete=0 data=held')):
+            report=self.decode(changed)
+            self.assertFalse(report['complete'])
+            self.assertFalse(report['computer_activity']['complete'])
+            self.assertFalse(report.get('computer_control_observation',{}).get('execution_observed',False))
+        for changes in ({'computer':None},{'computer_activity':1},{'computer_activity':None},{'ddr_read':{}}):
+            with self.subTest(changes=changes),self.assertRaises(ValueError):self.decode(raw,**changes)
+
+
 class NativeSDTraceTests(unittest.TestCase):
     expected={'bytes':1098,'sha256':'a'*64}
     def capture(self):

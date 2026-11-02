@@ -31,6 +31,8 @@ ENDPOINT = "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
 DEFINITION = "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh"
 INPUTS = (OVERLAY + "build.py", OVERLAY + "fes_de25_embedded.sv",
           OVERLAY + "fes_de25_embedded_hw.tcl", OVERLAY + "integrate.tcl", OVERLAY + "seal.py",
+          OVERLAY + "fes_de25_computer.v", OVERLAY + "generated/fes_de25_computer.vh",
+          OVERLAY + "generated/fes_de25_computer.hpp",
           OVERLAY + "reader_memory.py", ENDPOINT, DEFINITION)
 BOOTSTRAP = ("build.py", "display/build.py", "zx81/build.py", "zx81-hps/build.py")
 BASE = 0x10400
@@ -187,6 +189,9 @@ def overlay_project(output, board, sources, identity, record=None):
         raise ValueError("embedded wrapper default build ID or ABI differs")
     for source, target in ((OVERLAY + "fes_de25_embedded.sv", "fes_de25_embedded.sv"),
                            (OVERLAY + "fes_de25_embedded_hw.tcl", "fes_de25_embedded_hw.tcl"),
+                           (OVERLAY + "fes_de25_computer.v", "fes_de25_computer.v"),
+                           (OVERLAY + "generated/fes_de25_computer.vh", "generated/fes_de25_computer.vh"),
+                           (OVERLAY + "generated/fes_de25_computer.hpp", "generated/fes_de25_computer.hpp"),
                            (ENDPOINT, "fes_embedded_control.sv"),
                            (DEFINITION, "generated/fes_embedded_control.vh")):
         (local / target).write_bytes(sources[source])
@@ -196,6 +201,8 @@ def overlay_project(output, board, sources, identity, record=None):
     script = replace_once(script, anchor, sources[OVERLAY + "integrate.tcl"].decode() + "\n" + anchor)
     inputs_file = output / "hps/inputs.json"
     inputs = json.loads(inputs_file.read_text())
+    for name in ('fes_de25_computer.v','generated/fes_de25_computer.vh','generated/fes_de25_computer.hpp'):
+        inputs['computer']['source_sha256'][name]=digest(sources[OVERLAY+name])
     memory = reader_memory.checked(inputs['reader_memory'])
     mode = int(memory['backend'] == 'hps-ddr')
     script = script.replace('@MEMORY_BACKEND@', str(mode)).replace('@DDR_BASE@', str(memory['bus_base'])).replace('@DDR_BYTES@', str(memory['bytes']))
@@ -295,6 +302,10 @@ def verify_control(project, hps, board, memory=None):
                                         ("fes_embedded_control.vh", "generated/fes_embedded_control.vh")):
         if (material / generated_name).read_bytes() != (local / source_name).read_bytes():
             raise ValueError("generated embedded source differs: " + generated_name)
+    computer_material=project/'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth'
+    for name in ('fes_de25_computer.v','generated/fes_de25_computer.vh'):
+        if (computer_material/name).read_bytes()!=(local/name).read_bytes():
+            raise ValueError('generated computer source differs: '+name)
     wrapper = (generated / "synth/peripheral_subsys_fes_embedded.v").read_text()
     matches = re.findall(r"\bfes_de25_embedded\s*#\((.*?)\)\s+fes_embedded\s*\(", wrapper, re.S)
     if len(matches) != 1:

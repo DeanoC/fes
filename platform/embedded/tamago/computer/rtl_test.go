@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	g "github.com/DeanoC/fes/platform/embedded/tamago/computer/generated"
 )
 
 type rtlIO struct {
@@ -105,6 +107,76 @@ func advance(t *testing.T, r *rtlIO, cycles int) {
 	t.Helper()
 	if _, err := r.call("advance %x", cycles); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSelectedRTLFetchObservationTracksRunHoldAndRelaunch(t *testing.T) {
+	r, want := startRTL(t)
+	limit := limits()
+	limit.Now = time.Now
+	limit.Timeout = 20 * time.Second
+	limit.MaxPolls = 64
+	ctx := context.Background()
+	c, err := Open(ctx, r, limit, want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activity := func() FetchActivity {
+		t.Helper()
+		v, err := c.Activity(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	if err := c.Hold(ctx); err != nil {
+		t.Fatal(err)
+	}
+	advance(t, r, 1000)
+	held := activity()
+	// GP traffic and repeated reads while held cannot manufacture fetches.
+	if err := c.Keyboard(ctx, [9]uint16{}); err != nil {
+		t.Fatal(err)
+	}
+	advance(t, r, 10000)
+	if next := activity(); next != held {
+		t.Fatal("held observation changed", held, next)
+	}
+	for cycle := 0; cycle < 2; cycle++ {
+		if err := c.Run(ctx); err != nil {
+			t.Fatal(err)
+		}
+		// No GP commands during this interval: only the real machine runs.
+		advance(t, r, 100000)
+		active := activity()
+		if active.Cycles <= held.Cycles {
+			t.Fatal("actual Z80 fetches were not observed", held, active)
+		}
+		// A count read samples the address, which remains available while the
+		// CPU keeps fetching. Another address read cannot silently resample it.
+		advance(t, r, 100000)
+		address, err := r.Read32(g.FesDe25ComputerFetchAddressOffset)
+		if err != nil || address != uint32(active.Address) {
+			t.Fatal("fetch observation tore during later CPU activity", active, address, err)
+		}
+		if err := c.Hold(ctx); err != nil {
+			t.Fatal(err)
+		}
+		advance(t, r, 1000)
+		held = activity()
+		if held.Cycles < active.Cycles {
+			t.Fatal("Hold reset the observation counter", active, held)
+		}
+		advance(t, r, 10000)
+		if next := activity(); next != held {
+			t.Fatal("actual fetches continued after Hold", held, next)
+		}
+	}
+	if err := r.Write32(g.FesDe25ComputerFetchCountOffset, 0); err == nil {
+		t.Fatal("fetch counter accepted a CPU write")
+	}
+	if _, err := c.Activity(ctx); !errors.Is(err, ErrProtocol) {
+		t.Fatal("write fault did not retire observation", err)
 	}
 }
 

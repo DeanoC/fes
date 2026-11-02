@@ -45,7 +45,12 @@ an explicitly selected DE25 ZX81 diagnostic producer and adds an Avalon
 aperture for this endpoint. It includes its adapter and endpoint sources in
 the board producer's existing source/vendor fingerprint, and supplies that
 same fingerprint to the computer and embedded-control endpoints. The fingerprint
-is diagnostic, not the canonical record or a sealed package identity. The
+also binds the overlay's version-1.1 computer transport and generated register
+headers. Its read-only fetch count/address sample actual Z80 bus activity,
+preserve the count across execution Hold and add no clock, master or GP opcode.
+The generated component HDL must match those installed source bytes. This
+observation measures fetch cycles rather than retired instructions or video.
+The fingerprint is diagnostic, not the canonical record or a sealed package identity. The
 overlay records its board and overlay revisions separately. Generated handoff
 checks the 256-byte peripheral-relative window, its clock/reset and the JTAG
 route; a JTAG address is not a CPU physical address. The default on-chip responder

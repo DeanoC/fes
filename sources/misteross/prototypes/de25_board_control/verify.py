@@ -148,6 +148,19 @@ def inputs_for(project):
               "fes_de25_embedded_hw.tcl": "sources/misteross/prototypes/de25_board_control/fes_de25_embedded_hw.tcl",
               "fes_embedded_control.sv": "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
               "generated/fes_embedded_control.vh": "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh"}
+    computer_sources=('fes_de25_computer.v','generated/fes_de25_computer.vh','generated/fes_de25_computer.hpp')
+    selected=["sources/misteross/prototypes/de25_board_control/"+name in sources for name in computer_sources]
+    if any(selected) and not all(selected):
+        raise ValueError('incomplete captured computer transport overlay')
+    if all(selected):
+        material=local.parent/'peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/fes_de25_computer_10/synth'
+        for name in computer_sources:
+            source="sources/misteross/prototypes/de25_board_control/"+name
+            mapped[name]=source
+            if inputs['computer']['source_sha256'].get(name)!=sources[source]:
+                raise ValueError('computer transport differs from the functional source snapshot')
+            if not name.endswith('.hpp') and sha(material/name)!=sources[source]:
+                raise ValueError('generated computer transport differs from captured source')
     for installed, source in mapped.items():
         if sha(local / installed) != sources[source]:
             raise ValueError("project endpoint differs from source snapshot: " + installed)

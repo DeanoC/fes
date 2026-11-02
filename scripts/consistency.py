@@ -6,6 +6,8 @@ from environment import build_environment
 
 GENERATED = (
     ('emit-go', 'packages/fabric/fes_fabric_de25_computer.yaml', 'FES', 'platform/embedded/tamago/computer/generated/fes_de25_computer.go'),
+    ('emit-verilog', 'packages/fabric/fes_fabric_de25_computer.yaml', 'misteross', 'prototypes/de25_board_control/generated/fes_de25_computer.vh'),
+    ('emit-cpp', 'packages/fabric/fes_fabric_de25_computer.yaml', 'misteross', 'prototypes/de25_board_control/generated/fes_de25_computer.hpp'),
     ('emit-go', 'packages/abi/fes_computer.yaml', 'FES', 'platform/embedded/tamago/computer/generated/fes_computer.go'),
     ('emit-c', 'packages/fabric/fes_fabric_embedded_sd.yaml', 'FES', 'platform/embedded/firmware/generated/fes_embedded_sd.h'),
     ('emit-go', 'packages/fabric/fes_fabric_embedded_sd.yaml', 'FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_sd.go'),

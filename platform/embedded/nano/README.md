@@ -704,21 +704,31 @@ the computer aperture, clocks/reset, internal-RAM parameter and capability
 contract from the same sealed project. SDK and entry validation rederive it;
 the cold chain enables its one-shot owned control scope only when all metadata
 agrees. The native program checks full GP identity, exercises run, neutral
-keyboard state, hold and relaunch, then verifies held control reclosure.
-It prints `execution_observed=0`: accepting commands is not evidence that the
-CPU executed or that HDMI displayed a frame. No normal runtime admission is
-enabled. The original 20-second configuration deadline and held data paths are
-preserved.
+keyboard state, hold and relaunch, then verifies held control reclosure. The
+current producer's version-1.1 transport adds an independent fetch count/address
+from actual Z80 bus strobes. The native program observes three held intervals
+and two running intervals; the count must remain stable while held, advance
+on both runs and survive return. It reports `execution_observed=1` only after
+those fetch checks and verified reclosure. This measures instruction-fetch bus
+activity rather than retired instructions, correct emulation or HDMI output.
+The earlier [physical command-only trial](../../../docs/validation/2026-11-02-de25-native-computer-control/README.md)
+retains its truthful `execution_observed=0` result on its exact older artifact.
+The new producer and native program require their own physical qualification.
+No normal runtime admission is enabled. The original 20-second configuration
+deadline and held data paths are preserved.
 
-The host calls `decode_native_configuration(..., computer=checked_descriptor)`
-for this experiment. It requires the exact contained SD transfer, pinned memory,
+The host calls `decode_native_configuration(..., computer=checked_descriptor,
+computer_activity=True)` for the current matched experiment. It requires all
+eight ordered fetch observations, the exact contained SD transfer, pinned memory,
 fresh SDM/translation/firewall observations, complete held-data master stop and
 the final computer report with the same owner and reclosed generation. Missing,
 replayed, malformed or mismatched required records reject; incomplete output
 retains progress. This mode excludes an active DDR read and the separate EL3
-identity-probe sequence. A complete report records the source-bound program's
-command-cycle result while keeping execution observation and runtime admission
-false. It is not a CPU activity measurement.
+identity-probe sequence. A complete report identifies the observation as
+`z80-instruction-fetch-bus` while keeping runtime admission and core-load
+acceptance false. The historical command-only decoder selection defaults to
+`computer_activity=False`; it requires an explicit zero execution claim and
+cannot infer the stronger selection from missing or additional serial lines.
 
 The current block-size comparison selects `0xfffc0` (1,048,512) bytes: the
 pinned vendor client's `0xffff0` limit rounded down to a 64-byte boundary.

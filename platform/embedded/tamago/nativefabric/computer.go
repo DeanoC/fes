@@ -84,7 +84,8 @@ func (c *computerIO) access(offset uint32, write bool, value uint32) (uint32, er
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	valid := offset == cg.FesDe25ComputerIdOffset || offset == cg.FesDe25ComputerVersionOffset || offset == cg.FesDe25ComputerStatusOffset ||
-		offset == cg.FesDe25ComputerGpoOffset || offset == cg.FesDe25ComputerGpiOffset || offset == cg.FesDe25ComputerFaultOffset
+		offset == cg.FesDe25ComputerGpoOffset || offset == cg.FesDe25ComputerGpiOffset || offset == cg.FesDe25ComputerFaultOffset ||
+		offset == cg.FesDe25ComputerFetchCountOffset || offset == cg.FesDe25ComputerFetchAddressOffset
 	if c.retired || !valid || write && offset != cg.FesDe25ComputerGpoOffset {
 		return 0, errors.New("native fabric: computer aperture retired or access outside contract")
 	}

@@ -4,17 +4,17 @@
     "commit": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
     "file": "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp",
     "sha256": "931f6e4814b041ca4225e9c98ec6ef3b0b84c85c0baab9d528824b0f78b054a1",
-    "runtime_base_commit": "ae599d8d85b418980eeaebae32388444409e491f",
-    "note": "Unchanged captured board adapter constants. The native consumer adds no production runtime admission or hardware acceptance."
+    "runtime_base_commit": "6bb565fddd75848524fa6ba52bdfdf078d7ce55b",
+    "note": "Baseline source and checksum identify the imported 1.0 contract. The reviewed 1.1 extension changes Version to 0x10001 and adds read-only FetchCount/FetchAddress at 24/28; the current overlay and generated consumers implement those additions. It grants no ordinary runtime admission."
   },
   "fabric": {
     "id": "fes.fabric.de25-computer",
     "major": 1,
-    "minor": 0
+    "minor": 1
   },
   "constants": {
     "FesDe25ComputerIdentity": 1144150616,
-    "FesDe25ComputerVersion": 65536,
+    "FesDe25ComputerVersion": 65537,
     "FesDe25ComputerIdOffset": 0,
     "FesDe25ComputerVersionOffset": 4,
     "FesDe25ComputerStatusOffset": 8,
@@ -32,6 +32,8 @@
     "FesDe25ComputerFaultPartial": 2,
     "FesDe25ComputerFaultBusy": 4,
     "FesDe25ComputerFaultToggle": 8,
-    "FesDe25ComputerFaultAddress": 16
+    "FesDe25ComputerFaultAddress": 16,
+    "FesDe25ComputerFetchCountOffset": 24,
+    "FesDe25ComputerFetchAddressOffset": 28
   }
 }

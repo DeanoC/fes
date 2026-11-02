@@ -52,6 +52,15 @@ type Identity struct {
 	Build        [16]byte
 }
 
+// FetchActivity observes instruction-fetch bus cycles since FPGA configuration,
+// modulo 2^32, and the address sampled by that count read. It is independent of
+// GP command acknowledgements. It does not count retired instructions or prove
+// correct emulation, video output, memory containment or runtime admission.
+type FetchActivity struct {
+	Cycles  uint32
+	Address uint16
+}
+
 type Computer struct {
 	io       IO
 	limits   Limits
@@ -220,6 +229,42 @@ func (o *operation) mutate(opcode, index uint32, argument uint16) error {
 		return ErrProtocol
 	}
 	return err
+}
+
+// Activity reads one count/address observation without sending a GP command.
+// The adapter latches the corresponding last-fetch address on the count read;
+// ongoing CPU activity cannot tear that pair while the address is read later.
+func (c *Computer) Activity(ctx context.Context) (activity FetchActivity, err error) {
+	o, err := c.begin(ctx)
+	if err != nil {
+		return activity, err
+	}
+	defer func() { o.finish(err) }()
+	check := func() error {
+		s, err := o.stable()
+		if err == nil && (s.gpo != c.gpo || !acknowledged(s)) {
+			err = ErrProtocol
+		}
+		return err
+	}
+	if err = check(); err != nil {
+		return activity, err
+	}
+	cycles, err := o.read(g.FesDe25ComputerFetchCountOffset)
+	if err != nil {
+		return activity, err
+	}
+	address, err := o.read(g.FesDe25ComputerFetchAddressOffset)
+	if err != nil {
+		return activity, err
+	}
+	if address > 0xffff {
+		return activity, ErrProtocol
+	}
+	if err = check(); err != nil {
+		return activity, err
+	}
+	return FetchActivity{Cycles: cycles, Address: uint16(address)}, nil
 }
 
 // Open verifies the adapter and the entire live GP identity before returning a

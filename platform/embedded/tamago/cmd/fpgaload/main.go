@@ -194,28 +194,77 @@ func probeComputer(v *nativefabric.HPSContextVerifier, control, mapping []byte) 
 		observed, cleanup := s.Close(context.Background())
 		err = errors.Join(err, cleanup)
 		if err == nil && observed.HoldAcknowledged {
-			fmt.Printf("FES_NATIVE_COMPUTER_CONTROL PASS package_id=%s build_id=%s base=%x map_sha256=%x owner=%x generation=%d held_ack=1 data_held=1 execution_observed=0 runtime_admission=unavailable\n",
+			fmt.Printf("FES_NATIVE_COMPUTER_CONTROL PASS package_id=%s build_id=%s base=%x map_sha256=%x owner=%x generation=%d held_ack=1 data_held=1 execution_observed=1 runtime_admission=unavailable\n",
 				v.Identity().PackageID, v.Identity().BuildID, observed.CPUBase, observed.MapSHA256,
 				observed.After.Owner, observed.After.Generation)
 		}
 	}()
 	c := s.Computer()
-	if err = c.Hold(ctx); err != nil {
+	sample := func(phase string) (computer.FetchActivity, error) {
+		a, err := c.Activity(ctx)
+		if err == nil {
+			fmt.Printf("FES_NATIVE_COMPUTER_ACTIVITY phase=%s fetches=%d address=%x\n", phase, a.Cycles, a.Address)
+		}
+		return a, err
+	}
+	held := func(first, last string) (computer.FetchActivity, error) {
+		if err := c.Hold(ctx); err != nil {
+			return computer.FetchActivity{}, err
+		}
+		// Allow clock-enabled CPU reset to settle. The observation is never
+		// cleared or masked by Hold: actual instruction fetches must stop.
+		time.Sleep(time.Millisecond)
+		a, err := sample(first)
+		if err != nil {
+			return a, err
+		}
+		time.Sleep(20 * time.Millisecond)
+		b, err := sample(last)
+		if err == nil && a != b {
+			err = errors.New("computer fetch bus continued while held")
+		}
+		return b, err
+	}
+	run := func(phase string, before computer.FetchActivity) (computer.FetchActivity, error) {
+		if err := c.Run(ctx); err != nil {
+			return computer.FetchActivity{}, err
+		}
+		time.Sleep(20 * time.Millisecond)
+		after, err := sample(phase)
+		delta := after.Cycles - before.Cycles
+		if err == nil && (delta == 0 || delta >= 1<<31) {
+			err = errors.New("computer fetch bus did not advance within its configured lifetime")
+		}
+		return after, err
+	}
+	initial, err := held("initial", "initial-held")
+	if err != nil {
 		return err
 	}
-	if err = c.Run(ctx); err != nil {
+	active, err := run("run", initial)
+	if err != nil {
 		return err
 	}
-	time.Sleep(20 * time.Millisecond)
 	if err = c.Keyboard(ctx, [9]uint16{}); err != nil {
 		return err
 	}
-	if err = c.Hold(ctx); err != nil {
+	returned, err := held("return", "return-held")
+	if err != nil {
 		return err
 	}
-	if err = c.Run(ctx); err != nil {
+	if returned.Cycles-active.Cycles >= 1<<31 {
+		return errors.New("computer fetch observation reset on return")
+	}
+	relaunched, err := run("relaunch", returned)
+	if err != nil {
 		return err
 	}
-	time.Sleep(20 * time.Millisecond)
-	return nil // Close performs the final Hold, retires MMIO and verifies reclosure.
+	final, err := held("final", "final-held")
+	if err != nil {
+		return err
+	}
+	if final.Cycles-relaunched.Cycles >= 1<<31 {
+		return errors.New("computer fetch observation reset on final Hold")
+	}
+	return nil // Close acknowledges Hold, retires MMIO and verifies reclosure.
 }
