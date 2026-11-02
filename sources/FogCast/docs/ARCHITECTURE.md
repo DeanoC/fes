@@ -982,8 +982,11 @@ binding identity or weaken composition validation.
 The host routes `POST /api/v1/session/disk/insert` and `…/disk/save` retain the
 captured session ID and package/generation/target/unit binding. Insert takes
 JSON `{game_id,base_media_id}` and verifies the selected library entry and base;
-Save has an empty body. CLI `insert-library-disk GAME_ID BASE_MEDIA_ID` restores
-that explicit library disk into the running ST, and `save-disk` publishes a
+Save has an empty body. Successful active-session responses for disk, live-media,
+display and input operations retain the coordinator's execution classification,
+as does session status, even when the target reports a recognized library
+package as a development load. CLI `insert-library-disk GAME_ID BASE_MEDIA_ID`
+restores that explicit library disk into the running ST, and `save-disk` publishes a
 checkpoint. `eject-disk`, Stop and replacement automatically save a bound disk.
 Failure keeps the disk/session binding available for recovery; a lost mutation
 reply is never replayed. One explicit Save may retry a retained `SAVE_FAILED`
