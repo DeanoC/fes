@@ -451,6 +451,7 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         self.patch(native_dev.platform, 'system', return_value='Linux')
         self.patch(native_dev.platform, 'machine', return_value='x86_64')
         self.patch(native_dev.shutil, 'which', return_value='/fixture/tool')
+        self.disk = self.patch(native_dev.shutil, 'disk_usage', return_value=SimpleNamespace(free=40 * 1024**3))
         self.patch(build, 'run')
         self.resolve = self.patch(build, 'resolve_packages_for_action', return_value=((self.package,), ()))
         self.checkout = self.patch(build, 'source_checkout', return_value=self.root / 'sources/FogCast')
@@ -614,6 +615,14 @@ class DE25SourceWorkflowTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'another parent build'):
                 self.run_source()
             self.assertEqual(self.resolve.call_count, before)
+
+    def test_low_disk_stops_before_package_or_source_work(self):
+        self.disk.return_value = SimpleNamespace(free=29 * 1024**3)
+        with self.assertRaisesRegex(ValueError, 'at least 30 GiB free'):
+            self.run_source()
+        self.resolve.assert_not_called()
+        self.checkout.assert_not_called()
+        self.go.assert_not_called()
 
 
 if __name__ == '__main__':
