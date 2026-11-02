@@ -427,7 +427,7 @@ def artifact_names(source=ROOT):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("fetch", "build", "verify", "smoke", "managed-base", "verify-base",
-                                          "managed-factory", "verify-factory", "_inside"))
+                                          "managed-factory", "verify-factory", "boot-smoke", "_inside"))
     parser.add_argument("inside_action", nargs="?", help=argparse.SUPPRESS)
     parser.add_argument("inside_jobs", nargs="?", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--output", type=Path, default=ROOT / "out/de25-nano-linux")
@@ -437,6 +437,9 @@ def main(argv=None):
     parser.add_argument("--kernel", type=Path, help="verified matching owner kernel for managed base or factory")
     parser.add_argument("--sdk", type=Path, help="AArch64 SDK archive pinned by the owner-kernel source lock")
     parser.add_argument("--artifacts", type=Path, help="selected DE25 image-artifact set for managed-factory")
+    parser.add_argument("--image-profile", choices=("managed-base", "managed-factory"),
+                        help="explicit managed image selection for boot-smoke")
+    parser.add_argument("--boot-output", type=Path, help="new evidence directory for boot-smoke")
     args = parser.parse_args(argv)
     if args.action == "_inside":
         if str(ROOT) == "/src" and args.inside_action in ("factory-fetch", "factory-build", "factory-verify"):
@@ -451,6 +454,14 @@ def main(argv=None):
         parser.error("--jobs must be between 1 and 64")
     if args.inside_action is not None or args.inside_jobs is not None:
         parser.error("unexpected positional arguments")
+    if args.action == "boot-smoke":
+        import managed_boot
+        try:
+            return managed_boot.publish(args)
+        except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
+            parser.exit(1, f"de25-managed-boot: {error}\n")
+    if args.image_profile is not None or args.boot_output is not None:
+        parser.error("--image-profile and --boot-output apply only to boot-smoke")
     if args.action in ("managed-factory", "verify-factory"):
         import managed_factory
         try:

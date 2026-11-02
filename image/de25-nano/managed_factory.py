@@ -30,12 +30,12 @@ def save(path, value):
     Path(path).write_text(json.dumps(value, indent=2, sort_keys=True) + '\n')
 
 
-def recipe_key():
-    value = hashlib.sha256(b'FES-DE25-MANAGED-FACTORY-1\n' + base.recipe_key().encode())
+def recipe_key(root=ROOT):
+    value = hashlib.sha256(b'FES-DE25-MANAGED-FACTORY-1\n' + base.recipe_key(root).encode())
     for name in ('image/scripts/native-extra-cores.sh', 'image/scripts/native-video-parts.sh',
                  'image/scripts/verify-native-runtime-inputs.sh', 'scripts/image_artifacts.py',
                  'scripts/build.py', 'scripts/recipes.py'):
-        value.update(name.encode() + b'\0' + (ROOT / name).read_bytes())
+        value.update(name.encode() + b'\0' + (Path(root) / name).read_bytes())
     return value.hexdigest()
 
 
@@ -211,28 +211,32 @@ def inside(action, jobs):
         base.export_sdk(sdks[0], output / 'aarch64-sdk.tar.gz', work / 'host')
         shutil.copyfile(work / '.config', output / 'buildroot.config')
     save(output / 'factory-verify.json', verify_rootfs(output, env))
+    import managed_boot
+    if action == 'factory-build':
+        managed_boot.boot(output, output, PROFILE, inputs['fes_revision'])
+    managed_boot.verify_report(output, output, PROFILE, revision=inputs['fes_revision'])
 
 
 def artifact_names(directory):
     manifest, packages = selected(directory / 'artifacts')
-    names = list(base.artifact_names()) + [LOCK, 'artifacts/artifacts.json']
+    names = list(base.artifact_names()) + [LOCK, 'artifacts/artifacts.json', 'boot.json', 'qemu-smoke.log']
     names += ['artifacts/bin/' + name for name in image_artifacts.BINARIES]
     names += ['artifacts/' + p.relative_to(directory / 'artifacts').as_posix()
               for package in packages for p in [package['selection_path'], *package['directory'].iterdir()]]
     return names
 
 
-def verify_receipt(output):
+def verify_receipt(output, *, producer_root=None):
     record = json.loads((output / 'factory.json').read_text())
     inputs = json.loads((output / INPUTS).read_text())
     if (record.get('format') != 1 or record.get('classification') != 'managed-factory-candidate' or
             record.get('board') != 'de25-nano' or record.get('architecture') != 'aarch64' or
-            record.get('recipe_sha256') != recipe_key() or
+            record.get('recipe_sha256') != recipe_key(ROOT if producer_root is None else producer_root) or
             record.get('builder_image') != base.sdk_lock()['builder_image'] or
             record.get('normal_runtime_admission') != 'closed' or
             not re.fullmatch('[0-9a-f]{40}', record.get('fes_revision', '')) or
             record.get('fes_revision') != inputs.get('fes_revision') or
-            inputs.get('recipe_sha256') != recipe_key() or
+            inputs.get('recipe_sha256') != record.get('recipe_sha256') or
             inputs.get('sdk_sha256') != base.sdk_lock()['sdk_sha256'] or
             set(record.get('files', {})) != set(artifact_names(output))):
         raise ValueError('factory receipt differs from selected source or profile')
@@ -241,6 +245,10 @@ def verify_receipt(output):
         if path.is_symlink() or not path.is_file() or image.digest(path) != expected:
             raise ValueError('factory artifact differs: ' + name)
     base.owner.selected_kernel(output / 'kernel')
+    import managed_boot
+    managed_boot.verify_report(output, output, PROFILE,
+                              producer_root=ROOT if producer_root is None else producer_root,
+                              revision=record['fes_revision'])
     return record
 
 
