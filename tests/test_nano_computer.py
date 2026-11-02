@@ -55,6 +55,8 @@ class ComputerTests(unittest.TestCase):
            'hps_control':control,'hps_control_sha256':context.digest(control),
            'hps_configuration':{'base':0x94800000,'size':8<<20,'core_size':128,'chunk_bytes':64,'core_sha384':'3'*96,'chunk_sha384':['4'*96,'5'*96]},
            'hps_computer':computer,'hps_computer_sha256':context.digest(computer)}
+        p['cpu_mapping']=context.cpu_mapping(control,p['hps_configuration'],None)
+        p['cpu_mapping_sha256']=context.digest(p['cpu_mapping'])
         self.assertIn('#define FES_NANO_COLD_COMPUTER 1',cold.header(p))
         self.assertIn('#define FES_NANO_COMPUTER_RELOAD 1',cold.header(dict(p,computer_reload=True)))
         for flag in (None,0,1,'true'):
