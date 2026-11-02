@@ -22,6 +22,11 @@ int main(int argc, char **argv) {
     const auto firmware = read_file(argv[1]);
     auto disk = read_file(argv[2]);
     bool disk_modified=false;
+#ifdef PCXT_WRITABLE_TEST
+    bool track_saved_sector=false;
+    unsigned saved_sector_address=0, saved_sector_bytes=0;
+    std::array<bool,512> saved_sector_seen{};
+#endif
     require(firmware.size() == 65536, "64 KiB firmware window", 0);
     require(disk.size() == 40*2*9*512, "360 KiB floppy geometry", 0);
     Vbios_top d;
@@ -90,6 +95,12 @@ int main(int argc, char **argv) {
         d.clk=1;d.eval();pixel_edge();++cycles;
         if(media_taken) {
             if (!disk_modified) require(media_data==disk[pending_address],"SDRAM floppy byte differs from image",cycles);
+#ifdef PCXT_WRITABLE_TEST
+            if(track_saved_sector && pending_address>=saved_sector_address && pending_address<saved_sector_address+512) {
+                const unsigned index=pending_address-saved_sector_address;
+                if(!saved_sector_seen[index]) {saved_sector_seen[index]=true;++saved_sector_bytes;}
+            }
+#endif
             pending=false;++media_reads;
         }
         if(dma && !last_dma)++dma2_completions;
@@ -334,6 +345,8 @@ int main(int argc, char **argv) {
         require(byte(0x100000+a)==captured[a],"snapshot differs from physical SDRAM",cycles);
     std::ofstream snapshot("saved-floppy.img",std::ios::binary);
     snapshot.write(reinterpret_cast<const char*>(captured.data()),captured.size());snapshot.close();
+    require(bool(snapshot) && read_file("saved-floppy.img")==captured,
+            "retained snapshot file differs from captured image",cycles);
     exchange(13,0,2); // Durable publication is modeled by the test output.
     require((exchange(12,0,0)&3)==1,"Saved did not clear dirty",cycles);
     exchange(13,0,1);
@@ -367,11 +380,40 @@ int main(int argc, char **argv) {
     require(d.machine_reset && d.disk_loaded && d.firmware_loaded,"warm reset lost disk or firmware",cycles);
     for(unsigned a=0;a<disk.size();++a)
         require(byte(0x100000+a)==disk[a],"warm reset changed disk bytes",cycles);
+#ifdef PCXT_WRITABLE_TEST
+    // Locate the saved file's actual FAT12 data sector in the restored image.
+    // DOS may cache it during boot, so record device reads from reset release
+    // through TYPE rather than demanding another sector transaction at TYPE.
+    auto disk_u16=[&](unsigned offset) {return unsigned(disk.at(offset)) | (unsigned(disk.at(offset+1))<<8);};
+    const unsigned bytes_per_sector=disk_u16(11), sectors_per_cluster=disk.at(13);
+    const unsigned root_sector=disk_u16(14)+unsigned(disk.at(16))*disk_u16(22);
+    const unsigned root_entries=disk_u16(17);
+    require(bytes_per_sector==512 && sectors_per_cluster!=0 && root_entries!=0,
+            "restored FAT12 geometry",cycles);
+    const unsigned data_sector=root_sector+(root_entries*32+511)/512;
+    bool found_saved=false;
+    for(unsigned i=0;i<root_entries;++i) {
+        const unsigned entry=root_sector*512+i*32;
+        require(entry+32<=disk.size(),"restored FAT12 root bounds",cycles);
+        if(std::string(disk.begin()+entry,disk.begin()+entry+11)=="SAVE    TXT") {
+            const unsigned cluster=disk_u16(entry+26);
+            require(!found_saved && cluster>=2,"invalid saved file directory entry",cycles);
+            saved_sector_address=(data_sector+(cluster-2)*sectors_per_cluster)*512;
+            require(saved_sector_address+512<=disk.size(),"saved file data outside floppy",cycles);
+            found_saved=true;
+        }
+    }
+    require(found_saved,"restored image lacks saved file",cycles);
+    const unsigned reads_before_restored_boot=media_reads, dma_before_restored_boot=dma2_completions;
+    track_saved_sector=true;
+#endif
     d.warm_reset=0;
 #ifdef PCXT_WRITABLE_TEST
     // Boot from the restored bytes and make DOS read the saved file itself.
     prompt=false;sector=false;
     while(!prompt)step();
+    require(media_reads>=reads_before_restored_boot+512 && dma2_completions>=dma_before_restored_boot+512,
+            "restored boot did not read the floppy through DMA",cycles);
     const std::string type_command="type save.txt";
     unsigned type_chars=0;
     for(unsigned usage:std::array<unsigned,14>{23,28,19,8,44,22,4,25,8,55,23,27,23,40}) {
@@ -396,10 +438,12 @@ int main(int argc, char **argv) {
     while(cycles<type_deadline && !read_saved) {
         for(unsigned i=0;i<500000;++i)step();
         const auto text=screen();
-        const auto marker=text.find("FES PC/XT DOS boot");
+        const auto command=text.find("A:\\>"+type_command);
+        const auto marker=command==std::string::npos ? std::string::npos : text.find("FES PC/XT DOS boot",command);
         read_saved=marker!=std::string::npos && text.find("A:\\>",marker)!=std::string::npos;
     }
     require(read_saved,"DOS did not read the restored file",cycles);
+    require(saved_sector_bytes==512,"restored file data sector did not traverse the FDC",cycles);
 #endif
     d.cold_reset=1;ram.cold_reset();
     for(unsigned i=0;i<64;++i)step();

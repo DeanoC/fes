@@ -600,8 +600,10 @@ records the disk hash. `make sim-fes-pcxt-media` covers runtime loading and the
 diagnostic; `make sim-fes-pcxt-mailbox` covers identity and mailbox handshake.
 DOS outputs are under `build/sim/fes-pcxt/dos/`. These are host simulations;
 hardware acceptance is tied to the exact package and source recorded in the
-parent core-status matrix. Write persistence and broader compatibility are not
-implemented.
+parent core-status matrix. The writable DOS test exercises guest writes,
+mailbox capture and in-memory image reupload; durable record publication is
+covered separately by runtime tests. Kit save/restart acceptance and broader
+compatibility remain open.
 
 ## Assembled board diagnostic
 
