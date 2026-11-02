@@ -127,6 +127,12 @@ acceptance require the configured Pro installation and a DE25-Nano board.
 
 The board definition lives in
 [`mister-packages`](../mister-packages/packages/board/de25_nano.yaml).
+The separate canonical DE25 MENU producer shares the four bridge FIFOs'
+five-edge reset releases through one pipeline per receiving clock. It checks
+and retains the eleven exact generated inputs and verifies the derived wiring
+before and after compilation. Existing reset SDCs stay unchanged. This source
+repair does not close the remaining reset or HDMI signoff findings; package
+and native acceptance remain separate gates.
 The existing DE10-Nano producers, package admission and Quartus 17.0.2
 oracles retain their current target. DE25-Nano HPS, boot media, runtime,
 HDMI and memory integration are not implemented by this diagnostic.

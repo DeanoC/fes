@@ -53,6 +53,7 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertEqual(inputs["scanout"]["build_identity_scheme"], "canonical-functional-record-v2")
         self.assertEqual(inputs["scanout"]["reset_timing"], B.TIMED_RESET_RELEASE)
         self.assertEqual(inputs["scanout"]["managed_fabric"], B.MANAGED_FABRIC)
+        self.assertEqual(inputs["scanout"]["shared_fifo_resets"], B.SHARED_FIFO_RESETS)
         self.assertEqual(B.verify_reset_synchronizers(directory / "project")["sdc_clear_pins"], 8)
         self.assertIn("set_instance_parameter_value fes_scanout BUILD_ID 0x" + selected,
                       (directory / "project/integrate-mailbox.tcl").read_text())
@@ -148,11 +149,14 @@ class ScanoutBuildTests(unittest.TestCase):
             path = directory / "project/generated-0/altera_reset_controller.sdc"
             path.write_bytes((directory / "reset-timing-originals/generated-0/altera_reset_controller.sdc").read_bytes())
             return directory / "not-reached.sof"
-        generation = {"scanout": {"managed_fabric": {"fixture": True}}}
+        generation = {"scanout": {"managed_fabric": {"fixture": True},
+                                  "shared_fifo_resets": {"fixture": True}}}
         (directory / "generation.json").write_text(json.dumps(generation))
         with mock.patch.object(hps, "compile_project", side_effect=compile_then_restore), \
+             mock.patch.object(B, "shared_reset_helper") as sharing, \
              mock.patch.object(B, "verify_managed_fabric", return_value={"fixture": True}), \
              mock.patch.object(hps, "linux_configuration_artifacts") as convert:
+            sharing.return_value.verify.return_value = {"fixture": True}
             with self.assertRaisesRegex(ValueError, "same-clock reset constraints changed"):
                 B.compile_project(output, hps, None, None)
         convert.assert_not_called()
@@ -160,18 +164,33 @@ class ScanoutBuildTests(unittest.TestCase):
     def test_managed_graph_changes_stop_before_compile_or_linux_conversion(self):
         output, directory, hps = self.reset_timing_fixture()
         reset = B.repair_generated_reset_timing(directory)
-        generation = {"scanout": {"managed_fabric": {"fixture": True}, "reset_timing": reset}}
+        generation = {"scanout": {"managed_fabric": {"fixture": True}, "reset_timing": reset,
+                                  "shared_fifo_resets": {"fixture": True}}}
         (directory / "generation.json").write_text(json.dumps(generation))
         for stage, values, compile_calls in (("before", [{"changed": True}], 0),
                                             ("after", [{"fixture": True}, {"changed": True}], 1)):
             with self.subTest(stage=stage), \
+                 mock.patch.object(B, "shared_reset_helper") as sharing, \
                  mock.patch.object(B, "verify_managed_fabric", side_effect=values), \
                  mock.patch.object(hps, "compile_project", return_value=directory / "candidate.sof") as compile, \
                  mock.patch.object(hps, "linux_configuration_artifacts") as convert:
+                sharing.return_value.verify.return_value = {"fixture": True}
                 with self.assertRaisesRegex(ValueError, "managed fabric differs"):
                     B.compile_project(output, hps, None, None)
                 self.assertEqual(compile.call_count, compile_calls)
                 convert.assert_not_called()
+
+    def test_captured_shared_reset_helper_is_checked_before_execution(self):
+        _, directory, _ = self.reset_timing_fixture()
+        inputs = json.loads((directory / "inputs.json").read_text())
+        inputs["scanout"]["shared_fifo_resets"] = B.SHARED_FIFO_RESETS
+        (directory / "inputs.json").write_text(json.dumps(inputs))
+        path = directory / "project/fes_mailbox/shared_resets.py"
+        path.write_bytes(path.read_bytes() + b"\nraise RuntimeError('must not execute altered helper')\n")
+        with mock.patch.object(B, "load") as load:
+            with self.assertRaisesRegex(ValueError, "differs from captured source"):
+                B.shared_reset_helper(directory)
+        load.assert_not_called()
 
     def test_captured_managed_verifier_is_checked_before_execution(self):
         _, directory, hps = self.reset_timing_fixture()

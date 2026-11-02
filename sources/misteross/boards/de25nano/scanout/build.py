@@ -17,12 +17,13 @@ import zipfile
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[4]
 BOARD = "sources/misteross/boards/de25nano/"
-LOCAL = ("build.py", "linux_dma.py", "hdmi_inputs.py", "integrate.tcl", "clocks.sdc", "fes_de25_scanout.v",
+LOCAL = ("build.py", "linux_dma.py", "hdmi_inputs.py", "shared_resets.py", "integrate.tcl", "clocks.sdc", "fes_de25_scanout.v",
          "fes_de25_scanout_hw.tcl", "fes_de25_scanout_board.v",
          "fes_de25_scanout_guard.v", "fes_de25_scanout_guard_hw.tcl",
          "generated/fes_de25_scanout.vh", "generated/fes_de25_scanout.h")
 TIMED_RESET_RELEASE = "timed-system-reset-release-v3"
 MANAGED_FABRIC = "managed-scanout-initiators-v3"
+SHARED_FIFO_RESETS = "shared-fifo-reset-release-v1"
 RESET_SDC_SHA256 = "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
 TIMED_RESET_INSTANCES = ("soc_inst|rst_controller", "soc_inst|subsys_periph|rst_controller",
                          "soc_inst|rst_controller_002")
@@ -332,6 +333,7 @@ def prepare(archive, output=None, revision=None, *, hps_first=False, linux_dma=F
     if package_build_id is not None:
         inputs["scanout"]["reset_timing"] = TIMED_RESET_RELEASE
         inputs["scanout"]["managed_fabric"] = MANAGED_FABRIC
+        inputs["scanout"]["shared_fifo_resets"] = SHARED_FIFO_RESETS
     if dma_profile is not None:
         inputs["scanout"]["linux_dma"] = dma_profile
         inputs["allowed_hps_parameter_changes"] = parameter_changes
@@ -595,6 +597,7 @@ def generate(output, combined, hps, display, tool, version):
     directory = output / "combined/hps"
     if timed_reset_release(json.loads((directory / "inputs.json").read_text())):
         repair_generated_reset_timing(directory)
+        shared_reset_helper(directory).apply(directory)
     verify_generated(output, hps)
 
 
@@ -607,6 +610,7 @@ def verify_generated(output, hps, verifier_revision=None):
     inputs = json.loads((directory / "inputs.json").read_text())
     if timed_reset_release(inputs):
         generation["scanout"]["reset_timing"] = verify_generated_reset_timing(directory)
+        generation["scanout"]["shared_fifo_resets"] = shared_reset_helper(directory).verify(directory)
     generation["scanout"]["hdmi_inputs"] = verify_hdmi_inputs(directory / "project", inputs, hps)
     if timed_reset_release(inputs):
         generation["scanout"]["managed_fabric"] = verify_managed_fabric(directory, hps)
@@ -641,12 +645,28 @@ def verify_managed_fabric(directory, hps):
     return managed_fabric_helper(directory).verify_managed_fabric(directory / "project", hps)
 
 
+def shared_reset_helper(directory):
+    inputs = json.loads((directory / "inputs.json").read_text())
+    if not timed_reset_release(inputs) or inputs["scanout"].get("shared_fifo_resets") != SHARED_FIFO_RESETS:
+        raise ValueError("shared FIFO resets require the canonical MENU policy")
+    path = directory / "project/fes_mailbox/shared_resets.py"
+    if sha(path.read_bytes()) != inputs["scanout"]["source_sha256"]["shared_resets.py"]:
+        raise ValueError("shared FIFO reset helper differs from captured source")
+    helper = load(path, "scanout_selected_shared_resets")
+    if helper.POLICY != SHARED_FIFO_RESETS:
+        raise ValueError("shared FIFO reset helper policy differs")
+    return helper
+
+
 def compile_project(output, hps, display, tool):
     directory = output / "combined/hps"
     inputs = json.loads((directory / "inputs.json").read_text())
     managed_fabric = None
     if timed_reset_release(inputs):
         verify_generated_reset_timing(directory)
+        sharing = shared_reset_helper(directory).verify(directory)
+        if json.loads((directory / "generation.json").read_text())["scanout"]["shared_fifo_resets"] != sharing:
+            raise ValueError("shared FIFO reset wiring differs from the generated receipt")
         managed_fabric = verify_managed_fabric(directory, hps)
         if json.loads((directory / "generation.json").read_text())["scanout"]["managed_fabric"] != managed_fabric:
             raise ValueError("managed fabric differs from the generated receipt")
@@ -655,6 +675,9 @@ def compile_project(output, hps, display, tool):
         checked = verify_generated_reset_timing(directory)
         if json.loads((directory / "generation.json").read_text())["scanout"]["reset_timing"] != checked:
             raise ValueError("compiled reset timing differs from the generated receipt")
+        sharing = shared_reset_helper(directory).verify(directory)
+        if json.loads((directory / "generation.json").read_text())["scanout"]["shared_fifo_resets"] != sharing:
+            raise ValueError("compiled shared FIFO reset wiring differs from the generated receipt")
         managed_fabric = verify_managed_fabric(directory, hps)
         if json.loads((directory / "generation.json").read_text())["scanout"]["managed_fabric"] != managed_fabric:
             raise ValueError("compiled managed fabric differs from the generated receipt")

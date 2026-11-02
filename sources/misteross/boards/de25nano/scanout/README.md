@@ -117,6 +117,16 @@ Permanent clock loss cannot advance the control bridge or local drain proof.
 Forced common reset starts a new bridge and reader epoch and cannot prove
 prior traffic drained.
 
+Canonical MENU shares the original FIFO reset releases. One four-stage vendor
+chain plus its scalar output serves every FIFO side at 100 MHz; a second serves
+every side at 74.25 MHz. Both use the same OR of the original bridge reset inputs.
+The `shared-fifo-reset-release-v1` derivation checks and retains all eleven
+generated bridge/parent files, preserves their clock and reset polarity, and
+reproduces their derived bytes before and after compilation. Vendor reset and
+pointer SDC files are unchanged. The standalone diagnostic retains the vendor
+per-FIFO chains. This source repair supplies no reset exception, physical
+metastability proof or native recovery acceptance.
+
 Run from this directory:
 
 ```sh

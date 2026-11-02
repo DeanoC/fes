@@ -44,6 +44,20 @@ rechecked after generation and compilation, before Linux phase conversion;
 the canonical record binds the policy. The standalone diagnostic recipe keeps
 its original reset constraints.
 
+Canonical MENU also selects `shared-fifo-reset-release-v1`. The pinned eleven
+generated bridge files are retained before a checked derivation moves the
+eight duplicate FIFO release chains to one shared five-edge pipeline per clock
+in the peripheral parent. The reset source remains the OR of both original
+bridge resets, with asynchronous assertion and the original four stages plus
+scalar output stage. Command/response polarity and both clock mappings remain
+checked; pointer, storage, credit and transport logic stay unchanged. The
+shared instances retain the existing vendor SDC ingress names; the SDC bytes,
+pointer constraints and timed release fanout remain unchanged. Generation and
+compilation rederive all eleven files from the pinned originals and reject any
+source or receipt change. The captured helper and policy enter the canonical
+record before generation. This consolidates the FIFO reset cone; clock-monitor
+reset domains, physical reset behavior and native acceptance remain separate.
+
 Canonical MENU also selects `managed-scanout-initiators-v3` before generation.
 It removes the vendor JTAG Avalon masters and their separate ACE5-Lite F2H
 translator. The normal HPS lightweight control path, HPS-to-OCM access and sole
