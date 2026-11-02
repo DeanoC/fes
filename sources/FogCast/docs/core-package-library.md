@@ -482,9 +482,7 @@ media ID as the compare-and-swap value. Other mismatched selections remain
 stale and block launch. A firmware-role title with no saved selection gets the
 current bundled image for its core, ROM ID and size, when the host has one.
 That default is recalculated after a bundle update; explicit selections stay
-unchanged. An empty ZX81 `machine-rom` selection uses the verified built-in
-machine image on first readiness validation or launch and saves that selection;
-an existing user choice is preserved. Import alone does not select content. These endpoints
+unchanged. Import alone does not select content. These endpoints
 use the existing host API and catalog; the browser management panel continues
 to manage ordinary media separately.
 

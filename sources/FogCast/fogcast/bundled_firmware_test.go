@@ -14,7 +14,6 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/internal/bundledfirmware"
-	"github.com/DeanoC/FogCast/internal/zx81machine"
 )
 
 // bundledFirmwareFixture writes one bundled object for coreID's romID and
@@ -93,25 +92,18 @@ func TestBundledFirmwareListIsEmptyWithoutDirectory(t *testing.T) {
 
 func TestBundledFirmwareIgnoresOtherROMContracts(t *testing.T) {
 	ctx := context.Background()
-	wantROM, err := zx81machine.MachineROM()
-	if err != nil {
-		t.Fatal(err)
+	archive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("6", 40), nil, bytes.Repeat([]byte{0x00}, 8192))
+	s, _, entry, _ := newCoreEntryLaunchFixture(t, archive, "Workshop ZX81")
+	// Wrong size for the package's machine-rom, and another core's ROM.
+	s.LoadBundledFirmware(ctx, bundledFirmwareFixture(t, "fes.zx81", "machine-rom", bytes.Repeat([]byte{1}, 4096)))
+	compositions, err := s.CoreCompositions(ctx, []string{entry.GameID})
+	if err != nil || compositions[entry.GameID].FirmwareReady {
+		t.Fatalf("a different-size image was selected: %+v %v", compositions[entry.GameID], err)
 	}
-	wantID := fmt.Sprintf("%x", sha256.Sum256(wantROM))
-	for _, tc := range []struct {
-		name   string
-		coreID string
-		size   int
-	}{{name: "wrong size", coreID: "fes.zx81", size: 4096}, {name: "other core", coreID: "fes.ts1000", size: 8192}} {
-		t.Run(tc.name, func(t *testing.T) {
-			archive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("6", 40), nil, bytes.Repeat([]byte{0x00}, 8192))
-			s, _, entry, _ := newCoreEntryLaunchFixture(t, archive, "Workshop ZX81")
-			s.LoadBundledFirmware(ctx, bundledFirmwareFixture(t, tc.coreID, "machine-rom", bytes.Repeat([]byte{1}, tc.size)))
-			compositions, err := s.CoreCompositions(ctx, []string{entry.GameID})
-			if err != nil || !compositions[entry.GameID].FirmwareReady || compositions[entry.GameID].ROMMediaID != wantID {
-				t.Fatalf("nonmatching firmware overrode the built-in default: %+v err=%v", compositions[entry.GameID], err)
-			}
-		})
+	s.LoadBundledFirmware(ctx, bundledFirmwareFixture(t, "fes.ts1000", "machine-rom", bytes.Repeat([]byte{1}, 8192)))
+	compositions, err = s.CoreCompositions(ctx, []string{entry.GameID})
+	if err != nil || compositions[entry.GameID].FirmwareReady {
+		t.Fatalf("another core's image was selected: %+v %v", compositions[entry.GameID], err)
 	}
 }
 
@@ -174,7 +166,6 @@ func TestBundledFirmwareLibraryReadinessDoesNotRehashImagePerTitle(t *testing.T)
 
 func TestServiceOpenLoadsBundledFirmwareFromConfiguredDirectory(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("HOME", filepath.Join(dir, "isolated-home"))
 	firmwareDir := bundledFirmwareFixture(t, "fes.zx81", "machine-rom", bytes.Repeat([]byte{0x42}, zx81MachineROMBytes))
 	configPath := filepath.Join(dir, "config.toml")
 	config := `base_url = "http://127.0.0.1:8182"

@@ -3,12 +3,11 @@
 **Status:** implemented for [#1344](https://github.com/DeanoC/fes/issues/1344).
 No kit check has been run on it yet; see [Kit check](#kit-check).
 
-FES v1 ships firmware it may redistribute as separate, replaceable files
+FES v1 ships the firmware it may redistribute as separate, replaceable files
 beside the cores. The host imports each one into its core-media store and
 selects it by default for titles that have no firmware chosen. A user can
-still choose their own image for any title. The built-in ZX81 machine ROM
-remains a separate compatibility default; no firmware byte is in a sealed core
-package.
+still choose their own image for any title. No firmware byte is in Git or in a
+sealed core package.
 
 ## What ships
 
@@ -39,10 +38,9 @@ binary archive (`LICENSE.txt`) and names the corresponding source,
 release page must carry it ([#1356](https://github.com/DeanoC/fes/issues/1356));
 `scripts/bundled_firmware.py --sources DIR` fetches it.
 
-Not in the replaceable firmware bundle, and user-supplied in v1: ZX80, TS1000
-and TS1500 ROMs, the whole 48 KiB Pentagon image (its TR-DOS half has no
-permission), and the C64's 36 KiB image. The standard ZX81 machine ROM remains
-the verified built-in default for `fes.zx81`.
+Not bundled, and user-supplied in v1: the ZX81, ZX80, TS1000 and TS1500 ROMs,
+the whole 48 KiB Pentagon image (its TR-DOS half has no permission), and the
+C64's 36 KiB image. Nothing is preinstalled on sold hardware.
 
 The Amstrad permission asks that the copyright messages stay unaltered, that
 no one charges for the ROMs, and that this sentence is shown:
@@ -125,10 +123,8 @@ bytes: `id`, `name`, `version`, `core_id`, `rom_id`, `size`, `media_id`,
 `licence`, `licence_name`, `licence_text`, `notice`, `origin_url` and, for
 free software, `source_url` and `source_sha256`. Paired kits may read it.
 
-For a format-3 ZX81 package whose `machine-rom` selection is empty, launch
-imports the verified built-in ZX81 machine ROM into core media and saves it as
-that title's selection. A saved user image is left untouched. Other ZX81-family
-ROMs remain user-supplied.
+The host used to embed the ZX81 BASIC ROM and select it for every ZX81 title.
+That embed is gone: ZX81-family firmware is user-supplied in v1.
 
 ## The first-use card
 

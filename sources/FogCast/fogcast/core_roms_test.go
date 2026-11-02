@@ -20,7 +20,6 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/internal/zx81machine"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -462,75 +461,6 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 }
 
 const zx81MachineROMBytes = 8192
-
-func TestFreshZX81EntryLaunchesWithBundledMachineROM(t *testing.T) {
-	ctx := context.Background()
-	t.Setenv("HOME", t.TempDir())
-	archive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("1", 40), nil, bytes.Repeat([]byte{0x21}, zx81MachineROMBytes))
-	s, client, entry, inspection := newCoreEntryLaunchFixture(t, archive, "Workshop ZX81")
-	if inspection.Descriptor.Format != 3 || entry.CoreID != "fes.zx81" {
-		t.Fatalf("fixture is not a format-3 ZX81 package: core=%s format=%d", entry.CoreID, inspection.Descriptor.Format)
-	}
-	stored, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID)
-	if err != nil || stored.MediaID != "" {
-		t.Fatalf("new entry ROM selection = %+v err=%v, want empty", stored, err)
-	}
-
-	wantROM, err := zx81machine.MachineROM()
-	if err != nil {
-		t.Fatal(err)
-	}
-	sourceID := fmt.Sprintf("%x", sha256.Sum256(wantROM))
-	active := coreEntryActiveStatus(inspection, 7, false)
-	active.CorePackage.ROMLink = &corepackage.ROMLinkIdentity{
-		ROMID: inspection.Descriptor.ROM.ID, Role: inspection.Descriptor.ROM.Role,
-		MapSHA256: inspection.Descriptor.ROM.SHA256, SourceSHA256: sourceID,
-		SourceSize: int64(len(wantROM)), ProgrammedSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("linked"))), ProgrammedSize: 6,
-	}
-	client.coreLoad = func(_ context.Context, size int64, reader io.Reader) (protocol.Status, error) {
-		body, err := io.ReadAll(reader)
-		if err != nil || int64(len(body)) != size {
-			t.Fatalf("read linked package: size=%d body=%d err=%v", size, len(body), err)
-		}
-		var gotROM []byte
-		foundPackage := false
-		tr := tar.NewReader(bytes.NewReader(body))
-		for {
-			_, err := tr.Next()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			member, err := io.ReadAll(tr)
-			if err != nil {
-				t.Fatal(err)
-			}
-			foundPackage = foundPackage || bytes.Equal(member, archive)
-			if bytes.Equal(member, wantROM) {
-				gotROM = member
-			}
-		}
-		if !foundPackage || !bytes.Equal(gotROM, wantROM) {
-			t.Fatalf("linked package=%t ROM match=%t", foundPackage, bytes.Equal(gotROM, wantROM))
-		}
-		client.statusResult = active
-		return active, nil
-	}
-
-	response, err := s.Launch(ctx, entry.GameID, nil)
-	if err != nil || response.Status.GameID == nil || *response.Status.GameID != entry.GameID {
-		t.Fatalf("Launch: response=%+v err=%v", response, err)
-	}
-	if client.coreCalls != 1 {
-		t.Fatalf("target core loads=%d, want 1", client.coreCalls)
-	}
-	selected, err := s.catalog.(coreROMCatalog).CoreEntryROM(ctx, entry.GameID)
-	if err != nil || selected.PackageID != entry.PackageID || selected.ROMID != "machine-rom" || selected.SourceSize != zx81MachineROMBytes || selected.MediaID != sourceID {
-		t.Fatalf("provisioned ZX81 selection = %+v err=%v", selected, err)
-	}
-}
 
 // Package switching inspects both installed archives in one request; allow
 // race-instrumented package reads more than the fixture's one-second default.
