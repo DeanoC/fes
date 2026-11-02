@@ -44,9 +44,10 @@ def de25_source_selection(root):
     revisions = parent.validate(root, profile)
     if parent.git(root, 'status', '--porcelain', '--untracked-files=all'):
         raise ValueError('DE25 source builds require clean committed FES source')
-    if parent.selected_packages(profile, 'de25-nano', board='de25-nano') != ('fes.menu',):
+    packages = parent.selected_packages(profile, 'de25-nano', board='de25-nano')
+    if packages != ('fes.menu',):
         raise ValueError('DE25 source builds require exactly the MENU firmware recipe')
-    return profile, revisions
+    return profile, revisions, packages
 
 
 def verify_de25_development(root, output, *, expected_fingerprint=None):
@@ -61,7 +62,7 @@ def verify_de25_development(root, output, *, expected_fingerprint=None):
 
     root, output = Path(root).resolve(), Path(output).resolve()
     regular = de25_appliance.appliance.regular
-    profile, revisions = de25_source_selection(root)
+    profile, revisions, _ = de25_source_selection(root)
     present = {name for name in ('image.json', 'development.json', 'factory.json', 'base.json')
                if (output / name).exists() or (output / name).is_symlink()}
     if present not in ({'image.json'}, {'development.json'}):
@@ -166,7 +167,7 @@ def build_de25_development(root, args):
     import image_artifacts
 
     root = Path(root).resolve()
-    profile, revisions = de25_source_selection(root)
+    profile, revisions, packages = de25_source_selection(root)
     if platform.system() != 'Linux' or platform.machine() not in ('x86_64', 'amd64'):
         raise ValueError('DE25 source builds require Linux amd64')
     workspace = Path(args.output).resolve() if args.output is not None else root / 'out/de25-nano'
