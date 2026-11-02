@@ -71,3 +71,48 @@ remain open. There are no additional PCB/trace-delay files from the user.
 No delay, clock relaxation, additional exception or hardware acceptance is
 invented. Installed software, kernel, boot flash, claims and baselines are
 unchanged by this work.
+
+## Board reset and transport composition
+
+A subsequent off-board probe uses source `d6ab45033` with the same compiled
+producer `1c5f24e18`. The unchanged existing startup runner passes all 72 cases
+in 14.2 s on that actual generated project. A private combined model then
+includes the actual board top reset, first-lock capture, lock qualifier and
+visibility RTL alongside the generated parent reset controllers, FIFO bridges,
+control guard and scanout reader. Exact generated parent/board bindings and all
+twelve fitted-report reset-chain instances are checked. Clocks/PLL lock, HDMI
+configuration completion, M20K storage and external AXI memory remain explicit
+digital models.
+
+All 32 cases pass across eight clock phases in a 144.7 s job, including builds
+of the positive and negative models. Healthy traffic drains. Brief pixel-lock
+loss with the pixel clock stopped blanks data, preserves the live FIFO/grant
+state, retains the guard epoch and latches the clock fault. After the pixel
+clock resumes, unanswered reads still prevent Drained; supplying their modeled
+responses allows actual generated transport to drain without restoring display
+visibility. A private regression tying bridge reset to qualified pixel lock
+fails with `pixel-lock loss reset live CDC`. No producer RTL is changed.
+
+The other sixteen cases assert configuration reset or system-PLL loss with
+accepted AXI reads pending and the pixel clock stopped. All twelve observed
+reset chains assert; after release, the guard epoch is zero while sixteen
+external modeled DDR reads remain pending. The external queue is deliberately
+preserved. Reset FIFO state cannot establish DMA drain or safe allocation
+release. This probe does not return those stale responses, admit another grant
+or claim recovery. The kernel guard's existing epoch refusal is inspected, not
+newly executed against this RTL model.
+
+The initial private probe refuses the generated synchronizer hierarchy before
+compilation; its exact corrected scope, original refusal and source-fetch stop
+are preserved. Independent restoration verifies all 724 archived regular files,
+three native model executables and 133 protected source/model inputs in 1.440 s
+(1.6 s job). All 374 MENU, 59 compiler and 58 runtime-test input hashes remain
+unchanged. [Board-reset checks](board-reset.json) and
+[retention](board-reset-retention.json) bind the actual commands, model source,
+binary hashes, generated source, observations and negative control.
+
+This is a finite functional composition test, not a twelve-chain metastability
+or independent reset-delay proof. The earlier eight-FIFO delay diagnostic keeps
+its original scope. RDC-50003, physical reset/recovery, native owner epochs and
+HDMI output timing remain open; no new exception or hardware acceptance is
+granted. No new Quartus compilation, FPGA programming or kit operation occurs.
