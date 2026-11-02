@@ -1,0 +1,232 @@
+{
+  "format": 1,
+  "head": "0775d3fcfaa1c9469e4cdfa8bb58e64944bc0b59",
+  "base": "180eac38dac236f92792ddbc93975bdd39c5a925",
+  "plan_sha256": "cb41ffa57220ca21dd58e9d30967c13fa7120b704343716dcaf9e0224ffec856",
+  "status": "passed",
+  "dispatch": "two independent software workers; stop scheduling after failure",
+  "results": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ],
+      "index": 0,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2003600859316066,
+      "cap_seconds": 300,
+      "log": "software-00.log",
+      "log_sha256": "d14e621e4c1ebcf03cf04cd289b2cea16101d76c184b3800115c5f5e83e8cf36"
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ],
+      "index": 1,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.001092946040444,
+      "cap_seconds": 300,
+      "log": "software-01.log",
+      "log_sha256": "5e83442a32c915bd92dd2510e2d153db1ee9a099c30ce9c005f50d438fc3afdc"
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "180eac38dac236f92792ddbc93975bdd39c5a925",
+        "--head",
+        "0775d3fcfaa1c9469e4cdfa8bb58e64944bc0b59"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [],
+      "index": 2,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20105074590537697,
+      "cap_seconds": 300,
+      "log": "software-02.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": [],
+      "index": 3,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.2010989689733833,
+      "cap_seconds": 300,
+      "log": "software-03.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/nano/hps_context.py\", \"sources/misteross/docs/architecture.md\", \"sources/misteross/prototypes/de25_board_control/README.md\", \"sources/misteross/prototypes/de25_board_control/build.py\", \"sources/misteross/prototypes/de25_board_control/ddr_probe.cpp\", \"sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv\", \"sources/misteross/prototypes/de25_board_control/fes_de25_embedded_hw.tcl\", \"sources/misteross/prototypes/de25_board_control/integrate.tcl\", \"sources/misteross/prototypes/de25_board_control/probe.cpp\", \"sources/misteross/prototypes/de25_board_control/reader_memory.py\", \"sources/misteross/prototypes/de25_board_control/seal.py\", \"sources/misteross/prototypes/de25_board_control/test_handoff.py\", \"sources/misteross/prototypes/de25_board_control/verify.py\", \"sources/misteross/prototypes/de25_board_control/verify_ddr.py\", \"sources/misteross/tests/test_de25_sealed_identity.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ],
+      "index": 4,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 213.62017925898544,
+      "cap_seconds": 300,
+      "log": "software-04.log",
+      "log_sha256": "76b04e941340b54a82909756965e9a8a53a48d89be8b35cbc63d8bf5df4a1b88"
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ],
+      "index": 5,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.8022549010347575,
+      "cap_seconds": 300,
+      "log": "software-05.log",
+      "log_sha256": "6997212592f08ec9cd3c59e64ea9a32107fdcfb811cfcd292a8c5fde29bbce83"
+    },
+    {
+      "lane": "parent",
+      "label": "DE25 Avalon control and native integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "sources/misteross/prototypes/de25_board_control/verify.py",
+        "--standalone"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "g++",
+        "git",
+        "go",
+        "make",
+        "tclsh",
+        "verilator",
+        "verilator_bin"
+      ],
+      "files": [
+        "sources/misteross/prototypes/de25_board_control/verify.py",
+        "sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv"
+      ],
+      "index": 6,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 8.406708118971437,
+      "cap_seconds": 300,
+      "log": "software-06.log",
+      "log_sha256": "bf52021735ace9a732f477d974faa12c7cb723ea8c83653effedbfac3911b180"
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ],
+      "index": 7,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 352.9446098220069,
+      "cap_seconds": 840,
+      "log": "software-07.log",
+      "log_sha256": "db66073a138b66805358143b5da0ae0e02a82d3347204d13fcd624ff151014c9"
+    }
+  ]
+}

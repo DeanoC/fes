@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-ddr-reader-handoff-20261102/generate.py",
+    "onchip"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 92.10651068110019,
+  "log_sha256": "d00b1672fa8b5f881b839b3b95eb94f00319d04d494e4d930c05bd9be60d69cd"
+}
