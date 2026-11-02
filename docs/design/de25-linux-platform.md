@@ -78,6 +78,12 @@ commands, binds structural verification into factory hashes and reuses the
 shared AArch64 builder, media lease and card reconstructor. Public commands
 refuse the real intermediate as an incomplete factory. Positive routing and
 integrity fixtures do not qualify a package or produce an admitted factory.
+The [ordinary image/verification/export entrypoints](../validation/2026-11-02-de25-image-entrypoints/README.md)
+also select DE25 explicitly, reuse that same factory producer and export actual
+rootfs binaries, including rebuilt base helpers, against their bound identities.
+They preserve default DE10 behavior and refuse unimplemented DE25 source-build
+routes. Ext4 extraction fixtures do not qualify factory authority, CPU behavior
+or an FPGA package.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.
 

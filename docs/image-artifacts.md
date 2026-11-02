@@ -115,14 +115,64 @@ The output is an uninstalled candidate with closed normal admission. See the
 for its exact test coverage; complete factory assembly has not been run because
 the current MENU remains unsealed.
 
-The top-level `make image` and source-image `export` still select the DE10
-profile. The [shared appliance commands](appliance-releases.md#de25-factory-selection)
-now accept explicit DE25 factory selection for release, AArch64 bootstrap and
+The [ordinary image commands](#de25-image-and-export-commands) now route an
+explicit DE25 selection through this same factory producer. The
+[shared appliance commands](appliance-releases.md#de25-factory-selection)
+accept explicit DE25 factory selection for release, AArch64 bootstrap and
 regular-file card construction/verification. They require the actual factory,
 its bound structural report and successful image boot evidence; the real
 managed base is correctly refused. Complete admitted DE25 factory/card assembly
 and native acceptance remain required. Earlier shared-script fixtures retain their
 [factory-wiring validation scope](validation/2026-11-01-de25-factory-inputs/README.md).
+
+## DE25 image and export commands
+
+Select the board independently of the supplied profile, JSON or payloads:
+
+```sh
+make image BOARD=de25-nano \
+  IMAGE_ARTIFACTS=/absolute/artifacts/de25-bootstrap \
+  IMAGE_KERNEL=/absolute/matching-owner-kernel \
+  IMAGE_SDK=/absolute/pinned-owner-compiler.tar.gz
+make verify BOARD=de25-nano
+python3 scripts/image_artifacts.py export --board de25-nano \
+  --image-output /absolute/fes/out/de25-nano/factory \
+  --output /absolute/new-artifacts/de25-bootstrap
+```
+
+The default output is `out/de25-nano/factory`; set `IMAGE_OUTPUT` for both
+image and verification when choosing another directory. The Python builder
+exposes `--board de25-nano --kernel --sdk --artifacts --output`. The compiler
+archive is the owner-kernel lock's original pinned input, distinct from the
+managed SDK used for normal C++ runtime builds. MENU still needs its ordinary
+sealed-package admission before the OS build starts. The factory producer
+retains its cache/output locks and one real image-build pass; `IMAGE_PASSES=2`
+is refused until independent two-pass factory production exists.
+
+Verification always rechecks the actual factory and its bound image boot
+report/log. It reads recorded inputs by default; optional `IMAGE_ARTIFACTS`,
+`IMAGE_KERNEL` and `IMAGE_SDK` must match the factory's selected programs,
+package, kernel and owner compiler. The explicit board must agree with the
+profile. Omitting the board cannot select DE25 through `PROFILE` or metadata.
+The default DE10 commands retain their existing image and host-receipt checks.
+DE25 `build`, `rebuild`, `dev`, `host` and `doctor` routes remain unimplemented
+and are refused; this factory check does not claim the DE10 integration check's
+full scope. The shared host can still be built with ordinary `make host`.
+
+Export obtains fresh factory verification, then uses read-only `debugfs` to
+extract the six actual executables. It compares the four bundle programs with
+their selected hashes and the two rebuilt base helpers with the factory's
+bound producer-input hashes. It does not simply copy the original input
+directory. The existing packer rechecks AArch64 ELF, MENU interfaces and closed
+package members. The exported manifest binds the source image, factory receipt
+and original FES revision, and the source receipt is rechecked before atomic
+publication. Existing outputs and factory/output overlap are refused.
+
+Both image operations and export use the existing media/build lease. They
+never write a physical device. The [entrypoint validation](validation/2026-11-02-de25-image-entrypoints/README.md)
+separates real ext4 fixtures and actual intermediate-image refusals from full
+factory/package admission. No complete admitted DE25 factory/export/card has
+been built; sealed MENU and native acceptance remain required.
 
 The six bootstrap binaries are `mister-agent`, `mister-runtime`, `fogcast-kit`,
 `fogcast-tenfoot`, `fes-kit-data` and `fes-kit-software`. The last two implement

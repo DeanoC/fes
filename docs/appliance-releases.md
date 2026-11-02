@@ -116,6 +116,10 @@ Board selection is independent of all uploaded or supplied JSON. The default
 DE10 path rejects DE25 factory arguments. DE25 uses the existing media lease,
 static AArch64 bootstrap builder and two-pass regular-file card constructor,
 preserving Terasic's locked boot dependencies and owner Image/DTB.
+`BOARD=de25-nano` also sets the appliance board default, so it can be shared
+with the [image commands](image-artifacts.md#de25-image-and-export-commands).
+`APPLIANCE_BOARD` remains an explicit override for appliance commands;
+`APPLIANCE_FACTORY` is still required.
 
 The [workflow evidence](validation/2026-11-02-de25-appliance-workflow/README.md)
 distinguishes routing/integrity fixtures from actual public refusals. No

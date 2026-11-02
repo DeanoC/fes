@@ -205,6 +205,15 @@ is correctly refused as an incomplete factory. See the
 [release commands](appliance-releases.md#de25-factory-selection).
 Complete factory/services and native acceptance remain open; userspace-only
 `smoke` results cannot replace this boot evidence.
+The [ordinary image/export commands](image-artifacts.md#de25-image-and-export-commands)
+now route explicit `BOARD=de25-nano` image assembly through the same managed
+factory producer. Verification rechecks that factory; artifact export reads
+the actual rootfs programs and binds the original receipt and FES revision.
+The [entrypoint record](validation/2026-11-02-de25-image-entrypoints/README.md)
+retains real ext4 fixtures with deliberately unqualified factory authority,
+actual command refusals and the unchanged component evidence boundary. This
+does not produce an admitted factory or qualify native boot. DE25 source
+integration/incremental builds and full managed-kit operation remain open.
 
 The [managed-fabric record](validation/2026-11-01-de25-managed-fabric/README.md)
 covers the current canonical MENU profile: vendor maintenance masters removed,

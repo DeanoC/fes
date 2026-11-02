@@ -12,6 +12,10 @@ boots FES Linux, loads ZX81 through Linux and runs BASIC through native CPU
 control with captured HDMI. Managed runtime, MENU and normal catalog/core
 launch acceptance remain open.
 The default appliance and playable packages target DE10-Nano.
+The [image commands](docs/image-artifacts.md#de25-image-and-export-commands)
+also select DE25 explicitly for managed factory assembly, verification and
+artifact export. Complete admitted factory/card and native kit acceptance
+remain open.
 
 Agents: read [AGENTS.md](AGENTS.md), then the
 [development guide](docs/development.md) and the selected component's guidance.
