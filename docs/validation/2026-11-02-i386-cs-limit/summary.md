@@ -24,16 +24,17 @@ as not built.
     which fail on slice 2's RTL.
 
   The new generator block runs 23,199 instructions and raises 1,299 #GP
-  deliveries under small CS limits. 6 of the 32,000 random programs fail:
-  they fail the same way on slice 2's RTL, and the reshuffled random stream
-  exposed them. Five are slice 2's protected-mode IRET reading its lower
-  slots before the FLAGS slot's #SS
-  ([#1424](https://github.com/DeanoC/fes/issues/1424)); one is a harness gap
-  for a REP string that stores over its own bytes
-  ([#1425](https://github.com/DeanoC/fes/issues/1425)). Deano chose to record
-  these and carry on.
-- The pc386 suites, the governor bench and test386 on the RTL:
-  RESULTS ([Machine](#pc386-suites-governor-and-test386)).
+  deliveries under small CS limits. 1 of the 32,000 random programs fails,
+  the same way on slice 2's RTL: a harness gap for a REP string that stores
+  over its own bytes ([#1425](https://github.com/DeanoC/fes/issues/1425)).
+  Deano chose to record it and carry on. Five more failed, also on slice
+  2's RTL, until this branch merged #1411's fix for them
+  ([#1424](https://github.com/DeanoC/fes/issues/1424)).
+- The pc386 suites, the governor bench and test386 on the RTL give slice
+  2's results: the boot on Bochs, system, devices and the governor bench
+  pass, the governor suite meets the bench gap #1372 at 386DX-25 as
+  before, test386 stops at POST 08h's paging as before, and BOOTRTL
+  ([Machine](#pc386-suites-governor-and-test386)).
 - Quartus 17.0.2 seals `fes.pc386`: SEAL ([Seal](#quartus-seal)).
 - DOOM's start on `machine_tb --cpu rtl`: DOOM
   ([DOOM](#dooms-start-on-the-rtl)).
@@ -42,11 +43,24 @@ as not built.
 
 - FES branch `deano/i386-cs-limit`, stacked on `deano/i386-phase2-idt`
   (PR #1411) at `7224b11f6`. `01bc050ef` (#1411's record only) is merged in
-  as `53bef7644`.
-- The RTL is `5d231b804`'s throughout; later commits change only docs and
-  this record. The seal is of a clean checkout of `5d231b804`. The lockstep
-  runs used `9adde623c` (`5d231b804` with the README, sim README and design
-  doc), and so did the pc386 suites, the governor bench and test386.
+  as `53bef7644`, and #1411's head `3f8687ed0` as `9683e2cb0`. That head
+  brings the #1424 fix `d9773b8f2`, which changes only the order of a
+  protected-mode IRET's and RETF's stack reads, and its four directed cases.
+- The CS-limit RTL is `5d231b804`'s; later commits change only docs, this
+  record and, by the merge, the #1424 fix. Which tree each run used:
+  - `5d231b804`, a clean checkout: the seal; also DOOM on the RTL.
+  - `9683e2cb0`, the merge: the lockstep and the netlist lockstep, and
+    `--suite boot --cpu rtl`.
+  - `9adde623c` (`5d231b804` with the README, sim README and design doc):
+    the other pc386 suites, the governor bench and test386.
+  The runs before the merge do not depend on the #1424 fix. It changes only
+  which slot a protected-mode IRET or RETF reads first, which matters only
+  when the frame runs past the stack's limit. The system, governor and
+  devices suites run real-mode DOS, and test386 stops as it enters
+  protected mode, before any IRET or RETF; DOOM's protected-mode returns
+  would read the same slots either way unless a frame faulted. The seal is
+  before the merge too: under the pc386 reseal exemption a post-seal RTL fix
+  needs no reseal before merge, as #1411's own record says of `d9773b8f2`.
 - Oracle: Bochs 3.1 at CPU level 3 (the `fes-i386-oracle` build), corpus
   SingleStepTests/80386 `459d49fbe628`.
 - Verilator 5.032 on Powerboat. The netlist lockstep used the i386 lock's
@@ -97,25 +111,27 @@ the change waits: no uop issues later than before.
 
 ## Lockstep
 
-`scripts/test_fes_i386_lockstep.py` at `9adde623c`
-([report](lockstep-report.json)), and with `--yosys` on the i386 lock's
+`scripts/test_fes_i386_lockstep.py` at `9683e2cb0`, the merge of #1411's
+head ([report](lockstep-report.json)), and with `--yosys` on the i386 lock's
 Yosys `238eac9a4` ([report](lockstep-netlist-report.json)). The two reports
-are identical but for the netlist's `yosys` field.
+are identical but for the netlist's `yosys` field. Before the merge, at
+`9adde623c`, the reports were the same but for the five #1424 programs
+below and the four directed cases the merge brings.
 
 | Run | Result |
 | --- | --- |
 | Corpus (SingleStepTests/80386, 941 files) | 1,758,699 pass, 0 fail; 3,517,401 retirements compared; 147,537 in an exception's handler |
-| Random programs (16 seeds × 2,000) | 31,994 pass, 6 fail (pre-existing, below); 8,204,246 retirements; 3,020 end at a shutdown, 707 at a fault in a delivery delivered |
+| Random programs (16 seeds × 2,000) | 31,999 pass, 1 fails (pre-existing, below); 8,204,246 retirements; 3,020 end at a shutdown, 707 at a fault in a delivery delivered |
 | Protected-mode programs (16 seeds × 500) | 8,000 pass, 0 fail; 464,949 retirements, 374,688 of them (with the random programs') with PE set; 14,235 deliveries through the IDT; 1,483 shutdowns; 165 not-built stops |
 | Unbuilt encodings | 52,320 outside SCOPE, all stopped as not built |
 | Directed cases | 40 pass |
 | Unreal-mode cases | 6 pass |
-| Protected-mode cases | 85 pass (38 new) |
+| Protected-mode cases | 89 pass (38 new here, 4 from #1411's #1424 fix) |
 | Memory cases (DMA, FLUSH) | 26 pass |
 
 The latency-free reruns of seeds 1 and 2 retire the same trace.
 
-**The new directed cases** (`--mode pmode`, 38 of the 85). Each far-jumps
+**The new directed cases** (`--mode pmode`, 38 of the 89). Each far-jumps
 to code it places under a code descriptor of a small limit:
 - 16-bit and 32-bit code (78h, 80h, limit 0Fh):
   - running off the end, an instruction across the limit, a HLT at the
@@ -158,27 +174,30 @@ and FFFFFFFFh: 23,199 retirements and 1,299 #GP deliveries with PE set, and
 223 retirements in real mode. The always-accept rule for not-built reason 8
 (`WHY_CS_LIMIT`) is gone; reason 8 is now an IRET with NT set.
 
-**Six random programs fail, before and after this change.** Each reproduces
-identically on slice 2's RTL with this branch's testbench, which generates
-the same programs. None is about CS's limit:
-- `random#4#691`, `#5#910`, `#7#1161`, `#14#399` and `#15#234`
-  ([#1424](https://github.com/DeanoC/fes/issues/1424)) share one cause. An
-  injected interrupt arrives with SP near 0 on a 16-bit stack, so its frame
-  wraps to SP FFFCh or FFFEh. The handler's IRET or IRETD then faults #SS(0)
-  on its FLAGS slot at 10000h on both sides. Bochs's `iret_protected` reads
-  FLAGS first; the RTL reads the EIP and CS slots first. Those reads land
-  in the MMIO window and Bochs makes none (`mmio-reads.0.N`). Slice 2's own
-  testbench and RTL meet it on a fresh seed too (seeds 17-24 × 2,000:
-  `random#17#229`, the only failure).
+**One random program fails, before and after this change**, the same way
+on slice 2's RTL with this branch's testbench, which generates the same
+programs. It is not about CS's limit:
 - `random#1#1473` ([#1425](https://github.com/DeanoC/fes/issues/1425)): a
   real-mode `CS: REP MOVSB` stores over its own first byte. The RTL runs all
   8 elements, as a 386 with the instruction decoded would, and Bochs stops
   after the first. The harness's rule for an unplanned store into the
   program's code applies only after it has compared that step.
 
-**Against slice 2's report** (`01bc050ef`'s `lockstep-report.json`):
+Five more failed at `9adde623c`, and on slice 2's RTL before #1411 fixed
+them: `random#4#691`, `#5#910`, `#7#1161`, `#14#399` and `#15#234`
+([#1424](https://github.com/DeanoC/fes/issues/1424)). An injected
+interrupt arrives with SP near 0 on a 16-bit stack, so its frame wraps to
+SP FFFCh or FFFEh. The handler's IRET or IRETD then faults #SS(0) on its
+FLAGS slot at 10000h on both sides. Bochs's `iret_protected` reads FLAGS
+first; the RTL read the EIP and CS slots first, which land in the MMIO
+window, where Bochs makes no read (`mmio-reads.0.N`). With #1411's fix
+(`d9773b8f2`, merged in as `9683e2cb0`) all five pass, with the same
+retirements and trace hashes.
+
+**Against slice 2's report** (`3f8687ed0`'s `lockstep-report.json`, with
+the #1424 fix):
 - **Corpus:** every result field and trace hash is equal. The cycles grow
-  by 2,628 of 174,952,508, spread up and down over 44 opcode files. They
+  by 2,628 of 174,952,508, spread up and down over 45 opcode files. They
   trace to one kind of test, `FE.0#106` the first: an 8-byte instruction at
   FFF8h ends at FFFFh, so the HLT after it, at 10000h, faults #GP(0).
   - Slice 2 cut D's EIP to 0000h for that delivery. The corpus's 386EX
@@ -202,7 +221,20 @@ the same programs. None is about CS's limit:
 
 ## pc386 suites, governor and test386
 
-SUITES
+`scripts/sim_fes_pc386.py` and the two i386 runners, at `9adde623c` but for
+`--suite boot --cpu rtl`, which is of `9683e2cb0`. The first run of it, at
+`9adde623c`, hit its 90-minute cap on a host at load 65-70 before it
+finished, so it gives no result either way.
+
+| Run | Result |
+| --- | --- |
+| `--suite boot` (oracle) ([report](boot-oracle-report.json)) | Pass: `C:\>` at 4.3 s; the VGA replay has 0 mismatches |
+| `--suite boot --cpu rtl` ([report](boot-rtl-report.json)) | BOOTRTL |
+| `--suite system` ([report](system-report.json)) | Pass: `C:\>` at 3.309 s, all 16 checks, as in slice 2's record |
+| `--suite devices` ([report](devices-report.json)) | 132 checks pass |
+| `--suite governor` ([report](governor-report.json)) | As slice 2: `max`, 286-12, 386SX-16 and 386DX-40 pass with TP 210,892, 27,453, 39,932 and 104,609, each within 0.04% of the table. 386DX-25 prints `GOV TP=0000FF5F DC=04A4 C18=0011F492`, slice 2's, then `system_tb` throws `port 2: a write burst cut short, then another begun at clock 119811804`, the bench gap [#1372](https://github.com/DeanoC/fes/issues/1372), at slice 2's clock |
+| `test_fes_i386_governor.py` ([report](governor-bench-report.json)) | Pass, equal to slice 2's report (`10956ac5c`) field for field |
+| `test_fes_i386_test386.py --cpu rtl` ([report](test386-rtl-report.json)) | As slice 2: POST codes 00h-06h and 08h, no error; POST 08h's set-up then turns paging on (`mov cr0, eax`), which stops as not built (`WHY_PAGING`) after 793,777 retirements |
 
 ## Quartus seal
 
@@ -219,5 +251,5 @@ DOOM
   real-mode CS load the RTL sets CS's limit to FFFFh, the 386 rule, where
   Bochs keeps the cache; the lockstep gives the oracle the RTL's CS cache
   there (`cs_rule`), as before.
-- The two pre-existing failures above, [#1424](https://github.com/DeanoC/fes/issues/1424)
-  and [#1425](https://github.com/DeanoC/fes/issues/1425).
+- The pre-existing harness gap above,
+  [#1425](https://github.com/DeanoC/fes/issues/1425).
