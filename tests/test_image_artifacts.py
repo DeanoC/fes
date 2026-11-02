@@ -137,7 +137,7 @@ class ImageArtifactsTests(ArtifactFixture):
                          install_path='/usr/share/mister-runtime/core-packages/' + selection['package_id'])
         path = self.root / 'fes-menu.package-selection.toml'
         path.chmod(0o644)
-        path.write_text('\n'.join(name + ' = ' + __import__('json').dumps(value) for name, value in selection.items()) + '\n')
+        path.write_text('\n'.join(name + ' = ' + json.dumps(value) for name, value in selection.items()) + '\n')
         path.chmod(0o444)
         self.manifest['packages'][0]['selection_sha256'] = artifacts.sha(path)
         self.write_manifest()

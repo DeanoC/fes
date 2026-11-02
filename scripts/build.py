@@ -763,9 +763,9 @@ def remove_stale_parent_outputs(output):
         path.unlink()
 
 
-def verify_package_only_outputs(output, packages, unavailable=()):
+def verify_package_only_outputs(output, packages, unavailable=(), *, board="de10-nano"):
     """Verify a package output has no stale top-level artifacts."""
-    verify_package_outputs(output, packages)
+    verify_package_outputs(output, packages, board=board)
     if stale_parent_outputs(output):
         raise ValueError('package output contains a stale top-level artifact')
     optional_cores.verify_manifest(output, unavailable)
@@ -1430,7 +1430,7 @@ def _restore_package_backup(output, backup, clear_current=True):
             pass
 
 
-def _recover_package_backup(output, packages):
+def _recover_package_backup(output, packages, *, board="de10-nano"):
     """Recover an interrupted package replacement before starting a publish."""
     output = Path(output)
     backup = output / ".package-generation.previous"
@@ -1455,7 +1455,7 @@ def _recover_package_backup(output, packages):
     manifest = _read_package_generation_manifest(backup)
     _validate_package_generation(backup, manifest, require_marker=True, sealed=True)
     try:
-        verify_package_outputs(output, packages)
+        verify_package_outputs(output, packages, board=board)
     except (OSError, KeyError, TypeError, ValueError):
         _restore_package_backup(output, backup)
     else:
@@ -1491,8 +1491,8 @@ def publish_package_state(packages, built_selections, output, *, board="de10-nan
     """Publish the selected pair, or close a successful package-free output."""
     if not _package_tuple(packages):
         _remove_package_outputs(output)
-        return verify_package_outputs(output, None)
-        return publish_package_outputs(packages, built_selections, output, board=board)
+        return verify_package_outputs(output, None, board=board)
+    return publish_package_outputs(packages, built_selections, output, board=board)
 
 
 def publish_action_inputs(output, action, info):
@@ -1546,7 +1546,7 @@ def publish_package_outputs(packages, built_selections, output, *, board="de10-n
                 raise ValueError
     except (OSError, KeyError, TypeError, ValueError):
         raise ValueError("child FES package selection differs from selected inputs") from None
-    _recover_package_backup(output, normalized)
+    _recover_package_backup(output, normalized, board=board)
     _clean_package_staging(output)
     staged_generation = output / ".package-generation.new"
     staged_root = staged_generation / "core-packages"
@@ -1579,7 +1579,7 @@ def publish_package_outputs(packages, built_selections, output, *, board="de10-n
             selection_stage.chmod(0o444)
         staged_root.chmod(0o555)
         staged_generation.chmod(0o755)
-        verify_package_outputs(staged_generation, normalized)
+        verify_package_outputs(staged_generation, normalized, board=board)
         _fsync_package_generation(staged_generation)
         _validate_package_output_destinations(output)
         backup.mkdir()
