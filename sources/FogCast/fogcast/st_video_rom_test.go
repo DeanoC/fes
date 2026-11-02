@@ -170,6 +170,7 @@ func testSTVideoNormalPlay(t *testing.T, initialDisk, video, cartridge bool, upl
 		received = staged.PartsComposition
 		receivedSlots = staged.SlotComposition
 		status := coreEntryActiveStatus(inspection, 3, true)
+		status.CorePackage.CoreID = inspection.Descriptor.Core.ID
 		status.CorePackage.ROMLink = staged.ROMLink
 		status.CorePackage.PartsComposition = staged.PartsComposition
 		status.CorePackage.SlotComposition = staged.SlotComposition

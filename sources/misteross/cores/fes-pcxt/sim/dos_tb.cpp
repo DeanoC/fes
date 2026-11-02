@@ -5,6 +5,7 @@
 #include "Vbios_top.h"
 #include "verilated.h"
 #include "memory_model.hpp"
+#include <algorithm>
 #include <array>
 #include <fstream>
 #include <string>
@@ -39,6 +40,7 @@ int main(int argc, char **argv) {
     bool pending=false, last_dma=false, last_irq=false, post=false, boot=false, sector=false, live=false;
     uint64_t instructions=0;
     bool prompt=false, directory=false, frame_complete=false, collecting=false;
+    bool restored_prompt_needs_clear=false;
     std::vector<unsigned char> frame(1280*720*3);
     unsigned frame_pixels=0;
     auto byte=[&](unsigned a) { return unsigned((ram.words.at(a/2) >> (8*(a&1)))&255); };
@@ -135,7 +137,9 @@ int main(int argc, char **argv) {
         }
         if(cycles%5000000==0) {
             const auto text=screen();
-            if(!prompt && sector && text.find("A:\\>")!=std::string::npos) {
+            if(restored_prompt_needs_clear && text.find("A:\\>")==std::string::npos)
+                restored_prompt_needs_clear=false;
+            if(!prompt && !restored_prompt_needs_clear && sector && text.find("A:\\>")!=std::string::npos) {
                 prompt=true;prompt_cycle=cycles;
             }
             // Require the listed file on one line and a *subsequent* prompt;
@@ -316,8 +320,14 @@ int main(int argc, char **argv) {
     while(cycles<copy_deadline && !copied) {
         for(unsigned i=0;i<500000;++i)step();
         const auto text=screen();
-        const auto line=text.find("copied");
-        copied=line!=std::string::npos && text.find("A:\\>",line)!=std::string::npos;
+        const auto command=text.find(std::string("A:\\>")+copy_command);
+        const auto line=command==std::string::npos ? std::string::npos :
+            text.find("fesxt.txt => save.txt",command+copy_command.size()+4);
+        const auto append_line=command==std::string::npos ? std::string::npos :
+            text.find("fesxt.txt =>> save.txt",command+copy_command.size()+4);
+        const auto result=std::min(line,append_line);
+        copied=result!=std::string::npos &&
+            text.find("A:\\>",result+22)!=std::string::npos;
     }
     require(copied,"DOS copy did not complete",cycles);
     require((exchange(12,0,0)&3)==3 && exchange(12,1,0)==4 && exchange(12,2,0)==1 &&
@@ -410,7 +420,9 @@ int main(int argc, char **argv) {
     d.warm_reset=0;
 #ifdef PCXT_WRITABLE_TEST
     // Boot from the restored bytes and make DOS read the saved file itself.
-    prompt=false;sector=false;
+    // Old CGA text can survive warm reset; do not mistake its prompt for
+    // the one produced by the restored DOS boot.
+    prompt=false;sector=false;restored_prompt_needs_clear=true;
     while(!prompt)step();
     require(media_reads>=reads_before_restored_boot+512 && dma2_completions>=dma_before_restored_boot+512,
             "restored boot did not read the floppy through DMA",cycles);
