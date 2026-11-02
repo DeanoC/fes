@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "source_commit": "89bed50551ede17feec935b0e23991f1e0b6209f",
+  "result": "/home/deano/fes/out/dev/de25-embedded-os/out/native-compatibility-371e5add855243ab933774a06430054b/result.json",
+  "result_sha256": "e093fccb073d708cf2b433d359da7737173c0c6700f5a6772cc5e06fed879aad",
+  "cases": 657,
+  "cases_sha256": "fbbd854d11e6cf76ef03e2e01906afcb395410d7b70ab5ff484d8f010d90069b",
+  "oracle_sha256": "99a17326ed30f8109f5c61ce896cfd86dfb64b3dd9fc5e78d45719640b8b2306",
+  "per_abi": {
+    "simple_game": 105,
+    "simple_computer": 128,
+    "application": 184,
+    "computer": 240
+  },
+  "decisions": {
+    "none": 245,
+    "unsupported_abi": 24,
+    "unsupported_interface": 376,
+    "unsupported_programming_profile": 8,
+    "unsupported_target": 4
+  },
+  "positive_baselines_for_all_four_abis_verified": true,
+  "selected_source_hashes_verified": true,
+  "scope": "host-only contract compatibility; no hardware admission",
+  "selected_source_files": 504
+}

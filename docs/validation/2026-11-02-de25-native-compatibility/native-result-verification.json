@@ -1,0 +1,32 @@
+{
+  "status": "passed",
+  "source_commit": "89bed50551ede17feec935b0e23991f1e0b6209f",
+  "classification": "QEMU-only native Go bare metal; not DE25 hardware",
+  "native_compatibility_checked": true,
+  "native_cases": 17,
+  "linked_cases": 3,
+  "compiled_source_files": 1559,
+  "required_current_commit_blobs_verified": [
+    "platform/embedded/tamago/runtimeadmission/compatibility.go",
+    "platform/embedded/tamago/runtimeadmission/computer_contract.go",
+    "platform/embedded/tamago/runtimeadmission/generated/de10_nano.go",
+    "platform/embedded/tamago/runtimeadmission/generated/fes_application.go",
+    "platform/embedded/tamago/runtimeadmission/generated/fes_simple_computer.go",
+    "platform/embedded/tamago/runtimeadmission/generated/fes_simple_game.go",
+    "platform/embedded/tamago/admissioncheck/checks.go",
+    "platform/embedded/tamago/admissioncheck/linked.go",
+    "platform/embedded/tamago/cmd/admission/main.go",
+    "platform/embedded/tamago/run.py"
+  ],
+  "elf_sha256": "bd0586481fa46cc256be50ff7291c1f71b90d2f040f60d03a69cf04eb7688cdc",
+  "oracle_sha256": "99a17326ed30f8109f5c61ce896cfd86dfb64b3dd9fc5e78d45719640b8b2306",
+  "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+  "qemu_sha256": "2e7fe3008a900980493a85e606036793fd162153edac0228477579988c53e1f5",
+  "raw_console_sha256": "61890385a5ea54025191c22c329f8f6f36e683d6f292f7bfb2da9a343694facd",
+  "raw_console_bytes": 5103,
+  "fat32_before_sha256": "233ddb9c4f08705131ddf15d4859775a5e1f7b45435398f29b0374886ca831ba",
+  "fat32_after_sha256": "233ddb9c4f08705131ddf15d4859775a5e1f7b45435398f29b0374886ca831ba",
+  "hardware_run": false,
+  "quartus_run": false,
+  "runtime_physical_admission": false
+}

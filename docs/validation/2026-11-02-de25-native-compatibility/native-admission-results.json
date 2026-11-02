@@ -1,0 +1,336 @@
+{
+  "status": "passed",
+  "classification": "QEMU-only native Go bare metal; not DE25 hardware",
+  "admission_cases": [
+    {
+      "name": "v2/valid-basic",
+      "path": "FES/CASE000.FCP",
+      "valid": true,
+      "package_id": "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0",
+      "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "payload_offset": 2048,
+      "format": 2,
+      "expected": "none",
+      "runtime_code": "none"
+    },
+    {
+      "name": "v2/valid-semver-prerelease-build",
+      "path": "FES/CASE001.FCP",
+      "valid": true,
+      "package_id": "03e7a0f933040eb392f73e14e37c4be9fa710249e47a24e49d67bc764a7e20a9",
+      "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "payload_offset": 2048,
+      "format": 2,
+      "expected": "none",
+      "runtime_code": "none"
+    },
+    {
+      "name": "v2/valid-unknown-abi",
+      "path": "FES/CASE002.FCP",
+      "valid": true,
+      "package_id": "033fd02cab5ca1533d617e9adecbb2e975182672aebf669b9b9b7485f2a5d4ae",
+      "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "payload_offset": 2048,
+      "format": 2,
+      "expected": "unsupported_abi",
+      "runtime_code": "unsupported_abi"
+    },
+    {
+      "name": "v2/valid-multibyte-bounds",
+      "path": "FES/CASE003.FCP",
+      "valid": true,
+      "package_id": "4e96d5f93d7c3477f8107e1a708e64c0daf607e8f6b628b9edfd15b784779d34",
+      "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "payload_offset": 4096,
+      "format": 2,
+      "expected": "none",
+      "runtime_code": "none"
+    },
+    {
+      "name": "v2/valid-literal-strings",
+      "path": "FES/CASE004.FCP",
+      "valid": true,
+      "package_id": "5b3ec8ce5c12e347f1cce73ea858090c5204777a666d864a5b30672a34cbf2ab",
+      "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "payload_offset": 2048,
+      "format": 2,
+      "expected": "none",
+      "runtime_code": "none"
+    },
+    {
+      "name": "v2/valid-dotted-keys",
+      "path": "FES/CASE005.FCP",
+      "valid": true,
+      "package_id": "ee3cedac57cfa50585540b8a8909aedb636a09c36dd9240b82a48305ae8b1a83",
+      "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "payload_offset": 2048,
+      "format": 2,
+      "expected": "none",
+      "runtime_code": "none"
+    },
+    {
+      "name": "v2/valid-inline-tables",
+      "path": "FES/CASE006.FCP",
+      "valid": true,
+      "package_id": "ab48a770796990d08f3e8ba0404335af2f99cd06c4f6b1790f4e03db62f6b299",
+      "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "payload_offset": 2048,
+      "format": 2,
+      "expected": "none",
+      "runtime_code": "none"
+    },
+    {
+      "name": "v3/valid-basic",
+      "path": "FES/CASE029.FCP",
+      "valid": true,
+      "package_id": "4485543fd9c97cee6177e17300e6d6f5fe46aed9ac90a2ba0dc4663c042ee752",
+      "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "payload_offset": 2048,
+      "format": 3,
+      "expected": "unsupported_abi",
+      "runtime_code": "none"
+    },
+    {
+      "name": "v3/valid-cartridge",
+      "path": "FES/CASE030.FCP",
+      "valid": true,
+      "package_id": "99dc4eeb0cd0f4a95ec394af59e57a06ea7d342afd733573b200b5f183eea313",
+      "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "payload_offset": 2048,
+      "format": 3,
+      "expected": "unsupported_abi",
+      "runtime_code": "none"
+    },
+    {
+      "name": "v3/valid-literal-rom",
+      "path": "FES/CASE031.FCP",
+      "valid": true,
+      "package_id": "d038cd4a27b4b3cf806831bf084632412acf578b11b43722399b995c7d636928",
+      "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "payload_offset": 2048,
+      "format": 3,
+      "expected": "unsupported_abi",
+      "runtime_code": "none"
+    },
+    {
+      "name": "v4/valid-basic",
+      "path": "FES/CASE075.FCP",
+      "valid": true,
+      "package_id": "ed3e0c4b53492ed40c930ec8dd60b445a50072de529eb71013ae0a10e28b21ba",
+      "payload_sha256": "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1",
+      "payload_offset": 2560,
+      "format": 4,
+      "expected": "unsupported_abi",
+      "runtime_code": "none"
+    },
+    {
+      "name": "admission/missing-mandatory-gamepad",
+      "path": "FES/CASE092.FCP",
+      "valid": true,
+      "package_id": "a9039139858270523feca73cbc642fbfbfc0bffdf0326d02b5f4825a74134bd7",
+      "format": 2,
+      "expected": "unsupported_interface",
+      "runtime_code": "unsupported_interface"
+    },
+    {
+      "name": "admission/newer-abi",
+      "path": "FES/CASE093.FCP",
+      "valid": true,
+      "package_id": "c5d862e3b15f4068b78a756db76f136c9ea1555fe1fd29e5efe829e96f4769a6",
+      "format": 2,
+      "expected": "unsupported_abi",
+      "runtime_code": "unsupported_abi"
+    },
+    {
+      "name": "admission/diagnostic-profile",
+      "path": "FES/CASE094.FCP",
+      "valid": true,
+      "package_id": "e279a94934738c04c3f00f16b44a8b9ae1de970b4732797663958e0ff003fc81",
+      "format": 2,
+      "expected": "unsupported_programming_profile",
+      "runtime_code": "unsupported_programming_profile"
+    },
+    {
+      "name": "admission/unknown-required",
+      "path": "FES/CASE095.FCP",
+      "valid": true,
+      "package_id": "7ce97e0267aa6a0834806d55f859044e4f94566c50bf57024f99980815a82e06",
+      "format": 2,
+      "expected": "unsupported_interface",
+      "runtime_code": "unsupported_interface"
+    },
+    {
+      "name": "admission/unknown-optional",
+      "path": "FES/CASE096.FCP",
+      "valid": true,
+      "package_id": "1238310b784f2780cc9988d3a52393f41c0637ccc00133b80829b1c16a80a0ed",
+      "format": 2,
+      "expected": "none",
+      "runtime_code": "none"
+    },
+    {
+      "name": "admission/invalid-optional-persistence",
+      "path": "FES/CASE097.FCP",
+      "valid": true,
+      "package_id": "80ac747864ab53234d3e7a3df57dc244baa2fa522e2ef29771ebced6e4709f29",
+      "format": 2,
+      "expected": "unsupported_interface",
+      "runtime_code": "unsupported_interface"
+    }
+  ],
+  "admission_results": [
+    {
+      "name": "v2/valid-basic",
+      "package_id": "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0",
+      "code": "none",
+      "owner_unchanged": false,
+      "native_compatibility_code": "none"
+    },
+    {
+      "name": "v2/valid-semver-prerelease-build",
+      "package_id": "03e7a0f933040eb392f73e14e37c4be9fa710249e47a24e49d67bc764a7e20a9",
+      "code": "none",
+      "owner_unchanged": false,
+      "native_compatibility_code": "none"
+    },
+    {
+      "name": "v2/valid-unknown-abi",
+      "package_id": "033fd02cab5ca1533d617e9adecbb2e975182672aebf669b9b9b7485f2a5d4ae",
+      "code": "unsupported_abi",
+      "owner_unchanged": true,
+      "native_compatibility_code": "unsupported_abi"
+    },
+    {
+      "name": "v2/valid-multibyte-bounds",
+      "package_id": "4e96d5f93d7c3477f8107e1a708e64c0daf607e8f6b628b9edfd15b784779d34",
+      "code": "none",
+      "owner_unchanged": false,
+      "native_compatibility_code": "none"
+    },
+    {
+      "name": "v2/valid-literal-strings",
+      "package_id": "5b3ec8ce5c12e347f1cce73ea858090c5204777a666d864a5b30672a34cbf2ab",
+      "code": "none",
+      "owner_unchanged": false,
+      "native_compatibility_code": "none"
+    },
+    {
+      "name": "v2/valid-dotted-keys",
+      "package_id": "ee3cedac57cfa50585540b8a8909aedb636a09c36dd9240b82a48305ae8b1a83",
+      "code": "none",
+      "owner_unchanged": false,
+      "native_compatibility_code": "none"
+    },
+    {
+      "name": "v2/valid-inline-tables",
+      "package_id": "ab48a770796990d08f3e8ba0404335af2f99cd06c4f6b1790f4e03db62f6b299",
+      "code": "none",
+      "owner_unchanged": false,
+      "native_compatibility_code": "none"
+    },
+    {
+      "name": "v3/valid-basic",
+      "package_id": "4485543fd9c97cee6177e17300e6d6f5fe46aed9ac90a2ba0dc4663c042ee752",
+      "code": "unsupported_abi",
+      "owner_unchanged": true,
+      "native_compatibility_code": "none"
+    },
+    {
+      "name": "v3/valid-cartridge",
+      "package_id": "99dc4eeb0cd0f4a95ec394af59e57a06ea7d342afd733573b200b5f183eea313",
+      "code": "unsupported_abi",
+      "owner_unchanged": true,
+      "native_compatibility_code": "none"
+    },
+    {
+      "name": "v3/valid-literal-rom",
+      "package_id": "d038cd4a27b4b3cf806831bf084632412acf578b11b43722399b995c7d636928",
+      "code": "unsupported_abi",
+      "owner_unchanged": true,
+      "native_compatibility_code": "none"
+    },
+    {
+      "name": "v4/valid-basic",
+      "package_id": "ed3e0c4b53492ed40c930ec8dd60b445a50072de529eb71013ae0a10e28b21ba",
+      "code": "unsupported_abi",
+      "owner_unchanged": true,
+      "native_compatibility_code": "none"
+    },
+    {
+      "name": "admission/missing-mandatory-gamepad",
+      "package_id": "a9039139858270523feca73cbc642fbfbfc0bffdf0326d02b5f4825a74134bd7",
+      "code": "unsupported_interface",
+      "owner_unchanged": true,
+      "native_compatibility_code": "unsupported_interface"
+    },
+    {
+      "name": "admission/newer-abi",
+      "package_id": "c5d862e3b15f4068b78a756db76f136c9ea1555fe1fd29e5efe829e96f4769a6",
+      "code": "unsupported_abi",
+      "owner_unchanged": true,
+      "native_compatibility_code": "unsupported_abi"
+    },
+    {
+      "name": "admission/diagnostic-profile",
+      "package_id": "e279a94934738c04c3f00f16b44a8b9ae1de970b4732797663958e0ff003fc81",
+      "code": "unsupported_programming_profile",
+      "owner_unchanged": true,
+      "native_compatibility_code": "unsupported_programming_profile"
+    },
+    {
+      "name": "admission/unknown-required",
+      "package_id": "7ce97e0267aa6a0834806d55f859044e4f94566c50bf57024f99980815a82e06",
+      "code": "unsupported_interface",
+      "owner_unchanged": true,
+      "native_compatibility_code": "unsupported_interface"
+    },
+    {
+      "name": "admission/unknown-optional",
+      "package_id": "1238310b784f2780cc9988d3a52393f41c0637ccc00133b80829b1c16a80a0ed",
+      "code": "none",
+      "owner_unchanged": false,
+      "native_compatibility_code": "none"
+    },
+    {
+      "name": "admission/invalid-optional-persistence",
+      "package_id": "80ac747864ab53234d3e7a3df57dc244baa2fa522e2ef29771ebced6e4709f29",
+      "code": "unsupported_interface",
+      "owner_unchanged": true,
+      "native_compatibility_code": "unsupported_interface"
+    }
+  ],
+  "linked_results": [
+    {
+      "name": "linked/v3-firmware",
+      "package_id": "7b36e79a04f948b66d294ad146cd614e83528ab1da8d0eaefcd2d658270e19a7",
+      "receipt_sha256": "fd1edcd9a479529486156858571cd566e98aa60a9f40b34a761bf1a91b32fae7",
+      "programmed_sha256": "9df2faea863aa537564d1e0dffd981212003a349e44ee129a66679c95f21f555",
+      "programmed_size": 1971149
+    },
+    {
+      "name": "linked/v3-cartridge",
+      "package_id": "0e44b359ca6ae78711aead00bfe0e1fb929843645999ed1c3f7cb0f6e72723b7",
+      "receipt_sha256": "5588315a1815b5dd44a66a6890500bf6e1f80ef82707655bb46faa86352e07f9",
+      "programmed_sha256": "9df2faea863aa537564d1e0dffd981212003a349e44ee129a66679c95f21f555",
+      "programmed_size": 1971149
+    },
+    {
+      "name": "linked/v4-both",
+      "package_id": "ea667cc878a7007c70c4d8fe59a0d8017770ddd9b473c728cab77192195a2ddc",
+      "receipt_sha256": "f88d69e2c3e423478c0b8ccf01846ccf7aa498461e5ffecdf582ec749a0e3775",
+      "programmed_sha256": "9df2faea863aa537564d1e0dffd981212003a349e44ee129a66679c95f21f555",
+      "programmed_size": 1971149
+    }
+  ],
+  "native_compatibility_checked": true,
+  "elf_sha256": "bd0586481fa46cc256be50ff7291c1f71b90d2f040f60d03a69cf04eb7688cdc",
+  "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+  "qemu_sha256": "2e7fe3008a900980493a85e606036793fd162153edac0228477579988c53e1f5",
+  "oracle_sha256": "99a17326ed30f8109f5c61ce896cfd86dfb64b3dd9fc5e78d45719640b8b2306",
+  "disk": {
+    "path": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-native-admission-20261102/qemu/fat32.img",
+    "before_sha256": "233ddb9c4f08705131ddf15d4859775a5e1f7b45435398f29b0374886ca831ba",
+    "after_sha256": "233ddb9c4f08705131ddf15d4859775a5e1f7b45435398f29b0374886ca831ba"
+  },
+  "termination": "runner quit QEMU after package diagnostic; no FPGA programming"
+}
