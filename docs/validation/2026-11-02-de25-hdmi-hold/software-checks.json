@@ -1,0 +1,234 @@
+{
+  "FPGA_software_skips": 76,
+  "FPGA_software_tests": 1762,
+  "base_revision": "a3a9dd9d5d19b893c555caa012b5505719896732",
+  "classification": "Complete current seven-command affected plan plus make check on committed source; no hardware acceptance",
+  "commands": [
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_affected.py"
+      ],
+      "label": "test_affected.py",
+      "lane": "always",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_test_changed.py"
+      ],
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "a3a9dd9d5d19b893c555caa012b5505719896732",
+        "--head",
+        "72716153eb7be7b62917ed685d5d7380347a2d7d"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "committed whitespace",
+      "lane": "always",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "working whitespace",
+      "lane": "always",
+      "tools": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"sources/misteross/boards/de25nano/scanout/README.md\", \"sources/misteross/boards/de25nano/scanout/hdmi_inputs.py\", \"sources/misteross/boards/de25nano/scanout/hdmi_io_tb.cpp\", \"sources/misteross/docs/architecture.md\"]"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ],
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "sh"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/consistency.py"
+      ],
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "go"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "sources/misteross",
+      "files": [
+        "tests/test_*.py"
+      ],
+      "label": "test_*.py",
+      "lane": "fpga",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "strace"
+      ]
+    }
+  ],
+  "hardware_access": "not-performed",
+  "historical_full_native_AArch64_BASIC_proof_rerun": false,
+  "job_seconds": 1535.1,
+  "make_check": "passed",
+  "observed_unittest_summaries_in_log_order": [
+    {
+      "seconds": "0.191",
+      "skips": 0,
+      "tests": 30
+    },
+    {
+      "seconds": "0.758",
+      "skips": 0,
+      "tests": 32
+    },
+    {
+      "seconds": "13.528",
+      "skips": 0,
+      "tests": 4
+    },
+    {
+      "seconds": "0.000",
+      "skips": 0,
+      "tests": 1
+    },
+    {
+      "seconds": "206.060",
+      "skips": 5,
+      "tests": 1146
+    },
+    {
+      "seconds": "1313.542",
+      "skips": 76,
+      "tests": 1762
+    }
+  ],
+  "parent_skips": 5,
+  "parent_tests": 1146,
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 0
+    }
+  ],
+  "source_log_sha256": "165acc2902c242463af9514242d35f614c698bc84d06fc2bb1e8f09c54d55691",
+  "source_revision": "72716153eb7be7b62917ed685d5d7380347a2d7d",
+  "status": "passed",
+  "test_modes": {
+    "full_race": false,
+    "media": false,
+    "video": false
+  },
+  "unchanged_combined_compiler_inputs": 59,
+  "unchanged_runtime_test_inputs": 58,
+  "whole_current_plan_executed": true
+}
