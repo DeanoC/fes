@@ -400,7 +400,7 @@ local function load_library()
     waiting = waiting - 1
     if waiting > 0 or gen ~= library_generation then return end
     if failed then
-      library_err = failed
+      machines, titles, capped, library_err = nil, nil, {}, failed
     else
       machines, titles, capped, library_err = m, counts, more, nil
     end
@@ -437,7 +437,8 @@ local function load_library()
 end
 
 local function load_recents()
-  library.query({ collection = "recents", limit = RECENT_MAX * 4 }, function(games, err)
+  -- Filter before paging so hidden cores do not consume the three recent slots.
+  library.query({ collection = "recents", core_ids = systems.ids, limit = RECENT_MAX }, function(games, err)
     local focused = recents[recent_i] and recents[recent_i].id
     recents = {}
     if not err then
