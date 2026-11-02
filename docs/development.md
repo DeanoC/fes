@@ -590,3 +590,6 @@ alone grants no native acceptance. The
 [executed source-workflow record](validation/2026-11-02-de25-source-workflow/README.md)
 separates actual AArch64/host production, CPU checks and public-command refusal
 from orchestration fixtures and the remaining factory/native gates.
+The [source verification record](validation/2026-11-02-de25-source-verification/README.md)
+retains the current workspace/package checks, actual SDK authentication and public
+verification refusals, including the read-only factory/cache repair.

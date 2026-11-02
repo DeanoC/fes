@@ -113,6 +113,8 @@ and the public Make/vendor-input refusal. Standard verification now accepts sour
 workspaces or explicit factories, and source publication supplies the shared closed
 package-selection set. Its offline acceptance reader does not establish native
 readiness.
+The [source verification proof](../validation/2026-11-02-de25-source-verification/README.md)
+records the current checks and external-cache/read-only verification boundary.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.
 

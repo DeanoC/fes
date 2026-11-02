@@ -200,8 +200,9 @@ boot and play checks remain separate. See [bootable media](docs/bootable-media.m
 | Profile | Selected source combination |
 | --- | --- |
 | `native-integration-dev` (default) | Current FES commit, locked idle RBF and MENU display firmware; install playable cores separately |
+| `de25-nano` (explicit `BOARD=de25-nano`) | Committed AArch64 sources, authenticated managed SDK/base and matching owner kernel/compiler; requires an admitted Quartus Pro MENU package ([commands](docs/development.md#de25-source-development)) |
 
-The parent exposes one FES integration profile. Systems whose nextpnr route is
+The parent defaults to the DE10 integration profile. Systems whose nextpnr route is
 not implemented yet are checked explicitly with Quartus when their recipe
 requires it; that check does not create an image package or change the default
 package-only path. The accepted policy also allows labelled Quartus variants,
