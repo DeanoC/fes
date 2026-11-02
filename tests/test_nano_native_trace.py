@@ -2,12 +2,15 @@
 import importlib.util
 import json
 from pathlib import Path
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('nano_native_trace', ROOT / 'platform/embedded/nano/native_trace.py')
 trace = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(trace)
+sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
+try:spec.loader.exec_module(trace)
+finally:sys.path.pop(0)
 BUILD = '0123456789abcdef'
 SEED = 0x13579bdf00000001
 EPOCH = 0x101
@@ -417,6 +420,84 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
         self.assertFalse(trace.decode_native_boot(raw,BUILD,SEED,fpga_identity=self.identity,fpga_configuration=True)['complete'])
         ordinary=NativeFPGAConfigurationTraceTests().capture()
         self.assertFalse(self.decode(ordinary)['complete'])
+        self.check_reader_trace()
+
+    def reader_capture(self,stored=True,waits=0):
+        raw=self.stored_capture() if stored else self.capture()
+        source_generation=4 if stored else 1
+        lines=[];ordinal=31
+        def read(offset,value):
+            nonlocal ordinal
+            for phase,v in (('before',0),('after',value)):
+                lines.append(f'NOTICE:  FES_NANO_IDENTITY_ACCESS phase={phase} ordinal={ordinal} offset={offset:x} value={v:x}\r\n')
+            ordinal+=1
+        def write(offset,value):
+            for phase in ('before','after'):
+                lines.append(f'NOTICE:  FES_NANO_READER_WRITE phase={phase} offset={offset:x} value={value:x}\r\n')
+        def state(status,pending,ack):
+            for offset,value in zip((0x38,0x3c,0x1c,0x20,0x40,0x44,0x48,0x4c),(status,pending,1,0,int(ack),0,7 if ack else 0,0)):
+                read(offset,value)
+        def stage(value):
+            lines.append(f'NOTICE:  FES_NANO_READER_CYCLE phase={value} reader_generation=1 cookie=7 owner={OWNER:x} generation={source_generation+1} reset=d\r\n')
+        write(0x24,1);write(0x28,0);write(0x34,1);state(1,0,False);stage(9)
+        write(0x84,0x1000);write(0x88,1);write(0x80,0x0c);state(1,0x10000,False)
+        read(0x8c,4);read(0x90,0x1000);stage(10)
+        write(0x2c,7);write(0x30,0);write(0x34,2);state(2,0x10000,False)
+        read(0x8c,0x24);read(0x90,0x1000);stage(11)
+        write(0x80,5);state(2,1,False);write(0x80,7);state(2,1,False)
+        read(0x8c,0x10068);stage(12);write(0x80,7)
+        for _ in range(waits):state(2,0,False)
+        state(4,0,True);stage(13)
+        offsets=(0,4,8,12,16,20,24,28,32,64,68,72,76,56,60)
+        values=(0x46455345,0x10000,0x10203040,0xcccccccc,0xcccccccc,0xcccccccc,0xcccccccc,1,0,1,0,7,0,4,0)
+        for _ in range(2):
+            for offset,value in zip(offsets,values):read(offset,value)
+        raw=raw.replace('NOTICE:  FES_NANO_IDENTITY phase=close',''.join(lines)+'NOTICE:  FES_NANO_IDENTITY phase=close',1)
+        return raw+f'FES_NATIVE_FPGA_READER PASS owner={OWNER:x} generation={source_generation+2} reader_generation=1 cookie=7 data_held=1 runtime_programming=unavailable\r\n'
+
+    def check_reader_trace(self):
+        def decode(raw,stored=True):
+            return trace.decode_native_reader_configuration(raw,BUILD,SEED,fpga_identity=self.identity,
+                                                           configuration=self.configuration,from_storage=stored)
+        for stored in (False,True):
+            raw=self.reader_capture(stored);result=decode(raw,stored)
+            self.assertTrue(result['complete'],result)
+            self.assertTrue(result['configuration_transfer']['complete'])
+            self.assertEqual(result['last_checkpoint'],'fpga_reader')
+            self.assertEqual(result['reader_cycle']['reads'],83)
+            self.assertEqual(result['reader_cycle']['writes'],12)
+            self.assertFalse(result['reader_cycle']['ddr_drain'])
+            self.assertFalse(result['core_load_acceptance'])
+        raw=self.reader_capture();result=decode(raw);lines=raw.splitlines(keepends=True)
+        self.assertFalse(decode(self.stored_capture())['complete'])
+        self.assertFalse(trace.decode_native_configuration(raw,BUILD,SEED,fpga_identity=self.identity,
+                                                          configuration=self.configuration,from_storage=True)['complete'])
+        for row in result['records']:
+            if not row['stage'].startswith(('reader_','fpga_reader')):continue
+            i=row['line']-1
+            with self.subTest(reader_record=row['stage']):
+                self.assertFalse(decode(''.join(lines[:i]+lines[i+1:]))['complete'])
+                self.assertFalse(decode(''.join(lines[:i]+[lines[i]]+lines[i:]))['complete'])
+                prefix=decode(''.join(lines[:i])+lines[i].rstrip('\r\n'))
+                self.assertFalse(prefix['complete']);self.assertFalse(prefix['errors'],prefix)
+        mutations=(('phase=9 reader_generation=1','phase=10 reader_generation=1'),
+                   ('reader_generation=1 cookie=7','reader_generation=2 cookie=7'),
+                   (f'cookie=7 owner={OWNER:x}',f'cookie=7 owner={OWNER+2:x}'),
+                   ('ordinal=31 offset=38 value=1','ordinal=31 offset=38 value=4'),
+                   ('ordinal=34 offset=20 value=0','ordinal=34 offset=20 value=1'),
+                   ('phase=after offset=24 value=1','phase=after offset=24 value=2'),
+                   ('phase=after offset=80 value=c','phase=after offset=80 value=d'),
+                   ('ordinal=47 offset=8c value=4','ordinal=47 offset=8c value=0'),
+                   ('generation=5 reset=d','generation=4 reset=d'),
+                   ('ordinal=84 offset=0 value=46455345','ordinal=84 offset=0 value=46455344'),
+                   ('READER PASS owner='+format(OWNER,'x')+' generation=6','READER PASS owner='+format(OWNER,'x')+' generation=3'),
+                   ('reader_generation=1 cookie=7 data_held=1','reader_generation=1 cookie=7 data_held=0'))
+        for old,new in mutations:
+            self.assertIn(old,raw)
+            with self.subTest(reader_mutation=new):self.assertFalse(decode(raw.replace(old,new))['complete'])
+        self.assertFalse(decode(raw+'FES_NATIVE_FPGA_READER malformed\n')['complete'])
+        self.assertTrue(decode(self.reader_capture(waits=127))['complete'])
+        self.assertFalse(decode(self.reader_capture(waits=128))['complete'])
 
     def test_omissions_duplicates_reordering_and_partial_transfer_never_complete(self):
         raw=self.capture();result=self.decode(raw);lines=raw.splitlines(keepends=True)

@@ -84,10 +84,10 @@ for this result. The real C probe and actual Avalon RTL cover the successful
 cycle, early/wrong ACK, partial burst, faults, timeouts and failed I/O without
 replaying commands. A second joined fixture uses the actual strong provider,
 SD lease, configuration dispatcher and pinned digest against that same Avalon
-RTL, including ownership/cache/data-scope loss after a write. This supplies no DDR/master drain, boot admission, data
-release or physical launch/return acceptance; the native loader still uses
-its separately qualified identity-only path until a matched reader build is
-prepared and qualified.
+RTL, including ownership/cache/data-scope loss after a write. This supplies no
+DDR/master drain, boot admission, data release or physical launch/return
+acceptance. The native `fpgaload` caller now selects this reader operation;
+its changed matched boot chain needs separate physical qualification.
 
 `NewStoredConfigurationTransfer` consumes a `packagestore.Handoff`. It checks
 the retained format-2 archive against the compiled package/build/target/ABI and

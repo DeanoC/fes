@@ -468,7 +468,9 @@ address. Its distinct reply tag is checked by native `ProbeReader`. The actual
 C service and Avalon RTL pass their joined host tests, including I/O failures,
 premature ACK, faults and ownership loss. This operation remains physically
 unqualified and supplies no DDR, scanout, other-master drain or data release.
-The previously qualified native loader still selects identity-only probing.
+The native loader now selects this reader operation after contained SD-package
+configuration. Its changed matched boot chain needs separate physical
+qualification; the preceding physical pass used identity-only probing.
 
 The probe now checks SDM readiness before opening control. It sends only
 `CONFIG_STATUS`, keeps a zero-initialized six-word response on the secure

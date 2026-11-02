@@ -4,6 +4,7 @@ The expected build ID and owner seed come from the checked matched build.
 No device, programmer, firmware or filesystem operations are performed here.
 """
 import re
+from reader_trace import extract as extract_reader_trace,validate as validate_reader_trace
 
 MAX_BYTES = 1 << 20
 MASTER_RESET = 0xff21bfbf  # nano_boot.h: functional and OCP resets
@@ -473,4 +474,40 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
                                         'last_counter':previous_counter,'hash_ticks':previous_hash,
                                         'interval_ticks':previous_counter-first_counter,
                                         'interval_hash_ticks':previous_hash-first_hash}
+    return report
+
+
+def decode_native_reader_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False):
+    """Require the contained transfer, exact reader recipe and reclosed identity."""
+    captured=extract_reader_trace(data)
+    report=decode_native_configuration(captured['stripped'],build_id,owner_seed,
+                                      fpga_identity=fpga_identity,configuration=configuration,from_storage=from_storage)
+    rows={row['stage']:row for row in report['records']}
+    source=rows.get('hps_context')
+    reader={'complete':False,'errors':[],'records':[]}
+    if source:
+        reader=validate_reader_trace(captured['events'],owner=source['values']['owner'],source_generation=4 if from_storage else 1,
+                        abi=fpga_identity['control_abi'],build_id=fpga_identity['build_id'])
+    errors=captured['errors']+reader['errors']
+    def require(condition,message):
+        if not condition:errors.append(message)
+    if captured['events']:
+        first=captured['events'][0]['line'];last=captured['events'][-1]['line']
+        prior=rows.get('identity_access_30_after');closed=rows.get('identity_close')
+        require(prior is not None and first>prior['line'],'reader started before verified idle identity')
+        if closed:require(last<closed['line'],'reader continued after control close')
+    receipt=captured['receipt'];identity=rows.get('fpga_identity')
+    if receipt:
+        require(identity is not None and identity['line']<receipt['line'],'reader receipt preceded reclosed identity')
+        require(source is not None and receipt['values']=={'owner':source['values']['owner'],
+                'generation':(4 if from_storage else 1)+2},'reader receipt changed closed ownership')
+        require(reader['complete'],'native reader receipt lacks complete firmware observations')
+    report['errors'].extend(errors)
+    report['complete']=bool(report['complete'] and reader['complete'] and receipt and not report['errors'])
+    extra=list(reader['records'])
+    if receipt:extra.append({'stage':'fpga_reader','line':receipt['line'],'values':receipt['values']})
+    report['records']=sorted(report['records']+extra,key=lambda row:row['line'])
+    report['last_checkpoint']=report['records'][-1]['stage'] if report['records'] else None
+    report['reader_cycle']={key:value for key,value in reader.items() if key not in ('records','errors')}
+    report['reader_cycle']['complete']=report['complete']
     return report

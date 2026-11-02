@@ -126,7 +126,7 @@ func main() {
 	}
 	fmt.Printf("FES_NATIVE_FPGA_PROGRAMMED PASS package_id=%s core_sha256=%s bytes=%d owner=%x generation=%d data_held=1 activation=unavailable\n",
 		id.PackageID, id.ProgrammedSHA256, size, source.Bridges.Owner, source.Bridges.Generation)
-	observed, err := v.ProbeIdentity(control)
+	observed, err := v.ProbeReader(control)
 	if err != nil {
 		panic(err)
 	}
@@ -135,4 +135,6 @@ func main() {
 	}
 	fmt.Printf("FES_NATIVE_FPGA_IDENTITY PASS package_id=%s build_id=%s abi=%x base=%x map_sha256=%s owner=%x generation=%d data_held=1 runtime_programming=unavailable\n",
 		id.PackageID, id.BuildID, observed.Identity.ABI, observed.CPUBase, hex.EncodeToString(observed.ControlMapSHA256[:]), observed.After.Owner, observed.After.Generation)
+	fmt.Printf("FES_NATIVE_FPGA_READER PASS owner=%x generation=%d reader_generation=1 cookie=7 data_held=1 runtime_programming=unavailable\n",
+		observed.After.Owner, observed.After.Generation)
 }

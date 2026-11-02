@@ -592,7 +592,10 @@ transfer deadline are unchanged. The
 [matched TRWU8CBL comparison](../../../docs/validation/2026-11-02-de25-large-blocks/README.md)
 passes a complete 2,027,520-byte transfer, firmware readiness and live sealed
 identity with control reclosed. That retained source used the preceding built-in
-payload. The current SD-package path is a new candidate and requires its own
+payload. The separate
+[SD-package configuration trial](../../../docs/validation/2026-11-02-de25-stored-configuration/README.md)
+also passes its exact retained source/artifacts, using identity-only probing.
+The current reader-cycle caller is a new candidate and requires its own
 matched boot and physical acceptance. This two-job cold diagnostic does not qualify
 queue turnover, repeated runtime loading, master drain or active launch/return.
 
@@ -622,10 +625,17 @@ with a prepared/running transfer. No configuration call opens a bridge.
 
 After completion, native code verifies the same closed source ownership and
 reports the exact programmed-byte digest and count. A separate fresh SDM
-readiness query precedes the existing secure identity probe, which opens only
-control and closes it again before success. The serial decoder additionally
-checks the ordered transfer and complete byte count before accepting that
-live-identity observation. Ordinary probe decoders reject transfer traffic.
+readiness query precedes the owned secure reader operation, which opens only
+control, verifies the idle identity, enables the on-chip reader, holds an AXI
+address across disable and completes a two-beat burst before accepting the
+exact generation/cookie drain ACK. Two final identity/state snapshots precede
+control reclose. `decode_native_reader_configuration(..., from_storage=True)`
+requires the ordered transfer, each paired reader access/write, held/partial
+observations, final ACK, reclosed identity and native reader receipt. Only
+state-read sets may repeat, within the same firmware bound. The actual strong
+provider/RTL fixture is decoded through this observer as well. Identity-only
+success cannot substitute for the reader result. This on-chip responder is
+not DDR, scanout or other-master containment; all data bridges remain reset.
 
 The [first physical transfer](../../../docs/validation/2026-11-01-de25-contained-configuration/README.md)
 stopped at its unchanged 20-second native deadline after 786,432 confirmed
