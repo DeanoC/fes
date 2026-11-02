@@ -112,7 +112,7 @@ func TestSTVideoTargetRelinksROMPartsAndUsesExistingLifecycle(t *testing.T) {
 	control := &stVideoTargetControl{romTargetControl: newROMTargetControl(t, 1)}
 	root := t.TempDir()
 	runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(root))
-	active, attempted, failure := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data))
+	active, attempted, failure := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), transport.Size(), transport.Reader())
 	if failure != nil || !attempted || control.partsCalls != 1 || control.linkedCalls != 0 || active.ROMLink == nil || !reflect.DeepEqual(active.PartsComposition, transport.PartsComposition) {
 		t.Fatalf("activation=%+v attempted=%v failure=%v dispatch=%d/%d", active, attempted, failure, control.partsCalls, control.linkedCalls)
 	}
