@@ -19,7 +19,9 @@ module display_machine_top (
     output wire [7:0] rgbi
 );
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_machine machine (.media_present(1'b0), .media_read_valid(), .media_read_addr(),
+    pcxt_machine machine (.media_present(1'b0), .cold_reset(reset), .media_frozen(1'b0),
+        .media_write_busy(), .media_write_valid(), .media_write_lba(), .media_write_index(9'b0),
+        .media_write_data(), .media_write_ready(1'b0), .media_write_error(1'b0), .media_read_valid(), .media_read_addr(),
         .media_read_ready(1'b0), .media_read_data(8'b0),
         .keyboard_clock(1'b1), .keyboard_data(1'b0),
         .keyboard_clock_low(), .keyboard_data_low(), .keyboard_clear(), .clk_cpu(clk),.dma_owner(), .refresh_done(), .audio_valid(), .audio_sample(), .*);

@@ -243,13 +243,34 @@ func TestInitialSTDiskLaunchRequiresReadySelectedBinding(t *testing.T) {
 	selected := coreLoadSource{initialMedia: &corepackage.InitialMedia{
 		GameID: "st-boot", BaseMediaID: strings.Repeat("a", 64), Unit: 0,
 	}}
-	good := protocol.CorePackageStatus{ABI: protocol.RuntimeContract{ID: "fes.computer", Major: 1}, ActiveInterfaces: []protocol.RuntimeInterface{{ID: protocol.AtariStFloppyInterface().ID, Major: 1}}, PersistenceMode: "persistent", MediaUnits: []protocol.MediaUnitStatus{{
+	good := protocol.CorePackageStatus{CoreID: "fes.atari-st", ABI: protocol.RuntimeContract{ID: "fes.computer", Major: 1}, ActiveInterfaces: []protocol.RuntimeInterface{{ID: protocol.AtariStFloppyInterface().ID, Major: 1}, {ID: protocol.AtariStFloppyWriteInterface().ID, Major: 1}}, PersistenceMode: "persistent", MediaUnits: []protocol.MediaUnitStatus{{
 		Unit: 0, Interface: protocol.AtariStFloppyInterface(), MinBytes: uint32(protocol.AtariStFloppyBytes), MaxBytes: uint32(protocol.AtariStFloppyBytes), ChunkBytes: 512, State: protocol.MediaUnitReady, Persistence: &protocol.MediaDataStatus{
 			Mode: "persistent", GameID: "st-boot", BaseMediaID: strings.Repeat("a", 64), Revision: "absent",
 		},
 	}}}
 	if !selected.matchesLoadedIdentity(&good) {
 		t.Fatal("ready selected binding rejected")
+	}
+	pcxtSelection := selected
+	pcxtMedia := *selected.initialMedia
+	pcxtMedia.InterfaceID = protocol.PcxtFloppyInterface().ID
+	pcxtSelection.initialMedia = &pcxtMedia
+	if pcxtSelection.matchesLoadedIdentity(&good) {
+		t.Fatal("ST status accepted for PC/XT selection")
+	}
+	pcxt := good
+	pcxt.CoreID = "fes.pcxt-dos"
+	pcxt.ABI.Minor = 1
+	pcxt.ActiveInterfaces = []protocol.RuntimeInterface{{ID: protocol.PcxtFloppyInterface().ID, Major: 1}, {ID: protocol.PcxtFloppyWriteInterface().ID, Major: 1}}
+	pcxt.MediaUnits = append([]protocol.MediaUnitStatus(nil), good.MediaUnits...)
+	pcxt.MediaUnits[0].Interface = protocol.PcxtFloppyInterface()
+	pcxt.MediaUnits[0].MinBytes, pcxt.MediaUnits[0].MaxBytes = 368640, 368640
+	if !pcxtSelection.matchesLoadedIdentity(&pcxt) || selected.matchesLoadedIdentity(&pcxt) {
+		t.Fatal("wrong PC/XT launch identity")
+	}
+	pcxt.CoreID = "fes.atari-st"
+	if pcxtSelection.matchesLoadedIdentity(&pcxt) {
+		t.Fatal("wrong core accepted")
 	}
 	for _, mutation := range []func(*protocol.CorePackageStatus){
 		func(p *protocol.CorePackageStatus) { p.MediaUnits[0].State = protocol.MediaUnitEmpty },

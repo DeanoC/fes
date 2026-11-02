@@ -297,12 +297,20 @@ constants:
     value: 0
   - name: FesComputerC64DiskBytes
     value: 174848
-  # fes.media.pcxt-floppy 1.0: one read-only 40x2x9x512 raw disk.
+  # fes.media.pcxt-floppy 1.0: one 40x2x9x512 raw disk. Writes require
+  # the separately negotiated fes.media.pcxt-floppy-write extension.
   # It requires the extended 1.1 identity and capability bit 20.
   - name: FesComputerPcxtFloppyUnit
     value: 0
   - name: FesComputerPcxtFloppyBytes
     value: 368640
+  # Writable PC/XT snapshots are distinct from ST, tape and ATA layouts.
+  - name: FesComputerPcxtFloppyLayoutTag
+    value: 4
+  - name: FesComputerPcxtFloppyLayoutMajor
+    value: 1
+  - name: FesComputerPcxtFloppyLayoutMinor
+    value: 0
   # fes.media.spectrum-disk 1.0: unit 1, a raw track image (FogCast
   # internal/spectrumdisks): 8 or 16 KiB slots, a header and at most 86
   # cylinders of two sides. Capability bit 15. A Spectrum shell may declare it beside
@@ -620,3 +628,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 20
+  - id: fes.media.pcxt-floppy-write
+    major: 1
+    minor: 0
+    capability_bit: 21

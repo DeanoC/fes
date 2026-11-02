@@ -20,6 +20,7 @@ def main():
     parser.add_argument('--bios', type=Path, help='local copy of the BIOS selected by bios.lock')
     parser.add_argument('--font', type=Path, help='external normalized 4096-byte CGA font')
     parser.add_argument('--download', action='store_true', help='fetch pinned BIOS, FreeDOS sources and assembler if absent')
+    parser.add_argument('--writable-test', action='store_true', help='exercise guest writes and snapshot/restore')
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     args = parser.parse_args()
     if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
@@ -34,10 +35,10 @@ def main():
 
 
 def run(args):
-    build = ROOT / 'build/sim/fes-pcxt/dos'
+    build = ROOT / ('build/sim/fes-pcxt/dos-write' if args.writable_test else 'build/sim/fes-pcxt/dos')
     build.mkdir(parents=True, exist_ok=True)
     for name in ('result.json', 'result-pending.json', 'dos.ppm', 'screen.bin', 'screen.txt',
-                 'inputs.json', 'bus.log'):
+                 'inputs.json', 'bus.log', 'saved-floppy.img'):
         (build / name).unlink(missing_ok=True)
     bios.fixture_inputs(build, args.bios, args.font, args.download)
     # Validate the exact bytes supplied to the device against the pinned boot
@@ -65,13 +66,21 @@ def run(args):
         '--timescale-override', '1ns/1ps',
         str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt'), str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt'),
         "-GWITH_FLOPPY=1'b1", "-GWITH_RUNTIME_MEDIA=1'b1", "-GWAIT_FOR_MEDIA=1'b1",
-        "-GWITH_RUNTIME_KEYBOARD=1'b1", '--top-module', 'bios_top', '--Mdir', str(build), '-I' + str(build),
+        "-GWITH_RUNTIME_KEYBOARD=1'b1", *(["-GWITH_WRITABLE=1'b1"] if args.writable_test else []), '--top-module', 'bios_top', '--Mdir', str(build), '-I' + str(build),
         '-I' + str(ROOT / 'cores/fes-common/generated'),
         *('-I' + str(sim.vendor_dir(name)) for name in sim.CHIP_VENDORS),
-        '-CFLAGS', '-std=c++17 -O2', '-I' + str(ROOT / 'cores/fes-pcxt/sim'),
+        '-CFLAGS', '-std=c++17 -O2' + (' -DPCXT_WRITABLE_TEST=1' if args.writable_test else ''), '-I' + str(ROOT / 'cores/fes-pcxt/sim'),
         *(str(ROOT / path) for path in sources)], check=True)
     subprocess.run([str(build / 'Vbios_top'), str(build / 'firmware.bin'), str(build / 'floppy.img')],
                    cwd=build, check=True)
+    if args.writable_test:
+        image = str(build / 'saved-floppy.img')
+        original = subprocess.run(['mtype', '-i', image, '::FESXT.TXT'], check=True, capture_output=True).stdout
+        saved = subprocess.run(['mtype', '-i', image, '::SAVE.TXT'], check=True, capture_output=True).stdout
+        if not original or saved != original:
+            raise ValueError('DOS copy not present or differs in captured floppy image')
+        print('PASS DOS guest copy, SDRAM snapshot and restored image:', len(saved), 'file bytes', flush=True)
+        return
     ppm = (build / 'dos.ppm').read_bytes()
     header = b'P6\n1280 720\n255\n'
     if not ppm.startswith(header):

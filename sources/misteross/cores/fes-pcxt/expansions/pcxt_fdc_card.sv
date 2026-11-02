@@ -11,6 +11,9 @@
 // Interrupt, Recalibrate, Seek, Read ID and DMA-mode MFM Read Data. Writes
 // return write-protected status. Logical ISA timing uses the endpoint's
 // prepare/commit contract; no FIFO byte is consumed during preparation.
+// Existing systems instantiate this wrapper and remain write protected.  The
+// separate writable implementation is not enabled until its backend and the
+// persistent media lifecycle have been connected.
 module pcxt_fdc_card (
     input wire clk, reset, guest_ce,
     input wire [`FES_PCXT_ISA_REQUEST_BITS-1:0] request,
@@ -21,6 +24,43 @@ module pcxt_fdc_card (
     input wire media_read_ready,
     input wire [7:0] media_read_data
 );
+    wire write_valid, write_busy;
+    wire [9:0] write_lba;
+    wire [7:0] write_data;
+    pcxt_fdc_card_rw card (
+        .clk(clk), .reset(reset), .cold_reset(reset), .guest_ce(guest_ce),
+        .request(request), .response(response), .media_present(media_present),
+        .media_read_valid(media_read_valid), .media_read_addr(media_read_addr),
+        .media_read_ready(media_read_ready), .media_read_data(media_read_data),
+        .media_writable(1'b0), .media_frozen(1'b0),
+        .media_write_valid(write_valid), .media_write_lba(write_lba),
+        .media_write_index(9'b0), .media_write_data(write_data),
+        .media_write_ready(1'b0), .media_write_error(1'b0), .media_write_busy(write_busy));
+    wire unused_write = &{1'b0, write_valid, write_busy, write_lba, write_data};
+endmodule
+
+// The backend must keep the selected medium stable while write_busy is high.
+// A completed sector is held, including across a warm/controller reset, until
+// the backend completes it. Only cold reset may discard that transaction.
+/* verilator lint_off DECLFILENAME */
+module pcxt_fdc_card_rw (
+    input wire clk, reset, guest_ce,
+    input wire cold_reset,
+    input wire [`FES_PCXT_ISA_REQUEST_BITS-1:0] request,
+    output wire [`FES_PCXT_ISA_RESPONSE_BITS-1:0] response,
+    input wire media_present,
+    output wire media_read_valid,
+    output wire [18:0] media_read_addr,
+    input wire media_read_ready,
+    input wire [7:0] media_read_data,
+    input wire media_writable, media_frozen,
+    output wire media_write_valid,
+    output wire [9:0] media_write_lba,
+    input wire [8:0] media_write_index,
+    output reg [7:0] media_write_data,
+    input wire media_write_ready, media_write_error,
+    output wire media_write_busy
+);
     // Nominal 4.772727 MHz XT guest clock: 400 ms motor spin-up, 3 ms
     // per seek step and 32 us per byte for 250 kbit/s MFM. These are guest
     // enables, not fabric cycles; stalls and host backpressure do not speed
@@ -28,7 +68,8 @@ module pcxt_fdc_card (
     localparam [20:0] SPIN_TICKS = 21'd1909091;
     localparam [13:0] STEP_TICKS = 14'd14318;
     localparam [7:0] BYTE_TICKS = 8'd153;
-    localparam [2:0] IDLE=0, PARAMS=1, WAIT_MOTOR=2, READ_DATA=3, RESULT=4;
+    localparam [2:0] IDLE=0, PARAMS=1, WAIT_MOTOR=2, READ_DATA=3, RESULT=4,
+                     WRITE_DATA=5, WRITE_COMMIT=6;
     reg [2:0] state;
     reg [7:0] dor, command;
     reg [7:0] params [0:7];
@@ -54,6 +95,18 @@ module pcxt_fdc_card (
     reg [8:0] byte_index;
     reg [7:0] byte_ticks, data_byte;
     reg data_valid, fetch_pending;
+    reg [7:0] write_buffer [0:511];
+    reg write_pending;
+    reg [9:0] write_lba;
+    reg write_terminal;
+    wire writing_command = (command & 8'h1f) == 8'h05;
+    assign media_write_valid = write_pending;
+    assign media_write_lba = write_lba;
+    // Registered read supports a single 512-byte embedded RAM. The backend
+    // presents an index for one clock before consuming its corresponding byte.
+    always @(posedge clk) media_write_data <= write_buffer[media_write_index];
+    assign media_write_busy = write_pending || state == WRITE_DATA || state == WRITE_COMMIT ||
+                              (state == WAIT_MOTOR && writing_command);
     wire motor_on = dor[2] && dor[4] && dor[1:0] == 2'b00;
     wire motor_ready = motor_on && motor_ticks == SPIN_TICKS;
     assign media_read_valid = fetch_pending;
@@ -74,14 +127,15 @@ module pcxt_fdc_card (
     wire dma = active && kind == 2'(`FES_PCXT_ISA_KIND_DMA) &&
                access[`FES_PCXT_ISA_AEN_BIT] &&
                access[`FES_PCXT_ISA_DMA_CHANNEL_LOW +: 2] == 2'd2;
-    wire dma_data_ready = state == READ_DATA && data_valid && byte_ticks == 0;
+    wire dma_data_ready = (state == READ_DATA && data_valid && byte_ticks == 0) ||
+                          (state == WRITE_DATA && byte_ticks == 0);
     wire [7:0] irq = (dor[2] && dor[3] && (sense_irq_pending || result_irq_pending)) ? 8'h40 : 8'h00;
     wire [2:0] drq = (dor[2] && dor[3] && dma_data_ready) ? 3'b010 : 3'b000;
     wire [7:0] msr = state == IDLE ? 8'h80 :
                      state == PARAMS ? 8'h90 :
                      state == RESULT ? 8'hd0 : 8'h10;
     wire [7:0] msr_with_seek = msr | ((seeking || queued_seek) ? 8'h01 : 8'h00);
-    wire [7:0] rdata = dma ? (dma_data_ready && !write_cycle ? data_byte : 8'hff) :
+    wire [7:0] rdata = dma ? (state == READ_DATA && dma_data_ready && !write_cycle ? data_byte : 8'hff) :
                        msr_io ? msr_with_seek :
                        data_io && state == RESULT ? result_bytes[result_index] : 8'hff;
     // Read/write and a second seek on the same drive cannot start while that
@@ -93,13 +147,14 @@ module pcxt_fdc_card (
                               (wdata & 8'h1f) == 8'h0a || (wdata & 8'h1f) == 8'h0c ||
                               (wdata & 8'h1f) == 8'h0d || (wdata & 8'h1f) == 8'h0f;
     wire command_wait = data_io && write_cycle && state == IDLE &&
-                        (fetch_pending || ((seeking || queued_seek) && read_write_command));
+                        (fetch_pending || write_pending || ((seeking || queued_seek) && read_write_command));
     // After a controller-only reset, retire an already accepted backend read
     // before admitting a new command that could change its address.
     // A software-forced DMA without an active read must retire, rather
     // than hanging the machine waiting for a DRQ that can never arrive.
-    wire ready = dma ? (write_cycle || dma_data_ready ||
-                        (state != READ_DATA && state != WAIT_MOTOR)) :
+    wire ready = dma ? ((state == WRITE_DATA && write_cycle) ? dma_data_ready :
+                        (state == READ_DATA && !write_cycle) ? dma_data_ready :
+                        (state == WAIT_MOTOR ? (write_cycle != writing_command) : 1'b1)) :
                  !command_wait;
     pcxt_isa_endpoint endpoint (
         .clk(clk), .reset(reset), .request(request), .response(response),
@@ -164,6 +219,26 @@ module pcxt_fdc_card (
         end
     endtask
 
+    // Storage ownership is separate from the controller reset domain. A
+    // committed sector may still be draining when the CPU or FDC resets.
+    always @(posedge clk) begin
+        if (cold_reset) begin
+            write_pending <= 0;
+            write_lba <= 0;
+        end else begin
+            if (write_pending && media_write_ready) write_pending <= 0;
+            if (!reset && !request[`FES_PCXT_ISA_RESET_BIT] &&
+                commit && dma && write_cycle && state == WRITE_DATA && dma_data_ready &&
+                !lost_ready && motor_on && media_present) begin
+                write_buffer[byte_index] <= wdata;
+                if (byte_index == 511) begin
+                    write_lba <= lba;
+                    write_pending <= 1;
+                end
+            end
+        end
+    end
+
     integer i;
     always @(posedge clk) begin
         if (reset || request[`FES_PCXT_ISA_RESET_BIT]) begin
@@ -175,14 +250,15 @@ module pcxt_fdc_card (
             dma_mode <= 0; cylinder <= 0; seek_target <= 0; seek_steps <= 0; seek_phase <= 0;
             read_cylinder <= 0; read_sector <= 0; read_eot <= 0; read_head <= 0; read_mt <= 0; lost_ready <= 0;
             lba <= 0; byte_index <= 0; byte_ticks <= 0; data_byte <= 0;
-            data_valid <= 0; fetch_pending <= 0;
+            data_valid <= 0; fetch_pending <= 0; write_terminal <= 0;
             for (i=0; i<8; i=i+1) params[i] <= 0;
             for (i=0; i<7; i=i+1) result_bytes[i] <= 0;
         end else begin
             if (guest_ce) begin
                 if (!motor_on) motor_ticks <= 0;
                 else if (!motor_ready) motor_ticks <= motor_ticks + 1'b1;
-                if (state == READ_DATA && byte_ticks != 0) byte_ticks <= byte_ticks - 1'b1;
+                if ((state == READ_DATA || state == WRITE_DATA) && byte_ticks != 0)
+                    byte_ticks <= byte_ticks - 1'b1;
                 if (seeking && motor_ready && seek_phase != 0) begin
                     if (seek_phase != 1) seek_phase <= seek_phase - 1'b1;
                     else if (seek_steps != 0) begin
@@ -218,14 +294,14 @@ module pcxt_fdc_card (
                     data_byte <= media_read_data; data_valid <= 1;
                 end
             end
-            if ((state == WAIT_MOTOR || state == READ_DATA) && (!motor_on || !media_present))
+            if ((state == WAIT_MOTOR || state == READ_DATA || state == WRITE_DATA) && (!motor_on || !media_present))
                 lost_ready <= 1;
             if (state == WAIT_MOTOR) begin
                 if (lost_ready || !motor_on || !media_present)
                     result7(8'h48 | {5'b0, read_head[0], 2'b00}, 8'h04, 0,
                             read_cylinder, read_head, read_sector, 8'd2);
                 else if (motor_ready) begin
-                    state <= READ_DATA; byte_ticks <= BYTE_TICKS;
+                    state <= writing_command ? WRITE_DATA : READ_DATA; byte_ticks <= BYTE_TICKS;
                 end
             end
             if (state == READ_DATA) begin
@@ -237,6 +313,30 @@ module pcxt_fdc_card (
                             read_cylinder, read_head, read_sector, 8'd2);
                 else if (media_present && motor_on && !fetch_pending && !data_valid)
                     fetch_pending <= 1;
+            end
+            if (state == WRITE_DATA && (lost_ready || !motor_on || !media_present) &&
+                !(dma && write_cycle && dma_data_ready))
+                result7(8'h48 | {5'b0, read_head[0], 2'b00}, 8'h04, 0,
+                        read_cylinder, read_head, read_sector, 8'd2);
+            if (state == WRITE_COMMIT && write_pending && media_write_ready) begin
+                if (media_write_error)
+                    result7(8'h40 | {5'b0, read_head[0], 2'b00}, 8'h20, 0,
+                            read_cylinder, read_head, read_sector, 8'd2);
+                else if (write_terminal)
+                    result7({5'b0, read_head[0], 2'b00}, 0, 0,
+                            following_cylinder, following_head, following_sector, 8'd2);
+                else if (read_sector == 9 && !at_eot)
+                    result7(8'h40 | {5'b0, read_head[0], 2'b00}, 8'h04, 0,
+                            following_cylinder, following_head, following_sector, 8'd2);
+                else if (at_eot && (!read_mt || read_head != 0))
+                    result7(8'h40 | {5'b0, read_head[0], 2'b00}, 8'h80, 0,
+                            following_cylinder, following_head, following_sector, 8'd2);
+                else begin
+                    read_cylinder <= following_cylinder; read_head <= following_head;
+                    read_sector <= following_sector;
+                    lba <= at_eot ? 10'(read_cylinder) * 10'd18 + 10'd9 : lba + 1'b1;
+                    byte_index <= 0; byte_ticks <= BYTE_TICKS; state <= WRITE_DATA;
+                end
             end
             if (commit && dor_io && write_cycle) begin
                 dor <= wdata;
@@ -280,10 +380,11 @@ module pcxt_fdc_card (
                         // Specify step/head timings are conservatively fixed;
                         // reject non-DMA execution instead of silently emulating it.
                         8'h03: begin dma_mode <= !wdata[0]; state <= IDLE; end
-                        8'h04: begin // Sense Drive Status: drive 0, two-sided, TRK0, READY, write-protected
+                        8'h04: begin // Sense Drive Status: drive 0, two-sided, TRK0, READY, WP
                             result1((wdata & 8'h07) |
                                     ((wdata[1:0] == 0 && dor[1:0] == 0) ?
-                                     (8'h48 | (cylinder == 0 ? 8'h10 : 8'h00) |
+                                     (8'h08 | (!media_writable || media_frozen ? 8'h40 : 8'h00) |
+                                      (cylinder == 0 ? 8'h10 : 8'h00) |
                                       (motor_ready && media_present ? 8'h20 : 8'h00)) : 8'h00));
                         end
                         8'h07: begin // Recalibrate
@@ -301,7 +402,7 @@ module pcxt_fdc_card (
                             else result7(8'h48 | (wdata & 8'h07), 8'h04, 0, cylinder,
                                          {7'b0,wdata[2]}, 8'd1, 8'd2);
                         end
-                        8'h05, 8'h09: // Write and Write Deleted: immutable medium
+                        8'h09: // Deleted-data marks are not represented by raw media.
                             result7((media_present && motor_on && params[0][1:0] == 0 ? 8'h40 : 8'h48) | (params[0] & 8'h07),
                                     media_present && motor_on && params[0][1:0] == 0 ? 8'h02 : 8'h04, 0,
                                     params[1], params[2], params[3], params[4]);
@@ -312,10 +413,15 @@ module pcxt_fdc_card (
                         8'h0c: // Raw sectors contain normal, not deleted, marks.
                             result7((media_present && motor_on && params[0][1:0] == 0 ? 8'h40 : 8'h48) | (params[0] & 8'h07), 8'h04, 8'h40,
                                     params[1], params[2], params[3], params[4]);
-                        8'h06: begin
+                        8'h05, 8'h06: begin
                             read_cylinder <= params[1]; read_head <= params[2];
                             read_sector <= params[3]; read_eot <= params[5]; read_mt <= command[7];
-                            if (!media_present || !motor_on || params[0][1:0] != 0 ||
+                            if ((command & 8'h1f) == 8'h05 && (!media_writable || media_frozen))
+                                result7((media_present && motor_on && params[0][1:0] == 0 ? 8'h40 : 8'h48) |
+                                        (params[0] & 8'h07),
+                                        media_present && motor_on && params[0][1:0] == 0 ? 8'h02 : 8'h04, 0,
+                                        params[1], params[2], params[3], params[4]);
+                            else if (!media_present || !motor_on || params[0][1:0] != 0 ||
                                 params[1] >= 40 || params[1] != cylinder || params[2] >= 2 ||
                                 params[2][0] != params[0][2] || params[3] == 0 || params[3] > 9 ||
                                 params[4] != 2 || params[5] == 0 || params[5] > 9 ||
@@ -337,6 +443,21 @@ module pcxt_fdc_card (
                 // in-flight command rather than committing a write.
                 result7(8'h40 | {5'b0,read_head[0],2'b00}, 8'h02, 0,
                         read_cylinder, read_head, read_sector, 8'd2);
+            end else if (commit && dma && !write_cycle &&
+                         (state == WRITE_DATA || (state == WAIT_MOTOR && writing_command))) begin
+                result7(8'h40 | {5'b0, read_head[0], 2'b00}, 8'h10, 0,
+                        read_cylinder, read_head, read_sector, 8'd2);
+            end else if (commit && dma && write_cycle && state == WRITE_DATA && dma_data_ready) begin
+                byte_ticks <= BYTE_TICKS;
+                if (lost_ready || !motor_on || !media_present)
+                    result7(8'h48 | {5'b0,read_head[0],2'b00}, 8'h04, 0,
+                            read_cylinder, read_head, read_sector, 8'd2);
+                else if (terminal && byte_index != 511)
+                    result7(8'h40 | {5'b0,read_head[0],2'b00}, 8'h10, 0,
+                            read_cylinder, read_head, read_sector, 8'd2);
+                else if (byte_index == 511) begin
+                    write_terminal <= terminal; state <= WRITE_COMMIT;
+                end else byte_index <= byte_index + 1'b1;
             end else if (commit && dma && !write_cycle && dma_data_ready) begin
                 data_valid <= 0; byte_ticks <= BYTE_TICKS;
                 if (lost_ready || !motor_on || !media_present)
@@ -379,3 +500,4 @@ module pcxt_fdc_card (
     end
     wire unused_access = ^{address[19:10], access[47:40], access[36], access[34:31], params[6], params[7], dor[7:5]};
 endmodule
+/* verilator lint_on DECLFILENAME */

@@ -65,6 +65,28 @@ func TestMediaSaveRetryAdmissionIsNarrow(t *testing.T) {
 		}
 	}
 }
+
+func TestPcxtMediaSaveRequiresWriteExtension(t *testing.T) {
+	s := saveRetryStatus()
+	s.CorePackage.ABI.Minor = 1
+	s.CorePackage.ActiveInterfaces = []RuntimeInterface{{ID: PcxtFloppyInterface().ID, Major: 1}, {ID: PcxtFloppyWriteInterface().ID, Major: 1}}
+	s.CorePackage.MediaUnits[0].Interface = PcxtFloppyInterface()
+	s.CorePackage.MediaUnits[0].MinBytes = uint32(PcxtFloppyBytes)
+	s.CorePackage.MediaUnits[0].MaxBytes = uint32(PcxtFloppyBytes)
+	b := MediaUnitBinding{PackageID: strings.Repeat("a", 64), Generation: 7}
+	if !b.MatchesForSave(s) {
+		t.Fatal("writable PC/XT disk rejected")
+	}
+	s.CorePackage.ABI.Minor = 0
+	if b.MatchesForSave(s) || PersistentMediaBound(s.CorePackage) {
+		t.Fatal("PC/XT persistence accepted without ABI 1.1")
+	}
+	s.CorePackage.ABI.Minor = 1
+	s.CorePackage.ActiveInterfaces = s.CorePackage.ActiveInterfaces[:1]
+	if b.MatchesForSave(s) {
+		t.Fatal("read-only PC/XT disk accepted")
+	}
+}
 func TestMediaSaveResultKeepsDurableIdentity(t *testing.T) {
 	b := MediaUnitBinding{PackageID: strings.Repeat("a", 64), Generation: 7}
 	before := saveRetryStatus()

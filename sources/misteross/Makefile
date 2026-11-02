@@ -140,6 +140,8 @@ help:
 		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
 		"  sim-fes-pcxt-fdc  Test the XT floppy adapter over ISA/DMA" \
+		"  sim-fes-pcxt-write  Test floppy sector staging and disk arbitration" \
+		"  sim-fes-pcxt-dos-write  Test guest writes and floppy snapshot restore" \
 		"  sim-fes-pcxt-media  Test runtime XT floppy upload, replacement and diagnostic" \
 		"  sim-fes-pcxt-mailbox  Test the PC/XT media identity and mailbox handshake" \
 		"  sim-fes-pcxt-dos  Test XT BIOS POST and boot the pinned FreeDOS floppy (downloads fixtures)" \
@@ -2683,10 +2685,14 @@ sim-fes-pcxt:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt.py --verilator "$(VERILATOR)"
 
-.PHONY: sim-fes-pcxt-fdc sim-fes-pcxt-media sim-fes-pcxt-mailbox sim-fes-pcxt-dos
+.PHONY: sim-fes-pcxt-fdc sim-fes-pcxt-write sim-fes-pcxt-media sim-fes-pcxt-mailbox sim-fes-pcxt-dos sim-fes-pcxt-dos-write
 sim-fes-pcxt-fdc:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt_fdc.py --verilator "$(VERILATOR)"
+
+sim-fes-pcxt-write:
+	$(require_local_sim)
+	VERILATOR="$(VERILATOR)" $(PYTHON) scripts/sim_fes_pcxt_write.py
 
 sim-fes-pcxt-media:
 	$(require_local_sim)
@@ -2700,6 +2706,10 @@ sim-fes-pcxt-mailbox:
 sim-fes-pcxt-dos:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pcxt_dos.py --download --verilator "$(VERILATOR)"
+
+sim-fes-pcxt-dos-write:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pcxt_dos.py --download --writable-test --verilator "$(VERILATOR)"
 
 .PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
 sim-fes-pc386:

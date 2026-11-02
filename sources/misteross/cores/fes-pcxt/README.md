@@ -4,13 +4,14 @@ This development slice runs an original diagnostic ROM on an 8088 CPU through
 an eight-slot virtual ISA backplane. The [machine design](../../docs/architecture.md#proposed-fes-ibm-pcxt-core)
 targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
 linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
-PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. An optional read-only XT floppy adapter is exercised in host simulation. The diagnostic package has no
+PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. The XT floppy adapter supports
+sector writes in the DOS profile. The diagnostic package has no
 HID keyboard frontend or physical socket map. The registered `fes.pcxt` recipe
 builds a diagnostic package with fixed CGA Direct video and `fes.computer` 1.1
 read-only floppy media. The separate experimental `fes.pcxt-dos` recipe enables
 GLaBIOS XT/5160 and boots a 360 KiB raw floppy delivered at runtime through
-the mailbox and SDRAM. A previous exact DOS package booted the pinned FreeDOS
-image on Kit B; later packages need their own hardware acceptance. The storage
+the mailbox and SDRAM, with writable media and a host keyboard. A previous
+exact DOS package booted the pinned FreeDOS image on Kit B; later packages need their own hardware acceptance. The storage
 lane connects conventional RAM and firmware to the existing
 addon SDRAM controller and boots the display diagnostic through its physical
 command interface in host simulation. The normal package producer is Quartus Lite 17.0.2, with a common 100 MHz
@@ -50,15 +51,20 @@ reset until its final physical write is committed. If the host releases
 execution with the drive empty, the BIOS starts and displays its POST/boot
 status instead of leaving a black screen. Eject and replacement after startup
 do not reset the running guest. A cold reset invalidates the image. Guest
-floppy reads use the SDRAM media path; there is no disk ROM in the FPGA and no
-write path.
+floppy reads and sector writes use the SDRAM media path; there is no disk ROM
+in the FPGA. The DOS profile declares `fes.media.pcxt-floppy-write` in
+addition to the base media interface. Guest writes stage a complete sector
+before it drains to SDRAM, and frozen snapshots wait for that drain. Bound
+library disks can be saved and restored by the runtime; unbound raw inserts
+are volatile. A power loss can discard changes made since the last save.
 The FreeDOS fixture uses kernel 2043 and FreeCOM 0.86a; see
 [`firmware/THIRD-PARTY-NOTICES.md`](firmware/THIRD-PARTY-NOTICES.md) and
-[`sim/freedos.lock`](sim/freedos.lock). Hardware prompt acceptance remains
-separate from the host simulation and package build.
+[`sim/freedos.lock`](sim/freedos.lock). The writable-media changes require
+their own exact-package kit test; prior DOS prompt acceptance does not validate
+writes or saved games.
 
 The DOS profile supplies an XT keyboard self-test response over the existing
-serial cable after the BIOS reset handshake. It does not yet accept host keys.
+serial cable after the BIOS reset handshake and accepts host HID keys.
 
 The recipe registers `scripts/pcxt_dos_hil_acceptance.py` with preferred kit
 order B then A. It requires at least three complete captures with a meaningful
@@ -334,12 +340,14 @@ The BIOS POST simulation below specifies and checks its own shorter-ROM mapping;
 that fixture is not a production firmware admission path.
 
 The optional floppy profile uses physical SDRAM byte addresses
-`100000–159FFF` for a read-only 360 KiB image, outside the guest address map.
+`100000–159FFF` for a 360 KiB image, outside the guest address map.
 Ordered host uploads can run while the guest runs, and the medium stays hidden
 until every byte has physically completed and the mailbox commits the image.
-CPU/DMA, floppy reads and uploads share the controller with bounded arbitration
-and refresh; an outstanding floppy read drains before an overwrite. Warm reset
-retains the image and cold reset invalidates it.
+CPU/DMA, floppy reads, host uploads and guest sector writes share the controller
+with arbitration and refresh; an outstanding floppy read drains before an
+overwrite. A staged sector finishes across warm reset, while cold reset
+invalidates the medium. Snapshot reads share the disk port and can continue
+while execution is held.
 
 `cold_reset` restarts controller initialization and cancels all responses. It
 must assert during startup; the caller holds the CPU/motherboard reset until
@@ -539,11 +547,13 @@ into a 256-by-16-byte table, with the upper characters and unused rows blank.
 This is sufficient for readable ASCII during POST, not a complete CGA font.
 `--font` instead accepts an explicit 4096-byte normalized font.
 
-The optional inline `pcxt_fdc_card` implements the read-only 765-family command
+The optional inline XT floppy controller implements a 765-family command
 subset for one XT drive. It exposes the XT adapter registers, IRQ6 and DMA2,
 with guest-time motor, seek and transfer timing. The supported commands include
 Specify, Sense Drive, Sense Interrupt, Recalibrate, Seek, Read ID and DMA-mode
-MFM Read Data; writes report write protection. The controller obtains bytes
+MFM Read Data and, when enabled, Write Data. Formatting is unsupported and
+reports write protection; the diagnostic profile reports all writes as write
+protected. The controller obtains bytes
 through the SDRAM-backed read service, not by intercepting BIOS disk calls or
 treating the disk as guest RAM. The supported image is a raw 360 KiB disk:
 40 cylinders, two heads, nine 512-byte sectors per track. It is not a complete
@@ -560,7 +570,9 @@ verified before use.
 ```sh
 # From sources/misteross; the DOS target permits fixture downloads.
 make sim-fes-pcxt-fdc
+make sim-fes-pcxt-write
 make sim-fes-pcxt-dos
+make sim-fes-pcxt-dos-write
 # Or build the disk separately, then provide it and a cached BIOS explicitly:
 python3 scripts/build_pcxt_freedos_image.py --download
 python3 scripts/sim_fes_pcxt_dos.py --bios /absolute/GLABIOS_0.4.2_8X.ROM --disk /absolute/freedos-360.img
@@ -570,10 +582,10 @@ The `ENABLE_PCXT_MEDIA` shell profile connects `fes.computer` 1.1's
 `fes.media.pcxt-floppy` unit 0 through a little-endian mailbox writer to this
 SDRAM buffer. Both registered PC/XT packages enable this profile. Begin and
 eject hide the medium without resetting the running guest; aborted uploads can
-be ejected and restarted. This path accepts only 360 KiB raw geometry and
+be ejected and restarted. This path accepts only 360 KiB raw geometry. The
+DOS package enables writes and snapshot capture; the diagnostic package
 reports write protection. Inserting a disk into a running guest does not reset
-it or automatically restart its boot. The current shell lacks a session-display
-plane and a host keyboard path.
+it or automatically restart its boot. The shell lacks a session-display plane.
 
 The whole-machine test loads the pinned GLaBIOS and sends the complete floppy
 image through the runtime mailbox and real SDRAM controller before releasing

@@ -428,6 +428,9 @@ func adoptOpenedRoot(root string, rootHandle *os.Root, rootInfo os.FileInfo) ([]
 		if err := adoptROMInput(rootHandle, &adopted[len(adopted)-1]); err != nil {
 			return nil, err
 		}
+		if err := adoptPcxtInitialInput(rootHandle, &adopted[len(adopted)-1]); err != nil {
+			return nil, err
+		}
 	}
 	return adopted, nil
 }

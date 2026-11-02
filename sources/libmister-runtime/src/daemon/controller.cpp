@@ -61,7 +61,8 @@ std::string Controller::Handle(const std::string& line)
 			core_data = &data;
 		break;
 	case Operation::load_core:
-		result = runtime_.LoadCore(request.package_path, request.package_id);
+		result = runtime_.LoadCore(request.package_path, request.package_id,
+			request.has_initial_media ? &request.initial_media : nullptr);
 		EmitFifoConsume("load_core", result.ok());
 		break;
 	case Operation::load_composed_core:
