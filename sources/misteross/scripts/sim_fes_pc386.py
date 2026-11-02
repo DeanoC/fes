@@ -31,6 +31,14 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            the RTL: SMSW at two sites and a protected-mode stretch from LMSW
            to MOV CR0, all unbuilt in the RTL. The RTL run must stop on
            each, record the stretch, and write what the oracle run writes.
+  a20      runs cores/fes-pc386/sim/a20_test.asm (A20TEST.COM) at the FreeDOS
+           prompt (#1386). On the boot image, which has no XMS driver, A20
+           must be off at the prompt, INT 15h AH=24h and 87h must turn it on,
+           off and back whichever control set it, and a shutdown-byte resume
+           must keep it. On the games image, HIMEMX's /VERBOSE banner must
+           name a real A20 method, not "Always on", and XMS must agree with
+           memory. Every check must print ok. With --cpu rtl, the boot image
+           only; writes a20-rtl/.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
   game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
@@ -73,6 +81,7 @@ Examples:
   python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|' --expect 'high memory area'
   python3 scripts/sim_fes_pc386.py --suite rtl-stops
+  python3 scripts/sim_fes_pc386.py --suite a20 --download
   python3 scripts/sim_fes_pc386.py --suite sound --download
   python3 scripts/sim_fes_pc386.py --suite game --game ultima6
   python3 scripts/sim_fes_pc386.py --suite game --game wolf3d --cpu rtl
@@ -83,6 +92,7 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import hashlib
 import json
 import math
@@ -621,6 +631,56 @@ def run_rtl_stops(args, linked: list[Path]) -> dict:
         failures.append(f'expected one protected-mode stretch of 3 steps: {rtl["pmode"]}')
     return {'lines': lines, 'runs': runs, 'failures': failures,
             'checks': [f'{cpu}: {" | ".join(lines[cpu])}' for cpu in runs] + [f'RTL {gap}' for gap in rtl['gaps']]}
+
+
+# A20TEST.COM's checks on each image, and HIMEMX's /VERBOSE line naming its A20 method.
+A20_CHECKS = {
+    'boot': ('boot', 'query', 'query-2403', 'bios', 'kbc', 'port92', 'move', 'move-kbc', 'resume', 'DONE'),
+    'games': ('xms-query', 'xms-local', 'DONE'),
+}
+HIMEMX_METHOD = re.compile(r'(\S.*?) A20 method used')
+
+
+def run_a20(args, linked: list[Path]) -> dict:
+    """A20TEST.COM at the FreeDOS prompt on the boot image and, on the oracle, the games image."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    rtl = '-rtl' if args.cpu == 'rtl' else ''
+    profiles = ('boot',) if args.cpu == 'rtl' else tuple(A20_CHECKS)
+    disks = {profile: fixture_with(args, f'a20{rtl}/{profile}', 'a20_test.asm', 'A20TEST.COM',
+                                   freedos.image(args.download, args.jobs, profile)) for profile in profiles}
+
+    def run(profile: str) -> dict:
+        return run_machine(testbench, f'a20{rtl}/{profile}',
+                           ['--disk', str(disks[profile]), '--limit-seconds', str(args.limit_seconds),
+                            '--type', 'a20test|', '--expect', 'A20 DONE ok', '--cpu', args.cpu], images)
+
+    print(f'Running A20TEST.COM on the {" and ".join(profiles)} image on the {args.cpu} CPU', flush=True)
+    with concurrent.futures.ThreadPoolExecutor(len(profiles)) as pool:
+        runs = dict(zip(profiles, pool.map(run, profiles)))
+    failures, checks = [], []
+    for profile, run in runs.items():
+        lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+        run['lines'] = lines
+        failures += [f'{profile}: {failure}' for failure in run['failures']]
+        failures += [f'{profile}: {line}' for line in lines if not line.endswith(' ok')]
+        names = list(dict.fromkeys(line.split()[1] for line in lines if line.startswith('A20 ')))
+        if names != list(A20_CHECKS[profile]):
+            failures.append(f'{profile}: A20TEST.COM ran {names}, expected {list(A20_CHECKS[profile])}')
+        checks += [f'{profile}: {line}' for line in lines]
+        if profile == 'boot' and run['cpu_resets'] != 1:
+            failures.append(f'boot: expected the resume check\'s one CPU reset, saw {run["cpu_resets"]}')
+        if profile == 'games':
+            methods = [match.group(1) for row in run['screen'] if (match := HIMEMX_METHOD.search(row))]
+            run['himemx_method'] = methods[0] if methods else None
+            checks.append(f'games: HIMEMX: {run["himemx_method"]} A20 method used')
+            if len(methods) != 1 or methods[0].lower().startswith('always on'):
+                failures.append(f'games: HIMEMX must pick a real A20 method, its banner says {methods}')
+        if rtl:
+            stops = (run.get('rtl') or {}).get('gaps', [])
+            checks += [f'{profile}: RTL stop {gap["kind"]} {gap["stem"]} x{gap["stops"]}, run on the oracle'
+                       for gap in stops]
+    return {'runs': runs, 'checks': checks, 'failures': failures}
 
 
 def run_bench(args, name: str, top: str, rtl: tuple[Path, ...], testbench: Path) -> dict:
@@ -1226,7 +1286,8 @@ def run_game(args, linked: list[Path]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
-                                            'sound', 'game', 'vga', 'system', 'governor', 'all'), default='all',
+                                            'a20', 'sound', 'game', 'vga', 'system', 'governor', 'all'),
+                        default='all',
                         help='simulation suite to run')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
     parser.add_argument('--rebuild-image', action='store_true', help='rebuild the FreeDOS fixture')
@@ -1251,8 +1312,8 @@ def main() -> int:
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
-    if args.cpu == 'rtl' and args.suite not in ('boot', 'game'):
-        parser.error('--cpu rtl runs the boot and game suites only')
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20'):
+        parser.error('--cpu rtl runs the boot, game and a20 suites only')
     if args.image != 'boot' and args.suite != 'boot':
         parser.error('--image is supported by the boot suite only')
     if (args.preset or args.frequency or args.turbo) and not (
@@ -1273,7 +1334,7 @@ def main() -> int:
             else (args.suite,)
         for suite in suites:
             args.limit_seconds = limit_seconds or (14 if suite == 'sound' else 8 if suite in ('boot', 'governor') else
-                                                   2 if suite == 'rtl-stops' else 12)
+                                                   2 if suite == 'rtl-stops' else 10 if suite == 'a20' else 12)
             args.type = typed or ('sound|' if suite == 'sound' else 'dir|')
             args.expect = expect or ('SOUND DONE' if suite == 'sound' else 'bytes free')
             if suite == 'devices':
@@ -1296,6 +1357,8 @@ def main() -> int:
                 report = run_game(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'rtl-stops':
                 report = run_rtl_stops(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'a20':
+                report = run_a20(args, oracle.link_inputs(args.jobs, args.download))
             else:
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))

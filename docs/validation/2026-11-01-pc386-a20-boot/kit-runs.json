@@ -1,0 +1,232 @@
+{
+ "a20f1": {
+  "kit": "A",
+  "run": "a20f1",
+  "package": "e421ce023d6ddcc8092c0f86ce67776e15238cedb4343ec060304e0f3458672e.fcore",
+  "game": "a20-fd-1",
+  "disk_sha256": "d9d79095d48fb738eb65738e471ff3d69958abf88051c30038da6d08205b5963",
+  "after": {
+   "agent": "idle",
+   "lease": "revoking"
+  },
+  "events": [
+   {
+    "op": "stage",
+    "disk": "a20-freedos.img",
+    "sha256": "d9d79095d48fb738eb65738e471ff3d69958abf88051c30038da6d08205b5963",
+    "reply_sha256": "d9d79095d48fb738eb65738e471ff3d69958abf88051c30038da6d08205b5963",
+    "size": 33546240,
+    "staged": true,
+    "seconds": 12.67,
+    "t": "2026-11-02 00:00:19"
+   },
+   {
+    "seq": 1,
+    "cmd": {
+     "op": "load",
+     "game": "a20-fd-1"
+    },
+    "result": {
+     "load": {
+      "state": "active"
+     },
+     "seconds": 10.33,
+     "active_interfaces": [
+      "fes.audio.pcm-s16-stereo-48k 1.0",
+      "fes.fabric.video.display-plane 1.0",
+      "fes.keyboard.hid 1.0",
+      "fes.media.ata-disk 1.0",
+      "fes.memory.hps-ddr 1.0",
+      "fes.mouse.relative 1.0",
+      "fes.pc386.machine 1.0",
+      "fes.persistence.words 1.0",
+      "fes.rtc.wall-clock 1.0",
+      "fes.video.fixed-720p60 1.0",
+      "fes.video.session-display 1.0"
+     ]
+    },
+    "t": "2026-11-02 00:00:30"
+   },
+   {
+    "seq": 92,
+    "cmd": {
+     "op": "wait_stable",
+     "min": 5,
+     "max": 60
+    },
+    "result": {
+     "stable_after": 7.6,
+     "changed": 0.0
+    },
+    "t": "2026-11-02 00:01:16"
+   },
+   {
+    "seq": 94,
+    "cmd": {
+     "op": "stop"
+    },
+    "result": {
+     "state": "idle"
+    },
+    "t": "2026-11-02 00:01:20"
+   },
+   {
+    "seq": 95,
+    "cmd": {
+     "op": "record"
+    },
+    "result": {
+     "path": "/media/fat/fogcast/core-data/games/00506cd7647aaf088ec36e67f7495dbe658b72a479c018a2f324ef2a1709fe4d/record.bin",
+     "sha256": "f81c00e8a7a1b6f70f41078b04959ab055c65abfbbba76b0fd05df6cd4b7fc79",
+     "mode": "F",
+     "failed": 0,
+     "magic": "0xa5"
+    },
+    "t": "2026-11-02 00:01:21"
+   }
+  ],
+  "disk": "main's FreeDOS games image (build_pc386_freedos_image.py --profile games) with A20TEST.COM in C:\\FDOS\\BIN, run from AUTOEXEC.BAT"
+ },
+ "a20m4": {
+  "kit": "B",
+  "run": "a20m4",
+  "package": "e421ce023d6ddcc8092c0f86ce67776e15238cedb4343ec060304e0f3458672e.fcore",
+  "game": "a20-ms-4",
+  "disk_sha256": "8fed907473dedbb5c629dc5deb180e67abd6d987c25f9b96747c5cdf46770f14",
+  "after": {
+   "agent": "idle",
+   "lease": "revoking"
+  },
+  "events": [
+   {
+    "op": "stage",
+    "disk": "a20-msdos.img",
+    "sha256": "8fed907473dedbb5c629dc5deb180e67abd6d987c25f9b96747c5cdf46770f14",
+    "reply_sha256": "8fed907473dedbb5c629dc5deb180e67abd6d987c25f9b96747c5cdf46770f14",
+    "size": 33546240,
+    "staged": true,
+    "seconds": 10.91,
+    "t": "2026-11-02 00:04:18"
+   },
+   {
+    "seq": 1,
+    "cmd": {
+     "op": "load",
+     "game": "a20-ms-4"
+    },
+    "result": {
+     "load": {
+      "state": "active"
+     },
+     "seconds": 9.61,
+     "active_interfaces": [
+      "fes.audio.pcm-s16-stereo-48k 1.0",
+      "fes.fabric.video.display-plane 1.0",
+      "fes.keyboard.hid 1.0",
+      "fes.media.ata-disk 1.0",
+      "fes.memory.hps-ddr 1.0",
+      "fes.mouse.relative 1.0",
+      "fes.pc386.machine 1.0",
+      "fes.persistence.words 1.0",
+      "fes.rtc.wall-clock 1.0",
+      "fes.video.fixed-720p60 1.0",
+      "fes.video.session-display 1.0"
+     ]
+    },
+    "t": "2026-11-02 00:04:28"
+   },
+   {
+    "seq": 92,
+    "cmd": {
+     "op": "wait_stable",
+     "min": 5,
+     "max": 60
+    },
+    "result": {
+     "stable_after": 7.7,
+     "changed": 0.0
+    },
+    "t": "2026-11-02 00:05:13"
+   },
+   {
+    "seq": 94,
+    "cmd": {
+     "op": "stop"
+    },
+    "result": {
+     "state": "idle"
+    },
+    "t": "2026-11-02 00:05:17"
+   },
+   {
+    "seq": 95,
+    "cmd": {
+     "op": "record"
+    },
+    "result": {
+     "path": "/media/fat/fogcast/core-data/games/f912c54fa8adcc3a2a9d2a7960920d27c1b1bc9b09eb06eede5796cffe65c349/record.bin",
+     "sha256": "783d531c231e1a20649dd3beeb6513b7f5bf3aaf18e77b638cd695d15d2cec9b",
+     "mode": "\u0000",
+     "failed": 0,
+     "magic": "0x0"
+    },
+    "t": "2026-11-02 00:05:17"
+   },
+   {
+    "op": "stage",
+    "disk": "filler1.img",
+    "sha256": "2c455c30bfe9d1af8c6c177d956dc6c515b7eae93359992eeef049e5a3bdb86e",
+    "reply_sha256": "2c455c30bfe9d1af8c6c177d956dc6c515b7eae93359992eeef049e5a3bdb86e",
+    "size": 1048576,
+    "staged": true,
+    "seconds": 0.68,
+    "t": "2026-11-02 00:05:18"
+   },
+   {
+    "op": "stage",
+    "disk": "filler2.img",
+    "sha256": "32285bd2315d2359be46635f83ab49add111cff343d3f4631244633c8cb291d6",
+    "reply_sha256": "32285bd2315d2359be46635f83ab49add111cff343d3f4631244633c8cb291d6",
+    "size": 1048576,
+    "staged": true,
+    "seconds": 0.75,
+    "t": "2026-11-02 00:05:18"
+   },
+   {
+    "op": "stage",
+    "disk": "filler3.img",
+    "sha256": "a639172d0ee96b70daffc88ced13d90ff37c91a80bdf110c5fb75aef5037633a",
+    "reply_sha256": "a639172d0ee96b70daffc88ced13d90ff37c91a80bdf110c5fb75aef5037633a",
+    "size": 1048576,
+    "staged": true,
+    "seconds": 0.68,
+    "t": "2026-11-02 00:05:19"
+   },
+   {
+    "op": "stage",
+    "disk": "filler4.img",
+    "sha256": "1ea45fef9005c810e1ea6857dc5d57c71e818a549b7a7181e205dad39d652207",
+    "reply_sha256": "1ea45fef9005c810e1ea6857dc5d57c71e818a549b7a7181e205dad39d652207",
+    "size": 1048576,
+    "staged": true,
+    "seconds": 0.63,
+    "t": "2026-11-02 00:05:20"
+   },
+   {
+    "seq": 100,
+    "cmd": {
+     "op": "probe",
+     "sha256": "8fed907473dedbb5c629dc5deb180e67abd6d987c25f9b96747c5cdf46770f14"
+    },
+    "result": {
+     "sha256": "8fed907473dedbb5c629dc5deb180e67abd6d987c25f9b96747c5cdf46770f14",
+     "size": 0,
+     "staged": false
+    },
+    "t": "2026-11-02 00:05:20"
+   }
+  ],
+  "disk": "MS-DOS 6.22 (scratch only): plain HIMEM.SYS, UMBM /I=C800-EFFF, DOS=HIGH,UMB; AUTOEXEC.BAT runs A20TEST X after VER and an 8 s DELAY",
+  "note": "The machine stopped at 'Starting MS-DOS...' (summary.md, Kit). The record command read the newest record by mtime, which was another game's (games/f912c54f...); this run's own record is games/bb44a4c4.... Before it, a20m1-a20m3 on Kit A staged nothing: the agent answered HTTP 507 CACHE_FULL ('the kit's SD card has no room for this hard-disk image') after a20f1's disk."
+ }
+}

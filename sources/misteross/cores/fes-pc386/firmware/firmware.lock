@@ -6,12 +6,12 @@
     "license": "GPL-2.0"
   },
   "rombios": {
-    "build_date": "10/26/26",
+    "build_date": "11/01/26",
     "bxversion": {
       "VERSION": "3.1",
       "VER_DEV": "0",
       "REL_STRING": "FES pc386 build of REL_3_1_FINAL",
-      "REL_TIMESTAMP": "2026-10-26"
+      "REL_TIMESTAMP": "2026-11-01"
     }
   },
   "vgabios": {
@@ -22,7 +22,7 @@
     "bios": {
       "file": "pc386-bios.bin",
       "bytes": 65536,
-      "sha256": "8caa3f2f4090dc069212ddf97df714db8ba2eb8dbc610bb786b0587b9a01eeda"
+      "sha256": "fd0df1f9f64d3f20a90c16fa5140530c3f521b837a81bcc412eb6fce431f4be8"
     },
     "vgabios": {
       "file": "pc386-vgabios.bin",
