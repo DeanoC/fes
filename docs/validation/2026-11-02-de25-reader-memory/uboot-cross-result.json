@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "/usr/bin/python3",
+    "platform/embedded/firmware/build_terasic_uboot.py",
+    "--reference-repo",
+    "out/terasic-git-restore-uboot",
+    "--bl31-build",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-reader-memory-final-20261102/serial-bl31",
+    "--cross-prefix",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/bootchain-tools/uboot-bin/aarch64-linux-gnu-",
+    "--output",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-reader-memory-final-20261102/serial-uboot",
+    "--jobs",
+    "4",
+    "--native-entry-build",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-reader-memory-20261102/serial-entry-v2"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 19.011639303993434,
+  "log_sha256": "badab4b99f88729546617f73f312e9f8bd2fef155087802877786d570e194ced"
+}

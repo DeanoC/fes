@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "old_head": "f5ce6650749620ce2b59e6adef9384b82a461514",
+  "new_head": "26212a2703b948d40cefcd686a15444d4e12967c",
+  "scope": "all selected native Go/entry source hashes rechecked against current files; C guard delta is outside those selected sets",
+  "receipts": {
+    "cross-onchip": "5253229ab5817aa8efd5acfd9475a2b2033b87882061d25143cd356ed826b3a2",
+    "cross-ddr": "d5013acf2f2826bbcb02b372332124fc3e42f19614e1f1b37d11338170d62945",
+    "serial-probe": "3acfd760f12b66857bda82e0a1191dc88dc53237042162b7d085200f419c06c3",
+    "serial-entry-v2": "568567a844e8aefcd37d9be7469d92a0ef3aed8aa70b59fdc6a6f1494771ba6d"
+  }
+}

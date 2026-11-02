@@ -1,0 +1,310 @@
+{
+  "format": 1,
+  "root": "/home/deano/fes/out/dev/de25-embedded-os",
+  "base": "74627be46f3c8be2d93756cfb80707f5a0768fa7",
+  "head": "26212a2703b948d40cefcd686a15444d4e12967c",
+  "checkout_head": "26212a2703b948d40cefcd686a15444d4e12967c",
+  "merge_base": "74627be46f3c8be2d93756cfb80707f5a0768fa7",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": false,
+      "runtime": false,
+      "contracts": false,
+      "fpga": true
+    },
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts"
+    ],
+    "cores": [],
+    "test_modes": {
+      "video": false,
+      "media": false,
+      "full_race": false
+    },
+    "paths": [
+      "platform/embedded/entry/build.py",
+      "platform/embedded/firmware/nano_identity.c",
+      "platform/embedded/firmware/nano_identity.h",
+      "platform/embedded/firmware/tests/nano_identity_test.c",
+      "platform/embedded/nano/README.md",
+      "platform/embedded/nano/cold_profile.py",
+      "platform/embedded/nano/handoff.c",
+      "platform/embedded/nano/handoff.h",
+      "platform/embedded/nano/hps_boot.py",
+      "platform/embedded/nano/hps_context.py",
+      "platform/embedded/nano/prepare_uboot.py",
+      "platform/embedded/nano/uboot.c",
+      "platform/embedded/tamago/board/de25nano/devices.go",
+      "platform/embedded/tamago/board/de25nano/readermemory.go",
+      "platform/embedded/tamago/build.py",
+      "platform/embedded/tamago/cmd/fpgaload/main.go",
+      "platform/embedded/tamago/nativefabric/README.md",
+      "platform/embedded/tamago/nativefabric/controlprobe.go",
+      "platform/embedded/tamago/nativefabric/endpoint.go",
+      "platform/embedded/tamago/nativefabric/hpscontext.go",
+      "platform/embedded/tamago/nativefabric/hpsfirst.go",
+      "platform/embedded/tamago/nativefabric/readermemory.go",
+      "platform/embedded/tamago/nativefabric/readermemory_test.go",
+      "platform/embedded/tamago/nativefabric/testdata/hps-reader-memory.json",
+      "tests/test_embedded_entry.py",
+      "tests/test_embedded_nano_handoff.py",
+      "tests/test_nano_hps_context.py",
+      "tests/test_nano_identity.py"
+    ],
+    "reasons": [
+      "platform/embedded/entry/build.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/firmware/nano_identity.c: embedded firmware/RTL integration; no shipped core consumer",
+      "platform/embedded/firmware/nano_identity.h: embedded firmware/RTL integration; no shipped core consumer",
+      "platform/embedded/firmware/tests/nano_identity_test.c: embedded firmware/RTL integration; no shipped core consumer",
+      "platform/embedded/nano/cold_profile.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/nano/handoff.c: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/nano/handoff.h: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/nano/hps_boot.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/nano/hps_context.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/nano/prepare_uboot.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/nano/uboot.c: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/board/de25nano/devices.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/board/de25nano/readermemory.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/build.py: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/cmd/fpgaload/main.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/nativefabric/controlprobe.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/nativefabric/endpoint.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/nativefabric/hpscontext.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/nativefabric/hpsfirst.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/nativefabric/readermemory.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/nativefabric/readermemory_test.go: parent orchestration/tests/assembly; component sources unchanged",
+      "platform/embedded/tamago/nativefabric/testdata/hps-reader-memory.json: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_embedded_entry.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_embedded_nano_handoff.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_nano_hps_context.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_nano_identity.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "74627be46f3c8be2d93756cfb80707f5a0768fa7",
+        "--head",
+        "26212a2703b948d40cefcd686a15444d4e12967c"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/entry/build.py\", \"platform/embedded/firmware/nano_identity.c\", \"platform/embedded/firmware/nano_identity.h\", \"platform/embedded/firmware/tests/nano_identity_test.c\", \"platform/embedded/nano/README.md\", \"platform/embedded/nano/cold_profile.py\", \"platform/embedded/nano/handoff.c\", \"platform/embedded/nano/handoff.h\", \"platform/embedded/nano/hps_boot.py\", \"platform/embedded/nano/hps_context.py\", \"platform/embedded/nano/prepare_uboot.py\", \"platform/embedded/nano/uboot.c\", \"platform/embedded/tamago/board/de25nano/devices.go\", \"platform/embedded/tamago/board/de25nano/readermemory.go\", \"platform/embedded/tamago/build.py\", \"platform/embedded/tamago/cmd/fpgaload/main.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/controlprobe.go\", \"platform/embedded/tamago/nativefabric/endpoint.go\", \"platform/embedded/tamago/nativefabric/hpscontext.go\", \"platform/embedded/tamago/nativefabric/hpsfirst.go\", \"platform/embedded/tamago/nativefabric/readermemory.go\", \"platform/embedded/tamago/nativefabric/readermemory_test.go\", \"platform/embedded/tamago/nativefabric/testdata/hps-reader-memory.json\", \"tests/test_embedded_entry.py\", \"tests/test_embedded_nano_handoff.py\", \"tests/test_nano_hps_context.py\", \"tests/test_nano_identity.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "native runtime firmware and FPGA launch integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "go",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/tamago/nativefabric/verify.py",
+        "platform/embedded/firmware/tests/native_rpc.cpp"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "embedded producer identity and native control integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "g++",
+        "git",
+        "go",
+        "make",
+        "verilator",
+        "verilator_bin"
+      ],
+      "files": [
+        "sources/misteross/prototypes/embedded_control/producer.py",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "embedded firmware and identity/drain RTL integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/firmware/verify.py",
+        "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "planned"
+}
