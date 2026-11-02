@@ -1,7 +1,6 @@
 package tenfoot
 
 import (
-	"encoding/json"
 	"fmt"
 	"image/png"
 	"os"
@@ -237,31 +236,6 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 		snap := waitFor(t, app, "no kit", homeFamilySettled)
 		writeHomeScreenshot(t, snap, "no-kit")
 	})
-}
-
-func roomTextHasPrefix(s Snapshot, prefix string) bool {
-	for _, op := range s.Room.Frame.Ops {
-		if op.Kind == rooms.OpText && strings.HasPrefix(op.Text, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
-// writeHomeStore seeds the Home room's store under a startHomeLoungeIn dir.
-func writeHomeStore(t *testing.T, dir string, values map[string]any) {
-	t.Helper()
-	data, err := json.Marshal(values)
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(dir, "rooms", installedCoresHomeID+".state.json")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestHomeWorkbenchReturnsToTheSameFamily(t *testing.T) {
