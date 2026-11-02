@@ -1,0 +1,31 @@
+{
+  "canonical_source_files_verified": 374,
+  "classification": "Actual public Make/dev and common Pro canonical authentication, followed by native producer refusal of absent locked vendor input; no FPGA compile, AArch64 target staging/compiler or OS work",
+  "command": [
+    "make",
+    "dev",
+    "BOARD=de25-nano",
+    "DE25_IMAGE=/unselected-base",
+    "IMAGE_KERNEL=/unselected-kernel",
+    "IMAGE_SDK=/unselected-owner-sdk"
+  ],
+  "diagnostics": {
+    "action": "dev",
+    "elapsed_seconds": 58.74069479305763,
+    "format": 1,
+    "scope": "parent",
+    "stages": [],
+    "status": "failed"
+  },
+  "factory_or_native_acceptance": false,
+  "hardware_access": "not-performed",
+  "native_producer_archive_refusal": true,
+  "new_Quartus_compile": false,
+  "returncode": 2,
+  "source_revision": "0c77fe27ffcba21202c5308e9642088704a49467",
+  "target_SDK_or_compiler_build": false,
+  "target_source_snapshots": [],
+  "workspace_entries": [
+    "misteross-0c77fe27ffcba21202c5308e9642088704a49467"
+  ]
+}

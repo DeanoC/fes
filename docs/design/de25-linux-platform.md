@@ -107,6 +107,10 @@ and MENU admission are required. Complete immutable generations and verified
 cache hits preserve old output on failure; no artifact-only alias replaces
 source compilation. Host/doctor use the shared frontend. An actual admitted
 MENU, complete source-produced factory and native acceptance remain open.
+The [source-workflow record](../validation/2026-11-02-de25-source-workflow/README.md)
+retains actual AArch64 software/CPU and host/cache checks, full parent validation
+and the public Make/vendor-input refusal. Standard source-workspace verification
+and flat package-selection/acceptance integration remain to be connected.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.
 

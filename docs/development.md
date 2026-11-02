@@ -575,3 +575,10 @@ These source commands require clean committed integration source. Development
 snapshot release authority is not added. Nothing deploys or grants native kit
 acceptance; use the complete factory path printed by the build with the existing
 release/bootstrap/card commands once their own gates pass.
+For source outputs, `make verify BOARD=de25-nano` currently needs
+`IMAGE_OUTPUT=/absolute/generations/input-key/factory`. Automatic source-workspace
+verification and its flat package-selection set for standard target acceptance
+remain to be connected. The
+[executed source-workflow record](validation/2026-11-02-de25-source-workflow/README.md)
+separates actual AArch64/host production, CPU checks and public-command refusal
+from orchestration fixtures and the remaining factory/native gates.
