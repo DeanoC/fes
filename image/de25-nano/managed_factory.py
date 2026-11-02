@@ -211,7 +211,13 @@ def inside(action, jobs):
             raise ValueError('factory must export exactly one SDK')
         base.export_sdk(sdks[0], output / 'aarch64-sdk.tar.gz', work / 'host')
         shutil.copyfile(work / '.config', output / 'buildroot.config')
-    save(output / 'factory-verify.json', verify_rootfs(output, env))
+    verification = verify_rootfs(output, env)
+    if action == 'factory-verify':
+        expected = (json.dumps(verification, indent=2, sort_keys=True) + '\n').encode()
+        if (output / 'factory-verify.json').read_bytes() != expected:
+            raise ValueError('fresh factory verification differs from its bound report')
+    else:
+        save(output / 'factory-verify.json', verification)
     import managed_boot
     if action == 'factory-build':
         managed_boot.boot(output, output, PROFILE, inputs['fes_revision'])

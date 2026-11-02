@@ -144,6 +144,27 @@ class CardSnapshotTests(unittest.TestCase):
 
 
 class FactoryReceiptTests(unittest.TestCase):
+    def test_fresh_verification_preserves_original_report_on_mismatch_and_success(self):
+        _,factory,boot,_=de25_appliance.modules(ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary); self.fixture(root,factory)
+            report=root/'factory-verify.json'; original=report.read_bytes()
+            def selected_path(value):
+                return root if str(value)=='/export' else Path(value)
+            checks={'classification':'unit fixture fresh result'}
+            with mock.patch.object(factory,'Path',side_effect=selected_path), \
+                    mock.patch.object(factory,'prepare_packages',return_value={}), \
+                    mock.patch.object(factory,'verify_rootfs',return_value=checks), \
+                    mock.patch.object(boot,'verify_report'):
+                with self.assertRaisesRegex(ValueError,'differs from its bound report'):
+                    factory.inside('factory-verify',1)
+                self.assertEqual(report.read_bytes(),original)
+                factory.save(report,checks)
+                before=report.stat()
+                factory.inside('factory-verify',1)
+                after=report.stat()
+                self.assertEqual((before.st_ino,before.st_mtime_ns),(after.st_ino,after.st_mtime_ns))
+
     def fixture(self, root, factory):
         artifacts = root / 'artifacts'; package = artifacts / 'core-packages' / ('1'*64)
         package.mkdir(parents=True)
