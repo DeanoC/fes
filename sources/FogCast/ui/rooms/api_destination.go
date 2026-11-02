@@ -46,6 +46,15 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 			L.RaiseError("destination.set: unknown launcher action %q", launcherAction)
 		}
 	}
+	if kind == KindFamily {
+		if !roomIDPattern.MatchString(optString(opts, "room_id")) {
+			L.RaiseError("destination.set: family room_id %q is not a room id", optString(opts, "room_id"))
+		}
+		coreID = optString(opts, "core_id")
+		if coreID != "" && !validCoreID(coreID) {
+			L.RaiseError("destination.set: core_id %q is not a core id", coreID)
+		}
+	}
 	if kind == KindCore {
 		packageID = optString(opts, "package_id")
 		if packageID == "" {
@@ -70,9 +79,27 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 		NoteBy:         optString(opts, "note_by"),
 		Query:          optString(opts, "query"),
 		Platform:       optString(opts, "platform"),
+		Kicker:         optString(opts, "kicker"),
 	}
 	if d.NoteBy == "" {
 		d.NoteBy = strings.TrimSpace(r.pack.Author)
+	}
+	if kind == KindFamily {
+		// A family is not a play row: its game id only opens the workbench
+		// on that model.
+		d.CoreID = coreID
+		d.Availability = parseAvailability(optString(opts, "availability"))
+		if d.Availability == "" {
+			d.Availability = AvailChecking
+		}
+		d.Models = optString(opts, "models")
+		d.Details = optStrings(opts, "details")
+		d.FamilyNeeds = optString(opts, "needs")
+		d.Status = optString(opts, "status")
+		d.Action = optString(opts, "explain")
+		d.FillCopy()
+		r.dest = d
+		return 0
 	}
 	d.Matches = r.gamesFromLua(opts.RawGetString("matches"))
 	if len(d.Matches) == 0 && d.GameID != "" {
@@ -250,6 +277,11 @@ func (r *Instance) destinationTable(d Destination) *lua.LTable {
 		t.RawSetString("pending", lua.LBool(d.CorePending))
 		t.RawSetString("needs", lua.LString(d.CoreNeeds))
 	}
+	if d.Kind == KindFamily {
+		t.RawSetString("core_id", lua.LString(d.CoreID))
+		t.RawSetString("models", lua.LString(d.Models))
+		t.RawSetString("needs", lua.LString(d.FamilyNeeds))
+	}
 	t.RawSetString("availability", lua.LString(d.Availability))
 	t.RawSetString("state", lua.LString(d.Availability))
 	if d.Choice != ChoiceNone {
@@ -390,7 +422,7 @@ func applyPlayFacts(g hostclient.Game, row *lua.LTable) hostclient.Game {
 
 func parseKind(s string) Kind {
 	switch Kind(strings.ToLower(strings.TrimSpace(s))) {
-	case KindGame, KindRoom, KindLibrary, KindUnresolved, KindAction, KindCore:
+	case KindGame, KindRoom, KindLibrary, KindUnresolved, KindAction, KindCore, KindFamily:
 		return Kind(strings.ToLower(strings.TrimSpace(s)))
 	default:
 		return ""

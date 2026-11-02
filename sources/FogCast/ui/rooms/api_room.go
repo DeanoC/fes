@@ -42,6 +42,9 @@ func (r *Instance) installRoom() *lua.LTable {
 		L.Push(lua.LBool(r.coreShown(L.CheckString(1))))
 		return 1
 	}))
+	// room.release_only is true when the launcher lists only the cores in
+	// this release; Home then leaves out its Library and Systems routes.
+	t.RawSetString("release_only", lua.LBool(r.opts.ReleaseOnly))
 	t.RawSetString("live_controls", lua.LBool(!r.opts.SessionDisplayRequired))
 	t.RawSetString("overlay", lua.LBool(false))
 	t.RawSetString("initial_game_id", lua.LString(r.opts.InitialGameID))

@@ -73,6 +73,8 @@ func detailReadiness(d rooms.Destination) readinessCopy {
 		c.State = heroStateUnavailable
 		c.Headline, c.Explain = heroCoreBlocked(d)
 		return c
+	case rooms.KindFamily:
+		return readinessCopy{State: c.State, Headline: strings.TrimSpace(d.Status), Explain: strings.TrimSpace(d.Action)}
 	case rooms.KindRoom, rooms.KindLibrary, rooms.KindAction, rooms.KindUnresolved:
 		if d.Availability != rooms.AvailChecking {
 			return readinessCopy{}

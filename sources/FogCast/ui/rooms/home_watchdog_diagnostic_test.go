@@ -17,8 +17,8 @@ func TestHomeWatchdogDiagnostic(t *testing.T) {
 		t.Skip("explicit target diagnostic")
 	}
 	cores := make([]localcores.Core, 8)
-	for i, name := range []string{"Apple II", "Atari ST", "ColecoVision", "Commodore 64", "FES Pong", "Master System", "Spectrum", "ZX81"} {
-		cores[i] = localcores.Core{PackageID: fmt.Sprintf("%064x", i+1), CoreID: fmt.Sprintf("fixture.%d", i), Name: name, Needs: "none", Launchable: true}
+	for i, id := range []string{"fes.apple2", "fes.atari-st", "fes.coleco", "fes.c64", "fes.pong", "fes.sms", "fes.spectrum", "fes.zx81"} {
+		cores[i] = localcores.Core{PackageID: fmt.Sprintf("%064x", i+1), CoreID: id, Name: id, Needs: "none", Launchable: true}
 	}
 	pack := examplePack(t, "example.fes-cores")
 	var maxDraw time.Duration
@@ -40,7 +40,7 @@ func TestHomeWatchdogDiagnostic(t *testing.T) {
 			if err := r.Err(); err != nil {
 				t.Fatalf("cycle=%d frame=%d timing=%+v: %v", cycle, frame, timing, err)
 			}
-			if r.Destination().Kind == KindCore {
+			if homeSettled(r) {
 				loaded = true
 			}
 			time.Sleep(time.Second / 60)

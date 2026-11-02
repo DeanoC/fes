@@ -1,20 +1,17 @@
 package tenfoot
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
-	"github.com/DeanoC/FogCast/internal/testwait"
-	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/gfx"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
@@ -61,7 +58,13 @@ func startHomeLoungeInAllCores(t *testing.T, dir string, cores rooms.LocalCores,
 
 func startHomeLoungeInWithAllCores(t *testing.T, dir string, cores rooms.LocalCores, w, h int, allCores bool, pairedLease ...string) *App {
 	t.Helper()
-	host := newRoomHost(t)
+	return startHomeLoungeOn(t, newRoomHost(t), dir, cores, w, h, allCores, pairedLease...)
+}
+
+// startHomeLoungeOn starts Home against host, so a test can seed its library
+// and recents first.
+func startHomeLoungeOn(t *testing.T, host *roomHost, dir string, cores rooms.LocalCores, w, h int, allCores bool, pairedLease ...string) *App {
+	t.Helper()
 	client := NewClient(host.server.URL, host.server.Client())
 	if len(pairedLease) > 0 {
 		host.pairedLease = true
@@ -80,6 +83,28 @@ func startHomeLoungeInWithAllCores(t *testing.T, dir string, cores rooms.LocalCo
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
 	return app
+}
+
+// homeFamilySettled is Home with a family or recent title that is no
+// longer Checking.
+func homeFamilySettled(s Snapshot) bool {
+	d := s.Room.Destination
+	return s.Room.Open && s.Room.ID == installedCoresHomeID && (d.Kind == rooms.KindFamily || d.Kind == rooms.KindGame) &&
+		d.Availability != rooms.AvailChecking && d.Availability != ""
+}
+
+// homeMachineEntry is a model's library row without media; homeTitleEntry
+// adds media, so it counts as one of the family's games.
+func homeMachineEntry(id, coreID string) hostclient.Game {
+	return hostclient.Game{ID: id, Title: id, System: "fpga", CoreID: coreID, State: "available", RootOnline: true, Launchable: true}
+}
+
+func homeTitleEntry(id, title, coreID string) hostclient.Game {
+	g := homeMachineEntry(id, coreID)
+	g.Title = title
+	g.MediaID = strings.Repeat("a", 64)
+	g.MediaRole = "cassette"
+	return g
 }
 
 func writeHomeScreenshot(t *testing.T, snap Snapshot, name string) {
@@ -117,9 +142,9 @@ func writeHomeScreenshot(t *testing.T, snap Snapshot, name string) {
 func TestHomeLoungeNativeRender(t *testing.T) {
 	for _, size := range []struct{ w, h int }{{1280, 720}, {1024, 600}} {
 		t.Run(fmt.Sprintf("ready-%dx%d", size.w, size.h), func(t *testing.T) {
-			app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, size.w, size.h)
-			snap := waitFor(t, app, "first core", func(s Snapshot) bool {
-				return s.Room.Open && s.Room.Destination.Kind == rooms.KindCore && s.Room.Destination.Label == "Pong"
+			app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, size.w, size.h)
+			snap := waitFor(t, app, "first family", func(s Snapshot) bool {
+				return homeFamilySettled(s) && s.Room.Destination.Label == "Sinclair ZX81"
 			})
 			writeHomeScreenshot(t, snap, "ready")
 			app.HandleCommand(CmdUp, time.Now())
@@ -129,100 +154,78 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 			})
 			writeHomeScreenshot(t, snap, "action-details")
 		})
-	}
-	t.Run("blocked", func(t *testing.T) {
-		app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
-		waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
-		for i := 0; i < 3; i++ {
+		t.Run(fmt.Sprintf("recent-%dx%d", size.w, size.h), func(t *testing.T) {
+			host := newRoomHost(t)
+			host.recents = []hostclient.Game{
+				homeTitleEntry("lunar", "Lunar Courier", "fes.spectrum"),
+				homeTitleEntry("bits", "Bit Garden", "fes.zx81"),
+				homeTitleEntry("post", "Pixel Post", "fes.spectrum128"),
+			}
+			app := startHomeLoungeOn(t, host, t.TempDir(), &fakeLocalCores{cores: homeFixtureCores()}, size.w, size.h, false)
+			snap := waitFor(t, app, "recent", func(s Snapshot) bool {
+				return homeFamilySettled(s) && s.Room.Destination.GameID == "lunar"
+			})
+			if c := heroDestinationCopy(snap); c.Kicker != "Recently played" && size.h >= 720 {
+				t.Fatalf("recent hero %+v", c)
+			}
+			writeHomeScreenshot(t, snap, "recent")
+		})
+		t.Run(fmt.Sprintf("needs-firmware-%dx%d", size.w, size.h), func(t *testing.T) {
+			app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, size.w, size.h)
+			waitFor(t, app, "first family", homeFamilySettled)
 			app.HandleCommand(CmdRight, time.Now())
-		}
-		snap := waitFor(t, app, "blocked core", func(s Snapshot) bool { return s.Room.Destination.Label == "ColecoVision" })
-		writeHomeScreenshot(t, snap, "blocked")
-	})
+			app.HandleCommand(CmdRight, time.Now())
+			snap := waitFor(t, app, "Atari ST", func(s Snapshot) bool { return s.Room.Destination.Label == "Atari ST" })
+			if c := heroDestinationCopy(snap); c.Primary != "Add firmware" || c.State != heroStateUnavailable {
+				t.Fatalf("firmware hero %+v", c)
+			}
+			writeHomeScreenshot(t, snap, "needs-firmware")
+		})
+		t.Run(fmt.Sprintf("no-games-%dx%d", size.w, size.h), func(t *testing.T) {
+			host := newRoomHost(t)
+			host.games = []hostclient.Game{homeMachineEntry("spectrum", "fes.spectrum"), homeMachineEntry("zx81", "fes.zx81"), homeTitleEntry("bits", "Bit Garden", "fes.zx81")}
+			app := startHomeLoungeOn(t, host, t.TempDir(), &fakeLocalCores{cores: homeFixtureCores()}, size.w, size.h, false)
+			waitFor(t, app, "first family", homeFamilySettled)
+			app.HandleCommand(CmdRight, time.Now())
+			snap := waitFor(t, app, "Spectrum", func(s Snapshot) bool { return s.Room.Destination.Label == "ZX Spectrum" })
+			if d := snap.Room.Destination; d.Status != "No games yet" || d.Availability != rooms.AvailReady {
+				t.Fatalf("no-games family %+v", d)
+			}
+			writeHomeScreenshot(t, snap, "no-games")
+		})
+	}
 	t.Run("checking", func(t *testing.T) {
 		app := startHomeLounge(t, &fakeLocalCores{listErr: localcores.ErrWarming}, 1280, 720)
 		snap := waitFor(t, app, "room", func(s Snapshot) bool { return s.Room.Open && s.Room.Err == "" && len(s.Room.Frame.Ops) > 0 })
 		writeHomeScreenshot(t, snap, "checking")
 	})
-	t.Run("empty", func(t *testing.T) {
-		app := startHomeLounge(t, &fakeLocalCores{cores: []localcores.Core{}}, 1280, 720)
-		snap := waitFor(t, app, "empty", func(s Snapshot) bool { return s.Room.Open && roomTextHasPrefix(s, "Nothing is installed") })
-		writeHomeScreenshot(t, snap, "empty")
-	})
 	t.Run("settings", func(t *testing.T) {
-		app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
-		waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
-		app.HandleCommand(CmdUp, time.Now()) // Hero actions above the shelf.
-		app.HandleCommand(CmdUp, time.Now()) // Header routes above the actions.
-		app.HandleCommand(CmdRight, time.Now())
-		app.HandleCommand(CmdRight, time.Now())
+		app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
+		waitFor(t, app, "first family", homeFamilySettled)
+		app.HandleCommand(CmdUp, time.Now()) // Hero actions above the tiles.
+		app.HandleCommand(CmdUp, time.Now()) // Settings, the only header route.
 		snap := waitFor(t, app, "settings", func(s Snapshot) bool { return s.Room.Destination.Kind == rooms.KindAction })
 		writeHomeScreenshot(t, snap, "settings")
 	})
 	t.Run("checking-confirm", func(t *testing.T) {
 		app := startHomeLounge(t, &fakeLocalCores{listErr: localcores.ErrWarming}, 1280, 720)
-		waitFor(t, app, "checking", func(s Snapshot) bool { return s.Room.Destination.Confirm() == rooms.ConfirmWait })
+		waitFor(t, app, "checking", func(s Snapshot) bool {
+			return s.Room.Destination.Kind == rooms.KindFamily && s.Room.Destination.Confirm() == rooms.ConfirmWait
+		})
 		app.HandleCommand(CmdSelect, time.Now())
 		snap := waitFor(t, app, "ack", func(s Snapshot) bool { return s.Room.WaitAck })
 		writeHomeScreenshot(t, snap, "checking-confirm")
 	})
-	t.Run("launching", func(t *testing.T) {
-		hold := make(chan struct{})
-		t.Cleanup(func() { close(hold) })
-		app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores(), hold: hold}, 1280, 720)
-		waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
-		app.HandleCommand(CmdSelect, time.Now())
-		snap := waitFor(t, app, "launching", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseLaunching })
-		snap.LocalCorePresentsPaused = false
-		writeHomeScreenshot(t, snap, "launching")
-	})
-	t.Run("launch-failed", func(t *testing.T) {
-		app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores(), err: localcores.ErrBlocked}, 1280, 720)
-		waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
-		app.HandleCommand(CmdSelect, time.Now())
-		snap := waitFor(t, app, "failed", func(s Snapshot) bool { return s.LocalCorePhase == "" && s.LocalCoreStatus != "" })
-		if snap.Room.Destination.Label != "Pong" {
-			t.Fatalf("failure moved focus: %+v", snap.Room.Destination)
-		}
-		writeHomeScreenshot(t, snap, "launch-failed")
-	})
-	t.Run("in-use", func(t *testing.T) {
-		app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720,
-			`{"state":"held","owner":"another-shell","purpose":"playing"}`)
-		snap := waitFor(t, app, "in use", func(s Snapshot) bool {
-			return s.Room.Destination.Label == "Pong" && heroDestinationCopy(s).Headline == rooms.InUseStatus
-		})
-		writeHomeScreenshot(t, snap, "in-use")
-	})
-	for _, size := range []struct{ w, h int }{{1280, 720}, {1024, 600}} {
-		t.Run(fmt.Sprintf("long-%dx%d", size.w, size.h), func(t *testing.T) {
-			cores := homeFixtureCores()
-			cores[3].Name = "Sinclair ZX Spectrum 128K +2A Expanded Edition With A Long Name"
-			cores[3].CoreID = "custom.long-system" // Unknown machine names remain verbatim.
-			cores[3].Inputs = []string{"keyboard"}
-			app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: cores}, size.w, size.h)
-			waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
-			for i := 0; i < 3; i++ {
-				app.HandleCommand(CmdRight, time.Now())
-			}
-			snap := waitFor(t, app, "long", func(s Snapshot) bool { return s.Room.Destination.Label == cores[3].Name })
-			writeHomeScreenshot(t, snap, "long")
-		})
-	}
 	t.Run("details", func(t *testing.T) {
-		app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
-		waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
-		for i := 0; i < 4; i++ {
-			app.HandleCommand(CmdRight, time.Now())
-		}
-		waitFor(t, app, "Sega Master System", func(s Snapshot) bool { return s.Room.Destination.Label == "Sega Master System" })
-		app.HandleCommand(CmdSelect, time.Now())
+		app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
+		waitFor(t, app, "first family", homeFamilySettled)
+		app.HandleCommand(CmdDetails, time.Now())
 		writeHomeScreenshot(t, app.Snapshot(), "details")
 	})
 	t.Run("coleco-arcade", func(t *testing.T) {
 		app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
-		waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
-		for i := 0; i < 3; i++ {
+		waitFor(t, app, "first family", homeFamilySettled)
+		for i := 0; i < 5; i++ {
 			app.HandleCommand(CmdRight, time.Now())
 		}
 		waitFor(t, app, "coleco", func(s Snapshot) bool { return s.Room.Destination.Label == "ColecoVision" })
@@ -231,7 +234,7 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 	})
 	t.Run("no-kit", func(t *testing.T) {
 		app := startHomeLounge(t, nil, 1280, 720)
-		snap := waitFor(t, app, "no kit", func(s Snapshot) bool { return s.Room.Open && s.Room.Destination.Set() })
+		snap := waitFor(t, app, "no kit", homeFamilySettled)
 		writeHomeScreenshot(t, snap, "no-kit")
 	})
 }
@@ -243,49 +246,6 @@ func roomTextHasPrefix(s Snapshot, prefix string) bool {
 		}
 	}
 	return false
-}
-
-// warmingLocalCores answers ErrWarming until warm, like an agent whose
-// catalog read is still filling after health reports ready (#764).
-type warmingLocalCores struct {
-	*fakeLocalCores
-	warm      atomic.Bool
-	warmLists atomic.Int32
-	// hiccups is how many lists fail with a transient error, alternating a
-	// client timeout and a dropped socket, before the warm check runs.
-	hiccups atomic.Int32
-}
-
-func (w *warmingLocalCores) List(ctx context.Context) ([]localcores.Core, error) {
-	if n := w.hiccups.Add(-1); n >= 0 {
-		if n%2 == 0 {
-			return nil, context.DeadlineExceeded
-		}
-		return nil, localcores.ErrUnavailable
-	}
-	w.hiccups.Store(0)
-	if !w.warm.Load() {
-		w.warmLists.Add(1)
-		return nil, localcores.ErrWarming
-	}
-	return w.fakeLocalCores.List(ctx)
-}
-
-// Launch checks the finished list after its read-only warm poll succeeds.
-func (w *warmingLocalCores) Launch(ctx context.Context, id string) (localcores.LaunchResult, error) {
-	if !w.warm.Load() {
-		return localcores.LaunchResult{}, localcores.ErrWarming
-	}
-	cores, _ := w.fakeLocalCores.List(ctx)
-	for _, core := range cores {
-		if core.PackageID == id {
-			if !core.Launchable {
-				return localcores.LaunchResult{}, localcores.ErrBlocked
-			}
-			return w.fakeLocalCores.Launch(ctx, id)
-		}
-	}
-	return localcores.LaunchResult{}, localcores.ErrNotFound
 }
 
 // writeHomeStore seeds the Home room's store under a startHomeLoungeIn dir.
@@ -304,290 +264,21 @@ func writeHomeStore(t *testing.T, dir string, values map[string]any) {
 	}
 }
 
-func rememberedZX81(t *testing.T, dir string) localcores.Core {
-	t.Helper()
-	zx81 := homeFixtureCores()[1]
-	writeHomeStore(t, dir, map[string]any{
-		"package_id":      zx81.PackageID,
-		"package_name":    "Sinclair ZX81",
-		"package_core_id": zx81.CoreID,
-		"package_inputs":  []string{"keyboard"},
-	})
-	return zx81
-}
-
-func TestHomeConfirmOnRememberedCoreStartsOnceListed(t *testing.T) {
-	dir := t.TempDir()
-	zx81 := rememberedZX81(t, dir)
-	fake := &warmingLocalCores{fakeLocalCores: &fakeLocalCores{cores: homeFixtureCores()}}
-	app := startHomeLoungeIn(t, dir, fake, 1280, 720)
-	snap := waitFor(t, app, "pending card", func(s Snapshot) bool {
-		d := s.Room.Destination
-		return s.Room.Hero && d.Kind == rooms.KindCore && d.CorePending && d.PackageID == zx81.PackageID
-	})
-	if d := snap.Room.Destination; d.Label != "Sinclair ZX81" || d.CoreLaunchable || d.Availability != rooms.AvailChecking {
-		t.Fatalf("pending destination %+v", d)
-	}
-	if c := heroDestinationCopy(snap); c.State != heroStateChecking || c.Primary != "Play" || c.Headline != rooms.CorePendingStatus {
-		t.Fatalf("pending hero %+v", c)
-	}
-	if got := snap.Room.Destination.Inputs; len(got) != 1 || got[0] != "keyboard" || heroDestinationCopy(snap).Meta != "Needs a keyboard" {
-		t.Fatalf("pending ZX81 input needs = %v; hero=%+v", got, heroDestinationCopy(snap))
-	}
-	if !roomTextHasPrefix(snap, "Sinclair ZX81") {
-		t.Fatal("the pending card is not drawn on the shelf")
-	}
-	app.HandleCommand(CmdSelect, time.Now())
-	waitFor(t, app, "queued launch", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseLaunching && fake.warmLists.Load() >= 2
-	})
-	fake.setStatus(localcores.RunStatus{Generation: strings.Repeat("a", 64), Phase: "running", Running: true, PackageID: zx81.PackageID})
-	fake.warm.Store(true)
-	waitFor(t, app, "running", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
-	fake.mu.Lock()
-	launched := append([]string(nil), fake.launches...)
-	fake.mu.Unlock()
-	if len(launched) != 1 || launched[0] != zx81.PackageID {
-		t.Fatalf("launches %v", launched)
-	}
-}
-
-func TestHomeQueuedLaunchSurvivesListHiccups(t *testing.T) {
-	dir := t.TempDir()
-	zx81 := rememberedZX81(t, dir)
-	fake := &warmingLocalCores{fakeLocalCores: &fakeLocalCores{cores: homeFixtureCores()}}
-	app := startHomeLoungeIn(t, dir, fake, 1280, 720)
-	waitFor(t, app, "pending card", func(s Snapshot) bool { return s.Room.Destination.CorePending })
-	app.HandleCommand(CmdSelect, time.Now())
-	waitFor(t, app, "queued launch", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseLaunching && fake.warmLists.Load() >= 1
-	})
-	fake.hiccups.Store(4)
-	waitFor(t, app, "hiccups seen", func(s Snapshot) bool { return fake.hiccups.Load() <= 0 })
-	if s := app.Snapshot(); s.LocalCorePhase != localPhaseLaunching {
-		t.Fatalf("a list hiccup ended the queue: phase %q status %q", s.LocalCorePhase, s.LocalCoreStatus)
-	}
-	fake.setStatus(localcores.RunStatus{Generation: strings.Repeat("a", 64), Phase: "running", Running: true, PackageID: zx81.PackageID})
-	fake.warm.Store(true)
-	waitFor(t, app, "running", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
-	fake.mu.Lock()
-	launched := append([]string(nil), fake.launches...)
-	fake.mu.Unlock()
-	if len(launched) != 1 || launched[0] != zx81.PackageID {
-		t.Fatalf("launches %v", launched)
-	}
-}
-
-func TestHomeQueuedLaunchFailsClosedWhenTheRememberedCoreIsGone(t *testing.T) {
-	dir := t.TempDir()
-	zx81 := rememberedZX81(t, dir)
-	var cores []localcores.Core
-	for _, core := range homeFixtureCores() {
-		if core.PackageID != zx81.PackageID {
-			cores = append(cores, core)
-		}
-	}
-	fake := &warmingLocalCores{fakeLocalCores: &fakeLocalCores{cores: cores}}
-	app := startHomeLoungeIn(t, dir, fake, 1280, 720)
-	waitFor(t, app, "pending card", func(s Snapshot) bool { return s.Room.Destination.CorePending })
-	app.HandleCommand(CmdSelect, time.Now())
-	waitFor(t, app, "queued launch", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseLaunching && fake.warmLists.Load() >= 2
-	})
-	fake.warm.Store(true)
-	waitFor(t, app, "refused and listed", func(s Snapshot) bool {
-		return s.LocalCorePhase == "" && s.LocalCoreStatus != "" && !s.Room.Destination.CorePending
-	})
-	if fake.launchCount() != 0 {
-		t.Fatalf("a removed package launched: %d", fake.launchCount())
-	}
-}
-
-func waitHomeStore(t *testing.T, app *App, dir, what string, ok func(map[string]any) bool) {
-	t.Helper()
-	path := filepath.Join(dir, "rooms", installedCoresHomeID+".state.json")
-	deadline := time.Now().Add(testwait.Timeout)
-	for {
-		var saved map[string]any
-		data, err := os.ReadFile(path)
-		if err == nil && json.Unmarshal(data, &saved) == nil && ok(saved) {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("store never had %s: %s %v", what, data, err)
-		}
-		app.Tick(time.Now()) // Room steps run the save debounce and the store flush.
-		time.Sleep(20 * time.Millisecond)
-	}
-}
-
-func TestHomeRemembersTheOpeningCoreForThePendingCard(t *testing.T) {
-	dir := t.TempDir()
-	cores := homeFixtureCores()
-	app := startHomeLoungeInAllCores(t, dir, &fakeLocalCores{cores: cores}, 1280, 720)
-	waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
-	// No navigation: opening Home and pressing A must still leave a card.
-	waitHomeStore(t, app, dir, "the opening core", func(saved map[string]any) bool {
-		return saved["package_id"] == cores[0].PackageID && saved["package_core_id"] == cores[0].CoreID && saved["package_name"] == "Pong"
-	})
-	for i := 0; i < 4; i++ {
-		app.HandleCommand(CmdRight, time.Now())
-	}
-	sms := cores[4] // Needs a cartridge.
-	waitFor(t, app, "blocked core", func(s Snapshot) bool { return s.Room.Destination.PackageID == sms.PackageID })
-	waitHomeStore(t, app, dir, "a blocked core without a name", func(saved map[string]any) bool {
-		return saved["package_id"] == sms.PackageID && saved["package_name"] == ""
-	})
-}
-
-func TestHomePersistsSelectedInputNeedsForTheNextPendingCard(t *testing.T) {
-	dir := t.TempDir()
-	cores := homeFixtureCores()
-	first := startHomeLoungeInAllCores(t, dir, &fakeLocalCores{cores: cores}, 1280, 720)
-	waitFor(t, first, "opening core", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
-	first.HandleCommand(CmdRight, time.Now())
-	waitFor(t, first, "ZX81 selection", func(s Snapshot) bool { return s.Room.Destination.PackageID == cores[1].PackageID })
-	waitHomeStore(t, first, dir, "ZX81 input needs", func(saved map[string]any) bool {
-		inputs, ok := saved["package_inputs"].([]any)
-		if !ok {
-			return false
-		}
-		for _, input := range inputs {
-			if input == "keyboard" {
-				return saved["package_id"] == cores[1].PackageID
-			}
-		}
-		return false
-	})
-
-	warming := &warmingLocalCores{fakeLocalCores: &fakeLocalCores{cores: cores}}
-	app := startHomeLoungeInAllCores(t, dir, warming, 1280, 720)
-	snap := waitFor(t, app, "remembered ZX81 pending card", func(s Snapshot) bool {
-		d := s.Room.Destination
-		return d.CorePending && d.PackageID == cores[1].PackageID
-	})
-	if got := snap.Room.Destination.Inputs; len(got) != 1 || got[0] != "keyboard" || heroDestinationCopy(snap).Meta != "Needs a keyboard" {
-		t.Fatalf("remembered pending card input needs = %v; hero=%+v", got, heroDestinationCopy(snap))
-	}
-}
-
-func TestHomeOpeningCoreIsOnDiskBeforePlay(t *testing.T) {
-	dir := t.TempDir()
-	cores := homeFixtureCores()
-	app := startHomeLoungeInAllCores(t, dir, &fakeLocalCores{cores: cores}, 1280, 720)
-	waitFor(t, app, "opening core", func(s Snapshot) bool { return s.Room.Destination.PackageID == cores[0].PackageID })
-	app.HandleCommand(CmdSelect, time.Now())
-	waitFor(t, app, "opening core launch", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
-	path := filepath.Join(dir, "rooms", installedCoresHomeID+".state.json")
-	var saved map[string]any
-	data, err := os.ReadFile(path)
-	if err != nil || json.Unmarshal(data, &saved) != nil {
-		t.Fatalf("opening selection was not saved before Play: %s %v", data, err)
-	}
-	if saved["package_id"] != cores[0].PackageID || saved["package_name"] != "Pong" {
-		t.Fatalf("saved opening selection = %v", saved)
-	}
-}
-
-func TestHomeStopCancelsAQueuedLaunch(t *testing.T) {
-	dir := t.TempDir()
-	rememberedZX81(t, dir)
-	fake := &warmingLocalCores{fakeLocalCores: &fakeLocalCores{cores: homeFixtureCores()}}
-	app := startHomeLoungeIn(t, dir, fake, 1280, 720)
-	waitFor(t, app, "pending card", func(s Snapshot) bool { return s.Room.Destination.CorePending })
-	app.HandleCommand(CmdSelect, time.Now())
-	waitFor(t, app, "queued launch", func(s Snapshot) bool {
-		return s.LocalCorePhase == localPhaseLaunching && fake.warmLists.Load() >= 2
-	})
-	if !app.RequestLocalStop() {
-		t.Fatal("stop request was not taken")
-	}
-	waitFor(t, app, "idle", func(s Snapshot) bool { return s.LocalCorePhase == "" })
-	fake.warm.Store(true)
-	waitFor(t, app, "listed", func(s Snapshot) bool {
-		return !s.Room.Destination.CorePending && s.Room.Destination.Kind == rooms.KindCore
-	})
-	if n := fake.launchCount(); n != 0 {
-		t.Fatalf("a stopped queued launch still loaded the core: %d", n)
-	}
-}
-
-func TestHomeConfirmDuringCheckingIsAcknowledgedAndNeverQueued(t *testing.T) {
-	fake := &warmingLocalCores{fakeLocalCores: &fakeLocalCores{cores: homeFixtureCores()}}
-	app := startHomeLoungeAllCores(t, fake, 1280, 720)
-	snap := waitFor(t, app, "checking", func(s Snapshot) bool {
-		return s.Room.Open && s.Room.Hero && s.Room.Destination.Confirm() == rooms.ConfirmWait
-	})
-	if snap.Room.WaitAck {
-		t.Fatal("acknowledged a Confirm that was never pressed")
-	}
-	if c := heroDestinationCopy(snap); c.State != heroStateChecking || c.Primary != "" {
-		t.Fatalf("checking hero %+v", c)
-	}
-	app.HandleCommand(CmdSelect, time.Now())
-	snap = app.Snapshot()
-	if !snap.Room.WaitAck || !strings.Contains(heroDestinationCopy(snap).Ack, "again") {
-		t.Fatalf("Confirm during Checking was not acknowledged: %+v", snap.Room)
-	}
-	fake.warm.Store(true)
-	snap = waitFor(t, app, "ready", func(s Snapshot) bool {
-		return s.Room.Destination.Kind == rooms.KindCore && s.Room.Destination.Label == "Pong"
-	})
-	if snap.Room.WaitAck {
-		t.Fatal("acknowledgement outlived Checking")
-	}
-	if fake.launchCount() != 0 || snap.LocalCorePhase != "" {
-		t.Fatalf("a Confirm from Checking launched the first item: launches=%d phase=%q", fake.launchCount(), snap.LocalCorePhase)
-	}
-	if c := heroDestinationCopy(snap); c.State != heroStateReady || c.Headline != heroPlaysOnThisTV || c.Primary != "Play" || !c.Filled {
-		t.Fatalf("ready hero %+v", c)
-	}
-}
-
-func TestHomeLaunchReturnsToTheSameSelection(t *testing.T) {
+func TestHomeWorkbenchReturnsToTheSameFamily(t *testing.T) {
 	fake := &fakeLocalCores{cores: homeFixtureCores()}
-	zx81 := homeFixtureCores()[1]
-	app := startHomeLoungeAllCores(t, fake, 1280, 720)
-	// Startup reads status once and adopts a running generation. This launch
-	// is a new selection, so the probe has to see idle first. The explicit
-	// running answer is only for the poll after Play, which must name this
-	// package rather than the fake's default.
-	waitFor(t, app, "startup idle", func(s Snapshot) bool {
-		app.mu.Lock()
-		checked, phase := app.localStartupStatusChecked, app.localPhase
-		app.mu.Unlock()
-		return checked && phase == "" && s.Room.Open && s.Room.Destination.Label == "Pong"
-	})
-	fake.setStatus(localcores.RunStatus{Generation: strings.Repeat("a", 64), Phase: "running", Running: true, PackageID: zx81.PackageID})
+	app := startHomeLounge(t, fake, 1280, 720)
+	waitFor(t, app, "first family", homeFamilySettled)
 	app.HandleCommand(CmdRight, time.Now())
-	snap := waitFor(t, app, "zx81", func(s Snapshot) bool { return s.Room.Destination.Label == "Sinclair ZX81" })
-	if c := heroDestinationCopy(snap); c.Meta != "Needs a keyboard" {
-		t.Fatalf("keyboard requirement not shown before Play: %+v", c)
-	}
+	waitFor(t, app, "Spectrum", func(s Snapshot) bool { return s.Room.Destination.Label == "ZX Spectrum" })
 	app.HandleCommand(CmdSelect, time.Now())
-	app.HandleCommand(CmdSelect, time.Now())
-	waitFor(t, app, "running", func(s Snapshot) bool { return s.LocalCorePhase == localPhaseRunning })
-	fake.mu.Lock()
-	launched := append([]string(nil), fake.launches...)
-	fake.mu.Unlock()
-	if len(launched) != 1 || launched[0] != zx81.PackageID {
-		t.Fatalf("launches %v", launched)
+	snap := waitFor(t, app, "workbench", func(s Snapshot) bool { return s.Room.Open && s.Room.ID == systemRoomID })
+	if fake.launchCount() != 0 {
+		t.Fatalf("Open launched %d cores", fake.launchCount())
 	}
-	t0 := time.Now()
-	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t0)
-	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t0)
-	fake.setStatus(localcores.RunStatus{Phase: "idle"})
-	app.Tick(t0.Add(2 * time.Second))
-	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, false), t0.Add(2*time.Second))
-	app.HandleLocalPad(padButton(remoteinput.ButtonStart, false), t0.Add(2*time.Second))
-	snap = waitFor(t, app, "returned", func(s Snapshot) bool {
-		return s.LocalCorePhase == "" && !s.LocalCorePresentsPaused && s.Room.Open
-	})
-	if fake.stopCount() != 1 {
-		t.Fatalf("stops %d", fake.stopCount())
-	}
-	if snap.Room.ID != installedCoresHomeID || snap.Room.Destination.Label != "Sinclair ZX81" || snap.Room.Destination.PackageID != zx81.PackageID {
-		t.Fatalf("return lost the selection: room=%s dest=%+v", snap.Room.ID, snap.Room.Destination)
+	app.HandleCommand(CmdBack, time.Now())
+	snap = waitFor(t, app, "home", func(s Snapshot) bool { return s.Room.Open && s.Room.ID == installedCoresHomeID })
+	if snap.Room.Destination.Label != "ZX Spectrum" {
+		t.Fatalf("return lost the family: %+v", snap.Room.Destination)
 	}
 }
 
@@ -619,8 +310,8 @@ func TestHomeHeroCopyExplainsBlocksAndLeases(t *testing.T) {
 }
 
 func TestHomeHeroIsTheTapTargetAndFitsTheRoom(t *testing.T) {
-	app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
-	snap := waitFor(t, app, "ready", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
+	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
+	snap := waitFor(t, app, "ready", homeFamilySettled)
 	pane, ok := roomDestGeom(snap)
 	layout, _ := rooms.HeroPanel(snap.Room.Width, snap.Room.Height)
 	if !ok || pane.X != snap.Room.OffsetX+layout.Text.X || pane.Y != snap.Room.OffsetY+layout.Text.Y {
@@ -634,134 +325,77 @@ func TestHomeHeroIsTheTapTargetAndFitsTheRoom(t *testing.T) {
 	if hint := heroFooterHint(snap); !strings.Contains(hint, "details") || !strings.Contains(hint, "settings") {
 		t.Fatalf("footer hint %q", hint)
 	}
+	if c := heroDestinationCopy(snap); c.Kicker != "Computer" || c.Meta != "4 models: ZX81, ZX80, TS1000, TS1500" || c.Primary != "Open" || c.Secondary != "Details" {
+		t.Fatalf("family hero %+v", c)
+	}
 }
 
 func TestHomeColecoTileOpensArcadeLibraryRoom(t *testing.T) {
 	app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: []localcores.Core{
 		{PackageID: strings.Repeat("c", 64), CoreID: colecoCoreID, Name: "FES ColecoVision", Needs: "parts", Block: "Needs a video part"},
 	}}, 1280, 720)
-	snap := waitFor(t, app, "Coleco home tile", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "ColecoVision" && s.Room.Destination.Kind == rooms.KindRoom
-	})
-	if !roomTextHas(snap, "Browse Coleco titles") || roomTextHas(snap, "Display setup incomplete") {
-		t.Fatalf("Coleco tile still advertises incomplete display setup: %+v", snap.Room.Destination)
-	}
-	app.HandleCommand(CmdSelect, time.Now())
-	snap = waitFor(t, app, "Coleco Arcade room", func(s Snapshot) bool {
-		return s.Room.ID == colecoArcadeRoomID && s.Room.Open
-	})
-	if snap.Room.Destination.Kind == rooms.KindCore && snap.Room.Destination.CoreNeeds == "parts" {
-		t.Fatalf("Coleco tile retained its blocked local-core destination: %+v", snap.Room.Destination)
-	}
-}
-
-func TestHomeSkipsAnOmittedCoreAndHidesItsPackage(t *testing.T) {
-	id := func(n byte) string { return strings.Repeat(string("0123456789abcdef"[n]), 64) }
-	st := localcores.Core{PackageID: id(8), CoreID: "fes.atari-st", Name: "Atari ST", Needs: "unavailable", Launchable: false, Block: "Hardware unavailable"}
-	pong := localcores.Core{PackageID: id(1), CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true}
-	zx := localcores.Core{PackageID: id(2), CoreID: "fes.zx81", Name: "ZX81", Needs: "firmware", Launchable: false, Block: "Needs firmware"}
-	app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: []localcores.Core{st, pong, zx}}, 1280, 720)
-	snap := waitFor(t, app, "first installed", func(s Snapshot) bool {
-		return s.Room.Destination.Label == "Pong" && roomTextHas(s, "2 installed")
-	})
-	if snap.Room.Destination.CoreID == "fes.atari-st" || roomTextHas(snap, "3 installed") {
-		t.Fatalf("Home opened on the omitted core: %+v", snap.Room.Destination)
-	}
-	app.HandleCommand(CmdLeft, time.Now())
-	snap = waitFor(t, app, "omitted core", func(s Snapshot) bool { return s.Room.Destination.Label == "Atari ST" })
-	app.HandleCommand(CmdSelect, time.Now())
-	snap = app.Snapshot()
-	joined := strings.Join(heroDestinationCopy(snap).Details, "\n")
-	if !snap.Room.CoreDetail || strings.Contains(joined, "Package:") || strings.Contains(joined, st.PackageID[:12]) {
-		t.Fatalf("omitted Details showed a package id: detail=%v %q", snap.Room.CoreDetail, joined)
-	}
-	if !strings.Contains(joined, "Core: fes.atari-st") || !strings.Contains(joined, "Kit says: Hardware unavailable") {
-		t.Fatalf("omitted Details %q", joined)
-	}
-	app.HandleCommand(CmdBack, time.Now())
-	app.HandleCommand(CmdRight, time.Now())
-	app.HandleCommand(CmdRight, time.Now())
-	snap = waitFor(t, app, "firmware core", func(s Snapshot) bool { return s.Room.Destination.Label == "Sinclair ZX81" })
-	app.HandleCommand(CmdSelect, time.Now())
-	snap = app.Snapshot()
-	joined = strings.Join(heroDestinationCopy(snap).Details, "\n")
-	if !snap.Room.CoreDetail || !strings.Contains(joined, "Package: "+zx.PackageID[:12]+"…") || !strings.Contains(joined, "Kit says: Needs firmware") {
-		t.Fatalf("installed Details %q", joined)
-	}
-}
-
-func TestHomeCoreDetailsOpenInTheHeroAndBackClosesThem(t *testing.T) {
-	app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
-	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
-	for i := 0; i < 4; i++ {
+	waitFor(t, app, "first family", homeFamilySettled)
+	for i := 0; i < 5; i++ {
 		app.HandleCommand(CmdRight, time.Now())
 	}
-	waitFor(t, app, "master system", func(s Snapshot) bool { return s.Room.Destination.Label == "Sega Master System" })
-	// A on a blocked core opens Details; it never does nothing.
+	snap := waitFor(t, app, "Coleco family", func(s Snapshot) bool {
+		return s.Room.Destination.Label == "ColecoVision" && s.Room.Destination.Kind == rooms.KindFamily
+	})
+	if d := snap.Room.Destination; d.RoomID != colecoArcadeRoomID || d.Confirm() != rooms.ConfirmEnterRoom {
+		t.Fatalf("Coleco family %+v", d)
+	}
 	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "Coleco Arcade room", func(s Snapshot) bool {
+		return s.Room.ID == colecoArcadeRoomID && s.Room.Open
+	})
+}
+
+func TestHomeFamilyDetailsOpenInTheHeroAndBackClosesThem(t *testing.T) {
+	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
+	waitFor(t, app, "first family", homeFamilySettled)
+	app.HandleCommand(CmdDetails, time.Now())
 	snap := app.Snapshot()
 	c := heroDestinationCopy(snap)
-	if !snap.Room.CoreDetail || len(c.Details) == 0 || !strings.Contains(strings.Join(c.Details, "\n"), "Kit says: Needs a cartridge") {
-		t.Fatalf("blocked core Details %+v", c)
+	if !snap.Room.HeroDetail || c.Kicker != "Details" || len(c.Details) == 0 || c.Details[0] != "Ready: ZX81" {
+		t.Fatalf("family Details %+v", c)
+	}
+	if hint := heroFooterHint(snap); !strings.Contains(hint, "open") || !strings.Contains(hint, "close details") {
+		t.Fatalf("details hint %q", hint)
 	}
 	app.HandleCommand(CmdBack, time.Now())
 	snap = app.Snapshot()
-	if snap.Room.CoreDetail || !snap.Room.Open || snap.Room.ID != installedCoresHomeID || snap.RoomPicker.Open {
-		t.Fatalf("Back did not just close Details: detail=%v room=%s picker=%v", snap.Room.CoreDetail, snap.Room.ID, snap.RoomPicker.Open)
+	if snap.Room.HeroDetail || !snap.Room.Open || snap.Room.ID != installedCoresHomeID || snap.RoomPicker.Open {
+		t.Fatalf("Back did not just close Details: detail=%v room=%s picker=%v", snap.Room.HeroDetail, snap.Room.ID, snap.RoomPicker.Open)
 	}
 	// Moving away closes Details too.
 	app.HandleCommand(CmdDetails, time.Now())
-	if !app.Snapshot().Room.CoreDetail {
+	if !app.Snapshot().Room.HeroDetail {
 		t.Fatal("Y did not open Details")
 	}
-	app.HandleCommand(CmdLeft, time.Now())
-	snap = waitFor(t, app, "moved", func(s Snapshot) bool { return s.Room.Destination.Label != "Sega Master System" })
-	if snap.Room.CoreDetail {
-		t.Fatal("Details followed focus to another core")
+	app.HandleCommand(CmdRight, time.Now())
+	snap = waitFor(t, app, "moved", func(s Snapshot) bool { return s.Room.Destination.Label != "Sinclair ZX81" })
+	if snap.Room.HeroDetail {
+		t.Fatal("Details followed focus to another family")
 	}
 }
 
 func TestHomeHeroButtonsDoWhatTheySayWithAPointer(t *testing.T) {
 	fake := &fakeLocalCores{cores: homeFixtureCores()}
-	app := startHomeLoungeAllCores(t, fake, 1280, 720)
-	snap := waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
+	app := startHomeLounge(t, fake, 1280, 720)
+	snap := waitFor(t, app, "first family", homeFamilySettled)
 	pane, _ := roomDestGeom(snap)
 	primary, secondary := heroButtonRects(snap, pane)
 	if primary.W == 0 || secondary.W == 0 || primary.contains(secondary.X+1, secondary.Y+1) {
 		t.Fatalf("buttons %+v %+v", primary, secondary)
 	}
 	app.PointerClick(secondary.X+secondary.W/2, secondary.Y+secondary.H/2, time.Now())
-	if !app.Snapshot().Room.CoreDetail || fake.launchCount() != 0 {
-		t.Fatalf("Details button: detail=%v launches=%d", app.Snapshot().Room.CoreDetail, fake.launchCount())
+	if !app.Snapshot().Room.HeroDetail || fake.launchCount() != 0 {
+		t.Fatalf("Details button: detail=%v launches=%d", app.Snapshot().Room.HeroDetail, fake.launchCount())
 	}
 	app.PointerClick(primary.X+primary.W/2, primary.Y+primary.H/2, time.Now())
-	waitFor(t, app, "launch", func(s Snapshot) bool { return fake.launchCount() == 1 })
-}
-
-func TestHomeSaysCheckingWhileAFailedLaunchReconciles(t *testing.T) {
-	app := startHomeLoungeAllCores(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
-	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
-	// The launcher's startup status poll answers idle, which rightly clears
-	// a reconcile. Let it settle, and hold later polls, so the flag set here
-	// is the state under test.
-	waitFor(t, app, "startup status", func(Snapshot) bool {
-		app.mu.Lock()
-		defer app.mu.Unlock()
-		return app.localStartupStatusChecked && !app.localStatusBusy
-	})
-	app.mu.Lock()
-	app.localReconcileAfterFailure = true
-	app.localStatusNext = time.Now().Add(time.Hour)
-	app.mu.Unlock()
-	snap := app.Snapshot()
-	if c := heroDestinationCopy(snap); c.State != heroStateChecking || c.Primary == "Play" || snap.Room.Destination.Confirm() != rooms.ConfirmWait {
-		t.Fatalf("reconciling core offered Play: %+v confirm=%v", c, snap.Room.Destination.Confirm())
-	}
-	app.mu.Lock()
-	app.localReconcileAfterFailure = false
-	app.mu.Unlock()
-	if c := heroDestinationCopy(app.Snapshot()); c.State != heroStateReady {
-		t.Fatalf("did not return to Ready: %+v", c)
+	waitFor(t, app, "workbench", func(s Snapshot) bool { return s.Room.ID == hardwareRoomID })
+	if fake.launchCount() != 0 {
+		t.Fatalf("Open launched %d cores", fake.launchCount())
 	}
 }
 
@@ -906,7 +540,7 @@ func TestHomeHeroDetailsKeepTheBlockOnACompactScreen(t *testing.T) {
 			CoreNeeds: "parts", CoreBlock: block,
 			Availability: rooms.AvailUnavailable, Inputs: tc.inputs,
 		}
-		snap := Snapshot{Room: RoomSnapshot{Open: true, Hero: true, CoreDetail: true, Destination: d}}
+		snap := Snapshot{Room: RoomSnapshot{Open: true, Hero: true, HeroDetail: true, Destination: d}}
 		c := heroDestinationCopy(snap)
 		avail := heroTextBudget(c, layout.Text.H)
 		plan := planHero(c, layout.Text.W, avail)
@@ -938,31 +572,31 @@ func usedHeroPlan(c heroCopy, plan heroPlan) int {
 	return h
 }
 
-func TestHomeSmallLayoutPointerReachesCoresAndRoutes(t *testing.T) {
+func TestHomeSmallLayoutPointerReachesFamiliesAndRoutes(t *testing.T) {
 	fake := &fakeLocalCores{cores: homeFixtureCores()}
 	app := startHomeLoungeAllCores(t, fake, 470, 350)
 	snap := waitFor(t, app, "compact hits", func(s Snapshot) bool {
-		return s.Room.Open && !s.Room.Hero && s.Room.Destination.Label == "Pong" &&
-			roomHit(s, "core:2").ID != "" && roomHit(s, "menu:1").ID != "" && roomHit(s, "menu:3").ID != ""
+		return homeFamilySettled(s) && !s.Room.Hero &&
+			roomHit(s, "family:2").ID != "" && roomHit(s, "menu:1").ID != "" && roomHit(s, "menu:3").ID != ""
 	})
 	pane, ok := roomDestGeom(snap)
 	if !ok {
 		t.Fatal("compact destination strip missing")
 	}
-	core := roomHitCenter(snap, "core:2")
+	family := roomHitCenter(snap, "family:2")
 	library := roomHitCenter(snap, "menu:1")
 	settings := roomHitCenter(snap, "menu:3")
-	for _, pt := range [][2]int{core, library, settings} {
+	for _, pt := range [][2]int{family, library, settings} {
 		if pane.contains(pt[0], pt[1]) {
 			t.Fatalf("hit %v sits on the strip %+v", pt, pane)
 		}
 	}
-	if got := HitTest(snap, core[0], core[1]); got.Kind != PointerRoom || got.KeyID != "core:2" {
-		t.Fatalf("core pointer %+v", got)
+	if got := HitTest(snap, family[0], family[1]); got.Kind != PointerRoom || got.KeyID != "family:2" {
+		t.Fatalf("family pointer %+v", got)
 	}
 	now := time.Now()
-	app.PointerMove(core[0], core[1], now)
-	if got := app.Snapshot().Room.Destination; got.Label != "Sinclair ZX81" || fake.launchCount() != 0 {
+	app.PointerMove(family[0], family[1], now)
+	if got := app.Snapshot().Room.Destination; got.Label != "ZX Spectrum" || fake.launchCount() != 0 {
 		t.Fatalf("pointer focus %+v launches=%d", got, fake.launchCount())
 	}
 	app.PointerMove(library[0], library[1], now)

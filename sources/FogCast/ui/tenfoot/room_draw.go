@@ -257,6 +257,8 @@ func drawRoomDestination(dev gfx.Device, snap Snapshot, labels map[string]gpuTex
 	switch d.Kind {
 	case rooms.KindRoom:
 		meta = "ROOM"
+	case rooms.KindFamily:
+		meta = "COMPUTER"
 	case rooms.KindLibrary:
 		meta = "LIBRARY"
 	case rooms.KindUnresolved:

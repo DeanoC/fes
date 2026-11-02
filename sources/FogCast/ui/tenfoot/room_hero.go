@@ -174,13 +174,36 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 			c.Headline, c.Explain = heroCoreBlocked(d)
 			c.Primary = "Details"
 		}
-		if snap.Room.CoreDetail {
+		if snap.Room.HeroDetail {
 			c.Kicker = "Details"
 			c.Explain = ""
 			c.Details = heroCoreDetails(d)
 			if c.Primary == "Details" {
 				c.Primary = ""
 			}
+			c.Secondary = ""
+		}
+	case rooms.KindFamily:
+		c.Kicker = "Computer"
+		c.Meta = strings.TrimSpace(d.Models)
+		c.State = heroState(d.Availability)
+		c.Headline = strings.TrimSpace(d.Status)
+		c.Explain = strings.TrimSpace(d.Action)
+		switch {
+		case d.Confirm() == rooms.ConfirmWait:
+			c.Explain = ""
+		case d.FamilyNeeds == "firmware":
+			// The workbench shows the firmware card, where it is added.
+			c.Primary, c.Filled = "Add firmware", true
+			c.Secondary = "Details"
+		default:
+			c.Primary, c.Filled = "Open", true
+			c.Secondary = "Details"
+		}
+		if snap.Room.HeroDetail {
+			c.Kicker = "Details"
+			c.Explain = ""
+			c.Details = append([]string(nil), d.Details...)
 			c.Secondary = ""
 		}
 	case rooms.KindRoom:
@@ -227,6 +250,9 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 			c.Explain = ""
 		}
 	}
+	if k := strings.TrimSpace(d.Kicker); k != "" && c.Kicker != "Details" {
+		c.Kicker = k
+	}
 	if c.Title == "" {
 		c.Title = "Selected"
 	}
@@ -239,6 +265,18 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 // kitSaysPrefix marks the Details line that quotes the kit. planHero drops
 // the identity lines ahead of it before this one.
 const kitSaysPrefix = "Kit says: "
+
+// heroDetailKey names the destination whose Details the hero shows: an
+// installed package or a family. Other destinations have no hero Details.
+func heroDetailKey(d rooms.Destination) string {
+	switch d.Kind {
+	case rooms.KindCore:
+		return "core:" + d.PackageID
+	case rooms.KindFamily:
+		return "family:" + d.RoomID + ":" + d.CoreID + ":" + d.Label
+	}
+	return ""
+}
 
 // heroCoreDetails is the inspectable identity of a selected core: its
 // core id and the kit's verbatim local status. An installed package also
@@ -599,9 +637,12 @@ func heroFooterHint(snap Snapshot) string {
 	case InputMouse:
 		move = "Click to choose"
 	}
-	if snap.Room.CoreDetail {
-		if snap.Room.Destination.Confirm() == rooms.ConfirmLaunchCore {
+	if snap.Room.HeroDetail {
+		switch snap.Room.Destination.Confirm() {
+		case rooms.ConfirmLaunchCore:
 			return fmt.Sprintf("%s play  ·  %s close details", selectWord(kind), backWord(kind))
+		case rooms.ConfirmEnterRoom:
+			return fmt.Sprintf("%s open  ·  %s close details", selectWord(kind), backWord(kind))
 		}
 		return backWord(kind) + " close details"
 	}

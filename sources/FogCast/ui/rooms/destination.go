@@ -56,6 +56,10 @@ const (
 	KindAction     Kind = "action"
 	KindCore       Kind = "core"
 	KindUnresolved Kind = "unresolved"
+	// KindFamily is a computer family on Home. Confirm opens its workbench
+	// (RoomID, with CoreID and GameID as the opening model), where the
+	// model is chosen.
+	KindFamily Kind = "family"
 )
 
 // ValidPackageID reports whether id is a lowercase SHA-256 hex package id,
@@ -162,6 +166,15 @@ type Destination struct {
 	NextAction string
 	// Choice is edition or backend when Availability is Needs a choice.
 	Choice ChoiceKind
+	// Kicker is the room's own line above the hero title ("Recently
+	// played"). Empty uses the launcher's line for the kind.
+	Kicker string
+	// Models, Details and FamilyNeeds describe a KindFamily destination: the
+	// line of model names, one line per model for Details, and "firmware"
+	// when no model can start until the user adds firmware.
+	Models      string
+	Details     []string
+	FamilyNeeds string
 }
 
 // ClassifyGames maps a library result set onto Checking, Missing, Needs a
@@ -335,7 +348,7 @@ func BackendLabel(game hostclient.Game) string {
 // destination is left to tenfoot, which applies the local in-use copy and
 // refuses Confirm. An Execute advertisement is not an input.
 func ApplyForeignLease(d Destination, foreign bool) Destination {
-	if !foreign || d.Kind == KindRoom || d.Kind == KindLibrary || d.Kind == KindAction || d.Kind == KindCore {
+	if !foreign || d.Kind == KindRoom || d.Kind == KindLibrary || d.Kind == KindAction || d.Kind == KindCore || d.Kind == KindFamily {
 		return d
 	}
 	source := d.Candidates
@@ -562,6 +575,12 @@ func (d *Destination) FillCopy() {
 		d.Status = "Enter room."
 		d.Action = "Enter room."
 		return
+	case KindFamily:
+		// The room writes the family's own headline and explanation.
+		if d.Availability == AvailChecking && d.Status == "" {
+			d.Status = CheckingStatus
+		}
+		return
 	case KindLibrary:
 		d.Status = "Browse the full library."
 		d.Action = "Open library."
@@ -660,6 +679,11 @@ func (d *Destination) FillCopy() {
 func (d Destination) Confirm() ConfirmIntent {
 	switch d.Kind {
 	case KindRoom:
+		return ConfirmEnterRoom
+	case KindFamily:
+		if d.Availability == AvailChecking {
+			return ConfirmWait
+		}
 		return ConfirmEnterRoom
 	case KindLibrary:
 		return ConfirmOpenLibraryBrowse

@@ -396,11 +396,10 @@ func TestConfiguredInstalledHomeRecoversStartupList(t *testing.T) {
 	app.SetKitLocal(cores, &fakePadFeed{})
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	snap := waitFor(t, app, "usable installed home", func(s Snapshot) bool {
-		return s.Room.Open && s.Room.ID == "example.fes-cores" && s.Room.Destination.Kind == rooms.KindCore
-	})
-	if snap.Room.Destination.PackageID != tenfootPongID || !snap.Room.Destination.CoreLaunchable {
-		t.Fatalf("destination %+v", snap.Room.Destination)
+	snap := waitFor(t, app, "usable installed home", homeFamilySettled)
+	// The retried kit list is what makes Pong's family Ready.
+	if d := snap.Room.Destination; d.Label != "Pong" || d.Availability != rooms.AvailReady {
+		t.Fatalf("destination %+v", d)
 	}
 	cores.listMu.Lock()
 	defer cores.listMu.Unlock()
