@@ -9,6 +9,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import tomllib
 
@@ -172,12 +173,17 @@ def pack(bin_dir, menu_package, menu_selection, fogcast_revision, runtime_revisi
     return manifest
 
 
-def export(image_output, output):
+def export(image_output, output, *, board=BOARD):
     """Seed a portable input set from a retained, receipt-checked bootstrap image."""
     from build import recorded_image_fingerprint, reusable, verify_package_outputs
     image_output, output = Path(image_output).resolve(), Path(output).absolute()
     if output.exists() or output.is_symlink():
         raise ValueError('artifact output already exists; choose a new directory')
+    target_architecture(board)
+    if board != BOARD:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from scripts import de25_appliance
+        return de25_appliance.export_artifacts(Path(__file__).resolve().parents[1], image_output, output)
     info = json.loads((image_output / 'inputs.json').read_text())
     fingerprint = recorded_image_fingerprint(info)
     receipt = json.loads((image_output / 'image.json').read_text())
@@ -228,6 +234,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='action', required=True)
     command = sub.add_parser('export', help='export from a retained bootstrap image; requires debugfs')
+    command.add_argument('--board', choices=(BOARD, 'de25-nano'), default=BOARD)
     command.add_argument('--image-output', required=True, type=Path)
     command.add_argument('--output', required=True, type=Path)
     command = sub.add_parser('pack', help='select separately produced ARM binaries and MENU')
@@ -243,7 +250,7 @@ def main():
     command.add_argument('directory', type=Path)
     args = parser.parse_args()
     if args.action == 'export':
-        export(args.image_output, args.output)
+        export(args.image_output, args.output, board=args.board)
     elif args.action == 'pack':
         pack(args.bin_dir, args.menu_package, args.menu_selection,
              args.fogcast_revision, args.runtime_revision, args.output, board=args.board)

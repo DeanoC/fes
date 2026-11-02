@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 import json
 from pathlib import Path
@@ -8,6 +9,7 @@ import shutil
 import subprocess
 import struct
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
@@ -80,7 +82,7 @@ def inspect_only(run=subprocess.run):
     return checked
 
 
-class ImageArtifactsTests(unittest.TestCase):
+class ArtifactFixture(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -126,6 +128,7 @@ class ImageArtifactsTests(unittest.TestCase):
         self.manifest['packages'][0]['manifest_sha256'] = artifacts.sha(core / 'manifest.toml')
         self.write_manifest()
 
+class ImageArtifactsTests(ArtifactFixture):
     @needs_readelf
     def test_explicit_de25_stage_uses_aarch64_and_preserves_source_binding(self):
         self.select_de25()
@@ -373,6 +376,235 @@ class ImageArtifactsTests(unittest.TestCase):
         changed_artifacts['binaries']['mister-runtime'] = 'f' * 64
         changed_key, _ = build.bootstrap_fingerprint(second_base, second_info, changed_artifacts)
         self.assertNotEqual(first, changed_key)
+
+
+class DE25ImageCommandTests(unittest.TestCase):
+    def test_board_profile_and_factory_arguments_fail_before_native_builder(self):
+        cases = [(['image', '--profile', 'de25-nano'], 'independently selected'),
+                 (['image', '--board', 'de25-nano', '--profile', 'native-integration-dev'], 'independently selected'),
+                 (['image', '--kernel', '/fixture/kernel'], 'explicitly selected DE25')]
+        cases += [([action, '--board', 'de25-nano'], 'supports image and verify')
+                  for action in ('build', 'rebuild', 'dev', 'host', 'doctor')]
+        with patch.object(build, 'validate', side_effect=AssertionError('native builder must not run')):
+            for argv, reason in cases:
+                with self.subTest(argv=argv), patch.object(sys, 'argv', ['build.py', *argv]):
+                    with self.assertRaisesRegex(ValueError, reason):
+                        build.main()
+
+    def test_de25_entrypoint_uses_explicit_selection_and_refuses_invented_two_pass(self):
+        from scripts import de25_appliance
+        argv = ['build.py', 'image', '--board', 'de25-nano', '--kernel', '/kernel',
+                '--sdk', '/sdk', '--artifacts', '/artifacts', '--output', '/new-factory']
+        with patch.object(sys, 'argv', argv), patch.dict(os.environ, {'IMAGE_PASSES': '1'}), \
+                patch.object(de25_appliance, 'image_action') as route, \
+                patch.object(build, 'validate', side_effect=AssertionError('must not select DE10')):
+            build.main()
+        args = route.call_args.args[1]
+        self.assertEqual((args.board, args.profile, args.output), ('de25-nano', 'de25-nano', Path('/new-factory')))
+        with patch.object(sys, 'argv', argv), patch.dict(os.environ, {'IMAGE_PASSES': '2'}), \
+                patch.object(de25_appliance, 'image_action') as route:
+            with self.assertRaisesRegex(ValueError, 'one actual image-build pass'):
+                build.main()
+            route.assert_not_called()
+
+    def test_make_forwards_board_and_recorded_factory_inputs(self):
+        root = Path(__file__).resolve().parents[1]
+        for command in ('image', 'verify'):
+            result = subprocess.run(['make', '--dry-run', command, 'BOARD=de25-nano',
+                                     'IMAGE_KERNEL=/kernel', 'IMAGE_SDK=/owner-sdk',
+                                     'IMAGE_ARTIFACTS=/artifacts', 'IMAGE_OUTPUT=/factory'],
+                                    cwd=root, capture_output=True, text=True, check=True)
+            for flag in ('--board "de25-nano"', '--profile "de25-nano"', '--kernel "/kernel"',
+                         '--sdk "/owner-sdk"', '--artifacts "/artifacts"', '--output "/factory"'):
+                self.assertIn(flag, result.stdout)
+        default = subprocess.run(['make', '--dry-run', 'image'], cwd=root, capture_output=True, text=True, check=True)
+        self.assertIn('--board "de10-nano" --profile "native-integration-dev"', default.stdout)
+
+    def test_image_routes_to_existing_factory_producer_and_shared_lease(self):
+        from scripts import de25_appliance
+        import media
+        root = Path(__file__).resolve().parents[1]
+        args = SimpleNamespace(action='image', output=None, kernel=Path('/kernel'), sdk=Path('/sdk'), artifacts=Path('/artifacts'))
+        with patch.object(artifacts, 'load') as load, \
+                patch.object(media, 'operation', return_value=contextlib.nullcontext()) as lease, \
+                patch.object(de25_appliance.subprocess, 'run') as run:
+            de25_appliance.image_action(root, args)
+        load.assert_called_once_with(args.artifacts, board='de25-nano')
+        lease.assert_called_once_with(root, 'de25-nano', board='de25-nano')
+        command = run.call_args.args[0]
+        self.assertEqual(command[1:3], [root / 'image/de25-nano/build.py', 'managed-factory'])
+        self.assertEqual(command[command.index('--output') + 1], root / 'out/de25-nano/factory')
+        for flag, path in (('--kernel', args.kernel), ('--sdk', args.sdk), ('--artifacts', args.artifacts)):
+            self.assertEqual(command[command.index(flag) + 1], path)
+
+    def test_missing_build_inputs_stop_before_tools_or_lease(self):
+        from scripts import de25_appliance
+        import media
+        with patch.object(media, 'operation') as lease, patch.object(de25_appliance.subprocess, 'run') as run:
+            for missing in ('kernel', 'sdk', 'artifacts'):
+                args = SimpleNamespace(action='image', output=None, kernel=Path('/kernel'), sdk=Path('/sdk'), artifacts=Path('/artifacts'))
+                setattr(args, missing, None)
+                with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, 'requires --kernel, --sdk and --artifacts'):
+                    de25_appliance.image_action(Path(__file__).resolve().parents[1], args)
+            lease.assert_not_called(); run.assert_not_called()
+
+    def test_verify_always_checks_factory_and_compares_supplied_artifacts(self):
+        from scripts import de25_appliance
+        import media
+        root = Path(__file__).resolve().parents[1]
+        manifest = {'format': 1, 'board': 'de25-nano', 'architecture': 'aarch64',
+                    'provenance': {}, 'binaries': {}, 'packages': []}
+        selected = de25_appliance.Factory(Path('/factory'), {}, manifest, Path('/idle'))
+        args = SimpleNamespace(action='verify', output=Path('/factory'), kernel=None, sdk=None, artifacts=Path('/artifacts'))
+        with patch.object(media, 'operation', return_value=contextlib.nullcontext()), \
+                patch.object(de25_appliance, 'verified_inputs', return_value=(None, None, None, None, None, selected)) as verify, \
+                patch.object(artifacts, 'load', return_value=(dict(manifest, source_image_sha256='a'*64), ())) as load, \
+                patch('builtins.print'):
+            de25_appliance.image_action(root, args)
+            verify.assert_called_once_with(root, 'de25-nano', Path('/factory'))
+            load.return_value = (dict(manifest, binaries={'mister-runtime': 'b'*64}), ())
+            with self.assertRaisesRegex(ValueError, 'differs from supplied artifact'):
+                de25_appliance.image_action(root, args)
+
+    def test_verify_refuses_changed_optional_kernel_and_compiler(self):
+        from scripts import de25_appliance
+        import media
+        root = Path(__file__).resolve().parents[1]
+        base, _, _, _ = de25_appliance.modules(root)
+        with tempfile.TemporaryDirectory() as temporary:
+            kernel = Path(temporary); files = {}
+            for name in base.KERNEL_FILES:
+                (kernel / name).write_bytes(('fixture ' + name).encode())
+                files['kernel/' + name] = artifacts.sha(kernel / name)
+            selected = de25_appliance.Factory(Path('/factory'), {'files': files}, {}, Path('/idle'))
+            args = SimpleNamespace(action='verify', output=Path('/factory'), kernel=kernel, sdk=None, artifacts=None)
+            with patch.object(media, 'operation', return_value=contextlib.nullcontext()), \
+                    patch.object(de25_appliance, 'verified_inputs', return_value=(None, None, None, None, None, selected)), \
+                    patch.object(base.owner, 'selected_kernel'), patch('builtins.print'):
+                de25_appliance.image_action(root, args)
+                (kernel / 'Image').write_bytes(b'changed kernel')
+                with self.assertRaisesRegex(ValueError, 'differs from supplied kernel'):
+                    de25_appliance.image_action(root, args)
+                args.kernel = None; args.sdk = kernel / 'unqualified-sdk'; args.sdk.write_bytes(b'not the owner compiler')
+                with self.assertRaisesRegex(ValueError, 'differs from supplied owner compiler'):
+                    de25_appliance.image_action(root, args)
+
+
+class DE25FactoryExportTests(ArtifactFixture):
+    """Real ext4 extraction with explicit unqualified factory-authority fixtures."""
+    def setUp(self):
+        super().setUp()
+        self.select_de25()
+        selection = self.root / 'fes-menu.package-selection.toml'
+        selection.chmod(0o644)
+        selection.write_text('core_id = "fes.menu"\npackage_id = "' + 'a'*64 + '"\n')
+        selection.chmod(0o444)
+        self.manifest['packages'][0]['selection_sha256'] = artifacts.sha(selection)
+        self.write_manifest()
+        self.tools = os.defpath + ':/usr/sbin:/sbin'
+        self.mke2fs = shutil.which('mke2fs', path=self.tools)
+        if not self.mke2fs or not shutil.which('debugfs', path=self.tools) or not shutil.which('readelf', path=self.tools):
+            self.skipTest('requires e2fsprogs and readelf')
+
+    def factory(self, fault=None):
+        from scripts import appliance, de25_appliance
+        _, factory, _, _ = de25_appliance.modules(Path(__file__).resolve().parents[1])
+        directory = self.root / ('factory-' + (fault or 'valid'))
+        source = directory / 'artifacts'; source.mkdir(parents=True)
+        for name in ('bin', 'core-packages'):
+            shutil.copytree(self.root / name, source / name)
+        for name in ('artifacts.json', 'fes-menu.package-selection.toml'):
+            shutil.copy2(self.root / name, source / name)
+        target = directory / 'target'; helpers = {}
+        for name in artifacts.BINARIES:
+            destination = target / ('usr/sbin' if name.startswith('fes-') else 'usr/share/fes/software/bin')
+            destination.mkdir(parents=True, exist_ok=True)
+            data = (self.root / 'bin' / name).read_bytes()
+            if name.startswith('fes-'):
+                data += b'factory-built helper'
+                helpers[name] = hashlib.sha256(data).hexdigest()
+            (destination / name).write_bytes(b'wrong executable' if fault == name else data)
+        (directory / factory.INPUTS).write_text(json.dumps({'executables': helpers}))
+        image = directory / 'rootfs.ext4'
+        subprocess.run([self.mke2fs, '-q', '-t', 'ext4', '-F', '-d', str(target), str(image), '8M'],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+        receipt = {'classification': 'UNQUALIFIED UNIT FIXTURE', 'files': {
+            'rootfs.ext4': artifacts.sha(image), factory.INPUTS: artifacts.sha(directory / factory.INPUTS)}}
+        (directory / 'factory.json').write_text(json.dumps(receipt))
+        p = appliance.ReleaseProvenance('a'*40, '1'*40, '2'*40, artifacts.sha(image), 'b'*64,
+                                        artifacts.sha(directory / 'factory.json'), 'c'*64, 'd'*64, 1)
+        selected = de25_appliance.Factory(directory, receipt, self.manifest,
+                                         source / 'core-packages' / ('a'*64) / 'core.rbf')
+        return directory, factory, selected, p
+
+    def authority(self, directory, factory, selected, provenance):
+        from scripts import de25_appliance
+        import media
+        stack = contextlib.ExitStack()
+        stack.enter_context(patch.object(media, 'operation', return_value=contextlib.nullcontext()))
+        stack.enter_context(patch.object(de25_appliance, 'verified_inputs',
+                                        return_value=(directory / 'rootfs.ext4', None, provenance, None, None, selected)))
+        stack.enter_context(patch.object(factory, 'verify_receipt', return_value=selected.receipt))
+        stack.enter_context(patch.dict(os.environ, {'PATH': self.tools}))
+        return stack
+
+    def test_export_reads_actual_bundle_and_rebuilt_base_helpers_from_ext4(self):
+        directory, factory, selected, provenance = self.factory()
+        output = self.root / 'exported'
+        with self.authority(directory, factory, selected, provenance):
+            exported = artifacts.export(directory, output, board='de25-nano')
+        self.assertEqual(exported['board'], 'de25-nano')
+        self.assertEqual(exported['architecture'], 'aarch64')
+        self.assertEqual(exported['provenance'], self.manifest['provenance'])
+        self.assertEqual(exported['source_image_sha256'], provenance.rootfs_sha256)
+        self.assertEqual(exported['source_factory_receipt_sha256'], provenance.image_receipt_sha256)
+        for name in artifacts.BINARIES:
+            expected = (directory / 'target' / ('usr/sbin' if name.startswith('fes-') else 'usr/share/fes/software/bin') / name).read_bytes()
+            self.assertEqual((output / 'bin' / name).read_bytes(), expected)
+            if name.startswith('fes-'):
+                self.assertNotEqual(exported['binaries'][name], self.manifest['binaries'][name])
+        with patch.dict(os.environ, {'PATH': self.tools}):
+            artifacts.load(output, board='de25-nano')
+
+    def test_export_refuses_wrong_ext4_bundle_or_base_helper_without_publication(self):
+        for name in ('mister-runtime', 'fes-kit-software'):
+            with self.subTest(name=name):
+                directory, factory, selected, provenance = self.factory(name)
+                output = self.root / ('rejected-' + name)
+                with self.authority(directory, factory, selected, provenance), \
+                        self.assertRaisesRegex(ValueError, 'exported executable differs: ' + name):
+                    artifacts.export(directory, output, board='de25-nano')
+                self.assertFalse(output.exists())
+
+    def test_factory_receipt_change_during_extraction_prevents_publication(self):
+        from scripts import de25_appliance
+        directory, factory, selected, provenance = self.factory()
+        output = self.root / 'rejected-race'; run = subprocess.run
+        def change_after_dump(command, *args, **kwargs):
+            result = run(command, *args, **kwargs)
+            if command[0] == 'debugfs' and command[2].endswith('bin/fes-kit-software'):
+                with (directory / 'factory.json').open('a') as stream:stream.write(' ')
+            return result
+        with self.authority(directory, factory, selected, provenance), \
+                patch.object(de25_appliance.subprocess, 'run', side_effect=change_after_dump), \
+                self.assertRaisesRegex(ValueError, 'factory changed during artifact export'):
+            artifacts.export(directory, output, board='de25-nano')
+        self.assertFalse(output.exists())
+
+    def test_factory_overlap_and_real_intermediate_fail_before_extraction(self):
+        from scripts import de25_appliance
+        import media
+        directory = self.root / 'intermediate'; directory.mkdir(); (directory / 'base.json').write_text('{}')
+        with patch.object(de25_appliance, 'verified_inputs') as verify:
+            with self.assertRaisesRegex(ValueError, 'overlaps'):
+                artifacts.export(directory, directory / 'exported', board='de25-nano')
+            verify.assert_not_called()
+        with patch.object(de25_appliance.subprocess, 'run') as run, \
+                patch.object(media, 'operation', return_value=contextlib.nullcontext()):
+            with self.assertRaisesRegex(ValueError, 'actual managed-factory receipt'):
+                artifacts.export(directory, self.root / 'rejected-intermediate', board='de25-nano')
+            run.assert_not_called()
+        self.assertFalse((self.root / 'rejected-intermediate').exists())
 
 
 if __name__ == '__main__':

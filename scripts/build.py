@@ -1755,11 +1755,28 @@ def resolve_packages_for_action(revisions, output, env, action, package_ids):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["doctor", "build", "host", "image", "verify", "rebuild", "dev"])
-    parser.add_argument("--profile", default="native-integration-dev",
-                        choices=["native-integration-dev"])
+    parser.add_argument('--board', default='de10-nano', choices=('de10-nano', 'de25-nano'))
+    parser.add_argument('--profile', choices=('native-integration-dev', 'de25-nano'))
     parser.add_argument('--artifacts', type=Path,
                         help='explicit bootstrap artifact directory; required for image assembly')
+    parser.add_argument('--kernel', type=Path, help='matching DE25 owner-kernel directory')
+    parser.add_argument('--sdk', type=Path, help='DE25 owner compiler archive, pinned by its source lock')
+    parser.add_argument('--output', type=Path, help='DE25 factory directory; defaults to out/de25-nano/factory')
     args = parser.parse_args()
+    expected_profile = 'de25-nano' if args.board == 'de25-nano' else 'native-integration-dev'
+    args.profile = expected_profile if args.profile is None else args.profile
+    if args.profile != expected_profile:
+        raise ValueError('image profile differs from independently selected board')
+    if args.board == 'de25-nano':
+        if args.action not in ('image', 'verify'):
+            raise ValueError('DE25 top-level image selection supports image and verify; source build/dev remain unimplemented')
+        if validate_image_passes() != 1:
+            raise ValueError('DE25 factory production records one actual image-build pass')
+        sys.path.insert(0, str(ROOT))
+        from scripts import de25_appliance
+        return de25_appliance.image_action(ROOT, args)
+    if any(value is not None for value in (args.kernel, args.sdk, args.output)):
+        raise ValueError('--kernel, --sdk and --output require explicitly selected DE25')
     artifacts = None
     if args.action == 'image' or args.artifacts:
         if not args.artifacts:

@@ -1,9 +1,10 @@
 .DEFAULT_GOAL := help
-PROFILE ?= native-integration-dev
+BOARD ?= de10-nano
+PROFILE ?= $(if $(filter de25-nano,$(BOARD)),de25-nano,native-integration-dev)
 PYTHON ?= python3
 RELEASE_VERSION ?= 0.2.0-dev.1
 IMAGE_PASSES ?= 1
-APPLIANCE_BOARD ?= de10-nano
+APPLIANCE_BOARD ?= $(BOARD)
 APPLIANCE_FACTORY ?=
 APPLIANCE_VENDOR_BOOT ?=
 APPLIANCE_PROFILE = $(if $(filter de25-nano,$(APPLIANCE_BOARD)),de25-nano,$(PROFILE))
@@ -47,9 +48,13 @@ help:
 	@printf '%s\n' 'make fetch-de25-linux | de25-linux | verify-de25-linux | smoke-de25-linux: separate headless DE25-Nano AArch64 Linux diagnostic; see docs/de25-linux.md.'
 	@printf '%s\n' 'make smoke-de25-runtime DE25_RUNTIME_ARGS="--help": cross-build AArch64 runtime/agent and exercise software under QEMU without a board.'
 	@printf '%s\n' 'make release | bootstrap | appliance-media APPLIANCE_BOARD=de25-nano APPLIANCE_FACTORY=/absolute/factory: require the verified DE25 factory; card commands also need APPLIANCE_VENDOR_BOOT=/absolute/vendor-boot.'
+	@printf '%s\n' 'make image BOARD=de25-nano IMAGE_ARTIFACTS=/absolute/artifacts IMAGE_KERNEL=/absolute/kernel IMAGE_SDK=/absolute/owner-sdk.tar.gz: assemble the DE25 factory; make verify checks its recorded inputs. IMAGE_OUTPUT overrides out/de25-nano/factory.'
 IMAGE_ARTIFACTS ?=
+IMAGE_KERNEL ?=
+IMAGE_SDK ?=
+IMAGE_OUTPUT ?=
 doctor build host image verify rebuild dev:
-	IMAGE_PASSES="$(IMAGE_PASSES)" $(PYTHON) scripts/build.py $@ --profile "$(PROFILE)" $(if $(IMAGE_ARTIFACTS),--artifacts "$(IMAGE_ARTIFACTS)")
+	IMAGE_PASSES="$(IMAGE_PASSES)" $(PYTHON) scripts/build.py $@ --board "$(BOARD)" --profile "$(PROFILE)" $(if $(IMAGE_ARTIFACTS),--artifacts "$(IMAGE_ARTIFACTS)") $(if $(IMAGE_KERNEL),--kernel "$(IMAGE_KERNEL)") $(if $(IMAGE_SDK),--sdk "$(IMAGE_SDK)") $(if $(IMAGE_OUTPUT),--output "$(IMAGE_OUTPUT)")
 
 .PHONY: de25-linux fetch-de25-linux verify-de25-linux smoke-de25-linux
 de25-linux:
