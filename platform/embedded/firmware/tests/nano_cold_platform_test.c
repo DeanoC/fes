@@ -63,7 +63,7 @@ static struct { unsigned write_requested; } fpga_config_buffers[1];
 #include "nano_mailbox_observe.h"
 uint64_t read_cntpct_el0(void) { static uint64_t ticks;return ticks+=100; }
 static int max_blocks=4,current_block,fes_contained_transport_status;
-static unsigned bytes_per_block=65536,send_id,blocks_submitted,fes_contained_transport_phase;
+static unsigned bytes_per_block=0xffff0,send_id,blocks_submitted,fes_contained_transport_phase;
 static unsigned mailbox_observations[4];
 void fes_nano_mailbox_observe(unsigned phase,unsigned completed,unsigned pending,
                               unsigned job,uint64_t owner,uint64_t generation)

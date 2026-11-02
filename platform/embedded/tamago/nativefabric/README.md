@@ -73,6 +73,12 @@ The board's first-load arena remains pinned until reboot, including after
 successful DMA completion. Active drain and repeated runtime loads remain
 separate qualification work.
 
+`NewColdConfigurationTransfer` takes the DRAM base and block size from that
+compiled map and performs preparation immediately before START, requiring the
+original held source. The map permits only positive 64-byte-aligned blocks up
+to the pinned engine's `0xffff0` limit. Retirement also checks the transfer
+against this map. Neither path takes these parameters from an uploaded package.
+
 Hooks are trusted and serialized. `Resolve` supplies identity only for the
 unpackaged idle/software-model fixtures. Admitted packages instead use the
 retained descriptor and an explicit `IdentityProfile`; callers must qualify

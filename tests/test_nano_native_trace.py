@@ -408,6 +408,28 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
             with self.subTest(new=new):self.assertFalse(self.decode(raw.replace(old,new))['complete'])
         with self.assertRaises(ValueError):
             trace.decode_native_configuration(b'',BUILD,SEED,fpga_identity=self.identity,configuration=dict(self.configuration,base=0x94000000))
+        for chunk in (0,-64,63,0xffff0,0x100000):
+            with self.subTest(chunk=chunk), self.assertRaises(ValueError):
+                trace.decode_native_configuration(b'',BUILD,SEED,fpga_identity=self.identity,
+                                                  configuration=dict(self.configuration,chunk_bytes=chunk))
+
+    def test_large_compiled_blocks_preserve_two_buffer_completion_and_identity(self):
+        chunk=0xfffc0;total=2027520
+        config=dict(self.configuration,core_size=total,chunk_bytes=chunk)
+        raw=self.capture();first=raw.index('NOTICE:  FES_NANO_CORE_TRANSFER phase=arm')
+        last=raw.index('FES_NATIVE_FPGA_PROGRAMMED')
+        def row(phase,completed,pending):
+            return f'NOTICE:  FES_NANO_CORE_TRANSFER phase={phase} owner={OWNER:x} generation=1 completed={completed} pending={pending} total={total} base=94800000\r\n'
+        rows=(row('arm',0,0)+row('start',0,0)+row('write',0,chunk)+row('write',0,total)+
+              row('poll',0,total)+row('poll',chunk,total-chunk)+row('status',total,0)+row('complete',total,0))
+        raw=raw[:first]+rows+raw[last:].replace('bytes=65664',f'bytes={total}')
+        result=trace.decode_native_configuration(raw,BUILD,SEED,fpga_identity=self.identity,configuration=config)
+        self.assertTrue(result['complete'],result)
+        self.assertFalse(result['core_load_acceptance'])
+        for old,new in ((f'pending={chunk}',f'pending={chunk-64}'),
+                        (f'completed={chunk}',f'completed={chunk+64}')):
+            self.assertFalse(trace.decode_native_configuration(raw.replace(old,new),BUILD,SEED,
+                             fpga_identity=self.identity,configuration=config)['complete'])
 
     def test_counter_and_digest_costs_are_observations_with_strict_accounting(self):
         lines=self.capture().splitlines(keepends=True);count=0

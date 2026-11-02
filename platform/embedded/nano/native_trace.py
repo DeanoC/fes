@@ -314,10 +314,11 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
         any(type(configuration[k]) is not int for k in ('core_size','base','size','dram_base','chunk_bytes')) or
         not 0<configuration['core_size']<=8<<20 or configuration['core_size']&3 or
         configuration['base']!=0x94800000 or configuration['size']!=8<<20 or configuration['dram_base']!=0x80000000 or
-        configuration['chunk_bytes']!=65536 or configuration['package_id']!=fpga_identity.get('package_id') or
+        not 0<configuration['chunk_bytes']<=0xffff0 or configuration['chunk_bytes']&63 or
+        configuration['package_id']!=fpga_identity.get('package_id') or
         configuration['build_id']!=fpga_identity.get('build_id') or not digest(configuration['core_sha256'],64) or
         not digest(configuration['core_sha384'],96) or not isinstance(configuration['chunk_sha384'],list) or
-        len(configuration['chunk_sha384'])!=(configuration['core_size']+65535)//65536 or
+        len(configuration['chunk_sha384'])!=(configuration['core_size']+configuration['chunk_bytes']-1)//configuration['chunk_bytes'] or
         not all(digest(value,96) for value in configuration['chunk_sha384'])):
         raise ValueError('independently checked sealed configuration map required')
     if not isinstance(data,(str,bytes,bytearray,memoryview)):

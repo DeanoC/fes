@@ -22,11 +22,15 @@ type ConfigurationRetirement struct {
 // cannot interleave with a prepared transfer. The secure provider retires
 // authority before issuing its fixed status request. Keep t until reboot even
 // if that query reports a ready FPGA or the retirement reply is uncertain.
-func (v *HPSContextVerifier) RetireConfiguration(t *ConfigurationTransfer, source HPSBootObservation) (ConfigurationRetirement, error) {
-	if v == nil || v.cpu == nil || t == nil || !t.Status().Failed || t.done || len(t.pending) == 0 ||
+func (v *HPSContextVerifier) RetireConfiguration(t *ConfigurationTransfer, source HPSBootObservation, configuration []byte) (ConfigurationRetirement, error) {
+	m, err := v.configurationMap(configuration)
+	if err != nil {
+		return ConfigurationRetirement{}, err
+	}
+	if v.cpu == nil || t == nil || !t.Status().Failed || t.done || len(t.pending) == 0 ||
 		t.diagnosticAttempted || t.region == nil || t.region.Release == nil ||
 		t.region.Address != 0x94800000 || int64(len(t.region.Bytes)) != v.context.CoreSize ||
-		t.dramBase != 0x80000000 || t.chunk != 65536 || hex.EncodeToString(t.digest[:]) != v.context.CoreSHA256 ||
+		t.dramBase != m.DRAMBase || t.chunk != m.ChunkBytes || hex.EncodeToString(t.digest[:]) != m.CoreSHA256 ||
 		source.Digest != v.digest || !validBridgeSnapshot(source.Bridges) ||
 		source.Bridges.Generation != 1 || !source.Bridges.NeverEnabled ||
 		source.Bridges.ResetMask != source.Bridges.Capabilities.Mask || !source.Bridges.MastersContained ||

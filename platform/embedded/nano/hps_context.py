@@ -77,7 +77,10 @@ def _configuration(project):
     path=Path(project)/'board/hps/packages'/context['package_id']/'core.rbf'
     if any(p.is_symlink() for p in (path,*path.parents)):
         raise ValueError('configuration payload has a symlink component')
-    raw=path.read_bytes();chunk=65536
+    # The pinned SDM client advertises 0xffff0 bytes per descriptor. Round
+    # down to our coherent arena's 64-byte alignment, keeping every DMA start
+    # aligned without changing the source, arena or completion deadline.
+    raw=path.read_bytes();chunk=0xfffc0
     if (not raw or len(raw)>8<<20 or len(raw)&3 or len(raw)!=context['core_size'] or
             hashlib.sha256(raw).hexdigest()!=context['core_sha256']):
         raise ValueError('bounded word-aligned sealed core required for configuration')

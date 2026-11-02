@@ -39,10 +39,81 @@ func configurationSource(t *testing.T) ([]byte, []byte, *Region) {
 	source.CoreSHA256, source.CoreSize = hex.EncodeToString(sum[:]), int64(len(data))
 	mapping := coldConfigurationMap{Format: 1, Scope: "sealed-cold-configuration-v1", PackageID: source.PackageID,
 		BuildID: source.BuildID, CoreSHA256: source.CoreSHA256, CoreSHA384: hex.EncodeToString(sum384[:]),
-		CoreSize: len(data), Base: 0x94800000, Size: 8 << 20, DRAMBase: 0x80000000, ChunkBytes: 65536,
+		CoreSize: len(data), Base: 0x94800000, Size: 8 << 20, DRAMBase: 0x80000000, ChunkBytes: 0xfffc0,
 		ChunkSHA384: []string{hex.EncodeToString(sum384[:])}}
 	return canonicalConfiguration(t, source), canonicalConfiguration(t, mapping),
 		&Region{Address: mapping.Base, Bytes: data, Release: func() error { t.Fatal("preparation released the reservation"); return nil }}
+}
+
+func TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart(t *testing.T) {
+	for _, name := range []string{"pass", "map", "source", "address", "changed-data", "changed-owner"} {
+		t.Run(name, func(t *testing.T) {
+			raw, mapping, region := configurationSource(t)
+			var descriptor coldConfigurationMap
+			if err := json.Unmarshal(mapping, &descriptor); err != nil {
+				t.Fatal(err)
+			}
+			replies := append(hpsContextReplies(sha256.Sum256(raw)), [4]uint64{0, 0x4643503100000080, 17, 1})
+			replies = append(replies, replies[0])
+			source := HPSBootObservation{Digest: sha256.Sum256(raw), Bridges: BridgeSnapshot{
+				Capabilities: BridgeCapabilities{Mask: 15, ControlMask: 2, HardwareDrainMask: 12, FabricHandshake: FabricHandshakeAbsent},
+				Owner:        17, Generation: 1, ResetMask: 15, NeverEnabled: true, MastersContained: true}}
+			calls, starts := 0, 0
+			cpu := bridgeFirmwareFunc(func(a [7]uint64) ([4]uint64, error) {
+				if a[0] == 0xc2000001 {
+					starts++
+					return [4]uint64{}, nil
+				}
+				if calls >= len(replies) {
+					t.Fatal("unexpected firmware call", a)
+				}
+				r := replies[calls]
+				calls++
+				return r, nil
+			})
+			v, err := NewHPSContextVerifier(cpu, raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch name {
+			case "map":
+				descriptor.ChunkBytes = 0xffff0 // Advertised maximum is not 64-byte aligned.
+				mapping = canonicalConfiguration(t, descriptor)
+			case "source":
+				source.Digest[0] ^= 1
+			case "address":
+				region.Address += 64
+			}
+			transfer, err := v.NewColdConfigurationTransfer(controlMapFixture(t), mapping, region, source)
+			if name == "map" || name == "source" || name == "address" {
+				if err == nil || transfer != nil || calls != 0 || starts != 0 {
+					t.Fatal("invalid constructor reached firmware", err, calls, starts)
+				}
+				return
+			}
+			if err != nil || transfer.chunk != descriptor.ChunkBytes || transfer.dramBase != descriptor.DRAMBase {
+				t.Fatal("constructor lost compiled transfer geometry", transfer, err)
+			}
+			if name == "changed-data" {
+				region.Bytes[0] ^= 1
+			}
+			if name == "changed-owner" {
+				for _, i := range []int{0, 3, 4, 5} {
+					replies[i][2]++
+				}
+			}
+			// Caller-owned maps cannot change the deferred preparation recipe.
+			clear(mapping)
+			_, _, err = transfer.Advance()
+			if name == "pass" {
+				if err != nil || starts != 1 || calls != 6 {
+					t.Fatal("compiled preparation did not precede START", err, starts, calls)
+				}
+			} else if err == nil || starts != 0 || !transfer.Status().Failed {
+				t.Fatal("changed preparation reached START", err, starts)
+			}
+		})
+	}
 }
 
 func TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest(t *testing.T) {
@@ -153,7 +224,7 @@ func TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC(t *testi
 			case "dram":
 				fields["dram_base"] = float64(0)
 			case "chunk":
-				fields["chunk_bytes"] = float64(64)
+				fields["chunk_bytes"] = float64(63)
 			case "chunk-count":
 				fields["chunk_sha384"] = []string{}
 			case "chunk-digest":

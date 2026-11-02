@@ -67,7 +67,7 @@ class NanoConfigurationTests(unittest.TestCase):
             pure='#include <stdint.h>\n#include <string.h>\n#include <stdlib.h>\n#include <endian.h>\n#include <assert.h>\n#include "sha.h"\nstatic void watchdog_sw_rst(void) { assert(0); }\n'
             pure+=re.sub(r'(?m)^#include[^\n]*\n','',specialized.decode())
             sha_source=base/'vendor_sha.c';sha_source.write_text(pure)
-            raw=bytes(range(256))*256+bytes(range(128));chunk=65536
+            chunk=0xfffc0;raw=(bytes(range(256))*((chunk+383)//256))[:chunk+128]
             def array(digest):return '{'+','.join('0x%02x'%b for b in digest)+'}'
             values=','.join(str(i) for i in range(32))
             profile=('#define FES_NANO_COLD_CHAIN {0x42,0x17}\n#define FES_NANO_COLD_OWNER_SEED 17ULL\n'
@@ -77,7 +77,7 @@ class NanoConfigurationTests(unittest.TestCase):
                      '#define FES_NANO_CONTROL_BUILD {0x44556677,0x00112233,0xbbccddee,0x778899aa}\n'
                      '#define FES_NANO_CONTROL_MAP_SHA {1}\n#define FES_NANO_CONFIG_BASE 0x94800000ULL\n'
                      '#define FES_NANO_CONFIG_ARENA_SIZE (8U<<20)\n#define FES_NANO_CONFIG_BYTES '+str(len(raw))+'U\n'
-                     '#define FES_NANO_CONFIG_CHUNK 65536U\n#define FES_NANO_CONFIG_SHA384 '+array(hashlib.sha384(raw).digest())+'\n'
+                     '#define FES_NANO_CONFIG_CHUNK '+str(chunk)+'U\n#define FES_NANO_CONFIG_SHA384 '+array(hashlib.sha384(raw).digest())+'\n'
                      '#define FES_NANO_CONFIG_CHUNK_DIGESTS {'+','.join(array(hashlib.sha384(raw[i:i+chunk]).digest()) for i in range(0,len(raw),chunk))+'}\n')
             (inc/'fes_nano_cold_profile.h').write_text(profile)
             flags=['-std=c11','-Wall','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all','-Wno-unused-const-variable','-I'+str(inc),'-I'+str(FW)]

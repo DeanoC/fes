@@ -51,7 +51,8 @@ func (v *HPSContextVerifier) configurationMap(raw []byte) (coldConfigurationMap,
 		m.Format != 1 || m.Scope != "sealed-cold-configuration-v1" || m.PackageID != v.context.PackageID ||
 		m.BuildID != v.context.BuildID || m.CoreSHA256 != v.context.CoreSHA256 || int64(m.CoreSize) != v.context.CoreSize ||
 		m.CoreSize <= 0 || m.CoreSize > 8<<20 || m.CoreSize%4 != 0 || !validHex(m.CoreSHA384, 96) ||
-		m.Base != 0x94800000 || m.Size != 8<<20 || m.DRAMBase != 0x80000000 || m.ChunkBytes != 65536 ||
+		m.Base != 0x94800000 || m.Size != 8<<20 || m.DRAMBase != 0x80000000 ||
+		m.ChunkBytes <= 0 || m.ChunkBytes > 0xffff0 || m.ChunkBytes%64 != 0 ||
 		len(m.ChunkSHA384) != (m.CoreSize+m.ChunkBytes-1)/m.ChunkBytes {
 		return coldConfigurationMap{}, errors.New("native fabric: configuration map differs from compiled cold source")
 	}
@@ -61,6 +62,38 @@ func (v *HPSContextVerifier) configurationMap(raw []byte) (coldConfigurationMap,
 		}
 	}
 	return m, nil
+}
+
+// NewColdConfigurationTransfer takes its DMA and block parameters from the
+// compiled sealed map. Preparation rechecks the staged bytes and original held
+// source immediately before START. This grants no runtime admission or release.
+func (v *HPSContextVerifier) NewColdConfigurationTransfer(control, configuration []byte, region *Region, source HPSBootObservation) (*ConfigurationTransfer, error) {
+	if _, err := v.checkedControlMap(control); err != nil {
+		return nil, err
+	}
+	m, err := v.configurationMap(configuration)
+	if err != nil {
+		return nil, err
+	}
+	if source.Digest != v.digest || !validBridgeSnapshot(source.Bridges) ||
+		source.Bridges.Generation != 1 || !source.Bridges.NeverEnabled ||
+		source.Bridges.ResetMask != source.Bridges.Capabilities.Mask || !source.Bridges.MastersContained ||
+		source.Bridges.Capabilities.FabricHandshake != FabricHandshakeAbsent ||
+		region == nil || region.Address != m.Base || len(region.Bytes) != m.CoreSize {
+		return nil, errors.New("native fabric: original held source and compiled reservation required")
+	}
+	control, configuration = bytes.Clone(control), bytes.Clone(configuration)
+	beforeStart := func() error {
+		prepared, err := v.PrepareConfiguration(control, configuration, region)
+		if err != nil {
+			return err
+		}
+		if prepared != source {
+			return errors.New("native fabric: configuration preparation changed cold source")
+		}
+		return nil
+	}
+	return NewConfigurationTransfer(v.cpu, region.Bytes, region, m.DRAMBase, m.ChunkBytes, beforeStart)
 }
 
 // PrepareConfiguration checks the compiled map, staged bytes and fresh closed

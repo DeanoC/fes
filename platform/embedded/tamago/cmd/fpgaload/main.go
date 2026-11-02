@@ -50,17 +50,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	beforeStart := func() error {
-		prepared, err := v.PrepareConfiguration(control, configuration, region)
-		if err != nil {
-			return err
-		}
-		if prepared != source {
-			return fmt.Errorf("FPGA preparation changed cold source")
-		}
-		return nil
-	}
-	retained, err = nativefabric.NewConfigurationTransfer(cpu, []byte(coreImage), region, 0x80000000, 65536, beforeStart)
+	retained, err = v.NewColdConfigurationTransfer(control, configuration, region, source)
 	if err != nil {
 		panic(err) // Board reservation remains pinned, including constructor errors.
 	}
@@ -70,7 +60,7 @@ func main() {
 			return
 		}
 		if status := retained.Status(); status.Failed && status.Outstanding > 0 {
-			observation, err := v.RetireConfiguration(retained, source)
+			observation, err := v.RetireConfiguration(retained, source, configuration)
 			if err != nil {
 				fmt.Printf("FES_NATIVE_FPGA_RETIRE REJECT error=%v retained=%d\n", err, status.RetainedBytes)
 			} else {

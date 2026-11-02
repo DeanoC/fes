@@ -210,7 +210,8 @@ int fes_nano_platform_configuration_setup(void)
     for(unsigned i=0;i<48;i++)nonzero|=configuration_hash[i];
     unsigned qualified=nonzero && !(read_sctlr_el3()&5U) &&
         FES_NANO_CONFIG_BASE==0x94800000ULL && FES_NANO_CONFIG_ARENA_SIZE==(8U<<20) &&
-        FES_NANO_CONFIG_BYTES<=FES_NANO_CONFIG_ARENA_SIZE && FES_NANO_CONFIG_CHUNK==65536U &&
+        FES_NANO_CONFIG_BYTES<=FES_NANO_CONFIG_ARENA_SIZE &&
+        FES_NANO_CONFIG_CHUNK>0 && FES_NANO_CONFIG_CHUNK<=0xffff0U && !(FES_NANO_CONFIG_CHUNK&63U) &&
         sizeof(configuration_chunks)/48==(FES_NANO_CONFIG_BYTES+FES_NANO_CONFIG_CHUNK-1)/FES_NANO_CONFIG_CHUNK;
     struct fes_nano_configuration_ops io={.context=&provider,.check=configuration_check,.trace=configuration_trace};
     return fes_nano_configuration_init(&configuration,&fes_nano_owned_bridges,io,FES_NANO_CONFIG_BASE,

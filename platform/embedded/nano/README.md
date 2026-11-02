@@ -581,6 +581,13 @@ and the fixed transfer mapping. The SDK, entry, SPL and BL31 validators rederive
 the descriptor; omitted or changed core bytes, maps and staging exclusions
 reject. The FPGA core payload is not rebuilt or modified by this path.
 
+The current block-size comparison selects `0xfffc0` (1,048,512) bytes: the
+pinned vendor client's `0xffff0` limit rounded down to a 64-byte boundary.
+Native construction, secure extent/digest checks and trace decoding use the
+same rederived descriptor. The arena, source bytes, held paths and 20-second
+transfer deadline are unchanged. This comparison is hardware unqualified until
+its own complete transfer, readiness and live-identity/reclose trace passes.
+
 | Owner | Range |
 | --- | --- |
 | Native Go RAM | `0x84000000..0x94000000` |

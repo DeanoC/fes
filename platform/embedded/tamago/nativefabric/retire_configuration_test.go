@@ -14,7 +14,7 @@ func failedColdTransfer(t *testing.T, cpu FirmwareCaller) (*HPSContextVerifier, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	transfer, err := NewConfigurationTransfer(cpu, region.Bytes, region, 0x80000000, 65536, func() error { return nil })
+	transfer, err := NewConfigurationTransfer(cpu, region.Bytes, region, 0x80000000, 0xfffc0, func() error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer(t *testing.T) {
 			v, transfer, source := failedColdTransfer(t, cpu)
 			before := transfer.Status()
 			reason := transfer.err
-			observed, err := v.RetireConfiguration(transfer, source)
+			observed, err := v.RetireConfiguration(transfer, source, configurationMapForRetirement(t))
 			success := name == "pass" || name == "diagnostic-timeout" || name == "diagnostic-error"
 			if success {
 				expected := int32(0)
@@ -114,7 +114,7 @@ func TestRetirementNeverReleasesReplaysOrRestoresFailedTransfer(t *testing.T) {
 			if requests != maximum {
 				t.Fatal("unexpected status request", requests)
 			}
-			if _, err = v.RetireConfiguration(transfer, source); err == nil {
+			if _, err = v.RetireConfiguration(transfer, source, configurationMapForRetirement(t)); err == nil {
 				t.Fatal("retirement replayed")
 			}
 			if _, _, err = transfer.Advance(); err != reason || snapshots != 1 || requests != maximum || transfer.Status() != before {
@@ -175,9 +175,15 @@ func TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC(t *test
 			case "fabric":
 				source.Bridges.Capabilities.FabricHandshake = FabricHandshakePresent
 			}
-			if _, err := v.RetireConfiguration(transfer, source); err == nil || calls != 0 {
+			if _, err := v.RetireConfiguration(transfer, source, configurationMapForRetirement(t)); err == nil || calls != 0 {
 				t.Fatal("invalid retirement reached firmware", err, calls)
 			}
 		})
 	}
+}
+
+func configurationMapForRetirement(t *testing.T) []byte {
+	t.Helper()
+	_, mapping, _ := configurationSource(t)
+	return mapping
 }
