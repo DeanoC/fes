@@ -1,5 +1,33 @@
 # Nano recovery uploads and cold serial boot
 
+`upload.UploadSession` owns one live recovery console and supports repeated
+fixed boot/package uploads before native boot. Keep the same session and
+exclusive console for both files, then use `session.verify` for the fresh
+firmware reread. Each upload still checks the card, prefix, protected recovery
+FIT/manifest, Ethernet identity/link, complete download, SD readback and byte
+comparison. The command-line uploader uses a single session for its one file.
+
+The session starts only with an empty scratch window and no existing volatile
+`fes_upload_session` marker. It sets and reads back its own marker without
+saving the environment. Subsequent operations require that marker and the exact
+live DRAM, relocation and complete LMB inventory. Only successful bounded
+FAT/TFTP loads extend its allocation ledger; observing a `none` reservation
+cannot confer ownership. The complete map is checked again before an SD write
+and before reporting success. Smaller later loads preserve the prior maximum;
+adjacent owned ranges coalesce as in the pinned loader. Read-only verification
+is limited to the current identity of a file already verified by this session
+and updates the same ledger.
+
+Any command/proof failure or explicit close retires the session. A lost marker,
+target reset, changed reservation or new session cannot reuse the old scope.
+Concurrent operations and reused receipts reject before I/O. The
+[stopped hardware sequences](../../../docs/validation/2026-11-02-de25-native-fetch-trial/README.md)
+provide the real before/after LMB fixture: the earlier stateless uploader
+rejected the second transfer after a successful first download. This session
+fix currently has software evidence only; it does not establish native core
+execution or runtime admission, and the separate PHY startup timeout remains
+unexplained.
+
 Current matched cold builds also emit `FES_NANO_SPL ATF` immediately before
 branching into BL31. SPL checks the fixed loaded BL31 bytes against its compiled
 SHA-256, the target/argument addresses, completed cold containment, EL3, MMU/data

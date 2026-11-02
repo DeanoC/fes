@@ -7,6 +7,7 @@ import socket
 import struct
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -22,14 +23,29 @@ class Model:
         self.writes=0;self.commands=[];self.memory={};self.boot_reads=0
         self.mac = {'mac-present':'02:fe:25:08:cb:01','mac-uppercase':'02:FE:25:08:CB:01',
                     'wrong-mac':'02:fe:25:08:cb:02'}.get(fault,'')
-        self.phy_reads=0
+        self.phy_reads=0;self.marker="";self.allocations={};self.files={};self.extra_regions=[];self.map_reads=0
     def command(self,c,timeout):
         self.commands.append(c)
         if c=='version':
             return 'U-Boot 2025.01-fes-nano-recovery-'+('' if self.fault=='old-loader' else 'ksz9031-')+'gd0f8813fd6bf'
+        if c=='echo FES_UPLOAD_SESSION=${fes_upload_session}':return 'FES_UPLOAD_SESSION='+self.marker+'\r\n'
+        if c.startswith('setenv fes_upload_session '):self.marker=c.split()[2];return ''
         if c=='bdinfo':
-            reserved='0x82000000-0x82100000' if self.fault=='reserved' else '0xbfa00000-0xbfffffff'
-            return '-> start = 0x80000000\n-> size = 0x40000000\nrelocaddr = 0xbff00000\nreserved.count = 0x1\nreserved[0] ['+reserved+']'
+            self.map_reads+=1
+            rows=[[0,0xffffff,'no-map'],[0xbeaebff0,0xbfffffff,'no-overwrite']]
+            scratch=[]
+            for address,length in sorted(self.allocations.items()):
+                end=address+length-1
+                if scratch and scratch[-1][1]+1>=address:scratch[-1][1]=max(scratch[-1][1],end)
+                else:scratch.append([address,end,'none'])
+            rows+=scratch+self.extra_regions
+            if self.fault=='reserved':rows.append([0x83f00000,0x83ffffff,'none'])
+            rows.sort()
+            lines=['-> start = 0x80000000','-> size = 0x40000000','relocaddr = 0xbfef6000',
+                   'memory.count = 0x1','memory[0] [0x80000000-0xbfffffff], 0x40000000 bytes, flags: none',
+                   'reserved.count = '+hex(len(rows))]
+            lines.extend(f'reserved[{i}] [{a:#x}-{z:#x}], {z-a+1:#x} bytes, flags: {flags}' for i,(a,z,flags) in enumerate(rows))
+            return '\n'.join(lines)
         if c=='mmcinfo':return 'SD version 2.0\nCapacity: 3.7 GiB'
         if c=='mmc part':return '1 32768 262144\n'
         if c.startswith('mmc read'):
@@ -40,8 +56,9 @@ class Model:
                 self.boot_reads+=1
                 data=b'changed' if self.fault=='boot-change' and self.writes else self.kit['fit']
             elif name=='FES/RECOVERY.JSON':data=b'wrong-card' if self.fault=='wrong-card' or self.fault=='manifest-change' and self.writes else self.kit['manifest']
-            else:data=b'corrupt' if self.fault=='readback' else self.payload
+            else:data=b'corrupt' if self.fault=='readback' else self.files.get(name,self.payload)
             self.memory[addr]=data
+            self.allocations[addr]=max(self.allocations.get(addr,0),len(data))
             if (self.fault=='oversize-readback' and name in upload.DESTINATIONS.values()) or (self.fault=='oversize-boot' and name=='u-boot.itb'):
                 return f'1{len(data)} bytes read'
             return f'{len(data)} bytes read'
@@ -67,11 +84,15 @@ class Model:
             if self.fault=='link-timeout' or (self.fault=='link-transient' and self.phy_reads==2):return '7949\r\n'
             return '796D\r\n'
         if c.startswith('tftpboot'):
-            if self.fault=='interrupted':raise TimeoutError('download interrupted')
+            if self.fault=='interrupted':
+                self.allocations[0x82000000]=max(self.allocations.get(0x82000000,0),1)
+                raise TimeoutError('download interrupted')
             self.memory[0x82000000]=self.payload
+            self.allocations[0x82000000]=max(self.allocations.get(0x82000000,0),len(self.payload))
             return f'Bytes transferred = {len(self.payload)} (hex)'
         if c.startswith('fatwrite'):
             self.writes+=1
+            self.files[c.split()[4]]=self.memory[0x82000000]
             if self.fault=='write-timeout':raise TimeoutError('SD write uncertain')
             return f'{len(self.payload)-(self.fault=="short-write")} bytes written'
         if c.startswith('cmp.b'):return f'Total of {len(self.payload)} byte(s) were the same'
@@ -92,7 +113,9 @@ class NanoUploadTests(unittest.TestCase):
             def start(self):pass
             def close(self):self.closed=True
         with patch('builtins.print'),patch.object(upload.time,'sleep'):
-            upload.perform(model,self.kit,self.payload,'192.168.10.202','02:fe:25:08:cb:01',receipt,Server,purpose=purpose)
+            session=upload.UploadSession(model,self.kit,'192.168.10.202','02:fe:25:08:cb:01',Server)
+            self.last_session=session
+            session.upload(self.payload,receipt,purpose=purpose)
         return model,receipt
     def test_success_changes_only_fixed_experimental_file(self):
         model,r=self.run_upload()
@@ -117,7 +140,7 @@ class NanoUploadTests(unittest.TestCase):
         for purpose in ('FES/RECOVERY.JSON','../u-boot.itb','package; boot','',None):
             model=Model(self.kit,self.payload)
             with self.subTest(purpose=purpose),self.assertRaises(ValueError):
-                upload.perform(model,self.kit,self.payload,'192.168.10.202','02:fe:25:08:cb:01',{},purpose=purpose)
+                upload.UploadSession(model,self.kit,'192.168.10.202','02:fe:25:08:cb:01').upload(self.payload,{},purpose=purpose)
             self.assertEqual(model.commands,[])
     def test_identity_and_transfer_failures_never_write_sd(self):
         for fault in ('wrong-card','prefix','download-hash','interrupted','lost-final-ack','reserved','oversize-boot',
@@ -131,7 +154,7 @@ class NanoUploadTests(unittest.TestCase):
                     def start(self):pass
                     def close(self):pass
                 with patch('builtins.print'),self.assertRaises((ValueError,TimeoutError)):
-                    upload.perform(model,self.kit,self.payload,'192.168.10.202','02:fe:25:08:cb:01',r,Server)
+                    upload.UploadSession(model,self.kit,'192.168.10.202','02:fe:25:08:cb:01',Server).upload(self.payload,r)
                 self.assertEqual(model.writes,0);self.assertFalse(r['sd_write_attempted'])
     def test_positive_prestart_status_cannot_bypass_failed_phy_startup(self):
         with self.assertRaises(ValueError):self.run_upload('renegotiation-timeout')
@@ -139,6 +162,197 @@ class NanoUploadTests(unittest.TestCase):
         self.assertGreaterEqual(model.phy_reads,2)
         self.assertEqual(model.commands.count('dhcp'),1)
         self.assertFalse(any(c.startswith(('tftpboot','fatwrite')) for c in model.commands))
+
+    def session(self, model=None):
+        class Server:
+            complete=True
+            thread=type('Thread',(),{'join':lambda self,timeout:None})()
+            def __init__(self,*args):pass
+            def start(self):pass
+            def close(self):pass
+        model=model or Model(self.kit,self.payload)
+        return model,upload.UploadSession(model,self.kit,'192.168.10.202','02:fe:25:08:cb:01',Server)
+
+    def test_actual_hardware_map_matches_completed_upload_and_allows_owned_package_reuse(self):
+        from upload_memory import memory_map
+        fixture=json.loads((ROOT/'tests/fixtures/nano_upload_lmb.json').read_text())
+        self.kit=dict(self.kit,manifest=b'm'*fixture['manifest_bytes'],fit=b'f'*fixture['protected_fit_bytes'])
+        self.kit['fit_sha256']=upload.sha(self.kit['fit'])
+        self.payload=b'x'*fixture['firmware_bytes']
+        model,session=self.session()
+        self.assertEqual(memory_map(model.command('bdinfo',15)),memory_map(fixture['initial']))
+        with patch('builtins.print'):
+            first={'commands':[]};session.upload(self.payload,first)
+            actual=memory_map(model.command('bdinfo',15))
+            self.assertEqual(actual,memory_map(fixture['after_first_upload']))
+            package=b'p'*1649664;model.payload=package
+            second={'commands':[]};session.upload(package,second,purpose='package')
+        self.assertEqual(model.writes,2)
+        self.assertEqual(model.files['FES/UPLOAD.BIN'],self.payload)
+        self.assertEqual(model.files['FES/PKGTEST.BIN'],package)
+        self.assertEqual(first['upload_session'],second['upload_session'])
+        self.assertEqual([r['stage'] for r in second['memory_observations']],['admit','before-sd-write','complete'])
+        self.assertEqual(memory_map(model.command('bdinfo',15)),actual)
+        self.assertFalse(session.retired)
+        self.assertEqual(sum(c.startswith('setenv fes_upload_session ') for c in model.commands),1)
+
+    def test_growing_and_shrinking_payloads_preserve_owned_maximum_and_fixed_destinations(self):
+        model,session=self.session()
+        with patch('builtins.print'):
+            for size,purpose in ((1,'boot'),(upload.LIMIT,'package'),(17,'boot')):
+                model.payload=b'x'*size
+                receipt={'commands':[]};session.upload(model.payload,receipt,purpose=purpose)
+                self.assertEqual(receipt['status'],'verified')
+                self.assertTrue(receipt['sd_readback_verified'] and receipt['boot_files_unchanged'])
+        self.assertEqual(model.writes,3)
+        self.assertEqual(session.memory.owned,[[0x82000000,0x83000007,'none']])
+
+    def test_marker_loss_or_reset_retires_session_before_next_transfer(self):
+        for reset in (False,True):
+            with self.subTest(reset=reset),patch('builtins.print'):
+                model,session=self.session()
+                session.upload(model.payload,{'commands':[]})
+                marker=model.marker;model.marker=''
+                if reset:model.allocations.clear()
+                begin=len(model.commands)
+                with self.assertRaisesRegex(ValueError,'marker'):
+                    session.upload(model.payload,{'commands':[]},purpose='package')
+                self.assertFalse(any(c.startswith(('dhcp','tftpboot','fatwrite')) for c in model.commands[begin:]))
+                model.marker=marker;count=len(model.commands)
+                with self.assertRaisesRegex(ValueError,'retired'):session.upload(model.payload,{'commands':[]})
+                self.assertEqual(len(model.commands),count);self.assertEqual(model.writes,1)
+
+    def test_new_session_never_adopts_old_flags_none_reservations(self):
+        with patch('builtins.print'):
+            model,session=self.session();session.upload(model.payload,{'commands':[]});session.close()
+            for clear_marker in (False,True):
+                with self.subTest(clear_marker=clear_marker):
+                    if clear_marker:model.marker=''
+                    _,new=self.session(model);begin=len(model.commands)
+                    with self.assertRaises(ValueError):new.upload(model.payload,{'commands':[]},purpose='package')
+                    self.assertTrue(new.retired)
+                    self.assertFalse(any(c.startswith(('fatload','mmc read','dhcp','tftpboot','fatwrite')) for c in model.commands[begin:]))
+            self.assertEqual(model.writes,1)
+
+    def test_changed_inventory_or_receipt_mutation_never_grants_foreign_ownership(self):
+        for fault in ('foreign','protected','lost-allocation','caller-mutation'):
+            with self.subTest(fault=fault),patch('builtins.print'):
+                model,session=self.session();receipt={'commands':[]};session.upload(model.payload,receipt)
+                if fault=='lost-allocation':model.allocations.pop(0x82800000)
+                else:
+                    flags='no-overwrite' if fault=='protected' else 'none'
+                    model.extra_regions.append([0x84000000,0x8400000f,flags])
+                    if fault=='caller-mutation':
+                        receipt['memory_observations'][0]['map']['reserved'].append([0x84000000,0x8400000f,'none'])
+                begin=len(model.commands)
+                with self.assertRaisesRegex(ValueError,'LMB'):session.upload(model.payload,{'commands':[]},purpose='package')
+                self.assertEqual(model.writes,1);self.assertTrue(session.retired)
+                self.assertFalse(any(c.startswith(('fatload','dhcp','tftpboot','fatwrite')) for c in model.commands[begin:]))
+
+    def test_unexpected_reservation_after_download_stops_before_sd_write(self):
+        for flags in ('none','no-overwrite'):
+            with self.subTest(flags=flags),patch('builtins.print'):
+                model,session=self.session();original=model.command
+                def changed(command,timeout):
+                    result=original(command,timeout)
+                    if command.startswith('tftpboot'):model.extra_regions.append([0x83f00000,0x83f0000f,flags])
+                    return result
+                model.command=changed;receipt={'commands':[]}
+                with self.assertRaisesRegex(ValueError,'LMB'):session.upload(model.payload,receipt)
+                self.assertTrue(receipt['download_verified'])
+                self.assertFalse(receipt['sd_write_attempted']);self.assertEqual(model.writes,0)
+                self.assertEqual(receipt['status'],'failed');self.assertTrue(session.retired)
+
+    def test_write_failure_and_close_prevent_replay_through_same_session(self):
+        for fault in ('write-timeout','interrupted',''):
+            with self.subTest(fault=fault),patch('builtins.print'):
+                model,session=self.session();model.fault=fault
+                if fault:
+                    with self.assertRaises(TimeoutError):session.upload(model.payload,{'commands':[]})
+                else:
+                    session.upload(model.payload,{'commands':[]});session.close()
+                count=len(model.commands);writes=model.writes
+                model.fault=''
+                with self.assertRaisesRegex(ValueError,'retired'):session.upload(model.payload,{'commands':[]})
+                self.assertEqual(len(model.commands),count);self.assertEqual(model.writes,writes)
+
+    def test_verified_receipt_cannot_be_reused_for_another_upload(self):
+        with patch('builtins.print'):
+            model,session=self.session();receipt={'commands':[]};session.upload(model.payload,receipt)
+            count=len(model.commands)
+            with self.assertRaisesRegex(ValueError,'fresh'):session.upload(model.payload,receipt)
+            self.assertEqual(len(model.commands),count);self.assertEqual(model.writes,1)
+
+    def test_read_only_firmware_verification_keeps_owned_ledger_for_later_uploads(self):
+        model,session=self.session()
+        boot=b'a'*4096;package=b'b'*2048
+        with patch('builtins.print'):
+            model.payload=boot;session.upload(boot,{'commands':[]})
+            model.payload=package;session.upload(package,{'commands':[]},purpose='package')
+            fresh={'commands':[]};session.verify(boot,fresh)
+            self.assertEqual(fresh['status'],'verified');self.assertTrue(fresh['read_only'] and fresh['fresh_readback'])
+            self.assertFalse(fresh['sd_write_attempted']);self.assertEqual(model.writes,2)
+            self.assertEqual(sum(c['command'].startswith('fatload') for c in fresh['commands']),1)
+            self.assertFalse(any(c['command'].startswith(('dhcp','tftpboot','fatwrite','mmc write')) for c in fresh['commands']))
+            again={'commands':[]};session.upload(package,again,purpose='package')
+        self.assertEqual(model.writes,3);self.assertEqual(again['status'],'verified')
+        self.assertEqual(fresh['upload_session'],again['upload_session'])
+
+    def test_fresh_read_rejects_unknown_or_stale_file_identity_without_io(self):
+        for wrong in ('not-uploaded','wrong-size','wrong-hash','overwritten'):
+            with self.subTest(wrong=wrong),patch('builtins.print'):
+                model,session=self.session();expected=model.payload
+                if wrong!='not-uploaded':session.upload(expected,{'commands':[]})
+                if wrong=='wrong-size':expected+=b'x'
+                if wrong=='wrong-hash':expected=b'z'*len(expected)
+                if wrong=='overwritten':
+                    model.payload=b'q'*len(expected);session.upload(model.payload,{'commands':[]})
+                count=len(model.commands)
+                with self.assertRaisesRegex(ValueError,'not verified'):session.verify(expected,{'commands':[]})
+                self.assertTrue(session.retired);self.assertEqual(len(model.commands),count)
+
+    def test_corrupt_fresh_read_stops_and_retires_without_writing(self):
+        for fault in ('length','hash','marker','memory'):
+            with self.subTest(fault=fault),patch('builtins.print'):
+                model,session=self.session();session.upload(model.payload,{'commands':[]})
+                original=model.command
+                def corrupt(command,timeout):
+                    output=original(command,timeout)
+                    if command.startswith('fatload') and command.endswith('FES/UPLOAD.BIN'):
+                        if fault=='length':return '1 bytes read'
+                        if fault=='hash':model.memory[0x83000000]=b'wrong content'
+                        if fault=='marker':model.marker=''
+                        if fault=='memory':model.extra_regions.append([0x84000000,0x8400000f,'none'])
+                    return output
+                model.command=corrupt;receipt={'commands':[]}
+                with self.assertRaises(ValueError):session.verify(model.payload,receipt)
+                self.assertFalse(receipt['fresh_readback']);self.assertFalse(receipt['sd_write_attempted'])
+                self.assertEqual(receipt['status'],'failed');self.assertTrue(session.retired);self.assertEqual(model.writes,1)
+
+    def test_concurrent_operation_and_close_reject_without_interleaving_commands(self):
+        model,session=self.session()
+        entered=threading.Event();release=threading.Event();errors=[]
+        original=model.command
+        def paused(command,timeout):
+            if command=='version':
+                entered.set()
+                if not release.wait(3):raise TimeoutError('test did not release upload')
+            return original(command,timeout)
+        model.command=paused
+        def worker():
+            try:session.upload(model.payload,{'commands':[]})
+            except BaseException as error:errors.append(error)
+        with patch('builtins.print'):
+            thread=threading.Thread(target=worker,daemon=True);thread.start()
+            try:
+                self.assertTrue(entered.wait(2))
+                count=len(model.commands)
+                with self.assertRaisesRegex(ValueError,'active'):session.upload(model.payload,{'commands':[]})
+                with self.assertRaisesRegex(ValueError,'active'):session.close()
+                self.assertEqual(len(model.commands),count)
+            finally:
+                release.set();thread.join(5)
+        self.assertFalse(thread.is_alive());self.assertEqual(errors,[]);self.assertEqual(model.writes,1)
 
     @unittest.skipUnless(all(shutil.which(n) for n in ('mformat','mmd','mcopy')),'mtools required')
     def test_recovery_kit_binds_the_actual_phy_profile_and_rejects_old_metadata(self):
@@ -196,7 +410,7 @@ class NanoUploadTests(unittest.TestCase):
     def test_size_and_mac_rejected_before_console_commands(self):
         model=Model(self.kit,self.payload)
         for data,mac in ((b'','02:fe:25:08:cb:01'),(b'x'*(upload.LIMIT+1),'02:fe:25:08:cb:01'),(b'x','ff:ff:ff:ff:ff:ff')):
-            with self.assertRaises(ValueError):upload.perform(model,self.kit,data,'192.168.10.202',mac,{'commands':[]})
+            with self.assertRaises(ValueError):upload.UploadSession(model,self.kit,'192.168.10.202',mac).upload(data,{'commands':[]})
         self.assertEqual(model.commands,[])
     def test_claim_refuses_other_owner_and_preserves_uncertain_claim(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -218,7 +432,7 @@ class NanoUploadTests(unittest.TestCase):
             def close(self):pass
         owns=lambda:not any(c.startswith('tftpboot') for c in model.commands)
         with patch('builtins.print'),self.assertRaisesRegex(ValueError,'claim ownership changed'):
-            upload.perform(model,self.kit,self.payload,'192.168.10.202','02:fe:25:08:cb:01',receipt,Server,owns)
+            upload.UploadSession(model,self.kit,'192.168.10.202','02:fe:25:08:cb:01',Server,owns).upload(self.payload,receipt)
         self.assertFalse(receipt['sd_write_attempted']);self.assertEqual(model.writes,0)
     def test_default_cli_plan_never_claims_or_opens_a_console(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -266,6 +480,36 @@ class NanoUploadTests(unittest.TestCase):
                         server.thread.join(2);self.assertTrue(server.complete)
             finally:server.close()
             self.assertEqual(server.complete,finish)
+
+
+class NanoUploadMemoryTests(unittest.TestCase):
+    def test_actual_map_parser_rejects_incomplete_ambiguous_and_changed_metadata(self):
+        from upload_memory import memory_map
+        fixture=json.loads((ROOT/'tests/fixtures/nano_upload_lmb.json').read_text())
+        initial=fixture['initial'];after=fixture['after_first_upload']
+        self.assertEqual(len(memory_map(initial)['reserved']),2)
+        self.assertEqual(len(memory_map(after)['reserved']),5)
+        changes=[
+            initial.replace('reserved.count = 0x2','reserved.count = 0x3'),
+            initial.replace('reserved[1]','reserved[0]'),
+            initial.replace('0x1000000 bytes','0x1000001 bytes'),
+            initial.replace('flags: no-map','flags: invalid 0x1'),
+            initial.replace('flags: no-map','flags: none, no-map'),
+            initial.replace('reserved[1]','reserved[01]')+'\nreserved[2] malformed\n',
+            initial.replace('-> size     = 0x0000000040000000','-> size     = 0x0000000080000000'),
+            initial.replace('memory.count = 0x1','memory.count = 0x0'),
+            initial.replace('no-overwrite','no-overwrite, no-overwrite'),
+            after.replace('0x8264cf43','0x819fffff'),
+            initial+'\nreserved.count = 0x2\n',
+            initial+'\n-> start = 0x90000000\n-> size = malformed\n',
+        ]
+        for value in changes:
+            with self.subTest(value=value[-120:]),self.assertRaises(ValueError):memory_map(value)
+
+    def test_flags_none_alone_never_confers_initial_ownership(self):
+        from upload_memory import ScratchMemory
+        fixture=json.loads((ROOT/'tests/fixtures/nano_upload_lmb.json').read_text())
+        with self.assertRaisesRegex(ValueError,'unowned'):ScratchMemory().observe(fixture['after_first_upload'])
 
 
 if __name__=='__main__':unittest.main()

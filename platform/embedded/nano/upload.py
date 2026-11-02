@@ -6,6 +6,7 @@ card, downloads to RAM, then writes one fixed boot or package diagnostic file.
 No boot, flash, raw SD writes, boot FIT replacement or automatic activation.
 """
 import argparse
+from contextlib import contextmanager
 import datetime
 import fcntl
 import hashlib
@@ -17,10 +18,12 @@ from pathlib import Path
 import re
 import secrets
 import time
+import threading
 
 from upload_transport import Console, Transfer
 from cold_profile import EXPERIMENTAL_FILE, MAX_FIT_SIZE
 import recovery
+from upload_memory import ScratchMemory
 
 ROOT = Path(__file__).resolve().parents[3]
 BOARD = 'TRWU8CBL'
@@ -74,125 +77,220 @@ def destination(purpose):
     return DESTINATIONS[purpose]
 
 
-def perform(console, kit, payload, host, mac, receipt, serve=Transfer, owns=lambda:True, *, purpose='boot'):
-    target=destination(purpose)
-    if not 0 < len(payload) <= LIMIT: raise ValueError('payload must be 1 byte through 8 MiB')
-    settings(host,mac)
-    def command(value, timeout=15):
-        if not owns():raise ValueError('kit claim ownership changed')
+class UploadSession:
+    """One exclusive live console and volatile boot marker own their scratch loads.
+
+    Repeated uploads retain the same object and console. Close or any I/O/proof
+    failure retires it. A new session never adopts existing RAM reservations.
+    """
+    def __init__(self, console, kit, host, mac, serve=Transfer, owns=lambda: True):
+        settings(host, mac)
+        self.console, self.kit, self.host, self.mac = console, dict(kit), host, mac
+        self.kit.update(fit=bytes(kit['fit']), manifest=bytes(kit['manifest']))
+        self.serve, self.owns = serve, owns
+        self.memory = ScratchMemory()
+        self.token = secrets.token_hex(16)
+        self.retired = False
+        self.guard = threading.Lock()
+        self.verified = {}
+
+    def close(self):
+        if not self.guard.acquire(blocking=False):
+            raise ValueError('upload session is active')
+        try:
+            self.retired = True
+        finally:
+            self.guard.release()
+
+    def upload(self, payload, receipt, *, purpose='boot'):
+        destination(purpose)
+        if not 0 < len(payload) <= LIMIT:
+            raise ValueError('payload must be 1 byte through 8 MiB')
+        payload = bytes(payload)
+        with self._operation(receipt):
+            self._upload(payload, receipt, purpose)
+            self.verified[purpose] = (len(payload), sha(payload))
+
+    def verify(self, payload, receipt, *, purpose='boot'):
+        """Freshly read/hash a fixed file already verified in this live session."""
+        target = destination(purpose)
+        if not 0 < len(payload) <= LIMIT:
+            raise ValueError('payload must be 1 byte through 8 MiB')
+        expected = (len(payload), sha(bytes(payload)))
+        with self._operation(receipt):
+            receipt.update(read_only=True, fresh_readback=False, purpose=purpose,
+                           payload_bytes=expected[0], payload_sha256=expected[1], destination=target)
+            if self.verified.get(purpose) != expected:
+                raise ValueError('file was not verified by this live upload session')
+            def command(value, timeout=15):
+                return self._command(receipt, value, timeout)
+            self._observe_memory(command, receipt, 'admit')
+            output = command('fatload mmc 0:1 83000000 '+target, 60)
+            if not re.search(r'(?m)^\s*'+str(expected[0])+r' bytes read(?:\s|$)', output):
+                raise ValueError('fresh SD read length differs')
+            digest = command('hash sha256 83000000 '+format(expected[0], 'x'))
+            if not re.search(r'(?i)(?<![0-9a-f])'+expected[1]+r'(?![0-9a-f])', digest):
+                raise ValueError('fresh SD read hash differs')
+            self.memory.loaded(0x83000000, expected[0])
+            self._observe_memory(command, receipt, 'complete')
+            receipt.update(status='verified', fresh_readback=True, sd_readback_verified=True)
+
+    @contextmanager
+    def _operation(self, receipt):
+        if receipt.get('commands') != [] or receipt.get('sd_write_attempted', False) is not False or receipt.get('status') == 'verified':
+            raise ValueError('upload receipt must be fresh')
+        if not self.guard.acquire(blocking=False):
+            raise ValueError('upload session is active')
+        try:
+            if self.retired:
+                raise ValueError('upload session is retired')
+            receipt.update(status='running', upload_session=self.token, memory_observations=[], sd_write_attempted=False)
+            yield
+        except BaseException:
+            self.retired = True
+            receipt['status'] = 'failed'
+            receipt['session_retired'] = True
+            raise
+        finally:
+            self.guard.release()
+
+    def _command(self, receipt, value, timeout=15):
+        if not self.owns():
+            raise ValueError('kit claim ownership changed')
         receipt['stage'] = value
-        print('Nano upload: ' + value, flush=True)
-        output = console.command(value, timeout)
-        if not owns():raise ValueError('kit claim ownership changed')
+        print('Nano upload: '+value, flush=True)
+        output = self.console.command(value, timeout)
+        if not self.owns():
+            raise ValueError('kit claim ownership changed')
         receipt['commands'].append({'command': value, 'output': output})
         return output
-    def digest(address, size, expected):
-        output = command(f'hash sha256 {address:x} {size:x}')
-        if not re.search(r'(?i)(?<![0-9a-f])' + expected + r'(?![0-9a-f])', output):
-            raise ValueError('readback hash differs')
-    def byte_count(output, size, action):
-        return re.search(r'(?m)^\s*'+str(size)+r' bytes '+action+r'(?:\s|$)', output)
-    def prefix():
-        if '32768 blocks read: OK' not in command('mmc read 83000000 0 8000', 45):
-            raise ValueError('protected prefix read failed')
-        digest(0x83000000, PREFIX_SIZE, kit['prefix_sha256'])
-    def boot_file():
-        if not byte_count(command('fatload mmc 0:1 83000000 u-boot.itb', 30),len(kit['fit']),'read'):
-            raise ValueError('boot FIT length differs')
-        digest(0x83000000, len(kit['fit']), kit['fit_sha256'])
-    def recovery_manifest(address):
-        if not byte_count(command(f'fatload mmc 0:1 {address:x} FES/RECOVERY.JSON'),len(kit['manifest']),'read'):
-            raise ValueError('wrong recovery card manifest')
-        digest(address,len(kit['manifest']),sha(kit['manifest']))
-    if 'U-Boot 2025.01'+recovery.LOCALVERSION+'-' not in command('version'):
-        raise ValueError('not the expected recovery loader')
-    info = command('bdinfo')
-    banks = re.findall(r'-> start\s*=\s*(0x[0-9a-fA-F]+).*?-> size\s*=\s*(0x[0-9a-fA-F]+)', info, re.S)
-    reloc = re.search(r'relocaddr\s*=\s*(0x[0-9a-fA-F]+)', info)
-    if (not any(int(start,16)==0x80000000 and int(size,16)==0x40000000 for start,size in banks) or
-            not reloc or int(reloc[1],16) <= 0x85000000):
-        raise ValueError('scratch RAM is not qualified by live memory map')
-    count=re.search(r'reserved\.count\s*=\s*(0x[0-9a-fA-F]+)',info)
-    reserved=re.findall(r'reserved\[\d+\]\s+\[(0x[0-9a-fA-F]+)-(0x[0-9a-fA-F]+)\]',info)
-    if not count or len(reserved)!=int(count[1],16) or any(
-            int(end,16)<int(start,16) or (int(start,16)<0x84000000 and int(end,16)>=0x82000000)
-            for start,end in reserved):
-        raise ValueError('scratch RAM overlaps a reservation or live reservations are unavailable')
-    command('mmc dev 0')
-    info = command('mmcinfo')
-    if 'SD version' not in info or '3.7 GiB' not in info: raise ValueError('wrong spare card capacity/type')
-    if not re.search(r'(?m)^\s*1\s+32768\s+262144\s', command('mmc part')):
-        raise ValueError('wrong spare partition layout')
-    prefix(); boot_file()
-    recovery_manifest(0x82000000)
-    receipt['card_verified'] = True
-    for value in ('setenv autoload no', 'setenv netretry no', 'setenv bootpretryperiod 10000',
-                  'setenv tftptimeout 1000', 'setenv tftptimeoutcountmax 3'):
-        command(value)
-    def current_mac():
-        match = re.search(r'(?m)^FES_UPLOAD_ETHADDR=([^\r\n]*)\r?$',
-                          command('echo FES_UPLOAD_ETHADDR=${ethaddr}'))
-        if not match: raise ValueError('recovery MAC observation missing')
-        return match[1].strip().lower()
-    observed = current_mac()
-    if not observed:
-        command('setenv ethaddr ' + mac)
+
+    def _observe_memory(self, command, receipt, stage):
+        def marker():
+            out = command('echo FES_UPLOAD_SESSION=${fes_upload_session}')
+            values = re.findall(r'(?m)^FES_UPLOAD_SESSION=([^\r\n]*)\r?$', out)
+            if len(values) != 1:
+                raise ValueError('upload session marker observation missing')
+            return values[0]
+        first = self.memory.baseline is None
+        if marker() != ('' if first else self.token):
+            raise ValueError('upload session boot marker differs')
+        observed = self.memory.observe(command('bdinfo'))
+        if first:
+            command('setenv fes_upload_session '+self.token)
+            if marker() != self.token:
+                raise ValueError('upload session boot marker not retained')
+        receipt['memory_observations'].append(dict(stage=stage, map=observed))
+        receipt['scratch_owned'] = [list(row) for row in self.memory.owned]
+
+    def _upload(self, payload, receipt, purpose):
+        kit, host, mac = self.kit, self.host, self.mac
+        serve = self.serve
+        target=destination(purpose)
+        def command(value, timeout=15):
+            return self._command(receipt, value, timeout)
+        def digest(address, size, expected):
+            output = command(f'hash sha256 {address:x} {size:x}')
+            if not re.search(r'(?i)(?<![0-9a-f])' + expected + r'(?![0-9a-f])', output):
+                raise ValueError('readback hash differs')
+        def byte_count(output, size, action):
+            return re.search(r'(?m)^\s*'+str(size)+r' bytes '+action+r'(?:\s|$)', output)
+        def prefix():
+            if '32768 blocks read: OK' not in command('mmc read 83000000 0 8000', 45):
+                raise ValueError('protected prefix read failed')
+            digest(0x83000000, PREFIX_SIZE, kit['prefix_sha256'])
+        def boot_file():
+            if not byte_count(command('fatload mmc 0:1 83000000 u-boot.itb', 30),len(kit['fit']),'read'):
+                raise ValueError('boot FIT length differs')
+            digest(0x83000000, len(kit['fit']), kit['fit_sha256'])
+            self.memory.loaded(0x83000000, len(kit['fit']))
+        def recovery_manifest(address):
+            if not byte_count(command(f'fatload mmc 0:1 {address:x} FES/RECOVERY.JSON'),len(kit['manifest']),'read'):
+                raise ValueError('wrong recovery card manifest')
+            digest(address,len(kit['manifest']),sha(kit['manifest']))
+            self.memory.loaded(address, len(kit['manifest']))
+        if 'U-Boot 2025.01'+recovery.LOCALVERSION+'-' not in command('version'):
+            raise ValueError('not the expected recovery loader')
+        self._observe_memory(command, receipt, 'admit')
+        command('mmc dev 0')
+        info = command('mmcinfo')
+        if 'SD version' not in info or '3.7 GiB' not in info: raise ValueError('wrong spare card capacity/type')
+        if not re.search(r'(?m)^\s*1\s+32768\s+262144\s', command('mmc part')):
+            raise ValueError('wrong spare partition layout')
+        prefix(); boot_file()
+        recovery_manifest(0x82000000)
+        receipt['card_verified'] = True
+        for value in ('setenv autoload no', 'setenv netretry no', 'setenv bootpretryperiod 10000',
+                      'setenv tftptimeout 1000', 'setenv tftptimeoutcountmax 3'):
+            command(value)
+        def current_mac():
+            match = re.search(r'(?m)^FES_UPLOAD_ETHADDR=([^\r\n]*)\r?$',
+                              command('echo FES_UPLOAD_ETHADDR=${ethaddr}'))
+            if not match: raise ValueError('recovery MAC observation missing')
+            return match[1].strip().lower()
         observed = current_mac()
-    if observed != mac.lower(): raise ValueError('recovery MAC differs; no overwrite permitted')
-    receipt['recovery_mac'] = observed
-    # The loader probes Ethernet lazily. Probe before sampling its MDIO bus;
-    # a positive link observation must precede DHCP, not a fixed startup delay.
-    if 'ethernet@10810000' not in command('net list'):
-        raise ValueError('expected recovery Ethernet device absent')
-    def phy_read(register):
-        samples = re.findall(r'(?m)^([0-9a-fA-F]{4})\r?$', command(f'mii read {recovery.PHY["address"]:x} {register:x}',5))
-        if len(samples)!=1 or int(samples[0],16)==0xffff:raise ValueError('unknown recovery PHY register')
-        return int(samples[0],16)
-    phy_id=(phy_read(2)<<16)|phy_read(3)
-    if phy_id!=recovery.PHY['id']:raise ValueError('recovery PHY identity differs')
-    receipt['phy_id']=phy_id
-    deadline = time.monotonic() + 20
-    ready = 0
-    while time.monotonic() < deadline:
-        status = phy_read(1)
-        receipt.setdefault('phy_samples', []).append(status)
-        # Pinned linux/mii.h: BMSR_LSTATUS=4, BMSR_ANEGCOMPLETE=32.
-        ready = ready + 1 if status & 0x24 == 0x24 else 0
-        if ready == 2: break
-        time.sleep(.25)
-    else: raise TimeoutError('recovery PHY link/negotiation deadline')
-    receipt['phy_link_verified'] = True
-    match = re.search(r'DHCP client bound to address (\d+\.\d+\.\d+\.\d+)', command('dhcp', 25))
-    if not match: raise ValueError('no observed DHCP client')
-    client = str(ipaddress.IPv4Address(match[1]))
-    if client == host or ipaddress.ip_address(client).is_multicast or client == '0.0.0.0':
-        raise ValueError('invalid client address')
-    receipt['client_ip'] = client
-    command('setenv serverip ' + host)
-    filename = 'U' + secrets.token_hex(3).upper() + '.BIN'
-    server = serve(host, client, filename, payload)
-    try:
-        server.start()
-        if not re.search(r'(?m)^Bytes transferred = '+str(len(payload))+r'\s',command('tftpboot 82000000 '+filename,90)):
-            raise ValueError('incomplete download')
-        server.thread.join(timeout=3)
-        if not server.complete: raise ValueError('host did not observe complete TFTP acknowledgement')
-        digest(0x82000000, len(payload), sha(payload))
-    finally: server.close()
-    receipt['download_verified'] = True
-    receipt['sd_write_attempted'] = True
-    if not byte_count(command(f'fatwrite mmc 0:1 82000000 {target} {len(payload):x}',60),len(payload),'written'):
-        raise ValueError('incomplete SD write; experimental file may be partial')
-    command(f'mw.b 82800000 a5 {len(payload):x}')
-    if not byte_count(command('fatload mmc 0:1 82800000 '+target,60),len(payload),'read'):
-        raise ValueError('incomplete SD readback')
-    digest(0x82800000, len(payload), sha(payload))
-    if f'{len(payload)} byte(s) were the same' not in command(f'cmp.b 82000000 82800000 {len(payload):x}', 30):
-        raise ValueError('SD byte comparison failed')
-    receipt['sd_readback_verified'] = True
-    prefix(); boot_file(); recovery_manifest(0x83000000)
-    receipt['boot_files_unchanged'] = True
-    receipt.update(status='verified', stage='complete', destination=target, purpose=purpose, recovery_manifest_unchanged=True)
+        if not observed:
+            command('setenv ethaddr ' + mac)
+            observed = current_mac()
+        if observed != mac.lower(): raise ValueError('recovery MAC differs; no overwrite permitted')
+        receipt['recovery_mac'] = observed
+        # The loader probes Ethernet lazily. Probe before sampling its MDIO bus;
+        # a positive link observation must precede DHCP, not a fixed startup delay.
+        if 'ethernet@10810000' not in command('net list'):
+            raise ValueError('expected recovery Ethernet device absent')
+        def phy_read(register):
+            samples = re.findall(r'(?m)^([0-9a-fA-F]{4})\r?$', command(f'mii read {recovery.PHY["address"]:x} {register:x}',5))
+            if len(samples)!=1 or int(samples[0],16)==0xffff:raise ValueError('unknown recovery PHY register')
+            return int(samples[0],16)
+        phy_id=(phy_read(2)<<16)|phy_read(3)
+        if phy_id!=recovery.PHY['id']:raise ValueError('recovery PHY identity differs')
+        receipt['phy_id']=phy_id
+        deadline = time.monotonic() + 20
+        ready = 0
+        while time.monotonic() < deadline:
+            status = phy_read(1)
+            receipt.setdefault('phy_samples', []).append(status)
+            # Pinned linux/mii.h: BMSR_LSTATUS=4, BMSR_ANEGCOMPLETE=32.
+            ready = ready + 1 if status & 0x24 == 0x24 else 0
+            if ready == 2: break
+            time.sleep(.25)
+        else: raise TimeoutError('recovery PHY link/negotiation deadline')
+        receipt['phy_link_verified'] = True
+        match = re.search(r'DHCP client bound to address (\d+\.\d+\.\d+\.\d+)', command('dhcp', 25))
+        if not match: raise ValueError('no observed DHCP client')
+        client = str(ipaddress.IPv4Address(match[1]))
+        if client == host or ipaddress.ip_address(client).is_multicast or client == '0.0.0.0':
+            raise ValueError('invalid client address')
+        receipt['client_ip'] = client
+        command('setenv serverip ' + host)
+        filename = 'U' + secrets.token_hex(3).upper() + '.BIN'
+        server = serve(host, client, filename, payload)
+        try:
+            server.start()
+            if not re.search(r'(?m)^Bytes transferred = '+str(len(payload))+r'\s',command('tftpboot 82000000 '+filename,90)):
+                raise ValueError('incomplete download')
+            server.thread.join(timeout=3)
+            if not server.complete: raise ValueError('host did not observe complete TFTP acknowledgement')
+            digest(0x82000000, len(payload), sha(payload))
+            self.memory.loaded(0x82000000, len(payload))
+        finally: server.close()
+        receipt['download_verified'] = True
+        self._observe_memory(command, receipt, 'before-sd-write')
+        receipt['sd_write_attempted'] = True
+        if not byte_count(command(f'fatwrite mmc 0:1 82000000 {target} {len(payload):x}',60),len(payload),'written'):
+            raise ValueError('incomplete SD write; experimental file may be partial')
+        command(f'mw.b 82800000 a5 {len(payload):x}')
+        if not byte_count(command('fatload mmc 0:1 82800000 '+target,60),len(payload),'read'):
+            raise ValueError('incomplete SD readback')
+        digest(0x82800000, len(payload), sha(payload))
+        self.memory.loaded(0x82800000, len(payload))
+        if f'{len(payload)} byte(s) were the same' not in command(f'cmp.b 82000000 82800000 {len(payload):x}', 30):
+            raise ValueError('SD byte comparison failed')
+        receipt['sd_readback_verified'] = True
+        prefix(); boot_file(); recovery_manifest(0x83000000)
+        self._observe_memory(command, receipt, 'complete')
+        receipt['boot_files_unchanged'] = True
+        receipt.update(status='verified', stage='complete', destination=target, purpose=purpose, recovery_manifest_unchanged=True)
 
 
 class Claim:
@@ -263,7 +361,9 @@ def main():
             with (output/'console.log').open('wb') as log:
                 try:
                     console=Console('/dev/serial/by-id/usb-TERASIC_DE25-Nano_'+BOARD+'-if02-port0',log)
-                    perform(console,kit,payload,args.host_ip,args.mac.lower(),receipt,owns=claim.owns,purpose=args.purpose)
+                    session=UploadSession(console,kit,args.host_ip,args.mac.lower(),owns=claim.owns)
+                    try:session.upload(payload,receipt,purpose=args.purpose)
+                    finally:session.close()
                 finally:
                     if console is not None:
                         if not console.parked and claim.owns():
