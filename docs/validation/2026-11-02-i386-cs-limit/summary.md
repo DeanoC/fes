@@ -33,8 +33,8 @@ as not built.
 - The pc386 suites, the governor bench and test386 on the RTL give slice
   2's results: the boot on Bochs, system, devices and the governor bench
   pass, the governor suite meets the bench gap #1372 at 386DX-25 as
-  before, test386 stops at POST 08h's paging as before, and BOOTRTL
-  ([Machine](#pc386-suites-governor-and-test386)).
+  before, test386 stops at POST 08h's paging as before, and FreeDOS boots
+  on the RTL with a report byte for byte slice 2's ([Machine](#pc386-suites-governor-and-test386)).
 - Quartus 17.0.2 seals `fes.pc386` from a clean checkout of `5d231b804`:
   every analysis passes at 61.44 MHz, the system clock at 72.76-73.53 MHz
   across the slow corners (setup +2.533 ns; slice 2's final seal 69.5-69.9
@@ -232,7 +232,7 @@ finished, so it gives no result either way.
 | Run | Result |
 | --- | --- |
 | `--suite boot` (oracle) ([report](boot-oracle-report.json)) | Pass: `C:\>` at 4.3 s; the VGA replay has 0 mismatches |
-| `--suite boot --cpu rtl` ([report](boot-rtl-report.json)) | BOOTRTL |
+| `--suite boot --cpu rtl` ([report](boot-rtl-report.json)) | Pass, its report byte for byte slice 2's: `C:\>` at 2.35 s; all 113,096,898 instructions retired on the RTL, with 0 oracle steps and 0 stops; the VGA replay has 0 mismatches |
 | `--suite system` ([report](system-report.json)) | Pass: `C:\>` at 3.309 s, all 16 checks, as in slice 2's record |
 | `--suite devices` ([report](devices-report.json)) | 132 checks pass |
 | `--suite governor` ([report](governor-report.json)) | As slice 2: `max`, 286-12, 386SX-16 and 386DX-40 pass with TP 210,892, 27,453, 39,932 and 104,609, each within 0.04% of the table. 386DX-25 prints `GOV TP=0000FF5F DC=04A4 C18=0011F492`, slice 2's, then `system_tb` throws `port 2: a write burst cut short, then another begun at clock 119811804`, the bench gap [#1372](https://github.com/DeanoC/fes/issues/1372), at slice 2's clock |
