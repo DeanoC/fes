@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 )
 
@@ -133,4 +134,33 @@ func writeInput(handle *os.Root, name string, data []byte, spool *SpooledInput) 
 		return fmt.Errorf("core package: publish input spool: %w", err)
 	}
 	return nil
+}
+
+var spoolNameRE = regexp.MustCompile(`^\.input-[0-9a-f]{32}$`)
+
+// RemoveSpools deletes spools a crashed process left in the staging root.
+// Call it only before the root serves any launch: a live spool has no other
+// owner marker.
+func RemoveSpools(root string) error {
+	handle, err := os.OpenRoot(root)
+	if err != nil {
+		return err
+	}
+	defer handle.Close()
+	directory, err := handle.Open(".")
+	if err != nil {
+		return err
+	}
+	entries, err := directory.ReadDir(-1)
+	_ = directory.Close()
+	if err != nil {
+		return err
+	}
+	var removeErr error
+	for _, entry := range entries {
+		if entry.Type().IsRegular() && spoolNameRE.MatchString(entry.Name()) {
+			removeErr = errors.Join(removeErr, handle.Remove(entry.Name()))
+		}
+	}
+	return removeErr
 }

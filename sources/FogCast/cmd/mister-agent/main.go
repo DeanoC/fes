@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/agentconfig"
 	"github.com/DeanoC/FogCast/internal/appliancedata"
@@ -311,6 +312,9 @@ func observeRuntimeInput(ctx context.Context, runtime *misterruntime.Runtime) (i
 
 func newNativeRuntime(control misterruntime.Control, rebootPath string) *misterruntime.Runtime {
 	_ = os.MkdirAll(developmentCoreRoot, 0o700)
+	// A crash between spooling a launch body and closing it leaves the
+	// spool in tmpfs. Nothing is launching yet, so every spool is stale.
+	_ = corepackage.RemoveSpools(developmentCoreRoot)
 	// The fixed target data root outlives package staging and image updates.
 	// The runtime validates storage access and refuses launch/update if this failed.
 	_ = os.MkdirAll(misterruntime.CoreDataRoot, 0o700)

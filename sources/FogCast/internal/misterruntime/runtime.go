@@ -1,6 +1,7 @@
 package misterruntime
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -347,6 +348,18 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		staged, err = corepackage.StageBytes(admission, r.corePackageRoot, body)
 	}
 	if err != nil {
+		return CoreActivation{}, false, &protocol.APIError{
+			Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
+	}
+	// The published files own their bytes now. Release the spool before the
+	// load so tmpfs holds one copy; a ROM input keeps it as input.tar.
+	if romInit != nil {
+		romInit.Programmed = bytes.Clone(romInit.Programmed)
+	}
+	if err := spool.Close(); err != nil {
+		if cleanupErr := staged.Cleanup(); cleanupErr != nil {
+			r.retainRetired(staged)
+		}
 		return CoreActivation{}, false, &protocol.APIError{
 			Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
 	}

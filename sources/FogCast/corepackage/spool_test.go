@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -85,5 +87,29 @@ func TestSpooledROMInputPublishesItsSpoolAsInput(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(root); len(entries) != 0 {
 		t.Fatalf("cleanup left %v", entries)
+	}
+}
+
+func TestRemoveSpoolsKeepsPublications(t *testing.T) {
+	root := t.TempDir()
+	stale := ".input-" + strings.Repeat("ab", 16)
+	for _, name := range []string{stale, ".input-short", "rom-link-x"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("x"), 0o400); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Mkdir(filepath.Join(root, ".input-"+strings.Repeat("cd", 16)), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := RemoveSpools(root); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(root)
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	if len(names) != 3 || slices.Contains(names, stale) {
+		t.Fatalf("left %v", names)
 	}
 }
