@@ -109,6 +109,13 @@ The retained-controller protocol proof checks all 33 writes, interrupt restart
 and three NACK positions, and checks synthesized controller equivalence with
 explicit reset modeling. External IO timing, analog/MTBF and asynchronous reset
 qualification remain separate gates.
+The scanout initializer delays the controller's open-drain SDA request by
+eight 50 MHz reference edges. This supplies 160 ns digital hold after the
+controller's SCL falling edge; the receiver requires at least 100 ns. SCL,
+controller state, ACK sampling, the divider and register values stay unchanged.
+The protocol test checks ordinary master data-bit hold independently of its
+explicit slave ACK model. Loading, electrical levels and board propagation
+still require physical qualification.
 
 `boards/de25nano/` is an independent FPGA-only bring-up project for
 `A5EB013BB23BE4SCS` with Quartus Prime Pro 26.3.0. Its 50 MHz input and

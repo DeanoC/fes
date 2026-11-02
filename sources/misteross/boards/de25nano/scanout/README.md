@@ -341,6 +341,14 @@ External output timing remains unqualified. The
 specifies 100 ns I2C SDA setup/hold and 1.8 ns video setup/1.3 ns hold. Board
 propagation/skew budgets and physical acceptance are still required; no zero
 board delay or synthetic output constraint is supplied here.
+The scanout initializer delays its open-drain SDA request by eight 50 MHz
+reference edges (160 ns), retaining the controller's SCL, divider, register
+values and ACK sampling. Without that delay, the vendor controller updates
+SDA on the same edge that lowers SCL. Reset releases the delayed output.
+The existing protocol bench checks the 100 ns minimum on ordinary master
+data-bit transitions as well as every register write, NACK retry and interrupt
+restart. The digital hold result does not qualify physical pin timing or
+the modeled slave's ACK edges.
 
 The separate canonical MENU producer runs from the misteross module:
 
