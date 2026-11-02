@@ -30,6 +30,16 @@ static int intel_fpga_config_completed_write(uint32_t a[3], uint32_t *b, uint32_
 static int intel_mailbox_fpga_config_isdone(uint32_t *a) { (void)a; configurations++; return 4; }
 static uint32_t fes_contained_isdone_detail(int a, uint32_t b) { (void)a; return b; }
 void fes_nano_platform_sd_report(void) {}
+/* This SD-only fixture has no pinmux provider or MMIO binding. */
+void fes_nano_platform_hps_io_sip(uint64_t operation,uint64_t owner,uint64_t generation,
+                                unsigned busy,uint64_t result[4])
+{
+    (void)owner;(void)generation;(void)busy;
+    result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;
+    result[1]=((uint64_t)FES_EMBEDDED_BRIDGE_HPS_IO_TAG<<32) |
+        (operation==FES_EMBEDDED_BRIDGE_HPS_IO_PART1 ? 1U : 0U);
+    result[2]=result[3]=0;
+}
 #include "nano_owned_sip.inc"
 int main(int argc, char **argv)
 {
