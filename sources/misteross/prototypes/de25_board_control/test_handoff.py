@@ -15,6 +15,7 @@ BUILD = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BUILD)
 
 FILES = ("qsys_top/qsys_top.sopcinfo", "fes_mailbox/fes_de25_embedded.sv",
+         "peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v",
          "fes_mailbox/fes_embedded_control.sv", "fes_mailbox/generated/fes_embedded_control.vh",
          "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/synth/peripheral_subsys_fes_embedded.v",
          "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_de25_embedded.sv",
@@ -52,13 +53,13 @@ def mutate(project, kind):
         if kind=='missing-ddr':root.remove(connection)
         elif kind=='duplicate-ddr':root.append(ET.fromstring(ET.tostring(connection)))
         else:connection.set('end','unqualified.memory')
-    elif kind=='ddr-write-port':
+    elif kind=='ddr-port-width':
         component=next(m for m in root.findall('module') if m.get('path')=='subsys_periph.fes_embedded')
         value=component.find("parameter[@name='componentDefinition']/value")
         definition=ET.fromstring(value.text)
         interface=next(i for i in definition.findall('boundary/interfaces/interface') if i.findtext('name')=='mem')
-        port=ET.SubElement(interface.find('ports'),'port')
-        for name,text in (('role','awvalid'),('direction','Output'),('width','1')):ET.SubElement(port,name).text=text
+        port=next(p for p in interface.findall('ports/port') if p.findtext('role')=='wdata')
+        port.find('width').text='129'
         value.text=ET.tostring(definition,encoding='unicode')
     else:
         raise ValueError("unknown handoff mutation")
@@ -92,13 +93,33 @@ def main():
                  ("wrong-span", "embedded lw map differs"), ("changed-generated-source", "generated embedded source differs"))
         if memory['backend']=='hps-ddr':
             cases += tuple((name,'embedded DDR route differs') for name in ('missing-ddr','duplicate-ddr','wrong-ddr-target'))
-            cases += (('ddr-write-port','DDR read-only AXI interface differs'),)
+            cases += (('ddr-port-width','DDR AXI interface differs'),
+                      ('wrong-forwarded-window','memory parameters differ'),
+                      ('parent-override','memory parameters differ'),
+                      ('untied-write','generated embedded source differs'))
         for name, expected in cases:
             trial = out / name
             copy_project(source, trial)
             if name == "changed-generated-source":
                 target = trial / FILES[-2]
                 target.write_bytes(target.read_bytes() + b"\n// altered for negative test\n")
+            elif name=='wrong-forwarded-window':
+                target=trial/FILES[-4]
+                source=target.read_text()
+                # The wrapper forwards this name, rather than a literal.
+                import re
+                source,count=re.subn(r'(\.DDR_BYTES\s*\()DDR_BYTES(\))',r'\g<1>0\2',source)
+                if count!=1:raise ValueError('generated window forwarding anchor differs')
+                target.write_text(source)
+            elif name=='parent-override':
+                target=trial/FILES[2]
+                target.write_text(target.read_text().replace('peripheral_subsys_fes_embedded fes_embedded (',
+                    'peripheral_subsys_fes_embedded #(.MEMORY_BACKEND(0)) fes_embedded ('))
+            elif name=='untied-write':
+                target=trial/FILES[-3]
+                source=target.read_text();anchor="assign ddr_awvalid = 1'b0;"
+                if source.count(anchor)!=1:raise ValueError('write tie anchor differs')
+                target.write_text(source.replace(anchor,"assign ddr_awvalid = 1'b1;"))
             else:
                 mutate(trial, name)
             try:

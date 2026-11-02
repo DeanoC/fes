@@ -51,8 +51,8 @@ add_interface_port avs waitrequest waitrequest Output 1
 add_interface_port avs writeresponsevalid writeresponsevalid Output 1
 add_interface_port avs response response Output 2
 
-# No write channel exists. Platform Designer supplies the actual HPS-side
-# interconnect/width/clock conversion; the RTL consumes real AXI backpressure.
+# The required AXI write pins are hardwired inactive in RTL. Platform Designer
+# supplies interconnect/width conversion; reads consume real AXI backpressure.
 add_interface mem axi4 start
 set_interface_property mem associatedClock clk
 set_interface_property mem associatedReset reset
@@ -64,13 +64,23 @@ set_interface_property mem issuesFIXEDBursts false
 foreach {name role direction width} {
     ddr_arvalid arvalid Output 1 ddr_araddr araddr Output 32
     ddr_arlen arlen Output 8 ddr_arsize arsize Output 3
-    ddr_arburst arburst Output 2 ddr_arid arid Output 4
+    ddr_arburst arburst Output 2 ddr_arid arid Output 1
     ddr_arlock arlock Output 1 ddr_arcache arcache Output 4
     ddr_arprot arprot Output 3 ddr_arqos arqos Output 4
     ddr_arready arready Input 1 ddr_rvalid rvalid Input 1
     ddr_rdata rdata Input 128 ddr_rlast rlast Input 1
-    ddr_rresp rresp Input 2 ddr_rid rid Input 4
+    ddr_rresp rresp Input 2 ddr_rid rid Input 1
     ddr_rready rready Output 1
+    ddr_awvalid awvalid Output 1 ddr_awaddr awaddr Output 32
+    ddr_awlen awlen Output 8 ddr_awsize awsize Output 3
+    ddr_awburst awburst Output 2 ddr_awid awid Output 1
+    ddr_awlock awlock Output 1 ddr_awcache awcache Output 4
+    ddr_awprot awprot Output 3 ddr_awqos awqos Output 4
+    ddr_awready awready Input 1 ddr_wvalid wvalid Output 1
+    ddr_wdata wdata Output 128 ddr_wstrb wstrb Output 16
+    ddr_wlast wlast Output 1 ddr_wready wready Input 1
+    ddr_bvalid bvalid Input 1 ddr_bresp bresp Input 2
+    ddr_bid bid Input 1 ddr_bready bready Output 1
 } { add_interface_port mem $name $role $direction $width }
 proc elaborate {} {
     set_interface_property mem ENABLED [get_parameter_value MEMORY_BACKEND]

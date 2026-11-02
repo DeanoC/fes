@@ -28,7 +28,10 @@ The DDR reader offers one burst at a time, rejecting unaligned, out-of-window,
 wrapping and 4 KiB-crossing requests before AXI traffic. It snapshots a staged
 descriptor, holds a stalled real address through disable, and consumes actual
 RID/RRESP/RLAST and response backpressure. It has no synthetic response command
-or AXI write channel. The existing generation/cookie drain endpoint remains
+or write request producer. Platform Designer requires the complete AXI pin set;
+AWVALID, WVALID and WSTRB are hardwired zero. The fixed zero read ID uses one
+wire, fitting the existing shared HPS adapter without changing its ID width.
+An unsolicited write response faults the reader. The generation/cookie drain endpoint remains
 the authority; debug byte/data/checksum observations do not grant drain.
 
 At the diagnostic aperture, DDR mode accepts only command bit 2 (reader ready)

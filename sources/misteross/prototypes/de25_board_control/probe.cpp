@@ -13,12 +13,14 @@ struct Bench {
     Vfes_de25_embedded d;
     Bench() {
         d.reset_n=0; d.address=0; d.read=0; d.write=0; d.byteenable=15; d.writedata=0;
-        d.ddr_arready=1; d.ddr_rvalid=1; d.ddr_rlast=1; d.ddr_rresp=3; d.ddr_rid=15;
+        d.ddr_arready=1; d.ddr_rvalid=1; d.ddr_rlast=1; d.ddr_rresp=3; d.ddr_rid=1;
+        d.ddr_awready=d.ddr_wready=1; d.ddr_bvalid=1; d.ddr_bresp=3; d.ddr_bid=1;
         tick(); tick(); d.reset_n=1; tick();
     }
     void tick() {
         d.clk=0; d.eval(); d.clk=1; d.eval(); d.clk=0; d.eval();
         require(!d.ddr_arvalid && !d.ddr_rready,"on-chip fixture reached the DDR bus");
+        require(!d.ddr_awvalid && !d.ddr_wvalid && !d.ddr_wstrb,"on-chip fixture issued a DDR write");
     }
     bool access(bool write, uint32_t offset, uint32_t &value, uint32_t byteenable=15) {
         require(offset<256 && offset%4==0,"invalid test offset");

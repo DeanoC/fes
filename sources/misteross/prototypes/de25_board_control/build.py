@@ -284,8 +284,13 @@ def verify_control(project, hps, board, memory=None):
         match=re.fullmatch(r"(?:32)?'([bdh])([0-9a-fA-F]+)",value)
         return int(match[2],{'b':2,'d':10,'h':16}[match[1]]) if match else int(value,0)
     expected_params={'MEMORY_BACKEND':mode,'DDR_BASE':memory['bus_base'],'DDR_BYTES':memory['bytes']}
+    defaults=re.findall(r'\bparameter\s*(?:\[[^\]]+\]\s*)?(\w+)\s*=\s*([^,\r\n)]+)',wrapper)
+    parent=(project/'peripheral_subsys/peripheral_subsys/synth/peripheral_subsys.v').read_text()
     if (remainder.strip(' \r\n\t,') or len(pairs)!=3 or
-            {name:integer(value) for name,value in pairs} != expected_params):
+            {name:value.strip() for name,value in pairs} != {name:name for name in expected_params} or
+            len(defaults)!=3 or {name:integer(value) for name,value in defaults}!=expected_params or
+            len(re.findall(r'\bperipheral_subsys_fes_embedded\s+fes_embedded\s*\(',parent))!=1 or
+            any(integer(component.findtext("parameter[@name='"+name+"']/value",'-1'))!=value for name,value in expected_params.items())):
         raise ValueError('generated embedded memory parameters differ or override build identity')
     connections = {(c.get("kind"), c.get("start"), c.get("end")): c for c in tree.findall("connection")}
     required = (("avalon", "subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_embedded.avs"),
@@ -300,12 +305,17 @@ def verify_control(project, hps, board, memory=None):
     memory_routes=[c for c in tree.findall('connection') if c.get('start')=='subsys_periph_fes_embedded.mem']
     if mode:
         expected_mem={'arvalid':('Output',1),'araddr':('Output',32),'arlen':('Output',8),
-          'arsize':('Output',3),'arburst':('Output',2),'arid':('Output',4),'arlock':('Output',1),
+          'arsize':('Output',3),'arburst':('Output',2),'arid':('Output',1),'arlock':('Output',1),
           'arcache':('Output',4),'arprot':('Output',3),'arqos':('Output',4),'arready':('Input',1),
           'rvalid':('Input',1),'rdata':('Input',128),'rlast':('Input',1),'rresp':('Input',2),
-          'rid':('Input',4),'rready':('Output',1)}
+          'rid':('Input',1),'rready':('Output',1),
+          'awvalid':('Output',1),'awaddr':('Output',32),'awlen':('Output',8),'awsize':('Output',3),
+          'awburst':('Output',2),'awid':('Output',1),'awlock':('Output',1),'awcache':('Output',4),
+          'awprot':('Output',3),'awqos':('Output',4),'awready':('Input',1),'wvalid':('Output',1),
+          'wdata':('Output',128),'wstrb':('Output',16),'wlast':('Output',1),'wready':('Input',1),
+          'bvalid':('Input',1),'bresp':('Input',2),'bid':('Input',1),'bready':('Output',1)}
         if hps.component_ports(component,'mem')!=expected_mem:
-            raise ValueError('generated embedded DDR read-only AXI interface differs')
+            raise ValueError('generated embedded DDR AXI interface differs')
         if (len(memory_routes)!=1 or memory_routes[0].get('end')!='subsys_hps_f2sdram_adapter.axi4_sub' or
             int(memory_routes[0].findtext("parameter[@name='baseAddress']/value",'-1'),0)!=0):
             raise ValueError('generated embedded DDR route differs')

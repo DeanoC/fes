@@ -19,12 +19,15 @@ struct Bench {
         d.clk=0; d.reset_n=0; d.address=0; d.read=0; d.write=0;
         d.byteenable=15; d.writedata=0; d.ddr_arready=0; d.ddr_rvalid=0;
         d.ddr_rresp=0; d.ddr_rid=0; d.ddr_rlast=0;
+        d.ddr_awready=d.ddr_wready=1; d.ddr_bvalid=0; d.ddr_bresp=0; d.ddr_bid=0;
         for (unsigned i=0;i<4;i++) d.ddr_rdata[i]=0;
         tick(); tick(); d.reset_n=1; tick();
     }
     void tick() {
         d.clk=0; d.eval();
+        require(!d.ddr_awvalid && !d.ddr_wvalid && !d.ddr_wstrb,"DDR reader issued a write");
         bool ar=d.ddr_arvalid && d.ddr_arready, r=d.ddr_rvalid && d.ddr_rready;
+        bool b=d.ddr_bvalid && d.ddr_bready;
         if (ar) {
             require(d.ddr_arsize==4 && d.ddr_arburst==1 && d.ddr_arid==0 &&
                     d.ddr_arprot==2 && d.ddr_arlock==0 && d.ddr_arcache==0 && d.ddr_arqos==0,
@@ -34,6 +37,7 @@ struct Bench {
         if (r) ++responses;
         d.clk=1; d.eval();
         if (r) d.ddr_rvalid=0; // The external source advances only on handshake.
+        if (b) d.ddr_bvalid=0;
         d.clk=0; d.eval();
     }
     bool access(bool write,uint32_t offset,uint32_t &value,uint32_t strobes=15) {
@@ -168,6 +172,13 @@ int main(int argc,char **argv) {
         }
         Bench unsolicited; unsolicited.response(1,true); unsolicited.tick(); unsolicited.tick();
         require((unsolicited.read(0x38)&8) && unsolicited.read(0x48)==0,"unsolicited DDR response ignored");
+        Bench write_response; write_response.d.ddr_bvalid=1; write_response.tick();
+        require((write_response.read(0x38)&8) && write_response.read(0x48)==0,"unsolicited write response ignored");
+        Bench active_write_response; active_write_response.enable(); active_write_response.stage(base,0);
+        active_write_response.d.ddr_arready=1; active_write_response.write(0x80,12); active_write_response.disable();
+        active_write_response.d.ddr_bvalid=1; active_write_response.tick();
+        require((active_write_response.read(0x38)&8) && active_write_response.read(0x48)==0,
+                "write response acknowledged an outstanding read");
         cases.push_back("unsolicited-response-fails-closed");
         std::cout<<"{\"status\":\"passed\",\"backend\":\"hps-ddr\",\"build_id\":\""<<id
                  <<"\",\"control_abi\":"<<abi<<",\"bus_base\":"<<base<<",\"bytes\":"<<span<<",\"cases\":[";

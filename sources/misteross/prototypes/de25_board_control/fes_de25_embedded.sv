@@ -27,7 +27,7 @@ module fes_de25_embedded #(
     output wire [7:0] ddr_arlen,
     output wire [2:0] ddr_arsize,
     output wire [1:0] ddr_arburst,
-    output wire [3:0] ddr_arid,
+    output wire ddr_arid,
     output wire ddr_arlock,
     output wire [3:0] ddr_arcache,
     output wire [2:0] ddr_arprot,
@@ -37,8 +37,27 @@ module fes_de25_embedded #(
     input wire [127:0] ddr_rdata,
     input wire ddr_rlast,
     input wire [1:0] ddr_rresp,
-    input wire [3:0] ddr_rid,
-    output wire ddr_rready
+    input wire ddr_rid,
+    output wire ddr_rready,
+    output wire ddr_awvalid,
+    output wire [31:0] ddr_awaddr,
+    output wire [7:0] ddr_awlen,
+    output wire [2:0] ddr_awsize,
+    output wire [1:0] ddr_awburst,
+    output wire ddr_awid, ddr_awlock,
+    output wire [3:0] ddr_awcache,
+    output wire [2:0] ddr_awprot,
+    output wire [3:0] ddr_awqos,
+    input wire ddr_awready,
+    output wire ddr_wvalid,
+    output wire [127:0] ddr_wdata,
+    output wire [15:0] ddr_wstrb,
+    output wire ddr_wlast,
+    input wire ddr_wready,
+    input wire ddr_bvalid,
+    input wire [1:0] ddr_bresp,
+    input wire ddr_bid,
+    output wire ddr_bready
 );
     localparam DDR_MODE = MEMORY_BACKEND == 1;
     localparam [31:0] ENDPOINT_ABI = DDR_MODE ? CONTROL_ABI ^ 32'd1 : CONTROL_ABI;
@@ -78,11 +97,13 @@ module fes_de25_embedded #(
     reg [127:0] last_data;
     wire m_arready = DDR_MODE ? ddr_arready : allow_address && !memory_active;
     wire memory_last = beats_left == 9'd1;
-    wire response_valid = DDR_MODE ? ddr_rvalid : memory_valid;
+    // There can be no legal B response: AWVALID/WVALID/WSTRB are hard zero.
+    // An unsolicited write response retires the same reader as a bus error.
+    wire response_valid = DDR_MODE ? (ddr_rvalid || ddr_bvalid) : memory_valid;
     wire [127:0] response_data = DDR_MODE ? ddr_rdata : {4{32'hde250001}};
     wire response_last = DDR_MODE ? ddr_rlast : memory_last;
-    wire [1:0] response_code = DDR_MODE ? ddr_rresp : memory_response;
-    wire [3:0] response_id = DDR_MODE ? ddr_rid : 4'd0;
+    wire [1:0] response_code = DDR_MODE ? (ddr_bvalid ? 2'b10 : ddr_rresp) : memory_response;
+    wire [3:0] response_id = DDR_MODE ? {3'd0,ddr_rid} : 4'd0;
     wire [32:0] window_end = {1'b0,DDR_BASE} + {1'b0,DDR_BYTES};
     wire [32:0] request_bytes = ({25'd0,staged_length} + 33'd1) << 4;
     wire [32:0] request_end = {1'b0,staged_address} + request_bytes;
@@ -97,12 +118,29 @@ module fes_de25_embedded #(
     assign ddr_arlen = m_arlen;
     assign ddr_arsize = m_arsize;
     assign ddr_arburst = m_arburst;
-    assign ddr_arid = m_arid;
+    assign ddr_arid = m_arid[0];
     assign ddr_arlock = 1'b0;
     assign ddr_arcache = 4'd0;
     assign ddr_arprot = 3'b010; // Non-secure data read; no instruction access.
     assign ddr_arqos = 4'd0;
     assign ddr_rready = DDR_MODE && m_rready;
+    // Platform Designer requires a complete AXI port set. These are ties,
+    // not another producer or a software-selectable write path.
+    assign ddr_awvalid = 1'b0;
+    assign ddr_awaddr = 32'd0;
+    assign ddr_awlen = 8'd0;
+    assign ddr_awsize = 3'd0;
+    assign ddr_awburst = 2'd0;
+    assign ddr_awid = 1'b0;
+    assign ddr_awlock = 1'b0;
+    assign ddr_awcache = 4'd0;
+    assign ddr_awprot = 3'd0;
+    assign ddr_awqos = 4'd0;
+    assign ddr_wvalid = 1'b0;
+    assign ddr_wdata = 128'd0;
+    assign ddr_wstrb = 16'd0;
+    assign ddr_wlast = 1'b0;
+    assign ddr_bready = 1'b1;
     wire [31:0] status = {7'd0, beats_left, 8'd0, reader_rvalid, m_rready,
                           reader_abort, response_valid, memory_active,
                           m_arvalid, reader_valid, reader_ready};
@@ -139,7 +177,7 @@ module fes_de25_embedded #(
                 memory_active <= 1;
                 beats_left <= {1'b0, m_arlen} + 9'd1;
             end
-            if (response_valid && m_rready) begin
+            if ((DDR_MODE ? ddr_rvalid : memory_valid) && m_rready) begin
                 memory_valid <= 0;
                 returned_bytes <= returned_bytes + 32'd16;
                 checksum <= checksum ^ response_data[31:0] ^ response_data[63:32] ^
