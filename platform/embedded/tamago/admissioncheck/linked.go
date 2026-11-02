@@ -214,7 +214,11 @@ func linkedCase(gate *runtimeadmission.Gate, c *fabricmodel.Controller, now *tim
 	}
 	binding := c.Status().Package
 	d := archive.Inspection().Descriptor
-	if c.Status().State != fabricmodel.Running || binding.PackageID != test.PackageID || binding.CoreID != d.Core.ID || binding.ABI != d.ABI.ID || binding.Major != uint16(d.ABI.Major) || binding.Minor != uint16(d.ABI.Minor) || binding.BuildID != d.Build.ID || binding.ActivationReceiptSHA256 != receiptID || binding.ProgrammedSHA256 != test.ProgrammedSHA256 {
+	want := fabricmodel.PackageIdentity{PackageID: test.PackageID, CoreID: d.Core.ID, ABI: d.ABI.ID,
+		Major: uint16(d.ABI.Major), Minor: uint16(d.ABI.Minor), BuildID: d.Build.ID,
+		Platform: d.Target.Platform, Device: d.Target.Device, ProgrammingProfile: d.Target.ProgrammingProfile,
+		ActivationReceiptSHA256: receiptID, ProgrammedSHA256: test.ProgrammedSHA256}
+	if c.Status().State != fabricmodel.Running || binding != want {
 		return fmt.Errorf("linked identity not published after release")
 	}
 	if c.CheckInput(before.CoreGeneration) == nil {

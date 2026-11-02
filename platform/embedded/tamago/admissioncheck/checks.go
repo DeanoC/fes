@@ -153,7 +153,10 @@ func Run(policy runtimeadmission.Policy, cases []Case, read func(string) ([]byte
 				return err
 			}
 			d := archive.Inspection().Descriptor
-			want := fabricmodel.PackageIdentity{PackageID: test.PackageID, CoreID: d.Core.ID, ABI: d.ABI.ID, Major: uint16(d.ABI.Major), Minor: uint16(d.ABI.Minor), BuildID: d.Build.ID}
+			want := fabricmodel.PackageIdentity{PackageID: test.PackageID, CoreID: d.Core.ID, ABI: d.ABI.ID,
+				Major: uint16(d.ABI.Major), Minor: uint16(d.ABI.Minor), BuildID: d.Build.ID,
+				Platform: d.Target.Platform, Device: d.Target.Device, ProgrammingProfile: d.Target.ProgrammingProfile,
+				ProgrammedSHA256: d.Payload.SHA256}
 			if c.Status().Package != want || c.Status().State != fabricmodel.Running {
 				return fmt.Errorf("model published wrong package identity")
 			}
