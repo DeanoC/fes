@@ -198,7 +198,7 @@ def timing_evidence(directory, *, async_review=None):
     checks = []
     standard = set()
     for label, slack, tns, corner in blocks:
-        matched = re.fullmatch(r"(Setup|Hold|Recovery|Removal|Minimum Pulse Width) '([^'\n]+)'", label)
+        matched = re.fullmatch(r"(Setup|Setup Data Delay|Hold|Recovery|Removal|Minimum Pulse Width) '([^'\n]+)'", label)
         skew = re.fullmatch(r"(.+ Model) Max Skew 'set_max_skew'", label)
         if matched and tns and corner:
             key = matched.groups()
@@ -212,7 +212,10 @@ def timing_evidence(directory, *, async_review=None):
             checks.append(('Net Delay', 'set_net_delay', slack, '0', 'not-reported'))
         else:
             raise BuildError('unknown or incomplete DE25 timing check: ' + label)
-    if {r[0] for r in checks} != {'Setup', 'Hold', 'Recovery', 'Removal', 'Minimum Pulse Width', 'Max Skew', 'Net Delay'}:
+    # Quartus emits Setup Data Delay only when the fitted design has paths
+    # with that check. Apply the same completeness and numeric checks to it;
+    # all seven common families remain required for every DE25 candidate.
+    if {r[0] for r in checks} - {'Setup Data Delay'} != {'Setup', 'Hold', 'Recovery', 'Removal', 'Minimum Pulse Width', 'Max Skew', 'Net Delay'}:
         raise BuildError('missing DE25 timing check family')
     for clock in ('pll_inst|iopll_0_outclk0', 'fes_video_inst|video_clock|iopll_0_outclk0', 'adv7513_config'):
         if not all(any(row[:2] == (kind, clock) for row in checks) for kind in ('Setup', 'Hold', 'Recovery', 'Removal')):

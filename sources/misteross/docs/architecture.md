@@ -39,7 +39,10 @@ permanent Linux owner unavailable for DMA while retaining its programming
 exclusion; this BRAM package advertises no DDR or allocated scanout interface.
 The current reviewed two-input HDMI derivation and fitted review apply, with
 all 85 signoff rules, every timing family, zero additional exceptions/waivers
-and an independent identical RBF required for export. Compile-only retains a
+and an independent identical RBF required for export. The shared report reader
+also checks Quartus's conditional Setup Data Delay rows for completeness,
+duplicates and finite nonnegative slack/TNS; none replace the seven required
+common timing families. Compile-only retains a
 candidate. Firmware pairing, electrical/reset timing and native catalog
 launch/return/relaunch acceptance remain separate; this recipe supplies no
 in-play allocated display capability. The maintenance recipe keeps its

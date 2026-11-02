@@ -90,6 +90,29 @@ class DE25MenuPackageTests(unittest.TestCase):
                 with self.assertRaises(producer.BuildError):
                     producer.timing_evidence(self.root)
 
+    def test_setup_data_delay_is_checked_when_present_without_replacing_required_families(self):
+        # This family is emitted by the real BRAM ZX81 fit, while the MENU
+        # fixture has none. It grants no exception to a failing timing row.
+        row = ("Type  : Setup Data Delay 'fes_video_inst|video_clock|iopll_0_outclk0'\n"
+               "Slack : 5.944\nTNS   : 0.000\nCorner: Slow fix4 0C Model\n\n")
+        summary = self.fixture['golden_top.sta.summary']
+        self.write_reports(signoff=self.passing_signoff(), summary=summary + row)
+        result = producer.timing_evidence(self.root)
+        self.assertTrue(result['package_timing_admission'])
+        self.assertEqual(result['timing_checks'][-1]['type'], 'Setup Data Delay')
+        for before, after in (('5.944', '-0.001'), ('5.944', 'NaN'),
+                              ('5.944', 'Infinity'), ('0.000', '-0.001')):
+            with self.subTest(mutation=after):
+                self.write_reports(signoff=self.passing_signoff(), summary=summary + row.replace(before, after))
+                self.assertFalse(producer.timing_evidence(self.root)['package_timing_admission'])
+        for changed in (summary + row + row, summary + row.replace('TNS   : 0.000\n', ''),
+                        summary + row.replace('Setup Data Delay', 'Unknown Data Delay'),
+                        summary.replace("Setup 'pll_inst|iopll_0_outclk0'", "Setup Data Delay 'pll_inst|iopll_0_outclk0'")):
+            with self.subTest(summary=changed[-100:]):
+                self.write_reports(summary=changed)
+                with self.assertRaises(producer.BuildError):
+                    producer.timing_evidence(self.root)
+
     def async_reports(self, directory, name='de25_menu_async_inputs.json.gz'):
         fixture = json.loads(gzip.decompress((Path(__file__).parent /
             'fixtures' / name).read_bytes()))
