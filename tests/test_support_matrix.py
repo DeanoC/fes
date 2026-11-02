@@ -2,6 +2,7 @@ import importlib.util
 from pathlib import Path
 import tomllib
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,7 +80,10 @@ class SupportMatrixTests(unittest.TestCase):
     def test_missing_lock_is_reported_without_reusing_other_core_pins(self):
         data = SUPPORT_MATRIX.load_json(ROOT)
         recipes = tomllib.loads((ROOT / 'config/core-recipes.toml').read_text())['recipes']
-        last_lock = ROOT / 'sources/misteross' / recipes[-1]['lock_path']
+        last_oss = next(row for row in reversed(recipes)
+                        if row.get('board', 'de10-nano') == 'de10-nano'
+                        and row.get('toolchain', 'oss') == 'oss')
+        last_lock = ROOT / 'sources/misteross' / last_oss['lock_path']
         last_pins = SUPPORT_MATRIX._pins(last_lock)
         row = next(
             row for row in data['cores']
@@ -99,6 +103,20 @@ class SupportMatrixTests(unittest.TestCase):
             for error in errors
             for name in last_pins
         ))
+
+    def test_de25_recipe_does_not_replace_de10_matrix_inputs(self):
+        raw = (ROOT / 'config/core-recipes.toml').read_text()
+        loads = tomllib.loads
+        document = loads(raw)
+        de25 = [row for row in document['recipes'] if row.get('board') == 'de25-nano']
+        de10 = [row for row in document['recipes'] if row.get('board', 'de10-nano') == 'de10-nano']
+        self.assertTrue(de25)
+        for entries in (de10 + de25, de25 + de10):
+            with self.subTest(first_board=entries[0].get('board', 'de10-nano')):
+                def selected(text):
+                    return dict(document, recipes=entries) if text == raw else loads(text)
+                with patch.object(SUPPORT_MATRIX.tomllib, 'loads', side_effect=selected):
+                    self.assertEqual([], SUPPORT_MATRIX.validate(ROOT, SUPPORT_MATRIX.load_json(ROOT)))
 
 
 if __name__ == '__main__':
