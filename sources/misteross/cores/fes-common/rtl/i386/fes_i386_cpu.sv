@@ -1687,6 +1687,13 @@ module fes_i386_cpu #(
             ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
             ex_out.uop.ctl.why = fes_i386_pkg::WHY_V86;
         end
+        // A protected-mode IRET with NT set returns from a nested task, not
+        // built. Bochs takes that path before it reads the stack, so this
+        // stands over the first slot's read fault (EFLAGS as EX runs it).
+        if (ex_s.uop.ntchk && flags_keep[14] && ex_s.uop.ctl.fault != fes_i386_pkg::FAULT_UNIMPLEMENTED) begin
+            ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
+            ex_out.uop.ctl.why = fes_i386_pkg::WHY_TASK_RETURN;
+        end
         ex_out.sh_out0 = ex_sh_out0;
         ex_out.sh_outn = ex_sh_outn;
         ex_out.sh_cfw = ex_sh_cfw;

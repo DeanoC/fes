@@ -270,6 +270,7 @@ module fes_i386_seq (
         n.dmode = 2'd0;
         n.uop.nwrap = 1'b0;
         n.uop.vmchk = 1'b0;
+        n.uop.ntchk = 1'b0;
         n.uop.ctl.why = fes_i386_pkg::WHY_ENCODING;
         n.opsize32 = d0.opsize32;
         // The rewritten fields, from the first uop.

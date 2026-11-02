@@ -1713,13 +1713,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         // RTL as not built, with its reason, and ends the run: a delivery
         // through a task gate, a return to an outer privilege, a far
         // transfer through a call gate, a TSS or a task gate, an IRET to V86
-        // mode, a 16-bit stack slot past 64 KiB. The oracle's step must show
-        // the like: a fault first, or the transfer.
+        // mode, a 16-bit stack slot past 64 KiB, an IRET with NT set (a
+        // return from a nested task). The oracle's step must show the like:
+        // a fault first, or the transfer.
         if (event == Rtl::Event::Unimplemented && rtl.top.trace_unbuilt != 0) {
             const unsigned why = rtl.top.trace_unbuilt;
             const State now = oracle.get_state();
             const bool faulted = vector >= 0;
-            const bool like = faulted || why == 1 && now.tr.selector != before.tr.selector
+            const bool like = faulted || (why == 1 || why == 9) && now.tr.selector != before.tr.selector
                            || why == 3 && now.cpl != 0 || why == 4 && (now.tr.selector != before.tr.selector
                                                                         || now.seg[fes_i386::SEG_CS].selector != before.seg[fes_i386::SEG_CS].selector)
                            || why == 5 && (now.eflags & 0x20000) || why == 6 || why == 7 || why == 8;
@@ -4673,6 +4674,12 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         {"int3", [](Asm &a) { a.op({0xcc}); }, -1, -1, {}, false, 3},
         {"trap-gate", [](Asm &a) { a.op({0xfb, 0xcd, 0x27}); }, -1, -1, {}, false, 0x27},            // STI; INT 27h: IF kept
         {"task-gate", [](Asm &a) { a.op({0xcd, 0x28}); }, -3, -1, {}, false},
+        // POPFD with NT set, then IRET: a return from a nested task (not
+        // built; Bochs reads the backlink at TR's base, here 0, and faults).
+        {"iret-nt", [](Asm &a) {
+             a.op({0x66, 0x9c, 0x89, 0xe5, 0x66, 0x81, 0x4e, 0x00}); a.d(0x4000);  // PUSHFD; MOV BP, SP; OR dword [BP], NT
+             a.op({0x66, 0x9d, 0xcf});                                             // POPFD; IRET
+         }, -3, -1, {}, false},
         // CALL 08h:sub (16- and 32-bit, direct and through memory); sub:
         // INC AX; RETF imm16 or RETF.
         {"callf-retf", [](Asm &a) { a.op({0x31, 0xc0, 0x9a}); a.w(0x1900); a.w(0x08); }, -1, -1, {}, false},

@@ -813,8 +813,11 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   `trace_unbuilt` (`why_e`, carried by the uop as `ctl.why`) and, for a
   delivery's, its vector in `trace_vector`: a delivery through a task gate;
   a return to an outer privilege (RETF or IRET to RPL above 0); a far JMP or
-  CALL through a call gate, a TSS or a task gate; an IRET to V86 mode;
-  paging (CR0 with PG set); a protected-mode 16-bit stack slot past 64 KiB
+  CALL through a call gate, a TSS or a task gate; an IRET to V86 mode; an
+  IRET with NT set, a return from a nested task (`ntchk`: EX checks NT as
+  it runs IRET's first uop, over that uop's stack fault, since Bochs
+  returns from the task before it reads the stack); paging (CR0 with PG
+  set); a protected-mode 16-bit stack slot past 64 KiB
   under a limit that reaches there; code under a CS limit other than FFFFh
   (16-bit) or FFFFFFFFh (32-bit), whose general check is not built. CPL is
   always 0: nothing changes privilege.

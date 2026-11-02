@@ -1637,6 +1637,7 @@ module fes_i386_decode (
     assign u.segchk = 4'd0;
     assign u.nwrap = nwrap;
     assign u.vmchk = 1'b0;
+    assign u.ntchk = b0 == 8'hcf && pe;
     assign u.seg2_pm = 1'b0;
     assign u.shadow = 1'b0;
     assign u.bound_pair = b0 == 8'h62 && !reg_form;

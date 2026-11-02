@@ -262,10 +262,11 @@ package fes_i386_pkg;
     // transfer through a call gate, a TSS or a task gate; an IRET to V86
     // mode; paging; a protected-mode 16-bit stack access past 64 KiB under
     // a limit that reaches there; code under a CS limit other than FFFFh
-    // (16-bit) or FFFFFFFFh (32-bit), whose general check is not built.
+    // (16-bit) or FFFFFFFFh (32-bit), whose general check is not built; a
+    // protected-mode IRET with NT set, a return from a nested task.
     typedef enum logic [3:0] {
         WHY_ENCODING, WHY_TASK_GATE, WHY_INNER, WHY_OUTER, WHY_GATE, WHY_V86, WHY_PAGING, WHY_STACK64K,
-        WHY_CS_LIMIT
+        WHY_CS_LIMIT, WHY_TASK_RETURN
     } why_e;
 
     typedef struct packed {
@@ -315,12 +316,15 @@ package fes_i386_pkg;
     // protected-mode far CALL's, RETF's or IRET's stack slot on a 16-bit
     // stack, at SP plus or less sdisp without the 64 KiB wrap, as Bochs
     // reads and writes it (M1). vmchk: IRETD's EFLAGS image, whose VM bit
-    // stops it as not built (EX).
+    // stops it as not built (EX). ntchk: a protected-mode IRET's first uop,
+    // which EFLAGS.NT set stops as not built, a return from a nested task
+    // (EX).
     typedef struct packed {
         logic [2:0]  desc;
         logic [3:0]  segchk;
         logic        nwrap;
         logic        vmchk;
+        logic        ntchk;
         logic        seg2_pm;
         logic        shadow;
         logic        bound;
