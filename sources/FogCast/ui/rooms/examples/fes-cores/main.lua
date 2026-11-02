@@ -442,7 +442,7 @@ end
 
 -- Tall tiles: the mark above the name, the state chip and its detail line.
 -- Compact tiles (below Recently played): a small mark, the short name and
--- the chip. Below 720 lines the detail line is left out.
+-- the chip. Below the 720p safe-room height (648), the detail line is left out.
 local function draw_families(s, top, ch, compact)
   local n = #families
   local shown = math.min(n, 4)
@@ -450,7 +450,7 @@ local function draw_families(s, top, ch, compact)
   local cw = (s.w - gap * (shown - 1)) / shown
   local first = math.max(1, math.min(family_i, n - shown + 1))
   if family_i > first + shown - 1 then first = family_i - shown + 1 end
-  local detail = not compact and room.height >= 720
+  local detail = not compact and room.height >= 648
   for slot = 0, shown - 1 do
     local i = first + slot
     local f = families[i]

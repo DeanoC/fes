@@ -135,16 +135,49 @@ func writeHomeScreenshot(t *testing.T, snap Snapshot, name string) {
 	t.Log(path)
 }
 
+func homeHeroKickerRendered(t *testing.T, snap Snapshot) bool {
+	t.Helper()
+	dev, err := gfx.NewSoftware(snap.Grid.Width, snap.Grid.Height)
+	if err != nil {
+		t.Fatal(err)
+	}
+	labels := map[string]gpuTexture{}
+	presentFrame(dev, snap, map[string]gpuTexture{}, labels, false)
+	key := roomTextKey(rooms.Op{Kind: rooms.OpText, Text: "COMPUTER", Size: heroKickerPx, Bold: true})
+	_, ok := labels[key]
+	return ok
+}
+
 // TestHomeLoungeNativeRender runs the embedded Home room through the real
 // display-list replay and software renderer. Set FES_ROOM_SCREENSHOT_DIR to
 // keep the PNGs. Fixtures are host data, not hardware acceptance.
 func TestHomeLoungeNativeRender(t *testing.T) {
-	for _, size := range []struct{ w, h int }{{1280, 720}, {1024, 600}} {
-		t.Run(fmt.Sprintf("ready-%dx%d", size.w, size.h), func(t *testing.T) {
+	for _, size := range []struct {
+		name string
+		w, h int
+	}{
+		{"1280x720", 1280, 720},
+		{"1280x720 safe", 1152, 648},
+		{"1024x600", 1024, 600},
+	} {
+		t.Run("ready-"+size.name, func(t *testing.T) {
 			app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, size.w, size.h)
 			snap := waitFor(t, app, "first family", func(s Snapshot) bool {
 				return homeFamilySettled(s) && s.Room.Destination.Label == "Sinclair ZX81"
 			})
+			wantDetails := size.name != "1024x600"
+			for _, reason := range []string{"No games yet", "Add your ROM files", "Not on this kit"} {
+				if got := roomTextHas(snap, reason); got != wantDetails {
+					t.Fatalf("%s reason %q present=%v, want %v", size.name, reason, got, wantDetails)
+				}
+			}
+			if got := homeHeroKickerRendered(t, snap); got != wantDetails {
+				c := heroDestinationCopy(snap)
+				layout, _ := rooms.HeroPanel(snap.Room.Width, snap.Room.Height)
+				avail := heroTextBudget(c, layout.Text.H)
+				plan := planHero(c, layout.Text.W, avail)
+				t.Fatalf("%s Computer kicker present=%v, want %v (avail=%d plan=%+v used=%d copy=%+v)", size.name, got, wantDetails, avail, plan, usedHeroPlan(c, plan), c)
+			}
 			writeHomeScreenshot(t, snap, "ready")
 			app.HandleCommand(CmdUp, time.Now())
 			app.HandleCommand(CmdRight, time.Now())
@@ -153,7 +186,7 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 			})
 			writeHomeScreenshot(t, snap, "action-details")
 		})
-		t.Run(fmt.Sprintf("recent-%dx%d", size.w, size.h), func(t *testing.T) {
+		t.Run("recent-"+size.name, func(t *testing.T) {
 			host := newRoomHost(t)
 			host.recents = []hostclient.Game{
 				homeTitleEntry("lunar", "Lunar Courier", "fes.spectrum"),
@@ -169,7 +202,7 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 			}
 			writeHomeScreenshot(t, snap, "recent")
 		})
-		t.Run(fmt.Sprintf("needs-firmware-%dx%d", size.w, size.h), func(t *testing.T) {
+		t.Run("needs-firmware-"+size.name, func(t *testing.T) {
 			app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, size.w, size.h)
 			waitFor(t, app, "first family", homeFamilySettled)
 			app.HandleCommand(CmdRight, time.Now())
@@ -180,7 +213,7 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 			}
 			writeHomeScreenshot(t, snap, "needs-firmware")
 		})
-		t.Run(fmt.Sprintf("no-games-%dx%d", size.w, size.h), func(t *testing.T) {
+		t.Run("no-games-"+size.name, func(t *testing.T) {
 			host := newRoomHost(t)
 			host.games = []hostclient.Game{homeMachineEntry("spectrum", "fes.spectrum"), homeMachineEntry("zx81", "fes.zx81"), homeTitleEntry("bits", "Bit Garden", "fes.zx81")}
 			app := startHomeLoungeOn(t, host, t.TempDir(), &fakeLocalCores{cores: homeFixtureCores()}, size.w, size.h, false)
@@ -451,6 +484,28 @@ func TestHomeHeroFitsLongTitlesAboveTheButtons(t *testing.T) {
 	}
 }
 
+func TestHomeFamilyHeroFitsAtSafe720pSize(t *testing.T) {
+	layout, ok := rooms.HeroPanel(1152, 648)
+	if !ok {
+		t.Fatal("1152x648 safe area has no hero")
+	}
+	d := rooms.Destination{
+		Kind: rooms.KindFamily, Label: "Sinclair ZX Spectrum 128K +2A Expanded Edition With A Long Name",
+		RoomID: "example.system", CoreID: "fes.spectrum", GameID: "spectrum",
+		Availability: rooms.AvailReady, Status: "4 games", Models: "48K, 128K, +3, Pentagon 128",
+		Kicker: "Computers", Action: "Open the selected model's workbench.",
+	}
+	c := heroDestinationCopy(Snapshot{Room: RoomSnapshot{Open: true, Hero: true, Destination: d}})
+	avail := heroTextBudget(c, layout.Text.H)
+	plan := planHero(c, layout.Text.W, avail)
+	if c.Kicker != "Computers" || plan.statusGap != 6 {
+		t.Fatalf("family kicker/gap = %q/%d, want Computers/6", c.Kicker, plan.statusGap)
+	}
+	if used := usedHeroPlan(c, plan); used > avail {
+		t.Fatalf("family hero uses %d px over its %d px budget: plan=%+v", used, avail, plan)
+	}
+}
+
 func TestHomeHeroDetailsOmitAPackageForAnOmittedCore(t *testing.T) {
 	omitted := rooms.Destination{
 		Kind: rooms.KindCore, Label: "Atari ST",
@@ -528,7 +583,7 @@ func TestHomeHeroDetailsKeepTheBlockOnACompactScreen(t *testing.T) {
 }
 
 func usedHeroPlan(c heroCopy, plan heroPlan) int {
-	h := 12
+	h := plan.statusGap
 	if c.Meta != "" {
 		h += gfx.TextHeight(heroMetaPx)
 	}

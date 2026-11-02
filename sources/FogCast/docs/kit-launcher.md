@@ -36,8 +36,9 @@ Home, the rooms and the core catalog view list only the v1 release cores
 back). Settings › Show all cores, `tenfoot.json` `all_cores`, or
 `FOGCAST_TENFOOT_ALL_CORES=1` lists every core for development and HIL.
 In the release, Home has no Library or Systems route; Show all cores brings
-them back. The room picker, shown when the Home room can't open, keeps its
-Library row as the way out. Changing it in Settings keeps Settings open until it closes, then returns Home
+them back. Back at a release-scoped Home root keeps Home open. If that Home
+room cannot open, the fallback picker keeps its Library row as the way out.
+Changing it in Settings keeps Settings open until it closes, then returns Home
 with the new list. Tenfoot reuses a Home room only while its release scope
 matches the current setting. A setup room opened for a running machine always
 keeps that machine.

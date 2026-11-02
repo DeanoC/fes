@@ -479,6 +479,13 @@ func (a *App) leaveRoomLocked() {
 		a.applyRoomActionsLocked()
 		return
 	}
+	// The release-scoped Home is the v1 root destination. Keep it on screen
+	// when Back is pressed; the broader picker is available when Home cannot
+	// open, or when Show all cores restores the full navigation routes.
+	if a.room != nil && a.room.ID() == installedCoresHomeID &&
+		a.room.ReleaseOnly() && a.room.Err() == nil {
+		return
+	}
 	a.closeRoomLocked()
 	a.openRoomPickerLocked()
 }

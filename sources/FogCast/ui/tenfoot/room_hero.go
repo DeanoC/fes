@@ -47,6 +47,7 @@ const (
 
 // heroCopy is everything the hero text column says about the selection.
 type heroCopy struct {
+	Kind      rooms.Kind
 	Kicker    string
 	Title     string
 	Meta      string
@@ -147,7 +148,7 @@ func heroCoreBlocked(d rooms.Destination) (headline, explain string) {
 func heroDestinationCopy(snap Snapshot) heroCopy {
 	d := snap.Room.Destination
 	kind := snap.Affinity
-	c := heroCopy{Title: strings.TrimSpace(d.Label)}
+	c := heroCopy{Kind: d.Kind, Title: strings.TrimSpace(d.Label)}
 	switch d.Kind {
 	case rooms.KindCore:
 		c.Kicker = "On this kit"
@@ -442,6 +443,7 @@ func heroButtonRects(snap Snapshot, pane rectI) (primary, secondary rectI) {
 // explanations shrink before anything can run into an action.
 type heroPlan struct {
 	kicker       bool
+	statusGap    int
 	titleLines   []string
 	explainLines []string
 	details      []string
@@ -450,17 +452,25 @@ type heroPlan struct {
 
 func lineStep(size int, w gfx.Weight) int { return gfx.TextHeightWeight(size, w) + size/6 }
 
+func heroStatusGap(kind rooms.Kind) int {
+	if kind == rooms.KindFamily {
+		return 6
+	}
+	return 12
+}
+
 func planHero(c heroCopy, w, avail int) heroPlan {
-	fixed := 0
+	statusGap := heroStatusGap(c.Kind)
+	fixed := statusGap
 	kickerH := gfx.TextHeightWeight(heroKickerPx, gfx.WeightBold) + 6
 	if c.Meta != "" {
 		fixed += gfx.TextHeight(heroMetaPx)
 	}
-	fixed += 12
 	if c.State != "" || c.Headline != "" {
 		fixed += max(gfx.TextHeight(heroLinePx), gfx.TextHeightWeight(heroStatePx, gfx.WeightBold)+10) + 8
 	}
 	p := heroPlan{
+		statusGap:    statusGap,
 		titleLines:   gfx.WrapTextWeight(c.Title, heroTitlePx, w, 2, gfx.WeightBold),
 		explainLines: gfx.WrapTextWeight(c.Explain, heroExplainPx, w, 2, gfx.WeightRegular),
 		details:      c.Details,
@@ -556,7 +566,7 @@ func drawHeroDestination(dev gfx.Device, snap Snapshot, pane rectI, labels map[s
 	if c.Meta != "" {
 		cursor += heroLine(dev, labels, used, x, cursor, w, heroMetaPx, false, heroSecondary, c.Meta)
 	}
-	cursor += 12
+	cursor += plan.statusGap
 	if c.State != "" || c.Headline != "" {
 		lineX := x
 		rowH := gfx.TextHeight(heroLinePx)

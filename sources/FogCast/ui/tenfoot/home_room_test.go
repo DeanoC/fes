@@ -344,7 +344,7 @@ func TestInstalledCoresHomeDefault(t *testing.T) {
 	}
 }
 
-func TestInstalledCoresDefaultOpensAndBackKeepsHomePicker(t *testing.T) {
+func TestInstalledCoresDefaultOpensAndBackKeepsReleaseHome(t *testing.T) {
 	t.Setenv("FOGCAST_HOME_ROOM", "")
 	h := newRoomHost(t)
 	opts := Options{GFX: "menu-display", Home: "rooms", HomeSet: true, PrefsPath: filepath.Join(t.TempDir(), "tenfoot.json")}.normalized()
@@ -360,8 +360,37 @@ func TestInstalledCoresDefaultOpensAndBackKeepsHomePicker(t *testing.T) {
 	})
 	app.HandleCommand(CmdBack, time.Now())
 	snap := app.Snapshot()
+	if !snap.Room.Open || snap.Room.ID != installedCoresHomeID || snap.RoomPicker.Open {
+		t.Fatalf("Back must keep release Home open: room=%v id=%q picker=%v", snap.Room.Open, snap.Room.ID, snap.RoomPicker.Open)
+	}
+}
+
+func TestInstalledCoresAllCoresBackOpensPicker(t *testing.T) {
+	h := newRoomHost(t)
+	opts := Options{GFX: "menu-display", Home: "rooms", HomeSet: true, PrefsPath: filepath.Join(t.TempDir(), "tenfoot.json")}.normalized()
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	app.SetPrefsPath(opts.PrefsPath)
+	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
+	app.SetHomeRooms(true)
+	app.SetHomeRoom(opts.HomeRoom)
+	app.SetAllCores(true)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitFor(t, app, "installed cores root", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.ID == installedCoresHomeID && s.Room.Err == ""
+	})
+	app.HandleCommand(CmdBack, time.Now())
+	snap := app.Snapshot()
 	if snap.Room.Open || !snap.RoomPicker.Open {
-		t.Fatalf("Back must expose Home picker: room=%v picker=%v", snap.Room.Open, snap.RoomPicker.Open)
+		t.Fatalf("Back with all cores shown must expose the picker: room=%v picker=%v", snap.Room.Open, snap.RoomPicker.Open)
+	}
+	var systems, library bool
+	for _, row := range snap.RoomPicker.Rows {
+		systems = systems || row.Kind == HomeKindRoom && row.Label == "Systems"
+		library = library || row.Kind == HomeKindLibrary
+	}
+	if !systems || !library {
+		t.Fatalf("Show all cores picker missing routes: systems=%v library=%v rows=%+v", systems, library, snap.RoomPicker.Rows)
 	}
 }
 
