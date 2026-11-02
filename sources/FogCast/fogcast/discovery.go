@@ -3,6 +3,8 @@ package fogcast
 import (
 	"context"
 	"errors"
+	"io"
+	"net"
 	"net/url"
 	"sort"
 	"strings"
@@ -515,9 +517,22 @@ func (s *Service) resetTargetInputsOutsideTargetMu(name string) {
 }
 
 func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, selected TargetConfig) (protocol.Health, string, error) {
+	// Pin both probes to one endpoint even if another operation adopts a peer.
+	current := client.EndpointURL()
+	peer := client.Peer(current)
 	healthCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
-	health, err := client.Health(healthCtx)
+	health, err := peer.Health(healthCtx)
+	// A short transport interruption does not by itself establish that the
+	// target has moved. Re-probe the same authenticated endpoint once before
+	// discovery, within the existing caller deadline. Identity, protocol and
+	// ownership failures must not be retried as transport errors.
+	if selected.TargetID != "" && healthCtx.Err() == nil && transientHealthTransport(err) {
+		health, err = peer.Health(healthCtx)
+	}
 	cancel()
+	if err := ctx.Err(); err != nil {
+		return protocol.Health{}, "", err
+	}
 	valid := func(h protocol.Health) bool {
 		return selected.TargetID == "" || h.TargetID == selected.TargetID
 	}
@@ -525,7 +540,7 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 		if err := protocol.CheckAPIVersion(health.APIVersion); err != nil {
 			return protocol.Health{}, "", err
 		}
-		return health, client.EndpointURL().String(), nil
+		return health, current.String(), nil
 	}
 	if selected.TargetID == "" {
 		return protocol.Health{}, "", errors.New("Target unavailable; check its configured address.")
@@ -564,6 +579,20 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 		return protocol.Health{}, "", err
 	}
 	return health, address, nil
+}
+
+func transientHealthTransport(err error) bool {
+	var requestErr *url.Error
+	if !errors.As(err, &requestErr) {
+		return false
+	}
+	var dnsErr *net.DNSError
+	if errors.As(requestErr.Err, &dnsErr) {
+		return dnsErr.IsTimeout || dnsErr.IsTemporary
+	}
+	var opErr *net.OpError
+	return requestErr.Timeout() || errors.As(requestErr.Err, &opErr) ||
+		errors.Is(requestErr.Err, io.EOF) || errors.Is(requestErr.Err, io.ErrUnexpectedEOF)
 }
 
 // The explicit development reboot holds lifecycle admission. The poller takes
