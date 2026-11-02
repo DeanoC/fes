@@ -206,10 +206,11 @@ safe content area; `0,0` is its top-left), `room.time` (seconds since
 load), `room.reduced_motion` (boolean; the launcher reduced-motion
 preference), `room.core_shown(core_id)` (true for every ID when Show all cores
 is on; otherwise true for v1 cores and the core the room was opened for, and
-false for an empty or other held-back ID), `room.setup` (first-run setup: `step` and `steps` for a setup room, 0
-outside setup; `unfinished` after Skip setup and before Finish; `skipped`,
-the step ids not done yet), `room.release_only` (true unless
-Show all cores is on), `room.overlay` (boolean; true while the room is drawn over a
+false for an empty or other held-back ID), `room.setup` (first-run setup:
+`step` and `steps` for a setup room, 0 outside setup; `unfinished` after Skip
+setup and before Finish; `skipped`, the step ids not done yet),
+`room.release_only` (true unless Show all cores is on), `room.overlay`
+(boolean; true while the room is drawn over a
 running machine on the kit's HDMI session plane with launcher focus, false
 on host windows; a room that reads it can clear translucently so the machine
 stays visible, and must include it in any reused-picture key), `room.theme`
@@ -567,7 +568,7 @@ directory separators inside the pack (`require "lib.paths"` →
 | module | purpose |
 | --- | --- |
 | `systems` | Registered model labels and family navigation (`families`, `family_by_core`); package manifests determine admission |
-| `families` | Home's computer families in release order with their readiness (`list`, `load(on_change)`, `reload`, `settled`, `state`, `tile`, `games`, `details`, `publish`) and the shared marks, chips, colours and header |
+| `families` | Home and first-run setup's shared computer order and readiness (`list`, `load(on_change)`, `reload`, `settled`, `state`, `tile`, `games`, `details`, `publish`, `on_kit`) plus shared art, colours and header (`grounds`, `hash`, `ground`, `mark`, `chip`, `outline`) |
 | `setup` | First-run setup chrome: `layout`, the header with its step tracker, `buttons`, `footer`, `wrap`, `text` |
 | `widgets.system_workbench` | Shared system workbench; call the returned function with an optional fixed `core_id` |
 | `widgets.list` | focusable scrolling rows: `new{x,y,w,h,row_h,items,id}`, `input(cmd)`, `selected()`, `set_items`, `on_hover/on_activate(id)`, `draw{label=, background=, focus_color=}` |

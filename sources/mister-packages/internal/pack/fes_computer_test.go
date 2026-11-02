@@ -44,6 +44,7 @@ func TestFesComputerContract(t *testing.T) {
 		"FesComputerSpectrumTapeMaxBytes": 16777216,
 		"FesComputerC64DiskUnit":          0, "FesComputerC64DiskBytes": 174848,
 		"FesComputerPcxtFloppyUnit": 0, "FesComputerPcxtFloppyBytes": 368640,
+		"FesComputerPcxtFloppyLayoutTag": 4, "FesComputerPcxtFloppyLayoutMajor": 1, "FesComputerPcxtFloppyLayoutMinor": 0,
 		"FesComputerAtariStFloppyUnit": 0, "FesComputerAtariStFloppyBytes": 737280,
 		"FesComputerAtariStFloppyGeometryMinBytes": 368640, "FesComputerAtariStFloppyGeometryMaxBytes": 839680,
 		"FesComputerAtariStFloppyGeometryMinTracks": 80, "FesComputerAtariStFloppyGeometryMaxTracks": 82,
@@ -110,7 +111,7 @@ func TestFesComputerContract(t *testing.T) {
 		{"fes.media.zx81-tape-write", 14, 1}, {"fes.media.spectrum-disk", 15, 1},
 		{"fes.media.ata-disk", 16, 1}, {"fes.persistence.words", 17, 1},
 		{"fes.rtc.wall-clock", 18, 1}, {"fes.pc386.machine", 19, 1},
-		{"fes.media.pcxt-floppy", 20, 1},
+		{"fes.media.pcxt-floppy", 20, 1}, {"fes.media.pcxt-floppy-write", 21, 1},
 	}
 	if len(abi.Interfaces) != len(want) {
 		t.Fatalf("interfaces = %+v", abi.Interfaces)

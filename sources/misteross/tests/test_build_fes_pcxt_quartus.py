@@ -19,7 +19,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                     'hdmi_i2c': 'cyclonev_hps_interface_peripheral_i2c',
                     'fes_computer_runtime_hps_gp': 'cyclonev_hps_interface_mpu_general_purpose'}},
                 'profile': {'HALF_RATE_BOARD': 0, 'ENABLE_FES_COMPUTER': 1,
-                            'ENABLE_PCXT_MEDIA': 1, 'HARDWARE_DOS': 0}, 'runs': [{
+                            'ENABLE_PCXT_MEDIA': 1, 'ENABLE_PCXT_FLOPPY_WRITE': 0, 'HARDWARE_DOS': 0}, 'runs': [{
                     'seed': 1, 'capture_complete': True, 'reported_endpoint_checks_pass': True,
                     'minimum_pulse_width': {str(c): {'failures': 0} for c in range(4)},
                     'mailbox_interstage': [{'slack_ns': '0.123'} for _ in range(24)],
@@ -38,6 +38,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                      lambda s: s['profile'].update(HALF_RATE_BOARD=1),
                      lambda s: s['profile'].update(ENABLE_PCXT_MEDIA=0),
                      lambda s: s['profile'].pop('ENABLE_PCXT_MEDIA'),
+                     lambda s: s['profile'].update(ENABLE_PCXT_FLOPPY_WRITE=1),
+                     lambda s: s['profile'].pop('ENABLE_PCXT_FLOPPY_WRITE'),
                      lambda s: s['profile'].update(HARDWARE_DOS=1),
                      lambda s: s['profile'].pop('HARDWARE_DOS'),
                      lambda s: s.update(video_mailbox_contract=False),
@@ -52,7 +54,12 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         summary = self.summary()
         summary['profile']['HARDWARE_DOS'] = 1
         summary['profile']['ENABLE_PCXT_MEDIA'] = 1
+        summary['profile']['ENABLE_PCXT_FLOPPY_WRITE'] = 1
         producer.require_timing(summary, [1], dos_profile=True)
+        summary['profile']['ENABLE_PCXT_FLOPPY_WRITE'] = 0
+        with self.assertRaises(producer.BuildError):
+            producer.require_timing(summary, [1], dos_profile=True)
+        summary['profile']['ENABLE_PCXT_FLOPPY_WRITE'] = 1
         with self.assertRaises(producer.BuildError):
             producer.require_timing(summary, [1])
 
@@ -96,6 +103,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(parameters['core_id'], 'fes.pcxt-dos')
         self.assertTrue(parameters['hardware_dos'])
         self.assertTrue(parameters['enable_pcxt_media'])
+        self.assertTrue(parameters['enable_pcxt_floppy_write'])
         with mock.patch.object(producer, 'require_clean_source', return_value=('repo', 'a' * 40)) as clean:
             producer._require_clean_source(producer.ROOT, identity_version=2, **options)
             clean.assert_called_once()
@@ -199,6 +207,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(fields['toolchain'], 'quartus')
         self.assertNotIn('gpu_device', fields['parameters'])
         self.assertTrue(fields['parameters']['enable_pcxt_media'])
+        self.assertFalse(fields['parameters']['enable_pcxt_floppy_write'])
         before = build_identity(record)
         fields.pop('toolchain')
         self.assertNotEqual(build_identity(encode_build_record(fields)), before)
@@ -235,6 +244,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertIn('-set HALF_RATE_BOARD 0', program)
         self.assertIn('-set ENABLE_FES_COMPUTER 1', program)
         self.assertIn('-set ENABLE_PCXT_MEDIA 1', program)
+        self.assertIn('-set ENABLE_PCXT_FLOPPY_WRITE 0', program)
         self.assertIn('-set PHASED_HDMI_CLOCK 1', program)
         dos_program = producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
                                                  producer.ROOT / 'unused-library',
@@ -243,6 +253,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                                                  dos_profile=True)
         self.assertIn('-set HARDWARE_DOS 1', dos_program)
         self.assertIn('-set ENABLE_PCXT_MEDIA 1', dos_program)
+        self.assertIn('-set ENABLE_PCXT_FLOPPY_WRITE 1', dos_program)
         self.assertIn("-set BUILD_ID 128'h" + '1234567890abcdef'*2, program)
         with self.assertRaisesRegex(ValueError, 'BUILD_ID'):
             producer.board.elaboration(producer.ROOT, producer.ROOT / 'build',
@@ -258,6 +269,7 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertEqual(manifest['abi'], {'id': 'fes.computer', 'major': 1, 'minor': 1})
         interfaces = {i['id']: i for i in manifest['interfaces']}
         self.assertTrue(interfaces['fes.media.pcxt-floppy']['required'])
+        self.assertNotIn('fes.media.pcxt-floppy-write', interfaces)
         self.assertTrue(interfaces['fes.video.fixed-720p60']['required'])
 
     def test_dos_manifest_declares_runtime_floppy(self):
@@ -276,8 +288,16 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertIn('image is optional', manifest['core']['description'])
         self.assertIn('empty drive', manifest['core']['description'])
         self.assertEqual([i['id'] for i in manifest['interfaces']],
-                         ['fes.video.fixed-720p60', 'fes.media.pcxt-floppy', 'fes.keyboard.hid'])
+                         ['fes.video.fixed-720p60', 'fes.media.pcxt-floppy', 'fes.media.pcxt-floppy-write', 'fes.keyboard.hid'])
         self.assertTrue(manifest['interfaces'][1]['required'])
+        self.assertTrue(manifest['interfaces'][2]['required'])
+        fields = json.loads(record)
+        fields['parameters']['enable_pcxt_floppy_write'] = False
+        with tempfile.TemporaryDirectory(prefix='pcxt-manifest-negative-') as directory:
+            payload = Path(directory) / 'core.rbf'
+            payload.write_bytes(b'test DOS')
+            with self.assertRaisesRegex(producer.BuildError, 'manifest profile'):
+                producer.manifest(json.dumps(fields).encode(), payload, dos_profile=True, metadata=metadata)
         self.assertIn('runtime floppy image is optional', producer.build_limits(True)[1])
         self.assertNotIn('required', producer.build_limits(True)[1])
 

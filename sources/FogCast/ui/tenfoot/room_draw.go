@@ -458,7 +458,7 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		// can act on goes on the left of that band.
 		if line := heroFooterStatus(snap); line != "" {
 			footer := max(44, snap.Room.Height*7/100)
-			drawLabel(dev, labels, used, "nopanel-status", snap.Room.OffsetX+16, snap.Room.OffsetY+snap.Room.Height-footer+12, snap.Room.Width/2, 18, line)
+			drawFESLabel(dev, labels, used, "nopanel-status", snap.Room.OffsetX+16, snap.Room.OffsetY+snap.Room.Height-footer+12, snap.Room.Width/2, 18, line)
 		}
 		return
 	}

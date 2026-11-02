@@ -1,4 +1,4 @@
--- Computer families with their readiness, for Home and first-run setup.
+-- Computer families, readiness and shared presentation for Home and setup.
 --
 -- The families are systems.families: the four v1 families in a fixed order
 -- (ZX81, Spectrum, Atari ST, C64), then, when the launcher shows all cores,
@@ -33,6 +33,7 @@ local C = M.colors
 
 -- Muted motif grounds. A family without its own art picks one by id.
 local GROUNDS = { "#7097A8", "#9690B5", "#E08A63", "#8DB07A", "#D9B45A", "#6E8F80" }
+M.grounds = GROUNDS
 
 -- The v1 families, in order, with their placeholder marks (#1351 replaces
 -- them with icons). Family ids are systems.lua's.
@@ -308,7 +309,7 @@ function M.reload()
     waiting = waiting - 1
     if waiting > 0 or gen ~= library_generation then return end
     if failed then
-      library_err = failed
+      machines, titles, capped, library_err = nil, nil, {}, failed
     else
       machines, titles, capped, library_err = m, counts, more, nil
     end

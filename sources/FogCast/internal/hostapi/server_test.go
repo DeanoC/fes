@@ -721,6 +721,11 @@ func TestSessionDevelopmentRBFStreamsWithoutMediaOrInput(t *testing.T) {
 	if result.State != protocol.StateActive || result.Execution != fogcast.ExecutionFPGADevelopment || result.GameID != nil || result.System != nil {
 		t.Fatalf("development session = %+v", result)
 	}
+	service.status = service.development
+	detach := serve(t, handler, http.MethodPost, "/api/v1/session/input/detach")
+	if detach.Code != http.StatusOK || !strings.Contains(detach.Body.String(), `"execution":"fpga_development"`) {
+		t.Fatalf("development input detach = %d %s", detach.Code, detach.Body.String())
+	}
 	stop := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", nil)
 	stop.Host = "127.0.0.1"
 	stopResponse := httptest.NewRecorder()

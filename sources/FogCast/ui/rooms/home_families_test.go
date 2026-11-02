@@ -18,9 +18,11 @@ import (
 // recents collection.
 type homeServices struct {
 	fakeServices
-	recentsMu    sync.Mutex
-	recents      []hostclient.Game
-	recentsReads int
+	recentsMu      sync.Mutex
+	recents        []hostclient.Game
+	recentsReads   int
+	recentsQueries []hostclient.GameListQuery
+	recentsLimits  []int
 }
 
 func (s *homeServices) setRecents(games ...hostclient.Game) {
@@ -35,12 +37,49 @@ func (s *homeServices) recentsAnswered() int {
 	return s.recentsReads
 }
 
+func (s *homeServices) recordedRecentsQueries() []hostclient.GameListQuery {
+	s.recentsMu.Lock()
+	defer s.recentsMu.Unlock()
+	return append([]hostclient.GameListQuery(nil), s.recentsQueries...)
+}
+
+func (s *homeServices) recordedRecentsLimits() []int {
+	s.recentsMu.Lock()
+	defer s.recentsMu.Unlock()
+	return append([]int(nil), s.recentsLimits...)
+}
+
+func (s *homeServices) setLibraryError(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.err = err
+}
+
 func (s *homeServices) QueryGames(ctx context.Context, q hostclient.GameListQuery, max int) ([]hostclient.Game, error) {
 	if q.Collection == "recents" {
 		s.recentsMu.Lock()
 		defer s.recentsMu.Unlock()
 		s.recentsReads++
-		return append([]hostclient.Game(nil), s.recents...), nil
+		s.recentsQueries = append(s.recentsQueries, q)
+		s.recentsLimits = append(s.recentsLimits, max)
+		games := make([]hostclient.Game, 0, len(s.recents))
+		if len(q.CoreIDs) > 0 {
+			wanted := make(map[string]struct{}, len(q.CoreIDs))
+			for _, coreID := range q.CoreIDs {
+				wanted[coreID] = struct{}{}
+			}
+			for _, game := range s.recents {
+				if _, ok := wanted[game.CoreID]; ok {
+					games = append(games, game)
+				}
+			}
+		} else {
+			games = append(games, s.recents...)
+		}
+		if max > 0 && len(games) > max {
+			games = games[:max]
+		}
+		return games, nil
 	}
 	return s.fakeServices.QueryGames(ctx, q, max)
 }
@@ -195,6 +234,34 @@ func TestHomeRecentlyPlayedLeadsAndPlaysTheTitle(t *testing.T) {
 	}
 }
 
+func TestHomeRecentsPagePastCoresHiddenFromReleaseHome(t *testing.T) {
+	recents := make([]hostclient.Game, 0, 13)
+	for i := 0; i < 12; i++ {
+		recents = append(recents, titleEntry("held-back", "fes.pong"))
+	}
+	recents = append(recents, titleEntry("older-visible", "fes.zx81"))
+	svc := &homeServices{recents: recents}
+	r := loadHome(t, Options{Services: svc, ReleaseOnly: true})
+	stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
+
+	if d := r.Destination(); d.Kind != KindGame || d.GameID != "older-visible" {
+		t.Fatalf("eligible title after held-back recents was not shown: %+v", d)
+	}
+	queries := svc.recordedRecentsQueries()
+	limits := svc.recordedRecentsLimits()
+	if len(queries) != 1 || len(limits) != 1 || limits[0] != 3 {
+		t.Fatalf("recent queries %+v", queries)
+	}
+	var zx81, pong bool
+	for _, coreID := range queries[0].CoreIDs {
+		zx81 = zx81 || coreID == "fes.zx81"
+		pong = pong || coreID == "fes.pong"
+	}
+	if !zx81 || pong {
+		t.Fatalf("release Home recent core filter %v", queries[0].CoreIDs)
+	}
+}
+
 func TestHomeFallsBackToTheKitWhenTheLibraryFails(t *testing.T) {
 	svc := &homeServices{fakeServices: fakeServices{err: errors.New("host unreachable")}}
 	fake := &fakeLocalCores{cores: []localcores.Core{
@@ -219,6 +286,29 @@ func TestHomeFallsBackToTheKitWhenTheLibraryFails(t *testing.T) {
 	if got := fake.launchedIDs(); len(got) != 0 {
 		t.Fatalf("Home launched %v", got)
 	}
+}
+
+func TestHomeFailedRefreshClearsStaleLibraryData(t *testing.T) {
+	svc := &homeServices{fakeServices: fakeServices{games: []hostclient.Game{
+		machineEntry("stale-machine", "fes.zx81", ""),
+		titleEntry("old-title-a", "fes.zx81"),
+		titleEntry("old-title-b", "fes.zx81"),
+	}}}
+	local := &fakeLocalCores{cores: []localcores.Core{{
+		PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true,
+	}}}
+	r := loadHome(t, Options{Services: svc, Local: local, ReleaseOnly: true})
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return homeSettled(r) && d.GameID == "stale-machine" && d.Status == "2 games"
+	})
+
+	svc.setLibraryError(errors.New("host unreachable"))
+	r.Resume()
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return d.Kind == KindFamily && d.Label == "Sinclair ZX81" && d.GameID == "" && d.Status == "Ready to open"
+	})
 }
 
 func TestHomeChecksUntilTheLibraryAnswers(t *testing.T) {

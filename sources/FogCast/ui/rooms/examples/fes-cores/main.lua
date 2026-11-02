@@ -1,13 +1,20 @@
 -- FES Home on a kit: a Recently played row above one tile per computer
--- family (#1347). The families and their readiness are stdlib families.lua.
--- Open goes to the family's workbench, where the model is chosen; FES draws
--- the selected family's or title's copy in the hero text column (room.toml
--- destination_panel = "hero").
+-- family (#1347).
+--
+-- The families are systems.families: the four v1 families in a fixed order
+-- (ZX81, Spectrum, Atari ST, C64), then, when the launcher shows all cores,
+-- every other registered family. A family's state comes from the library's
+-- machine entries (platform "fpga" rows without media) for its models, and
+-- its game count from that library's titles with media. When the library
+-- can't be read, kit.cores still says which models are installed and which
+-- need firmware. Open goes to the family's workbench, where the model is
+-- chosen; FES draws the selected family's or title's copy in the hero text
+-- column (room.toml destination_panel = "hero").
 --
 -- Recently played is the library's recents collection, hidden until
 -- something has been played. Play starts the title again; there is no resume.
 -- After Skip setup, a Get started banner takes that slot until setup is
--- finished (room.setup.unfinished); its Finish setup resumes setup (#1345).
+-- finished (room.setup.unfinished); Finish setup resumes setup (#1345).
 --
 -- Up moves from the family tiles to the row above. From the top row Up is
 -- left to FES, which focuses the hero's actions and then sends "header" to
@@ -18,9 +25,9 @@
 -- strip. A compact list above that strip offers the families and the routes.
 
 local systems = require "systems"
-
 local F = require "families"
 local C = F.colors
+local families = F.list
 local SYSTEMS = "example.computers"
 
 local MENU = { { id = "settings", label = "Settings" } }
@@ -33,23 +40,19 @@ if not room.release_only then
 end
 
 local RECENT_MAX = 3
-
-local families = F.list
-
 local recents = {}
 local recents_loaded = false
 local generation = 0   -- bumped on every data change, for the paint cache
+F.waiting = function() return not recents_loaded end
 
 -- The Get started banner, while setup is unfinished.
 local banner = room.setup.unfinished
 
--- Recently played is drawn only with the hero, and not while the banner
--- holds its slot; the compact list has the families alone.
+-- The row above the family tiles: the banner or Recently played.
 local function recents_shown()
   return room.hero ~= nil and not banner and #recents > 0
 end
 
--- The row above the family tiles: the banner or Recently played.
 local function top_row()
   if room.hero == nil then return nil end
   if banner then return "banner" end
@@ -61,10 +64,6 @@ end
 -- hero's actions; body is the row under the hero's actions.
 local row, body = "family", "family"
 local recent_i, family_i, menu_i = 1, 1, 1
-
--- Families wait for Recently played too, so the opening focus is chosen
--- before any family shows its state.
-F.waiting = function() return not recents_loaded end
 local settled = F.settled
 
 local function machine_label(g)
@@ -151,7 +150,8 @@ local function changed()
 end
 
 local function load_recents()
-  library.query({ collection = "recents", limit = RECENT_MAX * 4 }, function(games, err)
+  -- Filter before paging so hidden cores do not consume the three recent slots.
+  library.query({ collection = "recents", core_ids = systems.ids, limit = RECENT_MAX }, function(games, err)
     local focused = recents[recent_i] and recents[recent_i].id
     recents = {}
     if not err then
@@ -225,8 +225,7 @@ local function move(dx, dy)
   end
   if dy < 0 then
     if row == "family" and top_row() then
-      row = top_row()
-      body = row
+      row, body = top_row(), top_row()
       remember()
       return true
     end
@@ -337,7 +336,8 @@ end
 
 -- A recent title's art: its family's ground behind the moon-and-hills motif.
 local function title_art(g, x, y, w, h)
-  gfx.rect(x, y, w, h, F.ground(g.core_id, g.id))
+  local ground = F.ground(g.core_id, g.id)
+  gfx.rect(x, y, w, h, ground)
   disc(x + w * 0.36, y + h * 0.42, math.min(w, h) * 0.24, "#F5E6C8")
   hills(x, y + h * 0.45, w, h * 0.55, C.dark, F.hash(g.title or "") % 7 / 7)
 end
@@ -345,7 +345,8 @@ end
 local function menu_art(id, x, y, w, h)
   gfx.rect(x, y, w, h, C.raised)
   if id == "library" then
-    local spines = { "#7097A8", "#E08A63", "#8DB07A", "#9690B5", "#D9B45A", "#6E8F80" }
+    local grounds = F.grounds
+    local spines = { grounds[1], grounds[3], grounds[4], grounds[2], grounds[5], grounds[6] }
     local sw = w / 12
     for i, color in ipairs(spines) do
       local sh = h * (0.45 + 0.07 * (i % 3))

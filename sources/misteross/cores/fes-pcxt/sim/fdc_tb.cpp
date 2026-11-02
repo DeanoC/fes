@@ -28,10 +28,12 @@ struct Bench {
         d.clk=1; d.eval();++ticks;
     }
     void reset() {
-        d.reset=1; d.cycle_valid=0;d.guest_ce=1;
+        d.reset=1; d.cold_reset=1; d.cycle_valid=0;d.guest_ce=1;
         d.media_present=1;d.media_read_ready=1;
+        d.media_writable=0; d.media_frozen=0; d.media_write_ready=0;
+        d.media_write_error=0; d.media_write_index=0;
         for(unsigned i=0;i<16;++i)tick();
-        d.reset=0;pending=false;
+        d.reset=0;d.cold_reset=0;pending=false;
         for(unsigned i=0;i<16;++i)tick();
     }
     void begin(unsigned kind, unsigned address, bool write, unsigned data=0, bool tc=false) {
@@ -50,7 +52,7 @@ struct Bench {
     void out(unsigned a, unsigned v) {begin(1,a,true,v);finish();}
     uint8_t in(unsigned a) {begin(1,a,false);return finish();}
     uint8_t dma(bool tc=false) {begin(3,0,false,0,tc);++dma_count;return finish();}
-    void dma_write(uint8_t value) {begin(3,0,true,value);finish();}
+    void dma_write(uint8_t value,bool tc=false) {begin(3,0,true,value,tc);finish();}
     void wait_irq(uint64_t limit=2200000) {
         for(uint64_t i=0;!(d.irq&0x40) && i<limit;++i)tick();
         check(d.irq&0x40,"IRQ6 timeout");
@@ -78,6 +80,22 @@ struct Bench {
     }
     void read_cmd(unsigned c,unsigned h,unsigned r,unsigned eot=9) {
         send({0xe6,h<<2,c,h,r,2,eot,0x2a,0xff});
+    }
+    void write_cmd(unsigned c,unsigned h,unsigned r,unsigned eot=9) {
+        send({0xc5,h<<2,c,h,r,2,eot,0x2a,0xff});
+    }
+    void write_bytes(unsigned seed,unsigned n,bool tc_on_last=true) {
+        for(unsigned i=0;i<n;++i) {
+            wait_drq();dma_write(byte(seed+i),tc_on_last && i+1==n);
+        }
+    }
+    void check_write(unsigned lba,unsigned seed) {
+        check(d.media_write_valid && d.media_write_busy && d.media_write_lba==lba,
+              "completed sector must be held for backend");
+        for(unsigned i=0;i<512;++i) {
+            d.media_write_index=i;tick();
+            check(d.media_write_data==byte(seed+i),"staged sector data mismatch");
+        }
     }
     void bytes(unsigned base,unsigned n,bool tc_on_last=true) {
         for(unsigned i=0;i<n;++i) {
@@ -310,6 +328,120 @@ int main(int argc,char **argv) {
     b.d.reset=1;b.tick();
     b.check(b.d.observed_seek_ticks==0 && !b.d.observed_seek_irq,"global reset did not clear seek timer");
     b.d.reset=0;
+    std::cerr << "stage: Staged writable DMA sectors\n";
+    b.reset();b.out(0x3f2,0x08);b.out(0x3f2,0x1c);b.wait_irq();b.sense(0xc0,0);
+    b.send({0x03,0xdf,0x02});
+    for(unsigned i=0;i<1909100;++i)b.tick();
+    b.d.media_writable=1;
+    b.send({0x04,0});r=b.result(1);b.check(!(r[0]&0x40),"writable drive reports protected");
+    b.write_cmd(0,0,1);b.write_bytes(0x1000,512);
+    b.check_write(0,0x1000);
+    for(unsigned i=0;i<300;++i) {
+        b.tick();b.check(b.d.media_write_valid && b.d.media_write_lba==0 &&
+                         !(b.d.drq&2) && !(b.d.irq&0x40),"backend delay changed write request");
+    }
+    b.d.media_write_ready=1;b.tick();b.d.media_write_ready=0;
+    b.wait_irq(1000);r=b.result(7);
+    b.check(r==std::vector<uint8_t>({0,0,0,0,0,2,2}),"written sector result/TC");
+    b.check(!b.d.media_write_busy && !b.d.media_write_valid,"completed write did not drain");
+
+    // Two completed sectors roll from head 0 EOT onto head 1. The first
+    // transaction must finish before the second DMA request is offered.
+    b.write_cmd(0,0,5,5);b.write_bytes(0x2000,512,false);b.check_write(4,0x2000);
+    b.d.media_write_ready=1;b.tick();b.d.media_write_ready=0;
+    b.write_bytes(0x3000,512);b.check_write(9,0x3000);
+    b.d.media_write_ready=1;b.tick();b.d.media_write_ready=0;
+    b.wait_irq(1000);r=b.result(7);
+    b.check(r==std::vector<uint8_t>({4,0,0,0,1,2,2}),"multi-track write rollover");
+
+    // Early TC and wrong-direction DMA must not publish a partial sector.
+    b.write_cmd(0,0,1);b.write_bytes(0x4000,17);
+    b.wait_irq(1000);r=b.result(7);
+    b.check((r[0]&0x40) && r[1]==0x10 && !b.d.media_write_valid && !b.d.media_write_busy,
+            "partial TC must fail without committing");
+    b.write_cmd(0,0,1);b.wait_drq();b.dma();b.wait_irq(1000);r=b.result(7);
+    b.check((r[0]&0x40) && r[1]==0x10 && !b.d.media_write_valid,
+            "wrong-direction DMA must fail without committing");
+
+    b.write_cmd(0,0,1);b.write_bytes(0x4100,8,false);
+    b.d.media_present=0;b.tick();b.d.media_present=1;
+    b.wait_irq(1000);r=b.result(7);
+    b.check((r[0]&0x48)==0x48 && r[1]==4 && !b.d.media_write_valid,
+            "transient eject must abort incomplete write");
+
+    // Freeze cannot interrupt a sector already being collected. The host
+    // waits for busy to drop before taking the snapshot.
+    b.write_cmd(0,0,3);b.write_bytes(0x7000,8,false);
+    b.d.media_frozen=1;b.check(b.d.media_write_busy,"write not fenced while collecting");
+    for(unsigned i=8;i<512;++i) {
+        b.wait_drq();b.dma_write(Bench::byte(0x7000+i),i==511);
+    }
+    b.check_write(2,0x7000);b.d.media_write_ready=1;b.tick();b.d.media_write_ready=0;
+    b.wait_irq(1000);r=b.result(7);
+    b.check(r==std::vector<uint8_t>({0,0,0,0,0,4,2}) && !b.d.media_write_busy,
+            "in-flight frozen write did not drain");
+    b.d.media_frozen=0;
+
+    b.write_cmd(0,0,10);b.wait_irq(1000);r=b.result(7);
+    b.check((r[0]&0x40) && r[1]==4 && !b.d.media_write_valid,"invalid sector accepted");
+    b.d.media_frozen=1;
+    b.send({0x04,0});r=b.result(1);
+    b.check(!(r[0]&0x40),"snapshot freeze reported write-protected media");
+    b.write_cmd(0,0,1);
+    for(unsigned i=0;i<1000;++i) {
+        b.tick();
+        b.check(!b.d.media_write_busy,"frozen waiting write blocked snapshot");
+        b.check(!(b.d.drq&2) && !(b.d.irq&0x40),"frozen write did not wait for unfreeze");
+    }
+    b.check(b.in(0x3f4)==0x10,"frozen write command did not remain pending");
+    b.d.media_frozen=0;
+    b.tick();
+    b.check(b.d.media_write_busy && !(b.d.drq&2),
+            "resumed write did not become busy before its first byte");
+    b.write_bytes(0x7100,512);b.check_write(0,0x7100);
+    b.d.media_write_ready=1;b.tick();b.d.media_write_ready=0;
+    b.wait_irq(1000);r=b.result(7);
+    b.check(r==std::vector<uint8_t>({0,0,0,0,0,2,2}),
+            "frozen waiting write did not resume after snapshot");
+
+    // Once accepted by the backend, a warm reset may reset the controller,
+    // but must not withdraw its sector or allow a replacement over it.
+    b.write_cmd(0,0,2);b.write_bytes(0x5000,512);b.check_write(1,0x5000);
+    b.d.reset=1;b.tick();b.d.reset=0;
+    for(unsigned i=0;i<100;++i) {b.tick();b.check_write(1,0x5000);}
+    // A new command is held at the ISA boundary until the old backend
+    // transaction finishes, so its staged bytes cannot be overwritten.
+    b.begin(1,0x3f5,true,0x05);
+    for(unsigned i=0;i<100;++i) {b.tick();b.check(!b.d.cycle_done,"new command passed pending sector");}
+    b.check_write(1,0x5000);
+    b.d.media_write_ready=1;b.tick();b.d.media_write_ready=0;b.finish();
+    b.d.reset=1;b.tick();b.d.reset=0;
+    b.check(!b.d.media_write_valid && !b.d.media_write_busy,"warm reset sector did not drain");
+
+    b.out(0x3f2,0x08);b.out(0x3f2,0x1c);b.wait_irq();b.sense(0xc0,0);
+    b.send({0x03,0xdf,0x02});for(unsigned i=0;i<1909100;++i)b.tick();
+    b.write_cmd(0,0,1);b.write_bytes(0x6000,512);b.check_write(0,0x6000);
+    b.d.media_write_error=1;b.d.media_write_ready=1;b.tick();
+    b.d.media_write_ready=0;b.d.media_write_error=0;
+    b.wait_irq(1000);r=b.result(7);
+    b.check((r[0]&0x40) && r[1]==0x20,"backend error reported success");
+
+    // Unsupported deleted data and track formatting remain write-protected,
+    // even while ordinary sector writes are enabled.
+    b.send({0xc9,0,0,0,1,2,9,0x2a,0xff});b.wait_irq(1000);r=b.result(7);
+    b.check((r[0]&0x40) && r[1]==2 && !b.d.media_write_valid,
+            "unsupported deleted-data write modified media");
+    b.send({0x4d,0,2,9,0x50,0xf6});b.wait_irq(1000);r=b.result(7);
+    b.check((r[0]&0x40) && r[1]==2 && !b.d.media_write_valid,
+            "unsupported format modified media");
+
+    b.write_cmd(0,0,4);b.write_bytes(0x8000,512);b.check_write(3,0x8000);
+    b.out(0x3f2,0x08); // DOR controller reset while the backend is busy.
+    b.check_write(3,0x8000);
+    b.d.media_write_ready=1;b.tick();b.d.media_write_ready=0;
+    b.check(!b.d.media_write_busy && !b.d.media_write_valid,
+            "controller reset cancelled or wedged backend write");
+
     std::cout << "PASS XT floppy ISA controller: " << b.dma_count << " DMA read bytes, "
               << b.reads << " media transfers, " << b.ticks << " guest ticks\n";
 }

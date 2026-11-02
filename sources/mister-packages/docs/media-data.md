@@ -72,6 +72,17 @@ restores reject saved/base length mismatch before hardware transfer. Saved BPB
 edits do not change physical geometry. `atari-st-geometry.json` independently
 fixes the 839680-byte patterned header, checksum, revision and namespace.
 
+## PC/XT floppy capture
+
+`fes.pcxt-floppy.image` 1.0 uses the same namespace, binding, publication,
+and field order as the ST record. Its magic is `FESPCXT1`, its layout ID has
+21 bytes, and the payload is exactly 368640 bytes. Its total length is
+368809 bytes. The core ID `fes.pcxt-dos` selects this layout, so a valid ST
+or tape envelope cannot be mistaken for a PC/XT disk. Before releasing the
+CPU, a library launch validates the immutable base and restores a valid saved
+revision, or uses the base when no record exists. A corrupt, incompatible or
+stale record fails closed. Raw development inserts have no durable binding.
+
 ## ZX81 tape capture
 
 `fes.zx81-tape.image` 1.0 is the `.p` captured by `fes.media.zx81-tape-write`.

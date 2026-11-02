@@ -3078,6 +3078,23 @@ void TestMediaSnapshotFrozenCaptureAndRecovery()
  f.endpoint.fail_after_request={};assert(f.driver.ResumeMedia(0,kComputerDeadline).ok());assert(!f.endpoint.frozen&&!f.endpoint.saved);
 }
 
+void TestPcxtMediaSnapshot()
+{
+ auto descriptor=ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,FesComputerInterfaceMediaPcxtFloppyID,FesComputerInterfaceMediaPcxtFloppyWriteID});
+ descriptor.abi.minor=1;
+ ComputerFixture f(FesComputerCapabilityVideoFixed720p60|FesComputerCapabilityMediaPcxtFloppy|FesComputerCapabilityMediaPcxtFloppyWrite,{{0,{368640,368640}}},descriptor);
+ assert(f.driver.Identify(f.context,kComputerDeadline).error.ok());
+ assert(f.driver.Start(f.context,kComputerDeadline).error.ok());
+ auto& u=f.endpoint.unit(0);u.state=3;u.data.resize(368640);for(unsigned i=0;i<u.data.size();++i)u.data[i]=static_cast<unsigned char>(i*7+(i>>8));
+ f.endpoint.dirty=true;f.endpoint.epoch=19;
+ std::vector<unsigned char> captured;
+ assert(f.driver.CaptureMedia(0,f.clock,kComputerDeadline,&captured).ok());
+ assert(captured==u.data&&f.endpoint.frozen&&f.endpoint.dirty);
+ assert(f.driver.MarkMediaSaved(0,kComputerDeadline).ok());
+ assert(f.endpoint.frozen&&!f.endpoint.dirty);
+ assert(f.driver.ResumeMedia(0,kComputerDeadline).ok());
+}
+
 void TestMouseRelativeSplittingAndUncertainDelivery()
 {
 	const auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID, FesComputerInterfaceMouseRelativeID});
@@ -3412,6 +3429,7 @@ void TestPc386AtaDiskCommitPollAndDirtyMap()
 int main()
 {
  TestMediaSnapshotFrozenCaptureAndRecovery();
+ TestPcxtMediaSnapshot();
  TestMouseRelativeSplittingAndUncertainDelivery();
  TestAtariStFloppyDiscoveryAndLiveInsert();
 	TestPcxtFloppyDiscoveryAndLiveInsert();

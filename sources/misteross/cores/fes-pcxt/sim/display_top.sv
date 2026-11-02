@@ -22,7 +22,9 @@ module display_top (
     output wire [7:0] rgbi
 );
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_display_bus bus (.media_present(1'b0), .media_read_valid(), .media_read_addr(),
+    pcxt_display_bus bus (.media_present(1'b0), .cold_reset(reset), .media_frozen(1'b0),
+        .media_write_busy(), .media_write_valid(), .media_write_lba(), .media_write_index(9'b0),
+        .media_write_data(), .media_write_ready(1'b0), .media_write_error(1'b0), .media_read_valid(), .media_read_addr(),
         .media_read_ready(1'b0), .media_read_data(8'b0), .*);
     /* verilator lint_on PINCONNECTEMPTY */
 endmodule

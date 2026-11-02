@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
 
@@ -32,6 +34,84 @@ func initialROMResponse(t *testing.T, kind string) Protocol2Response {
 		t.Fatal("invalid initial fixture", err)
 	}
 	return r
+}
+
+func TestInitialPcxtLocalRequestAndBinding(t *testing.T) {
+	response := func() Protocol2Response {
+		r := writableSTResponse(t, true)
+		r.ActivePackage.Descriptor.Core.ID = "fes.pcxt-dos"
+		r.ActivePackage.Descriptor.ABI.Minor = 1
+		r.ActivePackage.Observed.ABI.Minor = 1
+		r.Capabilities.ABIs[0].Minor = 1
+		*r.Core = "fes.pcxt-dos"
+		for i := range r.ActivePackage.Descriptor.Interfaces {
+			switch r.ActivePackage.Descriptor.Interfaces[i].ID {
+			case protocol.AtariStFloppyInterface().ID:
+				r.ActivePackage.Descriptor.Interfaces[i].ID = protocol.PcxtFloppyInterface().ID
+			case protocol.AtariStFloppyWriteInterface().ID:
+				r.ActivePackage.Descriptor.Interfaces[i].ID = protocol.PcxtFloppyWriteInterface().ID
+			}
+		}
+		for _, list := range []*[]Protocol2Interface{&r.Capabilities.ActiveInterfaces, &r.Capabilities.ABIs[0].Interfaces} {
+			for i := range *list {
+				switch (*list)[i].ID {
+				case protocol.AtariStFloppyInterface().ID:
+					(*list)[i].ID = protocol.PcxtFloppyInterface().ID
+				case protocol.AtariStFloppyWriteInterface().ID:
+					(*list)[i].ID = protocol.PcxtFloppyWriteInterface().ID
+				}
+			}
+			sort.Slice(*list, func(i, j int) bool { return (*list)[i].ID < (*list)[j].ID })
+		}
+		u := &r.Capabilities.MediaUnits[0]
+		u.Interface, u.MinBytes, u.MaxBytes = protocol.PcxtFloppyInterface(), uint32(protocol.PcxtFloppyBytes), uint32(protocol.PcxtFloppyBytes)
+		return r
+	}
+	media := &InitialMediaRequest{Path: "/stage/initial-media.img", Size: 368640, Unit: 0, DataRoot: MediaDataRoot, GameID: "st-desktop", BaseMediaID: strings.Repeat("b", 64)}
+	wrong := initialROMResponse(t, "plain")
+	wrong.Capabilities.MediaUnits[0].MinBytes, wrong.Capabilities.MediaUnits[0].MaxBytes = 368640, 368640
+	wrong.Capabilities.ActiveInterfaces = append(wrong.Capabilities.ActiveInterfaces, Protocol2Interface{ID: protocol.AtariStFloppyGeometryInterface().ID, Major: 1})
+	if initialPcxtRequestMatches(wrong, media) {
+		t.Fatal("ST response accepted for PC/XT launch")
+	}
+	pcxt := response()
+	if initialRequestMatches(pcxt, media) {
+		t.Fatal("PC/XT response accepted for ST launch")
+	}
+	badDescriptor := response()
+	badDescriptor.ActivePackage.Descriptor.Core.ID = "fes.atari-st"
+	if initialPcxtRequestMatches(badDescriptor, media) {
+		t.Fatal("wrong descriptor core accepted")
+	}
+	badDescriptor = response()
+	badDescriptor.ActivePackage.Descriptor.Interfaces = []corepackage.Interface{{ID: protocol.PcxtFloppyInterface().ID, Major: 1, Required: true}}
+	if initialPcxtRequestMatches(badDescriptor, media) {
+		t.Fatal("descriptor without write extension accepted")
+	}
+	for _, bad := range []bool{false, true} {
+		before, reply := response(), response()
+		nextGeneration := *before.Generation + 1
+		reply.Generation = &nextGeneration
+		if _, err := decodeProtocol2Response([]byte(responseLine(t, before))); err != nil {
+			t.Fatalf("invalid PC/XT response fixture: %v", err)
+		}
+		if bad {
+			reply.Capabilities.MediaUnits[0].Persistence.GameID = "other-game"
+		}
+		socket := newSequenceSocketFixture(t, []string{responseLine(t, before) + "\n", responseLine(t, reply) + "\n"})
+		_, err := NewClient(socket.path).LoadCoreWithInitialMedia(context.Background(), "/stage/shell", before.ActivePackage.PackageID, media)
+		if (err != nil) != bad || (bad && !protocol2MutationAttempted(err)) {
+			t.Fatalf("bad=%v error=%v", bad, err)
+		}
+		requests := socket.wait(t)
+		var request struct {
+			Operation string              `json:"operation"`
+			Initial   InitialMediaRequest `json:"initial_media"`
+		}
+		if len(requests) != 2 || json.Unmarshal([]byte(requests[1]), &request) != nil || request.Operation != "load_core" || request.Initial != *media {
+			t.Fatal("initial load changed", requests)
+		}
+	}
 }
 func initialClientCall(ctx context.Context, c *Client, r Protocol2Response, kind string, media *InitialMediaRequest) (Protocol2Response, error) {
 	a := r.ActivePackage

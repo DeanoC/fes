@@ -1147,8 +1147,35 @@ Error ParseRequest(const std::string& line, Request* request)
 		} else if (operation->string_value == "inspect_core" ||
 			operation->string_value == "load_core") {
 			const char* const fields[] = {
-				"protocol", "operation", "package_path", "package_id"};
-			if (!HasOnly(root, fields, 4, &error)) return error;
+				"protocol", "operation", "package_path", "package_id", "initial_media"};
+			if (!HasOnly(root, fields, 5, &error)) return error;
+			if (const auto* initial = Find(root, "initial_media")) {
+				if (operation->string_value != "load_core" || initial->type != json::Type::object)
+					return Invalid("initial_media requires a core load and object");
+				const char* keys[] = {"path", "size", "unit", "data_root", "game_id", "base_media_id"};
+				if (!HasOnly(*initial, keys, 6, &error)) return error;
+				const std::string *path = nullptr, *data_root = nullptr, *game = nullptr, *base = nullptr;
+				if (!StringMember(*initial, "path", &path, &error) ||
+					!StringMember(*initial, "data_root", &data_root, &error) ||
+					!StringMember(*initial, "game_id", &game, &error) ||
+					!StringMember(*initial, "base_media_id", &base, &error)) return error;
+				if (!Path(*path) || !Path(*data_root) || !PackageID(*base) || game->empty() || game->size() > 256 ||
+					!BoundedInteger(Find(*initial, "unit"), 0, 0) ||
+					!BoundedInteger(Find(*initial, "size"), native::generated::FesComputerPcxtFloppyBytes,
+						native::generated::FesComputerPcxtFloppyBytes)) return Invalid("invalid initial PC/XT disk");
+				bool hyphen = true;
+				for (char c : *game) {
+					if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') || (c == '-' && hyphen))
+						return Invalid("invalid initial disk game identity");
+					hyphen = c == '-';
+				}
+				if (hyphen) return Invalid("invalid initial disk game identity");
+				parsed.has_initial_media = true;
+				parsed.initial_media.path = *path;
+				parsed.initial_media.data_root = *data_root;
+				parsed.initial_media.size = native::generated::FesComputerPcxtFloppyBytes;
+				parsed.initial_media.binding = {*game, *base, 0};
+			}
 			const std::string* package_path = nullptr;
 			const std::string* package_id = nullptr;
 			if (!StringMember(root, "package_path", &package_path, &error) ||
@@ -1419,7 +1446,7 @@ Error ParseRequest(const std::string& line, Request* request)
                         return Invalid("invalid library game identity");
                     hyphen=c=='-';
                 }
-                if(hyphen||unit->integer_value!=0||!native::InferAtariStGeometry(parsed.media_size))
+                if(hyphen||unit->integer_value!=0||(parsed.media_size != native::generated::FesComputerPcxtFloppyBytes && !native::InferAtariStGeometry(parsed.media_size)))
                     return Invalid("invalid library disk geometry or identity");
                 parsed.data_root=*root_path;parsed.media_binding.game_id=*game;parsed.media_binding.base_media_id=*base;
                 parsed.media_binding.unit=static_cast<std::uint8_t>(unit->integer_value);

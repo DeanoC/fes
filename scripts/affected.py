@@ -190,7 +190,7 @@ def fpga_cores(path):
                         'sim_fes_pc386.py'):
             core = parts[1][len('sim_fes_'):-len('.py')]
             return (core,), core + ' simulation recipe'
-        if parts[1] in ('pcxt_bios.py', 'sim_fes_pcxt_fdc.py',
+        if parts[1] in ('pcxt_bios.py', 'sim_fes_pcxt_fdc.py', 'sim_fes_pcxt_write.py',
                          'sim_fes_pcxt_dos.py', 'sim_fes_pcxt_media.py', 'sim_fes_pcxt_media_diag.py',
                          'sim_fes_pcxt_mailbox.py', 'build_pcxt_freedos_image.py'):
             return ('pcxt',), 'PC/XT BIOS, floppy and DOS simulation recipes'

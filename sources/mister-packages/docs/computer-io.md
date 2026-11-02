@@ -47,7 +47,8 @@ removable media by unit.
 | fes.persistence.words | 17 | Durable words of one registered layout, restored while held and captured at Stop ([persistence](#persistence-words)) |
 | fes.rtc.wall-clock | 18 | The kit's local time, seeded while held ([wall clock](#wall-clock)) |
 | fes.pc386.machine | 19 | The 72-word pc386 settings and CMOS layout of the persistence words |
-| fes.media.pcxt-floppy | 20 | Media unit 0: one read-only 360 KiB raw XT floppy; requires ABI 1.1 |
+| fes.media.pcxt-floppy | 20 | Media unit 0: one 360 KiB raw XT floppy; write requires the extension, and ABI 1.1 is required |
+| fes.media.pcxt-floppy-write | 21 | PC/XT floppy snapshot and writes; requires the PC/XT floppy and ABI 1.1 |
 
 A session display is also declared with the manifest-only
 `fes.fabric.video.display-plane` 1.0, which has no capability bit; see
@@ -411,8 +412,8 @@ Unit 0 accepts exactly 368,640 bytes (Info minimum = maximum = 368,640): a
 raw 360 KiB XT floppy with 40 cylinders, two heads, nine sectors per track
 and 512 bytes per sector. Byte offset is
 `((cylinder * 2 + head) * 9 + sector - 1) * 512`, with cylinders 0..39,
-heads 0..1 and sectors 1..9. The medium is read-only; drive A reports write
-protection and drive B is absent. Flux or track images and other geometries
+heads 0..1 and sectors 1..9. Without the write extension, drive A reports write
+protection; drive B is absent. Flux or track images and other geometries
 are not this interface. Capability bit 20 identifies it and requires ABI 1.1.
 It shares unit 0 with the other computer media interfaces, so a shell may
 declare only one. The generic Begin, Data, Commit and Eject rules above apply
@@ -623,6 +624,18 @@ pc386 record vectors are [`pc386-machine.json`](../testdata/core-persistence-v1/
 requests against their own code; the endpoint capacity is a synthetic fixture
 parameter, not the Apple II floppy size. FES selects reviewed component
 revisions before integration or exact-artifact hardware acceptance.
+
+## Writable PC/XT image capture
+
+`fes.media.pcxt-floppy-write` 1.0 extends the PC/XT floppy contract on unit 0.
+It uses the snapshot commands and flags described below for Atari ST, with
+layout tag 4, version 1.0, and exactly 368640 bytes (40 cylinders, two heads,
+nine 512-byte sectors). Freeze fences new commands and drains an accepted
+sector before acknowledging; the epoch advances for each complete sector.
+Saved is sent only after the bound library revision has been durably published.
+Unbound raw inserts are volatile and may be discarded on eject or replacement;
+they are never acknowledged as durable. An unexpected power loss can lose
+guest writes since the last successful checkpoint.
 
 ## Writable ST image capture
 
