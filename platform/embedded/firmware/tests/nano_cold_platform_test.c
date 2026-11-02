@@ -284,6 +284,21 @@ int main(int argc,char **argv)
     assert(reply[0]==0 && (uint32_t)reply[1]==0xdf && reply[2]==record.owner && reply[3]==1);
     assert(masters.owns(masters.context,record.owner,record.epoch)==1);
     fes_nano_owned_bridges=b;
+    /* The private channel's explicit data masks cannot bypass the strong cold
+     * provider. Only its fixed owned probe may open control in this profile. */
+    const uint64_t forbidden_bridge_ops[]={1,2,3,0x80003,0xd0003};
+    for(unsigned i=0;i<sizeof(forbidden_bridge_ops)/sizeof(forbidden_bridge_ops[0]);i++) {
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,forbidden_bridge_ops[i],
+                           record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(reply[0]==2 && bridge==15 && !fes_nano_owned_bridges.failed &&
+               fes_nano_owned_bridges.state.generation==1 && !engine_calls);
+#if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
+        assert(!fpga_reads);
+#ifdef FES_TEST_READER_RTL
+        assert(!fpga_writes);
+#endif
+#endif
+    }
     fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_READER,
                        record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
     assert(reply[0]==FES_EMBEDDED_BRIDGE_NOT_READY &&

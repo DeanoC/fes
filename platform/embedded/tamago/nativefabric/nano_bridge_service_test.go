@@ -55,7 +55,7 @@ func TestNanoFirmwareBridgeSiPGates(t *testing.T) {
 		{0xc2000401},        // versioned range
 		{0xc20000c8},
 		{0x42000300}, // wrong calling convention for the private query
-		{uint64(g.FesEmbeddedBridgeCall), 4, 0, uint64(g.FesEmbeddedBridgeCookie)}, // no init action
+		{uint64(g.FesEmbeddedBridgeCall), 0xffff, 0, uint64(g.FesEmbeddedBridgeCookie)}, // no init action
 	} {
 		reply, err := r.Invoke(request)
 		if err != nil || reply[0] != 2 {

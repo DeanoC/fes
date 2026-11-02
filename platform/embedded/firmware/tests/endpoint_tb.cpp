@@ -21,6 +21,8 @@ struct World {
 #include "nano_bridge_fixture.h"
 extern "C" void fes_nano_bridge_platform_lock(void) {}
 extern "C" void fes_nano_bridge_platform_unlock(void) {}
+// This host adapter has no persistent SD diagnostic record or hardware I/O.
+extern "C" void fes_nano_platform_sd_report(void) {}
 extern "C" int socfpga_bridges_disable(uint32_t mask){
     return (mask==~0U||mask==15U) ? fes_nano_bridges_configuration_guard(&fes_nano_fixture_service) : -1;
 }

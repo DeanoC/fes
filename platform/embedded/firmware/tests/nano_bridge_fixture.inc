@@ -58,7 +58,7 @@ static int poll_idle_status(uint32_t address, uint32_t mask, uint32_t expected, 
     if ((registers.fault == 1 && registers.disabling &&
          ((mask == RSTMGR_HDSKACK_FPGA2SOCACK && expected == RSTMGR_HDSKACK_F2S_FLUSH) ||
           (mask == RSTMGR_HDSKACK_F2SDRAM0ACK && expected == RSTMGR_HDSKACK_F2SDRAM0ACK_DASRT))) ||
-        (registers.fault == 2 && mask == 4 && expected == 4) ||
+        (registers.fault == 2 && registers.disabling && mask == RSTMGR_HDSKACK_FPGAHSACK) ||
         registers.fault == 6)
         return -60;
     return (mmio_read_32(address) & mask) == expected ? 0 : -60;
@@ -98,11 +98,13 @@ static int disable(void *context, uint32_t mask, unsigned fabric)
 static int enable(void *context, uint32_t mask, unsigned fabric)
 {
     (void)context; registers.enables++; registers.fabric_mode = fabric;
-    unsigned fault = registers.fault;
-    if (fault == 8 || (fault == 9 && (mask & FES_NANO_BRIDGES_DATA))) registers.fault = 6;
     int result = fes_nano_raw_enable(mask);
-    registers.fault = fault;
     if (!result) registers.masters = mask == FES_NANO_BRIDGES_CONTROL;
+    /* Opening a reset bridge may skip every poll in the pinned driver. Inject
+     * an uncertain callback return at the requested transition, rather than a
+     * timeout that might never run (or run only at a later data opening). */
+    if ((registers.fault == 8 && mask == FES_NANO_BRIDGES_CONTROL) ||
+        (registers.fault == 9 && (mask & FES_NANO_BRIDGES_DATA))) return -60;
     return result;
 }
 int fes_nano_fixture_boot(unsigned reset, unsigned cold, unsigned fabric)
