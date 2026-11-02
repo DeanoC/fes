@@ -70,10 +70,28 @@ func (v *HPSContextVerifier) coldSource(source HPSBootObservation) bool {
 		b.ResetMask == b.Capabilities.Mask && b.MastersContained && b.Capabilities.FabricHandshake == FabricHandshakeAbsent
 }
 
+func (v *HPSContextVerifier) reconfigurationSource(source HPSBootObservation) bool {
+	b := source.Bridges
+	return v != nil && source.Digest == v.digest && validBridgeSnapshot(b) && !b.NeverEnabled &&
+		b.Generation > 1 && b.Generation <= ^uint64(0)-2 && b.ResetMask == b.Capabilities.Mask &&
+		b.MastersContained && b.Capabilities.FabricHandshake == FabricHandshakeAbsent
+}
+
 // NewColdConfigurationTransfer takes its DMA and block parameters from the
 // compiled sealed map. Preparation rechecks the staged bytes and original held
 // source immediately before START. This grants no runtime admission or release.
 func (v *HPSContextVerifier) NewColdConfigurationTransfer(control, configuration []byte, region *Region, source HPSBootObservation) (*ConfigurationTransfer, error) {
+	return v.newSourceConfigurationTransfer(control, configuration, region, source, false)
+}
+
+// NewReconfigurationTransfer uses the same sealed bytes after an owned return.
+// Its region must carry a fresh platform lease; it never reuses or releases a
+// previous transfer's reservation. Secure rearming is deferred until START.
+func (v *HPSContextVerifier) NewReconfigurationTransfer(control, configuration []byte, region *Region, source HPSBootObservation) (*ConfigurationTransfer, error) {
+	return v.newSourceConfigurationTransfer(control, configuration, region, source, true)
+}
+
+func (v *HPSContextVerifier) newSourceConfigurationTransfer(control, configuration []byte, region *Region, source HPSBootObservation, rearm bool) (*ConfigurationTransfer, error) {
 	if _, err := v.checkedControlMap(control); err != nil {
 		return nil, err
 	}
@@ -81,18 +99,22 @@ func (v *HPSContextVerifier) NewColdConfigurationTransfer(control, configuration
 	if err != nil {
 		return nil, err
 	}
-	if !v.coldSource(source) ||
+	held := v.coldSource(source)
+	if rearm {
+		held = v.reconfigurationSource(source)
+	}
+	if !held ||
 		region == nil || region.Address != m.Base || len(region.Bytes) != m.CoreSize {
-		return nil, errors.New("native fabric: original held source and compiled reservation required")
+		return nil, errors.New("native fabric: held source and compiled reservation required")
 	}
 	control, configuration = bytes.Clone(control), bytes.Clone(configuration)
 	beforeStart := func() error {
-		prepared, err := v.PrepareConfiguration(control, configuration, region)
+		prepared, err := v.prepareConfiguration(control, configuration, region, rearm)
 		if err != nil {
 			return err
 		}
 		if prepared != source {
-			return errors.New("native fabric: configuration preparation changed cold source")
+			return errors.New("native fabric: configuration preparation changed held source")
 		}
 		return nil
 	}
@@ -105,6 +127,18 @@ func (v *HPSContextVerifier) NewColdConfigurationTransfer(control, configuration
 // this call, including on error; it must retain uncertain storage until reboot.
 // This is not a BootHandoffVerifier or a runtime compatibility decision.
 func (v *HPSContextVerifier) PrepareConfiguration(control, configuration []byte, region *Region) (HPSBootObservation, error) {
+	return v.prepareConfiguration(control, configuration, region, false)
+}
+
+// PrepareReconfiguration asks the secure provider to rearm the same compiled
+// source after a successful transfer and a newer owned all-master closure.
+// Failed or uncertain transfers cannot be rearmed. The caller retains the
+// region, including on error; this grants no runtime admission or bridge access.
+func (v *HPSContextVerifier) PrepareReconfiguration(control, configuration []byte, region *Region) (HPSBootObservation, error) {
+	return v.prepareConfiguration(control, configuration, region, true)
+}
+
+func (v *HPSContextVerifier) prepareConfiguration(control, configuration []byte, region *Region, rearm bool) (HPSBootObservation, error) {
 	if _, err := v.checkedControlMap(control); err != nil {
 		return HPSBootObservation{}, err
 	}
@@ -130,16 +164,22 @@ func (v *HPSContextVerifier) PrepareConfiguration(control, configuration []byte,
 		return HPSBootObservation{}, err
 	}
 	before := source.Bridges
-	if !v.coldSource(source) {
+	operation, tag := uint64(g.FesEmbeddedBridgePrepareConfiguration), uint64(g.FesEmbeddedBridgePreparationTag)
+	if rearm {
+		if !v.reconfigurationSource(source) {
+			return HPSBootObservation{}, errors.New("native fabric: reconfiguration requires a newer owned all-master closure")
+		}
+		operation, tag = uint64(g.FesEmbeddedBridgeRearmConfiguration), uint64(g.FesEmbeddedBridgeRearmTag)
+	} else if !v.coldSource(source) {
 		return HPSBootObservation{}, errors.New("native fabric: cold preparation requires fresh closed source ownership")
 	}
-	r, err := v.cpu.Invoke([7]uint64{uint64(g.FesEmbeddedBridgeCall), uint64(g.FesEmbeddedBridgePrepareConfiguration), before.Owner,
+	r, err := v.cpu.Invoke([7]uint64{uint64(g.FesEmbeddedBridgeCall), operation, before.Owner,
 		uint64(g.FesEmbeddedBridgeCookie), before.Generation})
 	if err != nil {
 		return HPSBootObservation{}, err
 	}
-	if r != ([4]uint64{0, uint64(g.FesEmbeddedBridgePreparationTag)<<32 | uint64(m.CoreSize), before.Owner, before.Generation}) {
-		return HPSBootObservation{}, errors.New("native fabric: secure cold configuration preparation rejected")
+	if r != ([4]uint64{0, tag<<32 | uint64(m.CoreSize), before.Owner, before.Generation}) {
+		return HPSBootObservation{}, errors.New("native fabric: secure configuration preparation rejected")
 	}
 	after, err := (&FirmwareBridges{cpu: v.cpu}).ObserveBridges()
 	if err != nil || after != before {

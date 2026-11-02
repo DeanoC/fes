@@ -96,6 +96,16 @@ The board's first-load arena remains pinned until reboot, including after
 successful DMA completion. Active drain and repeated runtime loads remain
 separate qualification work.
 
+`PrepareReconfiguration` and `NewReconfigurationTransfer` use private operation
+11 to request another transfer of that same compiled source after a newer owned
+all-master closure. They retain the map, whole-image and chunk checks; the
+secure provider separately requires a successful prior transfer. Preparation
+is deferred until START and checks that ownership still matches the captured
+return. Failed transfers retain their region and cannot replay. This is tested
+with injected firmware, including changed ownership, malformed acknowledgements
+and transfer failures. The board allocator still grants only its first lease;
+no repeated physical load or fresh computer opening is enabled by these APIs.
+
 `HPSContextVerifier.ProbeReader` adds a distinct owned firmware operation for
 the sealed diagnostic's on-chip reader. It checks the same compiled source and
 control map, requires the reader-specific reply tag and verifies same-owner

@@ -77,5 +77,21 @@ int main(int argc,char **argv) {
     assert(call(&c,FES_EMBEDDED_BRIDGE_CONTROL,3,0,r) && r[0]);
     assert(call(&c,FES_EMBEDDED_BRIDGE_CLOSE|FES_EMBEDDED_BRIDGE_REQUEST_HELD,3,0,r) && r[0]);
     assert(enables==old_enables && disables==old_disables);
+    /* Retirement admits only explicit rearming to the configuration gate.
+     * It does not make a second computer opening or a raw START available. */
+    assert(!call(&c,FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,3,0,r));
+    assert(call(&c,FES_EMBEDDED_BRIDGE_PREPARE_CONFIGURATION,3,0,r) && r[0]);
+    assert(call(&c,FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION|FES_EMBEDDED_BRIDGE_REQUEST_HELD,3,0,r) && r[0]);
+    assert(fes_nano_computer_control(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,
+                                    17,0,3,&c,0,r));
+    const uint32_t transfer[]={FES_NANO_CONFIG_START,FES_NANO_CONFIG_WRITE,FES_NANO_CONFIG_COMPLETED,FES_NANO_CONFIG_ISDONE};
+    for(unsigned state=0;state<5;state++) {
+        c.rearmed=state!=0;c.prepared=state!=1;c.finished=state==2;c.failed=state==3;
+        for(unsigned i=0;i<sizeof(transfer)/sizeof(transfer[0]);i++)
+            assert(fes_nano_computer_control(transfer[i],0,0,0,0,&c,0,r)==(state==4 ? 0 : 1));
+        assert(call(&c,FES_EMBEDDED_BRIDGE_CONTROL,3,0,r) && r[0]);
+        assert(fes_nano_computer_control(FES_EMBEDDED_SD_CALL,0,0,0,0,&c,0,r));
+    }
+    assert(enables==old_enables && disables==old_disables);
     puts("PASS owned computer opening, exclusion, closure and retirement");
 }

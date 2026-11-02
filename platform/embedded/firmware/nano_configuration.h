@@ -26,7 +26,7 @@ struct fes_nano_configuration {
     struct fes_nano_configuration_ops io;
     uint64_t base, owner, generation;
     uint32_t bytes, chunk, completed, pending;
-    unsigned initialized, attempted, prepared, started, finished, failed;
+    unsigned initialized, attempted, prepared, started, finished, failed, rearmed;
     unsigned stage, issued;
     int first_error;
 };
@@ -38,6 +38,10 @@ int fes_nano_configuration_init(struct fes_nano_configuration *, struct fes_nano
                                  uint32_t bytes, uint32_t chunk, unsigned qualified);
 void fes_nano_configuration_prepare(struct fes_nano_configuration *, uint64_t owner,
                                      uint64_t generation, unsigned configuring, uint64_t result[4]);
+/* Rearm only a successfully completed fixed-source transfer after a newer
+ * owned all-master close. This never recovers a failed/ambiguous transaction. */
+void fes_nano_configuration_rearm(struct fes_nano_configuration *, uint64_t owner,
+                                   uint64_t generation, unsigned configuring, uint64_t result[4]);
 int fes_nano_configuration_before(struct fes_nano_configuration *, uint32_t fid,
                                     uint64_t address, uint64_t bytes, unsigned configuring);
 void fes_nano_configuration_after(struct fes_nano_configuration *, uint32_t fid, uint64_t result[4]);

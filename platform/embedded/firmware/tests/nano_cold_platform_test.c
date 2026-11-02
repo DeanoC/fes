@@ -667,7 +667,7 @@ configured_bytes:
         assert(fes_nano_platform_configuration()->finished && !fes_nano_platform_configuration()->failed);
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
         assert(!reply[0] && reply[2]==record.owner && reply[3]==configuration_generation && (uint32_t)reply[1]==0xdf);
-        if (mutation>=90 && mutation<=95) {
+        if (mutation>=90 && mutation<=99) {
             if (mutation==93) bad_open=1;
             fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONTROL,
                                record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
@@ -694,6 +694,61 @@ configured_bytes:
             fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONTROL,
                                record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation+2,reply);
             assert(reply[0] && bridge==15);
+            if(mutation>=96) {
+                struct fes_nano_configuration *c=fes_nano_platform_configuration();
+                unsigned calls=engine_calls;
+                uint64_t previous=configuration_generation;
+                configuration_generation+=2;
+                /* Neither old preparation nor an unarmed raw START can reuse
+                 * the completed computer scope. */
+                fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PREPARE_CONFIGURATION,
+                                   record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
+                assert(reply[0] && engine_calls==calls && c->finished && !c->failed);
+                fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_START,0,0,0,0,reply);
+                assert(reply[0] && engine_calls==calls && !c->failed);
+                if(mutation==98) {
+                    const uint64_t generations[]={previous,configuration_generation+1};
+                    for(unsigned i=0;i<2;i++) {
+                        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,
+                                           record.owner,FES_EMBEDDED_BRIDGE_COOKIE,generations[i],reply);
+                        assert(reply[0]==2 && c->generation==previous && c->finished && !c->failed && engine_calls==calls);
+                    }
+                }
+                if(mutation==97)data[0]^=1;
+                if(mutation==99)sctlr=4;
+                fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,
+                                   record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
+                if(mutation==97 || mutation==99) {
+                    assert(reply[0]==4 && c->failed && fes_nano_owned_bridges.failed &&
+                           engine_calls==calls && bridge==15 && !reply[2] && !reply[3]);
+                    fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_START,0,0,0,0,reply);
+                    assert(reply[0] && engine_calls==calls);
+                    puts("PASS strong computer rearm failure retained without START");return 0;
+                }
+                assert(!reply[0] && reply[1]==((uint64_t)FES_EMBEDDED_BRIDGE_REARM_TAG<<32|FES_NANO_CONFIG_BYTES) &&
+                       reply[2]==record.owner && reply[3]==configuration_generation && c->rearmed && !c->finished);
+                fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_START,0,0,0,0,reply);
+                assert(!reply[0]);
+                for(uint32_t offset=0;offset<FES_NANO_CONFIG_BYTES;) {
+                    uint32_t bytes=FES_NANO_CONFIG_BYTES-offset;
+                    if(bytes>FES_NANO_CONFIG_CHUNK)bytes=FES_NANO_CONFIG_CHUNK;
+                    fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_WRITE,FES_NANO_CONFIG_BASE+offset,bytes,0,0,reply);
+                    assert(reply[0]==1);
+                    fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE,0,0,0,0,reply);
+                    assert(!reply[0] && reply[1]==FES_NANO_CONFIG_BASE+offset-FES_NANO_CONFIG_DRAM);
+                    offset+=bytes;
+                }
+                fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_ISDONE,0,0,0,0,reply);
+                assert(!reply[0] && c->finished && !c->failed && c->completed==FES_NANO_CONFIG_BYTES && !c->pending);
+                calls=engine_calls;
+                fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION,
+                                   record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
+                assert(reply[0]==2 && engine_calls==calls);
+                fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONTROL,
+                                   record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
+                assert(reply[0] && bridge==15);
+                puts("PASS strong computer rearm and second fixed-source transfer");return 0;
+            }
             puts("PASS strong computer control scope, exclusion and reclosure");
 #else
             assert(reply[0] && bridge==15 && !fes_nano_platform_identity_probe()->active);

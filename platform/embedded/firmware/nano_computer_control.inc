@@ -19,7 +19,13 @@ static int fes_nano_computer_control(uint32_t fid, uint64_t operation,
     unsigned snapshot = bridge && operation == FES_EMBEDDED_BRIDGE_SNAPSHOT && !owner && !generation;
     unsigned context = bridge && (operation == FES_EMBEDDED_BRIDGE_CONTEXT_PART0 || operation == FES_EMBEDDED_BRIDGE_CONTEXT_PART1);
     unsigned close = bridge && operation == (FES_EMBEDDED_BRIDGE_CLOSE | FES_EMBEDDED_BRIDGE_REQUEST_HELD);
-    if (fes_nano_computer_phase == 2) return !(snapshot || context);
+    if (fes_nano_computer_phase == 2) {
+        unsigned rearm = bridge && operation == FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION;
+        unsigned transfer = c && c->rearmed && c->prepared && !c->finished && !c->failed &&
+            (fid == FES_NANO_CONFIG_START || fid == FES_NANO_CONFIG_WRITE ||
+             fid == FES_NANO_CONFIG_COMPLETED || fid == FES_NANO_CONFIG_ISDONE);
+        return !(snapshot || context || rearm || transfer);
+    }
     if (fes_nano_computer_phase == 1) {
         if (snapshot) return 0;
         if (!close) return 1;

@@ -24,7 +24,8 @@ static int held(struct fes_nano_configuration *s, struct fes_nano_bridge_snapsho
 {
     return s && s->initialized && !s->failed && s->bridges && !s->bridges->device_lease &&
         !fes_nano_bridges_observe(s->bridges,b) && b->owner==s->owner &&
-        b->generation && b->never_enabled && b->reset==FES_NANO_BRIDGES_ALL && b->masters_contained;
+        b->generation && b->never_enabled==(s->rearmed ? 0U : 1U) &&
+        b->reset==FES_NANO_BRIDGES_ALL && b->masters_contained;
 }
 static int scope(struct fes_nano_configuration *s)
 {
@@ -89,6 +90,29 @@ void fes_nano_configuration_prepare(struct fes_nano_configuration *s, uint64_t o
      * no generation change is allowed after this preparation. */
     s->generation=generation;
     s->attempted=1;
+    if(!check(s,1)){result[0]=fail(s,-1);return;}
+    s->prepared=1;trace(s,FES_CONFIG_ARM);
+    result[0]=0;result[1]|=s->bytes;result[2]=s->owner;result[3]=s->generation;
+}
+void fes_nano_configuration_rearm(struct fes_nano_configuration *s, uint64_t owner,
+                                   uint64_t generation, unsigned configuring, uint64_t result[4])
+{
+    result[0]=2;result[1]=(uint64_t)FES_EMBEDDED_BRIDGE_REARM_TAG<<32;result[2]=result[3]=0;
+    if(configuring || (s && s->bridges && s->bridges->device_lease)){result[0]=1;return;}
+    if(!s || !s->initialized){result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return;}
+    if(s->failed){result[0]=4;return;}
+    if(!owner || owner!=s->owner || !generation || generation>UINT64_MAX-2 || generation<=s->generation ||
+       !s->attempted || !s->prepared || !s->started || !s->finished || s->issued ||
+       s->pending || s->completed!=s->bytes || !s->bytes)return;
+    struct fes_nano_bridge_snapshot current;
+    if(fes_nano_bridges_observe(s->bridges,&current)){result[0]=fail(s,-1);return;}
+    if(current.owner!=owner || current.generation!=generation || current.never_enabled ||
+       current.reset!=FES_NANO_BRIDGES_ALL || !current.masters_contained)return;
+    if(fes_nano_bridges_configuration_guard(s->bridges)){result[0]=fail(s,-1);return;}
+    /* Consume this new generation before checking memory. Failure keeps all
+     * bytes and the original error owned; no stale completion can rearm it. */
+    s->generation=generation;s->rearmed=1;
+    s->completed=s->pending=s->issued=0;s->started=s->finished=0;
     if(!check(s,1)){result[0]=fail(s,-1);return;}
     s->prepared=1;trace(s,FES_CONFIG_ARM);
     result[0]=0;result[1]|=s->bytes;result[2]=s->owner;result[3]=s->generation;

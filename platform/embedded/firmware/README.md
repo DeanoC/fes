@@ -125,6 +125,18 @@ The combined strong-provider fixture executes SD resume/prepare/stop, transfer
 and identity/reclose through the actual dispatch and SHA code, with modeled
 register/PHY events. Its success is software evidence for this new combination.
 
+Private operation 11 can rearm that fixed source only after a successful prior
+transfer and a newer owned all-master bridge closure. The secure state checks
+the exact owner/generation, cleared never-enabled history, contained masters,
+no active lease and no pending transfer before consuming the new generation and
+checking the compiled whole-image digest again. Failed or ambiguous transfers
+remain terminal. The computer scope passes this explicit request and its armed
+transfer calls to the existing configuration gate after a completed return;
+it does not authorize another computer opening. Injected tests cover three
+successive rearm/transfer/control-close cycles and stale, busy, incomplete,
+corrupt and lost-ownership paths. The changed firmware has no physical reload
+qualification, and the native board arena remains a single boot-pinned lease.
+
 Only that cold configuration profile also selects `nano_digest.py`: it verifies
 the exact pinned SHA source/header, inserts three GCC loop-unrolling hints and
 adds `-O3` to the BL31 `sha.o` target alone. Removing the hints reproduces the
@@ -226,8 +238,9 @@ Invalid scope, changed bytes, uncertain replies or failed completion retire
 authority and keep memory owned until reboot. No reset-bit repair or implicit
 retry stands in for drain proof. Other cold profiles still deny configuration,
 and the capability query still supplies no runtime activation authority. This
-first-load profile permits one configuration per cold boot; active drain,
-ordinary launch/return and production admission remain unqualified.
+native first-load caller still reserves only one arena lease per cold boot;
+the secure rearm prerequisite does not enable physical repeated loads.
+Active drain, ordinary launch/return and production admission remain unqualified.
 
 The Terasic source additionally sends an SDM isolation request during START.
 The contained variant rejects unsupported flags and disables bridges before
@@ -578,8 +591,9 @@ owner/generation and completed configuration state must agree. While open it
 permits only ownership snapshots and its exact held close; SD, configuration,
 source-context reads and data release reject. Close runs the existing complete
 master-stop callbacks. Failure retires authority and invokes the established
-control containment callback without replay; a completed scope permits only
-read-only source/snapshot checks. The separate source-derived computer map is
+control containment callback without replay; a completed scope permits
+read-only source/snapshot checks and the separately guarded fixed-source rearm.
+The separate source-derived computer map is
 bound into the native/entry/SPL/BL31 chain. This mode does not grant an ordinary
 runtime profile, DDR access or physical core-execution acceptance.
 

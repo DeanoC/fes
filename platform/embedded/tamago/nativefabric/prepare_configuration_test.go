@@ -188,7 +188,7 @@ func TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest(t *testin
 	}
 }
 
-func TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC(t *testing.T) {
+func TestConfigurationPreparationRejectsChangedMapBytesAndReservationBeforeSMC(t *testing.T) {
 	for _, name := range []string{"control", "empty", "trailing", "unknown", "package", "build", "sha256", "sha384", "bytes", "base", "arena", "dram", "chunk", "chunk-count", "chunk-digest", "region", "region-base", "region-size", "region-data", "release"} {
 		t.Run(name, func(t *testing.T) {
 			raw, mapping, region := configurationSource(t)
@@ -254,6 +254,9 @@ func TestColdConfigurationRejectsChangedMapBytesAndReservationBeforeSMC(t *testi
 			}
 			if observed, err := v.PrepareConfiguration(control, mapping, region); err == nil || observed != (HPSBootObservation{}) || calls != 0 {
 				t.Fatal(observed, err, calls)
+			}
+			if observed, err := v.PrepareReconfiguration(control, mapping, region); err == nil || observed != (HPSBootObservation{}) || calls != 0 {
+				t.Fatal("reconfiguration accepted invalid staged bytes", observed, err, calls)
 			}
 		})
 	}

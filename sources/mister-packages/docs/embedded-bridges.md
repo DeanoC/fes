@@ -1,6 +1,6 @@
 # Experimental owned firmware bridge channel
 
-`fes.fabric.embedded.bridges` 1.8 supplies generated C/Go constants for the
+`fes.fabric.embedded.bridges` 1.9 supplies generated C/Go constants for the
 Linux-free Nano firmware experiment. It adds no programming profile, package
 ABI, register mapping or production compatibility entry. The FPGA endpoint
 contract and its generated inputs are unchanged.
@@ -167,8 +167,24 @@ the outstanding SDM-relative address. Unexpected replies, lost scope or changed
 bytes retire authority and retain the pending memory until reboot. Bridge
 Snapshots remain available; context, identity, SD and configuration-status
 operations cannot interleave while the transfer is prepared or running.
-Preparation is consumed even on a failed check; configuration completes only
-once per cold boot. It supplies neither active drain nor runtime activation.
+Cold preparation is consumed even on a failed check. A later transfer requires
+the separate rearm operation below. Neither operation supplies runtime activation.
+
+Operation 11 rearms the same fixed compiled source after a successful transfer
+and a newer owned all-master bridge closure. It requires the original owner,
+the exact current closed generation (strictly newer than the previous transfer),
+permanently cleared never-enabled history, contained masters and no active
+configuration or device lease. The preceding transfer must have started,
+completed every byte and finished successfully, with no issued call or pending
+buffer. Failed or uncertain authority cannot be recovered through this operation.
+The secure provider consumes the new generation before checking its fixed
+whole-image digest. Success returns `x0=0`,
+`x1=0x46575231 << 32 | core_bytes`, `x2=owner`, `x3=generation`.
+The request carries no address, size or digest. Duplicate or stale rearming
+cannot authorize START. Subsequent transfer calls retain the same closure and
+digest checks as the cold transfer. This software-tested prerequisite grants
+no fresh computer opening, memory reuse, runtime admission or physical reload
+qualification.
 
 
 Operation 9 irreversibly retires a failed caller's still-running cold
