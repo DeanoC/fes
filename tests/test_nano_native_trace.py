@@ -507,6 +507,7 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
             self.assertFalse(decode(raw.rstrip())['complete'])
             self.assertFalse(decode(raw+'partial tail')['complete'])
             self.assertFalse(decode(raw+'panic: late failure\n')['complete'])
+            self.assertFalse(decode(raw.replace('reads=0 writes=0 polls=0','reads='+'9'*5000+' writes=0 polls=0'))['complete'])
         finally:sys.path.pop(0)
 
     def check_ddr_trace(self):

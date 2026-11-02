@@ -4,19 +4,20 @@ import struct
 from hps_context import reader_pattern,digest
 
 H=r'[0-9a-f]{1,16}'
+D=r'[0-9]{1,20}'
 PREFIX=r'(?:NOTICE:[ \t]+)?'
 CONTROL=re.compile(PREFIX+rf'FES_NANO_DDR_CONTROL phase=(?P<phase>1[4-7]) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) reset=(?P<reset>{H})')
 PATTERNS={
     'control':CONTROL,
-    'gate':re.compile(PREFIX+rf'FES_NANO_DDR_GATE status=(?P<status>-?[0-9]+) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]+) reset=(?P<reset>{H}) pattern_words=(?P<pattern_words>[0-9]+) permit=bounded-read'),
-    'phase':re.compile(PREFIX+rf'FES_NANO_DDR_READ phase=(?P<phase>[1-8]) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]+) reset=(?P<reset>{H}) reads=(?P<reads>[0-9]+) writes=(?P<writes>[0-9]+) polls=(?P<polls>[0-9]+)'),
-    'access':re.compile(PREFIX+rf'FES_NANO_DDR_ACCESS phase=(?P<phase>before|after) ordinal=(?P<ordinal>[0-9]+) offset=(?P<offset>{H}) value=(?P<value>{H})'),
+    'gate':re.compile(PREFIX+rf'FES_NANO_DDR_GATE status=(?P<status>-?{D}) owner=(?P<owner>{H}) generation=(?P<generation>{D}) reset=(?P<reset>{H}) pattern_words=(?P<pattern_words>{D}) permit=bounded-read'),
+    'phase':re.compile(PREFIX+rf'FES_NANO_DDR_READ phase=(?P<phase>[1-8]) owner=(?P<owner>{H}) generation=(?P<generation>{D}) reset=(?P<reset>{H}) reads=(?P<reads>{D}) writes=(?P<writes>{D}) polls=(?P<polls>{D})'),
+    'access':re.compile(PREFIX+rf'FES_NANO_DDR_ACCESS phase=(?P<phase>before|after) ordinal=(?P<ordinal>{D}) offset=(?P<offset>{H}) value=(?P<value>{H})'),
     'write':re.compile(PREFIX+rf'FES_NANO_DDR_WRITE phase=(?P<phase>before|after) offset=(?P<offset>{H}) value=(?P<value>{H})'),
-    'result':re.compile(PREFIX+rf'FES_NANO_DDR_RESULT status=(?P<status>-?[0-9]+) bytes=(?P<bytes>[0-9]+) checksum=(?P<checksum>{H}) '+
-        ' '.join(r'data'+str(i)+rf'=(?P<data{i}>{H})' for i in range(4))+r' generation=(?P<generation>[0-9]+) cookie=(?P<cookie>[0-9]+)'),
-    'master':re.compile(PREFIX+rf'FES_NANO_MASTER_STOP status=(?P<status>-?[0-9]+) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]+) reset=(?P<reset>{H}) reader_reads=(?P<reader_reads>[0-9]+) reader_polls=(?P<reader_polls>[0-9]+) disable=(?P<disable>[01]) probe_polls=(?P<probe_polls>[0-9]+) cancel=(?P<cancel>[01]) complete=(?P<complete>[01]) data=active'),
-    'closure':re.compile(PREFIX+rf'FES_NANO_DDR_CLOSURE owner=(?P<owner>{H}) generation=(?P<generation>[0-9]+) reset=(?P<reset>{H}) hardware_drained=(?P<hardware_drained>{H}) data_remained_contained=(?P<data_remained_contained>[01]) producers_quiescent=(?P<producers_quiescent>[01]) fabric_acknowledged=(?P<fabric_acknowledged>[01])'),
-    'receipt':re.compile(rf'FES_NATIVE_FPGA_DDR_READER PASS owner=(?P<owner>{H}) generation=(?P<generation>[0-9]+) reader_generation=1 cookie=7 bytes=32 data_closed=1 runtime_programming=unavailable'),
+    'result':re.compile(PREFIX+rf'FES_NANO_DDR_RESULT status=(?P<status>-?{D}) bytes=(?P<bytes>{D}) checksum=(?P<checksum>{H}) '+
+        ' '.join(r'data'+str(i)+rf'=(?P<data{i}>{H})' for i in range(4))+rf' generation=(?P<generation>{D}) cookie=(?P<cookie>{D})'),
+    'master':re.compile(PREFIX+rf'FES_NANO_MASTER_STOP status=(?P<status>-?{D}) owner=(?P<owner>{H}) generation=(?P<generation>{D}) reset=(?P<reset>{H}) reader_reads=(?P<reader_reads>{D}) reader_polls=(?P<reader_polls>{D}) disable=(?P<disable>[01]) probe_polls=(?P<probe_polls>{D}) cancel=(?P<cancel>[01]) complete=(?P<complete>[01]) data=active'),
+    'closure':re.compile(PREFIX+rf'FES_NANO_DDR_CLOSURE owner=(?P<owner>{H}) generation=(?P<generation>{D}) reset=(?P<reset>{H}) hardware_drained=(?P<hardware_drained>{H}) data_remained_contained=(?P<data_remained_contained>[01]) producers_quiescent=(?P<producers_quiescent>[01]) fabric_acknowledged=(?P<fabric_acknowledged>[01])'),
+    'receipt':re.compile(rf'FES_NATIVE_FPGA_DDR_READER PASS owner=(?P<owner>{H}) generation=(?P<generation>{D}) reader_generation=1 cookie=7 bytes=32 data_closed=1 runtime_programming=unavailable'),
 }
 HEX={'owner','reset','offset','value','checksum','data0','data1','data2','data3','hardware_drained',
      'idr0','idr1','aidr','s_idr1','cr0','ack','gbpa','agbpa','s_cr0','s_ack','s_init','s_gbpa','s_agbpa',
