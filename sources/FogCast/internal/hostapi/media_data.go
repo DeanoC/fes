@@ -105,7 +105,7 @@ func (s *sessionCoordinator) mediaData(ctx context.Context, id string, b protoco
 	if err != nil {
 		return sessionResult{}, err
 	}
-	result := s.publicSession(status, nil)
+	result := s.publicCurrentSession(status)
 	s.recordStamp("session.disk", result, nil, clientStamp{})
 	return result, nil
 }

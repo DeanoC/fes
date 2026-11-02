@@ -1818,14 +1818,14 @@ func (s *sessionCoordinator) attachInput(ctx context.Context) (sessionResult, er
 		if !input.Ready || binding != inputBindingForStatus(st) {
 			return sessionResult{}, remoteInputError()
 		}
-		result := s.publicSession(st, nil)
+		result := s.publicCurrentSession(st)
 		s.record("session.input.attach", result, nil)
 		return result, nil
 	}
 	if err := s.attachInputForStatus(ctx, st); err != nil {
 		return sessionResult{}, remoteInputError()
 	}
-	result := s.publicSession(st, nil)
+	result := s.publicCurrentSession(st)
 	s.record("session.input.attach", result, nil)
 	return result, nil
 }
@@ -1847,7 +1847,7 @@ func (s *sessionCoordinator) detachInput(ctx context.Context) (sessionResult, er
 	if err != nil {
 		return sessionResult{}, err
 	}
-	result := s.publicSession(st, nil)
+	result := s.publicCurrentSession(st)
 	s.record("session.input.detach", result, nil)
 	return result, nil
 }
@@ -1943,6 +1943,20 @@ func (s *sessionCoordinator) publicSession(st protocol.Status, progress *session
 		input := s.remoteInput.Status()
 		result.Input = &input
 	}
+	return result
+}
+
+// publicCurrentSession projects a successful operation on an existing session.
+// The coordinator's execution owns the session classification even when the
+// target reports a recognized native package as a development load. Lifecycle
+// transitions use publicSession and supply their own execution classification.
+func (s *sessionCoordinator) publicCurrentSession(st protocol.Status) sessionResult {
+	result := s.publicSession(st, nil)
+	s.mu.Lock()
+	if st.State == protocol.StateActive && s.execution != "" {
+		result.Execution = s.execution
+	}
+	s.mu.Unlock()
 	return result
 }
 
