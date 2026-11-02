@@ -36,10 +36,15 @@ class ComputerTests(unittest.TestCase):
         with patch.object(context,'checked_configuration') as checked,patch.object(context,'computer',return_value=m):
             self.assertEqual(context.checked_computer(record),m)
             checked.assert_called_once_with(record,'program')
+            self.assertEqual(context.checked_computer(dict(record,computer_reload=True)),m)
+            for flag in (None,0,1,'true'):
+                with self.subTest(reload=flag),self.assertRaises(ValueError):
+                    context.checked_computer(dict(record,computer_reload=flag))
             for bad in (dict(record,program='tenfoot'),dict(record,hps_ddr_read={}),
                         dict(record,hps_computer_sha256='0'*64),dict(record,hps_computer=None)):
                 with self.assertRaises(ValueError):context.checked_computer(bad)
         self.assertIsNone(context.checked_computer({}))
+        with self.assertRaises(ValueError):context.checked_computer({'computer_reload':True})
 
     def test_cold_header_grants_computer_only_with_sealed_contract(self):
         data=ROOT/'platform/embedded/tamago/nativefabric/testdata'
@@ -51,6 +56,10 @@ class ComputerTests(unittest.TestCase):
            'hps_configuration':{'base':0x94800000,'size':8<<20,'core_size':128,'chunk_bytes':64,'core_sha384':'3'*96,'chunk_sha384':['4'*96,'5'*96]},
            'hps_computer':computer,'hps_computer_sha256':context.digest(computer)}
         self.assertIn('#define FES_NANO_COLD_COMPUTER 1',cold.header(p))
+        self.assertIn('#define FES_NANO_COMPUTER_RELOAD 1',cold.header(dict(p,computer_reload=True)))
+        for flag in (None,0,1,'true'):
+            with self.subTest(reload=flag),self.assertRaises(ValueError):cold.header(dict(p,computer_reload=flag))
+        with self.assertRaises(ValueError):cold.header(dict(p,hps_computer=None,computer_reload=True))
         self.assertIn('#define FES_NANO_COLD_COMPUTER 0',cold.header(dict(p,hps_computer=None)))
         for key,value in (('cpu_base',0),('span',True),('abi_minor',1),('capabilities',1),('hps_master',True),
                           ('endpoint_sha256','0'*64),('control_map_sha256','3'*64),('wrapper_sha256','bad')):

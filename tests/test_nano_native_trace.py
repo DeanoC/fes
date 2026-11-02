@@ -1,6 +1,7 @@
 """Host fixtures for one coherent SPL/EL3/EL1 probe, never board evidence."""
 import importlib.util
 import json
+import re
 from pathlib import Path
 import sys
 import unittest
@@ -1132,6 +1133,102 @@ class NativeComputerActivityTraceTests(unittest.TestCase):
             self.assertFalse(report.get('computer_control_observation',{}).get('execution_observed',False))
         for changes in ({'computer':None},{'computer_activity':1},{'computer_activity':None},{'ddr_read':{}}):
             with self.subTest(changes=changes),self.assertRaises(ValueError):self.decode(raw,**changes)
+
+
+class NativeComputerReloadTraceTests(unittest.TestCase):
+    """Two-load UART fixtures, with one boot and no reused hardware receipts."""
+    def setUp(self):
+        self.base=NativeComputerActivityTraceTests();self.base.setUp()
+
+    def decode(self,raw):
+        base=self.base.base
+        return trace.decode_native_computer_reload(raw,BUILD,SEED,fpga_identity=base.identity,
+            configuration=base.configuration,reader_memory=base.memory,computer=base.computer)
+
+    def capture(self):
+        raw=self.base.capture((0,0,117,121,121,221,225,225))
+        prefix,body=raw.split('FES_NATIVE_HPS_CONTEXT',1);body='FES_NATIVE_HPS_CONTEXT'+body
+        bodies=[]
+        for cycle in (1,2):
+            phase=body
+            if cycle==2:
+                phase=re.sub(r'\bgeneration=([456])\b',lambda m:'generation='+str(int(m[1])+2),phase)
+            phase=re.sub(r'(phase=initial(?:-held)? fetches=0 address=)10',r'\g<1>0',phase)
+            generation=4+(cycle-1)*2
+            activation=(f'NOTICE:  FES_NANO_FABRIC_ACTIVATION owner={OWNER:x} generation={generation} '
+                        f'previous={0 if cycle==1 else 4} rearm={cycle-1} complete=1 data_held=1\r\n')
+            phase=phase.replace('NOTICE:  FES_NANO_CORE_TRANSFER phase=complete',activation+'NOTICE:  FES_NANO_CORE_TRANSFER phase=complete')
+            lines=phase.splitlines(keepends=True);ordinal=0
+            for index,line in enumerate(lines):
+                if 'FES_NANO_CORE_TRANSFER' not in line:continue
+                ordinal+=1
+                lines[index]=line.rstrip('\r\n')+f' counter={cycle*0x1000000+ordinal*0x1000:x} hash_ticks={cycle*0x100000+ordinal*0x100:x}\r\n'
+            phase=''.join(lines)
+            bodies.append(f'FES_NATIVE_FPGA_CYCLE BEGIN cycle={cycle} count=2 owner={OWNER:x} generation={generation}\r\n'+phase+
+                          f'FES_NATIVE_FPGA_CYCLE END cycle={cycle} count=2\r\n')
+        return prefix+''.join(bodies)
+
+    def test_two_transfers_and_returns_keep_one_boot_and_fresh_lineage(self):
+        report=self.decode(self.capture())
+        self.assertTrue(report['complete'],report)
+        self.assertTrue(report['loader_ready']);self.assertTrue(report['execution_observed'])
+        self.assertFalse(report['core_load_acceptance'])
+        self.assertEqual([c['report']['fabric_activation']['generation'] for c in report['cycles']],[4,6])
+        self.assertEqual([c['report']['master_stop_observation']['generation'] for c in report['cycles']],[5,7])
+        self.assertEqual([c['report']['computer_control_observation']['generation'] for c in report['cycles']],[6,8])
+        self.assertFalse(report['cycles'][1]['report']['loader_ready'])
+        self.assertTrue(self.decode(self.capture().encode())['complete'])
+        base=self.base.base
+        options=dict(fpga_identity=base.identity,configuration=base.configuration,from_storage=True,
+                     reader_memory=base.memory,computer=base.computer,computer_activity=True)
+        self.assertTrue(trace.decode_native_configuration(self.capture(),BUILD,SEED,**options,computer_reload=True)['complete'])
+        self.assertFalse(trace.decode_native_configuration(self.capture(),BUILD,SEED,**options)['complete'])
+        self.assertFalse(trace.decode_native_configuration(self.base.capture(),BUILD,SEED,**options,computer_reload=True)['complete'])
+        for invalid in (None,0,1,'true'):
+            with self.subTest(selection=invalid),self.assertRaises(ValueError):
+                trace.decode_native_configuration(self.capture(),BUILD,SEED,**options,computer_reload=invalid)
+
+    def test_every_partial_line_keeps_reload_incomplete_without_replaying_boot(self):
+        raw=self.capture();offset=0
+        for line in raw.splitlines(keepends=True)[:-1]:
+            offset+=len(line)
+            with self.subTest(offset=offset):
+                report=self.decode(raw[:offset])
+                self.assertFalse(report['complete'])
+                self.assertEqual(report['errors'],[])
+        self.assertFalse(self.decode(raw.rstrip())['complete'])
+
+    def test_missing_repeated_or_unframed_cycle_evidence_never_completes(self):
+        raw=self.capture();lines=raw.splitlines(keepends=True)
+        for i,line in enumerate(lines):
+            if not any(marker in line for marker in ('FES_NATIVE_FPGA_CYCLE','FES_NANO_FABRIC_ACTIVATION','FES_NANO_MASTER_STOP','FES_NATIVE_COMPUTER_CONTROL','FES_NATIVE_HPS_CONTEXT')):continue
+            for changed in (''.join(lines[:i]+lines[i+1:]),''.join(lines[:i]+[line,line]+lines[i+1:])):
+                with self.subTest(line=i,changed=len(changed)):self.assertFalse(self.decode(changed)['complete'])
+        for extra in ('panic: late failure\n','FES_NATIVE_FPGA_CYCLE BEGIN cycle=3 count=3 owner=1 generation=8\n',
+                      'FES_NANO_MASTER_STOP malformed\n','U-Boot unexpected reset\n','partial'):
+            with self.subTest(extra=extra):self.assertFalse(self.decode(raw+extra)['complete'])
+        self.assertFalse(self.decode(raw+'x'*(trace.MAX_BYTES+1))['complete'])
+
+    def test_second_cycle_rejects_old_owner_receipt_fetch_state_and_timing(self):
+        raw=self.capture();index=raw.index('FES_NATIVE_FPGA_CYCLE BEGIN cycle=2')
+        prefix,second=raw[:index],raw[index:]
+        changes=(('generation=6 previous=4 rearm=1','generation=6 previous=0 rearm=1'),
+                 ('generation=6 previous=4 rearm=1','generation=6 previous=4 rearm=0'),
+                 ('generation=7 reset=d','generation=5 reset=d'),
+                 ('generation=8 held_ack=1','generation=6 held_ack=1'),
+                 ('reader_reads=88','reader_reads=0'),
+                 ('phase=initial fetches=0','phase=initial fetches=225'),
+                 ('phase=initial fetches=0 address=0','phase=initial fetches=0 address=10'),
+                 (f'owner={OWNER:x}',f'owner={OWNER+2:x}'))
+        for old,new in changes:
+            self.assertIn(old,second)
+            with self.subTest(change=new):self.assertFalse(self.decode(prefix+second.replace(old,new))['complete'])
+        without_timing=re.sub(r' counter=[0-9a-f]+ hash_ticks=[0-9a-f]+','',second)
+        self.assertFalse(self.decode(prefix+without_timing)['complete'])
+        stale_clock=re.sub(r' counter=([0-9a-f]+)',lambda m:' counter='+format(int(m[1],16)-0x1000000,'x'),second)
+        self.assertFalse(self.decode(prefix+stale_clock)['complete'])
+        stale_hash=re.sub(r' hash_ticks=([0-9a-f]+)',lambda m:' hash_ticks='+format(int(m[1],16)-0x100000,'x'),second)
+        self.assertFalse(self.decode(prefix+stale_hash)['complete'])
 
 
 class NativeSDTraceTests(unittest.TestCase):

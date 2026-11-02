@@ -54,7 +54,7 @@ int fes_nano_configuration_init(struct fes_nano_configuration *s, struct fes_nan
 {
     if(!s || s->initialized)return -1;
     s->initialized=1;s->stage=FES_CONFIG_INIT;s->bridges=b;s->io=io;
-    if(qualified!=1 || !b || !io.check || base<0x82000000ULL || (base&63) ||
+    if(qualified!=1 || !b || !io.check || !io.complete || base<0x82000000ULL || (base&63) ||
        !bytes || bytes>(8U<<20) || (bytes&3) || base>0xc0000000ULL-bytes ||
        !chunk || chunk>0xffff0U || (chunk&63))return fail(s,-22),-1;
     s->base=base;s->bytes=bytes;s->chunk=chunk;
@@ -176,6 +176,9 @@ void fes_nano_configuration_after(struct fes_nano_configuration *s, uint32_t fid
         if(r[1] || r[2] || r[3] || !check(s,1))goto failed;
         if(r[0]==1)return;
         if(r[0])goto failed;
+        int error=s->io.complete(s->io.context,s->owner,s->generation,s->rearmed);
+        if(error){fail(s,error);goto failed;}
+        if(!scope(s))goto failed;
         s->finished=1;trace(s,FES_CONFIG_COMPLETE);
     } else goto failed;
     return;

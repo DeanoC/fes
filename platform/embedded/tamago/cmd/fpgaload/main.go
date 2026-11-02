@@ -23,7 +23,7 @@ import (
 
 var expectedBootContext, expectedControlMap, expectedConfigurationMap, expectedReaderMemoryMap string
 var expectedDDRReadMap string
-var expectedComputerMap string
+var expectedComputerMap, expectedComputerReload string
 var retained *nativefabric.ConfigurationTransfer
 
 func decoded(s string, limit int) []byte {
@@ -40,6 +40,9 @@ func decoded(s string, limit int) []byte {
 func main() {
 	if runtime.GOOS != "tamago" || board.ExceptionLevel() != 1 || board.CounterFrequency() != 400000000 {
 		panic("unexpected FPGA configuration CPU/source contract")
+	}
+	if expectedComputerReload != "" && (expectedComputerReload != "1" || expectedComputerMap == "" || expectedDDRReadMap != "") {
+		panic("computer reload requires the selected held-data computer diagnostic")
 	}
 	cpu := de25nano.FabricCPUTransport{}
 	v, err := nativefabric.NewHPSContextVerifier(cpu, decoded(expectedBootContext, 8192))
@@ -92,6 +95,70 @@ func main() {
 	if err != nil {
 		panic(err) // Board reservation remains pinned, including constructor errors.
 	}
+	if expectedComputerMap != "" {
+		if expectedDDRReadMap != "" {
+			panic("computer control cannot share an active DDR diagnostic")
+		}
+		mapping := decoded(expectedComputerMap, 8192)
+		count := 1
+		if expectedComputerReload == "1" {
+			count = 2
+		}
+		for cycle := 1; cycle <= count; cycle++ {
+			if count == 2 {
+				fmt.Printf("FES_NATIVE_FPGA_CYCLE BEGIN cycle=%d count=2 owner=%x generation=%d\n", cycle, source.Bridges.Owner, source.Bridges.Generation)
+			}
+			program(v, configuration, source)
+			if err := probeComputer(v, control, mapping); err != nil {
+				panic(err)
+			}
+			if count == 2 {
+				fmt.Printf("FES_NATIVE_FPGA_CYCLE END cycle=%d count=2\n", cycle)
+			}
+			if cycle < count {
+				retained, source, err = v.NewStoredReconfigurationTransfer(control, configuration, handoff, de25nano.ReserveConfiguration)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+		return
+	}
+	program(v, configuration, source)
+	var observed nativefabric.FPGAIdentityObservation
+	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
+		if expectedDDRReadMap != "" {
+			observed, err = v.ProbeDDRReader(control, decoded(expectedReaderMemoryMap, 8192), decoded(expectedDDRReadMap, 8192))
+		} else {
+			observed, err = v.ProbeIdentity(control)
+		}
+	} else {
+		observed, err = v.ProbeReader(control)
+	}
+	if err != nil {
+		panic(err)
+	}
+	if observed.Source != source {
+		panic("FPGA identity changed source context")
+	}
+	fmt.Printf("FES_NATIVE_FPGA_IDENTITY PASS package_id=%s build_id=%s abi=%x base=%x map_sha256=%s owner=%x generation=%d data_held=1 runtime_programming=unavailable\n",
+		id.PackageID, id.BuildID, observed.Identity.ABI, observed.CPUBase, hex.EncodeToString(observed.ControlMapSHA256[:]), observed.After.Owner, observed.After.Generation)
+	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
+		if expectedDDRReadMap != "" {
+			fmt.Printf("FES_NATIVE_FPGA_DDR_READER PASS owner=%x generation=%d reader_generation=1 cookie=7 bytes=32 data_closed=1 runtime_programming=unavailable\n", observed.After.Owner, observed.After.Generation)
+		} else {
+			fmt.Printf("FES_NATIVE_FPGA_DDR_READER BLOCKED owner=%x generation=%d data_held=1 translation=unqualified drain=unqualified runtime_programming=unavailable\n", observed.After.Owner, observed.After.Generation)
+		}
+	} else {
+		fmt.Printf("FES_NATIVE_FPGA_READER PASS owner=%x generation=%d reader_generation=1 cookie=7 data_held=1 runtime_programming=unavailable\n",
+			observed.After.Owner, observed.After.Generation)
+	}
+}
+
+// One fixed transfer keeps the original deadline and retirement behavior.
+// The global transfer and board arena retain uncertain source/DMA ownership.
+func program(v *nativefabric.HPSContextVerifier, configuration []byte, source nativefabric.HPSBootObservation) {
+	id := v.Identity()
 	size := retained.Status().RetainedBytes
 	fmt.Printf("FES_NATIVE_HPS_CONTEXT PASS sha256=%s package_id=%s build_id=%s owner=%x generation=%d runtime_programming=unavailable\n",
 		hex.EncodeToString(source.Digest[:]), id.PackageID, id.BuildID, source.Bridges.Owner, source.Bridges.Generation)
@@ -142,43 +209,6 @@ func main() {
 	}
 	fmt.Printf("FES_NATIVE_FPGA_PROGRAMMED PASS package_id=%s core_sha256=%s bytes=%d owner=%x generation=%d data_held=1 activation=unavailable\n",
 		id.PackageID, id.ProgrammedSHA256, size, source.Bridges.Owner, source.Bridges.Generation)
-	if expectedComputerMap != "" {
-		if expectedDDRReadMap != "" {
-			panic("computer control cannot share an active DDR diagnostic")
-		}
-		if err := probeComputer(v, control, decoded(expectedComputerMap, 8192)); err != nil {
-			panic(err)
-		}
-		return
-	}
-	var observed nativefabric.FPGAIdentityObservation
-	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
-		if expectedDDRReadMap != "" {
-			observed, err = v.ProbeDDRReader(control, decoded(expectedReaderMemoryMap, 8192), decoded(expectedDDRReadMap, 8192))
-		} else {
-			observed, err = v.ProbeIdentity(control)
-		}
-	} else {
-		observed, err = v.ProbeReader(control)
-	}
-	if err != nil {
-		panic(err)
-	}
-	if observed.Source != source {
-		panic("FPGA identity changed source context")
-	}
-	fmt.Printf("FES_NATIVE_FPGA_IDENTITY PASS package_id=%s build_id=%s abi=%x base=%x map_sha256=%s owner=%x generation=%d data_held=1 runtime_programming=unavailable\n",
-		id.PackageID, id.BuildID, observed.Identity.ABI, observed.CPUBase, hex.EncodeToString(observed.ControlMapSHA256[:]), observed.After.Owner, observed.After.Generation)
-	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
-		if expectedDDRReadMap != "" {
-			fmt.Printf("FES_NATIVE_FPGA_DDR_READER PASS owner=%x generation=%d reader_generation=1 cookie=7 bytes=32 data_closed=1 runtime_programming=unavailable\n", observed.After.Owner, observed.After.Generation)
-		} else {
-			fmt.Printf("FES_NATIVE_FPGA_DDR_READER BLOCKED owner=%x generation=%d data_held=1 translation=unqualified drain=unqualified runtime_programming=unavailable\n", observed.After.Owner, observed.After.Generation)
-		}
-	} else {
-		fmt.Printf("FES_NATIVE_FPGA_READER PASS owner=%x generation=%d reader_generation=1 cookie=7 data_held=1 runtime_programming=unavailable\n",
-			observed.After.Owner, observed.After.Generation)
-	}
 }
 
 func probeComputer(v *nativefabric.HPSContextVerifier, control, mapping []byte) (err error) {

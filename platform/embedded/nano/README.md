@@ -761,6 +761,26 @@ acceptance false. The historical command-only decoder selection defaults to
 `computer_activity=False`; it requires an explicit zero execution claim and
 cannot infer the stronger selection from missing or additional serial lines.
 
+Add `--computer-reload` to the native `fpgaload --computer-control` build for a
+bounded two-load diagnostic. The SDK, entry and SPL/BL31 chain carry that exact
+boolean. Each load uses the same retained sealed package and keeps the original
+20-second transfer deadline; each Run/return probe keeps its five-second bound.
+The data bridges remain held and the SD filesystem is not reopened for the
+second load. This mode grants no arbitrary-package or ordinary runtime admission.
+
+Select `decode_native_configuration(..., computer_activity=True,
+computer_reload=True)` from that checked build flag. It requires two exact
+BEGIN/END cycles, one complete cold boot, and the same returned owner with
+configuration generations 4/6 and reclosed generations 6/8. Both transfers need
+fresh `FES_NANO_FABRIC_ACTIVATION` records, readiness/translation/firewall checks,
+complete independent reader/probe stops, fresh zero fetch counters followed by
+Run progress and held stability, and continuous bounded CPU/hash timing.
+The second phase cannot repeat the boot or reuse a preceding activation,
+master-stop, counter or completion. Missing, overlapping or partial cycles
+cannot complete. `loader_ready` comes only from the first verified boot;
+`core_load_acceptance` stays false. The source and software checks do not qualify
+a two-load physical boot.
+
 The current block-size comparison selects `0xfffc0` (1,048,512) bytes: the
 pinned vendor client's `0xffff0` limit rounded down to a 64-byte boundary.
 Native construction, secure extent/digest checks and trace decoding use the

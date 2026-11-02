@@ -26,7 +26,9 @@ completion; outstanding or uncertain memory cannot be overwritten, and stale
 completion callbacks cannot release a later lease. The native computer hook
 also requires that exact completed transfer and a successful preceding return
 before reopening. These repeated-load hooks have software evidence only; the
-hardware caller and trace gate still select one initial configuration.
+hardware caller selects one initial configuration by default. Its opt-in
+`--computer-reload` mode selects two configurations, with new framed trace
+checks; the changed matched chain still needs a bounded board test.
 A successful cross-build does **not** mean tenfoot can display or launch on
 hardware: display is disabled unless an explicit compatible firmware handoff is supplied.
 `probe`, `storage`, `keyboard`, `network` and `display` are the

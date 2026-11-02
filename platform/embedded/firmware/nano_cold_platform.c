@@ -152,8 +152,10 @@ static int firewall_report(struct fes_nano_cold *s,struct fes_nano_ddr_firewall_
     return status;
 }
 static struct fes_nano_fabric_stop fabric_stop;
-static uint64_t fabric_generation;
-static unsigned fabric_reported;
+static uint64_t fabric_generation, fabric_reported_generation;
+#if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
+static uint64_t fabric_configuration_generation;
+#endif
 static int cold_master_owns(void *context,uint64_t owner,uint64_t epoch)
 {
     return GET_EL(read_current_el())==MODE_EL3 && !(read_sctlr_el3()&5U) &&
@@ -221,11 +223,14 @@ static int cold_master_quiesce(void *context,uint32_t producers)
         return master_failure(s,-1);
     if (!fabric_stop.attempted) fabric_generation=fes_nano_owned_bridges.state.generation;
     int error=fes_nano_fabric_stop(&fabric_stop);
-    if (!fabric_reported++) NOTICE("FES_NANO_MASTER_STOP status=%d owner=%llx generation=%llu reset=%x reader_reads=%u reader_polls=%u disable=%u probe_polls=%u cancel=%u complete=%u data=%s\n",
+    if (fabric_reported_generation!=fabric_generation) {
+        fabric_reported_generation=fabric_generation;
+        NOTICE("FES_NANO_MASTER_STOP status=%d owner=%llx generation=%llu reset=%x reader_reads=%u reader_polls=%u disable=%u probe_polls=%u cancel=%u complete=%u data=%s\n",
         error,(unsigned long long)fes_nano_owned_bridges.state.owner,
         (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,
         fabric_stop.reads,fabric_stop.polls,fabric_stop.disable_issued,fabric_stop.probe.polls,
         fabric_stop.probe.cancel_issued,fabric_stop.done,s->ddr_expected ? "active" : "held");
+    }
     return error ? master_failure(s,error) : 0;
 }
 static int cold_master_quiescent(void *context,uint32_t *producers)
@@ -240,6 +245,15 @@ static int cold_master_quiescent(void *context,uint32_t *producers)
         return master_failure(s,fabric_stop.first_error);
     *producers=FES_NANO_PRODUCERS_HPS | (fabric_stop.done ? FES_NANO_PRODUCERS_FPGA : 0U);
     return 0;
+}
+
+static struct fes_nano_fabric_stop new_fabric_stop(unsigned qualified)
+{
+    return (struct fes_nano_fabric_stop){
+        .io={&provider,fabric_owns,fabric_read,fabric_write,fabric_wait},
+        .probe={.io={&provider,fabric_owns,probe_read,probe_write,fabric_wait}},
+        .abi=FES_NANO_CONTROL_ABI,.build=FES_NANO_CONTROL_BUILD,
+        .bus_base=FES_NANO_READER_BUS_BASE,.bytes=FES_NANO_READER_BYTES,.cookie=7,.qualified=qualified};
 }
 
 #if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
@@ -496,11 +510,7 @@ int fes_nano_platform_identity_setup(void)
     int result=fes_nano_identity_init(&identity_probe,&fes_nano_owned_bridges,io,
                                       FES_NANO_CONTROL_ABI,build,qualified);
 #ifdef FES_NANO_READER_CPU_BASE
-    if (!result) fabric_stop=(struct fes_nano_fabric_stop){
-        .io={&provider,fabric_owns,fabric_read,fabric_write,fabric_wait},
-        .probe={.io={&provider,fabric_owns,probe_read,probe_write,fabric_wait}},
-        .abi=FES_NANO_CONTROL_ABI,.build=FES_NANO_CONTROL_BUILD,
-        .bus_base=FES_NANO_READER_BUS_BASE,.bytes=FES_NANO_READER_BYTES,.cookie=7,.qualified=qualified};
+    if (!result) fabric_stop=new_fabric_stop(qualified);
 #endif
     if (result) NOTICE("FES_NANO_IDENTITY_FAILURE stage=%u error=%d sctlr=%llx base=%lx\n",
                       identity_probe.stage,identity_probe.first_error,(unsigned long long)sctlr,
@@ -555,6 +565,41 @@ static int configuration_check(void *context, uint64_t address, uint32_t bytes, 
     return (read_sctlr_el3()&5U) || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ||
            memcmp(expected,observed,48) ? -1 : 0;
 }
+static int configuration_complete(void *context, uint64_t owner, uint64_t generation, unsigned rearmed)
+{
+    struct fes_nano_bridge_snapshot current;
+    if(context!=&provider || configuration.bridges!=&fes_nano_owned_bridges ||
+       !configuration.initialized || !configuration.prepared || !configuration.started ||
+       configuration.finished || configuration.failed || configuration.issued || configuration.pending ||
+       configuration.completed!=configuration.bytes || !configuration.bytes ||
+       configuration.owner!=owner || configuration.generation!=generation || configuration.rearmed!=rearmed ||
+       !fes_nano_platform_configuration_diagnostic_ready() ||
+       fes_nano_bridges_observe(&fes_nano_owned_bridges,&current) || current.owner!=owner ||
+       current.generation!=generation || current.reset!=FES_NANO_BRIDGES_ALL || !current.masters_contained ||
+       current.never_enabled!=(rearmed ? 0U : 1U))return -1;
+#ifdef FES_NANO_READER_CPU_BASE
+    if(!identity_probe.initialized || identity_probe.active || identity_probe.failed ||
+       identity_probe.first_error || identity_probe.cleanup_error || fabric_stop.qualified!=1 ||
+       fabric_stop.failed || fabric_stop.first_error || fabric_stop.probe.failed)return -1;
+#if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
+    if(rearmed)return -1; /* Active-DDR runtime state has no repeated-load contract. */
+#endif
+    if(rearmed ? (!fabric_configuration_generation || generation<=fabric_configuration_generation ||
+                  !fabric_stop.attempted || !fabric_stop.done || !fabric_stop.probe.done ||
+                  fabric_generation==UINT64_MAX || generation!=fabric_generation+1 ||
+                  identity_probe.stage!=FES_ID_COMPLETE) :
+                 (fabric_configuration_generation || fabric_stop.attempted || fabric_stop.done))return -1;
+    uint64_t previous=fabric_configuration_generation;
+    /* A successful new configuration ends the preceding owned activation.
+     * Construct a fresh stop from the compiled inventory; never reset a failed
+     * activation or accept its cached reader/probe receipts for the new image. */
+    fabric_stop=new_fabric_stop(1);
+    fabric_configuration_generation=generation;fabric_generation=0;
+    NOTICE("FES_NANO_FABRIC_ACTIVATION owner=%llx generation=%llu previous=%llu rearm=%u complete=1 data_held=1\n",
+           (unsigned long long)owner,(unsigned long long)generation,(unsigned long long)previous,rearmed);
+#endif
+    return 0;
+}
 static void configuration_trace(void *context, unsigned stage, uint32_t completed, uint32_t pending)
 {
     (void)context;
@@ -575,7 +620,7 @@ int fes_nano_platform_configuration_setup(void)
         FES_NANO_CONFIG_BYTES<=FES_NANO_CONFIG_ARENA_SIZE &&
         FES_NANO_CONFIG_CHUNK>0 && FES_NANO_CONFIG_CHUNK<=0xffff0U && !(FES_NANO_CONFIG_CHUNK&63U) &&
         sizeof(configuration_chunks)/48==(FES_NANO_CONFIG_BYTES+FES_NANO_CONFIG_CHUNK-1)/FES_NANO_CONFIG_CHUNK;
-    struct fes_nano_configuration_ops io={.context=&provider,.check=configuration_check,.trace=configuration_trace};
+    struct fes_nano_configuration_ops io={.context=&provider,.check=configuration_check,.trace=configuration_trace,.complete=configuration_complete};
     return fes_nano_configuration_init(&configuration,&fes_nano_owned_bridges,io,FES_NANO_CONFIG_BASE,
                                        FES_NANO_CONFIG_BYTES,FES_NANO_CONFIG_CHUNK,qualified) ? -1 : 1;
 }

@@ -65,6 +65,7 @@ def main():
     parser.add_argument("--hps-first-project", type=Path, help="sealed HPS-first project for the Nano context diagnostics")
     parser.add_argument("--ddr-read", action="store_true", help="opt in to the fixed read-only FPGA DDR diagnostic (Nano fpgaload only)")
     parser.add_argument("--computer-control", action="store_true", help="opt in to the owned control-only ZX81 command diagnostic (Nano fpgaload only)")
+    parser.add_argument("--computer-reload", action="store_true", help="run two fixed-package load/Run/return cycles; requires --computer-control")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--module-cache", type=Path,
                         default=ROOT / "out/embedded-base-tools/tamago/mod")
@@ -88,7 +89,7 @@ def main():
         except (ValueError, OSError, subprocess.CalledProcessError) as error:
             parser.error(str(error))
         return
-    if args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.computer_control:
+    if args.profile is not None or args.package_id is not None or args.hps_first_project is not None or args.ddr_read or args.computer_control or args.computer_reload:
         parser.error("--profile, --package-id and --hps-first-project require --board de25-nano")
     if args.program in ("fpga", "sdpackages", "bootcontext", "fpgacontext", "fpgastatus", "fpgaload"):
         parser.error("this diagnostic requires the Nano firmware service; QEMU does not emulate it")

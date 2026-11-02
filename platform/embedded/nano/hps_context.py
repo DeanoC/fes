@@ -478,6 +478,9 @@ def checked_ddr_read(record, program_key='program'):
 
 def checked_computer(record, program_key='program'):
     keys=('hps_computer','hps_computer_sha256')
+    reload=record.get('computer_reload',False)
+    if type(reload) is not bool or reload and record.get('hps_computer') is None:
+        raise ValueError('computer reload requires an explicit boolean and sealed computer contract')
     if all(record.get(key) is None for key in keys):return None
     if record.get(program_key)!='fpgaload' or any(record.get(key) is None for key in keys) or record.get('hps_ddr_read') is not None:
         raise ValueError('computer control requires its dedicated control-only cold configuration')

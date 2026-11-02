@@ -141,6 +141,24 @@ corrupt and lost-ownership paths. The changed firmware has no physical reload
 qualification. The native board arena stays pinned until reboot, but grants a
 fresh lease after checked transfer completion; uncertain leases cannot be reused.
 
+Configuration completion now invokes a required trusted platform callback after
+final status/digests and before publishing `finished`. Callback or subsequent
+ownership failure retires the transfer and keeps its storage. In the matched
+held-DDR computer profile the callback creates a fresh master-stop activation
+from the same compiled reader/probe inventory. A rearm requires the preceding
+successful stop/close and the exact newer configuration generation. Failed old
+authority cannot be renewed, and active-DDR reload is rejected. The new reader
+and probe receipts are read again for the new image; the previous activation's
+cached receipt never authorizes its close. `FES_NANO_FABRIC_ACTIVATION` records
+that lineage, and each activation emits its own master-stop record.
+
+The joined strong-provider/pinned-SHA fixture covers this matched reader plus
+computer profile through both loads and both stops, including corrupt bytes,
+stale generations, cache loss and renewed readiness/open/close failure. Running
+the same fixture against the preceding source reproduces its failure at the
+second opening, while the changed provider completes both inventories. These
+are host checks, not a two-load board pass.
+
 Only that cold configuration profile also selects `nano_digest.py`: it verifies
 the exact pinned SHA source/header, inserts three GCC loop-unrolling hints and
 adds `-O3` to the BL31 `sha.o` target alone. Removing the hints reproduces the

@@ -16,6 +16,9 @@ struct fes_nano_configuration_ops {
     void *context;
     int (*check)(void *, uint64_t address, uint32_t bytes, unsigned whole);
     void (*trace)(void *, unsigned stage, uint32_t completed, uint32_t pending);
+    /* Trusted completion only: install a fresh platform activation after exact
+     * final status/digests, before publishing finished. Errors stay terminal. */
+    int (*complete)(void *, uint64_t owner, uint64_t generation, unsigned rearmed);
 };
 enum fes_nano_configuration_stage {
     FES_CONFIG_INIT, FES_CONFIG_ARM, FES_CONFIG_START, FES_CONFIG_WRITE,

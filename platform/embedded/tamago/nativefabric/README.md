@@ -144,9 +144,13 @@ supply the runtime compatibility decision for arbitrary packages.
 this verifier's successful computer return. It requires the matching newer live
 closure and unchanged inactive SD lease. The older storage receipt proves only
 continued retention; it never substitutes for current FPGA ownership. Deferred
-preparation rejects a store resume before START. The hardware diagnostic caller
-still selects its initial load; a bounded two-load caller and multi-cycle trace
-decoder remain required before the next physical reload trial.
+preparation rejects a store resume before START. The native diagnostic selects
+one initial load by default; `--computer-control --computer-reload` selects two
+fixed-package load/Run/return cycles using the same retained handoff. Each
+transfer retains its 20-second deadline and each computer probe its five-second
+context. Strict framed trace checks require both cycles, fresh firmware
+activations/stops and fetch counters, continuous CPU timing and the same owner.
+The changed matched boot chain and two-load board trial remain separate gates.
 
 `NewColdConfigurationTransfer` takes the DRAM base and block size from that
 compiled map and performs preparation immediately before START, requiring the

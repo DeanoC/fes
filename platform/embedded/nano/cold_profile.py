@@ -103,7 +103,8 @@ def make(entry_build):
               'hps_configuration':configuration,'hps_configuration_sha256':hps_context.digest(configuration) if configuration else None,
               'hps_reader_memory':reader_memory,'hps_reader_memory_sha256':hps_context.digest(reader_memory) if reader_memory else None,
               'hps_ddr_read':ddr_read,'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read else None,
-              'hps_computer':computer,'hps_computer_sha256':hps_context.digest(computer) if computer else None}
+              'hps_computer':computer,'hps_computer_sha256':hps_context.digest(computer) if computer else None,
+              'computer_reload':build.get('computer_reload',False)}
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     identity['owner_seed']=int(identity['chain_sha256'][:16],16)|1
     identity['entry_receipt_sha256']=sha(receipt)
@@ -188,6 +189,10 @@ def header(profile):
             raise ValueError('cold computer control requires its separate complete sealed internal-RAM contract')
         extra+='#define FES_NANO_COMPUTER_MAP_SHA '+array(profile['hps_computer_sha256'])+'\n'
     extra+='#define FES_NANO_COLD_COMPUTER '+str(int(computer is not None))+'\n'
+    reload=profile.get('computer_reload',False)
+    if type(reload) is not bool or reload and computer is None:
+        raise ValueError('computer reload requires its selected sealed computer contract')
+    extra+='#define FES_NANO_COMPUTER_RELOAD '+str(int(reload))+'\n'
     return ('/* Generated, same source-bound diagnostic chain in SPL and BL31. */\n'
             +extra+
             '#define FES_NANO_SMMU_BOOT_OBSERVE '+str(int(smmu))+'\n'

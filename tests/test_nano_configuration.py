@@ -2,8 +2,10 @@
 from pathlib import Path
 import hashlib
 import importlib.util
+import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -155,6 +157,42 @@ class NanoConfigurationTests(unittest.TestCase):
                     result=subprocess.run([binary,str(mutation)],capture_output=True,text=True,timeout=15)
                     self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-3000:])
                     self.assertIn('PASS strong computer',result.stdout)
+            # Match the board's held-DDR reader inventory, including both
+            # real master-stop helpers, across a second computer configuration.
+            computer_profile=(inc/'fes_nano_cold_profile.h').read_text()
+            reader_profile=computer_profile.replace('0x10203040U','0x10203041U')+(
+                '#define FES_NANO_READER_CPU_BASE 0x95000000ULL\n'
+                '#define FES_NANO_READER_BUS_BASE 0x95000000ULL\n'
+                '#define FES_NANO_READER_BYTES 8192U\n'
+                '#define FES_NANO_READER_ARENA_BYTES 2097152U\n'
+                '#define FES_NANO_PROBE_CPU_BASE 0x20010100UL\n'
+                '#define FES_NANO_PROBE_SPAN 128U\n')
+            (inc/'fes_nano_cold_profile.h').write_text(reader_profile)
+            reader_sources=(*sources,'nano_smmu.c','nano_ddr_firewall.c','nano_fabric_stop.c','nano_probe_stop.c')
+            activation=base/'strong-reload'
+            command=['cc',*flags,'-Wextra','-DFES_TEST_HPS_CONTEXT','-DFES_TEST_CONFIGURATION_EPOCHS',
+                     *(str(FW/name) for name in reader_sources),str(sha_object),'-o',str(activation)]
+            compiled=subprocess.run(command,capture_output=True,text=True,timeout=30)
+            self.assertEqual(compiled.returncode,0,compiled.stderr)
+            evidence=os.environ.get('FES_NANO_ACTIVATION_EVIDENCE')
+            if evidence:
+                target=Path(evidence).resolve()
+                shutil.copytree(base,target)
+                (target/'activation-build.json').write_text(json.dumps(
+                    {'command':command,'profile':reader_profile,'reader_sources':reader_sources,
+                     'sha_source_sha256':hashlib.sha256(reference.read_bytes()).hexdigest()},indent=2)+'\n')
+            for mutation in range(146,153):
+                with self.subTest(reader_computer_reload=mutation):
+                    result=subprocess.run([activation,str(mutation)],capture_output=True,text=True,timeout=15)
+                    if evidence:(target/('activation-'+str(mutation)+'.log')).write_text(result.stdout+result.stderr)
+                    self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-6000:])
+                    self.assertIn('PASS strong computer',result.stdout)
+                    expected=1 if mutation in (147,149) else 2
+                    self.assertEqual(result.stdout.count('FES_NANO_FABRIC_ACTIVATION '),expected)
+                    if mutation in (146,148):
+                        self.assertEqual(result.stdout.count('FES_NANO_MASTER_STOP status=0 '),2)
+                        self.assertIn('PASS fresh configuration inventory epochs=2 ',result.stdout)
+            (inc/'fes_nano_cold_profile.h').write_text(computer_profile)
             # Reuse that exact strong provider, dispatcher, digest and SD lease,
             # replacing only the FPGA register model with its actual Avalon RTL.
             objects=[sha_object]

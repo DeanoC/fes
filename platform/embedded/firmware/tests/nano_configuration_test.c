@@ -9,6 +9,7 @@ struct fixture {
     struct fes_nano_configuration configuration;
     unsigned reset, masters, valid, checks, fail_check, change_check, failures;
     unsigned engine_calls;
+    unsigned completions, fail_complete, change_complete;
 };
 static int owns(void *p,uint64_t owner,uint64_t epoch)
 { struct fixture *f=p;return f->valid && owner==17 && epoch==9; }
@@ -44,12 +45,22 @@ static void trace(void *p,unsigned stage,uint32_t completed,uint32_t pending)
     struct fixture *f=p;assert(completed<=f->configuration.bytes && pending<=256);
     if(stage==FES_CONFIG_FAILURE)f->failures++;
 }
+static int complete(void *p,uint64_t owner,uint64_t generation,unsigned rearmed)
+{
+    struct fixture *f=p;
+    assert(owner==17 && generation==f->bridges.state.generation && rearmed==f->configuration.rearmed &&
+           f->configuration.prepared && f->configuration.started && !f->configuration.finished &&
+           !f->configuration.pending && !f->configuration.issued && f->configuration.completed==f->configuration.bytes);
+    f->completions++;
+    if(f->change_complete)f->valid=0;
+    return f->fail_complete ? -9 : 0;
+}
 static void init_bytes(struct fixture *f,unsigned bytes)
 {
     memset(f,0,sizeof(*f));f->reset=15;f->masters=f->valid=1;
     struct fes_nano_bridge_ops b={f,owns,reset,masters,stop,disable,enable};
     assert(!fes_nano_bridges_init(&f->bridges,b,17,9,FES_NANO_FABRIC_ABSENT,1));
-    struct fes_nano_configuration_ops io={f,check,trace};
+    struct fes_nano_configuration_ops io={f,check,trace,complete};
     assert(!fes_nano_configuration_init(&f->configuration,&f->bridges,io,0x94800000,bytes,64,1));
 }
 static void init(struct fixture *f) { init_bytes(f,128); }
@@ -121,6 +132,7 @@ static unsigned reconfiguration_cases(void)
         reply(&f,FES_NANO_CONFIG_COMPLETED,0,0,1,0,0x14800040,0,0);
         reply(&f,FES_NANO_CONFIG_ISDONE,0,0,1,0,0,0,0);
         assert(f.configuration.finished && !fes_nano_configuration_busy(&f.configuration));
+        assert(f.completions==cycle+2);
         fes_nano_configuration_rearm(&f.configuration,17,generation,0,r);
         assert(r[0]==2); /* completion alone is not a new close */
         struct fes_nano_bridge_snapshot open;struct fes_nano_bridge_closure close;
@@ -172,6 +184,16 @@ static unsigned reconfiguration_cases(void)
 int main(void)
 {
     unsigned cases=reconfiguration_cases();struct fixture f;uint64_t r[4];
+    for(unsigned mode=0;mode<2;mode++) {
+        init(&f);all_bytes(&f);
+        if(mode)f.change_complete=1;else f.fail_complete=1;
+        assert(!fes_nano_configuration_before(&f.configuration,FES_NANO_CONFIG_ISDONE,0,0,1));
+        uint64_t value[4]={0};
+        fes_nano_configuration_after(&f.configuration,FES_NANO_CONFIG_ISDONE,value);
+        assert(value[0]==4 && !value[1] && !value[2] && !value[3] && f.completions==1 && !f.configuration.finished);
+        if(!mode)assert(f.configuration.first_error==-9);
+        retired(&f);cases++;
+    }
     init(&f);pending(&f);
     unsigned checks=f.checks,engine=f.engine_calls;
     assert(!fes_nano_configuration_retire(&f.configuration,17,1,1));
@@ -225,7 +247,9 @@ int main(void)
     }
     init(&f);all_bytes(&f);
     reply(&f,FES_NANO_CONFIG_ISDONE,0,0,1,1,0,0,0);
+    assert(!f.completions);
     reply(&f,FES_NANO_CONFIG_ISDONE,0,0,1,0,0,0,0);
+    assert(f.completions==1);
     assert(f.configuration.finished && !fes_nano_configuration_busy(&f.configuration));cases++;
     assert(fes_nano_configuration_before(&f.configuration,FES_NANO_CONFIG_START,0,0,0)==4);retired(&f);cases++;
     fes_nano_configuration_prepare(0,17,1,0,r);assert(r[0]==5 && !r[2] && !r[3]);cases++;
@@ -304,9 +328,9 @@ int main(void)
         assert(fes_nano_configuration_before(&f.configuration,fid,address,bytes,configuring)==4);
         retired(&f);cases++;
     }
-    for(unsigned mode=0;mode<7;mode++) {
+    for(unsigned mode=0;mode<8;mode++) {
         init(&f);memset(&f.configuration,0,sizeof(f.configuration));
-        struct fes_nano_configuration_ops io={&f,check,trace};
+        struct fes_nano_configuration_ops io={&f,check,trace,complete};
         uint64_t base=0x94800000;uint32_t bytes=128,chunk=64;unsigned qualified=1;
         if(mode==0)base++;
         if(mode==1)base=UINT64_MAX-63;
@@ -315,6 +339,7 @@ int main(void)
         if(mode==4)chunk=63;
         if(mode==5)qualified=0;
         if(mode==6)io.check=0;
+        if(mode==7)io.complete=0;
         assert(fes_nano_configuration_init(&f.configuration,&f.bridges,io,base,bytes,chunk,qualified)<0);
         retired(&f);cases++;
     }

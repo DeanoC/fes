@@ -26,6 +26,12 @@ using a Nano candidate. The loader has a separate staging window outside Go's
 RAM so that Go's early allocator cannot overwrite its exception vectors before
 it installs its own. The caller must keep that window reserved through startup.
 
+The optional `fpgaload --computer-control --computer-reload` selection is carried
+from the native SDK receipt into the entry receipt and shared SPL/BL31 chain
+identity. Entry checks that this boolean agrees with the native link command;
+it cannot be added to an image lacking the sealed computer contract. It selects
+two fixed-package load/Run/return cycles with held data, not runtime admission.
+
 ## QEMU check
 
 Install the pinned TamaGo compiler and its locked Go modules as described in

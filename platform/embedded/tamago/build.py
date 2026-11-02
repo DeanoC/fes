@@ -216,6 +216,9 @@ def build(args):
     computer_control=getattr(args,'computer_control',False)
     if type(computer_control) is not bool or computer_control and (args.program!='fpgaload' or active_ddr):
         raise ValueError('--computer-control requires control-only Nano fpgaload, separately from --ddr-read')
+    computer_reload=getattr(args,'computer_reload',False)
+    if type(computer_reload) is not bool or computer_reload and not computer_control:
+        raise ValueError('--computer-reload requires the explicitly selected computer-control diagnostic')
     package_archive=None
     hps_project=getattr(args,'hps_first_project',None)
     if args.program in ('bootcontext','fpgacontext','fpgastatus','fpgaload'):
@@ -329,6 +332,7 @@ def build(args):
     if reader_memory_map is not None:link_flags+=' -X main.expectedReaderMemoryMap='+base64.b64encode(hps.encode(reader_memory_map)).decode()
     if ddr_read_map is not None:link_flags+=' -X main.expectedDDRReadMap='+base64.b64encode(hps.encode(ddr_read_map)).decode()
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
+    if computer_reload:link_flags+=' -X main.expectedComputerReload=1'
     command = [str(compiler), "build", *options, "-trimpath", "-ldflags", link_flags, "-o", str(elf), "./cmd/" + args.program]
     with (output / "build.log").open("w") as log:
         subprocess.run(command, cwd=APP, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -360,6 +364,7 @@ def build(args):
               "hps_reader_memory":reader_memory_map,"hps_reader_memory_sha256":hps.digest(reader_memory_map) if reader_memory_map else None,
               "hps_ddr_read":ddr_read_map,"hps_ddr_read_sha256":hps.digest(ddr_read_map) if ddr_read_map else None,
               "hps_computer":computer_map,"hps_computer_sha256":hps.digest(computer_map) if computer_map else None,
+              "computer_reload":computer_reload,
               "configuration_core_sha256":configuration_map["core_sha256"] if configuration_map else None,
               "configuration_package_sha256":hashlib.sha256(package_archive).hexdigest() if package_archive is not None else None,
               "configuration_package_size":len(package_archive) if package_archive is not None else None,
