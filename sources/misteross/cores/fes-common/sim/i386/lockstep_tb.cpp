@@ -1816,11 +1816,14 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             const bool xchg = op == 0x86 || op == 0x87 || (op >= 0x91 && op <= 0x97);
             const bool muldiv = is_muldiv(code);
             // Group 7 and the CR moves run several uops or wait on T1, and
-            // so do protected-mode segment loads and far jumps (microcode).
-            const bool system = (op == 0x0f && (code[prefixes + 1] == 0x01 || code[prefixes + 1] == 0x20 ||
-                                                code[prefixes + 1] == 0x22))
-                             || ((before.cr0 & 1) && (loads_segment(code) || op == 0xea ||
-                                                      (op == 0xff && ((code[prefixes + 1] >> 3) & 7) == 5)));
+            // so do protected-mode segment loads, far transfers, INT n,
+            // IRET and the system-segment instructions (microcode).
+            const uint8_t op2 = code[prefixes + 1];
+            const bool system = (op == 0x0f && (op2 == 0x01 || op2 == 0x20 || op2 == 0x22))
+                             || ((before.cr0 & 1) && (loads_segment(code) || op == 0xea || op == 0x9a || op == 0xca ||
+                                                      op == 0xcb || (op >= 0xcc && op <= 0xcf) || op == 0x63 ||
+                                                      (op == 0x0f && op2 <= 0x03) ||
+                                                      (op == 0xff && (((op2 >> 3) & 7) == 5 || ((op2 >> 3) & 7) == 3))));
             if (retired_before) {
                 auto &gaps = branch_before ? (taken_before ? summary.gap_after_taken : summary.gap_after_not_taken)
                            : system ? summary.gap_several
@@ -1876,7 +1879,7 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             {
                 unsigned i = 0;
                 while (i < 15 && is_prefix(code[i])) ++i;
-                if (code[i] == 0x63 && (code[i + 1] >> 6) != 3 && vector < 0 && !(oracle.get_state().eflags & 0x40))
+                if (code[i] == 0x63 && (code[i + 1] >> 6) != 3 && result.events.empty() && !(oracle.get_state().eflags & 0x40))
                     oracle_writes.clear();
             }
             if (skip.has("ram")) {

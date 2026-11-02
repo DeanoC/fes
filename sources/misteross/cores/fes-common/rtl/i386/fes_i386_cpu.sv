@@ -1103,15 +1103,6 @@ module fes_i386_cpu #(
         end
     end
 
-`ifdef FES_I386_DEBUG
-    always_ff @(posedge clk) if (issue && u.ctl.fault == fes_i386_pkg::FAULT_UNIMPLEMENTED)
-        $display("DBG unimpl eip=%h wrap16=%b cs_odd=%b small=%b ffff=%b flat=%b code32=%b dcfault=%0d probe=%b calltu=%b",
-                 d_eip, wrap16, cs_odd, seg_cs_small, seg_cs_ffff, seg_cs_flat, code32, dc.uop.ctl.fault, dc.uop.probe, call_target_unimpl);
-    always_ff @(posedge clk) if (issue && dc.uop.cls == fes_i386_pkg::UOP_SEGMENT)
-        $display("DBG zf issue t1=%h t2=%h adj=%b kind=%0d dstv=%b sys=%0d bsys=%b", t1, t2, arpl_adj, u.mem.kind, u.dst.valid, dc.sys_idx, dc.b_sys);
-    always_ff @(posedge clk) if (wb_s.valid && !freeze && wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_TEMP)
-        $display("DBG temp write idx=%h result=%h cls=%0d fault=%0d", wb_s.uop.dst.index, wb_s.result, wb_s.uop.cls, wb_s.uop.ctl.fault);
-`endif
     // ---- D/AG register --------------------------------------------------------------
     logic        ag_addr32;
     logic [31:0] ag_row, ag_last, ag_disp, ag_seg_term;
