@@ -5,6 +5,7 @@
 #include "nano_bridge_platform.h"
 #include "nano_sd_platform.h"
 #include "fes_nano_cold_profile.h"
+#include "nano_smmu.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +16,9 @@ static uint32_t per0=FES_NANO_MASTER_RESET,bridge=15;
 static uint32_t power[4]={0x90000021,0,0,0},pch_request=0x23,pch_status=0x23,boot_config=0x0070021e;
 static unsigned release_locked=1,current_el=12;
 static uint64_t mpidr,sctlr;
+#if defined(FES_NANO_READER_CPU_BASE) || (defined(FES_NANO_SMMU_BOOT_OBSERVE) && FES_NANO_SMMU_BOOT_OBSERVE)
+static unsigned smmu_reads,smmu_fault;
+#endif
 #if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
 #include <socfpga_mailbox.h>
 static unsigned fpga_reads,bad_magic,bad_build,flip_cache,lose_data,bad_open,bad_close;
@@ -143,6 +147,35 @@ void fes_nano_platform_sd_report(void) {}
 #include "nano_owned_sip.inc"
 uint32_t mmio_read_32(uintptr_t a)
 {
+#if defined(FES_NANO_READER_CPU_BASE) || (defined(FES_NANO_SMMU_BOOT_OBSERVE) && FES_NANO_SMMU_BOOT_OBSERVE)
+    if(a>=FES_NANO_SMMU_BASE && a<FES_NANO_SMMU_BASE+0x10000) {
+        assert(bridge==15 && !engine_calls);
+#if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
+        assert(!fpga_reads);
+#endif
+        uint32_t offset=(uint32_t)(a-FES_NANO_SMMU_BASE),value=0;
+        assert(fes_nano_smmu_offset(offset));smmu_reads++;
+        switch(offset) {
+        case FES_NANO_SMMU_IDR0:value=0x8000000f;break;
+        case FES_NANO_SMMU_IDR1:value=16;break;
+        case FES_NANO_SMMU_AIDR:value=1;break;
+        case FES_NANO_SMMU_S_IDR1:value=FES_NANO_SMMU_SECURE_IMPL;break;
+        case FES_NANO_SMMU_CR0:case FES_NANO_SMMU_CR0ACK:value=smmu_fault==1;break;
+        case FES_NANO_SMMU_S_CR0:case FES_NANO_SMMU_S_CR0ACK:value=smmu_fault==3;break;
+        case FES_NANO_SMMU_GBPA:value=smmu_fault==2?FES_NANO_SMMU_ABORT:smmu_fault==5?FES_NANO_SMMU_UPDATE:0;break;
+        case FES_NANO_SMMU_S_GBPA:value=smmu_fault==4?FES_NANO_SMMU_ABORT:smmu_fault==6?FES_NANO_SMMU_UPDATE:0;break;
+        case FES_NANO_SMMU_AGBPA:value=smmu_fault==7;break;
+        case FES_NANO_SMMU_S_AGBPA:value=smmu_fault==8;break;
+        case FES_NANO_SMMU_S_INIT:value=smmu_fault==9;break;
+        default:assert(0);
+        }
+        if(smmu_fault==10 && smmu_reads==8)value^=1;
+        if(smmu_fault==11 && smmu_reads==1)sctlr=4;
+        if(smmu_fault==12 && smmu_reads==1)per0&=~0x80U;
+        if(smmu_fault==13 && smmu_reads==1)bridge&=~2U;
+        return value;
+    }
+#endif
 #if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
     if(a>=FES_NANO_CONTROL_BASE && a<FES_NANO_CONTROL_BASE+0x100) {
         assert(bridge==FES_NANO_BRIDGES_DATA);fpga_reads++;
@@ -269,8 +302,22 @@ int main(int argc,char **argv)
     if(mutation==10)fes_nano_cold_capture(0x800,FES_NANO_COLD_COOKIE);
     fes_nano_cold_capture((uintptr_t)r,mutation==11?0:mutation==19?0x464e433100000001ULL:FES_NANO_COLD_COOKIE);
     struct fes_nano_boot_record record;struct fes_nano_boot_policy policy;struct fes_nano_master_ops masters;
+#if defined(FES_NANO_SMMU_BOOT_OBSERVE) && FES_NANO_SMMU_BOOT_OBSERVE
+    if(mutation>=82 && mutation<=95)smmu_fault=mutation-82;
+#endif
     int result=fes_nano_platform_boot_record(&record,&policy,&masters);
     if(mutation && mutation<22) {assert(result<0);assert(!clock_reads && !sd_mmio);return 0;}
+#if defined(FES_NANO_SMMU_BOOT_OBSERVE) && FES_NANO_SMMU_BOOT_OBSERVE
+    if(mutation>=82 && mutation<=95) {
+        assert(!clock_reads && !sd_mmio && !engine_calls && (bridge&13U)==13U);
+        if(smmu_fault<10)assert(result==1 && smmu_reads==26);
+        else {
+            assert(result<0);unsigned reads=smmu_reads;
+            assert(fes_nano_platform_boot_record(&record,&policy,&masters)<0 && smmu_reads==reads);
+        }
+        return 0;
+    }
+#endif
     assert(result==1);
     r->boot.owner++; /* copied before nonsecure entry, no later pointer use */
     struct fes_nano_boot boot={0};struct fes_nano_bridges b={0};
@@ -551,6 +598,25 @@ configured_bytes:
         assert(reply[0]==4 && !fpga_reads && bridge==15);return 0;
     }
     assert(setup==1);
+#ifdef FES_NANO_READER_CPU_BASE
+    if(mutation>=82 && mutation<=95) {
+        smmu_fault=mutation-82;
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONFIGURATION,
+                           record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(config_calls==1 && !fpga_reads && !engine_calls && bridge==15);
+        if(smmu_fault<10) {
+            assert(!reply[0] && reply[3]==1 && smmu_reads==26 &&
+                   !fes_nano_owned_bridges.failed && fes_nano_owned_bridges.state.generation==1);
+        } else {
+            assert(reply[0]==4 && !reply[2] && !reply[3] && fes_nano_owned_bridges.failed);
+            unsigned reads=smmu_reads;
+            fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,
+                               record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+            assert(reply[0]==4 && smmu_reads==reads && !fpga_reads && !engine_calls && bridge==15);
+        }
+        return 0;
+    }
+#endif
     if(mutation>=40) {
         config_fault=mutation==40?0:mutation==41?1:7;
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONFIGURATION,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);

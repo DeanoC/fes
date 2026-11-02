@@ -1,5 +1,20 @@
 # Nano recovery uploads and cold serial boot
 
+`smmu-profile.json` selects a separate serial-only `probe` image. Its source-bound
+SPL/BL31 chain enables a read-only SMMUv3 observation after trusted cold ownership
+is accepted and before BL33. It records two matching samples of translation,
+bypass, abort and secure controls, checking ownership around every read. It
+issues no SMMU, bridge, reset or translation-table write and enables no native
+device. `native_trace.decode_native_boot(..., smmu_observe=True)` requires this
+extra ordered record and checks its interpretation against the raw words.
+A complete trace is a serial diagnostic, never a DDR access qualification.
+
+Build with `tamago/run.py probe --board de25-nano --profile
+platform/embedded/nano/smmu-profile.json` and the usual explicit compiler/output.
+Other programs reject that profile. The ordinary serial and SD profiles keep
+boot observation disabled. The cold DDR configuration profile observes the
+same controls again after its SDM readiness query, before opening control.
+
 The cold DDR reader candidate now binds its sealed package to the intended
 `0x95000000..0x95002000` test window and a separate 2 MiB CPU reservation.
 The native builder, entry image and source-bound SPL/BL31 chain retain the same

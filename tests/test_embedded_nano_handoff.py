@@ -154,6 +154,19 @@ class NanoExportTests(unittest.TestCase):
             self.assertTrue(result['cold_boot_profile']['sd_pio'])
             self.assertIn('#define FES_NANO_CONTROLLED_SD 1',
                           (source/'arch/arm/mach-socfpga/fes_nano_cold_profile.h').read_text())
+        with tempfile.TemporaryDirectory() as tmp:
+            source,entry,_=self.fixture(Path(tmp))
+            path=entry/'result.json';receipt=json.loads(path.read_text())
+            receipt['firmware_profile_sha256']=prepare.sha(HERE/'smmu-profile.json')
+            receipt['native_program']='probe';path.write_text(json.dumps(receipt))
+            result=prepare.prepare(source,entry,'a'*64)
+            self.assertTrue(result['cold_boot_profile']['smmu_observe'])
+            self.assertFalse(result['cold_boot_profile']['sd_pio'])
+            header=(source/'arch/arm/mach-socfpga/fes_nano_cold_profile.h').read_text()
+            self.assertIn('#define FES_NANO_SMMU_BOOT_OBSERVE 1',header)
+            receipt['native_program']='storage';path.write_text(json.dumps(receipt))
+            with self.assertRaisesRegex(ValueError,'source-bound serial probe'):
+                prepare.prepare(source,entry,'a'*64)
 
     def test_stale_native_sources_and_unknown_profiles_reject_before_export(self):
         for mutation in ('source','missing','escape','profile'):

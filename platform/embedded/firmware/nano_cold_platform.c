@@ -5,6 +5,7 @@
 #include <string.h>
 #include "nano_bridge_platform.h"
 #include "nano_cold.h"
+#include "nano_smmu.h"
 #include "fes_nano_cold_profile.h"
 #define FES_COLD_READ32(a) mmio_read_32(a)
 #define FES_COLD_READ16(a) mmio_read_16(a)
@@ -13,8 +14,10 @@
 #define FES_COLD_BARRIER() dsbsy()
 #define FES_COLD_WAIT() udelay(10)
 #include "nano_cold_mmio.inc"
-#if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
+#if (defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE) || (defined(FES_NANO_SMMU_BOOT_OBSERVE) && FES_NANO_SMMU_BOOT_OBSERVE)
 #include <common/debug.h>
+#endif
+#if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
 #include <socfpga_mailbox.h>
 #endif
 #if defined(FES_NANO_CONTROLLED_SD) && FES_NANO_CONTROLLED_SD
@@ -25,6 +28,34 @@
 static struct fes_nano_cold_record captured;
 static struct fes_nano_cold provider;
 static unsigned capture_attempted, capture_valid;
+
+#if defined(FES_NANO_READER_CPU_BASE) || (defined(FES_NANO_SMMU_BOOT_OBSERVE) && FES_NANO_SMMU_BOOT_OBSERVE)
+static int smmu_owns(void *context)
+{
+    struct fes_nano_cold *s=context;
+    return GET_EL(read_current_el())==MODE_EL3 && !(read_sctlr_el3()&5U) &&
+        fes_nano_cold_cpu_release_locked()==1 && !s->control_expected &&
+        fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)==1;
+}
+static int smmu_read(void *context,uint32_t offset,uint32_t *value)
+{
+    if (!fes_nano_smmu_offset(offset) || smmu_owns(context)!=1) return -1;
+    dsbsy();*value=mmio_read_32(FES_NANO_SMMU_BASE+offset);dsbsy();
+    return smmu_owns(context)==1 ? 0 : -1;
+}
+static int smmu_report(struct fes_nano_cold *s)
+{
+    struct fes_nano_smmu_probe probe={.io={s,smmu_owns,smmu_read}};
+    struct fes_nano_smmu_observation observation={0};
+    int status=fes_nano_smmu_observe(&probe,&observation);
+    const struct fes_nano_smmu_snapshot *v=&observation.registers;
+    NOTICE("FES_NANO_SMMU status=%d reads=%u idr0=%x idr1=%x aidr=%x s_idr1=%x cr0=%x ack=%x gbpa=%x agbpa=%x s_cr0=%x s_ack=%x s_init=%x s_gbpa=%x s_agbpa=%x identified=%u settled=%u bypass_controls_clear=%u access=unqualified\n",
+        status,probe.reads,v->idr0,v->idr1,v->aidr,v->s_idr1,v->cr0,v->cr0ack,v->gbpa,v->agbpa,
+        v->s_cr0,v->s_cr0ack,v->s_init,v->s_gbpa,v->s_agbpa,observation.identified,
+        observation.controls_settled,observation.bypass_controls_clear);
+    return status;
+}
+#endif
 
 /* Runs in early EL3 setup, before BL33. No pointer from a later SMC is used. */
 void fes_nano_cold_capture(uintptr_t pointer, uint64_t cookie)
@@ -43,6 +74,9 @@ int fes_nano_platform_boot_record(struct fes_nano_boot_record *record,
     if (!capture_valid || fes_nano_cold_cpu_release_locked()!=1 ||
         captured.core!=MPIDR_AFFLVL1_VAL(read_mpidr()) ||
         fes_nano_cold_consume(&provider,&captured,fes_cold_hw_ops(),chain,owner)) return -1;
+#if defined(FES_NANO_SMMU_BOOT_OBSERVE) && FES_NANO_SMMU_BOOT_OBSERVE
+    if (smmu_report(&provider)) return -1;
+#endif
     *record=provider.record.boot;
     *policy=(struct fes_nano_boot_policy){.qualifications=FES_NANO_BOOT_QUALIFIED,
         .history=FES_NANO_BOOT_NEVER_ENABLED,.fabric=FES_NANO_FABRIC_ABSENT,.producers=FES_NANO_PRODUCERS_ALL};
@@ -56,6 +90,12 @@ int fes_nano_platform_boot_record(struct fes_nano_boot_record *record,
 static struct fes_nano_identity_probe identity_probe;
 static unsigned identity_reported;
 struct fes_nano_identity_probe *fes_nano_platform_identity_probe(void) { return &identity_probe; }
+#ifdef FES_NANO_READER_CPU_BASE
+_Static_assert(FES_NANO_CONTROL_ABI==0x10203041U && FES_NANO_READER_CPU_BASE==0x95000000ULL &&
+    FES_NANO_READER_BUS_BASE==0x95000000ULL && FES_NANO_READER_BYTES==8192U &&
+    FES_NANO_READER_ARENA_BYTES==(2U<<20),"source-bound cold DDR reader profile");
+
+#endif
 static int identity_configured(void *context)
 {
     struct fes_nano_cold *s=context;
@@ -72,6 +112,9 @@ static int identity_configured(void *context)
         !(response[3]&SOFTFUNC_STATUS_SEU_ERROR);
     NOTICE("FES_NANO_CONFIG_STATUS status=%d words=%u state=%x version=%x pins=%x soft=%x error_location=%x error_details=%x ready=%u\n",
            status,words,response[0],response[1],response[2],response[3],response[4],response[5],ready);
+#ifdef FES_NANO_READER_CPU_BASE
+    if (valid && smmu_report(s)) return -5;
+#endif
     return valid ? (int)ready : -5;
 }
 void fes_nano_platform_identity_report(void)

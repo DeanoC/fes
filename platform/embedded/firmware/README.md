@@ -6,6 +6,15 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The optional source-bound SMMU serial profile now runs a read-only observation
+inside the trusted cold provider. It samples the non-secure controls and only
+reads the secure control bank when `S_IDR1.SECURE_IMPL` reports it. Every read
+is bracketed by closed-bridge ownership checks; unstable samples or lost scope
+fail without replay. The cold DDR profile also observes these controls after
+SDM readiness. `bypass_controls_clear` describes the sampled words only: MPFE
+traffic attributes, address/firewall proof and complete master drain remain
+separate requirements. No observer result grants a bridge or DMA capability.
+
 The [contained large-block TRWU8CBL trial](../../../docs/validation/2026-11-02-de25-large-blocks/README.md)
 now completes the exact sealed 2,027,520-byte phase-two image through native
 CPU/firmware calls, reports ready and verifies the live build identity with

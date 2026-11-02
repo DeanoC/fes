@@ -58,6 +58,33 @@ class NativeTraceTests(unittest.TestCase):
                     self.assertTrue(result['loader_ready'])
                     self.assertEqual(tuple(row['stage'] for row in result['records']), trace.STAGES)
                     self.assertFalse(result['core_load_acceptance'])
+        values={'status':0,'reads':26,'idr0':'8000000f','idr1':'10','aidr':'1','s_idr1':'80000000',
+                'cr0':'0','ack':'0','gbpa':'0','agbpa':'0','s_cr0':'0','s_ack':'0','s_init':'0',
+                's_gbpa':'0','s_agbpa':'0','identified':1,'settled':1,'bypass_controls_clear':1}
+        template='NOTICE:  FES_NANO_SMMU '+' '.join(key+'={'+key+'}' for key in values)+' access=unqualified\r\n'
+        for change in ({},{'gbpa':'100000','bypass_controls_clear':0},
+                       {'cr0':'1','ack':'1','bypass_controls_clear':0},
+                       {'s_idr1':'0','reads':16},
+                       {'s_gbpa':'80000000','settled':0,'bypass_controls_clear':0}):
+            row=template.format(**dict(values,**change))
+            raw=fixture().replace('NOTICE:  FES_NANO_OWNED_BOOT',row+'NOTICE:  FES_NANO_OWNED_BOOT')
+            result=trace.decode_native_boot(raw,BUILD,SEED,smmu_observe=True)
+            self.assertTrue(result['complete'],result)
+            self.assertFalse(result['smmu_observation']['access_qualified'])
+            self.assertFalse(result['core_load_acceptance'])
+            self.assertFalse(self.decode(raw)['complete'])
+        for change in ({'status':-11},{'reads':25},{'gbpa':'100000'}, {'cr0':'1','ack':'1'},
+                       {'s_idr1':'0','reads':16,'s_cr0':'1'},{'identified':0},
+                       {'s_gbpa':'80000000','settled':1}):
+            row=template.format(**dict(values,**change))
+            raw=fixture().replace('NOTICE:  FES_NANO_OWNED_BOOT',row+'NOTICE:  FES_NANO_OWNED_BOOT')
+            self.assertFalse(trace.decode_native_boot(raw,BUILD,SEED,smmu_observe=True)['complete'])
+        row=template.format(**values)
+        for raw in (fixture(),fixture()+row,
+                    fixture().replace('NOTICE:  FES_NANO_OWNED_BOOT',row+row+'NOTICE:  FES_NANO_OWNED_BOOT')):
+            self.assertFalse(trace.decode_native_boot(raw,BUILD,SEED,smmu_observe=True)['complete'])
+        for option in (None,0,1,'yes'):
+            with self.assertRaises(ValueError):trace.decode_native_boot(fixture(),BUILD,SEED,smmu_observe=option)
 
     def test_each_fragment_boundary_preserves_partial_progress(self):
         raw = fixture().encode()

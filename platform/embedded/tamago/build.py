@@ -205,6 +205,8 @@ def build(args):
         raise ValueError("--board de25-nano requires --profile from the firmware handoff")
     raw = args.profile.resolve().read_bytes()
     profile = json.loads(raw)
+    if raw==(APP.parent/'nano/smmu-profile.json').read_bytes() and args.program!='probe':
+        raise ValueError('the source-bound SMMU profile permits only the serial probe')
     start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
     expected_package_id=package_option(args.program,args.package_id,profile)
     context=control_map=configuration_map=reader_memory_map=None
@@ -300,7 +302,7 @@ def build(args):
     forbidden_files = {"virtio.go", "xhci_tamago.go", "xhci_tamago.s", "ramfb.go", "nic_tamago.go"}
     if any(forbidden_files.intersection(p.get("GoFiles", []) + p.get("SFiles", [])) for p in packages):
         raise ValueError("Nano selected a QEMU controller implementation")
-    files = {APP / "go.mod", APP / "go.sum", APP / "build.py", APP / "run.py", APP / "toolchain.lock.toml"}
+    files = {APP / "go.mod", APP / "go.sum", APP / "build.py", APP / "run.py", APP / "toolchain.lock.toml", APP.parent/'nano/smmu-profile.json'}
     if context is not None:files.update(hps.inputs())
     for p in packages:
         directory = Path(p["Dir"])

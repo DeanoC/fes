@@ -61,7 +61,7 @@ def reset_source(data):
 
 
 def inputs():
-    return [HERE / name for name in ("prepare_nano_owned.py", "nano_digest.py", "nano_mailbox.py", "nano_mailbox_observe.inc", "nano_mailbox_observe.h", "nano_mailbox_status.inc", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "generated/fes_embedded_bridges.h", "nano_sd.h", "nano_sd.c", "generated/fes_embedded_sd.h", "nano_identity.h", "nano_identity.c", "nano_configuration.h", "nano_configuration.c", "generated/fes_embedded_control.h")]
+    return [HERE / name for name in ("prepare_nano_owned.py", "nano_digest.py", "nano_mailbox.py", "nano_mailbox_observe.inc", "nano_mailbox_observe.h", "nano_mailbox_status.inc", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "generated/fes_embedded_bridges.h", "nano_sd.h", "nano_sd.c", "generated/fes_embedded_sd.h", "nano_identity.h", "nano_identity.c", "nano_configuration.h", "nano_configuration.c", "nano_smmu.h", "nano_smmu.c", "generated/fes_embedded_control.h")]
 
 
 def psci_source(text, cold_serial=False):
@@ -133,12 +133,12 @@ def install(source, cold_profile=None, cold_header=None):
     setup.write_text('#include "nano_bridge_platform.h"\n' + text.replace(marker, marker + "\tfes_nano_bridge_platform_setup();\n"))
     if cold_profile is not None:
         if cold_header is None: raise ValueError("missing matched cold profile header")
-        for name in ("nano_cold.h", "nano_cold_mmio.inc", "nano_sd_platform.h"):
+        for name in ("nano_cold.h", "nano_cold_mmio.inc", "nano_sd_platform.h", "nano_smmu.h"):
             (include/name).write_bytes((HERE/name).read_bytes())
         (include/'fes_nano_cold_profile.h').write_text(cold_header)
-        for name in ("nano_cold.c", "nano_cold_platform.c", "nano_sd_platform.c"):
+        for name in ("nano_cold.c", "nano_cold_platform.c", "nano_sd_platform.c", "nano_smmu.c"):
             (source/'plat/intel/soc/common'/name).write_bytes((HERE/name).read_bytes())
-        mk.write_text(mk.read_text()+"\nTF_CFLAGS += -DFES_NANO_COLD_SERIAL=1\nBL31_SOURCES += plat/intel/soc/common/nano_cold.c plat/intel/soc/common/nano_cold_platform.c plat/intel/soc/common/nano_sd_platform.c\n")
+        mk.write_text(mk.read_text()+"\nTF_CFLAGS += -DFES_NANO_COLD_SERIAL=1\nBL31_SOURCES += plat/intel/soc/common/nano_cold.c plat/intel/soc/common/nano_cold_platform.c plat/intel/soc/common/nano_sd_platform.c plat/intel/soc/common/nano_smmu.c\n")
         if digest is not None:
             mk.write_text(mk.read_text() + '\n' + nano_digest.FLAGS)
         text=setup.read_text()

@@ -27,6 +27,10 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('mmc', r'Trying to boot from MMC1'),
     ('fit', r'FES_NANO_SPL FIT verified before parsing'),
     ('spl_handoff', rf'FES_NANO_SPL HANDOFF owner=(?P<owner>{H}) epoch=(?P<epoch>{H}) per0=(?P<per0>{W}) bridge=(?P<bridge>{W}) sd=(?P<sd>{W})'),
+    ('smmu', r'(?:NOTICE:[ \t]+)?FES_NANO_SMMU status=(?P<status>-?[0-9]{1,10}) reads=(?P<reads>[0-9]{1,3}) '+
+        ' '.join(key+r'=(?P<'+key+r'>[0-9a-f]{1,8})' for key in
+                 ('idr0','idr1','aidr','s_idr1','cr0','ack','gbpa','agbpa','s_cr0','s_ack','s_init','s_gbpa','s_agbpa'))+
+        r' identified=(?P<identified>[01]) settled=(?P<settled>[01]) bypass_controls_clear=(?P<bypass_controls_clear>[01]) access=unqualified'),
     ('provider', rf'(?:NOTICE:[ \t]+)?FES_NANO_OWNED_BOOT provider=(?P<provider>-?[0-9]{{1,10}}) result=(?P<result>-?[0-9]{{1,10}}) reset=(?P<bridge>{W})'),
     ('sd_platform', r'(?:NOTICE:[ \t]+)?FES_NANO_SD_PLATFORM setup=(?P<setup>-?[0-9]{1,10}) ready=(?P<ready>[01])'),
     ('uboot', r'U-Boot (?!SPL)[^\r\n]*?-fes-nano-(?P<id>[0-9a-f]{16})(?:[ \t].*)?'),
@@ -62,12 +66,14 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('package_pass', rf'FES_NANO_PACKAGE PASS read-only package_id=(?P<package_id>[0-9a-f]{{64}}) payload_sha256=(?P<payload_sha256>[0-9a-f]{{64}}) payload_bytes=(?P<payload_bytes>[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}})'),
 )]
 DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter',
-           'cpu0', 'cpu1', 'cpu2', 'cpu3', 'setup', 'ready', 'bytes', 'sectors', 'sd_generation', 'payload_bytes','words','ordinal'}
+           'cpu0', 'cpu1', 'cpu2', 'cpu3', 'setup', 'ready', 'bytes', 'sectors', 'sd_generation', 'payload_bytes','words','ordinal',
+           'reads','identified','settled','bypass_controls_clear'}
 TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id','map_sha256'}
 
 
 def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, fpga_identity=None,
-                       fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False):
+                       fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
+                       smmu_observe=False):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -118,6 +124,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         raise ValueError('stored configuration requires the complete FPGA configuration diagnostic')
     source_generation=4 if configuration_storage else 1
     controlled = storage is not None or package is not None or configuration_storage
+    if type(smmu_observe) is not bool or smmu_observe and (controlled or hps_context is not None or fpga_identity is not None):
+        raise ValueError('SMMU observation requires its separate serial-only diagnostic')
     stages=STAGES
     if hps_context is not None:stages=STAGES[:-1]+('hps_context',)
     if fpga_identity is not None:
@@ -135,6 +143,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         suffix=(('storage','read','contained','resumed','sd_pass') if storage is not None else
                 ('package_probe','package_retained','package_contained','package_resumed','package_pass'))
         stages=STAGES[:7]+('sd_platform',)+STAGES[7:-1]+suffix
+    if smmu_observe:stages=STAGES[:6]+('smmu',)+STAGES[6:]
     loader_stages=stages[:stages.index('prompt')+1]
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False}
@@ -216,6 +225,20 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         provider = observed['provider']
         require(provider['provider'] == 1 and provider['result'] == 0 and provider['bridge'] & BRIDGES == BRIDGES,
                 'secure provider proof rejected')
+    if 'smmu' in observed:
+        v=observed['smmu'];secure=bool(v['s_idr1']&(1<<31))
+        identified=bool(v['idr0'] and v['idr0']!=0xffffffff and
+                        all(v[key]!=0xffffffff for key in ('idr1','aidr','s_idr1')))
+        settled=(v['cr0']==v['ack'] and not v['gbpa']&(1<<31) and
+                 (not secure or v['s_cr0']==v['s_ack'] and not v['s_gbpa']&(1<<31) and not v['s_init']))
+        clear=(identified and settled and not any(v[key] for key in ('cr0','gbpa','agbpa')) and
+               (not secure or not any(v[key] for key in ('s_cr0','s_gbpa','s_agbpa'))))
+        require(v['status']==0 and v['reads']==(26 if secure else 16), 'SMMU observation failed or has wrong read count')
+        require(secure or not any(v[key] for key in ('s_cr0','s_ack','s_init','s_gbpa','s_agbpa')),
+                'SMMU observation accessed an absent secure control bank')
+        require(v['identified']==int(identified) and v['settled']==int(settled) and
+                v['bypass_controls_clear']==int(clear), 'SMMU control interpretation differs from its raw registers')
+        report['smmu_observation']=dict(v,secure_implemented=secure,access_qualified=False)
     for phase in ('before-entry', 'after-remove'):
         if phase in observed:
             value = observed[phase]

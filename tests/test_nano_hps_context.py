@@ -163,6 +163,12 @@ class HPSContextTests(unittest.TestCase):
         digest = self.record['hps_context_sha256']
         self.assertIn('#define FES_NANO_HPS_CONTEXT_SHA {'+
                       ','.join('0x'+digest[i:i+2] for i in range(0, 64, 2))+'}', header)
+        boot={'sd_pio':False,'smmu_observe':True,'chain_sha256':'a'*64,'owner_seed':1,
+              'entry_image_sha256':'b'*64,'entry_image_size':128}
+        self.assertIn('#define FES_NANO_SMMU_BOOT_OBSERVE 1',cold.header(boot))
+        for changed in (dict(boot,sd_pio=True),dict(boot,hps_context=self.descriptor),
+                        dict(boot,smmu_observe=1),dict(boot,smmu_observe='yes')):
+            with self.assertRaises(ValueError):cold.header(changed)
         # Isolate only the already-verified project inputs. Exercise the actual
         # descriptor builder so a DDR package cannot regain the on-chip label.
         (ROOT/'out').mkdir(exist_ok=True)
@@ -223,6 +229,7 @@ class HPSContextTests(unittest.TestCase):
             common = [sys.executable, str(ROOT/'platform/embedded/tamago/run.py'),
                       '--compiler', '/bin/false', '--output', str(output)]
             for args in (['bootcontext'], ['fpgacontext'], ['fpgastatus'],
+                         ['tenfoot','--board','de25-nano','--profile',str(NANO/'smmu-profile.json')],
                          ['bootcontext', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],
                          ['fpgacontext', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],
                          ['fpgastatus', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],

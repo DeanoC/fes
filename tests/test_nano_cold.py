@@ -97,6 +97,14 @@ int main(void) {
             r=subprocess.run([str(binary)],capture_output=True,text=True)
             self.assertEqual(r.returncode,0,r.stderr)
             self.assertRegex(r.stdout,r'^PASS [0-9]+ actual cold/PIO ownership cases')
+            binary=Path(temp)/'smmu'
+            r=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
+                              '-I'+str(FW),str(FW/'nano_smmu.c'),str(FW/'tests/nano_smmu_test.c'),'-o',str(binary)],capture_output=True,text=True)
+            self.assertEqual(r.returncode,0,r.stderr)
+            r=subprocess.run([str(binary)],capture_output=True,text=True)
+            self.assertEqual(r.returncode,0,r.stderr)
+            self.assertIn('PASS 269 read-only SMMU cases',r.stdout)
+            print(r.stdout.strip(),flush=True)
     def test_actual_early_capture_provider_and_owned_wire(self):
         with tempfile.TemporaryDirectory() as temp:
             base=Path(temp);inc=base/'include';(inc/'drivers').mkdir(parents=True);(inc/'lib').mkdir()
@@ -108,22 +116,32 @@ int main(void) {
             (inc/'socfpga_mailbox.h').write_text('#include <stdint.h>\n#define MBOX_JOB_ID 1U\n#define MBOX_CONFIG_STATUS 4U\n#define CMD_CASUAL 0U\n#define PIN_STATUS_NSTATUS (1U<<31)\n#define SOFTFUNC_STATUS_CONF_DONE 1U\n#define SOFTFUNC_STATUS_INIT_DONE 2U\n#define SOFTFUNC_STATUS_SEU_ERROR 8U\nint mailbox_send_cmd(uint32_t,uint32_t,uint32_t*,unsigned,uint32_t,uint32_t*,unsigned*);\n')
             header='#define FES_NANO_COLD_CHAIN {0x42,0x17}\n#define FES_NANO_COLD_OWNER_SEED 17ULL\n'
             command=['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
-                     '-I'+str(inc),'-I'+str(FW),*(str(FW/name) for name in ('nano_cold_platform.c','nano_cold.c','nano_boot.c','nano_bridges.c','nano_bridge_sip.c','nano_sd.c','nano_sd_platform.c','nano_identity.c','nano_configuration.c','tests/nano_cold_platform_test.c'))]
-            for sd,context,probe in ((0,0,0),(0,1,0),(1,0,0),(1,1,0),(0,0,1),(0,1,1)):
+                     '-I'+str(inc),'-I'+str(FW),*(str(FW/name) for name in ('nano_cold_platform.c','nano_cold.c','nano_boot.c','nano_bridges.c','nano_bridge_sip.c','nano_sd.c','nano_sd_platform.c','nano_identity.c','nano_configuration.c','nano_smmu.c','tests/nano_cold_platform_test.c'))]
+            for sd,context,probe,ddr,smmu_boot in ((0,0,0,0,0),(0,1,0,0,0),(1,0,0,0,0),(1,1,0,0,0),(0,0,1,0,0),(0,1,1,0,0),(0,1,1,1,0),(0,0,0,0,1)):
                 values=','.join(str(i) for i in range(32)) if context else '0'
                 extra=('#define FES_NANO_CONTROL_PROBE '+str(probe)+'\n'
+                       '#define FES_NANO_SMMU_BOOT_OBSERVE '+str(smmu_boot)+'\n'
                        '#define FES_NANO_CONTROL_BASE 0x20010400UL\n'
-                       '#define FES_NANO_CONTROL_ABI 0x10203040U\n'
+                       '#define FES_NANO_CONTROL_ABI '+('0x10203041U' if ddr else '0x10203040U')+'\n'
                        '#define FES_NANO_CONTROL_BUILD {0x44556677,0x00112233,0xbbccddee,0x778899aa}\n'
                        '#define FES_NANO_CONTROL_MAP_SHA {1}\n')
+                if ddr:extra+=('#define FES_NANO_READER_CPU_BASE 0x95000000ULL\n'
+                               '#define FES_NANO_READER_BUS_BASE 0x95000000ULL\n'
+                               '#define FES_NANO_READER_BYTES 8192U\n'
+                               '#define FES_NANO_READER_ARENA_BYTES 2097152U\n')
                 (inc/'fes_nano_cold_profile.h').write_text(header+'#define FES_NANO_HPS_CONTEXT_SHA {'+values+'}\n'+extra)
-                binary=base/('platform-'+str(sd)+'-'+str(context)+'-'+str(probe))
+                binary=base/('platform-'+str(sd)+'-'+str(context)+'-'+str(probe)+'-'+str(ddr)+'-'+str(smmu_boot))
                 r=subprocess.run(command+['-DFES_NANO_CONTROLLED_SD='+str(sd),*(['-DFES_TEST_HPS_CONTEXT'] if context else []),'-o',str(binary)],capture_output=True,text=True)
                 self.assertEqual(r.returncode,0,r.stderr)
-                for mutation in range(43 if probe and context else 25 if sd else 22):
-                    with self.subTest(sd=sd,context=context,probe=probe,mutation=mutation):
+                mutations=list(range(43 if probe and context else 25 if sd else 22))+ (list(range(82,96)) if ddr or smmu_boot else [])
+                for mutation in mutations:
+                    with self.subTest(sd=sd,context=context,probe=probe,ddr=ddr,smmu_boot=smmu_boot,mutation=mutation):
                         r=subprocess.run([str(binary),str(mutation)],capture_output=True,text=True)
                         self.assertEqual(r.returncode,0,r.stderr)
+                        if (ddr or smmu_boot) and mutation>=82:
+                            self.assertIn('access=unqualified',r.stdout)
+                            if mutation<92:self.assertIn('bypass_controls_clear='+str(int(mutation==82)),r.stdout)
+                            elif mutation==92:self.assertIn('status=-11',r.stdout)
 
     def test_actual_spl_handoff_reports_saved_failure_before_reject(self):
         source=(ROOT/'platform/embedded/nano/spl_cold.c').read_text()
