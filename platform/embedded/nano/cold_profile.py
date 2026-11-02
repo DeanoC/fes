@@ -60,6 +60,7 @@ def sources():
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_boot.c','nano_bridges.h','nano_bridges.c','nano_bridge_platform.inc','nano_bridge_platform.h',
                             'nano_owned_sip.inc','prepare_nano_owned.py','prepare_tfa.py','nano_digest.py',
+                            'nano_mailbox.py','nano_mailbox_observe.inc','nano_mailbox_observe.h','nano_mailbox_status.inc',
                             'nano_bridge_sip.c','nano_bridge_sip.h','generated/fes_embedded_bridges.h',
                             'nano_identity.c','nano_identity.h','nano_configuration.c','nano_configuration.h','generated/fes_embedded_control.h',
                             'generated/fes_embedded_control.hpp','nano_bridge_diag.h','nano_bridge_diag.inc',

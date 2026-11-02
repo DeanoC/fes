@@ -1,14 +1,14 @@
 {
   "source": {
     "repository": "DeanoC/fes",
-    "commit": "1e5c7f9c62a2ae3913fe124a33cd6ee48daca159",
+    "commit": "09c5c6317071649bcad7c2c327251a299640522d",
     "file": "platform/embedded/firmware/generated/fes_embedded_bridges.h",
-    "note": "Private source-bound cold configuration preparation; default profiles grant no programming authority."
+    "note": "Private cold transfer retirement and bounded same-client failure status; no drain or memory release authority."
   },
   "fabric": {
     "id": "fes.fabric.embedded.bridges",
     "major": 1,
-    "minor": 4
+    "minor": 5
   },
   "constants": {
     "FesEmbeddedBridgeCall": 3254780673,
@@ -41,6 +41,8 @@
     "FesEmbeddedBridgeConfiguration": 7,
     "FesEmbeddedBridgeConfigurationTag": 1178817329,
     "FesEmbeddedBridgePrepareConfiguration": 8,
-    "FesEmbeddedBridgePreparationTag": 1178816561
+    "FesEmbeddedBridgePreparationTag": 1178816561,
+    "FesEmbeddedBridgeRetireConfiguration": 9,
+    "FesEmbeddedBridgeRetirementTag": 1178817073
   }
 }

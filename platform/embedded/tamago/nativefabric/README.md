@@ -187,3 +187,13 @@ RTL in host simulation, including mismatch and interrupted-transfer cases.
 It supplies no physical CPU mapping, DDR containment or physical admission.
 The HPS-first variant packages the FPGA core half, with a separately hashed
 phase-one half and the matched HPS I/O hash. No board has booted that pair.
+
+
+`HPSContextVerifier.RetireConfiguration` permits one diagnostic withdrawal of
+a failed cold transfer with possible outstanding buffers. It compares the
+original source and a fresh held-bridge snapshot, then requests retirement
+through the generated owned firmware channel. It never replays a transfer or
+releases memory. Acknowledged retirement and its signed diagnostic status
+cannot establish completion, drain or runtime admission. The native `fpgaload`
+probe uses it after failure while preserving the original panic and 20-second
+transfer deadline; the post-retirement status capture has a separate bound.

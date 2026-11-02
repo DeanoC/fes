@@ -112,7 +112,7 @@ class NanoConfigurationTests(unittest.TestCase):
             sources=('nano_cold_platform.c','nano_cold.c','nano_boot.c','nano_bridges.c','nano_bridge_sip.c','nano_sd.c','nano_sd_platform.c','nano_identity.c','nano_configuration.c','tests/nano_cold_platform_test.c')
             compiled=subprocess.run(['cc',*flags,'-Wextra','-DFES_TEST_HPS_CONTEXT',*(str(FW/name) for name in sources),str(sha_object),'-o',str(binary)],capture_output=True,text=True,timeout=30)
             self.assertEqual(compiled.returncode,0,compiled.stderr)
-            for mutation in (0,43,44,45,46,47,48,49,50,51,52,53,56,57,58,59):
+            for mutation in (0,43,44,45,46,47,48,49,50,51,52,53,56,57,58,59,60,61,62,63,64,65,66):
                 with self.subTest(mutation=mutation):
                     result=subprocess.run([binary,str(mutation)],capture_output=True,text=True,timeout=15)
                     self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-2000:])

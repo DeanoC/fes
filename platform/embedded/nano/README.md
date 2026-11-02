@@ -687,6 +687,16 @@ cause remains open. This source also counts byte progress inside an unchanged
 endpoint phase, keeping Tenfoot launch/return and wrong-identity recovery within
 the unchanged two-second controller deadline.
 
+After a caller-side transfer failure, the native probe now requests one
+explicit retirement through the same firmware/CPU channel. The secure provider
+checks the held cold owner and CPU context, irreversibly withdraws configuration
+and bridge authority, then collects one bounded HPS-client `RECONFIG_STATUS`
+reply. The original transfer failure remains fatal. All possible DMA buffers
+and source bytes stay pinned even if the diagnostic reports a ready FPGA.
+The separate reader has no retry, mailbox restart, configuration acknowledgement
+or bridge opening. This path is tested without hardware and still needs a
+matched boot; the failed four-buffer hardware result above remains current.
+
 This source-bound cold profile is a hardware-qualification candidate. No
 contained physical transfer is accepted yet. It enables neither an active
 reader nor data bridges, secondary CPUs, active drain, runtime package

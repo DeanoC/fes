@@ -29,6 +29,8 @@ type ConfigurationTransfer struct {
 	pending     []configurationBuffer
 	err         error
 	done        bool
+
+	diagnosticAttempted bool
 }
 
 // The pinned SiP engine has four buffer descriptors. BUSY accepts the latest

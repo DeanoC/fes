@@ -61,7 +61,7 @@ def reset_source(data):
 
 
 def inputs():
-    return [HERE / name for name in ("prepare_nano_owned.py", "nano_digest.py", "nano_mailbox.py", "nano_mailbox_observe.inc", "nano_mailbox_observe.h", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "generated/fes_embedded_bridges.h", "nano_sd.h", "nano_sd.c", "generated/fes_embedded_sd.h", "nano_identity.h", "nano_identity.c", "nano_configuration.h", "nano_configuration.c", "generated/fes_embedded_control.h")]
+    return [HERE / name for name in ("prepare_nano_owned.py", "nano_digest.py", "nano_mailbox.py", "nano_mailbox_observe.inc", "nano_mailbox_observe.h", "nano_mailbox_status.inc", "verify.py", "nano_bridges.c", "nano_bridges.h", "nano_boot.c", "nano_boot.h", "nano_bridge_sip.c", "nano_bridge_sip.h", "nano_bridge_platform.h", "nano_bridge_platform.inc", "nano_owned_sip.inc", "generated/fes_embedded_bridges.h", "nano_sd.h", "nano_sd.c", "generated/fes_embedded_sd.h", "nano_identity.h", "nano_identity.c", "nano_configuration.h", "nano_configuration.c", "generated/fes_embedded_control.h")]
 
 
 def psci_source(text, cold_serial=False):

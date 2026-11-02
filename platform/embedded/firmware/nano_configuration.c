@@ -3,6 +3,7 @@
 
 __attribute__((weak)) struct fes_nano_configuration *fes_nano_platform_configuration(void) { return 0; }
 __attribute__((weak)) int fes_nano_platform_configuration_setup(void) { return 0; }
+__attribute__((weak)) int fes_nano_platform_configuration_diagnostic_ready(void) { return 0; }
 
 static void trace(struct fes_nano_configuration *s, unsigned stage)
 {
@@ -59,6 +60,16 @@ int fes_nano_configuration_init(struct fes_nano_configuration *s, struct fes_nan
 }
 unsigned fes_nano_configuration_busy(const struct fes_nano_configuration *s)
 { return s && s->prepared && !s->failed && !s->finished; }
+int fes_nano_configuration_retire(struct fes_nano_configuration *s, uint64_t owner,
+                                    uint64_t generation, unsigned configuring)
+{
+    if(!s || !s->initialized || !s->bridges || !s->prepared || !s->started || s->finished ||
+       s->failed || s->issued || !s->pending || !configuring || !owner ||
+       owner!=s->owner || generation!=s->generation || generation!=1 ||
+       s->bridges->device_lease || !scope(s))return -1;
+    fail(s,-125);
+    return 0;
+}
 void fes_nano_configuration_prepare(struct fes_nano_configuration *s, uint64_t owner,
                                      uint64_t generation, unsigned configuring, uint64_t result[4])
 {

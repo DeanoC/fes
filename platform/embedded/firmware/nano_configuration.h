@@ -42,9 +42,14 @@ int fes_nano_configuration_before(struct fes_nano_configuration *, uint32_t fid,
                                     uint64_t address, uint64_t bytes, unsigned configuring);
 void fes_nano_configuration_after(struct fes_nano_configuration *, uint32_t fid, uint64_t result[4]);
 unsigned fes_nano_configuration_busy(const struct fes_nano_configuration *);
+/* Withdraw a running cold transfer without completing, draining or freeing it.
+ * The caller may then collect one bounded diagnostic; every buffer stays owned. */
+int fes_nano_configuration_retire(struct fes_nano_configuration *, uint64_t owner,
+                                    uint64_t generation, unsigned configuring);
 /* Strong secure platform only; no default programming authority. */
 struct fes_nano_configuration *fes_nano_platform_configuration(void);
 int fes_nano_platform_configuration_setup(void);
+int fes_nano_platform_configuration_diagnostic_ready(void);
 #ifdef __cplusplus
 }
 #endif

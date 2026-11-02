@@ -1,6 +1,6 @@
 # Experimental owned firmware bridge channel
 
-`fes.fabric.embedded.bridges` 1.4 supplies generated C/Go constants for the
+`fes.fabric.embedded.bridges` 1.5 supplies generated C/Go constants for the
 Linux-free Nano firmware experiment. It adds no programming profile, package
 ABI, register mapping or production compatibility entry. The FPGA endpoint
 contract and its generated inputs are unchanged.
@@ -132,3 +132,32 @@ Snapshots remain available; context, identity, SD and configuration-status
 operations cannot interleave while the transfer is prepared or running.
 Preparation is consumed even on a failed check; configuration completes only
 once per cold boot. It supplies neither active drain nor runtime activation.
+
+
+Operation 9 irreversibly retires a failed caller's still-running cold
+configuration before one bounded same-client `RECONFIG_STATUS` diagnostic.
+It requires the original owner, generation 1, a prepared and started transfer
+with pending bytes, closed bridges, contained masters, no device lease and no
+in-flight firmware call. Rejected scope issues no mailbox command. Retirement
+sets both configuration and bridge authority failed while keeping all byte
+counters and DMA descriptors unchanged. It does not cancel or restart the SDM.
+Every later configuration, identity or bridge mutation remains rejected.
+
+The diagnostic sends one fixed command with the HPS client and reserved job 15.
+Its separate reader requires idle local parser/descriptors and an empty command
+FIFO, has six response words, a 64-word FIFO budget and at most 10,000 polls
+with 100-microsecond waits. It accepts only the matching six-word reply. Late
+zero-word asynchronous replies can be consumed after retirement without
+acknowledging or releasing their buffers. Foreign packets, malformed lengths,
+partial replies, busy state and timeouts remain observations of failure.
+There is no resend, mailbox restart, configuration completion or bridge opening.
+
+A retirement acknowledgement carries `x0=0`,
+`x1=0x46435231 << 32 | uint32(diagnostic_status)`, `x2=owner`, and
+`x3=generation`. The low status is a signed nonpositive transport result; zero
+means the diagnostic reply was collected, regardless of its reported FPGA
+state. The six raw SDM words are serial diagnostic records. A missing provider
+returns status 5 with zero owner/generation; rejected requests return no
+retirement acknowledgement. The caller must keep all source and DMA storage
+until reboot even after a successful acknowledgement or a ready status.
+This supplies no configuration, drain, activation or runtime-admission proof.

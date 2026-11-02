@@ -86,6 +86,27 @@ static void retired(struct fixture *f)
 int main(void)
 {
     unsigned cases=0;struct fixture f;uint64_t r[4];
+    init(&f);pending(&f);
+    unsigned checks=f.checks,engine=f.engine_calls;
+    assert(!fes_nano_configuration_retire(&f.configuration,17,1,1));
+    assert(f.configuration.pending==64 && !f.configuration.completed &&
+           f.checks==checks && f.engine_calls==engine && !fes_nano_configuration_busy(&f.configuration));
+    assert(fes_nano_configuration_retire(&f.configuration,17,1,1)<0);retired(&f);cases++;
+    for(unsigned mode=0;mode<12;mode++) {
+        init(&f);pending(&f);
+        if(mode==2)f.configuration.prepared=0;
+        if(mode==3)f.configuration.started=0;
+        if(mode==4)f.configuration.finished=1;
+        if(mode==5)f.configuration.failed=1;
+        if(mode==6)f.configuration.issued=FES_NANO_CONFIG_WRITE;
+        if(mode==7)f.bridges.device_lease=1;
+        if(mode==8)f.configuration.pending=0;
+        if(mode==9)f.reset=13;
+        if(mode==10)f.masters=0;
+        checks=f.checks;engine=f.engine_calls;
+        assert(fes_nano_configuration_retire(&f.configuration,mode==0?18:17,mode==1?2:1,mode!=11)<0);
+        assert(f.checks==checks && f.engine_calls==engine);cases++;
+    }
     init_bytes(&f,260);started(&f);
     for(unsigned i=0;i<4;i++)reply(&f,FES_NANO_CONFIG_WRITE,0x94800000+i*64,64,1,i==3,0,0,0);
     assert(f.configuration.pending==256 && !f.configuration.completed);
@@ -134,7 +155,7 @@ int main(void)
         else assert(!f.configuration.attempted && !f.configuration.failed && !f.checks);
         cases++;
     }
-    init(&f);arm(&f);unsigned checks=f.checks;
+    init(&f);arm(&f);checks=f.checks;
     fes_nano_configuration_prepare(&f.configuration,17,1,0,r);
     assert(r[0]==2 && !r[2] && !r[3] && f.checks==checks);cases++;
     init(&f);assert(fes_nano_configuration_before(&f.configuration,FES_NANO_CONFIG_START,0,0,0)==2 && !f.configuration.failed);cases++;

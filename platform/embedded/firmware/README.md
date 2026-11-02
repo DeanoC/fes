@@ -129,6 +129,15 @@ open. The same source also repairs endpoint progress scheduling for consecutive
 successful writes, and passes Tenfoot launch/return and identity-failure tests
 under the existing two-second controller deadline.
 
+The cold configuration channel also provides explicit retirement after a
+caller-side failure. It checks the same held owner/generation, withdraws all
+configuration/bridge authority, then issues one bounded HPS-client
+`RECONFIG_STATUS` request. Its separate six-word reader does not restart the
+mailbox, use the active parser, acknowledge DMA buffers or open bridges. It
+accepts no addresses from the caller. A successful retirement reply still
+requires every source and outstanding descriptor to remain owned until reboot.
+The new reader and retirement path require their own matched hardware trial.
+
 Invalid scope, changed bytes, uncertain replies or failed completion retire
 authority and keep memory owned until reboot. No reset-bit repair or implicit
 retry stands in for drain proof. Other cold profiles still deny configuration,

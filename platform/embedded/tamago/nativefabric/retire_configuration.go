@@ -1,0 +1,55 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package nativefabric
+
+import (
+	"encoding/hex"
+	"errors"
+
+	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
+)
+
+// ConfigurationRetirement acknowledges withdrawal of this boot's configuration
+// authority. Status describes a separate bounded SDM diagnostic. Neither result
+// proves completion, drain, or permission to release any reserved memory.
+type ConfigurationRetirement struct {
+	Owner, Generation uint64
+	Status            int32
+}
+
+// RetireConfiguration is one-shot and only applies to a failed cold transfer
+// whose possible outstanding buffers are still retained. The earlier verified
+// source is bracketed by a fresh held-bridge snapshot; source-context queries
+// cannot interleave with a prepared transfer. The secure provider retires
+// authority before issuing its fixed status request. Keep t until reboot even
+// if that query reports a ready FPGA or the retirement reply is uncertain.
+func (v *HPSContextVerifier) RetireConfiguration(t *ConfigurationTransfer, source HPSBootObservation) (ConfigurationRetirement, error) {
+	if v == nil || v.cpu == nil || t == nil || !t.Status().Failed || t.done || len(t.pending) == 0 ||
+		t.diagnosticAttempted || t.region == nil || t.region.Release == nil ||
+		t.region.Address != 0x94800000 || int64(len(t.region.Bytes)) != v.context.CoreSize ||
+		t.dramBase != 0x80000000 || t.chunk != 65536 || hex.EncodeToString(t.digest[:]) != v.context.CoreSHA256 ||
+		source.Digest != v.digest || !validBridgeSnapshot(source.Bridges) ||
+		source.Bridges.Generation != 1 || !source.Bridges.NeverEnabled ||
+		source.Bridges.ResetMask != source.Bridges.Capabilities.Mask || !source.Bridges.MastersContained ||
+		source.Bridges.Capabilities.FabricHandshake != FabricHandshakeAbsent {
+		return ConfigurationRetirement{}, errors.New("native fabric: retained failed cold transfer required for retirement")
+	}
+	t.diagnosticAttempted = true
+	before, err := (&FirmwareBridges{cpu: v.cpu}).ObserveBridges()
+	if err != nil {
+		return ConfigurationRetirement{}, err
+	}
+	if before != source.Bridges {
+		return ConfigurationRetirement{}, errors.New("native fabric: retirement lost the original closed source")
+	}
+	r, err := v.cpu.Invoke([7]uint64{uint64(g.FesEmbeddedBridgeCall), uint64(g.FesEmbeddedBridgeRetireConfiguration),
+		before.Owner, uint64(g.FesEmbeddedBridgeCookie), before.Generation})
+	if err != nil {
+		return ConfigurationRetirement{}, err
+	}
+	status := int32(uint32(r[1]))
+	if r[0] != 0 || r[1]>>32 != uint64(g.FesEmbeddedBridgeRetirementTag) ||
+		r[2] != before.Owner || r[3] != before.Generation || status > 0 {
+		return ConfigurationRetirement{}, errors.New("native fabric: cold retirement acknowledgement rejected")
+	}
+	return ConfigurationRetirement{before.Owner, before.Generation, status}, nil
+}

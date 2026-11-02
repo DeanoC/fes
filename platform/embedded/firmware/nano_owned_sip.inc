@@ -59,6 +59,25 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
             fes_nano_configuration_prepare(configuration,x2,x4,request_type != NO_REQUEST,r);
             goto out;
         }
+        if (x1 == FES_EMBEDDED_BRIDGE_RETIRE_CONFIGURATION) {
+            r[1]=(uint64_t)FES_EMBEDDED_BRIDGE_RETIREMENT_TAG<<32;
+#if defined(FES_NANO_COLD_SERIAL) && defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
+            if(!configuration || x2!=configuration->owner || x4!=configuration->generation ||
+               !fes_nano_platform_configuration_diagnostic_ready() ||
+               fes_nano_configuration_retire(configuration,x2,x4,request_type != NO_REQUEST))goto out;
+            request_type=NO_REQUEST;
+            struct fes_nano_retired_status observed;
+            fes_nano_mailbox_retired_status(&observed);
+            NOTICE("FES_NANO_CORE_RETIRED_STATUS owner=%llx generation=%llu status=%d header=%x sent=%u received=%u skipped=%u polls=%u fifo_words=%u d0=%x d1=%x d2=%x d3=%x d4=%x d5=%x\n",
+                   (unsigned long long)x2,(unsigned long long)x4,observed.status,observed.header,
+                   observed.sent,observed.received,observed.skipped,observed.polls,observed.fifo_words,
+                   observed.data[0],observed.data[1],observed.data[2],observed.data[3],observed.data[4],observed.data[5]);
+            r[0]=0;r[1]|=(uint32_t)observed.status;r[2]=x2;r[3]=x4;
+#else
+            r[0]=FES_EMBEDDED_BRIDGE_NOT_READY;
+#endif
+            goto out;
+        }
 #ifdef FES_NANO_COLD_SERIAL
         if (x1 != FES_EMBEDDED_BRIDGE_SNAPSHOT || x2 || x4) goto out;
 #endif

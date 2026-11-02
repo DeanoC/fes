@@ -158,6 +158,11 @@ static uint64_t configuration_hash_ticks;
 static const uint8_t configuration_hash[48]=FES_NANO_CONFIG_SHA384;
 static const uint8_t configuration_chunks[][48]=FES_NANO_CONFIG_CHUNK_DIGESTS;
 struct fes_nano_configuration *fes_nano_platform_configuration(void) { return &configuration; }
+int fes_nano_platform_configuration_diagnostic_ready(void)
+{
+    return !(read_sctlr_el3()&5U) && !provider.control_expected &&
+           fes_nano_cold_owns(&provider,provider.record.boot.owner,provider.record.boot.epoch)==1;
+}
 static int configuration_check(void *context, uint64_t address, uint32_t bytes, unsigned whole)
 {
     struct fes_nano_cold *s=context;

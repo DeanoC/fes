@@ -64,6 +64,22 @@ func main() {
 	if err != nil {
 		panic(err) // Board reservation remains pinned, including constructor errors.
 	}
+	defer func() {
+		failure := recover()
+		if failure == nil {
+			return
+		}
+		if status := retained.Status(); status.Failed && status.Outstanding > 0 {
+			observation, err := v.RetireConfiguration(retained, source)
+			if err != nil {
+				fmt.Printf("FES_NATIVE_FPGA_RETIRE REJECT error=%v retained=%d\n", err, status.RetainedBytes)
+			} else {
+				fmt.Printf("FES_NATIVE_FPGA_RETIRE ACK owner=%x generation=%d status=%d retained=%d activation=unavailable\n",
+					observation.Owner, observation.Generation, observation.Status, status.RetainedBytes)
+			}
+		}
+		panic(failure)
+	}()
 	started := time.Now()
 	deadline := started.Add(20 * time.Second)
 	for {

@@ -121,8 +121,10 @@ class NanoMailboxTests(unittest.TestCase):
             h.write_bytes(header)
             policy=mailbox.install(exported,True)
             observer=(FW/'nano_mailbox_observe.inc').read_text()
-            self.assertEqual(target.read_bytes(),source+b'\n'+observer.encode())
-            self.assertFalse(policy['mailbox_commands_added']);self.assertFalse(policy['mailbox_register_writes_added'])
+            status=(FW/'nano_mailbox_status.inc').read_bytes()
+            self.assertEqual(target.read_bytes(),source+b'\n'+observer.encode()+b'\n'+status)
+            self.assertFalse(policy['observer_commands_added']);self.assertFalse(policy['mailbox_restarts_added'])
+            self.assertTrue(policy['mailbox_commands_added']);self.assertEqual(policy['retired_status_command'],9)
             model=base/'model.c';binary=base/'model'
             model.write_text(PREFIX+prototypes+'\n'.join(parts)+observer+(FW/'tests/nano_mailbox_test.c').read_text())
             command=['cc','-std=c11','-Wall','-Wextra','-Werror','-Wno-sign-compare','-Wno-unused-parameter',
