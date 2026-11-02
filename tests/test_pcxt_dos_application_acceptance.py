@@ -263,6 +263,79 @@ class FakeRunner:
         return value
 
 
+class HardDeadlineTest(unittest.TestCase):
+    def test_real_slow_trickle_is_killed_and_reaped(self):
+        import http.server
+        import threading
+        import urllib.request
+        class Trickle(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *_args): pass
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header('Content-Length', '1000')
+                self.end_headers()
+                try:
+                    for _ in range(1000):
+                        self.wfile.write(b'x'); self.wfile.flush(); time.sleep(.04)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Trickle)
+        server.daemon_threads = True
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as temp:
+                pidfile = Path(temp)/'pid'
+                def observe(_deadline):
+                    pidfile.write_text(str(os.getpid()))
+                    with urllib.request.urlopen(f'http://127.0.0.1:{server.server_port}/', timeout=.2) as response:
+                        response.read()
+                    return {'owner':'owner'}
+                started = time.monotonic()
+                with self.assertRaisesRegex(app.pa.AcceptanceError, 'hard phase deadline'):
+                    app._hard_deadline_observation(observe, seconds=.5)
+                self.assertLess(time.monotonic() - started, 1.5)
+                pid = int(pidfile.read_text())
+                with self.assertRaises(ChildProcessError): os.waitpid(pid, os.WNOHANG)
+                with self.assertRaises(ProcessLookupError): os.kill(pid, 0)
+        finally:
+            server.shutdown(); server.server_close(); thread.join()
+
+    def test_blocked_local_observation_is_killed_and_reaped(self):
+        with tempfile.TemporaryDirectory() as temp:
+            pidfile = Path(temp)/'pid'
+            def observe(_deadline):
+                pidfile.write_text(str(os.getpid()))
+                while True: signal.pause()
+            started = time.monotonic()
+            with self.assertRaisesRegex(app.pa.AcceptanceError, 'hard phase deadline'):
+                app._hard_deadline_observation(observe, seconds=.3)
+            self.assertLess(time.monotonic() - started, 1.5)
+            pid = int(pidfile.read_text())
+            with self.assertRaises(ChildProcessError): os.waitpid(pid, os.WNOHANG)
+            with self.assertRaises(ProcessLookupError): os.kill(pid, 0)
+
+    def test_unreapable_observer_cleanup_is_bounded(self):
+        with mock.patch.object(app.os,'kill') as kill, \
+             mock.patch.object(app.os,'waitpid',return_value=(0,0)) as wait, \
+             mock.patch.object(app.time,'monotonic',side_effect=[0.0,3.0]), \
+             mock.patch.object(app.time,'sleep'):
+            with self.assertRaisesRegex(app.pa.AcceptanceError,'cleanup unverified'):
+                app._kill_and_reap_observer(123,timeout=2.0)
+        kill.assert_called_once_with(123,signal.SIGKILL)
+        wait.assert_called_once_with(123,os.WNOHANG)
+
+    def test_original_deadline_error_survives_cleanup_failure(self):
+        real_cleanup=app._kill_and_reap_observer
+        def fail_after_reap(pid):
+            real_cleanup(pid)
+            raise app.pa.AcceptanceError('simulated cleanup failure')
+        with mock.patch.object(app,'_kill_and_reap_observer',side_effect=fail_after_reap):
+            with self.assertRaisesRegex(app.pa.AcceptanceError,'hard phase deadline') as caught:
+                app._hard_deadline_observation(lambda _deadline:time.sleep(1),seconds=.05)
+        self.assertIn('cleanup unverified',caught.exception.__notes__[-1])
+
+
 class InputSafetyTest(unittest.TestCase):
     def setUp(self):
         self.runner = FakeRunner()
@@ -273,8 +346,29 @@ class InputSafetyTest(unittest.TestCase):
         self.disk_sha = app.SCENARIOS['com']['floppy']
         self.claim = mock.patch.object(app, 'check_claim', return_value={'owner': 'owner'})
         self.config = mock.patch.object(app, 'check_private_config', return_value={})
-        self.claim.start(); self.config.start()
-        self.addCleanup(self.claim.stop); self.addCleanup(self.config.stop)
+        self.provenance = mock.patch.object(app, 'source_provenance', return_value=({}, b'', b''))
+        self.claim.start(); self.config.start(); self.provenance_mock = self.provenance.start()
+        self.addCleanup(self.claim.stop); self.addCleanup(self.config.stop); self.addCleanup(self.provenance.stop)
+
+    def test_health_guard_logs_expected_and_observed_without_relaxing_checks(self):
+        health = self.runner.api.health['target']
+        for section, field, bad in (('connection', 'boot_id', 'other-boot'),
+                                    ('connection', 'state', 'unexpected'),
+                                    ('software', 'selected', 'wrong-bundle')):
+            with self.subTest(field=field):
+                original = health[section].get(field)
+                health[section][field] = bad
+                try:
+                    with self.assertRaises(app.pa.AcceptanceError) as error:
+                        app.validate_active(self.runner, self.owned, self.args, self.disk_sha)
+                    msg = str(error.exception)
+                    self.assertIn(bad, msg)
+                    self.assertIn('expected_boot_id', msg)
+                    self.assertIn('expected_selected_bundle', msg)
+                    self.assertIn('observed_monotonic_ns', msg)
+                finally:
+                    health[section][field] = original
+        self.assertFalse(any(call[0] == 'POST' for call in self.runner.api.calls))
 
     def test_active_target_media_and_generation_fail_closed(self):
         app.validate_active(self.runner, self.owned, self.args, self.disk_sha)
@@ -290,6 +384,70 @@ class InputSafetyTest(unittest.TestCase):
         with self.assertRaisesRegex(app.pa.AcceptanceError, 'boot'):
             app.validate_active(self.runner, self.owned, self.args, self.disk_sha)
         self.assertFalse(any(call[0] == 'POST' for call in self.runner.api.calls))
+
+    def test_empty_selection_then_complete_rechecks_everything(self):
+        import copy
+        original = self.runner.api.get
+        unknown = copy.deepcopy(self.runner.api.health)
+        unknown['target']['software']['selected'] = ''
+        healths = iter([unknown, self.runner.api.health])
+        def get(path):
+            if path == '/api/v1/health': return next(healths)
+            return original(path)
+        with mock.patch.object(self.runner.api, 'get', side_effect=get), \
+             mock.patch.object(app.time, 'sleep') as sleep:
+            self.assertEqual(app._observe_until(self.runner, self.owned, self.args, self.disk_sha, app.time.monotonic() + 5.0), {'owner': 'owner'})
+        sleep.assert_called_once()
+        self.assertEqual(self.provenance_mock.call_count, 2)
+        self.assertEqual(self.runner.api.timeout, 20)
+
+    def test_persistent_empty_selection_expires_without_input(self):
+        self.runner.api.health['target']['software']['selected'] = ''
+        clock = [0.0]
+        with mock.patch.object(app.time, 'monotonic', side_effect=lambda: clock[0]), \
+             mock.patch.object(app.time, 'sleep', side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            with self.assertRaisesRegex(app.pa.AcceptanceError, 'deadline'):
+                app.type_keys(self.runner, self.owned, self.args, self.disk_sha, 'input-1', [], (0x0e,))
+        self.assertLessEqual(clock[0], 5.000001)
+        self.assertFalse(any(c[0] == 'POST' for c in self.runner.api.calls))
+        self.assertEqual(self.runner.api.timeout, 20)
+
+    def test_nonempty_wrong_selection_fails_without_retry(self):
+        self.runner.api.health['target']['software']['selected'] = 'f'*64
+        with mock.patch.object(app.time, 'sleep') as sleep:
+            with self.assertRaisesRegex(app.pa.AcceptanceError, 'selected software changed'):
+                app._observe_until(self.runner, self.owned, self.args, self.disk_sha, app.time.monotonic() + 5.0)
+        sleep.assert_not_called()
+
+    def test_claim_lost_during_empty_observation_stops_without_retry(self):
+        self.runner.api.health['target']['software']['selected'] = ''
+        with mock.patch.object(app, 'check_claim', side_effect=[{'owner':'owner'}, app.pa.AcceptanceError('claim lost')]), \
+             mock.patch.object(app.time, 'sleep') as sleep:
+            with self.assertRaisesRegex(app.pa.AcceptanceError, 'claim lost'):
+                app._observe_until(self.runner, self.owned, self.args, self.disk_sha, app.time.monotonic() + 5.0)
+        sleep.assert_not_called()
+
+    def test_session_change_during_retry_stops_without_input(self):
+        self.runner.api.health['target']['software']['selected'] = ''
+        def change_session(_delay):
+            self.runner.value['core_package']['generation'] = 2
+        with mock.patch.object(app.time, 'sleep', side_effect=change_session):
+            with self.assertRaisesRegex(app.pa.AcceptanceError, 'identity'):
+                app.type_keys(self.runner, self.owned, self.args, self.disk_sha, 'input-1', [], (0x0e,))
+        self.assertFalse(any(c[0] == 'POST' for c in self.runner.api.calls))
+
+    def test_valid_result_after_deadline_still_fails(self):
+        clock = [0.0]
+        original = self.runner.api.get
+        def delayed(path):
+            value = original(path)
+            if path == '/api/v1/health': clock[0] = 5.01
+            return value
+        with mock.patch.object(app.time, 'monotonic', side_effect=lambda: clock[0]), \
+             mock.patch.object(self.runner.api, 'get', side_effect=delayed):
+            with self.assertRaisesRegex(app.pa.AcceptanceError, 'exceeded phase deadline'):
+                app._observe_until(self.runner, self.owned, self.args, self.disk_sha, app.time.monotonic() + 5.0)
+        self.assertEqual(self.runner.api.timeout, 20)
 
     def test_single_tap_never_retries_uncertain_response(self):
         self.runner.api.tap_result = app.pa.AcceptanceError('lost response')

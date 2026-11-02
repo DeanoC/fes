@@ -95,3 +95,59 @@ not merely animation. Timestamps do not prove when the target applied a key.
 The game runs in quiet mode and the floppy is read-only, so the diagnostic does
 not establish audio, disk writes or score persistence. Neither diagnostic is
 whole-board timing qualification or a claim of general XT compatibility.
+
+## Writable floppy persistence diagnostic
+
+`scripts/pcxt_floppy_persistence_acceptance.py` checks a writable disk in two
+already owned sessions. It is an opt-in diagnostic; the caller still owns the
+kit claim, queue lock, input attachment, launch, Stop, restart, restoration and
+release. Use a dedicated library entry whose game ID matches
+`fpga-pcxt-persist-test-<16 lowercase hex>-<12 lowercase hex>`; the tool refuses
+other IDs and requires the base COM image and an initially absent saved revision.
+The selected package must advertise both the PC/XT floppy and floppy-write
+interfaces. The private loopback host process must be the supplied receipted
+binary and own the selected listening socket.
+
+Run `com --execute` with the same identity, package, host, kit and evidence
+arguments shown above, substituting the persistence diagnostic script. Add:
+
+```text
+--phase write
+--host-pid <private-host-pid>
+--source-repository <owner/repository>
+--source-pr <open-pr-number>
+--source-base <expected-base-branch>
+--phase-deadline-monotonic <absolute-monotonic-deadline>
+```
+
+The source commit supplied with `--source-commit` must be the full head of the
+specified open PR, with the expected base repository and base branch; the PR
+head may be in a fork. The diagnostic checkout, host, software and package
+receipts must all identify that same head. The local diagnostic and its consumed
+source inputs must match the bytes committed at that head.
+`--phase-deadline-monotonic` is an absolute reading of the local monotonic clock,
+not a wall-clock time; it is checked at source verification gates, not enforced
+as an overall phase deadline. The Save request has its own bounded timeout.
+Each read-only session identity observation has its own five-second deadline.
+
+The write phase reads the known marker, copies it to `FESSAVE.TXT`, and sends
+one Save with exact session, target, package, generation and media-unit headers.
+On any failed or ambiguous write phase, do not replay Save or assume it did not
+occur. The owner must retain the claim if it cannot prove identity and use its
+guarded recovery procedure. A successful write receipt says **saved; restart
+pending**, not that persistence passed.
+Preserve `receipt.json` and its SHA-256, stop the owned session, and start a new
+owned session with the same isolated library entry and saved revision. Use a new
+private evidence directory and rerun with `--phase verify`, supplying
+`--write-receipt <path>` and `--write-receipt-sha256 <sha256>`. The verify
+phase requires a different session/flight and generation, checks the saved
+revision, then reads the copied file after the restart.
+
+The tool records sanitized host-health observations and bounded timing stages
+without extra identity requests. A full timing pipe or an evidence write failure
+stops the diagnostic. Exit status 74 means observation or evidence safety is
+uncertain: the external owner must keep the kit claim and queue lock, keep its
+lock-holding process alive if observer cleanup is unverified, and reconcile the
+owned session before taking further target action. The stage trace describes the observed run, not the cause
+of any earlier timeout. A completed receipt is physical diagnostic evidence,
+not whole-board timing qualification or a claim of general DOS compatibility.
