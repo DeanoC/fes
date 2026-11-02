@@ -347,9 +347,12 @@ def verify_control(project, hps, board, memory=None):
             raise ValueError('generated HPS DDR adapter is not connected to HPS memory')
         if hps.component_ports(component,'maintenance_reset') != {'reset_n':('Output',1)}:
             raise ValueError('generated maintenance hold reset interface differs')
-        if (hps.component_ports(modules['subsys_hps.agilex_hps'],'fpga2hps') or
-                hps.component_ports(modules['subsys_hps.agilex_hps'],'fpga2hps_clock') or
-                hps.component_ports(modules['subsys_hps.agilex_hps'],'fpga2hps_reset') or
+        definition=ET.fromstring(modules['subsys_hps.agilex_hps'].findtext("parameter[@name='componentDefinition']/value",''))
+        interfaces=[point.findtext('name') for point in definition.findall('boundary/interfaces/interface')]
+        if (not {'f2sdram','lwhps2fpga'}.issubset(interfaces) or
+                any(not name for name in interfaces) or len(interfaces)!=len(set(interfaces))):
+            raise ValueError('generated HPS interface inventory differs')
+        if (any(name in interfaces for name in ('fpga2hps','fpga2hps_clock','fpga2hps_reset')) or
                 'subsys_debug.hps_m' in modules or 'ace5lite_cache_coherency_translator_0' in modules or
                 any(c.get('start','').endswith('.fpga2hps') or c.get('end','').endswith('.fpga2hps') for c in tree.findall('connection'))):
             raise ValueError('unused coherent F2H maintenance path remains enabled')

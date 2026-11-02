@@ -74,6 +74,19 @@ def mutate(project, kind):
         ET.SubElement(root,'module',path='subsys_debug.hps_m',kind='altera_jtag_avalon_master')
     elif kind=='coherent-route':
         ET.SubElement(root,'connection',kind='avalon',start='unqualified.master',end='subsys_hps_agilex_hps.fpga2hps')
+    elif kind in ('coherent-port','coherent-clock','coherent-reset','missing-hps-interfaces','duplicate-hps-interface'):
+        module=next(m for m in root.findall('module') if m.get('path')=='subsys_hps.agilex_hps')
+        value=module.find("parameter[@name='componentDefinition']/value")
+        definition=ET.fromstring(value.text)
+        interfaces=definition.find('boundary/interfaces')
+        if kind=='missing-hps-interfaces':
+            interfaces.clear()
+        elif kind=='duplicate-hps-interface':
+            interfaces.append(ET.fromstring(ET.tostring(interfaces[0])))
+        else:
+            point=ET.SubElement(interfaces,'interface')
+            ET.SubElement(point,'name').text={'coherent-port':'fpga2hps','coherent-clock':'fpga2hps_clock','coherent-reset':'fpga2hps_reset'}[kind]
+        value.text=ET.tostring(definition,encoding='unicode')
     else:
         raise ValueError("unknown handoff mutation")
     tree.write(handoff, encoding="utf-8", xml_declaration=True)
@@ -113,7 +126,9 @@ def main():
                       ('untied-maintenance','generated embedded source differs'))
             cases += tuple((name,'maintenance master reset hold route differs') for name in
                            ('missing-maintenance-hold','live-maintenance-reset','duplicate-maintenance-reset'))
-            cases += tuple((name,'unused coherent F2H maintenance path remains enabled') for name in ('coherent-master','coherent-route'))
+            cases += tuple((name,'unused coherent F2H maintenance path remains enabled') for name in
+                           ('coherent-master','coherent-route','coherent-port','coherent-clock','coherent-reset'))
+            cases += tuple((name,'generated HPS interface inventory differs') for name in ('missing-hps-interfaces','duplicate-hps-interface'))
             cases += (('extra-ddr-master','DDR master inventory differs'),)
         for name, expected in cases:
             trial = out / name
