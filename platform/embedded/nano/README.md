@@ -710,6 +710,16 @@ CPU executed or that HDMI displayed a frame. No normal runtime admission is
 enabled. The original 20-second configuration deadline and held data paths are
 preserved.
 
+The host calls `decode_native_configuration(..., computer=checked_descriptor)`
+for this experiment. It requires the exact contained SD transfer, pinned memory,
+fresh SDM/translation/firewall observations, complete held-data master stop and
+the final computer report with the same owner and reclosed generation. Missing,
+replayed, malformed or mismatched required records reject; incomplete output
+retains progress. This mode excludes an active DDR read and the separate EL3
+identity-probe sequence. A complete report records the source-bound program's
+command-cycle result while keeping execution observation and runtime admission
+false. It is not a CPU activity measurement.
+
 The current block-size comparison selects `0xfffc0` (1,048,512) bytes: the
 pinned vendor client's `0xffff0` limit rounded down to a 64-byte boundary.
 Native construction, secure extent/digest checks and trace decoding use the

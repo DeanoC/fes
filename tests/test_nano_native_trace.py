@@ -927,6 +927,141 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
         self.assertFalse(self.decode(raw+'panic: late firmware failure\r\n')['complete'])
 
 
+class NativeComputerTraceTests(unittest.TestCase):
+    """The source-bound program reports commands; CPU execution is unobserved."""
+    identity=dict(NativeContainedConfigurationTraceTests.identity,control_abi=0x10203041)
+    configuration=NativeContainedConfigurationTraceTests.configuration
+
+    def setUp(self):
+        data=ROOT/'platform/embedded/tamago/nativefabric/testdata'
+        self.memory=json.loads((data/'hps-reader-memory.json').read_text())
+        self.computer=json.loads((data/'hps-computer.json').read_text())
+        for mapping in (self.memory,self.computer):
+            mapping.update(package_id=self.identity['package_id'],build_id=self.identity['build_id'])
+        self.computer['control_map_sha256']=self.identity['map_sha256']
+
+    def decode(self,raw,**changes):
+        options=dict(fpga_identity=self.identity,configuration=self.configuration,from_storage=True,
+                     reader_memory=self.memory,computer=self.computer)
+        options.update(changes)
+        return trace.decode_native_configuration(raw,BUILD,SEED,**options)
+
+    def capture(self):
+        raw=NativeContainedConfigurationTraceTests().stored_capture()
+        # The native computer client reads its own GP port. It never emits the
+        # separate EL3 endpoint identity probe's reads or transition markers.
+        raw=raw[:raw.index('NOTICE:  FES_NANO_IDENTITY phase=open')]
+        pinned=(f'FES_NATIVE_FPGA_READER_MEMORY PINNED cpu_base=95000000 bus_base=95000000 bytes=8192 arena_bytes=2097152 '
+                f'map_sha256={trace.context_digest(self.memory)} pattern_sha256={self.memory["pattern_sha256"]} '
+                f'owner={OWNER:x} generation=4 fpga_access=unqualified\r\n')
+        raw=raw.replace('FES_NATIVE_HPS_CONTEXT',pinned+'FES_NATIVE_HPS_CONTEXT',1)
+        raw+=('NOTICE:  FES_NANO_SMMU status=0 reads=26 idr0=080f7e3f idr1=0e739d18 aidr=1 s_idr1=80000018 '
+              'cr0=0 ack=0 gbpa=0 agbpa=0 s_cr0=0 s_ack=0 s_init=0 s_gbpa=0 s_agbpa=0 '
+              'identified=1 settled=1 bypass_controls_clear=1 access=unqualified\r\n')
+        raw+=f'NOTICE:  FES_NANO_DDR_FIREWALL status=0 owner={OWNER:x} generation=4 reset=f mpfe_reset=0 reads=66 enable=1 base=95000000 bytes=8192 access=unqualified\r\n'
+        for i in range(8):
+            raw+=f'NOTICE:  FES_NANO_DDR_REGION index={i} base={"80000000" if not i else "0"} baseext=0 limit={"bfffffff" if not i else "ffff"} limitext=0\r\n'
+        raw+='NOTICE:  FES_NANO_DDR_FIREWALL_END layout_known=1 window_covered=1 access=unqualified\r\n'
+        raw+=(f'NOTICE:  FES_NANO_MASTER_STOP status=0 owner={OWNER:x} generation=5 reset=d '
+              'reader_reads=88 reader_polls=1 disable=0 probe_polls=2 cancel=0 complete=1 data=held\r\n')
+        raw+=(f'FES_NATIVE_COMPUTER_CONTROL PASS package_id={self.computer["package_id"]} build_id={self.computer["build_id"]} '
+              f'base=20010300 map_sha256={trace.context_digest(self.computer)} owner={OWNER:x} generation=6 '
+              'held_ack=1 data_held=1 execution_observed=0 runtime_admission=unavailable\r\n')
+        return raw
+
+    def test_control_cycle_requires_contained_configuration_and_owned_master_stop(self):
+        report=self.decode(self.capture())
+        self.assertTrue(report['complete'],report)
+        self.assertEqual(report['last_checkpoint'],'computer_control')
+        self.assertTrue(report['configuration_transfer']['complete'])
+        self.assertEqual(report['configuration_transfer']['completed_bytes'],65664)
+        self.assertFalse(report['core_load_acceptance'])
+        observed=report['computer_control_observation']
+        self.assertTrue(observed['command_cycle_reported'])
+        self.assertFalse(observed['execution_observed'])
+        self.assertFalse(observed['runtime_admission'])
+        self.assertFalse(report['master_stop_observation']['physical_ddr_drain_qualified'])
+        self.assertFalse(any(row['stage'].startswith('identity_') for row in report['records']))
+
+    def test_missing_replayed_reordered_or_malformed_scope_observations_never_pass(self):
+        raw=self.capture();lines=raw.splitlines(keepends=True)
+        important=('reader_memory','hps_context','fpga_query','fpga_status','smmu','ddr_firewall',
+                   'ddr_firewall_end','master_stop','computer_control')
+        report=self.decode(raw)
+        for row in report['records']:
+            if row['stage'] not in important and not row['stage'].startswith(('ddr_region_','configuration_')):continue
+            # Identical bounded status/poll samples can legitimately repeat.
+            if row['stage'] in ('configuration_poll','configuration_status'):continue
+            i=row['line']-1
+            for changed in (''.join(lines[:i]+lines[i+1:]),
+                            ''.join(lines[:i]+[lines[i],lines[i]]+lines[i+1:]),
+                            ''.join(lines[:i]+lines[i+1:]+[lines[i]]),
+                            raw.replace(lines[i],lines[i].replace('=',':',1))):
+                if changed==raw:continue
+                with self.subTest(stage=row['stage'],changed=changed[-100:]):
+                    self.assertFalse(self.decode(changed)['complete'])
+
+    def test_scope_marker_cannot_claim_another_identity_generation_or_execution(self):
+        raw=self.capture();prefix,marker=raw.rsplit('FES_NATIVE_COMPUTER_CONTROL',1)
+        for old,new in (('package_id='+self.computer['package_id'],'package_id='+'a'*64),
+                        ('build_id='+self.computer['build_id'],'build_id='+'a'*32),
+                        ('base=20010300','base=20010400'),
+                        ('map_sha256='+trace.context_digest(self.computer),'map_sha256='+'f'*64),
+                        (f'owner={OWNER:x}',f'owner={OWNER^2:x}'),('generation=6','generation=5'),
+                        ('held_ack=1','held_ack=0'),('data_held=1','data_held=0'),
+                        ('execution_observed=0','execution_observed=1'),
+                        ('runtime_admission=unavailable','runtime_admission=available'),('PASS','FAIL')):
+            self.assertIn(old,marker)
+            with self.subTest(new=new):
+                self.assertFalse(self.decode(prefix+'FES_NATIVE_COMPUTER_CONTROL'+marker.replace(old,new))['complete'])
+        for old,new in (('generation=5 reset=d reader_reads=','generation=4 reset=d reader_reads='),
+                        ('complete=1 data=held','complete=0 data=held'),('reset=d reader_reads=','reset=5 reader_reads='),
+                        ('reader_reads=88','reader_reads=44'),('disable=0','disable=1'),('cancel=0','cancel=1')):
+            with self.subTest(master_stop=new):self.assertFalse(self.decode(raw.replace(old,new))['complete'])
+
+    def test_computer_selection_is_explicit_source_bound_and_excludes_active_ddr(self):
+        raw=self.capture()
+        self.assertFalse(self.decode(raw,computer=None)['complete'])
+        for changes in ({'from_storage':False},{'reader_memory':None},{'ddr_read':{}},
+                        {'computer':{}},{'computer':False},{'computer':dict(self.computer,extra=1)}):
+            with self.subTest(selection=changes),self.assertRaises(ValueError):self.decode(raw,**changes)
+        for key,value in (('format',True),('cpu_base',0x20010400),('span',True),('span',64),
+                          ('abi_minor',1),('capabilities',0x1803),('hps_master',True),
+                          ('scope','runtime'),('package_id','a'*64),('build_id','a'*32),
+                          ('control_map_sha256','f'*64),('handoff_sha256','0'*64),
+                          ('endpoint_sha256','bad'),('wrapper_sha256','0'*64)):
+            with self.subTest(key=key),self.assertRaises(ValueError):
+                self.decode(raw,computer=dict(self.computer,**{key:value}))
+
+    def test_fragmented_output_and_late_failures_do_not_complete(self):
+        raw=self.capture()
+        for i in range(0,len(raw),101):
+            with self.subTest(prefix=i):self.assertFalse(self.decode(raw[:i])['complete'])
+        partial=self.decode(raw[:raw.index('FES_NATIVE_COMPUTER_CONTROL')])
+        self.assertEqual(partial['errors'],[])
+        self.assertEqual(partial['last_checkpoint'],'master_stop')
+        self.assertTrue(partial['configuration_transfer']['complete'])
+        for changed in (raw.rstrip(),raw+'partial',raw+'panic: late failure\n',
+                        raw+'FES_NATIVE_COMPUTER_CONTROL broken\n',raw+'x'*(trace.MAX_BYTES+1)):
+            self.assertFalse(self.decode(changed)['complete'])
+        self.assertTrue(self.decode(raw.encode())['complete'])
+
+    def test_computer_cycle_preserves_the_checked_loaded_bl31_gate(self):
+        sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
+        try:from prepare_uboot import atf_descriptor
+        finally:sys.path.pop(0)
+        expected=atf_descriptor('1'*64,90173)
+        marker=('FES_NANO_SPL ATF target=80000000 bl32=0 bl33=80200000 fdt=0 params=bff00008 '
+                'cold=21768 cookie=464e433200000002 el=3 mpidr=81000000 sctlr=1000 scr=501 daif=3c0 '
+                'bytes=90173 sha256='+'1'*64+'\r\n')
+        before='NOTICE:  FES_NANO_EL3_CAPTURE phase=before'
+        raw=self.capture().replace(before,''.join(atf_progress())+marker+before)
+        self.assertTrue(self.decode(raw,atf=expected)['complete'])
+        for changed in (raw.replace(marker,''),raw.replace('sha256='+'1'*64,'sha256='+'2'*64),
+                        raw.replace(atf_progress()[0],'')):
+            self.assertFalse(self.decode(changed,atf=expected)['complete'])
+
+
 class NativeSDTraceTests(unittest.TestCase):
     expected={'bytes':1098,'sha256':'a'*64}
     def capture(self):
