@@ -1,0 +1,7 @@
+{
+  "base": "c4e69a4ff382028fcf66932d384c8d9d2590afaf",
+  "head": "3b38d09b67fc7c9d6b153583855b6eaf15d85d95",
+  "native_build_source_commit": "5b00f0486576bb192e3de1cb09569c59902cca2b",
+  "native_candidate": "out/nano-computer-native-20261102",
+  "scope": "bounded native computer command/control; execution unobserved; full runtime core-load goal remains active"
+}
