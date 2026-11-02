@@ -14,6 +14,8 @@ import sys
 import uuid
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0,str(HERE))
+import reader_memory
 ROOT = HERE.parents[3]
 TAMAGO = ROOT / "platform/embedded/tamago"
 SPEC = importlib.util.spec_from_file_location("embedded_sim_producer", HERE.parent / "embedded_control/producer.py")
@@ -47,13 +49,16 @@ def inputs_for(project):
     inputs = json.loads(inputs_path.read_text())
     generation = json.loads(generation_path.read_text())
     identity = inputs["embedded_control"]
+    memory=reader_memory.checked(inputs['reader_memory'])
+    if identity.get('reader_memory')!=memory or identity['control_abi']!=reader_memory.control_abi(memory):
+        raise ValueError('embedded reader memory or control ABI differs')
     snapshot = board / "functional-source"
     sources = inputs["functional_snapshot_sha256"]
     if not sources or any(sha(snapshot / name) != expected for name, expected in sources.items()):
         raise ValueError("functional source snapshot differs")
     fingerprint_fields = {"source_sha256": sources,
         "vendor_sha256": inputs["vendor_archive_sha256"], "system_hz": 100000000,
-        "pixel_hz": 74250000}
+        "pixel_hz": 74250000,"reader_memory":memory}
     if "hps_initialization" in inputs["computer"]:
         fingerprint_fields["hps_initialization"] = inputs["computer"]["hps_initialization"]
     fingerprint = hashlib.sha256(json.dumps(fingerprint_fields, sort_keys=True).encode()).hexdigest()[:32]
@@ -69,6 +74,7 @@ def inputs_for(project):
                 fields["parameters"].get("vendor_sha256") != inputs["vendor_archive_sha256"] or
                 fields["parameters"].get("board_revision") != identity["board_fes_revision"] or
                 fields["parameters"].get("control_abi") != identity["control_abi"] or
+                any(fields['parameters'].get(k)!=v for k,v in reader_memory.parameters(memory).items()) or
                 fields["parameters"].get("device") != seal.DEVICE or
                 fields["parameters"].get("parallel_processors") != inputs.get("compile_processors") or
                 fields["parameters"].get("classification") != "de25-two-revision-diagnostic" or
@@ -157,6 +163,8 @@ def inputs_for(project):
             r'(?m)^\s*set_global_assignment\s+-name\s+HPS_INITIALIZATION\s+"([^"\n]+)"\s*$', qsf) != ["HPS FIRST"]:
         raise ValueError("project HPS-first assignment differs")
     generated = generation["embedded_control"]
+    if generated.get('reader_memory')!=memory:
+        raise ValueError('generated reader memory selection differs')
     if (generated["maps"]["lw"]["base"] != identity["peripheral_offset"] or
         generated["maps"]["lw"]["span"] != identity["span"] or
         generated["maps"]["jtag"]["base"] != identity["jtag_bridge_base"] + identity["peripheral_offset"] or
@@ -186,6 +194,8 @@ def main():
         if (project is not None and not project.is_dir()) or output.exists():
             raise ValueError("project must exist and output must be fresh")
         inputs, generation, local = inputs_for(project) if project else (None, None, None)
+        if inputs and inputs['reader_memory']['backend']=='hps-ddr':
+            return subprocess.run([sys.executable,str(HERE/'verify_ddr.py'),'--project',str(project),'--output',str(output)],timeout=180).returncode
         output.mkdir(parents=True)
         source = (HERE / "probe.cpp").read_bytes()
         (output / "probe.cpp").write_bytes(source)
@@ -256,6 +266,8 @@ def main():
                                "wrapper": sha(HERE / "fes_de25_embedded.sv"),
                                "definition": sha(ROOT / "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh")}:
             raise ValueError("standalone sources changed during verification")
+        run('ddr-model',[sys.executable,HERE/'verify_ddr.py','--output',output/'ddr'],ROOT,env,output,
+            marker='PASS23 DDR reader cases and3 identity/window rejection cases')
         report = {"status": "passed", "classification": "generated DE25 diagnostic Avalon RTL and native adapter in host simulation" if project else "standalone Avalon RTL and native adapter in host simulation",
                   "board_revision": inputs["embedded_control"]["board_fes_revision"] if project else None,
                   "overlay_revision": inputs["embedded_control"]["overlay_fes_revision"] if project else None,
@@ -265,6 +277,7 @@ def main():
                   "go_sha256": sha(go.resolve()), "tcl_sha256": sha(Path(tcl).resolve()),
                   "probe_source_sha256": hashlib.sha256(source).hexdigest(), "tcl_source_sha256": tcl_sources,
                   "source_sha256": source_sha256, "model_sha256": sha(executable),
+                  "ddr_model_result_sha256":sha(output/'ddr/result.json'),
                   "project_inputs_sha256": sha(project / "board/hps/inputs.json") if project else None,
                   "generation_sha256": sha(project / "board/hps/generation.json") if project else None,
                   "command": [str(x) for x in command],

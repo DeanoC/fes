@@ -47,6 +47,19 @@ def mutate(project, kind):
         slave = next(x for x in mapping.findall("slave") if x.get("name") == "subsys_periph.fes_embedded.avs")
         slave.set("end", hex(int(slave.get("start"), 0) + 128))
         value.text = ET.tostring(mapping, encoding="unicode")
+    elif kind in ('missing-ddr','duplicate-ddr','wrong-ddr-target'):
+        connection=next(c for c in root.findall('connection') if c.get('start')=='subsys_periph_fes_embedded.mem')
+        if kind=='missing-ddr':root.remove(connection)
+        elif kind=='duplicate-ddr':root.append(ET.fromstring(ET.tostring(connection)))
+        else:connection.set('end','unqualified.memory')
+    elif kind=='ddr-write-port':
+        component=next(m for m in root.findall('module') if m.get('path')=='subsys_periph.fes_embedded')
+        value=component.find("parameter[@name='componentDefinition']/value")
+        definition=ET.fromstring(value.text)
+        interface=next(i for i in definition.findall('boundary/interfaces/interface') if i.findtext('name')=='mem')
+        port=ET.SubElement(interface.find('ports'),'port')
+        for name,text in (('role','awvalid'),('direction','Output'),('width','1')):ET.SubElement(port,name).text=text
+        value.text=ET.tostring(definition,encoding='unicode')
     else:
         raise ValueError("unknown handoff mutation")
     tree.write(handoff, encoding="utf-8", xml_declaration=True)
@@ -72,10 +85,14 @@ def main():
         source = board_dir / "hps/project"
         positive = out / "positive"
         copy_project(source, positive)
-        observed = BUILD.verify_control(positive, hps, board)
+        memory=inputs['reader_memory']
+        observed = BUILD.verify_control(positive, hps, board, memory)
         results = []
         cases = (("wrong-base", "peripheral base differs"), ("missing-jtag", "subsys_debug_fpga_m.master"),
                  ("wrong-span", "embedded lw map differs"), ("changed-generated-source", "generated embedded source differs"))
+        if memory['backend']=='hps-ddr':
+            cases += tuple((name,'embedded DDR route differs') for name in ('missing-ddr','duplicate-ddr','wrong-ddr-target'))
+            cases += (('ddr-write-port','DDR read-only AXI interface differs'),)
         for name, expected in cases:
             trial = out / name
             copy_project(source, trial)
@@ -85,7 +102,7 @@ def main():
             else:
                 mutate(trial, name)
             try:
-                BUILD.verify_control(trial, hps, board)
+                BUILD.verify_control(trial, hps, board, memory)
             except (ValueError, KeyError) as error:
                 if expected not in str(error):
                     raise ValueError("altered handoff failed for the wrong reason: " + name) from error

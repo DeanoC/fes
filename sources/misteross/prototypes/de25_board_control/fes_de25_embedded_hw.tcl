@@ -5,6 +5,16 @@ set_module_property DISPLAY_NAME "FES embedded control diagnostic"
 set_module_property GROUP "FES/Diagnostics"
 set_module_property INSTANTIATE_IN_SYSTEM_MODULE true
 set_module_property EDITABLE false
+set_module_property ELABORATION_CALLBACK elaborate
+add_parameter MEMORY_BACKEND INTEGER 0
+set_parameter_property MEMORY_BACKEND ALLOWED_RANGES {0 1}
+set_parameter_property MEMORY_BACKEND HDL_PARAMETER true
+add_parameter DDR_BASE STD_LOGIC_VECTOR 0
+set_parameter_property DDR_BASE WIDTH 32
+set_parameter_property DDR_BASE HDL_PARAMETER true
+add_parameter DDR_BYTES STD_LOGIC_VECTOR 0
+set_parameter_property DDR_BYTES WIDTH 32
+set_parameter_property DDR_BYTES HDL_PARAMETER true
 add_fileset QUARTUS_SYNTH QUARTUS_SYNTH
 set_fileset_property QUARTUS_SYNTH TOP_LEVEL fes_de25_embedded
 add_fileset_file fes_de25_embedded.sv SYSTEM_VERILOG PATH fes_de25_embedded.sv TOP_LEVEL_FILE
@@ -40,3 +50,28 @@ add_interface_port avs readdatavalid readdatavalid Output 1
 add_interface_port avs waitrequest waitrequest Output 1
 add_interface_port avs writeresponsevalid writeresponsevalid Output 1
 add_interface_port avs response response Output 2
+
+# No write channel exists. Platform Designer supplies the actual HPS-side
+# interconnect/width/clock conversion; the RTL consumes real AXI backpressure.
+add_interface mem axi4 start
+set_interface_property mem associatedClock clk
+set_interface_property mem associatedReset reset
+set_interface_property mem readIssuingCapability 1
+set_interface_property mem combinedIssuingCapability 1
+set_interface_property mem issuesINCRBursts true
+set_interface_property mem issuesWRAPBursts false
+set_interface_property mem issuesFIXEDBursts false
+foreach {name role direction width} {
+    ddr_arvalid arvalid Output 1 ddr_araddr araddr Output 32
+    ddr_arlen arlen Output 8 ddr_arsize arsize Output 3
+    ddr_arburst arburst Output 2 ddr_arid arid Output 4
+    ddr_arlock arlock Output 1 ddr_arcache arcache Output 4
+    ddr_arprot arprot Output 3 ddr_arqos arqos Output 4
+    ddr_arready arready Input 1 ddr_rvalid rvalid Input 1
+    ddr_rdata rdata Input 128 ddr_rlast rlast Input 1
+    ddr_rresp rresp Input 2 ddr_rid rid Input 4
+    ddr_rready rready Output 1
+} { add_interface_port mem $name $role $direction $width }
+proc elaborate {} {
+    set_interface_property mem ENABLED [get_parameter_value MEMORY_BACKEND]
+}

@@ -20,6 +20,8 @@ import zipfile
 HERE = Path(__file__).resolve().parent
 MISTEROSS = HERE.parents[1]
 ROOT = MISTEROSS.parents[1]
+sys.path.insert(0, str(HERE))
+import reader_memory
 sys.path.insert(0, str(MISTEROSS))
 from scripts.core_package import encode_manifest, package_identity, read_package
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
@@ -35,8 +37,9 @@ PLATFORM = "de25_nano"
 DEVICE = "A5EB013BB23BE4SCS"
 PROFILE = "de25-embedded-diagnostic-v1"
 HPS_PROFILE = "de25-embedded-hps-first-diagnostic-v1"
+DDR_PROFILE = "de25-embedded-ddr-diagnostic-v1"
+HPS_DDR_PROFILE = "de25-embedded-hps-first-ddr-diagnostic-v1"
 ABI = "fes.de25-embedded-diagnostic"
-CONTROL_ABI = 0x10203040
 SPL_MEMBER = "Demonstration/SoC_FPGA/GHRD/software/u-boot/spl/u-boot-spl-dtb.hex"
 
 
@@ -48,7 +51,9 @@ def boot_order(inputs):
 
 
 def profile_for(inputs):
-    return HPS_PROFILE if boot_order(inputs) == "HPS FIRST" else PROFILE
+    ddr=reader_memory.checked(inputs['reader_memory'])['backend']=='hps-ddr'
+    if boot_order(inputs)=='HPS FIRST':return HPS_DDR_PROFILE if ddr else HPS_PROFILE
+    return DDR_PROFILE if ddr else PROFILE
 
 
 def sha(data):
@@ -99,7 +104,8 @@ def make_record(inputs, revision, repository, tools):
         "dependencies": {}, "tools": tools,
         "parameters": {"classification": "de25-two-revision-diagnostic", "board_revision": inputs["board_fes_revision"],
                        "snapshot_sha256": snapshot_digest(sources), "vendor_sha256": inputs["vendor_archive_sha256"],
-                       "device": DEVICE, "control_abi": CONTROL_ABI, "peripheral_offset": 0x10400,
+                       "device": DEVICE, "control_abi": reader_memory.control_abi(inputs['reader_memory']), "peripheral_offset": 0x10400,
+                       **reader_memory.parameters(inputs['reader_memory']),
                        "system_hz": 100000000, "pixel_hz": 74250000,
                        "spl_member": SPL_MEMBER, "hps_initialization": order,
                        "compile_flow": "quartus-pro-bounded-tasks-v1",

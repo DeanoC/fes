@@ -21,6 +21,8 @@ import time
 import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import reader_memory
 MISTEROSS = HERE.parents[1]
 ROOT = MISTEROSS.parents[1]
 BOARD = "sources/misteross/boards/de25nano/"
@@ -28,7 +30,8 @@ OVERLAY = "sources/misteross/prototypes/de25_board_control/"
 ENDPOINT = "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
 DEFINITION = "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh"
 INPUTS = (OVERLAY + "build.py", OVERLAY + "fes_de25_embedded.sv",
-          OVERLAY + "fes_de25_embedded_hw.tcl", OVERLAY + "integrate.tcl", OVERLAY + "seal.py", ENDPOINT, DEFINITION)
+          OVERLAY + "fes_de25_embedded_hw.tcl", OVERLAY + "integrate.tcl", OVERLAY + "seal.py",
+          OVERLAY + "reader_memory.py", ENDPOINT, DEFINITION)
 BOOTSTRAP = ("build.py", "display/build.py", "zx81/build.py", "zx81-hps/build.py")
 BASE = 0x10400
 SPAN = 0x100
@@ -191,16 +194,36 @@ def overlay_project(output, board, sources, identity, record=None):
     script = integration.read_text()
     anchor = "save_system $peripheral_system\n\n# Refresh"
     script = replace_once(script, anchor, sources[OVERLAY + "integrate.tcl"].decode() + "\n" + anchor)
-    integration.write_text(script)
     inputs_file = output / "hps/inputs.json"
     inputs = json.loads(inputs_file.read_text())
+    memory = reader_memory.checked(inputs['reader_memory'])
+    mode = int(memory['backend'] == 'hps-ddr')
+    script = script.replace('@MEMORY_BACKEND@', str(mode)).replace('@DDR_BASE@', str(memory['bus_base'])).replace('@DDR_BYTES@', str(memory['bytes']))
+    if mode:
+        # The captured producer has already expanded @TOP_SYSTEM@. Insert
+        # while the top system, not its child subsystem, is loaded.
+        lines = script.splitlines(keepends=True)
+        ends = [i for i,line in enumerate(lines) if line.startswith('save_system ') and '$peripheral_system' not in line]
+        if len(ends) != 1:
+            raise ValueError('captured top-system save anchor differs')
+        lines.insert(ends[0], 'add_connection subsys_periph.fes_embedded_mem subsys_hps.f2sdram_adapter_axi4_sub\n'
+                     'set_connection_parameter_value subsys_periph.fes_embedded_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n')
+        script = ''.join(lines)
+    integration.write_text(script)
     build_id = inputs["computer"]["build_id"]
     qsf = (project / "golden_top.qsf").read_text()
     if qsf.count(f'FES_DE25_COMPUTER_BUILD_ID=128\'h{build_id}') != 1:
         raise ValueError("board build-ID assignment differs from the retained input record")
     if not re.fullmatch(r"[0-9a-f]{32}", build_id) or build_id == "0" * 32:
         raise ValueError("board producer emitted an invalid build ID")
-    fingerprint = build_id
+    fingerprint_fields = {"source_sha256": inputs['functional_snapshot_sha256'],
+        "vendor_sha256": inputs['vendor_archive_sha256'], "system_hz": 100000000, "pixel_hz": 74250000,
+        "reader_memory": memory}
+    if 'hps_initialization' in inputs['computer']:
+        fingerprint_fields['hps_initialization'] = inputs['computer']['hps_initialization']
+    fingerprint = digest(json.dumps(fingerprint_fields, sort_keys=True).encode())[:32]
+    qsf = replace_once(qsf, f"FES_DE25_COMPUTER_BUILD_ID=128'h{build_id}", f"FES_DE25_COMPUTER_BUILD_ID=128'h{fingerprint}")
+    build_id = fingerprint
     if record is not None:
         import seal
         build_id = seal.build_identity(record)
@@ -208,15 +231,16 @@ def overlay_project(output, board, sources, identity, record=None):
             raise ValueError("canonical build ID is zero")
         qsf = replace_once(qsf, f"FES_DE25_COMPUTER_BUILD_ID=128'h{fingerprint}",
                            f"FES_DE25_COMPUTER_BUILD_ID=128'h{build_id}")
-        (project / "golden_top.qsf").write_text(qsf)
-        inputs["computer"]["build_id"] = build_id
+    (project / "golden_top.qsf").write_text(qsf)
+    inputs["computer"]["build_id"] = build_id
     inputs["computer"]["integration_sha256"] = digest(script.encode())
-    inputs["embedded_control"] = {"build_id": build_id, "control_abi": CONTROL_ABI,
+    inputs["embedded_control"] = {"build_id": build_id, "control_abi": reader_memory.control_abi(memory),
         "peripheral_offset": BASE, "span": SPAN,
         "jtag_bridge_base": board.JTAG_CONTROL_BRIDGE_BASE,
         "source_sha256": {name: digest(sources[name]) for name in INPUTS},
-        "physical_cpu_mmio": "not-established", "physical_ddr": "not-connected",
-        "traffic": "bounded on-chip diagnostic responder", "package_admission": "not-qualified",
+        "physical_cpu_mmio": "not-established", "physical_ddr": "wired-unqualified" if mode else "not-connected",
+        "reader_memory": memory,
+        "traffic": "bounded read-only AXI DDR window" if mode else "bounded on-chip diagnostic responder", "package_admission": "not-qualified",
         "identity_class": "canonical functional build record; diagnostic only" if record else "board-producer source/vendor fingerprint; not a package seal",
         "board_fingerprint": fingerprint,
         **identity}
@@ -226,7 +250,9 @@ def overlay_project(output, board, sources, identity, record=None):
     return build_id
 
 
-def verify_control(project, hps, board):
+def verify_control(project, hps, board, memory=None):
+    memory = reader_memory.checked(memory if memory is not None else reader_memory.selection('onchip',0,0))
+    mode = int(memory['backend'] == 'hps-ddr')
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
     modules = {m.get("path"): m for m in tree.findall("module")}
     component = modules.get("subsys_periph.fes_embedded")
@@ -248,8 +274,19 @@ def verify_control(project, hps, board):
         if (material / generated_name).read_bytes() != (local / source_name).read_bytes():
             raise ValueError("generated embedded source differs: " + generated_name)
     wrapper = (generated / "synth/peripheral_subsys_fes_embedded.v").read_text()
-    if len(re.findall(r"\bfes_de25_embedded\s+fes_embedded\s*\(", wrapper)) != 1:
-        raise ValueError("generated embedded instance overrides or loses its build-ID default")
+    matches = re.findall(r"\bfes_de25_embedded\s*#\((.*?)\)\s+fes_embedded\s*\(", wrapper, re.S)
+    if len(matches) != 1:
+        raise ValueError('generated embedded parameterized instance differs')
+    pairs = re.findall(r'\.(\w+)\s*\(\s*([^()]*)\s*\)', matches[0])
+    remainder = re.sub(r'\.\w+\s*\(\s*[^()]*\s*\)', '', matches[0])
+    def integer(value):
+        value=value.strip()
+        match=re.fullmatch(r"(?:32)?'([bdh])([0-9a-fA-F]+)",value)
+        return int(match[2],{'b':2,'d':10,'h':16}[match[1]]) if match else int(value,0)
+    expected_params={'MEMORY_BACKEND':mode,'DDR_BASE':memory['bus_base'],'DDR_BYTES':memory['bytes']}
+    if (remainder.strip(' \r\n\t,') or len(pairs)!=3 or
+            {name:integer(value) for name,value in pairs} != expected_params):
+        raise ValueError('generated embedded memory parameters differ or override build identity')
     connections = {(c.get("kind"), c.get("start"), c.get("end")): c for c in tree.findall("connection")}
     required = (("avalon", "subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_embedded.avs"),
                 ("clock", "subsys_periph_periph_clk.out_clk", "subsys_periph_fes_embedded.clk"),
@@ -260,6 +297,25 @@ def verify_control(project, hps, board):
         raise ValueError("generated embedded peripheral base differs")
     if connections[required[1]].findtext("parameter[@name='clockRateSysInfo']/value") != "100000000":
         raise ValueError("generated embedded clock differs")
+    memory_routes=[c for c in tree.findall('connection') if c.get('start')=='subsys_periph_fes_embedded.mem']
+    if mode:
+        expected_mem={'arvalid':('Output',1),'araddr':('Output',32),'arlen':('Output',8),
+          'arsize':('Output',3),'arburst':('Output',2),'arid':('Output',4),'arlock':('Output',1),
+          'arcache':('Output',4),'arprot':('Output',3),'arqos':('Output',4),'arready':('Input',1),
+          'rvalid':('Input',1),'rdata':('Input',128),'rlast':('Input',1),'rresp':('Input',2),
+          'rid':('Input',4),'rready':('Output',1)}
+        if hps.component_ports(component,'mem')!=expected_mem:
+            raise ValueError('generated embedded DDR read-only AXI interface differs')
+        if (len(memory_routes)!=1 or memory_routes[0].get('end')!='subsys_hps_f2sdram_adapter.axi4_sub' or
+            int(memory_routes[0].findtext("parameter[@name='baseAddress']/value",'-1'),0)!=0):
+            raise ValueError('generated embedded DDR route differs')
+        sink=hps.component_ports(modules['subsys_hps.f2sdram_adapter'],'axi4_sub')
+        if sink.get('araddr')!=('Input',32) or sink.get('rdata')!=('Output',256):
+            raise ValueError('generated HPS DDR adapter widths differ')
+        if ('avalon','subsys_hps_f2sdram_adapter.axi4_man','subsys_hps_agilex_hps.f2sdram') not in connections:
+            raise ValueError('generated HPS DDR adapter is not connected to HPS memory')
+    elif memory_routes:
+        raise ValueError('on-chip reader unexpectedly connects to DDR')
     lw = connections[("avalon", "subsys_hps_agilex_hps.lwhps2fpga", "subsys_periph_pb_cpu_0.s0")]
     jtag = connections[("avalon", "subsys_debug_fpga_m.master", "subsys_periph_pb_cpu_0.s0")]
     if int(jtag.findtext("parameter[@name='baseAddress']/value", "-1"), 0) != board.JTAG_CONTROL_BRIDGE_BASE:
@@ -273,7 +329,8 @@ def verify_control(project, hps, board):
             raise ValueError("generated embedded " + name + " map differs")
         maps[name] = matches[0]
     return {"instance": component.get("path"), "clock_hz": 100000000, "maps": maps,
-            "cpu_physical_address": "not-established", "physical_ddr": "not-connected"}
+            "cpu_physical_address": "not-established", "reader_memory":memory,
+            "physical_ddr": "wired-unqualified" if mode else "not-connected"}
 
 
 def main():
@@ -286,10 +343,14 @@ def main():
     parser.add_argument("--allow-dirty", action="store_true")
     parser.add_argument("--sealed-diagnostic", action="store_true", help="build a committed diagnostic-only format-2 package")
     parser.add_argument("--hps-first", action="store_true", help="select the captured board producer's HPS-first profile")
+    parser.add_argument('--reader-memory', choices=('onchip', 'hps-ddr'), default='onchip')
+    parser.add_argument('--ddr-bus-base', type=lambda x:int(x,0), default=0)
+    parser.add_argument('--ddr-bytes', type=lambda x:int(x,0), default=0)
     parser.add_argument("--jobs", type=int, choices=range(1, 17), default=2,
                         help="explicit compiler worker limit, recorded in the functional identity (default: 2)")
     args = parser.parse_args()
     try:
+        memory = reader_memory.selection(args.reader_memory, args.ddr_bus_base, args.ddr_bytes)
         output = args.output.absolute()
         if ".." in output.parts or any(p.is_symlink() for p in (output, *output.parents)) or not output.is_relative_to(ROOT / "out") or output.exists():
             raise ValueError("output must be a fresh private directory under this worktree's out/")
@@ -314,6 +375,10 @@ def main():
         else:
             result, hps, _ = board.prepare_captured(args.vendor_archive, output / "board", sources, selected)
         configure_processors(result, args.jobs)
+        inputs_file = result / 'hps/inputs.json'
+        inputs = json.loads(inputs_file.read_text())
+        inputs['reader_memory'] = memory
+        inputs_file.write_text(json.dumps(inputs, indent=2, sort_keys=True)+'\n')
         record = None
         if args.sealed_diagnostic:
             import seal
@@ -328,7 +393,7 @@ def main():
             board.generate(result, hps, tool, version)
             generation = result / "hps/generation.json"
             evidence = json.loads(generation.read_text())
-            evidence["embedded_control"] = verify_control(result / "hps/project", hps, board)
+            evidence["embedded_control"] = verify_control(result / "hps/project", hps, board, memory)
             generation.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
             if args.action == "build":
                 artifact = compile_project(result / "hps", tool)

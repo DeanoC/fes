@@ -15,6 +15,7 @@ class SealedIdentityTests(unittest.TestCase):
     def test_record_binds_board_snapshot_vendor_tools_and_abi(self):
         inputs = {"device": seal.DEVICE, "diagnostic_only": True, "board_fes_revision": "a" * 40,
                   "compile_processors": 2,
+                  "reader_memory":seal.reader_memory.selection('onchip',0,0),
                   "overlay_source_state": "committed", "vendor_archive_sha256": "b" * 64,
                   "functional_snapshot_sha256": {"source": "c" * 64}}
         closure = {seal.RECIPE: "d" * 64, seal.DEFINITION: "e" * 64}
@@ -36,8 +37,18 @@ class SealedIdentityTests(unittest.TestCase):
             self.assertEqual(seal.profile_for(hps_first), seal.HPS_PROFILE)
             self.assertEqual(json.loads(record(hps_first))["parameters"]["conversion"], "hps-first-split-rbf-v1")
             self.assertNotEqual(seal.build_identity(first), seal.build_identity(record(t={"quartus": "other"})))
-            with patch.object(seal, "CONTROL_ABI", seal.CONTROL_ABI + 1):
+            with patch.object(seal.reader_memory, "CONTROL_ABI", seal.reader_memory.CONTROL_ABI + 2):
                 self.assertNotEqual(seal.build_identity(first), seal.build_identity(record()))
+            ddr=seal.reader_memory.selection('hps-ddr',0x1000,0x2000)
+            for value in (ddr,dict(ddr,bus_base=0x2000),dict(ddr,bytes=0x3000)):
+                changed=dict(inputs,reader_memory=value)
+                self.assertNotEqual(seal.build_identity(first),seal.build_identity(record(changed)))
+                self.assertEqual(json.loads(record(changed))['parameters']['control_abi'],0x10203041)
+            for backend,base,size in (('unknown',0,0),('onchip',4096,0),('onchip',0,4096),
+                 ('hps-ddr',0,0),('hps-ddr',1,4096),('hps-ddr',4096,16),
+                 ('hps-ddr',-4096,4096),('hps-ddr',0xfffff000,8192),('hps-ddr',True,4096)):
+                with self.subTest(backend=backend,base=base,size=size),self.assertRaises(ValueError):
+                    seal.reader_memory.selection(backend,base,size)
             dirty = dict(inputs, overlay_source_state="working-tree")
             with self.assertRaises(ValueError):
                 record(dirty)

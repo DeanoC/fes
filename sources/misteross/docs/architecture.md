@@ -48,9 +48,15 @@ same fingerprint to the computer and embedded-control endpoints. The fingerprint
 is diagnostic, not the canonical record or a sealed package identity. The
 overlay records its board and overlay revisions separately. Generated handoff
 checks the 256-byte peripheral-relative window, its clock/reset and the JTAG
-route; a JTAG address is not a CPU physical address. A small on-chip responder
-exercises held addresses, partial bursts and faults without connecting to DDR.
-It does not prove containment of inherited masters, firmware operation, physical
+route; a JTAG address is not a CPU physical address. The default on-chip responder
+exercises held addresses, partial bursts and faults without DDR. The explicit
+DDR variant routes the same control/drain endpoint's read-only AXI port to
+the HPS memory adapter. It bounds each snapshotted request to a compiled bus
+window and one 4 KiB page, permits one burst at a time, and uses actual AXI
+response/error/backpressure signals. Backend, window and distinct control ABI
+enter the source/vendor fingerprint and canonical functional identity. Its
+generated interface and HPS route are checked separately from its external-bus
+RTL model. Neither variant proves containment of inherited masters, firmware operation, physical
 MMIO, a Nano profile, reset lifetime or production admission. The overlay never
 programs hardware. The hardware-independent verifier also exercises the same
 Avalon adapter through the native Go control code.

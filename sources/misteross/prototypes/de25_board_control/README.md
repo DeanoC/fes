@@ -10,15 +10,49 @@ build ID before synthesis and installs it in both endpoints.
 
 The new 256-byte Avalon aperture is at peripheral-relative `0x10400`. The
 generated handoff must also show it at `0x00110400` in the existing JTAG master.
-Neither address is a verified CPU physical address. The added read responder is
-an on-chip test fixture, **not** a DDR connection or a global containment gate.
-Its ABI marker `0x10203040` is experimental, not a registered Nano profile.
+Neither address is a verified CPU physical address. The default read responder
+is an on-chip test fixture with experimental ABI `0x10203040`. The explicit
+`--reader-memory hps-ddr` option connects the endpoint's read-only AXI port to
+the existing HPS DDR adapter, with distinct ABI `0x10203041` and diagnostic
+programming profiles. Neither option is a registered Nano runtime profile or
+global containment gate.
+
+DDR selection requires `--ddr-bus-base` and `--ddr-bytes`: a nonempty,
+page-aligned 32-bit **bus** window. Both the ordinary fingerprint and canonical
+functional build record bind the backend and window. These numbers do not
+establish the CPU mapping, a live DDR reservation or permission to release
+bridges. The native cold/serial firmware remains scoped to the on-chip reader;
+its physical pass does not qualify this changed producer or the DDR variant.
+
+The DDR reader offers one burst at a time, rejecting unaligned, out-of-window,
+wrapping and 4 KiB-crossing requests before AXI traffic. It snapshots a staged
+descriptor, holds a stalled real address through disable, and consumes actual
+RID/RRESP/RLAST and response backpressure. It has no synthetic response command
+or AXI write channel. The existing generation/cookie drain endpoint remains
+the authority; debug byte/data/checksum observations do not grant drain.
+
+At the diagnostic aperture, DDR mode accepts only command bit 2 (reader ready)
+and bit 3 (offer the staged request) at `0x80`; the on-chip responder's address
+acceptance and injected-response bits reject. The existing address/length
+registers are at `0x84`/`0x88`. Read-only offsets `0x94`/`0x98` report returned
+bytes/XOR checksum, `0xa0..0xac` the last four data words, and `0xb0`/`0xb4` the
+compiled bus window. They observe bus data even while disable drains a burst.
+They do not implement scanout, CPU cache ownership or other-master shutdown.
 
 Run the portable model and native adapter check without Quartus:
 
 ```sh
 python3 sources/misteross/prototypes/de25_board_control/verify.py --standalone
 ```
+
+That command checks both backends. The DDR part also runs independently with
+`python3 sources/misteross/prototypes/de25_board_control/verify_ddr.py`.
+Its injected external AXI source checks held addresses, consumer stalls,
+partial drain, window/page boundaries, maximum bursts, exact data, protocol
+faults and unsolicited responses. These are RTL models, not physical DDR tests.
+For a generated DDR project, the normal `verify.py --project` selects that
+external-bus model; `test_handoff.py` checks the generated read-only interface,
+real HPS route, source bytes and window parameters, including altered copies.
 
 For a private generated project or a diagnostic SOF, supply a full Git commit
 for an existing DE25 ZX81 producer, its matching locked Terasic archive, a
