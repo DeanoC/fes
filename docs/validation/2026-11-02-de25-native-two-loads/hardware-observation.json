@@ -1,0 +1,3329 @@
+{
+  "verification_status": "passed",
+  "source_commit": "169d54c4899beb265b2d3136188ca45216b1ed64",
+  "native_build_source_commit": "169d54c4899beb265b2d3136188ca45216b1ed64",
+  "fpga_source_commit": "c272cb2b320740220fc2b7bb1c8dfd92a0ffe6f6",
+  "experiment_passed": false,
+  "serial": "TRWU8CBL",
+  "core_load_acceptance": false,
+  "runtime_admission": false,
+  "data_release": false,
+  "ddr_traffic_requested": false,
+  "native_sd_writes": false,
+  "execution_observed": true,
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "private_server_stopped": true,
+  "claim_retained": true,
+  "factory_restore_requested": false,
+  "experiment_error": "phase stopped: native",
+  "clock_evidence": "15M independently read back during owned private service cleanup before stopping that service",
+  "upload_receipts": {
+    "boot": {
+      "status": "verified",
+      "payload_sha256": "fb285c0fb3a08ff5dbeedfb25f42cbb5d7ac76f03df858083de69f50332cab1b",
+      "payload_bytes": 6622548,
+      "sd_readback_verified": true,
+      "boot_files_unchanged": true,
+      "recovery_manifest_unchanged": true,
+      "upload_session": "9cbaf8fb5b8a6df14a6f640ddf6910b8"
+    },
+    "package": {
+      "status": "verified",
+      "payload_sha256": "75a2cdfb38f9e61f41ebe2554ca30de6e8e367246d294d3d8f00c514dbf47b73",
+      "payload_bytes": 1649664,
+      "sd_readback_verified": true,
+      "boot_files_unchanged": true,
+      "recovery_manifest_unchanged": true,
+      "upload_session": "9cbaf8fb5b8a6df14a6f640ddf6910b8"
+    }
+  },
+  "decoded": {
+    "complete": true,
+    "loader_ready": true,
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "1d8d771dc74c712c"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 220533931910755591,
+          "epoch": 5439591215,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "spl_barrier_before",
+        "line": 36,
+        "values": {
+          "phase": "before"
+        }
+      },
+      {
+        "stage": "spl_barrier_after",
+        "line": 37,
+        "values": {
+          "phase": "after"
+        }
+      },
+      {
+        "stage": "spl_atf_entry",
+        "line": 38,
+        "values": {
+          "phase": "entry"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_before",
+        "line": 39,
+        "values": {
+          "phase": "hash-before"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_after",
+        "line": 40,
+        "values": {
+          "phase": "hash-after"
+        }
+      },
+      {
+        "stage": "spl_atf",
+        "line": 41,
+        "values": {
+          "target": 2147483648,
+          "bl32": 0,
+          "bl33": 2149580800,
+          "fdt": 0,
+          "params": 3220176904,
+          "cold": 138904,
+          "cookie": 5066060512865812482,
+          "el": 3,
+          "mpidr": 2164260864,
+          "sctlr": 12912696,
+          "scr": 15,
+          "daif": 960,
+          "bytes": 86077,
+          "sha256": "dde46c6b12e8abe11fce509ac07d3c31108ad4104f0f6216e8603222b681c1c1"
+        }
+      },
+      {
+        "stage": "el3_capture_before",
+        "line": 42,
+        "values": {
+          "phase": "before",
+          "pointer": 138904,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "el3_capture_after",
+        "line": 43,
+        "values": {
+          "phase": "after",
+          "pointer": 138904,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 49,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "sd_platform",
+        "line": 50,
+        "values": {
+          "setup": 1,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 53,
+        "values": {
+          "id": "1d8d771dc74c712c"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 57,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 69,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 70,
+        "values": {
+          "id": "1d8d771dc74c712c"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 71,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383520
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 78,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 220533931910755591,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 87,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 220533931910755591,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 88,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 89,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 90,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 91,
+        "values": {}
+      },
+      {
+        "stage": "configuration_package",
+        "line": 92,
+        "values": {
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+          "owner": 220533931910755591,
+          "sd_generation": 4
+        }
+      },
+      {
+        "stage": "reader_memory",
+        "line": 93,
+        "values": {
+          "cpu_base": 2499805184,
+          "bus_base": 2499805184,
+          "bytes": 8192,
+          "arena_bytes": 2097152,
+          "map_sha256": "302d8ad3aefe2abd129cf7d0976f8c2a92050923cb68b2ca8bef7adbbc89991e",
+          "pattern_sha256": "96f99b502ad38f7bad381abfbe0aed2e38521412958125acaeb4dc7c9cfa89da",
+          "owner": 220533931910755591,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "hps_context",
+        "line": 95,
+        "values": {
+          "sha256": "e9fa95a8d645d900f4cb5b60d9aeaeae5da1c76145800cce9370004db3224def",
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+          "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+          "owner": 220533931910755591,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "configuration_arm",
+        "line": 96,
+        "values": {
+          "phase": "arm",
+          "owner": 220533931910755591,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 30362517925,
+          "hash_ticks": 374365212
+        }
+      },
+      {
+        "stage": "configuration_start",
+        "line": 97,
+        "values": {
+          "phase": "start",
+          "owner": 220533931910755591,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 30923834834,
+          "hash_ticks": 748669802
+        }
+      },
+      {
+        "stage": "configuration_engine",
+        "line": 98,
+        "values": {
+          "credits": 4,
+          "block_bytes": 1048560,
+          "next_job": 0,
+          "owner": 220533931910755591,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 99,
+        "values": {
+          "phase": 1,
+          "owner": 220533931910755591,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 100,
+        "values": {
+          "phase": "write",
+          "owner": 220533931910755591,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1048512,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 31683964112,
+          "hash_ticks": 1363173371
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 101,
+        "values": {
+          "phase": 2,
+          "owner": 220533931910755591,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1048512,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 102,
+        "values": {
+          "phase": "write",
+          "owner": 220533931910755591,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1646592,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 32608109125,
+          "hash_ticks": 1977033400
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 103,
+        "values": {
+          "phase": 2,
+          "owner": 220533931910755591,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1646592,
+          "job": 1,
+          "cin": 9,
+          "cout": 9,
+          "rin": 7,
+          "rout": 6,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 104,
+        "values": {
+          "phase": "poll",
+          "owner": 220533931910755591,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1646592,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 33734671282,
+          "hash_ticks": 2727546998
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 105,
+        "values": {
+          "phase": 3,
+          "owner": 220533931910755591,
+          "generation": 4,
+          "completed": 1048512,
+          "pending": 598080,
+          "job": 2,
+          "cin": 13,
+          "cout": 13,
+          "rin": 8,
+          "rout": 7,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 106,
+        "values": {
+          "phase": "poll",
+          "owner": 220533931910755591,
+          "generation": 4,
+          "completed": 1048512,
+          "pending": 598080,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 34507991263,
+          "hash_ticks": 3239571775
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 107,
+        "values": {
+          "phase": 3,
+          "owner": 220533931910755591,
+          "generation": 4,
+          "completed": 1646592,
+          "pending": 0,
+          "job": 2,
+          "cin": 13,
+          "cout": 13,
+          "rin": 8,
+          "rout": 8,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_status",
+        "line": 108,
+        "values": {
+          "phase": "status",
+          "owner": 220533931910755591,
+          "generation": 4,
+          "completed": 1646592,
+          "pending": 0,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 35279740129,
+          "hash_ticks": 3750421460
+        }
+      },
+      {
+        "stage": "fabric_activation",
+        "line": 109,
+        "values": {
+          "owner": 220533931910755591,
+          "generation": 4,
+          "previous": 0,
+          "rearm": 0
+        }
+      },
+      {
+        "stage": "configuration_complete",
+        "line": 110,
+        "values": {
+          "phase": "complete",
+          "owner": 220533931910755591,
+          "generation": 4,
+          "completed": 1646592,
+          "pending": 0,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 35671764985,
+          "hash_ticks": 4126457849
+        }
+      },
+      {
+        "stage": "configuration_programmed",
+        "line": 111,
+        "values": {
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+          "core_sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0",
+          "bytes": 1646592,
+          "owner": 220533931910755591,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "fpga_query",
+        "line": 112,
+        "values": {}
+      },
+      {
+        "stage": "fpga_status",
+        "line": 113,
+        "values": {
+          "status": 0,
+          "words": 6,
+          "state": 0,
+          "version": 1704704,
+          "pins": 3221225609,
+          "soft": 3,
+          "error_location": 0,
+          "error_details": 15,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "smmu",
+        "line": 114,
+        "values": {
+          "status": 0,
+          "reads": 26,
+          "idr0": 135233087,
+          "idr1": 242457880,
+          "aidr": 1,
+          "s_idr1": 2147483672,
+          "cr0": 0,
+          "ack": 0,
+          "gbpa": 0,
+          "agbpa": 0,
+          "s_cr0": 0,
+          "s_ack": 0,
+          "s_init": 0,
+          "s_gbpa": 0,
+          "s_agbpa": 0,
+          "identified": 1,
+          "settled": 1,
+          "bypass_controls_clear": 1
+        }
+      },
+      {
+        "stage": "ddr_firewall",
+        "line": 115,
+        "values": {
+          "status": 0,
+          "owner": 220533931910755591,
+          "generation": 4,
+          "reset": 15,
+          "mpfe_reset": 0,
+          "reads": 66,
+          "enable": 1,
+          "base": 2499805184,
+          "bytes": 8192
+        }
+      },
+      {
+        "stage": "ddr_region_0",
+        "line": 116,
+        "values": {
+          "index": 0,
+          "base": 2148532224,
+          "baseext": 0,
+          "limit": 3221225471,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_1",
+        "line": 117,
+        "values": {
+          "index": 1,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_2",
+        "line": 118,
+        "values": {
+          "index": 2,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_3",
+        "line": 119,
+        "values": {
+          "index": 3,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_4",
+        "line": 120,
+        "values": {
+          "index": 4,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_5",
+        "line": 121,
+        "values": {
+          "index": 5,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_6",
+        "line": 122,
+        "values": {
+          "index": 6,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_7",
+        "line": 123,
+        "values": {
+          "index": 7,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_firewall_end",
+        "line": 124,
+        "values": {
+          "layout_known": 1,
+          "window_covered": 1
+        }
+      },
+      {
+        "stage": "computer_activity_initial",
+        "line": 125,
+        "values": {
+          "phase": "initial",
+          "fetches": 0,
+          "address": 0
+        }
+      },
+      {
+        "stage": "computer_activity_initial-held",
+        "line": 126,
+        "values": {
+          "phase": "initial-held",
+          "fetches": 0,
+          "address": 0
+        }
+      },
+      {
+        "stage": "computer_activity_run",
+        "line": 127,
+        "values": {
+          "phase": "run",
+          "fetches": 38419,
+          "address": 979
+        }
+      },
+      {
+        "stage": "computer_activity_return",
+        "line": 128,
+        "values": {
+          "phase": "return",
+          "fetches": 259270,
+          "address": 983
+        }
+      },
+      {
+        "stage": "computer_activity_return-held",
+        "line": 129,
+        "values": {
+          "phase": "return-held",
+          "fetches": 259270,
+          "address": 983
+        }
+      },
+      {
+        "stage": "computer_activity_relaunch",
+        "line": 130,
+        "values": {
+          "phase": "relaunch",
+          "fetches": 297682,
+          "address": 979
+        }
+      },
+      {
+        "stage": "computer_activity_final",
+        "line": 131,
+        "values": {
+          "phase": "final",
+          "fetches": 325996,
+          "address": 975
+        }
+      },
+      {
+        "stage": "computer_activity_final-held",
+        "line": 132,
+        "values": {
+          "phase": "final-held",
+          "fetches": 325996,
+          "address": 975
+        }
+      },
+      {
+        "stage": "master_stop",
+        "line": 133,
+        "values": {
+          "status": 0,
+          "owner": 220533931910755591,
+          "generation": 5,
+          "reset": 13,
+          "reader_reads": 88,
+          "reader_polls": 1,
+          "disable": 0,
+          "probe_polls": 2,
+          "cancel": 0,
+          "complete": 1
+        }
+      },
+      {
+        "stage": "computer_control",
+        "line": 134,
+        "values": {
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+          "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+          "base": 536937216,
+          "map_sha256": "e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743",
+          "owner": 220533931910755591,
+          "generation": 6,
+          "execution_observed": 1
+        }
+      },
+      {
+        "stage": "hps_context",
+        "line": 137,
+        "values": {
+          "sha256": "e9fa95a8d645d900f4cb5b60d9aeaeae5da1c76145800cce9370004db3224def",
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+          "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+          "owner": 220533931910755591,
+          "generation": 6
+        }
+      },
+      {
+        "stage": "configuration_arm",
+        "line": 138,
+        "values": {
+          "phase": "arm",
+          "owner": 220533931910755591,
+          "generation": 6,
+          "completed": 0,
+          "pending": 0,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 37679575222,
+          "hash_ticks": 4500723235
+        }
+      },
+      {
+        "stage": "configuration_start",
+        "line": 139,
+        "values": {
+          "phase": "start",
+          "owner": 220533931910755591,
+          "generation": 6,
+          "completed": 0,
+          "pending": 0,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 38240881969,
+          "hash_ticks": 4874949550
+        }
+      },
+      {
+        "stage": "configuration_engine",
+        "line": 140,
+        "values": {
+          "credits": 4,
+          "block_bytes": 1048560,
+          "next_job": 2,
+          "owner": 220533931910755591,
+          "generation": 6
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 141,
+        "values": {
+          "phase": 1,
+          "owner": 220533931910755591,
+          "generation": 6,
+          "completed": 0,
+          "pending": 0,
+          "job": 2,
+          "cin": 18,
+          "cout": 18,
+          "rin": 11,
+          "rout": 11,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 142,
+        "values": {
+          "phase": "write",
+          "owner": 220533931910755591,
+          "generation": 6,
+          "completed": 0,
+          "pending": 1048512,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 39000982327,
+          "hash_ticks": 5489319000
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 143,
+        "values": {
+          "phase": 2,
+          "owner": 220533931910755591,
+          "generation": 6,
+          "completed": 0,
+          "pending": 1048512,
+          "job": 2,
+          "cin": 18,
+          "cout": 18,
+          "rin": 11,
+          "rout": 11,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 144,
+        "values": {
+          "phase": "write",
+          "owner": 220533931910755591,
+          "generation": 6,
+          "completed": 0,
+          "pending": 1646592,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 39925169437,
+          "hash_ticks": 6103055415
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 145,
+        "values": {
+          "phase": 2,
+          "owner": 220533931910755591,
+          "generation": 6,
+          "completed": 0,
+          "pending": 1646592,
+          "job": 3,
+          "cin": 22,
+          "cout": 22,
+          "rin": 12,
+          "rout": 11,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 146,
+        "values": {
+          "phase": "poll",
+          "owner": 220533931910755591,
+          "generation": 6,
+          "completed": 0,
+          "pending": 1646592,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 41051835895,
+          "hash_ticks": 6853569447
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 147,
+        "values": {
+          "phase": 3,
+          "owner": 220533931910755591,
+          "generation": 6,
+          "completed": 1048512,
+          "pending": 598080,
+          "job": 4,
+          "cin": 26,
+          "cout": 26,
+          "rin": 13,
+          "rout": 12,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 148,
+        "values": {
+          "phase": "poll",
+          "owner": 220533931910755591,
+          "generation": 6,
+          "completed": 1048512,
+          "pending": 598080,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 41825266642,
+          "hash_ticks": 7365602584
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 149,
+        "values": {
+          "phase": 3,
+          "owner": 220533931910755591,
+          "generation": 6,
+          "completed": 1646592,
+          "pending": 0,
+          "job": 4,
+          "cin": 26,
+          "cout": 26,
+          "rin": 13,
+          "rout": 13,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_status",
+        "line": 150,
+        "values": {
+          "phase": "status",
+          "owner": 220533931910755591,
+          "generation": 6,
+          "completed": 1646592,
+          "pending": 0,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 42597119096,
+          "hash_ticks": 7876423466
+        }
+      },
+      {
+        "stage": "fabric_activation",
+        "line": 151,
+        "values": {
+          "owner": 220533931910755591,
+          "generation": 6,
+          "previous": 4,
+          "rearm": 1
+        }
+      },
+      {
+        "stage": "configuration_complete",
+        "line": 152,
+        "values": {
+          "phase": "complete",
+          "owner": 220533931910755591,
+          "generation": 6,
+          "completed": 1646592,
+          "pending": 0,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 42989193223,
+          "hash_ticks": 8252471967
+        }
+      },
+      {
+        "stage": "configuration_programmed",
+        "line": 153,
+        "values": {
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+          "core_sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0",
+          "bytes": 1646592,
+          "owner": 220533931910755591,
+          "generation": 6
+        }
+      },
+      {
+        "stage": "fpga_query",
+        "line": 154,
+        "values": {}
+      },
+      {
+        "stage": "fpga_status",
+        "line": 155,
+        "values": {
+          "status": 0,
+          "words": 6,
+          "state": 0,
+          "version": 1704704,
+          "pins": 3221225609,
+          "soft": 3,
+          "error_location": 0,
+          "error_details": 15,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "smmu",
+        "line": 156,
+        "values": {
+          "status": 0,
+          "reads": 26,
+          "idr0": 135233087,
+          "idr1": 242457880,
+          "aidr": 1,
+          "s_idr1": 2147483672,
+          "cr0": 0,
+          "ack": 0,
+          "gbpa": 0,
+          "agbpa": 0,
+          "s_cr0": 0,
+          "s_ack": 0,
+          "s_init": 0,
+          "s_gbpa": 0,
+          "s_agbpa": 0,
+          "identified": 1,
+          "settled": 1,
+          "bypass_controls_clear": 1
+        }
+      },
+      {
+        "stage": "ddr_firewall",
+        "line": 157,
+        "values": {
+          "status": 0,
+          "owner": 220533931910755591,
+          "generation": 6,
+          "reset": 15,
+          "mpfe_reset": 0,
+          "reads": 66,
+          "enable": 1,
+          "base": 2499805184,
+          "bytes": 8192
+        }
+      },
+      {
+        "stage": "ddr_region_0",
+        "line": 158,
+        "values": {
+          "index": 0,
+          "base": 2148532224,
+          "baseext": 0,
+          "limit": 3221225471,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_1",
+        "line": 159,
+        "values": {
+          "index": 1,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_2",
+        "line": 160,
+        "values": {
+          "index": 2,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_3",
+        "line": 161,
+        "values": {
+          "index": 3,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_4",
+        "line": 162,
+        "values": {
+          "index": 4,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_5",
+        "line": 163,
+        "values": {
+          "index": 5,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_6",
+        "line": 164,
+        "values": {
+          "index": 6,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_7",
+        "line": 165,
+        "values": {
+          "index": 7,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_firewall_end",
+        "line": 166,
+        "values": {
+          "layout_known": 1,
+          "window_covered": 1
+        }
+      },
+      {
+        "stage": "computer_activity_initial",
+        "line": 167,
+        "values": {
+          "phase": "initial",
+          "fetches": 0,
+          "address": 0
+        }
+      },
+      {
+        "stage": "computer_activity_initial-held",
+        "line": 168,
+        "values": {
+          "phase": "initial-held",
+          "fetches": 0,
+          "address": 0
+        }
+      },
+      {
+        "stage": "computer_activity_run",
+        "line": 169,
+        "values": {
+          "phase": "run",
+          "fetches": 38413,
+          "address": 975
+        }
+      },
+      {
+        "stage": "computer_activity_return",
+        "line": 170,
+        "values": {
+          "phase": "return",
+          "fetches": 259262,
+          "address": 991
+        }
+      },
+      {
+        "stage": "computer_activity_return-held",
+        "line": 171,
+        "values": {
+          "phase": "return-held",
+          "fetches": 259262,
+          "address": 991
+        }
+      },
+      {
+        "stage": "computer_activity_relaunch",
+        "line": 172,
+        "values": {
+          "phase": "relaunch",
+          "fetches": 297676,
+          "address": 975
+        }
+      },
+      {
+        "stage": "computer_activity_final",
+        "line": 173,
+        "values": {
+          "phase": "final",
+          "fetches": 325992,
+          "address": 978
+        }
+      },
+      {
+        "stage": "computer_activity_final-held",
+        "line": 174,
+        "values": {
+          "phase": "final-held",
+          "fetches": 325992,
+          "address": 978
+        }
+      },
+      {
+        "stage": "master_stop",
+        "line": 175,
+        "values": {
+          "status": 0,
+          "owner": 220533931910755591,
+          "generation": 7,
+          "reset": 13,
+          "reader_reads": 88,
+          "reader_polls": 1,
+          "disable": 0,
+          "probe_polls": 2,
+          "cancel": 0,
+          "complete": 1
+        }
+      },
+      {
+        "stage": "computer_control",
+        "line": 176,
+        "values": {
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+          "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+          "base": 536937216,
+          "map_sha256": "e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743",
+          "owner": 220533931910755591,
+          "generation": 8,
+          "execution_observed": 1
+        }
+      }
+    ],
+    "errors": [],
+    "last_checkpoint": "reload_complete",
+    "core_load_acceptance": false,
+    "execution_observed": true,
+    "cycles": [
+      {
+        "cycle": 1,
+        "begin_line": 94,
+        "end_line": 135,
+        "ended": true,
+        "verified": true,
+        "report": {
+          "records": [
+            {
+              "stage": "spl",
+              "line": 2,
+              "values": {
+                "id": "1d8d771dc74c712c"
+              }
+            },
+            {
+              "stage": "initial",
+              "line": 3,
+              "values": {
+                "cause": 4,
+                "per0": 4286562303,
+                "bridge": 79,
+                "cpus": 15,
+                "release": 0,
+                "kind": 4,
+                "valid": 1
+              }
+            },
+            {
+              "stage": "scope",
+              "line": 4,
+              "values": {
+                "mpidr": 2164260864,
+                "core": 0,
+                "cause": 4,
+                "cpus": 15,
+                "release": 0,
+                "timeouts": 0
+              }
+            },
+            {
+              "stage": "mmc",
+              "line": 28,
+              "values": {}
+            },
+            {
+              "stage": "fit",
+              "line": 29,
+              "values": {}
+            },
+            {
+              "stage": "spl_handoff",
+              "line": 35,
+              "values": {
+                "owner": 220533931910755591,
+                "epoch": 5439591215,
+                "per0": 4286562239,
+                "bridge": 15,
+                "sd": 32964848
+              }
+            },
+            {
+              "stage": "spl_barrier_before",
+              "line": 36,
+              "values": {
+                "phase": "before"
+              }
+            },
+            {
+              "stage": "spl_barrier_after",
+              "line": 37,
+              "values": {
+                "phase": "after"
+              }
+            },
+            {
+              "stage": "spl_atf_entry",
+              "line": 38,
+              "values": {
+                "phase": "entry"
+              }
+            },
+            {
+              "stage": "spl_atf_hash_before",
+              "line": 39,
+              "values": {
+                "phase": "hash-before"
+              }
+            },
+            {
+              "stage": "spl_atf_hash_after",
+              "line": 40,
+              "values": {
+                "phase": "hash-after"
+              }
+            },
+            {
+              "stage": "spl_atf",
+              "line": 41,
+              "values": {
+                "target": 2147483648,
+                "bl32": 0,
+                "bl33": 2149580800,
+                "fdt": 0,
+                "params": 3220176904,
+                "cold": 138904,
+                "cookie": 5066060512865812482,
+                "el": 3,
+                "mpidr": 2164260864,
+                "sctlr": 12912696,
+                "scr": 15,
+                "daif": 960,
+                "bytes": 86077,
+                "sha256": "dde46c6b12e8abe11fce509ac07d3c31108ad4104f0f6216e8603222b681c1c1"
+              }
+            },
+            {
+              "stage": "el3_capture_before",
+              "line": 42,
+              "values": {
+                "phase": "before",
+                "pointer": 138904,
+                "cookie": 5066060512865812482
+              }
+            },
+            {
+              "stage": "el3_capture_after",
+              "line": 43,
+              "values": {
+                "phase": "after",
+                "pointer": 138904,
+                "cookie": 5066060512865812482
+              }
+            },
+            {
+              "stage": "provider",
+              "line": 49,
+              "values": {
+                "provider": 1,
+                "result": 0,
+                "bridge": 15
+              }
+            },
+            {
+              "stage": "sd_platform",
+              "line": 50,
+              "values": {
+                "setup": 1,
+                "ready": 1
+              }
+            },
+            {
+              "stage": "uboot",
+              "line": 53,
+              "values": {
+                "id": "1d8d771dc74c712c"
+              }
+            },
+            {
+              "stage": "dram",
+              "line": 57,
+              "values": {}
+            },
+            {
+              "stage": "prompt",
+              "line": 69,
+              "values": {}
+            },
+            {
+              "stage": "boot",
+              "line": 70,
+              "values": {
+                "id": "1d8d771dc74c712c"
+              }
+            },
+            {
+              "stage": "memory",
+              "line": 71,
+              "values": {
+                "ram_top": 3221225472,
+                "sp": 3216373888,
+                "malloc_start": 3216408576,
+                "malloc_end": 3220611072,
+                "reloc": 3220611072,
+                "fdt": 3216383520
+              }
+            },
+            {
+              "stage": "before-entry",
+              "line": 78,
+              "values": {
+                "phase": "before-entry",
+                "status": 0,
+                "flags": 5062696002989850847,
+                "owner": 220533931910755591,
+                "generation": 1
+              }
+            },
+            {
+              "stage": "after-remove",
+              "line": 87,
+              "values": {
+                "phase": "after-remove",
+                "status": 0,
+                "flags": 5062696002989850847,
+                "owner": 220533931910755591,
+                "generation": 1
+              }
+            },
+            {
+              "stage": "live",
+              "line": 88,
+              "values": {
+                "affinity": 0,
+                "counter": 400000000,
+                "cpu0": 0,
+                "cpu1": 1,
+                "cpu2": 1,
+                "cpu3": 1,
+                "per0": 4286562239,
+                "bridge": 15
+              }
+            },
+            {
+              "stage": "handoff",
+              "line": 89,
+              "values": {}
+            },
+            {
+              "stage": "el2",
+              "line": 90,
+              "values": {}
+            },
+            {
+              "stage": "el1",
+              "line": 91,
+              "values": {}
+            },
+            {
+              "stage": "configuration_package",
+              "line": 92,
+              "values": {
+                "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+                "owner": 220533931910755591,
+                "sd_generation": 4
+              }
+            },
+            {
+              "stage": "reader_memory",
+              "line": 93,
+              "values": {
+                "cpu_base": 2499805184,
+                "bus_base": 2499805184,
+                "bytes": 8192,
+                "arena_bytes": 2097152,
+                "map_sha256": "302d8ad3aefe2abd129cf7d0976f8c2a92050923cb68b2ca8bef7adbbc89991e",
+                "pattern_sha256": "96f99b502ad38f7bad381abfbe0aed2e38521412958125acaeb4dc7c9cfa89da",
+                "owner": 220533931910755591,
+                "generation": 4
+              }
+            },
+            {
+              "stage": "hps_context",
+              "line": 95,
+              "values": {
+                "sha256": "e9fa95a8d645d900f4cb5b60d9aeaeae5da1c76145800cce9370004db3224def",
+                "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+                "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+                "owner": 220533931910755591,
+                "generation": 4
+              }
+            },
+            {
+              "stage": "configuration_arm",
+              "line": 96,
+              "values": {
+                "phase": "arm",
+                "owner": 220533931910755591,
+                "generation": 4,
+                "completed": 0,
+                "pending": 0,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 30362517925,
+                "hash_ticks": 374365212
+              }
+            },
+            {
+              "stage": "configuration_start",
+              "line": 97,
+              "values": {
+                "phase": "start",
+                "owner": 220533931910755591,
+                "generation": 4,
+                "completed": 0,
+                "pending": 0,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 30923834834,
+                "hash_ticks": 748669802
+              }
+            },
+            {
+              "stage": "configuration_engine",
+              "line": 98,
+              "values": {
+                "credits": 4,
+                "block_bytes": 1048560,
+                "next_job": 0,
+                "owner": 220533931910755591,
+                "generation": 4
+              }
+            },
+            {
+              "stage": "configuration_mailbox",
+              "line": 99,
+              "values": {
+                "phase": 1,
+                "owner": 220533931910755591,
+                "generation": 4,
+                "completed": 0,
+                "pending": 0,
+                "job": 0,
+                "cin": 5,
+                "cout": 5,
+                "rin": 6,
+                "rout": 6,
+                "bell": 0,
+                "status": 3288002639,
+                "state": 0,
+                "next": 0,
+                "slot": -1,
+                "cmd_used": 0,
+                "resp_used": 0
+              }
+            },
+            {
+              "stage": "configuration_write",
+              "line": 100,
+              "values": {
+                "phase": "write",
+                "owner": 220533931910755591,
+                "generation": 4,
+                "completed": 0,
+                "pending": 1048512,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 31683964112,
+                "hash_ticks": 1363173371
+              }
+            },
+            {
+              "stage": "configuration_mailbox",
+              "line": 101,
+              "values": {
+                "phase": 2,
+                "owner": 220533931910755591,
+                "generation": 4,
+                "completed": 0,
+                "pending": 1048512,
+                "job": 0,
+                "cin": 5,
+                "cout": 5,
+                "rin": 6,
+                "rout": 6,
+                "bell": 0,
+                "status": 3288002639,
+                "state": 0,
+                "next": 0,
+                "slot": -1,
+                "cmd_used": 0,
+                "resp_used": 0
+              }
+            },
+            {
+              "stage": "configuration_write",
+              "line": 102,
+              "values": {
+                "phase": "write",
+                "owner": 220533931910755591,
+                "generation": 4,
+                "completed": 0,
+                "pending": 1646592,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 32608109125,
+                "hash_ticks": 1977033400
+              }
+            },
+            {
+              "stage": "configuration_mailbox",
+              "line": 103,
+              "values": {
+                "phase": 2,
+                "owner": 220533931910755591,
+                "generation": 4,
+                "completed": 0,
+                "pending": 1646592,
+                "job": 1,
+                "cin": 9,
+                "cout": 9,
+                "rin": 7,
+                "rout": 6,
+                "bell": 1,
+                "status": 3288002639,
+                "state": 0,
+                "next": 0,
+                "slot": -1,
+                "cmd_used": 0,
+                "resp_used": 0
+              }
+            },
+            {
+              "stage": "configuration_poll",
+              "line": 104,
+              "values": {
+                "phase": "poll",
+                "owner": 220533931910755591,
+                "generation": 4,
+                "completed": 0,
+                "pending": 1646592,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 33734671282,
+                "hash_ticks": 2727546998
+              }
+            },
+            {
+              "stage": "configuration_mailbox",
+              "line": 105,
+              "values": {
+                "phase": 3,
+                "owner": 220533931910755591,
+                "generation": 4,
+                "completed": 1048512,
+                "pending": 598080,
+                "job": 2,
+                "cin": 13,
+                "cout": 13,
+                "rin": 8,
+                "rout": 7,
+                "bell": 1,
+                "status": 3288002639,
+                "state": 0,
+                "next": 0,
+                "slot": -1,
+                "cmd_used": 0,
+                "resp_used": 0
+              }
+            },
+            {
+              "stage": "configuration_poll",
+              "line": 106,
+              "values": {
+                "phase": "poll",
+                "owner": 220533931910755591,
+                "generation": 4,
+                "completed": 1048512,
+                "pending": 598080,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 34507991263,
+                "hash_ticks": 3239571775
+              }
+            },
+            {
+              "stage": "configuration_mailbox",
+              "line": 107,
+              "values": {
+                "phase": 3,
+                "owner": 220533931910755591,
+                "generation": 4,
+                "completed": 1646592,
+                "pending": 0,
+                "job": 2,
+                "cin": 13,
+                "cout": 13,
+                "rin": 8,
+                "rout": 8,
+                "bell": 0,
+                "status": 3288002639,
+                "state": 0,
+                "next": 0,
+                "slot": -1,
+                "cmd_used": 0,
+                "resp_used": 0
+              }
+            },
+            {
+              "stage": "configuration_status",
+              "line": 108,
+              "values": {
+                "phase": "status",
+                "owner": 220533931910755591,
+                "generation": 4,
+                "completed": 1646592,
+                "pending": 0,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 35279740129,
+                "hash_ticks": 3750421460
+              }
+            },
+            {
+              "stage": "fabric_activation",
+              "line": 109,
+              "values": {
+                "owner": 220533931910755591,
+                "generation": 4,
+                "previous": 0,
+                "rearm": 0
+              }
+            },
+            {
+              "stage": "configuration_complete",
+              "line": 110,
+              "values": {
+                "phase": "complete",
+                "owner": 220533931910755591,
+                "generation": 4,
+                "completed": 1646592,
+                "pending": 0,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 35671764985,
+                "hash_ticks": 4126457849
+              }
+            },
+            {
+              "stage": "configuration_programmed",
+              "line": 111,
+              "values": {
+                "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+                "core_sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0",
+                "bytes": 1646592,
+                "owner": 220533931910755591,
+                "generation": 4
+              }
+            },
+            {
+              "stage": "fpga_query",
+              "line": 112,
+              "values": {}
+            },
+            {
+              "stage": "fpga_status",
+              "line": 113,
+              "values": {
+                "status": 0,
+                "words": 6,
+                "state": 0,
+                "version": 1704704,
+                "pins": 3221225609,
+                "soft": 3,
+                "error_location": 0,
+                "error_details": 15,
+                "ready": 1
+              }
+            },
+            {
+              "stage": "smmu",
+              "line": 114,
+              "values": {
+                "status": 0,
+                "reads": 26,
+                "idr0": 135233087,
+                "idr1": 242457880,
+                "aidr": 1,
+                "s_idr1": 2147483672,
+                "cr0": 0,
+                "ack": 0,
+                "gbpa": 0,
+                "agbpa": 0,
+                "s_cr0": 0,
+                "s_ack": 0,
+                "s_init": 0,
+                "s_gbpa": 0,
+                "s_agbpa": 0,
+                "identified": 1,
+                "settled": 1,
+                "bypass_controls_clear": 1
+              }
+            },
+            {
+              "stage": "ddr_firewall",
+              "line": 115,
+              "values": {
+                "status": 0,
+                "owner": 220533931910755591,
+                "generation": 4,
+                "reset": 15,
+                "mpfe_reset": 0,
+                "reads": 66,
+                "enable": 1,
+                "base": 2499805184,
+                "bytes": 8192
+              }
+            },
+            {
+              "stage": "ddr_region_0",
+              "line": 116,
+              "values": {
+                "index": 0,
+                "base": 2148532224,
+                "baseext": 0,
+                "limit": 3221225471,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_1",
+              "line": 117,
+              "values": {
+                "index": 1,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_2",
+              "line": 118,
+              "values": {
+                "index": 2,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_3",
+              "line": 119,
+              "values": {
+                "index": 3,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_4",
+              "line": 120,
+              "values": {
+                "index": 4,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_5",
+              "line": 121,
+              "values": {
+                "index": 5,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_6",
+              "line": 122,
+              "values": {
+                "index": 6,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_7",
+              "line": 123,
+              "values": {
+                "index": 7,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_firewall_end",
+              "line": 124,
+              "values": {
+                "layout_known": 1,
+                "window_covered": 1
+              }
+            },
+            {
+              "stage": "computer_activity_initial",
+              "line": 125,
+              "values": {
+                "phase": "initial",
+                "fetches": 0,
+                "address": 0
+              }
+            },
+            {
+              "stage": "computer_activity_initial-held",
+              "line": 126,
+              "values": {
+                "phase": "initial-held",
+                "fetches": 0,
+                "address": 0
+              }
+            },
+            {
+              "stage": "computer_activity_run",
+              "line": 127,
+              "values": {
+                "phase": "run",
+                "fetches": 38419,
+                "address": 979
+              }
+            },
+            {
+              "stage": "computer_activity_return",
+              "line": 128,
+              "values": {
+                "phase": "return",
+                "fetches": 259270,
+                "address": 983
+              }
+            },
+            {
+              "stage": "computer_activity_return-held",
+              "line": 129,
+              "values": {
+                "phase": "return-held",
+                "fetches": 259270,
+                "address": 983
+              }
+            },
+            {
+              "stage": "computer_activity_relaunch",
+              "line": 130,
+              "values": {
+                "phase": "relaunch",
+                "fetches": 297682,
+                "address": 979
+              }
+            },
+            {
+              "stage": "computer_activity_final",
+              "line": 131,
+              "values": {
+                "phase": "final",
+                "fetches": 325996,
+                "address": 975
+              }
+            },
+            {
+              "stage": "computer_activity_final-held",
+              "line": 132,
+              "values": {
+                "phase": "final-held",
+                "fetches": 325996,
+                "address": 975
+              }
+            },
+            {
+              "stage": "master_stop",
+              "line": 133,
+              "values": {
+                "status": 0,
+                "owner": 220533931910755591,
+                "generation": 5,
+                "reset": 13,
+                "reader_reads": 88,
+                "reader_polls": 1,
+                "disable": 0,
+                "probe_polls": 2,
+                "cancel": 0,
+                "complete": 1
+              }
+            },
+            {
+              "stage": "computer_control",
+              "line": 134,
+              "values": {
+                "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+                "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+                "base": 536937216,
+                "map_sha256": "e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743",
+                "owner": 220533931910755591,
+                "generation": 6,
+                "execution_observed": 1
+              }
+            }
+          ],
+          "errors": [],
+          "loader_ready": true,
+          "complete": true,
+          "last_checkpoint": "computer_control",
+          "core_load_acceptance": false,
+          "atf_observation": {
+            "target": 2147483648,
+            "bl32": 0,
+            "bl33": 2149580800,
+            "fdt": 0,
+            "params": 3220176904,
+            "cold": 138904,
+            "cookie": 5066060512865812482,
+            "el": 3,
+            "mpidr": 2164260864,
+            "sctlr": 12912696,
+            "scr": 15,
+            "daif": 960,
+            "bytes": 86077,
+            "sha256": "dde46c6b12e8abe11fce509ac07d3c31108ad4104f0f6216e8603222b681c1c1"
+          },
+          "smmu_observation": {
+            "status": 0,
+            "reads": 26,
+            "idr0": 135233087,
+            "idr1": 242457880,
+            "aidr": 1,
+            "s_idr1": 2147483672,
+            "cr0": 0,
+            "ack": 0,
+            "gbpa": 0,
+            "agbpa": 0,
+            "s_cr0": 0,
+            "s_ack": 0,
+            "s_init": 0,
+            "s_gbpa": 0,
+            "s_agbpa": 0,
+            "identified": 1,
+            "settled": 1,
+            "bypass_controls_clear": 1,
+            "secure_implemented": true,
+            "access_qualified": false
+          },
+          "ddr_firewall_observation": {
+            "status": 0,
+            "owner": 220533931910755591,
+            "generation": 4,
+            "reset": 15,
+            "mpfe_reset": 0,
+            "reads": 66,
+            "enable": 1,
+            "base": 2499805184,
+            "bytes": 8192,
+            "regions": [
+              {
+                "index": 0,
+                "base": 2148532224,
+                "baseext": 0,
+                "limit": 3221225471,
+                "limitext": 0
+              },
+              {
+                "index": 1,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              },
+              {
+                "index": 2,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              },
+              {
+                "index": 3,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              },
+              {
+                "index": 4,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              },
+              {
+                "index": 5,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              },
+              {
+                "index": 6,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              },
+              {
+                "index": 7,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            ],
+            "layout_known": true,
+            "window_covered": true,
+            "access_qualified": false
+          },
+          "reader_memory_observation": {
+            "cpu_base": 2499805184,
+            "bus_base": 2499805184,
+            "bytes": 8192,
+            "arena_bytes": 2097152,
+            "map_sha256": "302d8ad3aefe2abd129cf7d0976f8c2a92050923cb68b2ca8bef7adbbc89991e",
+            "pattern_sha256": "96f99b502ad38f7bad381abfbe0aed2e38521412958125acaeb4dc7c9cfa89da",
+            "owner": 220533931910755591,
+            "generation": 4,
+            "fpga_access_qualified": false
+          },
+          "master_stop_observation": {
+            "status": 0,
+            "owner": 220533931910755591,
+            "generation": 5,
+            "reset": 13,
+            "reader_reads": 88,
+            "reader_polls": 1,
+            "disable": 0,
+            "probe_polls": 2,
+            "cancel": 0,
+            "complete": 1,
+            "physical_ddr_drain_qualified": false
+          },
+          "computer_control_observation": {
+            "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+            "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+            "base": 536937216,
+            "map_sha256": "e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743",
+            "owner": 220533931910755591,
+            "generation": 6,
+            "execution_observed": true,
+            "command_cycle_reported": true,
+            "runtime_admission": false
+          },
+          "computer_activity": {
+            "complete": true,
+            "kind": "z80-instruction-fetch-bus",
+            "counter_bits": 32,
+            "samples": [
+              {
+                "phase": "initial",
+                "fetches": 0,
+                "address": 0
+              },
+              {
+                "phase": "initial-held",
+                "fetches": 0,
+                "address": 0
+              },
+              {
+                "phase": "run",
+                "fetches": 38419,
+                "address": 979
+              },
+              {
+                "phase": "return",
+                "fetches": 259270,
+                "address": 983
+              },
+              {
+                "phase": "return-held",
+                "fetches": 259270,
+                "address": 983
+              },
+              {
+                "phase": "relaunch",
+                "fetches": 297682,
+                "address": 979
+              },
+              {
+                "phase": "final",
+                "fetches": 325996,
+                "address": 975
+              },
+              {
+                "phase": "final-held",
+                "fetches": 325996,
+                "address": 975
+              }
+            ],
+            "runtime_admission": false
+          },
+          "configuration_transfer": {
+            "complete": true,
+            "completed_bytes": 1646592,
+            "core_sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0",
+            "arena_base": 2491416576,
+            "arena_size": 8388608
+          },
+          "fabric_activation": {
+            "owner": 220533931910755591,
+            "generation": 4,
+            "previous": 0,
+            "rearm": 0
+          },
+          "configuration_timing": {
+            "counter_frequency": 400000000,
+            "first_counter": 30362517925,
+            "last_counter": 35671764985,
+            "hash_ticks": 4126457849,
+            "interval_ticks": 5309247060,
+            "interval_hash_ticks": 3752092637
+          }
+        }
+      },
+      {
+        "cycle": 2,
+        "begin_line": 136,
+        "end_line": 177,
+        "ended": true,
+        "verified": true,
+        "report": {
+          "records": [
+            {
+              "stage": "hps_context",
+              "line": 137,
+              "values": {
+                "sha256": "e9fa95a8d645d900f4cb5b60d9aeaeae5da1c76145800cce9370004db3224def",
+                "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+                "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+                "owner": 220533931910755591,
+                "generation": 6
+              }
+            },
+            {
+              "stage": "configuration_arm",
+              "line": 138,
+              "values": {
+                "phase": "arm",
+                "owner": 220533931910755591,
+                "generation": 6,
+                "completed": 0,
+                "pending": 0,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 37679575222,
+                "hash_ticks": 4500723235
+              }
+            },
+            {
+              "stage": "configuration_start",
+              "line": 139,
+              "values": {
+                "phase": "start",
+                "owner": 220533931910755591,
+                "generation": 6,
+                "completed": 0,
+                "pending": 0,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 38240881969,
+                "hash_ticks": 4874949550
+              }
+            },
+            {
+              "stage": "configuration_engine",
+              "line": 140,
+              "values": {
+                "credits": 4,
+                "block_bytes": 1048560,
+                "next_job": 2,
+                "owner": 220533931910755591,
+                "generation": 6
+              }
+            },
+            {
+              "stage": "configuration_mailbox",
+              "line": 141,
+              "values": {
+                "phase": 1,
+                "owner": 220533931910755591,
+                "generation": 6,
+                "completed": 0,
+                "pending": 0,
+                "job": 2,
+                "cin": 18,
+                "cout": 18,
+                "rin": 11,
+                "rout": 11,
+                "bell": 0,
+                "status": 3288002639,
+                "state": 0,
+                "next": 0,
+                "slot": -1,
+                "cmd_used": 0,
+                "resp_used": 0
+              }
+            },
+            {
+              "stage": "configuration_write",
+              "line": 142,
+              "values": {
+                "phase": "write",
+                "owner": 220533931910755591,
+                "generation": 6,
+                "completed": 0,
+                "pending": 1048512,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 39000982327,
+                "hash_ticks": 5489319000
+              }
+            },
+            {
+              "stage": "configuration_mailbox",
+              "line": 143,
+              "values": {
+                "phase": 2,
+                "owner": 220533931910755591,
+                "generation": 6,
+                "completed": 0,
+                "pending": 1048512,
+                "job": 2,
+                "cin": 18,
+                "cout": 18,
+                "rin": 11,
+                "rout": 11,
+                "bell": 0,
+                "status": 3288002639,
+                "state": 0,
+                "next": 0,
+                "slot": -1,
+                "cmd_used": 0,
+                "resp_used": 0
+              }
+            },
+            {
+              "stage": "configuration_write",
+              "line": 144,
+              "values": {
+                "phase": "write",
+                "owner": 220533931910755591,
+                "generation": 6,
+                "completed": 0,
+                "pending": 1646592,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 39925169437,
+                "hash_ticks": 6103055415
+              }
+            },
+            {
+              "stage": "configuration_mailbox",
+              "line": 145,
+              "values": {
+                "phase": 2,
+                "owner": 220533931910755591,
+                "generation": 6,
+                "completed": 0,
+                "pending": 1646592,
+                "job": 3,
+                "cin": 22,
+                "cout": 22,
+                "rin": 12,
+                "rout": 11,
+                "bell": 1,
+                "status": 3288002639,
+                "state": 0,
+                "next": 0,
+                "slot": -1,
+                "cmd_used": 0,
+                "resp_used": 0
+              }
+            },
+            {
+              "stage": "configuration_poll",
+              "line": 146,
+              "values": {
+                "phase": "poll",
+                "owner": 220533931910755591,
+                "generation": 6,
+                "completed": 0,
+                "pending": 1646592,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 41051835895,
+                "hash_ticks": 6853569447
+              }
+            },
+            {
+              "stage": "configuration_mailbox",
+              "line": 147,
+              "values": {
+                "phase": 3,
+                "owner": 220533931910755591,
+                "generation": 6,
+                "completed": 1048512,
+                "pending": 598080,
+                "job": 4,
+                "cin": 26,
+                "cout": 26,
+                "rin": 13,
+                "rout": 12,
+                "bell": 1,
+                "status": 3288002639,
+                "state": 0,
+                "next": 0,
+                "slot": -1,
+                "cmd_used": 0,
+                "resp_used": 0
+              }
+            },
+            {
+              "stage": "configuration_poll",
+              "line": 148,
+              "values": {
+                "phase": "poll",
+                "owner": 220533931910755591,
+                "generation": 6,
+                "completed": 1048512,
+                "pending": 598080,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 41825266642,
+                "hash_ticks": 7365602584
+              }
+            },
+            {
+              "stage": "configuration_mailbox",
+              "line": 149,
+              "values": {
+                "phase": 3,
+                "owner": 220533931910755591,
+                "generation": 6,
+                "completed": 1646592,
+                "pending": 0,
+                "job": 4,
+                "cin": 26,
+                "cout": 26,
+                "rin": 13,
+                "rout": 13,
+                "bell": 0,
+                "status": 3288002639,
+                "state": 0,
+                "next": 0,
+                "slot": -1,
+                "cmd_used": 0,
+                "resp_used": 0
+              }
+            },
+            {
+              "stage": "configuration_status",
+              "line": 150,
+              "values": {
+                "phase": "status",
+                "owner": 220533931910755591,
+                "generation": 6,
+                "completed": 1646592,
+                "pending": 0,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 42597119096,
+                "hash_ticks": 7876423466
+              }
+            },
+            {
+              "stage": "fabric_activation",
+              "line": 151,
+              "values": {
+                "owner": 220533931910755591,
+                "generation": 6,
+                "previous": 4,
+                "rearm": 1
+              }
+            },
+            {
+              "stage": "configuration_complete",
+              "line": 152,
+              "values": {
+                "phase": "complete",
+                "owner": 220533931910755591,
+                "generation": 6,
+                "completed": 1646592,
+                "pending": 0,
+                "total": 1646592,
+                "base": 2491416576,
+                "counter": 42989193223,
+                "hash_ticks": 8252471967
+              }
+            },
+            {
+              "stage": "configuration_programmed",
+              "line": 153,
+              "values": {
+                "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+                "core_sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0",
+                "bytes": 1646592,
+                "owner": 220533931910755591,
+                "generation": 6
+              }
+            },
+            {
+              "stage": "fpga_query",
+              "line": 154,
+              "values": {}
+            },
+            {
+              "stage": "fpga_status",
+              "line": 155,
+              "values": {
+                "status": 0,
+                "words": 6,
+                "state": 0,
+                "version": 1704704,
+                "pins": 3221225609,
+                "soft": 3,
+                "error_location": 0,
+                "error_details": 15,
+                "ready": 1
+              }
+            },
+            {
+              "stage": "smmu",
+              "line": 156,
+              "values": {
+                "status": 0,
+                "reads": 26,
+                "idr0": 135233087,
+                "idr1": 242457880,
+                "aidr": 1,
+                "s_idr1": 2147483672,
+                "cr0": 0,
+                "ack": 0,
+                "gbpa": 0,
+                "agbpa": 0,
+                "s_cr0": 0,
+                "s_ack": 0,
+                "s_init": 0,
+                "s_gbpa": 0,
+                "s_agbpa": 0,
+                "identified": 1,
+                "settled": 1,
+                "bypass_controls_clear": 1
+              }
+            },
+            {
+              "stage": "ddr_firewall",
+              "line": 157,
+              "values": {
+                "status": 0,
+                "owner": 220533931910755591,
+                "generation": 6,
+                "reset": 15,
+                "mpfe_reset": 0,
+                "reads": 66,
+                "enable": 1,
+                "base": 2499805184,
+                "bytes": 8192
+              }
+            },
+            {
+              "stage": "ddr_region_0",
+              "line": 158,
+              "values": {
+                "index": 0,
+                "base": 2148532224,
+                "baseext": 0,
+                "limit": 3221225471,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_1",
+              "line": 159,
+              "values": {
+                "index": 1,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_2",
+              "line": 160,
+              "values": {
+                "index": 2,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_3",
+              "line": 161,
+              "values": {
+                "index": 3,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_4",
+              "line": 162,
+              "values": {
+                "index": 4,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_5",
+              "line": 163,
+              "values": {
+                "index": 5,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_6",
+              "line": 164,
+              "values": {
+                "index": 6,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_region_7",
+              "line": 165,
+              "values": {
+                "index": 7,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            },
+            {
+              "stage": "ddr_firewall_end",
+              "line": 166,
+              "values": {
+                "layout_known": 1,
+                "window_covered": 1
+              }
+            },
+            {
+              "stage": "computer_activity_initial",
+              "line": 167,
+              "values": {
+                "phase": "initial",
+                "fetches": 0,
+                "address": 0
+              }
+            },
+            {
+              "stage": "computer_activity_initial-held",
+              "line": 168,
+              "values": {
+                "phase": "initial-held",
+                "fetches": 0,
+                "address": 0
+              }
+            },
+            {
+              "stage": "computer_activity_run",
+              "line": 169,
+              "values": {
+                "phase": "run",
+                "fetches": 38413,
+                "address": 975
+              }
+            },
+            {
+              "stage": "computer_activity_return",
+              "line": 170,
+              "values": {
+                "phase": "return",
+                "fetches": 259262,
+                "address": 991
+              }
+            },
+            {
+              "stage": "computer_activity_return-held",
+              "line": 171,
+              "values": {
+                "phase": "return-held",
+                "fetches": 259262,
+                "address": 991
+              }
+            },
+            {
+              "stage": "computer_activity_relaunch",
+              "line": 172,
+              "values": {
+                "phase": "relaunch",
+                "fetches": 297676,
+                "address": 975
+              }
+            },
+            {
+              "stage": "computer_activity_final",
+              "line": 173,
+              "values": {
+                "phase": "final",
+                "fetches": 325992,
+                "address": 978
+              }
+            },
+            {
+              "stage": "computer_activity_final-held",
+              "line": 174,
+              "values": {
+                "phase": "final-held",
+                "fetches": 325992,
+                "address": 978
+              }
+            },
+            {
+              "stage": "master_stop",
+              "line": 175,
+              "values": {
+                "status": 0,
+                "owner": 220533931910755591,
+                "generation": 7,
+                "reset": 13,
+                "reader_reads": 88,
+                "reader_polls": 1,
+                "disable": 0,
+                "probe_polls": 2,
+                "cancel": 0,
+                "complete": 1
+              }
+            },
+            {
+              "stage": "computer_control",
+              "line": 176,
+              "values": {
+                "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+                "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+                "base": 536937216,
+                "map_sha256": "e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743",
+                "owner": 220533931910755591,
+                "generation": 8,
+                "execution_observed": 1
+              }
+            }
+          ],
+          "errors": [],
+          "loader_ready": false,
+          "complete": true,
+          "last_checkpoint": "computer_control",
+          "core_load_acceptance": false,
+          "smmu_observation": {
+            "status": 0,
+            "reads": 26,
+            "idr0": 135233087,
+            "idr1": 242457880,
+            "aidr": 1,
+            "s_idr1": 2147483672,
+            "cr0": 0,
+            "ack": 0,
+            "gbpa": 0,
+            "agbpa": 0,
+            "s_cr0": 0,
+            "s_ack": 0,
+            "s_init": 0,
+            "s_gbpa": 0,
+            "s_agbpa": 0,
+            "identified": 1,
+            "settled": 1,
+            "bypass_controls_clear": 1,
+            "secure_implemented": true,
+            "access_qualified": false
+          },
+          "ddr_firewall_observation": {
+            "status": 0,
+            "owner": 220533931910755591,
+            "generation": 6,
+            "reset": 15,
+            "mpfe_reset": 0,
+            "reads": 66,
+            "enable": 1,
+            "base": 2499805184,
+            "bytes": 8192,
+            "regions": [
+              {
+                "index": 0,
+                "base": 2148532224,
+                "baseext": 0,
+                "limit": 3221225471,
+                "limitext": 0
+              },
+              {
+                "index": 1,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              },
+              {
+                "index": 2,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              },
+              {
+                "index": 3,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              },
+              {
+                "index": 4,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              },
+              {
+                "index": 5,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              },
+              {
+                "index": 6,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              },
+              {
+                "index": 7,
+                "base": 0,
+                "baseext": 0,
+                "limit": 65535,
+                "limitext": 0
+              }
+            ],
+            "layout_known": true,
+            "window_covered": true,
+            "access_qualified": false
+          },
+          "master_stop_observation": {
+            "status": 0,
+            "owner": 220533931910755591,
+            "generation": 7,
+            "reset": 13,
+            "reader_reads": 88,
+            "reader_polls": 1,
+            "disable": 0,
+            "probe_polls": 2,
+            "cancel": 0,
+            "complete": 1,
+            "physical_ddr_drain_qualified": false
+          },
+          "computer_control_observation": {
+            "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+            "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+            "base": 536937216,
+            "map_sha256": "e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743",
+            "owner": 220533931910755591,
+            "generation": 8,
+            "execution_observed": true,
+            "command_cycle_reported": true,
+            "runtime_admission": false
+          },
+          "computer_activity": {
+            "complete": true,
+            "kind": "z80-instruction-fetch-bus",
+            "counter_bits": 32,
+            "samples": [
+              {
+                "phase": "initial",
+                "fetches": 0,
+                "address": 0
+              },
+              {
+                "phase": "initial-held",
+                "fetches": 0,
+                "address": 0
+              },
+              {
+                "phase": "run",
+                "fetches": 38413,
+                "address": 975
+              },
+              {
+                "phase": "return",
+                "fetches": 259262,
+                "address": 991
+              },
+              {
+                "phase": "return-held",
+                "fetches": 259262,
+                "address": 991
+              },
+              {
+                "phase": "relaunch",
+                "fetches": 297676,
+                "address": 975
+              },
+              {
+                "phase": "final",
+                "fetches": 325992,
+                "address": 978
+              },
+              {
+                "phase": "final-held",
+                "fetches": 325992,
+                "address": 978
+              }
+            ],
+            "runtime_admission": false
+          },
+          "configuration_transfer": {
+            "complete": true,
+            "completed_bytes": 1646592,
+            "core_sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0",
+            "arena_base": 2491416576,
+            "arena_size": 8388608
+          },
+          "fabric_activation": {
+            "owner": 220533931910755591,
+            "generation": 6,
+            "previous": 4,
+            "rearm": 1
+          },
+          "configuration_timing": {
+            "counter_frequency": 400000000,
+            "first_counter": 37679575222,
+            "last_counter": 42989193223,
+            "hash_ticks": 8252471967,
+            "interval_ticks": 5309618001,
+            "interval_hash_ticks": 3751748732
+          }
+        }
+      }
+    ]
+  },
+  "raw_console_sha256": "d68d5b7448b024a832bc2f262e1c7dcacd4e7c64f81eb5393931050ebebf647e",
+  "raw_bytes": 16014,
+  "native_boot_id": "1d8d771dc74c712c",
+  "fesboot_sent": true,
+  "native_error": "'complete'",
+  "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+  "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+  "native_controller_passed": false,
+  "configuration_cycles": 2,
+  "fabric_activations": [
+    {
+      "owner": 220533931910755591,
+      "generation": 4,
+      "previous": 0,
+      "rearm": 0
+    },
+    {
+      "owner": 220533931910755591,
+      "generation": 6,
+      "previous": 4,
+      "rearm": 1
+    }
+  ],
+  "master_stops": [
+    {
+      "status": 0,
+      "owner": 220533931910755591,
+      "generation": 5,
+      "reset": 13,
+      "reader_reads": 88,
+      "reader_polls": 1,
+      "disable": 0,
+      "probe_polls": 2,
+      "cancel": 0,
+      "complete": 1,
+      "physical_ddr_drain_qualified": false
+    },
+    {
+      "status": 0,
+      "owner": 220533931910755591,
+      "generation": 7,
+      "reset": 13,
+      "reader_reads": 88,
+      "reader_polls": 1,
+      "disable": 0,
+      "probe_polls": 2,
+      "cancel": 0,
+      "complete": 1,
+      "physical_ddr_drain_qualified": false
+    }
+  ],
+  "computer_returns": [
+    {
+      "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+      "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+      "base": 536937216,
+      "map_sha256": "e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743",
+      "owner": 220533931910755591,
+      "generation": 6,
+      "execution_observed": true,
+      "command_cycle_reported": true,
+      "runtime_admission": false
+    },
+    {
+      "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+      "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+      "base": 536937216,
+      "map_sha256": "e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743",
+      "owner": 220533931910755591,
+      "generation": 8,
+      "execution_observed": true,
+      "command_cycle_reported": true,
+      "runtime_admission": false
+    }
+  ],
+  "fetch_observations": [
+    {
+      "complete": true,
+      "kind": "z80-instruction-fetch-bus",
+      "counter_bits": 32,
+      "samples": [
+        {
+          "phase": "initial",
+          "fetches": 0,
+          "address": 0
+        },
+        {
+          "phase": "initial-held",
+          "fetches": 0,
+          "address": 0
+        },
+        {
+          "phase": "run",
+          "fetches": 38419,
+          "address": 979
+        },
+        {
+          "phase": "return",
+          "fetches": 259270,
+          "address": 983
+        },
+        {
+          "phase": "return-held",
+          "fetches": 259270,
+          "address": 983
+        },
+        {
+          "phase": "relaunch",
+          "fetches": 297682,
+          "address": 979
+        },
+        {
+          "phase": "final",
+          "fetches": 325996,
+          "address": 975
+        },
+        {
+          "phase": "final-held",
+          "fetches": 325996,
+          "address": 975
+        }
+      ],
+      "runtime_admission": false
+    },
+    {
+      "complete": true,
+      "kind": "z80-instruction-fetch-bus",
+      "counter_bits": 32,
+      "samples": [
+        {
+          "phase": "initial",
+          "fetches": 0,
+          "address": 0
+        },
+        {
+          "phase": "initial-held",
+          "fetches": 0,
+          "address": 0
+        },
+        {
+          "phase": "run",
+          "fetches": 38413,
+          "address": 975
+        },
+        {
+          "phase": "return",
+          "fetches": 259262,
+          "address": 991
+        },
+        {
+          "phase": "return-held",
+          "fetches": 259262,
+          "address": 991
+        },
+        {
+          "phase": "relaunch",
+          "fetches": 297676,
+          "address": 975
+        },
+        {
+          "phase": "final",
+          "fetches": 325992,
+          "address": 978
+        },
+        {
+          "phase": "final-held",
+          "fetches": 325992,
+          "address": 978
+        }
+      ],
+      "runtime_admission": false
+    }
+  ],
+  "configuration_timings": [
+    {
+      "counter_frequency": 400000000,
+      "first_counter": 30362517925,
+      "last_counter": 35671764985,
+      "hash_ticks": 4126457849,
+      "interval_ticks": 5309247060,
+      "interval_hash_ticks": 3752092637
+    },
+    {
+      "counter_frequency": 400000000,
+      "first_counter": 37679575222,
+      "last_counter": 42989193223,
+      "hash_ticks": 8252471967,
+      "interval_ticks": 5309618001,
+      "interval_hash_ticks": 3751748732
+    }
+  ],
+  "diagnostic_observations_verified": true,
+  "hardware_result": "native-two-fixed-package-load-run-return-observed-controller-stopped",
+  "controller_failure_scope": "post-native terminal host schema check; normalized activation omits the complete/data_held constants already required by the raw parser",
+  "classification": "two retained sealed-package configurations with fresh activation/stop and Z80 fetch/held return independently verified; original host controller failure retained; ordinary runtime admission remains open",
+  "input_receipt_sha256": {
+    "preflight.json": "4c86593b218e2e44e193105f1231bd6b2ffc08422dfea45d79a375b0b200ec7c",
+    "experiment-result.json": "e0f886c7dfe8ecc2711ee3cf25c2af0f28d62b1ff7d624b6dbf412f778785cef",
+    "transport.json": "a0c1a35088b626aabb6e896205e52b120668d5b8ef33fca75c2741795745fc4c"
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "status": "passed",
+  "classification": "offline regression against saved physical bytes; no device opened",
+  "raw_sha256": "d68d5b7448b024a832bc2f262e1c7dcacd4e7c64f81eb5393931050ebebf647e",
+  "decoder_sha256": "3d66943d0ee1b00c4c24d4e4431b9f8bcee7a7b42ee935103f3dd35a454f7ea6",
+  "original_controller_sha256": "8b62c833491090022e46ff33e018ce1055725008beba8ed25b128a0cde967247",
+  "original_key_error_reproduced": "complete",
+  "corrected_offline_checker_sha256": "e8914ff3201faca9556b335f38d1c657869bf5e38027f1e0032090bb24172c80",
+  "cases": [
+    {
+      "case": "positive",
+      "accepted": true
+    },
+    {
+      "case": "93-omitted",
+      "accepted": false
+    },
+    {
+      "case": "93-repeated",
+      "accepted": false
+    },
+    {
+      "case": "108-complete=1",
+      "accepted": false
+    },
+    {
+      "case": "108-data_held=1",
+      "accepted": false
+    },
+    {
+      "case": "108-omitted",
+      "accepted": false
+    },
+    {
+      "case": "108-repeated",
+      "accepted": false
+    },
+    {
+      "case": "132-omitted",
+      "accepted": false
+    },
+    {
+      "case": "132-repeated",
+      "accepted": false
+    },
+    {
+      "case": "133-omitted",
+      "accepted": false
+    },
+    {
+      "case": "133-repeated",
+      "accepted": false
+    },
+    {
+      "case": "134-omitted",
+      "accepted": false
+    },
+    {
+      "case": "134-repeated",
+      "accepted": false
+    },
+    {
+      "case": "135-omitted",
+      "accepted": false
+    },
+    {
+      "case": "135-repeated",
+      "accepted": false
+    },
+    {
+      "case": "150-complete=1",
+      "accepted": false
+    },
+    {
+      "case": "150-data_held=1",
+      "accepted": false
+    },
+    {
+      "case": "150-omitted",
+      "accepted": false
+    },
+    {
+      "case": "150-repeated",
+      "accepted": false
+    },
+    {
+      "case": "174-omitted",
+      "accepted": false
+    },
+    {
+      "case": "174-repeated",
+      "accepted": false
+    },
+    {
+      "case": "175-omitted",
+      "accepted": false
+    },
+    {
+      "case": "175-repeated",
+      "accepted": false
+    },
+    {
+      "case": "176-omitted",
+      "accepted": false
+    },
+    {
+      "case": "176-repeated",
+      "accepted": false
+    },
+    {
+      "case": "late-panic",
+      "accepted": false
+    }
+  ]
+}

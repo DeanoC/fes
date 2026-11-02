@@ -1,0 +1,32 @@
+{
+  "source_commit": "169d54c4899beb265b2d3136188ca45216b1ed64",
+  "status": "passed",
+  "selected_parent_ids": 1307,
+  "parent_partition_tests": [
+    436,
+    436,
+    435
+  ],
+  "parent_skips": [
+    [
+      "test_media_inputs.UbootDerivationTest.test_locked_upstream_derives_locked_uboot",
+      "locked upstream uboot.img cache is absent"
+    ],
+    [
+      "test_gpu_lease.GpuLeaseTests.test_macos_statfs_reports_the_lease_filesystem",
+      "statfs(2) layout is the macOS one"
+    ]
+  ],
+  "parent_cap_seconds": 300,
+  "outer_parent_cap_seconds": 900,
+  "fpga_tests": 1577,
+  "fpga_skips": 75,
+  "fpga_cap_seconds": 840,
+  "controller_fixture_cases": 115,
+  "upload_stateful_model_cases": 18,
+  "transport_helper_cases": 7,
+  "saved_trace_cases": 26,
+  "original_controller_bug_reproduced": "KeyError complete",
+  "scope": "original controller fixtures used invented activation fields; saved-byte regression uses the actual decoder schema",
+  "raw_receipts": "out/nano-activation-20261102/"
+}
