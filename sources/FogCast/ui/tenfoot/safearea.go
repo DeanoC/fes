@@ -130,6 +130,10 @@ type tenfootPrefs struct {
 	// FirmwareInfoSeen lists the families whose first-use firmware card
 	// was continued past.
 	FirmwareInfoSeen []string `json:"firmware_info_seen,omitempty"`
+	// SetupDone is the first-run marker: setup was finished or skipped.
+	// SetupSkipped lists the steps Skip setup left (#1345).
+	SetupDone    bool     `json:"setup_done,omitempty"`
+	SetupSkipped []string `json:"setup_skipped,omitempty"`
 }
 
 func homePrefValue(rooms bool) string {

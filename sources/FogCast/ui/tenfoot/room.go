@@ -43,6 +43,9 @@ type RoomSnapshot struct {
 	// Hero means the room asked for the large FES destination panel and the
 	// content box is big enough for it.
 	Hero bool
+	// NoPanel is a room that draws its own copy and actions, with no FES
+	// destination panel.
+	NoPanel bool
 	// WaitAck acknowledges a Confirm received while Checking.
 	WaitAck bool
 	// HeroDetail shows the selected installed package's or family's Details
@@ -300,6 +303,17 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 	if id == "" {
 		return false
 	}
+	// Until first-run setup is finished or skipped, every way Home (Start,
+	// the Home command, Settings) opens setup instead.
+	if a.setupPendingLocked() {
+		if a.setupRoomOpenLocked() {
+			return true
+		}
+		if a.openSetupStepLocked(max(a.setup.step, 0)) {
+			return true
+		}
+	}
+	a.setup.step = -1
 	if !a.refreshInstalledRoomsLocked() {
 		return false
 	}
@@ -784,6 +798,7 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 	if a.room.Hero() {
 		_, snap.Hero = rooms.HeroPanel(w, h)
 	}
+	snap.NoPanel = a.room.NoPanel()
 	snap.WaitAck = a.roomWaitAck && snap.Destination.Confirm() == rooms.ConfirmWait
 	snap.HeroDetail = snap.Hero && a.roomHeroDetail != "" && heroDetailKey(snap.Destination) == a.roomHeroDetail
 	if withImages {
@@ -845,6 +860,7 @@ func (a *App) newRoomInstanceLocked(pack rooms.Pack, initialGameID string, initi
 		Theme:                  a.theme,
 		ReducedMotion:          a.reducedMotion,
 		ReleaseOnly:            !a.allCores,
+		Setup:                  a.roomSetupLocked(pack.ID),
 		InitialGameID:          initialGameID,
 		InitialCoreID:          coreID,
 		SessionDisplayRequired: a.needsSessionDisplayLocked(),

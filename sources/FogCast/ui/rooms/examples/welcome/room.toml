@@ -1,0 +1,11 @@
+id = "example.welcome"
+title = "Welcome"
+author = "FES"
+description = "First-run setup, step 1: what FES is, the four computers, and what is built in."
+version = 1
+main = "main.lua"
+destination_panel = "none"
+
+[theme]
+background = "#F4F0E8"
+accent = "#235A46"

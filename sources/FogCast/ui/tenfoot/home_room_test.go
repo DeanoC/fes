@@ -415,8 +415,13 @@ func (f *startupRoomCores) List(ctx context.Context) ([]localcores.Core, error) 
 func TestConfiguredInstalledHomeRecoversStartupList(t *testing.T) {
 	t.Setenv("FOGCAST_HOME_ROOM", "")
 	h := newRoomHost(t)
+	// Setup is done, so the kit opens Home rather than first-run setup.
+	prefs := filepath.Join(t.TempDir(), "tenfoot.json")
+	if err := saveTenfootPrefs(prefs, tenfootPrefs{SafeAreaPct: DefaultSafeAreaPct, SetupDone: true}); err != nil {
+		t.Fatal(err)
+	}
 	// Pong is held back from v1, so the fixture lists all cores.
-	opts := Options{GFX: "menu-display", APIBase: h.server.URL, Home: "rooms", HomeSet: true, AllCores: true, PrefsPath: filepath.Join(t.TempDir(), "tenfoot.json"), CatalogConfig: filepath.Join(t.TempDir(), "absent.toml")}.normalized()
+	opts := Options{GFX: "menu-display", APIBase: h.server.URL, Home: "rooms", HomeSet: true, AllCores: true, PrefsPath: prefs, CatalogConfig: filepath.Join(t.TempDir(), "absent.toml")}.normalized()
 	app, err := configuredApp(opts)
 	if err != nil {
 		t.Fatal(err)

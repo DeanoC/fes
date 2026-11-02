@@ -42,6 +42,18 @@ func (r *Instance) installRoom() *lua.LTable {
 		L.Push(lua.LBool(r.coreShown(L.CheckString(1))))
 		return 1
 	}))
+	// room.setup is the first-run setup state: step and steps for a setup
+	// room, unfinished and skipped once setup was skipped.
+	setup := L.NewTable()
+	setup.RawSetString("step", lua.LNumber(r.opts.Setup.Step))
+	setup.RawSetString("steps", lua.LNumber(r.opts.Setup.Steps))
+	setup.RawSetString("unfinished", lua.LBool(r.opts.Setup.Unfinished))
+	skipped := L.NewTable()
+	for _, id := range r.opts.Setup.Skipped {
+		skipped.Append(lua.LString(id))
+	}
+	setup.RawSetString("skipped", skipped)
+	t.RawSetString("setup", setup)
 	// room.release_only is true when the launcher lists only the cores in
 	// this release; Home then leaves out its Library and Systems routes.
 	t.RawSetString("release_only", lua.LBool(r.opts.ReleaseOnly))

@@ -76,6 +76,8 @@ func TestEmbeddedExamplesLoadAndDraw(t *testing.T) {
 		"example.system":        true,
 		"example.hardware":      true,
 		"example.coleco-arcade": true,
+		"example.welcome":       true,
+		"example.setup-ready":   true,
 	}
 	if len(packs) != len(want) {
 		t.Fatalf("got %d built-in rooms, want %d", len(packs), len(want))

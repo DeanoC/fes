@@ -21,6 +21,16 @@ under `/media/fat/fogcast/state/FogCast/` (`tenfoot.json` and
 `rooms/<id>.state.json`). `tenfoot.json` `firmware_info_seen` lists the families
 whose first-use firmware card was continued past.
 
+On the kit (`-gfx menu-display` with a rooms Home), tenfoot opens first-run
+setup instead of Home until `tenfoot.json` has `setup_done` (#1345). The
+steps are rooms: Welcome (`example.welcome`), then Ready
+(`example.setup-ready`); the controllers (#980) and games folders (#1346)
+steps go between them. Finish and Skip setup both write `setup_done`; Skip
+also records the steps it left in `setup_skipped`, and Home shows a Get
+started banner whose Finish setup resumes at the first of them. Settings ›
+Run setup again starts from Welcome without clearing anything. Other
+launchers and backends start Home directly.
+
 Home, the rooms and the core catalog view list only the v1 release cores
 (`internal/release`, recorded in `docs/support-matrix.md` as v1, v2 or held
 back). Settings › Show all cores, `tenfoot.json` `all_cores`, or
