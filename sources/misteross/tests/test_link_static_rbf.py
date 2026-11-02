@@ -1,7 +1,9 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
+from scripts import zx81_rom
 from scripts.link_static_rbf import (
     LinkError,
     ZX81_BASIC_BLOCKS,
@@ -103,11 +105,17 @@ class LinkStaticRbfTests(unittest.TestCase):
         self.assertEqual((rect.x0, rect.x1), (2023, 2455))
 
     def test_zx81_basic_rom_fills_1024x10_lanes(self) -> None:
-        root = Path(__file__).resolve().parents[1]
-        image = load_hex_bytes(root / "cores/fes-zx81/rtl/zx8x.hex")
+        path = os.environ.get("FES_ZX81_ROM")
+        if not path:
+            self.skipTest("set FES_ZX81_ROM to the ZX81 edition 3 BASIC ROM")
+        image = zx81_rom.load(Path(path))
         rom = zx81_basic_rom(image)
         self.assertEqual(rom[:8].hex(), "d3fd01ff7fc3cb03")
-        self.assertEqual(lane_from_hex(root / "cores/fes-zx81/rtl/zx8x.hex"), rom[:1024])
+        with tempfile.TemporaryDirectory() as temporary:
+            hex_path = Path(temporary) / "zx81.hex"
+            hex_path.write_text(zx81_rom.hex_text(image))
+            self.assertEqual(load_hex_bytes(hex_path), image)
+            self.assertEqual(lane_from_hex(hex_path), rom[:1024])
         bels = zx81_basic_bels()
         self.assertEqual(len(bels), ZX81_BASIC_BLOCKS)
         self.assertEqual(
@@ -151,8 +159,8 @@ class LinkStaticRbfTests(unittest.TestCase):
             overlay_m10k_init_bt("s LAB.027.001:LUT_MASK.0 0\n", bels[0], first)
 
     def test_omitted_default_ram_words_splice_into_placed_m10k(self) -> None:
-        root = Path(__file__).resolve().parents[1]
-        image = load_hex_bytes(root / "cores/fes-zx81/rtl/zx8x.hex")
+        # Any 8 KiB image that starts with OUT (FD),A; no ROM bytes needed.
+        image = b"\xd3\xfd" + bytes(index * 37 & 0xFF for index in range(2, 8192))
         bel = zx81_machine_rom_bels()[0]
         name = bel_to_bt_name(bel)
         stored = [encode_m10k_ram_word(word) for word in pack_1024x10(zx81_basic_rom(image)[:1024])]

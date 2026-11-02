@@ -86,3 +86,47 @@ func TestImportCoreMediaRejectsEmptyAndMismatchedIdentity(t *testing.T) {
 		t.Fatalf("mismatch err = %v", err)
 	}
 }
+
+func TestBundledFirmwareReadsListAndOlderHosts(t *testing.T) {
+	t.Parallel()
+	good := protocol.BundledFirmware{ID: "emutos-192us", CoreID: "fes.atari-st", ROMID: "atari-st-firmware", Size: 196608, MediaID: strings.Repeat("e", 64), Licence: "GPL-2.0-only"}
+	bad := good
+	bad.MediaID = "not-a-digest"
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   any
+		want   int
+		err    bool
+	}{
+		{name: "list", status: http.StatusOK, body: protocol.BundledFirmwareList{Firmware: []protocol.BundledFirmware{good, bad}}, want: 1},
+		{name: "older host", status: http.StatusNotFound, want: 0},
+		{name: "unsupported", status: http.StatusNotImplemented, want: 0},
+		{name: "refused", status: http.StatusForbidden, err: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || r.URL.Path != "/api/v1/library/firmware/bundled" {
+					t.Errorf("request %s %s", r.Method, r.URL.Path)
+				}
+				w.WriteHeader(tc.status)
+				if tc.body != nil {
+					_ = json.NewEncoder(w).Encode(tc.body)
+				}
+			}))
+			defer server.Close()
+			list, err := NewClient(server.URL, server.Client()).BundledFirmware(context.Background())
+			if (err != nil) != tc.err || len(list) != tc.want {
+				t.Fatalf("list %+v err=%v", list, err)
+			}
+			if tc.want == 1 {
+				if fw, ok := BundledFirmwareFor(list, "fes.atari-st", "atari-st-firmware", 196608); !ok || fw != good {
+					t.Fatalf("lookup %+v %v", fw, ok)
+				}
+				if _, ok := BundledFirmwareFor(list, "fes.atari-st", "atari-st-firmware", 262144); ok {
+					t.Fatal("lookup ignored size")
+				}
+			}
+		})
+	}
+}

@@ -189,21 +189,27 @@ Programmer's Reference Manual (1986):
 
 The segment-cache contract for the completed CPU follows the 386:
 
-- The Phase 1 RTL implements real-mode `MOV Sreg, r/m16` loads for DS, ES, FS,
-  GS and SS. It updates the selector and sets the base to selector × 16; the
-  cached limit and attributes stay as they were. Real-mode far JMP, CALL and
-  RETF now write CS through `seg_w`, which has the same behavior: the selector
-  and base (selector × 16) change, while the cached limit and attributes stay
-  as they were, matching Bochs 3.1. Interrupt entry is still absent from this
-  slice ([RTL source](../cores/fes-common/rtl/i386/fes_i386_cpu.sv)).
-- The completed CPU must make a real-mode CS load set the base to selector ×
-  16, the limit to FFFFh, D/B=0 and G=0, and access-rights byte 93h (P=1,
-  DPL=0, S=1, read/write, expand-up, accessed data segment). This is the 386
-  rule described by Collins; the current RTL and Bochs 3.1 retain CS's cached
-  limit and access-right attributes on a real-mode load.
+- A real-mode load of DS, ES, FS, GS or SS (`MOV Sreg`, `POP Sreg`, LDS and
+  its kin) updates the selector and sets the base to selector × 16. The
+  cached limit, type, DPL, G and D/B stay as they were; P and S are set, as
+  Bochs's `load_seg_reg` sets them, so a cache that a null selector's
+  protected-mode load left not present is usable again.
+- A real-mode CS load (far JMP, CALL, RETF, IRET, an interrupt's or
+  exception's delivery) sets the base to selector × 16, the limit to FFFFh,
+  D/B=0 and G=0, and access-rights byte 93h (P=1, DPL=0, S=1, read/write,
+  expand-up, accessed data segment). This is the 386 rule described by
+  Collins. Bochs 3.1 keeps CS's cached limit and access rights instead.
+- Clearing PE keeps CS's cache but makes it a writable data segment (P and S
+  set, type 3), its DPL, limit, G and D/B kept, as Bochs's
+  `handleCpuModeChange` does; the 386's behaviour there is not documented,
+  and every return to real mode far-jumps before it matters.
 - In V86 mode every segment load sets the base to selector × 16, the limit to
-  FFFFh and the attributes to V86 values.
-- A protected-mode load replaces the whole cache from the descriptor.
+  FFFFh and the attributes to V86 values (Phase 5).
+- A protected-mode load replaces the whole cache from the descriptor, with
+  the limit scaled by G and the accessed bit set (Phase 2;
+  [RTL source](../cores/fes-common/rtl/i386/fes_i386_cpu.sv)). A null
+  selector loads a cache with base and limit 0 and access rights 10h, not
+  present, which refuses every access.
 
 So unreal mode works for DS, ES, FS, GS and SS. Software loads one of those
 segments with a large limit in protected mode and clears PE; its cached limit
@@ -213,10 +219,11 @@ are replaced when the register is loaded in protected or V86 mode. Under the
 byte 93h (read/write, expand-up, accessed data segment). DOS
 reloads DS and ES on every call, so unreal-mode programs that call DOS depend
 on the data-segment behavior, and Ultima VII's Voodoo memory manager runs in
-unreal mode. Every data access is checked against the cached limit in every
-mode: with a normal real-mode segment, a word access at offset FFFFh raises
-#GP (#SS for a stack access), while an unreal-mode data segment uses its cached
-extended limit.
+unreal mode. Every data access is checked against the cached limit, and the
+cached type (present, readable or writable, expand-down), in every mode, as
+Bochs checks them: with a normal real-mode segment, a word access at offset
+FFFFh raises #GP (#SS for a stack access), while an unreal-mode data segment
+uses its cached extended limit.
 
 The evidence:
 
@@ -244,9 +251,9 @@ The evidence:
 - Neither corpus observes hidden CS limit or access-right state:
   SingleStepTests/80386 has no unreal-mode set yet, and test386.asm has no
   unreal-mode test. This oracle difference is a known limit, not an
-  oracle-versus-corpus divergence; the planned directed unreal-mode test in
-  the general verification plan will check the RTL's 386 CS rule. It is not
-  currently listed as a Phase 2 exit criterion. See the simulation
+  oracle-versus-corpus divergence. The directed unreal-mode test checks the
+  RTL's 386 CS rule, and the lockstep gives the oracle the RTL's CS cache
+  after each real-mode CS load that Bochs left differing; see the simulation
   [known-limits entry](../cores/fes-common/sim/i386/README.md#known-limits).
 
 ### The 386, not the 486
@@ -1150,7 +1157,7 @@ no L2 between, and `cold_reset` empties the write buffer.
 | FLUSH | In | Invalidate L1; write back and invalidate L2. Completes while the CPU runs, is halted, is in shutdown or is held in reset |
 | Attribute map | In | The memory-type table above |
 | Profile | In | `i386dx` or `i486-isa`, `coherent` or `queue16`, sampled at reset |
-| Governor | In | Mode, reference cost table and frequency |
+| Governor | In | Preset (its reference cost table, frequency, wait states and bus), frequency override and turbo, sampled at reset; `GOV_N`/`GOV_D`, 100 kHz as a fraction of the clock ([speed control](#speed-control)) |
 | FERR, IGNNE | Out/in | x87 milestone |
 | Trace | Out | Retirement trace for simulation and kit diagnostics |
 
@@ -1169,29 +1176,67 @@ Requirements on the machine that matter for speed:
 
 Some games of the era run their logic in delay loops, or calibrate once and
 then overflow on a fast CPU; Turbo Pascal's CRT unit is the known case. The
-governor slows the CPU without changing any result.
+governor (`fes_i386_governor`, [RTL README](../cores/fes-common/rtl/i386/README.md#speed-governor))
+slows the CPU without changing any result.
 
 - **Modes:** `max`, and reference presets 286-12, 386SX-16, 386DX-25,
-  386DX-33, 386DX-40, 486DX-33 and 486DX2-66. A preset is a timing table and a
-  frequency, and a per-game setting may move the frequency. A turbo control
-  switches between the chosen preset and `max` while running.
-- **Mechanism:** each retired instruction adds its reference cycle cost to a
-  debt counter. Costs come from the 80286, Intel386 SX and DX, and i486
-  data-sheet timing tables, with their next-instruction term taken as one, a
-  per-preset
-  wait-state charge per memory operand, and for SX presets two bus cycles per
-  32-bit access. A fractional enable at the preset frequency pays the debt
-  down. D stops issuing new x86 instructions while the debt exceeds a window of
-  64 reference cycles, which keeps interrupt latency and pacing smooth.
+  386DX-33, 386DX-40, 486DX-33 and 486DX2-66. A preset is a timing table, a
+  frequency, a wait-state charge and a data bus width
+  ([`governor.toml`](../cores/fes-common/rtl/i386/governor.toml)), and a
+  per-game setting may move the frequency. A turbo control switches between
+  the chosen preset and `max`: at launch since [#1357](https://github.com/DeanoC/fes/issues/1357);
+  while running is [#1358](https://github.com/DeanoC/fes/issues/1358).
+
+  | ID | Preset | Table | Frequency | Wait states | Bus |
+  | ---: | --- | --- | ---: | ---: | ---: |
+  | 0 | `max` | — | — | — | — |
+  | 1 | 286-12 | 80286 | 12 MHz | 1 | 16 |
+  | 2 | 386SX-16 | Intel386 | 16 MHz | 1 | 16 |
+  | 3 | 386DX-25 | Intel386 | 25 MHz | 0 | 32 |
+  | 4 | 386DX-33 | Intel386 | 33.3 MHz | 0 | 32 |
+  | 5 | 386DX-40 | Intel386 | 40 MHz | 0 | 32 |
+  | 6 | 486DX-33 | i486 | 33.3 MHz | 0 | 32 |
+  | 7 | 486DX2-66 | i486 | 66.7 MHz | 0 | 32 |
+
+  The wait states are starting points; Phase 3 tunes the presets by play.
+- **Mechanism:** each instruction WB retires adds its reference cycle cost to
+  a debt counter. Costs come from the 80286, Intel386 SX and DX, and i486
+  data-sheet timing tables in real mode, with their next-instruction term
+  taken as one, one clock more for an address of base, index and
+  displacement, a per-preset wait-state charge per memory bus cycle (a
+  read-modify-write makes two), and for the 16-bit bus of the 286 and SX
+  presets a second bus cycle (two clocks and its waits) per dword access. A
+  branch WB takes charges the taken count. A REP string charges each element
+  as it retires and its base as it ends. A count the instruction's bytes do
+  not give takes a typical value (the middle of an early-out multiply's
+  range). A fractional enable at the preset frequency pays the debt down;
+  the debt stops at zero, so time the CPU spends waiting (I/O, memory, HLT)
+  banks nothing. D stops issuing new x86 instructions, and new REP elements,
+  while the debt exceeds a window of 64 reference cycles, which keeps
+  interrupt latency and pacing smooth. Prefixes, and the 386's and 486's
+  queue and cache effects, are not charged.
+- **Timing:** the class lookup, the cost ROM, the charge, the debt and its
+  compare are each a register, five clocks from a retirement to the hold, so
+  none of it is on D's or WB's paths; D's issue gains one registered term.
 - **Scope:** the governor never touches architectural state, timers or I/O
-  timing.
+  timing. It charges an I/O instruction's own reference cost, and the
+  machine's device time stays as its [I/O timing](pc386-machine-design.md#io-timing)
+  classes give it. While the CPU is ahead of the reference, device time
+  spends that lead, so a loop of port accesses takes the larger of its table
+  time and its device time.
 - **Setting:** a core setting persisted per library game through the
-  [core persistence](../../../docs/core-persistence.md) path. The default is
-  `max`; Ultima VI and The Black Gate carry presets
+  [core persistence](../../../docs/core-persistence.md) path: the
+  `fes.pc386.machine` record's words 0 (preset), 1 (frequency override, in
+  100 kHz units) and 3 (turbo at launch), which the CPU samples at its reset.
+  The default is `max`; Ultima VI and The Black Gate carry presets
   ([first acceptance games](#first-acceptance-games)).
+- **Reach:** the governor only slows the CPU. At 61.44 MHz the RTL is slower
+  than both 486 presets on loops with taken branches (a redirect costs about
+  11 cycles until Phase 4's prediction), so those loops run at its own speed
+  there; the 386 and 286 presets are within reach on every measured loop.
 - **Check:** microbenchmark loops retire within 5% of the preset's table time
   (budget), and the Turbo Pascal CRT delay calibration lands in the reference
-  machine's range.
+  machine's range ([governor record](../../../docs/validation/2026-11-01-pc386-m5-governor/summary.md)).
 
 ## x87
 
@@ -1320,7 +1365,7 @@ below are the plan for the complete CPU and machine.
 | --- | --- | --- |
 | Phase 0 | Oracle adapter and corpus runners | **Complete:** Bochs is selected; both corpora run against it and known divergences have deciding cases |
 | Phase 1 | Real-mode pipeline: twelve stages, data-port latency model, static not-taken prediction and real-mode microcode | **In progress:** the first [memory slice](#memory-slices) puts L1I, L1D and the bus interface on DDR port 0, with uncached MMIO, DMA and FLUSH ([record](validation/2026-10-28-i386-memory-path.md)). That record covers 1,744,099 corpus states, 32,000 random programs, and an RTL machine boot of FreeDOS. DC decodes ahead of D; the current slice includes register, immediate and memory-operand forms, a D–WB load freeze, near stack operations, real-mode far JMP/CALL/RETF and LES/LDS/LSS/LFS/LGS. The record's Quartus fits and nextpnr routes time this memory slice as diagnostics, not package or hardware acceptance. L2, real-mode microcode and measurements of DDR and SDRAM line fills through the CPU remain. Extend lockstep and route coverage as slices land. Exit requires full real-mode lockstep, whole-CPU routed fmax and area, and DDR and SDRAM line-fill measurements through the CPU path against the [DDR check](#l2-and-coherence) ([far-transfer record](https://github.com/DeanoC/fes/blob/main/sources/misteross/docs/validation/2026-10-26-i386-far.md#result)) |
-| Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
+| Phase 2 | Protected mode without V86 or paging: descriptor loads, privilege, gates, exceptions, debug registers. Enough for unreal mode and DOS extenders | **In progress:** the first slice ([#1369](https://github.com/DeanoC/fes/issues/1369)) builds MOV to and from CR0, CR2 and CR3, LMSW, SMSW, LGDT, SGDT, LIDT and SIDT, protected-mode segment loads from the GDT with their checks, error codes and accessed bit, and far JMP to a code segment at CPL 0: enough for unreal mode, which HIMEMX's XMS moves and Ultima VII's Voodoo memory manager use ([record](../../../docs/validation/2026-11-01-i386-phase2-unreal/summary.md)). Gates, privilege transitions, delivery through the IDT, LDT, TR, task switches and debug registers remain; an exception or interrupt with PE set stops the CPU. Exit: test386.asm's real- and protected-mode parts pass in RTL; random protected-mode lockstep clean |
 | Phase 3 | First playable: the CPU in `fes.pc386` with the scope the acceptance games set, L2 on DDR, the open BIOS, the governor | FreeDOS boots in simulation; first sealed package; Wolfenstein 3D, Ultima VI and both Ultima VII games play on a kit, with the two presets recorded |
 | Phase 4 | Speed: BTB, return stack, early ALU, real-mode far-branch prediction | Each feature with its microbenchmark and period-benchmark change, and the Wolfenstein 3D frame rate from captured frames before and after |
 | Phase 5 | V86, paging and task switches | test386.asm passes completely; JEMM386 boots; Wolfenstein 3D runs with EMS under it |

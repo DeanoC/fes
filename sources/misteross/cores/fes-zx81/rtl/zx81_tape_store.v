@@ -16,7 +16,14 @@ module zx81_tape_store (
     output wire [7:0]  tape_data
 );
     localparam [1:0] READY = 2'd3;
-    (* ram_style = "m10k_tdp" *) reg [7:0] image [0:16383];
+    // Quartus cannot keep port A's old-data read during a write; a write
+    // borrows the port, so that read is never used.
+`ifdef QUARTUS
+    (* ramstyle = "M10K, no_rw_check" *)
+`else
+    (* ram_style = "m10k_tdp" *)
+`endif
+    reg [7:0] image [0:16383];
     reg [7:0] read_data = 8'h00;
     wire [13:0] address_a = write_enable[0] ? write_addr : tape_addr;
     wire [13:0] address_b = write_addr + 14'd1;

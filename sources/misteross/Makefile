@@ -80,8 +80,8 @@ help:
 		"  build-fes-demo-media  Seal gamepad/palette-media application with HIP nextpnr" \
 		"  build-fes-demo-audio  Seal gamepad/stereo-tone application with HIP nextpnr" \
 		"  sim-fes-pong  Test the FES GP mailbox and fixed 720p Pong shell" \
-		"  sim-fes-zx81  Test the ZX81 machine, GP mailbox, raster and live DDR session display" \
-		"  sim-fes-zx81-rom  Read the ZX81 machine ROM port for the 8 KiB BASIC image" \
+		"  sim-fes-zx81  Test the ZX81 machine, GP mailbox, raster and live DDR session display (BASIC benches need FES_ZX81_ROM=)" \
+		"  sim-fes-zx81-rom  Read the ZX81 machine ROM port for FES_ZX81_ROM, the 8 KiB BASIC image" \
 		"  sim-fes-zx81-expansion  Test vacant 1 KiB and validation-cart RAMTOP on the Z80-like edge" \
 		"  sim-fes-zx81-variants  Probe family variants and verify the ZX80 tape load address" \
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
@@ -103,7 +103,7 @@ help:
 		"  sim-fes-coleco-quartus  Test RAM/media with supplied Quartus 17 models and Icarus" \
 		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
 		"  coleco-sprite-diagnostic  Generate the open Coleco Graphics II sprite cartridge and reference image" \
-		"  build-fes-zx81-quartus  Quartus 17.0.2 oracle package for FES ZX81" \
+		"  build-fes-zx81-quartus  Quartus 17.0.2 oracle package for FES ZX81 (FES_ZX81_ROM=)" \
 		"  build-fes-zx81  Seal FES ZX81 HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=1 uses one selected GPU)" \
 		"  build-fes-zx80  Seal experimental Sinclair ZX80 (package-only; same lock as fes.zx81)" \
 		"  build-fes-ts1000  Seal experimental Timex Sinclair 1000 (package-only; same lock as fes.zx81)" \
@@ -148,6 +148,7 @@ help:
 		"  sim-fes-pc386  Check pc386 devices, the fes.computer 1.1 exchanges, audio, OPL2, presenter and display plane on port 2" \
 		"  sim-fes-pc386-boot  Boot the Bochs BIOS and FreeDOS on the pc386 machine with the oracle CPU; replay its VGA trace" \
 		"  sim-fes-pc386-fesenv  Boot the games image and check FESENV sets BLASTER from CMOS" \
+		"  sim-fes-pc386-a20  Run A20TEST.COM on the boot and games images: A20 off at boot, the BIOS's A20 calls, HIMEMX's method" \
 		"  sim-fes-pc386-system  Boot FreeDOS on pc386_system, the M5 machine with fes_i386_cpu, to the prompt (about an hour)" \
 		"  sim-fes-pc386-sound  Boot FreeDOS and run the audio start-up exercise; writes sound.wav" \
 		"  sim-fes-pc386-vga  Check the pc386 presenter and plane, run the VGA test disk, replay its VGA trace against Bochs" \
@@ -202,7 +203,7 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-riscv sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-display-plane sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-zx81-variants sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80 sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-% sim-fes-atari-st sim-fes-atari-st-%,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-riscv sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-display-plane sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-save sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-zx81-variants sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80 sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-% sim-fes-atari-st sim-fes-atari-st-%,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
@@ -345,12 +346,21 @@ sim-fes-zx81-bus:
 		build/sim/fes-zx81-bus-$$name/Vexpansion_bus_harness $$name || exit $$?; \
 	done
 
+# These benches boot ZX81 BASIC from the user-supplied edition 3 ROM. No ROM
+# bytes are committed; set FES_ZX81_ROM to the 8 KiB image, or the targets skip.
+.PHONY: zx81-rom-hex sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-save
+ZX81_ROM_HEX := $(CURDIR)/build/sim/zx81-rom/zx81.hex
 sim-fes-zx81-expansion: sim-fes-zx81-bus
+ifneq ($(strip $(FES_ZX81_ROM)),)
+zx81-rom-hex:
+	$(PYTHON) scripts/zx81_rom.py --rom "$(FES_ZX81_ROM)" --hex "$(ZX81_ROM_HEX)"
+
+sim-fes-zx81-expansion: zx81-rom-hex
 	$(require_local_sim)
 	@for cart in 0 1; do \
 		mkdir -p build/sim/fes-zx81-expansion-$$cart; \
 		$(VERILATOR) --cc --exe --build --top-module expansion_machine -Wall \
-		-GCART_PRESENT=$$cart \
+		-GCART_PRESENT=$$cart -GFIRMWARE_INIT='"$(ZX81_ROM_HEX)"' \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -369,18 +379,56 @@ sim-fes-zx81-expansion: sim-fes-zx81-bus
 		build/sim/fes-zx81-expansion-$$cart/Vexpansion_machine $$ramtop || exit $$?; \
 	done
 
-.PHONY: sim-fes-zx81-rom
-sim-fes-zx81-rom:
+sim-fes-zx81-rom: zx81-rom-hex
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-rom
 	$(VERILATOR) --cc --exe --build --top-module rom_init_window -Wall \
+		-GROM_INIT='"$(ZX81_ROM_HEX)"' \
 		-Wno-UNUSEDSIGNAL -Wno-PINCONNECTEMPTY \
 		-Icores/fes-zx81/rtl \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-rom" \
 		cores/fes-zx81/sim/rom_init_window.v \
 		cores/fes-zx81/rtl/zx81_dpram.v \
 		"$(CURDIR)/cores/fes-zx81/sim/rom_init_tb.cpp"
-	@build/sim/fes-zx81-rom/Vrom_init_window "$(CURDIR)/cores/fes-zx81/rtl/zx8x.hex"
+	@build/sim/fes-zx81-rom/Vrom_init_window "$(ZX81_ROM_HEX)"
+
+sim-fes-zx81-machine: zx81-rom-hex
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-zx81-machine
+	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 -Icores/fes-zx81/rtl \
+		-GFIRMWARE_INIT='"$(ZX81_ROM_HEX)"' \
+		--Mdir "$(CURDIR)/build/sim/fes-zx81-machine" \
+		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
+		$(FES_Z80_NMOS_RTL) \
+		cores/fes-zx81/rtl/zx81_dpram.v \
+		"$(CURDIR)/cores/fes-zx81/sim/machine_tb.cpp"
+	@build/sim/fes-zx81-machine/Vzx81_machine
+
+sim-fes-zx81-save: zx81-rom-hex
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-zx81-save
+	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 -Icores/fes-zx81/rtl \
+		-GFIRMWARE_INIT='"$(ZX81_ROM_HEX)"' \
+		--Mdir "$(CURDIR)/build/sim/fes-zx81-save" \
+		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
+		$(FES_Z80_NMOS_RTL) \
+		cores/fes-zx81/rtl/zx81_dpram.v \
+		"$(CURDIR)/cores/fes-zx81/sim/save_tb.cpp"
+	@build/sim/fes-zx81-save/Vzx81_machine
+else
+sim-fes-zx81-expansion sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-save:
+	@echo "SKIP $@: set FES_ZX81_ROM to the ZX81 edition 3 BASIC ROM"
+endif
 
 .PHONY: sim-fes-zx81-variants
 sim-fes-zx81-variants:
@@ -425,38 +473,8 @@ sim-fes-zx81-variants:
 		"$(CURDIR)/cores/fes-zx81/sim/tape_load_tb.cpp"
 	@build/sim/fes-zx81-variant-zx80-load/Vzx81_machine
 
-.PHONY: sim-fes-zx81-machine
-sim-fes-zx81-machine:
+sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-expansion sim-fes-display-plane sim-fes-zx81-session sim-fes-zx81-variants sim-fes-zx81-save
 	$(require_local_sim)
-	@mkdir -p build/sim/fes-zx81-machine
-	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
-		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
-		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
-		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
-		-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 -Icores/fes-zx81/rtl \
-		--Mdir "$(CURDIR)/build/sim/fes-zx81-machine" \
-		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
-		$(FES_Z80_NMOS_RTL) \
-		cores/fes-zx81/rtl/zx81_dpram.v \
-		"$(CURDIR)/cores/fes-zx81/sim/machine_tb.cpp"
-	@build/sim/fes-zx81-machine/Vzx81_machine
-
-sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-expansion sim-fes-display-plane sim-fes-zx81-session sim-fes-zx81-variants
-	$(require_local_sim)
-	@mkdir -p build/sim/fes-zx81-save
-	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
-		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
-		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
-		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
-		-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 -Icores/fes-zx81/rtl \
-		--Mdir "$(CURDIR)/build/sim/fes-zx81-save" \
-		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
-		$(FES_Z80_NMOS_RTL) \
-		cores/fes-zx81/rtl/zx81_dpram.v \
-		"$(CURDIR)/cores/fes-zx81/sim/save_tb.cpp"
-	@build/sim/fes-zx81-save/Vzx81_machine
 	@mkdir -p build/sim/fes-zx81-video
 	$(VERILATOR) --cc --exe --build --top-module zx81_video_720p -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
@@ -965,7 +983,7 @@ sim-fes-coleco-board-sprites sim-fes-coleco-board-sprites-oss: coleco-sprite-dia
 		build/diagnostics/fes-coleco/sprites-16k.rom build/diagnostics/fes-coleco/sprites.rom
 
 build-fes-zx81-quartus:
-	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"
+	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"$(if $(strip $(FES_ZX81_ROM)), --rom "$(FES_ZX81_ROM)",)
 
 build-fes-zx81:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(filter 1,$(BEST_FMAX)), --best-fmax$(if $(strip $(GPU_DEVICES)), --gpu-devices "$(GPU_DEVICES)",),)
@@ -2695,7 +2713,7 @@ sim-fes-pcxt-game:
 	@test -n "$(PCXT_DIGGER_EXE)" || { echo "Set PCXT_DIGGER_EXE to the separately acquired pinned executable" >&2; exit 1; }
 	$(PYTHON) scripts/sim_fes_pcxt_dos.py --scenario game --download --digger-exe "$(PCXT_DIGGER_EXE)" --verilator "$(VERILATOR)"
 
-.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
+.PHONY: sim-fes-pc386 sim-fes-pc386-boot sim-fes-pc386-fesenv sim-fes-pc386-a20 sim-fes-pc386-sound sim-fes-pc386-vga sim-fes-pc386-system synth-fes-pc386 build-fes-pc386-quartus
 sim-fes-pc386:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite devices --verilator "$(VERILATOR)"
@@ -2712,6 +2730,10 @@ sim-fes-pc386-fesenv:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_pc386.py --suite boot --image games --type 'set|' \
 		--expect 'BLASTER=A220 I7 D1 T3' --limit-seconds 10 --download --verilator "$(VERILATOR)"
+
+sim-fes-pc386-a20:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pc386.py --suite a20 --download --verilator "$(VERILATOR)"
 
 sim-fes-pc386-sound:
 	$(require_local_sim)
@@ -2757,7 +2779,7 @@ sim-fes-c64-session:
 # proves boot or a few frames in a couple of minutes on a CI runner. The full
 # targets above run in the nightly/manual regression; pushes use smoke.
 .PHONY: sim-fes-zx81-smoke sim-fes-c64-smoke sim-fes-atari-st-smoke sim-fes-spectrum-smoke sim-fes-pcxt-smoke
-sim-fes-zx81-smoke: sim-fes-zx81-rom sim-fes-zx81-machine
+sim-fes-zx81-smoke: sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-variants
 
 sim-fes-c64-smoke: c64-diagnostic
 	$(require_local_sim)
