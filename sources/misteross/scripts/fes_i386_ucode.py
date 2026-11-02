@@ -37,7 +37,8 @@ FIELDS: tuple[tuple[str, int], ...] = (
     ('probe', 1), ('b', 3), ('seg', 3),
     ('far_jmp', 1), ('far_chk', 1), ('far_t', 1), ('sp_add', 1), ('sp_step', 1), ('a_t1', 1), ('popad_esp', 1),
     ('rd_cf', 1), ('rd_oszap', 1), ('wr_cf', 1), ('wr_oszap', 1), ('iret', 1), ('rg', 1), ('rm', 1), ('bound', 1),
-    ('desc', 3), ('segchk', 4), ('segw', 1), ('shadow', 1), ('nochk', 1), ('plus2', 1), ('sys', 4),
+    ('desc', 3), ('segchk', 4), ('segw', 1), ('shadow', 1), ('nochk', 1), ('plus2', 1), ('fpn', 3), ('fpj', 5),
+    ('x87p', 2), ('sys', 5),
     ('dmode', 2), ('gsz', 1), ('errp', 1), ('nwrap', 1), ('vmchk', 1), ('iimm', 1),
 )
 WIDTH = sum(width for _, width in FIELDS)
@@ -63,7 +64,9 @@ VALUES: dict[str, dict[str, int]] = {
     'segchk': {'none': 0, 'data': 1, 'ss': 2, 'jmp': 3, 'gate': 4, 'intcs': 5, 'call': 6, 'off': 7, 'ret': 8,
                'ldt': 9, 'tss': 10},
     'sys': {'cr0': 0, 'cr2': 1, 'cr3': 2, 'gdtl': 3, 'gdtb': 4, 'idtl': 5, 'idtb': 6, 'ldtr': 7, 'tr': 8, 'err': 9,
-            'arpl': 10, 'lar': 11, 'lsl': 12, 'verr': 13, 'verw': 14},
+            'ones': 10, 'fip': 11, 'fcs': 12, 'fdp': 13, 'fds': 14,
+            'arpl': 15, 'lar': 16, 'lsl': 17, 'verr': 18, 'verw': 19},
+    'x87p': {'none': 0, 'ip': 1, 'ipdp': 2},
     'dmode': {'load': 0, 'probe': 1, 'gdt': 2},
 }
 # Shorthands: a register as a source or destination.
