@@ -73,6 +73,22 @@ The board's first-load arena remains pinned until reboot, including after
 successful DMA completion. Active drain and repeated runtime loads remain
 separate qualification work.
 
+`HPSContextVerifier.ProbeReader` adds a distinct owned firmware operation for
+the sealed diagnostic's on-chip reader. It checks the same compiled source and
+control map, requires the reader-specific reply tag and verifies same-owner
+control reclose. Secure firmware compares the initial live identity, enables
+one generation, holds an AXI address across disable and observes both response
+beats before accepting the exact generation/cookie ACK. It then compares two
+final identity/state snapshots. Read-only identity success cannot substitute
+for this result. The real C probe and actual Avalon RTL cover the successful
+cycle, early/wrong ACK, partial burst, faults, timeouts and failed I/O without
+replaying commands. A second joined fixture uses the actual strong provider,
+SD lease, configuration dispatcher and pinned digest against that same Avalon
+RTL, including ownership/cache/data-scope loss after a write. This supplies no DDR/master drain, boot admission, data
+release or physical launch/return acceptance; the native loader still uses
+its separately qualified identity-only path until a matched reader build is
+prepared and qualified.
+
 `NewStoredConfigurationTransfer` consumes a `packagestore.Handoff`. It checks
 the retained format-2 archive against the compiled package/build/target/ABI and
 payload identities, compares the contained SD receipt to fresh secure ownership,

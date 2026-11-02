@@ -1,6 +1,6 @@
 # Experimental owned firmware bridge channel
 
-`fes.fabric.embedded.bridges` 1.5 supplies generated C/Go constants for the
+`fes.fabric.embedded.bridges` 1.7 supplies generated C/Go constants for the
 Linux-free Nano firmware experiment. It adds no programming profile, package
 ABI, register mapping or production compatibility entry. The FPGA endpoint
 contract and its generated inputs are unchanged.
@@ -36,6 +36,32 @@ or hardware-drain claims. Snapshot/Control/Release reject extra response bits.
 Reserved request bits, response bits, invalid operations and missing/mismatched
 owner/generation reject. The marker is not firmware authentication. Qualified
 boot identity, platform ownership and physical validation remain required.
+
+Operation 10 is a separate one-shot secure reader diagnostic. It shares the
+identity attempt with operation 6 and requires the same compiled aperture,
+live identity match, source ownership and closed never-enabled scope. No
+address, value, display generation or cookie is supplied by non-secure code.
+A missing write provider returns status 5 before consuming the attempt.
+
+The fixed on-chip responder recipe enables reader generation 1, holds an AXI
+address, disables with cookie 7, accepts that held address and returns the two
+beats separately. It requires no drain acknowledgement while the address or
+first beat remains pending. Only the exact final generation/cookie with zero
+pending transactions establishes this reader's completion. It checks the
+entire identity/state twice again before closing control. Each command and
+response beat is issued once; only read observations poll, for at most 128
+iterations per state. Read/write errors, premature or mismatched ACKs, a
+changed owner/generation, faults and timeouts retire the attempt and preserve
+the original error while attempting control reclose and containment.
+
+Success carries `x0=0`, `x1=0x46524431 << 32 | ABI`, and the full observed build
+in `x2/x3` in the operation-6 order. Native `HPSContextVerifier.ProbeReader`
+requires that dedicated tag and the final same-owner closed Snapshot at the
+original generation plus two. An identity-only reply cannot supply a reader
+result. All data bridges stay reset. This tests the diagnostic endpoint's
+on-chip responder, not DDR, scanout, other masters or runtime admission.
+The actual C probe and Avalon RTL are tested together with injected ownership
+and every read/write failure; physical acceptance of this operation is open.
 
 Operations 4/5 read the two halves of an optional source-context SHA-256.
 They use the same cookie and expected owner/generation. Each reply carries

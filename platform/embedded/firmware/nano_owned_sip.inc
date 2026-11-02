@@ -49,6 +49,12 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
             fes_nano_platform_identity_report();
             goto out;
         }
+        if (x1 == FES_EMBEDDED_BRIDGE_PROBE_READER) {
+            fes_nano_reader_sip(fes_nano_platform_identity_probe(),x2,x4,
+                                request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r);
+            fes_nano_platform_identity_report();
+            goto out;
+        }
         if (x1 == FES_EMBEDDED_BRIDGE_CONFIGURATION) {
             fes_nano_identity_configuration_sip(fes_nano_platform_identity_probe(),x2,x4,
                                                 request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r);

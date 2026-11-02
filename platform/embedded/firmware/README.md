@@ -454,6 +454,22 @@ retires ownership, preserving the first failure and cleanup result. The
 held-data close supplies no fresh fabric acknowledgement or active data drain.
 This is an aperture qualification diagnostic, not a runtime admission provider.
 
+Private operation 10 adds a bounded on-chip reader cycle through that same
+source-bound secure probe. It shares the identity attempt, so read-only probing
+and reader exercise cannot be replayed within one boot. After the initial live
+identity match it enables reader generation 1, offers a held address, disables
+with cookie 7 and returns two response beats separately. A held address or a
+partial burst cannot acknowledge drain. Only the final exact ACK with zero
+pending requests succeeds; two final identity/state snapshots precede control
+reclose. Commands and response beats issue once, read polling is bounded, and
+failure preserves the original error and retires ownership. Fixed offsets and
+values are owned by firmware; the non-secure request supplies no register or
+address. Its distinct reply tag is checked by native `ProbeReader`. The actual
+C service and Avalon RTL pass their joined host tests, including I/O failures,
+premature ACK, faults and ownership loss. This operation remains physically
+unqualified and supplies no DDR, scanout, other-master drain or data release.
+The previously qualified native loader still selects identity-only probing.
+
 The probe now checks SDM readiness before opening control. It sends only
 `CONFIG_STATUS`, keeps a zero-initialized six-word response on the secure
 stack, requires exact transport/length and the complete ready flags, and

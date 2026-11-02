@@ -84,6 +84,13 @@ void fes_nano_platform_identity_report(void)
 static void identity_trace(void *context, unsigned stage)
 {
     (void)context;
+    if (stage>=FES_ID_READER_ENABLED && stage<=FES_ID_READER_DRAINED) {
+        NOTICE("FES_NANO_READER_CYCLE phase=%u reader_generation=1 cookie=7 owner=%llx generation=%llu reset=%x\n",stage,
+               (unsigned long long)fes_nano_owned_bridges.state.owner,
+               (unsigned long long)fes_nano_owned_bridges.state.generation,
+               fes_nano_owned_bridges.state.reset);
+        return;
+    }
     const char *name=stage==FES_ID_OPEN?"open":stage==FES_ID_READ?"read":
                      stage==FES_ID_CLOSE?"close":stage==FES_ID_COMPLETE?"closed":"contain";
     NOTICE("FES_NANO_IDENTITY phase=%s owner=%llx generation=%llu reset=%x base=%lx\n",name,
@@ -104,13 +111,32 @@ static int identity_read(void *context, uint32_t offset, uint32_t *value)
      * translation and data cache disabled. A changed context needs separate
      * qualification; never turn translation off as a fallback. */
     if (!identity_probe.active || !s->control_expected || (read_sctlr_el3()&5U) ||
-        offset>FES_EMBEDDED_REG_ACK_COOKIE_HI || offset&3U ||
+        (offset>FES_EMBEDDED_REG_ACK_COOKIE_HI &&
+         (!identity_probe.reader || (offset!=0x8c && offset!=0x90))) || offset&3U ||
         fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1) return -1;
     dsbsy();
     NOTICE("FES_NANO_IDENTITY_ACCESS phase=before ordinal=%u offset=%x value=0\n",identity_probe.reads,offset);
     *value=mmio_read_32(FES_NANO_CONTROL_BASE+offset);
     NOTICE("FES_NANO_IDENTITY_ACCESS phase=after ordinal=%u offset=%x value=%x\n",identity_probe.reads,offset,*value);
     dsbsy();
+    return (read_sctlr_el3()&5U) || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ? -1 : 0;
+}
+static int identity_write(void *context, uint32_t offset, uint32_t value)
+{
+    struct fes_nano_cold *s=context;
+    if (!identity_probe.reader || !identity_probe.active || !s->control_expected ||
+        (read_sctlr_el3()&5U) ||
+        fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1) return -1;
+    switch(offset) {
+    case FES_EMBEDDED_REG_REQUEST_GENERATION_LO:case FES_EMBEDDED_REG_REQUEST_GENERATION_HI:
+    case FES_EMBEDDED_REG_REQUEST_COOKIE_LO:case FES_EMBEDDED_REG_REQUEST_COOKIE_HI:
+    case FES_EMBEDDED_REG_COMMAND:case 0x80:case 0x84:case 0x88:break;
+    default:return -1;
+    }
+    dsbsy();
+    NOTICE("FES_NANO_READER_WRITE phase=before offset=%x value=%x\n",offset,value);
+    mmio_write_32(FES_NANO_CONTROL_BASE+offset,value);dsbsy();
+    NOTICE("FES_NANO_READER_WRITE phase=after offset=%x value=%x\n",offset,value);
     return (read_sctlr_el3()&5U) || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ? -1 : 0;
 }
 static int identity_contain(void *context)
@@ -137,7 +163,7 @@ int fes_nano_platform_identity_setup(void)
     unsigned qualified=context_nonzero && map_nonzero && !(sctlr&5U) &&
         FES_NANO_CONTROL_BASE>=0x20000000UL && FES_NANO_CONTROL_BASE<=0x3fffff00UL &&
         !(FES_NANO_CONTROL_BASE&3U);
-    struct fes_nano_identity_ops io={.context=&provider,.configured=identity_configured,.read32=identity_read,.contain=identity_contain,.trace=identity_trace};
+    struct fes_nano_identity_ops io={.context=&provider,.configured=identity_configured,.read32=identity_read,.contain=identity_contain,.trace=identity_trace,.write32=identity_write};
     int result=fes_nano_identity_init(&identity_probe,&fes_nano_owned_bridges,io,
                                       FES_NANO_CONTROL_ABI,build,qualified);
     if (result) NOTICE("FES_NANO_IDENTITY_FAILURE stage=%u error=%d sctlr=%llx base=%lx\n",

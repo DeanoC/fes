@@ -1,14 +1,14 @@
 {
   "source": {
     "repository": "DeanoC/fes",
-    "commit": "1a0cf9d46f6d30f4c4cead17a7f5252109b41ba2",
+    "commit": "207e8d619f2cab5bb2f34a7fc90f5c50cea3ca82",
     "file": "platform/embedded/firmware/generated/fes_embedded_bridges.h",
-    "note": "Wire constants unchanged from the frozen retirement header; closed SD containment may advance the one-shot configuration generation before preparation."
+    "note": "Source base for the reader extension, introduced with this updated oracle. Existing constants retain the frozen retirement header values at 1a0cf9d46f6d30f4c4cead17a7f5252109b41ba2. The new reader operation/tag supply no DDR drain or runtime admission."
   },
   "fabric": {
     "id": "fes.fabric.embedded.bridges",
     "major": 1,
-    "minor": 6
+    "minor": 7
   },
   "constants": {
     "FesEmbeddedBridgeCall": 3254780673,
@@ -43,6 +43,8 @@
     "FesEmbeddedBridgePrepareConfiguration": 8,
     "FesEmbeddedBridgePreparationTag": 1178816561,
     "FesEmbeddedBridgeRetireConfiguration": 9,
-    "FesEmbeddedBridgeRetirementTag": 1178817073
+    "FesEmbeddedBridgeRetirementTag": 1178817073,
+    "FesEmbeddedBridgeProbeReader": 10,
+    "FesEmbeddedBridgeReaderTag": 1179796529
   }
 }

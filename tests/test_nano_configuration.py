@@ -142,3 +142,35 @@ class NanoConfigurationTests(unittest.TestCase):
                         self.assertIn('phase=complete',result.stdout)
                         self.assertRegex(result.stdout,r'phase=closed owner=[0-9a-f]+ generation=6 ')
                     if mutation==73:self.assertRegex(result.stdout,r'FES_NANO_CORE_RETIRED_STATUS owner=[0-9a-f]+ generation=4 ')
+            # Reuse that exact strong provider, dispatcher, digest and SD lease,
+            # replacing only the FPGA register model with its actual Avalon RTL.
+            objects=[sha_object]
+            for name in sources:
+                obj=base/(Path(name).name+'.o')
+                extra=['-DFES_TEST_READER_RTL','-Dmain=fes_strong_reader_main'] if name.startswith('tests/') else []
+                compiled=subprocess.run(['cc',*flags,'-Wextra','-DFES_TEST_HPS_CONTEXT',*extra,
+                                         '-c',str(FW/name),'-o',str(obj)],capture_output=True,text=True,timeout=30)
+                self.assertEqual(compiled.returncode,0,compiled.stderr)
+                objects.append(obj)
+            fpga=ROOT/'sources/misteross'
+            compiled=subprocess.run(['verilator','--cc','--exe','--build','-j','2',
+                '--top-module','fes_de25_embedded','-Wall','-Wno-UNUSEDSIGNAL','--Mdir',str(base/'reader-obj'),
+                '-I'+str(fpga/'cores/fes-common/generated'),
+                "-DFES_DE25_COMPUTER_BUILD_ID=128'h778899aabbccddee0011223344556677",
+                '-CFLAGS','-std=c++17 -O1 -UNDEBUG -DFES_TEST_STRONG_READER -fsanitize=undefined -fno-sanitize-recover=all -I'+str(FW),
+                '-LDFLAGS','-fsanitize=undefined '+' '.join(str(p) for p in objects),
+                str(fpga/'cores/fes-common/rtl/fes_embedded_control.sv'),
+                str(fpga/'prototypes/de25_board_control/fes_de25_embedded.sv'),
+                str(FW/'tests/nano_reader_rtl_test.cpp')],capture_output=True,text=True,timeout=90)
+            self.assertEqual(compiled.returncode,0,compiled.stdout+'\n'+compiled.stderr)
+            for mutation in range(74,82):
+                with self.subTest(strong_reader_rtl=mutation):
+                    result=subprocess.run([base/'reader-obj/Vfes_de25_embedded',str(mutation)],
+                                          capture_output=True,text=True,timeout=15)
+                    self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-3000:])
+                    self.assertIn('phase=complete',result.stdout)
+                    if mutation==74:
+                        for stage in range(9,14):self.assertIn('FES_NANO_READER_CYCLE phase='+str(stage)+' ',result.stdout)
+                        self.assertRegex(result.stdout,r'phase=closed owner=[0-9a-f]+ generation=6 ')
+                    else:self.assertIn('phase=before offset=',result.stdout)
+            print('PASS 8 strong-provider/SD/configuration/actual-reader-RTL success and failure cases',flush=True)

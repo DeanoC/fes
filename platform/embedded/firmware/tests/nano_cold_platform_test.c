@@ -19,6 +19,11 @@ static uint64_t mpidr,sctlr;
 #include <socfpga_mailbox.h>
 static unsigned fpga_reads,bad_magic,bad_build,flip_cache,lose_data,bad_open,bad_close;
 static unsigned config_calls,config_fault;
+#ifdef FES_TEST_READER_RTL
+static unsigned fpga_writes;
+uint32_t fes_test_reader_read(uint32_t);
+void fes_test_reader_write(uint32_t,uint32_t);
+#endif
 int mailbox_send_cmd(uint32_t job,uint32_t cmd,uint32_t *args,unsigned length,uint32_t urgent,
                        uint32_t *response,unsigned *words)
 {
@@ -143,11 +148,15 @@ uint32_t mmio_read_32(uintptr_t a)
         assert(bridge==FES_NANO_BRIDGES_DATA);fpga_reads++;
         uint32_t offset=(uint32_t)(a-FES_NANO_CONTROL_BASE),value=0;
         static const uint32_t build[4]=FES_NANO_CONTROL_BUILD;
+#ifdef FES_TEST_READER_RTL
+        (void)build;value=fes_test_reader_read(offset);
+#else
         if(offset==FES_EMBEDDED_REG_MAGIC)value=FES_EMBEDDED_MAGIC^(bad_magic?1:0);
         else if(offset==FES_EMBEDDED_REG_VERSION)value=FES_EMBEDDED_VERSION;
         else if(offset==FES_EMBEDDED_REG_ABI)value=FES_NANO_CONTROL_ABI;
         else if(offset>=FES_EMBEDDED_REG_BUILD0 && offset<=FES_EMBEDDED_REG_BUILD3)
             value=build[(offset-FES_EMBEDDED_REG_BUILD0)/4]^(bad_build?1:0);
+#endif
         if(flip_cache && fpga_reads==8)sctlr=4;
         if(lose_data && fpga_reads==15)bridge&=~4U;
         return value;
@@ -186,6 +195,16 @@ uint32_t mmio_read_32(uintptr_t a)
 }
 uint16_t mmio_read_16(uintptr_t a) { (void)a;assert(0);return 0; }
 void mmio_write_32(uintptr_t a,uint32_t v) {
+#ifdef FES_TEST_READER_RTL
+    if(a>=FES_NANO_CONTROL_BASE && a<FES_NANO_CONTROL_BASE+0x100) {
+        assert(bridge==FES_NANO_BRIDGES_DATA);fpga_writes++;
+        fes_test_reader_write((uint32_t)(a-FES_NANO_CONTROL_BASE),v);
+        if(fpga_writes==1 && configuration_mutation==78)per0&=~0x80U;
+        if(fpga_writes==1 && configuration_mutation==80)sctlr=4;
+        if(fpga_writes==1 && configuration_mutation==81)bridge&=~4U;
+        return;
+    }
+#endif
 #if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
     if(a==FES_NANO_COLD_RSTMGR+0x2c) {assert((v&13U)==(bridge&13U));bridge=v;return;}
 #endif
@@ -265,6 +284,11 @@ int main(int argc,char **argv)
     assert(reply[0]==0 && (uint32_t)reply[1]==0xdf && reply[2]==record.owner && reply[3]==1);
     assert(masters.owns(masters.context,record.owner,record.epoch)==1);
     fes_nano_owned_bridges=b;
+    fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_READER,
+                       record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+    assert(reply[0]==FES_EMBEDDED_BRIDGE_NOT_READY &&
+           reply[1]==(uint64_t)FES_EMBEDDED_BRIDGE_READER_TAG<<32 && !reply[2] && !reply[3]);
+    assert(!engine_calls && bridge==15);
 #if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
     if(mutation==0 || mutation>=43) {
         configuration_mutation=mutation;
@@ -273,6 +297,10 @@ int main(int argc,char **argv)
         assert(data==(void *)(uintptr_t)FES_NANO_CONFIG_BASE);
         for(unsigned i=0;i<FES_NANO_CONFIG_BYTES;i++)data[i]=(uint8_t)i;
         assert(fes_nano_platform_identity_setup()==1 && fes_nano_platform_configuration_setup()==1);
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_READER,
+                           record.owner+1,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        assert(reply[0]==2 && (reply[1]>>32)==FES_EMBEDDED_BRIDGE_READER_TAG &&
+               !fes_nano_platform_identity_probe()->attempted && !fpga_reads && !config_calls);
         if(mutation>=67) {
             assert(FES_NANO_CONTROLLED_SD && fes_nano_platform_sd_setup()==1);
             fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_RESUME,record.owner,FES_EMBEDDED_SD_COOKIE,1,reply);
@@ -312,7 +340,9 @@ int main(int argc,char **argv)
         }
         assert(!reply[0] && reply[1]==((uint64_t)FES_EMBEDDED_BRIDGE_PREPARATION_TAG<<32|FES_NANO_CONFIG_BYTES));
         assert(reply[2]==record.owner && reply[3]==configuration_generation && !engine_calls);
-        for(unsigned op=4;op<=7;op++) {
+        const unsigned query_ops[]={4,5,6,7,FES_EMBEDDED_BRIDGE_PROBE_READER};
+        for(unsigned index=0;index<sizeof(query_ops)/sizeof(query_ops[0]);index++) {
+            unsigned op=query_ops[index];
             fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,op,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
             assert(reply[0]==1 && !fpga_reads && !config_calls && !engine_calls);
         }
@@ -414,6 +444,27 @@ configured_bytes:
         assert(fes_nano_platform_configuration()->finished && !fes_nano_platform_configuration()->failed);
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
         assert(!reply[0] && reply[2]==record.owner && reply[3]==configuration_generation && (uint32_t)reply[1]==0xdf);
+#ifdef FES_TEST_READER_RTL
+        assert(mutation>=74 && mutation<=81);
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_READER,
+                           record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
+        struct fes_nano_identity_probe *probe=fes_nano_platform_identity_probe();
+        if(mutation==74) {
+            assert(!reply[0] && (reply[1]>>32)==FES_EMBEDDED_BRIDGE_READER_TAG &&
+                   fpga_writes==12 && fpga_reads>60 && bridge==15 && !probe->failed &&
+                   fes_nano_owned_bridges.state.generation==configuration_generation+2);
+        } else {
+            assert(reply[0]==4 && !reply[2] && !reply[3] && probe->failed && !probe->active &&
+                   fes_nano_owned_bridges.failed && (bridge&2)==2);
+            if(mutation==79)assert(probe->first_error==-110);
+            if(mutation==81)assert(probe->cleanup_error<0);
+        }
+        unsigned before_reads=fpga_reads,before_writes=fpga_writes;
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_READER,
+                           record.owner,FES_EMBEDDED_BRIDGE_COOKIE,fes_nano_owned_bridges.state.generation,reply);
+        assert(reply[0] && !reply[2] && !reply[3] && fpga_reads==before_reads && fpga_writes==before_writes);
+        return 0;
+#endif
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
         assert(!reply[0] && fpga_reads==30 && bridge==15 && fes_nano_owned_bridges.state.generation==configuration_generation+2);
         return 0;
@@ -532,4 +583,5 @@ configured_bytes:
     per0&=~0x80U;assert(masters.quiesce(masters.context,FES_NANO_PRODUCERS_ALL)<0);
     per0|=0x80U;assert(masters.owns(masters.context,record.owner,record.epoch)!=1);
     assert(fes_nano_platform_boot_record(&record,&policy,&masters)<0);
+    return 0;
 }

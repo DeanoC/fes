@@ -76,6 +76,18 @@ func (v *HPSContextVerifier) checkedControlMap(raw []byte) (hpsControlMap, error
 // checked locally; firmware supplies its own immutable address and identity.
 // HPSContextVerifier deliberately remains separate from BootHandoffVerifier.
 func (v *HPSContextVerifier) ProbeIdentity(raw []byte) (FPGAIdentityObservation, error) {
+	return v.probeControl(raw, g.FesEmbeddedBridgeProbeIdentity, g.FesEmbeddedBridgeIdentityTag)
+}
+
+// ProbeReader verifies the same sealed identity and executes the firmware's
+// one-shot on-chip reader enable/held-address/partial-burst/drain recipe before
+// control reclose. It shares the identity attempt and does not open data bridges
+// or provide a general DDR, display or active-master containment receipt.
+func (v *HPSContextVerifier) ProbeReader(raw []byte) (FPGAIdentityObservation, error) {
+	return v.probeControl(raw, g.FesEmbeddedBridgeProbeReader, g.FesEmbeddedBridgeReaderTag)
+}
+
+func (v *HPSContextVerifier) probeControl(raw []byte, operation, tag uint32) (FPGAIdentityObservation, error) {
 	m, err := v.checkedControlMap(raw)
 	if err != nil {
 		return FPGAIdentityObservation{}, err
@@ -89,14 +101,14 @@ func (v *HPSContextVerifier) ProbeIdentity(raw []byte) (FPGAIdentityObservation,
 	if before.Generation > math.MaxUint64-2 || !v.coldSource(source) {
 		return FPGAIdentityObservation{}, errors.New("native fabric: identity probe requires fresh closed cold scope")
 	}
-	r, err := v.cpu.Invoke([7]uint64{uint64(g.FesEmbeddedBridgeCall), uint64(g.FesEmbeddedBridgeProbeIdentity), before.Owner, uint64(g.FesEmbeddedBridgeCookie), before.Generation})
+	r, err := v.cpu.Invoke([7]uint64{uint64(g.FesEmbeddedBridgeCall), uint64(operation), before.Owner, uint64(g.FesEmbeddedBridgeCookie), before.Generation})
 	if err != nil {
 		return FPGAIdentityObservation{}, err
 	}
-	if r == ([4]uint64{uint64(g.FesEmbeddedBridgeNotReady), uint64(g.FesEmbeddedBridgeIdentityTag) << 32}) {
+	if r == ([4]uint64{uint64(g.FesEmbeddedBridgeNotReady), uint64(tag) << 32}) {
 		return FPGAIdentityObservation{}, ErrIdentityNotReady
 	}
-	if r[0] != 0 || uint32(r[1]>>32) != g.FesEmbeddedBridgeIdentityTag || uint32(r[1]) != v.context.ControlABI {
+	if r[0] != 0 || uint32(r[1]>>32) != tag || uint32(r[1]) != v.context.ControlABI {
 		return FPGAIdentityObservation{}, fmt.Errorf("native fabric: secure FPGA identity rejected, status %d", r[0])
 	}
 	id := embeddedcontrol.Identity{ABI: uint32(r[1]), Build: [4]uint32{uint32(r[3]), uint32(r[3] >> 32), uint32(r[2]), uint32(r[2] >> 32)}}

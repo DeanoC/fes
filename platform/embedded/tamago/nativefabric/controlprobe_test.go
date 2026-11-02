@@ -18,8 +18,12 @@ func controlMapFixture(t *testing.T) []byte {
 	return raw
 }
 func controlProbeCPU(t *testing.T, replies [][4]uint64, failure int, calls *int) FirmwareCaller {
+	return probeCPU(t, replies, failure, calls, 6)
+}
+
+func probeCPU(t *testing.T, replies [][4]uint64, failure int, calls *int, operation uint64) FirmwareCaller {
 	t.Helper()
-	ops := []uint64{0, 4, 5, 0, 6, 0}
+	ops := []uint64{0, 4, 5, 0, operation, 0}
 	return bridgeFirmwareFunc(func(request [7]uint64) ([4]uint64, error) {
 		i := *calls
 		*calls++

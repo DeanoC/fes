@@ -62,6 +62,77 @@ static int identity_read(struct fes_nano_identity_probe *p, const struct fes_nan
     }
     return control_owned(p,control);
 }
+
+static int reader_write(struct fes_nano_identity_probe *p, const struct fes_nano_bridge_snapshot *control,
+                           uint32_t offset, uint32_t value)
+{
+    if (control_owned(p,control) || p->io.write32(p->io.context,offset,value) ||
+        control_owned(p,control)) return fail(p,-5);
+    return 0;
+}
+static int reader_read(struct fes_nano_identity_probe *p, const struct fes_nano_bridge_snapshot *control,
+                          uint32_t offset, uint32_t *value)
+{
+    if (control_owned(p,control)) return -1;
+    p->reads++;
+    if (p->io.read32(p->io.context,offset,value) || control_owned(p,control)) return fail(p,-5);
+    return 0;
+}
+/* Only read polling can repeat. Commands and injected response beats are
+ * issued once. A held AXI address and the first of two beats must not grant an
+ * acknowledgement. This responder is on chip, not a DDR containment proof. */
+static int reader_state(struct fes_nano_identity_probe *p, const struct fes_nano_bridge_snapshot *control,
+                           uint32_t status, uint32_t pending, unsigned acknowledged)
+{
+    for (unsigned poll=0;poll<128;poll++) {
+        uint32_t values[8];
+        static const uint32_t offsets[]={FES_EMBEDDED_REG_STATUS,FES_EMBEDDED_REG_PENDING,
+            FES_EMBEDDED_REG_GENERATION_LO,FES_EMBEDDED_REG_GENERATION_HI,
+            FES_EMBEDDED_REG_ACK_GENERATION_LO,FES_EMBEDDED_REG_ACK_GENERATION_HI,
+            FES_EMBEDDED_REG_ACK_COOKIE_LO,FES_EMBEDDED_REG_ACK_COOKIE_HI};
+        for (unsigned i=0;i<8;i++) if (reader_read(p,control,offsets[i],&values[i])) return -1;
+        if (values[0]&FES_EMBEDDED_STATUS_FAULT || values[2]!=1 || values[3] ||
+            values[5] || values[7]) return fail(p,-71);
+        if (!acknowledged && (values[4] || values[6] || (values[0]&FES_EMBEDDED_STATUS_DRAINED)))
+            return fail(p,-71);
+        if (values[0]==status && values[1]==pending && values[4]==acknowledged &&
+            values[6]==(acknowledged ? 7U : 0U)) return 0;
+    }
+    return fail(p,-110);
+}
+static int reader_cycle(struct fes_nano_identity_probe *p, const struct fes_nano_bridge_snapshot *control)
+{
+    uint32_t status,address;
+#define WRITE(offset,value) do { if(reader_write(p,control,offset,value))return -1; } while(0)
+    WRITE(FES_EMBEDDED_REG_REQUEST_GENERATION_LO,1);
+    WRITE(FES_EMBEDDED_REG_REQUEST_GENERATION_HI,0);
+    WRITE(FES_EMBEDDED_REG_COMMAND,FES_EMBEDDED_COMMAND_ENABLE);
+    if(reader_state(p,control,FES_EMBEDDED_STATUS_ENABLED,0,0))return -1;
+    p->stage=FES_ID_READER_ENABLED;trace(p,p->stage);
+    WRITE(0x84,0x1000);WRITE(0x88,1);WRITE(0x80,0x0c);
+    if(reader_state(p,control,FES_EMBEDDED_STATUS_ENABLED,0x10000,0) ||
+       reader_read(p,control,0x8c,&status) || reader_read(p,control,0x90,&address))return -1;
+    if(!(status&4) || address!=0x1000)return fail(p,-71);
+    p->stage=FES_ID_READER_HELD;trace(p,p->stage);
+    WRITE(FES_EMBEDDED_REG_REQUEST_COOKIE_LO,7);
+    WRITE(FES_EMBEDDED_REG_REQUEST_COOKIE_HI,0);
+    WRITE(FES_EMBEDDED_REG_COMMAND,FES_EMBEDDED_COMMAND_DISABLE);
+    if(reader_state(p,control,FES_EMBEDDED_STATUS_DRAINING,0x10000,0) ||
+       reader_read(p,control,0x8c,&status) || reader_read(p,control,0x90,&address))return -1;
+    if(!(status&4) || address!=0x1000)return fail(p,-71);
+    p->stage=FES_ID_READER_DISABLED;trace(p,p->stage);
+    WRITE(0x80,0x05);
+    if(reader_state(p,control,FES_EMBEDDED_STATUS_DRAINING,1,0))return -1;
+    WRITE(0x80,0x07);
+    if(reader_state(p,control,FES_EMBEDDED_STATUS_DRAINING,1,0) || reader_read(p,control,0x8c,&status))return -1;
+    if((status>>16)!=1)return fail(p,-71);
+    p->stage=FES_ID_READER_PARTIAL;trace(p,p->stage);
+    WRITE(0x80,0x07);
+    if(reader_state(p,control,FES_EMBEDDED_STATUS_DRAINED,0,1))return -1;
+    p->stage=FES_ID_READER_DRAINED;trace(p,p->stage);
+#undef WRITE
+    return 0;
+}
 void fes_nano_identity_configuration_sip(struct fes_nano_identity_probe *p, uint64_t owner,
                             uint64_t generation, unsigned configuring, uint64_t result[4])
 {
@@ -83,21 +154,22 @@ void fes_nano_identity_configuration_sip(struct fes_nano_identity_probe *p, uint
     }
     result[0]=0;result[1]|=(unsigned)ready;result[2]=owner;result[3]=generation;
 }
-void fes_nano_identity_sip(struct fes_nano_identity_probe *p, uint64_t owner,
-                            uint64_t generation, unsigned configuring, uint64_t result[4])
+static void identity_sip(struct fes_nano_identity_probe *p, uint64_t owner,
+                            uint64_t generation, unsigned configuring, unsigned reader, uint64_t result[4])
 {
     struct fes_nano_bridge_snapshot before,control,current;
     struct fes_nano_bridge_closure after;
     uint32_t first[15],second[15];
-    result[0]=2;result[1]=(uint64_t)FES_EMBEDDED_BRIDGE_IDENTITY_TAG<<32;result[2]=result[3]=0;
+    result[0]=2;result[1]=(uint64_t)(reader ? FES_EMBEDDED_BRIDGE_READER_TAG : FES_EMBEDDED_BRIDGE_IDENTITY_TAG)<<32;result[2]=result[3]=0;
     if (configuring || (p && p->bridges && p->bridges->device_lease)) { result[0]=1;return; }
     if (!p || !p->initialized) { result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return; }
     if (p->failed) { result[0]=4;return; }
+    if (reader && !p->io.write32) { result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return; }
     if (!owner || !generation || generation>UINT64_MAX-2 || p->attempted || p->bridges->state.owner!=owner ||
         p->bridges->state.generation!=generation) return;
     if (fes_nano_bridges_observe(p->bridges,&before) || !closed(&before) ||
         before.generation!=generation || !before.never_enabled) { result[0]=4;return; }
-    p->attempted=1;p->stage=FES_ID_CONFIG;
+    p->attempted=1;p->reader=reader;p->stage=FES_ID_CONFIG;
     int ready=p->io.configured(p->io.context);
     if (ready<0 || ready>1) { fail(p,ready);goto recover; }
     if (fes_nano_bridges_observe(p->bridges,&current) || !closed(&current) ||
@@ -118,6 +190,14 @@ void fes_nano_identity_sip(struct fes_nano_identity_probe *p, uint64_t owner,
         first[1]!=FES_EMBEDDED_VERSION || first[2]!=p->abi || memcmp(first+3,p->build,sizeof(p->build)))
         fail(p,-71);
     for (unsigned i=7;i<15;i++) if (first[i]) fail(p,-71);
+    if (!p->first_error && reader) {
+        if(reader_cycle(p,&control))goto close;
+        if(identity_read(p,&control,first) || identity_read(p,&control,second))goto close;
+        static const uint32_t finished[8]={1,0,1,0,7,0,FES_EMBEDDED_STATUS_DRAINED,0};
+        if(memcmp(first,second,sizeof(first)) || first[0]!=FES_EMBEDDED_MAGIC ||
+           first[1]!=FES_EMBEDDED_VERSION || first[2]!=p->abi || memcmp(first+3,p->build,sizeof(p->build)) ||
+           memcmp(first+7,finished,sizeof(finished)))fail(p,-71);
+    }
 close:
     trace(p,FES_ID_CLOSE);
     if (!p->first_error) p->stage=FES_ID_CLOSE;
@@ -137,3 +217,10 @@ recover:
      * independently, preserve the first error, and retire this boot's proof. */
     recover(p,result);
 }
+
+void fes_nano_identity_sip(struct fes_nano_identity_probe *p, uint64_t owner,
+                            uint64_t generation, unsigned configuring, uint64_t result[4])
+{ identity_sip(p,owner,generation,configuring,0,result); }
+void fes_nano_reader_sip(struct fes_nano_identity_probe *p, uint64_t owner,
+                            uint64_t generation, unsigned configuring, uint64_t result[4])
+{ identity_sip(p,owner,generation,configuring,1,result); }
