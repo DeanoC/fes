@@ -1,0 +1,40 @@
+{
+  "software_baseline_head": "425cfcaf14b8657e1ebbfb43b56cc19b85feeb42",
+  "final_source_head": "7a30ebdc72079212c330cd0befc76a261266aaf3",
+  "baseline_groups_passed": 12,
+  "production_sources_and_contracts_unchanged": true,
+  "non_owned_native_rpc_preprocessed_bytes_unchanged": true,
+  "delta": [
+    {
+      "path": "platform/embedded/firmware/tests/endpoint_tb.cpp",
+      "before_sha256": "797e2ca25ba9f7382eb34e0c59130ce9054a4ff422dd7556c1da40ab5a0c511c",
+      "after_sha256": "0d4cfe02608baebc02a33f79d5932f820b0cf1ac27990132afbcf0b6e344e5f6",
+      "classification": "host test fixture or scenario only"
+    },
+    {
+      "path": "platform/embedded/firmware/tests/nano_bridge_fixture.inc",
+      "before_sha256": "d5b81c91325b81e0cab63c0fa4579e170fe019ca19b0422b0d0ed541a29847ac",
+      "after_sha256": "64336bed324687de620b8104632fb28ab72af938a13c0961d77ef2e84b2778ee",
+      "classification": "host test fixture or scenario only"
+    },
+    {
+      "path": "platform/embedded/firmware/tests/nano_cold_platform_test.c",
+      "before_sha256": "abda380fbcec6d2d0ef5b2d02c7ecb51592407de13cd3a24561f862a68cf437b",
+      "after_sha256": "b057d164209f29fdb5bde8f752bf384d1549c902b382f9b22d510efb24f80c32",
+      "classification": "host test fixture or scenario only"
+    },
+    {
+      "path": "platform/embedded/tamago/nativefabric/nano_bridge_service_test.go",
+      "before_sha256": "c634a9a68bb8572ffa23edd4dab88e5f483883eac4c0651655be0839836dfd00",
+      "after_sha256": "9e23ff7d7c68bae461580e2caa1ed6dfccbfa64ffb02dd28debf018cba40fa49",
+      "classification": "host test fixture or scenario only"
+    }
+  ],
+  "required_followup": [
+    "fresh owned C/native/RTL/tenfoot integration",
+    "cold provider denial across profiles",
+    "strong SD/configuration/reader provider matrix"
+  ],
+  "baseline_plan_sha256": "74eb7677b1ec3193a901eae911bf38751d535dd94b42f5e05db3598d5d5e8cca",
+  "baseline_result_sha256": "2ba5b24d3e797913140108e74c544fe981c37a64982009c928b652b26489a8f2"
+}

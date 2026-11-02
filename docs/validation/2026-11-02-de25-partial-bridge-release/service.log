@@ -1,0 +1,6 @@
+test_owned_closure_and_configuration_guard (test_nano_bridge_service.NanoBridgeServiceTests.test_owned_closure_and_configuration_guard) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.089s
+
+OK

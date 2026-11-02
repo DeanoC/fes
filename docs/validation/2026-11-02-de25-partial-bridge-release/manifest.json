@@ -1,0 +1,121 @@
+{
+  "format": 1,
+  "files": {
+    "README.md": {
+      "size": 6095,
+      "sha256": "98daf0aaa3f1068ecc8b11d37e5997b59b9d5236db8de602ad607cd3bce5baca"
+    },
+    "check-baseline-execution.json": {
+      "size": 200,
+      "sha256": "6695ccc21ea3a64f2701943cb56f823ec298837b5c0157839813ba577253bcb9"
+    },
+    "check-final-execution.json": {
+      "size": 200,
+      "sha256": "6650139f140dc00da5885e3ba93de301689a17f74131f68b0be4b23acc814810"
+    },
+    "check-final.log": {
+      "size": 137,
+      "sha256": "efe5e86f921f89a66aa9fc5f3d5964fe6bffc140a13a1a6443e01f20a37a93cc"
+    },
+    "cold-denial-execution.json": {
+      "size": 302,
+      "sha256": "6229188ac2f98a23bd800e076bf96fb504e53ff982c51836dac0453b3631a2cb"
+    },
+    "cold-denial.log": {
+      "size": 923,
+      "sha256": "baf4c74a2865da4cb928a47fd1f69c0f145f101a96a0f1e1a5bed9776824f6e5"
+    },
+    "ddr-master-inventory.json": {
+      "size": 1066,
+      "sha256": "bf3307f7d98e84739dc55b60f7a3980b2cffae211f16d718a423a96359099656"
+    },
+    "generate-execution.json": {
+      "size": 204,
+      "sha256": "8b3238760ad76504c7cb6e5a5b729c6f1a81c06d5a4a97d6c6660760c48e4a1a"
+    },
+    "generate.log": {
+      "size": 45,
+      "sha256": "3bb7a5ed7958ffff755fdb6aba07a59ddfe208c37da9b901892df1f79ecae451"
+    },
+    "go-hooks-execution.json": {
+      "size": 501,
+      "sha256": "4ee8d26cd454cb48a2f2eff1ecb67fb00f022ede368181b05c324be79db1a106"
+    },
+    "go-hooks.log": {
+      "size": 144,
+      "sha256": "d2969eba15011a4960fe2c9b125a8c9c9ce2a849e663e6b9c3a33a12fe7fbc3c"
+    },
+    "missing-report-callback.json": {
+      "size": 1201,
+      "sha256": "062962ca1f9c30e89bff5a1d5bcbcf931dccb327aef3b987957e0590f132bfe5"
+    },
+    "native-integration-execution.json": {
+      "size": 563,
+      "sha256": "f1ba5884a71f1bf3e91ca9a1f705f4ae7bb4cb8fe924eff71c2171b2912b93cb"
+    },
+    "native-integration.json": {
+      "size": 85170,
+      "sha256": "3a56074a421f5a53dcd706d44069a56490a44f4f57515200a273a2740cd3e2d8"
+    },
+    "native-tests.log": {
+      "size": 4943,
+      "sha256": "9f9b473501f8bfced05305345798b0a0e167563368940d6692f17034c426947d"
+    },
+    "non-owned-rpc-comparison.json": {
+      "size": 684,
+      "sha256": "a6a234f600da272d8ec17dded069e6876c2c3880e3af36eeeb188b0cc9ae60ad"
+    },
+    "service-execution.json": {
+      "size": 313,
+      "sha256": "8203110b8064c6b9656ede3dc7be93dde0228eacdefbe1f0a9b67df2436c4a90"
+    },
+    "service.log": {
+      "size": 240,
+      "sha256": "71f3405759732c408d39e6acdb55ff2ac5617723dd1318084a8c69c968f251a7"
+    },
+    "software-execution.json": {
+      "size": 255,
+      "sha256": "90a60f2cd7071c8ff4ab8a64ac7932f199c85dd01a3318f1b8318a7a72f81e1b"
+    },
+    "software-plan.json": {
+      "size": 12855,
+      "sha256": "74eb7677b1ec3193a901eae911bf38751d535dd94b42f5e05db3598d5d5e8cca"
+    },
+    "software-result.json": {
+      "size": 10158,
+      "sha256": "2ba5b24d3e797913140108e74c544fe981c37a64982009c928b652b26489a8f2"
+    },
+    "source-delta.json": {
+      "size": 1994,
+      "sha256": "02d51e1f8a2487f14cc5376ab75b728bc8ecae1814db18de9bb089235a7245d2"
+    },
+    "strong-provider-execution.json": {
+      "size": 310,
+      "sha256": "683c05cb510f0c6d9e1c4f60fc3217250c2861544f887cc4d0824ef5a307895d"
+    },
+    "strong-provider.log": {
+      "size": 714,
+      "sha256": "00107e051c2d22d85d79fe8506ab19656ae2984475153986e080f3fbe6a97a03"
+    },
+    "summary.json": {
+      "size": 1010,
+      "sha256": "c2622ba8357713f0ccfa73026006d4e12a9b115327a6593a051ec33fe8cbd15f"
+    },
+    "tenfoot-tests.log": {
+      "size": 2705,
+      "sha256": "760fc3856135cd38b1a360154d4816e36c99b24cffe3e9e0ec90799d8b495eae"
+    },
+    "vendor-driver.log": {
+      "size": 77,
+      "sha256": "6eb7c504b359d29e07402025788f7713dbf73745874357f127127f96f55cb8be"
+    },
+    "wire-execution.json": {
+      "size": 308,
+      "sha256": "c15825398fddea32a0b3f9faa6167a9e5e29ab187f9707fda57b1af3ab7cdae4"
+    },
+    "wire.log": {
+      "size": 370,
+      "sha256": "be79ac05494d96b0a57748cce32aed33bd8c26a9a2a356e7b4d5a2f2792b676f"
+    }
+  }
+}

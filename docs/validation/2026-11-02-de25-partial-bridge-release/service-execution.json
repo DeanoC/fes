@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_nano_bridge_service.py",
+    "-v"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 0.20066404598765075,
+  "log_sha256": "71f3405759732c408d39e6acdb55ff2ac5617723dd1318084a8c69c968f251a7"
+}

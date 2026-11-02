@@ -1,0 +1,20 @@
+{
+  "method": "C++14 preprocessor, line directives removed; FES_TEST_NANO_BRIDGES absent",
+  "argv": [
+    "g++",
+    "-E",
+    "-P",
+    "-std=c++14",
+    "-DFES_TEST_TERASIC_TFA",
+    "-Iout/nano-ddr-bridge-hooks-20261102/native-integration/rpc",
+    "-I/usr/share/verilator/include",
+    "-I/usr/share/verilator/include/vltstd",
+    "-Iplatform/embedded/firmware",
+    "-Iplatform/embedded/firmware/tests",
+    "platform/embedded/firmware/tests/native_rpc.cpp"
+  ],
+  "identical": true,
+  "bytes": 2021865,
+  "before_sha256": "aebdd9d176306111ecf4ee92c821f67bddc65b44cb50d6fba63c734a560cf81c",
+  "after_sha256": "aebdd9d176306111ecf4ee92c821f67bddc65b44cb50d6fba63c734a560cf81c"
+}

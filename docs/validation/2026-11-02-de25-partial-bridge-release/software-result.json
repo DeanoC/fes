@@ -1,0 +1,343 @@
+{
+  "format": 1,
+  "head": "425cfcaf14b8657e1ebbfb43b56cc19b85feeb42",
+  "base": "59ddb433e1d9805586d2c907edf07c549c62a640",
+  "plan_sha256": "74eb7677b1ec3193a901eae911bf38751d535dd94b42f5e05db3598d5d5e8cca",
+  "status": "passed",
+  "dispatch": "two independent software workers; stop scheduling after failure",
+  "results": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ],
+      "index": 0,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.4013766360003501,
+      "cap_seconds": 300,
+      "log": "software-00.log",
+      "log_sha256": "43a5cbf6c565bd2a2eaee6dbc5c84b8849396361bc0b6bd876a405cba2035e89"
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ],
+      "index": 1,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 1.201025948044844,
+      "cap_seconds": 300,
+      "log": "software-01.log",
+      "log_sha256": "134e72a7c92567d51ab044390e395fb01c8a73b1b16f9ad49cb68ee8c91a6d9b"
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "59ddb433e1d9805586d2c907edf07c549c62a640",
+        "--head",
+        "425cfcaf14b8657e1ebbfb43b56cc19b85feeb42"
+      ],
+      "tools": [
+        "/usr/bin/python3"
+      ],
+      "files": [],
+      "index": 2,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.20064295397605747,
+      "cap_seconds": 300,
+      "log": "software-02.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": [],
+      "index": 3,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 0.201382337952964,
+      "cap_seconds": 300,
+      "log": "software-03.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/generated/fes_embedded_bridges.h\", \"platform/embedded/firmware/nano_bridge_sip.c\", \"platform/embedded/firmware/nano_bridges.c\", \"platform/embedded/firmware/tests/nano_bridge_driver_test.c\", \"platform/embedded/firmware/tests/nano_bridge_fixture.inc\", \"platform/embedded/firmware/tests/nano_bridge_sip_test.c\", \"platform/embedded/firmware/tests/nano_bridges_test.c\", \"platform/embedded/firmware/tests/native_rpc.cpp\", \"platform/embedded/firmware/verify_nano_bridges.py\", \"platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go\", \"platform/embedded/tamago/modelbackend/nano_bridge_service_test.go\", \"platform/embedded/tamago/modelbackend/native_endpoint_test.go\", \"platform/embedded/tamago/modelbackend/sealed_nano_test.go\", \"platform/embedded/tamago/nativefabric/README.md\", \"platform/embedded/tamago/nativefabric/bridges.go\", \"platform/embedded/tamago/nativefabric/bridges_test.go\", \"platform/embedded/tamago/nativefabric/cpuhooks.go\", \"platform/embedded/tamago/nativefabric/cpuhooks_test.go\", \"platform/embedded/tamago/nativefabric/firmware_bridges.go\", \"platform/embedded/tamago/nativefabric/firmware_bridges_test.go\", \"platform/embedded/tamago/nativefabric/nano_bridge_service_test.go\", \"platform/embedded/tamago/nativefabric/sealed_nano_test.go\", \"sources/mister-packages/docs/embedded-bridges.md\", \"sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml\", \"sources/mister-packages/testdata/oracles/fes-embedded-bridges.json\", \"tests/test_nano_bridge_service.py\"]"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ],
+      "index": 4,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 195.74021597602405,
+      "cap_seconds": 300,
+      "log": "software-04.log",
+      "log_sha256": "752a6d9caa4faa77e814c1567da4595ba647f2c12a295f0eadcdfe3b3c2be053"
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ],
+      "index": 5,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 4.00356747105252,
+      "cap_seconds": 300,
+      "log": "software-05.log",
+      "log_sha256": "6997212592f08ec9cd3c59e64ea9a32107fdcfb811cfcd292a8c5fde29bbce83"
+    },
+    {
+      "lane": "parent",
+      "label": "native SD firmware lease and PIO lifecycle",
+      "cwd": "platform/embedded/tamago",
+      "argv": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-timeout",
+        "90s",
+        "./sdcontrol",
+        "./sdhci",
+        "./fat",
+        "./packagestore"
+      ],
+      "tools": [
+        "cc",
+        "go",
+        "mcopy",
+        "mformat",
+        "mmd"
+      ],
+      "files": [
+        "sdcontrol/session_test.go",
+        "sdhci/sdhci.go",
+        "packagestore/store_test.go"
+      ],
+      "index": 6,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 6.005425707087852,
+      "cap_seconds": 300,
+      "log": "software-06.log",
+      "log_sha256": "1f330a98ff4e30990594d1eefdf3de0b45f28bab0c38c63cdea597415bcb89a9"
+    },
+    {
+      "lane": "parent",
+      "label": "native runtime firmware and FPGA launch integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "go",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/tamago/nativefabric/verify.py",
+        "platform/embedded/firmware/tests/native_rpc.cpp"
+      ],
+      "index": 7,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 50.836675159982406,
+      "cap_seconds": 300,
+      "log": "software-07.log",
+      "log_sha256": "abc3e36b9ac381ed0e6ac9b3d77becd496e5cfbfdc55dd54de63fb5336b9c94f"
+    },
+    {
+      "lane": "parent",
+      "label": "embedded producer identity and native control integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "g++",
+        "git",
+        "go",
+        "make",
+        "verilator",
+        "verilator_bin"
+      ],
+      "files": [
+        "sources/misteross/prototypes/embedded_control/producer.py",
+        "platform/embedded/tamago/nativefabric/verify_producer.py"
+      ],
+      "index": 8,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 8.806686150026508,
+      "cap_seconds": 300,
+      "log": "software-08.log",
+      "log_sha256": "f24667918d526da01b5f56932ce23a3f4e6356ac999e4c67c4a692dbef87440c"
+    },
+    {
+      "lane": "contracts",
+      "label": "contract schemas and generated fixtures",
+      "cwd": "sources/mister-packages",
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/usr/bin/python3"
+      ],
+      "tools": [
+        "go",
+        "make"
+      ],
+      "files": [
+        "Makefile"
+      ],
+      "index": 9,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 3.20284940302372,
+      "cap_seconds": 300,
+      "log": "software-09.log",
+      "log_sha256": "bd2d7995eb2535ff98b656d1fa74750a84a3632d8f3f74b802d70afc4d5fb51b"
+    },
+    {
+      "lane": "fpga",
+      "label": "embedded firmware and identity/drain RTL integration",
+      "cwd": ".",
+      "argv": [
+        "/usr/bin/python3",
+        "platform/embedded/firmware/verify.py"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "c++",
+        "cc",
+        "verilator"
+      ],
+      "files": [
+        "platform/embedded/firmware/verify.py",
+        "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
+      ],
+      "index": 10,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 5.005008254083805,
+      "cap_seconds": 840,
+      "log": "software-10.log",
+      "log_sha256": "90bd42ee81637cfaff89c9763fc7e9efa64123b098574e4f30c0f7fe3ff846d4"
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/usr/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/usr/bin/python3",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ],
+      "index": 11,
+      "returncode": 0,
+      "timed_out": false,
+      "elapsed": 308.02238084201235,
+      "cap_seconds": 840,
+      "log": "software-11.log",
+      "log_sha256": "a786792d53fe2b176223baed11fbe603e910970bced4a4720a6361495b6609ca"
+    }
+  ]
+}
