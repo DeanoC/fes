@@ -39,13 +39,15 @@ int main() {
                     std::fill(std::begin(world.seen),std::end(world.seen),false);
                 }
                 if(x==0xc2000004U && r[0]==0 && r[1]==0)b.reset();
-                const bool bridge_mutation=y==FES_EMBEDDED_BRIDGE_CONTROL || y==FES_EMBEDDED_BRIDGE_RELEASE ||
+                const bool bridge_release=(y&~uint64_t(FES_EMBEDDED_BRIDGE_RELEASE_MASK))==FES_EMBEDDED_BRIDGE_RELEASE &&
+                    (y&FES_EMBEDDED_BRIDGE_RELEASE_MASK)!=0;
+                const bool bridge_mutation=y==FES_EMBEDDED_BRIDGE_CONTROL || bridge_release ||
                     (y&~uint64_t(FES_EMBEDDED_BRIDGE_REQUEST_FABRIC|FES_EMBEDDED_BRIDGE_REQUEST_HELD))==FES_EMBEDDED_BRIDGE_CLOSE;
                 if(x==FES_EMBEDDED_BRIDGE_CALL && w==FES_EMBEDDED_BRIDGE_COOKIE && r[0]==0 && bridge_mutation){
                     uint32_t reset=static_cast<uint32_t>(r[1])&15U;
                     world.held=(reset&13U)==13U;world.control=(reset&2U)==0;
                     if(y==FES_EMBEDDED_BRIDGE_CONTROL)++world.control_enables;
-                    if(y==FES_EMBEDDED_BRIDGE_RELEASE)++world.data_enables;
+                    if(bridge_release)++world.data_enables;
                 }
 #else
                 if (x==FesEmbeddedFirmwareQuery) {

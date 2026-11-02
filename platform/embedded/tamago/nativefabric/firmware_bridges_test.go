@@ -15,8 +15,10 @@ func TestFirmwareBridgesUsePrivateReadOnlyProbeAndDecodeOwnedReplies(t *testing.
 		{0xc2000301, 0, 0, 0x46455342},
 		{0xc2000301, 0x101, 17, 0x46455342, 1},
 		{0xc2000301, 2, 17, 0x46455342, 2},
+		{0xc2000301, 0x80003, 17, 0x46455342, 3},
+		{0xc2000301, 0x101, 17, 0x46455342, 4},
 	}
-	replies := [][4]uint64{{0, 0x46424f3100000020, 17, 1}, {0, 0x46424f31000033af, 17, 2}, {0, 0x46424f31000000ad, 17, 3}}
+	replies := [][4]uint64{{0, 0x46424f3100000020, 17, 1}, {0, 0x46424f31000033af, 17, 2}, {0, 0x46424f31000000ad, 17, 3}, {0, 0x46424f3100000025, 17, 4}, {0, 0x46424f31000023af, 17, 5}}
 	count := 0
 	cpu := bridgeFirmwareFunc(func(r [7]uint64) ([4]uint64, error) {
 		if count >= len(requests) || r != requests[count] {
@@ -39,6 +41,19 @@ func TestFirmwareBridgesUsePrivateReadOnlyProbeAndDecodeOwnedReplies(t *testing.
 	s, err := b.OpenBridges(BridgeOpenRequest{Before: c.After, Mask: 2})
 	if err != nil || s.ResetMask != 13 || !s.MastersContained || count != 3 {
 		t.Fatal(s, err)
+	}
+	for _, mask := range []uint32{0, 3, 14, 16, ^uint32(0)} {
+		if _, err = b.OpenBridges(BridgeOpenRequest{Before: s, Mask: mask}); err == nil || count != 3 {
+			t.Fatal("invalid data path reached firmware", mask, err)
+		}
+	}
+	s, err = b.OpenBridges(BridgeOpenRequest{Before: s, Mask: 8})
+	if err != nil || s.ResetMask != 5 || s.MastersContained {
+		t.Fatal("DDR-only release", s, err)
+	}
+	c, err = b.CloseBridges(BridgeCloseRequest{Before: s, RequireFabricHandshake: true})
+	if err != nil || c.HardwareDrainedMask != 8 || !c.FabricAcknowledged || !c.ProducersQuiescent || c.DataRemainedContained || count != len(requests) {
+		t.Fatal("DDR-only closure", c, err)
 	}
 }
 

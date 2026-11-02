@@ -118,8 +118,8 @@ The tuple is an experimental compatibility marker, not firmware authentication.
 The mapping and package validation are not a cryptographic signature or a proof
 that a particular bitstream physically contains the declared build identity.
 
-`CPUHooks` composes an explicitly supplied absolute CPU control aperture and
-SMC transport with the platform's containment, save and memory services. It
+`CPUHooks` composes an explicitly supplied absolute CPU control aperture,
+data bridge mask and SMC transport with the platform's containment, save and memory services. It
 checks aperture alignment, overflow and control-register bounds before an
 access. Nano provides an unconfigured AArch64 transport using its ordered MMIO
 and existing SMC assembly; the boot path never constructs it. A cross-build does
@@ -151,7 +151,17 @@ that claim for an active data path and reject invented fresh ACKs on the held
 path. Active data shutdown still requires independent hardware drain.
 
 Control-only opening and data release validate their order, exact masks and
-fresh readback. Configuration SMCs require an owned fully closed state before
+fresh readback. `NewCPUHooks` requires the platform's nonzero data-path mask;
+zero, a control bit or a path outside the observed capabilities cannot authorize
+a release. The mask is never obtained from package metadata. A platform choosing
+DDR-only mask `8` retains reset bits `5` after release and requires a fresh
+hardware drain only for bit `8` when closing. Every producer must still stop;
+held paths cannot supply invented new drain acknowledgements. Unknown initial
+partial reset states reject, including the same reset `5` without owned history.
+The firmware adapter sends the explicit mask over the generated 1.8 wire.
+The physical cold provider still denies generic data release; these hooks do
+not qualify a DDR mapping or provide the missing master-stop binding.
+Configuration SMCs require an owned fully closed state before
 each call. Any bridge failure or unexpected state/ownership change retires the
 CPU hooks; later calls cannot replay the transition. This is a platform
 containment receipt under the existing controller, not another lifecycle owner

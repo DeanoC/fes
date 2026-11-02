@@ -25,10 +25,10 @@ func (a *firmwareBridgeActor) OpenBridges(r nativefabric.BridgeOpenRequest) (nat
 	return a.wire.OpenBridges(r)
 }
 
-func actorCPUHooks(t *testing.T, cpu *sealedActorCPU) (*nativefabric.CPUHooks, error) {
+func actorCPUHooks(t *testing.T, cpu *sealedActorCPU, dataMask uint32) (*nativefabric.CPUHooks, error) {
 	t.Helper()
 	if os.Getenv("FES_NANO_BRIDGE_RPC") == "" {
-		return nativefabric.NewCPUHooks(cpu, cpu, cpu.base, 256)
+		return nativefabric.NewCPUHooks(cpu, cpu, cpu.base, 256, dataMask)
 	}
 	if _, err := cpu.call("bridge-boot f 1 2"); err != nil {
 		return nil, err
@@ -38,5 +38,5 @@ func actorCPUHooks(t *testing.T, cpu *sealedActorCPU) (*nativefabric.CPUHooks, e
 		return nil, err
 	}
 	service := &firmwareBridgeActor{sealedActorCPU: cpu, wire: wire}
-	return nativefabric.NewCPUHooks(service, service, cpu.base, 256)
+	return nativefabric.NewCPUHooks(service, service, cpu.base, 256, dataMask)
 }

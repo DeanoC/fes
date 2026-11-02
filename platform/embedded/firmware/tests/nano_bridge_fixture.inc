@@ -5,8 +5,8 @@
 #include <assert.h>
 
 static struct {
-    uint32_t reset, request, enable;
-    unsigned masters, fabric_ready, fabric_mode, fault;
+    uint32_t reset, request, enable, closing;
+    unsigned masters, fabric_ready, fabric_mode, fault, disabling;
     unsigned disables, enables, polls, fabric_polls, hardware_polls, writes;
     uint64_t epoch;
 } registers;
@@ -45,9 +45,19 @@ static int poll_idle_status(uint32_t address, uint32_t mask, uint32_t expected, 
 {
     assert(address == FES_REG_HDSKACK && (budget == 300 || budget == 1000));
     registers.polls++;
+    /* Check both asserted and cleared polls against the actual pinned header
+     * names. Unopened paths must not be polled during a partial close. */
+    if (registers.disabling) {
+        if (mask == RSTMGR_HDSKACK_FPGA2SOCACK)
+            assert(registers.closing & RSTMGR_BRGMODRSTMASK_FPGA2SOC);
+        if (mask == RSTMGR_HDSKACK_F2SDRAM0ACK)
+            assert(registers.closing & RSTMGR_BRGMODRSTMASK_F2SDRAM0);
+    }
     if (mask == 4) registers.fabric_polls++;
     else registers.hardware_polls++;
-    if ((registers.fault == 1 && mask == 0x1000 && expected == 0x1000) ||
+    if ((registers.fault == 1 && registers.disabling &&
+         ((mask == RSTMGR_HDSKACK_FPGA2SOCACK && expected == RSTMGR_HDSKACK_F2S_FLUSH) ||
+          (mask == RSTMGR_HDSKACK_F2SDRAM0ACK && expected == RSTMGR_HDSKACK_F2SDRAM0ACK_DASRT))) ||
         (registers.fault == 2 && mask == 4 && expected == 4) ||
         registers.fault == 6)
         return -60;
@@ -77,8 +87,11 @@ static int stop(void *context)
 static int disable(void *context, uint32_t mask, unsigned fabric)
 {
     (void)context; registers.disables++; registers.fabric_mode = fabric;
+    registers.closing = mask;
     fes_nano_bridge_diag_reset();
+    registers.disabling = 1;
     int result = fes_nano_raw_disable(mask);
+    registers.disabling = 0;
     if (registers.fault == 5) registers.reset &= ~4U;
     return result;
 }
@@ -86,7 +99,7 @@ static int enable(void *context, uint32_t mask, unsigned fabric)
 {
     (void)context; registers.enables++; registers.fabric_mode = fabric;
     unsigned fault = registers.fault;
-    if (fault == 8 || (fault == 9 && mask == FES_NANO_BRIDGES_DATA)) registers.fault = 6;
+    if (fault == 8 || (fault == 9 && (mask & FES_NANO_BRIDGES_DATA))) registers.fault = 6;
     int result = fes_nano_raw_enable(mask);
     registers.fault = fault;
     if (!result) registers.masters = mask == FES_NANO_BRIDGES_CONTROL;
@@ -107,7 +120,12 @@ static struct fes_nano_boot boot_handoff;
 static int quiesce_all(void *context, uint32_t mask)
 { assert(mask == FES_NANO_PRODUCERS_ALL); return stop(context); }
 static int quiescent_all(void *context, uint32_t *mask)
-{ (void)context; *mask = registers.masters ? FES_NANO_PRODUCERS_ALL : 0; return 0; }
+{
+    (void)context;
+    *mask = registers.masters ? FES_NANO_PRODUCERS_ALL : 0;
+    if (registers.fault == 10) *mask &= ~FES_NANO_PRODUCERS_FPGA;
+    return 0;
+}
 static int per0(void *context, uint32_t *value)
 { (void)context; *value = registers.masters ? FES_NANO_MASTER_RESET : 0; return 0; }
 static int per0_assert(void *context, uint32_t mask)

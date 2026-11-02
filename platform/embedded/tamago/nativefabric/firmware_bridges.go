@@ -90,8 +90,8 @@ func (b *FirmwareBridges) OpenBridges(r BridgeOpenRequest) (BridgeSnapshot, erro
 		return BridgeSnapshot{}, errors.New("native fabric: invalid expected bridge state")
 	}
 	op := g.FesEmbeddedBridgeControl
-	if r.Mask == g.FesEmbeddedBridgeMask&^g.FesEmbeddedBridgeControlMask {
-		op = g.FesEmbeddedBridgeRelease
+	if r.Mask != 0 && r.Mask&^(g.FesEmbeddedBridgeMask&^g.FesEmbeddedBridgeControlMask) == 0 {
+		op = g.FesEmbeddedBridgeRelease | r.Mask<<g.FesEmbeddedBridgeReleaseShift
 	} else if r.Mask != g.FesEmbeddedBridgeControlMask {
 		return BridgeSnapshot{}, errors.New("native fabric: invalid bridge open mask")
 	}

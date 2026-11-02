@@ -3,6 +3,7 @@ package nativefabric
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -115,118 +116,139 @@ func TestNanoFirmwareBridgeSiPGates(t *testing.T) {
 }
 
 func TestNanoFirmwareBridgeCyclesAndFailures(t *testing.T) {
-	for _, name := range []string{"cold", "active", "fabric-absent", "missing-hardware", "missing-fabric", "stop-failure", "ownership-ABA", "reset-readback", "control-open", "data-open", "ownership-during-stop", "identity-recovery", "lost-transfer"} {
-		t.Run(name, func(t *testing.T) {
-			path := os.Getenv("FES_NANO_BRIDGE_RPC")
-			if path == "" {
-				t.Skip("run nativefabric/verify.py --nano-bridge-service")
-			}
-			t.Setenv("FES_EMBEDDED_RPC", path)
-			r := newRPC(t)
-			reset, proof, fabric := 15, 1, 2
-			if name == "active" {
-				reset, proof = 0, 0
-			}
-			if name == "fabric-absent" {
-				fabric = 1
-			}
-			if _, err := r.call("bridge-boot %x %x %x", reset, proof, fabric); err != nil {
-				t.Fatal(err)
-			}
-			wire, err := NewFirmwareBridges(r)
-			if err != nil {
-				t.Fatal(err)
-			}
-			platform := &nanoFirmwarePlatform{rpcHooks: r, wire: wire}
-			hooks, err := NewCPUHooks(platform, platform, 0x40000000, 256)
-			if err != nil {
-				t.Fatal(err)
-			}
-			e, err := New(hooks, Options{DRAMBase: 0x80000000, ChunkBytes: 32})
-			if err != nil {
-				t.Fatal(err)
-			}
-			c, err := fabricmodel.New(image(1, "model.idle", true), time.Second)
-			if err != nil {
-				t.Fatal(err)
-			}
-			now := time.Duration(0)
-			if err = c.Boot(now, time.Second); err != nil {
-				t.Fatal(err)
-			}
-			if err = drive(c, e, &now, 500); err != nil {
-				t.Fatal(err, c.Status())
-			}
-			stats, err := r.call("bridge-stats")
-			if err != nil {
-				t.Fatal(err)
-			}
-			wantClose := uint64(0)
-			if name == "active" {
-				wantClose = 1
-			}
-			if stats[0] != wantClose {
-				t.Fatal("START redundantly reset an owned closed bridge", stats)
-			}
-			fault := map[string]int{"missing-hardware": 1, "missing-fabric": 2, "stop-failure": 3, "ownership-ABA": 4, "reset-readback": 5, "control-open": 8, "data-open": 9, "ownership-during-stop": 7}[name]
-			if fault != 0 {
-				if _, err = r.call("bridge-fault %x", fault); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if name == "identity-recovery" {
-				r.wrongIdentity = true
-			}
-			if name == "lost-transfer" {
-				if _, err = r.call("lose"); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if err = c.Load(image(2, "model.game", false), now, now+time.Second); err != nil {
-				t.Fatal(err)
-			}
-			err = drive(c, e, &now, 1100)
-			if fault == 0 && name != "identity-recovery" && name != "lost-transfer" {
-				if err != nil || c.Status().State != fabricmodel.Running {
-					t.Fatal(err, c.Status())
-				}
-				if err = c.Stop(now, now+time.Second); err != nil {
-					t.Fatal(err)
-				}
-				if err = drive(c, e, &now, 500); err != nil || c.Status().State != fabricmodel.Idle {
-					t.Fatal(err, c.Status())
-				}
-				stats, err = r.call("stats")
-				if err != nil || stats[0] != 3 || stats[1] != 3 || r.releases != 3 {
-					t.Fatal(stats, err)
-				}
-			} else if name == "identity-recovery" {
-				stats, _ = r.call("stats")
-				if err == nil || c.Status().State != fabricmodel.Idle || stats[0] != 3 || stats[1] != 2 {
-					t.Fatal(err, c.Status(), stats)
-				}
-			} else {
-				if err == nil || c.Status().State != fabricmodel.RebootRequired {
-					t.Fatal(err, c.Status())
-				}
-				stats, _ = r.call("stats")
-				programs := uint64(1)
-				if name == "lost-transfer" || name == "control-open" || name == "data-open" {
-					programs = 2
-				}
-				if stats[0] != programs || stats[1] != 1 {
-					t.Fatal("program/release passed a failed bridge", stats)
-				}
-				if name == "lost-transfer" && (r.region == nil || r.releases != 1) {
-					t.Fatal("lost transfer released its reservation")
-				}
-				if e.Step(c, now) == nil {
-					t.Fatal("retired endpoint replayed")
-				}
-				after, _ := r.call("stats")
-				if after[0] != stats[0] || after[1] != stats[1] {
-					t.Fatal("failed command replayed")
-				}
+	for _, dataMask := range []uint32{8, 13} {
+		t.Run(fmt.Sprintf("mask-%x", dataMask), func(t *testing.T) {
+			for _, name := range []string{"cold", "active", "fabric-absent", "missing-hardware", "missing-fabric", "stop-failure", "missing-producer", "ownership-ABA", "reset-readback", "control-open", "data-open", "ownership-during-stop", "identity-recovery", "lost-transfer"} {
+				t.Run(name, func(t *testing.T) {
+					path := os.Getenv("FES_NANO_BRIDGE_RPC")
+					if path == "" {
+						t.Skip("run nativefabric/verify.py --nano-bridge-service")
+					}
+					t.Setenv("FES_EMBEDDED_RPC", path)
+					r := newRPC(t)
+					reset, proof, fabric := 15, 1, 2
+					if name == "active" {
+						reset, proof = 0, 0
+					}
+					if name == "fabric-absent" {
+						fabric = 1
+					}
+					if _, err := r.call("bridge-boot %x %x %x", reset, proof, fabric); err != nil {
+						t.Fatal(err)
+					}
+					wire, err := NewFirmwareBridges(r)
+					if err != nil {
+						t.Fatal(err)
+					}
+					platform := &nanoFirmwarePlatform{rpcHooks: r, wire: wire}
+					hooks, err := NewCPUHooks(platform, platform, 0x40000000, 256, dataMask)
+					if err != nil {
+						t.Fatal(err)
+					}
+					e, err := New(hooks, Options{DRAMBase: 0x80000000, ChunkBytes: 32})
+					if err != nil {
+						t.Fatal(err)
+					}
+					c, err := fabricmodel.New(image(1, "model.idle", true), time.Second)
+					if err != nil {
+						t.Fatal(err)
+					}
+					now := time.Duration(0)
+					if err = c.Boot(now, time.Second); err != nil {
+						t.Fatal(err)
+					}
+					if err = drive(c, e, &now, 500); err != nil {
+						t.Fatal(err, c.Status())
+					}
+					assertDataPaths := func() {
+						t.Helper()
+						s, err := wire.ObserveBridges()
+						if err != nil || s.ResetMask != (13&^dataMask) || s.MastersContained {
+							t.Fatal("opened an unrequested data path", s, err)
+						}
+					}
+					assertDataPaths()
+					stats, err := r.call("bridge-stats")
+					if err != nil {
+						t.Fatal(err)
+					}
+					wantClose := uint64(0)
+					if name == "active" {
+						wantClose = 1
+					}
+					if stats[0] != wantClose {
+						t.Fatal("START redundantly reset an owned closed bridge", stats)
+					}
+					beforeBridge := append([]uint64(nil), stats...)
+					fault := map[string]int{"missing-hardware": 1, "missing-fabric": 2, "stop-failure": 3, "ownership-ABA": 4, "reset-readback": 5, "control-open": 8, "data-open": 9, "ownership-during-stop": 7, "missing-producer": 10}[name]
+					if fault != 0 {
+						if _, err = r.call("bridge-fault %x", fault); err != nil {
+							t.Fatal(err)
+						}
+					}
+					if name == "identity-recovery" {
+						r.wrongIdentity = true
+					}
+					if name == "lost-transfer" {
+						if _, err = r.call("lose"); err != nil {
+							t.Fatal(err)
+						}
+					}
+					if err = c.Load(image(2, "model.game", false), now, now+time.Second); err != nil {
+						t.Fatal(err)
+					}
+					err = drive(c, e, &now, 1100)
+					if fault == 0 && name != "identity-recovery" && name != "lost-transfer" {
+						if err != nil || c.Status().State != fabricmodel.Running {
+							t.Fatal(err, c.Status())
+						}
+						assertDataPaths()
+						if err = c.Stop(now, now+time.Second); err != nil {
+							t.Fatal(err)
+						}
+						if err = drive(c, e, &now, 500); err != nil || c.Status().State != fabricmodel.Idle {
+							t.Fatal(err, c.Status())
+						}
+						assertDataPaths()
+						stats, err = r.call("stats")
+						if err != nil || stats[0] != 3 || stats[1] != 3 || r.releases != 3 {
+							t.Fatal(stats, err)
+						}
+					} else if name == "identity-recovery" {
+						stats, _ = r.call("stats")
+						if err == nil || c.Status().State != fabricmodel.Idle || stats[0] != 3 || stats[1] != 2 {
+							t.Fatal(err, c.Status(), stats)
+						}
+					} else {
+						if err == nil || c.Status().State != fabricmodel.RebootRequired {
+							t.Fatal(err, c.Status())
+						}
+						stats, _ = r.call("stats")
+						programs := uint64(1)
+						if name == "lost-transfer" || name == "control-open" || name == "data-open" {
+							programs = 2
+						}
+						if stats[0] != programs || stats[1] != 1 {
+							t.Fatal("program/release passed a failed bridge", stats)
+						}
+						if name == "lost-transfer" && (r.region == nil || r.releases != 1) {
+							t.Fatal("lost transfer released its reservation")
+						}
+						if name == "missing-producer" {
+							afterBridge, bridgeErr := r.call("bridge-stats")
+							if bridgeErr != nil || afterBridge[0] != beforeBridge[0] || afterBridge[5] != beforeBridge[5] {
+								t.Fatal("missing FPGA master proof reached bridge/reset writes", afterBridge, bridgeErr)
+							}
+						}
+						if e.Step(c, now) == nil {
+							t.Fatal("retired endpoint replayed")
+						}
+						after, _ := r.call("stats")
+						if after[0] != stats[0] || after[1] != stats[1] {
+							t.Fatal("failed command replayed")
+						}
+					}
+				})
 			}
 		})
 	}

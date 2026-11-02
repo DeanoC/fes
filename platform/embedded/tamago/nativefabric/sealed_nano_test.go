@@ -258,7 +258,7 @@ func TestSealedNanoPackageNativeFirmwareCycle(t *testing.T) {
 			r := newSealedRPC(t, identity)
 			d := archive.Inspection().Descriptor
 			r.pair, r.boot = simulatedHPSBoot(t, d.Target.ProgrammingProfile == HPSFirstDiagnosticProfile)
-			hooks, err := NewCPUHooks(r, r, r.base, 256)
+			hooks, err := NewCPUHooks(r, r, r.base, 256, 13)
 			if err != nil {
 				t.Fatal(err)
 			}

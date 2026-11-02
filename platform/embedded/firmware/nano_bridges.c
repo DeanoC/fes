@@ -120,7 +120,9 @@ int fes_nano_bridges_close(struct fes_nano_bridges *b, uint64_t owner, uint64_t 
     out->producers_quiescent = 1;
     out->data_remained_contained = held;
     out->fabric_acknowledged = handshake;
-    out->hardware_drained = held ? 0U : FES_NANO_BRIDGES_DRAIN;
+    /* Only paths opened by this owner needed a fresh hardware drain. Reset
+     * paths retain their preceding containment; never poll or invent ACKs. */
+    out->hardware_drained = active & FES_NANO_BRIDGES_DRAIN;
     return 0;
 }
 
@@ -133,7 +135,8 @@ int fes_nano_bridges_open(struct fes_nano_bridges *b, uint64_t owner, uint64_t g
     if (expected(b, owner, generation) != 0) return UNPROVEN;
     control = b->access == CLOSED;
     if ((!control && b->access != CONTROL_ONLY) ||
-        mask != (control ? FES_NANO_BRIDGES_CONTROL : FES_NANO_BRIDGES_DATA) ||
+        (control ? mask != FES_NANO_BRIDGES_CONTROL :
+                   (!mask || (mask & ~FES_NANO_BRIDGES_DATA))) ||
         b->state.generation == UINT64_MAX || !b->state.masters_contained)
         return fail(b, INVALID);
     b->access = UNKNOWN;

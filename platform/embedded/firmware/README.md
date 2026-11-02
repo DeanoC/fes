@@ -247,13 +247,22 @@ bounded-return and qualified by trusted boot/platform code. There are no default
 MMIO addresses, ownership callbacks or never-enabled boot proof. Unknown closed
 and partial initial reset states reject. Lost ownership, incomplete producer
 containment, driver errors and changed reset/master readback retire the service.
-Control-only and data opening validate their exact masks and order.
+Control-only and data opening validate their exact masks and order. A data
+opening selects a nonzero subset of mask `13`; the native platform supplies
+that selection explicitly over the generated 1.8 bridge channel. Package
+metadata cannot select or qualify it, and the platform enable callback can
+reject any unqualified path. The cold provider still allows only its fixed
+control probe and denies generic data release.
 
 Configuration uses `fes_nano_bridges_configuration_guard` to check an already
 owned closed state without issuing another shutdown. In control-only recovery,
 data paths stay reset: the service closes only the control path and explicitly
 returns retained data containment, with zero fresh fabric/data ACK claims.
-An active data shutdown still requires the full hardware-drain sequence.
+An active data shutdown requires the hardware-drain sequence for every active
+hardware path (`12 & ~before.reset`). It closes only active paths and reports
+no fresh acknowledgement for a path that remained reset. DDR-only mask `8`
+therefore keeps reset `5` while active, closes mask `10` and reports hardware
+drain `8`. Stopping and independently proving every producer remains mandatory.
 
 The opt-in `nano_bridge_driver_source` transformation preserves the pinned
 vendor driver and first-error checks while gating only optional fabric warning
@@ -261,6 +270,13 @@ writes/polls on an injected, qualified capability. It covers enable as well as
 disable. Hardware flush/fence polls stay mandatory. The normal source
 transformations and default `build_terasic.py` mode do not select this driver
 or service.
+
+The pinned FPGA-to-DDR disable branch waits for `F2SDRAM0ACK` to clear, while
+FPGA-to-CPU disable waits for its flush acknowledgement to assert. Host tests
+inject the actual expected values from the pinned headers and reject a poll
+for an unopened path during partial close. This checks driver control flow;
+it does not prove physical DDR drain. Independent stop/drain evidence for the
+complete DDR master inventory remains required before a physical binding.
 
 ```sh
 python3 platform/embedded/firmware/verify_nano_bridges.py \

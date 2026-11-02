@@ -50,9 +50,25 @@ int main(void)
     fes_nano_bridge_sip(&b, 2, 18, 3, 0, r);
     assert(r[0] == 4 && b.failed && !r[2] && !r[3]);
     unsigned mutations = f.mutations;
-    fes_nano_bridge_sip(&b, 3, 17, 3, 0, r);
+    fes_nano_bridge_sip(&b, FES_EMBEDDED_BRIDGE_RELEASE | (13U << FES_EMBEDDED_BRIDGE_RELEASE_SHIFT), 17, 3, 0, r);
     assert(r[0] == 4 && f.mutations == mutations);
+
+    b = (struct fes_nano_bridges){0};
+    f = (struct fixture){15, 1, 0, 0, 0, 3}; /* simulated cold reboot */
+    assert(fes_nano_bridges_init(&b, ops(&f), 17, 3, 2, 1) == 0);
+    fes_nano_bridge_sip(&b, 2, 17, 1, 0, r);
+    assert(!r[0] && r[3] == 2);
+    const uint64_t invalid[] = {3, 0x20003, 0xe0003, 0x80007, 0x80003 | (1ULL << 32)};
+    for (unsigned i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+        fes_nano_bridge_sip(&b, invalid[i], 17, 2, 0, r);
+        assert(r[0] == 2 && !b.failed && b.state.generation == 2 && f.mutations == 1);
+    }
+    fes_nano_bridge_sip(&b, 0x80003, 17, 2, 0, r);
+    assert(!r[0] && r[1] == 0x46424f3100000025ULL && r[3] == 3 && f.reset == 5);
+    fes_nano_bridge_sip(&b, 0x101, 17, 3, 0, r);
+    assert(!r[0] && r[1] == 0x46424f31000023afULL && r[3] == 4 && f.reset == 15);
+    assert(!b.failed && f.stops == 1 && f.mutations == 3);
     assert(service_contract_cases() == 0);
-    puts("PASS owned bridge wire: unready, reserved, busy, held-data and stale-owner cases");
+    puts("PASS owned bridge wire: unready, reserved, busy, held-data, explicit paths and stale-owner cases");
     return 0;
 }

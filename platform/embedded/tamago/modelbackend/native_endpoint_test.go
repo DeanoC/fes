@@ -177,115 +177,123 @@ func (r *actorRPC) ControlOnly() (bool, error)              { _, err := r.call("
 func (r *actorRPC) ReleaseData() (bool, error)              { _, err := r.call("release"); return err == nil, err }
 
 func TestTenfootInjectedEndpointLaunchReturnAndIdentityFailure(t *testing.T) {
-	for _, wrong := range []bool{false, true} {
-		name := "launch-return"
-		if wrong {
-			name = "identity-failure"
-		}
-		t.Run(name, func(t *testing.T) {
-			policy, config, read := fixtures(t)
-			config.Entries = config.Entries[:1]
-			if wrong {
-				config.Entries[0].Check = "identity"
-			} else {
-				config.Entries[0].Check = "return"
-			}
-			r := newActorRPC(t)
-			r.wrongIdentity = wrong
-			identity, err := r.Resolve(fabricmodel.Identity{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			cpu := &sealedActorCPU{actorRPC: r, base: 0x40000000, identity: identity, bridges: actorBridgeState()}
-			hooks, err := actorCPUHooks(t, cpu)
-			if err != nil {
-				t.Fatal(err)
-			}
-			endpoint, err := nativefabric.New(hooks, actorOptions())
-			if err != nil {
-				t.Fatal(err)
-			}
-			backend, err := NewWithEndpoint(policy, config, read, nil, endpoint)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer closeBackend(t, backend)
-			device, err := gfx.NewSoftware(640, 480)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer device.Close()
-			app := tenfoot.NewApp(tenfoot.NewClient("http://model.invalid", &http.Client{Transport: backend, Timeout: 10 * time.Second}), 640, 480, 100)
-			if err = app.SetPreferenceStore(preferences{}); err != nil {
-				t.Fatal(err)
-			}
-			p := &scriptPlatform{app: app, backend: backend, entries: config.Entries, device: device}
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			if err = tenfoot.RunPlatform(ctx, app, device, p); err != nil {
-				stats, _ := r.call("stats")
-				t.Fatalf("%v stage=%d snapshot=%+v backend=%+v stats=%v writes=%d polls=%d", err, p.stage, app.Snapshot().Launch, backend.View(), stats, r.writes, r.polls)
-			}
-			if p.index != 1 || !p.sawPixels || backend.View().Status.State != fabricmodel.Idle {
-				t.Fatalf("case incomplete: %d %+v", p.index, backend.View())
-			}
-			stats, err := r.call("stats")
-			if err != nil {
-				t.Fatal(err)
-			}
-			expectedReleases := uint64(3)
-			if wrong {
-				expectedReleases = 2
-			}
-			if stats[0] != 3 || stats[1] != expectedReleases || r.releases != 3 {
-				t.Fatalf("program/release stats=%v buffer releases=%d", stats, r.releases)
+	for _, dataMask := range []uint32{8, 13} {
+		t.Run(fmt.Sprintf("mask-%x", dataMask), func(t *testing.T) {
+			for _, wrong := range []bool{false, true} {
+				name := "launch-return"
+				if wrong {
+					name = "identity-failure"
+				}
+				t.Run(name, func(t *testing.T) {
+					policy, config, read := fixtures(t)
+					config.Entries = config.Entries[:1]
+					if wrong {
+						config.Entries[0].Check = "identity"
+					} else {
+						config.Entries[0].Check = "return"
+					}
+					r := newActorRPC(t)
+					r.wrongIdentity = wrong
+					identity, err := r.Resolve(fabricmodel.Identity{})
+					if err != nil {
+						t.Fatal(err)
+					}
+					cpu := &sealedActorCPU{actorRPC: r, base: 0x40000000, identity: identity, bridges: actorBridgeState()}
+					hooks, err := actorCPUHooks(t, cpu, dataMask)
+					if err != nil {
+						t.Fatal(err)
+					}
+					endpoint, err := nativefabric.New(hooks, actorOptions())
+					if err != nil {
+						t.Fatal(err)
+					}
+					backend, err := NewWithEndpoint(policy, config, read, nil, endpoint)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer closeBackend(t, backend)
+					device, err := gfx.NewSoftware(640, 480)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer device.Close()
+					app := tenfoot.NewApp(tenfoot.NewClient("http://model.invalid", &http.Client{Transport: backend, Timeout: 10 * time.Second}), 640, 480, 100)
+					if err = app.SetPreferenceStore(preferences{}); err != nil {
+						t.Fatal(err)
+					}
+					p := &scriptPlatform{app: app, backend: backend, entries: config.Entries, device: device}
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+					if err = tenfoot.RunPlatform(ctx, app, device, p); err != nil {
+						stats, _ := r.call("stats")
+						t.Fatalf("%v stage=%d snapshot=%+v backend=%+v stats=%v writes=%d polls=%d", err, p.stage, app.Snapshot().Launch, backend.View(), stats, r.writes, r.polls)
+					}
+					if p.index != 1 || !p.sawPixels || backend.View().Status.State != fabricmodel.Idle {
+						t.Fatalf("case incomplete: %d %+v", p.index, backend.View())
+					}
+					stats, err := r.call("stats")
+					if err != nil {
+						t.Fatal(err)
+					}
+					expectedReleases := uint64(3)
+					if wrong {
+						expectedReleases = 2
+					}
+					if stats[0] != 3 || stats[1] != expectedReleases || r.releases != 3 {
+						t.Fatalf("program/release stats=%v buffer releases=%d", stats, r.releases)
+					}
+				})
 			}
 		})
 	}
 }
 
 func TestCPUBridgeFailureStopsActorBeforeProgramming(t *testing.T) {
-	for _, fault := range []string{"hardware", "fabric", "owner"} {
-		t.Run(fault, func(t *testing.T) {
-			policy, config, read := fixtures(t)
-			config.Entries = config.Entries[:1]
-			r := newActorRPC(t)
-			identity, err := r.Resolve(fabricmodel.Identity{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			cpu := &sealedActorCPU{actorRPC: r, base: 0x40000000, identity: identity, bridges: actorBridgeState(), bridgeFault: fault}
-			hooks, err := actorCPUHooks(t, cpu)
-			if err != nil {
-				t.Fatal(err)
-			}
-			endpoint, err := nativefabric.New(hooks, actorOptions())
-			if err != nil {
-				t.Fatal(err)
-			}
-			backend, err := NewWithEndpoint(policy, config, read, nil, endpoint)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if os.Getenv("FES_NANO_BRIDGE_RPC") != "" {
-				code := map[string]int{"hardware": 1, "fabric": 2, "owner": 4}[fault]
-				if _, err = r.call("bridge-fault %x", code); err != nil {
-					t.Fatal(err)
-				}
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			client := hostclient.NewClient("http://model.invalid", &http.Client{Transport: backend})
-			_, _ = client.Launch(ctx, "model-normal")
-			if backend.View().Status.State != fabricmodel.RebootRequired {
-				t.Fatal("failed closure was accepted", backend.View())
-			}
-			if err = backend.Close(ctx); !errors.Is(err, fabricmodel.ErrReboot) {
-				t.Fatal("lost uncertain bridge ownership", err)
-			}
-			stats, err := r.call("stats")
-			if err != nil || stats[0] != 1 || stats[1] != 1 || r.releases != 1 {
-				t.Fatal("programmed or released failed target", stats, err)
+	for _, dataMask := range []uint32{8, 13} {
+		t.Run(fmt.Sprintf("mask-%x", dataMask), func(t *testing.T) {
+			for _, fault := range []string{"hardware", "fabric", "owner"} {
+				t.Run(fault, func(t *testing.T) {
+					policy, config, read := fixtures(t)
+					config.Entries = config.Entries[:1]
+					r := newActorRPC(t)
+					identity, err := r.Resolve(fabricmodel.Identity{})
+					if err != nil {
+						t.Fatal(err)
+					}
+					cpu := &sealedActorCPU{actorRPC: r, base: 0x40000000, identity: identity, bridges: actorBridgeState(), bridgeFault: fault}
+					hooks, err := actorCPUHooks(t, cpu, dataMask)
+					if err != nil {
+						t.Fatal(err)
+					}
+					endpoint, err := nativefabric.New(hooks, actorOptions())
+					if err != nil {
+						t.Fatal(err)
+					}
+					backend, err := NewWithEndpoint(policy, config, read, nil, endpoint)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if os.Getenv("FES_NANO_BRIDGE_RPC") != "" {
+						code := map[string]int{"hardware": 1, "fabric": 2, "owner": 4}[fault]
+						if _, err = r.call("bridge-fault %x", code); err != nil {
+							t.Fatal(err)
+						}
+					}
+					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+					defer cancel()
+					client := hostclient.NewClient("http://model.invalid", &http.Client{Transport: backend})
+					_, _ = client.Launch(ctx, "model-normal")
+					if backend.View().Status.State != fabricmodel.RebootRequired {
+						t.Fatal("failed closure was accepted", backend.View())
+					}
+					if err = backend.Close(ctx); !errors.Is(err, fabricmodel.ErrReboot) {
+						t.Fatal("lost uncertain bridge ownership", err)
+					}
+					stats, err := r.call("stats")
+					if err != nil || stats[0] != 1 || stats[1] != 1 || r.releases != 1 {
+						t.Fatal("programmed or released failed target", stats, err)
+					}
+				})
 			}
 		})
 	}

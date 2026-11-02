@@ -1,6 +1,6 @@
 # Experimental owned firmware bridge channel
 
-`fes.fabric.embedded.bridges` 1.7 supplies generated C/Go constants for the
+`fes.fabric.embedded.bridges` 1.8 supplies generated C/Go constants for the
 Linux-free Nano firmware experiment. It adds no programming profile, package
 ABI, register mapping or production compatibility entry. The FPGA endpoint
 contract and its generated inputs are unchanged.
@@ -12,7 +12,13 @@ not probe the older mutable `HPS_SET_BRIDGES` service as a query.
 `x1` is the operation, `x2` the expected boot-scoped owner and `x4` the expected
 generation. Snapshot uses zero owner/generation. Close additionally carries
 request bits 8 (require fabric handshake) and 9 (retain continuously held data).
-Control and Release open exactly the predefined control and remaining masks.
+Control opens exactly mask `2`. Release requires an explicit nonzero subset of
+data mask `13`, encoded as `3 | (mask << 16)`. Thus DDR-only mask `8` uses
+`0x00080003`, while all data paths use `0x000d0003`. Bare operation `3`, a
+control bit in the data mask, and every reserved request bit reject without a
+mutation. The trusted platform selects and qualifies the mask independently of
+package metadata; the raw platform enable callback can reject an unqualified
+path. There is no default all-data release or fallback to an older service.
 There is no initialization or boot-proof operation callable from non-secure code.
 
 Replies have status in `x0`, tag `0x46424f31` above the flags in `x1`, owner
@@ -31,7 +37,12 @@ owner and generation. Other nonzero statuses carry no successful state.
 | 13:10 | Newly drained hardware mask |
 | 14 | Data stayed contained across this owner's control-only access |
 
-Only Close returns bits 8 through 14. Held-data close returns no fresh fabric
+Only Close returns bits 8 through 14. An active close drains exactly
+`12 & ~before.reset_mask`: only paths that this owner opened need a fresh
+hardware acknowledgement. For DDR-only access, reset changes `15 -> 13 -> 5`,
+and close stops every producer, closes the active mask `10`, returns hardware
+drain mask `8`, and verifies reset `15`. Unused paths retain their preceding
+containment; unknown initial partial resets still reject. Held-data close returns no fresh fabric
 or hardware-drain claims. Snapshot/Control/Release reject extra response bits.
 Reserved request bits, response bits, invalid operations and missing/mismatched
 owner/generation reject. The marker is not firmware authentication. Qualified

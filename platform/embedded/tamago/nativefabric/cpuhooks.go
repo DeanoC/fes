@@ -32,6 +32,7 @@ type CPUHooks struct {
 	services PlatformServices
 	base     uint64
 	span     uint32
+	dataMask uint32
 	bridge   *BridgeSnapshot
 	access   bridgeAccess
 	failed   bool
@@ -44,12 +45,16 @@ func (h *CPUHooks) ready() bool {
 }
 
 // NewCPUHooks deliberately supplies no Nano address or physical capability.
-// The caller must qualify the entire aperture and firmware before enabling it.
-func NewCPUHooks(cpu CPUTransport, services PlatformServices, base uint64, span uint32) (*CPUHooks, error) {
+// The caller must qualify the entire aperture, firmware and exact data paths.
+// dataMask comes from trusted platform integration, never package metadata.
+func NewCPUHooks(cpu CPUTransport, services PlatformServices, base uint64, span uint32, dataMask uint32) (*CPUHooks, error) {
+	if dataMask == 0 {
+		return nil, errors.New("native fabric: data bridge mask missing")
+	}
 	if cpu == nil || services == nil || base == 0 || base%4 != 0 || span < g.FesEmbeddedRegAckCookieHi+4 || span > 256 || span%4 != 0 || base > math.MaxUint64-uint64(span-1) {
 		return nil, errors.New("native fabric: invalid CPU control aperture")
 	}
-	return &CPUHooks{cpu: cpu, services: services, base: base, span: span}, nil
+	return &CPUHooks{cpu: cpu, services: services, base: base, span: span, dataMask: dataMask}, nil
 }
 
 func (h *CPUHooks) address(offset uint32) (uint64, error) {

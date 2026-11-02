@@ -48,14 +48,14 @@ func (a *sealedActorCPU) CloseBridges(r nativefabric.BridgeCloseRequest) (native
 	}
 	a.bridges.Generation++
 	a.bridges.ResetMask, a.bridges.NeverEnabled, a.bridges.MastersContained = 15, false, true
-	closed := nativefabric.BridgeClosure{After: a.bridges, ProducersQuiescent: true, FabricAcknowledged: r.RequireFabricHandshake, HardwareDrainedMask: 12}
+	closed := nativefabric.BridgeClosure{After: a.bridges, ProducersQuiescent: true, FabricAcknowledged: r.RequireFabricHandshake, HardwareDrainedMask: r.Before.Capabilities.HardwareDrainMask &^ r.Before.ResetMask}
 	if r.PreserveDataContainment {
 		closed.DataRemainedContained, closed.HardwareDrainedMask = true, 0
 	}
 	if a.programs != 0 {
 		switch a.bridgeFault {
 		case "hardware":
-			closed.HardwareDrainedMask = 4
+			closed.HardwareDrainedMask ^= 4
 		case "fabric":
 			closed.FabricAcknowledged = false
 		case "owner":
@@ -199,7 +199,7 @@ func TestSealedNanoTenfootModel(t *testing.T) {
 			if scenario == "wrong-boot-handoff" {
 				cpu.boot.HPSIOHash = strings.Repeat("f", 64)
 			}
-			hooks, err := nativefabric.NewCPUHooks(cpu, cpu, cpu.base, 256)
+			hooks, err := nativefabric.NewCPUHooks(cpu, cpu, cpu.base, 256, 13)
 			if err != nil {
 				t.Fatal(err)
 			}

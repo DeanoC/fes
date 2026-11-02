@@ -11,6 +11,8 @@ const (
 	FesEmbeddedBridgeClose                uint32 = 0x1
 	FesEmbeddedBridgeControl              uint32 = 0x2
 	FesEmbeddedBridgeRelease              uint32 = 0x3
+	FesEmbeddedBridgeReleaseShift         uint32 = 0x10
+	FesEmbeddedBridgeReleaseMask          uint32 = 0xd0000
 	FesEmbeddedBridgeContextPart0         uint32 = 0x4
 	FesEmbeddedBridgeContextPart1         uint32 = 0x5
 	FesEmbeddedBridgeContextTag           uint32 = 0x46484331

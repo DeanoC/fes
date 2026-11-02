@@ -48,9 +48,10 @@ type BridgeCloseRequest struct {
 }
 
 type BridgeClosure struct {
-	After                 BridgeSnapshot
-	ProducersQuiescent    bool
-	FabricAcknowledged    bool
+	After              BridgeSnapshot
+	ProducersQuiescent bool
+	FabricAcknowledged bool
+	// Only hardware paths active in Before need a fresh drain acknowledgement.
 	HardwareDrainedMask   uint32
 	DataRemainedContained bool
 }
@@ -104,7 +105,7 @@ func (h *CPUHooks) observeBridges() (BridgeSnapshot, error) {
 		h.failed = true
 		return BridgeSnapshot{}, err
 	}
-	if !validBridgeSnapshot(s) || (h.bridge != nil && s != *h.bridge) {
+	if !validBridgeSnapshot(s) || h.dataMask == 0 || h.dataMask&^(s.Capabilities.Mask&^s.Capabilities.ControlMask) != 0 || (h.bridge != nil && s != *h.bridge) {
 		return BridgeSnapshot{}, h.bridgeFailure("bridge capability, state or ownership changed")
 	}
 	return s, nil
@@ -153,7 +154,7 @@ func (h *CPUHooks) Contain() (bool, error) {
 	want := s
 	want.Generation++
 	want.ResetMask, want.NeverEnabled, want.MastersContained = c.Mask, false, true
-	drain := c.HardwareDrainMask
+	drain := c.HardwareDrainMask &^ s.ResetMask
 	if held {
 		drain = 0 // data stayed reset under this owner's preceding closure
 	}
@@ -170,7 +171,7 @@ func (h *CPUHooks) openBridges(control bool) (bool, error) {
 		return false, err
 	}
 	c := s.Capabilities
-	phase, reset, mask, next := bridgesControlOnly, c.Mask&^c.ControlMask, c.Mask&^c.ControlMask, bridgesActive
+	phase, reset, mask, next := bridgesControlOnly, c.Mask&^c.ControlMask, h.dataMask, bridgesActive
 	if control {
 		phase, reset, mask, next = bridgesClosed, c.Mask, c.ControlMask, bridgesControlOnly
 	}

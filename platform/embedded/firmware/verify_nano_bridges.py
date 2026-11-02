@@ -58,7 +58,7 @@ def build(reference, output, run):
     return {"source_sha256": hashlib.sha256(raw).hexdigest(), "pinned_headers_sha256": headers,
             "driver_transformation_sha256": hashlib.sha256(patched.encode()).hexdigest(),
             "generated_driver_sha256": sha(source), "driver_object_sha256": sha(output / "driver.o"),
-            "service_object_sha256": sha(output / "service.o"), "boot_object_sha256": sha(output / "boot.o"), "cases": 18}
+            "service_object_sha256": sha(output / "service.o"), "boot_object_sha256": sha(output / "boot.o"), "cases": 42}
 
 
 def main():

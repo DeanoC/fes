@@ -1,14 +1,14 @@
 {
   "source": {
     "repository": "DeanoC/fes",
-    "commit": "207e8d619f2cab5bb2f34a7fc90f5c50cea3ca82",
+    "commit": "59ddb433e1d9805586d2c907edf07c549c62a640",
     "file": "platform/embedded/firmware/generated/fes_embedded_bridges.h",
-    "note": "Source base for the reader extension, introduced with this updated oracle. Existing constants retain the frozen retirement header values at 1a0cf9d46f6d30f4c4cead17a7f5252109b41ba2. The new reader operation/tag supply no DDR drain or runtime admission."
+    "note": "Source base for explicit data-path selection, introduced with this updated oracle. Existing constants retain their values from 207e8d619f2cab5bb2f34a7fc90f5c50cea3ca82. Release now requires a nonzero data mask in bits 19:16; bare operation 3 rejects. This wire change supplies no physical DDR qualification or runtime admission."
   },
   "fabric": {
     "id": "fes.fabric.embedded.bridges",
     "major": 1,
-    "minor": 7
+    "minor": 8
   },
   "constants": {
     "FesEmbeddedBridgeCall": 3254780673,
@@ -18,6 +18,8 @@
     "FesEmbeddedBridgeClose": 1,
     "FesEmbeddedBridgeControl": 2,
     "FesEmbeddedBridgeRelease": 3,
+    "FesEmbeddedBridgeReleaseShift": 16,
+    "FesEmbeddedBridgeReleaseMask": 851968,
     "FesEmbeddedBridgeRequestFabric": 256,
     "FesEmbeddedBridgeRequestHeld": 512,
     "FesEmbeddedBridgeNotReady": 5,

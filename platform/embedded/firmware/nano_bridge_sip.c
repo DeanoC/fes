@@ -42,12 +42,14 @@ void fes_nano_bridge_sip(struct fes_nano_bridges *b, uint64_t operation,
     struct fes_nano_bridge_snapshot s = {0};
     struct fes_nano_bridge_closure c = {0};
     uint32_t flags = 0;
+    unsigned release = (operation & ~(uint64_t)FES_EMBEDDED_BRIDGE_RELEASE_MASK) == FES_EMBEDDED_BRIDGE_RELEASE &&
+                       (operation & FES_EMBEDDED_BRIDGE_RELEASE_MASK) != 0;
     int status = -1;
     result[0] = 2; /* rejected request; no successful state */
     result[1] = (uint64_t)FES_EMBEDDED_BRIDGE_TAG << 32;
     result[2] = result[3] = 0;
     if (operation != FES_EMBEDDED_BRIDGE_SNAPSHOT &&
-        operation != FES_EMBEDDED_BRIDGE_CONTROL && operation != FES_EMBEDDED_BRIDGE_RELEASE &&
+        operation != FES_EMBEDDED_BRIDGE_CONTROL && !release &&
         (operation & ~(uint64_t)(FES_EMBEDDED_BRIDGE_REQUEST_FABRIC | FES_EMBEDDED_BRIDGE_REQUEST_HELD)) != FES_EMBEDDED_BRIDGE_CLOSE)
         return;
     if (operation == FES_EMBEDDED_BRIDGE_SNAPSHOT && (owner || generation)) return;
@@ -55,9 +57,10 @@ void fes_nano_bridge_sip(struct fes_nano_bridges *b, uint64_t operation,
     if (configuring && operation != FES_EMBEDDED_BRIDGE_SNAPSHOT) { result[0] = 1; return; }
     if (operation == FES_EMBEDDED_BRIDGE_SNAPSHOT) {
         status = fes_nano_bridges_observe(b, &s);
-    } else if (operation == FES_EMBEDDED_BRIDGE_CONTROL || operation == FES_EMBEDDED_BRIDGE_RELEASE) {
+    } else if (operation == FES_EMBEDDED_BRIDGE_CONTROL || release) {
         status = fes_nano_bridges_open(b, owner, generation,
-            operation == FES_EMBEDDED_BRIDGE_CONTROL ? FES_NANO_BRIDGES_CONTROL : FES_NANO_BRIDGES_DATA, &s);
+            operation == FES_EMBEDDED_BRIDGE_CONTROL ? FES_NANO_BRIDGES_CONTROL :
+                (uint32_t)(operation >> FES_EMBEDDED_BRIDGE_RELEASE_SHIFT), &s);
     } else {
         status = fes_nano_bridges_close(b, owner, generation,
             !!(operation & FES_EMBEDDED_BRIDGE_REQUEST_FABRIC),

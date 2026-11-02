@@ -19,6 +19,7 @@ static int stop(void *p)
 static int disable(void *p, uint32_t mask, unsigned fabric)
 {
     struct fixture *f = p; (void)fabric; f->mutations++;
+    assert(mask == (FES_NANO_BRIDGES_ALL & ~f->reset));
     if (f->fault == 3) return -60;
     f->reset |= mask;
     if (f->fault == 4) f->reset &= ~4U;
@@ -58,12 +59,16 @@ int main(void)
             assert(s.reset == 13 && s.masters_contained);
             assert(fes_nano_bridges_close(&b, 17, s.generation, 0, 1, &c) == 0);
             assert(c.data_remained_contained && !c.hardware_drained && !c.fabric_acknowledged);
-            assert(fes_nano_bridges_open(&b, 17, b.state.generation, 2, &s) == 0);
-            assert(fes_nano_bridges_open(&b, 17, s.generation, 13, &s) == 0);
-            assert(s.reset == 0 && !s.masters_contained);
-            assert(fes_nano_bridges_close(&b, 17, s.generation, fabric == 2, 0, &c) == 0);
-            assert(c.hardware_drained == 12 && !c.data_remained_contained);
-            cases++;
+            const uint32_t paths[] = {1, 4, 5, 8, 9, 12, 13};
+            for (unsigned i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
+                assert(fes_nano_bridges_open(&b, 17, b.state.generation, 2, &s) == 0);
+                assert(fes_nano_bridges_open(&b, 17, s.generation, paths[i], &s) == 0);
+                assert(s.reset == (13U & ~paths[i]) && !s.masters_contained);
+                assert(fes_nano_bridges_close(&b, 17, s.generation, fabric == 2, 0, &c) == 0);
+                assert(c.hardware_drained == (paths[i] & 12U) && !c.data_remained_contained);
+                assert(c.after.reset == 15 && c.after.masters_contained);
+                cases++;
+            }
         }
     }
     for (unsigned reset = 1; reset <= 15; reset++) {
@@ -71,6 +76,18 @@ int main(void)
         struct fes_nano_bridges b = {0};
         assert(fes_nano_bridges_init(&b, ops(&f), 17, 3, 1, 0) < 0);
         assert(b.failed && !f.mutations);
+        cases++;
+    }
+    const uint32_t invalid_masks[] = {0, 2, 3, 14, 16, UINT32_MAX};
+    for (unsigned i = 0; i < sizeof(invalid_masks) / sizeof(invalid_masks[0]); i++) {
+        struct fixture f = {15, 1, 0, 0, 0, 3};
+        struct fes_nano_bridges b = {0};
+        struct fes_nano_bridge_snapshot s;
+        assert(fes_nano_bridges_init(&b, ops(&f), 17, 3, 1, 1) == 0);
+        assert(fes_nano_bridges_open(&b, 17, 1, 2, &s) == 0);
+        assert(fes_nano_bridges_open(&b, 17, s.generation, invalid_masks[i], &s) < 0);
+        assert(b.failed && f.mutations == 1 && f.reset == 13);
+        assert(fes_nano_bridges_open(&b, 17, s.generation, 8, &s) < 0 && f.mutations == 1);
         cases++;
     }
     for (unsigned fault = 1; fault <= 6; fault++) {

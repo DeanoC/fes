@@ -28,13 +28,17 @@ int main(void)
             assert(s.reset == 13);
             assert(fes_nano_bridges_close(&fes_nano_fixture_service, 17, s.generation, 0, 1, &c) == 0);
             assert(c.data_remained_contained && !c.hardware_drained && !c.fabric_acknowledged);
-            assert(fes_nano_bridges_open(&fes_nano_fixture_service, 17, c.after.generation, 2, &s) == 0);
-            assert(fes_nano_bridges_open(&fes_nano_fixture_service, 17, s.generation, 13, &s) == 0);
-            assert(s.reset == 0);
-            assert(fes_nano_bridges_close(&fes_nano_fixture_service, 17, s.generation, fabric == 2, 0, &c) == 0);
-            fes_nano_fixture_stats(stats);
-            if (fabric == 1) assert(stats[3] == 0); /* optional clear polls also omitted */
-            cases++;
+            const uint32_t paths[] = {1, 4, 5, 8, 9, 12, 13};
+            for (unsigned i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
+                assert(fes_nano_bridges_open(&fes_nano_fixture_service, 17, c.after.generation, 2, &s) == 0);
+                assert(fes_nano_bridges_open(&fes_nano_fixture_service, 17, s.generation, paths[i], &s) == 0);
+                assert(s.reset == (13U & ~paths[i]));
+                assert(fes_nano_bridges_close(&fes_nano_fixture_service, 17, s.generation, fabric == 2, 0, &c) == 0);
+                assert(c.hardware_drained == (paths[i] & 12U) && c.after.reset == 15);
+                fes_nano_fixture_stats(stats);
+                if (fabric == 1) assert(stats[3] == 0); /* optional clear polls also omitted */
+                cases++;
+            }
         }
         for (unsigned fault = 1; fault <= 7; fault++) {
             assert(fes_nano_fixture_boot(0, 0, fabric) == 0);

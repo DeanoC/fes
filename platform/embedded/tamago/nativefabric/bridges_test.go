@@ -48,7 +48,7 @@ func (b *bridgeFixture) CloseBridges(r BridgeCloseRequest) (BridgeClosure, error
 	}
 	b.state.Generation++
 	b.state.ResetMask, b.state.NeverEnabled, b.state.MastersContained = 15, false, true
-	rc := BridgeClosure{After: b.state, ProducersQuiescent: true, FabricAcknowledged: r.RequireFabricHandshake, HardwareDrainedMask: 12}
+	rc := BridgeClosure{After: b.state, ProducersQuiescent: true, FabricAcknowledged: r.RequireFabricHandshake, HardwareDrainedMask: r.Before.Capabilities.HardwareDrainMask &^ r.Before.ResetMask}
 	if r.PreserveDataContainment {
 		rc.DataRemainedContained, rc.HardwareDrainedMask = true, 0
 	}
@@ -60,7 +60,7 @@ func (b *bridgeFixture) CloseBridges(r BridgeCloseRequest) (BridgeClosure, error
 	case "fabric":
 		rc.FabricAcknowledged = !rc.FabricAcknowledged
 	case "hardware":
-		rc.HardwareDrainedMask = 4
+		rc.HardwareDrainedMask ^= 4 // missing active ACK, or invented ACK for a reset path
 	case "held-data":
 		rc.DataRemainedContained = !rc.DataRemainedContained
 	case "reset":
@@ -109,6 +109,11 @@ type bridgeTestServices struct {
 
 func testCPUBridges(t *testing.T, s BridgeSnapshot) (*CPUHooks, *bridgeTestServices) {
 	t.Helper()
+	return testCPUBridgePaths(t, s, 13)
+}
+
+func testCPUBridgePaths(t *testing.T, s BridgeSnapshot, dataMask uint32) (*CPUHooks, *bridgeTestServices) {
+	t.Helper()
 	f := &fake{control: true, expected: map[byte]embeddedcontrol.Identity{1: fpgaID(1), 2: fpgaID(2)}}
 	services := &bridgeTestServices{fake: f, bridgeFixture: &bridgeFixture{state: s}}
 	services.close = func() error { _, err := f.Contain(); return err }
@@ -129,7 +134,7 @@ func testCPUBridges(t *testing.T, s BridgeSnapshot) (*CPUHooks, *bridgeTestServi
 		f.contained, f.control = true, false
 	}
 	cpu := &cpuTestTransport{base: 0x40000000, device: f}
-	h, err := NewCPUHooks(cpu, services, cpu.base, 256)
+	h, err := NewCPUHooks(cpu, services, cpu.base, 256, dataMask)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,33 +148,37 @@ func coldBridgeState(handshake FabricHandshake) BridgeSnapshot {
 }
 
 func TestCPUBridgeColdAndOwnedClosedAreIdempotent(t *testing.T) {
-	for _, handshake := range []FabricHandshake{FabricHandshakeAbsent, FabricHandshakePresent} {
-		h, s := testCPUBridges(t, coldBridgeState(handshake))
-		for range 2 {
-			if ok, err := h.Contain(); !ok || err != nil {
-				t.Fatal(err)
+	for _, dataMask := range []uint32{1, 4, 5, 8, 9, 12, 13} {
+		t.Run(fmt.Sprintf("mask-%x", dataMask), func(t *testing.T) {
+			for _, handshake := range []FabricHandshake{FabricHandshakeAbsent, FabricHandshakePresent} {
+				h, s := testCPUBridgePaths(t, coldBridgeState(handshake), dataMask)
+				for range 2 {
+					if ok, err := h.Contain(); !ok || err != nil {
+						t.Fatal(err)
+					}
+				}
+				if s.closes != 0 || s.opens != 0 {
+					t.Fatal("already-closed boot issued a hardware handshake")
+				}
+				if ok, err := h.ControlOnly(); !ok || err != nil || s.state.ResetMask != 13 {
+					t.Fatalf("control-only: %v %+v", err, s.state)
+				}
+				// The endpoint, not bridge reset bits, supplies reader-enable evidence.
+				s.status = g.FesEmbeddedStatusEnabled
+				if ok, err := h.ReleaseData(); !ok || err != nil || s.state.ResetMask != (13&^dataMask) {
+					t.Fatalf("data release: %v %+v", err, s.state)
+				}
+				if ok, err := h.Contain(); !ok || err != nil {
+					t.Fatal(err)
+				}
+				if s.closes != 1 || s.requests[0].RequireFabricHandshake != (handshake == FabricHandshakePresent) {
+					t.Fatal("active shutdown did not use explicit fabric capability")
+				}
+				if ok, err := h.Contain(); !ok || err != nil || s.closes != 1 {
+					t.Fatal("same-owner closed bridge was reset again", err)
+				}
 			}
-		}
-		if s.closes != 0 || s.opens != 0 {
-			t.Fatal("already-closed boot issued a hardware handshake")
-		}
-		if ok, err := h.ControlOnly(); !ok || err != nil || s.state.ResetMask != 13 {
-			t.Fatalf("control-only: %v %+v", err, s.state)
-		}
-		// The endpoint, not bridge reset bits, supplies reader-enable evidence.
-		s.status = g.FesEmbeddedStatusEnabled
-		if ok, err := h.ReleaseData(); !ok || err != nil || s.state.ResetMask != 0 {
-			t.Fatalf("data release: %v %+v", err, s.state)
-		}
-		if ok, err := h.Contain(); !ok || err != nil {
-			t.Fatal(err)
-		}
-		if s.closes != 1 || s.requests[0].RequireFabricHandshake != (handshake == FabricHandshakePresent) {
-			t.Fatal("active shutdown did not use explicit fabric capability")
-		}
-		if ok, err := h.Contain(); !ok || err != nil || s.closes != 1 {
-			t.Fatal("same-owner closed bridge was reset again", err)
-		}
+		})
 	}
 }
 
@@ -238,7 +247,7 @@ func assertBridgeRetired(t *testing.T, h *CPUHooks, s *bridgeTestServices) {
 }
 
 func TestCPUBridgeRejectsUnprovedInitialStates(t *testing.T) {
-	for _, name := range []string{"unknown-closed", "partial", "partial-seven", "cold-master", "unspecified", "owner-zero", "generation-zero", "mask", "control-mask", "drain-mask", "no-drain-mask", "overflow", "observe"} {
+	for _, name := range []string{"unknown-closed", "partial", "partial-ddr", "partial-seven", "cold-master", "unspecified", "owner-zero", "generation-zero", "mask", "control-mask", "drain-mask", "no-drain-mask", "overflow", "observe"} {
 		t.Run(name, func(t *testing.T) {
 			s := bridgeState(FabricHandshakeAbsent)
 			switch name {
@@ -246,6 +255,8 @@ func TestCPUBridgeRejectsUnprovedInitialStates(t *testing.T) {
 				s.ResetMask, s.MastersContained = 15, true
 			case "partial":
 				s.ResetMask = 4
+			case "partial-ddr":
+				s.ResetMask = 5 // valid only after this owner's explicit DDR release
 			case "partial-seven":
 				s.ResetMask = 7
 			case "cold-master":
@@ -276,6 +287,33 @@ func TestCPUBridgeRejectsUnprovedInitialStates(t *testing.T) {
 				t.Fatal("unproved state accepted or mutated", err)
 			}
 			assertBridgeRetired(t, h, f)
+		})
+	}
+}
+
+func TestCPUBridgeDataSelectionAndPartialReleaseFailures(t *testing.T) {
+	for _, mask := range []uint32{2, 15, 16, ^uint32(0)} {
+		h, s := testCPUBridgePaths(t, coldBridgeState(FabricHandshakePresent), mask)
+		if ok, err := h.Contain(); ok || err == nil || s.closes != 0 || s.opens != 0 {
+			t.Fatal("unqualified platform data mask accepted", mask, err)
+		}
+		assertBridgeRetired(t, h, s)
+	}
+	for _, fault := range []string{"open", "open-reset", "open-owner"} {
+		t.Run(fault, func(t *testing.T) {
+			h, s := testCPUBridgePaths(t, coldBridgeState(FabricHandshakePresent), 8)
+			if _, err := h.Contain(); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.ControlOnly(); err != nil {
+				t.Fatal(err)
+			}
+			s.status = g.FesEmbeddedStatusEnabled
+			s.bridgeFixture.fault = fault
+			if ok, err := h.ReleaseData(); ok || err == nil {
+				t.Fatal("partial release accepted changed paths/ownership", fault)
+			}
+			assertBridgeRetired(t, h, s)
 		})
 	}
 }
@@ -339,98 +377,102 @@ func TestCPUBridgeReleaseOrderAndReadbackFailures(t *testing.T) {
 }
 
 func TestCPUBridgeContractLaunchReturnAndFailures(t *testing.T) {
-	for _, name := range []string{"cold", "active", "absent-fabric", "hardware-drain", "fabric-ack", "control-open", "data-open", "identity-recovery", "lost-completion"} {
-		t.Run(name, func(t *testing.T) {
-			s := coldBridgeState(FabricHandshakePresent)
-			if name == "active" {
-				s = bridgeState(FabricHandshakePresent)
-			}
-			if name == "absent-fabric" {
-				s.Capabilities.FabricHandshake = FabricHandshakeAbsent
-			}
-			hooks, services := testCPUBridges(t, s)
-			e, err := New(hooks, Options{DRAMBase: 0x80000000, ChunkBytes: 32})
-			if err != nil {
-				t.Fatal(err)
-			}
-			c, err := fabricmodel.New(image(1, "model.idle", true), time.Second)
-			if err != nil {
-				t.Fatal(err)
-			}
-			now := time.Duration(0)
-			if err = c.Boot(now, time.Second); err != nil {
-				t.Fatal(err)
-			}
-			if err = drive(c, e, &now, 500); err != nil {
-				t.Fatal(err)
-			}
-			beforePrograms, beforeReleases := services.programs, services.dataReleases
-			switch name {
-			case "hardware-drain":
-				services.bridgeFixture.fault = "hardware"
-			case "fabric-ack":
-				services.bridgeFixture.fault = "fabric"
-			case "control-open":
-				services.fake.fault = "control"
-			case "data-open":
-				services.fake.fault = "release"
-			case "identity-recovery":
-				services.fake.fault = "identity"
-			case "lost-completion":
-				services.fake.fault = "lost"
-			}
-			if err = c.Load(image(2, "model.game", false), now, now+time.Second); err != nil {
-				t.Fatal(err)
-			}
-			if name == "absent-fabric" {
-				services.pending = 1
-				for range 8 {
-					now += time.Millisecond
-					if err = e.Step(c, now); err != nil {
+	for _, dataMask := range []uint32{8, 13} {
+		t.Run(fmt.Sprintf("mask-%x", dataMask), func(t *testing.T) {
+			for _, name := range []string{"cold", "active", "absent-fabric", "hardware-drain", "fabric-ack", "control-open", "data-open", "identity-recovery", "lost-completion"} {
+				t.Run(name, func(t *testing.T) {
+					s := coldBridgeState(FabricHandshakePresent)
+					if name == "active" {
+						s = bridgeState(FabricHandshakePresent)
+					}
+					if name == "absent-fabric" {
+						s.Capabilities.FabricHandshake = FabricHandshakeAbsent
+					}
+					hooks, services := testCPUBridgePaths(t, s, dataMask)
+					e, err := New(hooks, Options{DRAMBase: 0x80000000, ChunkBytes: 32})
+					if err != nil {
 						t.Fatal(err)
 					}
-				}
-				if services.closes != 0 || services.programs != beforePrograms || services.disableCommands != 1 {
-					t.Fatal("missing optional handshake bypassed the endpoint generation/cookie drain")
-				}
-				services.drain()
-			}
-			err = drive(c, e, &now, 1100)
-			if name == "cold" || name == "active" || name == "absent-fabric" {
-				if err != nil || c.Status().State != fabricmodel.Running {
-					t.Fatal(err, c.Status())
-				}
-				if err = c.Stop(now, now+time.Second); err != nil {
-					t.Fatal(err)
-				}
-				if err = drive(c, e, &now, 500); err != nil || c.Status().State != fabricmodel.Idle {
-					t.Fatal(err, c.Status())
-				}
-				closes := 2
-				if name == "active" {
-					closes++
-				}
-				if services.disableCommands != 2 || services.programs != 3 || services.dataReleases != 3 || services.closes != closes {
-					t.Fatalf("launch/return sequence: %+v %+v", services.fake, services.bridgeFixture)
-				}
-			} else if name == "identity-recovery" {
-				if err == nil || c.Status().State != fabricmodel.Idle || services.programs != 3 || services.dataReleases != 2 {
-					t.Fatal(err, c.Status())
-				}
-			} else {
-				if err == nil || c.Status().State != fabricmodel.RebootRequired || services.dataReleases != beforeReleases {
-					t.Fatal(err, c.Status())
-				}
-				if (name == "hardware-drain" || name == "fabric-ack") && services.programs != beforePrograms {
-					t.Fatal("programmed after failed closure")
-				}
-				if name == "lost-completion" && (services.region == nil || services.released != 1) {
-					t.Fatal("lost completion released DMA memory")
-				}
-				programs, opens := services.programs, services.opens
-				if e.Step(c, now) == nil || services.programs != programs || services.opens != opens {
-					t.Fatal("failed lifecycle replayed")
-				}
+					c, err := fabricmodel.New(image(1, "model.idle", true), time.Second)
+					if err != nil {
+						t.Fatal(err)
+					}
+					now := time.Duration(0)
+					if err = c.Boot(now, time.Second); err != nil {
+						t.Fatal(err)
+					}
+					if err = drive(c, e, &now, 500); err != nil {
+						t.Fatal(err)
+					}
+					beforePrograms, beforeReleases := services.programs, services.dataReleases
+					switch name {
+					case "hardware-drain":
+						services.bridgeFixture.fault = "hardware"
+					case "fabric-ack":
+						services.bridgeFixture.fault = "fabric"
+					case "control-open":
+						services.fake.fault = "control"
+					case "data-open":
+						services.fake.fault = "release"
+					case "identity-recovery":
+						services.fake.fault = "identity"
+					case "lost-completion":
+						services.fake.fault = "lost"
+					}
+					if err = c.Load(image(2, "model.game", false), now, now+time.Second); err != nil {
+						t.Fatal(err)
+					}
+					if name == "absent-fabric" {
+						services.pending = 1
+						for range 8 {
+							now += time.Millisecond
+							if err = e.Step(c, now); err != nil {
+								t.Fatal(err)
+							}
+						}
+						if services.closes != 0 || services.programs != beforePrograms || services.disableCommands != 1 {
+							t.Fatal("missing optional handshake bypassed the endpoint generation/cookie drain")
+						}
+						services.drain()
+					}
+					err = drive(c, e, &now, 1100)
+					if name == "cold" || name == "active" || name == "absent-fabric" {
+						if err != nil || c.Status().State != fabricmodel.Running {
+							t.Fatal(err, c.Status())
+						}
+						if err = c.Stop(now, now+time.Second); err != nil {
+							t.Fatal(err)
+						}
+						if err = drive(c, e, &now, 500); err != nil || c.Status().State != fabricmodel.Idle {
+							t.Fatal(err, c.Status())
+						}
+						closes := 2
+						if name == "active" {
+							closes++
+						}
+						if services.disableCommands != 2 || services.programs != 3 || services.dataReleases != 3 || services.closes != closes {
+							t.Fatalf("launch/return sequence: %+v %+v", services.fake, services.bridgeFixture)
+						}
+					} else if name == "identity-recovery" {
+						if err == nil || c.Status().State != fabricmodel.Idle || services.programs != 3 || services.dataReleases != 2 {
+							t.Fatal(err, c.Status())
+						}
+					} else {
+						if err == nil || c.Status().State != fabricmodel.RebootRequired || services.dataReleases != beforeReleases {
+							t.Fatal(err, c.Status())
+						}
+						if (name == "hardware-drain" || name == "fabric-ack") && services.programs != beforePrograms {
+							t.Fatal("programmed after failed closure")
+						}
+						if name == "lost-completion" && (services.region == nil || services.released != 1) {
+							t.Fatal("lost completion released DMA memory")
+						}
+						programs, opens := services.programs, services.opens
+						if e.Step(c, now) == nil || services.programs != programs || services.opens != opens {
+							t.Fatal("failed lifecycle replayed")
+						}
+					}
+				})
 			}
 		})
 	}

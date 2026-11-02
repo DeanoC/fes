@@ -18,7 +18,7 @@ class NanoBridgeServiceTests(unittest.TestCase):
                             str(FIRMWARE / "tests/nano_bridges_test.c"), "-o", str(executable)],
                            check=True, capture_output=True, text=True)
             result = subprocess.run([str(executable)], check=True, capture_output=True, text=True)
-            self.assertIn("PASS 32 firmware service cases", result.stdout)
+            self.assertIn("PASS 62 firmware service cases", result.stdout)
 
 
 if __name__ == "__main__":
