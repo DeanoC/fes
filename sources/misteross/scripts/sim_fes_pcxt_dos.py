@@ -19,9 +19,9 @@ import pcxt_acceptance_media as acceptance
 ROOT = sim.ROOT
 
 
-def check_space(path):
-    """Do not start long simulation work when the filesystem is nearly full."""
-    if shutil.disk_usage(path).free < 30 * 1024**3:
+def check_space(path, scenario):
+    """Keep the long COM and game simulations off nearly full filesystems."""
+    if scenario in ('com', 'game') and shutil.disk_usage(path).free < 30 * 1024**3:
         raise ValueError('PC/XT simulation requires at least 30 GiB free')
 
 
@@ -118,7 +118,7 @@ def run(args):
                  'inputs.json', 'bus.log', 'candidate.json', 'title-before-start.ppm',
                  'start-control.ppm', 'start-key.ppm', 'right-control.ppm', 'right-key.ppm'):
         (build / name).unlink(missing_ok=True)
-    check_space(build)
+    check_space(build, args.scenario)
     bios.fixture_inputs(build, args.bios, args.font, args.download)
     # Validate the exact bytes supplied to the device against the pinned boot
     # code, geometry and all 8086 FreeDOS files, while allowing harmless

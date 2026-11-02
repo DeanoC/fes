@@ -68,11 +68,18 @@ class GameFrameOracleTest(unittest.TestCase):
 
 
 class SimulationProcessTest(unittest.TestCase):
-    def test_low_disk_rejected(self):
+    def test_dos_runs_without_the_long_scenario_disk_preflight(self):
         with mock.patch.object(simulation.shutil, 'disk_usage') as usage:
             usage.return_value = type('Disk', (), {'free': 30 * 1024**3 - 1})()
-            with self.assertRaisesRegex(ValueError, '30 GiB'):
-                simulation.check_space('.')
+            simulation.check_space('.', 'dos')
+            usage.assert_not_called()
+
+    def test_long_application_scenarios_are_rejected_when_disk_is_low(self):
+        with mock.patch.object(simulation.shutil, 'disk_usage') as usage:
+            usage.return_value = type('Disk', (), {'free': 30 * 1024**3 - 1})()
+            for scenario in ('com', 'game'):
+                with self.subTest(scenario=scenario), self.assertRaisesRegex(ValueError, '30 GiB'):
+                    simulation.check_space('.', scenario)
 
     @unittest.skipUnless(hasattr(os, 'fork') and Path('/proc').exists(), 'POSIX process groups required')
     def test_sigterm_reaps_stubborn_simulator_and_fork(self):
