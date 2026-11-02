@@ -988,6 +988,26 @@ script = "link_static_rbf.py"
 	}
 }
 
+func TestLoadConfigReadsBundledFirmwareDirectory(t *testing.T) {
+	dir := t.TempDir()
+	config, err := fogcast.LoadConfig(writeConfig(t, validConfig(filepath.Join(dir, "games-a"), filepath.Join(dir, "games-b"))+`
+[firmware]
+bundled_dir = "/usr/share/fogcast/firmware"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Firmware.BundledDir != "/usr/share/fogcast/firmware" {
+		t.Fatalf("firmware config = %#v", config.Firmware)
+	}
+	if _, err := fogcast.LoadConfig(writeConfig(t, validConfig(filepath.Join(dir, "games-a"), filepath.Join(dir, "games-b"))+`
+[firmware]
+bundled_dir = "firmware"
+`)); err == nil {
+		t.Fatal("relative firmware directory was accepted")
+	}
+}
+
 func writeConfig(t *testing.T, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")

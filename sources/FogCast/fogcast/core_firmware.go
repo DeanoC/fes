@@ -89,12 +89,28 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 			comp.ROMID = inspection.Descriptor.ROM.ID
 			comp.ROMRole = inspection.Descriptor.ROM.Role
 			comp.ROMSourceSize = inspection.Descriptor.ROM.SourceSize
-			selected, _, romErr := s.readCoreEntryROM(ctx, entry, inspection.Descriptor)
-			comp.ROMMediaID = selected.MediaID
 			if inspection.Descriptor.ROM.Role == protocol.FirmwareRole {
 				comp.FirmwareRequired = true
-				comp.FirmwareReady = romErr == nil
+				if inspection.Descriptor.Format == 3 {
+					if fw, ok := s.defaultBundledFirmware(ctx, entry, inspection.Descriptor.ROM); ok {
+						// LoadBundledFirmware imports and verifies each immutable object
+						// once at host startup. A library listing can use that result
+						// without hashing the same image once per title on every page.
+						comp.ROMMediaID = fw.MediaID
+						comp.FirmwareReady = true
+					} else {
+						selected, _, romErr := s.readCoreEntryROM(ctx, entry, inspection.Descriptor)
+						comp.ROMMediaID = selected.MediaID
+						comp.FirmwareReady = romErr == nil
+					}
+				} else {
+					selected, _, romErr := s.readCoreEntryROM(ctx, entry, inspection.Descriptor)
+					comp.ROMMediaID = selected.MediaID
+					comp.FirmwareReady = romErr == nil
+				}
 			} else {
+				selected, _, romErr := s.readCoreEntryROM(ctx, entry, inspection.Descriptor)
+				comp.ROMMediaID = selected.MediaID
 				comp.ROMRequired = true
 				comp.ROMReady = romErr == nil
 			}

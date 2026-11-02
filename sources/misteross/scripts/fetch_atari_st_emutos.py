@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Fetch the original official EmuTOS 1.4 192 KiB US image for ST boot tests.
 
-The GPLv2-or-later ROM is an external test input. No binary enters the source
-closure or a sealed blank-ROM package. Both archive and extracted ROM are pinned.
+The GPL-2.0-only ROM is an external test input; its Caldera GEM files allow no
+later version. No binary enters the source closure or a sealed blank-ROM
+package. Both archive and extracted ROM are pinned. FES ships the same image
+beside the ST core through scripts/bundled_firmware.py.
 """
 import argparse
 import hashlib

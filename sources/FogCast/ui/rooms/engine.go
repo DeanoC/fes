@@ -152,6 +152,9 @@ type Instance struct {
 	// into this draw. A later extend appends without copying it again.
 	extendCopied bool
 	actions      []Action
+	// firmwareInfo is the latest first-use firmware request, kept apart from
+	// actions: a workbench repeats it on every load.
+	firmwareInfo *Action
 	games        map[string]hostclient.Game
 	images       map[string]*Image
 	store        *store
@@ -686,6 +689,16 @@ func (r *Instance) TakeActions() []Action {
 	out := r.actions
 	r.actions = nil
 	return out
+}
+
+// TakeFirmwareInfo returns and clears the latest first-use firmware request.
+func (r *Instance) TakeFirmwareInfo() (Action, bool) {
+	if r.firmwareInfo == nil {
+		return Action{}, false
+	}
+	out := *r.firmwareInfo
+	r.firmwareInfo = nil
+	return out, true
 }
 
 // CheckGlobal evaluates a Lua boolean expression in the room (tests/diagnostics).

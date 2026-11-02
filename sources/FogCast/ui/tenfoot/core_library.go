@@ -35,6 +35,8 @@ type coreLibraryState struct {
 	SystemExpansions                                       systemExpansionState
 	ExpansionFamily                                        int
 	Tapes                                                  []hostclient.HardwareTape
+	// BuiltIn is the bundled firmware preselected for a ROM, by ROM ID.
+	BuiltIn map[string]protocol.BundledFirmware
 }
 
 func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
@@ -85,7 +87,9 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 	}
 	for _, r := range s.Setup.ROMs {
 		status := "choose file"
-		if s.ROMs[r.ID] != "" {
+		if fw, ok := s.BuiltIn[r.ID]; ok && s.ROMs[r.ID] == fw.MediaID {
+			status = "built in: " + fw.Name
+		} else if s.ROMs[r.ID] != "" {
 			status = "selected"
 		}
 		add(fmt.Sprintf("%s · %s · %d bytes · %s", r.ID, r.Role, r.SourceSize, status), "rom:"+r.ID)
@@ -225,10 +229,20 @@ func (a *App) refreshCoreLibraryLocked() {
 		a.coreLibrary.Status = "Choose a system. Adding a game does not launch it."
 	})
 }
+func setupNamesEntryFirmware(setup hostclient.CoreSetup) bool {
+	for _, r := range setup.ROMs {
+		if r.Binding == "entry" && r.Role == protocol.FirmwareRole {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *App) loadCoreSetupLocked(install bool) {
 	ref := *a.coreLibrary.Ref
 	installedSetup := a.coreLibrary.InstalledSetup
 	var setup hostclient.CoreSetup
+	var bundled []protocol.BundledFirmware
 	a.coreLibraryAsyncLocked(func(ctx context.Context) error {
 		if install {
 			if err := a.client.InstallAvailableCore(ctx, ref); err != nil {
@@ -244,6 +258,10 @@ func (a *App) loadCoreSetupLocked(install bool) {
 		if err == nil && !installedSetup && (setup.LibrarySourceID != ref.LibrarySourceID || setup.PackageID != ref.PackageID || setup.SourceID != ref.SourceID || setup.CoreID != ref.CoreID) {
 			return fmt.Errorf("System changed; refresh and choose again")
 		}
+		if err == nil && setupNamesEntryFirmware(setup) {
+			// Without the list nothing is preselected; the user chooses a file.
+			bundled, _ = a.client.BundledFirmware(ctx)
+		}
 		return err
 	}, func() {
 		if install {
@@ -256,9 +274,14 @@ func (a *App) loadCoreSetupLocked(install bool) {
 		}
 		a.coreLibrary.Setup = &setup
 		a.coreLibrary.ROMs = map[string]string{}
+		a.coreLibrary.BuiltIn = map[string]protocol.BundledFirmware{}
 		for _, r := range setup.ROMs {
 			if r.Binding == "household-firmware" && setup.FirmwareMediaID != "" {
 				a.coreLibrary.ROMs[r.ID] = setup.FirmwareMediaID
+			}
+			if fw, ok := hostclient.BundledFirmwareFor(bundled, setup.CoreID, r.ID, r.SourceSize); ok && r.Binding == "entry" && r.Role == protocol.FirmwareRole {
+				a.coreLibrary.ROMs[r.ID] = fw.MediaID
+				a.coreLibrary.BuiltIn[r.ID] = fw
 			}
 		}
 		a.coreLibrary.Index = 0

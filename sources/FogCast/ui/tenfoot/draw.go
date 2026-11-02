@@ -202,6 +202,7 @@ func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTex
 	}
 	drawRoomPicker(dev, snap, labels, used)
 	drawFirmwarePicker(dev, snap, labels, used)
+	drawFirmwareCard(dev, snap, labels, used)
 	drawTapePicker(dev, snap, labels, used)
 	drawSettings(dev, snap, labels, used)
 	if snap.CoreLibrary.Open {

@@ -8,7 +8,12 @@ DOC = (ROOT / "docs/plans/v1-firmware-licensing.md").read_text()
 
 
 def evidence_line(prefix):
-    return next(line for line in DOC.splitlines() if line.startswith(prefix))
+    for line in DOC.splitlines():
+        if line.startswith(prefix):
+            return line
+    raise AssertionError(
+        f"expected a line starting with {prefix!r} in docs/plans/v1-firmware-licensing.md"
+    )
 
 
 def licensing_row(prefix):
@@ -42,13 +47,13 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
         self.assertIn("remove the ROMs if a rights holder objects", decision1)
         self.assertIn("release HIL passes on the PAL core", decision6)
 
-    def test_zx81_rom_bundling_and_followups_are_recorded(self):
-        state = evidence_line("Firmware bytes are already in Git:")
-        evidence = evidence_line("- **Z0.")
+    def test_zx81_user_supplied_policy_and_followups_are_recorded(self):
+        state = evidence_line("Before PR #1379,")
+        evidence = evidence_line("- **Z0. Existing committed ROM bytes.")
         decision = evidence_line("5. **ZX81 family. Agreed.")
         summary = evidence_line("- **The remaining ROMs stay user-supplied")
         self.assertIn("machine.rom", state)
-        self.assertIn("core_roms.go", state)
+        self.assertIn("removes that host copy and default", state)
         self.assertIn("build_fes_zx81.py", state)
         self.assertIn("qs_chrs.hex", state)
         self.assertIn("qs_chrs_init.vh", state)
@@ -58,7 +63,12 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
         self.assertIn("#1379", evidence)
         self.assertIn("#1381", evidence)
         self.assertIn("not permission to redistribute", evidence)
-        self.assertIn("user-supplied for v1", decision)
+        self.assertIn(
+            "Keep the ZX81 BASIC and the ZX80, TS1000 and TS1500 ROMs user-supplied for v1",
+            decision,
+        )
+        self.assertIn("write to Nine Tiles Networks to ask permission", decision)
+        self.assertIn("No primary Nine Tiles permission was found", decision)
         self.assertIn("user-supplied in v1", summary)
         self.assertIn("Pentagon's entire 48 KiB image", DOC)
 

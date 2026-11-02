@@ -18,7 +18,8 @@ generates and embeds it through its launcher setup and media workflow.
 `kit_ui`, `theme` or `shelf` written for the removed grid launcher, are
 ignored, so older cards still load. Tenfoot preferences and per-room state live
 under `/media/fat/fogcast/state/FogCast/` (`tenfoot.json` and
-`rooms/<id>.state.json`).
+`rooms/<id>.state.json`). `tenfoot.json` `firmware_info_seen` lists the families
+whose first-use firmware card was continued past.
 
 Home, the rooms and the core catalog view list only the v1 release cores
 (`internal/release`, recorded in `docs/support-matrix.md` as v1, v2 or held

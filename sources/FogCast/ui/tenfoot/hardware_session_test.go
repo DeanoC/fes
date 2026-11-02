@@ -176,6 +176,8 @@ func TestHardwareStopSessionChangedAllowsFreshExplicitStop(t *testing.T) {
 // running core, or retain that core when a second session begins.
 func TestPlayingSystemRoomReplacesStaleWorkshopSelection(t *testing.T) {
 	app := NewApp(nil, 1280, 720, 20)
+	app.mu.Lock()
+	defer app.mu.Unlock()
 	app.roomsIndex = rooms.NewIndex(rooms.Examples())
 	app.openRoomLocked(hardwareRoomID)
 	app.session = hardwareBoundSession()
