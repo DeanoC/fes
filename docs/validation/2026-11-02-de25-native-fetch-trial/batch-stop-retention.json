@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "archive": "/home/deano/fes-retained/de25-native-fetch-trial-20261102/batch-stop.tar.gz",
+  "bytes": 146045,
+  "sha256": "b16e32d031e69bcff98fb6b45badd867cdf1e55d5c610283887a8a9ff9589ca1",
+  "members": 65,
+  "manifest_sha256": "2a58baa01a76756abcbe29843a8f0c59e37dd01dfd95d00fd6e5e56af0b79785",
+  "hardware_stop_evidence_sha256": "8034d1f240b29c97d09dbd61c2d58bd1a079e6cdb9426ed53ce12467bac9d768"
+}
