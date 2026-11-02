@@ -144,6 +144,7 @@ class AffectedTests(unittest.TestCase):
                      if 'sources/mister-packages/' + source == definition]
         self.assertEqual(set(consumers), {
             ('FES', 'image/kernel/de25-dma/generated/fes_de25_ddr_probe.h'),
+            ('FES', 'platform/embedded/firmware/generated/fes_de25_ddr_probe.h'),
             ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
             ('misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
         })
