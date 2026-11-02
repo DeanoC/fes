@@ -514,8 +514,9 @@ type App struct {
 	// frameLua is the room Step from the Tick in progress. Tick clears it,
 	// and only a Step that actually ran this iteration fills it again.
 	frameLua rooms.StepTiming
-	// roomCoreDetail is the package whose Details the hero is showing.
-	roomCoreDetail string
+	// roomHeroDetail is heroDetailKey of the destination whose Details the
+	// hero is showing: an installed package or a family.
+	roomHeroDetail string
 	browseActions  browseActionState
 	// libraryReturn is the suspended room the Library was opened from.
 	libraryReturn *libraryOrigin

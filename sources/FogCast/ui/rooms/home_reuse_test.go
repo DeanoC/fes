@@ -20,22 +20,20 @@ func TestHomeReusesFrameAndRedrawsChanges(t *testing.T) {
 			if err := r.Load(); err != nil {
 				t.Fatal(err)
 			}
-			first := stepUntil(t, r, func(Frame) bool { return r.Destination().Kind == KindCore })
+			first := stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
 			same := r.Step(time.Now())
 			if len(first.Ops) == 0 || len(same.Ops) == 0 || &first.Ops[0] != &same.Ops[0] {
 				t.Fatal("unchanged Home rebuilt its drawing")
 			}
-			// Pointer focus must invalidate the picture even in the stacked layout.
-			r.Hover("core:2")
+			// Pointer focus must invalidate the picture in the compact layout too.
+			r.Hover("family:2")
 			moved := r.Step(time.Now())
-			if r.Destination().PackageID != coreZXID || &same.Ops[0] == &moved.Ops[0] {
-				t.Fatal("pointer focus did not redraw the selected core")
+			if r.Destination().Label != "ZX Spectrum" || &same.Ops[0] == &moved.Ops[0] {
+				t.Fatal("pointer focus did not redraw the selected family")
 			}
-			for i := 0; i < 2 && r.Destination().Kind == KindCore; i++ {
-				r.Input("up")
-			}
+			r.Input("header")
 			menu := r.Step(time.Now())
-			if r.Destination().Kind == KindCore || &moved.Ops[0] == &menu.Ops[0] {
+			if r.Destination().Kind == KindFamily || &moved.Ops[0] == &menu.Ops[0] {
 				t.Fatal("route navigation did not redraw")
 			}
 			r.Resize(800, 600)
@@ -83,7 +81,7 @@ func TestHomeReplacesReusedCheckingFrame(t *testing.T) {
 		t.Fatal("unchanged Checking frame was rebuilt")
 	}
 	close(held.release)
-	loaded := stepUntil(t, r, func(Frame) bool { return r.Destination().Kind == KindCore })
+	loaded := stepUntil(t, r, func(Frame) bool { return homeSettled(r) })
 	if &same.Ops[0] == &loaded.Ops[0] {
 		t.Fatal("core-list arrival reused Checking frame")
 	}
