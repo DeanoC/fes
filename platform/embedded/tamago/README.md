@@ -49,11 +49,14 @@ query, checks unchanged closed source ownership and reports SDM readiness.
 It uses the same compiled source/control-map inputs and matched boot chain,
 and performs no FPGA register access or bridge opening.
 The Nano-only `fpgaload` program adds a source-bound first phase-two transfer.
-Its build derives the core bytes and whole/chunk digests from the verified
-sealed package, excludes an uncached transfer arena from every other owner,
-and binds that descriptor into native code, SPL and BL31. Private preparation
-checks the actual staged bytes under unchanged closed ownership. The same
-`ConfigurationTransfer` engine used by the runtime then drives the contained
+Its build derives whole/chunk digests and a separate upload archive from the
+verified sealed package, excludes an uncached transfer arena from every other
+owner, and binds that descriptor into native code, SPL and BL31. It reads and
+retains `FES/PKGTEST.BIN` through owned SD/FAT, contains SD, and
+then checks the actual staged bytes under that closed ownership. The core RBF
+is no longer embedded in the native executable. Private preparation captures
+the contained SD generation and rejects a resumed or changed storage handoff.
+The same `ConfigurationTransfer` engine used by the runtime then drives the contained
 firmware protocol, followed by readiness and live identity with control
 reclosed. This one-shot cold profile grants no runtime compatibility or data
 release. See [contained phase-two configuration](../nano/README.md#contained-phase-two-configuration).

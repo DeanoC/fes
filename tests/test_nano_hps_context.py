@@ -47,9 +47,15 @@ class HPSContextTests(unittest.TestCase):
                 payload.write_bytes(raw[:-4]+b'bad!')
                 with self.assertRaisesRegex(ValueError,'sealed core'):
                     context._configuration(project)
-            with patch.object(context,'configuration',return_value=mapping):
-                with self.assertRaisesRegex(ValueError,'changed after package verification'):
-                    context.core_payload(project,mapping)
+            archive=project/'package.fcore';archive.write_bytes(b'canonical archive fixture')
+            receipt={'path':str(archive),'size':archive.stat().st_size,'sha256':hashlib.sha256(archive.read_bytes()).hexdigest()}
+            with patch.object(context,'configuration',return_value=mapping),patch.object(context,'_worker',return_value=receipt):
+                self.assertEqual(context.package_archive(project,mapping),archive.read_bytes())
+                archive.write_bytes(b'changed after validation')
+                with self.assertRaisesRegex(ValueError,'changed after verification'):
+                    context.package_archive(project,mapping)
+                with self.assertRaisesRegex(ValueError,'map differs'):
+                    context.package_archive(project,dict(mapping,base=0))
             payload.unlink();payload.symlink_to(project/'untrusted.rbf')
             with patch.object(context,'_derive',return_value=descriptor):
                 with self.assertRaisesRegex(ValueError,'symlink'):

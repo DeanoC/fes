@@ -4,15 +4,20 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"runtime"
 	"time"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
+	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
+	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
+	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 )
 
 var expectedBootContext, expectedControlMap, expectedConfigurationMap string
@@ -30,7 +35,7 @@ func decoded(s string, limit int) []byte {
 }
 
 func main() {
-	if runtime.GOOS != "tamago" || board.ExceptionLevel() != 1 || board.CounterFrequency() != 400000000 || len(coreImage) == 0 || len(coreImage) > 8<<20 {
+	if runtime.GOOS != "tamago" || board.ExceptionLevel() != 1 || board.CounterFrequency() != 400000000 {
 		panic("unexpected FPGA configuration CPU/source contract")
 	}
 	cpu := de25nano.FabricCPUTransport{}
@@ -39,21 +44,41 @@ func main() {
 		panic(err)
 	}
 	id := v.Identity()
-	source, err := v.Verify(id)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("FES_NATIVE_HPS_CONTEXT PASS sha256=%s package_id=%s build_id=%s owner=%x generation=1 runtime_programming=unavailable\n",
-		hex.EncodeToString(source.Digest[:]), id.PackageID, id.BuildID, source.Bridges.Owner)
 	control, configuration := decoded(expectedControlMap, 8192), decoded(expectedConfigurationMap, 32768)
-	region, err := de25nano.ReserveConfiguration([]byte(coreImage))
+	disk, err := board.OpenStorage()
 	if err != nil {
 		panic(err)
 	}
-	retained, err = v.NewColdConfigurationTransfer(control, configuration, region, source)
+	lease, ok := disk.(*sdcontrol.Session)
+	if !ok {
+		panic(errors.New("FPGA load requires owned SD storage"))
+	}
+	volume, err := fat.Mount(disk)
+	if err != nil {
+		panic(err)
+	}
+	store, err := packagestore.New(volume, lease)
+	if err != nil {
+		panic(err)
+	}
+	selection, err := store.Retain(context.Background(), packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID})
+	if err != nil {
+		panic(err)
+	}
+	handoff, err := store.Contain(selection)
+	if err != nil {
+		panic(err)
+	}
+	closed := handoff.Receipt()
+	fmt.Printf("FES_NANO_LOAD_PACKAGE CONTAINED package_id=%s owner=%x generation=%d source=sd storage_active=0\n", id.PackageID, closed.Owner, closed.Generation)
+	var source nativefabric.HPSBootObservation
+	retained, source, err = v.NewStoredConfigurationTransfer(control, configuration, handoff, de25nano.ReserveConfiguration)
 	if err != nil {
 		panic(err) // Board reservation remains pinned, including constructor errors.
 	}
+	size := retained.Status().RetainedBytes
+	fmt.Printf("FES_NATIVE_HPS_CONTEXT PASS sha256=%s package_id=%s build_id=%s owner=%x generation=%d runtime_programming=unavailable\n",
+		hex.EncodeToString(source.Digest[:]), id.PackageID, id.BuildID, source.Bridges.Owner, source.Bridges.Generation)
 	defer func() {
 		failure := recover()
 		if failure == nil {
@@ -96,11 +121,11 @@ func main() {
 	}
 	status := retained.Status()
 	after, err := v.Verify(id)
-	if err != nil || after != source || status.AcceptedBytes != len(coreImage) || status.CompletedBytes != len(coreImage) || status.Outstanding != 0 || !status.Done || status.Failed {
+	if err != nil || after != source || status.AcceptedBytes != size || status.CompletedBytes != size || status.Outstanding != 0 || !status.Done || status.Failed {
 		panic("FPGA configuration did not retain closed source ownership")
 	}
-	fmt.Printf("FES_NATIVE_FPGA_PROGRAMMED PASS package_id=%s core_sha256=%s bytes=%d owner=%x generation=1 data_held=1 activation=unavailable\n",
-		id.PackageID, id.ProgrammedSHA256, len(coreImage), source.Bridges.Owner)
+	fmt.Printf("FES_NATIVE_FPGA_PROGRAMMED PASS package_id=%s core_sha256=%s bytes=%d owner=%x generation=%d data_held=1 activation=unavailable\n",
+		id.PackageID, id.ProgrammedSHA256, size, source.Bridges.Owner, source.Bridges.Generation)
 	observed, err := v.ProbeIdentity(control)
 	if err != nil {
 		panic(err)
@@ -108,6 +133,6 @@ func main() {
 	if observed.Source != source {
 		panic("FPGA identity changed source context")
 	}
-	fmt.Printf("FES_NATIVE_FPGA_IDENTITY PASS package_id=%s build_id=%s abi=%x base=%x map_sha256=%s owner=%x generation=3 data_held=1 runtime_programming=unavailable\n",
-		id.PackageID, id.BuildID, observed.Identity.ABI, observed.CPUBase, hex.EncodeToString(observed.ControlMapSHA256[:]), observed.After.Owner)
+	fmt.Printf("FES_NATIVE_FPGA_IDENTITY PASS package_id=%s build_id=%s abi=%x base=%x map_sha256=%s owner=%x generation=%d data_held=1 runtime_programming=unavailable\n",
+		id.PackageID, id.BuildID, observed.Identity.ABI, observed.CPUBase, hex.EncodeToString(observed.ControlMapSHA256[:]), observed.After.Owner, observed.After.Generation)
 }

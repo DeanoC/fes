@@ -47,8 +47,8 @@ static void init_bytes(struct fixture *f,unsigned bytes)
 static void init(struct fixture *f) { init_bytes(f,128); }
 static void arm(struct fixture *f)
 {
-    uint64_t r[4];fes_nano_configuration_prepare(&f->configuration,17,1,0,r);
-    assert(r[0]==0 && r[1]==((uint64_t)FES_EMBEDDED_BRIDGE_PREPARATION_TAG<<32|f->configuration.bytes) && r[2]==17 && r[3]==1);
+    uint64_t r[4];fes_nano_configuration_prepare(&f->configuration,17,f->bridges.state.generation,0,r);
+    assert(r[0]==0 && r[1]==((uint64_t)FES_EMBEDDED_BRIDGE_PREPARATION_TAG<<32|f->configuration.bytes) && r[2]==17 && r[3]==f->bridges.state.generation);
     assert(fes_nano_configuration_busy(&f->configuration));
 }
 static void reply(struct fixture *f,uint32_t fid,uint64_t address,uint64_t bytes,unsigned configuring,
@@ -58,7 +58,7 @@ static void reply(struct fixture *f,uint32_t fid,uint64_t address,uint64_t bytes
     uint64_t r[]={a,b,c,d};f->engine_calls++;
     fes_nano_configuration_after(&f->configuration,fid,r);
     assert(!f->configuration.failed && r[0]==a && r[1]==b && r[2]==c && r[3]==d);
-    assert(f->reset==15 && f->bridges.state.generation==1 && f->bridges.state.never_enabled);
+    assert(f->reset==15 && f->bridges.state.generation==f->configuration.generation && f->bridges.state.never_enabled);
 }
 static void started(struct fixture *f)
 { arm(f);reply(f,FES_NANO_CONFIG_START,0,0,0,0,0,0,0); }
@@ -79,7 +79,7 @@ static void retired(struct fixture *f)
     assert(f->configuration.failed && f->bridges.failed && f->configuration.first_error<0 && f->failures);
     unsigned checks=f->checks,engine=f->engine_calls,observed_reset=f->reset;uint64_t r[4];
     assert(fes_nano_configuration_before(&f->configuration,FES_NANO_CONFIG_START,0,0,0)==4);
-    fes_nano_configuration_prepare(&f->configuration,17,1,0,r);
+    fes_nano_configuration_prepare(&f->configuration,17,f->bridges.state.generation,0,r);
     assert(r[0]!=0 && !r[2] && !r[3] && f->checks==checks && f->engine_calls==engine);
     assert(f->reset==observed_reset); /* Never invent reclose after an external change. */
 }
@@ -231,6 +231,31 @@ int main(void)
         if(mode==6)io.check=0;
         assert(fes_nano_configuration_init(&f.configuration,&f.bridges,io,base,bytes,chunk,qualified)<0);
         retired(&f);cases++;
+    }
+    /* Device containment may advance the secure generation before first load.
+     * Old requests cannot bind; the accepted generation is then immutable. */
+    for(unsigned mode=0;mode<4;mode++) {
+        init(&f);f.bridges.state.generation=4;
+        fes_nano_configuration_prepare(&f.configuration,17,1,0,r);
+        assert(r[0]==2 && !f.configuration.attempted && f.configuration.generation==1);
+        if(mode==0) {
+            all_bytes(&f);reply(&f,FES_NANO_CONFIG_ISDONE,0,0,1,0,0,0,0);
+            assert(f.configuration.finished && f.configuration.generation==4);
+        } else {
+            pending(&f);assert(f.configuration.generation==4);
+            if(mode==1) {
+                assert(fes_nano_configuration_retire(&f.configuration,17,1,1));
+                assert(!fes_nano_configuration_retire(&f.configuration,17,4,1));
+                assert(f.configuration.pending==64 && f.configuration.failed && f.reset==15);
+            } else {
+                if(mode==2)f.bridges.state.generation++;
+                if(mode==3)f.bridges.device_lease=1;
+                if(mode==2)assert(fes_nano_configuration_before(&f.configuration,FES_NANO_CONFIG_COMPLETED,0,0,1)==4);
+                else assert(fes_nano_configuration_retire(&f.configuration,17,4,1));
+                assert(f.configuration.pending==64 && !f.configuration.completed && f.reset==15);
+            }
+        }
+        cases++;
     }
     printf("PASS %u contained configuration ownership and failure cases\n",cases);
     return 0;

@@ -165,5 +165,13 @@ int main(void)
         if (fault==2)assert(p.stage==FES_ID_CLOSE);
         cases++;
     }
+    setup(&h,&b,&p);b.state.generation=4;
+    fes_nano_identity_configuration_sip(&p,17,4,0,r);
+    assert(!r[0] && r[2]==17 && r[3]==4 && h.config_calls==1 && !h.enables);
+    fes_nano_identity_sip(&p,17,4,0,r);
+    assert(!r[0] && b.state.generation==6 && h.enables==1 && h.reads==30 && h.reset==15);cases++;
+    setup(&h,&b,&p);b.state.generation=UINT64_MAX-1;
+    fes_nano_identity_sip(&p,17,UINT64_MAX-1,0,r);
+    assert(r[0]==2 && !p.attempted && !h.enables && !h.config_calls);cases++;
     printf("PASS %u identity/control containment cases\n",cases);
 }

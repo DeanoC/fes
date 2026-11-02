@@ -66,9 +66,21 @@ func TestControlProbeRequiresCompiledSourceAndClosedReturnedScope(t *testing.T) 
 	if _, ok := interface{}(v).(BootHandoffVerifier); ok {
 		t.Fatal("identity diagnostic became live boot/programming authority")
 	}
+	replies := controlProbeReplies(raw)
+	replies[0][3], replies[3][3], replies[5][3] = 4, 4, 6
+	calls = 0
+	v, err = NewHPSContextVerifier(controlProbeCPU(t, replies, -1, &calls), raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observed, err = v.ProbeIdentity(mapping)
+	if err != nil || observed.Source.Bridges.Generation != 4 || observed.After.Generation != 6 || calls != 6 {
+		t.Fatal("identity lost the contained storage generation", observed, err, calls)
+	}
+
 }
 func TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry(t *testing.T) {
-	for _, name := range []string{"unready", "busy", "transport", "tag", "abi", "build-high", "build-low", "late-owner", "late-generation", "late-mask", "late-masters", "late-capability", "late-never", "late-transport", "not-cold", "not-first-generation"} {
+	for _, name := range []string{"unready", "busy", "transport", "tag", "abi", "build-high", "build-low", "late-owner", "late-generation", "late-mask", "late-masters", "late-capability", "late-never", "late-transport", "not-cold", "stale-closed-generation"} {
 		t.Run(name, func(t *testing.T) {
 			raw := hpsContextFixture(t)
 			replies := controlProbeReplies(raw)
@@ -113,10 +125,10 @@ func TestControlProbeRejectsPartialUnknownAndChangedObservationsWithoutRetry(t *
 				replies[0][1] = 0x46424f310000009f
 				replies[3] = replies[0]
 				maximum = 4
-			case "not-first-generation":
+			case "stale-closed-generation":
 				replies[0][3] = 3
 				replies[3] = replies[0]
-				maximum = 4
+				maximum = 6
 			}
 			calls := 0
 			v, err := NewHPSContextVerifier(controlProbeCPU(t, replies, failure, &calls), raw)

@@ -331,6 +331,25 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
     def decode(self,raw):
         return trace.decode_native_configuration(raw,BUILD,SEED,fpga_identity=self.identity,configuration=self.configuration)
 
+    def stored_capture(self):
+        raw=self.capture()
+        provider=f'NOTICE:  FES_NANO_OWNED_BOOT provider=1 result=0 reset=0000004f\r\n'
+        self.assertIn(provider,raw)
+        raw=raw.replace(provider,provider+'NOTICE:  FES_NANO_SD_PLATFORM setup=1 ready=1\r\n')
+        lines=raw.splitlines(keepends=True)
+        for i,line in enumerate(lines):
+            if 'FES_NATIVE_HPS_CONTEXT' in line or 'FES_NANO_CORE_TRANSFER' in line or 'FES_NATIVE_FPGA_PROGRAMMED' in line:
+                lines[i]=line.replace('generation=1','generation=4')
+            elif 'FES_NANO_IDENTITY phase=' in line:
+                for old,new in ((3,6),(2,5),(1,4)):
+                    if f'generation={old} ' in line:lines[i]=line.replace(f'generation={old} ',f'generation={new} ');break
+            elif 'FES_NATIVE_FPGA_IDENTITY' in line:
+                lines[i]=line.replace('generation=3','generation=6')
+        raw=''.join(lines)
+        marker='FES_NATIVE_HPS_CONTEXT'
+        contained=f'FES_NANO_LOAD_PACKAGE CONTAINED package_id={self.identity["package_id"]} owner={OWNER:x} generation=4 source=sd storage_active=0\r\n'
+        return raw.replace(marker,contained+marker,1)
+
     def window_capture(self):
         raw=self.capture();start=raw.index('NOTICE:  FES_NANO_CORE_TRANSFER phase=arm')
         end=raw.index('FES_NATIVE_FPGA_PROGRAMMED')
@@ -371,6 +390,28 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
         self.assertTrue(result['configuration_transfer']['complete'])
         self.assertEqual(result['configuration_transfer']['completed_bytes'],65664)
         self.assertFalse(result['core_load_acceptance'])
+        stored=self.stored_capture()
+        decode=lambda raw:trace.decode_native_configuration(raw,BUILD,SEED,fpga_identity=self.identity,
+                                                           configuration=self.configuration,from_storage=True)
+        stored_result=decode(stored)
+        self.assertTrue(stored_result['complete'],stored_result)
+        self.assertFalse(stored_result['core_load_acceptance'])
+        self.assertFalse(self.decode(stored)['complete'])
+        self.assertFalse(decode(self.capture())['complete'])
+        for old,new in (('source=sd storage_active=0','source=sd storage_active=1'),
+                        ('generation=4 source=sd','generation=3 source=sd'),
+                        ('generation=4 runtime_programming=','generation=1 runtime_programming='),
+                        ('generation=6 data_held=','generation=3 data_held='),
+                        ('FES_NANO_LOAD_PACKAGE CONTAINED package_id='+self.identity['package_id'],
+                         'FES_NANO_LOAD_PACKAGE CONTAINED package_id='+'f'*64),
+                        ('FES_NANO_SD_PLATFORM setup=1 ready=1','FES_NANO_SD_PLATFORM setup=0 ready=0')):
+            with self.subTest(stored_mutation=new):self.assertFalse(decode(stored.replace(old,new))['complete'])
+        for line in stored.splitlines(keepends=True):
+            if 'FES_NANO_LOAD_PACKAGE' in line or 'FES_NANO_SD_PLATFORM' in line:
+                self.assertFalse(decode(stored.replace(line,''))['complete'])
+                self.assertFalse(decode(stored.replace(line,line+line))['complete'])
+                self.assertFalse(decode(stored.replace(line,'')+line)['complete'])
+                self.assertFalse(decode(stored.split(line)[0]+line.rstrip('\r\n'))['complete'])
         self.assertEqual(result['last_checkpoint'],'fpga_identity')
         self.assertEqual(sum(row['stage'].startswith('configuration_') for row in result['records']),11)
         self.assertFalse(trace.decode_native_boot(raw,BUILD,SEED,fpga_identity=self.identity,fpga_configuration=True)['complete'])

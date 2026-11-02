@@ -40,6 +40,11 @@ int mailbox_send_cmd(uint32_t job,uint32_t cmd,uint32_t *args,unsigned length,ui
 }
 #endif
 static unsigned invalid_sd_clock,invalid_sd_route,sd_mmio,clock_reads;
+static uint32_t sd_registers[256],sd_phy[6],sd_phy_address;
+static unsigned sd_phy_index(uint32_t address) {
+    switch(address) { case 0x2000:return 0;case 0x2004:return 1;case 0x2008:return 2;
+    case 0x200c:return 3;case 0x2010:return 4;case 0x2080:return 5;default:assert(0);return 0; }
+}
 int fes_nano_cold_cpu_release_locked(void) { return release_locked; }
 struct fes_nano_bridges fes_nano_owned_bridges;
 struct fes_nano_sd fes_nano_owned_sd;
@@ -65,11 +70,12 @@ uint64_t read_cntpct_el0(void) { static uint64_t ticks;return ticks+=100; }
 static int max_blocks=4,current_block,fes_contained_transport_status;
 static unsigned bytes_per_block=0xffff0,send_id,blocks_submitted,fes_contained_transport_phase;
 static unsigned mailbox_observations[4];
+static uint64_t configuration_generation=1;
 void fes_nano_mailbox_observe(unsigned phase,unsigned completed,unsigned pending,
                               unsigned job,uint64_t owner,uint64_t generation)
 {
     (void)completed;(void)pending;
-    assert(phase>=1 && phase<=3 && job<14 && owner && generation==1);
+    assert(phase>=1 && phase<=3 && job<14 && owner && generation==configuration_generation);
     mailbox_observations[phase]++;
 }
 static unsigned configuration_mutation,configuration_polls;
@@ -160,7 +166,10 @@ uint32_t mmio_read_32(uintptr_t a)
     }
     if(a==FES_NANO_SD_SYSMGR+0xfc)return invalid_sd_route?2:1;
     if(a==FES_NANO_SD_SYSMGR+0x1354)return 0;
-    if(a>=FES_NANO_SD_BASE && a<FES_NANO_SD_BASE+0x300){sd_mmio++;assert(0);return 0;}
+    if(a>=FES_NANO_SD_BASE && a<FES_NANO_SD_BASE+0x400) {
+        sd_mmio++;assert(!(per0&FES_NANO_COLD_SD_RESET));
+        return a==FES_NANO_SD_BASE+0x14 ? sd_phy[sd_phy_index(sd_phy_address)] : sd_registers[(a-FES_NANO_SD_BASE)/4];
+    }
     if(a==0x10d1220cUL)return 4U<<29;
     if(a>=FES_NANO_COLD_PWRMGR && a<FES_NANO_COLD_PWRMGR+0x100) {
         switch(a-FES_NANO_COLD_PWRMGR) {
@@ -178,17 +187,26 @@ uint32_t mmio_read_32(uintptr_t a)
 uint16_t mmio_read_16(uintptr_t a) { (void)a;assert(0);return 0; }
 void mmio_write_32(uintptr_t a,uint32_t v) {
 #if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
-    assert(a==FES_NANO_COLD_RSTMGR+0x2c && (v&13U)==(bridge&13U));bridge=v;
-#else
-    (void)a;(void)v;assert(0);
+    if(a==FES_NANO_COLD_RSTMGR+0x2c) {assert((v&13U)==(bridge&13U));bridge=v;return;}
 #endif
+    if(a==FES_NANO_COLD_RSTMGR+0x24) {
+        assert((v&~0xc0U)==(per0&~0xc0U) && (v&FES_NANO_COLD_UNUSED)==FES_NANO_COLD_UNUSED);per0=v;return;
+    }
+    assert(a>=FES_NANO_SD_BASE && a<FES_NANO_SD_BASE+0x400 && !(per0&FES_NANO_COLD_SD_RESET));
+    sd_mmio++;unsigned off=(unsigned)(a-FES_NANO_SD_BASE);
+    assert(off!=0x20c); /* Secure firmware never issues a card command. */
+    if(!off) {memset(sd_registers,0,sizeof(sd_registers));return;}
+    if(off==0x10) {sd_phy_address=v;return;}
+    if(off==0x14) {sd_phy[sd_phy_index(sd_phy_address)]=v;return;}
+    if(off==0x24) {v&=~2U;if(v&1U)v|=2U;} /* Independent PHY lock event. */
+    sd_registers[off/4]=v;
 }
 void mmio_write_16(uintptr_t a,uint16_t v) { (void)a;(void)v;assert(0); }
 uint64_t read_current_el(void) { return current_el; }
 uint64_t read_mpidr(void) { return mpidr; }
 uint64_t read_sctlr_el3(void) { return sctlr; }
 void dsbsy(void) {}
-void udelay(unsigned n) { (void)n;assert(0); }
+void udelay(unsigned n) { assert(n==10); }
 static int reset_read(void *p,uint32_t *v) { (void)p;*v=bridge;return 0; }
 static int per_read(void *p,uint32_t *v) { (void)p;*v=per0;return 0; }
 static int per_assert(void *p,uint32_t v) { (void)p;(void)v;assert(0);return -1; }
@@ -255,6 +273,28 @@ int main(int argc,char **argv)
         assert(data==(void *)(uintptr_t)FES_NANO_CONFIG_BASE);
         for(unsigned i=0;i<FES_NANO_CONFIG_BYTES;i++)data[i]=(uint8_t)i;
         assert(fes_nano_platform_identity_setup()==1 && fes_nano_platform_configuration_setup()==1);
+        if(mutation>=67) {
+            assert(FES_NANO_CONTROLLED_SD && fes_nano_platform_sd_setup()==1);
+            fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_RESUME,record.owner,FES_EMBEDDED_SD_COOKIE,1,reply);
+            assert(!reply[0] && reply[3]==2 && fes_nano_owned_bridges.device_lease);
+            sd_registers[0x22c/4]=FES_NANO_SD_IDENT_CLOCK; /* Native driver initialization. */
+            fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_PREPARE,record.owner,FES_EMBEDDED_SD_COOKIE,2,reply);
+            assert(!reply[0] && reply[3]==3 && fes_nano_owned_sd.prepared);
+            if(mutation==68) {
+                fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PREPARE_CONFIGURATION,
+                                   record.owner,FES_EMBEDDED_BRIDGE_COOKIE,3,reply);
+                assert(reply[0]==1 && !fes_nano_platform_configuration()->attempted && !engine_calls);
+            }
+            fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_STOP,record.owner,FES_EMBEDDED_SD_COOKIE,3,reply);
+            assert(!reply[0] && reply[3]==4 && !fes_nano_owned_bridges.device_lease && !fes_nano_owned_sd.active);
+            configuration_generation=4;
+            if(mutation==69) {
+                fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PREPARE_CONFIGURATION,
+                                   record.owner,FES_EMBEDDED_BRIDGE_COOKIE,3,reply);
+                assert(reply[0]==2 && !fes_nano_platform_configuration()->attempted && !engine_calls);
+            }
+            if(mutation==71)fes_nano_owned_bridges.state.owner++;
+        }
         if(mutation==43)data[0]^=1;
         if(mutation==44)sctlr=4;
         if(mutation==45)power[1]=1;
@@ -265,23 +305,27 @@ int main(int argc,char **argv)
             assert(!mailbox_observations[1] && !mailbox_observations[2] && !mailbox_observations[3]);
         }
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PREPARE_CONFIGURATION,
-                           record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
-        if(mutation==43 || mutation==44 || mutation==45 || mutation==56) {
+                           record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
+        if(mutation==43 || mutation==44 || mutation==45 || mutation==56 || mutation==71) {
             assert(reply[0]==4 && !reply[2] && !reply[3] && !engine_calls && !fpga_reads && bridge==15);
             assert(fes_nano_platform_configuration()->failed && fes_nano_owned_bridges.failed);return 0;
         }
         assert(!reply[0] && reply[1]==((uint64_t)FES_EMBEDDED_BRIDGE_PREPARATION_TAG<<32|FES_NANO_CONFIG_BYTES));
-        assert(reply[2]==record.owner && reply[3]==1 && !engine_calls);
+        assert(reply[2]==record.owner && reply[3]==configuration_generation && !engine_calls);
         for(unsigned op=4;op<=7;op++) {
-            fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,op,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+            fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,op,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
             assert(reply[0]==1 && !fpga_reads && !config_calls && !engine_calls);
         }
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
-        assert(!reply[0] && reply[2]==record.owner && reply[3]==1 && (uint32_t)reply[1]==0xdf);
+        assert(!reply[0] && reply[2]==record.owner && reply[3]==configuration_generation && (uint32_t)reply[1]==0xdf);
+        if(mutation==70) {
+            fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_RESUME,record.owner,FES_EMBEDDED_SD_COOKIE,configuration_generation,reply);
+            assert(reply[0]==1 && !fes_nano_owned_bridges.device_lease && !engine_calls);
+        }
         if(mutation==46)data[0]^=1;
-        if(mutation==57)fes_nano_owned_bridges.state.generation++;
+        if(mutation==57 || mutation==72)fes_nano_owned_bridges.state.generation++;
         fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_START,0,0,0,0,reply);
-        if(mutation==46 || mutation==50 || mutation==57) {
+        if(mutation==46 || mutation==50 || mutation==57 || mutation==72) {
             assert(reply[0]==4 && !fpga_reads && bridge==15 && fes_nano_platform_configuration()->failed);
             assert(engine_calls==(mutation==50?1U:0U));return 0;
         }
@@ -293,36 +337,36 @@ int main(int argc,char **argv)
         if(mutation==47) {assert(reply[0]==4 && engine_calls==1 && bridge==15 && fes_nano_platform_configuration()->failed);return 0;}
         assert(reply[0]==(mutation==59?0:1) && engine_calls==2);
         assert(mailbox_observations[2]==1);
-        if(mutation>=60) {
+        if((mutation>=60 && mutation<=66) || mutation==73) {
             unsigned engines=engine_calls;
-            if(mutation>=63) {
+            if(mutation>=63 && mutation<=66) {
                 if(mutation==64)fes_nano_owned_bridges.device_lease=1;
                 if(mutation==65)per0&=~0x80U;
                 if(mutation==66)sctlr=4;
                 fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_RETIRE_CONFIGURATION,
-                                   record.owner+(mutation==63),FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+                                   record.owner+(mutation==63),FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
                 assert(reply[0]!=0 && !retirement_queries && engine_calls==engines && !fpga_reads);
                 if(mutation==65 || mutation==66)return 0;
                 fes_nano_owned_bridges.device_lease=0;
             }
             fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_RETIRE_CONFIGURATION,
-                               record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+                               record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
             assert(!reply[0] && (reply[1]>>32)==FES_EMBEDDED_BRIDGE_RETIREMENT_TAG &&
                    (int32_t)reply[1]==(mutation==61?-2047:mutation==62?-2:0) &&
-                   reply[2]==record.owner && reply[3]==1 && retirement_queries==1 &&
+                   reply[2]==record.owner && reply[3]==configuration_generation && retirement_queries==1 &&
                    fes_nano_platform_configuration()->pending==amount && !fes_nano_platform_configuration()->completed);
             fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_RETIRE_CONFIGURATION,
-                               record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+                               record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
             assert(reply[0]!=0 && retirement_queries==1);
             const uint32_t calls[]={INTEL_SIP_SMC_FPGA_CONFIG_START,INTEL_SIP_SMC_FPGA_CONFIG_WRITE,
                 INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE,INTEL_SIP_SMC_FPGA_CONFIG_ISDONE};
             for(unsigned i=0;i<4;i++) {fes_nano_owned_call(calls[i],0,0,0,0,reply);assert(reply[0]!=0);}
             for(unsigned op=0;op<=8;op++) {
-                fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,op,op?record.owner:0,FES_EMBEDDED_BRIDGE_COOKIE,op?1:0,reply);
+                fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,op,op?record.owner:0,FES_EMBEDDED_BRIDGE_COOKIE,op?configuration_generation:0,reply);
                 assert(reply[0]!=0);
             }
             assert(engine_calls==engines && retirement_queries==1 && !fpga_reads && !config_calls &&
-                   bridge==15 && fpga_config_buffers[0].write_requested && fes_nano_owned_bridges.state.generation==1);
+                   bridge==15 && fpga_config_buffers[0].write_requested && fes_nano_owned_bridges.state.generation==configuration_generation);
             return 0;
         }
         if(mutation==59) {
@@ -369,9 +413,9 @@ configured_bytes:
         assert(!reply[0] && !reply[1] && !reply[2] && !reply[3] && bridge==15);
         assert(fes_nano_platform_configuration()->finished && !fes_nano_platform_configuration()->failed);
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
-        assert(!reply[0] && reply[2]==record.owner && reply[3]==1 && (uint32_t)reply[1]==0xdf);
-        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
-        assert(!reply[0] && fpga_reads==30 && bridge==15 && fes_nano_owned_bridges.state.generation==3);
+        assert(!reply[0] && reply[2]==record.owner && reply[3]==configuration_generation && (uint32_t)reply[1]==0xdf);
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
+        assert(!reply[0] && fpga_reads==30 && bridge==15 && fes_nano_owned_bridges.state.generation==configuration_generation+2);
         return 0;
     }
 #endif

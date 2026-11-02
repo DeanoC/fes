@@ -59,17 +59,32 @@ def configuration(project):
     return _worker(project, 'configuration')
 
 
-def core_payload(project, mapping):
-    """Read only the verified package's exact phase-two bytes."""
+def package_archive(project, mapping):
+    """Copy only the canonical archive of this exact sealed source."""
     if mapping != configuration(project):
-        raise ValueError('configuration memory map differs from the sealed source')
-    path=Path(project)/'board/hps/packages'/mapping['package_id']/'core.rbf'
-    if any(p.is_symlink() for p in (path,*path.parents)):
-        raise ValueError('configuration payload has a symlink component')
-    raw=path.read_bytes()
-    if len(raw)!=mapping['core_size'] or hashlib.sha256(raw).hexdigest()!=mapping['core_sha256']:
-        raise ValueError('configuration bytes changed after package verification')
+        raise ValueError('configuration package map differs from the sealed source')
+    record=_worker(project,'package')
+    raw=Path(record['path']).read_bytes()
+    if len(raw)!=record['size'] or hashlib.sha256(raw).hexdigest()!=record['sha256']:
+        raise ValueError('sealed package archive changed after verification')
     return raw
+
+
+def _package(project):
+    mapping=_configuration(project)
+    path=Path(project)/'board/hps/packages'/(mapping['package_id']+'.fcore')
+    if any(p.is_symlink() for p in (path,*path.parents)):
+        raise ValueError('configuration package has a symlink component')
+    import seal
+    from scripts import export_core_package
+    package=seal.read_package(path)
+    raw=path.read_bytes()
+    canonical=export_core_package._archive_bytes(package.manifest_bytes,package.payload_bytes,package.rom_map_bytes)
+    if (not 0<len(raw)<=8<<20 or raw!=canonical or package.package_id!=mapping['package_id'] or
+            len(package.payload_bytes)!=mapping['core_size'] or
+            hashlib.sha256(package.payload_bytes).hexdigest()!=mapping['core_sha256']):
+        raise ValueError('configuration archive differs from the canonical sealed package')
+    return {'path':str(path),'sha256':hashlib.sha256(raw).hexdigest(),'size':len(raw)}
 
 
 def _configuration(project):
@@ -212,7 +227,7 @@ def checked_configuration(record, program_key='program'):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in ('control','configuration'):
-        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control|configuration]')
-    action=_derive if len(sys.argv)==2 else _control if sys.argv[2]=='control' else _configuration
+    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in ('control','configuration','package'):
+        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control|configuration|package]')
+    action=_derive if len(sys.argv)==2 else {'control':_control,'configuration':_configuration,'package':_package}[sys.argv[2]]
     sys.stdout.buffer.write(encode(action(sys.argv[1])))

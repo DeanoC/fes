@@ -47,8 +47,8 @@ def entry(entry_build):
     context=hps_context.checked(receipt,program_key='native_program')
     hps_context.checked_control(receipt,program_key='native_program')
     configuration=hps_context.checked_configuration(receipt,program_key='native_program')
-    if context is not None and profile.name!='probe-profile.json':
-        raise ValueError('HPS context diagnostic requires the contained serial profile')
+    if context is not None and profile.name!=('sd-profile.json' if receipt.get('native_program')=='fpgaload' else 'probe-profile.json'):
+        raise ValueError('HPS context diagnostic requires its source-derived serial/SD profile')
     if configuration is not None and [configuration['base'],configuration['base']+configuration['size']] not in receipt.get('staging_exclusions',[]):
         raise ValueError('cold configuration arena is not excluded from entry staging')
     return image,receipt_path
@@ -102,8 +102,8 @@ def header(profile):
                 '#define FES_NANO_CONTROL_BUILD {'+','.join('0x'+build[i:i+8]+'U' for i in (24,16,8,0))+'}\n'
                 '#define FES_NANO_CONTROL_MAP_SHA '+array(profile['hps_control_sha256'])+'\n')
     configuration=profile.get('hps_configuration')
-    if configuration is not None and (control is None or profile['sd_pio']):
-        raise ValueError('cold configuration requires the contained control profile without SD')
+    if configuration is not None and (control is None or not profile['sd_pio']):
+        raise ValueError('cold configuration requires the source-bound control and contained SD profile')
     extra+='#define FES_NANO_COLD_CONFIG '+str(int(configuration is not None))+'\n'
     if configuration is not None:
         extra+=('#define FES_NANO_CONFIG_BASE '+hex(configuration['base'])+'ULL\n'

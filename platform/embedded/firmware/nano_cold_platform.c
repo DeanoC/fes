@@ -136,7 +136,7 @@ int fes_nano_platform_identity_setup(void)
     uint64_t sctlr=read_sctlr_el3();
     unsigned qualified=context_nonzero && map_nonzero && !(sctlr&5U) &&
         FES_NANO_CONTROL_BASE>=0x20000000UL && FES_NANO_CONTROL_BASE<=0x3fffff00UL &&
-        !(FES_NANO_CONTROL_BASE&3U) && !(FES_NANO_CONTROLLED_SD);
+        !(FES_NANO_CONTROL_BASE&3U);
     struct fes_nano_identity_ops io={.context=&provider,.configured=identity_configured,.read32=identity_read,.contain=identity_contain,.trace=identity_trace};
     int result=fes_nano_identity_init(&identity_probe,&fes_nano_owned_bridges,io,
                                       FES_NANO_CONTROL_ABI,build,qualified);
@@ -148,8 +148,8 @@ int fes_nano_platform_identity_setup(void)
 #endif
 
 #if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
-#if !defined(FES_NANO_CONTROL_PROBE) || !FES_NANO_CONTROL_PROBE || FES_NANO_CONTROLLED_SD
-#error "Cold configuration requires the source-bound control profile without an SD lease"
+#if !defined(FES_NANO_CONTROL_PROBE) || !FES_NANO_CONTROL_PROBE
+#error "Cold configuration requires the source-bound control profile"
 #endif
 #include "sha.h"
 static struct fes_nano_configuration configuration;

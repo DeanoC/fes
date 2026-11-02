@@ -20,13 +20,16 @@ static int fail(struct fes_nano_configuration *s, int error)
     }
     return 4;
 }
+static int held(struct fes_nano_configuration *s, struct fes_nano_bridge_snapshot *b)
+{
+    return s && s->initialized && !s->failed && s->bridges && !s->bridges->device_lease &&
+        !fes_nano_bridges_observe(s->bridges,b) && b->owner==s->owner &&
+        b->generation && b->never_enabled && b->reset==FES_NANO_BRIDGES_ALL && b->masters_contained;
+}
 static int scope(struct fes_nano_configuration *s)
 {
     struct fes_nano_bridge_snapshot b;
-    return s && s->initialized && !s->failed && s->bridges &&
-        !fes_nano_bridges_observe(s->bridges,&b) && b.owner==s->owner &&
-        b.generation==s->generation && b.generation==1 && b.never_enabled &&
-        b.reset==FES_NANO_BRIDGES_ALL && b.masters_contained &&
+    return held(s,&b) && b.generation==s->generation &&
         s->chunk && s->completed<=s->bytes && s->pending<=s->bytes-s->completed &&
         s->pending<=(uint64_t)s->chunk*FES_NANO_CONFIG_BUFFERS &&
         (s->completed==s->bytes || s->completed%s->chunk==0) &&
@@ -55,7 +58,7 @@ int fes_nano_configuration_init(struct fes_nano_configuration *s, struct fes_nan
        !chunk || chunk>0xffff0U || (chunk&63))return fail(s,-22),-1;
     s->base=base;s->bytes=bytes;s->chunk=chunk;
     s->owner=b->state.owner;s->generation=b->state.generation;
-    if(!scope(s))return fail(s,-1),-1;
+    if(s->generation!=1 || !scope(s))return fail(s,-1),-1;
     return 0;
 }
 unsigned fes_nano_configuration_busy(const struct fes_nano_configuration *s)
@@ -65,7 +68,7 @@ int fes_nano_configuration_retire(struct fes_nano_configuration *s, uint64_t own
 {
     if(!s || !s->initialized || !s->bridges || !s->prepared || !s->started || s->finished ||
        s->failed || s->issued || !s->pending || !configuring || !owner ||
-       owner!=s->owner || generation!=s->generation || generation!=1 ||
+       owner!=s->owner || generation!=s->generation ||
        s->bridges->device_lease || !scope(s))return -1;
     fail(s,-125);
     return 0;
@@ -77,7 +80,14 @@ void fes_nano_configuration_prepare(struct fes_nano_configuration *s, uint64_t o
     if(configuring || (s && s->bridges && s->bridges->device_lease)){result[0]=1;return;}
     if(!s || !s->initialized){result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return;}
     if(s->failed){result[0]=4;return;}
-    if(!owner || owner!=s->owner || generation!=s->generation || generation!=1 || s->attempted)return;
+    if(!owner || owner!=s->owner || !generation || s->attempted)return;
+    struct fes_nano_bridge_snapshot current;
+    if(!held(s,&current)){result[0]=fail(s,-1);return;}
+    if(generation!=current.generation || generation<s->generation)return;
+    /* Only secure closed-device transitions can advance a never-enabled boot.
+     * Bind once to their current generation before digest checks or START;
+     * no generation change is allowed after this preparation. */
+    s->generation=generation;
     s->attempted=1;
     if(!check(s,1)){result[0]=fail(s,-1);return;}
     s->prepared=1;trace(s,FES_CONFIG_ARM);

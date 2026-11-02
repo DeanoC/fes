@@ -50,7 +50,12 @@ in its fixed, boot-pinned uncached DDR arena. The strong platform uses the
 already pinned vendor SHA-384 primitives to compare the whole core and every
 chunk with compiled digests; it does not use the convenience wrapper that
 touches the watchdog. The gate brackets these reads with live cold ownership
-checks and requires EL3 translation and data cache disabled.
+checks and requires EL3 translation and data cache disabled. A completed secure
+SD stop may advance the never-enabled generation before preparation; the gate
+captures it once, then rejects any later generation change or active lease.
+The combined strong-provider fixture executes SD resume/prepare/stop, transfer
+and identity/reclose through the actual dispatch and SHA code, with modeled
+register/PHY events. Its success is software evidence for this new combination.
 
 Only that cold configuration profile also selects `nano_digest.py`: it verifies
 the exact pinned SHA source/header, inserts three GCC loop-unrolling hints and

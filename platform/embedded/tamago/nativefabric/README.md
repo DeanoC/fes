@@ -73,6 +73,14 @@ The board's first-load arena remains pinned until reboot, including after
 successful DMA completion. Active drain and repeated runtime loads remain
 separate qualification work.
 
+`NewStoredConfigurationTransfer` consumes a `packagestore.Handoff`. It checks
+the retained format-2 archive against the compiled package/build/target/ABI and
+payload identities, compares the contained SD receipt to fresh secure ownership,
+and only then reserves DMA memory. Deferred preparation rechecks the handoff;
+resume or changed ownership cannot reach START. No filesystem is reopened and
+no failed reservation/transfer frees memory. This source-bound path does not
+supply the runtime compatibility decision for arbitrary packages.
+
 `NewColdConfigurationTransfer` takes the DRAM base and block size from that
 compiled map and performs preparation immediately before START, requiring the
 original held source. The map permits only positive 64-byte-aligned blocks up

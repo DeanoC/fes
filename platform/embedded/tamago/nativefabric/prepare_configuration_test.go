@@ -117,7 +117,7 @@ func TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart(t *test
 }
 
 func TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest(t *testing.T) {
-	for _, name := range []string{"pass", "status", "tag", "size", "owner", "generation", "transport", "after-owner", "after-mask", "after-transport", "not-first"} {
+	for _, name := range []string{"pass", "status", "tag", "size", "owner", "generation", "transport", "after-owner", "after-mask", "after-transport", "preparation-stale-generation"} {
 		t.Run(name, func(t *testing.T) {
 			raw, mapping, region := configurationSource(t)
 			replies := append(hpsContextReplies(sha256.Sum256(raw)), [4]uint64{0, 0x4643503100000080, 17, 1})
@@ -145,10 +145,9 @@ func TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest(t *testin
 			case "after-transport":
 				failure = 5
 				maximum = 6
-			case "not-first":
+			case "preparation-stale-generation":
 				replies[0][3] = 3
 				replies[3] = replies[0]
-				maximum = 4
 			}
 			calls := 0
 			operations := []uint64{0, 4, 5, 0, 8, 0}

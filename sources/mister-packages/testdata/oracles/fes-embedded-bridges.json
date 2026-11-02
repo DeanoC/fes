@@ -3,12 +3,12 @@
     "repository": "DeanoC/fes",
     "commit": "1a0cf9d46f6d30f4c4cead17a7f5252109b41ba2",
     "file": "platform/embedded/firmware/generated/fes_embedded_bridges.h",
-    "note": "Private cold transfer retirement and bounded same-client failure status; no drain or memory release authority."
+    "note": "Wire constants unchanged from the frozen retirement header; closed SD containment may advance the one-shot configuration generation before preparation."
   },
   "fabric": {
     "id": "fes.fabric.embedded.bridges",
     "major": 1,
-    "minor": 5
+    "minor": 6
   },
   "constants": {
     "FesEmbeddedBridgeCall": 3254780673,

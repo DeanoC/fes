@@ -64,6 +64,12 @@ func (v *HPSContextVerifier) configurationMap(raw []byte) (coldConfigurationMap,
 	return m, nil
 }
 
+func (v *HPSContextVerifier) coldSource(source HPSBootObservation) bool {
+	b := source.Bridges
+	return v != nil && source.Digest == v.digest && validBridgeSnapshot(b) && b.NeverEnabled &&
+		b.ResetMask == b.Capabilities.Mask && b.MastersContained && b.Capabilities.FabricHandshake == FabricHandshakeAbsent
+}
+
 // NewColdConfigurationTransfer takes its DMA and block parameters from the
 // compiled sealed map. Preparation rechecks the staged bytes and original held
 // source immediately before START. This grants no runtime admission or release.
@@ -75,10 +81,7 @@ func (v *HPSContextVerifier) NewColdConfigurationTransfer(control, configuration
 	if err != nil {
 		return nil, err
 	}
-	if source.Digest != v.digest || !validBridgeSnapshot(source.Bridges) ||
-		source.Bridges.Generation != 1 || !source.Bridges.NeverEnabled ||
-		source.Bridges.ResetMask != source.Bridges.Capabilities.Mask || !source.Bridges.MastersContained ||
-		source.Bridges.Capabilities.FabricHandshake != FabricHandshakeAbsent ||
+	if !v.coldSource(source) ||
 		region == nil || region.Address != m.Base || len(region.Bytes) != m.CoreSize {
 		return nil, errors.New("native fabric: original held source and compiled reservation required")
 	}
@@ -127,7 +130,7 @@ func (v *HPSContextVerifier) PrepareConfiguration(control, configuration []byte,
 		return HPSBootObservation{}, err
 	}
 	before := source.Bridges
-	if before.Generation != 1 || !before.NeverEnabled || before.Capabilities.FabricHandshake != FabricHandshakeAbsent {
+	if !v.coldSource(source) {
 		return HPSBootObservation{}, errors.New("native fabric: cold preparation requires fresh closed source ownership")
 	}
 	r, err := v.cpu.Invoke([7]uint64{uint64(g.FesEmbeddedBridgeCall), uint64(g.FesEmbeddedBridgePrepareConfiguration), before.Owner,

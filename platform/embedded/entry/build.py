@@ -101,10 +101,12 @@ def main():
         if native_configuration is not None and base64.b64encode(hps.encode(native_configuration)) not in payload.read_bytes():
             raise ValueError('configuration map is absent from the selected native ELF')
         if native_configuration is not None:
-            core=hps.core_payload(receipt['hps_project'],native_configuration)
-            if (core not in payload.read_bytes() or receipt.get('configuration_payload_sha256')!=sha(core) or
-                    sha((args.nano_build/'core-payload.go').read_bytes())!=receipt.get('generated_core_payload_sha256')):
-                raise ValueError('native core bytes differ from the sealed build source')
+            package=hps.package_archive(receipt['hps_project'],native_configuration)
+            if (receipt.get('configuration_core_sha256')!=native_configuration['core_sha256'] or
+                    receipt.get('configuration_package_sha256')!=sha(package) or
+                    receipt.get('configuration_package_size')!=len(package) or
+                    (args.nano_build/'package.fcore').read_bytes()!=package):
+                raise ValueError('native package archive differs from the sealed build source')
         def check_native_sources():
             if not native_sources:raise ValueError("missing Nano selected-source proof")
             for name,expected in native_sources.items():

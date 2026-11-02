@@ -31,10 +31,7 @@ func (v *HPSContextVerifier) RetireConfiguration(t *ConfigurationTransfer, sourc
 		t.diagnosticAttempted || t.region == nil || t.region.Release == nil ||
 		t.region.Address != 0x94800000 || int64(len(t.region.Bytes)) != v.context.CoreSize ||
 		t.dramBase != m.DRAMBase || t.chunk != m.ChunkBytes || hex.EncodeToString(t.digest[:]) != m.CoreSHA256 ||
-		source.Digest != v.digest || !validBridgeSnapshot(source.Bridges) ||
-		source.Bridges.Generation != 1 || !source.Bridges.NeverEnabled ||
-		source.Bridges.ResetMask != source.Bridges.Capabilities.Mask || !source.Bridges.MastersContained ||
-		source.Bridges.Capabilities.FabricHandshake != FabricHandshakeAbsent {
+		!v.coldSource(source) {
 		return ConfigurationRetirement{}, errors.New("native fabric: retained failed cold transfer required for retirement")
 	}
 	t.diagnosticAttempted = true

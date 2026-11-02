@@ -2,7 +2,7 @@ schema: mister-packages.v1
 kind: fabric
 id: fes.fabric.embedded.bridges
 major: 1
-minor: 5
+minor: 6
 description: >-
   Experimental owned Nano firmware bridge channel. A private call number and
   opt-in cookie select this channel. The number is unused in the inspected pin, not an

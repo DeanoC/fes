@@ -167,7 +167,7 @@ func TestRetirementRequiresRetainedFailureAndOriginalHeldSourceBeforeSMC(t *test
 			case "owner":
 				source.Bridges.Owner = 0
 			case "generation":
-				source.Bridges.Generation = 3
+				source.Bridges.Generation = 0
 			case "open":
 				source.Bridges.ResetMask = 13
 			case "masters":

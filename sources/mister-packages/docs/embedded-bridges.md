@@ -57,10 +57,10 @@ mutations and configuration. The fabric warning capability describes the
 optional warning handshake, not the presence of a configured FPGA core.
 
 Operation 6 is a separate one-shot secure identity probe, available only in a
-matched `fpgacontext` cold chain. Its fixed CPU aperture, ABI and build ID come
+matched source-bound cold chain (`fpgacontext` or `fpgaload`). Its fixed CPU aperture, ABI and build ID come
 from the sealed project's compiler handoff and are compiled into secure
 firmware. The request contains no address or FPGA write. It requires the
-current owner, generation 1, never-enabled evidence, contained masters and
+current owner/generation, never-enabled evidence, contained masters and
 closed bridges. Before opening it performs one read-only SDM `CONFIG_STATUS`
 query, requires the complete six-word reply, state zero, NSTATUS high, both
 CONF_DONE and INIT_DONE, and no SEU fault. It rechecks closed ownership after
@@ -69,7 +69,7 @@ the endpoint or changing bridge generation; the one attempt is consumed.
 Malformed/failed queries retire authority. This never calls the legacy
 `FPGA_CONFIG_ISDONE` frontend or sends a configuration command.
 Under the owned lock it opens only control (reset mask `0xd`,
-generation 2), reads two complete identity/idle snapshots, compares them with
+the next generation), reads two complete identity/idle snapshots, compares them with
 the compiled target, and closes control (mask `0xf`, generation 3). Data
 bridges remain reset and secondary CPU release remains denied throughout.
 The pinned platform requires EL3 translation and data cache disabled; an
@@ -94,7 +94,7 @@ identity or programming authority. A CPU abort or hung MMIO/SMC can prevent
 error-return cleanup; the host timeout supplies no proof of control reclose.
 
 Operation 7 queries configuration readiness without an endpoint access or
-control opening. It requires the same current owner, generation 1, initial
+control opening. It requires the same current owner/generation, initial
 never-enabled scope and contained masters as the identity probe. The secure
 provider issues only fixed `CONFIG_STATUS`, checks the complete response and
 rechecks unchanged closed ownership. Successful replies carry `x0=0`,
@@ -112,7 +112,7 @@ branch supplies live endpoint identity, HPS I/O measurement or admission.
 
 Operation 8 prepares one source-bound cold configuration under the existing
 owner lock. It takes the expected owner and generation through the same
-private cookie channel. A qualified secure provider requires generation 1,
+private cookie channel. A qualified secure provider requires the current never-enabled generation,
 never-enabled history, closed bridges, contained masters and no device lease.
 It checks the fixed staged whole image against a compiled digest before
 returning `x0=0`, `x1=0x46435031 << 32 | core_bytes`, `x2=owner`, `x3=generation`.
@@ -136,7 +136,7 @@ once per cold boot. It supplies neither active drain nor runtime activation.
 
 Operation 9 irreversibly retires a failed caller's still-running cold
 configuration before one bounded same-client `RECONFIG_STATUS` diagnostic.
-It requires the original owner, generation 1, a prepared and started transfer
+It requires the original owner and prepared generation, a prepared and started transfer
 with pending bytes, closed bridges, contained masters, no device lease and no
 in-flight firmware call. Rejected scope issues no mailbox command. Retirement
 sets both configuration and bridge authority failed while keeping all byte
@@ -161,3 +161,14 @@ returns status 5 with zero owner/generation; rejected requests return no
 retirement acknowledgement. The caller must keep all source and DMA storage
 until reboot even after a successful acknowledgement or a ready status.
 This supplies no configuration, drain, activation or runtime-admission proof.
+
+The version-1.6 cold storage handoff preserves the boot owner while secure SD
+resume/prepare/stop transitions advance the closed generation. Configuration
+initializes at generation 1, then captures the current contained generation
+once during preparation (generation 4 after one SD cycle). Every subsequent
+configuration call and retirement requires that exact captured generation.
+Active device leases, stale requests, opened bridges and changed owner/context
+reject. The identity query/probe likewise uses the current never-enabled
+closed generation; its control-only open/reclose advances it by two. This
+extension changes no wire constants and grants no active-fabric storage return,
+runtime admission, data release or memory reclaim authority.

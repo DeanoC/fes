@@ -70,7 +70,8 @@ void fes_nano_identity_configuration_sip(struct fes_nano_identity_probe *p, uint
     if(configuring || (p && p->bridges && p->bridges->device_lease)){result[0]=1;return;}
     if(!p || !p->initialized){result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return;}
     if(p->failed){result[0]=4;return;}
-    if(!owner || generation!=1 || p->queried || p->bridges->state.owner!=owner)return;
+    if(!owner || !generation || p->queried || p->bridges->state.owner!=owner ||
+       p->bridges->state.generation!=generation)return;
     if(fes_nano_bridges_observe(p->bridges,&s) || !closed(&s) ||
        s.generation!=generation || !s.never_enabled){result[0]=4;return;}
     p->queried=1;p->stage=FES_ID_CONFIG;
@@ -92,7 +93,8 @@ void fes_nano_identity_sip(struct fes_nano_identity_probe *p, uint64_t owner,
     if (configuring || (p && p->bridges && p->bridges->device_lease)) { result[0]=1;return; }
     if (!p || !p->initialized) { result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return; }
     if (p->failed) { result[0]=4;return; }
-    if (!owner || generation!=1 || p->attempted || p->bridges->state.owner!=owner) return;
+    if (!owner || !generation || generation>UINT64_MAX-2 || p->attempted || p->bridges->state.owner!=owner ||
+        p->bridges->state.generation!=generation) return;
     if (fes_nano_bridges_observe(p->bridges,&before) || !closed(&before) ||
         before.generation!=generation || !before.never_enabled) { result[0]=4;return; }
     p->attempted=1;p->stage=FES_ID_CONFIG;

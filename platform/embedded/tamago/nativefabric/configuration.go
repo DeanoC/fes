@@ -24,7 +24,7 @@ func (v *HPSContextVerifier) Configuration(raw []byte) (FPGAConfigurationObserva
 		return FPGAConfigurationObservation{}, err
 	}
 	before := source.Bridges
-	if !before.NeverEnabled || before.Generation != 1 || before.Capabilities.FabricHandshake != FabricHandshakeAbsent {
+	if !v.coldSource(source) {
 		return FPGAConfigurationObservation{}, errors.New("native fabric: configuration query requires fresh closed cold scope")
 	}
 	r, err := v.cpu.Invoke([7]uint64{uint64(g.FesEmbeddedBridgeCall), uint64(g.FesEmbeddedBridgeConfiguration), before.Owner, uint64(g.FesEmbeddedBridgeCookie), before.Generation})

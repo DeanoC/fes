@@ -8,7 +8,7 @@ import (
 )
 
 func TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies(t *testing.T) {
-	for _, name := range []string{"unready", "ready", "status", "tag", "bits", "owner", "generation", "after-owner", "after-mask", "after-transport", "query-transport", "source-not-first"} {
+	for _, name := range []string{"unready", "ready", "status", "tag", "bits", "owner", "generation", "after-owner", "after-mask", "after-transport", "query-transport", "query-stale-generation"} {
 		t.Run(name, func(t *testing.T) {
 			raw := hpsContextFixture(t)
 			replies := append(hpsContextReplies(sha256.Sum256(raw)), [4]uint64{0, 0x4643533100000000, 17, 1})
@@ -38,10 +38,9 @@ func TestConfigurationQueryKeepsClosedOwnershipAndRejectsPartialReplies(t *testi
 				maximum = 6
 			case "query-transport":
 				failure = 4
-			case "source-not-first":
+			case "query-stale-generation":
 				replies[0][3] = 3
 				replies[3] = replies[0]
-				maximum = 4
 			}
 			calls := 0
 			ops := []uint64{0, 4, 5, 0, 7, 0}

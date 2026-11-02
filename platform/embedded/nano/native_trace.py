@@ -40,6 +40,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('el1', r'FES_ENTRY EL1 HANDOFF'),
     ('go', r'FES_NATIVE_GO_PROBE PASS os=tamago board=de25-nano'),
     ('hps_context', rf'FES_NATIVE_HPS_CONTEXT PASS sha256=(?P<sha256>[0-9a-f]{{64}}) package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) (?:runtime_)?programming=unavailable'),
+    ('configuration_package', rf'FES_NANO_LOAD_PACKAGE CONTAINED package_id=(?P<package_id>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<sd_generation>[0-9]{{1,20}}) source=sd storage_active=0'),
     ('identity_transition', rf'(?:NOTICE:[ \t]+)?FES_NANO_IDENTITY phase=(?P<phase>[a-z-]{{1,24}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) reset=(?P<reset>{H}) base=(?P<base>{H})'),
     ('fpga_query', r'(?:NOTICE:[ \t]+)?FES_NANO_CONFIG_QUERY command=4 words=6'),
     ('fpga_status', rf'(?:NOTICE:[ \t]+)?FES_NANO_CONFIG_STATUS status=(?P<status>-?[0-9]{{1,10}}) words=(?P<words>[0-9]{{1,3}}) state=(?P<state>{H}) version=(?P<version>{H}) pins=(?P<pins>{H}) soft=(?P<soft>{H}) error_location=(?P<error_location>{H}) error_details=(?P<error_details>{H}) ready=(?P<ready>[01])'),
@@ -65,7 +66,7 @@ TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_i
 
 
 def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, fpga_identity=None,
-                       fpga_configuration=False, fpga_unready=False, fpga_status_only=False):
+                       fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -111,7 +112,11 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             raise ValueError('independently checked HPS source-context identities required')
         if storage is not None or package is not None:
             raise ValueError('select exactly one SD or HPS context diagnostic')
-    controlled = storage is not None or package is not None
+    if type(configuration_storage) is not bool or (configuration_storage and
+            (fpga_identity is None or not fpga_configuration or fpga_unready or fpga_status_only)):
+        raise ValueError('stored configuration requires the complete FPGA configuration diagnostic')
+    source_generation=4 if configuration_storage else 1
+    controlled = storage is not None or package is not None or configuration_storage
     stages=STAGES
     if hps_context is not None:stages=STAGES[:-1]+('hps_context',)
     if fpga_identity is not None:
@@ -123,7 +128,9 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             if fpga_configuration:
                 stages+=tuple('identity_access_'+str(i)+'_'+phase for i in range(1,31) for phase in ('before','after'))
             stages+=('identity_close','identity_closed','fpga_identity')
-    if controlled:
+    if configuration_storage:
+        stages=STAGES[:7]+('sd_platform',)+STAGES[7:-1]+('configuration_package',)+stages[len(STAGES)-1:]
+    elif controlled:
         suffix=(('storage','read','contained','resumed','sd_pass') if storage is not None else
                 ('package_probe','package_retained','package_contained','package_resumed','package_pass'))
         stages=STAGES[:7]+('sd_platform',)+STAGES[7:-1]+suffix
@@ -224,7 +231,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         value=observed['hps_context']
         require(all(value[key]==hps_context[key] for key in ('sha256','package_id','build_id')),
                 'native HPS source context differs')
-        require(seal is not None and value['owner']==seal['owner'] and value['generation']==1,
+        require(seal is not None and value['owner']==seal['owner'] and value['generation']==source_generation,
                 'native HPS source-context owner/generation differs')
     if fpga_identity is not None:
         value=observed.get('fpga_status')
@@ -255,7 +262,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             require(1<=ordinal<=30 and access['offset']==offsets[index] and
                     access['value']==(expected[index] if access['phase']=='after' else 0),
                     'FPGA register access offset/order/value differs')
-        for phase,generation,reset in (('open',1,15),('read',2,13),('close',2,13),('closed',3,15)):
+        for phase,generation,reset in (('open',source_generation,15),('read',source_generation+1,13),('close',source_generation+1,13),('closed',source_generation+2,15)):
             value=observed.get('identity_'+phase)
             if value:
                 require(seal is not None and value['owner']==seal['owner'] and value['generation']==generation and
@@ -266,11 +273,15 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             require(all(value[key]==fpga_identity[key] for key in ('package_id','build_id','map_sha256')) and
                     value['abi']==fpga_identity['control_abi'] and value['base']==fpga_identity['cpu_base'],
                     'live FPGA identity differs from the compiled package/control map')
-            require(seal is not None and value['owner']==seal['owner'] and value['generation']==3,
+            require(seal is not None and value['owner']==seal['owner'] and value['generation']==source_generation+2,
                     'FPGA identity returned outside the same closed owner')
     if controlled:
         if 'sd_platform' in observed:
             require(observed['sd_platform']=={'setup':1,'ready':1},'controlled SD setup rejected')
+        if configuration_storage and 'configuration_package' in observed:
+            value=observed['configuration_package']
+            require(seal is not None and value['owner']==seal['owner'] and value['sd_generation']==source_generation and
+                    value['package_id']==fpga_identity['package_id'],'stored configuration package/owner/generation differs')
         phases=(('read','contained','resumed','sd_pass') if storage is not None else
                 ('package_retained','package_contained','package_resumed','package_pass'))
         for phase,generation in zip(phases,(3,4,6,7)):
@@ -297,7 +308,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     return report
 
 
-def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, configuration):
+def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False):
     """Observe a contained phase-two transfer followed by reclosed live identity.
 
     The maps come from independently checked build receipts. Variable-length
@@ -305,6 +316,8 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
     checks every SPL, CPU, ownership, readiness and identity observation. Neither
     completion establishes runtime activation or core launch/return acceptance.
     """
+    if type(from_storage) is not bool:raise ValueError('configuration source must be selected by the checked build profile')
+    generation=4 if from_storage else 1
     fields={'format','scope','package_id','build_id','core_sha256','core_sha384','core_size',
             'base','size','dram_base','chunk_bytes','chunk_sha384'}
     def digest(value, length):return isinstance(value,str) and re.fullmatch('[0-9a-f]{'+str(length)+'}',value) is not None
@@ -325,7 +338,7 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
         raise TypeError('serial bytes or text required')
     raw=data.encode() if isinstance(data,str) else bytes(data)
     if len(raw)>MAX_BYTES:
-        return decode_native_boot(raw,build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True)
+        return decode_native_boot(raw,build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True,configuration_storage=from_storage)
     core=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_CORE_TRANSFER phase=(?P<phase>[A-Za-z]{{1,16}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) completed=(?P<completed>[0-9]{{1,10}}) pending=(?P<pending>[0-9]{{1,10}}) total=(?P<total>[0-9]{{1,10}}) base=(?P<base>{H})(?: counter=(?P<counter>{H}) hash_ticks=(?P<hash_ticks>{H}))?')
     programmed=re.compile(rf'FES_NATIVE_FPGA_PROGRAMMED PASS package_id=(?P<package_id>[0-9a-f]{{64}}) core_sha256=(?P<core_sha256>[0-9a-f]{{64}}) bytes=(?P<bytes>[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) data_held=1 activation=unavailable')
     engine=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_CORE_ENGINE credits=(?P<credits>[0-9]{{1,10}}) block_bytes=(?P<block_bytes>[0-9]{{1,10}}) next_job=(?P<next_job>[0-9]{{1,2}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}})')
@@ -362,7 +375,7 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
                             'configuration clock or digest accounting regressed')
                 else:first_counter,first_hash=counter,hash_ticks
                 previous_counter,previous_hash=counter,hash_ticks
-            require(values['generation']==1 and values['total']==total and values['base']==configuration['base'],
+            require(values['generation']==generation and values['total']==total and values['base']==configuration['base'],
                     'configuration transfer changed generation, total or arena')
             if owner is None:owner=values['owner']
             require(values['owner']==owner and owner!=0,'configuration transfer changed owner')
@@ -410,7 +423,7 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
                         'configuration mailbox observation repeated or misplaced')
                 mailbox_sources.add(core_line)
                 extents={(0,0)} if phase==1 else completion_extents() if phase==3 else {(offset,pending)}
-                require(values['owner']==owner and values['generation']==1 and values['job']<14 and
+                require(values['owner']==owner and values['generation']==generation and values['job']<14 and
                         (values['completed'],values['pending']) in extents and
                         values['state']<=3 and values['next']<=3 and -1<=values['slot']<32 and
                         values['cmd_used']<=32 and values['resp_used']<=32,
@@ -423,7 +436,7 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
             if match:
                 values={key:int(value,16 if key=='owner' else 10) for key,value in match.groupdict().items()}
                 require(engine_row is None and last=='start','configuration engine observation repeated or misplaced')
-                require(values['owner']==owner and values['generation']==1 and 0<values['credits']<=0x7fffffff and
+                require(values['owner']==owner and values['generation']==generation and 0<values['credits']<=0x7fffffff and
                         0<values['block_bytes']<=0xffffffff and values['next_job']<14,
                         'configuration engine observation has invalid scope or limits')
                 engine_row={'stage':'configuration_engine','line':index+1,'values':values}
@@ -433,11 +446,11 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
             values={key:int(value,16 if key=='owner' else 10) if key in ('owner','generation','bytes') else value for key,value in match.groupdict().items()}
             require(complete and last=='complete' and programmed_row is None,'native programmed marker preceded or repeated transfer completion')
             require(values['package_id']==configuration['package_id'] and values['core_sha256']==configuration['core_sha256'] and
-                    values['bytes']==total and values['owner']==owner and values['generation']==1,
+                    values['bytes']==total and values['owner']==owner and values['generation']==generation,
                     'native programmed identity, bytes or ownership differ')
             programmed_row={'stage':'configuration_programmed','line':index+1,'values':values}
             extra.append(programmed_row);last='programmed';parts[index]=b''
-    report=decode_native_boot(b'\n'.join(parts),build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True)
+    report=decode_native_boot(b'\n'.join(parts),build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True,configuration_storage=from_storage)
     observed={row['stage']:row for row in report['records']}
     source=observed.get('hps_context');query=observed.get('fpga_query')
     if extra:

@@ -128,3 +128,17 @@ class NanoConfigurationTests(unittest.TestCase):
                     if mutation in (0,52,53,58,59):
                         self.assertIn('phase=complete',result.stdout)
                         self.assertIn('phase=closed',result.stdout)
+            # Combine the actual secure SD provider, configuration gate and
+            # identity probe in one image. Storage must stop before generation4
+            # can be captured, and cannot resume during an armed transfer.
+            (inc/'fes_nano_cold_profile.h').write_text(profile.replace('#define FES_NANO_CONTROLLED_SD 0', '#define FES_NANO_CONTROLLED_SD 1'))
+            compiled=subprocess.run(['cc',*flags,'-Wextra','-DFES_TEST_HPS_CONTEXT',*(str(FW/name) for name in sources),str(sha_object),'-o',str(binary)],capture_output=True,text=True,timeout=30)
+            self.assertEqual(compiled.returncode,0,compiled.stderr)
+            for mutation in range(67,74):
+                with self.subTest(storage_configuration=mutation):
+                    result=subprocess.run([binary,str(mutation)],capture_output=True,text=True,timeout=15)
+                    self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-2000:])
+                    if mutation in (67,68,69,70):
+                        self.assertIn('phase=complete',result.stdout)
+                        self.assertRegex(result.stdout,r'phase=closed owner=[0-9a-f]+ generation=6 ')
+                    if mutation==73:self.assertRegex(result.stdout,r'FES_NANO_CORE_RETIRED_STATUS owner=[0-9a-f]+ generation=4 ')

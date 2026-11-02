@@ -574,11 +574,14 @@ endpoint identity or runtime core load. This path needs its own physical test.
 ## Contained phase-two configuration
 
 `run.py fpgaload --board de25-nano` selects an explicit first-load prototype.
-It requires the same exact serial profile and sealed HPS-first project as the
-identity diagnostic. Its producer embeds that package's complete core payload
-and derives a configuration descriptor with SHA-256, SHA-384, per-chunk digests
-and the fixed transfer mapping. The SDK, entry, SPL and BL31 validators rederive
-the descriptor; omitted or changed core bytes, maps and staging exclusions
+It requires the exact controlled SD profile (`sd-profile.json`) and a sealed
+HPS-first project. Its producer emits that package's canonical `package.fcore`
+as a separate upload artifact and derives a configuration descriptor with
+SHA-256, SHA-384, per-chunk digests and the fixed transfer mapping. The native
+image contains the expected identities and digests; the built-in RBF is removed.
+At boot it retains `FES/PKGTEST.BIN` through the real read-only FAT/package
+store, contains SD and consumes the retained payload from RAM. The SDK, entry,
+SPL and BL31 validators rederive the descriptor; omitted or changed core bytes, maps and staging exclusions
 reject. The FPGA core payload is not rebuilt or modified by this path.
 
 The current block-size comparison selects `0xfffc0` (1,048,512) bytes: the
@@ -588,7 +591,9 @@ same rederived descriptor. The arena, source bytes, held paths and 20-second
 transfer deadline are unchanged. The
 [matched TRWU8CBL comparison](../../../docs/validation/2026-11-02-de25-large-blocks/README.md)
 passes a complete 2,027,520-byte transfer, firmware readiness and live sealed
-identity with control reclosed. This two-job cold diagnostic does not qualify
+identity with control reclosed. That retained source used the preceding built-in
+payload. The current SD-package path is a new candidate and requires its own
+matched boot and physical acceptance. This two-job cold diagnostic does not qualify
 queue turnover, repeated runtime loading, master drain or active launch/return.
 
 | Owner | Range |
@@ -606,7 +611,9 @@ the preparation request: its fixed addresses and expected whole/chunk digests
 are compiled into the matched cold profile.
 
 Private operation 8 prepares one transfer under the existing owner lock and
-generation 1. The four existing contained configuration calls then validate
+the current never-enabled, contained generation. Initialization remains at
+generation 1; one SD resume/prepare/stop cycle advances it to 4 before
+configuration captures it. A stale receipt or active SD lease cannot prepare. The four existing contained configuration calls then validate
 the same closed bridge/master scope, exact chunk extents and SDM-relative
 completions. The native command uses the runtime's shared transfer engine;
 accepted BUSY writes cannot replay, and an uncertain response or deadline

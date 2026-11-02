@@ -48,3 +48,11 @@ or programmable core.
 The [bounded TRWU8CBL trial](../../../../docs/validation/2026-11-01-de25-ksz9031-packages/README.md)
 now passes that real SD retention/contain/resume/reread cycle. Active-fabric
 storage return and physical runtime admission remain unqualified.
+
+The `fpgaload` consumer now joins a contained `Handoff` to the native cold
+configuration engine. It selects the exact compiled sealed package and copies
+its privately retained payload into the boot-pinned arena. Fresh secure
+owner/generation checks bracket preparation; storage resume invalidates the
+handoff before START. This joins the two native paths without granting general
+compatibility admission or storage access across an active core. The combined
+SD-to-configuration image still needs its own physical qualification.

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol"
 	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
@@ -85,7 +86,7 @@ func (v *HPSContextVerifier) ProbeIdentity(raw []byte) (FPGAIdentityObservation,
 		return FPGAIdentityObservation{}, err
 	}
 	before := source.Bridges
-	if !before.NeverEnabled || before.Generation != 1 || before.Capabilities.FabricHandshake != FabricHandshakeAbsent {
+	if before.Generation > math.MaxUint64-2 || !v.coldSource(source) {
 		return FPGAIdentityObservation{}, errors.New("native fabric: identity probe requires fresh closed cold scope")
 	}
 	r, err := v.cpu.Invoke([7]uint64{uint64(g.FesEmbeddedBridgeCall), uint64(g.FesEmbeddedBridgeProbeIdentity), before.Owner, uint64(g.FesEmbeddedBridgeCookie), before.Generation})
