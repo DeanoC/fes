@@ -89,6 +89,7 @@ def make(entry_build):
               'sd_pio':profile.name=='sd-profile.json','firmware_profile_sha256':sha(profile),
               'smmu_observe':profile.name=='smmu-profile.json',
               'secure_capture_trace':True,
+              'spl_atf_trace':True,
               'native_sources_sha256':hashlib.sha256(json.dumps(build['native_build_sources'],sort_keys=True).encode()).hexdigest(),
               'experimental_fit_path':EXPERIMENTAL_FILE,'entry_image_sha256':sha(image),
               'entry_image_size':image.stat().st_size,'producer_sources':inputs,

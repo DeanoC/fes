@@ -51,6 +51,52 @@ class NativeTraceTests(unittest.TestCase):
     def decode(self, data):
         return trace.decode_native_boot(data, BUILD, SEED)
 
+    def test_loaded_bl31_observation_uses_independent_descriptor_and_preserves_partial_progress(self):
+        sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
+        try:from prepare_uboot import atf_descriptor,checked_atf_descriptor
+        finally:sys.path.pop(0)
+        expected=atf_descriptor('1'*64,90173)
+        marker=('FES_NANO_SPL ATF target=80000000 bl32=0 bl33=80200000 fdt=0 params=bff00008 '
+                'cold=21768 cookie=464e433200000002 el=3 mpidr=81000000 sctlr=1000 scr=501 daif=3c0 '
+                'bytes=90173 sha256='+'1'*64+'\r\n')
+        before='NOTICE:  FES_NANO_EL3_CAPTURE phase=before'
+        raw=fixture().replace(before,marker+before)
+        observed=trace.decode_native_boot(raw,BUILD,SEED,atf=expected)
+        self.assertTrue(observed['complete'],observed)
+        self.assertFalse(observed['core_load_acceptance'])
+        self.assertEqual(observed['atf_observation']['sctlr'],0x1000)
+        prefix=raw.split(marker)[0]+marker
+        partial=trace.decode_native_boot(prefix,BUILD,SEED,atf=expected)
+        self.assertEqual(partial['last_checkpoint'],'spl_atf')
+        self.assertEqual(partial['errors'],[])
+        self.assertFalse(partial['loader_ready']);self.assertFalse(partial['complete'])
+        truncated=trace.decode_native_boot(prefix.rstrip('\r\n'),BUILD,SEED,atf=expected)
+        self.assertEqual(truncated['last_checkpoint'],'spl_handoff')
+        self.assertFalse(trace.decode_native_boot(raw,BUILD,SEED)['complete'])
+        self.assertFalse(trace.decode_native_boot(fixture(),BUILD,SEED,atf=expected)['complete'])
+        self.assertFalse(trace.decode_native_boot(raw.replace(marker,marker+marker),BUILD,SEED,atf=expected)['complete'])
+        for old,new in (('target=80000000','target=80000004'),('bl32=0','bl32=1'),
+                        ('bl33=80200000','bl33=180200000'),('fdt=0','fdt=1'),
+                        ('params=bff00008','params=bfeffff8'),('params=bff00008','params=bff00009'),
+                        ('params=bff00008','params=bfffffc8'),('cold=21768','cold=21769'),
+                        ('cold=21768','cold=40000'),('cookie=464e433200000002','cookie=464e433200000003'),
+                        ('el=3','el=2'),('mpidr=81000000','mpidr=81000200'),
+                        ('sctlr=1000','sctlr=1001'),('sctlr=1000','sctlr=1004'),
+                        ('daif=3c0','daif=3c1'),('bytes=90173','bytes=90174'),
+                        ('sha256='+'1'*64,'sha256='+'2'*64)):
+            with self.subTest(old=old,new=new):
+                self.assertFalse(trace.decode_native_boot(raw.replace(old,new),BUILD,SEED,atf=expected)['loader_ready'])
+        changed=raw.replace('pointer=21768','pointer=21770')
+        self.assertIn('secure capture differs from final SPL arguments',
+                      trace.decode_native_boot(changed,BUILD,SEED,atf=expected)['errors'])
+        for key,value in expected.items():
+            if type(value) is int:
+                with self.subTest(key=key),self.assertRaises(ValueError):
+                    checked_atf_descriptor(dict(expected,**{key:bool(value)}))
+        for bad in (None,{},dict(expected,bytes=0),dict(expected,sha256='0'*64),
+                    dict(expected,target=0x80000004),dict(expected,extra=1)):
+            with self.subTest(bad=bad),self.assertRaises(ValueError):checked_atf_descriptor(bad)
+
     def test_early_capture_pairs_locate_progress_without_granting_boot_authority(self):
         raw=fixture();before='NOTICE:  FES_NANO_EL3_CAPTURE phase=before pointer=21768 cookie=464e433200000002\r\n'
         after=before.replace('phase=before','phase=after')

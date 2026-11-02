@@ -10,6 +10,7 @@
 #include "nano_cold.h"
 #include "fes_nano_cold_profile.h"
 #include "fes_nano_fit_seal.h"
+#include "fes_nano_atf_seal.h"
 #define FES_COLD_READ32(a) readl((void *)(a))
 #define FES_COLD_READ16(a) readw((void *)(a))
 #define FES_COLD_WRITE32(a,v) writel((v),(void *)(a))
@@ -45,6 +46,55 @@ unsigned long fes_nano_spl_fit_read(void *buffer, unsigned long offset, unsigned
     if (!fit_verified || offset>FES_NANO_SEALED_FIT_SIZE || size>FES_NANO_SEALED_FIT_SIZE-offset) return 0;
     memcpy(buffer,(const void *)(0x94000000UL+offset),size);
     return size;
+}
+
+/* Final observation after cold containment and immediately before the branch.
+ * Hash fixed loaded BL31 bytes directly: no watchdog or device callback is
+ * allowed after SD/master containment. Never derive a read range from args. */
+void fes_nano_spl_atf_trace(uintptr_t target, uintptr_t bl32, uintptr_t bl33,
+                           uintptr_t fdt, uintptr_t params, uintptr_t cold)
+{
+    static const uint8_t expected[32]=FES_NANO_ATF_SHA;
+    uint8_t hash[32];sha256_context state;
+    uint64_t sctlr,scr,daif;
+    unsigned el=current_el();
+    if (el!=3 || source.failed || source.finish_stage!=FES_COLD_FINISH_COMPLETE ||
+        target!=0x80000000UL || bl32 || bl33!=0x80200000UL || fdt ||
+        params&7U || params<CONFIG_SPL_BSS_START_ADDR ||
+        params>CONFIG_SPL_BSS_START_ADDR+CONFIG_SPL_BSS_MAX_SIZE-64UL ||
+        cold!=(uintptr_t)&fes_nano_spl_record ||
+        FES_NANO_ATF_SIZE<16UL || FES_NANO_ATF_SIZE>(2UL<<20)) {
+        printf("FES_NANO_SPL REJECT atf arguments el=%u target=%llx bl32=%llx bl33=%llx fdt=%llx params=%llx cold=%llx failed=%u stage=%u\n",
+               el,(unsigned long long)target,(unsigned long long)bl32,(unsigned long long)bl33,
+               (unsigned long long)fdt,(unsigned long long)params,(unsigned long long)cold,
+               source.failed,source.finish_stage);hang();
+    }
+    asm volatile("mrs %0, sctlr_el3" : "=r"(sctlr));
+    asm volatile("mrs %0, scr_el3" : "=r"(scr));
+    asm volatile("mrs %0, daif" : "=r"(daif));
+    if (sctlr&5U || daif!=0x3c0U ||
+        ((read_mpidr()>>8)&0xff)!=fes_nano_spl_record.core) {
+        printf("FES_NANO_SPL REJECT atf CPU state sctlr=%llx scr=%llx daif=%llx mpidr=%llx core=%u\n",
+               (unsigned long long)sctlr,(unsigned long long)scr,(unsigned long long)daif,
+               (unsigned long long)read_mpidr(),fes_nano_spl_record.core);hang();
+    }
+    sha256_starts(&state);
+    sha256_update(&state,(const uint8_t *)0x80000000UL,FES_NANO_ATF_SIZE);
+    sha256_finish(&state,hash);
+    if (memcmp(hash,expected,32)) {
+        puts("FES_NANO_SPL REJECT loaded BL31 bytes actual=");
+        for (unsigned i=0;i<32;i++) printf("%02x",hash[i]);
+        puts(" expected=");
+        for (unsigned i=0;i<32;i++) printf("%02x",expected[i]);
+        puts("\n");hang();
+    }
+    printf("FES_NANO_SPL ATF target=%llx bl32=%llx bl33=%llx fdt=%llx params=%llx cold=%llx cookie=%llx el=%u mpidr=%llx sctlr=%llx scr=%llx daif=%llx bytes=%lu sha256=",
+           (unsigned long long)target,(unsigned long long)bl32,(unsigned long long)bl33,
+           (unsigned long long)fdt,(unsigned long long)params,(unsigned long long)cold,
+           (unsigned long long)FES_NANO_COLD_COOKIE,el,(unsigned long long)read_mpidr(),
+           (unsigned long long)sctlr,(unsigned long long)scr,(unsigned long long)daif,FES_NANO_ATF_SIZE);
+    for (unsigned i=0;i<32;i++) printf("%02x",hash[i]);
+    puts("\n");
 }
 
 void fes_nano_spl_early(void)

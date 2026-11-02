@@ -1,5 +1,20 @@
 # Nano recovery uploads and cold serial boot
 
+Current matched cold builds also emit `FES_NANO_SPL ATF` immediately before
+branching into BL31. SPL checks the fixed loaded BL31 bytes against its compiled
+SHA-256, the target/argument addresses, completed cold containment, EL3, MMU/data
+cache state, masked exceptions and unchanged primary CPU. The hash uses the raw
+vendor SHA API without watchdog or device callbacks. It changes no cache or
+reset controls. Invalid arguments, state or bytes reject before the branch.
+
+The U-Boot receipt's checked `atf_handoff` descriptor supplies `atf=...` to the
+serial/configuration decoder. Current file composition requires that descriptor
+and `spl_atf_trace=true`; the decoder requires its ordered observation and matches
+the later capture pointer/cookie to the final SPL arguments. Historical captures
+keep their explicit base observation scope. A completed ATF observation proves
+neither execution of BL31 nor runtime admission. This candidate still needs its
+matched bounded hardware test.
+
 `smmu-profile.json` selects a separate serial-only `probe` image. Its source-bound
 SPL/BL31 chain enables a read-only SMMUv3 observation after trusted cold ownership
 is accepted and before BL33. It records two matching samples of translation,

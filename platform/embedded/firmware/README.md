@@ -6,6 +6,13 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The matched native SPL now verifies the loaded BL31 bytes and records the exact
+branch target, argument pointers and CPU control registers after cold containment.
+Its compiled digest/size and parameter ranges come from the checked BL31/FIT
+build. A mismatch rejects before entry. This read-only observation preserves
+vendor BL31 startup and supplies no bridge or runtime permission; it is intended
+to narrow the unresolved SPL-to-EL3 stop before the first console marker.
+
 The optional source-bound SMMU serial profile now runs a read-only observation
 inside the trusted cold provider. It samples the non-secure controls and only
 reads the secure control bank when `S_IDR1.SECURE_IMPL` reports it. Every read

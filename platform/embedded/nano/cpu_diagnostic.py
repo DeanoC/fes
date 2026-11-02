@@ -194,7 +194,11 @@ def main():
     inputs.update({tool['path']:tool['sha256'] for tool in r['cross_tools'].values()})
     output.mkdir(parents=True);source=output/'source';source.mkdir();build=output/'build';build.mkdir()
     with tarfile.open(fileobj=io.BytesIO(git('archive',PIN))) as archive:archive.extractall(source,filter='data')
-    prepared=prepare_uboot.prepare(source,args.entry_build.resolve(strict=True),r['bl31_sha256'])
+    bl31=seed/'extracted-bl31.bin'
+    if sha(bl31)!=r['bl31_sha256'] or bl31.stat().st_size!=r['fit_components']['atf']['size']:
+        raise ValueError('seed BL31 bytes differ from their handoff identity')
+    inputs[str(bl31)]=sha(bl31)
+    prepared=prepare_uboot.prepare(source,args.entry_build.resolve(strict=True),r['bl31_sha256'],bl31.stat().st_size)
     if prepared['cold_boot_profile']!=native['cold_boot_profile']:raise ValueError('source chain differs from seed')
     transformed=contain_source(source,args.console_control)
     if any(sha(source/name)!=digest for name,digest in startup.items()):raise ValueError('vendor startup modified')

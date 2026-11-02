@@ -44,11 +44,19 @@ def checked_native(uboot,entry):
             sha(uboot/'build/.config')!=u.get('config_sha256') or
             u.get('producer_sha256')!=sha(HERE.parent/'firmware/build_terasic_uboot.py')):
         raise ValueError('native FIT/SPL/entry/firmware seal differs from matched receipts')
-    from prepare_uboot import DISABLE,ENABLE
+    from prepare_uboot import DISABLE,ENABLE,atf_descriptor,checked_atf_descriptor
+    component=u.get('fit_components',{}).get('atf',{})
+    if (native.get('cold_boot_profile',{}).get('spl_atf_trace') is not True or
+            component.get('sha256')!=u.get('bl31_sha256') or
+            checked_atf_descriptor(native.get('atf_handoff'))!=atf_descriptor(u.get('bl31_sha256'),component.get('size'))):
+        raise ValueError('native loaded BL31 handoff descriptor differs from its checked FIT')
     if (any('CONFIG_'+name+'=y\n' in config for name in DISABLE) or
             any('CONFIG_'+name+'=y\n' not in config for name in ENABLE) or
             'CONFIG_SPL_FS_LOAD_PAYLOAD_NAME="'+EXPERIMENTAL_FILE+'"\n' not in config or
-            'CONFIG_SYS_MMCSD_FS_BOOT_PARTITION=1\n' not in config):
+            'CONFIG_SYS_MMCSD_FS_BOOT_PARTITION=1\n' not in config or
+            any(line not in config for line in ('CONFIG_SPL_BSS_START_ADDR=0xbff00000\n',
+                'CONFIG_SPL_BSS_MAX_SIZE=0x100000\n','CONFIG_SPL_ATF_NO_PLATFORM_PARAM=y\n',
+                '# CONFIG_SPL_ATF_LOAD_IMAGE_V2 is not set\n'))):
         raise ValueError('native SPL file, PIO or excluded-device configuration differs')
     for name,digest in native['producer_sources'].items():
         if sha(ROOT/name)!=digest:raise ValueError('native source changed: '+name)

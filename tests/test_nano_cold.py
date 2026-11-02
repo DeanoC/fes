@@ -7,6 +7,147 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 FW=ROOT/'platform/embedded/firmware'
 class NanoColdTests(unittest.TestCase):
+    def test_spl_atf_caller_preserves_order_and_full_width_arguments(self):
+        sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
+        try:import prepare_uboot
+        finally:sys.path.pop(0)
+        fixture=r'''
+#include <assert.h>
+#include <setjmp.h>
+#include <stdint.h>
+#define __noreturn __attribute__((noreturn))
+#define CONFIG_IS_ENABLED(name) 0
+#define SPSR_EXCEPTION_MASK 0x3c0
+struct bl31_params { unsigned dummy; };
+static struct bl31_params parameters;
+static unsigned stage;
+static uintptr_t a32,a33,afdt,target_address;
+static jmp_buf stopped;
+static void raw_write_daif(unsigned v) { assert(stage++==0 && v==0x3c0); }
+static void dcache_disable(void) { assert(stage++==1); }
+static struct bl31_params *bl2_plat_get_bl31_params(uintptr_t b32,uintptr_t b33,uintptr_t fdt) {
+    assert(stage==0 && b32==a32 && b33==a33 && fdt==afdt);return &parameters;
+}
+#define bl2_plat_get_bl31_params_v2 bl2_plat_get_bl31_params
+typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params);
+static void __noreturn bl31_entry(uintptr_t bl31_entry,uintptr_t bl32_entry,uintptr_t bl33_entry,uintptr_t fdt_addr)
+{
+    atf_entry_t atf_entry=(atf_entry_t)bl31_entry;
+    void *bl31_params=bl2_plat_get_bl31_params(bl32_entry,bl33_entry,fdt_addr);
+    raw_write_daif(SPSR_EXCEPTION_MASK);
+    if (!CONFIG_IS_ENABLED(SYS_DCACHE_OFF)) dcache_disable();
+	atf_entry(bl31_params, (void *)fdt_addr);
+}
+'''
+        generated=prepare_uboot.atf_source(fixture).replace('#include <nano_cold.h>\n','')
+        suffix=r'''
+#define COOKIE 0x464e433200000002UL
+const void *fes_nano_spl_handoff(void) { assert(stage++==2);return (const void *)0x1000021768UL; }
+void fes_nano_spl_atf_trace(uintptr_t target,uintptr_t b32,uintptr_t b33,uintptr_t fdt,uintptr_t p,uintptr_t cold) {
+    assert(stage++==3 && target==target_address && b32==a32 && b33==a33 && fdt==afdt);
+    assert(p==(uintptr_t)&parameters && cold==0x1000021768UL);
+}
+static void __noreturn destination(struct bl31_params *p,void *fdt,const void *cold,unsigned long cookie) {
+    assert(stage++==4 && p==&parameters && fdt==(void *)afdt && cold==(void *)0x1000021768UL && cookie==COOKIE);
+    longjmp(stopped,1);
+}
+int main(void) {
+    a32=0x1111111122222222UL;a33=0x3333333344444444UL;afdt=0x5555555566666666UL;
+    target_address=(uintptr_t)destination;
+    if(!setjmp(stopped))bl31_entry(target_address,a32,a33,afdt);
+    assert(stage==5);return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as temp:
+            base=Path(temp);source=base/'caller.c';binary=base/'caller'
+            source.write_text('#define FES_NANO_COLD_COOKIE 0x464e433200000002UL\n'+generated+suffix)
+            r=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',str(source),'-o',str(binary)],capture_output=True,text=True)
+            self.assertEqual(r.returncode,0,r.stderr)
+            r=subprocess.run([str(binary)],capture_output=True,text=True)
+            self.assertEqual(r.returncode,0,r.stderr)
+        for bad in (fixture+fixture,fixture.replace('atf_entry(bl31_params','other_entry(bl31_params')):
+            with self.assertRaises(ValueError):prepare_uboot.atf_source(bad)
+
+    def test_actual_loaded_atf_check_rejects_arguments_state_and_every_corrupt_byte(self):
+        # The SHA API substitute checks the complete fixed fixture. Algorithm
+        # selection and linked calls are checked separately in the vendor build.
+        source=(ROOT/'platform/embedded/nano/spl_cold.c').read_text()
+        fragment=source[source.index('void fes_nano_spl_atf_trace('):source.index('void fes_nano_spl_early(')]
+        for register in ('sctlr','scr','daif'):
+            instruction='asm volatile("mrs %0, '+register+'_el3" : "=r"('+register+'));' if register!='daif' else 'asm volatile("mrs %0, daif" : "=r"(daif));'
+            self.assertEqual(fragment.count(instruction),1)
+            fragment=fragment.replace(instruction,register+'=sample_'+register+';samples++;')
+        prefix=r'''
+#define _GNU_SOURCE
+#include <assert.h>
+#include <setjmp.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include "nano_cold.h"
+#define CONFIG_SPL_BSS_START_ADDR 0xbff00000UL
+#define CONFIG_SPL_BSS_MAX_SIZE 0x100000UL
+#define FES_NANO_ATF_SIZE atf_size
+#define FES_NANO_ATF_SHA {0x5a}
+static unsigned long atf_size=16;
+static struct fes_nano_cold source;
+static struct fes_nano_cold_record fes_nano_spl_record;
+static unsigned mode,samples,hash_calls;
+static uint64_t sample_sctlr=0x1000,sample_scr=0x501,sample_daif=0x3c0;
+static jmp_buf stopped;
+static const unsigned char original[16]="loaded-atf-test";
+typedef struct { unsigned step; } sha256_context;
+#define puts(text) fputs((text),stdout)
+static unsigned current_el(void) { return mode==1 ? 2 : 3; }
+static uint64_t read_mpidr(void) { return mode==15 ? 0x81000200 : 0x81000000; }
+static void sha256_starts(sha256_context *s) { assert(samples==3);s->step=1; }
+static void sha256_update(sha256_context *s,const uint8_t *p,uint32_t n) {
+    assert(s->step==1 && p==(void *)0x80000000UL && n==16);s->step=2;hash_calls++;
+}
+static void sha256_finish(sha256_context *s,uint8_t *hash) {
+    assert(s->step==2);s->step=3;memset(hash,0,32);
+    hash[0]=memcmp((void *)0x80000000UL,original,16)?0xa5:0x5a;
+}
+static void hang(void) { longjmp(stopped,1); }
+'''
+        main=r'''
+int main(int argc,char **argv) {
+    assert(argc==2);mode=strtoul(argv[1],0,0);
+    assert(mmap((void *)0x80000000UL,4096,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED_NOREPLACE,-1,0)==(void *)0x80000000UL);
+    memcpy((void *)0x80000000UL,original,16);source.finish_stage=FES_COLD_FINISH_COMPLETE;
+    uintptr_t target=0x80000000UL,b32=0,b33=0x80200000UL,fdt=0,p=0xbff00008UL,cold=(uintptr_t)&fes_nano_spl_record;
+    switch(mode) {
+    case 2:source.failed=1;break;case 3:source.finish_stage=0;break;
+    case 4:target+=4;break;case 5:b32=1;break;case 6:b33+=4;break;case 7:fdt=1;break;
+    case 8:p++;break;case 9:p=0xbfeffff8UL;break;case 10:p=0xc0000000UL-56;break;case 11:cold++;break;
+    case 12:sample_sctlr|=1;break;case 13:sample_sctlr|=4;break;case 14:sample_daif=0;break;
+    case 16:atf_size=0;break;case 17:atf_size=(2UL<<20)+1;break;case 18:b33+=1UL<<32;break;
+    }
+    if(mode>=20)((uint8_t *)0x80000000UL)[mode-20]^=1;
+    if(!setjmp(stopped)) {
+        fes_nano_spl_atf_trace(target,b32,b33,fdt,p,cold);
+        assert(!mode && samples==3 && hash_calls==1);
+    } else {
+        assert(mode && hash_calls==(mode>=20));
+        assert(samples==((mode>=12 && mode<=15) || mode>=20 ? 3U : 0U));
+    }
+    puts("ATF_CHECK_TEST_PASS\n");return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as temp:
+            base=Path(temp);test=base/'loaded.c';binary=base/'loaded';test.write_text(prefix+fragment+main)
+            r=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all','-I'+str(FW),str(test),'-o',str(binary)],capture_output=True,text=True)
+            self.assertEqual(r.returncode,0,r.stderr)
+            for mode in list(range(19))+list(range(20,36)):
+                with self.subTest(mode=mode):
+                    r=subprocess.run([str(binary),str(mode)],capture_output=True,text=True)
+                    self.assertEqual(r.returncode,0,r.stderr)
+                    self.assertIn('ATF_CHECK_TEST_PASS',r.stdout)
+                    self.assertEqual('FES_NANO_SPL ATF target=' in r.stdout,mode==0)
+                    self.assertEqual('FES_NANO_SPL REJECT ' in r.stdout,mode!=0)
+
     def test_secure_capture_trace_preserves_vendor_order_and_all_arguments(self):
         sys.path.insert(0,str(FW))
         try:import prepare_nano_owned
@@ -329,7 +470,7 @@ int main(int argc,char **argv) {
         caller's verification/order and retained buffer, not vendor SHA itself.
         """
         source=(ROOT/'platform/embedded/nano/spl_cold.c').read_text()
-        fragment=source[source.index('int fes_nano_spl_fit_check('):source.index('void fes_nano_spl_early(')]
+        fragment=source[source.index('int fes_nano_spl_fit_check('):source.index('void fes_nano_spl_atf_trace(')]
         with tempfile.TemporaryDirectory() as temp:
             base=Path(temp);test=base/'fit.c';binary=base/'fit'
             test.write_text(r'''

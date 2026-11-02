@@ -36,9 +36,41 @@ def cold_reset_source(text):
     return text
 
 
-def prepare(source, entry_build, bl31_sha256):
-    if len(bl31_sha256) != 64 or any(c not in "0123456789abcdef" for c in bl31_sha256):
+def atf_descriptor(bl31_sha256, bl31_size):
+    if (not isinstance(bl31_sha256, str) or len(bl31_sha256) != 64 or
+            any(c not in "0123456789abcdef" for c in bl31_sha256) or int(bl31_sha256, 16) == 0 or
+            type(bl31_size) is not int or not 16 <= bl31_size <= 2 << 20):
         raise ValueError("missing exact BL31 identity for the matched Nano loader")
+    return {'format': 1, 'scope': 'loaded-bl31-handoff-v1', 'target': 0x80000000,
+            'bytes': bl31_size, 'sha256': bl31_sha256, 'bl32': 0, 'bl33': 0x80200000,
+            'fdt': 0, 'params_base': 0xbff00000, 'params_bytes': 0x100000}
+
+
+def checked_atf_descriptor(value):
+    if (not isinstance(value,dict) or value!=atf_descriptor(value.get('sha256'),value.get('bytes')) or
+            any(type(v) is not int for key,v in value.items() if key not in ('scope','sha256'))):
+        raise ValueError('checked loaded BL31 handoff descriptor required')
+    return dict(value)
+
+
+def atf_source(text):
+    before='typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params);'
+    if text.count(before)!=1:raise ValueError('SPL ATF argument declaration changed')
+    text=text.replace(before,'typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params, const void *cold, unsigned long cookie);')
+    before='\tatf_entry(bl31_params, (void *)fdt_addr);'
+    if text.count(before)!=1:raise ValueError('SPL ATF entry context changed')
+    text=text.replace(before,'''\t{
+\t\textern const void *fes_nano_spl_handoff(void);
+\t\textern void fes_nano_spl_atf_trace(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+\t\tconst void *cold = fes_nano_spl_handoff();
+\t\tfes_nano_spl_atf_trace(bl31_entry, bl32_entry, bl33_entry, fdt_addr, (uintptr_t)bl31_params, (uintptr_t)cold);
+\t\tatf_entry(bl31_params, (void *)fdt_addr, cold, FES_NANO_COLD_COOKIE);
+\t}''')
+    return '#include <nano_cold.h>\n'+text
+
+
+def prepare(source, entry_build, bl31_sha256, bl31_size):
+    atf_handoff=atf_descriptor(bl31_sha256,bl31_size)
     spec=importlib.util.spec_from_file_location('fes_nano_cold_profile', HERE/'cold_profile.py')
     cold=importlib.util.module_from_spec(spec);spec.loader.exec_module(cold)
     image, receipt_path=cold.entry(entry_build)
@@ -78,6 +110,9 @@ def prepare(source, entry_build, bl31_sha256):
     # The first compilation can produce the FIT but cannot boot it. The build
     # then seals that exact FIT into SPL and rebuilds only SPL, avoiding a hash cycle.
     (soc/'fes_nano_fit_seal.h').write_text('#define FES_NANO_SEALED_FIT_SIZE 0UL\n#define FES_NANO_SEALED_FIT_SHA {0}\n')
+    (soc/'fes_nano_atf_seal.h').write_text(
+        '#define FES_NANO_ATF_SIZE '+str(bl31_size)+'UL\n#define FES_NANO_ATF_SHA {'+
+        ','.join('0x'+bl31_sha256[i:i+2] for i in range(0,64,2))+'}\n')
     (soc/'fes_nano_spl.h').write_text('void fes_nano_spl_early(void);\nvoid fes_nano_spl_report(void);\nconst void *fes_nano_spl_handoff(void);\n')
     spl=soc/'spl_agilex5.c';text=spl.read_text()
     for before,after in (('\tret = spl_early_init();','\tfes_nano_spl_early();\n\tret = spl_early_init();'),
@@ -92,14 +127,8 @@ def prepare(source, entry_build, bl31_sha256):
     block,count=re.subn(r'(?m)^obj-[^\n]*\+= (?:rsu|rsu_ll_qspi|rsu_misc|rsu_s10|smc_rsu_s10)\.o\n','',block)
     if count!=5:raise ValueError('native flash/RSU object context changed')
     mk.write_text(text[:start]+block+text[end:]+'\nifdef CONFIG_SPL_BUILD\nobj-y += fes_nano_spl.o nano_cold.o\nendif\n')
-    atf=source/'common/spl/spl_atf.c';text=atf.read_text()
-    before='typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params);'
-    if text.count(before)!=1:raise ValueError('SPL ATF argument declaration changed')
-    text=text.replace(before,'typedef void __noreturn (*atf_entry_t)(struct bl31_params *params, void *plat_params, const void *cold, unsigned long cookie);')
-    before='\tatf_entry(bl31_params, (void *)fdt_addr);'
-    if text.count(before)!=1:raise ValueError('SPL ATF entry context changed')
-    text=text.replace(before,'\t{\n\t\textern const void *fes_nano_spl_handoff(void);\n\t\tatf_entry(bl31_params, (void *)fdt_addr, fes_nano_spl_handoff(), FES_NANO_COLD_COOKIE);\n\t}')
-    atf.write_text('#include <nano_cold.h>\n'+text)
+    atf=source/'common/spl/spl_atf.c'
+    atf.write_text(atf_source(atf.read_text()))
     fat=source/'common/spl/spl_fat.c';text=fat.read_text()
     anchor='\terr = spl_register_fat_device(block_dev, partition);\n\tif (err)\n\t\tgoto end;\n'
     if text.count(anchor)!=1:raise ValueError('SPL FAT pre-parser context changed')
@@ -156,7 +185,8 @@ def prepare(source, entry_build, bl31_sha256):
     return {"entry_image_sha256": sha(image), "entry_receipt_sha256": sha(receipt_path), "bl31_sha256": bl31_sha256,
             "profile_sha256": sha(profile), "build_id": build_id,
             "classification": "source-derived serial-only Nano handoff; physical gate not executed",
-            "producer_sources": producer_sources, "cold_boot_profile":chain, "preloaded_entry": True}
+            "producer_sources": producer_sources, "cold_boot_profile":chain, "preloaded_entry": True,
+            "atf_handoff":atf_handoff}
 
 
 DISABLE = ("NET", "NETDEVICES", "USB", "ENV_IS_IN_FAT", "ENV_IS_IN_UBI", "ENV_IS_IN_SPI_FLASH",

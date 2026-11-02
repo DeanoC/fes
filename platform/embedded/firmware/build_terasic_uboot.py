@@ -174,7 +174,7 @@ def main():
         spec = importlib.util.spec_from_file_location("fes_nano_prepare", HERE.parent / "nano/prepare_uboot.py")
         nano_prepare = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(nano_prepare)
-        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest())
+        native = nano_prepare.prepare(build_repo, entry_build, hashlib.sha256(blob).hexdigest(), len(blob))
         if native['cold_boot_profile']!=cold_profile: raise ValueError('SPL and BL31 cold chain differ')
         (build/'fes-entry.img').write_bytes((entry_build/'entry.img').read_bytes())
     commands = []
@@ -217,6 +217,10 @@ def main():
         enabled=[name for name in nano_prepare.DISABLE if 'CONFIG_'+name+'=y\n' in config]
         missing=[name for name in nano_prepare.ENABLE if 'CONFIG_'+name+'=y\n' not in config]
         raise ValueError("serial-only bootloader options differ: excluded="+repr(enabled)+" missing="+repr(missing))
+    if native is not None and any(line not in config for line in (
+            'CONFIG_SPL_BSS_START_ADDR=0xbff00000\n','CONFIG_SPL_BSS_MAX_SIZE=0x100000\n',
+            'CONFIG_SPL_ATF_NO_PLATFORM_PARAM=y\n','# CONFIG_SPL_ATF_LOAD_IMAGE_V2 is not set\n')):
+        raise ValueError('native ATF argument/BSS configuration differs from its compiled handoff descriptor')
     run("build", [*base, "-j", str(args.jobs)])
     fit = build / "u-boot.itb"
     spl = build / "spl/u-boot-spl-dtb.hex"

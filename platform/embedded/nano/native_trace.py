@@ -30,6 +30,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('mmc', r'Trying to boot from MMC1'),
     ('fit', r'FES_NANO_SPL FIT verified before parsing'),
     ('spl_handoff', rf'FES_NANO_SPL HANDOFF owner=(?P<owner>{H}) epoch=(?P<epoch>{H}) per0=(?P<per0>{W}) bridge=(?P<bridge>{W}) sd=(?P<sd>{W})'),
+    ('spl_atf', rf'FES_NANO_SPL ATF target=(?P<target>{H}) bl32=(?P<bl32>{H}) bl33=(?P<bl33>{H}) fdt=(?P<fdt>{H}) params=(?P<params>{H}) cold=(?P<cold>{H}) cookie=(?P<cookie>{H}) el=(?P<el>[0-3]) mpidr=(?P<mpidr>{H}) sctlr=(?P<sctlr>{H}) scr=(?P<scr>{H}) daif=(?P<daif>{H}) bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}})'),
     ('el3_capture', rf'(?:NOTICE:[ \t]+)?FES_NANO_EL3_CAPTURE phase=(?P<phase>before|after) pointer=(?P<pointer>{H}) cookie=(?P<cookie>{H})'),
     ('smmu', r'(?:NOTICE:[ \t]+)?FES_NANO_SMMU status=(?P<status>-?[0-9]{1,10}) reads=(?P<reads>[0-9]{1,3}) '+
         ' '.join(key+r'=(?P<'+key+r'>[0-9a-f]{1,8})' for key in
@@ -85,7 +86,7 @@ TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_i
 
 def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
-                       smmu_observe=False, reader_memory=None, capture_trace=True):
+                       smmu_observe=False, reader_memory=None, capture_trace=True, atf=None):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -104,6 +105,13 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     # that instrumentation require an explicit historical format selection;
     # never infer a weaker format from missing serial records.
     base_stages=STAGES if capture_trace else tuple(s for s in STAGES if not s.startswith('el3_capture_'))
+    if atf is not None:
+        from prepare_uboot import checked_atf_descriptor
+        if not capture_trace:
+            raise ValueError('checked loaded BL31 handoff descriptor required')
+        atf=checked_atf_descriptor(atf)
+        index=base_stages.index('spl_handoff')+1
+        base_stages=base_stages[:index]+('spl_atf',)+base_stages[index:]
     if storage is not None and (not isinstance(storage,dict) or set(storage)!={'bytes','sha256'} or
             type(storage['bytes']) is not int or not 0<storage['bytes']<=1<<20 or
             not isinstance(storage['sha256'],str) or not re.fullmatch('[0-9a-f]{64}',storage['sha256'])):
@@ -261,9 +269,25 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         require(seal['per0'] & MASTER_RESET == MASTER_RESET and seal['bridge'] & BRIDGES == BRIDGES and
                 not seal['sd'] & SD_BUSY, 'SPL containment or SD drain differs')
     capture=observed.get('el3_capture_before')
+    if 'spl_atf' in observed:
+        v=observed['spl_atf']
+        require(atf is not None,'unexpected loaded BL31 handoff observation')
+        if atf is not None:
+            require(all(v[key]==atf[key] for key in ('target','bl32','bl33','fdt','bytes','sha256')),
+                    'loaded BL31 target, arguments or bytes differ from checked build')
+            require(not v['params']&7 and atf['params_base']<=v['params']<=atf['params_base']+atf['params_bytes']-64 and
+                    0x1000<=v['cold']<=0x40000-0xe0 and not v['cold']&7 and v['cookie']==0x464e433200000002,
+                    'SPL ATF parameter or cold-record address differs')
+            require(v['el']==3 and not v['sctlr']&5 and v['daif']==0x3c0 and scope is not None and v['mpidr']==scope['mpidr'],
+                    'SPL ATF CPU state differs from final handoff scope')
+            report['atf_observation']=dict(v)
     if capture:
         require(0x1000<=capture['pointer']<=0x40000-0xe0 and not capture['pointer']&7 and
                 capture['cookie']==0x464e433200000002,'secure cold-capture arguments differ')
+        if atf is not None:
+            branch=observed.get('spl_atf')
+            require(branch is not None and capture['pointer']==branch['cold'] and capture['cookie']==branch['cookie'],
+                    'secure capture differs from final SPL arguments')
     if 'el3_capture_after' in observed:
         require(capture is not None and observed['el3_capture_after']==dict(capture,phase='after'),
                 'secure cold-capture return changed arguments')
@@ -416,7 +440,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     return report
 
 
-def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False, reader_memory=None, ddr_read=None):
+def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False, reader_memory=None, ddr_read=None, atf=None):
     """Observe a contained phase-two transfer followed by reclosed live identity.
 
     The maps come from independently checked build receipts. Variable-length
@@ -430,7 +454,7 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
         from ddr_trace import decode
         return decode(data,build_id,owner_seed,identity=fpga_identity,memory=reader_memory,contract=ddr_read,rules=dict(RULES),
             base_decode=lambda prefix:decode_native_configuration(prefix,build_id,owner_seed,fpga_identity=fpga_identity,
-                configuration=configuration,from_storage=from_storage,reader_memory=reader_memory))
+                configuration=configuration,from_storage=from_storage,reader_memory=reader_memory,atf=atf))
     if type(from_storage) is not bool:raise ValueError('configuration source must be selected by the checked build profile')
     generation=4 if from_storage else 1
     fields={'format','scope','package_id','build_id','core_sha256','core_sha384','core_size',
@@ -453,7 +477,7 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
         raise TypeError('serial bytes or text required')
     raw=data.encode() if isinstance(data,str) else bytes(data)
     if len(raw)>MAX_BYTES:
-        return decode_native_boot(raw,build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True,configuration_storage=from_storage,reader_memory=reader_memory)
+        return decode_native_boot(raw,build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True,configuration_storage=from_storage,reader_memory=reader_memory,atf=atf)
     core=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_CORE_TRANSFER phase=(?P<phase>[A-Za-z]{{1,16}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) completed=(?P<completed>[0-9]{{1,10}}) pending=(?P<pending>[0-9]{{1,10}}) total=(?P<total>[0-9]{{1,10}}) base=(?P<base>{H})(?: counter=(?P<counter>{H}) hash_ticks=(?P<hash_ticks>{H}))?')
     programmed=re.compile(rf'FES_NATIVE_FPGA_PROGRAMMED PASS package_id=(?P<package_id>[0-9a-f]{{64}}) core_sha256=(?P<core_sha256>[0-9a-f]{{64}}) bytes=(?P<bytes>[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) data_held=1 activation=unavailable')
     engine=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_CORE_ENGINE credits=(?P<credits>[0-9]{{1,10}}) block_bytes=(?P<block_bytes>[0-9]{{1,10}}) next_job=(?P<next_job>[0-9]{{1,2}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}})')
@@ -565,7 +589,7 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
                     'native programmed identity, bytes or ownership differ')
             programmed_row={'stage':'configuration_programmed','line':index+1,'values':values}
             extra.append(programmed_row);last='programmed';parts[index]=b''
-    report=decode_native_boot(b'\n'.join(parts),build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True,configuration_storage=from_storage,reader_memory=reader_memory)
+    report=decode_native_boot(b'\n'.join(parts),build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True,configuration_storage=from_storage,reader_memory=reader_memory,atf=atf)
     observed={row['stage']:row for row in report['records']}
     source=observed.get('hps_context');query=observed.get('fpga_query')
     if extra:
@@ -591,11 +615,11 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
     return report
 
 
-def decode_native_reader_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False):
+def decode_native_reader_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False, atf=None):
     """Require the contained transfer, exact reader recipe and reclosed identity."""
     captured=extract_reader_trace(data)
     report=decode_native_configuration(captured['stripped'],build_id,owner_seed,
-                                      fpga_identity=fpga_identity,configuration=configuration,from_storage=from_storage)
+                                      fpga_identity=fpga_identity,configuration=configuration,from_storage=from_storage,atf=atf)
     rows={row['stage']:row for row in report['records']}
     source=rows.get('hps_context')
     reader={'complete':False,'errors':[],'records':[]}
