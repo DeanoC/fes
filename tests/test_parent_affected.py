@@ -409,7 +409,9 @@ class ParentAffectedTests(unittest.TestCase):
         full, room = plan(), plan([ROOM])
         self.assertEqual(sorted(full['selected'] + full['omitted']),
                          sorted(room['selected'] + room['omitted']))
-        self.assertLess(len(room['selected']), len(full['selected']) // 2)
+        # Compare the ratio directly: floor division rejects a valid selection
+        # of 632 out of 1265 when an additional unassigned test is discovered.
+        self.assertLess(2 * len(room['selected']), len(full['selected']))
         self.assertTrue(any('test_parent_affected.' in test for test in room['selected']))
         self.assertEqual(plan(['<new-branch>'])['selected'], full['selected'])
         receipt = plan(['tests/test_receipt.py'])
