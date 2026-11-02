@@ -11,8 +11,9 @@
 // that faults in the oracle must fault in the RTL with the same vector, with
 // nothing of it retired; both deliver it, and the delivery, its frame
 // included, is compared as a retirement. A fault while an exception is
-// delivered (a double fault, then shutdown) stops the RTL as not built,
-// with nothing written. HLT ends a run on both sides.
+// delivered is delivered in its place (a double fault when both are
+// contributory), and a fault in a double fault's delivery is shutdown, which
+// both sides must reach with nothing written. HLT ends a run on both sides.
 //
 // Where the oracle and SingleStepTests/80386 disagree, divergences.toml names
 // the side the FES CPU follows. For an entry that follows the corpus, the
@@ -70,10 +71,15 @@
 //           a vector entry it rewrote, or at a store into its code other
 //           than those rewrites, after which it may run anything.
 //           FES_I386_PM protected-mode blocks per hundred items (pm_block,
-//           default 2): LGDT, PE set, far jumps to code descriptors,
-//           segment loads, accesses, CR and table moves, back to real mode
-//           (unreal); an exception or interrupt with PE set stops the RTL,
-//           whose vector and error code must be the oracle's first event.
+//           default 2): LGDT and LIDT, PE set, far jumps, far CALLs and
+//           RETFs between code descriptors, INT n and IRET through an IDT of
+//           interrupt and trap gates, LLDT, LTR, LAR's kin and ARPL, segment
+//           loads from the GDT and the LDT, accesses, CR and table moves,
+//           back to real mode (unreal). An exception or interrupt with PE
+//           set is delivered through the IDT and compared as any delivery
+//           is. What is not built stops the RTL and ends the run, with its
+//           reason (trace_unbuilt); the oracle's step must show the like
+//           (below).
 //   unbuilt encodings this build does not execute, one per line on stdin as
 //           hex bytes: each must stop the RTL with FAULT_UNIMPLEMENTED before
 //           anything retires. The RTL runs alone; the oracle is not stepped.
