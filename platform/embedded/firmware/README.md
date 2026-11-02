@@ -305,6 +305,11 @@ software checks; neither these callbacks nor their serial marker supplies
 physical DDR/firewall/addressing qualification or runtime admission. Generic
 cold data release remains denied.
 
+The [matched TRWU8CBL observation](../../../docs/validation/2026-11-02-de25-ddr-prerequisites/README.md)
+now passes the idle callback, live identity and read-only SMMU/firewall path
+with control reclosed and all data held. It exercises no FPGA DDR request or
+active traffic drain.
+
 `verify_probe_stop.py` joins the actual C helper to the inherited Avalon probe
 RTL and its independent burst/response bench. The DDR board-model verifier
 runs it against the selected project's probe source when a project is supplied.

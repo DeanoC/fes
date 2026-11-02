@@ -26,6 +26,13 @@ the MPFE TBU/firewall state and complete master-stop callbacks still need
 qualification before releasing the DDR data bridge. The ordinary runtime
 rejects this diagnostic profile, and its on-chip reader operation rejects DDR.
 
+The [contained DDR prerequisite observation](../../../docs/validation/2026-11-02-de25-ddr-prerequisites/README.md)
+passes on TRWU8CBL with the matched sealed DDR image and native boot chain.
+It verifies the live identity, stable SMMU/firewall readings, coverage of the
+reserved buffer and the idle reader/probe stop callbacks before reclosure.
+All data bridges stay reset. FPGA reads of the pinned pattern and active
+disable/drain still require their own guarded hardware test.
+
 The [native Go hardware diagnostic](../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
 now passes the actual secure provider, both loader ownership snapshots and
 EL2/EL1 entry on TRWU8CBL, ending in the TamaGo Go probe. Timer, goroutine,
