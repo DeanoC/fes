@@ -20,7 +20,6 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/internal/zx81machine"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
@@ -461,6 +460,8 @@ func TestLibraryROMLaunchSendsSourceInputs(t *testing.T) {
 	}
 }
 
+const zx81MachineROMBytes = 8192
+
 // Package switching inspects both installed archives in one request; allow
 // race-instrumented package reads more than the fixture's one-second default.
 const zx81PackageSwitchTestTimeout = 15 * time.Second
@@ -472,13 +473,13 @@ func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T)
 	}{{name: "bundled"}, {name: "custom", custom: true}} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			firstArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("1", 40), nil, bytes.Repeat([]byte{0x21}, zx81machine.MachineROMBytes))
+			firstArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("1", 40), nil, bytes.Repeat([]byte{0x21}, zx81MachineROMBytes))
 			s, client, entry, first := newCoreEntryLaunchFixture(t, firstArchive, "Workshop ZX81", zx81PackageSwitchTestTimeout)
 
 			var mediaID string
 			var firmware []byte
 			if tc.custom {
-				firmware = bytes.Repeat([]byte{0x5a}, zx81machine.MachineROMBytes)
+				firmware = bytes.Repeat([]byte{0x5a}, zx81MachineROMBytes)
 				media, _, err := s.ImportCoreMedia(ctx, int64(len(firmware)), bytes.NewReader(firmware))
 				if err != nil {
 					t.Fatal(err)
@@ -489,13 +490,11 @@ func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T)
 				}
 				mediaID = selected.MediaID
 			} else {
+				firmware = bytes.Repeat([]byte{0x42}, zx81MachineROMBytes)
+				s.LoadBundledFirmware(ctx, bundledFirmwareFixture(t, "fes.zx81", "machine-rom", firmware))
 				compositions, err := s.CoreCompositions(ctx, []string{entry.GameID})
 				if err != nil || !compositions[entry.GameID].FirmwareReady {
 					t.Fatalf("initial bundled firmware readiness: %+v %v", compositions[entry.GameID], err)
-				}
-				firmware, err = zx81machine.MachineROM()
-				if err != nil {
-					t.Fatal(err)
 				}
 				selected, err := s.CoreEntryROM(ctx, entry.GameID)
 				if err != nil {
@@ -507,7 +506,7 @@ func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T)
 				t.Fatal("firmware selection is empty before package switch")
 			}
 
-			nextArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("2", 40), nil, bytes.Repeat([]byte{0x31}, zx81machine.MachineROMBytes))
+			nextArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("2", 40), nil, bytes.Repeat([]byte{0x31}, zx81MachineROMBytes))
 			next, created, err := s.ImportCorePackage(ctx, int64(len(nextArchive)), bytes.NewReader(nextArchive))
 			if err != nil || !created {
 				t.Fatalf("import session-display package: %v created=%v", err, created)
@@ -524,14 +523,14 @@ func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T)
 				t.Fatalf("switched package firmware readiness: %+v %v", compositions[entry.GameID], err)
 			}
 			selected, err := s.CoreEntryROM(ctx, entry.GameID)
-			if err != nil || selected.PackageID != next.PackageID || selected.ROMID != "machine-rom" || selected.SourceSize != zx81machine.MachineROMBytes || selected.MediaID != mediaID {
+			if err != nil || selected.PackageID != next.PackageID || selected.ROMID != "machine-rom" || selected.SourceSize != zx81MachineROMBytes || selected.MediaID != mediaID {
 				t.Fatalf("firmware selection after switch: %+v err=%v", selected, err)
 			}
 
 			active := coreEntryActiveStatus(next, 7, false)
 			active.CorePackage.ROMLink = &corepackage.ROMLinkIdentity{
 				ROMID: "machine-rom", Role: next.Descriptor.ROM.Role, MapSHA256: next.Descriptor.ROM.SHA256,
-				SourceSHA256: mediaID, SourceSize: zx81machine.MachineROMBytes,
+				SourceSHA256: mediaID, SourceSize: zx81MachineROMBytes,
 				ProgrammedSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte("linked"))), ProgrammedSize: 6,
 			}
 			client.coreLoad = func(_ context.Context, size int64, reader io.Reader) (protocol.Status, error) {
@@ -576,26 +575,30 @@ func TestZX81FirmwareSelectionRebindsAcrossCompatiblePackageSwitch(t *testing.T)
 func TestZX81DamagedFirmwareSelectionCanBeReplacedAfterPackageSwitch(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
-	firstArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("1", 40), nil, bytes.Repeat([]byte{0x21}, zx81machine.MachineROMBytes))
+	firstArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, false, "fes.computer", "fes.media.zx81-tape", strings.Repeat("1", 40), nil, bytes.Repeat([]byte{0x21}, zx81MachineROMBytes))
 	s, _, entry, first := newCoreEntryLaunchFixtureAt(t, root, firstArchive, "Workshop ZX81", zx81PackageSwitchTestTimeout)
+	s.LoadBundledFirmware(ctx, bundledFirmwareFixture(t, "fes.zx81", "machine-rom", bytes.Repeat([]byte{0x42}, zx81MachineROMBytes)))
 
 	initial, err := s.CoreCompositions(ctx, []string{entry.GameID})
 	if err != nil || !initial[entry.GameID].FirmwareReady || initial[entry.GameID].ROMMediaID == "" {
 		t.Fatalf("initial firmware readiness: %+v %v", initial[entry.GameID], err)
 	}
 	damagedMediaID := initial[entry.GameID].ROMMediaID
+	if _, err := s.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, "machine-rom", "", damagedMediaID); err != nil {
+		t.Fatalf("save explicit firmware choice before damage: %v", err)
+	}
 
 	db, err := sql.Open("sqlite", filepath.Join(root, "catalog.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = db.ExecContext(ctx, `UPDATE core_media_chunks SET data=? WHERE media_id=? AND chunk_index=0`, bytes.Repeat([]byte{0xff}, zx81machine.MachineROMBytes), damagedMediaID)
+	_, err = db.ExecContext(ctx, `UPDATE core_media_chunks SET data=? WHERE media_id=? AND chunk_index=0`, bytes.Repeat([]byte{0xff}, zx81MachineROMBytes), damagedMediaID)
 	closeErr := db.Close()
 	if err != nil || closeErr != nil {
 		t.Fatalf("damage selected firmware: update=%v close=%v", err, closeErr)
 	}
 
-	nextArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("2", 40), nil, bytes.Repeat([]byte{0x31}, zx81machine.MachineROMBytes))
+	nextArchive, _ := hardwareZX81ContractFixtureWithROMMapAndImage(t, true, true, "fes.computer", "fes.media.zx81-tape", strings.Repeat("2", 40), nil, bytes.Repeat([]byte{0x31}, zx81MachineROMBytes))
 	next, created, err := s.ImportCorePackage(ctx, int64(len(nextArchive)), bytes.NewReader(nextArchive))
 	if err != nil || !created {
 		t.Fatalf("import compatible package: %v created=%v", err, created)
@@ -616,7 +619,7 @@ func TestZX81DamagedFirmwareSelectionCanBeReplacedAfterPackageSwitch(t *testing.
 		t.Fatalf("damaged selection should stay unready and retain its replacement CAS ID: %+v", composition)
 	}
 
-	replacementBytes := bytes.Repeat([]byte{0x5a}, zx81machine.MachineROMBytes)
+	replacementBytes := bytes.Repeat([]byte{0x5a}, zx81MachineROMBytes)
 	replacement, _, err := s.ImportCoreMedia(ctx, int64(len(replacementBytes)), bytes.NewReader(replacementBytes))
 	if err != nil {
 		t.Fatal(err)

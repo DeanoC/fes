@@ -93,6 +93,12 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 	if snap.Session.MediaSelector && snap.Session.ControlsOpen && !snap.TapePicker.Open {
 		return PointerHit{}
 	}
+	if snap.FirmwareCard.Open {
+		if firmwareCardRect(snap.Grid, snap.FirmwareCard).contains(x, y) {
+			return PointerHit{}
+		}
+		return PointerHit{Kind: PointerBackdrop}
+	}
 
 	if snap.Attract.Active {
 		return PointerHit{Kind: PointerAttract}
@@ -290,7 +296,7 @@ func (a *App) PointerMoveFrom(id, x, y int, now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.noteActivityLocked(now)
-	if a.tapePickerOpen || a.firmwarePickerOpen {
+	if a.tapePickerOpen || a.firmwarePickerOpen || a.firmwareCard.Open {
 		a.noteInputLocked(InputMouse, id)
 		a.applyPointerFocusLocked(a.hitTestLocked(x, y))
 		return
@@ -324,7 +330,7 @@ func (a *App) PointerClickFrom(id, x, y int, now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.noteActivityLocked(now)
-	if a.tapePickerOpen || a.firmwarePickerOpen {
+	if a.tapePickerOpen || a.firmwarePickerOpen || a.firmwareCard.Open {
 		a.noteInputLocked(InputMouse, id)
 		hit := a.hitTestLocked(x, y)
 		a.applyPointerFocusLocked(hit)
@@ -382,6 +388,7 @@ func (a *App) pointerSnapshotLocked() Snapshot {
 		CoreLibrary:     a.coreLibrarySnapshotLocked(),
 		FirmwarePicker:  a.firmwarePickerSnapshotLocked(),
 		TapePicker:      a.tapePickerSnapshotLocked(),
+		FirmwareCard:    a.firmwareCardSnapshotLocked(),
 	}
 	destination := snap.DetailPlay
 	if snap.Room.Open {
@@ -546,6 +553,8 @@ func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 
 func (a *App) pointerBackdropLocked(now time.Time) {
 	switch {
+	case a.firmwareCard.Open:
+		a.handleFirmwareCardLocked(CmdBack)
 	case a.settingsOSKOpenLocked():
 		a.handleSettingsOSKLocked(CmdBack)
 	case a.driveSettings.Open:
