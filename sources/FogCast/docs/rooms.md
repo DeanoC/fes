@@ -206,10 +206,11 @@ safe content area; `0,0` is its top-left), `room.time` (seconds since
 load), `room.reduced_motion` (boolean; the launcher reduced-motion
 preference), `room.core_shown(core_id)` (true for every ID when Show all cores
 is on; otherwise true for v1 cores and the core the room was opened for, and
-false for an empty or other held-back ID), `room.setup` (first-run setup: `step` and `steps` for a setup room, 0
-outside setup; `unfinished` after Skip setup and before Finish; `skipped`,
-the step ids not done yet), `room.release_only` (true unless
-Show all cores is on), `room.overlay` (boolean; true while the room is drawn over a
+false for an empty or other held-back ID), `room.setup` (first-run setup:
+`step` and `steps` for a setup room, 0 outside setup; `unfinished` after Skip
+setup and before Finish; `skipped`, the step ids not done yet),
+`room.release_only` (true unless Show all cores is on), `room.overlay`
+(boolean; true while the room is drawn over a
 running machine on the kit's HDMI session plane with launcher focus, false
 on host windows; a room that reads it can clear translucently so the machine
 stays visible, and must include it in any reused-picture key), `room.theme`
