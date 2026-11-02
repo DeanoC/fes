@@ -314,6 +314,10 @@ class SoftwareWorkflowTests(unittest.TestCase):
         self.assertIn('dump /etc/fes-board', script)
         self.assertNotIn('fes-window', script)
         self.assertNotIn('toolchain_cache.py', script)
+        abi_only = kit.runtime_script('b' * 40, None, 'de25-nano', 'c' * 64, base_factory=False)
+        subprocess.run(['sh', '-n'], input=abi_only, text=True, check=True)
+        self.assertIn("rdump /lib ", abi_only)
+        self.assertNotIn('rdump /usr/share/fes/software ', abi_only)
         for driver, digest in [(self.DRIVER, 'c' * 64), (None, None), (None, '$(bad)')]:
             with self.assertRaises(ValueError):
                 kit.runtime_script('b' * 40, driver, 'de25-nano', digest)
@@ -502,6 +506,29 @@ class SoftwareWorkflowTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'SDK changed while copying'):
                 kit.build_runtime(self.root, self.root / 'recorded-image', 'b'*40, {}, None, 'de25-nano')
             command.assert_not_called()
+
+    def test_provisioned_de25_runtime_authenticates_builder_before_compiling(self):
+        import kit_sdk
+        cache, _ = self.runtime_fixture()
+        sdk = kit.load(ROOT / 'image/scripts/toolchain_cache.py', 'runtime_provision_fixture')
+        digest = kit.sha(cache / 'host.tar')
+        key = 'd' * 64
+        (cache / 'receipt.json').write_text(json.dumps({'key': key, 'sha256': digest}))
+        selected = {'key': 'managed-' + 'e' * 64, 'archive_sha256': digest,
+                    'builder_image': 'sha256:' + 'c' * 64}
+        calls = []
+        def command(args, **kwargs):
+            calls.append(args)
+            return 'sha256:' + 'f' * 64 if 'inspect' in args else ''
+        with patch.object(kit_sdk, 'ensure_de25', return_value={'source': selected, 'key': key, 'directory': str(cache)}), \
+                patch.object(kit, 'load', return_value=sdk), patch.object(kit, 'run', side_effect=command), \
+                patch.object(kit.subprocess, 'run', return_value=Mock(returncode=1)) as volume:
+            with self.assertRaisesRegex(ValueError, 'SDK and runtime builder identities differ'):
+                kit.build_runtime(self.root, self.root / 'recorded-image', 'b' * 40, {},
+                                  None, 'de25-nano', provision=True, base_factory=False)
+        self.assertEqual(calls[0][-2:], ['run', 'true'])
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(volume.call_args.args[0][-2:], ['rm', 'fes-kit-software-' + self.root.parent.name])
 
     def test_runtime_does_not_claim_or_remove_existing_volume(self):
         cache, sdk = self.runtime_fixture()

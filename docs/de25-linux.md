@@ -222,8 +222,8 @@ the actual rootfs programs and binds the original receipt and FES revision.
 The [entrypoint record](validation/2026-11-02-de25-image-entrypoints/README.md)
 retains real ext4 fixtures with deliberately unqualified factory authority,
 actual command refusals and the unchanged component evidence boundary. This
-does not produce an admitted factory or qualify native boot. DE25 source
-integration/incremental builds and full managed-kit operation remain open.
+does not produce an admitted factory or qualify native boot. Full managed-kit
+operation remains open.
 
 The factory producer now retains its compiler/base-package work across software
 generations in one cache volume per worktree/cache selection. Its base key still
@@ -233,8 +233,7 @@ Each actual factory build refreshes the prebuilt runtime through Buildroot befor
 assembling and checking the image. The
 [incremental factory-base record](validation/2026-11-02-de25-factory-incremental/README.md)
 proves stale-runtime prevention and compiler-prerequisite reuse against real
-pinned Buildroot. It does not produce an admitted factory or enable DE25
-`make dev`.
+pinned Buildroot. That record does not produce an admitted factory.
 
 The shared core registry now selects `fes.menu` for `de25-nano` explicitly,
 using the existing Quartus Pro producer and common resolver API. Package
@@ -245,8 +244,17 @@ remain on their original producers. The
 includes actual Pro 26.3 source/tool authentication and read-only package
 lookup, which found no eligible DE25 package. The producer API change alters
 the canonical source/recipe identity; previous fitted candidates retain their
-original evidence and do not qualify this source. AArch64 source integration,
-the normal incremental frontend and remaining MENU qualification are open.
+original evidence and do not qualify this source.
+
+The [normal source/development commands](development.md#de25-source-development)
+now connect the selected AArch64 Go/C++ source builders to the existing managed
+factory and its retained compiler/base cache. They require explicit matching
+managed SDK/base and owner kernel/compiler, and refuse missing MENU before
+target compilation. Complete generations remain immutable, failed attempts
+preserve previous output, and cache hits independently verify the selected
+factory and published image copies. Host/doctor use the shared profile path.
+This implements command orchestration; admitted MENU, an actual complete
+source-produced factory and native qualification remain open.
 
 The [managed-fabric record](validation/2026-11-01-de25-managed-fabric/README.md)
 covers the current canonical MENU profile: vendor maintenance masters removed,

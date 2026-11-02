@@ -23,6 +23,18 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGETS = {'de10-nano': ('armv7', 'arm'), 'de25-nano': ('aarch64', 'arm64')}
 
 
+def software_environment():
+    env = build_environment()
+    for name in tuple(env):
+        if (name.startswith('FES_') and name != 'FES_TARGET_IMAGE_SHARED_CACHE') or name == 'FOGCAST_DIR':
+            env.pop(name)
+    for name in ("CXX", "CC", "AR", "NM", "CXXFILT", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LD_PRELOAD", "LD_LIBRARY_PATH", "GNUMAKEFLAGS", "MAKELEVEL", "LDLIBS",
+                 "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+                 "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE"):
+        env.pop(name, None)
+    return env
+
+
 def sha(path):
     with Path(path).open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
@@ -39,9 +51,9 @@ def load(path, name):
     return module
 
 
-def build_go(snapshot, version, revision, env, board='de10-nano'):
+def build_go(snapshot, version, revision, env, board='de10-nano', *, fogcast_source=None):
     suffix, target_arch = TARGETS[board]
-    fogcast = snapshot / 'sources/FogCast'
+    fogcast = Path(fogcast_source) if fogcast_source is not None else snapshot / 'sources/FogCast'
     destination = fogcast / 'bin'
     destination.mkdir(exist_ok=True)
     flags = ('-s -w -X github.com/DeanoC/FogCast/internal/version.Version=' + version +
@@ -222,7 +234,7 @@ def prepare_kernel_module(root, snapshot, env):
     return kernel
 
 
-def runtime_script(revision, driver, board='de10-nano', sdk_sha=None):
+def runtime_script(revision, driver, board='de10-nano', sdk_sha=None, *, base_factory=True):
     # Interpolated values are validated identities; all paths are fixed inside
     # the private snapshot. The selected board never comes from the environment.
     if not re.fullmatch('[0-9a-f]{40}', revision):
@@ -259,17 +271,19 @@ mkdir -p /work/build/software/base/etc /work/build/software/base/usr/share/fes /
 debugfs -R 'rdump /lib /work/build/software/base' /work/build/software/base.img
 debugfs -R 'rdump /usr/lib /work/build/software/base/usr' /work/build/software/base.img
 debugfs -R 'rdump /etc/fes /work/build/software/base/etc' /work/build/software/base.img
-debugfs -R 'rdump /usr/share/fes/software /work/build/software/base/usr/share/fes' /work/build/software/base.img
-''' + board_identity
+''' + ("debugfs -R 'rdump /usr/share/fes/software /work/build/software/base/usr/share/fes' /work/build/software/base.img\n"
+       if base_factory else '') + board_identity
 
 
-def build_runtime(snapshot, cache, revision, env, driver, board='de10-nano'):
+def build_runtime(snapshot, cache, revision, env, driver, board='de10-nano', *,
+                  runtime_source=None, base_factory=True, provision=False):
     if board not in TARGETS:
         raise ValueError('unsupported software board')
     image = snapshot / 'image'
     work = image / 'build/software'
     work.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(snapshot / 'sources/libmister-runtime', work / 'runtime')
+    source = Path(runtime_source) if runtime_source is not None else snapshot / 'sources/libmister-runtime'
+    shutil.copytree(source, work / 'runtime')
     # Reuse only the authenticated archive, never a shared relocated SDK.
     if board == 'de25-nano':
         from kit_sdk import ensure_de25
@@ -303,20 +317,28 @@ def build_runtime(snapshot, cache, revision, env, driver, board='de10-nano'):
         'containers/target-image/Dockerfile', 'containers/target-image/create-builder-user.sh',
         'build/target-image-container-packages.sha256', 'build/target-image.sources.lock.toml')).encode()).hexdigest()
     tag = 'fogcast-target-image-build:' + lock['container']['digest'][7:19] + '-' + context[:12] + '-' + str(os.getuid()) + '-' + str(os.getgid())
-    builder_id = run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'image', 'inspect', tag,
-                      '--format', '{{.Id}}'], env=container_env)
-    if not re.fullmatch('sha256:[0-9a-f]{64}', builder_id):
-        raise ValueError('invalid pinned builder identity')
-    if selected and builder_id != selected['builder_image']:
-        raise ValueError('DE25 SDK and runtime builder identities differ')
+    def authenticate_builder():
+        identity = run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'image', 'inspect', tag,
+                        '--format', '{{.Id}}'], env=container_env)
+        if not re.fullmatch('sha256:[0-9a-f]{64}', identity):
+            raise ValueError('invalid pinned builder identity')
+        if selected and identity != selected['builder_image']:
+            raise ValueError('DE25 SDK and runtime builder identities differ')
+        return identity
+
+    if not provision:
+        builder_id = authenticate_builder()
     existing = subprocess.run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'volume', 'inspect',
                                container_env['TARGET_IMAGE_OUTPUT_VOLUME']],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     if existing.returncode == 0:
         raise ValueError('private build volume already exists; refusing to claim it')
     try:
+        if provision:
+            run([image / 'scripts/target-image-container.sh', 'run', 'true'], env=container_env)
+            builder_id = authenticate_builder()
         run([image / 'scripts/target-image-container.sh', 'run', 'sh', '-c',
-             runtime_script(revision, driver, board, sdk_sha)],
+             runtime_script(revision, driver, board, sdk_sha, base_factory=base_factory)],
             env=container_env)
     finally:
         subprocess.run([container_env['TARGET_IMAGE_CONTAINER_RUNTIME'], 'volume', 'rm',
@@ -370,14 +392,7 @@ def publish(root, base, base_sha, version, output, *, board='de10-nano', de25_im
         raise ValueError('output already exists; use a new release directory')
     if output == base or base in output.parents:
         raise ValueError('output overlaps base input')
-    env = build_environment()
-    for name in tuple(env):
-        if (name.startswith('FES_') and name != 'FES_TARGET_IMAGE_SHARED_CACHE') or name == 'FOGCAST_DIR':
-            env.pop(name)
-    for name in ("CXX", "CC", "AR", "NM", "CXXFILT", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LD_PRELOAD", "LD_LIBRARY_PATH", "GNUMAKEFLAGS", "MAKELEVEL", "LDLIBS",
-                 "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
-                 "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE"):
-        env.pop(name, None)
+    env = software_environment()
     revision = run(['git', '-C', root, 'rev-parse', 'HEAD'], env=env)
     if run(['git', '-C', root, 'status', '--porcelain', '--untracked-files=all', '--',
             'sources/FogCast', 'sources/libmister-runtime', 'image'], env=env):

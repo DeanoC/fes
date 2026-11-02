@@ -82,6 +82,16 @@ packages and publishes a structurally checked diagnostic image under
 seed that cache; otherwise the first run builds the base once. See
 [the incremental workflow](docs/development.md#incremental-native-image).
 
+DE25 uses the same source workflow with an explicit managed AArch64 SDK/base
+and matching owner kernel/compiler: `make dev BOARD=de25-nano
+DE25_IMAGE=/absolute/managed-base IMAGE_KERNEL=/absolute/kernel
+IMAGE_SDK=/absolute/owner-sdk.tar.gz`. MENU must first be admitted through its
+Quartus recipe. The source path builds the selected Go/C++ components, reuses
+the existing factory compiler/base cache and publishes a verified immutable
+generation under `out/de25-nano/development/`. Missing MENU is refused before
+target software or OS compilation. See the
+[DE25 source-build requirements](docs/development.md#de25-source-development).
+
 For compatible kit software updates, use `make kit-software` with a retained
 verified base image; see [kit software releases](docs/kit-software-releases.md).
 DE25 selects the compiler and software target with `BOARD=de25-nano

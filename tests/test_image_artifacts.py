@@ -406,13 +406,40 @@ class DE25ImageCommandTests(unittest.TestCase):
         cases = [(['image', '--profile', 'de25-nano'], 'independently selected'),
                  (['image', '--board', 'de25-nano', '--profile', 'native-integration-dev'], 'independently selected'),
                  (['image', '--kernel', '/fixture/kernel'], 'explicitly selected DE25')]
-        cases += [([action, '--board', 'de25-nano'], 'supports image and verify')
-                  for action in ('build', 'rebuild', 'dev', 'host', 'doctor')]
+        cases += [([action, '--board', 'de25-nano'], 'source builds require --kernel')
+                  for action in ('build', 'rebuild', 'dev')]
         with patch.object(build, 'validate', side_effect=AssertionError('native builder must not run')):
             for argv, reason in cases:
                 with self.subTest(argv=argv), patch.object(sys, 'argv', ['build.py', *argv]):
                     with self.assertRaisesRegex(ValueError, reason):
                         build.main()
+
+    def test_de25_host_and_doctor_use_shared_frontend(self):
+        for action in ('host', 'doctor'):
+            with self.subTest(action=action), patch.object(sys, 'argv', ['build.py', action, '--board', 'de25-nano']), \
+                    patch.object(build, 'validate', side_effect=ValueError('shared source selection reached')) as select:
+                with self.assertRaisesRegex(ValueError, 'shared source selection reached'):
+                    build.main()
+                self.assertEqual(select.call_args.args[1]['board'], 'de25-nano')
+
+    def test_de25_source_commands_route_and_make_forwards_sdk_selection(self):
+        import native_dev
+        root = Path(__file__).resolve().parents[1]
+        for action in ('build', 'rebuild', 'dev'):
+            argv = ['build.py', action, '--board', 'de25-nano', '--kernel', '/kernel',
+                    '--sdk', '/owner-sdk', '--de25-image', '/base']
+            with self.subTest(action=action), patch.object(sys, 'argv', argv), \
+                    patch.dict(os.environ, {'IMAGE_PASSES': '1'}), \
+                    patch.object(native_dev, 'build_de25_development') as route:
+                build.main()
+                args = route.call_args.args[1]
+                self.assertEqual((args.board, args.profile, args.de25_image),
+                                 ('de25-nano', 'de25-nano', Path('/base')))
+            dry = subprocess.run(['make', '--dry-run', action, 'BOARD=de25-nano',
+                'DE25_IMAGE=/base', 'IMAGE_KERNEL=/kernel', 'IMAGE_SDK=/owner-sdk'],
+                cwd=root, capture_output=True, text=True, check=True)
+            for flag in ('--board "de25-nano"', '--de25-image "/base"', '--kernel "/kernel"', '--sdk "/owner-sdk"'):
+                self.assertIn(flag, dry.stdout)
 
     def test_de25_entrypoint_uses_explicit_selection_and_refuses_invented_two_pass(self):
         from scripts import de25_appliance

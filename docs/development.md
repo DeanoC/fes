@@ -531,6 +531,47 @@ producer explicitly and carry the board through package inspection,
 publication and artifact export. The default 21 DE10 recipes and the DE10
 nightly selection remain unchanged. See the
 [executed selection checks](validation/2026-11-02-de25-board-recipes/README.md).
-`make dev BOARD=de25-nano` remains refused: the AArch64 source consumers and
-incremental integration frontend still need connection, and MENU needs its
-remaining timing, independent-rebuild and native acceptance checks.
+The [DE25 source workflow](#de25-source-development) connects these producers
+to the ordinary build/development commands. MENU still needs its remaining
+timing, independent-rebuild and native acceptance checks.
+
+## DE25 source development
+
+Use the same committed-source commands with explicit matching DE25 inputs:
+
+```sh
+make dev BOARD=de25-nano DE25_IMAGE=/absolute/verified-managed-base \
+  IMAGE_KERNEL=/absolute/owner-kernel IMAGE_SDK=/absolute/owner-sdk.tar.gz
+```
+
+`DE25_IMAGE` supplies an authenticated managed-base or managed-factory SDK and
+base ABI. `IMAGE_KERNEL` and the pinned owner compiler must match it. A headless
+SDK or a prebuilt `IMAGE_ARTIFACTS` selection cannot replace those source inputs.
+MENU is resolved through the explicit DE25 Quartus recipe before target source
+staging, SDK work, or software/OS compilation. A missing eligible package stops
+the command there. Current timing/rebuild/native gates still prevent producing
+an admitted MENU; this command wiring does not qualify one.
+
+The shared Go/C++ builders compile the selected component commits. The existing
+managed-factory producer assembles and verifies each generation, including its
+actual kernel/rootfs virtual boot. It retains compiler/base packages and refreshes
+the changed runtime. `dev` publishes `linux.img`, `Image`, `de25-owner.dtb`, bound
+inputs/software-build data and `development.json` under
+`out/de25-nano/development/`. Complete factory generations remain in that output's
+`generations/` directory. Cache hits reauthenticate the inputs, verify the
+recorded factory, and compare the flat image/kernel copies. A failed build
+preserves the previous complete generation and receipt; it cannot satisfy the
+new input key. Failed attempts remain diagnostic.
+
+`make build` also builds the ordinary host pair and writes a cold image receipt
+under `out/de25-nano/`; `make rebuild` explicitly rebuilds MENU/software/factory
+and preserves previous generations. `IMAGE_OUTPUT` overrides the source-workspace
+directory for these three actions; for `image`/`verify` it still selects the
+factory directory itself. DE25 records one actual image-build pass and rejects
+`IMAGE_PASSES=2`. `make host BOARD=de25-nano` and `make doctor BOARD=de25-nano`
+use the shared host/profile checks without a target image build.
+
+These source commands require clean committed integration source. Development
+snapshot release authority is not added. Nothing deploys or grants native kit
+acceptance; use the complete factory path printed by the build with the existing
+release/bootstrap/card commands once their own gates pass.

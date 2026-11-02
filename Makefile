@@ -49,12 +49,13 @@ help:
 	@printf '%s\n' 'make smoke-de25-runtime DE25_RUNTIME_ARGS="--help": cross-build AArch64 runtime/agent and exercise software under QEMU without a board.'
 	@printf '%s\n' 'make release | bootstrap | appliance-media APPLIANCE_BOARD=de25-nano APPLIANCE_FACTORY=/absolute/factory: require the verified DE25 factory; card commands also need APPLIANCE_VENDOR_BOOT=/absolute/vendor-boot.'
 	@printf '%s\n' 'make image BOARD=de25-nano IMAGE_ARTIFACTS=/absolute/artifacts IMAGE_KERNEL=/absolute/kernel IMAGE_SDK=/absolute/owner-sdk.tar.gz: assemble the DE25 factory; make verify checks its recorded inputs. IMAGE_OUTPUT overrides out/de25-nano/factory.'
+	@printf '%s\n' 'make dev | build | rebuild BOARD=de25-nano DE25_IMAGE=/absolute/verified-managed-image IMAGE_KERNEL=/absolute/kernel IMAGE_SDK=/absolute/owner-sdk.tar.gz: build selected sources through the AArch64 builders and retained factory base; MENU admission is required first.'
 IMAGE_ARTIFACTS ?=
 IMAGE_KERNEL ?=
 IMAGE_SDK ?=
 IMAGE_OUTPUT ?=
 doctor build host image verify rebuild dev:
-	IMAGE_PASSES="$(IMAGE_PASSES)" $(PYTHON) scripts/build.py $@ --board "$(BOARD)" --profile "$(PROFILE)" $(if $(IMAGE_ARTIFACTS),--artifacts "$(IMAGE_ARTIFACTS)") $(if $(IMAGE_KERNEL),--kernel "$(IMAGE_KERNEL)") $(if $(IMAGE_SDK),--sdk "$(IMAGE_SDK)") $(if $(IMAGE_OUTPUT),--output "$(IMAGE_OUTPUT)")
+	IMAGE_PASSES="$(IMAGE_PASSES)" $(PYTHON) scripts/build.py $@ --board "$(BOARD)" --profile "$(PROFILE)" $(if $(IMAGE_ARTIFACTS),--artifacts "$(IMAGE_ARTIFACTS)") $(if $(IMAGE_KERNEL),--kernel "$(IMAGE_KERNEL)") $(if $(IMAGE_SDK),--sdk "$(IMAGE_SDK)") $(if $(IMAGE_OUTPUT),--output "$(IMAGE_OUTPUT)") $(if $(filter build rebuild dev,$@),$(if $(DE25_IMAGE),--de25-image "$(DE25_IMAGE)"))
 
 .PHONY: de25-linux fetch-de25-linux verify-de25-linux smoke-de25-linux
 de25-linux:

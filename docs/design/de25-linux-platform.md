@@ -81,8 +81,7 @@ integrity fixtures do not qualify a package or produce an admitted factory.
 The [ordinary image/verification/export entrypoints](../validation/2026-11-02-de25-image-entrypoints/README.md)
 also select DE25 explicitly, reuse that same factory producer and export actual
 rootfs binaries, including rebuilt base helpers, against their bound identities.
-They preserve default DE10 behavior and refuse unimplemented DE25 source-build
-routes. Ext4 extraction fixtures do not qualify factory authority, CPU behavior
+They preserve default DE10 behavior. Ext4 extraction fixtures do not qualify factory authority, CPU behavior
 or an FPGA package.
 The [SDK development workflow](../validation/2026-11-02-de25-sdk-workflow/README.md)
 adds `make kit-sdk BOARD=de25-nano DE25_IMAGE=...` and the same shared selection
@@ -101,8 +100,13 @@ The [board-scoped registry](../validation/2026-11-02-de25-board-recipes/README.m
 now selects the existing DE25 Quartus Pro MENU producer through the shared
 resolver API, preserves DE10 defaults and binds package inspection/publication
 to the requested board. Actual source/tool authentication passes with no
-eligible DE25 package. The AArch64 source consumers and ordinary incremental
-frontend remain incomplete; this does not enable `make dev BOARD=de25-nano`.
+eligible DE25 package. The [source-development workflow](../development.md#de25-source-development)
+now connects the selected AArch64 Go/C++ consumers and existing managed-factory
+cache to ordinary `build`/`rebuild`/`dev`. Explicit SDK/base, owner-kernel/compiler
+and MENU admission are required. Complete immutable generations and verified
+cache hits preserve old output on failure; no artifact-only alias replaces
+source compilation. Host/doctor use the shared frontend. An actual admitted
+MENU, complete source-produced factory and native acceptance remain open.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.
 

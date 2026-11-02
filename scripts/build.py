@@ -456,7 +456,7 @@ def source_checkout(name, revision, suffix="", restore=None):
     return module_sources.materialize(ROOT, name, revision, path)
 
 
-def selected_packages(profile, profile_name):
+def selected_packages(profile, profile_name, *, board="de10-nano"):
     packages = profile.get("fpga_packages", [])
     if not isinstance(packages, list):
         raise ValueError("fpga_packages must be an array of tables")
@@ -467,14 +467,13 @@ def selected_packages(profile, profile_name):
         if not isinstance(entry, dict) or type(entry.get("core_id")) is not str:
             raise ValueError("fpga_packages entries must be tables with a core_id")
         core_id = entry["core_id"]
-        if core_id not in FORMAT2_RECIPES:
-            supported = ", ".join(FORMAT2_RECIPES)
-            raise ValueError(f"unknown format-2 recipe {core_id!r}; supported: {supported}")
+        recipe_for(core_id, board=board)
         core_ids.append(core_id)
     if len(core_ids) != len(set(core_ids)):
         raise ValueError("duplicate format-2 package selections are not supported")
-    if profile_name != "native-integration-dev":
-        raise ValueError("format-2 packages are only selected by native-integration-dev")
+    expected = "de25-nano" if board == "de25-nano" else "native-integration-dev"
+    if profile_name != expected:
+        raise ValueError("format-2 packages are only selected by " + expected)
     return tuple(core_ids)
 
 
@@ -1714,7 +1713,7 @@ def resolve_package_for_action(revisions, output, env, action, recipe):
         force=action == 'rebuild', recipe=recipe)
 
 
-def resolve_packages_for_action(revisions, output, env, action, package_ids):
+def resolve_packages_for_action(revisions, output, env, action, package_ids, *, board="de10-nano"):
     """Resolve every selected format-2 recipe in profile order.
 
     Optional cores that miss timing, fail their producer or video parts, or are
@@ -1722,7 +1721,7 @@ def resolve_packages_for_action(revisions, output, env, action, package_ids):
     ignores skip flags, and does not place-and-route that core again. A failed
     producer is not replaced from a different functional key.
     """
-    recipes = tuple(recipe_for(package_id) for package_id in package_ids)
+    recipes = tuple(recipe_for(package_id, board=board) for package_id in package_ids)
     # Verify reuses the recorded image and does not interpret skip flags,
     # including an ambient value that names an unknown core.
     skip_ids = frozenset() if action == "verify" else optional_cores.parse_skip_list(env, recipes)
@@ -1752,6 +1751,24 @@ def resolve_packages_for_action(revisions, output, env, action, package_ids):
     return tuple(packages), optional_cores.canonical_cores(unavailable)
 
 
+def build_host_outputs(output, profile, revisions, host_fp, host_info, fogcast_make,
+                       env, *, force=False, diagnostics=None):
+    hit, reason = (False, "forced rebuild") if force else reuse_status(output, "host", host_fp)
+    if diagnostics is not None:
+        diagnostics.cache("host", "forced" if force else "hit" if hit else "miss", reason)
+    if hit:
+        print("Host: reusing verified output", flush=True)
+    else:
+        for target, name in (("build-fogcast", "fogcast"), ("build-fogcast-api", "fogcast-api")):
+            variable = "FOGCAST_OUTPUT" if name == "fogcast" else "FOGCAST_API_OUTPUT"
+            run_stage(diagnostics, "host subprocess", fogcast_make + [target,
+                "FOGCAST_GOOS=" + profile["host_os"], "FOGCAST_GOARCH=" + profile["host_arch"],
+                variable + "=" + str(output / name), "REVISION=" + revisions["FogCast"]], env=env)
+        write_receipt(output, "host", host_fp, ["fogcast", "fogcast-api"],
+                      os_name=profile["host_os"], arch=profile["host_arch"])
+    publish_host_inputs(output, host_fp, host_info)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["doctor", "build", "host", "image", "verify", "rebuild", "dev"])
@@ -1761,21 +1778,30 @@ def main():
                         help='explicit bootstrap artifact directory; required for image assembly')
     parser.add_argument('--kernel', type=Path, help='matching DE25 owner-kernel directory')
     parser.add_argument('--sdk', type=Path, help='DE25 owner compiler archive, pinned by its source lock')
-    parser.add_argument('--output', type=Path, help='DE25 factory directory; defaults to out/de25-nano/factory')
+    parser.add_argument('--de25-image', type=Path, help='verified managed DE25 image supplying the source-build SDK and base ABI')
+    parser.add_argument('--output', type=Path, help='DE25 factory directory for image/verify, or workspace for build/rebuild/dev')
     args = parser.parse_args()
     expected_profile = 'de25-nano' if args.board == 'de25-nano' else 'native-integration-dev'
     args.profile = expected_profile if args.profile is None else args.profile
     if args.profile != expected_profile:
         raise ValueError('image profile differs from independently selected board')
     if args.board == 'de25-nano':
-        if args.action not in ('image', 'verify'):
-            raise ValueError('DE25 top-level image selection supports image and verify; source build/dev remain unimplemented')
-        if validate_image_passes() != 1:
+        if args.action in ('image', 'verify', 'build', 'rebuild', 'dev') and validate_image_passes() != 1:
             raise ValueError('DE25 factory production records one actual image-build pass')
-        sys.path.insert(0, str(ROOT))
-        from scripts import de25_appliance
-        return de25_appliance.image_action(ROOT, args)
-    if any(value is not None for value in (args.kernel, args.sdk, args.output)):
+        if args.action in ('image', 'verify'):
+            if args.de25_image is not None:
+                raise ValueError('--de25-image is a source-build SDK selection; image/verify use recorded artifacts')
+            sys.path.insert(0, str(ROOT))
+            from scripts import de25_appliance
+            return de25_appliance.image_action(ROOT, args)
+        if args.action in ('build', 'rebuild', 'dev'):
+            if args.artifacts is not None:
+                raise ValueError('DE25 source builds select committed sources and MENU, not --artifacts')
+            if any(value is None for value in (args.kernel, args.sdk, args.de25_image)):
+                raise ValueError('DE25 source builds require --kernel, --sdk and --de25-image')
+            from native_dev import build_de25_development
+            return build_de25_development(ROOT, args)
+    if any(value is not None for value in (args.kernel, args.sdk, args.output, args.de25_image)):
         raise ValueError('--kernel, --sdk and --output require explicitly selected DE25')
     artifacts = None
     if args.action == 'image' or args.artifacts:
@@ -1798,7 +1824,7 @@ def main():
     else:
         revisions = validate(ROOT, profile)
     mode = native_image_mode(profile)
-    package_ids = selected_packages(profile, args.profile)
+    package_ids = selected_packages(profile, args.profile, board=args.board)
     if not package_ids:
         raise ValueError('native integration image requires one selected format-2 package')
     if platform.system() != "Linux" or platform.machine() not in ("x86_64", "amd64"):
@@ -1875,24 +1901,8 @@ def main():
                               unavailable=unavailable, diagnostics=diagnostics)
             return
         if args.action in ("build", "host", "rebuild"):
-            host_hit, host_reason = (False, "forced rebuild") if args.action == "rebuild" else reuse_status(
-                output, "host", host_fp)
-            if host_hit:
-                diagnostics.cache("host", "hit", host_reason)
-                print("Host: reusing verified output", flush=True)
-            else:
-                diagnostics.cache("host", "forced" if args.action == "rebuild" else "miss", host_reason)
-                run_stage(diagnostics, "host subprocess", fogcast_make + ["build-fogcast", "FOGCAST_GOOS=" + profile["host_os"],
-                    "FOGCAST_GOARCH=" + profile["host_arch"],
-                    "FOGCAST_OUTPUT=" + str(output / "fogcast"),
-                    "REVISION=" + revisions["FogCast"]], env=env)
-                run_stage(diagnostics, "host subprocess", fogcast_make + ["build-fogcast-api", "FOGCAST_GOOS=" + profile["host_os"],
-                    "FOGCAST_GOARCH=" + profile["host_arch"],
-                    "FOGCAST_API_OUTPUT=" + str(output / "fogcast-api"),
-                    "REVISION=" + revisions["FogCast"]], env=env)
-                write_receipt(output, "host", host_fp, ["fogcast", "fogcast-api"],
-                              os_name=profile["host_os"], arch=profile["host_arch"])
-            publish_host_inputs(output, host_fp, host_info)
+            build_host_outputs(output, profile, revisions, host_fp, host_info, fogcast_make,
+                               env, force=args.action == "rebuild", diagnostics=diagnostics)
         unavailable_manifest = None
         if args.action in ("build", "image", "rebuild", "verify"):
             unavailable_manifest = unavailable_manifest_for_action(output, args.action, unavailable)
