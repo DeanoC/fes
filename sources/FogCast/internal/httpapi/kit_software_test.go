@@ -133,6 +133,23 @@ func TestSoftwareHealthRejectsUnverifiedSupervisorResponses(t *testing.T) {
 	t.Setenv("FES_SOFTWARE_BUNDLE_ID", active)
 	t.Setenv("FES_SOFTWARE_BASE_IDENTITY", base)
 	valid := `{"version":1,"generation":0,"selected":"` + selected + `","receipts":{},"active_bundle":"` + active + `","base_identity":"` + base + `"}`
+	request := softwarecontrol.Request{ID: strings.Repeat("d", 64), Candidate: strings.Repeat("e", 64), Requester: "kit-owner"}
+	status := softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Selected: selected, Receipts: map[string]softwarecontrol.Receipt{request.ID: {Request: request, Result: "accepted"}}}, ActiveBundle: active, BaseIdentity: base}
+	withReceipt, err := json.Marshal(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Unreleased = &request
+	withUnreleased, err := json.Marshal(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Unreleased = nil
+	status.Pending = &softwarecontrol.Operation{Request: softwarecontrol.Request{ID: strings.Repeat("f", 64), Candidate: request.Candidate, Requester: request.Requester}, Previous: selected, Phase: "queued"}
+	withPending, err := json.Marshal(status)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
 		name, body string
 		status     int
@@ -141,6 +158,11 @@ func TestSoftwareHealthRejectsUnverifiedSupervisorResponses(t *testing.T) {
 		valid      bool
 	}{
 		{name: "valid initial generation", body: valid, valid: true},
+		{name: "unknown nullable status extension", body: strings.TrimSuffix(valid, "}") + `,"future":{"detail":null}}`, valid: true},
+		{name: "unknown nullable receipt extension", body: strings.Replace(string(withReceipt), `"result":"accepted"`, `"future":null,"result":"accepted"`, 1), valid: true},
+		{name: "valid receipt", body: string(withReceipt), valid: true},
+		{name: "valid unreleased receipt", body: string(withUnreleased), valid: true},
+		{name: "valid queued operation", body: string(withPending), valid: true},
 		{name: "wrong type after selected", body: `{"selected":"` + selected + `","generation":"bad"}`},
 		{name: "truncated JSON", body: valid[:len(valid)-1]},
 		{name: "truncated transport", body: valid, truncated: true},
@@ -152,6 +174,15 @@ func TestSoftwareHealthRejectsUnverifiedSupervisorResponses(t *testing.T) {
 		{name: "null generation", body: strings.Replace(valid, `"generation":0`, `"generation":null`, 1)},
 		{name: "missing receipts", body: strings.Replace(valid, `"receipts":{},`, "", 1)},
 		{name: "null receipts", body: strings.Replace(valid, `"receipts":{}`, `"receipts":null`, 1)},
+		{name: "null receipt", body: strings.Replace(valid, `"receipts":{}`, `"receipts":{"bad":null}`, 1)},
+		{name: "null previous", body: strings.TrimSuffix(valid, "}") + `,"previous":null}`},
+		{name: "null storage error", body: strings.TrimSuffix(valid, "}") + `,"storage_error":null}`},
+		{name: "null service fault", body: strings.TrimSuffix(valid, "}") + `,"service_fault":null}`},
+		{name: "null pending", body: strings.TrimSuffix(valid, "}") + `,"pending":null}`},
+		{name: "wrong-type pending", body: strings.TrimSuffix(valid, "}") + `,"pending":"bad"}`},
+		{name: "invalid receipt semantics", body: strings.Replace(string(withReceipt), `"result":"accepted"`, `"result":"bad"`, 1)},
+		{name: "null receipt result", body: strings.Replace(string(withReceipt), `"result":"accepted"`, `"result":null`, 1)},
+		{name: "duplicate nested receipt key", body: strings.Replace(string(withReceipt), `"result":"accepted"`, `"result":"accepted","Result":"accepted"`, 1)},
 		{name: "invalid selection", body: strings.Replace(valid, selected, "not-an-id", 1)},
 		{name: "invalid version", body: strings.Replace(valid, `"version":1`, `"version":2`, 1)},
 		{name: "supervisor reports storage error", body: strings.TrimSuffix(valid, "}") + `,"storage_error":"private"}`},

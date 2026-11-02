@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/DeanoC/FogCast/appliance/software"
 	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
@@ -134,7 +135,7 @@ func kitSoftwareHealth(parent context.Context, socket string) *softwarecontrol.S
 // intentionally omits the supervisor's diagnostic error text.
 func decodeSoftwareStatus(data []byte) (softwarecontrol.Status, bool) {
 	var status softwarecontrol.Status
-	if len(data) > maxSoftwareControlResponse {
+	if len(data) > maxSoftwareControlResponse || !utf8.Valid(data) {
 		return status, false
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -154,12 +155,13 @@ func decodeSoftwareStatus(data []byte) (softwarecontrol.Status, bool) {
 			return status, false
 		}
 		folded := strings.ToLower(name)
-		if seen[folded] {
+		known := softwareStatusFields[folded]
+		if known && seen[folded] {
 			return status, false
 		}
 		seen[folded] = true
 		var value json.RawMessage
-		if err := decoder.Decode(&value); err != nil {
+		if err := decoder.Decode(&value); err != nil || (known && !validSoftwareJSON(value, folded)) {
 			return status, false
 		}
 		fields[name] = value
@@ -176,9 +178,88 @@ func decodeSoftwareStatus(data []byte) (softwarecontrol.Status, bool) {
 			return status, false
 		}
 	}
-	if json.Unmarshal(data, &status) != nil || status.Version != 1 || !software.ValidID(status.Selected) ||
-		status.Receipts == nil || status.StorageError != "" {
+	if json.Unmarshal(data, &status) != nil || softwarecontrol.ValidateState(status.State) != nil ||
+		status.StorageError != "" {
 		return softwarecontrol.Status{}, false
 	}
 	return status, true
+}
+
+// Only known fields carry the current status contract. Unknown additive fields
+// are ignored, including null values, for forward-compatible health polling.
+var softwareStatusFields = map[string]bool{
+	"version": true, "generation": true, "selected": true, "previous": true,
+	"pending": true, "unreleased": true, "receipts": true, "active_bundle": true,
+	"base_identity": true, "service_fault": true, "storage_error": true,
+	"held_back": true, "held_back_reason": true,
+}
+
+func validSoftwareJSON(value json.RawMessage, scope string) bool {
+	if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+		return false
+	}
+	switch scope {
+	case "pending", "unreleased", "receipts", "receipt":
+		return validSoftwareObject(value, scope)
+	default:
+		return true // json.Unmarshal checks the actual scalar type.
+	}
+}
+
+// Validate required request/journal members and reject ambiguous duplicate
+// known keys. Unrecognized additive members remain forward compatible.
+func validSoftwareObject(value json.RawMessage, scope string) bool {
+	decoder := json.NewDecoder(bytes.NewReader(value))
+	open, err := decoder.Token()
+	if err != nil || open != json.Delim('{') {
+		return false
+	}
+	known := map[string]bool{"id": true, "candidate": true, "requester": true, "expected_generation": true}
+	required := []string{"id", "candidate", "requester", "expected_generation"}
+	if scope == "pending" {
+		known["previous"], known["phase"], known["reason"] = true, true, true
+		required = append(required, "previous", "phase")
+	} else if scope == "receipt" {
+		known["result"], known["reason"] = true, true
+		required = append(required, "result")
+	} else if scope == "receipts" {
+		required = nil
+	}
+	seen := make(map[string]bool)
+	for decoder.More() {
+		key, err := decoder.Token()
+		name, ok := key.(string)
+		if err != nil || !ok {
+			return false
+		}
+		folded := strings.ToLower(name)
+		isKnown := scope == "receipts" || known[folded]
+		if isKnown && seen[folded] {
+			return false
+		}
+		seen[folded] = true
+		var field json.RawMessage
+		if err := decoder.Decode(&field); err != nil {
+			return false
+		}
+		if scope == "receipts" {
+			if !validSoftwareJSON(field, "receipt") {
+				return false
+			}
+		} else if isKnown && !validSoftwareJSON(field, folded) {
+			return false
+		}
+	}
+	if close, err := decoder.Token(); err != nil || close != json.Delim('}') {
+		return false
+	}
+	if decoder.Decode(new(json.RawMessage)) != io.EOF {
+		return false
+	}
+	for _, name := range required {
+		if !seen[name] {
+			return false
+		}
+	}
+	return true
 }

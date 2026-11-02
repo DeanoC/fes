@@ -16,7 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/DeanoC/FogCast/appliance/software"
+	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/fogcast"
@@ -603,8 +603,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 				}
 				// Older agents can report partially decoded state alongside a
 				// supervisor error; never expose that as a verified selection.
-				if softwareStatus.StorageError == "" && softwareStatus.Version == 1 &&
-					softwareStatus.Receipts != nil && software.ValidID(softwareStatus.Selected) {
+				if softwareStatus.StorageError == "" && softwarecontrol.ValidateState(softwareStatus.State) == nil {
 					result.Target.Software.Selected = softwareStatus.Selected
 					result.Target.Software.Generation = softwareStatus.Generation
 				}

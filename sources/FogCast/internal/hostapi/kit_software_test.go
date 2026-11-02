@@ -20,7 +20,7 @@ import (
 func TestHealthProjectsActiveSoftwareWithoutOperationDetails(t *testing.T) {
 	active, base, selected := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
 	private := "private-operation-detail"
-	status := &softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Selected: selected, Generation: 9, Pending: &softwarecontrol.Operation{Reason: private}, Receipts: map[string]softwarecontrol.Receipt{private: {Reason: private}}}, ActiveBundle: active, BaseIdentity: base, ServiceFault: private}
+	status := &softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Selected: selected, Generation: 9, Receipts: map[string]softwarecontrol.Receipt{}}, ActiveBundle: active, BaseIdentity: base, ServiceFault: private}
 	for _, tc := range []struct {
 		name     string
 		software *softwarecontrol.Status
@@ -145,6 +145,12 @@ func TestHealthSuppressesUnverifiedSelectionFromOlderAgents(t *testing.T) {
 		"missing version":     func(s *softwarecontrol.Status) { s.Version = 0 },
 		"missing receipts":    func(s *softwarecontrol.Status) { s.Receipts = nil },
 		"invalid selected id": func(s *softwarecontrol.Status) { s.Selected = "invalid" },
+		"invalid receipt": func(s *softwarecontrol.Status) {
+			s.Receipts = map[string]softwarecontrol.Receipt{"bad": {}}
+		},
+		"invalid pending operation": func(s *softwarecontrol.Status) {
+			s.Pending = &softwarecontrol.Operation{Phase: "queued"}
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			status := valid
