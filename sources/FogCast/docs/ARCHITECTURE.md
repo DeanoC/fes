@@ -376,8 +376,12 @@ also reports managed software independently of that sealed base-image record.
 The host projects only `target.software.active_bundle`, `base_identity`,
 `selected` and `generation`; it omits the operation journal, requester labels
 and diagnostic error strings. Unmanaged targets omit `target.software`, and
-failed health does not retain a previous identity. Public unauthenticated target
-health never exposes software status.
+failed health does not retain a previous identity. The agent publishes a
+selection only after a complete, validated supervisor response; on failure it
+keeps the independent running-bundle and base identities. Host health also
+clears selection when an older agent reports a supervisor storage error or
+invalid selection state. Public
+unauthenticated target health never exposes software status.
 
 `GET /api/v1/kit/software/releases` reads the selected target's immutable release
 inventory through the authenticated target client, without acquiring a lease or

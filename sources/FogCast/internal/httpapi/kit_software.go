@@ -1,12 +1,14 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DeanoC/FogCast/appliance/software"
@@ -115,8 +117,68 @@ func kitSoftwareHealth(parent context.Context, socket string) *softwarecontrol.S
 		result.StorageError = "software supervisor unavailable"
 		return result
 	}
-	if err := json.NewDecoder(io.LimitReader(response.Body, maxSoftwareControlResponse)).Decode(result); err != nil {
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxSoftwareControlResponse+1))
+	if err != nil || len(data) > maxSoftwareControlResponse {
 		result.StorageError = "software supervisor status is incomplete"
+		return result
 	}
-	return result
+	status, ok := decodeSoftwareStatus(data)
+	if !ok {
+		result.StorageError = "software supervisor status is incomplete"
+		return result
+	}
+	return &status
+}
+
+// A partially decoded response must never publish a selection: host health
+// intentionally omits the supervisor's diagnostic error text.
+func decodeSoftwareStatus(data []byte) (softwarecontrol.Status, bool) {
+	var status softwarecontrol.Status
+	if len(data) > maxSoftwareControlResponse {
+		return status, false
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	open, err := decoder.Token()
+	if err != nil || open != json.Delim('{') {
+		return status, false
+	}
+	fields := make(map[string]json.RawMessage)
+	seen := make(map[string]bool)
+	for decoder.More() {
+		key, err := decoder.Token()
+		if err != nil {
+			return status, false
+		}
+		name, ok := key.(string)
+		if !ok {
+			return status, false
+		}
+		folded := strings.ToLower(name)
+		if seen[folded] {
+			return status, false
+		}
+		seen[folded] = true
+		var value json.RawMessage
+		if err := decoder.Decode(&value); err != nil {
+			return status, false
+		}
+		fields[name] = value
+	}
+	if close, err := decoder.Token(); err != nil || close != json.Delim('}') {
+		return status, false
+	}
+	if decoder.Decode(new(json.RawMessage)) != io.EOF {
+		return status, false
+	}
+	for _, name := range []string{"version", "generation", "selected", "receipts", "active_bundle", "base_identity"} {
+		value, exists := fields[name]
+		if !exists || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			return status, false
+		}
+	}
+	if json.Unmarshal(data, &status) != nil || status.Version != 1 || !software.ValidID(status.Selected) ||
+		status.Receipts == nil || status.StorageError != "" {
+		return softwarecontrol.Status{}, false
+	}
+	return status, true
 }
