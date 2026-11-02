@@ -1,0 +1,131 @@
+{
+  "source_commit": "6dd356157dac111852b0f943ca4c0c799adb5de1",
+  "classification": "copied source-bound diagnostics; no runtime core acceptance",
+  "files": {
+    "atf-pipeline-verification.json": {
+      "source": "out/nano-contained-console-20261102/atf-pipeline-verification.json",
+      "sha256": "d227cc3ae648079ac9f7d39b4e62f89a3c6f1d7cfd4e475cb975a122da2863d9",
+      "bytes": 848
+    },
+    "boot-upload-result.json": {
+      "source": "out/nano-contained-console-20261102/trial/upload-boot/result.json",
+      "sha256": "95a94240440ce1ffb84b6bdc6edc57ecfb8d9a76533104693b30bc92d7ea9018",
+      "bytes": 12828
+    },
+    "clock-restored-readback.log": {
+      "source": "out/nano-contained-console-20261102/trial/clock-restored-readback.log",
+      "sha256": "21907e41f81503660da9692b0242f004cb3ab449c740885a82c4e1b357ed6b18",
+      "bytes": 4
+    },
+    "experiment-fixtures.json": {
+      "source": "out/nano-contained-console-20261102/trial/experiment-fixtures.json",
+      "sha256": "fb486bb2e035f1e2f5dacbdfb2bd594cea16c37f09125a7b8369c18347078a62",
+      "bytes": 8018
+    },
+    "experiment-result.json": {
+      "source": "out/nano-contained-console-20261102/trial/experiment-result.json",
+      "sha256": "db1611b71f8eeedd4ef173741e7070b932121a11f802f41173ac62e31cc78d71",
+      "bytes": 1741
+    },
+    "hardware-evidence.json": {
+      "source": "out/nano-contained-console-20261102/hardware-evidence.json",
+      "sha256": "b052f55cb96c803296acc311da1328a911e83a41972fbd39da85cf27adbba848",
+      "bytes": 135856
+    },
+    "hardware-postcheck.json": {
+      "source": "out/nano-contained-console-20261102/hardware-postcheck.json",
+      "sha256": "e1220d1ec7bafe33d0e37390f8430ecf342c25f2010ad3993ba8ba1f5b705d0c",
+      "bytes": 137816
+    },
+    "helper-verification.json": {
+      "source": "out/nano-contained-console-20261102/helper-verification.json",
+      "sha256": "9a7c4a5070cf16598eda9d4e9ab693bf0aaa0cbe0edaa0a198e7009a533ee024",
+      "bytes": 892
+    },
+    "jtag-transport.json": {
+      "source": "out/nano-contained-console-20261102/trial/transport.json",
+      "sha256": "131eff3020698d080e01ec0bad6f0d9c92c8234bd85d50bc769e383a581f2d58",
+      "bytes": 1411
+    },
+    "linked-fes_nano_spl_atf_trace.txt": {
+      "source": "out/nano-contained-console-20261102/linked-fes_nano_spl_atf_trace.txt",
+      "sha256": "da7225793ea70dd8a9c12f977fa30f375b816a9361a3bdf7b34d11f0fe69c16a",
+      "bytes": 7861
+    },
+    "linked-fes_nano_spl_handoff.txt": {
+      "source": "out/nano-contained-console-20261102/linked-fes_nano_spl_handoff.txt",
+      "sha256": "4461870f1e5e1c09708a9157b9318d3c66568a2a97dc194b1f5bd686aa7fd1b8",
+      "bytes": 5862
+    },
+    "linked-spl_invoke_atf.txt": {
+      "source": "out/nano-contained-console-20261102/linked-spl_invoke_atf.txt",
+      "sha256": "ee4f49d804cd48e6290e458ecc13b97ea79a5c34e89c3148339f5fc00c046a2d",
+      "bytes": 2417
+    },
+    "live-package.json": {
+      "source": "out/nano-contained-console-20261102/trial/live-package.json",
+      "sha256": "5af30bc91057b9349ab9a2e35c8d08b86d9ec8eb58183fc6bf6fe9b85c16cfb3",
+      "bytes": 1520
+    },
+    "make-check.log": {
+      "source": "out/nano-contained-console-20261102/make-check.log",
+      "sha256": "e9d8989316f5311365a429c5c6221f9e058490da8f0fb7a5a1e219c90aee6aaa",
+      "bytes": 137
+    },
+    "native-build-result.json": {
+      "source": "out/nano-contained-console-20261102/native-build-result.json",
+      "sha256": "d87e31bf07881edae5bedc9f0d17fadfe75239ba8fa616d2413ccba2570747d0",
+      "bytes": 1269
+    },
+    "native-console.log": {
+      "source": "out/nano-contained-console-20261102/trial/native-console.log",
+      "sha256": "eb0d2be7bb94638cf256d6898be18e1a4b400767f93486b77b3d6d6354f4c8ee",
+      "bytes": 47273
+    },
+    "native-input-verification.json": {
+      "source": "out/nano-contained-console-20261102/native-input-verification.json",
+      "sha256": "6acc47b9da2b534669a88f8c12389fb5840a15cf0cbef8e13038b8836b6d8568",
+      "bytes": 15297
+    },
+    "native-result.json": {
+      "source": "out/nano-contained-console-20261102/trial/native-result.json",
+      "sha256": "feacf6c56b47d4ce496514356b60a245f3699c31a51c3a641b18ace8d4bffd37",
+      "bytes": 142713
+    },
+    "parent-coverage.json": {
+      "source": "out/nano-contained-console-20261102/parent-coverage.json",
+      "sha256": "242abba35a7589cefd42188f371bfc3e9382ef383d9977a3ab9317965ea6f0e9",
+      "bytes": 271011
+    },
+    "readback-fixtures.json": {
+      "source": "out/nano-contained-console-20261102/trial/readback-fixtures.json",
+      "sha256": "ca784ea3e8dfed94c2dbd19c6ccd96e9f1778921259fbe2c7d90f4a9d2b8af07",
+      "bytes": 2019
+    },
+    "selected-scopes-result.json": {
+      "source": "out/nano-contained-console-20261102/selected-scopes-result.json",
+      "sha256": "cfc1af08bfdb0169b497284246b2559ed8bc93325f71f946054369cbec64c685",
+      "bytes": 251
+    },
+    "selection-proof.json": {
+      "source": "out/nano-contained-console-20261102/selection-proof.json",
+      "sha256": "d95da23438c1bc9658fe50b94fec671e956309a9c9cb91d647696fb0061b49df",
+      "bytes": 24740
+    },
+    "software-plan.json": {
+      "source": "out/nano-contained-console-20261102/software-plan.json",
+      "sha256": "6c4f38cc25aa8920f5a7254201d2a49a90aea1e12e3bca87d4bf7470b537c798",
+      "bytes": 4598
+    },
+    "software-result.json": {
+      "source": "out/nano-contained-console-20261102/software-result.json",
+      "sha256": "230ffbe05e8f620c7027d02fa5a5f6a5b50ecc3ae752b136a1fea82cd6db46be",
+      "bytes": 4087
+    },
+    "source.json": {
+      "source": "out/nano-contained-console-20261102/source.json",
+      "sha256": "3d108eeb08b812de34415ed2032e9b71fc9dad93ec37b54d2133308390e1eabc",
+      "bytes": 187
+    }
+  }
+}

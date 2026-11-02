@@ -19,14 +19,17 @@ marker. The actual vendor UART calls the general scheduler after transmitting
 a newline; a bounded post-containment console path is the next candidate.
 The physical fault location and this recipe remain unqualified.
 
-The current console candidate routes post-containment handoff, barrier and ATF
+The contained console routes post-containment handoff, barrier and ATF
 messages through `spl_console.inc`. It uses only the already configured UART1
 TX/status registers, with bounded polling, bounded formatting and transmitter
 drain. Timeout, invalid status or an oversized message parks without retry or
 callback fallback. The vendor console remains in the earlier startup path.
-The final barrier and all CPU/argument/digest checks remain in place. Host tests
-exercise the actual sink and joined handoff/guard; its matched hardware test is
-still pending.
+The final barrier and all CPU/argument/digest checks remain in place. Its
+[matched TRWU8CBL trial](../../../docs/validation/2026-11-02-de25-contained-console/README.md)
+passes native startup, SD package retention, sealed FPGA configuration and the
+fixed 32-byte DDR read/drain/reclose diagnostic. All 1,273 selected parent tests
+and the actual linked callback-free sink checks pass. Runtime admission,
+arbitrary DDR access and real emulation-core launch/return remain open.
 
 The U-Boot receipt's checked `atf_handoff` descriptor supplies `atf=...` to the
 serial/configuration decoder. Current file composition requires that descriptor
@@ -70,10 +73,11 @@ The [contained DDR prerequisite observation](../../../docs/validation/2026-11-02
 passes on TRWU8CBL with the matched sealed DDR image and native boot chain.
 It verifies the live identity, stable SMMU/firewall readings, coverage of the
 reserved buffer and the idle reader/probe stop callbacks before reclosure.
-All data bridges stay reset. FPGA reads of the pinned pattern and active
-disable/drain still require their own guarded hardware test.
+All data bridges stay reset in that prerequisite trial. The subsequent
+[fixed read/drain trial](../../../docs/validation/2026-11-02-de25-contained-console/README.md)
+qualifies its guarded 32-byte operation; broader runtime access remains open.
 
-The next bounded candidate is selected explicitly with `fpgaload --ddr-read`
+The bounded DDR diagnostic is selected explicitly with `fpgaload --ddr-read`
 in `platform/embedded/tamago/run.py`. It requires that same sealed DDR project
 and the contained SD profile. The builder compares the complete generated
 F2SDRAM adapter with its sealed vendor template, binds its read attributes and
@@ -85,8 +89,10 @@ returned data and the matching acknowledgement, stops every master and closes
 control plus DDR through the existing hardware drain. Owner/generation checks
 cover each transition; errors retire the attempt and keep memory pinned until
 reboot. The trace decoder checks the paired accesses, both fresh gates and the
-actual closure receipt. This candidate has software/RTL coverage; its active
-DDR hardware test remains pending. Normal runtime admission stays unavailable.
+actual closure receipt. It has software/RTL coverage, and its fixed active
+DDR hardware test now
+[passes on TRWU8CBL](../../../docs/validation/2026-11-02-de25-contained-console/README.md).
+Normal runtime admission stays unavailable.
 
 The [bounded read candidate](../../../docs/validation/2026-11-02-de25-ddr-read-candidate/README.md)
 passes the complete software/RTL checks and matched cross-build. Its first

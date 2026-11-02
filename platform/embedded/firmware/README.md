@@ -17,7 +17,13 @@ stops after SPL's handoff line without reaching this final observation. The
 remaining interval includes its barrier, return and loaded-memory guard;
 neither a precise fault location nor BL31 entry is established. Firmware/package
 upload and independent SD readback pass; native DDR and runtime admission remain
-unqualified.
+unqualified for that earlier artifact. The subsequent
+[contained-console trial](../../../docs/validation/2026-11-02-de25-contained-console/README.md)
+passes native boot, sealed FPGA configuration, the fixed read-only DDR request,
+reader drain, complete master stop and hardware reclosure. It records active
+data scope and leaves optional fabric acknowledgement unqualified. This is
+hardware evidence for that fixed diagnostic contract; general DDR use and
+runtime/emulation-core admission remain open.
 
 The optional source-bound SMMU serial profile now runs a read-only observation
 inside the trusted cold provider. It samples the non-secure controls and only
