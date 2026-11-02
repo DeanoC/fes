@@ -7,8 +7,9 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,6 +61,27 @@ class HPSContextTests(unittest.TestCase):
             with patch.object(context,'_derive',return_value=descriptor):
                 with self.assertRaisesRegex(ValueError,'symlink'):
                     context._configuration(project)
+            ddr=dict(descriptor,programming_profile='de25-embedded-hps-first-ddr-diagnostic-v1',
+                     control_abi=0x10203041,package_id='d'*64,build_id='e'*32)
+            params={'reader_memory_backend':'hps-ddr','reader_memory_base':0x95000000,'reader_memory_bytes':8192}
+            build=project/'board/hps/build-inputs.json'
+            build.write_text(json.dumps({'parameters':params}))
+            with patch.object(context,'_derive',return_value=ddr):
+                memory=context._reader_memory(project)
+                self.assertEqual(context.encode(memory),(ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-reader-memory.json').read_bytes())
+                self.assertEqual((memory['cpu_base'],memory['bus_base'],memory['bytes']), (0x95000000,0x95000000,8192))
+                self.assertEqual((memory['arena_base'],memory['arena_bytes']),(0x95000000,2<<20))
+                for key,value in (('reader_memory_backend','onchip'),('reader_memory_base',0x95001000),
+                                  ('reader_memory_base',0x94000000),('reader_memory_bytes',4096),('reader_memory_bytes',True)):
+                    build.write_text(json.dumps({'parameters':dict(params,**{key:value})}))
+                    with self.subTest(key=key,value=value),self.assertRaisesRegex(ValueError,'fixed sealed'):
+                        context._reader_memory(project)
+                build.write_text(json.dumps({'parameters':params}))
+                for key,value in (('control_abi',0x10203040),('programming_profile','de25-embedded-ddr-diagnostic-v1')):
+                    with patch.object(context,'_derive',return_value=dict(ddr,**{key:value})),self.assertRaises(ValueError):
+                        context._reader_memory(project)
+            with patch.object(context,'_derive',return_value=self.descriptor):
+                self.assertIsNone(context._reader_memory(project))
 
     def test_configuration_receipt_requires_its_dedicated_source_and_map(self):
         mapping={'format':1,'base':0x94800000,'size':8<<20,'core_size':128,
@@ -78,6 +100,54 @@ class HPSContextTests(unittest.TestCase):
                 with self.assertRaises(ValueError):context.checked_configuration(changed)
         self.assertIsNone(context.checked_configuration({'program':'fpgastatus'}))
         with self.assertRaises(ValueError):context.checked_configuration({'program':'fpgaload'})
+        memory=json.loads((ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-reader-memory.json').read_bytes())
+        record.update(hps_reader_memory=memory,hps_reader_memory_sha256=context.digest(memory))
+        with patch.object(context,'checked_configuration',return_value=mapping),patch.object(context,'reader_memory',return_value=memory):
+            self.assertEqual(context.checked_reader_memory(record),memory)
+            entry=dict(record,native_program=record['program']);entry.pop('program')
+            self.assertEqual(context.checked_reader_memory(entry,'native_program'),memory)
+            for key in ('hps_reader_memory','hps_reader_memory_sha256'):
+                changed=dict(record);changed.pop(key)
+                with self.subTest(key=key),self.assertRaises(ValueError):context.checked_reader_memory(changed)
+            for changed in (dict(record,program='bootcontext'),dict(record,hps_reader_memory_sha256='f'*64),
+                            dict(record,hps_reader_memory=dict(memory,bus_base=0x15000000))):
+                with self.subTest(changed=changed),self.assertRaises(ValueError):context.checked_reader_memory(changed)
+        with patch.object(context,'checked_configuration',return_value=mapping),patch.object(context,'reader_memory',return_value=None):
+            self.assertIsNone(context.checked_reader_memory(dict(self.record,program='fpgaload')))
+            with self.assertRaises(ValueError):context.checked_reader_memory(record)
+        self.assertIsNone(context.checked_reader_memory({'program':'fpgastatus'}))
+        ddr=dict(self.descriptor,programming_profile='de25-embedded-hps-first-ddr-diagnostic-v1',control_abi=0x10203041)
+        header_profile={'sd_pio':True,'chain_sha256':'a'*64,'owner_seed':1,'entry_image_sha256':'b'*64,'entry_image_size':128,
+                        'hps_context':ddr,'hps_context_sha256':context.digest(ddr),
+                        'hps_control':{'cpu_base':0x20010400},'hps_control_sha256':'c'*64,
+                        'hps_configuration':dict(mapping,core_sha384='d'*96),
+                        'hps_reader_memory':memory,'hps_reader_memory_sha256':context.digest(memory)}
+        header=cold.header(header_profile)
+        self.assertIn('#define FES_NANO_READER_CPU_BASE 0x95000000ULL',header)
+        self.assertIn('#define FES_NANO_READER_BUS_BASE 0x95000000ULL',header)
+        self.assertIn('#define FES_NANO_READER_ARENA_BYTES 2097152U',header)
+        for key,value in (('sd_pio',False),('hps_control',None),('hps_configuration',None),
+                          ('hps_context',self.descriptor),('hps_reader_memory_sha256','0'*64)):
+            with self.subTest(key=key),self.assertRaises(ValueError):cold.header(dict(header_profile,**{key:value}))
+        with tempfile.TemporaryDirectory() as temp:
+            entry=Path(temp);image=entry/'entry.img';image.write_bytes(bytes(64))
+            receipt={'status':'built','target':'de25-nano','entry_image_address':0x96080000,
+                     'ram_start':0x84000000,'ram_end':0x94000000,'uart_base':0x10c02100,
+                     'entry_image_sha256':cold.sha(image),'entry_image_size':64,'native_program':'fpgaload',
+                     'firmware_profile_sha256':cold.sha(NANO/'sd-profile.json'),'sources':{},
+                     'native_build_sources':{'platform/embedded/tamago/build.py':cold.sha(NANO.parent/'tamago/build.py')}}
+            config_range=[mapping['base'],mapping['base']+mapping['size']]
+            memory_range=[memory['arena_base'],memory['arena_base']+memory['arena_bytes']]
+            with patch.object(cold.hps_context,'checked',return_value=ddr), \
+                    patch.object(cold.hps_context,'checked_control',return_value={'compiled':True}), \
+                    patch.object(cold.hps_context,'checked_configuration',return_value=mapping), \
+                    patch.object(cold.hps_context,'checked_reader_memory',return_value=memory):
+                for exclusion in (None,[memory['cpu_base'],memory['cpu_base']+memory['bytes']],memory_range):
+                    receipt['staging_exclusions']=[config_range]+([exclusion] if exclusion else [])
+                    (entry/'result.json').write_text(json.dumps(receipt))
+                    if exclusion==memory_range:self.assertEqual(cold.entry(entry)[0],image)
+                    else:
+                        with self.assertRaisesRegex(ValueError,'reader arena'):cold.entry(entry)
 
     def test_canonical_descriptor_matches_both_consumers(self):
         self.assertEqual(context.encode(self.descriptor), GOLDEN.read_bytes())
@@ -93,6 +163,33 @@ class HPSContextTests(unittest.TestCase):
         digest = self.record['hps_context_sha256']
         self.assertIn('#define FES_NANO_HPS_CONTEXT_SHA {'+
                       ','.join('0x'+digest[i:i+2] for i in range(0, 64, 2))+'}', header)
+        # Isolate only the already-verified project inputs. Exercise the actual
+        # descriptor builder so a DDR package cannot regain the on-chip label.
+        (ROOT/'out').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT/'out') as temp:
+            project=Path(temp);hps=project/'board/hps';hps.mkdir(parents=True)
+            (hps/'hps-first-pair.json').write_text(json.dumps(self.descriptor))
+            (hps/'build-inputs.json').write_text(json.dumps({'revision':self.descriptor['overlay_revision']}))
+            for profile,abi in (('de25-embedded-hps-first-diagnostic-v1',0x10203040),
+                                ('de25-embedded-hps-first-ddr-diagnostic-v1',0x10203041)):
+                source={'embedded_control':dict(build_inputs_sha256='a'*64,control_abi=abi,
+                                               peripheral_offset=0x10400,span=256),
+                        'board_fes_revision':self.descriptor['board_revision']}
+                fields={'abi':{'id':self.descriptor['abi'],'major':1,'minor':0},
+                        'target':{'programming_profile':profile},'core':{'id':self.descriptor['core_id']}}
+                select=Mock(return_value=profile)
+                seal=SimpleNamespace(PLATFORM='de25_nano',DEVICE=self.descriptor['device'],
+                                     boot_order=lambda _: 'HPS FIRST',profile_for=select,
+                                     read_package=lambda _: SimpleNamespace(fields=fields))
+                verifier=SimpleNamespace(inputs_for=lambda _: (source,None,None),sha=lambda _:self.descriptor['raw_sof_sha256'])
+                with patch.dict(sys.modules,seal=seal),patch.object(sys,'path',sys.path[:]), \
+                        patch.object(context.importlib.util,'spec_from_file_location',return_value=SimpleNamespace(loader=SimpleNamespace(exec_module=lambda _:None))), \
+                        patch.object(context.importlib.util,'module_from_spec',return_value=verifier):
+                    result=context._derive(project)
+                    self.assertEqual((result['programming_profile'],result['control_abi']),(profile,abi))
+                    select.assert_called_once_with(source)
+                    fields['target']['programming_profile']='wrong-backend'
+                    with self.assertRaisesRegex(ValueError,'profile differs'):context._derive(project)
 
     def test_native_receipt_key_and_source_or_digest_changes_reject(self):
         entry = dict(self.record)

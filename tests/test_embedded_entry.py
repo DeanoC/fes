@@ -117,6 +117,11 @@ class StagingTests(unittest.TestCase):
                            (0x93e80000, 0x94280000), (0xbfe80000, 0xc0280000)):
             with self.subTest(start=start), self.assertRaises(ValueError):
                 builder.validate_staging(start, end, 0x80000000, 0xc0000000, exclusions)
+        exclusions += [(0x94800000,0x95000000),(0x95000000,0x95200000)]
+        builder.validate_staging(0x96080000,0x96480000,0x80000000,0xc0000000,exclusions)
+        for start,end in ((0x94880000,0x94a80000),(0x95080000,0x95090000),(0x951ff000,0x95201000)):
+            with self.subTest(cold_arena_start=start),self.assertRaises(ValueError):
+                builder.validate_staging(start,end,0x80000000,0xc0000000,exclusions)
 
 
 if __name__ == '__main__':

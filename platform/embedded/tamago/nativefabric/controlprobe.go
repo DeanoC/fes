@@ -84,6 +84,9 @@ func (v *HPSContextVerifier) ProbeIdentity(raw []byte) (FPGAIdentityObservation,
 // control reclose. It shares the identity attempt and does not open data bridges
 // or provide a general DDR, display or active-master containment receipt.
 func (v *HPSContextVerifier) ProbeReader(raw []byte) (FPGAIdentityObservation, error) {
+	if v == nil || v.context.ProgrammingProfile != HPSFirstDiagnosticProfile {
+		return FPGAIdentityObservation{}, errors.New("native fabric: on-chip reader operation requires its on-chip source")
+	}
 	return v.probeControl(raw, g.FesEmbeddedBridgeProbeReader, g.FesEmbeddedBridgeReaderTag)
 }
 

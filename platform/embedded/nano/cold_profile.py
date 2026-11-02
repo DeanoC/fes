@@ -47,10 +47,13 @@ def entry(entry_build):
     context=hps_context.checked(receipt,program_key='native_program')
     hps_context.checked_control(receipt,program_key='native_program')
     configuration=hps_context.checked_configuration(receipt,program_key='native_program')
+    reader_memory=hps_context.checked_reader_memory(receipt,program_key='native_program')
     if context is not None and profile.name!=('sd-profile.json' if receipt.get('native_program')=='fpgaload' else 'probe-profile.json'):
         raise ValueError('HPS context diagnostic requires its source-derived serial/SD profile')
     if configuration is not None and [configuration['base'],configuration['base']+configuration['size']] not in receipt.get('staging_exclusions',[]):
         raise ValueError('cold configuration arena is not excluded from entry staging')
+    if reader_memory is not None and [reader_memory['arena_base'],reader_memory['arena_base']+reader_memory['arena_bytes']] not in receipt.get('staging_exclusions',[]):
+        raise ValueError('cold reader arena is not excluded from entry staging')
     return image,receipt_path
 
 
@@ -73,6 +76,7 @@ def make(entry_build):
     context=hps_context.checked(build,program_key='native_program')
     control=hps_context.checked_control(build,program_key='native_program')
     configuration=hps_context.checked_configuration(build,program_key='native_program')
+    reader_memory=hps_context.checked_reader_memory(build,program_key='native_program')
     selected=sources()+ (hps_context.inputs() if context is not None else [])
     inputs={str(p.relative_to(ROOT)):sha(p) for p in selected}
     identity={'format':1,'profile':'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
@@ -85,7 +89,8 @@ def make(entry_build):
               'reference_sof_sha256':context['raw_sof_sha256'] if context else 'e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09',
               'hps_context':context,'hps_context_sha256':hps_context.digest(context) if context else None,
               'hps_control':control,'hps_control_sha256':hps_context.digest(control) if control else None,
-              'hps_configuration':configuration,'hps_configuration_sha256':hps_context.digest(configuration) if configuration else None}
+              'hps_configuration':configuration,'hps_configuration_sha256':hps_context.digest(configuration) if configuration else None,
+              'hps_reader_memory':reader_memory,'hps_reader_memory_sha256':hps_context.digest(reader_memory) if reader_memory else None}
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     identity['owner_seed']=int(identity['chain_sha256'][:16],16)|1
     identity['entry_receipt_sha256']=sha(receipt)
@@ -112,6 +117,18 @@ def header(profile):
                 '#define FES_NANO_CONFIG_CHUNK '+str(configuration['chunk_bytes'])+'U\n'
                 '#define FES_NANO_CONFIG_SHA384 '+array(configuration['core_sha384'])+'\n'
                 '#define FES_NANO_CONFIG_CHUNK_DIGESTS {'+','.join(array(value) for value in configuration['chunk_sha384'])+'}\n')
+    reader_memory=profile.get('hps_reader_memory')
+    if reader_memory is not None:
+        if (configuration is None or control is None or not profile['sd_pio'] or
+                profile['hps_context']['programming_profile']!='de25-embedded-hps-first-ddr-diagnostic-v1' or
+                profile.get('hps_reader_memory_sha256')!=hps_context.digest(reader_memory)):
+            raise ValueError('cold reader memory requires its source-bound DDR configuration profile')
+        extra+=('#define FES_NANO_READER_CPU_BASE '+hex(reader_memory['cpu_base'])+'ULL\n'
+                '#define FES_NANO_READER_BUS_BASE '+hex(reader_memory['bus_base'])+'ULL\n'
+                '#define FES_NANO_READER_BYTES '+str(reader_memory['bytes'])+'U\n'
+                '#define FES_NANO_READER_ARENA_BYTES '+str(reader_memory['arena_bytes'])+'U\n'
+                '#define FES_NANO_READER_MAP_SHA '+array(profile['hps_reader_memory_sha256'])+'\n'
+                '#define FES_NANO_READER_PATTERN_SHA '+array(reader_memory['pattern_sha256'])+'\n')
     return ('/* Generated, same source-bound diagnostic chain in SPL and BL31. */\n'
             +extra+
             '#define FES_NANO_CONTROLLED_SD '+str(int(profile['sd_pio']))+'\n'

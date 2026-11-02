@@ -49,6 +49,9 @@ def prepare(project, uboot, entry, pfg, output):
     control_map=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_control')
     if control_map is not None and control_map!=hps_context.control(project):
         raise ValueError('native CPU control map differs from the sealed FPGA project')
+    reader_memory=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_reader_memory')
+    if reader_memory is not None and reader_memory!=hps_context.reader_memory(project):
+        raise ValueError('native reader memory differs from the sealed FPGA project')
     binary = pfg.parent.parent/'linux64/quartus_pfg'
     identity = 'wrapper-sha256:'+sha(pfg)+'; binary-sha256:'+sha(binary)
     if identity != pair['pfg_identity']:

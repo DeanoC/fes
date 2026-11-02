@@ -13,13 +13,15 @@ static int overlap(struct fes_nano_range a, struct fes_nano_range b)
 
 int fes_nano_memory_ok(const struct fes_nano_range *banks, unsigned bank_count,
                        const struct fes_nano_range *used, unsigned used_count,
-                       fes_u64 image_size)
+                       fes_u64 image_size,
+                       const struct fes_nano_range *owned, unsigned owned_count)
 {
     const struct fes_nano_range go = {FES_NANO_GO_START, FES_NANO_GO_SIZE};
     const struct fes_nano_range stage = {FES_NANO_STAGE, image_size};
     int covered = 0;
     if (!banks || !bank_count || bank_count > 3 || used_count > 64 ||
-        (used_count && !used) || !image_size || image_size > FES_NANO_STAGE_LIMIT - FES_NANO_STAGE)
+        (used_count && !used) || owned_count > 4 || (owned_count && !owned) ||
+        !image_size || image_size > FES_NANO_STAGE_LIMIT - FES_NANO_STAGE)
         return 0;
     for (unsigned i = 0; i < bank_count; i++) {
         if (!valid_range(banks[i])) return 0;
@@ -28,9 +30,20 @@ int fes_nano_memory_ok(const struct fes_nano_range *banks, unsigned bank_count,
             covered = 1;
     }
     if (!covered) return 0;
-    for (unsigned i = 0; i < used_count; i++)
+    for (unsigned i = 0; i < owned_count; i++) {
+        if (!valid_range(owned[i]) || owned[i].start < FES_NANO_DDR_START ||
+            owned[i].size > FES_NANO_DDR_END - FES_NANO_DDR_START ||
+            owned[i].start > FES_NANO_DDR_END - owned[i].size ||
+            overlap(owned[i], go) || overlap(owned[i], stage)) return 0;
+        for (unsigned j = 0; j < i; j++)
+            if (overlap(owned[i], owned[j])) return 0;
+    }
+    for (unsigned i = 0; i < used_count; i++) {
         if (!valid_range(used[i]) || overlap(used[i], go) || overlap(used[i], stage))
             return 0;
+        for (unsigned j = 0; j < owned_count; j++)
+            if (overlap(used[i], owned[j])) return 0;
+    }
     return 1;
 }
 

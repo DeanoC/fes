@@ -20,7 +20,7 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 )
 
-var expectedBootContext, expectedControlMap, expectedConfigurationMap string
+var expectedBootContext, expectedControlMap, expectedConfigurationMap, expectedReaderMemoryMap string
 var retained *nativefabric.ConfigurationTransfer
 
 func decoded(s string, limit int) []byte {
@@ -71,6 +71,19 @@ func main() {
 	}
 	closed := handoff.Receipt()
 	fmt.Printf("FES_NANO_LOAD_PACKAGE CONTAINED package_id=%s owner=%x generation=%d source=sd storage_active=0\n", id.PackageID, closed.Owner, closed.Generation)
+	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
+		memory, err := v.ReserveReaderMemory(decoded(expectedReaderMemoryMap, 8192), de25nano.ReserveReaderMemory)
+		if err != nil {
+			panic(err)
+		}
+		if memory.Source.Bridges.Owner != closed.Owner || memory.Source.Bridges.Generation != closed.Generation {
+			panic("DDR reader reservation differs from storage containment")
+		}
+		fmt.Printf("FES_NATIVE_FPGA_READER_MEMORY PINNED cpu_base=%x bus_base=%x bytes=%d arena_bytes=%d map_sha256=%x pattern_sha256=%x owner=%x generation=%d fpga_access=unqualified\n",
+			memory.CPUBase, memory.BusBase, memory.Bytes, memory.ArenaBytes, memory.MapSHA256, memory.PatternSHA256, closed.Owner, closed.Generation)
+	} else if expectedReaderMemoryMap != "" {
+		panic("on-chip reader cannot supply a DDR memory map")
+	}
 	var source nativefabric.HPSBootObservation
 	retained, source, err = v.NewStoredConfigurationTransfer(control, configuration, handoff, de25nano.ReserveConfiguration)
 	if err != nil {
@@ -126,7 +139,12 @@ func main() {
 	}
 	fmt.Printf("FES_NATIVE_FPGA_PROGRAMMED PASS package_id=%s core_sha256=%s bytes=%d owner=%x generation=%d data_held=1 activation=unavailable\n",
 		id.PackageID, id.ProgrammedSHA256, size, source.Bridges.Owner, source.Bridges.Generation)
-	observed, err := v.ProbeReader(control)
+	var observed nativefabric.FPGAIdentityObservation
+	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
+		observed, err = v.ProbeIdentity(control)
+	} else {
+		observed, err = v.ProbeReader(control)
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -135,6 +153,10 @@ func main() {
 	}
 	fmt.Printf("FES_NATIVE_FPGA_IDENTITY PASS package_id=%s build_id=%s abi=%x base=%x map_sha256=%s owner=%x generation=%d data_held=1 runtime_programming=unavailable\n",
 		id.PackageID, id.BuildID, observed.Identity.ABI, observed.CPUBase, hex.EncodeToString(observed.ControlMapSHA256[:]), observed.After.Owner, observed.After.Generation)
-	fmt.Printf("FES_NATIVE_FPGA_READER PASS owner=%x generation=%d reader_generation=1 cookie=7 data_held=1 runtime_programming=unavailable\n",
-		observed.After.Owner, observed.After.Generation)
+	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
+		fmt.Printf("FES_NATIVE_FPGA_DDR_READER BLOCKED owner=%x generation=%d data_held=1 translation=unqualified drain=unqualified runtime_programming=unavailable\n", observed.After.Owner, observed.After.Generation)
+	} else {
+		fmt.Printf("FES_NATIVE_FPGA_READER PASS owner=%x generation=%d reader_generation=1 cookie=7 data_held=1 runtime_programming=unavailable\n",
+			observed.After.Owner, observed.After.Generation)
+	}
 }

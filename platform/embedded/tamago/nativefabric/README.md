@@ -8,6 +8,13 @@ used by tenfoot's model sessions. It remains restricted to the
 `qemu-model-only` policy. The Nano has no registered physical programming
 profile or automatically enabled board binding.
 
+The separate cold DDR diagnostic accepts only the matching DDR control ABI and
+sealed 8 KiB reader map. `ReserveReaderMemory` brackets the fixed pattern copy
+with fresh closed ownership checks and retains any returned region on failure.
+The board hook keeps its entire 2 MiB uncached arena until reboot; no completion
+reclaims it. The descriptor explicitly leaves FPGA physical addressing
+unqualified. It grants no bridge release, translation setup or runtime admission.
+
 Before an injected actor retires its current owner, it checks that the retained
 package's exact target, programming profile and ABI version have an explicitly
 supplied identity profile. The profile gives the FPGA control ABI personality;

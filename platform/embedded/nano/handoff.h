@@ -28,7 +28,8 @@ struct fes_nano_state {
 /* Pure policy shared by the real U-Boot adapter and host rejection tests. */
 int fes_nano_memory_ok(const struct fes_nano_range *banks, unsigned bank_count,
                        const struct fes_nano_range *used, unsigned used_count,
-                       fes_u64 image_size);
+                       fes_u64 image_size,
+                       const struct fes_nano_range *owned, unsigned owned_count);
 int fes_nano_state_ok(const struct fes_nano_state *state);
 int fes_nano_cpus_ok(const struct fes_nano_state *state);
 #endif

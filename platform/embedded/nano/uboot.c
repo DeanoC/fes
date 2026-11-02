@@ -26,6 +26,8 @@ static int attempted, armed;
 static int memory_check(void)
 {
     struct fes_nano_range banks[3], used[64];
+    static const struct fes_nano_range owned[] = FES_NANO_OWNED_ARENAS;
+    unsigned owned_count = FES_NANO_OWNED_ARENA_COUNT;
     struct lmb *lmb = lmb_get();
     struct lmb_region *regions = lmb->used_mem.data;
     unsigned nb = 0, nu = 0;
@@ -51,7 +53,7 @@ static int memory_check(void)
     printf("FES_NANO_MEMORY ram_top=%llx sp=%lx malloc=%lx..%lx reloc=%lx fdt=%lx\n",
            (unsigned long long)gd->ram_top, sp, mem_malloc_start, mem_malloc_end, gd->relocaddr, (ulong)gd->fdt_blob);
     lmb_dump_all_force();
-    return fes_nano_memory_ok(banks, nb, used, nu, FES_NANO_IMAGE_SIZE);
+    return fes_nano_memory_ok(banks, nb, used, nu, FES_NANO_IMAGE_SIZE, owned, owned_count);
 }
 
 static void snapshot(struct fes_nano_state *s)
@@ -128,6 +130,8 @@ static int do_fesboot(struct cmd_tbl *cmdtp, int flag, int argc, char *const arg
     u8 hash[SHA256_SUM_LEN];
     struct fes_nano_state initial;
     static const u8 expected[SHA256_SUM_LEN] = FES_NANO_IMAGE_SHA256;
+    static const struct fes_nano_range owned[] = FES_NANO_OWNED_ARENAS;
+    unsigned owned_count = FES_NANO_OWNED_ARENA_COUNT;
 
     printf("FES_NANO_BOOT id=%s\n", FES_NANO_BOOT_ID);
     if (attempted++) return CMD_RET_FAILURE;
@@ -145,6 +149,12 @@ static int do_fesboot(struct cmd_tbl *cmdtp, int flag, int argc, char *const arg
     if (memcmp(hash, expected, sizeof(hash)) || lmb_reserve(FES_NANO_GO_START, FES_NANO_GO_SIZE) < 0) {
         puts("FES_NANO_BOOT REJECT preloaded entry hash/reservation\n");
         hang();
+    }
+    for (unsigned i = 0; i < owned_count; i++) {
+        if (lmb_reserve(owned[i].start, owned[i].size) < 0) {
+            puts("FES_NANO_BOOT REJECT cold arena reservation\n");
+            hang();
+        }
     }
     armed = 1;
     run_commandf("booti %llx - %lx", FES_NANO_STAGE, (ulong)gd->fdt_blob);

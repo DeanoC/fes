@@ -1,5 +1,16 @@
 # Nano recovery uploads and cold serial boot
 
+The cold DDR reader candidate now binds its sealed package to the intended
+`0x95000000..0x95002000` test window and a separate 2 MiB CPU reservation.
+The native builder, entry image and source-bound SPL/BL31 chain retain the same
+descriptor and digest. U-Boot rejects live allocations that overlap either
+the reader arena or the configuration arena, then reserves both before entry.
+Native Go maps the reader arena as normal uncached memory and pins its fixed
+test pattern until reboot. This supplies no FPGA translation or access grant:
+the MPFE TBU/firewall state and complete master-stop callbacks still need
+qualification before releasing the DDR data bridge. The ordinary runtime
+rejects this diagnostic profile, and its on-chip reader operation rejects DDR.
+
 The [native Go hardware diagnostic](../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
 now passes the actual secure provider, both loader ownership snapshots and
 EL2/EL1 entry on TRWU8CBL, ending in the TamaGo Go probe. Timer, goroutine,

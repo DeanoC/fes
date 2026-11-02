@@ -83,6 +83,9 @@ func New(hooks Hooks, options Options) (*Endpoint, error) {
 		if !profileValid(profile) {
 			return nil, errors.New("native fabric: invalid identity profile")
 		}
+		if profile.Platform == "de25_nano" && profile.ProgrammingProfile == HPSFirstDDRDiagnosticProfile {
+			return nil, errors.New("native fabric: DDR reader diagnostic has no runtime admission")
+		}
 		if profile.Platform == "de25_nano" && profile.ProgrammingProfile == HPSFirstDiagnosticProfile && !profile.RequireBootHandoff {
 			return nil, errors.New("native fabric: HPS-first diagnostic requires boot handoff verification")
 		}

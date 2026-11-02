@@ -34,7 +34,8 @@ class NanoHandoffTests(unittest.TestCase):
         subprocess.run([shutil.which("cc"), "-std=c11", "-Wall", "-Wextra", "-Werror", "-shared", "-fPIC",
                         "-fsanitize=undefined", "-fno-sanitize-recover=all", str(HERE / "handoff.c"), "-o", str(library)], check=True)
         cls.lib = ctypes.CDLL(str(library))
-        cls.lib.fes_nano_memory_ok.argtypes = [ctypes.POINTER(Range), ctypes.c_uint, ctypes.POINTER(Range), ctypes.c_uint, ctypes.c_uint64]
+        cls.lib.fes_nano_memory_ok.argtypes = [ctypes.POINTER(Range), ctypes.c_uint, ctypes.POINTER(Range), ctypes.c_uint, ctypes.c_uint64,
+                                              ctypes.POINTER(Range), ctypes.c_uint]
         cls.lib.fes_nano_state_ok.argtypes = [ctypes.POINTER(State)]
 
     @classmethod
@@ -70,9 +71,22 @@ class NanoHandoffTests(unittest.TestCase):
                                        (0x84000000, 4096, 0), (0x93fff000, 8192, 0),
                                        (0x96080000, 4096, 0), (0xfffffffffffff000, 8192, 0)):
             used = (Range * 1)(Range(start, size))
-            self.assertEqual(self.lib.fes_nano_memory_ok(banks, 1, used, 1, 0x400000), expected)
+            self.assertEqual(self.lib.fes_nano_memory_ok(banks, 1, used, 1, 0x400000, None, 0), expected)
+        owned=(Range*2)(Range(0x94800000,8<<20),Range(0x95000000,2<<20))
+        for start,size,expected in ((0x80000000,0x4000000,1),(0xb0000000,0x10000000,1),
+                                    (0x94000000,8<<20,1),(0x95200000,2<<20,1),
+                                    (0x947ff000,8192,0),(0x94800000,4096,0),(0x94fff000,8192,0),
+                                    (0x95000000,4096,0),(0x951ff000,8192,0),(0x95002000,4096,0)):
+            with self.subTest(start=start,size=size):
+                used=(Range*1)(Range(start,size))
+                self.assertEqual(self.lib.fes_nano_memory_ok(banks,1,used,1,0x400000,owned,2),expected)
+        for start,size in ((0,4096),(0x84000000,4096),(0x96080000,4096),(0x94800000,4096),
+                           (0x95000000,0),(0xbffff000,8192),(0xfffffffffffff000,8192)):
+            changed=(Range*2)(owned[0],Range(start,size))
+            with self.subTest(owned_start=start,owned_size=size):
+                self.assertEqual(self.lib.fes_nano_memory_ok(banks,1,None,0,0x400000,changed,2),0)
         banks[0].size = 0x20000000
-        self.assertEqual(self.lib.fes_nano_memory_ok(banks, 1, None, 0, 0x400000), 0)
+        self.assertEqual(self.lib.fes_nano_memory_ok(banks, 1, None, 0, 0x400000, None, 0), 0)
 
 
 class NanoExportTests(unittest.TestCase):

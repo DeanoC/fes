@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fabricmodel"
@@ -93,9 +94,12 @@ func ReadHPSBootContext(cpu FirmwareCaller) (HPSBootObservation, error) {
 // This type does not implement BootHandoffVerifier: source identity alone does
 // not qualify the live HPS configuration, CPU aperture or bridge controls.
 type HPSContextVerifier struct {
-	cpu     FirmwareCaller
-	context HPSBootContext
-	digest  [32]byte
+	cpu                   FirmwareCaller
+	context               HPSBootContext
+	digest                [32]byte
+	readerMemoryMu        sync.Mutex
+	readerMemoryAttempted bool
+	readerMemoryRegion    *Region
 }
 
 func NewHPSContextVerifier(cpu FirmwareCaller, source []byte) (*HPSContextVerifier, error) {
@@ -120,17 +124,19 @@ func NewHPSContextVerifier(cpu FirmwareCaller, source []byte) (*HPSContextVerifi
 	if err != nil || !bytes.Equal(source, append(canonical, '\n')) {
 		return nil, errors.New("native fabric: HPS source context is not canonical")
 	}
+	profileMatchesABI := c.ProgrammingProfile == HPSFirstDiagnosticProfile && c.ControlABI == 0x10203040 ||
+		c.ProgrammingProfile == HPSFirstDDRDiagnosticProfile && c.ControlABI == 0x10203041
 	if c.Format != 1 || c.Scope != hpsContextScope || c.Platform != "de25_nano" || c.Device != "A5EB013BB23BE4SCS" ||
-		c.ProgrammingProfile != HPSFirstDiagnosticProfile || c.CoreID != "fes.de25-embedded-diagnostic" || c.ABI != c.CoreID ||
+		!profileMatchesABI || c.CoreID != "fes.de25-embedded-diagnostic" || c.ABI != c.CoreID ||
 		c.Major != 1 || c.Minor != 0 || c.HPSInitialization != "HPS FIRST" ||
 		!nonzeroDigest(c.PackageID) || !validHex(c.BuildID, 32) || c.BuildID == strings.Repeat("0", 32) ||
 		!nonzeroDigest(c.BuildInputsSHA256) || !nonzeroDigest(c.CoreSHA256) || !nonzeroDigest(c.HPSIOHash) ||
 		!nonzeroDigest(c.RawSOFSHA256) || !nonzeroDigest(c.OriginalPairSHA256) || !validPFGIdentity(c.PFGIdentity) ||
 		!validHex(c.OverlayRevision, 40) || !validHex(c.BoardRevision, 40) || c.CoreSize <= 0 || c.CoreSize > 64<<20 ||
-		c.ControlABI != 0x10203040 || c.PeripheralOffset != 0x10400 || c.PeripheralSpan != 256 {
+		c.PeripheralOffset != 0x10400 || c.PeripheralSpan != 256 {
 		return nil, errors.New("native fabric: unsupported HPS source context")
 	}
-	return &HPSContextVerifier{cpu, c, sha256.Sum256(source)}, nil
+	return &HPSContextVerifier{cpu: cpu, context: c, digest: sha256.Sum256(source)}, nil
 }
 
 // Identity describes the compiled diagnostic package; it grants no admission.

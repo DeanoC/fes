@@ -142,10 +142,17 @@ def prepare(source, entry_build, bl31_sha256):
                         (*cold.sources(), firmware/"generated/fes_embedded_bridges.h")}
     build_id = hashlib.sha256(json.dumps({"sources": producer_sources, "entry": sha(image), "bl31": bl31_sha256}, sort_keys=True).encode()).hexdigest()[:16]
     digest = bytes.fromhex(sha(image))
+    arenas=[]
+    if chain.get('hps_configuration'):
+        m=chain['hps_configuration'];arenas.append((m['base'],m['size']))
+    if chain.get('hps_reader_memory'):
+        m=chain['hps_reader_memory'];arenas.append((m['arena_base'],m['arena_bytes']))
     (source / "cmd/fes_nano_config.h").write_text(
         '/* Generated from the exact entry image and handoff sources. */\n#define FES_NANO_BOOT_ID "' + build_id +
         '"\n#define FES_NANO_IMAGE_SIZE ' + str(image.stat().st_size) +
-        "ULL\n#define FES_NANO_IMAGE_SHA256 {" + ",".join(hex(b) for b in digest) + "}\n")
+        "ULL\n#define FES_NANO_IMAGE_SHA256 {" + ",".join(hex(b) for b in digest) + "}\n"+
+        '#define FES_NANO_OWNED_ARENA_COUNT '+str(len(arenas))+'U\n'+
+        '#define FES_NANO_OWNED_ARENAS {'+(','.join('{'+hex(a)+'ULL,'+hex(n)+'ULL}' for a,n in arenas) if arenas else '{0,0}')+'}\n')
     return {"entry_image_sha256": sha(image), "entry_receipt_sha256": sha(receipt_path), "bl31_sha256": bl31_sha256,
             "profile_sha256": sha(profile), "build_id": build_id,
             "classification": "source-derived serial-only Nano handoff; physical gate not executed",

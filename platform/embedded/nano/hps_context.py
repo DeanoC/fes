@@ -9,6 +9,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import struct
 import sys
 import xml.etree.ElementTree as ET
 
@@ -57,6 +58,37 @@ def control(project):
 
 def configuration(project):
     return _worker(project, 'configuration')
+
+
+def reader_memory(project):
+    return _worker(project, 'reader-memory')
+
+
+def reader_pattern():
+    return b''.join(struct.pack('<I', (0x4e414e4f ^ (i * 0x9e3779b9)) & 0xffffffff)
+                    for i in range(8192 // 4))
+
+
+def _reader_memory(project):
+    context = _derive(project)
+    if context['programming_profile'] == 'de25-embedded-hps-first-diagnostic-v1':
+        return None
+    parameters = json.loads((Path(project)/'board/hps/build-inputs.json').read_text())['parameters']
+    if (context['programming_profile'] != 'de25-embedded-hps-first-ddr-diagnostic-v1' or
+            context['control_abi'] != 0x10203041 or
+            parameters.get('reader_memory_backend') != 'hps-ddr' or
+            type(parameters.get('reader_memory_base')) is not int or parameters['reader_memory_base'] != 0x95000000 or
+            type(parameters.get('reader_memory_bytes')) is not int or parameters['reader_memory_bytes'] != 8192):
+        raise ValueError('native DDR reader requires the fixed sealed 8192-byte window')
+    # This is a requested physical identity path, not evidence that the MPFE TBU
+    # is bypassed or configured. CPU mapping and reservation grant no FPGA access.
+    return {'format': 1, 'scope': 'sealed-cold-ddr-reader-memory-v1',
+            'package_id': context['package_id'], 'build_id': context['build_id'],
+            'cpu_base': 0x95000000, 'bus_base': parameters['reader_memory_base'], 'bytes': 8192,
+            'arena_base': 0x95000000, 'arena_bytes': 2 << 20,
+            'cpu_attributes': 'normal-uncached', 'lifetime': 'until-reboot',
+            'fpga_addressing': 'physical-identity-unqualified',
+            'pattern': 'le32-xor-nano-golden-v1', 'pattern_sha256': hashlib.sha256(reader_pattern()).hexdigest()}
 
 
 def package_archive(project, mapping):
@@ -126,9 +158,12 @@ def _derive(project):
     record = json.loads((hps/'build-inputs.json').read_text())
     package = seal.read_package(hps/'packages'/pair['package_id'])
     abi = package.fields['abi']
+    profile = seal.profile_for(source)
+    if package.fields['target']['programming_profile'] != profile:
+        raise ValueError('package profile differs from the sealed memory backend')
     return {
         'format': 1, 'scope': SCOPE, 'platform': seal.PLATFORM, 'device': seal.DEVICE,
-        'programming_profile': seal.HPS_PROFILE, 'core_id': package.fields['core']['id'],
+        'programming_profile': profile, 'core_id': package.fields['core']['id'],
         'abi': abi['id'], 'abi_major': abi['major'], 'abi_minor': abi['minor'],
         'package_id': pair['package_id'], 'build_id': pair['build_id'],
         'build_inputs_sha256': pair['build_inputs_sha256'], 'core_sha256': pair['core_sha256'],
@@ -226,8 +261,22 @@ def checked_configuration(record, program_key='program'):
     return expected
 
 
+def checked_reader_memory(record, program_key='program'):
+    keys = ('hps_reader_memory', 'hps_reader_memory_sha256')
+    if record.get(program_key) != 'fpgaload':
+        if any(record.get(key) is not None for key in keys):
+            raise ValueError('reader memory requires the dedicated cold configuration image')
+        return None
+    checked_configuration(record, program_key)
+    expected = reader_memory(record['hps_project'])
+    if (record.get(keys[0]) != expected or
+            record.get(keys[1]) != (digest(expected) if expected is not None else None)):
+        raise ValueError('native reader memory differs from the sealed source')
+    return expected
+
+
 if __name__ == '__main__':
-    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in ('control','configuration','package'):
-        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control|configuration|package]')
-    action=_derive if len(sys.argv)==2 else {'control':_control,'configuration':_configuration,'package':_package}[sys.argv[2]]
+    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in ('control','configuration','package','reader-memory'):
+        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control|configuration|package|reader-memory]')
+    action=_derive if len(sys.argv)==2 else {'control':_control,'configuration':_configuration,'package':_package,'reader-memory':_reader_memory}[sys.argv[2]]
     sys.stdout.buffer.write(encode(action(sys.argv[1])))

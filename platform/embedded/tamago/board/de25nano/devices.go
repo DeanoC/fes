@@ -25,6 +25,9 @@ func InitDevices() error {
 		if deviceMapError == nil && profileConfigurationBase != 0 {
 			deviceMapError = arm64map.NormalUncached(profileConfigurationBase, profileConfigurationBytes, profileRAMStart, profileRAMSize)
 		}
+		if deviceMapError == nil && profileReaderMemoryBase != 0 {
+			deviceMapError = arm64map.NormalUncached(profileReaderMemoryBase, profileReaderMemoryArenaBytes, profileRAMStart, profileRAMSize)
+		}
 	})
 	return deviceMapError
 }
