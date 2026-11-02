@@ -1487,12 +1487,12 @@ def _remove_package_outputs(output):
             _remove_sealed_tree(root)
 
 
-def publish_package_state(packages, built_selections, output):
+def publish_package_state(packages, built_selections, output, *, board="de10-nano"):
     """Publish the selected pair, or close a successful package-free output."""
     if not _package_tuple(packages):
         _remove_package_outputs(output)
         return verify_package_outputs(output, None)
-    return publish_package_outputs(packages, built_selections, output)
+        return publish_package_outputs(packages, built_selections, output, board=board)
 
 
 def publish_action_inputs(output, action, info):
@@ -1506,11 +1506,11 @@ def publish_action_inputs(output, action, info):
     return True
 
 
-def publish_package_outputs(packages, built_selections, output):
+def publish_package_outputs(packages, built_selections, output, *, board="de10-nano"):
     """Publish the child-emitted record and an exact closed package directory."""
     output = Path(output)
-    normalized, details = _package_details(packages)
-    expected_selection_names = list(package_selection_names(packages))
+    normalized, details = _package_details(packages, board=board)
+    expected_selection_names = list(package_selection_names(packages, board=board))
     if isinstance(built_selections, dict) and len(normalized) > 1:
         selections = built_selections
     elif len(normalized) == 1 and not isinstance(built_selections, dict):
@@ -1616,9 +1616,9 @@ def publish_package_outputs(packages, built_selections, output):
             (staged_selections / selection_name).replace(output / selection_name)
         names = []
         for package, recipe, identity in details:
-            names.extend(package_output_names(package))
+            names.extend(package_output_names(package, board=board))
         names.extend(video_output_names(packages))
-        verify_package_outputs(output, normalized)
+        verify_package_outputs(output, normalized, board=board)
         _fsync_package_output(output)
         backup_complete = False
         _cleanup_package_backup(output, backup)

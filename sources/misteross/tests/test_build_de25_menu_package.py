@@ -11,6 +11,7 @@ import tempfile
 import tomllib
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 from unittest import mock
 
 from scripts import build_de25_menu_package as producer

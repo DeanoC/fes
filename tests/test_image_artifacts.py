@@ -131,12 +131,25 @@ class ArtifactFixture(unittest.TestCase):
 class ImageArtifactsTests(ArtifactFixture):
     def test_explicit_de25_reaches_all_package_recipe_lookups(self):
         self.select_de25()
+        selection = self.manifest['packages'][0]['selection']
+        selection.update(format=2, kind='core-package', payload_sha256=self.manifest['packages'][0]['core_rbf_sha256'],
+                         misteross_revision='1' * 40, mister_packages_revision='2' * 40,
+                         install_path='/usr/share/mister-runtime/core-packages/' + selection['package_id'])
+        path = self.root / 'fes-menu.package-selection.toml'
+        path.chmod(0o644)
+        path.write_text('\n'.join(name + ' = ' + __import__('json').dumps(value) for name, value in selection.items()) + '\n')
+        path.chmod(0o444)
+        self.manifest['packages'][0]['selection_sha256'] = artifacts.sha(path)
+        self.write_manifest()
         original = build.recipe_for
         def selected(core, *, board='de10-nano'):
             self.assertEqual(board, 'de25-nano')
             return original(core, board=board)
         with patch.object(build, 'recipe_for', side_effect=selected) as lookup:
-            artifacts.load(self.root, board='de25-nano')
+            _, packages = artifacts.load(self.root, board='de25-nano')
+            output = self.root / 'published'; output.mkdir()
+            build.publish_package_state(packages, path, output, board='de25-nano')
+            build.verify_package_outputs(output, packages, board='de25-nano')
         self.assertGreaterEqual(lookup.call_count, 3)
 
     @needs_readelf
