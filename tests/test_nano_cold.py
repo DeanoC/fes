@@ -6,7 +6,95 @@ import tempfile
 import unittest
 ROOT=Path(__file__).resolve().parents[1]
 FW=ROOT/'platform/embedded/firmware'
+
+def cold_console_fixture():
+    return r'''
+static uint32_t cold_console_read(uintptr_t address) { assert(address==0x10c02114UL);return 0x60; }
+static void cold_console_write(uintptr_t address,uint32_t value) {
+    assert(address==0x10c02100UL && value<=255);putchar((unsigned char)value);
+}
+#define FES_SPL_CONSOLE_READ(a) cold_console_read(a)
+#define FES_SPL_CONSOLE_WRITE(a,v) cold_console_write(a,v)
+#define FES_SPL_CONSOLE_PARK() hang()
+''' + (ROOT/'platform/embedded/nano/spl_console.inc').read_text()
+
 class NanoColdTests(unittest.TestCase):
+    def test_actual_contained_console_bounds_io_formatting_and_failure_without_callbacks(self):
+        fragment=(ROOT/'platform/embedded/nano/spl_console.inc').read_text()
+        prefix=r'''
+#include <assert.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+static unsigned mode,reads,writes,parked;
+static char wire[1024];
+static jmp_buf stopped;
+static uint32_t read_uart(uintptr_t address) {
+    assert(address==0x10c02114UL);reads++;
+    if(mode==2 || (mode==5 && reads<=3) || (mode==10 && writes==2))return 0;
+    if(mode==3)return 0xffffffffU;
+    return mode==4 ? 0x20U : 0x60U;
+}
+static void write_uart(uintptr_t address,uint32_t value) {
+    assert(address==0x10c02100UL && value<=255 && writes<sizeof(wire));wire[writes++]=(char)value;
+}
+static void park(void) {parked++;longjmp(stopped,1);}
+static int format_buffer(char *p,size_t size,const char *format,va_list args) {
+    if(mode==9)return -1;
+    return vsnprintf(p,size,format,args);
+}
+#define vsnprintf format_buffer
+#define FES_SPL_CONSOLE_READ(a) read_uart(a)
+#define FES_SPL_CONSOLE_WRITE(a,v) write_uart(a,v)
+#define FES_SPL_CONSOLE_PARK() park()
+'''
+        main=r'''
+int main(int argc,char **argv) {
+    assert(argc==2);mode=strtoul(argv[1],0,0);char large[385];memset(large,'A',384);large[384]=0;
+    if(!setjmp(stopped)) {
+        switch(mode) {
+        case 0:fes_nano_spl_cold_printf("%s:%llx:%u\n","C",0x123456789abcdef0ULL,17U);break;
+        case 1:fes_nano_spl_cold_puts("ok\n");break;
+        case 6:fes_nano_spl_cold_printf("%s",large);break;
+        case 7:fes_nano_spl_cold_puts(large);break;
+        case 8:fes_nano_spl_cold_puts(NULL);break;
+        case 10:fes_nano_spl_cold_puts("abcd");break;
+        case 11:fes_nano_spl_cold_puts("\200\n");break;
+        case 12:fes_nano_spl_cold_puts("");break;
+        case 13:fes_nano_spl_cold_printf("%s","");break;
+        case 14:fes_nano_spl_cold_printf(NULL);break;
+        default:fes_nano_spl_cold_printf("%u",7U);break;
+        }
+        assert(mode==0 || mode==1 || mode==5 || mode==11 || mode==12 || mode==13);
+        assert(!parked);
+    } else assert(mode==2 || mode==3 || mode==4 || (mode>=6 && mode<=10) || mode==14);
+    assert(parked<=1);
+    if(mode==0)assert(!strcmp(wire,"C:123456789abcdef0:17\r\n"));
+    if(mode==1)assert(!strcmp(wire,"ok\r\n"));
+    if(mode==2)assert(!writes && reads==100000);
+    if(mode==3)assert(!writes && reads==1);
+    if(mode==4)assert(writes==1 && reads==100001);
+    if(mode==5)assert(writes==1 && reads==5);
+    if(mode>=6 && mode<=9)assert(!writes && !reads);
+    if(mode==10)assert(writes==2 && reads==100002);
+    if(mode==11)assert(writes==3 && (unsigned char)wire[0]==0x80 && wire[1]=='\r' && wire[2]=='\n');
+    if(mode==12 || mode==13 || mode==14)assert(!writes && !reads);
+    puts("CONTAINED_CONSOLE_PASS");return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as temp:
+            source=Path(temp)/'console.c';binary=Path(temp)/'console'
+            source.write_text(prefix+fragment+main)
+            r=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',str(source),'-o',str(binary)],capture_output=True,text=True)
+            self.assertEqual(r.returncode,0,r.stderr)
+            for mode in range(15):
+                with self.subTest(mode=mode):
+                    r=subprocess.run([str(binary),str(mode)],capture_output=True,text=True)
+                    self.assertEqual(r.returncode,0,r.stderr)
+                    self.assertIn('CONTAINED_CONSOLE_PASS',r.stdout)
     def test_spl_atf_caller_preserves_order_and_full_width_arguments(self):
         sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
         try:import prepare_uboot
@@ -137,7 +225,7 @@ int main(int argc,char **argv) {
 }
 '''
         with tempfile.TemporaryDirectory() as temp:
-            base=Path(temp);test=base/'loaded.c';binary=base/'loaded';test.write_text(prefix+fragment+main)
+            base=Path(temp);test=base/'loaded.c';binary=base/'loaded';test.write_text(prefix+cold_console_fixture()+fragment+main)
             r=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all','-I'+str(FW),str(test),'-o',str(binary)],capture_output=True,text=True)
             self.assertEqual(r.returncode,0,r.stderr)
             for mode in list(range(19))+list(range(20,39)):
@@ -433,7 +521,7 @@ static int finish(struct fes_nano_cold *s,unsigned entry,struct fes_nano_cold_re
 }
 #define fes_nano_cold_finish finish
 static void hang(void) { longjmp(stopped,1); }
-''' + fragment + r'''
+''' + cold_console_fixture() + fragment + r'''
 int main(int argc,char **argv) {
     assert(argc==2);mode=strtoul(argv[1],0,0);if(mode==2)fit_verified=0;
     source.record.first.cause=4;source.record.first.power[2]=0x12345678;

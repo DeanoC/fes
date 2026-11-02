@@ -11,6 +11,10 @@
 #include "fes_nano_cold_profile.h"
 #include "fes_nano_fit_seal.h"
 #include "fes_nano_atf_seal.h"
+#define FES_SPL_CONSOLE_READ(a) readl((void *)(a))
+#define FES_SPL_CONSOLE_WRITE(a,v) writel((v),(void *)(a))
+#define FES_SPL_CONSOLE_PARK() asm volatile("wfe" ::: "memory")
+#include "fes_nano_spl_console.inc"
 #define FES_COLD_READ32(a) readl((void *)(a))
 #define FES_COLD_READ16(a) readw((void *)(a))
 #define FES_COLD_WRITE32(a,v) writel((v),(void *)(a))
@@ -58,7 +62,7 @@ void fes_nano_spl_atf_trace(uintptr_t target, uintptr_t bl32, uintptr_t bl33,
     uint8_t hash[32];sha256_context state;
     uint64_t sctlr,scr,daif;
     unsigned el;
-    puts("FES_NANO_SPL ATF_STEP phase=entry\n");
+    fes_nano_spl_cold_puts("FES_NANO_SPL ATF_STEP phase=entry\n");
     el=current_el();
     if (el!=3 || source.failed || source.finish_stage!=FES_COLD_FINISH_COMPLETE ||
         target!=0x80000000UL || bl32 || bl33!=0x80200000UL || fdt ||
@@ -66,39 +70,39 @@ void fes_nano_spl_atf_trace(uintptr_t target, uintptr_t bl32, uintptr_t bl33,
         params>CONFIG_SPL_BSS_START_ADDR+CONFIG_SPL_BSS_MAX_SIZE-64UL ||
         cold!=(uintptr_t)&fes_nano_spl_record ||
         FES_NANO_ATF_SIZE<16UL || FES_NANO_ATF_SIZE>(2UL<<20)) {
-        printf("FES_NANO_SPL REJECT atf arguments el=%u target=%llx bl32=%llx bl33=%llx fdt=%llx params=%llx cold=%llx failed=%u stage=%u\n",
+        fes_nano_spl_cold_printf("FES_NANO_SPL REJECT atf arguments el=%u target=%llx bl32=%llx bl33=%llx fdt=%llx params=%llx cold=%llx failed=%u stage=%u\n",
                el,(unsigned long long)target,(unsigned long long)bl32,(unsigned long long)bl33,
                (unsigned long long)fdt,(unsigned long long)params,(unsigned long long)cold,
-               source.failed,source.finish_stage);hang();
+               source.failed,source.finish_stage);fes_nano_spl_cold_stop();
     }
     asm volatile("mrs %0, sctlr_el3" : "=r"(sctlr));
     asm volatile("mrs %0, scr_el3" : "=r"(scr));
     asm volatile("mrs %0, daif" : "=r"(daif));
     if (sctlr&5U || daif!=0x3c0U ||
         ((read_mpidr()>>8)&0xff)!=fes_nano_spl_record.core) {
-        printf("FES_NANO_SPL REJECT atf CPU state sctlr=%llx scr=%llx daif=%llx mpidr=%llx core=%u\n",
+        fes_nano_spl_cold_printf("FES_NANO_SPL REJECT atf CPU state sctlr=%llx scr=%llx daif=%llx mpidr=%llx core=%u\n",
                (unsigned long long)sctlr,(unsigned long long)scr,(unsigned long long)daif,
-               (unsigned long long)read_mpidr(),fes_nano_spl_record.core);hang();
+               (unsigned long long)read_mpidr(),fes_nano_spl_record.core);fes_nano_spl_cold_stop();
     }
-    puts("FES_NANO_SPL ATF_STEP phase=hash-before\n");
+    fes_nano_spl_cold_puts("FES_NANO_SPL ATF_STEP phase=hash-before\n");
     sha256_starts(&state);
     sha256_update(&state,(const uint8_t *)0x80000000UL,FES_NANO_ATF_SIZE);
     sha256_finish(&state,hash);
-    puts("FES_NANO_SPL ATF_STEP phase=hash-after\n");
+    fes_nano_spl_cold_puts("FES_NANO_SPL ATF_STEP phase=hash-after\n");
     if (memcmp(hash,expected,32)) {
-        puts("FES_NANO_SPL REJECT loaded BL31 bytes actual=");
-        for (unsigned i=0;i<32;i++) printf("%02x",hash[i]);
-        puts(" expected=");
-        for (unsigned i=0;i<32;i++) printf("%02x",expected[i]);
-        puts("\n");hang();
+        fes_nano_spl_cold_puts("FES_NANO_SPL REJECT loaded BL31 bytes actual=");
+        for (unsigned i=0;i<32;i++) fes_nano_spl_cold_printf("%02x",hash[i]);
+        fes_nano_spl_cold_puts(" expected=");
+        for (unsigned i=0;i<32;i++) fes_nano_spl_cold_printf("%02x",expected[i]);
+        fes_nano_spl_cold_puts("\n");fes_nano_spl_cold_stop();
     }
-    printf("FES_NANO_SPL ATF target=%llx bl32=%llx bl33=%llx fdt=%llx params=%llx cold=%llx cookie=%llx el=%u mpidr=%llx sctlr=%llx scr=%llx daif=%llx bytes=%lu sha256=",
+    fes_nano_spl_cold_printf("FES_NANO_SPL ATF target=%llx bl32=%llx bl33=%llx fdt=%llx params=%llx cold=%llx cookie=%llx el=%u mpidr=%llx sctlr=%llx scr=%llx daif=%llx bytes=%lu sha256=",
            (unsigned long long)target,(unsigned long long)bl32,(unsigned long long)bl33,
            (unsigned long long)fdt,(unsigned long long)params,(unsigned long long)cold,
            (unsigned long long)FES_NANO_COLD_COOKIE,el,(unsigned long long)read_mpidr(),
            (unsigned long long)sctlr,(unsigned long long)scr,(unsigned long long)daif,FES_NANO_ATF_SIZE);
-    for (unsigned i=0;i<32;i++) printf("%02x",hash[i]);
-    puts("\n");
+    for (unsigned i=0;i<32;i++) fes_nano_spl_cold_printf("%02x",hash[i]);
+    fes_nano_spl_cold_puts("\n");
 }
 
 void fes_nano_spl_early(void)
@@ -129,7 +133,7 @@ static void fes_nano_spl_sample_report(const char *phase, const struct fes_nano_
     /* Saved observations only: do not retry reads or touch an SD block that
      * may already have been reset by the failed policy. A sample-stage failure
      * can leave the corresponding saved sample incomplete. */
-    printf("NANO_COLD_SAMPLE phase=%s cause=%08x per0=%08x bridge=%08x cpus=%08x release=%08x kind=%u power=%08x,%08x,%08x,%08x request=%08x status=%08x config=%08x\n",
+    fes_nano_spl_cold_printf("NANO_COLD_SAMPLE phase=%s cause=%08x per0=%08x bridge=%08x cpus=%08x release=%08x kind=%u power=%08x,%08x,%08x,%08x request=%08x status=%08x config=%08x\n",
            phase,v->cause,v->per0,v->bridge,v->cpus,v->release,v->boot_kind,
            v->power[0],v->power[1],v->power[2],v->power[3],v->pch_request,v->pch_status,v->boot_config);
 }
@@ -146,23 +150,23 @@ const void *fes_nano_spl_handoff(void)
         fes_nano_spl_sample_report("first",&source.record.first);
         fes_nano_spl_sample_report("before",&source.before);
         fes_nano_spl_sample_report("last",&source.record.last);
-        printf("NANO_COLD_SD mode=%08x before=%08x after=%08x clock_before=%08x clock_after=%08x reset_readback=%08x\n",
+        fes_nano_spl_cold_printf("NANO_COLD_SD mode=%08x before=%08x after=%08x clock_before=%08x clock_after=%08x reset_readback=%08x\n",
                source.record.sd_mode,source.record.sd_before,source.record.sd_after,
                source.sd_clock_before,source.record.sd_clock,source.reset_readback);
-        puts("NANO_COLD_ENTRY actual=");
-        for (unsigned i=0;i<32;i++) printf("%02x",hash[i]);
-        puts(" expected=");
-        for (unsigned i=0;i<32;i++) printf("%02x",expected[i]);
-        puts("\n");
-        printf("FES_NANO_SPL REJECT handoff el=%u fit=%u entry=%u cold_stage=%u\n",
+        fes_nano_spl_cold_puts("NANO_COLD_ENTRY actual=");
+        for (unsigned i=0;i<32;i++) fes_nano_spl_cold_printf("%02x",hash[i]);
+        fes_nano_spl_cold_puts(" expected=");
+        for (unsigned i=0;i<32;i++) fes_nano_spl_cold_printf("%02x",expected[i]);
+        fes_nano_spl_cold_puts("\n");
+        fes_nano_spl_cold_printf("FES_NANO_SPL REJECT handoff el=%u fit=%u entry=%u cold_stage=%u\n",
                el,fit_verified,entry_verified,source.finish_stage);
-        hang();
+        fes_nano_spl_cold_stop();
     }
-    printf("FES_NANO_SPL HANDOFF owner=%llx epoch=%llx per0=%08x bridge=%08x sd=%08x\n",
+    fes_nano_spl_cold_printf("FES_NANO_SPL HANDOFF owner=%llx epoch=%llx per0=%08x bridge=%08x sd=%08x\n",
            (unsigned long long)source.record.boot.owner,(unsigned long long)source.record.boot.epoch,
            source.record.last.per0,source.record.last.bridge,source.record.sd_after);
-    puts("FES_NANO_SPL BARRIER phase=before\n");
+    fes_nano_spl_cold_puts("FES_NANO_SPL BARRIER phase=before\n");
     asm volatile("dsb sy" ::: "memory");
-    puts("FES_NANO_SPL BARRIER phase=after\n");
+    fes_nano_spl_cold_puts("FES_NANO_SPL BARRIER phase=after\n");
     return &fes_nano_spl_record;
 }

@@ -106,6 +106,7 @@ def prepare(source, entry_build, bl31_sha256, bl31_size):
     if text.count('#include <stdint.h>')!=1:raise ValueError('shared integer type context changed')
     types.write_text(text.replace('#include <stdint.h>','#include <linux/types.h>'))
     shutil.copyfile(HERE/'spl_cold.c',soc/'fes_nano_spl.c')
+    shutil.copyfile(HERE/'spl_console.inc',soc/'fes_nano_spl_console.inc')
     (soc/'fes_nano_cold_profile.h').write_text(cold.header(chain))
     # The first compilation can produce the FIT but cannot boot it. The build
     # then seals that exact FIT into SPL and rebuilds only SPL, avoiding a hash cycle.

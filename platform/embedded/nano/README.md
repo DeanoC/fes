@@ -19,6 +19,15 @@ marker. The actual vendor UART calls the general scheduler after transmitting
 a newline; a bounded post-containment console path is the next candidate.
 The physical fault location and this recipe remain unqualified.
 
+The current console candidate routes post-containment handoff, barrier and ATF
+messages through `spl_console.inc`. It uses only the already configured UART1
+TX/status registers, with bounded polling, bounded formatting and transmitter
+drain. Timeout, invalid status or an oversized message parks without retry or
+callback fallback. The vendor console remains in the earlier startup path.
+The final barrier and all CPU/argument/digest checks remain in place. Host tests
+exercise the actual sink and joined handoff/guard; its matched hardware test is
+still pending.
+
 The U-Boot receipt's checked `atf_handoff` descriptor supplies `atf=...` to the
 serial/configuration decoder. Current file composition requires that descriptor
 and `spl_atf_trace=true`; the decoder requires its ordered observation and matches
