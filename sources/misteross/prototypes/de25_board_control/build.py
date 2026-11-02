@@ -209,7 +209,7 @@ def overlay_project(output, board, sources, identity, record=None):
         lines.insert(ends[0], 'add_connection subsys_periph.fes_embedded_mem subsys_hps.f2sdram_adapter_axi4_sub\n'
                      'set_connection_parameter_value subsys_periph.fes_embedded_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n'
                      '# Hold every maintenance master, including the coherent HPS path.\n'
-                     'remove_connection rst_in.out_reset subsys_debug.reset\n'
+                     'remove_connection rst_in.out_reset/subsys_debug.reset\n'
                      'add_connection subsys_periph.fes_maintenance_reset subsys_debug.reset\n')
         script = ''.join(lines)
     integration.write_text(script)
