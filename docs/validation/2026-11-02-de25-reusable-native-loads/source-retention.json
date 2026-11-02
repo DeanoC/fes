@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "source_commit": "6a600b94c8679a5ade45ad4320b56df79a54ee1a",
+  "source_bundle": "/home/deano/fes-retained/de25-native-repeat-load-20261102/source.bundle",
+  "source_bundle_sha256": "ff70bfeb9fc8c479835ef77aadce473f38a51d462a35a459ff45e9b200991a5d",
+  "source_bundle_bytes": 265319667,
+  "prerequisites": [],
+  "independent_restore": "/home/deano/fes-retained/de25-native-repeat-load-20261102/source-restore.git",
+  "restore_head": "6a600b94c8679a5ade45ad4320b56df79a54ee1a",
+  "alternates": false,
+  "full_fsck": true
+}
