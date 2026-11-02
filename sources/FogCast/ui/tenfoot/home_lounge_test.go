@@ -484,6 +484,28 @@ func TestHomeHeroFitsLongTitlesAboveTheButtons(t *testing.T) {
 	}
 }
 
+func TestHomeFamilyHeroFitsAtSafe720pSize(t *testing.T) {
+	layout, ok := rooms.HeroPanel(1152, 648)
+	if !ok {
+		t.Fatal("1152x648 safe area has no hero")
+	}
+	d := rooms.Destination{
+		Kind: rooms.KindFamily, Label: "Sinclair ZX Spectrum 128K +2A Expanded Edition With A Long Name",
+		RoomID: "example.system", CoreID: "fes.spectrum", GameID: "spectrum",
+		Availability: rooms.AvailReady, Status: "4 games", Models: "48K, 128K, +3, Pentagon 128",
+		Kicker: "Computers", Action: "Open the selected model's workbench.",
+	}
+	c := heroDestinationCopy(Snapshot{Room: RoomSnapshot{Open: true, Hero: true, Destination: d}})
+	avail := heroTextBudget(c, layout.Text.H)
+	plan := planHero(c, layout.Text.W, avail)
+	if c.Kicker != "Computers" || plan.statusGap != 6 {
+		t.Fatalf("family kicker/gap = %q/%d, want Computers/6", c.Kicker, plan.statusGap)
+	}
+	if used := usedHeroPlan(c, plan); used > avail {
+		t.Fatalf("family hero uses %d px over its %d px budget: plan=%+v", used, avail, plan)
+	}
+}
+
 func TestHomeHeroDetailsOmitAPackageForAnOmittedCore(t *testing.T) {
 	omitted := rooms.Destination{
 		Kind: rooms.KindCore, Label: "Atari ST",
@@ -561,10 +583,7 @@ func TestHomeHeroDetailsKeepTheBlockOnACompactScreen(t *testing.T) {
 }
 
 func usedHeroPlan(c heroCopy, plan heroPlan) int {
-	h := 12
-	if c.Kicker == "Computer" {
-		h = 6
-	}
+	h := plan.statusGap
 	if c.Meta != "" {
 		h += gfx.TextHeight(heroMetaPx)
 	}
