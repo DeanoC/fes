@@ -628,7 +628,10 @@ both secure response boundaries and the matching native result under the
 same cold owner/generation. It observes 164 Agilex 5 registers and excludes
 the generic handoff entries omitted by the pinned vendor code. It performs
 no FPGA load or device opening and does not qualify general boot admission,
-clocks or RAM. Physical acceptance of this new observation is pending.
+clocks or RAM. The [bounded TRWU8CBL test](../../../docs/validation/2026-11-02-de25-hps-io/README.md)
+passes both live samples in 6.7 seconds, with all bridges held and no core
+configuration. Its source and hardware evidence remain separate from general
+boot qualification and normal runtime package admission.
 
 `hps_context.py` derives a canonical descriptor from a verified sealed
 HPS-first project. It names the package, build inputs, unchanged core, HPS

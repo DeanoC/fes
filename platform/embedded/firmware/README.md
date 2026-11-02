@@ -16,7 +16,9 @@ entries too. No request supplies an address or value. A mismatch or scope loss
 retires the observation and returns no successful digest. Its two-part result
 is separate from source context and grants no bridge opening or runtime
 admission. Off-board tests cover every read position and the actual strong
-provider/dispatcher; this candidate has no physical I/O observation yet.
+provider/dispatcher. The [bounded top-kit test](../../../docs/validation/2026-11-02-de25-hps-io/README.md)
+passes both exact live samples under unchanged closed ownership. This qualifies
+the fixed pinmux observation and grants no general boot or runtime admission.
 
 The matched native SPL now verifies the loaded BL31 bytes and records the exact
 branch target, argument pointers and CPU control registers after cold containment.
