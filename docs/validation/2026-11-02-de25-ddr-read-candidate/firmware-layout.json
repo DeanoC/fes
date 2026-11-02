@@ -1,0 +1,34 @@
+{
+  "classification": "offline ELF layout comparison; no startup root cause established",
+  "dtb_base": 2147614720,
+  "layouts": {
+    "prior-contained": {
+      "bin_bytes": 81981,
+      "bin_sha256": "a9f96ef8a210f6f56403d5ead2944fc304e821ff673b383f7c0702732b232240",
+      "elf_sha256": "12218775463cbda257c65de77b1cd778cf30c36426ad9d2e330fbff4d4f0c38c",
+      "load_segments": [
+        {
+          "begin": 2147483648,
+          "end": 2147609408,
+          "file_bytes": 81981,
+          "memory_bytes": 125760,
+          "flags": 7
+        }
+      ]
+    },
+    "bounded-ddr-candidate": {
+      "bin_bytes": 86077,
+      "bin_sha256": "82d998884266005fc19fcaae83bf946f5f1c6d1be6a2940c95f76f6ff5828787",
+      "elf_sha256": "e68e65b90c168c0d0e440ac5dd901d7381af31e8c1347f9968f7939a2ebdf72a",
+      "load_segments": [
+        {
+          "begin": 2147483648,
+          "end": 2147613696,
+          "file_bytes": 86077,
+          "memory_bytes": 130048,
+          "flags": 7
+        }
+      ]
+    }
+  }
+}

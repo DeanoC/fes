@@ -48,6 +48,12 @@ reboot. The trace decoder checks the paired accesses, both fresh gates and the
 actual closure receipt. This candidate has software/RTL coverage; its active
 DDR hardware test remains pending. Normal runtime admission stays unavailable.
 
+The [bounded read candidate](../../../docs/validation/2026-11-02-de25-ddr-read-candidate/README.md)
+passes the complete software/RTL checks and matched cross-build. Its first
+TRWU8CBL attempt verifies both network uploads, then stops after the SPL handoff
+before secure startup or native execution. No DDR read/drain was reached;
+startup and subsequent JTAG discovery need investigation.
+
 The [native Go hardware diagnostic](../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
 now passes the actual secure provider, both loader ownership snapshots and
 EL2/EL1 entry on TRWU8CBL, ending in the TamaGo Go probe. Timer, goroutine,

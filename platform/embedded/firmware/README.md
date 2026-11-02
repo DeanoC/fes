@@ -37,6 +37,9 @@ Failure recovery asserts control reset only and retains the DDR reservation
 until reboot. The RTL fixture executes the actual controller and endpoints;
 the strong-provider fixture injects ownership, register and memory failures.
 These are software diagnostics until the matched bounded board trial passes.
+The [first bounded candidate trial](../../../docs/validation/2026-11-02-de25-ddr-read-candidate/README.md)
+stops after SPL handoff before secure startup, so physical read/drain remains
+unqualified despite the passing software checks.
 
 The [contained large-block TRWU8CBL trial](../../../docs/validation/2026-11-02-de25-large-blocks/README.md)
 now completes the exact sealed 2,027,520-byte phase-two image through native
