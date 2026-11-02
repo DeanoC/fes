@@ -1,0 +1,91 @@
+{
+  "format": 1,
+  "source_head": "45f32d5d3127b76d81c1947a7cd26495b33e6290",
+  "classification": "software/model and actual source builds; no physical trial or runtime admission",
+  "files": {
+    "README.md": {
+      "size": 5314,
+      "sha256": "4364319f57057e2d4f2b073526682b390a1f42aa1abecd69dd2ccc2e6c3a018c"
+    },
+    "boot-cross.json": {
+      "size": 316,
+      "sha256": "17331ddeea2f7b37f5ba2f56d1d280e1874ff6fbb4cd9c54b90a837a66f63a53"
+    },
+    "ddr-enabled-compile.json": {
+      "size": 10033,
+      "sha256": "fd8df8e630ade0e2c1c4c84aab3cafaa438cce23cdf99cadb6cc16938f7d4d11"
+    },
+    "generated-inventory.json": {
+      "size": 5076,
+      "sha256": "516c86f25f213d5541afa332e3dc8ba1c0e62ded5df7be9c397a4034ff91c3c6"
+    },
+    "make-check-result.json": {
+      "size": 202,
+      "sha256": "fec16512840680eb099b57666e880afc66e745864e58c6226cc25840f3772785"
+    },
+    "make-check.log": {
+      "size": 137,
+      "sha256": "e9d8989316f5311365a429c5c6221f9e058490da8f0fb7a5a1e219c90aee6aaa"
+    },
+    "master-rtl.json": {
+      "size": 5628,
+      "sha256": "ae7324c8a82ca4c9df7ae516994f7e40493b3a658beb8caabc79575506b3d609"
+    },
+    "serial-builds.json": {
+      "size": 7493,
+      "sha256": "a764e5ad79a2632e3dec54bebb5e2f34896d9f60724c3239dd76ffc8e95623d4"
+    },
+    "software-00.log": {
+      "size": 4605,
+      "sha256": "2c7b575677723ac3efb3c0a934fd3149804e33e12c5ef136d926371c759f0f1e"
+    },
+    "software-01.log": {
+      "size": 5823,
+      "sha256": "4b4b231b1dc30a5c147e538c767c086548402b1cbaf898975863444f0d7ceb7e"
+    },
+    "software-02.log": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-03.log": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "software-04.log": {
+      "size": 347007,
+      "sha256": "8890814ea46be5e9a6d1976e0a59159a7ef4e6d4608179203448baefb9b5eb5b"
+    },
+    "software-05.log": {
+      "size": 70,
+      "sha256": "a27a95cb58aa34d9c8e98e59f0255fc7fe461ff37727a511ae8796a8303622c9"
+    },
+    "software-06.log": {
+      "size": 104,
+      "sha256": "92c0066f5d77647bd0b547e92fa5bfd7887025081b181b7f6483db67839c7d76"
+    },
+    "software-07.log": {
+      "size": 104,
+      "sha256": "14bd0e68f0281b94c91bbd1c110792dacba25c8c5e354d79b1cb9f211b07bee5"
+    },
+    "software-08.log": {
+      "size": 101,
+      "sha256": "2de35fd0867ab76e2d0936973142aadca36592a1fad5fa277a98c20466347a28"
+    },
+    "software-09.log": {
+      "size": 241658,
+      "sha256": "4f1318c3a0bed75227e6147435a566844f00109c3da7849e0c9e13ccb38db8f2"
+    },
+    "software-plan.json": {
+      "size": 8596,
+      "sha256": "50d6a0b176cd2b08ee3b6d19fb091addd5e92eb252ed8c5f416ba232a8bc5667"
+    },
+    "software-result.json": {
+      "size": 7875,
+      "sha256": "7a65064888a7e34b5a26589423af7cb967c87fe9de8df2859877e75cac9263d9"
+    },
+    "software-run-result.json": {
+      "size": 249,
+      "sha256": "35d4423c5bd80a29b0a1d49c9a238664d2e9071683d47d854bfefdb1aefec9fe"
+    }
+  }
+}
