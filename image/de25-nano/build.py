@@ -180,6 +180,7 @@ def ensure_builder(source, runtime, volume):
 
 def container(source, runtime, image, volume, cache, output, action, jobs, inputs=None):
     mounts = [] if inputs is None else ["--volume", f"{inputs}:/inputs:ro"]
+    exported = f"{output}:/export" + (":ro" if action == 'factory-verify' else "")
     return run([runtime, "run", "--rm", "--platform", "linux/amd64",
                 "--network", "bridge" if action in ("fetch", "base-fetch", "factory-fetch") else "none",
                 "--user", f"{os.getuid()}:{os.getgid()}", "--ulimit", "core=0:0",
@@ -187,7 +188,7 @@ def container(source, runtime, image, volume, cache, output, action, jobs, input
                 # startup; container hosts may otherwise expose a billion.
                 "--ulimit", "nofile=65536:65536",
                 "--volume", f"{source}:/src:ro", "--volume", f"{volume}:/build",
-                "--volume", f"{cache}:/cache", "--volume", f"{output}:/export",
+                "--volume", f"{cache}:/cache", "--volume", exported,
                 *mounts,
                 "--env", "LC_ALL=C", "--env", "TZ=UTC", image,
                 "python3", "/src/image/de25-nano/build.py", "_inside", action, str(jobs)])

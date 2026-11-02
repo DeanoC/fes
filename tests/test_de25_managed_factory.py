@@ -177,7 +177,38 @@ class ManagedFactoryTests(unittest.TestCase):
                                  'bridge' if action == 'factory-fetch' else 'none')
                 self.assertIn('/frozen:/src:ro', command)
                 self.assertIn('/inputs:/inputs:ro', command)
+                self.assertIn('/output:/export' + (':ro' if action == 'factory-verify' else ''), command)
                 self.assertNotIn('--privileged', command)
+
+    def test_verification_preflight_writes_only_the_external_cache(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); output = root / 'factory'; output.mkdir()
+            receipt = output / 'factory.json'; receipt.write_bytes(b'unqualified fixture')
+            before = (receipt.read_bytes(), receipt.stat().st_ino, receipt.stat().st_mtime_ns)
+            args = SimpleNamespace(action='verify-factory', output=output, cache=root/'cache',
+                                   kernel=None, sdk=None, artifacts=None, container_runtime='docker', jobs=2)
+            def preflight(artifacts, fogcast, cache):
+                self.assertEqual(artifacts, output/'artifacts')
+                self.assertEqual(cache, args.cache/'package-preflight')
+                cache.mkdir(); (cache/'fixture-cache').write_bytes(b'cache work')
+            with mock.patch.object(FACTORY, 'verify_receipt'), \
+                    mock.patch.object(FACTORY.image, 'snapshot', return_value=('a'*40, root/'source')), \
+                    mock.patch.object(FACTORY.shutil, 'disk_usage', return_value=SimpleNamespace(free=40*1024**3)), \
+                    mock.patch.object(FACTORY.image, 'run'), \
+                    mock.patch.object(FACTORY.image_artifacts, 'stage'), \
+                    mock.patch.object(FACTORY, 'prepare_packages', side_effect=preflight), \
+                    mock.patch.object(FACTORY.image, 'ensure_builder', return_value=FACTORY.base.sdk_lock()['builder_image']), \
+                    mock.patch.object(FACTORY.image, 'container') as container:
+                FACTORY.publish(args)
+            self.assertEqual([p.name for p in output.iterdir()], ['factory.json'])
+            self.assertEqual(before, (receipt.read_bytes(), receipt.stat().st_ino, receipt.stat().st_mtime_ns))
+            self.assertEqual(container.call_args.args[-2], 'factory-verify')
+            for cache in (output, output/'cache', root):
+                args.cache = cache
+                with mock.patch.object(FACTORY, 'verify_receipt'), mock.patch.object(FACTORY.image, 'snapshot') as snapshot:
+                    with self.assertRaisesRegex(ValueError, 'cache overlaps'):
+                        FACTORY.publish(args)
+                    snapshot.assert_not_called()
 
 
 if __name__ == '__main__':

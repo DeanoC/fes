@@ -294,6 +294,8 @@ def publish(args):
         if args.output.exists() or args.output.is_symlink():
             raise ValueError('factory output already exists; choose a new directory')
     output, cache = args.output.resolve(), args.cache.resolve()
+    if output == cache or output in cache.parents or cache in output.parents:
+        raise ValueError('factory cache overlaps the selected output')
     for path in (args.kernel, args.sdk, args.artifacts):
         if path is not None and (output == path.resolve() or output in path.resolve().parents or path.resolve() in output.parents):
             raise ValueError('factory output overlaps an input')
@@ -316,7 +318,8 @@ def publish(args):
         if not verify:
             (output / LOCK).write_text(runtime_lock(output / 'artifacts'))
         # The real selector must admit the package before any OS or compiler build.
-        prepare_packages(output / 'artifacts', fogcast, output / 'package-preflight')
+        preflight = cache / 'package-preflight' if verify else output / 'package-preflight'
+        prepare_packages(output / 'artifacts', fogcast, preflight)
         # Immutable output generations share one serialized compiler/base cache.
         # The key inside the volume still separates recipe, SDK and kernel policy.
         volume = 'fes-de25-factory-' + hashlib.sha256((str(ROOT) + '\0' + str(cache)).encode()).hexdigest()[:16]
