@@ -264,6 +264,30 @@ class FakeRunner:
 
 
 class HardDeadlineTest(unittest.TestCase):
+    def test_result_queued_after_select_timeout_is_read_after_child_exit(self):
+        child = {}
+        real_fork = os.fork
+
+        def fork():
+            pid = real_fork()
+            if pid:
+                child['pid'] = pid
+            return pid
+
+        def empty_select_after_child_exit(_read, _write, _error, _timeout):
+            deadline = time.monotonic() + 1.0
+            while time.monotonic() < deadline:
+                exited = os.waitid(os.P_PID, child['pid'], os.WEXITED | os.WNOHANG | os.WNOWAIT)
+                if exited is not None:
+                    return [], [], []
+                time.sleep(0.001)
+            self.fail('observer child did not exit')
+
+        with mock.patch.object(app.os, 'fork', side_effect=fork), \
+             mock.patch.object(app.select, 'select', side_effect=empty_select_after_child_exit):
+            result = app._hard_deadline_observation(lambda _deadline: {'owner': 'owner'})
+        self.assertEqual(result, {'owner': 'owner'})
+
     def test_real_slow_trickle_is_killed_and_reaped(self):
         import http.server
         import threading

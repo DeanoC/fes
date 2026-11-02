@@ -96,6 +96,16 @@ The game runs in quiet mode and the floppy is read-only, so the diagnostic does
 not establish audio, disk writes or score persistence. Neither diagnostic is
 whole-board timing qualification or a claim of general XT compatibility.
 
+Each active-session guard now runs its read-only observer in a forked child with
+a hard five-second deadline, including the synchronous `/api/v1/health` request
+to the target. This behavior applies to both the COM and Digger diagnostics. A
+temporarily absent or blank `selected` bundle value causes a fresh guard
+observation to retry until the expected bundle appears or the deadline expires;
+the active bundle and base identity are still checked on each pass, and a
+nonempty wrong selection fails immediately. The Digger guard can fork while
+its video recorder thread is active, so Python may emit a `DeprecationWarning`
+about forking a multithreaded process.
+
 ## Writable floppy persistence diagnostic
 
 `scripts/pcxt_floppy_persistence_acceptance.py` checks a writable disk in two

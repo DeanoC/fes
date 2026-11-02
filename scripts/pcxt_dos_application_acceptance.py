@@ -621,6 +621,15 @@ def _kill_and_reap_observer(pid, *, timeout=2.0):
         time.sleep(min(0.01, remaining))
 
 
+def _decode_observer_result(raw):
+    if not raw or len(raw) > 8192:
+        raise pa.AcceptanceError('observer returned no valid result')
+    try:
+        return json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
+        raise pa.AcceptanceError('observer returned invalid result') from None
+
+
 def _hard_deadline_observation(observe, seconds=5.0):
     """Reap our read-only observer before accepting its result or returning."""
     deadline = time.monotonic() + seconds
@@ -664,16 +673,20 @@ def _hard_deadline_observation(observe, seconds=5.0):
             if result is None:
                 readable, _, _ = select.select([parent], [], [], min(remaining, 0.05))
                 if readable:
-                    raw = parent.recv(8193)
-                    if not raw or len(raw) > 8192:
-                        raise pa.AcceptanceError('observer returned no valid result')
-                    try:
-                        result = json.loads(raw)
-                    except (ValueError, UnicodeDecodeError):
-                        raise pa.AcceptanceError('observer returned invalid result') from None
+                    result = _decode_observer_result(parent.recv(8193))
             done, status = os.waitpid(pid, os.WNOHANG)
             if done:
                 reaped = True
+                if result is None:
+                    # The child can send its packet just after select times out
+                    # and exit before waitpid runs. Its packet remains queued
+                    # after close, so drain it once without blocking.
+                    try:
+                        raw = parent.recv(8193, socket.MSG_DONTWAIT)
+                    except BlockingIOError:
+                        raw = None
+                    if raw:
+                        result = _decode_observer_result(raw)
                 if time.monotonic() >= deadline:
                     raise pa.AcceptanceError('selected software observation exceeded hard phase deadline')
                 if status != 0 or not isinstance(result, dict) or result.get('ok') not in (True, False):
