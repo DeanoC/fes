@@ -106,7 +106,7 @@ module pcxt_fdc_card_rw (
     // presents an index for one clock before consuming its corresponding byte.
     always @(posedge clk) media_write_data <= write_buffer[media_write_index];
     assign media_write_busy = write_pending || state == WRITE_DATA || state == WRITE_COMMIT ||
-                              (state == WAIT_MOTOR && writing_command);
+                              (state == WAIT_MOTOR && writing_command && !media_frozen);
     wire motor_on = dor[2] && dor[4] && dor[1:0] == 2'b00;
     wire motor_ready = motor_on && motor_ticks == SPIN_TICKS;
     assign media_read_valid = fetch_pending;
@@ -300,7 +300,7 @@ module pcxt_fdc_card_rw (
                 if (lost_ready || !motor_on || !media_present)
                     result7(8'h48 | {5'b0, read_head[0], 2'b00}, 8'h04, 0,
                             read_cylinder, read_head, read_sector, 8'd2);
-                else if (motor_ready) begin
+                else if (motor_ready && !(writing_command && media_frozen)) begin
                     state <= writing_command ? WRITE_DATA : READ_DATA; byte_ticks <= BYTE_TICKS;
                 end
             end
@@ -383,7 +383,7 @@ module pcxt_fdc_card_rw (
                         8'h04: begin // Sense Drive Status: drive 0, two-sided, TRK0, READY, WP
                             result1((wdata & 8'h07) |
                                     ((wdata[1:0] == 0 && dor[1:0] == 0) ?
-                                     (8'h08 | (!media_writable || media_frozen ? 8'h40 : 8'h00) |
+                                     (8'h08 | (!media_writable ? 8'h40 : 8'h00) |
                                       (cylinder == 0 ? 8'h10 : 8'h00) |
                                       (motor_ready && media_present ? 8'h20 : 8'h00)) : 8'h00));
                         end
@@ -416,7 +416,7 @@ module pcxt_fdc_card_rw (
                         8'h05, 8'h06: begin
                             read_cylinder <= params[1]; read_head <= params[2];
                             read_sector <= params[3]; read_eot <= params[5]; read_mt <= command[7];
-                            if ((command & 8'h1f) == 8'h05 && (!media_writable || media_frozen))
+                            if ((command & 8'h1f) == 8'h05 && !media_writable)
                                 result7((media_present && motor_on && params[0][1:0] == 0 ? 8'h40 : 8'h48) |
                                         (params[0] & 8'h07),
                                         media_present && motor_on && params[0][1:0] == 0 ? 8'h02 : 8'h04, 0,

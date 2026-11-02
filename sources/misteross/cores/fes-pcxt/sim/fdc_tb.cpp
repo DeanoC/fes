@@ -384,9 +384,25 @@ int main(int argc,char **argv) {
 
     b.write_cmd(0,0,10);b.wait_irq(1000);r=b.result(7);
     b.check((r[0]&0x40) && r[1]==4 && !b.d.media_write_valid,"invalid sector accepted");
-    b.d.media_frozen=1;b.write_cmd(0,0,1);b.wait_irq(1000);r=b.result(7);
-    b.check((r[0]&0x40) && r[1]==2 && !b.d.media_write_valid,"freeze did not fence new write");
+    b.d.media_frozen=1;
+    b.send({0x04,0});r=b.result(1);
+    b.check(!(r[0]&0x40),"snapshot freeze reported write-protected media");
+    b.write_cmd(0,0,1);
+    for(unsigned i=0;i<1000;++i) {
+        b.tick();
+        b.check(!b.d.media_write_busy,"frozen waiting write blocked snapshot");
+        b.check(!(b.d.drq&2) && !(b.d.irq&0x40),"frozen write did not wait for unfreeze");
+    }
+    b.check(b.in(0x3f4)==0x10,"frozen write command did not remain pending");
     b.d.media_frozen=0;
+    b.tick();
+    b.check(b.d.media_write_busy && !(b.d.drq&2),
+            "resumed write did not become busy before its first byte");
+    b.write_bytes(0x7100,512);b.check_write(0,0x7100);
+    b.d.media_write_ready=1;b.tick();b.d.media_write_ready=0;
+    b.wait_irq(1000);r=b.result(7);
+    b.check(r==std::vector<uint8_t>({0,0,0,0,0,2,2}),
+            "frozen waiting write did not resume after snapshot");
 
     // Once accepted by the backend, a warm reset may reset the controller,
     // but must not withdraw its sector or allow a replacement over it.

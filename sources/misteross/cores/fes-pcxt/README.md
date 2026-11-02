@@ -54,9 +54,11 @@ do not reset the running guest. A cold reset invalidates the image. Guest
 floppy reads and sector writes use the SDRAM media path; there is no disk ROM
 in the FPGA. The DOS profile declares `fes.media.pcxt-floppy-write` in
 addition to the base media interface. Guest writes stage a complete sector
-before it drains to SDRAM, and frozen snapshots wait for that drain. Bound
-library disks can be saved and restored by the runtime; unbound raw inserts
-are volatile. A power loss can discard changes made since the last save.
+before it drains to SDRAM. A snapshot freeze holds an accepted write before its
+first byte without reporting the media busy; a write already collecting or
+staged must drain before the snapshot proceeds. Bound library disks can be
+saved and restored by the runtime; unbound raw inserts are volatile. A power
+loss can discard changes made since the last save.
 The FreeDOS fixture uses kernel 2043 and FreeCOM 0.86a; see
 [`firmware/THIRD-PARTY-NOTICES.md`](firmware/THIRD-PARTY-NOTICES.md) and
 [`sim/freedos.lock`](sim/freedos.lock). The writable-media changes require
