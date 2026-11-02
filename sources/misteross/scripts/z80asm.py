@@ -142,9 +142,7 @@ class Assembler:
         prefix = 0xdd if m.group(1).lower() == 'ix' else 0xfd
         disp = 0
         if m.group(2):
-            disp = self.value(m.group(3))
-            if m.group(2) == '-':
-                disp = -disp
+            disp = self.value(m.group(2) + m.group(3))   # the sign is the first term's
         if self.final_pass and not -128 <= disp <= 127:
             raise AsmError('index displacement out of range')
         return prefix, disp & 0xff
@@ -202,7 +200,9 @@ class Assembler:
             return [0xed, {0: 0x46, 1: 0x56, 2: 0x5e}[self.value(ops[0])]]
         if m == 'rst':
             v = self.value(ops[0])
-            return [0xc7 | v]
+            if self.final_pass and v not in range(0, 0x40, 8):
+                raise AsmError(f'rst needs 0x00 to 0x38 in steps of 8: {ops[0]}')
+            return [0xc7 | v & 0x38]
         if m == 'ex':
             pair = tuple(lows)
             table = {('de', 'hl'): [0xeb], ('af', "af'"): [0x08], ('(sp)', 'hl'): [0xe3],
@@ -230,6 +230,9 @@ class Assembler:
                 operand, base = ops[0], ROT[m] << 3
             else:
                 bit = self.value(ops[0])
+                if self.final_pass and not 0 <= bit <= 7:
+                    raise AsmError(f'bit number out of range: {ops[0]}')
+                bit &= 7
                 operand = ops[1]
                 base = {'bit': 0x40, 'res': 0x80, 'set': 0xc0}[m] | bit << 3
             pre, code, disp = self.r8(operand)
@@ -239,10 +242,14 @@ class Assembler:
         if m == 'in':
             if lows[1] == '(c)':
                 return [0xed, 0x40 | R8[lows[0]] << 3]
+            if lows[0] != 'a':
+                raise AsmError('in r,(n) needs A')
             return [0xdb, self.byte(self.memory(ops[1]))]
         if m == 'out':
             if lows[0] == '(c)':
                 return [0xed, 0x41 | R8[lows[1]] << 3]
+            if lows[1] != 'a':
+                raise AsmError('out (n),r needs A')
             return [0xd3, self.byte(self.memory(ops[0]))]
         if m == 'ld':
             return self.load(ops, lows)
@@ -261,6 +268,8 @@ class Assembler:
         if m == 'djnz':
             return [0x10, self.relative(ops[0], 2)]
         if m == 'jr':
+            if len(ops) == 2 and lows[0] not in ('nz', 'z', 'nc', 'c'):
+                raise AsmError(f'jr cannot test {ops[0]}')
             target = ops[-1]
             if self.where not in self.long_jumps:
                 offset = self.value(target) - (self.pc + 2)

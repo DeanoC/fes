@@ -6,6 +6,8 @@ TXT_OFF  equ AE_OFF
 TXT_LEN  equ AE_DIMS
 
 edit_main:
+        bit 6,(iy+Y_CDFLAG)     ; SLOW asked for: frames on again (an error
+        call nz,slow            ; during line entry leaves them off)
         call edit_reset
         call edit_line
         res OF_REPORT,(iy+Y_OFLAGS)
@@ -20,12 +22,8 @@ edit_main:
         call tokenize
         call cls
         jr run_direct
-.prog:  ld a,(CDFLAG)            ; program lines move the display file:
-        push af                 ; no frames meanwhile
-        call fast
-        call enter_line
-        pop af
-        call tape_mode
+.prog:  call fast               ; program lines move the display file:
+        call enter_line         ; no frames meanwhile
 .empty: call auto_list
         jr edit_main
 
@@ -366,8 +364,7 @@ enter_line:
         sbc hl,de
         inc hl
         ld (TXT_LEN),hl
-        ld bc,(E_PPC)
-        call find_line
+        call find_e_ppc
         jr nz,.noold
         push hl
         call next_line
@@ -380,8 +377,7 @@ enter_line:
         call reclaim
 .noold: pop af
         ret z
-        ld bc,(E_PPC)
-        call find_line
+        call find_e_ppc
         ld bc,(TXT_LEN)
         inc bc
         inc bc
@@ -433,8 +429,7 @@ auto_list:
 
 ; EDIT: bring the current line down, cursor after its number.
 edit_copy:
-        ld bc,(E_PPC)
-        call find_line
+        call find_e_ppc
         ret nz
         push hl
         call edit_reset
@@ -469,14 +464,9 @@ edit_copy:
         dec bc
         cp C_NUMBER
         jr nz,.app
-        ld de,5
-        add hl,de
-        dec bc
-        dec bc
-        dec bc
-        dec bc
-        dec bc
-        jr .t
+        call skip_num
+        jr nc,.t
+        ld a,C_QUERY            ; a stray marker: "?", as the tokenizer makes it
 .app:   push hl
         push bc
         call edit_append

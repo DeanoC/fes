@@ -4,6 +4,7 @@
 //
 //   Vzx81_machine geometry [N]       frame timing and the ink box (any ROM)
 //   Vzx81_machine check              boot, type and run BASIC, SAVE, LOAD
+//                                    (PAL, or NTSC on the TS1000 build)
 //   Vzx81_machine load TAPE.p        LOAD a tape and print its listing
 //   Vzx81_machine shot OUT.pgm KEYS [FRAMES]  type KEYS, wait, save the picture
 #include "Vzx81_machine.h"
@@ -36,6 +37,7 @@ struct Machine {
     uint64_t ticks = 0;
     unsigned frames = 0;
     bool old_vsync = false;
+    bool acknowledge_keys = false;  // type() waits for the editor to take each key
 
     void tick() {
         if (!tape.empty())
@@ -150,7 +152,9 @@ std::pair<int, int> key(const std::string &name) {
     fail("no key " + name);
 }
 
+// NEWLINE is never acknowledged: a program it starts may not read keys.
 void type(Machine &m, const std::string &script, bool acknowledge = false) {
+    acknowledge |= m.acknowledge_keys;
     size_t i = 0;
     while (i < script.size()) {
         size_t j = script.find(' ', i);
@@ -161,7 +165,7 @@ void type(Machine &m, const std::string &script, bool acknowledge = false) {
         if (word.rfind("SHIFT+", 0) == 0)
             m.press({key("SHIFT"), key(word.substr(6))}, acknowledge);
         else
-            m.press({key(word)}, acknowledge);
+            m.press({key(word)}, acknowledge && word != "NL");
         if (word == "NL")
             m.run_frames(50);   // the line is stored or run before the next key
     }
@@ -224,6 +228,14 @@ void observe_fast_slow_modes(Machine &m) {
     }
     require(saw_slow_request && saw_fast_request,
             "FAST/SLOW loop did not toggle the saved CDFLAG request");
+}
+
+std::string row_text(Machine &m, int row);
+
+// Run until display row ROW reads TEXT (a SLOW program may still be busy).
+bool wait_for_row(Machine &m, int row, const std::string &text, unsigned frames = 1500) {
+    for (unsigned i = 0; i < frames && row_text(m, row) != text; i += 10) m.run_frames(10);
+    return row_text(m, row) == text;
 }
 
 // ZX81 character codes of a display row, from the display file.
@@ -375,15 +387,23 @@ int main(int argc, char **argv) {
     require(mode == "check", "usage: geometry | check | load TAPE.p | shot OUT.pgm KEYS");
 
     // Boot: the same frame and picture position as the Sinclair ROM on this
-    // core (310 lines, the K cursor's cell at lines 243-250, pixels 36-43).
+    // core. PAL: 310 lines, the K cursor's cell at lines 243-250, pixels
+    // 36-43. NTSC (the TS1000 build, 2 KiB): 262 lines, the cell at 219-226.
     const uint16_t ramtop = m.word(0x4004);
-    std::cout << "RAMTOP=" << std::hex << ramtop << std::dec << '\n';
-    require(ramtop == 0x4400 || ramtop == 0x8000, "RAMTOP is not the top of 1 or 16 KiB");
+    const bool ntsc = m.peek(0x4028) == 31;    // MARGIN, from the 50/60 Hz link
+    std::cout << "RAMTOP=" << std::hex << ramtop << std::dec << (ntsc ? " NTSC" : " PAL") << '\n';
+    require(ramtop == (ntsc ? 0x4800 : 0x4400) || ramtop == 0x8000,
+            "RAMTOP is not the top of 1 KiB (2 KiB on the TS1000) or 16 KiB");
     Frame f = capture(m);
     std::cout << "boot: lines=" << f.lines << " ink rows " << f.top << ".." << f.bottom
               << " columns " << f.left << ".." << f.right << '\n';
-    require(f.lines == 310 && f.sync == 6, "PAL frame is not 310 lines with 6 of sync");
-    require(f.top == 243 && f.left == 36 && f.right == 43, "the K cursor is not where the ZX81 ROM puts it");
+    require(f.lines == (ntsc ? 262u : 310u) && f.sync == 6,
+            ntsc ? "NTSC frame is not 262 lines with 6 of sync" : "PAL frame is not 310 lines with 6 of sync");
+    require(f.top == (ntsc ? 219 : 243) && f.left == 36 && f.right == 43,
+            "the K cursor is not where the ZX81 ROM puts it");
+    // A fixed-length press can be missed while a small display is redrawn,
+    // above all at 60 Hz, so wait for the editor to take each key.
+    m.acknowledge_keys = true;
 
     // Enter is consumed by the end-of-frame keyboard scan, so NEW runs at the
     // NMI boundary. It must stop the display before clearing the system
@@ -400,7 +420,7 @@ int main(int argc, char **argv) {
     std::string long_edit = "9 0 P SHIFT+P";
     for (int i = 0; i != 36; ++i) long_edit += " A";
     long_edit += " SHIFT+P";
-    type(m, long_edit, true);
+    type(m, long_edit);
     std::string visible_edit;
     for (int row = 0; row != 24; ++row) {
         const std::string text = row_text(m, row);
@@ -433,6 +453,79 @@ int main(int argc, char **argv) {
     }
     type(m, "NL");
     type(m, "A NL");             // discard the display-width fixture
+
+    // Key rollover: while two keys are down DECODE fails, so the next key
+    // counts only once the first is released (1, 1+0, 0 gives "10").
+    auto hold = [&](std::initializer_list<const char *> names) {
+        m.dut.keyboard = key_state(names);
+        m.run_frames(6);
+    };
+    hold({"1"}); hold({"1", "0"}); hold({"0"}); hold({});
+    type(m, "P");
+    hold({"Z"}); hold({"Z", "A"}); hold({"A"}); hold({});
+    type(m, "NL");
+    const uint8_t rollover_line[] = {0x00, 0x0a, 0x04, 0x00, 0xf5, 0x3f, 0x26, 0x76};
+    for (unsigned i = 0; i != sizeof rollover_line; ++i)
+        require(m.peek(0x407d + i) == rollover_line[i], "key rollover did not store 10 PRINT ZA");
+    type(m, "A NL");
+
+    // An error while a line is entered must not leave the display FAST.
+    type(m, "0 E NL");
+    require(row_text(m, 23) == "C/0", "line 0 did not give report C/0");
+    require((m.peek(0x403b) & 0xc0) == 0xc0, "a line-entry error left SLOW mode off");
+    m.run_frames(4);
+
+    // PRINT AT moves DF_CC on a collapsed display too (BASIC collision
+    // checks PEEK it). Line 20 loops so the report does not move it again.
+    type(m, "A NL");
+    type(m, "1 0 P SHIFT+NL C 5 SHIFT+. 5 SHIFT+X NL");
+    type(m, "2 0 G 2 0 NL");
+    type(m, "R NL");
+    const uint16_t dfile = m.word(0x400c);
+    const bool collapsed = ramtop < 0x4d00;
+    std::cout << "PRINT AT 5,5: DF_CC=D_FILE+" << m.word(0x400e) - dfile << '\n';
+    require(m.word(0x400e) == dfile + (collapsed ? 1 + 5 + 5 : 1 + 5 * 33 + 5),
+            "PRINT AT 5,5 did not set DF_CC");
+    m.dut.keyboard = key_state({"SP"});      // BREAK
+    bool stopped = false;
+    for (unsigned i = 0; i != 50 && !stopped; ++i) {
+        m.run_frames(1);
+        stopped = m.peek(0x4000) == 0x0c;    // report D
+    }
+    m.dut.keyboard = 0xffffffffffull;
+    m.run_frames(6);
+    require(stopped, "BREAK did not stop the PRINT AT loop");
+
+    // INPUT into an existing variable while the input line takes a second
+    // row. On a collapsed display that row deletes upper row 21 and moves
+    // the variables; the value must still reach A.
+    type(m, "A NL");
+    type(m, "1 0 L A SHIFT+L 1 NL");
+    type(m, "2 0 P SHIFT+NL C 2 1 SHIFT+. 0 SHIFT+X SHIFT+P H E L L O SHIFT+P NL");
+    type(m, "3 0 I A NL");
+    type(m, "4 0 P SHIFT+NL C 0 SHIFT+. 0 SHIFT+X A NL");
+    type(m, "R NL");
+    std::string digits;
+    for (int i = 1; i <= 33; ++i) digits += std::string(" ") + char('0' + i % 10);
+    type(m, digits);
+    type(m, "NL");
+    const bool input_done = wait_for_row(m, 23, "0/40");
+    std::cout << "INPUT: '" << row_text(m, 0) << "' report '" << row_text(m, 23) << "'\n";
+    require(input_done && row_text(m, 0) == "1.2345679E+32",
+            "a two-row INPUT did not assign the existing variable");
+    require(m.peek(m.word(0x4014) - 1) == 0x80, "INPUT overwrote the variables' end marker");
+
+    // RETURN without GOSUB: report 7 every time, the GOSUB stack marker kept.
+    type(m, "A NL");
+    type(m, "1 0 Y NL");
+    type(m, "R NL");
+    for (int i = 0; i != 3; ++i) {
+        if (i) type(m, "G 1 0 NL");
+        require(row_text(m, 23) == "7/10", "RETURN without GOSUB did not give 7/10");
+        require(m.word(ramtop - 2) == 0x3e00 && m.word(0x4002) == ramtop - 4,
+                "RETURN without GOSUB moved the GOSUB marker or ERR_SP");
+    }
+    type(m, "A NL");
 
     // A program typed on the keyboard; it SAVEs itself through the core's
     // capture while running.
@@ -481,7 +574,7 @@ int main(int argc, char **argv) {
     type(m, "3 0 P SHIFT+P SHIFT+N SHIFT+P SHIFT+X SHIFT+NL B SHIFT+X SHIFT+P SHIFT+M SHIFT+P NL");
     type(m, "R");
     submit_enter(m);
-    m.run_frames(4);
+    wait_for_row(m, 23, "0/30");
     const std::string empty_inkey = row_text(m, 0);
     if (empty_inkey != "<>") {
         std::cerr << "INKEY$ no-key row0='" << empty_inkey << "' row23='"
@@ -544,7 +637,7 @@ int main(int argc, char **argv) {
     type(m, "3 0 P I NL");
     type(m, "4 0 N I NL");
     type(m, "R NL");
-    m.run_frames(400);
+    wait_for_row(m, 23, "0/40", 3000);
     std::cout << "scroll: '" << row_text(m, 20) << "' '" << row_text(m, 21) << "' report '"
               << row_text(m, 23) << "'\n";
     require(row_text(m, 21) == "30" && row_text(m, 20) == "29", "SCROLL lost the screen");
@@ -562,6 +655,7 @@ int main(int argc, char **argv) {
         m.run_frames(1200, 2000000000ull);
         observe_fast_slow_modes(m);
     }
-    std::cout << "FES ZX81 open ROM: display, keyboard, edit, INKEY$, FAST/SLOW SAVE/LOAD, SCROLL and NMI-boundary loop pass\n";
+    std::cout << "FES ZX81 open ROM: display, keyboard and rollover, edit, PRINT AT, INPUT, RETURN, INKEY$, "
+                 "FAST/SLOW SAVE/LOAD, SCROLL and NMI-boundary loop pass\n";
     return 0;
 }

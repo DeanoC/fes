@@ -85,7 +85,7 @@ help:
 		"  sim-fes-zx81-expansion  Test vacant 1 KiB and validation-cart RAMTOP on the Z80-like edge" \
 		"  sim-fes-zx81-variants  Probe family variants and verify the ZX80 tape load address" \
 		"  zx81-openrom  Assemble the open ZX81 ROM: build/zx81-openrom/zx81-openrom.bin (8192 bytes)" \
-		"  sim-fes-zx81-openrom  Run the open ZX81 ROM on the 1 KiB and 16 KiB machines: display, keys, SAVE, LOAD" \
+		"  sim-fes-zx81-openrom  Run the open ZX81 ROM on 1 KiB, 16 KiB and NTSC TS1000 machines: display, keys, BASIC, SAVE, LOAD" \
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
 		"  sim-fes-native-video  Test native frame capture, Direct/Scanlines and clock crossing" \
 		"  sim-fes-display-plane  Test the shared session-display blend, latency, raster lock and fault return" \
@@ -476,17 +476,22 @@ sim-fes-zx81-variants:
 zx81-openrom:
 	@python3 scripts/build_zx81_openrom.py
 
-# The open ROM on the real machine RTL, as the 1 KiB fes.zx81 and with 16 KiB.
+# The open ROM on the real machine RTL. Machines (name:EXTERNAL_RAM:define):
+# 1, the 1 KiB fes.zx81; 0, with 16 KiB; ts1000, the 2 KiB NTSC TS1000. Each
+# runs the full check. Tapes made by other tools (the FogCast starter shelf,
+# when this checkout has it) then load on 1 KiB and 16 KiB.
+ZX81_TAPES ?= $(CURDIR)/../FogCast/internal/zx81tapes/assets
 sim-fes-zx81-openrom: zx81-openrom
 	$(require_local_sim)
-	@for ram in 1 0; do \
-		dir=build/sim/fes-zx81-openrom-$$ram; mkdir -p $$dir; \
+	@for spec in 1:1: 0:0: ts1000:1:-DZX81_MODEL_TS1000; do \
+		name=$${spec%%:*}; rest=$${spec#*:}; ram=$${rest%%:*}; define=$${rest#*:}; \
+		dir=build/sim/fes-zx81-openrom-$$name; mkdir -p $$dir; \
 		$(VERILATOR) --cc --exe --build -O3 --top-module zx81_machine -Wall \
 			-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 			-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 			-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 			-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
-			-GEXTERNAL_RAM=$$ram '-GFIRMWARE_INIT="build/zx81-openrom/zx81-openrom.hex"' \
+			-GEXTERNAL_RAM=$$ram '-GFIRMWARE_INIT="build/zx81-openrom/zx81-openrom.hex"' $$define \
 			-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 -Icores/fes-zx81/rtl \
 			--Mdir "$(CURDIR)/$$dir" \
 			cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
@@ -495,8 +500,14 @@ sim-fes-zx81-openrom: zx81-openrom
 			"$(CURDIR)/cores/fes-zx81/sim/openrom_tb.cpp" || exit 1; \
 	done
 	@build/sim/fes-zx81-openrom-1/Vzx81_machine check & one=$$!; \
+		build/sim/fes-zx81-openrom-ts1000/Vzx81_machine check & ntsc=$$!; \
 		build/sim/fes-zx81-openrom-0/Vzx81_machine check; sixteen=$$?; \
-		wait $$one && test $$sixteen = 0
+		wait $$one; one=$$?; wait $$ntsc; ntsc=$$?; \
+		test $$one = 0 && test $$ntsc = 0 && test $$sixteen = 0
+	@if [ -f "$(ZX81_TAPES)/guess-number.p" ]; then \
+		build/sim/fes-zx81-openrom-1/Vzx81_machine load "$(ZX81_TAPES)/guess-number.p" && \
+		build/sim/fes-zx81-openrom-0/Vzx81_machine load "$(ZX81_TAPES)/aritm.p"; \
+	else echo "SKIP tape loads: no FogCast starter tapes at $(ZX81_TAPES)"; fi
 
 sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-machine sim-fes-zx81-expansion sim-fes-display-plane sim-fes-zx81-session sim-fes-zx81-variants sim-fes-zx81-save sim-fes-zx81-openrom
 	$(require_local_sim)

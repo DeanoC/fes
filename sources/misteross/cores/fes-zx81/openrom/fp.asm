@@ -8,9 +8,6 @@ PARSE_ES equ FT+3               ; exponent sign
 PARSE_EV equ FT+4               ; exponent value / print exponent
 DIGITS   equ PRBUFF+24
 
-fp_calc:
-        rst 8                   ; the RST 28 calculator is not provided yet
-        db R_ARG
 
 ; ---------------------------------------------------------------------
 ; Multi-byte helpers. B = byte count; "end" is the last (lowest) byte.
@@ -79,6 +76,9 @@ swap_mem:
 ; ---------------------------------------------------------------------
 ; Stack primitives.
 
+; Push 1.
+stk_one:
+        ld hl,const_one
 ; Push the five bytes at HL.
 stk_push:
         set 6,(iy+Y_FLAGS)      ; a number
@@ -103,6 +103,7 @@ stk_top:
 ; Drop the top item. HL -> where it was.
 stk_drop:
         call stk_top
+set_stkend:
         ld (STKEND),hl
         ret
 
@@ -137,6 +138,7 @@ stk_push_fa:
 ; Pop the top item into FA.
 stk_pop_fa:
         call stk_drop
+unpack_fa:
         ld de,FA
         jr fp_unpack
 
@@ -158,8 +160,7 @@ stk_push_str:
         inc hl
         ld (hl),b
         inc hl
-        ld (STKEND),hl
-        ret
+        jr set_stkend
 
 ; Pop a string descriptor: DE = address, BC = length.
 stk_pop_str:
@@ -172,6 +173,13 @@ stk_pop_str:
         ld c,(hl)
         inc hl
         ld b,(hl)
+        ret
+
+; The same, kept in AE_OFF and AE_DIMS too.
+pop_str_ae:
+        call stk_pop_str
+        ld (AE_OFF),de
+        ld (AE_DIMS),bc
         ret
 
 ; ---------------------------------------------------------------------
@@ -497,8 +505,7 @@ binop_load:
         call stk_top
         push hl
         add hl,de
-        ld de,FA
-        call fp_unpack
+        call unpack_fa
         pop hl
         ld de,FB
         jr fp_unpack
@@ -511,6 +518,7 @@ binop_store:
 
 negate_fb:
         ld hl,FB
+flip_sign:                      ; flip the sign bit at HL
         ld a,(hl)
         xor 0x80
         ld (hl),a
@@ -551,8 +559,7 @@ fa_sign:
 fp_cmp_const:
         push hl
         call stk_top
-        ld de,FA
-        call fp_unpack
+        call unpack_fa
         pop hl
         ld de,FB
         call fp_unpack
@@ -566,10 +573,7 @@ fp_neg: call stk_top
         and a
         ret z
         inc hl
-        ld a,(hl)
-        xor 0x80
-        ld (hl),a
-        ret
+        jr flip_sign
 fp_abs: call stk_top
         inc hl
         res 7,(hl)
@@ -587,17 +591,9 @@ fp_sgn: call stk_top
         ld b,3
         jr mclear
 
-; Top item is zero: Z.
-fp_is_zero:
-        call stk_top
-        ld a,(hl)
-        and a
-        ret
-
 ; Pop the top item: Z (and A = 0) if it was zero.
 fp_pop_zero:
-        call stk_top
-        ld (STKEND),hl
+        call stk_drop
         ld a,(hl)
         and a
         ret
@@ -607,8 +603,7 @@ fp_pop_zero:
 fp_int: call stk_dup
         call stk_top
         push hl
-        ld de,FA
-        call fp_unpack
+        call unpack_fa
         ld a,(FA+1)
         cp 160
         jr nc,.pk               ; already whole
@@ -631,8 +626,7 @@ fp_int: call stk_dup
         call stk_over
         call fp_compare         ; x < trunc(x)?
         jr nc,.ok
-        ld hl,const_one
-        call stk_push
+        call stk_one
         call fp_sub
 .ok:    call stk_swap
         jr stk_drop
@@ -805,8 +799,7 @@ dec_to_fp:
 .pow10: and a
         ret z
         ld b,a
-        ld hl,const_one
-        call stk_push
+        call stk_one
 .p:     push bc
         call fp_times10
         pop bc
@@ -1023,32 +1016,43 @@ arg_error:
         rst 8
         db R_ARG
 
-; a ** b for whole b: repeated multiplication (1 / a ** -b when negative).
+; a ** b for whole b, by squaring (1 / a ** -b when negative). Past 65535
+; the exponent keeps its parity: a result that is not 0 or +-1 overflows.
 fp_pow: call stk_dup
         call fp_int
         call stk_over
         call fp_compare
         jr nz,arg_error
         call fp_to_bc
-        jr c,arg_error
-        push af
-        ld hl,const_one
-        call stk_push           ; a r
-.loop:  ld a,b
+        push af                 ; the sign
+        jr nc,.n
+        ld a,c                  ; huge
+        or 0xfe
+        ld c,a
+        ld b,0xff
+.n:     call stk_one            ; a r
+.loop:  srl b
+        rr c
+        push bc
+        jr nc,.sq
+        call stk_over
+        call fp_mul             ; r = r * a
+.sq:    pop bc
+        ld a,b
         or c
         jr z,.done
         push bc
-        call stk_over
-        call fp_mul
+        call stk_swap
+        call stk_dup
+        call fp_mul             ; a = a * a
+        call stk_swap
         pop bc
-        dec bc
         jr .loop
 .done:  call stk_swap
         call stk_drop
         pop af
         and a
         ret z
-        ld hl,const_one
-        call stk_push
+        call stk_one
         call stk_swap
         jr fp_div

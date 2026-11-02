@@ -134,7 +134,17 @@ Display timing matches the original on the core (PAL 310 lines, NTSC 262), with
 the collapsed display file below 3.25 KiB of RAM. Tape `LOAD`/`SAVE` use the
 core's `.p` traps, and a loaded program keeps its FAST/SLOW state and autorun
 line. The FAST statement and `$0F23` clear the saved SLOW request; the internal
-`$02E7` entry preserves it.
+`$02E7` entry preserves it. FAST returns only once the frame being drawn has
+ended, NEW goes FAST before it clears memory, and the editor restores SLOW
+after an error, including one while a line is being entered.
+
+No Sinclair ROM image or file is used to build it. A few short sequences are
+nevertheless byte-for-byte the same as in Sinclair's ROM, because the display
+hardware and the published interface fix them: the 17-byte INT routine at
+`$0038` (every scan line must take the same 58 T-states, reload R and jump into
+the row), the first 14 bytes of the NMI at `$0066`, BREAK-1 (four instructions
+reading the SPACE row) and the key tables at `$007E`, which programs index
+directly.
 
 This is stage 1: the editor, the BASIC statements and arithmetic needed by
 ordinary programs, strings and slicing, numeric arrays, `FOR`/`GOSUB`, `RND`,
@@ -151,12 +161,19 @@ ordinary programs, strings and slicing, numeric arrays, `FOR`/`GOSUB`, `RND`,
 - `fes.zx80`'s 4 KiB ROM has no open substitute.
 
 `make sim-fes-zx81-openrom` (part of `make sim-fes-zx81`) boots the ROM on the
-machine RTL with 1 KiB and 16 KiB RAM, checks the display geometry against the
-original, enters and runs a program, checks `INKEY$` with no key and with Q
-held, saves and loads programs in both FAST and SLOW modes through the tape
-trap, scrolls the screen, and exercises the FAST/SLOW end-of-frame loop.
-`tests/test_zx81_openrom.py` checks the assembler and the image's fixed
-interface bytes. The ROM has no kit acceptance yet.
+machine RTL with 1 KiB and 16 KiB RAM and on the 2 KiB NTSC TS1000. On each it
+checks the display geometry against the original, key rollover, the display
+mode after a line-entry error, DF_CC after `PRINT AT`, `INPUT` into an existing
+variable over two rows, repeated `RETURN` without `GOSUB`, and `INKEY$` with no
+key and with Q held. It enters and runs programs, saves and loads them in both
+FAST and SLOW modes through the tape trap, scrolls the screen, and exercises
+the FAST/SLOW end-of-frame loop. When the FogCast starter tapes are in the
+checkout, it also loads and lists two `.p` files made by other tools. A tape
+saved by Sinclair's own ROM is still a manual check (the `load` mode of
+`cores/fes-zx81/sim/openrom_tb.cpp`): the repository has no tape saved that
+way. `tests/test_zx81_openrom.py` checks the assembler, including that it
+rejects instructions it cannot encode, and the image's fixed interface bytes.
+The ROM has no kit acceptance yet.
 
 ## Validation
 

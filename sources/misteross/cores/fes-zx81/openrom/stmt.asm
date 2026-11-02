@@ -48,7 +48,7 @@ var_delete:
         pop de
         and a
         sbc hl,de
-        ld b,h
+.r:     ld b,h
         ld c,l
         ex de,hl
         jr reclaim
@@ -64,7 +64,7 @@ st_gosub:
         ld sp,(ERR_SP)
         pop de
         push hl
-        push de
+.go:    push de
         ld (ERR_SP),sp
         call goto_line
         jr run_next
@@ -76,11 +76,10 @@ st_return:
         ld a,b
         cp 0x3e                 ; the end marker: no GOSUB
         jr z,.none
+        jr st_gosub.go
+.none:  push bc                 ; the end marker and the error slot stay
         push de
-        ld (ERR_SP),sp
-        call goto_line
-        jr run_next
-.none:  rst 8
+        rst 8
         db R_RETURN
 
 st_run: call opt_uint
@@ -98,10 +97,7 @@ clear_vars:
         and a
         sbc hl,de
         dec hl
-        ld b,h
-        ld c,l
-        ex de,hl
-        jr reclaim
+        jr var_delete.r
 
 st_rand:
         call opt_uint
@@ -205,7 +201,7 @@ st_print:
         sub (iy+Y_DF_SZ)
         cp b
         jr c,range_error
-        call print_at
+        call print_at_cc
         jr .after
 .tab:   rst 0x20
         call expr_byte
@@ -370,20 +366,12 @@ list_line:
         dec bc
         cp C_NUMBER
         jr nz,.out
-        ld de,5
-        add hl,de
-        dec bc
-        dec bc
-        dec bc
-        dec bc
-        dec bc
-        jr .ch
+        call skip_num
+        jr nc,.ch
 .out:   rst 0x10
         jr .ch
 .end:   inc hl
-        ld a,C_NL
-        rst 0x10
-        ret
+        jr st_print.nl
 
 ; ---------------------------------------------------------------------
 st_let: call parse_target
@@ -463,9 +451,7 @@ assign: ld a,(TG_KIND)
 .str:   call need_str
         cp 4
         jr z,.fixed
-        call stk_pop_str
-        ld (AE_OFF),de
-        ld (AE_DIMS),bc
+        call pop_str_ae
         ld hl,3
         add hl,bc
         ld b,h
@@ -509,8 +495,7 @@ assign: ld a,(TG_KIND)
         inc bc
         ld hl,(DEST)
         jr reclaim
-.fixed: call stk_pop_str
-        ld (AE_OFF),de
+.fixed: call pop_str_ae
         ld hl,(STRLEN)
         ld de,(DEST)
 .cp:    ld a,h
@@ -550,8 +535,7 @@ st_for: call one_letter
         rst 0x20
         call expr_num
         jr .have
-.one:   ld hl,const_one
-        call stk_push
+.one:   call stk_one
 .have:  pop de
         ld (X_PTR),de
         ld bc,0x0100
@@ -681,13 +665,15 @@ st_dim: call one_letter
         jr c,.mem
         add hl,de
         jr c,.mem
+        ld a,h                  ; far beyond any RAM: report 4 now, so the
+        cp 0xc0                 ; sizes below cannot wrap
+        jr nc,.mem
         ld a,(TG_LEN)
         ld e,a
         ld d,0
         add hl,de
         add hl,de
         inc hl
-        jr c,.mem
         ld (AE_DIMS),hl         ; length field
         inc hl
         inc hl
@@ -734,17 +720,24 @@ st_input:
         jr nz,.ok
         rst 8
         db R_INPUT
-.ok:    call parse_target
-        call target_save
-        ld hl,(CH_ADD)
-        push hl
+.ok:    ld hl,(CH_ADD)          ; the target is found again afterwards:
+        push hl                 ; typing can move the variables (1 KiB)
+        call parse_target
+        ld a,(TG_KIND)
+        push af
         ld hl,(S_POSN)          ; the upper screen keeps its print position
         push hl
         set OF_INPUT,(iy+Y_OFLAGS)
         call edit_reset
         call edit_line
         res OF_INPUT,(iy+Y_OFLAGS)
-        call clear_lower
+        ld hl,(E_LINE)          ; STOP typed: report D
+        ld a,(hl)
+        cp T_STOP
+        jr nz,.go
+        rst 8
+        db R_BREAK
+.go:    call clear_lower
         ld (iy+Y_DF_SZ),2
         pop hl
         ld (S_POSN),hl
@@ -757,12 +750,12 @@ st_input:
         ld b,h
         ld c,l
         call stk_push_str
-        ld a,(TG_KIND)
+        pop af
         cp 3
         call c,fn_val           ; a number: evaluate it like VAL
         pop hl
         ld (CH_ADD),hl
-        call target_restore
+        call parse_target
         jr assign
 
 ; ---------------------------------------------------------------------

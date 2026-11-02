@@ -18,7 +18,7 @@ print_a:
         push de
         push bc
         call print_char
-        pop bc
+pop3:   pop bc
         pop de
         pop hl
         ret
@@ -59,6 +59,7 @@ put_char:
         and a
         res 0,(iy+Y_FLAGS)
         ret nz
+set_space:
         set 0,(iy+Y_FLAGS)      ; a space suppresses the next leading space
         ret
 
@@ -92,8 +93,7 @@ print_nl:
         and a
         ret z
         dec (hl)
-        set 0,(iy+Y_FLAGS)
-        ret
+        jr set_space
 
 ; PRINT AT: B = line, C = column.
 print_at:
@@ -105,9 +105,15 @@ print_at:
         ld (S_POSN+1),a
         call collapsed
         ret c
-        call char_addr
+.cc:    call char_addr
         ld (DF_CC),hl
         ret
+
+; PRINT AT for BASIC and $08F5: DF_CC follows on a collapsed display too,
+; the row growing with spaces up to the column (as on the ZX81).
+print_at_cc:
+        call print_at
+        jr print_at.cc
 
 ; HL = start of the print position's row.
 row_addr:

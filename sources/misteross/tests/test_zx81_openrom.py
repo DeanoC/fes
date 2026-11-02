@@ -44,6 +44,23 @@ class AssemblerTest(unittest.TestCase):
                          "dd7e05" "fd36fe12" "fdcb017e" "ddcb0386" "ed531040" "08" "ed42"
                          "dd6601" "ddcb0416" "dd67" "ed56" "26279d")
 
+    def test_invalid_forms_are_rejected(self):
+        for line in ("jr p,x", "jr m,x", "jr pe,x", "jr po,x",
+                     "out (0xfe),b", "in b,(0xfe)",
+                     "rst 1", "rst 0x40", "bit 8,a", "set 9,(hl)"):
+            with self.subTest(line=line), self.assertRaises(z80asm.AsmError):
+                assemble(f"        org 0\n        {line}\nx:      ret\n")
+
+    def test_index_displacement_is_one_expression(self):
+        image = assemble("""
+        org 0
+        ld a,(ix-1-1)
+        ld a,(iy+1-3)
+        ld a,(ix-N)
+N       equ 4
+        """)
+        self.assertEqual(image[:9].hex(), "dd7efe" "fd7efe" "dd7efc")
+
     def test_far_jr_becomes_jp(self):
         image = assemble("""
         org 0
@@ -97,37 +114,48 @@ class OpenRomImageTest(unittest.TestCase):
 
     def test_restarts_and_display_interrupts(self):
         self.at(0x0000, [0xd3, 0xfd])                     # OUT ($FD),A: NMI off
-        for address in (0x08, 0x10, 0x18, 0x20, 0x28, 0x30):
-            self.assertEqual(self.rom[address], 0xc3, hex(address))
+        self.at(0x0008, [0xe1, 0x7e, 0xfd, 0x77, 0x00])   # POP HL; LD A,(HL); LD (IY+0),A
+        self.assertEqual(self.rom[0x0010], 0xc3)          # JP print
+        self.at(0x0018, [0x2a, 0x16, 0x40, 0x2b])         # LD HL,(CH_ADD); DEC HL
+        self.at(0x0020, [0x2a, 0x16, 0x40])               # LD HL,(CH_ADD)
+        self.assertEqual(self.rom[0x0028], 0xcf)          # RST 8: no calculator yet
+        self.at(0x0030, [0x2a, 0x1a, 0x40, 0xcd])         # LD HL,(STKBOT); CALL
         self.at(0x0038, [0x0d, 0xc2])                     # INT: DEC C; JP NZ
         self.at(0x0066, [0x08, 0x3c, 0xfa])               # NMI: EX AF,AF'; INC A; JP M
 
     def test_new_stops_display_before_rebuilding_dfile(self):
-        address = self.symbols["new_entry"]
-        self.assertEqual(self.rom[address:address + 2], bytes([0xd3, 0xfd]))
+        # NEW goes FAST (which waits for the frame to end) and falls into the
+        # power-on code; D_FILE is published only once its rows are valid.
+        address = self.symbols["st_new"]
+        fast = self.symbols["fast"]
+        self.assertEqual(self.rom[address:address + 3], bytes([0xcd, fast & 0xff, fast >> 8]))
+        self.assertEqual(address + 3, self.symbols["new_entry"])
         core = (build_zx81_openrom.SOURCE / "core.asm").read_text()
         new = core.split("new_entry:", 1)[1].split("; Fresh machine stack", 1)[0]
-        dfile = new.index("ld (D_FILE),de")
-        self.assertLess(new.index("out (0xfd),a"), dfile)
-        self.assertLess(new.index("djnz .nl"), dfile)
+        self.assertLess(new.index("djnz .nl"), new.index("ld (D_FILE),de"))
 
     def test_measure_and_fast_paths_preserve_their_contracts(self):
         check_line = self.symbols["check_line"]
         self.assertIn(bytes([0xa7, 0xc9]), self.rom[check_line:check_line + 16])
 
+        # FAST sets bit 5 before it clears bit 7, then waits until the frame
+        # engine clears bit 5 as it stops.
         fast = self.symbols["fast"]
-        kscan = self.symbols["kscan"]
-        fast_code = self.rom[fast:kscan]
-        sampled = fast_code.index(bytes([0x3a, 0x34, 0x40, 0x5f]))  # LD A,(FRAMES); LD E,A
-        stopped = fast_code.index(bytes([0xfd, 0xcb, 0x3b, 0xbe]))  # RES 7,(IY+CDFLAG)
-        self.assertLess(sampled, stopped)
+        self.at(fast + 5, [0xfd, 0xcb, 0x3b, 0xee,        # SET 5,(IY+CDFLAG)
+                           0xfd, 0xcb, 0x3b, 0xbe,        # RES 7,(IY+CDFLAG)
+                           0xfd, 0xcb, 0x3b, 0x6e,        # BIT 5,(IY+CDFLAG)
+                           0x20, 0xfa, 0xc9])             # JR NZ,BIT; RET
+        stop = self.symbols["border_ix.stop"]
+        self.at(stop, [0xfd, 0xcb, 0x3b, 0xae, 0xd3, 0xfd])  # RES 5,(IY+CDFLAG); OUT ($FD),A
 
     def test_decode_carry_matches_the_published_entry_point(self):
         decode = self.symbols["decode"]
-        save_loop = self.symbols["save_loop"]
-        decode_code = self.rom[decode:save_loop]
+        decode_code = self.rom[decode:decode + 64]
+        decode_code = decode_code[:decode_code.index(bytes([0x37, 0xc9])) + 2]  # success sets carry
         self.assertEqual(decode_code.count(bytes([0xa7, 0xc9])), 2)  # failure clears carry
-        self.assertEqual(decode_code.count(bytes([0x37, 0xc9])), 1)  # success sets carry
+        # Two rows or two columns down (rollover): AND leaves carry clear.
+        self.assertEqual(decode_code[:6], bytes([0x79, 0x2f, 0x5f, 0x3d, 0xa3, 0xc0]))
+        self.assertEqual(decode_code[6:14], bytes([0x78, 0x2f, 0xe6, 0x3e, 0x5f, 0x3d, 0xa3, 0xc0]))
 
     def test_key_tables(self):
         self.at(0x007e, [0x3f, 0x3d, 0x28, 0x3b])          # Z X C V
