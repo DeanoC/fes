@@ -30,7 +30,7 @@ class HPSContextTests(unittest.TestCase):
                        'hps_context_sha256': context.digest(self.descriptor)}
 
     def test_configuration_mapping_binds_actual_core_bytes_and_separate_memory(self):
-        raw=bytes(range(256))*300
+        chunk=0xfffc0;raw=(bytes(range(256))*((chunk+128+255)//256))[:chunk+128]
         descriptor=dict(self.descriptor,core_sha256=hashlib.sha256(raw).hexdigest(),core_size=len(raw))
         with tempfile.TemporaryDirectory() as directory:
             project=Path(directory)
@@ -41,7 +41,8 @@ class HPSContextTests(unittest.TestCase):
                 self.assertEqual(mapping['core_size'],len(raw))
                 self.assertEqual(mapping['core_sha256'],hashlib.sha256(raw).hexdigest())
                 self.assertEqual(mapping['core_sha384'],hashlib.sha384(raw).hexdigest())
-                self.assertEqual(mapping['chunk_sha384'],[hashlib.sha384(raw[:65536]).hexdigest(),hashlib.sha384(raw[65536:]).hexdigest()])
+                self.assertEqual(mapping['chunk_bytes'],chunk)
+                self.assertEqual(mapping['chunk_sha384'],[hashlib.sha384(raw[:chunk]).hexdigest(),hashlib.sha384(raw[chunk:]).hexdigest()])
                 self.assertEqual((mapping['base'],mapping['base']+mapping['size']),(0x94800000,0x95000000))
                 payload.write_bytes(raw[:-4]+b'bad!')
                 with self.assertRaisesRegex(ValueError,'sealed core'):

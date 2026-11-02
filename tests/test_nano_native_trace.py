@@ -413,7 +413,7 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
                 trace.decode_native_configuration(b'',BUILD,SEED,fpga_identity=self.identity,
                                                   configuration=dict(self.configuration,chunk_bytes=chunk))
 
-    def test_large_compiled_blocks_preserve_two_buffer_completion_and_identity(self):
+        # The same graph must observe two large compiled buffers before identity.
         chunk=0xfffc0;total=2027520
         config=dict(self.configuration,core_size=total,chunk_bytes=chunk)
         raw=self.capture();first=raw.index('NOTICE:  FES_NANO_CORE_TRANSFER phase=arm')
