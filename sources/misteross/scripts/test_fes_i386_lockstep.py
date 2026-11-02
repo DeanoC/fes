@@ -259,7 +259,7 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PMODE_CASES = 85
+PMODE_CASES = 89
 
 
 def divergence_table(entries: list[dict], path: Path) -> None:
