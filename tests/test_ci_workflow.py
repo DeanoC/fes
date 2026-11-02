@@ -75,11 +75,13 @@ class ParentWorkflowTests(unittest.TestCase):
         self.assertIn('the strictest SDRAM mask delay (2)', readme)
         self.assertIn('each runs at DQM delay 2', readme)
 
-    def test_pc386_fesenv_simulation_installs_mtools_on_its_runner(self):
+    def test_pc386_image_simulations_install_mtools_on_their_runner(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
         step = workflow.split('      - name: Install PC/XT and PC386 image tools\n', 1)[1].split(
             '      - name: Simulate selected core scenarios\n', 1)[0]
-        self.assertIn("if: matrix.target == 'sim-fes-pcxt-dos' || matrix.target == 'sim-fes-pc386-fesenv'", step)
+        condition = ' '.join(step.split('if: >-', 1)[1].split('run:', 1)[0].split())
+        self.assertEqual(condition, "matrix.target == 'sim-fes-pcxt-dos' || matrix.target == 'sim-fes-pc386-fesenv' "
+                                    "|| matrix.target == 'sim-fes-pc386-a20'")
         self.assertIn('sudo apt-get update && sudo apt-get install -y mtools', step)
 
     def test_host_workflow_delegates_build_and_ui_selection_and_keeps_test_shards(self):

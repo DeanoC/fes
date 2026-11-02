@@ -3,6 +3,7 @@ package httpapi_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -107,7 +108,7 @@ func TestSoftwareHealthSeparatesIdentityAndRestrictsStatus(t *testing.T) {
 	selected := strings.Repeat("a", 64)
 	socket := softwareSocket(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-		_ = json.NewEncoder(w).Encode(softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Generation: 3, Selected: selected}, ActiveBundle: selected, BaseIdentity: "base-contract"})
+		_ = json.NewEncoder(w).Encode(softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Generation: 3, Selected: selected, Receipts: map[string]softwarecontrol.Receipt{}}, ActiveBundle: selected, BaseIdentity: "base-contract"})
 	}))
 	handler := httpapi.New(&fakeController{health: protocol.Health{APIVersion: "v1", Artifacts: &protocol.Artifacts{ImageSHA256: strings.Repeat("b", 64)}, Software: &softwarecontrol.Status{StorageError: "private controller status"}}}, "secret", "test", nil, httpapi.WithKitSoftware(socket))
 	response := softwareAgentRequest(handler, "GET", "/v1/health", "", "", nil)
@@ -124,5 +125,115 @@ func TestSoftwareHealthSeparatesIdentityAndRestrictsStatus(t *testing.T) {
 	}
 	if health.Software == nil || health.Software.ActiveBundle != selected || health.Software.BaseIdentity != "base-contract" || health.Artifacts.ImageSHA256 != strings.Repeat("b", 64) {
 		t.Fatalf("software/base identities: %+v", health)
+	}
+}
+
+func TestSoftwareHealthRejectsUnverifiedSupervisorResponses(t *testing.T) {
+	active, base, selected := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
+	t.Setenv("FES_SOFTWARE_BUNDLE_ID", active)
+	t.Setenv("FES_SOFTWARE_BASE_IDENTITY", base)
+	valid := `{"version":1,"generation":0,"selected":"` + selected + `","receipts":{},"active_bundle":"` + active + `","base_identity":"` + base + `"}`
+	request := softwarecontrol.Request{ID: strings.Repeat("d", 64), Candidate: strings.Repeat("e", 64), Requester: "kit-owner"}
+	status := softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Selected: selected, Receipts: map[string]softwarecontrol.Receipt{request.ID: {Request: request, Result: "accepted"}}}, ActiveBundle: active, BaseIdentity: base}
+	withReceipt, err := json.Marshal(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Unreleased = &request
+	withUnreleased, err := json.Marshal(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status.Unreleased = nil
+	status.Pending = &softwarecontrol.Operation{Request: softwarecontrol.Request{ID: strings.Repeat("f", 64), Candidate: request.Candidate, Requester: request.Requester}, Previous: selected, Phase: "queued"}
+	withPending, err := json.Marshal(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, body string
+		status     int
+		truncated  bool
+		delayed    bool
+		valid      bool
+	}{
+		{name: "valid initial generation", body: valid, valid: true},
+		{name: "unknown nullable status extension", body: strings.TrimSuffix(valid, "}") + `,"future":{"detail":null}}`, valid: true},
+		{name: "unknown nullable receipt extension", body: strings.Replace(string(withReceipt), `"result":"accepted"`, `"future":null,"result":"accepted"`, 1), valid: true},
+		{name: "valid receipt", body: string(withReceipt), valid: true},
+		{name: "valid unreleased receipt", body: string(withUnreleased), valid: true},
+		{name: "valid queued operation", body: string(withPending), valid: true},
+		{name: "wrong type after selected", body: `{"selected":"` + selected + `","generation":"bad"}`},
+		{name: "truncated JSON", body: valid[:len(valid)-1]},
+		{name: "truncated transport", body: valid, truncated: true},
+		{name: "malformed JSON", body: valid + ` broken`},
+		{name: "trailing JSON", body: valid + `{}`},
+		{name: "duplicate selection", body: strings.Replace(valid, `"selected":`, `"selected":"`+selected+`","selected":`, 1)},
+		{name: "case-folded duplicate selection", body: strings.Replace(valid, `"selected":`, `"Selected":"`+selected+`","selected":`, 1)},
+		{name: "missing generation", body: strings.Replace(valid, `"generation":0,`, "", 1)},
+		{name: "null generation", body: strings.Replace(valid, `"generation":0`, `"generation":null`, 1)},
+		{name: "missing receipts", body: strings.Replace(valid, `"receipts":{},`, "", 1)},
+		{name: "null receipts", body: strings.Replace(valid, `"receipts":{}`, `"receipts":null`, 1)},
+		{name: "null receipt", body: strings.Replace(valid, `"receipts":{}`, `"receipts":{"bad":null}`, 1)},
+		{name: "null previous", body: strings.TrimSuffix(valid, "}") + `,"previous":null}`},
+		{name: "null storage error", body: strings.TrimSuffix(valid, "}") + `,"storage_error":null}`},
+		{name: "null service fault", body: strings.TrimSuffix(valid, "}") + `,"service_fault":null}`},
+		{name: "null pending", body: strings.TrimSuffix(valid, "}") + `,"pending":null}`},
+		{name: "wrong-type pending", body: strings.TrimSuffix(valid, "}") + `,"pending":"bad"}`},
+		{name: "invalid receipt semantics", body: strings.Replace(string(withReceipt), `"result":"accepted"`, `"result":"bad"`, 1)},
+		{name: "null receipt result", body: strings.Replace(string(withReceipt), `"result":"accepted"`, `"result":null`, 1)},
+		{name: "duplicate nested receipt key", body: strings.Replace(string(withReceipt), `"result":"accepted"`, `"result":"accepted","Result":"accepted"`, 1)},
+		{name: "invalid selection", body: strings.Replace(valid, selected, "not-an-id", 1)},
+		{name: "invalid version", body: strings.Replace(valid, `"version":1`, `"version":2`, 1)},
+		{name: "supervisor reports storage error", body: strings.TrimSuffix(valid, "}") + `,"storage_error":"private"}`},
+		{name: "supervisor unavailable", body: valid, status: http.StatusServiceUnavailable},
+		{name: "supervisor timeout", body: valid, delayed: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			socket := softwareSocket(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.delayed {
+					<-r.Context().Done()
+					return
+				}
+				if tc.truncated {
+					w.Header().Set("Content-Length", fmt.Sprint(len(tc.body)+10))
+				}
+				if tc.status != 0 {
+					w.WriteHeader(tc.status)
+				}
+				_, _ = io.WriteString(w, tc.body)
+			}))
+			handler := httpapi.New(&fakeController{}, "secret", "test", nil, httpapi.WithKitSoftware(socket))
+			response := softwareAgentRequest(handler, "GET", "/v1/health", "secret", "", nil)
+			var health protocol.Health
+			if err := json.Unmarshal(response.Body.Bytes(), &health); err != nil {
+				t.Fatal(err)
+			}
+			if health.Software == nil || health.Software.ActiveBundle != active || health.Software.BaseIdentity != base {
+				t.Fatalf("independent active/base identities lost: %+v", health.Software)
+			}
+			if tc.valid {
+				if health.Software.Selected != selected || health.Software.Generation != 0 || health.Software.StorageError != "" {
+					t.Fatalf("valid status rejected: %+v", health.Software)
+				}
+			} else if health.Software.Selected != "" || health.Software.Generation != 0 || health.Software.StorageError == "" || strings.Contains(response.Body.String(), "private") {
+				t.Fatalf("unverified status published: %+v", health.Software)
+			}
+		})
+	}
+}
+
+func TestSoftwareHealthUnavailableKeepsIndependentIdentities(t *testing.T) {
+	active, base := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	t.Setenv("FES_SOFTWARE_BUNDLE_ID", active)
+	t.Setenv("FES_SOFTWARE_BASE_IDENTITY", base)
+	handler := httpapi.New(&fakeController{}, "secret", "test", nil, httpapi.WithKitSoftware(testsock.Path(t, "missing.sock")))
+	response := softwareAgentRequest(handler, "GET", "/v1/health", "secret", "", nil)
+	var health protocol.Health
+	if err := json.Unmarshal(response.Body.Bytes(), &health); err != nil {
+		t.Fatal(err)
+	}
+	if health.Software == nil || health.Software.ActiveBundle != active || health.Software.BaseIdentity != base || health.Software.Selected != "" || health.Software.StorageError == "" {
+		t.Fatalf("unavailable supervisor health: %+v", health.Software)
 	}
 }

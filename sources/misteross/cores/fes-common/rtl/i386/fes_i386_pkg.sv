@@ -128,10 +128,16 @@ package fes_i386_pkg;
     // UOP_SPECIAL.
     typedef enum logic [4:0] { SPECIAL_NOP, SPECIAL_HLT } special_op_e;
 
-    // UOP_SYSTEM. CLTS clears CR0.TS at WB. It is a jump to the next
-    // instruction (fes_i386_exctl b_jmp), so every instruction after it
-    // decodes once TS is clear.
-    typedef enum logic [4:0] { SYSOP_CLTS } system_op_e;
+    // UOP_SYSTEM: a write at WB of a register the decode or the address
+    // path reads. Each is a jump to the next instruction (fes_i386_exctl
+    // b_jmp), so every instruction after it decodes and reads it anew. CLTS
+    // clears CR0.TS; CR0, CR2 and CR3 take T1 (MOV CRn, r32); LMSW takes
+    // T1's PE, MP, EM and TS, and cannot clear PE; GDTR and IDTR take T0 as
+    // the limit and T1 as the base, its top byte cleared at a 16-bit size
+    // (LGDT, LIDT).
+    typedef enum logic [4:0] {
+        SYSOP_CLTS, SYSOP_CR0, SYSOP_LMSW, SYSOP_CR2, SYSOP_CR3, SYSOP_GDTR, SYSOP_IDTR
+    } system_op_e;
 
     // UOP_MUL and UOP_DIV, in EX's multiply and divide unit (fes_i386_muldiv).
     // HI writes the high half a two-destination MUL or DIV kept (EDX, DX);
@@ -160,6 +166,12 @@ package fes_i386_pkg;
         SYS_DR6 = 4'd8, SYS_DR7 = 4'd9, SYS_TR6 = 4'd10, SYS_TR7 = 4'd11,
         SYS_LDTR = 4'd12, SYS_TR = 4'd13, SYS_GDTR = 4'd14, SYS_IDTR = 4'd15
     } sys_reg_e;
+
+    // A system register D reads as src2's value (decoded_t b_sys): MOV r32,
+    // CRn, SMSW, SGDT and SIDT.
+    typedef enum logic [2:0] {
+        SYS_RD_CR0, SYS_RD_CR2, SYS_RD_CR3, SYS_RD_GDTL, SYS_RD_GDTB, SYS_RD_IDTL, SYS_RD_IDTB
+    } sys_rd_e;
 
     // A register operand. hi8 selects AH, CH, DH or BH for a byte-sized GPR.
     typedef struct packed {
@@ -209,7 +221,9 @@ package fes_i386_pkg;
     // (vector 5), which EX finds too. REPLAY is not architectural either:
     // an uncached load that was not the oldest uop when it reached M2
     // (fes_i386_l1d), which WB restarts from its instruction instead of
-    // delivering anything.
+    // delivering anything. GP_SEL, NP_SEL and SS_SEL are #GP, #NP and #SS
+    // with the selector in T0 as their error code (a protected-mode segment
+    // load's checks, M1).
     typedef enum logic [3:0] {
         FAULT_NONE          = 4'd0,
         FAULT_UD            = 4'd1,
@@ -219,7 +233,10 @@ package fes_i386_pkg;
         FAULT_SS0           = 4'd5,
         FAULT_DE            = 4'd6,
         FAULT_BR            = 4'd7,
-        FAULT_REPLAY        = 4'd8
+        FAULT_REPLAY        = 4'd8,
+        FAULT_GP_SEL        = 4'd9,
+        FAULT_NP_SEL        = 4'd10,
+        FAULT_SS_SEL        = 4'd11
     } fault_e;
 
     typedef struct packed {
@@ -259,7 +276,19 @@ package fes_i386_pkg;
     // imm's. iret: IRET's last uop, which unblocks NMI as it retires.
     // bound: BOUND's compare, which raises #BR at EX when x is below y,
     // signed, and writes no flags.
+    // A protected-mode segment load (microcode, fes_i386_cpu "Protected
+    // mode"): desc, the memory operand is the descriptor T0's selector
+    // names, its low dword (1), its high dword (2) or its access byte (3, the
+    // accessed bit's write); segchk, M1 raises the descriptor's checks for a
+    // data segment (1), SS (2) or CS by a far jump (3); seg2_pm, the second
+    // destination takes T0's descriptor rather than the real-mode rule;
+    // shadow, the uop ends a MOV SS or POP SS, after which no interrupt is
+    // taken.
     typedef struct packed {
+        logic [1:0]  desc;
+        logic [1:0]  segchk;
+        logic        seg2_pm;
+        logic        shadow;
         logic        bound;
         logic        bound_pair;  // first BOUND memory access: validate both slots before reading
         logic        iret;
@@ -314,6 +343,43 @@ package fes_i386_pkg;
         if (p[PA] || {1'b0, p[PA-1:20]} >= ram_top) attr = ATTR_HOLE;
         else if (p[PA-1:20] != '0 || p[19:14] < 6'd40) attr = ATTR_RAM;
         else attr = attr_e'(upper[5'(p[19:14] - 6'd40)]);
+    endfunction
+
+    // ---- Segments ---------------------------------------------------------------
+
+    // A segment's access check, worked out when it is loaded so M1's check
+    // is one compare, or two for an expand-down segment: from its limit and
+    // its access rights (descriptor bits 8-23: type, S, DPL, P, AVL, D/B, G),
+    // as Bochs's read_virtual_checks and write_virtual_checks make it.
+    //   lim[k], tiny[k]: for an access of 1, 2 or 4 bytes (k 0, 1, 2), the
+    //     last offset it may start at, and whether there is none: the limit
+    //     less 0, 1 or 3, or for an expand-down segment its upper bound
+    //     (FFFFh, or FFFFFFFFh with D/B) so less;
+    //   low, expd: an expand-down segment faults at offsets up to its limit;
+    //   rbad, wbad: the segment refuses reads (not present, a system
+    //     segment, execute-only code) or writes (not present, a system
+    //     segment, code, read-only data).
+    typedef struct packed {
+        logic [2:0][31:0] lim;
+        logic [2:0]       tiny;
+        logic [31:0]      low;
+        logic             expd;
+        logic             rbad;
+        logic             wbad;
+    } seg_chk_t;
+    function automatic seg_chk_t seg_chk(input logic [31:0] limit, input logic [15:0] ar);
+        seg_chk_t c;
+        logic [31:0] upper;
+        c.expd = ar[4] && !ar[3] && ar[2];
+        upper = ar[14] ? 32'hffff_ffff : 32'h0000_ffff;
+        c.lim[0] = c.expd ? upper : limit;
+        c.lim[1] = c.expd ? upper - 32'd1 : limit - 32'd1;
+        c.lim[2] = c.expd ? upper - 32'd3 : limit - 32'd3;
+        c.tiny = c.expd ? 3'b000 : {limit < 32'd3, limit < 32'd1, 1'b0};
+        c.low = limit;
+        c.rbad = !ar[7] || !ar[4] || ar[3] && !ar[1];
+        c.wbad = !ar[7] || !ar[4] || ar[3] || !ar[1];
+        return c;
     endfunction
 
     // ---- Pipeline ---------------------------------------------------------------
@@ -418,6 +484,17 @@ package fes_i386_pkg;
         logic        str_cnt;
         logic        b_fp;
         logic        x_prev;
+        // src2's value is the far pointer's selector (b_far: a protected-mode
+        // far jump's T0), or the system register sys_idx names (b_sys,
+        // sys_rd_e). plus2: the memory operand is 2 bytes past the ModRM
+        // operand's, wrapped by address size (LGDT's and SGDT's base).
+        // nochk: the uop steps ESP after a protected-mode POP Sreg, with no
+        // access and no limit check, as Bochs pops after the load.
+        logic        b_far;
+        logic        b_sys;
+        logic [2:0]  sys_idx;
+        logic        plus2;
+        logic        nochk;
         // Which of ESI, EDI and ECX (bits 0-2) the uop reads, as a source,
         // a CL count or an address register (str_reads): D holds it while
         // a string element that steps one is in flight.
@@ -492,7 +569,7 @@ package fes_i386_pkg;
         logic        ivt;        // the interrupt vector's entry, at linear vector * 4
         logic        sel_part;   // ... its selector, at + 2
         logic        probe;      // probe_e
-        logic [1:0]  b;          // UC_B: src2, the next EIP, segment seg's selector
+        logic [2:0]  b;          // UC_B: src2, the next EIP, segment seg's selector, the far selector, T1, a system register
         logic [2:0]  seg;
         logic        far_jmp;
         logic        far_chk;
@@ -509,6 +586,13 @@ package fes_i386_pkg;
         logic        rg;         // s1_idx and s2_idx are the instruction's register, which its first uop has in src1
         logic        rm;         // the memory operand is the instruction's ModRM operand, not a stack slot
         logic        bound;      // BOUND's compare (uop_t bound)
+        logic [1:0]  desc;       // uop_t desc
+        logic [1:0]  segchk;     // uop_t segchk
+        logic        segw;       // the uop writes segment register seg2 from T0's descriptor (uop_t seg2_pm)
+        logic        shadow;     // uop_t shadow, when the segment is SS
+        logic        nochk;      // ESP's step after a POP Sreg: no access, no limit check
+        logic        plus2;      // the address is the ModRM operand's plus 2 (LGDT's and SGDT's base)
+        logic [2:0]  sys;        // b = "sys": the system register sys_e names
     } ucode_t;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
@@ -603,8 +687,11 @@ package fes_i386_pkg;
         logic [31:0] sp_new;      // AG: ESP after a stack operation (uop sp_write)
         logic [31:0] maddr;       // AG: the memory operand's linear address
         logic [31:0] moff;        // ... its offset
-        logic [31:0] mlimit;      // D: its segment's limit less the access's bytes but one
-        logic        mtiny;       // D: ... which is below zero: every access faults
+        logic [31:0] mlimit;      // D: its segment's limit less the access's bytes but one (an expand-down
+                                  // segment's upper bound so less)
+        logic        mtiny;       // D: ... which is below zero, or the segment refuses the access: every access faults
+        logic [31:0] mlow;        // D: an expand-down segment's limit, at or below which every offset faults
+        logic        mexpd;       // D: ... the segment is expand-down
         logic        pbad;        // M1: a probe's slots straddle the 64 KiB wrap (#SS at M2)
         logic        nodata;      // D: a load whose data nothing uses, made for its limit check (fes_i386_cpu):
                                   // the L1D reads nothing for it

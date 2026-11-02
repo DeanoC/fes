@@ -491,8 +491,18 @@ The aux device accumulates them and reports standard 3-byte PS/2 packets.
 
 - **A20M** to the CPU is asserted when both the 8042 output port bit 1 and port
   92h bit 1 are clear. At power-on the output port has bit 1 set, so A20 is on
-  and the reset fetch reaches the `FFFF0000` alias directly; the BIOS and
-  HIMEM set the state from there.
+  and the reset fetch reaches the `FFFF0000` alias directly.
+- **The OS starts with A20 off,** as on an AT. POST clears both controls
+  before INT 19h ([firmware](../cores/fes-pc386/firmware/README.md#local-changes)):
+  - the 8042 through D0h, then D1h with bit 1 clear and bit 0 set;
+  - port 92h bit 1.
+
+  HIMEM then finds A20 off and picks a real method, whichever control it
+  uses.
+- **INT 15h AX=2400h–2402h** use both controls. An enable sets port 92h only
+  when A20 is off. A disable clears whichever controls are set, so a HIMEM
+  that set either one can still clear it. AX=2402h reports the state memory
+  sees. A shutdown-byte resume skips POST's gating and keeps its A20 state.
 - **CPU reset** comes from an 8042 pulse (FE, or any F0–FE pulse or D1 write
   that drives output bit 0 low), a rising edge on port 92h bit 0, or the
   CPU's SHUTDOWN. Each resets only the CPU, as on an AT: RAM, CMOS, A20, the
@@ -1158,9 +1168,10 @@ Alternatives not taken, kept as later options:
 | Service | Needed for | Bochs BIOS status |
 | --- | --- | --- |
 | POST | PIC, PIT, DMA and 8042 init; keyboard self-test; CMOS memory size; option ROM scan at C0000; ATA detect by IDENTIFY | Present |
+| POST A20 | A20 gated off through the 8042 and port 92h before INT 19h | Local patch ([#1386](https://github.com/DeanoC/fes/issues/1386)) |
 | INT 10h | Modes 03h and 13h, font load, DAC and palette calls, cursor, scrolling. Games then reprogram registers for mode Y themselves | VGABIOS |
 | INT 13h | AH=00h–08h, 0Ah–0Dh, 10h, 11h, 15h; EDD 41h–48h, which FreeDOS uses for LBA | Present (`int13_harddisk`, EDD cases) |
-| INT 15h | 24h A20 (through port 92h), 87h block move and 88h extended size for HIMEM, E801h and E820h, C0h configuration, C2h PS/2 pointing device for CuteMouse, 86h wait (counts port 61h bit 4), 83h event wait (RTC periodic interrupt), 4Fh keyboard intercept | Present |
+| INT 15h | 24h A20 (through the 8042 and port 92h; local patch), 87h block move and 88h extended size for HIMEM, E801h and E820h, C0h configuration, C2h PS/2 pointing device for CuteMouse, 86h wait (counts port 61h bit 4), 83h event wait (RTC periodic interrupt), 4Fh keyboard intercept | Present |
 | INT 16h | AH=00h–02h, 05h, 10h–12h | Present |
 | INT 16h AH=03h | Typematic rate (DOS `MODE CON RATE=`) | Local patch (M1). No target needs it |
 | INT 1Ah | RTC and tick count | Present |

@@ -20,7 +20,7 @@ import (
 func TestHealthProjectsActiveSoftwareWithoutOperationDetails(t *testing.T) {
 	active, base, selected := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
 	private := "private-operation-detail"
-	status := &softwarecontrol.Status{State: softwarecontrol.State{Selected: selected, Generation: 9, Pending: &softwarecontrol.Operation{Reason: private}, Receipts: map[string]softwarecontrol.Receipt{private: {Reason: private}}}, ActiveBundle: active, BaseIdentity: base, StorageError: private, ServiceFault: private}
+	status := &softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Selected: selected, Generation: 9, Receipts: map[string]softwarecontrol.Receipt{}}, ActiveBundle: active, BaseIdentity: base, ServiceFault: private}
 	for _, tc := range []struct {
 		name     string
 		software *softwarecontrol.Status
@@ -135,4 +135,45 @@ func TestSoftwareInventoryPairedListenerAuthenticatesAndScopes(t *testing.T) {
 
 func (s *inventoryService) LibrarySettings() fogcast.LibraryConfig {
 	return fogcast.LibraryConfig{SelectedTarget: "other", Targets: []fogcast.TargetConfig{{Name: "other", Enabled: true, TargetID: launcherIDB}, {Name: "paired", Enabled: true, TargetID: launcherID}}}
+}
+
+func TestHealthSuppressesUnverifiedSelectionFromOlderAgents(t *testing.T) {
+	active, base, selected := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
+	valid := softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Selected: selected, Generation: 9, Receipts: map[string]softwarecontrol.Receipt{}}, ActiveBundle: active, BaseIdentity: base}
+	for name, mutate := range map[string]func(*softwarecontrol.Status){
+		"storage error":       func(s *softwarecontrol.Status) { s.StorageError = "private storage failure" },
+		"missing version":     func(s *softwarecontrol.Status) { s.Version = 0 },
+		"missing receipts":    func(s *softwarecontrol.Status) { s.Receipts = nil },
+		"invalid selected id": func(s *softwarecontrol.Status) { s.Selected = "invalid" },
+		"invalid receipt": func(s *softwarecontrol.Status) {
+			s.Receipts = map[string]softwarecontrol.Receipt{"bad": {}}
+		},
+		"invalid pending operation": func(s *softwarecontrol.Status) {
+			s.Pending = &softwarecontrol.Operation{Phase: "queued"}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			status := valid
+			mutate(&status)
+			service := &fakeService{health: protocol.Health{APIVersion: "v1", Software: &status}}
+			response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/health")
+			var out struct {
+				Target struct {
+					Software struct {
+						ActiveBundle string `json:"active_bundle"`
+						BaseIdentity string `json:"base_identity"`
+						Selected     string `json:"selected"`
+						Generation   uint64 `json:"generation"`
+					} `json:"software"`
+				} `json:"target"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &out); err != nil {
+				t.Fatal(err)
+			}
+			got := out.Target.Software
+			if got.ActiveBundle != active || got.BaseIdentity != base || got.Selected != "" || got.Generation != 0 || strings.Contains(response.Body.String(), "private") {
+				t.Fatalf("unverified selection published: %+v", got)
+			}
+		})
+	}
 }
