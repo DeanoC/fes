@@ -1799,6 +1799,7 @@ def main():
                 raise ValueError('DE25 source builds select committed sources and MENU, not --artifacts')
             if any(value is None for value in (args.kernel, args.sdk, args.de25_image)):
                 raise ValueError('DE25 source builds require --kernel, --sdk and --de25-image')
+            sys.path.insert(0, str(ROOT))
             from native_dev import build_de25_development
             return build_de25_development(ROOT, args)
     if any(value is not None for value in (args.kernel, args.sdk, args.output, args.de25_image)):
