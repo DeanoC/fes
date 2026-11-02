@@ -41,7 +41,7 @@ def atf_descriptor(bl31_sha256, bl31_size):
             any(c not in "0123456789abcdef" for c in bl31_sha256) or int(bl31_sha256, 16) == 0 or
             type(bl31_size) is not int or not 16 <= bl31_size <= 2 << 20):
         raise ValueError("missing exact BL31 identity for the matched Nano loader")
-    return {'format': 1, 'scope': 'loaded-bl31-handoff-v1', 'target': 0x80000000,
+    return {'format': 2, 'scope': 'loaded-bl31-handoff-v2', 'target': 0x80000000,
             'bytes': bl31_size, 'sha256': bl31_sha256, 'bl32': 0, 'bl33': 0x80200000,
             'fdt': 0, 'params_base': 0xbff00000, 'params_bytes': 0x100000}
 

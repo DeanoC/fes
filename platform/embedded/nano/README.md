@@ -7,6 +7,14 @@ cache state, masked exceptions and unchanged primary CPU. The hash uses the raw
 vendor SHA API without watchdog or device callbacks. It changes no cache or
 reset controls. Invalid arguments, state or bytes reject before the branch.
 
+The current `loaded-bl31-handoff-v2` descriptor also requires paired
+`FES_NANO_SPL BARRIER` observations around the final `DSB SY`, followed by
+`FES_NANO_SPL ATF_STEP` at guard entry and before/after raw hashing. These
+checkpoints narrow partial progress. Hash completion does not mean the digest
+matched; the final ATF observation and subsequent secure/loader ownership checks
+are still required. The barrier remains in place. This new checkpoint recipe
+is hardware unqualified; the retained trial below used the preceding recipe.
+
 The U-Boot receipt's checked `atf_handoff` descriptor supplies `atf=...` to the
 serial/configuration decoder. Current file composition requires that descriptor
 and `spl_atf_trace=true`; the decoder requires its ordered observation and matches

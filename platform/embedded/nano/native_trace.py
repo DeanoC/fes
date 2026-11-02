@@ -30,6 +30,8 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('mmc', r'Trying to boot from MMC1'),
     ('fit', r'FES_NANO_SPL FIT verified before parsing'),
     ('spl_handoff', rf'FES_NANO_SPL HANDOFF owner=(?P<owner>{H}) epoch=(?P<epoch>{H}) per0=(?P<per0>{W}) bridge=(?P<bridge>{W}) sd=(?P<sd>{W})'),
+    ('spl_barrier', r'FES_NANO_SPL BARRIER phase=(?P<phase>before|after)'),
+    ('spl_atf_step', r'FES_NANO_SPL ATF_STEP phase=(?P<phase>entry|hash-before|hash-after)'),
     ('spl_atf', rf'FES_NANO_SPL ATF target=(?P<target>{H}) bl32=(?P<bl32>{H}) bl33=(?P<bl33>{H}) fdt=(?P<fdt>{H}) params=(?P<params>{H}) cold=(?P<cold>{H}) cookie=(?P<cookie>{H}) el=(?P<el>[0-3]) mpidr=(?P<mpidr>{H}) sctlr=(?P<sctlr>{H}) scr=(?P<scr>{H}) daif=(?P<daif>{H}) bytes=(?P<bytes>[0-9]{{1,10}}) sha256=(?P<sha256>[0-9a-f]{{64}})'),
     ('el3_capture', rf'(?:NOTICE:[ \t]+)?FES_NANO_EL3_CAPTURE phase=(?P<phase>before|after) pointer=(?P<pointer>{H}) cookie=(?P<cookie>{H})'),
     ('smmu', r'(?:NOTICE:[ \t]+)?FES_NANO_SMMU status=(?P<status>-?[0-9]{1,10}) reads=(?P<reads>[0-9]{1,3}) '+
@@ -111,7 +113,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             raise ValueError('checked loaded BL31 handoff descriptor required')
         atf=checked_atf_descriptor(atf)
         index=base_stages.index('spl_handoff')+1
-        base_stages=base_stages[:index]+('spl_atf',)+base_stages[index:]
+        base_stages=base_stages[:index]+('spl_barrier_before','spl_barrier_after','spl_atf_entry',
+                                      'spl_atf_hash_before','spl_atf_hash_after','spl_atf')+base_stages[index:]
     if storage is not None and (not isinstance(storage,dict) or set(storage)!={'bytes','sha256'} or
             type(storage['bytes']) is not int or not 0<storage['bytes']<=1<<20 or
             not isinstance(storage['sha256'],str) or not re.fullmatch('[0-9a-f]{64}',storage['sha256'])):
@@ -218,6 +221,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 name = values['phase']
             if name=='identity_transition':name='identity_'+values['phase']
             if name=='el3_capture':name+='_'+values['phase']
+            if name=='spl_barrier':name+='_'+values['phase']
+            if name=='spl_atf_step':name='spl_atf_'+values['phase'].replace('-','_')
             if name=='identity_access':name='identity_access_'+str(values['ordinal'])+'_'+values['phase']
             if name=='ddr_region':name+='_'+str(values['index'])
             if name=='sd_platform' and not controlled:

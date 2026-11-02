@@ -57,7 +57,9 @@ void fes_nano_spl_atf_trace(uintptr_t target, uintptr_t bl32, uintptr_t bl33,
     static const uint8_t expected[32]=FES_NANO_ATF_SHA;
     uint8_t hash[32];sha256_context state;
     uint64_t sctlr,scr,daif;
-    unsigned el=current_el();
+    unsigned el;
+    puts("FES_NANO_SPL ATF_STEP phase=entry\n");
+    el=current_el();
     if (el!=3 || source.failed || source.finish_stage!=FES_COLD_FINISH_COMPLETE ||
         target!=0x80000000UL || bl32 || bl33!=0x80200000UL || fdt ||
         params&7U || params<CONFIG_SPL_BSS_START_ADDR ||
@@ -78,9 +80,11 @@ void fes_nano_spl_atf_trace(uintptr_t target, uintptr_t bl32, uintptr_t bl33,
                (unsigned long long)sctlr,(unsigned long long)scr,(unsigned long long)daif,
                (unsigned long long)read_mpidr(),fes_nano_spl_record.core);hang();
     }
+    puts("FES_NANO_SPL ATF_STEP phase=hash-before\n");
     sha256_starts(&state);
     sha256_update(&state,(const uint8_t *)0x80000000UL,FES_NANO_ATF_SIZE);
     sha256_finish(&state,hash);
+    puts("FES_NANO_SPL ATF_STEP phase=hash-after\n");
     if (memcmp(hash,expected,32)) {
         puts("FES_NANO_SPL REJECT loaded BL31 bytes actual=");
         for (unsigned i=0;i<32;i++) printf("%02x",hash[i]);
@@ -157,6 +161,8 @@ const void *fes_nano_spl_handoff(void)
     printf("FES_NANO_SPL HANDOFF owner=%llx epoch=%llx per0=%08x bridge=%08x sd=%08x\n",
            (unsigned long long)source.record.boot.owner,(unsigned long long)source.record.boot.epoch,
            source.record.last.per0,source.record.last.bridge,source.record.sd_after);
+    puts("FES_NANO_SPL BARRIER phase=before\n");
     asm volatile("dsb sy" ::: "memory");
+    puts("FES_NANO_SPL BARRIER phase=after\n");
     return &fes_nano_spl_record;
 }

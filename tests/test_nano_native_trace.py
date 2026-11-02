@@ -17,6 +17,14 @@ EPOCH = 0x101
 OWNER = (SEED ^ EPOCH) | 1
 
 
+def atf_progress():
+    return ('FES_NANO_SPL BARRIER phase=before\r\n',
+            'FES_NANO_SPL BARRIER phase=after\r\n',
+            'FES_NANO_SPL ATF_STEP phase=entry\r\n',
+            'FES_NANO_SPL ATF_STEP phase=hash-before\r\n',
+            'FES_NANO_SPL ATF_STEP phase=hash-after\r\n')
+
+
 def fixture(core=0, bridge=0x4f):
     """Match the actual producer printf formats, including TF-A NOTICE prefix."""
     cpus = ','.join('0' if i == core else '1' for i in range(4))
@@ -60,7 +68,7 @@ class NativeTraceTests(unittest.TestCase):
                 'cold=21768 cookie=464e433200000002 el=3 mpidr=81000000 sctlr=1000 scr=501 daif=3c0 '
                 'bytes=90173 sha256='+'1'*64+'\r\n')
         before='NOTICE:  FES_NANO_EL3_CAPTURE phase=before'
-        raw=fixture().replace(before,marker+before)
+        raw=fixture().replace(before,''.join(atf_progress())+marker+before)
         observed=trace.decode_native_boot(raw,BUILD,SEED,atf=expected)
         self.assertTrue(observed['complete'],observed)
         self.assertFalse(observed['core_load_acceptance'])
@@ -71,7 +79,7 @@ class NativeTraceTests(unittest.TestCase):
         self.assertEqual(partial['errors'],[])
         self.assertFalse(partial['loader_ready']);self.assertFalse(partial['complete'])
         truncated=trace.decode_native_boot(prefix.rstrip('\r\n'),BUILD,SEED,atf=expected)
-        self.assertEqual(truncated['last_checkpoint'],'spl_handoff')
+        self.assertEqual(truncated['last_checkpoint'],'spl_atf_hash_after')
         self.assertFalse(trace.decode_native_boot(raw,BUILD,SEED)['complete'])
         self.assertFalse(trace.decode_native_boot(fixture(),BUILD,SEED,atf=expected)['complete'])
         self.assertFalse(trace.decode_native_boot(raw.replace(marker,marker+marker),BUILD,SEED,atf=expected)['complete'])
@@ -94,8 +102,45 @@ class NativeTraceTests(unittest.TestCase):
                 with self.subTest(key=key),self.assertRaises(ValueError):
                     checked_atf_descriptor(dict(expected,**{key:bool(value)}))
         for bad in (None,{},dict(expected,bytes=0),dict(expected,sha256='0'*64),
-                    dict(expected,target=0x80000004),dict(expected,extra=1)):
+                    dict(expected,target=0x80000004),dict(expected,extra=1),
+                    dict(expected,format=1,scope='loaded-bl31-handoff-v1')):
             with self.subTest(bad=bad),self.assertRaises(ValueError):checked_atf_descriptor(bad)
+
+    def test_barrier_and_guard_progress_requires_every_ordered_current_checkpoint(self):
+        sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
+        try:from prepare_uboot import atf_descriptor
+        finally:sys.path.pop(0)
+        expected=atf_descriptor('1'*64,90173)
+        self.assertEqual((expected['format'],expected['scope']),(2,'loaded-bl31-handoff-v2'))
+        anchor='NOTICE:  FES_NANO_EL3_CAPTURE phase=before'
+        marker=('FES_NANO_SPL ATF target=80000000 bl32=0 bl33=80200000 fdt=0 params=bff00008 '
+                'cold=21768 cookie=464e433200000002 el=3 mpidr=81000000 sctlr=1000 scr=501 daif=3c0 '
+                'bytes=90173 sha256='+'1'*64+'\r\n')
+        progress=atf_progress()
+        raw=fixture().replace(anchor,''.join(progress)+marker+anchor)
+        decode=lambda data:trace.decode_native_boot(data,BUILD,SEED,atf=expected)
+        self.assertTrue(decode(raw)['complete'])
+        names=('spl_barrier_before','spl_barrier_after','spl_atf_entry','spl_atf_hash_before','spl_atf_hash_after')
+        for line,name in zip(progress,names):
+            prefix=raw[:raw.index(line)]
+            for end in range(len(line)):
+                with self.subTest(stage=name,fragment=end):
+                    result=decode(prefix+line[:end])
+                    self.assertEqual(result['errors'],[])
+                    self.assertFalse(result['complete']);self.assertFalse(result['loader_ready'])
+                    self.assertFalse(result['core_load_acceptance'])
+                    self.assertNotEqual(result['last_checkpoint'],name)
+            self.assertEqual(decode(prefix+line)['last_checkpoint'],name)
+            for changed in (raw.replace(line,''),raw.replace(line,line+line),line+raw,
+                            raw.replace(line,line.replace('phase=','phase=unknown-'))):
+                result=decode(changed)
+                self.assertTrue(result['errors']);self.assertFalse(result['loader_ready'])
+                self.assertFalse(result['complete']);self.assertFalse(result['core_load_acceptance'])
+        for index in range(len(progress)-1):
+            a,b=progress[index:index+2]
+            self.assertFalse(decode(raw.replace(a+b,b+a))['loader_ready'])
+        self.assertFalse(decode(raw.replace(''.join(progress),''))['complete'])
+        self.assertFalse(trace.decode_native_boot(raw,BUILD,SEED)['complete'])
 
     def test_early_capture_pairs_locate_progress_without_granting_boot_authority(self):
         raw=fixture();before='NOTICE:  FES_NANO_EL3_CAPTURE phase=before pointer=21768 cookie=464e433200000002\r\n'
@@ -519,7 +564,7 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
         self.check_reader_trace()
         self.check_ddr_trace()
 
-    def check_actual_ddr_platform_trace(self,actual):
+    def check_actual_ddr_platform_trace(self,actual,*,atf=None):
         """Actual strong C provider/MMIO trace joined to a host boot fixture.
 
         The ordinary boot and Go final markers are synthetic. This verifies
@@ -546,8 +591,15 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
               f'FES_NATIVE_FPGA_DDR_READER PASS owner={OWNER:x} generation=7 reader_generation=1 cookie=7 bytes=32 data_closed=1 runtime_programming=unavailable\n')
         sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
         try:
+            from prepare_uboot import atf_descriptor,checked_atf_descriptor
+            atf=checked_atf_descriptor(atf if atf is not None else atf_descriptor('e'*64,90173))
+            anchor='NOTICE:  FES_NANO_EL3_CAPTURE phase=before'
+            marker=('FES_NANO_SPL ATF target=80000000 bl32=0 bl33=80200000 fdt=0 params=bff00008 '
+                    'cold=21768 cookie=464e433200000002 el=3 mpidr=81000000 sctlr=1000 scr=501 daif=3c0 '
+                    f'bytes={atf["bytes"]} sha256={atf["sha256"]}\n')
+            raw=raw.replace(anchor,''.join(atf_progress())+marker+anchor,1)
             def decode(data):return trace.decode_native_configuration(data,BUILD,SEED,fpga_identity=identity,
-                configuration=configuration,from_storage=True,reader_memory=memory,ddr_read=contract)
+                configuration=configuration,from_storage=True,reader_memory=memory,ddr_read=contract,atf=atf)
             result=decode(raw)
             self.assertTrue(result['complete'],result['errors'])
             self.assertTrue(result['ddr_read']['complete'])
@@ -555,7 +607,7 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
             self.assertFalse(result['ddr_read']['data_remained_contained'])
             self.assertEqual(result['ddr_read']['writes'],9)
             self.assertFalse(trace.decode_native_configuration(raw,BUILD,SEED,fpga_identity=identity,
-                configuration=configuration,from_storage=True,reader_memory=memory)['complete'])
+                configuration=configuration,from_storage=True,reader_memory=memory,atf=atf)['complete'])
             for old,new in (('pattern_words=2048','pattern_words=2047'),('hardware_drained=8','hardware_drained=0'),
                             ('producers_quiescent=1','producers_quiescent=0'),('fabric_acknowledged=0','fabric_acknowledged=1'),
                             ('offset=84 value=95000000','offset=84 value=95001000'),('offset=48 value=7','offset=48 value=6'),
@@ -567,7 +619,8 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
             lines=raw.splitlines(keepends=True)
             important=[i for i,line in enumerate(lines) if 'FES_NANO_DDR_CONTROL' in line or 'FES_NANO_DDR_GATE' in line or
                 'FES_NANO_DDR_READ phase=' in line or 'FES_NANO_DDR_CLOSURE' in line or 'FES_NATIVE_FPGA_DDR_READER' in line or
-                'ordinal=30 phase=' in line or 'phase=after ordinal=30 ' in line]
+                'ordinal=30 phase=' in line or 'phase=after ordinal=30 ' in line or
+                'FES_NANO_SPL BARRIER' in line or 'FES_NANO_SPL ATF_STEP' in line or 'FES_NANO_SPL ATF target=' in line]
             for i in important:
                 with self.subTest(active_line=i):
                     self.assertFalse(decode(''.join(lines[:i]+lines[i+1:]))['complete'])

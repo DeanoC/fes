@@ -102,12 +102,12 @@ typedef struct { unsigned step; } sha256_context;
 #define puts(text) fputs((text),stdout)
 static unsigned current_el(void) { return mode==1 ? 2 : 3; }
 static uint64_t read_mpidr(void) { return mode==15 ? 0x81000200 : 0x81000000; }
-static void sha256_starts(sha256_context *s) { assert(samples==3);s->step=1; }
+static void sha256_starts(sha256_context *s) { assert(samples==3);if(mode==36)longjmp(stopped,1);s->step=1; }
 static void sha256_update(sha256_context *s,const uint8_t *p,uint32_t n) {
-    assert(s->step==1 && p==(void *)0x80000000UL && n==16);s->step=2;hash_calls++;
+    assert(s->step==1 && p==(void *)0x80000000UL && n==16);if(mode==37)longjmp(stopped,1);s->step=2;hash_calls++;
 }
 static void sha256_finish(sha256_context *s,uint8_t *hash) {
-    assert(s->step==2);s->step=3;memset(hash,0,32);
+    assert(s->step==2);if(mode==38)longjmp(stopped,1);s->step=3;memset(hash,0,32);
     hash[0]=memcmp((void *)0x80000000UL,original,16)?0xa5:0x5a;
 }
 static void hang(void) { longjmp(stopped,1); }
@@ -125,12 +125,12 @@ int main(int argc,char **argv) {
     case 12:sample_sctlr|=1;break;case 13:sample_sctlr|=4;break;case 14:sample_daif=0;break;
     case 16:atf_size=0;break;case 17:atf_size=(2UL<<20)+1;break;case 18:b33+=1UL<<32;break;
     }
-    if(mode>=20)((uint8_t *)0x80000000UL)[mode-20]^=1;
+    if(mode>=20 && mode<36)((uint8_t *)0x80000000UL)[mode-20]^=1;
     if(!setjmp(stopped)) {
         fes_nano_spl_atf_trace(target,b32,b33,fdt,p,cold);
         assert(!mode && samples==3 && hash_calls==1);
     } else {
-        assert(mode && hash_calls==(mode>=20));
+        assert(mode && hash_calls==((mode>=20 && mode<36) || mode==38));
         assert(samples==((mode>=12 && mode<=15) || mode>=20 ? 3U : 0U));
     }
     puts("ATF_CHECK_TEST_PASS\n");return 0;
@@ -140,13 +140,22 @@ int main(int argc,char **argv) {
             base=Path(temp);test=base/'loaded.c';binary=base/'loaded';test.write_text(prefix+fragment+main)
             r=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all','-I'+str(FW),str(test),'-o',str(binary)],capture_output=True,text=True)
             self.assertEqual(r.returncode,0,r.stderr)
-            for mode in list(range(19))+list(range(20,36)):
+            for mode in list(range(19))+list(range(20,39)):
                 with self.subTest(mode=mode):
                     r=subprocess.run([str(binary),str(mode)],capture_output=True,text=True)
                     self.assertEqual(r.returncode,0,r.stderr)
                     self.assertIn('ATF_CHECK_TEST_PASS',r.stdout)
                     self.assertEqual('FES_NANO_SPL ATF target=' in r.stdout,mode==0)
-                    self.assertEqual('FES_NANO_SPL REJECT ' in r.stdout,mode!=0)
+                    self.assertEqual('FES_NANO_SPL REJECT ' in r.stdout,0<mode<36)
+                    entry='FES_NANO_SPL ATF_STEP phase=entry\n'
+                    before='FES_NANO_SPL ATF_STEP phase=hash-before\n'
+                    after='FES_NANO_SPL ATF_STEP phase=hash-after\n'
+                    self.assertEqual(r.stdout.count(entry),1)
+                    hashed=mode==0 or mode>=20
+                    self.assertEqual(r.stdout.count(before),int(hashed))
+                    self.assertEqual(r.stdout.count(after),int(hashed and mode<36))
+                    if hashed:self.assertLess(r.stdout.index(entry),r.stdout.index(before))
+                    if hashed and mode<36:self.assertLess(r.stdout.index(before),r.stdout.index(after))
 
     def test_secure_capture_trace_preserves_vendor_order_and_all_arguments(self):
         sys.path.insert(0,str(FW))
@@ -390,7 +399,7 @@ int main(void) {
         barrier='asm volatile("dsb sy" ::: "memory");'
         self.assertEqual(fragment.count(counter),1)
         self.assertEqual(fragment.count(barrier),1)
-        fragment=fragment.replace(counter,'epoch=9;').replace(barrier,'barriers++;')
+        fragment=fragment.replace(counter,'epoch=9;').replace(barrier,'barriers++;if(mode==5)longjmp(stopped,1);')
         with tempfile.TemporaryDirectory() as temp:
             base=Path(temp);test=base/'handoff.c';binary=base/'handoff'
             test.write_text(r'''
@@ -431,8 +440,8 @@ int main(int argc,char **argv) {
     if(!setjmp(stopped)) {
         const void *r=fes_nano_spl_handoff();
         assert(!mode && r==&fes_nano_spl_record && barriers==1);
-    }else assert(mode && !barriers);
-    assert(calls==(mode==0 || mode==4));
+    }else assert(mode && barriers==(mode==5));
+    assert(calls==(mode==0 || mode==4 || mode==5));
     assert(source.record.boot.epoch==9 && source.record.boot.owner==25);
     puts("HANDOFF_REPORT_TEST_PASS");return 0;
 }
@@ -440,14 +449,18 @@ int main(int argc,char **argv) {
             r=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
                               '-I'+str(FW),str(test),'-o',str(binary)],capture_output=True,text=True)
             self.assertEqual(r.returncode,0,r.stderr)
-            for mode in range(5):
+            for mode in range(6):
                 with self.subTest(mode=mode):
                     r=subprocess.run([str(binary),str(mode)],capture_output=True,text=True)
                     self.assertEqual(r.returncode,0,r.stderr)
                     self.assertIn('HANDOFF_REPORT_TEST_PASS',r.stdout)
-                    if not mode:
+                    if mode in (0,5):
                         self.assertIn('FES_NANO_SPL HANDOFF ',r.stdout)
                         self.assertNotIn('NANO_COLD_',r.stdout)
+                        self.assertEqual(r.stdout.count('FES_NANO_SPL BARRIER phase=before\n'),1)
+                        self.assertEqual(r.stdout.count('FES_NANO_SPL BARRIER phase=after\n'),int(mode==0))
+                        self.assertLess(r.stdout.index('FES_NANO_SPL HANDOFF '),r.stdout.index('FES_NANO_SPL BARRIER phase=before'))
+                        if not mode:self.assertLess(r.stdout.index('phase=before'),r.stdout.index('phase=after'))
                     else:
                         lines=r.stdout.splitlines()
                         reject=next(i for i,line in enumerate(lines) if line.startswith('FES_NANO_SPL REJECT '))
@@ -462,6 +475,7 @@ int main(int argc,char **argv) {
                         self.assertIn('fit='+str(int(mode!=2)),lines[reject])
                         self.assertIn('entry='+str(int(mode!=3)),lines[reject])
                         self.assertNotIn('FES_NANO_SPL HANDOFF ',r.stdout)
+                        self.assertNotIn('FES_NANO_SPL BARRIER ',r.stdout)
 
     def test_actual_spl_seal_rejects_before_parse_and_reads_verified_ram(self):
         """Exercise the shipped SPL functions with FAT and SHA API substitutes.
