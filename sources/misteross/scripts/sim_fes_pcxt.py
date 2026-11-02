@@ -222,7 +222,9 @@ def main():
             sources = (tuple(s for s in sources if s.endswith('.sv')) +
                        tuple(s for s in CPU_SOURCES
                              if s.endswith('.sv') and not s.endswith('/cpu_top.sv')) +
-                       ('cores/fes-pcxt/sim/machine_top.sv', 'cores/fes-pcxt/sim/machine_tb.cpp'))
+                       ('cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-common/rtl/fes_audio_i2s.v',
+                        'cores/fes-pcxt/rtl/pcxt_board_audio.sv',
+                        'cores/fes-pcxt/sim/machine_top.sv', 'cores/fes-pcxt/sim/machine_tb.cpp'))
         if suite in ('display-machine', 'video-machine', 'memory-machine'):
             for name in CHIP_VENDORS:
                 verify_vendor(name)

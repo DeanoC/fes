@@ -30,9 +30,14 @@ TOOLCHAIN_LOCK = 'cores/fes-pcxt/toolchain.lock'
 TARGET = '5CSEBA6U23I7'
 TOP = 'top'
 RTL = SYSTEM_SOURCES + ('cores/fes-common/rtl/fes_computer_mailbox.v',
+                        'cores/fes-common/rtl/fes_audio_pll.v',
+                        'cores/fes-common/rtl/fes_audio_output.v',
+                        'cores/fes-common/rtl/fes_audio_i2s.v',
+                        'cores/fes-pcxt/rtl/pcxt_board_audio.sv',
                         'cores/fes-pcxt/rtl/fes_pcxt_top.sv')
 QSF = 'cores/fes-ramtest/constraints.qsf'
 BOARD50_QSF = 'cores/fes-pcxt/constraints-board50.qsf'
+AUDIO_QSF = 'cores/fes-pcxt/constraints-audio.qsf'
 SDC = 'boards/de10nano/clocks.sdc'
 ROM_CLOCK_MAP = 'cores/fes-pcxt/synth/rom_clock_map.v'
 PLACER_TIMING_WEIGHT = 2000
@@ -70,10 +75,10 @@ def yosys_program(output, mda, scanlines, synthesis, half_rate_board=False,
             '; techmap -map ' + str(ROOT / ROM_CLOCK_MAP) + '; hierarchy -top top; opt_clean; check -assert; stat; write_json synth.json')
 
 
-def nextpnr_command(executable, seed, half_rate_board=False):
-    qsf = BOARD50_QSF if half_rate_board else QSF
+def nextpnr_command(executable, seed, half_rate_board=False, *, qsf_path=None):
+    qsf = qsf_path or ROOT / (BOARD50_QSF if half_rate_board else QSF)
     command = [str(executable), '--json', 'synth.json',
-               '--device', '5CSEBA6U23I7', '--qsf', str(ROOT / qsf), '--sdc', str(ROOT / SDC),
+               '--device', '5CSEBA6U23I7', '--qsf', str(qsf), '--sdc', str(ROOT / SDC),
                '--freq', '100', '--seed', str(seed), '--router', 'gpu',
                '--placer-heap-timingweight', str(PLACER_TIMING_WEIGHT),
                '--placer-heap-critexp', str(PLACER_CRITICALITY_EXPONENT),
@@ -131,7 +136,7 @@ def main():
     output.mkdir(parents=True)
     print(output, flush=True)
     # Headers, microcode and assembly are part of the diagnostic source record.
-    inputs = sorted(set(RTL) | {qsf, SDC, ROM_CLOCK_MAP, CPU_MUX_MAP, TOOLCHAIN_LOCK, 'scripts/build_fes_pcxt.py',
+    inputs = sorted(set(RTL) | {qsf, AUDIO_QSF, SDC, ROM_CLOCK_MAP, CPU_MUX_MAP, TOOLCHAIN_LOCK, 'scripts/build_fes_pcxt.py',
                     'scripts/sim_fes_pcxt.py', 'cores/fes-pcxt/firmware/diagnostic.S'} |
                     {str(p.relative_to(ROOT)) for p in (ROOT / 'cores/fes-common/generated').glob('*.vh')} |
                     {str(p.relative_to(ROOT)) for d in (ROOT / 'cores/fes-pcxt/vendor', *map(vendor_dir, SHARED_VENDORS))
@@ -172,7 +177,11 @@ def main():
         receipt['status'] = 'synthesized'
         save()
         if not args.synth_only:
-            command = nextpnr_command(tools['nextpnr-mistral'].path, args.seed, args.half_rate_board)
+            combined_qsf = output / 'board-with-audio.qsf'
+            combined_qsf.write_text((ROOT / qsf).read_text() + '\n' + (ROOT / AUDIO_QSF).read_text())
+            receipt['combined_qsf_sha256'] = hashlib.sha256(combined_qsf.read_bytes()).hexdigest()
+            command = nextpnr_command(tools['nextpnr-mistral'].path, args.seed, args.half_rate_board,
+                                      qsf_path=combined_qsf)
             env = dict(os.environ)
             env['NEXTPNR_REQUIRE_GPU'] = '1'
             receipt['route_command'] = command

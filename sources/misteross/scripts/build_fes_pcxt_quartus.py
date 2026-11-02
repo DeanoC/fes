@@ -225,6 +225,8 @@ def create_build_record(root, repository, revision, tool_identities, *, identity
                   'half_rate_board': False, 'phased_hdmi_clock': True,
                   'enable_fes_computer': True, 'enable_pcxt_media': True,
                   'enable_keyboard': dos_profile,
+                  'enable_audio': dos_profile,
+                  'audio_clock_hz': 12288000 if dos_profile else 0,
                   'diagnostic_completion_marker': not dos_profile,
                   'video_mailbox_contract': True,
                   'system_clock_hz': 100000000, 'pixel_clock_hz': 74250000,
@@ -289,7 +291,9 @@ def manifest(record, payload, *, dos_profile=False, metadata=None):
     if (not isinstance(dos_profile, bool) or parameters.get('core_id') != expected_core_id
             or parameters.get('hardware_dos') is not dos_profile
             or parameters.get('enable_pcxt_media') is not True
-            or parameters.get('enable_keyboard') is not dos_profile):
+            or parameters.get('enable_keyboard') is not dos_profile
+            or parameters.get('enable_audio') is not dos_profile
+            or parameters.get('audio_clock_hz') != (12288000 if dos_profile else 0)):
         raise BuildError('PC/XT manifest profile does not match its build record')
     if dos_profile:
         description = ('XT-compatible BIOS and read-only 360 KiB floppy loaded '
@@ -304,6 +308,7 @@ def manifest(record, payload, *, dos_profile=False, metadata=None):
     interfaces.append({'id': 'fes.media.pcxt-floppy', 'major': 1, 'minor': 0, 'required': True})
     if dos_profile:
         interfaces.append({'id': 'fes.keyboard.hid', 'major': 1, 'minor': 0, 'required': True})
+        interfaces.append({'id': 'fes.audio.pcm-s16-stereo-48k', 'major': 1, 'minor': 0, 'required': True})
     return encode_manifest({'format': 2,
         'core': core,
         'target': {'platform': 'de10_nano', 'device': board.DEVICE, 'programming_profile': 'fes-gp-v1'},

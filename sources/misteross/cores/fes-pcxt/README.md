@@ -967,10 +967,12 @@ PS/2 protocol endpoint. Kit acceptance of host typing is separate.
 
 `pcxt_speaker.sv` integrates the gated PIT2 waveform over each 48 kHz sample
 window (2083/2084 fabric clocks), then applies a roughly 30 Hz DC blocker.
-Its signed 16-bit mono sample/valid outputs are available to a future board
-adapter; they are not connected to the production audio shell. Fixed gain
-introduces at most four counts of window-length jitter. This development
-filter has no measured analog-speaker fidelity claim.
+The DOS package sends the signed 16-bit mono samples to both channels of the
+48 kHz HDMI audio output through the shared coherent clock-domain bridge. The
+guest-programmed tone, stereo serialization and mute are covered in simulation;
+physical audio acceptance remains separate. Fixed gain introduces at most four
+counts of window-length jitter. This development filter has no measured
+analog-speaker fidelity claim.
 
 [`fes_dma8237.sv`](../fes-common/rtl/fes_dma8237.sv), shared with pc386, is
 original transaction-native RTL; its default parameters implement the XT subset

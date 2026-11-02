@@ -276,7 +276,8 @@ class PCXTQuartusPackageTests(unittest.TestCase):
         self.assertIn('image is optional', manifest['core']['description'])
         self.assertIn('empty drive', manifest['core']['description'])
         self.assertEqual([i['id'] for i in manifest['interfaces']],
-                         ['fes.video.fixed-720p60', 'fes.media.pcxt-floppy', 'fes.keyboard.hid'])
+                         ['fes.video.fixed-720p60', 'fes.media.pcxt-floppy', 'fes.keyboard.hid',
+                          'fes.audio.pcm-s16-stereo-48k'])
         self.assertTrue(manifest['interfaces'][1]['required'])
         self.assertIn('runtime floppy image is optional', producer.build_limits(True)[1])
         self.assertNotIn('required', producer.build_limits(True)[1])
@@ -351,7 +352,23 @@ class PCXTQuartusPackageTests(unittest.TestCase):
                 result = subprocess.run([str(yosys), '-s', 'elaborate.ys'], cwd=work,
                                         capture_output=True, text=True, timeout=600, check=False)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                producer.board.validate_renaming(work, package_profile=True)
+                producer.board.validate_renaming(work, package_profile=True, dos_profile=dos_profile)
+                if dos_profile:
+                    # A valid port set and primitive count do not prove the audio clock.
+                    before_path, after_path = work / 'before-names.json', work / 'elaborated.json'
+                    originals = [path.read_text() for path in (before_path, after_path)]
+                    for path, original in zip((before_path, after_path), originals):
+                        data = json.loads(original)
+                        plls = [cell for cell in data['modules']['top']['cells'].values()
+                                if cell['type'] == 'altera_pll' and
+                                cell['parameters'].get('output_clock_frequency0') == '12.288 MHz']
+                        self.assertEqual(len(plls), 1)
+                        plls[0]['parameters']['output_clock_frequency0'] = '12.000 MHz'
+                        path.write_text(json.dumps(data))
+                    with self.assertRaisesRegex(ValueError, 'clock request changed'):
+                        producer.board.validate_renaming(work, package_profile=True, dos_profile=True)
+                    for path, original in zip((before_path, after_path), originals):
+                        path.write_text(original)
                 before = json.loads((work / 'before-names.json').read_text())['modules']['top']
                 after = json.loads((work / 'elaborated.json').read_text())['modules']['top']
                 producer.board.validate_mailbox(before, after, half_rate_board=False)

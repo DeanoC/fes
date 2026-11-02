@@ -87,6 +87,14 @@ class PcxtToolchainTest(unittest.TestCase):
                        '--critical-cohort-budget'):
             self.assertNotIn(option, command)
 
+    def test_combined_constraints_can_be_used_for_audio_pins(self):
+        command = builder.nextpnr_command(Path('/tools/nextpnr-mistral'), 3,
+                                          qsf_path=Path('/tmp/board-with-audio.qsf'))
+        self.assertEqual(command[command.index('--qsf') + 1], '/tmp/board-with-audio.qsf')
+        audio = (builder.ROOT / builder.AUDIO_QSF).read_text()
+        for pin in ('HDMI_MCLK', 'HDMI_SCLK', 'HDMI_LRCLK', 'HDMI_I2S'):
+            self.assertIn('-to ' + pin, audio)
+
     def test_neither_route_recipe_suppresses_timing_failures(self):
         for half_rate in (False, True):
             with self.subTest(half_rate=half_rate):

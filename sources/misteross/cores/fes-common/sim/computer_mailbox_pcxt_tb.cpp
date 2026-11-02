@@ -69,7 +69,15 @@ static uint32_t crc32() {
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     Test t;
-    require(t.good(1,6)==1 && t.good(1,7)==1 && t.good(1,16)==16,"1.1 capability identity");
+#ifdef PCXT_DOS_CAPABILITIES
+    constexpr uint16_t low_capabilities=0x000b; // floppy, keyboard and stereo PCM
+#else
+    constexpr uint16_t low_capabilities=0x0001; // floppy only
+#endif
+    const auto minor=t.good(1,6), caps=t.good(1,7), caps_high=t.good(1,16);
+    if (minor!=1 || caps!=low_capabilities || caps_high!=16)
+        std::cerr << "identity: " << minor << ", " << caps << ", " << caps_high << '\n';
+    require(minor==1 && caps==low_capabilities && caps_high==16, "1.1 capability identity");
     t.bad(1,17,0,2);
     require(t.good(5,0)==0xa000 && t.good(5,1)==5 && t.good(5,2)==0xa000 &&
             t.good(5,3)==5 && t.good(5,4)==512 && t.good(5,5)==1,"PC floppy geometry and empty state");

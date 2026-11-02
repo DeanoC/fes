@@ -39,11 +39,16 @@ DOS_RTL = ('cores/fes-pcxt/rtl/pcxt_xt_keyboard_bat.sv',
            'cores/fes-pcxt/rtl/pcxt_hid_keyboard.sv')
 RTL = SYSTEM_SOURCES + DOS_RTL + (
                         'cores/fes-common/rtl/fes_computer_mailbox.v',
+                        'cores/fes-common/rtl/fes_audio_pll.v',
+                        'cores/fes-common/rtl/fes_audio_output.v',
+                        'cores/fes-common/rtl/fes_audio_i2s.v',
+                        'cores/fes-pcxt/rtl/pcxt_board_audio.sv',
                         str(CORE / 'rtl/fes_pcxt_top.sv'))
 ADAPTERS = CORE / 'quartus/adapters.v'
 AUDIT = CORE / 'quartus/audit.tcl'
 MAILBOX = CORE / 'quartus/mailbox.sdc'
 PINS = CORE / 'constraints-board50.qsf'
+AUDIO_PINS = CORE / 'constraints-audio.qsf'
 PACKAGE_PINS = Path('cores/fes-ramtest/constraints.qsf')
 DEVICE = '5CSEBA6U23I7'
 SDC = ('create_clock -name FPGA_CLK1_50 -period 20.000 [get_ports {FPGA_CLK1_50}]\n'
@@ -61,7 +66,7 @@ def input_paths(root: Path) -> list[Path]:
     tracked = subprocess.check_output(
         ['git', 'ls-files', '--', str(CORE), *map(str, vendor_roots)], cwd=root, text=True).splitlines()
     paths = set(map(Path, tracked)) | set(map(Path, RTL))
-    paths.update((ADAPTERS, AUDIT, MAILBOX, PINS, PACKAGE_PINS, Path('scripts/sim_fes_pcxt.py'),
+    paths.update((ADAPTERS, AUDIT, MAILBOX, PINS, AUDIO_PINS, PACKAGE_PINS, Path('scripts/sim_fes_pcxt.py'),
                   Path('scripts/quartus_fes_pcxt.py'), Path('scripts/quartus_tools.py'),
                   Path('scripts/pcxt_quartus_mailbox.py'), Path('tests/test_pcxt_video_mailbox.py')))
     paths.update(p.relative_to(root) for p in (root / 'cores/fes-common/generated').glob('*.vh'))
@@ -167,7 +172,7 @@ def prepare_elaboration_inputs(source: Path, work: Path, *, dos_profile=False) -
     }
 
 
-def validate_renaming(work: Path, *, package_profile=False) -> dict:
+def validate_renaming(work: Path, *, package_profile=False, dos_profile=False) -> dict:
     before = json.loads((work / 'before-names.json').read_text())['modules']
     after = json.loads((work / 'elaborated.json').read_text())['modules']
     if before.keys() != after.keys():
@@ -182,7 +187,7 @@ def validate_renaming(work: Path, *, package_profile=False) -> dict:
                 raise ValueError('portable naming changed ' + category + ': ' + name)
     cells = after['top']['cells']
     counts = dict(Counter(c['type'] for c in cells.values()))
-    boundary = {'altera_pll': 2, 'altiobuf_bidir': 16, 'cyclonev_clkena': 1,
+    boundary = {'altera_pll': 3 if dos_profile else 2, 'altiobuf_bidir': 16, 'cyclonev_clkena': 1,
                 'cyclonev_hps_interface_peripheral_i2c': 1, 'altddio_out': 1}
     if any(counts.get(kind) != count for kind, count in boundary.items()):
         raise ValueError('whole-board primitive boundary is incomplete')
@@ -195,12 +200,20 @@ def validate_renaming(work: Path, *, package_profile=False) -> dict:
                         'phase_shift1': '10000 ps', 'phase_shift2': '0 ps', 'phase_shift3': '18000 ps'})
     if package_profile and counts.get('cyclonev_hps_interface_mpu_general_purpose') != 1:
         raise ValueError('package profile lacks its runtime mailbox')
-    for name, settings in {
+    pll_settings = {
         'memory_clock': memory_settings,
         'video_clock': {'number_of_clocks': 2, 'output_clock_frequency0': '74.25 MHz',
                         'output_clock_frequency1': '74.25 MHz', 'phase_shift0': '0 ps',
                         'phase_shift1': '8979 ps'},
-    }.items():
+    }
+    if dos_profile:
+        pll_settings['speaker_output_audio_clock_pll'] = {
+            'reference_clock_frequency': '50.0 MHz', 'number_of_clocks': 1,
+            'output_clock_frequency0': '12.288 MHz', 'phase_shift0': '0 ps',
+            'duty_cycle0': 50, 'operation_mode': 'direct',
+            'fractional_vco_multiplier': 'true',
+        }
+    for name, settings in pll_settings.items():
         cell = cells.get(name, {})
         if cell.get('type') != 'altera_pll':
             raise ValueError('missing declared PLL: ' + name)
@@ -234,6 +247,7 @@ def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False,
         'set_instance_assignment -name HPS_LOCATION '
         'HPSINTERFACEPERIPHERALI2C_X52_Y60_N111 -entity top -to hdmi_i2c',
         (source / (PACKAGE_PINS if package_profile else PINS)).read_text(),
+        (source / AUDIO_PINS).read_text(),
     ]
     if video_mailbox_contract:
         # Quartus 17 does not infer its fitter-protection policy from Yosys's
@@ -247,7 +261,29 @@ def project_qsf(source: Path, seed: int, threads: int, *, package_profile=False,
     return '\n'.join(lines) + '\n'
 
 
-def timing_summary(work: Path, mailbox_contract: bool = False) -> dict:
+def validate_audio_clock_audit(clock_records, counts, fmax, corners):
+    # Bind the PLL's elaborated 12.288 MHz output to the measured TimeQuest
+    # inventory, then require real same-clock and both directions of board-clock
+    # paths at every operating condition. No clock group or path is waived.
+    audio = [r['name'] for r in clock_records
+             if abs(float(r['period_ns']) - 1e9 / 12288000) < 0.01
+             and int(r['positive_registers']) > 0]
+    board = [r['name'] for r in clock_records if abs(float(r['period_ns']) - 10.0) < 0.01]
+    if len(audio) != 1 or not board:
+        raise ValueError('missing or ambiguous active 12.288 MHz audio clock')
+    audio = audio[0]
+    for corner in corners:
+        if not any(r['corner'] == corner and r['clock'] == audio for r in fmax):
+            raise ValueError('audio clock missing Fmax observation')
+        for kind in ('setup', 'hold'):
+            for pairs in (((audio, audio),), tuple((audio, b) for b in board),
+                          tuple((b, audio) for b in board)):
+                if not any(counts.get((corner, kind, src, dst), 0) > 0 for src, dst in pairs):
+                    raise ValueError('missing audio clock endpoint coverage')
+    return audio
+
+
+def timing_summary(work: Path, mailbox_contract: bool = False, audio_profile: bool = False) -> dict:
     if 'PCXT_AUDIT_CAPTURE_COMPLETE' not in (work / 'audit.log').read_text():
         raise ValueError('TimeQuest capture did not complete')
     with (work / 'audit/endpoints.tsv').open() as stream:
@@ -319,6 +355,7 @@ def timing_summary(work: Path, mailbox_contract: bool = False) -> dict:
                          'restricted_fmax_mhz': float(fields[3]), 'restriction': '\t'.join(fields[4:])})
     if not fmax or {r['corner'] for r in fmax} != corners:
         raise ValueError('missing Fmax observations')
+    audio_clock = validate_audio_clock_audit(clock_records, expected, fmax, corners) if audio_profile else None
     interstage = []
     if mailbox_contract:
         with (work / 'audit/mailbox-interstage.tsv').open() as stream:
@@ -334,7 +371,7 @@ def timing_summary(work: Path, mailbox_contract: bool = False) -> dict:
             'reported_endpoint_checks_pass': not any(r['failures'] for r in by_corner.values()),
             'minimum_pulse_width': pulse_width, 'timing_coverage_issues': issues,
             'no_clock_registers': no_clock,
-            'clocks': clock_records, 'fmax': fmax,
+            'clocks': clock_records, 'fmax': fmax, 'audio_clock': audio_clock,
             'mailbox_interstage': interstage,
             'whole_board_qualified': False,
             'qualification_limits': ['no external IO delay contract',
@@ -440,7 +477,7 @@ def main(argv=None) -> int:
             source, work, library, package_profile=args.package_profile,
             build_id=args.build_id, dos_profile=args.dos_profile))
         run([str(yosys), '-s', 'elaborate.ys'], work, 'elaborate.log', record)
-        record['elaboration'] = validate_renaming(work, package_profile=args.package_profile)
+        record['elaboration'] = validate_renaming(work, package_profile=args.package_profile, dos_profile=args.dos_profile)
         if args.video_mailbox_contract:
             record['mailbox_binding'] = validate_mailbox(
                 json.loads((work / 'before-names.json').read_text())['modules']['top'],
@@ -468,7 +505,7 @@ def main(argv=None) -> int:
             run([str(bin_dir / 'quartus_sta'), '-t', 'audit.tcl'], fit, 'audit.log', record)
             if sha(fit / 'clocks.sdc') != receipt['sdc_sha256']:
                 raise ValueError('timing constraints changed during the fit')
-            receipt.update(timing_summary(fit, mailbox_contract=args.video_mailbox_contract))
+            receipt.update(timing_summary(fit, mailbox_contract=args.video_mailbox_contract, audio_profile=args.dos_profile))
             receipt['rbf_sha256'] = sha(fit / 'output_files/top.rbf')
             captures = [fit / name for name in ('top.qsf', 'clocks.sdc', 'audit.tcl', 'compile.log', 'audit.log')]
             if args.video_mailbox_contract:

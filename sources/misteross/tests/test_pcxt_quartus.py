@@ -19,6 +19,27 @@ from scripts.pcxt_quartus_mailbox import validate_mailbox
 YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
 
 
+class AudioClockAuditTests(unittest.TestCase):
+    def test_audio_clock_requires_active_inventory_fmax_and_bidirectional_paths(self):
+        corners = {'slow', 'fast'}
+        clocks = [{'name': 'audio', 'period_ns': '81.380208', 'positive_registers': '20'},
+                  {'name': 'board', 'period_ns': '10.0', 'positive_registers': '100'}]
+        counts = {(c, k, a, b): 1 for c in corners for k in ('setup', 'hold')
+                  for a, b in (('audio', 'audio'), ('audio', 'board'), ('board', 'audio'))}
+        fmax = [{'corner': c, 'clock': 'audio'} for c in corners]
+        audit = builder.validate_audio_clock_audit
+        self.assertEqual(audit(clocks, counts, fmax, corners), 'audio')
+        for key in tuple(counts):
+            broken = counts.copy(); broken[key] = 0
+            with self.assertRaisesRegex(ValueError, 'endpoint coverage'):
+                audit(clocks, broken, fmax, corners)
+        with self.assertRaisesRegex(ValueError, 'Fmax'):
+            audit(clocks, counts, fmax[:-1], corners)
+        clocks[0]['positive_registers'] = '0'
+        with self.assertRaisesRegex(ValueError, 'audio clock'):
+            audit(clocks, counts, fmax, corners)
+
+
 class MailboxBindingTests(unittest.TestCase):
     def setUp(self):
         path = Path(__file__).parent / 'fixtures/pcxt_quartus_mailbox.json.gz'
