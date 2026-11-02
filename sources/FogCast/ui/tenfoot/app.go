@@ -652,6 +652,18 @@ type App struct {
 	// seen at startup until that generation is running or generation-free idle.
 	localWatchStartup  bool
 	localLaunchPending func()
+
+	// settingsSection is the open Settings section; "" is the section list.
+	settingsSection string
+	// settingsConfirm is the row waiting for a second Select (factory-reset).
+	settingsConfirm string
+	// settingsWired is the kit's wired link, read as Settings or Network opens.
+	settingsWired string
+	// settingsFirmware is the host's bundled firmware for Settings › Firmware.
+	settingsFirmware settingsFirmware
+	// kitDisplay is the kit's own menu display; kitID is its target ID.
+	kitDisplay bool
+	kitID      string
 }
 
 // SetTheme installs the sofa look. Zero Theme is Default.
@@ -1105,6 +1117,11 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.handleSettingsOSKLocked(cmd)
 		return
 	}
+	// Settings › Firmware opens a family's card over Settings.
+	if a.firmwareCard.Open {
+		a.handleFirmwareCardLocked(cmd)
+		return
+	}
 	if a.settingsOpen {
 		a.handleSettingsLocked(cmd)
 		return
@@ -1115,10 +1132,6 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	if a.firmwarePickerOpen {
 		a.handleFirmwarePickerLocked(cmd)
-		return
-	}
-	if a.firmwareCard.Open {
-		a.handleFirmwareCardLocked(cmd)
 		return
 	}
 	if a.roomPickerOpen && (!a.sessionStopOfferedLocked() || a.roomDuringPlay) {

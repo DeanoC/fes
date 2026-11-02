@@ -334,6 +334,7 @@ func configuredApp(opts Options) (*App, error) {
 		// A rooms Home on the kit opens first-run setup until it is
 		// finished or skipped.
 		app.SetFirstRun(homeRooms)
+		app.SetKitDisplay(opts.TargetID)
 		app.EnableKitLocal()
 		if served := serveCatalog(opts.CatalogConfig); served != nil {
 			if useLocalCatalog(opts.CatalogConfig, served.Notice) {

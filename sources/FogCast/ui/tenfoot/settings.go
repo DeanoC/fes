@@ -5,28 +5,50 @@ import (
 	"fmt"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/shared"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
 
+// Settings sections, in the v1 order (docs/ux/references/v1/README.md,
+// Settings map). Settings opens on the section list; a section is listed
+// only when it has rows, so Controllers waits for #980's page. Library &
+// rooms holds the rows outside v1 and is listed with Show all cores.
 const (
-	settingsRowLayout = iota
-	settingsRowSafeArea
-	settingsRowAttract
-	settingsRowIdle
-	settingsRowRegions
-	settingsRowVideo
-	settingsRowTarget
-	settingsRowPrepareTarget
-	settingsRowHome
-	settingsRowReducedMotion
-	settingsRowSurround
-	settingsRowAllCores
-	settingsRowDrives
-	settingsRowSetupAgain
-	settingsRowFixedCount
+	settingsSectionList        = ""
+	settingsSectionFolders     = "folders"
+	settingsSectionFirmware    = "firmware"
+	settingsSectionDisplay     = "display"
+	settingsSectionNetwork     = "network"
+	settingsSectionUpdates     = "updates"
+	settingsSectionAbout       = "about"
+	settingsSectionDiagnostics = "diagnostics"
+	settingsSectionBrowse      = "browse"
 )
+
+var settingsSectionTitles = map[string]string{
+	settingsSectionFolders:     "Games folders",
+	settingsSectionFirmware:    "Firmware",
+	settingsSectionDisplay:     "Display & sound",
+	settingsSectionNetwork:     "Network",
+	settingsSectionUpdates:     "Updates",
+	settingsSectionAbout:       "About & help",
+	settingsSectionDiagnostics: "Diagnostics",
+	settingsSectionBrowse:      "Library & rooms",
+}
+
+// settingsSectionParent is where Back goes from a section.
+func settingsSectionParent(id string) string {
+	if id == settingsSectionDiagnostics {
+		return settingsSectionAbout
+	}
+	return settingsSectionList
+}
+
+// settingsSectionRowPrefix starts the ID of a row that opens a section.
+const settingsSectionRowPrefix = "section-"
 
 const (
 	settingsTargetFieldName = iota
@@ -36,21 +58,7 @@ const (
 	settingsTargetFieldCount
 )
 
-const (
-	settingsRowAddTarget = iota
-	settingsRowSaveTargets
-	settingsTargetTrailingCount
-)
-
-const (
-	settingsRowAddLibrary = iota
-	settingsRowSaveLibraries
-	settingsRowDevelopmentRBF
-	settingsRowSystems
-	settingsRowReleaseKit
-	settingsRowClose
-	settingsTrailingCount
-)
+var settingsTargetFieldIDs = [settingsTargetFieldCount]string{"name", "address", "enabled", "agent"}
 
 type settingsOSKKind int
 
@@ -96,7 +104,9 @@ type SettingsRow struct {
 
 // SettingsSnapshot is the settings overlay shown by the renderer.
 type SettingsSnapshot struct {
-	Open         bool
+	Open bool
+	// Title is "Settings" on the section list, else the section's name.
+	Title        string
 	Index        int
 	Rows         []SettingsRow
 	Loading      bool
@@ -147,6 +157,7 @@ func (a *App) settingsSnapshotLocked() SettingsSnapshot {
 	}
 	return SettingsSnapshot{
 		Open:         true,
+		Title:        a.settingsTitleLocked(),
 		Index:        a.settingsIndex,
 		Rows:         rows,
 		Loading:      a.settingsLoading,
@@ -159,14 +170,123 @@ func (a *App) settingsSnapshotLocked() SettingsSnapshot {
 	}
 }
 
-func (a *App) settingsRowsLocked() []SettingsRow {
-	attract := "On"
-	switch {
-	case a.attractForcedOff && a.attractPrefEnabled:
-		attract = "Off (flag)"
-	case !a.attractPrefEnabled || a.attractDisabled:
-		attract = "Off"
+func (a *App) settingsTitleLocked() string {
+	if title := settingsSectionTitles[a.settingsSection]; title != "" {
+		return title
 	}
+	return "Settings"
+}
+
+func (a *App) settingsRowsLocked() []SettingsRow {
+	switch a.settingsSection {
+	case settingsSectionFolders:
+		return a.settingsFolderRowsLocked()
+	case settingsSectionFirmware:
+		return a.settingsFirmwareRowsLocked()
+	case settingsSectionDisplay:
+		return a.settingsDisplayRowsLocked()
+	case settingsSectionNetwork:
+		return a.settingsNetworkRowsLocked()
+	case settingsSectionUpdates:
+		return []SettingsRow{{ID: "systems", Label: "Cores", Value: "Install cores and add games"}}
+	case settingsSectionAbout:
+		return a.settingsAboutRowsLocked()
+	case settingsSectionDiagnostics:
+		return a.settingsDiagnosticRowsLocked()
+	case settingsSectionBrowse:
+		return a.settingsBrowseRowsLocked()
+	}
+	return a.settingsSectionListRowsLocked()
+}
+
+// settingsSectionsLocked lists the sections in order.
+func (a *App) settingsSectionsLocked() []string {
+	ids := []string{settingsSectionFolders, settingsSectionFirmware, settingsSectionDisplay}
+	if len(a.settingsNetworkRowsLocked()) > 0 {
+		ids = append(ids, settingsSectionNetwork)
+	}
+	ids = append(ids, settingsSectionUpdates, settingsSectionAbout)
+	if a.allCores {
+		ids = append(ids, settingsSectionBrowse)
+	}
+	return ids
+}
+
+func (a *App) settingsSectionListRowsLocked() []SettingsRow {
+	ids := a.settingsSectionsLocked()
+	rows := make([]SettingsRow, 0, len(ids))
+	for _, id := range ids {
+		rows = append(rows, SettingsRow{ID: settingsSectionRowPrefix + id, Label: settingsSectionTitles[id], Value: a.settingsSectionSummaryLocked(id)})
+	}
+	return rows
+}
+
+func (a *App) settingsSectionSummaryLocked(id string) string {
+	switch id {
+	case settingsSectionFolders:
+		if n := len(a.settingsDraftLibraries); n > 0 {
+			return fmt.Sprintf("BIOS & media drives  ·  %d libraries", n)
+		}
+		return "BIOS & media drives"
+	case settingsSectionFirmware:
+		return a.settingsFirmwareSummaryLocked()
+	case settingsSectionDisplay:
+		return fmt.Sprintf("%s  ·  %s safe area", a.settingsResolutionLocked(), settingsSafeAreaValue(a.safeAreaPct))
+	case settingsSectionNetwork:
+		if a.kitDisplay {
+			return "Wired  ·  " + a.settingsWired
+		}
+		if !a.settingsHydrated {
+			return "—"
+		}
+		if n := len(a.settingsDraftTargets); n != 1 {
+			return fmt.Sprintf("%d kits", n)
+		}
+		return "1 kit"
+	case settingsSectionUpdates:
+		return "Install cores"
+	case settingsSectionAbout:
+		return "Version, setup, diagnostics, reset"
+	case settingsSectionBrowse:
+		return "Layout, Home, attract, regions"
+	}
+	return ""
+}
+
+// settingsHostRowsLocked reports whether this launcher edits the host's
+// library settings. A paired kit's listener serves none, so those rows would
+// do nothing there and are left out.
+func (a *App) settingsHostRowsLocked() bool {
+	return a.client == nil || !a.client.paired
+}
+
+func (a *App) settingsFolderRowsLocked() []SettingsRow {
+	rows := []SettingsRow{{ID: "drives", Label: "BIOS & media drives", Value: "Browse USB and SMB · kit or host"}}
+	if !a.settingsHostRowsLocked() {
+		return rows
+	}
+	for i, library := range a.settingsDraftLibraries {
+		root := strings.TrimSpace(library.Root)
+		if root == "" {
+			root = "(empty)"
+		}
+		rows = append(rows, SettingsRow{
+			ID:    fmt.Sprintf("library-%d", i),
+			Label: a.settingsSystemLabelLocked(library.System),
+			Value: root,
+		})
+	}
+	save := "saved"
+	if a.settingsLibrariesDirty {
+		save = "A save"
+	}
+	return append(rows,
+		SettingsRow{ID: "add-library", Label: "Add library", Value: "A add"},
+		SettingsRow{ID: "save-libraries", Label: "Save libraries", Value: save},
+	)
+}
+
+func (a *App) settingsDisplayRowsLocked() []SettingsRow {
 	motion := "Off"
 	if a.reducedMotion {
 		motion = "On"
@@ -175,17 +295,37 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 	if a.surround {
 		surround = "On"
 	}
-	allCores := "Off"
-	if a.allCores {
-		allCores = "On"
+	rows := []SettingsRow{
+		{ID: "resolution", Label: "Resolution", Value: a.settingsResolutionLocked()},
+		{ID: "safe-area", Label: "Safe area", Value: settingsSafeAreaValue(a.safeAreaPct)},
+		{ID: "reduced-motion", Label: "Reduced motion", Value: motion},
+		{ID: "surround", Label: "TV surround · kit HDMI", Value: surround},
 	}
-	idle := "—"
-	if a.settingsHydrated {
-		idle = fmt.Sprintf("%ds", a.settingsDraftIdle)
+	if a.settingsHostRowsLocked() {
+		rows = append(rows, SettingsRow{ID: "video-profile", Label: "Video preference · next launch", Value: a.settingsVideoValueLocked()})
 	}
-	regions := "—"
-	if a.settingsHydrated {
-		regions = formatSettingsRegions(a.settingsDraftRegions, a.settingsRegionIndex)
+	return rows
+}
+
+// settingsResolutionLocked is the menu's output size. The kit's menu display
+// is fixed at 1280×720, so there is nothing to choose yet.
+func (a *App) settingsResolutionLocked() string {
+	return fmt.Sprintf("%d×%d", a.grid.Width, a.grid.Height)
+}
+
+func settingsSafeAreaValue(pct float64) string {
+	return strings.TrimSuffix(fmt.Sprintf("%.1f", pct*100), ".0") + "%"
+}
+
+// settingsNetworkRowsLocked is the kit's wired link on the kit, and the
+// host's kit targets where this launcher edits them. The image has no Wi-Fi.
+func (a *App) settingsNetworkRowsLocked() []SettingsRow {
+	var rows []SettingsRow
+	if a.kitDisplay {
+		rows = append(rows, SettingsRow{ID: "wired", Label: "Wired", Value: a.settingsWired})
+	}
+	if !a.settingsHostRowsLocked() {
+		return rows
 	}
 	target := "—"
 	if a.settingsHydrated {
@@ -197,22 +337,10 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 			target = "(none)"
 		}
 	}
-	rows := []SettingsRow{
-		{ID: "layout", Label: "Layout", Value: a.grid.Mode.Label()},
-		{ID: "safe-area", Label: "Safe area", Value: fmt.Sprintf("%.1f%%", a.safeAreaPct*100)},
-		{ID: "attract", Label: "Attract", Value: attract},
-		{ID: "idle", Label: "Idle", Value: idle},
-		{ID: "regions", Label: "Regions", Value: regions},
-		{ID: "video-profile", Label: "Video preference · next launch", Value: a.settingsVideoValueLocked()},
-		{ID: "target", Label: "Target", Value: target},
-		{ID: "prepare-target", Label: "Prepare target", Value: "A generate identity"},
-		{ID: "home", Label: "Home", Value: a.settingsHomeValueLocked()},
-		{ID: "reduced-motion", Label: "Reduced motion", Value: motion},
-		{ID: "surround", Label: "TV surround · kit HDMI", Value: surround},
-		{ID: "all-cores", Label: "Show all cores · not in this release", Value: allCores},
-		{ID: "drives", Label: "BIOS & media drives", Value: "Browse USB and SMB · kit or host"},
-		{ID: "setup-again", Label: "Run setup again", Value: "A start from the welcome screen"},
-	}
+	rows = append(rows,
+		SettingsRow{ID: "target", Label: "Target", Value: target},
+		SettingsRow{ID: "prepare-target", Label: "Prepare target", Value: "A generate identity"},
+	)
 	for i, draft := range a.settingsDraftTargets {
 		name := strings.TrimSpace(draft.Name)
 		if name == "" {
@@ -231,34 +359,45 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 			enabled = "On"
 		}
 		rows = append(rows,
-			SettingsRow{ID: fmt.Sprintf("target-%d-name", i), Label: label + " · name", Value: name},
-			SettingsRow{ID: fmt.Sprintf("target-%d-address", i), Label: label + " · address", Value: address},
-			SettingsRow{ID: fmt.Sprintf("target-%d-enabled", i), Label: label + " · enabled", Value: enabled},
-			SettingsRow{ID: fmt.Sprintf("target-%d-agent", i), Label: label + " · agent", Value: settingsAgentValue(draft)},
+			SettingsRow{ID: settingsTargetRowID(i, settingsTargetFieldName), Label: label + " · name", Value: name},
+			SettingsRow{ID: settingsTargetRowID(i, settingsTargetFieldAddress), Label: label + " · address", Value: address},
+			SettingsRow{ID: settingsTargetRowID(i, settingsTargetFieldEnabled), Label: label + " · enabled", Value: enabled},
+			SettingsRow{ID: settingsTargetRowID(i, settingsTargetFieldAgent), Label: label + " · agent", Value: settingsAgentValue(draft)},
 		)
 	}
 	saveTargets := "saved"
 	if a.settingsTargetsDirty {
 		saveTargets = "A save"
 	}
-	rows = append(rows,
+	return append(rows,
 		SettingsRow{ID: "add-target", Label: "Add target", Value: "A add"},
 		SettingsRow{ID: "save-targets", Label: "Save targets", Value: saveTargets},
 	)
-	for i, library := range a.settingsDraftLibraries {
-		root := strings.TrimSpace(library.Root)
-		if root == "" {
-			root = "(empty)"
-		}
-		rows = append(rows, SettingsRow{
-			ID:    fmt.Sprintf("library-%d", i),
-			Label: a.settingsSystemLabelLocked(library.System),
-			Value: root,
-		})
+}
+
+func (a *App) settingsAboutRowsLocked() []SettingsRow {
+	var rows []SettingsRow
+	if v := settingsVersionsValue(); v != "" {
+		rows = append(rows, SettingsRow{ID: "versions", Label: "Versions", Value: v})
 	}
-	save := "saved"
-	if a.settingsLibrariesDirty {
-		save = "A save"
+	if a.kitID != "" {
+		rows = append(rows, SettingsRow{ID: "kit-id", Label: "Kit ID", Value: a.kitID})
+	}
+	reset := "Erases settings, not your files"
+	if a.settingsConfirm == "factory-reset" {
+		reset = "A again to erase"
+	}
+	return append(rows,
+		SettingsRow{ID: "setup-again", Label: "Run setup again", Value: "A start from the welcome screen"},
+		SettingsRow{ID: settingsSectionRowPrefix + settingsSectionDiagnostics, Label: "Diagnostics", Value: "Diagnostic RBF, release kit, all cores"},
+		SettingsRow{ID: "factory-reset", Label: "Factory reset", Value: reset},
+	)
+}
+
+func (a *App) settingsDiagnosticRowsLocked() []SettingsRow {
+	allCores := "Off"
+	if a.allCores {
+		allCores = "On"
 	}
 	devValue := "A type path · not a game"
 	if path := strings.TrimSpace(a.developmentRBFPath); path != "" {
@@ -268,17 +407,104 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 	if a.retainedIdleLease || a.stopResponseLost {
 		release = "A release"
 	}
-	rows = append(rows,
-		SettingsRow{ID: "add-library", Label: "Add library", Value: "A add"},
-		SettingsRow{ID: "save-libraries", Label: "Save libraries", Value: save},
-		SettingsRow{ID: "development-rbf", Label: "DIAGNOSTIC RBF", Value: devValue},
-		SettingsRow{ID: "systems", Label: "Systems", Value: "Install cores and add games"},
-		SettingsRow{ID: "release-kit", Label: "Release kit", Value: release},
-		SettingsRow{ID: "close", Label: "Close", Value: "B back"},
-	)
+	return []SettingsRow{
+		{ID: "all-cores", Label: "Show all cores · not in this release", Value: allCores},
+		{ID: "development-rbf", Label: "DIAGNOSTIC RBF", Value: devValue},
+		{ID: "release-kit", Label: "Release kit", Value: release},
+	}
+}
+
+func (a *App) settingsBrowseRowsLocked() []SettingsRow {
+	attract := "On"
+	switch {
+	case a.attractForcedOff && a.attractPrefEnabled:
+		attract = "Off (flag)"
+	case !a.attractPrefEnabled || a.attractDisabled:
+		attract = "Off"
+	}
+	idle := "—"
+	regions := "—"
+	if a.settingsHydrated {
+		idle = fmt.Sprintf("%ds", a.settingsDraftIdle)
+		regions = formatSettingsRegions(a.settingsDraftRegions, a.settingsRegionIndex)
+	}
+	rows := []SettingsRow{
+		{ID: "layout", Label: "Layout", Value: a.grid.Mode.Label()},
+		{ID: "home", Label: "Home", Value: a.settingsHomeValueLocked()},
+		{ID: "attract", Label: "Attract", Value: attract},
+	}
+	if a.settingsHostRowsLocked() {
+		rows = append(rows,
+			SettingsRow{ID: "idle", Label: "Idle", Value: idle},
+			SettingsRow{ID: "regions", Label: "Regions", Value: regions},
+		)
+	}
 	return rows
 }
 
+// settingsVersionsValue names the kit software bundle and base image the
+// kit-software supervisor started tenfoot with. A host launcher has neither.
+func settingsVersionsValue() string {
+	var parts []string
+	if id := shortSettingsID(os.Getenv("FES_SOFTWARE_BUNDLE_ID")); id != "" {
+		parts = append(parts, "Software "+id)
+	}
+	if id := shortSettingsID(os.Getenv("FES_SOFTWARE_BASE_IDENTITY")); id != "" {
+		parts = append(parts, "image "+id)
+	}
+	return strings.Join(parts, "  ·  ")
+}
+
+func shortSettingsID(id string) string {
+	id = strings.TrimSpace(id)
+	if i := strings.LastIndexAny(id, ":/"); i >= 0 {
+		id = id[i+1:]
+	}
+	if len(id) > 12 {
+		id = id[:12]
+	}
+	return id
+}
+
+func settingsTargetRowID(index, field int) string {
+	return fmt.Sprintf("target-%d-%s", index, settingsTargetFieldIDs[field])
+}
+
+// parseSettingsTargetRowID reads a row ID from settingsTargetRowID.
+func parseSettingsTargetRowID(id string) (index, field int, ok bool) {
+	rest, ok := strings.CutPrefix(id, "target-")
+	if !ok {
+		return 0, 0, false
+	}
+	num, name, ok := strings.Cut(rest, "-")
+	if !ok {
+		return 0, 0, false
+	}
+	index, err := strconv.Atoi(num)
+	if err != nil {
+		return 0, 0, false
+	}
+	field = slices.Index(settingsTargetFieldIDs[:], name)
+	return index, field, field >= 0
+}
+
+func parseSettingsFirmwareRowID(id string) (int, bool) {
+	rest, ok := strings.CutPrefix(id, "firmware-")
+	if !ok {
+		return 0, false
+	}
+	index, err := strconv.Atoi(rest)
+	return index, err == nil
+}
+
+func parseSettingsLibraryRowID(id string) (int, bool) {
+	rest, ok := strings.CutPrefix(id, "library-")
+	if !ok {
+		return 0, false
+	}
+	index, err := strconv.Atoi(rest)
+	return index, err == nil
+}
 func (a *App) settingsVideoValueLocked() string {
 	if !a.settingsHydrated {
 		return "—"
@@ -312,9 +538,6 @@ func formatSettingsRegions(selected []string, cursor int) string {
 	return strings.Join(parts, "  ")
 }
 
-// settingsHostManagedStatus is the paired kit launcher's settings footer.
-const settingsHostManagedStatus = "Host settings are managed on the FogCast computer"
-
 // settingsBlockedLocked is the silent refuse used by the settings key.
 // A room action entry uses the same conditions but must say so.
 func (a *App) settingsBlockedLocked() bool {
@@ -331,19 +554,22 @@ func (a *App) openSettingsLocked() {
 	a.closeDetailLocked()
 	a.settingsOpen = true
 	a.settingsScopeChanged = false
+	a.settingsSection = settingsSectionList
 	a.settingsIndex = 0
+	a.settingsConfirm = ""
 	a.settingsStatus = ""
+	a.refreshSettingsWiredLocked()
 	a.settingsBusy = false
 	a.settingsLoading = true
 	a.settingsHydrated = false
 	a.settingsRegionIndex = 0
 	a.closeSettingsOSKLocked()
 	a.settingsGen++
-	if a.client != nil && a.client.paired {
+	a.fetchSettingsFirmwareLocked()
+	if !a.settingsHostRowsLocked() {
 		// The kit launcher listener serves no library settings (hostapi
-		// launcherOperation), so the host rows stay unhydrated and inert.
+		// launcherOperation), so Settings leaves the host rows out.
 		a.settingsLoading = false
-		a.settingsStatus = settingsHostManagedStatus
 		return
 	}
 	gen := a.settingsGen
@@ -361,6 +587,10 @@ func (a *App) closeSettingsLocked() {
 	refreshHome := a.settingsScopeChanged
 	a.settingsScopeChanged = false
 	a.settingsOpen = false
+	// A firmware card still loading for Settings › Firmware is dropped.
+	if a.firmwareCard.Loading {
+		a.closeFirmwareCardLocked()
+	}
 	a.settingsBusy = false
 	a.settingsLoading = false
 	a.settingsStatus = ""
@@ -430,38 +660,101 @@ func (a *App) handleSettingsLocked(cmd Command) {
 	if !a.settingsOpen {
 		return
 	}
-	rows := a.settingsRowCountLocked()
-	if rows <= 0 {
-		rows = 1
-	}
 	switch cmd {
 	case CmdSettings:
 		a.closeSettingsLocked()
 		return
 	case CmdBack:
-		a.closeSettingsLocked()
+		a.settingsBackLocked()
 		return
+	}
+	rows := a.settingsRowsLocked()
+	if len(rows) == 0 {
+		return
+	}
+	switch cmd {
 	case CmdUp, CmdTabPrev:
-		a.settingsIndex = (a.settingsIndex - 1 + rows) % rows
+		a.settingsConfirm = ""
+		a.settingsIndex = (a.settingsIndex - 1 + len(rows)) % len(rows)
 		return
 	case CmdDown, CmdTab:
-		a.settingsIndex = (a.settingsIndex + 1) % rows
+		a.settingsConfirm = ""
+		a.settingsIndex = (a.settingsIndex + 1) % len(rows)
 		return
 	}
-	if a.settingsBusy {
-		switch a.settingsIndex {
-		case settingsRowIdle, settingsRowRegions, settingsRowTarget, settingsRowPrepareTarget:
+	a.clampSettingsIndexLocked()
+	id := rows[a.settingsIndex].ID
+	if a.settingsBusy && settingsRowWaitsOnHost(id) {
+		return
+	}
+	a.handleSettingsRowLocked(cmd, id)
+}
+
+// settingsRowWaitsOnHost reports whether a row is held while a host settings
+// write is in flight.
+func settingsRowWaitsOnHost(id string) bool {
+	switch id {
+	case "idle", "regions", "target", "prepare-target", "add-target", "save-targets",
+		"add-library", "save-libraries", "development-rbf", "systems", "release-kit":
+		return true
+	}
+	if _, _, ok := parseSettingsTargetRowID(id); ok {
+		return true
+	}
+	_, ok := parseSettingsLibraryRowID(id)
+	return ok
+}
+
+// openSettingsSectionLocked shows a section's rows from the top.
+func (a *App) openSettingsSectionLocked(id string) {
+	if _, ok := settingsSectionTitles[id]; !ok {
+		return
+	}
+	a.settingsSection = id
+	a.settingsIndex = 0
+	a.settingsConfirm = ""
+	a.settingsStatus = ""
+	if id == settingsSectionNetwork {
+		a.refreshSettingsWiredLocked()
+	}
+}
+
+// settingsBackLocked goes up one level, focusing the section it left, and
+// closes Settings from the section list.
+func (a *App) settingsBackLocked() {
+	if a.settingsSection == settingsSectionList {
+		a.closeSettingsLocked()
+		return
+	}
+	left := a.settingsSection
+	a.settingsSection = settingsSectionParent(left)
+	a.settingsConfirm = ""
+	a.settingsStatus = ""
+	a.settingsIndex = 0
+	a.focusSettingsRowLocked(settingsSectionRowPrefix + left)
+}
+
+func (a *App) focusedSettingsRowIDLocked() string {
+	rows := a.settingsRowsLocked()
+	if a.settingsIndex < 0 || a.settingsIndex >= len(rows) {
+		return ""
+	}
+	return rows[a.settingsIndex].ID
+}
+
+// focusSettingsRowLocked moves focus to a row of the open section.
+func (a *App) focusSettingsRowLocked(id string) {
+	for i, row := range a.settingsRowsLocked() {
+		if row.ID == id {
+			a.settingsIndex = i
 			return
 		}
-		if a.settingsIndex >= settingsRowFixedCount {
-			kind, _ := a.settingsLibraryRowLocked()
-			if kind != settingsRowClose {
-				return
-			}
-		}
 	}
-	switch a.settingsIndex {
-	case settingsRowLayout:
+}
+
+func (a *App) handleSettingsRowLocked(cmd Command, id string) {
+	switch id {
+	case "layout":
 		switch cmd {
 		case CmdLeft:
 			a.setLayoutLocked(prevLayout(a.grid.Mode), true)
@@ -469,7 +762,7 @@ func (a *App) handleSettingsLocked(cmd Command) {
 		case CmdRight, CmdSelect:
 			a.cycleLayoutLocked()
 		}
-	case settingsRowSafeArea:
+	case "safe-area":
 		switch cmd {
 		case CmdLeft, CmdSafeAreaOut:
 			a.setSafeAreaPctLocked(a.safeAreaPct-safeAreaNudge, true)
@@ -478,42 +771,42 @@ func (a *App) handleSettingsLocked(cmd Command) {
 			a.setSafeAreaPctLocked(a.safeAreaPct+safeAreaNudge, true)
 			a.status = fmt.Sprintf("safe-area %.1f%%", a.safeAreaPct*100)
 		}
-	case settingsRowAttract:
+	case "attract":
 		switch cmd {
 		case CmdLeft, CmdRight, CmdSelect:
 			a.toggleAttractPrefLocked()
 		}
-	case settingsRowHome:
+	case "home":
 		switch cmd {
 		case CmdLeft, CmdRight:
 			a.toggleHomePrefLocked()
 		case CmdSelect:
 			a.goHomeNowLocked()
 		}
-	case settingsRowReducedMotion:
+	case "reduced-motion":
 		switch cmd {
 		case CmdLeft, CmdRight, CmdSelect:
 			a.toggleReducedMotionLocked()
 		}
-	case settingsRowSurround:
+	case "surround":
 		switch cmd {
 		case CmdLeft, CmdRight, CmdSelect:
 			a.setSurroundLocked(!a.surround, true)
 		}
-	case settingsRowAllCores:
+	case "all-cores":
 		switch cmd {
 		case CmdLeft, CmdRight, CmdSelect:
 			a.setAllCoresLocked(!a.allCores, true)
 		}
-	case settingsRowDrives:
+	case "drives":
 		if cmd == CmdSelect {
 			a.openDriveSettingsLocked()
 		}
-	case settingsRowSetupAgain:
+	case "setup-again":
 		if cmd == CmdSelect {
 			a.runSetupAgainLocked()
 		}
-	case settingsRowIdle:
+	case "idle":
 		if !a.settingsHydrated {
 			return
 		}
@@ -525,7 +818,7 @@ func (a *App) handleSettingsLocked(cmd Command) {
 		case CmdSelect:
 			a.patchSettingsLocked(hostclient.LibrarySettingsPatch{AttractIdleSeconds: intPtr(a.settingsDraftIdle)})
 		}
-	case settingsRowRegions:
+	case "regions":
 		if !a.settingsHydrated {
 			return
 		}
@@ -546,7 +839,7 @@ func (a *App) handleSettingsLocked(cmd Command) {
 			regions := append([]string(nil), next...)
 			a.patchSettingsLocked(hostclient.LibrarySettingsPatch{PreferredRegions: &regions})
 		}
-	case settingsRowVideo:
+	case "video-profile":
 		if !a.settingsHydrated || cmd != CmdLeft && cmd != CmdRight && cmd != CmdSelect {
 			return
 		}
@@ -558,7 +851,7 @@ func (a *App) handleSettingsLocked(cmd Command) {
 			return
 		}
 		a.patchSettingsLocked(hostclient.LibrarySettingsPatch{VideoProfile: &profile})
-	case settingsRowTarget:
+	case "target":
 		if !a.settingsHydrated {
 			return
 		}
@@ -597,7 +890,7 @@ func (a *App) handleSettingsLocked(cmd Command) {
 			}
 			a.patchSettingsLocked(hostclient.LibrarySettingsPatch{SelectedTarget: strPtr(name)})
 		}
-	case settingsRowPrepareTarget:
+	case "prepare-target":
 		if !a.settingsHydrated {
 			return
 		}
@@ -615,79 +908,65 @@ func (a *App) handleSettingsLocked(cmd Command) {
 			}
 			a.patchSettingsLocked(hostclient.LibrarySettingsPatch{PrepareTarget: strPtr(name)})
 		}
-	default:
-		if a.settingsIndex < a.settingsLibraryStartLocked() {
-			a.handleSettingsTargetRowsLocked(cmd)
-			return
+	case "factory-reset":
+		if cmd == CmdSelect {
+			if a.settingsConfirm != "factory-reset" {
+				a.settingsConfirm = "factory-reset"
+				return
+			}
+			a.factoryResetLocked()
 		}
-		a.handleSettingsLibraryRowsLocked(cmd)
-	}
-}
-
-func (a *App) settingsTargetBlockCountLocked() int {
-	return len(a.settingsDraftTargets)*settingsTargetFieldCount + settingsTargetTrailingCount
-}
-
-func (a *App) settingsLibraryStartLocked() int {
-	return settingsRowFixedCount + a.settingsTargetBlockCountLocked()
-}
-
-func (a *App) settingsRowCountLocked() int {
-	return a.settingsLibraryStartLocked() + len(a.settingsDraftLibraries) + settingsTrailingCount
-}
-
-func (a *App) settingsTargetRowLocked() (int, int, int) {
-	rel := a.settingsIndex - settingsRowFixedCount
-	count := len(a.settingsDraftTargets)
-	if rel < 0 {
-		return -1, -1, -1
-	}
-	fields := count * settingsTargetFieldCount
-	if rel < fields {
-		return -1, rel / settingsTargetFieldCount, rel % settingsTargetFieldCount
-	}
-	return rel - fields, -1, -1
-}
-
-func (a *App) settingsLibraryRowLocked() (int, int) {
-	rel := a.settingsIndex - a.settingsLibraryStartLocked()
-	libCount := len(a.settingsDraftLibraries)
-	if rel < 0 {
-		return -1, -1
-	}
-	if rel < libCount {
-		return -1, rel
-	}
-	return rel - libCount, -1
-}
-
-func (a *App) clampSettingsIndexLocked() {
-	n := a.settingsRowCountLocked()
-	if n <= 0 {
-		a.settingsIndex = 0
-		return
-	}
-	if a.settingsIndex < 0 {
-		a.settingsIndex = 0
-	}
-	if a.settingsIndex >= n {
-		a.settingsIndex = n - 1
-	}
-}
-
-func (a *App) handleSettingsTargetRowsLocked(cmd Command) {
-	kind, targetIndex, field := a.settingsTargetRowLocked()
-	switch {
-	case targetIndex >= 0:
-		a.handleSettingsTargetEntryLocked(cmd, targetIndex, field)
-	case kind == settingsRowAddTarget:
+	case "add-target":
 		if cmd == CmdSelect {
 			a.addSettingsTargetLocked()
 		}
-	case kind == settingsRowSaveTargets:
+	case "save-targets":
 		if cmd == CmdSelect {
 			a.saveSettingsTargetsLocked()
 		}
+	case "add-library":
+		if cmd == CmdSelect {
+			a.addSettingsLibraryLocked()
+		}
+	case "save-libraries":
+		if cmd == CmdSelect {
+			a.saveSettingsLibrariesLocked()
+		}
+	case "development-rbf":
+		if cmd == CmdSelect {
+			a.openDevelopmentPathOSKLocked()
+		}
+	case "systems":
+		if cmd == CmdSelect {
+			a.openCoreLibraryLocked()
+		}
+	case "release-kit":
+		if cmd == CmdSelect {
+			a.startReleaseIdleLeaseLocked()
+		}
+	default:
+		if section, ok := strings.CutPrefix(id, settingsSectionRowPrefix); ok {
+			if cmd == CmdSelect || cmd == CmdRight {
+				a.openSettingsSectionLocked(section)
+			}
+		} else if index, field, ok := parseSettingsTargetRowID(id); ok {
+			a.handleSettingsTargetEntryLocked(cmd, index, field)
+		} else if index, ok := parseSettingsLibraryRowID(id); ok {
+			a.handleSettingsLibraryEntryLocked(cmd, index)
+		} else if index, ok := parseSettingsFirmwareRowID(id); ok && cmd == CmdSelect {
+			a.openSettingsFirmwareCardLocked(index)
+		}
+	}
+}
+
+func (a *App) clampSettingsIndexLocked() {
+	n := len(a.settingsRowsLocked())
+	if n <= 0 || a.settingsIndex < 0 {
+		a.settingsIndex = 0
+		return
+	}
+	if a.settingsIndex >= n {
+		a.settingsIndex = n - 1
 	}
 }
 
@@ -766,7 +1045,7 @@ func (a *App) addSettingsTargetLocked() {
 	}
 	name := a.settingsUniqueTargetNameLocked()
 	a.settingsDraftTargets = append(a.settingsDraftTargets, settingsTargetDraft{Name: name})
-	a.settingsIndex = settingsRowFixedCount + (len(a.settingsDraftTargets)-1)*settingsTargetFieldCount
+	a.focusSettingsRowLocked(settingsTargetRowID(len(a.settingsDraftTargets)-1, settingsTargetFieldName))
 	a.openTargetOSKLocked(len(a.settingsDraftTargets)-1, settingsOSKTargetName, true)
 }
 
@@ -993,38 +1272,6 @@ func settingsAgentValue(draft settingsTargetDraft) string {
 	}
 }
 
-func (a *App) handleSettingsLibraryRowsLocked(cmd Command) {
-	kind, libIndex := a.settingsLibraryRowLocked()
-	switch {
-	case libIndex >= 0:
-		a.handleSettingsLibraryEntryLocked(cmd, libIndex)
-	case kind == settingsRowAddLibrary:
-		if cmd == CmdSelect {
-			a.addSettingsLibraryLocked()
-		}
-	case kind == settingsRowSaveLibraries:
-		if cmd == CmdSelect {
-			a.saveSettingsLibrariesLocked()
-		}
-	case kind == settingsRowDevelopmentRBF:
-		if cmd == CmdSelect {
-			a.openDevelopmentPathOSKLocked()
-		}
-	case kind == settingsRowSystems:
-		if cmd == CmdSelect {
-			a.openCoreLibraryLocked()
-		}
-	case kind == settingsRowReleaseKit:
-		if cmd == CmdSelect {
-			a.startReleaseIdleLeaseLocked()
-		}
-	case kind == settingsRowClose:
-		if cmd == CmdSelect {
-			a.closeSettingsLocked()
-		}
-	}
-}
-
 func (a *App) handleSettingsLibraryEntryLocked(cmd Command, index int) {
 	if !a.settingsHydrated || index < 0 || index >= len(a.settingsDraftLibraries) {
 		return
@@ -1070,7 +1317,7 @@ func (a *App) addSettingsLibraryLocked() {
 		return
 	}
 	a.settingsDraftLibraries = append(a.settingsDraftLibraries, hostclient.LibraryRoot{System: ids[0]})
-	a.settingsIndex = a.settingsLibraryStartLocked() + len(a.settingsDraftLibraries) - 1
+	a.focusSettingsRowLocked(fmt.Sprintf("library-%d", len(a.settingsDraftLibraries)-1))
 	a.openLibraryPathOSKLocked(len(a.settingsDraftLibraries)-1, true)
 }
 
@@ -1491,6 +1738,14 @@ func (a *App) settingsDraftsMatchLocked(settings hostclient.LibrarySettings) boo
 }
 
 func (a *App) applyHostSettingsLocked(settings hostclient.LibrarySettings) {
+	// Host rows come and go as drafts load, so keep focus on the same row.
+	focused := a.focusedSettingsRowIDLocked()
+	defer func() {
+		if focused != "" {
+			a.focusSettingsRowLocked(focused)
+		}
+		a.clampSettingsIndexLocked()
+	}()
 	a.hostSettings = settings
 	a.settingsDraftIdle = settings.AttractIdleSeconds
 	if a.settingsDraftIdle <= 0 {
@@ -1613,49 +1868,74 @@ func (a *App) settingsHintLocked() string {
 		return ""
 	}
 	kind := a.affinity.current.Kind
-	if a.settingsIndex == settingsRowHome {
-		return settingsActionHint(kind, "go home", "Left/Right start screen")
+	hint := a.settingsRowHintLocked(kind)
+	if a.settingsSection != settingsSectionList {
+		hint = settingsSectionTitles[a.settingsSection] + "  ·  " + hint
 	}
-	if a.settingsIndex == settingsRowReducedMotion || a.settingsIndex == settingsRowSurround || a.settingsIndex == settingsRowAllCores {
-		return settingsActionHint(kind, "toggle", "Left/Right")
+	return hint
+}
+
+func (a *App) settingsRowHintLocked(kind InputKind) string {
+	rows := a.settingsRowsLocked()
+	leave := "back"
+	if a.settingsSection == settingsSectionList {
+		leave = "close"
 	}
-	targetKind, targetIndex, field := a.settingsTargetRowLocked()
-	if targetIndex >= 0 {
+	if a.settingsIndex < 0 || a.settingsIndex >= len(rows) {
+		return settingsDefaultHint(kind, leave)
+	}
+	id := rows[a.settingsIndex].ID
+	if strings.HasPrefix(id, settingsSectionRowPrefix) {
+		return settingsActionHint(kind, "open", "", leave)
+	}
+	if _, field, ok := parseSettingsTargetRowID(id); ok {
 		switch field {
 		case settingsTargetFieldName:
-			return settingsRemoveHint(kind, "name", "")
+			return settingsRemoveHint(kind, "name", "", leave)
 		case settingsTargetFieldAddress:
-			return settingsRemoveHint(kind, "address", "")
+			return settingsRemoveHint(kind, "address", "", leave)
 		case settingsTargetFieldEnabled:
-			return settingsRemoveHint(kind, "enabled", "Left/Right")
+			return settingsRemoveHint(kind, "enabled", "Left/Right", leave)
 		case settingsTargetFieldAgent:
-			return settingsRemoveHint(kind, "set agent", "Left/Right clear")
+			return settingsRemoveHint(kind, "set agent", "Left/Right clear", leave)
 		}
 	}
-	switch targetKind {
-	case settingsRowAddTarget:
-		return settingsActionHint(kind, "add target", "")
-	case settingsRowSaveTargets:
-		return settingsActionHint(kind, "save targets", "")
+	if _, ok := parseSettingsLibraryRowID(id); ok {
+		return settingsRemoveHint(kind, "path", "Left/Right system", leave)
 	}
-	rowKind, libIndex := a.settingsLibraryRowLocked()
-	if libIndex >= 0 {
-		return settingsRemoveHint(kind, "path", "Left/Right system")
+	if _, ok := parseSettingsFirmwareRowID(id); ok {
+		return settingsActionHint(kind, "details", "", leave)
 	}
-	switch rowKind {
-	case settingsRowSystems:
-		return settingsActionHint(kind, "browse systems", "")
-	case settingsRowAddLibrary:
-		return settingsActionHint(kind, "add library", "")
-	case settingsRowSaveLibraries:
-		return settingsActionHint(kind, "save libraries", "")
-	case settingsRowDevelopmentRBF:
-		return settingsActionHint(kind, "type path", "") + " · not a game session · HDMI/input may be down"
-	case settingsRowReleaseKit:
-		return settingsActionHint(kind, "release kit", "Returning to the menu keeps it")
-	default:
-		return settingsDefaultHint(kind)
+	switch id {
+	case "home":
+		return settingsActionHint(kind, "go home", "Left/Right start screen", leave)
+	case "reduced-motion", "surround", "all-cores":
+		return settingsActionHint(kind, "toggle", "Left/Right", leave)
+	case "resolution", "versions", "kit-id", "wired":
+		return backWord(kind) + " " + leave
+	case "setup-again":
+		return settingsActionHint(kind, "start setup", "", leave)
+	case "factory-reset":
+		if a.settingsConfirm == "factory-reset" {
+			return settingsActionHint(kind, "erase settings", "Up/Down cancel", leave)
+		}
+		return settingsActionHint(kind, "reset", "", leave)
+	case "add-target":
+		return settingsActionHint(kind, "add target", "", leave)
+	case "save-targets":
+		return settingsActionHint(kind, "save targets", "", leave)
+	case "systems":
+		return settingsActionHint(kind, "browse systems", "", leave)
+	case "add-library":
+		return settingsActionHint(kind, "add library", "", leave)
+	case "save-libraries":
+		return settingsActionHint(kind, "save libraries", "", leave)
+	case "development-rbf":
+		return settingsActionHint(kind, "type path", "", leave) + " · not a game session · HDMI/input may be down"
+	case "release-kit":
+		return settingsActionHint(kind, "release kit", "Returning to the menu keeps it", leave)
 	}
+	return settingsDefaultHint(kind, leave)
 }
 
 func (a *App) settingsSystemIDsLocked() []string {

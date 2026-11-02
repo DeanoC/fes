@@ -181,7 +181,7 @@ func TestAllCoresSettingTogglesAndPersists(t *testing.T) {
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
 	focusSettingsRow(t, app, "all-cores", now)
-	if row := app.Snapshot().Settings.Rows[settingsRowAllCores]; row.Value != "Off" {
+	if row := settingsRowByID(t, app, "all-cores"); row.Value != "Off" {
 		t.Fatalf("row = %#v", row)
 	}
 	app.mu.Lock()
@@ -199,8 +199,8 @@ func TestAllCoresSettingTogglesAndPersists(t *testing.T) {
 		app.mu.Unlock()
 		t.Fatal("all-cores toggle discarded unrelated Settings drafts")
 	}
-	row := app.settingsRowsLocked()[settingsRowAllCores]
 	app.mu.Unlock()
+	row := settingsRowByID(t, app, "all-cores")
 	if row.Value != "On" {
 		t.Fatalf("toggled row = %#v", row)
 	}
@@ -231,7 +231,7 @@ func TestAllCoresChangeFromSettingsRebuildsHome(t *testing.T) {
 	if !app.Snapshot().Settings.Open {
 		t.Fatal("scope toggle should leave Settings open until Back")
 	}
-	app.HandleCommand(CmdBack, now)
+	leaveSettings(t, app, now)
 	app.mu.Lock()
 	defer app.mu.Unlock()
 	if app.settingsOpen || app.room == nil || app.room == before || !app.room.ReleaseOnly() || app.room.ID() != installedCoresHomeID {
@@ -256,7 +256,7 @@ func TestAllCoresChangeWithLibraryHomeReloadsOpenRoom(t *testing.T) {
 	if !app.Snapshot().Settings.Open {
 		t.Fatal("scope toggle should leave Settings open until Back")
 	}
-	app.HandleCommand(CmdBack, now)
+	leaveSettings(t, app, now)
 	if snap := app.Snapshot(); !snap.RoomPicker.Open || snap.Room.Open {
 		t.Fatalf("all-cores change did not close stale room and show Library Home: %+v", snap)
 	}
@@ -292,7 +292,7 @@ func TestAllCoresChangeDiscardsSuspendedLibraryRoom(t *testing.T) {
 			if !app.Snapshot().Settings.Open {
 				t.Fatal("scope toggle closed Settings before other edits could be saved")
 			}
-			app.HandleCommand(CmdBack, now)
+			leaveSettings(t, app, now)
 
 			app.mu.Lock()
 			defer app.mu.Unlock()

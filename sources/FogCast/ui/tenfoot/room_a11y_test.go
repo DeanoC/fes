@@ -76,13 +76,13 @@ func TestRoomReducedMotionPrefAppliesToOpenRoom(t *testing.T) {
 	app.HandleCommand(CmdSettings, now)
 	waitFor(t, app, "settings", func(s Snapshot) bool { return s.Settings.Open && !s.Settings.Loading })
 	focusSettingsRow(t, app, "reduced-motion", now)
-	if app.Snapshot().Settings.Rows[settingsRowReducedMotion].Value != "Off" {
-		t.Fatalf("row = %#v", app.Snapshot().Settings.Rows[settingsRowReducedMotion])
+	if settingsRowByID(t, app, "reduced-motion").Value != "Off" {
+		t.Fatalf("row = %#v", settingsRowByID(t, app, "reduced-motion"))
 	}
 	app.HandleCommand(CmdSelect, now)
 	snap := app.Snapshot()
-	if !snap.ReducedMotion || snap.Settings.Rows[settingsRowReducedMotion].Value != "On" {
-		t.Fatalf("toggle = %#v motion=%v", snap.Settings.Rows[settingsRowReducedMotion], snap.ReducedMotion)
+	if !snap.ReducedMotion || settingsRowByID(t, app, "reduced-motion").Value != "On" {
+		t.Fatalf("toggle = %#v motion=%v", settingsRowByID(t, app, "reduced-motion"), snap.ReducedMotion)
 	}
 	if !app.Snapshot().Room.Open || !app.Snapshot().Room.ReducedMotion {
 		t.Fatal("open room must receive the reduced-motion flag")
@@ -102,10 +102,7 @@ func TestRoomReducedMotionPrefAppliesToOpenRoom(t *testing.T) {
 		t.Fatalf("json = %s", raw)
 	}
 
-	app.HandleCommand(CmdBack, now)
-	if app.Snapshot().Settings.Open {
-		t.Fatal("settings should close")
-	}
+	leaveSettings(t, app, now)
 	if !app.Snapshot().Room.Open {
 		t.Fatal("room should stay open")
 	}

@@ -327,19 +327,22 @@ func TestFramebufferFullAppLoop(t *testing.T) {
 	in := nativeInput{}
 	inputs := &nativeInputs{devices: []*nativeInput{&in}}
 	in.key(app, 24, 1, time.Now())
-	for index, row := range app.Snapshot().Settings.Rows {
-		if row.ID == "systems" {
-			for step := 0; step < index; step++ {
-				in.hat(app, 17, 1, time.Now())
+	// Systems is under Updates.
+	for _, want := range []string{settingsSectionRowPrefix + settingsSectionUpdates, "systems"} {
+		for index, row := range app.Snapshot().Settings.Rows {
+			if row.ID == want {
+				for step := app.Snapshot().Settings.Index; step < index; step++ {
+					in.hat(app, 17, 1, time.Now())
+					inputs.applyButtons(app, time.Now())
+					in.hat(app, 17, 0, time.Now())
+					inputs.applyButtons(app, time.Now())
+				}
+				in.button(app, ButtonSouth, 1, time.Now())
 				inputs.applyButtons(app, time.Now())
-				in.hat(app, 17, 0, time.Now())
+				in.button(app, ButtonSouth, 0, time.Now())
 				inputs.applyButtons(app, time.Now())
+				break
 			}
-			in.button(app, ButtonSouth, 1, time.Now())
-			inputs.applyButtons(app, time.Now())
-			in.button(app, ButtonSouth, 0, time.Now())
-			inputs.applyButtons(app, time.Now())
-			break
 		}
 	}
 	waitCoreLibrary(t, app)

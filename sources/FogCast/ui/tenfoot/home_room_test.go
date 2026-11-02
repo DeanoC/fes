@@ -120,13 +120,13 @@ func TestHomeRoomOpensAsRootAndHomeClearsStack(t *testing.T) {
 
 	app.HandleCommand(CmdSortCycle, now)
 	waitFor(t, app, "nested for settings home", func(s Snapshot) bool { return s.Room.ID == "nested" })
+	// The Home row is under Library & rooms, listed with Show all cores.
+	app.SetAllCores(true)
 	app.HandleCommand(CmdSettings, now)
 	if !app.Snapshot().Settings.Open {
 		t.Fatal("settings")
 	}
-	for i := 0; i < settingsRowHome; i++ {
-		app.HandleCommand(CmdDown, now)
-	}
+	focusSettingsRow(t, app, "home", now)
 	app.HandleCommand(CmdSelect, now)
 	snap = app.Snapshot()
 	if snap.Settings.Open || !snap.Room.Open || snap.Room.ID != "main-menu" || len(snap.Room.Parents) != 0 || snap.RoomPicker.Open {
