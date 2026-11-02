@@ -43,6 +43,20 @@ def build_key(inputs):
     return 'factory-' + hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest()
 
 
+def base_key(inputs):
+    # Software bytes and their producer remain in build_key and the immutable
+    # factory receipt. They need a fresh native install, not another compiler
+    # and copy of every OS package. New/unreviewed inputs stay in the base key.
+    if inputs.get('profile') != PROFILE or any(
+            not isinstance(inputs.get(name), str) or not re.fullmatch('[0-9a-f]{64}', inputs[name])
+            for name in ('recipe_sha256', 'sdk_sha256', 'kernel_image_sha256')):
+        raise ValueError('factory base cache requires its profile, recipe, SDK and kernel identities')
+    policy = {name: value for name, value in inputs.items()
+              if name not in ('fes_revision', 'artifacts', 'executables')}
+    encoded = json.dumps(policy, sort_keys=True, separators=(',', ':')).encode()
+    return 'factory-' + hashlib.sha256(b'FES-DE25-FACTORY-BASE-1\0' + encoded).hexdigest()
+
+
 def selected(directory):
     return image_artifacts.load(directory, board='de25-nano')
 
@@ -197,9 +211,15 @@ def inside(action, jobs):
     env = prepare_packages(output / 'artifacts', ROOT / 'sources/FogCast',
                            Path('/build') / build_key(inputs) / 'native')
     if action != 'factory-verify':
-        base.prepare_sdk(build_key(inputs))
-        _, work, command, build_env = image.prepare_buildroot(managed=True, factory_key=build_key(inputs))
+        key = base_key(inputs)
+        base.prepare_sdk(key)
+        _, work, command, build_env = image.prepare_buildroot(managed=True, factory_key=key)
         build_env.update(env)
+        if action == 'factory-build':
+            # Local-package stamps do not notice a newly selected prebuilt
+            # runtime. Always refresh it; the shared post-build replaces the
+            # factory software/MENU trees while unrelated base packages remain.
+            image.run([*command, 'mister-runtime-dirclean'], env=build_env)
         image.run([*command, 'source' if action == 'factory-fetch' else 'all', f'-j{jobs}'], env=build_env)
         if action == 'factory-fetch':
             return
@@ -297,7 +317,9 @@ def publish(args):
             (output / LOCK).write_text(runtime_lock(output / 'artifacts'))
         # The real selector must admit the package before any OS or compiler build.
         prepare_packages(output / 'artifacts', fogcast, output / 'package-preflight')
-        volume = 'fes-de25-factory-' + hashlib.sha256(str(output).encode()).hexdigest()[:16]
+        # Immutable output generations share one serialized compiler/base cache.
+        # The key inside the volume still separates recipe, SDK and kernel policy.
+        volume = 'fes-de25-factory-' + hashlib.sha256((str(ROOT) + '\0' + str(cache)).encode()).hexdigest()[:16]
         builder = image.ensure_builder(source, args.container_runtime, volume)
         if builder != base.sdk_lock()['builder_image']:
             raise ValueError('factory builder differs from owner-kernel lock')

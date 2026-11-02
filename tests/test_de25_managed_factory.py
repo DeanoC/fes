@@ -47,6 +47,58 @@ class ManagedFactoryTests(unittest.TestCase):
             changed = dict(fields, **{name: 'changed'})
             self.assertNotEqual(FACTORY.build_key(changed), original)
 
+    def base_inputs(self):
+        return {'profile': FACTORY.PROFILE, 'fes_revision': 'a' * 40,
+                'recipe_sha256': 'b' * 64, 'sdk_sha256': 'c' * 64,
+                'kernel_image_sha256': 'd' * 64,
+                'artifacts': {'binaries': {'mister-runtime': 'e' * 64}},
+                'executables': {'fes-kit-software': 'f' * 64}}
+
+    def test_base_reuse_separates_software_identity_from_compiler_policy(self):
+        fields = self.base_inputs(); original = FACTORY.base_key(fields)
+        for name, value in (('fes_revision', '1' * 40), ('artifacts', {'new': 'software'}),
+                            ('executables', {'new': 'helpers'})):
+            with self.subTest(software=name):
+                changed = dict(fields, **{name: value})
+                self.assertEqual(FACTORY.base_key(changed), original)
+                self.assertNotEqual(FACTORY.build_key(changed), FACTORY.build_key(fields))
+        for name in ('recipe_sha256', 'sdk_sha256', 'kernel_image_sha256', 'future_base_policy'):
+            with self.subTest(policy=name):
+                self.assertNotEqual(FACTORY.base_key(dict(fields, **{name: '1' * 64})), original)
+        self.assertNotEqual(original, FACTORY.build_key(fields))
+
+    def test_base_reuse_requires_complete_board_recipe_sdk_and_kernel_identity(self):
+        fields = self.base_inputs()
+        for name in ('profile', 'recipe_sha256', 'sdk_sha256', 'kernel_image_sha256'):
+            for value in (None, False, '', 'foreign'):
+                with self.subTest(name=name, value=value), self.assertRaises(ValueError):
+                    FACTORY.base_key(dict(fields, **{name: value}))
+
+    def test_failed_runtime_refresh_prevents_build_and_image_publication(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); output = root / 'output'; output.mkdir()
+            FACTORY.save(output / FACTORY.INPUTS, self.base_inputs())
+            work = root / 'base'; work.mkdir()
+            old = output / 'rootfs.ext4'; old.write_bytes(b'prior diagnostic output')
+            ordinary_path = Path
+            def selected_path(value):
+                return output if str(value) == '/export' else ordinary_path(value)
+            def run(command, **kwargs):
+                if 'mister-runtime-dirclean' in command:
+                    raise subprocess.CalledProcessError(1, command)
+                self.fail('build or SDK export started after failed runtime invalidation')
+            with mock.patch.object(FACTORY, 'Path', side_effect=selected_path), \
+                    mock.patch.object(FACTORY, 'prepare_packages', return_value={}), \
+                    mock.patch.object(FACTORY.base, 'prepare_sdk'), \
+                    mock.patch.object(FACTORY.image, 'prepare_buildroot', return_value=(root, work, ['make'], {})), \
+                    mock.patch.object(FACTORY.image, 'run', side_effect=run), \
+                    mock.patch.object(FACTORY, 'verify_rootfs') as verify:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    FACTORY.inside('factory-build', 2)
+                verify.assert_not_called()
+            self.assertEqual(old.read_bytes(), b'prior diagnostic output')
+            self.assertFalse((output / 'factory-verify.json').exists())
+
     def test_runtime_lock_uses_fpga_producer_and_selected_payload(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); directory, selected = self.fixture(root)
