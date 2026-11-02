@@ -54,6 +54,13 @@ TRWU8CBL attempt verifies both network uploads, then stops after the SPL handoff
 before secure startup or native execution. No DDR read/drain was reached;
 startup and subsequent JTAG discovery need investigation.
 
+Current cold builds record `secure_capture_trace=true` and emit a paired
+`FES_NANO_EL3_CAPTURE` observation around the secure record copy after console
+registration. The decoder requires the pair and matching arguments before the
+provider/loader sequence. It never infers success from these markers alone.
+Archived traces made before this instrumentation use the explicit historical
+decoder format; missing records cannot select that format automatically.
+
 The [native Go hardware diagnostic](../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
 now passes the actual secure provider, both loader ownership snapshots and
 EL2/EL1 entry on TRWU8CBL, ending in the TamaGo Go probe. Timer, goroutine,

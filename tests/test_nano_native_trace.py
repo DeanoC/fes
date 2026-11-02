@@ -28,6 +28,8 @@ def fixture(core=0, bridge=0x4f):
         'Trying to boot from MMC1',
         'FES_NANO_SPL FIT verified before parsing',
         f'FES_NANO_SPL HANDOFF owner={OWNER:x} epoch={EPOCH:x} per0=ff21bfbf bridge={bridge:08x} sd=00000000',
+        'NOTICE:  FES_NANO_EL3_CAPTURE phase=before pointer=21768 cookie=464e433200000002',
+        'NOTICE:  FES_NANO_EL3_CAPTURE phase=after pointer=21768 cookie=464e433200000002',
         f'NOTICE:  FES_NANO_OWNED_BOOT provider=1 result=0 reset={bridge:08x}',
         f'U-Boot 2025.01-fes-nano-{BUILD} (source-bound)',
         'DRAM:  1 GiB',
@@ -48,6 +50,27 @@ def fixture(core=0, bridge=0x4f):
 class NativeTraceTests(unittest.TestCase):
     def decode(self, data):
         return trace.decode_native_boot(data, BUILD, SEED)
+
+    def test_early_capture_pairs_locate_progress_without_granting_boot_authority(self):
+        raw=fixture();before='NOTICE:  FES_NANO_EL3_CAPTURE phase=before pointer=21768 cookie=464e433200000002\r\n'
+        after=before.replace('phase=before','phase=after')
+        self.assertIn(before,raw);self.assertIn(after,raw)
+        for marker,checkpoint in ((before,'el3_capture_before'),(after,'el3_capture_after')):
+            prefix=raw.split(marker)[0]+marker
+            observed=self.decode(prefix)
+            self.assertEqual(observed['last_checkpoint'],checkpoint)
+            self.assertFalse(observed['loader_ready']);self.assertFalse(observed['complete'])
+            self.assertFalse(observed['core_load_acceptance'])
+        for old,new in (('pointer=21768','pointer=21769'),('pointer=21768','pointer=40000'),
+                        ('pointer=21768','pointer=fff'),('cookie=464e433200000002','cookie=464e433200000003')):
+            self.assertFalse(self.decode(raw.replace(old,new))['loader_ready'])
+        self.assertFalse(self.decode(raw.replace(after,after.replace('pointer=21768','pointer=21770')))['complete'])
+        archived=raw.replace(before,'').replace(after,'')
+        self.assertFalse(self.decode(archived)['complete'])
+        self.assertTrue(trace.decode_native_boot(archived,BUILD,SEED,capture_trace=False)['complete'])
+        self.assertFalse(trace.decode_native_boot(raw,BUILD,SEED,capture_trace=False)['complete'])
+        for invalid in (None,0,1,'yes'):
+            with self.assertRaises(ValueError):trace.decode_native_boot(raw,BUILD,SEED,capture_trace=invalid)
 
     def test_both_primary_types_and_masked_bridge_readback(self):
         for core in (0, 2):
@@ -864,7 +887,8 @@ class NativeSDTraceTests(unittest.TestCase):
         expected=json.loads((folder/'sd-native-complete.json').read_text())
         raw=(ROOT/expected['console_path']).read_bytes()
         self.assertEqual(hashlib.sha256(raw).hexdigest(),expected['console_sha256'])
-        report=trace.decode_native_boot(raw,expected['build_id'],expected['owner_seed'],storage=expected['storage'])
+        # Retained physical capture predates secure capture instrumentation.
+        report=trace.decode_native_boot(raw,expected['build_id'],expected['owner_seed'],storage=expected['storage'],capture_trace=False)
         self.assertTrue(report['complete'],report)
         read=next(row['values'] for row in report['records'] if row['stage']=='read')
         self.assertEqual(len(read['cid']),30)
@@ -952,7 +976,8 @@ class NativePackageTraceTests(unittest.TestCase):
         expected=json.loads((ROOT/'tests/fixtures/nano/packages-native-complete.json').read_text())
         raw=(ROOT/expected['console_path']).read_bytes()
         self.assertEqual(hashlib.sha256(raw).hexdigest(),expected['console_sha256'])
-        report=trace.decode_native_boot(raw,expected['build_id'],expected['owner_seed'],package=expected['package'])
+        # Retained physical capture predates secure capture instrumentation.
+        report=trace.decode_native_boot(raw,expected['build_id'],expected['owner_seed'],package=expected['package'],capture_trace=False)
         self.assertTrue(report['complete'],report)
         self.assertEqual(report['last_checkpoint'],'package_pass')
         self.assertFalse(report['core_load_acceptance'])

@@ -16,10 +16,11 @@ BRIDGES = 0xf
 OWNED_FLAGS = (0x46424f31 << 32) | 0xdf
 AFFINITY_MASK = 0xff00ffffff
 
-STAGES = ('spl', 'initial', 'scope', 'mmc', 'fit', 'spl_handoff', 'provider',
+STAGES = ('spl', 'initial', 'scope', 'mmc', 'fit', 'spl_handoff',
+          'el3_capture_before', 'el3_capture_after', 'provider',
           'uboot', 'dram', 'prompt', 'boot', 'memory', 'before-entry',
           'after-remove', 'live', 'handoff', 'el2', 'el1', 'go')
-LOADER_STAGES = STAGES[:10]
+LOADER_STAGES = STAGES[:STAGES.index('prompt')+1]
 H = r'[0-9a-f]{1,16}'
 W = r'[0-9a-f]{8}'
 RULES = [(name, re.compile(pattern)) for name, pattern in (
@@ -29,6 +30,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('mmc', r'Trying to boot from MMC1'),
     ('fit', r'FES_NANO_SPL FIT verified before parsing'),
     ('spl_handoff', rf'FES_NANO_SPL HANDOFF owner=(?P<owner>{H}) epoch=(?P<epoch>{H}) per0=(?P<per0>{W}) bridge=(?P<bridge>{W}) sd=(?P<sd>{W})'),
+    ('el3_capture', rf'(?:NOTICE:[ \t]+)?FES_NANO_EL3_CAPTURE phase=(?P<phase>before|after) pointer=(?P<pointer>{H}) cookie=(?P<cookie>{H})'),
     ('smmu', r'(?:NOTICE:[ \t]+)?FES_NANO_SMMU status=(?P<status>-?[0-9]{1,10}) reads=(?P<reads>[0-9]{1,3}) '+
         ' '.join(key+r'=(?P<'+key+r'>[0-9a-f]{1,8})' for key in
                  ('idr0','idr1','aidr','s_idr1','cr0','ack','gbpa','agbpa','s_cr0','s_ack','s_init','s_gbpa','s_agbpa'))+
@@ -83,7 +85,7 @@ TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_i
 
 def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
-                       smmu_observe=False, reader_memory=None):
+                       smmu_observe=False, reader_memory=None, capture_trace=True):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -96,6 +98,12 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         raise ValueError('checked build ID and nonzero odd uint64 owner seed required')
     if not isinstance(data, (str, bytes, bytearray, memoryview)):
         raise TypeError('serial bytes or text required')
+    if type(capture_trace) is not bool:
+        raise ValueError('secure capture trace selection must come from the checked build')
+    # Current cold builds always emit the pair. Archived captures made before
+    # that instrumentation require an explicit historical format selection;
+    # never infer a weaker format from missing serial records.
+    base_stages=STAGES if capture_trace else tuple(s for s in STAGES if not s.startswith('el3_capture_'))
     if storage is not None and (not isinstance(storage,dict) or set(storage)!={'bytes','sha256'} or
             type(storage['bytes']) is not int or not 0<storage['bytes']<=1<<20 or
             not isinstance(storage['sha256'],str) or not re.fullmatch('[0-9a-f]{64}',storage['sha256'])):
@@ -146,8 +154,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     controlled = storage is not None or package is not None or configuration_storage
     if type(smmu_observe) is not bool or smmu_observe and (controlled or hps_context is not None or fpga_identity is not None):
         raise ValueError('SMMU observation requires its separate serial-only diagnostic')
-    stages=STAGES
-    if hps_context is not None:stages=STAGES[:-1]+('hps_context',)
+    stages=base_stages
+    if hps_context is not None:stages=base_stages[:-1]+('hps_context',)
     if fpga_identity is not None:
         if fpga_configuration:stages+=('fpga_query','fpga_status')
         if fpga_status_only:stages+=('fpga_status_closed',)
@@ -158,18 +166,21 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 stages+=tuple('identity_access_'+str(i)+'_'+phase for i in range(1,31) for phase in ('before','after'))
             stages+=('identity_close','identity_closed','fpga_identity')
     if configuration_storage:
-        stages=STAGES[:7]+('sd_platform',)+STAGES[7:-1]+('configuration_package',)+stages[len(STAGES)-1:]
+        index=base_stages.index('provider')+1
+        stages=base_stages[:index]+('sd_platform',)+base_stages[index:-1]+('configuration_package',)+stages[len(base_stages)-1:]
     elif controlled:
         suffix=(('storage','read','contained','resumed','sd_pass') if storage is not None else
                 ('package_probe','package_retained','package_contained','package_resumed','package_pass'))
-        stages=STAGES[:7]+('sd_platform',)+STAGES[7:-1]+suffix
+        index=base_stages.index('provider')+1
+        stages=base_stages[:index]+('sd_platform',)+base_stages[index:-1]+suffix
     if reader_memory is not None:
         for before,added in (('hps_context','reader_memory'),('identity_open','smmu'),('identity_closed','master_stop')):
             index=stages.index(before);stages=stages[:index]+(added,)+stages[index:]
         index=stages.index('identity_open')
         stages=stages[:index]+('ddr_firewall',)+tuple('ddr_region_'+str(i) for i in range(8))+('ddr_firewall_end',)+stages[index:]
         stages+=('ddr_blocked',)
-    if smmu_observe:stages=STAGES[:6]+('smmu',)+STAGES[6:]
+    if smmu_observe:
+        index=base_stages.index('provider');stages=base_stages[:index]+('smmu',)+base_stages[index:]
     loader_stages=stages[:stages.index('prompt')+1]
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False}
@@ -198,6 +209,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             if name == 'owned':
                 name = values['phase']
             if name=='identity_transition':name='identity_'+values['phase']
+            if name=='el3_capture':name+='_'+values['phase']
             if name=='identity_access':name='identity_access_'+str(values['ordinal'])+'_'+values['phase']
             if name=='ddr_region':name+='_'+str(values['index'])
             if name=='sd_platform' and not controlled:
@@ -248,6 +260,13 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 'SPL owner/epoch differs from matched chain')
         require(seal['per0'] & MASTER_RESET == MASTER_RESET and seal['bridge'] & BRIDGES == BRIDGES and
                 not seal['sd'] & SD_BUSY, 'SPL containment or SD drain differs')
+    capture=observed.get('el3_capture_before')
+    if capture:
+        require(0x1000<=capture['pointer']<=0x40000-0xe0 and not capture['pointer']&7 and
+                capture['cookie']==0x464e433200000002,'secure cold-capture arguments differ')
+    if 'el3_capture_after' in observed:
+        require(capture is not None and observed['el3_capture_after']==dict(capture,phase='after'),
+                'secure cold-capture return changed arguments')
     if 'provider' in observed:
         provider = observed['provider']
         require(provider['provider'] == 1 and provider['result'] == 0 and provider['bridge'] & BRIDGES == BRIDGES,

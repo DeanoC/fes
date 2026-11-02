@@ -105,6 +105,30 @@ int fes_nano_cold_cpu_release_locked(void)
     return '#include "nano_cold.h"\n' + text
 
 
+def cold_setup_source(text):
+    """Keep vendor setup order and establish its console before cold capture.
+
+    This remains secure early setup, before BL33, stream-ID setup and bridge
+    authority. The two markers only locate a returned copy; provider validation
+    later decides whether the saved record and live ownership are acceptable.
+    """
+    declaration='void bl31_early_platform_setup2('
+    console='\tconsole_set_scope(&console,\n\t\t(CONSOLE_FLAG_BOOT | CONSOLE_FLAG_RUNTIME | CONSOLE_FLAG_CRASH));\n'
+    stream='\tsetup_smmu_stream_id();'
+    if (text.count(declaration)!=1 or text.count(console)!=1 or text.count(stream)!=1 or
+            text.index(console)>text.index(stream) or 'fes_nano_cold_capture' in text):
+        raise ValueError('cold early capture context changed')
+    text=text.replace(declaration,'extern void fes_nano_cold_capture(uintptr_t, uint64_t);\n'+declaration)
+    trace='''
+\tNOTICE("FES_NANO_EL3_CAPTURE phase=before pointer=%llx cookie=%llx\\n",
+\t       (unsigned long long)arg2, (unsigned long long)arg3);
+\tfes_nano_cold_capture(arg2, arg3);
+\tNOTICE("FES_NANO_EL3_CAPTURE phase=after pointer=%llx cookie=%llx\\n",
+\t       (unsigned long long)arg2, (unsigned long long)arg3);
+'''
+    return text.replace(console,console+trace)
+
+
 def install(source, cold_profile=None, cold_header=None):
     digest = nano_digest.install(source, cold_profile is not None and
                                 cold_profile.get('hps_configuration') is not None)
@@ -141,11 +165,7 @@ def install(source, cold_profile=None, cold_header=None):
         mk.write_text(mk.read_text()+"\nTF_CFLAGS += -DFES_NANO_COLD_SERIAL=1\nBL31_SOURCES += plat/intel/soc/common/nano_cold.c plat/intel/soc/common/nano_cold_platform.c plat/intel/soc/common/nano_sd_platform.c plat/intel/soc/common/nano_smmu.c plat/intel/soc/common/nano_fabric_stop.c plat/intel/soc/common/nano_probe_stop.c plat/intel/soc/common/nano_ddr_firewall.c plat/intel/soc/common/nano_ddr_read.c\n")
         if digest is not None:
             mk.write_text(mk.read_text() + '\n' + nano_digest.FLAGS)
-        text=setup.read_text()
-        marker='\tstatic console_t console;\n'
-        if text.count(marker)!=1: raise ValueError('cold early capture context changed')
-        text=text.replace('void bl31_early_platform_setup2(', 'extern void fes_nano_cold_capture(uintptr_t, uint64_t);\nvoid bl31_early_platform_setup2(')
-        setup.write_text(text.replace(marker,marker+'\tfes_nano_cold_capture(arg2, arg3);\n'))
+        setup.write_text(cold_setup_source(setup.read_text()))
     psci = source / PSCI
     psci.write_text(psci_source(psci.read_text(), cold_serial=cold_profile is not None))
     frontend = source / PSCI_FRONTEND

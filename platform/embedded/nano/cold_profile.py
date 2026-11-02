@@ -88,6 +88,7 @@ def make(entry_build):
     identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
               'sd_pio':profile.name=='sd-profile.json','firmware_profile_sha256':sha(profile),
               'smmu_observe':profile.name=='smmu-profile.json',
+              'secure_capture_trace':True,
               'native_sources_sha256':hashlib.sha256(json.dumps(build['native_build_sources'],sort_keys=True).encode()).hexdigest(),
               'experimental_fit_path':EXPERIMENTAL_FILE,'entry_image_sha256':sha(image),
               'entry_image_size':image.stat().st_size,'producer_sources':inputs,

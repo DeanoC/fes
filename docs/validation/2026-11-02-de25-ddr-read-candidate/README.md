@@ -99,7 +99,10 @@ spare card and exclusive claim remain retained under the user's permission.
 
 The [ELF comparison](firmware-layout.json) shows BL31 growing from 81,981 to
 86,077 file bytes, with its loaded memory ending at `0x8001fc00`, below the
-vendor DTB at `0x80020000`. That is structural evidence only; it does not
+vendor DTB address constant `0x80020000`. The selected FIT has no explicit
+`fdt-0` load address, and the pinned BL31 GIC setup says the DTB is unavailable;
+that constant is not proof of an actual loaded reservation. The comparison
+is structural evidence only; it does not
 identify the startup failure. Next, preserve the vendor entry sequence and add
 earlier bounded trace points around secure entry/cold-record capture, while
 investigating JTAG discovery before another hardware run. Runtime admission and

@@ -41,6 +41,13 @@ The [first bounded candidate trial](../../../docs/validation/2026-11-02-de25-ddr
 stops after SPL handoff before secure startup, so physical read/drain remains
 unqualified despite the passing software checks.
 
+The cold setup now registers the vendor console before copying the SPL record,
+with `FES_NANO_EL3_CAPTURE` markers immediately before and after that copy.
+Vendor console, stream-ID and assembly startup ordering remain intact; capture
+still happens in secure early setup before BL33 or any bridge authority. A
+returned copy is a progress marker only. The existing provider must separately
+validate the saved record and live ownership before exposing its services.
+
 The [contained large-block TRWU8CBL trial](../../../docs/validation/2026-11-02-de25-large-blocks/README.md)
 now completes the exact sealed 2,027,520-byte phase-two image through native
 CPU/firmware calls, reports ready and verifies the live build identity with

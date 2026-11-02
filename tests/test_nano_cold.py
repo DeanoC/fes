@@ -7,6 +7,80 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 FW=ROOT/'platform/embedded/firmware'
 class NanoColdTests(unittest.TestCase):
+    def test_secure_capture_trace_preserves_vendor_order_and_all_arguments(self):
+        sys.path.insert(0,str(FW))
+        try:import prepare_nano_owned
+        finally:sys.path.remove(str(FW))
+        fixture='''void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
+                                u_register_t arg2, u_register_t arg3)
+{
+\tstatic console_t console;
+\tmmio_write_64(PLAT_SEC_ENTRY, PLAT_SEC_WARM_ENTRY);
+\tconsole_16550_register(PLAT_INTEL_UART_BASE, PLAT_UART_CLOCK, PLAT_BAUDRATE, &console);
+\tconsole_set_scope(&console,
+\t\t(CONSOLE_FLAG_BOOT | CONSOLE_FLAG_RUNTIME | CONSOLE_FLAG_CRASH));
+\tsetup_smmu_stream_id();
+\tcheck_previous_arguments(arg0, arg1);
+}
+'''
+        generated=prepare_nano_owned.cold_setup_source(fixture)
+        console='\tconsole_set_scope(&console,\n\t\t(CONSOLE_FLAG_BOOT | CONSOLE_FLAG_RUNTIME | CONSOLE_FLAG_CRASH));\n'
+        before,tail=generated.split(console)
+        stream=tail.index('\tsetup_smmu_stream_id();')
+        restored=(before+console+tail[stream:]).replace('extern void fes_nano_cold_capture(uintptr_t, uint64_t);\n','')
+        self.assertEqual(restored,fixture)
+        for bad in (fixture.replace('CONSOLE_FLAG_CRASH','CONSOLE_FLAG_OTHER'),
+                    fixture.replace('bl31_early_platform_setup2','other_setup'),fixture+fixture,
+                    fixture.replace('\tsetup_smmu_stream_id();','\tfes_nano_cold_capture(arg2, arg3);')):
+            with self.assertRaisesRegex(ValueError,'cold early capture context'):
+                prepare_nano_owned.cold_setup_source(bad)
+        prefix=r'''
+#include <assert.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <string.h>
+typedef uint64_t u_register_t;
+typedef unsigned console_t;
+#define PLAT_SEC_ENTRY 1
+#define PLAT_SEC_WARM_ENTRY 2
+#define PLAT_INTEL_UART_BASE 3
+#define PLAT_UART_CLOCK 4
+#define PLAT_BAUDRATE 5
+#define CONSOLE_FLAG_BOOT 1
+#define CONSOLE_FLAG_RUNTIME 2
+#define CONSOLE_FLAG_CRASH 4
+static unsigned stage;
+static uint64_t pointer,cookie;
+void mmio_write_64(unsigned a,unsigned b) {assert(!stage++ && a==1 && b==2);}
+void console_16550_register(unsigned a,unsigned b,unsigned c,console_t *p) {assert(stage++==1 && a==3 && b==4 && c==5 && p);}
+void console_set_scope(console_t *p,unsigned flags) {assert(stage++==2 && p && flags==7);}
+void trace_notice(const char *format,...) {
+    assert(stage==(strstr(format,"phase=before")?3U:5U));stage++;
+    va_list args;va_start(args,format);
+    assert(va_arg(args,unsigned long long)==pointer && va_arg(args,unsigned long long)==cookie);va_end(args);
+}
+#define NOTICE(...) trace_notice(__VA_ARGS__)
+void fes_nano_cold_capture(uintptr_t p,uint64_t c) {assert(stage++==4 && p==pointer && c==cookie);}
+void setup_smmu_stream_id(void) {assert(stage++==6);}
+void check_previous_arguments(uint64_t a,uint64_t b) {assert(stage++==7 && a==17 && b==19);}
+'''
+        main=r'''
+int main(void) {
+    const uint64_t pointers[]={0x21768,0x1000,0,0x100000021768ULL};
+    for(unsigned i=0;i<4;i++) {
+        stage=0;pointer=pointers[i];cookie=0x464e433200000002ULL^(i==2);
+        bl31_early_platform_setup2(17,19,pointer,cookie);assert(stage==8);
+    }
+    return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as temp:
+            source=Path(temp)/'setup.c';binary=Path(temp)/'setup';source.write_text(prefix+generated+main)
+            result=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',str(source),'-o',str(binary)],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            result=subprocess.run([str(binary)],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+
     def test_produced_psci_denies_secondary_release_without_retiring_owner(self):
         sys.path.insert(0,str(FW))
         try:
