@@ -3695,8 +3695,9 @@ exact size, when the host loaded one from its `[firmware] bundled_dir`. The
 host derives that default for reads and launches without saving it as a user
 selection, so a later bundle update changes the effective default. An explicit
 selection is preserved. Catalog setup also leaves a selected bundled default
-unsaved. `GET /api/v1/library/core-entries/{game_id}/rom` marks that effective
-value with `bundled_default: true`; installed setup can use its digest as the
+unsaved. `GET /api/v1/library/core-entries/{game_id}/rom` returns an empty
+`media_id` for that unsaved default, with its digest in `bundled_media_id` and
+`bundled_default: true`. Installed setup can use that digest as the
 compare-and-swap expectation when replacing it. Library readiness uses the
 validated bundled-object metadata rather than rehashing the image for every
 title; launch still verifies the stored bytes. ZX81-family firmware is not

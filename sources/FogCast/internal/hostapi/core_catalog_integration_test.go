@@ -6,10 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"github.com/DeanoC/FogCast/corepackage"
-	"github.com/DeanoC/FogCast/fogcast"
-	"github.com/DeanoC/FogCast/hostclient"
-	"github.com/DeanoC/FogCast/internal/hostapi"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,7 +15,11 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/bundledfirmware"
+	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -229,6 +230,19 @@ func TestInstalledSetupReplacesOnlyUnsavedBundledFirmware(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	legacyEntry, err := createEntryWithLegacyROMClient(t, server.Client(), server.URL, setup, "Spectrum with legacy client", "spectrum-firmware", userROM.MediaID)
+	if err != nil {
+		t.Fatalf("legacy client selecting a user ROM over the bundled default: %v", err)
+	}
+	entries := getCoreLibraryEntries(t, server.Client(), server.URL)
+	if len(entries) != 1 || entries[0].GameID != legacyEntry.GameID || entries[0].Title != "Spectrum with legacy client" {
+		t.Fatalf("legacy ROM selection left extra library titles: %+v", entries)
+	}
+	legacyBinding := getInstalledROMBinding(t, server.Client(), server.URL, legacyEntry.GameID)
+	if legacyBinding.MediaID != userROM.MediaID || legacyBinding.BundledDefault || legacyBinding.BundledMediaID != "" {
+		t.Fatalf("legacy client saved ROM binding %+v", legacyBinding)
+	}
+
 	custom, err := client.CreateInstalledCoreEntry(ctx, setup, "Spectrum with own firmware", map[string]string{"spectrum-firmware": userROM.MediaID}, "", "")
 	if err != nil {
 		t.Fatalf("save user firmware over built-in default: %v", err)
@@ -246,7 +260,7 @@ func TestInstalledSetupReplacesOnlyUnsavedBundledFirmware(t *testing.T) {
 		t.Fatalf("keep built-in firmware: %v", err)
 	}
 	defaultBinding := getInstalledROMBinding(t, server.Client(), server.URL, withDefault.GameID)
-	if defaultBinding.MediaID != bundleID || !defaultBinding.BundledDefault {
+	if defaultBinding.MediaID != "" || defaultBinding.BundledMediaID != bundleID || !defaultBinding.BundledDefault {
 		t.Fatalf("built-in ROM was not returned as a derived default: %+v", defaultBinding)
 	}
 
@@ -263,10 +277,137 @@ func TestInstalledSetupReplacesOnlyUnsavedBundledFirmware(t *testing.T) {
 	if err != nil || rawCustom.MediaID != userROM.MediaID {
 		t.Fatalf("user ROM was not saved: %+v, err %v", rawCustom, err)
 	}
+	rawLegacy, err := store.CoreEntryROM(ctx, legacyEntry.GameID)
+	if err != nil || rawLegacy.MediaID != userROM.MediaID {
+		t.Fatalf("legacy client user ROM was not saved: %+v, err %v", rawLegacy, err)
+	}
 	rawDefault, err := store.CoreEntryROM(ctx, withDefault.GameID)
 	if err != nil || rawDefault.MediaID != "" {
 		t.Fatalf("built-in ROM was saved: %+v, err %v", rawDefault, err)
 	}
+}
+
+// createEntryWithLegacyROMClient preserves the main-branch client contract:
+// it only understands media_id and treats any non-empty value as a saved ROM.
+func createEntryWithLegacyROMClient(t *testing.T, client *http.Client, baseURL string, setup hostclient.CoreSetup, title, romID, mediaID string) (hostclient.CoreEntry, error) {
+	t.Helper()
+	requestBody, err := json.Marshal(map[string]any{
+		"title": title, "package_id": setup.PackageID, "firmware_required": true,
+	})
+	if err != nil {
+		return hostclient.CoreEntry{}, err
+	}
+	request, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/library/core-entries", bytes.NewReader(requestBody))
+	if err != nil {
+		return hostclient.CoreEntry{}, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(request)
+	if err != nil {
+		return hostclient.CoreEntry{}, err
+	}
+	var entry hostclient.CoreEntry
+	if response.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(response.Body)
+		response.Body.Close()
+		return entry, fmt.Errorf("create title returned %s: %s", response.Status, body)
+	}
+	err = json.NewDecoder(response.Body).Decode(&entry)
+	response.Body.Close()
+	if err != nil {
+		return entry, err
+	}
+
+	request, err = http.NewRequest(http.MethodGet, baseURL+"/api/v1/library/core-entries/"+entry.GameID+"/rom", nil)
+	if err != nil {
+		return entry, err
+	}
+	response, err = client.Do(request)
+	if err != nil {
+		return entry, err
+	}
+	body, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil {
+		return entry, err
+	}
+	if response.StatusCode != http.StatusOK {
+		return entry, fmt.Errorf("read ROM selection returned %s: %s", response.Status, body)
+	}
+	var shape struct {
+		MediaID        *string `json:"media_id"`
+		BundledMediaID string  `json:"bundled_media_id"`
+		BundledDefault bool    `json:"bundled_default"`
+	}
+	if err := json.Unmarshal(body, &shape); err != nil {
+		return entry, err
+	}
+	if shape.MediaID == nil || *shape.MediaID != "" || shape.BundledMediaID == "" || !shape.BundledDefault {
+		return entry, fmt.Errorf("unexpected bundled ROM response: %s", body)
+	}
+
+	// This intentionally ignores bundled_media_id and bundled_default, as an
+	// older hostclient does, and applies its saved-choice check to media_id.
+	var binding struct {
+		GameID    string `json:"game_id"`
+		PackageID string `json:"package_id"`
+		ROMID     string `json:"rom_id"`
+		MediaID   string `json:"media_id"`
+	}
+	if err := json.Unmarshal(body, &binding); err != nil {
+		return entry, err
+	}
+	if binding.GameID != entry.GameID || binding.PackageID != "" && binding.PackageID != entry.PackageID {
+		return entry, fmt.Errorf("ROM selection identity changed")
+	}
+	if binding.MediaID != "" {
+		if binding.ROMID != romID || binding.MediaID != mediaID {
+			return entry, fmt.Errorf("the existing ROM differs; choose another title")
+		}
+		return entry, nil
+	}
+
+	selectionBody, err := json.Marshal(map[string]string{
+		"package_id": entry.PackageID, "rom_id": romID,
+		"expected_media_id": binding.MediaID, "media_id": mediaID,
+	})
+	if err != nil {
+		return entry, err
+	}
+	request, err = http.NewRequest(http.MethodPut, baseURL+"/api/v1/library/core-entries/"+entry.GameID+"/rom", bytes.NewReader(selectionBody))
+	if err != nil {
+		return entry, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err = client.Do(request)
+	if err != nil {
+		return entry, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(response.Body)
+		return entry, fmt.Errorf("save ROM returned %s: %s", response.Status, body)
+	}
+	return entry, nil
+}
+
+func getCoreLibraryEntries(t *testing.T, client *http.Client, baseURL string) []catalog.CoreEntry {
+	t.Helper()
+	response, err := client.Get(baseURL + "/api/v1/library/core-entries")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("GET core library returned %s", response.Status)
+	}
+	var result struct {
+		Entries []catalog.CoreEntry `json:"entries"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	return result.Entries
 }
 
 func spectrumFirmwarePackage(t *testing.T) []byte {

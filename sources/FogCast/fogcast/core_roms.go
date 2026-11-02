@@ -124,9 +124,9 @@ func (s *Service) SelectCoreEntryROM(parent context.Context, gameID, packageID, 
 		if currentErr != nil {
 			return catalog.CoreEntryROM{}, romSelectionError(currentErr)
 		}
-		// GET reports the effective bundled default even though that default
-		// is not saved. Translate its digest back to the empty stored value for
-		// the compare-and-swap when a user chooses or clears a ROM.
+		// A client may compare against the effective bundled default even
+		// though it is not saved. Translate its digest back to the empty stored
+		// value for the compare-and-swap when a user chooses or clears a ROM.
 		if current.MediaID == "" && inspected.Descriptor.Format == 3 && req != nil && req.Role == protocol.FirmwareRole {
 			if fw, ok := s.bundledFirmwareFor(entry.CoreID, req); ok && expected == fw.MediaID {
 				expected = ""

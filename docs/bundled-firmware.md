@@ -148,6 +148,13 @@ route; a host without it answers 404, and tenfoot then claims no built-in
 firmware: every model's card names the file the user needs. If the host
 cannot be asked at all, the first-use card is skipped and not recorded.
 
+The existing per-title ROM route also stays usable by older kit clients. For
+an unsaved bundled default, it returns `media_id: ""` and puts the built-in
+digest in `bundled_media_id` with `bundled_default: true`. Older clients treat
+the empty ID as no saved choice and can select a user ROM; newer clients use
+the separate digest for compare-and-swap. A real saved selection remains in
+`media_id`.
+
 Not built yet: the Home family tiles and their Details
 ([#1347](https://github.com/DeanoC/fes/issues/1347)) will open the card from
 there, and Settings › Firmware ([#1349](https://github.com/DeanoC/fes/issues/1349))

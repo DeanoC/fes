@@ -156,6 +156,7 @@ type CoreEntryROMSelection struct {
 	PackageID      string `json:"package_id"`
 	ROMID          string `json:"rom_id"`
 	MediaID        string `json:"media_id"`
+	BundledMediaID string `json:"bundled_media_id"`
 	BundledDefault bool   `json:"bundled_default"`
 }
 
@@ -345,21 +346,23 @@ func (c *Client) CreateInstalledCoreEntry(ctx context.Context, setup CoreSetup, 
 			return entry, err
 		}
 		if binding.GameID != entry.GameID || (binding.PackageID != "" && binding.PackageID != entry.PackageID) ||
-			binding.BundledDefault && (binding.MediaID == "" || binding.ROMID != rom.ID) {
+			binding.BundledDefault && (binding.MediaID != "" || binding.BundledMediaID == "" || binding.ROMID != rom.ID) ||
+			!binding.BundledDefault && binding.BundledMediaID != "" {
 			return entry, fmt.Errorf("ROM selection identity changed")
 		}
 		id := roms[rom.ID]
 		if binding.MediaID != "" {
-			if binding.ROMID != rom.ID || (binding.MediaID != id && !binding.BundledDefault) {
+			if binding.ROMID != rom.ID || binding.MediaID != id {
 				return entry, fmt.Errorf("the existing ROM differs; choose another title")
 			}
-			if binding.MediaID == id {
-				continue
-			}
+			continue
+		}
+		if binding.BundledDefault && binding.BundledMediaID == id {
+			continue
 		}
 		expected := ""
 		if binding.BundledDefault {
-			expected = binding.MediaID
+			expected = binding.BundledMediaID
 		}
 		if _, err = c.SelectCoreEntryROM(ctx, entry.GameID, entry.PackageID, rom.ID, expected, id); err != nil {
 			return entry, err
