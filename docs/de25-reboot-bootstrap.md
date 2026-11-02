@@ -29,6 +29,10 @@ Use the retained HPS-first producer's `hps/` directory containing
 rollback directory comes from the verified FES Linux build's
 `vendor-boot/factory-boot/`, independently pinned by
 [the vendor lock](../image/de25-nano/vendor.lock.toml).
+The same tool accepts the current computer and MENU/scanout HPS-first producers.
+Their classified `computer_build_id` or `scanout_build_id` remains bound to the
+package; missing, unknown, malformed or mixed identities are refused before
+conversion. Packaging preserves diagnostic status and grants no board acceptance.
 
 ```sh
 python3 scripts/de25_bootstrap.py prepare \
