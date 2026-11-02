@@ -2,6 +2,7 @@
 #include "Vfes_de25_scanout_interconnect_test.h"
 #include "verilated.h"
 #include "generated/fes_de25_scanout.h"
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <deque>
@@ -31,6 +32,10 @@ struct Simulation {
     // Exact frequency ratio 74.25/100 = 297/400, with an independent phase.
     // Simulation ticks are arbitrary rational time units, not timing signoff.
     uint64_t time = 0, next_mem = 297, next_pixel = 417;
+#ifdef FES_DE25_BOARD_COMPOSITION
+    uint64_t next_ref = 611;
+    bool mem_stopped = false, ref_stopped = false, watch_releases = false;
+#endif
     uint64_t mem_cycles = 0, pixel_cycles = 0;
     unsigned response_latency = 0, max_pending_axi = 0;
     uint32_t base = 0x08000fe0U;
@@ -49,7 +54,12 @@ struct Simulation {
     Burst held_ar{};
 
     Simulation() {
-        dut.clk_mem = 0; dut.clk_pixel = 0; dut.reset_n = 0; dut.clock_fault = 0; dut.display_ready = 1;
+        dut.clk_mem = 0; dut.clk_pixel = 0; dut.reset_n = 0;
+#ifdef FES_DE25_BOARD_COMPOSITION
+        dut.clk_ref = 0; dut.model_pll_locked = 0; dut.model_ninit_done = 1;
+#else
+        dut.clock_fault = 0; dut.display_ready = 1;
+#endif
         dut.address = 0; dut.read = 0; dut.write = 0;
         dut.byteenable = 15; dut.writedata = 0;
         dut.ram_test_write_address = 0; dut.ram_test_read_address = 2;
@@ -58,6 +68,15 @@ struct Simulation {
         for (unsigned lane = 0; lane < 8; ++lane) dut.rdata[lane] = 0;
         cycles(32);
         dut.reset_n = 1;
+#ifdef FES_DE25_BOARD_COMPOSITION
+        dut.model_ninit_done = 0; dut.model_pll_locked = 1;
+        uint64_t end = mem_cycles + 200000;
+        while (!dut.display_ready || !dut.pixel_released || !dut.system_released ||
+               !dut.control_released || !dut.memory_source_released || !dut.memory_target_released) {
+            step(); require(mem_cycles < end, "composed board startup bound");
+        }
+        watch_releases = true;
+#endif
         cycles(64);
     }
 
@@ -71,10 +90,16 @@ struct Simulation {
     }
 
     void step() {
+#ifdef FES_DE25_BOARD_COMPOSITION
+        time = std::min(next_mem, std::min(next_pixel, next_ref));
+        bool memory_event = next_mem == time, pixel_event = next_pixel == time, ref_event = next_ref == time;
+        mem_rise = memory_event && !mem_stopped && !dut.clk_mem;
+#else
         bool memory_event = next_mem <= next_pixel;
         bool pixel_event = next_pixel <= next_mem;
         time = memory_event ? next_mem : next_pixel;
         mem_rise = memory_event && !dut.clk_mem;
+#endif
         bool pixel_rise = pixel_event && !pixel_stopped && !dut.clk_pixel;
         accepted_control = false; control_response = false;
         // Withholding responses must not prevent AXI command acceptance:
@@ -160,7 +185,12 @@ struct Simulation {
                 visible_index = 0;
             }
         }
+        #ifdef FES_DE25_BOARD_COMPOSITION
+        if (memory_event) { if (!mem_stopped) dut.clk_mem = !dut.clk_mem; next_mem += 297; }
+        if (ref_event) { if (!ref_stopped) dut.clk_ref = !dut.clk_ref; next_ref += 594; }
+#else
         if (memory_event) { dut.clk_mem = !dut.clk_mem; next_mem += 297; }
+#endif
         if (pixel_event) {
             if (!pixel_stopped) dut.clk_pixel = !dut.clk_pixel;
             next_pixel += 400;
@@ -190,6 +220,14 @@ struct Simulation {
         }
         if (ar_accepted) { new_burst.ready_cycle = mem_cycles + response_latency; pending.push_back(new_burst);
             if (pending.size() > max_pending_axi) max_pending_axi = pending.size(); }
+        #ifdef FES_DE25_BOARD_COMPOSITION
+        require(dut.board_pixel_clk == dut.clk_pixel, "board/transport pixel clocks diverged in boundary model");
+        if (watch_releases) {
+            require(dut.scanout_source_n && dut.pixel_released && dut.system_released && dut.memory_source_released,
+                    "PLL fault reset live bridge/reader state");
+            require(endpoint_expected.size() <= 256, "accepted endpoint beats exceeded 256 reservations");
+        }
+#endif
         if (mem_rise) ++mem_cycles;
         if (pixel_rise) ++pixel_cycles;
     }
@@ -326,6 +364,7 @@ struct Simulation {
     }
 };
 
+#ifndef FES_DE25_BOARD_COMPOSITION
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     try {
@@ -490,3 +529,5 @@ int main(int argc, char** argv) {
     }
     return 0;
 }
+
+#endif

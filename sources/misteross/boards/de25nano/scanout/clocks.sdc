@@ -18,22 +18,18 @@ foreach {port head} {HDMI_I2C_SDA hdmi_sda_sync HDMI_TX_INT hdmi_int_sync} {
 # Loss of pixel lock does not reset either live PD crossing or the endpoint's
 # outstanding accounting. Qsys emits the two domain reset synchronizers as
 # top-level reset controllers; the reset-bridge modules themselves are
-# pass-through cells. The pixel-domain visibility release, which lock loss
-# clears at once, completes the asynchronous clear set.
-set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr fes_video_inst|lock_qualifier|sync_regs*|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr fes_video_inst|visible_release|sync_regs*|aclr}]
-set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn fes_video_inst|lock_qualifier|sync_regs*|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn fes_video_inst|visible_release|sync_regs*|clrn}]
+# pass-through cells. The retained pixel-domain data protocol has no separate reset chain.
+set scanout_aclr [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|aclr soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|aclr}]
+set scanout_clrn [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|config_reset|sync_regs*|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[0]|clrn soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[1]|clrn}]
 set scanout_clear_count [expr {[get_collection_size $scanout_aclr] + [get_collection_size $scanout_clrn]}]
-post_message -type info "DE25 scanout qualifier/reset-bridge/visibility clear pins: $scanout_clear_count (expected 10)"
-if {$scanout_clear_count != 10} {error "DE25 scanout requires exactly ten qualifier/reset-bridge/visibility clear pins"}
+post_message -type info "DE25 scanout configuration/reset-bridge clear pins: $scanout_clear_count (expected 6)"
+if {$scanout_clear_count != 6} {error "DE25 scanout requires exactly six configuration/reset-bridge clear pins"}
 if {[get_collection_size $scanout_aclr] > 0} {set_false_path -to $scanout_aclr}
 if {[get_collection_size $scanout_clrn] > 0} {set_false_path -to $scanout_clrn}
-# The visibility synchronizer clears from the release's pixel-clock output and
-# the registered data/DE gate from visible_sync[1], so their recovery and
-# removal stay timed. Only check that the clear pins exist.
-set scanout_visible_clear [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|visible_sync[0]|aclr fes_video_inst|visible_sync[1]|aclr fes_video_inst|visible_sync[0]|clrn fes_video_inst|visible_sync[1]|clrn}]
-if {[get_collection_size $scanout_visible_clear] != 2} {error "DE25 scanout visibility synchronizer clear pins changed"}
-set scanout_gate_clear [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|video_active|aclr fes_video_inst|video_active|clrn}]
-if {[get_collection_size $scanout_gate_clear] != 1} {error "DE25 scanout data/DE gate clear pin changed"}
+# The retained pixel-domain data/visibility protocol has no asynchronous
+# reset on visible_sync or video_active. Reject an accidental reintroduction.
+set scanout_visible_clear [get_pins -compatibility_mode -nocase -nowarn {fes_video_inst|visible_sync*|aclr fes_video_inst|visible_sync*|clrn fes_video_inst|video_active|aclr fes_video_inst|video_active|clrn}]
+if {[get_collection_size $scanout_visible_clear] != 0} {error "DE25 MENU retained visibility must not have asynchronous clear pins"}
 # A monotonic 100 MHz fault level crosses through its dedicated two-flop chain.
 # Cut only asynchronous ingress to stage0 D. Stage0->1 and fanout stay timed.
 set scanout_fault_source [get_registers {fes_video_inst|fault}]
@@ -59,3 +55,24 @@ set_false_path -from $scanout_ready_source -to $scanout_ready_head
 post_message -type info "DE25 scanout HDMI-ready CDC ingress: one source and one stage0 D pin"
 # No clock groups or FIFO pointer cuts: mm_ccb owns its CDC constraints.
 # External HDMI/I2C delay and electrical contracts remain unqualified.
+
+# Retained fault/visibility protocol. Each source is one register and
+# only stage0 D is asynchronous ingress. No interstage or consumer path is cut.
+foreach {name source head} {
+    system_ack {fes_video_inst|system_ack} system_ack_sync
+    pixel_ack {fes_video_inst|pixel_ack} pixel_ack_sync
+    pixel_active {fes_video_inst|video_active} pixel_active_sync
+    system_epoch {fes_video_inst|epoch} system_epoch_sync
+    monitor_ready {fes_video_inst|monitor_ready_source} monitor_ready_sync
+    visible_allow {fes_video_inst|visible_allow} allow_sync
+    pixel_epoch {fes_video_inst|epoch} pixel_epoch_sync
+    pixel_qualified {fes_video_inst|config_reset|sync_regs[1]} qualified_sync
+} {
+    set retained_source [get_registers $source]
+    set retained_head [get_pins -compatibility_mode -nocase -nowarn [format {fes_video_inst|%s[0]|d} $head]]
+    if {[get_collection_size $retained_source] != 1 || [get_collection_size $retained_head] != 1} {
+        error "DE25 MENU retained crossing source/stage0 D changed: $name"
+    }
+    set_false_path -from $retained_source -to $retained_head
+    post_message -type info "DE25 MENU retained CDC ingress: $name one source and one stage0 D pin"
+}

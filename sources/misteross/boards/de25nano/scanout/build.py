@@ -86,14 +86,14 @@ def timed_reset_release(inputs):
 
 def timed_scanout_sdc(source):
     # The system reset source and receiver both use the 100 MHz system PLL.
-    # Keep the pixel reset and the independent lock/visibility clears cut.
+    # Keep the independent reference configuration and pixel bridge ingress cut.
     for pin in ("aclr", "clrn"):
         for stage in (0, 1):
             source = replace_once(source, "soc_inst|rst_controller_002|alt_rst_sync_uq1|"
-                "altera_reset_synchronizer_int_chain[" + str(stage) + "]|" + pin + " ", "")
-    source = replace_once(source, "$scanout_clear_count != 10", "$scanout_clear_count != 8")
-    source = replace_once(source, "(expected 10)", "(expected 8)")
-    return replace_once(source, "exactly ten qualifier", "exactly eight qualifier")
+                "altera_reset_synchronizer_int_chain[" + str(stage) + "]|" + pin, "")
+    source = replace_once(source, "$scanout_clear_count != 6", "$scanout_clear_count != 4")
+    source = replace_once(source, "(expected 6)", "(expected 4)")
+    return replace_once(source, "exactly six configuration", "exactly four configuration")
 
 
 def timed_vendor_reset_sdc(original, *, timed_instances=TIMED_RESET_INSTANCES):
@@ -394,72 +394,106 @@ def verify_reset_bridge(project, module, hps, synchronous_edges="NONE"):
 
 
 def verify_reset_synchronizers(project):
-    """Require the registered HDMI visibility gate and its exact SDC clears."""
-    def compact(path):
-        source = re.sub(r"//[^\n]*", "", path.read_text())
-        return re.sub(r"\s+", "", source)
+    """Bind retained fault/visibility state to exact first-D CDC constraints."""
+    def compact(text):
+        return re.sub(r"\s+", "", re.sub(r"//[^\n]*|#[^\n]*", "", text))
 
-    board = compact(project / "fes_mailbox/fes_de25_scanout_board.v")
-    if ("always@(posedgesystem_clkornegedgetop_reset_n)if(!top_reset_n)visible_request<=1'b0;"
-            "elsevisible_request<=first_lock_seen&&qualified_lock&&!fault&&hdmi_ready_sync[1];" not in board or
-            "fes_de25_top_resetvisible_release(.clk(pixel_clk),.ninit_done(1'b0),"
-            ".pll_locked(qualified_lock),.reset_n(visible_reset_n));" not in board or
-            "always@(posedgepixel_clkornegedgevisible_reset_n)" not in board or
-            "wirevisible_request=" in board or
-            "always@(posedgepixel_clkornegedgequalified_lock)" in board):
-        raise ValueError("scanout visibility crossing needs a registered source and a pixel-domain reset release")
-    if ("always@(posedgepixel_clkornegedgevisible_sync[1])" not in board or
-            "assignHDMI_TX_D=video_active&&visible_line?video_rgb:24'd0;" not in board or
-            "assignHDMI_TX_DE=video_active&&visible_line&&video_de;" not in board or
-            "assignHDMI_TX_D=visible_request" in board or
-            "assignHDMI_TX_DE=visible_request" in board):
-        raise ValueError("scanout HDMI data/DE visibility is not pixel-registered with immediate lock assertion")
-    if ("if(!top_reset_n)beginfirst_lock_seen<=1'b0;" not in board or
-            "if(qualified_lock)first_lock_seen<=1'b1;" not in board or
-            "assignscanout_reset_n=first_lock_seen;" not in board):
-        raise ValueError("scanout reset source no longer waits for first qualified lock")
-
+    board = compact((project / "fes_mailbox/fes_de25_scanout_board.v").read_text())
+    protocol = (
+        "fes_de25_top_resetconfig_reset(.clk(CLOCK0_50),.ninit_done(ninit_done||!top_reset_n),"
+        ".pll_locked(pixel_locked),.reset_n(config_reset_n));",
+        "if(!config_reset_n)beginvisible_allow<=0;if(!pending)beginepoch<=!epoch;pending<=1;end"
+        "endelseif(pending)beginvisible_allow<=0;"
+        "if(system_ack_sync[1]==epoch&&pixel_ack_sync[1]==epoch&&!pixel_active_sync[1])pending<=0;"
+        "endelsevisible_allow<=1;",
+        "always@(posedgesystem_clk)beginsystem_epoch_sync<={system_epoch_sync[0],epoch};"
+        "if(!first_lock_seen)system_ack<=system_epoch_sync[1];end",
+        "if(!first_lock_seen)beginif(monitor_ready_sync[1]&&system_ack==system_epoch_sync[1])"
+        "first_lock_seen<=1;endelseif(!monitor_ready_sync[1]||system_epoch_sync[1]!=system_ack)fault<=1;",
+        "always@(posedgeCLOCK0_50ornegedgeconfig_reset_n)if(!config_reset_n)monitor_ready_source<=0;"
+        "elsemonitor_ready_source<=system_ack_sync[1]==epoch;",
+        "if(!qualified_sync[1]||!visible_sync[1]||!allow_sync[1]||pixel_epoch_sync[1]!=pixel_ack)begin"
+        "video_active<=0;if(!allow_sync[1]&&!visible_line)pixel_ack<=pixel_epoch_sync[1];"
+        "if(boundary)beginvisible_line<=0;if(!allow_sync[1])pixel_ack<=pixel_epoch_sync[1];end"
+        "endelseif(boundary)beginvisible_line<=1;video_active<=1;end",
+        "always@(posedgesystem_clkornegedgetop_reset_n)if(!top_reset_n)visible_request<=1'b0;"
+        "elsevisible_request<=first_lock_seen&&monitor_ready_sync[1]&&!fault&&hdmi_ready_sync[1];",
+        "assigndisplay_ready=video_active&&visible_line;",
+        "assignscanout_reset_n=first_lock_seen;", "assignclock_fault=fault;",
+    )
+    if any(token not in board for token in protocol) or re.search(r"system_ack<=\d|system_ack<=1'b", board):
+        raise ValueError("scanout needs a retained fault token, cold-only ACK and unchanged live bridge reset")
+    if ("always@(posedgepixel_clk)begin" not in board or
+            [event for event in re.findall(r"always@\(([^)]+)\)", board) if "pixel_clk" in event] != ["posedgepixel_clk"] or
+            "visible_release" in board or "lock_qualifier" in board):
+        raise ValueError("scanout visibility must retain ordinary pixel data registers without another reset chain")
+    if ("wirepin_allow=config_reset_n&&visible_allow;" not in board or
+            "assignHDMI_TX_D=pin_allow&&video_active&&visible_line?video_rgb:24'd0;" not in board or
+            "assignHDMI_TX_DE=pin_allow&&video_active&&visible_line&&video_de;" not in board or
+            "wireboundary=previous_hs&&!video_hs&&!video_vs;" not in board):
+        raise ValueError("scanout HDMI pin blanking and complete-sync visibility boundary changed")
+    crossings = (
+        ("system_ack", "fes_video_inst|system_ack", "system_ack_sync", "system_ack"),
+        ("pixel_ack", "fes_video_inst|pixel_ack", "pixel_ack_sync", "pixel_ack"),
+        ("pixel_active", "fes_video_inst|video_active", "pixel_active_sync", "video_active"),
+        ("system_epoch", "fes_video_inst|epoch", "system_epoch_sync", "epoch"),
+        ("monitor_ready", "fes_video_inst|monitor_ready_source", "monitor_ready_sync", "monitor_ready_source"),
+        ("visible_allow", "fes_video_inst|visible_allow", "allow_sync", "visible_allow"),
+        ("pixel_epoch", "fes_video_inst|epoch", "pixel_epoch_sync", "epoch"),
+        ("pixel_qualified", "fes_video_inst|config_reset|sync_regs[1]", "qualified_sync", "config_reset_n"),
+    )
+    for _, _, head, source in crossings:
+        if f"{head}<={{{head}[0],{source}}};" not in board:
+            raise ValueError("scanout retained synchronizer data connection changed: " + head)
+    raw = re.sub(r"#[^\n]*", "", (project / "fes_mailbox/clocks.sdc").read_text())
+    sdc = compact(raw)
+    table = re.findall(r"foreach\s+\{name source head\}\s+\{(.*?)\}\s*\{", raw, re.S)
+    if len(table) != 1:
+        raise ValueError("scanout retained CDC ingress table missing/ambiguous")
+    parsed = [re.fullmatch(r"\s*(\w+)\s+\{([^{}]+)\}\s+(\w+)\s*", line) for line in table[0].splitlines() if line.strip()]
+    if not all(parsed) or [m.groups() for m in parsed] != [row[:3] for row in crossings]:
+        raise ValueError("scanout retained CDC ingress table must bind exactly eight registered sources to stage0")
+    required = (
+        "setretained_source[get_registers$source]",
+        "setretained_head[get_pins-compatibility_mode-nocase-nowarn[format{fes_video_inst|%s[0]|d}$head]]",
+        "if{[get_collection_size$retained_source]!=1||[get_collection_size$retained_head]!=1}",
+        "if{[get_collection_size$scanout_visible_clear]!=0}",
+    )
+    if any(token not in sdc for token in required):
+        raise ValueError("scanout retained CDC requires unique source/stage0 D and no pixel-data asynchronous clears")
+    for name, source, target in (
+        ("visible", "fes_video_inst|visible_request", "fes_video_inst|visible_sync[0]|d"),
+        ("ready", "fes_video_inst|hdmi_ready_source", "fes_video_inst|hdmi_ready_sync[0]|d"),
+        ("fault", "fes_video_inst|fault", "soc_inst|subsys_periph|fes_scanout|fes_scanout|clock_fault_meta|d"),
+    ):
+        if (f"setscanout_{name}_source[get_registers{{{source}}}]" not in sdc or
+                target not in sdc or
+                f"if{{[get_collection_size$scanout_{name}_source]!=1||[get_collection_size$scanout_{name}_head]!=1}}" not in sdc):
+            raise ValueError("scanout registered " + name + " source to stage0 D changed")
+    allowed_cuts = ["set_false_path -to $scanout_aclr", "set_false_path -to $scanout_clrn",
+                    "set_false_path -from $hdmi_input -to $hdmi_input_head",
+                    "set_false_path -from $retained_source -to $retained_head"] + [
+        f"set_false_path -from $scanout_{name}_source -to $scanout_{name}_head" for name in ("fault", "visible", "ready")]
+    cuts = [" ".join(v.split()) for v in re.findall(r"set_false_path[^;\n}]*", raw)]
+    if sorted(cuts) != sorted(allowed_cuts) or any(cmd in sdc for cmd in ("set_clock_groups", "set_disable_timing", "set_multicycle_path")):
+        raise ValueError("scanout SDC must cut only reviewed ingress; interstage/consumer paths stay timed")
     timed_system = timed_reset_release(json.loads((project.parent / "inputs.json").read_text()))
-    sdc = compact(project / "fes_mailbox/clocks.sdc")
     controllers = ("rst_controller_001",) if timed_system else ("rst_controller_001", "rst_controller_002")
-    for controller in controllers:
-        for stage in (0, 1):
-            target = ("soc_inst|" + controller + "|alt_rst_sync_uq1|"
-                      "altera_reset_synchronizer_int_chain[" + str(stage) + "]|")
-            if target + "aclr" not in sdc or target + "clrn" not in sdc:
-                raise ValueError("scanout SDC does not constrain the generated " + controller + " stage " + str(stage))
-    cuts = "".join(re.findall(r"setscanout_(?:aclr|clrn)\[get_pins[^{]*\{[^}]*\}\]", sdc))
-    if timed_system and "soc_inst|rst_controller_002|" in cuts:
-        raise ValueError("canonical MENU must time the same-clock system reset release")
     for pin in ("aclr", "clrn"):
-        if "fes_video_inst|visible_release|sync_regs*|" + pin not in cuts:
-            raise ValueError("scanout SDC does not constrain the visibility release clear pin: " + pin)
-    if ("visible_sync" in cuts or "video_active" in cuts or
-            "set_false_path-to$scanout_visible_clear" in sdc or "set_false_path-to$scanout_gate_clear" in sdc or
-            "if{[get_collection_size$scanout_visible_clear]!=2}" not in sdc or
-            "setscanout_gate_clear[get_pins-compatibility_mode-nocase-nowarn{fes_video_inst|video_active|aclr"
-            "fes_video_inst|video_active|clrn}]" not in sdc or
-            "if{[get_collection_size$scanout_gate_clear]!=1}" not in sdc):
-        raise ValueError("scanout SDC must keep the pixel-domain visibility and data/DE gate clears timed and present")
-    if ("setscanout_visible_source[get_registers{fes_video_inst|visible_request}]" not in sdc or
-            "set_false_path-from$scanout_visible_source-to$scanout_visible_head" not in sdc):
-        raise ValueError("scanout SDC must cut only the registered visibility request to the first synchronizer stage")
-    if ("setscanout_ready_source[get_registers{fes_video_inst|hdmi_ready_source}]" not in sdc or
-            "setscanout_ready_head[get_pins-compatibility_mode-nocase-nowarn{fes_video_inst|hdmi_ready_sync[0]|d}]" not in sdc or
-            "if{[get_collection_size$scanout_ready_source]!=1||[get_collection_size$scanout_ready_head]!=1}" not in sdc or
-            "set_false_path-from$scanout_ready_source-to$scanout_ready_head" not in sdc or
-            "set_false_path-to$scanout_ready_head" in sdc):
-        raise ValueError("scanout SDC must cut only the registered HDMI-ready source to stage0 D")
-    clear_pins = 8 if timed_system else 10
+        targets = {f"fes_video_inst|config_reset|sync_regs*|{pin}"} | {
+            f"soc_inst|{controller}|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain[{stage}]|{pin}"
+            for controller in controllers for stage in (0, 1)}
+        found = re.findall(r"set\s+scanout_" + pin + r"\s+\[get_pins[^{]*\{([^}]+)\}\]", raw)
+        if len(found) != 1 or set(found[0].split()) != targets or len(found[0].split()) != len(targets):
+            raise ValueError("scanout SDC configuration/pixel-bridge clear targets changed: " + pin)
+    clear_pins = 4 if timed_system else 6
     if "if{$scanout_clear_count!=" + str(clear_pins) + "}" not in sdc:
-        expected = "eight" if timed_system else "ten"
-        raise ValueError("scanout SDC does not require all " + expected + " reset/visibility clear pins")
-    if "fes_scanout_pixel_reset|sync_regs*" in sdc or "fes_scanout_system_reset|sync_regs*" in sdc:
-        raise ValueError("scanout SDC still targets nonexistent board reset registers")
+        raise ValueError("scanout SDC clear-pin cardinality changed")
     return {"pixel_clock": "74250000 Hz", "system_clock": "100000000 Hz",
             "assertion": "asynchronous", "deassertion": "synchronous per domain",
-            "hdmi_data_de_gate": "pixel-registered; qualified-lock loss clears the pixel release immediately",
-            "sdc_clear_pins": clear_pins}
+            "hdmi_data_de_gate": "retained pixel data; immediate qualification blanking and complete-sync rearm",
+            "visibility_protocol": "retained-fault-token-v1", "fault_latency_system_edges": 3,
+            "readiness_loss_pixel_edges": 3, "retained_cdc_ingresses": len(crossings), "sdc_clear_pins": clear_pins}
 
 
 def endpoint_build_identity(project, endpoint, hps, expected):

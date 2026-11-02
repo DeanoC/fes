@@ -318,24 +318,27 @@ its diagnostic paths. Input, generation, compilation and phase receipts bind
 the selected profile; Linux phases additionally bind input/generation hashes.
 This is a source/topology boundary, not physical SMMU or Linux domain admission.
 
-Both crossing bridges share initial configuration reset. Later pixel PLL-lock
-loss latches a fault without resetting live bridge queues; the endpoint stops
-and drains when its clock resumes. The DE25 endpoint keeps its fixed raster and
-raw HS/VS running through stop, fault and reset while pixel data stays blank.
-HDMI data/DE use registered pixel-domain visibility state. A registered
-100 MHz request crosses into a two-stage pixel-clock synchronizer. Reset or
-lock loss clears a pixel-domain reset release at once, which clears that
-synchronizer, while release passes through the pixel domain; the data/DE gate
-blanks immediately and picture resumes only after a complete horizontal sync
-pulse while VS is inactive. The
-producer retains
-generated topology and response checks, native RTL tests and a simulation
-helper for the generated two-clock interconnect with explicitly modeled M20K
-storage. FIFO/controller logic remains generated; primitive equivalence and
-physical CDC remain unproven. It creates no runtime
-profile or production Linux binding. DMA translation/backing, global reset
-fencing, physical CDC, external HDMI timing and exact-artifact board acceptance
-remain separate gates.
+Both crossing bridges share initial configuration reset. A retained 50 MHz
+fault token records later pixel PLL loss without resetting live FIFO pointers
+or outstanding-read accounting. The running system epoch never acknowledges
+another token, so a short loss remains terminal even when a peer clock stops.
+ClockFault latches within three system edges; DisplayReady closes within three
+pixel edges. Acknowledgements retain their generation across global reset to
+avoid token aliasing. Accepted reads still drain after clocks resume.
+
+HDMI data/DE use reference qualification for immediate blanking and pixel
+visibility state for complete-sync rearming. The reference side waits for
+system/pixel acknowledgements and pixel inactivity before allowing visibility.
+Raw HS/VS remain running and finish their pulses. Eight new CDC entries cut
+only each registered source to stage0 D; later stages and consumers stay timed.
+
+The producer retains generated topology/response checks and native RTL tests.
+The generated-transport helper has finite startup and selected-board modes;
+the latter exercises queued reads through actual FIFO/controller logic while
+modeling PLL/I2C completion and M20K storage boundaries. Primitive equivalence,
+physical CDC/reset, external HDMI output timing, DMA translation/backing,
+global reset/boot allocation fencing and exact-artifact native acceptance
+remain separate gates. No normal runtime profile is admitted by these models.
 
 ## Functional input identity
 

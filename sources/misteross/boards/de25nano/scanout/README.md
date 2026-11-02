@@ -90,32 +90,31 @@ cannot report Drained or be cleared locally. SNAPSHOT freezes coherent status
 and all multiword identities in one pixel-clock observation; its serial
 changes only on the explicit snapshot command or cold reset.
 
-The external cold/configuration reset asserts both sides of both crossing
-bridges asynchronously. The child has separate reset bridges for the pixel
-and 100 MHz domains; each deasserts synchronously on its own clock. The pixel
-reset drives the endpoint and pixel-clock sides of both `mm_ccb` bridges. The
-100 MHz reset drives their peripheral-clock sides. The external source is the
-Q of the preserved first-lock register, which asserts asynchronously with the
-existing top reset. Initial release waits for the first qualified pixel PLL
-lock. Later PLL-lock loss latches a fault in the running 100 MHz domain and
-stops/drains the endpoint once the pixel clock resumes; it does **not** reset
-live FIFO or reader accounting. The DE25 scanout instance keeps its fixed
-raster and raw HS/VS running while the endpoint is stopped, faulted or reset.
-HDMI data/DE at the pins use registered pixel-domain visibility state. The
-visibility request is a 100 MHz register, so one source crosses into a
-two-stage pixel synchronizer. Loss of the qualified lock clears a pixel-domain
-reset release at once, even with the pixel clock stopped, and that release
-clears the synchronizer; it releases through pixel-clock stages. Data blanks
-immediately on lock loss or reset while HS/VS finish their current pulses. Visibility returns after
-a complete horizontal sync pulse while VS is inactive. This keeps DE, HS and VS
-gating away from active pixels and complete sync pulses, including a lock
-failure in the middle of HS. No asynchronous fault, lock or reset term is
-combined directly into the HDMI data/DE pins. A qualifier stretches brief
-loss/relock events so video cannot briefly reappear before the sticky fault
-latches. This detects PLL lock loss, not independent pixel-clock progress.
-Permanent clock loss cannot advance the control bridge or local drain proof.
-Forced common reset starts a new bridge and reader epoch and cannot prove
-prior traffic drained.
+The external cold/configuration reset asserts both crossing bridges. Each
+receiving domain releases through its generated parent reset controller.
+The source is the preserved first-lock register: initial release waits for
+reference-clock qualification and the system acknowledgement. Later PLL loss
+keeps this source released, so live FIFO pointers, credits and accepted reads
+remain intact. STOP drains accepted responses after their clocks resume.
+The endpoint keeps its fixed raster and raw HS/VS running through stop/fault.
+
+A retained token at 50 MHz records even brief lock loss while peer clocks
+are stopped. A running system epoch never acknowledges another token; its
+clock fault latches within three system edges and remains terminal until the
+external reset. The pixel domain observes qualification through ordinary
+synchronizer data registers and closes DisplayReady within three pixel edges.
+Its acknowledgement requires allow-low and a closed visible line. The
+reference controller waits for both acknowledgements and observed inactivity
+before it can permit another visibility epoch. Retaining acknowledgement state
+across a global reset avoids aliasing a new token with a reset-to-zero ACK.
+
+Reference qualification blanks HDMI data/DE immediately. Pixel visibility
+closes at a complete HS trailing edge outside VS, preserving complete sync
+pulses; rearming also waits for that boundary. Eight new crossings cut only a
+single registered source to stage0 D, with unique-object guards. Their later
+stages and consumers stay timed. The digital protocol does not establish
+physical CDC/reset or HDMI output timing. A common reset begins a new epoch
+and cannot prove prior traffic drained.
 
 Canonical MENU shares the original FIFO reset releases. One four-stage vendor
 chain plus its scalar output serves every FIFO side at 100 MHz; a second serves
@@ -305,6 +304,23 @@ compiler, kernel and board validation.
 The generated transport simulation requires Quartus’s explicit BUILD_ID forwarding
 and compares all four live build words with the verified generation receipt.
 This checks the actual generated endpoint wrapper as well as its IP metadata.
+
+Add `--board` to compose the selected board with those generated reset
+controllers and the existing FIFO/control/AXI logic:
+
+```sh
+python3 interconnect_sim.py --board --project /absolute/generated/combined/hps/project --output /absolute/new/board-proof
+```
+
+This mode checks board/reset/SDC bytes against the captured input receipt and
+compares all four live endpoint identity words. One disabled-startup/storage
+case and twelve queued-read cases cover three phases and independently stopped
+reference, system and pixel clocks. Responses remain withheld across a brief
+PLL-loss event and STOP; grant identity and outstanding reads must survive.
+Only the exact responses can establish drain, and CLEAR cannot heal the
+terminal clock fault. The PLL clock/lock, HDMI completion and physical memory
+storage are explicit boundary models. This supplies no HPS/SMMU/DDR or global
+reset/allocation epoch acceptance.
 
 Add `--startup` to `interconnect_sim.py` to test finite startup combinations
 using the compiled project's five actual parent reset-controller instances and

@@ -444,7 +444,9 @@ def main(argv=None):
     parser.add_argument("--project", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True, help="new private output; never the producer project")
     parser.add_argument("--verilator", default="verilator")
-    parser.add_argument("--startup", action="store_true", help="finite startup phases using the actual parent reset controllers")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--startup", action="store_true", help="finite startup phases using the actual parent reset controllers")
+    mode.add_argument("--board", action="store_true", help="selected board and generated transport with queued reads across clock loss")
     args = parser.parse_args(argv)
     project = args.project.resolve(strict=True)
     output = args.output.resolve()
@@ -462,7 +464,7 @@ def main(argv=None):
     try:
         startup_model = None
         cases = CASES
-        if args.startup:
+        if args.startup or args.board:
             startup_path = Path(__file__).with_name("startup.py").resolve(strict=True)
             startup_data = startup_path.read_bytes()
             spec = importlib.util.spec_from_file_location("scanout_startup", startup_path)
@@ -480,6 +482,21 @@ def main(argv=None):
                 retained = output / "parent-reset-inputs" / name
                 retained.parent.mkdir(parents=True, exist_ok=True)
                 retained.write_bytes(data)
+        if args.board:
+            board_path = Path(__file__).with_name("board_composition.py").resolve(strict=True)
+            board_data = board_path.read_bytes()
+            spec = importlib.util.spec_from_file_location("scanout_board_composition", board_path)
+            board_model = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(board_model)
+            cases = board_model.CASES
+            receipt["classification"] = "selected-board-generated-reset-transport-composition-with-modeled-m20k-storage"
+            receipt["coverage"] = "actual selected board, five parent reset controllers, generated CDC/AXI transport; queued-read clock-loss cases"
+            receipt["clock_model"].update(reference_hz=50000000, half_period_units={"system": 297, "pixel": 400, "reference": 594},
+                                          pixel_initial_phase_units=17, queued_clock_phases=[1, 17, 296])
+            receipt["startup"].pop("release_delay_system_cycles")
+            receipt["startup"]["scanout_source"] = "actual selected board first_lock_seen output"
+            receipt["board_model"] = {"helper_sha256": sha(board_data), "boundaries": "PLL clock/lock and HDMI completion only"}
+            (output / board_path.name).write_bytes(board_data)
         generation_path = project.parent / "generation.json"
         generation_data = generation_path.read_bytes()
         generation = json.loads(generation_data)
@@ -497,6 +514,21 @@ def main(argv=None):
             for name in startup.GENERICS:
                 if sources.get((project / name).resolve()) != startup_model.inputs[name]:
                     raise ValueError("parent reset controller source differs from the selected transport closure: " + name)
+        if args.board:
+            board_inputs_data = (project.parent / "inputs.json").read_bytes()
+            board_inputs = json.loads(board_inputs_data)
+            board_hashes = board_inputs.get("scanout", {}).get("source_sha256", {})
+            reset_hashes = board_inputs.get("source_sha256", {})
+            for name in board_model.SOURCES:
+                path = (project / name).resolve(strict=True)
+                path.relative_to(project)
+                if path in sources:
+                    raise ValueError("board source already selected by transport closure: " + name)
+                data = path.read_bytes()
+                expected = (reset_hashes if path.name == "fes_de25_top_reset.v" else board_hashes).get(path.name)
+                if sha(data) != expected:
+                    raise ValueError("selected board source differs from the verified input receipt: " + name)
+                sources[path] = data
         ram_sources, conditional_ram_sources = guard_ram_primitives(sources)
         ram_path = output / "modeled_m20k_storage.v"
         ram_path.write_text(RAM_MODEL)
@@ -518,6 +550,8 @@ def main(argv=None):
         receipt["cdc_instances"] = cdc_instances
         inputs = project.parent / "inputs.json"
         inputs_data = inputs.read_bytes()
+        if args.board and inputs_data != board_inputs_data:
+            raise ValueError("board input receipt changed during source selection")
         receipt["build_inputs_sha256"] = sha(inputs_data)
         receipt["build_inputs"] = json.loads(inputs_data)
         for path, data in sources.items():
@@ -526,12 +560,16 @@ def main(argv=None):
             copy.write_bytes(data)
         wrapper_path = output / (TOP + ".v")
         wrapper_source = wrapper(sources[periph].decode(), sources[memory].decode(), module)
-        wrapper_path.write_text(startup_model.wrapper(wrapper_source) if startup_model else wrapper_source)
+        if startup_model:
+            wrapper_source = startup_model.wrapper(wrapper_source)
+        if args.board:
+            wrapper_source = board_model.wrapper(wrapper_source)
+        wrapper_path.write_text(wrapper_source)
         receipt["wrapper_sha256"] = sha(wrapper_path.read_bytes())
         bench = Path(__file__).with_name("interconnect_tb.cpp").resolve(strict=True)
         bench_sources = {bench: bench.read_bytes()}
         if startup_model:
-            bench = bench.with_name("startup_tb.cpp").resolve(strict=True)
+            bench = bench.with_name("board_interconnect_tb.cpp" if args.board else "startup_tb.cpp").resolve(strict=True)
             bench_sources[bench] = bench.read_bytes()
         bench_data = bench.read_bytes()
         bench_copy = output / bench.name
@@ -547,6 +585,11 @@ def main(argv=None):
         includes = sorted({str((output / "sources" / p.relative_to(project)).parent) for p in sources})
         rtl = sorted(str(output / "sources" / p.relative_to(project)) for p in sources if p.suffix in (".v", ".sv"))
         rtl_args = [*("-I" + p for p in includes), str(wrapper_path), str(ram_path), *rtl]
+        if args.board:
+            boundary_path = output / "modeled_board_boundaries.v"
+            boundary_path.write_text(board_model.IO_MODEL)
+            receipt["board_model"]["boundary_sha256"] = sha(boundary_path.read_bytes())
+            rtl_args.append(str(boundary_path))
         xml_path = output / "elaboration.xml"
         elaborate = [verilator, "--xml-only", "--xml-output", str(xml_path), "-Wno-fatal", "--assert", "--top-module", TOP, *rtl_args]
         receipt["elaboration_command"] = elaborate
@@ -582,6 +625,8 @@ def main(argv=None):
             startup_model.verify()
             if startup_path.read_bytes() != startup_data:
                 raise ValueError("startup model helper changed during simulation")
+        if args.board and board_path.read_bytes() != board_data:
+            raise ValueError("board composition helper changed during simulation")
         receipt["status"] = "pass"
     except (OSError, ValueError, ET.ParseError, subprocess.CalledProcessError) as error:
         receipt["error"] = str(error)
