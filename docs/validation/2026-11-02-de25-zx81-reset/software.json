@@ -1,0 +1,168 @@
+{
+  "status": "passed",
+  "classification": "DE25-applicable software coverage; complete broader aggregate remains failed on eight explicitly excluded Cyclone V/M10K tests",
+  "source_revision": "77806a700679301cf10c746ff4372d1f72fc64c3",
+  "generic_total": 1787,
+  "generic_result": "failed",
+  "generic_counts": {
+    "failures": 8,
+    "skipped": 19
+  },
+  "applicable_cases": 1779,
+  "passed_applicable": 1760,
+  "skipped_applicable": 19,
+  "expected_failures_applicable": 0,
+  "not_applicable_cases": [
+    "test_build_fes_apple2.Apple2YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_build_fes_c64.C64YosysM10kTests.test_full_synth_has_live_memory_clocks",
+    "test_build_fes_sg1000.Sg1000YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_build_fes_sms.SmsYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_build_fes_zx81_oss.Zx81YosysM10kTests.test_mapped_shell_has_no_async_m10k",
+    "test_coleco_megacart_build.ColecoMegacartYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+    "test_pcxt_quartus.QuartusElaborationTests.test_headers_byte_write_memory_and_signed_pll_parameters_survive"
+  ],
+  "reason": "User-directed DE25 software scope excludes eight DE10-only Cyclone V cases: seven M10K mappings and one PC/XT-specific legacy elaborator. All other cases remain required. No timing/signoff exception is added.",
+  "all_other_executed_cases_accounted": true,
+  "unittest_seconds": 1303.96,
+  "hardware_access": "not-performed",
+  "scope": {
+    "board": "de25-nano",
+    "source_revision": "77806a700679301cf10c746ff4372d1f72fc64c3",
+    "scope": "DE25 software validation only; generic full-suite result retained separately",
+    "reason": "User-directed DE25 software scope excludes eight DE10-only Cyclone V cases: seven M10K mappings and one PC/XT-specific legacy elaborator. All other cases remain required. No timing/signoff exception is added.",
+    "excluded_cases": [
+      "test_build_fes_apple2.Apple2YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+      "test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+      "test_build_fes_c64.C64YosysM10kTests.test_full_synth_has_live_memory_clocks",
+      "test_build_fes_sg1000.Sg1000YosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+      "test_build_fes_sms.SmsYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+      "test_build_fes_zx81_oss.Zx81YosysM10kTests.test_mapped_shell_has_no_async_m10k",
+      "test_coleco_megacart_build.ColecoMegacartYosysM10kTests.test_mapped_netlist_has_no_async_m10k",
+      "test_pcxt_quartus.QuartusElaborationTests.test_headers_byte_write_memory_and_signed_pll_parameters_survive"
+    ],
+    "retained_requirements": [
+      "all other executed software cases",
+      "shared contracts and generated consumers",
+      "Quartus/Agilex timing and 85-rule signoff",
+      "native and AArch64 client/RTL models",
+      "native board acceptance remains required"
+    ],
+    "new_timing_or_seal_exceptions": false,
+    "hardware_access": "not-performed",
+    "per_case_reason": {
+      "test_build_fes_apple2.Apple2YosysM10kTests.test_mapped_netlist_has_no_async_m10k": "Cyclone V M10K/control-block mapping; DE25 uses Agilex 5/M20K with Quartus.",
+      "test_build_fes_c64.C64YosysM10kTests.test_mapped_netlist_has_no_async_m10k": "Cyclone V M10K/control-block mapping; DE25 uses Agilex 5/M20K with Quartus.",
+      "test_build_fes_c64.C64YosysM10kTests.test_full_synth_has_live_memory_clocks": "Cyclone V M10K/control-block mapping; DE25 uses Agilex 5/M20K with Quartus.",
+      "test_build_fes_sg1000.Sg1000YosysM10kTests.test_mapped_netlist_has_no_async_m10k": "Cyclone V M10K/control-block mapping; DE25 uses Agilex 5/M20K with Quartus.",
+      "test_build_fes_sms.SmsYosysM10kTests.test_mapped_netlist_has_no_async_m10k": "Cyclone V M10K/control-block mapping; DE25 uses Agilex 5/M20K with Quartus.",
+      "test_build_fes_zx81_oss.Zx81YosysM10kTests.test_mapped_shell_has_no_async_m10k": "Cyclone V M10K/control-block mapping; DE25 uses Agilex 5/M20K with Quartus.",
+      "test_coleco_megacart_build.ColecoMegacartYosysM10kTests.test_mapped_netlist_has_no_async_m10k": "Cyclone V M10K/control-block mapping; DE25 uses Agilex 5/M20K with Quartus.",
+      "test_pcxt_quartus.QuartusElaborationTests.test_headers_byte_write_memory_and_signed_pll_parameters_survive": "PC/XT-specific Quartus elaboration fixture: quartus_fes_pcxt.py selects DEVICE5CSEBA6U23I7/FAMILYCyclone V and cyclonev boundary cells. No DE25 producer imports it."
+    }
+  },
+  "parent": {
+    "status": "passed",
+    "cases": 1187,
+    "skipped": 7,
+    "seconds": 961.479
+  },
+  "planner_cases": 62,
+  "jobs": {
+    "software-job": {
+      "source_revision": "77806a700679301cf10c746ff4372d1f72fc64c3",
+      "command": [
+        "python3",
+        "/data/de25-zx81-video-658c97ac4/software-checks.py"
+      ],
+      "cwd": "/data/de25-zx81-video-658c97ac4/validation-source",
+      "started_utc": "2026-11-02T15:20:09.352116+00:00",
+      "time_cap_seconds": 3600,
+      "hardware_access": "not-performed",
+      "pid": 2531961,
+      "state": "failed",
+      "elapsed_seconds": 2274.0,
+      "heartbeat_utc": "2026-11-02T15:58:03.334780+00:00",
+      "returncode": 2
+    },
+    "generated-check-job": {
+      "source_revision": "77806a700679301cf10c746ff4372d1f72fc64c3",
+      "command": [
+        "make",
+        "check"
+      ],
+      "cwd": "/data/de25-zx81-video-658c97ac4/validation-source",
+      "started_utc": "2026-11-02T15:59:49.368756+00:00",
+      "time_cap_seconds": 600,
+      "hardware_access": "not-performed",
+      "pid": 2649434,
+      "state": "passed",
+      "elapsed_seconds": 9.0,
+      "heartbeat_utc": "2026-11-02T15:59:58.367167+00:00",
+      "returncode": 0
+    },
+    "scope-audit-job": {
+      "source_revision": "77806a700679301cf10c746ff4372d1f72fc64c3",
+      "command": [
+        "python3",
+        "/data/de25-zx81-video-658c97ac4/audit-de25-software.py"
+      ],
+      "cwd": "/data/de25-zx81-video-658c97ac4/validation-source",
+      "started_utc": "2026-11-02T15:59:49.371298+00:00",
+      "time_cap_seconds": 2000,
+      "hardware_access": "not-performed",
+      "pid": 2649436,
+      "state": "failed",
+      "elapsed_seconds": 0.1,
+      "heartbeat_utc": "2026-11-02T15:59:49.505105+00:00",
+      "returncode": 1
+    },
+    "scope-final-job": {
+      "source_revision": "77806a700679301cf10c746ff4372d1f72fc64c3",
+      "command": [
+        "python3",
+        "/data/de25-zx81-video-658c97ac4/audit-de25-software-final.py"
+      ],
+      "cwd": "/data/de25-zx81-video-658c97ac4/validation-source",
+      "started_utc": "2026-11-02T16:06:10.920387+00:00",
+      "time_cap_seconds": 300,
+      "hardware_access": "not-performed",
+      "pid": 2665667,
+      "state": "passed",
+      "elapsed_seconds": 0.7,
+      "heartbeat_utc": "2026-11-02T16:06:11.655938+00:00",
+      "returncode": 0
+    }
+  },
+  "tool": {
+    "status": "passed",
+    "classification": "Exact private Powerboat tool/runtime copy verified; existing i386 lint controls pass without changing source or warning settings",
+    "version": "Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)",
+    "files_verified": 110,
+    "archive_sha256": "4d73b405662d9dc64bff048eaa1955af3cf6e67db0848adadebc9cef69ea43ba",
+    "hardware_access": "not-performed"
+  },
+  "generated_consistency": {
+    "status": "passed",
+    "consumers": 40,
+    "fixture_copies": 42,
+    "copied_source_pins": 0,
+    "seconds": 9.0
+  },
+  "log_sha256": "36fd87dbf6cec1e15b5ac0280e9dc1584dc1d992fd3bd9b6db62c44ca7598be4",
+  "retention": {
+    "status": "passed",
+    "classification": "Independent software archive restoration, complete case inventory and exact failure-set accounting; generic aggregate remains failed",
+    "source_revision": "77806a700679301cf10c746ff4372d1f72fc64c3",
+    "file_count": 28,
+    "archive_size": 268905,
+    "archive_sha256": "c94eba70e776623a14b3d34a69b006faef1f943dc8b238327b63d98deeec5458",
+    "passed_applicable": 1760,
+    "skipped_applicable": 19,
+    "not_applicable": 8,
+    "seconds": 0.026,
+    "hardware_access": "not-performed"
+  },
+  "original_seven_case_audit": "failed and retained; eighth failure verified as Cyclone V-only PC/XT elaboration",
+  "global_test_or_warning_changes": false
+}
