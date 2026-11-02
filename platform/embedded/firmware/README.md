@@ -48,6 +48,13 @@ still happens in secure early setup before BL33 or any bridge authority. A
 returned copy is a progress marker only. The existing provider must separately
 validate the saved record and live ownership before exposing its services.
 
+The [early-capture trace trial](../../../docs/validation/2026-11-02-de25-el3-capture/README.md)
+passes its software checks, matched build and both network uploads, but still
+stops after SPL handoff with neither new marker. The private top-only JTAG
+service programs successfully and restores its original clock. The earlier
+EL3 entry/console interval remains unresolved; no DDR read/drain or runtime
+admission is qualified.
+
 The [contained large-block TRWU8CBL trial](../../../docs/validation/2026-11-02-de25-large-blocks/README.md)
 now completes the exact sealed 2,027,520-byte phase-two image through native
 CPU/firmware calls, reports ready and verifies the live build identity with

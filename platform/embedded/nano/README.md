@@ -61,6 +61,13 @@ provider/loader sequence. It never infers success from these markers alone.
 Archived traces made before this instrumentation use the explicit historical
 decoder format; missing records cannot select that format automatically.
 
+The [early-capture trace trial](../../../docs/validation/2026-11-02-de25-el3-capture/README.md)
+passes its software checks, matched build and both network uploads, but still
+stops after SPL handoff with neither new marker. The private top-only JTAG
+service programs successfully and restores its original clock. The earlier
+EL3 entry/console interval remains unresolved; no DDR read/drain or runtime
+admission is qualified.
+
 The [native Go hardware diagnostic](../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
 now passes the actual secure provider, both loader ownership snapshots and
 EL2/EL1 entry on TRWU8CBL, ending in the TamaGo Go probe. Timer, goroutine,

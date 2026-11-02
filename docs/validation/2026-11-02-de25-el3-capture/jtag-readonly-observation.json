@@ -1,0 +1,51 @@
+{
+  "status": "passed",
+  "classification": "private top-only read-only JTAG transport observation; no native boot retry",
+  "serial": "TRWU8CBL",
+  "server_args": [
+    "/data/altera_pro/26.3/quartus/bin/jtagd",
+    "--foreground",
+    "--user-start",
+    "--no-config",
+    "--auto-detect-filter",
+    "TRWU8CBL",
+    "--port",
+    "0",
+    "--port-file",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-el3-capture-20261102/jtag-readonly/port",
+    "--pid-file",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-el3-capture-20261102/jtag-readonly/pid"
+  ],
+  "programming": false,
+  "sd_writes": false,
+  "started_utc": "2026-11-02T08:33:39.798955+00:00",
+  "commands": [
+    {
+      "label": "private-client",
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+        "--addserver",
+        "localhost:38839",
+        ""
+      ],
+      "returncode": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "filtered-enumeration",
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/jtagconfig",
+        "--enum"
+      ],
+      "returncode": 0,
+      "log_sha256": "b3bc4db2530887dce6642787e25ac574913a9b6eef5d30bcf59455253e8da61b"
+    }
+  ],
+  "owned_server_pid": 1383238,
+  "private_port": 38839,
+  "enumeration": "[ Environment variable QUARTUS_JTAG_CLIENT_CONFIG=/home/deano/fes/out/dev/de25-embedded-os/out/nano-el3-capture-20261102/jtag-readonly/client.conf is in effect ]\n1) DE25-Nano on localhost:38839 [3-11.1-iface0]\n  4362C0DD   A5E(A013BB23B|B013BB23BCS)/..\n\n",
+  "owned_server_stopped": true,
+  "usb_permissions_restored": true,
+  "claim_retained": true,
+  "finished_utc": "2026-11-02T08:33:40.106789+00:00"
+}
