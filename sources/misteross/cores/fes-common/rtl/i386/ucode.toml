@@ -314,17 +314,18 @@ uops = [
 ]
 
 # IRET and IRETD in protected mode, to the same privilege: DC reads the
-# offset's slot into T1; the ROM reads CS's slot into T0 and EFLAGS' into T4
-# (IRETD with VM set in it stops as not built: V86), each at SP plus its
-# slot without the 64 KiB wrap on a 16-bit stack, as Bochs reads them; then
-# CS's descriptor, its checks and the offset's with the accessed bit, the
-# flags from T4 (and RF, for IRETD), and the jump, which steps ESP past the
-# three slots.
+# EFLAGS slot into T4 (IRETD with VM set in it stops as not built: V86);
+# the ROM reads CS's slot into T0 and the offset's into T1, in Bochs's order,
+# so a frame past the stack's limit faults before any read; each at SP plus
+# its slot without the 64 KiB wrap on a 16-bit stack, as Bochs reads them;
+# then CS's descriptor, its checks and the offset's with the accessed bit,
+# the flags from T4 (and RF, for IRETD), and the jump, which steps ESP past
+# the three slots.
 [[routine]]
 name = "piret"
 uops = [
     { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", stk = "peek", slot = 1, nwrap = true },
-    { cls = "alu", op = "mov", d = "t4", size = "32", mkind = "load", stk = "peek", slot = 2, nwrap = true, vmchk = true },
+    { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", stk = "peek", slot = 0, nwrap = true },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
     { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "ret" },
@@ -332,14 +333,14 @@ uops = [
     { cls = "branch", op = "jmp", far_jmp = true, far_t = true, segw = true, sp_add = true, stk = "retf", slot = 3, iret = true },
 ]
 
-# RETF and RETF imm16 in protected mode, to the same privilege: DC reads the
-# offset's slot into T1; the ROM reads CS's into T0, as IRET does, then CS's
-# descriptor, its checks and the offset's with the accessed bit, and the
-# jump, which steps ESP past the two slots and imm16.
+# RETF and RETF imm16 in protected mode, to the same privilege: DC reads
+# CS's slot into T0; the ROM reads the offset's into T1, in Bochs's order, as
+# IRET does, then CS's descriptor, its checks and the offset's with the
+# accessed bit, and the jump, which steps ESP past the two slots and imm16.
 [[routine]]
 name = "pretf"
 uops = [
-    { cls = "alu", op = "mov", d = "t0", size = "32", mkind = "load", stk = "peek", slot = 1, nwrap = true },
+    { cls = "alu", op = "mov", d = "t1", size = "32", mkind = "load", stk = "peek", slot = 0, nwrap = true },
     { cls = "alu", op = "mov", d = "t2", size = "32", mkind = "load", mbytes = "4", desc = "lo" },
     { cls = "alu", op = "mov", d = "t3", size = "32", mkind = "load", mbytes = "4", desc = "hi" },
     { cls = "alu", op = "mov", size = "8", mkind = "store", mbytes = "1", in_a = true, desc = "acc", segchk = "ret" },

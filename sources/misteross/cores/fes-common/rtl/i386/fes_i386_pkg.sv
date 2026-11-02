@@ -315,10 +315,10 @@ package fes_i386_pkg;
     // MOV SS or POP SS, after which no interrupt is taken. nwrap: a
     // protected-mode far CALL's, RETF's or IRET's stack slot on a 16-bit
     // stack, at SP plus or less sdisp without the 64 KiB wrap, as Bochs
-    // reads and writes it (M1). vmchk: IRETD's EFLAGS image, whose VM bit
-    // stops it as not built (EX). ntchk: a protected-mode IRET's first uop,
-    // which EFLAGS.NT set stops as not built, a return from a nested task
-    // (EX).
+    // reads and writes it (M1). vmchk: IRETD's EFLAGS image, a protected-mode
+    // IRET's first uop, whose VM bit stops it as not built (EX). ntchk: the
+    // same uop, which EFLAGS.NT set stops as not built, a return from a
+    // nested task (EX).
     typedef struct packed {
         logic [2:0]  desc;
         logic [3:0]  segchk;

@@ -95,8 +95,10 @@
 //   test386   test386.asm on the RTL alone (run_test386).
 //   pmode     the directed protected-mode cases (run_pmode_cases): each
 //             fault's vector and error code, EXT, a double fault and
-//             shutdown, INT n and IRET, far CALL and RETF, LLDT, LTR, LAR,
-//             LSL, VERR, VERW, ARPL, and what stops as not built.
+//             shutdown, INT n and IRET, far CALL and RETF (and their
+//             frames past a 16-bit stack's limit in the MMIO window, which
+//             fault before any read), LLDT, LTR, LAR, LSL, VERR, VERW, ARPL,
+//             and what stops as not built.
 // Output: "FAIL <label> <field> <expected> <actual>..." per failing run, then
 // one JSON summary line. Exit status 1 on any failure.
 #include "Vfes_i386_cpu.h"
@@ -4627,10 +4629,13 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                              desc(0x5000, 0xffff, 0x13, false, false)};
     // ending: -1 HLT (after software interrupt soft, if not -1), -2
     // shutdown, -3 not built, else the vector, with its error code if not
-    // -1.
+    // -1. descs: GDT entries the case replaces; window: the run has the
+    // MMIO window.
     struct Case { const char *label; std::function<void(Asm &)> body; int ending; int error;
-                  std::vector<std::pair<unsigned, uint64_t>> gates; bool real; int soft = -1; };
+                  std::vector<std::pair<unsigned, uint64_t>> gates; bool real; int soft = -1;
+                  std::vector<std::pair<unsigned, uint64_t>> descs = {}; bool window = false; };
     const uint64_t absent = gate(0x08, 0x1800, 0x0e);  // a 386 interrupt gate, not present
+    const uint64_t window_ss = desc(MMIO_LO, 0xffff, 0x93, false, false);  // 28h: a 16-bit stack in the window
     const std::vector<Case> cases = {
         {"ud", [](Asm &a) { a.op({0x8e, 0xc8}); }, 6, -1, {}, false},                                // MOV CS, AX
         {"np-sel", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd8}); }, 11, 0x28, {}, false},             // MOV DS, 28h
@@ -4694,6 +4699,18 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         {"retf-gp-data", [](Asm &a) { a.op({0x6a, 0x10, 0x6a, 0x00, 0xcb}); }, 13, 0x10, {}, false},  // PUSH 10h; PUSH 0; RETF
         {"iret-np", [](Asm &a) { a.op({0x9c, 0x6a, 0x58, 0x6a, 0x00, 0xcf}); }, 11, 0x58, {}, false}, // PUSHF; PUSH 58h; PUSH 0; IRET
         {"retf-outer", [](Asm &a) { a.op({0x6a, 0x73, 0x6a, 0x00, 0xcb}); }, -3, -1, {}, false},      // RETF to 70h, RPL 3: not built
+        // A frame past a 16-bit stack's limit, the stack in the MMIO window:
+        // Bochs reads IRET's EFLAGS slot, then CS's and the offset's, and
+        // RETF's CS slot, then the offset's, so the slot at 10000h raises
+        // #SS(0) before any read. MOV SS, 28h; MOV SP, n; then the return.
+        {"iret-ss-limit", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0, 0xbc, 0xfc, 0xff, 0xcf}); }, 12, 0, {}, false, -1,
+         {{5, window_ss}}, true},
+        {"iretd-ss-limit", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0, 0xbc, 0xf8, 0xff, 0x66, 0xcf}); }, 12, 0, {}, false,
+         -1, {{5, window_ss}}, true},
+        {"retf-ss-limit", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0, 0xbc, 0xfe, 0xff, 0xcb}); }, 12, 0, {}, false, -1,
+         {{5, window_ss}}, true},
+        {"retf32-ss-limit", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0, 0xbc, 0xfc, 0xff, 0x66, 0xcb}); }, 12, 0, {},
+         false, -1, {{5, window_ss}}, true},
         {"lldt-ldt", [](Asm &a) {
              a.ax(0x30); a.op({0x0f, 0x00, 0xd0});                                        // LLDT AX
              a.ax(0x0c); a.op({0x8e, 0xd8, 0x8e, 0xc0});                                  // MOV DS, ES, LDT 0Ch
@@ -4740,8 +4757,11 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         a.op({0xf4});
         std::vector<std::pair<uint32_t, uint8_t>> image;
         for (size_t i = 0; i < a.b.size(); ++i) image.emplace_back(CODE + uint32_t(i), a.b[i]);
+        std::array<uint64_t, 15> g;
+        std::copy(std::begin(gdt), std::end(gdt), g.begin());
+        for (auto [n, d] : c.descs) g[n] = d;
         for (unsigned n = 0; n < 15; ++n)
-            for (unsigned i = 0; i < 8; ++i) image.emplace_back(GDT + 8 * n + i, uint8_t(gdt[n] >> (8 * i)));
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(GDT + 8 * n + i, uint8_t(g[n] >> (8 * i)));
         for (unsigned n = 0; n < 4; ++n)
             for (unsigned i = 0; i < 8; ++i) image.emplace_back(LDT + 8 * n + i, uint8_t(ldt[n] >> (8 * i)));
         std::array<uint64_t, 48> idt;
@@ -4783,6 +4803,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         state.eip = CODE;
         state.gpr[fes_i386::REG_ESP] = 0x0f00;
         state.cr0 = 0x7ffffff0;
+        if (c.window) set_window(oracle, bus, rtl, true);
         oracle.reset();
         oracle.set_state(state);
         rtl.start(state);
@@ -4826,6 +4847,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
             oracle.invalidate(address, 1);
         }
         rtl.written.clear();
+        if (c.window) set_window(oracle, bus, rtl, false);
         ++summary.runs;
         if (out.items.empty()) {
             ++summary.passed;
