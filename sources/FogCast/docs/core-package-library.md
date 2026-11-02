@@ -470,8 +470,12 @@ Content-Type: application/json
 
 `GET` on the same path returns the selection. When no explicit selection is
 saved and the package matches bundled firmware, it reports that effective
-default without storing it. To replace or clear an explicit selection, supply
-its current digest as `expected_media_id`; an empty `media_id` clears it.
+default without storing it, and marks the response `bundled_default: true`.
+Installed setup may send that digest as `expected_media_id` when saving a
+user-provided ROM; the host accepts it only while the stored choice is still
+empty and that digest is still the current default. Catalog setup also leaves
+a selected bundled default unsaved. To replace or clear an explicit selection,
+supply its current digest as `expected_media_id`; an empty `media_id` clears it.
 Selection verifies the binary's digest and exact declared source size. It
 binds the package ID and ROM name; replacing a title's package normally
 requires an explicit new ROM selection. The host rebinds a saved media ID

@@ -90,6 +90,6 @@ func (s *Service) defaultBundledFirmware(ctx context.Context, entry catalog.Core
 func bundledFirmwareSelection(entry catalog.CoreEntry, requirement *corepackage.ROM, fw protocol.BundledFirmware) catalog.CoreEntryROM {
 	return catalog.CoreEntryROM{
 		GameID: entry.GameID, PackageID: entry.PackageID, ROMID: requirement.ID,
-		MediaID: fw.MediaID, SourceSize: requirement.SourceSize,
+		MediaID: fw.MediaID, SourceSize: requirement.SourceSize, BundledDefault: true,
 	}
 }

@@ -3694,9 +3694,13 @@ A format-3 title whose firmware ROM has no selection gets the host's
 exact size, when the host loaded one from its `[firmware] bundled_dir`. The
 host derives that default for reads and launches without saving it as a user
 selection, so a later bundle update changes the effective default. An explicit
-selection is preserved. Library readiness uses the validated bundled-object
-metadata rather than rehashing the image for every title; launch still verifies
-the stored bytes. ZX81-family firmware is not bundled.
+selection is preserved. Catalog setup also leaves a selected bundled default
+unsaved. `GET /api/v1/library/core-entries/{game_id}/rom` marks that effective
+value with `bundled_default: true`; installed setup can use its digest as the
+compare-and-swap expectation when replacing it. Library readiness uses the
+validated bundled-object metadata rather than rehashing the image for every
+title; launch still verifies the stored bytes. ZX81-family firmware is not
+bundled.
 When a title switches between format-3 ZX81 packages that declare the same
 `machine-rom` firmware ID and exact source size, or a title on bundled
 firmware switches to a package naming the same ROM ID and size, the host
