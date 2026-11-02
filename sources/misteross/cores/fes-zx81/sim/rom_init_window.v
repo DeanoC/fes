@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // The ZX81 machine ROM port from zx81_machine.sv: zx81_dpram 16384x8,
 // address {1'b0, rom_a[12], rom_a[11:0]}. ROM_INIT is the user-supplied
-// BASIC image that scripts/zx81_rom.py writes under build/.
+// BASIC image that scripts/zx81_rom.py writes under build/, or the open
+// diagnostic firmware.
 module rom_init_window #(
     parameter ROM_INIT = ""
 ) (
