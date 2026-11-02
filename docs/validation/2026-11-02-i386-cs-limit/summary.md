@@ -35,7 +35,10 @@ as not built.
   pass, the governor suite meets the bench gap #1372 at 386DX-25 as
   before, test386 stops at POST 08h's paging as before, and BOOTRTL
   ([Machine](#pc386-suites-governor-and-test386)).
-- Quartus 17.0.2 seals `fes.pc386`: SEAL ([Seal](#quartus-seal)).
+- Quartus 17.0.2 seals `fes.pc386` from a clean checkout of `5d231b804`:
+  every analysis passes at 61.44 MHz, the system clock at 72.76-73.53 MHz
+  across the slow corners (setup +2.533 ns; slice 2's final seal 69.5-69.9
+  MHz), for 28 more ALMs and 198 more registers ([Seal](#quartus-seal)).
 - DOOM's start on `machine_tb --cpu rtl`: DOOM
   ([DOOM](#dooms-start-on-the-rtl)).
 
@@ -238,7 +241,45 @@ finished, so it gives no result either way.
 
 ## Quartus seal
 
-SEAL
+`make build-fes-pc386-quartus` at seed 1 from a clean checkout of
+`5d231b804` ([`seal-summary.json`](seal-summary.json)), Quartus Prime Lite
+17.0.2 on the pc386 lock's Yosys `0a7927bf` netlist. All 109 input hashes
+match `5d231b804`; against the branch head only `fes_i386_decode.sv`,
+`fes_i386_pkg.sv` and `fes_i386_ucode_rom.sv` differ, the #1424 fix merged
+after the seal ([Inputs](#inputs)). Every analysis passes, with no illegal or
+unconstrained clocks. A first run of the same checkout was stopped by this
+session's 2-hour cap in the fitter, on a host at load 65-70 with another
+fit running; this one took 3 h 22 min.
+
+| | This seal, `5d231b804` | Slice 2's final seal, `7224b11f6` |
+| --- | --- | --- |
+| Build ID, package | `49cf2f1b…`, `b057f27f…` | `b70597c6…`, `ad844e72…` |
+| System Fmax, slow corners (61.44 MHz) | 72.76-73.53 MHz, setup +2.533 ns | 69.51-69.88 MHz, +1.889 ns |
+| Pixel Fmax (74.27 MHz) | 82.25-83.58 MHz | 81.75-82.56 MHz |
+| Setup, hold slack | +1.306 (pixel), +0.094 ns | +1.231 (pixel), +0.085 ns |
+| Recovery, removal, pulse width | +6.569, +0.403, +1.122 ns | +7.183, +1.190, +1.122 ns |
+| ALMs | 28,859 of 41,910 (69%) | 28,831 |
+| Registers | 25,953 | 25,755 |
+| RAM blocks | 258 | 259 |
+| DSP blocks | 32 | 32 |
+| RBF | 3,635,576 bytes, SHA-256 `36cd7a32…` | 3,644,880 bytes |
+
+The change costs 28 ALMs and 198 registers, among them `cs_fl`'s 62
+bits; slice 2's two seals of one design differ by 139 ALMs. The system
+clock's slowest corner rises from 69.5 MHz to 72.8 MHz, above the
+67.6-71.5 MHz that slice 2's three seals spread over and near slice 1's
+72.43 MHz. One seal does not separate what the change removed (`wrap16`,
+`cs_odd`, the CALL rel32 target trick) from placement noise.
+
+Where the slack is, from TimeQuest on the sealed project at the slow
+1100 mV -40 °C corner, the system clock's slowest:
+- The system clock's worst paths are the VGA scanout's (`crtc_6` to
+  `scanout_f_row` and `f_base`), +2.533 ns.
+- The CPU's worst path is the L1I's block to the BIU's line, +2.932 ns.
+- The new D-stage compare is not near either. Its paths from `d_eip` and
+  `cs_fl` into D's stop and its fault keep +5.6 to +6.3 ns. The worst into
+  D's stop is from the decode's registers, +5.37 ns. The worst into
+  `cs_fl`, at a CS write, +8.43 ns.
 
 ## DOOM's start on the RTL
 
