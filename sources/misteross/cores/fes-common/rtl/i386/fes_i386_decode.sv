@@ -1004,18 +1004,23 @@ module fes_i386_decode (
                     eoi = 1'b0;
                 end
                 8'hcf: begin
-                    // IRET, IRETD (SEQ_UCODE): the offset's slot into T1, then
-                    // the ROM's routine, in protected mode the one that reads
-                    // CS's descriptor.
+                    // IRET, IRETD (SEQ_UCODE): in real mode the offset's slot
+                    // into T1, then the ROM's routine. In protected mode the
+                    // EFLAGS slot into T4, as Bochs reads the slots from the
+                    // top, so a frame past the stack's limit faults before
+                    // any read; then the routine, which reads CS's slot, the
+                    // offset's and CS's descriptor.
                     nwrap = pe;
                     op = 5'd9;  // ALU_MOV
                     size = 2'd2;
                     mbytes = osz32 ? 3'd4 : 3'd2;
                     mkind = 2'd1;
                     stk = fes_i386_pkg::STK_PEEK;
+                    slot = pe ? 4'd2 : 4'd0;
                     d_valid = 1'b1;
                     d_temp = 1'b1;
                     d_t1 = 1'b1;
+                    d_idx = pe ? 3'd3 : 3'd0;  // T4, T1
                     seq = fes_i386_pkg::SEQ_UCODE;
                     upc = pe ? fes_i386_ucode_pkg::UC_PIRET : fes_i386_ucode_pkg::UC_IRET;
                     eoi = 1'b0;
@@ -1024,18 +1029,20 @@ module fes_i386_decode (
                     // RETF imm16 (CAh), RETF (CBh) (SEQ_RETF): the offset into
                     // T1 and the selector into T0, ESP unmoved, then JMP. A
                     // temporary's load is 32-bit, so nothing merges into it.
-                    // In protected mode the ROM's routine, which reads CS's
-                    // descriptor, after the same first uop.
+                    // In protected mode the selector's slot into T0, as Bochs
+                    // reads it first, then the ROM's routine, which reads the
+                    // offset's slot and CS's descriptor.
                     nwrap = pe;
                     op = 5'd9;  // ALU_MOV
                     size = 2'd2;
                     mbytes = osz32 ? 3'd4 : 3'd2;
                     mkind = 2'd1;
                     stk = fes_i386_pkg::STK_PEEK;
+                    slot = pe ? 4'd1 : 4'd0;
                     imm = b0[0] ? 32'd0 : {16'b0, by[2], by[1]};
                     d_valid = 1'b1;
                     d_temp = 1'b1;
-                    d_t1 = 1'b1;
+                    d_t1 = !pe;
                     seg2_idx = 3'd1;
                     seg2_t = 1'b0;
                     seq = pe ? fes_i386_pkg::SEQ_UCODE : fes_i386_pkg::SEQ_RETF;
@@ -1770,7 +1777,7 @@ module fes_i386_decode (
     assign u.x87p = x87p;
     assign u.segchk = 4'd0;
     assign u.nwrap = nwrap;
-    assign u.vmchk = 1'b0;
+    assign u.vmchk = b0 == 8'hcf && pe;
     assign u.ntchk = b0 == 8'hcf && pe;
     assign u.seg2_pm = 1'b0;
     assign u.shadow = 1'b0;

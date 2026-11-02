@@ -800,9 +800,11 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   makes M1 raise #SS(0) for a slot that wraps (`sdisp`, its displacement),
   or stop as not built under a limit past 64 KiB, whose address this build
   does not form.
-- **RETF and IRET** (`pretf`, `piret`): DC reads the offset's slot into T1,
-  the ROM CS's into T0 (and IRET's EFLAGS into T4), each at SP plus its slot
-  without the wrap on a 16-bit stack (`nwrap`), then the descriptor and
+- **RETF and IRET** (`pretf`, `piret`): the slots in Bochs's order, from the
+  top, so a frame past the stack's limit raises #SS(0) before any read: DC
+  reads IRET's EFLAGS slot into T4 or RETF's CS slot into T0, the ROM CS's
+  into T0 (IRET) and the offset's into T1, each at SP plus its slot without
+  the wrap on a 16-bit stack (`nwrap`), then the descriptor and
   `return_protected`'s and `iret_protected`'s checks with the offset's: null
   is #GP(0); system or data, non-conforming code with DPL not RPL or
   conforming with DPL above it, #GP(selector); not present #NP(selector);
@@ -810,8 +812,8 @@ instruction, so DC decodes with it (`pe`) and every stage sees one mode.
   the limit #GP(0). The jump steps ESP past the slots and RETF's imm16
   (`iimm`, the instruction's immediate). IRET loads the flags from T4 first:
   IRETD's RF too (FLAG_LOAD_RF, as real-mode IRETD does); an IRETD image with
-  VM set returns to V86 mode, not built (`vmchk`, raised in EX from the
-  load).
+  VM set returns to V86 mode, not built (`vmchk`, raised in EX from DC's
+  load, under NT's check).
 - **Delivery through the IDT** (`pvec`, `pint`): an exception's, INTR's or
   NMI's entry starts `pvec` (DC's `dc_exc` in protected mode), and INT n
   and INT3 start `pint`, DC reading the gate's low dword; INTO's JNO falls

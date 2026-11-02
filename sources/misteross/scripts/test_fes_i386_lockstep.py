@@ -260,7 +260,7 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PMODE_CASES = 47
+PMODE_CASES = 51
 
 
 def run_no387(testbench: str, env: dict) -> dict:
