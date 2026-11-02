@@ -1,6 +1,7 @@
 """Guard the source corrections in the v1 firmware licensing research note."""
 from pathlib import Path
 import re
+import tarfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,6 +72,25 @@ class V1FirmwareLicensingDocTests(unittest.TestCase):
         self.assertIn("No primary Nine Tiles permission was found", decision)
         self.assertIn("user-supplied in v1", summary)
         self.assertIn("Pentagon's entire 48 KiB image", DOC)
+
+    def test_committed_validation_capture_roms_are_recorded(self):
+        evidence = evidence_line("- **Z0. Existing committed ROM bytes.")
+        decision = evidence_line("5. **ZX81 family. Agreed.")
+        capture_path = (
+            "sources/misteross/docs/validation/2026-10-22-pcxt-commit-timing/"
+            "capture.tar.gz"
+        )
+        hex_member = "source/sources/misteross/cores/fes-zx81/rtl/zx8x.hex"
+        mif_member = "source/sources/misteross/cores/fes-zx81/rtl/zx8x.mif"
+
+        with tarfile.open(ROOT / capture_path, "r:gz") as capture:
+            members = {member.name for member in capture.getmembers()}
+        self.assertIn(hex_member, members)
+        self.assertIn(mif_member, members)
+        self.assertIn(capture_path, evidence)
+        self.assertIn("full ZX81 and ZX80 ROM images", evidence)
+        self.assertIn("outside the current RTL source tree", evidence)
+        self.assertIn("full ZX81 and ZX80 images", decision)
 
     def test_decision_links_use_the_current_heading_anchor(self):
         self.assertIn("## Decisions recorded 1 November 2026", DOC)
