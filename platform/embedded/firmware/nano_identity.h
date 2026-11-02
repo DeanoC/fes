@@ -16,8 +16,8 @@ struct fes_nano_identity_ops {
      * platform authority even if that check fails. Never grant a new owner. */
     int (*contain)(void *);
     void (*trace)(void *, unsigned stage); /* optional saved-state progress */
-    /* Optional fixed diagnostic responder writes. Its presence permits only
-     * the bounded reader probe; it supplies no DDR or general MMIO authority. */
+    /* Optional fixed diagnostic responder writes. Together with the on-chip
+     * ABI this permits only its bounded recipe, never DDR or general MMIO. */
     int (*write32)(void *, uint32_t offset, uint32_t value);
 };
 struct fes_nano_identity_probe {

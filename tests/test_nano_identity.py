@@ -45,4 +45,4 @@ class NanoIdentityTests(unittest.TestCase):
                      '-o',str(binary)]
             subprocess.run(command,check=True,capture_output=True,text=True)
             result=subprocess.run([str(binary)],check=True,capture_output=True,text=True,timeout=10)
-            self.assertIn('PASS 57 identity/control containment cases',result.stdout)
+            self.assertIn('PASS 59 identity/control containment cases',result.stdout)

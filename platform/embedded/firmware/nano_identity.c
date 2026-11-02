@@ -164,7 +164,9 @@ static void identity_sip(struct fes_nano_identity_probe *p, uint64_t owner,
     if (configuring || (p && p->bridges && p->bridges->device_lease)) { result[0]=1;return; }
     if (!p || !p->initialized) { result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return; }
     if (p->failed) { result[0]=4;return; }
-    if (reader && !p->io.write32) { result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return; }
+    /* This recipe controls the fixed on-chip responder. A DDR personality
+     * needs its own qualified address/bridge/drain path before any control I/O. */
+    if (reader && (p->abi!=0x10203040U || !p->io.write32)) { result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return; }
     if (!owner || !generation || generation>UINT64_MAX-2 || p->attempted || p->bridges->state.owner!=owner ||
         p->bridges->state.generation!=generation) return;
     if (fes_nano_bridges_observe(p->bridges,&before) || !closed(&before) ||

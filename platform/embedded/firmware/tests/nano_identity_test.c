@@ -5,7 +5,7 @@
 #include <string.h>
 
 struct hw {
-    uint32_t reset;
+    uint32_t reset,abi;
     unsigned owner,reads,enables,disables,contains,stops;
     unsigned fail_enable,fail_disable,fail_read,change_read,lose_data,lose_owner,busy_word;
     unsigned config_calls,change_config;
@@ -48,7 +48,7 @@ static int read32(void *p,uint32_t offset,uint32_t *value)
     switch(offset) {
     case FES_EMBEDDED_REG_MAGIC:*value=FES_EMBEDDED_MAGIC;break;
     case FES_EMBEDDED_REG_VERSION:*value=FES_EMBEDDED_VERSION;break;
-    case FES_EMBEDDED_REG_ABI:*value=0x10203040;break;
+    case FES_EMBEDDED_REG_ABI:*value=h->abi;break;
     case FES_EMBEDDED_REG_BUILD0:case FES_EMBEDDED_REG_BUILD1:
     case FES_EMBEDDED_REG_BUILD2:case FES_EMBEDDED_REG_BUILD3:
         *value=build[(offset-FES_EMBEDDED_REG_BUILD0)/4];break;
@@ -65,12 +65,14 @@ static int read32(void *p,uint32_t offset,uint32_t *value)
 }
 static void setup(struct hw *h,struct fes_nano_bridges *b,struct fes_nano_identity_probe *p)
 {
-    *h=(struct hw){.reset=15,.owner=1,.configured=1};*b=(struct fes_nano_bridges){0};*p=(struct fes_nano_identity_probe){0};
+    *h=(struct hw){.reset=15,.abi=0x10203040,.owner=1,.configured=1};*b=(struct fes_nano_bridges){0};*p=(struct fes_nano_identity_probe){0};
     struct fes_nano_bridge_ops ops={h,owns,reset,masters,stop,disable,enable};
     assert(!fes_nano_bridges_init(b,ops,17,7,FES_NANO_FABRIC_ABSENT,1));
     struct fes_nano_identity_ops io={.context=h,.configured=configured,.read32=read32,.contain=contain};
     assert(!fes_nano_identity_init(p,b,io,0x10203040,build,1));
 }
+static int unexpected_write(void *context,uint32_t offset,uint32_t value)
+{ (void)context;(void)offset;(void)value;assert(0);return -1; }
 int main(void)
 {
     struct hw h;struct fes_nano_bridges b;struct fes_nano_identity_probe p;uint64_t r[4];unsigned cases=0;
@@ -173,5 +175,14 @@ int main(void)
     setup(&h,&b,&p);b.state.generation=UINT64_MAX-1;
     fes_nano_identity_sip(&p,17,UINT64_MAX-1,0,r);
     assert(r[0]==2 && !p.attempted && !h.enables && !h.config_calls);cases++;
+    setup(&h,&b,&p);p.abi=h.abi=0x10203041;p.io.write32=unexpected_write;
+    fes_nano_reader_sip(&p,17,1,0,r);
+    assert(r[0]==FES_EMBEDDED_BRIDGE_NOT_READY && r[1]==(uint64_t)FES_EMBEDDED_BRIDGE_READER_TAG<<32 && !r[2] && !r[3]);
+    assert(!p.attempted && !p.active && !p.failed && !h.config_calls && !h.reads && !h.enables && !h.disables && !h.contains && !h.stops);
+    assert(h.reset==15 && b.state.generation==1);cases++;
+    fes_nano_identity_sip(&p,17,1,0,r);
+    assert(!r[0] && r[1]==((uint64_t)FES_EMBEDDED_BRIDGE_IDENTITY_TAG<<32|0x10203041U));
+    assert(p.attempted && !p.active && !p.failed && h.config_calls==1 && h.reads==30 && h.enables==1 && h.disables==1 && !h.contains);
+    assert(h.reset==15 && b.state.generation==3);cases++;
     printf("PASS %u identity/control containment cases\n",cases);
 }
