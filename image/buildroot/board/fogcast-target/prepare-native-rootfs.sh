@@ -165,11 +165,10 @@ fi
 /bin/rm -rf "$target/var/lib/bluetooth"
 /bin/mkdir -p "$target/var/lib"
 /bin/ln -s /run/fogcast/fesdata3/bluetooth "$target/var/lib/bluetooth"
-# dbus-uuidgen --ensure writes the machine id. Keep that write on /run.
-[ -L "$target/var/lib/dbus" ] && /bin/rm -f "$target/var/lib/dbus"
-/bin/mkdir -p "$target/var/lib/dbus"
-/bin/rm -rf "$target/var/lib/dbus/machine-id"
-/bin/ln -s /run/dbus/machine-id "$target/var/lib/dbus/machine-id"
+# dbus-uuidgen atomically creates a sibling temporary file before renaming it.
+# Redirect the directory so both writes land on /run, including on warm trees.
+/bin/rm -rf "$target/var/lib/dbus"
+/bin/ln -s ../../run/dbus "$target/var/lib/dbus"
 
 firmware_src=$repo/firmware/rtl_bt
 (cd "$firmware_src" && /usr/bin/sha256sum -c SHA256SUMS) >/dev/null

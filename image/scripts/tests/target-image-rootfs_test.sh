@@ -26,9 +26,41 @@ grep -Fq 'package-only' "$native_post_build"
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/fogcast-target-image-rootfs.XXXXXX")
 trap 'chmod -R u+rwX "$fixture" 2>/dev/null || true; rm -rf "$fixture"' EXIT INT TERM
 
+# Check the atomic sibling-write contract with an immutable /var/lib parent.
+# This fixture tests filesystem placement; the image boot probe uses real D-Bus.
+check_volatile_dbus() {
+  python3 - "$1" <<'PY'
+import os
+from pathlib import Path
+import stat
+import sys
+
+root = Path(sys.argv[1]).resolve()
+volatile = root / 'run/dbus'
+volatile.mkdir(parents=True, exist_ok=True)
+directory = root / 'var/lib/dbus'
+assert directory.resolve() == volatile, 'D-Bus writes must stay inside the target /run'
+parent = root / 'var/lib'
+mode = stat.S_IMODE(parent.stat().st_mode)
+parent.chmod(0o555)
+temporary, final = directory / 'machine-id.test-temp', directory / 'machine-id'
+try:
+    temporary.write_bytes(b'0123456789abcdef0123456789abcdef\n')
+    os.replace(temporary, final)
+    assert (volatile / 'machine-id').read_bytes() == b'0123456789abcdef0123456789abcdef\n'
+    assert not temporary.exists()
+finally:
+    parent.chmod(mode)
+    temporary.unlink(missing_ok=True)
+    final.unlink(missing_ok=True)
+PY
+}
+
 target=$fixture/target
 mkdir -p "$target/usr/sbin" "$target/etc/init.d" "$target/root"
 cp -R "$native_rootfs/." "$target/"
+mkdir -p "$target/var/lib/dbus"
+printf '%s\n' stale-build-machine-id >"$target/var/lib/dbus/machine-id"
 printf '%s\n' runtime >"$target/usr/sbin/mister-runtime"
 printf '%s\n' agent >"$target/usr/sbin/mister-agent"
 chmod 0755 "$target/usr/sbin/mister-runtime" "$target/usr/sbin/mister-agent"
@@ -390,8 +422,7 @@ test -x "$target/usr/libexec/bluetooth/bluetoothd"
 test -x "$target/usr/bin/dbus-daemon"
 test -L "$target/var/lib/bluetooth"
 test "$(readlink "$target/var/lib/bluetooth")" = /run/fogcast/fesdata3/bluetooth
-test -L "$target/var/lib/dbus/machine-id"
-test "$(readlink "$target/var/lib/dbus/machine-id")" = /run/dbus/machine-id
+check_volatile_dbus "$target"
 for fw in rtl8821c_fw.bin rtl8821c_config.bin rtl8761bu_fw.bin rtl8761bu_config.bin LICENCE.rtlwifi_firmware.txt; do
   test -f "$target/lib/firmware/rtl_bt/$fw"
 done
@@ -472,6 +503,8 @@ NATIVE_RUNTIME_MODE=package-only \
   de25_target=$fixture/de25-target
   mkdir -p "$de25_target/etc/init.d" "$de25_target/usr/sbin" "$de25_target/root" "$de25_target/usr/lib"
   cp -R "$native_rootfs/." "$de25_target/"
+  mkdir -p "$de25_target/var/lib/dbus"
+  ln -s /run/dbus/machine-id "$de25_target/var/lib/dbus/machine-id"
   printf '%s\n' de25-nano >"$de25_target/etc/fes-board"
   cp "$target/etc/init.d/S30dbus" "$de25_target/etc/init.d/S30dbus"
   cp "$target/etc/init.d/S40bluetooth" "$de25_target/etc/init.d/S40bluetooth"
@@ -486,6 +519,7 @@ NATIVE_RUNTIME_MODE=package-only \
     printf '%s\n' library >"$de25_target/lib/$library"
   done
   "$repo/buildroot/board/fogcast-target/prepare-native-rootfs.sh" "$de25_target"
+  check_volatile_dbus "$de25_target"
   test ! -e "$de25_target/etc/init.d/S15fes-ethaddr"
   cmp "$repo/de25-nano/rootfs/overlay/etc/init.d/S38fes-network-id" "$de25_target/etc/init.d/S15fes-network-id"
   test "$(readlink "$de25_target/etc/dropbear")" = /media/fat/fogcast/ssh
@@ -671,6 +705,7 @@ cp "$selector" "$default_selector"
 NATIVE_RUNTIME_MODE=package-only TARGET_IMAGE_LOCK_BIN="$selector" \
   NATIVE_RUNTIME_INPUT_LOCK="$lock" NATIVE_RUNTIME_IDLE_FILE="$warm_cache/idle.rbf" \
   "$native_post_build" "$target"
+check_volatile_dbus "$target"
 test ! -e "$old_notice"
 new_notice=$target/usr/share/mister-runtime/core-notices/fes.ramtest/$new_ramtest_id/SOURCE.md
 grep -Fqx 'Exact producing commit: 2222222222222222222222222222222222222222' "$new_notice"

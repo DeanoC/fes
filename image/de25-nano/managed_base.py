@@ -163,6 +163,17 @@ def verify_bootstrap_mountpoint(target, ext4):
         raise ValueError('ext4 bootstrap mount point must be a directory')
 
 
+def verify_dbus_directory(target, ext4):
+    directory = target / 'var/lib/dbus'
+    alias = '../../run/dbus'
+    if (not directory.is_symlink() or os.readlink(directory) != alias or
+            (target / 'run/dbus/machine-id').exists() or (target / 'run/dbus/machine-id').is_symlink()):
+        raise ValueError('D-Bus state must use its empty volatile directory')
+    record = image.debugfs(ext4, 'stat /var/lib/dbus')
+    if not re.search(rb'Fast link dest:\s*"' + re.escape(alias.encode()) + rb'"', record):
+        raise ValueError('ext4 D-Bus state directory differs')
+
+
 def verify_rootfs(directory):
     image.run(['e2fsck', '-fn', directory / 'rootfs.ext4'], stdout=subprocess.DEVNULL)
     contract = load(ROOT / 'image/scripts/kit-software.py', 'managed_base_contract')
@@ -195,6 +206,7 @@ def verify_rootfs(directory):
         if not re.search(r'(?m)^ttyS0::respawn:.*getty.*ttyS0 115200', (target / 'etc/inittab').read_text()):
             raise ValueError('managed base serial recovery console differs')
         verify_bootstrap_mountpoint(target, directory / 'rootfs.ext4')
+        verify_dbus_directory(target, directory / 'rootfs.ext4')
         forbidden = [p for p in target.rglob('*') if
                      (p.name.endswith(('.rbf', '.ko')) or
                       p.name.startswith('dropbear_') and p.name.endswith('_host_key'))]

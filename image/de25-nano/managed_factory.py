@@ -135,6 +135,7 @@ def verify_rootfs(directory, env):
             raise ValueError('factory bootstrap mount point is not a directory')
         if not re.search(rb'Type:\s+directory\b', image.debugfs(directory / 'rootfs.ext4', 'stat /.fes-bootstrap')):
             raise ValueError('factory ext4 bootstrap mount point is not a directory')
+        base.verify_dbus_directory(target, directory / 'rootfs.ext4')
         startup = target / 'etc/init.d/S40fes-kit-software'
         if (startup.is_symlink() or startup.stat().st_mode & 0o777 != 0o755 or
                 startup.read_bytes() != (NATIVE / 'native-rootfs-overlay/etc/init.d' / startup.name).read_bytes()):

@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -18,6 +19,7 @@ BOOT = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BOOT)
 GOOD_LOG = ('TARGET_IMAGE_SMOKE_ROOT options=relatime,ro\n'
             'TARGET_IMAGE_SMOKE_VOLATILE /run /tmp /var/log writable tmpfs\n'
+            'TARGET_IMAGE_SMOKE_DBUS machine-id and system bus ready\n'
             'TARGET_IMAGE_SMOKE_READY\n')
 
 
@@ -53,6 +55,7 @@ class ManagedBootTests(unittest.TestCase):
             bad = [GOOD_LOG.replace(',ro', ',root'), GOOD_LOG.replace(',ro', ',rw,ro'),
                    GOOD_LOG.replace('TARGET_IMAGE_SMOKE_READY', 'echo TARGET_IMAGE_SMOKE_READY'),
                    GOOD_LOG.replace('writable tmpfs', 'writable ext4'),
+                   GOOD_LOG.replace('TARGET_IMAGE_SMOKE_DBUS machine-id and system bus ready\n', ''),
                    GOOD_LOG + 'TARGET_IMAGE_SMOKE_FAILED mount=/run\n',
                    GOOD_LOG + 'Kernel panic - not syncing: late failure\n',
                    GOOD_LOG + 'Internal error: Oops\n',
@@ -63,6 +66,17 @@ class ManagedBootTests(unittest.TestCase):
                     log.write_text(contents)
                     with self.assertRaises(ValueError):
                         BOOT.verify_log(log)
+
+    def test_shared_de10_log_gate_also_requires_the_live_bus_probe(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            log = Path(temporary) / 'log'
+            command = ['sh', str(ROOT / 'image/scripts/qemu-smoke-target-image.sh'),
+                       '--verify-log', 'native-dev', str(log)]
+            env = {**os.environ, 'TARGET_IMAGE_TEST_MODE': '1'}
+            log.write_text(GOOD_LOG)
+            subprocess.run(command, env=env, check=True, capture_output=True)
+            log.write_text(GOOD_LOG.replace('TARGET_IMAGE_SMOKE_DBUS machine-id and system bus ready\n', ''))
+            self.assertNotEqual(subprocess.run(command, env=env, capture_output=True).returncode, 0)
 
     def test_actual_observer_stops_and_reaps_its_own_child(self):
         with tempfile.TemporaryDirectory() as temporary:

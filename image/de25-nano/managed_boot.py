@@ -97,13 +97,14 @@ def verify_log(path):
              if line.startswith('TARGET_IMAGE_SMOKE_ROOT options=')]
     if (len(roots) != 1 or 'ro' not in roots[0].split(',') or 'rw' in roots[0].split(',') or
             lines.count('TARGET_IMAGE_SMOKE_VOLATILE /run /tmp /var/log writable tmpfs') != 1 or
+            lines.count('TARGET_IMAGE_SMOKE_DBUS machine-id and system bus ready') != 1 or
             lines.count('TARGET_IMAGE_SMOKE_READY') != 1):
-        raise ValueError('QEMU did not prove the read-only root and writable volatile mounts')
+        raise ValueError('QEMU did not prove read-only root, volatile mounts and D-Bus readiness')
     for line in lines:
         if any(marker in line for marker in ('TARGET_IMAGE_SMOKE_FAILED', 'Kernel panic',
                                              'Internal error:', 'mister-main: waiting for /media/fat payloads')):
             raise ValueError('QEMU boot log contains a failed smoke or kernel diagnostic')
-    return {'readonly_root': True, 'volatile_tmpfs': True, 'init_smoke_ready': True}
+    return {'readonly_root': True, 'volatile_tmpfs': True, 'dbus_ready': True, 'init_smoke_ready': True}
 
 
 def command(kernel, disk):
