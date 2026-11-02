@@ -43,7 +43,9 @@ as not built.
   DOS/4GW's kernel runs on the RTL under its small CS limits: 6,080,047
   instructions with PE set and none stepped on Bochs. DOOM reaches `R_Init`,
   as on Bochs. The only stops left are real-mode ESC forms, DOS/4GW's FPU
-  probe among them: the empty-387-socket work ([DOOM](#dooms-start-on-the-rtl)).
+  probe among them: the empty-387-socket work. DOOM stays in `R_Init` past
+  20 s on the RTL and past 30 s on Bochs, at the same rate on both
+  ([#1437](https://github.com/DeanoC/fes/issues/1437); [DOOM](#dooms-start-on-the-rtl)).
 
 ## Inputs
 
@@ -56,8 +58,8 @@ as not built.
   record and, by the merge, the #1424 fix. Which tree each run used:
   - `5d231b804`, a clean checkout: the seal.
   - `9683e2cb0`, the merge: the lockstep and the netlist lockstep, and
-    `--suite boot --cpu rtl`. DOOM on the RTL ran at `9abfcb26d`, which
-    differs from the merge only in this record.
+    `--suite boot --cpu rtl`. DOOM on the RTL, and on Bochs for comparison,
+    ran at `9abfcb26d`, which differs from the merge only in this record.
   - `9adde623c` (`5d231b804` with the README, sim README and design doc):
     the other pc386 suites, the governor bench and test386.
   The runs before the merge do not depend on the #1424 fix. It changes only
@@ -318,6 +320,22 @@ slice 2's FPU-probe stops: `FNINIT`, `FNSTSW m16` and `FNSTCW m16` at 0727:68B0,
 mode. The ESC forms are the empty-387-socket work, outside this issue. The
 bench ends at its time limit (`END limit`, exit 1, as any run that ends at
 its time limit does).
+
+**Longer runs.** At 20 simulated seconds (4 h 1 min) the RTL's screen is
+unchanged: `R_Init` with five dots. The 11 stops are the same, and there
+are still none with PE set. Bochs (`--cpu oracle`, the same `machine_tb`
+and disk, 30 s) shows the same screen at 30 s as at 10 s, so DOOM's
+`R_Init` is this slow on either CPU:
+
+| | Instructions | With PE set | Entries to protected mode |
+| --- | --- | --- | --- |
+| RTL, 8 s → 20 s | +349,348,222 | +565,591 | +252 |
+| Bochs, 10 s (slice 2's census) → 30 s | +485,121,917 | +1,031,259 | +375 (real-mode LMSW) |
+
+Both make about 20 trips to protected mode a second and spend almost all
+their time in real mode, most likely DOS's reads for `R_InitSpriteLumps`.
+The RTL follows Bochs's course; why the machine's `R_Init` is slow is
+[#1437](https://github.com/DeanoC/fes/issues/1437), outside this issue.
 
 ## Known limits
 
