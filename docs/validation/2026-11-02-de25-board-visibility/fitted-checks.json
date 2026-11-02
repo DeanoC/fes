@@ -1,0 +1,50 @@
+{
+  "status": "passed",
+  "classification": "Fresh actual fitted system/shared reset and board visibility interstage/consumer timing across all four corners; original fit unchanged. No native/physical HDMI qualification.",
+  "source_revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d",
+  "paths": {
+    "system": 24,
+    "shared": 136,
+    "visibility": 104
+  },
+  "shared_fanout_counts": {
+    "async_reset": 5,
+    "sync_data": 11
+  },
+  "minimum_slack_ns": {
+    "system": {
+      "system_peripheral": 0.687,
+      "system_top": 0.479,
+      "video_owner": 0.697
+    },
+    "shared": {
+      "shared_data_consumers": 0.13,
+      "shared_interstage": 0.112,
+      "shared_reset_consumers": 0.253
+    },
+    "visibility": {
+      "active_sync_consumers": 0.132,
+      "active_sync_interstage": 0.136,
+      "visibility_ack_sync_consumers": 0.164,
+      "visibility_ack_sync_interstage": 0.116,
+      "visibility_epoch_sync_consumers": 0.099,
+      "visibility_epoch_sync_interstage": 0.125,
+      "visible_sync_consumers": 0.123,
+      "visible_sync_interstage": 0.102
+    }
+  },
+  "STA_sha256": "06c1bd805bc078d9636015c472e09a054160c405f3f06b7c555e7a4b6f7d3f14",
+  "files_sha256": {
+    "fitted-check-inputs.json": "8cb65417d2c0efbbe0710e2d868d24b8be4b3acbe4d2ac2a4d572fd0676e57f6",
+    "system-paths.tsv": "1d7ab62f9724e65b1eebced4bbd3cd070c560057858d7086c8ed4af910e0dfba",
+    "shared-paths.tsv": "b1c46fcbefd20fda4a074bf61cb58b32d66e409587a5f0c2575d77674c388c19",
+    "shared-fanout.tsv": "1a92cbdff70178c415e6d0264c2155de025830ea8b1b33706cb5f7fdd7d05b56",
+    "visibility-paths.tsv": "aa83ef3fb0070ec1b6cf1e0017c87845770759acb815a8d5b2c8a70533aa7f70",
+    "visibility-fanout.tsv": "e34315f020abbcd6666bffd88b32b511ff64c00ed1fa24b5cc54a0c28f8973fb",
+    "system-audit.tcl": "4e67ddb948232f9605f875f7e133c0cc2f00eee9fc1486ef9407adcbc0380fff",
+    "shared-pixel-audit.tcl": "cfc2c491719df0f975f5aaedc711dc0382baca813d5e731fc6aff9446c7cd936",
+    "visibility-audit.tcl": "f05dac311bd525e2cb15acc9ed82f6e1563275bfdd5010f60dc9a79e68d6c1c8"
+  },
+  "hardware_access": "not-performed",
+  "seconds": 20.569
+}
