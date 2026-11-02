@@ -261,8 +261,36 @@ retire the helper without replay. Successful repeated checks require the same
 fresh receipt. Call it while control is open; a closed control aperture cannot
 be sampled as evidence. The existing controller separately owns its reader's
 generation/cookie stop, and the platform still has to contain every other
-FPGA/HPS producer. The physical cold provider does not install this helper or
-permit DDR release yet.
+FPGA/HPS producer.
+
+The source-bound cold DDR configuration provider now installs
+`nano_fabric_stop.c` through the existing master callbacks. Its control map
+binds the inherited probe's separately decoded CPU aperture and rechecks the
+generated DDR master inventory, all three maintenance reset routes and the
+generated sources against the seal. The native map decoder and cold header
+reject an omitted, changed or foreign stop map.
+
+Before the live identity match these callbacks report only the independently
+contained HPS producers, while every data bridge stays held. Closing control
+checks the exact main-reader ABI/build and bus window, live maintenance-held
+bit, generation/cookie acknowledgement and inherited probe receipt. An idle
+or already-drained reader needs no command; an enabled reader receives one
+DISABLE, then a bounded wait for the same generation and cookie with zero
+pending traffic. The inherited probe independently receives CANCEL only if
+needed. A final fresh observation of both receipts precedes completion.
+After control closes, the original cold ownership guards the retained receipt;
+the provider performs no FPGA reads through the closed aperture.
+
+Any changed identity, maintenance bit, CPU/cache/bridge ownership, unfinished
+traffic or I/O failure retires the callback without reset or command replay.
+The existing identity recovery can still assert control reset while all data
+paths remain held. `verify_fabric_stop.py` joins the actual C implementation to
+both actual reader RTL models, including held addresses, partial responses,
+idle/drained cases and late receipt changes. Strong-provider tests separately
+exercise the fixed MMIO bindings and retained closed receipt. Those are
+software checks; neither these callbacks nor their serial marker supplies
+physical DDR/firewall/addressing qualification or runtime admission. Generic
+cold data release remains denied.
 
 `verify_probe_stop.py` joins the actual C helper to the inherited Avalon probe
 RTL and its independent burst/response bench. The DDR board-model verifier

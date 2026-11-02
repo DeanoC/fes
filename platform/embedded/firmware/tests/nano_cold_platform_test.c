@@ -6,6 +6,7 @@
 #include "nano_sd_platform.h"
 #include "fes_nano_cold_profile.h"
 #include "nano_smmu.h"
+#include "generated/fes_de25_ddr_probe.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +24,9 @@ static unsigned smmu_reads,smmu_fault;
 #include <socfpga_mailbox.h>
 static unsigned fpga_reads,bad_magic,bad_build,flip_cache,lose_data,bad_open,bad_close;
 static unsigned config_calls,config_fault;
+#ifdef FES_NANO_READER_CPU_BASE
+static unsigned probe_reads,probe_writes,master_fault;
+#endif
 #ifdef FES_TEST_READER_RTL
 static unsigned fpga_writes;
 uint32_t fes_test_reader_read(uint32_t);
@@ -177,6 +181,23 @@ uint32_t mmio_read_32(uintptr_t a)
     }
 #endif
 #if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
+#ifdef FES_NANO_READER_CPU_BASE
+    if(a>=FES_NANO_PROBE_CPU_BASE && a<FES_NANO_PROBE_CPU_BASE+FES_NANO_PROBE_SPAN) {
+        assert(bridge==13 && fpga_reads>30);probe_reads++;
+        uint32_t offset=(uint32_t)(a-FES_NANO_PROBE_CPU_BASE),value=0;
+        if(offset==FES_DE25_DDR_PROBE_ID_OFFSET)value=FES_DE25_DDR_PROBE_IDENTITY^(master_fault==1);
+        if(offset==FES_DE25_DDR_PROBE_VERSION_OFFSET)value=FES_DE25_DDR_PROBE_VERSION^(master_fault==2);
+        if(offset==FES_DE25_DDR_PROBE_STATUS_OFFSET)value=master_fault==3?9:master_fault==4?2:1;
+        if(offset==FES_DE25_DDR_PROBE_ACTIVE_SEQUENCE_OFFSET && master_fault==4)value=1;
+        if(offset==FES_DE25_DDR_PROBE_ACTIVE_GENERATION_LO_OFFSET && master_fault==4)value=1;
+        if(offset==FES_DE25_DDR_PROBE_ACCEPTED_BYTES_OFFSET && master_fault==13)value=16;
+        if(master_fault==14 && probe_reads>18 && offset==FES_DE25_DDR_PROBE_ACTIVE_SEQUENCE_OFFSET)value=1;
+        if(master_fault==9 && probe_reads==1)per0&=~0x80U;
+        if(master_fault==10 && probe_reads==1)sctlr=4;
+        if(master_fault==15 && probe_reads==1)bridge|=2U;
+        return value;
+    }
+#endif
     if(a>=FES_NANO_CONTROL_BASE && a<FES_NANO_CONTROL_BASE+0x100) {
         assert(bridge==FES_NANO_BRIDGES_DATA);fpga_reads++;
         uint32_t offset=(uint32_t)(a-FES_NANO_CONTROL_BASE),value=0;
@@ -189,6 +210,14 @@ uint32_t mmio_read_32(uintptr_t a)
         else if(offset==FES_EMBEDDED_REG_ABI)value=FES_NANO_CONTROL_ABI;
         else if(offset>=FES_EMBEDDED_REG_BUILD0 && offset<=FES_EMBEDDED_REG_BUILD3)
             value=build[(offset-FES_EMBEDDED_REG_BUILD0)/4]^(bad_build?1:0);
+#endif
+#ifdef FES_NANO_READER_CPU_BASE
+        if(offset==0xb0)value=FES_NANO_READER_BUS_BASE^(master_fault==6);
+        if(offset==0xb4)value=FES_NANO_READER_BYTES^(master_fault==7);
+        if(offset==0xb8)value=master_fault==5?0:1;
+        if(master_fault==8 && fpga_reads>30 && offset==FES_EMBEDDED_REG_BUILD0)value^=1;
+        if(master_fault==11 && fpga_reads==31)release_locked=0;
+        if(master_fault==12 && fpga_reads>30 && offset==FES_EMBEDDED_REG_STATUS)value=16;
 #endif
         if(flip_cache && fpga_reads==8)sctlr=4;
         if(lose_data && fpga_reads==15)bridge&=~4U;
@@ -228,6 +257,12 @@ uint32_t mmio_read_32(uintptr_t a)
 }
 uint16_t mmio_read_16(uintptr_t a) { (void)a;assert(0);return 0; }
 void mmio_write_32(uintptr_t a,uint32_t v) {
+#ifdef FES_NANO_READER_CPU_BASE
+    if(a==FES_NANO_PROBE_CPU_BASE+FES_DE25_DDR_PROBE_COMMAND_OFFSET) {
+        assert(master_fault==4 && bridge==13 && v==FES_DE25_DDR_PROBE_COMMAND_CANCEL);
+        probe_writes++;assert(probe_writes==1);return;
+    }
+#endif
 #ifdef FES_TEST_READER_RTL
     if(a>=FES_NANO_CONTROL_BASE && a<FES_NANO_CONTROL_BASE+0x100) {
         assert(bridge==FES_NANO_BRIDGES_DATA);fpga_writes++;
@@ -331,6 +366,11 @@ int main(int argc,char **argv)
     assert(reply[0]==0 && (uint32_t)reply[1]==0xdf && reply[2]==record.owner && reply[3]==1);
     assert(masters.owns(masters.context,record.owner,record.epoch)==1);
     fes_nano_owned_bridges=b;
+#ifdef FES_NANO_READER_CPU_BASE
+    uint32_t initial_producers=0;
+    assert(!masters.quiescent(masters.context,&initial_producers) && initial_producers==FES_NANO_PRODUCERS_HPS);
+    assert(!fpga_reads && !probe_reads); /* no FPGA receipt before live matching */
+#endif
     /* The private channel's explicit data masks cannot bypass the strong cold
      * provider. Only its fixed owned probe may open control in this profile. */
     const uint64_t forbidden_bridge_ops[]={1,2,3,0x80003,0xd0003};
@@ -599,6 +639,26 @@ configured_bytes:
     }
     assert(setup==1);
 #ifdef FES_NANO_READER_CPU_BASE
+    if(mutation>=96 && mutation<112) {
+        master_fault=mutation-96;
+        fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,
+                           record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+        if(!master_fault) {
+            assert(!reply[0] && bridge==15 && probe_reads>=36 && fpga_reads>30 && !probe_writes);
+            uint32_t bits=0;unsigned reads=fpga_reads+probe_reads;
+            assert(!masters.quiescent(masters.context,&bits) && bits==FES_NANO_PRODUCERS_ALL);
+            assert(fpga_reads+probe_reads==reads);
+        } else {
+            assert(reply[0]==4 && !reply[2] && !reply[3] && (bridge&2U));
+            assert(fes_nano_owned_bridges.failed);
+            unsigned reads=fpga_reads+probe_reads;
+            fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,
+                               record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+            assert(reply[0]==4 && fpga_reads+probe_reads==reads);
+            assert(probe_writes==(master_fault==4));
+        }
+        return 0;
+    }
     if(mutation>=82 && mutation<=95) {
         smmu_fault=mutation-82;
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONFIGURATION,
@@ -656,7 +716,12 @@ configured_bytes:
     }
     assert(!reply[0] && reply[1]==((uint64_t)FES_EMBEDDED_BRIDGE_IDENTITY_TAG<<32|FES_NANO_CONTROL_ABI));
     assert(reply[2]==0x778899aabbccddeeULL && reply[3]==0x0011223344556677ULL);
-    assert(bridge==15 && fpga_reads==30 && fes_nano_owned_bridges.state.generation==3 && !engine_calls);
+    assert(bridge==15 && fes_nano_owned_bridges.state.generation==3 && !engine_calls);
+#ifdef FES_NANO_READER_CPU_BASE
+    assert(fpga_reads>30 && probe_reads>=36 && !probe_writes);
+#else
+    assert(fpga_reads==30);
+#endif
 #else
     fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_IDENTITY,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
     assert(reply[0]==FES_EMBEDDED_BRIDGE_NOT_READY && !reply[2] && !reply[3]);

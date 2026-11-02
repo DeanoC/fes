@@ -2,6 +2,7 @@
 package nativefabric
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -182,6 +183,55 @@ func TestControlProbeRejectsUncompiledMapBeforeFirmware(t *testing.T) {
 			}
 			if _, err = v.ProbeIdentity(mapping); err == nil || calls != 0 {
 				t.Fatal(err, calls)
+			}
+		})
+	}
+	for _, fault := range []string{"pass", "missing", "null", "base", "span", "maintenance", "scope", "unknown", "duplicate", "onchip"} {
+		t.Run("ddr-stop-"+fault, func(t *testing.T) {
+			var fields map[string]interface{}
+			if err := json.Unmarshal(controlMapFixture(t), &fields); err != nil {
+				t.Fatal(err)
+			}
+			fields["package_id"] = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+			fields["build_id"] = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+			stop := map[string]interface{}{"scope": "sealed-ddr-master-stop-v1", "probe_cpu_base": uint64(0x20010100), "probe_span": 128, "maintenance": "held-reset-from-configuration"}
+			fields["fabric_stop"] = stop
+			switch fault {
+			case "missing":
+				delete(fields, "fabric_stop")
+			case "null":
+				fields["fabric_stop"] = nil
+			case "base":
+				stop["probe_cpu_base"] = uint64(0x20010400)
+			case "span":
+				stop["probe_span"] = 256
+			case "maintenance":
+				stop["maintenance"] = "reset-unobserved"
+			case "scope":
+				stop["scope"] = "claimed-drain"
+			case "unknown":
+				stop["permission"] = true
+			}
+			raw, err := json.Marshal(fields)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if fault == "duplicate" {
+				raw = bytes.Replace(raw, []byte(`"probe_span":128`), []byte(`"probe_span":128,"probe_span":128`), 1)
+			}
+			raw = append(raw, '\n')
+			context := ddrContextFixture(t)
+			if fault == "onchip" {
+				context = hpsContextFixture(t)
+			}
+			calls := 0
+			v, err := NewHPSContextVerifier(controlProbeCPU(t, nil, -1, &calls), context)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = v.checkedControlMap(raw)
+			if (err == nil) != (fault == "pass") || calls != 0 {
+				t.Fatal(fault, err, calls)
 			}
 		})
 	}

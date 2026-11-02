@@ -119,16 +119,23 @@ class HPSContextTests(unittest.TestCase):
         ddr=dict(self.descriptor,programming_profile='de25-embedded-hps-first-ddr-diagnostic-v1',control_abi=0x10203041)
         header_profile={'sd_pio':True,'chain_sha256':'a'*64,'owner_seed':1,'entry_image_sha256':'b'*64,'entry_image_size':128,
                         'hps_context':ddr,'hps_context_sha256':context.digest(ddr),
-                        'hps_control':{'cpu_base':0x20010400},'hps_control_sha256':'c'*64,
+                        'hps_control':{'cpu_base':0x20010400,'fabric_stop':{'scope':'sealed-ddr-master-stop-v1',
+                            'probe_cpu_base':0x20010100,'probe_span':128,'maintenance':'held-reset-from-configuration'}},'hps_control_sha256':'c'*64,
                         'hps_configuration':dict(mapping,core_sha384='d'*96),
                         'hps_reader_memory':memory,'hps_reader_memory_sha256':context.digest(memory)}
         header=cold.header(header_profile)
         self.assertIn('#define FES_NANO_READER_CPU_BASE 0x95000000ULL',header)
         self.assertIn('#define FES_NANO_READER_BUS_BASE 0x95000000ULL',header)
         self.assertIn('#define FES_NANO_READER_ARENA_BYTES 2097152U',header)
+        self.assertIn('#define FES_NANO_PROBE_CPU_BASE 0x20010100UL',header)
+        self.assertIn('#define FES_NANO_PROBE_SPAN 128U',header)
         for key,value in (('sd_pio',False),('hps_control',None),('hps_configuration',None),
                           ('hps_context',self.descriptor),('hps_reader_memory_sha256','0'*64)):
             with self.subTest(key=key),self.assertRaises(ValueError):cold.header(dict(header_profile,**{key:value}))
+        for stop in (None,{},dict(header_profile['hps_control']['fabric_stop'],probe_cpu_base=0x20010400),
+                     dict(header_profile['hps_control']['fabric_stop'],maintenance='reset-unobserved')):
+            with self.subTest(stop=stop),self.assertRaisesRegex(ValueError,'complete master stop map'):
+                cold.header(dict(header_profile,hps_control=dict(header_profile['hps_control'],fabric_stop=stop)))
         with tempfile.TemporaryDirectory() as temp:
             entry=Path(temp);image=entry/'entry.img';image.write_bytes(bytes(64))
             receipt={'status':'built','target':'de25-nano','entry_image_address':0x96080000,
@@ -299,6 +306,35 @@ assert callable(prepare_nano_owned.function)
                         self.assertEqual(mapping['handoff_sha256'],digest)
                     else:
                         with self.assertRaises(ValueError):context._control(project)
+        for fault in ('pass','inventory','probe-route','probe-base','probe-span','probe-width'):
+            with self.subTest(ddr=fault),tempfile.TemporaryDirectory() as temp:
+                project=Path(temp);hps=project/'board/hps';(hps/'project/qsys_top').mkdir(parents=True)
+                xml=ET.fromstring(fixture.read_bytes())
+                route=ET.fromstring(ET.tostring(next(c for c in xml if c.get('start')=='subsys_periph_pb_cpu_0.m0')))
+                route.set('end','subsys_periph_fes_ddr_probe.avs')
+                parameter(route,'baseAddress').text='0x10200' if fault=='probe-route' else '0x10100'
+                xml.append(route)
+                lw=next(c for c in xml if c.get('start')=='subsys_hps_agilex_hps.lwhps2fpga')
+                address_map=ET.fromstring(parameter(lw,'addressMapSysInfo').text)
+                probe=next(s for s in address_map if s.get('name')=='subsys_periph.fes_ddr_probe.avs')
+                if fault=='probe-base':probe.set('start','0x10104')
+                if fault=='probe-span':probe.set('end','0x10184')
+                if fault=='probe-width':probe.set('datawidth','64')
+                parameter(lw,'addressMapSysInfo').text=ET.tostring(address_map,encoding='unicode')
+                raw=ET.tostring(xml);digest=hashlib.sha256(raw).hexdigest()
+                (hps/'project/qsys_top/qsys_top.sopcinfo').write_bytes(raw)
+                (hps/'generation.json').write_text(json.dumps({'top_system_handoff':'qsys_top/qsys_top.sopcinfo','sha256':digest}))
+                (hps/'build.json').write_text(json.dumps({'generated_handoff_and_sdc_sha256':{'qsys_top/qsys_top.sopcinfo':digest}}))
+                ddr=dict(self.descriptor,programming_profile='de25-embedded-hps-first-ddr-diagnostic-v1',control_abi=0x10203041)
+                with patch.object(context,'_derive',return_value=ddr),patch.object(context,'_fabric_stop_inventory',
+                        side_effect=ValueError('inventory differs') if fault=='inventory' else None) as inventory:
+                    if fault=='pass':
+                        m=context._control(project)
+                        self.assertEqual(m['fabric_stop'],{'scope':'sealed-ddr-master-stop-v1','probe_cpu_base':0x20010100,
+                                                         'probe_span':128,'maintenance':'held-reset-from-configuration'})
+                    else:
+                        with self.assertRaises(ValueError):context._control(project)
+                    inventory.assert_called_once_with(project)
 
     def test_control_map_cannot_be_added_omitted_or_changed_outside_dedicated_image(self):
         mapping=json.loads((ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-control.json').read_bytes())

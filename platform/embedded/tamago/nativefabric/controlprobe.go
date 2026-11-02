@@ -15,16 +15,24 @@ import (
 )
 
 type hpsControlMap struct {
-	Format              int    `json:"format"`
-	Scope               string `json:"scope"`
-	ArchitecturalLWBase uint64 `json:"architectural_lw_base"`
-	BridgeBase          uint64 `json:"bridge_base"`
-	PeripheralOffset    uint64 `json:"peripheral_offset"`
-	Span                uint64 `json:"span"`
-	CPUBase             uint64 `json:"cpu_base"`
-	HandoffSHA256       string `json:"handoff_sha256"`
-	PackageID           string `json:"package_id"`
-	BuildID             string `json:"build_id"`
+	Format              int               `json:"format"`
+	Scope               string            `json:"scope"`
+	ArchitecturalLWBase uint64            `json:"architectural_lw_base"`
+	BridgeBase          uint64            `json:"bridge_base"`
+	PeripheralOffset    uint64            `json:"peripheral_offset"`
+	Span                uint64            `json:"span"`
+	CPUBase             uint64            `json:"cpu_base"`
+	HandoffSHA256       string            `json:"handoff_sha256"`
+	PackageID           string            `json:"package_id"`
+	BuildID             string            `json:"build_id"`
+	FabricStop          *hpsFabricStopMap `json:"fabric_stop,omitempty"`
+}
+
+type hpsFabricStopMap struct {
+	Scope        string `json:"scope"`
+	ProbeCPUBase uint64 `json:"probe_cpu_base"`
+	ProbeSpan    uint64 `json:"probe_span"`
+	Maintenance  string `json:"maintenance"`
 }
 
 // FPGAIdentityObservation records a secure CPU read with control reclosed.
@@ -61,7 +69,24 @@ func (v *HPSContextVerifier) checkedControlMap(raw []byte) (hpsControlMap, error
 		return hpsControlMap{}, err
 	}
 	canonical, err := json.Marshal(fields)
-	if err != nil || len(fields) != 10 || !bytes.Equal(raw, append(canonical, '\n')) ||
+	count := 10
+	if v.context.ProgrammingProfile == HPSFirstDDRDiagnosticProfile {
+		count++
+		if m.FabricStop == nil || *m.FabricStop != (hpsFabricStopMap{"sealed-ddr-master-stop-v1", 0x20010100, 128, "held-reset-from-configuration"}) {
+			return hpsControlMap{}, errors.New("native fabric: sealed complete master stop map required")
+		}
+		var stopFields map[string]json.RawMessage
+		if json.Unmarshal(fields["fabric_stop"], &stopFields) != nil || len(stopFields) != 4 {
+			return hpsControlMap{}, errors.New("native fabric: incomplete master stop map")
+		}
+		encoded, err := json.Marshal(stopFields)
+		if err != nil || !bytes.Equal(encoded, fields["fabric_stop"]) {
+			return hpsControlMap{}, errors.New("native fabric: noncanonical master stop map")
+		}
+	} else if m.FabricStop != nil {
+		return hpsControlMap{}, errors.New("native fabric: master stop map requires DDR source")
+	}
+	if err != nil || len(fields) != count || !bytes.Equal(raw, append(canonical, '\n')) ||
 		m.Format != 1 || m.Scope != "sealed-lw-identity-probe-v1" || m.ArchitecturalLWBase != 0x20000000 || m.BridgeBase != 0 ||
 		m.PeripheralOffset != uint64(v.context.PeripheralOffset) || m.Span != uint64(v.context.PeripheralSpan) ||
 		m.CPUBase != m.ArchitecturalLWBase+m.PeripheralOffset || !nonzeroDigest(m.HandoffSHA256) ||

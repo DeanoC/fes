@@ -755,10 +755,21 @@ management-status read still responds with CONF_DONE and INIT_DONE clear.
 The diagnostic supplies no HPS reconfiguration state or core-load acceptance;
 the physical cause remains open.
 
-This source-bound cold profile is a hardware-qualification candidate. No
-contained physical transfer is accepted yet. It enables neither an active
-reader nor data bridges, secondary CPUs, active drain, runtime package
-admission or repeated core launch/return. The production oracle continues to
+The source-bound cold DDR configuration profile now binds the complete fixed
+FPGA master-stop inventory to its compiled control map. Its secure callbacks
+check the live reader identity/window and maintenance reset, stop the main
+reader and inherited DDR probe, and require matching independent receipts
+before closing control. Initial closed observations cover the cold HPS masters
+without reading fabric; a completed stop receipt remains owned after control
+closes, without MMIO through the reset aperture. Actual C/RTL and strong-provider
+tests cover idle, active, missing-response and ownership/failure paths.
+
+This new DDR profile remains a hardware-qualification candidate. It enables
+neither an active reader nor data bridges, secondary CPUs, runtime package
+admission or repeated core launch/return. The callbacks' software evidence
+does not establish physical DDR drain, memory attributes or firewalls. A matched
+DDR serial observer and bounded hardware read/drain/reclose remain open; prior
+on-chip evidence does not qualify this profile. The production oracle continues to
 reject this diagnostic target, and `HPSContextVerifier` does not implement
 `BootHandoffVerifier`.
 

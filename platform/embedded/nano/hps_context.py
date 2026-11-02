@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import struct
 import sys
+from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
@@ -28,7 +29,8 @@ def digest(context):
 
 
 def inputs():
-    return [Path(__file__), PROTOTYPE/'verify.py', PROTOTYPE/'seal.py', PROTOTYPE/'reader_memory.py',
+    return [Path(__file__), PROTOTYPE/'verify.py', PROTOTYPE/'seal.py', PROTOTYPE/'reader_memory.py', PROTOTYPE/'build.py',
+            ROOT/'sources/misteross/boards/de25nano/hps/build.py', ROOT/'sources/misteross/boards/de25nano/build.py',
             PROTOTYPE.parent/'embedded_control/producer.py',
             ROOT/'sources/misteross/scripts/core_package.py',
             ROOT/'sources/misteross/scripts/export_core_package.py',
@@ -218,9 +220,53 @@ def _control(project):
     # Altera Agilex 5 GSRD, MPU lightweight HPS-to-FPGA address map:
     # https://altera-fpga.github.io/rel-25.1/embedded-designs/agilex-5/e-series/premium/gsrd/ug-gsrd-agx5e-premium/#lightweight-hps-to-fpga-address-map
     base=0x20000000
-    return {'format':1,'scope':'sealed-lw-identity-probe-v1','architectural_lw_base':base,
+    result={'format':1,'scope':'sealed-lw-identity-probe-v1','architectural_lw_base':base,
             'bridge_base':bridge,'peripheral_offset':offset,'span':end-start,'cpu_base':base+bridge+offset,
             'handoff_sha256':sha,'package_id':context['package_id'],'build_id':context['build_id']}
+    if context['programming_profile']=='de25-embedded-hps-first-ddr-diagnostic-v1':
+        _fabric_stop_inventory(Path(project))
+        route=parameters('subsys_periph_pb_cpu_0.m0','subsys_periph_fes_ddr_probe.avs')
+        probes=[s for s in slaves if s.get('name')=='subsys_periph.fes_ddr_probe.avs']
+        if (len(probes)!=1 or int(route['baseAddress'],0)!=0x10100 or
+                int(probes[0].get('start'),0)!=0x10100 or int(probes[0].get('end'),0)!=0x10180 or
+                probes[0].get('datawidth')!='32'):
+            raise ValueError('inherited DDR probe control route differs')
+        result['fabric_stop']={'scope':'sealed-ddr-master-stop-v1','probe_cpu_base':base+0x10100,
+                               'probe_span':128,'maintenance':'held-reset-from-configuration'}
+    return result
+
+
+def _fabric_stop_inventory(project):
+    """Recheck the generated complete inventory, not a claimed receipt flag."""
+    def load(name,path):
+        spec=importlib.util.spec_from_file_location(name,path)
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        return module
+    builder=load('native_fabric_stop_builder',PROTOTYPE/'build.py')
+    hps_tools=load('native_fabric_stop_hps',ROOT/'sources/misteross/boards/de25nano/hps/build.py')
+    hps=project/'board/hps';record=json.loads((hps/'inputs.json').read_text())
+    source=record['functional_snapshot_sha256'];memory=record['reader_memory']
+    if memory!={'backend':'hps-ddr','bus_base':0x95000000,'bytes':8192}:
+        raise ValueError('master stop requires the fixed DDR diagnostic')
+    board=SimpleNamespace(JTAG_CONTROL_BRIDGE_BASE=record['embedded_control']['jtag_bridge_base'])
+    proof=builder.verify_control(hps/'project',hps_tools,board,memory)
+    if (proof['maintenance_masters']!='held-reset-from-configuration' or
+            proof['other_ddr_master']!='fes_ddr_probe; independent cancel/drain required'):
+        raise ValueError('complete DDR master stop inventory missing')
+    # Verify the tied reset expression and the generated inherited probe against
+    # the very same source snapshot accepted by _derive. No arbitrary generated
+    # source may supply the IDLE/maintenance observations used by the callback.
+    local=hps/'project/fes_mailbox'
+    endpoint=(local/'fes_de25_embedded.sv').read_text()
+    if endpoint.count('assign maintenance_reset_n = !DDR_MODE;')!=1:
+        raise ValueError('maintenance reset constant source differs')
+    generated=hps/'project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ddr_probe/fes_de25_ddr_probe_10/synth'
+    for name in ('fes_de25_ddr_probe.v','generated/fes_de25_ddr_probe.vh'):
+        expected=source['sources/misteross/boards/de25nano/hps/'+name]
+        for path in (local/name,generated/name):
+            if hashlib.sha256(path.read_bytes()).hexdigest()!=expected:
+                raise ValueError('inherited DDR probe source differs from sealed inventory')
+    return proof
 
 
 def checked(record, program_key='program'):

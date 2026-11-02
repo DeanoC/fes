@@ -67,7 +67,8 @@ def sources():
                             'nano_owned_sip.inc','prepare_nano_owned.py','prepare_tfa.py','nano_digest.py',
                             'nano_mailbox.py','nano_mailbox_observe.inc','nano_mailbox_observe.h','nano_mailbox_status.inc',
                             'nano_bridge_sip.c','nano_bridge_sip.h','generated/fes_embedded_bridges.h',
-                            'nano_identity.c','nano_identity.h','nano_configuration.c','nano_configuration.h','nano_smmu.c','nano_smmu.h','generated/fes_embedded_control.h',
+                            'nano_identity.c','nano_identity.h','nano_configuration.c','nano_configuration.h','nano_smmu.c','nano_smmu.h',
+                            'nano_fabric_stop.c','nano_fabric_stop.h','nano_probe_stop.c','nano_probe_stop.h','generated/fes_de25_ddr_probe.h','generated/fes_embedded_control.h',
                             'generated/fes_embedded_control.hpp','nano_bridge_diag.h','nano_bridge_diag.inc',
                             'build_terasic.py','build_terasic_uboot.py','verify.py')]
 
@@ -130,12 +131,18 @@ def header(profile):
                 profile['hps_context']['programming_profile']!='de25-embedded-hps-first-ddr-diagnostic-v1' or
                 profile.get('hps_reader_memory_sha256')!=hps_context.digest(reader_memory)):
             raise ValueError('cold reader memory requires its source-bound DDR configuration profile')
+        stop=control.get('fabric_stop')
+        if stop!={'scope':'sealed-ddr-master-stop-v1','probe_cpu_base':0x20010100,
+                  'probe_span':128,'maintenance':'held-reset-from-configuration'}:
+            raise ValueError('cold DDR reader requires the sealed complete master stop map')
         extra+=('#define FES_NANO_READER_CPU_BASE '+hex(reader_memory['cpu_base'])+'ULL\n'
                 '#define FES_NANO_READER_BUS_BASE '+hex(reader_memory['bus_base'])+'ULL\n'
                 '#define FES_NANO_READER_BYTES '+str(reader_memory['bytes'])+'U\n'
                 '#define FES_NANO_READER_ARENA_BYTES '+str(reader_memory['arena_bytes'])+'U\n'
                 '#define FES_NANO_READER_MAP_SHA '+array(profile['hps_reader_memory_sha256'])+'\n'
-                '#define FES_NANO_READER_PATTERN_SHA '+array(reader_memory['pattern_sha256'])+'\n')
+                '#define FES_NANO_READER_PATTERN_SHA '+array(reader_memory['pattern_sha256'])+'\n'
+                '#define FES_NANO_PROBE_CPU_BASE '+hex(stop['probe_cpu_base'])+'UL\n'
+                '#define FES_NANO_PROBE_SPAN '+str(stop['probe_span'])+'U\n')
     return ('/* Generated, same source-bound diagnostic chain in SPL and BL31. */\n'
             +extra+
             '#define FES_NANO_SMMU_BOOT_OBSERVE '+str(int(smmu))+'\n'
