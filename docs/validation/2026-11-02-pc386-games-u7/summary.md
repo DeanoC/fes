@@ -92,12 +92,15 @@ combined #1373 + #1391 tree, and the kit runs on that package.
 | Check | Result |
 | --- | --- |
 | `a20` suite, oracle CPU ([report](a20-report.json)) | Pass. Boot image: the 27 checks as before. Games image: `xms-start`, `xms-query`, `xms-global` (3 + 3), `xms-lock` (3 + 3), `DONE`, all ok. HIMEMX: "Fast A20 method used". |
+| `a20` suite, RTL CPU ([report](a20-rtl-report.json)) | Pass, both images, every line ok, with 0 oracle steps on either: what `rtl_failures` now requires of this run (Codex's P1, fixed in `21fc68592`; the run predates the fix, and its report passes the new check). Boot image: the 27 checks, one CPU reset. The four INT 15h AH=87h moves enter protected mode on the RTL (4 entries, 68 retirements with PE set), where #1391's run on main's CPU handed them to the oracle. Games image: the 15 checks, and HIMEMX says "Fast A20 method used"; 1 protected-mode entry (HIMEMX's). |
 | RTL machine sim, games image, `mem` typed (`boot --image games --cpu rtl --type 'mem\|' --expect 'Largest executable program size'`, [report](boot-games-rtl-report.json)) | Pass. HIMEMX: "Fast A20 method used". The prompt at 2.40 s and MEM's output by 3.65 s: 573K conventional, 154K upper, 15,360K of XMS with 159K used (FreeCOM's swap) and 15,201K free. All 98,307,014 instructions retired on the RTL: 0 oracle steps, 1 protected-mode entry and 6 retirements with PE set (HIMEMX's INT 0Dh handler). FESENV, CTMOUSE and MEM ran through FreeCOM's XMS swap. The VGA replay matches Bochs's VGA in every event and frame. |
 | `system_tb` (`pc386_system`, RTL CPU, no oracle), games image, `--seed 1 --exercise-input 0` ([report](system-games-report.json)) | Pass. The disk is a scratch copy of the games image (`abea6710…`) whose AUTOEXEC.BAT starts with the bench's write-test lines (`PATH C:\` then `VER`), then runs the image's own lines and MEM. HIMEMX: "Fast A20 method used". `C:\>` at 2.90 s after 47,715,125 instructions, MEM showing 15,360K of XMS with 15,201K free. Every check passes: the bench's disk write, the dirty map, the save, the record and its round trip. The input exercise is off because the disk has no INPUT.COM. |
 | `system` suite, the bench's own boot fixture ([report](system-report.json)) | Pass. `C:\>` at 3.31 s after 55,718,724 instructions; the typed echo, INPUT.COM's mouse and key codes, the dirty map, the save, the record and its round trip all check. |
+| `system` suite at 386DX-25 (`--preset 3`, [report](system-preset3-report.json)) | Pass. The governor held the CPU (`governed=1`); `C:\>` at 4.22 s, and every check passes. The #1372 bench gap (a hold inside a port-2 capture burst) did not occur on this run. |
 | `sim-fes-pc386-fesenv` (`boot --image games`, oracle CPU, `set` typed, [report](boot-games-fesenv-report.json)) | Pass. `BLASTER=A220 I7 D1 T3` at the prompt (3.70 s); the VGA replay matches. CI's PR tier doesn't run this target, and it boots the changed image. |
-| `tests.test_pc386_machine` | 33 tests pass, on the merge and again after the change. |
-| CI on `6d4c86227` | Green: consistency, fpga-producer, the pc386 simulation lane, integration, parent tests, simulation tools. |
+| `tests.test_pc386_machine` | Pass: 33 tests on the merge and after the change, and the A20 tests again with the P1 fix's new test. |
+| CI | Green on `6d4c86227`: consistency, fpga-producer, the pc386 simulation lane, integration, parent tests, simulation tools. |
+| Codex | One P1 on `d3cb4c239` (an RTL A20 run could pass with oracle steps), fixed in `21fc68592` with a unit test; clean on `21fc68592`. |
 
 ## Seal
 
