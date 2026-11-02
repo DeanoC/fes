@@ -239,6 +239,12 @@ finished, so it gives no result either way.
 | `test_fes_i386_governor.py` ([report](governor-bench-report.json)) | Pass, equal to slice 2's report (`10956ac5c`) field for field |
 | `test_fes_i386_test386.py --cpu rtl` ([report](test386-rtl-report.json)) | As slice 2: POST codes 00h-06h and 08h, no error; POST 08h's set-up then turns paging on (`mov cr0, eax`), which stops as not built (`WHY_PAGING`) after 793,777 retirements |
 
+`make test-changed` against #1411's head `3f8687ed0` (at `9abfcb26d`, whose
+RTL and testbench are the merge's) passes every lane it plans: the
+planner's tests, committed and working whitespace, the parent Python
+regressions, generated-consumer consistency and misteross's tests (1,627,
+74 skipped).
+
 ## Quartus seal
 
 `make build-fes-pc386-quartus` at seed 1 from a clean checkout of
