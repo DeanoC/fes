@@ -1,0 +1,143 @@
+{
+  "Powerboat_archive_copy": {
+    "archive_bytes": 1349025146,
+    "archive_sha256": "9c9d6165b9b9e122512f0275bf0b0cb6ec27ca15be905d5e99931b9d645bc761",
+    "classification": "Powerboat archive copy and full SHA verification, after independent remote archive/source/public-reader restoration; no native or FPGA acceptance",
+    "files": 6839,
+    "hardware_access": "not-performed",
+    "local_directory": "/home/deano/fes/out/artifacts/de25-board-visibility/1a511f589/retained-compiled",
+    "metadata_revision": "96116fb8de6d36809ec25898b5ce3254b50fe79d",
+    "seconds": 12.364,
+    "source_revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d",
+    "status": "passed"
+  },
+  "compiled": {
+    "classification": "Independent archive/source restore plus actual public source, timing, topology, constraint, client and ELF readers; no hardware acceptance",
+    "client_cases": 34,
+    "clients": null,
+    "compiled": {
+      "archive_sha256": "9c9d6165b9b9e122512f0275bf0b0cb6ec27ca15be905d5e99931b9d645bc761",
+      "archive_size": 1349025146,
+      "files": 6839
+    },
+    "cores": {
+      "MENU": {
+        "SDCs": {
+          "fes_combined/sys_pll/altera_iopll_2110/synth/sys_pll_altera_iopll_2110_msdzeyq.sdc": "70e5595b0ccdda88b2d9c7409a2c26ee77b067e1ca7eece57b5b41465cfe510a",
+          "fes_mailbox/clocks.sdc": "8fe73ee828a23aace5c6dca2e2ef01959d2ceebdd9f6ab72be4f5a640c32c591",
+          "fes_mailbox/fes_de25_top.sdc": "bfeec4459f58d8287a55119b899bd663805942f7d51e915bc7c8e2dc7d77c2e7",
+          "ghrd_timing.sdc": "abf34be146818993465c0757c799689afc1d87f1eccd43ca5918be613b12ac80",
+          "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/agilex_hps_intel_sundancemesa_hps_100_672uiai.sdc": "c53df63e8434bd17abbaf58ecba294c6bda5e81fd7955fcff4689f1d070c9a76",
+          "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+          "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+          "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/emif_io96b_lpddr4_510/synth/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy.sdc": "9f42be22d4612c50f1891115968f61f6003411c1b915354568af3417f494def7",
+          "ip/pll/altera_iopll_2110/synth/pll_altera_iopll_2110_xltklsq.sdc": "987cf8dab4b956a89ab135c4dfb3e8bdef08523ca7a6cf7b144de83833b95b35",
+          "ip/qsys_top/user_rst_clkgate_0/intel_user_rst_clkgate_101/synth/intel_user_rst_clkgate_agilex.sdc": "5996a3812dce6289c2597c26e9539aa214a71dd42ace89fbfc28ac4979f21ebf",
+          "jtag.sdc": "02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a",
+          "jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+          "jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+          "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+          "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+          "jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+          "jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+          "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ctrl_cdc/st_dc_fifo_1953/synth/peripheral_subsys_fes_ctrl_cdc_st_dc_fifo_1953_phmrs5y.sdc": "51728a39f80e496f7b883c44869dfe9b60a2997cf5f7dbb9aa93b633a99211b5",
+          "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mem_cdc/st_dc_fifo_1953/synth/peripheral_subsys_fes_mem_cdc_st_dc_fifo_1953_phmrs5y.sdc": "d4b6cfe106c519ab97cab890a9a8dda19112f314002f9859ebbfcee6d8aa0378",
+          "peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166",
+          "qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "5ee450b6da0e63a0f1f805401370c13de7fefa7122bf066c940f30fbbbfe8166"
+        },
+        "build": {
+          "build_id": "9e172e513f826cb8449f855f3e51e767",
+          "classification": "de25-menu-compile-candidate",
+          "hardware_acceptance": false,
+          "normal_kit_acceptance": false,
+          "package_timing_admission": false,
+          "rbf_sha256": "1daa8512195eae0bb1706bf116fb90ab0d57ddfd1ce37975880f2ac8e1e67915",
+          "revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d"
+        },
+        "raw_findings": {
+          "RDC-50003": 2,
+          "TMC-20011": 2,
+          "TMC-20012": 30
+        },
+        "rules": 85,
+        "source_inputs": 377,
+        "timing_checks": 69
+      },
+      "ZX81": {
+        "SDCs": {
+          "fes_mailbox/clocks.sdc": "a960719325f9b222dc2b4a7bb0ab878aea71e8c466647910b33bd0d6a5fd5f7c",
+          "fes_mailbox/fes_de25_top.sdc": "bfeec4459f58d8287a55119b899bd663805942f7d51e915bc7c8e2dc7d77c2e7",
+          "ghrd_timing.sdc": "abf34be146818993465c0757c799689afc1d87f1eccd43ca5918be613b12ac80",
+          "hps_subsys/ip/hps_subsys/agilex_hps/intel_sundancemesa_hps_100/synth/agilex_hps_intel_sundancemesa_hps_100_akzbaji.sdc": "c53df63e8434bd17abbaf58ecba294c6bda5e81fd7955fcff4689f1d070c9a76",
+          "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+          "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "bc33f9a046966d3c47097408eabb3874865689bafc461396b8d3118dfeb047d6",
+          "hps_subsys/ip/qsys_top/emif_io96b_hps/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/synth/ip/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4/emif_io96b_lpddr4_510/synth/emif_io96b_hps_emif_io96b_hps_510_z7xh4ha_emif_0_lpddr4_emif_io96b_lpddr4_510_r23assy.sdc": "9f42be22d4612c50f1891115968f61f6003411c1b915354568af3417f494def7",
+          "ip/pll/altera_iopll_2110/synth/pll_altera_iopll_2110_xltklsq.sdc": "987cf8dab4b956a89ab135c4dfb3e8bdef08523ca7a6cf7b144de83833b95b35",
+          "ip/qsys_top/user_rst_clkgate_0/intel_user_rst_clkgate_101/synth/intel_user_rst_clkgate_agilex.sdc": "5996a3812dce6289c2597c26e9539aa214a71dd42ace89fbfc28ac4979f21ebf",
+          "jtag.sdc": "02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a",
+          "jtag_subsys/ip/jtag_subsys/fpga_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+          "jtag_subsys/ip/jtag_subsys/fpga_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "bc33f9a046966d3c47097408eabb3874865689bafc461396b8d3118dfeb047d6",
+          "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+          "jtag_subsys/ip/jtag_subsys/hps_f2sdram/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "bc33f9a046966d3c47097408eabb3874865689bafc461396b8d3118dfeb047d6",
+          "jtag_subsys/ip/jtag_subsys/hps_m/altera_jtag_dc_streaming_191/synth/altera_avalon_st_jtag_interface.sdc": "cac36d552c963acf54fa79b8cf14c211e99d449f45f5e87b095bb4ba1fa91e40",
+          "jtag_subsys/ip/jtag_subsys/hps_m/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "bc33f9a046966d3c47097408eabb3874865689bafc461396b8d3118dfeb047d6",
+          "peripheral_subsys/peripheral_subsys/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "bc33f9a046966d3c47097408eabb3874865689bafc461396b8d3118dfeb047d6",
+          "qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.sdc": "bc33f9a046966d3c47097408eabb3874865689bafc461396b8d3118dfeb047d6",
+          "sys_pll/altera_iopll_2110/synth/sys_pll_altera_iopll_2110_msdzeyq.sdc": "70e5595b0ccdda88b2d9c7409a2c26ee77b067e1ca7eece57b5b41465cfe510a"
+        },
+        "build": {
+          "build_id": "9fea2f1e44d09a8d98794704bc0fd9ee",
+          "classification": "de25-zx81-compile-candidate",
+          "hardware_acceptance": false,
+          "normal_kit_acceptance": false,
+          "package_timing_admission": false,
+          "rbf_sha256": "3816afb17b195f48553f8ab35cbc762c341abf437ccefa731d40b60fff5a8f8d",
+          "revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d"
+        },
+        "raw_findings": {
+          "TMC-20011": 2,
+          "TMC-20012": 30
+        },
+        "rules": 85,
+        "source_inputs": 577,
+        "timing_checks": 41
+      }
+    },
+    "hardware_access": "not-performed",
+    "internal_source_files": 104,
+    "permissions": "Original archive modes verified; extraction modes must equal Python data_filter output, which removes group/other write bits.",
+    "reset_paths": 24,
+    "seconds": 6.909,
+    "shared_reset_paths": 136,
+    "source_restore": {
+      "fixture_bundle_sha256": "f929a0bd35149aa83ea1f53eadcac93231446298950f96f4e07730894c4b8785",
+      "independent_git_objects": true,
+      "producer_revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d",
+      "source_bundle_sha256": "c277f9172bf89ff7001ac52a6b78a85971d0a7316c9b45ad097e271c8b0eb8ae",
+      "source_revision": "96116fb8de6d36809ec25898b5ce3254b50fe79d",
+      "standalone_bundle_verified_from_empty_repository": true,
+      "standalone_source_bundle_sha256": "a7a6476a01af91f1cb2aa6daff9375740b47438270407963baf62118cdd4e461",
+      "status": "passed"
+    },
+    "status": "passed",
+    "total_seconds": 20.899,
+    "visibility_paths": 104
+  },
+  "focused_and_software": {
+    "archive_bytes": 239718,
+    "archive_sha256": "e061714f10b4780f85c33fe00a6f723e2611cb759289bf389b4384a9054247d9",
+    "classification": "Independent focused/complete software archive restore; full generic CycloneV failures and rejected live-log archive attempt retained",
+    "file_count": 38,
+    "hardware_access": "not-performed",
+    "permissions": "Original archive modes checked; extraction modes match Python data_filter output.",
+    "producer_revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d",
+    "seconds": 0.19,
+    "software_revision": "96116fb8de6d36809ec25898b5ce3254b50fe79d",
+    "status": "passed"
+  },
+  "hardware_acceptance": "not-run; all evidence remains compiled/model/restore scope",
+  "original_archive_failure": "The complete-source guard rejected a live supervisor log. The rejected archive/helper/job and streaming6834-file comparison are retained. A new archive selects only terminal logs; the same complete byte/mode guards pass.",
+  "producer_revision": "7656e1954f7e27d0dc3634f60e869f97cf14301d",
+  "software_revision": "96116fb8de6d36809ec25898b5ce3254b50fe79d",
+  "status": "passed"
+}

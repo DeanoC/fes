@@ -56,7 +56,26 @@ SAVE and reload twice, print 7, return to the editor 24 times and verify reload
 removes the intervening edit. All four 923-byte SAVE files have SHA-256
 `b4e6e04e3063149a0e7232f23e4aa24b96d0631d557920e97c65d1e01dfb3c71`.
 The branch-local combined proof fixture is copied verbatim from the actual
-14-case report. Complete affected software validation is pending on this fixture.
+14-case report. At software source `96116fb8de6d36809ec25898b5ce3254b50fe79d`,
+all 1,154 parent cases and 62 planner cases pass. The full FPGA aggregate has
+1,787 cases: 1,760 pass, 19 skip and eight fail. The DE25 audit verifies that
+these are exactly the previously user-excluded DE10/Cyclone V cases (seven
+M10K mapper checks and one PC/XT-specific elaborator), whose seven source files
+are unchanged. Every other executed case passes. The generic aggregate remains
+failed; no test-selection, warning or signoff gate is changed. The private
+Verilator 5.032 copy is hash-checked before and after use. The separate
+consistency check passes with 40 consumers, 42 fixture copies and no copied pins.
+
+The 6,839-file compiled/model archive (1,349,025,146 bytes) has SHA-256
+`9c9d6165b9b9e122512f0275bf0b0cb6ec27ca15be905d5e99931b9d645bc761`.
+It contains standalone source history, both complete compiled candidates,
+actual model binaries/SAVEs, reports, helpers and original failed wrappers.
+A fresh archive and source extraction verifies every byte and the safely
+filtered file modes, then passes the public source/topology/timing/client/ELF
+readers in 21.0 seconds. The source bundle verifies from an empty Git repository
+without alternates or older worktrees. The archive is also copied to Powerboat
+and its full SHA-256 verified. A separate focused/software archive restores
+and verifies the exact generic failure set and negative controls.
 
 The native owner-kernel card described in the [image preparation record](../2026-11-02-de25-native-owner-image/README.md)
 is written and fully read-back verified. No new native boot is observed here;
