@@ -1,0 +1,1089 @@
+{
+  "verification_status": "passed",
+  "hardware_result": "native-fetch-activity-and-reclosure-passed",
+  "classification": "native Z80 instruction-fetch bus observation, held master-stop and reclosure hardware diagnostic; no ordinary runtime/core acceptance",
+  "source_commit": "fa27960da8e52b6ef754bfc830b20544d1058826",
+  "native_build_source_commit": "726a16f4e2d979e68fb67e85e97c916e3e94ee4f",
+  "fpga_source_commit": "c272cb2b320740220fc2b7bb1c8dfd92a0ffe6f6",
+  "experiment_passed": true,
+  "serial": "TRWU8CBL",
+  "fresh_package_receipt_sha256": "637aa0619aa2195a24eec17fe1d3986561bdfe3d3508b19f8b17bafe9ab5e4c0",
+  "fresh_fit_receipt_sha256": "2cd0a54716bf28f8b44a3929fb21475820323dec60e3e5502f58b1cff057e36d",
+  "package_sd_writes": true,
+  "firmware_sd_writes": true,
+  "writes_limited_to_two_diagnostic_files": true,
+  "raw_console_sha256": "765231e37510f3f0519a37d63123cfbae23999c6fd674567cfefa1e725bcc98c",
+  "raw_bytes": 10130,
+  "decoded": {
+    "records": [
+      {
+        "stage": "spl",
+        "line": 2,
+        "values": {
+          "id": "829865a45111af8d"
+        }
+      },
+      {
+        "stage": "initial",
+        "line": 3,
+        "values": {
+          "cause": 4,
+          "per0": 4286562303,
+          "bridge": 79,
+          "cpus": 15,
+          "release": 0,
+          "kind": 4,
+          "valid": 1
+        }
+      },
+      {
+        "stage": "scope",
+        "line": 4,
+        "values": {
+          "mpidr": 2164260864,
+          "core": 0,
+          "cause": 4,
+          "cpus": 15,
+          "release": 0,
+          "timeouts": 0
+        }
+      },
+      {
+        "stage": "mmc",
+        "line": 28,
+        "values": {}
+      },
+      {
+        "stage": "fit",
+        "line": 29,
+        "values": {}
+      },
+      {
+        "stage": "spl_handoff",
+        "line": 35,
+        "values": {
+          "owner": 2527661457060447887,
+          "epoch": 5430267205,
+          "per0": 4286562239,
+          "bridge": 15,
+          "sd": 32964848
+        }
+      },
+      {
+        "stage": "spl_barrier_before",
+        "line": 36,
+        "values": {
+          "phase": "before"
+        }
+      },
+      {
+        "stage": "spl_barrier_after",
+        "line": 37,
+        "values": {
+          "phase": "after"
+        }
+      },
+      {
+        "stage": "spl_atf_entry",
+        "line": 38,
+        "values": {
+          "phase": "entry"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_before",
+        "line": 39,
+        "values": {
+          "phase": "hash-before"
+        }
+      },
+      {
+        "stage": "spl_atf_hash_after",
+        "line": 40,
+        "values": {
+          "phase": "hash-after"
+        }
+      },
+      {
+        "stage": "spl_atf",
+        "line": 41,
+        "values": {
+          "target": 2147483648,
+          "bl32": 0,
+          "bl33": 2149580800,
+          "fdt": 0,
+          "params": 3220176904,
+          "cold": 138904,
+          "cookie": 5066060512865812482,
+          "el": 3,
+          "mpidr": 2164260864,
+          "sctlr": 12912696,
+          "scr": 15,
+          "daif": 960,
+          "bytes": 81981,
+          "sha256": "c4e150fc2f39d2e9a833fe07e3f005493018d50236f0c539998eabd157a8b98f"
+        }
+      },
+      {
+        "stage": "el3_capture_before",
+        "line": 42,
+        "values": {
+          "phase": "before",
+          "pointer": 138904,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "el3_capture_after",
+        "line": 43,
+        "values": {
+          "phase": "after",
+          "pointer": 138904,
+          "cookie": 5066060512865812482
+        }
+      },
+      {
+        "stage": "provider",
+        "line": 49,
+        "values": {
+          "provider": 1,
+          "result": 0,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "sd_platform",
+        "line": 50,
+        "values": {
+          "setup": 1,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "uboot",
+        "line": 53,
+        "values": {
+          "id": "829865a45111af8d"
+        }
+      },
+      {
+        "stage": "dram",
+        "line": 57,
+        "values": {}
+      },
+      {
+        "stage": "prompt",
+        "line": 69,
+        "values": {}
+      },
+      {
+        "stage": "boot",
+        "line": 70,
+        "values": {
+          "id": "829865a45111af8d"
+        }
+      },
+      {
+        "stage": "memory",
+        "line": 71,
+        "values": {
+          "ram_top": 3221225472,
+          "sp": 3216373888,
+          "malloc_start": 3216408576,
+          "malloc_end": 3220611072,
+          "reloc": 3220611072,
+          "fdt": 3216383520
+        }
+      },
+      {
+        "stage": "before-entry",
+        "line": 78,
+        "values": {
+          "phase": "before-entry",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 2527661457060447887,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "after-remove",
+        "line": 87,
+        "values": {
+          "phase": "after-remove",
+          "status": 0,
+          "flags": 5062696002989850847,
+          "owner": 2527661457060447887,
+          "generation": 1
+        }
+      },
+      {
+        "stage": "live",
+        "line": 88,
+        "values": {
+          "affinity": 0,
+          "counter": 400000000,
+          "cpu0": 0,
+          "cpu1": 1,
+          "cpu2": 1,
+          "cpu3": 1,
+          "per0": 4286562239,
+          "bridge": 15
+        }
+      },
+      {
+        "stage": "handoff",
+        "line": 89,
+        "values": {}
+      },
+      {
+        "stage": "el2",
+        "line": 90,
+        "values": {}
+      },
+      {
+        "stage": "el1",
+        "line": 91,
+        "values": {}
+      },
+      {
+        "stage": "configuration_package",
+        "line": 92,
+        "values": {
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+          "owner": 2527661457060447887,
+          "sd_generation": 4
+        }
+      },
+      {
+        "stage": "reader_memory",
+        "line": 93,
+        "values": {
+          "cpu_base": 2499805184,
+          "bus_base": 2499805184,
+          "bytes": 8192,
+          "arena_bytes": 2097152,
+          "map_sha256": "302d8ad3aefe2abd129cf7d0976f8c2a92050923cb68b2ca8bef7adbbc89991e",
+          "pattern_sha256": "96f99b502ad38f7bad381abfbe0aed2e38521412958125acaeb4dc7c9cfa89da",
+          "owner": 2527661457060447887,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "hps_context",
+        "line": 94,
+        "values": {
+          "sha256": "e9fa95a8d645d900f4cb5b60d9aeaeae5da1c76145800cce9370004db3224def",
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+          "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+          "owner": 2527661457060447887,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "configuration_arm",
+        "line": 95,
+        "values": {
+          "phase": "arm",
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 30327225117,
+          "hash_ticks": 374342407
+        }
+      },
+      {
+        "stage": "configuration_start",
+        "line": 96,
+        "values": {
+          "phase": "start",
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 30888602950,
+          "hash_ticks": 748666930
+        }
+      },
+      {
+        "stage": "configuration_engine",
+        "line": 97,
+        "values": {
+          "credits": 4,
+          "block_bytes": 1048560,
+          "next_job": 0,
+          "owner": 2527661457060447887,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 98,
+        "values": {
+          "phase": 1,
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "completed": 0,
+          "pending": 0,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 99,
+        "values": {
+          "phase": "write",
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1048512,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 31648904533,
+          "hash_ticks": 1363236181
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 100,
+        "values": {
+          "phase": 2,
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1048512,
+          "job": 0,
+          "cin": 5,
+          "cout": 5,
+          "rin": 6,
+          "rout": 6,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_write",
+        "line": 101,
+        "values": {
+          "phase": "write",
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1646592,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 32573209167,
+          "hash_ticks": 1977162062
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 102,
+        "values": {
+          "phase": 2,
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1646592,
+          "job": 1,
+          "cin": 9,
+          "cout": 9,
+          "rin": 7,
+          "rout": 6,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 103,
+        "values": {
+          "phase": "poll",
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "completed": 0,
+          "pending": 1646592,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 33699948328,
+          "hash_ticks": 2727769021
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 104,
+        "values": {
+          "phase": 3,
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "completed": 1048512,
+          "pending": 598080,
+          "job": 2,
+          "cin": 13,
+          "cout": 13,
+          "rin": 8,
+          "rout": 7,
+          "bell": 1,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_poll",
+        "line": 105,
+        "values": {
+          "phase": "poll",
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "completed": 1048512,
+          "pending": 598080,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 34473400518,
+          "hash_ticks": 3239853664
+        }
+      },
+      {
+        "stage": "configuration_mailbox",
+        "line": 106,
+        "values": {
+          "phase": 3,
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "completed": 1646592,
+          "pending": 0,
+          "job": 2,
+          "cin": 13,
+          "cout": 13,
+          "rin": 8,
+          "rout": 8,
+          "bell": 0,
+          "status": 3288002639,
+          "state": 0,
+          "next": 0,
+          "slot": -1,
+          "cmd_used": 0,
+          "resp_used": 0
+        }
+      },
+      {
+        "stage": "configuration_status",
+        "line": 107,
+        "values": {
+          "phase": "status",
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "completed": 1646592,
+          "pending": 0,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 35245226886,
+          "hash_ticks": 3750696350
+        }
+      },
+      {
+        "stage": "configuration_complete",
+        "line": 108,
+        "values": {
+          "phase": "complete",
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "completed": 1646592,
+          "pending": 0,
+          "total": 1646592,
+          "base": 2491416576,
+          "counter": 35632722507,
+          "hash_ticks": 4126788547
+        }
+      },
+      {
+        "stage": "configuration_programmed",
+        "line": 109,
+        "values": {
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+          "core_sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0",
+          "bytes": 1646592,
+          "owner": 2527661457060447887,
+          "generation": 4
+        }
+      },
+      {
+        "stage": "fpga_query",
+        "line": 110,
+        "values": {}
+      },
+      {
+        "stage": "fpga_status",
+        "line": 111,
+        "values": {
+          "status": 0,
+          "words": 6,
+          "state": 0,
+          "version": 1704704,
+          "pins": 3221225609,
+          "soft": 3,
+          "error_location": 0,
+          "error_details": 15,
+          "ready": 1
+        }
+      },
+      {
+        "stage": "smmu",
+        "line": 112,
+        "values": {
+          "status": 0,
+          "reads": 26,
+          "idr0": 135233087,
+          "idr1": 242457880,
+          "aidr": 1,
+          "s_idr1": 2147483672,
+          "cr0": 0,
+          "ack": 0,
+          "gbpa": 0,
+          "agbpa": 0,
+          "s_cr0": 0,
+          "s_ack": 0,
+          "s_init": 0,
+          "s_gbpa": 0,
+          "s_agbpa": 0,
+          "identified": 1,
+          "settled": 1,
+          "bypass_controls_clear": 1
+        }
+      },
+      {
+        "stage": "ddr_firewall",
+        "line": 113,
+        "values": {
+          "status": 0,
+          "owner": 2527661457060447887,
+          "generation": 4,
+          "reset": 15,
+          "mpfe_reset": 0,
+          "reads": 66,
+          "enable": 1,
+          "base": 2499805184,
+          "bytes": 8192
+        }
+      },
+      {
+        "stage": "ddr_region_0",
+        "line": 114,
+        "values": {
+          "index": 0,
+          "base": 2148532224,
+          "baseext": 0,
+          "limit": 3221225471,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_1",
+        "line": 115,
+        "values": {
+          "index": 1,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_2",
+        "line": 116,
+        "values": {
+          "index": 2,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_3",
+        "line": 117,
+        "values": {
+          "index": 3,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_4",
+        "line": 118,
+        "values": {
+          "index": 4,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_5",
+        "line": 119,
+        "values": {
+          "index": 5,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_6",
+        "line": 120,
+        "values": {
+          "index": 6,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_region_7",
+        "line": 121,
+        "values": {
+          "index": 7,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      },
+      {
+        "stage": "ddr_firewall_end",
+        "line": 122,
+        "values": {
+          "layout_known": 1,
+          "window_covered": 1
+        }
+      },
+      {
+        "stage": "computer_activity_initial",
+        "line": 123,
+        "values": {
+          "phase": "initial",
+          "fetches": 0,
+          "address": 0
+        }
+      },
+      {
+        "stage": "computer_activity_initial-held",
+        "line": 124,
+        "values": {
+          "phase": "initial-held",
+          "fetches": 0,
+          "address": 0
+        }
+      },
+      {
+        "stage": "computer_activity_run",
+        "line": 125,
+        "values": {
+          "phase": "run",
+          "fetches": 38494,
+          "address": 975
+        }
+      },
+      {
+        "stage": "computer_activity_return",
+        "line": 126,
+        "values": {
+          "phase": "return",
+          "fetches": 260112,
+          "address": 984
+        }
+      },
+      {
+        "stage": "computer_activity_return-held",
+        "line": 127,
+        "values": {
+          "phase": "return-held",
+          "fetches": 260112,
+          "address": 984
+        }
+      },
+      {
+        "stage": "computer_activity_relaunch",
+        "line": 128,
+        "values": {
+          "phase": "relaunch",
+          "fetches": 298606,
+          "address": 975
+        }
+      },
+      {
+        "stage": "computer_activity_final",
+        "line": 129,
+        "values": {
+          "phase": "final",
+          "fetches": 327001,
+          "address": 978
+        }
+      },
+      {
+        "stage": "computer_activity_final-held",
+        "line": 130,
+        "values": {
+          "phase": "final-held",
+          "fetches": 327001,
+          "address": 978
+        }
+      },
+      {
+        "stage": "master_stop",
+        "line": 131,
+        "values": {
+          "status": 0,
+          "owner": 2527661457060447887,
+          "generation": 5,
+          "reset": 13,
+          "reader_reads": 88,
+          "reader_polls": 1,
+          "disable": 0,
+          "probe_polls": 2,
+          "cancel": 0,
+          "complete": 1
+        }
+      },
+      {
+        "stage": "computer_control",
+        "line": 132,
+        "values": {
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+          "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+          "base": 536937216,
+          "map_sha256": "e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743",
+          "owner": 2527661457060447887,
+          "generation": 6,
+          "execution_observed": 1
+        }
+      }
+    ],
+    "errors": [],
+    "loader_ready": true,
+    "complete": true,
+    "last_checkpoint": "computer_control",
+    "core_load_acceptance": false,
+    "atf_observation": {
+      "target": 2147483648,
+      "bl32": 0,
+      "bl33": 2149580800,
+      "fdt": 0,
+      "params": 3220176904,
+      "cold": 138904,
+      "cookie": 5066060512865812482,
+      "el": 3,
+      "mpidr": 2164260864,
+      "sctlr": 12912696,
+      "scr": 15,
+      "daif": 960,
+      "bytes": 81981,
+      "sha256": "c4e150fc2f39d2e9a833fe07e3f005493018d50236f0c539998eabd157a8b98f"
+    },
+    "smmu_observation": {
+      "status": 0,
+      "reads": 26,
+      "idr0": 135233087,
+      "idr1": 242457880,
+      "aidr": 1,
+      "s_idr1": 2147483672,
+      "cr0": 0,
+      "ack": 0,
+      "gbpa": 0,
+      "agbpa": 0,
+      "s_cr0": 0,
+      "s_ack": 0,
+      "s_init": 0,
+      "s_gbpa": 0,
+      "s_agbpa": 0,
+      "identified": 1,
+      "settled": 1,
+      "bypass_controls_clear": 1,
+      "secure_implemented": true,
+      "access_qualified": false
+    },
+    "ddr_firewall_observation": {
+      "status": 0,
+      "owner": 2527661457060447887,
+      "generation": 4,
+      "reset": 15,
+      "mpfe_reset": 0,
+      "reads": 66,
+      "enable": 1,
+      "base": 2499805184,
+      "bytes": 8192,
+      "regions": [
+        {
+          "index": 0,
+          "base": 2148532224,
+          "baseext": 0,
+          "limit": 3221225471,
+          "limitext": 0
+        },
+        {
+          "index": 1,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        },
+        {
+          "index": 2,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        },
+        {
+          "index": 3,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        },
+        {
+          "index": 4,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        },
+        {
+          "index": 5,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        },
+        {
+          "index": 6,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        },
+        {
+          "index": 7,
+          "base": 0,
+          "baseext": 0,
+          "limit": 65535,
+          "limitext": 0
+        }
+      ],
+      "layout_known": true,
+      "window_covered": true,
+      "access_qualified": false
+    },
+    "reader_memory_observation": {
+      "cpu_base": 2499805184,
+      "bus_base": 2499805184,
+      "bytes": 8192,
+      "arena_bytes": 2097152,
+      "map_sha256": "302d8ad3aefe2abd129cf7d0976f8c2a92050923cb68b2ca8bef7adbbc89991e",
+      "pattern_sha256": "96f99b502ad38f7bad381abfbe0aed2e38521412958125acaeb4dc7c9cfa89da",
+      "owner": 2527661457060447887,
+      "generation": 4,
+      "fpga_access_qualified": false
+    },
+    "master_stop_observation": {
+      "status": 0,
+      "owner": 2527661457060447887,
+      "generation": 5,
+      "reset": 13,
+      "reader_reads": 88,
+      "reader_polls": 1,
+      "disable": 0,
+      "probe_polls": 2,
+      "cancel": 0,
+      "complete": 1,
+      "physical_ddr_drain_qualified": false
+    },
+    "computer_control_observation": {
+      "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+      "build_id": "dda236646bb868e63c72bd0e777f3dd6",
+      "base": 536937216,
+      "map_sha256": "e6f40c8b236dfdeb1a41f09f04d87b932de8ff4fa9692f8339967a58503bc743",
+      "owner": 2527661457060447887,
+      "generation": 6,
+      "execution_observed": true,
+      "command_cycle_reported": true,
+      "runtime_admission": false
+    },
+    "computer_activity": {
+      "complete": true,
+      "kind": "z80-instruction-fetch-bus",
+      "counter_bits": 32,
+      "samples": [
+        {
+          "phase": "initial",
+          "fetches": 0,
+          "address": 0
+        },
+        {
+          "phase": "initial-held",
+          "fetches": 0,
+          "address": 0
+        },
+        {
+          "phase": "run",
+          "fetches": 38494,
+          "address": 975
+        },
+        {
+          "phase": "return",
+          "fetches": 260112,
+          "address": 984
+        },
+        {
+          "phase": "return-held",
+          "fetches": 260112,
+          "address": 984
+        },
+        {
+          "phase": "relaunch",
+          "fetches": 298606,
+          "address": 975
+        },
+        {
+          "phase": "final",
+          "fetches": 327001,
+          "address": 978
+        },
+        {
+          "phase": "final-held",
+          "fetches": 327001,
+          "address": 978
+        }
+      ],
+      "runtime_admission": false
+    },
+    "configuration_transfer": {
+      "complete": true,
+      "completed_bytes": 1646592,
+      "core_sha256": "e9255d3dc149e7db17f012c3032f8c1da245d913ded3947a2342034eb1927ac0",
+      "arena_base": 2491416576,
+      "arena_size": 8388608
+    },
+    "configuration_timing": {
+      "counter_frequency": 400000000,
+      "first_counter": 30327225117,
+      "last_counter": 35632722507,
+      "hash_ticks": 4126788547,
+      "interval_ticks": 5305497390,
+      "interval_hash_ticks": 3752446140
+    }
+  },
+  "uploads": {
+    "boot": {
+      "payload_sha256": "412ded5471e741cbb43d2a7ccc86a0dfde2ba158364e0ba15bf7b5951faff264",
+      "payload_bytes": 6606660,
+      "sd_readback_verified": true,
+      "boot_files_unchanged": true,
+      "recovery_manifest_unchanged": true
+    },
+    "package": {
+      "payload_sha256": "75a2cdfb38f9e61f41ebe2554ca30de6e8e367246d294d3d8f00c514dbf47b73",
+      "payload_bytes": 1649664,
+      "sd_readback_verified": true,
+      "boot_files_unchanged": true,
+      "recovery_manifest_unchanged": true
+    }
+  },
+  "fesboot_sent": true,
+  "computer_control_complete": true,
+  "execution_observed": true,
+  "computer_activity": {
+    "complete": true,
+    "kind": "z80-instruction-fetch-bus",
+    "counter_bits": 32,
+    "samples": [
+      {
+        "phase": "initial",
+        "fetches": 0,
+        "address": 0
+      },
+      {
+        "phase": "initial-held",
+        "fetches": 0,
+        "address": 0
+      },
+      {
+        "phase": "run",
+        "fetches": 38494,
+        "address": 975
+      },
+      {
+        "phase": "return",
+        "fetches": 260112,
+        "address": 984
+      },
+      {
+        "phase": "return-held",
+        "fetches": 260112,
+        "address": 984
+      },
+      {
+        "phase": "relaunch",
+        "fetches": 298606,
+        "address": 975
+      },
+      {
+        "phase": "final",
+        "fetches": 327001,
+        "address": 978
+      },
+      {
+        "phase": "final-held",
+        "fetches": 327001,
+        "address": 978
+      }
+    ],
+    "runtime_admission": false
+  },
+  "native_sd_writes": false,
+  "core_load_acceptance": false,
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "uart_free": true,
+  "private_server_stopped": true,
+  "claim_retained": true,
+  "factory_restore_requested": false,
+  "native_error": null,
+  "experiment_error": null,
+  "clock_evidence": "15M independently read back during owned private service cleanup before stopping that service"
+}

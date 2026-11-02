@@ -1,0 +1,17 @@
+{
+  "status": "verified",
+  "source_commit": "fa27960da8e52b6ef754bfc830b20544d1058826",
+  "scope": "one exclusive recovery console/session; two fixed writes/readbacks and fresh read-only FIT hash",
+  "activation": false,
+  "sd_write_attempted": true,
+  "started_utc": "2026-11-02T17:40:49.822988+00:00",
+  "active_purpose": "fresh-fit",
+  "upload_session": "5ea253d9eaced1c371071d6298d41cdf",
+  "boot_receipt_sha256": "b44afe688eb66af62b2855a6ac641e8f47d9aa1502566d30e01715bb65238ce3",
+  "package_receipt_sha256": "637aa0619aa2195a24eec17fe1d3986561bdfe3d3508b19f8b17bafe9ab5e4c0",
+  "fresh_fit_receipt_sha256": "2cd0a54716bf28f8b44a3929fb21475820323dec60e3e5502f58b1cff057e36d",
+  "session_closed": true,
+  "prompt_parked": true,
+  "console_closed": true,
+  "finished_utc": "2026-11-02T17:41:08.558187+00:00"
+}

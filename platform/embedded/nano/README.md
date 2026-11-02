@@ -23,10 +23,13 @@ target reset, changed reservation or new session cannot reuse the old scope.
 Concurrent operations and reused receipts reject before I/O. The
 [stopped hardware sequences](../../../docs/validation/2026-11-02-de25-native-fetch-trial/README.md)
 provide the real before/after LMB fixture: the earlier stateless uploader
-rejected the second transfer after a successful first download. This session
-fix currently has software evidence only; it does not establish native core
-execution or runtime admission, and the separate PHY startup timeout remains
-unexplained.
+rejected the second transfer after a successful first download. The
+[owned upload and native fetch trial](../../../docs/validation/2026-11-02-de25-native-fetch-hardware/README.md)
+now passes both uploads, the final reread and real native Z80 fetch activity
+across Run/Hold/relaunch, followed by complete master stop and owned reclosure.
+This remains a bounded native diagnostic; ordinary runtime core admission,
+Tenfoot launch/return, USB input and video acceptance stay open. The earlier
+separate PHY startup timeout's cause remains unexplained.
 
 Current matched cold builds also emit `FES_NANO_SPL ATF` immediately before
 branching into BL31. SPL checks the fixed loaded BL31 bytes against its compiled

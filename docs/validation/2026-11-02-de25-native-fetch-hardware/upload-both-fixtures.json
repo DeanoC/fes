@@ -1,0 +1,152 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "case": "positive",
+      "accepted": true,
+      "writes": 2,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    },
+    {
+      "case": "fit-hash",
+      "accepted": false,
+      "writes": 0,
+      "sessions": 0,
+      "session_retired": true,
+      "console_closed": false
+    },
+    {
+      "case": "package-hash",
+      "accepted": false,
+      "writes": 0,
+      "sessions": 0,
+      "session_retired": true,
+      "console_closed": false
+    },
+    {
+      "case": "recovery",
+      "accepted": false,
+      "writes": 0,
+      "sessions": 0,
+      "session_retired": true,
+      "console_closed": false
+    },
+    {
+      "case": "helper-hash",
+      "accepted": false,
+      "writes": 0,
+      "sessions": 0,
+      "session_retired": true,
+      "console_closed": false
+    },
+    {
+      "case": "first-phy",
+      "accepted": false,
+      "writes": 0,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    },
+    {
+      "case": "first-write",
+      "accepted": false,
+      "writes": 1,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    },
+    {
+      "case": "second-memory",
+      "accepted": false,
+      "writes": 1,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    },
+    {
+      "case": "second-marker",
+      "accepted": false,
+      "writes": 1,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    },
+    {
+      "case": "second-phy",
+      "accepted": false,
+      "writes": 1,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    },
+    {
+      "case": "second-write",
+      "accepted": false,
+      "writes": 2,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    },
+    {
+      "case": "second-readback",
+      "accepted": false,
+      "writes": 2,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    },
+    {
+      "case": "second-claim",
+      "accepted": false,
+      "writes": 1,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    },
+    {
+      "case": "fresh-length",
+      "accepted": false,
+      "writes": 2,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    },
+    {
+      "case": "fresh-hash",
+      "accepted": false,
+      "writes": 2,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    },
+    {
+      "case": "fresh-memory",
+      "accepted": false,
+      "writes": 2,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    },
+    {
+      "case": "fresh-marker",
+      "accepted": false,
+      "writes": 2,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    },
+    {
+      "case": "console-close",
+      "accepted": false,
+      "writes": 2,
+      "sessions": 1,
+      "session_retired": true,
+      "console_closed": true
+    }
+  ],
+  "helper_sha256": "23965a7120fd1204abd21ae83560b7d1588ff7b163462680b8857a928108aea6",
+  "public_session_sha256": "38bc67f8563876fe182e0f7e7385f45d9ec30ef332e2fefc1733f4c24f9c4d76",
+  "memory_contract_sha256": "29792e36f55d9a27a456cf5a16e0d94d6951960c3ee8bc6f1371d0d07b02d1f9"
+}
