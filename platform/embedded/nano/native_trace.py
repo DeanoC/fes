@@ -54,6 +54,12 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('el1', r'FES_ENTRY EL1 HANDOFF'),
     ('go', r'FES_NATIVE_GO_PROBE PASS os=tamago board=de25-nano'),
     ('hps_context', rf'FES_NATIVE_HPS_CONTEXT PASS sha256=(?P<sha256>[0-9a-f]{{64}}) package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) (?:runtime_)?programming=unavailable'),
+    ('cpu_mapping', r'FES_NATIVE_CPU_MAPPING PASS el=(?P<el>[0-3]) '+
+        ' '.join(key+r'=(?P<'+key+r'>[0-9a-f]{1,16})' for key in ('sctlr','tcr','root','mair','mmfr0','mpidr'))+' '+
+        ' '.join(key+r'=(?P<'+key+r'>'+('[0-9a-f]{1,16}' if key.endswith('_base') else '[0-9]{1,10}')+')'
+                 for key in ('ram_base','ram_bytes','control_base','control_bytes','dma_base','dma_bytes','reader_base','reader_bytes'))+
+        r' reads=(?P<reads>[0-9]{1,5}) translations=(?P<translations>[0-9]{1,5}) bytes=(?P<bytes>[0-9]{1,10}) descriptor_sha256=(?P<descriptor_sha256>[0-9a-f]{64}) '+
+        rf'owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) data_held=1 runtime_admission=unavailable'),
     ('hps_io_begin', rf'(?:NOTICE:[ \t]+)?FES_NANO_HPS_IO_BEGIN part=(?P<part>[01]) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) count=(?P<count>[0-9]{{1,3}}) busy=(?P<busy>[01])'),
     ('hps_io_row', r'(?:NOTICE:[ \t]+)?FES_NANO_HPS_IO_ROW pass=(?P<pass>[01]) index=(?P<index>[0-9]{1,3}) '+
         ' '.join(key+r'=(?P<'+key+r'>[0-9a-f]{1,8})' for key in ('offset','expected','observed'))),
@@ -91,8 +97,9 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
 DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter',
            'cpu0', 'cpu1', 'cpu2', 'cpu3', 'setup', 'ready', 'bytes', 'sectors', 'sd_generation', 'payload_bytes','words','ordinal',
            'reads','identified','settled','bypass_controls_clear','arena_bytes','reader_reads','reader_polls','disable','probe_polls','cancel','complete',
-           'index','layout_known','window_covered','mpfe_reset','fetches','execution_observed','part','pass','count','busy','error'}
-TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id','map_sha256','pattern_sha256'}
+           'index','layout_known','window_covered','mpfe_reset','fetches','execution_observed','part','pass','count','busy','error',
+           'ram_bytes','control_bytes','dma_bytes','reader_bytes','translations'}
+TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id','map_sha256','pattern_sha256','descriptor_sha256'}
 
 
 class _ComputerContinuation:
@@ -104,7 +111,7 @@ class _ComputerContinuation:
 
 def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, hps_io=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
-                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, capture_trace=True, atf=None, _continuation=None):
+                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, _continuation=None):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -180,6 +187,13 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     if type(configuration_storage) is not bool or (configuration_storage and
             (fpga_identity is None or not fpga_configuration or fpga_unready or fpga_status_only)):
         raise ValueError('stored configuration requires the complete FPGA configuration diagnostic')
+    if cpu_mapping is not None:
+        expected={'format':1,'scope':'pinned-tamago-el1-resources-v1','ram_base':0x84000000,'ram_bytes':256<<20,
+                  'control_base':0x20010400,'control_bytes':256,'dma_base':0x94800000,'dma_bytes':8<<20,
+                  'reader_base':0x95000000 if reader_memory else 0,'reader_bytes':2<<20 if reader_memory else 0}
+        if (not configuration_storage or not isinstance(cpu_mapping,dict) or cpu_mapping!=expected or
+                any(type(cpu_mapping[key]) is not int for key in expected if key!='scope')):
+            raise ValueError('source-derived native CPU mapping contract and stored configuration required')
     if reader_memory is not None:
         expected={'format':1,'scope':'sealed-cold-ddr-reader-memory-v1',
             'package_id':fpga_identity['package_id'] if fpga_identity else None,
@@ -244,6 +258,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             stages+=('ddr_blocked',)
     if smmu_observe:
         index=base_stages.index('provider');stages=base_stages[:index]+('smmu',)+base_stages[index:]
+    if cpu_mapping is not None and not continued:
+        index=stages.index('hps_context');stages=stages[:index]+('cpu_mapping',)+stages[index:]
     loader_stages=() if continued else stages[:stages.index('prompt')+1]
     report = {'records': [], 'errors': [], 'loader_ready': False, 'complete': False,
               'last_checkpoint': None, 'core_load_acceptance': False}
@@ -267,7 +283,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             match = pattern.fullmatch(line)
             if match is None:
                 continue
-            values = {key: value if key in TEXT else int(value, 10 if key in DECIMAL or name in ('reader_memory','master_stop','ddr_blocked','ddr_firewall','computer_control','hps_io_begin','hps_io_end') and key=='generation' else 16)
+            values = {key: value if key in TEXT else int(value, 10 if key in DECIMAL or name in ('reader_memory','master_stop','ddr_blocked','ddr_firewall','computer_control','hps_io_begin','hps_io_end','cpu_mapping') and key=='generation' else 16)
                       for key, value in match.groupdict().items()}
             if name=='computer_control' and not computer_activity and values['execution_observed']==0:
                 # Preserve the already retained control-only record shape.
@@ -300,7 +316,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             break
         else:
             if (line.startswith(('U-Boot ', 'FES_NANO_', 'FES_ENTRY', 'FES_NATIVE_GO_PROBE', 'FES_STORAGE_PROBE', 'FES_SD_PACKAGE_PROBE',
-                                 'FES_NATIVE_HPS_CONTEXT','FES_NATIVE_HPS_IO','FES_NATIVE_FPGA_IDENTITY','FES_NATIVE_FPGA_UNREADY','FES_NATIVE_FPGA_STATUS','FES_NATIVE_FPGA_PROGRAMMED','FES_NATIVE_COMPUTER_CONTROL','FES_NATIVE_COMPUTER_ACTIVITY', 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
+                                 'FES_NATIVE_HPS_CONTEXT','FES_NATIVE_HPS_IO','FES_NATIVE_CPU_MAPPING','FES_NATIVE_FPGA_IDENTITY','FES_NATIVE_FPGA_UNREADY','FES_NATIVE_FPGA_STATUS','FES_NATIVE_FPGA_PROGRAMMED','FES_NATIVE_COMPUTER_CONTROL','FES_NATIVE_COMPUTER_ACTIVITY', 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
                     line.startswith('NOTICE:') and 'FES_NANO_' in line):
                 report['errors'].append(f'malformed or unexpected probe marker at line {number}')
 
@@ -391,6 +407,21 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 'native HPS source context differs')
         require(matched_owner is not None and value['owner']==matched_owner and value['generation']==source_generation,
                 'native HPS source-context owner/generation differs')
+    if cpu_mapping is not None and 'cpu_mapping' in observed:
+        value=observed['cpu_mapping']
+        require(all(value[key]==cpu_mapping[key] for key in cpu_mapping if key not in ('format','scope')),
+                'native CPU resources differ from their compiled source')
+        require(value['el']==1 and value['sctlr']&0x1005==0x1005 and not value['sctlr']&(3<<24|1<<19|2) and
+                value['tcr']==0x200003519 and value['root']==cpu_mapping['ram_base']+0x4000 and value['mair']==0x44ff00 and
+                2<=value['mmfr0']&15<=6 and (value['mmfr0']>>28)&15<=1,
+                'native CPU translation state differs from the pinned contract')
+        require(scope is not None and value['mpidr']&AFFINITY_MASK==scope['mpidr']&AFFINITY_MASK and
+                matched_owner is not None and value['owner']==matched_owner and value['generation']==source_generation,
+                'native CPU resource observation lost CPU or secure ownership')
+        require(0<value['reads']<=16384 and 0<value['translations']<=16384 and int(value['descriptor_sha256'],16)!=0 and
+                value['bytes']==sum(cpu_mapping[key] for key in ('ram_bytes','control_bytes','dma_bytes','reader_bytes')),
+                'native CPU mapping observation is incomplete or exceeds its bound')
+        report['cpu_mapping_observation']=dict(value,scope='EL1-identity-mapping-only',runtime_admission=False)
     if hps_io is not None:
         for part in range(2):
             for kind in ('begin','end'):
@@ -561,7 +592,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     return report
 
 
-def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False, reader_memory=None, ddr_read=None, computer=None, computer_activity=False, atf=None,
+def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False, reader_memory=None, ddr_read=None, computer=None, computer_activity=False, cpu_mapping=None, atf=None,
                                 computer_reload=False, _continuation=None, _require_activation=False):
     """Observe a contained transfer followed by the selected reclosed probe.
 
@@ -579,14 +610,14 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
                 ddr_read is not None or _continuation is not None or _require_activation):
             raise ValueError('two-load diagnostic requires the selected stored held-data computer path')
         return decode_native_computer_reload(data,build_id,owner_seed,fpga_identity=fpga_identity,
-            configuration=configuration,reader_memory=reader_memory,computer=computer,atf=atf)
+            configuration=configuration,reader_memory=reader_memory,computer=computer,cpu_mapping=cpu_mapping,atf=atf)
     if ddr_read is not None:
         if from_storage is not True or reader_memory is None or computer is not None or computer_activity:
             raise ValueError('active DDR read requires the exact stored configuration and pinned memory')
         from ddr_trace import decode
         return decode(data,build_id,owner_seed,identity=fpga_identity,memory=reader_memory,contract=ddr_read,rules=dict(RULES),
             base_decode=lambda prefix:decode_native_configuration(prefix,build_id,owner_seed,fpga_identity=fpga_identity,
-                configuration=configuration,from_storage=from_storage,reader_memory=reader_memory,atf=atf))
+                configuration=configuration,from_storage=from_storage,reader_memory=reader_memory,cpu_mapping=cpu_mapping,atf=atf))
     if type(from_storage) is not bool:raise ValueError('configuration source must be selected by the checked build profile')
     if _continuation is not None and type(_continuation) is not _ComputerContinuation:
         raise ValueError('checked computer continuation required')
@@ -613,7 +644,7 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
         raise TypeError('serial bytes or text required')
     raw=data.encode() if isinstance(data,str) else bytes(data)
     if len(raw)>MAX_BYTES:
-        return decode_native_boot(raw,build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True,configuration_storage=from_storage,reader_memory=reader_memory,computer=computer,computer_activity=computer_activity,atf=atf,_continuation=_continuation)
+        return decode_native_boot(raw,build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True,configuration_storage=from_storage,reader_memory=reader_memory,computer=computer,computer_activity=computer_activity,cpu_mapping=cpu_mapping,atf=atf,_continuation=_continuation)
     activation=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_FABRIC_ACTIVATION owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) previous=(?P<previous>[0-9]{{1,20}}) rearm=(?P<rearm>[01]) complete=1 data_held=1')
     core=re.compile(rf'(?:NOTICE:[ \t]+)?FES_NANO_CORE_TRANSFER phase=(?P<phase>[A-Za-z]{{1,16}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) completed=(?P<completed>[0-9]{{1,10}}) pending=(?P<pending>[0-9]{{1,10}}) total=(?P<total>[0-9]{{1,10}}) base=(?P<base>{H})(?: counter=(?P<counter>{H}) hash_ticks=(?P<hash_ticks>{H}))?')
     programmed=re.compile(rf'FES_NATIVE_FPGA_PROGRAMMED PASS package_id=(?P<package_id>[0-9a-f]{{64}}) core_sha256=(?P<core_sha256>[0-9a-f]{{64}}) bytes=(?P<bytes>[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) data_held=1 activation=unavailable')
@@ -738,7 +769,7 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
             programmed_row={'stage':'configuration_programmed','line':index+1,'values':values}
             extra.append(programmed_row);last='programmed';parts[index]=b''
     if _require_activation and complete:require(activation_row is not None,'completed reload is missing fresh fabric activation')
-    report=decode_native_boot(b'\n'.join(parts),build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True,configuration_storage=from_storage,reader_memory=reader_memory,computer=computer,computer_activity=computer_activity,atf=atf,_continuation=_continuation)
+    report=decode_native_boot(b'\n'.join(parts),build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True,configuration_storage=from_storage,reader_memory=reader_memory,computer=computer,computer_activity=computer_activity,cpu_mapping=cpu_mapping,atf=atf,_continuation=_continuation)
     observed={row['stage']:row for row in report['records']}
     source=observed.get('hps_context');query=observed.get('fpga_query')
     if extra:
@@ -769,7 +800,7 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
     return report
 
 
-def decode_native_computer_reload(data, build_id, owner_seed, *, fpga_identity, configuration, reader_memory, computer, atf=None):
+def decode_native_computer_reload(data, build_id, owner_seed, *, fpga_identity, configuration, reader_memory, computer, cpu_mapping=None, atf=None):
     """Check one cold boot and two framed fixed-package computer load/returns.
 
     The second phase inherits only the first verified return's owner and exact
@@ -786,7 +817,7 @@ def decode_native_computer_reload(data, build_id, owner_seed, *, fpga_identity, 
     begin=re.compile(rf'FES_NATIVE_FPGA_CYCLE BEGIN cycle=(?P<cycle>[12]) count=2 owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}})')
     end=re.compile(r'FES_NATIVE_FPGA_CYCLE END cycle=(?P<cycle>[12]) count=2')
     options=dict(fpga_identity=fpga_identity,configuration=configuration,from_storage=True,
-                 reader_memory=reader_memory,computer=computer,computer_activity=True,atf=atf,_require_activation=True)
+                 reader_memory=reader_memory,computer=computer,computer_activity=True,cpu_mapping=cpu_mapping,atf=atf,_require_activation=True)
     def require(condition,reason):
         if not condition:report['errors'].append(reason)
     def phase(frame,stop,ended):
@@ -871,11 +902,11 @@ def decode_native_computer_reload(data, build_id, owner_seed, *, fpga_identity, 
     return report
 
 
-def decode_native_reader_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False, atf=None):
+def decode_native_reader_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False, cpu_mapping=None, atf=None):
     """Require the contained transfer, exact reader recipe and reclosed identity."""
     captured=extract_reader_trace(data)
     report=decode_native_configuration(captured['stripped'],build_id,owner_seed,
-                                      fpga_identity=fpga_identity,configuration=configuration,from_storage=from_storage,atf=atf)
+                                      fpga_identity=fpga_identity,configuration=configuration,from_storage=from_storage,cpu_mapping=cpu_mapping,atf=atf)
     rows={row['stage']:row for row in report['records']}
     source=rows.get('hps_context')
     reader={'complete':False,'errors':[],'records':[]}

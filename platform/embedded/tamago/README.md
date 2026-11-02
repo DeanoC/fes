@@ -19,6 +19,10 @@ playable ROMs. Physical core launch and FPGA programming are unavailable.
 
 The separate `probe` program checks time, goroutine scheduling, allocation/GC
 and TamaGo's volatile in-memory filesystem.
+The QEMU-only `mapcheck` program checks live EL1 CPU state, page tables and
+hardware translations for its heap, UART and uncached DMA, then checks an
+unaligned DMA copy. It uses the same [mapping implementation](board/arm64map/README.md)
+as the Nano transport; its success is emulator evidence.
 
 Board selection is now explicit: `--board qemu` (default) runs the emulated
 hardware drivers; `--board de25-nano --profile FILE` cross-builds the separate
@@ -63,6 +67,10 @@ retains `FES/PKGTEST.BIN` through owned SD/FAT, contains SD, and
 then checks the actual staged bytes under that closed ownership. The core RBF
 is no longer embedded in the native executable. Private preparation captures
 the contained SD generation and rejects a resumed or changed storage handoff.
+Before that first transfer it requires a source-derived live CPU mapping
+observation covering Go RAM, control, configuration DMA and reader memory.
+Actual MMIO and configuration calls also check mappings around each operation;
+uncertain results retain storage and reject further progress.
 The same `ConfigurationTransfer` engine used by the runtime then drives the contained
 firmware protocol, followed by readiness and live identity with control
 reclosed. This one-shot cold profile grants no runtime compatibility or data

@@ -40,6 +40,12 @@ func (a *ConfigurationArena) Reserve(source []byte) (*Region, error) {
 	if a.failed || (a.active != nil && !a.ready) || len(source) == 0 || len(source) > len(a.memory) {
 		return nil, errors.New("native fabric: configuration arena lease unavailable")
 	}
+	// The board's ordering hook also validates its live mapping. Reject a
+	// changed resource before the first write to a new or completed lease.
+	if err := a.barrier(); err != nil {
+		a.failed = true
+		return nil, err
+	}
 	owned := bytes.Clone(source)
 	region := &Region{Address: a.address, Bytes: a.memory[:len(owned):len(owned)]}
 	a.active, a.ready = region, false

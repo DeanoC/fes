@@ -8,6 +8,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 )
 
@@ -28,9 +29,21 @@ func ReserveReaderMemory(source []byte) (*nativefabric.Region, error) {
 	if err := InitDevices(); err != nil {
 		return nil, err
 	}
+	ranges := []arm64map.Range{{Base: profileReaderMemoryBase, Bytes: profileReaderMemoryArenaBytes, Kind: arm64map.Uncached}}
+	before, err := arm64map.Verify(profileRAMStart, profileRAMSize, ranges)
+	if err != nil {
+		return nil, err
+	}
 	data := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(profileReaderMemoryBase))), len(source))
 	copy(data, source)
 	memoryBarrier()
 	readerMemoryRegion = &nativefabric.Region{Address: profileReaderMemoryBase, Bytes: data}
+	after, err := arm64map.Verify(profileRAMStart, profileRAMSize, ranges)
+	if err != nil {
+		return nil, err
+	}
+	if before != after {
+		return nil, errors.New("DE25: reader mapping changed while publishing memory")
+	}
 	return readerMemoryRegion, nil
 }

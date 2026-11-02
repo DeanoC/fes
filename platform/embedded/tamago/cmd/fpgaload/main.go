@@ -95,6 +95,22 @@ func main() {
 	if err != nil {
 		panic(err) // Board reservation remains pinned, including constructor errors.
 	}
+	resources, err := de25nano.ObserveFabricResources()
+	if err != nil {
+		panic(err)
+	}
+	afterResources, err := v.Verify(id)
+	if err != nil {
+		panic(err)
+	}
+	if source != afterResources {
+		panic("CPU resource observation changed secure source ownership")
+	}
+	cpuObservation := resources.Mapping
+	fmt.Printf("FES_NATIVE_CPU_MAPPING PASS el=%d sctlr=%x tcr=%x root=%x mair=%x mmfr0=%x mpidr=%x ram_base=%x ram_bytes=%d control_base=%x control_bytes=%d dma_base=%x dma_bytes=%d reader_base=%x reader_bytes=%d reads=%d translations=%d bytes=%d descriptor_sha256=%x owner=%x generation=%d data_held=1 runtime_admission=unavailable\n",
+		cpuObservation.CPU.EL>>2, cpuObservation.CPU.SCTLR, cpuObservation.CPU.TCR, cpuObservation.CPU.TTBR0, cpuObservation.CPU.MAIR, cpuObservation.CPU.MMFR0, cpuObservation.CPU.MPIDR,
+		resources.RAMBase, resources.RAMBytes, resources.ControlBase, resources.ControlBytes, resources.DMABase, resources.DMABytes,
+		resources.ReaderBase, resources.ReaderBytes, cpuObservation.TableReads, cpuObservation.Translations, cpuObservation.Bytes, cpuObservation.DescriptorSHA256, source.Bridges.Owner, source.Bridges.Generation)
 	if expectedComputerMap != "" {
 		if expectedDDRReadMap != "" {
 			panic("computer control cannot share an active DDR diagnostic")

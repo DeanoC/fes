@@ -103,6 +103,11 @@ a fresh lease only after the preceding transfer has checked every completion,
 final bytes and successful status and invoked Release. It never unmaps memory;
 outstanding or uncertain leases cannot be overwritten. Stale/duplicate callbacks
 cannot release a later lease, and copy/ordering failures retire the arena.
+The Nano's ordering hook also checks its live EL1 translation state and mapping
+before copying, after copying and before Release. Its transport brackets FPGA
+MMIO and configuration firmware calls with identical observations from the
+shared [ARM64 mapper](../board/arm64map/README.md). These checks supply no
+physical ownership or ordinary runtime permission.
 
 `PrepareReconfiguration` and `NewReconfigurationTransfer` use private operation
 11 to request another transfer of that same compiled source after a newer owned

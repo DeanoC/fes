@@ -120,11 +120,18 @@ class HPSContextTests(unittest.TestCase):
         ddr=dict(self.descriptor,programming_profile='de25-embedded-hps-first-ddr-diagnostic-v1',control_abi=0x10203041)
         header_profile={'sd_pio':True,'chain_sha256':'a'*64,'owner_seed':1,'entry_image_sha256':'b'*64,'entry_image_size':128,
                         'hps_context':ddr,'hps_context_sha256':context.digest(ddr),
-                        'hps_control':{'cpu_base':0x20010400,'fabric_stop':{'scope':'sealed-ddr-master-stop-v1',
+                        'hps_control':{'cpu_base':0x20010400,'span':256,'fabric_stop':{'scope':'sealed-ddr-master-stop-v1',
                             'probe_cpu_base':0x20010100,'probe_span':128,'maintenance':'held-reset-from-configuration'}},'hps_control_sha256':'c'*64,
                         'hps_configuration':dict(mapping,core_sha384='d'*96),
                         'hps_reader_memory':memory,'hps_reader_memory_sha256':context.digest(memory)}
+        header_profile['cpu_mapping']=context.cpu_mapping(header_profile['hps_control'],header_profile['hps_configuration'],memory)
+        header_profile['cpu_mapping_sha256']=context.digest(header_profile['cpu_mapping'])
         header=cold.header(header_profile)
+        for key,value in (('cpu_mapping',None),('cpu_mapping_sha256','0'*64),
+                          ('cpu_mapping',dict(header_profile['cpu_mapping'],format=True)),
+                          ('cpu_mapping',dict(header_profile['cpu_mapping'],dma_base=0x94000000))):
+            with self.subTest(cpu_contract=key,value=value),self.assertRaises(ValueError):
+                cold.header(dict(header_profile,**{key:value}))
         self.assertIn('#define FES_NANO_READER_CPU_BASE 0x95000000ULL',header)
         self.assertIn('#define FES_NANO_READER_BUS_BASE 0x95000000ULL',header)
         self.assertIn('#define FES_NANO_READER_ARENA_BYTES 2097152U',header)
@@ -162,7 +169,8 @@ class HPSContextTests(unittest.TestCase):
             with patch.object(cold.hps_context,'checked',return_value=ddr), \
                     patch.object(cold.hps_context,'checked_control',return_value={'compiled':True}), \
                     patch.object(cold.hps_context,'checked_configuration',return_value=mapping), \
-                    patch.object(cold.hps_context,'checked_reader_memory',return_value=memory):
+                    patch.object(cold.hps_context,'checked_reader_memory',return_value=memory), \
+                    patch.object(cold.hps_context,'checked_cpu_mapping',return_value=header_profile['cpu_mapping']):
                 for exclusion in (None,[memory['cpu_base'],memory['cpu_base']+memory['bytes']],memory_range):
                     receipt['staging_exclusions']=[config_range]+([exclusion] if exclusion else [])
                     (entry/'result.json').write_text(json.dumps(receipt))

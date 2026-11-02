@@ -49,16 +49,16 @@ func TestConfigurationArenaReusesOnlyCompletedLease(t *testing.T) {
 }
 
 func TestConfigurationArenaRetainsFailedCopyAndCompletion(t *testing.T) {
-	for _, mode := range []string{"copy-barrier", "copy-mutation", "release-barrier"} {
+	for _, mode := range []string{"before-copy", "copy-barrier", "copy-mutation", "release-barrier"} {
 		t.Run(mode, func(t *testing.T) {
 			memory := make([]byte, 256)
 			calls := 0
 			arena, err := NewConfigurationArena(0x94800000, memory, func() error {
 				calls++
-				if mode == "copy-mutation" && calls == 1 {
+				if mode == "copy-mutation" && calls == 2 {
 					memory[0] ^= 1
 				}
-				if mode == "copy-barrier" || mode == "release-barrier" && calls == 2 {
+				if mode == "before-copy" || mode == "copy-barrier" && calls == 2 || mode == "release-barrier" && calls == 3 {
 					return errors.New("ordering unavailable")
 				}
 				return nil
@@ -74,7 +74,11 @@ func TestConfigurationArenaRetainsFailedCopyAndCompletion(t *testing.T) {
 			} else if err == nil || region != nil {
 				t.Fatal("uncertain copy published", err)
 			}
-			if !arena.failed || arena.active == nil {
+			if mode == "before-copy" {
+				if !arena.failed || arena.active != nil || !bytes.Equal(memory, make([]byte, 256)) {
+					t.Fatal("failed mapping guard wrote or exposed a lease")
+				}
+			} else if !arena.failed || arena.active == nil {
 				t.Fatal("uncertain region not retained")
 			}
 			before := bytes.Clone(memory)
@@ -82,8 +86,10 @@ func TestConfigurationArenaRetainsFailedCopyAndCompletion(t *testing.T) {
 			if _, err := arena.Reserve([]byte{0x34}); err == nil || !bytes.Equal(memory, before) || calls != oldCalls {
 				t.Fatal("failed arena reused")
 			}
-			if err := arena.active.Release(); err == nil || calls != oldCalls {
-				t.Fatal("failed completion replayed")
+			if arena.active != nil {
+				if err := arena.active.Release(); err == nil || calls != oldCalls {
+					t.Fatal("failed completion replayed")
+				}
 			}
 		})
 	}

@@ -480,6 +480,38 @@ def checked_configuration(record, program_key='program'):
     return expected
 
 
+def cpu_mapping(control_map, configuration_map, reader_map):
+    """Expected EL1 resource layout, never a CPU or physical-memory grant."""
+    if (not isinstance(control_map,dict) or not {'cpu_base','span'}<=set(control_map) or
+            not isinstance(configuration_map,dict) or not {'base','size'}<=set(configuration_map) or
+            reader_map is not None and (not isinstance(reader_map,dict) or not {'arena_base','arena_bytes'}<=set(reader_map))):
+        raise ValueError('complete source-derived CPU resource inputs required')
+    fields={'ram_base':0x84000000,'ram_bytes':256<<20,
+            'control_base':control_map['cpu_base'],'control_bytes':control_map['span'],
+            'dma_base':configuration_map['base'],'dma_bytes':configuration_map['size'],
+            'reader_base':reader_map['arena_base'] if reader_map else 0,
+            'reader_bytes':reader_map['arena_bytes'] if reader_map else 0}
+    if (any(type(v) is not int for v in fields.values()) or
+            (fields['control_base'],fields['control_bytes'],fields['dma_base'],fields['dma_bytes'])!=(0x20010400,256,0x94800000,8<<20) or
+            (fields['reader_base'],fields['reader_bytes']) not in ((0,0),(0x95000000,2<<20))):
+        raise ValueError('unsupported source-derived native CPU resource layout')
+    return dict(format=1,scope='pinned-tamago-el1-resources-v1',**fields)
+
+
+def checked_cpu_mapping(record, program_key='program'):
+    keys=('cpu_mapping','cpu_mapping_sha256')
+    if record.get(program_key)!='fpgaload':
+        if any(record.get(key) is not None for key in keys):
+            raise ValueError('native CPU mapping contract requires the dedicated FPGA load image')
+        return None
+    configuration_map=checked_configuration(record,program_key)
+    reader_map=checked_reader_memory(record,program_key)
+    expected=cpu_mapping(record['hps_control'],configuration_map,reader_map)
+    if record.get(keys[0])!=expected or encode(record[keys[0]])!=encode(expected) or record.get(keys[1])!=digest(expected):
+        raise ValueError('native CPU mapping contract differs from the selected resources')
+    return expected
+
+
 def checked_reader_memory(record, program_key='program'):
     keys = ('hps_reader_memory', 'hps_reader_memory_sha256')
     if record.get(program_key) != 'fpgaload':

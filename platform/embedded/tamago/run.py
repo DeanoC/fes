@@ -56,7 +56,7 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("program", choices=("probe", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard", "network", "display", "fpga", "sdpackages", "bootcontext", "hpsio", "fpgacontext", "fpgastatus", "fpgaload"))
+    parser.add_argument("program", choices=("probe", "mapcheck", "fabric", "packages", "admission", "play", "tenfoot", "storage", "keyboard", "network", "display", "fpga", "sdpackages", "bootcontext", "hpsio", "fpgacontext", "fpgastatus", "fpgaload"))
     parser.add_argument("--compiler", required=True, type=Path)
     parser.add_argument("--qemu", type=Path)
     parser.add_argument("--board", choices=("qemu", "de25-nano"), default="qemu")
@@ -341,13 +341,24 @@ def main():
         record.update(elf_machine="AArch64", elf_interpreter=None)
         checked("image-go-version", [compiler, "version", "-m", elf], native=True)
         display = args.display or ("sdl" if args.interactive else "none")
-        if args.program in ("probe", "fabric", "storage"):
+        if args.program in ("probe", "mapcheck", "fabric", "storage"):
             if args.program == "storage":
                 lock_disk()
                 record["disk"] = {"path": str(disk), "before_sha256": sha(disk)}
             with Guest(qemu, elf, output / "boot-1", command_record, disk=disk if args.program == "storage" else None, display=display) as guest:
-                marker = {"probe": "FES_NATIVE_GO_PROBE PASS", "fabric": "FES_FABRIC_MODEL PASS", "storage": "FES_STORAGE_PROBE PASS"}[args.program]
+                marker = {"probe": "FES_NATIVE_GO_PROBE PASS", "mapcheck": "FES_NATIVE_CPU_MAP PASS", "fabric": "FES_FABRIC_MODEL PASS", "storage": "FES_STORAGE_PROBE PASS"}[args.program]
                 guest.wait(lambda text: marker in text, args.timeout, "diagnostic completion")
+                if args.program == 'mapcheck':
+                    pattern=(r'FES_NATIVE_CPU_MAP PASS el=1 sctlr=([0-9a-f]{1,16}) tcr=200003519 root=40004000 mair=44ff00 '
+                             r'mmfr0=([0-9a-f]{1,16}) mpidr=([0-9a-f]{1,16}) reads=([0-9]{1,5}) translations=([0-9]{1,5}) '
+                             r'bytes=402653188 descriptor_sha256=([0-9a-f]{64}) mapping_only=1\r?\n')
+                    guest.wait(lambda text: re.search(pattern,text) is not None,args.timeout,'complete native CPU mapping observation')
+                    rows=re.findall(pattern,guest.text)
+                    if len(rows)!=1 or any(int(rows[0][i])<=0 for i in (3,4)) or int(rows[0][5],16)==0:
+                        raise RuntimeError('native CPU mapping observation is incomplete or differs from the QEMU contract')
+                    record['cpu_mapping_observation']={'sctlr':int(rows[0][0],16),'mmfr0':int(rows[0][1],16),
+                        'mpidr':int(rows[0][2],16),'table_reads':int(rows[0][3]),'translations':int(rows[0][4]),
+                        'descriptor_sha256':rows[0][5],'mapping_only':True,'physical_admission':False}
             if args.program == "storage":
                 record["disk"]["after_sha256"] = sha(disk)
                 if record["disk"]["before_sha256"] != record["disk"]["after_sha256"]:

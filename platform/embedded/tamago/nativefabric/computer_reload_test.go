@@ -77,10 +77,8 @@ func TestNativeReloadJoinsPinnedArenaTransferComputerAndReturn(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			barriers := 0
 			arena, err := NewConfigurationArena(0x94800000, make([]byte, 256), func() error {
-				barriers++
-				if fault == "release" && barriers == 4 {
+				if fault == "release" && cpu.configurations == 2 {
 					return errors.New("uncertain completion ordering")
 				}
 				return nil

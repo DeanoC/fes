@@ -94,6 +94,8 @@ def embedded_producer_check_input(path):
 def native_fabric_input(path):
     return (embedded_control_input(path) or
             path.startswith(('platform/embedded/tamago/embeddedcontrol/',
+                             'platform/embedded/tamago/board/arm64map/',
+                             'platform/embedded/tamago/board/de25nano/',
                              'platform/embedded/tamago/nativefabric/',
                              'platform/embedded/tamago/nativefabriccheck/',
                              'platform/embedded/tamago/fabricmodel/',

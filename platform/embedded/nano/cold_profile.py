@@ -51,6 +51,7 @@ def entry(entry_build):
     hps_context.checked_control(receipt,program_key='native_program')
     configuration=hps_context.checked_configuration(receipt,program_key='native_program')
     reader_memory=hps_context.checked_reader_memory(receipt,program_key='native_program')
+    hps_context.checked_cpu_mapping(receipt,program_key='native_program')
     hps_context.checked_ddr_read(receipt,program_key='native_program')
     hps_context.checked_computer(receipt,program_key='native_program')
     if context is not None and profile.name!=('sd-profile.json' if receipt.get('native_program')=='fpgaload' else 'probe-profile.json'):
@@ -85,6 +86,7 @@ def make(entry_build):
     control=hps_context.checked_control(build,program_key='native_program')
     configuration=hps_context.checked_configuration(build,program_key='native_program')
     reader_memory=hps_context.checked_reader_memory(build,program_key='native_program')
+    cpu_map=hps_context.checked_cpu_mapping(build,program_key='native_program')
     ddr_read=hps_context.checked_ddr_read(build,program_key='native_program')
     computer=hps_context.checked_computer(build,program_key='native_program')
     selected=sources()+ (hps_context.inputs() if context is not None else [])
@@ -102,6 +104,7 @@ def make(entry_build):
               'reference_sof_sha256':context['raw_sof_sha256'] if context else 'e71a72180cb77ddd05a9c2ae49afa739d74786f9366f00233fd27bbebff6ea09',
               'hps_context':context,'hps_context_sha256':hps_context.digest(context) if context else None,
               'hps_io':io_map,'hps_io_sha256':hps_context.digest(io_map) if io_map else None,
+              'cpu_mapping':cpu_map,'cpu_mapping_sha256':hps_context.digest(cpu_map) if cpu_map else None,
               'hps_control':control,'hps_control_sha256':hps_context.digest(control) if control else None,
               'hps_configuration':configuration,'hps_configuration_sha256':hps_context.digest(configuration) if configuration else None,
               'hps_reader_memory':reader_memory,'hps_reader_memory_sha256':hps_context.digest(reader_memory) if reader_memory else None,
@@ -141,6 +144,13 @@ def header(profile):
                 '#define FES_NANO_CONTROL_BUILD {'+','.join('0x'+build[i:i+8]+'U' for i in (24,16,8,0))+'}\n'
                 '#define FES_NANO_CONTROL_MAP_SHA '+array(profile['hps_control_sha256'])+'\n')
     configuration=profile.get('hps_configuration')
+    cpu_map=profile.get('cpu_mapping')
+    if configuration is not None:
+        expected=hps_context.cpu_mapping(control,configuration,profile.get('hps_reader_memory'))
+        if cpu_map!=expected or hps_context.encode(cpu_map)!=hps_context.encode(expected) or profile.get('cpu_mapping_sha256')!=hps_context.digest(expected):
+            raise ValueError('cold configuration requires its complete native CPU mapping contract')
+    elif cpu_map is not None or profile.get('cpu_mapping_sha256') is not None:
+        raise ValueError('native CPU mapping contract requires the cold configuration profile')
     if configuration is not None and (control is None or not profile['sd_pio']):
         raise ValueError('cold configuration requires the source-bound control and contained SD profile')
     extra+='#define FES_NANO_COLD_CONFIG '+str(int(configuration is not None))+'\n'

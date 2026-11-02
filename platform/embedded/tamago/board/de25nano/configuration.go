@@ -8,6 +8,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 )
 
@@ -34,11 +35,24 @@ func ReserveConfiguration(source []byte) (*nativefabric.Region, error) {
 			return nil, err
 		}
 		data := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(profileConfigurationBase))), profileConfigurationBytes)
-		arena, err := nativefabric.NewConfigurationArena(profileConfigurationBase, data, func() error { memoryBarrier(); return nil })
+		arena, err := nativefabric.NewConfigurationArena(profileConfigurationBase, data, configurationPublication)
 		if err != nil {
 			return nil, err
 		}
 		configurationArena = arena
 	}
 	return configurationArena.Reserve(source)
+}
+
+func configurationMapping() (arm64map.Observation, error) {
+	if profileConfigurationBase != 0x94800000 || profileConfigurationBytes != 8<<20 {
+		return arm64map.Observation{}, errors.New("DE25: configuration mapping unavailable")
+	}
+	return arm64map.Verify(profileRAMStart, profileRAMSize, []arm64map.Range{{Base: profileConfigurationBase, Bytes: profileConfigurationBytes, Kind: arm64map.Uncached}})
+}
+
+func configurationPublication() error {
+	memoryBarrier()
+	_, err := configurationMapping()
+	return err
 }

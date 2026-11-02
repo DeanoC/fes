@@ -743,6 +743,24 @@ store, contains SD and consumes the retained payload from RAM. The SDK, entry,
 SPL and BL31 validators rederive the descriptor; omitted or changed core bytes, maps and staging exclusions
 reject. The FPGA core payload is not rebuilt or modified by this path.
 
+The SDK also derives a `cpu_mapping` contract from those exact resource maps.
+Entry and the matched chain require its complete digest and reject omitted
+or substituted resources. Before the first transfer, the native image checks
+live EL1 CPU/MMU state, two complete descriptor samples and hardware read/write
+translations for Go RAM, the control window, configuration DMA and any reader
+arena. It prints `FES_NATIVE_CPU_MAPPING` under the unchanged secure owner and
+contained SD generation. The actual copy, configuration SMC and MMIO hooks
+also enforce the [mapping contract](../tamago/board/arm64map/README.md).
+These are EL1 mapping checks; physical RAM ownership, stage 2 disabled and
+firmware/controller readiness remain separate matched-boot obligations.
+
+Pass the independently checked `cpu_mapping` to the serial decoder for a new
+configuration build. It requires exactly one ordered observation before the
+first configuration, including in two-load mode. Its absence, changed CPU,
+address, attribute, owner or generation rejects completion. The second cycle
+retains the same reservation and must still provide fresh transfer and return
+evidence. A successful mapping report grants no ordinary runtime admission.
+
 Adding `--computer-control` selects the separate control-only ZX81 command
 experiment. It is mutually exclusive with `--ddr-read`. The producer derives
 the computer aperture, clocks/reset, internal-RAM parameter and capability

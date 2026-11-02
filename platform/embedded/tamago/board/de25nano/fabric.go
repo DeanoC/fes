@@ -6,6 +6,7 @@ package de25nano
 import (
 	"errors"
 
+	"github.com/DeanoC/fes/platform/embedded/tamago/board/arm64map"
 	g "github.com/DeanoC/fes/platform/embedded/tamago/embeddedcontrol/generated"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 )
@@ -20,19 +21,27 @@ func (FabricCPUTransport) ReadPhysical32(address uint64) (uint32, error) {
 	if address == 0 || address%4 != 0 || uint64(uintptr(address)) != address {
 		return 0, errors.New("DE25: invalid physical register address")
 	}
-	return load32(uintptr(address)), nil
+	return arm64map.WithStableMapping(func() (arm64map.Observation, error) { return deviceMapping(address) },
+		func() uint32 { return load32(uintptr(address)) })
 }
 func (FabricCPUTransport) WritePhysical32(address uint64, value uint32) error {
 	if address == 0 || address%4 != 0 || uint64(uintptr(address)) != address {
 		return errors.New("DE25: invalid physical register address")
 	}
-	store32(uintptr(address), value)
-	return nil
+	_, err := arm64map.WithStableMapping(func() (arm64map.Observation, error) { return deviceMapping(address) },
+		func() struct{} { store32(uintptr(address), value); return struct{}{} })
+	return err
+}
+
+func deviceMapping(address uint64) (arm64map.Observation, error) {
+	return arm64map.Verify(profileRAMStart, profileRAMSize, []arm64map.Range{{Base: address, Bytes: 4, Kind: arm64map.Device}})
 }
 func (FabricCPUTransport) Invoke(request [7]uint64) ([4]uint64, error) {
 	switch request[0] {
-	case 0xc2000300, 0xc2000001, 0x42000002, 0xc2000003, 0xc2000004:
+	case 0xc2000300:
 		return smc(request), nil
+	case 0xc2000001, 0x42000002, 0xc2000003, 0xc2000004:
+		return arm64map.WithStableMapping(configurationMapping, func() [4]uint64 { return smc(request) })
 	case uint64(g.FesEmbeddedSdCall):
 		if request[3] == uint64(g.FesEmbeddedSdCookie) && request[5] == 0 && request[6] == 0 {
 			return smc(request), nil

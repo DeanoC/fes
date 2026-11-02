@@ -53,7 +53,7 @@ def main():
     # Freeze the source set across compilation and execution. The generated
     # fixtures are independently built from the existing production oracle.
     files = set()
-    for directory in (HERE, TAMAGO / "embeddedcontrol", TAMAGO / "fabricmodel", TAMAGO / "nativefabriccheck", TAMAGO / "modelbackend", TAMAGO / "runtimeadmission", FIRMWARE):
+    for directory in (HERE, TAMAGO / "board/arm64map", TAMAGO / "embeddedcontrol", TAMAGO / "fabricmodel", TAMAGO / "nativefabriccheck", TAMAGO / "modelbackend", TAMAGO / "runtimeadmission", FIRMWARE):
         files.update(p for p in directory.rglob("*") if p.is_file() and p.suffix in (".go", ".py", ".cpp", ".hpp", ".h", ".c", ".inc"))
     files.update((TAMAGO / "go.mod", TAMAGO / "go.sum", FPGA / "cores/fes-common/rtl/fes_embedded_control.sv",
                   FPGA / "cores/fes-common/generated/fes_embedded_control.vh",
@@ -99,7 +99,7 @@ def main():
     run("session-fixtures", [helper, fixture_dir, output / "admission-oracle"])
 
     test_env = {"FES_EMBEDDED_RPC": str(rpc_dir / "Vfes_embedded_control"), "FES_MODEL_FIXTURES": str(fixture_dir)}
-    native_cases = ["./nativefabric", "./nativefabriccheck", "./embeddedcontrol/...", "./fabricmodel", "./runtimeadmission"]
+    native_cases = ["./board/arm64map", "./nativefabric", "./nativefabriccheck", "./embeddedcontrol/...", "./fabricmodel", "./runtimeadmission"]
     tenfoot_cases = ["./modelbackend"]
     if nano:
         test_env["FES_NANO_BRIDGE_RPC"] = test_env["FES_EMBEDDED_RPC"]

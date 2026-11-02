@@ -199,8 +199,8 @@ def package_option(program, package_id, profile):
 def build(args):
     if args.interactive or args.disk is not None or args.qemu is not None or args.display is not None:
         raise ValueError("Nano selection cross-builds only; QEMU/disk/interactive/display options are not accepted")
-    if args.program == "play":
-        raise ValueError("play is a QEMU exercise; use tenfoot for a board cross-build")
+    if args.program in ("play", "mapcheck"):
+        raise ValueError(args.program+" is a QEMU exercise; use the selected Nano program for a board cross-build")
     if args.profile is None:
         raise ValueError("--board de25-nano requires --profile from the firmware handoff")
     raw = args.profile.resolve().read_bytes()
@@ -209,7 +209,7 @@ def build(args):
         raise ValueError('the source-bound SMMU profile permits only the serial probe')
     start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
     expected_package_id=package_option(args.program,args.package_id,profile)
-    context=io_map=control_map=configuration_map=reader_memory_map=ddr_read_map=computer_map=None
+    context=io_map=cpu_map=control_map=configuration_map=reader_memory_map=ddr_read_map=computer_map=None
     active_ddr=getattr(args,'ddr_read',False)
     if type(active_ddr) is not bool or active_ddr and args.program!='fpgaload':
         raise ValueError('--ddr-read requires the Nano fpgaload diagnostic')
@@ -234,6 +234,7 @@ def build(args):
         if args.program=='fpgaload':
             configuration_map=hps.configuration(hps_project)
             reader_memory_map=hps.reader_memory(hps_project)
+            cpu_map=hps.cpu_mapping(control_map,configuration_map,reader_memory_map)
             if active_ddr:ddr_read_map=hps.ddr_read(hps_project)
             if computer_control:computer_map=hps.computer(hps_project)
             package_archive=hps.package_archive(hps_project,configuration_map)
@@ -256,6 +257,7 @@ def build(args):
     (output / "handoff.json").write_bytes(raw)
     if context is not None:(output/'hps-context.json').write_bytes(hps.encode(context))
     if io_map is not None:(output/'hps-io.json').write_bytes(hps.encode(io_map))
+    if cpu_map is not None:(output/'cpu-mapping.json').write_bytes(hps.encode(cpu_map))
     if control_map is not None:(output/'hps-control.json').write_bytes(hps.encode(control_map))
     if configuration_map is not None:(output/'hps-configuration.json').write_bytes(hps.encode(configuration_map))
     if reader_memory_map is not None:(output/'hps-reader-memory.json').write_bytes(hps.encode(reader_memory_map))
@@ -268,6 +270,7 @@ def build(args):
                          f"profileFPGAProbeEnabled = {str(fpga is not None).lower()}\nprofileFPGAProbeBase = {fpga['base'] if fpga else 0}\nprofileFPGAProbeBytes = {fpga['size'] if fpga else 0}\n)\n")
     with generated.open('a') as stream:
         stream.write('const (\nprofileConfigurationBase = '+str(configuration_map['base'] if configuration_map else 0)+'\nprofileConfigurationBytes = '+str(configuration_map['size'] if configuration_map else 0)+'\n)\n')
+        stream.write('const (\nprofileFabricControlBase = '+str(control_map['cpu_base'] if control_map else 0)+'\nprofileFabricControlBytes = '+str(control_map['span'] if control_map else 0)+'\n)\n')
         stream.write('const (\nprofileReaderMemoryBase = '+str(reader_memory_map['arena_base'] if reader_memory_map else 0)+'\nprofileReaderMemoryArenaBytes = '+str(reader_memory_map['arena_bytes'] if reader_memory_map else 0)+'\n)\n')
     network_constants = {"profileNetworkEnabled": net is not None,
                          "profileNetworkBase": 0x10810000 + (net["mac_index"] * 0x10000) if net else 0,
@@ -365,6 +368,7 @@ def build(args):
               "expected_package_id":expected_package_id,
               "hps_context":context,"hps_context_sha256":hps.digest(context) if context else None,
               "hps_io":io_map,"hps_io_sha256":hps.digest(io_map) if io_map else None,
+              "cpu_mapping":cpu_map,"cpu_mapping_sha256":hps.digest(cpu_map) if cpu_map else None,
               "hps_control":control_map,"hps_control_sha256":hps.digest(control_map) if control_map else None,
               "hps_configuration":configuration_map,"hps_configuration_sha256":hps.digest(configuration_map) if configuration_map else None,
               "hps_reader_memory":reader_memory_map,"hps_reader_memory_sha256":hps.digest(reader_memory_map) if reader_memory_map else None,

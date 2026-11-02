@@ -79,11 +79,15 @@ class TestChangedTest(unittest.TestCase):
                 self.assertIn('mformat',command['tools'])
 
     def test_native_fabric_changes_schedule_injected_firmware_rtl_integration(self):
-        self.change("platform/embedded/tamago/nativefabric/endpoint.go")
-        result = self.plan()
-        self.assertTrue(any(c["label"] == "native runtime firmware and FPGA launch integration"
-                            for c in result["commands"]))
-        self.assertEqual(result["impact"]["cores"], [])
+        for path in ('nativefabric/endpoint.go','board/arm64map/inspect.go','board/de25nano/fabric.go'):
+            with self.subTest(path=path):
+                changed='platform/embedded/tamago/'+path
+                self.change(changed)
+                result = self.plan()
+                self.assertTrue(any(c["label"] == "native runtime firmware and FPGA launch integration"
+                                    for c in result["commands"]))
+                self.assertEqual(result["impact"]["cores"], [])
+                (self.root/changed).unlink()
 
     def test_native_video_changes_run_frame_cdc_and_actual_vdp_oracles(self):
         self.change("sources/misteross/cores/fes-common/rtl/fes_native_video.v")
