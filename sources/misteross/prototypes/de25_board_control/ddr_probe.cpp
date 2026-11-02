@@ -96,6 +96,7 @@ int main(int argc,char **argv) {
         require(b.read(8)==abi && abi==0x10203041,"DDR control ABI mismatch");
         require(identity(b)==id,"DDR live build identity mismatch");
         require(b.read(0xb0)==base && b.read(0xb4)==span,"compiled DDR window differs");
+        require(!b.d.maintenance_reset_n && b.read(0xb8)==1,"maintenance masters are not held in reset");
         require(!b.d.ddr_arvalid && b.read(0x40)==0 && b.read(0x48)==0,"reset grants traffic or drain");
         cases.push_back("distinct-identity-and-closed-reset");
         b.enable(); b.stage(base+32,1); b.write(0x80,12);

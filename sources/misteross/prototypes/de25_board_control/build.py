@@ -207,7 +207,10 @@ def overlay_project(output, board, sources, identity, record=None):
         if len(ends) != 1:
             raise ValueError('captured top-system save anchor differs')
         lines.insert(ends[0], 'add_connection subsys_periph.fes_embedded_mem subsys_hps.f2sdram_adapter_axi4_sub\n'
-                     'set_connection_parameter_value subsys_periph.fes_embedded_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n')
+                     'set_connection_parameter_value subsys_periph.fes_embedded_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0\n'
+                     '# Hold every maintenance master, including the coherent HPS path.\n'
+                     'remove_connection rst_in.out_reset subsys_debug.reset\n'
+                     'add_connection subsys_periph.fes_maintenance_reset subsys_debug.reset\n')
         script = ''.join(lines)
     integration.write_text(script)
     build_id = inputs["computer"]["build_id"]
@@ -323,6 +326,26 @@ def verify_control(project, hps, board, memory=None):
             raise ValueError('generated HPS DDR adapter widths differ')
         if ('avalon','subsys_hps_f2sdram_adapter.axi4_man','subsys_hps_agilex_hps.f2sdram') not in connections:
             raise ValueError('generated HPS DDR adapter is not connected to HPS memory')
+        if hps.component_ports(component,'maintenance_reset') != {'reset_n':('Output',1)}:
+            raise ValueError('generated maintenance hold reset interface differs')
+        maintenance = ('subsys_debug_jtag_rst_in.in_reset',
+                       'subsys_debug_fpga_m.clk_reset',
+                       'subsys_debug_hps_f2sdram.clk_reset',
+                       'subsys_debug_hps_m.clk_reset')
+        expected_debug={'subsys_debug.fpga_m','subsys_debug.hps_f2sdram','subsys_debug.hps_m'}
+        actual_debug={m.get('path') for m in tree.findall('module') if m.get('kind')=='altera_jtag_avalon_master'}
+        if actual_debug!=expected_debug:
+            raise ValueError('generated maintenance master inventory differs')
+        sources = ('subsys_periph_fes_embedded.maintenance_reset',) + ('subsys_debug_jtag_rst_in.out_reset',)*3
+        for target, source in zip(maintenance,sources):
+            incoming = [c for c in tree.findall('connection') if c.get('kind')=='reset' and c.get('end')==target]
+            if len(incoming)!=1 or incoming[0].get('start')!=source:
+                raise ValueError('generated maintenance master reset hold route differs: '+target)
+        incoming = [c.get('start') for c in tree.findall('connection')
+                    if c.get('end')=='subsys_hps_f2sdram_adapter.axi4_sub']
+        if sorted(incoming)!=sorted(('ext_hps_f2sdram_master.expanded_master',
+                                     'subsys_periph_fes_ddr_probe.avm','subsys_periph_fes_embedded.mem')):
+            raise ValueError('generated DDR master inventory differs')
     elif memory_routes:
         raise ValueError('on-chip reader unexpectedly connects to DDR')
     lw = connections[("avalon", "subsys_hps_agilex_hps.lwhps2fpga", "subsys_periph_pb_cpu_0.s0")]
@@ -339,7 +362,9 @@ def verify_control(project, hps, board, memory=None):
         maps[name] = matches[0]
     return {"instance": component.get("path"), "clock_hz": 100000000, "maps": maps,
             "cpu_physical_address": "not-established", "reader_memory":memory,
-            "physical_ddr": "wired-unqualified" if mode else "not-connected"}
+            "physical_ddr": "wired-unqualified" if mode else "not-connected",
+            "maintenance_masters": "held-reset-from-configuration" if mode else "unchanged",
+            "other_ddr_master": "fes_ddr_probe; independent cancel/drain required" if mode else "not-covered"}
 
 
 def main():

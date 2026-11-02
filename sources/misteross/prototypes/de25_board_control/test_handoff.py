@@ -61,6 +61,15 @@ def mutate(project, kind):
         port=next(p for p in interface.findall('ports/port') if p.findtext('role')=='wdata')
         port.find('width').text='129'
         value.text=ET.tostring(definition,encoding='unicode')
+    elif kind in ('missing-maintenance-hold','live-maintenance-reset','duplicate-maintenance-reset','live-coherent-master'):
+        target='subsys_debug_hps_m.clk_reset' if kind=='live-coherent-master' else 'subsys_debug_jtag_rst_in.in_reset'
+        connection=next(c for c in root.findall('connection') if c.get('kind')=='reset' and c.get('end')==target)
+        if kind=='missing-maintenance-hold':root.remove(connection)
+        elif kind=='duplicate-maintenance-reset':root.append(ET.fromstring(ET.tostring(connection)))
+        else:connection.set('start','rst_in.out_reset')
+    elif kind=='extra-ddr-master':
+        c=ET.SubElement(root,'connection',kind='avalon',start='unqualified.master',end='subsys_hps_f2sdram_adapter.axi4_sub')
+        c.set('name','unqualified.master/subsys_hps_f2sdram_adapter.axi4_sub')
     else:
         raise ValueError("unknown handoff mutation")
     tree.write(handoff, encoding="utf-8", xml_declaration=True)
@@ -96,7 +105,11 @@ def main():
             cases += (('ddr-port-width','DDR AXI interface differs'),
                       ('wrong-forwarded-window','memory parameters differ'),
                       ('parent-override','memory parameters differ'),
-                      ('untied-write','generated embedded source differs'))
+                      ('untied-write','generated embedded source differs'),
+                      ('untied-maintenance','generated embedded source differs'))
+            cases += tuple((name,'maintenance master reset hold route differs') for name in
+                           ('missing-maintenance-hold','live-maintenance-reset','duplicate-maintenance-reset','live-coherent-master'))
+            cases += (('extra-ddr-master','DDR master inventory differs'),)
         for name, expected in cases:
             trial = out / name
             copy_project(source, trial)
@@ -120,6 +133,11 @@ def main():
                 text=target.read_text();anchor="assign ddr_awvalid = 1'b0;"
                 if text.count(anchor)!=1:raise ValueError('write tie anchor differs')
                 target.write_text(text.replace(anchor,"assign ddr_awvalid = 1'b1;"))
+            elif name=='untied-maintenance':
+                target=trial/FILES[-3]
+                text=target.read_text();anchor='assign maintenance_reset_n = !DDR_MODE;'
+                if text.count(anchor)!=1:raise ValueError('maintenance hold anchor differs')
+                target.write_text(text.replace(anchor,"assign maintenance_reset_n = 1'b1;"))
             else:
                 mutate(trial, name)
             try:

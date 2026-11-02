@@ -26,6 +26,9 @@ add_interface reset reset sink
 set_interface_property reset associatedClock clk
 set_interface_property reset synchronousEdges DEASSERT
 add_interface_port reset reset_n reset_n Input 1
+add_interface maintenance_reset reset start
+set_interface_property maintenance_reset associatedClock clk
+add_interface_port maintenance_reset maintenance_reset_n reset_n Output 1
 add_interface avs avalon end
 set_interface_property avs associatedClock clk
 set_interface_property avs associatedReset reset
@@ -84,4 +87,5 @@ foreach {name role direction width} {
 } { add_interface_port mem $name $role $direction $width }
 proc elaborate {} {
     set_interface_property mem ENABLED [get_parameter_value MEMORY_BACKEND]
+    set_interface_property maintenance_reset ENABLED [get_parameter_value MEMORY_BACKEND]
 }

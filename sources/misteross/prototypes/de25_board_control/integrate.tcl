@@ -10,4 +10,6 @@ set_connection_parameter_value pb_cpu_0.m0/fes_embedded.avs baseAddress 0x10400
 if {@MEMORY_BACKEND@} {
     add_interface fes_embedded_mem axi4 start
     set_interface_property fes_embedded_mem EXPORT_OF fes_embedded.mem
+    add_interface fes_maintenance_reset reset start
+    set_interface_property fes_maintenance_reset EXPORT_OF fes_embedded.maintenance_reset
 }

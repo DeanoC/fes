@@ -241,6 +241,26 @@ configure Nano DDR, select its UART/PHYs or provide a complete boot chain.
 
 ## Controlled Nano bridge service
 
+`nano_probe_stop.c` supplies the inherited DDR probe's part of a platform
+master-stop callback. A qualified adapter supplies its fixed control aperture,
+exclusive boot/reset scope and bounded I/O. It observes two identical snapshots,
+leaves an already-idle probe alone, and issues CANCEL once for an active probe.
+Only IDLE with equal accepted/completed byte counts and no fault can complete;
+held addresses and missing responses stay outstanding. Polling stops at 128
+iterations. I/O errors, changed scope or operation identity, faults and timeouts
+retire the helper without replay. Successful repeated checks require the same
+fresh receipt. Call it while control is open; a closed control aperture cannot
+be sampled as evidence. The existing controller separately owns its reader's
+generation/cookie stop, and the platform still has to contain every other
+FPGA/HPS producer. The physical cold provider does not install this helper or
+permit DDR release yet.
+
+`verify_probe_stop.py` joins the actual C helper to the inherited Avalon probe
+RTL and its independent burst/response bench. The DDR board-model verifier
+runs it against the selected project's probe source when a project is supplied.
+Those checks inject ownership and memory responses; they grant no physical
+drain, mapping, allocation or bridge authority.
+
 `nano_bridges.c` implements the owner/generation checks behind the native
 platform's bridge contract. Its operations are injected and must be serialized,
 bounded-return and qualified by trusted boot/platform code. There are no default

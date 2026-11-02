@@ -42,6 +42,17 @@ bytes/XOR checksum, `0xa0..0xac` the last four data words, and `0xb0`/`0xb4` the
 compiled bus window. They observe bus data even while disable drains a burst.
 They do not implement scanout, CPU cache ownership or other-master shutdown.
 
+DDR mode also exports an active-low constant reset for the maintenance
+subsystem. From configuration onward it holds all three JTAG Avalon managers,
+including the coherent HPS memory path; the SDM programming/recovery link is
+separate. The generated handoff checks the entire maintenance reset route and
+exact manager inventory. Read-only offset `0xb8` reports the local hold output.
+The inherited DDR probe keeps its separate control map and still requires an
+independent CANCEL/idle/accepted-versus-completed proof. The DDR model joins
+the actual probe RTL to the firmware's `nano_probe_stop.c` helper. Neither the
+hold indicator nor a reader acknowledgement supplies complete master, memory
+mapping or physical drain qualification.
+
 Run the portable model and native adapter check without Quartus:
 
 ```sh

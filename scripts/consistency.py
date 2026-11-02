@@ -14,6 +14,7 @@ GENERATED = (
     ('emit-c', 'packages/fabric/fes_fabric_embedded_control.yaml', 'FES', 'platform/embedded/firmware/generated/fes_embedded_control.h'),
     ('emit-go', 'packages/fabric/fes_fabric_embedded_control.yaml', 'FES', 'platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_control.go'),
     ('emit-c', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'FES', 'image/kernel/de25-dma/generated/fes_de25_ddr_probe.h'),
+    ('emit-c', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'FES', 'platform/embedded/firmware/generated/fes_de25_ddr_probe.h'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
     ('emit-cpp', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_hps_mailbox.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_mailbox.vh'),

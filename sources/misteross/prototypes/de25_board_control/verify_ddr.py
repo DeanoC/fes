@@ -55,10 +55,15 @@ def main():
         run('wrong-id',[executable,wrong,*argv[2:]],ROOT,env,output,expect=1,marker='DDR live build identity mismatch')
         run('wrong-abi',[executable,build_id,str(abi^1),*argv[3:]],ROOT,env,output,expect=1,marker='DDR control ABI mismatch')
         run('wrong-window',[*argv[:3],str(memory['bus_base']^0x1000),argv[4]],ROOT,env,output,expect=1,marker='compiled DDR window differs')
+        stop=output/'probe-stop'
+        stop_command=[sys.executable,ROOT/'platform/embedded/firmware/verify_probe_stop.py','--output',stop]
+        if local:stop_command+=['--probe-source',local]
+        run('probe-stop',stop_command,ROOT,env,output)
+        stop_result=json.loads((stop/'result.json').read_text())
         record={'status':'passed','classification':'external AXI model; no physical DDR or bridge qualification',
           'source_sha256':hashes,'tools':tools,'executable_sha256':sha(executable),
           'reader_memory':memory,'observed':observed,'negative_identity_cases':3,
-          'hardware_access':False,'bridge_release':False,'runtime_admission':False}
+          'inherited_probe_stop':stop_result,'hardware_access':False,'bridge_release':False,'runtime_admission':False}
         (output/'result.json').write_text(json.dumps(record,indent=2)+'\n')
         print('PASS23 DDR reader cases and3 identity/window rejection cases:',output)
         return 0

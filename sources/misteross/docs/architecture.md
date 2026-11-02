@@ -56,7 +56,12 @@ window and one 4 KiB page, permits one burst at a time, and uses actual AXI
 response/error/backpressure signals. Backend, window and distinct control ABI
 enter the source/vendor fingerprint and canonical functional identity. Its
 generated interface and HPS route are checked separately from its external-bus
-RTL model. Neither variant proves containment of inherited masters, firmware operation, physical
+RTL model. DDR mode additionally holds the three maintenance JTAG managers in
+reset through a checked generated reset route, including their coherent HPS
+path. The inherited probe retains independent cancellation/drain requirements;
+its actual Avalon RTL is tested with the native firmware stop helper. This
+structural and model evidence does not prove complete master containment,
+firmware operation, physical
 MMIO, a Nano profile, reset lifetime or production admission. The overlay never
 programs hardware. The hardware-independent verifier also exercises the same
 Avalon adapter through the native Go control code.

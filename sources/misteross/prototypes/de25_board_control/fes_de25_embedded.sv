@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Diagnostic Avalon aperture. The explicit DDR backend uses one bounded AXI
 // burst at a time; the default on-chip responder never issues DDR traffic.
-// Neither backend contains other FPGA masters or grants bridge ownership.
+// DDR mode holds the maintenance subsystem in reset through its exported
+// reset source. Reader drain does not cover the separate DDR probe.
 `ifndef FES_DE25_COMPUTER_BUILD_ID
 `define FES_DE25_COMPUTER_BUILD_ID 128'h0
 `endif
@@ -22,6 +23,7 @@ module fes_de25_embedded #(
     output reg readdatavalid, writeresponsevalid,
     output reg [1:0] response,
     output wire waitrequest,
+    output wire maintenance_reset_n,
     output wire ddr_arvalid,
     output wire [31:0] ddr_araddr,
     output wire [7:0] ddr_arlen,
@@ -67,7 +69,10 @@ module fes_de25_embedded #(
                      DIAG_CHECKSUM = 8'h98, DIAG_DATA0 = 8'ha0,
                      DIAG_DATA1 = 8'ha4, DIAG_DATA2 = 8'ha8,
                      DIAG_DATA3 = 8'hac, DIAG_BASE = 8'hb0,
-                     DIAG_SPAN = 8'hb4;
+                     DIAG_SPAN = 8'hb4, DIAG_MAINTENANCE_HELD = 8'hb8;
+    // Static from configuration, independent of CSR writes and local reset.
+    // The generated DDR project connects this to all three JTAG managers.
+    assign maintenance_reset_n = !DDR_MODE;
     reg busy, pending_read, pending_write, pending_local, local_error;
     reg [31:0] local_data;
     wire request = read || write;
@@ -213,6 +218,7 @@ module fes_de25_embedded #(
                             DIAG_DATA3: local_data <= last_data[127:96];
                             DIAG_BASE: local_data <= DDR_MODE ? DDR_BASE : 32'd0;
                             DIAG_SPAN: local_data <= DDR_MODE ? DDR_BYTES : 32'd0;
+                            DIAG_MAINTENANCE_HELD: local_data <= {31'd0, !maintenance_reset_n};
                             default: local_error <= 1;
                         endcase
                     end else if (byteenable != 4'hf) local_error <= 1;
