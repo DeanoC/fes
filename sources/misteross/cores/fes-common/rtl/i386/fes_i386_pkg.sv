@@ -767,7 +767,7 @@ package fes_i386_pkg;
         logic [31:0] mlow;        // D: an expand-down segment's limit, at or below which every offset faults
         logic        mexpd;       // D: ... the segment is expand-down
         logic        pbad;        // M1: a probe's slots straddle the 64 KiB wrap (#SS at M2)
-        logic signed [7:0] sdisp; // D: a stack slot's displacement from ESP (uop nwrap)
+        logic [7:0]  sdisp;       // D: a stack slot's displacement from ESP, signed (uop nwrap)
         logic        nodata;      // D: a load whose data nothing uses, made for its limit check (fes_i386_cpu):
                                   // the L1D reads nothing for it
         fault_e      dfault;      // D: the fault of a second address's limit check (uop st2), which M1
