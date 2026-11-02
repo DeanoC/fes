@@ -50,7 +50,7 @@ MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
 # consumers are bound separately by image_recipe_files below.
 BUILD_RECIPE_FILES = tuple(path for path in sorted((ROOT / "scripts").glob("*.py"))
                            if path not in MEDIA_RECIPE_FILES and not is_diagnostic_recipe_file(path)
-                           and path != ROOT / "scripts/kit_software.py") + (REGISTRY_PATH,)
+                           and path not in (ROOT / "scripts/kit_software.py", ROOT / "scripts/kit_sdk.py")) + (REGISTRY_PATH,)
 IMAGE_RECIPE_SOURCE_FILES = ("scripts/platform.py",)
 IMAGE_RECIPE_NAMES = (
     "Makefile",

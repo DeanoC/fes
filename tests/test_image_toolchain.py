@@ -117,6 +117,45 @@ class ToolchainCacheTest(unittest.TestCase):
 
         self.assertEqual((destination / "host" / "bin" / (cache.PREFIX + "-gcc")).read_bytes(), b"compiler")
 
+    def test_import_preserves_authenticated_archive_and_bad_copy_keeps_existing_entry(self):
+        source = self.image / 'aarch64-sdk.tar.gz'; source.write_bytes(b'opaque authenticated SDK archive')
+        expected_sha = cache.file_sha(source); expected_key = 'a' * 64
+        directory = self.image / 'de25-cache'
+        self.assertEqual(cache.import_archive(source, directory, expected_key, expected_sha), expected_sha)
+        self.assertEqual((directory / 'host.tar').read_bytes(), source.read_bytes())
+        local = self.image / 'private-sdk.tar.gz'
+        self.assertEqual(cache.copy_archive(directory, expected_key, local), expected_sha)
+        self.assertEqual(local.read_bytes(), source.read_bytes())
+        source.write_bytes(b'changed source after authentication')
+        with self.assertRaisesRegex(ValueError, 'changed while copying'):
+            cache.import_archive(source, directory, expected_key, expected_sha)
+        self.assertEqual(cache.validated_sha(directory, expected_key), expected_sha)
+        with self.assertRaisesRegex(ValueError, 'key or sha256 mismatch'):
+            cache.copy_archive(directory, 'b' * 64, self.image / 'not-created')
+        self.assertFalse((self.image / 'not-created').exists())
+
+    def test_private_archive_copy_holds_reader_lock(self):
+        source = self.image / 'source-sdk'; source.write_bytes(b'authenticated compiler archive')
+        directory = self.image / 'de25-cache'; expected = 'a' * 64
+        digest = cache.file_sha(source); cache.import_archive(source, directory, expected, digest)
+        entered, resume = threading.Event(), threading.Event()
+        copy = cache.shutil.copyfile
+        def pause(*args, **kwargs):
+            entered.set()
+            if not resume.wait(timeout=10):
+                raise TimeoutError('test did not release cache reader')
+            return copy(*args, **kwargs)
+        with ThreadPoolExecutor(max_workers=1) as workers, mock.patch.object(cache.shutil, 'copyfile', side_effect=pause):
+            future = workers.submit(cache.copy_archive, directory, expected, self.image / 'private-copy')
+            self.assertTrue(entered.wait(timeout=5))
+            descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                with self.assertRaises(BlockingIOError):
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            finally:
+                os.close(descriptor); resume.set()
+            self.assertEqual(future.result(timeout=10), digest)
+
     def test_concurrent_publishers_leave_a_valid_cache_entry(self):
         hosts = [self.image / "host-one", self.image / "host-two"]
         for index, host in enumerate(hosts, start=1):

@@ -12,6 +12,7 @@ import re
 import platform
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import tomllib
@@ -73,9 +74,13 @@ def build_go(snapshot, version, revision, env, board='de10-nano'):
 
 def de25_managed_sdk(root, directory):
     """Authenticate a reusable managed SDK against its actual Git producer."""
-    receipt = directory / 'base.json'
+    present = {name for name in ('base.json', 'factory.json', 'image.json')
+               if (directory / name).exists() or (directory / name).is_symlink()}
+    if present not in ({'base.json'}, {'factory.json'}):
+        raise ValueError('DE25 managed SDK has ambiguous image receipts')
+    receipt = directory / next(iter(present))
     if receipt.is_symlink() or not receipt.is_file():
-        raise ValueError('DE25 managed SDK requires a regular base receipt')
+        raise ValueError('DE25 managed SDK requires a regular managed receipt')
     record = json.loads(receipt.read_text())
     producer = record.get('fes_revision', '')
     if not re.fullmatch('[0-9a-f]{40}', producer):
@@ -87,6 +92,13 @@ def de25_managed_sdk(root, directory):
     if actual != producer:
         raise ValueError('DE25 managed SDK producer commit differs')
     managed = load(Path(root) / 'image/de25-nano/managed_base.py', 'kit_de25_managed_image')
+    if receipt.name == 'factory.json':
+        sys.path.insert(0, str(Path(root) / 'image/de25-nano'))
+        managed = load(Path(root) / 'image/de25-nano/managed_factory.py', 'kit_de25_factory_image')
+        # A private source clone may share imported current-policy modules with
+        # its caller. Require identical complete recipe inputs before using them.
+        if managed.recipe_key(root) != managed.recipe_key(managed.ROOT):
+            raise ValueError('DE25 factory SDK verifier differs from selected source')
     with tempfile.TemporaryDirectory(prefix='fes-de25-sdk-source-') as temporary:
         source, archive = Path(temporary) / 'producer', Path(temporary) / 'source.tar'
         source.mkdir()
@@ -101,15 +113,18 @@ def de25_managed_sdk(root, directory):
 def de25_sdk(root, directory):
     """Select authenticated headless or managed AArch64 SDK artifacts."""
     directory = Path(directory)
-    managed_receipt = directory / 'base.json'
-    managed = managed_receipt.exists() or managed_receipt.is_symlink()
+    present = {name for name in ('base.json', 'factory.json', 'image.json')
+               if (directory / name).exists() or (directory / name).is_symlink()}
+    if len(present) != 1:
+        raise ValueError('DE25 SDK directory has missing or ambiguous image receipts')
+    managed = 'image.json' not in present
     if managed:
-        if (directory / 'image.json').exists() or (directory / 'image.json').is_symlink():
-            raise ValueError('DE25 SDK directory has ambiguous headless and managed receipts')
         receipt, record = de25_managed_sdk(root, directory)
-        key = 'managed-' + record['recipe_sha256']
+        profile = 'managed-base' if receipt.name == 'base.json' else 'managed-factory'
+        key = ('managed-' if profile == 'managed-base' else 'factory-') + record['recipe_sha256']
         required = {'BR2_TOOLCHAIN_EXTERNAL_CUSTOM_GLIBC=y', 'BR2_TOOLCHAIN_EXTERNAL_CXX=y'}
     else:
+        profile = 'headless'
         lane = load(Path(root) / 'image/de25-nano/build.py', 'kit_de25_image')
         receipt = directory / 'image.json'
         record = json.loads(receipt.read_text())
@@ -152,8 +167,8 @@ def de25_sdk(root, directory):
             raise ValueError('DE25 SDK lacks its AArch64 C++ compiler')
     return {'key': key, 'archive_sha256': record['files']['aarch64-sdk.tar.gz'],
             'image_receipt_sha256': sha(receipt), 'producer_revision': record['fes_revision'],
-            'builder_image': record['builder_image'],
-            **({'profile': 'managed-base', 'base_rootfs_sha256': record['files']['rootfs.ext4'],
+            'builder_image': record['builder_image'], 'profile': profile, 'archive_root': archive_root,
+            **({'base_rootfs_sha256': record['files']['rootfs.ext4'],
                 'kernel_image_sha256': record['files']['kernel/Image']} if managed else {})}
 
 
@@ -257,11 +272,13 @@ def build_runtime(snapshot, cache, revision, env, driver, board='de10-nano'):
     shutil.copytree(snapshot / 'sources/libmister-runtime', work / 'runtime')
     # Reuse only the authenticated archive, never a shared relocated SDK.
     if board == 'de25-nano':
-        selected = de25_sdk(snapshot, cache)
+        from kit_sdk import ensure_de25
+        cached = ensure_de25(snapshot, cache)
+        selected = cached['source']
         sdk_key, sdk_sha = selected['key'], selected['archive_sha256']
         local = work / 'aarch64-sdk.tar.gz'
-        shutil.copyfile(cache / 'aarch64-sdk.tar.gz', local)
-        if sha(local) != sdk_sha:
+        sdk = load(image / 'scripts/toolchain_cache.py', 'kit_de25_sdk_cache')
+        if sdk.copy_archive(Path(cached['directory']), cached['key'], local) != sdk_sha or sha(local) != sdk_sha:
             raise ValueError('DE25 SDK changed while copying')
     else:
         selected = None
@@ -307,7 +324,9 @@ def build_runtime(snapshot, cache, revision, env, driver, board='de10-nano'):
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     return {'key': sdk_key, 'archive_sha256': sdk_sha, 'container_id': builder_id,
             'container_base': lock['container'], 'container_context_sha256': context,
-            **({'de25_image_sdk': selected} if selected else {})}
+            **({'de25_image_sdk': selected,
+                'sdk_archive_cache': {'key': cached['key'], 'archive_sha256': sdk_sha}}
+               if selected else {})}
 
 
 def package(image, payload, output, version, fogcast, revision, env):

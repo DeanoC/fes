@@ -43,7 +43,7 @@ help:
 	@printf '%s\n' 'make package-acceptance PACKAGE_ACCEPTANCE_ARGS="--help": one sealed package, explicit hardware opt-in, no image rebuild.'
 	@printf '%s\n' 'make package-acceptance-isolated PACKAGE_ACCEPTANCE_ISOLATED_ARGS="--help": private host catalog and restart diagnostic; explicit hardware opt-in.'
 	@printf '%s\n' 'make core-dev CORE_DEV_ARGS="--help": prepare one HIP package without building an image.' 'make core-dev-accept CORE_DEV_ACCEPT_ARGS="--help": explicit isolated acceptance of a frozen candidate.'
-	@printf '%s\n' 'make kit-sdk: build and publish the current image Buildroot SDK into the toolchain cache, without an image or core build.'
+	@printf '%s\n' 'make kit-sdk: ensure the selected compiler SDK in the toolchain cache, without an image or core build; DE25 requires BOARD=de25-nano DE25_IMAGE=/absolute/verified-image.'
 	@printf '%s\n' 'make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img KIT_SOFTWARE_BASE_SHA256=SHA256 KIT_SOFTWARE_VERSION=VERSION: build compatible kit userspace without an OS rebuild.'
 	@printf '%s\n' 'make fetch-de25-linux | de25-linux | verify-de25-linux | smoke-de25-linux: separate headless DE25-Nano AArch64 Linux diagnostic; see docs/de25-linux.md.'
 	@printf '%s\n' 'make smoke-de25-runtime DE25_RUNTIME_ARGS="--help": cross-build AArch64 runtime/agent and exercise software under QEMU without a board.'
@@ -154,7 +154,15 @@ core-catalog:
 	$(PYTHON) scripts/core_catalog.py $(CORE_CATALOG_ARGS)
 
 .PHONY: kit-sdk
+DE25_IMAGE ?=
+KIT_SDK_DE25_IMAGE ?= $(DE25_IMAGE)
 kit-sdk:
+ifeq ($(BOARD),de25-nano)
+	$(if $(strip $(KIT_SDK_DE25_IMAGE)),,$(error kit-sdk BOARD=de25-nano requires DE25_IMAGE=/absolute/verified-image))
+	$(PYTHON) scripts/kit_sdk.py --board "$(BOARD)" --de25-image "$(KIT_SDK_DE25_IMAGE)"
+else
+	$(if $(filter de10-nano,$(BOARD)),,$(error kit-sdk: unsupported BOARD=$(BOARD)))
+	$(if $(strip $(KIT_SDK_DE25_IMAGE)),$(error DE25_IMAGE/KIT_SDK_DE25_IMAGE requires BOARD=de25-nano))
 	@set -eu; \
 	  TARGET_IMAGE_CONTAINER_RUNTIME="$(or $(TARGET_IMAGE_CONTAINER_RUNTIME),$(CONTAINER_RUNTIME),docker)"; \
 	  export TARGET_IMAGE_CONTAINER_RUNTIME; \
@@ -166,11 +174,12 @@ kit-sdk:
 	  trap 'exit 143' TERM; \
 	  TARGET_IMAGE_OUTPUT_VOLUME="$$output_volume" \
 	    sh image/scripts/build-target-image.sh --ensure-kit-sdk
+endif
 
 .PHONY: kit-software
 KIT_SOFTWARE_OUTPUT ?= out/kit-software/$(KIT_SOFTWARE_VERSION)
-KIT_SOFTWARE_BOARD ?= de10-nano
-KIT_SOFTWARE_DE25_IMAGE ?=
+KIT_SOFTWARE_BOARD ?= $(BOARD)
+KIT_SOFTWARE_DE25_IMAGE ?= $(DE25_IMAGE)
 kit-software:
 	$(if $(strip $(KIT_SOFTWARE_BASE)),,$(error kit-software requires KIT_SOFTWARE_BASE=/absolute/linux.img))
 	$(if $(strip $(KIT_SOFTWARE_BASE_SHA256)),,$(error kit-software requires KIT_SOFTWARE_BASE_SHA256=<reviewed image SHA-256>))

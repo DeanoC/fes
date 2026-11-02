@@ -33,6 +33,7 @@ class SoftwareWorkflowTests(unittest.TestCase):
         scripts = self.root / 'scripts'; scripts.mkdir()
         shutil.copyfile(ROOT / 'scripts/build.py', scripts / 'build.py')
         producer = scripts / 'kit_software.py'; producer.write_text('producer version one')
+        sdk = scripts / 'kit_sdk.py'; sdk.write_text('SDK selector version one')
         consumed = scripts / 'consumed.py'; consumed.write_text('image recipe one')
         registry = self.root / 'config/core-recipes.toml'
         registry.parent.mkdir(); registry.write_text('format = 1')
@@ -40,8 +41,10 @@ class SoftwareWorkflowTests(unittest.TestCase):
             cold = kit.load(scripts / 'build.py', 'isolated_cold_build')
         before = cold.recipe_fingerprint(cold.BUILD_RECIPE_FILES)
         self.assertNotIn('scripts/kit_software.py', before)
+        self.assertNotIn('scripts/kit_sdk.py', before)
         self.assertIn('config/core-recipes.toml', before)
         producer.write_text('producer version two with different build logic')
+        sdk.write_text('SDK selector version two')
         self.assertEqual(before, cold.recipe_fingerprint(cold.BUILD_RECIPE_FILES))
         consumed.write_text('image recipe two')
         self.assertNotEqual(before, cold.recipe_fingerprint(cold.BUILD_RECIPE_FILES))
@@ -262,6 +265,38 @@ class SoftwareWorkflowTests(unittest.TestCase):
                 with self.subTest(key=key), self.assertRaises(ValueError):
                     kit.de25_sdk(repository, directory)
 
+    def test_factory_sdk_uses_original_git_producer_and_current_factory_verifier(self):
+        from scripts import de25_appliance
+        from tests.test_de25_appliance_workflow import FactoryReceiptTests
+        base, factory, boot, _ = de25_appliance.modules(ROOT)
+        directory = self.root / 'factory'; directory.mkdir()
+        receipt, manifest, packages = FactoryReceiptTests().fixture(directory, factory)
+        producer = subprocess.check_output(['git', '-C', ROOT, 'rev-parse', 'HEAD'], text=True).strip()
+        receipt['fes_revision'] = producer
+        inputs = json.loads((directory / factory.INPUTS).read_text()); inputs['fes_revision'] = producer
+        (directory / factory.INPUTS).write_text(json.dumps(inputs))
+        with tarfile.open(directory / 'aarch64-sdk.tar.gz', 'w:gz') as archive:
+            item = tarfile.TarInfo('sdk/bin/aarch64-buildroot-linux-gnu-g++'); item.size = 8
+            archive.addfile(item, io.BytesIO(b'compiler'))
+        (directory / 'buildroot.config').write_text('BR2_aarch64=y\nBR2_cortex_a53=y\nBR2_TOOLCHAIN_EXTERNAL_CUSTOM_GLIBC=y\nBR2_TOOLCHAIN_EXTERNAL_CXX=y\n')
+        for name in receipt['files']:
+            receipt['files'][name] = kit.sha(directory / name)
+        (directory / 'factory.json').write_text(json.dumps(receipt))
+        load = kit.load
+        def current(path, name):
+            return factory if Path(path).name == 'managed_factory.py' else load(path, name)
+        with patch.object(kit, 'load', side_effect=current), \
+                patch.object(factory, 'selected', return_value=(manifest, packages)), \
+                patch.object(base.owner, 'selected_kernel'), patch.object(boot, 'verify_report'):
+            selected = kit.de25_sdk(ROOT, directory)
+            self.assertEqual(selected['profile'], 'managed-factory')
+            self.assertEqual(selected['key'], 'factory-' + receipt['recipe_sha256'])
+            self.assertEqual(selected['producer_revision'], producer)
+            self.assertEqual(selected['archive_root'], 'sdk')
+            (directory / 'base.json').write_text('{}')
+            with self.assertRaisesRegex(ValueError, 'ambiguous'):
+                kit.de25_sdk(ROOT, directory)
+
     def test_board_and_sdk_selection_fail_before_build(self):
         for board, sdk in [('unknown', None), ('de25-nano', None), ('de10-nano', self.root)]:
             with self.subTest(board=board), patch.object(kit, 'build_go') as go:
@@ -435,6 +470,39 @@ class SoftwareWorkflowTests(unittest.TestCase):
         self.assertEqual(cleanup.call_count, 2)
         self.assertEqual((self.root / 'image/build/cache/target-image/toolchains/key/host.tar').read_bytes(), b'SDK')
 
+    def test_de25_runtime_uses_validated_cache_bytes_and_keeps_original_source_identity(self):
+        import kit_sdk
+        cache, _ = self.runtime_fixture()
+        sdk = kit.load(ROOT / 'image/scripts/toolchain_cache.py', 'runtime_cache_fixture')
+        raw = cache / 'host.tar'; digest = kit.sha(raw); key = 'd' * 64
+        (cache / 'receipt.json').write_text(json.dumps({'key': key, 'sha256': digest}))
+        selected = {'key': 'managed-' + 'e'*64, 'archive_sha256': digest, 'builder_image': 'sha256:' + 'c'*64}
+        cached = {'source': selected, 'key': key, 'directory': str(cache)}
+        calls = []
+        def command(args, **kwargs):
+            calls.append((args, kwargs)); return 'sha256:' + 'c'*64 if 'inspect' in args else ''
+        with patch.object(kit_sdk, 'ensure_de25', return_value=cached) as ensure, \
+                patch.object(kit, 'load', return_value=sdk), patch.object(kit, 'run', side_effect=command), \
+                patch.object(kit.subprocess, 'run', return_value=Mock(returncode=1)):
+            result = kit.build_runtime(self.root, self.root / 'recorded-image', 'b'*40, {}, None, 'de25-nano')
+        ensure.assert_called_once_with(self.root, self.root / 'recorded-image')
+        self.assertEqual((self.root / 'image/build/software/aarch64-sdk.tar.gz').read_bytes(), b'SDK')
+        self.assertEqual(result['de25_image_sdk'], selected)
+        self.assertEqual(result['sdk_archive_cache'], {'key': key, 'archive_sha256': digest})
+        self.assertNotIn('fes-window', calls[1][0][-1])
+
+    def test_de25_runtime_rejects_cache_receipt_poison_before_container(self):
+        import kit_sdk
+        cache, _ = self.runtime_fixture()
+        sdk = kit.load(ROOT / 'image/scripts/toolchain_cache.py', 'runtime_bad_cache_fixture')
+        key = 'd'*64; (cache / 'receipt.json').write_text(json.dumps({'key': key, 'sha256': kit.sha(cache / 'host.tar')}))
+        selected = {'key': 'managed-' + 'e'*64, 'archive_sha256': 'f'*64, 'builder_image': 'sha256:' + 'c'*64}
+        with patch.object(kit_sdk, 'ensure_de25', return_value={'source': selected, 'key': key, 'directory': str(cache)}), \
+                patch.object(kit, 'load', return_value=sdk), patch.object(kit, 'run') as command:
+            with self.assertRaisesRegex(ValueError, 'SDK changed while copying'):
+                kit.build_runtime(self.root, self.root / 'recorded-image', 'b'*40, {}, None, 'de25-nano')
+            command.assert_not_called()
+
     def test_runtime_does_not_claim_or_remove_existing_volume(self):
         cache, sdk = self.runtime_fixture()
         with patch.object(kit, 'load', return_value=sdk), \
@@ -535,6 +603,89 @@ class SoftwareWorkflowTests(unittest.TestCase):
         self.assertFalse((self.root / 'new').exists())
         self.assertFalse(list(self.root.glob('.kit-software-*')))
         self.assertEqual(self.base.read_bytes(), b'authenticated image fixture')
+
+
+class DE25SdkWorkflowTests(unittest.TestCase):
+    def setUp(self):
+        import kit_sdk
+        self.sdk = kit_sdk
+        self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.image = self.root / 'image'; self.image.mkdir()
+        (self.image / 'aarch64-sdk.tar.gz').write_bytes(b'unqualified SDK cache fixture')
+        self.selected = {'key': 'managed-' + 'a'*64, 'archive_sha256': kit.sha(self.image / 'aarch64-sdk.tar.gz'),
+                         'image_receipt_sha256': 'b'*64, 'producer_revision': 'c'*40,
+                         'builder_image': 'sha256:' + 'd'*64, 'profile': 'managed-base', 'archive_root': 'sdk',
+                         'base_rootfs_sha256': 'e'*64, 'kernel_image_sha256': 'f'*64}
+        self.cache = kit.load(ROOT / 'image/scripts/toolchain_cache.py', 'sdk_workflow_cache_fixture')
+
+    def test_cache_reuse_corruption_repair_and_raw_archive_identity(self):
+        with patch.dict(os.environ, {'FES_TARGET_IMAGE_SHARED_CACHE': str(self.root / 'cache')}), \
+                patch.object(self.sdk, 'de25_sdk', return_value=self.selected) as authenticate, \
+                patch.object(self.sdk, 'load', return_value=self.cache):
+            selected = self.sdk.ensure_de25(ROOT, self.image)
+            directory = Path(selected['directory'])
+            self.assertEqual((directory / 'host.tar').read_bytes(), (self.image / 'aarch64-sdk.tar.gz').read_bytes())
+            self.assertEqual(self.cache.validated_sha(directory, selected['key']), self.selected['archive_sha256'])
+            with patch.object(self.cache, 'import_archive', wraps=self.cache.import_archive) as imported:
+                again = self.sdk.ensure_de25(ROOT, self.image)
+                self.assertEqual(again['key'], selected['key']); imported.assert_not_called()
+                (directory / 'host.tar').write_bytes(b'corrupt cached archive')
+                repaired = self.sdk.ensure_de25(ROOT, self.image)
+                imported.assert_called_once()
+                self.assertEqual(repaired['archive_sha256'], self.selected['archive_sha256'])
+            self.assertEqual(authenticate.call_count, 3)
+
+    def test_same_archive_reuses_cache_across_authenticated_producers_and_keeps_provenance(self):
+        with patch.dict(os.environ, {'FES_TARGET_IMAGE_SHARED_CACHE': str(self.root / 'cache')}), \
+                patch.object(self.sdk, 'de25_sdk', return_value=self.selected) as authenticate, \
+                patch.object(self.sdk, 'load', return_value=self.cache):
+            first = self.sdk.ensure_de25(ROOT, self.image)
+            changed = dict(self.selected, producer_revision='d'*40, image_receipt_sha256='e'*64, profile='managed-factory')
+            authenticate.return_value = changed
+            second = self.sdk.ensure_de25(ROOT, self.image)
+            self.assertEqual(first['key'], second['key'])
+            self.assertEqual(second['source'], changed)
+            self.assertNotEqual(first['key'], self.cache.key(ROOT / 'image'))
+            (self.image / 'aarch64-sdk.tar.gz').write_bytes(b'a different authenticated SDK fixture')
+            authenticate.return_value = dict(changed, archive_sha256=kit.sha(self.image / 'aarch64-sdk.tar.gz'))
+            third = self.sdk.ensure_de25(ROOT, self.image)
+            self.assertNotEqual(second['key'], third['key'])
+
+    def test_bad_source_never_selects_a_cache_or_falls_back(self):
+        with patch.object(self.sdk, 'de25_sdk', side_effect=ValueError('source not authenticated')), \
+                patch.object(self.sdk, 'load') as load:
+            with self.assertRaisesRegex(ValueError, 'not authenticated'):
+                self.sdk.ensure_de25(ROOT, self.image)
+            load.assert_not_called()
+
+    def test_cli_requires_independent_de25_and_image(self):
+        for args in ([], ['--de25-image', str(self.image)], ['--board', 'de25-nano']):
+            with self.subTest(args=args), patch.object(sys, 'argv', ['kit_sdk.py', *args]), \
+                    patch.object(self.sdk, 'ensure_de25') as ensure, patch('sys.stderr', io.StringIO()):
+                with self.assertRaises(SystemExit) as result:
+                    self.sdk.main()
+                self.assertEqual(result.exception.code, 1); ensure.assert_not_called()
+
+    def test_make_routes_de25_without_starting_the_de10_builder_and_preserves_overrides(self):
+        command = ['make', '--dry-run', 'kit-sdk', 'BOARD=de25-nano', 'DE25_IMAGE=/verified-image']
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=True)
+        self.assertIn('scripts/kit_sdk.py --board "de25-nano" --de25-image "/verified-image"', result.stdout)
+        self.assertNotIn('--ensure-kit-sdk', result.stdout)
+        native = subprocess.run(['make', '--dry-run', 'kit-sdk'], cwd=ROOT, capture_output=True, text=True, check=True)
+        self.assertIn('build-target-image.sh --ensure-kit-sdk', native.stdout)
+        for args in (['BOARD=unknown'], ['BOARD=de25-nano'], ['DE25_IMAGE=/wrong-board']):
+            rejected = subprocess.run(['make', '--dry-run', 'kit-sdk', *args], cwd=ROOT, capture_output=True, text=True)
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertNotIn('--ensure-kit-sdk', rejected.stdout)
+        common = ['make', '--dry-run', 'kit-software', 'BOARD=de25-nano', 'DE25_IMAGE=/verified-image',
+                  'KIT_SOFTWARE_BASE=/base', 'KIT_SOFTWARE_BASE_SHA256=' + 'a'*64, 'KIT_SOFTWARE_VERSION=fixture']
+        software = subprocess.run(common, cwd=ROOT, capture_output=True, text=True, check=True)
+        self.assertIn('--board "de25-nano" --de25-image "/verified-image"', software.stdout)
+        override = subprocess.run([*common, 'KIT_SOFTWARE_BOARD=de10-nano', 'KIT_SOFTWARE_DE25_IMAGE='],
+                                  cwd=ROOT, capture_output=True, text=True, check=True)
+        self.assertIn('--board "de10-nano"', override.stdout)
+        self.assertNotIn('--de25-image', override.stdout)
 
 
 if __name__ == '__main__':
