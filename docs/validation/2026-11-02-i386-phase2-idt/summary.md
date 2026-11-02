@@ -55,12 +55,21 @@ PR #1373).
 - FES branch `deano/i386-phase2-idt-8f1dd2`, from main `d1d6c67e9` (after
   slice 1's merge, `8de99b4bb`). Main `3d2e17f84` (#1385 and #1387, ZX81
   and PC/XT only, no i386 or pc386 source) is merged in as `43bff581b`.
-- The seal and the kit run are of `43bff581b`. The lockstep ran at
-  `9314cad59`, the HIMEMX machine and system runs and the governor bench at
-  `10956ac5c`: their i386 and pc386 sources equal `43bff581b`'s but for a
-  `FES_I386_DEBUG` block in `fes_i386_cpu.sv`, removed in `9314cad59`, which
-  nothing defines. Later commits change only the lockstep's comments, the
-  sim README and this record.
+- The seal and the kit runs are of `43bff581b`. The other runs used these
+  trees; their i386 and pc386 RTL equals `43bff581b`'s but for a
+  `FES_I386_DEBUG` block in `fes_i386_cpu.sv`, which nothing defines and
+  `9314cad59` removed:
+  - `32cbe9b30` (whose `pipe_t.sdisp` was still declared signed, the same
+    bits): test386 on the RTL;
+  - `10956ac5c`: the HIMEMX machine run, the DOOM census and RTL machine
+    runs and the governor bench;
+  - `9314cad59`'s lockstep testbench on `10956ac5c`'s RTL (Verilator had
+    read the CPU before the block was removed): the lockstep; `9314cad59`:
+    the HIMEMX `system_tb` run;
+  - `ad2ab3544`: the netlist lockstep, the vectors runner, the pc386 suites
+    and the 386DX-25 rerun, the unit tests and `make test-changed`.
+
+  Later commits change only this record and the design doc's Phase 2 row.
 - Oracle: Bochs 3.1 at CPU level 3 (the `fes-i386-oracle` build), corpus
   SingleStepTests/80386 `459d49fbe628`, test386.asm `cfd052d1e64d`.
 - Verilator 5.032 on Powerboat. The netlist lockstep used the i386 lock's
