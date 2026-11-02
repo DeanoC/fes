@@ -58,6 +58,61 @@ class AudioClockAuditTests(unittest.TestCase):
         self.assertIn('set_min_delay 0 -from $held -to $pcm', sdc)
         self.assertNotIn('set_clock_groups', sdc)
 
+    def test_audio_request_duplicate_requires_fitter_provenance(self):
+        name = 'speaker_output_audio_output_stage_request'
+        duplicate = name + '~DUPLICATE'
+        def row(src, dst):
+            return '; ' + src + ' ; Duplicated ; Router ; reason ; ; ; ' + dst + ' ; ; ;'
+        validate = builder.validate_audio_request_registers
+        self.assertEqual(validate([{'name': name}], ''), [name])
+        self.assertEqual(validate([{'name': name}, {'name': duplicate}], row(name, duplicate)), [name, duplicate])
+        for registers, report in (([{'name': name}, {'name': duplicate}], ''),
+                                  ([{'name': name}], row(name, duplicate)),
+                                  ([{'name': duplicate}], row(name, duplicate)),
+                                  ([{'name': name}, {'name': duplicate}], row('other', duplicate)),
+                                  ([{'name': name}, {'name': name + '~bad'}], ''),
+                                  ([{'name': name}, {'name': duplicate}, {'name': duplicate}], row(name, duplicate)),
+                                  ([{'name': name}, {'name': duplicate}], row(name, duplicate) + '\n' + row(name, duplicate))):
+            with self.assertRaises(ValueError):
+                validate(registers, report)
+
+    @unittest.skipUnless(shutil.which('tclsh'), 'requires Tcl for SDC collection regression')
+    def test_audio_sdc_constrains_every_launch_copy_and_rejects_unknowns(self):
+        script = r'''
+set case_name [lindex $argv 0]
+proc get_registers {pattern} {
+ global case_name
+ if {$pattern eq {speaker_output_audio_output_stage_request}} {
+  set n $pattern
+  switch $case_name {
+   clean {return [list $n]}
+   duplicate {return [list $n ${n}~DUPLICATE]}
+   missing {return [list ${n}~DUPLICATE]}
+   foreign {return [list $n ${n}~FOREIGN]}
+  }
+ }
+ return [list $pattern]
+}
+proc get_collection_size {x} {llength $x}
+proc foreach_in_collection {v coll body} {uplevel 1 [list foreach $v $coll $body]}
+proc get_node_info {option n} {return $n}
+proc set_false_path {args} {puts "FALSE [join $args |]"}
+proc set_max_delay {args} {}
+proc set_min_delay {args} {}
+proc get_clocks {args} {return clk}
+proc get_clock_info {args} {return 81.38}
+source [lindex $argv 1]
+'''
+        with tempfile.TemporaryDirectory() as d:
+            source = Path(d)/'runner.tcl'
+            source.write_text(script)
+            path = builder.ROOT / builder.AUDIO_SDC
+            for case, ok in (('clean', True), ('duplicate', True), ('missing', False), ('foreign', False)):
+                result = subprocess.run(['tclsh', str(source), case, str(path)], capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, ok, result.stderr)
+                if case == 'duplicate':
+                    self.assertIn('speaker_output_audio_output_stage_request~DUPLICATE', result.stdout)
+
     def test_audio_clock_requires_active_inventory_fmax_and_payload_paths(self):
         corners = {'slow', 'fast'}
         clocks = [{'name': 'audio', 'period_ns': '81.380208', 'positive_registers': '20'},

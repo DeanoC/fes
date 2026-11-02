@@ -291,6 +291,27 @@ def validate_audio_clock_audit(clock_records, counts, fmax, corners):
     return audio
 
 
+def validate_audio_request_registers(registers, fitter_report):
+    # A router-created launch copy is admissible only if it was included in
+    # TimeQuest's constrained collection and the fitter identifies the exact
+    # original->copy relationship. The sync chain remains strictly singleton.
+    name = 'speaker_output_audio_output_stage_request'
+    names = [r['name'] for r in registers]
+    if names.count(name) != 1 or len(names) != len(set(names)) or len(names) > 17:
+        raise ValueError('invalid audio request register inventory')
+    copies = set(names) - {name}
+    if not all(re.fullmatch(re.escape(name) + r'~DUPLICATE[0-9]*', n) for n in copies):
+        raise ValueError('unexpected audio request register')
+    reported = []
+    for line in fitter_report.splitlines():
+        fields = [field.strip() for field in line.split(';')]
+        if len(fields) > 7 and fields[1] == name and fields[2] == 'Duplicated':
+            reported.append(fields[7])
+    if len(reported) != len(set(reported)) or set(reported) != copies:
+        raise ValueError('audio request duplicate fitter provenance mismatch')
+    return sorted(names)
+
+
 def validate_audio_interstage(rows, corners):
     prefix = 'speaker_output_audio_output_stage_'
     expected = {(c, k, prefix + r + '_meta', prefix + r + '_sync')
@@ -402,6 +423,10 @@ def timing_summary(work: Path, mailbox_contract: bool = False, audio_profile: bo
     if audio_profile:
         if 'AUDIO_CONTRACT:' not in (work / 'audit.log').read_text():
             raise ValueError('audio timing contract was not applied')
+        with (work / 'audit/audio-request-registers.tsv').open() as stream:
+            audio_request_registers = list(csv.DictReader(stream, delimiter='\t'))
+        validate_audio_request_registers(audio_request_registers,
+            (work / 'output_files/top.fit.rpt').read_text(encoding='latin-1'))
         with (work / 'audit/audio-payload-registers.tsv').open() as stream:
             audio_registers = list(csv.DictReader(stream, delimiter='\t'))
         with (work / 'audit/audio-payload.tsv').open() as stream:

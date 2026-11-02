@@ -46,6 +46,12 @@ if {$audio_contract} {
   }
  }
  close $payload_regs
+ set request_regs [open audit/audio-request-registers.tsv w]
+ puts $request_regs "name"
+ foreach_in_collection reg [get_registers {speaker_output_audio_output_stage_request}] {
+  puts $request_regs [get_node_info -name $reg]
+ }
+ close $request_regs
  set audio_payload [open audit/audio-payload.tsv w]
  puts $audio_payload "corner\tkind\tfrom_clock\tto_clock\tfrom_inverted\tto_inverted\tfrom\tto\tslack_ns\trelationship_ns\tdata_delay_ns"
  set audio_interstage [open audit/audio-interstage.tsv w]

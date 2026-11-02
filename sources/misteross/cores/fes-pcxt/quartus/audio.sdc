@@ -11,7 +11,23 @@ proc audio_regs {pattern minimum maximum} {
  }
  return $regs
 }
-set request [audio_regs {speaker_output_audio_output_stage_request} 1 1]
+# The Cyclone V router may duplicate this *launch* register. Constrain the
+# original and every router-created copy, but reject any other match. The
+# post-fit audit verifies every accepted copy against the fitter's duplicate
+# provenance and still rejects duplicated synchronizer stages and payload.
+set request_name speaker_output_audio_output_stage_request
+set request [get_registers $request_name]
+set originals 0
+set copies 0
+foreach_in_collection reg $request {
+ set n [get_node_info -name $reg]
+ if {$n eq $request_name} {
+  incr originals
+ } elseif {[regexp {^speaker_output_audio_output_stage_request~DUPLICATE[0-9]*$} $n]} {
+  incr copies
+ } else {error "Unexpected audio request register: $n"}
+}
+if {$originals != 1 || $copies > 16} {error "Audio request binding failed: $originals originals, $copies copies"}
 set acknowledge [audio_regs {speaker_output_audio_output_stage_acknowledge} 1 1]
 set request_head [audio_regs {speaker_output_audio_output_stage_request_meta} 1 1]
 set ack_head [audio_regs {speaker_output_audio_output_stage_ack_meta} 1 1]
