@@ -25,41 +25,9 @@
 -- strip. A compact list above that strip offers the families and the routes.
 
 local systems = require "systems"
-
-local C = {
-  background = "#F4F0E8",
-  surface = "#FFFCF5",
-  raised = "#E9E6DC",
-  text = "#243631",
-  secondary = "#53625A",
-  divider = "#CECFC0",
-  accent = "#235A46",
-  on_accent = "#FCFCF3",
-  dark = "#22342E",
-}
-
--- Muted motif grounds. A family without its own art picks one by id.
-local GROUNDS = { "#7097A8", "#9690B5", "#E08A63", "#8DB07A", "#D9B45A", "#6E8F80" }
-
--- The v1 families, in Home's order, with their placeholder marks (#1351
--- replaces them with icons). Family ids are systems.lua's.
-local V1 = {
-  { id = "zx81", mark = "ZX81", short = "ZX81", ground = "#7097A8" },
-  { id = "spectrum", mark = "ZX", short = "Spectrum", ground = "#9690B5" },
-  { id = "fes.atari-st", mark = "ST", short = "Atari ST", ground = "#8DB07A" },
-  { id = "fes.c64", mark = "64", short = "C64", ground = "#E08A63" },
-}
-
--- Workbenches by core: the ZX81 family has its own; Coleco opens its
--- arcade room; everything else uses the shared system setup.
-local WORKBENCH = {
-  ["fes.zx81"] = "example.hardware",
-  ["fes.zx80"] = "example.hardware",
-  ["fes.ts1000"] = "example.hardware",
-  ["fes.ts1500"] = "example.hardware",
-  ["fes.coleco"] = "example.coleco-arcade",
-}
-local SYSTEM_SETUP = "example.system"
+local F = require "families"
+local C = F.colors
+local families = F.list
 local SYSTEMS = "example.computers"
 
 local MENU = { { id = "settings", label = "Settings" } }
@@ -72,47 +40,10 @@ if not room.release_only then
 end
 
 local RECENT_MAX = 3
-
-local function hash(s)
-  local h = 7
-  for i = 1, #(s or "") do
-    h = (h * 31 + string.byte(s, i)) % 1000003
-  end
-  return h
-end
-
--- Families, in Home's order.
-local families = {}
-do
-  local placed = {}
-  for _, art in ipairs(V1) do
-    for _, family in ipairs(systems.families) do
-      if family.id == art.id then
-        families[#families + 1] = { id = family.id, label = family.label, variants = family.variants, art = art }
-        placed[family.id] = true
-      end
-    end
-  end
-  for _, family in ipairs(systems.families) do
-    if not placed[family.id] then
-      local first = family.variants[1]
-      families[#families + 1] = {
-        id = family.id, label = family.label, variants = family.variants,
-        art = { mark = first.mark, short = family.label, ground = GROUNDS[(hash(family.id) % #GROUNDS) + 1] },
-      }
-    end
-  end
-end
-
--- Data. A table per source; nil while it is still loading.
-local kit_rows = nil   -- core_id -> kit.cores row
-local machines = nil   -- core_id -> library machine entry
-local titles = nil     -- family id -> number of titles
-local capped = {}      -- family id -> true when its query hit the row limit
-local library_err = nil
 local recents = {}
 local recents_loaded = false
 local generation = 0   -- bumped on every data change, for the paint cache
+F.waiting = function() return not recents_loaded end
 
 -- The Get started banner, while setup is unfinished.
 local banner = room.setup.unfinished
@@ -133,155 +64,7 @@ end
 -- hero's actions; body is the row under the hero's actions.
 local row, body = "family", "family"
 local recent_i, family_i, menu_i = 1, 1, 1
-
--- State of one model: "ready", "firmware", "missing" (not on this kit) or
--- "blocked", with the reason for "blocked".
-local function model_state(core_id)
-  local lib = machines and machines[core_id]
-  if lib then
-    if lib.launchable then return "ready" end
-    if lib.firmware then return "firmware" end
-    return "blocked", lib.block
-  end
-  local kit_row = kit_rows and kit_rows[core_id]
-  if kit_row then
-    if kit_row.launchable then return "ready" end
-    if kit_row.needs == "firmware" then return "firmware" end
-    if kit_row.needs == "unavailable" then return "missing" end
-    return "blocked", kit_row.block ~= "" and kit_row.block or nil
-  end
-  return "missing"
-end
-
--- Families wait for the library, the kit's list (it says which models are
--- installed when the library has no row for them) and Recently played, so
--- the opening focus is chosen before any family shows its state.
-local function settled()
-  return recents_loaded and kit_rows ~= nil and (machines ~= nil or library_err ~= nil)
-end
-
--- A family's state ("checking", "ready", "firmware", "missing", "blocked"),
--- with the reason for "blocked" and the model Open starts on.
-local function family_state(f)
-  if not settled() then return "checking", nil, f.variants[1].id end
-  local firmware, blocked, reason, any = nil, nil, nil, nil
-  for _, v in ipairs(f.variants) do
-    local state, why = model_state(v.id)
-    if state == "ready" then return "ready", nil, v.id end
-    if state == "firmware" and not firmware then firmware = v.id end
-    if state == "blocked" and not blocked then blocked, reason = v.id, why end
-    if state ~= "missing" and not any then any = v.id end
-  end
-  if firmware then return "firmware", nil, firmware end
-  if blocked then return "blocked", reason, blocked end
-  return "missing", nil, any or f.variants[1].id
-end
-
-local LIBRARY_LIMIT = 2000
-
-local function count_line(n, more)
-  if more then return n .. "+ games" end
-  if n == 1 then return "1 game" end
-  return n .. " games"
-end
-
--- "4 models: ZX81, ZX80, TS1000, TS1500", or the one model's name.
-local function models_line(f)
-  local names = {}
-  for _, v in ipairs(f.variants) do names[#names + 1] = v.model or v.mark end
-  if #names == 1 then return names[1] end
-  return #names .. " models: " .. table.concat(names, ", ")
-end
-
-local STATE_WORDS = {
-  ready = "Ready",
-  firmware = "Needs firmware",
-  missing = "Not on this kit",
-  checking = "Checking…",
-}
-
--- One line per state, naming its models ("Not on this kit: ZX80, TS1000"),
--- so Details fits the hero.
-local function details_lines(f)
-  local lines, order, models = {}, {}, {}
-  for _, v in ipairs(f.variants) do
-    local state, why = model_state(v.id)
-    if not settled() then state, why = "checking", nil end
-    local word = why or STATE_WORDS[state] or "Can't start here"
-    if not models[word] then
-      models[word] = {}
-      order[#order + 1] = word
-    end
-    table.insert(models[word], v.model or v.mark)
-  end
-  for _, word in ipairs(order) do
-    lines[#lines + 1] = word .. ": " .. table.concat(models[word], ", ")
-  end
-  if titles then
-    lines[#lines + 1] = "In your library: " .. count_line(titles[f.id] or 0, capped[f.id])
-  end
-  return lines
-end
-
--- The tile's shared state chip and its detail line.
-local function tile_copy(f)
-  local state, reason = family_state(f)
-  if state == "checking" then return "Checking", "Checking…" end
-  if state == "ready" then
-    if not titles then return "Ready", "" end
-    local n = titles[f.id] or 0
-    if n == 0 then return "Ready", "No games yet" end
-    return "Ready", count_line(n, capped[f.id])
-  end
-  if state == "firmware" then return "Unavailable", "Add your ROM files" end
-  if state == "missing" then return "Unavailable", "Not on this kit" end
-  return "Unavailable", reason or "Can't start here"
-end
-
-local function family_destination(f)
-  local state, reason, core_id = family_state(f)
-  local availability, headline, explain, needs = "unavailable", "", "", ""
-  if state == "checking" then
-    availability = "checking"
-  elseif state == "ready" then
-    availability = "ready"
-    local n = titles and titles[f.id] or 0
-    if not titles then
-      headline = "Ready to open"
-      explain = "Open it to choose a model and a game."
-    elseif n == 0 then
-      headline = "No games yet"
-      explain = "Open it to choose a model."
-    else
-      headline = count_line(n, capped[f.id])
-      explain = "Open it to choose a model and a game."
-    end
-  elseif state == "firmware" then
-    headline = "Add your " .. f.label .. " ROM files to play"
-    explain = "Open it to see which files it needs and where they go."
-    needs = "firmware"
-  elseif state == "missing" then
-    headline = "Not installed on this kit"
-    explain = "This kit's software doesn't include it."
-  else
-    headline = reason or "Can't start here"
-    explain = "Open it for details."
-  end
-  local machine = machines and machines[core_id]
-  destination.set{
-    kind = "family",
-    label = f.label,
-    room_id = WORKBENCH[core_id] or SYSTEM_SETUP,
-    core_id = core_id,
-    game_id = machine and machine.game_id or "",
-    availability = availability,
-    status = headline,
-    explain = explain,
-    models = models_line(f),
-    needs = needs,
-    details = details_lines(f),
-  }
-end
+local settled = F.settled
 
 local function machine_label(g)
   local value = systems.by_id[g.core_id or ""]
@@ -313,7 +96,7 @@ local function publish()
   end
   local f = families[family_i]
   if f then
-    family_destination(f)
+    F.publish(f)
   else
     destination.set{ kind = "unresolved", label = "Home", status = "No computers are registered." }
   end
@@ -350,7 +133,7 @@ local function choose_opening()
   end
   row, body, family_i = "family", "family", 1
   for i, f in ipairs(families) do
-    if family_state(f) == "ready" then family_i = i return end
+    if F.state(f) == "ready" then family_i = i return end
   end
 end
 
@@ -364,91 +147,6 @@ local function changed()
     choose_opening()
   end
   publish()
-end
-
-local function load_kit()
-  if kit == nil or kit.cores == nil then
-    kit_rows = {}
-    return
-  end
-  kit.cores(function(rows, err)
-    kit_rows = {}
-    if not err then
-      for _, r in ipairs(rows or {}) do
-        if r.core_id and r.core_id ~= "" then kit_rows[r.core_id] = r end
-      end
-    end
-    changed()
-  end)
-end
-
--- What a machine entry's launch block means on a family tile. A missing ROM
--- or system firmware is the firmware state; the rest get a short reason.
-local BLOCKS = {
-  source_offline = "Its library is offline",
-  lease_held = "In use on another screen",
-  version_skew = "Needs a software update",
-}
-
--- A machine entry is a model's catalog row without media.
-local function add_machine(out, g)
-  if out[g.core_id] and out[g.core_id].launchable then return end
-  local block = g.launch_block or ""
-  out[g.core_id] = {
-    game_id = g.id,
-    launchable = block == "",
-    firmware = block == "missing_firmware" or block == "missing_rom",
-    block = BLOCKS[block],
-  }
-end
-
--- One query per family, so a large family's titles never push another
--- family's machine entries past the row limit. A title counts once; its
--- editions are siblings of the same title, so only machine entries are
--- looked for among them.
-local library_generation = 0
-local function load_library()
-  library_generation = library_generation + 1
-  local gen = library_generation
-  local m, counts, more, waiting, failed = {}, {}, {}, #families, nil
-  local function finish()
-    waiting = waiting - 1
-    if waiting > 0 or gen ~= library_generation then return end
-    if failed then
-      machines, titles, capped, library_err = nil, nil, {}, failed
-    else
-      machines, titles, capped, library_err = m, counts, more, nil
-    end
-    changed()
-  end
-  for _, f in ipairs(families) do
-    local ids = {}
-    for _, v in ipairs(f.variants) do ids[#ids + 1] = v.id end
-    library.query({ platform = "fpga", core_ids = ids, limit = LIBRARY_LIMIT }, function(games, err)
-      if err then
-        failed = failed or err
-        finish()
-        return
-      end
-      local n = 0
-      local function machine(g)
-        if g.core_id and systems.family_by_core[g.core_id] and (g.media_id or "") == "" then add_machine(m, g) end
-      end
-      for _, g in ipairs(games or {}) do
-        local family = systems.family_by_core[g.core_id or ""]
-        if (g.media_id or "") ~= "" and family and family.id == f.id then n = n + 1 end
-        machine(g)
-        for _, v in ipairs(g.variants or {}) do machine(v) end
-      end
-      counts[f.id] = n
-      more[f.id] = #(games or {}) >= LIBRARY_LIMIT or nil
-      finish()
-    end)
-  end
-  if #families == 0 then
-    waiting = 1
-    finish()
-  end
 end
 
 local function load_recents()
@@ -479,8 +177,7 @@ local function load_recents()
 end
 
 function load()
-  load_kit()
-  load_library()
+  F.load(changed)
   load_recents()
   publish()
 end
@@ -488,7 +185,7 @@ end
 -- Back from a workbench or a game: the library may have new titles, and
 -- the game just played leads Recently played.
 function on_resume()
-  load_library()
+  F.reload()
   load_recents()
 end
 
@@ -614,12 +311,7 @@ end
 
 -- Drawing ------------------------------------------------------------
 
-local function outline(x, y, w, h, t, color)
-  gfx.rect(x, y, w, t, color)
-  gfx.rect(x, y + h - t, w, t, color)
-  gfx.rect(x, y, t, h, color)
-  gfx.rect(x + w - t, y, t, h, color)
-end
+local outline = F.outline
 
 -- A disc from horizontal slices: the device has rectangles only.
 local function disc(cx, cy, r, color)
@@ -642,56 +334,19 @@ local function hills(x, y, w, h, color, phase)
   end
 end
 
-local function keyboard(x, y, w, h, key, ground)
-  local rows, cols = 4, 10
-  local gap = math.max(2, math.floor(w / 80))
-  local kw = (w - gap * (cols + 1)) / cols
-  local kh = (h - gap * (rows + 1)) / rows
-  gfx.rect(x, y, w, h, C.dark)
-  for r = 0, rows - 1 do
-    local inset = (r % 2) * kw / 3
-    for c = 0, cols - 1 do
-      local kx = x + gap + c * (kw + gap) + inset
-      if kx + kw <= x + w - gap then
-        gfx.rect(kx, y + gap + r * (kh + gap), kw, kh, key)
-      end
-    end
-  end
-  gfx.rect(x + w * 0.25, y + h - gap - kh, w * 0.5, kh, ground)
-end
-
--- A family's placeholder mark: its ground, its short mark and a keyboard.
--- The name is always text outside the mark.
-local function family_mark(f, x, y, w, h)
-  local art = f.art
-  gfx.rect(x, y, w, h, art.ground)
-  local size = math.max(14, math.min(math.floor(h * 0.30), math.floor(w / (#art.mark * 0.62 + 0.5))))
-  local tw, th = gfx.measure(art.mark, size, true)
-  local ty = y + h * 0.06
-  gfx.text(art.mark, x + (w - tw) / 2, ty, { size = size, bold = true, color = C.on_accent })
-  local ky = ty + th + h * 0.06
-  local kh = math.min(h * 0.32, y + h - ky - h * 0.08)
-  if kh < 8 then return end
-  local kw = math.min(w * 0.74, kh * 3.2)
-  keyboard(x + (w - kw) / 2, ky, kw, kh, C.surface, art.ground)
-end
-
 -- A recent title's art: its family's ground behind the moon-and-hills motif.
 local function title_art(g, x, y, w, h)
-  local family = systems.family_by_core[g.core_id or ""]
-  local ground = GROUNDS[(hash(g.core_id or g.id) % #GROUNDS) + 1]
-  for _, f in ipairs(families) do
-    if family and f.id == family.id then ground = f.art.ground end
-  end
+  local ground = F.ground(g.core_id, g.id)
   gfx.rect(x, y, w, h, ground)
   disc(x + w * 0.36, y + h * 0.42, math.min(w, h) * 0.24, "#F5E6C8")
-  hills(x, y + h * 0.45, w, h * 0.55, C.dark, hash(g.title or "") % 7 / 7)
+  hills(x, y + h * 0.45, w, h * 0.55, C.dark, F.hash(g.title or "") % 7 / 7)
 end
 
 local function menu_art(id, x, y, w, h)
   gfx.rect(x, y, w, h, C.raised)
   if id == "library" then
-    local spines = { "#7097A8", "#E08A63", "#8DB07A", "#9690B5", "#D9B45A", "#6E8F80" }
+    local grounds = F.grounds
+    local spines = { grounds[1], grounds[3], grounds[4], grounds[2], grounds[5], grounds[6] }
     local sw = w / 12
     for i, color in ipairs(spines) do
       local sh = h * (0.45 + 0.07 * (i % 3))
@@ -714,40 +369,10 @@ local function menu_art(id, x, y, w, h)
   end
 end
 
--- The shared state chip: Ready filled, Unavailable a raised plate with a
--- leading bar, Checking outlined.
-local function chip(label, x, y, size)
-  local tw, th = gfx.measure(label, size, true)
-  local pad = math.floor(size * 0.55)
-  local h = th + math.floor(size * 0.5)
-  if label == "Ready" then
-    gfx.rect(x, y, tw + pad * 2, h, C.accent)
-    gfx.text(label, x + pad, y + (h - th) / 2, { size = size, bold = true, color = C.on_accent })
-  elseif label == "Unavailable" then
-    gfx.rect(x, y, tw + pad * 2 + 5, h, C.raised)
-    gfx.rect(x, y, 5, h, C.dark)
-    gfx.text(label, x + 5 + pad, y + (h - th) / 2, { size = size, bold = true, color = C.text })
-  else
-    outline(x, y, tw + pad * 2, h, 2, C.secondary)
-    gfx.text(label, x + pad, y + (h - th) / 2, { size = size, bold = true, color = C.text })
-  end
-end
-
 local function draw_header(h)
   local hd = h.header
   local m = h.card.x
-  gfx.rect(0, hd.h - 2, room.width, 2, C.divider)
-  local bar = math.floor(hd.h * 0.11)
-  local my = math.floor((hd.h - bar * 4) / 2)
-  gfx.rect(m, my, bar * 3, bar, C.accent)
-  gfx.rect(m, my + bar * 1.5, bar * 3, bar, C.accent)
-  gfx.rect(m, my + bar * 3, bar * 1.6, bar, C.accent)
-  local _, th = gfx.measure("FES", 28, true)
-  gfx.text("FES", m + bar * 3 + 12, (hd.h - th) / 2, { size = 28, bold = true, color = C.text })
-  local fx = m + bar * 3 + 12 + gfx.measure("FES", 28, true) + 18
-  gfx.rect(fx, hd.h * 0.3, 2, hd.h * 0.4, C.divider)
-  local _, rh = gfx.measure(room.title, 22)
-  gfx.text(room.title, fx + 18, (hd.h - rh) / 2, { size = 22, color = C.text })
+  F.header(m, hd.h, room.title)
 
   local bh = math.floor(hd.h * 0.62)
   local by = math.floor((hd.h - bh) / 2)
@@ -786,7 +411,7 @@ local function draw_hero(h)
   elseif which == "recent" and recents[recent_i] then
     title_art(recents[recent_i], a.x, a.y, a.w, a.h)
   elseif families[family_i] then
-    family_mark(families[family_i], a.x, a.y, a.w, a.h)
+    F.mark(families[family_i], a.x, a.y, a.w, a.h)
   else
     gfx.rect(a.x, a.y, a.w, a.h, C.raised)
   end
@@ -833,24 +458,24 @@ local function draw_families(s, top, ch, compact)
     if not f then break end
     local x = s.x + slot * (cw + gap)
     local focused = row == "family" and family_i == i
-    local state, line = tile_copy(f)
+    local state, line = F.tile(f)
     gfx.rect(x, top, cw, ch, C.surface)
     if compact then
       local pad = 8
       local aw = math.min(math.floor(cw * 0.38), math.floor((ch - pad * 2) * 1.2))
-      family_mark(f, x + pad, top + pad, aw, ch - pad * 2)
+      F.mark(f, x + pad, top + pad, aw, ch - pad * 2)
       local tx = x + pad + aw + 12
       local tw = cw - (tx - x) - 8
       gfx.text(f.art.short, tx, top + ch * 0.20, { size = 20, bold = focused, color = C.text, max_w = tw })
-      chip(state, tx, top + ch * 0.52, 16)
+      F.chip(state, tx, top + ch * 0.52, 16)
     else
       local art_h = math.floor(ch * (detail and 0.50 or 0.56))
       gfx.clip(x, top, cw, art_h)
-      family_mark(f, x, top, cw, art_h)
+      F.mark(f, x, top, cw, art_h)
       gfx.unclip()
       gfx.text(f.label, x + 14, top + art_h + 8, { size = 22, bold = focused, color = C.text, max_w = cw - 28 })
       local cy = top + art_h + 40
-      chip(state, x + 14, cy, 16)
+      F.chip(state, x + 14, cy, 16)
       if detail and line ~= "" then
         gfx.text(line, x + 14, cy + 32, { size = 18, color = C.secondary, max_w = cw - 28 })
       end
@@ -868,15 +493,6 @@ local function draw_families(s, top, ch, compact)
   if first + shown - 1 < n then
     gfx.rect(s.x + s.w + 6, top + ch / 2 - 20, 4, 40, C.accent)
   end
-end
-
-local function on_kit_count()
-  local n = 0
-  for _, f in ipairs(families) do
-    local state = family_state(f)
-    if state ~= "missing" and state ~= "checking" then n = n + 1 end
-  end
-  return n
 end
 
 -- The Get started banner: a warm plate with a leading bar, what is left,
@@ -925,7 +541,7 @@ local function draw_shelf(h)
   end
   gfx.text("Computers", s.x, y, { size = label_size, bold = true, color = C.text })
   if settled() then
-    gfx.text(on_kit_count() .. " on this kit", s.x, y + 4, { size = 18, color = C.secondary, max_w = s.w, align = "right" })
+    gfx.text(F.on_kit() .. " on this kit", s.x, y + 4, { size = 18, color = C.secondary, max_w = s.w, align = "right" })
   end
   local top = y + lh + 14
   draw_families(s, top, s.y + s.h - top, false)

@@ -568,7 +568,7 @@ directory separators inside the pack (`require "lib.paths"` →
 | module | purpose |
 | --- | --- |
 | `systems` | Registered model labels and family navigation (`families`, `family_by_core`); package manifests determine admission |
-| `families` | Home's computer families in release order with their readiness (`list`, `load(on_change)`, `reload`, `settled`, `state`, `tile`, `games`, `details`, `publish`) and the shared marks, chips, colours and header |
+| `families` | Home and first-run setup's shared computer order and readiness (`list`, `load(on_change)`, `reload`, `settled`, `state`, `tile`, `games`, `details`, `publish`, `on_kit`) plus shared art, colours and header (`grounds`, `hash`, `ground`, `mark`, `chip`, `outline`) |
 | `setup` | First-run setup chrome: `layout`, the header with its step tracker, `buttons`, `footer`, `wrap`, `text` |
 | `widgets.system_workbench` | Shared system workbench; call the returned function with an optional fixed `core_id` |
 | `widgets.list` | focusable scrolling rows: `new{x,y,w,h,row_h,items,id}`, `input(cmd)`, `selected()`, `set_items`, `on_hover/on_activate(id)`, `draw{label=, background=, focus_color=}` |

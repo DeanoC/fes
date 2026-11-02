@@ -1,10 +1,12 @@
 package rooms
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/localcores"
 )
 
 func TestWelcomePublishesContinueAndSkip(t *testing.T) {
@@ -69,6 +71,39 @@ func TestReadyListsFamiliesAndPublishesFinishAndBack(t *testing.T) {
 	r.Input("right")
 	if d := r.Destination(); d.LauncherAction != "setup_back" {
 		t.Fatalf("right %+v", d)
+	}
+}
+
+func TestReadyFailedRefreshClearsStaleFamilyGames(t *testing.T) {
+	svc := &homeServices{fakeServices: fakeServices{games: []hostclient.Game{
+		machineEntry("zx81", "fes.zx81", ""),
+		titleEntry("old-title-a", "fes.zx81"),
+		titleEntry("old-title-b", "fes.zx81"),
+	}}}
+	local := &fakeLocalCores{cores: []localcores.Core{{
+		PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true,
+	}}}
+	r := newRoom(t, examplePack(t, "example.setup-ready"), Options{
+		Services: svc, Local: local, ReleaseOnly: true,
+		Setup: Setup{Step: 2, Steps: 2},
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(r.Close)
+	f := stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "2 games\n") })
+	if !strings.Contains(frameText(f), "2 games\n") {
+		t.Fatalf("Ready did not show the initial library count:\n%s", frameText(f))
+	}
+
+	svc.setLibraryError(errors.New("host unreachable"))
+	r.Resume()
+	f = stepUntil(t, r, func(f Frame) bool {
+		text := frameText(f)
+		return strings.Contains(text, "Ready\n") && !strings.Contains(text, "2 games\n")
+	})
+	if strings.Contains(frameText(f), "2 games\n") {
+		t.Fatalf("Ready kept the stale library count after refresh failed:\n%s", frameText(f))
 	}
 }
 
