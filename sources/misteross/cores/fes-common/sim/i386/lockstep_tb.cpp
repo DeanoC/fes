@@ -5051,8 +5051,10 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
 //   nm.<form>.<cr0>  EM, MP and TS in each combination: an ESC form raises
 //       #NM when EM or TS is set, WAIT when MP and TS are; otherwise each
 //       retires.
+//   lock.*  LOCK raises #UD on an ESC form, before EM's #NM.
 //   layout.*  FNSTENV and FNSAVE in both operand sizes in each environment,
-//       after a load through ES (and a 32-bit SIB address).
+//       after a load through ES (and a 32-bit SIB address, and a 32-bit
+//       address in real mode).
 //   detect.*  FPU detection routines, which must find no coprocessor: the
 //       FNSTSW low byte and FNSTCW 103Fh test (Intel's), the FNSTCW high
 //       byte, the WAIT forms (FINIT, FSTSW), FNSTSW AX, and DOS/4GW's
@@ -5296,6 +5298,32 @@ int run_no387_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
             c.vector = (bytes[0] == 0x9b ? mp && ts : em || ts) ? 7 : -1;
             cases.push_back(c);
         }
+    }
+    // LOCK raises #UD on every ESC form, before EM's #NM.
+    for (auto [name, cr0, bytes] : std::initializer_list<std::tuple<const char *, uint32_t, std::vector<uint8_t>>>{
+             {"lock.fninit", 0, {0xf0, 0xdb, 0xe3}}, {"lock.fld", 0, {0xf0, 0xd9, 0x06, 0x00, 0x01}},
+             {"lock.fninit-em", 4, {0xf0, 0xdb, 0xe3}}}) {
+        Case c;
+        c.label = name;
+        c.env = &envs[REAL];
+        c.body = bytes;
+        c.cr0 = cr0;
+        c.vector = 6;
+        cases.push_back(c);
+    }
+    {
+        // Real mode, a 32-bit address (67h): FLD dword [00000120h].
+        Asm body;
+        const uint32_t fld_ip = REAL_IP;
+        body.op({0x67, 0xd9, 0x05}); body.d(0x120);
+        body.esc(0xd9, 6, 0x200);
+        Case c;
+        c.label = "layout.real.a32";
+        c.env = &envs[REAL];
+        c.body = body.b;
+        c.checks.push_back({(uint32_t(envs[REAL].ds) << 4) + 0x200,
+                            env_image(false, false, fes_i386::X87Pointers{fld_ip, 0x120, envs[REAL].cs, envs[REAL].ds})});
+        cases.push_back(c);
     }
     // layout.*: FNSTENV and FNSAVE in each size, after FLD dword ES:[120h].
     for (const Env &e : envs) {

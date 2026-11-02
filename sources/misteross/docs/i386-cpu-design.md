@@ -375,7 +375,8 @@ So:
 - Other register forms, FNINIT and FNCLEX do nothing.
 
 FNSAVE, FNSTENV, FRSTOR and FLDENV are microcode loops over the 387's 16- or
-32-bit layouts; the other forms are one uop. With this behaviour, Intel's
+32-bit layouts, and an 8- or 10-byte operand's read takes a uop for each
+dword or word; the other forms are one uop. With this behaviour, Intel's
 FNSTSW check, the FNSTCW high-byte check and BIOS POST detection report no
 coprocessor. The all-ones values apply to fields the 386 writes on behalf of
 the absent FPU, not every byte of an environment or save image and not forms
