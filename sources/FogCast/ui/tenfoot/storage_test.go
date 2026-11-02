@@ -63,6 +63,32 @@ func TestLocalDriveManagerDoesNotPersistSMBPasswords(t *testing.T) {
 	}
 }
 
+func TestFactoryResetForgetsDriveFileBeforeManagerLoads(t *testing.T) {
+	prefs := filepath.Join(t.TempDir(), "tenfoot.json")
+	drivesPath := filepath.Join(filepath.Dir(prefs), "drives.json")
+	seed := storage.NewMemorySMBCredentials(drivesPath)
+	if _, err := seed.Save(storage.Drive{Kind: "usb", Source: "volume-uuid", Label: "Games USB"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(drivesPath); err != nil {
+		t.Fatalf("drive settings were not seeded: %v", err)
+	}
+
+	app := &App{prefsPath: prefs}
+	app.mu.Lock()
+	err := app.forgetLocalDrivesLocked()
+	app.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(drivesPath); !os.IsNotExist(err) {
+		t.Fatalf("drives.json survived reset before the manager loaded: %v", err)
+	}
+	if app.driveManager != nil {
+		t.Fatal("reset initialized a drive manager unnecessarily")
+	}
+}
+
 func TestStorageRootRefreshPreservesPickerSelections(t *testing.T) {
 	dir := t.TempDir()
 	library := hostclient.LibraryRoot{ID: "zx81", System: "zx81", Root: dir}

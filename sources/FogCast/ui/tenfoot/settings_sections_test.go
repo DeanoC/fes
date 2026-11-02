@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/storage"
 )
 
 func settingsLabels(snap Snapshot) string {
@@ -135,6 +137,13 @@ func TestSettingsFactoryResetAsksTwiceThenErasesMenuSettings(t *testing.T) {
 	app.SetSafeAreaPct(0.08)
 	app.SetReducedMotion(true)
 	waitFor(t, app, "Home", func(s Snapshot) bool { return s.Room.Open && s.Room.ID == installedCoresHomeID })
+	app.mu.Lock()
+	manager := app.driveManagerLocked()
+	app.mu.Unlock()
+	if _, err := manager.Save(storage.Drive{Kind: "smb", Source: "//nas/games", Username: "player", Domain: "HOME", Password: "kit-secret"}); err != nil {
+		t.Fatal(err)
+	}
+	drivesPath := filepath.Join(dir, "drives.json")
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
 	focusSettingsRow(t, app, "factory-reset", now)
@@ -159,6 +168,18 @@ func TestSettingsFactoryResetAsksTwiceThenErasesMenuSettings(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("tenfoot.json survived the reset: %v", err)
+	}
+	if _, err := os.Stat(drivesPath); !os.IsNotExist(err) {
+		t.Fatalf("drives.json survived the reset: %v", err)
+	}
+	// Re-adding the same connection without a password must not recover the
+	// SMB password cached by the manager before the reset.
+	if _, err := manager.Save(storage.Drive{Kind: "smb", Source: "//nas/games", Username: "player", Domain: "HOME", PasswordSet: true}); err != nil {
+		t.Fatal(err)
+	}
+	remembered, err := manager.List(context.Background(), false)
+	if err != nil || len(remembered) != 1 || remembered[0].PasswordSet {
+		t.Fatalf("reset retained an SMB password in memory: %+v, %v", remembered, err)
 	}
 	app.mu.Lock()
 	seen := app.firmwareCardSeenLocked("spectrum")

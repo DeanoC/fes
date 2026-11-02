@@ -1684,7 +1684,10 @@ directory with those files is still loaded, so the default room search path
 stays beside them. The FAT directory is used when the user directory cannot
 be read and cannot be created, including `HOME=/` on the read-only root and
 a read-only directory that has no saved state and no room pack. A save that
-cannot be written is logged once and the menu keeps running.
+cannot be written is logged once and the menu keeps running. Factory reset
+removes `tenfoot.json` and the adjacent `drives.json`, and drops the local
+manager's in-memory SMB credentials; room packs, room state and files on the
+remembered drives remain untouched.
 
 The kernel loop-mounts the bootstrap as before. Its PID 1 verifies the selected
 image, consumes a pending trial durably, attaches another read-only loop, and uses

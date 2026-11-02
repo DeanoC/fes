@@ -62,6 +62,11 @@ func (a *App) factoryResetLocked() {
 		a.status = a.settingsStatus
 		return
 	}
+	if err := a.forgetLocalDrivesLocked(); err != nil {
+		a.settingsStatus = "Could not erase remembered drives: " + err.Error()
+		a.status = a.settingsStatus
+		return
+	}
 	path := a.prefsPath
 	if path == "" {
 		path = defaultPrefsPath()
