@@ -11,6 +11,8 @@ import shutil
 import subprocess
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from . import appliance
 from .environment import build_environment
 from .media_inputs import digest

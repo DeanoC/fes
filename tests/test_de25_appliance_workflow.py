@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -97,6 +98,48 @@ class WorkflowTests(unittest.TestCase):
             with mock.patch.object(appliance_media.fes_platform, 'verify_retained') as verify:
                 self.assertEqual(appliance_media.retained_assembly_revision(ROOT,root,ROOT/'sources/FogCast',board='de25-nano'),revision)
                 self.assertEqual(verify.call_args.kwargs['architecture'],'aarch64')
+
+
+class CardSnapshotTests(unittest.TestCase):
+    def fixture(self, root, base):
+        factory = root/'factory'; (factory/'kernel').mkdir(parents=True)
+        (factory/'factory.json').write_text('unqualified snapshot unit fixture')
+        files = {}
+        for name in base.KERNEL_FILES:
+            path = factory/'kernel'/name; path.write_bytes(('fixture '+name).encode())
+            files['kernel/'+name] = appliance.digest(path)
+        idle = factory/'artifacts/core.rbf'; idle.parent.mkdir(); idle.write_bytes(b'fixture idle')
+        files['artifacts/core.rbf'] = appliance.digest(idle)
+        vendor = root/'vendor'; vendor.mkdir(); (vendor/'vendor-boot-prefix.bin').write_bytes(b'fixture prefix')
+        selected = de25_appliance.Factory(factory, {'files':files}, {}, idle)
+        release = SimpleNamespace(image=root/'release.img', manifest=root/'release.json')
+        bootstrap = SimpleNamespace(image=root/'bootstrap.img')
+        return selected,vendor,release,bootstrap
+
+    def test_snapshots_stay_bound_when_original_inputs_are_later_changed(self):
+        base,_,_,lane = de25_appliance.modules(ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary); selected,vendor,release,bootstrap=self.fixture(root,base)
+            scratch=root/'scratch'; scratch.mkdir()
+            with mock.patch.object(lane.boot,'_verify_prepared_boot'), mock.patch.object(base.owner,'selected_kernel'):
+                inputs,bindings=de25_appliance.card_inputs(ROOT,selected,vendor,scratch,release,bootstrap,None,None)
+            (selected.directory/'kernel/Image').write_bytes(b'changed original')
+            selected.idle.write_bytes(b'changed original')
+            (vendor/'vendor-boot-prefix.bin').write_bytes(b'changed original')
+            self.assertEqual((inputs.kernel/'Image').read_bytes(),b'fixture Image')
+            self.assertEqual(inputs.idle.read_bytes(),b'fixture idle')
+            self.assertEqual((inputs.vendor_boot/'vendor-boot-prefix.bin').read_bytes(),b'fixture prefix')
+            self.assertEqual(bindings['kernel_sha256'],appliance.digest(inputs.kernel/'Image'))
+
+    def test_changed_kernel_is_refused_before_it_can_enter_card_inputs(self):
+        base,_,_,lane = de25_appliance.modules(ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary); selected,vendor,release,bootstrap=self.fixture(root,base)
+            (selected.directory/'kernel/Image').write_bytes(b'changed source')
+            scratch=root/'scratch'; scratch.mkdir()
+            with mock.patch.object(lane.boot,'_verify_prepared_boot'), mock.patch.object(base.owner,'selected_kernel'):
+                with self.assertRaisesRegex(ValueError,'kernel changed'):
+                    de25_appliance.card_inputs(ROOT,selected,vendor,scratch,release,bootstrap,None,None)
 
 
 class FactoryReceiptTests(unittest.TestCase):
