@@ -45,6 +45,26 @@ the restored original 15 MHz JTAG clock, USB permissions and free UART.
 The spare diagnostic and exclusive top-board claim remain retained under
 Deano's instruction; the original factory card remains safely outside the board.
 
+## Status reads after the stop
+
+Two separate non-programming JTAG status reads left the native image parked.
+The [general status read](post-stop-config.log) returned six words with
+`STATE=IDLE`, configuration firmware version `001a0300`, `nSTATUS=1`,
+`CONF_DONE=0` and `INIT_DONE=0`. This confirms a responding SDM and incomplete
+configuration at the time of that query; it is not the HPS transfer's status.
+The [RECONFIG_STATUS request](post-stop-reconfig.log) returned `0x2ff`.
+Altera's [command reference](https://docs.altera.com/r/docs/d710186/current/security-technical-reference-manual/reconfig_status-command)
+defines that rejection for a requesting client that differs from the client
+which started reconfiguration on the route. It supplies no phase-two state.
+The next diagnostic needs a status capture from the HPS client.
+
+The [independent cleanup audit](post-stop-audit.json) verifies both saved query
+outcomes, restored 15 MHz clock receipts, live USB permissions and a free UART.
+Neither query programmed a new image, reset the board, wrote the card, resumed
+the stopped transfer or granted runtime admission. The query scripts ran on
+source `b6301a49572c9b5856777ee299af45ae277ee9ac`; the parked native source
+remained `f1776384dd3a85d1fb36d5d8c3a8267001607725`.
+
 ## Software and retention
 
 All 10 [affected software groups](software.json) pass,

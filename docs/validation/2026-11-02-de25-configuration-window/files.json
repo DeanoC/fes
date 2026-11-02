@@ -4,8 +4,8 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 5656,
-      "sha256": "276db99bf37b3fa6463452f40044ee9a1000f8fc260949f1f7aa5c532294d22d"
+      "bytes": 6935,
+      "sha256": "9e5029df2f269ad1137869d308b490bc5836c8e3e779f3326e73ab0e3b7cef59"
     },
     {
       "path": "bl31.json",
@@ -71,6 +71,31 @@
       "path": "native.json",
       "bytes": 34716,
       "sha256": "036c0e49a5c9fa0d1d49cba27ed0b3488afaa5ec4010aaa05807c0214a29889e"
+    },
+    {
+      "path": "post-stop-audit.json",
+      "bytes": 630,
+      "sha256": "4d3c198c1d8d551fa05f1d3954573a5f69b7770bacf8f5f438b95cca4ab725d2"
+    },
+    {
+      "path": "post-stop-config.json",
+      "bytes": 2896,
+      "sha256": "79414f245ccd482c42273aaa38f6477e1511dd9bec9f97e82c772230b8fb60bc"
+    },
+    {
+      "path": "post-stop-config.log",
+      "bytes": 2032,
+      "sha256": "d129ff0ebb0d6fed0b323d192dba7fcf60a6186b1c1105957154fb14d5b3801e"
+    },
+    {
+      "path": "post-stop-reconfig.json",
+      "bytes": 2907,
+      "sha256": "d23375762e8fe1a89f4c48e6d034494881203f226a97aca4e1145f05e39f7671"
+    },
+    {
+      "path": "post-stop-reconfig.log",
+      "bytes": 1744,
+      "sha256": "3128046a0686de74dc612f4d3b71f899761d5c556261a745b5d81b110a6a4af1"
     },
     {
       "path": "preflight.json",
