@@ -1,0 +1,31 @@
+{
+  "status": "passed",
+  "classification": "native-library-compile-only",
+  "source_commit": "12cba59dbfd692c3c6bf0d9978cf3554aa294d5d",
+  "argv": [
+    "/home/deano/fes/out/dev/de25-embedded-os/out/embedded-base-tools/tamago/usr/local/tamago-go/bin/go",
+    "list",
+    "-export",
+    "-json",
+    "-mod=readonly",
+    "./computer",
+    "github.com/usbarmory/tamago/arm64"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os/platform/embedded/tamago",
+  "environment": {
+    "GOOS": "tamago",
+    "GOARCH": "arm64",
+    "GOOSPKG": "github.com/usbarmory/tamago",
+    "GOTOOLCHAIN": "local",
+    "CGO_ENABLED": "0",
+    "GOWORK": "off"
+  },
+  "compiler_sha256": "17001a5c910f83cdefcc2b38058306961968b62912f6e4c501827cb67b2c5368",
+  "build_id": "OcXfjGEARX8DZQqDK9eF/6eUccxh7BQ32WdGww85H",
+  "object_sha256": "718d078ee922ad34b0d0ddee58e7a5da417579d3e3e6525993d8c1334bcf35ee",
+  "source_sha256": {
+    "platform/embedded/tamago/computer/computer.go": "08ac6d04c72012cff213c82e0e7a2ee3a8e045909f6902f5060a506a849a02ef",
+    "platform/embedded/tamago/computer/tape.go": "35cd54c4e626260270faf0fe1c813b9e19406f3e5c1dfb0241c63a0e0d335b27"
+  },
+  "linked_boot_image": false
+}

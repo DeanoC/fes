@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "make",
+    "-j2",
+    "test"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-embedded-os/sources/libmister-runtime",
+  "returncode": -15,
+  "timed_out": true,
+  "elapsed": 300.17074004991446,
+  "log_sha256": "19a4c61381c8d5226d0e724527ef5f7c8dfc12c825b19c197b36f31b5e379675"
+}
