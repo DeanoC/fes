@@ -391,6 +391,65 @@ def verify_control(project, hps, board, memory=None):
             "other_ddr_master": "fes_ddr_probe; independent cancel/drain required" if mode else "not-covered"}
 
 
+def review_ddr_parameters(output, hps):
+    """Accept only the pinned DDR recipe's disabled coherent F2H port."""
+    project=output/'project'
+    inputs=json.loads((output/'inputs.json').read_text())
+    hps_ip='hps_subsys/ip/hps_subsys/agilex_hps.ip'
+    expected=inputs['vendor_hps_emif_parameters']
+    names={hps_ip,'hps_subsys/ip/hps_subsys/f2sdram_adapter.ip','hps_subsys/ip/qsys_top/emif_io96b_hps.ip'}
+    if set(expected)!=names or expected[hps_ip].get('f2s_data_width')!='256':
+        raise ValueError('captured DDR HPS/EMIF parameter inventory differs')
+    changes={};added={}
+    for name,before in expected.items():
+        actual=hps.module_parameters(project/name)
+        delta={key:{'before':value,'after':actual.get(key)} for key,value in before.items() if actual.get(key)!=value}
+        if delta:changes[name]=delta
+        extra={key:value for key,value in actual.items() if key not in before}
+        if extra:added[name]=extra
+    reviewed={hps_ip:{'f2s_data_width':{'before':'256','after':'0'}}}
+    defaults={hps_ip:{key:'true' for key in ('ED_en_sim_gen','FPGA_EMAC0_tx_clk_en','FPGA_EMAC1_tx_clk_en','FPGA_EMAC2_tx_clk_en','FPGA_EMAC_PTP_clk_en')}}
+    report={'changed_original_module_parameters':changes,'added_module_parameters':added,
+            'reviewed_ddr_parameter_changes':reviewed,'reviewed_quartus_defaults':defaults,
+            'boot_firmware_compatibility':'not-qualified'}
+    (output/'hps-emif-parameter-review.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+    if changes!=reviewed or added!=defaults:
+        raise ValueError('DDR HPS/EMIF parameters differ from the fixed reviewed change; retained report')
+    return report
+
+
+def generate_ddr_project(output, hps, board, tool, version):
+    """Keep the frozen board checks with the DDR-only, fixed parameter review.
+
+    The captured producer requires every original HPS parameter unchanged.
+    This overlay owns the one deliberate coherent-port removal; it repeats
+    the same generation, boot-data, handoff and PLL checks without modifying
+    the captured producer or its immutable original parameter inventory.
+    """
+    directory=output/'hps';project=directory/'project'
+    qsys=tool.parents[2]/'qsys/bin/qsys-script'
+    if not qsys.is_file() or not os.access(qsys,os.X_OK):
+        raise ValueError('configured Quartus installation has no qsys/bin/qsys-script')
+    (directory/'quartus-version.txt').write_text(version+'\n')
+    for label,argv in (
+        ('integration',[qsys,'--quartus-project=golden_top','--search-path=custom_ip/**/*,fes_mailbox,$','--script=integrate-mailbox.tcl']),
+        ('clear-generation',[tool.with_name('quartus_ipgenerate'),'--clear_ip_generation_dirs','golden_top']),
+        ('ip-generation',[tool.with_name('quartus_ipgenerate'),'--generate_project_ip_files','--synthesis=verilog','golden_top'])):
+        hps.run_logged(argv,project,directory/(label+'.log'),env=os.environ.copy())
+    report=review_ddr_parameters(directory,hps)
+    vendor=json.loads((directory/'vendor-inputs.json').read_text())
+    for name,expected in vendor['source_sha256'].items():
+        if name.startswith('software/') and digest((project/name).read_bytes())!=expected:
+            raise ValueError('generation changed vendor boot data: '+name)
+    handoff=hps.verify_mailbox_handoff(project)
+    handoff['ddr_probe']=hps.verify_probe_handoff(project)
+    handoff['computer']=board.verify_computer(project,hps)
+    handoff['computer']['pll_reviews']={'system':board.pll_review(project/'ip/pll',100000000),
+                                      'pixel':board.pll_review(project/'sys_pll',74250000)}
+    handoff['reviewed_ddr_hps_parameters']=report
+    (directory/'generation.json').write_text(json.dumps(handoff,indent=2,sort_keys=True)+'\n')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("project", "generate", "build"))
@@ -448,13 +507,18 @@ def main():
         print("DE25 embedded diagnostic:", result, "build ID:", build_id, flush=True)
         if args.action != "project":
             tool, version = hps.BOARD_BUILD.locate_quartus(args.quartus_root)
-            board.generate(result, hps, tool, version)
+            if memory['backend']=='hps-ddr':
+                generate_ddr_project(result,hps,board,tool,version)
+            else:
+                board.generate(result, hps, tool, version)
             generation = result / "hps/generation.json"
             evidence = json.loads(generation.read_text())
             evidence["embedded_control"] = verify_control(result / "hps/project", hps, board, memory)
             generation.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
             if args.action == "build":
                 artifact = compile_project(result / "hps", tool)
+                if memory['backend']=='hps-ddr' and review_ddr_parameters(result/'hps',hps)!=evidence['reviewed_ddr_hps_parameters']:
+                    raise ValueError('compile changed reviewed DDR HPS/EMIF parameters')
                 checks = {"system": board.pll_review(result / "hps/project/ip/pll", 100000000),
                           "pixel": board.pll_review(result / "hps/project/sys_pll", 74250000)}
                 if checks != evidence["computer"]["pll_reviews"]:

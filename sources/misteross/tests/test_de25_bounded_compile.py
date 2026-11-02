@@ -85,6 +85,53 @@ if task=='assembler':
             qsf.write_text(original+original)
             with self.assertRaises(ValueError):build.configure_processors(root,16)
 
+    def test_ddr_parameter_review_requires_exact_port_change_and_tool_defaults(self):
+        import copy
+        import xml.etree.ElementTree as ET
+        spec=importlib.util.spec_from_file_location('ddr_review_hps',ROOT/'boards/de25nano/hps/build.py')
+        hps=importlib.util.module_from_spec(spec);spec.loader.exec_module(hps)
+        ip='http://www.accellera.org/XMLSchema/IPXACT/1685-2014'
+        altera='http://www.altera.com/XMLSchema/IPXact2014/extensions'
+        name='hps_subsys/ip/hps_subsys/agilex_hps.ip'
+        adapter='hps_subsys/ip/hps_subsys/f2sdram_adapter.ip'
+        emif='hps_subsys/ip/qsys_top/emif_io96b_hps.ip'
+        before={name:{'f2s_data_width':'256','clock':'100'},adapter:{'width':'256'},emif:{'memory_width':'32'}}
+        actual=copy.deepcopy(before);actual[name]['f2s_data_width']='0'
+        actual[name].update({key:'true' for key in ('ED_en_sim_gen','FPGA_EMAC0_tx_clk_en','FPGA_EMAC1_tx_clk_en','FPGA_EMAC2_tx_clk_en','FPGA_EMAC_PTP_clk_en')})
+        for fault in (None,'missing-change','wrong-change','hps-clock','ddr-width','emif-width','missing-original','extra-default','missing-default','wrong-default','missing-inventory'):
+            with self.subTest(fault=fault),tempfile.TemporaryDirectory() as temp:
+                output=Path(temp);original=copy.deepcopy(before);selected=copy.deepcopy(actual)
+                if fault=='missing-change':selected[name]['f2s_data_width']='256'
+                elif fault=='wrong-change':selected[name]['f2s_data_width']='128'
+                elif fault=='hps-clock':selected[name]['clock']='200'
+                elif fault=='ddr-width':selected[adapter]['width']='128'
+                elif fault=='emif-width':selected[emif]['memory_width']='16'
+                elif fault=='missing-original':del selected[emif]['memory_width']
+                elif fault=='extra-default':selected[name]['unknown']='true'
+                elif fault=='missing-default':del selected[name]['ED_en_sim_gen']
+                elif fault=='wrong-default':selected[name]['FPGA_EMAC_PTP_clk_en']='false'
+                elif fault=='missing-inventory':del original[emif]
+                inputs=json.dumps({'vendor_hps_emif_parameters':original})
+                (output/'inputs.json').write_text(inputs)
+                for relative,parameters in selected.items():
+                    root=ET.Element('{'+ip+'}component')
+                    extension=ET.SubElement(root,'{'+altera+'}altera_module_parameters')
+                    container=ET.SubElement(extension,'{'+ip+'}parameters')
+                    for key,value in parameters.items():
+                        p=ET.SubElement(container,'{'+ip+'}parameter',parameterId=key)
+                        ET.SubElement(p,'{'+ip+'}value').text=value
+                    path=output/'project'/relative;path.parent.mkdir(parents=True,exist_ok=True)
+                    ET.ElementTree(root).write(path)
+                if fault:
+                    with self.assertRaisesRegex(ValueError,'HPS/EMIF parameter'):
+                        build.review_ddr_parameters(output,hps)
+                else:
+                    result=build.review_ddr_parameters(output,hps)
+                    self.assertEqual(result['changed_original_module_parameters'],{name:{'f2s_data_width':{'before':'256','after':'0'}}})
+                    self.assertEqual(result['boot_firmware_compatibility'],'not-qualified')
+                    self.assertEqual(result,json.loads((output/'hps-emif-parameter-review.json').read_text()))
+                self.assertEqual((output/'inputs.json').read_text(),inputs)
+
     def test_expired_phase_is_reaped_without_replay_or_success_receipt(self):
         with tempfile.TemporaryDirectory() as temp:
             output,project,tool=self.fixture(Path(temp))

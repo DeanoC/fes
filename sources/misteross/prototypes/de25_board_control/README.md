@@ -44,7 +44,11 @@ compiled bus window. They observe bus data even while disable drains a burst.
 They do not implement scanout, CPU cache ownership or other-master shutdown.
 
 DDR mode disables the unused coherent F2H hard interface and removes its JTAG
-manager and translator. Otherwise constant reset containment lets synthesis
+manager and translator. The DDR-only generator requires exactly the
+`f2s_data_width=256` to `0` change and the five known Quartus 26.3 defaults,
+both before and after compilation. It retains the original parameter inventory
+and repeats the captured producer’s boot-data, handoff and PLL checks.
+Unexpected HPS/EMIF changes reject. Otherwise constant reset containment lets synthesis
 prune their connection while leaving the enabled HPS primitive illegally
 unconnected. Both remaining JTAG Avalon managers stay held by the exported
 active-low constant maintenance reset from configuration onward. The SDM
