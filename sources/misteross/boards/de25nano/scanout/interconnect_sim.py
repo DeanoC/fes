@@ -535,9 +535,7 @@ def main(argv=None):
         receipt["ram_storage_model"] = {"classification": "explicit noncollision storage model; not a vendor primitive model",
             "sha256": sha(ram_path.read_bytes()), "guarded_generated_sources": [str(p.relative_to(project)) for p in ram_sources],
             "conditional_primitive_sources_proven_unelaborated": [str(p.relative_to(project)) for p in conditional_ram_sources],
-            "actual_shapes": [{"width": 47, "depth": 4}, {"width": 35, "depth": 4},
-                              {"width": 184, "depth": 4}, {"width": 131, "depth": 32}],
-            "self_test": "reset_disabled case checks independent clocks, address latency, unregistered output, write enable and BYPASS clock enables",
+            "self_test": "first reported case checks independent clocks, address latency, unregistered output, write enable and BYPASS clock enables",
             "runtime_guards": ["FIFO RAM-to-output-stage valid transfer never consumes an unwritten RAM word",
                                "FIFO never overwrites its live unread RAM head; buffered output is separate"],
             "unproven": ["mixed-port same-address collision behavior (vendor default DONT_CARE)",
@@ -595,7 +593,11 @@ def main(argv=None):
         receipt["elaboration_command"] = elaborate
         with (output / "elaboration.log").open("w") as log:
             subprocess.run(elaborate, check=True, stdout=log, stderr=subprocess.STDOUT)
-        receipt["ram_storage_model"]["actual_elaborated_cells"] = guard_elaborated_ram(xml_path)
+        cells = guard_elaborated_ram(xml_path)
+        receipt["ram_storage_model"]["actual_elaborated_cells"] = cells
+        receipt["ram_storage_model"]["actual_shapes"] = [
+            {"width": cell["parameters"]["width_a"], "depth": cell["parameters"]["numwords_a"]}
+            for cell in cells if cell["hierarchy"] != TOP + ".ram_contract_test"]
         receipt["elaboration_sha256"] = sha(xml_path.read_bytes())
         command = [verilator, "--cc", "--exe", "--build", "-j", "2", "-O2", "-Wno-fatal", "--assert",
                    "--top-module", TOP, "--Mdir", str(output / "obj"),
