@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "core_not_embedded": true,
+  "native_reader_marker_linked": true,
+  "elf_bytes": 5896201,
+  "elf_sha256": "0a131abdfaeee7e443e706bbed6082750359320166f86882b3ea2703bbd9c624",
+  "package_bytes": 2030592,
+  "package_sha256": "c75abfe867e7f20e4fba527a53db157df3f524465084871936acbe24addcf2ff",
+  "core_bytes": 2027520,
+  "core_sha256": "415cc2d68955755d2de406b233e34fa2cd6cce755089ba842f10f62e6945320c"
+}

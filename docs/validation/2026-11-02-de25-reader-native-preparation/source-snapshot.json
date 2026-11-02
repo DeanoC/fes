@@ -1,0 +1,30 @@
+{
+  "source_commit": "b08fc1143ddd3e6909ad31a3aced3d89bba31429",
+  "files": {
+    "platform/embedded/firmware/README.md": "c54b4fa92a4ef90b724655c75b7c07103b7bbaf6d3040781d98d1b51278b7494",
+    "platform/embedded/firmware/generated/fes_embedded_bridges.h": "cbf79db849bde82629731f6d19a5a96f06cafd4e6b98c300a8b56de7d89477f2",
+    "platform/embedded/firmware/nano_cold_platform.c": "20fab4a58f392d075cb0c8778396a0518f476c92990aa1d2432a633621408465",
+    "platform/embedded/firmware/nano_identity.c": "5b2f8dc58162cfa1ab6c836caa83b18e600876a3fb233e6abb756e8e6eafe099",
+    "platform/embedded/firmware/nano_identity.h": "01ec88fb6cf1d9fa9593c52362f1a29c2a68d333f5089d49c93f5cc7b11590f4",
+    "platform/embedded/firmware/nano_owned_sip.inc": "412b0cb3e7c00cad00758358c588df37bf789918e31fe260e338a382a9f28849",
+    "platform/embedded/firmware/tests/nano_cold_platform_test.c": "abda380fbcec6d2d0ef5b2d02c7ecb51592407de13cd3a24561f862a68cf437b",
+    "platform/embedded/firmware/tests/nano_reader_rtl_test.cpp": "f56bf48292731448d1b4bfd682ca1f4b7b333b6709bd335da29d1ae68cab24e5",
+    "platform/embedded/nano/README.md": "7f99bff1d7823c82c65b41796e0c488170786ec9f03dd01142f1c393dc858344",
+    "platform/embedded/nano/native_trace.py": "b30b4bf60fd3d15b1203a384e3b9c4e431d853c13b30eafd30aa71de97aea85a",
+    "platform/embedded/nano/reader_trace.py": "2898de8498603cbb6aeecbe72d560229ab86ae6d02241cbb3c13a28c02766b85",
+    "platform/embedded/tamago/cmd/fpgaload/main.go": "7fd706d31bb9c68a24765da98b9ebb6d82084cbbcdad9d3fd0f47b3670811924",
+    "platform/embedded/tamago/embeddedcontrol/generated/fes_embedded_bridges.go": "5bb071f8def2e0650a6f2d61b78291eed9b94099d9c7d8f7c0a708e69f70cc50",
+    "platform/embedded/tamago/nativefabric/README.md": "e376e6ee7735b56c3bb18accdaa1529159293d98f264680fd906a5a703bf36c0",
+    "platform/embedded/tamago/nativefabric/controlprobe.go": "d482a3806d3729d6f88d46e0ce3d1ba52698614e05342e4d368a4edd50c8d512",
+    "platform/embedded/tamago/nativefabric/controlprobe_test.go": "14a709f0a75235ffe815270118e692d4f7faf69767833f6f202110e88a5c16b9",
+    "platform/embedded/tamago/nativefabric/readerprobe_test.go": "ce499f690d456baa9d96477db68bdda0212bbe18c3bae9510bd710130b6c76aa",
+    "sources/mister-packages/docs/embedded-bridges.md": "d5ef7ecc7b1910fa5a47bf65eb7ac0fd7aca1fe8394d7a458dfee0115c91ca21",
+    "sources/mister-packages/packages/fabric/fes_fabric_embedded_bridges.yaml": "15380b1fe61a7e44eb60ef24adec00009539f717efb86d0f0876fbd0070cab58",
+    "sources/mister-packages/testdata/oracles/fes-embedded-bridges.json": "c80629d6340449165827037c0c8190ec3f2d1626a2f26d1121e5abb0d2124015",
+    "tests/test_nano_configuration.py": "6f1a94a5d2a5b12d106fd3306c782ed7095da0308ead18e4af0ac2af9155b56c",
+    "tests/test_nano_identity.py": "8e5412ed002e0a67ee4190435f9dc71ab09560cc109ee17029d9cab54f802b0f",
+    "tests/test_nano_native_trace.py": "99ca1c6613bee04c1c25727348375f13a67bd1adad237d91b501b5e022afc9ee",
+    "tests/test_parent_affected.py": "7d5154f1a5c63ec6c36648ffee2e7292a2ec3dc5fe2edeaa25bbcae74532829b"
+  },
+  "deleted": []
+}
