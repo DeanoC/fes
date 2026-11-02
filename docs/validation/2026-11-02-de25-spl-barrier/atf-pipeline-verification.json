@@ -1,0 +1,23 @@
+{
+  "status": "passed",
+  "classification": "actual strong C/MMIO fixture joined to synthetic boot/checkpoints; no hardware acceptance",
+  "atf_handoff": {
+    "bl32": 0,
+    "bl33": 2149580800,
+    "bytes": 90173,
+    "fdt": 0,
+    "format": 2,
+    "params_base": 3220176896,
+    "params_bytes": 1048576,
+    "scope": "loaded-bl31-handoff-v2",
+    "sha256": "851641170730a7a5eb776baf0223f2bb24683f944924086fccbe4d4c6dbe1503",
+    "target": 2147483648
+  },
+  "calls": 175,
+  "complete_ddr_decodes": 1,
+  "source_sha256": {
+    "platform/embedded/nano/native_trace.py": "07fcaf1924d7a78e76edf6d6876a1fc51dd027e99397a43562913ac2c63ed1f3",
+    "tests/test_nano_cold.py": "905e4a687a516d280054d3a816513d966b7656eeafbd0fc1c910bc9b994aca00",
+    "tests/test_nano_native_trace.py": "c0328c49dd7517354c8a0c84639e1e31f8f1c8b16a84428c8ca2ae154b84e3bc"
+  }
+}

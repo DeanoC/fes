@@ -12,8 +12,12 @@ The current `loaded-bl31-handoff-v2` descriptor also requires paired
 `FES_NANO_SPL ATF_STEP` at guard entry and before/after raw hashing. These
 checkpoints narrow partial progress. Hash completion does not mean the digest
 matched; the final ATF observation and subsequent secure/loader ownership checks
-are still required. The barrier remains in place. This new checkpoint recipe
-is hardware unqualified; the retained trial below used the preceding recipe.
+are still required. The barrier remains in place. The
+[checkpoint trial](../../../docs/validation/2026-11-02-de25-spl-barrier/README.md)
+verifies both SD files but stops after handoff without even the pre-barrier
+marker. The actual vendor UART calls the general scheduler after transmitting
+a newline; a bounded post-containment console path is the next candidate.
+The physical fault location and this recipe remain unqualified.
 
 The U-Boot receipt's checked `atf_handoff` descriptor supplies `atf=...` to the
 serial/configuration decoder. Current file composition requires that descriptor
