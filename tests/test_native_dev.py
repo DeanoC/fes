@@ -563,11 +563,12 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         self.assertFalse((output / 'image.json').exists())
 
     def test_new_source_keeps_previous_generation_and_failed_build_keeps_receipt(self):
+        import kit_software
         output = self.run_source()
         previous = (output / 'development.json').read_bytes()
         first_image = (output / 'linux.img').read_bytes()
         self.revisions['libmister-runtime'] = '2' * 40
-        with patch.object(self.runtime, 'side_effect', RuntimeError('compile failure')):
+        with patch.object(kit_software, 'build_runtime', side_effect=RuntimeError('compile failure')):
             with self.assertRaisesRegex(RuntimeError, 'compile failure'):
                 self.run_source()
         self.assertEqual((output / 'development.json').read_bytes(), previous)
