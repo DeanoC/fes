@@ -26,6 +26,15 @@ actual Quartus 26.3 Pro tools, complete selected installation and controlled
 execution. That record supplies the real Qsys BUILD_ID and explicit seed 1;
 the diagnostic source/profile identity remains the default for the standalone
 scanout recipe. `--compile-only` retains a candidate and never exports a package.
+The parent recipe registry selects this producer explicitly for
+`recipe_for("fes.menu", board="de25-nano")`; default lookup remains DE10.
+The producer implements the shared clean-source, tool-authentication and
+canonical-record interface, and accepts the shared root/identity CLI options.
+Set `QUARTUS_ROOTDIR` to the selected Pro installation and provide the resource
+ZIP with `--vendor-archive` or `FES_DE25_VENDOR_ARCHIVE`. The shared cache option
+does not select or replace installed Quartus tools. Registration does not close
+timing, seal or native-kit gates, and the ordinary DE25 source-build frontend
+remains separate integration work.
 The canonical `timed-system-reset-release-v3` profile times the three generated
 reset receivers released by the same 100 MHz system clock. It removes their
 clear exceptions from the private board/generated SDC copies, preserving pixel,

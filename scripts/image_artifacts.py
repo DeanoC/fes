@@ -28,7 +28,7 @@ def sha(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def packages_at(root, records):
+def packages_at(root, records, *, board=BOARD):
     from recipes import recipe_for
     result = []
     for inputs in records:
@@ -36,7 +36,7 @@ def packages_at(root, records):
         identity = selection['package_id']
         if not re.fullmatch('[0-9a-f]{64}', identity):
             raise ValueError('invalid artifact package identity')
-        recipe = recipe_for(selection['core_id'])
+        recipe = recipe_for(selection['core_id'], board=board)
         if recipe.video_profiles:
             raise ValueError('bootstrap artifacts accept display firmware only; install playable cores separately')
         result.append({'directory': root / 'core-packages' / identity,
@@ -100,7 +100,7 @@ def load(root, *, board=BOARD):
             validate_static_arm(root / 'bin' / name, architecture)
         except ValueError as error:
             raise ValueError('bootstrap helper must be a static ARM ELF: ' + name) from error
-    packages = packages_at(root, manifest['packages'])
+    packages = packages_at(root, manifest['packages'], board=board)
     for package in packages:
         path = package['selection_path']
         try:
@@ -111,7 +111,7 @@ def load(root, *, board=BOARD):
             raise ValueError('bootstrap package selection must be a regular file: ' + path.name)
         if metadata.st_mode & 0o222:
             raise ValueError('bootstrap package selection is writable: ' + path.name)
-    verify_package_outputs(root, packages)
+    verify_package_outputs(root, packages, board=board)
     # Assembly checks this again in the target; fail before any build starts.
     check_menu_admission(root / 'bin' / 'mister-runtime', packages[0]['directory'], board)
     return manifest, packages

@@ -129,6 +129,16 @@ class ArtifactFixture(unittest.TestCase):
         self.write_manifest()
 
 class ImageArtifactsTests(ArtifactFixture):
+    def test_explicit_de25_reaches_all_package_recipe_lookups(self):
+        self.select_de25()
+        original = build.recipe_for
+        def selected(core, *, board='de10-nano'):
+            self.assertEqual(board, 'de25-nano')
+            return original(core, board=board)
+        with patch.object(build, 'recipe_for', side_effect=selected) as lookup:
+            artifacts.load(self.root, board='de25-nano')
+        self.assertGreaterEqual(lookup.call_count, 3)
+
     @needs_readelf
     def test_explicit_de25_stage_uses_aarch64_and_preserves_source_binding(self):
         self.select_de25()

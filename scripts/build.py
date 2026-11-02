@@ -489,7 +489,7 @@ def _package_tuple(packages):
     return tuple(packages)
 
 
-def _package_details(packages):
+def _package_details(packages, *, board="de10-nano"):
     normalized = _package_tuple(packages)
     details = []
     core_ids = set()
@@ -501,7 +501,7 @@ def _package_details(packages):
             selection = package["inputs"]["selection"]
             core_id = selection["core_id"]
             identity = selection["package_id"]
-            recipe = recipe_for(core_id)
+            recipe = recipe_for(core_id, board=board)
         except (KeyError, TypeError):
             raise ValueError("selected format-2 package is malformed") from None
         if not isinstance(identity, str) or not re.fullmatch(r"[0-9a-f]{64}", identity):
@@ -533,8 +533,8 @@ def unavailable_manifest_for_action(output, action, unavailable):
     return None
 
 
-def package_arguments(packages, unavailable_path=None):
-    normalized, details = _package_details(packages)
+def package_arguments(packages, unavailable_path=None, *, board="de10-nano"):
+    normalized, details = _package_details(packages, board=board)
     if not normalized:
         return []
     arguments = ["FES_PACKAGE_IDS=" + ",".join(recipe.core_id for _, recipe, _ in details)]
@@ -631,8 +631,8 @@ def _package_member_fields(package):
     return tuple(fields)
 
 
-def package_output_names(package):
-    normalized, details = _package_details(package)
+def package_output_names(package, *, board="de10-nano"):
+    normalized, details = _package_details(package, board=board)
     if len(normalized) != 1:
         raise ValueError("package output names require exactly one selected package")
     _, recipe, identity = details[0]
@@ -640,9 +640,9 @@ def package_output_names(package):
     return [recipe.selection_filename] + [prefix + name for name, _ in _package_member_fields(normalized[0])]
 
 
-def package_selection_names(packages):
+def package_selection_names(packages, *, board="de10-nano"):
     """Return selected child record names in package order."""
-    _, details = _package_details(packages)
+    _, details = _package_details(packages, board=board)
     names = tuple(recipe.selection_filename for _, recipe, _ in details)
     if any('video_parts' in package for package, _, _ in details):
         names += (_VIDEO_SELECTION,)
@@ -777,10 +777,10 @@ def _format2_selection_paths(output):
                  if path.name.endswith('.package-selection.toml') or path.name == _VIDEO_SELECTION)
 
 
-def verify_package_outputs(output, packages):
+def verify_package_outputs(output, packages, *, board="de10-nano"):
     """Require a closed parent copy of the exact selected package bytes."""
     output = Path(output)
-    normalized, details = _package_details(packages)
+    normalized, details = _package_details(packages, board=board)
     if not normalized:
         try:
             for path in list(_format2_selection_paths(output)) + [output / name for name in _PACKAGE_TREES]:
@@ -793,7 +793,7 @@ def verify_package_outputs(output, packages):
             raise ValueError("package-free output contains stale FES package files") from None
         return []
     names = []
-    expected_selection_names = set(package_selection_names(packages))
+    expected_selection_names = set(package_selection_names(packages, board=board))
     for path in _format2_selection_paths(output):
         try:
             metadata = path.lstat()
@@ -819,7 +819,7 @@ def verify_package_outputs(output, packages):
             members = _package_member_fields(package)
             if sorted(entry.name for entry in directory.iterdir()) != sorted(name for name, _ in members):
                 raise ValueError
-            package_names = package_output_names(package)
+            package_names = package_output_names(package, board=board)
             expected = {output / recipe.selection_filename: package["inputs"]["selection_sha256"]}
             expected.update({directory / name: package["inputs"][field] for name, field in members})
             for path, expected_sha256 in expected.items():

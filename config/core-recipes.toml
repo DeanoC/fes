@@ -1953,3 +1953,22 @@ mistral_dsp_signed_lanes = false
 set = []
 gpu_required = false
 router2_profile = "unset"
+
+[[recipes]]
+core_id = "fes.menu"
+board = "de25-nano"
+toolchain = "quartus"
+identity_version = 2
+producer_script = "scripts/build_de25_menu_package.py"
+producer_module = "scripts.build_de25_menu_package"
+authenticate = "_authenticate_tools"
+lock_path = "boards/de25nano/hps/vendor.lock.toml"
+selection_filename = "fes-menu.package-selection.toml"
+package_dir_env = "FES_MENU_PACKAGE_DIR"
+package_selection_env = "FES_MENU_PACKAGE_SELECTION"
+quartus_role = "primary DE25 MENU package producer"
+
+[recipes.quartus]
+version = "26.3.0"
+seeds = [1]
+threads = 2

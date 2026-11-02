@@ -30,7 +30,7 @@ if __package__ in (None, ''):
 from scripts.build_fes_pcxt_quartus import tree_digest
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
-from scripts.fes_build_common import BuildError, _require_clean_source
+from scripts.fes_build_common import AuthenticatedTool, BuildError, _require_clean_source as require_clean_source
 from scripts.functional_execution import execution_digest, execution_environment
 from boards.de25nano.scanout import async_inputs
 from boards.de25nano.scanout.build import TIMED_RESET_RELEASE, MANAGED_FABRIC
@@ -40,6 +40,12 @@ RECIPE = 'scripts/build_de25_menu_package.py'
 ABI = 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'
 SOURCE_ROOTS = ['boards/de25nano', 'cores/fes-menu', 'cores/fes-splash', 'scripts']
 DEVICE = 'A5EB013BB23BE4SCS'
+
+
+def _require_clean_source(root, *, identity_version=2, pinned_inputs=(RECIPE, ABI)):
+    if tuple(pinned_inputs) != (RECIPE, ABI):
+        raise BuildError('DE25 MENU requires its pinned recipe and ABI inputs')
+    return require_clean_source(Path(root), identity_version=identity_version, pinned_inputs=pinned_inputs)
 
 
 def sha(path):
@@ -76,7 +82,14 @@ def authenticate_tools(builder, quartus_root):
     return paths, identities
 
 
-def execution_inputs(paths, env):
+def _authenticate_tools(root, *, cache_root=None):
+    # Quartus is an explicitly selected installed toolchain; the common
+    # producer API's source-toolchain cache does not select or replace it.
+    paths, identities = authenticate_tools(scanout(root), os.environ.get('QUARTUS_ROOTDIR', ''))
+    return {name: AuthenticatedTool(path, identities[name]) for name, path in paths.items()}
+
+
+def execution_inputs(paths, env, _router_device=0):
     # Quartus reads device databases, Qsys, Tcl, Java and IP outside its shell
     # wrapper. Bind the complete explicitly selected installation, not just sh.
     install = paths['quartus'].parent.parent.parent
@@ -129,10 +142,14 @@ def execution_inputs(paths, env):
         'environment': dict(env, HOME='<private-build-home>')}
 
 
-def create_build_record(root, repository, revision, identities, execution, captured):
+def create_build_record(root, repository, revision, identities, execution, captured=None, *, identity_version=2):
+    if type(identity_version) is not int or identity_version != 2:
+        raise BuildError('DE25 MENU requires functional build identity 2')
     if execution.get('toolchain') != 'quartus' or set(identities) != {'quartus', 'qsys', 'ipgenerate', 'pfg'}:
         raise BuildError('DE25 MENU requires actual controlled Quartus execution inputs')
     root = Path(root).resolve()
+    if captured is None:
+        captured = scanout(root).capture(revision)
     top = Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=root, text=True).strip())
     closure = source_input_closure(root, SOURCE_ROOTS)
     for path, data in captured.items():
@@ -255,6 +272,8 @@ def controlled_environment(env):
 
 def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_output=None, compile_only=False):
     root = Path(root).resolve()
+    if vendor_archive is None:
+        raise BuildError('DE25 MENU requires --vendor-archive or FES_DE25_VENDOR_ARCHIVE')
     if compile_only and package_output is not None:
         raise BuildError('compile-only cannot select a package destination')
     if output is not None and not compile_only and not Path(output).resolve().is_relative_to(root):
@@ -320,14 +339,17 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--quartus-root', required=True)
-    parser.add_argument('--vendor-archive', type=Path, required=True)
+    parser.add_argument('--root', type=Path, default=ROOT)
+    parser.add_argument('--quartus-root', default=os.environ.get('QUARTUS_ROOTDIR', ''))
+    parser.add_argument('--vendor-archive', type=Path, default=os.environ.get('FES_DE25_VENDOR_ARCHIVE') or None)
+    parser.add_argument('--cache-root', type=Path, help='shared producer API; Quartus uses the selected installed tools')
+    parser.add_argument('--identity-version', type=int, choices=(2,), default=2)
     parser.add_argument('--output', type=Path)
     parser.add_argument('--package-output', type=Path)
     parser.add_argument('--compile-only', action='store_true')
     args = parser.parse_args(argv)
     try:
-        print(build(quartus_root=args.quartus_root, vendor_archive=args.vendor_archive,
+        print(build(root=args.root, quartus_root=args.quartus_root, vendor_archive=args.vendor_archive,
             output=args.output, package_output=args.package_output, compile_only=args.compile_only))
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
         parser.exit(1, 'de25-menu: ' + str(error) + '\n')

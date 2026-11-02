@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import tomllib
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 from scripts import build_de25_menu_package as producer
@@ -250,6 +251,47 @@ class DE25MenuPackageTests(unittest.TestCase):
         captured['sources/misteross/' + producer.ABI] = b'changed ABI'
         with self.assertRaisesRegex(producer.BuildError, 'differs from canonical closure'):
             record()
+
+    def test_shared_producer_api_keeps_native_record_and_explicit_tool_identity(self):
+        revision, captured, identities, execution = self.prepare_repository()
+        expected = producer.create_build_record(self.root, 'https://github.com/DeanoC/fes',
+            revision, identities, execution, captured)
+        builder = SimpleNamespace(capture=lambda selected: captured if selected == revision else None)
+        paths = {name: self.root / name for name in identities}
+        with patch.object(producer, 'scanout', return_value=builder), \
+                patch.object(producer, 'authenticate_tools', return_value=(paths, identities)) as authenticate, \
+                patch.dict(os.environ, {'QUARTUS_ROOTDIR': '/explicit-pro'}):
+            actual = producer.create_build_record(self.root, 'https://github.com/DeanoC/fes', revision,
+                identities, execution=execution, identity_version=2)
+            self.assertEqual(actual, expected)
+            tools = producer._authenticate_tools(self.root, cache_root=self.root / 'unrelated-oss-cache')
+            authenticate.assert_called_once_with(builder, '/explicit-pro')
+            self.assertEqual({name: tool.path for name, tool in tools.items()}, paths)
+            self.assertEqual({name: tool.identity for name, tool in tools.items()}, identities)
+        for version in (1, True, 2.0):
+            with self.subTest(identity_version=version), self.assertRaises(producer.BuildError):
+                producer.create_build_record(self.root, 'https://github.com/DeanoC/fes', revision,
+                    identities, execution=execution, captured=captured, identity_version=version)
+
+    def test_shared_clean_source_check_cannot_change_pinned_inputs(self):
+        with patch.object(producer, 'require_clean_source', return_value=('source', 'a' * 40)) as check:
+            producer._require_clean_source(self.root, identity_version=2)
+            check.assert_called_once_with(self.root, identity_version=2,
+                pinned_inputs=(producer.RECIPE, producer.ABI))
+            check.reset_mock()
+            with self.assertRaises(producer.BuildError):
+                producer._require_clean_source(self.root, pinned_inputs=('other',))
+            check.assert_not_called()
+
+    def test_shared_cli_refuses_missing_archive_before_tool_or_output_work(self):
+        output = self.root / 'not-created'
+        with patch.dict(os.environ, {}, clear=True), patch.object(producer, 'authenticate_tools') as authenticate, \
+                patch('sys.stderr'), self.assertRaises(SystemExit) as stopped:
+            producer.main(['--root', str(self.root), '--identity-version', '2',
+                           '--cache-root', str(self.root / 'cache'), '--package-output', str(output)])
+        self.assertEqual(stopped.exception.code, 1)
+        authenticate.assert_not_called()
+        self.assertFalse(output.exists())
 
     def test_manifest_selects_only_the_real_de25_menu_contract(self):
         revision, captured, identities, execution = self.prepare_repository()

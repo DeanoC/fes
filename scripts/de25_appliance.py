@@ -141,7 +141,7 @@ def export_artifacts(root, directory, output):
             expected[name] = inputs['executables'][name]
         if digest(appliance.regular(rootfs)) != provenance.rootfs_sha256:
             raise ValueError('DE25 factory image changed during artifact export')
-        packages = image_artifacts.packages_at(directory / 'artifacts', selected.artifacts['packages'])
+        packages = image_artifacts.packages_at(directory / 'artifacts', selected.artifacts['packages'], board=BOARD)
         output.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='.de25-artifacts-', dir=output.parent) as temporary:
             scratch = Path(temporary)

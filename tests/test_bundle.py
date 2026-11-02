@@ -30,7 +30,8 @@ class BundleTest(unittest.TestCase):
         source = Path(__file__).resolve().parents[1] / "sources/misteross"
         recipes = [
             (recipe.core_id, recipe.producer_module, dict(recipe.producer_options))
-            for recipe in module.FORMAT2_RECIPES.values()
+            for recipe in [*module.FORMAT2_RECIPES.values(),
+                           module.recipe_for('fes.menu', board='de25-nano')]
         ]
         probe = '''
 import importlib, inspect, json, sys
@@ -330,6 +331,9 @@ print(json.dumps({"package": str(package), "record": str(record_path), "rom_map_
             artifact = json.loads(built.stdout)
             inspected = module._inspect_package_candidate(
                 source, Path(artifact['package']), Path(artifact['record']), recipe=recipe)
+            with self.assertRaisesRegex(ValueError, 'independently selected board'):
+                module._inspect_package_candidate(source, Path(artifact['package']), Path(artifact['record']),
+                    recipe=module.recipe_for('fes.menu', board='de25-nano'))
 
         self.assertEqual(inspected['manifest']['format'], 4)
         self.assertEqual(inspected['manifest']['core']['id'], 'fes.coleco')
