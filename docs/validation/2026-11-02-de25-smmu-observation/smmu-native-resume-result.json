@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "/usr/bin/python3",
+    "out/nano-smmu-observe-20261102/trial/resume/experiment.py"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 23.018267878098413,
+  "log_sha256": "7bad081064b5163983e80b508a0647bac847f4117c9bca6c221b63f21558a34e"
+}

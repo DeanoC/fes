@@ -1,0 +1,34 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "64157280e2e7b06d08c1e43fb7ceff6c0214e3ed",
+  "phase": "recovery",
+  "sof_sha256": "07cdad09617584c454fe3d54d3d2b8afd83327e1fa39607cd8ebc634363e7a6b",
+  "fit_sha256": "76dc261e8e5fa6655d9e478496f6ebe10fffbf8abd1fe0c743faa7d6eb567fce",
+  "started_utc": "2026-11-02T05:24:49.342161+00:00",
+  "stage": "PASS recovery",
+  "programming_attempted": true,
+  "fesboot_sent": false,
+  "pass": true,
+  "sd_write_commands_sent": false,
+  "runner_sha256": "8ce30485c23370dcea5d0b286b5b26548291129ed09878be0d3baceed12270db",
+  "ddr_traffic_requested": false,
+  "core_load_acceptance": false,
+  "clock_checks": [
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    },
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    }
+  ],
+  "jtag_id": "4362C0DD",
+  "programming_complete": true,
+  "prompt_verified": true,
+  "usb_permissions_restored": true,
+  "console_sha256": "d7dd3ad888c404a08521c97d711a715b0129656f1ca7017b3b73bdc350c4a803",
+  "finished_utc": "2026-11-02T05:24:59.417731+00:00",
+  "native_admission": false,
+  "decoder_sha256": "1afa6f6e14839fa08d71f96e2d62d09b2627bea94a0aa7b1998f0d218c84af49"
+}

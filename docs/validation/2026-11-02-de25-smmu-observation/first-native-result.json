@@ -1,0 +1,29 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "64157280e2e7b06d08c1e43fb7ceff6c0214e3ed",
+  "phase": "native",
+  "sof_sha256": "a6cea2259714cadfab111cea8c4c7eb89dac5f00b0122ff26dd09a692ba8127f",
+  "fit_sha256": "76dc261e8e5fa6655d9e478496f6ebe10fffbf8abd1fe0c743faa7d6eb567fce",
+  "started_utc": "2026-11-02T05:25:16.893020+00:00",
+  "stage": "volatile native programming",
+  "programming_attempted": true,
+  "fesboot_sent": false,
+  "pass": false,
+  "sd_write_commands_sent": false,
+  "runner_sha256": "8ce30485c23370dcea5d0b286b5b26548291129ed09878be0d3baceed12270db",
+  "ddr_traffic_requested": false,
+  "core_load_acceptance": false,
+  "clock_checks": [
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    }
+  ],
+  "jtag_id": "4362C0DD",
+  "error": "programmer error: native-program.log",
+  "usb_permissions_restored": true,
+  "console_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "finished_utc": "2026-11-02T05:25:29.210327+00:00",
+  "native_admission": false,
+  "decoder_sha256": "1afa6f6e14839fa08d71f96e2d62d09b2627bea94a0aa7b1998f0d218c84af49"
+}
