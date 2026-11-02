@@ -119,7 +119,10 @@ with injected firmware, including changed ownership, malformed acknowledgements
 and transfer failures. Joined native tests drive three successive arena leases,
 transfers, computer Run/Close cycles and old-client revocation. The matching
 strong C fixture drives the second opening/close and uncertain readiness/open/
-close paths. These are software checks; repeated physical loads remain unqualified.
+close paths. The separate
+[bounded CPU mapping/two-load observation](../../../../docs/validation/2026-11-03-de25-cpu-mapping/README.md)
+passes two configurations and owned Run/return cycles for its exact fixed
+package. Arbitrary compatible packages and normal runtime admission remain open.
 
 `HPSContextVerifier.ProbeReader` adds a distinct owned firmware operation for
 the sealed diagnostic's on-chip reader. It checks the same compiled source and

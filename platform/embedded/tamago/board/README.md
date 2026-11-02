@@ -32,8 +32,10 @@ records execution and return for its exact older native artifact.
 The shared [ARM64 mapper](arm64map/README.md) now requires live EL1 CPU state,
 exact descriptors and hardware read/write translations. It guards native
 configuration copies, configuration SMCs and FPGA MMIO. A changed native image
-requires a new matched boot observation before its mappings are qualified on
-the Nano. The mapping contract supplies no general boot or activation grant.
+requires a new matched boot observation. The
+[CPU mapping and two-load observation](../../../../docs/validation/2026-11-03-de25-cpu-mapping/README.md)
+passes on TRWU8CBL for its exact guarded native artifact. The mapping contract
+supplies no general boot or activation grant.
 A successful cross-build does **not** mean tenfoot can display or launch on
 hardware: display is disabled unless an explicit compatible firmware handoff is supplied.
 `probe`, `storage`, `keyboard`, `network` and `display` are the

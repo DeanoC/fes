@@ -760,6 +760,9 @@ first configuration, including in two-load mode. Its absence, changed CPU,
 address, attribute, owner or generation rejects completion. The second cycle
 retains the same reservation and must still provide fresh transfer and return
 evidence. A successful mapping report grants no ordinary runtime admission.
+The [bounded CPU mapping/two-load observation](../../../docs/validation/2026-11-03-de25-cpu-mapping/README.md)
+passes these checks and both fixed-package Run/return cycles on TRWU8CBL for
+its exact matched native artifact. Ordinary Nano package switching remains open.
 
 Adding `--computer-control` selects the separate control-only ZX81 command
 experiment. It is mutually exclusive with `--ddr-read`. The producer derives

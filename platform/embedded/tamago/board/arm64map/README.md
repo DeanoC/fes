@@ -44,3 +44,7 @@ attribute conflicts, translation faults and uncertain publication. The QEMU
 `mapcheck` program executes the actual assembly, verifies the heap, UART and
 DMA mappings and checks an unaligned DMA copy. Neither establishes Nano
 DDR-controller readiness, physical cache coherency or board acceptance.
+The separate [Nano hardware observation](../../../../../docs/validation/2026-11-03-de25-cpu-mapping/README.md)
+checks the real EL1 mappings and runs two guarded fixed-package transfers and
+owned Run/returns. Its scope is recorded against exact native and FPGA inputs;
+general RAM/clock qualification and normal runtime admission remain open.

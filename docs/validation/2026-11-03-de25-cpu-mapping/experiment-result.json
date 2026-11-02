@@ -1,0 +1,195 @@
+{
+  "scope": "one fresh recovery session, both fixed FIT/package uploads and readbacks, fresh FIT hash after package write; two native fixed-package load/run/return diagnostics; restore15M",
+  "ddr_traffic_requested": false,
+  "data_release_requested": false,
+  "execution_observation_requested": true,
+  "execution_observed": true,
+  "core_load_acceptance": false,
+  "computer_reload": true,
+  "previous_transport_stop_evidence_sha256": "8034d1f240b29c97d09dbd61c2d58bd1a079e6cdb9426ed53ce12467bac9d768",
+  "recovery_strategy": "owned-session-two-verified-writes-and-reread; no retry or fallback",
+  "source_commit": "b790cdd1300b441d0f8717e7c64ddf8d5588e0e6",
+  "native_build_source_commit": "b6249ef3daa89f6ab2fa6e6b8b9be9074ac7bc8a",
+  "native_sof_sha256": "5b1708b4ed7133588ca82fe1dd94edc9de11d5ea0dca52862affe17cd4db65f8",
+  "target_clock": "6M",
+  "clock_change_attempted": true,
+  "pass": true,
+  "sd_write_commands_sent": true,
+  "started_utc": "2026-11-02T23:21:11.539740+00:00",
+  "stages": [
+    {
+      "clock_operation": "clock-before",
+      "returncode": 0,
+      "output": "15M"
+    },
+    {
+      "clock_operation": "clock-set-6M",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-confirm-6M",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "recovery-boot",
+      "returncode": 0
+    },
+    {
+      "phase": "uploads",
+      "returncode": 0
+    },
+    {
+      "clock_operation": "clock-before-native",
+      "returncode": 0,
+      "output": "6M"
+    },
+    {
+      "phase": "native",
+      "returncode": 0
+    },
+    {
+      "clock_operation": "clock-restore",
+      "returncode": 0,
+      "output": ""
+    },
+    {
+      "clock_operation": "clock-restored-readback",
+      "returncode": 0,
+      "output": "15M"
+    }
+  ],
+  "original_clock": "15M",
+  "stage": "native",
+  "native_phase_passed": true,
+  "cpu_mapping_observation": {
+    "el": 1,
+    "sctlr": 818944005,
+    "tcr": 8589948185,
+    "root": 2214608896,
+    "mair": 4521728,
+    "mmfr0": 1052962,
+    "mpidr": 2164260864,
+    "ram_base": 2214592512,
+    "ram_bytes": 268435456,
+    "control_base": 536937472,
+    "control_bytes": 256,
+    "dma_base": 2491416576,
+    "dma_bytes": 8388608,
+    "reader_base": 2499805184,
+    "reader_bytes": 2097152,
+    "reads": 3604,
+    "translations": 5176,
+    "bytes": 278921472,
+    "descriptor_sha256": "4faac8b8a182ca69ab49a346821d5c6a14cea3a39ec9069fc32cf607fecc97df",
+    "owner": 4222070408886857401,
+    "generation": 4,
+    "scope": "EL1-identity-mapping-only",
+    "runtime_admission": false
+  },
+  "configuration_cycles": 2,
+  "computer_activity_observations": [
+    {
+      "complete": true,
+      "kind": "z80-instruction-fetch-bus",
+      "counter_bits": 32,
+      "samples": [
+        {
+          "phase": "initial",
+          "fetches": 0,
+          "address": 0
+        },
+        {
+          "phase": "initial-held",
+          "fetches": 0,
+          "address": 0
+        },
+        {
+          "phase": "run",
+          "fetches": 39172,
+          "address": 979
+        },
+        {
+          "phase": "return",
+          "fetches": 267280,
+          "address": 989
+        },
+        {
+          "phase": "return-held",
+          "fetches": 267280,
+          "address": 989
+        },
+        {
+          "phase": "relaunch",
+          "fetches": 306443,
+          "address": 979
+        },
+        {
+          "phase": "final",
+          "fetches": 335572,
+          "address": 979
+        },
+        {
+          "phase": "final-held",
+          "fetches": 335572,
+          "address": 979
+        }
+      ],
+      "runtime_admission": false
+    },
+    {
+      "complete": true,
+      "kind": "z80-instruction-fetch-bus",
+      "counter_bits": 32,
+      "samples": [
+        {
+          "phase": "initial",
+          "fetches": 0,
+          "address": 0
+        },
+        {
+          "phase": "initial-held",
+          "fetches": 0,
+          "address": 0
+        },
+        {
+          "phase": "run",
+          "fetches": 39166,
+          "address": 975
+        },
+        {
+          "phase": "return",
+          "fetches": 267295,
+          "address": 986
+        },
+        {
+          "phase": "return-held",
+          "fetches": 267295,
+          "address": 986
+        },
+        {
+          "phase": "relaunch",
+          "fetches": 306465,
+          "address": 978
+        },
+        {
+          "phase": "final",
+          "fetches": 335589,
+          "address": 975
+        },
+        {
+          "phase": "final-held",
+          "fetches": 335589,
+          "address": 975
+        }
+      ],
+      "runtime_admission": false
+    }
+  ],
+  "restored_clock": "15M",
+  "original_clock_restored": true,
+  "private_server_stopped": true,
+  "usb_permissions_restored": true,
+  "finished_utc": "2026-11-02T23:25:27.192148+00:00"
+}
