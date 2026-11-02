@@ -212,7 +212,7 @@ class A20TestTest(unittest.TestCase):
         names = {line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')}
         suite = {name for checks in sim.A20_CHECKS.values() for name in checks}
         # Mode X, for MS-DOS on a kit, adds its own.
-        self.assertEqual(names - suite, {'dos-start', 'dos-locks-0', 'dos-release', 'xms-global', 'xms-lock'})
+        self.assertEqual(names - suite, {'dos-start', 'dos-locks-0', 'dos-release'})
         self.assertLessEqual(suite, names)
 
     def test_himemx_method_is_read_from_its_banner(self):

@@ -36,9 +36,10 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            must be off at the prompt, INT 15h AH=24h and 87h must turn it on,
            off and back whichever control set it, and a shutdown-byte resume
            must keep it. On the games image, HIMEMX's /VERBOSE banner must
-           name a real A20 method, not "Always on", and XMS must agree with
-           memory. Every check must print ok. With --cpu rtl, the boot image
-           only; writes a20-rtl/.
+           name a real A20 method, not "Always on", A20 must be off at the
+           prompt, and XMS 03h/04h and 05h/06h must turn it on and off again
+           and agree with memory. Every check must print ok. With --cpu rtl,
+           writes a20-rtl/.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
   game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
@@ -636,17 +637,17 @@ def run_rtl_stops(args, linked: list[Path]) -> dict:
 # A20TEST.COM's checks on each image, and HIMEMX's /VERBOSE line naming its A20 method.
 A20_CHECKS = {
     'boot': ('boot', 'query', 'query-2403', 'bios', 'kbc', 'port92', 'move', 'move-kbc', 'resume', 'DONE'),
-    'games': ('xms-query', 'xms-local', 'DONE'),
+    'games': ('xms-start', 'xms-query', 'xms-global', 'xms-lock', 'DONE'),
 }
 HIMEMX_METHOD = re.compile(r'(\S.*?) A20 method used')
 
 
 def run_a20(args, linked: list[Path]) -> dict:
-    """A20TEST.COM at the FreeDOS prompt on the boot image and, on the oracle, the games image."""
+    """A20TEST.COM at the FreeDOS prompt on the boot and games images."""
     images = firmware.images(args.download, args.jobs)
     testbench = machine_testbench(args, linked)
     rtl = '-rtl' if args.cpu == 'rtl' else ''
-    profiles = ('boot',) if args.cpu == 'rtl' else tuple(A20_CHECKS)
+    profiles = tuple(A20_CHECKS)
     disks = {profile: fixture_with(args, f'a20{rtl}/{profile}', 'a20_test.asm', 'A20TEST.COM',
                                    freedos.image(args.download, args.jobs, profile)) for profile in profiles}
 

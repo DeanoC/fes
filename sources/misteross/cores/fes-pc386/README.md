@@ -87,7 +87,7 @@ python3 scripts/sim_fes_pc386.py --suite boot --cpu rtl   # the RTL must reach t
 python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|' --expect 'high memory area'  # the games image
 python3 scripts/sim_fes_pc386.py --suite boot --image games --type 'set|' --expect 'BLASTER=A220 I7 D1 T3'  # FESENV from CMOS
 python3 scripts/sim_fes_pc386.py --suite rtl-stops        # the RTL's stop path on the stop test disk, against the oracle
-python3 scripts/sim_fes_pc386.py --suite a20 --download   # A20TEST.COM: A20 off at boot, INT 15h 24xx/87h, a shutdown resume, HIMEMX's method
+python3 scripts/sim_fes_pc386.py --suite a20 --download   # A20TEST.COM: A20 off at boot, INT 15h 24xx/87h, a shutdown resume, HIMEMX's method and XMS 03h-06h
 python3 scripts/sim_fes_pc386.py --suite sound --download  # boot, then SOUND.COM; writes sound.wav
 python3 scripts/sim_fes_pc386.py --suite vga              # presenter, capture and plane benches, VGA test disk, replay
 python3 scripts/synth_fes_pc386.py --cache-root /abs/out/cache/misteross-toolchains  # machine-only synthesis
@@ -405,13 +405,14 @@ FreeDOS 1.4 package archives in `C:\FDOS\BIN`, pinned in
   setting in CMOS 60h-62h at every boot, then loads CuteMouse high.
 - MEM shows 573K (586,416 bytes) of conventional memory free and 154K of
   upper memory free, largest block 81K.
-- HIMEMX switches A20 through the 8042 (`/METHOD:KBC`). Left to itself it
-  finds A20 already on (the 8042's output port leaves reset with A20 enabled,
-  and the BIOS only uses port 92h) and takes its "Always on" method, under
-  which XMS function 04h (global disable A20) always fails.
+- HIMEMX picks its A20 method by itself. POST hands DOS a machine with A20
+  off ([A20 and CPU reset](../../docs/pc386-machine-design.md#a20-and-cpu-reset)),
+  so HIMEMX takes port 92h ("Fast A20 method used"), and XMS function 04h
+  (global disable A20) turns A20 off again. A HIMEMX that finds A20 already
+  on takes its "Always on" method, under which 04h always fails.
 - No `DOS=HIGH`: with the kernel in the HMA, its entry code enables A20 with
   XMS function 05h whenever a program has left it off and never releases it,
-  so HIMEMX's lock count stays above zero and function 04h fails too. Ultima
+  so HIMEMX's lock count stays above zero and function 04h fails. Ultima
   VII's Voodoo memory manager calls 04h as it exits and stops
   (`freexmm.c` / `Program terminated by code.`) when it fails.
 - The upper memory blocks also keep Ultima VII's memory check working from

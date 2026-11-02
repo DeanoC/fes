@@ -17,11 +17,12 @@ Two profiles:
          run in, as the FogCast builder's image will be. FDCONFIG.SYS loads
          UMBM, which hands the machine's upper RAM (C800h-EFFFh) to DOS as
          upper memory blocks (DOS=UMB), then HIMEMX high with all extended
-         memory as XMS, switching A20 through the 8042 (/METHOD:KBC). The
-         kernel stays low (no DOS=HIGH), so Ultima VII's Voodoo memory manager
-         can turn A20 off again on exit. AUTOEXEC.BAT sets BLASTER from CMOS
-         60h-62h with FESENV.COM (cores/fes-pc386/sim/fesenv.asm) and loads
-         CuteMouse high. MEM is in C:\\FDOS\\BIN with them.
+         memory as XMS. POST leaves A20 off, so HIMEMX picks a real A20
+         method by itself. The kernel stays low (no DOS=HIGH), so Ultima
+         VII's Voodoo memory manager can turn A20 off again on exit.
+         AUTOEXEC.BAT sets BLASTER from CMOS 60h-62h with FESENV.COM
+         (cores/fes-pc386/sim/fesenv.asm) and loads CuteMouse high. MEM is in
+         C:\\FDOS\\BIN with them.
 
 No network access occurs unless --download is given. The packages are fetched
 at the commits in cores/fes-pc386/sim/freedos.lock (each package repository's
@@ -93,7 +94,7 @@ PROFILES = {
         'packages': ('kernel', 'freecom', 'fdisk', 'himemx', 'jemm', 'ctmouse', 'mem'),
         'fdconfig': ('FILES=20\r\nBUFFERS=20\r\nDOS=UMB\r\n'
                      'DEVICE=C:\\FDOS\\BIN\\UMBM.EXE /I=C800-EFFF\r\n'
-                     'DEVICEHIGH=C:\\FDOS\\BIN\\HIMEMX.EXE /METHOD:KBC /VERBOSE\r\n' + SHELL),
+                     'DEVICEHIGH=C:\\FDOS\\BIN\\HIMEMX.EXE /VERBOSE\r\n' + SHELL),
         'autoexec': ('@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\FDOS\\BIN;C:\\\r\n'
                      'FESENV > C:\\FDOS\\FESENV.BAT\r\nCALL C:\\FDOS\\FESENV.BAT\r\nLH CTMOUSE\r\nVER\r\n'),
         'bin': {'HIMEMX.EXE': ('himemx', 'BIN/HimemX.exe'), 'UMBM.EXE': ('jemm', 'BIN/UMBM.EXE'),
