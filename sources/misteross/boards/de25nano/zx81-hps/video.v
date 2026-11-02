@@ -26,8 +26,10 @@ module fes_de25_zx81_video (
         if (!pix_release[1]) request_sync <= 0;
         else request_sync <= {request_sync[0], request};
 
-    reg writer = 1, capturing = 0, armed = 0, line_open = 0, bad = 0;
+    reg writer = 1, capturing = 0, line_open = 0, bad = 0;
     reg old_hblank = 1, old_vblank = 1;
+    reg source_frame_seen = 0;
+    wire armed = source_frame_seen && old_vblank;
     reg [9:0] x = 0;
     reg [8:0] rows = 0, published_rows = 0;
     wire pending = request != acknowledge_sync[1];
@@ -47,11 +49,11 @@ module fes_de25_zx81_video (
 
     always @(posedge clk_sys or negedge sys_release[1]) begin
         if (!sys_release[1]) begin
-            request <= 0; writer <= 1; capturing <= 0; armed <= 0;
+            request <= 0; writer <= 1; capturing <= 0; source_frame_seen <= 0;
             line_open <= 0; bad <= 0; old_hblank <= 1; old_vblank <= 1;
             x <= 0; rows <= 0; published_rows <= 0;
         end else if (held) begin
-            capturing <= 0; armed <= 0; line_open <= 0;
+            capturing <= 0; source_frame_seen <= 0; line_open <= 0;
             old_hblank <= 1; old_vblank <= 1; x <= 0; rows <= 0; bad <= 0;
         end else if (ce_6m5) begin
             old_hblank <= hblank;
@@ -64,12 +66,12 @@ module fes_de25_zx81_video (
                     request <= !request;
                 end
                 capturing <= 0; line_open <= 0; x <= 0; rows <= 0;
-                armed <= 1; bad <= 0;
+                source_frame_seen <= 1; bad <= 0;
             end else if (old_vblank) begin
                 // Start only at a source frame boundary, then a whole line.
                 capturing <= armed && !pending;
                 writer <= !acknowledge_sync[1];
-                line_open <= 0; x <= 0; rows <= 0; armed <= 0;
+                line_open <= 0; x <= 0; rows <= 0;
             end else if (capturing && !pending) begin
                 if (first_sample) begin
                     line_open <= 1;

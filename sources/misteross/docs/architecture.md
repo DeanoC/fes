@@ -212,8 +212,9 @@ its local pattern responder, and regenerates the pinned Terasic 74.25 MHz
 Agilex PLL/Reset Release IP for SCS. Pins and mixed IO standards are checked
 against the SCS golden board. There is no HPS, DDR, GP, menu blitter or runtime
 upload/control interface, and default DE10 packages/images remain unchanged.
-External ADV7513 timing and the vendor's contradictory clock IO-standard
-documentation remain qualification gates; these SOFs are not boot/BSP artifacts.
+The Terasic pin locations and IO standards remain the bring-up baseline.
+External ADV7513 timing and native acceptance remain qualification gates;
+these SOFs are not boot/BSP artifacts.
 
 [`boards/de25nano/zx81/`](../boards/de25nano/zx81/README.md) combines the real
 ZX81 machine/NMOS Z80 and its existing 720p capture renderer with that board's
@@ -258,7 +259,10 @@ raster, sync and selected bank keep running until the synchronized frame gate
 closes at a raster boundary; other transport faults hold the machine and close
 the same gate. Whole rows up to 328×270 are captured, excess rows cropped, and
 absent bottom rows displayed as paper. Stopped clocks preserve ownership; HOLD
-aborts partial capture.
+aborts partial capture. Capture arming combines the last sampled vertical blank
+with a sticky source-frame observation, cleared by reset or HOLD. This preserves
+the first complete-frame boundary without independently setting and clearing an
+arm register on vertical blank.
 The local SDC checks exact synchronizer/metadata endpoints and bounds the held
 row-count bus without cutting whole clocks. Digital simulation does not accept
 physical M20K timing, MTBF, clock recovery or HDMI.
