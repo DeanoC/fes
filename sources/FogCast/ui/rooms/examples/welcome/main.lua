@@ -55,8 +55,8 @@ function draw()
   S.header(lay, room.title)
   local left_w = math.floor((room.width - m * 3) * 0.48)
   local y = lay.top
-  local big = room.height >= 720 and 40 or 34
-  local body = room.height >= 720 and 24 or 21
+  local big = room.height >= 648 and 40 or 34
+  local body = room.height >= 648 and 24 or 21
   gfx.text("Welcome to FES", m, y, { size = big, bold = true, color = C.text })
   y = y + math.floor(big * 1.5)
   y = S.text("FES turns this kit into classic home computers, rebuilt in its chip. Four are ready to set up.", m, y, left_w, body, C.text)
@@ -75,7 +75,7 @@ function draw()
   local gx = m * 2 + left_w
   local gw = room.width - m - gx
   local gap = 16
-  local name = room.height >= 720 and 20 or 18
+  local name = room.height >= 648 and 20 or 18
   local cell_w = (gw - gap) / 2
   local cell_h = (lay.bottom - 24 - lay.top - gap) / 2
   local mark_h = cell_h - name - 14

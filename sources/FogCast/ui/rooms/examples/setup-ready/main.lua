@@ -83,7 +83,7 @@ function draw()
   local lay = S.layout()
   local m = lay.margin
   S.header(lay, room.title)
-  local big = room.height >= 720 and 40 or 34
+  local big = room.height >= 648 and 40 or 34
   local y = lay.top
   gfx.text(skipped_any() and "You can play now" or "You're ready to play", m, y, { size = big, bold = true, color = C.text })
   y = y + math.floor(big * 1.6)

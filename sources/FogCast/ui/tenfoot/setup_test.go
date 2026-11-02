@@ -154,7 +154,7 @@ func TestFirstRunGateIsOffUnlessEnabled(t *testing.T) {
 }
 
 func TestFirstRunNativeRender(t *testing.T) {
-	for _, size := range []struct{ w, h int }{{1280, 720}, {1024, 600}} {
+	for _, size := range []struct{ w, h int }{{1280, 720}, {1152, 648}, {1024, 600}} {
 		t.Run(fmt.Sprintf("%dx%d", size.w, size.h), func(t *testing.T) {
 			dir := t.TempDir()
 			app := startFirstRun(t, dir, size.w, size.h)
