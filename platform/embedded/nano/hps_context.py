@@ -7,12 +7,14 @@ source-bound diagnostic assertion, not measured/signed boot or admission.
 import hashlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 import subprocess
 import struct
 import sys
 from types import SimpleNamespace
 import xml.etree.ElementTree as ET
+import zipfile
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
@@ -64,6 +66,62 @@ def configuration(project):
 
 def reader_memory(project):
     return _worker(project, 'reader-memory')
+
+
+def ddr_read(project):
+    return _worker(project, 'ddr-read')
+
+
+def _ddr_adapter(project, vendor_sha):
+    """Match the complete generated adapter to its sealed vendor template.
+
+    Attribute constants alone are insufficient: an edited generated module
+    could contain the right strings and route different values to the HPS.
+    Never execute the vendor Tcl to reconstruct this small literal template.
+    """
+    project=Path(project);hps=project/'board/hps';source=hps/'project'
+    archive=project/'board/vendor.zip'
+    tcl=source/'custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl'
+    generated=source/'hps_subsys/ip/hps_subsys/f2sdram_adapter/f2sdram_adapter_10/synth'
+    modules=list(generated.glob('*.v'))
+    if len(modules)!=1:raise ValueError('ambiguous generated DDR adapter')
+    paths=(archive,tcl,modules[0])
+    if any(any(p.is_symlink() for p in (path,*path.parents)) or path.stat().st_size>256<<20 for path in paths):
+        raise ValueError('private bounded DDR adapter inputs required')
+    if hashlib.sha256(archive.read_bytes()).hexdigest()!=vendor_sha:
+        raise ValueError('DDR adapter vendor archive differs from the sealed source')
+    with zipfile.ZipFile(archive) as z:
+        name='Demonstration/SoC_FPGA/GHRD/custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl'
+        if z.namelist().count(name)!=1 or z.getinfo(name).file_size>1<<20:
+            raise ValueError('missing or ambiguous vendor DDR adapter template')
+        raw=z.read(name)
+    if tcl.read_bytes()!=raw:raise ValueError('DDR adapter source differs from the sealed vendor')
+    text=raw.decode();begin='set verilog_code {';end='\n}\n\nadd_fileset_file '
+    if text.count(begin)!=1 or text.count(end)!=1:
+        raise ValueError('unsupported vendor DDR adapter template')
+    template=text.split(begin,1)[1].split(end,1)[0]
+    name=modules[0].stem
+    if not re.fullmatch(r'f2sdram_adapter_f2sdram_adapter_10_[a-z0-9]+',name):
+        raise ValueError('unexpected generated DDR adapter module')
+    expected=template.replace('${output_name}',name).replace(r'\[','[').replace(r'\]',']')+'\n'
+    if modules[0].read_text()!=expected:
+        raise ValueError('generated DDR adapter differs from the complete vendor template')
+    for name,value in (('man_arcache',"4'h2"),('man_arprot',"3'b011"),('man_aruser',"8'hE0")):
+        if re.findall(r'(?m)^assign\s+'+name+r'\s*=\s*([^;]+);',expected)!=[value]:
+            raise ValueError('DDR adapter read attributes differ: '+name)
+    return {'adapter_source_sha256':hashlib.sha256(raw).hexdigest(),
+            'adapter_generated_sha256':hashlib.sha256(expected.encode()).hexdigest(),
+            'arcache':2,'arprot':3,'aruser':224}
+
+
+def _ddr_read(project):
+    context=_derive(project);memory=_reader_memory(project);control_map=_control(project)
+    if memory is None:raise ValueError('active DDR read requires the sealed DDR diagnostic')
+    inputs=json.loads((Path(project)/'board/hps/inputs.json').read_text())
+    attributes=_ddr_adapter(project,inputs['vendor_archive_sha256'])
+    return dict(format=1,scope='sealed-cold-ddr-read-v1',package_id=context['package_id'],
+                build_id=context['build_id'],reader_memory_sha256=digest(memory),
+                control_map_sha256=digest(control_map),read_bytes=32,open_mask=8,close_mask=10,**attributes)
 
 
 def reader_pattern():
@@ -321,8 +379,21 @@ def checked_reader_memory(record, program_key='program'):
     return expected
 
 
+def checked_ddr_read(record, program_key='program'):
+    keys=('hps_ddr_read','hps_ddr_read_sha256')
+    if all(record.get(key) is None for key in keys):return None
+    if record.get(program_key)!='fpgaload' or any(record.get(key) is None for key in keys):
+        raise ValueError('active DDR read requires its dedicated cold configuration selection')
+    if checked_reader_memory(record,program_key) is None:
+        raise ValueError('active DDR read requires pinned sealed DDR memory')
+    expected=ddr_read(record['hps_project'])
+    if record[keys[0]]!=expected or record[keys[1]]!=digest(expected):
+        raise ValueError('active DDR read differs from the sealed generated adapter')
+    return expected
+
+
 if __name__ == '__main__':
-    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in ('control','configuration','package','reader-memory'):
-        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control|configuration|package|reader-memory]')
-    action=_derive if len(sys.argv)==2 else {'control':_control,'configuration':_configuration,'package':_package,'reader-memory':_reader_memory}[sys.argv[2]]
+    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in ('control','configuration','package','reader-memory','ddr-read'):
+        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control|configuration|package|reader-memory|ddr-read]')
+    action=_derive if len(sys.argv)==2 else {'control':_control,'configuration':_configuration,'package':_package,'reader-memory':_reader_memory,'ddr-read':_ddr_read}[sys.argv[2]]
     sys.stdout.buffer.write(encode(action(sys.argv[1])))

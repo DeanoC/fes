@@ -19,11 +19,18 @@ struct fes_nano_identity_ops {
     /* Optional fixed diagnostic responder writes. Together with the on-chip
      * ABI this permits only its bounded recipe, never DDR or general MMIO. */
     int (*write32)(void *, uint32_t offset, uint32_t value);
+    /* Optional sealed DDR diagnostic only. Prepare checks the fixed buffer,
+     * traffic attributes, live translation/firewall state and other masters
+     * while data is held. Cycle runs only after owned DDR-only opening; its
+     * receipt never substitutes for the subsequent all-master/bridge close. */
+    int (*ddr_prepare)(void *);
+    int (*ddr_cycle)(void *);
 };
 struct fes_nano_identity_probe {
     struct fes_nano_bridges *bridges;
     struct fes_nano_identity_ops io;
     uint32_t abi, build[4];
+    struct fes_nano_bridge_closure closure; /* populated only after verified close */
     unsigned initialized, failed, attempted, queried, active, stage, reads, reader;
     int first_error, cleanup_error;
 };
@@ -31,7 +38,8 @@ enum fes_nano_identity_stage {
     FES_ID_NONE, FES_ID_INIT, FES_ID_OPEN, FES_ID_READ, FES_ID_MATCH,
     FES_ID_CLOSE, FES_ID_CONTAIN, FES_ID_COMPLETE, FES_ID_CONFIG,
     FES_ID_READER_ENABLED, FES_ID_READER_HELD, FES_ID_READER_DISABLED,
-    FES_ID_READER_PARTIAL, FES_ID_READER_DRAINED
+    FES_ID_READER_PARTIAL, FES_ID_READER_DRAINED,
+    FES_ID_DDR_PREPARE, FES_ID_DDR_RELEASE, FES_ID_DDR_READ, FES_ID_DDR_VERIFY
 };
 #ifdef __cplusplus
 extern "C" {
@@ -49,6 +57,7 @@ void fes_nano_reader_sip(struct fes_nano_identity_probe *, uint64_t owner,
 struct fes_nano_identity_probe *fes_nano_platform_identity_probe(void);
 int fes_nano_platform_identity_setup(void);
 int fes_nano_platform_control_target(unsigned open);
+int fes_nano_platform_ddr_target(unsigned open);
 void fes_nano_platform_identity_report(void);
 #ifdef __cplusplus
 }

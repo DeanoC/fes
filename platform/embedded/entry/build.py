@@ -64,7 +64,7 @@ def main():
         parser.error("cross-prefix must be absolute and end in -")
     profile_bytes = receipt_bytes = None
     native_sources = None
-    native_context = native_control = native_configuration = native_reader_memory = None
+    native_context = native_control = native_configuration = native_reader_memory = native_ddr_read = None
     if args.target == "qemu":
         if args.nano_build or args.profile or args.image_address is not None:
             parser.error("Nano receipt, profile and load address are only valid with --target de25-nano")
@@ -95,6 +95,7 @@ def main():
         native_control=hps.checked_control(receipt)
         native_configuration=hps.checked_configuration(receipt)
         native_reader_memory=hps.checked_reader_memory(receipt)
+        native_ddr_read=hps.checked_ddr_read(receipt)
         if native_context is not None and base64.b64encode(hps.encode(native_context)) not in payload.read_bytes():
             raise ValueError('HPS context is absent from the selected native ELF')
         if native_control is not None and base64.b64encode(hps.encode(native_control)) not in payload.read_bytes():
@@ -103,6 +104,8 @@ def main():
             raise ValueError('configuration map is absent from the selected native ELF')
         if native_reader_memory is not None and base64.b64encode(hps.encode(native_reader_memory)) not in payload.read_bytes():
             raise ValueError('reader memory map is absent from the selected native ELF')
+        if native_ddr_read is not None and base64.b64encode(hps.encode(native_ddr_read)) not in payload.read_bytes():
+            raise ValueError('DDR read contract is absent from the selected native ELF')
         if native_configuration is not None:
             package=hps.package_archive(receipt['hps_project'],native_configuration)
             if (receipt.get('configuration_core_sha256')!=native_configuration['core_sha256'] or
@@ -240,6 +243,8 @@ def main():
               "hps_configuration_sha256":hps.digest(native_configuration) if native_configuration is not None else None,
               "hps_reader_memory":native_reader_memory,
               "hps_reader_memory_sha256":hps.digest(native_reader_memory) if native_reader_memory is not None else None,
+              "hps_ddr_read":native_ddr_read,
+              "hps_ddr_read_sha256":hps.digest(native_ddr_read) if native_ddr_read is not None else None,
               "hps_project":receipt['hps_project'] if native_context is not None else None,
               "sources": frozen, "tools": tools, "environment": env, "commands": commands,
               "limitations": ["no physical Nano, DDR, peripheral, DMA, bridge or reset proof",

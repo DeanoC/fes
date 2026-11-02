@@ -52,6 +52,9 @@ def prepare(project, uboot, entry, pfg, output):
     reader_memory=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_reader_memory')
     if reader_memory is not None and reader_memory!=hps_context.reader_memory(project):
         raise ValueError('native reader memory differs from the sealed FPGA project')
+    ddr_read=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_ddr_read')
+    if ddr_read is not None and ddr_read!=hps_context.ddr_read(project):
+        raise ValueError('native DDR read contract differs from the sealed generated adapter')
     binary = pfg.parent.parent/'linux64/quartus_pfg'
     identity = 'wrapper-sha256:'+sha(pfg)+'; binary-sha256:'+sha(binary)
     if identity != pair['pfg_identity']:
@@ -118,6 +121,8 @@ def prepare(project, uboot, entry, pfg, output):
         'hps_context_sha256': hps_context.digest(source_context) if source_context is not None else None,
         'control_probe':control_map is not None,
         'hps_control_sha256':hps_context.digest(control_map) if control_map is not None else None,
+        'bounded_ddr_read':ddr_read is not None,
+        'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read is not None else None,
         'trusted_boot_handoff': False, 'physical_programming_admission': False,
         'hardware_acceptance': 'not-run', 'inputs': hashes, 'commands': commands,
         'limitations': ['file composition only; no board, SD card or flash touched',

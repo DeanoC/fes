@@ -13,7 +13,8 @@ def main():
     output=ROOT/'out'/('nano-fabric-stop-'+uuid.uuid4().hex)
     captured=output/'source';captured.mkdir(parents=True)
     inputs={name:HERE/name for name in ('nano_fabric_stop.c','nano_fabric_stop.h','nano_probe_stop.c','nano_probe_stop.h',
-        'generated/fes_embedded_control.h','generated/fes_de25_ddr_probe.h','tests/nano_fabric_stop_test.cpp')}
+        'nano_ddr_read.c','nano_ddr_read.h','generated/fes_embedded_control.h','generated/fes_de25_ddr_probe.h',
+        'tests/nano_fabric_stop_test.cpp','tests/nano_ddr_read_test.inc')}
     board=ROOT/'sources/misteross/boards/de25nano/hps'
     inputs.update({name:board/name for name in ('fes_de25_ddr_probe.v','generated/fes_de25_ddr_probe.vh',
                                               'generated/fes_de25_ddr_probe.hpp','probe_tb.cpp')})
@@ -31,7 +32,7 @@ def main():
         if result.returncode:raise RuntimeError(label+' failed: '+str(output/(label+'.log')))
         return result.stdout
     objects=[]
-    for name in ('nano_fabric_stop','nano_probe_stop'):
+    for name in ('nano_fabric_stop','nano_probe_stop','nano_ddr_read'):
         obj=output/(name+'.o');objects.append(obj)
         run(name,['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
                   '-I'+str(captured),'-c',captured/(name+'.c'),'-o',obj])
@@ -48,7 +49,8 @@ def main():
         '-LDFLAGS',' '.join(str(x) for x in objects)+' '+str(probe/'Vfes_de25_ddr_probe__ALL.a')+' -fsanitize=undefined',
         captured/'fes_de25_embedded.sv',captured/'fes_embedded_control.sv',captured/'tests/nano_fabric_stop_test.cpp'])
     observed=json.loads(run('cases',[model/'Vfes_de25_embedded']))
-    if observed['status']!='passed' or observed['cases']<50 or observed['read_failure_points']<88:
+    if (observed['status']!='passed' or observed['cases']<50 or observed['read_failure_points']<88 or
+        observed['ddr_read_cases']<50 or observed['ddr_read_failure_points']<56):
         raise RuntimeError('incomplete complete-master stop checks')
     if hashes!={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs.values()}:
         raise RuntimeError('fabric stop sources changed during checks')

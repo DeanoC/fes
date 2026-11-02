@@ -261,6 +261,31 @@ int main(void)
         assert(fes_nano_cold_owns(&s,17,7)!=1); /* no trusted transition */
         h.r[FES_COLD_BRG]=15;assert(fes_nano_cold_owns(&s,17,7)!=1);cases++;
     }
+    /* A private DDR target preserves every other cold owner/master check.
+     * It grants no write/reset operation and permits exactly reset mask 5. */
+    for (unsigned mask=0;mask<16;mask++) {
+        struct hw h;init(&h,0);struct fes_nano_cold s={0};struct fes_nano_cold_record r;
+        assert(!fes_nano_cold_begin(&s,ops(&h),chain,17,7,0));assert(!fes_nano_cold_finish(&s,1,&r));
+        unsigned writes=h.writes;
+        assert(fes_nano_cold_ddr_target(&s,17,7)<0 && !s.ddr_expected);
+        assert(!fes_nano_cold_control_target(&s,17,7,1));h.r[FES_COLD_BRG]=13;
+        assert(fes_nano_cold_ddr_target(&s,18,7)<0 && !s.ddr_expected);
+        assert(fes_nano_cold_ddr_target(&s,17,8)<0 && !s.ddr_expected);
+        assert(!fes_nano_cold_ddr_target(&s,17,7));h.r[FES_COLD_BRG]=mask;
+        assert((fes_nano_cold_owns(&s,17,7)==1)==(mask==5));
+        if (mask==5) {
+            assert(fes_nano_cold_control_target(&s,17,7,0)<0 && s.control_expected);
+            assert(fes_nano_cold_ddr_target(&s,17,7)<0);
+            assert(fes_nano_cold_ddr_close_target(&s,18,7)<0);
+            assert(!fes_nano_cold_ddr_close_target(&s,17,7));h.r[FES_COLD_BRG]=15;
+            assert(fes_nano_cold_owns(&s,17,7)==1 && !s.control_expected && !s.ddr_expected);
+            assert(fes_nano_cold_ddr_close_target(&s,17,7)<0);
+        } else {
+            h.r[FES_COLD_BRG]=5;assert(fes_nano_cold_owns(&s,17,7)!=1);
+            assert(fes_nano_cold_ddr_close_target(&s,17,7)<0);
+        }
+        assert(h.writes==writes && !memcmp(&r,&s.record,sizeof(r)));cases++;
+    }
     for (unsigned fault=0;fault<7;fault++) {
         struct hw h;init(&h,0);struct fes_nano_cold s={0};
         switch(fault) {

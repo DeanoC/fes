@@ -50,6 +50,7 @@ def entry(entry_build):
     hps_context.checked_control(receipt,program_key='native_program')
     configuration=hps_context.checked_configuration(receipt,program_key='native_program')
     reader_memory=hps_context.checked_reader_memory(receipt,program_key='native_program')
+    hps_context.checked_ddr_read(receipt,program_key='native_program')
     if context is not None and profile.name!=('sd-profile.json' if receipt.get('native_program')=='fpgaload' else 'probe-profile.json'):
         raise ValueError('HPS context diagnostic requires its source-derived serial/SD profile')
     if configuration is not None and [configuration['base'],configuration['base']+configuration['size']] not in receipt.get('staging_exclusions',[]):
@@ -69,7 +70,7 @@ def sources():
                             'nano_bridge_sip.c','nano_bridge_sip.h','generated/fes_embedded_bridges.h',
                             'nano_identity.c','nano_identity.h','nano_configuration.c','nano_configuration.h','nano_smmu.c','nano_smmu.h',
                             'nano_fabric_stop.c','nano_fabric_stop.h','nano_probe_stop.c','nano_probe_stop.h','generated/fes_de25_ddr_probe.h','generated/fes_embedded_control.h',
-                            'nano_ddr_firewall.c','nano_ddr_firewall.h',
+                            'nano_ddr_firewall.c','nano_ddr_firewall.h','nano_ddr_read.c','nano_ddr_read.h',
                             'generated/fes_embedded_control.hpp','nano_bridge_diag.h','nano_bridge_diag.inc',
                             'build_terasic.py','build_terasic_uboot.py','verify.py')]
 
@@ -81,6 +82,7 @@ def make(entry_build):
     control=hps_context.checked_control(build,program_key='native_program')
     configuration=hps_context.checked_configuration(build,program_key='native_program')
     reader_memory=hps_context.checked_reader_memory(build,program_key='native_program')
+    ddr_read=hps_context.checked_ddr_read(build,program_key='native_program')
     selected=sources()+ (hps_context.inputs() if context is not None else [])
     inputs={str(p.relative_to(ROOT)):sha(p) for p in selected}
     identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
@@ -95,7 +97,8 @@ def make(entry_build):
               'hps_context':context,'hps_context_sha256':hps_context.digest(context) if context else None,
               'hps_control':control,'hps_control_sha256':hps_context.digest(control) if control else None,
               'hps_configuration':configuration,'hps_configuration_sha256':hps_context.digest(configuration) if configuration else None,
-              'hps_reader_memory':reader_memory,'hps_reader_memory_sha256':hps_context.digest(reader_memory) if reader_memory else None}
+              'hps_reader_memory':reader_memory,'hps_reader_memory_sha256':hps_context.digest(reader_memory) if reader_memory else None,
+              'hps_ddr_read':ddr_read,'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read else None}
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     identity['owner_seed']=int(identity['chain_sha256'][:16],16)|1
     identity['entry_receipt_sha256']=sha(receipt)
@@ -106,7 +109,7 @@ def header(profile):
     def array(value):return '{'+','.join('0x'+value[i:i+2] for i in range(0,len(value),2))+'}'
     smmu=profile.get('smmu_observe',False)
     if type(smmu) is not bool or smmu and (profile['sd_pio'] or
-            any(profile.get(key) is not None for key in ('hps_context','hps_control','hps_configuration','hps_reader_memory'))):
+            any(profile.get(key) is not None for key in ('hps_context','hps_control','hps_configuration','hps_reader_memory','hps_ddr_read'))):
         raise ValueError('boot SMMU observation requires its separate serial-only profile')
     control=profile.get('hps_control');extra='#define FES_NANO_CONTROL_PROBE '+str(int(control is not None))+'\n'
     if control is not None:
@@ -144,6 +147,25 @@ def header(profile):
                 '#define FES_NANO_READER_PATTERN_SHA '+array(reader_memory['pattern_sha256'])+'\n'
                 '#define FES_NANO_PROBE_CPU_BASE '+hex(stop['probe_cpu_base'])+'UL\n'
                 '#define FES_NANO_PROBE_SPAN '+str(stop['probe_span'])+'U\n')
+    ddr_read=profile.get('hps_ddr_read')
+    if ddr_read is not None:
+        if (reader_memory is None or profile.get('hps_ddr_read_sha256')!=hps_context.digest(ddr_read) or
+                set(ddr_read)!={'format','scope','package_id','build_id','reader_memory_sha256','control_map_sha256',
+                    'read_bytes','open_mask','close_mask','adapter_source_sha256','adapter_generated_sha256','arcache','arprot','aruser'} or
+                ddr_read['format']!=1 or ddr_read['scope']!='sealed-cold-ddr-read-v1' or
+                ddr_read['package_id']!=profile['hps_context']['package_id'] or
+                ddr_read['build_id']!=profile['hps_context']['build_id'] or
+                ddr_read['reader_memory_sha256']!=profile['hps_reader_memory_sha256'] or
+                ddr_read['control_map_sha256']!=profile['hps_control_sha256'] or
+                any(type(ddr_read[k]) is not int or ddr_read[k]!=v for k,v in
+                    {'format':1,'read_bytes':32,'open_mask':8,'close_mask':10,'arcache':2,'arprot':3,'aruser':224}.items()) or
+                any(not isinstance(ddr_read[k],str) or len(ddr_read[k])!=64 or
+                    any(c not in '0123456789abcdef' for c in ddr_read[k]) or int(ddr_read[k],16)==0
+                    for k in ('adapter_source_sha256','adapter_generated_sha256'))):
+            raise ValueError('active cold DDR read requires its complete sealed adapter contract')
+        extra+='#define FES_NANO_DDR_READ_ATTRS_VERIFIED 1\n'
+        extra+='#define FES_NANO_DDR_READ_MAP_SHA '+array(profile['hps_ddr_read_sha256'])+'\n'
+    extra+='#define FES_NANO_DDR_READ_DIAGNOSTIC '+str(int(ddr_read is not None))+'\n'
     return ('/* Generated, same source-bound diagnostic chain in SPL and BL31. */\n'
             +extra+
             '#define FES_NANO_SMMU_BOOT_OBSERVE '+str(int(smmu))+'\n'

@@ -99,7 +99,9 @@ type HPSContextVerifier struct {
 	digest                [32]byte
 	readerMemoryMu        sync.Mutex
 	readerMemoryAttempted bool
+	readerMemoryReady     bool
 	readerMemoryRegion    *Region
+	ddrReaderAttempted    bool
 }
 
 func NewHPSContextVerifier(cpu FirmwareCaller, source []byte) (*HPSContextVerifier, error) {

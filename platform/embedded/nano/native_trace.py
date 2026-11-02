@@ -397,7 +397,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     return report
 
 
-def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False, reader_memory=None):
+def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False, reader_memory=None, ddr_read=None):
     """Observe a contained phase-two transfer followed by reclosed live identity.
 
     The maps come from independently checked build receipts. Variable-length
@@ -405,6 +405,13 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
     checks every SPL, CPU, ownership, readiness and identity observation. Neither
     completion establishes runtime activation or core launch/return acceptance.
     """
+    if ddr_read is not None:
+        if from_storage is not True or reader_memory is None:
+            raise ValueError('active DDR read requires the exact stored configuration and pinned memory')
+        from ddr_trace import decode
+        return decode(data,build_id,owner_seed,identity=fpga_identity,memory=reader_memory,contract=ddr_read,rules=dict(RULES),
+            base_decode=lambda prefix:decode_native_configuration(prefix,build_id,owner_seed,fpga_identity=fpga_identity,
+                configuration=configuration,from_storage=from_storage,reader_memory=reader_memory))
     if type(from_storage) is not bool:raise ValueError('configuration source must be selected by the checked build profile')
     generation=4 if from_storage else 1
     fields={'format','scope','package_id','build_id','core_sha256','core_sha384','core_size',

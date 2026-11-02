@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 import xml.etree.ElementTree as ET
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 NANO = ROOT/'platform/embedded/nano'
@@ -129,6 +130,19 @@ class HPSContextTests(unittest.TestCase):
         self.assertIn('#define FES_NANO_READER_ARENA_BYTES 2097152U',header)
         self.assertIn('#define FES_NANO_PROBE_CPU_BASE 0x20010100UL',header)
         self.assertIn('#define FES_NANO_PROBE_SPAN 128U',header)
+        self.assertIn('#define FES_NANO_DDR_READ_DIAGNOSTIC 0',header)
+        active={'format':1,'scope':'sealed-cold-ddr-read-v1','package_id':ddr['package_id'],'build_id':ddr['build_id'],
+                'reader_memory_sha256':context.digest(memory),'control_map_sha256':'c'*64,
+                'adapter_source_sha256':'a'*64,'adapter_generated_sha256':'b'*64,
+                'arcache':2,'arprot':3,'aruser':224,'read_bytes':32,'open_mask':8,'close_mask':10}
+        active_profile=dict(header_profile,hps_ddr_read=active,hps_ddr_read_sha256=context.digest(active))
+        self.assertIn('#define FES_NANO_DDR_READ_DIAGNOSTIC 1',cold.header(active_profile))
+        self.assertIn('#define FES_NANO_DDR_READ_ATTRS_VERIFIED 1',cold.header(active_profile))
+        for key,value in (('arcache',15),('arprot',2),('aruser',0),('read_bytes',8192),('open_mask',13),
+                          ('close_mask',2),('format',True),('adapter_source_sha256','0'*64),('reader_memory_sha256','f'*64)):
+            changed=dict(active,**{key:value})
+            with self.subTest(key=key),self.assertRaises(ValueError):
+                cold.header(dict(active_profile,hps_ddr_read=changed,hps_ddr_read_sha256=context.digest(changed)))
         for key,value in (('sd_pio',False),('hps_control',None),('hps_configuration',None),
                           ('hps_context',self.descriptor),('hps_reader_memory_sha256','0'*64)):
             with self.subTest(key=key),self.assertRaises(ValueError):cold.header(dict(header_profile,**{key:value}))
@@ -155,6 +169,40 @@ class HPSContextTests(unittest.TestCase):
                     if exclusion==memory_range:self.assertEqual(cold.entry(entry)[0],image)
                     else:
                         with self.assertRaisesRegex(ValueError,'reader arena'):cold.entry(entry)
+
+    def test_active_ddr_requires_complete_generated_vendor_adapter_and_receipt(self):
+        with tempfile.TemporaryDirectory() as temp:
+            project=Path(temp);hps=project/'board/hps';source=hps/'project'
+            tcl=source/'custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl';tcl.parent.mkdir(parents=True)
+            generated=source/'hps_subsys/ip/hps_subsys/f2sdram_adapter/f2sdram_adapter_10/synth/f2sdram_adapter_f2sdram_adapter_10_fixture.v'
+            generated.parent.mkdir(parents=True)
+            template="\nmodule ${output_name};\nassign man_arcache = 4'h2;\nassign man_arprot = 3'b011;\nassign man_aruser = 8'hE0;\nendmodule"
+            raw=('set verilog_code {'+template+'\n}\n\nadd_fileset_file fixture\n').encode()
+            tcl.write_bytes(raw)
+            expected=template.replace('${output_name}',generated.stem)+'\n';generated.write_text(expected)
+            archive=project/'board/vendor.zip'
+            with zipfile.ZipFile(archive,'w') as z:
+                z.writestr('Demonstration/SoC_FPGA/GHRD/custom_ip/f2sdram_adapter/f2sdram_adapter_hw.tcl',raw)
+            vendor=hashlib.sha256(archive.read_bytes()).hexdigest()
+            proof=context._ddr_adapter(project,vendor)
+            self.assertEqual((proof['arcache'],proof['arprot'],proof['aruser']),(2,3,224))
+            for changed in (expected.replace("4'h2","4'hf"),expected+'assign man_aruser = 0;\n',expected.replace('endmodule','wire changed;\nendmodule')):
+                generated.write_text(changed)
+                with self.assertRaisesRegex(ValueError,'complete vendor template'):context._ddr_adapter(project,vendor)
+            generated.write_text(expected);tcl.write_bytes(raw+b'# edited\n')
+            with self.assertRaisesRegex(ValueError,'source differs'):context._ddr_adapter(project,vendor)
+            tcl.write_bytes(raw)
+            with self.assertRaisesRegex(ValueError,'archive differs'):context._ddr_adapter(project,'0'*64)
+            generated.rename(generated.with_suffix('.saved'));generated.symlink_to(generated.with_suffix('.saved'))
+            with self.assertRaisesRegex(ValueError,'private bounded'):context._ddr_adapter(project,vendor)
+        active={'format':1,'scope':'sealed-cold-ddr-read-v1'}
+        record={'program':'fpgaload','hps_project':'sealed','hps_ddr_read':active,'hps_ddr_read_sha256':context.digest(active)}
+        with patch.object(context,'checked_reader_memory',return_value={'pinned':True}),patch.object(context,'ddr_read',return_value=active):
+            self.assertEqual(context.checked_ddr_read(record),active)
+            for changed in (dict(record,program='fpgastatus'),dict(record,hps_ddr_read=None),
+                            dict(record,hps_ddr_read_sha256='f'*64),dict(record,hps_ddr_read={'format':2})):
+                with self.assertRaises(ValueError):context.checked_ddr_read(changed)
+        self.assertIsNone(context.checked_ddr_read({'program':'fpgaload'}))
 
     def test_canonical_descriptor_matches_both_consumers(self):
         self.assertEqual(context.encode(self.descriptor), GOLDEN.read_bytes())

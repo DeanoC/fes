@@ -33,6 +33,21 @@ reserved buffer and the idle reader/probe stop callbacks before reclosure.
 All data bridges stay reset. FPGA reads of the pinned pattern and active
 disable/drain still require their own guarded hardware test.
 
+The next bounded candidate is selected explicitly with `fpgaload --ddr-read`
+in `platform/embedded/tamago/run.py`. It requires that same sealed DDR project
+and the contained SD profile. The builder compares the complete generated
+F2SDRAM adapter with its sealed vendor template, binds its read attributes and
+fixed window into the native image and cold chain, and enables the secure
+diagnostic only for that selection. The provider rechecks SMMU/firewall state
+and all 2048 pattern words immediately before opening DDR alone. It requests
+one read of 32 bytes, disables the reader with that request outstanding, checks
+returned data and the matching acknowledgement, stops every master and closes
+control plus DDR through the existing hardware drain. Owner/generation checks
+cover each transition; errors retire the attempt and keep memory pinned until
+reboot. The trace decoder checks the paired accesses, both fresh gates and the
+actual closure receipt. This candidate has software/RTL coverage; its active
+DDR hardware test remains pending. Normal runtime admission stays unavailable.
+
 The [native Go hardware diagnostic](../../../docs/validation/2026-11-01-de25-native-go-boot/README.md)
 now passes the actual secure provider, both loader ownership snapshots and
 EL2/EL1 entry on TRWU8CBL, ending in the TamaGo Go probe. Timer, goroutine,

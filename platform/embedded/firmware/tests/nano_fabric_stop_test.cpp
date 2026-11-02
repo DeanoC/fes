@@ -5,19 +5,26 @@
 #undef main
 #include "Vfes_de25_embedded.h"
 #include "nano_fabric_stop.h"
+#include "nano_ddr_read.h"
 #include "generated/fes_embedded_control.h"
 #include <algorithm>
+#include <cstring>
 
 struct Fixture {
     Vfes_de25_embedded d;
     Probe p;
     struct fes_nano_fabric_stop stop{};
-    struct Burst { unsigned left; };
+    struct Burst { unsigned left,index=0; };
     std::deque<Burst> pending;
     std::string fault;
     unsigned reads=0,probe_reads=0,writes=0,cancels=0,waits=0,fail_read=0;
-    bool owned=true,stall=true,responses=false;
+    bool owned=true,stall=true,responses=false,golden=false;
+    unsigned addresses=0,beats=0;
     static constexpr uint32_t build[4]={0xccddeeff,0x8899aabb,0x44556677,0x00112233};
+    /* Independent little-endian vector from hps_context.reader_pattern(),
+     * not the helper under test, supplies the external memory bus. */
+    static constexpr uint32_t golden_data[8]={0x4e414e4f,0xd07637f6,0x722fbd3d,0x94e72364,
+                                             0x369ca8ab,0x59542ed2,0xfb0d9419,0x1dc51a40};
     explicit Fixture(std::string f="",bool active=true):fault(std::move(f)) {
         stop.io={this,owns,read,write,wait};stop.probe.io={this,owns,probe_read,probe_write,wait};
         stop.abi=0x10203041;std::copy(std::begin(build),std::end(build),stop.build);
@@ -34,13 +41,19 @@ struct Fixture {
     void tick() {
         d.clk=0;d.ddr_arready=!stall;
         d.ddr_rvalid=responses && !pending.empty();d.ddr_rlast=!pending.empty() && pending.front().left==1;
-        d.ddr_rresp=fault=="response"?2:0;d.ddr_rid=0;
-        for(unsigned i=0;i<4;i++)d.ddr_rdata[i]=0x12345678;
+        d.ddr_rresp=fault=="response"?2:0;d.ddr_rid=fault=="response-id"?1:0;
+        if(fault=="early-last")d.ddr_rlast=1;
+        if(fault=="missing-last")d.ddr_rlast=0;
+        for(unsigned i=0;i<4;i++)d.ddr_rdata[i]=golden ?
+            golden_data[((pending.empty()?0:pending.front().index)*4+i)%8]:0x12345678;
+        if(fault=="wrong-data")d.ddr_rdata[2]^=1;
         d.eval();bool ar=d.ddr_arvalid && d.ddr_arready,r=d.ddr_rvalid && d.ddr_rready;
-        unsigned beats=d.ddr_arlen+1;
+        require(!d.ddr_awvalid && !d.ddr_wvalid && !d.ddr_wstrb,"reader issued a DDR write");
+        unsigned count=d.ddr_arlen+1;
+        if(ar) { require(d.ddr_araddr==0x95000000 && d.ddr_arsize==4 && count==2,"reader address/length differs");addresses++; }
         d.clk=1;d.eval();
-        if(r && !--pending.front().left)pending.pop_front();
-        if(ar)pending.push_back({beats});
+        if(r) { beats++;pending.front().index++;if(!--pending.front().left)pending.pop_front(); }
+        if(ar)pending.push_back({count});
         d.clk=0;d.eval();
     }
     uint32_t access(bool writing,uint32_t offset,uint32_t value=0) {
@@ -120,6 +133,8 @@ struct Fixture {
     }
 };
 
+#include "nano_ddr_read_test.inc"
+
 int main() {
     try {
         unsigned cases=0,points=0;
@@ -162,7 +177,9 @@ int main() {
             }
             require(fes_nano_fabric_stop(&f.stop)==-22 && !f.reads && !f.probe_reads && !f.writes,"unqualified callback touched hardware");f.retired();cases++;
         }
+        auto ddr=ddr_read_cases();
         std::cout<<"{\"status\":\"passed\",\"cases\":"<<cases<<",\"read_failure_points\":"<<points
+                 <<",\"ddr_read_cases\":"<<ddr[0]<<",\"ddr_read_failure_points\":"<<ddr[1]
                  <<",\"hardware_access\":false,\"bridge_authority\":false,\"memory_released\":false}\n";
         return 0;
     } catch(const std::exception& e) {std::cerr<<"fabric stop: "<<e.what()<<"\n";return 1;}

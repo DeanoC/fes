@@ -165,8 +165,9 @@ int fes_nano_cold_owns(void *p, uint64_t owner, uint64_t epoch)
     struct fes_nano_cold_sample now;
     if (!s || !s->valid || s->failed || owner!=s->record.boot.owner || epoch!=s->record.boot.epoch) return 0;
     struct fes_nano_cold_sample expected=s->record.last;
-    if (s->control_expected > 1) return fail(s);
+    if (s->control_expected > 1 || s->ddr_expected > 1 || (s->ddr_expected && !s->control_expected)) return fail(s);
     if (s->control_expected) expected.bridge &= ~FES_NANO_BRIDGES_CONTROL;
+    if (s->ddr_expected) expected.bridge &= ~8U;
     if (sample(s,&now) || !stable(&expected,&now,s->record.core) ||
         (now.per0 & FES_NANO_MASTER_RESET) != FES_NANO_MASTER_RESET) return fail(s);
     return 1;
@@ -177,9 +178,25 @@ int fes_nano_cold_control_target(struct fes_nano_cold *s, uint64_t owner,
     /* Internal secure-driver transition, serialized by the owned SiP lock.
      * Validate the old mask before arming the exact new mask. Until hardware
      * reaches that mask the next ownership observation must reject. */
-    if (!s || control_open > 1 || control_open == s->control_expected ||
+    if (!s || s->ddr_expected || control_open > 1 || control_open == s->control_expected ||
         fes_nano_cold_owns(s,owner,epoch)!=1) return -1;
     s->control_expected=control_open;
+    return 0;
+}
+int fes_nano_cold_ddr_target(struct fes_nano_cold *s,uint64_t owner,uint64_t epoch)
+{
+    if (!s || s->control_expected!=1 || s->ddr_expected ||
+        fes_nano_cold_owns(s,owner,epoch)!=1) return -1;
+    s->ddr_expected=1;
+    return 0;
+}
+int fes_nano_cold_ddr_close_target(struct fes_nano_cold *s,uint64_t owner,uint64_t epoch)
+{
+    /* The service closes exactly the active control+DDR mask (10), after the
+     * independent producer stop. Arm both expected reset bits atomically. */
+    if (!s || s->control_expected!=1 || s->ddr_expected!=1 ||
+        fes_nano_cold_owns(s,owner,epoch)!=1) return -1;
+    s->control_expected=0;s->ddr_expected=0;
     return 0;
 }
 int fes_nano_cold_sd_scope(struct fes_nano_cold *s, uint64_t owner,

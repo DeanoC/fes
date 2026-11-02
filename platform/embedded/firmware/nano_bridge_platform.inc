@@ -37,8 +37,12 @@ static int fes_nano_owned_enable(void *context, uint32_t mask, unsigned fabric)
     /* Only the serialized, secure read-only probe can reach this path. All
      * non-control bridges and masters retain their cold containment. */
     struct fes_nano_identity_probe *probe=fes_nano_platform_identity_probe();
-    if (!probe || !probe->active || mask!=FES_NANO_BRIDGES_CONTROL ||
-        fabric!=FES_NANO_FABRIC_ABSENT || fes_nano_platform_control_target(1)) return -1;
+    if (!probe || !probe->active || fabric!=FES_NANO_FABRIC_ABSENT) return -1;
+    if (mask==FES_NANO_BRIDGES_CONTROL) {
+        if (fes_nano_platform_control_target(1)) return -1;
+    } else if (mask==8 && probe->reader==2 && probe->stage==FES_ID_DDR_RELEASE) {
+        if (fes_nano_platform_ddr_target(1)) return -1;
+    } else return -1;
     return fes_nano_raw_enable(mask);
 #else
     if (fabric != fes_nano_owned_bridges.state.fabric) return -1;
@@ -51,8 +55,12 @@ static int fes_nano_owned_disable(void *context, uint32_t mask, unsigned fabric)
     if (fabric != fes_nano_owned_bridges.state.fabric) return -1;
 #ifdef FES_NANO_COLD_SERIAL
     struct fes_nano_identity_probe *probe=fes_nano_platform_identity_probe();
-    if (!probe || !probe->active || mask!=FES_NANO_BRIDGES_CONTROL ||
-        fes_nano_platform_control_target(0)) return -1;
+    if (!probe || !probe->active) return -1;
+    if (mask==FES_NANO_BRIDGES_CONTROL) {
+        if (fes_nano_platform_control_target(0)) return -1;
+    } else if (mask==10 && probe->reader==2 && probe->stage==FES_ID_CLOSE) {
+        if (fes_nano_platform_ddr_target(0)) return -1;
+    } else return -1;
 #endif
     fes_nano_bridge_diag_reset();
     return fes_nano_raw_disable(mask);

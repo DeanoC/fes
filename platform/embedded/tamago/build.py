@@ -209,7 +209,10 @@ def build(args):
         raise ValueError('the source-bound SMMU profile permits only the serial probe')
     start, size, entry, frequency, usb_frequency, net, display, fpga, uart_index = profile_constants(profile)
     expected_package_id=package_option(args.program,args.package_id,profile)
-    context=control_map=configuration_map=reader_memory_map=None
+    context=control_map=configuration_map=reader_memory_map=ddr_read_map=None
+    active_ddr=getattr(args,'ddr_read',False)
+    if type(active_ddr) is not bool or active_ddr and args.program!='fpgaload':
+        raise ValueError('--ddr-read requires the Nano fpgaload diagnostic')
     package_archive=None
     hps_project=getattr(args,'hps_first_project',None)
     if args.program in ('bootcontext','fpgacontext','fpgastatus','fpgaload'):
@@ -224,6 +227,7 @@ def build(args):
         if args.program=='fpgaload':
             configuration_map=hps.configuration(hps_project)
             reader_memory_map=hps.reader_memory(hps_project)
+            if active_ddr:ddr_read_map=hps.ddr_read(hps_project)
             package_archive=hps.package_archive(hps_project,configuration_map)
             arena_start,arena_end=configuration_map['base'],configuration_map['base']+configuration_map['size']
             exclusions=[(start,start+size),(0x94000000,0x94800000)]+[(r['start'],r['start']+r['size']) for r in profile['reserved']]
@@ -246,6 +250,7 @@ def build(args):
     if control_map is not None:(output/'hps-control.json').write_bytes(hps.encode(control_map))
     if configuration_map is not None:(output/'hps-configuration.json').write_bytes(hps.encode(configuration_map))
     if reader_memory_map is not None:(output/'hps-reader-memory.json').write_bytes(hps.encode(reader_memory_map))
+    if ddr_read_map is not None:(output/'hps-ddr-read.json').write_bytes(hps.encode(ddr_read_map))
     uart_base = 0x10c02000 + uart_index * 0x100
     generated = output / "profile.go"
     generated.write_text("//go:build tamago && arm64 && de25nano\n\npackage de25nano\nconst (\n" +
@@ -317,6 +322,7 @@ def build(args):
     if control_map is not None:link_flags+=' -X main.expectedControlMap='+base64.b64encode(hps.encode(control_map)).decode()
     if configuration_map is not None:link_flags+=' -X main.expectedConfigurationMap='+base64.b64encode(hps.encode(configuration_map)).decode()
     if reader_memory_map is not None:link_flags+=' -X main.expectedReaderMemoryMap='+base64.b64encode(hps.encode(reader_memory_map)).decode()
+    if ddr_read_map is not None:link_flags+=' -X main.expectedDDRReadMap='+base64.b64encode(hps.encode(ddr_read_map)).decode()
     command = [str(compiler), "build", *options, "-trimpath", "-ldflags", link_flags, "-o", str(elf), "./cmd/" + args.program]
     with (output / "build.log").open("w") as log:
         subprocess.run(command, cwd=APP, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -332,6 +338,9 @@ def build(args):
     if configuration_map is not None and (hps.reader_memory(hps_project)!=reader_memory_map or reader_memory_map is not None and
             base64.b64encode(hps.encode(reader_memory_map)) not in data):
         raise ValueError('sealed reader memory changed or was not linked into the native image')
+    if ddr_read_map is not None and (hps.ddr_read(hps_project)!=ddr_read_map or
+            base64.b64encode(hps.encode(ddr_read_map)) not in data):
+        raise ValueError('sealed DDR read contract changed or was not linked into the native image')
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}:
         raise ValueError("sources changed while building")
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
@@ -340,6 +349,7 @@ def build(args):
               "hps_control":control_map,"hps_control_sha256":hps.digest(control_map) if control_map else None,
               "hps_configuration":configuration_map,"hps_configuration_sha256":hps.digest(configuration_map) if configuration_map else None,
               "hps_reader_memory":reader_memory_map,"hps_reader_memory_sha256":hps.digest(reader_memory_map) if reader_memory_map else None,
+              "hps_ddr_read":ddr_read_map,"hps_ddr_read_sha256":hps.digest(ddr_read_map) if ddr_read_map else None,
               "configuration_core_sha256":configuration_map["core_sha256"] if configuration_map else None,
               "configuration_package_sha256":hashlib.sha256(package_archive).hexdigest() if package_archive is not None else None,
               "configuration_package_size":len(package_archive) if package_archive is not None else None,

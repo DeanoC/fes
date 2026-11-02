@@ -101,7 +101,7 @@ func (v *HPSContextVerifier) checkedControlMap(raw []byte) (hpsControlMap, error
 // checked locally; firmware supplies its own immutable address and identity.
 // HPSContextVerifier deliberately remains separate from BootHandoffVerifier.
 func (v *HPSContextVerifier) ProbeIdentity(raw []byte) (FPGAIdentityObservation, error) {
-	return v.probeControl(raw, g.FesEmbeddedBridgeProbeIdentity, g.FesEmbeddedBridgeIdentityTag)
+	return v.probeControl(raw, g.FesEmbeddedBridgeProbeIdentity, g.FesEmbeddedBridgeIdentityTag, 2)
 }
 
 // ProbeReader verifies the same sealed identity and executes the firmware's
@@ -112,10 +112,10 @@ func (v *HPSContextVerifier) ProbeReader(raw []byte) (FPGAIdentityObservation, e
 	if v == nil || v.context.ProgrammingProfile != HPSFirstDiagnosticProfile {
 		return FPGAIdentityObservation{}, errors.New("native fabric: on-chip reader operation requires its on-chip source")
 	}
-	return v.probeControl(raw, g.FesEmbeddedBridgeProbeReader, g.FesEmbeddedBridgeReaderTag)
+	return v.probeControl(raw, g.FesEmbeddedBridgeProbeReader, g.FesEmbeddedBridgeReaderTag, 2)
 }
 
-func (v *HPSContextVerifier) probeControl(raw []byte, operation, tag uint32) (FPGAIdentityObservation, error) {
+func (v *HPSContextVerifier) probeControl(raw []byte, operation, tag uint32, transitions uint64) (FPGAIdentityObservation, error) {
 	m, err := v.checkedControlMap(raw)
 	if err != nil {
 		return FPGAIdentityObservation{}, err
@@ -126,7 +126,7 @@ func (v *HPSContextVerifier) probeControl(raw []byte, operation, tag uint32) (FP
 		return FPGAIdentityObservation{}, err
 	}
 	before := source.Bridges
-	if before.Generation > math.MaxUint64-2 || !v.coldSource(source) {
+	if before.Generation > math.MaxUint64-transitions || !v.coldSource(source) {
 		return FPGAIdentityObservation{}, errors.New("native fabric: identity probe requires fresh closed cold scope")
 	}
 	r, err := v.cpu.Invoke([7]uint64{uint64(g.FesEmbeddedBridgeCall), uint64(operation), before.Owner, uint64(g.FesEmbeddedBridgeCookie), before.Generation})
@@ -145,7 +145,7 @@ func (v *HPSContextVerifier) probeControl(raw []byte, operation, tag uint32) (FP
 		return FPGAIdentityObservation{}, errors.New("native fabric: live FPGA build differs from sealed package")
 	}
 	after, err := (&FirmwareBridges{cpu: v.cpu}).ObserveBridges()
-	if err != nil || after.Owner != before.Owner || after.Generation != before.Generation+2 ||
+	if err != nil || after.Owner != before.Owner || after.Generation != before.Generation+transitions ||
 		after.Capabilities != before.Capabilities || after.ResetMask != after.Capabilities.Mask ||
 		!after.MastersContained || after.NeverEnabled {
 		return FPGAIdentityObservation{}, errors.New("native fabric: FPGA identity probe lost closed ownership")

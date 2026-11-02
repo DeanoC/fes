@@ -5,6 +5,7 @@
 __attribute__((weak)) struct fes_nano_identity_probe *fes_nano_platform_identity_probe(void) { return 0; }
 __attribute__((weak)) int fes_nano_platform_identity_setup(void) { return 0; }
 __attribute__((weak)) int fes_nano_platform_control_target(unsigned open) { (void)open; return -1; }
+__attribute__((weak)) int fes_nano_platform_ddr_target(unsigned open) { (void)open; return -1; }
 __attribute__((weak)) void fes_nano_platform_identity_report(void) {}
 
 static void trace(struct fes_nano_identity_probe *p, unsigned stage)
@@ -34,6 +35,7 @@ int fes_nano_identity_init(struct fes_nano_identity_probe *p, struct fes_nano_br
     unsigned nonzero=0;
     if (build) for (unsigned i=0;i<4;i++) nonzero|=build[i];
     if (qualified!=1 || !b || !io.configured || !io.read32 || !io.contain || !abi || !nonzero ||
+        (!!io.ddr_prepare!=!!io.ddr_cycle) ||
         fes_nano_bridges_observe(b,&s) || !closed(&s) || !s.never_enabled || s.generation!=1)
         return fail(p,-1);
     p->bridges=b;p->io=io;p->abi=abi;memcpy(p->build,build,sizeof(p->build));
@@ -42,9 +44,11 @@ int fes_nano_identity_init(struct fes_nano_identity_probe *p, struct fes_nano_br
 static int control_owned(struct fes_nano_identity_probe *p, const struct fes_nano_bridge_snapshot *expected)
 {
     struct fes_nano_bridge_snapshot actual;
-    return fes_nano_bridges_observe(p->bridges,&actual) || actual.owner!=expected->owner ||
-           actual.generation!=expected->generation || actual.reset!=FES_NANO_BRIDGES_DATA ||
-           !actual.masters_contained || actual.never_enabled ? fail(p,-1) : 0;
+    unsigned ddr=p->reader==2 && expected->reset==5 && !expected->masters_contained;
+    return (!ddr && (expected->reset!=FES_NANO_BRIDGES_DATA || !expected->masters_contained)) ||
+           fes_nano_bridges_observe(p->bridges,&actual) || actual.owner!=expected->owner ||
+           actual.generation!=expected->generation || actual.reset!=expected->reset ||
+           actual.masters_contained!=expected->masters_contained || actual.never_enabled ? fail(p,-1) : 0;
 }
 static int identity_read(struct fes_nano_identity_probe *p, const struct fes_nano_bridge_snapshot *control,
                            uint32_t values[15])
@@ -166,12 +170,13 @@ static void identity_sip(struct fes_nano_identity_probe *p, uint64_t owner,
     if (p->failed) { result[0]=4;return; }
     /* This recipe controls the fixed on-chip responder. A DDR personality
      * needs its own qualified address/bridge/drain path before any control I/O. */
-    if (reader && (p->abi!=0x10203040U || !p->io.write32)) { result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return; }
-    if (!owner || !generation || generation>UINT64_MAX-2 || p->attempted || p->bridges->state.owner!=owner ||
+    unsigned ddr=reader && p->abi==0x10203041U && p->io.ddr_prepare && p->io.ddr_cycle;
+    if (reader && ((!ddr && p->abi!=0x10203040U) || !p->io.write32)) { result[0]=FES_EMBEDDED_BRIDGE_NOT_READY;return; }
+    if (!owner || !generation || generation>UINT64_MAX-(ddr ? 3U : 2U) || p->attempted || p->bridges->state.owner!=owner ||
         p->bridges->state.generation!=generation) return;
     if (fes_nano_bridges_observe(p->bridges,&before) || !closed(&before) ||
         before.generation!=generation || !before.never_enabled) { result[0]=4;return; }
-    p->attempted=1;p->reader=reader;p->stage=FES_ID_CONFIG;
+    p->attempted=1;p->reader=ddr ? 2U : reader;p->stage=FES_ID_CONFIG;
     int ready=p->io.configured(p->io.context);
     if (ready<0 || ready>1) { fail(p,ready);goto recover; }
     if (fes_nano_bridges_observe(p->bridges,&current) || !closed(&current) ||
@@ -192,8 +197,22 @@ static void identity_sip(struct fes_nano_identity_probe *p, uint64_t owner,
         first[1]!=FES_EMBEDDED_VERSION || first[2]!=p->abi || memcmp(first+3,p->build,sizeof(p->build)))
         fail(p,-71);
     for (unsigned i=7;i<15;i++) if (first[i]) fail(p,-71);
+    if (!p->first_error && ddr) {
+        p->stage=FES_ID_DDR_PREPARE;trace(p,p->stage);
+        int status=p->io.ddr_prepare(p->io.context);
+        if (status) { fail(p,status);goto close; }
+        p->stage=FES_ID_DDR_RELEASE;trace(p,p->stage);
+        status=fes_nano_bridges_open(p->bridges,owner,control.generation,8,&control);
+        if (status) {
+            fail(p,status);goto recover;
+        }
+        p->stage=FES_ID_DDR_READ;trace(p,p->stage);
+        status=p->io.ddr_cycle(p->io.context);
+        if (status) { fail(p,status);goto close; }
+        p->stage=FES_ID_DDR_VERIFY;trace(p,p->stage);
+    }
     if (!p->first_error && reader) {
-        if(reader_cycle(p,&control))goto close;
+        if(!ddr && reader_cycle(p,&control))goto close;
         if(identity_read(p,&control,first) || identity_read(p,&control,second))goto close;
         static const uint32_t finished[8]={1,0,1,0,7,0,FES_EMBEDDED_STATUS_DRAINED,0};
         if(memcmp(first,second,sizeof(first)) || first[0]!=FES_EMBEDDED_MAGIC ||
@@ -203,11 +222,14 @@ static void identity_sip(struct fes_nano_identity_probe *p, uint64_t owner,
 close:
     trace(p,FES_ID_CLOSE);
     if (!p->first_error) p->stage=FES_ID_CLOSE;
-    if (fes_nano_bridges_close(p->bridges,owner,control.generation,0,1,&after) ||
-        after.after.owner!=owner || after.after.generation!=generation+2 || !closed(&after.after) ||
-        !after.data_remained_contained || !after.producers_quiescent ||
-        after.fabric_acknowledged || after.hardware_drained) fail(p,-1);
+    unsigned data_active=control.reset==5 && ddr;
+    int close_status=fes_nano_bridges_close(p->bridges,owner,control.generation,0,!data_active,&after);
+    if (close_status) fail(p,close_status);
+    else if (after.after.owner!=owner || after.after.generation!=generation+(data_active ? 3U : 2U) || !closed(&after.after) ||
+        after.data_remained_contained==data_active || !after.producers_quiescent ||
+        after.fabric_acknowledged || after.hardware_drained!=(data_active ? 8U : 0U)) fail(p,-1);
     if (p->first_error) goto recover;
+    p->closure=after;
     p->active=0;p->stage=FES_ID_COMPLETE;
     trace(p,FES_ID_COMPLETE);
     result[0]=0;result[1]|=p->abi;

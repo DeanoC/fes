@@ -8,6 +8,7 @@
 #include "nano_smmu.h"
 #include "nano_fabric_stop.h"
 #include "nano_ddr_firewall.h"
+#include "nano_ddr_read.h"
 #include "generated/fes_de25_ddr_probe.h"
 #include "fes_nano_cold_profile.h"
 #define FES_COLD_READ32(a) mmio_read_32(a)
@@ -41,8 +42,15 @@ static int cold_master_quiescent(void *,uint32_t *);
 static int smmu_owns(void *context)
 {
     struct fes_nano_cold *s=context;
+    unsigned control_scope=!s->control_expected;
+#if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
+    struct fes_nano_identity_probe *p=fes_nano_platform_identity_probe();
+    control_scope |= p && p->active && p->reader==2 && p->bridges==&fes_nano_owned_bridges &&
+        (p->stage==FES_ID_DDR_PREPARE || p->stage==FES_ID_DDR_RELEASE) &&
+        s->control_expected==1 && !s->ddr_expected && fes_nano_owned_bridges.state.reset==13;
+#endif
     return GET_EL(read_current_el())==MODE_EL3 && !(read_sctlr_el3()&5U) &&
-        fes_nano_cold_cpu_release_locked()==1 && !s->control_expected &&
+        fes_nano_cold_cpu_release_locked()==1 && control_scope &&
         fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)==1;
 }
 static int smmu_read(void *context,uint32_t offset,uint32_t *value)
@@ -51,7 +59,7 @@ static int smmu_read(void *context,uint32_t offset,uint32_t *value)
     dsbsy();*value=mmio_read_32(FES_NANO_SMMU_BASE+offset);dsbsy();
     return smmu_owns(context)==1 ? 0 : -1;
 }
-static int smmu_report(struct fes_nano_cold *s)
+static int smmu_report(struct fes_nano_cold *s,struct fes_nano_smmu_observation *out)
 {
     struct fes_nano_smmu_probe probe={.io={s,smmu_owns,smmu_read}};
     struct fes_nano_smmu_observation observation={0};
@@ -61,6 +69,7 @@ static int smmu_report(struct fes_nano_cold *s)
         status,probe.reads,v->idr0,v->idr1,v->aidr,v->s_idr1,v->cr0,v->cr0ack,v->gbpa,v->agbpa,
         v->s_cr0,v->s_cr0ack,v->s_init,v->s_gbpa,v->s_agbpa,observation.identified,
         observation.controls_settled,observation.bypass_controls_clear);
+    if (!status && out) *out=observation;
     return status;
 }
 #endif
@@ -83,7 +92,7 @@ int fes_nano_platform_boot_record(struct fes_nano_boot_record *record,
         captured.core!=MPIDR_AFFLVL1_VAL(read_mpidr()) ||
         fes_nano_cold_consume(&provider,&captured,fes_cold_hw_ops(),chain,owner)) return -1;
 #if defined(FES_NANO_SMMU_BOOT_OBSERVE) && FES_NANO_SMMU_BOOT_OBSERVE
-    if (smmu_report(&provider)) return -1;
+    if (smmu_report(&provider,0)) return -1;
 #endif
     *record=provider.record.boot;
     *policy=(struct fes_nano_boot_policy){.qualifications=FES_NANO_BOOT_QUALIFIED,
@@ -124,7 +133,7 @@ static int firewall_read(void *context,uint32_t offset,uint32_t *value)
     dsbsy();*value=mmio_read_32(FES_NANO_DDR_FIREWALL_BASE+offset);dsbsy();
     return firewall_owns(context)==1 ? 0 : -1;
 }
-static int firewall_report(struct fes_nano_cold *s)
+static int firewall_report(struct fes_nano_cold *s,struct fes_nano_ddr_firewall_observation *out)
 {
     struct fes_nano_ddr_firewall_probe probe={.io={s,firewall_owns,firewall_read}};
     struct fes_nano_ddr_firewall_observation observation={0};
@@ -139,6 +148,7 @@ static int firewall_report(struct fes_nano_cold *s)
         NOTICE("FES_NANO_DDR_REGION index=%u base=%x baseext=%x limit=%x limitext=%x\n",i,r->base,r->baseext,r->limit,r->limitext);
     }
     NOTICE("FES_NANO_DDR_FIREWALL_END layout_known=%u window_covered=%u access=unqualified\n",observation.layout_known,observation.window_covered);
+    if (!status && out) *out=observation;
     return status;
 }
 static struct fes_nano_fabric_stop fabric_stop;
@@ -154,9 +164,11 @@ static int fabric_owns(void *context)
 {
     struct fes_nano_cold *s=context;
     return s->control_expected && identity_probe.active && !identity_probe.first_error &&
-        identity_probe.bridges==&fes_nano_owned_bridges && identity_probe.stage==FES_ID_CLOSE &&
+        identity_probe.bridges==&fes_nano_owned_bridges &&
+        (identity_probe.stage==FES_ID_CLOSE ||
+         (identity_probe.reader==2 && (identity_probe.stage==FES_ID_DDR_PREPARE || identity_probe.stage==FES_ID_DDR_RELEASE))) &&
         fes_nano_owned_bridges.state.generation==fabric_generation &&
-        fes_nano_owned_bridges.state.reset==FES_NANO_BRIDGES_DATA &&
+        fes_nano_owned_bridges.state.reset==(s->ddr_expected ? 5U : FES_NANO_BRIDGES_DATA) &&
         cold_master_owns(s,s->record.boot.owner,s->record.boot.epoch)==1;
 }
 static int fabric_read(void *context,uint32_t offset,uint32_t *value)
@@ -170,7 +182,7 @@ static int fabric_write(void *context,uint32_t offset,uint32_t value)
 {
     if ((offset!=FES_EMBEDDED_REG_REQUEST_COOKIE_LO && offset!=FES_EMBEDDED_REG_REQUEST_COOKIE_HI &&
          !(offset==FES_EMBEDDED_REG_COMMAND && value==FES_EMBEDDED_COMMAND_DISABLE)) ||
-        fabric_owns(context)!=1) return -1;
+        identity_probe.stage!=FES_ID_CLOSE || fabric_owns(context)!=1) return -1;
     dsbsy();mmio_write_32(FES_NANO_CONTROL_BASE+offset,value);dsbsy();
     return fabric_owns(context)==1 ? 0 : -1;
 }
@@ -191,7 +203,7 @@ static int probe_read(void *context,uint32_t offset,uint32_t *value)
 static int probe_write(void *context,uint32_t offset,uint32_t value)
 {
     if (offset!=FES_DE25_DDR_PROBE_COMMAND_OFFSET || value!=FES_DE25_DDR_PROBE_COMMAND_CANCEL ||
-        fabric_owns(context)!=1) return -1;
+        identity_probe.stage!=FES_ID_CLOSE || fabric_owns(context)!=1) return -1;
     dsbsy();mmio_write_32(FES_NANO_PROBE_CPU_BASE+offset,value);dsbsy();
     return fabric_owns(context)==1 ? 0 : -1;
 }
@@ -209,11 +221,11 @@ static int cold_master_quiesce(void *context,uint32_t producers)
         return master_failure(s,-1);
     if (!fabric_stop.attempted) fabric_generation=fes_nano_owned_bridges.state.generation;
     int error=fes_nano_fabric_stop(&fabric_stop);
-    if (!fabric_reported++) NOTICE("FES_NANO_MASTER_STOP status=%d owner=%llx generation=%llu reset=%x reader_reads=%u reader_polls=%u disable=%u probe_polls=%u cancel=%u complete=%u data=held\n",
+    if (!fabric_reported++) NOTICE("FES_NANO_MASTER_STOP status=%d owner=%llx generation=%llu reset=%x reader_reads=%u reader_polls=%u disable=%u probe_polls=%u cancel=%u complete=%u data=%s\n",
         error,(unsigned long long)fes_nano_owned_bridges.state.owner,
         (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,
         fabric_stop.reads,fabric_stop.polls,fabric_stop.disable_issued,fabric_stop.probe.polls,
-        fabric_stop.probe.cancel_issued,fabric_stop.done);
+        fabric_stop.probe.cancel_issued,fabric_stop.done,s->ddr_expected ? "active" : "held");
     return error ? master_failure(s,error) : 0;
 }
 static int cold_master_quiescent(void *context,uint32_t *producers)
@@ -230,6 +242,127 @@ static int cold_master_quiescent(void *context,uint32_t *producers)
     return 0;
 }
 
+#if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
+_Static_assert(FES_NANO_DDR_READ_ATTRS_VERIFIED==1,"sealed DDR adapter attributes required");
+static struct fes_nano_ddr_read ddr_reader;
+static unsigned ddr_prepared,ddr_issued;
+static uint64_t ddr_generation;
+static int ddr_gate(struct fes_nano_cold *s)
+{
+    struct fes_nano_smmu_observation translation={0};
+    struct fes_nano_ddr_firewall_observation firewall={0};
+    unsigned words=0;int status=-1;
+    if (smmu_owns(s)!=1) goto out;
+    if (smmu_report(s,&translation) || firewall_report(s,&firewall)) { status=-5;goto out; }
+    if (!translation.bypass_controls_clear || !translation.secure_implemented ||
+        translation.registers.idr0!=0x080f7e3f || translation.registers.idr1!=0x0e739d18 ||
+        translation.registers.aidr!=1 || translation.registers.s_idr1!=0x80000018 ||
+        !firewall.layout_known || !firewall.window_covered) goto out;
+    /* The pinned arena belongs to this single CPU until reboot. Check its
+     * complete fixed pattern in place; no pointer/digest comes from NS and
+     * neither caches nor translation controls are changed to obtain access. */
+    for (unsigned i=0;i<FES_NANO_READER_BYTES/4;i++) {
+        if (firewall_owns(s)!=1) goto out;
+        dsbsy();uint32_t value=mmio_read_32(FES_NANO_READER_CPU_BASE+4*i);dsbsy();words++;
+        if (value!=fes_nano_ddr_read_pattern(i) || firewall_owns(s)!=1) goto out;
+    }
+    status=0;
+out:
+    NOTICE("FES_NANO_DDR_GATE status=%d owner=%llx generation=%llu reset=%x pattern_words=%u permit=bounded-read\n",
+        status,(unsigned long long)fes_nano_owned_bridges.state.owner,
+        (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,words);
+    return status;
+}
+static int ddr_prepare(void *context)
+{
+    struct fes_nano_cold *s=context;
+    if (ddr_prepared || ddr_issued || fabric_stop.attempted || identity_probe.reader!=2 ||
+        identity_probe.stage!=FES_ID_DDR_PREPARE || smmu_owns(s)!=1) return -1;
+    fabric_generation=fes_nano_owned_bridges.state.generation;
+    struct fes_nano_fabric_stop idle=fabric_stop;
+    /* Preparation's MMIO callbacks reject all writes. An unexpectedly active
+     * master cannot be stopped and silently turned into a fresh start. */
+    if (fes_nano_fabric_stop(&idle) || idle.disable_issued || idle.probe.cancel_issued || ddr_gate(s)) return -1;
+    ddr_prepared=1;
+    return 0;
+}
+int fes_nano_platform_ddr_target(unsigned open)
+{
+    if (!identity_probe.active || identity_probe.reader!=2 ||
+        identity_probe.bridges!=&fes_nano_owned_bridges || open>1) return -1;
+    if (open) {
+        if (!ddr_prepared || ddr_issued || identity_probe.stage!=FES_ID_DDR_RELEASE) return -1;
+        ddr_prepared=0;ddr_issued=1;
+        /* Fresh use-point check immediately precedes the exact DDR-only raw
+         * enable. An earlier observation or preparation receipt cannot grant it. */
+        if (ddr_gate(&provider)) return -1;
+        ddr_generation=fes_nano_owned_bridges.state.generation+1;
+        return fes_nano_cold_ddr_target(&provider,provider.record.boot.owner,provider.record.boot.epoch);
+    }
+    if (!ddr_issued || !ddr_reader.done || ddr_reader.failed || identity_probe.stage!=FES_ID_CLOSE ||
+        !fabric_stop.done || fabric_stop.failed) return -1;
+    return fes_nano_cold_ddr_close_target(&provider,provider.record.boot.owner,provider.record.boot.epoch);
+}
+static int ddr_owns(void *context)
+{
+    struct fes_nano_cold *s=context;
+    return ddr_issued && identity_probe.active && identity_probe.reader==2 && !identity_probe.first_error &&
+        identity_probe.stage==FES_ID_DDR_READ && s->control_expected==1 && s->ddr_expected==1 &&
+        fes_nano_owned_bridges.state.generation==ddr_generation && fes_nano_owned_bridges.state.reset==5 &&
+        cold_master_owns(s,s->record.boot.owner,s->record.boot.epoch)==1;
+}
+static int ddr_read_word(void *context,uint32_t offset,uint32_t *value)
+{
+    if (ddr_owns(context)!=1 || offset&3U ||
+        (offset>0x4c && offset!=0x94 && offset!=0x98 && offset!=0xa0 && offset!=0xa4 &&
+         offset!=0xa8 && offset!=0xac && offset!=0xb0 && offset!=0xb4 && offset!=0xb8) ||
+        offset==FES_EMBEDDED_REG_COMMAND) return -1;
+    NOTICE("FES_NANO_DDR_ACCESS phase=before ordinal=%u offset=%x value=0\n",ddr_reader.reads,offset);
+    dsbsy();*value=mmio_read_32(FES_NANO_CONTROL_BASE+offset);dsbsy();
+    NOTICE("FES_NANO_DDR_ACCESS phase=after ordinal=%u offset=%x value=%x\n",ddr_reader.reads,offset,*value);
+    return ddr_owns(context)==1 ? 0 : -1;
+}
+static int ddr_write_word(void *context,uint32_t offset,uint32_t value)
+{
+    unsigned phase=ddr_reader.phase;
+    unsigned valid=(phase==FES_DDR_READ_ENABLE &&
+        ((offset==FES_EMBEDDED_REG_REQUEST_GENERATION_LO && value==1) ||
+         (offset==FES_EMBEDDED_REG_REQUEST_GENERATION_HI && !value) ||
+         (offset==FES_EMBEDDED_REG_COMMAND && value==FES_EMBEDDED_COMMAND_ENABLE))) ||
+        (phase==FES_DDR_READ_OFFER && ((offset==0x84 && value==FES_NANO_READER_BUS_BASE) ||
+         (offset==0x88 && value==1) || (offset==0x80 && value==8))) ||
+        (phase==FES_DDR_READ_DISABLE &&
+         ((offset==FES_EMBEDDED_REG_REQUEST_COOKIE_LO && value==7) ||
+          (offset==FES_EMBEDDED_REG_REQUEST_COOKIE_HI && !value) ||
+          (offset==FES_EMBEDDED_REG_COMMAND && value==FES_EMBEDDED_COMMAND_DISABLE)));
+    if (!valid || ddr_owns(context)!=1) return -1;
+    NOTICE("FES_NANO_DDR_WRITE phase=before offset=%x value=%x\n",offset,value);
+    dsbsy();mmio_write_32(FES_NANO_CONTROL_BASE+offset,value);dsbsy();
+    NOTICE("FES_NANO_DDR_WRITE phase=after offset=%x value=%x\n",offset,value);
+    return ddr_owns(context)==1 ? 0 : -1;
+}
+static void ddr_trace(void *context,unsigned phase)
+{
+    (void)context;
+    NOTICE("FES_NANO_DDR_READ phase=%u owner=%llx generation=%llu reset=%x reads=%u writes=%u polls=%u\n",
+        phase,(unsigned long long)fes_nano_owned_bridges.state.owner,
+        (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,
+        ddr_reader.reads,ddr_reader.writes,ddr_reader.polls);
+}
+static int ddr_cycle(void *context)
+{
+    if (ddr_owns(context)!=1 || ddr_reader.attempted) return -1;
+    ddr_reader=(struct fes_nano_ddr_read){.io={context,ddr_owns,ddr_read_word,ddr_write_word,fabric_wait,ddr_trace},
+        .abi=FES_NANO_CONTROL_ABI,.build=FES_NANO_CONTROL_BUILD,.bus_base=FES_NANO_READER_BUS_BASE,
+        .window_bytes=FES_NANO_READER_BYTES,.qualified=1};
+    struct fes_nano_ddr_read_observation observed={0};
+    int status=fes_nano_ddr_read(&ddr_reader,&observed);
+    NOTICE("FES_NANO_DDR_RESULT status=%d bytes=%u checksum=%x data0=%x data1=%x data2=%x data3=%x generation=%llu cookie=%llu\n",
+        status,observed.returned_bytes,observed.checksum,observed.last_data[0],observed.last_data[1],observed.last_data[2],observed.last_data[3],
+        (unsigned long long)observed.generation,(unsigned long long)observed.cookie);
+    return status;
+}
+#endif
 #endif
 static int identity_configured(void *context)
 {
@@ -248,7 +381,7 @@ static int identity_configured(void *context)
     NOTICE("FES_NANO_CONFIG_STATUS status=%d words=%u state=%x version=%x pins=%x soft=%x error_location=%x error_details=%x ready=%u\n",
            status,words,response[0],response[1],response[2],response[3],response[4],response[5],ready);
 #ifdef FES_NANO_READER_CPU_BASE
-    if (valid && (smmu_report(s) || firewall_report(s))) return -5;
+    if (valid && (smmu_report(s,0) || firewall_report(s,0))) return -5;
 #endif
     return valid ? (int)ready : -5;
 }
@@ -262,6 +395,18 @@ void fes_nano_platform_identity_report(void)
 static void identity_trace(void *context, unsigned stage)
 {
     (void)context;
+    if (stage==FES_ID_COMPLETE && identity_probe.reader==2) {
+        const struct fes_nano_bridge_closure *c=&identity_probe.closure;
+        NOTICE("FES_NANO_DDR_CLOSURE owner=%llx generation=%llu reset=%x hardware_drained=%x data_remained_contained=%u producers_quiescent=%u fabric_acknowledged=%u\n",
+            (unsigned long long)c->after.owner,(unsigned long long)c->after.generation,c->after.reset,
+            c->hardware_drained,c->data_remained_contained,c->producers_quiescent,c->fabric_acknowledged);
+    }
+    if (stage>=FES_ID_DDR_PREPARE && stage<=FES_ID_DDR_VERIFY) {
+        NOTICE("FES_NANO_DDR_CONTROL phase=%u owner=%llx generation=%llu reset=%x\n",stage,
+               (unsigned long long)fes_nano_owned_bridges.state.owner,
+               (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset);
+        return;
+    }
     if (stage>=FES_ID_READER_ENABLED && stage<=FES_ID_READER_DRAINED) {
         NOTICE("FES_NANO_READER_CYCLE phase=%u reader_generation=1 cookie=7 owner=%llx generation=%llu reset=%x\n",stage,
                (unsigned long long)fes_nano_owned_bridges.state.owner,
@@ -345,6 +490,9 @@ int fes_nano_platform_identity_setup(void)
         FES_NANO_CONTROL_BASE>=0x20000000UL && FES_NANO_CONTROL_BASE<=0x3fffff00UL &&
         !(FES_NANO_CONTROL_BASE&3U);
     struct fes_nano_identity_ops io={.context=&provider,.configured=identity_configured,.read32=identity_read,.contain=identity_contain,.trace=identity_trace,.write32=identity_write};
+#if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
+    io.ddr_prepare=ddr_prepare;io.ddr_cycle=ddr_cycle;
+#endif
     int result=fes_nano_identity_init(&identity_probe,&fes_nano_owned_bridges,io,
                                       FES_NANO_CONTROL_ABI,build,qualified);
 #ifdef FES_NANO_READER_CPU_BASE

@@ -450,6 +450,65 @@ class NativeContainedConfigurationTraceTests(unittest.TestCase):
         self.check_reader_trace()
         self.check_ddr_trace()
 
+    def check_actual_ddr_platform_trace(self,actual):
+        """Actual strong C provider/MMIO trace joined to a host boot fixture.
+
+        The ordinary boot and Go final markers are synthetic. This verifies
+        decoder integration, never physical memory or raw bridge hardware.
+        """
+        build='778899aabbccddee0011223344556677'
+        identity=dict(self.identity,control_abi=0x10203041,build_id=build)
+        memory=json.loads((ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-reader-memory.json').read_text())
+        memory.update(package_id=identity['package_id'],build_id=build)
+        configuration=dict(self.configuration,build_id=build)
+        contract={'format':1,'scope':'sealed-cold-ddr-read-v1','package_id':identity['package_id'],'build_id':build,
+                  'reader_memory_sha256':trace.context_digest(memory),'control_map_sha256':identity['map_sha256'],
+                  'adapter_source_sha256':'a'*64,'adapter_generated_sha256':'b'*64,
+                  'arcache':2,'arprot':3,'aruser':224,'read_bytes':32,'open_mask':8,'close_mask':10}
+        prefix=self.stored_capture().split('FES_NANO_CONFIG_QUERY',1)[0].replace('c'*32,build)
+        pinned=(f'FES_NATIVE_FPGA_READER_MEMORY PINNED cpu_base=95000000 bus_base=95000000 bytes=8192 arena_bytes=2097152 '
+                f'map_sha256={trace.context_digest(memory)} pattern_sha256={memory["pattern_sha256"]} '
+                f'owner={OWNER:x} generation=4 fpga_access=unqualified\n')
+        prefix=prefix.replace('FES_NATIVE_HPS_CONTEXT',pinned+'FES_NATIVE_HPS_CONTEXT',1)
+        actual=actual[actual.index('FES_NANO_CONFIG_QUERY'):].replace('owner=17 ',f'owner={OWNER:x} ')
+        raw=prefix+actual
+        raw+=(f'FES_NATIVE_FPGA_IDENTITY PASS package_id={identity["package_id"]} build_id={build} abi=10203041 '
+              f'base=20010400 map_sha256={identity["map_sha256"]} owner={OWNER:x} generation=7 data_held=1 runtime_programming=unavailable\n'
+              f'FES_NATIVE_FPGA_DDR_READER PASS owner={OWNER:x} generation=7 reader_generation=1 cookie=7 bytes=32 data_closed=1 runtime_programming=unavailable\n')
+        sys.path.insert(0,str(ROOT/'platform/embedded/nano'))
+        try:
+            def decode(data):return trace.decode_native_configuration(data,BUILD,SEED,fpga_identity=identity,
+                configuration=configuration,from_storage=True,reader_memory=memory,ddr_read=contract)
+            result=decode(raw)
+            self.assertTrue(result['complete'],result['errors'])
+            self.assertTrue(result['ddr_read']['complete'])
+            self.assertFalse(result['core_load_acceptance'])
+            self.assertFalse(result['ddr_read']['data_remained_contained'])
+            self.assertEqual(result['ddr_read']['writes'],9)
+            self.assertFalse(trace.decode_native_configuration(raw,BUILD,SEED,fpga_identity=identity,
+                configuration=configuration,from_storage=True,reader_memory=memory)['complete'])
+            for old,new in (('pattern_words=2048','pattern_words=2047'),('hardware_drained=8','hardware_drained=0'),
+                            ('producers_quiescent=1','producers_quiescent=0'),('fabric_acknowledged=0','fabric_acknowledged=1'),
+                            ('offset=84 value=95000000','offset=84 value=95001000'),('offset=48 value=7','offset=48 value=6'),
+                            ('bytes=32 checksum=','bytes=16 checksum='),('complete=1 data=active','complete=1 data=held'),
+                            ('phase=closed owner='+f'{OWNER:x} generation=7','phase=closed owner='+f'{OWNER:x} generation=6'),
+                            ('bypass_controls_clear=1','bypass_controls_clear=0')):
+                self.assertIn(old,raw)
+                with self.subTest(active_change=new):self.assertFalse(decode(raw.replace(old,new))['complete'])
+            lines=raw.splitlines(keepends=True)
+            important=[i for i,line in enumerate(lines) if 'FES_NANO_DDR_CONTROL' in line or 'FES_NANO_DDR_GATE' in line or
+                'FES_NANO_DDR_READ phase=' in line or 'FES_NANO_DDR_CLOSURE' in line or 'FES_NATIVE_FPGA_DDR_READER' in line or
+                'ordinal=30 phase=' in line or 'phase=after ordinal=30 ' in line]
+            for i in important:
+                with self.subTest(active_line=i):
+                    self.assertFalse(decode(''.join(lines[:i]+lines[i+1:]))['complete'])
+                    self.assertFalse(decode(''.join(lines[:i]+[lines[i],lines[i]]+lines[i+1:]))['complete'])
+                    self.assertFalse(decode(''.join(lines[:i]))['complete'])
+            self.assertFalse(decode(raw.rstrip())['complete'])
+            self.assertFalse(decode(raw+'partial tail')['complete'])
+            self.assertFalse(decode(raw+'panic: late failure\n')['complete'])
+        finally:sys.path.pop(0)
+
     def check_ddr_trace(self):
         """The DDR source remains blocked after pinned-memory/idle-stop proof."""
         memory=json.loads((ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-reader-memory.json').read_text())

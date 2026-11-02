@@ -21,6 +21,7 @@ import (
 )
 
 var expectedBootContext, expectedControlMap, expectedConfigurationMap, expectedReaderMemoryMap string
+var expectedDDRReadMap string
 var retained *nativefabric.ConfigurationTransfer
 
 func decoded(s string, limit int) []byte {
@@ -141,7 +142,11 @@ func main() {
 		id.PackageID, id.ProgrammedSHA256, size, source.Bridges.Owner, source.Bridges.Generation)
 	var observed nativefabric.FPGAIdentityObservation
 	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
-		observed, err = v.ProbeIdentity(control)
+		if expectedDDRReadMap != "" {
+			observed, err = v.ProbeDDRReader(control, decoded(expectedReaderMemoryMap, 8192), decoded(expectedDDRReadMap, 8192))
+		} else {
+			observed, err = v.ProbeIdentity(control)
+		}
 	} else {
 		observed, err = v.ProbeReader(control)
 	}
@@ -154,7 +159,11 @@ func main() {
 	fmt.Printf("FES_NATIVE_FPGA_IDENTITY PASS package_id=%s build_id=%s abi=%x base=%x map_sha256=%s owner=%x generation=%d data_held=1 runtime_programming=unavailable\n",
 		id.PackageID, id.BuildID, observed.Identity.ABI, observed.CPUBase, hex.EncodeToString(observed.ControlMapSHA256[:]), observed.After.Owner, observed.After.Generation)
 	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
-		fmt.Printf("FES_NATIVE_FPGA_DDR_READER BLOCKED owner=%x generation=%d data_held=1 translation=unqualified drain=unqualified runtime_programming=unavailable\n", observed.After.Owner, observed.After.Generation)
+		if expectedDDRReadMap != "" {
+			fmt.Printf("FES_NATIVE_FPGA_DDR_READER PASS owner=%x generation=%d reader_generation=1 cookie=7 bytes=32 data_closed=1 runtime_programming=unavailable\n", observed.After.Owner, observed.After.Generation)
+		} else {
+			fmt.Printf("FES_NATIVE_FPGA_DDR_READER BLOCKED owner=%x generation=%d data_held=1 translation=unqualified drain=unqualified runtime_programming=unavailable\n", observed.After.Owner, observed.After.Generation)
+		}
 	} else {
 		fmt.Printf("FES_NATIVE_FPGA_READER PASS owner=%x generation=%d reader_generation=1 cookie=7 data_held=1 runtime_programming=unavailable\n",
 			observed.After.Owner, observed.After.Generation)

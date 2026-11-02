@@ -72,6 +72,9 @@ struct fes_nano_cold {
      * the expected mask before its write, then owns() verifies the readback.
      * No non-secure operation can supply this field or open a data path. */
     unsigned control_expected;
+    /* Private bounded DDR diagnostic only. The raw driver arms this exact
+     * F2SDRAM0 bit while control is open; no SiP caller can supply it. */
+    unsigned ddr_expected;
     struct fes_nano_cold_sample before;
     unsigned finish_stage;
     uint32_t sd_clock_before, reset_readback;
@@ -86,6 +89,8 @@ int fes_nano_cold_consume(struct fes_nano_cold *, const struct fes_nano_cold_rec
 int fes_nano_cold_owns(void *, uint64_t owner, uint64_t epoch);
 int fes_nano_cold_control_target(struct fes_nano_cold *, uint64_t owner,
                                   uint64_t epoch, unsigned control_open);
+int fes_nano_cold_ddr_target(struct fes_nano_cold *,uint64_t owner,uint64_t epoch);
+int fes_nano_cold_ddr_close_target(struct fes_nano_cold *,uint64_t owner,uint64_t epoch);
 /* Trusted SD platform only: validate the original boot with exactly SD's
  * controller reset released when active=1. This never grants bridge access
  * or changes the strict all-master semantics of cold_owns. */

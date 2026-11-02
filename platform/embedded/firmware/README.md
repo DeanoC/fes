@@ -25,6 +25,19 @@ The serial decoder recomputes layout/coverage from the raw region words;
 coverage stays an observation, with access unqualified. See the Altera
 [F2SDRAM firewall description](https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/f2sdram-firewall?contentId=JZo73fDtBno9kTQOAdevlQ).
 
+The opt-in source-bound `fpgaload --ddr-read` candidate connects
+`nano_ddr_read.c` to the strong cold provider. Two fresh translation/firewall
+and full-pattern checks precede the DDR-only release. The fixed read-only
+controller accepts immediate or delayed drain completion and verifies 32
+returned bytes, checksum, final data and the generation/cookie acknowledgement.
+The complete master-stop callback then precedes hardware drain and combined
+reclosure. The closure records that DDR was active; it never claims continuous
+data containment or the unqualified optional FPGA warning acknowledgement.
+Failure recovery asserts control reset only and retains the DDR reservation
+until reboot. The RTL fixture executes the actual controller and endpoints;
+the strong-provider fixture injects ownership, register and memory failures.
+These are software diagnostics until the matched bounded board trial passes.
+
 The [contained large-block TRWU8CBL trial](../../../docs/validation/2026-11-02-de25-large-blocks/README.md)
 now completes the exact sealed 2,027,520-byte phase-two image through native
 CPU/firmware calls, reports ready and verifies the live build identity with

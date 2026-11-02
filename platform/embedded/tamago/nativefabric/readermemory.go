@@ -113,5 +113,6 @@ func (v *HPSContextVerifier) ReserveReaderMemory(raw []byte, reserve func([]byte
 	if err != nil || after != source || !bytes.Equal(region.Bytes, pattern) {
 		return ReaderMemoryObservation{}, errors.New("native fabric: reader reservation lost bytes or closed ownership")
 	}
+	v.readerMemoryReady = true
 	return ReaderMemoryObservation{source, m.CPUBase, m.BusBase, m.Bytes, m.ArenaBase, m.ArenaBytes, sha256.Sum256(raw), sha256.Sum256(pattern)}, nil
 }
