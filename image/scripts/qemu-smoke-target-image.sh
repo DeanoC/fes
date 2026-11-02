@@ -67,6 +67,7 @@ verify_smoke_log() {
   }
   grep -Eq 'TARGET_IMAGE_SMOKE_ROOT options=([^,[:space:]]+,)*ro(,|[[:space:]]|$)' "$smoke_log"
   grep -Fq 'TARGET_IMAGE_SMOKE_VOLATILE /run /tmp /var/log writable tmpfs' "$smoke_log"
+  grep -Fqx 'TARGET_IMAGE_SMOKE_DBUS machine-id and system bus ready' "$smoke_log"
   wait_count=$(grep -Fc 'mister-main: waiting for /media/fat payloads' "$smoke_log" || true)
   test "$wait_count" -eq 0 || {
     printf '%s\n' 'qemu-smoke-target-image: native-dev entered a Main payload wait' >&2

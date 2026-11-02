@@ -6,6 +6,9 @@ module fes_menu_reader #(
     parameter [0:0] DYNAMIC_BASE = 1'b0,
     parameter [7:0] MAX_BURST_BEATS = 8'd128,
     parameter [0:0] CHECK_RESPONSE = 1'b0,
+    // DE25's short F2SDRAM bursts need independent requests to hide latency.
+    // Defaults retain the existing single-burst behavior on other platforms.
+    parameter [0:0] READ_AHEAD = 1'b0,
     parameter [0:0] RESET_ABORTS_TRAFFIC = 1'b0
 ) (
     input wire clk,
@@ -78,6 +81,9 @@ module fes_menu_reader #(
     wire consume = pixel_valid && pixel_ready;
     wire pop = consume && lane == 2'd3;
     wire [17:0] remaining = FRAME_BEATS - issued;
+    // Returning beats move from outstanding to FIFO count without consuming
+    // another reservation. Reserve each entire command before asserting read.
+    wire [9:0] reserved_beats = {1'b0, count} + {1'b0, outstanding};
     wire [27:0] slot_base = selected_window_base[31:4] + (selected_slot ? 28'h0040000 : 28'd0);
     wire [27:0] next_address = slot_base + {10'd0, issued};
     wire [8:0] page_beats = 9'd256 - {1'b0, next_address[7:0]};
@@ -166,10 +172,13 @@ module fes_menu_reader #(
                 index <= 20'd0;
                 lane <= 2'd0;
             end
-            // Reserve FIFO space for the entire next burst. One burst is in flight.
-            if (active && enable && !rst && !memory_fault && !read && outstanding == 9'd0 &&
+            // A held command cannot be replaced. In read-ahead mode all
+            // accepted commands plus this command still fit in the 256-beat
+            // FIFO, including cancellation while responses remain in flight.
+            if (active && enable && !rst && !memory_fault && !read && (READ_AHEAD || outstanding == 9'd0) &&
                 issued < FRAME_BEATS && next_burst != 8'd0 && MAX_BURST_BEATS <= 8'd128 &&
-                count <= 9'd256 - {1'b0, next_burst}) begin
+                (READ_AHEAD ? reserved_beats <= 10'd256 - {2'b00, next_burst} :
+                              count <= 9'd256 - {1'b0, next_burst})) begin
                 read <= 1'b1;
                 address <= next_address;
                 burstcount <= next_burst;

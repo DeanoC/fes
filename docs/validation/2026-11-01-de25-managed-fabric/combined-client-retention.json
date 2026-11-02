@@ -1,0 +1,14 @@
+{
+  "source_revision": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "job_elapsed_seconds": 1572.8,
+  "classification": "actual native and QEMU AArch64 dual-client combined RTL proof; behavioral RAM/persona mux; no physical acceptance",
+  "archive": "combined-client-output.tar.gz",
+  "bytes": 31979199,
+  "sha256": "671091e707b3ec1ee0a3e0790eb1efd8303da49e39b5d97e3e2cad1b840beb42",
+  "files_verified": 267,
+  "proof_sha256": "dbfe7aaa907e70ec0cd2aeb2b50d8de4ae3ab2cdb781332912a6940dc32aacbd",
+  "compiler_inputs_verified": 59,
+  "runtime_test_inputs_verified": 58,
+  "cases": 14,
+  "hardware_access": "not-performed"
+}

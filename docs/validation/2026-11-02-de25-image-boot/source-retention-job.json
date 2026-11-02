@@ -1,0 +1,16 @@
+{
+  "source_revision": "54440171df2ae454a87873099857c10de7e17263",
+  "command": [
+    "/usr/bin/python3",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-image-boot/retain-source.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-image-boot-54440171d",
+  "started_utc": "2026-11-02T00:07:15.426024+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 850285,
+  "state": "passed",
+  "elapsed_seconds": 2.1,
+  "heartbeat_utc": "2026-11-02T00:07:17.524686+00:00",
+  "returncode": 0
+}

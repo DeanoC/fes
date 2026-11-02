@@ -1,0 +1,18 @@
+{
+  "source_revision": "8a804e0531e1e7f229da5b964f59125901d3f39c",
+  "command": [
+    "python3",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-reviewed-async-inputs/build-data-helper.py",
+    "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-reviewed-async-8a804e053",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-reviewed-async-inputs/data-helper"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-reviewed-async-8a804e053",
+  "started_utc": "2026-11-01T16:02:22.324150+00:00",
+  "time_cap_seconds": 180,
+  "hardware_access": "not-performed",
+  "pid": 2709452,
+  "state": "passed",
+  "elapsed_seconds": 14.4,
+  "heartbeat_utc": "2026-11-01T16:02:36.695758+00:00",
+  "returncode": 0
+}

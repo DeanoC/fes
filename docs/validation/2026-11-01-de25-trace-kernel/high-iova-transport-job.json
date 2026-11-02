@@ -1,0 +1,19 @@
+{
+  "source_revision": "678d9b2d6",
+  "scope": "generated transport with modeled M20K and HPS response; observed high IOVA replay, no hardware",
+  "command": [
+    "/usr/bin/python3",
+    "/data/fes-de25-observed-iova-678d9b2d6/source/interconnect_sim.py",
+    "--project",
+    "/data/fes-de25-runtime-d4c6544e3/scanout-output/combined/hps/project",
+    "--output",
+    "/data/fes-de25-observed-iova-678d9b2d6/proof"
+  ],
+  "time_cap_seconds": 300,
+  "started_utc": "2026-11-01T07:52:31.296247+00:00",
+  "pid": 1879207,
+  "state": "passed",
+  "elapsed_seconds": 38.73,
+  "heartbeat_utc": "2026-11-01T07:53:10.026688+00:00",
+  "returncode": 0
+}

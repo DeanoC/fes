@@ -155,6 +155,7 @@ class AffectedTests(unittest.TestCase):
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
             ('misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
             ('FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),
+            ('libmister-runtime', 'src/native/generated/fes_de25_scanout.hpp'),
         })
         result = plan([definition])
         self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
@@ -391,7 +392,8 @@ class AffectedTests(unittest.TestCase):
                      'scripts/rom_map.py', 'scripts/rom_map_oracle.py', 'tests/test_rom_map.py',
                      'tests/test_core_package_v3.py', 'scripts/build_fes_atari_st_oss.py',
                      'tests/test_atari_st_producer.py', 'tests/test_atari_st_slot_card.py',
-                     'scripts/synth_fes_pc386.py', 'scripts/build_fes_pcxt_quartus.py'):
+                     'scripts/synth_fes_pc386.py', 'scripts/build_fes_pcxt_quartus.py',
+                     'scripts/build_de25_menu_package.py'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross/' + path])
                 self.assertTrue(result['lanes']['fpga'])

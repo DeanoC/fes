@@ -1,0 +1,812 @@
+{
+  "format": 1,
+  "root": "/home/deano/fes/out/dev/de25-linux-platform",
+  "base": "cb12a6b3100065e81b7c76867418ea628261e93a",
+  "head": "90156cae51d298bdcee886c315733192998bae69",
+  "checkout_head": "90156cae51d298bdcee886c315733192998bae69",
+  "merge_base": "cb12a6b3100065e81b7c76867418ea628261e93a",
+  "local_paths": [],
+  "impact": {
+    "lanes": {
+      "parent": true,
+      "host": true,
+      "runtime": true,
+      "contracts": true,
+      "fpga": true
+    },
+    "skipped": [],
+    "cores": [
+      "apple2",
+      "atari-st",
+      "c64",
+      "coleco",
+      "demo",
+      "menu",
+      "pc386",
+      "pcxt",
+      "pong",
+      "ramtest",
+      "riscv",
+      "sg1000",
+      "sms",
+      "spectrum",
+      "z80",
+      "zx81"
+    ],
+    "test_modes": {
+      "video": true,
+      "media": true,
+      "full_race": true
+    },
+    "paths": [
+      "scripts/consistency.py",
+      "sources/libmister-runtime/ARCHITECTURE.md",
+      "sources/libmister-runtime/Makefile",
+      "sources/libmister-runtime/README.md",
+      "sources/libmister-runtime/docs/support-matrix.md",
+      "sources/libmister-runtime/src/native/core_driver.cpp",
+      "sources/libmister-runtime/src/native/core_driver.hpp",
+      "sources/libmister-runtime/src/native/core_package.cpp",
+      "sources/libmister-runtime/src/native/core_package.hpp",
+      "sources/libmister-runtime/src/native/de25_core_contract.hpp",
+      "sources/libmister-runtime/src/native/de25_core_driver.cpp",
+      "sources/libmister-runtime/src/native/generated/de10_nano_programming.hpp",
+      "sources/libmister-runtime/src/native/generated/de25_nano_programming.hpp",
+      "sources/libmister-runtime/src/native/platform.hpp",
+      "sources/libmister-runtime/tests/unit/core_package_test.cpp",
+      "sources/libmister-runtime/tests/unit/de25_computer_test.cpp",
+      "sources/mister-packages/README.md",
+      "sources/mister-packages/docs/schema.md",
+      "sources/mister-packages/internal/emitcpp/emitcpp.go",
+      "sources/mister-packages/internal/emitcpp/emitcpp_test.go",
+      "sources/mister-packages/internal/pack/abi_test.go",
+      "sources/mister-packages/packages/programming/de25_nano.yaml",
+      "sources/mister-packages/testdata/oracles/de25-programming-profile.json"
+    ],
+    "reasons": [
+      "scripts/consistency.py: parent orchestration/tests/assembly; component sources unchanged",
+      "sources/libmister-runtime/Makefile: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/core_driver.cpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/core_driver.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/core_package.cpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/core_package.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/de25_core_contract.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/de25_core_driver.cpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/generated/de10_nano_programming.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/generated/de25_nano_programming.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/src/native/platform.hpp: runtime, host protocol consumers and parent integration",
+      "sources/libmister-runtime/tests/unit/core_package_test.cpp: native runtime tests and parent integration; host inputs unchanged",
+      "sources/libmister-runtime/tests/unit/de25_computer_test.cpp: native runtime tests and parent integration; host inputs unchanged",
+      "sources/mister-packages/internal/emitcpp/emitcpp.go: contract tooling software; generated RTL unchanged",
+      "sources/mister-packages/internal/emitcpp/emitcpp_test.go: contract tooling software; generated RTL unchanged",
+      "sources/mister-packages/internal/pack/abi_test.go: contract tooling software; generated RTL unchanged",
+      "sources/mister-packages/packages/programming/de25_nano.yaml: shared contract or unknown/root input",
+      "sources/mister-packages/testdata/oracles/de25-programming-profile.json: shared contract or unknown/root input"
+    ],
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ]
+  },
+  "commands": [
+    {
+      "lane": "always",
+      "label": "test_affected.py",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_affected.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "test_test_changed.py",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "files": [
+        "tests/test_test_changed.py"
+      ]
+    },
+    {
+      "lane": "always",
+      "label": "committed whitespace",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "scripts/check_diff.py",
+        "--base",
+        "cb12a6b3100065e81b7c76867418ea628261e93a",
+        "--head",
+        "90156cae51d298bdcee886c315733192998bae69"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "files": []
+    },
+    {
+      "lane": "always",
+      "label": "working whitespace",
+      "cwd": ".",
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "tools": [
+        "git"
+      ],
+      "files": []
+    },
+    {
+      "lane": "parent",
+      "label": "parent Python regressions",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "scripts/parent_tests.py",
+        "--video",
+        "true",
+        "--media",
+        "true",
+        "--paths-json",
+        "[\"scripts/consistency.py\", \"sources/libmister-runtime/ARCHITECTURE.md\", \"sources/libmister-runtime/Makefile\", \"sources/libmister-runtime/README.md\", \"sources/libmister-runtime/docs/support-matrix.md\", \"sources/libmister-runtime/src/native/core_driver.cpp\", \"sources/libmister-runtime/src/native/core_driver.hpp\", \"sources/libmister-runtime/src/native/core_package.cpp\", \"sources/libmister-runtime/src/native/core_package.hpp\", \"sources/libmister-runtime/src/native/de25_core_contract.hpp\", \"sources/libmister-runtime/src/native/de25_core_driver.cpp\", \"sources/libmister-runtime/src/native/generated/de10_nano_programming.hpp\", \"sources/libmister-runtime/src/native/generated/de25_nano_programming.hpp\", \"sources/libmister-runtime/src/native/platform.hpp\", \"sources/libmister-runtime/tests/unit/core_package_test.cpp\", \"sources/libmister-runtime/tests/unit/de25_computer_test.cpp\", \"sources/mister-packages/README.md\", \"sources/mister-packages/docs/schema.md\", \"sources/mister-packages/internal/emitcpp/emitcpp.go\", \"sources/mister-packages/internal/emitcpp/emitcpp_test.go\", \"sources/mister-packages/internal/pack/abi_test.go\", \"sources/mister-packages/packages/programming/de25_nano.yaml\", \"sources/mister-packages/testdata/oracles/de25-programming-profile.json\"]"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "docker",
+        "sh"
+      ],
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ]
+    },
+    {
+      "lane": "parent",
+      "label": "working-tree generated consumer consistency",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "go"
+      ],
+      "files": [
+        "scripts/consistency.py"
+      ]
+    },
+    {
+      "lane": "host",
+      "label": "host Go and UI tests",
+      "cwd": ".",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "scripts/host_tests.py",
+        "--ui-if-needed",
+        "--full"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "cc",
+        "go",
+        "make",
+        "node",
+        "rg",
+        "sh"
+      ],
+      "files": [
+        "scripts/host_tests.py",
+        "sources/FogCast/Makefile",
+        "sources/FogCast/go.mod",
+        "sources/FogCast/appliance/go.mod",
+        "sources/misteross/expansion/go.mod"
+      ],
+      "host_ui": {
+        "required": true,
+        "scheduled": true,
+        "boundary_scheduled": false,
+        "command_scheduled": true,
+        "target": "test-ui",
+        "reason": "UI/API, production/full or uncertain inputs"
+      }
+    },
+    {
+      "lane": "runtime",
+      "label": "runtime software tests",
+      "cwd": "sources/libmister-runtime",
+      "argv": [
+        "make",
+        "-j2",
+        "test"
+      ],
+      "tools": [
+        "ar",
+        "c++",
+        "c++filt",
+        "make",
+        "nm",
+        "rg",
+        "sh"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "contracts",
+      "label": "contract schemas and generated fixtures",
+      "cwd": "sources/mister-packages",
+      "argv": [
+        "make",
+        "test",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "go",
+        "make"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "sim-fes-native-video RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-native-video",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "sim-fes-coleco-native RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-coleco-native",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "sim-fes-native-socket RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-native-socket",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "sim-fes-coleco-session RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-coleco-session",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "test_*.py",
+      "cwd": "sources/misteross",
+      "argv": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "tools": [
+        "/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python",
+        "strace"
+      ],
+      "files": [
+        "tests/test_*.py"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "apple2 RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-apple2",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "atari-st RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-atari-st",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "c64 RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-c64",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "coleco RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-coleco",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "demo RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-demo",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "menu RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-menu",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "pc386 RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-pc386",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "pcxt RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-pcxt",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "pong RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-pong",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "ramtest RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-ramtest",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "riscv RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-riscv",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "sg1000 RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-sg1000",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "sg1000 OSS RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-sg1000-oss",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "sg1000 linked ROM RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-sg1000-rom-link",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "sg1000 audio identity simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-sg1000-gp-audio",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "sms RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-sms",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "sms OSS RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-sms-oss",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "spectrum RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-spectrum",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "z80 RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-z80",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    },
+    {
+      "lane": "fpga",
+      "label": "zx81 RTL simulation",
+      "cwd": "sources/misteross",
+      "argv": [
+        "make",
+        "sim-fes-zx81",
+        "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+      ],
+      "tools": [
+        "c++",
+        "make",
+        "verilator"
+      ],
+      "files": [
+        "Makefile"
+      ]
+    }
+  ],
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "status": "failed",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 1
+    }
+  ],
+  "not_started": [
+    "working-tree generated consumer consistency",
+    "host Go and UI tests",
+    "runtime software tests",
+    "contract schemas and generated fixtures",
+    "sim-fes-native-video RTL simulation",
+    "sim-fes-coleco-native RTL simulation",
+    "sim-fes-native-socket RTL simulation",
+    "sim-fes-coleco-session RTL simulation",
+    "test_*.py",
+    "apple2 RTL simulation",
+    "atari-st RTL simulation",
+    "c64 RTL simulation",
+    "coleco RTL simulation",
+    "demo RTL simulation",
+    "menu RTL simulation",
+    "pc386 RTL simulation",
+    "pcxt RTL simulation",
+    "pong RTL simulation",
+    "ramtest RTL simulation",
+    "riscv RTL simulation",
+    "sg1000 RTL simulation",
+    "sg1000 OSS RTL simulation",
+    "sg1000 linked ROM RTL simulation",
+    "sg1000 audio identity simulation",
+    "sms RTL simulation",
+    "sms OSS RTL simulation",
+    "spectrum RTL simulation",
+    "z80 RTL simulation",
+    "zx81 RTL simulation"
+  ]
+}

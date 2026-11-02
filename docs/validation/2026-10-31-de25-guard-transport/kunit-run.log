@@ -1,0 +1,49 @@
+stty: 'standard input': Inappropriate ioctl for device
+[14:42:23] Configuring KUnit Kernel ...
+Generating .config ...
+Populating config with:
+$ make ARCH=arm64 O=/build/kunit olddefconfig CROSS_COMPILE=/build/sdk/bin/aarch64-buildroot-linux-gnu-
+[14:42:26] Building KUnit Kernel ...
+Populating config with:
+$ make ARCH=arm64 O=/build/kunit olddefconfig CROSS_COMPILE=/build/sdk/bin/aarch64-buildroot-linux-gnu-
+Building with:
+$ make all compile_commands.json ARCH=arm64 O=/build/kunit --jobs=8 CROSS_COMPILE=/build/sdk/bin/aarch64-buildroot-linux-gnu-
+[14:43:03] Starting KUnit Kernel (1/1)...
+[14:43:03] ============================================================
+Running tests with:
+$ qemu-system-aarch64 -nodefaults -m 1024 -kernel /build/kunit/arch/arm64/boot/Image.gz -append 'kunit.filter_glob=fes-de25-dma* kunit.enable=1 console=ttyAMA0 kunit_shutdown=reboot' -no-reboot -nographic -serial stdio -machine virt -cpu max,pauth-impdef=on
+[14:43:03] ================ fes-de25-dma (28 subtests) ================
+[14:43:03] [PASSED] guard_real_access_and_bounds
+[14:43:03] [PASSED] guard_claim_rejects_wrong_or_existing_identity
+[14:43:03] [PASSED] guard_dummy_zero_timeout_is_not_success
+[14:43:03] [PASSED] guard_post_access_fault_and_reset_reject_results
+[14:43:03] [PASSED] guard_busy_or_unknown_status_prevents_access
+[14:43:03] [PASSED] guarded_transport_constructs_real_dma_grant
+[14:43:03] [PASSED] binding_stays_closed
+[14:43:03] [PASSED] backend_lease_required_before_access
+[14:43:03] [PASSED] unconfigured_engine_has_one_allocation_lease
+[14:43:03] [PASSED] constructor_failure_releases_backend_lease
+[14:43:03] [PASSED] uncertain_dma_retains_lease_until_storage_free
+[14:43:03] [PASSED] rejects_bad_publish_before_effects
+[14:43:03] [PASSED] kernel_owns_descriptor_and_drain_lifetime
+[14:43:03] [PASSED] failed_start_is_held_until_drain
+[14:43:03] [PASSED] unreadable_epoch_retains_exposed_storage
+[14:43:03] [PASSED] acceptance_is_not_display_and_slots_alternate
+[14:43:03] [PASSED] ordered_descriptor_precedes_first_submit
+[14:43:03] [PASSED] stale_generation_and_reset_cannot_prove_drain
+[14:43:03] [PASSED] mismatched_completion_never_releases_slot
+[14:43:03] [PASSED] faults_never_release_pending_slot
+[14:43:03] [PASSED] snapshot_handshake_is_bounded_and_consistent
+[14:43:03] [PASSED] sequence_and_generation_never_wrap
+[14:43:03] [PASSED] poll_identity_rejects_before_register_effects
+[14:43:03] [PASSED] coherent_mapping_uapi_and_revoke
+[14:43:03] [PASSED] contiguous_aliases_are_revoked
+[14:43:03] [PASSED] rejects_invalid_mapping_shapes
+[14:43:03] [PASSED] refused_mapping_releases_new_mm_reference
+[14:43:03] [PASSED] revoke_catches_inflight_mmap_link
+[14:43:03] ================== [PASSED] fes-de25-dma ===================
+[14:43:03] ============================================================
+[14:43:03] Testing complete. Ran 28 tests: passed: 28
+[14:43:03] Test results stored in /export/kunit.json
+[14:43:03] Elapsed time: 40.324s total, 3.210s configuring, 36.402s building, 0.623s running
+

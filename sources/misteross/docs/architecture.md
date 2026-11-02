@@ -19,6 +19,88 @@ selection and transfer. libmister-runtime programs the FPGA.
 
 ## DE25-Nano board diagnostic
 
+`scripts/build_de25_menu_package.py` prepares the allocated-buffer MENU with a
+canonical format-2 functional record before generating IP. Its record binds the
+tracked board/MENU/splash/producer source closure, locked vendor resource archive,
+actual Quartus 26.3 Pro tools, complete selected installation and controlled
+execution. That record supplies the real Qsys BUILD_ID and explicit seed 1;
+the diagnostic source/profile identity remains the default for the standalone
+scanout recipe. `--compile-only` retains a candidate and never exports a package.
+The canonical `timed-system-reset-release-v3` profile times the three generated
+reset receivers released by the same 100 MHz system clock. It removes their
+clear exceptions from the private board/generated SDC copies, preserving pixel,
+FIFO and debug exceptions. The six generated reset SDC files must match the
+reviewed Quartus 26.3 input bytes. Original and derived bytes are retained and
+rechecked after generation and compilation, before Linux phase conversion;
+the canonical record binds the policy. The standalone diagnostic recipe keeps
+its original reset constraints.
+
+Canonical MENU also selects `managed-scanout-initiators-v3` before generation.
+It removes the vendor JTAG Avalon masters and their separate ACE5-Lite F2H
+translator. The normal HPS lightweight control path, HPS-to-OCM access and sole
+SID13 scanout-to-F2SDRAM path remain required. The generator checks the exact
+eight initiator endpoints (including CPU bridges and relay stages), every
+control ingress and the sole fabric-to-HPS route. It also checks the actual
+generated parent RTL: removed instances and unused HPS F2H ports must be absent.
+The supported HPS `f2s_data_width=0` (Unused) setting disables that bridge;
+its child exports and parent clock/reset connections are removed as well.
+Captured verifier bytes and the
+complete generated graph receipt are checked before and after compilation;
+the compiled and Linux-conversion receipts retain this graph. The
+full vendor HPS/EMIF parameter review permits exactly the selected F2SDRAM SMMU
+exposure and F2H disable for canonical MENU. Actual HPS parameters, elaborated
+interfaces and generated parent ports are checked before and after compilation.
+This profile retires only the vendor GHRD's `source ./jtag.sdc` statement for
+the removed fabric JTAG interfaces. The reviewed original GHRD/JTAG SDC hashes
+are required, original and derived GHRD bytes are retained, and the exact
+derivation is rechecked before and after compilation. Other constraints remain
+present. This removes constraints for absent hardware and adds no exception.
+The independent
+maintenance recipe keeps its debug paths, and JTAG FPGA configuration remains
+available. The F2H parameter change has no boot-firmware acceptance yet and
+grants no IO, reset, physical DMA or native acceptance.
+
+The package path requires the complete 85-rule signoff inventory and its detailed
+results, all reported setup/hold/recovery/removal/pulse-width/skew/net-delay checks, zero waived
+findings and an independent identical RBF before using the normal exporter.
+The approved `de25-menu-reviewed-async-inputs-v1` policy accepts only TMC-20011
+for `HDMI_I2C_SDA` and `HDMI_TX_INT`. Each compilation and independent rebuild
+queries a private copy of the final fitted database: raw input and first-stage
+fanout must follow the reviewed two-register chain, with only its intended
+controller consumers (including Quartus copies of ACK1/2/3 and LUT_INDEX0..5
+only after the second stage), passing stage setup/hold timing and no internal SDC
+exception. Both chains must retain 50 MHz, two registers in one tile, included
+MTBF above the tool's one-billion-year cap and the default 6.25 million
+transitions/second assumption. The source record, RBF, compiled database and
+raw reports bind that review; raw failed rules stay visible. This is a modeled
+estimate for those chains, not a physical reliability measurement. Zero
+unreviewed findings remains mandatory; output-delay and reset findings still
+block package publication. These
+checks do not establish whole-board timing, physical reset/CDC acceptance or a
+managed-kit hardware pass. No build action programs hardware.
+`tests/de25_reset_skew.py` adds a separate finite diagnostic to an existing
+passing generated startup simulation. In private model copies it delays each
+of the eight FIFO reset first stages independently by zero or one receiving
+clock cycle. It monitors actual release edges and exercises early control,
+accepted/drained reads and late-release poisoning. The generated producer
+project is unchanged; this does not close RDC-50003 or qualify physical
+metastability, outer clock monitors, live global reset or boot/allocation epochs.
+DE25 package validation accepts only format 2 for its exact SCS device. The
+existing format-3/4 ROM-map encoding and destination geometry describe Cyclone V
+M10K storage and are refused for Agilex 5.
+
+The scanout producer derives named HDMI cells from its locked Terasic sources.
+Two 50 MHz stages synchronize external SDA acknowledgements and INT, with
+pin-to-first-D exceptions only. Controller clocked assignments are normalized
+to nonblocking semantics; the initializer waits for busy after GO before
+accepting END, preventing stale completion from skipping the first LUT write.
+The existing divider and register values remain unchanged. Derived source
+hashes and synchronizer bindings are rechecked after generation/compilation.
+The retained-controller protocol proof checks all 33 writes, interrupt restart
+and three NACK positions, and checks synthesized controller equivalence with
+explicit reset modeling. External IO timing, analog/MTBF and asynchronous reset
+qualification remain separate gates.
+
 `boards/de25nano/` is an independent FPGA-only bring-up project for
 `A5EB013BB23BE4SCS` with Quartus Prime Pro 26.3.0. Its 50 MHz input and
 active-low LED pins follow Terasic's revision B resource package; the shared
@@ -138,6 +220,15 @@ and completion only after a whole good frame. Explicit Platform Designer
 `mm_ccb` bridges carry control from 100 MHz to 74.25 MHz and memory traffic
 back to the preserved F2SDRAM path. The shared reader/video extensions are
 opt-in; existing consumers retain their default configuration.
+
+For explicit `--linux-dma --hps-first`, the recipe exposes the fixed nonsecure
+SMMU stream and removes the DDR probe/control window and external memory-debug
+JTAG master/export/window. Generated topology must have exactly one scanout
+master into the adapter and one adapter route into HPS F2SDRAM, with no extra
+master or nonzero translation. The maintenance profile retains and verifies
+its diagnostic paths. Input, generation, compilation and phase receipts bind
+the selected profile; Linux phases additionally bind input/generation hashes.
+This is a source/topology boundary, not physical SMMU or Linux domain admission.
 
 Both crossing bridges share initial configuration reset. Later pixel PLL-lock
 loss latches a fault without resetting live bridge queues; the endpoint stops
@@ -3864,3 +3955,10 @@ Quiesce halts the blitter at a row boundary, and its ACK waits for scanout and
 both blitter ports to drain before execution hold. Runtime buffer
 transport/admission and exact-artifact menu acceptance are not established by
 source simulations.
+
+DE25 ZX81-HPS fabric1.1 returns board-owned HDMI readiness at offset24.
+The generated PD component1.1 connects the wrapper completion output back to
+the control endpoint. A pixel-domain qualification and control-domain two-flop
+crossing expose one bit, without extending Linux I2C ownership. Digital board
+and endpoint tests cover this boundary; no new timing or physical acceptance
+is implied by the source change.

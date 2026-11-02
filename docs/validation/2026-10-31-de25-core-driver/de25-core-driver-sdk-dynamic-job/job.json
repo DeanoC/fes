@@ -1,0 +1,16 @@
+{
+  "source_revision": "c147cdc8c7b666c4d315d3ec69cd410613736336",
+  "command": [
+    "python3",
+    "out/de25-core-driver-sdk-dynamic/run.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T20:16:41.854294+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 2152946,
+  "state": "passed",
+  "elapsed_seconds": 22.9,
+  "heartbeat_utc": "2026-10-31T20:17:04.789844+00:00",
+  "returncode": 0
+}

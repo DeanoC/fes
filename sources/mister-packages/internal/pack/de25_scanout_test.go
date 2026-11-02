@@ -14,7 +14,7 @@ func TestDE25ScanoutAgreesWithProbeAllocationGeometry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if scanout.ID != "fes.fabric.de25-scanout" || scanout.Major != 1 || scanout.Minor != 0 {
+	if scanout.ID != "fes.fabric.de25-scanout" || scanout.Major != 1 || scanout.Minor != 1 {
 		t.Fatalf("unexpected scanout contract: %#v", scanout)
 	}
 	for _, suffix := range []string{"DmaAddressBits", "BeatBytes", "GrantAlignment", "MaxBurstBeats", "BoundaryBytes",
@@ -32,6 +32,14 @@ func TestDE25ScanoutAgreesWithProbeAllocationGeometry(t *testing.T) {
 			t.Fatalf("missing scanout constant %s", suffix)
 		}
 		return value
+	}
+	if get("Version") != 0x10001 || get("StatusDisplayReady") != 64 || get("ErrorDisplay") != 128 {
+		t.Fatal("scanout1.1 requires positive display readiness and its fault bit")
+	}
+	for index, suffix := range []string{"BuildId0Offset", "BuildId1Offset", "BuildId2Offset", "BuildId3Offset"} {
+		if get(suffix) != 0x64+4*uint32(index) || get(suffix)+4 > get("Span") {
+			t.Fatalf("selected build identity word %d is outside its exact control layout", index)
+		}
 	}
 	if get("FrameStride") != get("FrameWidth")*4 || get("FrameBytes") != get("FrameStride")*get("FrameHeight") ||
 		get("FrameBytes") > get("SlotBytes") || get("AllocationBytes") != get("SlotBytes")*get("SlotCount") {

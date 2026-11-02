@@ -1,2 +1,0 @@
-# Preserve patch syntax that quotes whitespace-sensitive pinned kernel context.
-bounded-claim.patch -whitespace

@@ -1,0 +1,16 @@
+{
+  "source_revision": "c147cdc8c7b666c4d315d3ec69cd410613736336",
+  "command": [
+    "python3",
+    "out/de25-core-driver-sdk/run.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T20:15:51.735474+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 2136462,
+  "state": "failed",
+  "elapsed_seconds": 20.9,
+  "heartbeat_utc": "2026-10-31T20:16:12.606410+00:00",
+  "returncode": 1
+}

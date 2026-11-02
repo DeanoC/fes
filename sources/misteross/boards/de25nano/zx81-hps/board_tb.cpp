@@ -17,6 +17,10 @@ int main(int argc, char** argv) {
         t.rootp->fes_de25_zx81_board__DOT__video_clock__DOT__locked = value;
         t.eval();
     };
+    auto configured = [&](bool value) {
+        t.rootp->fes_de25_zx81_board__DOT__hdmi_config__DOT__configured = value;
+        t.eval();
+    };
     auto tick = [&]() {
         t.CLOCK0_50 = 0;
         t.rootp->fes_de25_zx81_board__DOT__video_clock__DOT__outclk_0 = 0;
@@ -27,11 +31,12 @@ int main(int argc, char** argv) {
     };
     auto black = [&]() {
         check(!t.HDMI_TX_DE && !t.HDMI_TX_D, "pixel data was not blanked");
+        check(!t.video_ready, "blanked/reset video was advertised ready");
     };
 
     t.CLOCK0_50 = 0; t.ninit_done = 1; t.HDMI_TX_INT = 1;
     t.video_rgb = 0x123456; t.video_de = 1; t.video_hs = 0; t.video_vs = 0;
-    t.eval(); lock(false);
+    t.eval(); lock(false); configured(false);
     for (int i = 0; i < 4; ++i) { tick(); black(); }
 
     // Release on an arbitrary pixel. Data stays blank until an entire HS pulse
@@ -43,6 +48,16 @@ int main(int argc, char** argv) {
     t.video_hs = 0; tick();
     check(t.HDMI_TX_DE && t.HDMI_TX_D == 0x123456,
           "initial video did not become visible after a complete sync pulse");
+
+    check(!t.video_ready, "video became ready before HDMI configuration");
+    configured(true);
+    tick(); check(!t.video_ready, "HDMI completion bypassed its synchronizer");
+    tick(); check(!t.video_ready, "HDMI completion bypassed its registered source");
+    tick(); check(t.video_ready, "configured full-line video was not ready");
+    configured(false);
+    tick(); tick(); tick(); check(!t.video_ready, "HDMI completion loss stayed ready");
+    configured(true);
+    tick(); tick(); tick(); check(t.video_ready, "HDMI completion did not recover");
 
     // Lock loss blanks pixels immediately but leaves an in-flight HS pulse
     // intact. The active line is hidden only at the falling sync edge.
@@ -66,6 +81,8 @@ int main(int argc, char** argv) {
     t.video_hs = 0; tick();
     check(t.HDMI_TX_DE && t.HDMI_TX_D == 0x123456,
           "video did not resume at the next complete line boundary");
+    check(!t.video_ready, "video readiness bypassed the source register at the complete line");
+    tick(); check(t.video_ready, "video readiness did not recover after the complete line");
 
     // Configuration reset uses the same data/sync boundary behavior.
     t.video_hs = 1; tick();
@@ -79,6 +96,6 @@ int main(int argc, char** argv) {
     }
     t.video_hs = 0; tick();
     check(!t.HDMI_TX_HS, "configuration reset did not hide the next line");
-    std::puts("PASS DE25 ZX81 board: reset/PLL data blanking and line-safe HDMI resume; digital PLL boundary only");
+    std::puts("PASS DE25 ZX81 board: reset/PLL blanking, synchronized HDMI completion and line-safe readiness; digital boundaries only");
     return 0;
 }

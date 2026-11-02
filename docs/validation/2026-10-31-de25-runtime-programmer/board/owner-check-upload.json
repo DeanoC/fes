@@ -1,0 +1,8 @@
+{
+  "host": "192.168.10.28",
+  "boot_id": "15e107d8-0ed1-4e5e-83d8-b27c8a49d853",
+  "command": "umask 077; test ! -e /tmp/fes-owner-unconfigured && cat > /tmp/fes-owner-unconfigured && chmod 700 /tmp/fes-owner-unconfigured",
+  "returncode": 0,
+  "elapsed_seconds": 0.18,
+  "stdin_sha256": "b5db0fc187290073086714b94ccbdd6729011cd20c781e4e7730028f931d0032"
+}

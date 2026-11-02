@@ -1,0 +1,19 @@
+{
+  "started_utc": "2026-10-31T17:49:45.198805+00:00",
+  "board": "TRWU8J8G",
+  "boot_id": "aef6b113-efe8-4d0c-b164-efbf302bfd70",
+  "bundle_sha256": "6984aa58ba52286c80e335f74374dc47ca736064467c2a9bb395b60186cbb6fd",
+  "phases": [
+    {
+      "phase": "upload",
+      "returncode": 0,
+      "elapsed_seconds": 0.2
+    },
+    {
+      "phase": "install",
+      "returncode": 1,
+      "elapsed_seconds": 0.7
+    }
+  ],
+  "reboot": "not-issued"
+}

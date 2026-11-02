@@ -1,0 +1,13 @@
+{
+  "positive": "passed",
+  "refused_mutations": {
+    "open-admission": "unsupported candidate image receipt or recipe",
+    "wrong-recipe": "unsupported candidate image receipt or recipe",
+    "empty-assemblies": "unsupported candidate image receipt or recipe",
+    "inconsistent-assembly": "unsupported candidate image receipt or recipe",
+    "wrong-selected-kernel": "candidate boot payload differs from selected kernel",
+    "changed-partition": "candidate changed vendor boot geometry/dependencies",
+    "changed-fat-alias": "candidate boot layout differs from payload receipt"
+  },
+  "hardware_access": "not-performed"
+}

@@ -30,7 +30,7 @@ func main() {
 		}
 	case "status":
 		var gate appliancedata.Gate
-		gate, err = appliancedata.ReadUpdateGate(appliancedata.GatePaths{})
+		gate, err = appliancedata.ReadProductionUpdateGate()
 		if err == nil {
 			err = json.NewEncoder(os.Stdout).Encode(struct {
 				Trial   bool `json:"trial"`

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	release "github.com/DeanoC/FogCast/appliance"
@@ -15,6 +16,7 @@ import (
 // GatePaths are the files GET /v1/update reads to report trial, pending, and
 // corrupt. Direct-root images have no factory and are not blocked.
 type GatePaths struct {
+	Board       string
 	Factory     string
 	MountInfo   string
 	BootJSON    string
@@ -22,9 +24,23 @@ type GatePaths struct {
 	ReleaseRoot string
 }
 
+// ReadProductionUpdateGate uses the immutable image selection shared with the
+// target agent. Explicit fixture paths retain their DE10 default below.
+func ReadProductionUpdateGate() (Gate, error) {
+	factory := "/.fes-bootstrap/etc/fes/factory.json"
+	board, err := applianceupdate.ImageBoard(factory, "/etc/fes-board", runtime.GOARCH)
+	if err != nil {
+		return Gate{}, err
+	}
+	return ReadUpdateGate(GatePaths{Board: board})
+}
+
 // ReadUpdateGate reports the same trial/pending/corrupt conditions that
 // GET /v1/update exposes. A missing factory on a direct-root image is clear.
 func ReadUpdateGate(paths GatePaths) (Gate, error) {
+	if paths.Board == "" {
+		paths.Board = release.Board
+	}
 	if paths.Factory == "" {
 		paths.Factory = "/.fes-bootstrap/etc/fes/factory.json"
 	}
@@ -57,7 +73,7 @@ func ReadUpdateGate(paths GatePaths) (Gate, error) {
 	if err != nil {
 		return Gate{}, err
 	}
-	factory, _, err := release.DecodeManifest(f)
+	factory, _, err := release.DecodeManifestForBoard(f, paths.Board)
 	f.Close()
 	if err != nil {
 		return Gate{}, err
@@ -66,7 +82,7 @@ func ReadUpdateGate(paths GatePaths) (Gate, error) {
 	if err != nil {
 		return Gate{}, err
 	}
-	store, err := appliance.New(paths.ReleaseRoot, factory)
+	store, err := appliance.NewForBoard(paths.ReleaseRoot, factory, paths.Board)
 	if err != nil {
 		return Gate{}, err
 	}

@@ -1,0 +1,287 @@
+{
+  "archive_sha256": "ba79caba11abfba176ea2b09e95452ee93e228c28b3210b00e8d619d297bb182",
+  "archive_size": 63629585,
+  "archived_regular_files_verified": 53,
+  "classification": "construction-only fixtures, real vendor/kernel/boot-selector; no admitted factory/release/native acceptance",
+  "completed_own_pids_pgids": [
+    512976,
+    512977,
+    513044,
+    513049,
+    530088,
+    530111,
+    535186,
+    535210,
+    537385,
+    537422,
+    544009,
+    544010,
+    544063,
+    544064,
+    602953,
+    602954,
+    602997,
+    602999,
+    680282,
+    680305
+  ],
+  "files": {
+    "proofs/affected-job-launch.json": {
+      "sha256": "16d9fb4d8b4a8546366f0116258a3fb91dff245e823be6564deada3e0c83f117",
+      "size": 467
+    },
+    "proofs/affected-job/job.json": {
+      "sha256": "37c997e69e1b722db1b098c03942f178945ca605ed554a554513b5baf90b205e",
+      "size": 553
+    },
+    "proofs/affected-job/stdout.log": {
+      "sha256": "ad8783c7b0d9bf3998505c1805b5486e16a793cb0bb171edcbba8a2a87893d61",
+      "size": 380119
+    },
+    "proofs/affected-result.json": {
+      "sha256": "714e436f7234cc58308fc9d5abc6a5fae2a984d38fb0a44449cc2ac329392f85",
+      "size": 6050
+    },
+    "proofs/corrected-affected-job-launch.json": {
+      "sha256": "d02dd2bb72e2db27c7d04444b41fc38c1b418ce4f59b8d496a71c84379c2709d",
+      "size": 477
+    },
+    "proofs/corrected-affected-job/job.json": {
+      "sha256": "3bf8e13e80ede77e4dd8d81790285f77f45bc8027c57aab06c278d02a80b0086",
+      "size": 553
+    },
+    "proofs/corrected-affected-job/stdout.log": {
+      "sha256": "b37d2255891a725a1c4c60a48fef5037c1f993b8aa40a952aa330318bc805a9b",
+      "size": 376393
+    },
+    "proofs/corrected-focused-job-launch.json": {
+      "sha256": "5d0ca1c4d34ba9a393188dfdf3a1a272573e15ee0a08e77ef1f4eab83f213182",
+      "size": 459
+    },
+    "proofs/corrected-focused-job/job.json": {
+      "sha256": "d226f485bc214bc745817a551886df138c4d3d6452527b7b3c64679255b73649",
+      "size": 535
+    },
+    "proofs/corrected-focused-job/stdout.log": {
+      "sha256": "cd7cff1fbe8de6d046a625b31c88574f5c0007bde50f60a5e49cb735eff8551a",
+      "size": 2694
+    },
+    "proofs/fat-geometry-probe-corrected.py": {
+      "sha256": "6c176afeb8b645494614f3a041921f9c1785274392f75d70b886a4485ec98e76",
+      "size": 1467
+    },
+    "proofs/fat-geometry-probe.py": {
+      "sha256": "92a6e1bd589075389798c6bc1d082a8b68def6ea44ba7d7a1d77ceac1b811d0c",
+      "size": 1450
+    },
+    "proofs/fat-geometry.json": {
+      "sha256": "a385d9d4803520fd0f6f086ae1b9540db304b6e8b84d802f0de9a58a423c9b93",
+      "size": 608
+    },
+    "proofs/fat-probe-continuation-job-launch.json": {
+      "sha256": "379f209f5d3cd1f3b817b430ef5b07d8339dd6d8d59eaa9143127b3261311e70",
+      "size": 495
+    },
+    "proofs/fat-probe-continuation-job/job.json": {
+      "sha256": "451a567ffa7a43fbe97a04b49fa36eaa36a378e8ddb94b914e2ea9f9adffd9b3",
+      "size": 565
+    },
+    "proofs/fat-probe-continuation-job/stdout.log": {
+      "sha256": "a385d9d4803520fd0f6f086ae1b9540db304b6e8b84d802f0de9a58a423c9b93",
+      "size": 608
+    },
+    "proofs/fat-probe-job-launch.json": {
+      "sha256": "4f725e21d81a8d6dcf71b9527b2ab168dec2a5e084ef93d0f7139129709f9133",
+      "size": 472
+    },
+    "proofs/fat-probe-job/job.json": {
+      "sha256": "888b9e428b2b53c5cddd1ab0aa5ba0a2273e8264d9bbf0b80f1daac338bd6044",
+      "size": 555
+    },
+    "proofs/fat-probe-job/stdout.log": {
+      "sha256": "475c453ba9a44adc78318c838769525c3616b9b21cbd9b28fb6fa9306e5bd7a9",
+      "size": 2351
+    },
+    "proofs/focused-job-launch.json": {
+      "sha256": "513756d1c60ddbb8d43391329a2abffb8a0bb8307b305887541d184dd2cab404",
+      "size": 511
+    },
+    "proofs/focused-job/job.json": {
+      "sha256": "3172c99e1954fd966ca92e69ab5e403ddf5d14dbbd1e76bd52994432d5141833",
+      "size": 597
+    },
+    "proofs/focused-job/stdout.log": {
+      "sha256": "59d197854ac63150d8b395d625526adc494dc026920132d4b12e60a4e0d40cb0",
+      "size": 14577
+    },
+    "proofs/retain-source.py": {
+      "sha256": "9342c265c99d0e9561140f6385f790e49583831bac4b0f7cc3afdab60d2c7cf3",
+      "size": 5282
+    },
+    "proofs/shared-reconstruct-container.json": {
+      "sha256": "bec9c8a2458fe77fdafb4e946c92d6f78dd97e30a7ec9fb5ba935de657b67a0a",
+      "size": 1153
+    },
+    "proofs/shared-reconstruct-evidence.json": {
+      "sha256": "f3b4d19ace207a526f616a1c614f5395283c1c27a3c479eda06385a8d2fe364c",
+      "size": 6413
+    },
+    "proofs/shared-reconstruct-inside.py": {
+      "sha256": "587b41275d2a6b6be83bd12cbad59f5e54e5a97b7354549b9e29229bc33c386c",
+      "size": 2105
+    },
+    "proofs/shared-reconstruct-job-launch.json": {
+      "sha256": "790036b3bb83bcba3d0d76477618a6e167f4ec4cf46c29ad2777a1ff4e998a6f",
+      "size": 487
+    },
+    "proofs/shared-reconstruct-job/job.json": {
+      "sha256": "44202b3c15bea495f7772ae684440f9e0c0cb188fbf4d369820472e53c033809",
+      "size": 562
+    },
+    "proofs/shared-reconstruct-job/stdout.log": {
+      "sha256": "b1e8f544bafe4f7b45187f5ce1f23efb91b3f05aabba60f6bcfcad0c114bf8a4",
+      "size": 834
+    },
+    "proofs/shared-reconstruct-proof.py": {
+      "sha256": "4e06fac235d661047db5babc7fa67bd44922db4422a6352678b1b49a501bcd85",
+      "size": 1372
+    },
+    "proofs/source-scope-job-launch.json": {
+      "sha256": "19d413705e2d051ca05b77874246bb98f0edbc2e9f2b8657e86126ee3e8a2670",
+      "size": 469
+    },
+    "proofs/source-scope-job/job.json": {
+      "sha256": "14fd65abf1823d19a00d0746cf90bed7c3070077574a2784c6250d8c73a615d0",
+      "size": 549
+    },
+    "proofs/source-scope-job/stdout.log": {
+      "sha256": "9ac8e688082386176cb4f96ae9d5da9e196d4d030e8080ff7666f88020de1903",
+      "size": 1103
+    },
+    "proofs/source-scope.json": {
+      "sha256": "811c96396ce0a39abae7ef38107e939d428255e27551bc308cef3b4fb5a04bbd",
+      "size": 966
+    },
+    "proofs/source-scope.py": {
+      "sha256": "6d14414bbc2ec99a883f4804a789bf54bc3365974ca56d029e98fe5940d859ff",
+      "size": 1669
+    },
+    "proofs/state.json": {
+      "sha256": "03cf8df85ad9642cd9bfe61d7ddccd465ed118dafce4683d18169f3931a93c09",
+      "size": 698
+    },
+    "proofs/vendor-kernel-fixture-inside.py": {
+      "sha256": "3802c741c7c759e3cfdb5d0f9df57339f8e95b9770e54348c454b74ace989ebf",
+      "size": 4076
+    },
+    "proofs/vendor-kernel-fixture.py": {
+      "sha256": "7643de0bf970566d9c97a578f71e4ed5085b26c9327e3f1c6a90c5dce2c15572",
+      "size": 1950
+    },
+    "proofs/vendor-kernel-fixture/bootstrap-first.img": {
+      "sha256": "74c15bf02fc505782562b7e29ad3da8724c4f99ed3626b8520e295f9dd58e5c8",
+      "size": 33554432
+    },
+    "proofs/vendor-kernel-fixture/bootstrap-second.img": {
+      "sha256": "74c15bf02fc505782562b7e29ad3da8724c4f99ed3626b8520e295f9dd58e5c8",
+      "size": 33554432
+    },
+    "proofs/vendor-kernel-fixture/card-first.fixture.img": {
+      "sha256": "a794f08ea14863fd4475c94f28b5c377e593fb392bfed366a7e70d011a78dda6",
+      "size": 2182086656
+    },
+    "proofs/vendor-kernel-fixture/card-second.fixture.img": {
+      "sha256": "a794f08ea14863fd4475c94f28b5c377e593fb392bfed366a7e70d011a78dda6",
+      "size": 2182086656
+    },
+    "proofs/vendor-kernel-fixture/construction-binding.json": {
+      "sha256": "6148e1c14c2c86081a9bfa20af484128beff153395c17c35120a97fe1fc6f49b",
+      "size": 480
+    },
+    "proofs/vendor-kernel-fixture/container-command.json": {
+      "sha256": "ff6bf4152f7cd4fdf6fae9497fd7b7bf3d1162a945d7a1f19977a73376f905ac",
+      "size": 1033
+    },
+    "proofs/vendor-kernel-fixture/factory-binding-fixture.img": {
+      "sha256": "1b84da7bd0e71867d6994f78012594c6385ca14fc2db0cd9ccbe90dafd0d849f",
+      "size": 268435456
+    },
+    "proofs/vendor-kernel-fixture/fes-boot": {
+      "sha256": "e6f2c62258353b114fc7829b03892d4103a3f43bcaa2f4cccae65a8af0f9b564",
+      "size": 2949246
+    },
+    "proofs/vendor-kernel-fixture/fixture-idle.rbf": {
+      "sha256": "f9eeb8053eeaa52c60634e77038b216cc66922b242d0424ff4ee701e1c058bbb",
+      "size": 41
+    },
+    "proofs/vendor-kernel-fixture/platform-build.json": {
+      "sha256": "93adf636b36233fc0ff698475873daa5329a08ad6c08e43cbc29bc272d0aece9",
+      "size": 792
+    },
+    "proofs/vendor-kernel-fixture/receipt.json": {
+      "sha256": "1db2e5e8360ef27fc9a180ddfe72e9ccb71b6ef2b6dedd53dafa430f65f8e7bd",
+      "size": 7656
+    },
+    "proofs/vendor-kernel-fixture/source.json": {
+      "sha256": "702a996d36d8afbc28eafbc484442c4955aa4be47d6316f11394ba00152a713a",
+      "size": 165
+    },
+    "proofs/vendor-kernel-job-launch.json": {
+      "sha256": "d4fb65225a2fac8555fe8f74a21e6fb3db0921cdec2fe51e25fc980f3a82e803",
+      "size": 480
+    },
+    "proofs/vendor-kernel-job/job.json": {
+      "sha256": "39d896d447bb8cba898cbf0a28bdcdde792b95d15c5a4d9c2feea7d90f2d9be0",
+      "size": 560
+    },
+    "proofs/vendor-kernel-job/stdout.log": {
+      "sha256": "f78fdc82c62965e057d22ba03337975e510001121a930ce9670477ca02450562",
+      "size": 1302
+    },
+    "source-retention-job.json": {
+      "sha256": "1d3e74d0376fc097f4e01ac8ed9fce58e1d83cb02de8bda8022c649641c47f9c",
+      "size": 552
+    },
+    "source-retention-launch.json": {
+      "sha256": "db4c537f8b28925d5df44069ef4cd6d08b2a5c7d77d16a0d1f54852ccceb02ba",
+      "size": 475
+    },
+    "source-retention-stdout.log": {
+      "sha256": "98dbaf0d9c6d20f4f4d057cb2216f74ccb13693b1e5cf7a32de633797b2535e5",
+      "size": 2153
+    },
+    "source.bundle": {
+      "sha256": "64959c38833a07ba5807533dbcedda952ce2fcb5779170ae7434a1697b3ecb91",
+      "size": 10769
+    }
+  },
+  "four_disk_hashes_verified": [
+    "a794f08ea14863fd4475c94f28b5c377e593fb392bfed366a7e70d011a78dda6",
+    "a794f08ea14863fd4475c94f28b5c377e593fb392bfed366a7e70d011a78dda6",
+    "a794f08ea14863fd4475c94f28b5c377e593fb392bfed366a7e70d011a78dda6",
+    "a794f08ea14863fd4475c94f28b5c377e593fb392bfed366a7e70d011a78dda6"
+  ],
+  "hardware_access": "not-performed",
+  "live_completed_processes": [],
+  "owned_named_containers": "completed and absent",
+  "prerequisite_retention_sha256": "62ba54e15fd8a7f5afd45388a5f6d95eddc83d7a324cc1b657ce806035030386",
+  "restored_tree": "ebef83250607ff9d2661d00305775da028ff4eb8",
+  "retention_completion": {
+    "command": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-media/retain-source.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-media-f9b522b6c",
+    "elapsed_seconds": 15.7,
+    "hardware_access": "not-performed",
+    "heartbeat_utc": "2026-11-01T23:51:34.963849+00:00",
+    "pid": 680305,
+    "returncode": 0,
+    "source_revision": "f9b522b6c597cf66b900897f20f23d9bb7886dc1",
+    "started_utc": "2026-11-01T23:51:19.222463+00:00",
+    "state": "passed",
+    "time_cap_seconds": 1800
+  },
+  "source_restored": true,
+  "source_revision": "f9b522b6c597cf66b900897f20f23d9bb7886dc1"
+}

@@ -1,0 +1,16 @@
+{
+  "source_revision": "fd98d8f6c9d0d947cec351faf11df918e4a7102c",
+  "command": [
+    "python3",
+    "/data/fes-de25-reviewed-async-fd98d8f6c/check-final.py"
+  ],
+  "cwd": "/data/fes-de25-reviewed-async-fd98d8f6c/source",
+  "started_utc": "2026-11-01T16:24:00.400197+00:00",
+  "time_cap_seconds": 120,
+  "hardware_access": "not-performed",
+  "pid": 2008568,
+  "state": "passed",
+  "elapsed_seconds": 0.9,
+  "heartbeat_utc": "2026-11-01T16:24:01.285280+00:00",
+  "returncode": 0
+}

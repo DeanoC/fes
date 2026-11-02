@@ -1,0 +1,11 @@
+{
+  "classification": "AArch64 software-only core driver integration; no board deployment",
+  "source_revision": "c147cdc8c7b666c4d315d3ec69cd410613736336",
+  "sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7",
+  "files": {
+    "native/libmister-runtime.a": "4f2bc60f370d0d350fc60d0d589e11e7e50a21fdf68b2d444a32f9dd202c75c3",
+    "native/mister-runtime": "4f027e328eb760964ca06d45ece4ec08c2f63443a0a87ad94e44474d0969addf",
+    "native/tests/unit/de25_computer_test": "f3124bc63c2dc3536b00d7561df8152f19ddaec5ab34179a1a926b5b52be1b00",
+    "native/tests/unit/de25_fpga_manager_test": "6eb18fab6a09028fc16ea0a554b72f430fa03595c27b636d0999eafcc5b5cb9b"
+  }
+}

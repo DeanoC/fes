@@ -1,0 +1,18 @@
+{
+  "source_revision": "199604662ea19a526e1884ad202fbca48e1c84d7",
+  "command": [
+    "make",
+    "test-changed",
+    "PYTHON=/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python",
+    "TEST_CHANGED_ARGS=--base 9be8238e1eb8d6aeac8dae91addb68b4ce7cbfe7"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-kit-software-199604662",
+  "started_utc": "2026-11-01T15:10:25.264953+00:00",
+  "time_cap_seconds": 4800,
+  "hardware_access": "not-performed",
+  "pid": 2241968,
+  "state": "failed",
+  "elapsed_seconds": 1960.1,
+  "heartbeat_utc": "2026-11-01T15:43:05.371340+00:00",
+  "returncode": 2
+}

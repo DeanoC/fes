@@ -1,6 +1,8 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "native/de25_computer.hpp"
+#include "native/de25_core_driver.hpp"
+#include "native/artifacts.hpp"
 #include "native/generated/fes_de25_computer.hpp"
 #include "native/generated/fes_computer.hpp"
 #include "native/hardware.hpp"
@@ -35,6 +37,7 @@ public:
 	std::array<std::uint16_t, 16> identity{{0x4546, 0x3153, 1, 0, 4, 1, 0, 0x803,
 		0x1100, 0x3322, 0x5544, 0x7766, 0x9988, 0xbbaa, 0xddcc, 0xffee}};
 	std::uint32_t gpo = 0, gpi = 0xf5000000, fault = 0;
+	std::uint32_t video_status = FesDe25ComputerVideoReady; unsigned video_reads = 0, video_after = 0;
 	std::uint32_t bridge_id = FesDe25ComputerIdentity, version = FesDe25ComputerVersion;
 	std::uint32_t minimum = 1, maximum = FesDe25ComputerZx81TapeMaxBytes;
 	std::uint16_t state = FesComputerMediaStateEmpty, max_chunk = 512;
@@ -60,6 +63,8 @@ public:
 		case FesDe25ComputerIdOffset: *value = bridge_id; break;
 		case FesDe25ComputerVersionOffset: *value = version; break;
 		case FesDe25ComputerFaultOffset: *value = fault; break;
+		case FesDe25ComputerVideoStatusOffset:
+			++video_reads; *value = video_after && video_reads >= video_after ? FesDe25ComputerVideoReady : video_status; break;
 		case FesDe25ComputerGpoOffset: *value = gpo ^ (change_payload && !writes.empty() ? 1u : 0u); break;
 		case FesDe25ComputerStatusOffset:
 			*value = (ready ? FesDe25ComputerStatusReady : 0) | status_extra | (fault ? FesDe25ComputerStatusFault : 0) |
@@ -289,12 +294,154 @@ void TestAcknowledgedCommitMustBecomeReady() {
 	Fixture f; f.Probe(); f.bridge.commit_not_ready = true;
 	assert(!f.client.LoadTape({1}, 1000000).ok() && f.client.Poisoned());
 }
+CoreDescriptor DriverDescriptor() {
+	CoreDescriptor descriptor; descriptor.format = 2;
+	descriptor.core.id = "zx81"; descriptor.build.id = kBuild;
+	descriptor.abi = {FesComputerABIID, 1, 0};
+	for (const char* id : {FesComputerInterfaceVideoFixed720p60ID,
+		FesComputerInterfaceKeyboardHidID, FesComputerInterfaceMediaZx81TapeID}) {
+		CoreInterface interface; interface.id = id;
+		interface.major = 1; interface.minor = 0; interface.required = true;
+		descriptor.interfaces.push_back(interface);
+	}
+	return descriptor;
+}
+void TestCoreDriverLifecycleAndLiveMedia() {
+	Fixture f; De25ComputerCoreDriver driver(f.client); CoreDriver& selected = driver;
+	auto descriptor = DriverDescriptor(); CoreDriverContext context;
+	context.descriptor = &descriptor; context.expected_core = descriptor.core.id;
+	assert(!selected.Start(context, 1000000).error.ok() && f.bridge.writes.empty());
+	auto identified = selected.Identify(context, 1000000);
+	assert(identified.error.ok() && identified.safe_to_quiesce && identified.observed_core == "zx81");
+	assert(selected.Quiesce(context, 1000000).error.ok() && f.bridge.hold_state);
+	const auto before = f.bridge.writes.size();
+	assert(!selected.LoadMedia({}, 1000000).ok() && f.bridge.writes.size() == before);
+	assert(selected.LoadMedia({1,2,3}, 1000000).ok() && f.bridge.hold_state);
+	assert(selected.Start(context, 1000000).error.ok() && !f.bridge.hold_state);
+	KeyboardHidRows rows{}; rows[0] = 16;
+	assert(selected.SetKeyboardHid(rows, 1000000).ok() && f.bridge.rows == rows);
+	const auto live = f.bridge.writes.size();
+	assert(selected.LoadMediaLive({7,8,9}, 1000000).ok());
+	assert(!f.bridge.hold_state && f.bridge.tape == std::vector<std::uint8_t>({7,8,9}));
+	for (auto n = live; n < f.bridge.writes.size(); ++n)
+		assert(((f.bridge.writes[n] >> 24) & 127) != FesComputerOpcodeExecution);
+	assert(selected.ClearMedia(1000000).ok() && f.bridge.state == FesComputerMediaStateEmpty);
+	assert(selected.NeutralizeButtons(context, 1000000).error.ok() && f.bridge.rows == KeyboardHidRows{});
+	assert(!selected.SetButtons(context, 1, 1000000).error.ok());
+	assert(selected.Quiesce(context, 1000000).error.ok() && f.bridge.hold_state);
+}
+void TestCoreDriverRejectsDescriptorAndRetainsTransportFault() {
+	for (unsigned bad = 0; bad < 6; ++bad) {
+		Fixture f; De25ComputerCoreDriver driver(f.client);
+		auto descriptor = DriverDescriptor(); CoreDriverContext context;
+		context.descriptor = &descriptor; context.expected_core = "zx81";
+		if (bad == 0) descriptor.abi.minor = 1;
+		if (bad == 1) descriptor.interfaces[0].required = false;
+		if (bad == 2) descriptor.interfaces[1] = descriptor.interfaces[0];
+		if (bad == 3) descriptor.interfaces[2].id = "fes.memory.hps-ddr";
+		if (bad == 4) context.expected_core = "other";
+		if (bad == 5) descriptor.build.id = "not-a-build";
+		assert(!driver.Identify(context, 1000000).error.ok());
+		assert(f.bridge.writes.empty());
+	}
+	Fixture f; De25ComputerCoreDriver driver(f.client);
+	auto descriptor = DriverDescriptor(); CoreDriverContext context;
+	context.descriptor = &descriptor; context.expected_core = "zx81";
+	assert(driver.Identify(context, 1000000).error.ok());
+	descriptor.build.id[0] = 'f'; const auto before = f.bridge.writes.size();
+	assert(!driver.Start(context, 1000000).error.ok() && f.bridge.writes.size() == before);
+	descriptor.build.id = kBuild; f.bridge.no_ack = true;
+	auto failed = driver.Start(context, f.clock.time + 50);
+	assert(!failed.error.ok() && failed.execution_may_have_run && f.client.Poisoned());
+	const auto after = f.bridge.writes.size();
+	driver.BeginSession();
+	assert(!driver.Identify(context, 1000000).error.ok());
+	assert(!driver.LoadMediaLive({1}, 1000000).ok());
+	assert(f.bridge.writes.size() == after);
+}
+void TestUnitMediaSnapshotAndStickyFailure() {
+	Fixture f; De25ComputerCoreDriver driver(f.client); CoreDriver& selected = driver;
+	auto descriptor = DriverDescriptor(); CoreDriverContext context;
+	context.descriptor = &descriptor; context.expected_core = "zx81";
+	assert(selected.media_units().empty());
+	f.bridge.state = FesComputerMediaStateReady;
+	assert(selected.Identify(context, 1000000).error.ok());
+	assert(selected.media_units().size() == 1);
+	const auto& info = selected.media_units()[0];
+	assert(info.unit == 0 && info.interface.id == FesComputerInterfaceMediaZx81TapeID);
+	assert(info.min_bytes == 1 && info.max_bytes == FesDe25ComputerZx81TapeMaxBytes);
+	assert(info.chunk_bytes == 512 && !info.saveable && info.state == MediaUnitState::ready);
+	ComputerMediaSnapshot empty; const auto before = f.bridge.writes.size();
+	assert(!selected.InsertMedia(0, empty, f.clock, 1000000, 100).ok());
+	assert(!selected.EjectMedia(1, 1000000).ok());
+	assert(f.bridge.writes.size() == before);
+	ComputerMediaSnapshot snapshot;
+	assert(snapshot.PrepareBytes({4,5,6}, f.clock, 1000000).ok());
+	assert(selected.Start(context, 1000000).error.ok());
+	const auto live = f.bridge.writes.size();
+	assert(selected.InsertMedia(0, snapshot, f.clock, 1000000, 100).ok());
+	assert(f.bridge.tape == std::vector<std::uint8_t>({4,5,6}));
+	assert(!f.bridge.hold_state && selected.media_units()[0].state == MediaUnitState::ready);
+	for (auto n = live; n < f.bridge.writes.size(); ++n)
+		assert(((f.bridge.writes[n] >> 24) & 127) != FesComputerOpcodeExecution);
+	assert(selected.EjectMedia(0, 1000000).ok());
+	assert(selected.media_units()[0].state == MediaUnitState::empty);
+	const auto expired = f.bridge.writes.size();
+	assert(!selected.InsertMedia(0, snapshot, f.clock, f.clock.time, 100).ok());
+	assert(f.bridge.writes.size() == expired && !f.client.Poisoned());
+	f.bridge.no_ack = true;
+	assert(!selected.InsertMedia(0, snapshot, f.clock, f.clock.time + 50, 100).ok());
+	assert(f.client.Poisoned() && selected.media_units()[0].state == MediaUnitState::loading);
+	const auto uncertain = f.bridge.writes.size();
+	assert(!selected.EjectMedia(0, 1000000).ok());
+	assert(f.bridge.writes.size() == uncertain); // no speculative cleanup/replay
+	selected.BeginSession(); assert(selected.media_units().empty());
+}
+void TestFpgaOwnedVideoBackend() {
+ Fixture f; De25VideoBringup video; De25ComputerCoreDriver driver(f.client);
+ assert(video.SupportsPlatform(NativePlatform::de25_nano));
+ assert(!video.SupportsPlatform(NativePlatform::de10_nano));
+ const auto initial_reads = f.bridge.reads;
+ assert(!video.BringUpSelected(driver,1000000,true).error.ok());
+ assert(!video.BringUpCustom(1000000).error.ok());
+ assert(f.bridge.reads == initial_reads && f.bridge.writes.empty());
+ assert(video.Quiesce(0).error.ok());
+ assert(f.bridge.reads == initial_reads && f.bridge.writes.empty());
+ auto descriptor=DriverDescriptor();CoreDriverContext context;
+ context.descriptor=&descriptor;context.expected_core="zx81";
+ assert(driver.Identify(context,1000000).error.ok());
+ const auto before = f.bridge.writes.size();
+ assert(video.BringUpSelected(driver,1000000).error.ok());
+ assert(f.bridge.writes.size() == before && f.bridge.hold_state);
+}
+void TestManagedStartWaitsForVideoWithoutCommands() {
+    for (unsigned kind = 0; kind < 3; ++kind) {
+        Fixture f; De25ComputerCoreDriver driver(f.client);
+        auto descriptor = DriverDescriptor(); CoreDriverContext context;
+        context.descriptor = &descriptor; context.expected_core = "zx81";
+        assert(driver.Identify(context, 1000000).error.ok());
+        const auto before = f.bridge.writes.size();
+        f.bridge.video_status = kind == 2 ? 2 : 0;
+        if (kind == 0) f.bridge.video_after = 4;
+        auto result = driver.Start(context, kind == 0 ? 1000000 : f.clock.time + 50);
+        if (kind == 0) {
+            assert(result.error.ok() && !f.bridge.hold_state && f.bridge.video_reads == 4);
+            assert(f.bridge.writes.size() == before + 1);
+        } else {
+            assert(!result.error.ok() && !result.mutation_attempted && !result.execution_may_have_run);
+            assert(f.bridge.hold_state && f.bridge.writes.size() == before && f.client.Poisoned());
+        }
+    }
+}
 } // namespace
 int main() {
+	TestFpgaOwnedVideoBackend(); TestManagedStartWaitsForVideoWithoutCommands();
+	TestUnitMediaSnapshotAndStickyFailure();
+	TestCoreDriverLifecycleAndLiveMedia(); TestCoreDriverRejectsDescriptorAndRetainsTransportFault();
 	TestAtomicIdentityAndControl(); TestCompletedKeyboardSnapshotSurvivesSettleDeadline();
 	TestSelectedIdentityRefusesMutations(); TestInputPreflightBeforeEffects();
 	TestOddTapeAndCrc(); TestMaximumTapeChunkOrdinals(); TestHealthyRejectionsDoNotReplayOrPoison();
 	TestUncertainCommandsNeverReplay(); TestBusyAndIdleToggleMismatchRefuseBeforeWrite();
 	TestBoundedMissingAckAndStalledClock(); TestAcknowledgedCommitMustBecomeReady(); TestOneSerializedClientOwnership(); TestLateSuccessfulAckIsUncertain();
-	std::puts("de25_computer_test: 13 groups passed (scripted registers; no hardware admission)");
+	std::puts("de25_computer_test: 18 groups passed (scripted registers; no hardware admission)");
 }

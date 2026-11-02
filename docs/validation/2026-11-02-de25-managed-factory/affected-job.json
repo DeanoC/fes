@@ -1,0 +1,17 @@
+{
+  "source_revision": "36438ad3ad426a1cb6ce16d4a62b7b6f3e7a6fde",
+  "command": [
+    "make",
+    "test-changed",
+    "TEST_CHANGED_ARGS=--base 2dedeced2b2001c1b66fe4abcb495894de2cb151 --jobs 2"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-factory-36438ad3a",
+  "started_utc": "2026-11-01T23:25:09.139451+00:00",
+  "time_cap_seconds": 1200,
+  "hardware_access": "not-performed",
+  "pid": 356717,
+  "state": "passed",
+  "elapsed_seconds": 264.1,
+  "heartbeat_utc": "2026-11-01T23:29:33.289487+00:00",
+  "returncode": 0
+}

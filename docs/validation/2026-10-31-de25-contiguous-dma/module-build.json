@@ -1,0 +1,44 @@
+{
+  "classification": "matching AArch64 module preparation; not loaded",
+  "fes_revision": "6ae883d63f57dc81dc4cb02e8e34564316ebd929",
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "release": "6.12.11-fes-de25-platform",
+  "kernel_files_unchanged": {
+    "Image": "d2486081f30a03c2f9cac67b2d3fb5a67974f6f713db5cc577c207bc242a0968",
+    "kernel.config": "cc0db8152ce13909ebc8202502e465e4d984bdbe2222db57c117874db699d98d",
+    "Module.symvers": "fa0787119ea100145802399767256f4bbd33460c1d64585ecdf8bce191398ee6"
+  },
+  "sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7",
+  "source_sha256": {
+    "de25_dma_test.c": "e5ea46cbaab4a62af1d43265c4604a598ce09d7fb4211f2ac1930a2dd680776c",
+    "linux.lock.toml": "44e15dea10c976f62d8c06bdf6d75f1094058353236295876d82e59c4ca3633c",
+    "de25_dma_internal.h": "e1c6a4a2727a2f762887b7e47e873d6b85ea60ad08243744d0981c4ca6e318bb",
+    "de25_dma.c": "b271371b2e2acb54bb13b58884a9828bf5fcdf3974fb0297ccba434a592cfa1d",
+    "Makefile": "f927dfb3939e67b42d87d890bd5872197e99f7ce0a7e3810259103227819c838",
+    "de25_dma.h": "add29742c88700838d54eb6ade32b6a5e7cc7da010d41fa535d18b92dbfb97d2",
+    ".kunitconfig": "16eb3ccfc929a326dbe53fd4003d5fea1ad076b52c45e8bd17274012c3b66682",
+    "Kconfig": "b22cb29d2c345becdfd0e03aaa5f174ce110c4c6922b8e6120dc88e096d60956",
+    "README.md": "1a3c246c2e182685bdf72d2a2bed680548fd7516cd101d446812a9a4d9ca2285",
+    "generated/fes_de25_ddr_probe.h": "ab89732c139512edbdd0610783f1001dfd2ede9839d92ef767b1d5a34f2fc5cf",
+    "generated/fes_de25_scanout.h": "ad72ed75e8a859766b71b37d03adaba453ab94a4393a9454b9b14b41879999b5"
+  },
+  "module_sha256": "17d92664adb350f8acecb6523ed89c842ce68d5f44421b2a05beb8ad59260e5c",
+  "module_size": 213616,
+  "elf": "ELF64 little-endian AArch64 relocatable",
+  "vermagic": "vermagic=6.12.11-fes-de25-platform SMP preempt mod_unload aarch64",
+  "production_binding": "closed",
+  "hardware_acceptance": "not-run",
+  "command": [
+    "make",
+    "-C",
+    "/work/source",
+    "O=/work/kernel-build",
+    "ARCH=arm64",
+    "CROSS_COMPILE=/work/sdk/bin/aarch64-buildroot-linux-gnu-",
+    "LOCALVERSION=",
+    "-j8",
+    "M=/module/source/image/kernel/de25-dma",
+    "CONFIG_FES_DE25_DMA=m",
+    "modules"
+  ]
+}

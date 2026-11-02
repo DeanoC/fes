@@ -1,0 +1,64 @@
+{
+  "runtime_tests": [
+    {
+      "name": "runtime_test",
+      "result": "passed",
+      "sha256": "39e7831239902d5c7ed2e4eba4d7310682a8ccb009477ebf94d8e75e106394f0"
+    },
+    {
+      "name": "protocol_test",
+      "result": "passed",
+      "sha256": "23362dd5764384617f31f6dcee0c40b7a72d435c6a06ed205ab91a9774d7ce3a"
+    },
+    {
+      "name": "mmio_test",
+      "result": "passed",
+      "sha256": "24099f5f80ba5ec33819553f915c425556120030d90f90751b9ad6fd92bb0bd8"
+    },
+    {
+      "name": "fpga_manager_test",
+      "result": "passed",
+      "sha256": "483644fe3ef451ded2a3ae56e5fc0e8c70d670eb2e782ba876e93e967d5182e7"
+    },
+    {
+      "name": "off_t_test",
+      "result": "passed",
+      "sha256": "9d6d63ba645ede7ed2afcc4e99d9ae969bf3286202729fa9cab5c9336d3a4a8d"
+    },
+    {
+      "name": "production_hardware_test",
+      "result": "passed",
+      "sha256": "352812c16cbceb7d739b00e0690dba65cb5ddd5a855ed70dede928e11cb9a8d9"
+    },
+    {
+      "name": "de25_computer_test",
+      "result": "passed",
+      "sha256": "475516d7a9fb598f9c87bfeae7fa8f83fb1d6f28d4f67617a16a3a23d17e3008"
+    },
+    {
+      "name": "core_package_test",
+      "result": "passed",
+      "sha256": "9b4403647f5066dea73c86f958e52f4132a8e55275605da1b5e30bae73c5ab59"
+    },
+    {
+      "name": "de25_fpga_manager_test",
+      "result": "passed",
+      "sha256": "e34cd8832bc64d9a94448e6291df0c7f8c27a4695f7777d7ee246068946c1dad"
+    },
+    {
+      "name": "native_hardware_test",
+      "result": "passed",
+      "sha256": "9ebac864035d33782bbdfb96978d9bd4ade1a119052582f1ff972cffa72ef383"
+    }
+  ],
+  "agent_tests": [
+    "TestClientRejectsWrongProtocolAndUnknownResponseFields",
+    "TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial",
+    "TestRuntimeSocketOpenIsFalseWhenDialFails",
+    "TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse",
+    "TestNativeReconcileMapsRebootRequiredToFailedUnavailable"
+  ],
+  "runtime_build_key": "bd29e6ef7502dfd9195fe1de21b00fc6a259ab67e6c095b1a0c28382d5d17de7",
+  "qemu_library_prefix": "identity-root-with-direct-sdk-loader",
+  "compiler_version": "aarch64-buildroot-linux-gnu-g++.br_real (Buildroot 2021.02.4) 9.4.0"
+}

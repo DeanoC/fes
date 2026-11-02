@@ -15,6 +15,8 @@ import sys
 import tempfile
 import unicodedata
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 try:
     from . import platform as fes_platform
     from .media_inputs import digest
@@ -35,7 +37,8 @@ MANIFEST_FIELDS = {'format','board','boot_abi','version','kernel_sha256','image_
 OPTIONAL_MANIFEST_FIELDS = {'image_passes'}
 BOOTSTRAP_RECIPE_FILES = ('scripts/appliance.py','scripts/appliance_inside.py','scripts/media.py',
                           'scripts/media_container.py','scripts/media_inputs.py','scripts/media_uboot.py',
-                          'scripts/platform.py')
+                          'scripts/platform.py','scripts/de25_appliance.py')
+PROFILES = {BOARD: 'native-integration-dev', 'de25-nano': 'de25-nano'}
 
 
 def canonical(data):
@@ -58,10 +61,46 @@ def regular(path):
     return path
 
 
-def validate_manifest(data):
+def selected_board(board):
+    if type(board) is not str or board not in (BOARD, 'de25-nano'):
+        raise ValueError('unsupported selected release board')
+    return board
+
+
+def bootstrap_architecture(board):
+    return 'aarch64' if selected_board(board) == 'de25-nano' else 'armv7'
+
+
+def selection(board, profile, factory):
+    selected_board(board)
+    profile = PROFILES[board] if profile is None else profile
+    if profile != PROFILES[board]:
+        raise ValueError('appliance profile differs from independently selected board')
+    if board == BOARD and factory is not None:
+        raise ValueError('--factory applies only to explicitly selected DE25')
+    if board != BOARD and factory is None:
+        raise ValueError('DE25 appliance selection requires --factory')
+    return profile
+
+
+def add_selection_arguments(parser):
+    parser.add_argument('--board', choices=list(PROFILES), default=BOARD)
+    parser.add_argument('--profile', choices=list(PROFILES.values()))
+    parser.add_argument('--factory', type=Path, help='verified DE25 managed-factory directory')
+
+
+def media_container(root, runtime, lock, board):
+    if selected_board(board) == BOARD:
+        return cached_media_container(root, runtime, lock)
+    from scripts.media_container import ensure_media_tools
+    return ensure_media_tools(root, runtime)
+
+
+def validate_manifest(data, *, board=BOARD):
+    selected_board(board)
     if not isinstance(data,dict) or not MANIFEST_FIELDS <= set(data) or set(data) - MANIFEST_FIELDS - OPTIONAL_MANIFEST_FIELDS:
         raise ValueError('release manifest has missing or unknown fields')
-    if type(data['format']) is not int or data['format'] != FORMAT or data['board'] != BOARD or data['boot_abi'] != BOOT_ABI:
+    if type(data['format']) is not int or data['format'] != FORMAT or data['board'] != board or data['boot_abi'] != BOOT_ABI:
         raise ValueError('unsupported release format, board or boot ABI')
     version = data['version']
     if (not isinstance(version,str) or not version or len(version.encode()) > 128 or version.strip() != version
@@ -99,31 +138,43 @@ def recorded_image_passes(directory, manifest):
     return passes
 
 
-def load_manifest(path):
+def load_manifest(path, *, board=BOARD):
+    selected_board(board)
     with regular(path).open('rb') as stream:
         raw = stream.read(MAX_MANIFEST_SIZE + 1)
     if len(raw) > MAX_MANIFEST_SIZE:
         raise ValueError('release manifest is too large')
-    return validate_manifest(json.loads(raw,object_pairs_hook=unique))
+    return validate_manifest(json.loads(raw,object_pairs_hook=unique), board=board)
 
 
-def validate_static_arm(path):
+def validate_static_arm(path, architecture='armv7'):
+    if architecture not in ('armv7', 'aarch64'):
+        raise ValueError('unsupported static ARM architecture')
     path = regular(path)
     size = path.stat().st_size
     if size < 84 or size > 24 << 20:
         raise ValueError('bootstrap ELF size is invalid')
     with path.open('rb') as stream:
-        header = stream.read(52)
-        if header[:7] != b'\x7fELF\x01\x01\x01':
-            raise ValueError('bootstrap must be ELF32 little-endian ARM')
-        kind,machine,version,entry,phoff,_,flags,ehsize,phsize,phnum,_,_,_ = struct.unpack_from('<HHIIIIIHHHHHH',header,16)
-        if (kind != 2 or machine != 40 or version != 1 or flags >> 24 != 5 or ehsize != 52
-                or phsize != 32 or not 1 <= phnum <= 128 or phoff < 52 or phoff + phnum*phsize > size):
-            raise ValueError('bootstrap must be a static ARM EABI5 executable')
+        wide = architecture == 'aarch64'
+        header_size, segment_size = (64, 56) if wide else (52, 32)
+        header = stream.read(header_size)
+        if header[:7] != b'\x7fELF' + bytes((2 if wide else 1, 1, 1)):
+            raise ValueError('bootstrap ELF class or byte order differs from selected ARM target')
+        layout = '<HHIQQQIHHHHHH' if wide else '<HHIIIIIHHHHHH'
+        kind,machine,version,entry,phoff,_,flags,ehsize,phsize,phnum,_,_,_ = struct.unpack_from(layout,header,16)
+        if (kind != 2 or machine != (183 if wide else 40) or version != 1
+                or (flags != 0 if wide else flags >> 24 != 5) or ehsize != header_size
+                or phsize != segment_size or not 1 <= phnum <= 128 or phoff < header_size
+                or phoff + phnum*phsize > size):
+            raise ValueError('bootstrap must be a static executable for the selected ARM ABI')
         executable_entry = False
         stream.seek(phoff)
         for _ in range(phnum):
-            ptype,offset,address,_,filesz,memsz,pflags,_ = struct.unpack('<IIIIIIII',stream.read(32))
+            segment = stream.read(segment_size)
+            if wide:
+                ptype,pflags,offset,address,_,filesz,memsz,_ = struct.unpack('<IIQQQQQQ',segment)
+            else:
+                ptype,offset,address,_,filesz,memsz,pflags,_ = struct.unpack('<IIIIIIII',segment)
             if ptype in (2,3):
                 raise ValueError('bootstrap may not require a dynamic loader')
             if offset + filesz > size or filesz > memsz:
@@ -242,32 +293,38 @@ def bootstrap_recipe(root):
     return {name:digest(regular(Path(root)/name)) for name in BOOTSTRAP_RECIPE_FILES}
 
 
-def bootstrap_identity(binary_sha,factory,container,assembly_revision,recipe,platform_build=None):
+def bootstrap_identity(binary_sha,factory,container,assembly_revision,recipe,platform_build=None,*,board=BOARD):
+    architecture=bootstrap_architecture(board)
+    if factory.get('board')!=board:raise ValueError('factory differs from selected bootstrap board')
     payload={'binary':binary_sha,'factory':factory,'container_identity':container,
         'assembly_revision':assembly_revision,'assembly_recipe':recipe}
     if platform_build is not None:
-        payload['platform_build']=fes_platform.validate_platform_build(platform_build)
+        payload['platform_build']=fes_platform.validate_platform_build(platform_build,architecture=architecture)
     return hashlib.sha256(canonical(payload)).hexdigest()
 
 
-def release_manifest(rootfs,*,version,provenance,image_passes=2):
+def release_manifest(rootfs,*,version,provenance,image_passes=2,board=BOARD):
+    selected_board(board)
     if type(image_passes) is not int or image_passes not in (1,2):
         raise ValueError('image passes must be 1 or 2')
     # The pass count stays out of this object. Deployed DecodeManifest
     # allow-lists reject any added field; evidence.json records image_passes.
-    data = {'format':FORMAT,'board':BOARD,'boot_abi':BOOT_ABI,'version':version,
+    data = {'format':FORMAT,'board':board,'boot_abi':BOOT_ABI,'version':version,
         'kernel_sha256':provenance.kernel_sha256,'image_sha256':provenance.rootfs_sha256,
         'image_size':regular(rootfs).stat().st_size,'fes_revision':provenance.fes_revision,
         'fogcast_revision':provenance.fogcast_revision,'runtime_revision':provenance.runtime_revision}
-    return validate_manifest(data)
+    return validate_manifest(data, board=board)
 
 
-def export_release(output,rootfs,kernel,*,version,provenance,image_passes=None):
+def export_release(output,rootfs,kernel,*,version,provenance,image_passes=None,board=BOARD):
     """Export caller-verified raw inputs, checking their explicit receipt hashes.
 
     The CLI obtains provenance from current cold-build validation. This lower
-    level function does not independently establish the provenance's origin.
+    level function does not independently establish the provenance's origin or
+    the board/ELF identity inside the rootfs. The board must be selected by the
+    verified image assembler; the default board remains DE10.
     """
+    selected_board(board)
     output = Path(output); rootfs = regular(rootfs); kernel = regular(kernel)
     if digest(rootfs) != provenance.rootfs_sha256: raise ValueError('rootfs differs from verified provenance')
     if digest(kernel) != provenance.kernel_sha256: raise ValueError('kernel differs from locked provenance')
@@ -276,7 +333,7 @@ def export_release(output,rootfs,kernel,*,version,provenance,image_passes=None):
     if image_passes != provenance.image_passes:
         raise ValueError("release pass count differs from verified image")
     if type(image_passes) is not int or image_passes not in (1,2): raise ValueError('image passes must be 1 or 2')
-    manifest = release_manifest(rootfs,version=version,provenance=provenance,image_passes=image_passes)
+    manifest = release_manifest(rootfs,version=version,provenance=provenance,image_passes=image_passes,board=board)
     evidence = {'format':1,'kind':'fes-appliance-release','provenance':asdict(provenance),
         'manifest_sha256':hashlib.sha256(canonical(manifest)).hexdigest(),'ext4_features':features,'hardware':'not-run'}
     evidence['image_passes'] = image_passes
@@ -332,7 +389,7 @@ def cached_media_container(root,runtime,lock):
     return image
 
 
-def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,binary_source_revision=None,assembly_revision=None,platform_build=None):
+def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,binary_source_revision=None,assembly_revision=None,platform_build=None,board=BOARD):
     """Build two independent bootstrap files using a supplied pinned media Runner.
 
     binary_source_revision is supplied only by an integrator that built this
@@ -340,13 +397,14 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
     assembly_revision similarly identifies the selected FES assembly source.
     Output and temporary paths must be inside the supplied Runner filesystem.
     """
-    output=Path(output); binary_sha=validate_static_arm(bootstrap_binary)
-    factory=load_manifest(factory_manifest)
+    architecture=bootstrap_architecture(board)
+    output=Path(output); binary_sha=validate_static_arm(bootstrap_binary,architecture)
+    factory=load_manifest(factory_manifest,board=board)
     if digest(regular(kernel))!=factory['kernel_sha256']: raise ValueError('factory and bootstrap kernel differ')
     if assembly_revision is not None and not re.fullmatch('[0-9a-f]{40}',assembly_revision):
         raise ValueError('invalid bootstrap assembly revision')
     if platform_build is not None:
-        platform_build=fes_platform.validate_platform_build(platform_build)
+        platform_build=fes_platform.validate_platform_build(platform_build,architecture=architecture)
         if binary_source_revision is not None and platform_build['fogcast_revision']!=binary_source_revision:
             raise ValueError('platform build FogCast revision differs from bootstrap source revision')
     elif binary_source_revision is not None or assembly_revision is not None:
@@ -362,14 +420,14 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
         results=[]
         for name in ('first.img','second.img'):
             command=['python3','/work/scripts/appliance_inside.py','assemble','--output',runner.path(scratch/name),
-                '--binary',runner.path(binary),'--factory',runner.path(factory_path)]
+                '--binary',runner.path(binary),'--factory',runner.path(factory_path),'--board',board]
             results.append(json.loads(runner.disk(command)))
         first,second=results
         if first!=second or digest(scratch/'first.img')!=first['image_sha256'] or digest(scratch/'second.img')!=first['image_sha256']:
             raise ValueError('bootstrap two-pass reproducibility failed')
         if bootstrap_recipe(runner.root)!=recipe:
             raise ValueError('bootstrap assembly recipe changed during construction')
-        evidence={'format':1,'kind':'fes-stable-bootstrap','boot_abi':BOOT_ABI,'bootstrap_sha256':first['image_sha256'],
+        evidence={'format':1,'kind':'fes-stable-bootstrap','boot_abi':BOOT_ABI,'board':board,'bootstrap_sha256':first['image_sha256'],
             'bootstrap_binary_sha256':binary_sha,'binary_source_revision':binary_source_revision,
             'binary_source_proven':binary_source_revision is not None,
             'assembly_revision':assembly_revision,'assembly_recipe':recipe,'assembly_source_proven':assembly_revision is not None,
@@ -390,7 +448,11 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
     return result
 
 
-def verified_inputs(root,profile):
+def verified_inputs(root,profile,*,board=BOARD,factory=None):
+    selection(board, profile, factory)
+    if board != BOARD:
+        from scripts import de25_appliance
+        return de25_appliance.verified_inputs(root, profile, factory)
     # Existing modules use script-style imports; keep this import boundary local.
     sys.path.insert(0,str(Path(__file__).resolve().parent))
     import media
@@ -416,7 +478,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     commands=parser.add_subparsers(dest='command',required=True)
     for command in ('release','bootstrap'):
-        child=commands.add_parser(command);child.add_argument('--profile',default='native-integration-dev',choices=['native-integration-dev'])
+        child=commands.add_parser(command);add_selection_arguments(child)
         child.add_argument('--output',type=Path)
         if command=='release':
             child.add_argument('--version',required=True);child.add_argument('--image-passes',type=int,default=validate_image_passes(),choices=(1,2))
@@ -424,6 +486,9 @@ def main():
             child.add_argument('--release',type=Path,required=True)
     args=parser.parse_args();root=Path(__file__).resolve().parents[1]
     try:
+        args.profile=selection(args.board,args.profile,args.factory)
+        board_args={} if args.board==BOARD else {'board':args.board,'factory':args.factory}
+        artifact_args={} if args.board==BOARD else {'board':args.board}
         if args.command == 'release':
             validate_image_passes(args.image_passes)
         if args.output is not None:
@@ -431,36 +496,37 @@ def main():
             if args.command=='bootstrap' and not args.output.is_relative_to(root):
                 raise ValueError('bootstrap output must be inside the FES checkout')
         sys.path.insert(0,str(root/'scripts'));import media
-        with media.operation(root,args.profile):
-            rootfs,kernel,p,fogcast,env,lock=verified_inputs(root,args.profile)
+        with media.operation(root,args.profile,**artifact_args):
+            rootfs,kernel,p,fogcast,env,lock=verified_inputs(root,args.profile,**board_args)
             if args.command=='release':
                 if p.image_passes != args.image_passes:
                     raise ValueError('release pass count differs from verified image')
                 version=args.version
-                manifest=release_manifest(rootfs,version=version,provenance=p,image_passes=args.image_passes)
+                manifest=release_manifest(rootfs,version=version,provenance=p,image_passes=args.image_passes,**artifact_args)
                 # Identical rootfs and manifest bytes can carry one- or two-pass evidence.
                 output=args.output or root/'out'/args.profile/'appliance/releases'/p.rootfs_sha256/(hashlib.sha256(canonical(manifest)).hexdigest()+f'-{p.image_passes}pass')
-                result=export_release(output,rootfs,kernel,version=version,provenance=p,image_passes=args.image_passes)
+                result=export_release(output,rootfs,kernel,version=version,provenance=p,image_passes=args.image_passes,**artifact_args)
             else:
-                factory=load_manifest(args.release/'release.json')
+                factory=load_manifest(args.release/'release.json',**artifact_args)
                 if recorded_image_passes(args.release, factory) != p.image_passes:
                     raise ValueError('release pass count differs from verified image')
-                if factory!=release_manifest(rootfs,version=factory['version'],provenance=p) or digest(regular(args.release/'rootfs.img'))!=p.rootfs_sha256:
+                if factory!=release_manifest(rootfs,version=factory['version'],provenance=p,**artifact_args) or digest(regular(args.release/'rootfs.img'))!=p.rootfs_sha256:
                     raise ValueError('release differs from current verified cold image')
                 runtime=os.environ.get('CONTAINER_RUNTIME','docker')
-                container=cached_media_container(root,runtime,lock)
+                container=media_container(root,runtime,lock,args.board)
                 runner=object.__new__(media.Runner);runner.root=root;runner.runtime=runtime;runner.container=container
                 scratch_root=root/'out/tmp';scratch_root.mkdir(parents=True,exist_ok=True)
                 with tempfile.TemporaryDirectory(prefix='fes-boot-build-',dir=scratch_root) as temporary:
                     binary=Path(temporary)/'fes-boot'
                     factory_snapshot=Path(temporary)/'factory.json'
                     factory_snapshot.write_bytes(canonical(factory))
-                    binary_sha,platform_build=fes_platform.build_static_arm(root,fogcast,binary,env)
+                    build_args={} if args.board==BOARD else {'architecture':bootstrap_architecture(args.board)}
+                    binary_sha,platform_build=fes_platform.build_static_arm(root,fogcast,binary,env,**build_args)
                     assembly_revision=media.cold_build.git(root,'rev-parse','HEAD')
-                    identity=bootstrap_identity(binary_sha,factory,container,assembly_revision,bootstrap_recipe(root),platform_build)
+                    identity=bootstrap_identity(binary_sha,factory,container,assembly_revision,bootstrap_recipe(root),platform_build,**artifact_args)
                     output=args.output or root/'out'/args.profile/'appliance/bootstrap'/identity
                     result=assemble_bootstrap(output,binary,factory_snapshot,kernel,runner=runner,
-                        binary_source_revision=platform_build['fogcast_revision'],assembly_revision=assembly_revision,platform_build=platform_build)
+                        binary_source_revision=platform_build['fogcast_revision'],assembly_revision=assembly_revision,platform_build=platform_build,**artifact_args)
         print(result.directory)
         print('Host-only artifact; hardware acceptance not run.')
     except (OSError,ValueError,subprocess.CalledProcessError) as error:

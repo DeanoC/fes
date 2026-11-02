@@ -1,0 +1,17 @@
+{
+  "source_revision": "21f50a8e2bb055560866ba86c0c4308276f2a453",
+  "command": [
+    "python3",
+    "/home/deano/fes/out/dev/de25-pr-consolidation/out/consolidation-validation/scanout_delta.py",
+    "/home/deano/fes/out/dev/de25-pr-consolidation/out/consolidation-validation/platform-visibility-delta/checks"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T13:43:06.942833+00:00",
+  "time_cap_seconds": 1800,
+  "hardware_access": "not-performed",
+  "pid": 2509913,
+  "state": "passed",
+  "elapsed_seconds": 29.2,
+  "heartbeat_utc": "2026-10-31T13:43:36.155952+00:00",
+  "returncode": 0
+}

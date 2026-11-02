@@ -1,0 +1,16 @@
+{
+  "source_revision": "90d4313c05caeb68597af75efbdfc57425a2436e",
+  "command": [
+    "python3",
+    "/data/fes-de25-ready-cdc-90d4313c0/run-model.py"
+  ],
+  "cwd": "/data/fes-de25-ready-cdc-90d4313c0/source",
+  "started_utc": "2026-11-01T11:35:31.862304+00:00",
+  "time_cap_seconds": 900,
+  "hardware_access": "not-performed",
+  "pid": 1930715,
+  "state": "passed",
+  "elapsed_seconds": 140.9,
+  "heartbeat_utc": "2026-11-01T11:37:52.780744+00:00",
+  "returncode": 0
+}

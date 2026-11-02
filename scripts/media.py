@@ -115,8 +115,11 @@ def write_private(path, data):
 
 
 @contextmanager
-def lease(root, profile):
-    require_profile(profile)
+def lease(root, profile, *, board='de10-nano'):
+    if board == 'de10-nano':
+        require_profile(profile)
+    elif board != 'de25-nano' or profile != 'de25-nano':
+        raise ValueError('media lease profile differs from selected board')
     directory = Path(root) / 'out/locks'
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / ('media-' + profile)
@@ -140,9 +143,9 @@ def lease(root, profile):
 
 
 @contextmanager
-def operation(root, profile):
+def operation(root, profile, *, board='de10-nano'):
     # The selected child checkout and cold evidence are shared with make verify.
-    with lease(root, profile):
+    with lease(root, profile, board=board):
         descriptor = os.open(Path(root) / 'out/build.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
             try:

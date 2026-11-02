@@ -1,0 +1,17 @@
+{
+  "architecture": "aarch64",
+  "base_contract": {
+    "architecture": "aarch64",
+    "base_contract": "fes-kit-base-v1-4d08af30f26132bab500672c0bd227576cdaf11e108617966690620b22f494a9",
+    "board": "de25-nano",
+    "interfaces": {
+      "maintenance": "fes-kit-maintenance-v1",
+      "runtime-protocol": "2",
+      "software-admission": "fes-kit-software-v1"
+    }
+  },
+  "checked_tar_ext4_files": 35,
+  "classification": "managed-base-intermediate",
+  "hardware_acceptance": "not-run",
+  "normal_runtime_admission": "closed"
+}

@@ -410,7 +410,7 @@ contains `fes-gp-v1` paired with `fes.simple-game`, `fes.simple-computer`,
 `development-contained-v1` is explicitly diagnostic-only and has no ABI
 fallback. MiSTer ABI packages are not activatable.
 
-`emit-cpp` represents every row as `GeneratedProgrammingProfilePair` with
+`emit-cpp` represents every row as `Generated<Platform>ProgrammingProfilePair` with
 `profile`, `abi`, `major`, and `diagnostic_only`; a diagnostic row uses
 `nullptr`, zero, and `true`. `emit-go` emits the equivalent
 `ProgrammingProfilePair`. Runtime consumers combine a matching profile/ABI
@@ -482,3 +482,12 @@ manifest schema or ABI-major change is needed. Fixed geometry, bounded slot
 selection, coherent counters and drain/sequence semantics are defined in
 [application I/O](application-io.md#menu-display-10). The golden menu fixture
 is copied into RTL and runtime consumers by FES generation.
+
+DE25 `packages/programming/de25_nano.yaml` pairs `de25-hps-first-v1` with
+`fes.computer` major1 and `de25-linux-menu-v1` with `fes.application` major1
+on `A5EB013BB23BE4SCS`. Runtime selects the board explicitly and restricts each
+contract: BRAM computer1.0/video/HID/tape, or MENU application1.0 with fixed
+video1.0, menu-display1.0 and `fes.fabric.de25-scanout`1.1. MENU uses kernel DMA
+ABI3 and no `fes.memory.hps-ddr` declaration. Registry rows describe package
+pairings; physical factory/kernel/lease admission and hardware acceptance are
+separate.

@@ -27,7 +27,7 @@ GROUPS = {
     'packages': names('''artifact_cache bundle core_build core_catalog core_dev
         core_dev_accept core_key_nightly factory_video_parts factory_video_publication
         optional_cores recipes rom_package_pipeline'''),
-    'media': names('''appliance appliance_expand_dry_run appliance_media block_probe
+    'media': names('''appliance appliance_expand_dry_run appliance_media de25_appliance_workflow block_probe
         image_passes image_toolchain launcher_provision media media_host media_image
         media_inputs platform'''),
     'acceptance': names('''atari_st_demo_input atari_st_demo_media atari_st_disk_diagnostic
@@ -43,7 +43,7 @@ GROUPS = {
 PARENT_INPUT_GROUPS = {
     'scripts/' + name + '.py': frozenset({'media'})
     for name in ('appliance', 'appliance_inside', 'appliance_media',
-                 'appliance_media_inside', 'appliance_expand_dry_run')
+                 'appliance_media_inside', 'appliance_expand_dry_run', 'de25_appliance')
 }
 
 # Reviewed lane-planner, gate and diff-check inputs affect CI policy and its

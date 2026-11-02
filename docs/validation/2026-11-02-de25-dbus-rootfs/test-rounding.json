@@ -1,0 +1,11 @@
+{
+  "source_revision": "620fd59b0d14803a61d5553dc2686fb4afcc5ac4",
+  "original_source": "dfaffa8696fb164bf30576a6f7a1d7cd1844dd48",
+  "observed_full_selection": 1283,
+  "observed_room_selection": 641,
+  "original_floor_half": 641,
+  "exact_strict_half_bound": true,
+  "changed_file": "tests/test_parent_affected.py",
+  "product_or_selector_policy_change": false,
+  "focused_regression": "passed 1.8s; original failed aggregate retained"
+}

@@ -13,13 +13,15 @@ namespace native {
 namespace generated {
 
 constexpr std::uint32_t FesDe25ComputerIdentity = 0x44325a58u;
-constexpr std::uint32_t FesDe25ComputerVersion = 0x10000u;
+constexpr std::uint32_t FesDe25ComputerVersion = 0x10001u;
 constexpr std::uint32_t FesDe25ComputerIdOffset = 0x0u;
 constexpr std::uint32_t FesDe25ComputerVersionOffset = 0x4u;
 constexpr std::uint32_t FesDe25ComputerStatusOffset = 0x8u;
 constexpr std::uint32_t FesDe25ComputerGpoOffset = 0xcu;
 constexpr std::uint32_t FesDe25ComputerGpiOffset = 0x10u;
 constexpr std::uint32_t FesDe25ComputerFaultOffset = 0x14u;
+constexpr std::uint32_t FesDe25ComputerVideoStatusOffset = 0x18u;
+constexpr std::uint32_t FesDe25ComputerVideoReady = 0x1u;
 constexpr std::uint32_t FesDe25ComputerSpan = 0x20u;
 constexpr std::uint32_t FesDe25ComputerAddressBits = 0x5u;
 constexpr std::uint32_t FesDe25ComputerPeripheralOffset = 0x10300u;

@@ -1,0 +1,10 @@
+{
+  "article": "https://malt.zendesk.com/hc/en-us/articles/55726472185881-SoC-FPGA-Linux-Desktop-Environment-for-Terasic-DE25-Nano",
+  "archive_sha256": "81f930e171739864adfc8e460039b7dfc2e467733aeb9fb65a2473661576236b",
+  "restored_files": 1627,
+  "restore_seconds": 3.6,
+  "hdmi_sdc": "project/ghrd_timing.sdc",
+  "finding": "This reference cuts video, forwarded-clock and I2C HDMI paths; it supplies no HDMI output delay or PCB trace-delay budget. It cannot close the FES output timing gate.",
+  "production_inputs_changed": false,
+  "hardware_access": "not-performed"
+}

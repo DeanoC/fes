@@ -1,0 +1,59 @@
+{
+  "runtime_tests": [
+    {
+      "name": "runtime_test",
+      "result": "passed",
+      "sha256": "1573e6313b02f0e54f0b041524cd01dc9258468177b0bbe0731d0dc83383f0ea"
+    },
+    {
+      "name": "protocol_test",
+      "result": "passed",
+      "sha256": "e969f6097aa08edc39cf5250fc22ac11226908b3e0a438917665b60ff0e302d7"
+    },
+    {
+      "name": "mmio_test",
+      "result": "passed",
+      "sha256": "c105f2403d5d32bcca600602d5fc45d0915d959ff3b6b736305f384a800855c3"
+    },
+    {
+      "name": "fpga_manager_test",
+      "result": "passed",
+      "sha256": "2394db429f772f7ded52e2aee4a3f61d2b3155c5b58c6a8959110b70668ebada"
+    },
+    {
+      "name": "off_t_test",
+      "result": "passed",
+      "sha256": "705fd04c00bca5ee4635735e9769961ca51822390c355d1f09ceae71968bb19b"
+    },
+    {
+      "name": "production_hardware_test",
+      "result": "passed",
+      "sha256": "1ad300b934e7e98a4705a522a9fed0875c7e6fab6c42400477ef3939c1c83184"
+    },
+    {
+      "name": "de25_computer_test",
+      "result": "passed",
+      "sha256": "ee8fd383786d8bc3b660e986f7249b1f59adf97248df5402958cd8d84d894830"
+    },
+    {
+      "name": "core_package_test",
+      "result": "passed",
+      "sha256": "0163cbaff81b9b8b1c1db41d76b8c259d3ad07c5839b9567f0f682582438f89f"
+    },
+    {
+      "name": "de25_fpga_manager_test",
+      "result": "passed",
+      "sha256": "6cdf21974c17f5353e966a8b4f0e7785cf5f77b2368a34dea09d4483a09dae5c"
+    }
+  ],
+  "agent_tests": [
+    "TestClientRejectsWrongProtocolAndUnknownResponseFields",
+    "TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial",
+    "TestRuntimeSocketOpenIsFalseWhenDialFails",
+    "TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBooleansFalse",
+    "TestNativeReconcileMapsRebootRequiredToFailedUnavailable"
+  ],
+  "runtime_build_key": "d64caa2559ff091e90a0012e3c1c81529311606be51b46d483d933adf0401983",
+  "qemu_library_prefix": "libraries-only-with-lib64",
+  "compiler_version": "aarch64-buildroot-linux-gnu-g++.br_real (Buildroot 2021.02.4) 9.4.0"
+}

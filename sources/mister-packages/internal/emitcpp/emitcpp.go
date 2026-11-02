@@ -123,10 +123,10 @@ func GenerateProgrammingProfiles(profiles *pack.ProgrammingProfilesFile) (string
 	writeGeneratedPreamble(&b, "packages/programming/"+packageFileName(profiles.ID)+".yaml")
 	b.WriteString("#include <cstddef>\n#include <cstdint>\n\n")
 	b.WriteString("namespace mister {\nnamespace native {\nnamespace generated {\n\n")
-	b.WriteString("struct GeneratedProgrammingProfilePair {\n  const char* profile;\n  const char* abi;\n  std::uint16_t major;\n  bool diagnostic_only;\n};\n\n")
+	fmt.Fprintf(&b, "struct Generated%sProgrammingProfilePair {\n  const char* profile;\n  const char* abi;\n  std::uint16_t major;\n  bool diagnostic_only;\n};\n\n", prefix)
 	fmt.Fprintf(&b, "constexpr const char* k%sProgrammingPlatform = %s;\n", prefix, cstring(profiles.Platform))
 	fmt.Fprintf(&b, "constexpr const char* k%sProgrammingDevice = %s;\n\n", prefix, cstring(profiles.Device))
-	fmt.Fprintf(&b, "static constexpr GeneratedProgrammingProfilePair k%sProgrammingProfilePairs[] = {\n", prefix)
+	fmt.Fprintf(&b, "static constexpr Generated%sProgrammingProfilePair k%sProgrammingProfilePairs[] = {\n", prefix, prefix)
 	count := 0
 	for _, profile := range profiles.Profiles {
 		if profile.DiagnosticOnly {

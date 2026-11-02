@@ -70,7 +70,7 @@ def prepare(local, project, frozen):
     (local / "static.v").unlink()
     script = project / "integrate-mailbox.tcl"
     text = script.read_text()
-    anchor = "add_instance fes_computer fes_de25_computer 1.0"
+    anchor = "add_instance fes_computer fes_de25_computer 1.1"
     text = comp.replace_once(text, anchor, anchor + "\nset_instance_parameter_value fes_computer EXTERNAL_RAM 1")
     anchor = "save_system $peripheral_system\n\n# Refresh"
     text = comp.replace_once(text, anchor, "add_interface fes_computer_expansion conduit end\n"

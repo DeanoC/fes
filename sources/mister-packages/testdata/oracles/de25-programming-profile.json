@@ -1,0 +1,29 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "runtime_base_commit": "5bd0f763860777a3a4ca65912e23de19b0503898",
+    "file": "sources/libmister-runtime/src/native/generated/de25_nano_programming.hpp",
+    "header_sha256": "e5718c2535e99311e6f3ea84fdc4db2bc8a2fd10f13c5dabff7d6acc11dc981e",
+    "note": "New consumer is regenerated in the same FES change as this record; the base commit identifies the preceding runtime, not a hardware acceptance claim."
+  },
+  "platform": "de25_nano",
+  "device": "A5EB013BB23BE4SCS",
+  "production_factory_enabled": true,
+  "profiles": [
+    {
+      "id": "de25-hps-first-v1",
+      "abi": {
+        "id": "fes.computer",
+        "major": 1
+      }
+    },
+    {
+      "id": "de25-linux-menu-v1",
+      "abi": {
+        "id": "fes.application",
+        "major": 1
+      }
+    }
+  ],
+  "factory_admission": "exact AArch64 board, existing exclusive lease, matched owner kernel receipt and DMA ABI3; hardware acceptance pending"
+}

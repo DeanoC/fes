@@ -1,0 +1,36 @@
+CPU_STATS /sys/kernel/tracing/instances/fes-de25-read-credits-observation/per_cpu/cpu0/stats
+entries: 0
+overrun: 0
+commit overrun: 0
+bytes: 0
+oldest event ts:     0.000000
+now ts:  6232.998237
+dropped events: 0
+read events: 0
+CPU_STATS /sys/kernel/tracing/instances/fes-de25-read-credits-observation/per_cpu/cpu1/stats
+entries: 0
+overrun: 0
+commit overrun: 0
+bytes: 0
+oldest event ts:     0.000000
+now ts:  6233.002118
+dropped events: 0
+read events: 0
+CPU_STATS /sys/kernel/tracing/instances/fes-de25-read-credits-observation/per_cpu/cpu2/stats
+entries: 0
+overrun: 0
+commit overrun: 0
+bytes: 0
+oldest event ts:     0.000000
+now ts:  6233.004735
+dropped events: 0
+read events: 0
+CPU_STATS /sys/kernel/tracing/instances/fes-de25-read-credits-observation/per_cpu/cpu3/stats
+entries: 2
+overrun: 0
+commit overrun: 0
+bytes: 80
+oldest event ts:  6226.849382
+now ts:  6233.007242
+dropped events: 0
+read events: 0

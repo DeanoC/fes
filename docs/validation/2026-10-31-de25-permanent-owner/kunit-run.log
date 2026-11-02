@@ -1,0 +1,59 @@
+stty: 'standard input': Inappropriate ioctl for device
+[15:36:28] Configuring KUnit Kernel ...
+Generating .config ...
+Populating config with:
+$ make ARCH=arm64 O=/build/kunit olddefconfig CROSS_COMPILE=/build/sdk/bin/aarch64-buildroot-linux-gnu-
+[15:36:36] Building KUnit Kernel ...
+Populating config with:
+$ make ARCH=arm64 O=/build/kunit olddefconfig CROSS_COMPILE=/build/sdk/bin/aarch64-buildroot-linux-gnu-
+Building with:
+$ make all compile_commands.json ARCH=arm64 O=/build/kunit --jobs=8 CROSS_COMPILE=/build/sdk/bin/aarch64-buildroot-linux-gnu-
+[15:37:30] Starting KUnit Kernel (1/1)...
+[15:37:30] ============================================================
+Running tests with:
+$ qemu-system-aarch64 -nodefaults -m 1024 -kernel /build/kunit/arch/arm64/boot/Image.gz -append 'kunit.filter_glob=fes-de25-dma* kunit.enable=1 console=ttyAMA0 kunit_shutdown=reboot' -no-reboot -nographic -serial stdio -machine virt -cpu max,pauth-impdef=on
+[15:37:30] ================ fes-de25-dma (38 subtests) ================
+[15:37:30] [PASSED] permanent_owner_checks_real_supplier_links
+[15:37:30] [PASSED] permanent_owner_probe_refuses_unbound_device
+[15:37:30] [PASSED] permanent_owner_rejects_topology_overrides
+[15:37:30] [PASSED] permanent_owner_rejects_ancestor_mutation
+[15:37:30] [PASSED] permanent_owner_blocks_configuration_before_first_submit
+[15:37:30] [PASSED] permanent_owner_retains_uncertain_closed_client
+[15:37:30] [PASSED] permanent_owner_never_adopts_unknown_configuration
+[15:37:30] [PASSED] owner_recovers_drain_after_last_client_close
+[15:37:30] [PASSED] owner_recovery_cannot_use_reset_as_drain
+[15:37:30] [PASSED] owner_reference_release_does_not_revoke_client
+[15:37:30] [PASSED] guard_real_access_and_bounds
+[15:37:30] [PASSED] guard_claim_rejects_wrong_or_existing_identity
+[15:37:30] [PASSED] guard_dummy_zero_timeout_is_not_success
+[15:37:30] [PASSED] guard_post_access_fault_and_reset_reject_results
+[15:37:30] [PASSED] guard_busy_or_unknown_status_prevents_access
+[15:37:30] [PASSED] guarded_transport_constructs_real_dma_grant
+[15:37:30] [PASSED] binding_stays_closed
+[15:37:30] [PASSED] backend_lease_required_before_access
+[15:37:30] [PASSED] unconfigured_engine_has_one_allocation_lease
+[15:37:30] [PASSED] constructor_failure_releases_backend_lease
+[15:37:30] [PASSED] uncertain_dma_retains_lease_until_storage_free
+[15:37:30] [PASSED] rejects_bad_publish_before_effects
+[15:37:30] [PASSED] kernel_owns_descriptor_and_drain_lifetime
+[15:37:30] [PASSED] failed_start_is_held_until_drain
+[15:37:30] [PASSED] unreadable_epoch_retains_exposed_storage
+[15:37:30] [PASSED] acceptance_is_not_display_and_slots_alternate
+[15:37:30] [PASSED] ordered_descriptor_precedes_first_submit
+[15:37:30] [PASSED] stale_generation_and_reset_cannot_prove_drain
+[15:37:30] [PASSED] mismatched_completion_never_releases_slot
+[15:37:30] [PASSED] faults_never_release_pending_slot
+[15:37:30] [PASSED] snapshot_handshake_is_bounded_and_consistent
+[15:37:30] [PASSED] sequence_and_generation_never_wrap
+[15:37:30] [PASSED] poll_identity_rejects_before_register_effects
+[15:37:30] [PASSED] coherent_mapping_uapi_and_revoke
+[15:37:30] [PASSED] contiguous_aliases_are_revoked
+[15:37:30] [PASSED] rejects_invalid_mapping_shapes
+[15:37:30] [PASSED] refused_mapping_releases_new_mm_reference
+[15:37:30] [PASSED] revoke_catches_inflight_mmap_link
+[15:37:30] ================== [PASSED] fes-de25-dma ===================
+[15:37:30] ============================================================
+[15:37:30] Testing complete. Ran 38 tests: passed: 38
+[15:37:30] Test results stored in /export/kunit.json
+[15:37:30] Elapsed time: 62.380s total, 7.621s configuring, 54.015s building, 0.688s running
+

@@ -1,0 +1,8 @@
+{
+  "host": "192.168.10.28",
+  "boot_id": "15e107d8-0ed1-4e5e-83d8-b27c8a49d853",
+  "command": "/tmp/fes-runtime-adapter/programmer 15e107d8-0ed1-4e5e-83d8-b27c8a49d853 /tmp/fes-runtime-adapter/core.rbf",
+  "returncode": 0,
+  "elapsed_seconds": 4.98,
+  "stdin_sha256": null
+}

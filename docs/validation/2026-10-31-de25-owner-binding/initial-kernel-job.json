@@ -1,0 +1,26 @@
+{
+  "source_revision": "f7c05a8b7e833a07974a95d7868f0da95305e15f",
+  "command": [
+    "python3",
+    "scripts/de25_kernel_platform.py",
+    "--cache",
+    "/home/deano/fes/out/cache/de25-linux-kernel.git",
+    "--image-output",
+    "/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image",
+    "--output",
+    "/home/deano/fes/out/artifacts/de25-owner-bus/f7c05a8b7/board-kernel",
+    "--jobs",
+    "8",
+    "--time-cap",
+    "1200"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T17:31:11.734288+00:00",
+  "time_cap_seconds": 1260,
+  "hardware_access": "not-performed",
+  "pid": 118001,
+  "state": "failed",
+  "elapsed_seconds": 31.1,
+  "heartbeat_utc": "2026-10-31T17:31:42.820409+00:00",
+  "returncode": 1
+}

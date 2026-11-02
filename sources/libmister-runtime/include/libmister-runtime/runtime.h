@@ -369,6 +369,9 @@ struct MenuDisplayStatus {
  // blitter_minor is the menu-blitter minor the firmware declares, which says
  // which ops it runs. Reported in the grant, not in status.
  bool blitter=false;
+ // The peer must close its descriptor and unmap before committing each frame.
+ // Allocation-backed adapters use this to permit recovery before the reply.
+ bool frame_mapping=false;
  std::uint16_t blitter_minor=0;
  // A list frame has run on this blitter grant. The grant takes CPU frames
  // until then and only lists after. Not reported.
@@ -646,12 +649,15 @@ public:
 	~Runtime();
 	Runtime(const Runtime&) = delete;
 	Runtime& operator=(const Runtime&) = delete;
-	Error Start();
+	// A selected MENU is the initial idle image. Empty arguments use the
+	// board's splash recipe; they never program a foreign splash before MENU.
+	Error Start(const std::string& menu_directory = {}, const std::string& menu_package_id = {});
  Error ConfigureMenuPackage(const std::string&,const std::string&);
  Error SetSessionDisplay(const std::string& expected_package_id,
   std::uint64_t expected_generation,bool visible,bool launcher_focus);
  // blitter reports whether the grant covers the blitter's lists and heap.
- Error ShareMenuWindow(std::uint64_t,int*,bool* blitter,std::uint16_t* blitter_minor);
+ Error ShareMenuWindow(std::uint64_t,int*,bool* blitter,std::uint16_t* blitter_minor,
+  bool permit_frame_mapping=false,bool* frame_mapping=nullptr);
  Error BeginMenuFrame(std::uint64_t,std::unique_ptr<MenuFrame>*);
  Error PresentMenuFrame(std::uint64_t,MenuFrame&,MenuDisplayInfo*);
 	Status status() const;

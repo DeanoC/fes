@@ -1,0 +1,16 @@
+{
+  "source_revision": "90156cae51d298bdcee886c315733192998bae69",
+  "command": [
+    "python3",
+    "out/de25-package-profile-sdk/run.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T20:46:55.688371+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 2655091,
+  "state": "failed",
+  "elapsed_seconds": 29.8,
+  "heartbeat_utc": "2026-10-31T20:47:25.515876+00:00",
+  "returncode": 1
+}

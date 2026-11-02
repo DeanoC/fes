@@ -1,0 +1,20 @@
+{
+  "source_revision": "9d50eeacb3e094a95ebd07115bff350041e03275",
+  "command": [
+    "go",
+    "-C",
+    "sources/FogCast",
+    "test",
+    "./internal/misterruntime",
+    "./internal/agent"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-11-01T12:26:01.723710+00:00",
+  "time_cap_seconds": 300,
+  "hardware_access": "not-performed",
+  "pid": 4105491,
+  "state": "passed",
+  "elapsed_seconds": 25.4,
+  "heartbeat_utc": "2026-11-01T12:26:27.090949+00:00",
+  "returncode": 0
+}

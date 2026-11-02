@@ -4,6 +4,7 @@
 #pragma once
 
 #include "libmister-runtime/runtime.h"
+#include "native/platform.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -12,11 +13,15 @@
 namespace mister {
 namespace native {
 
+class ComputerMediaSnapshot;
 class Clock;
 class Mmio;
 enum class ProgrammingProfile {
 	fes_gp_v1,
 	development_contained_v1,
+	// Selected by the DE25-only shared programming-profile row.
+	de25_hps_first_v1,
+	de25_linux_menu_v1,
 };
 
 struct CoreDriverContext {
@@ -42,6 +47,10 @@ class CoreDriver {
 public:
 	virtual ~CoreDriver() {}
 	virtual void BeginSession() {}
+	// Images that own their HDMI transmitter expose observed readiness through
+	// their selected driver. This does not run a Linux transmitter recipe.
+	virtual Error WaitVideoReady(std::uint64_t)
+	{ return {ErrorCode::unsupported_interface, "selected video readiness unavailable", "video"}; }
 	virtual Error CaptureData(const CoreDriverContext&, std::uint64_t, std::vector<std::uint16_t>*)
 	{
 		return {ErrorCode::unsupported_interface, "persistence unavailable"};
@@ -55,6 +64,23 @@ public:
 	{
 		return {ErrorCode::unsupported_interface, "persistence unavailable"};
 	}
+	// Optional computer controls belong to the selected driver. Drivers that
+	// do not implement them reject before any hardware access.
+	virtual Error SetKeyboardHid(const KeyboardHidRows&, std::uint64_t)
+	{ return {ErrorCode::unsupported_interface, "keyboard HID unavailable", "input"}; }
+	virtual Error LoadMedia(const std::vector<std::uint8_t>&, std::uint64_t)
+	{ return {ErrorCode::unsupported_interface, "computer media unavailable", "request"}; }
+	virtual Error LoadMediaLive(const std::vector<std::uint8_t>&, std::uint64_t)
+	{ return {ErrorCode::unsupported_interface, "live computer media unavailable", "request"}; }
+	virtual Error ClearMedia(std::uint64_t)
+	{ return {ErrorCode::unsupported_interface, "computer media unavailable", "request"}; }
+	virtual const std::vector<MediaUnitCapability>& media_units() const
+	{ static const std::vector<MediaUnitCapability> empty; return empty; }
+	virtual Error InsertMedia(std::uint8_t, const ComputerMediaSnapshot&, Clock&,
+		std::uint64_t, std::uint32_t)
+	{ return {ErrorCode::unsupported_interface, "computer media unit unavailable", "request"}; }
+	virtual Error EjectMedia(std::uint8_t, std::uint64_t)
+	{ return {ErrorCode::unsupported_interface, "computer media unit unavailable", "request"}; }
 	virtual CoreDriverResult Quiesce(const CoreDriverContext&,
 		std::uint64_t absolute_deadline_ms) = 0;
 	virtual CoreDriverResult Identify(const CoreDriverContext&,
@@ -80,11 +106,16 @@ public:
 class CoreDriverRegistry {
 public:
 	CoreDriverRegistry(CoreDriver* fes_gp,
-		CoreDriver& contained);
+		CoreDriver& contained, CoreDriver* de25 = nullptr,
+		NativePlatform platform = NativePlatform::de10_nano,
+		CoreDriver* de25_menu = nullptr);
 	Error Resolve(const CoreDescriptor&, ProgrammingProfile*, CoreDriver**) const;
 	CoreDriver* Resolve(ProgrammingProfile) const;
 
 private:
+	NativePlatform platform_;
+	CoreDriver* de25_;
+	CoreDriver* de25_menu_;
 	CoreDriver* fes_gp_;
 	CoreDriver& contained_;
 };

@@ -166,13 +166,14 @@ def prepare_captured(archive, output, sources, selected, *, hps_first=False):
     top = (project / "golden_top.v").read_text()
     top = replace_once(top, ".ninit_done_ninit_done                     (ninit_done),", ".ninit_done_ninit_done                     (ninit_done),\n"
         ".h2f_warm_reset_handshake_reset_req (),\n.h2f_warm_reset_handshake_reset_ack (1'b1),")
-    top = replace_once(top, "qsys_top soc_inst (", "wire computer_pixel_clk;\nwire [23:0] computer_rgb;\nwire computer_de, computer_hs, computer_vs;\nqsys_top soc_inst (\n"
+    top = replace_once(top, "qsys_top soc_inst (", "wire computer_pixel_clk;\nwire [23:0] computer_rgb;\nwire computer_de, computer_hs, computer_vs, computer_video_ready;\nqsys_top soc_inst (\n"
         ".fes_computer_pixel_clk_clk(computer_pixel_clk),\n.fes_computer_video_rgb(computer_rgb),\n"
-        ".fes_computer_video_de(computer_de), .fes_computer_video_hs(computer_hs), .fes_computer_video_vs(computer_vs),")
+        ".fes_computer_video_de(computer_de), .fes_computer_video_hs(computer_hs), .fes_computer_video_vs(computer_vs),\n.fes_computer_video_ready(computer_video_ready),")
     top = replace_once(top, "endmodule", """
 fes_de25_zx81_board fes_video_inst (
  .CLOCK0_50(CLOCK0_50), .ninit_done(ninit_done), .pixel_clk(computer_pixel_clk),
  .video_rgb(computer_rgb), .video_de(computer_de), .video_hs(computer_hs), .video_vs(computer_vs),
+ .video_ready(computer_video_ready),
  .HDMI_TX_INT(HDMI_TX_INT), .HDMI_TX_CLK(HDMI_TX_CLK), .HDMI_TX_DE(HDMI_TX_DE),
  .HDMI_TX_HS(HDMI_TX_HS), .HDMI_TX_VS(HDMI_TX_VS), .HDMI_TX_D(HDMI_TX_D),
  .HDMI_I2C_SCL(HDMI_I2C_SCL), .HDMI_I2C_SDA(HDMI_I2C_SDA),
@@ -257,7 +258,7 @@ def verify_computer(project, hps):
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
     modules = {m.get("path"): m for m in tree.findall("module")}
     component = modules.get("subsys_periph.fes_computer")
-    if component is None or component.get("kind") != "fes_de25_computer" or component.get("version") != "1.0":
+    if component is None or component.get("kind") != "fes_de25_computer" or component.get("version") != "1.1":
         raise ValueError("missing generated computer endpoint/version")
     ports = hps.component_ports(component, "avs")
     if ports != {"address": ("Input", 5), "read": ("Input", 1), "write": ("Input", 1),
@@ -308,37 +309,14 @@ def generate(output, hps, tool, version):
 
 
 def package_hps_first(output, hps, tool, artifact):
-    """Create explicit phase artifacts without invoking a programmer."""
+    """Bind the computer identity to explicit Linux phase artifacts."""
     directory = output / "hps"
-    project = directory / "project"
     inputs = json.loads((directory / "inputs.json").read_text())
-    if inputs["computer"].get("hps_initialization") != "HPS FIRST":
-        raise ValueError("Linux core packaging requires captured HPS-first configuration")
-    if re.findall(r'^set_global_assignment -name HPS_INITIALIZATION "([^"\n]+)"$',
-                  (project / "golden_top.qsf").read_text(), re.M) != ["HPS FIRST"]:
-        raise ValueError("project HPS-first assignment differs from captured recipe")
-    pfg = tool.with_name("quartus_pfg")
-    boot = project / "software/u-boot/spl/u-boot-spl-dtb.hex"
-    complete = directory / "linux-complete.sof"
-    hps.run_logged([pfg, "-c", artifact, complete, "-o", "hps_path=" + str(boot)],
-                   project, directory / "linux-enrich.log")
-    hps.run_logged([pfg, "-c", complete, directory / "linux-boot.jic",
-                    "-o", "device=MT25QU128", "-o", "flash_loader=A5EB013BB23BE4SCS",
-                    "-o", "mode=ASX4", "-o", "hps=on"],
-                   project, directory / "linux-split.log")
-    artifacts = {}
-    for name, role in (("linux-complete.sof", "volatile-JTAG-recovery-candidate"),
-                       ("linux-boot.hps.jic", "HPS-first-QSPI-candidate-not-programmed"),
-                       ("linux-boot.core.rbf", "Linux-fabric-configuration-candidate")):
-        path = directory / name
-        if not path.is_file() or path.is_symlink() or not path.stat().st_size:
-            raise ValueError("missing regular nonempty HPS-first artifact: " + name)
-        artifacts[name] = {"role": role, "size": path.stat().st_size, "sha256": hps.digest(path)}
+    artifacts = hps.linux_configuration_artifacts(directory, tool, artifact,
+        hps_initialization=inputs["computer"].get("hps_initialization"))
     record = {"format": 1, "classification": "unadmitted-HPS-first-diagnostic",
               "fes_revision": inputs["fes_revision"], "computer_build_id": inputs["computer"]["build_id"],
-              "hps_initialization": "HPS FIRST", "bootloader_sha256": hps.digest(boot),
-              "compiled_sof_sha256": hps.digest(artifact), "artifacts": artifacts,
-              "hardware_programming": "not-performed", "boot_compatibility": "not-qualified",
+              **artifacts, "hardware_programming": "not-performed", "boot_compatibility": "not-qualified",
               "Linux_load_acceptance": "not-qualified", "production_admission": False}
     (directory / "linux-programming.json").write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
 

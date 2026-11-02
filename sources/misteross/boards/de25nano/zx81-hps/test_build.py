@@ -67,6 +67,20 @@ class HpsZX81BuildTests(unittest.TestCase):
         for name in required:
             self.assertEqual(sources[name], (B.ROOT / name).read_bytes())
 
+    def test_hdmi_readiness_has_registered_sources_and_only_first_stage_cuts(self):
+        files = B.capture()
+        sdc = files[B.BOARD + "zx81-hps/clocks.sdc"].decode()
+        board = files[B.BOARD + "zx81-hps/board.v"].decode()
+        self.assertIn("reg video_ready_source", board)
+        self.assertIn("assign video_ready = video_ready_source;", board)
+        self.assertIn("{fes_video_inst|hdmi_config|READY} {fes_video_inst|hdmi_ready_sync[0]} {fes_video_inst|hdmi_ready_sync[1]}", sdc)
+        self.assertIn("{fes_video_inst|video_ready_source} {soc_inst|subsys_periph|fes_computer|fes_computer|video_ready_sync[0]}", sdc)
+        self.assertIn('"${ready_stage0}|D"', sdc)
+        self.assertIn("set_false_path -from $ready_source_reg -to $ready_stage0_d", sdc)
+        self.assertIn('if {[get_collection_size $ready_nodes] != 1}', sdc)
+        self.assertNotIn("set_false_path -to $ready_stage1_reg", sdc)
+        self.assertNotIn("set_clock_groups", sdc)
+
     def test_readiness_cdc_cut_is_narrow_and_same_domain_visibility_stays_timed(self):
         sdc = B.capture()[B.BOARD + "zx81-hps/clocks.sdc"].decode()
         self.assertIn("{soc_inst|subsys_periph|fes_computer|fes_computer|pixel_transport_ready_sync[0]|D}", sdc)
@@ -228,6 +242,14 @@ class HpsZX81BuildTests(unittest.TestCase):
                 B.package_hps_first(self.root, HPS, Path("/tool/quartus_sh"), artifact)
             run.assert_not_called()
 
+    def test_linux_packaging_refuses_stale_phase_artifacts_before_tools(self):
+        directory, _, artifact = self.linux_fixture()
+        (directory / "linux-boot.core.rbf").write_bytes(b"stale-not-a-bitstream")
+        with mock.patch.object(HPS, "run_logged") as run:
+            with self.assertRaisesRegex(ValueError, "output already exists"):
+                B.package_hps_first(self.root, HPS, Path("/tool/quartus_sh"), artifact)
+            run.assert_not_called()
+
     def test_linux_packaging_binds_phase_artifacts_without_programmer(self):
         directory, project, artifact = self.linux_fixture()
         calls = []
@@ -325,7 +347,7 @@ class HpsZX81BuildTests(unittest.TestCase):
         definition_path.parent.mkdir(parents=True, exist_ok=True)
         definition_path.write_bytes((HERE / "generated/fes_de25_computer.vh").read_bytes())
         root = ET.Element("Ensemble")
-        module = ET.SubElement(root, "module", {"path": "subsys_periph.fes_computer", "kind": "fes_de25_computer", "version": "1.0"})
+        module = ET.SubElement(root, "module", {"path": "subsys_periph.fes_computer", "kind": "fes_de25_computer", "version": "1.1"})
         definition = ET.Element("component")
         boundary = ET.SubElement(ET.SubElement(definition, "boundary"), "interfaces")
         point = ET.SubElement(boundary, "interface")
@@ -405,7 +427,7 @@ class HpsZX81BuildTests(unittest.TestCase):
 
     def test_generated_computer_version_and_native_response_ports_are_required(self):
         project, handoff, root = self.sopc()
-        root.find("module").set("version", "2.0")
+        root.find("module").set("version", "1.0")
         ET.ElementTree(root).write(handoff)
         with self.assertRaisesRegex(ValueError, "endpoint/version"):
             B.verify_computer(project, HPS)

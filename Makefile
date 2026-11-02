@@ -3,6 +3,11 @@ PROFILE ?= native-integration-dev
 PYTHON ?= python3
 RELEASE_VERSION ?= 0.2.0-dev.1
 IMAGE_PASSES ?= 1
+APPLIANCE_BOARD ?= de10-nano
+APPLIANCE_FACTORY ?=
+APPLIANCE_VENDOR_BOOT ?=
+APPLIANCE_PROFILE = $(if $(filter de25-nano,$(APPLIANCE_BOARD)),de25-nano,$(PROFILE))
+APPLIANCE_SELECTION = --board "$(APPLIANCE_BOARD)" $(if $(APPLIANCE_FACTORY),--factory "$(APPLIANCE_FACTORY)")
 ifneq ($(origin FES_TARGET_IMAGE_SHARED_CACHE),undefined)
 export FES_TARGET_IMAGE_SHARED_CACHE
 endif
@@ -41,6 +46,7 @@ help:
 	@printf '%s\n' 'make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img KIT_SOFTWARE_BASE_SHA256=SHA256 KIT_SOFTWARE_VERSION=VERSION: build compatible kit userspace without an OS rebuild.'
 	@printf '%s\n' 'make fetch-de25-linux | de25-linux | verify-de25-linux | smoke-de25-linux: separate headless DE25-Nano AArch64 Linux diagnostic; see docs/de25-linux.md.'
 	@printf '%s\n' 'make smoke-de25-runtime DE25_RUNTIME_ARGS="--help": cross-build AArch64 runtime/agent and exercise software under QEMU without a board.'
+	@printf '%s\n' 'make release | bootstrap | appliance-media APPLIANCE_BOARD=de25-nano APPLIANCE_FACTORY=/absolute/factory: require the verified DE25 factory; card commands also need APPLIANCE_VENDOR_BOOT=/absolute/vendor-boot.'
 IMAGE_ARTIFACTS ?=
 doctor build host image verify rebuild dev:
 	IMAGE_PASSES="$(IMAGE_PASSES)" $(PYTHON) scripts/build.py $@ --profile "$(PROFILE)" $(if $(IMAGE_ARTIFACTS),--artifacts "$(IMAGE_ARTIFACTS)")
@@ -111,16 +117,16 @@ rollback-media:
 
 .PHONY: release bootstrap appliance-media verify-appliance-media
 release:
-	$(PYTHON) scripts/appliance.py release --profile "$(PROFILE)" --version "$(RELEASE_VERSION)" --image-passes "$(IMAGE_PASSES)"
+	$(PYTHON) scripts/appliance.py release --profile "$(APPLIANCE_PROFILE)" $(APPLIANCE_SELECTION) --version "$(RELEASE_VERSION)" --image-passes "$(IMAGE_PASSES)"
 bootstrap: platform-provision
 	$(if $(strip $(RELEASE)),,$(error bootstrap requires RELEASE=/absolute/path/to/release-directory))
-	$(PYTHON) scripts/appliance.py bootstrap --profile "$(PROFILE)" --release "$(RELEASE)"
+	$(PYTHON) scripts/appliance.py bootstrap --profile "$(APPLIANCE_PROFILE)" $(APPLIANCE_SELECTION) --release "$(RELEASE)"
 
 appliance-media verify-appliance-media:
 	$(if $(strip $(RELEASE)),,$(error appliance media requires RELEASE=/absolute/path/to/release-directory))
 	$(if $(strip $(BOOTSTRAP)),,$(error appliance media requires BOOTSTRAP=/absolute/path/to/bootstrap-directory))
 	$(if $(strip $(OUTPUT)),,$(error appliance media requires OUTPUT=/absolute/path/to/card-directory))
-	$(PYTHON) scripts/appliance_media.py $(if $(filter appliance-media,$@),build,verify) --profile "$(PROFILE)" --release "$(RELEASE)" --bootstrap "$(BOOTSTRAP)" --output "$(OUTPUT)"
+	$(PYTHON) scripts/appliance_media.py $(if $(filter appliance-media,$@),build,verify) --profile "$(APPLIANCE_PROFILE)" $(APPLIANCE_SELECTION) $(if $(APPLIANCE_VENDOR_BOOT),--vendor-boot "$(APPLIANCE_VENDOR_BOOT)") --release "$(RELEASE)" --bootstrap "$(BOOTSTRAP)" --output "$(OUTPUT)"
 
 .PHONY: source-status
 SOURCE_STATUS_ARGS ?=
@@ -158,8 +164,10 @@ kit-sdk:
 
 .PHONY: kit-software
 KIT_SOFTWARE_OUTPUT ?= out/kit-software/$(KIT_SOFTWARE_VERSION)
+KIT_SOFTWARE_BOARD ?= de10-nano
+KIT_SOFTWARE_DE25_IMAGE ?=
 kit-software:
 	$(if $(strip $(KIT_SOFTWARE_BASE)),,$(error kit-software requires KIT_SOFTWARE_BASE=/absolute/linux.img))
 	$(if $(strip $(KIT_SOFTWARE_BASE_SHA256)),,$(error kit-software requires KIT_SOFTWARE_BASE_SHA256=<reviewed image SHA-256>))
 	$(if $(strip $(KIT_SOFTWARE_VERSION)),,$(error kit-software requires KIT_SOFTWARE_VERSION=<release version>))
-	$(PYTHON) scripts/kit_software.py --base "$(KIT_SOFTWARE_BASE)" --base-sha256 "$(KIT_SOFTWARE_BASE_SHA256)" --version "$(KIT_SOFTWARE_VERSION)" --output "$(KIT_SOFTWARE_OUTPUT)"
+	$(PYTHON) scripts/kit_software.py --base "$(KIT_SOFTWARE_BASE)" --base-sha256 "$(KIT_SOFTWARE_BASE_SHA256)" --version "$(KIT_SOFTWARE_VERSION)" --output "$(KIT_SOFTWARE_OUTPUT)" --board "$(KIT_SOFTWARE_BOARD)" $(if $(strip $(KIT_SOFTWARE_DE25_IMAGE)),--de25-image "$(KIT_SOFTWARE_DE25_IMAGE)")

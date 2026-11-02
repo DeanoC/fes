@@ -17,6 +17,7 @@ GENERATED = (
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.vh'),
     ('emit-c', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'misteross', 'boards/de25nano/scanout/generated/fes_de25_scanout.h'),
     ('emit-c', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'FES', 'image/kernel/de25-dma/generated/fes_de25_scanout.h'),
+    ('emit-cpp', 'packages/fabric/fes_fabric_de25_scanout.yaml', 'libmister-runtime', 'src/native/generated/fes_de25_scanout.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.vh'),
     ('emit-cpp', 'packages/fabric/fes_fabric_de25_ddr_probe.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_ddr_probe.hpp'),
     ('emit-verilog', 'packages/fabric/fes_fabric_de25_hps_mailbox.yaml', 'misteross', 'boards/de25nano/hps/generated/fes_de25_mailbox.vh'),
@@ -39,6 +40,7 @@ GENERATED = (
     ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-sg1000/generated/fes_simple_computer.vh'),
     ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-sms/generated/fes_simple_computer.vh'),
     ('emit-cpp', 'packages/programming/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano_programming.hpp'),
+    ('emit-cpp', 'packages/programming/de25_nano.yaml', 'libmister-runtime', 'src/native/generated/de25_nano_programming.hpp'),
     ('emit-cpp', 'packages/abi/fes_computer.yaml', 'libmister-runtime', 'src/native/generated/fes_computer.hpp'),
     ('emit-go', 'packages/abi/fes_computer.yaml', 'FogCast', 'protocol/internal/generated/fes_computer.go'),
     ('emit-go', 'packages/abi/fes_computer.yaml', 'FogCast', 'corepackage/internal/generated/fes_computer.go'),
@@ -80,6 +82,9 @@ COPIED_FILES = (
     ('testdata/core-persistence-v1/records.json', 'FogCast', 'internal/misterruntime/testdata/core-persistence-v1/records.json'),
 )
 COMPONENT_FIXTURES = (
+    # The kernel owns the UAPI; runtime keeps an exact self-contained consumer.
+    ('FES', 'image/kernel/de25-dma/de25_dma.h',
+     'libmister-runtime', 'src/native/linux/de25_dma.h'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-parts-responses.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-parts-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-rom-package-responses.jsonl',

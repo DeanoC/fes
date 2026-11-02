@@ -1,0 +1,22 @@
+{
+  "source_revision": "6fa9d210fe19eddc83866b75b12b95c8585d3ede",
+  "archive_sha256": "734c2f908d48ce0e2001481a5ce3e2c23ef58b7daa2c9322cd8240e38a950f86",
+  "archive_bytes": 636661153,
+  "verified": {
+    "build_records": 2,
+    "candidate_rbfs": 1,
+    "reset_receipts": 2,
+    "generated_reset_originals": 12,
+    "generated_reset_constraints": 12,
+    "board_sdc": 2
+  },
+  "all_archived_regular_files_hashed": 4178,
+  "model_cases_verified": 10,
+  "startup_cases_verified": 72,
+  "startup_parent_inputs_reparsed": 6,
+  "rbf_sha256": "89170e090035474a803ce33c16572e84b08af3fe801e84ed163af19d845b1652",
+  "canonical_record_sha256": "bbf34ca0fd31ca194a74096208100a232f7126422fec5f17599e8e417b08111d",
+  "reset_timing_receipt_sha256": "f72f6cb8e4984ab3a29cbaf5b56e7816d3f09ecf09d8ca8607af3da5154f279e",
+  "hardware_access": "not-performed",
+  "package_exported": false
+}

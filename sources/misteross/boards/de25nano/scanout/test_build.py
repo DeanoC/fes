@@ -1,8 +1,11 @@
 """Actual upstream composition, retained-source and fail-closed mutation guards."""
+import gzip
 import importlib.util
 import json
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -25,9 +28,232 @@ class ScanoutBuildTests(unittest.TestCase):
         self.sources = B.capture()
         self.sources.update(self.fixture.sources)
 
-    def prepare(self, revision=None):
+    def prepare(self, revision=None, *, hps_first=False, linux_dma=False, package_build_id=None):
         with mock.patch.object(B, "capture", return_value=self.sources):
-            return B.prepare(self.fixture.archive, self.root / "prepared", revision)
+            return B.prepare(self.fixture.archive, self.root / "prepared", revision, hps_first=hps_first, linux_dma=linux_dma,
+                             package_build_id=package_build_id)
+
+    def test_package_identity_is_inserted_before_generation_with_an_explicit_seed(self):
+        selected = "0123456789abcdeffedcba9876543210"
+        original_load = B.load
+        def load(path, name):
+            module = original_load(path, name)
+            if name == "scanout_retained_linux_dma":
+                # The small upstream fixture has placeholder adapter RTL;
+                # its real conversion is exercised by LinuxDMAProfileTests.
+                module.configure = mock.Mock(return_value=("# fixture port configuration\n",
+                    {"master_ownership": "scanout-only"}, {}))
+                module.retire_managed_jtag_constraints = mock.Mock(return_value={})
+            return module
+        with mock.patch.object(B, "load", side_effect=load):
+            output, _, _, _ = self.prepare("a" * 40, hps_first=True, linux_dma=True, package_build_id=selected)
+        directory = output / "combined/hps"
+        inputs = json.loads((directory / "inputs.json").read_text())
+        self.assertEqual(inputs["scanout"]["build_id"], selected)
+        self.assertEqual(inputs["scanout"]["build_identity_scheme"], "canonical-functional-record-v2")
+        self.assertEqual(inputs["scanout"]["reset_timing"], B.TIMED_RESET_RELEASE)
+        self.assertEqual(inputs["scanout"]["managed_fabric"], B.MANAGED_FABRIC)
+        self.assertEqual(B.verify_reset_synchronizers(directory / "project")["sdc_clear_pins"], 8)
+        self.assertIn("set_instance_parameter_value fes_scanout BUILD_ID 0x" + selected,
+                      (directory / "project/integrate-mailbox.tcl").read_text())
+        self.assertIn("set_global_assignment -name SEED 1\n", (directory / "project/golden_top.qsf").read_text())
+
+    def reset_timing_fixture(self):
+        # Timing-only fixture: normal preparation supplies the board/source
+        # snapshot; the actual vendor SDC comes from a retained 26.3 compile.
+        output, combined, hps, display = self.prepare(hps_first=True)
+        directory = output / "combined/hps"
+        inputs = json.loads((directory / "inputs.json").read_text())
+        inputs["f2sdram_master_profile"] = "scanout-only"
+        inputs["scanout"].update(build_identity_scheme="canonical-functional-record-v2",
+                                 reset_timing=B.TIMED_RESET_RELEASE, managed_fabric=B.MANAGED_FABRIC)
+        path = directory / "project/fes_mailbox/clocks.sdc"
+        path.write_text(B.timed_scanout_sdc(path.read_text()))
+        inputs["scanout"]["source_sha256"]["clocks.sdc"] = B.sha(path.read_bytes())
+        (directory / "inputs.json").write_text(json.dumps(inputs))
+        vendor = gzip.decompress((B.HERE.parents[2] /
+            "tests/fixtures/de25_reset_controller.sdc.gz").read_bytes())
+        for i in range(6):
+            path = directory / f"project/generated-{i}/altera_reset_controller.sdc"
+            path.parent.mkdir()
+            path.write_bytes(vendor)
+        return output, directory, hps
+
+    def test_canonical_reset_repair_retains_vendor_inputs_and_checks_both_receipts(self):
+        _, directory, _ = self.reset_timing_fixture()
+        record = B.repair_generated_reset_timing(directory)
+        self.assertEqual(record["timed_instances"], list(B.TIMED_RESET_INSTANCES))
+        self.assertEqual(len(record["files"]), 6)
+        self.assertEqual(B.verify_generated_reset_timing(directory), record)
+        for name, row in record["files"].items():
+            self.assertEqual(row["before_sha256"], B.RESET_SDC_SHA256)
+            self.assertEqual(B.sha((directory / "reset-timing-originals" / name).read_bytes()), row["before_sha256"])
+            self.assertNotEqual(row["before_sha256"], row["after_sha256"])
+        for name in ("project/generated-0/altera_reset_controller.sdc",
+                     "reset-timing-originals/generated-0/altera_reset_controller.sdc",
+                     "project/fes_mailbox/clocks.sdc"):
+            path = directory / name
+            original = path.read_bytes()
+            try:
+                path.write_bytes(original + b"\n")
+                with self.subTest(path=name), self.assertRaises(ValueError):
+                    B.verify_generated_reset_timing(directory)
+            finally:
+                path.write_bytes(original)
+
+    def test_reset_repair_rejects_unknown_vendor_files_inventory_links_and_profile(self):
+        _, directory, _ = self.reset_timing_fixture()
+        path = directory / "project/generated-0/altera_reset_controller.sdc"
+        original = path.read_bytes()
+        for raw in (original + b"\n", original.replace(b"set_false_path", b"set_max_delay", 1)):
+            with self.assertRaisesRegex(ValueError, "reviewed Quartus 26.3"):
+                B.timed_vendor_reset_sdc(raw)
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, "six files"):
+            B.reset_sdc_files(directory / "project")
+        path.symlink_to(directory / "project/generated-1/altera_reset_controller.sdc")
+        with self.assertRaisesRegex(ValueError, "six files"):
+            B.reset_sdc_files(directory / "project")
+        inputs = json.loads((directory / "inputs.json").read_text())
+        for changed in (dict(inputs["scanout"], reset_timing="other"),
+                        dict(inputs["scanout"], managed_fabric="other"),
+                        dict(inputs["scanout"], managed_fabric=None),
+                        dict(inputs["scanout"], build_identity_scheme="diagnostic-source-profile"),
+                        dict(inputs["scanout"], hps_initialization="AFTER INIT_DONE")):
+            with self.assertRaises(ValueError):
+                B.timed_reset_release(dict(inputs, scanout=changed))
+
+    @unittest.skipUnless(shutil.which("tclsh"), "Tcl interpreter is unavailable")
+    def test_actual_sdc_guard_times_only_selected_receivers_and_preserves_other_cuts(self):
+        raw = gzip.decompress((B.HERE.parents[2] /
+            "tests/fixtures/de25_reset_controller.sdc.gz").read_bytes())
+        changed = B.timed_vendor_reset_sdc(raw).decode()
+        conditions = re.findall(r"(?m)^if \{(\$(?:aclr|clrn)_counter > 0 && .+)\} \{$", changed)
+        self.assertEqual(len(conditions), 2)
+        others = ("soc_inst|rst_controller_001", "soc_inst|subsys_periph|fes_ctrl_cdc|fifo|read_reset_sync",
+                  "soc_inst|subsys_debug|fpga_m|rst_controller")
+        script = ["proc get_current_instance {} {return $::scope}", "set aclr_counter 1", "set clrn_counter 1"]
+        for condition in conditions:
+            for scope in (*B.TIMED_RESET_INSTANCES, *others):
+                script += ["set scope {" + scope + "}", "if {" + condition + "} {puts cut} else {puts timed}"]
+        result = subprocess.run([shutil.which("tclsh")], input="\n".join(script), text=True,
+                                capture_output=True, check=True, timeout=10)
+        self.assertEqual(len(B.TIMED_RESET_INSTANCES), 3)
+        self.assertEqual(result.stdout.splitlines(), (["timed"] * 3 + ["cut"] * 3) * 2)
+
+    def test_compile_refuses_regenerated_reset_cuts_before_linux_conversion(self):
+        output, directory, hps = self.reset_timing_fixture()
+        B.repair_generated_reset_timing(directory)
+        def compile_then_restore(*args):
+            path = directory / "project/generated-0/altera_reset_controller.sdc"
+            path.write_bytes((directory / "reset-timing-originals/generated-0/altera_reset_controller.sdc").read_bytes())
+            return directory / "not-reached.sof"
+        generation = {"scanout": {"managed_fabric": {"fixture": True}}}
+        (directory / "generation.json").write_text(json.dumps(generation))
+        with mock.patch.object(hps, "compile_project", side_effect=compile_then_restore), \
+             mock.patch.object(B, "verify_managed_fabric", return_value={"fixture": True}), \
+             mock.patch.object(hps, "linux_configuration_artifacts") as convert:
+            with self.assertRaisesRegex(ValueError, "same-clock reset constraints changed"):
+                B.compile_project(output, hps, None, None)
+        convert.assert_not_called()
+
+    def test_managed_graph_changes_stop_before_compile_or_linux_conversion(self):
+        output, directory, hps = self.reset_timing_fixture()
+        reset = B.repair_generated_reset_timing(directory)
+        generation = {"scanout": {"managed_fabric": {"fixture": True}, "reset_timing": reset}}
+        (directory / "generation.json").write_text(json.dumps(generation))
+        for stage, values, compile_calls in (("before", [{"changed": True}], 0),
+                                            ("after", [{"fixture": True}, {"changed": True}], 1)):
+            with self.subTest(stage=stage), \
+                 mock.patch.object(B, "verify_managed_fabric", side_effect=values), \
+                 mock.patch.object(hps, "compile_project", return_value=directory / "candidate.sof") as compile, \
+                 mock.patch.object(hps, "linux_configuration_artifacts") as convert:
+                with self.assertRaisesRegex(ValueError, "managed fabric differs"):
+                    B.compile_project(output, hps, None, None)
+                self.assertEqual(compile.call_count, compile_calls)
+                convert.assert_not_called()
+
+    def test_captured_managed_verifier_is_checked_before_execution(self):
+        _, directory, hps = self.reset_timing_fixture()
+        path = directory / "project/fes_mailbox/linux_dma.py"
+        path.write_bytes(path.read_bytes() + b"\nraise RuntimeError('must not execute altered verifier')\n")
+        with mock.patch.object(B, "load") as load:
+            with self.assertRaisesRegex(ValueError, "differs from captured source"):
+                B.verify_managed_fabric(directory, hps)
+            load.assert_not_called()
+
+    def test_retained_hdmi_derivation_and_input_binding_fail_closed(self):
+        output, _, hps, _ = self.prepare()
+        project = output / "combined/hps/project"
+        inputs = json.loads((project.parent / "inputs.json").read_text())
+        checked = B.verify_hdmi_inputs(project, inputs, hps)
+        self.assertEqual(checked["input_clock_hz"], 50000000)
+        self.assertEqual(checked["input_stages"], 2)
+        self.assertEqual(checked["acknowledge_samples_redirected"], ["ACK1", "ACK2", "ACK3"])
+        self.assertTrue((output / "hdmi-vendor-inputs/I2C_Controller.v").is_file())
+        self.assertFalse((project / "fes_combined/I2C_Controller.v").exists())
+        qsf = (project / "golden_top.qsf").read_text()
+        self.assertIn("VERILOG_FILE fes_mailbox/fes_de25_scanout_i2c_controller.v", qsf)
+        board = project / "fes_mailbox/fes_de25_scanout_board.v"
+        original = board.read_text()
+        for before, after in ((".I2C_SDAT_IN(hdmi_sda_sync[1])", ".I2C_SDAT_IN(HDMI_I2C_SDA)"),
+                (".HDMI_TX_INT(hdmi_int_sync[1])", ".HDMI_TX_INT(HDMI_TX_INT)"),
+                ("always @(posedge CLOCK0_50 or negedge config_reset_n) begin", "always @(posedge system_clk or negedge config_reset_n) begin")):
+            board.write_text(original.replace(before, after, 1))
+            with self.subTest(after=after), self.assertRaises(ValueError):
+                B.verify_hdmi_inputs(project, inputs, hps)
+        board.write_text(original)
+        controller = project / "fes_mailbox/fes_de25_scanout_i2c_controller.v"
+        controller.write_bytes(controller.read_bytes() + b"\n")
+        with self.assertRaisesRegex(ValueError, "derived source changed"):
+            B.verify_hdmi_inputs(project, inputs, hps)
+
+    def test_hdmi_derivation_refuses_unknown_raw_reads_and_incomplete_handshake(self):
+        output, _, _, _ = self.prepare()
+        helper = B.load(B.HERE / "hdmi_inputs.py", "hdmi_input_test")
+        raw = output / "hdmi-vendor-inputs"
+        config = (raw / "I2C_HDMI_Config.v").read_bytes()
+        controller = (raw / "I2C_Controller.v").read_bytes()
+        for changed in (controller + b"wire extra = I2C_SDAT;\n",
+                        controller.replace(b"ACK2=I2C_SDAT;", b"ACK2=1'b0;"),
+                        controller + b"always @(*) ACK1=I2C_SDAT;\n"):
+            with self.subTest(changed=changed[-40:]), self.assertRaises(ValueError):
+                helper.derive(config, changed)
+        with self.assertRaises(ValueError):
+            helper.derive(config.replace(b"mSetup_ST <= 1;", b"mSetup_ST <= 2;"), controller)
+
+    def test_package_identity_rejects_wrong_profile_dirty_source_zero_and_invalid_ids(self):
+        for revision, linux_dma, value in ((None, True, "a" * 32), ("b" * 40, False, "a" * 32),
+                ("b" * 40, True, "0" * 32), ("b" * 40, True, "A" * 32),
+                ("b" * 40, True, "a" * 31), ("b" * 40, True, 1)):
+            with self.subTest(revision=revision, linux_dma=linux_dma, value=value), self.assertRaises(ValueError):
+                self.prepare(revision, hps_first=True, linux_dma=linux_dma, package_build_id=value)
+
+    def test_build_identity_binds_actual_sources_and_profile(self):
+        output, _, _, _ = self.prepare("a" * 40, hps_first=True)
+        directory = output / "combined/hps"
+        inputs = json.loads((directory / "inputs.json").read_text())
+        selected = inputs["scanout"]["build_id"]
+        self.assertRegex(selected, r"^[0-9a-f]{32}$")
+        self.assertIn("set_instance_parameter_value fes_scanout BUILD_ID 0x" + selected,
+                      (directory / "project/integrate-mailbox.tcl").read_text())
+        self.assertEqual(selected, B.build_identity(dict(reversed(list(self.sources.items()))), True, False))
+        self.assertNotEqual(selected, B.build_identity(self.sources, True, True))
+        changed = dict(self.sources)
+        changed[B.BOARD + "scanout/fes_de25_scanout.v"] += b"\n"
+        self.assertNotEqual(selected, B.build_identity(changed, True, False))
+
+    def test_generated_build_identity_refuses_zero_mismatch_and_overflow(self):
+        endpoint = ET.Element("module")
+        value = ET.SubElement(ET.SubElement(endpoint, "parameter", {"name": "BUILD_ID"}), "value")
+        expected = "0123456789abcdeffedcba9876543210"
+        for actual in ("0x" + expected, "128'h" + expected, str(int(expected, 16))):
+            value.text = actual
+            self.assertEqual(B.endpoint_build_identity(self.root, endpoint, None, expected)["build_id"], expected)
+        for actual in ("0", "0x1", str(1 << 128), "unknown"):
+            value.text = actual
+            with self.subTest(actual=actual), self.assertRaises(ValueError):
+                B.endpoint_build_identity(self.root, endpoint, None, expected)
 
     def test_visibility_cdc_cut_targets_only_the_registered_request_to_the_first_d_pin(self):
         sdc = self.sources[B.BOARD + "scanout/clocks.sdc"].decode()
@@ -47,7 +273,7 @@ class ScanoutBuildTests(unittest.TestCase):
         # the synchronizer; lock loss still clears the pixel release at once.
         self.assertIn("always @(posedge system_clk or negedge top_reset_n)\n"
                       "        if (!top_reset_n) visible_request <= 1'b0;\n"
-                      "        else visible_request <= first_lock_seen && qualified_lock && !fault;", board)
+                      "        else visible_request <= first_lock_seen && qualified_lock && !fault && hdmi_ready_sync[1];", board)
         self.assertIn("fes_de25_top_reset visible_release (.clk(pixel_clk), .ninit_done(1'b0),\n"
                       "        .pll_locked(qualified_lock), .reset_n(visible_reset_n));", board)
         self.assertIn("always @(posedge pixel_clk or negedge visible_reset_n)", board)
@@ -90,6 +316,43 @@ class ScanoutBuildTests(unittest.TestCase):
         self.assertEqual((project / self.fixture.hps.EMIF).read_bytes(), self.fixture.files[self.fixture.hps.EMIF])
         self.assertEqual((project / self.fixture.hps.BOOT).read_bytes(), self.fixture.files[self.fixture.hps.BOOT])
 
+    def test_guard_sits_before_pixel_crossing_on_independent_system_clock_and_reset(self):
+        output, _, _, _ = self.prepare()
+        project = output / "combined/hps/project"
+        script = (project / "integrate-mailbox.tcl").read_text()
+        self.assertIn("add_connection pb_cpu_0.m0 fes_scanout_guard.avs", script)
+        self.assertIn("add_connection fes_scanout_guard.avm fes_ctrl_cdc.s0", script)
+        self.assertIn("add_connection periph_clk.out_clk fes_scanout_guard.clk", script)
+        self.assertIn("add_connection periph_rst_in.out_reset fes_scanout_guard.reset", script)
+        self.assertNotIn("add_connection fes_scanout_system_reset.out_reset fes_scanout_guard.reset", script)
+        self.assertNotIn("add_connection pb_cpu_0.m0 fes_ctrl_cdc.s0", script)
+        self.assertEqual((project / "fes_mailbox/fes_de25_scanout_guard.v").read_bytes(),
+                         self.sources[B.BOARD + "scanout/fes_de25_scanout_guard.v"])
+
+    def test_linux_dma_preparation_captures_exclusive_profile_and_renders_real_removal(self):
+        original_load = B.load
+        def load(path, name):
+            module = original_load(path, name)
+            if name == "scanout_retained_linux_dma":
+                # The upstream fixture has a placeholder custom-IP description;
+                # conversion has its own parser tests. Exercise the real retained
+                # isolation derivation and caller profile/receipt wiring here.
+                module.configure = mock.Mock(return_value=("# fixture port configuration\n",
+                    {"master_ownership": "scanout-only"}, {}))
+            return module
+        with mock.patch.object(B, "load", side_effect=load):
+            output, _, _, _ = self.prepare(hps_first=True, linux_dma=True)
+        project = output / "combined/hps/project"
+        script = (project / "integrate-mailbox.tcl").read_text()
+        self.assertNotIn("fes_ddr_probe", script)
+        self.assertNotIn("fes_probe_mem", script)
+        self.assertIn("remove_instance ext_hps_f2sdram_master", script)
+        self.assertIn("subsys_periph.fes_scanout_mem subsys_hps.f2sdram_adapter_axi4_sub", script)
+        inputs = json.loads((project.parent / "inputs.json").read_text())
+        self.assertEqual(inputs["f2sdram_master_profile"], "scanout-only")
+        self.assertEqual(inputs["scanout"]["linux_dma"]["master_ownership"], "scanout-only")
+        self.assertIn("removed", inputs["combined_display"]["debug_paths"])
+
     def test_source_snapshot_survives_later_working_source_mutation(self):
         revision = "a" * 40
         output, _, _, _ = self.prepare(revision)
@@ -110,7 +373,7 @@ class ScanoutBuildTests(unittest.TestCase):
         output, _, _, _ = self.prepare()
         project = output / "combined/hps/project"
         script = (project / "integrate-mailbox.tcl").read_text()
-        self.assertIn("pb_cpu_0.m0/fes_ctrl_cdc.s0 baseAddress 0x10300", script)
+        self.assertIn("pb_cpu_0.m0/fes_scanout_guard.avs baseAddress 0x10300", script)
         self.assertNotIn("@SCANOUT_BASE@", script)
         self.assertIn("subsys_periph.fes_scanout_mem/subsys_hps.f2sdram_adapter_axi4_sub baseAddress 0x0", script)
         self.assertEqual(json.loads((project.parent / "inputs.json").read_text())["scanout"]["peripheral_offset"], 0x10300)
@@ -167,6 +430,13 @@ class ScanoutBuildTests(unittest.TestCase):
         sdc_path.write_text(original_sdc.replace("set_false_path -from $scanout_visible_source -to $scanout_visible_head", "set_false_path -to $scanout_visible_head", 1))
         with self.assertRaisesRegex(ValueError, "cut only the registered visibility request"):
             B.verify_reset_synchronizers(project)
+        for before, after in (
+            ("fes_video_inst|hdmi_ready_sync[0]|d", "fes_video_inst|hdmi_ready_sync[1]|d"),
+            ("set_false_path -from $scanout_ready_source -to $scanout_ready_head", "set_false_path -to $scanout_ready_head"),
+        ):
+            sdc_path.write_text(original_sdc.replace(before, after, 1))
+            with self.subTest(after=after), self.assertRaisesRegex(ValueError, "HDMI-ready source to stage0 D"):
+                B.verify_reset_synchronizers(project)
         sdc_path.write_text(original_sdc.replace("$scanout_clear_count != 10", "$scanout_clear_count != 8", 1))
         with self.assertRaisesRegex(ValueError, "ten reset/visibility clear pins"):
             B.verify_reset_synchronizers(project)
@@ -236,6 +506,58 @@ class ScanoutBuildTests(unittest.TestCase):
                 B.compile_project(output, hps, display, None)
         self.assertFalse(json.loads((directory / "build.json").read_text())["post_compile_pixel_pll_parameters_unchanged"])
 
+    def test_hps_first_is_captured_without_changing_loader_or_dma_admission(self):
+        output, _, hps, _ = self.prepare("a" * 40, hps_first=True)
+        directory = output / "combined/hps"
+        inputs = json.loads((directory / "inputs.json").read_text())
+        qsf = (directory / "project/golden_top.qsf").read_text()
+        self.assertEqual(qsf.count('set_global_assignment -name HPS_INITIALIZATION "HPS FIRST"'), 1)
+        self.assertEqual(inputs["scanout"]["hps_initialization"], "HPS FIRST")
+        self.assertFalse(inputs["scanout"]["default_enabled"])
+        self.assertIn("not-qualified", inputs["scanout"]["dma_admission"])
+        self.assertFalse((directory / "linux-programming.json").exists())
+        with self.assertRaisesRegex(ValueError, "must be boolean"):
+            B.prepare(self.fixture.archive, self.root / "invalid", hps_first=1)
+        self.assertFalse((self.root / "invalid").exists())
+
+    def test_hps_first_compile_binds_linux_phases_without_programming(self):
+        output, _, hps, display = self.prepare("a" * 40, hps_first=True)
+        directory = output / "combined/hps"
+        project = directory / "project"
+        (directory / "generation.json").write_text("{}\n")
+        artifact = project / "output_files/golden_top.sof"
+        artifact.parent.mkdir()
+        artifact.write_bytes(b"synthetic-not-a-bitstream")
+        def compile_stub(*args):
+            (directory / "build.json").write_text("{}\n")
+            return artifact
+        calls = []
+        def convert(argv, cwd, log):
+            self.assertEqual(Path(argv[0]).name, "quartus_pfg")
+            self.assertEqual(cwd, project)
+            calls.append(list(map(str, argv)))
+            if len(calls) == 1:
+                Path(argv[3]).write_bytes(b"synthetic-complete")
+            else:
+                (directory / "linux-boot.hps.jic").write_bytes(b"synthetic-boot")
+                (directory / "linux-boot.core.rbf").write_bytes(b"synthetic-core")
+        with mock.patch.object(hps, "compile_project", side_effect=compile_stub), \
+             mock.patch.object(hps, "run_logged", side_effect=convert):
+            self.assertEqual(B.compile_project(output, hps, display, Path("/tools/quartus_sh")), artifact)
+        receipt = json.loads((directory / "linux-programming.json").read_text())
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(receipt["fes_revision"], "a" * 40)
+        self.assertEqual(receipt["hps_initialization"], "HPS FIRST")
+        self.assertEqual(len(receipt["scanout_source_sha256"]), 64)
+        self.assertEqual(receipt["inputs_sha256"], hps.digest(directory / "inputs.json"))
+        self.assertEqual(receipt["generation_sha256"], hps.digest(directory / "generation.json"))
+        self.assertEqual(receipt["f2sdram_master_profile"], "diagnostic")
+        self.assertIsNone(receipt["linux_dma"])
+        self.assertEqual(receipt["hardware_programming"], "not-performed")
+        self.assertFalse(receipt["production_admission"])
+        for name, item in receipt["artifacts"].items():
+            self.assertEqual(item["sha256"], hps.digest(directory / name))
+
     def reset_fixture(self, parameters=None, output_edges=None, output_role="reset_n"):
         expected = {"ACTIVE_LOW_RESET": "1", "SYNCHRONOUS_EDGES": "none", "NUM_RESET_OUTPUTS": "1", "USE_RESET_REQUEST": "0"}
         expected.update(parameters or {})
@@ -287,3 +609,124 @@ class ScanoutBuildTests(unittest.TestCase):
 
 
 if __name__ == "__main__": unittest.main()
+
+
+class LinuxDmaTests(unittest.TestCase):
+    def setUp(self):
+        self.helper = B.load(B.HERE / "linux_dma.py", "scanout_linux_dma_tests")
+        self.definition = (B.HERE / "generated/fes_de25_scanout.vh").read_text()
+        self.source = "# vendor prefix\n" + "".join(
+            f"add_interface_port axi4_man man_{c}user {c}user Output 8\n"
+            + r"output wire \[7:0\]   man_" + c + "user,\n"
+            + f"assign man_{c}user = 8'hE0;\n" for c in ("ar", "aw")) + "".join(
+            f"set_interface_property {interface} {field} 1\n"
+            for interface, fields in (("axi4_man", ("readIssuingCapability", "combinedIssuingCapability")),
+                                      ("axi4_sub", ("readAcceptanceCapability", "combinedAcceptanceCapability")))
+            for field in fields) + "# vendor suffix\n"
+
+    @unittest.skipUnless(shutil.which("tclsh"), "requires Tcl")
+    def test_generated_configuration_disables_f2h_only_for_canonical_menu(self):
+        hps = B.load(B.HERE.parent / "hps/build.py", "scanout_configuration_hps_test")
+        prefix = '''set width 256
+set smmu 0
+set removed {}
+proc load_system {name} {}
+proc load_component {name} {}
+proc save_system {name} {}
+proc save_component {} {}
+proc get_component_parameter_value {name} {
+    switch $name {f2s_data_width {return $::width} f2sdram_SMMU {return [expr {$::smmu ? 1 : 0}]} DATA_WIDTH {return 256}}
+    error "unexpected parameter $name"
+}
+proc set_component_parameter_value {name value} {
+    switch $name {f2s_data_width {set ::width $value} f2sdram_SMMU {set ::smmu $value} default {error "unexpected parameter $name"}}
+}
+proc get_component_interface_port_property {interface port property} {return 25}
+proc get_interface_property {name property} {
+    return [dict get {fpga2hps agilex_hps.fpga2hps fpga2hps_clk agilex_hps.fpga2hps_clock fpga2hps_rst agilex_hps.fpga2hps_reset hps_f2sdram_master hps_f2sdram.master} $name]
+}
+proc remove_interface {name} {lappend ::removed $name}
+proc remove_instance {name} {}
+'''
+        with tempfile.TemporaryDirectory() as name:
+            project = Path(name)
+            adapter = project / self.helper.ADAPTER
+            adapter.parent.mkdir(parents=True)
+            for managed in (False, True):
+                adapter.write_text(self.source)
+                script, _, changes = self.helper.configure(project, self.definition, hps, managed_fabric=managed)
+                result = subprocess.run(["tclsh"], input=prefix + "\nif {[catch {\n" + script +
+                    "\n} message]} {puts $message; exit 4}\nputs \"$width|$smmu|$removed\"\n",
+                    text=True, capture_output=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(result.stdout.strip(),
+                    "0|true|fpga2hps fpga2hps_clk fpga2hps_rst hps_f2sdram_master" if managed
+                    else "256|true|hps_f2sdram_master")
+                self.assertEqual("f2s_data_width" in changes[self.helper.HPS_IP], managed)
+                if managed:
+                    result = subprocess.run(["tclsh"], input=prefix.replace("set width 256", "set width 128") +
+                        "\nif {[catch {\n" + script + "\n} message]} {puts $message; exit 4}\n",
+                        text=True, capture_output=True, timeout=10)
+                    self.assertEqual(result.returncode, 4)
+                    self.assertIn("vendor F2H data width changed", result.stdout)
+
+    def test_exact_packing_preserves_vendor_attributes_and_nonsecure_context(self):
+        data, profile = self.helper.retarget_adapter(self.source.encode(), self.definition)
+        text = data.decode()
+        self.assertEqual(profile["stream_id"], 13)
+        self.assertFalse(profile["secure"])
+        self.assertEqual(profile["read_transactions"], 16)
+        self.assertEqual(text.count("Capability 16\n"), 4)
+        self.assertEqual(text.count("25'h0001ae0"), 2)
+        # Independently decode the raw HPS port, rather than using generated
+        # shift constants to check the same packing expression against itself.
+        words = re.findall(r"assign man_(?:ar|aw)user = 25'h([0-9a-f]+);", text)
+        self.assertEqual(len(words), 2)
+        for encoded in words:
+            word = int(encoded, 16)
+            self.assertEqual((word >> 9) & 0xffff, 13)
+            self.assertEqual((word >> 8) & 1, 0)
+            self.assertEqual(word & 0xff, 0xe0)
+        # The previous CSR-derived encoding actually selects secure stream 6.
+        self.assertEqual((0x0000de0 >> 9) & 0xffff, 6)
+        self.assertEqual((0x0000de0 >> 8) & 1, 1)
+        self.assertEqual(text.count("Output 25"), 2)
+        self.assertEqual(text.count(r"\[24:0\]"), 2)
+        self.assertTrue(text.startswith("# vendor prefix\n") and text.endswith("# vendor suffix\n"))
+        self.assertEqual(profile["kernel_binding"], "not-admitted")
+
+    def test_changed_vendor_ports_attributes_or_duplicate_assignment_are_refused(self):
+        for source in (self.source.replace("8'hE0", "8'h00", 1),
+                       self.source.replace("Output 8", "Output 16", 1),
+                       self.source + "assign man_aruser = 8'hE0;\n",
+                       self.source.replace("readIssuingCapability 1", "readIssuingCapability 2"),
+                       self.source + "set_interface_property axi4_sub readAcceptanceCapability 1\n"):
+            with self.assertRaises(ValueError):
+                self.helper.retarget_adapter(source.encode(), self.definition)
+
+    def test_reserved_sid_and_changed_layout_are_refused(self):
+        for definition in (self.definition.replace("SMMU_STREAM_ID 32'h0000000d", "SMMU_STREAM_ID 32'h0000000a"),
+                           self.definition.replace("SMMU_SID_SHIFT 32'h00000009", "SMMU_SID_SHIFT 32'h00000008"),
+                           self.definition.replace("SMMU_SECURE_BIT 32'h00000008", "SMMU_SECURE_BIT 32'h00000018")):
+            with self.assertRaises(ValueError):
+                self.helper.retarget_adapter(self.source.encode(), definition)
+
+    def test_isolation_removes_only_probe_and_memory_debug_path_and_refuses_source_drift(self):
+        hps_script = (B.HERE.parent / "hps/integrate.tcl").read_text()
+        script = hps_script.replace("@PROBE_BASE@", "0x10100").replace("@TOP_SYSTEM@", "top.qsys")
+        derived = self.helper.isolate_script(script, "save_system top.qsys\n")
+        self.assertNotIn("fes_ddr_probe", derived)
+        self.assertNotIn("fes_probe_mem", derived)
+        self.assertIn("remove_instance ext_hps_f2sdram_master", derived)
+        self.assertIn("add_instance fes_mailbox fes_de25_mailbox 1.0", derived)
+        for changed in (script.replace("fes_de25_ddr_probe 1.0", "fes_de25_ddr_probe 1X0"),
+                        script.replace("baseAddress 0x10100", "baseAddress arbitrary"),
+                        script + "save_system top.qsys\n"):
+            with self.assertRaises(ValueError): self.helper.isolate_script(changed, "save_system top.qsys\n")
+
+    def test_linux_dma_requires_hps_first_before_output_creation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "no-output"
+            with self.assertRaisesRegex(ValueError, "requires explicit HPS-first"):
+                B.prepare(Path(temp) / "missing.zip", output, linux_dma=True)
+            self.assertFalse(output.exists())

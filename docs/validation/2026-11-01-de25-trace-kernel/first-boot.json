@@ -1,0 +1,22 @@
+{
+  "boot_id": "22750e00-9d21-4602-8b91-f72457fd39e5",
+  "host": "192.168.10.168",
+  "cid": "1234564153544300200000000a019300",
+  "notes_sha256": "e06e399b84032a473faba5ce14a57665dc5bd8fadb58f33af4372a9f596bdcd1",
+  "root_receipt_sha256": "53a17111bcb06a0ce84513ff42ae26f7e3b025d2a3b856758ff0722e306efed2",
+  "mac": "02:8e:2a:b1:d3:bd",
+  "classification": "actual first boot of trace-enabled owner kernel and stable-MAC image",
+  "image_sha256": "7eb6266188823c9cd4810259fc7cc73eb70ec8f58129e5718f127fd17dd32a0b",
+  "kernel_producer": "3dab0b06b3ba191444eec36c992b4d54f64301f8",
+  "ssh": "pass; key independently read over UART after standard Dropbear -R first-connection generation",
+  "owner_permissions": "root:root0600 major10 minor124",
+  "mapping_trace_events": "actual tracefs iommu/map and iommu/unmap exist with expected fields",
+  "network_identity": "actual MAC matches SHA256 of observed fresh SD CID",
+  "fpga_loaded": false,
+  "frame_submitted": false,
+  "normal_runtime_admission": "closed",
+  "initial_observation_notes": [
+    "boot log has built-in driver readiness and one modprobe missing-modules warning",
+    "first SSH verification script stopped at ls of absent firmware directory; guarded tracing-only follow-up passes; programmer creates firmware directory when needed"
+  ]
+}

@@ -1,0 +1,13 @@
+/dts-v1/;
+
+/ {
+
+	fragment@0 {
+		target-path = "/fpga-region";
+
+		__overlay__ {
+			firmware-name = "fes-runtime-core.rbf";
+			config-complete-timeout-us = <0x1c9c380>;
+		};
+	};
+};

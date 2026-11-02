@@ -16,6 +16,7 @@ module fes_de25_computer #(
     input wire clk,
     input wire reset_n,
     input wire pixel_clk,
+    input wire video_ready,
     input wire [`FES_DE25_COMPUTER_ADDRESS_BITS-1:0] address,
     input wire read,
     input wire write,
@@ -52,6 +53,13 @@ module fes_de25_computer #(
         (transport_ready ? `FES_DE25_COMPUTER_STATUS_READY : 32'd0) |
         (gp_busy ? `FES_DE25_COMPUTER_STATUS_BUSY : 32'd0) |
         (fault_active ? `FES_DE25_COMPUTER_STATUS_FAULT : 32'd0);
+    // Board-owned HDMI completion crosses as one bit into the MMIO clock.
+    (* async_reg = "true", altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] video_ready_sync = 2'b00;
+    always @(posedge clk or negedge reset_n)
+        if (!reset_n) video_ready_sync <= 2'b00;
+        else video_ready_sync <= {video_ready_sync[0], video_ready};
+    wire [31:0] video_status = transport_ready && video_ready_sync[1] ?
+        `FES_DE25_COMPUTER_VIDEO_READY : 32'd0;
     wire [31:0] byte_address = {{(32-`FES_DE25_COMPUTER_ADDRESS_BITS){1'b0}}, address};
     reg [31:0] read_value;
     reg read_address_valid;
@@ -133,6 +141,7 @@ module fes_de25_computer #(
             `FES_DE25_COMPUTER_GPO_OFFSET: read_value = gpo;
             `FES_DE25_COMPUTER_GPI_OFFSET: read_value = gpi;
             `FES_DE25_COMPUTER_FAULT_OFFSET: read_value = faults;
+            `FES_DE25_COMPUTER_VIDEO_STATUS_OFFSET: read_value = video_status;
             default: begin read_value = 32'd0; read_address_valid = 1'b0; end
         endcase
         write_fault = 32'd0;

@@ -2,22 +2,35 @@
 
 This module implements Linux-owned coherent storage, revocable grant mappings
 and the `fes.fabric.de25-scanout` display lifecycle. Its production platform
-probe always returns `EOPNOTSUPP`. It registers no allocation device and accepts
-no DT, module or userspace option that qualifies DE25 hardware. The actual
-fabric device, SID, translation, physical firewall, ordered clock-domain access
-and boot/reset epoch binding remain missing. Nothing installs or loads this
-module into the DE25 image or runtime.
+probe returns `EOPNOTSUPP` in ordinary builds. The default-off
+`FES_DE25_DMA_PLATFORM` built-in candidate connects a permanent device owner,
+guarded transport and allocation control; it does not enable normal FES runtime
+admission or qualify the physical stream/firewall. Nothing installs or loads
+this module into the DE25 image or runtime.
 
 The implementation has a separate ABI from ARMv7 `fes-window`. It does not map
 a reserved physical window, use `/dev/mem`, invoke PL310 cache operations, or
 accept a caller-provided physical/DMA address.
 
-## Allocation and ABI version 2
+## Allocation and ABI version 3
 
-The private constructor receives the actual DMA device and an exclusively owned,
-driver-controlled register transport. The KUnit suite is its only consumer. It
-sets the device's 32-bit coherent DMA mask, allocates one 8 MiB region with
-`dma_alloc_coherent`, clears it, and maps it with `dma_mmap_coherent`. CPU and DMA
+The private constructor receives the actual DMA device and a driver-controlled
+register transport. Its mandatory `acquire` callback must exclusively lease the
+engine and retain context/MMIO/device-domain resources before the constructor
+reads even the epoch or identity. A second allocation is refused while that
+lease is held, including while the first engine is still unconfigured. The
+matching `release` runs exactly once after storage and mapping references are
+destroyed, or on a constructor error after successful acquisition. Acquisition
+failure performs no register access and does not release another owner's lease.
+The KUnit suite and default-off permanent owner candidate consume this
+constructor. It sets the device's 32-bit coherent DMA mask, allocates one 8 MiB region through
+`dma_alloc_attrs` with `DMA_ATTR_FORCE_CONTIGUOUS`, clears it, and maps it
+with `dma_mmap_attrs` using that same attribute. Release passes the same attribute
+to `dma_free_attrs`. The pinned IOMMU implementation uses contiguous backing
+through this path, instead of a page array mapped by `vm_map_pages`. Allocation
+can fail if suitable contiguous storage is unavailable; it does not fall back
+to a mapping shape the driver cannot revoke. The strict I/O-PFN mapping checks
+still apply. See [Linux DMA attributes](https://docs.kernel.org/core-api/dma-attributes.html#dma-attr-force-contiguous). CPU and DMA
 addresses remain distinct kernel values. The complete allocation must fit the
 32-bit DMA space and meet the generated grant alignment; low IOVAs remain valid.
 Geometry comes from the generated C consumer of `fes.fabric.de25-scanout`:
@@ -25,10 +38,21 @@ two 4 MiB slots containing fixed 1280×720 BGRX8888 frames, stride 5120 bytes.
 
 Each grant has a unique anonymous inode. `INFO` returns geometry, a nonzero
 64-bit allocation generation, cached lifetime/frame state and the available
-back slot, without addresses. `PUBLISH` accepts version 2, that generation, a
-nonzero increasing 32-bit sequence, a slot and zero reserved bits. Old version 1
-requests are refused. Generation allocation saturates rather than wrapping;
+back slot, without addresses. `PUBLISH` accepts version 3, that generation, a
+nonzero increasing 32-bit sequence, a slot and zero reserved bits. Private versions 1 and 2
+are refused. Generation allocation saturates rather than wrapping;
 sequence exhaustion requires revocation and a new allocation.
+
+ABI 3 also reports the observed immutable 128-bit hardware build identity as
+four words, least-significant first. Creation checks interface version 1.1 and
+a nonzero build ID before allocating storage. Snapshot validation compares the
+image identity with the original grant, including before and after CLEAR;
+identity loss retains the uncertain exposure and provider lease. INFO remains
+a cached observation. A cold POLL also obtains a fresh snapshot and checks the
+unchanged unconfigured/drained tuple while observing DisplayReady, before any
+submission; transmitter configuration need not be guessed or followed by a
+fixed sleep. No CPU or DMA address is added to the ABI. The previous
+INFO/POLL request sizes and legacy PUBLISH versions cannot select this ABI.
 
 Initially the logical front slot is zero and the first submission must use slot
 one. The kernel constructs all grant, generation, sequence and slot register
@@ -37,7 +61,7 @@ The first SUBMIT configures and starts fetching the intended slot atomically.
 There is one pending frame. Acceptance does not mean the frame was displayed,
 and neither the previous front nor pending slot is available for reuse.
 
-`POLL` requires version 2, the current allocation generation and zero reserved
+`POLL` requires version 3, the current allocation generation and zero reserved
 bits. It obtains a frozen hardware snapshot: read the serial, issue SNAPSHOT,
 order it, wait a bounded number of accesses for the serial to advance modulo
 32 bits, read the frozen fields, and recheck the serial. It validates the full
@@ -67,14 +91,29 @@ callback clears the kernel's empty generic `vma_dummy_vm_ops` sentinel before
 invoking the DMA API; real mapper-installed operations still cause refusal.
 
 The private backend supplies a nonzero external reset epoch and bounded,
-ordered `read32`, `write32` and `io_fence` operations. No physical MMIO backend
-is implemented or admitted. A callback error after SUBMIT may already have
+ordered `read32`, `write32` and `io_fence` operations. The private
+`de25_dma_guard` transport implements `readl`/`writel` with explicit barriers and
+checks local guard identity, version, timeout, epoch, idle status and sticky
+faults before and after each endpoint access. A timed-out proxy's dummy zero is
+an error, never endpoint evidence. A faulted context stays poisoned even if
+registers later appear healthy. Endpoint operations cannot address the guard's
+epoch/configuration window. Claiming a fresh guard writes its nonzero epoch
+once and verifies it; it never overwrites or adopts an existing owner's epoch.
+
+This transport is not yet wired to an admitted physical provider. Its caller
+must supply a mapped, live system-clock guard window and retain the full
+resource/reconfiguration lease for all calls. It cannot make an unconfigured
+fabric or dead HPS/bridge/guard clock safe to probe. Epoch selection belongs to
+the kernel loader's fresh-configuration lifecycle; it cannot assert old DMA
+drained. No userspace or DT flag bypasses device/domain qualification.
+A callback error after SUBMIT may already have
 enabled DMA and retains exposure. Userspace cannot supply a drain proof.
-The kernel caller must retain callback code/context, exclusive engine ownership
-and device DMA/domain resources until final grant destruction, including an
-uncertain exposure. `get_device` does not retain devm resources or a detached
-translation domain. A constructor refuses an already configured engine; it
-never clears a previous owner's grant.
+Callbacks are private to the same kernel module. The provider must implement
+real context/device/domain retention and prevent detach/reconfiguration for the
+whole acquired lease, including uncertain exposure. `get_device` does not
+retain devm resources or a detached translation domain; adding lease callbacks
+alone does not qualify a physical provider. A constructor also refuses an
+already configured engine; it never clears a previous owner's grant.
 
 ## Revocation and lifetime
 
@@ -96,8 +135,17 @@ allocation becomes releasable and the engine can accept a new grant.
 Exposed DMA holds an independent allocation reference and module pin alongside
 the file, inode and device references. Errors, missing/changed epochs, failed
 drain or failed cleanup retain these references and mark uncertainty. Final close
-makes one stop/drain attempt; it cannot free uncertain exposed storage. No timeout, frame
-completion or client-close path declares outstanding traffic gone. Actual reset
+makes one stop/drain attempt; it cannot free uncertain exposed storage. The
+private device owner can obtain an opaque, independently referenced grant handle
+while its file is live, before passing the file to a client. The handle retains
+the allocation and module after the last client closes. It lets the owner retry
+the same revocation path without retaining or dereferencing a dead file. A
+successful old-epoch drain and cleanup is still required. Dropping the handle
+never discards the separate exposure pin, and does not revoke a live client.
+The owner must release its own handle after recovery; successful drain does not
+release the backend lease while storage references remain. This is a private
+kernel API, not a new userspace recovery override.
+No timeout, frame completion or client-close path declares outstanding traffic gone. Actual reset
 recovery and device detach qualification remain future work.
 
 ## Off-board kernel tests
@@ -114,13 +162,129 @@ acceptance versus full-frame display, alternating slot reuse, contradictory
 completion, frame faults, generation/reset mismatch, counter exhaustion,
 bounded/unstable snapshots and failed-start/drain retention. VMA tests use a real
 temporary mm and kernel uaccess for INFO/PUBLISH/POLL, revoke-before-stop,
-post-revoke faults, refused writable page pins, denied remapping and the
-mmap-callback/VMA-link race. A forced mapper refusal verifies a newly recorded
-`mm` reference is removed on the error path. Test hooks compile out when the
-test config is off.
+post-revoke faults, contiguous PFNs across the full allocation, an offset alias
+that sees the same storage and is revoked together, refused writable page pins,
+denied remapping and the mmap-callback/VMA-link race. A forced mapper refusal
+verifies a newly recorded `mm` reference is removed on the error path. Test hooks
+compile out when the test config is off.
+
+Lease cases additionally check refusal of a second unconfigured allocation,
+missing ownership callbacks, failed acquisition before all register effects,
+constructor-error unwinding and retention through uncertain drain. Successful
+drain alone cannot release the backend while its allocation still exists.
+The release observer verifies that storage destruction precedes lease release.
+
+Guard cases exercise the real `readl`/`writel` path on kernel test RAM and a
+scripted raw-register device for fault/reset interleavings. They cover missing
+identity/timeout metadata, foreign or ignored epoch writes, pre-existing busy
+state, post-access response faults, reset during reads and sticky software
+poisoning. A constructor case connects the guarded transport through the
+exclusive backend lease to the actual DMA allocator. These tests do not model
+ARM Device-memory ordering, physical HPS bridge liveness or FPGA transactions;
+the separate RTL/generated-interconnect tests cover their own proxy behavior.
 
 These are kernel software checks with a scripted register device. They do not
 emulate or qualify the DE25 fabric master, SMMU, firewall, DDR, clock crossing,
 kernel boot, HDMI, runtime or interactive MENU. The separate RTL and generated
 interconnect simulations cover their own artifacts. Loading against the board's
 kernel additionally requires matching config and symbol-version evidence.
+
+The test dependency lock selects the authenticated AArch64 SDK from image
+producer `0da63d1044cc7ecf9908efba52af17b3e55e6271`, including C++ runtime
+support. This changes the SDK hash, not the pinned vendor kernel or builder.
+
+The [contiguous allocation and revocation record](../../../docs/validation/2026-10-31-de25-contiguous-dma/README.md)
+retains all 17 passing AArch64 KUnit cases and the matching prepared-kernel
+module build. Physical stream/domain and normal-kit admission remain open.
+
+## Permanent device owner candidate
+
+`FES_DE25_DMA_PLATFORM` defaults off and requires a built-in driver, IOMMU API
+and OF overlays. It implements `/dev/fes-de25-scanout` (root only, also requiring
+CAP_SYS_RAWIO): OWNER_ABI returns the positive ABI version (3), even before a
+profile is ready, without MMIO or allocation. Clients require that exact value
+before OWNER_ALLOC; an old kernel's ENOTTY must refuse before any legacy grant
+is allocated. OWNER_ALLOC returns a CLOEXEC grant file, and OWNER_REAP revokes
+its grant through the existing checked drain path before releasing the owner's
+recovery handle. Existing client storage references still hold the resource
+lease, even after a successful reap. A failed reap retains the handle and lease.
+`OWNER_IDLE` is a read-only control request with no
+argument. It returns zero only when the profile is ready and neither an active
+allocation nor a storage/client/VMA lease remains; otherwise it returns
+`EBUSY`, or `ENODEV` for an unready profile. It takes the allocation/owner locks
+and performs no MMIO, allocation, revocation, REAP or lease acquisition.
+In particular, successful REAP can still leave it busy until the last client's
+descriptor and mapping are gone. This lets a serialized lifecycle distinguish
+retained peer references before attempting overlay removal. The result is an
+observation, not a reservation, DMA drain proof, configuration identity check
+or permission to program. Existing maintenance serialization and the strict
+overlay exclusion remain required. An older installed kernel returns `ENOTTY`;
+callers must not interpret that as idle. The query has kernel software tests;
+it is not yet installed or tested on the physical board.
+
+`OWNER_INFO` copies the active owner's cached grant metadata, including the
+original observed build ID and generation, without a grant descriptor. It
+returns ENODATA if no active owner handle exists and is gated by the same root
+CAP_SYS_RAWIO check. It takes no reference or hardware action and returns no
+address. This permits a serialized restarting lifecycle to compare a retained
+configuration with its own known record before considering checked recovery;
+cached metadata alone authorizes neither adoption nor REAP. Unsupported or
+mismatched observations must remain refused.
+
+An abandoned handle can be reaped by a later owner-control connection.
+
+The base device must be permanent, outside overlays, with exactly one 256-byte
+control resource at the generated architectural base plus peripheral offset,
+exactly one `iommus` entry with stream ID 13, and a translated DMA/DMA-FQ domain
+whose group contains only this device. `fes,fpga-region` points to a permanent
+root-level `fpga-region` with a direct `fpga-mgr` and a fixed bridge topology.
+An absent `fpga-bridges` list is supported, matching the pinned Terasic Agilex5
+base tree and SDM-managed configuration sequencing. SMMU, region, manager and bridge platform suppliers and their bound ancestors must be
+built-in drivers with sysfs bind/unbind disabled. The owner also disables these
+attributes. The built-in candidate also checks parent and transitive supplier
+bindings through the pinned driver-core device-link API under SRCU. It includes
+the pinned kernel's private driver-core header only for this built-in option;
+ordinary module builds do not depend on non-exported core APIs. Unbound or
+busy suppliers defer, and removable/dynamic suppliers are refused. This preserves
+ordinary driver-core default-domain ownership and
+prevents supported unbind/removal from dismantling resources under allocations.
+The current kernel does not meet that supplier contract and remains refused;
+there is no module parameter or DT waiver. Kernel-internal forceful teardown or
+privileged out-of-band JTAG is outside this supported lifecycle.
+
+Probe reserves/maps the control resource without reading the fabric. A priority
+100 OF-overlay notifier runs before the stock FPGA-region notifier. PRE_APPLY
+and PRE_REMOVE reject while any allocation lease remains, including an empty
+engine, a closed client with uncertain drain, or revoked storage still held by a
+client. Otherwise they mark the owner unavailable before bridges can be disabled
+or devices detached, and retire the old guard. A later failure leaves it
+unavailable. Ancestor overlays cannot mutate its permanent topology; per-image
+bridge, manager, compatible, status and range overrides are refused. Dedicated image overlays target the region itself.
+
+Only POST_APPLY of an overlay that programs firmware and describes a
+`fes,de25-linux-dma-scanout` child constructs and claims a new guard. Fresh
+nonzero epoch tokens do not wrap. Unknown configuration is never probed or
+adopted. This compatible describes hardware, as other Linux device bindings do;
+it is not artifact authentication. The supported runtime must construct the
+overlay from its admitted package and matching bitstream. Device-tree metadata
+cannot prove a wrong or unconfigured bridge safe to probe.
+
+The owner tests call the actual allocation/reap and notification paths with
+scripted guard/endpoint registers and a test device. Positive lifecycle cases
+apply/remove real compiled OF overlays through registered priority-100 owner and
+priority-zero modeled programmer notifiers. They use the actual control ioctl
+callback, private descriptor table, CLOEXEC bit, file references and final close.
+Two full cycles require fresh guard epochs and allocation generations. Actual
+removal is refused before later notifiers or node detachment while storage is
+live, including uncertain drain after the last client closes. Failure cases
+reject incomplete programming and wrong guard identity, clean up the actual
+changeset and then admit a fresh configuration. Control rejection checks include
+actual credentials without CAP_SYS_RAWIO, unknown commands and nonzero arguments.
+
+These fixtures bypass physical binding only in KUnit. The programmer simulates
+firmware completion/reset; it does not call the SDM manager or load an RBF.
+Control tests enter the real ioctl callback, not a userspace /dev open or ioctl
+syscall. No domain, stream, permanent supplier binding, physical clock/bridge or
+board lifecycle is qualified. Still required before activation: admitted
+loader/package and syscall integration, matching boot/rootfs, concurrency and
+physical acceptance of the prepared kernel/base tree.

@@ -4,6 +4,18 @@ set -eu
 target=${1:?TARGET_DIR is required}
 repo=$(CDPATH='' cd -- "$(dirname "$0")/../../.." && pwd)
 fogcast=${FOGCAST_DIR:?FOGCAST_DIR is required}
+board=${FES_TARGET_BOARD:-de10-nano}
+case "$board" in
+  de10-nano) architecture=armv7 ;;
+  de25-nano)
+    architecture=aarch64
+    [ -z "${FES_WINDOW_DRIVER_DIR:-}" ] || {
+      printf '%s\n' 'native-post-build: DE25 cannot carry a Cyclone V window driver' >&2
+      exit 2
+    }
+    ;;
+  *) printf '%s\n' 'native-post-build: unsupported target board' >&2; exit 2 ;;
+esac
 native_mode=${NATIVE_RUNTIME_MODE:-package-only}
 case "$native_mode" in
   package-only) : ;;
@@ -12,8 +24,8 @@ case "$native_mode" in
     exit 2
     ;;
 esac
-launcher=$fogcast/bin/fogcast-kit-linux-armv7
-tenfoot=$fogcast/bin/fogcast-tenfoot-linux-armv7
+launcher=$fogcast/bin/fogcast-kit-linux-$architecture
+tenfoot=$fogcast/bin/fogcast-tenfoot-linux-$architecture
 lock=${NATIVE_RUNTIME_INPUT_LOCK:-$fogcast/build/native-runtime.inputs.lock.toml}
 idle_input=${NATIVE_RUNTIME_IDLE_FILE:-/work/build/cache/target-image/native/idle.rbf}
 extra_cores=$(CDPATH='' cd -- "$(dirname "$0")/../../.." && pwd)/scripts/native-extra-cores.sh
@@ -48,6 +60,13 @@ case "$target" in
     ;;
 esac
 target=$(CDPATH='' cd -- "$target" && pwd -P)
+if [ "$board" = de25-nano ]; then
+  [ -f "$target/etc/fes-board" ] && [ ! -L "$target/etc/fes-board" ] &&
+    printf '%s\n' de25-nano | /usr/bin/cmp -s - "$target/etc/fes-board" || {
+    printf '%s\n' 'native-post-build: DE25 image board identity is missing or mismatched' >&2
+    exit 1
+  }
+fi
 
 [ -x "$target/usr/sbin/mister-runtime" ] || {
   printf '%s\n' 'native-post-build: mister-runtime is missing or not executable' >&2
@@ -80,6 +99,13 @@ idle_install_path=$(read_lock_value idle_rbf install_path)
 
 if [ "$native_mode" = package-only ]; then
   "$extra_cores" validate
+  if [ "$board" = de25-nano ]; then
+    [ "${FES_PACKAGE_IDS:-}" = fes.menu ] &&
+      /usr/bin/cmp -s "$idle_input" "$FES_MENU_PACKAGE_DIR/core.rbf" || {
+      printf '%s\n' 'native-post-build: DE25 factory idle must be its selected MENU firmware' >&2
+      exit 1
+    }
+  fi
   [ -f "$idle_input" ] && [ ! -L "$idle_input" ] || {
     printf '%s\n' 'native-post-build: idle input is not a regular non-symlink file' >&2
     exit 1
@@ -123,10 +149,9 @@ if [ "$native_mode" = package-only ]; then
   /bin/mkdir -p "$target/usr/share/mister-runtime"
   /usr/bin/install -m 0644 "$idle_input" \
     "$target/usr/share/mister-runtime/idle.rbf"
-  /bin/chmod 0755 "$target/etc/init.d/S40fes-kit-software"
   # The stable supervisor and storage bootstrap are base-image components.
   for helper in fes-kit-data fes-kit-software fes-bluetooth; do
-    /usr/bin/install -m 0755 "$fogcast/bin/$helper-linux-armv7" "$target/usr/sbin/$helper"
+    /usr/bin/install -m 0755 "$fogcast/bin/$helper-linux-$architecture" "$target/usr/sbin/$helper"
   done
   /bin/rm -f "$target/etc/init.d/S40mister-runtime" "$target/etc/init.d/S50mister-agent" "$target/etc/init.d/S60fogcast-kit"
 
@@ -158,6 +183,13 @@ if [ "$native_mode" = package-only ]; then
     printf 'native-post-build: installed RBF count differs from package-only inputs, found %s\n' "$rbf_count" >&2
     exit 1
   }
+  if [ "$board" = de25-nano ]; then
+    /usr/bin/python3 "$repo/scripts/kit-software.py" --target "$target" \
+      --fogcast "$fogcast" --runtime-revision "$runtime_commit" --board de25-nano
+    /usr/bin/install -m 0755 "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S40fes-kit-software" \
+      "$target/etc/init.d/S40fes-kit-software"
+    exit 0
+  fi
   # The factory runtime loads the fes-window driver its software carries.
   # It builds here against the pinned kernel with an unrelocated copy of the
   # cached SDK, as kit software does. The image's external toolchain has been
@@ -180,5 +212,7 @@ if [ "$native_mode" = package-only ]; then
   fi
   /usr/bin/python3 "$repo/scripts/kit-software.py" --target "$target" \
     --fogcast "$fogcast" --runtime-revision "$runtime_commit" --window-driver "$window_driver"
+  /usr/bin/install -m 0755 "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S40fes-kit-software" \
+    "$target/etc/init.d/S40fes-kit-software"
   exit 0
 fi

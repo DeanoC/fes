@@ -3,6 +3,11 @@ set -eu
 
 repo_root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 native_mode=${NATIVE_RUNTIME_MODE:-package-only}
+case "${FES_TARGET_BOARD:-de10-nano}" in
+  de10-nano) architecture=armv7 ;;
+  de25-nano) architecture=aarch64 ;;
+  *) printf '%s\n' 'verify-native-runtime-inputs: unsupported target board' >&2; exit 2 ;;
+esac
 
 case "$native_mode" in
   package-only) : ;;
@@ -117,7 +122,7 @@ if [ "$native_mode" = package-only ]; then
     exit 2
   }
   if [ -n "${FES_PREBUILT_RUNTIME_SHA256:-}" ]; then
-    binary=${FOGCAST_DIR:?FOGCAST_DIR is required}/bin/mister-runtime-linux-armv7
+    binary=${FOGCAST_DIR:?FOGCAST_DIR is required}/bin/mister-runtime-linux-$architecture
     [ -f "$binary" ] && [ ! -L "$binary" ] || exit 1
     printf '%s\n' "$FES_PREBUILT_RUNTIME_SHA256" | grep -Eq '^[0-9a-f]{64}$' || exit 2
     [ "$(sha256sum "$binary" | awk '{print $1}')" = "$FES_PREBUILT_RUNTIME_SHA256" ] || {

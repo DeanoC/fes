@@ -1,0 +1,187 @@
+{
+  "actual_image_prerequisite": {
+    "path": "/home/deano/fes/out/artifacts/de25-managed-sdk-integration/cad04bd65",
+    "retention_sha256": "b6df00328b2eb4370968ea40f542dcd44ab92100191d90285f29483e559d7836"
+  },
+  "archive_sha256": "60fb61405398d5614a679cb5f2889363383ef6987a9173feceff7e49c6d3646b",
+  "archive_size": 90155,
+  "archived_regular_files_verified": 30,
+  "classification": "actual managed-base virtual boot and factory producer prerequisite; no admitted factory or native acceptance",
+  "completed_own_pids_pgids": [
+    773600,
+    773670,
+    812997,
+    813020,
+    813673,
+    813674,
+    813717,
+    813718,
+    831636,
+    831657,
+    850262,
+    850285
+  ],
+  "files": {
+    "affected-result.json": {
+      "sha256": "2bdb33fb73e3cb8b605a6b407fa2982e059d301e02905a20651659830077c61b",
+      "size": 5688
+    },
+    "proofs/actual-base-boot/boot-run.json": {
+      "sha256": "5730ccf25e068f6bdaf4503d646b9ac86f95709fc04ab10052f456d52002f6d1",
+      "size": 705
+    },
+    "proofs/actual-base-boot/boot.json": {
+      "sha256": "f3e079d50b36f9771c51439d17e976098c42529e881e4a2e9c8373b8a42a1fcd",
+      "size": 2024
+    },
+    "proofs/actual-base-boot/qemu-smoke.log": {
+      "sha256": "945c8c053123464a4ae9f57b1f54855fa1b65ed139d326569e3a4617d187a45d",
+      "size": 17785
+    },
+    "proofs/actual-base-job-launch.json": {
+      "sha256": "221547fa7599e4ac397931333341e936d6b5ff3c9ec5d354d3dc0079a9e7daf3",
+      "size": 553
+    },
+    "proofs/actual-base-job/job.json": {
+      "sha256": "1b9c06760c6a01ffddbfdac559a6eeaf48bba960e7258094f93ed9620fd313d4",
+      "size": 779
+    },
+    "proofs/actual-base-job/stdout.log": {
+      "sha256": "dc5ea6046dd64a3b219763032f78402e5dbc2108bf6d574350e42ece4375a635",
+      "size": 2221
+    },
+    "proofs/affected-job-launch.json": {
+      "sha256": "01a1c5cf8d17ad159ec7eb885d341af8b29700454ad6100524ef26b3d447392f",
+      "size": 322
+    },
+    "proofs/affected-job/job.json": {
+      "sha256": "bc084d61cfced842f0034005814f93d75d4144d632b54fbd97576e7de3379b95",
+      "size": 550
+    },
+    "proofs/affected-job/stdout.log": {
+      "sha256": "e0f6e84863674a7ed44a3a05c464c15018ff63144fa7c56196c8495486b81d94",
+      "size": 364711
+    },
+    "proofs/cli-refusals.json": {
+      "sha256": "ee3d6c4e3d283b42f0de308beb5ea0dd49767eb2c91220552fe249961d656c8a",
+      "size": 3498
+    },
+    "proofs/focused-job-launch.json": {
+      "sha256": "7392c0642ed045ab16be767451d1e7130ccb3ff28633c6ebd49df95091ae9c1e",
+      "size": 379
+    },
+    "proofs/focused-job/job.json": {
+      "sha256": "5a834907db4922053fb2b090eb1ea69018f34e5ec1d867e88ddc74420eeb6b2a",
+      "size": 604
+    },
+    "proofs/focused-job/stdout.log": {
+      "sha256": "e4dfaf88955ef93ac3e2e8d0baa9b76b583da9bc7c19231ed4aa46f52e739098",
+      "size": 4455
+    },
+    "proofs/independent-readback.json": {
+      "sha256": "b19b4596b6d6f7ef144a349faf362752a36c1e9da633b39becb59d485c9bdfee",
+      "size": 607
+    },
+    "proofs/preflight-inside.py": {
+      "sha256": "83db33a854e47bf66942bdede08cd7c673ffb2427442e41fcbbbe39f73b0a058",
+      "size": 2594
+    },
+    "proofs/preflight-job-launch.json": {
+      "sha256": "1f79db481532226476381a7bd315cfc19cb59231161e35a491c317a986e39fae",
+      "size": 458
+    },
+    "proofs/preflight-job/job.json": {
+      "sha256": "cb56e7ce2e37c09448ba80e7f5ee65461ac78d1232a593f22b757b0a1cbea061",
+      "size": 545
+    },
+    "proofs/preflight-job/stdout.log": {
+      "sha256": "2caf6e2281f302a21aef97b0312fe20d6a991f1e96e09ea224e6988f9ebc388b",
+      "size": 734
+    },
+    "proofs/preflight.py": {
+      "sha256": "dfbbfb5fb60c699ba058ba75a9532a5efb73237df8c01ee588ffdb78c34831f6",
+      "size": 1232
+    },
+    "proofs/preflight/container-command.json": {
+      "sha256": "a1e91c7c226bac0fc2c5b9f9f85e30236fcb53e8db6123067fcc03c4d872a330",
+      "size": 739
+    },
+    "proofs/preflight/inputs.json": {
+      "sha256": "0b27a0699b56d12978f1807647e5c11dda82824965b0b45be9dbb60a218c1ff3",
+      "size": 645
+    },
+    "proofs/preflight/qemu-command.json": {
+      "sha256": "d60124909b6e5de4f1c5fc52916bfc293b6e1caef03a62f1d24cc963e2b0aa5d",
+      "size": 491
+    },
+    "proofs/preflight/qemu-smoke.log": {
+      "sha256": "c8fa7996ddf0f33b3fab2a5fc1a6f46e96ec44ea63f2bb9221cb6304dcccffed",
+      "size": 17785
+    },
+    "proofs/preflight/receipt.json": {
+      "sha256": "698027637ad8c431e7c07ef3a299395a514f7cd3c8a333c6d51e0d9857593601",
+      "size": 601
+    },
+    "proofs/refusals-job-launch.json": {
+      "sha256": "3e8152184cf6d3f2ef62a9e3d797c2d50e8f09331f035dff972d942279487358",
+      "size": 314
+    },
+    "proofs/refusals-job/job.json": {
+      "sha256": "945f71b938e6c326109389134840f249349e47e26db4b0008312157bbf0e23c2",
+      "size": 539
+    },
+    "proofs/refusals-job/stdout.log": {
+      "sha256": "b4e04edd9cc853d2c99b15cc3d3049f612a463e851d5cfc6c8724702e34af489",
+      "size": 3498
+    },
+    "proofs/refusals.py": {
+      "sha256": "44a26f5673719f91dfba718a631ee0a4eb6a92704f1dc475de2bfc0dc7f221d7",
+      "size": 2171
+    },
+    "proofs/retain-source.py": {
+      "sha256": "b76fafe58982800c4f303ebf9f3a0c20d94b49922fa93c0fe8c0578e64d6144a",
+      "size": 6430
+    },
+    "proofs/source-scope.json": {
+      "sha256": "dec8d041de0c9dcedb9d6192a38f13676f8884bb9b43d30325d131a0f80e96aa",
+      "size": 276
+    },
+    "retention-completion.json": {
+      "sha256": "469cfa3e1cd55e91246cee59adf6207821bea37b05bbc5d58e60a7975238e381",
+      "size": 178
+    },
+    "retention-job-launch.json": {
+      "sha256": "c4e768f063a05c9c209f514b3051bb9710a9c73f7d50f5be7a514b859b213a7d",
+      "size": 319
+    },
+    "retention-job.json": {
+      "sha256": "e015e6e752577cb9ff18b46f2e51125354c229cfd56fada9d955d4e3a3c855eb",
+      "size": 544
+    },
+    "retention-job.log": {
+      "sha256": "c0a0b2155afbdbc3c76e3246726f9b93bd1f79be322b0bb6e9a736c023d48f02",
+      "size": 1955
+    },
+    "source.bundle": {
+      "sha256": "57af72dcefb3af2165367d192bbf0db583eeb93f137ecfc80cc1f99a3ab41696",
+      "size": 8893
+    }
+  },
+  "hardware_access": "not-performed",
+  "live_completed_processes": [],
+  "owned_named_containers": "completed and absent",
+  "previous_publication_retention_sha256": "90793ae3fa894637a931b6e3d58434ab9a23b05a626a76d33e78d23e3f7d6f04",
+  "restored_tree": "2c736dbbe92a6de57ba4461429368ccdfbf6b7f4",
+  "retention_completion": {
+    "completed_pids_pgids": [
+      850285,
+      850262
+    ],
+    "elapsed_seconds": 2.1,
+    "hardware_access": "not-performed",
+    "live_completed_processes": [],
+    "state": "passed"
+  },
+  "source_restored": true,
+  "source_revision": "54440171df2ae454a87873099857c10de7e17263"
+}

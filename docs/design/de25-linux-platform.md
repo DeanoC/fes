@@ -27,6 +27,60 @@ reboot. Managed loading, MENU and failed-load recovery remain separate gates.
 The [earlier bring-up record](../validation/2026-10-30-de25-linux-fpga/README.md)
 retains the failed FPGA-first/factory-start attempts.
 
+Shared release storage and the update agent/API have explicit DE25 board
+selection. The agent and storage gate bind the immutable image's board file to
+its CPU architecture, while the upload parser and client refuse cross-board
+payloads. The base storage helper builds for AArch64. The FES PID1 source also
+supports an explicitly selected DE25 bootstrap and
+reproducible AArch64 ext4 construction. Its CPU/root/volume checks and the
+refusal of unqualified trial boots are covered in the
+[bootstrap record](../validation/2026-11-01-de25-appliance-bootstrap/README.md).
+Explicit board/CPU artifact selection and the shared factory's AArch64,
+network, persistent SSH and software-bundle wiring are covered by the
+[factory-input record](../validation/2026-11-01-de25-factory-inputs/README.md).
+Its rootfs fixture is not a real CPU, package seal or physical boot proof.
+The subsequent [managed-base record](../validation/2026-11-02-de25-managed-base/README.md)
+builds a real AArch64 rootfs and SDK with the shared policy, matching built-in
+USB Bluetooth/HID kernel and actual FES helpers. Filesystem/ELF checks and an
+isolated SDK/C++/QEMU/SSH-banner proof pass. This intermediate retains its
+bootstrap guard, lacks runtime/factory/MENU and has no native boot acceptance.
+The [normal SDK/runtime record](../validation/2026-11-02-de25-managed-sdk/README.md)
+then corrects the bootstrap mount point to a directory and SDK export links,
+adds producer-authenticated SDK reuse, and passes the existing AArch64 runtime
+builder, canonical archive audit and five Cortex-A76 CPU model executables.
+The [factory action record](../validation/2026-11-02-de25-managed-factory/README.md)
+adds managed-factory/verify-factory actions to the existing DE25 builder, using
+the shared package selector, runtime install recipe and native bundle assembler.
+The real pinned Buildroot configuration and real AArch64 runtime installation
+pass; shared factory fixtures also cover the absent-startup-script transition.
+These are configuration and assembly-path checks. The current unsealed MENU
+still prevents a complete admitted factory build.
+The [disk-construction record](../validation/2026-11-02-de25-managed-media/README.md)
+adds DE25 to the shared regular-file disk constructor/reconstructor with 2 GiB
+FAT rollback capacity and a partition-2 bootstrap. Real vendor boot bytes,
+matching kernel/DTB and a fresh AArch64 boot selector reproduce the same disk
+in both construction paths, with an explicit factory/idle binding fixture.
+This establishes disk construction and payload checks, not factory admission,
+CPU execution or native boot. The high-level release path's image-level boot
+smoke requirement is preserved.
+The [image boot record](../validation/2026-11-02-de25-image-boot/README.md)
+then adds a real full-system AArch64 packaging boot action and factory receipt
+binding. The unchanged actual managed base/kernel pass the shared filesystem
+smoke on QEMU `virt`; base/factory profiles and userspace-only probes remain
+distinct. The subsequent
+[D-Bus rootfs repair](../validation/2026-11-02-de25-dbus-rootfs/README.md)
+fixes that observed machine-ID failure and passes a freshly rebuilt image's
+stronger virtual boot check, including a live system-bus response.
+This does not establish full factory services, physical boot or native recovery.
+The [public appliance workflow](../validation/2026-11-02-de25-appliance-workflow/README.md)
+adds explicit DE25 factory selection to the existing release/bootstrap/card
+commands, binds structural verification into factory hashes and reuses the
+shared AArch64 builder, media lease and card reconstructor. Public commands
+refuse the real intermediate as an incomplete factory. Positive routing and
+integrity fixtures do not qualify a package or produce an admitted factory.
+Complete DE25 card/media and managed factory assembly, installation,
+watchdog/reboot recovery and the native workflow in the table remain open.
+
 The approved bottom-board baseline is the existing FES SD plus the exact
 HPS-first QSPI in the [persistent bootstrap trial](../de25-reboot-bootstrap.md).
 Preserve the verified pre-write factory readback, vendor rollback and original

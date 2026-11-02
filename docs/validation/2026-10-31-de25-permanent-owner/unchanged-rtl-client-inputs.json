@@ -1,0 +1,8 @@
+{
+  "checked_kernel_producer": "e89975869589550017d4db39e780f1a48d94e51b",
+  "combined_proof_producer": "cb7b307ef4c3baad531adf8399f0fac101a7c2eb",
+  "unchanged_inputs": {
+    "compiler_source_sha256": 59,
+    "test_runtime_source_sha256": 51
+  }
+}

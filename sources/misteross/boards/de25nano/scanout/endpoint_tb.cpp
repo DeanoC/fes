@@ -55,14 +55,26 @@ public:
     std::deque<std::uint32_t> pending;
 
     Endpoint() {
-        dut.clk = 0; dut.reset_n = 0; dut.clock_fault = 0;
+        dut.clk = 0; dut.reset_n = 0; dut.clock_fault = 0; dut.display_ready = 0;
         dut.address = 0; dut.read = 0; dut.write = 0; dut.byteenable = 0; dut.writedata = 0;
         dut.avm_waitrequest = 0; dut.avm_readdatavalid = 0; dut.avm_response = 0;
         for (unsigned lane = 0; lane < 4; ++lane) dut.avm_readdata[lane] = 0;
         dut.eval(); tick(); tick(); dut.reset_n = 1; idle(4);
         equal(read(FES_DE25_SCANOUT_ID_OFFSET), FES_DE25_SCANOUT_IDENTITY, "identity");
         equal(read(FES_DE25_SCANOUT_VERSION_OFFSET), FES_DE25_SCANOUT_VERSION, "version");
+        equal(read(FES_DE25_SCANOUT_BUILD_ID0_OFFSET), 0x76543210u, "build ID word0");
+        equal(read(FES_DE25_SCANOUT_BUILD_ID1_OFFSET), 0xfedcba98u, "build ID word1");
+        equal(read(FES_DE25_SCANOUT_BUILD_ID2_OFFSET), 0x89abcdefu, "build ID word2");
+        equal(read(FES_DE25_SCANOUT_BUILD_ID3_OFFSET), 0x01234567u, "build ID word3");
+        write(FES_DE25_SCANOUT_BUILD_ID0_OFFSET, 0xffffffffu);
+        equal(read(FES_DE25_SCANOUT_BUILD_ID0_OFFSET), 0x76543210u, "build identity is read-only");
         equal(read(FES_DE25_SCANOUT_STATUS_OFFSET), FES_DE25_SCANOUT_STATUS_DRAINED, "cold state");
+        dut.display_ready = 1; idle(2);
+        equal(read(FES_DE25_SCANOUT_STATUS_OFFSET), FES_DE25_SCANOUT_STATUS_DRAINED | FES_DE25_SCANOUT_STATUS_DISPLAY_READY,
+              "readiness is observed without enabling DMA");
+        dut.display_ready = 0; idle(2);
+        equal(read(FES_DE25_SCANOUT_STATUS_OFFSET), FES_DE25_SCANOUT_STATUS_DRAINED, "readiness loss is observed");
+        dut.display_ready = 1; idle(2);
         require(bursts.empty() && !dut.avm_read, "cold endpoint fetched memory");
     }
     ~Endpoint() { dut.final(); }
@@ -97,7 +109,8 @@ public:
                 require(allowed_slots_ & (1u << slot), "fetch of a slot before submission");
             }
             if (accepts) {
-                require(pending.empty(), "more than one accepted burst outstanding");
+                require(pending.size() + dut.avm_burstcount <= 256,
+                        "accepted responses exceed the entire reader FIFO capacity");
                 const auto address = std::uint64_t(dut.avm_address);
                 const auto slot = unsigned((address - base_) / FES_DE25_SCANOUT_SLOT_BYTES);
                 const auto start = base_ + std::uint64_t(slot) * FES_DE25_SCANOUT_SLOT_BYTES;
@@ -226,7 +239,7 @@ static void disabled_and_snapshot() {
         equal(e.read(FES_DE25_SCANOUT_SNAPSHOT_STATUS_OFFSET + 4u * i), frozen.words[i], "live event changed frozen fields");
     e.stop_and_drain(); e.command(FES_DE25_SCANOUT_COMMAND_CLEAR);
     auto empty = e.snapshot(); equal(empty.generation(), 0, "CLEAR generation");
-    equal(empty.status(), FES_DE25_SCANOUT_STATUS_DRAINED, "CLEAR empty state");
+    equal(empty.status(), FES_DE25_SCANOUT_STATUS_DRAINED | FES_DE25_SCANOUT_STATUS_DISPLAY_READY, "CLEAR empty state");
 }
 static void raster_sync_runs_while_disabled_and_survives_reset() {
     Endpoint e;
@@ -326,6 +339,18 @@ static void stop_keeps_stalled_command_and_accepted_responses() {
     equal(pending.generation(), d.generation, "STOP lost ownership generation"); equal(pending.outstanding(), beats, "accepted response budget");
     equal(pending.displayed(), 0, "STOP acknowledged incomplete frame");
     e.stop_and_drain(); equal(e.returned, beats, "not all accepted responses retired");
+}
+static void read_ahead_reserves_capacity_and_stop_drains_every_accepted_beat() {
+    Endpoint e; Descriptor d; e.responses = false; e.submit(d); e.wait_request();
+    e.idle(1000);
+    equal(e.pending.size(), 256, "read-ahead did not fill exactly its bounded response reservation");
+    require(!e.dut.avm_read, "reader overcommitted a command after reserving the full FIFO");
+    auto full = e.snapshot(); equal(full.outstanding(), e.pending.size(), "overlapped response budget");
+    e.command(FES_DE25_SCANOUT_COMMAND_STOP);
+    auto stopping = e.snapshot();
+    require(!(stopping.status() & FES_DE25_SCANOUT_STATUS_DRAINED), "STOP released unreturned responses");
+    equal(stopping.outstanding(), 256, "STOP lost an overlapped response reservation");
+    e.stop_and_drain(); equal(e.returned, 256, "STOP did not retire all overlapped responses");
 }
 static void reset_midburst_restores_idle_submit_and_clear() {
     Endpoint e; Descriptor d; e.responses = false; e.submit(d); e.wait_request();
@@ -448,17 +473,35 @@ static void clock_fault_cannot_clear_into_new_lease() {
     d.generation++; e.stage(d); e.command(FES_DE25_SCANOUT_COMMAND_SUBMIT);
     equal(e.snapshot().accepted(), 0, "clock fault permitted a new allocation lease");
 }
+static void display_readiness_loss_stops_without_releasing_traffic() {
+    Endpoint e; Descriptor d;
+    e.stall = true; e.responses = false; e.submit(d); e.wait_request(); e.idle(2);
+    e.dut.display_ready = 0; e.idle(4);
+    auto lost = e.snapshot();
+    require(lost.errors() & FES_DE25_SCANOUT_ERROR_DISPLAY, "visibility loss was not latched");
+    require(!(lost.status() & FES_DE25_SCANOUT_STATUS_DRAINED) && lost.outstanding(),
+            "visibility loss manufactured a drain proof");
+    equal(lost.displayed(), 0, "invisible frame was acknowledged");
+    require(e.dut.avm_read, "visibility loss withdrew a held memory command");
+    e.stop_and_drain(); e.dut.display_ready = 1; e.idle(4);
+    require(e.snapshot().errors() & FES_DE25_SCANOUT_ERROR_DISPLAY, "readiness recovery erased the fault");
+    e.command(FES_DE25_SCANOUT_COMMAND_CLEAR);
+    equal(e.snapshot().errors(), 0, "checked drain could not retire visibility fault");
+}
+
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     unsigned groups = 0;
     try {
 #define RUN(name) do { name(); ++groups; std::cout << "PASS " #name "\n"; } while (0)
         RUN(disabled_and_snapshot);
+        RUN(display_readiness_loss_stops_without_releasing_traffic);
         RUN(raster_sync_runs_while_disabled_and_survives_reset);
         RUN(clock_fault_does_not_shorten_active_hsync);
         two_complete_frames(false); ++groups; std::cout << "PASS two_complete_frames_delayed\n";
         two_complete_frames(true); ++groups; std::cout << "PASS two_complete_frames_zero_latency\n";
         RUN(stop_keeps_stalled_command_and_accepted_responses);
+        RUN(read_ahead_reserves_capacity_and_stop_drains_every_accepted_beat);
         RUN(reset_midburst_restores_idle_submit_and_clear);
         RUN(reset_cancels_a_stalled_command);
         RUN(boundaries_and_low_iova);

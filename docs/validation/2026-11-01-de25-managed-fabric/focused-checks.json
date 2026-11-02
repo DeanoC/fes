@@ -1,0 +1,36 @@
+{
+  "source_revision": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "classification": "focused precommit checks on the byte-identical committed tree; separate from full affected suite on e7 precursor",
+  "suites": [
+    {
+      "command": "python3 -m unittest discover -s sources/misteross/tests -p test_de25nano_managed_fabric.py -v",
+      "tests": 12,
+      "seconds": 1.395,
+      "status": "passed"
+    },
+    {
+      "command": "python3 -m unittest discover -s sources/misteross/boards/de25nano/scanout -p test_build.py -v",
+      "tests": 35,
+      "seconds": 1.021,
+      "status": "passed"
+    },
+    {
+      "command": "python3 -m unittest discover -s sources/misteross/boards/de25nano/hps -p test_build.py -v",
+      "tests": 24,
+      "seconds": 0.635,
+      "status": "passed"
+    },
+    {
+      "command": "python3 -m unittest discover -s tests -p test_build_de25_menu_package.py -v (module cwd)",
+      "tests": 12,
+      "seconds": 0.435,
+      "status": "passed"
+    }
+  ],
+  "make_check": {
+    "status": "passed",
+    "generated_consumers": 40,
+    "fixture_copies": 42
+  },
+  "hardware_access": "not-performed"
+}

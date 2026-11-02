@@ -1,0 +1,20 @@
+{
+  "source_revision": "e531091e64b0497affe692228d855ff85ddf465b",
+  "command": [
+    "python3",
+    "sources/misteross/boards/de25nano/scanout/interconnect_sim.py",
+    "--project",
+    "/data/fes-de25-ready-8cace007e/build/combined/hps/project",
+    "--output",
+    "/data/fes-de25-ready-8cace007e/model-fixed"
+  ],
+  "cwd": "/data/fes-de25-ready-8cace007e/validator",
+  "started_utc": "2026-11-01T11:27:53.181563+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 1926555,
+  "state": "passed",
+  "elapsed_seconds": 70.1,
+  "heartbeat_utc": "2026-11-01T11:29:03.283020+00:00",
+  "returncode": 0
+}

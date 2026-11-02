@@ -85,7 +85,7 @@ class ConsistencyTest(unittest.TestCase):
 
     def test_selected_sources_and_validation_coverage(self):
         self.assertEqual(self.module.check(self.root, self.sources), {
-            'generated_files': len(self.module.GENERATED), 'source_pin_copies': 0, 'fixture_copies': 41})
+            'generated_files': len(self.module.GENERATED), 'source_pin_copies': 0, 'fixture_copies': 42})
         self.assertIn(
             ('emit-go', 'packages/abi/fes_computer.yaml', 'FogCast',
              'corepackage/internal/generated/fes_computer.go'), self.module.GENERATED)
@@ -105,7 +105,7 @@ class ConsistencyTest(unittest.TestCase):
             'packages/board/de25_nano.yaml',
             'packages/abi/fes_simple_game.yaml', 'packages/abi/fes_simple_computer.yaml',
             'packages/abi/fes_application.yaml', 'packages/abi/fes_computer.yaml',
-            'packages/programming/de10_nano.yaml'})
+            'packages/programming/de10_nano.yaml', 'packages/programming/de25_nano.yaml'})
 
     def test_shared_fixture_copy_drift(self):
         fixture_copies = [(component, destination, None)

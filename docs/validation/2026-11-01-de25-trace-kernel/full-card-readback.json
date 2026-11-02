@@ -1,0 +1,49 @@
+{
+  "classification": "fresh full readback after USB reader reconnection; no image rewrite",
+  "device": "/dev/sda",
+  "diskseq": "32",
+  "capacity_bytes": 31267487744,
+  "image_bytes": 3984588800,
+  "expected_sha256": "7eb6266188823c9cd4810259fc7cc73eb70ec8f58129e5718f127fd17dd32a0b",
+  "pid": 1001705,
+  "started_utc": "2026-11-01T06:57:46.149554+00:00",
+  "time_cap_seconds": 600,
+  "original_write_job": "spare-card-write-20261101/job.json; failed during reader disconnection; retained unchanged",
+  "device_layout": {
+    "blockdevices": [
+      {
+        "name": "sda",
+        "maj:min": "8:0",
+        "size": 31267487744,
+        "type": "disk",
+        "rm": true,
+        "mountpoints": [],
+        "children": [
+          {
+            "name": "sda1",
+            "maj:min": "8:1",
+            "size": 314573312,
+            "type": "part",
+            "rm": true,
+            "mountpoints": []
+          },
+          {
+            "name": "sda2",
+            "maj:min": "8:2",
+            "size": 3668966912,
+            "type": "part",
+            "rm": true,
+            "mountpoints": []
+          }
+        ]
+      }
+    ]
+  },
+  "state": "passed",
+  "bytes_processed": 3984588800,
+  "elapsed_seconds": 177.28,
+  "heartbeat_utc": "2026-11-01T07:00:43.431781+00:00",
+  "readback_sha256": "7eb6266188823c9cd4810259fc7cc73eb70ec8f58129e5718f127fd17dd32a0b",
+  "full_image_readback": "passed",
+  "hardware_boot": "not-run"
+}

@@ -70,6 +70,7 @@ Use these when the start-here page names the job and you need the steps.
 
 [validation/](validation/) records what a named artifact did on a named day.
 The [2026-10-31 DE25 consolidated ZX81 HPS-first record](validation/2026-10-31-de25-zx81-hps-first/README.md) binds the final Quartus 26.3 rebuild and its still-failing internal setup timing.
+The [DE25 MENU lifecycle software record](validation/2026-11-01-de25-menu-lifecycle/README.md) binds kernel file/VMA, native/AArch64 and UI mapping tests; production MENU remains closed.
 The [C64 functional diagnostic](validation/2026-10-06-c64-functional-closure.md)
 records both cartridge probes, input, SID, read-only D64 LOAD and CIA checks;
 it does not promote C64 into a factory image or add disk writes.

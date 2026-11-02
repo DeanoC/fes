@@ -1,0 +1,262 @@
+{
+  "producer": "29e0eca19228a7b3027e5d7729202618a6bf79a9",
+  "board": "TRWU8J8G",
+  "kernel_Image_sha256": "a4604214a70855ec824ffbf70c45abbd82983dcbefd68bb9f51de7b7089ab478",
+  "offline_image_sha256": "c1bc63c5cdc420584c320dc01328fd53b8fe70762a0e851e0ebee3a84ccb56ab",
+  "initial_boot": "9191e320-2d97-41a2-8e28-735ab8695f7c",
+  "trial_boot": "3678ada3-13a3-42a7-9266-ddfbca4e50b1",
+  "final_boot": "15e107d8-0ed1-4e5e-83d8-b27c8a49d853",
+  "final_host": "192.168.10.28",
+  "kernel_notes_sha256": "be78380775fe921a08e9b5f1ab312df073338290fe0ebe06777a21b075462b9b",
+  "core_loads": {
+    "load-first": {
+      "host": "192.168.10.78",
+      "boot_id": "3678ada3-13a3-42a7-9266-ddfbca4e50b1",
+      "command": "sh -s",
+      "returncode": 0,
+      "elapsed_seconds": 2.53,
+      "stdin_sha256": "822c2feef592ed144a6407824cbda8e3bdb7277679bc284043cfebb6720703d4"
+    },
+    "load-second": {
+      "host": "192.168.10.78",
+      "boot_id": "3678ada3-13a3-42a7-9266-ddfbca4e50b1",
+      "command": "sh -s",
+      "returncode": 0,
+      "elapsed_seconds": 2.31,
+      "stdin_sha256": "29c1051c943e05dea1a0421aff7ef2053063e427a1f112a917c37345d82e66f8"
+    }
+  },
+  "clients": [
+    {
+      "receipt": "client-001-probe.json",
+      "result": {
+        "command": "probe",
+        "status": "passed",
+        "register_reads": 2,
+        "register_writes": 0,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-002-reset.json",
+      "result": {
+        "command": "reset",
+        "status": "passed",
+        "register_reads": 364,
+        "register_writes": 24,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-003-media-_tmp_fes-owner-zx81_seven.p.json",
+      "result": {
+        "command": "media",
+        "status": "passed",
+        "register_reads": 7519,
+        "register_writes": 501,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-004-keys-0d,13s,13s.json",
+      "result": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1684,
+        "register_writes": 112,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-005-keys-28.json",
+      "result": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 604,
+        "register_writes": 40,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-006-keys-15,28.json",
+      "result": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-007-keys-15,28.json",
+      "result": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-008-keys-15.json",
+      "result": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 604,
+        "register_writes": 40,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-009-keys-28.json",
+      "result": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 604,
+        "register_writes": 40,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-010-keys-0d,13s,13s.json",
+      "result": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1684,
+        "register_writes": 112,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-011-keys-28.json",
+      "result": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 604,
+        "register_writes": 40,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-012-keys-15,28.json",
+      "result": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-013-hold.json",
+      "result": {
+        "command": "hold",
+        "status": "passed",
+        "register_reads": 349,
+        "register_writes": 23,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-014-probe.json",
+      "result": {
+        "command": "probe",
+        "status": "passed",
+        "register_reads": 2,
+        "register_writes": 0,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-015-reset.json",
+      "result": {
+        "command": "reset",
+        "status": "passed",
+        "register_reads": 364,
+        "register_writes": 24,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-016-media-_tmp_fes-owner-zx81_seven.p.json",
+      "result": {
+        "command": "media",
+        "status": "passed",
+        "register_reads": 7519,
+        "register_writes": 501,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-017-keys-0d,13s,13s.json",
+      "result": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 1684,
+        "register_writes": 112,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-018-keys-28.json",
+      "result": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 604,
+        "register_writes": 40,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-019-keys-15,28.json",
+      "result": {
+        "command": "keys",
+        "status": "passed",
+        "register_reads": 874,
+        "register_writes": 58,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    },
+    {
+      "receipt": "client-020-hold.json",
+      "result": {
+        "command": "hold",
+        "status": "passed",
+        "register_reads": 349,
+        "register_writes": 23,
+        "physical_cpu_mmio": true,
+        "production_runtime_admission": false
+      }
+    }
+  ],
+  "source_cases": {
+    "claim": 9,
+    "write": 14,
+    "retention": 14
+  },
+  "failed_physical_transfer_injection": false,
+  "physical_dma": false,
+  "production_runtime_admission": false,
+  "delivery": "verified file-level maintenance update; whole writable card not attested",
+  "cleanup": "held core, removed own overlay/mount/firmware/tmp; all clients closed",
+  "warnings": "4 OF overlay-property lifetime warnings retained"
+}

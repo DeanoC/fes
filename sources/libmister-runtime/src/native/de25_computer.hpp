@@ -14,6 +14,11 @@ namespace native {
 class Mmio;
 class Clock;
 
+struct De25TapeInfo {
+	std::uint32_t minimum = 0, maximum = 0;
+	std::uint16_t chunk_bytes = 0, state = 0;
+};
+
 struct De25ComputerIdentity {
 	std::string build_id;
 	std::uint16_t capabilities = 0;
@@ -29,9 +34,11 @@ public:
 	bool Poisoned() const;
 	// A selected, nonzero 128-bit build identity is mandatory before control.
 	Error Identify(const std::string& expected_build_id, std::uint64_t deadline_ms,
-		De25ComputerIdentity*);
+		De25ComputerIdentity*, De25TapeInfo* tape = nullptr);
 	Error Hold(std::uint64_t deadline_ms);
 	Error Run(std::uint64_t deadline_ms);
+	// Read-only startup gate for board-owned HDMI completion.
+	Error WaitVideoReady(std::uint64_t deadline_ms);
 	Error SetKeyboardHid(const KeyboardHidRows&, std::uint64_t deadline_ms);
 	Error LoadTape(const std::vector<std::uint8_t>&, std::uint64_t deadline_ms,
 		std::uint16_t chunk_bytes = 512);

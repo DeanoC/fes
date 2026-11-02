@@ -735,6 +735,7 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   output.Append(",\"slot_bytes\":");output.Append(std::to_string(geometry.slot_bytes));
   output.Append(",\"slots\":");output.Append(std::to_string(native::generated::FesApplicationMenuSlotCount));
   output.Append(",\"format\":\"bgrx8888\",\"displayed_sequence\":");output.Append(std::to_string(menu.displayed_sequence));
+  if(menu.frame_mapping)output.Append(",\"frame_mapping\":true");
   output.Append(",\"underflows\":");output.Append(std::to_string(menu.underflows));
   output.Append(",\"error\":");AppendError(&output,menu.error);output.Append("}");
  }
@@ -744,6 +745,7 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   if(menu_frame->kind==Kind::granted) {
    output.Append(",\"format\":\"bgrx8888\",\"slots\":");output.Append(std::to_string(native::generated::FesApplicationMenuSlotCount));
    output.Append(",\"slot_bytes\":");output.Append(std::to_string(native::generated::FesApplicationMenuSlotBytes));
+   if(menu_frame->frame_mapping)output.Append(",\"frame_mapping\":true");
    if(menu_frame->blitter) {
     output.Append(",\"blitter\":{\"minor\":");output.Append(std::to_string(menu_frame->blitter_minor));
     output.Append(",\"list_offset\":");output.Append(std::to_string(native::generated::FesApplicationMenuBlitListOffset));
@@ -873,8 +875,13 @@ Error ParseRequest(const std::string& line, Request* request)
    parsed.operation=Operation::session_display;parsed.expected_package_id=*id;
    parsed.visible=visible->boolean_value;parsed.launcher_focus=*focus=="launcher";
   } else if(operation->string_value=="menu_frame_grant"||operation->string_value=="menu_frame_begin") {
-   const char* const fields[]={"protocol","operation","expected_generation"};
-   if(!HasOnly(root,fields,3,&error))return error;
+   const bool grant=operation->string_value=="menu_frame_grant";
+   const char* const fields[]={"protocol","operation","expected_generation","frame_mapping"};
+   if(!HasOnly(root,fields,grant?4:3,&error))return error;
+   if(const auto* mapping=Find(root,"frame_mapping")) {
+    if(mapping->type!=json::Type::boolean)return Invalid("frame_mapping must be boolean");
+    parsed.frame_mapping=mapping->boolean_value;
+   }
    if(!Generation(Find(root,"expected_generation"),&parsed.expected_generation))
     return Invalid("menu frame needs a nonzero generation");
    parsed.operation=operation->string_value=="menu_frame_grant"?Operation::menu_frame_grant:Operation::menu_frame_begin;

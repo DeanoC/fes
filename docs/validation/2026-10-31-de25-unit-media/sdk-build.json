@@ -1,0 +1,11 @@
+{
+  "classification": "normal SDK dynamic runtime build and QEMU unit media tests; physical MMIO untested",
+  "source_revision": "9bcf1a7a78c647c535db2a4ec1a6d474244ac618",
+  "sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7",
+  "files": {
+    "native/libmister-runtime.a": "34306db53768ec62a18fbe7b357a0a563a4944ace7b02988f7f09eec1ee32039",
+    "native/mister-runtime": "d4312ac9a3e9bf1643f79b0faca8689b1b7584d2b1dc8b866a49608aff896d71",
+    "native/tests/unit/de25_computer_test": "3dfc40ed34e24c0902047652261e7e683b7f3d4ac5168f171f15a988eebccb99",
+    "native/tests/unit/de25_fpga_manager_test": "90bcab512175f9406ac16b921c39918cbed5b4c8734f6e177a493570ea760a78"
+  }
+}

@@ -24,6 +24,7 @@ public:
 	void SetFaultSink(mister::HardwareFaultSink*) override;
 	mister::HardwareResult LoadIdle() override;
  mister::HardwareResult ConfigureMenuPackage(const std::string&,const std::string& id) override {
+  ++menu_configure_calls;if(!menu_configure_result.error.ok())return menu_configure_result;
   menu_status.session=false;menu_status.core_generation=0;
   menu_configured=true;menu_status.available=true;menu_status.package_id=id;
   menu_status.geometry={1280,720,5120,3686400,4194304};return {{},true,"fes.menu"};
@@ -57,6 +58,8 @@ public:
  std::vector<mister::MenuDraw> menu_present_draws;
  unsigned menu_share_calls=0;
  bool menu_configured=false;
+ unsigned menu_configure_calls=0;
+ mister::HardwareResult menu_configure_result;
  mister::MenuDisplayStatus menu_status;
  unsigned menu_present_calls=0;
  mister::Error menu_present_result;

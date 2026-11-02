@@ -1,0 +1,272 @@
+{
+  "admission": "not-qualified",
+  "classification": "generated-scanout-cdc-transport-simulation-with-modeled-m20k-storage",
+  "clock_model": {
+    "half_period_units": {
+      "pixel": 400,
+      "system": 297
+    },
+    "physical_timing_proof": false,
+    "pixel_hz": 74250000,
+    "pixel_initial_phase_units": 17,
+    "system_hz": 100000000
+  },
+  "coverage": "actual generated peripheral control/memory CDC logic, endpoint/video/reader and Avalon128-to-AXI256 path WITH MODELED M20K STORAGE",
+  "error": "unsupported generated endpoint wrapper",
+  "format": 1,
+  "generation_scanout": {
+    "bridge_parameters": {
+      "fes_ctrl_cdc": {
+        "logical_view": {
+          "path": "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ctrl_cdc.ip",
+          "sha256": "49c272cd13e8ef4c87f618ff14002f627d0f7465c62a6ad8b296490e9753df27"
+        },
+        "parameters": {
+          "ADDRESS_WIDTH": "7",
+          "COMMAND_FIFO_DEPTH": "4",
+          "DATA_WIDTH": "32",
+          "ENABLE_RESPONSE": "1",
+          "MASTER_SYNC_DEPTH": "2",
+          "MAX_BURST_SIZE": "1",
+          "PIPELINE_ENABLE": "0",
+          "RESPONSE_FIFO_DEPTH": "4",
+          "SLAVE_SYNC_DEPTH": "2",
+          "SYMBOL_WIDTH": "8",
+          "SYNC_RESET": "0",
+          "USE_AUTO_ADDRESS_WIDTH": "0"
+        }
+      },
+      "fes_mem_cdc": {
+        "logical_view": {
+          "path": "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_mem_cdc.ip",
+          "sha256": "62ccb0cab9f26971c2a37d3067a456076bf405c4270ebdea625e1560679d3407"
+        },
+        "parameters": {
+          "ADDRESS_WIDTH": "32",
+          "COMMAND_FIFO_DEPTH": "4",
+          "DATA_WIDTH": "128",
+          "ENABLE_RESPONSE": "1",
+          "MASTER_SYNC_DEPTH": "2",
+          "MAX_BURST_SIZE": "16",
+          "PIPELINE_ENABLE": "0",
+          "RESPONSE_FIFO_DEPTH": "256",
+          "SLAVE_SYNC_DEPTH": "2",
+          "SYMBOL_WIDTH": "8",
+          "SYNC_RESET": "0",
+          "USE_AUTO_ADDRESS_WIDTH": "0"
+        }
+      }
+    },
+    "build_identity": {
+      "build_id": "115a31ba8625086218d3335cf97a3cf6",
+      "logical_view": {
+        "path": "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout.ip",
+        "sha256": "6ba1dd3f051ac370ffa9a155a31820541f7dd35f190a33d85f862eaece0fc587"
+      },
+      "parameter": "23065191261636272070837623129577766134"
+    },
+    "control_guard": "100 MHz bounded, sticky poison, no cancellation or drain inference",
+    "csr_write_completion": true,
+    "ddr_scanout": true,
+    "global_reset_ownership": "not-qualified",
+    "instance": "subsys_periph.fes_scanout",
+    "linux_dma": {
+      "address_user_word": 6880,
+      "attributes": 224,
+      "derived_sha256": "741f42bfc8f5cf495d2a128713ef396e978906624f1706dde60f0a8cfb1adb31",
+      "generated_adapter": "hps_subsys/ip/hps_subsys/f2sdram_adapter/f2sdram_adapter_10/synth/f2sdram_adapter_f2sdram_adapter_10_ebbsmiq.v",
+      "generated_adapter_sha256": "12ba7a32f92000b5ab5c411cead7b915bd78c15a88f80c8f6399b0c17de9d9ea",
+      "generated_qip_sha256": "80f616afa33fe3f048386e7bcbf9a9f5350d1abb224ea00d25fb397557a30f29",
+      "kernel_binding": "not-admitted",
+      "master_handoff": {
+        "dma_admission": "not-qualified",
+        "master": "subsys_periph_fes_mem_cdc.m0",
+        "master_count": 1,
+        "peripheral_slave_map": [
+          {
+            "base": 65536,
+            "name": "subsys_periph.sysid.control_slave",
+            "span": 8
+          },
+          {
+            "base": 65632,
+            "name": "subsys_periph.button_pio.s1",
+            "span": 16
+          },
+          {
+            "base": 65648,
+            "name": "subsys_periph.dipsw_pio.s1",
+            "span": 16
+          },
+          {
+            "base": 65664,
+            "name": "subsys_periph.led_pio.s1",
+            "span": 16
+          },
+          {
+            "base": 65696,
+            "name": "subsys_periph.fes_mailbox.avs",
+            "span": 32
+          },
+          {
+            "base": 66048,
+            "name": "subsys_periph.fes_scanout_guard.avs",
+            "span": 256
+          }
+        ],
+        "physical_translation": "not-qualified",
+        "removed_masters": [
+          "subsys_periph.fes_ddr_probe",
+          "ext_hps_f2sdram_master",
+          "subsys_debug.hps_f2sdram"
+        ],
+        "scope": "scanout-only F2SDRAM path"
+      },
+      "master_ownership": "scanout-only",
+      "original_sha256": "29da61c67255e9efd98b7ca9a63d9fcbfc37d9b1175d33f0cfd62f46f8c637ad",
+      "physical_translation": "not-qualified",
+      "read_transactions": 16,
+      "scope": "scanout-only generated F2SDRAM path",
+      "secure": false,
+      "secure_bit": 8,
+      "sid_shift": 9,
+      "stream_id": 13,
+      "user_bits": 25
+    },
+    "memory_hz": 100000000,
+    "peripheral_offset": 66048,
+    "peripheral_slave_map": [
+      {
+        "base": 65536,
+        "name": "subsys_periph.sysid.control_slave",
+        "span": 8
+      },
+      {
+        "base": 65632,
+        "name": "subsys_periph.button_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65648,
+        "name": "subsys_periph.dipsw_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65664,
+        "name": "subsys_periph.led_pio.s1",
+        "span": 16
+      },
+      {
+        "base": 65696,
+        "name": "subsys_periph.fes_mailbox.avs",
+        "span": 32
+      },
+      {
+        "base": 66048,
+        "name": "subsys_periph.fes_scanout_guard.avs",
+        "span": 256
+      }
+    ],
+    "pixel_hz": 74250000,
+    "read_only_master_ports": {
+      "address": [
+        "Output",
+        32
+      ],
+      "burstcount": [
+        "Output",
+        5
+      ],
+      "byteenable": [
+        "Output",
+        16
+      ],
+      "read": [
+        "Output",
+        1
+      ],
+      "readdata": [
+        "Input",
+        128
+      ],
+      "readdatavalid": [
+        "Input",
+        1
+      ],
+      "response": [
+        "Input",
+        2
+      ],
+      "waitrequest": [
+        "Input",
+        1
+      ]
+    },
+    "reset_bridges": {
+      "fes_scanout_top_reset": {
+        "logical_view": {
+          "path": "ip/qsys_top/qsys_top_fes_scanout_top_reset.ip",
+          "sha256": "21c405374c7e492a16263887b5fcc2eccec41806ecc1c65ccbb343c98741a0be"
+        },
+        "parameters": {
+          "ACTIVE_LOW_RESET": "1",
+          "NUM_RESET_OUTPUTS": "1",
+          "O_SYNCHRONOUS_EDGES": "none (elaborated output synchronousEdges=NONE)",
+          "SYNCHRONOUS_EDGES": "none",
+          "USE_RESET_REQUEST": "0"
+        }
+      },
+      "subsys_periph.fes_scanout_pixel_reset": {
+        "logical_view": {
+          "path": "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout_pixel_reset.ip",
+          "sha256": "260c03058608d8931ad2a3e025be953d5caac34ff2c6abead6469f317378d1f7"
+        },
+        "parameters": {
+          "ACTIVE_LOW_RESET": "1",
+          "NUM_RESET_OUTPUTS": "1",
+          "O_SYNCHRONOUS_EDGES": "deassert (elaborated output synchronousEdges=DEASSERT)",
+          "SYNCHRONOUS_EDGES": "deassert",
+          "USE_RESET_REQUEST": "0"
+        }
+      },
+      "subsys_periph.fes_scanout_system_reset": {
+        "logical_view": {
+          "path": "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_scanout_system_reset.ip",
+          "sha256": "e73e31bc1c451665d6086ceb9588e8537dd88b8f0c1550c366b1b3fbd8e5fc4b"
+        },
+        "parameters": {
+          "ACTIVE_LOW_RESET": "1",
+          "NUM_RESET_OUTPUTS": "1",
+          "O_SYNCHRONOUS_EDGES": "deassert (elaborated output synchronousEdges=DEASSERT)",
+          "SYNCHRONOUS_EDGES": "deassert",
+          "USE_RESET_REQUEST": "0"
+        }
+      }
+    },
+    "reset_synchronizers": {
+      "assertion": "asynchronous",
+      "deassertion": "synchronous per domain",
+      "hdmi_data_de_gate": "pixel-registered; qualified-lock loss clears the pixel release immediately",
+      "pixel_clock": "74250000 Hz",
+      "sdc_clear_pins": 10,
+      "system_clock": "100000000 Hz"
+    },
+    "runtime_admission": "not-qualified",
+    "top_pixel_clock_bridge": "74.25 MHz clock bridge drives the nested pixel-clock sink",
+    "top_reset_source": "fes_scanout_top_reset.out_reset -> pixel and 100 MHz reset bridge inputs"
+  },
+  "generation_sha256": "4bb4a9e782e12a7e02dc60c3186e430bfca3b81147cff34b09a580fda42afea8",
+  "hardware_access": "not-performed",
+  "not_modeled": [
+    "HPS hard block",
+    "MPFE/TBU",
+    "SMMU translation",
+    "firewall",
+    "DDR controller",
+    "physical memory",
+    "physical clock monitor",
+    "reset/boot allocation epoch"
+  ],
+  "project": "/data/fes-de25-ready-8cace007e/build/combined/hps/project",
+  "status": "failed"
+}

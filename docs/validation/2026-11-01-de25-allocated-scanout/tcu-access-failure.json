@@ -1,0 +1,28 @@
+{
+  "classification": "failed read-only TCU-firewall access; recovery pending",
+  "board": "TRWU8J8G",
+  "verified_preflight_boot_id": "2b179a1a-cf78-45e4-b188-f5e5643c0762",
+  "verified_preflight_cid": "275048534436344760702d33e0017c00",
+  "verified_kernel_notes_sha256": "be78380775fe921a08e9b5f1ab312df073338290fe0ebe06777a21b075462b9b",
+  "verified_root_receipt_sha256": "8baeadd914a41067d9210719280994278d42f27548a54d850d366f7dfabf2370",
+  "source_sha256": "b528a093b3d1811addc49a163c6ae560e60f09d6ab0bc6385106c5d98568f1e2",
+  "binary_sha256": "e2341b9c156e1cc416242b105230b702e740375af1505745b9a05b6875c7697e",
+  "attempted_register": "0x10d21400",
+  "access": "/dev/mem O_RDONLY; mmap PROT_READ; exclusive maintenance lock",
+  "returned_register_value": null,
+  "observation": {
+    "ssh_exit": 255,
+    "ssh_error": "server not responding after authenticated command submission",
+    "stdout_bytes": 0,
+    "passive_uart_bytes": 0,
+    "newline_uart_bytes": 0,
+    "ping_received": 0
+  },
+  "original_axi_response_error_cause": "not established",
+  "dma_allocation_or_frame_submission": false,
+  "fpga_kernel_boot_flash_replacement": false,
+  "recovery": "power cycle requested; not yet observed",
+  "temporary_remote_path": "/tmp/fes-de25-route-tcu-readonly-20261101/read-tcu",
+  "cleanup": "unverified while board unreachable; do not claim release or restored baseline",
+  "source_reference": "https://docs.altera.com/r/docs/814346/26.1.1/hard-processor-system-technical-reference-manual-agilex-5-socs/step-0-prerequisites-ccu-and-noc-firewall-configuration?contentId=hIwxujW21igM_buXtAWanA"
+}

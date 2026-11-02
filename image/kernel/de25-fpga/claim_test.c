@@ -6,6 +6,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef CONFIG_FES_DE25_DMA_PLATFORM
+#define CONFIG_FES_DE25_DMA_PLATFORM 1
+#endif
+#define IS_ENABLED(x) (x)
 #define FPGA_CONFIG_DATA_CLAIM_TIMEOUT_MS 2000
 #define INTEL_SIP_SMC_FPGA_CONFIG_COMPLETED_WRITE 7
 #define INTEL_SIP_SMC_STATUS_OK 0
@@ -120,6 +124,10 @@ static void run_case(const char *name, unsigned long initial_time, unsigned int 
 }
 int main(void)
 {
+    if (!IS_ENABLED(CONFIG_FES_DE25_DMA_PLATFORM)) {
+        run_case("disabled profile preserves four-buffer success", 0, 4);
+        return 0;
+    }
     run_case("busy firmware reaches bounded error", 0, 0);
     run_case("firmware error clears all stale callback pointers", 0, 1);
     run_case("already stopped client produces no SMC or callback", 0, 2);

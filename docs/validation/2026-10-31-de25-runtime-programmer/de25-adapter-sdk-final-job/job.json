@@ -1,0 +1,16 @@
+{
+  "source_revision": "1a3e2b86086733d39b0a5311600b1f3ec9c6e098",
+  "command": [
+    "python3",
+    "out/de25-adapter-sdk-final/run.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T19:51:53.331804+00:00",
+  "time_cap_seconds": 900,
+  "hardware_access": "not-performed",
+  "pid": 1976969,
+  "state": "passed",
+  "elapsed_seconds": 15.8,
+  "heartbeat_utc": "2026-10-31T19:52:09.165564+00:00",
+  "returncode": 0
+}

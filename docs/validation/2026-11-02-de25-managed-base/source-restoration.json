@@ -1,0 +1,12 @@
+{
+  "bundle_sha256": "c5ab82e32eaeb3b61a7702e44362a079b73f842c1b8e461d29f6f0b379973a84",
+  "bundle_size": 3088,
+  "classification": "source bundle restoration only",
+  "hardware_access": "not-performed",
+  "prerequisite_retention": "/home/deano/fes/out/artifacts/de25-managed-base/f4bf39806/failure-retention.json",
+  "prerequisite_retention_sha256": "046a6c063ccf38cffd36f66a8ca83fef65d80c8141c60640c5fc441df4f389a0",
+  "prerequisite_revision": "f4bf398068274f1b86d183cd9c901643307700a5",
+  "source_restored": true,
+  "source_revision": "e7cacb2a2f9d2558f712d69c62b2a2cafa1c52a6",
+  "tree": "c85f6428eedbcbbf4a1c4f304789ecc3364fed64"
+}

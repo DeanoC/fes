@@ -1,0 +1,23 @@
+{
+  "source_revision": "54440171df2ae454a87873099857c10de7e17263",
+  "command": [
+    "/usr/bin/python3",
+    "image/de25-nano/build.py",
+    "boot-smoke",
+    "--image-profile",
+    "managed-base",
+    "--output",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-sdk-integration/linux-base-bootstrap",
+    "--boot-output",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-image-boot/actual-base-boot"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-image-boot-54440171d",
+  "started_utc": "2026-11-02T00:03:30.643026+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 813717,
+  "state": "passed",
+  "elapsed_seconds": 49.4,
+  "heartbeat_utc": "2026-11-02T00:04:20.090066+00:00",
+  "returncode": 0
+}

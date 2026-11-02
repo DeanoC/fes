@@ -1,0 +1,169 @@
+{
+  "archive_sha256": "279fb1ce580646ee08091db8548f5343d54b45cd0ffea81926eba2fd37fd6395",
+  "archived_regular_files_verified": 27,
+  "classification": "factory action configuration, installation and fixture evidence; no admitted factory/card or hardware acceptance",
+  "completed_own_pids_pgids": [
+    356645,
+    356646,
+    356647,
+    356714,
+    356715,
+    356717,
+    394284,
+    394307,
+    421266,
+    421393,
+    477225,
+    477248
+  ],
+  "files": {
+    "proofs/actual-mister-runtime": {
+      "sha256": "05c25c74d9c53a073625d56c36e04ef63a407c71c823a25e4e50448c6325dffd",
+      "size": 1646344
+    },
+    "proofs/affected-job-launch.json": {
+      "sha256": "4800c2050dda6df8e9d3c43e8350e9c97a1a123ed96a8d988937c88582d91a19",
+      "size": 471
+    },
+    "proofs/affected-job/job.json": {
+      "sha256": "982ffbc8bc9e0b45b2814ef43a0d230c60fa4c7b3e496aee44bbfb2eb3352621",
+      "size": 555
+    },
+    "proofs/affected-job/stdout.log": {
+      "sha256": "2bd2396fbaeedc187b6cbd90c4088fc3a180ee2d145196507bff7accda8a2e35",
+      "size": 373543
+    },
+    "proofs/affected-result.json": {
+      "sha256": "90293a62170561fecb482faf557176f5820aead5ca94be0854fe7465f5fc4d9c",
+      "size": 6680
+    },
+    "proofs/config-inside.py": {
+      "sha256": "c4c06969ed9e5ce1432e5cb4b30ea5281511272b6910fc772a30fb35b9ecebc6",
+      "size": 2428
+    },
+    "proofs/config-job-launch.json": {
+      "sha256": "e3689dc9ea1e0db1b51ec42b8d509439ac6d4beaf5b1be0290e0111159a12685",
+      "size": 469
+    },
+    "proofs/config-job/job.json": {
+      "sha256": "0ff2e0cd900295363f660e0cd46a957274f14febb20f6040351bc1f390a6aa48",
+      "size": 553
+    },
+    "proofs/config-job/stdout.log": {
+      "sha256": "b9ce470b489c02226c7f619b0cb01230e07e5e2d38aefec1c9ad4226a02e9cf8",
+      "size": 5079
+    },
+    "proofs/config-proof.py": {
+      "sha256": "a30dac454ea9367a8b01ca90f616a360c64f2c986027821a8b94fe909da3c609",
+      "size": 1028
+    },
+    "proofs/config-proof/buildroot.config": {
+      "sha256": "fbdf8f544cd752b121c716be8e5c6bb44939cd869f27c44b96765d993e4549a2",
+      "size": 101301
+    },
+    "proofs/config-proof/receipt.json": {
+      "sha256": "7f1ca045fb3d47a23038df116154cf0f5a66f1a0f1f740ea8887d9fa966c1919",
+      "size": 849
+    },
+    "proofs/corrected-focused-job-launch.json": {
+      "sha256": "5a82c5c255de44a158e1d24eff1f1147509830450a71589f8b3c52326a912469",
+      "size": 485
+    },
+    "proofs/corrected-focused-job/job.json": {
+      "sha256": "c677da795f5bd39fbb0970a8ab2e4c7a24d8396f787e2ac802b26d27aeba4727",
+      "size": 558
+    },
+    "proofs/corrected-focused-job/stdout.log": {
+      "sha256": "2c52f47c5ffc502cbc9253bb73f5f8570c1a46bb890e4d8651b73db8210c188d",
+      "size": 1779
+    },
+    "proofs/corrected-focused.py": {
+      "sha256": "0d89526009856d39981511daed70a9770dfcff9c2fe7d28e92969d73be3f49de",
+      "size": 254
+    },
+    "proofs/focused-job-launch.json": {
+      "sha256": "3aad1657a5c1640ea879c9891860673acdb92a3ec7058a8b415e123648cd1454",
+      "size": 465
+    },
+    "proofs/focused-job/job.json": {
+      "sha256": "92d38dd41a78071c5d63a18661ef8235d34c8c66fa6ddb5b57fb3ab6569b3464",
+      "size": 548
+    },
+    "proofs/focused-job/stdout.log": {
+      "sha256": "2484593f71fefa848237179582e5ae8db6cbf2a7720006a408840e212d3cf71e",
+      "size": 5239
+    },
+    "proofs/focused.py": {
+      "sha256": "bc179ddce13f074f788f9ac1dcec90913acfe63209ff55ff68b3949b7f6ccf63",
+      "size": 351
+    },
+    "proofs/retain-source.py": {
+      "sha256": "d8a5af279cf32496d317d490bb6bef11f687e79c1fe222e155d67cbdc4d27907",
+      "size": 3946
+    },
+    "proofs/source-scope-job-launch.json": {
+      "sha256": "6e0bde576931633bdde46c9838b05af94ec5e5a36f9d9a81454c5491f277e396",
+      "size": 475
+    },
+    "proofs/source-scope-job/job.json": {
+      "sha256": "07d76989cb03198c45444f77afc69b4a63b41a496658170a8708fd51fd96ff14",
+      "size": 553
+    },
+    "proofs/source-scope-job/stdout.log": {
+      "sha256": "f7e3f870b99dfd1a4110fc6034cb47346a334df7aa71f53ef5affbb030f3ee91",
+      "size": 1265
+    },
+    "proofs/source-scope.json": {
+      "sha256": "2c50aa487b91b5cfe9ecab44e50a937b961db4653f25ae9d4c03fa4fe6738b6c",
+      "size": 1265
+    },
+    "proofs/source-scope.py": {
+      "sha256": "88fc05c8748fa8f6012a089be8822bfdeada3bb9af5e10ff64ef0f9b758f77ee",
+      "size": 1931
+    },
+    "proofs/state.json": {
+      "sha256": "96b082b3e019978654e3fab508160730025569b496e63940b8bd070eae5e701f",
+      "size": 616
+    },
+    "source-retention-job.json": {
+      "sha256": "de86e7d81dfa3f0538ed415bd8acd5ac1120413403b4a70111b6c1a3806308df",
+      "size": 554
+    },
+    "source-retention-launch.json": {
+      "sha256": "1331de43bf1017ee2d68aa144e5e6b3639c5029e5b4d0d3003d2264e69f38e30",
+      "size": 480
+    },
+    "source-retention-stdout.log": {
+      "sha256": "65b251fd41780dc8a8d1d01beadb82faee7ca7efef72e54a9ce8753cd43883c8",
+      "size": 1788
+    },
+    "source.bundle": {
+      "sha256": "15f80603a57e98526965cd69e35b91b10234103b7c2d5277930b0963881a499f",
+      "size": 11521
+    }
+  },
+  "hardware_access": "not-performed",
+  "live_completed_processes": [],
+  "owned_container": "completed and absent",
+  "prerequisite_publication_retention_sha256": "2adcf598b5f120b1d9d6117dba271082e67d8572d4f62dab9b0c4136c28217a4",
+  "restored_tree": "34be7ccf40811a95dd454afb4797d0b353b8ac9a",
+  "retained_owned_volume": "fes-de25-factory-config-36438ad3a",
+  "retention_completion": {
+    "command": [
+      "/usr/bin/python3",
+      "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-factory/retain-source.py"
+    ],
+    "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-factory-0cb6a68e4",
+    "elapsed_seconds": 1.6,
+    "hardware_access": "not-performed",
+    "heartbeat_utc": "2026-11-01T23:30:35.049287+00:00",
+    "pid": 477248,
+    "returncode": 0,
+    "source_revision": "0cb6a68e4e4b9c574e8f61712b668212ae9ad39b",
+    "started_utc": "2026-11-01T23:30:33.452788+00:00",
+    "state": "passed",
+    "time_cap_seconds": 600
+  },
+  "source_restored": true,
+  "source_revision": "0cb6a68e4e4b9c574e8f61712b668212ae9ad39b"
+}

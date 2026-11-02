@@ -1,0 +1,10 @@
+e5e896ba-e01e-4ab4-9b2f-a236045b7d39
+02:8e:2a:b1:d3:bd
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq qlen 1000
+    inet 192.168.10.168/24 brd 192.168.10.255 scope global eth0
+       valid_lft forever preferred_lft forever
+crw-------    1 0        0          10, 124 Jan  1 00:00 /dev/fes-de25-scanout
+e06e399b84032a473faba5ce14a57665dc5bd8fadb58f33af4372a9f596bdcd1  /sys/kernel/notes
+53a17111bcb06a0ce84513ff42ae26f7e3b025d2a3b856758ff0722e306efed2  /usr/share/fes/kernel-modules.json
+CONFIGFS_OVERLAYS_ABSENT
+TRACEFS_NOT_MOUNTED

@@ -1,0 +1,6 @@
+.........+ /usr/bin/python3 -c print('DE25 diagnostic command failed'); raise SystemExit(7)
+..............
+----------------------------------------------------------------------
+Ran 23 tests in 0.660s
+
+OK

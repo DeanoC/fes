@@ -1,0 +1,92 @@
+{
+  "base": "11999b8969a00281f562616a1df05588bb3373c8",
+  "classification": "original failed aggregate: one stale source-bound combined-client proof receipt; new actual native/AArch64 proof and focused continuation required; no aggregate pass claim",
+  "commands": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "test_*.py",
+      "lane": "fpga",
+      "returncode": 1
+    }
+  ],
+  "failed_methods": [
+    "test_combined_client_proof_receipt_matches_captured_sources (de25_link_recipe_tests.RecipeTests.test_combined_client_proof_receipt_matches_captured_sources)"
+  ],
+  "hardware_access": "not-performed",
+  "job_elapsed_seconds": 1973.8,
+  "not_started": [],
+  "source_revision": "e7d7d4d64ffe052e463a77b35e5a793ad3452342",
+  "status": "failed",
+  "stdout_sha256": "8c4363eddecefabcef75b2232f049f6cbc63f2ecf2d29bfc8db3f2daccb0bdee",
+  "suites": [
+    {
+      "errors": 0,
+      "failures": 0,
+      "seconds": 0.141,
+      "skipped": 0,
+      "status": "passed",
+      "tests": 30
+    },
+    {
+      "errors": 0,
+      "failures": 0,
+      "seconds": 0.61,
+      "skipped": 0,
+      "status": "passed",
+      "tests": 32
+    },
+    {
+      "errors": 0,
+      "failures": 0,
+      "seconds": 0.0,
+      "skipped": 0,
+      "status": "passed",
+      "tests": 1
+    },
+    {
+      "errors": 0,
+      "failures": 0,
+      "seconds": 942.377,
+      "skipped": 3,
+      "status": "passed",
+      "tests": 1114
+    },
+    {
+      "errors": 0,
+      "failures": 1,
+      "seconds": 1025.125,
+      "skipped": 76,
+      "status": "failed",
+      "tests": 1757
+    }
+  ]
+}

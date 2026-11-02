@@ -1,0 +1,38 @@
+{
+  "current_producer": "fd98d8f6c9d0d947cec351faf11df918e4a7102c",
+  "equal_scopes": [
+    {
+      "path": "scripts/kit_software.py",
+      "tested_producer": "199604662ea19a526e1884ad202fbca48e1c84d7",
+      "git_object": "64730b12c956b3083e877aa5e86bdcdb4df53f8e"
+    },
+    {
+      "path": "scripts/platform.py",
+      "tested_producer": "51d872c220a6635188c351004b68e94a96ca1986",
+      "git_object": "b7892c07ffcc307a45ddebb7fe9428d8b25e0035"
+    },
+    {
+      "path": "scripts/appliance.py",
+      "tested_producer": "51d872c220a6635188c351004b68e94a96ca1986",
+      "git_object": "08988e852b2717ed8d40db52d000ce9250e0a508"
+    },
+    {
+      "path": "platform",
+      "tested_producer": "51d872c220a6635188c351004b68e94a96ca1986",
+      "git_object": "8a71368192d468d650ca87f0f1eb3d6ed34dd7d0"
+    },
+    {
+      "path": "sources/FogCast",
+      "tested_producer": "199604662ea19a526e1884ad202fbca48e1c84d7",
+      "git_object": "43e276b92b099b97d121f58f56694ef550cefc16"
+    },
+    {
+      "path": "sources/libmister-runtime",
+      "tested_producer": "199604662ea19a526e1884ad202fbca48e1c84d7",
+      "git_object": "76fd790345deed71592c70bc373e76346c664707"
+    }
+  ],
+  "hardware_acceptance": false,
+  "storage_helper_producer": "8a804e0531e1e7f229da5b964f59125901d3f39c",
+  "storage_helper_fogcast_tree": "43e276b92b099b97d121f58f56694ef550cefc16"
+}

@@ -1,0 +1,5 @@
+make: Entering directory '/src/sources/libmister-runtime'
+make: '/build/bfcf9f16736d537417f5fb89540ad4177a96a86187212c86d8b4f9bb192f1d3f/runtime/tests/unit/native_hardware_test' is up to date.
+make: Leaving directory '/src/sources/libmister-runtime'
+native_hardware_test: 35 passed
+

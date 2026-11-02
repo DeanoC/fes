@@ -36,6 +36,7 @@ int main(int argc, char** argv) {
     t.ninit_done = 1; t.top_reset_n = 0; t.HDMI_TX_INT = 1;
     t.video_rgb = 0x123456; t.video_de = 0; t.video_hs = 1; t.video_vs = 0;
     t.eval(); lock(false);
+    t.rootp->fes_de25_scanout_board__DOT__hdmi_config__DOT__configured = 0;
     for (int i = 0; i < 4; ++i) { tick_system(); tick_pixel(); blank(); check(!t.scanout_reset_n, "cold bridge reset"); }
     t.ninit_done = 0; t.top_reset_n = 1;
     for (int i = 0; i < 4; ++i) { tick_system(); tick_pixel(); blank(); check(!t.scanout_reset_n, "wait first lock"); }
@@ -47,7 +48,12 @@ int main(int argc, char** argv) {
     // crosses into the pixel synchronizer.
     check(!t.rootp->fes_de25_scanout_board__DOT__visible_request,
           "visibility request must be registered, not combinational");
-    tick_system();
+    for (int i = 0; i < 8; ++i) { tick_system(); tick_pixel(); blank(); }
+    check(!t.rootp->fes_de25_scanout_board__DOT__visible_request && !t.display_ready,
+          "unconfigured transmitter was reported ready");
+    check(t.scanout_reset_n && !t.clock_fault, "HDMI wait reset the live control path");
+    t.rootp->fes_de25_scanout_board__DOT__hdmi_config__DOT__configured = 1;
+    for (int i = 0; i < 8; ++i) tick_system();
     check(t.rootp->fes_de25_scanout_board__DOT__visible_request, "registered visibility request");
 
     // The request is synchronized first. It remains hidden through the active

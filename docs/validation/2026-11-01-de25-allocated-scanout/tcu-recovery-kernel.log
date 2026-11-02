@@ -1,0 +1,46 @@
+total 2
+drwx------    2 root     root          1024 Jan  1  1970 .
+drwxr-xr-x    3 root     root          1024 Jan  1  1970 ..
+drwxr-xr-x    4 root     root             0 Jan  1 00:00 /sys/devices/platform/20010200.dma-owner
+lrwxrwxrwx    1 root     root             0 Jan  1 00:00 /sys/devices/platform/20010200.dma-owner/iommu_group -> ../../../kernel/iommu_groups/0
+DMA
+[    0.000000] Linux version 6.12.11-fes-de25-owner (FES@de25-owner) (aarch64-buildroot-linux-gnu-gcc.br_real (Buildroot 2021.02.4) 9.4.0, GNU ld (GNU Binutils) 2.35.2) #1 SMP PREEMPT 2026-10-31 00:00:00 UTC
+[    1.359445] arm-smmu-v3 16000000.iommu: ias 48-bit, oas 48-bit (features 0x001c1fef)
+[    1.368207] arm-smmu-v3 16000000.iommu: allocated 65536 entries for cmdq
+[    1.375270] arm-smmu-v3 16000000.iommu: allocated 32768 entries for evtq
+[    1.382418] arm-smmu-v3 16000000.iommu: msi_domain absent - falling back to wired irqs
+[    1.401768] fes-de25-dma 20010200.dma-owner: Adding to iommu group 0
+[    1.498362] socfpga-dwmac 10810000.ethernet: Adding to iommu group 1
+[    1.505264] socfpga-dwmac 10810000.ethernet: IRQ eth_wake_irq not found
+[    1.511870] socfpga-dwmac 10810000.ethernet: IRQ eth_lpi not found
+[    1.518028] socfpga-dwmac 10810000.ethernet: IRQ sfty not found
+[    1.524085] socfpga-dwmac 10810000.ethernet: SMTG Hub Cross Timestamp supported
+[    1.531812] socfpga-dwmac 10810000.ethernet: User ID: 0x76, Synopsys ID: 0x31
+[    1.538938] socfpga-dwmac 10810000.ethernet: 	XGMAC2
+[    1.543892] socfpga-dwmac 10810000.ethernet: DMA HW capability register supported
+[    1.551351] socfpga-dwmac 10810000.ethernet: RX Checksum Offload Engine supported
+[    1.558803] socfpga-dwmac 10810000.ethernet: COE Type 1
+[    1.564007] socfpga-dwmac 10810000.ethernet: TX Checksum insertion supported
+[    1.571030] socfpga-dwmac 10810000.ethernet: TSO supported
+[    1.576496] socfpga-dwmac 10810000.ethernet: Enabled L3L4 Flow TC (entries=16)
+[    1.583690] socfpga-dwmac 10810000.ethernet: Enabled RFS Flow TC (entries=10)
+[    1.590797] socfpga-dwmac 10810000.ethernet: TSO feature enabled
+[    1.596778] socfpga-dwmac 10810000.ethernet: SPH feature enabled
+[    1.602765] socfpga-dwmac 10810000.ethernet: Using 40/40 bits DMA host/device width
+[    1.764020] Stratix10 SoC FPGA manager firmware:svc:fpga-mgr: couldn't get service channel (fpga)
+[    1.885076] fpga_manager fpga0: Stratix10 SOC FPGA Manager registered
+[    1.903744] of-fpga-region fpga-region: FPGA Region probed
+[    3.789166] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-0
+[    3.797769] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-1
+[    3.806297] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-2
+[    3.814901] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-3
+[    3.823387] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-4
+[    3.831976] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-5
+[    3.840621] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-6
+[    3.849097] socfpga-dwmac 10810000.ethernet eth0: Register MEM_TYPE_PAGE_POOL RxQ-7
+[    3.920917] socfpga-dwmac 10810000.ethernet eth0: PHY [stmmac-0:01] driver [Micrel KSZ9031 Gigabit PHY] (irq=POLL)
+[    3.931297] socfpga-dwmac 10810000.ethernet eth0: No Safety Features support found
+[    3.938858] socfpga-dwmac 10810000.ethernet eth0: IEEE 1588-2008 Advanced Timestamp supported
+[    3.947745] socfpga-dwmac 10810000.ethernet eth0: registered PTP clock
+[    3.954301] socfpga-dwmac 10810000.ethernet eth0: configuring for phy/rgmii link mode
+[    7.043437] socfpga-dwmac 10810000.ethernet eth0: Link is Up - 1Gbps/Full - flow control rx/tx

@@ -1,0 +1,79 @@
+{
+  "cases": [
+    {
+      "case": "foreign-profile",
+      "command": [
+        "/usr/bin/python3",
+        "image/de25-nano/build.py",
+        "boot-smoke",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-sdk-integration/linux-base-bootstrap",
+        "--image-profile",
+        "managed-factory",
+        "--boot-output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-image-boot/refused-factory"
+      ],
+      "expected_refusal": "requires only the selected managed image receipt",
+      "returncode": 1,
+      "stderr": "de25-managed-boot: boot smoke requires only the selected managed image receipt\n"
+    },
+    {
+      "case": "existing-proof",
+      "command": [
+        "/usr/bin/python3",
+        "image/de25-nano/build.py",
+        "boot-smoke",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-sdk-integration/linux-base-bootstrap",
+        "--image-profile",
+        "managed-base",
+        "--boot-output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-image-boot/actual-base-boot"
+      ],
+      "expected_refusal": "preserves existing evidence",
+      "returncode": 1,
+      "stderr": "de25-managed-boot: boot smoke preserves existing evidence; select a new output\n"
+    },
+    {
+      "case": "missing-selection",
+      "command": [
+        "/usr/bin/python3",
+        "image/de25-nano/build.py",
+        "boot-smoke",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-sdk-integration/linux-base-bootstrap",
+        "--boot-output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-image-boot/refused-unspecified"
+      ],
+      "expected_refusal": "requires --image-profile and --boot-output",
+      "returncode": 1,
+      "stderr": "de25-managed-boot: boot-smoke requires --image-profile and --boot-output\n"
+    },
+    {
+      "case": "headless-selection",
+      "command": [
+        "/usr/bin/python3",
+        "image/de25-nano/build.py",
+        "boot-smoke",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-sdk-integration/linux-base-bootstrap",
+        "--image-profile",
+        "headless",
+        "--boot-output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-image-boot/refused-headless"
+      ],
+      "expected_refusal": "invalid choice",
+      "returncode": 2,
+      "stderr": "usage: build.py [-h] [--output OUTPUT] [--cache CACHE] [--jobs JOBS]\n                [--container-runtime CONTAINER_RUNTIME] [--kernel KERNEL]\n                [--sdk SDK] [--artifacts ARTIFACTS]\n                [--image-profile {managed-base,managed-factory}]\n                [--boot-output BOOT_OUTPUT]\n                {fetch,build,verify,smoke,managed-base,verify-base,managed-factory,verify-factory,boot-smoke,_inside}\nbuild.py: error: argument --image-profile: invalid choice: 'headless' (choose from managed-base, managed-factory)\n"
+    }
+  ],
+  "classification": "actual CLI refusal checks; no QEMU or board access",
+  "existing_evidence_unchanged": {
+    "boot-run.json": "5730ccf25e068f6bdaf4503d646b9ac86f95709fc04ab10052f456d52002f6d1",
+    "boot.json": "f3e079d50b36f9771c51439d17e976098c42529e881e4a2e9c8373b8a42a1fcd",
+    "qemu-smoke.log": "945c8c053123464a4ae9f57b1f54855fa1b65ed139d326569e3a4617d187a45d"
+  },
+  "hardware_access": "not-performed",
+  "new_output_directories": [],
+  "source_revision": "54440171df2ae454a87873099857c10de7e17263"
+}

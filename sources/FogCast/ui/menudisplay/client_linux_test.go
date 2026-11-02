@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -23,19 +25,24 @@ import (
 // list and heap from ddr: only what a commit names is written back there,
 // as FES_WINDOW_CLEAN does on the kit.
 type fakeRuntime struct {
-	t          *testing.T
-	listener   *net.UnixListener
-	generation uint64
-	underflows uint64
-	window     int
-	mapping    []byte
-	mu         sync.Mutex
-	grants     int
-	shown      int
-	sequence   uint64
-	commits    []map[string]any
-	done       chan struct{}
-	blitter    bool
+	t                     *testing.T
+	listener              *net.UnixListener
+	generation            uint64
+	underflows            uint64
+	window                int
+	mapping               []byte
+	mu                    sync.Mutex
+	grants                int
+	shown                 int
+	sequence              uint64
+	commits               []map[string]any
+	done                  chan struct{}
+	blitter               bool
+	frameMapping          bool
+	misreportFrameMapping bool
+	checkCommit           func() error
+	badPreparation        bool
+	onAbandon             func()
 	// blitterMinor is the menu-blitter minor a blitter grant declares.
 	blitterMinor int
 	// listedGen is the generation whose grant took a list.
@@ -106,10 +113,19 @@ func (f *fakeRuntime) handle(conn *net.UnixConn) {
 		}
 		_, _, _ = conn.WriteMsgUnix([]byte(reply+"\n"), rights, nil)
 	}
+	frame := ""
+	if f.frameMapping {
+		frame = `,"frame_mapping":true`
+	}
 	switch request["operation"] {
 	case "status":
-		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_display":{"available":true,"generation":%d,"width":1280,"height":720,"stride":5120,"byte_count":3686400,"slot_bytes":4194304,"slots":2,"format":"bgrx8888","displayed_sequence":%d,"underflows":0}}`, f.generation, f.sequence), -1)
+		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_display":{"available":true,"generation":%d,"width":1280,"height":720,"stride":5120,"byte_count":3686400,"slot_bytes":4194304,"slots":2,"format":"bgrx8888","displayed_sequence":%d,"underflows":0%s}}`, f.generation, f.sequence, frame), -1)
 	case "menu_frame_grant":
+		_, declared := request["frame_mapping"]
+		if (f.frameMapping && request["frame_mapping"] != true) || (!f.frameMapping && declared) {
+			write(`{"protocol":2,"ok":false,"error":{"code":"unsupported_interface","message":"mapping agreement missing"}}`, -1)
+			return
+		}
 		if request["expected_generation"] != float64(f.generation) {
 			write(`{"protocol":2,"ok":false,"error":{"code":"invalid_request","message":"menu generation changed"}}`, -1)
 			return
@@ -119,21 +135,37 @@ func (f *fakeRuntime) handle(conn *net.UnixConn) {
 		if f.blitter {
 			blitter = fmt.Sprintf(`,"blitter":{"minor":%d,"list_offset":8388608,"commands":32768,"command_bytes":32,"heap_offset":16777216,"heap_bytes":67108864}`, f.blitterMinor)
 		}
-		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"format":"bgrx8888","slots":2,"slot_bytes":4194304%s}}`, f.generation, blitter), f.window)
+		if f.misreportFrameMapping {
+			frame = ""
+		}
+		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"format":"bgrx8888","slots":2,"slot_bytes":4194304%s%s}}`, f.generation, blitter, frame), f.window)
 	case "menu_frame_begin":
 		slot := f.shown ^ 1
 		if f.preparedGen != f.generation {
 			f.preparedGen, f.preparations = f.generation, 0
 		}
 		f.preparations++
-		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"slot":%d,"preparation":%d}}`, f.generation, slot, f.preparations), -1)
+		preparedGeneration := f.generation
+		if f.badPreparation {
+			preparedGeneration++
+		}
+		write(fmt.Sprintf(`{"protocol":2,"ok":true,"menu_frame":{"generation":%d,"slot":%d,"preparation":%d}}`, preparedGeneration, slot, f.preparations), -1)
 		line, fds, err := readLine(conn)
 		if err != nil || len(fds) != 0 || json.Unmarshal(line, &request) != nil ||
 			request["operation"] != "menu_frame_commit" || request["slot"] != float64(slot) {
+			if f.onAbandon != nil {
+				f.onAbandon()
+			}
 			write(`{"protocol":2,"ok":false,"error":{"code":"invalid_request","message":"bad commit"}}`, -1)
 			return
 		}
 		f.commits = append(f.commits, request)
+		if f.checkCommit != nil {
+			if err := f.checkCommit(); err != nil {
+				write(fmt.Sprintf(`{"protocol":2,"ok":false,"error":{"code":"invalid_request","message":%q}}`, err.Error()), -1)
+				return
+			}
+		}
 		if message := f.commitError(request, slot); message != "" {
 			write(fmt.Sprintf(`{"protocol":2,"ok":false,"error":{"code":"invalid_request","message":%q}}`, message), -1)
 			return
@@ -273,7 +305,18 @@ func TestStatusGrantAndPresentWriteTheSlotInScanoutOrder(t *testing.T) {
 }
 
 func TestPresentDamageWritesWhatTheSlotMissed(t *testing.T) {
+	testPresentDamageWritesWhatTheSlotMissed(t, false)
+}
+
+func TestFrameMappingPreservesDamageAcrossRemap(t *testing.T) {
+	testPresentDamageWritesWhatTheSlotMissed(t, true)
+}
+
+func testPresentDamageWritesWhatTheSlotMissed(t *testing.T, frameMapping bool) {
 	runtime, path := newFakeRuntime(t)
+	runtime.mu.Lock()
+	runtime.frameMapping = frameMapping
+	runtime.mu.Unlock()
 	client := New(path)
 	defer client.Close()
 	ctx := context.Background()
@@ -426,5 +469,178 @@ func readLine(conn *net.UnixConn) ([]byte, []int, error) {
 		if len(line) > 65536 {
 			return nil, nil, errUnexpected
 		}
+	}
+}
+
+func TestReleaseWindowAllowsSameGenerationRemap(t *testing.T) {
+	runtime, path := newFakeRuntime(t)
+	client := New(path)
+	defer client.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := client.Grant(ctx, 7); err != nil {
+		t.Fatal(err)
+	}
+	client.mu.Lock()
+	client.window.mapping[0] = 0x45
+	client.mu.Unlock()
+	if err := client.ReleaseWindow(); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.ReleaseWindow(); err != nil {
+		t.Fatal(err)
+	}
+	client.mu.Lock()
+	released := client.window == nil
+	client.mu.Unlock()
+	if !released {
+		t.Fatal("client retained mapping")
+	}
+	if _, err := client.Grant(ctx, 7); err != nil {
+		t.Fatal(err)
+	}
+	client.mu.Lock()
+	pixel := client.window.mapping[0]
+	client.mu.Unlock()
+	runtime.mu.Lock()
+	grants := runtime.grants
+	runtime.mu.Unlock()
+	if grants != 2 || pixel != 0x45 {
+		t.Fatalf("grants=%d pixel=%x; remap must preserve same-generation storage", grants, pixel)
+	}
+}
+
+// Count actual mappings of this grant's inode. The fake runtime retains its
+// own view; the client must have removed its separate view before commit.
+func grantMappingCount(fd int) (int, error) {
+	var st unix.Stat_t
+	if err := unix.Fstat(fd, &st); err != nil {
+		return 0, err
+	}
+	data, err := os.ReadFile("/proc/self/maps")
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 6 && fields[4] == strconv.FormatUint(st.Ino, 10) && strings.Contains(fields[5], "memfd:test-menu-window") {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func TestFrameMappingEndsBeforeCommitAndFailureReply(t *testing.T) {
+	f, path := newFakeRuntime(t)
+	f.mu.Lock()
+	f.frameMapping = true
+	baseline, err := grantMappingCount(f.window)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.checkCommit = func() error {
+		count, err := grantMappingCount(f.window)
+		if err != nil {
+			return err
+		}
+		if count != baseline {
+			return fmt.Errorf("client mapping still live at commit: %d vs %d", count, baseline)
+		}
+		return nil
+	}
+	f.mu.Unlock()
+	c := New(path)
+	defer c.Close()
+	if _, err := c.Grant(context.Background(), f.generation); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.window.mapping) != 0 {
+		t.Fatal("grant inspection retained a frame mapping")
+	}
+	pix := make([]byte, FrameBytes)
+	for i := 0; i < 3; i++ {
+		pix[0] = byte(i + 10)
+		result, err := c.Present(context.Background(), f.generation, pix)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.DisplayedSequence != uint64(i+1) || len(c.window.mapping) != 0 {
+			t.Fatal("frame did not complete with released mapping")
+		}
+		f.mu.Lock()
+		got := f.mapping[f.shown*SlotBytes+2] // RGBA input red is byte2 in BGRX scanout.
+		f.mu.Unlock()
+		if got != pix[0] {
+			t.Fatal("unmapping lost the submitted pixels")
+		}
+	}
+	f.mu.Lock()
+	f.refuse = "injected frame fault"
+	f.mu.Unlock()
+	if _, err := c.Present(context.Background(), f.generation, pix); err == nil || !strings.Contains(err.Error(), "injected frame fault") {
+		t.Fatalf("failure reply: %v", err)
+	}
+	if len(c.window.mapping) != 0 {
+		t.Fatal("failure reply retained mapping")
+	}
+	if _, err := c.Present(context.Background(), f.generation, pix); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	grants := f.grants
+	f.mu.Unlock()
+	if grants != 6 {
+		t.Fatalf("expected a new grant for each frame, got %d", grants)
+	}
+}
+
+func TestFrameMappingGrantMustMatchNegotiatedStatus(t *testing.T) {
+	f, path := newFakeRuntime(t)
+	f.mu.Lock()
+	f.frameMapping, f.misreportFrameMapping = true, true
+	f.mu.Unlock()
+	c := New(path)
+	defer c.Close()
+	if _, err := c.Grant(context.Background(), f.generation); err == nil {
+		t.Fatal("accepted a grant without its negotiated mapping contract")
+	}
+	if c.window != nil {
+		t.Fatal("mapped contradictory grant")
+	}
+}
+
+func TestFrameMappingEndsBeforePreparationAbandonment(t *testing.T) {
+	f, path := newFakeRuntime(t)
+	baseline, err := grantMappingCount(f.window)
+	if err != nil {
+		t.Fatal(err)
+	}
+	abandoned := make(chan error, 1)
+	f.mu.Lock()
+	f.frameMapping, f.badPreparation = true, true
+	f.onAbandon = func() {
+		count, err := grantMappingCount(f.window)
+		if err == nil && count != baseline {
+			err = fmt.Errorf("client mapping live at abandonment: %d vs %d", count, baseline)
+		}
+		abandoned <- err
+	}
+	f.mu.Unlock()
+	c := New(path)
+	defer c.Close()
+	if _, err := c.Present(context.Background(), f.generation, make([]byte, FrameBytes)); err == nil {
+		t.Fatal("accepted invalid preparation")
+	}
+	select {
+	case err := <-abandoned:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("preparation connection did not close")
+	}
+	if c.window == nil || len(c.window.mapping) != 0 {
+		t.Fatal("preparation failure did not release peer view")
 	}
 }

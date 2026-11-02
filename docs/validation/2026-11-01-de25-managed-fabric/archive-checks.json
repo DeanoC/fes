@@ -1,0 +1,139 @@
+{
+  "source_revision": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "archive_sha256": "3ccc58069c3523d36ba77e3ad08be3f0729fd6c44e539ceb91df290a744695eb",
+  "archive_bytes": 586393262,
+  "verified": {
+    "build_records": 2,
+    "candidate_rbfs": 1,
+    "reset_receipts": 2,
+    "generated_reset_originals": 12,
+    "generated_reset_constraints": 12,
+    "board_sdc": 2
+  },
+  "all_archived_regular_files_hashed": 3851,
+  "retired_debug_constraint_receipts_verified": 2,
+  "fabric_jtag_ports": 0,
+  "fabric_jtag_clocks": 0,
+  "model_cases_verified": 10,
+  "startup_cases_verified": 72,
+  "startup_parent_inputs_reparsed": 6,
+  "rbf_sha256": "b6eab6805067050a69cb66b40f5708543e868a9d898250662b78eda77eba3eb2",
+  "canonical_record_sha256": "03020c9b4f2554218eb216cb45f99d00f0a20409c253f37b2b0719e79c57970c",
+  "reset_timing_receipt_sha256": "2415d815c19ea5c515eef0cace8f86999d5e531e525767f1aef67c7c3e1f1250",
+  "managed_fabric": {
+    "policy": "managed-scanout-initiators-v3",
+    "initiator_endpoints": [
+      "subsys_hps_agilex_hps.hps2fpga",
+      "subsys_hps_agilex_hps.lwhps2fpga",
+      "subsys_hps_f2sdram_adapter.axi4_man",
+      "subsys_periph_fes_ctrl_cdc.m0",
+      "subsys_periph_fes_mem_cdc.m0",
+      "subsys_periph_fes_scanout.avm",
+      "subsys_periph_fes_scanout_guard.avm",
+      "subsys_periph_pb_cpu_0.m0"
+    ],
+    "initiator_count": 8,
+    "fabric_to_hps": [
+      [
+        "subsys_hps_f2sdram_adapter.axi4_man",
+        "subsys_hps_agilex_hps.f2sdram"
+      ]
+    ],
+    "control_and_ocm_routes": [
+      [
+        "subsys_hps_agilex_hps.lwhps2fpga",
+        "subsys_periph_pb_cpu_0.s0",
+        0
+      ],
+      [
+        "subsys_periph_pb_cpu_0.m0",
+        "subsys_periph_fes_scanout_guard.avs",
+        66048
+      ],
+      [
+        "subsys_periph_fes_scanout_guard.avm",
+        "subsys_periph_fes_ctrl_cdc.s0",
+        0
+      ],
+      [
+        "subsys_periph_fes_ctrl_cdc.m0",
+        "subsys_periph_fes_scanout.avs",
+        0
+      ],
+      [
+        "subsys_hps_agilex_hps.hps2fpga",
+        "ocm.axi_s1",
+        0
+      ]
+    ],
+    "removed_instances": [
+      "subsys_debug",
+      "ace5lite_cache_coherency_translator_0"
+    ],
+    "sopcinfo_sha256": "584751a809d0565f6eba87a318b9da746479c9991b18421d4a2d96a5662081b3",
+    "disabled_hps_parameter": {
+      "f2s_data_width": "0"
+    },
+    "hps_ip_sha256": "193843e40c7079352430b675aed38960c164bcb76003d24b48711e6f44764913",
+    "memory_handoff": {
+      "master": "subsys_periph_fes_mem_cdc.m0",
+      "master_count": 1,
+      "removed_masters": [
+        "subsys_periph.fes_ddr_probe",
+        "ext_hps_f2sdram_master",
+        "subsys_debug.hps_f2sdram"
+      ],
+      "scope": "scanout-only F2SDRAM path",
+      "peripheral_slave_map": [
+        {
+          "name": "subsys_periph.sysid.control_slave",
+          "base": 65536,
+          "span": 8
+        },
+        {
+          "name": "subsys_periph.button_pio.s1",
+          "base": 65632,
+          "span": 16
+        },
+        {
+          "name": "subsys_periph.dipsw_pio.s1",
+          "base": 65648,
+          "span": 16
+        },
+        {
+          "name": "subsys_periph.led_pio.s1",
+          "base": 65664,
+          "span": 16
+        },
+        {
+          "name": "subsys_periph.fes_mailbox.avs",
+          "base": 65696,
+          "span": 32
+        },
+        {
+          "name": "subsys_periph.fes_scanout_guard.avs",
+          "base": 66048,
+          "span": 256
+        }
+      ],
+      "dma_admission": "not-qualified",
+      "physical_translation": "not-qualified"
+    },
+    "physical_lifetime": "not-qualified",
+    "runtime_admission": "not-qualified",
+    "unused_f2h_interface": "disabled and absent",
+    "generated_parent_sha256": "2be8675d0a9f3e1d0ca78b7b57120a97c9f8784873b583ac057e2882b9a0966a",
+    "retired_debug_constraints": {
+      "derived_file": "project/ghrd_timing.sdc",
+      "derived_sha256": "abf34be146818993465c0757c799689afc1d87f1eccd43ca5918be613b12ac80",
+      "original_file": "managed-constraints-originals/ghrd_timing.sdc",
+      "original_sha256": "743b02b7fa6e3f6397890702f626ff7b27a5c7ab6aa9d1721c22d286900c7247",
+      "policy": "managed-scanout-initiators-v3",
+      "retained_jtag_sdc_sha256": "02d78bf9bc14eea02092569a0639f6bd4f4b11e161e4fc6349c30128d640e17a",
+      "retired_source": "source ./jtag.sdc"
+    }
+  },
+  "hps_parameter_review_sha256": "7314c0415198992203a3cfd8d41ccf719f13ac7a6c2058a5eef66e2e97acadb9",
+  "hardware_access": "not-performed",
+  "package_exported": false
+}

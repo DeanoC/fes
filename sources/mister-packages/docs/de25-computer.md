@@ -1,6 +1,6 @@
 # DE25 computer transport diagnostic
 
-`fes.fabric.de25-computer` 1.0 describes a standalone Avalon bridge to the
+`fes.fabric.de25-computer` 1.1 describes a standalone Avalon bridge to the
 existing `fes.computer` 1.0 mailbox. It introduces no programming profile or
 Linux physical address. Its peripheral-relative base is `0x10300`, span 32
 bytes. Control, mailbox, HID mapping, tape storage and the machine share the
@@ -10,11 +10,12 @@ ULA and 3.25 MHz CPU; HDMI remains on its separate 74.25 MHz clock.
 | Byte offset | Register | Access |
 | --- | --- | --- |
 | 0 | Identity `0x44325a58` | Read |
-| 4 | Version `0x00010000` | Read |
+| 4 | Version `0x00010001` | Read |
 | 8 | Status | Read |
 | 12 | Atomic GPO command / held payload | Read/write |
 | 16 | GPI response | Read |
 | 20 | Sticky fault reasons | Read |
+| 24 | Board video status: READY=1, other bits reserved zero | Read |
 
 Status bits are READY=1, BUSY=2 and FAULT=4. BUSY compares the held GPO
 request toggle with the mailbox ACK; it does not mean the cassette loader
@@ -60,3 +61,18 @@ The new keyboard/tape path has no DMA master or DDR dependency. The composed
 SOF retains the GHRD's existing HPS, LPDDR4, debug paths and inherited DDR probe.
 Warm-reset ACK remains inactive; local containment is not a global bus fence.
 Compilation, simulation and generated route checks confer no physical acceptance.
+
+Version1.1 adds a read-only video status, without changing the computer ABI1.0
+mailbox. Board-owned HDMI configuration completion crosses into the pixel clock;
+readiness also requires PLL/reset release and the complete-line video gate.
+That single ready bit crosses two control-clock registers before MMIO observation.
+Transport faults/reset suppress it. Writes remain invalid and sticky-faulting.
+A reported ready state describes internal configuration and timing readiness,
+not a connected monitor, an HDMI capture result or physical signoff.
+
+The managed computer driver waits for video readiness under its Start deadline
+before any execution-release command. Reserved bits, I/O faults and timeout fail
+closed without Run; no Linux ADV7513 sequence is applied on this board. The
+current client requires exact fabric version1.1; older diagnostic images are
+not silently adopted. FPGA compilation and physical acceptance of these new
+bytes remain required before production startup is enabled.

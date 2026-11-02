@@ -6,6 +6,11 @@ set_module_property GROUP "FES/Diagnostics"
 set_module_property AUTHOR "FES"
 set_module_property INSTANTIATE_IN_SYSTEM_MODULE true
 set_module_property EDITABLE false
+# Quartus 26.3 PRBS IP uses this 128-bit HDL parameter representation too.
+add_parameter BUILD_ID STD_LOGIC_VECTOR 0x0
+set_parameter_property BUILD_ID WIDTH 128
+set_parameter_property BUILD_ID HDL_PARAMETER true
+set_parameter_property BUILD_ID AFFECTS_GENERATION false
 add_fileset QUARTUS_SYNTH QUARTUS_SYNTH
 set_fileset_property QUARTUS_SYNTH TOP_LEVEL fes_de25_scanout
 add_fileset_file fes_de25_scanout.v VERILOG PATH fes_de25_scanout.v TOP_LEVEL_FILE
@@ -51,7 +56,7 @@ set_interface_property avm associatedReset reset
 set_interface_property avm addressUnits SYMBOLS
 set_interface_property avm bitsPerSymbol 8
 set_interface_property avm burstcountUnits WORDS
-set_interface_property avm maximumPendingReadTransactions 1
+set_interface_property avm maximumPendingReadTransactions 16
 set_interface_property avm waitrequestAllowance 0
 set_interface_property avm linewrapBursts false
 set_interface_property avm burstOnBurstBoundariesOnly false
@@ -73,3 +78,6 @@ add_interface_port video video_hs hs Output 1
 add_interface_port video video_vs vs Output 1
 add_interface clock_fault conduit end
 add_interface_port clock_fault clock_fault export Input 1
+
+add_interface ready conduit end
+add_interface_port ready display_ready export Input 1

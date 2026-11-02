@@ -1,0 +1,16 @@
+{
+  "source_revision": "9bcf1a7a78c647c535db2a4ec1a6d474244ac618",
+  "command": [
+    "python3",
+    "out/de25-unit-media-normal-final-sdk/run.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T20:38:12.037315+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 2545748,
+  "state": "passed",
+  "elapsed_seconds": 25.6,
+  "heartbeat_utc": "2026-10-31T20:38:37.652417+00:00",
+  "returncode": 0
+}

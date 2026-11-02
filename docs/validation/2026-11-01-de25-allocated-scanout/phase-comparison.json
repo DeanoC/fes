@@ -1,0 +1,15 @@
+{
+  "zx81": {
+    "hps_sha256": "107c22eed7bdf769c8b2a7f0e070f39c807c56950d1cdb2d965b42f08ba1379e",
+    "hps_bytes": 868352,
+    "core_sha256": "24da8dcbe298436ce4f6be1ac027dcdf9fdde93d39fdadfb0c4d18aad757d406",
+    "source_revision": "d4c6544e3a6f83ba4ea72fbe7d8b7c0c13828223"
+  },
+  "scanout": {
+    "hps_sha256": "7a0b810da04aeb6d51b2e97722d1b04d3e7342a91bec2713384684deb7b3e3b4",
+    "hps_bytes": 868352,
+    "core_sha256": "bc4290c152a280afa7c5202726051cbc769708d59bbb8a2721e121410a644e68",
+    "source_revision": "d4c6544e3a6f83ba4ea72fbe7d8b7c0c13828223"
+  },
+  "same_hps_phase": false
+}

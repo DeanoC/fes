@@ -166,3 +166,18 @@ review; the local top reset repair does not qualify those crossings or physical
 metastability behavior. The [reset/clock compile record](../../../docs/validation/2026-10-28-de25-hps-mailbox/reset-sequencing/README.md)
 binds the repaired source, mapped path checks and remaining findings to its own
 artifact; the original mailbox SOF does not contain this repair.
+
+The HPS builder also owns the shared off-board HPS-first phase converter used
+by ZX81-HPS and allocated-buffer scanout. It requires matching captured and
+project initialization order, regular nonempty inputs and fresh phase outputs.
+It binds the complete SOF, HPS bootstrap and fabric RBF hashes without invoking
+a programmer. Component producers add their own source/build identity receipt;
+conversion alone does not qualify boot compatibility or Linux loading.
+
+The shared generator also serves scanout's explicit Linux-DMA profile. That
+profile removes the probe and memory JTAG path and requires a sole scanout
+master in the elaborated graph. Its receipt selects `scanout-only` and verifies
+the absence of diagnostic instances/window, every adapter/HPS ingress, zero
+address translations and the complete nonoverlapping LW map. The default HPS
+diagnostic still requires its probe and JTAG routes; an unknown or mismatched
+profile fails. Neither profile admits a Linux production device or DMA domain.

@@ -1,0 +1,21 @@
+{
+  "source_revision": "262ee72db716f44b34018f43375672006c45d713",
+  "command": [
+    "python3",
+    "sources/misteross/scripts/build_de25_menu_package.py",
+    "--compile-only",
+    "--quartus-root",
+    "/data/altera_pro/26.3",
+    "--vendor-archive",
+    "/data/fes-de25-1297-9b36e4729/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip"
+  ],
+  "cwd": "/data/fes-de25-menu-canonical-262ee72db/source",
+  "started_utc": "2026-11-01T13:45:55.200702+00:00",
+  "time_cap_seconds": 2400,
+  "hardware_access": "not-performed",
+  "pid": 1958444,
+  "state": "passed",
+  "elapsed_seconds": 635.3,
+  "heartbeat_utc": "2026-11-01T13:56:30.481446+00:00",
+  "returncode": 0
+}

@@ -249,6 +249,25 @@ void TestStartLoadsIdleOnceAndPublishesIdle()
 	assert(fixture.runtime.status().state == State::idle);
 }
 
+void TestStartWithSelectedMenuAvoidsSplash()
+{
+	Fixture f;
+	const std::string id(64, 'a');
+	assert(f.runtime.Start("/menu", "").code == ErrorCode::invalid_request);
+	assert(f.hardware.idle_calls == 0 && f.hardware.menu_configure_calls == 0);
+	assert(f.runtime.Start("/menu", id).ok());
+	assert(f.hardware.idle_calls == 0 && f.hardware.menu_configure_calls == 1);
+	const auto status=f.runtime.status();
+	assert(status.state == State::idle && status.menu_display.available && status.menu_display.package_id == id && status.menu_display.generation);
+	assert(f.runtime.Start("/menu", id).code == ErrorCode::busy);
+	assert(f.hardware.menu_configure_calls == 1);
+	Fixture failed;
+	failed.hardware.menu_configure_result = {{ErrorCode::program_failed, "selected menu failed"},true,""};
+	assert(failed.runtime.Start("/menu",id).code == ErrorCode::idle_failed);
+	assert(failed.runtime.status().state == State::reboot_required);
+	assert(failed.hardware.idle_calls == 0 && failed.hardware.menu_configure_calls == 1);
+}
+
 void TestNonMenuIdlePublishesIdleWithoutReboot()
 {
 	Fixture fixture;
@@ -1753,6 +1772,22 @@ void TestSessionCloseAndStopWaitForInFlightFrame()
  }
 }
 
+void TestMenuFrameMappingRequiresExplicitClientAgreement()
+{
+ for(bool blitter:{false,true}) {
+  Fixture f;const std::string id(64,'a');
+  f.hardware.menu_status.frame_mapping=true;f.hardware.menu_status.blitter=blitter;
+  assert(f.runtime.Start().ok());assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
+  const auto generation=f.runtime.status().menu_display.generation;
+  int fd=-1;bool granted=false,mapping=false;std::uint16_t minor=0;
+  assert(f.runtime.ShareMenuWindow(generation,&fd,&granted,&minor).code==ErrorCode::unsupported_interface);
+  assert(fd==-1&&f.hardware.menu_share_calls==0);
+  const auto result=f.runtime.ShareMenuWindow(generation,&fd,&granted,&minor,true,&mapping);
+  if(blitter)assert(result.code==ErrorCode::unsupported_interface&&fd==-1&&f.hardware.menu_share_calls==0);
+  else {assert(result.ok()&&fd>=0&&mapping&&!granted&&f.hardware.menu_share_calls==1);close(fd);}
+ }
+}
+
 void TestMenuFramesAlternateSlots()
 {
  Fixture f;const std::string id(64,'a');
@@ -1835,6 +1870,7 @@ void TestMenuPreparationFencesLifecycle()
 
 int main()
 {
+ TestStartWithSelectedMenuAvoidsSplash();
  TestComputerSessionDisplayPresentsFramesAndRestoresVideo();
  TestSessionDisplayBindingsFocusAndFrameRevocation();
  TestSessionDisplayMachineFocusKeepsInput();
@@ -1847,6 +1883,7 @@ int main()
  TestMenuFrameYieldsToCoreDataAndLaunch();
  TestMenuFrameWaitIsBounded();
  TestMenuGenerationAndPreparationFencing();
+ TestMenuFrameMappingRequiresExplicitClientAgreement();
  TestMenuFramesAlternateSlots();
  TestMenuBlitterGrantTakesCpuFramesUntilAList();
  TestMenuPreparationFencesLifecycle();

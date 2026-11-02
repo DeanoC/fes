@@ -1,0 +1,16 @@
+{
+  "source_revision": "0cb6a68e4e4b9c574e8f61712b668212ae9ad39b",
+  "command": [
+    "/usr/bin/python3",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-managed-factory/corrected-focused.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-factory-0cb6a68e4",
+  "started_utc": "2026-11-01T23:26:24.004424+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 394307,
+  "state": "passed",
+  "elapsed_seconds": 7.1,
+  "heartbeat_utc": "2026-11-01T23:26:31.110196+00:00",
+  "returncode": 0
+}

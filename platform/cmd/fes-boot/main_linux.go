@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -54,23 +55,27 @@ func main() {
 	os.Exit(1)
 }
 
-func openStore() (*store.Store, release.Manifest, error) {
-	f, err := os.Open(factoryFile)
+func openStore(board string) (*store.Store, release.Manifest, error) {
+	return openStoreAt(factoryFile, store.DefaultRoot, board)
+}
+
+func openStoreAt(factoryPath, releaseRoot, board string) (*store.Store, release.Manifest, error) {
+	f, err := os.Open(factoryPath)
 	if err != nil {
 		return nil, release.Manifest{}, err
 	}
 	defer f.Close()
-	factory, _, err := release.DecodeManifest(f)
+	factory, _, err := release.DecodeManifestForBoard(f, board)
 	if err != nil {
 		return nil, factory, err
 	}
-	s, err := store.New(store.DefaultRoot, factory)
+	s, err := store.NewForBoard(releaseRoot, factory, board)
 	return s, factory, err
 }
 
 func bootMain() error {
-	// Kernel has already loop-mounted this ext4 bootstrap and bind-mounted FAT.
-	// These directories are baked into the stable image; only tmpfs is writable.
+	// DE10's kernel supplies the loop root and FAT mount. Terasic's DE25 boot
+	// script supplies an ext4 partition root; this bootstrap mounts its FAT.
 	for _, m := range []struct {
 		source, target, kind string
 		flags                uintptr
@@ -84,6 +89,15 @@ func bootMain() error {
 			return fmt.Errorf("mount %s: %w", m.target, err)
 		}
 	}
+	board, err := bootlinux.ReadBootBoard("/etc/fes-board", runtime.GOARCH)
+	if err != nil {
+		return err
+	}
+	if board == release.BoardDE25 {
+		if err := bootlinux.PrepareDe25BootVolume(); err != nil {
+			return err
+		}
+	}
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return err
 	}
@@ -91,11 +105,11 @@ func bootMain() error {
 	if err != nil {
 		return err
 	}
-	s, factory, err := openStore()
+	s, factory, err := openStore(board)
 	if err != nil {
 		return err
 	}
-	return applianceboot.Run(context.Background(), s, factory.ImageSHA256, strings.TrimSpace(string(raw)), linuxPlatform{})
+	return applianceboot.Run(context.Background(), s, factory.ImageSHA256, strings.TrimSpace(string(raw)), linuxPlatform{board: board})
 }
 
 func guardMain(bootID, image string) error {
@@ -104,7 +118,14 @@ func guardMain(bootID, image string) error {
 		return errors.New("missing guard acknowledgement pipe")
 	}
 	defer ready.Close()
-	s, _, err := openStore()
+	board, err := bootlinux.ReadBootBoard("/etc/fes-board", runtime.GOARCH)
+	if err != nil {
+		return err
+	}
+	if err := trialSupported(board); err != nil {
+		return err
+	}
+	s, _, err := openStore(board)
 	if err != nil {
 		return err
 	}
@@ -117,7 +138,7 @@ func guardMain(bootID, image string) error {
 		})
 }
 
-type linuxPlatform struct{}
+type linuxPlatform struct{ board string }
 type linuxRoot struct{ *bootlinux.Root }
 
 func (linuxPlatform) Prepare(path string) (applianceboot.Root, error) {
@@ -130,7 +151,17 @@ func (linuxPlatform) Prepare(path string) (applianceboot.Root, error) {
 func (linuxRoot linuxRoot) Exec() error {
 	return linuxRoot.PivotAndExec("/sbin/init", []string{"/sbin/init"}, []string{"PATH=/sbin:/bin:/usr/sbin:/usr/bin", "HOME=/", "TERM=linux"})
 }
-func (linuxPlatform) Arm(ctx context.Context, choice store.Selection) error {
+func trialSupported(board string) error {
+	if board != release.Board {
+		return errors.New("trial watchdog recovery requires qualified DE10-nano; DE25 recovery is not qualified")
+	}
+	return nil
+}
+
+func (p linuxPlatform) Arm(ctx context.Context, choice store.Selection) error {
+	if err := trialSupported(p.board); err != nil {
+		return err
+	}
 	_, err := bootlinux.StartGuard(ctx, "/sbin/init", []string{"--guard", "--boot-id", choice.BootID, "--image-sha256", choice.Manifest.ImageSHA256})
 	return err
 }

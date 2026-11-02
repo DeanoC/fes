@@ -1,0 +1,200 @@
+{
+  "cases": [
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/appliance.py",
+        "release",
+        "--board",
+        "de25-nano",
+        "--factory",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "--version",
+        "refusal.1",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-appliance-workflow/refused-release"
+      ],
+      "expected_refusal": "actual managed-factory receipt",
+      "name": "release",
+      "returncode": 1,
+      "stderr": "appliance: DE25 release requires an actual managed-factory receipt\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/appliance.py",
+        "bootstrap",
+        "--board",
+        "de25-nano",
+        "--factory",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "--release",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-appliance-workflow/unused-release",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-appliance-workflow-c68b96d12/out/refused-bootstrap"
+      ],
+      "expected_refusal": "actual managed-factory receipt",
+      "name": "bootstrap",
+      "returncode": 1,
+      "stderr": "appliance: DE25 release requires an actual managed-factory receipt\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/appliance_media.py",
+        "build",
+        "--board",
+        "de25-nano",
+        "--factory",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "--vendor-boot",
+        "/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image/vendor-boot",
+        "--release",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-appliance-workflow/unused-release",
+        "--bootstrap",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-appliance-workflow/unused-bootstrap",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-appliance-workflow/refused-card",
+        "--unprovisioned"
+      ],
+      "expected_refusal": "actual managed-factory receipt",
+      "name": "card-build",
+      "returncode": 1,
+      "stderr": "appliance media: DE25 release requires an actual managed-factory receipt\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/appliance_media.py",
+        "verify",
+        "--board",
+        "de25-nano",
+        "--factory",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "--vendor-boot",
+        "/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image/vendor-boot",
+        "--release",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-appliance-workflow/unused-release",
+        "--bootstrap",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-appliance-workflow/unused-bootstrap",
+        "--output",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-appliance-workflow/refused-card",
+        "--unprovisioned"
+      ],
+      "expected_refusal": "actual managed-factory receipt",
+      "name": "card-verify",
+      "returncode": 1,
+      "stderr": "appliance media: DE25 release requires an actual managed-factory receipt\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "make",
+        "release",
+        "APPLIANCE_BOARD=de25-nano",
+        "APPLIANCE_FACTORY=/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "RELEASE_VERSION=refusal.1"
+      ],
+      "expected_refusal": "actual managed-factory receipt",
+      "name": "make-release",
+      "returncode": 2,
+      "stderr": "appliance: DE25 release requires an actual managed-factory receipt\nmake: *** [Makefile:120: release] Error 1\n",
+      "stdout": "python3 scripts/appliance.py release --profile \"de25-nano\" --board \"de25-nano\" --factory \"/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base\" --version \"refusal.1\" --image-passes \"1\"\n"
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/appliance.py",
+        "release",
+        "--board",
+        "de25-nano",
+        "--factory",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "--profile",
+        "native-integration-dev",
+        "--version",
+        "refusal.1"
+      ],
+      "expected_refusal": "profile differs",
+      "name": "foreign-profile",
+      "returncode": 1,
+      "stderr": "appliance: appliance profile differs from independently selected board\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "/usr/bin/python3",
+        "scripts/appliance.py",
+        "release",
+        "--factory",
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "--version",
+        "refusal.1"
+      ],
+      "expected_refusal": "only to explicitly selected DE25",
+      "name": "missing-board",
+      "returncode": 1,
+      "stderr": "appliance: --factory applies only to explicitly selected DE25\n",
+      "stdout": ""
+    }
+  ],
+  "classification": "actual CLI/Make refusals of the real intermediate and dry-run forwarding; no admitted factory/card or hardware acceptance",
+  "hardware_access": "not-performed",
+  "make_dry_runs": [
+    {
+      "classification": "dry-run forwarding only",
+      "command": [
+        "make",
+        "--dry-run",
+        "bootstrap",
+        "APPLIANCE_BOARD=de25-nano",
+        "APPLIANCE_FACTORY=/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "APPLIANCE_VENDOR_BOOT=/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image/vendor-boot",
+        "RELEASE=/fixture/release",
+        "BOOTSTRAP=/fixture/bootstrap",
+        "OUTPUT=/fixture/card"
+      ],
+      "stdout": "python3 scripts/platform.py provision --fogcast \"/home/deano/fes/out/dev/de25-managed-image/out/work/de25-appliance-workflow-c68b96d12/sources/FogCast\"\npython3 scripts/appliance.py bootstrap --profile \"de25-nano\" --board \"de25-nano\" --factory \"/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base\" --release \"/fixture/release\"\n"
+    },
+    {
+      "classification": "dry-run forwarding only",
+      "command": [
+        "make",
+        "--dry-run",
+        "appliance-media",
+        "APPLIANCE_BOARD=de25-nano",
+        "APPLIANCE_FACTORY=/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "APPLIANCE_VENDOR_BOOT=/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image/vendor-boot",
+        "RELEASE=/fixture/release",
+        "BOOTSTRAP=/fixture/bootstrap",
+        "OUTPUT=/fixture/card"
+      ],
+      "stdout": "python3 scripts/appliance_media.py build --profile \"de25-nano\" --board \"de25-nano\" --factory \"/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base\" --vendor-boot \"/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image/vendor-boot\" --release \"/fixture/release\" --bootstrap \"/fixture/bootstrap\" --output \"/fixture/card\"\n"
+    },
+    {
+      "classification": "dry-run forwarding only",
+      "command": [
+        "make",
+        "--dry-run",
+        "verify-appliance-media",
+        "APPLIANCE_BOARD=de25-nano",
+        "APPLIANCE_FACTORY=/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base",
+        "APPLIANCE_VENDOR_BOOT=/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image/vendor-boot",
+        "RELEASE=/fixture/release",
+        "BOOTSTRAP=/fixture/bootstrap",
+        "OUTPUT=/fixture/card"
+      ],
+      "stdout": "python3 scripts/appliance_media.py verify --profile \"de25-nano\" --board \"de25-nano\" --factory \"/home/deano/fes/out/dev/de25-managed-image/out/de25-dbus-rootfs/managed-base\" --vendor-boot \"/home/deano/fes/out/artifacts/de25-kernel-modules/0da63d1044cc7ecf9908efba52af17b3e55e6271/linux-image/vendor-boot\" --release \"/fixture/release\" --bootstrap \"/fixture/bootstrap\" --output \"/fixture/card\"\n"
+    }
+  ],
+  "normal_runtime_admission": "closed",
+  "original_inputs_unchanged": {
+    "base.json": "70dc18e1fe4d45ea4c58825f046a287c4799d784caa65b63ae2287dc84e11e40",
+    "kernel/Image": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+    "rootfs.ext4": "2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06"
+  },
+  "source_revision": "c68b96d12362a15dee715bf492c25a72c35db2f4"
+}

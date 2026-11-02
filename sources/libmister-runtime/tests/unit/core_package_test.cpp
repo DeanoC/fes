@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "native/core_package.hpp"
+#include "native/core_driver.hpp"
 #include "native/sha256.hpp"
 
 #include <algorithm>
@@ -1128,10 +1129,61 @@ void TestComputerFirmwarePackageAdmission()
 		mister::ErrorCode::unsupported_abi);
 }
 
+void TestExplicitDe25ProfileAndDriverBinding()
+{
+	using namespace mister; using namespace mister::native;
+	TempDirectory package;
+	std::string manifest = ReadFile(std::string(kFixtures) + "/manifests/valid-basic.toml");
+	auto replace = [&](const std::string& before, const std::string& after) {
+		auto at = manifest.find(before); assert(at != std::string::npos);
+		manifest.replace(at, before.size(), after);
+	};
+	replace("de10_nano", "de25_nano"); replace("5CSEBA6U23I7", "A5EB013BB23BE4SCS");
+	replace("fes-gp-v1", "de25-hps-first-v1"); replace("fes.simple-game", "fes.computer");
+	replace("fes.gamepad", "fes.keyboard.hid");
+	manifest += "\n[[interfaces]]\nid = \"fes.media.zx81-tape\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	package.Add("manifest.toml", manifest);
+	package.Add("core.rbf", ReadFile(std::string(kFixtures) + "/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened; assert(OpenCorePackage(package.path, "", &opened).ok());
+	const auto& descriptor = opened.descriptor;
+	assert(CheckCoreCompatibility(descriptor).code == ErrorCode::unsupported_target);
+	assert(CheckCoreCompatibility(descriptor, NativePlatform::de25_nano).ok());
+	ContainedCoreDriver gp, contained, de25;
+	CoreDriverRegistry normal(&gp, contained, &de25);
+	CoreDriverRegistry selected(&gp, contained, &de25, NativePlatform::de25_nano);
+	CoreDriverRegistry missing(&gp, contained, nullptr, NativePlatform::de25_nano);
+	ProgrammingProfile profile; CoreDriver* driver = &gp;
+	assert(!normal.Resolve(descriptor, &profile, &driver).ok() && driver == nullptr);
+	assert(selected.Resolve(descriptor, &profile, &driver).ok());
+	assert(profile == ProgrammingProfile::de25_hps_first_v1 && driver == &de25);
+	assert(!missing.Resolve(descriptor, &profile, &driver).ok() && driver == nullptr);
+	assert(!normal.Resolve(ProgrammingProfile::de25_hps_first_v1));
+	assert(!selected.Resolve(ProgrammingProfile::fes_gp_v1));
+	assert(!selected.Resolve(ProgrammingProfile::development_contained_v1));
+	for (unsigned variant = 0; variant < 11; ++variant) {
+		auto bad = descriptor;
+		if (variant == 0) bad.target.device = "A5EB013BB23BE4R1";
+		if (variant == 1) bad.target.platform = "de10_nano";
+		if (variant == 2) bad.target.programming_profile = "fes-gp-v1";
+		if (variant == 3) bad.target.programming_profile = "development-contained-v1";
+		if (variant == 4) bad.abi.minor = 1;
+		if (variant == 5) bad.interfaces[0].required = false;
+		if (variant == 6) bad.interfaces.push_back({"fes.memory.hps-ddr", 1, 0, true});
+		if (variant == 7) bad.interfaces[1] = bad.interfaces[0];
+		if (variant == 8) bad.build.id.assign(32, '0');
+		if (variant == 9) bad.format = 3;
+		if (variant == 10) bad.core.system = "legacy";
+		driver = &de25;
+		assert(!selected.Resolve(bad, &profile, &driver).ok() && driver == nullptr);
+	}
+	assert(!CheckCoreCompatibility(descriptor, static_cast<NativePlatform>(255)).ok());
+}
+
 } // namespace
 
 int main()
 {
+	TestExplicitDe25ProfileAndDriverBinding();
 	TestComputerCompatibilityComposesRecognizedInterfaces();
 	TestComputerFirmwarePackageAdmission();
 	TestSharedFormat4TwoSourceFixture();

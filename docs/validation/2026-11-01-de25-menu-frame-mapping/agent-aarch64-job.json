@@ -1,0 +1,16 @@
+{
+  "source_revision": "9d50eeacb3e094a95ebd07115bff350041e03275",
+  "command": [
+    "python3",
+    "out/frame-agent-aarch64-recheck.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-11-01T12:28:37.162339+00:00",
+  "time_cap_seconds": 120,
+  "hardware_access": "not-performed",
+  "pid": 4123320,
+  "state": "passed",
+  "elapsed_seconds": 0.3,
+  "heartbeat_utc": "2026-11-01T12:28:37.448242+00:00",
+  "returncode": 0
+}

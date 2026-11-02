@@ -46,6 +46,7 @@ func run(ctx context.Context, args []string, out, log io.Writer) error {
 	targetName := flags.String("target", "", "named target (defaults to selected_target)")
 	action := flags.String("action", "status", "status, update, rollback or confirm")
 	releaseDir := flags.String("release", "", "release directory (release.json; rootfs.img required for update)")
+	board := flags.String("board", appliance.Board, "release board: de10-nano or de25-nano")
 	imageSHA := flags.String("image-sha256", "", "expected image SHA-256 for confirm")
 	timeout := flags.Duration("timeout", 0, "explicit total deadline (default depends on action and image size)")
 	if err = flags.Parse(args); err != nil {
@@ -66,11 +67,14 @@ func run(ctx context.Context, args []string, out, log io.Writer) error {
 	if err := validateActionFlags(*action, *releaseDir, *imageSHA); err != nil {
 		return err
 	}
+	if *board != appliance.Board && *board != appliance.BoardDE25 {
+		return errors.New("unsupported selected release board")
+	}
 	var manifest appliance.Manifest
 	var image *os.File
 	var imageBase software.Compatibility
 	if *action == "update" {
-		manifest, image, err = openRelease(*releaseDir, log)
+		manifest, image, err = openReleaseForBoard(*releaseDir, log, *board)
 		if err != nil {
 			return err
 		}
@@ -78,8 +82,11 @@ func run(ctx context.Context, args []string, out, log io.Writer) error {
 		if imageBase, err = imageSoftwareBase(image); err != nil {
 			return err
 		}
+		if *board == appliance.BoardDE25 && (imageBase.Board != *board || imageBase.Architecture != "aarch64") {
+			return errors.New("release image software base differs from selected DE25 AArch64 target")
+		}
 	} else if *action == "confirm" && *releaseDir != "" {
-		manifest, err = readReleaseManifest(*releaseDir, log)
+		manifest, err = readReleaseManifestForBoard(*releaseDir, log, *board)
 		if err != nil {
 			return err
 		}
@@ -129,7 +136,7 @@ func run(ctx context.Context, args []string, out, log io.Writer) error {
 		result, err = client.InspectAppliance(ctx, target.TargetID, discovery.Resolve)
 	case "update":
 		if err = requireSelectedSoftware(ctx, client, target.TargetID, imageBase, log); err == nil {
-			result, err = client.UpdateAppliance(ctx, target.TargetID, manifest, image, discovery.Resolve)
+			result, err = client.UpdateApplianceForBoard(ctx, target.TargetID, manifest, image, discovery.Resolve, *board)
 		}
 	case "rollback":
 		result, err = client.RollbackAppliance(ctx, target.TargetID, discovery.Resolve)
@@ -245,12 +252,16 @@ func chooseDeadline(action string, explicit bool, timeout time.Duration, imageSi
 }
 
 func readReleaseManifest(dir string, log io.Writer) (appliance.Manifest, error) {
+	return readReleaseManifestForBoard(dir, log, appliance.Board)
+}
+
+func readReleaseManifestForBoard(dir string, log io.Writer, board string) (appliance.Manifest, error) {
 	f, err := os.Open(filepath.Join(dir, "release.json"))
 	if err != nil {
 		return appliance.Manifest{}, err
 	}
 	defer f.Close()
-	manifest, ignored, err := appliance.DecodeManifest(f)
+	manifest, ignored, err := appliance.DecodeManifestForBoard(f, board)
 	if err != nil {
 		return manifest, err
 	}
@@ -261,11 +272,15 @@ func readReleaseManifest(dir string, log io.Writer) (appliance.Manifest, error) 
 }
 
 func openRelease(dir string, log io.Writer) (appliance.Manifest, *os.File, error) {
+	return openReleaseForBoard(dir, log, appliance.Board)
+}
+
+func openReleaseForBoard(dir string, log io.Writer, board string) (appliance.Manifest, *os.File, error) {
 	var manifest appliance.Manifest
 	if dir == "" {
 		return manifest, nil, errors.New("update requires --release directory")
 	}
-	manifest, err := readReleaseManifest(dir, log)
+	manifest, err := readReleaseManifestForBoard(dir, log, board)
 	if err != nil {
 		return manifest, nil, err
 	}

@@ -10,7 +10,8 @@ fixtures. Go emitters generate C, C++14, Go and Verilog consumers. FES runs
 
 Standalone board definitions support `validate` and `report`, independently of
 SoC and CPU definitions. DE25-Nano starts with descriptive FPGA bring-up pins;
-it has no platform, programming profile or runtime admission yet. Board metadata
+the DE25 HPS-first programming registry now declares the BRAM computer pair,
+while production runtime admission remains closed. Board metadata
 does not emit Quartus constraints. For example, from this module:
 
 ```sh
@@ -69,6 +70,15 @@ MiSTer programming/ABI pair are retired. Format-2 structural fixtures may
 still describe arbitrary ABIs; syntax validity does not confer activation
 support. Historical oracle records remain provenance.
 
+The DE25 registry pairs `de25-hps-first-v1` with `fes.computer` major1 and
+`de25-linux-menu-v1` with `fes.application` major1 on the SCS board part.
+Runtime preflight requires explicit DE25 selection and either the exact BRAM
+computer contract or MENU's fixed-video/menu-display/scanout1.1 contract.
+The latter uses kernel-allocated coherent DMA, not a boot-latched HPS DDR window.
+Metadata never selects a hardware backend or establishes hardware acceptance.
+The production factory separately checks the board, lease, kernel receipt and
+owner ABI3. C++ profile row types include their platform prefix.
+
 The runtime owns physical programming and compatibility admission; FogCast
 owns library/session context; misteross owns source builds and RBF provenance.
 Shared persistence layouts and wire contracts remain here.
@@ -117,3 +127,7 @@ seed, and the `fes.ata-disk.delta` chunk record in [media data](docs/media-data.
 [PC/XT ISA fabric](docs/pcxt-isa.md) defines the internal byte-transaction
 prepare/commit boundary for PC/XT expansion development. Its generated Verilog
 consumer adds no GP capability, physical layout or activation support.
+
+DE25 computer fabric1.1 exposes board-owned HDMI readiness at offset24. The
+single synchronized bit gates managed Start; it confers no physical video or
+production construction acceptance. See docs/de25-computer.md.

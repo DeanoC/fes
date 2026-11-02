@@ -1,0 +1,16 @@
+{
+  "source_revision": "d2012e3ac6df0d66a8525bd2558735f7ec0a565b",
+  "command": [
+    "python3",
+    "out/owner-zx81-build-d2012e3ac/run.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T18:14:24.883362+00:00",
+  "time_cap_seconds": 300,
+  "hardware_access": "not-performed",
+  "pid": 599371,
+  "state": "passed",
+  "elapsed_seconds": 5.6,
+  "heartbeat_utc": "2026-10-31T18:14:30.491940+00:00",
+  "returncode": 0
+}

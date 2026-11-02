@@ -1,0 +1,50 @@
+{
+  "classification": "actual pinned write function; injected service and clock",
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "manager": {
+    "before_sha256": "26a525c7138b2dd04735e1cc3b458cec115102a1c00c6c51c4abf4e3ae7b6b44",
+    "after_sha256": "fb8d9aad27bfc618c7919952c2f9aff4a6af5fbb2f2f71e2e6fbb48a3d5c39b9"
+  },
+  "patch_sha256": "e58abfd26c97f6d03490fde48a68a3290b19de9733cc4260e45818ef697227fa",
+  "command": [
+    "cc",
+    "-std=c11",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "out/de25-retention-write-proof-v2/write-test.c",
+    "-o",
+    "out/de25-retention-write-proof-v2/write-test"
+  ],
+  "control": "unmodified manager hangs on permanent ENOMEM",
+  "disabled_profile_positive": "passed",
+  "cases": [
+    "case 0 PASS",
+    "case 1 PASS",
+    "case 2 PASS",
+    "case 3 PASS",
+    "case 4 PASS",
+    "case 5 PASS",
+    "case 6 PASS",
+    "case 7 PASS",
+    "case 8 PASS",
+    "case 12 PASS",
+    "case 9 PASS",
+    "case 10 PASS",
+    "case 11 PASS",
+    "case 13 PASS: fragments share one deadline; failure cannot resume"
+  ],
+  "hardware_access": false,
+  "whole_programming_bound": false,
+  "sdm_dma_quiescence": false,
+  "sha256": {
+    "write-test.c": "18f59778c8b4aeaede27e097cffd58d85467766eaedd5d5712d24df22a4df41a",
+    "write-control": "0eb20faeb4143f47193873c440422623cfcfa98aae95549fffa693e2fe99e762",
+    "results.log": "1b3e0d8ab70810e2f0ab42022cf1a4873472da816fb164d2d0b1a7d1a5ff697c",
+    "write-test": "b472978c74598fe8a7cfbc3f53ff8bab22b291b9d4541e490ed29d19c014cca4",
+    "disabled.log": "674db93066f8c2b58c986624df3532693202809b1dfe328d664adc604752dc0c",
+    "write-function.c": "c8ee8a2f598bad9d917d9203cd08e666682ce122ad391b2858f257fb25433a29",
+    "write-disabled": "563a8be039ee0b960ba51f3912222c34c1c718916cdd2fa25060c429a3484590"
+  }
+}

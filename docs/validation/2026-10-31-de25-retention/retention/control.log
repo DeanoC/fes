@@ -1,0 +1,1 @@
+retention-control: out/de25-retention-lifecycle-proof-v2/retention-test.c:143: main: Assertion `retry == -EIO && "failed load must refuse a new caller"' failed.

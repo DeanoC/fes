@@ -1194,7 +1194,7 @@ class InterfaceTests(unittest.TestCase):
         cold = set(cold_build.BUILD_RECIPE_FILES)
         media_files = set(cold_build.MEDIA_RECIPE_FILES)
         for name in ('media.py', 'media_inputs.py', 'media_uboot.py', 'media_container.py', 'media_inside.py',
-                     'platform.py'):
+                     'platform.py', 'de25_appliance.py'):
             self.assertNotIn(ROOT / 'scripts' / name, cold)
             self.assertIn(ROOT / 'scripts' / name, media_files)
         self.assertIn(ROOT / 'boot-media.lock.toml', media_files)

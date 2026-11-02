@@ -1,0 +1,25 @@
+{
+  "architecture": "aarch64",
+  "board": "de25-nano",
+  "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+  "classification": "managed-base-intermediate",
+  "fes_revision": "e7cacb2a2f9d2558f712d69c62b2a2cafa1c52a6",
+  "files": {
+    "aarch64-sdk.tar.gz": "d632a493aa5f51bb4c3e218ace4bb3e609ab26adda3776871c7e9685d64d6209",
+    "base-inputs.json": "f03cbf73429d72ec1e3966805617fceb38a69c04d6134c5e72a86f6a771636b9",
+    "buildroot.config": "12caf43755de0bbd771c5b16f3e1802bae339bbaa098c8cfc51422a95bde9614",
+    "kernel/Image": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+    "kernel/System.map": "c527c50840fa16967838955f69a17083ac53e437f8d1bb4eb3f6bed5912ae76c",
+    "kernel/de25-owner.dtb": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+    "kernel/kernel-build.json": "bd1e242134eb6bb10ec3fa71cfb3edcad9dc1827f72d9a7dfd5d3bd7468d6a5a",
+    "kernel/kernel.config": "2395baf1c813f4b2c18f5069f8df32bf4ffc38914b9e48fcf68ef5d82a15d467",
+    "kernel/vmlinux.symvers": "14a94758e2396ad788b63b9864c6479f96076dc7bb86083f14ec8e82bc4e89c8",
+    "rootfs.ext4": "82b14d8cd6f974f46ae27ec17721a7e838cb1b0f1bca5b384de1daa9b1be2537",
+    "rootfs.tar": "36b74e0229689ffc7022fa8a5d8b0eaff1aa70a116d3196a520f71dfac18f41d"
+  },
+  "format": 1,
+  "hardware_acceptance": "not-run",
+  "normal_runtime_admission": "closed",
+  "recipe_sha256": "f8e9ae0f2aa4934dadd44cd6bbbf7ca83b4093e8f62ededefe9db8e54525f3b9",
+  "sdk_sha256": "7912076c08d93c8d8c28c0ef81bd406abf6b1acb9e01ccac37d44307e39759a7"
+}

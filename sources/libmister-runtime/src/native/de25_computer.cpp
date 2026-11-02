@@ -192,12 +192,12 @@ Error De25Computer::MediaInfo(std::uint32_t* minimum, std::uint32_t* maximum,
 		return Fail("DE25 tape unit returned an invalid state");
 	return {};
 }
-Error De25Computer::Identify(const std::string& expected_build, std::uint64_t deadline, De25ComputerIdentity* identity)
+Error De25Computer::Identify(const std::string& expected_build, std::uint64_t deadline, De25ComputerIdentity* identity, De25TapeInfo* tape)
 {
 	std::lock_guard<std::mutex> lock(mutex_);
 	std::string expected;
 	if (!identity || !BuildId(expected_build, &expected)) return Invalid("selected DE25 build must be a nonzero 32-digit hexadecimal identity");
-	*identity = {}; identified_ = false;
+	*identity = {}; if (tape) *tape = {}; identified_ = false;
 	Error e = Begin(deadline); if (!e.ok()) return e;
 	std::uint32_t id = 0, version = 0;
 	e = Read(FesDe25ComputerIdOffset, &id); if (!e.ok()) return e;
@@ -223,6 +223,7 @@ Error De25Computer::Identify(const std::string& expected_build, std::uint64_t de
 		maximum != FesDe25ComputerZx81TapeMaxBytes || chunk != FesComputerMediaChunkMaxBytes)
 		return Fail("DE25 tape limits differ from selected diagnostic contract");
 	identified_ = true; identity->build_id = expected; identity->capabilities = kCapabilities;
+	if (tape) { tape->minimum = minimum; tape->maximum = maximum; tape->chunk_bytes = chunk; tape->state = state; }
 	return {};
 }
 Error De25Computer::Hold(std::uint64_t deadline)
@@ -234,6 +235,23 @@ Error De25Computer::Run(std::uint64_t deadline)
 {
 	std::lock_guard<std::mutex> lock(mutex_); Error e = RequireIdentity(); if (!e.ok()) return e;
 	e = Begin(deadline); return e.ok() ? Mutate(FesComputerOpcodeExecution, FesComputerControlIndex, FesComputerExecutionRelease) : e;
+}
+Error De25Computer::WaitVideoReady(std::uint64_t deadline)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    Error error = RequireIdentity(); if (!error.ok()) return error;
+    error = Begin(deadline); if (!error.ok()) return error;
+    for (;;) {
+        std::uint32_t status = 0, video = 0;
+        error = Status(&status); if (!error.ok()) return error;
+        if (status & FesDe25ComputerStatusBusy)
+            return Fail("DE25 video check found an outstanding command");
+        error = Read(FesDe25ComputerVideoStatusOffset, &video); if (!error.ok()) return error;
+        if (video & ~FesDe25ComputerVideoReady)
+            return Fail("DE25 video readiness has unknown status bits");
+        if (video & FesDe25ComputerVideoReady) return {};
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
 }
 Error De25Computer::SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t deadline)
 {

@@ -25,7 +25,7 @@ struct Board {
     bool pixel_running = true;
 
     Board() {
-        t.clk = 0; t.pixel_clk = 0; t.reset_n = 0;
+        t.clk = 0; t.pixel_clk = 0; t.reset_n = 0; t.video_ready = 1;
         t.address = 0; t.read = 0; t.write = 0; t.byteenable = 15; t.writedata = 0;
         t.eval();
         cycles(3);
@@ -285,7 +285,7 @@ static void malformed_accesses() {
         b.write_word(address, 0x81000000, 2);
         b.check_fault(FesDe25ComputerFaultAddress, 0);
     }
-    for (uint8_t address : {uint8_t(1), uint8_t(24), uint8_t(31)}) {
+    for (uint8_t address : {uint8_t(1), uint8_t(28), uint8_t(31)}) {
         Board b;
         check(b.read_word(address, 2) == 0, "invalid read returned data");
         b.check_fault(FesDe25ComputerFaultAddress, 0);
@@ -353,11 +353,31 @@ static void reset_faults_and_late_media() {
     std::puts("PASS DE25 computer: stopped-high/low reset, retained epoch, suppressed late tape writes");
 }
 
+static void board_video_ready_crossing() {
+    Board b; auto& t = b.t;
+    check(b.read_word(FesDe25ComputerVideoStatusOffset) == FesDe25ComputerVideoReady,
+          "configured board status was not readable");
+    b.t.video_ready = 0; b.t.eval();
+    b.system_edge();
+    check((S(video_ready_sync) & 2) != 0, "readiness loss bypassed its first synchronizer");
+    b.system_edge();
+    check(b.read_word(FesDe25ComputerVideoStatusOffset) == 0, "readiness loss was not observed");
+    b.t.video_ready = 1; b.t.eval();
+    b.system_edge();
+    check((S(video_ready_sync) & 2) == 0, "readiness assertion bypassed its first synchronizer");
+    b.system_edge();
+    check(b.read_word(FesDe25ComputerVideoStatusOffset) == FesDe25ComputerVideoReady,
+          "readiness assertion was not observed");
+    check(b.read_word(FesDe25ComputerFaultOffset) == 0, "read-only readiness probing faulted the transport");
+    std::puts("PASS DE25 computer: board video readiness crosses two MMIO clocks without GP mutation");
+}
+
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
     auto* rom = std::fopen("zx8x.hex", "rb");
     check(rom != nullptr, "selected ROM missing from native output directory");
     std::fclose(rom);
+    board_video_ready_crossing();
     tape_size_limits();
     pixel_ready_crossing();
     identity_keyboard_media();

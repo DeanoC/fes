@@ -1,0 +1,216 @@
+{
+  "base": "2e3d382fe3914ba12ce4dfaead45b0bfb390bf51",
+  "checkout_head": "e7cacb2a2f9d2558f712d69c62b2a2cafa1c52a6",
+  "commands": [
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_affected.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_affected.py"
+      ],
+      "label": "test_affected.py",
+      "lane": "always",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_test_changed.py",
+        "-v"
+      ],
+      "cwd": ".",
+      "files": [
+        "tests/test_test_changed.py"
+      ],
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "scripts/check_diff.py",
+        "--base",
+        "2e3d382fe3914ba12ce4dfaead45b0bfb390bf51",
+        "--head",
+        "e7cacb2a2f9d2558f712d69c62b2a2cafa1c52a6"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "committed whitespace",
+      "lane": "always",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3"
+      ]
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check",
+        "HEAD",
+        "--"
+      ],
+      "cwd": ".",
+      "files": [],
+      "label": "working whitespace",
+      "lane": "always",
+      "tools": [
+        "git"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "scripts/parent_tests.py",
+        "--video",
+        "false",
+        "--media",
+        "false",
+        "--paths-json",
+        "[\"docs/de25-linux.md\", \"image/de25-nano/build.py\", \"image/de25-nano/managed-base-post-build.sh\", \"image/de25-nano/managed_base.py\", \"scripts/de25_kernel_platform.py\", \"tests/test_de25_kernel_platform.py\", \"tests/test_de25_managed_base.py\"]"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/parent_tests.py",
+        "tests"
+      ],
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "sh"
+      ]
+    },
+    {
+      "argv": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "-c",
+        "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+      ],
+      "cwd": ".",
+      "files": [
+        "scripts/consistency.py"
+      ],
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "tools": [
+        "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/test-venv/bin/python3",
+        "go"
+      ]
+    }
+  ],
+  "format": 1,
+  "head": "e7cacb2a2f9d2558f712d69c62b2a2cafa1c52a6",
+  "impact": {
+    "always": [
+      "planner tests",
+      "diff whitespace checks"
+    ],
+    "cores": [],
+    "lanes": {
+      "contracts": false,
+      "fpga": false,
+      "host": false,
+      "parent": true,
+      "runtime": false
+    },
+    "not_run": [
+      "FPGA synthesis/place-and-route",
+      "cold image builds",
+      "hardware acceptance"
+    ],
+    "paths": [
+      "docs/de25-linux.md",
+      "image/de25-nano/build.py",
+      "image/de25-nano/managed-base-post-build.sh",
+      "image/de25-nano/managed_base.py",
+      "scripts/de25_kernel_platform.py",
+      "tests/test_de25_kernel_platform.py",
+      "tests/test_de25_managed_base.py"
+    ],
+    "reasons": [
+      "image/de25-nano/build.py: parent orchestration/tests/assembly; component sources unchanged",
+      "image/de25-nano/managed-base-post-build.sh: parent orchestration/tests/assembly; component sources unchanged",
+      "image/de25-nano/managed_base.py: parent orchestration/tests/assembly; component sources unchanged",
+      "scripts/de25_kernel_platform.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_de25_kernel_platform.py: parent orchestration/tests/assembly; component sources unchanged",
+      "tests/test_de25_managed_base.py: parent orchestration/tests/assembly; component sources unchanged"
+    ],
+    "skipped": [
+      "host",
+      "runtime",
+      "contracts",
+      "fpga"
+    ],
+    "test_modes": {
+      "full_race": false,
+      "media": false,
+      "video": false
+    }
+  },
+  "limits": [
+    "FPGA synthesis/place-and-route",
+    "cold image builds",
+    "hardware acceptance",
+    "platform/image packaging suite",
+    "required browser integration suite",
+    "committed-source/release validation (make check remains separate)"
+  ],
+  "local_paths": [],
+  "merge_base": "2e3d382fe3914ba12ce4dfaead45b0bfb390bf51",
+  "results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    }
+  ],
+  "root": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-managed-base-e7cacb2a2",
+  "status": "passed"
+}

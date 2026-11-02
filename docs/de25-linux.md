@@ -50,6 +50,48 @@ make de25-linux DE25_LINUX_ARGS='--help'
 The default container runtime is `docker`. These commands prepare and inspect
 regular files. They do not write a card, program the FPGA or change boot flash.
 
+## Managed base preparation
+
+The same builder also prepares a `managed-base-intermediate` from the shared
+native FES rootfs configuration. It includes the read-only filesystem policy,
+AArch64 FES agent and UI, storage/software/Bluetooth helpers, BlueZ and D-Bus,
+the fourteen required library paths, serial recovery and the matching permanent
+owner kernel. USB Bluetooth, classic/LE HID, UHID and uinput are built into that
+kernel; DE10 and vendor kernel modules are not reused.
+
+With a completed matching kernel build and the SDK archive pinned by
+[`linux.lock.toml`](../image/kernel/de25-dma/linux.lock.toml):
+
+```sh
+python3 image/de25-nano/build.py managed-base \
+  --kernel /absolute/owner-kernel-build \
+  --sdk /absolute/locked/aarch64-sdk.tar.gz \
+  --output out/de25-managed-base --cache out/de25-linux-cache --jobs 4
+python3 image/de25-nano/build.py verify-base \
+  --output out/de25-managed-base --cache out/de25-linux-cache
+```
+
+This requires committed sources and uses the existing authenticated builder,
+download cache and filesystem assembly. It exports rootfs ext4/tar, a developer
+SDK, the matching kernel files and source-bound receipts. Verification checks
+the real ELF/library closure, fresh executable hashes and selected ext4/tar
+contents. These are build checks; native boot, drivers and service behavior
+still require board acceptance.
+
+This intermediate reserves the `/.fes-bootstrap` mount directory and leaves managed software startup
+disabled. It contains no runtime, factory bundle, RBF or card image. Final
+factory assembly must use the existing bundle and sealed-package checks with a
+validated DE25 MENU; this action does not bypass those checks or change a board.
+
+The [managed-base and isolated SDK record](validation/2026-11-02-de25-managed-base/README.md)
+contains the real Buildroot result, kernel/SDK/file identities and completed
+offboard checks. Complete factory/card assembly and native acceptance remain open.
+The subsequent [normal SDK/runtime proof](validation/2026-11-02-de25-managed-sdk/README.md)
+authenticates reusable SDKs against their Git producers, repairs contained SDK
+links, verifies the bootstrap directory and builds the real runtime through the
+existing software-builder path. Factory metadata, sealed MENU and native
+acceptance are still required.
+
 ## AArch64 runtime and agent checks without a board
 
 After building the C/C++ SDK, run:
@@ -80,8 +122,110 @@ producer, compiler identities and output hashes. Test logs and the resulting
 runtime archive, daemon and agent remain in that output. Its classification is
 `userspace-only`: it establishes AArch64 build/software behavior, without
 claiming a DE25 FPGA programming backend, hardware MMIO map or device access.
-The current production runtime accepts only its identified ARMv7 DE10 target
-and refuses other boards before loading drivers or constructing hardware.
+The shared runtime factory also recognizes the exact AArch64 DE25 model and
+compatible strings. Its DE25 branch requires the matched owner-kernel receipt,
+exclusive physical lease, root-only owner device and owner API version 3 before
+constructing the allocated-buffer MENU or computer backend. The current
+headless image still installs no runtime, agent or managed software bundle.
+The [MENU integration record](validation/2026-11-01-de25-managed-menu/README.md)
+separates native/QEMU software checks and the prepared owner-API-3 kernel/image
+from physical acceptance; those candidate components have not been installed.
+
+The normal [kit-software producer](kit-software-releases.md) also has explicit
+DE25/AArch64 selection using this image's authenticated SDK. The
+[producer and base-helper record](validation/2026-11-01-de25-aarch64-kit-software/README.md)
+retains actual runtime/agent/launcher builds, static supervisor/storage/Bluetooth
+helpers and bounded Cortex-A53 argument tests. A reviewed managed base and
+sealed MENU are still required; the headless image remains outside that update
+path. These compiler results establish no service or hardware acceptance.
+
+The [board-bound update record](validation/2026-11-01-de25-board-bound-updates/README.md)
+covers explicit DE25 release storage, image/CPU selection in the agent/data gate,
+upload refusal before body reads and the matching update client. The storage
+helper's existing Make target builds for AArch64. Native, QEMU Cortex-A53 and
+the full affected parent/host/UI checks pass on their recorded sources. DE25
+complete media assembly and native update/watchdog acceptance remain open;
+these helpers and services are not installed by the headless image.
+
+The [AArch64 bootstrap record](validation/2026-11-01-de25-appliance-bootstrap/README.md)
+covers the FES PID1 source and a reproducible 32 MiB bootstrap ext4 image. An
+explicit DE25 selection binds its board file, AArch64 executable, factory
+manifest and stable kernel. It admits Terasic's partition-2 ext4 root, makes
+that bootstrap read-only and mounts partition 1 at `/media/fat` for the shared
+release store before root switching. CPU admission tests and image construction
+are off-board evidence. The bootstrap is not installed; the managed factory,
+complete card layout and native boot still need integration. DE25 trial boots
+are refused before watchdog guard startup until native recovery is qualified.
+
+The [factory-input record](validation/2026-11-01-de25-factory-inputs/README.md)
+covers explicit DE25/AArch64 artifact selection and shared factory startup
+wiring, including persistent SSH keys and DHCP lease renewal. It executes both
+board variants through rootfs/bundle fixtures; the fixture's executables and
+package selector are stand-ins. A separate hash audit reuses the earlier real
+AArch64 ELF compatibility result and identifies the headless base's missing
+factory libraries/services. The later
+[managed-base](validation/2026-11-02-de25-managed-base/README.md) and
+[SDK/runtime](validation/2026-11-02-de25-managed-sdk/README.md) records supply
+the real base, matching built-in drivers and normal runtime build.
+
+The [factory action record](validation/2026-11-02-de25-managed-factory/README.md)
+covers the existing DE25 builder's `managed-factory` and `verify-factory` actions,
+which consume the explicit artifact selection through the shared package,
+Buildroot runtime and software-bundle paths. It also fixes factory activation
+when the intermediate omitted its startup script. The actual pinned Buildroot
+configuration and real AArch64 runtime installation pass; rootfs-wiring fixtures
+remain separate from admitted package and physical boot evidence. Complete
+factory/card assembly requires a sealed MENU; the current candidate remains
+unsealed. Native factory, watchdog and normal-kit acceptance remain open.
+
+The [disk-construction record](validation/2026-11-02-de25-managed-media/README.md)
+then exercises a 2 GiB FAT plus 32 MiB partition-2 bootstrap through the shared
+media constructor/reconstructor, preserving Terasic's boot script and U-Boot.
+Two independent constructions with actual vendor/kernel/boot-selector bytes
+match, using a clearly marked factory/idle binding fixture. Payload, geometry,
+padding and foreign-board refusals are checked. The upper release/media CLI
+still requires an admitted factory and image-level boot smoke result; these
+construction checks do not provide either or qualify native startup.
+
+The [image boot record](validation/2026-11-02-de25-image-boot/README.md) adds
+`boot-smoke` with explicit managed-base/factory selection and makes actual
+AArch64 kernel/init/filesystem boot evidence a factory receipt prerequisite.
+The retained real managed base and matching owner kernel pass on QEMU `virt`,
+using a disposable disk and the shared read-only-root/tmpfs smoke. This is
+intermediate packaging evidence; the factory still requires sealed MENU.
+The initial log exposes a read-only D-Bus machine-ID write failure. The
+[subsequent repair](validation/2026-11-02-de25-dbus-rootfs/README.md) redirects
+the parent directory to `/run` and passes a clean actual-image rebuild and
+virtual boot with a responsive system bus, while retaining the old failing image.
+The [shared appliance workflow](validation/2026-11-02-de25-appliance-workflow/README.md)
+now selects DE25 explicitly for release, bootstrap and regular-file card
+construction. It requires the actual managed factory, a freshly recomputed
+package/rootfs verification report and its bound real boot log. The real base
+is correctly refused as an incomplete factory. See the
+[release commands](appliance-releases.md#de25-factory-selection).
+Complete factory/services and native acceptance remain open; userspace-only
+`smoke` results cannot replace this boot evidence.
+
+The [managed-fabric record](validation/2026-11-01-de25-managed-fabric/README.md)
+covers the current canonical MENU profile: vendor maintenance masters removed,
+unused F2H disabled, and obsolete fabric JTAG constraints retired with their
+originals retained. Fresh compilation, 82 generated transport/startup cases WITH
+MODELED M20K STORAGE, 24 fitted reset-path checks and zero fitted fabric JTAG
+ports/clocks pass. The original failed aggregate, refreshed native/AArch64
+combined proof and final focused checks retain separate source identities. HDMI output timing, whole reset
+coordination and firmware/native acceptance still block packages and normal-kit
+acceptance. An additional 2,304-case finite FIFO reset-release diagnostic and
+42 focused tests pass with modeled storage. It covers independent one-cycle
+release delays in eight FIFO chains and grants no reset-rule exception or
+physical/global-reset acceptance. The earlier [staggered startup/JTAG reset record](validation/2026-11-01-de25-staggered-startup/README.md)
+retains its five-receiver candidate and original evidence.
+
+The [canonical MENU reset-timing record](validation/2026-11-01-de25-timed-system-reset/README.md)
+covers the producer that restores timing checks on three same-clock reset
+receivers. Its fresh fit clears RES-50101, passes all 74 reported timing checks
+and retains only the approved two-input exception. HDMI output timing and other
+reset-domain coordination still block export; the candidate remains
+unprogrammed. Managed-image and native kit acceptance remain open.
 
 The [2026-10-28 AArch64 software validation record](validation/2026-10-28-de25-aarch64-runtime/README.md)
 retains the selected C++ SDK/image and runtime receipts, QEMU test logs, native
@@ -253,15 +397,19 @@ existing FES development convention. Dropbear creates the board's SSH host keys
 on the writable root filesystem at first boot; no shared host key is shipped.
 `/etc/fes-board` identifies this root filesystem as `de25-nano`.
 
-The selected vendor boot path may generate a random Ethernet MAC when no
-valid address is available from firmware or hardware. Stable MAC identity
-across reboots is not established by this milestone. Record the observed MAC
-and DHCP address during board qualification, including distinct addresses
-when testing both boards.
+The selected vendor boot path may generate a random locally administered
+Ethernet MAC on each boot. Before DHCP, `S38fes-network-id` preserves globally
+assigned hardware addresses and replaces local addresses with `02` followed
+by five bytes of the SHA-256 digest of the lowercase SD card CID. This identity
+is stable for the card; replacing the card changes it. Invalid identities are
+rejected before changing the interface. Physical reboot verification of this
+initialization remains pending; record the MAC and DHCP address during board
+qualification, including distinct addresses when testing both boards.
 
-The normal FES appliance bootstrap is not used. Its current kernel contract,
-trial watchdog reset preparation and software bundle identities target
-DE10-Nano. The DE25 image does not accept DE10 bundles or claim managed update,
+This headless image does not use the FES appliance bootstrap. The separate
+AArch64 bootstrap source and image proof above do not change its direct-root
+boot or install a managed factory. Trial watchdog reset preparation remains
+DE10-only. The DE25 image does not accept DE10 bundles or claim managed update,
 rollback, FPGA programming, HPS DDR or display compatibility.
 
 ## First-boot evidence collection
@@ -395,12 +543,14 @@ cannot establish safety for the other fabric masters and HPS-origin traffic.
 
 The [Linux DMA ownership diagnostic](../image/kernel/de25-dma/README.md)
 implements kernel-owned coherent allocation, descriptor publication and
-revocable mappings. ABI 2 adds ordered scanout submission, explicit coherent
+revocable mappings. ABI 3 adds observed hardware build identity and a pre-allocation
+owner-version query, alongside ordered scanout submission, explicit coherent
 status polling and repeated-frame slot ownership: command acceptance does not
 release the old slot; a matching complete displayed frame does. The allocation
 stays pinned for the configured engine's lifetime until an identity-matched
-STOP/drain/CLEAR proof. Its production binding refuses all devices. A separate
-AArch64 QEMU kernel exercises the real DMA/file/VMA code on a KUnit device:
+STOP/drain/CLEAR proof. Ordinary builds refuse physical binding. The default-off
+permanent-owner candidate adds allocation/reap control and early overlay
+exclusion; normal FES runtime admission remains closed. A separate AArch64 QEMU kernel exercises the real DMA/file/VMA code on a KUnit device:
 
 ```sh
 python3 scripts/de25_kernel_test.py fetch
@@ -411,10 +561,48 @@ python3 scripts/de25_kernel_test.py run --image-output out/de25-nano-linux-cxx \
 The runner requires clean committed sources, the locked SDK/vendor Image and
 the pinned Linux 6.12.11 source commit. The existing builder supplies QEMU;
 the compile and boot run with container networking disabled. It checks all
-sixteen required ownership cases and rejects raw kernel warnings, oopses and
+required ownership cases and rejects raw kernel warnings, oopses and
 panics before publishing artifact receipts. This test kernel's configuration
 and device differ from the board's preserved kernel and FPGA. It establishes
 no board module-loadability, stream translation or physical DMA visibility.
+
+The [permanent-owner kernel recipe](../image/kernel/de25-platform/README.md)
+builds a separate candidate kernel and compiled base device tree from the locked
+Terasic source/SDK. It makes the owner and FPGA suppliers built-in, protects the
+region/manager/service bindings and describes the permanent SID-13 device.
+The recipe verifies the linked symbols and DTB with pinned libfdt. The separate
+offline assembler described with that recipe prepares matching rootfs and boot
+files, removes incompatible vendor modules and requires two identical SD image
+assemblies. Neither recipe installs an image. Board boot, positive loader/control
+integration and physical DMA acceptance remain required.
+The [matching image record](validation/2026-10-31-de25-owner-image/README.md)
+retains the initial identical full assemblies, independent verification and
+receipt refusals. The later
+[physical owner-binding record](validation/2026-10-31-de25-owner-binding/README.md)
+boots the candidate, identifies and protects the real SMMU's parent bus, and
+preserves the owner node's mode 600 through mdev. The corrected kernel and
+root metadata survive two software reboots, with actual preconfiguration
+open/ioctl/capability tests passing on the board. The subsequent
+[owner-kernel ZX81 hardware proof](validation/2026-10-31-de25-owner-zx81/README.md)
+loads the known core twice through Linux, captures BASIC 7 → 9 → 7 through
+edit/reload, and verifies another software reboot and SSH recovery. Physical
+DMA and managed FES runtime acceptance remain open. The running
+card was updated by verified files after the first full-image write; this does
+not attest the whole writable SD as the final offline image.
+
+The later [programming-retention record](validation/2026-10-31-de25-retention/README.md)
+adds guarded service-claim termination, refusal of further programming after
+uncertainty, and manager-owned deadlines shared across image fragments. All 37
+actual-function cases pass. Its matching kernel/image boots the bottom board,
+loads the known ZX81 core twice with visible BASIC 7, and survives another
+software reboot with SSH and actual owner syscall checks. Physical failed
+transfers were not injected; secure-call/mutex bounds and hardware fencing
+remain unqualified. Managed FES runtime and DMA admission remain closed.
+
+The [positive owner lifecycle record](validation/2026-10-31-de25-owner-positive/README.md)
+executes real OF overlay apply/remove, the owner control callback and private
+file-descriptor lifetime through two cycles. Programming/register responses
+remain modeled; this is not an SDM firmware-load or userspace /dev syscall test.
 
 The [allocated-buffer FPGA diagnostic](../sources/misteross/boards/de25nano/scanout/README.md)
 connects the real menu reader to the preserved memory path. Its shared
@@ -435,7 +623,11 @@ existing AArch64 runtime guard continues to refuse DE25 hardware access.
 
 The [2026-10-28 host validation record](validation/2026-10-28-de25-headless-linux/README.md)
 retains the exact image, verification and QEMU receipts plus the exported SDK
-probe. Physical board boot remains pending.
+probe. That record is off-board evidence; the later
+[HPS-first hardware record](validation/2026-10-31-de25-hps-first-hardware/README.md)
+demonstrates FES Linux boot, Linux FPGA loading and native ZX81 BASIC on its
+named diagnostic artifacts. The later owner-kernel record above extends the
+Linux load/control proof to this kernel; managed runtime acceptance remains open.
 
 The [scanout ownership record](validation/2026-10-28-de25-scanout/README.md)
 retains the sixteen actual AArch64 kernel cases and links the generated
@@ -464,3 +656,41 @@ The HIL planner reports `FULL_IMAGE` with component `de25-nano-linux` for
 `image/de25-nano/` changes. That identifies this DE25 image's boot check; it does
 not select a DE10 kit software bundle or establish acceptance of the default
 FES image.
+
+The [runtime programmer diagnostic](validation/2026-10-31-de25-runtime-programmer/README.md)
+records actual kernel-backed C++ programming and BASIC7 on the owner kernel.
+Production core-driver/catalog/MENU integration and physical recovery gates remain open.
+
+The [shared computer-driver software proof](validation/2026-10-31-de25-core-driver/README.md)
+adds DE25 lifecycle/HID/basic-tape operations to the existing driver interface.
+It is not yet package-admitted or deployed through the production daemon.
+
+The [unit-media proof](validation/2026-10-31-de25-unit-media/README.md)
+records selected-driver limits/status/insert/eject and actual AArch64 CPU tests.
+Use the normal dynamic SDK runtime recipe; its static threaded-test candidate
+also aborts on the board. No production driver or package admission is implied.
+
+The off-board runtime check includes core-package/profile admission. Its QEMU
+prefix exposes SDK libraries and lib64 aliases only. Using the entire SDK
+sysroot can redirect `/tmp` directory opens into the SDK, breaking the trusted
+package-directory test while newly created paths remain in the host `/tmp`.
+This changes the diagnostic environment, not runtime admission or board setup.
+
+The [explicit package/profile proof](validation/2026-10-31-de25-package-profile/README.md)
+records DE25 metadata selection, the shared driver binding and the complete
+normal AArch64 runtime/agent check. Production startup remains closed.
+
+The off-board AArch64 recipe also runs the shared NativeHardware lifecycle test.
+Its C++ tests invoke the authenticated SDK dynamic loader directly under QEMU,
+with an identity filesystem prefix and explicit SDK library paths. A libraries-only
+prefix still redirects `open("/")`, so it cannot correctly exercise component-by-
+component trusted-directory walks. This runner change preserves those production
+checks and their assertions; it changes no board rootfs or installed loader.
+
+The [2026-11-01 shared-lifecycle diagnostic](validation/2026-11-01-de25-shared-lifecycle/README.md)
+loads the described BRAM ZX81 package twice through actual NativeHardware,
+observes FPGA-owned HDMI readiness, loads/runs BASIC7 through driver tape/HID
+calls and verifies ordinary software reboot without power cycling. The new
+crossings retain paired routed setup/hold coverage; five other signoff rules
+remain open. Production factory/idle/MENU and restart adoption remain unfinished.
+Ethernet MAC/IP changes across reboot are an observed remaining network issue.

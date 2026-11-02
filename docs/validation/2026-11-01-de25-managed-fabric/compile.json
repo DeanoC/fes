@@ -1,0 +1,21 @@
+{
+  "source_revision": "d8549cc79132f6d6a0752021552125c1220e337f",
+  "command": [
+    "python3",
+    "/data/fes-de25-managed-fabric-d8549cc79/source/sources/misteross/scripts/build_de25_menu_package.py",
+    "--quartus-root",
+    "/data/altera_pro/26.3",
+    "--vendor-archive",
+    "/data/fes-de25-1297-9b36e4729/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+    "--compile-only"
+  ],
+  "cwd": "/data/fes-de25-managed-fabric-d8549cc79/source",
+  "started_utc": "2026-11-01T19:18:12.157337+00:00",
+  "time_cap_seconds": 2400,
+  "hardware_access": "not-performed",
+  "pid": 2098927,
+  "state": "passed",
+  "elapsed_seconds": 569.9,
+  "heartbeat_utc": "2026-11-01T19:27:42.062518+00:00",
+  "returncode": 0
+}

@@ -124,7 +124,7 @@ ${CXX:-c++} -c "$mutated/obsolete.cpp" -o "$mutated/build/obsolete.o"
 ar r "$mutated/build/libmister-runtime.a" "$mutated/build/obsolete.o"
 expect_guard_failure 'historic name remains in production output: build/libmister-runtime.a' "$mutated"
 
-for member in video_recipe.o video.o i2c.o input.o linux_input.o media_data.o de25_pr_control.o; do
+for member in video_recipe.o video.o i2c.o input.o linux_input.o media_data.o de25_pr_control.o de25_core_driver.o de25_fpga_manager.o de25_menu.o json.o; do
 	mutated=$(production_fixture "missing-${member%.o}")
 	ar d "$mutated/build/libmister-runtime.a" "$member"
 	expect_guard_failure \

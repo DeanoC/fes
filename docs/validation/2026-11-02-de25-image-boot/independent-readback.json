@@ -1,0 +1,10 @@
+{
+  "base_retention_sha256": "b6df00328b2eb4370968ea40f542dcd44ab92100191d90285f29483e559d7836",
+  "classification": "independent exact-byte and virtual kernel/init/filesystem boot-log readback; intermediate only",
+  "hardware_access": "not-performed",
+  "kernel_sha256": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+  "qemu_log_sha256": "945c8c053123464a4ae9f57b1f54855fa1b65ed139d326569e3a4617d187a45d",
+  "restored_tree": "2c736dbbe92a6de57ba4461429368ccdfbf6b7f4",
+  "rootfs_sha256": "588421ad2ca56d9b4dae256772f46260068d680f0cdb5387faf3e1754206a9aa",
+  "source_restored": true
+}

@@ -1,0 +1,14 @@
+{
+  "boot_id": "e5e896ba-e01e-4ab4-9b2f-a236045b7d39",
+  "host": "192.168.10.168",
+  "cid": "1234564153544300200000000a019300",
+  "notes_sha256": "e06e399b84032a473faba5ce14a57665dc5bd8fadb58f33af4372a9f596bdcd1",
+  "root_receipt_sha256": "53a17111bcb06a0ce84513ff42ae26f7e3b025d2a3b856758ff0722e306efed2",
+  "mac": "02:8e:2a:b1:d3:bd",
+  "classification": "actual normal software reboot of trace-enabled kernel with stable network identity",
+  "old_boot": "22750e00-9d21-4602-8b91-f72457fd39e5",
+  "same_mac_ip_cid_kernel_receipt_hostkey": true,
+  "power_cycle_required": false,
+  "fpga_dma_frame_test": "not-run",
+  "normal_runtime_admission": "closed"
+}

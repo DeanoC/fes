@@ -14,6 +14,12 @@ import tomllib
 
 BINARIES = ('mister-agent', 'mister-runtime', 'fogcast-kit', 'fogcast-tenfoot',
             'fes-kit-data', 'fes-kit-software')
+BOARD = 'de10-nano'
+
+
+def target_architecture(board):
+    from appliance import bootstrap_architecture
+    return bootstrap_architecture(board)
 
 
 def sha(path):
@@ -39,13 +45,13 @@ def packages_at(root, records):
     return tuple(result)
 
 
-def check_menu_admission(runtime, menu):
+def check_menu_admission(runtime, menu, board=BOARD):
     """Refuse a runtime that image assembly would refuse for this MENU package."""
     spec = importlib.util.spec_from_file_location(
         'kit_software_assembly', Path(__file__).resolve().parents[1] / 'image/scripts/kit-software.py')
     software = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(software)
-    requires = software.menu_package_requirements(menu / 'manifest.toml')
+    requires = software.menu_package_requirements(menu / 'manifest.toml', board)
     try:
         provides = software.runtime_menu_interfaces(runtime)
     except ValueError as error:
@@ -55,8 +61,9 @@ def check_menu_admission(runtime, menu):
         raise ValueError('bootstrap mister-runtime does not accept its MENU interfaces: ' + ', '.join(missing))
 
 
-def load(root):
+def load(root, *, board=BOARD):
     from build import verify_package_outputs
+    architecture = target_architecture(board)
     root = Path(root).resolve()
     manifest_path = root / 'artifacts.json'
     if not manifest_path.is_file():
@@ -67,6 +74,9 @@ def load(root):
     manifest = json.loads(manifest_path.read_text())
     if manifest.get('format') != 1:
         raise ValueError('unsupported bootstrap artifact format')
+    if (manifest.get('board', BOARD) != board or
+            manifest.get('architecture', 'armv7') != architecture):
+        raise ValueError('bootstrap artifact board or architecture differs from the selected image')
     for component in ('fogcast', 'runtime'):
         if not re.fullmatch('[0-9a-f]{40}', manifest['provenance'][component]):
             raise ValueError('invalid bootstrap source provenance')
@@ -80,12 +90,13 @@ def load(root):
             raise ValueError('bootstrap artifact changed: ' + name)
         with path.open('rb') as stream:
             header = stream.read(20)
-        if header[:6] != b'\x7fELF\x01\x01' or header[18:20] != b'\x28\x00':
-            raise ValueError('bootstrap artifact must be a little-endian ARM ELF: ' + name)
+        elf_class, machine = (1, 40) if architecture == 'armv7' else (2, 183)
+        if header[:6] != b'\x7fELF' + bytes((elf_class, 1)) or header[18:20] != machine.to_bytes(2, 'little'):
+            raise ValueError('bootstrap artifact must match the selected little-endian ARM ELF target: ' + name)
     from appliance import validate_static_arm
     for name in ('fes-kit-data', 'fes-kit-software'):
         try:
-            validate_static_arm(root / 'bin' / name)
+            validate_static_arm(root / 'bin' / name, architecture)
         except ValueError as error:
             raise ValueError('bootstrap helper must be a static ARM ELF: ' + name) from error
     packages = packages_at(root, manifest['packages'])
@@ -101,18 +112,19 @@ def load(root):
             raise ValueError('bootstrap package selection is writable: ' + path.name)
     verify_package_outputs(root, packages)
     # Assembly checks this again in the target; fail before any build starts.
-    check_menu_admission(root / 'bin' / 'mister-runtime', packages[0]['directory'])
+    check_menu_admission(root / 'bin' / 'mister-runtime', packages[0]['directory'], board)
     return manifest, packages
 
 
-def stage(root, fogcast):
+def stage(root, fogcast, *, board=BOARD):
     """Copy validated inputs into the private assembly snapshot, then recheck."""
     from build import publish_file
-    manifest, packages = load(root)
+    manifest, packages = load(root, board=board)
+    architecture = target_architecture(board)
     destination = fogcast / 'bin'
     destination.mkdir(exist_ok=True)
     for name in BINARIES:
-        path = destination / (name + '-linux-armv7')
+        path = destination / (name + '-linux-' + architecture)
         publish_file(Path(root) / 'bin' / name, path)
         path.chmod(0o555)
         if sha(path) != manifest['binaries'][name]:
@@ -121,8 +133,9 @@ def stage(root, fogcast):
     return manifest, packages
 
 
-def pack(bin_dir, menu_package, menu_selection, fogcast_revision, runtime_revision, output):
+def pack(bin_dir, menu_package, menu_selection, fogcast_revision, runtime_revision, output, *, board=BOARD):
     """Select independently produced binaries and MENU; never compile or deploy."""
+    architecture = target_architecture(board)
     bin_dir, menu_package, menu_selection = map(Path, (bin_dir, menu_package, menu_selection))
     output = Path(output).absolute()
     if output.exists() or output.is_symlink():
@@ -136,7 +149,8 @@ def pack(bin_dir, menu_package, menu_selection, fogcast_revision, runtime_revisi
               'core_rbf_sha256': sha(menu_package / 'core.rbf')}
     if (menu_package / 'rom-map.json').exists():
         inputs['rom_map_sha256'] = sha(menu_package / 'rom-map.json')
-    manifest = {'format': 1, 'provenance': {'fogcast': fogcast_revision, 'runtime': runtime_revision},
+    manifest = {'format': 1, 'board': board, 'architecture': architecture,
+                'provenance': {'fogcast': fogcast_revision, 'runtime': runtime_revision},
                 'binaries': {name: sha(bin_dir / name) for name in BINARIES}, 'packages': [inputs]}
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.image-artifacts-', dir=output.parent) as temporary:
@@ -153,7 +167,7 @@ def pack(bin_dir, menu_package, menu_selection, fogcast_revision, runtime_revisi
         shutil.copyfile(menu_selection, selection_copy)
         selection_copy.chmod(0o444)
         (root / 'artifacts.json').write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
-        load(root)
+        load(root, board=board)
         root.rename(output)
     return manifest
 
@@ -217,6 +231,7 @@ def main():
     command.add_argument('--image-output', required=True, type=Path)
     command.add_argument('--output', required=True, type=Path)
     command = sub.add_parser('pack', help='select separately produced ARM binaries and MENU')
+    command.add_argument('--board', choices=(BOARD, 'de25-nano'), default=BOARD)
     command.add_argument('--bin-dir', required=True, type=Path)
     command.add_argument('--menu-package', required=True, type=Path)
     command.add_argument('--menu-selection', required=True, type=Path)
@@ -224,15 +239,16 @@ def main():
     command.add_argument('--runtime-revision', required=True)
     command.add_argument('--output', required=True, type=Path)
     command = sub.add_parser('check')
+    command.add_argument('--board', choices=(BOARD, 'de25-nano'), default=BOARD)
     command.add_argument('directory', type=Path)
     args = parser.parse_args()
     if args.action == 'export':
         export(args.image_output, args.output)
     elif args.action == 'pack':
         pack(args.bin_dir, args.menu_package, args.menu_selection,
-             args.fogcast_revision, args.runtime_revision, args.output)
+             args.fogcast_revision, args.runtime_revision, args.output, board=args.board)
     else:
-        load(args.directory)
+        load(args.directory, board=args.board)
 
 
 if __name__ == '__main__':

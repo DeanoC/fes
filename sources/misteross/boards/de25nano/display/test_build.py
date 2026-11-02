@@ -22,10 +22,37 @@ class DisplayBuildTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.files = {name: b"vendor input\n" for name in B.VENDOR_FILES}
-        self.files['HDMI_I2C/I2C_HDMI_Config.v'] = b'''parameter CLK_Freq = 50000000;
+        self.files['HDMI_I2C/I2C_HDMI_Config.v'] = b'''module I2C_HDMI_Config(iCLK, iRST_N, I2C_SCLK, I2C_SDAT, HDMI_TX_INT, READY);
+input iCLK, iRST_N, HDMI_TX_INT;
+output I2C_SCLK, READY;
+inout I2C_SDAT;
+parameter CLK_Freq = 50000000;
 parameter I2C_Freq = 20000;
+reg [15:0] mI2C_CLK_DIV;
+reg mI2C_CTRL_CLK;
+reg mI2C_GO;
+reg [3:0] mSetup_ST;
+wire mI2C_END;
+always @(posedge iCLK) begin
 if( mI2C_CLK_DIV < (CLK_Freq/I2C_Freq) ) mI2C_CLK_DIV <= mI2C_CLK_DIV+1;
 else begin mI2C_CLK_DIV <= 0; mI2C_CTRL_CLK <= ~mI2C_CTRL_CLK; end
+end
+always @(posedge mI2C_CTRL_CLK) begin
+case(mSetup_ST)
+0: begin mI2C_GO <= 1; mSetup_ST <= 1; end
+1: if(mI2C_END) mSetup_ST <= 0;
+endcase
+end
+I2C_Controller u0 (.CLOCK(mI2C_CTRL_CLK), .I2C_SDAT(I2C_SDAT));
+endmodule
+'''
+        self.files['HDMI_I2C/I2C_Controller.v'] = b'''module I2C_Controller(CLOCK, I2C_SDAT);
+input CLOCK;
+inout I2C_SDAT;
+reg SDO, ACK1, ACK2, ACK3;
+wire I2C_SDAT = SDO ? 1'bz : 0;
+always @(posedge CLOCK) begin ACK1=I2C_SDAT; ACK2=I2C_SDAT; ACK3=I2C_SDAT; end
+endmodule
 '''
         pins = '\n'.join(f'set_location_assignment PIN_TEST{n} -to {port}\n'
                          f'set_instance_assignment -name IO_STANDARD "3.3-V LVCMOS" -to {port}'

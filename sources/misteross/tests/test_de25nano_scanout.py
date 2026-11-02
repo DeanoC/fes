@@ -10,6 +10,7 @@ SPEC = importlib.util.spec_from_file_location("de25_scanout_tests", SCANOUT / "t
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 ScanoutBuildTests = MODULE.ScanoutBuildTests
+LinuxDmaTests = MODULE.LinuxDmaTests
 
 
 class ScanoutSimulationTests(unittest.TestCase):

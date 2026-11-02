@@ -34,7 +34,10 @@ int main(int argc, char** argv) {
             const auto value = wire::decode(request.data() + 8);
             std::uint32_t status = 0, result = 0;
             if (op == wire::Read || op == wire::Write) {
-                wire::need(arg < 24 && arg % 4 == 0, "invalid register offset");
+                // Include the live video-readiness register, but not the
+                // padding at the end of the endpoint's resource span.
+                wire::need(arg <= regs::FesDe25ComputerVideoStatusOffset && arg % 4 == 0,
+                           "invalid register offset");
                 if (op == wire::Read) {
                     result = b.read(arg);
                     if (submitted && arg == regs::FesDe25ComputerGpiOffset) {

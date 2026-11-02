@@ -105,7 +105,6 @@ func TestLoadABIFesSimpleComputerContract(t *testing.T) {
 	}
 }
 
-
 func TestLoadABIRejectsDuplicateAndUnknownFields(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "invalid.yaml")
@@ -364,5 +363,24 @@ profiles:
 				t.Fatal("LoadProgrammingProfiles accepted an invalid profile registry")
 			}
 		})
+	}
+}
+
+func TestDe25ProfileMatchesRealBoard(t *testing.T) {
+	root := repoRoot(t)
+	profiles, err := LoadProgrammingProfiles(filepath.Join(root, "packages/programming/de25_nano.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	board, err := LoadBoard(filepath.Join(root, "packages/board/de25_nano.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profiles.Platform != board.ID || profiles.Device != board.FPGADevice {
+		t.Fatal("DE25 programming target differs from actual board definition")
+	}
+	if len(profiles.Profiles) != 2 || profiles.Profiles[0].ID != "de25-hps-first-v1" || len(profiles.Profiles[0].ABIs) != 1 || profiles.Profiles[0].ABIs[0].ID != "fes.computer" ||
+		profiles.Profiles[1].ID != "de25-linux-menu-v1" || len(profiles.Profiles[1].ABIs) != 1 || profiles.Profiles[1].ABIs[0].ID != "fes.application" || profiles.Profiles[1].ABIs[0].Major != 1 {
+		t.Fatalf("unexpected DE25 programming pair: %#v", profiles)
 	}
 }

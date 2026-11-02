@@ -1490,7 +1490,14 @@ complete pixels; Pause, Resume, rebinding and any failure drop both
 shortcuts. On this backend tenfoot opens
 the kit-local control socket and submits one room launch overlay frame with
 phase and elapsed time. Dispatch waits until that frame has been presented,
-then pauses presents and dispatches the local launch. A failed or unpresented
+then pauses presents and dispatches the local launch. A completed pause also
+releases the menu client's grant mapping after its last frame transaction has
+finished. This permits a kernel-owned allocation to retire when the runtime
+revokes it, rather than leaving the paused UI's VMA holding the device lease.
+An unmap error or cancelled drain refuses launch; a concurrent Resume prevents
+the old pause from releasing a new mapping. Resume after a rejected launch
+can remap the same generation without clearing its pixels. This uses the
+existing menu client/socket and changes no programming authority. A failed or unpresented
 frame aborts dispatch. A status probe acknowledges only the submission
 sequence that was presented, so a healthy status for an older frame does not
 accept a newer frame that never reached the display. Late adoption submits no
@@ -1585,6 +1592,25 @@ arms or ejects through the session live-media API without relaunch or
 hold-reset `load_media`.
 
 ## FES appliance releases
+
+The release codec and store accept DE25 only through explicit selected-board
+entry points (`ValidateForBoard`, `DecodeManifestForBoard`, `CompatibleForBoard`
+and `store.NewForBoard`). The selection comes from the caller, not the uploaded
+manifest. Factory, staged and retained manifests must match that board and
+kernel; foreign uploads are refused before their body is read or storage is
+changed. Default entry points remain DE10-only. FES's Python release exporter
+also takes an explicit board for caller-verified images. With a bootstrap
+factory present, the target agent and storage gate select from the immutable
+image's `/etc/fes-board` and require the matching ARM/ARM64 CPU target. Older
+ARM DE10 images may lack that file; AArch64 requires exactly `de25-nano`.
+The API reports its store's board and validates upload headers against that
+selection before reading image bodies. `fes-update --board de25-nano` selects
+DE25 explicitly, requires the authenticated target to report DE25 before an
+upload and checks the image's AArch64 software base. A status without a board
+is accepted only by the DE10 client path. The base storage helper builds with
+`make build-fes-kit-data FES_KIT_DATA_ARCH=aarch64`; its default stays ARMv7.
+Bootstrap/media assembly is still DE10-specific. These software paths do not
+establish DE25 managed boot, watchdog recovery or hardware acceptance.
 
 FES owns compatible source selection, release/media assembly, and the fixed
 bootstrap. FogCast supplies the public appliance module, target update API, and
@@ -3736,6 +3762,18 @@ after launch, or its retained target record while another kit is foreground.
 For described cores, enrichment requires the observed package and core generation
 to match the record. This keeps the captured game identity consistent between
 session reads and display replies.
+
+MENU generations that advertise `frame_mapping` require the client to opt in
+when requesting their grant. The client checks the returned lifetime, closes
+the received fd and unmaps before sending a frame commit. Its pixels remain in
+the runtime's allocation; the next frame remaps the same generation while
+preserving damage history. Grant inspection also releases the view. This lets
+runtime recovery finish before a failed commit reply without pinning storage
+through a peer VMA. Older persistent-window servers receive the existing grant
+request, and DE10 keeps its persistent mapping and blitter behavior. This
+prepares allocation-backed MENU; it does not enable a DE25 physical presenter.
+The target agent also accepts this optional boolean in strict runtime status
+validation; nonbooleans and unrelated unknown fields remain errors.
 
 The runtime opens a separate display generation. The asynchronous presenter pins
 package, core and display generations instead of following a replacement;

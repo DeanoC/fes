@@ -1,0 +1,16 @@
+{
+  "source_revision": "199604662ea19a526e1884ad202fbca48e1c84d7",
+  "command": [
+    "python3",
+    "/home/deano/fes/out/dev/de25-managed-image/out/de25-software-producer/run-failed-command-checks.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-managed-image/out/work/de25-kit-software-199604662",
+  "started_utc": "2026-11-01T15:45:46.380381+00:00",
+  "time_cap_seconds": 180,
+  "hardware_access": "not-performed",
+  "pid": 2549058,
+  "state": "failed",
+  "elapsed_seconds": 0.4,
+  "heartbeat_utc": "2026-11-01T15:45:46.818381+00:00",
+  "returncode": 1
+}

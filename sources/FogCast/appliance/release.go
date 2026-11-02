@@ -18,6 +18,7 @@ const (
 	ManifestFormatMajor       = 1
 	ManifestFormatMinor       = 0
 	Board                     = "de10-nano"
+	BoardDE25                 = "de25-nano"
 	BootABI                   = "fes-bootstrap-v1"
 	MaxImageSize        int64 = (4 << 30) - 1
 	MaxManifestSize           = 8192
@@ -45,7 +46,13 @@ var revisionPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 func ValidHash(s string) bool { return hashPattern.MatchString(s) }
 func (m Manifest) Validate() error {
-	if m.Format != Format || m.Board != Board || m.BootABI != BootABI {
+	return m.ValidateForBoard(Board)
+}
+
+// ValidateForBoard requires the caller's selected board, independently of the
+// manifest. The default Validate entry point remains DE10-only.
+func (m Manifest) ValidateForBoard(board string) error {
+	if (board != Board && board != BoardDE25) || m.Format != Format || m.Board != board || m.BootABI != BootABI {
 		return errors.New("unsupported release format, board, or boot ABI")
 	}
 	if m.ManifestFormat != "" {
@@ -74,7 +81,12 @@ func (m Manifest) Validate() error {
 	return nil
 }
 func (m Manifest) Compatible(kernelSHA string) error {
-	if e := m.Validate(); e != nil {
+	return m.CompatibleForBoard(kernelSHA, Board)
+}
+
+// CompatibleForBoard binds both the selected board and the stable kernel.
+func (m Manifest) CompatibleForBoard(kernelSHA, board string) error {
+	if e := m.ValidateForBoard(board); e != nil {
 		return e
 	}
 	if m.KernelSHA256 != kernelSHA {
@@ -93,7 +105,16 @@ func (m Manifest) Compatible(kernelSHA string) error {
 // remains on Manifest so remarshaling keeps those bytes. Producers omit both
 // optional names so a deployed agent can still stage release.json.
 func DecodeManifest(r io.Reader) (Manifest, []string, error) {
+	return DecodeManifestForBoard(r, Board)
+}
+
+// DecodeManifestForBoard retains the exact field/version rules, accepting only
+// the explicitly selected supported board. It never selects from upload data.
+func DecodeManifestForBoard(r io.Reader, board string) (Manifest, []string, error) {
 	var m Manifest
+	if board != Board && board != BoardDE25 {
+		return m, nil, errors.New("unsupported selected release board")
+	}
 	b, e := io.ReadAll(io.LimitReader(r, MaxManifestSize+1))
 	if e != nil {
 		return m, nil, e
@@ -193,7 +214,7 @@ func DecodeManifest(r io.Reader) (Manifest, []string, error) {
 	if minor <= ManifestFormatMinor {
 		ignored = nil
 	}
-	return m, ignored, m.Validate()
+	return m, ignored, m.ValidateForBoard(board)
 }
 
 func manifestFormatText(raw json.RawMessage) (string, error) {

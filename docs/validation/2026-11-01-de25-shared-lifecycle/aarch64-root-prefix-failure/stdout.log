@@ -1,0 +1,30 @@
+make: Entering directory '/src/sources/libmister-runtime'
+/build/bfcf9f16736d537417f5fb89540ad4177a96a86187212c86d8b4f9bb192f1d3f/sdk/bin/aarch64-buildroot-linux-gnu-g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -DMISTER_RUNTIME_TESTING -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	-DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\" \
+	tests/unit/native_hardware_test.cpp \
+	tests/support/capture_log.cpp tests/support/fake_input.cpp \
+	tests/support/fake_mmio.cpp \
+	src/native/artifacts.cpp src/native/core_package.cpp src/native/core_composition.cpp src/native/core_data.cpp src/native/media_data.cpp src/native/ata_disk.cpp src/native/sha256.cpp \
+	src/native/core_driver.cpp  src/native/input.cpp \
+	src/native/fes_gp.cpp src/native/menu_display.cpp src/native/diagnostic.cpp \
+	src/native/video_recipe.cpp src/native/video.cpp \
+	src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
+	src/linux/production_hardware.cpp \
+	src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
+	src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
+	src/daemon/json.cpp src/daemon/protocol.cpp \
+	 -o "/build/bfcf9f16736d537417f5fb89540ad4177a96a86187212c86d8b4f9bb192f1d3f/runtime/tests/unit/native_hardware_test"
+make: Leaving directory '/src/sources/libmister-runtime'
+Traceback (most recent call last):
+  File "<string>", line 10, in <module>
+  File "/usr/lib/python3.11/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['qemu-aarch64-static', '-cpu', 'cortex-a53', '-L', '/build/bfcf9f16736d537417f5fb89540ad4177a96a86187212c86d8b4f9bb192f1d3f/qemu-libs', '/build/bfcf9f16736d537417f5fb89540ad4177a96a86187212c86d8b4f9bb192f1d3f/runtime/tests/unit/native_hardware_test']' died with <Signals.SIGABRT: 6>.
+Traceback (most recent call last):
+  File "/home/deano/fes/out/dev/de25-linux-platform/out/platform-lifecycle-aarch64-hardware.py", line 25, in <module>
+    subprocess.run(command,check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['docker', 'run', '--rm', '--network=none', '--user', '1000:1000', '--ulimit', 'core=0:0', '--mount', 'type=bind,src=/home/deano/fes/out/dev/de25-linux-platform/out/work/de25-linux-16838e82c8124f1a21910a6739ae6653dad3429a,dst=/src,readonly', '--mount', 'type=volume,src=fes-de25-runtime-ab8f8e47e50c7b26,dst=/build', '--mount', 'type=bind,src=/home/deano/fes/out/dev/de25-linux-platform/out/platform-lifecycle-aarch64-hardware,dst=/export', 'sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d', 'python3', '-c', "from pathlib import Path\nimport hashlib,json,subprocess\nwork=Path('/build/bfcf9f16736d537417f5fb89540ad4177a96a86187212c86d8b4f9bb192f1d3f');sdk=work/'sdk';compiled=work/'runtime';cxx=sdk/'bin/aarch64-buildroot-linux-gnu-g++'\ntool_hash=lambda:hashlib.sha256(Path(str(cxx)+'.br_real').read_bytes()).hexdigest()\nbefore=tool_hash()\ncommand=['make','-C','/src/sources/libmister-runtime','-j2','BUILD_DIR='+str(compiled),'CXX='+str(cxx),str(compiled/'tests/unit/native_hardware_test')]\nsubprocess.run(command,check=True)\nbinary=compiled/'tests/unit/native_hardware_test'\nwith Path('/export/test.log').open('w') as log:\n subprocess.run(['qemu-aarch64-static','-cpu','cortex-a53','-L',str(work/'qemu-libs'),str(binary)],cwd='/src/sources/libmister-runtime',check=True,stdout=log,stderr=subprocess.STDOUT,timeout=240)\nassert tool_hash()==before\nPath('/export/check.json').write_text(json.dumps({'source_revision':'16838e82c8124f1a21910a6739ae6653dad3429a','status':'passed','architecture':'aarch64','cpu_model':'cortex-a53','classification':'userspace-only modeled hardware lifecycle','binary_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),'compiler_sha256':before,'qemu_sha256':hashlib.sha256(Path('/usr/bin/qemu-aarch64-static').read_bytes()).hexdigest()},indent=2)+'\\n')\nprint(Path('/export/test.log').read_text())\n"]' returned non-zero exit status 1.

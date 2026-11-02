@@ -8,5 +8,6 @@ module I2C_HDMI_Config(input wire iCLK, iRST_N, HDMI_TX_INT,
                       output wire I2C_SCLK, inout wire I2C_SDAT, output wire READY);
     assign I2C_SCLK = 1'b1;
     assign I2C_SDAT = 1'bz;
-    assign READY = iRST_N;
+    reg configured = 1'b1; // digital completion boundary, controlled by the bench
+    assign READY = iRST_N && configured;
 endmodule

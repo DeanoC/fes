@@ -1,0 +1,9 @@
+{
+  "bench_source_commit": "678d9b2d69fefc1206770a229171d4dc6838ee87",
+  "generated_producer": "d4c6544e3",
+  "same_generated_source_qip_inputs_generation": true,
+  "generation_sha256": "535be2287f040a731f699c6a26b53050bd926ee61b03d183c20d94f4bb6d8218",
+  "physical_hardware_change": false,
+  "physical_frame_retry": false,
+  "wrapper_note": "Top-level named port declaration order differs due to set iteration; inspected diff contains only reordered output declarations, not changed wires or logic. Wrapper byte hash differs; no byte-identity claim."
+}

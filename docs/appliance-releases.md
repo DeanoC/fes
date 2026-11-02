@@ -17,6 +17,113 @@ The deterministic assembly receipts still mark their artifact hardware field
 The [current candidate record](validation/2026-09-08-appliance-release.md) lists
 the exact verified outputs and live acceptance scope.
 
+The CLI defaults and ordinary examples below target DE10. The shared release,
+bootstrap and card commands also accept an explicitly selected `de25-nano`
+with a verified managed factory; see [DE25 selection](#de25-factory-selection).
+Release export and storage support that same explicit board: FES
+`export_release(..., board='de25-nano')` and the Go codec/store `ForBoard`
+entry points. Their defaults remain DE10-only, and neither selects a board
+from an uploaded manifest. A store pins its factory, staged and retained images
+to the selected board and stable kernel. Image assembly must independently
+verify the rootfs payload and ELF target before calling the exporter. This
+does not qualify a DE25 bootstrap, native update/recovery or managed image;
+the [normal-kit requirements](design/de25-linux-platform.md) remain open.
+For a prepared DE25 release, `fes-update --board de25-nano` also requires the
+authenticated target's reported board to match before upload, and the image
+must contain a DE25/AArch64 software-base record. The target independently
+pins its store to its immutable image's `/etc/fes-board` and CPU architecture;
+an upload cannot select that board. Direct-root headless images still provide
+no appliance-update service. The base storage helper's existing build target
+accepts `FES_KIT_DATA_ARCH=aarch64`, retaining ARMv7 as its default.
+
+The FES platform builder also supports
+`build_static_arm(..., architecture='aarch64')`, and the existing bootstrap
+assembler supports `assemble_bootstrap(..., board='de25-nano')`. Both require
+explicit selection: default validation refuses an AArch64 executable or DE25
+factory. Build provenance pins the CPU environment and selected sources. The
+bootstrap writes `/etc/fes-board` into its immutable ext4 root; PID1 checks it
+against the executing CPU before opening board-specific release storage.
+
+Terasic's unchanged boot script supplies a partition-2 ext4 root, unlike DE10's
+kernel-mounted loop root. The DE25 bootstrap admits the exact board/SoC and
+root device, remounts that stable root read-only, then mounts partition 1 at
+`/media/fat` with device, executable and set-ID use disabled. It reuses the
+existing verified release selection and root-switching implementation. The
+prepared kernel has the required loop/ext4/FAT/codepage support built in.
+DE25 trial boots are refused before starting the watchdog guard; Cyclone V
+reset-register preparation remains DE10-only. Native watchdog recovery must
+be qualified before DE25 trial updates can execute.
+
+The [bootstrap record](validation/2026-11-01-de25-appliance-bootstrap/README.md)
+retains native/AArch64 CPU checks and a reproducible bootstrap image whose
+manifest uses the existing headless rootfs as a binding fixture. That fixture
+is not a managed factory or a bootable appliance card. Full DE25 factory/card
+assembly and native boot/update/recovery remain open. The Make/CLI default
+continues to select DE10; DE25 requires the explicit factory path below.
+
+The shared disk constructor and two-pass reconstructor now also accept an
+explicit DE25 selection. Its layout reserves a 2 GiB FAT partition for the
+factory, Good, Previous and staged system images, and puts the shared 32 MiB
+bootstrap in partition 2. It preserves the vendor's `u-boot.itb`, boot script,
+reserved boot bytes, partition numbers and serial/root contract, while checking
+the selected owner kernel/DTB and every owned FAT payload. The pinned formatter
+uses 4,194,288 filesystem sectors within the 4,194,304-sector FAT partition;
+verification requires the exact geometry and its 8 KiB zero tail.
+
+This is the lower construction layer, with the
+[disk-construction evidence](validation/2026-11-02-de25-managed-media/README.md).
+The public release/media CLI still needs the actual admitted factory and its
+image-level boot smoke evidence. Construction fixtures do not satisfy those
+gates or establish a bootable normal kit. The existing release exporter has
+not been given fabricated QEMU evidence or a headless-root substitution.
+
+The DE25 builder now provides an
+[actual AArch64 image boot check](validation/2026-11-02-de25-image-boot/README.md).
+It boots the selected rootfs and its real kernel in QEMU, and the factory
+producer binds its boot report/log into the factory receipt. The retained
+managed-base intermediate passes the filesystem smoke. A subsequent
+[D-Bus repair and fresh image boot](validation/2026-11-02-de25-dbus-rootfs/README.md)
+also establishes responsive virtual system-bus startup. These do not supply
+factory acceptance. The high-level release/media adapter now accepts explicit
+DE25 receipt selection, requiring an admitted factory with its own successful
+boot evidence and a freshly recomputed structural/package verification report.
+
+## DE25 factory selection
+
+Use the actual output of the existing DE25 `managed-factory` action. A managed
+base, headless image, construction fixture or saved pass claim is refused.
+The selected factory must retain its sealed MENU, matching owner kernel and
+the original image producer's exact artifact hashes. The shared workflow runs
+`verify-factory` and binds its report and real image boot log into release
+provenance. Current factory receipts honestly record one image-build pass;
+requesting two passes cannot promote that evidence.
+
+```sh
+make release APPLIANCE_BOARD=de25-nano \
+  APPLIANCE_FACTORY=/absolute/managed-factory RELEASE_VERSION=0.2.0-dev.1
+make bootstrap APPLIANCE_BOARD=de25-nano \
+  APPLIANCE_FACTORY=/absolute/managed-factory RELEASE=/absolute/release
+make appliance-media APPLIANCE_BOARD=de25-nano \
+  APPLIANCE_FACTORY=/absolute/managed-factory \
+  APPLIANCE_VENDOR_BOOT=/absolute/prepared-vendor-boot \
+  RELEASE=/absolute/release BOOTSTRAP=/absolute/bootstrap OUTPUT=/absolute/card
+```
+
+Use `verify-appliance-media` with the same inputs to reconstruct and compare an
+existing card file. The Python commands expose `--board de25-nano --factory`;
+the profile is `de25-nano`, and card commands also require `--vendor-boot`.
+Board selection is independent of all uploaded or supplied JSON. The default
+DE10 path rejects DE25 factory arguments. DE25 uses the existing media lease,
+static AArch64 bootstrap builder and two-pass regular-file card constructor,
+preserving Terasic's locked boot dependencies and owner Image/DTB.
+
+The [workflow evidence](validation/2026-11-02-de25-appliance-workflow/README.md)
+distinguishes routing/integrity fixtures from actual public refusals. No
+complete admitted DE25 factory/card has been produced: sealed MENU still
+depends on output/reset signoff and its remaining qualification gates. Native
+boot, watchdog, updates, peripherals and MENU/catalog ZX81 remain required.
+These commands do not write a physical device or authorize deployment.
+
 ## Build once from selected inputs
 
 Start with clean selected component checkouts, then run the existing integration

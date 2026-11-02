@@ -1,0 +1,40 @@
+{
+  "source_revision": "d8b23267cc8301361bdc5c2ef7db89593462f4a6",
+  "command": [
+    "make",
+    "test-changed",
+    "TEST_CHANGED_ARGS=--base 537331fe2d4845777f945adf88273a0fb2fa2992"
+  ],
+  "state": "passed",
+  "elapsed_seconds": 1385.4,
+  "returncode": 0,
+  "hardware_access": "not-performed",
+  "test_groups": [
+    {
+      "tests": 30,
+      "seconds": "0.136s",
+      "result": "OK"
+    },
+    {
+      "tests": 32,
+      "seconds": "0.608s",
+      "result": "OK"
+    },
+    {
+      "tests": 1,
+      "seconds": "0.000s",
+      "result": "OK"
+    },
+    {
+      "tests": 1068,
+      "seconds": "238.905s",
+      "result": "OK (skipped=1)"
+    },
+    {
+      "tests": 1729,
+      "seconds": "1138.541s",
+      "result": "OK (skipped=76)"
+    }
+  ],
+  "scope": "complete test-changed at the actual d8b producer; no board hardware acceptance"
+}

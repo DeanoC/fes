@@ -1,0 +1,15 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "runtime_base_commit": "94c9582bdc2a42267383903e6d04a82fccfc33ca",
+    "note": "New fabric1.1 consumer regenerated in this FES change; base identifies preceding runtime, not physical acceptance.",
+    "header_sha256": "587ffaf292f4f27359bf34fc00e4eb3ad309f74bd4f9313b674d8873077a7966"
+  },
+  "fabric_major": 1,
+  "fabric_minor": 1,
+  "version": 65537,
+  "video_status_offset": 24,
+  "video_ready": 1,
+  "span": 32,
+  "hardware_acceptance": "not-run"
+}

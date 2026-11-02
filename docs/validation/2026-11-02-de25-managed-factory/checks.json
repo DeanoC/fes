@@ -1,0 +1,66 @@
+{
+  "affected": {
+    "commands": 6,
+    "elapsed_seconds": 264.1,
+    "fixture_copies": 42,
+    "generated_consumers": 40,
+    "parent_seconds": 258.462,
+    "parent_tests": 1307,
+    "skips": 41
+  },
+  "archive_sha256": "279fb1ce580646ee08091db8548f5343d54b45cd0ffea81926eba2fd37fd6395",
+  "classification": "factory action configuration, runtime installation and wiring proof; no full admitted factory/card or hardware acceptance",
+  "complete_card": "not-built",
+  "complete_factory": "not-built; sealed MENU required",
+  "completed_own_pids_pgids": [
+    356645,
+    356646,
+    356647,
+    356714,
+    356715,
+    356717,
+    394284,
+    394307,
+    421266,
+    421393,
+    477225,
+    477248
+  ],
+  "configuration_job": "passed 5.7s; actual pinned Buildroot configuration, original locked compiler, real retained AArch64 runtime installation and ELF header",
+  "corrected_fixture": "passed 7.1s; includes AArch64 selection, foreign/missing/digest refusal, actual Make hash-before-replacement and make check",
+  "corrected_fixture_source": "0cb6a68e4e4b9c574e8f61712b668212ae9ad39b",
+  "existing_managed_sdk": "passed 3.4s; actual original producer and current kernel policy authenticated; all SDK artifacts and containment checked",
+  "focused_python_cases": 16,
+  "hardware_access": "not-performed",
+  "implementation_source": "36438ad3ad426a1cb6ce16d4a62b7b6f3e7a6fde",
+  "live_completed_processes": [],
+  "native_acceptance": "not-run",
+  "original_focused_job": "failed 5.2s; stale runtime Make fixture omitted BR2_arm=y; production architecture refusal retained",
+  "restored_tree": "34be7ccf40811a95dd454afb4797d0b353b8ac9a",
+  "retention": "/home/deano/fes/out/artifacts/de25-managed-factory/0cb6a68e4/retention.json",
+  "retention_sha256": "9db6d3e3a9b3c2e89701550e96ae93558b0cc6dca5909ebf1a8f72ba17a044cf",
+  "shared_factory_fixture": "DE10/DE25 pass, real Go bundle packer; readelf, package selector, executables and RBF stand-ins",
+  "source_scope": {
+    "canonical_menu_inputs_verified": 374,
+    "changes_since_configuration_proof": [
+      "image/scripts/tests/native-runtime-inputs_test.sh"
+    ],
+    "combined_compiler_inputs_verified": 59,
+    "configuration_implementation_unchanged": true,
+    "configuration_proof_source": "36438ad3ad426a1cb6ce16d4a62b7b6f3e7a6fde",
+    "existing_actual_managed_sdk_verified": {
+      "archive_sha256": "5a7fa4bf99cfc660bd157d3ffc79b25807cf93eaa49dab894b579c7c52ea30e4",
+      "base_rootfs_sha256": "588421ad2ca56d9b4dae256772f46260068d680f0cdb5387faf3e1754206a9aa",
+      "builder_image": "sha256:ea200655b92ab1211bc8b326c6e799815f1d648b2d5e5a6c982f597cb2b9650d",
+      "image_receipt_sha256": "9eb0231578a501c4e0c49818346dcf0454562dc436069dec594db010d5d34dff",
+      "kernel_image_sha256": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+      "key": "managed-6e02fef9d46d975fb7b79eb3526feb7dece7901083037ccdcf23a9eb1d7f8d0d",
+      "producer_revision": "cad04bd65d82c98f0e375de927051d215dd63af1",
+      "profile": "managed-base"
+    },
+    "hardware_access": "not-performed",
+    "managed_factory_recipe_sha256": "e027db2a81d7954de2eae1a17da1e3242bdb03e1cd0f190b493e7b8a10aae1a4",
+    "runtime_test_inputs_verified": 58,
+    "source_revision": "0cb6a68e4e4b9c574e8f61712b668212ae9ad39b"
+  }
+}

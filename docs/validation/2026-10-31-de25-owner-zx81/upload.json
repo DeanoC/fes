@@ -1,0 +1,8 @@
+{
+  "host": "192.168.10.129",
+  "boot_id": "1cdac9ba-52eb-4268-87c0-d6533ec445f6",
+  "command": "umask 077; test ! -e /tmp/fes-owner-zx81 && mkdir /tmp/fes-owner-zx81 && tar -xf - -C /tmp/fes-owner-zx81",
+  "returncode": 0,
+  "elapsed_seconds": 0.36,
+  "stdin_sha256": "fdb8500fbdce2f4c3adbe1490f1438ac3249016f44c491c9c7b1dc82947de0e9"
+}

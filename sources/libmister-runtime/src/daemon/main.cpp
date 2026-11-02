@@ -56,14 +56,9 @@ int main(int argc, char** argv)
 	}
 
 	mister::Runtime runtime(*hardware, log);
-	const mister::Error startup = runtime.Start();
+	const mister::Error startup = argc == 4 ? runtime.Start(argv[2], argv[3]) : runtime.Start();
 	if (!startup.ok())
 		log.Write({"daemon_start", "", "", "failure", startup});
-	if (startup.ok() && argc == 4) {
-		const mister::Error menu = runtime.ConfigureMenuPackage(argv[2], argv[3]);
-		if (!menu.ok())
-			log.Write({"daemon_menu", "", "fes.menu", "failure", menu});
-	}
 
 	mister::daemon::Controller controller(runtime, MISTER_RUNTIME_VERSION);
 	mister::daemon::Server server("/run/mister-runtime.sock", controller);

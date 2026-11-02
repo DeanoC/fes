@@ -38,4 +38,13 @@ done
 
 printf 'TARGET_IMAGE_SMOKE_ROOT options=%s\n' "$root_options"
 printf '%s\n' 'TARGET_IMAGE_SMOKE_VOLATILE /run /tmp /var/log writable tmpfs'
+if [ ! -f /run/dbus/machine-id ] ||
+   ! /usr/bin/dbus-uuidgen --get >/dev/null 2>&1 ||
+   ! /usr/bin/dbus-send --system --print-reply --reply-timeout=5000 \
+       --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+       org.freedesktop.DBus.GetId >/dev/null 2>&1; then
+  printf '%s\n' 'TARGET_IMAGE_SMOKE_FAILED dbus-machine-id-or-system-bus'
+  exit 1
+fi
+printf '%s\n' 'TARGET_IMAGE_SMOKE_DBUS machine-id and system bus ready'
 printf '%s\n' 'TARGET_IMAGE_SMOKE_READY'

@@ -1,0 +1,18 @@
+{
+  "source_revision": "829cf0353d1ea7a479f95bdbdf3d72e0391ab810",
+  "command": [
+    "env",
+    "PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin",
+    "python3",
+    "out/owner-image-reverify-829cf0353/check.py"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T16:55:57.869379+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 3872864,
+  "state": "passed",
+  "elapsed_seconds": 7.7,
+  "heartbeat_utc": "2026-10-31T16:56:05.527605+00:00",
+  "returncode": 0
+}

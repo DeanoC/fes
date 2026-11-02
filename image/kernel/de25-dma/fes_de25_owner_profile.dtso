@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
+/dts-v1/;
+/plugin/;
+
+&{/fes-de25-kunit-region} {
+	firmware-name = "fes-kunit-modeled-image.rbf";
+	scanout {
+		compatible = "fes,de25-linux-dma-scanout";
+	};
+};

@@ -1,0 +1,234 @@
+['make', '-C', 'sources/libmister-runtime', '-j2', 'test-routine']
+make: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -DMISTER_RUNTIME_TESTING -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/de25_fpga_manager_test.cpp src/native/linux/de25_fpga_manager.cpp src/native/artifacts.cpp src/native/diagnostic.cpp src/native/sha256.cpp src/daemon/json.cpp -o "build/tests/unit/de25_fpga_manager_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -DMISTER_RUNTIME_TESTING -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	tests/unit/production_hardware_test.cpp src/linux/production_hardware.cpp build/src/runtime.o build/src/daemon/json.o build/src/native/artifacts.o build/src/native/core_package.o build/src/native/core_composition.o build/src/native/core_data.o build/src/native/media_data.o build/src/native/ata_disk.o build/src/native/core_driver.o build/src/native/fes_gp.o build/src/native/de25_computer.o build/src/native/de25_core_driver.o build/src/native/de25_pr_control.o build/src/native/menu_display.o build/src/native/linux/menu_window.o build/src/native/diagnostic.o build/src/native/sha256.o build/src/native/input.o build/src/native/video_recipe.o build/src/native/video.o build/src/native/hardware.o build/src/native/linux/de25_fpga_manager.o build/src/native/linux/fpga_manager.o build/src/native/linux/i2c.o build/src/native/linux/mmio.o build/src/native/linux/window_driver.o build/src/native/linux/linux_input.o -o "build/tests/unit/production_hardware_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/menu_frame_transport_test.cpp src/daemon/menu_frame_transport.cpp -o "build/tests/unit/menu_frame_transport_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/menu_window_test.cpp src/native/linux/menu_window.cpp -o "build/tests/unit/menu_window_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/menu_display_test.cpp src/native/menu_display.cpp src/native/fes_gp.cpp src/native/artifacts.cpp src/native/diagnostic.cpp -o "build/tests/unit/menu_display_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/runtime_test.cpp \
+	tests/support/fake_hardware.cpp tests/support/capture_log.cpp \
+	 src/runtime.cpp src/native/diagnostic.cpp -o "build/tests/unit/runtime_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/diagnostic_test.cpp \
+	src/native/diagnostic.cpp -o "build/tests/unit/diagnostic_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/artifacts_test.cpp \
+	src/native/artifacts.cpp src/native/diagnostic.cpp -o "build/tests/unit/artifacts_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/core_package_test.cpp \
+	src/native/core_package.cpp src/native/core_driver.cpp src/native/sha256.cpp \
+	src/native/artifacts.cpp src/native/diagnostic.cpp -o "build/tests/unit/core_package_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/core_composition_test.cpp src/native/core_composition.cpp src/native/sha256.cpp src/native/artifacts.cpp src/native/diagnostic.cpp -o "build/tests/unit/core_composition_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/core_data_test.cpp src/native/core_data.cpp src/native/sha256.cpp -o "build/tests/unit/core_data_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/ata_disk_test.cpp src/native/ata_disk.cpp src/native/media_data.cpp src/native/sha256.cpp src/daemon/json.cpp -o "build/tests/unit/ata_disk_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/media_data_test.cpp src/native/media_data.cpp src/native/sha256.cpp src/daemon/json.cpp -o "build/tests/unit/media_data_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/fes_gp_test.cpp \
+	tests/support/fake_mmio.cpp src/native/fes_gp.cpp src/native/artifacts.cpp src/native/diagnostic.cpp -o "build/tests/unit/fes_gp_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/de25_computer_test.cpp src/native/de25_computer.cpp src/native/de25_core_driver.cpp src/native/artifacts.cpp src/native/diagnostic.cpp -o "build/tests/unit/de25_computer_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/de25_pr_control_test.cpp src/native/de25_pr_control.cpp -o "build/tests/unit/de25_pr_control_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -DMISTER_RUNTIME_TESTING -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	-DMISTER_RUNTIME_IDLE_RBF=\"/definitely-missing/libmister-runtime/idle.rbf\" \
+	tests/unit/native_hardware_test.cpp \
+	tests/support/capture_log.cpp tests/support/fake_input.cpp \
+	tests/support/fake_mmio.cpp \
+	src/native/artifacts.cpp src/native/core_package.cpp src/native/core_composition.cpp src/native/core_data.cpp src/native/media_data.cpp src/native/ata_disk.cpp src/native/sha256.cpp \
+	src/native/core_driver.cpp  src/native/input.cpp \
+	src/native/fes_gp.cpp src/native/menu_display.cpp src/native/diagnostic.cpp \
+	src/native/video_recipe.cpp src/native/video.cpp \
+	src/native/hardware.cpp  src/runtime.cpp src/native/linux/menu_window.cpp \
+	src/linux/production_hardware.cpp \
+	src/native/linux/mmio.cpp src/native/linux/fpga_manager.cpp \
+	src/native/linux/i2c.cpp src/native/linux/input.cpp src/native/linux/window_driver.cpp \
+	src/daemon/json.cpp src/daemon/protocol.cpp \
+	 -o "build/tests/unit/native_hardware_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/fpga_manager_test.cpp \
+	tests/support/fake_mmio.cpp src/native/artifacts.cpp \
+	src/native/diagnostic.cpp \
+	src/native/linux/fpga_manager.cpp -o "build/tests/unit/fpga_manager_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -DMISTER_RUNTIME_TESTING -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	tests/unit/mmio_test.cpp src/native/linux/mmio.cpp -o "build/tests/unit/mmio_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	tests/unit/window_driver_test.cpp src/native/linux/window_driver.cpp -o "build/tests/unit/window_driver_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/off_t_test.cpp -o "build/tests/unit/off_t_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/video_recipe_test.cpp \
+	src/native/video_recipe.cpp -o "build/tests/unit/video_recipe_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/adv7513_test.cpp -o "build/tests/unit/adv7513_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -DMISTER_RUNTIME_TESTING -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	tests/unit/i2c_test.cpp src/native/linux/i2c.cpp -o "build/tests/unit/i2c_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -DMISTER_RUNTIME_TESTING -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	tests/unit/input_test.cpp tests/support/fake_input.cpp \
+	src/native/input.cpp src/native/linux/input.cpp -o "build/tests/unit/input_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/video_test.cpp \
+	tests/support/fake_i2c.cpp tests/support/capture_log.cpp \
+	src/native/artifacts.cpp  \
+	src/native/diagnostic.cpp \
+	src/native/video_recipe.cpp \
+	src/native/video.cpp  -o "build/tests/unit/video_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tests/unit/protocol_test.cpp \
+	src/daemon/json.cpp src/daemon/protocol.cpp  src/runtime.cpp \
+	src/native/core_package.cpp src/native/artifacts.cpp src/native/sha256.cpp \
+	src/native/diagnostic.cpp -o "build/tests/unit/protocol_test"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP tools/menu_pattern_client.cpp src/daemon/menu_frame_transport.cpp src/daemon/json.cpp -o "build/tools/menu-pattern-client"
+g++ -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include -Itests/support -O2 -std=c++14 -Wall -Wextra -Werror -pthread -MMD -MP \
+	-DMISTER_MENU_PATTERN_CLIENT=\"/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime/build/tools/menu-pattern-client\" \
+	tests/integration/daemon_server_test.cpp \
+	tests/support/fake_hardware.cpp \
+	src/daemon/controller.cpp src/daemon/server.cpp src/daemon/menu_frame_transport.cpp \
+	src/daemon/json.cpp src/daemon/protocol.cpp \
+	src/linux/stderr_log.cpp  src/runtime.cpp \
+	src/native/diagnostic.cpp -o "build/tests/integration/daemon_server_test"
+success applies on close, reprograms in context, and preserves state at destruction
+partial/failed/late close and unapplied status retain state and refuse replay
+preflight/staging failures make no programming call and clean only new resources
+failed removal poisons without another image submission
+foreign profiles and replaced lease inode refuse before filesystem mutation
+de25_fpga_manager_test: passed
+production_hardware_test passed
+menu transport phase/FD ownership/truncation/bounds/deadline tests passed
+menu window grant/clear/clean/revoke/share tests passed
+menu driver geometry/counters/ordered submission/invalid-state/blit tests passed
+runtime_test: 56 passed
+diagnostic_test: 9 passed
+artifacts_test: 11 passed
+core_package_test: 13 groups passed
+core_composition_test: single-socket and multi-slot admission passed
+core_data_test: codec, identity, corruption, CAS, retained storage, no-follow and per-game records passed
+ata_disk_test: golden delta, sizes, merge, chunk store, collection and base image passed
+fes_gp_test: all groups passed
+de25_computer_test: 18 groups passed (scripted registers; no hardware admission)
+PASS: DE25 PR identity, freeze/configure/resume, sequencing and terminal-failure controls
+native_hardware_test: 35 passed
+fpga_manager_test: 29 passed
+mmio_test: 3 passed
+window_driver_test passed
+off_t_test: 1 passed
+video_recipe_test: all exact-data assertions passed
+adv7513_test: named register packing passed
+i2c_test: 11 passed
+input_test: 14 passed
+video_test: 213 scenarios passed
+protocol_test: 27 tests passed
+frames=3 generation=1 displayed_sequence=3 underflows=0 elapsed_s=0.0177548 present_avg_ms=0.126749 present_max_ms=0.205024 blitter=0 blit_avg_ms=0 client_cpu_s=0.019944 client_maxrss_kib=10104
+daemon_server_test: 36 passed
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+incremental_build_test: all test binaries would rebuild (no compilation)
+version_build_test: incremental version updated
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+active_tree_test: passed
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make[1]: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+hardware support truth passed
+make[1]: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+['make', '-C', 'sources/libmister-runtime', 'archive-audit']
+make: Entering directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'
+make: Leaving directory '/home/deano/fes/out/dev/de25-linux-platform/sources/libmister-runtime'

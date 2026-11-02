@@ -1,0 +1,17 @@
+{
+  "source_revision": "199c963483b66886cbab6462880377473649aeba",
+  "command": [
+    "make",
+    "check",
+    "PYTHON=/home/deano/fes/out/dev/de25-linux-platform/out/guard-test-venv/bin/python"
+  ],
+  "cwd": "/home/deano/fes/out/dev/de25-linux-platform",
+  "started_utc": "2026-10-31T16:54:30.599582+00:00",
+  "time_cap_seconds": 600,
+  "hardware_access": "not-performed",
+  "pid": 3855618,
+  "state": "passed",
+  "elapsed_seconds": 5.0,
+  "heartbeat_utc": "2026-10-31T16:54:35.648393+00:00",
+  "returncode": 0
+}

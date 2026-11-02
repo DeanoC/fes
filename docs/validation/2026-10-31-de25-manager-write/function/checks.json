@@ -1,0 +1,49 @@
+{
+  "classification": "actual pinned write function; injected service and clock",
+  "kernel_revision": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "manager": {
+    "before_sha256": "26a525c7138b2dd04735e1cc3b458cec115102a1c00c6c51c4abf4e3ae7b6b44",
+    "after_sha256": "107a14c3d05f774aac529525d06ffe2fa963f3d2989f3a041f61acc871b7881a"
+  },
+  "patch_sha256": "1c1f35891bd9c88206dccf6768894bb78eda56143bdfded90e0db8e14c4ab07b",
+  "command": [
+    "cc",
+    "-std=c11",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "out/de25-write-proof-final-source/write-test.c",
+    "-o",
+    "out/de25-write-proof-final-source/write-test"
+  ],
+  "control": "unmodified manager hangs on permanent ENOMEM",
+  "disabled_profile_positive": "passed",
+  "cases": [
+    "case 0 PASS",
+    "case 1 PASS",
+    "case 2 PASS",
+    "case 3 PASS",
+    "case 4 PASS",
+    "case 5 PASS",
+    "case 6 PASS",
+    "case 7 PASS",
+    "case 8 PASS",
+    "case 12 PASS",
+    "case 9 PASS",
+    "case 10 PASS",
+    "case 11 PASS"
+  ],
+  "hardware_access": false,
+  "whole_programming_bound": false,
+  "sdm_dma_quiescence": false,
+  "sha256": {
+    "write-test.c": "573055831ff4a821cf898cb07ceae0b07e394110c28b890ae093d3fa617cb993",
+    "write-control": "e858b2b44240d1d0d5d447910681225ffb8fa6d11e96fb8dad49341fb5985ece",
+    "results.log": "643ef9b08ece1ef7b8107dee0b2fce60c9ada2384861bd2cbe63dd0ea45650fd",
+    "write-test": "8e56b8d34f6c808eca7aa085d9796cfce01b01214c026c4744f8e0dae139986b",
+    "disabled.log": "674db93066f8c2b58c986624df3532693202809b1dfe328d664adc604752dc0c",
+    "write-function.c": "286afc3c6363283bdf646ae2bf40acbe7afdbb79f4657297129f4e793a6fb187",
+    "write-disabled": "804d91ca44d2d4b63198e20e6f0a12d4fc03572d9dff05050c7555c90f183f9f"
+  }
+}

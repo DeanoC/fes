@@ -4,17 +4,70 @@ Development lives in the FES repository under `sources/libmister-runtime`.
 The former standalone repository is archived.
 
 The C++14 library and local `mister-runtime` daemon own FPGA programming,
-physical lifecycle, media/input delivery, and recovery. FES described packages are the only product launch path. The installed driver supports
-`fes.simple-game`, `fes.simple-computer`, `fes.application`, and
-`fes.computer` through `fes-gp-v1`. Protocol 2 is the only local socket protocol.
+physical lifecycle, media/input delivery, and recovery. FES described packages are the only product launch path. DE10 supports `fes.simple-game`,
+`fes.simple-computer`, `fes.application` and `fes.computer` through `fes-gp-v1`.
+DE25 selects the two explicit profiles below. Protocol 2 is the only local socket protocol.
 
-Production hardware construction requires an ARMv7 Linux binary and the exact
-DE10-nano device-tree identity used by FES boot/reset preparation. AArch64,
-DE25-Nano, unknown boards and missing or malformed identity are rejected before
-kernel-module loading or construction of MMIO/I2C adapters. The daemon retains
-its existing unavailable-hardware adapter and local protocol after refusal;
-it advertises no programming capabilities. An AArch64 compile or QEMU software
-test does not add DE25 hardware support.
+Production hardware construction selects the board before constructing physical
+adapters. DE10 requires ARMv7 and the exact FES Cyclone V device-tree identity.
+DE25 requires AArch64 and the exact Terasic Agilex5 model/compatible properties,
+then the existing exclusive maintenance flock, matched running-kernel receipt,
+root-only permanent owner and Linux DMA ABI3. Unknown or malformed identities
+fail before preparation. The same production wrapper and NativeHardware lifecycle
+serve both boards; DE25 constructs no Cyclone V manager, DDR window or Linux I2C
+recipe. The daemon keeps its unavailable adapter on preparation failure.
+AArch64 compilation does not establish physical support.
+
+`LinuxDe25FpgaManager` selects the overlay from the described programming
+profile: `de25-hps-first-v1` is the BRAM computer, and `de25-linux-menu-v1` is the
+allocated MENU application. It retains the actual outgoing overlay bytes before
+MENU/computer replacement; an inherited or modified overlay is refused. Firmware
+comes from the retained Artifact and is closed before the kernel reads it.
+Partial, failed or late programming poisons the context and retains the
+configuration. Software deadlines cannot abort an opaque configfs/SDM call.
+Safe process restart/adoption and whole-load failure bounds remain unfinished.
+
+The [programmer diagnostic](../../docs/validation/2026-10-31-de25-runtime-programmer/README.md)
+and [shared computer lifecycle diagnostic](../../docs/validation/2026-11-01-de25-shared-lifecycle/README.md)
+record their own selected kernel/runtime/core bytes, two loads and BASIC7.
+`De25ComputerCoreDriver` implements the exact BRAM computer contract, selected
+build identity, HID and tape insert/eject. Launch tape stays held until Start;
+live replacement sends no execution/reset command. Its known image has no
+tape-write capability and reports saveable=false. These dated results do not
+qualify the new factory or MENU path.
+
+`LinuxDe25Menu` supplies the existing MenuMemory and MenuDisplay interfaces from
+one kernel allocation. `De25MenuCoreDriver` binds its selected build identity;
+Configure waits for HDMI and confirms two complete black frames in slots1/0.
+Only then does hardware sequence2 become logical initial sequence0. The
+board's video backend asks the selected core driver for readiness, so MENU
+never reads the computer endpoint. Subsequent publication uses coherent slots
+and actual full-frame completion, without physical addresses, PL310 operations,
+frame copies, a GP mailbox or invented execution commands.
+
+The MENU package declares application1.0 with fixed video1.0, menu-display1.0
+and `fes.fabric.de25-scanout`1.1. It declares no boot-latched HPS DDR window,
+blitter or retained session plane. The runtime's ELF menu-interface records are
+the union of its explicit DE10 and DE25 contracts. A selected startup MENU is
+loaded directly; the default Start without a package uses the board's splash
+recipe, which remains unsupported on DE25.
+
+MENU grants explicitly negotiate per-frame mappings. The UI unmaps before
+commit and preparation abandonment, then remaps the same allocation for its
+next frame. An unaware peer is refused before fd sharing. Retirement requires
+kernel drain and the final peer reference. Failed retirement stays sticky and
+blocks programming; descriptor closure cannot authorize reuse. Kernel file
+release can attempt its own guarded revocation and retains uncertain exposure.
+The [frame agreement](../../docs/validation/2026-11-01-de25-menu-frame-mapping/README.md)
+and [lifecycle tests](../../docs/validation/2026-11-01-de25-menu-lifecycle/README.md)
+are software evidence at their named producers.
+
+The [allocated DMA hardware diagnostic](../../docs/validation/2026-11-01-de25-read-ahead/README.md)
+records three captured frames, full allocation unmap, software reboot and fresh
+reload/repetition on its earlier ABI2 kernel. The new ABI3 factory/MENU path is
+not deployed or hardware-accepted. Normal agent/catalog startup, safe restart,
+physical tape SAVE, broader security/reset/failure fencing and full timing
+acceptance remain open.
 
 The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
 register contract through an exclusive injected `Mmio` backend and an injected
@@ -41,7 +94,7 @@ the ARMv7/DE10 guard above remains the production gate.
 
 `make de25-computer` builds an explicit maintenance CLI for an already loaded
 ZX81-HPS image on the FES DE25 rootfs. It uses the existing Linux MMIO adapter
-with a six-register read allowlist and only one full-word GPO write address.
+with a seven-register read allowlist and only one full-word GPO write address.
 The caller supplies the selected boot UUID, full core build ID and audited CPU
 resource base. It refuses other architectures, rootfs/model identities and
 boot epochs, and holds an exclusive local maintenance lock. `probe` reads only
@@ -160,6 +213,17 @@ extended live limits. Nonlegacy immutable bases require matching BPBs; saved
 records use minor 1, retain guest BPB edits, and must match the base length
 before restore. Legacy 737280-byte behavior and minor-0 bytes are unchanged.
 This extension has software coverage; no new hardware acceptance is claimed.
+
+The production library includes the existing JSON parser shared by the daemon
+and DE25 kernel-receipt checks. Linking the library does not require a separate
+daemon parser object. The exact archive and raw-I/O ownership audits include
+the DE25 driver/programmer and retain missing-member negative checks.
+
+The DE25 managed Start waits for the exact fabric1.1 video-ready register
+before releasing execution. Missing readiness, reserved bits or a failed read
+send no Run command. The board owns HDMI initialization; this read-only gate
+adds no Linux I2C recipe. New RTL/driver bytes have software coverage only
+until their matching bitstream and board acceptance are complete.
 
 The PC/XT read-only floppy interface uses `fes.computer` 1.1 extended
 capability discovery and `fes.media.pcxt-floppy` 1.0 for exact 368,640-byte

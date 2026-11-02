@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import struct
+import sys
 import tempfile
 
 try:
@@ -19,6 +20,12 @@ except ImportError:
 
 
 LAYOUT_ID='de10-nano-appliance-1g-v1'
+
+
+def de25_media():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'image/de25-nano'))
+    import managed_media
+    return managed_media
 
 
 def appliance_layout(lock):
@@ -181,12 +188,20 @@ def main():
     parser.add_argument('command',choices=('assemble','verify'))
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--inputs',type=Path,required=True)
-    parser.add_argument('--lock',type=Path,default=Path('/work/boot-media.lock.toml'))
+    parser.add_argument('--board',choices=('de10-nano','de25-nano'),default='de10-nano')
+    parser.add_argument('--lock',type=Path)
     args=parser.parse_args()
     try:
         raw=json.loads(appliance.regular(args.inputs).read_text(),object_pairs_hook=appliance.unique)
+        if args.board == 'de25-nano':
+            selected=de25_media()
+            inputs=selected.Inputs(**{name:Path(path) if path is not None else None for name,path in raw.items()})
+            lock=selected.boot.load_lock(args.lock) if args.lock else selected.boot.load_lock()
+            result=selected.assemble(args.output,inputs,lock) if args.command=='assemble' else selected.verify(args.output,inputs,lock)
+            print(json.dumps(result,sort_keys=True))
+            return
         inputs=Inputs(**{name:Path(path) if path is not None else None for name,path in raw.items()})
-        lock=MediaLock.load(args.lock)
+        lock=MediaLock.load(args.lock or Path('/work/boot-media.lock.toml'))
         result=assemble(args.output,inputs,lock) if args.command=='assemble' else verify(args.output,inputs,lock)
         print(json.dumps(result,sort_keys=True))
     except (OSError,ValueError,TypeError) as error:parser.exit(1,f'appliance media: {error}\n')

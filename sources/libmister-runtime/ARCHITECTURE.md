@@ -6,24 +6,136 @@
 `mister-runtime` exposes protocol 2 over the local Unix socket. FogCast owns
 network sessions and library context; the runtime owns physical transitions.
 
-`CreateProductionHardware` constructs the retained artifact opener, Linux MMIO
-and FPGA manager, FES GP transport/driver, ADV7513 I2C, fixed video and splash
-video, Linux input, callback-only input session, and `NativeHardware`.
-There is no conventional Main, MiSTer SPI, framebuffer, cartridge profile table,
-or raw game launch operation.
+`CreateProductionHardware` identifies the exact board/CPU before physical
+preparation. DE10 uses the ARMv7 Cyclone V identity and its existing window,
+manager, GP, I2C and fixed/splash video adapters. DE25 uses AArch64, raw model
+`SoCFPGA Agilex5 Terasic DE25-Nano\0`, and compatible list
+`intel,socfpga-agilex5-socdk\0intel,socfpga-agilex5\0`. Its manager acquires the
+existing `/run/fes-de25-computer.lock`; matched kernel notes/receipt, root-only
+owner and DMA ABI3 are required before capabilities are exposed. Unknown or
+malformed properties fail before preparation. The test-only factory overload
+checks the same ordering and is absent from production archives.
 
-Before loading the window driver or constructing those physical adapters, the
-factory requires a Linux ARMv7 binary, raw device-tree model
-`Terasic DE10-nano\0`, and compatible list
-`altr,socfpga-cyclone5\0altr,socfpga\0`. This matches the existing FES boot/reset
-board contract. AArch64, another board, or absent/malformed properties return
-`unsupported_target` with phase `platform`. The daemon uses its existing
-failure-only hardware adapter and serves the same local protocol with no
-programming capabilities. The test-only factory overload supplies identity and
-the driver-loader callback to this same guarded construction path; it is absent
-from production archives. Identity/ordering tests establish this rejection
-behavior. An AArch64 compile or execution under QEMU does not establish DE25
-FPGA programming, MMIO, DDR, input or display support.
+One production wrapper owns the selected board's adapters and one NativeHardware.
+DE25 constructs no Cyclone V manager, fixed DDR window, GP client or Linux I2C.
+Its two selected drivers are the BRAM computer and allocated MENU. The FPGA
+owns its transmitter, and the video backend observes the selected driver's
+readiness. Missing/failed preparation uses the existing unavailable adapter and
+protocol with no programming capabilities. Compilation/model checks do not
+establish native factory or MENU support.
+
+`Runtime::Start` accepts an optional sealed MENU directory/package ID and loads
+it as the first idle image. The daemon passes `--menu-package` directly to that
+start. Without a selected package it keeps the existing splash recipe; DE25
+refuses that recipe. A failed selected startup does not program another board's
+splash and ends in reboot-required.
+
+## DE25 kernel programmer
+
+`LinuxDe25FpgaManager` implements `FpgaManager` for the selected
+`de25_hps_first_v1` computer and `de25_linux_menu_v1` application profiles.
+The shared registry pairs these only with the DE25 platform. Cyclone V refuses that enum before its
+first register/boot-layout access; the DE25 adapter refuses Cyclone V profiles.
+This supplies the programming transport for the existing lifecycle, not another
+runtime, daemon, profile table or network API.
+
+The caller serializes physical transitions, quiesces its previous core and
+retains the existing DE25 maintenance lock. A duplicate descriptor holds that
+same lease. The adapter requires the FES owner board/kernel, root-only owner
+node and an empty firmware search override. The image assembler certifies the
+exact retained-programming source patch and extracts the linked kernel notes;
+the runtime verifies the actual running note digest against that receipt.
+An older kernel with the same release string cannot satisfy this contract.
+
+The fixed overlay targets `/fpga-region` and carries only the fixed firmware
+name and completion timeout. It creates no device, DMA grant, bridge list,
+clock or topology override. Firmware is copied from the retained descriptor
+using bounded-memory reads, synced, made read-only and closed before the kernel
+opens it. A private overlay name and exclusive staging file refuse other
+loaders and symlink/pre-existing staging collisions. The pinned configfs binary
+attribute buffers writes and invokes programming on release: the adapter closes
+it once, then checks deadline, `applied` and `operating`.
+
+Within a successful context, replacement verifies the retained outgoing overlay
+bytes/status before removing it, independently of the incoming profile. Any uncertainty after removal or submission
+permanently poisons the context and retains files/configuration. No retry,
+rollback program, destructor unload or close-as-drain operation exists. New
+contexts refuse old overlays; safe restart adoption remains required before
+normal platform admission. Software deadlines cannot interrupt a stalled
+configfs close, secure call or shared-service mutex. Physical failure fencing
+and allocated-DMA qualification remain separate open gates.
+
+The [2026-10-31 physical programmer diagnostic](../../docs/validation/2026-10-31-de25-runtime-programmer/README.md)
+records two known-core loads and BASIC7 at the selected C++/kernel bytes. It
+does not admit the production factory or qualify failure/DMA recovery.
+
+
+The MENU programming profile selects `De25OverlayProfile::allocated_scanout`;
+the computer profile selects firmware-only. This choice comes from the checked
+package/profile, rather than a constructor option or inferred RBF contents. It adds only a `scanout` child
+with compatible `fes,de25-linux-dma-scanout` to the existing region overlay;
+the permanent owner's POST_APPLY notifier validates the control guard and
+claims the epoch before allowing allocation. The computer firmware-only overlay
+is unchanged. This option supplies no address, DMA grant, supplier or topology
+property and does not request owner REAP or grant normal runtime admission.
+Unknown selections are refused before any staging/mount/programming mutation.
+Exact selected-overlay replacement checks, inherited-overlay refusal and sticky
+uncertainty apply to both selections. The [initial allocated-scanout trial](../../docs/validation/2026-11-01-de25-allocated-scanout/README.md)
+retains the AXI response failure and guarded recovery. The later
+[exact-artifact DMA display diagnostic](../../docs/validation/2026-11-01-de25-read-ahead/README.md)
+corrects raw HPS stream/security wiring and read concurrency. It displays three
+kernel-allocated frames with matching captured patterns, then repeats after an
+ordinary software reboot and fresh Linux FPGA load, without pulling power.
+The trace verifies full allocation unmap and cleanup. This demonstrates the
+named diagnostic and recovery after known quiescence; broader security/reset,
+production MENU integration and timing acceptance remain open.
+
+## DE25 computer driver integration
+
+`De25ComputerCoreDriver` consumes the existing atomic client through the shared
+CoreDriver lifecycle. It requires exactly computer ABI1.0, the three required
+video/HID/ZX81-tape1.0 interfaces and the selected nonzero build identity before
+control. Context core/build changes refuse lifecycle calls. BeginSession clears
+selection only; it cannot reset sticky protocol uncertainty. Start records that
+an uncertain release may have executed. Launch tape binding holds execution;
+live replacement never sends an execution/reset command.
+
+CoreDriver has optional rejecting HID/basic-media operations. FesGp overrides
+preserve its implementation, and NativeHardware routes these calls through the
+active driver. CoreDriver also owns optional unit-media observation/insert/eject operations;
+NativeHardware consults the active driver before snapshotting or ejecting a
+unit. The DE25 implementation exposes only the live limits/state proven during
+identity. Its bounded BRAM-tape snapshot is read under the operation deadline;
+insert never resets execution. Successful completion records ready/empty,
+while transport uncertainty records loading and permits no cleanup/replay.
+The BRAM contract has no tape-write bit, so its unit is not saveable. FesGp
+retains its existing unit transfer/recovery behavior through overrides.
+
+The DE25 driver now has separate de25_core_driver source/header files, leaving
+the pure protocol consumer independently linkable by RTL proofs and maintenance
+CLI. The production archive requires the driver object. The metadata checker and driver registry require explicit `NativePlatform::de25_nano`
+selection and the generated DE25 profile/device row. The default stays DE10;
+foreign profiles, including contained development, do not resolve on DE25.
+One contract validator is shared by preflight and live Identify; it requires
+format2, ABI1.0, selected nonzero128-bit build, and exactly the required
+video/HID/tape interfaces.
+
+`NativeHardware` retains an explicitly selected platform and passes it to each
+package compatibility and registry check, including activation rechecks. DE25
+capabilities contain the BRAM computer and allocated MENU application
+profiles/interfaces when their drivers/adapters are supplied, with no ROM
+linking, boot-latched DDR or contained-development claims. Core video uses the
+`CoreVideoBringup` interface: the fixed Linux I2C recipe supports DE10, while
+`De25VideoBringup` asks the selected core driver for observed readiness without
+transmitter writes. MENU never probes the computer endpoint. A backend/platform mismatch is refused during admission
+and before replacement quiesce. Both managed profiles reach video setup and
+selected-driver Start; unsafe Identify failures retire the active identity.
+DE25 video quiesce has no separate hardware mutation; the selected driver's
+HOLD fences the CPU. It does not claim to blank the transmitter. The current
+Cyclone V splash recipe is refused on DE25 before any input, video or FPGA
+mutation. The selected MENU package supplies idle startup; safe restart adoption and
+native factory/MENU acceptance remain open. Scripted-register and selected-driver
+regressions are software evidence. The [2026-11-01 shared-lifecycle diagnostic](../../docs/validation/2026-11-01-de25-shared-lifecycle/README.md) runs this actual driver/video backend through two NativeHardware package loads, BASIC7 and software reboot; that earlier result does not accept the new factory or normal idle/MENU path.
 
 ## DE25 PR-control diagnostic
 
@@ -41,13 +153,14 @@ constructed by the production factory or exposed by the runtime daemon.
 
 `De25Computer` is a separately instantiated protocol consumer for the generated
 `fes.fabric.de25-computer` register map. It reuses the abstract `Mmio` and
-`Clock` interfaces with resource-relative offsets. There is no Linux MMIO
-constructor, physical base, daemon operation or platform/profile admission for
-this client. Its callers are scripted-register unit tests and the native/AArch64
+`Clock` interfaces with resource-relative offsets. The client owns no Linux device opener or independent daemon operation;
+its selected driver and production binding supply MMIO/lifecycle ownership.
+Its software proofs include scripted-register tests and the native/AArch64
 DE25 ZX81 co-simulation in `misteross/boards/de25nano/zx81-hps/client_proof.py`.
 That test connects the actual client to the endpoint/machine RTL, with explicit
 simulation-time advances and separately labeled observation/transport faults.
-The production factory and its exact ARMv7/DE10 guard above are unchanged.
+The production factory binds the same client only after the explicit DE25
+board/lease/kernel/owner checks above; it does not expose a second control API.
 
 The client requires an explicit nonzero 128-bit build ID, bridge identity and
 version, exact `fes.computer` identity/capabilities, and live ZX81 tape limits
@@ -198,6 +311,35 @@ Archive regeneration removes obsolete members; archive and active-tree guards
 verify construction and reject old mutation authority.
 
 ## Menu presentation primitives
+
+`LinuxDe25Menu` supplies both interfaces for one allocated Linux grant. Its
+constructor performs no physical access. Bind checks owner ABI3 before ALLOC,
+then requires the expected build identity, geometry and empty drained state.
+Activation keeps that same kernel-cleared allocation. Configure waits for
+DisplayReady and observes two complete black frames (hardware sequences1/2,
+slots1/0), establishing logical sequence0/front0. Later submissions add2 with
+checked exhaustion. ReadInfo reports observed running/pending/completion state;
+there is no synthetic enable register or frame acknowledgement.
+
+Its memory clean validates the back slot and rectangles; coherent CPU writes
+are ordered by kernel PUBLISH, without runtime mmap, PL310 calls or copies.
+Clients require the per-frame mapping agreement. Retirement polls only the
+kernel's EAGAIN drain observation, without reset; other errors stop it. After
+successful REAP it closes its grant and waits for OWNER_IDLE, including peer
+FD/VMA references. A failed retirement stays sticky and refuses another bind.
+The kernel retains uncertain exposure after local descriptors close. Synchronous
+ioctl completion is checked against the deadline but cannot be aborted by a
+userspace clock check. The selected driver and factory bind this adapter; it
+never adopts an inherited configuration or authorizes replacement from closure.
+
+`NativeHardware` consumes the `MenuDisplay` presentation and `MenuMemory`
+grant interfaces. `MenuDisplayDriver` and `MenuWindow` are the DE10 adapters;
+board-independent lifecycle code does not require their concrete transports.
+A failed revoke is retained by both the window and lifecycle: no later grant,
+splash load or core replacement can erase that uncertainty. Session-plane
+failure may still request display quiescence, but cannot report revocation
+success or proceed to programming. A new process is not proof that a retained
+kernel owner is safe. DE25 allocation/presentation integration remains closed.
 
 The required `fes.video.menu-display` 1.0 application capability (bit 9)
 is admitted only alongside fixed video and HPS DDR. The only other interface a
@@ -767,3 +909,42 @@ extended live limits. Nonlegacy immutable bases require matching BPBs; saved
 records use minor 1, retain guest BPB edits, and must match the base length
 before restore. Legacy 737280-byte behavior and minor-0 bytes are unchanged.
 This extension has software coverage; no new hardware acceptance is claimed.
+
+The existing JSON parser is built once into the runtime archive because the
+DE25 programmer validates the kernel receipt through it. The daemon links that
+same object from the archive; no second parser or policy path is introduced.
+The production-hardware test links the complete library objects, including the
+parser, on AArch64 as well as native hosts. The archive audit requires exactly
+29 members and explicitly names the DE25 programmer and MENU adapter as file-I/O owners.
+
+DE25 computer fabric1.1 adds read-only video status at offset24. The board
+qualifies vendor HDMI initialization with PLL/reset and its complete-line gate;
+only that one-bit result crosses to the MMIO clock. Managed Start polls it
+within the existing absolute deadline before Run. Readiness errors report no
+execution release; a late/failed Run retains its existing uncertainty semantics.
+The resource remains32 bytes and the maintenance read allowlist expands to
+seven registers. Exact version matching rejects older images before control.
+This does not establish native factory or physical display acceptance.
+
+## DE25 allocated MENU lifecycle
+
+The exact format2 `fes.menu` application1.0 package declares fixed video1.0,
+menu-display1.0 and `fes.fabric.de25-scanout`1.1, with a selected nonzero build ID.
+It does not declare the Cyclone V boot-latched DDR contract. The selected MENU
+driver checks this before binding ABI3 storage. Configure performs both observed
+black frames on that same allocation. Selected video readiness and Start observe
+the completed allocation; they issue no computer-mailbox or execution command.
+Normal LoadCore/Stop then use the existing serialized lifecycle to retire MENU,
+program/identify/start the computer, and reload MENU with a fresh generation.
+
+MenuMemory retirement precedes any replacement. OWNER_REAP must prove drain;
+OWNER_IDLE must subsequently show the last peer FD/VMA gone. A failed retirement
+remains sticky, including after the peer eventually closes. The kernel's file
+release may also attempt guarded revocation, but closure itself proves neither
+drain nor storage reuse. Restarting a manager refuses inherited overlays; safe
+artifact/boot/epoch adoption is still required for normal process restart.
+
+ELF menu-interface records describe the union of the two board-specific
+contracts, not one package containing all interfaces. Package target/profile
+admission still separates those contracts. This implementation is not installed
+on the physical ABI2 board, and adds no native MENU/catalog or timing acceptance.

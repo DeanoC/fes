@@ -13,7 +13,7 @@ namespace mister {
 namespace native {
 namespace generated {
 
-struct GeneratedProgrammingProfilePair {
+struct GeneratedDe10NanoProgrammingProfilePair {
   const char* profile;
   const char* abi;
   std::uint16_t major;
@@ -23,7 +23,7 @@ struct GeneratedProgrammingProfilePair {
 constexpr const char* kDe10NanoProgrammingPlatform = "de10_nano";
 constexpr const char* kDe10NanoProgrammingDevice = "5CSEBA6U23I7";
 
-static constexpr GeneratedProgrammingProfilePair kDe10NanoProgrammingProfilePairs[] = {
+static constexpr GeneratedDe10NanoProgrammingProfilePair kDe10NanoProgrammingProfilePairs[] = {
   {"fes-gp-v1", "fes.simple-game", 1, false},
   {"fes-gp-v1", "fes.simple-computer", 1, false},
   {"fes-gp-v1", "fes.application", 1, false},
