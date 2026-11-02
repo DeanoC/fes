@@ -24,6 +24,13 @@ EMBEDDED_FIRMWARE_CONTRACT_INPUTS = frozenset({
     'sources/mister-packages/testdata/oracles/fes-embedded-bridges.json',
 })
 
+# Only the experimental native Go computer adapter consumes this fabric file.
+# The shared fes.computer ABI retains its full existing consumer checks.
+NATIVE_COMPUTER_CONTRACT_INPUTS = frozenset({
+    'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml',
+    'sources/mister-packages/testdata/oracles/fes-de25-computer.json',
+})
+
 # Video producer, package-admission and host library consumer inputs. Changes
 # here re-include the real-device video suites in the parent run.
 VIDEO_FILES = frozenset({
@@ -105,7 +112,7 @@ def _classify(path):
     # SD PIO, QEMU and native lifecycle checks. The Linux appliance does not
     # compile the nested TamaGo module or consume these firmware/entry images.
     if ((_under(path, 'platform/embedded') and '..' not in Path(path).parts) or
-            path in EMBEDDED_FIRMWARE_CONTRACT_INPUTS):
+            path in EMBEDDED_FIRMWARE_CONTRACT_INPUTS or path in NATIVE_COMPUTER_CONTRACT_INPUTS):
         return dict.fromkeys(TEST_MODE_KEYS, False)
     # The standalone DE25 headless image has its own build/verification checks.
     # It consumes no DE10 image, core package, runtime or media assembly input.

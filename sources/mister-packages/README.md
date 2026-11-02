@@ -28,6 +28,11 @@ defines bounded, read-only DMA diagnostic registers. [DE25 DDR](docs/de25-ddr.md
 specifies its drain behavior, address domains and planned Linux-owned MENU
 allocation. It adds no production runtime or GP interface.
 
+The diagnostic [DE25 computer Avalon adapter](docs/de25-computer.md) supplies
+relative CSR/fault constants for the native FES `fes.computer` driver. It uses
+the captured board producer's exact contract and grants no physical mapping,
+boot ownership or ordinary runtime admission.
+
 The fabric-only `emit-c` command supplies standalone constant headers for C
 consumers such as the DE25 kernel diagnostic. From this module:
 

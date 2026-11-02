@@ -5,9 +5,9 @@ from pathlib import Path
 import subprocess
 
 try:
-    from scripts.test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, select_test_modes, validate_test_modes
+    from scripts.test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, NATIVE_COMPUTER_CONTRACT_INPUTS, select_test_modes, validate_test_modes
 except ImportError:
-    from test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, select_test_modes, validate_test_modes
+    from test_policy import DE25_BOARD_DEFINITION, DE25_DDR_PROBE_DEFINITION, NATIVE_COMPUTER_CONTRACT_INPUTS, select_test_modes, validate_test_modes
 
 # Logical module names survive the monorepo move; update only these roots.
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
@@ -35,6 +35,10 @@ EMBEDDED_BRIDGE_INPUTS = frozenset({
 def embedded_control_input(path):
     return (path in EMBEDDED_CONTROL_INPUTS or path in EMBEDDED_BRIDGE_INPUTS or
             path.startswith('platform/embedded/firmware/'))
+
+
+def native_computer_input(path):
+    return (path.startswith('platform/embedded/tamago/computer/') or path in NATIVE_COMPUTER_CONTRACT_INPUTS)
 
 
 def native_sd_input(path):
@@ -354,6 +358,12 @@ def plan(paths):
         if path == EXPANSION_ROOT or path.startswith(EXPANSION_ROOT + '/'):
             selected.update(('parent', 'host'))
             reasons.append(f'{path}: shared Go expansion linker and host/target consumers; RTL unchanged')
+            continue
+        if native_computer_input(path):
+            selected.add('parent')
+            if path.startswith(MODULE_ROOTS['contracts'] + '/'):
+                selected.add('contracts')
+            reasons.append(f'{path}: native computer adapter; no shipped core or Linux runtime consumer')
             continue
         if embedded_control_input(path):
             selected.update(('parent', 'fpga'))

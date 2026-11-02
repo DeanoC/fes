@@ -16,6 +16,14 @@ def git(root, *args):
 
 
 class TestChangedTest(unittest.TestCase):
+    def test_native_computer_schedules_portable_control_checks(self):
+        self.change('platform/embedded/tamago/computer/computer.go')
+        result = self.plan()
+        self.assertEqual(result['impact']['cores'], [])
+        command = next(c for c in result['commands'] if c['label'] == 'native computer transport and command failures')
+        self.assertEqual(command['cwd'], 'platform/embedded/tamago')
+        self.assertEqual(command['argv'], ['go', 'test', '-race', '-count=1', '-timeout', '90s', './computer/...'])
+
     def test_de25_board_control_schedules_standalone_avalon_check(self):
         self.change("sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv")
         result = self.plan()

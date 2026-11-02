@@ -1,0 +1,37 @@
+{
+  "source": {
+    "repository": "DeanoC/fes",
+    "commit": "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+    "file": "sources/misteross/boards/de25nano/zx81-hps/generated/fes_de25_computer.hpp",
+    "sha256": "931f6e4814b041ca4225e9c98ec6ef3b0b84c85c0baab9d528824b0f78b054a1",
+    "runtime_base_commit": "ae599d8d85b418980eeaebae32388444409e491f",
+    "note": "Unchanged captured board adapter constants. The native consumer adds no production runtime admission or hardware acceptance."
+  },
+  "fabric": {
+    "id": "fes.fabric.de25-computer",
+    "major": 1,
+    "minor": 0
+  },
+  "constants": {
+    "FesDe25ComputerIdentity": 1144150616,
+    "FesDe25ComputerVersion": 65536,
+    "FesDe25ComputerIdOffset": 0,
+    "FesDe25ComputerVersionOffset": 4,
+    "FesDe25ComputerStatusOffset": 8,
+    "FesDe25ComputerGpoOffset": 12,
+    "FesDe25ComputerGpiOffset": 16,
+    "FesDe25ComputerFaultOffset": 20,
+    "FesDe25ComputerSpan": 32,
+    "FesDe25ComputerAddressBits": 5,
+    "FesDe25ComputerPeripheralOffset": 66304,
+    "FesDe25ComputerZx81TapeMaxBytes": 16375,
+    "FesDe25ComputerStatusReady": 1,
+    "FesDe25ComputerStatusBusy": 2,
+    "FesDe25ComputerStatusFault": 4,
+    "FesDe25ComputerFaultReset": 1,
+    "FesDe25ComputerFaultPartial": 2,
+    "FesDe25ComputerFaultBusy": 4,
+    "FesDe25ComputerFaultToggle": 8,
+    "FesDe25ComputerFaultAddress": 16
+  }
+}

@@ -6,6 +6,12 @@ the top kit. Playable-core readiness remains open. FES owns
 the base image; FogCast owns tenfoot and its application services; the runtime
 owns FPGA programming, reset, input delivery and DMA lifetime.
 
+The experimental [native computer driver](tamago/computer/README.md) now checks
+the captured DE25 ZX81 Avalon/GP interface through injected platform I/O. Its
+explicit host model tests cover release, input, tape transfer, hold, relaunch
+and faults against the actual captured core RTL. Physical mapping/ownership,
+board execution and ordinary runtime core admission remain open.
+
 The [contained firmware/RTL prototype](firmware/README.md) prepares a pinned
 TF-A source variant and an FPGA identity/read-drain endpoint. The experimental
 [native endpoint](tamago/nativefabric/README.md) now connects their protocols

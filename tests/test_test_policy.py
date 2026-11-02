@@ -25,6 +25,13 @@ RACE = ['go', 'test', '-race', '-short', '-timeout', '30m']
 
 
 class SelectTestModesTests(unittest.TestCase):
+    def test_native_computer_contract_selects_only_its_actual_consumers(self):
+        paths = sorted(test_policy.NATIVE_COMPUTER_CONTRACT_INPUTS)
+        self.assertEqual(test_policy.select_test_modes(paths), ALL_FALSE)
+        for neighbor in ('sources/mister-packages/packages/fabric/fes_fabric_de25_computer_other.yaml',
+                         'sources/mister-packages/packages/abi/fes_computer.yaml', 'unknown/new.bin'):
+            self.assertEqual(test_policy.select_test_modes([*paths, neighbor]), ALL_TRUE)
+
     def test_embedded_producer_simulation_does_not_select_extended_builds(self):
         for path in ('sources/misteross/prototypes/embedded_control/producer.py',
                      'sources/misteross/prototypes/embedded_control/embedded_producer_top.sv',

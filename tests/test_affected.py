@@ -11,6 +11,19 @@ from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
 
 
 class AffectedTests(unittest.TestCase):
+    def test_native_computer_has_no_shipped_core_consumer(self):
+        for path in ('platform/embedded/tamago/computer/computer.go',
+                     'platform/embedded/tamago/computer/testdata/probe.cpp',
+                     'sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml',
+                     'sources/mister-packages/testdata/oracles/fes-de25-computer.json'):
+            with self.subTest(path=path):
+                result = plan([path])
+                lanes = {'parent', 'contracts'} if path.startswith('sources/') else {'parent'}
+                self.assertEqual(result['cores'], [])
+                self.assertEqual({k for k, v in result['lanes'].items() if v}, lanes)
+        self.assertEqual(set(plan(['sources/mister-packages/packages/fabric/unknown.yaml'])['cores']), set(CORES))
+        self.assertEqual(set(plan(['sources/mister-packages/packages/abi/fes_computer.yaml'])['cores']), set(CORES))
+
     def test_embedded_producer_is_a_standalone_simulation(self):
         for path in ('sources/misteross/prototypes/embedded_control/producer.py',
                      'sources/misteross/prototypes/embedded_control/embedded_producer_top.sv',
