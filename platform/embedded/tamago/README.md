@@ -219,7 +219,14 @@ runner-owned **test input**, not an authenticated admission receipt. Editing it
 cannot authorize physical programming: this gate has only `LoadModel` and
 accepts only the explicit `qemu-model-only` scope. A production backend must
 perform its own runtime-owned checks against retained bytes and live hardware.
-The C++ checker itself has not been ported into native Go.
+The separate [native Go compatibility checker](runtimeadmission/README.md)
+now implements the runtime's target/profile/ABI and interface semantics over
+exact retained archives. Its DE10 registry and ABI identities come from the
+shared definitions. The native diagnostic compares each Go decision with the
+C++ oracle before the existing model lifecycle, including linked ROM cases.
+This removes C++ execution from the native contract-checking implementation;
+the host oracle remains a validation reference. It supplies no qualified Nano
+profile, boot proof, live identity or physical activation method.
 
 The native gate checks the expected package ID, target, programming profile,
 ABI, required interfaces and exact-package compatibility decision before calling

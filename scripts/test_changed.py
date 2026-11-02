@@ -81,6 +81,11 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
                 tools=["go", "cc", "c++", "verilator"],
                 files=["platform/embedded/tamago/nativefabric/verify.py",
                        "platform/embedded/firmware/tests/native_rpc.cpp"])
+        if any(affected.native_compatibility_input(path) for path in impact["paths"]):
+            add("parent", "native Go and runtime package compatibility parity", ".",
+                [sys.executable, "platform/embedded/runtime/verify_compatibility.py"],
+                tools=["go", "c++"], files=["platform/embedded/runtime/verify_compatibility.py",
+                    "sources/libmister-runtime/src/native/core_package.cpp"])
         if any(affected.embedded_producer_check_input(path) for path in impact["paths"]):
             add("parent", "embedded producer identity and native control integration", ".",
                 [sys.executable, "platform/embedded/tamago/nativefabric/verify_producer.py",

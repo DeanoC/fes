@@ -25,10 +25,11 @@ type Case struct {
 }
 
 type Result struct {
-	Name           string `json:"name"`
-	PackageID      string `json:"package_id"`
-	Code           string `json:"code"`
-	OwnerUnchanged bool   `json:"owner_unchanged"`
+	Name                    string `json:"name"`
+	PackageID               string `json:"package_id"`
+	Code                    string `json:"code"`
+	OwnerUnchanged          bool   `json:"owner_unchanged"`
+	NativeCompatibilityCode string `json:"native_compatibility_code"`
 }
 
 func drive(c *fabricmodel.Controller, now *time.Duration, corrupt bool) error {
@@ -66,6 +67,10 @@ func Run(policy runtimeadmission.Policy, cases []Case, read func(string) ([]byte
 	if err != nil {
 		return err
 	}
+	compatibility, err := runtimeadmission.NewDE10Compatibility()
+	if err != nil {
+		return err
+	}
 	if len(cases) == 0 || len(cases) > 512 {
 		return fmt.Errorf("invalid admission case count")
 	}
@@ -99,6 +104,10 @@ func Run(policy runtimeadmission.Policy, cases []Case, read func(string) ([]byte
 		}
 		if archive.Inspection().PackageID != test.PackageID {
 			return fmt.Errorf("fixture identity mismatch")
+		}
+		nativeCode := runtimeadmission.ErrorCode(compatibility.CheckArchive(archive, test.PackageID))
+		if nativeCode != test.RuntimeCode {
+			return fmt.Errorf("%s: native compatibility %s differs from C++ runtime %s", test.Name, nativeCode, test.RuntimeCode)
 		}
 		// Keep an outstanding frame and capture the full current owner's state.
 		frame, err := c.BeginFrame()
@@ -155,7 +164,7 @@ func Run(policy runtimeadmission.Policy, cases []Case, read func(string) ([]byte
 				first, firstID = archive, test.PackageID
 			}
 		}
-		report(Result{test.Name, test.PackageID, code, code != "none"})
+		report(Result{test.Name, test.PackageID, code, code != "none", nativeCode})
 	}
 	if first == nil || accepted == 0 || rejected == 0 {
 		return fmt.Errorf("fixtures must exercise admission and rejection")

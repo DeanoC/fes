@@ -82,6 +82,13 @@ func linkedCase(gate *runtimeadmission.Gate, c *fabricmodel.Controller, now *tim
 	if archive.Inspection().PackageID != test.PackageID {
 		return fmt.Errorf("package identity mismatch")
 	}
+	compatibility, err := runtimeadmission.NewDE10Compatibility()
+	if err != nil {
+		return err
+	}
+	if err = compatibility.CheckArchive(archive, test.PackageID); err != nil {
+		return fmt.Errorf("native linked package compatibility: %w", err)
+	}
 	sources := []corepackage.ROMSource{}
 	for _, source := range test.Sources {
 		data, err := read(source.Path)

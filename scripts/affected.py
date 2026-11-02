@@ -102,6 +102,25 @@ def native_fabric_input(path):
                              'sources/mister-packages/internal/emitgo/')) or
             path in ('sources/mister-packages/cmd/mister-packages/main.go',
                      'platform/embedded/tamago/cmd/fabric/main.go'))
+
+
+def native_compatibility_input(path):
+    if path.startswith(('platform/embedded/tamago/runtimeadmission/',
+                        'platform/embedded/tamago/admissioncheck/',
+                        'sources/FogCast/corepackage/')):
+        return path.endswith('.go')
+    return path in (
+        'platform/embedded/runtime/verify_compatibility.py',
+        'platform/embedded/runtime/admission_oracle.cpp',
+        'platform/embedded/tamago/admission_fixtures.py',
+        'platform/embedded/tamago/cmd/admission/main.go',
+        'platform/embedded/tamago/computer/generated/fes_computer.go',
+        'sources/libmister-runtime/src/native/core_package.cpp',
+        'sources/libmister-runtime/src/native/core_package.hpp',
+        'sources/mister-packages/packages/programming/de10_nano.yaml',
+        *('sources/mister-packages/packages/abi/fes_' + name + '.yaml'
+          for name in ('simple_game', 'simple_computer', 'application', 'computer')),
+    )
 # Parent-owned orchestration, test and assembly roots contain no component
 # sources, so their changes select only the parent lane. Matching is the exact
 # directory or directory + '/', keeping siblings like scripts-other unknown.
@@ -359,6 +378,8 @@ def plan(paths):
             selected.update(('parent', 'host'))
             reasons.append(f'{path}: shared Go expansion linker and host/target consumers; RTL unchanged')
             continue
+        if native_compatibility_input(path):
+            selected.add('parent')
         if native_computer_input(path):
             selected.add('parent')
             if path.startswith(MODULE_ROOTS['contracts'] + '/'):

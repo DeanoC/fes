@@ -16,6 +16,21 @@ def git(root, *args):
 
 
 class TestChangedTest(unittest.TestCase):
+    def test_native_compatibility_tracks_both_runtime_implementations(self):
+        for path in ('platform/embedded/tamago/runtimeadmission/computer_contract.go',
+                     'sources/libmister-runtime/src/native/core_package.cpp',
+                     'sources/mister-packages/packages/abi/fes_application.yaml'):
+            with self.subTest(path=path):
+                self.change(path)
+                command = next(c for c in self.plan()['commands']
+                               if c['label'] == 'native Go and runtime package compatibility parity')
+                self.assertEqual(command['cwd'], '.')
+                self.assertEqual(command['argv'][1:], ['platform/embedded/runtime/verify_compatibility.py'])
+                (self.root / path).unlink()
+        self.change('platform/embedded/tamago/runtimeadmission/README.md')
+        self.assertFalse(any(c['label'] == 'native Go and runtime package compatibility parity'
+                             for c in self.plan()['commands']))
+
     def test_native_computer_schedules_portable_control_checks(self):
         self.change('platform/embedded/tamago/computer/computer.go')
         result = self.plan()

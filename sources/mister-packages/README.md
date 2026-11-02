@@ -54,6 +54,9 @@ support. Historical oracle records remain provenance.
 The runtime owns physical programming and compatibility admission; FogCast
 owns library/session context; misteross owns source builds and RBF provenance.
 Shared persistence layouts and wire contracts remain here.
+The experimental native Go compatibility checker consumes the same generated
+ABI constants and DE10 programming registry. These additional Go consumers
+change no shared values and register no Nano physical programming capability.
 The experimental [embedded identity/drain contract](docs/embedded-control.md)
 generates constants for a standalone FPGA endpoint and FES firmware adapter.
 It registers no production ABI or Nano programming profile.

@@ -426,10 +426,15 @@ def main():
                     guest.wait(lambda text: "FES_NATIVE_ADMISSION PASS" in text, args.timeout, "model runtime admission")
                     observed = [json.loads(line) for line in re.findall(r"FES_ADMISSION_CASE ([^\r\n]+)", guest.text)]
                     expected = [{"name": c["name"], "package_id": c["package_id"], "code": c["expected"],
-                                 "owner_unchanged": c["expected"] != "none"} for c in package_cases]
+                                 "owner_unchanged": c["expected"] != "none",
+                                 "native_compatibility_code": c["runtime_code"]} for c in package_cases]
                     if observed != expected:
                         raise RuntimeError("guest admission decisions differ from fixture expectations")
                     record["admission_results"] = observed
+                    marker = f"FES_NATIVE_CONTRACT_COMPATIBILITY PASS cases={len(package_cases)} linked={len(record['linked_cases'])} physical_activation=unavailable"
+                    if marker not in guest.text:
+                        raise RuntimeError("guest did not complete native contract compatibility checks")
+                    record["native_compatibility_checked"] = True
                     linked = [json.loads(line) for line in re.findall(r"FES_ROM_LINK_CASE ([^\r\n]+)", guest.text)]
                     projection = [{k: c[k] for k in ("name", "package_id", "programmed_sha256", "programmed_size")} for c in linked]
                     expected_linked = [{k: c[k] for k in ("name", "package_id", "programmed_sha256", "programmed_size")} for c in record["linked_cases"]]

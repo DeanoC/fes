@@ -72,6 +72,7 @@ func run() error {
 		return err
 	}
 	fmt.Printf("FES_RETAINED_ROM_LINKS PASS cases=%d source_mutation=isolated receipts=bound\n", len(linkedCases))
+	fmt.Printf("FES_NATIVE_CONTRACT_COMPATIBILITY PASS cases=%d linked=%d physical_activation=unavailable\n", len(cases), len(linkedCases))
 	fmt.Printf("FES_NATIVE_ADMISSION PASS cases=%d runtime_id=%s physical_activation=unavailable\n", len(cases), policy.RuntimeID)
 	return nil
 }
