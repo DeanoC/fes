@@ -1,0 +1,115 @@
+{
+  "status": "passed",
+  "source_revision": "c1aa5e40bcb96a3e809bd40c32dd135e3e942a58",
+  "matched_inputs": {
+    "ZX81": 577,
+    "MENU": 377,
+    "internal": 104,
+    "combined_compiler": 65,
+    "combined_runtime": 58
+  },
+  "checks": [
+    {
+      "name": "affected",
+      "argv": [
+        "make",
+        "test-changed",
+        "TEST_CHANGED_ARGS=--base 98d877295fa44be81f3e22420332e341c0d015bb"
+      ],
+      "returncode": 0,
+      "expected_returncode": 0,
+      "seconds": 970.959,
+      "log_sha256": "f4bdc0dee7fa1d854d962d736bfa917c7b602335f6f1cc06faf511d7468e83a9"
+    },
+    {
+      "name": "generated",
+      "argv": [
+        "make",
+        "check"
+      ],
+      "returncode": 0,
+      "expected_returncode": 0,
+      "seconds": 6.925,
+      "log_sha256": "8015336a883d42c83467aca55d2eaf22bdd1c0805c526f1b247c09f3f4571885"
+    },
+    {
+      "name": "links",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/check_doc_links.py"
+      ],
+      "returncode": 0,
+      "expected_returncode": 0,
+      "seconds": 0.189,
+      "log_sha256": "112ab742576d07de470e5efa97b5e38a5efe2f0f6adabfdaeec5618439afe125"
+    },
+    {
+      "name": "unsupported-core",
+      "argv": [
+        "make",
+        "core-dev",
+        "CORE_DEV_ARGS=prepare --board de25-nano --core fes.pong --output /data/de25-core-dev-c1aa5e40b/unsupported-core"
+      ],
+      "returncode": 2,
+      "expected_returncode": 2,
+      "seconds": 0.063,
+      "log_sha256": "8b774877faa5510a9db2b86ea384396e98ce91d669249f768514e53c00d2fe24"
+    },
+    {
+      "name": "unknown-board",
+      "argv": [
+        "/usr/bin/python3",
+        "scripts/core_dev.py",
+        "prepare",
+        "--board",
+        "invalid-board",
+        "--core",
+        "fes.zx81",
+        "--output",
+        "/data/de25-core-dev-c1aa5e40b/unknown-board"
+      ],
+      "returncode": 2,
+      "expected_returncode": 2,
+      "seconds": 0.061,
+      "log_sha256": "b82843a4a828ec8bd23cfd85c46e6a09e857067629022548bb411517901fe77d"
+    }
+  ],
+  "unittest_summaries": [
+    [
+      "30",
+      "0.147",
+      "OK"
+    ],
+    [
+      "32",
+      "0.898",
+      "OK"
+    ],
+    [
+      "4",
+      "19.194",
+      "OK"
+    ],
+    [
+      "1393",
+      "963.827",
+      "OK (skipped=8)"
+    ]
+  ],
+  "seconds": 978.226,
+  "classification": "Parent/one-core preparation software coverage; unqualified unit package fixtures and actual command refusal controls; no FPGA build or native acceptance",
+  "hardware_access": "not-performed",
+  "parent": {
+    "cases": 1393,
+    "passed": 1385,
+    "skipped": 8,
+    "seconds": 963.827
+  },
+  "core_developer_cases": 33,
+  "planner_cases": 62,
+  "generated_consistency": {
+    "consumers": 40,
+    "fixture_copies": 42,
+    "copied_source_pins": 0
+  }
+}
