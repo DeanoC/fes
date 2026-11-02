@@ -56,9 +56,18 @@ unknown/faulted state, lost writes, read errors, stalled ACK, cancellation,
 clock limits and serialization. The explicit RTL tests skip without the model
 environment; the command above supplies it and runs those tests.
 
+The native runtime's `HPSContextVerifier.OpenComputer` now binds this driver to
+the source-derived computer aperture and owned firmware bridge hooks. It
+brackets each register access with fresh ownership observations and retires
+access before reclosure. The explicit `fpgaload --computer-control` build links
+the same descriptor through the entry image and matched SPL/BL31 chain. Its
+firmware enables one control-only scope after sealed configuration; it blocks
+SD, configuration and data release while that scope is active. Other cold
+profiles retain their existing restrictions.
+
 This is host simulation, using the captured storage wrappers' simulation
-branches. It establishes neither physical timing nor board execution. Native
-mapping and ownership integration, independent hardware execution observation
-and ordinary runtime package admission remain open. A GP ACK alone cannot
-prove that an emulation CPU ran or that video appeared. Existing diagnostic
-profiles continue to deny normal runtime admission.
+branches. It establishes neither physical timing nor board execution. The
+source/ownership integration still needs its matched native image and physical
+aperture test, followed by independent core-execution observation. A GP ACK
+alone cannot prove that an emulation CPU ran or that video appeared. Existing
+diagnostic profiles continue to deny ordinary runtime package admission.

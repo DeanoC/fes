@@ -60,6 +60,10 @@ def control(project):
     return _worker(project, 'control')
 
 
+def computer(project):
+    return _worker(project, 'computer')
+
+
 def configuration(project):
     return _worker(project, 'configuration')
 
@@ -294,6 +298,77 @@ def _control(project):
     return result
 
 
+def _computer(project):
+    """Bind the real computer route to the existing sealed control hierarchy.
+
+    This fixed internal-RAM computer has no HPS master. It permits a separate
+    control-only diagnostic, never data release or ordinary package admission.
+    """
+    project=Path(project).absolute();control_map=_control(project);context=_derive(project)
+    hps=project/'board/hps';local=hps/'project/fes_mailbox'
+    source=json.loads((hps/'inputs.json').read_text())['computer']
+    names=('fes_de25_computer.v','fes_de25_computer_hw.tcl',
+           'fes_computer_mailbox.v','generated/fes_de25_computer.vh','generated/fes_computer.vh')
+    for name in names:
+        path=local/name
+        if (any(p.is_symlink() for p in (path,*path.parents)) or not path.is_file() or
+                hashlib.sha256(path.read_bytes()).hexdigest()!=source['source_sha256'].get(name)):
+            raise ValueError('computer endpoint differs from sealed source: '+name)
+    text=(local/'fes_de25_computer.v').read_text()
+    params=re.findall(r'fes_computer_mailbox\s*#\((.*?)\)\s*gp_mailbox\s*\(',text,re.S)
+    expected='.ENABLE_KEYBOARD(1),.ENABLE_ZX81_TAPE(1),.MEDIA_AW(14),.UNIT0_MIN(`FES_COMPUTER_ZX81_TAPE_MIN_BYTES),.UNIT0_MAX(`FES_DE25_COMPUTER_ZX81_TAPE_MAX_BYTES)'
+    if source.get('new_dma_master') is not False or len(params)!=1 or re.sub(r'\s+','',params[0])!=expected:
+        raise ValueError('unsupported computer capability or HPS-master contract')
+    def constant(file,name):
+        values=re.findall(r'(?m)^`define '+re.escape(name)+r" 32'h([0-9a-fA-F]{8})\s*$",(local/file).read_text())
+        if len(values)!=1:raise ValueError('missing computer constant: '+name)
+        return int(values[0],16)
+    offset=constant('generated/fes_de25_computer.vh','FES_DE25_COMPUTER_PERIPHERAL_OFFSET')
+    span=constant('generated/fes_de25_computer.vh','FES_DE25_COMPUTER_SPAN')
+    if (offset,span)!=(0x10300,32) or constant('generated/fes_computer.vh','FES_COMPUTER_ABI_MINOR')!=0:
+        raise ValueError('unsupported computer CSR/ABI version')
+    path=hps/'project/qsys_top/qsys_top.sopcinfo';raw=path.read_bytes()
+    if hashlib.sha256(raw).hexdigest()!=control_map['handoff_sha256']:
+        raise ValueError('computer and control use different generated handoffs')
+    tree=ET.fromstring(raw)
+    modules=[m for m in tree.iter('module') if m.get('path')=='subsys_periph.fes_computer']
+    if len(modules)!=1 or modules[0].get('kind')!='fes_de25_computer' or modules[0].get('version')!='1.0':
+        raise ValueError('missing computer endpoint/version')
+    def connection(kind,start,end):
+        found=[c for c in tree.iter('connection') if (c.get('kind'),c.get('start'),c.get('end'))==(kind,start,end)]
+        if len(found)!=1:raise ValueError('missing/ambiguous computer route')
+        return found[0]
+    lw=connection('avalon','subsys_hps_agilex_hps.lwhps2fpga','subsys_periph_pb_cpu_0.s0')
+    route=connection('avalon','subsys_periph_pb_cpu_0.m0','subsys_periph_fes_computer.avs')
+    if int(route.findtext("parameter[@name='baseAddress']/value"),0)!=offset:
+        raise ValueError('computer route base differs')
+    regions=list(ET.fromstring(lw.findtext("parameter[@name='addressMapSysInfo']/value")).iter('slave'))
+    found=[s for s in regions if s.get('name')=='subsys_periph.fes_computer.avs']
+    if len(found)!=1 or (int(found[0].get('start'),0),int(found[0].get('end'),0),found[0].get('datawidth'))!=(offset,offset+span,'32'):
+        raise ValueError('computer region differs')
+    if any(s is not found[0] and int(s.get('start'),0)<offset+span and offset<int(s.get('end'),0) for s in regions):
+        raise ValueError('overlapping computer region')
+    connection('reset','subsys_periph_periph_rst_in.out_reset','subsys_periph_fes_computer.reset')
+    for start,end,hz in (('subsys_periph_periph_clk.out_clk','subsys_periph_fes_computer.clk',100000000),
+                         ('subsys_periph_fes_computer_pixel_clk.out_clk','subsys_periph_fes_computer.pixel_clk',74250000)):
+        c=connection('clock',start,end)
+        if c.findtext("parameter[@name='clockRateSysInfo']/value")!=str(hz):
+            raise ValueError('computer clock route differs')
+    wrapper=hps/'project/peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_computer/synth/peripheral_subsys_fes_computer.v'
+    if any(p.is_symlink() for p in (wrapper,*wrapper.parents)) or wrapper.stat().st_size>65536:
+        raise ValueError('bounded regular computer wrapper required')
+    inst=re.findall(r'fes_de25_computer\s*#\((.*?)\)\s*fes_computer\s*\(',wrapper.read_text(),re.S)
+    if len(inst)!=1 or re.sub(r'\s+','',inst[0])!='.EXTERNAL_RAM(0)':
+        raise ValueError('computer wrapper is not internal RAM')
+    return {'format':1,'scope':'sealed-cold-computer-control-v1','package_id':context['package_id'],
+            'build_id':context['build_id'],'control_map_sha256':digest(control_map),
+            'handoff_sha256':control_map['handoff_sha256'],
+            'cpu_base':control_map['architectural_lw_base']+control_map['bridge_base']+offset,'span':span,
+            'abi_minor':0,'capabilities':0x803,'hps_master':False,
+            'endpoint_sha256':hashlib.sha256((local/'fes_de25_computer.v').read_bytes()).hexdigest(),
+            'wrapper_sha256':hashlib.sha256(wrapper.read_bytes()).hexdigest()}
+
+
 def _fabric_stop_inventory(project):
     """Recheck the generated complete inventory, not a claimed receipt flag."""
     def load(name,path):
@@ -392,8 +467,20 @@ def checked_ddr_read(record, program_key='program'):
     return expected
 
 
+def checked_computer(record, program_key='program'):
+    keys=('hps_computer','hps_computer_sha256')
+    if all(record.get(key) is None for key in keys):return None
+    if record.get(program_key)!='fpgaload' or any(record.get(key) is None for key in keys) or record.get('hps_ddr_read') is not None:
+        raise ValueError('computer control requires its dedicated control-only cold configuration')
+    checked_configuration(record,program_key)
+    expected=computer(record['hps_project'])
+    if record[keys[0]]!=expected or record[keys[1]]!=digest(expected):
+        raise ValueError('computer control differs from sealed hardware source')
+    return expected
+
+
 if __name__ == '__main__':
-    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in ('control','configuration','package','reader-memory','ddr-read'):
-        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control|configuration|package|reader-memory|ddr-read]')
-    action=_derive if len(sys.argv)==2 else {'control':_control,'configuration':_configuration,'package':_package,'reader-memory':_reader_memory,'ddr-read':_ddr_read}[sys.argv[2]]
+    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in ('control','configuration','package','reader-memory','ddr-read','computer'):
+        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control|configuration|package|reader-memory|ddr-read|computer]')
+    action=_derive if len(sys.argv)==2 else {'control':_control,'configuration':_configuration,'package':_package,'reader-memory':_reader_memory,'ddr-read':_ddr_read,'computer':_computer}[sys.argv[2]]
     sys.stdout.buffer.write(encode(action(sys.argv[1])))

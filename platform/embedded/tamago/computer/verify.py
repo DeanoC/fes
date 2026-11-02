@@ -58,6 +58,10 @@ def main():
         raise ValueError("this test supports the internal-RAM computer only")
     probe = HERE / "testdata/probe.cpp"
     files = list(HERE.glob("*.go")) + list((HERE / "generated").glob("*.go")) + [probe, HERE / "verify.py"]
+    files += list((HERE.parent / "nativefabric").glob("*.go"))
+    files += list((HERE.parent / "nativefabric/testdata").glob("hps*.json"))
+    files += list((HERE.parent / "embeddedcontrol").rglob("*.go"))
+    files += list((HERE.parent / "fabricmodel").glob("*.go"))
     files += [ROOT / "sources/mister-packages/packages/abi/fes_computer.yaml",
               ROOT / "sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml",
               HERE.parent / "go.mod", HERE.parent / "go.sum", BOARD / "verify.py"]
@@ -118,7 +122,7 @@ def main():
     executable = obj / "Vfes_de25_computer"
     env.update(FES_COMPUTER_MODEL=str(executable), FES_COMPUTER_MODEL_DIRECTORY=str(sim),
                FES_COMPUTER_BUILD_ID=computer["build_id"])
-    run("native-control", ["go", "test", "-count=1", "-v", "./computer/..."], HERE.parent, 300)
+    run("native-control", ["go", "test", "-count=1", "-v", "./computer/...", "./nativefabric"], HERE.parent, 300)
     if any(sha(ROOT / name) != expected for name, expected in hashes.items()):
         raise ValueError("native inputs changed during check")
     if any(sha(local / name) != expected or sha(sim / name) != expected for name, expected in rtl_hashes.items()):

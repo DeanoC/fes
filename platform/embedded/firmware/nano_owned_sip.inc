@@ -14,6 +14,8 @@ static const uint8_t fes_nano_hps_context[32] = {0};
 static unsigned fes_nano_mailbox_polls;
 #endif
 
+#include "nano_computer_control.inc"
+
 static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
                                 uint64_t x3, uint64_t x4, uint64_t r[4])
 {
@@ -26,6 +28,10 @@ static void fes_nano_owned_call(uint32_t fid, uint64_t x1, uint64_t x2,
     r[0] = INTEL_SIP_SMC_STATUS_REJECTED;
     r[1] = r[2] = r[3] = 0;
     fes_nano_bridge_platform_lock();
+#if defined(FES_NANO_COLD_COMPUTER) && FES_NANO_COLD_COMPUTER
+    if (fes_nano_computer_control(fid,x1,x2,x3,x4,configuration,
+            request_type != NO_REQUEST || fes_nano_configuration_busy(configuration),r)) goto out;
+#endif
     if (fid == FES_EMBEDDED_SD_CALL && x3 == FES_EMBEDDED_SD_COOKIE) {
         fes_nano_sd_sip(&fes_nano_owned_sd, x1, x2, x4,
                         request_type != NO_REQUEST || fes_nano_configuration_busy(configuration), r);

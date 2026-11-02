@@ -1,5 +1,18 @@
 # Native contained-fabric endpoint
 
+The separate `HPSContextVerifier.OpenComputer` path connects the native
+[`computer` driver](../computer/README.md) to a source-derived 32-byte Avalon
+window and the existing owned bridge service. It requires the original cold
+closed scope and permits only a control-only opening. Every register operation
+checks the same secure owner/generation before and after physical access.
+`ComputerSession.Close` requests Hold once through a usable driver, retires
+register access, verifies complete master-stop/bridge reclosure and rechecks the
+secure source context. Failed commands and unknown closure are not replayed.
+Its Hold receipt is command acceptance, not independent proof of CPU stop.
+The matched firmware must explicitly enable `fpgaload --computer-control`;
+ordinary cold images reject its bridge opening. This diagnostic path grants
+no data release or ordinary runtime admission and needs physical qualification.
+
 This experimental Go endpoint connects the existing `fabricmodel.Controller`
 to injected firmware calls, the generated FPGA identity/drain registers and
 platform-owned reservations. The optional `modelbackend.NewWithEndpoint`

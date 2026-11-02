@@ -570,6 +570,19 @@ zero configuration features. The dedicated identity diagnostic below has its
 own contained secure transaction.
 The general controlled service and strict recovery behavior are unchanged.
 
+The explicit `fpgaload --computer-control` matched build adds one exception for
+the sealed internal-RAM ZX81 computer. After complete checked configuration,
+the dispatcher rechecks read-only SDM readiness, borrows the existing secure
+probe/platform scope and admits one owned control-only opening. The original
+owner/generation and completed configuration state must agree. While open it
+permits only ownership snapshots and its exact held close; SD, configuration,
+source-context reads and data release reject. Close runs the existing complete
+master-stop callbacks. Failure retires authority and invokes the established
+control containment callback without replay; a completed scope permits only
+read-only source/snapshot checks. The separate source-derived computer map is
+bound into the native/entry/SPL/BL31 chain. This mode does not grant an ordinary
+runtime profile, DDR access or physical core-execution acceptance.
+
 The dedicated native `bootcontext` build derives its source descriptor from a
 verified sealed HPS-first project before building SPL. The existing cold chain
 binds that descriptor, native entry and producer sources. SPL/BL31 compile the

@@ -51,6 +51,7 @@ def entry(entry_build):
     configuration=hps_context.checked_configuration(receipt,program_key='native_program')
     reader_memory=hps_context.checked_reader_memory(receipt,program_key='native_program')
     hps_context.checked_ddr_read(receipt,program_key='native_program')
+    hps_context.checked_computer(receipt,program_key='native_program')
     if context is not None and profile.name!=('sd-profile.json' if receipt.get('native_program')=='fpgaload' else 'probe-profile.json'):
         raise ValueError('HPS context diagnostic requires its source-derived serial/SD profile')
     if configuration is not None and [configuration['base'],configuration['base']+configuration['size']] not in receipt.get('staging_exclusions',[]):
@@ -65,7 +66,7 @@ def sources():
         FW/name for name in ('nano_cold.h','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_boot.c','nano_bridges.h','nano_bridges.c','nano_bridge_platform.inc','nano_bridge_platform.h',
-                            'nano_owned_sip.inc','prepare_nano_owned.py','prepare_tfa.py','nano_digest.py',
+                            'nano_owned_sip.inc','nano_computer_control.inc','prepare_nano_owned.py','prepare_tfa.py','nano_digest.py',
                             'nano_mailbox.py','nano_mailbox_observe.inc','nano_mailbox_observe.h','nano_mailbox_status.inc',
                             'nano_bridge_sip.c','nano_bridge_sip.h','generated/fes_embedded_bridges.h',
                             'nano_identity.c','nano_identity.h','nano_configuration.c','nano_configuration.h','nano_smmu.c','nano_smmu.h',
@@ -83,6 +84,7 @@ def make(entry_build):
     configuration=hps_context.checked_configuration(build,program_key='native_program')
     reader_memory=hps_context.checked_reader_memory(build,program_key='native_program')
     ddr_read=hps_context.checked_ddr_read(build,program_key='native_program')
+    computer=hps_context.checked_computer(build,program_key='native_program')
     selected=sources()+ (hps_context.inputs() if context is not None else [])
     inputs={str(p.relative_to(ROOT)):sha(p) for p in selected}
     identity={'format':1,'profile':'cold-smmu-preloaded' if profile.name=='smmu-profile.json' else 'cold-sd-pio-preloaded' if profile.name=='sd-profile.json' else 'cold-serial-preloaded',
@@ -100,7 +102,8 @@ def make(entry_build):
               'hps_control':control,'hps_control_sha256':hps_context.digest(control) if control else None,
               'hps_configuration':configuration,'hps_configuration_sha256':hps_context.digest(configuration) if configuration else None,
               'hps_reader_memory':reader_memory,'hps_reader_memory_sha256':hps_context.digest(reader_memory) if reader_memory else None,
-              'hps_ddr_read':ddr_read,'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read else None}
+              'hps_ddr_read':ddr_read,'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read else None,
+              'hps_computer':computer,'hps_computer_sha256':hps_context.digest(computer) if computer else None}
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
     identity['owner_seed']=int(identity['chain_sha256'][:16],16)|1
     identity['entry_receipt_sha256']=sha(receipt)
@@ -111,7 +114,7 @@ def header(profile):
     def array(value):return '{'+','.join('0x'+value[i:i+2] for i in range(0,len(value),2))+'}'
     smmu=profile.get('smmu_observe',False)
     if type(smmu) is not bool or smmu and (profile['sd_pio'] or
-            any(profile.get(key) is not None for key in ('hps_context','hps_control','hps_configuration','hps_reader_memory','hps_ddr_read'))):
+            any(profile.get(key) is not None for key in ('hps_context','hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_computer'))):
         raise ValueError('boot SMMU observation requires its separate serial-only profile')
     control=profile.get('hps_control');extra='#define FES_NANO_CONTROL_PROBE '+str(int(control is not None))+'\n'
     if control is not None:
@@ -168,6 +171,23 @@ def header(profile):
         extra+='#define FES_NANO_DDR_READ_ATTRS_VERIFIED 1\n'
         extra+='#define FES_NANO_DDR_READ_MAP_SHA '+array(profile['hps_ddr_read_sha256'])+'\n'
     extra+='#define FES_NANO_DDR_READ_DIAGNOSTIC '+str(int(ddr_read is not None))+'\n'
+    computer=profile.get('hps_computer')
+    if computer is not None:
+        if (not isinstance(computer,dict) or configuration is None or control is None or ddr_read is not None or not profile['sd_pio'] or
+                profile.get('hps_computer_sha256')!=hps_context.digest(computer) or
+                set(computer)!={'format','scope','package_id','build_id','control_map_sha256','handoff_sha256',
+                    'cpu_base','span','abi_minor','capabilities','hps_master','endpoint_sha256','wrapper_sha256'} or
+                computer['scope']!='sealed-cold-computer-control-v1' or computer['hps_master'] is not False or
+                computer['package_id']!=profile['hps_context']['package_id'] or computer['build_id']!=profile['hps_context']['build_id'] or
+                computer['control_map_sha256']!=profile['hps_control_sha256'] or computer['handoff_sha256']!=control['handoff_sha256'] or
+                any(type(computer[k]) is not int or computer[k]!=v for k,v in
+                    {'format':1,'cpu_base':0x20010300,'span':32,'abi_minor':0,'capabilities':0x803}.items()) or
+                any(not isinstance(computer[k],str) or len(computer[k])!=64 or
+                    any(c not in '0123456789abcdef' for c in computer[k]) or int(computer[k],16)==0
+                    for k in ('endpoint_sha256','wrapper_sha256'))):
+            raise ValueError('cold computer control requires its separate complete sealed internal-RAM contract')
+        extra+='#define FES_NANO_COMPUTER_MAP_SHA '+array(profile['hps_computer_sha256'])+'\n'
+    extra+='#define FES_NANO_COLD_COMPUTER '+str(int(computer is not None))+'\n'
     return ('/* Generated, same source-bound diagnostic chain in SPL and BL31. */\n'
             +extra+
             '#define FES_NANO_SMMU_BOOT_OBSERVE '+str(int(smmu))+'\n'

@@ -14,6 +14,7 @@ import (
 
 	"github.com/DeanoC/fes/platform/embedded/tamago/board"
 	"github.com/DeanoC/fes/platform/embedded/tamago/board/de25nano"
+	"github.com/DeanoC/fes/platform/embedded/tamago/computer"
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
@@ -22,6 +23,7 @@ import (
 
 var expectedBootContext, expectedControlMap, expectedConfigurationMap, expectedReaderMemoryMap string
 var expectedDDRReadMap string
+var expectedComputerMap string
 var retained *nativefabric.ConfigurationTransfer
 
 func decoded(s string, limit int) []byte {
@@ -140,6 +142,15 @@ func main() {
 	}
 	fmt.Printf("FES_NATIVE_FPGA_PROGRAMMED PASS package_id=%s core_sha256=%s bytes=%d owner=%x generation=%d data_held=1 activation=unavailable\n",
 		id.PackageID, id.ProgrammedSHA256, size, source.Bridges.Owner, source.Bridges.Generation)
+	if expectedComputerMap != "" {
+		if expectedDDRReadMap != "" {
+			panic("computer control cannot share an active DDR diagnostic")
+		}
+		if err := probeComputer(v, control, decoded(expectedComputerMap, 8192)); err != nil {
+			panic(err)
+		}
+		return
+	}
 	var observed nativefabric.FPGAIdentityObservation
 	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
 		if expectedDDRReadMap != "" {
@@ -168,4 +179,43 @@ func main() {
 		fmt.Printf("FES_NATIVE_FPGA_READER PASS owner=%x generation=%d reader_generation=1 cookie=7 data_held=1 runtime_programming=unavailable\n",
 			observed.After.Owner, observed.After.Generation)
 	}
+}
+
+func probeComputer(v *nativefabric.HPSContextVerifier, control, mapping []byte) (err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	s, err := v.OpenComputer(ctx, control, mapping, computer.Limits{
+		Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: runtime.Gosched,
+	})
+	if err != nil {
+		return err
+	}
+	defer func() {
+		observed, cleanup := s.Close(context.Background())
+		err = errors.Join(err, cleanup)
+		if err == nil && observed.HoldAcknowledged {
+			fmt.Printf("FES_NATIVE_COMPUTER_CONTROL PASS package_id=%s build_id=%s base=%x map_sha256=%x owner=%x generation=%d held_ack=1 data_held=1 execution_observed=0 runtime_admission=unavailable\n",
+				v.Identity().PackageID, v.Identity().BuildID, observed.CPUBase, observed.MapSHA256,
+				observed.After.Owner, observed.After.Generation)
+		}
+	}()
+	c := s.Computer()
+	if err = c.Hold(ctx); err != nil {
+		return err
+	}
+	if err = c.Run(ctx); err != nil {
+		return err
+	}
+	time.Sleep(20 * time.Millisecond)
+	if err = c.Keyboard(ctx, [9]uint16{}); err != nil {
+		return err
+	}
+	if err = c.Hold(ctx); err != nil {
+		return err
+	}
+	if err = c.Run(ctx); err != nil {
+		return err
+	}
+	time.Sleep(20 * time.Millisecond)
+	return nil // Close performs the final Hold, retires MMIO and verifies reclosure.
 }

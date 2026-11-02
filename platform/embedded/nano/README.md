@@ -698,6 +698,18 @@ store, contains SD and consumes the retained payload from RAM. The SDK, entry,
 SPL and BL31 validators rederive the descriptor; omitted or changed core bytes, maps and staging exclusions
 reject. The FPGA core payload is not rebuilt or modified by this path.
 
+Adding `--computer-control` selects the separate control-only ZX81 command
+experiment. It is mutually exclusive with `--ddr-read`. The producer derives
+the computer aperture, clocks/reset, internal-RAM parameter and capability
+contract from the same sealed project. SDK and entry validation rederive it;
+the cold chain enables its one-shot owned control scope only when all metadata
+agrees. The native program checks full GP identity, exercises run, neutral
+keyboard state, hold and relaunch, then verifies held control reclosure.
+It prints `execution_observed=0`: accepting commands is not evidence that the
+CPU executed or that HDMI displayed a frame. No normal runtime admission is
+enabled. The original 20-second configuration deadline and held data paths are
+preserved.
+
 The current block-size comparison selects `0xfffc0` (1,048,512) bytes: the
 pinned vendor client's `0xffff0` limit rounded down to a 64-byte boundary.
 Native construction, secure extent/digest checks and trace decoding use the

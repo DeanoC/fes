@@ -142,6 +142,19 @@ class NanoConfigurationTests(unittest.TestCase):
                         self.assertIn('phase=complete',result.stdout)
                         self.assertRegex(result.stdout,r'phase=closed owner=[0-9a-f]+ generation=6 ')
                     if mutation==73:self.assertRegex(result.stdout,r'FES_NANO_CORE_RETIRED_STATUS owner=[0-9a-f]+ generation=4 ')
+            # The exact owned dispatcher must keep generic control unavailable
+            # without opt-in, and use strong board callbacks when it is enabled.
+            result=subprocess.run([binary,'95'],capture_output=True,text=True,timeout=15)
+            self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-2000:])
+            self.assertIn('computer control absent without matched opt-in',result.stdout)
+            (inc/'fes_nano_cold_profile.h').write_text(profile.replace('#define FES_NANO_CONTROLLED_SD 0', '#define FES_NANO_CONTROLLED_SD 1')+'\n#define FES_NANO_COLD_COMPUTER 1\n')
+            compiled=subprocess.run(['cc',*flags,'-Wextra','-DFES_TEST_HPS_CONTEXT',*(str(FW/name) for name in sources),str(sha_object),'-o',str(binary)],capture_output=True,text=True,timeout=30)
+            self.assertEqual(compiled.returncode,0,compiled.stderr)
+            for mutation in range(90,95):
+                with self.subTest(computer_configuration=mutation):
+                    result=subprocess.run([binary,str(mutation)],capture_output=True,text=True,timeout=15)
+                    self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-3000:])
+                    self.assertIn('PASS strong computer',result.stdout)
             # Reuse that exact strong provider, dispatcher, digest and SD lease,
             # replacing only the FPGA register model with its actual Avalon RTL.
             objects=[sha_object]

@@ -667,6 +667,40 @@ configured_bytes:
         assert(fes_nano_platform_configuration()->finished && !fes_nano_platform_configuration()->failed);
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
         assert(!reply[0] && reply[2]==record.owner && reply[3]==configuration_generation && (uint32_t)reply[1]==0xdf);
+        if (mutation>=90 && mutation<=95) {
+            if (mutation==93) bad_open=1;
+            fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONTROL,
+                               record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
+#if defined(FES_NANO_COLD_COMPUTER) && FES_NANO_COLD_COMPUTER
+            if (mutation==93) {
+                assert(reply[0] && bridge==15 && fes_nano_owned_bridges.failed && !fes_nano_platform_identity_probe()->active);
+                puts("PASS strong computer opening failure contained");return 0;
+            }
+            assert(!reply[0] && bridge==13 && reply[3]==configuration_generation+1 && fes_nano_platform_identity_probe()->active);
+            fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_SNAPSHOT,
+                               0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
+            assert(!reply[0] && reply[2]==record.owner && reply[3]==configuration_generation+1 && (uint32_t)reply[1]==0x9d);
+            fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_START,0,0,0,0,reply);
+            assert(reply[0] && bridge==13);
+            fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_RESUME,
+                               record.owner,FES_EMBEDDED_SD_COOKIE,configuration_generation+1,reply);
+            assert(reply[0] && bridge==13 && !fes_nano_owned_bridges.device_lease);
+            if (mutation==92) bad_close=1;
+            fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CLOSE|FES_EMBEDDED_BRIDGE_REQUEST_HELD,
+                               record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation+(mutation==94?0:1),reply);
+            if (mutation==92 || mutation==94)assert(reply[0] && bridge==15 && fes_nano_owned_bridges.failed);
+            else assert(!reply[0] && bridge==15 && reply[3]==configuration_generation+2);
+            assert(!fes_nano_platform_identity_probe()->active);
+            fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_CONTROL,
+                               record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation+2,reply);
+            assert(reply[0] && bridge==15);
+            puts("PASS strong computer control scope, exclusion and reclosure");
+#else
+            assert(reply[0] && bridge==15 && !fes_nano_platform_identity_probe()->active);
+            puts("PASS computer control absent without matched opt-in");
+#endif
+            return 0;
+        }
 #ifdef FES_TEST_READER_RTL
         assert(mutation>=74 && mutation<=81);
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_READER,
