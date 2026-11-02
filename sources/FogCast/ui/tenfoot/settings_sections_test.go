@@ -288,3 +288,77 @@ func TestSettingsSectionsNativeRender(t *testing.T) {
 		})
 	}
 }
+
+func TestSettingsFactoryResetWaitsForARunningOrStartingMachine(t *testing.T) {
+	app := pairedKitSettingsApp(t)
+	path := filepath.Join(t.TempDir(), "tenfoot.json")
+	app.SetPrefsPath(path)
+	if err := saveTenfootPrefs(path, tenfootPrefs{SafeAreaPct: 0.08, SetupDone: true}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	focusSettingsRow(t, app, "factory-reset", now)
+	app.mu.Lock()
+	app.launch.Phase = "launching"
+	app.mu.Unlock()
+	app.HandleCommand(CmdSelect, now)
+	app.HandleCommand(CmdSelect, now)
+	snap := app.Snapshot()
+	if !snap.Settings.Open || snap.Settings.Status != "Stop the running machine before a factory reset." {
+		t.Fatalf("settings = %#v", snap.Settings)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("reset during a launch erased tenfoot.json: %v", err)
+	}
+}
+
+func TestSettingsPointerOffFactoryResetCancelsTheConfirm(t *testing.T) {
+	app := pairedKitSettingsApp(t)
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	focusSettingsRow(t, app, "factory-reset", now)
+	app.HandleCommand(CmdSelect, now)
+	app.mu.Lock()
+	armed := app.settingsIndex
+	app.applyPointerFocusLocked(PointerHit{Kind: PointerSettings, Index: 0})
+	app.applyPointerFocusLocked(PointerHit{Kind: PointerSettings, Index: armed})
+	app.mu.Unlock()
+	if got := settingsRowByID(t, app, "factory-reset").Value; got != "Erases settings, not your files" {
+		t.Fatalf("pointer away and back kept the confirm: %q", got)
+	}
+}
+
+func TestSettingsCloseDropsAFirmwareCardStillLoading(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/library/firmware/bundled" {
+			select {
+			case <-release:
+			case <-r.Context().Done():
+			}
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	t.Cleanup(func() { close(release) })
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
+	app.client.paired = true
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	focusSettingsRow(t, app, "firmware-2", now)
+	app.HandleCommand(CmdSelect, now)
+	app.mu.Lock()
+	loading := app.firmwareCard.Loading
+	app.mu.Unlock()
+	if !loading {
+		t.Fatal("card request did not start")
+	}
+	leaveSettings(t, app, now)
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if app.firmwareCard.Loading || app.firmwareCard.Open {
+		t.Fatal("closing Settings kept the firmware card request")
+	}
+}

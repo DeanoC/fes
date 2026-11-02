@@ -14,9 +14,8 @@ import (
 
 // Settings sections, in the v1 order (docs/ux/references/v1/README.md,
 // Settings map). Settings opens on the section list; a section is listed
-// only when it has rows, so Controllers (#980) and Firmware (#1344) wait for
-// their pages. Library & rooms holds the rows outside v1 and is listed with
-// Show all cores.
+// only when it has rows, so Controllers waits for #980's page. Library &
+// rooms holds the rows outside v1 and is listed with Show all cores.
 const (
 	settingsSectionList        = ""
 	settingsSectionFolders     = "folders"
@@ -236,6 +235,9 @@ func (a *App) settingsSectionSummaryLocked(id string) string {
 	case settingsSectionNetwork:
 		if a.kitDisplay {
 			return "Wired  ·  " + a.settingsWired
+		}
+		if !a.settingsHydrated {
+			return "—"
 		}
 		if n := len(a.settingsDraftTargets); n != 1 {
 			return fmt.Sprintf("%d kits", n)
@@ -585,6 +587,10 @@ func (a *App) closeSettingsLocked() {
 	refreshHome := a.settingsScopeChanged
 	a.settingsScopeChanged = false
 	a.settingsOpen = false
+	// A firmware card still loading for Settings › Firmware is dropped.
+	if a.firmwareCard.Loading {
+		a.closeFirmwareCardLocked()
+	}
 	a.settingsBusy = false
 	a.settingsLoading = false
 	a.settingsStatus = ""
@@ -726,6 +732,14 @@ func (a *App) settingsBackLocked() {
 	a.settingsStatus = ""
 	a.settingsIndex = 0
 	a.focusSettingsRowLocked(settingsSectionRowPrefix + left)
+}
+
+func (a *App) focusedSettingsRowIDLocked() string {
+	rows := a.settingsRowsLocked()
+	if a.settingsIndex < 0 || a.settingsIndex >= len(rows) {
+		return ""
+	}
+	return rows[a.settingsIndex].ID
 }
 
 // focusSettingsRowLocked moves focus to a row of the open section.
@@ -1724,6 +1738,14 @@ func (a *App) settingsDraftsMatchLocked(settings hostclient.LibrarySettings) boo
 }
 
 func (a *App) applyHostSettingsLocked(settings hostclient.LibrarySettings) {
+	// Host rows come and go as drafts load, so keep focus on the same row.
+	focused := a.focusedSettingsRowIDLocked()
+	defer func() {
+		if focused != "" {
+			a.focusSettingsRowLocked(focused)
+		}
+		a.clampSettingsIndexLocked()
+	}()
 	a.hostSettings = settings
 	a.settingsDraftIdle = settings.AttractIdleSeconds
 	if a.settingsDraftIdle <= 0 {
@@ -1855,12 +1877,12 @@ func (a *App) settingsHintLocked() string {
 
 func (a *App) settingsRowHintLocked(kind InputKind) string {
 	rows := a.settingsRowsLocked()
-	if a.settingsIndex < 0 || a.settingsIndex >= len(rows) {
-		return settingsDefaultHint(kind, "close")
-	}
 	leave := "back"
 	if a.settingsSection == settingsSectionList {
 		leave = "close"
+	}
+	if a.settingsIndex < 0 || a.settingsIndex >= len(rows) {
+		return settingsDefaultHint(kind, leave)
 	}
 	id := rows[a.settingsIndex].ID
 	if strings.HasPrefix(id, settingsSectionRowPrefix) {

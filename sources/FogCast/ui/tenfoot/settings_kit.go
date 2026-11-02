@@ -55,6 +55,13 @@ func (a *App) refreshSettingsWiredLocked() {
 // is plugged in again, when tenfoot reads its (now absent) saved profile.
 func (a *App) factoryResetLocked() {
 	a.settingsConfirm = ""
+	// The reset replaces Home with Welcome, so it waits for a running or
+	// starting machine, as setup does.
+	if a.sessionStopOfferedLocked() || a.launch.Phase == "launching" {
+		a.settingsStatus = "Stop the running machine before a factory reset."
+		a.status = a.settingsStatus
+		return
+	}
 	path := a.prefsPath
 	if path == "" {
 		path = defaultPrefsPath()
@@ -80,6 +87,7 @@ func (a *App) factoryResetLocked() {
 	a.setup.skipped = nil
 	a.setup.loaded = true
 	a.closeSettingsLocked()
+	a.discardLibraryOriginLocked()
 	a.status = "Settings erased"
 	if a.setup.firstRun && a.openSetupStepLocked(0) {
 		return
