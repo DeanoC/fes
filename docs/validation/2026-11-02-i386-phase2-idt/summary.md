@@ -389,6 +389,13 @@ Scratch disks, not committed:
 | `--suite devices` ([report](devices-report.json)) | 132 checks pass |
 | `--suite governor` ([report](governor-report.json)) | `max`, 286-12, 386SX-16 and 386DX-40 pass: TP 210,892, 27,453, 39,932 and 104,609, as in slice 1's record, each within 0.04% of the table. 386DX-25 prints `GOV TP=0000FF5F DC=04A4 C18=0011F492` (65,375, 1,188, 1,176,722: within one count of slice 1's), then `system_tb` throws `port 2: a write burst cut short, then another begun at clock 119811804`, the bench gap [#1372](https://github.com/DeanoC/fes/issues/1372) that main's A20 record documents for the same run at the same clock. `--seed 1` gives TP 65,376 and the same throw |
 
+These pc386 runs are of trees before the review fix (`7baa2a6f3`), which
+changes only a protected-mode IRET with NT set; the boot retires nothing
+with PE set (`pe_entries` 0), and the HIMEMX boots run only HIMEMX's
+unreal-mode set-up with PE set. A rerun of `--suite boot --cpu rtl` at
+`7224b11f6` hit this session's 90-minute cap on a loaded host before it
+finished, so it gives no result either way.
+
 The misteross unit tests pass (1,627, 74 skipped), and `make test-changed`
 against main `3d2e17f84` passes every lane it plans: the planner's tests,
 whitespace, the parent Python regressions, generated-consumer consistency,
