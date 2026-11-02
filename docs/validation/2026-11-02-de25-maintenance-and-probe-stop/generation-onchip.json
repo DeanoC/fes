@@ -1,0 +1,100 @@
+{
+  "source_commit": "97d31dc534c4f0bcd429aa895c5c2462bee6f8ae",
+  "reader_memory_backend": "onchip",
+  "argv": [
+    "/home/deano/fes/out/dev/de25-embedded-os/sources/misteross/prototypes/de25_board_control/build.py",
+    "generate",
+    "--board-revision",
+    "79d616e85e19d65f0d645b67a85ffe7e142dcdfc",
+    "--vendor-archive",
+    "/home/deano/fes/out/cache/de25-vendor/DE25-Nano_revB_v.1.0.0_ResourcePackage.zip",
+    "--quartus-root",
+    "/data/altera_pro/26.3",
+    "--hps-first",
+    "--jobs",
+    "2",
+    "--reader-memory",
+    "onchip",
+    "--output",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-onchip"
+  ],
+  "vendor_sha256": "f79f0eff3b0f9d042fdb61ddcf43efec77b0ebc13248eea100b94e47a1189b66",
+  "pass": true,
+  "fixture_bus_window_only": false,
+  "cpu_to_bus_mapping": "not-qualified",
+  "window_selection": "proposed reserved native DDR test window",
+  "physical_ddr": false,
+  "hardware_access": false,
+  "bridge_release": false,
+  "calls": [
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_sh",
+        "--version"
+      ],
+      "bound_seconds": 120,
+      "returncode": 0,
+      "elapsed_seconds": 0.47160500998143107
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/qsys/bin/qsys-script",
+        "--quartus-project=golden_top",
+        "--search-path=custom_ip/**/*,fes_mailbox,$",
+        "--script=integrate-mailbox.tcl"
+      ],
+      "bound_seconds": 120,
+      "returncode": 0,
+      "elapsed_seconds": 9.440747495973483
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_ipgenerate",
+        "--clear_ip_generation_dirs",
+        "golden_top"
+      ],
+      "bound_seconds": 120,
+      "returncode": 0,
+      "elapsed_seconds": 1.3196769779315218
+    },
+    {
+      "argv": [
+        "/data/altera_pro/26.3/quartus/bin/quartus_ipgenerate",
+        "--generate_project_ip_files",
+        "--synthesis=verilog",
+        "golden_top"
+      ],
+      "bound_seconds": 120,
+      "returncode": 0,
+      "elapsed_seconds": 80.98131859302521
+    }
+  ],
+  "started_utc": "2026-11-02T04:17:26.022370+00:00",
+  "generated_handoff_sha256": "f1f805c4ce238206d16b5b5ef9be3c607acf3e12cbc145c7b130bc76555b7d49",
+  "embedded_control": {
+    "clock_hz": 100000000,
+    "cpu_physical_address": "not-established",
+    "instance": "subsys_periph.fes_embedded",
+    "maintenance_masters": "unchanged",
+    "maps": {
+      "jtag": {
+        "base": 1115136,
+        "name": "subsys_periph.fes_embedded.avs",
+        "span": 256
+      },
+      "lw": {
+        "base": 66560,
+        "name": "subsys_periph.fes_embedded.avs",
+        "span": 256
+      }
+    },
+    "other_ddr_master": "not-covered",
+    "physical_ddr": "not-connected",
+    "reader_memory": {
+      "backend": "onchip",
+      "bus_base": 0,
+      "bytes": 0
+    }
+  },
+  "finished_utc": "2026-11-02T04:18:58.844754+00:00"
+}

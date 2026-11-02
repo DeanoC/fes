@@ -1,0 +1,188 @@
+{
+  "classification": "private synthesis-view model only; generated deliverable RTL unchanged",
+  "all_copied_files": 127,
+  "changed_files": [
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_altera_avalon_sc_fifo_19135_y4skkhq.v",
+      "before_sha256": "4232140337b719793b3280dfb41fdae452c3dfd08aba09f6f953bdd25ba9d01e",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_altera_avalon_sc_fifo_19135_y4skkhq.v",
+      "after_sha256": "bfc878d72b6ed43fd659314bfd8c1ada3e8beb15ad149233579f1471ac8c2bca",
+      "synthesis_translate_off_blocks": 2
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_altera_avalon_sc_fifo_19135_nhvlswy.v",
+      "before_sha256": "b76e776f1497149c325bfd0aca84144492900a58694662508dca1897ef21bace",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_altera_avalon_sc_fifo_19135_nhvlswy.v",
+      "after_sha256": "31faec9421dfb7ba426dfb070fd7fb83283d3509acb01207dd5e3fa1958f4114",
+      "synthesis_translate_off_blocks": 2
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_19135_exajegy.sv",
+      "before_sha256": "2e5b48a2f153fc47106bc28633de1bdf9104576464e7f2afb253742eb7c13fdb",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_19135_exajegy.sv",
+      "after_sha256": "80534dae054faab780d3c4cfa7e8125178df23df4c160bb40376e56ad14fa442",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_19135_2tzn4la.sv",
+      "before_sha256": "efd5acdd55226b06b98865e5cc160cc14252f0deb0f1893ef3ce2095e6bf117a",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_19135_2tzn4la.sv",
+      "after_sha256": "08a435a03b7ce0626dbeacc033344848a98f815a4dbddbab7e65e98d69891b55",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_19135_4q2oxwq.sv",
+      "before_sha256": "4cde4f42259bb439c47d28d3d092d278f1aad42d1151c94261d18af6955a5d38",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_19135_4q2oxwq.sv",
+      "after_sha256": "42006a2496f372fd805ca7df7c244aba1cd27d0eebd1e8df6e328b5ac14eb6df",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_altera_avalon_sc_fifo_19135_qp5j5lq.v",
+      "before_sha256": "a801d40394d3e90a5ab7b02b8166e44a535db81997556b47d59b6e87b5319603",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_axi_slave_ni_19135/synth/qsys_top_altera_merlin_axi_slave_ni_altera_avalon_sc_fifo_19135_qp5j5lq.v",
+      "after_sha256": "ba8b5caff5153dba7bf49166dc9c9c382a078f55a1cf779edba34ed42f7261b3",
+      "synthesis_translate_off_blocks": 2
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_master_translator_1931/synth/qsys_top_altera_merlin_master_translator_1931_hk6p2jy.sv",
+      "before_sha256": "bd4c457a5b2392b9c73c43e38bd14f84cea797d4c53f0c9301a71f474fe003f1",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_master_translator_1931/synth/qsys_top_altera_merlin_master_translator_1931_hk6p2jy.sv",
+      "after_sha256": "608112d39b5a9e36107394e1e32902cfdea43c1f15439fd7d98f5bc72fce005b",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_axi_master_ni_19122/synth/qsys_top_altera_merlin_axi_master_ni_19122_jucn2xa.sv",
+      "before_sha256": "cfce0d2e00a860617f9cbfdf783021f522739655101b9e450ada23c8bbeec662",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_axi_master_ni_19122/synth/qsys_top_altera_merlin_axi_master_ni_19122_jucn2xa.sv",
+      "after_sha256": "a565f1e6cea6d9f536150dd3fc56da0334c4d7d1e7d11d6a8adf765051b80d03",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_axi_master_ni_19122/synth/qsys_top_altera_merlin_axi_master_ni_19122_xx2rtiy.sv",
+      "before_sha256": "a0201402d7aa4604dc0c862ccdc7faa8fb75dabc8ecbca635da755d604e89b78",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_axi_master_ni_19122/synth/qsys_top_altera_merlin_axi_master_ni_19122_xx2rtiy.sv",
+      "after_sha256": "6db5987f0004fb1a165273355180f879f911903b960a3eb4d922730e8c8233c4",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_burst_adapter_1950/synth/qsys_top_altera_merlin_burst_adapter_1950_hpcm7ha.sv",
+      "before_sha256": "efa1399e63a0bdf663d45c2b28d648b37f5bd5ee5a980c65d19539c85712256b",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_burst_adapter_1950/synth/qsys_top_altera_merlin_burst_adapter_1950_hpcm7ha.sv",
+      "after_sha256": "ed4f64044a8285ba23ddb203ab96ccdc8d4dffe4be69bc968ab546b687b786e7",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_traffic_limiter_1922/synth/qsys_top_altera_merlin_traffic_limiter_altera_avalon_sc_fifo_1922_ega7xyy.v",
+      "before_sha256": "dcf35e94d11ab5b203e0516bbf59ef27513c13e802dc027fd1f318cdf10f9f63",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_traffic_limiter_1922/synth/qsys_top_altera_merlin_traffic_limiter_altera_avalon_sc_fifo_1922_ega7xyy.v",
+      "after_sha256": "5c7ae048d35305d70901e889a80541144af64e803fc02cfaef96b432264f6f44",
+      "synthesis_translate_off_blocks": 2
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_traffic_limiter_1922/synth/qsys_top_altera_merlin_traffic_limiter_altera_avalon_sc_fifo_1922_ndsbxja.v",
+      "before_sha256": "b8ffafd7def26f62cadac0085d7dc222707a9727fc5971feb5e847c6d0db0aca",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_traffic_limiter_1922/synth/qsys_top_altera_merlin_traffic_limiter_altera_avalon_sc_fifo_1922_ndsbxja.v",
+      "after_sha256": "93695cb235926d9fcec429ea08f9a90360c6bfdbeea549d28fb961ff1f94a228",
+      "synthesis_translate_off_blocks": 2
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_traffic_limiter_1922/synth/qsys_top_altera_merlin_traffic_limiter_1922_y2g322q.sv",
+      "before_sha256": "46a7ed0485475bcdc179918076652ba1e7a69d96ce6779e1b877963cf5110c07",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_traffic_limiter_1922/synth/qsys_top_altera_merlin_traffic_limiter_1922_y2g322q.sv",
+      "after_sha256": "af149bd63637ba43a46f6e68f19b876b9aa27fa2e51822bb9dc3d9886e948d72",
+      "synthesis_translate_off_blocks": 2
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_traffic_limiter_1922/synth/qsys_top_altera_merlin_traffic_limiter_altera_avalon_sc_fifo_1922_rkzlhfy.v",
+      "before_sha256": "fb3b66fa1c1bc1e360b058584230d9b3a50cc8089d6c245b5a9b888752381bce",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_traffic_limiter_1922/synth/qsys_top_altera_merlin_traffic_limiter_altera_avalon_sc_fifo_1922_rkzlhfy.v",
+      "after_sha256": "85c851d146a6a3467b4083316e617b1e363529f9a5ebdc72a4463e6e16f75372",
+      "synthesis_translate_off_blocks": 2
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_traffic_limiter_1922/synth/qsys_top_altera_merlin_traffic_limiter_1922_2oahquq.sv",
+      "before_sha256": "e8544a4e3af87397a78ee6e7e4076e941060d77c41917e0255ec89f500a3aef3",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_traffic_limiter_1922/synth/qsys_top_altera_merlin_traffic_limiter_1922_2oahquq.sv",
+      "after_sha256": "992b8bc61ac3f978122f6b3773cfd632ee4dea867611bf030a7ac52b89c7a7ce",
+      "synthesis_translate_off_blocks": 2
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_traffic_limiter_1922/synth/qsys_top_altera_merlin_traffic_limiter_1922_nsegpgy.sv",
+      "before_sha256": "fb8aa58e3bbb57976bebe3f1eb698144c1135c440663fd871d497d28a95a6982",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_traffic_limiter_1922/synth/qsys_top_altera_merlin_traffic_limiter_1922_nsegpgy.sv",
+      "after_sha256": "50243d9cdddec7789cb89bcc668e43a8f89dd16c341134e28c96e017b0f694b0",
+      "synthesis_translate_off_blocks": 2
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_l2lorqa.sv",
+      "before_sha256": "2ab28497a95d9f0744344147beb46bb8a3ec3b7a189289d6981c54a31c8117d8",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_l2lorqa.sv",
+      "after_sha256": "dc92e53d8c6824354ff07c3a797c9854bb24c57df363e123d866db1528592234",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_dj3ck3y.sv",
+      "before_sha256": "602c5e881ad211721b84151d41b18d1fa567417909245ab301a400a3699964fe",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_dj3ck3y.sv",
+      "after_sha256": "6e87c45bec03f00b33c93ca708a50fc18a736035e854f17a11432f8c931af600",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_qq7mpdq.sv",
+      "before_sha256": "ca6b8df35e0f7cef5ca948890715f7e296fddea65d1f9fb25f818782685ea51f",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_qq7mpdq.sv",
+      "after_sha256": "280483a442b34ab7f295c925934fae3314ef5df223f3e7422ce88447b4caf111",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_uoybgby.sv",
+      "before_sha256": "b5a0c377486668787d82ae9d7670f25b9df46b38642ec75c46c6d162ea780f78",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_uoybgby.sv",
+      "after_sha256": "764001f3dff6906c7c700790db3555de596693f6d05c71b79146bed66515a676",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_lwptnqy.sv",
+      "before_sha256": "a1d8799cedfcd4d03dcaa2b319645837ca37dd3fb623f323c46a1da6acacfc6e",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_lwptnqy.sv",
+      "after_sha256": "f012fb220055d70144e07fd486ecd6f6539fc003f95da0f24adbe59a32324d8c",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_3beiyja.sv",
+      "before_sha256": "be57994dffdb85097829dfe72b585de410381136bb168b1e9c221feea515d68d",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_3beiyja.sv",
+      "after_sha256": "fad48a6e92ce0f45b955ee1f7ec43f90240169b36cedf85deead6a96600a0115",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_lnkcoda.sv",
+      "before_sha256": "480a88c703663dc0c4dc8b0ed0e6591dc5996059ddf5fec97eeffe20ec730d47",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_lnkcoda.sv",
+      "after_sha256": "a881c60959ddeb8e95b22139ee58e56b6f9f58dab9dfefdfa3f26f1097bfc592",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_puunnaa.sv",
+      "before_sha256": "ca2da1752a2a664fe0ece01ed23faed4f2a2958d8da74350b00f53a9a484161d",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_width_adapter_1970/synth/qsys_top_altera_merlin_width_adapter_1970_puunnaa.sv",
+      "after_sha256": "1a98fa87888d833759fc0b1d13fb025312bacbf776b0d0b57bd8ac732a42f5fb",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_merlin_slave_agent_1940/synth/qsys_top_altera_merlin_slave_agent_1940_yiunjgi.sv",
+      "before_sha256": "b8eba9f61c60caf62b41849357ccfb09c41852f26d51599ef09afa7852cdb253",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_merlin_slave_agent_1940/synth/qsys_top_altera_merlin_slave_agent_1940_yiunjgi.sv",
+      "after_sha256": "798e9f80da10a61390287f7164eb80ad543587c89452b5e12317428034f4241e",
+      "synthesis_translate_off_blocks": 1
+    },
+    {
+      "source": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/project-hps-ddr/board/hps/project/qsys_top/altera_reset_controller_1925/synth/altera_reset_controller.v",
+      "before_sha256": "53f3798a85e6d6982e95c307906718f7bc2e190b6b68b116931e87d29c6ee276",
+      "model": "/home/deano/fes/out/dev/de25-embedded-os/out/nano-master-containment-final-20261102/control-fabric-synthesis-v2/rtl/altera_reset_controller_1925/synth/altera_reset_controller.v",
+      "after_sha256": "d8c9b28eb5e4d1c4f6a10a8394d84688e69e6a8879d8cd75b326e8fa1ca9c946",
+      "synthesis_translate_off_blocks": 1
+    }
+  ]
+}

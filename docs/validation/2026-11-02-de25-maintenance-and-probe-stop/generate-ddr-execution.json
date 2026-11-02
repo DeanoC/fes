@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "out/nano-master-containment-final-20261102/generate.py",
+    "hps-ddr"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 83.46883283101488,
+  "log_sha256": "3e08414a4de17caff470d2993bf1b7892f5caa67098d6aff4bb12b0a8708c1a8"
+}
