@@ -1562,7 +1562,7 @@ EscStep esc_step(const uint8_t *code, bool code32, const State &state, const fes
     EscStep e;
     unsigned i = 0;
     bool lock = false;
-    while (i < 15 && is_prefix(code[i])) lock = lock || code[i++] == 0xf0;
+    for (; i < 15 && is_prefix(code[i]); ++i) lock = lock || code[i] == 0xf0;
     const uint8_t op = code[i];
     if (i >= 15 || (op & 0xf8) != 0xd8 || lock) return e;
     const uint8_t modrm = code[i + 1];
@@ -5302,7 +5302,7 @@ int run_no387_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     // LOCK raises #UD on every ESC form, before EM's #NM.
     for (auto [name, cr0, bytes] : std::initializer_list<std::tuple<const char *, uint32_t, std::vector<uint8_t>>>{
              {"lock.fninit", 0, {0xf0, 0xdb, 0xe3}}, {"lock.fld", 0, {0xf0, 0xd9, 0x06, 0x00, 0x01}},
-             {"lock.fninit-em", 4, {0xf0, 0xdb, 0xe3}}}) {
+             {"lock.fninit-em", 4, {0xf0, 0xdb, 0xe3}}, {"lock.es-fld", 0, {0xf0, 0x26, 0xd9, 0x06, 0x00, 0x01}}}) {
         Case c;
         c.label = name;
         c.env = &envs[REAL];

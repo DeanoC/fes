@@ -280,7 +280,7 @@ def run_no387(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-NO387_CASES = 1932
+NO387_CASES = 1933
 
 
 def divergence_table(entries: list[dict], path: Path) -> None:
