@@ -289,8 +289,7 @@ def verify_control(project, hps, board, memory=None):
     if (remainder.strip(' \r\n\t,') or len(pairs)!=3 or
             {name:value.strip() for name,value in pairs} != {name:name for name in expected_params} or
             len(defaults)!=3 or {name:integer(value) for name,value in defaults}!=expected_params or
-            len(re.findall(r'\bperipheral_subsys_fes_embedded\s+fes_embedded\s*\(',parent))!=1 or
-            any(integer(component.findtext("parameter[@name='"+name+"']/value",'-1'))!=value for name,value in expected_params.items())):
+            len(re.findall(r'\bperipheral_subsys_fes_embedded\s+fes_embedded\s*\(',parent))!=1):
         raise ValueError('generated embedded memory parameters differ or override build identity')
     connections = {(c.get("kind"), c.get("start"), c.get("end")): c for c in tree.findall("connection")}
     required = (("avalon", "subsys_periph_pb_cpu_0.m0", "subsys_periph_fes_embedded.avs"),

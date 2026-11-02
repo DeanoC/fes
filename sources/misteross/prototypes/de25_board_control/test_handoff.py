@@ -105,21 +105,21 @@ def main():
                 target.write_bytes(target.read_bytes() + b"\n// altered for negative test\n")
             elif name=='wrong-forwarded-window':
                 target=trial/FILES[-4]
-                source=target.read_text()
+                text=target.read_text()
                 # The wrapper forwards this name, rather than a literal.
                 import re
-                source,count=re.subn(r'(\.DDR_BYTES\s*\()DDR_BYTES(\))',r'\g<1>0\2',source)
+                text,count=re.subn(r'(\.DDR_BYTES\s*\()DDR_BYTES(\))',r'\g<1>0\2',text)
                 if count!=1:raise ValueError('generated window forwarding anchor differs')
-                target.write_text(source)
+                target.write_text(text)
             elif name=='parent-override':
                 target=trial/FILES[2]
                 target.write_text(target.read_text().replace('peripheral_subsys_fes_embedded fes_embedded (',
                     'peripheral_subsys_fes_embedded #(.MEMORY_BACKEND(0)) fes_embedded ('))
             elif name=='untied-write':
                 target=trial/FILES[-3]
-                source=target.read_text();anchor="assign ddr_awvalid = 1'b0;"
-                if source.count(anchor)!=1:raise ValueError('write tie anchor differs')
-                target.write_text(source.replace(anchor,"assign ddr_awvalid = 1'b1;"))
+                text=target.read_text();anchor="assign ddr_awvalid = 1'b0;"
+                if text.count(anchor)!=1:raise ValueError('write tie anchor differs')
+                target.write_text(text.replace(anchor,"assign ddr_awvalid = 1'b1;"))
             else:
                 mutate(trial, name)
             try:
