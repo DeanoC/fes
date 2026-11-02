@@ -44,6 +44,22 @@ class AssemblerTest(unittest.TestCase):
                          "dd7e05" "fd36fe12" "fdcb017e" "ddcb0386" "ed531040" "08" "ed42"
                          "dd6601" "ddcb0416" "dd67" "ed56" "26279d")
 
+    def test_zx80_text(self):
+        image = assemble("""
+        org 0
+        dz "A+"
+        charset zx80
+        dz "A+"
+        """)
+        self.assertEqual(image[:4], bytes([0x26, 0x15 | 0x80, 0x26, 0x13 | 0x80]))
+
+    def test_jr_cannot_test_sign(self):
+        with self.assertRaises(z80asm.AsmError):
+            assemble("""
+        org 0
+x:      jr m,x
+        """)
+
     def test_far_jr_becomes_jp(self):
         image = assemble("""
         org 0

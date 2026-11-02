@@ -1,0 +1,62 @@
+=== O R N D SHIFT+I 1 0 0 SHIFT+O SHIFT+X R N D SHIFT+I 1 0 0 SHIFT+O SHIFT+X R N D SHIFT+I SHIFT+J 1 SHIFT+O NL
+sys: ff e0 fe ff 43 40 00 00 28 40 29 40 29 40 35 40 50 40 02 00 00 00 00 00 00 00 8e 07 8a f1 be 01 00 00 00 37 00 17 ff ff
+VARS=4028 E_LINE=4029 D_FILE=4029 DF_EA=4035 DF_END=4050
+prog:
+vars: 80
+eline:
+screen:
+   0|10091-3702|
+   1||
+   2||
+   3||
+   4||
+   5||
+   6||
+   7||
+   8||
+   9||
+  10||
+  11||
+  12||
+  13||
+  14||
+  15||
+  16||
+  17||
+  18||
+  19||
+  20||
+  21||
+  22||
+  23|0/-2|
+=== O T L SHIFT+U SHIFT+I SHIFT+Y A B C SHIFT+Y SHIFT+O SHIFT+X C O D E SHIFT+I SHIFT+Y Z SHIFT+Y SHIFT+O SHIFT+X A B S SHIFT+I SHIFT+J 5 SHIFT+O SHIFT+X S T R SHIFT+U SHIFT+I SHIFT+J 1 2 SHIFT+O SHIFT+X C H R SHIFT+U SHIFT+I 3 8 SHIFT+O NL
+sys: ff a0 fe ff 59 40 00 00 28 40 29 40 29 40 34 40 4f 40 03 00 00 00 00 00 00 00 8e 07 00 00 dc 02 00 00 00 37 00 17 ff ff
+VARS=4028 E_LINE=4029 D_FILE=4029 DF_EA=4034 DF_END=404f
+prog:
+vars: 80
+eline:
+screen:
+   0|BC635-12A|
+   1||
+   2||
+   3||
+   4||
+   5||
+   6||
+   7||
+   8||
+   9||
+  10||
+  11||
+  12||
+  13||
+  14||
+  15||
+  16||
+  17||
+  18||
+  19||
+  20||
+  21||
+  22||
+  23|0/-2|

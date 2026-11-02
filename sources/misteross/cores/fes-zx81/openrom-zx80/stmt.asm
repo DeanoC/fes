@@ -1,0 +1,537 @@
+; SPDX-License-Identifier: GPL-2.0-or-later
+; Statements and the run loop. Each handler parses its operands and calls
+; stmt_end: while checking, that ends the check; when running, it returns
+; so the statement can act. One statement per line, as on the ZX80.
+
+; CH_ADD -> the keyword.
+statement:
+        rst 0x18
+        call k_here
+        sub T_LIST
+        jr c,syntax_err
+        cp T_REM - T_LIST + 1
+        jr nc,syntax_err
+        add a,a
+        ld l,a
+        ld h,0
+        ld de,stmt_table
+        add hl,de
+        call peek_word
+        push hl
+        rst 0x20                ; A = what follows the keyword
+        ret
+
+stmt_table:
+        dw st_list, st_return, st_cls, st_dim, st_save, st_for, st_goto
+        dw st_poke, st_input, st_rand, st_let, syntax_err, syntax_err
+        dw st_next, st_print, syntax_err, st_new, st_run, st_stop
+        dw st_cont, st_if, st_gosub, st_load, st_clear, st_rem
+
+; The statement must end here. Running, keeps BC, DE, HL; checking, the
+; check is over and good.
+stmt_end:
+        push hl
+        rst 0x18
+        pop hl
+        cp C_NL
+        jr nz,syntax_err
+        bit F_CHECK,(iy+Y_FLAGS)
+        ret z
+        jr unwind
+
+; An optional number (A = the current character): none gives 0.
+opt_num:
+        cp C_NL
+        ld hl,0
+        ret z
+        jr expr_num
+
+; A one-letter name; DEST = it, A = the character after it.
+one_letter:
+        rst 0x18
+        call is_letter
+        jr nc,syntax_err
+        ld (DEST),hl
+        inc hl
+        ld a,(hl)
+        call is_alnum
+        jr c,syntax_err
+        cp C_DOLLAR
+        jr z,syntax_err
+        ld (CH_ADD),hl
+        rst 0x18
+        ret
+
+; (HL) = record type A with DEST's letter; HL + 1. Keeps BC, DE.
+letter_byte:
+        push de
+        ld de,(DEST)
+        push af
+        ld a,(de)
+        and 0x1f
+        pop de
+        or d
+        pop de
+        ld (hl),a
+        inc hl
+        ret
+
+; (HL) = DE; HL + 2.
+put_de: ld (hl),e
+        inc hl
+        ld (hl),d
+        inc hl
+        ret
+
+; Z if the line running is a command.
+cmd_line:
+        ld de,(PPC)
+        inc de
+        inc de
+        ld a,d
+        or e
+        ret
+
+; ---------------------------------------------------------------------
+; The run loop. ERR_SP is the stack each line starts with; its slot holds
+; the report routine, and GOSUB records lie above it.
+
+line_go:
+        ld sp,(ERR_SP)
+        call temp_clear
+        call statement
+line_end:
+        ld a,(ERR_NR)
+        inc a
+        jr nz,unwind            ; an error: report it
+        bit F_JUMP,(iy+Y_FLAGS)
+        jr nz,.jump
+        call cmd_line
+        jr z,unwind             ; a command has finished: 0
+        ld hl,(CH_ADD)
+        call line_skip
+        jr .at
+.jump:  res F_JUMP,(iy+Y_FLAGS)
+        ld bc,(PPC)
+        call find_line
+.at:    ld de,(VARS)
+        rst 0x28
+        jr nc,unwind            ; no line: 0 and the last or wanted line
+        ld d,(hl)
+        inc hl
+        ld e,(hl)
+        inc hl
+        ld (PPC),de
+        ld (CH_ADD),hl
+        call break_key
+        jr c,line_go
+        jr unwind               ; BREAK: 0 and the next line
+
+; Show report m/n at the bottom of the screen, wait for a key, edit.
+; After a report other than 0, CONTINUE goes back to n (n + 1 after STOP).
+report: dec sp                  ; keep the slot
+        dec sp
+        ld a,(ERR_NR)
+        inc a
+        push af
+        jr z,.cmd
+        ld hl,(PPC)
+        cp R_STOP + 1
+        jr nz,.o
+        inc hl
+.o:     ld (OLDPPC),hl
+.cmd:   ld (iy+Y_FLAGX),(1 << X_LOWER) | (1 << X_DROP)
+        ld (iy+Y_DF_SZ),2
+        ld a,(iy+Y_LINE)        ; the output stays; the report goes on the
+        cp 2                    ; bottom row
+        call c,cls
+        ld b,(iy+Y_LINE)
+        call fill_nl
+        ld (iy+Y_LINE),0
+        ld (iy+Y_COL),33
+        pop af
+        add a,C_0
+        rst 0x10
+        ld a,0x15               ; /
+        rst 0x10
+        ld hl,(PPC)
+        call print_num
+        call close_all
+        call wait_key
+        jr edit
+
+; ---------------------------------------------------------------------
+
+st_list:
+        call opt_num
+        call stmt_end
+        ld (E_PPC),hl
+        jr edit
+
+st_return:
+        call stmt_end
+        ld sp,(ERR_SP)
+        pop de                  ; the slot
+        pop hl
+        ld a,h
+        xor GOSUB_END >> 8
+        or l
+        jr nz,.ok
+        push hl
+        push de
+        rst 8
+        db R_RETURN
+.ok:    push de
+        ld (ERR_SP),sp
+        jr jump_hl
+
+st_cont:
+        call stmt_end
+        ld hl,(OLDPPC)
+        jr jump_hl
+
+st_run: call opt_num
+        call stmt_end
+        ld b,h
+        ld c,l
+        call clear_vars
+        ld sp,(ERR_SP)          ; GOSUB records go
+        pop de
+.r:     pop hl
+        ld a,h
+        xor GOSUB_END >> 8
+        or l
+        jr nz,.r
+        push hl
+        push de
+        ld (ERR_SP),sp
+        ld h,b
+        ld l,c
+        jr jump_hl
+
+st_gosub:
+        call expr_num
+        call stmt_end
+        ex de,hl
+        ld hl,(PPC)
+        inc hl                  ; RETURN comes back to the next line
+        ld sp,(ERR_SP)
+        pop bc
+        push hl
+        push bc
+        ld (ERR_SP),sp
+        ex de,hl
+        jr jump_hl
+
+st_goto:
+        call expr_num
+        call stmt_end
+; Jump to line HL.
+jump_hl:
+        ld (PPC),hl
+        set F_JUMP,(iy+Y_FLAGS)
+        jr line_end
+
+st_clear:
+        call stmt_end
+clear_vars:
+        push bc
+        ld hl,(E_LINE)
+        dec hl                  ; the end marker stays
+        ld de,(VARS)
+        call reclaim_de
+        pop bc
+        ret
+
+st_stop:
+        call stmt_end
+        rst 8
+        db R_STOP
+
+st_new: call stmt_end
+        jr init
+
+st_cls: call stmt_end
+        jr cls
+
+st_save:
+        jr stmt_end             ; the FES core keeps no ZX80 tape output
+
+st_rem: ld hl,(CH_ADD)
+        call line_skip
+        dec hl
+        ld (CH_ADD),hl
+        jr stmt_end
+
+st_if:  call expr_num
+        rst 0x30
+        db T_THEN
+        bit F_CHECK,(iy+Y_FLAGS)
+        jr nz,statement
+        ld a,h
+        or l
+        jr nz,statement
+        ret
+
+st_poke:
+        call expr_num
+        push hl
+        rst 0x30
+        db T_COMMA
+        call expr_num
+        pop de
+        call stmt_end
+        ld a,l
+        ld (de),a
+        ret
+
+st_rand:
+        cp C_NL
+        ld hl,(FRAMES)
+        ld h,0
+        call nz,expr_num
+        call stmt_end
+        ld (SEED),hl
+        ret
+
+st_let: call dest
+        ld a,(FLAGS)
+        push de
+        push af
+        rst 0x30
+        db T_EQ
+        call expr
+        pop af
+        pop de
+        ld c,a
+        ld a,(FLAGS)
+        xor c
+        and 1 << F_NUM
+        jr nz,syntax_err
+        call stmt_end
+        jr store
+
+; INPUT: edit a line in the lower part (an expression, given quotes for a
+; string) and assign its value.
+st_input:
+        call dest
+        call stmt_end
+        call cmd_line
+        jr nz,.prog
+        rst 8
+        db R_INPUT
+.prog:  ld hl,FLAGS             ; F_DNUM = the destination's type
+        res F_DNUM,(hl)
+        bit F_NUM,(hl)
+        jr z,.n
+        set F_DNUM,(hl)
+.n:     call temp_clear
+        ld hl,(E_LINE)          ; the edit line becomes the cursor alone
+        push hl
+        call line_skip
+        dec hl
+        pop de
+        call reclaim_de         ; HL = E_LINE, now just its NEWLINE
+        ld (P_PTR),hl
+        bit F_DNUM,(iy+Y_FLAGS)
+        jr nz,.go
+        ld a,C_QUOTE            ; a string: the cursor inside quotes
+        call edit_insert
+        call edit_insert
+        ld hl,(P_PTR)
+        dec hl
+        ld (P_PTR),hl
+.go:    ld hl,(DF_END)
+        ld (DF_EA),hl           ; where the output ends
+        set F_INPUT,(iy+Y_FLAGS)
+        call edit_line
+        res F_INPUT,(iy+Y_FLAGS)
+        ld de,(DF_EA)           ; the line leaves the screen
+        ld hl,(DF_END)
+        call reclaim_de
+        ld hl,(E_LINE)
+        ld (CH_ADD),hl
+        call expr
+        push hl
+        ld hl,(DEST)
+        ld (CH_ADD),hl
+        call dest
+        pop hl
+        jr store
+
+st_for: call one_letter
+        rst 0x30
+        db T_EQ
+        call expr_num
+        push hl
+        rst 0x30
+        db T_TO
+        call expr_num
+        pop de
+        call stmt_end
+        push hl                 ; limit
+        push de                 ; start
+        ld hl,(DEST)
+        ld bc,0x0160
+        call find_var           ; any integer of that letter goes
+        ex de,hl
+        call nc,del_var
+        ld bc,7
+        call new_var
+        ld a,0xe0
+        call letter_byte
+        pop de
+        call put_de
+        pop de
+        call put_de
+        ld de,(PPC)
+        inc de                  ; NEXT goes to the line after the FOR
+        jr put_de
+
+st_next:
+        call one_letter
+        call stmt_end
+        ld hl,(DEST)
+        ld bc,0x01e0
+        call find_var
+        jr nc,.got
+        rst 8
+        db R_NEXT
+.got:   ex de,hl
+        ld e,(hl)
+        inc hl
+        ld d,(hl)
+        inc de                  ; the value + 1
+        ld a,d
+        xor 0x80
+        or e
+        jr z,overflow
+        ld (hl),d
+        dec hl
+        ld (hl),e
+        inc hl
+        inc hl
+        push hl
+        call peek_word          ; limit - value: negative ends the loop
+        and a
+        sbc hl,de
+        ld a,h
+        pop hl
+        jp po,.nv
+        cpl
+.nv:    rla
+        ret c
+        inc hl
+        inc hl
+        call peek_word
+        jr jump_hl
+
+st_dim: call one_letter
+        cp T_LPAREN
+        jr nz,syntax_err
+        call subscript
+        call stmt_end
+        inc h
+        dec h
+        jr z,.ok
+        rst 8                   ; 0 to 255 only
+        db R_SUBSCR
+.ok:    ld e,l
+        push de
+        inc hl
+        add hl,hl
+        inc hl
+        inc hl
+        ld b,h
+        ld c,l
+        call new_var
+        ld a,0xa0
+        call letter_byte
+        pop de
+        ld (hl),e
+        dec bc
+        dec bc
+.z:     inc hl
+        ld (hl),0
+        dec bc
+        ld a,b
+        or c
+        jr nz,.z
+        ret
+
+st_print:
+        cp C_NL
+        jr z,.nl
+.item:  cp T_SEMI
+        jr z,.sep
+        cp T_COMMA
+        jr z,.sep
+        call expr
+        call .val
+        rst 0x18
+        cp C_NL
+        jr z,.nl
+        cp T_SEMI
+        jr z,.sep
+        cp T_COMMA
+        jr nz,syntax_err
+.sep:   cp T_COMMA
+        call z,.tab
+        rst 0x20
+        cp C_NL
+        jr nz,.item
+        jr stmt_end             ; a final ; or , : no NEWLINE
+.nl:    call stmt_end
+        ld a,C_NL
+        rst 0x10
+        ret
+.val:   call run_only
+        bit F_NUM,(iy+Y_FLAGS)
+        jr z,print_str
+        jr print_num
+.tab:   call run_only
+; Comma: on to column 8, 16 or 24, else the next row.
+tab:    ld a,(iy+Y_COL)
+        cp 2
+        jr c,.row
+        cpl
+        add a,34                ; the column
+        ld b,a
+        or 7
+        inc a
+        cp 32
+        jr nc,.row
+        sub b
+        ld b,a
+.sp:    call space
+        djnz .sp
+        ret
+.row:   ld (iy+Y_COL),1
+        ret
+
+; LOAD through the FES core: it copies the mounted image over $4000
+; onwards and comes back at $0203. E_LINE is cleared first, so an image
+; that arrived is recognised by its own E_LINE.
+st_load:
+        call stmt_end
+        ld hl,(E_LINE)
+        push hl
+        ld hl,0
+        ld (E_LINE),hl
+        jr load_entry
+load_done:
+        pop de
+        ld hl,2                 ; the image overwrote ERR_SP: the stack
+        add hl,sp               ; is still ours
+        ld (ERR_SP),hl
+        ld hl,(E_LINE)
+        ld a,h
+        or l
+        jr nz,.got
+        ld (E_LINE),de          ; nothing came: carry on
+        ret
+.got:   dec hl
+        ld a,(hl)
+        cp 0x80
+        jr nz,init              ; not a program image
+        jr edit

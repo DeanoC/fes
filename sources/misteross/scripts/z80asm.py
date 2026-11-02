@@ -4,7 +4,8 @@
 
 Syntax: one statement per line, `label:` definitions, `.local` labels scoped to
 the previous global label, `name equ expr`, `org expr`, `db`, `dw`, `ds`,
-`dz "TEXT"` (ZX81 character codes, last byte with bit 7 set), `assert expr`
+`dz "TEXT"` (ZX81 character codes, or ZX80 after `charset zx80`; last byte
+with bit 7 set), `assert expr`
 and `include "file"`. Expressions use Python operators on
 integers plus `$` for the current address and 'c' character constants.
 Overlapping `org` blocks are an error, so fixed ROM entry points cannot be
@@ -47,6 +48,12 @@ ZX81_TEXT = {' ': 0, '"': 11, '£': 12, '$': 13, ':': 14, '?': 15, '(': 16,
              '/': 24, ';': 25, ',': 26, '.': 27}
 ZX81_TEXT.update({str(d): 28 + d for d in range(10)})
 ZX81_TEXT.update({chr(65 + i): 38 + i for i in range(26)})
+ZX80_TEXT = {' ': 0, '"': 1, '£': 12, '$': 13, ':': 14, '?': 15, '(': 16,
+             ')': 17, '-': 18, '+': 19, '*': 20, '/': 21, '=': 22, '>': 23,
+             '<': 24, ';': 25, ',': 26, '.': 27}
+ZX80_TEXT.update({str(d): 28 + d for d in range(10)})
+ZX80_TEXT.update({chr(65 + i): 38 + i for i in range(26)})
+CHARSETS = {'zx81': ZX81_TEXT, 'zx80': ZX80_TEXT}
 
 
 class AsmError(Exception):
@@ -262,6 +269,8 @@ class Assembler:
             return [0x10, self.relative(ops[0], 2)]
         if m == 'jr':
             target = ops[-1]
+            if len(ops) == 2 and lows[0] not in ('nz', 'z', 'nc', 'c'):
+                raise AsmError(f'jr cannot test {lows[0]}')
             if self.where not in self.long_jumps:
                 offset = self.value(target) - (self.pc + 2)
                 if -128 <= offset <= 127 or not self.symbols_settled:
@@ -460,6 +469,7 @@ class Assembler:
             self.in_float = None
             self.float_count = 0
             self.scratch_next = 0x10000
+            self.charset_name, self.charset = 'zx81', ZX81_TEXT
             self.auto = False
             self.flow_ended = True
             self.pc = 0
@@ -555,6 +565,12 @@ class Assembler:
             self.in_float = None
             self.pc = saved
             return
+        if mnemonic == 'charset':
+            if rest.strip() not in CHARSETS:
+                raise AsmError(f'unknown charset {rest.strip()}')
+            self.charset_name = rest.strip()
+            self.charset = CHARSETS[self.charset_name]
+            return
         if mnemonic == 'assert':
             if self.final_pass and not self.value(rest):
                 raise AsmError(f'assertion failed: {rest}')
@@ -575,9 +591,9 @@ class Assembler:
             if len(text) < 3 or text[0] != '"' or text[-1] != '"':
                 raise AsmError('dz needs a quoted string')
             try:
-                data = [ZX81_TEXT[ch] for ch in text[1:-1]]
+                data = [self.charset[ch] for ch in text[1:-1]]
             except KeyError as exc:
-                raise AsmError(f'no ZX81 character for {exc}') from None
+                raise AsmError(f'no {self.charset_name} character for {exc}') from None
             data[-1] |= 0x80
         elif mnemonic in ('dw', 'defw'):
             data = []
