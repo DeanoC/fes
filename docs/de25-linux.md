@@ -193,7 +193,10 @@ AArch64 kernel/init/filesystem boot evidence a factory receipt prerequisite.
 The retained real managed base and matching owner kernel pass on QEMU `virt`,
 using a disposable disk and the shared read-only-root/tmpfs smoke. This is
 intermediate packaging evidence; the factory still requires sealed MENU.
-The log exposes a read-only D-Bus machine-ID write failure that needs repair.
+The initial log exposes a read-only D-Bus machine-ID write failure. The
+[subsequent repair](validation/2026-11-02-de25-dbus-rootfs/README.md) redirects
+the parent directory to `/run` and passes a clean actual-image rebuild and
+virtual boot with a responsive system bus, while retaining the old failing image.
 Upper release/media selection, complete services and native acceptance remain
 open; userspace-only `smoke` results cannot replace this boot evidence.
 

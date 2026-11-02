@@ -67,7 +67,10 @@ The [image boot record](../validation/2026-11-02-de25-image-boot/README.md)
 then adds a real full-system AArch64 packaging boot action and factory receipt
 binding. The unchanged actual managed base/kernel pass the shared filesystem
 smoke on QEMU `virt`; base/factory profiles and userspace-only probes remain
-distinct. Its observed read-only D-Bus machine-ID failure still needs repair.
+distinct. The subsequent
+[D-Bus rootfs repair](../validation/2026-11-02-de25-dbus-rootfs/README.md)
+fixes that observed machine-ID failure and passes a freshly rebuilt image's
+stronger virtual boot check, including a live system-bus response.
 This does not establish full factory services, physical boot or native recovery.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.

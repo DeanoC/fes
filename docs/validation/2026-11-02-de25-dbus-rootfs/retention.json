@@ -1,0 +1,291 @@
+{
+  "archive_sha256": "02975444e2bec446afc81e8d2a899d0bb4921232e547357ffc06a97a491787c7",
+  "archive_size": 258852561,
+  "archived_regular_files_verified": 57,
+  "classification": "rebuilt real intermediate and responsive virtual D-Bus; no admitted factory, native or peripheral acceptance",
+  "completed_own_pids_pgids": [
+    857762,
+    857763,
+    857851,
+    857852,
+    865132,
+    865133,
+    865174,
+    865177,
+    1132072,
+    1132073,
+    1132123,
+    1132124,
+    1373101,
+    1373125,
+    1374583,
+    1374641,
+    1376562,
+    1376585,
+    1388741,
+    1388765
+  ],
+  "files": {
+    "base/aarch64-sdk.tar.gz": {
+      "sha256": "d5bac20323fe6225b984e5a0f35ac087bfb4379dca2b40245e4eab97bd019bf7",
+      "size": 175931294
+    },
+    "base/base-inputs.json": {
+      "sha256": "f0f8b06f7d55633289e906bf57f769c54c8b3590207132e00502816df7d07503",
+      "size": 1413
+    },
+    "base/base-verify.json": {
+      "sha256": "f6e0bc9f70073cde910c8f327d4ceca4e39890633de03e6019881eb19c834f8f",
+      "size": 570
+    },
+    "base/base.json": {
+      "sha256": "70dc18e1fe4d45ea4c58825f046a287c4799d784caa65b63ae2287dc84e11e40",
+      "size": 1563
+    },
+    "base/buildroot.config": {
+      "sha256": "abc576534fabb34550543f9fe18c0e68ede6bc631bdadfa124876a1d013ae54c",
+      "size": 101267
+    },
+    "base/kernel/Image": {
+      "sha256": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+      "size": 52646400
+    },
+    "base/kernel/System.map": {
+      "sha256": "c527c50840fa16967838955f69a17083ac53e437f8d1bb4eb3f6bed5912ae76c",
+      "size": 8986468
+    },
+    "base/kernel/de25-owner.dtb": {
+      "sha256": "d57bac64ffbb1ff4ace06dc0ba3fbb2d589055340274493efbfba687c4f244f7",
+      "size": 28907
+    },
+    "base/kernel/kernel-build.json": {
+      "sha256": "bd1e242134eb6bb10ec3fa71cfb3edcad9dc1827f72d9a7dfd5d3bd7468d6a5a",
+      "size": 3111
+    },
+    "base/kernel/kernel.config": {
+      "sha256": "2395baf1c813f4b2c18f5069f8df32bf4ffc38914b9e48fcf68ef5d82a15d467",
+      "size": 303514
+    },
+    "base/kernel/vmlinux.symvers": {
+      "sha256": "14a94758e2396ad788b63b9864c6479f96076dc7bb86083f14ec8e82bc4e89c8",
+      "size": 834537
+    },
+    "base/rootfs.ext4": {
+      "sha256": "2bc0aaf4a0e6eb599b5278c12b8852a704daf010eb3c2178e63d44c0d7628d06",
+      "size": 268435456
+    },
+    "base/rootfs.tar": {
+      "sha256": "8df1e098b7bb0befa95fc9c5ec7f733a00dff228fd37bf1d27fe1a8b4a15b44d",
+      "size": 68802560
+    },
+    "base/sdk-export.json": {
+      "sha256": "6bfb46843734ff653fdfb4b1d750db2d24d629db12647a8b07d70d995c34d602",
+      "size": 662
+    },
+    "proofs/affected-job-launch.json": {
+      "sha256": "2fcddf43da6bb868430494b10d540e972c9acf4c37ed2c61eb1dc7b287ce33ee",
+      "size": 323
+    },
+    "proofs/affected-job/job.json": {
+      "sha256": "1d19931b1c5968d20cf0a9ca4bc85fafdfedb646fb40ffe2763429d62b0f034c",
+      "size": 551
+    },
+    "proofs/affected-job/stdout.log": {
+      "sha256": "fbf05c9d1d9317468e48e50f8c1383b2df5b8b0f9d2440749cba6b5e819bd83a",
+      "size": 380238
+    },
+    "proofs/affected-result.json": {
+      "sha256": "419cdb0ec357c990065ad0172af1e6e364b7c9a3f00cebe216654bb1a6bc47c3",
+      "size": 6770
+    },
+    "proofs/audit-job-launch.json": {
+      "sha256": "2bd42cecbc2b6248709e62051e9d0fba470b4d6be37305567885e35ae39cb7e4",
+      "size": 314
+    },
+    "proofs/audit-job/job.json": {
+      "sha256": "33a8c5c1325d287f6451091b5c8ae9958f7a9b4b55dcde6d89f1cdbbf35e6e65",
+      "size": 539
+    },
+    "proofs/audit-job/stdout.log": {
+      "sha256": "74ab1749a045ec58cee4e78f9f03245ae6413f3214742f75574363d3454e9111",
+      "size": 8057
+    },
+    "proofs/audit.json": {
+      "sha256": "3d08316b8158923d7bb8e8c337e05a1947ed2aa04a7a5e00a904c4a387863f08",
+      "size": 8057
+    },
+    "proofs/audit.py": {
+      "sha256": "442b501ab7589aa22a7f56fcbe5d5a9ee075850ad393a1b8125296e303c12210",
+      "size": 4779
+    },
+    "proofs/base-build-job-launch.json": {
+      "sha256": "31fb4b83b7fc5e42b34a427fb3e8e8aef30b79a122da3461bd3a809dc104b9b5",
+      "size": 737
+    },
+    "proofs/base-build-job/job.json": {
+      "sha256": "cff34bf41a9ee814cda5cbb05febd0c2db70376f5e16f7d421cfa975ad8e4043",
+      "size": 965
+    },
+    "proofs/base-build-job/stdout.log": {
+      "sha256": "304949bb166b9bb02f70d219a62a3ca86447d50e91c5d320277a71c33f5e116b",
+      "size": 4853309
+    },
+    "proofs/corrected-affected-job-launch.json": {
+      "sha256": "56c1bc7384852c30904d5b659411c160411d0f1b222a6d14480ffc09cc7f8d80",
+      "size": 324
+    },
+    "proofs/corrected-affected-job/job.json": {
+      "sha256": "ed2fc350c8d1217f403f6d9cbcbe0c1d39f58c4eb2d3890de65ff3d810f0024e",
+      "size": 552
+    },
+    "proofs/corrected-affected-job/stdout.log": {
+      "sha256": "835b54748a072619a1eaaa63da1c82ed2478a655fb6657929d21393e26113ed3",
+      "size": 379790
+    },
+    "proofs/corrected-affected-result.json": {
+      "sha256": "2fd3cf0aa44f94d2c76484b0939850b869256cc351bd9d4e718504fae513b746",
+      "size": 6996
+    },
+    "proofs/focused-job-launch.json": {
+      "sha256": "7df02b032597015fb3f5d8f2354def5053270c543f28facd8b17c9782aba1c06",
+      "size": 315
+    },
+    "proofs/focused-job/job.json": {
+      "sha256": "170f8703ba10561b84af4187c1ffcdf8d142e6c3e0e1e3754bc9f6758e9473e8",
+      "size": 540
+    },
+    "proofs/focused-job/stdout.log": {
+      "sha256": "b369a30c5aa81b81e3b8e690f7ab14670cf9744525e189db4da939dc9c5561b2",
+      "size": 4675
+    },
+    "proofs/focused.py": {
+      "sha256": "01cf3cb41c1418d81dddde5c94606830c924568450d47657b5f926cb5643a844",
+      "size": 333
+    },
+    "proofs/new-base-boot/boot-run.json": {
+      "sha256": "8248347e8ec996a846d646d55b041c6d5e5def0d1c0c85ec7b5f04c9864a4eb4",
+      "size": 705
+    },
+    "proofs/new-base-boot/boot.json": {
+      "sha256": "14a9055a52e7c09756aa8c5e0634a6de1418f2f99b03b1629af4c112f3964ab8",
+      "size": 2048
+    },
+    "proofs/new-base-boot/qemu-smoke.log": {
+      "sha256": "142a85b07813df4e1cded9e54986be52612c4cf75c471e01b1c93312ce19dda6",
+      "size": 17767
+    },
+    "proofs/new-boot-job-launch.json": {
+      "sha256": "23c2ffa2ab2a0b2ab35b1815ae522c0859ae09f1dcec4d611af7b5d22b65a045",
+      "size": 533
+    },
+    "proofs/new-boot-job/job.json": {
+      "sha256": "0145d55aab3f1e014b8a09a2cad0b70aeff5cd4ac10923609cb6db6ae27c19c6",
+      "size": 759
+    },
+    "proofs/new-boot-job/stdout.log": {
+      "sha256": "f7941b2c7537c6b43d0f8a305f358151d299ee40808fc0fa848c5cfeb44cc5b4",
+      "size": 1855
+    },
+    "proofs/old-base-control/boot-run.json": {
+      "sha256": "c9f89cc548312d6d970f2021914811504ad7fcf8200bb75c0b0fd8cbedbf0e8d",
+      "size": 790
+    },
+    "proofs/old-base-control/qemu-smoke.log": {
+      "sha256": "a6cf1b9c4b5cdce494168a5d33279f05a3bff010a7e590f3697d28793a5b4817",
+      "size": 17785
+    },
+    "proofs/old-control-command.json": {
+      "sha256": "e09107de700da9841e83585587f4b8907c84d5af2707accd17bb571b4d8b700f",
+      "size": 331
+    },
+    "proofs/old-control-job-launch.json": {
+      "sha256": "f9ff1bdc62397d68d9a1e78590d98a445f4d1423d75bcc2e0b8c4eefec05be38",
+      "size": 319
+    },
+    "proofs/old-control-job/job.json": {
+      "sha256": "e50fa903595199304698c5b4b2dcbb528209d30ab24c2e17f61a6407d09fa68f",
+      "size": 545
+    },
+    "proofs/old-control-job/stdout.log": {
+      "sha256": "9d83ed57ff78cd8aa3057b4cf797b3365ad4e282023c0e2a7da5ae4200547f0e",
+      "size": 776
+    },
+    "proofs/old-control-stdout.log": {
+      "sha256": "76af6e49dd8c0ebccb8cf371a44507466e567b72e6393f0ab23494cfc4b6d8bf",
+      "size": 3263
+    },
+    "proofs/old-control.json": {
+      "sha256": "ff5c6f13d9e61c5377a1be20acbfd228b9ce7e3c3fde708bf51d9f28cb486770",
+      "size": 776
+    },
+    "proofs/old-control.py": {
+      "sha256": "4588bf5eea62343287134379b4a3985fbc31c281b515390d06f81d3ef10e94dd",
+      "size": 1922
+    },
+    "proofs/public-verify-job-launch.json": {
+      "sha256": "3af107d111f23651863c60256f97c05f5cc5dbf5935d1607435b08ae02a29508",
+      "size": 445
+    },
+    "proofs/public-verify-job/job.json": {
+      "sha256": "37ba7098baf7c97b1d8e36ca6b991da9e6c4868342b99a632a2c8a7164a4561b",
+      "size": 670
+    },
+    "proofs/public-verify-job/stdout.log": {
+      "sha256": "bb821303090bc8765261a6f44e0f8005b908e66b157b9a8620b66a20a970efa7",
+      "size": 1331
+    },
+    "proofs/retain-source.py": {
+      "sha256": "cb5ac5245eef2ac7e40277e0a59a5133ea6f35e478f078afa81c510f3499a667",
+      "size": 5344
+    },
+    "proofs/rounding-regression-job-launch.json": {
+      "sha256": "beddf8f1e6ce04e932d484fde71aab0d385dba3df32c7374d3cdfc5e26568717",
+      "size": 371
+    },
+    "proofs/rounding-regression-job/job.json": {
+      "sha256": "4f9ee7a4ebe6deca77b4897a5e4cae9ea30aa7918e7955b8096eedc9327272c3",
+      "size": 597
+    },
+    "proofs/rounding-regression-job/stdout.log": {
+      "sha256": "9ebbb49296769c7e0bc22efc59c207c2ac443a7cb91b17d3f2cbedaad5abe6dc",
+      "size": 247
+    },
+    "proofs/test-rounding.json": {
+      "sha256": "f5adbb1db7be7eaf5b1f364d98c109334f1a7a8e3aae31c7bdf33ea1562476c1",
+      "size": 439
+    },
+    "retention-job-launch.json": {
+      "sha256": "9530aebcce730ef24e49bad7d25e8ac4d571c5f9712b627e170e75817081fd4e",
+      "size": 322
+    },
+    "retention-job.json": {
+      "sha256": "8ce45e82aac2f9da0f798ece39765191e7e8cab87ffce849f1ee3de5169a3021",
+      "size": 547
+    },
+    "retention-job.log": {
+      "sha256": "f71598f8db41aeb108320beb6e0b78742515cf107d91a92dcc74197297d7921e",
+      "size": 1899
+    },
+    "source.bundle": {
+      "sha256": "54e3709fd124bcfa39b41b13362bd59254f222652726e231ab4eb351b57e51a1",
+      "size": 6679
+    }
+  },
+  "hardware_access": "not-performed",
+  "image_producer_revision": "dfaffa8696fb164bf30576a6f7a1d7cd1844dd48",
+  "live_completed_processes": [],
+  "owned_named_containers": "completed and absent",
+  "previous_publication_retention_sha256": "62c2ec6a8418d23ef6428a7f1e1d1225bb22d65f6a10c82aaa5bb4f9ba2bae3c",
+  "restored_tree": "bea3e8ace423eaf3a0b173f2d75b18200bd9aad9",
+  "retention_completion": {
+    "completed_pids_pgids": [
+      1388765,
+      1388741
+    ],
+    "elapsed_seconds": 7.5,
+    "live_completed_processes": [],
+    "state": "passed"
+  },
+  "source_restored": true,
+  "source_revision": "620fd59b0d14803a61d5553dc2686fb4afcc5ac4"
+}

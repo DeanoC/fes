@@ -79,8 +79,10 @@ The DE25 builder now provides an
 [actual AArch64 image boot check](validation/2026-11-02-de25-image-boot/README.md).
 It boots the selected rootfs and its real kernel in QEMU, and the factory
 producer binds its boot report/log into the factory receipt. The retained
-managed-base intermediate passes the filesystem smoke; it has an observed
-D-Bus startup defect and does not supply factory acceptance. The high-level
+managed-base intermediate passes the filesystem smoke. A subsequent
+[D-Bus repair and fresh image boot](validation/2026-11-02-de25-dbus-rootfs/README.md)
+also establishes responsive virtual system-bus startup. These do not supply
+factory acceptance. The high-level
 release/media adapter still needs explicit DE25 receipt selection and an
 admitted factory with its own successful boot evidence.
 
