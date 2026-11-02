@@ -278,6 +278,8 @@ int main(int argc, char **argv) {
     // Copy an existing file using DOS, exercising the real guest FDC/DMA
     // writes and filesystem metadata rather than injecting sector contents.
     disk_modified=true;
+    const std::string copy_command="copy fesxt.txt save.txt";
+    unsigned copy_chars=0;
     for(unsigned usage:std::array<unsigned,24>{6,18,19,28,44,9,8,22,27,23,55,23,27,23,44,22,4,25,8,55,23,27,23,40}) {
         for(bool down:{true,false}) {
             const unsigned prior=key_codes.size();
@@ -285,6 +287,17 @@ int main(int argc, char **argv) {
             const uint64_t deadline=cycles+20000000;
             while(key_codes.size()==prior && cycles<deadline)step();
             require(key_codes.size()==prior+1,"COPY key was not delivered",cycles);
+        }
+        // ISA reads prove delivery to the PPI, not that DOS has consumed the
+        // character. Fence each key on the visible echo to avoid overflowing
+        // the real BIOS keyboard buffer during a long command.
+        if (usage != 40) {
+            ++copy_chars;
+            const uint64_t echo_deadline=cycles+20000000;
+            const auto expected_copy=std::string("A:\\>")+copy_command.substr(0,copy_chars);
+            while(screen().find(expected_copy)==std::string::npos && cycles<echo_deadline)
+                for(unsigned i=0;i<250000;++i)step();
+            require(screen().find(expected_copy)!=std::string::npos,"DOS did not echo COPY key",cycles);
         }
     }
     const uint64_t copy_deadline=cycles+800000000;
@@ -359,6 +372,8 @@ int main(int argc, char **argv) {
     // Boot from the restored bytes and make DOS read the saved file itself.
     prompt=false;sector=false;
     while(!prompt)step();
+    const std::string type_command="type save.txt";
+    unsigned type_chars=0;
     for(unsigned usage:std::array<unsigned,14>{23,28,19,8,44,22,4,25,8,55,23,27,23,40}) {
         for(bool down:{true,false}) {
             const unsigned prior=key_codes.size();
@@ -366,6 +381,14 @@ int main(int argc, char **argv) {
             const uint64_t deadline=cycles+20000000;
             while(key_codes.size()==prior && cycles<deadline)step();
             require(key_codes.size()==prior+1,"TYPE key was not delivered",cycles);
+        }
+        if (usage != 40) {
+            ++type_chars;
+            const uint64_t echo_deadline=cycles+20000000;
+            const auto expected_type=std::string("A:\\>")+type_command.substr(0,type_chars);
+            while(screen().find(expected_type)==std::string::npos && cycles<echo_deadline)
+                for(unsigned i=0;i<250000;++i)step();
+            require(screen().find(expected_type)!=std::string::npos,"DOS did not echo TYPE key",cycles);
         }
     }
     const uint64_t type_deadline=cycles+500000000;
