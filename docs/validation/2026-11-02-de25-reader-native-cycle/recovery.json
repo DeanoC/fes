@@ -1,0 +1,35 @@
+{
+  "serial": "TRWU8CBL",
+  "source_commit": "b08fc1143ddd3e6909ad31a3aced3d89bba31429",
+  "phase": "recovery-package",
+  "sof_sha256": "07cdad09617584c454fe3d54d3d2b8afd83327e1fa39607cd8ebc634363e7a6b",
+  "initial_card_image_sha256": "42ac2e14fcb224fb8f39c38b0f26e7999b31c800180bd22489619fdc39f4bacf",
+  "card_reference_scope": "historical preparation only; live file verification is in the new upload receipt",
+  "fit_sha256": "25ebdf98d253e41f51e4b55b78314ffe6e03d346825af8582268eacef1d25f90",
+  "started_utc": "2026-11-02T02:48:04.742599+00:00",
+  "stage": "PASS recovery-package",
+  "programming_attempted": true,
+  "fesboot_sent": false,
+  "pass": true,
+  "sd_write_commands_sent": false,
+  "prior_result_receipt_sha256": "5fc0da446e07439bbedb20fff29b79114aa84e7e6eb19d5f3bfa2e692c6e00c6",
+  "runner_sha256": "bc10dc5245a84861fe757750ce9d2fb67e6e8d6c5837236c39c8cbb1ad037920",
+  "clock_checks": [
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    },
+    {
+      "clock": "6M",
+      "log_sha256": "ba094c5610a8920da207759e17fe54e490eb1f2a9a2d8b45bc6c9e1bfd0a99fc"
+    }
+  ],
+  "jtag_id": "4362C0DD",
+  "programming_complete": true,
+  "prompt_verified": true,
+  "usb_permissions_restored": true,
+  "console_sha256": "d7dd3ad888c404a08521c97d711a715b0129656f1ca7017b3b73bdc350c4a803",
+  "finished_utc": "2026-11-02T02:48:14.915159+00:00",
+  "native_admission": false,
+  "decoder_sha256": "b30b4bf60fd3d15b1203a384e3b9c4e431d853c13b30eafd30aa71de97aea85a"
+}

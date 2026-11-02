@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "python3",
+    "out/nano-reader-native-resume-20261102/postcheck.py"
+  ],
+  "returncode": 0,
+  "timed_out": false,
+  "elapsed": 7.00442615407519,
+  "log_sha256": "ae50b54fc96f86eeda034ccc2f2378026bff2da8e0853ae0a01eef78e2514609"
+}
