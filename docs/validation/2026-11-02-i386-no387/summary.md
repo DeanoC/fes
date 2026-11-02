@@ -22,20 +22,30 @@ found is the first thing that stops DOOM under DOS/4GW on the RTL.
   ([DOOM](#dooms-start-on-the-rtl)).
 - **Governor:** ten classes for the ESC instructions, checked on the RTL by
   a new bench loop under every preset ([Governor](#governor)).
-- **Quartus 17.0.2 seals `fes.pc386`** at `4f73c51d8`, whose RTL is the
-  branch head's: system clock 73.65 MHz and pixel clock 78.31 MHz at their
-  slowest corners, every analysis passing ([Seal](#quartus-seal)).
+- **Quartus 17.0.2 seals `fes.pc386`** at `4f73c51d8`: system clock 73.65
+  MHz and pixel clock 78.31 MHz at their slowest corners, every analysis
+  passing ([Seal](#quartus-seal)). The branch head's RTL is that tree's plus
+  #1411's #1424 fix, merged after the seal and, as in #1411, not sealed.
 - No kit run.
 
 ## Inputs
 
 - FES branch `deano/i386-no387`, stacked on #1411's branch
   `deano/i386-phase2-idt` at `7224b11f6` (main `3d2e17f84` plus slice 2).
-- The trees: `4f73c51d8` for the seal, the boot suite and DOOM's run;
-  `7559fa52f` (the lockstep bench's fix) for the lockstep; `08efdd8d5` (the
-  governor bench's ESC loop) for the governor bench; `66b8ece79` (a unit
-  test's report) for the unit tests and test lanes. The i386 RTL, microcode
-  and governor table are the same in all four.
+- The trees before the merge: `4f73c51d8` for the seal, the boot suite and
+  DOOM's run; `7559fa52f` (the lockstep bench's fix) for the first full
+  lockstep; `08efdd8d5` (the governor bench's ESC loop) for the first
+  governor bench; `66b8ece79` (a unit test's report) for the unit tests and
+  test lanes. The i386 RTL, microcode and governor table are the same in
+  all four.
+- `f58d5012f` merges #1411's tip `3f8687ed0`, which brings the #1424 fix
+  `d9773b8f2` (a protected-mode IRET and RETF read their stack slots in
+  Bochs's order: DC and the `piret` and `pretf` routines, no routine
+  moved). #1411 landed it after its final seal and did not seal it; this
+  seal does not cover it either (the pc386 reseal exemption: the next
+  sealing PR covers the tree). The lockstep (RTL and netlist), the governor
+  bench and the i386 unit tests ran again at `f58d5012f`; the reports here
+  are those.
 - Bochs `30cfd566` (REL_3_1_FINAL) at CPU level 3 with its FPU, the
   lockstep's oracle; SingleStepTests/80386 `459d49fb`.
 - Verilator 5.032; the i386 lock's Yosys `238eac9a4` for the netlist run;
@@ -96,11 +106,13 @@ hold the pointers.
 
 ## Lockstep
 
-`scripts/test_fes_i386_lockstep.py` at `7559fa52f`
+`scripts/test_fes_i386_lockstep.py` at the merge head `f58d5012f`
 ([report](lockstep-report.json)), and with `--yosys` on the i386 lock's
 Yosys `238eac9a4` ([report](lockstep-netlist-report.json)). The two reports
-are identical but for the netlist's `yosys` field. `7559fa52f` changes
-only the lockstep bench from `4f73c51d8`, the sealed tree (below).
+are identical but for the netlist's `yosys` field. Before the merge, at
+`7559fa52f` (which changes only the lockstep bench from `4f73c51d8`, the
+sealed tree), the same runs passed, every field equal but for the four
+protected-mode cases the #1424 fix adds.
 
 | Run | Result |
 | --- | --- |
@@ -110,22 +122,21 @@ only the lockstep bench from `4f73c51d8`, the sealed tree (below).
 | Unbuilt encodings | 50,272 outside SCOPE, all stopped as not built (52,320 before: D8h-DFh's 2,048 are now built) |
 | Directed cases | 40 pass |
 | Unreal-mode cases | 6 pass |
-| Protected-mode cases | 47 pass |
+| Protected-mode cases | 51 pass |
 | No-387 cases (new) | 1,933 pass |
 | Memory cases (DMA, FLUSH) | 26 pass |
 
-**Against #1411's run at its tip.** Compared field by field with the RTL
-and netlist reports of #1411's last full run (`deano/i386-phase2-idt` at
-`7224b11f6`, this branch's base, whose protected-mode cases' trace hash
-`335db755…` this run repeats), every field is equal but the no-387 cases'
-own, the unbuilt count, and timing: the corpus's cycles (+0.02% in all,
-each file within ±0.3%, 155 of 941 files) and the random and
-protected-mode programs' memory waits and port 0 counts. Retirements,
-results, faults, deliveries and trace hashes are unchanged. #1411's own
-reruns at one tree repeat the corpus's cycles exactly, so the change is this
-branch's: as in the boot (Machine, below), a D8h-DFh byte on a path a
-branch cancels, the random bytes past a corpus test's HLT among them, now
-issues as an ESC form where it stopped D.
+**Against #1411's.** Compared field by field with the RTL and netlist
+reports in #1411's record (at `d9773b8f2`, the #1424 fix, whose i386 RTL
+this branch's merge head has but for the ESC forms), every field is equal
+but the no-387 cases' own, the unbuilt count, and timing: the corpus's
+cycles (+0.02% in all, each file within ±0.3%, 155 of 941 files) and the
+random and protected-mode programs' memory waits and port 0 counts.
+Retirements, results, faults, deliveries and every trace hash are
+unchanged. #1411's own reruns at one tree repeat the corpus's cycles
+exactly, so the change is this branch's: as in the boot (Machine, below), a
+D8h-DFh byte on a path a branch cancels, the random bytes past a corpus
+test's HLT among them, now issues as an ESC form where it stopped D.
 
 **A bench hang, fixed.** The first full run at `4f73c51d8` hung in every
 corpus file with a test of LOCK followed by another prefix (from opcode 00
@@ -203,7 +214,8 @@ FNSAVE, FRSTOR, and the other register and memory forms at FNOP's count.
 `fes_i386_gov_pkg.sv` and `fes_i386_gov_rom.sv` are regenerated from it
 (`scripts/fes_i386_governor.py --check` passes).
 
-`scripts/test_fes_i386_governor.py` at `08efdd8d5`
+`scripts/test_fes_i386_governor.py` at `08efdd8d5`, and again at the
+merge head `f58d5012f` with an identical report
 ([report](governor-bench-report.json)), whose bench program gains a
 seventeenth loop, `esc`: FNINIT, FNSTSW AX, FNSTSW m16, FLDCW, FLD m32 and
 FNOP, 1,000 times. PASS:
@@ -264,13 +276,27 @@ cancelled path's accesses, and so the port 0 traffic, differ. The boot
 retires no ESC instruction: #1411's run, where each would have stopped, had
 none.
 
+## Tests
+
+At `66b8ece79`, before the merge: the misteross unit tests pass (1,627, 74
+skipped), and the lanes `make test-changed` plans against `7224b11f6` pass:
+the planner's tests, whitespace, the parent Python regressions,
+generated-consumer consistency and the pc386 RTL simulation (devices,
+storage, audio, OPL2 and the benches). The planner also chose every other
+core family's RTL simulation, because `scripts/test_fes_i386_governor.py`
+was missing from its i386 scripts; `47e4c1932` adds it, after which the
+plan is misteross's unit tests alone, and those lanes were not run. At the
+merge head the i386 unit tests (69, 3 skipped) and the planner's pass.
+
 ## Quartus seal
 
 `make build-fes-pc386-quartus` at seed 1 from a clean checkout of
 `4f73c51d8` ([`seal-summary.json`](seal-summary.json)), Quartus Prime Lite
 17.0.2 on the pc386 lock's Yosys `0a7927bf` netlist. All 109 input hashes
-match the branch head; against #1411's final seal only the eight i386 RTL
-files differ. Every analysis passes, with no illegal or unconstrained
+match the branch before the merge of #1411's tip (`47e4c1932`); against
+#1411's final seal only the eight i386 RTL files differ. The merge changes
+three: `fes_i386_decode.sv` and `fes_i386_ucode_rom.sv` with the #1424 fix,
+and a comment in `fes_i386_pkg.sv`. Every analysis passes, with no illegal or unconstrained
 clocks.
 
 | | This branch, `4f73c51d8` | #1411's final seal, `7224b11f6` |
