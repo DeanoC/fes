@@ -130,7 +130,9 @@ aarch64-buildroot-linux-gnu-gcc -std=c11 -O2 -Wall -Wextra -Werror -static \
 Compile with the locked image SDK. The check requires the exact candidate
 kernel, board/rootfs and observed boot identity, then holds the existing DE25
 computer maintenance lock. It opens the root-only owner character device and
-checks its sysfs device number and CLOEXEC flag. Actual ioctl calls must refuse
+checks its sysfs device number and CLOEXEC flag. It queries owner ABI3 before
+issuing any control request, refusing older or unreadable protocols. Actual
+ioctl calls must refuse
 unknown commands, nonzero arguments and allocation before a known configuration;
 a forked child drops all capabilities and must receive EPERM. The parent checks
 that allocation is still refused afterward. It never publishes a frame or maps

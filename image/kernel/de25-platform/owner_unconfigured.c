@@ -100,6 +100,10 @@ int main(int argc, char **argv)
 		failure("owner control device identity, permissions or descriptor flags differ");
 		goto out;
 	}
+	if (ioctl(fd, FES_DE25_DMA_OWNER_ABI, 0UL) != FES_DE25_DMA_ABI_VERSION) {
+		failure("owner ABI differs");
+		goto out;
+	}
 	if (refused(fd, _IO(0xD5, 0x7f), 0, ENOTTY) ||
 	    refused(fd, FES_DE25_DMA_OWNER_ALLOC, 1, EINVAL) ||
 	    refused(fd, FES_DE25_DMA_OWNER_REAP, 1, EINVAL) ||
