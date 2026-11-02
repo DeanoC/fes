@@ -416,7 +416,7 @@ acceptance for a new bundle.
 On Linux amd64, retain the verified `linux.img` and its reviewed SHA-256 from the
 appliance release manifest. Keep the matching verified SDK cache from that image
 build, or set `FES_TARGET_IMAGE_SHARED_CACHE` to its absolute cache path. An empty
-cache is filled with `make kit-sdk`, which publishes the current image key's SDK
+DE10 cache is filled with `make kit-sdk`, which publishes the current image key's SDK
 at `$FES_TARGET_IMAGE_SHARED_CACHE/toolchains/<key>/` (or the checkout toolchain
 cache when the variable is unset). That command uses the pinned Buildroot
 sources, target-image builder, `fogcast_toolchain.fragment` and key that
@@ -462,12 +462,17 @@ manifest.
 The supplied image stays unchanged.
 
 For a DE25 software update, select the board and retain the output directory of
-the matching `image/de25-nano/build.py` build:
+the matching verified image build. Import its compiler first, then build the
+software against the reviewed managed factory base:
 
 ```sh
+make kit-sdk \
+  BOARD=de25-nano \
+  DE25_IMAGE=/absolute/path/verified-de25-image
+
 make kit-software \
-  KIT_SOFTWARE_BOARD=de25-nano \
-  KIT_SOFTWARE_DE25_IMAGE=/absolute/path/de25-linux-output \
+  BOARD=de25-nano \
+  DE25_IMAGE=/absolute/path/verified-de25-image \
   KIT_SOFTWARE_BASE=/absolute/path/managed-de25-rootfs.img \
   KIT_SOFTWARE_BASE_SHA256=REVIEWED_IMAGE_SHA256 \
   KIT_SOFTWARE_VERSION=de25-dev.1
@@ -476,9 +481,30 @@ make kit-software \
 The base must already be a managed DE25 image with authenticated factory
 software, its base contract and MENU requirements. Both the headless bring-up
 image and the managed-base intermediate can supply an SDK; neither has the
-factory metadata needed to accept an update bundle. SDK choice does not establish kernel, MENU, hardware or update
-acceptance. Both targets retain the same reviewed-base hash, ELF/library,
+factory metadata needed to accept an update bundle. A verified managed-factory
+output may also supply the SDK. SDK choice does not establish kernel, MENU,
+hardware or update acceptance. Both targets retain the same reviewed-base hash, ELF/library,
 interface and immutable-publication checks.
+
+DE25 authenticates the selected image and original Git producer on every SDK
+request, then caches the exact original archive under
+`$FES_TARGET_IMAGE_SHARED_CACHE/toolchains/<key>/`. Without that override it
+uses the standard shared cache's `target-image/toolchains/<key>/`. The key
+binds archive SHA-256, board and architecture; identical bytes can share the
+cache while receipts retain the actual selected producer, profile, kernel and
+rootfs identities. A cache hit cannot replace missing or invalid source-image
+authority. Missing/corrupt cached bytes are imported again from that verified
+source. Cache `host.tar` and its hash receipt retain the original compressed
+archive bytes; the existing builder checks a private copy, extracts its original
+root and relocates that private SDK. No shared relocated toolchain is executed.
+
+`KIT_SOFTWARE_BOARD` defaults to `BOARD`, and `KIT_SOFTWARE_DE25_IMAGE` and
+`KIT_SDK_DE25_IMAGE` default to `DE25_IMAGE`; explicit overrides remain available.
+DE10 stays the default. Supplying a DE25 image without independently selecting
+DE25 is refused. The [SDK workflow record](validation/2026-11-02-de25-sdk-workflow/README.md)
+contains actual Make import/cache-hit, normal runtime and Cortex-A76 QEMU
+evidence. Complete factory/update publication and native kit acceptance remain
+open.
 
 The default output is the new directory `out/kit-software/<version>/`, containing
 `bundle.tar` and `receipt.json`. Override the directory with

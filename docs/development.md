@@ -426,7 +426,11 @@ For cross-worktree image reuse, set
 `make dev`, `make kit-sdk` or `make kit-software`. The external directory holds
 `dl/`, `toolchains/<key>/` and `ccache/`; it does not change the shared compiler
 and package cache below. `make kit-sdk` fills `toolchains/<key>/` for the current
-image key without building an image.
+image key without building an image. For DE25, use `make kit-sdk
+BOARD=de25-nano DE25_IMAGE=/absolute/verified-image`; its cache key binds the
+authenticated SDK archive bytes, board and architecture. Every request verifies
+the original image receipt, including on a cache hit. The original archive is
+kept intact and extracted/relocated privately for a software build.
 The toolchain-only build never uses ccache. With `IMAGE_PASSES=2`, cold pass 2
 disables it so the two rootfs hashes still compare independent compiles. Stop
 builds before removing one of these cache directories; see
@@ -491,7 +495,14 @@ compiler overrides that FES normally removes for producer execution.
 ## Compatible kit software updates
 
 Use `make kit-sdk` when the toolchain cache has no SDK for the current image
-key. It builds and publishes only that Buildroot SDK. Then use
+key. On DE10 it builds and publishes only that Buildroot SDK. DE25 instead
+imports the SDK from an explicitly selected verified image:
+
+```sh
+make kit-sdk BOARD=de25-nano DE25_IMAGE=/absolute/verified-de25-image
+```
+
+Then use
 `make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img
 KIT_SOFTWARE_BASE_SHA256=<reviewed-image-sha256> KIT_SOFTWARE_VERSION=<version>`
 to build the four kit executables and selected assets from committed HEAD using
@@ -500,3 +511,9 @@ it does not rebuild the OS or cores, update host software, or contact the kit.
 The existing image and previous output directories stay intact. See
 [kit software releases](kit-software-releases.md#build-an-update-without-rebuilding-the-os)
 for cache prerequisites, receipt details, installation and activation.
+For DE25, add `BOARD=de25-nano DE25_IMAGE=/absolute/verified-de25-image` to the
+software command too. The SDK source may be a verified headless, managed-base
+or managed-factory output; the reviewed software base must be a managed
+factory containing authenticated software and MENU metadata. The shared board
+and image defaults retain the explicit `KIT_SOFTWARE_BOARD`,
+`KIT_SOFTWARE_DE25_IMAGE` and `KIT_SDK_DE25_IMAGE` overrides.

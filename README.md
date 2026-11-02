@@ -84,6 +84,10 @@ seed that cache; otherwise the first run builds the base once. See
 
 For compatible kit software updates, use `make kit-software` with a retained
 verified base image; see [kit software releases](docs/kit-software-releases.md).
+DE25 selects the compiler and software target with `BOARD=de25-nano
+DE25_IMAGE=/absolute/verified-image`; `make kit-sdk` authenticates and caches
+that image's AArch64 SDK without rebuilding Linux. A software update still
+requires a managed factory image with its software manifest and MENU contract.
 
 For clean integration and release verification:
 

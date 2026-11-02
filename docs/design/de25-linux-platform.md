@@ -84,6 +84,13 @@ rootfs binaries, including rebuilt base helpers, against their bound identities.
 They preserve default DE10 behavior and refuse unimplemented DE25 source-build
 routes. Ext4 extraction fixtures do not qualify factory authority, CPU behavior
 or an FPGA package.
+The [SDK development workflow](../validation/2026-11-02-de25-sdk-workflow/README.md)
+adds `make kit-sdk BOARD=de25-nano DE25_IMAGE=...` and the same shared selection
+for `make kit-software`. It caches authenticated original SDK bytes and uses
+the existing private runtime builder. Actual Make cache/import, C++ and
+Cortex-A76 QEMU checks pass; complete bundle publication still requires the
+unavailable admitted factory. Factory SDK receipt cases use unqualified unit
+fixtures, not a produced factory.
 Complete DE25 card/media and managed factory assembly, installation,
 watchdog/reboot recovery and the native workflow in the table remain open.
 

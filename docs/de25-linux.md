@@ -139,6 +139,16 @@ helpers and bounded Cortex-A53 argument tests. A reviewed managed base and
 sealed MENU are still required; the headless image remains outside that update
 path. These compiler results establish no service or hardware acceptance.
 
+The ordinary development commands now share `BOARD=de25-nano
+DE25_IMAGE=/absolute/verified-image`. `make kit-sdk` verifies and caches that
+image's original AArch64 SDK; `make kit-software` uses the same selection and
+builds with a private extraction. Verified headless, managed-base and
+managed-factory SDK sources are supported. The reviewed software base still
+needs authenticated factory software and MENU metadata. The
+[SDK workflow record](validation/2026-11-02-de25-sdk-workflow/README.md) retains
+actual Make import/cache-hit checks, a normal runtime build and five Cortex-A76
+QEMU tests. These do not qualify a factory image or native hardware operation.
+
 The [board-bound update record](validation/2026-11-01-de25-board-bound-updates/README.md)
 covers explicit DE25 release storage, image/CPU selection in the agent/data gate,
 upload refusal before body reads and the matching update client. The storage
