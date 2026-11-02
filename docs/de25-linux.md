@@ -187,6 +187,16 @@ padding and foreign-board refusals are checked. The upper release/media CLI
 still requires an admitted factory and image-level boot smoke result; these
 construction checks do not provide either or qualify native startup.
 
+The [image boot record](validation/2026-11-02-de25-image-boot/README.md) adds
+`boot-smoke` with explicit managed-base/factory selection and makes actual
+AArch64 kernel/init/filesystem boot evidence a factory receipt prerequisite.
+The retained real managed base and matching owner kernel pass on QEMU `virt`,
+using a disposable disk and the shared read-only-root/tmpfs smoke. This is
+intermediate packaging evidence; the factory still requires sealed MENU.
+The log exposes a read-only D-Bus machine-ID write failure that needs repair.
+Upper release/media selection, complete services and native acceptance remain
+open; userspace-only `smoke` results cannot replace this boot evidence.
+
 The [managed-fabric record](validation/2026-11-01-de25-managed-fabric/README.md)
 covers the current canonical MENU profile: vendor maintenance masters removed,
 unused F2H disabled, and obsolete fabric JTAG constraints retired with their

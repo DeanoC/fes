@@ -1,0 +1,63 @@
+{
+  "actual_cli_refusals": {
+    "cases": 4,
+    "elapsed_seconds": 0.5,
+    "state": "passed"
+  },
+  "actual_public_action": {
+    "elapsed_seconds": 49.4,
+    "observation_seconds": 45,
+    "state": "passed"
+  },
+  "affected": {
+    "commands": 6,
+    "elapsed_seconds": 214.0,
+    "fixture_copies": 42,
+    "generated_consumers": 40,
+    "parent_elapsed_seconds": 207.192,
+    "parent_skips": 6,
+    "selected_parent_tests": 1282,
+    "state": "passed"
+  },
+  "classification": "real managed-base kernel/init/filesystem virtual boot; factory prerequisite implementation; no admitted factory/native acceptance",
+  "factory_admission": "not-tested; sealed MENU required",
+  "focused": {
+    "elapsed_seconds": 0.9,
+    "state": "passed",
+    "tests": 24
+  },
+  "full_goal": "active; incomplete",
+  "hardware_access": "not-performed",
+  "image_producer_revision": "cad04bd65d82c98f0e375de927051d215dd63af1",
+  "normal_runtime_admission": "closed",
+  "observed_unresolved_defects": [
+    "D-Bus uuidgen attempts a temporary file in read-only /var/lib/dbus; current machine-id-only symlink is insufficient"
+  ],
+  "preflight": {
+    "elapsed_seconds": 49.4,
+    "source_revision": "c083e44e4b7d611c127b5f6ca3d2b71efc8bb4a1",
+    "state": "passed"
+  },
+  "profile": "managed-base",
+  "public_release_media": "DE10-specific; DE25 receipt selection not integrated",
+  "retention": {
+    "archive_sha256": "60fb61405398d5614a679cb5f2889363383ef6987a9173feceff7e49c6d3646b",
+    "archive_size": 90155,
+    "archived_regular_files_verified": 30,
+    "job_elapsed_seconds": 2.1,
+    "path": "/home/deano/fes/out/artifacts/de25-image-boot/54440171d/retention.json",
+    "restored_tree": "2c736dbbe92a6de57ba4461429368ccdfbf6b7f4",
+    "sha256": "929e82f3279408ed72cba56da27bf3d89a8cf94f4018e6534dc8d7010f5468ae",
+    "source_restored": true
+  },
+  "services": "not-qualified; no virtual Ethernet or persistent FAT; D-Bus machine-id write fails",
+  "source_revision": "54440171df2ae454a87873099857c10de7e17263",
+  "source_scope": {
+    "Quartus_or_combined_CPU_model_rerun": false,
+    "canonical_menu_inputs_verified": 374,
+    "combined_compiler_inputs_verified": 59,
+    "hardware_access": "not-performed",
+    "runtime_test_inputs_verified": 58,
+    "source_revision": "54440171df2ae454a87873099857c10de7e17263"
+  }
+}
