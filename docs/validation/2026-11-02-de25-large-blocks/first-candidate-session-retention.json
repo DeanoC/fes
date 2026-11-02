@@ -1,0 +1,10 @@
+{
+  "source_commit": "02b3cd155cd9f97e8e076ab569af0ab2a0f84b6f",
+  "hardware_attempted": false,
+  "archive": "/home/deano/fes-retained/de25-large-blocks-20261102/failed-session.tar.gz",
+  "members": 67,
+  "sha256": "b93230507f8b221e43fd2ebc384bc20c3d10694ce3894f13e75285bbb3d65ca1",
+  "every_member_verified": true,
+  "failure": "stale 64KiB hash fixture and room selection count; owned remaining FPGA worker stopped after parent failure",
+  "private_claim_credentials_included": false
+}

@@ -6,6 +6,12 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The [contained large-block TRWU8CBL trial](../../../docs/validation/2026-11-02-de25-large-blocks/README.md)
+now completes the exact sealed 2,027,520-byte phase-two image through native
+CPU/firmware calls, reports ready and verifies the live build identity with
+control reclosed. All data paths remain held. This first cold load does not
+establish runtime admission, queue turnover, active-master drain or launch/return.
+
 The shared [contract](../../../sources/mister-packages/docs/embedded-control.md)
 owns the register offsets and private firmware query. Its generated C++ and
 Verilog consumers come from `make generate`; do not edit them by hand.

@@ -1,0 +1,18 @@
+{
+  "source_commit": "02b3cd155cd9f97e8e076ab569af0ab2a0f84b6f",
+  "reason": "parent regressions failed two fixtures; stop only the owned remaining FPGA test process group before fixing source",
+  "runner_pid": 1680969,
+  "child_pid": 1681032,
+  "argv": [
+    "/usr/bin/python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_*.py",
+    "-v"
+  ],
+  "previously_passed_groups_not_reported_failed": true
+}

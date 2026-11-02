@@ -1,0 +1,151 @@
+{
+  "format": 1,
+  "source_commit": "cac97213eee7619bd40d99173b46f3ce1c14968f",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 5658,
+      "sha256": "c0e6bcdb772a576d057c71b28755fe06a7b4c040d23a95921e1a01f9d7d37329"
+    },
+    {
+      "path": "bl31.json",
+      "bytes": 22632,
+      "sha256": "658be42e14961510cfd0bf2eaddf8d8aa8d6796beb15f35f74873b95ea6928b2"
+    },
+    {
+      "path": "boot-fixtures.json",
+      "bytes": 3503,
+      "sha256": "59b00db13504deb733572088eb0a4aa7dd2c056cd3199a7e2cd958ce0bd5107b"
+    },
+    {
+      "path": "build-retention.json",
+      "bytes": 1504,
+      "sha256": "3041aaf2ac420aa3368ee2246f24bf4403c5076d150a2e67509505f5124d7921"
+    },
+    {
+      "path": "capture-fixtures.json",
+      "bytes": 1983,
+      "sha256": "0f3daafeeb9e66a6e5c63ee73a05c5bb622d184870ff1a212c70d3f632f1a529"
+    },
+    {
+      "path": "cleanup-fixtures.json",
+      "bytes": 5108,
+      "sha256": "1b9eaf0f5e41d4c76bef12152c73ff09f1d056f96eefabb7fd70c0c296f68d91"
+    },
+    {
+      "path": "comparison-inputs.json",
+      "bytes": 1425,
+      "sha256": "96765e80f65ab7402c2744db41ed9c09804d4565fc8f40e8a6ddcd5f38486fba"
+    },
+    {
+      "path": "composition.json",
+      "bytes": 9246,
+      "sha256": "2da98c14aa479faabff3c53e60b45ac463c320bda3c49c689426c75d3146df1d"
+    },
+    {
+      "path": "entry.json",
+      "bytes": 231408,
+      "sha256": "7364259f37ae53fe2ba7794136b7f6b1c0a6fa95c44c8c710e729171a01c9fe1"
+    },
+    {
+      "path": "evidence.json",
+      "bytes": 915,
+      "sha256": "ae331affc2797c56c0a5a575561bc1b5f57c194a0b3eb5f01375df1fe34536d5"
+    },
+    {
+      "path": "experiment.json",
+      "bytes": 1574,
+      "sha256": "1a7778edef243d40300b36819132f5987ec0ff32ffa83a55ea3a12a1ead6f959"
+    },
+    {
+      "path": "first-candidate-build-retention.json",
+      "bytes": 1408,
+      "sha256": "94ae9a8ede6d38bd67f60266f646112733e22aa480d3ce16a222eab48bbf0475"
+    },
+    {
+      "path": "first-candidate-session-retention.json",
+      "bytes": 488,
+      "sha256": "45bda067446951cdc4986932c6efd528f82677ea518f35fc94f4884316c2cbcc"
+    },
+    {
+      "path": "first-candidate-worker-stop.json",
+      "bytes": 443,
+      "sha256": "50a8264cbf1fd4c7cb7e7f74188f40bb6daffd741f348d7586f0e1784fb16fbe"
+    },
+    {
+      "path": "hardware.json",
+      "bytes": 26117,
+      "sha256": "932da124748100346ef98f5993b07f5962013fbd5ed0b27e438fb440db090cf4"
+    },
+    {
+      "path": "linked-firmware.json",
+      "bytes": 3263,
+      "sha256": "5bdd9f7f9b7e201803e6d00be193978656d5418f31ed685d898f106305921a9f"
+    },
+    {
+      "path": "native-console.log",
+      "bytes": 12244,
+      "sha256": "6daf9e1c601af3f90d1df72d8144b9c495689de8ae6bdb9c631edd25f31827f4"
+    },
+    {
+      "path": "native.json",
+      "bytes": 30708,
+      "sha256": "f0761d104b92305d732fe9a25267b52877450353aab25184a32646df7ec9bde9"
+    },
+    {
+      "path": "preflight.json",
+      "bytes": 3679,
+      "sha256": "1d7a6deca85c47f67a623691e94d0a26ce0ea40d32feb9f670e2116558905142"
+    },
+    {
+      "path": "recovery.json",
+      "bytes": 1521,
+      "sha256": "0f408c739d93dd89862105973da880fd336c92c6fd5b196cc329cd95acdad5c1"
+    },
+    {
+      "path": "sdk.json",
+      "bytes": 233555,
+      "sha256": "7375202984c79713c08a712a46c6a64a6f675d929d46a128b62c50de737d4db6"
+    },
+    {
+      "path": "sealed-model.json",
+      "bytes": 106148,
+      "sha256": "6001c60d42845674aed727b6af54fe697c630574974550ebfcbae2d68a4c18d1"
+    },
+    {
+      "path": "selected-source.json",
+      "bytes": 1948,
+      "sha256": "1a57eafb5511b8ccaed9322637d8c13de60a3a90ae0703eafe781051d3d9ba2f"
+    },
+    {
+      "path": "software-plan.json",
+      "bytes": 8509,
+      "sha256": "09f35508deb7fa1bc2a05d233628d1f0b53370c6ed0cd2883f71a663d36166ac"
+    },
+    {
+      "path": "software.json",
+      "bytes": 7862,
+      "sha256": "9fa3505773344513e5196bec91ee62241eb749714409369da3ffb50f52cb5eb1"
+    },
+    {
+      "path": "source-restore.json",
+      "bytes": 1052,
+      "sha256": "c3a5c39c6eeece2f94fe4c264c87c285c83ed7ed4575b0c8bac66fc36e48cae6"
+    },
+    {
+      "path": "uboot.json",
+      "bytes": 46287,
+      "sha256": "9a4a9abce076a18f4a620252bb89c1c049814fc0a80f02f668468711128489cd"
+    },
+    {
+      "path": "upload.json",
+      "bytes": 14908,
+      "sha256": "af9868f72c37f8f961fe59e12bac89f8f75baf6ad2e71b64c0c7a55923213d8f"
+    },
+    {
+      "path": "vendor-reference.json",
+      "bytes": 2139,
+      "sha256": "e7029d840ebee8eb3edf081ec3260227650e3a6d000b761de63a4b846c83eb15"
+    }
+  ]
+}

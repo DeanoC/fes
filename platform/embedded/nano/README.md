@@ -585,8 +585,11 @@ The current block-size comparison selects `0xfffc0` (1,048,512) bytes: the
 pinned vendor client's `0xffff0` limit rounded down to a 64-byte boundary.
 Native construction, secure extent/digest checks and trace decoding use the
 same rederived descriptor. The arena, source bytes, held paths and 20-second
-transfer deadline are unchanged. This comparison is hardware unqualified until
-its own complete transfer, readiness and live-identity/reclose trace passes.
+transfer deadline are unchanged. The
+[matched TRWU8CBL comparison](../../../docs/validation/2026-11-02-de25-large-blocks/README.md)
+passes a complete 2,027,520-byte transfer, firmware readiness and live sealed
+identity with control reclosed. This two-job cold diagnostic does not qualify
+queue turnover, repeated runtime loading, master drain or active launch/return.
 
 | Owner | Range |
 | --- | --- |

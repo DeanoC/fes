@@ -1,0 +1,21 @@
+{
+  "source_commit": "cac97213eee7619bd40d99173b46f3ce1c14968f",
+  "base": "befd16f3ef0c6b78e69c3c45c0c2d050d0a42849",
+  "files": {
+    "platform/embedded/firmware/nano_cold_platform.c": "a34f064220551881aa00bb2f075bfaffc5858520e8da61f85550d3375b6762bc",
+    "platform/embedded/firmware/tests/nano_cold_platform_test.c": "a8c481ac10f93722e87aeb0a4c015a60a5a36d071a0703b35afd72c642c6e822",
+    "platform/embedded/nano/README.md": "994f1d05baa66efa1458354e2b65952fc2f5f6b1dc26362a95650005dbd69b9c",
+    "platform/embedded/nano/hps_context.py": "1362d0a76f561abef3081e1ff377cf05a418236123cc668806e4a2930872320e",
+    "platform/embedded/nano/native_trace.py": "78bb8cef7e8ce0b338d9cd8ea9b547ff467d7f8a93ed4749806a5ef3030ef7ec",
+    "platform/embedded/tamago/cmd/fpgaload/main.go": "e42cd539bc22b32f5ba52537955d7505a958d136b730a7efa75df4b75db0bb92",
+    "platform/embedded/tamago/nativefabric/README.md": "b725eb8731850540065b4e28e2e6fbb03cedca0ecca78c36802fc0241d34d2f9",
+    "platform/embedded/tamago/nativefabric/prepare_configuration.go": "ac335ea0f8fbf90461ee1fe943db08e80bf847469aa921b7f683ecb30fa90027",
+    "platform/embedded/tamago/nativefabric/prepare_configuration_test.go": "deb326590399c9b613f30019209eaf290898d6384c831b492868683fe48721ac",
+    "platform/embedded/tamago/nativefabric/retire_configuration.go": "b2dcd196eaa16861ab0dacf393bea05d847410f0f72b4426e9e1fd22abd2100f",
+    "platform/embedded/tamago/nativefabric/retire_configuration_test.go": "01781194454e7658b3c009607b7097a6c3e8a9d2f21736840a9a22f83179610e",
+    "tests/test_nano_configuration.py": "a09834f47eb664fceadbf7a72baae5cebf6d7784f627a0389f10fc9e40257b55",
+    "tests/test_nano_hps_context.py": "e00205abf6d2605be85fcb01edc0e300a4d46814c9795a6519923306582fd24c",
+    "tests/test_nano_native_trace.py": "dce8d25a83dbf61d931bfd7742cda404d1b3303faa3f15f3f2e4a668f4ec99ab"
+  },
+  "scope": "committed source; complete selected inputs separately bound in matched receipts"
+}
