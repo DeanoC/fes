@@ -215,6 +215,27 @@ class A20TestTest(unittest.TestCase):
         self.assertEqual(names - suite, {'dos-start', 'dos-locks-0', 'dos-release'})
         self.assertLessEqual(suite, names)
 
+    def test_rtl_runs_fail_on_oracle_steps(self):
+        def suite(oracle_steps):
+            def run_machine(testbench, name, arguments, images):
+                profile = name.rsplit('/', 1)[1]
+                return {'debug': [{'port': '0e9', 'text': f'A20 {check} ok'} for check in sim.A20_CHECKS[profile]],
+                        'failures': [], 'cpu_resets': int(profile == 'boot'),
+                        'screen': ['Fast A20 method used'],
+                        'rtl': {'counters': {'retired': 1000, 'oracle_steps': oracle_steps.get(profile, 0),
+                                             'protected_steps': 0}, 'stops': [], 'gaps': []}}
+            args = mock.Mock(cpu='rtl', download=False, jobs=1, limit_seconds=10)
+            with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                    mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                    mock.patch.object(sim.freedos, 'image'), mock.patch.object(sim, 'run_machine', run_machine), \
+                    mock.patch('builtins.print'):
+                return sim.run_a20(args, [])['failures']
+
+        self.assertEqual(suite({}), [])
+        failures = suite({'games': 12})
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('games: RTL oracle_steps=12'))
+
     def test_himemx_method_is_read_from_its_banner(self):
         self.assertEqual(sim.HIMEMX_METHOD.search('Fast A20 method used').group(1), 'Fast')
         self.assertEqual(sim.HIMEMX_METHOD.search('Always on A20 method used').group(1), 'Always on')

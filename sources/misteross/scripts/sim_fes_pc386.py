@@ -39,6 +39,7 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            name a real A20 method, not "Always on", A20 must be off at the
            prompt, and XMS 03h/04h and 05h/06h must turn it on and off again
            and agree with memory. Every check must print ok. With --cpu rtl,
+           the RTL must run both images without an oracle step or a stop;
            writes a20-rtl/.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
@@ -678,9 +679,7 @@ def run_a20(args, linked: list[Path]) -> dict:
             if len(methods) != 1 or methods[0].lower().startswith('always on'):
                 failures.append(f'games: HIMEMX must pick a real A20 method, its banner says {methods}')
         if rtl:
-            stops = (run.get('rtl') or {}).get('gaps', [])
-            checks += [f'{profile}: RTL stop {gap["kind"]} {gap["stem"]} x{gap["stops"]}, run on the oracle'
-                       for gap in stops]
+            failures += [f'{profile}: {failure}' for failure in rtl_failures(run, 'A20 run')]
     return {'runs': runs, 'checks': checks, 'failures': failures}
 
 
