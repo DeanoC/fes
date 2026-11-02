@@ -257,7 +257,7 @@ def run_pmode(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
-PMODE_CASES = 47
+PMODE_CASES = 85
 
 
 def divergence_table(entries: list[dict], path: Path) -> None:
@@ -364,7 +364,7 @@ def same_as(report: dict, other: dict) -> list[str]:
         compare(f'random {key}', report['random'].get(key), other['random'].get(key))
     for key in SAME_RANDOM:
         compare(f'pmode {key}', report['pmode']['totals'].get(key), other['pmode']['totals'].get(key))
-    for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'pm_deliveries', 'unbuilt_stops', 'pm_kinds'):
+    for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'pm_deliveries', 'unbuilt_stops', 'pm_kinds', 'cs_limit'):
         compare(f'pmode {key}', report['pmode'].get(key), other['pmode'].get(key))
     for mode in ('directed_cases', 'unreal_cases', 'pmode_cases', 'memory_cases', 'reset_store'):
         for key in SAME_MODE:
@@ -566,6 +566,7 @@ def main() -> int:
     unbuilt_stops = sum((Counter(result['summary']['unbuilt_stops']) for result in random_results + pmode_results),
                         Counter())
     pm_kinds = sum((Counter(result['summary']['pm_kinds']) for result in random_results + pmode_results), Counter())
+    cs_limit = sum((Counter(result['summary']['cs_limit']) for result in random_results + pmode_results), Counter())
     random_failures = [line for result in random_results + steady_results + pmode_results
                        for line in result['failures']]
     hash_mismatches = [result['seed'] for result in steady_results
@@ -612,6 +613,7 @@ def main() -> int:
         'pmode': {'seeds': [result['seed'] for result in pmode_results], 'programs_per_seed': args.pm_programs,
                   'pm_weight': PM_WEIGHT, 'totals': dict(pmode_totals), 'pm_deliveries': dict(pm_deliveries),
                   'unbuilt_stops': dict(unbuilt_stops), 'pm_kinds': dict(sorted(pm_kinds.items())),
+                  'cs_limit': dict(sorted(cs_limit.items())),
                   'trace_hashes': {str(result['seed']): result['summary']['trace_hash'] for result in pmode_results}},
     })
     if args.same_as is not None:
@@ -655,7 +657,8 @@ def main() -> int:
               f"{pmode_totals['shutdowns']} shutdowns, {pmode_totals['nested']} faults in a delivery delivered; "
               f"{sum(unbuilt_stops.values())} stopped at what is not built, by reason "
               f"{dict(sorted(unbuilt_stops.items()))}; retired with PE set {dict(sorted(pm_kinds.items()))}; "
-              f"{pmode_totals['cs_rule'] + random_totals['cs_rule']} real-mode CS loads under the 386 rule")
+              f"{pmode_totals['cs_rule'] + random_totals['cs_rule']} real-mode CS loads under the 386 rule; "
+              f"under a CS limit but 64 KiB and 4 GiB, retirements and #GP deliveries {dict(sorted(cs_limit.items()))}")
         def share(histogram: dict, cycles: int) -> str:
             total = sum(histogram.values())
             return f'{100 * histogram.get(cycles, 0) / total:.1f}%' if total else '-'
