@@ -338,6 +338,10 @@ type Service struct {
 
 	romCacheMu    sync.Mutex
 	romCacheSnaps map[string]romCacheSnapshot
+
+	// bundledFirmware is the imported default firmware, by core and ROM.
+	bundledFirmwareMu sync.Mutex
+	bundledFirmware   []protocol.BundledFirmware
 }
 
 const catalogCloseScanTimeout = 2 * time.Second
@@ -499,6 +503,9 @@ func OpenWithHostProcessStarter(ctx context.Context, paths Paths, httpClient *ht
 	}
 	service := newService(config, paths, store, scanner, preparer, client, options...)
 	service.coreCatalogPath = config.CoreCatalogPath
+	if config.Firmware.BundledDir != "" {
+		service.LoadBundledFirmware(ctx, config.Firmware.BundledDir)
+	}
 	service.coreLibrarySourceID = config.CoreLibrarySourceID
 	service.meshEnsureConfig = config.MeshEnsure
 	service.meshPlacementConfig = config.MeshPlacement

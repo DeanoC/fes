@@ -18,6 +18,11 @@ TS1000 and TS1500. Each family remembers its last browsed variant. Single-model
 families have no variant selector. The family stays in the header while the
 selected variant supplies its own setup, media guidance and library entries.
 
+The first time a family is shown, the launcher puts its firmware card over the
+workbench: which models' firmware comes with FES and under what licence, or
+which file the user supplies. **Firmware** opens it again. See
+[bundled firmware](bundled-firmware.md#the-first-use-card).
+
 **Next machine** chooses a saved entry for that variant; **Next edition**
 chooses one of that entry's grouped library editions. Changing a family or
 variant only changes navigation: it does not rewrite a saved package, ROM,

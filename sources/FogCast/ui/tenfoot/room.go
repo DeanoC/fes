@@ -402,6 +402,9 @@ func (a *App) noteHomeRoomFallbackLocked(id, reason string) {
 
 // closeRoomLocked closes the current room only; parents on roomStack stay alive.
 func (a *App) closeRoomLocked() {
+	// A pending firmware lookup belongs to the room that requested it. Stop
+	// it when that room is closed so a late reply cannot overlay its successor.
+	a.closeFirmwareCardLocked()
 	if a.room == nil {
 		return
 	}
@@ -486,6 +489,9 @@ func (a *App) applyRoomActionsLocked() {
 	if a.room == nil {
 		return
 	}
+	if req, ok := a.room.TakeFirmwareInfo(); ok {
+		a.openFirmwareCardLocked(req)
+	}
 	for _, act := range a.room.TakeActions() {
 		switch act.Kind {
 		case rooms.ActionHardwareSetup:
@@ -498,6 +504,8 @@ func (a *App) applyRoomActionsLocked() {
 			a.openSystemMediaLocked(act)
 		case rooms.ActionHardwareExpansions:
 			a.openSystemExpansionsLocked(act)
+		case rooms.ActionFirmwareInfo:
+			a.openFirmwareCardLocked(act)
 		case rooms.ActionLaunch:
 			a.launchFromRoomWithPackageLocked(act.GameID, act.PackageID, act.ExpectedPackageID)
 		case rooms.ActionStop:

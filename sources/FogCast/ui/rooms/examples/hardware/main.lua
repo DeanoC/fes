@@ -40,6 +40,14 @@ local function model()
   return family and family.id == "zx81" and systems.by_id[id] or systems.by_id["fes.zx81"]
 end
 local function workshop_title() return model().label .. " setup" end
+-- The launcher shows the family's firmware card: once on its first opening,
+-- and again from the Firmware button.
+local function firmware_info(first_use)
+  local family = systems.family_by_core[model().id]
+  local ids = {}
+  for _, variant in ipairs(family.variants) do ids[#ids + 1] = variant.id end
+  hardware.firmware_info({core_id=model().id, family_id=family.id, family_label=family.label, core_ids=ids, first_use=first_use})
+end
 local opening_message = "Finding your " .. model().label .. " setups..."
 local initial_game_id = room.initial_game_id or ""
 local initial_selection_pending = false
@@ -329,6 +337,7 @@ function load()
   initial_selection_pending=initial_game_id ~= ""
   inspected=nav.inspected or "" focus=nav.focus or "socket" page=nav.page or 1
   art=image.load("assets/zx81.png")
+  firmware_info(true)
   read()
 end
 function on_resume() read() end
@@ -621,6 +630,7 @@ local function picture(part)
   button("resume","Return to play",430,576,164,48,running(),function() session.resume() end,running())
   button("setup","Next setup",606,576,128,48,data and #data.machines > 1,function() next_machine() end)
   button("setup_library","Set up "..model().mark,746,576,170,48,not running(),function() hardware.setup{core_id=model().id} end)
+  button("firmware","Firmware",928,576,168,48,true,function() firmware_info(false) end)
   button("library","Library",976,514,120,28,not running(),function() rooms.open_library{platform="zx81"} end)
   if part == "lower" then
     gfx.extend(sink)

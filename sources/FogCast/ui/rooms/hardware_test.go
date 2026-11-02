@@ -277,6 +277,28 @@ func TestSinclairWorkshopUsesSelectedModel(t *testing.T) {
 	}
 }
 
+func TestSinclairWorkshopAsksForTheZX81FamilyFirmwareCard(t *testing.T) {
+	s := hardwareData(false)
+	s.value.Machines[0].CoreID = "fes.ts1000"
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Services: s, Width: 1280, Height: 720, InitialCoreID: "fes.ts1000", InitialGameID: s.value.Machines[0].GameID,
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	req, ok := r.TakeFirmwareInfo()
+	if !ok || !req.FirstUse || req.FamilyID != "zx81" || req.FamilyLabel != "Sinclair ZX81" || req.CoreID != "fes.ts1000" ||
+		strings.Join(req.CoreIDs, ",") != "fes.zx81,fes.zx80,fes.ts1000,fes.ts1500" {
+		t.Fatalf("first-use request %+v %v", req, ok)
+	}
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Firmware") })
+	r.Activate("firmware")
+	acts := r.TakeActions()
+	if len(acts) != 1 || acts[0].Kind != ActionFirmwareInfo || acts[0].FirstUse || acts[0].FamilyID != "zx81" {
+		t.Fatalf("Firmware button: %+v", acts)
+	}
+}
+
 func TestSinclairWorkshopMissingModelKeepsItsName(t *testing.T) {
 	s := hardwareData(false)
 	s.value.Machines = nil
