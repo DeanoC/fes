@@ -39,26 +39,32 @@
 // runs the new bytes (self-modifying code, the coherent profile; queue16
 // leaves the 16 bytes after a storing instruction as fetched).
 //
-// A fault (#UD, #GP(0), #SS(0), #NM, #DE) is taken at WB with nothing of its
-// instruction retired: WB flushes, and DC takes the exception's entry into
-// the microcode routine INT uses, which pushes FLAGS, CS and the faulting
-// instruction's IP and jumps through the vector table. An encoding this
-// build does not implement stops the CPU at WB, and so does a fault while an
-// exception is delivered (double fault and shutdown are not built). HLT
-// halts it until an interrupt.
+// A fault (#UD, #GP, #SS, #NP, #NM, #DE, #BR) is taken at WB with nothing of
+// its instruction retired: WB flushes, and DC takes the exception's entry
+// into the microcode routine INT uses, which pushes FLAGS, CS and the
+// faulting instruction's IP and jumps through the vector table, or in
+// protected mode through an interrupt or trap gate of the IDT (see
+// Protected-mode delivery). A fault while one is delivered is delivered in
+// its place, as a double fault when both are contributory, and a fault in a
+// double fault's delivery shuts the CPU down (shutdown), which the machine
+// turns into a reset. An encoding this build does not implement stops the
+// CPU at WB. HLT halts it until an interrupt.
 //
 // INTR and NMI are taken at an instruction boundary, or in HLT: WB flushes as
 // for a fault, with nothing of the next instruction retired, and DC takes the
 // same routine's entry with the interrupt's vector, from INTA for INTR, so
 // the routine pushes the next instruction's IP.
 //
-// Protected mode (CR0.PE) at CPL 0, without gates, the IDT, the LDT or
-// paging: MOV CRn, LMSW, SMSW, LGDT, SGDT, LIDT and SIDT; segment loads from
-// the GDT's descriptors, with their checks, error codes and accessed bit, in
-// microcode; and far JMP to a code segment. A real-mode segment load keeps a
-// data segment's cached limit and attributes (unreal mode), and sets CS's to
-// the 386's real-mode values. An exception or interrupt while PE is set
-// stops the CPU (trace_pm_stop), as delivery through the IDT is not built.
+// Protected mode (CR0.PE) at CPL 0, without privilege transitions, call or
+// task gates, task switches or paging: MOV CRn, LMSW, SMSW, LGDT, SGDT,
+// LIDT, SIDT, LLDT, SLDT, LTR and STR; segment loads from the GDT's and the
+// LDT's descriptors, with their checks, error codes and accessed bit, in
+// microcode; far JMP, CALL and RETF to a code segment; exceptions, INTR,
+// NMI, INT n, INT3 and INTO through interrupt and trap gates, and IRET; LAR,
+// LSL, VERR, VERW and ARPL. A real-mode segment load keeps a data segment's
+// cached limit and attributes (unreal mode), and sets CS's to the 386's
+// real-mode values. What is not built stops the CPU as not built
+// (trace_unimplemented), with its reason (trace_unbuilt).
 //
 // The speed governor (fes_i386_governor) charges each instruction and REP
 // element WB retires its reference cost and holds D at the next one's first
@@ -90,6 +96,15 @@ module fes_i386_cpu #(
     input  logic [5:0][31:0] init_base,
     input  logic [5:0][31:0] init_limit,
     input  logic [5:0][15:0] init_ar,      // descriptor bits 8-23, the limit nibble clear
+    input  logic [15:0]      init_ldtr_sel,  // LDTR and TR with their caches; LDTR's valid bit
+    input  logic [31:0]      init_ldtr_base, // is 0 after a null LLDT, when no TI=1 selector passes
+    input  logic [31:0]      init_ldtr_limit,
+    input  logic [15:0]      init_ldtr_ar,
+    input  logic             init_ldtr_valid,
+    input  logic [15:0]      init_tr_sel,
+    input  logic [31:0]      init_tr_base,
+    input  logic [31:0]      init_tr_limit,
+    input  logic [15:0]      init_tr_ar,
     // A20M, and the attribute map: 640 KiB to 1 MiB in 16 KiB slots
     // (fes_i386_pkg::attr_e), RAM elsewhere below ram_top MiB.
     input  logic             a20m,
@@ -160,12 +175,10 @@ module fes_i386_cpu #(
     output logic             trace_exception,      // the retirement delivered exception trace_vector
     output logic [7:0]       trace_vector,
     output logic             trace_halt,           // stopped: in HLT, until an interrupt wakes it, or ...
-    output logic             trace_unimplemented,  // ... for good: an encoding not built yet, or a fault in a
-                                                   // delivery (trace_vector 8: double fault), or ...
-    output logic             trace_pm_stop,        // ... in protected mode, exception trace_vector with error code
-                                                   // trace_error, or an NMI (vector 2) or INTR (vector FFh), whose
-                                                   // delivery through the IDT is not built
-    output logic [15:0]      trace_error,
+    output logic             trace_unimplemented,  // ... for good: something not built yet (fes_i386_pkg why_e in
+    output logic [3:0]       trace_unbuilt,        // trace_unbuilt; a delivery's vector in trace_vector), or ...
+    output logic             shutdown,             // ... a fault in a double fault's delivery, until reset
+    output logic [15:0]      trace_error,          // the delivered exception's error code
     output logic             trace_issue,          // D issued this cycle (lockstep observability)
     output logic             trace_md_wait,        // D to WB wait for a multiply or divide in EX (ditto)
     output logic             trace_fetch,          // F1 sent a block to the L1I (ditto) ...
@@ -200,7 +213,16 @@ module fes_i386_cpu #(
     output logic [5:0][15:0] arch_sel,
     output logic [5:0][31:0] arch_base,
     output logic [5:0][31:0] arch_limit,
-    output logic [5:0][15:0] arch_ar
+    output logic [5:0][15:0] arch_ar,
+    output logic [15:0]      arch_ldtr_sel,
+    output logic [31:0]      arch_ldtr_base,
+    output logic [31:0]      arch_ldtr_limit,
+    output logic [15:0]      arch_ldtr_ar,
+    output logic             arch_ldtr_valid,
+    output logic [15:0]      arch_tr_sel,
+    output logic [31:0]      arch_tr_base,
+    output logic [31:0]      arch_tr_limit,
+    output logic [15:0]      arch_tr_ar
 );
     typedef fes_i386_pkg::pipe_t pipe_t;
     typedef fes_i386_pkg::uop_t uop_t;
@@ -238,9 +260,10 @@ module fes_i386_cpu #(
     logic [5:0][15:0] seg_sel, seg_ar, seg_hi1;  // seg_hi1: base[31:16] + 1
     logic [5:0][31:0] seg_base, seg_limit;
     // Microcode temporaries: a far transfer's selector (T0) and offset (T1),
-    // a segment load's selector (T0) and descriptor (T2, T3).
+    // a segment load's selector (T0) and descriptor (T2, T3), IRET's EFLAGS
+    // image (T4).
     logic [15:0]      t0;
-    logic [31:0]      t1, t2, t3;
+    logic [31:0]      t1, t2, t3, t4;
     // CR0 as this build holds it: PE, MP, EM, TS, ET and PG. WAIT raises
     // #NM when MP and TS are both set, CLTS clears TS, and MOV CR0 and LMSW
     // write it (SYSOP_CR0, SYSOP_LMSW). CR0 reads with bits 30-5 set, as
@@ -249,10 +272,17 @@ module fes_i386_cpu #(
     logic [31:0]      cr0_rd, cr2, cr3;
     assign cr0_rd = {cr0_pg, 26'h3ff_ffff, cr0_et, cr0_ts, cr0_em, cr0_mp, cr0_pe};
     // GDTR and IDTR, with GDTR's limit less 7 (a descriptor's last byte) and
-    // IDTR's less 3 (a real-mode vector's), and whether those are below zero.
+    // IDTR's less 3 (a real-mode vector's) and 7 (a gate's), and whether
+    // those are below zero.
     logic [31:0]      gdtr_base, idtr_base;
-    logic [15:0]      gdtr_limit, idtr_limit, gdt_lim7, idt_lim3;
-    logic             gdt_tiny7, idt_tiny3;
+    logic [15:0]      gdtr_limit, idtr_limit, gdt_lim7, idt_lim3, idt_lim7;
+    logic             gdt_tiny7, idt_tiny3, idt_tiny7;
+    // LDTR and TR (LLDT, LTR), with LDTR's limit less 7 for a TI=1
+    // selector's descriptor, which LDTR's valid bit (clear after a null LLDT)
+    // gates. TR is only held: no task switch is built.
+    logic [15:0]      ldtr_sel, ldtr_ar, tr_sel, tr_ar;
+    logic [31:0]      ldtr_base, ldtr_limit, ldt_lim7, tr_base, tr_limit;
+    logic             ldtr_valid, ldt_tiny7;
     // Each segment's access check, so the check in M1 is one compare or two
     // (fes_i386_pkg::seg_chk): the limit less 0, 1 and 3 for 1-, 2- and
     // 4-byte accesses, or an expand-down segment's upper bound so less, and
@@ -299,10 +329,24 @@ module fes_i386_cpu #(
 
     // A fault in WB is delivered (exc_take): WB flushes, the front end and DC
     // restart, and DC takes the exception's entry the cycle after
-    // (exc_inject). exc_active holds until the delivery's last uop retires; a
-    // fault before then stops the CPU instead.
+    // (exc_inject). exc_active holds until the delivery's last uop retires. A
+    // fault before then is delivered in its place, as Bochs's exception()
+    // does: as a double fault (vector 8, error code 0) when the delivery's
+    // exception and the fault are both contributory (#DE, #NP, #SS, #GP), and
+    // a fault in a double fault's delivery shuts the CPU down (wb_shut). What
+    // is delivered (see Protected-mode delivery): exc_vec, its error code
+    // (exc_err, with EXT, bit 0, set for a fault in an exception's or
+    // interrupt's delivery), whether it pushes one (exc_haserr, in protected
+    // mode), its class (exc_class: benign, contributory, double fault), and
+    // the RF its EFLAGS image takes (del_rf: set for a fault, and for an
+    // interrupt between a REP string's elements or after an IRETD that set
+    // RF).
+    localparam logic [1:0] EXC_BENIGN = 2'd0, EXC_CONTRIB = 2'd1, EXC_DF = 2'd2;
     logic       exc_take, exc_active, exc_inject;
     logic [7:0] exc_vec;
+    logic [15:0] exc_err;
+    logic [1:0] exc_class;
+    logic       exc_haserr, del_rf;
 
     // What WB does with its uop once D to WB are not frozen, decided as the
     // uop enters WB (see WB): wb_flushes, flush everything younger (a taken
@@ -311,7 +355,7 @@ module fes_i386_cpu #(
     // of these is one gate from freeze. An interrupt being taken (int_take)
     // flushes and restarts them in place of the uop's own decisions
     // (int_go).
-    logic wb_flushes, wb_redir, wb_deliver, int_go;
+    logic wb_flushes, wb_redir, wb_deliver, wb_nested, wb_df, wb_shut, int_go;
     assign wb_flush = !freeze && (wb_flushes || int_take);
     assign exc_take = !freeze && wb_deliver && !int_take;
     assign int_go = !freeze && int_take;
@@ -346,16 +390,17 @@ module fes_i386_cpu #(
     end
     // A delivery refetches from the faulting instruction, or the one before
     // (start_linear is a cycle old), which the delivery's far jump discards.
-    // D's EIP is the faulting instruction's, cut to 16 bits: the IP the
-    // routine pushes, which D's CS-limit check then passes. An interrupt's
-    // is the next instruction's. The address selects key on WB's fault field
-    // and int_take, registers (a taken branch has neither), so the fetch
-    // address stays off exc_take's path.
+    // D's EIP is the faulting instruction's, in real mode cut to 16 bits: the
+    // IP the routine pushes, which D's CS-limit check then passes. An
+    // interrupt's is the next instruction's. The address selects key on WB's
+    // fault field and int_take, registers (a taken branch has neither), so
+    // the fetch address stays off exc_take's path.
     logic wb_faulted;
     assign wb_faulted = wb_s.uop.ctl.fault != fes_i386_pkg::FAULT_NONE;
     assign redirect = start == 2'd2 || !freeze && (wb_redir || int_take);
     assign redirect_linear = start == 2'd2 || wb_faulted || int_take ? start_linear : wb_s.target;
-    assign redirect_eip = start == 2'd2 ? eip : wb_faulted || int_take ? {16'd0, eip[15:0]} : wb_s.target_eip;
+    assign redirect_eip = start == 2'd2 ? eip : wb_faulted || int_take ? {cr0_pe ? eip[31:16] : 16'd0, eip[15:0]}
+                        : wb_s.target_eip;
 
     // ---- F1 to Q ------------------------------------------------------------------
     logic        q_valid, d_ready, fe_mem_load;
@@ -447,8 +492,12 @@ module fes_i386_cpu #(
     assign dc_q.t_rd = 1'b0;
     assign dc_q.popad_esp = 1'b0;
     assign dc_q.b_far = 1'b0;
+    assign dc_q.b_t4 = 1'b0;
     assign dc_q.plus2 = 1'b0;
     assign dc_q.nochk = 1'b0;
+    assign dc_q.gsz = 1'b0;
+    assign dc_q.errp = 1'b0;
+    assign dc_q.dmode = 2'd0;
     // The string engine's first uop loads D's copies; the rest are
     // fes_i386_seq's.
     assign dc_q.str_load = q_seq == fes_i386_pkg::SEQ_STRING || q_seq == fes_i386_pkg::SEQ_ENTER;
@@ -475,17 +524,19 @@ module fes_i386_cpu #(
     always_ff @(posedge clk) rom_ok <= dc_valid && !issue;
     assign uc_wait = dc.seq == fes_i386_pkg::SEQ_UCODE && dc.more && !rom_ok;
     logic [2:0] str_cnt3;  // the string engine's count is 2, 1, 0 (D)
-    fes_i386_seq seq (.d(dc), .d0(dc0), .w(rom_q), .cnt(str_cnt3), .n(dc_next));
+    logic       gate32, gate_trap;  // a protected-mode delivery's gate: a 386 gate, a trap gate (WB, SYSOP_GATE)
+    fes_i386_seq seq (.d(dc), .d0(dc0), .w(rom_q), .cnt(str_cnt3), .gate32, .n(dc_next));
     // An exception's entry: a NOP that starts the ROM's vector routine with
     // the fault's vector, at length 0, so the routine pushes D's EIP, the
     // faulting instruction's. It goes in through dc_skid the cycle after the
-    // fault's flush, which has emptied DC and Q.
+    // fault's flush, which has emptied DC and Q. In protected mode the
+    // routine is the delivery through the IDT.
     decoded_t dc_exc;
     always_comb begin
         dc_exc = '0;
         dc_exc.uop.cls = fes_i386_pkg::UOP_SPECIAL;  // SPECIAL_NOP
         dc_exc.far_sel = {6'd0, exc_vec, 2'b00};
-        dc_exc.upc = fes_i386_ucode_pkg::UC_VECTOR;
+        dc_exc.upc = cr0_pe ? fes_i386_ucode_pkg::UC_PVEC : fes_i386_ucode_pkg::UC_VECTOR;
         dc_exc.seq = fes_i386_pkg::SEQ_UCODE;
         dc_exc.more = 1'b1;
         dc_exc.gov.op = 8'hcd;  // the governor charges a delivery as INT
@@ -587,6 +638,16 @@ module fes_i386_cpu #(
     assign sst = dc.nochk ? pop_ss32 : ss32;
     always_ff @(posedge clk) if (issue && stk == fes_i386_pkg::STK_PEEK) pop_ss32 <= ss32;
     assign st_size = dc.opsize32 ? 32'd4 : 32'd2;
+    // A protected-mode delivery without an error code drops the uops of its
+    // slot (errp): the probe and the store, and its jump steps ESP one slot
+    // less. An INT n's never has one.
+    logic        no_err;
+    logic [3:0]  slot_eff;
+    logic [31:0] slot_off;
+    assign no_err = !(exc_active && exc_haserr);
+    assign slot_eff = dc.slot + 4'(dc.errp && no_err && stk == fes_i386_pkg::STK_RETF);
+    // A slot, as a shift of the signed slot (no carry chain).
+    assign slot_off = dc.opsize32 ? {{26{slot_eff[3]}}, slot_eff, 2'b00} : {{27{slot_eff[3]}}, slot_eff, 1'b0};
     always_comb begin
         st_disp = 32'd0;
         st_sp_disp = st_size;
@@ -596,16 +657,18 @@ module fes_i386_cpu #(
                 st_sp_disp = -st_size;
             end
             fes_i386_pkg::STK_RET_IMM: st_sp_disp = st_size + dc.uop.imm;
-            // A slot, as a shift of the signed slot (no carry chain); its
-            // step of ESP goes past the eight slots, down from below ESP.
+            // Its step of ESP goes past the eight slots, down from below ESP.
             fes_i386_pkg::STK_PEEK: begin
-                st_disp = dc.opsize32 ? {{26{dc.slot[3]}}, dc.slot, 2'b00} : {{27{dc.slot[3]}}, dc.slot, 1'b0};
+                st_disp = slot_off;
                 st_sp_disp = dc.slot[3] ? -(st_size << 3) : st_size << 3;
             end
             // A probe reads the lowest slot: INT's three words, or a far
-            // call's two pushes below ESP.
-            fes_i386_pkg::STK_PROBE: st_disp = dc.uop.probe == fes_i386_pkg::PROBE_INT ? -32'd6 : -(st_size << 1);
-            fes_i386_pkg::STK_RETF: st_sp_disp = (dc.slot[0] ? st_size * 32'd3 : st_size << 1) + dc.uop.imm;
+            // call's two pushes below ESP; or, given a slot, that slot (a
+            // protected-mode transfer probes each of its slots).
+            fes_i386_pkg::STK_PROBE: st_disp = dc.uop.probe == fes_i386_pkg::PROBE_INT ? -32'd6
+                                             : dc.slot != 4'd0 ? slot_off : -(st_size << 1);
+            // A far transfer's step by its slots, and RETF's imm16.
+            fes_i386_pkg::STK_RETF: st_sp_disp = slot_off + dc.uop.imm;
             default: ;
         endcase
         if (!sst) begin
@@ -656,10 +719,21 @@ module fes_i386_cpu #(
     assign t_wait = dc.t_rd && t_busy;
     // A protected-mode segment load reads nothing for a null selector, and
     // writes the accessed bit only when the descriptor's is clear (T3's bit
-    // 8). A CR0 write (T1) with PG raises #GP(0) when PE is clear and stops
-    // as not built when it is set: paging is not built.
-    logic t0_null, cr0_gp, cr0_pg_unimpl;
+    // 8); LAR's kin read nothing for a selector past its table (t0_oor),
+    // LLDT and LTR nothing for a TI=1 one. A CR0 write (T1) with PG raises
+    // #GP(0) when PE is clear and stops as not built when it is set: paging
+    // is not built.
+    logic t0_null, t0_oor, cr0_gp, cr0_pg_unimpl, desc_t0, desc_drop, arpl_adj;
     assign t0_null = t0[15:2] == 14'd0;
+    assign t0_oor = t0[2] ? !ldtr_valid || ldt_tiny7 || {16'd0, t0[15:3], 3'd0} > ldt_lim7
+                          : gdt_tiny7 || {t0[15:3], 3'd0} > gdt_lim7;
+    assign desc_t0 = dc.uop.desc == 3'(fes_i386_pkg::DESC_LO) || dc.uop.desc == 3'(fes_i386_pkg::DESC_HI)
+                  || dc.uop.desc == 3'(fes_i386_pkg::DESC_ACC) || dc.uop.desc == 3'(fes_i386_pkg::DESC_BUSY);
+    assign desc_drop = desc_t0 && (t0_null || dc.uop.desc == 3'(fes_i386_pkg::DESC_ACC) && t3[8]
+                                   || dc.dmode == 2'(fes_i386_pkg::DM_PROBE) && t0_oor
+                                   || dc.dmode == 2'(fes_i386_pkg::DM_GDT) && t0[2]);
+    // ARPL writes its destination, and sets ZF, only when it raises the RPL.
+    assign arpl_adj = t1[1:0] < t2[1:0];
     assign cr0_gp = dc.uop.cls == fes_i386_pkg::UOP_SYSTEM && dc.uop.op == 5'(fes_i386_pkg::SYSOP_CR0) && t1[31]
                  && !t1[0];
     assign cr0_pg_unimpl = dc.uop.cls == fes_i386_pkg::UOP_SYSTEM && dc.uop.op == 5'(fes_i386_pkg::SYSOP_CR0) && t1[31]
@@ -667,16 +741,39 @@ module fes_i386_cpu #(
     always_comb begin
         u = dc.uop;
         if (stk != fes_i386_pkg::STK_NONE) u.mem.addr32 = sst;
-        if (dc.uop.desc != 2'd0 && (t0_null || dc.uop.desc == 2'd3 && t3[8])) u.mem.kind = fes_i386_pkg::MEM_NONE;
+        if (desc_drop || dc.errp && no_err && stk != fes_i386_pkg::STK_RETF) u.mem.kind = fes_i386_pkg::MEM_NONE;
+        // LAR, LSL, VERR, VERW and ARPL (SEGOP_ZF): which, in imm[3:1], for
+        // M1's result; ARPL's own in imm[0].
+        if (dc.b_sys && dc.sys_idx == 4'(fes_i386_pkg::SYS_RD_ARPL)) begin
+            u.imm[0] = arpl_adj;
+            if (!arpl_adj) begin
+                u.dst.valid = 1'b0;
+                u.mem.kind = fes_i386_pkg::MEM_NONE;
+            end
+        end
+        if (dc.b_sys && dc.sys_idx >= 4'(fes_i386_pkg::SYS_RD_LAR))
+            u.imm[3:1] = 3'(dc.sys_idx - 4'(fes_i386_pkg::SYS_RD_LAR) + 4'd1);
+        // A protected-mode delivery's EFLAGS image: its RF, and whether the
+        // gate is a trap gate, which keeps IF.
+        if (dc.uop.cls == fes_i386_pkg::UOP_ALU && dc.uop.op == 5'(fes_i386_pkg::ALU_FLAGS)
+            && dc.uop.imm[3:0] == 4'(fes_i386_pkg::FLAG_READ_PM))
+            u.imm[5:4] = {gate_trap, exc_active && del_rf};
         // POPAD's ESP image counts only on a 16-bit stack.
         if (dc.popad_esp && !(dc.opsize32 && !ss32)) u.dst.valid = 1'b0;
-        if (!s_kill1 && d_unimpl && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+        if (!s_kill1 && d_unimpl && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
             u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
-        if (!s_kill1 && far_bad && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+            u.ctl.why = wrap16 || cs_odd || call_target_unimpl ? fes_i386_pkg::WHY_CS_LIMIT : fes_i386_pkg::WHY_STACK64K;
+        end
+        if (!s_kill1 && far_bad && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
             u.ctl.fault = seg_cs_ffff ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_UNIMPLEMENTED;
+            u.ctl.why = fes_i386_pkg::WHY_CS_LIMIT;
+        end
         if (!s_kill1 && (cs_gp || call_target_gp)) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
         if (cr0_gp && u.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
-        if (cr0_pg_unimpl && u.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
+        if (cr0_pg_unimpl && u.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
+            u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
+            u.ctl.why = fes_i386_pkg::WHY_PAGING;
+        end
         u.str_down = s_down;
     end
     assign opsize32 = dc.opsize32;
@@ -696,11 +793,21 @@ module fes_i386_cpu #(
     logic [31:0] disp_add;
     assign sp_wraps = !ss32 && (dc.opsize32 ? &gpr[4][15:2] : &gpr[4][15:1]);
     // A descriptor's part is at its selector's index times 8 in the table:
-    // its low dword, its high dword (+4) or its access byte (+5). LGDT's and
-    // SGDT's base is 2 bytes past the ModRM operand (plus2).
+    // its low dword, its high dword (+4, LTR's busy store too) or its access
+    // byte (+5); a delivery's gate at the vector times 8 in the IDT. LGDT's
+    // and SGDT's base is 2 bytes past the ModRM operand (plus2).
+    logic [31:0] desc_disp;
+    always_comb
+        case (dc.uop.desc)  // not cast to desc_e: DeanoC/yosys#72
+            3'(fes_i386_pkg::DESC_HI), 3'(fes_i386_pkg::DESC_BUSY): desc_disp = {16'b0, t0[15:3], 3'd4};
+            3'(fes_i386_pkg::DESC_ACC): desc_disp = {16'b0, t0[15:3], 3'd5};
+            3'(fes_i386_pkg::DESC_IDT_LO): desc_disp = {21'b0, dc.far_sel[9:2], 3'd0};
+            3'(fes_i386_pkg::DESC_IDT_HI): desc_disp = {21'b0, dc.far_sel[9:2], 3'd4};
+            default: desc_disp = {16'b0, t0[15:3], 3'd0};
+        endcase
     assign disp_add = dc.plus2 ? 32'd2 : dc.sel_part ? st_size
                     : {sp_wraps ? -{12'd0, dc.esp_wrap} : 16'd0, 10'd0, dc.esp_adj};
-    assign lea_disp = dc.uop.desc != 2'd0 ? {16'b0, t0[15:3], dc.uop.desc[1], 1'b0, dc.uop.desc[0] && dc.uop.desc[1]}
+    assign lea_disp = dc.uop.desc != 3'd0 ? desc_disp
                     : dc.uop.mem.system ? {16'b0, dc.far_sel[15:2], dc.sel_part, 1'b0}
                     : !dc.sel_part && !dc.plus2 && dc.esp_adj == 6'd0 ? dc.lea_disp
                     : dc.uop.mem.addr32 ? dc.lea_disp + disp_add : {16'b0, dc.lea_disp[15:0] + disp_add[15:0]};
@@ -996,6 +1103,15 @@ module fes_i386_cpu #(
         end
     end
 
+`ifdef FES_I386_DEBUG
+    always_ff @(posedge clk) if (issue && u.ctl.fault == fes_i386_pkg::FAULT_UNIMPLEMENTED)
+        $display("DBG unimpl eip=%h wrap16=%b cs_odd=%b small=%b ffff=%b flat=%b code32=%b dcfault=%0d probe=%b calltu=%b",
+                 d_eip, wrap16, cs_odd, seg_cs_small, seg_cs_ffff, seg_cs_flat, code32, dc.uop.ctl.fault, dc.uop.probe, call_target_unimpl);
+    always_ff @(posedge clk) if (issue && dc.uop.cls == fes_i386_pkg::UOP_SEGMENT)
+        $display("DBG zf issue t1=%h t2=%h adj=%b kind=%0d dstv=%b sys=%0d bsys=%b", t1, t2, arpl_adj, u.mem.kind, u.dst.valid, dc.sys_idx, dc.b_sys);
+    always_ff @(posedge clk) if (wb_s.valid && !freeze && wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_TEMP)
+        $display("DBG temp write idx=%h result=%h cls=%0d fault=%0d", wb_s.uop.dst.index, wb_s.result, wb_s.uop.cls, wb_s.uop.ctl.fault);
+`endif
     // ---- D/AG register --------------------------------------------------------------
     logic        ag_addr32;
     logic [31:0] ag_row, ag_last, ag_disp, ag_seg_term;
@@ -1005,17 +1121,23 @@ module fes_i386_cpu #(
     logic [31:0] ag_sp_disp;
     logic [15:0] ag_sp_hi;
     pipe_t       d_out;
-    // A system register as src2's value (decoded_t b_sys).
+    // A system register as src2's value (decoded_t b_sys). LAR's kin take
+    // theirs in M1, from the staged descriptor.
     logic [31:0] sys_val;
     always_comb begin
         case (dc.sys_idx)  // not cast to sys_rd_e: DeanoC/yosys#72
-            3'(fes_i386_pkg::SYS_RD_CR0): sys_val = cr0_rd;
-            3'(fes_i386_pkg::SYS_RD_CR2): sys_val = cr2;
-            3'(fes_i386_pkg::SYS_RD_CR3): sys_val = cr3;
-            3'(fes_i386_pkg::SYS_RD_GDTL): sys_val = {16'd0, gdtr_limit};
-            3'(fes_i386_pkg::SYS_RD_GDTB): sys_val = gdtr_base;
-            3'(fes_i386_pkg::SYS_RD_IDTL): sys_val = {16'd0, idtr_limit};
-            default: sys_val = idtr_base;
+            4'(fes_i386_pkg::SYS_RD_CR0): sys_val = cr0_rd;
+            4'(fes_i386_pkg::SYS_RD_CR2): sys_val = cr2;
+            4'(fes_i386_pkg::SYS_RD_CR3): sys_val = cr3;
+            4'(fes_i386_pkg::SYS_RD_GDTL): sys_val = {16'd0, gdtr_limit};
+            4'(fes_i386_pkg::SYS_RD_GDTB): sys_val = gdtr_base;
+            4'(fes_i386_pkg::SYS_RD_IDTL): sys_val = {16'd0, idtr_limit};
+            4'(fes_i386_pkg::SYS_RD_IDTB): sys_val = idtr_base;
+            4'(fes_i386_pkg::SYS_RD_LDTR): sys_val = {16'd0, ldtr_sel};
+            4'(fes_i386_pkg::SYS_RD_TR): sys_val = {16'd0, tr_sel};
+            4'(fes_i386_pkg::SYS_RD_ERR): sys_val = {16'd0, exc_err};
+            4'(fes_i386_pkg::SYS_RD_ARPL): sys_val = {16'd0, t1[15:2], t2[1:0]};
+            default: sys_val = 32'd0;
         endcase
     end
     always_comb begin
@@ -1026,9 +1148,10 @@ module fes_i386_cpu #(
         d_out.eip = d_eip;
         d_out.eip_next = d_eip_next;
         d_out.a = dc.cs_base ? seg_base[SEG_CS] : dc.a_t1 ? t1 : a_val;
-        d_out.b = reads_seg ? {16'b0, seg_sel[seg_index]} : dc.push_eip ? d_eip_next : dc.b_t1 ? t1
+        d_out.b = reads_seg ? {16'b0, seg_sel[seg_index]} : dc.push_eip ? d_eip_next : dc.b_t1 ? t1 : dc.b_t4 ? t4
                 : dc.b_fp ? r_fp : dc.b_sys ? sys_val : dc.b_far ? {16'b0, dc.far_sel}
-                : dc.uop.desc == 2'd3 ? {24'b0, t3[15:9], 1'b1} : u.src2.valid ? b_val : u.imm;
+                : dc.uop.desc == 3'(fes_i386_pkg::DESC_ACC) ? {24'b0, t3[15:9], 1'b1}
+                : dc.uop.desc == 3'(fes_i386_pkg::DESC_BUSY) ? t3 | 32'h0000_0200 : u.src2.valid ? b_val : u.imm;
         d_out.c = dc.far_jmp ? {16'b0, far_sel} : c_val;
         // A CMPS element's compare takes its first load's result one stage
         // ahead (x_prev).
@@ -1041,21 +1164,25 @@ module fes_i386_cpu #(
         d_out.early = lea && lea_early;
         // A system access (mem.system) is checked against its table's limit,
         // at its first read: a real-mode vector's offset against IDTR's
-        // limit less 3, a descriptor's low dword against GDTR's less 7. Its
-        // other parts, and POP Sreg's step of ESP (nochk), are not checked.
-        // Any other access is checked against its segment (seg_chk_t).
-        // LLDT is not built, so LDTR keeps its reset value, base 0 and
-        // limit FFFFh, which no descriptor of a TI=1 selector passes.
-        d_out.mlimit = dc.uop.desc == 2'd1 && !t0[2] ? {16'b0, gdt_lim7}
-                     : dc.uop.mem.system && dc.uop.desc == 2'd0 && !dc.sel_part
+        // limit less 3, a gate's against IDTR's less 7, a descriptor's low
+        // dword against GDTR's less 7, or the LDT's for a TI=1 selector,
+        // which fails when LDTR is not valid. Its other parts, and POP Sreg's
+        // step of ESP (nochk), are not checked. Any other access is checked
+        // against its segment (seg_chk_t).
+        d_out.mlimit = dc.uop.desc == 3'(fes_i386_pkg::DESC_LO) ? (t0[2] ? ldt_lim7 : {16'b0, gdt_lim7})
+                     : dc.uop.desc == 3'(fes_i386_pkg::DESC_IDT_LO) ? {16'b0, idt_lim7}
+                     : dc.uop.mem.system && dc.uop.desc == 3'd0 && !dc.sel_part
                        ? {16'b0, idt_lim3} : dc.uop.mem.system || dc.nochk ? 32'hffff_ffff : seg_lim[mseg][msize];
-        d_out.mtiny = dc.uop.desc == 2'd1 && !t0[2] ? gdt_tiny7 : dc.uop.mem.system && dc.uop.desc == 2'd0 && !dc.sel_part
+        d_out.mtiny = dc.uop.desc == 3'(fes_i386_pkg::DESC_LO) ? (t0[2] ? ldt_tiny7 || !ldtr_valid : gdt_tiny7)
+                    : dc.uop.desc == 3'(fes_i386_pkg::DESC_IDT_LO) ? idt_tiny7
+                    : dc.uop.mem.system && dc.uop.desc == 3'd0 && !dc.sel_part
                       ? idt_tiny3 : !dc.uop.mem.system && !dc.nochk
                         && (seg_tiny[mseg][msize] || mem_reads && seg_rbad[mseg] || mem_writes && seg_wbad[mseg]);
         d_out.mlow = seg_low[mseg];
         d_out.mexpd = !dc.uop.mem.system && !dc.nochk && seg_expd[mseg];
         // Loads whose data nothing uses: probes, ENTER's last check, POP m's
         // pop into nothing, and the multiply and divide unit's LOAD and HI.
+        d_out.sdisp = st_disp[7:0];
         d_out.nodata = dc.stk == fes_i386_pkg::STK_PROBE || dc.str_fin || dc.nochk
                     || dc.seq == 5'(fes_i386_pkg::SEQ_POPM) && dc.stk == fes_i386_pkg::STK_POP
                     || (u.op == 5'd4 || u.op == 5'd5) && (u.cls == fes_i386_pkg::UOP_MUL || u.cls == fes_i386_pkg::UOP_DIV);
@@ -1126,11 +1253,11 @@ module fes_i386_cpu #(
             ag_disp <= dc.far_jmp || dc.disp_t1 ? far_off : dc.str_a || dc.str_b || dc.str_fin ? str_off
                      : stk != fes_i386_pkg::STK_NONE ? st_disp : lea_disp;
             // A system access: its table's base (GDTR's for a descriptor, or
-            // the LDT's at its reset base 0 for a TI=1 selector; IDTR's for a
-            // real-mode vector), with no wrap. A protected-mode far jump: the
+            // LDTR's for a TI=1 selector; IDTR's for a real-mode vector or a
+            // gate), with no wrap. A protected-mode far jump: the
             // descriptor's base, from T2 and T3.
             ag_seg_term <= dc.far_jmp ? (dc.uop.seg2_pm ? {t3[31:24], t3[7:0], t2[31:16]} : {12'd0, far_sel, 4'd0})
-                         : lea ? 32'd0 : dc.uop.mem.system ? (dc.uop.desc != 2'd0 ? (t0[2] ? 32'd0 : gdtr_base) : idtr_base)
+                         : lea ? 32'd0 : dc.uop.mem.system ? (desc_t0 ? (t0[2] ? ldtr_base : gdtr_base) : idtr_base)
                          : u.mem.addr32 ? seg_base[mseg] : {16'b0, seg_base[mseg][15:0]};
             ag_seg_hi <= lea || dc.uop.mem.system ? 16'd0 : seg_base[mseg][31:16];
             ag_seg_hi_plus1 <= lea || dc.uop.mem.system ? 16'd0 : seg_hi1[mseg];
@@ -1249,25 +1376,81 @@ module fes_i386_cpu #(
     assign m1_limit = m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE
                    && (m1_s.moff > m1_s.mlimit || m1_s.mtiny || m1_s.mexpd && m1_s.moff <= m1_s.mlow
                        || m1_s.uop.bound_pair && m1_bound_wrap);
-    // A protected-mode segment load's checks (segchk) come from the staged
-    // descriptor (ds_fault_*).
+    // A protected-mode segment load's, far transfer's or delivery's checks
+    // (segchk) come from the staged descriptor (ds_fault_*); what each
+    // stops on as not built, and why, follows from the check.
     fes_i386_pkg::fault_e m1_segchk;
-    assign m1_segchk = m1_s.uop.segchk == 2'd1 ? ds_fault_data : m1_s.uop.segchk == 2'd2 ? ds_fault_ss
-                     : m1_s.uop.segchk == 2'd3 ? ds_fault_cs : fes_i386_pkg::FAULT_NONE;
+    fes_i386_pkg::why_e   m1_why;
+    always_comb begin
+        m1_why = fes_i386_pkg::WHY_GATE;
+        case (m1_s.uop.segchk)  // not cast to segchk_e: DeanoC/yosys#72
+            4'(fes_i386_pkg::CHK_DATA): m1_segchk = ds_fault_data;
+            4'(fes_i386_pkg::CHK_SS): m1_segchk = ds_fault_ss;
+            4'(fes_i386_pkg::CHK_JMP): m1_segchk = ds_fault_cs;
+            4'(fes_i386_pkg::CHK_GATE): begin
+                m1_segchk = ds_fault_gate;
+                m1_why = fes_i386_pkg::WHY_TASK_GATE;
+            end
+            4'(fes_i386_pkg::CHK_INTCS): m1_segchk = ds_fault_intcs;
+            4'(fes_i386_pkg::CHK_CALL): m1_segchk = ds_fault_call;
+            4'(fes_i386_pkg::CHK_OFF): m1_segchk = ds_fault_off;
+            4'(fes_i386_pkg::CHK_RET): begin
+                m1_segchk = ds_fault_ret;
+                m1_why = fes_i386_pkg::WHY_OUTER;
+            end
+            4'(fes_i386_pkg::CHK_LDT): m1_segchk = ds_fault_ldt;
+            4'(fes_i386_pkg::CHK_TSS): m1_segchk = ds_fault_tss;
+            default: m1_segchk = fes_i386_pkg::FAULT_NONE;
+        endcase
+    end
+    // A protected-mode far CALL's, RETF's or IRET's slot on a 16-bit stack
+    // (nwrap) is at SP plus or less its displacement without the 64 KiB
+    // wrap, as Bochs reads and writes it: one that wraps is past an
+    // expand-down stack's top or a 64 KiB limit (#SS(0)), and under a
+    // larger limit at an offset this build does not address, which stops it
+    // as not built.
+    logic m1_wrap, m1_ss_far;
+    assign m1_wrap = m1_s.uop.nwrap && !m1_s.uop.mem.addr32 && m1_s.uop.mem.kind != fes_i386_pkg::MEM_NONE
+                  && (m1_s.sdisp[7] ? {1'b0, m1_s.moff[15:0]} + {9'd0, -m1_s.sdisp} > 17'h0_ffff
+                                    : m1_s.moff[15:0] < {8'd0, m1_s.sdisp});
+    assign m1_ss_far = seg_limit[SEG_SS][31:16] != 16'd0 && !seg_expd[SEG_SS];
+    // LAR, LSL, VERR and VERW (SEGOP_ZF, imm[3:1]): ZF in imm[0] and LAR's
+    // and LSL's result in b, from the staged descriptor.
+    logic [2:0] m1_zk;
+    assign m1_zk = m1_s.uop.cls == fes_i386_pkg::UOP_SEGMENT && m1_s.uop.op == 5'(fes_i386_pkg::SEGOP_ZF)
+                 ? m1_s.uop.imm[3:1] : 3'd0;
     always_comb begin
         m1_out = capture(m1_s, 3'd3, wb_s.result);
         m1_out.pbad = m1_probe_bad;
         // A st2 uop's second address faults after its first. A descriptor
-        // past GDTR's limit raises #GP(selector), a vector's entry past
-        // IDTR's #GP(0).
-        if (m1_limit && m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
-            m1_out.uop.ctl.fault = m1_s.uop.desc != 2'd0 ? fes_i386_pkg::FAULT_GP_SEL
+        // past its table's limit raises #GP(selector), a gate past IDTR's
+        // #GP with its IDT entry, a vector's entry past it #GP(0).
+        if ((m1_limit || m1_wrap) && m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
+            m1_out.uop.ctl.fault = m1_s.uop.desc == 3'(fes_i386_pkg::DESC_IDT_LO) ? fes_i386_pkg::FAULT_GP_IDT
+                                 : m1_s.uop.desc != 3'd0 ? fes_i386_pkg::FAULT_GP_SEL
+                                 : m1_wrap && !m1_limit && m1_ss_far ? fes_i386_pkg::FAULT_UNIMPLEMENTED
                                  : !m1_s.uop.mem.system && m1_s.uop.mem.seg == fes_i386_pkg::SEG_SS ? fes_i386_pkg::FAULT_SS0
                                  : fes_i386_pkg::FAULT_GP0;
-        else if (m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE && m1_s.uop.segchk != 2'd0)
+            m1_out.uop.ctl.why = fes_i386_pkg::WHY_STACK64K;
+        end else if (m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE && m1_s.uop.segchk != 4'd0) begin
             m1_out.uop.ctl.fault = m1_segchk;
-        else if (m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+            m1_out.uop.ctl.why = m1_why;
+        end else if (m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
             m1_out.uop.ctl.fault = m1_s.dfault;
+        end
+        case (m1_zk)
+            3'd1: begin
+                m1_out.uop.imm[0] = ds_lar_ok;
+                m1_out.b = ds_lar;
+            end
+            3'd2: begin
+                m1_out.uop.imm[0] = ds_lsl_ok;
+                m1_out.b = ds_limit;
+            end
+            3'd3: m1_out.uop.imm[0] = ds_verr_ok;
+            3'd4: m1_out.uop.imm[0] = ds_verw_ok;
+            default: ;
+        endcase
     end
     assign dmem_addr = m1_s.maddr;
     assign dmem_read = m1_s.valid && reads_mem(m1_s) && !freeze && !halted && !wb_stop;
@@ -1499,13 +1682,20 @@ module fes_i386_cpu #(
         // at the branch, under CS's real-mode limit (FAULT_UNIMPLEMENTED
         // under a larger one, as wrap16 in D). A fault M1 found stands.
         if (ex_s.exc.b_ind && !code32 && ex_ind_eip[31:16] != 16'd0
-            && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+            && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
             ex_out.uop.ctl.fault = seg_cs_ffff ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_UNIMPLEMENTED;
+            ex_out.uop.ctl.why = fes_i386_pkg::WHY_CS_LIMIT;
+        end
         // A faulting branch terminates the pipeline without redirecting to its
         // rejected target. This also covers faults already found in M1.
         ex_out.taken = ex_taken && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
         // BOUND's #BR, after the taken select, which a compare never sets.
         if (ex_br && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_BR;
+        // IRETD's EFLAGS image with VM set returns to V86 mode, not built.
+        if (ex_s.uop.vmchk && ex_s.ld[17] && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
+            ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
+            ex_out.uop.ctl.why = fes_i386_pkg::WHY_V86;
+        end
         ex_out.sh_out0 = ex_sh_out0;
         ex_out.sh_outn = ex_sh_outn;
         ex_out.sh_cfw = ex_sh_cfw;
@@ -1628,26 +1818,41 @@ module fes_i386_cpu #(
         rt_bytes <= wb_s.uop.mem.bytes;
     end
 
-    // A uop that enters WB faulting is delivered unless a delivery is under
-    // way then: exc_active, unless the delivery's last uop retires now. A
-    // flush clears what enters WB, so a delivery starting now needs no term.
-    // Once halted, nothing enters WB.
-    logic ex_deliver, exc_busy;
+    // A uop that enters WB faulting is delivered. While a delivery is under
+    // way (exc_busy: exc_active, unless the delivery's last uop retires now)
+    // it is a nested fault (wb_nested), with EXT in its error code: a double
+    // fault in its place when the delivery's exception and it are both
+    // contributory (wb_df), and the CPU shuts down when the delivery is a
+    // double fault's (wb_shut). A flush clears what enters WB, so a
+    // delivery starting now needs no term. Once halted, nothing enters WB.
+    logic ex_deliver, exc_busy, ex_shut;
+    function automatic logic contributory(input logic [3:0] f);  // not fault_e: DeanoC/yosys#72
+        contributory = f == 4'(fes_i386_pkg::FAULT_DE) || f == 4'(fes_i386_pkg::FAULT_GP0)
+                    || f == 4'(fes_i386_pkg::FAULT_GP_SEL) || f == 4'(fes_i386_pkg::FAULT_GP_IDT)
+                    || f == 4'(fes_i386_pkg::FAULT_SS0) || f == 4'(fes_i386_pkg::FAULT_SS_SEL)
+                    || f == 4'(fes_i386_pkg::FAULT_NP_SEL) || f == 4'(fes_i386_pkg::FAULT_NP_IDT);
+    endfunction
     assign ex_deliver = ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_NONE
                      && ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_UNIMPLEMENTED
                      && ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_REPLAY;
     assign exc_busy = exc_active && !(wb_s.valid && wb_fault == fes_i386_pkg::FAULT_NONE && wb_eoi);
+    assign ex_shut = exc_busy && exc_class == EXC_DF;
     always_ff @(posedge clk) begin
         if (reset || wb_flush) begin
             wb_flushes <= 1'b0;
             wb_redir <= 1'b0;
             wb_deliver <= 1'b0;
+            wb_shut <= 1'b0;
         end else if (!freeze) begin
             wb_flushes <= ex_s.valid && (smc_mark || ex_out.taken || ex_out.uop.ctl.fault != fes_i386_pkg::FAULT_NONE
                                          || ex_s.uop.cls == fes_i386_pkg::UOP_SPECIAL && ex_s.uop.op == 5'd1);
-            // In protected mode a fault is not delivered: it stops the CPU.
-            wb_redir <= ex_s.valid && !smc_mark && (ex_out.taken || ex_deliver && !exc_busy && !cr0_pe);
-            wb_deliver <= ex_s.valid && !smc_mark && ex_deliver && !exc_busy && !cr0_pe;
+            wb_redir <= ex_s.valid && !smc_mark && (ex_out.taken || ex_deliver && !ex_shut);
+            wb_deliver <= ex_s.valid && !smc_mark && ex_deliver && !ex_shut;
+            wb_shut <= ex_s.valid && !smc_mark && ex_deliver && ex_shut;
+        end
+        if (!freeze) begin
+            wb_nested <= exc_busy;
+            wb_df <= exc_busy && exc_class == EXC_CONTRIB && contributory(4'(ex_out.uop.ctl.fault));
         end
     end
 
@@ -1674,8 +1879,11 @@ module fes_i386_cpu #(
     // the next instruction's (int_go). Between a REP string's elements that
     // is the string's own, since WB moves EIP only as an instruction ends:
     // the elements done have stepped ESI, EDI and ECX, so IRET returns to
-    // the string, which runs on from there. An NMI's vector is 2.
-    logic       nmi_q, nmi_pend, nmi_edge, nmi_block, movss_sh;
+    // the string, which runs on from there. An NMI's vector is 2. In
+    // protected mode the delivery goes through the IDT (dc_exc), its EFLAGS
+    // image with RF set between a REP string's elements (int_rep), as
+    // Bochs's REP sets it when an event stops one.
+    logic       nmi_q, nmi_pend, nmi_edge, nmi_block, movss_sh, int_rep;
     logic [7:0] int_vec;
     logic       wb_commit, at_boundary, in_hlt, wb_ss_load, wb_sti, sh_ss, int_shadow, nmi_ok, int_if;
     assign wb_commit = wb_s.valid && !halted && !freeze && !int_take && wb_fault == fes_i386_pkg::FAULT_NONE;
@@ -1689,16 +1897,7 @@ module fes_i386_cpu #(
     assign nmi_edge = nmi && !nmi_q;
     assign nmi_ok = (nmi_pend || nmi_edge) && (!nmi_block || at_boundary && wb_s.uop.iret);
     assign int_if = at_boundary ? wb_flags[9] : eflags[9];
-    // In protected mode an interrupt is not taken: it stops the CPU (pm_int),
-    // with the instruction before it retired and no INTA. At the boundary of
-    // a CR0 write that is the mode the write leaves (pe_after).
-    logic int_any, pm_int, pe_after, wb_cr0w;
-    assign wb_cr0w = wb_s.uop.cls == fes_i386_pkg::UOP_SYSTEM
-                  && (wb_s.uop.op == 5'(fes_i386_pkg::SYSOP_CR0) || wb_s.uop.op == 5'(fes_i386_pkg::SYSOP_LMSW));
-    assign pe_after = at_boundary && wb_cr0w ? t1[0] || cr0_pe && wb_s.uop.op == 5'(fes_i386_pkg::SYSOP_LMSW) : cr0_pe;
-    assign int_any = (at_boundary && !int_shadow || in_hlt) && (nmi_ok || intr && int_if);
-    assign int_next = int_any && !pe_after;
-    assign pm_int = int_any && pe_after;
+    assign int_next = (at_boundary && !int_shadow || in_hlt) && (nmi_ok || intr && int_if);
     assign inta_req = int_wait;
     always_ff @(posedge clk) begin
         nmi_q <= nmi;
@@ -1720,6 +1919,7 @@ module fes_i386_cpu #(
                 int_take <= 1'b1;
                 int_nmi <= nmi_ok;
                 int_wait <= !nmi_ok;
+                int_rep <= at_boundary && !wb_eoi;
                 if (nmi_ok) nmi_block <= 1'b1;
             end else if (int_go) begin
                 int_take <= 1'b0;
@@ -1748,22 +1948,48 @@ module fes_i386_cpu #(
         .hold(gov_hold), .debt_clocks(trace_gov_debt), .charge(trace_gov_charge)
     );
 
-    // trace_vector: the delivered fault's or interrupt's vector, or 8 once a
-    // fault in a delivery has stopped the CPU, or in protected mode the
-    // vector that stopped it (trace_pm_stop), with the error code of a fault
-    // that names a selector (trace_error).
+    // trace_vector: the delivered fault's or interrupt's vector, or the one
+    // whose delivery stopped as not built (a task gate's); trace_error: the
+    // delivered fault's error code.
     always_ff @(posedge clk) exc_inject <= !reset && (exc_take || int_go);
     assign trace_vector = exc_vec;
+    assign trace_error = exc_err;
     function automatic logic [7:0] fault_vector(input logic [3:0] f);  // not fault_e: DeanoC/yosys#72
         case (f)
             4'(fes_i386_pkg::FAULT_UD): fault_vector = 8'd6;
-            4'(fes_i386_pkg::FAULT_GP0), 4'(fes_i386_pkg::FAULT_GP_SEL): fault_vector = 8'd13;
+            4'(fes_i386_pkg::FAULT_GP0), 4'(fes_i386_pkg::FAULT_GP_SEL), 4'(fes_i386_pkg::FAULT_GP_IDT): fault_vector = 8'd13;
             4'(fes_i386_pkg::FAULT_NM): fault_vector = 8'd7;
             4'(fes_i386_pkg::FAULT_DE): fault_vector = 8'd0;
             4'(fes_i386_pkg::FAULT_BR): fault_vector = 8'd5;
-            4'(fes_i386_pkg::FAULT_NP_SEL): fault_vector = 8'd11;
+            4'(fes_i386_pkg::FAULT_NP_SEL), 4'(fes_i386_pkg::FAULT_NP_IDT): fault_vector = 8'd11;
             default: fault_vector = 8'd12;  // FAULT_SS0, FAULT_SS_SEL
         endcase
+    endfunction
+    // The vector a delivery's gate was read for, kept from its first read
+    // for the gate's checks' error code (vector * 8 + 2) and the vector of a
+    // delivery that stops as not built.
+    logic [7:0] idt_vec, wb_idt_vec;
+    assign wb_idt_vec = wb_s.uop.desc == 3'(fes_i386_pkg::DESC_IDT_LO) ? wb_s.moff[10:3] : idt_vec;
+    always_ff @(posedge clk)
+        if (wb_s.valid && !freeze && wb_s.uop.desc == 3'(fes_i386_pkg::DESC_IDT_LO)) idt_vec <= wb_s.moff[10:3];
+    // A fault's error code, which a protected-mode delivery pushes for #DF,
+    // #NP, #SS and #GP: a selector's, the IDT entry's, or 0; EXT (bit 0) is
+    // set for a fault in a delivery (wb_nested), and a double fault's is 0.
+    logic [15:0] wb_err;
+    logic [7:0]  wb_vec;
+    always_comb begin
+        case (wb_fault)
+            4'(fes_i386_pkg::FAULT_GP_SEL), 4'(fes_i386_pkg::FAULT_NP_SEL), 4'(fes_i386_pkg::FAULT_SS_SEL):
+                wb_err = {t0[15:2], 2'b00};
+            4'(fes_i386_pkg::FAULT_GP_IDT), 4'(fes_i386_pkg::FAULT_NP_IDT): wb_err = {5'd0, wb_idt_vec, 3'b010};
+            default: wb_err = 16'd0;
+        endcase
+        wb_err[0] = wb_nested;
+        wb_vec = fault_vector(wb_fault);
+    end
+    // The exceptions a protected-mode delivery pushes an error code for.
+    function automatic logic pushes_error(input logic [7:0] v);
+        pushes_error = v == 8'd8 || v == 8'd10 || v == 8'd11 || v == 8'd12 || v == 8'd13;
     endfunction
     // SS can take INT's probe: a writable, expand-up 16-bit stack under the
     // real-mode limit FFFFh (the probe's wrap rule), or a limit past 10000h,
@@ -1825,34 +2051,65 @@ module fes_i386_cpu #(
                 seg_rbad[k] <= init_chk[k].rbad;
                 seg_wbad[k] <= init_chk[k].wbad;
             end
+            ldtr_sel <= init_ldtr_sel;
+            ldtr_base <= init_ldtr_base;
+            ldtr_limit <= init_ldtr_limit;
+            ldtr_ar <= init_ldtr_ar;
+            ldtr_valid <= init_ldtr_valid;
+            ldt_lim7 <= init_ldtr_limit - 32'd7;
+            ldt_tiny7 <= init_ldtr_limit < 32'd7;
+            idt_lim7 <= init_idtr_limit - 16'd7;
+            idt_tiny7 <= init_idtr_limit < 16'd7;
+            tr_sel <= init_tr_sel;
+            tr_base <= init_tr_base;
+            tr_limit <= init_tr_limit;
+            tr_ar <= init_tr_ar;
             hlt <= 1'b0;
             halted <= 1'b0;
+            shutdown <= 1'b0;
             trace_unimplemented <= 1'b0;
-            trace_pm_stop <= 1'b0;
-            trace_error <= 16'd0;
+            trace_unbuilt <= 4'd0;
             exc_active <= 1'b0;
             exc_vec <= 8'd0;
+            exc_err <= 16'd0;
+            exc_class <= EXC_BENIGN;
+            exc_haserr <= 1'b0;
+            del_rf <= 1'b0;
         end else if (int_go) begin
+            // An INTR or NMI: benign, with no error code; its EFLAGS image's
+            // RF is EFLAGS', or set between a REP string's elements.
             exc_active <= 1'b1;
             exc_vec <= int_nmi ? 8'd2 : int_vec;
+            exc_err <= 16'd0;
+            exc_class <= EXC_BENIGN;
+            exc_haserr <= 1'b0;
+            del_rf <= eflags[16] || int_rep;
             hlt <= 1'b0;
             halted <= 1'b0;
         end else if (wb_s.valid && !halted && !freeze) begin
             if (exc_take) begin
+                // A fault, or one in a delivery in that delivery's place: a
+                // double fault when both are contributory.
                 exc_active <= 1'b1;
-                exc_vec <= fault_vector(wb_fault);
+                exc_vec <= wb_df ? 8'd8 : wb_vec;
+                exc_err <= wb_df ? 16'd0 : wb_err;
+                exc_class <= wb_df ? EXC_DF : contributory(wb_fault) ? EXC_CONTRIB : EXC_BENIGN;
+                exc_haserr <= cr0_pe && (wb_df || pushes_error(wb_vec));
+                del_rf <= 1'b1;
             end else if (wb_fault == fes_i386_pkg::FAULT_REPLAY) begin
                 // A replay: nothing retires, and the front end restarts (rp_go).
+            end else if (wb_shut) begin
+                // A fault in a double fault's delivery: shutdown, which the
+                // machine turns into a reset.
+                halted <= 1'b1;
+                shutdown <= 1'b1;
             end else if (wb_fault != fes_i386_pkg::FAULT_NONE) begin
-                // An encoding not built, a fault in a delivery, or a fault in
-                // protected mode, whose delivery is not built.
+                // Something not built (FAULT_UNIMPLEMENTED), and why: a
+                // delivery's with its vector.
                 halted <= 1'b1;
                 trace_unimplemented <= 1'b1;
-                trace_pm_stop <= cr0_pe && !exc_active && wb_fault != fes_i386_pkg::FAULT_UNIMPLEMENTED;
-                exc_vec <= wb_fault == fes_i386_pkg::FAULT_UNIMPLEMENTED ? 8'd0
-                         : cr0_pe && !exc_active ? fault_vector(wb_fault) : 8'd8;
-                trace_error <= wb_fault == fes_i386_pkg::FAULT_GP_SEL || wb_fault == fes_i386_pkg::FAULT_NP_SEL
-                            || wb_fault == fes_i386_pkg::FAULT_SS_SEL ? {t0[15:2], 2'b00} : 16'd0;
+                trace_unbuilt <= wb_s.uop.ctl.why;
+                exc_vec <= wb_s.uop.ctl.why == fes_i386_pkg::WHY_TASK_GATE ? wb_idt_vec : 8'd0;
             end else begin
                 trace_retire <= wb_eoi;
                 trace_exception <= wb_eoi && exc_active;
@@ -1906,15 +2163,50 @@ module fes_i386_cpu #(
                             idtr_base <= {wb_s.uop.size == fes_i386_pkg::SIZE_32 ? t1[31:24] : 8'd0, t1[23:0]};
                             idt_lim3 <= t0 - 16'd3;
                             idt_tiny3 <= t0 < 16'd3;
+                            idt_lim7 <= t0 - 16'd7;
+                            idt_tiny7 <= t0 < 16'd7;
+                        end
+                        // LLDT: a null selector leaves LDTR's cache and
+                        // clears its valid bit, as Bochs does.
+                        5'(fes_i386_pkg::SYSOP_LDTR): begin
+                            ldtr_sel <= t0;
+                            ldtr_valid <= !ds_null;
+                            if (!ds_null) begin
+                                ldtr_base <= ds_base;
+                                ldtr_limit <= ds_limit;
+                                ldtr_ar <= ds_sar;
+                                ldt_lim7 <= ds_limit - 32'd7;
+                                ldt_tiny7 <= ds_limit < 32'd7;
+                            end
+                        end
+                        // LTR: TR from its descriptor, marked busy.
+                        5'(fes_i386_pkg::SYSOP_TR): begin
+                            tr_sel <= t0;
+                            tr_base <= ds_base;
+                            tr_limit <= ds_limit;
+                            tr_ar <= ds_sar | 16'h0002;
+                        end
+                        // A delivery's gate (T1 its low dword, T3 its high):
+                        // T0 its selector, T1 its offset, a 286 gate's 16 bits.
+                        5'(fes_i386_pkg::SYSOP_GATE): begin
+                            t0 <= t1[31:16];
+                            t1 <= {t3[11] ? t3[31:16] : 16'd0, t1[15:0]};
+                            gate32 <= t3[11];
+                            gate_trap <= t3[8];
                         end
                         default: cr0_ts <= 1'b0;  // SYSOP_CLTS
                     endcase
                 end
-                if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_TEMP) begin
+                if (wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_TEMP
+                    && wb_s.uop.cls != fes_i386_pkg::UOP_SYSTEM) begin
                     if (!wb_s.uop.dst.index[3]) t0 <= wb_s.result[15:0];
-                    else if (wb_s.uop.dst.index[1]) t3 <= wb_s.result;
-                    else if (wb_s.uop.dst.index[0]) t2 <= wb_s.result;
-                    else t1 <= wb_s.result;
+                    else
+                        case (wb_s.uop.dst.index[1:0])
+                            2'd0: t1 <= wb_s.result;
+                            2'd1: t2 <= wb_s.result;
+                            2'd2: t3 <= wb_s.result;
+                            default: t4 <= wb_s.result;
+                        endcase
                 end
                 if (seg_w) begin
                     // Protected mode: the segment from T0's descriptor (the
@@ -1967,13 +2259,6 @@ module fes_i386_cpu #(
                 end
             end
         end
-        if (!reset && pm_int) begin
-            halted <= 1'b1;
-            trace_unimplemented <= 1'b1;
-            trace_pm_stop <= 1'b1;
-            exc_vec <= nmi_ok ? 8'd2 : 8'hff;
-            trace_error <= 16'd0;
-        end
     end
     assign trace_halt = halted;
 
@@ -1999,7 +2284,32 @@ module fes_i386_cpu #(
     //         anything else #GP(selector); data, #GP(selector);
     //         non-conforming with DPL or RPL not 0, or conforming with DPL
     //         not 0, #GP(selector); not present, #NP(selector); an offset
+    //         past the limit, #GP(0). A far CALL's are the same, its offset
+    //         checked apart after the stack's (call_protected, branch_far).
+    //   RET:  RETF's and IRET's CS (return_protected, iret_protected,
+    //         check_cs against the RPL): null, #GP(0); system or data,
+    //         #GP(selector); non-conforming with DPL not RPL, or conforming
+    //         with DPL above RPL, #GP(selector); not present, #NP(selector);
+    //         RPL not 0, a return to an outer privilege, not built; an offset
     //         past the limit, #GP(0).
+    //   GATE: a delivery's gate in T3 (protected_mode_int): an interrupt or
+    //         trap gate; a task gate not built; anything else #GP, not
+    //         present #NP, each with the IDT entry. The gate's DPL is never
+    //         below CPL 0.
+    //   INTCS: the gate's CS: null, #GP(0); system, data or DPL not 0,
+    //         #GP(selector); not present, #NP(selector); the gate's offset
+    //         (T1, from SYSOP_GATE) past the limit, #GP(0). At CPL 0 no
+    //         delivery changes privilege.
+    //   LDT:  LLDT's: none for null; TI=1 or not an LDT, #GP(selector); not
+    //         present, #NP(selector). TSS: LTR's: null, #GP(0); TI=1 or not
+    //         an available TSS, #GP(selector); not present, #NP(selector).
+    // And for LAR, LSL, VERR and VERW (Bochs's LAR_GvEw and its kin, at
+    // CPL 0) whether the descriptor passes, ZF: not for a null selector or
+    // one past its table (ds_oor); LAR takes code and data with DPL at
+    // least RPL, conforming code at any, and LDTs, TSSs, call gates and
+    // task gates with DPL at least RPL; LSL the same but no gates; VERR
+    // readable code and data, DPL at least RPL unless conforming; VERW
+    // writable data, DPL at least RPL.
     logic        dd_null, dd_p, dd_s, dd_code, dd_conf, dd_rw, dd_gate;
     logic [1:0]  dd_dpl, dd_rpl;
     logic [3:0]  dd_type;
@@ -2021,12 +2331,50 @@ module fes_i386_cpu #(
     assign dd_base = {t3[31:24], t3[7:0], t2[31:16]};
     // The 386 has no L bit (descriptor bit 21): Bochs's cache drops it.
     assign dd_ar = {t3[23:22], 1'b0, t3[20], 4'd0, t3[15:9], 1'b1};
-    logic                   ds_ffff, ds_flat, ds_small;
-    logic [31:0]            ds_base, ds_limit;
-    logic [15:0]            ds_ar, ds_hi1;
+    logic        dd_cs_bad, dd_ret_bad, dd_igate, dd_lar, dd_lsl;
+    // A code segment for a far jump or call at CPL 0, as check_cs(RPL, 0);
+    // for a return, as check_cs(0, RPL).
+    assign dd_cs_bad = !dd_code || (dd_conf ? dd_dpl != 2'd0 : dd_dpl != 2'd0 || dd_rpl != 2'd0);
+    assign dd_ret_bad = !dd_s || !dd_code || (dd_conf ? dd_dpl > dd_rpl : dd_dpl != dd_rpl);
+    assign dd_igate = dd_type == 4'd6 || dd_type == 4'd7 || dd_type == 4'd14 || dd_type == 4'd15;
+    assign dd_lar = dd_type == 4'd1 || dd_type == 4'd2 || dd_type == 4'd3 || dd_type == 4'd4 || dd_type == 4'd5
+                 || dd_type == 4'd9 || dd_type == 4'd11 || dd_type == 4'd12;
+    assign dd_lsl = dd_type == 4'd1 || dd_type == 4'd2 || dd_type == 4'd3 || dd_type == 4'd9 || dd_type == 4'd11;
+    logic                   ds_ffff, ds_flat, ds_small, ds_null;
+    logic [31:0]            ds_base, ds_limit, ds_lar;
+    logic [15:0]            ds_ar, ds_sar, ds_hi1;
+    logic                   ds_lar_ok, ds_lsl_ok, ds_verr_ok, ds_verw_ok;
     fes_i386_pkg::seg_chk_t ds_chk;
-    fes_i386_pkg::fault_e   ds_fault_data, ds_fault_ss, ds_fault_cs;
+    fes_i386_pkg::fault_e   ds_fault_data, ds_fault_ss, ds_fault_cs, ds_fault_gate, ds_fault_intcs, ds_fault_call,
+                            ds_fault_off, ds_fault_ret, ds_fault_ldt, ds_fault_tss;
     always_ff @(posedge clk) begin
+        ds_null <= dd_null;
+        // A system descriptor's access rights as LDTR and TR keep them.
+        ds_sar <= {t3[23:22], 1'b0, t3[20], 4'd0, t3[15:8]};
+        ds_lar <= t3 & 32'h00ff_ff00;
+        ds_lar_ok <= !dd_null && !t0_oor && (dd_s ? dd_code && dd_conf || dd_dpl >= dd_rpl : dd_lar && dd_dpl >= dd_rpl);
+        ds_lsl_ok <= !dd_null && !t0_oor && (dd_s ? dd_code && dd_conf || dd_dpl >= dd_rpl : dd_lsl && dd_dpl >= dd_rpl);
+        ds_verr_ok <= !dd_null && !t0_oor && dd_s && (dd_code ? dd_rw && (dd_conf || dd_dpl >= dd_rpl) : dd_dpl >= dd_rpl);
+        ds_verw_ok <= !dd_null && !t0_oor && dd_s && !dd_code && dd_rw && dd_dpl >= dd_rpl;
+        ds_fault_gate <= dd_s || !(dd_igate || dd_type == 4'd5) ? fes_i386_pkg::FAULT_GP_IDT
+                       : !dd_p ? fes_i386_pkg::FAULT_NP_IDT
+                       : dd_type == 4'd5 ? fes_i386_pkg::FAULT_UNIMPLEMENTED : fes_i386_pkg::FAULT_NONE;
+        ds_fault_intcs <= dd_null ? fes_i386_pkg::FAULT_GP0
+                        : !dd_s || !dd_code || dd_dpl != 2'd0 ? fes_i386_pkg::FAULT_GP_SEL
+                        : !dd_p ? fes_i386_pkg::FAULT_NP_SEL : t1 > dd_limit ? fes_i386_pkg::FAULT_GP0
+                        : fes_i386_pkg::FAULT_NONE;
+        ds_fault_call <= dd_null ? fes_i386_pkg::FAULT_GP0
+                       : !dd_s ? (dd_dpl >= dd_rpl && dd_gate ? fes_i386_pkg::FAULT_UNIMPLEMENTED : fes_i386_pkg::FAULT_GP_SEL)
+                       : dd_cs_bad ? fes_i386_pkg::FAULT_GP_SEL : !dd_p ? fes_i386_pkg::FAULT_NP_SEL : fes_i386_pkg::FAULT_NONE;
+        ds_fault_off <= t1 > dd_limit ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_NONE;
+        ds_fault_ret <= dd_null ? fes_i386_pkg::FAULT_GP0 : dd_ret_bad ? fes_i386_pkg::FAULT_GP_SEL
+                      : !dd_p ? fes_i386_pkg::FAULT_NP_SEL : dd_rpl != 2'd0 ? fes_i386_pkg::FAULT_UNIMPLEMENTED
+                      : t1 > dd_limit ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_NONE;
+        ds_fault_ldt <= dd_null ? fes_i386_pkg::FAULT_NONE : t0[2] || dd_s || dd_type != 4'd2 ? fes_i386_pkg::FAULT_GP_SEL
+                      : !dd_p ? fes_i386_pkg::FAULT_NP_SEL : fes_i386_pkg::FAULT_NONE;
+        ds_fault_tss <= dd_null ? fes_i386_pkg::FAULT_GP0
+                      : t0[2] || dd_s || dd_type != 4'd1 && dd_type != 4'd9 ? fes_i386_pkg::FAULT_GP_SEL
+                      : !dd_p ? fes_i386_pkg::FAULT_NP_SEL : fes_i386_pkg::FAULT_NONE;
         ds_base <= dd_null ? 32'd0 : dd_base;
         ds_limit <= dd_null ? 32'd0 : dd_limit;
         ds_ar <= dd_null ? 16'h0010 : dd_ar;
@@ -2245,4 +2593,13 @@ module fes_i386_cpu #(
     assign arch_base = seg_base;
     assign arch_limit = seg_limit;
     assign arch_ar = seg_ar;
+    assign arch_ldtr_sel = ldtr_sel;
+    assign arch_ldtr_base = ldtr_base;
+    assign arch_ldtr_limit = ldtr_limit;
+    assign arch_ldtr_ar = ldtr_ar;
+    assign arch_ldtr_valid = ldtr_valid;
+    assign arch_tr_sel = tr_sel;
+    assign arch_tr_base = tr_base;
+    assign arch_tr_limit = tr_limit;
+    assign arch_tr_ar = tr_ar;
 endmodule

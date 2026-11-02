@@ -23,4 +23,18 @@ package fes_i386_ucode_pkg;
     localparam logic [7:0] UC_PLPTR = 8'd44;
     localparam logic [7:0] UC_PJMP = 8'd49;
     localparam logic [7:0] UC_PJMPM = 8'd54;
+    localparam logic [7:0] UC_PVEC = 8'd59;
+    localparam logic [7:0] UC_PINT = 8'd60;
+    localparam logic [7:0] UC_PIRET = 8'd75;
+    localparam logic [7:0] UC_PRETF = 8'd82;
+    localparam logic [7:0] UC_PCALL = 8'd87;
+    localparam logic [7:0] UC_PCALLM = 8'd97;
+    localparam logic [7:0] UC_PLLDT = 8'd107;
+    localparam logic [7:0] UC_PLTR = 8'd110;
+    localparam logic [7:0] UC_PLAR = 8'd114;
+    localparam logic [7:0] UC_PLSL = 8'd117;
+    localparam logic [7:0] UC_PVERR = 8'd120;
+    localparam logic [7:0] UC_PVERW = 8'd123;
+    localparam logic [7:0] UC_PARPLR = 8'd126;
+    localparam logic [7:0] UC_PARPLM = 8'd128;
 endpackage

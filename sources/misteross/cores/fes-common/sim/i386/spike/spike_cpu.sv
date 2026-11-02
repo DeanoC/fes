@@ -30,6 +30,9 @@ module spike_cpu (
     logic [15:0]      init_gdtr_limit, init_idtr_limit;
     logic [5:0][15:0] init_sel, init_ar;
     logic [5:0][31:0] init_base, init_limit;
+    logic [15:0]      init_ldtr_sel, init_ldtr_ar, init_tr_sel, init_tr_ar;
+    logic [31:0]      init_ldtr_base, init_ldtr_limit, init_tr_base, init_tr_limit;
+    logic             init_ldtr_valid;
     logic             a20m, queue16, gov_turbo;
     logic [2:0]       gov_preset;
     logic [9:0]       gov_frequency;
@@ -54,6 +57,15 @@ module spike_cpu (
             init_base <= noise[447:256];
             init_limit <= noise[511:320];
             init_ar <= noise[383:288];
+            init_ldtr_sel <= noise[239:224];
+            init_ldtr_base <= noise[271:240];
+            init_ldtr_limit <= noise[303:272];
+            init_ldtr_ar <= noise[319:304];
+            init_ldtr_valid <= noise[320];
+            init_tr_sel <= noise[351:336];
+            init_tr_base <= noise[383:352];
+            init_tr_limit <= noise[415:384];
+            init_tr_ar <= noise[431:416];
         end
     end
 
@@ -103,7 +115,8 @@ module spike_cpu (
     logic [15:0]      io_port;
     logic [1:0]       io_size;
     logic [31:0]      io_wdata;
-    logic             trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_pm_stop, trace_issue, trace_md_wait;
+    logic             trace_retire, trace_halt, trace_exception, trace_unimplemented, shutdown, trace_issue, trace_md_wait;
+    logic [3:0]       trace_unbuilt;
     logic [15:0]      trace_error;
     logic             trace_gov_hold;
     logic [11:0]      trace_gov_debt;
@@ -121,22 +134,27 @@ module spike_cpu (
     logic [15:0]      arch_gdtr_limit, arch_idtr_limit;
     logic [5:0][15:0] arch_sel, arch_ar;
     logic [5:0][31:0] arch_base, arch_limit;
+    logic [15:0]      arch_ldtr_sel, arch_ldtr_ar, arch_tr_sel, arch_tr_ar;
+    logic [31:0]      arch_ldtr_base, arch_ldtr_limit, arch_tr_base, arch_tr_limit;
+    logic             arch_ldtr_valid;
 
     fes_i386_cpu dut (
         .clk, .cold_reset(reset), .reset, .init_gpr, .init_eflags, .init_eip, .init_cr0, .init_cr2, .init_cr3,
         .init_gdtr_base, .init_gdtr_limit, .init_idtr_base, .init_idtr_limit, .init_sel, .init_base, .init_limit,
-        .init_ar, .a20m, .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16, .gov_preset, .gov_frequency, .gov_turbo,
+        .init_ar, .init_ldtr_sel, .init_ldtr_base, .init_ldtr_limit, .init_ldtr_ar, .init_ldtr_valid, .init_tr_sel,
+        .init_tr_base, .init_tr_limit, .init_tr_ar, .a20m, .attr_upper(ATTR_UPPER), .ram_top(7'd16), .queue16, .gov_preset, .gov_frequency, .gov_turbo,
         .ddr_address, .ddr_burstcount, .ddr_read, .ddr_write, .ddr_writedata, .ddr_byteenable, .ddr_waitrequest,
         .ddr_readdata, .ddr_readdatavalid,
         .mmio_valid, .mmio_write, .mmio_address, .mmio_byteenable, .mmio_wdata, .mmio_ready, .mmio_rvalid, .mmio_rdata,
         .dma_valid, .dma_write, .dma_address, .dma_wdata, .dma_done, .dma_rdata, .flush_request, .flush_done,
         .io_req, .io_write, .io_port, .io_size, .io_wdata, .io_ack, .io_rdata,
         .intr, .nmi, .inta_req, .inta_ack, .inta_vector, .trace_retire, .trace_exception, .trace_vector, .trace_halt,
-        .trace_unimplemented, .trace_pm_stop, .trace_error, .trace_issue, .trace_md_wait, .trace_fetch, .trace_fetch_block, .trace_dread,
+        .trace_unimplemented, .trace_unbuilt, .shutdown, .trace_error, .trace_issue, .trace_md_wait, .trace_fetch, .trace_fetch_block, .trace_dread,
         .trace_mem_wait, .trace_mem_idle, .trace_replay, .trace_smc, .trace_smc_open, .trace_store, .trace_store_addr, .trace_store_data,
         .trace_store_mask, .arch_gpr, .arch_eflags, .arch_eip, .arch_sel, .arch_base, .arch_limit, .arch_ar,
         .trace_dread_addr, .trace_ex_store, .trace_gov_hold, .trace_gov_debt, .trace_gov_charge, .arch_cr0, .arch_cr2,
-        .arch_cr3, .arch_gdtr_base, .arch_gdtr_limit, .arch_idtr_base, .arch_idtr_limit
+        .arch_cr3, .arch_gdtr_base, .arch_gdtr_limit, .arch_idtr_base, .arch_idtr_limit, .arch_ldtr_sel, .arch_ldtr_base,
+        .arch_ldtr_limit, .arch_ldtr_ar, .arch_ldtr_valid, .arch_tr_sel, .arch_tr_base, .arch_tr_limit, .arch_tr_ar
     );
 
     logic [31:0] signature, observed;
@@ -144,7 +162,7 @@ module spike_cpu (
         observed = arch_eflags ^ arch_eip ^ {20'b0, trace_retire, trace_halt, trace_exception, trace_unimplemented, trace_vector}
                  ^ {trace_fetch_block, trace_fetch, trace_dread, trace_mem_wait, trace_replay ^ trace_smc ^ trace_smc_open}
                  ^ arch_cr0 ^ arch_cr2 ^ arch_cr3 ^ arch_gdtr_base ^ arch_idtr_base ^ {arch_gdtr_limit, arch_idtr_limit}
-                 ^ {15'd0, trace_pm_stop, trace_error} ^ trace_dread_addr ^ {22'd0, trace_gov_charge, trace_ex_store}
+                 ^ {11'd0, shutdown, trace_unbuilt, trace_error} ^ trace_dread_addr ^ {22'd0, trace_gov_charge, trace_ex_store}
                  ^ trace_store_addr ^ trace_store_data[3:0] ^ trace_store_data[7:4] ^ {23'b0, trace_store, trace_store_mask}
                  ^ {ddr_address, ddr_read, ddr_write, trace_mem_idle, trace_issue} ^ {ddr_burstcount, 8'd0, ddr_byteenable}
                  ^ ddr_writedata[31:0] ^ ddr_writedata[63:32] ^ ddr_writedata[95:64] ^ ddr_writedata[127:96]
@@ -153,6 +171,8 @@ module spike_cpu (
                  ^ io_wdata ^ {io_port, 11'b0, inta_req, io_req, io_write, io_size};
         for (int n = 0; n < 8; n++) observed ^= arch_gpr[n];
         for (int n = 0; n < 6; n++) observed ^= arch_base[n] ^ arch_limit[n] ^ {arch_sel[n], arch_ar[n]};
+        observed ^= arch_ldtr_base ^ arch_ldtr_limit ^ {arch_ldtr_sel, arch_ldtr_ar} ^ {31'd0, arch_ldtr_valid}
+                  ^ arch_tr_base ^ arch_tr_limit ^ {arch_tr_sel, arch_tr_ar};
     end
     always_ff @(posedge clk) begin
         signature <= {signature[30:0], signature[31]} ^ observed;

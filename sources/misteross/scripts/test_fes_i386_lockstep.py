@@ -132,6 +132,10 @@ SCOPE: frozenset[str] = frozenset([
     # from CR0, CR2 and CR3. The corpus has none; the random programs and
     # the protected-mode cases run them.
     '0F01', '0F20', '0F22',
+    # Phase 2's second slice: group 6 (SLDT, STR, LLDT, LTR, VERR, VERW),
+    # LAR, LSL and ARPL, #UD in real mode. The corpus has none of them
+    # either.
+    '0F00', '0F02', '0F03', '63',
 ])
 
 
@@ -310,11 +314,11 @@ def run_biu_dma_test(verilator: str, jobs: int) -> dict:
 # real-mode CS loads under the 386 rule are compared as counts.
 SAME_CORPUS = ('tests', 'passed', 'retired_to_hlt', 'faults', 'retirements', 'mmio_runs', 'mmio_accesses',
                'io_accesses', 'interrupts')
-SAME_RANDOM = ('runs', 'passed', 'retirements', 'halts', 'faults', 'double_faults', 'retire_limits', 'io_accesses',
+SAME_RANDOM = ('runs', 'passed', 'retirements', 'halts', 'faults', 'shutdowns', 'nested', 'retire_limits', 'io_accesses',
                'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops', 'window_code_stops',
                'code_store_stops', 'stray_stops', 'mmio_runs', 'mmio_accesses', 'pm_retirements', 'cs_rule')
 SAME_MODE = ('runs', 'passed', 'failed', 'retirements', 'halts', 'interrupts', 'faults', 'fault_vectors',
-             'double_faults', 'io_accesses', 'external_interrupts', 'nmis', 'rep_interrupts', 'divergence_retirements',
+             'shutdowns', 'nested', 'io_accesses', 'external_interrupts', 'nmis', 'rep_interrupts', 'divergence_retirements',
              'pm_retirements', 'cs_rule', 'trace_hash')
 
 
@@ -340,7 +344,7 @@ def same_as(report: dict, other: dict) -> list[str]:
         compare(f'random {key}', report['random'].get(key), other['random'].get(key))
     for key in SAME_RANDOM:
         compare(f'pmode {key}', report['pmode']['totals'].get(key), other['pmode']['totals'].get(key))
-    for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'pm_stops'):
+    for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'pm_deliveries', 'unbuilt_stops'):
         compare(f'pmode {key}', report['pmode'].get(key), other['pmode'].get(key))
     for mode in ('directed_cases', 'unreal_cases', 'memory_cases', 'reset_store'):
         for key in SAME_MODE:
@@ -528,15 +532,18 @@ def main() -> int:
     def random_sum(results: list[dict]) -> Counter:
         return sum((Counter({key: result['summary'][key] for key in
                              ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults',
-                              'double_faults', 'retire_limits', 'load_wait_cycles', 'io_accesses',
+                              'shutdowns', 'nested', 'retire_limits', 'load_wait_cycles', 'io_accesses',
                               'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops',
                               'window_code_stops', 'code_store_stops', 'stray_stops', 'mmio_runs',
                               'mmio_accesses', 'replays', 'smc_restarts', 'port0_reads', 'port0_writes',
-                              'pm_retirements', 'cs_rule')})
+                              'pm_retirements', 'cs_rule', 'ss_error_rule')})
                     for result in results), Counter())
     random_totals = random_sum(random_results)
     pmode_totals = random_sum(pmode_results)
-    pm_stops = sum((Counter(result['summary']['pm_stops']) for result in random_results + pmode_results), Counter())
+    pm_deliveries = sum((Counter(result['summary']['pm_deliveries']) for result in random_results + pmode_results),
+                        Counter())
+    unbuilt_stops = sum((Counter(result['summary']['unbuilt_stops']) for result in random_results + pmode_results),
+                        Counter())
     random_failures = [line for result in random_results + steady_results + pmode_results
                        for line in result['failures']]
     hash_mismatches = [result['seed'] for result in steady_results
@@ -580,7 +587,8 @@ def main() -> int:
                    'trace_hash_mismatches': hash_mismatches, 'latency_free_gaps': gaps,
                    'failures': random_failures[:200]},
         'pmode': {'seeds': [result['seed'] for result in pmode_results], 'programs_per_seed': args.pm_programs,
-                  'pm_weight': PM_WEIGHT, 'totals': dict(pmode_totals), 'pm_stops': dict(pm_stops),
+                  'pm_weight': PM_WEIGHT, 'totals': dict(pmode_totals), 'pm_deliveries': dict(pm_deliveries),
+                  'unbuilt_stops': dict(unbuilt_stops),
                   'trace_hashes': {str(result['seed']): result['summary']['trace_hash'] for result in pmode_results}},
     })
     if args.same_as is not None:
@@ -599,7 +607,8 @@ def main() -> int:
     if random_results:
         print(f"random: {len(random_results)} seeds x {args.random_programs} programs, {random_totals['retirements']} "
               f"retirements: {random_totals['passed']} pass ({random_totals['halts']} to HLT, {random_totals['faults']} "
-              f"at a delivered exception, {random_totals['double_faults']} at a fault in a delivery, "
+              f"at a delivered exception ({random_totals['nested']} of them a fault in a delivery), "
+              f"{random_totals['shutdowns']} at a shutdown, "
               f"{random_totals['retire_limits']} at the retirement limit, "
               f"{random_totals['vector_moved_stops']} at an interrupt whose vector they had "
               f"rewritten, {random_totals['window_code_stops']} at code in the MMIO window, "
@@ -618,8 +627,11 @@ def main() -> int:
         print(f"protected mode: {len(pmode_results)} seeds x {args.pm_programs} programs dense with protected-mode "
               f"blocks, {pmode_totals['retirements']} retirements ({pmode_totals['pm_retirements'] + random_totals['pm_retirements']} "
               f"with PE set in these and the random programs): {pmode_totals['passed']} pass, "
-              f"{pmode_totals['failed']} fail; {sum(pm_stops.values())} stopped at an exception or interrupt with PE set "
-              f"{dict(sorted(pm_stops.items(), key=lambda item: int(item[0])))}; "
+              f"{pmode_totals['failed']} fail; {sum(pm_deliveries.values())} deliveries through the IDT by vector "
+              f"(256 + vector: an INTR) {dict(sorted(pm_deliveries.items(), key=lambda item: int(item[0])))}; "
+              f"{pmode_totals['shutdowns']} shutdowns, {pmode_totals['nested']} faults in a delivery delivered; "
+              f"{sum(unbuilt_stops.values())} stopped at what is not built, by reason "
+              f"{dict(sorted(unbuilt_stops.items()))}; "
               f"{pmode_totals['cs_rule'] + random_totals['cs_rule']} real-mode CS loads under the 386 rule")
         def share(histogram: dict, cycles: int) -> str:
             total = sum(histogram.values())
