@@ -162,6 +162,7 @@ class ParentAffectedTests(unittest.TestCase):
         self.assertIn('test_kit_software', modules)
         self.assertIn('test_image_assembly', modules)
         self.assertNotIn('test_media', modules)
+        self.assertNotIn('test_kit_sdk', modules)
         self.assertNotIn('test_atari_st_rendered_capture', modules)
 
     def test_package_and_runtime_consumers_keep_acceptance_regressions(self):
@@ -302,6 +303,8 @@ class ParentAffectedTests(unittest.TestCase):
         self.assertEqual(omitted, ['test_media.Case.test_case'])
 
     def test_parent_mixed_paths_and_modes_union_coverage(self):
+        self.assertEqual(policy.select_groups(['tests/test_kit_sdk.py']),
+                         {'policy', 'build', 'media'})
         paths = ['scripts/appliance_media.py', 'tests/test_core_build.py']
         self.assertEqual(policy.select_groups(paths), {'policy', 'build', 'media', 'packages'})
         self.assertEqual(policy.select_groups(['tests/test_receipt.py'], video=True, media=True),

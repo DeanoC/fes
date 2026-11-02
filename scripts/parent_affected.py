@@ -28,7 +28,7 @@ GROUPS = {
         core_dev_accept core_key_nightly factory_video_parts factory_video_publication
         optional_cores recipes rom_package_pipeline'''),
     'media': names('''appliance appliance_expand_dry_run appliance_media de25_appliance_workflow block_probe
-        image_passes image_toolchain launcher_provision media media_host media_image
+        image_passes image_toolchain kit_sdk launcher_provision media media_host media_image
         media_inputs platform'''),
     'acceptance': names('''atari_st_demo_input atari_st_demo_media atari_st_disk_diagnostic
         atari_st_io_diagnostic atari_st_memory_diagnostic atari_st_ram_write_trace
