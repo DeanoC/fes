@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -176,5 +177,33 @@ kit = true
 	}
 	if loaded, err = LoadConfig(path); err != nil || loaded.CorePackages.Kit {
 		t.Fatalf("default %#v %v", loaded.CorePackages, err)
+	}
+}
+
+// Image game cores are factory packages, most with a ROM map. One must read
+// back as the canonical archive a desktop host would import.
+func TestKitHostReadsAFactoryPackageWithAROMMap(t *testing.T) {
+	ctx := context.Background()
+	s, _, factory, _ := kitHostService(t)
+	archive := twoROMLibraryPackageFixture(t)
+	id := unpackFactoryPackage(t, factory, archive)
+	inspected, err := s.CorePackage(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inspected.Descriptor.Format < 3 {
+		t.Fatalf("fixture format = %d, want a ROM-map package", inspected.Descriptor.Format)
+	}
+	read, data, err := s.readInstalledCore(ctx, id)
+	if err != nil || !bytes.Equal(data, archive) || !reflect.DeepEqual(read, inspected) {
+		t.Fatalf("read equal=%v same inspection=%v %v", bytes.Equal(data, archive), reflect.DeepEqual(read, inspected), err)
+	}
+	desktop, err := corepackage.NewStore(filepath.Join(t.TempDir(), "desktop"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	imported, _, err := desktop.Import(ctx, int64(len(data)), bytes.NewReader(data))
+	if err != nil || imported.PackageID != id {
+		t.Fatalf("desktop import %+v %v", imported, err)
 	}
 }

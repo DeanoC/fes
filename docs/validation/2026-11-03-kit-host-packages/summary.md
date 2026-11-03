@@ -74,6 +74,8 @@ those records is kit uptime.
 3. **The s4 launch is 8–9 s faster than r8/r9.** That is a single run; the
    saving is not broken down by phase here.
 4. **The durable store takes 24 s to open with the ST package installed.**
-   Opening verifies every installed package. The host answers 503
-   `CORE_PACKAGE_STORE_UNAVAILABLE` until it is open. Slice 4 (kit mode) and
-   slice 6 (tenfoot on the local host) need to treat that as a wait.
+   Opening takes the store's lock and verifies every installed package. For
+   that whole time the host answers 503 `CORE_PACKAGE_STORE_UNAVAILABLE`, and
+   mister-agent cannot select or launch, because it waits on the same lock.
+   The cost grows with the durable library. Once slice 5 starts the host at
+   boot, it is a boot-time cost on the agent. It is open, not fixed here.
