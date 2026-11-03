@@ -13,13 +13,15 @@ post-seal exemption; the next sealing PR covers it). The governor bench,
 the unit tests and the 286-12 lockstep were rerun on it. The system suite,
 both FreeDOS boots and the Kit B run were not. They make no byte or dword
 access at 1F0h: the machine's IDENTIFY offers no 32-bit PIO, so the BIOS
-moves sectors with INSW and OUTSW.
+moves sectors with INSW and OUTSW. The main merge at `11ba2edf7` changes the
+BIOS (#1451), a sealed firmware input, so the seal does not cover its
+firmware either. The governor suite was rerun after the merge.
 
 **Result:** The governor now charges the period ISA bus time of I/O and
 VGA memory accesses. On `pc386_system`, a port 61h toggle loop paces at
 3.585 µs a pass at 286-12 and 2.881 µs at 386DX-25, within 0.04% of the
 table. A 512-word text-mode fill runs at 2.40 MB/s and 2.39 MB/s, within
-0.8% (one pass in a tick). The bench's charges equal the table on every
+0.8% (one pass in a tick). The governor suite passes on every preset. The bench's charges equal the table on every
 loop and preset, in the RTL and the netlist. Nothing architectural changes:
 the lockstep at `max` equals main's, under 286-12 it equals `max`'s, and
 FreeDOS boots on the RTL exactly as on main at `max` and still boots under
@@ -29,9 +31,7 @@ Ultima VI's opening-fight sounds are PIT tones at 213.1 Hz on this package
 and on main's earlier seal alike. Its CPU-timed speaker routine (Iolo's
 lute) plays on both packages but reaches the kit's audio only as
 occasional single clicks, with no tone, so its pitch and the ~2.5% drop
-expected there cannot be measured from the audio. The 286-12
-system-suite run finished its test and then hit the bench gap
-[#1372](https://github.com/DeanoC/fes/issues/1372).
+expected there cannot be measured from the audio.
 
 ## What changed
 
@@ -120,7 +120,10 @@ timing and rejected-alternatives text points at it.
   `faad373dc` (the charges), `10f2e27d7` (the bench's interrupt test waits a
   period after the program arms it), `667d1a5e0` (the lockstep's
   retirement bound under a preset) and `e4f2f927d` (I/O at 1F0h charged as
-  `pc386_io` splits it).
+  `pc386_io` splits it). `11ba2edf7` merges main `39d79a092`, which brings
+  [#1448](https://github.com/DeanoC/fes/pull/1448)'s `system_tb` fix and
+  [#1451](https://github.com/DeanoC/fes/pull/1451)'s BIOS change (POST
+  programs PIT counter 1); neither touches the CPU or the governor.
 - **Seal.** `fes.pc386` from a clean checkout of `10f2e27d7`, package
   `c86c5ebf…` ([Seal](#seal)).
 
@@ -226,16 +229,13 @@ timing and rejected-alternatives text points at it.
   speaker pass holds two 8-bit ISA cycles: 1.5 µs of 750 ns cycles at
   286-12, 1.44 µs of 720 ns ones at 386DX-25.
 
-  **The 286-12 run hit [#1372](https://github.com/DeanoC/fes/issues/1372).**
-  It finished the test, printed its figures above (`GOV TP=00006b3d
-  DC=01f3 C18=00078a2c`, `GOV SPK=3bda VRAM=0081`, `GOV DONE`) and passed
-  every check through Stop, the save and the record, whose CMOS 70h-7Bh hold
-  TP 27,453 and DC 499. In the record's round trip `system_tb` then threw
-  `port 2: a write burst cut short, then another begun at clock 205827804`
-  and ended without `END`, so the suite counts the run unfinished and fails.
-  That is #1372's bench gap (a hold inside a VGA capture burst, which the
-  guard finishes on a kit); this change moves where the hold falls. The
-  figures above for 286-12 are from its log; the other four runs pass.
+  The suite passes on all five runs at `11ba2edf7`, the branch with main
+  merged. An earlier run at `667d1a5e0` gave the same figures, but its
+  286-12 run hit [#1372](https://github.com/DeanoC/fes/issues/1372) after
+  `GOV DONE` and every record check: `system_tb` threw `port 2: a write
+  burst cut short` in the record's round trip, so the suite counted the run
+  unfinished. That was the bench gap (a hold inside a VGA capture burst);
+  main's [#1448](https://github.com/DeanoC/fes/pull/1448) closed it.
 - **FreeDOS on the RTL.** The RTL machine sim (`machine_tb`, `--suite boot
   --cpu rtl`) boots at `max` on the branch and on main at `9ef805e82` with
   identical reports (0 of 139 fields differ) and byte-identical VGA traces:
