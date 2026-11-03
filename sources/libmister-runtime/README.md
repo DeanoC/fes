@@ -29,6 +29,8 @@ temporarily selects that directory with the kernel firmware search override;
 an unrelated override is refused. Successful completion and failures before
 submission restore the empty override. Uncertain submission retains its lookup
 path and staged bytes for a potentially late kernel request.
+All standard firmware fallback locations must also lack the fixed RBF name;
+a stale fallback is refused before programming.
 Partial, failed or late programming poisons the context and retains the
 configuration. Software deadlines cannot abort an opaque configfs/SDM call.
 Safe process restart/adoption and whole-load failure bounds remain unfinished.

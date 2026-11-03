@@ -66,6 +66,10 @@ override restoration poisons the context; uncertain submission retains the
 override and file so a late firmware request can still resolve its bytes.
 Destruction does not clear that retained lookup. Foreign overrides and
 inherited overlay/staging files remain inadmissible to a new context.
+The adapter also refuses the fixed RBF name in all four standard firmware
+search locations, so an error opening the private copy cannot select a stale
+fallback. Search-parameter checks accept only the exact value and its single
+sysfs display newline; a newline stored in the path is not normalized away.
 
 Within a successful context, replacement verifies the retained outgoing overlay
 bytes/status before removing it, independently of the incoming profile. Any uncertainty after removal or submission

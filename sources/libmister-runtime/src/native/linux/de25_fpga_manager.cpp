@@ -65,6 +65,15 @@ bool Text(const std::string& path, std::string* value) {
 bool Exact(const std::string& path, const std::string& expected) {
     std::string actual; return Text(path, &actual) && actual == expected;
 }
+bool SearchExact(const std::string& path, const std::string& expected) {
+    Fd fd(open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+    std::vector<unsigned char> bytes;
+    if (!Read(fd.n, &bytes, 257)) return false;
+    const std::string actual(bytes.begin(), bytes.end());
+    // sysfs appends one newline when displaying the string parameter. Do not
+    // strip a newline stored in the value itself: that is a different path.
+    return actual == expected || actual == expected + "\n";
+}
 bool DirectoryIsExclusive(int fd, bool* owned) {
     Fd copy(fcntl(fd, F_DUPFD_CLOEXEC, 0));
     if (copy.n < 0) return false;
@@ -123,6 +132,7 @@ public:
     bool poisoned = false, configuration_known = false, kernel_known = false, search_owned = false;
     mutable std::mutex mutex;
     std::string config = "/sys/kernel/config", firmware = "/run/fes-de25-firmware";
+    std::string default_firmware = "/lib/firmware";
     std::string state = "/sys/class/fpga_manager/fpga0/state";
     std::string search = "/sys/module/firmware_class/parameters/path";
     std::string record = "/usr/share/fes/kernel-modules.json", notes = "/sys/kernel/notes";
@@ -203,8 +213,16 @@ public:
             if (Sha256Hex(hash.Final()) != expected) return Failure("running kernel differs from programming receipt");
             kernel_known = true;
         }
-        if (!Exact(search, search_owned ? firmware : ""))
+        if (!SearchExact(search, search_owned ? firmware : ""))
             return Failure("firmware search override differs from this programming context");
+        // A lookup error in the private path must never select an old image
+        // from the loader's remaining standard search locations.
+        for (const auto& prefix : {"/updates/6.12.11-fes-de25-owner/", "/updates/", "/6.12.11-fes-de25-owner/", "/"}) {
+            struct stat other{};
+            if (!lstat((default_firmware + prefix + kFirmware).c_str(), &other) ||
+                (errno != ENOENT && errno != ENOTDIR))
+                return Failure("default firmware fallback is occupied or inaccessible");
+        }
         return {};
     }
     Error SetSearch(const std::string& value) {
@@ -221,12 +239,12 @@ public:
         count = write(fd.n, line.data(), line.size());
         const int closing = fd.n; fd.n = -1;
         const int closed = close(closing);
-        if (count != ssize_t(line.size()) || closed || !Exact(search, value))
+        if (count != ssize_t(line.size()) || closed || !SearchExact(search, value))
             return Failure("firmware search override write/verification failed");
         return {};
     }
     Error RestoreSearch() {
-        if (!Exact(search, firmware)) return Failure("owned firmware search override changed");
+        if (!SearchExact(search, firmware)) return Failure("owned firmware search override changed");
         auto error = SetSearch("");
         if (error.ok()) search_owned = false;
         return error;
@@ -388,6 +406,7 @@ LinuxDe25FpgaManager::LinuxDe25FpgaManager(Clock& c, int fd, const De25FpgaTestP
     impl_->config = p.config; impl_->firmware = p.firmware; impl_->state = p.state;
     impl_->search = p.search; impl_->lease_path = p.lease; impl_->test = &ops;
     impl_->record = p.record; impl_->notes = p.notes;
+    impl_->default_firmware = p.default_firmware;
 }
 #endif
 LinuxDe25FpgaManager::~LinuxDe25FpgaManager() = default;

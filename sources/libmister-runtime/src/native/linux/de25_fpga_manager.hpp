@@ -15,7 +15,7 @@ std::vector<unsigned char> De25ProgrammingOverlay(
 
 #if defined(MISTER_RUNTIME_TESTING)
 struct De25FpgaTestPaths {
-    std::string config, firmware, state, search, lease, record, notes;
+    std::string config, firmware, state, search, lease, record, notes, default_firmware;
 };
 class De25FpgaTestOperations {
 public:
