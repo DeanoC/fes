@@ -417,6 +417,10 @@ source revision comparison. Configuration is not rewritten to hide failures.
 ## Agent runtime
 
 The agent uses only local runtime protocol 2 through `/run/mister-runtime.sock`.
+Its closed response validation requires capability ABI identities in ascending
+order. A status fixture emitted by the production C++ DE25 MENU lifecycle test
+passes through the actual Unix client, so a running display cannot conceal an
+unreadable capability reply. Decoder rejection keeps native readiness false.
 There is no backend selector, Main process probing, MGL dispatch or protocol-1
 fallback. Normal FPGA launches require described FES packages; bare catalog
 records and old raw-core profiles are rejected before stopping an active package.

@@ -45,6 +45,7 @@
 #include <condition_variable>
 #include <functional>
 #include <fstream>
+#include <cstdlib>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -5197,6 +5198,18 @@ void TestDe25AllocatedMenuLaunchStopAndPinnedPeer(bool clean_shutdown = false)
  const auto capabilities=hardware.capabilities();assert(capabilities.abis.size()==2&&capabilities.programming_profiles.size()==2);
  Runtime runtime(hardware,base.log);
  assert(runtime.Start(menu.path,menu_package.package_id).ok());
+ // Export the real serialized production capabilities for the independent
+ // agent decoder regression; the regular test needs no output file.
+ if(!clean_shutdown) {
+  if(const char* path=std::getenv("FES_TEST_DE25_PROTOCOL_STATUS_RECORD")) {
+   std::ofstream output(path);
+   output<<daemon::EncodeResponse(2,true,runtime.status(),"de25-producer-fixture")<<'\n';
+   assert(output.good());
+  }
+ }
+ // The wire contract requires ABI identity order, regardless of which board
+ // driver was constructed first. The agent refuses an unordered capability set.
+ assert(capabilities.abis[0].id=="fes.application"&&capabilities.abis[1].id=="fes.computer");
  assert(runtime.status().menu_display.available&&runtime.status().menu_display.frame_mapping);
  const auto initial_generation=runtime.status().menu_display.generation;
  for(unsigned turn=0;turn<2;++turn) {

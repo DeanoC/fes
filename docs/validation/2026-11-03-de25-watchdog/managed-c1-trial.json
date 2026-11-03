@@ -1,0 +1,42 @@
+{
+  "source": "91735883b9bb2025f2b3372ce232705d02a1c7e2",
+  "producer": "c1e9eaf2564b215f96e7ae19ede4aa91ab19369d",
+  "image": "882c211bcdf25908d49b878909ae29f41ed91999d33c9a00b4eae53061abd5c4",
+  "trial_boot": "f400bcfe-e70a-47c1-8876-7101c022acea",
+  "managed_acceptance": "FAIL raw_idle_readyfalse/MISTER_UNAVAILABLE; C++Runtime.Startidle succeeded andcleanS40auto grouprestarts releasedownconfiguration repeatedly, noPOLL/underflowerrorincollectedlog",
+  "confirmation_called": false,
+  "recovery": "automaticguarddeadline+WDResetCold toGood3b2ab63e1d-1d5d-4dcb-93c2-f3cb2f5ccc74; exactkernel/CID/selector/probe/gatesverified, normalS40stop/noowners/nooverlay",
+  "software_cleanup": "ownfcf7495a/e8queued intent cancelled usingexistingkitsoftware.Cancel afterconfirmedGood/servicesoff; gen0/selectede755unchanged, nowexactonecancelledreceipt/nopending",
+  "scope": "Unconfirmed full managed candidate, preserved readiness failure; not normal-kit acceptance",
+  "reproduced_wire_failure": {
+    "producer": "actualNativeHardwareDE25capabilities and productionEncodeResponse on modeledMENUfixture",
+    "bad_order": [
+      "fes.computer",
+      "fes.application"
+    ],
+    "required_order": [
+      "fes.application",
+      "fes.computer"
+    ],
+    "strict_agent_client": "Protocol2Status rejects actual C1 response with invalid runtime response",
+    "before_native_order_control": "expected assertion failure preserved",
+    "before_go_control": "expected actual-client rejection preserved",
+    "fix": "Application ABI inserted before computer; strict decoder unchanged",
+    "physical_acceptance_after_fix": false,
+    "after_native_and_go": "PASS71.649s, native lifecycle test and actual Go Unix client accept regenerated producer fixture",
+    "producer_cpp_sha256": "7dda5e8fe14081a0e4278e04a20bae029bdc1261affc7a02afef1127d16cf972",
+    "fixture_sha256": "6a0c4346c982c590df65fb87bb4d6ca71784b8b609c17644a5cdb3db1e4f8052"
+  },
+  "image_kept_inactive": true,
+  "software_selection": {
+    "generation": 0,
+    "selected": "e755bc3740e7c9d8b22922d8092afa8114740acf595866e1d231c84861a407b7",
+    "pending": null,
+    "cancelled_own_request": "fcf7495aa2aedaec3774bcea87618ec0820745c937f5bc56059bc75d2f98f0b3"
+  },
+  "capture": {
+    "filename": "managed-c1-home.png",
+    "sha256": "f67ec462a4622e66f498541a33cf36bb5194b17950688e30d66e61f9600e22a0",
+    "scope": "FESHome rendering while Goagent readiness fails; hostunreachable, no catalog/input acceptance"
+  }
+}

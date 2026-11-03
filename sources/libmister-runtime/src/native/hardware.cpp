@@ -818,7 +818,9 @@ Capabilities NativeHardware::capabilities() const
    application.interfaces = {{"fes.fabric.de25-scanout",1,1},
     {generated::FesApplicationInterfaceVideoFixed720p60ID,1,0},
     {generated::FesApplicationInterfaceVideoMenuDisplayID,1,0}};
-   result.abis.push_back(std::move(application));
+   // Protocol 2 requires ascending ABI identities. Driver construction puts
+   // the computer first; the application belongs before it on the wire.
+   result.abis.insert(result.abis.begin(), std::move(application));
   }
   return result;
  }

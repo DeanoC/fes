@@ -35,6 +35,30 @@ func fixtureLines(t *testing.T, name string) []string {
 	return lines
 }
 
+func TestProtocol2DE25ProducerIdleStatus(t *testing.T) {
+	// Captured from NativeHardware's DE25 MENU fixture with the production C++
+	// serializer, using FES_TEST_DE25_PROTOCOL_STATUS_RECORD. This exercises
+	// the agent's independent decoder rather than constructing Go capabilities.
+	lines := fixtureLines(t, "protocol-v2-de25-idle.jsonl")
+	if len(lines) != 1 {
+		t.Fatalf("producer responses=%d, want one idle response", len(lines))
+	}
+	server := newSequenceSocketFixture(t, []string{lines[0] + "\n"})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	response, err := NewClient(server.path).Protocol2Status(ctx)
+	if err != nil || !validIdle(response) {
+		t.Fatalf("DE25 producer idle was refused: response=%+v error=%v", response, err)
+	}
+	if response.MenuDisplay == nil || !response.MenuDisplay.Available || !response.MenuDisplay.FrameMapping || len(response.Capabilities.ABIs) != 2 {
+		t.Fatalf("not the allocated DE25 MENU producer: %+v", response)
+	}
+	requests := server.wait(t)
+	if len(requests) != 1 || strings.TrimSpace(requests[0]) != `{"protocol":2,"operation":"status"}` {
+		t.Fatalf("status requests=%q", requests)
+	}
+}
+
 func TestProtocol2DecoderConsumesFrozenRuntimeFixturesExactly(t *testing.T) {
 	lines := fixtureLines(t, "protocol-v2.jsonl")
 	for index := 1; index < len(lines); index += 2 {

@@ -954,6 +954,11 @@ This does not establish native factory or physical display acceptance.
 
 ## DE25 allocated MENU lifecycle
 
+The DE25 capability list orders the application ABI before the computer ABI.
+The protocol-2 agent requires ascending identities, independently of driver
+construction order. The production serializer on the native MENU test fixture
+supplies the Go client's idle-status fixture; both ends preserve this contract.
+
 The exact format2 `fes.menu` application1.0 package declares fixed video1.0,
 menu-display1.0 and `fes.fabric.de25-scanout`1.1, with a selected nonzero build ID.
 It does not declare the Cyclone V boot-latched DDR contract. The selected MENU

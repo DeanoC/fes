@@ -18,6 +18,11 @@ serve both boards; DE25 constructs no Cyclone V manager, DDR window or Linux I2C
 recipe. The daemon keeps its unavailable adapter on preparation failure.
 AArch64 compilation does not establish physical support.
 
+DE25 advertises application and computer ABIs in ascending identity order,
+as required by the target agent's protocol-2 decoder. The native MENU fixture
+exports the production serialized status for an independent agent-client test;
+an unordered capability list leaves the agent unavailable even when MENU is idle.
+
 `LinuxDe25FpgaManager` selects the overlay from the described programming
 profile: `de25-hps-first-v1` is the BRAM computer, and `de25-linux-menu-v1` is the
 allocated MENU application. It retains the actual outgoing overlay bytes before
