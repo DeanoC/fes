@@ -73,6 +73,74 @@ class TableTest(unittest.TestCase):
         self.assertEqual(governor.cost(table, 'rep_movs', '286', 1), 4)
         self.assertEqual(governor.cost(table, 'mov_r', '486', 1), governor.cost(table, 'mov_r', '486'))
 
+    def test_isa_cycles_round_exactly(self):
+        # An ISA cycle in reference clocks: 720 ns (six 120 ns clocks) is
+        # 8.64 clocks at 12 MHz, rounded to 9; 18 at 25 MHz; 360 ns is 4.32
+        # and 9. The RTL's fixed point rounds as the exact figure does.
+        isa = governor.load().isa
+        self.assertEqual((isa.clock_ns, isa.io8, isa.io16, isa.vga, isa.ports16), (120, 6, 3, 6, (0x1F0,)))
+        self.assertEqual([isa.clocks(f, 6) for f in (60, 120, 160, 250, 400)], [4, 9, 12, 18, 29])
+        self.assertEqual([isa.clocks(f, 3) for f in (120, 250)], [4, 9])
+        for frequency in range(1, 1 << governor.FREQUENCY_BITS):
+            for cycle in (isa.io8, isa.io16, isa.vga):
+                exact = frequency * cycle * isa.clock_ns / 10000
+                self.assertLessEqual(abs(isa.clocks(frequency, cycle) - exact), 0.5)
+
+    def test_isa_charges(self):
+        table = governor.load()
+        presets = {p.name: p for p in table.presets}
+        p286, p25 = presets['286-12'], presets['386DX-25']
+        # I/O: the cycles, less the data sheet's two-clock bus cycle.
+        self.assertEqual(governor.io_charge(table, 120, 0x61, 0), 7)
+        self.assertEqual(governor.io_charge(table, 120, 0x61, 1), 16)       # a word: two byte cycles
+        self.assertEqual(governor.io_charge(table, 250, 0x300, 2), 70)      # a dword: four
+        # At the ATA data port, as pc386_io splits it: a word one 16-bit
+        # cycle, a byte one 8-bit cycle, a dword a 16-bit cycle and 8-bit
+        # ones at 1F2h and 1F3h; from 1EEh two 8-bit cycles, then 1F0h's.
+        self.assertEqual(governor.io_charge(table, 250, 0x1F0, 1), 7)
+        self.assertEqual(governor.io_charge(table, 250, 0x1F0, 0), 16)
+        self.assertEqual(governor.io_charge(table, 250, 0x1F0, 2), 43)
+        self.assertEqual(governor.io_charge(table, 250, 0x1EE, 2), 43)
+        self.assertEqual(governor.io_charge(table, 250, 0x1ED, 2), 70)      # 1F0h is its last byte
+        self.assertEqual(governor.io_charge(table, 250, 0x1F1, 1), 34)
+        self.assertEqual(governor.io_charge(table, 10, 0x1F0, 1), 0)        # never below zero
+        # MMIO: a cycle per 16-bit half, less the bus cycle and the wait states
+        # (and a dword's second cycle on a 16-bit bus) already charged.
+        self.assertEqual(governor.mmio_charge(table, p286, 120, 1, False), 6)
+        self.assertEqual(governor.mmio_charge(table, p286, 120, 2, True), 12)
+        self.assertEqual(governor.mmio_charge(table, p25, 250, 2, True), 34)
+        self.assertEqual(governor.mmio_charge(table, p286, 10, 1, False), 0)
+        self.assertEqual([governor.halves(a, n) for a, n in ((0, 1), (1, 1), (0, 2), (1, 2), (0, 4), (2, 4), (1, 4))],
+                         [1, 1, 1, 2, 2, 2, 3])
+
+    def test_word16_is_pc386_io_split(self):
+        # The RTL's word16(): a 16-bit port among an access's bytes with
+        # another byte after it. It has a 16-bit cycle exactly when the
+        # machine's walk over the access does.
+        isa = governor.load().isa
+        package = governor.PACKAGE.read_text()
+        self.assertIn("word16 = size == 2'd1 ? port == 16'h01f0 : size == 2'd2 ? port >= 16'h01ee && port <= 16'h01f0 : 1'b0;",
+                      package)
+        for port in [*range(0x1E0, 0x200), 0, 0x61, 0x300, 0xFFFF]:
+            for size in (0, 1, 2):
+                word16 = any(p <= port + (1 << size) - 2 and port <= p for p in isa.ports16) and size > 0
+                with self.subTest(port=hex(port), size=size):
+                    self.assertEqual(isa.cycles(port, size), (int(word16), (1 << size) - 2 * word16))
+        self.assertIn(f"ISA_STEP = {governor.load().isa.step.bit_length()}'d{governor.load().isa.step};", package)
+
+    def test_bad_isa_is_refused(self):
+        for change, message in (
+                (lambda s: s.pop('isa'), 'isa has'),
+                (lambda s: s['isa'].pop('vga'), 'isa has'),
+                (lambda s: s['isa'].update(io8=0), 'io8 is 1 to'),
+                (lambda s: s['isa'].update(ports16=['1G0']), 'ports16'),
+                (lambda s: s['isa'].update(ports16=['1F0', '1F2']), 'at least 4 apart'),
+                (lambda s: s['isa'].update(clock_ns=1000, vga=15), 'over 255 clocks')):
+            bad = source()
+            change(bad)
+            with self.subTest(message=message), self.assertRaisesRegex(governor.GovernorError, message):
+                governor.parse(bad)
+
     def test_overlapping_stems_are_refused(self):
         bad = source()
         bad['class'].append({'name': 'again', 'stems': ['8B/m'], 'cost': [1, 1, 1]})
