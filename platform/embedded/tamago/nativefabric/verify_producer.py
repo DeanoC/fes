@@ -148,7 +148,8 @@ def main():
                           "--output", out / "window-stream", *extra])
     window = json.loads((out / "window-stream/result.json").read_text())
     if (window["status"] != "passed" or window["physical_ddr"] or window["runtime_admission"] or
-            window['native_aperture']['status']!='passed' or len(window['native_aperture']['cases'])!=18):
+            window['native_aperture']['status']!='passed' or len(window['native_aperture']['cases'])!=20 or
+            not {'TestWindowReaderActualAvalon/partial-snapshot-1','TestWindowReaderActualAvalon/partial-snapshot-2'} <= set(window['native_aperture']['cases'])):
         raise RuntimeError("window stream did not remain a checked host model")
     if sources != {str(x.relative_to(ROOT)): sha(x) for x in sorted(files)}:
         raise RuntimeError("native integration sources changed during verification")

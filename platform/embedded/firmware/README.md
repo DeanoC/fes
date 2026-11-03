@@ -9,7 +9,7 @@ Software tests and cross-builds remain distinct from hardware acceptance.
 The reader-stop helper caches its first and last stable, identity-checked
 samples during the existing bounded stop. A failed cold stop logs their status,
 pending address/burst counts and ownership words as `FES_NANO_READER_STOP`.
-No additional MMIO, command, poll or wait is issued for this report. The samples
+No additional reader MMIO, stop command, poll or wait is issued for this report. The samples
 remain separate from the complete all-master drain receipt, which is absent
 after an uncertain or failed stop.
 

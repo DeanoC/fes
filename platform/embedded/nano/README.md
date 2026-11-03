@@ -209,8 +209,8 @@ fresh SD readbacks and both full-window permission checks on TRWU8CBL, then
 times out in the native reader and secure master stop. It has no successful
 frame or closure receipt. Failed operations now report their cached native
 stage, START attempt and latched progress, plus the firmware's stable reader
-status/pending samples. Reporting adds no device access or retry, and all
-outcomes keep the reservation pinned until reboot.
+status/pending samples. Reporting rereads no reader registers and replays no
+controls. All outcomes keep the reservation pinned until reboot.
 
 The [bounded read candidate](../../../docs/validation/2026-11-02-de25-ddr-read-candidate/README.md)
 passes the complete software/RTL checks and matched cross-build. Its first

@@ -246,7 +246,13 @@ def main():
         '-json', './scanout'], native_env, cap=60)
     events = [json.loads(line) for line in native.splitlines()]
     passed = [e['Test'] for e in events if e['Action']=='pass' and e.get('Test','').startswith('TestWindowReaderActualAvalon/')]
-    assert len(passed)==len(set(passed))==18
+    expected_cases={f'TestWindowReaderActualAvalon/{name}' for name in (
+        'full-generation-token','two-frames-drain-new-owner','identity-geometry-arguments',
+        'stale-cookie-and-register-rejection','latched-snapshot','rresp','rid','rlast','corrupt-pixel',
+        'held-address','missing-responses','partial-snapshot-1','partial-snapshot-2',
+        'cancel-after-start','uncertain-start-write','late-start-return','backwards-clock',
+        'closed-before-read','owner-changed-after-frame','pre-cancel-and-concurrency')}
+    assert len(passed)==len(set(passed)) and set(passed)==expected_cases
     assert not any(e['Action'] in ('skip','fail') for e in events)
     assert any(e['Action']=='pass' and e.get('Test')=='TestWindowReaderActualAvalon' for e in events)
     native_aperture = dict(status='passed', build_id=cpu_id, base=cpu_base, bytes=4<<20,
@@ -261,7 +267,7 @@ def main():
         native_aperture=native_aperture,
         physical_ddr=False, pixel_clock_and_hdmi=False, bridge_release=False, runtime_admission=False)
     (output/'result.json').write_text(json.dumps(report, indent=2)+'\n')
-    print('PASS actual tenfoot frames,30 source lifecycle/fault cases,16 invalid windows and18 native Avalon cases:', output, flush=True)
+    print(f'PASS actual tenfoot frames,30 source lifecycle/fault cases,16 invalid windows and{len(passed)} native Avalon cases:', output, flush=True)
 
 
 if __name__ == '__main__':
