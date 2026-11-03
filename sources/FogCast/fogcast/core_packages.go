@@ -510,7 +510,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		if err != nil {
 			return coreLoadSource{}, err
 		}
-		initialized, sha, err := s.applyZX81MachineROM(ctx, inspection.Descriptor.Core.ID, data, bundle)
+		initialized, sha, err := s.applyZX81MachineROM(ctx, inspection.Descriptor, data, bundle)
 		if err != nil {
 			return coreLoadSource{}, err
 		}

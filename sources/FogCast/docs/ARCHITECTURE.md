@@ -451,14 +451,17 @@ keyboard interfaces do not enable this mapping. This is software coverage,
 not physical USB/controller or SMS hardware acceptance.
 A host library entry for `fes.zx81` uses `load_library_core` like other
 ROM-less FPGA cores; development `core-load` stays a separate volatile
-activation and does not create that entry. The sealed shell's machine ROM
-is empty. Launch requires `[zx81_machine_rom]` with `script`, `image`, and
+activation and does not create that entry. The DE10-Nano sealed shell's machine ROM
+is empty. Its launch requires `[zx81_machine_rom]` with `script`, `image`, and
 `mistral_cv`, each a clean absolute path, and refuses the launch when that
 section is absent. The host splices the 8 KiB BASIC image after package
 identity is fixed, keeps that package id, and records `image_sha256` on the
 launch status after firmware and media binding. A selected cart is composed
 first and stays on the launch source, so the activated composition matches
-the selection. The ROM splice is last.
+the selection. The ROM splice is last. The DE25-Nano package contains its BASIC
+ROM in the sealed RBF. Its catalog launch and Home readiness use that package
+without invoking the Cyclone V ROM linker, even when a DE10 linker is configured.
+The package's declared target selects this behavior; its core name alone does not.
 A selected `.p` tape on the current `fes.computer` ZX81 package is role
 `cassette` (`fes.media.zx81-tape` 1.0, 1..16384 bytes, unit 0) and is
 inserted after Start. A setup saved earlier with role `blob` still launches

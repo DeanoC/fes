@@ -223,6 +223,9 @@ func (s *Service) zx81FirmwareReady(ctx context.Context, entry catalog.CoreEntry
 		_, _, err := s.readCoreEntryROM(ctx, entry, descriptor)
 		return err == nil
 	}
+	if !zx81MachineROMLinkRequired(descriptor) {
+		return true
+	}
 	if s.machineROM == nil {
 		return false
 	}
