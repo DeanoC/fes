@@ -30,7 +30,7 @@ EXPORT = '/work/build/output/target-image/fes-development'
 DE25_SOURCE_RECIPES = (
     'scripts/build.py', 'scripts/native_dev.py', 'scripts/de25_appliance.py',
     'scripts/kit_software.py', 'scripts/kit_sdk.py', 'scripts/environment.py',
-    'scripts/image_artifacts.py', 'scripts/recipes.py',
+    'scripts/image_artifacts.py', 'scripts/recipes.py', 'scripts/platform.py',
     'config/core-recipes.toml', 'profiles/de25-nano.toml')
 DE25_SOURCE_INPUTS = ('board', 'architecture', 'sources', 'profile', 'go', 'sdk',
                       'kernel', 'owner_sdk_sha256', 'factory_recipe_sha256', 'recipe')
@@ -163,7 +163,7 @@ def build_de25_development(root, args):
     import build as parent
     import kit_software as software
     import module_sources
-    from scripts import de25_appliance
+    from scripts import de25_appliance, platform as platform_build
     import image_artifacts
 
     root = Path(root).resolve()
@@ -279,9 +279,13 @@ def build_de25_development(root, args):
                     runtime_record = software.build_runtime(snapshot, Path(args.de25_image),
                         revisions['libmister-runtime'], env, None, 'de25-nano',
                         runtime_source=staged['libmister-runtime'], base_factory=False, provision=True)
+                    platform_build.build_kit_software(snapshot, staged['FogCast'], env, 'aarch64')
+                    software.run(['make', '-C', staged['FogCast'], 'build-fes-kit-data',
+                                  'FES_KIT_DATA_ARCH=aarch64'], env=env)
                 binary = attempt / 'bin'
                 binary.mkdir()
-                for name in ('mister-agent', 'fogcast-kit', 'fogcast-tenfoot'):
+                for name in ('mister-agent', 'fogcast-kit', 'fogcast-tenfoot',
+                             'fes-kit-software', 'fes-kit-data'):
                     shutil.copyfile(staged['FogCast'] / ('bin/' + name + '-linux-aarch64'), binary / name)
                 shutil.copyfile(native / 'runtime/build/mister-runtime', binary / 'mister-runtime')
                 for program in binary.iterdir():

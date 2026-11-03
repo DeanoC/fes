@@ -31,7 +31,7 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         shutil.copyfile(Path(__file__).resolve().parents[1] / 'profiles/de25-nano.toml',
                         self.root / 'profiles/de25-nano.toml')
         for name in ('build', 'native_dev', 'de25_appliance', 'kit_software', 'kit_sdk',
-                     'environment', 'image_artifacts', 'recipes'):
+                     'environment', 'image_artifacts', 'recipes', 'platform'):
             path = self.root / ('scripts/' + name + '.py')
             path.parent.mkdir(exist_ok=True)
             path.write_text('# fixture recipe\n')
@@ -84,12 +84,14 @@ class DE25SourceWorkflowTests(unittest.TestCase):
                    str(self.compiler) + '\n' if args[:3] == ['go', 'env', 'GOROOT'] else 'go fixture\n')
         import kit_software
         import module_sources
-        from scripts import de25_appliance
+        from scripts import de25_appliance, platform as platform_build
         import consistency
         import image_artifacts
         self.patch(kit_software, 'de25_sdk', side_effect=lambda *a: dict(self.sdk))
         self.go = self.patch(kit_software, 'build_go', side_effect=self.build_go)
         self.runtime = self.patch(kit_software, 'build_runtime', side_effect=self.build_runtime)
+        self.supervisor = self.patch(platform_build, 'build_kit_software', side_effect=self.build_supervisor)
+        self.kit_data = self.patch(kit_software, 'run', side_effect=self.build_kit_data)
         self.patch(module_sources, 'materialize', side_effect=self.materialize)
         self.consistency = self.patch(consistency, 'check')
         base = SimpleNamespace(KERNEL_FILES=('Image', 'de25-owner.dtb'),
@@ -127,6 +129,20 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         (output / 'host-fixture').write_bytes(b'unqualified host fixture')
         build.write_receipt(output, 'host', fingerprint, ['host-fixture'])
 
+    def build_supervisor(self, snapshot, fogcast, env, architecture):
+        self.assertEqual(architecture, 'aarch64')
+        self.assertEqual(snapshot, self.go.call_args.args[0])
+        self.assertEqual(fogcast, self.go.call_args.kwargs['fogcast_source'])
+        self.assertEqual(env, self.go.call_args.args[3])
+        (fogcast / 'bin/fes-kit-software-linux-aarch64').write_bytes(b'fixture supervisor')
+
+    def build_kit_data(self, command, *, env):
+        self.assertEqual(command[:2], ['make', '-C'])
+        self.assertEqual(command[3:], ['build-fes-kit-data', 'FES_KIT_DATA_ARCH=aarch64'])
+        self.assertEqual(command[2], self.go.call_args.kwargs['fogcast_source'])
+        self.assertEqual(env, self.go.call_args.args[3])
+        (command[2] / 'bin/fes-kit-data-linux-aarch64').write_bytes(b'fixture data helper')
+
     def build_runtime(self, snapshot, cache, revision, env, driver, board, **kwargs):
         self.assertEqual((driver, board, kwargs['base_factory'], kwargs['provision']),
                          (None, 'de25-nano', False, True))
@@ -140,6 +156,10 @@ class DE25SourceWorkflowTests(unittest.TestCase):
 
     def pack(self, binary, package, selection, fogcast, runtime, output, *, board):
         self.assertEqual(board, 'de25-nano')
+        self.assertEqual({path.name for path in binary.iterdir()}, {
+            'mister-agent', 'fogcast-kit', 'fogcast-tenfoot', 'mister-runtime',
+            'fes-kit-software', 'fes-kit-data'})
+        self.assertTrue(all(path.stat().st_mode & 0o777 == 0o555 for path in binary.iterdir()))
         output.mkdir()
         data = {'provenance': {'fogcast': fogcast, 'runtime': runtime},
                 'packages': [self.package['inputs']]}
@@ -192,11 +212,31 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         self.assertEqual((output / 'linux.img').read_bytes(), original)
         self.go.assert_called_once()
         self.runtime.assert_called_once()
+        self.supervisor.assert_called_once()
+        self.kit_data.assert_called_once()
         self.factory.assert_called_once()
         self.consistency.assert_called_once()
         self.assertEqual(self.resolve.call_count, 2)
         self.assertTrue(build.reusable(output, 'development', json.loads((output / 'development.json').read_text())['inputs']))
         self.assertFalse((output / 'image.json').exists())
+
+    def test_helper_failure_preserves_the_previous_generation(self):
+        output = self.run_source()
+        previous = (output / 'development.json').read_bytes()
+        previous_image = (output / 'linux.img').read_bytes()
+        self.revisions['FogCast'] = '2' * 40
+        for helper in (self.supervisor, self.kit_data):
+            with self.subTest(helper=helper):
+                original = helper.side_effect
+                helper.side_effect = RuntimeError('helper compile failure')
+                try:
+                    with self.assertRaisesRegex(RuntimeError, 'helper compile failure'):
+                        self.run_source()
+                finally:
+                    helper.side_effect = original
+                self.assertEqual((output / 'development.json').read_bytes(), previous)
+                self.assertEqual((output / 'linux.img').read_bytes(), previous_image)
+                self.factory.assert_called_once()
 
     def test_new_source_keeps_previous_generation_and_failed_build_keeps_receipt(self):
         import kit_software
