@@ -344,12 +344,15 @@ AdLib guide's six and 35 status reads for its 3.3 us and 23 us delays need at
 most 550 and 660 ns per read, which 720 ns exceeds. In the M1 simulation every
 CPU I/O completed at exactly its class time plus the two-clock handshake.
 They are why a port-80h write or six OPL status reads keep their delay at any
-CPU speed. The governor charges each I/O instruction's reference cost separately;
+CPU speed. The governor charges each I/O instruction's reference cost and its
+period ISA cycles separately ([speed control](i386-cpu-design.md#speed-control));
 it never changes device time.
 
 VGA ports get local-bus behaviour, matching VGA memory: Wolfenstein 3D writes
 the map mask for every wall post it draws (`ScalePost` in `WL_DRAW.C`), and
-VLB-era VGA I/O was not ISA-timed either. Ordering is the reason VGA writes
+VLB-era VGA I/O was not ISA-timed either. That is device time only: under a
+preset the governor charges a VGA port access the 8-bit ISA cycle an ISA VGA
+took, and a VGA memory access its ISA cycles. Ordering is the reason VGA writes
 go through the FIFO. A posted VRAM write followed by `OUT 3C5h` must be
 planar-processed with the old map mask.
 The CPU posts MMIO stores at commit and runs OUT after them, so pushing VGA
@@ -770,7 +773,7 @@ the same logic and the VGA BIOS but are not acceptance-gated.
 | --- | --- |
 | VRAM in M10K | 256 KiB is 256 M10K blocks; with the 96-block firmware ROM it exceeds the 345 the CPU leaves. |
 | Re-scanning VRAM at output time instead of capturing | Saves capture bandwidth but loses mid-frame palette and register changes and shows guest register state from the wrong moment. |
-| ISA wait states on VGA memory | The CPU design gives VGA local-bus behaviour; period slowness belongs to the governor. |
+| ISA wait states on VGA memory | The CPU design gives VGA local-bus behaviour; period slowness belongs to the governor, which charges it ([speed control](i386-cpu-design.md#speed-control)). |
 | Integer scaling | 720 is not an integer multiple of 400, 480 or 200, so a full-height 4:3 picture cannot use integer factors. |
 
 ## Audio

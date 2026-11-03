@@ -1176,7 +1176,8 @@ Requirements on the machine that matter for speed:
 
 - VGA memory sits behind the MMIO FIFO with local-bus behaviour, not ISA
   timing. Real ISA VGA cards were a bottleneck. Reproducing their wait states
-  belongs to the governor, not the bus.
+  belongs to the governor, not the bus, and it charges them
+  ([speed control](#speed-control)).
 - Suggested for the machine: VGA memory on DDR port 1 until the SDRAM addon is
   qualified. Real ISA VGA reads were slow, so DDR latency costs little there.
 - I/O devices keep their ISA-era access timing ([I/O](#io)).
@@ -1220,21 +1221,52 @@ slows the CPU without changing any result.
   branch WB takes charges the taken count. A REP string charges each element
   as it retires and its base as it ends. A count the instruction's bytes do
   not give takes a typical value (the middle of an early-out multiply's
-  range). A fractional enable at the preset frequency pays the debt down;
+  range). I/O and VGA memory accesses also charge the period AT's ISA bus
+  time (below). A fractional enable at the preset frequency pays the debt
+  down;
   the debt stops at zero, so time the CPU spends waiting (I/O, memory, HLT)
   banks nothing. D stops issuing new x86 instructions, and new REP elements,
   while the debt exceeds a window of 64 reference cycles, which keeps
   interrupt latency and pacing smooth. Prefixes, and the 386's and 486's
   queue and cache effects, are not charged.
+- **ISA bus time:** the data sheets' counts assume a zero-wait-state local
+  bus. On a period AT an 8-bit ISA cycle took six bus clocks and a 16-bit
+  one three, and an ISA VGA held the CPU on every display memory access, so
+  the governor charges that time too ([#1362](https://github.com/DeanoC/fes/issues/1362),
+  `governor.toml`'s `[isa]`):
+  - an I/O access takes the cycles the AT's bus controller splits it into,
+    as the machine's `pc386_io` does: from its first port up, a 16-bit cycle
+    of 360 ns at the ATA data port 1F0h with two or more bytes left, else an
+    8-bit cycle of 720 ns a byte. A word at 1F0h is one 16-bit cycle, a byte
+    there one 8-bit cycle, a dword there a 16-bit cycle and 8-bit ones at
+    1F2h and 1F3h. It charges them less the two clocks of the bus cycle its
+    instruction's count holds. VGA ports are 8-bit ports here, as they were
+    on ISA VGAs;
+  - an access to VGA memory (MMIO in the attribute map) takes a 720 ns cycle
+    per 16-bit half of the bus it touches, in place of the local bus cycle
+    its count and the wait-state charge give it.
+
+  The cycles are 120 ns ISA clocks (8.33 MHz, the machine's), in reference
+  clocks at the frequency the governor runs at, rounded: an 8-bit cycle is
+  9 clocks at 286-12 and 18 at 386DX-25. The WB uop's I/O port and size
+  give the I/O cycles; the attribute of its operand's address and of a
+  `st2` store's give the MMIO ones. That attribute is the access's first
+  byte's, so an unaligned access across the window's edge counts whole: a
+  word at 9FFFFh is not charged and one at BFFFFh is charged as VGA memory.
+  The governor does not split such an access; no period program is known to
+  make one.
 - **Timing:** the class lookup, the cost ROM, the charge, the debt and its
   compare are each a register, five clocks from a retirement to the hold, so
   none of it is on D's or WB's paths; D's issue gains one registered term.
+  The ISA charges are worked out beside the ROM's address.
 - **Scope:** the governor never touches architectural state, timers or I/O
-  timing. It charges an I/O instruction's own reference cost, and the
-  machine's device time stays as its [I/O timing](pc386-machine-design.md#io-timing)
-  classes give it. While the CPU is ahead of the reference, device time
-  spends that lead, so a loop of port accesses takes the larger of its table
-  time and its device time.
+  timing. It charges an I/O or VGA memory access its period ISA time, and
+  the machine's device time stays as its [I/O timing](pc386-machine-design.md#io-timing)
+  classes give it: 720 ns for an 8-bit port, and local-bus time for VGA
+  memory and ports. Time belongs to the governor, device timing to the
+  machine. While the CPU is ahead of the reference, device time spends that
+  lead, so a loop of port accesses takes the larger of its charged time and
+  its device time, not their sum.
 - **Setting:** a core setting persisted per library game through the
   [core persistence](../../../docs/core-persistence.md) path: the
   `fes.pc386.machine` record's words 0 (preset), 1 (frequency override, in
