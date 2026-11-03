@@ -68,7 +68,8 @@ func TestInitialSTMediaRoundTripStageAdopt(t *testing.T) {
 				t.Fatal("initial disk changed linked ROM", err)
 			}
 			root := t.TempDir()
-			staged, err := StageROMInputBytes(context.Background(), root, prepared.Data)
+			envelope := prepared.Bytes()
+			staged, err := StageROMInputBytes(context.Background(), root, envelope)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -86,7 +87,7 @@ func TestInitialSTMediaRoundTripStageAdopt(t *testing.T) {
 				}
 			}
 			// The borrowing entry point must leave independent source publications.
-			clear(prepared.Data)
+			clear(envelope)
 			adopted, err := Adopt(root)
 			if err != nil || len(adopted) != 1 || !reflect.DeepEqual(adopted[0].InitialMedia, staged.InitialMedia) {
 				t.Fatal("initial source not independently adopted", err)
@@ -159,7 +160,7 @@ func TestInitialSTMediaRejectsInvalidSourceAndContract(t *testing.T) {
 		t.Fatal("receipt")
 	}
 	receipt.InitialMedia = nil
-	bad, err := writeROMInputReceipt(in, receipt)
+	bad, err := writeROMInputReceiptBytes(in, receipt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +168,7 @@ func TestInitialSTMediaRejectsInvalidSourceAndContract(t *testing.T) {
 	noDisk := in
 	noDisk.InitialMedia = nil
 	receipt.InitialMedia = &initialMediaReceipt{GameID: in.InitialMedia.GameID, BaseMediaID: in.InitialMedia.BaseMediaID, Size: InitialMediaBytes}
-	bad, err = writeROMInputReceipt(noDisk, receipt)
+	bad, err = writeROMInputReceiptBytes(noDisk, receipt)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -287,11 +287,11 @@ func TestROMInputSlotCardsCarryVerifiedEvidence(t *testing.T) {
 	ctx := context.Background()
 	archive, payload, firmware, inspection := apple2Fixture(t, true)
 	plain, err := PrepareROMInput(ctx, ROMInput{Package: archive, ROM: firmware})
-	if err != nil || plain.SlotComposition != nil || strings.Contains(string(plain.Data), "slot_expansions") {
+	if err != nil || plain.SlotComposition != nil || strings.Contains(string(plain.Bytes()), "slot_expansions") {
 		t.Fatalf("plain slot shell: %+v %v", plain.SlotComposition, err)
 	}
 	root := t.TempDir()
-	staged, err := StageROMInput(ctx, root, int64(len(plain.Data)), bytes.NewReader(plain.Data))
+	staged, err := StageROMInput(ctx, root, plain.Size(), plain.Reader())
 	if err != nil || staged.SlotComposition != nil || staged.ROMLink == nil {
 		t.Fatalf("plain staging %+v %v", staged, err)
 	}
@@ -303,7 +303,7 @@ func TestROMInputSlotCardsCarryVerifiedEvidence(t *testing.T) {
 	if err != nil || transport.SlotComposition == nil || len(transport.SlotComposition.Expansions) != 2 || transport.SlotComposition.Expansions[0].Slot != 2 {
 		t.Fatalf("slot transport %+v %v", transport.SlotComposition, err)
 	}
-	staged, err = StageROMInput(ctx, root, int64(len(transport.Data)), bytes.NewReader(transport.Data))
+	staged, err = StageROMInput(ctx, root, transport.Size(), transport.Reader())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,17 +320,17 @@ func TestROMInputSlotCardsCarryVerifiedEvidence(t *testing.T) {
 	}
 	// A receipt whose evidence differs from the independent link is refused.
 	var receipt romInputReceipt
-	reader := &canonicalReader{data: transport.Data}
+	reader := &canonicalReader{data: transport.Bytes()}
 	encoded, err := reader.read("rom-link.json", 4096)
 	if err != nil || json.Unmarshal(encoded, &receipt) != nil {
 		t.Fatalf("receipt %v", err)
 	}
 	receipt.ProgrammedSHA256 = strings.Repeat("0", 64)
-	in, _, err := readROMInput(transport.Data)
+	in, _, err := readROMInput(transport.Bytes())
 	if err != nil {
 		t.Fatal(err)
 	}
-	forged, err := writeROMInputReceipt(in, receipt)
+	forged, err := writeROMInputReceiptBytes(in, receipt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +338,7 @@ func TestROMInputSlotCardsCarryVerifiedEvidence(t *testing.T) {
 		t.Fatal("forged link evidence staged")
 	}
 	receipt.Composition, receipt.ProgrammedSHA256, receipt.ProgrammedSize = nil, "", 0
-	missing, err := writeROMInputReceipt(in, receipt)
+	missing, err := writeROMInputReceiptBytes(in, receipt)
 	if err != nil {
 		t.Fatal(err)
 	}

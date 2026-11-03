@@ -3,7 +3,6 @@
 package kitpackages
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -191,7 +190,7 @@ func (s *Store) publishRetained(ctx context.Context, r *os.Root, inspection core
 	if err != nil {
 		return false, err
 	}
-	staged, err := corepackage.Stage(ctx, filepath.Join(s.root, "packages"), int64(len(data)), bytes.NewReader(data))
+	staged, err := corepackage.StageBytes(ctx, filepath.Join(s.root, "packages"), data)
 	if err != nil {
 		return false, err
 	}

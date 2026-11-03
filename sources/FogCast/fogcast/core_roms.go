@@ -1,7 +1,6 @@
 package fogcast
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -262,10 +261,8 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 		}
 		slotCards = cards
 	}
-	var data []byte
+	var transport corepackage.ROMTransport
 	var biosMediaID string
-	var slotComposition *expansion.SlotComposition
-	var partsComposition *expansion.PartsComposition
 	if descriptor.Format == 4 {
 		var bios []byte
 		var biosErr error
@@ -273,16 +270,12 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 		if biosErr != nil {
 			return coreLoadSource{}, biosErr
 		}
-		var transport corepackage.ROMTransport
 		transport, err = corepackage.PrepareROMInputV2(ctx, corepackage.ROMInputV2{Package: base, BIOS: bios, Cartridge: rom, Expansion: asset, Parts: videoParts})
-		data, partsComposition = transport.Data, transport.PartsComposition
 	} else {
-		var transport corepackage.ROMTransport
 		input := corepackage.ROMInput{Package: base, ROM: rom, Expansion: asset, SlotExpansions: slotCards}
 		input.InitialMedia = initial
 		input.Parts = videoParts
 		transport, err = corepackage.PrepareROMInput(ctx, input)
-		data, slotComposition, partsComposition = transport.Data, transport.SlotComposition, transport.PartsComposition
 		if err != nil && len(slotCards) != 0 {
 			return coreLoadSource{}, slotExpansionUnavailable()
 		}
@@ -296,7 +289,8 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 	if err != nil {
 		return coreLoadSource{}, romAdmissionError()
 	}
-	source := coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry, romID: selected.ROMID, romMediaID: selected.MediaID, slotComposition: slotComposition, partsComposition: partsComposition}
+	// The envelope streams from the package and ROM bytes in place.
+	source := coreLoadSource{size: transport.Size(), body: transport.Reader(), entry: &entry, romID: selected.ROMID, romMediaID: selected.MediaID, slotComposition: transport.SlotComposition, partsComposition: transport.PartsComposition}
 	source.initialMedia = initial
 	if descriptor.Format == 3 && descriptor.Core.ID == "fes.atari-st" {
 		source.activationBudget = 300 * time.Second

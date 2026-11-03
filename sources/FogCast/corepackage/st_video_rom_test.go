@@ -63,11 +63,11 @@ func TestSTVideoROMStageAdoptAndRetainTwoIdentities(t *testing.T) {
 	}
 	in.Parts[0], in.Parts[1] = in.Parts[1], in.Parts[0]
 	reordered, err := PrepareROMInput(ctx, in)
-	if err != nil || !bytes.Equal(prepared.Data, reordered.Data) {
+	if err != nil || !bytes.Equal(prepared.Bytes(), reordered.Bytes()) {
 		t.Fatal("parts order changed canonical ROM transport", err)
 	}
 	root := t.TempDir()
-	staged, err := StageROMInput(ctx, root, int64(len(prepared.Data)), bytes.NewReader(prepared.Data))
+	staged, err := StageROMInput(ctx, root, prepared.Size(), prepared.Reader())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestSTVideoROMRejectsAmbiguousRolesAndFalseEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	receipt.PartsComposition.ID = strings.Repeat("e", 64)
-	falseEvidence, err := writeROMInputReceipt(in, receipt)
+	falseEvidence, err := writeROMInputReceiptBytes(in, receipt)
 	if err != nil {
 		t.Fatal(err)
 	}
