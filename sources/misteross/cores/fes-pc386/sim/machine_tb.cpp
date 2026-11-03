@@ -33,7 +33,7 @@
 //        [--type-at S] [--key-gap S] [--wav F] [--opl2-log F] [--keys S:TEXT]... [--cpu oracle|rtl]
 //        [--preset N] [--frequency N] [--turbo N]
 //        [--mouse S:DX,DY,BUTTONS]...
-//        [--census F]
+//        [--census F] [--profile F] [--profile-from S] [--profile-to S]
 // A program on the disk marks a picture by writing "SNAP <name>" and a newline
 // to port E9h, then holding it; the bench takes the second capture after the
 // marker, runs the pixel clock for two 720p frames and compares the second
@@ -68,6 +68,20 @@
 // --census F writes each stem the oracle retired, its count and its first
 // CS:EIP to F, ":pm" after a stem run in protected mode or V86: the whole
 // boot's instruction mix with the oracle as the CPU, the RTL's stops with it.
+// --profile F writes where the oracle's steps from --profile-from seconds to
+// --profile-to seconds (default 0 and the end of the run) went, when the window
+// closes:
+//   WINDOW <from> <to> steps=<n> clocks=<n> rm=<n> pm=<n> v86=<n>
+//   SITE <linear> <rm|pm|v86> <steps> <clocks> <first cs:eip> <bytes>   most clocks first
+//   INT <event> <calls> <steps> <clocks> <fewest> <most>
+//   STRETCH <event> <stretches> <steps> <clocks> <fewest> <most>
+// A step's clocks run from its start to the next, a halt's wait included.
+// INT is each interrupt delivered in real mode ("intvv.ah" for INT vv with
+// that AH, "irqvv", "excvv", "nmi"), with the steps and clocks from its
+// delivery to the IRET to the stack and CS:IP it interrupted, its handler's
+// own interrupts included; fewest and most are steps. STRETCH is each run of
+// real-mode steps between protected-mode or V86 ones, by its first software
+// interrupt, else its first IRQ, else "none".
 #include "Vpc386_machine.h"
 #include "Vpc386_machine___024root.h"
 #include "Vfes_i386_cpu.h"
@@ -80,6 +94,7 @@
 #include "smc_stale.h"
 #include "verilated.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -94,6 +109,7 @@
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -985,6 +1001,129 @@ struct Gap {
     std::set<uint32_t> sites;
 };
 
+// --profile: the oracle's steps by site, its real-mode interrupts until they
+// return, and its real-mode stretches.
+struct Profile {
+    struct Site { uint64_t steps = 0, clocks = 0; std::string first, bytes; };
+    struct Tally {
+        uint64_t count = 0, steps = 0, clocks = 0, fewest = ~0ull, most = 0;
+        void add(uint64_t n, uint64_t c) {
+            ++count; steps += n; clocks += c;
+            fewest = std::min(fewest, n); most = std::max(most, n);
+        }
+    };
+    // An interrupt delivered in real mode: the frame it pushed, and the
+    // profile's totals before its delivery.
+    struct Open { std::string event; uint16_t cs, ip, ss, sp; uint64_t steps, clocks; };
+    uint64_t from = 0, to = ~0ull;
+    bool written = false;
+    std::unordered_map<uint64_t, Site> sites;  // the mode above the linear address
+    std::map<std::string, Tally> interrupts, stretches;
+    std::vector<Open> open;
+    uint64_t steps = 0, clocks = 0, mode_steps[3] = {};
+    bool in_stretch = false;
+    std::string stretch_interrupt, stretch_irq;
+    uint64_t stretch_steps = 0, stretch_clocks = 0;
+
+    static unsigned mode(const fes_i386::State &s) { return s.eflags & 0x20000 ? 2 : s.cr0 & 1 ? 1 : 0; }
+
+    void end_stretch() {
+        if (!in_stretch) return;
+        stretches[!stretch_interrupt.empty() ? stretch_interrupt : !stretch_irq.empty() ? stretch_irq : "none"]
+            .add(stretch_steps, stretch_clocks);
+        in_stretch = false;
+    }
+
+    // One oracle step from `before` to `after`, `step_clocks` long; `byte`
+    // reads guest memory by linear address.
+    void step(const fes_i386::State &before, const fes_i386::State &after, const fes_i386::StepResult &result,
+              uint64_t step_clocks, const std::function<uint8_t(uint32_t)> &byte) {
+        const unsigned m = mode(before);
+        const uint16_t cs = uint16_t(before.seg[fes_i386::SEG_CS].selector), ip = uint16_t(before.eip);
+        const uint16_t ss = uint16_t(before.seg[fes_i386::SEG_SS].selector);
+        const uint16_t sp = uint16_t(before.gpr[fes_i386::REG_ESP]);
+        if (m == 0) {
+            // An interrupt's IRET: back at the frame it pushed. Any opened
+            // since that never returned are dropped.
+            for (size_t n = open.size(); n-- > 0;) {
+                const Open &o = open[n];
+                if (o.cs != cs || o.ip != ip || o.ss != ss || o.sp != sp) continue;
+                interrupts[o.event].add(steps - o.steps, clocks - o.clocks);
+                open.resize(n);
+                break;
+            }
+        }
+        const uint32_t linear = before.seg[fes_i386::SEG_CS].base + before.eip;
+        Site &site = sites[uint64_t(m) << 32 | linear];
+        if (!site.steps) {
+            char text[24];
+            std::snprintf(text, sizeof text, "%04x:%08x", cs, before.eip);
+            site.first = text;
+            for (unsigned n = 0; n < 15; ++n) {
+                std::snprintf(text, sizeof text, "%02x", byte(linear + n));
+                site.bytes += text;
+            }
+        }
+        ++site.steps;
+        site.clocks += step_clocks;
+        ++steps;
+        clocks += step_clocks;
+        ++mode_steps[m];
+        if (m == 0) {
+            if (!in_stretch) {
+                in_stretch = true;
+                stretch_interrupt.clear(); stretch_irq.clear();
+                stretch_steps = stretch_clocks = 0;
+            }
+            ++stretch_steps;
+            stretch_clocks += step_clocks;
+        } else end_stretch();
+        if (result.events.empty() || m != 0 || mode(after) != 0) return;
+        const fes_i386::Event &event = result.events.back();
+        char text[24];
+        if (event.kind == fes_i386::EventKind::SoftwareInterrupt)
+            std::snprintf(text, sizeof text, "int%02x.%02x", event.vector,
+                          unsigned(before.gpr[fes_i386::REG_EAX] >> 8) & 0xff);
+        else if (event.kind == fes_i386::EventKind::ExternalInterrupt) std::snprintf(text, sizeof text, "irq%02x", event.vector);
+        else if (event.kind == fes_i386::EventKind::Exception) std::snprintf(text, sizeof text, "exc%02x", event.vector);
+        else std::snprintf(text, sizeof text, "nmi");
+        if (event.kind == fes_i386::EventKind::SoftwareInterrupt && stretch_interrupt.empty()) stretch_interrupt = text;
+        if (event.kind == fes_i386::EventKind::ExternalInterrupt && stretch_irq.empty()) stretch_irq = text;
+        // The frame: IP, CS and FLAGS at SS:SP.
+        const uint16_t top = uint16_t(after.gpr[fes_i386::REG_ESP]);
+        const uint32_t base = after.seg[fes_i386::SEG_SS].base;
+        auto word = [&](uint16_t at) { return uint16_t(byte(base + at) | byte(base + uint16_t(at + 1)) << 8); };
+        open.push_back({text, word(uint16_t(top + 2)), word(top), uint16_t(after.seg[fes_i386::SEG_SS].selector),
+                        uint16_t(top + 6), steps - 1, clocks - step_clocks});
+        if (open.size() > 64) open.erase(open.begin());
+    }
+
+    void write(const std::string &path, uint64_t end) {
+        end_stretch();
+        std::ofstream out(path);
+        out << "WINDOW " << from << ' ' << end << " steps=" << steps << " clocks=" << clocks << " rm=" << mode_steps[0]
+            << " pm=" << mode_steps[1] << " v86=" << mode_steps[2] << '\n';
+        std::vector<std::pair<uint64_t, const Site *>> order;
+        for (const auto &[key, site] : sites) order.push_back({key, &site});
+        std::sort(order.begin(), order.end(), [](const auto &a, const auto &b) {
+            return a.second->clocks != b.second->clocks ? a.second->clocks > b.second->clocks : a.first < b.first;
+        });
+        static const char *const modes[] = {"rm", "pm", "v86"};
+        for (const auto &[key, site] : order) {
+            char text[16];
+            std::snprintf(text, sizeof text, "%08x", uint32_t(key));
+            out << "SITE " << text << ' ' << modes[key >> 32] << ' ' << site->steps << ' ' << site->clocks << ' '
+                << site->first << ' ' << site->bytes << '\n';
+        }
+        for (const auto &[name, table] : {std::pair{"INT", &interrupts}, std::pair{"STRETCH", &stretches}})
+            for (const auto &[event, tally] : *table)
+                out << name << ' ' << event << ' ' << tally.count << ' ' << tally.steps << ' ' << tally.clocks << ' '
+                    << tally.fewest << ' ' << tally.most << '\n';
+        if (!out) throw std::runtime_error("cannot write " + path);
+        written = true;
+    }
+};
+
 // 48 kHz mono 16-bit PCM.
 void write_wav(const std::string &path, const std::vector<int16_t> &samples) {
     std::ofstream out(path, std::ios::binary);
@@ -1000,8 +1139,8 @@ void write_wav(const std::string &path, const std::vector<int16_t> &samples) {
 
 struct Options {
     std::string bios, vgabios, disk, disk_out, prompt = "C:\\>", type, expect, trace, frames, until_debug;
-    std::string wav, opl2_log, cpu = "oracle", census;
-    double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03;
+    std::string wav, opl2_log, cpu = "oracle", census, profile;
+    double limit_seconds = 120, pixel_from = -1, type_at = -1, key_gap = 0.03, profile_from = 0, profile_to = -1;
     unsigned preset = 0, frequency = 0, turbo = 0;  // --cpu rtl's governor settings
     std::vector<std::pair<double, std::string>> keys;
     struct Mouse { double at; int dx, dy, buttons; };
@@ -1100,6 +1239,9 @@ Options parse(int argc, char **argv) {
         else if (flag == "--opl2-log") options.opl2_log = value;
         else if (flag == "--cpu") options.cpu = value;
         else if (flag == "--census") options.census = value;
+        else if (flag == "--profile") options.profile = value;
+        else if (flag == "--profile-from") options.profile_from = std::stod(value);
+        else if (flag == "--profile-to") options.profile_to = std::stod(value);
         else if (flag == "--preset") options.preset = unsigned(std::stoul(value));
         else if (flag == "--frequency") options.frequency = unsigned(std::stoul(value));
         else if (flag == "--turbo") options.turbo = unsigned(std::stoul(value));
@@ -1173,12 +1315,20 @@ int main(int argc, char **argv) {
         std::set<std::string> notes;
         std::map<std::string, uint64_t> census;
         std::map<std::string, std::string> census_first;
+        Profile profile;
+        profile.from = uint64_t(options.profile_from * CLOCK_HZ);
+        if (options.profile_to >= 0) profile.to = uint64_t(options.profile_to * CLOCK_HZ);
         auto site = [](const fes_i386::State &s) {
             char text[24];
             std::snprintf(text, sizeof text, "%04x:%08x", s.seg[fes_i386::SEG_CS].selector, s.eip);
             return std::string(text);
         };
         bool intr = false, a20m = false;
+        auto guest_byte = [&](uint32_t linear) {
+            const uint32_t at = RtlCpu::physical(linear, a20m);
+            uint8_t *page = machine.page(at, false);
+            return page ? page[at & 0xfff] : uint8_t(0xff);
+        };
         // An RTL stop: count it under its stem and hand the instruction at
         // CS:EIP, with the RTL's state, to the oracle.
         auto stop = [&](const char *kind) {
@@ -1241,20 +1391,19 @@ int main(int argc, char **argv) {
 
         while (machine.cycles < limit) {
             if (on_oracle) {
+                const uint64_t step_from = machine.cycles;
+                const bool profiling = !options.profile.empty() && step_from >= profile.from && step_from < profile.to;
+                fes_i386::State before;
+                if (profiling || !options.census.empty()) before = oracle->get_state();
                 // The census: the stem at CS:EIP, counted if it retires.
                 std::string census_stem;
                 if (!options.census.empty()) {
-                    fes_i386::State state = oracle->get_state();
                     uint8_t bytes[15];
-                    const uint32_t linear = state.seg[fes_i386::SEG_CS].base + state.eip;
-                    for (unsigned n = 0; n < 15; ++n) {
-                        uint32_t at = RtlCpu::physical(linear + n, a20m);
-                        uint8_t *page = machine.page(at, false);
-                        bytes[n] = page ? page[at & 0xfff] : 0xff;
-                    }
+                    const uint32_t linear = before.seg[fes_i386::SEG_CS].base + before.eip;
+                    for (unsigned n = 0; n < 15; ++n) bytes[n] = guest_byte(linear + n);
                     census_stem = stem(bytes, 15);
-                    if ((state.cr0 & 1) || (state.eflags & 0x20000)) census_stem += ":pm";
-                    if (!census.count(census_stem)) census_first[census_stem] = site(state);
+                    if ((before.cr0 & 1) || (before.eflags & 0x20000)) census_stem += ":pm";
+                    if (!census.count(census_stem)) census_first[census_stem] = site(before);
                 }
                 fes_i386::StepResult result = oracle->step();
                 if (!census_stem.empty() && result.retired) ++census[census_stem];
@@ -1275,6 +1424,7 @@ int main(int argc, char **argv) {
                     std::printf("CPU-RESET %llu\n", (unsigned long long)machine.cycles);
                     oracle->reset();
                 }
+                if (profiling) profile.step(before, oracle->get_state(), result, machine.cycles - step_from, guest_byte);
                 if (bool(machine.top.intr) != intr) { intr = machine.top.intr; oracle->set_intr(intr); }
                 if (bool(machine.top.a20m) != a20m) { a20m = machine.top.a20m; oracle->set_a20(!a20m); }
                 if (rtl) {
@@ -1319,6 +1469,8 @@ int main(int argc, char **argv) {
                     rtl->start(oracle->get_state());
                 }
             }
+            if (!options.profile.empty() && !profile.written && machine.cycles >= profile.to)
+                profile.write(options.profile, machine.cycles);
 
             // Debug-port markers.
             bool finished = false;
@@ -1427,6 +1579,7 @@ int main(int argc, char **argv) {
             for (const auto &[key, count] : census) out << key << ' ' << count << ' ' << census_first[key] << '\n';
             if (!out) throw std::runtime_error("cannot write " + options.census);
         }
+        if (!options.profile.empty() && !profile.written) profile.write(options.profile, machine.cycles);
         if (rtl) {
             if (stretch_steps)
                 std::printf("PMODE %llu %llu %llu %s -\n", (unsigned long long)stretch_from,
