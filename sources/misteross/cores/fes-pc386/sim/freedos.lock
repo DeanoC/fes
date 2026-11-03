@@ -43,6 +43,17 @@
         "LICENSE": "0f01c95da3a84a7c77bda6b21d05df1bd36290e0f11e678d1124ea7dffd6da5f"
       }
     },
+    "jemm": {
+      "repository": "https://gitlab.com/FreeDOS/base/jemm.git",
+      "commit": "31c8c5f33eed57b1bdee17359f8f2efa1d6c8b8e",
+      "version": "5.85",
+      "license": "UMBM public domain; JEMM386 and JEMMEX partly Artistic License (DOC/JEMM/Readme.txt, section 9)",
+      "files": {
+        "BIN/UMBM.EXE": "cde451ef834d24d1e317521635fecd307dda87b79fa23d3cd19d645615f2e839",
+        "DOC/JEMM/Readme.txt": "54281883f6f29adf239e475e2eb2d3b1fdb12903b91c1704a9bd782d7c70d9e5",
+        "DOC/JEMM/Artistic.txt": "47e9026e597eb214ec7e9c0a5fe72311b67a81d26bcf4a3cfa6ab21eb8ffeca0"
+      }
+    },
     "ctmouse": {
       "repository": "https://gitlab.com/FreeDOS/base/ctmouse.git",
       "commit": "39339c705aa22578da11eb999a1404fc8013a3ab",

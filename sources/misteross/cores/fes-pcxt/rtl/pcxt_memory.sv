@@ -24,7 +24,7 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     input wire [18:0] disk_load_address,
     input wire [7:0] disk_load_data,
     output reg disk_load_done,
-    input wire media_read_valid,
+    input wire media_read_valid, media_read_reset_safe,
     input wire [18:0] media_read_addr,
     output reg media_read_ready,
     output reg [7:0] media_read_data,
@@ -62,7 +62,7 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     reg [25:0] held_address;
     reg [15:0] held_data;
     reg [1:0] held_lanes;
-    reg held_write;
+    reg held_write, held_media_reset_safe;
     // Match the controller's conservative 100 MHz capture count: one fabric
     // stage after the board's input capture registers (ramtest rate-3 path).
     reg [15:0] dq_rise_q, dq_fall_q;
@@ -72,7 +72,7 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
     end
     wire controller_done;
     wire [15:0] controller_data;
-    wire waiting_media = !reset && media_read_valid && !media_seen;
+    wire waiting_media = (!reset || media_read_reset_safe) && media_read_valid && !media_seen;
     wire waiting_memory = !reset && memory_valid && !memory_seen;
     wire waiting_load = disk_load_valid && !disk_load_seen && disk_load_address < DISK_BYTES && !media_read_valid;
     assign memory_ready = initialized && !cold_reset && !reset && !busy && !memory_seen &&
@@ -113,14 +113,14 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
             busy <= 0; owner <= OWNER_MEMORY; discard <= 0; odd <= 0; physical <= 0;
             memory_seen <= 0; firmware_seen <= 0; disk_load_seen <= 0; media_seen <= 0;
             prefer_media <= 0; prefer_load <= 0;
-            held_address <= 0; held_data <= 0; held_lanes <= 0; held_write <= 0;
+            held_address <= 0; held_data <= 0; held_lanes <= 0; held_write <= 0; held_media_reset_safe <= 0;
             memory_rdata <= 8'hff; media_read_data <= 8'hff;
         end else begin
             if (!memory_valid || reset) memory_seen <= 0;
             if (!firmware_valid) firmware_seen <= 0;
             if (!disk_load_valid) disk_load_seen <= 0;
-            if (!media_read_valid || reset) media_seen <= 0;
-            if (reset && busy && (owner == OWNER_MEMORY || owner == OWNER_MEDIA)) discard <= 1;
+            if (!media_read_valid || (reset && !media_read_reset_safe)) media_seen <= 0;
+            if (reset && busy && (owner == OWNER_MEMORY || (owner == OWNER_MEDIA && !held_media_reset_safe))) discard <= 1;
             if (busy) begin
                 if (!physical || controller_done) begin
                     busy <= 0;
@@ -130,7 +130,7 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
                         memory_done <= 1;
                         memory_rdata <= !physical ? 8'hff :
                                        odd ? controller_data[15:8] : controller_data[7:0];
-                    end else if (owner == OWNER_MEDIA && !reset && !discard) begin
+                    end else if (owner == OWNER_MEDIA && (!reset || held_media_reset_safe) && !discard) begin
                         media_read_ready <= 1;
                         media_read_data <= !physical ? 8'hff :
                                            odd ? controller_data[15:8] : controller_data[7:0];
@@ -162,10 +162,10 @@ module pcxt_memory #(parameter bit HALF_RATE_CONTROLLER = 0, EXTERNAL_CS_REGISTE
                 held_data <= {wdata, wdata};
                 held_lanes <= address[0] ? 2'b10 : 2'b01;
                 held_write <= write_cycle;
-            end else if (initialized && !cold_reset && !reset && waiting_media &&
+            end else if (initialized && !cold_reset && waiting_media &&
                          (!waiting_memory || prefer_media)) begin
                 busy <= 1; owner <= OWNER_MEDIA; discard <= 0; prefer_media <= 0;
-                media_seen <= 1; odd <= media_read_addr[0];
+                media_seen <= 1; odd <= media_read_addr[0]; held_media_reset_safe <= media_read_reset_safe;
                 // Out-of-range device requests return FF without issuing a
                 // physical command. The FDC itself only emits valid offsets.
                 physical <= media_read_addr < DISK_BYTES;

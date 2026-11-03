@@ -1411,7 +1411,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	std::vector<std::string> computer_11_interfaces;
 	for (const auto& interface : computer_11.interfaces) computer_11_interfaces.push_back(interface.id);
 	std::vector<std::string> expected_11 = computer_interfaces;
-	expected_11.insert(expected_11.end(), {"fes.media.ata-disk", "fes.media.pcxt-floppy", "fes.pc386.machine", "fes.persistence.words",
+	expected_11.insert(expected_11.end(), {"fes.media.ata-disk", "fes.media.pcxt-floppy", "fes.media.pcxt-floppy-write", "fes.pc386.machine", "fes.persistence.words",
 		"fes.rtc.wall-clock"});
 	std::sort(expected_11.begin(), expected_11.end());
 	assert(computer_11_interfaces == expected_11);

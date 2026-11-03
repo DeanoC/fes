@@ -440,6 +440,18 @@ func computerEmptyStartup(d corepackage.Descriptor, iface corepackage.Interface)
 	if iface.ID == pcxt.ID && iface.Major == int64(pcxt.Major) && iface.Minor == int64(pcxt.Minor) {
 		return d.ABI.Minor >= protocol.ComputerExtendedMinor
 	}
+	write := protocol.PcxtFloppyWriteInterface()
+	if iface.ID == write.ID && iface.Major == int64(write.Major) && iface.Minor == int64(write.Minor) {
+		if d.ABI.Minor < protocol.ComputerExtendedMinor || !iface.Required {
+			return false
+		}
+		for _, base := range d.Interfaces {
+			if base.Required && base.ID == pcxt.ID && base.Major == int64(pcxt.Major) && base.Minor == int64(pcxt.Minor) {
+				return true
+			}
+		}
+		return false
+	}
 	for _, contract := range []protocol.RuntimeContract{
 		protocol.Apple2FloppyInterface(),
 		protocol.SpectrumTapeInterface(),

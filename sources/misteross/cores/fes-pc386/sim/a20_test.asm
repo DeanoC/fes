@@ -28,14 +28,14 @@
 ;             CMOS 0Fh back at 0. machine_tb's oracle fetches the reset vector
 ;             at FFFFFFF0h only with A20 on, so the reset is made with A20 on.
 ;
-; With an XMS driver and DOS in the HMA, as on the FreeDOS games image (mode
-; F), the BIOS calls are left alone, since FreeDOS keeps A20 on while it runs
-; there:
+; With an XMS driver and DOS kept low, as on the FreeDOS games image (mode F),
+; nothing but the program holds an XMS enable, so XMS alone drives A20 and the
+; BIOS calls are left alone:
+;   xms-start  A20 was off when the program started.
 ;   xms-query  XMS 07h agrees with memory.
-;   xms-local  XMS 05h turns A20 on and 07h reports it. 06h succeeds, or
-;              returns BL=94h (A20 still enabled) with A20 still on: with
-;              DOS=HIGH the FreeDOS kernel holds a local enable of its own.
-;              Either way 07h then agrees with memory.
+;   xms-global and xms-lock as in mode X below: 04h and 06h turn A20 off
+;              again and return success, which Ultima VII's Voodoo memory
+;              manager needs from 04h as it exits.
 ; Whether HIMEMX chose a real A20 method is in its /VERBOSE banner, which the
 ; suite checks.
 ;
@@ -126,29 +126,12 @@ xms_tests:
         cmp byte [mode], 'X'
         je dos_tests
 
+        mov si, name_xms_start
+        mov al, [at_start]
+        call check_zero
         mov si, name_xms_query
         call xms_agrees
-
-        mov si, name_xms_local
-        mov ah, 0x05
-        call far [xms]
-        mov ah, 1
-        call check
-        call xms_agrees
-        call wrap
-        mov ah, 1
-        call check
-        mov ah, 0x06
-        call far [xms]
-        cmp ax, 1
-        je .local_off
-        cmp bl, 0x94
-        jne .local_off                  ; AL = 0: fails below
-        call wrap                       ; still enabled: A20 must be on
-.local_off:
-        mov ah, 1
-        call check
-        call xms_agrees
+        call xms_steps
         jmp done
 
 dos_tests:
@@ -183,18 +166,7 @@ dos_tests:
         mov [reported], al
         mov byte [expect], 0
         call results
-
-        mov si, name_xms_global
-        mov ah, 0x03
-        call xms_step_on
-        mov ah, 0x04
-        call xms_step_off
-
-        mov si, name_xms_lock
-        mov ah, 0x05
-        call xms_step_on
-        mov ah, 0x06
-        call xms_step_off
+        call xms_steps
 
         call bios_checks
         movzx cx, byte [dos_locks]       ; DOS's enables back
@@ -263,6 +235,21 @@ bios_checks:
         mov ax, 0x2400
         call bios_a20
         jmp state_is_off
+
+; From A20 off: XMS 03h and 04h, then 05h and 06h, each turning A20 on or
+; off again.
+xms_steps:
+        mov si, name_xms_global
+        mov ah, 0x03
+        call xms_step_on
+        mov ah, 0x04
+        call xms_step_off
+
+        mov si, name_xms_lock
+        mov ah, 0x05
+        call xms_step_on
+        mov ah, 0x06
+        jmp xms_step_off
 
 ; ---- Checks ---------------------------------------------------------------
 
@@ -576,8 +563,8 @@ name_port92:   db 'port92$'
 name_move:     db 'move$'
 name_move_kbc: db 'move-kbc$'
 name_resume:   db 'resume$'
+name_xms_start: db 'xms-start$'
 name_xms_query: db 'xms-query$'
-name_xms_local: db 'xms-local$'
 name_dos_start: db 'dos-start$'
 name_dos_locks: db 'dos-locks-0$'
 name_dos_release: db 'dos-release$'

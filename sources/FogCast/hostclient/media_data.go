@@ -16,7 +16,16 @@ func DiskBinding(prior SessionResult) (protocol.MediaUnitBinding, error) {
 	}
 	b := protocol.MediaUnitBinding{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, Unit: protocol.AtariStFloppyUnit, Target: prior.Target, TargetID: prior.TargetID}
 	u, known := protocol.MediaUnit(diskPackage(prior.CorePackage), b.Unit)
-	known = known && u.Interface == protocol.AtariStFloppyInterface()
+	known = known && (u.Interface == protocol.AtariStFloppyInterface() || u.Interface == protocol.PcxtFloppyInterface())
+	for _, iface := range prior.CorePackage.ActiveInterfaces {
+		if (u.Interface == protocol.PcxtFloppyInterface() && iface.ID == protocol.AtariStFloppyWriteInterface().ID) ||
+			(u.Interface == protocol.AtariStFloppyInterface() && iface.ID == protocol.PcxtFloppyWriteInterface().ID) {
+			known = false
+		}
+		if (iface.ID == protocol.AtariStFloppyWriteInterface().ID || iface.ID == protocol.PcxtFloppyWriteInterface().ID) && (iface.Major != 1 || iface.Minor != 0) {
+			known = false
+		}
+	}
 	if !b.Valid() || !known {
 		return b, protocol.MediaUnitIdentityError()
 	}
@@ -32,7 +41,23 @@ func (c *Client) InsertLibraryDiskForSession(ctx context.Context, prior SessionR
 		return SessionResult{}, protocol.MediaUnitRequestError()
 	}
 	payload, _ := json.Marshal(map[string]string{"game_id": gameID, "base_media_id": baseID})
-	return c.postDisk(ctx, "/api/v1/session/disk/insert", prior, b, payload)
+	after, err := c.postDisk(ctx, "/api/v1/session/disk/insert", prior, b, payload)
+	if err != nil {
+		return after, err
+	}
+	old, _ := protocol.MediaUnit(diskPackage(prior.CorePackage), b.Unit)
+	current, ok := protocol.MediaUnit(diskPackage(after.CorePackage), b.Unit)
+	if !ok || current.Interface != old.Interface || current.MinBytes != old.MinBytes || current.MaxBytes != old.MaxBytes || current.ChunkBytes != old.ChunkBytes || current.State != protocol.MediaUnitReady {
+		return after, errors.New("disk insertion response lost its durable binding")
+	}
+	if protocol.FloppyWriteUnitCapable(diskPackage(prior.CorePackage), old) {
+		if !protocol.PersistentMediaUnitCapable(diskPackage(after.CorePackage), current) || current.Persistence.GameID != gameID || current.Persistence.BaseMediaID != baseID {
+			return after, errors.New("disk insertion response lost its durable binding")
+		}
+	} else if current.Persistence != nil {
+		return after, errors.New("read-only disk insertion returned a durable binding")
+	}
+	return after, nil
 }
 func diskPackage(p *SessionCorePackage) *protocol.CorePackageStatus {
 	if p == nil {
@@ -64,9 +89,9 @@ func (c *Client) SaveDiskForSession(ctx context.Context, prior SessionResult) (S
 	}
 	retained := false
 	for _, u := range after.CorePackage.MediaUnits {
-		if u.Unit == b.Unit && u.Persistence != nil && u.Valid() {
+		if u.Unit == b.Unit && u.State == protocol.MediaUnitReady && u.CanSave() && u.Persistence != nil && u.Valid() && protocol.ValidateDigest(u.Persistence.Revision) == nil {
 			for _, old := range prior.CorePackage.MediaUnits {
-				if old.Unit == u.Unit && old.Persistence != nil && old.Persistence.GameID == u.Persistence.GameID && old.Persistence.BaseMediaID == u.Persistence.BaseMediaID {
+				if old.Unit == u.Unit && old.Interface == u.Interface && old.MinBytes == u.MinBytes && old.MaxBytes == u.MaxBytes && old.ChunkBytes == u.ChunkBytes && old.Persistence != nil && old.Persistence.GameID == u.Persistence.GameID && old.Persistence.BaseMediaID == u.Persistence.BaseMediaID {
 					retained = true
 				}
 			}

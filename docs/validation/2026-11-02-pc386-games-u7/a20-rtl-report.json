@@ -1,0 +1,713 @@
+{
+  "runs": {
+    "boot": {
+      "post": [
+        {
+          "code": "00",
+          "cycle": 11516
+        },
+        {
+          "code": "21",
+          "cycle": 2243826
+        },
+        {
+          "code": "31",
+          "cycle": 2343794
+        },
+        {
+          "code": "41",
+          "cycle": 2744185
+        },
+        {
+          "code": "71",
+          "cycle": 2846546
+        },
+        {
+          "code": "77",
+          "cycle": 2946638
+        }
+      ],
+      "debug": [
+        {
+          "port": "402",
+          "text": "BIOS BUILD DATE: 11/01/26"
+        },
+        {
+          "port": "500",
+          "text": "VGABios ID: vgabios.c 2026-08-07"
+        },
+        {
+          "port": "402",
+          "text": "ata0-0: PCHS=65/16/63 translation=none LCHS=65/16/63"
+        },
+        {
+          "port": "402",
+          "text": "IDE time out"
+        },
+        {
+          "port": "402",
+          "text": "Booting from 0000:7c00"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 boot ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 query ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 query-2403 ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 bios ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 bios ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 bios ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 bios ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 port92 ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 port92 ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 port92 ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 port92 ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move-kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move-kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move-kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 move-kbc ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 resume ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 resume ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 resume ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 resume ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 DONE ok"
+        }
+      ],
+      "panic": [],
+      "io": {
+        "isa16 2": {
+          "38": 145408
+        },
+        "isa8 1": {
+          "74": 72791
+        },
+        "vga-in 1": {
+          "6": 6
+        },
+        "vga-out 1": {
+          "4": 823
+        },
+        "vga-out 2": {
+          "7": 3451
+        }
+      },
+      "io_wait": {},
+      "inta": {
+        "146": 86
+      },
+      "screen": [
+        "A20 bios ok                                                                     ",
+        "A20 bios ok                                                                     ",
+        "A20 bios ok                                                                     ",
+        "A20 bios ok                                                                     ",
+        "A20 kbc ok                                                                      ",
+        "A20 kbc ok                                                                      ",
+        "A20 kbc ok                                                                      ",
+        "A20 kbc ok                                                                      ",
+        "A20 port92 ok                                                                   ",
+        "A20 port92 ok                                                                   ",
+        "A20 port92 ok                                                                   ",
+        "A20 port92 ok                                                                   ",
+        "A20 move ok                                                                     ",
+        "A20 move ok                                                                     ",
+        "A20 move ok                                                                     ",
+        "A20 move-kbc ok                                                                 ",
+        "A20 move-kbc ok                                                                 ",
+        "A20 move-kbc ok                                                                 ",
+        "A20 move-kbc ok                                                                 ",
+        "A20 resume ok                                                                   ",
+        "A20 resume ok                                                                   ",
+        "A20 resume ok                                                                   ",
+        "A20 resume ok                                                                   ",
+        "A20 DONE ok                                                                     ",
+        "C:\\>                                                                            "
+      ],
+      "end": {
+        "reason": "prompt",
+        "steps": 103420046,
+        "cycles": 385000045,
+        "seconds": 3.85
+      },
+      "prompt_cycle": 235000041,
+      "cpu_resets": 1,
+      "snaps": {},
+      "present": {},
+      "vga": {
+        "frames": 9919,
+        "scanout_underflows": 0,
+        "capture_drops": 0,
+        "present_underflows": 0,
+        "plane_underflows": 0,
+        "frames_shown": 0,
+        "port1_commands": 17733511,
+        "port2_commands": 2470336
+      },
+      "marks": {},
+      "opl2": {
+        "samples": 191406,
+        "exact": 191406,
+        "nonzero": 0,
+        "writes": 0
+      },
+      "opl2_mismatch": null,
+      "audio_samples": 184800,
+      "sb": {
+        "resets": 0,
+        "commands": 0,
+        "dma": 0,
+        "irqs": 0
+      },
+      "mouse": {
+        "sent": 0,
+        "scheduled": 0
+      },
+      "rtl": {
+        "stops": [],
+        "pmode": [],
+        "gaps": [],
+        "smc": [
+          {
+            "event": "store",
+            "cycle": 30492467,
+            "site": "8fe9:0000a04a",
+            "instruction": "00099eda",
+            "address": "00099efb"
+          },
+          {
+            "event": "store",
+            "cycle": 228219177,
+            "site": "1006:00002bae",
+            "instruction": "00012c0e",
+            "address": "00012c30"
+          },
+          {
+            "event": "store",
+            "cycle": 327333164,
+            "site": "1006:0000bc45",
+            "instruction": "0001bca5",
+            "address": "0001bcbe"
+          },
+          {
+            "event": "store",
+            "cycle": 327333164,
+            "site": "1006:0000bc45",
+            "instruction": "0001bca5",
+            "address": "0001bcbf"
+          }
+        ],
+        "notes": [],
+        "counters": {
+          "retired": 103420046,
+          "oracle_steps": 0,
+          "protected_steps": 0,
+          "parked_clocks": 7211480,
+          "tf_retired": 0,
+          "pe_retired": 68,
+          "pe_entries": 4,
+          "vga_loads": 61472,
+          "replays": 768,
+          "port0_reads": 1715838,
+          "port0_writes": 37906632,
+          "smc_stores": 394528,
+          "smc_addresses": 4,
+          "smc_executed": 0,
+          "smc_restarts": 665670
+        }
+      },
+      "command": [
+        "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+        "--bios",
+        "build/firmware/pc386/pc386-bios.bin",
+        "--vgabios",
+        "build/firmware/pc386/pc386-vgabios.bin",
+        "--disk",
+        "build/sim/fes-pc386/a20-rtl/boot/disk.img",
+        "--limit-seconds",
+        "10",
+        "--type",
+        "a20test|",
+        "--expect",
+        "A20 DONE ok",
+        "--cpu",
+        "rtl"
+      ],
+      "exit": 0,
+      "failures": [],
+      "lines": [
+        "A20 boot ok",
+        "A20 query ok",
+        "A20 query-2403 ok",
+        "A20 bios ok",
+        "A20 bios ok",
+        "A20 bios ok",
+        "A20 bios ok",
+        "A20 kbc ok",
+        "A20 kbc ok",
+        "A20 kbc ok",
+        "A20 kbc ok",
+        "A20 port92 ok",
+        "A20 port92 ok",
+        "A20 port92 ok",
+        "A20 port92 ok",
+        "A20 move ok",
+        "A20 move ok",
+        "A20 move ok",
+        "A20 move-kbc ok",
+        "A20 move-kbc ok",
+        "A20 move-kbc ok",
+        "A20 move-kbc ok",
+        "A20 resume ok",
+        "A20 resume ok",
+        "A20 resume ok",
+        "A20 resume ok",
+        "A20 DONE ok"
+      ]
+    },
+    "games": {
+      "post": [
+        {
+          "code": "00",
+          "cycle": 11516
+        },
+        {
+          "code": "21",
+          "cycle": 2243826
+        },
+        {
+          "code": "31",
+          "cycle": 2343794
+        },
+        {
+          "code": "41",
+          "cycle": 2744185
+        },
+        {
+          "code": "71",
+          "cycle": 2846546
+        },
+        {
+          "code": "77",
+          "cycle": 2946638
+        }
+      ],
+      "debug": [
+        {
+          "port": "402",
+          "text": "BIOS BUILD DATE: 11/01/26"
+        },
+        {
+          "port": "500",
+          "text": "VGABios ID: vgabios.c 2026-08-07"
+        },
+        {
+          "port": "402",
+          "text": "ata0-0: PCHS=65/16/63 translation=none LCHS=65/16/63"
+        },
+        {
+          "port": "402",
+          "text": "IDE time out"
+        },
+        {
+          "port": "402",
+          "text": "Booting from 0000:7c00"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-start ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-query ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-global ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-global ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-global ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-global ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-global ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-global ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-lock ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-lock ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-lock ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-lock ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-lock ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 xms-lock ok"
+        },
+        {
+          "port": "0e9",
+          "text": "A20 DONE ok"
+        }
+      ],
+      "panic": [],
+      "io": {
+        "isa16 2": {
+          "38": 156672
+        },
+        "isa8 1": {
+          "74": 83241
+        },
+        "vga-in 1": {
+          "6": 6
+        },
+        "vga-out 1": {
+          "4": 823
+        },
+        "vga-out 2": {
+          "7": 3731
+        }
+      },
+      "io_wait": {},
+      "inta": {
+        "146": 93
+      },
+      "screen": [
+        "Fast A20 method used                                                            ",
+        "                                                                                ",
+        "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+        "                                                                                ",
+        "CuteMouse v2.1 beta4 [FreeDOS]                                                  ",
+        "Installed at PS/2 port                                                          ",
+        "                                                                                ",
+        "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]                ",
+        "C:\\>a20test                                                                     ",
+        "A20 xms-start ok                                                                ",
+        "A20 xms-query ok                                                                ",
+        "A20 xms-global ok                                                               ",
+        "A20 xms-global ok                                                               ",
+        "A20 xms-global ok                                                               ",
+        "A20 xms-global ok                                                               ",
+        "A20 xms-global ok                                                               ",
+        "A20 xms-global ok                                                               ",
+        "A20 xms-lock ok                                                                 ",
+        "A20 xms-lock ok                                                                 ",
+        "A20 xms-lock ok                                                                 ",
+        "A20 xms-lock ok                                                                 ",
+        "A20 xms-lock ok                                                                 ",
+        "A20 xms-lock ok                                                                 ",
+        "A20 DONE ok                                                                     ",
+        "C:\\>                                                                            "
+      ],
+      "end": {
+        "reason": "prompt",
+        "steps": 104402628,
+        "cycles": 390000041,
+        "seconds": 3.9
+      },
+      "prompt_cycle": 240000041,
+      "cpu_resets": 0,
+      "snaps": {},
+      "present": {},
+      "vga": {
+        "frames": 9923,
+        "scanout_underflows": 0,
+        "capture_drops": 0,
+        "present_underflows": 0,
+        "plane_underflows": 0,
+        "frames_shown": 0,
+        "port1_commands": 17949783,
+        "port2_commands": 2502851
+      },
+      "marks": {},
+      "opl2": {
+        "samples": 193892,
+        "exact": 193892,
+        "nonzero": 0,
+        "writes": 0
+      },
+      "opl2_mismatch": null,
+      "audio_samples": 187200,
+      "sb": {
+        "resets": 0,
+        "commands": 0,
+        "dma": 0,
+        "irqs": 0
+      },
+      "mouse": {
+        "sent": 0,
+        "scheduled": 0
+      },
+      "rtl": {
+        "stops": [],
+        "pmode": [],
+        "gaps": [],
+        "smc": [
+          {
+            "event": "store",
+            "cycle": 30492467,
+            "site": "8fe9:0000a04a",
+            "instruction": "00099eda",
+            "address": "00099efb"
+          },
+          {
+            "event": "store",
+            "cycle": 231010070,
+            "site": "1006:00002bae",
+            "instruction": "00012c0e",
+            "address": "00012c30"
+          },
+          {
+            "event": "store",
+            "cycle": 234974245,
+            "site": "1092:00000117",
+            "instruction": "00010a37",
+            "address": "00010a80"
+          },
+          {
+            "event": "store",
+            "cycle": 234974460,
+            "site": "1092:00000131",
+            "instruction": "00010a51",
+            "address": "00010a84"
+          },
+          {
+            "event": "store",
+            "cycle": 234974670,
+            "site": "1092:0000013f",
+            "instruction": "00010a5f",
+            "address": "00010a87"
+          },
+          {
+            "event": "store",
+            "cycle": 235527735,
+            "site": "1098:00002bae",
+            "instruction": "0001352e",
+            "address": "00013550"
+          },
+          {
+            "event": "store",
+            "cycle": 236379226,
+            "site": "8e3c:00002bae",
+            "instruction": "00090f6e",
+            "address": "00090f90"
+          },
+          {
+            "event": "store",
+            "cycle": 239054060,
+            "site": "c969:00002bae",
+            "instruction": "000cc23e",
+            "address": "000cc260"
+          }
+        ],
+        "notes": [],
+        "counters": {
+          "retired": 104402628,
+          "oracle_steps": 0,
+          "protected_steps": 0,
+          "parked_clocks": 8042807,
+          "tf_retired": 0,
+          "pe_retired": 6,
+          "pe_entries": 1,
+          "vga_loads": 53788,
+          "replays": 672,
+          "port0_reads": 1814282,
+          "port0_writes": 38205566,
+          "smc_stores": 393828,
+          "smc_addresses": 8,
+          "smc_executed": 0,
+          "smc_restarts": 664182
+        }
+      },
+      "command": [
+        "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+        "--bios",
+        "build/firmware/pc386/pc386-bios.bin",
+        "--vgabios",
+        "build/firmware/pc386/pc386-vgabios.bin",
+        "--disk",
+        "build/sim/fes-pc386/a20-rtl/games/disk.img",
+        "--limit-seconds",
+        "10",
+        "--type",
+        "a20test|",
+        "--expect",
+        "A20 DONE ok",
+        "--cpu",
+        "rtl"
+      ],
+      "exit": 0,
+      "failures": [],
+      "lines": [
+        "A20 xms-start ok",
+        "A20 xms-query ok",
+        "A20 xms-global ok",
+        "A20 xms-global ok",
+        "A20 xms-global ok",
+        "A20 xms-global ok",
+        "A20 xms-global ok",
+        "A20 xms-global ok",
+        "A20 xms-lock ok",
+        "A20 xms-lock ok",
+        "A20 xms-lock ok",
+        "A20 xms-lock ok",
+        "A20 xms-lock ok",
+        "A20 xms-lock ok",
+        "A20 DONE ok"
+      ],
+      "himemx_method": "Fast"
+    }
+  },
+  "checks": [
+    "boot: A20 boot ok",
+    "boot: A20 query ok",
+    "boot: A20 query-2403 ok",
+    "boot: A20 bios ok",
+    "boot: A20 bios ok",
+    "boot: A20 bios ok",
+    "boot: A20 bios ok",
+    "boot: A20 kbc ok",
+    "boot: A20 kbc ok",
+    "boot: A20 kbc ok",
+    "boot: A20 kbc ok",
+    "boot: A20 port92 ok",
+    "boot: A20 port92 ok",
+    "boot: A20 port92 ok",
+    "boot: A20 port92 ok",
+    "boot: A20 move ok",
+    "boot: A20 move ok",
+    "boot: A20 move ok",
+    "boot: A20 move-kbc ok",
+    "boot: A20 move-kbc ok",
+    "boot: A20 move-kbc ok",
+    "boot: A20 move-kbc ok",
+    "boot: A20 resume ok",
+    "boot: A20 resume ok",
+    "boot: A20 resume ok",
+    "boot: A20 resume ok",
+    "boot: A20 DONE ok",
+    "games: A20 xms-start ok",
+    "games: A20 xms-query ok",
+    "games: A20 xms-global ok",
+    "games: A20 xms-global ok",
+    "games: A20 xms-global ok",
+    "games: A20 xms-global ok",
+    "games: A20 xms-global ok",
+    "games: A20 xms-global ok",
+    "games: A20 xms-lock ok",
+    "games: A20 xms-lock ok",
+    "games: A20 xms-lock ok",
+    "games: A20 xms-lock ok",
+    "games: A20 xms-lock ok",
+    "games: A20 xms-lock ok",
+    "games: A20 DONE ok",
+    "games: HIMEMX: Fast A20 method used"
+  ],
+  "failures": []
+}

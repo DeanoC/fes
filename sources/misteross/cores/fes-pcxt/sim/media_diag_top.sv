@@ -69,11 +69,14 @@ module media_diag_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0) (
         wire source_ready;
         wire [31:0] unused_unit_size;
         wire [143:0] unused_keyboard_rows;
+        /* verilator lint_off PINCONNECTEMPTY */
         fes_computer_mailbox_pcxt gp_mailbox (
             .clk(clk), .gpo(media_gpo), .build_id(128'd0), .gpi(media_gpi),
             .exec_reset(runtime_hold), .keyboard_rows(unused_keyboard_rows), .media_reset(cold_reset),
             .media_write_addr(source_addr), .media_write_data(source_data), .media_write_enable(source_enable),
-            .media_write_ready(source_ready), .media_write_busy(1'b0), .unit0_state(media_state), .unit0_size(unused_unit_size));
+            .media_write_ready(source_ready), .media_changed(1'b0), .media_frozen(), .media_read_req(), .media_read_addr(),
+            .media_read_ready(1'b0), .media_read_data(8'b0), .media_write_busy(1'b0), .unit0_state(media_state), .unit0_size(unused_unit_size));
+        /* verilator lint_on PINCONNECTEMPTY */
         pcxt_media adapter (
             .clk(clk), .cold_reset(cold_reset), .unit_state(media_state),
             .source_addr(source_addr), .source_data(source_data), .source_enable(source_enable),
@@ -100,6 +103,9 @@ module media_diag_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0) (
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.DIAGNOSTIC_PROBE(1), .FLOPPY(WITH_FLOPPY),
                   .SWITCHES(WITH_FLOPPY ? 8'h2d : 8'h2c)) system (
+        .media_frozen(1'b0), .media_write_busy(), .media_changed(),
+        .snapshot_read_valid(1'b0), .snapshot_read_address(20'b0),
+        .snapshot_read_ready(), .snapshot_read_data(),
         .clk_cpu(clk), .clk_pin(clk), .hold(hold | runtime_hold),
         .media_present(active_media_present), .disk_restart(active_disk_restart),
         .disk_load_valid(active_disk_valid), .disk_load_ready(active_disk_ready), .disk_load_done(active_disk_done),

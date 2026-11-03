@@ -233,13 +233,13 @@ func TestSettingsConfirmGoesHomeAndKeepsSystemMenu(t *testing.T) {
 	app.HandleCommand(CmdSelect, now)
 	waitFor(t, app, "room", func(s Snapshot) bool { return s.Room.Open && !s.RoomPicker.Open })
 
+	// The Home row is under Library & rooms, listed with Show all cores.
+	app.SetAllCores(true)
 	app.HandleCommand(CmdSettings, now)
 	if !app.Snapshot().Settings.Open {
 		t.Fatal("system menu")
 	}
-	for i := 0; i < settingsRowHome; i++ {
-		app.HandleCommand(CmdDown, now)
-	}
+	focusSettingsRow(t, app, "home", now)
 	settings := app.Snapshot().Settings
 	if settings.Index < 0 || settings.Index >= len(settings.Rows) || settings.Rows[settings.Index].ID != "home" {
 		t.Fatalf("settings row %#v", settings)

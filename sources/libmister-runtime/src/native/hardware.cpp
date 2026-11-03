@@ -926,6 +926,7 @@ Capabilities NativeHardware::capabilities() const
 		computer_11.interfaces.push_back({generated::FesComputerInterfaceMediaPcxtFloppyID,
 			generated::FesComputerInterfaceMediaPcxtFloppyMajor,
 			generated::FesComputerInterfaceMediaPcxtFloppyMinor});
+		computer_11.interfaces.push_back({generated::FesComputerInterfaceMediaPcxtFloppyWriteID, 1, 0});
 		if (fpga_.BootHpsDdrLayout() && disk_window_)
 			computer_11.interfaces.push_back({generated::FesComputerInterfaceMediaAtaDiskID, 1, 0});
 		std::sort(computer_11.interfaces.begin(), computer_11.interfaces.end(),
@@ -1397,7 +1398,9 @@ Error NativeHardware::InsertLibraryComputerMedia(std::uint8_t unit,const std::st
     std::uint32_t size,const std::string& root,const MediaDataBinding& binding)
 {
     auto* driver=active_driver_==fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
-    if(!driver || !active_context_.descriptor || unit!=0 || binding.unit!=unit || !AtariStSizeAdmitted(size,driver && driver->MediaGeometryCapable(unit)))
+    const bool pcxt = active_context_.descriptor && active_context_.descriptor->core.id == "fes.pcxt-dos";
+    if(!driver || !active_context_.descriptor || unit!=0 || binding.unit!=unit ||
+        (pcxt ? size != generated::FesComputerPcxtFloppyBytes : !AtariStSizeAdmitted(size,driver && driver->MediaGeometryCapable(unit))))
         return {ErrorCode::unsupported_interface,"library disk unit is unavailable","request"};
     MediaDataIdentity identity{active_context_.descriptor->core.id,binding.game_id,binding.base_media_id,unit};
     if(!ValidMediaDataIdentity(identity)) return {ErrorCode::invalid_request,"invalid library disk binding","request"};
@@ -1407,7 +1410,7 @@ Error NativeHardware::InsertLibraryComputerMedia(std::uint8_t unit,const std::st
     Sha256 source; std::array<std::uint8_t,512> bytes{};
     for(std::uint32_t offset=0;offset<size && error.ok();offset+=bytes.size()) {
         error=base.Read(offset,bytes.data(),bytes.size(),clock_,deadline);
-        if(error.ok() && offset==0 && !AtariStBaseBpbValid(bytes.data(),bytes.size(),size))
+        if(error.ok() && !pcxt && offset==0 && !AtariStBaseBpbValid(bytes.data(),bytes.size(),size))
             return {ErrorCode::invalid_request,"Atari ST base BPB disagrees with geometry","request"};
         if(error.ok()) source.Update(bytes.data(),bytes.size());
     }
@@ -1464,20 +1467,23 @@ Error NativeHardware::PrepareInitialComputerMedia(AdmittedCorePackage* package,
 	auto* admitted = dynamic_cast<NativeAdmittedCore*>(package);
 	if (!admitted) return {ErrorCode::invalid_request, "invalid admitted package", "admission"};
 	const auto& descriptor = admitted->opened_.descriptor;
-	bool floppy = false, writable = false, geometry = false;
+	bool floppy = false, writable = false, geometry = false, pcxt_floppy = false, pcxt_writable = false;
 	for (const auto& interface : descriptor.interfaces) {
 		if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
 		if (interface.id == generated::FesComputerInterfaceMediaAtariStFloppyID) floppy = true;
 		if (interface.id == generated::FesComputerInterfaceMediaAtariStFloppyWriteID) writable = true;
         if (interface.id == generated::FesComputerInterfaceMediaAtariStFloppyGeometryID) geometry = true;
+		if (interface.id == generated::FesComputerInterfaceMediaPcxtFloppyID) pcxt_floppy = true;
+		if (interface.id == generated::FesComputerInterfaceMediaPcxtFloppyWriteID) pcxt_writable = true;
 	}
-	if (descriptor.format != 3 || descriptor.rom.role != "firmware" ||
-		descriptor.core.id != "fes.atari-st" || descriptor.abi.id != generated::FesComputerABIID ||
-		!floppy || !writable)
-		return {ErrorCode::unsupported_interface, "initial disk requires ROM-linked writable Atari ST", "admission"};
+	const bool pcxt = descriptor.format == 2 && descriptor.core.id == "fes.pcxt-dos" && pcxt_floppy && pcxt_writable;
+	const bool st = descriptor.format == 3 && descriptor.rom.role == "firmware" &&
+		descriptor.core.id == "fes.atari-st" && floppy && writable;
+	if ((!st && !pcxt) || descriptor.abi.id != generated::FesComputerABIID)
+		return {ErrorCode::unsupported_interface, "initial disk requires a supported writable floppy", "admission"};
 	MediaDataIdentity identity{descriptor.core.id, request.binding.game_id, request.binding.base_media_id,
 		request.binding.unit};
-	if (!AtariStSizeAdmitted(request.size, geometry) || request.binding.unit != 0 || !ValidMediaDataIdentity(identity))
+	if ((pcxt ? request.size != generated::FesComputerPcxtFloppyBytes : !AtariStSizeAdmitted(request.size, geometry)) || request.binding.unit != 0 || !ValidMediaDataIdentity(identity))
 		return {ErrorCode::invalid_request, "invalid initial disk identity or geometry", "admission"};
 	std::unique_ptr<PreparedInitialMedia> prepared(new PreparedInitialMedia);
 	const auto deadline = Deadline(clock_, timeouts_.media_io_ms);
@@ -1486,7 +1492,7 @@ Error NativeHardware::PrepareInitialComputerMedia(AdmittedCorePackage* package,
 	std::array<std::uint8_t, 512> bytes{};
 	for (std::uint32_t offset = 0; offset < request.size && error.ok(); offset += bytes.size()) {
 		error = prepared->base.Read(offset, bytes.data(), bytes.size(), clock_, deadline);
-		if (error.ok() && offset == 0 && !AtariStBaseBpbValid(bytes.data(), bytes.size(), request.size))
+		if (error.ok() && !pcxt && offset == 0 && !AtariStBaseBpbValid(bytes.data(), bytes.size(), request.size))
             return {ErrorCode::invalid_request, "Atari ST base BPB disagrees with geometry", "admission"};
         if (error.ok()) hash.Update(bytes.data(), bytes.size());
 	}

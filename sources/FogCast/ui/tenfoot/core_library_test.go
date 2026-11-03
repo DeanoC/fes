@@ -500,6 +500,7 @@ func TestCoreLibraryCreatesDefaultBlankAtariStDisk(t *testing.T) {
 
 func TestSystemsSettingsHint(t *testing.T) {
 	a := NewApp(nil, 1280, 720, 10)
+	a.settingsSection = settingsSectionUpdates
 	for i, row := range a.settingsRowsLocked() {
 		if row.ID == "systems" {
 			a.settingsIndex = i

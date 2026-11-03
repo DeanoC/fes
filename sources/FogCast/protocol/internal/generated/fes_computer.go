@@ -141,6 +141,9 @@ const (
 	FesComputerC64DiskBytes                             uint32 = 0x2ab00
 	FesComputerPcxtFloppyUnit                           uint32 = 0x0
 	FesComputerPcxtFloppyBytes                          uint32 = 0x5a000
+	FesComputerPcxtFloppyLayoutTag                      uint32 = 0x4
+	FesComputerPcxtFloppyLayoutMajor                    uint32 = 0x1
+	FesComputerPcxtFloppyLayoutMinor                    uint32 = 0x0
 	FesComputerSpectrumDiskUnit                         uint32 = 0x1
 	FesComputerSpectrumDiskMinBytes                     uint32 = 0x2000
 	FesComputerSpectrumDiskMaxBytes                     uint32 = 0x2b4000
@@ -325,4 +328,8 @@ const (
 	FesComputerInterfaceMediaPcxtFloppyMajor            uint16 = 1
 	FesComputerInterfaceMediaPcxtFloppyMinor            uint16 = 0
 	FesComputerCapabilityMediaPcxtFloppy                uint32 = 0x100000
+	FesComputerInterfaceMediaPcxtFloppyWriteID                 = "fes.media.pcxt-floppy-write"
+	FesComputerInterfaceMediaPcxtFloppyWriteMajor       uint16 = 1
+	FesComputerInterfaceMediaPcxtFloppyWriteMinor       uint16 = 0
+	FesComputerCapabilityMediaPcxtFloppyWrite           uint32 = 0x200000
 )

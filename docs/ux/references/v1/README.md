@@ -316,8 +316,11 @@ the rows and their order are the map.
 
 ### Today's rows
 
-`settingsRowsLocked` in `sources/FogCast/ui/tenfoot/settings.go` lists the
-current rows. A proposal for where each goes in v1, for #1349 to confirm:
+The rows Settings had before v1, and where the proposal put each. #1349
+followed it with three changes: rows outside v1 are under a Library & rooms
+section listed with Show all cores, the target rows are under Network on a
+host launcher, and Display & sound has no Volume row yet
+([kit launcher](../../../../sources/FogCast/docs/kit-launcher.md)).
 
 | Today | v1 |
 | --- | --- |

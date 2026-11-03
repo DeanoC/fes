@@ -514,8 +514,9 @@ type App struct {
 	// frameLua is the room Step from the Tick in progress. Tick clears it,
 	// and only a Step that actually ran this iteration fills it again.
 	frameLua rooms.StepTiming
-	// roomCoreDetail is the package whose Details the hero is showing.
-	roomCoreDetail string
+	// roomHeroDetail is heroDetailKey of the destination whose Details the
+	// hero is showing: an installed package or a family.
+	roomHeroDetail string
 	browseActions  browseActionState
 	// libraryReturn is the suspended room the Library was opened from.
 	libraryReturn *libraryOrigin
@@ -555,6 +556,7 @@ type App struct {
 	firmwarePickerOpen       bool
 	firmwareCard             firmwareCardState
 	firmwareCardSeen         map[string]bool
+	setup                    setupState // first-run setup (setup.go)
 	firmwarePickerAtRoots    bool
 	firmwarePickerBusy       bool
 	firmwarePickerIndex      int
@@ -650,6 +652,18 @@ type App struct {
 	// seen at startup until that generation is running or generation-free idle.
 	localWatchStartup  bool
 	localLaunchPending func()
+
+	// settingsSection is the open Settings section; "" is the section list.
+	settingsSection string
+	// settingsConfirm is the row waiting for a second Select (factory-reset).
+	settingsConfirm string
+	// settingsWired is the kit's wired link, read as Settings or Network opens.
+	settingsWired string
+	// settingsFirmware is the host's bundled firmware for Settings › Firmware.
+	settingsFirmware settingsFirmware
+	// kitDisplay is the kit's own menu display; kitID is its target ID.
+	kitDisplay bool
+	kitID      string
 }
 
 // SetTheme installs the sofa look. Zero Theme is Default.
@@ -697,6 +711,7 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 	grid := Grid{}
 	grid.Layout(width, height)
 	return &App{
+		setup:              setupState{step: -1},
 		client:             client,
 		games:              []hostclient.Game{},
 		grid:               grid,
@@ -1102,6 +1117,11 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.handleSettingsOSKLocked(cmd)
 		return
 	}
+	// Settings › Firmware opens a family's card over Settings.
+	if a.firmwareCard.Open {
+		a.handleFirmwareCardLocked(cmd)
+		return
+	}
 	if a.settingsOpen {
 		a.handleSettingsLocked(cmd)
 		return
@@ -1112,10 +1132,6 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	if a.firmwarePickerOpen {
 		a.handleFirmwarePickerLocked(cmd)
-		return
-	}
-	if a.firmwareCard.Open {
-		a.handleFirmwareCardLocked(cmd)
 		return
 	}
 	if a.roomPickerOpen && (!a.sessionStopOfferedLocked() || a.roomDuringPlay) {

@@ -143,22 +143,22 @@ func TestHomeHeroActionsFollowSpatialDirectionsWithoutMovingSelection(t *testing
 		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
 			fake := &fakeLocalCores{cores: homeFixtureCores()}
 			app := startHomeLoungeAllCores(t, fake, size[0], size[1])
-			before := waitFor(t, app, "Pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
+			before := waitFor(t, app, "first family", homeFamilySettled)
 			app.HandleCommand(CmdUp, time.Now())
 			snap := app.Snapshot()
-			if !snap.BrowseActions.Focused || snap.Room.Destination.PackageID != before.Room.Destination.PackageID {
-				t.Fatalf("Up did not enter the hero actions above the retained shelf item: %+v", snap.BrowseActions)
+			if !snap.BrowseActions.Focused || snap.BrowseActions.Primary != "Open" || snap.Room.Destination.Label != before.Room.Destination.Label {
+				t.Fatalf("Up did not enter the hero actions above the retained family: %+v", snap.BrowseActions)
 			}
 			app.HandleCommand(CmdRight, time.Now())
 			app.HandleCommand(CmdSelect, time.Now())
-			if snap := app.Snapshot(); !snap.Room.CoreDetail || fake.launchCount() != 0 {
+			if snap := app.Snapshot(); !snap.Room.HeroDetail || fake.launchCount() != 0 {
 				t.Fatalf("Details action launched or failed to open: %+v", snap.Room)
 			}
 			app.HandleCommand(CmdBack, time.Now())
 			app.HandleCommand(CmdUp, time.Now())
 			app.HandleCommand(CmdDown, time.Now())
-			if snap := app.Snapshot(); snap.BrowseActions.Focused || snap.Room.Destination.PackageID != before.Room.Destination.PackageID {
-				t.Fatal("Down did not return to the retained shelf item")
+			if snap := app.Snapshot(); snap.BrowseActions.Focused || snap.Room.Destination.Label != before.Room.Destination.Label {
+				t.Fatal("Down did not return to the retained family")
 			}
 			app.HandleCommand(CmdUp, time.Now())
 			app.HandleCommand(CmdUp, time.Now())
@@ -166,12 +166,15 @@ func TestHomeHeroActionsFollowSpatialDirectionsWithoutMovingSelection(t *testing
 				t.Fatalf("second Up did not reach the header: %+v", snap.Room.Destination)
 			}
 			app.HandleCommand(CmdDown, time.Now())
-			if snap := app.Snapshot(); snap.Room.Destination.PackageID != before.Room.Destination.PackageID {
-				t.Fatal("header Down changed the shelf selection")
+			if snap := app.Snapshot(); snap.Room.Destination.Label != before.Room.Destination.Label {
+				t.Fatal("header Down changed the family")
 			}
-			// Ordinary Confirm on the shelf still launches directly.
+			// Ordinary Confirm on a family opens its workbench.
 			app.HandleCommand(CmdSelect, time.Now())
-			waitFor(t, app, "direct launch", func(Snapshot) bool { return fake.launchCount() == 1 })
+			waitFor(t, app, "workbench", func(s Snapshot) bool { return s.Room.ID == hardwareRoomID })
+			if fake.launchCount() != 0 {
+				t.Fatalf("Open launched %d cores", fake.launchCount())
+			}
 		})
 	}
 }
@@ -195,21 +198,21 @@ func TestReadyHomeActionsDoNotWaitForUnrelatedLibraryLoad(t *testing.T) {
 			if err := inst.Load(); err != nil {
 				t.Fatal(err)
 			}
-			before := waitFor(t, app, "ready local Home core", func(s Snapshot) bool {
-				return s.Room.Destination.Label == "Pong" && s.Room.Destination.Confirm() == rooms.ConfirmLaunchCore
+			before := waitFor(t, app, "ready Home family", func(s Snapshot) bool {
+				return s.Room.Destination.Label == "Sinclair ZX81" && s.Room.Destination.Confirm() == rooms.ConfirmEnterRoom
 			})
 			// No host poller runs in this fixture: the unrelated library flags
 			// stay pending while real Home Lua and command routing run.
 			app.loading, app.searchPending = true, true
 			app.HandleCommand(CmdUp, time.Now())
 			snap := app.Snapshot()
-			if !snap.BrowseActions.Visible || !snap.BrowseActions.Focused || snap.Room.Destination.PackageID != before.Room.Destination.PackageID || snap.Room.Destination.Confirm() != rooms.ConfirmLaunchCore {
+			if !snap.BrowseActions.Visible || !snap.BrowseActions.Focused || snap.Room.Destination.Label != before.Room.Destination.Label || snap.Room.Destination.Confirm() != rooms.ConfirmEnterRoom {
 				t.Fatalf("ready Home actions waited on the library: actions=%+v destination=%+v", snap.BrowseActions, snap.Room.Destination)
 			}
 			app.HandleCommand(CmdRight, time.Now())
 			app.HandleCommand(CmdSelect, time.Now())
-			if snap := app.Snapshot(); !snap.Room.CoreDetail || fake.launchCount() != 0 || !snap.Loading {
-				t.Fatalf("pending library blocked Home Details or changed launch state: detail=%v launches=%d loading=%v", snap.Room.CoreDetail, fake.launchCount(), snap.Loading)
+			if snap := app.Snapshot(); !snap.Room.HeroDetail || fake.launchCount() != 0 || !snap.Loading {
+				t.Fatalf("pending library blocked Home Details or changed launch state: detail=%v launches=%d loading=%v", snap.Room.HeroDetail, fake.launchCount(), snap.Loading)
 			}
 		})
 	}
@@ -232,14 +235,14 @@ func TestLibraryActionsStillWaitForTheirOwnPendingLoad(t *testing.T) {
 func TestHomeHeroActionsRejectAChangedDestination(t *testing.T) {
 	fake := &fakeLocalCores{cores: homeFixtureCores()}
 	app := startHomeLoungeAllCores(t, fake, 1280, 720)
-	waitFor(t, app, "Pong", func(s Snapshot) bool { return s.Room.Destination.Label == "Pong" })
+	waitFor(t, app, "first family", homeFamilySettled)
 	app.HandleCommand(CmdUp, time.Now())
 	app.mu.Lock()
-	app.room.Hover("core:2") // A refreshed/externally selected row replaces the captured subject.
+	app.room.Hover("family:2") // A refreshed/externally selected row replaces the captured subject.
 	app.mu.Unlock()
 	app.HandleCommand(CmdSelect, time.Now())
 	snap := app.Snapshot()
-	if fake.launchCount() != 0 || snap.Room.CoreDetail || snap.Status != staleBrowseActionStatus {
+	if fake.launchCount() != 0 || snap.Room.HeroDetail || snap.Room.ID != installedCoresHomeID || snap.Status != staleBrowseActionStatus {
 		t.Fatalf("stale Home action activated replacement: status=%q launches=%d", snap.Status, fake.launchCount())
 	}
 	if !snap.Room.Hero {

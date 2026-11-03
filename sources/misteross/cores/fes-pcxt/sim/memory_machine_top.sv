@@ -63,6 +63,6 @@ module memory_machine_top (
     /* verilator lint_off PINCONNECTEMPTY */
     memory_top storage (.disk_load_valid(1'b0), .disk_load_ready(),
         .disk_load_address(19'b0), .disk_load_data(8'b0), .disk_load_done(),
-        .media_read_valid(1'b0), .media_read_addr(19'b0), .media_read_ready(), .media_read_data(), .*);
+        .media_read_valid(1'b0), .media_read_reset_safe(1'b0), .media_read_addr(19'b0), .media_read_ready(), .media_read_data(), .*);
     /* verilator lint_on PINCONNECTEMPTY */
 endmodule
