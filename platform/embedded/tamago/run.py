@@ -66,8 +66,8 @@ def main():
     parser.add_argument("--ddr-read", action="store_true", help="opt in to the fixed read-only FPGA DDR diagnostic (Nano fpgaload only)")
     parser.add_argument("--computer-control", action="store_true", help="opt in to the owned control-only ZX81 command diagnostic (Nano fpgaload only)")
     parser.add_argument("--computer-reload", action="store_true", help="run two fixed-package load/Run/return cycles; requires --computer-control")
-    parser.add_argument("--computer-storage-return", action="store_true", help="reopen SD and reselect the retained package between the two computer cycles")
-    parser.add_argument("--selected-programs", action="store_true", help="load program requests and metadata from SD through the compiled contained platform contract")
+    parser.add_argument("--computer-storage-return", action="store_true", help="enable owned SD return and fresh retention between computer sessions")
+    parser.add_argument("--selected-programs", action="store_true", help="serve repeated selected-program requests over the bounded Nano serial interface (requires computer control/rearm/storage return)")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--module-cache", type=Path,
                         default=ROOT / "out/embedded-base-tools/tamago/mod")

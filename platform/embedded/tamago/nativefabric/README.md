@@ -17,16 +17,53 @@ return are always checked against the original verifier. A completed transfer
 cannot be opened twice or through another loader. This supplies no new data
 release or ordinary physical programming profile.
 
-The opt-in `fpgaload --selected-programs --computer-control` frontend reads
-`FES/CORESEL.JSN`. Its `nano-program-selection-v1` record contains a bounded
-`programs` list with `path`, `package_id`, `metadata_path` and `metadata_sha256`.
-The store retains each archive and its at-most-16-KiB metadata before preflight
-and SD stop. `nano-selected-program-v1` metadata is produced from the sealed
-project by `hps_context.selected_program`. A two-load diagnostic also requires
-`--computer-reload --computer-storage-return` and two explicit choices. Choices
-are read from SD; there is no compiled package catalogue. The cross-builder
+The opt-in `fpgaload --selected-programs --computer-control --computer-reload
+--computer-storage-return` frontend now runs a persistent `ProgramService`.
+It reads the bounded catalogue from `FES/CORESEL.JSN` and waits for requests;
+it no longer automatically executes a two-choice script. Each launch freshly
+retains its selected archive and at-most-16-KiB metadata, preflights them while
+SD is usable, contains SD, configures, verifies live identity and issues Run.
+Return performs one owned Hold/closure and resumes SD before publishing Ready.
+There is no compiled package catalogue or fixed session count.
+
+The service is the sole lifecycle owner of its verifier. Launch requests need
+the current Ready generation; control/return requests need that service's private
+running-session handle. Copies share state, and stale, foreign or concurrent
+requests perform no I/O. Content rejection leaves healthy storage usable. Once
+containment begins, uncertain transfer/control/return/grant failures retain the
+plan, arena and scope and permanently require reboot. Configuration retains its
+20-second bound; computer operations keep their one-second/64-poll limits.
+Accepted return cleanup uses its own five-second context even if the requester
+disconnects. Hooks must return within their platform bounds.
+
+Startup uses only the store's cached active receipt for the application's owner
+token. The real SiP denies boot-context reads during the SD device lease; live
+source verification still occurs after SD containment before allocation/START.
+A cached status or unsigned package attachment cannot grant boot authority.
+
+`ProgramConsole` provides a bounded serial adapter for this contained profile.
+It accepts one JSON object per line (at most 1,024 bytes), waits for its reply,
+and emits `FES_NATIVE_PROGRAM_REPLY` with scope
+`nano-contained-program-service-v1`. Copy `owner` and `generation` from the
+current reply. Operations are:
+
+- `{"op":"status"}`: cached state and selection indices, with no hardware I/O.
+- `{"op":"launch","owner":"<16 lowercase hex digits>","generation":0,"program":0}`:
+  load one catalogue index from the current Ready generation.
+- `return`, `run`, `hold` and `activity`: supply `op`, the same boot `owner` and
+  current running `generation`.
+- `keyboard`: additionally supply exactly nine `rows` containing HID words.
+- `park`: terminal return from a running session for bounded hardware handoff;
+  it leaves SD contained and refuses later activation.
+
+Unknown/duplicate/missing fields, arbitrary paths/addresses, invalid indices,
+oversized input and stale boot/session tokens reject before I/O. UART overflow
+discards the entire line. `Park` is for the diagnostic handoff; the usual Return
+keeps the native service available for another selection. The cross-builder
 exports example `PROGRAM.JSN` and `CORESEL.JSN` files for the sealed package.
 Changing an eligible selection requires no per-core firmware/native rebuild.
+This new service has software tests and needs a new matched-image hardware test;
+the earlier two-cycle physical result applies only to its recorded old frontend.
 
 Host tests execute three different canonical packages, builds, core IDs and
 payload sizes through retained selection, publication, transfer, Run, owned

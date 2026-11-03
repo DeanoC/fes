@@ -154,6 +154,25 @@ func New(files fs.FS, lease Lease) (*Store, error) {
 	}
 	return &Store{files: files, lease: lease, last: r}, nil
 }
+
+// ActiveReceipt checks this store's cached lease while it is usable. It makes
+// no firmware call and grants no FPGA authority; transitions must independently
+// compare fresh secure ownership. A changed lease permanently retires the store.
+func (s *Store) ActiveReceipt() (sdcontrol.Receipt, error) {
+	if s == nil {
+		return sdcontrol.Receipt{}, ErrState
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.observe(); err != nil {
+		return sdcontrol.Receipt{}, err
+	}
+	if !s.last.Active || !s.last.Prepared {
+		return sdcontrol.Receipt{}, ErrState
+	}
+	return s.last, nil
+}
+
 func (s *Store) retire(err error) error { s.retired = true; return errors.Join(ErrRetired, err) }
 func (s *Store) observe() error {
 	if s.retired {

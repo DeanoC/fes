@@ -645,7 +645,7 @@ def checked_program_platform(record, program_key='program'):
             raise ValueError('program platform requires selected program mode')
         return None
     if (record.get(program_key) != 'fpgaload' or checked_computer(record, program_key) is None or
-            record.get('computer_reload', False) and not record.get('computer_storage_return', False)):
+            record.get('computer_reload') is not True or record.get('computer_storage_return') is not True):
         raise ValueError('selected programs require the contained computer and fresh SD returns')
     expected = program_platform(record['hps_project'])
     if record.get(keys[0]) != expected or record.get(keys[1]) != digest(expected):

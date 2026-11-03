@@ -686,3 +686,27 @@ func TestROMInputsUseExistingLinkerAndSurviveStorageContainment(t *testing.T) {
 		})
 	}
 }
+
+func TestActiveReceiptReportsOnlyThisStoresUnchangedUsableLease(t *testing.T) {
+	l := lease()
+	s, files := open(t, fstest.MapFS{}, l)
+	r, err := s.ActiveReceipt()
+	if err != nil || r != l.r || files.opens.Load() != 0 || l.stops != 0 || l.resumes != 0 {
+		t.Fatal(r, err)
+	}
+	l.mu.Lock()
+	l.r.Generation++
+	l.mu.Unlock()
+	if _, err = s.ActiveReceipt(); !errors.Is(err, ErrRetired) {
+		t.Fatal("changed lease accepted", err)
+	}
+	l.mu.Lock()
+	l.r.Generation--
+	l.mu.Unlock()
+	if _, err = s.ActiveReceipt(); !errors.Is(err, ErrRetired) {
+		t.Fatal("retired store revived", err)
+	}
+	if l.stops != 0 || l.resumes != 0 || files.opens.Load() != 0 {
+		t.Fatal("query performed transition or file I/O")
+	}
+}

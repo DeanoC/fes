@@ -118,7 +118,7 @@ class SelectedProgramTests(unittest.TestCase):
              patch.object(hps, 'program_platform', return_value=contract):
             self.assertEqual(hps.checked_program_platform(build), contract)
             for change in ({'selected_programs': False}, {'selected_programs': 1},
-                           {'computer_storage_return': False}, {'program': 'probe'},
+                           {'computer_storage_return': False}, {'computer_reload': False, 'computer_storage_return': False}, {'program': 'probe'},
                            {'hps_program_platform': {}}, {'hps_program_platform_sha256': '0'*64}):
                 with self.subTest(change=change), self.assertRaises(ValueError):
                     hps.checked_program_platform(dict(build, **change))

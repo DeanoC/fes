@@ -224,8 +224,8 @@ def build(args):
         raise ValueError('--computer-storage-return requires the selected two-load computer diagnostic')
     selected_programs=getattr(args,'selected_programs',False)
     if (type(selected_programs) is not bool or selected_programs and
-            (not computer_control or computer_reload and not computer_storage_return)):
-        raise ValueError('--selected-programs requires computer control and fresh SD retention between multiple loads')
+            (not computer_control or not computer_reload or not computer_storage_return)):
+        raise ValueError('--selected-programs requires computer control, rearming and owned SD returns')
     program_platform=program_metadata=None
     package_archive=None
     hps_project=getattr(args,'hps_first_project',None)

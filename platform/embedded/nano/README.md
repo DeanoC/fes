@@ -4,11 +4,13 @@ The configuration code uses an owned per-load descriptor in the last page of
 the existing DMA reservation. Firmware captures and checks that binding instead
 of using a compiled payload digest table. Its matched
 [two-load hardware diagnostic](../../../docs/validation/2026-11-03-de25-program-binding/README.md)
-passes on the fixed sealed package. The new opt-in `--selected-programs` native
-frontend instead reads package choices and retained metadata from SD against a
-compiled board contract. Its different-package lifecycle is tested in software. Its
+passes on the fixed sealed package. The opt-in `--selected-programs` native
+frontend reads package choices and retained metadata from SD against a
+compiled board contract. It now serves persistent serial launch/return requests
+through `ProgramService`, preserving the same contained loader and control
+operations. The service revision still needs its matched-image hardware test. Its different-package lifecycle is tested in software. Its
 [matched SD-selected board test](../../../docs/validation/2026-11-03-de25-selected-upload/README.md)
-now passes: one owned Ethernet session writes all four files and freshly reads
+passes on its recorded two-cycle frontend: one owned Ethernet session writes all four files and freshly reads
 them back before two native same-package load/Run/return cycles with fresh SD
 retention. Different physical packages and ordinary runtime admission remain
 open. The earlier physical results below apply to

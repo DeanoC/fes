@@ -58,8 +58,8 @@ func main() {
 	control, configuration := decoded(expectedControlMap, 8192), decoded(expectedConfigurationMap, 32768)
 	var loader *nativefabric.ProgramLoader
 	if expectedSelectedPrograms != "" {
-		if expectedSelectedPrograms != "1" || expectedComputerMap == "" || expectedDDRReadMap != "" || expectedComputerReload == "1" && expectedComputerStorageReturn != "1" {
-			panic("selected programs require contained computer control and fresh SD retention")
+		if expectedSelectedPrograms != "1" || expectedComputerMap == "" || expectedDDRReadMap != "" || expectedComputerReload != "1" || expectedComputerStorageReturn != "1" {
+			panic("selected programs require contained computer control, rearming and owned SD return")
 		}
 		loader, err = nativefabric.NewProgramLoader(v, decoded(expectedProgramPlatform, 16384), control, configuration, decoded(expectedComputerMap, 8192))
 		if err != nil {
@@ -80,38 +80,20 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	var choices []packagestore.Request
-	if loader != nil {
-		choices, err = nativefabric.ReadProgramSelections(context.Background(), volume, "FES/CORESEL.JSN")
-		if err != nil {
-			panic(err)
-		}
-		count := 1
-		if expectedComputerReload == "1" {
-			count = 2
-		}
-		if len(choices) != count {
-			panic("program selection count differs from this bounded boot test")
-		}
-	}
 	store, err := packagestore.New(volume, lease)
 	if err != nil {
 		panic(err)
 	}
-	request := packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID}
 	if loader != nil {
-		request = choices[0]
+		servePrograms(loader, store, volume)
+		return
 	}
+	request := packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID}
 	selection, err := store.Retain(context.Background(), request)
 	if err != nil {
 		panic(err)
 	}
-	var plan *nativefabric.StoredConfigurationPlan
-	if loader != nil {
-		plan, err = loader.Preflight(selection)
-	} else {
-		plan, err = v.PreflightStoredConfiguration(control, configuration, selection)
-	}
+	plan, err := v.PreflightStoredConfiguration(control, configuration, selection)
 	if err != nil {
 		panic(err)
 	}
@@ -169,8 +151,8 @@ func main() {
 			if count == 2 {
 				fmt.Printf("FES_NATIVE_FPGA_CYCLE BEGIN cycle=%d count=2 owner=%x generation=%d\n", cycle, source.Bridges.Owner, source.Bridges.Generation)
 			}
-			program(v, loader, configuration, source)
-			if err := probeComputer(v, loader, control, mapping); err != nil {
+			program(v, configuration, source)
+			if err := probeComputer(v, control, mapping); err != nil {
 				panic(err)
 			}
 			if count == 2 {
@@ -194,18 +176,11 @@ func main() {
 					fmt.Printf("FES_NATIVE_STORAGE_RETURN ACTIVE owner=%x generation=%d return_generation=%d writes=disabled\n",
 						active.Owner, active.Generation, returned.Bridges.Generation)
 					request = packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID}
-					if loader != nil {
-						request = choices[cycle]
-					}
 					selection, err = store.Retain(context.Background(), request)
 					if err != nil {
 						panic(err)
 					}
-					if loader != nil {
-						plan, err = loader.Preflight(selection)
-					} else {
-						plan, err = v.PreflightStoredConfiguration(control, configuration, selection)
-					}
+					plan, err = v.PreflightStoredConfiguration(control, configuration, selection)
 					if err != nil {
 						panic(err)
 					}
@@ -234,7 +209,7 @@ func main() {
 		}
 		return
 	}
-	program(v, loader, configuration, source)
+	program(v, configuration, source)
 	var observed nativefabric.FPGAIdentityObservation
 	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
 		if expectedDDRReadMap != "" {
@@ -267,7 +242,7 @@ func main() {
 
 // One fixed transfer keeps the original deadline and retirement behavior.
 // The global transfer and board arena retain uncertain source/DMA ownership.
-func program(v *nativefabric.HPSContextVerifier, loader *nativefabric.ProgramLoader, configuration []byte, source nativefabric.HPSBootObservation) {
+func program(v *nativefabric.HPSContextVerifier, configuration []byte, source nativefabric.HPSBootObservation) {
 	id, ok := retained.ProgramIdentity()
 	if !ok {
 		panic("configuration lacks its retained program identity")
@@ -283,11 +258,7 @@ func program(v *nativefabric.HPSContextVerifier, loader *nativefabric.ProgramLoa
 		if status := retained.Status(); status.Failed && status.Outstanding > 0 {
 			var observation nativefabric.ConfigurationRetirement
 			var err error
-			if loader != nil {
-				observation, err = loader.RetireConfiguration(retained, source)
-			} else {
-				observation, err = v.RetireConfiguration(retained, source, configuration)
-			}
+			observation, err = v.RetireConfiguration(retained, source, configuration)
 			if err != nil {
 				fmt.Printf("FES_NATIVE_FPGA_RETIRE REJECT error=%v retained=%d\n", err, status.RetainedBytes)
 			} else {
@@ -330,16 +301,12 @@ func program(v *nativefabric.HPSContextVerifier, loader *nativefabric.ProgramLoa
 		id.PackageID, id.ProgrammedSHA256, size, source.Bridges.Owner, source.Bridges.Generation)
 }
 
-func probeComputer(v *nativefabric.HPSContextVerifier, loader *nativefabric.ProgramLoader, control, mapping []byte) (err error) {
+func probeComputer(v *nativefabric.HPSContextVerifier, control, mapping []byte) (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	limits := computer.Limits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: runtime.Gosched}
 	var s *nativefabric.ComputerSession
-	if loader != nil {
-		s, err = loader.OpenComputer(ctx, retained, limits)
-	} else {
-		s, err = v.OpenComputer(ctx, control, mapping, retained, limits)
-	}
+	s, err = v.OpenComputer(ctx, control, mapping, retained, limits)
 	id, valid := retained.ProgramIdentity()
 	if !valid {
 		return errors.New("computer lacks its selected program identity")

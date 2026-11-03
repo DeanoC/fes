@@ -94,19 +94,20 @@ func ReadHPSBootContext(cpu FirmwareCaller) (HPSBootObservation, error) {
 // This type does not implement BootHandoffVerifier: source identity alone does
 // not qualify the live HPS configuration, CPU aperture or bridge controls.
 type HPSContextVerifier struct {
-	cpu                   FirmwareCaller
-	context               HPSBootContext
-	digest                [32]byte
-	readerMemoryMu        sync.Mutex
-	readerMemoryAttempted bool
-	readerMemoryReady     bool
-	readerMemoryRegion    *Region
-	ddrReaderAttempted    bool
-	computerMu            sync.Mutex
-	computerGeneration    uint64
-	computerClosed        bool
-	computerReturn        BridgeSnapshot
-	computerSDResumed     bool
+	cpu                    FirmwareCaller
+	context                HPSBootContext
+	digest                 [32]byte
+	readerMemoryMu         sync.Mutex
+	readerMemoryAttempted  bool
+	readerMemoryReady      bool
+	readerMemoryRegion     *Region
+	ddrReaderAttempted     bool
+	computerServiceClaimed bool
+	computerMu             sync.Mutex
+	computerGeneration     uint64
+	computerClosed         bool
+	computerReturn         BridgeSnapshot
+	computerSDResumed      bool
 }
 
 func NewHPSContextVerifier(cpu FirmwareCaller, source []byte) (*HPSContextVerifier, error) {
