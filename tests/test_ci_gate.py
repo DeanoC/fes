@@ -166,7 +166,7 @@ class SimulationMatrixTests(unittest.TestCase):
         smoke = [row['target'] for row in simulation_matrix(['pc386'], 'smoke')['include']]
         full = [row['target'] for row in simulation_matrix(['pc386'], 'full')['include']]
         self.assertEqual(smoke, ['sim-fes-pc386'])
-        self.assertEqual(full, ['sim-fes-pc386', 'sim-fes-pc386-fesenv', 'sim-fes-pc386-a20'])
+        self.assertEqual(full, ['sim-fes-pc386', 'sim-fes-pc386-fesenv', 'sim-fes-pc386-a20', 'sim-fes-pc386-wait'])
 
     def test_coleco_includes_every_default_and_oss_scenario(self):
         from scripts.ci_simulations import simulation_matrix

@@ -39,7 +39,7 @@ SOFTWARE_CI_INPUTS = frozenset({
 # misteross unittest suite runs (about two minutes); tool-dependent cases skip.
 FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
-    'bootstrap.sh', 'audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'build_fes_pcxt_quartus.py', 'pcxt_quartus_mailbox.py',
+    'bootstrap.sh', 'audit_fes_pcxt_cdc.py', 'quartus_fes_pcxt.py', 'build_fes_pcxt_quartus.py', 'pcxt_quartus_mailbox.py', 'pcxt_quartus_audio.py',
     'audit_fes_pcxt_hps_i2c.py', 'characterize_fes_pcxt_hps_i2c.py', 'screen_fes_pcxt_uncertainty.py',
     'synth_fes_native_video.py', 'synth_fes_pcxt.py', 'build_fes_pcxt.py', 'build_fes_coleco_socket_v2.py',
     'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
@@ -83,9 +83,9 @@ SHARED_RTL = {
     'fes_computer_gp.v': COLECO_CONSUMERS,
     'fes_application_gp.v': ('demo', 'coleco', 'menu', 'ramtest', 'riscv'),
     'fes_video_720p.v': ('demo', 'pong', 'ramtest', 'riscv'),
-    'fes_audio_i2s.v': ('demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386'),
-    'fes_audio_pll.v': ('demo',),
-    'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386'),
+    'fes_audio_i2s.v': ('demo', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386', 'pcxt'),
+    'fes_audio_pll.v': ('demo', 'pcxt'),
+    'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st', 'pc386', 'pcxt'),
     'fes_sn76489.sv': ('coleco', 'sg1000'),
     'fes_z80_ce.sv': COLECO_CONSUMERS,
     'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81', 'pc386', 'pcxt'),
@@ -198,6 +198,8 @@ def fpga_cores(path):
             return ('z80',), 'standalone Z80 diagnostic/qualification recipe'
         if parts[1] in ('sim_fes_zx81_session.py', 'sim_fes_display_plane.py'):
             return ('zx81',), 'session-display plane simulation recipe'
+        if parts[1] in ('build_zx81_openrom.py', 'z80asm.py'):
+            return ('zx81',), 'open ZX81 ROM and its assembler'
         if parts[1] in APPLE2_SCRIPTS:
             return ('apple2',), 'Apple II socket/card recipe'
         if parts[1] in C64_SCRIPTS:

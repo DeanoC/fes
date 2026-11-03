@@ -1,0 +1,61 @@
+{
+ "tag": "s1",
+ "head": "f8917512f1f50280a46720bbc508299e0810418e",
+ "new_supervisor": "da2627a84963927dfa6da7d19a5499f55220be595bd7ad41502ac009321a7816",
+ "image_supervisor": "901a51bfb7a9728fc480e5399e6dafeaba01193bd102aee68c6c3851395e41af",
+ "baseline_sw": "8917374885b2ffa1af5510acb41f34b3e749ea25ff9a3eff69a482b9207aab0f",
+ "receipts_before": 693,
+ "baseline": {
+  "health_auth_bytes": 210802,
+  "software_status_bytes": 210059,
+  "receipts": 693,
+  "supervisor": {
+   "pid": "670",
+   "sha": "901a51bfb7a9728fc480e5399e6dafeaba01193bd102aee68c6c3851395e41af",
+   "bind_mounts": "0"
+  },
+  "window_s": 120,
+  "host_sent_bytes_per_s": 1249,
+  "host_recv_bytes_per_s": 597891,
+  "idlecpu": [
+   "670 fes-kit-softwar 47% of a core",
+   "25958 fogcast-tenfoot 7% of a core",
+   "25957 mister-agent 31% of a core",
+   "25954 mister-runtime 0% of a core",
+   "cpu 13342310 5% of a core",
+   "system busy 42% of 2 cores"
+  ],
+  "idlecpu_rc": 0
+ },
+ "candidate": {
+  "health_auth_bytes": 20318,
+  "software_status_bytes": 19575,
+  "receipts": 64,
+  "supervisor": {
+   "pid": "3603",
+   "sha": "da2627a84963927dfa6da7d19a5499f55220be595bd7ad41502ac009321a7816",
+   "bind_mounts": "1"
+  },
+  "window_s": 120,
+  "host_sent_bytes_per_s": 1327,
+  "host_recv_bytes_per_s": 61505,
+  "idlecpu": [
+   "3603 fes-kit-softwar 6% of a core",
+   "3626 fogcast-tenfoot 6% of a core",
+   "3625 mister-agent 12% of a core",
+   "3621 mister-runtime 0% of a core",
+   "cpu 13350490 3% of a core",
+   "system busy 12% of 2 cores"
+  ],
+  "idlecpu_rc": 0
+ },
+ "restored_supervisor": {
+  "pid": "4405",
+  "sha": "901a51bfb7a9728fc480e5399e6dafeaba01193bd102aee68c6c3851395e41af",
+  "bind_mounts": "0"
+ },
+ "receipts_after": 64,
+ "restored": true,
+ "lease": "idle free",
+ "leftover": "end"
+}

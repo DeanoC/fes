@@ -1165,6 +1165,9 @@ struct Summary {
     uint64_t pm_retirements = 0, cs_rule = 0, ss_error_rule = 0;
     std::map<int, uint64_t> pm_deliveries, unbuilt;
     std::map<std::string, uint64_t> pm_kinds;  // retirements with PE set of this slice's instructions, by kind
+    // Code under a CS limit other than FFFFh and FFFFFFFFh: its retirements
+    // and the #GP deliveries from it, with PE set and clear.
+    std::map<std::string, uint64_t> cs_limit;
     // no387_rule: ESC instructions stepped under the no-387 rule, and those
     // of them the oracle moved past without stepping (EscStep).
     uint64_t no387_rule = 0, no387_skips = 0;
@@ -1905,10 +1908,10 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
             const unsigned why = rtl.top.trace_unbuilt;
             const State now = oracle.get_state();
             const bool faulted = vector >= 0;
-            const bool like = faulted || (why == 1 || why == 9) && now.tr.selector != before.tr.selector
+            const bool like = faulted || (why == 1 || why == 8) && now.tr.selector != before.tr.selector
                            || why == 3 && now.cpl != 0 || why == 4 && (now.tr.selector != before.tr.selector
                                                                         || now.seg[fes_i386::SEG_CS].selector != before.seg[fes_i386::SEG_CS].selector)
-                           || why == 5 && (now.eflags & 0x20000) || why == 6 || why == 7 || why == 8;
+                           || why == 5 && (now.eflags & 0x20000) || why == 6 || why == 7;
             if (!like) out.add(at + "unbuilt." + std::to_string(why), 0, 1);
             ++summary.unbuilt[int(why)];
             outcome.unbuilt = int(why);
@@ -1989,6 +1992,11 @@ Outcome lockstep(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::
         }
         if (delivered && (before.cr0 & 1))
             ++summary.pm_deliveries[int(rtl.top.trace_vector) + (interrupted && !nested && external != 2 ? 256 : 0)];
+        if (const uint32_t limit = before.seg[fes_i386::SEG_CS].limit; limit != 0xffff && limit != 0xffffffff) {
+            const std::string mode = before.cr0 & 1 ? "pm" : "real";
+            if (event == Rtl::Event::Retired && !delivered) ++summary.cs_limit[mode + "-retired"];
+            else if (rtl.top.trace_vector == 13 && !interrupted) ++summary.cs_limit[mode + "-gp"];
+        }
         if (event == Rtl::Event::Unimplemented) {
             out.add(at + "unimplemented", 0, 1);
             return outcome;
@@ -3794,7 +3802,9 @@ private:
     //   16 code RX 32-bit, flat (the 32-bit handler's)
     //   17 the LDT, mostly present         18 a TSS, mostly an available 386 one
     //   19 code RX 16-bit at the handlers' 64K (the 16-bit handler's)
-    //   20 a call gate (not built)         21-23 eight random bytes
+    //   20 a call gate (not built)         21 eight random bytes
+    //   22 code RX 16-bit at the program's CS base, a small limit (pm_limit)
+    //   23 code RX 32-bit, the same
     // Accessed bits at random, so loads write them now and then. The LDT
     // (selector index * 8 + 4): 0 random, 1 data RW 64K at a random base,
     // 2 flat data RW, 3 code RX 16-bit at the program's CS base, 4 data
@@ -3881,9 +3891,12 @@ private:
         gdt[18] = Desc{gdt_lin + PM_TSS, 0x67, false, false,
                        uint8_t(pick(8) ? 0x89 : pick(3) == 0 ? 0x81 : pick(2) ? 0x09 : 0x8b)};
         gdt[19] = Desc{gdt_lin & 0xffff0000u, 0xffff, false, false, uint8_t(0x9a | acc())};
+        gdt[22] = Desc{cs_base, pick(0x10000), false, false, uint8_t(0x9a | acc())};
+        gdt[23] = Desc{cs_base, pick(0x10000), false, true, uint8_t(0x9a | acc())};
+        limit_set = {false, false};
         gdt_limit = pick(6) == 0 ? uint16_t(8 * (1 + pick(GDT_SIZE)) - 1) : uint16_t(8 * GDT_SIZE - 1);
         for (unsigned n = 0; n < GDT_SIZE; ++n) {
-            uint64_t d = n == 15 || n >= 21 ? rng() : desc_bytes(gdt[n]);
+            uint64_t d = n == 15 || n == 21 ? rng() : desc_bytes(gdt[n]);
             if (n == 20) d = gate_bytes(0x30, pick(0x10000), uint8_t(0x8c));  // a call gate
             raw[n] = d;
             for (unsigned i = 0; i < 8; ++i) image.emplace_back(gdt_lin + 8 * n + i, uint8_t(d >> (8 * i)));
@@ -4245,6 +4258,134 @@ private:
         default: emit({0xcd, uint8_t(pick(8) ? 0x20 + pick(16) : pick(8) ? pick(IDT_GATES) : pick(256))});
         }
     }
+    // Code that runs and branches near a small CS limit: a far jump to
+    // descriptor 22 (B0h, 16-bit) or 23 (B8h, 32-bit), at the program's CS
+    // base, whose limit the program's first such jump sets up to 1K past
+    // its target, mostly a few bytes (limit_set, the GDT's bytes in the
+    // image rewritten); then
+    // instructions, near jumps and conditional jumps, LOOP, JCXZ, JMP
+    // through a register, and CALL rel or through a register to a
+    // subroutine that returns with RET or RET imm16, each forward over a
+    // few instructions, any of which may lie past the limit (#GP(0) at the
+    // fetch, or at the branch, call or return); then a
+    // far jump back to 30h, which 16-bit code under B0h may leave out, so
+    // the block goes on under B0h's limit, and leaves protected mode under
+    // it too. A later jump to the same descriptor keeps its limit, so its
+    // own offset is mostly past it. The 32-bit code takes its own
+    // encodings: no instruction of the 16-bit generator's.
+    std::array<bool, 2> limit_set{};
+    uint32_t next_eip() const {
+        uint32_t eip = program_eip;
+        for (const Item &item : items) eip += uint32_t(item.bytes.size());
+        return eip;
+    }
+    // An instruction for 32-bit code: NOP, INC or DEC r32, MOV r32, imm32,
+    // ADD, CMP or XOR r32, imm8, XOR r32, r32 (not ESP).
+    std::vector<uint8_t> instruction32() {
+        unsigned r = pick(7);
+        if (r >= 4) ++r;
+        switch (pick(5)) {
+        case 0: return {0x90};
+        case 1: return {uint8_t((pick(2) ? 0x40 : 0x48) | r)};
+        case 2: {
+            std::vector<uint8_t> out{uint8_t(0xb8 | r)};
+            put32(out, uint32_t(rng()));
+            return out;
+        }
+        case 3: return {0x83, uint8_t(0xc0 | (pick(3) == 0 ? 7 : pick(2) ? 0 : 6) << 3 | r), byte()};
+        default: return {0x31, uint8_t(0xc0 | r << 3 | r)};
+        }
+    }
+    // A near jump in code of width b32: Jcc, JMP (rel8, or rel16/32 by
+    // operand size, 66h at random), LOOP or JCXZ (rel8).
+    Item near_jump(bool b32) {
+        Item item;
+        const bool o16 = pick(4) == 0;  // the other operand size
+        if (o16) item.bytes.push_back(0x66);
+        const bool wide = (b32 != o16);
+        switch (pick(5)) {
+        case 0: item.bytes.push_back(uint8_t(0xe0 + pick(4))); item.rel_size = 1; break;  // LOOPNE, LOOPE, LOOP, JCXZ
+        case 1: item.bytes.push_back(uint8_t(0x70 + pick(16))); item.rel_size = 1; break;
+        case 2: item.bytes.push_back(0xeb); item.rel_size = 1; break;
+        case 3: item.bytes.insert(item.bytes.end(), {0x0f, uint8_t(0x80 + pick(16))}); item.rel_size = wide ? 4 : 2; break;
+        default: item.bytes.push_back(0xe9); item.rel_size = wide ? 4 : 2; break;
+        }
+        item.rel_at = unsigned(item.bytes.size());
+        item.bytes.insert(item.bytes.end(), item.rel_size, 0);
+        return item;
+    }
+    void pm_limit() {
+        const bool b32 = pick(3) == 0;
+        const unsigned index = b32 ? 23 : 22;
+        const uint16_t sel = uint16_t(index << 3);
+        pm_far_jump(sel);
+        pm_cs = true;
+        if (!limit_set[b32]) {
+            limit_set[b32] = true;
+            gdt[index].limit = next_eip() + (pick(4) == 0 ? pick(16) : pick(3) ? pick(96) : pick(1024));
+            raw[index] = desc_bytes(gdt[index]);
+            for (unsigned i = 0; i < 8; ++i) image[8 * index + i].second = uint8_t(raw[index] >> (8 * i));
+        }
+        auto simple = [&]() { return b32 ? instruction32() : pm_instruction(); };
+        for (unsigned n = 1 + pick(5); n > 0; --n) {
+            switch (pick(5)) {
+            case 0: case 1: {  // a near jump over 0-2 instructions; LOOP and JCXZ with (E)CX 1-3 first
+                Item jump = near_jump(b32);
+                const uint8_t op = jump.bytes[jump.bytes[0] == 0x66 ? 1 : 0];
+                if (op >= 0xe0 && op <= 0xe3) {
+                    std::vector<uint8_t> mov{0xb9, uint8_t(1 + pick(3)), 0};
+                    if (b32) mov.insert(mov.end(), {0, 0});
+                    emit(mov);
+                }
+                const int at = int(items.size());
+                items.push_back(jump);
+                for (unsigned k = pick(3); k > 0; --k) items.push_back(Item{simple(), -1, 0, 0});
+                items[size_t(at)].target = int(items.size());
+                break;
+            }
+            case 2: case 3: {  // CALL rel or MOV r, sub; CALL r; a JMP over the subroutine. MOV r, next; JMP r.
+                const unsigned r = 3 + pick(2) * 3;  // EBX or ESI
+                const bool by_reg = pick(2), call = pick(4) != 3;
+                const int at = int(items.size());
+                if (!by_reg) {
+                    items.push_back(b32 ? Item{{0xe8, 0, 0, 0, 0}, -1, 1, 4} : rel_item(false, 0xe8));
+                } else {
+                    Item mov{{uint8_t(0xb8 + r), 0, 0}, -1, 1, 2};
+                    if (b32) {
+                        mov.bytes.insert(mov.bytes.end(), {0, 0});
+                        mov.rel_size = 4;
+                    }
+                    mov.far = Item::NEAR_ABS;
+                    items.push_back(mov);
+                    emit({0xff, uint8_t((call ? 0xd0 : 0xe0) | r)});
+                }
+                if (!call && by_reg) {
+                    for (unsigned k = pick(3); k > 0; --k) items.push_back(Item{simple(), -1, 0, 0});
+                    items[size_t(at)].target = int(items.size());
+                    break;
+                }
+                const int over = int(items.size());
+                items.push_back(b32 ? Item{{0xe9, 0, 0, 0, 0}, -1, 1, 4} : rel_item(false, 0xe9));
+                items[size_t(at)].target = int(items.size());
+                for (unsigned k = pick(3); k > 0; --k) items.push_back(Item{simple(), -1, 0, 0});
+                if (pick(3) == 0) emit({0xc2, uint8_t(2 * pick(3)), 0});
+                else emit({0xc3});
+                items[size_t(over)].target = int(items.size());
+                break;
+            }
+            default: items.push_back(Item{simple(), -1, 0, 0}); break;
+            }
+        }
+        if (b32) {
+            // JMP 30h:next, ptr16:32.
+            Item jump{{0xea, 0, 0, 0, 0, 0x30, 0x00}, int(items.size()) + 1, 1, 4};
+            jump.far = Item::PM_OFF;
+            items.push_back(jump);
+        } else if (pick(2)) {
+            pm_far_jump(0x30);
+        }
+        fence = int(items.size());
+    }
     // Protected mode, entered from real mode and left again: CLI (half the
     // time), DS at the GDT's paragraph, LGDT and (mostly) LIDT of the IDT;
     // PE set by MOV CR0 or LMSW; now and then a far jump to a code
@@ -4293,7 +4434,8 @@ private:
         }
         const unsigned ops = 1 + pick(8);
         for (unsigned n = 0; n < ops; ++n) {
-            switch (pick(17)) {
+            switch (pick(18)) {
+            case 17: pm_limit(); break;
             case 12: pm_int(); break;
             case 13: pm_call(); break;
             case 14: case 15: pm_system(); break;
@@ -4769,7 +4911,11 @@ int run_test386(fes_i386::Oracle &oracle, Rtl &rtl) {
 //   28h data, not present               58h code 16-bit, not present
 //   30h LDT at 2400h, 4 descriptors     60h code 16-bit, conforming
 //   68h data DPL 3                      70h code 16-bit, DPL 3
-//   78h past the limit (77h)
+//   78h code 16-bit, base 1C00h, limit 0Fh (CS-limit cases)
+//   80h code 32-bit, base 1C00h, limit 0Fh
+//   88h code 32-bit, base 0, limit 1FFFh (G, a limit of 1)
+//   90h code 16-bit, base 0, limit 1FFFh (G)
+//   98h past the limit (97h)
 // The LDT: 04h null, 0Ch data base 5000h 64K, 14h code 16-bit base 0,
 // 1Ch data not present. Gates: every vector a 386 interrupt gate to
 // 08h:1800h, where HLT ends the case, but those a case sets: 20h a 286
@@ -4782,6 +4928,13 @@ int run_test386(fes_i386::Oracle &oracle, Rtl &rtl) {
 // case's ending: HLT, after the software interrupt it names if any; the
 // exception the delivery's handler halts in, with its error code (the
 // frame's last push); shutdown; or a stop as not built.
+// The CS-limit cases far-jump to code a case places (at, tail) under a
+// code descriptor of a small limit (its own, if it sets one), and run or
+// branch to its last byte, or past it. A real-mode one clears PE there,
+// with LIDT of the real-mode vector table first (its pointer at 2110h),
+// so CS keeps that limit: the vector table's #GP entry is 0180:0000 (the
+// HLT at 1800h, under the limit), INT 60h's is 0000:3000h (past it) and
+// INT 61h's 0180:0004 (a HLT at 1804h).
 int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const std::vector<Entry> &entries,
                     Summary &summary) {
     struct Asm {
@@ -4801,28 +4954,33 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
     auto gate = [](uint16_t sel, uint32_t off, uint8_t ar) {
         return (off & 0xffff) | uint64_t(sel) << 16 | uint64_t(ar) << 40 | uint64_t(off >> 16) << 48;
     };
-    const uint64_t gdt[15] = {0, desc(0, 0xffff, 0x9b, false, false), desc(0, 0xffff, 0x93, false, false),
+    constexpr unsigned GDT_ENTRIES = 19;
+    constexpr uint32_t TAIL = 0x1c00;
+    const uint64_t gdt[GDT_ENTRIES] = {0, desc(0, 0xffff, 0x9b, false, false), desc(0, 0xffff, 0x93, false, false),
                               desc(0, 0xfffff, 0x9b, true, true), desc(0, 0xfffff, 0x93, true, true),
                               desc(0, 0xffff, 0x13, false, false), desc(LDT, 0x1f, 0x82, false, false),
                               desc(0x2500, 0x67, 0x89, false, false), desc(0, 0xfff, 0x9b, false, false),
                               desc(0, 0xffff, 0x91, false, false), desc(0x2580, 0x2b, 0x81, false, false),
                               desc(0, 0xffff, 0x1b, false, false), desc(0, 0xffff, 0x9f, false, false),
-                              desc(0, 0xffff, 0xf3, false, false), desc(0, 0xffff, 0xfb, false, false)};
+                              desc(0, 0xffff, 0xf3, false, false), desc(0, 0xffff, 0xfb, false, false),
+                              desc(TAIL, 0x0f, 0x9b, false, false), desc(TAIL, 0x0f, 0x9b, false, true),
+                              desc(0, 1, 0x9b, true, true), desc(0, 1, 0x9b, true, false)};
     const uint64_t ldt[4] = {0, desc(0x5000, 0xffff, 0x93, false, false), desc(0, 0xffff, 0x9b, false, false),
                              desc(0x5000, 0xffff, 0x13, false, false)};
     // ending: -1 HLT (after software interrupt soft, if not -1), -2
     // shutdown, -3 not built, else the vector, with its error code if not
-    // -1. descs: GDT entries the case replaces; window: the run has the
-    // MMIO window.
+    // -1. at, tail: bytes the case places at at; descs: GDT entries the case
+    // replaces; window: the run has the MMIO window.
     struct Case { const char *label; std::function<void(Asm &)> body; int ending; int error;
                   std::vector<std::pair<unsigned, uint64_t>> gates; bool real; int soft = -1;
-                  std::vector<std::pair<unsigned, uint64_t>> descs = {}; bool window = false; };
+                  uint32_t at = 0; std::vector<uint8_t> tail = {}; std::vector<std::pair<unsigned, uint64_t>> descs = {};
+                  bool window = false; };
     const uint64_t absent = gate(0x08, 0x1800, 0x0e);  // a 386 interrupt gate, not present
     const uint64_t window_ss = desc(MMIO_LO, 0xffff, 0x93, false, false);  // 28h: a 16-bit stack in the window
-    const std::vector<Case> cases = {
+    std::vector<Case> cases = {
         {"ud", [](Asm &a) { a.op({0x8e, 0xc8}); }, 6, -1, {}, false},                                // MOV CS, AX
         {"np-sel", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd8}); }, 11, 0x28, {}, false},             // MOV DS, 28h
-        {"gp-sel", [](Asm &a) { a.ax(0x7b); a.op({0x8e, 0xd8}); }, 13, 0x78, {}, false},             // past the GDT
+        {"gp-sel", [](Asm &a) { a.ax(0x9b); a.op({0x8e, 0xd8}); }, 13, 0x98, {}, false},             // past the GDT
         {"gp-ss-ro", [](Asm &a) { a.ax(0x48); a.op({0x8e, 0xd0}); }, 13, 0x48, {}, false},           // MOV SS, read-only
         {"ss-sel", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0}); }, 12, 0x28, {}, false},             // MOV SS, not present
         {"gp0", [](Asm &a) { a.op({0x8b, 0x06, 0xff, 0xff}); }, 13, 0, {}, false},                   // MOV AX, [FFFFh]
@@ -4887,13 +5045,13 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         // RETF's CS slot, then the offset's, so the slot at 10000h raises
         // #SS(0) before any read. MOV SS, 28h; MOV SP, n; then the return.
         {"iret-ss-limit", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0, 0xbc, 0xfc, 0xff, 0xcf}); }, 12, 0, {}, false, -1,
-         {{5, window_ss}}, true},
+         0, {}, {{5, window_ss}}, true},
         {"iretd-ss-limit", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0, 0xbc, 0xf8, 0xff, 0x66, 0xcf}); }, 12, 0, {}, false,
-         -1, {{5, window_ss}}, true},
+         -1, 0, {}, {{5, window_ss}}, true},
         {"retf-ss-limit", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0, 0xbc, 0xfe, 0xff, 0xcb}); }, 12, 0, {}, false, -1,
-         {{5, window_ss}}, true},
+         0, {}, {{5, window_ss}}, true},
         {"retf32-ss-limit", [](Asm &a) { a.ax(0x28); a.op({0x8e, 0xd0, 0xbc, 0xfc, 0xff, 0x66, 0xcb}); }, 12, 0, {},
-         false, -1, {{5, window_ss}}, true},
+         false, -1, 0, {}, {{5, window_ss}}, true},
         {"lldt-ldt", [](Asm &a) {
              a.ax(0x30); a.op({0x0f, 0x00, 0xd0});                                        // LLDT AX
              a.ax(0x0c); a.op({0x8e, 0xd8, 0x8e, 0xc0});                                  // MOV DS, ES, LDT 0Ch
@@ -4911,7 +5069,7 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
              a.op({0xbb, 0x48, 0x00, 0x0f, 0x00, 0xe3, 0x9c});                             // VERR BX; PUSHF
              a.op({0x0f, 0x00, 0xeb, 0x9c});                                               // VERW BX; PUSHF
              a.op({0xbb, 0x38, 0x00, 0x0f, 0x02, 0xd3, 0x9c});                             // LAR DX, 38h (TSS); PUSHF
-             a.op({0xbb, 0x78, 0x00, 0x0f, 0x03, 0xf3, 0x9c, 0xf4});                       // LSL SI, 78h (past); PUSHF; HLT
+             a.op({0xbb, 0x98, 0x00, 0x0f, 0x03, 0xf3, 0x9c, 0xf4});                       // LSL SI, 98h (past); PUSHF; HLT
          }, -1, -1, {}, false},
         {"arpl", [](Asm &a) {
              a.op({0xc7, 0x06, 0x00, 0x01, 0x08, 0x00});                                   // MOV word [100h], 08h
@@ -4922,6 +5080,101 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         {"real-lldt-ud", [](Asm &a) { a.op({0x0f, 0x00, 0xd0}); }, 6, -1, {}, true},
         {"real-arpl-ud", [](Asm &a) { a.op({0x63, 0xc0}); }, 6, -1, {}, true},
     };
+    // The CS-limit cases. Each far-jumps to sel:off, where its tail is, and
+    // ends in a HLT at the limit's byte, or past the limit: #GP(0), whose
+    // frame holds the EIP of the instruction that starts or runs past it,
+    // or of the branch, call or return whose target is past it.
+    auto jmpf = [](uint16_t sel, uint16_t off) {
+        return std::function<void(Asm &)>([sel, off](Asm &a) { a.op({0xea}); a.w(off); a.w(sel); });
+    };
+    // head, then NOPs up to offset to, then last.
+    auto fill = [](std::vector<uint8_t> head, size_t to, std::vector<uint8_t> last = {}) {
+        while (head.size() < to) head.push_back(0x90);
+        head.insert(head.end(), last.begin(), last.end());
+        return head;
+    };
+    constexpr uint8_t HLT = 0xf4;
+    auto past = [&](const char *label, uint16_t sel, uint32_t at, std::vector<uint8_t> tail,
+                    std::vector<std::pair<unsigned, uint64_t>> descs = {}) {
+        cases.push_back(Case{label, jmpf(sel, uint16_t(at - (sel == 0x78 || sel == 0x80 ? TAIL : 0))), 13, 0, {}, false,
+                             -1, at, std::move(tail), std::move(descs)});
+    };
+    auto halts = [&](const char *label, uint16_t sel, uint32_t at, std::vector<uint8_t> tail) {
+        cases.push_back(Case{label, jmpf(sel, uint16_t(at - (sel == 0x78 || sel == 0x80 ? TAIL : 0))), -1, -1, {}, false,
+                             -1, at, std::move(tail)});
+    };
+    // 16-bit code, limit 0Fh: off the end, across it, to the last byte; a
+    // JMP, a Jcc taken and not, LOOP, CALL rel16 and rel32, CALL and JMP
+    // r/m, RET and RET imm16 to the last byte or past it.
+    past("cs16-fetch-past", 0x78, TAIL, fill({}, 0x10));
+    past("cs16-fetch-cross", 0x78, TAIL, fill({}, 0x0e, {0xb8, 0x34, 0x12}));                 // MOV AX at 0Eh-10h
+    halts("cs16-last-byte", 0x78, TAIL, fill({}, 0x0f, {HLT}));
+    halts("cs16-jmp-limit", 0x78, TAIL, fill({0xeb, 0x0d}, 0x0f, {HLT}));                     // JMP 0Fh
+    past("cs16-jmp-past", 0x78, TAIL, fill({0xeb, 0x0e}, 0x0f, {HLT}));                       // JMP 10h
+    halts("cs16-jnz-past-not-taken", 0x78, TAIL, fill({0x31, 0xc0, 0x75, 0x0c}, 0x0f, {HLT})); // XOR AX, AX; JNZ 10h
+    past("cs16-jz-past", 0x78, TAIL, fill({0x31, 0xc0, 0x74, 0x0c}, 0x0f, {HLT}));             // XOR AX, AX; JZ 10h
+    past("cs16-loop-past", 0x78, TAIL, fill({0xb9, 0x02, 0x00, 0xe2, 0x0b}, 0x0f, {HLT}));     // MOV CX, 2; LOOP 10h
+    past("cs16-call-past", 0x78, TAIL, fill({0xe8, 0x0d, 0x00}, 0x0f, {HLT}));                 // CALL 10h
+    halts("cs16-call-limit", 0x78, TAIL, fill({0xe8, 0x0c, 0x00}, 0x0f, {HLT}));               // CALL 0Fh
+    past("cs16-call-rel32-past", 0x78, TAIL, fill({0x66, 0xe8, 0x0a, 0, 0, 0}, 0x0f, {HLT}));  // CALL 10h (66h)
+    past("cs16-call-rm-past", 0x78, TAIL, fill({0xbb, 0x10, 0x00, 0xff, 0xd3}, 0x0f, {HLT}));  // MOV BX, 10h; CALL BX
+    past("cs16-jmp-rm-past", 0x78, TAIL, fill({0xbb, 0x10, 0x00, 0xff, 0xe3}, 0x0f, {HLT}));  // MOV BX, 10h; JMP BX
+    past("cs16-ret-past", 0x78, TAIL, fill({0x6a, 0x10, 0xc3}, 0x0f, {HLT}));                  // PUSH 10h; RET
+    halts("cs16-ret-limit", 0x78, TAIL, fill({0x6a, 0x0f, 0xc3}, 0x0f, {HLT}));                // PUSH 0Fh; RET
+    past("cs16-ret-imm-past", 0x78, TAIL, fill({0x6a, 0x10, 0xc2, 0x02, 0x00}, 0x0f, {HLT}));  // PUSH 10h; RET 2
+    // The far jump's own offset past the limit (the descriptor's check).
+    cases.push_back(Case{"cs16-jmpf-past", jmpf(0x78, 0x10), 13, 0, {}, false});
+    // 32-bit code, limit 0Fh.
+    past("cs32-fetch-past", 0x80, TAIL, fill({}, 0x10));
+    past("cs32-fetch-cross", 0x80, TAIL, fill({}, 0x0d, {0xb8, 1, 2, 3, 4}));                  // MOV EAX at 0Dh-11h
+    halts("cs32-jmp-limit", 0x80, TAIL, fill({0xe9, 0x0a, 0, 0, 0}, 0x0f, {HLT}));             // JMP 0Fh
+    past("cs32-jmp-past", 0x80, TAIL, fill({0xe9, 0x0b, 0, 0, 0}, 0x0f, {HLT}));               // JMP 10h
+    past("cs32-jmp16-past", 0x80, TAIL, fill({0x66, 0xe9, 0x0c, 0x00}, 0x0f, {HLT}));          // JMP 10h (66h)
+    past("cs32-jz-past", 0x80, TAIL, fill({0x31, 0xc0, 0x0f, 0x84, 0x08, 0, 0, 0}, 0x0f, {HLT}));  // XOR EAX, EAX; JZ 10h
+    past("cs32-loop-past", 0x80, TAIL, fill({0xb9, 2, 0, 0, 0, 0xe2, 0x09}, 0x0f, {HLT}));    // MOV ECX, 2; LOOP 10h
+    past("cs32-call-past", 0x80, TAIL, fill({0xe8, 0x0b, 0, 0, 0}, 0x0f, {HLT}));              // CALL 10h
+    past("cs32-ret-past", 0x80, TAIL, fill({0x6a, 0x10, 0xc3}, 0x0f, {HLT}));                  // PUSH 10h; RET
+    // Page-granular limits (1FFFh), 32- and 16-bit: off the end, a prefix
+    // as the last byte, the last byte.
+    past("cs32-g-fetch-past", 0x88, 0x1ff0, fill({}, 0x10));
+    halts("cs32-g-last-byte", 0x88, 0x1ff0, fill({}, 0x0f, {HLT}));
+    past("cs16-g-prefix-cross", 0x90, 0x1ff0, fill({}, 0x0f, {0x66}));                        // 66h at 1FFFh
+    // 16-bit code under a 4 GiB limit runs on past offset FFFFh, as EIP
+    // 10000h: CS's base FFFF1C08h puts offset FFF8h at 1C00h.
+    const uint64_t cs16_big = desc(0xffff1c08, 0xfffff, 0x9b, true, false);
+    cases.push_back(Case{"cs16-big-past-64k", jmpf(0x78, 0xfff8), -1, -1, {}, false, -1, TAIL, fill({}, 0x10, {HLT}),
+                         {{15, cs16_big}}});
+    // At a 64 KiB limit, these uops end exactly at 10000h. The next fetch,
+    // rather than a wrapped jump to offset 0, must deliver #GP(0).
+    cases.push_back(Case{"cs16-sysop-next-limit", jmpf(0x08, 0xfffd), 13, 0, {}, false, -1,
+                         0xfffd, {0x0f, 0x22, 0xc0}});                                  // MOV CR0, EAX
+    cases.push_back(Case{"cs16-into-next-limit", jmpf(0x08, 0xffff), 13, 0, {}, false, -1,
+                         0xffff, {0xce}});                                              // INTO, OF clear
+    // A system uop after sequential execution crossed 10000h keeps the full
+    // next EIP in 16-bit code with a larger CS limit.
+    cases.push_back(Case{"cs16-sysop-past-64k", jmpf(0x78, 0xfff8), -1, -1, {}, false, -1, TAIL,
+                         fill({}, 0x08, {0x0f, 0x20, 0xc0, 0x0f, 0x22, 0xc0, HLT}), {{15, cs16_big}}});
+    // Real mode under the limit CS kept (1Fh), after LIDT of the real-mode
+    // table and PE clear (13 bytes): off the end, INT n past it and under
+    // it, JMP rel8, and far JMP, CALL, RETF and IRET past it.
+    const std::vector<uint8_t> to_real = {0x0f, 0x01, 0x1e, 0x10, 0x21,   // LIDT [2110h]
+                                          0x0f, 0x20, 0xc0, 0x24, 0xfe,   // MOV EAX, CR0; AND AL, FEh
+                                          0x0f, 0x22, 0xc0};              // MOV CR0, EAX
+    const std::vector<std::pair<unsigned, uint64_t>> limit1f = {{15, desc(TAIL, 0x1f, 0x9b, false, false)}};
+    auto real = [&](const char *label, std::vector<uint8_t> more, int ending = 13, int soft = -1) {
+        std::vector<uint8_t> tail = to_real;
+        tail.insert(tail.end(), more.begin(), more.end());
+        cases.push_back(Case{label, jmpf(0x78, 0), ending, -1, {}, false, soft, TAIL, ending == 13 ? fill(tail, 0x20) : tail,
+                             limit1f});
+    };
+    real("real-cs-fetch-past", {});
+    real("real-cs-int-past", {0xcd, 0x60, HLT});                                  // INT 60h: 0000:3000h
+    real("real-cs-int-under", {0xcd, 0x61, HLT}, -1, 0x61);                       // INT 61h: 0180:0004
+    real("real-cs-jmp-past", {0xeb, 0x11, HLT});                                  // JMP 20h
+    real("real-cs-jmpf-past", {0xea, 0x00, 0x30, 0x00, 0x00, HLT});               // JMP 0000:3000h
+    real("real-cs-callf-past", {0x9a, 0x00, 0x30, 0x00, 0x00, HLT});              // CALL 0000:3000h
+    real("real-cs-retf-past", {0x6a, 0x00, 0x68, 0x00, 0x30, 0xcb, HLT});         // PUSH 0; PUSH 3000h; RETF
+    real("real-cs-iret-past", {0x9c, 0x6a, 0x00, 0x68, 0x00, 0x30, 0xcf, HLT});   // PUSHF; PUSH 0; PUSH 3000h; IRET
     for (const Case &c : cases) {
         Asm a;
         if (!c.real) {
@@ -4940,11 +5193,12 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         a.op({0xf4});
         std::vector<std::pair<uint32_t, uint8_t>> image;
         for (size_t i = 0; i < a.b.size(); ++i) image.emplace_back(CODE + uint32_t(i), a.b[i]);
-        std::array<uint64_t, 15> g;
-        std::copy(std::begin(gdt), std::end(gdt), g.begin());
-        for (auto [n, d] : c.descs) g[n] = d;
-        for (unsigned n = 0; n < 15; ++n)
-            for (unsigned i = 0; i < 8; ++i) image.emplace_back(GDT + 8 * n + i, uint8_t(g[n] >> (8 * i)));
+        for (size_t i = 0; i < c.tail.size(); ++i) image.emplace_back(c.at + uint32_t(i), c.tail[i]);
+        std::array<uint64_t, GDT_ENTRIES> table;
+        std::copy(std::begin(gdt), std::end(gdt), table.begin());
+        for (auto [n, d] : c.descs) table[n] = d;
+        for (unsigned n = 0; n < GDT_ENTRIES; ++n)
+            for (unsigned i = 0; i < 8; ++i) image.emplace_back(GDT + 8 * n + i, uint8_t(table[n] >> (8 * i)));
         for (unsigned n = 0; n < 4; ++n)
             for (unsigned i = 0; i < 8; ++i) image.emplace_back(LDT + 8 * n + i, uint8_t(ldt[n] >> (8 * i)));
         std::array<uint64_t, 48> idt;
@@ -4963,8 +5217,9 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
         for (unsigned v = 0; v < 48; ++v)
             for (unsigned i = 0; i < 8; ++i) image.emplace_back(IDT + 8 * v + i, uint8_t(idt[v] >> (8 * i)));
         for (unsigned i = 0; i < 6; ++i) {
-            image.emplace_back(0x2100 + i, uint8_t((uint64_t(GDT) << 16 | 0x77) >> (8 * i)));
+            image.emplace_back(0x2100 + i, uint8_t((uint64_t(GDT) << 16 | (8 * GDT_ENTRIES - 1)) >> (8 * i)));
             image.emplace_back(0x2108 + i, uint8_t((uint64_t(IDT) << 16 | (48 * 8 - 1)) >> (8 * i)));
+            image.emplace_back(0x2110 + i, uint8_t(uint64_t(0x3ff) >> (8 * i)));
         }
         image.emplace_back(0x1800, 0xf4);                                    // HLT
         image.emplace_back(0x1810, 0x40);                                    // INC AX
@@ -4974,9 +5229,11 @@ int run_pmode_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const st
                                 0x40, 0x66, 0xca, 0x04, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 1910h: INC AX; RETF 4
                                 0x00, 0x19, 0x08, 0x00};                                        // 1920h: 08h:1900h
         for (unsigned i = 0; i < sizeof subs; ++i) image.emplace_back(0x1900 + i, subs[i]);
-        // The real-mode cases' #UD: the vector table's entry at the HLT.
-        image.emplace_back(6 * 4, 0x00); image.emplace_back(6 * 4 + 1, 0x18);
-        image.emplace_back(6 * 4 + 2, 0x00); image.emplace_back(6 * 4 + 3, 0x00);
+        // The real-mode cases' #UD: the vector table's entry at the HLT; #GP,
+        // INT 60h and INT 61h for the CS-limit ones.
+        for (auto [vector, entry] : {std::pair{6u, 0x00001800u}, {13u, 0x01800000u}, {0x60u, 0x00003000u}, {0x61u, 0x01800004u}})
+            for (unsigned i = 0; i < 4; ++i) image.emplace_back(vector * 4 + i, uint8_t(entry >> (8 * i)));
+        image.emplace_back(0x1804, 0xf4);                                    // HLT (INT 61h's)
         for (auto [address, value] : image) {
             bus.ram[address] = rtl.poke(address, value);
             oracle.invalidate(address, 1);
@@ -5605,13 +5862,20 @@ int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
     };
     const uint64_t gdt[5] = {0, desc(0, 0xffff, 0x9b, false, false), desc(0, 0xfffff, 0x93, true, false),
                              desc(0, 0xffff, 0x93, false, false), desc(0, 0xfffff, 0x9b, true, false)};
-    struct Case { const char *label; uint16_t code_sel; uint16_t gs_sel, ss_sel; int ending; };  // ending: 0 HLT, else vector
+    struct Case {
+        const char *label;
+        uint16_t code_sel;
+        uint16_t gs_sel, ss_sel;
+        int ending;
+        bool far_target_past_real_limit = false;
+    };  // ending: negative HLT, else delivered vector
     const Case cases[] = {
         {"unreal", 0x08, 0x10, 0x10, -1},
         {"normal-gs", 0x08, 0x18, 0x10, 13},
         {"normal-ss", 0x08, 0x10, 0x18, 12},
         {"cs-rule", 0x20, 0x10, 0x10, 13},
         {"cs-rule-hlt", 0x20, 0x10, 0x10, -2},
+        {"cs-delivery", 0x20, 0x10, 0x10, 13, true},
         {"pm-sreg-limit", 0x08, 0x10, 0x10, -3},
     };
     for (const Case &c : cases) {
@@ -5637,33 +5901,37 @@ int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
             a.op({0x66, 0xbb}); a.d(0x10000);              // MOV EBX, 10000h
             a.op({0x2e, 0x67, 0x8b, 0x03});                // MOV AX, CS:[EBX]: CS's 4 GiB limit, PE clear
         }
-        const size_t jmp_rm = a.here();
-        a.op({0xea}); a.w(0); a.w(0);                       // JMP 0000:rm
-        const uint16_t rm = uint16_t(CODE + a.here());
-        a.b[jmp_rm + 1] = uint8_t(rm); a.b[jmp_rm + 2] = uint8_t(rm >> 8);
-        if (c.ending <= -2) {
-            a.op({0xf4});
+        if (c.far_target_past_real_limit) {
+            a.op({0x66, 0xea}); a.d(0x12345); a.w(0);      // o32 JMP 0000:00012345 under the kept 4 GiB CS limit
         } else {
-            // Real-mode reloads, then accesses.
-            a.op({0xb8, 0x00, 0x01, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xe0, 0x8e, 0xe8, 0x8e, 0xd0});
-            a.op({0xbc, 0x00, 0x08});                       // MOV SP, 0800h (SS.base 1000h)
-            if (c.ending == -1) {
-                a.op({0x66, 0xbb}); a.d(0x00200000);         // MOV EBX, 200000h
-                a.op({0x67, 0x66, 0x8b, 0x03});              // MOV EAX, [EBX]
-                a.op({0x26, 0x67, 0x66, 0x89, 0x03});        // MOV ES:[EBX], EAX
-                a.op({0x64, 0x67, 0x66, 0x89, 0x43, 0x04});  // MOV FS:[EBX+4], EAX
-                a.op({0x65, 0x67, 0x66, 0x8b, 0x4b, 0x08});  // MOV ECX, GS:[EBX+8]
-                a.op({0x36, 0x67, 0x66, 0x89, 0x4b, 0x0c});  // MOV SS:[EBX+12], ECX
-                a.op({0xf4});
-            } else if (c.ending == 12) {
-                a.op({0xbb, 0xff, 0xff, 0x36, 0x8b, 0x07});  // MOV BX, FFFFh; MOV AX, SS:[BX]
-                a.op({0xf4});
-            } else if (c.code_sel == 0x20) {
-                a.op({0x2e, 0x8b, 0x1e, 0xff, 0xff});        // MOV BX, CS:[FFFFh]
+            const size_t jmp_rm = a.here();
+            a.op({0xea}); a.w(0); a.w(0);                   // JMP 0000:rm
+            const uint16_t rm = uint16_t(CODE + a.here());
+            a.b[jmp_rm + 1] = uint8_t(rm); a.b[jmp_rm + 2] = uint8_t(rm >> 8);
+            if (c.ending <= -2) {
                 a.op({0xf4});
             } else {
-                a.op({0x65, 0x8b, 0x06, 0xff, 0xff});        // MOV AX, GS:[FFFFh]
-                a.op({0xf4});
+                // Real-mode reloads, then accesses.
+                a.op({0xb8, 0x00, 0x01, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xe0, 0x8e, 0xe8, 0x8e, 0xd0});
+                a.op({0xbc, 0x00, 0x08});                   // MOV SP, 0800h (SS.base 1000h)
+                if (c.ending == -1) {
+                    a.op({0x66, 0xbb}); a.d(0x00200000);     // MOV EBX, 200000h
+                    a.op({0x67, 0x66, 0x8b, 0x03});          // MOV EAX, [EBX]
+                    a.op({0x26, 0x67, 0x66, 0x89, 0x03});    // MOV ES:[EBX], EAX
+                    a.op({0x64, 0x67, 0x66, 0x89, 0x43, 0x04});  // MOV FS:[EBX+4], EAX
+                    a.op({0x65, 0x67, 0x66, 0x8b, 0x4b, 0x08});  // MOV ECX, GS:[EBX+8]
+                    a.op({0x36, 0x67, 0x66, 0x89, 0x4b, 0x0c});  // MOV SS:[EBX+12], ECX
+                    a.op({0xf4});
+                } else if (c.ending == 12) {
+                    a.op({0xbb, 0xff, 0xff, 0x36, 0x8b, 0x07});  // MOV BX, FFFFh; MOV AX, SS:[BX]
+                    a.op({0xf4});
+                } else if (c.code_sel == 0x20) {
+                    a.op({0x2e, 0x8b, 0x1e, 0xff, 0xff});    // MOV BX, CS:[FFFFh]
+                    a.op({0xf4});
+                } else {
+                    a.op({0x65, 0x8b, 0x06, 0xff, 0xff});    // MOV AX, GS:[FFFFh]
+                    a.op({0xf4});
+                }
             }
         }
         std::vector<std::pair<uint32_t, uint8_t>> image;
@@ -5707,6 +5975,13 @@ int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
             if (outcome.exception >= 0) out.add(label + ".exception", 0xff, uint32_t(outcome.exception));
         } else if (outcome.exception != c.ending) {
             out.add(label + ".exception", uint32_t(c.ending), outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
+        }
+        if (c.far_target_past_real_limit) {
+            const uint32_t frame = s.seg[fes_i386::SEG_SS].base + 0x0efa;
+            const uint32_t ip = rtl.ram[frame] | uint32_t(rtl.ram[frame + 1]) << 8;
+            if ((s.gpr[fes_i386::REG_ESP] & 0xffff) != 0x0efa)
+                out.add(label + ".esp", 0x0efa, s.gpr[fes_i386::REG_ESP] & 0xffff);
+            if (ip != 0x2345) out.add(label + ".pushed-ip", 0x2345, ip);
         }
         if (c.ending == -3 && s.seg[fes_i386::SEG_ES].selector != 0x10)
             out.add(label + ".es", 0x10, s.seg[fes_i386::SEG_ES].selector);
@@ -6345,9 +6620,13 @@ int main(int argc, char **argv) {
         return text;
     };
     const std::string pm_deliveries = counts(summary.pm_deliveries), unbuilt = counts(summary.unbuilt);
-    std::string pm_kinds;
-    for (auto &[kind, count] : summary.pm_kinds)
-        pm_kinds += (pm_kinds.empty() ? "" : ", ") + std::string("\"") + kind + "\": " + std::to_string(count);
+    auto named = [](const std::map<std::string, uint64_t> &map) {
+        std::string text;
+        for (auto &[kind, count] : map)
+            text += (text.empty() ? "" : ", ") + std::string("\"") + kind + "\": " + std::to_string(count);
+        return text;
+    };
+    const std::string pm_kinds = named(summary.pm_kinds), cs_limit = named(summary.cs_limit);
     // The FAIL lines go through std::cout, unsynced with stdio: flush them
     // first, so the summary line is whole after them.
     std::cout.flush();
@@ -6366,7 +6645,8 @@ int main(int argc, char **argv) {
                 "\"window_code_stops\": %llu, \"code_store_stops\": %llu, \"stray_stops\": %llu, "
                 "\"port0_reads\": %llu, \"port0_writes\": %llu, "
                 "\"pm_retirements\": %llu, \"cs_rule\": %llu, \"ss_error_rule\": %llu, \"pm_deliveries\": {%s}, "
-                "\"unbuilt_stops\": {%s}, \"pm_kinds\": {%s}, \"no387_rule\": %llu, \"no387_skips\": %llu}\n",
+                "\"unbuilt_stops\": {%s}, \"pm_kinds\": {%s}, \"cs_limit\": {%s}, "
+                "\"no387_rule\": %llu, \"no387_skips\": %llu}\n",
                 mode.c_str(), (unsigned long long)seed, latency ? "true" : "false",
                 (unsigned long long)summary.runs, (unsigned long long)summary.passed,
                 (unsigned long long)summary.failed, (unsigned long long)summary.retirements,
@@ -6397,7 +6677,8 @@ int main(int argc, char **argv) {
                 (unsigned long long)rtl.port0.beats_written,
                 (unsigned long long)summary.pm_retirements, (unsigned long long)summary.cs_rule,
                 (unsigned long long)summary.ss_error_rule, pm_deliveries.c_str(),
-                unbuilt.c_str(), pm_kinds.c_str(), (unsigned long long)summary.no387_rule,
+                unbuilt.c_str(), pm_kinds.c_str(), cs_limit.c_str(),
+                (unsigned long long)summary.no387_rule,
                 (unsigned long long)summary.no387_skips);
     return summary.failed ? 1 : 0;
 }

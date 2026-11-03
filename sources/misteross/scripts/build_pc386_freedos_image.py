@@ -38,9 +38,9 @@ FreeDOS-v1.4 tag) and every file used is checked against its pinned SHA-256:
   mem      MEM.EXE (games)
 
 The disk is 65 cylinders of 16 heads and 63 sectors (32.0 MiB). One active
-FAT16 partition (type 06h) starts at cylinder 0, head 1; mtools formats it and
-the kernel's boot code is laid around the BPB mtools wrote, as FreeDOS's SYS
-does. The partition entry's end CHS states the geometry, which is how the
+FAT16 partition (type 06h) starts at cylinder 0, head 1; mtools formats it with
+2 KiB clusters, as DOS FORMAT does at this size, and the kernel's boot code is
+laid around the BPB mtools wrote, as FreeDOS's SYS does. The partition entry's end CHS states the geometry, which is how the
 machine (and FogCast) infer it. The image is reproducible: file times, the
 volume serial and the label are fixed.
 
@@ -74,6 +74,10 @@ CYLINDERS, HEADS, SPT = 65, 16, 63
 TOTAL_SECTORS = CYLINDERS * HEADS * SPT
 PARTITION_START = SPT                  # cylinder 0, head 1, sector 1
 PARTITION_SECTORS = TOTAL_SECTORS - PARTITION_START
+# DOS FORMAT's FAT16 cluster for 16-128 MiB. mtools would pick 512 bytes,
+# and FreeDOS walks a file's chain from its start on every backward seek
+# (map_cluster), so a 512-byte cluster makes that walk four times as long.
+CLUSTER_SECTORS = 4
 VOLUME_SERIAL = 0x1386_0026
 # 2026-10-26 12:00 UTC: the file times on the image.
 FILE_TIME = 1793016000
@@ -230,7 +234,7 @@ def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
 
     env = dict(os.environ, MTOOLS_SKIP_CHECK='1', MTOOLSRC='/dev/null', SOURCE_DATE_EPOCH=str(FILE_TIME), TZ='UTC')
     volume = f'{disk}@@{PARTITION_START * 512}'
-    mtools('mformat', '-i', volume, '-h', str(HEADS), '-s', str(SPT),
+    mtools('mformat', '-i', volume, '-h', str(HEADS), '-s', str(SPT), '-c', str(CLUSTER_SECTORS),
            '-H', str(PARTITION_START), '-T', str(PARTITION_SECTORS), '-N', f'{VOLUME_SERIAL:08x}',
            '-v', 'FREEDOS', '::', env=env)
 
@@ -241,8 +245,8 @@ def build(download: bool = False, jobs: int = 4, profile: str = 'boot') -> Path:
     sector = bytearray(boot_sector(trees['kernel'], nasm, work))
     sector[0x0b:0x3e] = bpb
     sector[0x24] = 0x80                     # BIOS drive number: the first hard disk
-    if bytes(sector[0x36:0x3e]).rstrip() != b'FAT16':
-        raise ImageError('mformat did not make a FAT16 volume')
+    if bytes(sector[0x36:0x3e]).rstrip() != b'FAT16' or sector[0x0d] != CLUSTER_SECTORS:
+        raise ImageError(f'mformat did not make a FAT16 volume of {CLUSTER_SECTORS}-sector clusters')
     data[offset:offset + 512] = sector
     disk.write_bytes(data)
 
