@@ -128,3 +128,8 @@ Future 3090 Quartus jobs must hold the existing
 `/tmp/lander-quartus-3090.lock` throughout. This milestone grants no normal
 runtime admission or DE10-equivalent core-load acceptance; the full goal remains
 active.
+
+The [complete-banner follow-up](../2026-11-03-de25-recovery-version-uart/README.md)
+passes its new software checks and version gate on the board, then stops at
+the RAM-only serial probe. It makes no SD write and restores the qualified
+old recovery prompt; new PHY/native warm-SD acceptance remains open.
