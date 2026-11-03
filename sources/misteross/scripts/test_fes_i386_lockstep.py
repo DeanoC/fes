@@ -341,7 +341,7 @@ SAME_RANDOM = ('runs', 'passed', 'retirements', 'halts', 'faults', 'shutdowns', 
                'code_store_stops', 'stray_stops', 'mmio_runs', 'mmio_accesses', 'pm_retirements', 'cs_rule')
 SAME_MODE = ('runs', 'passed', 'failed', 'retirements', 'halts', 'interrupts', 'faults', 'fault_vectors',
              'shutdowns', 'nested', 'io_accesses', 'external_interrupts', 'nmis', 'rep_interrupts', 'divergence_retirements',
-             'pm_retirements', 'cs_rule', 'trace_hash')
+             'pm_retirements', 'cs_rule', 'cs_limit', 'trace_hash')
 
 
 def same_as(report: dict, other: dict) -> list[str]:

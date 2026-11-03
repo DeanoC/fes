@@ -115,8 +115,8 @@ class OutputTest(unittest.TestCase):
 
     def test_same_as_compares_the_protected_mode_counts(self):
         def report(pm: int, cs: int) -> dict:
-            mode = {'summary': {'pm_retirements': pm, 'cs_rule': cs}}
-            runs = {'totals': {'pm_retirements': pm, 'cs_rule': cs}}
+            mode = {'summary': {'pm_retirements': pm, 'cs_rule': cs, 'cs_limit': {'pm-gp': cs}}}
+            runs = {'totals': {'pm_retirements': pm, 'cs_rule': cs}, 'cs_limit': {'pm-gp': cs}}
             return {'corpus': {'totals': {}, 'by_opcode': {}}, 'random': runs, 'pmode': runs,
                     'directed_cases': mode, 'unreal_cases': mode, 'pmode_cases': mode, 'memory_cases': mode,
                     'reset_store': mode,
@@ -127,6 +127,9 @@ class OutputTest(unittest.TestCase):
             with self.subTest(where=where):
                 self.assertIn(f'{where} pm_retirements: 74 here, 75 at max', differences)
                 self.assertIn(f'{where} cs_rule: 3 here, 2 at max', differences)
+        for where in ('pmode', 'directed_cases', 'unreal_cases', 'pmode_cases', 'memory_cases', 'reset_store'):
+            with self.subTest(where=where):
+                self.assertIn(f"{where} cs_limit: {{'pm-gp': 3}} here, {{'pm-gp': 2}} at max", differences)
 
     def test_cpu_sources_exist(self):
         for name in lockstep.CPU_RTL:
