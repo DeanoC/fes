@@ -53,9 +53,10 @@ func NewClient(baseURL *url.URL, token string, httpClient *http.Client) *Client 
 }
 
 func (c *Client) Health(ctx context.Context) (protocol.Health, error) {
-	var health protocol.Health
-	err := c.doJSON(ctx, http.MethodGet, "/v1/health", nil, &health)
-	return health, err
+	var response healthResponse
+	header := http.Header{protocol.SoftwareIdentityHeader: []string{protocol.SoftwareIdentityVersion}}
+	err := c.doJSONQueryWithHeaders(ctx, http.MethodGet, "/v1/health", nil, nil, &response, c.httpClient, header)
+	return response.Health, err
 }
 
 func (c *Client) Status(ctx context.Context) (protocol.Status, error) {
@@ -135,6 +136,10 @@ func (c *Client) doJSONQuery(ctx context.Context, method, path string, query url
 }
 
 func (c *Client) doJSONQueryWithClient(ctx context.Context, method, path string, query url.Values, requestBody any, responseBody any, client *http.Client) error {
+	return c.doJSONQueryWithHeaders(ctx, method, path, query, requestBody, responseBody, client, nil)
+}
+
+func (c *Client) doJSONQueryWithHeaders(ctx context.Context, method, path string, query url.Values, requestBody any, responseBody any, client *http.Client, headers http.Header) error {
 	var body io.Reader
 	if requestBody != nil {
 		encoded, err := json.Marshal(requestBody)
@@ -146,6 +151,11 @@ func (c *Client) doJSONQueryWithClient(ctx context.Context, method, path string,
 	request, err := http.NewRequestWithContext(ctx, method, c.endpoint(path, query).String(), body)
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
+	}
+	for name, values := range headers {
+		for _, value := range values {
+			request.Header.Add(name, value)
+		}
 	}
 	request.Header.Set("Authorization", "Bearer "+c.token)
 	if method == http.MethodPost {

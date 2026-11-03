@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/DeanoC/FogCast/appliance/software"
 	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
@@ -597,7 +598,13 @@ func New(service Service, options ...ServerOption) http.Handler {
 		if err == nil {
 			result.Target.APIVersion = target.APIVersion
 			result.Target.Artifacts = target.Artifacts
-			if softwareStatus := target.Software; softwareStatus != nil {
+			if identity := target.SoftwareIdentityV1; identity != nil {
+				result.Target.Software = &targetSoftwareIdentity{ActiveBundle: identity.ActiveBundle, BaseIdentity: identity.BaseIdentity}
+				if target.Software == nil && software.ValidID(identity.Selected) {
+					result.Target.Software.Selected = identity.Selected
+					result.Target.Software.Generation = identity.Generation
+				}
+			} else if softwareStatus := target.Software; softwareStatus != nil {
 				result.Target.Software = &targetSoftwareIdentity{
 					ActiveBundle: softwareStatus.ActiveBundle, BaseIdentity: softwareStatus.BaseIdentity,
 				}

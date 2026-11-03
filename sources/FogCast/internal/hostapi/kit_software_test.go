@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 func TestHealthProjectsActiveSoftwareWithoutOperationDetails(t *testing.T) {
@@ -173,6 +175,72 @@ func TestHealthSuppressesUnverifiedSelectionFromOlderAgents(t *testing.T) {
 			got := out.Target.Software
 			if got.ActiveBundle != active || got.BaseIdentity != base || got.Selected != "" || got.Generation != 0 || strings.Contains(response.Body.String(), "private") {
 				t.Fatalf("unverified selection published: %+v", got)
+			}
+		})
+	}
+}
+
+// healthWireService exercises the actual target JSON decoder before the host
+// projection; an unnegotiated compact response is intentionally not treated as
+// evidence that the supervisor's full state passed validation.
+type healthWireService struct {
+	*fakeService
+	client *targetclient.Client
+}
+
+func (s *healthWireService) Health(ctx context.Context) (protocol.Health, error) {
+	return s.client.Health(ctx)
+}
+
+func TestHealthVersionSkewRequiresValidatedFullState(t *testing.T) {
+	active, base, selected := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
+	for _, tc := range []struct {
+		name, software string
+		selected       bool
+	}{
+		{"full-valid", `{"version":1,"generation":7,"selected":"` + selected + `","receipts":{},"active_bundle":"` + active + `","base_identity":"` + base + `"}`, true},
+		{"full-invalid-storage", `{"version":1,"generation":7,"selected":"` + selected + `","receipts":{},"storage_error":"private","active_bundle":"` + active + `","base_identity":"` + base + `"}`, false},
+		{"compact-unnegotiated", `{"selected":"` + selected + `","generation":7,"active_bundle":"` + active + `","base_identity":"` + base + `"}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/v1/health" || r.Header.Get("Authorization") != "Bearer agent-token" {
+					t.Error("unexpected target request")
+					http.Error(w, "unexpected request", http.StatusBadRequest)
+					return
+				}
+				_, _ = w.Write([]byte(`{"api_version":"v1","ready":true,"software":` + tc.software + `}`))
+			}))
+			defer peer.Close()
+			endpoint, err := url.Parse(peer.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			service := &healthWireService{fakeService: &fakeService{}, client: targetclient.NewClient(endpoint, "agent-token", peer.Client())}
+			response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/health")
+			var out struct {
+				Target struct {
+					Software struct {
+						ActiveBundle string `json:"active_bundle"`
+						BaseIdentity string `json:"base_identity"`
+						Selected     string `json:"selected"`
+						Generation   uint64 `json:"generation"`
+					} `json:"software"`
+				} `json:"target"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &out); err != nil {
+				t.Fatal(err)
+			}
+			got := out.Target.Software
+			if got.ActiveBundle != active || got.BaseIdentity != base {
+				t.Fatalf("independent launch identity lost: %+v", got)
+			}
+			if tc.selected {
+				if got.Selected != selected || got.Generation != 7 {
+					t.Fatalf("valid full status rejected: %+v", got)
+				}
+			} else if got.Selected != "" || got.Generation != 0 || strings.Contains(response.Body.String(), "private") {
+				t.Fatalf("unverified selection exposed: %+v", got)
 			}
 		})
 	}

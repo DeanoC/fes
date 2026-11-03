@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -54,10 +55,16 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 		}
 		health.TargetID = ""
 		health.Software = nil
+		health.SoftwareIdentityV1 = nil
 		if authenticatedRequest(r, token) {
 			health.TargetID = settings.targetID
 			if settings.kitSoftwareSocket != "" {
 				health.Software = kitSoftwareHealth(r.Context(), settings.kitSoftwareSocket)
+				if r.Header.Get(protocol.SoftwareIdentityHeader) == protocol.SoftwareIdentityVersion && health.Software.StorageError == "" && softwarecontrol.ValidateState(health.Software.State) == nil {
+					status := health.Software
+					health.SoftwareIdentityV1 = &protocol.SoftwareIdentityV1{ActiveBundle: status.ActiveBundle, BaseIdentity: status.BaseIdentity, Selected: status.Selected, Generation: status.Generation}
+					health.Software = nil
+				}
 			}
 		}
 		if r.Context().Err() != nil {

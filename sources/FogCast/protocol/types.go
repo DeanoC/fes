@@ -110,13 +110,28 @@ type PartsInspection struct {
 }
 
 type Health struct {
-	TargetID     string                  `json:"target_id,omitempty"`
-	APIVersion   string                  `json:"api_version"`
-	AgentVersion string                  `json:"agent_version"`
-	Ready        bool                    `json:"ready"`
-	BootID       string                  `json:"boot_id,omitempty"`
-	Artifacts    *Artifacts              `json:"artifacts,omitempty"`
-	Software     *softwarecontrol.Status `json:"software,omitempty"`
+	TargetID           string                  `json:"target_id,omitempty"`
+	APIVersion         string                  `json:"api_version"`
+	AgentVersion       string                  `json:"agent_version"`
+	Ready              bool                    `json:"ready"`
+	BootID             string                  `json:"boot_id,omitempty"`
+	Artifacts          *Artifacts              `json:"artifacts,omitempty"`
+	Software           *softwarecontrol.Status `json:"software,omitempty"`
+	SoftwareIdentityV1 *SoftwareIdentityV1     `json:"software_identity_v1,omitempty"`
+}
+
+// SoftwareIdentityHeader requests a validated compact software identity in health.
+// Agents that do not understand it return the legacy full software status.
+const SoftwareIdentityHeader = "X-FES-Software-Identity"
+const SoftwareIdentityVersion = "1"
+
+// SoftwareIdentityV1 is emitted only after validation of the full supervisor
+// status. The authenticated agent attests that the selected identity is valid.
+type SoftwareIdentityV1 struct {
+	ActiveBundle string `json:"active_bundle"`
+	BaseIdentity string `json:"base_identity"`
+	Selected     string `json:"selected"`
+	Generation   uint64 `json:"generation"`
 }
 
 // Artifacts identifies the sealed build inputs; absent fields are not live hashes.
