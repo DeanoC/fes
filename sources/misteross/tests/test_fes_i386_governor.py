@@ -60,7 +60,8 @@ class TableTest(unittest.TestCase):
             (0, 0x8B, 0, 0, 0, 0): 'mov_load', (0, 0x8B, 0, 1, 0, 0): 'mov_r', (0, 0xA4, 0, 0, 0, 1): 'rep_movs',
             (0, 0xA4, 0, 0, 0, 0): 'movs', (1, 0x84, 0, 0, 0, 0): 'jcc', (0, 0xF7, 6, 1, 1, 0): 'div32_r',
             (0, 0xF7, 6, 1, 0, 0): 'div16_r', (0, 0x83, 7, 0, 0, 0): 'test_m', (0, 0xCD, 0, 0, 0, 0): 'int',
-            (1, 0x00, 0, 1, 0, 0): 'default',
+            (1, 0x00, 0, 1, 0, 0): 'sldt_r', (1, 0x03, 2, 0, 0, 0): 'lsl_m', (0, 0x63, 1, 1, 0, 0): 'arpl_r',
+            (1, 0x0B, 0, 1, 0, 0): 'default',
         }
         for key, name in cases.items():
             with self.subTest(key=key):
