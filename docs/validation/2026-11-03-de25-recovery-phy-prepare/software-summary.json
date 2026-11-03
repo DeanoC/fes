@@ -1,0 +1,346 @@
+{
+  "status": "passed",
+  "selections": [
+    {
+      "selection": "baseline",
+      "source_commit": "20ebc7cf58dcec7b21957da020f9e096d3e9efb5",
+      "base_commit": "93905fca93b14d18dcfd2efb57a43a9f29e16770",
+      "status": "passed",
+      "affected_scopes": 10,
+      "results": [
+        {
+          "index": 0,
+          "label": "test_affected.py",
+          "argv": [
+            "/usr/bin/python3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests",
+            "-p",
+            "test_affected.py",
+            "-v"
+          ],
+          "log": "software-0.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 0.4007917479611933,
+          "log_sha256": "94bae45e684b6d8958a9c43e8ff7ebf1a98a7ee97a21041f59f13f80aab748ce",
+          "child_receipt_sha256": "f220e869001d4e90ec3510d0eaf37433aaefe4a7475f852c7903ab7240ee6121"
+        },
+        {
+          "index": 1,
+          "label": "test_test_changed.py",
+          "argv": [
+            "/usr/bin/python3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests",
+            "-p",
+            "test_test_changed.py",
+            "-v"
+          ],
+          "log": "software-1.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 1.20128600706812,
+          "log_sha256": "7b9f5bd80e7f76bb6e2e5adf33af68f0659ce7f51b49b2072fa0a21e8a64b801",
+          "child_receipt_sha256": "e9c041ef0cd89e81d7b43fe97ccf3d4ea9065180643c089f871e7415038d9297"
+        },
+        {
+          "index": 2,
+          "label": "committed whitespace",
+          "argv": [
+            "/usr/bin/python3",
+            "scripts/check_diff.py",
+            "--base",
+            "93905fca93b14d18dcfd2efb57a43a9f29e16770",
+            "--head",
+            "20ebc7cf58dcec7b21957da020f9e096d3e9efb5"
+          ],
+          "log": "software-2.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 0.20050236291717738,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "child_receipt_sha256": "34cf73ffa645c6a5e3e6abcf7b43121a3bd3df07cf7d88bace8712ee202bed77"
+        },
+        {
+          "index": 3,
+          "label": "working whitespace",
+          "argv": [
+            "git",
+            "diff",
+            "--check",
+            "HEAD",
+            "--"
+          ],
+          "log": "software-3.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 0.20046799501869828,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "child_receipt_sha256": "a675ac37ec9a14170b6a008e497d39bf92593fc1a6ce2886ca0bb3427f5cdd62"
+        },
+        {
+          "index": 4,
+          "label": "parent Python regressions",
+          "argv": [
+            "/usr/bin/python3",
+            "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phy-prepare-checks-20261103/parent_partitions.py"
+          ],
+          "log": "software-4.log",
+          "planned_argv": [
+            "/usr/bin/python3",
+            "scripts/parent_tests.py",
+            "--video",
+            "false",
+            "--media",
+            "false",
+            "--paths-json",
+            "[\"platform/embedded/firmware/README.md\", \"platform/embedded/firmware/build_terasic_uboot.py\", \"platform/embedded/firmware/tests/nano_recovery_phy_test.c\", \"platform/embedded/nano/README.md\", \"platform/embedded/nano/recovery.py\", \"platform/embedded/nano/recovery_package.py\", \"platform/embedded/nano/upload.py\", \"tests/fixtures/nano-recovery-phy/README.md\", \"tests/fixtures/nano-recovery-phy/cmd/Makefile\", \"tests/fixtures/nano-recovery-phy/drivers/net/dwc_eth_xgmac.c\", \"tests/fixtures/nano-recovery-phy/drivers/net/dwc_eth_xgmac.h\", \"tests/test_nano_recovery.py\", \"tests/test_nano_upload.py\"]"
+          ],
+          "verification_mode": "same-selected-suite-partitioned-by-module",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 225.7693489480298,
+          "log_sha256": "405e4b3537ea5062939948e55774349916ef604e5c9c69fec32c9be1e4e98d9f",
+          "child_receipt_sha256": "40169d6a103ae125042b469ab6b33065996a5cc7e6991e9d30417710149f3bf6"
+        },
+        {
+          "index": 5,
+          "label": "working-tree generated consumer consistency",
+          "argv": [
+            "/usr/bin/python3",
+            "-c",
+            "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+          ],
+          "log": "software-5.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 4.4033919220091775,
+          "log_sha256": "0abb26569563f932801c46ce2685573dd4f24c3301287f939963f0e6407a41cd",
+          "child_receipt_sha256": "b31038e7dac7b5954866d4f50b519056581e29187edb6d1751ebab7d6ef291d6"
+        },
+        {
+          "index": 6,
+          "label": "native runtime firmware and FPGA launch integration",
+          "argv": [
+            "/usr/bin/python3",
+            "platform/embedded/tamago/nativefabric/verify.py"
+          ],
+          "log": "software-6.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 54.24124000698794,
+          "log_sha256": "df49fd9ed47813e9b78aed0e70eddfe7cef5d85dc1313ad41e3e3113f627fae2",
+          "child_receipt_sha256": "68e3d795be11d37ee44bc23c18ffa1fe52f53e482ee8165583707f28e01c15a9"
+        },
+        {
+          "index": 7,
+          "label": "embedded producer identity and native control integration",
+          "argv": [
+            "/usr/bin/python3",
+            "platform/embedded/tamago/nativefabric/verify_producer.py"
+          ],
+          "log": "software-7.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 9.409330496098846,
+          "log_sha256": "0a26bff85254c5ef4dca19b7886edb951a29c5f178c76c0052206d87ec42406e",
+          "child_receipt_sha256": "6aaf2eea006f85609ea40d83c3214b695496d452107e833164f6f1e2f5673ba5"
+        },
+        {
+          "index": 8,
+          "label": "embedded firmware and identity/drain RTL integration",
+          "argv": [
+            "/usr/bin/python3",
+            "platform/embedded/firmware/verify.py"
+          ],
+          "log": "software-8.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 5.205360012943856,
+          "log_sha256": "a0c72ea264fbd305f23e1c9d1216f7615a3e6a691147a6c511a5c8e7082483fc",
+          "child_receipt_sha256": "8311515b6bf07db8f0580d51412f3557aef995f382ccefea36180d58362a5d9b"
+        },
+        {
+          "index": 9,
+          "label": "test_*.py",
+          "argv": [
+            "/usr/bin/python3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests",
+            "-p",
+            "test_*.py",
+            "-v"
+          ],
+          "log": "software-9.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 319.84331666794606,
+          "log_sha256": "0fae0b4c155a6d79367c0139b4a65a579e7abbeb2c810585d241dcb7a3b44ac0",
+          "child_receipt_sha256": "3eae78f9812220a6699068d61c651f4a3d97568838cb26479bf5b90eab8fa945"
+        }
+      ],
+      "parent_selected": 1330,
+      "parent_partition_bound_seconds": 300,
+      "parent_skips": [
+        [
+          "test_media_inputs.UbootDerivationTest.test_locked_upstream_derives_locked_uboot",
+          "locked upstream uboot.img cache is absent"
+        ],
+        [
+          "test_gpu_lease.GpuLeaseTests.test_macos_statfs_reports_the_lease_filesystem",
+          "statfs(2) layout is the macOS one"
+        ]
+      ]
+    },
+    {
+      "selection": "banner-fix",
+      "source_commit": "1bf9fe81404f130e914b4ff801e836a2864760a0",
+      "base_commit": "20ebc7cf58dcec7b21957da020f9e096d3e9efb5",
+      "status": "passed",
+      "affected_scopes": 6,
+      "results": [
+        {
+          "index": 0,
+          "label": "test_affected.py",
+          "argv": [
+            "/usr/bin/python3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests",
+            "-p",
+            "test_affected.py",
+            "-v"
+          ],
+          "log": "software-0.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 0.4008268970064819,
+          "log_sha256": "9d5149307f6ab9d93528ae686280262d7b87f8e078b89ac1f5636c36ffc557b9",
+          "child_receipt_sha256": "cd8a04570eb956c17d74a092538626fe494dcc8fc78596764d7ba0b4fe5cc863"
+        },
+        {
+          "index": 1,
+          "label": "test_test_changed.py",
+          "argv": [
+            "/usr/bin/python3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests",
+            "-p",
+            "test_test_changed.py",
+            "-v"
+          ],
+          "log": "software-1.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 1.0015157139860094,
+          "log_sha256": "f39194c1955a09df6623adffa98de92ebccf77ce1716d5ca66b9b204d3495111",
+          "child_receipt_sha256": "47f94850dc01723924188f2c2b384c609b3c31db8a4609bada002aa01fe8bda4"
+        },
+        {
+          "index": 2,
+          "label": "committed whitespace",
+          "argv": [
+            "/usr/bin/python3",
+            "scripts/check_diff.py",
+            "--base",
+            "20ebc7cf58dcec7b21957da020f9e096d3e9efb5",
+            "--head",
+            "1bf9fe81404f130e914b4ff801e836a2864760a0"
+          ],
+          "log": "software-2.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 0.20043177192565054,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "child_receipt_sha256": "b444e2a4a20729e040556e2b3c74f26c75a66841aeb978f3dfe4030c763ac97e"
+        },
+        {
+          "index": 3,
+          "label": "working whitespace",
+          "argv": [
+            "git",
+            "diff",
+            "--check",
+            "HEAD",
+            "--"
+          ],
+          "log": "software-3.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 0.2006070630159229,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "child_receipt_sha256": "f3e3f3578d43e032795da7033a75acd9ab6300883c5a0c1b204685a99b7f5127"
+        },
+        {
+          "index": 4,
+          "label": "parent Python regressions",
+          "argv": [
+            "/usr/bin/python3",
+            "/home/deano/fes/out/dev/de25-embedded-os/out/nano-phy-prepare-checks-final-20261103/parent_partitions.py"
+          ],
+          "log": "software-4.log",
+          "planned_argv": [
+            "/usr/bin/python3",
+            "scripts/parent_tests.py",
+            "--video",
+            "false",
+            "--media",
+            "false",
+            "--paths-json",
+            "[\"platform/embedded/nano/recovery.py\", \"platform/embedded/nano/recovery_package.py\", \"platform/embedded/nano/upload.py\", \"tests/test_nano_recovery.py\", \"tests/test_nano_upload.py\"]"
+          ],
+          "verification_mode": "same-selected-suite-partitioned-by-module",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 225.35309777699877,
+          "log_sha256": "405e4b3537ea5062939948e55774349916ef604e5c9c69fec32c9be1e4e98d9f",
+          "child_receipt_sha256": "5a8bc96d2c88131bdb249fc2e611285341d5c03844f7a54de7d7518ab630f2ce"
+        },
+        {
+          "index": 5,
+          "label": "working-tree generated consumer consistency",
+          "argv": [
+            "/usr/bin/python3",
+            "-c",
+            "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"
+          ],
+          "log": "software-5.log",
+          "returncode": 0,
+          "timed_out": false,
+          "elapsed": 4.603824286023155,
+          "log_sha256": "0abb26569563f932801c46ce2685573dd4f24c3301287f939963f0e6407a41cd",
+          "child_receipt_sha256": "b6304c66a65bc3ecf03284cfba9baa98aa8b84ff1959851664a6b4a5a30eb917"
+        }
+      ],
+      "parent_selected": 1330,
+      "parent_partition_bound_seconds": 300,
+      "parent_skips": [
+        [
+          "test_media_inputs.UbootDerivationTest.test_locked_upstream_derives_locked_uboot",
+          "locked upstream uboot.img cache is absent"
+        ],
+        [
+          "test_gpu_lease.GpuLeaseTests.test_macos_statfs_reports_the_lease_filesystem",
+          "statfs(2) layout is the macOS one"
+        ]
+      ]
+    }
+  ],
+  "baseline_fpga_software_tests": 1577,
+  "physical_test": "not-run for this repair"
+}
