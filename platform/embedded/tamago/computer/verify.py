@@ -52,6 +52,7 @@ def main():
     spec = importlib.util.spec_from_file_location("computer_project_check", BOARD / "verify.py")
     board = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(board)
+    import computer_model
     inputs, _, local = board.inputs_for(project)
     computer = inputs["computer"]
     if computer.get("new_dma_master") is not False:
@@ -64,7 +65,7 @@ def main():
     files += list((HERE.parent / "fabricmodel").glob("*.go"))
     files += [ROOT / "sources/mister-packages/packages/abi/fes_computer.yaml",
               ROOT / "sources/mister-packages/packages/fabric/fes_fabric_de25_computer.yaml",
-              HERE.parent / "go.mod", HERE.parent / "go.sum", BOARD / "verify.py"]
+              HERE.parent / "go.mod", HERE.parent / "go.sum", BOARD / "verify.py", BOARD / "computer_model.py"]
     hashes = {str(p.relative_to(ROOT)): sha(p) for p in files}
     sim = output / "simulation-source"
     sim.mkdir(); (sim / "generated").mkdir()
@@ -118,6 +119,7 @@ def main():
                   "--top-module", "fes_de25_computer", "-Wno-fatal", "--Mdir", obj,
                   "-I" + str(sim), "-I" + str(sim / "generated"),
                   "-DFES_DE25_COMPUTER_BUILD_ID=128'h" + computer["build_id"],
+                  *('-D' + macro for macro in computer_model.macros(inputs.get('computer_model', 'zx81'))),
                   "-CFLAGS", "-std=c++17 -O2", *(sim / name for name in SOURCES), probe], sim, 120)
     executable = obj / "Vfes_de25_computer"
     env.update(FES_COMPUTER_MODEL=str(executable), FES_COMPUTER_MODEL_DIRECTORY=str(sim),

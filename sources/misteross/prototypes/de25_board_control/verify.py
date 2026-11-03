@@ -16,6 +16,7 @@ import uuid
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE))
 import reader_memory
+import computer_model
 ROOT = HERE.parents[3]
 TAMAGO = ROOT / "platform/embedded/tamago"
 SPEC = importlib.util.spec_from_file_location("embedded_sim_producer", HERE.parent / "embedded_control/producer.py")
@@ -59,6 +60,8 @@ def inputs_for(project):
     fingerprint_fields = {"source_sha256": sources,
         "vendor_sha256": inputs["vendor_archive_sha256"], "system_hz": 100000000,
         "pixel_hz": 74250000,"reader_memory":memory}
+    if 'computer_model' in inputs:
+        fingerprint_fields.update(computer_model.parameters(inputs['computer_model']))
     if "hps_initialization" in inputs["computer"]:
         fingerprint_fields["hps_initialization"] = inputs["computer"]["hps_initialization"]
     fingerprint = hashlib.sha256(json.dumps(fingerprint_fields, sort_keys=True).encode()).hexdigest()[:32]
@@ -75,6 +78,7 @@ def inputs_for(project):
                 fields["parameters"].get("board_revision") != identity["board_fes_revision"] or
                 fields["parameters"].get("control_abi") != identity["control_abi"] or
                 any(fields['parameters'].get(k)!=v for k,v in reader_memory.parameters(memory).items()) or
+                ('computer_model' in inputs and fields['parameters'].get('computer_model') != inputs['computer_model']) or
                 fields["parameters"].get("device") != seal.DEVICE or
                 fields["parameters"].get("parallel_processors") != inputs.get("compile_processors") or
                 fields["parameters"].get("classification") != "de25-two-revision-diagnostic" or
@@ -168,6 +172,8 @@ def inputs_for(project):
     if sha(script) != inputs["computer"]["integration_sha256"]:
         raise ValueError("project integration script differs")
     qsf = (board / "hps/project/golden_top.qsf").read_text()
+    model_sources = {name: (snapshot / name).read_bytes() for name in sources if name.startswith(computer_model.ROM_PATH)}
+    computer_model.verify(board/'hps/project', inputs, model_sources)
     if re.findall(r'(?m)^set_global_assignment -name NUM_PARALLEL_PROCESSORS ([^\r\n]+)$', qsf) != [str(inputs.get('compile_processors'))]:
         raise ValueError('project compile processor selection differs')
     if qsf.count(f"FES_DE25_COMPUTER_BUILD_ID=128'h{build_id}") != 1:

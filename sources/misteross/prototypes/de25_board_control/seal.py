@@ -22,6 +22,7 @@ MISTEROSS = HERE.parents[1]
 ROOT = MISTEROSS.parents[1]
 sys.path.insert(0, str(HERE))
 import reader_memory
+import computer_model
 sys.path.insert(0, str(MISTEROSS))
 from scripts.core_package import encode_manifest, package_identity, read_package
 from scripts.export_core_package import build_identity, encode_build_record, export_package, source_input_closure
@@ -106,6 +107,7 @@ def make_record(inputs, revision, repository, tools):
                        "snapshot_sha256": snapshot_digest(sources), "vendor_sha256": inputs["vendor_archive_sha256"],
                        "device": DEVICE, "control_abi": reader_memory.control_abi(inputs['reader_memory']), "peripheral_offset": 0x10400,
                        **reader_memory.parameters(inputs['reader_memory']),
+                       **computer_model.parameters(inputs['computer_model']),
                        "system_hz": 100000000, "pixel_hz": 74250000,
                        "spl_member": SPL_MEMBER, "hps_initialization": order,
                        "compile_flow": "quartus-pro-bounded-tasks-v1",

@@ -73,6 +73,15 @@ MMIO, a Nano profile, reset lifetime or production admission. The overlay never
 programs hardware. The hardware-independent verifier also exercises the same
 Avalon adapter through the native Go control code.
 
+The overlay's explicit computer model selects the captured ZX81 (default) or
+ZX80 machine logic. ZX80 also derives its firmware from the reviewed combined
+ROM into the decoder's first 4 KiB; a different source layout rejects. Both
+retain the diagnostic's built-in 16 KiB RAM and existing HPS/DDR/master envelope.
+The model enters the functional fingerprint and canonical record before
+synthesis. Artifact verification checks the model macro and actual firmware
+copies; the native computer RTL verifier applies the same selection. Neither
+variant registers an ordinary Nano profile or establishes physical acceptance.
+
 The diagnostic uses the standard Quartus Pro compile tasks separately, from
 IP generation and synthesis through every fitter stage, signoff timing and
 assembly. Each task has a 120-second limit, heartbeat and retained log. Failed

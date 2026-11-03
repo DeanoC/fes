@@ -31,6 +31,18 @@ the existing HPS DDR adapter, with distinct ABI `0x10203041` and diagnostic
 programming profiles. Neither option is a registered Nano runtime profile or
 global containment gate.
 
+`--computer-model zx81` (the default) retains the captured ZX81 machine and
+firmware. `--computer-model zx80` selects the captured machine's ZX80 decoder,
+NMI and tape-loader logic and installs the ZX80 firmware from the reviewed
+combined ROM into its 4 KiB decode window. It rejects any other combined ROM
+layout. Both diagnostics retain the existing built-in 16 KiB RAM; the ZX80
+option is not a stock 1 KiB ZX80 product. The model enters the functional
+fingerprint and canonical build record before synthesis. Verification checks
+the actual model macro and both synthesis/simulation firmware copies, and the
+native computer verifier uses that same macro. The HPS, DDR, clocks and master
+inventory retain their existing contracts. These are distinct diagnostic
+payloads, without ordinary Nano runtime admission or playable-core acceptance.
+
 DDR selection requires `--ddr-bus-base` and `--ddr-bytes`: a nonempty,
 page-aligned 32-bit **bus** window. Both the ordinary fingerprint and canonical
 functional build record bind the backend and window. These numbers do not

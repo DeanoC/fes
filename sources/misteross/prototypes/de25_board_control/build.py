@@ -23,6 +23,7 @@ import xml.etree.ElementTree as ET
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import reader_memory
+import computer_model
 MISTEROSS = HERE.parents[1]
 ROOT = MISTEROSS.parents[1]
 BOARD = "sources/misteross/boards/de25nano/"
@@ -33,7 +34,7 @@ INPUTS = (OVERLAY + "build.py", OVERLAY + "fes_de25_embedded.sv",
           OVERLAY + "fes_de25_embedded_hw.tcl", OVERLAY + "integrate.tcl", OVERLAY + "seal.py",
           OVERLAY + "fes_de25_computer.v", OVERLAY + "generated/fes_de25_computer.vh",
           OVERLAY + "generated/fes_de25_computer.hpp",
-          OVERLAY + "reader_memory.py", ENDPOINT, DEFINITION)
+          OVERLAY + "reader_memory.py", OVERLAY + "computer_model.py", ENDPOINT, DEFINITION)
 BOOTSTRAP = ("build.py", "display/build.py", "zx81/build.py", "zx81-hps/build.py")
 BASE = 0x10400
 SPAN = 0x100
@@ -248,6 +249,8 @@ def overlay_project(output, board, sources, identity, record=None):
     fingerprint_fields = {"source_sha256": inputs['functional_snapshot_sha256'],
         "vendor_sha256": inputs['vendor_archive_sha256'], "system_hz": 100000000, "pixel_hz": 74250000,
         "reader_memory": memory}
+    if 'computer_model' in inputs:
+        fingerprint_fields.update(computer_model.parameters(inputs['computer_model']))
     if 'hps_initialization' in inputs['computer']:
         fingerprint_fields['hps_initialization'] = inputs['computer']['hps_initialization']
     fingerprint = digest(json.dumps(fingerprint_fields, sort_keys=True).encode())[:32]
@@ -477,6 +480,8 @@ def main():
     parser.add_argument('--reader-memory', choices=('onchip', 'hps-ddr'), default='onchip')
     parser.add_argument('--ddr-bus-base', type=lambda x:int(x,0), default=0)
     parser.add_argument('--ddr-bytes', type=lambda x:int(x,0), default=0)
+    parser.add_argument('--computer-model', choices=computer_model.MODELS, default='zx81',
+                        help='captured machine and firmware selection; both retain diagnostic 16 KiB RAM')
     parser.add_argument("--jobs", type=int, choices=range(1, 17), default=2,
                         help="explicit compiler worker limit, recorded in the functional identity (default: 2)")
     args = parser.parse_args()
@@ -509,6 +514,7 @@ def main():
         inputs_file = result / 'hps/inputs.json'
         inputs = json.loads(inputs_file.read_text())
         inputs['reader_memory'] = memory
+        computer_model.install(result, inputs, sources, args.computer_model)
         inputs_file.write_text(json.dumps(inputs, indent=2, sort_keys=True)+'\n')
         record = None
         if args.sealed_diagnostic:
@@ -531,6 +537,7 @@ def main():
             generation.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
             if args.action == "build":
                 artifact = compile_project(result / "hps", tool)
+                computer_model.verify(result/'hps/project', json.loads(inputs_file.read_text()), sources)
                 if memory['backend']=='hps-ddr' and review_ddr_parameters(result/'hps',hps)!=evidence['reviewed_ddr_hps_parameters']:
                     raise ValueError('compile changed reviewed DDR HPS/EMIF parameters')
                 checks = {"system": board.pll_review(result / "hps/project/ip/pll", 100000000),
