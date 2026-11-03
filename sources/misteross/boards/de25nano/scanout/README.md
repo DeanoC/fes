@@ -247,10 +247,20 @@ receipt labels this **WITH MODELED M20K STORAGE**; vendor primitive equivalence,
 undefined power-up data, mixed-port collision behavior and physical CDC remain
 unproven.
 
-Production binding remains closed. SID/firewall/SMMU and DMA backing,
-firmware/DT/boot pairing, global reset fencing, the vendor HDMI clock-voltage
-discrepancy and external IO timing, physical CDC/MTBF and exact-artifact board
-acceptance remain gates. Warm-reset ACK stays inactive: probe/scanout-local
+Canonical package builds use Terasic's stock HDMI_ASx4/SCS golden board profile,
+as selected by the user. The review binds the verified resource ZIP, all 37
+actual fitted pins and I/O standards (including the vendor's 1.1-V clock pin),
+all pixel PLL parameters and the unchanged transmitter register table. It also
+checks the complete guarded I2C derivation. The 29 HDMI data/control outputs
+and asynchronous status LED retain their raw missing-output-delay findings;
+this reference acceptance does not claim an independent PCB timing model.
+Other findings and all internal timing checks still block package admission,
+and export requires an independently identical RBF. The standalone diagnostic
+does not gain package admission from this policy.
+
+Native production binding remains closed. SID/firewall/SMMU and DMA backing,
+firmware/DT/boot pairing, global reset fencing, physical CDC/MTBF and
+exact-artifact board acceptance remain gates. Warm-reset ACK stays inactive: probe/scanout-local
 drain cannot acknowledge the retained JTAG and HPS-origin paths. No SD card,
 QSPI, hardware, kit or harness is touched by this build lane.
 

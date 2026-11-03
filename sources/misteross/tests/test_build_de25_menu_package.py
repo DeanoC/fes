@@ -241,6 +241,47 @@ class DE25MenuPackageTests(unittest.TestCase):
                 finally:
                     path.write_bytes(original)
 
+    def test_vendor_output_review_preserves_reset_failures_and_raw_io_findings(self):
+        proof = {'vendor_hdmi_reference': {'policy': producer.async_inputs.vendor_reference.POLICY,
+                                         'independent_pcb_timing_qualified': False}}
+        with mock.patch.object(producer.async_inputs, 'verify', return_value=proof):
+            evidence = producer.timing_evidence(self.root, async_review='unit-wiring-control')
+        self.assertEqual(evidence['failed_rules'], 4)
+        self.assertEqual(evidence['unreviewed_failed_rules'], 2)
+        self.assertEqual({r['id'] for r in evidence['reviewed_findings']}, {'TMC-20011', 'TMC-20012'})
+        self.assertFalse(evidence['package_timing_admission'])
+        self.assertEqual(next(r for r in evidence['rules'] if r['id'] == 'TMC-20012')['violations'], 30)
+        # Only the two I/O findings remain in this synthetic admission control.
+        raw = self.fixture['golden_top.tq.drc.signoff.rpt']
+        io = {name: next(s for s in re.split(r'(?m)^Status:', raw)[1:] if '; ' + name + ' - ' in s)
+              for name in ('TMC-20011', 'TMC-20012')}
+        sections = re.split(r'(?m)^Status:', self.passing_signoff())
+        for index, section in enumerate(sections):
+            for name, replacement in io.items():
+                if index and '; ' + name + ' - ' in section:
+                    sections[index] = replacement
+        text = 'Status:'.join(sections).replace('0 of 85 Rules Failed', '2 of 85 Rules Failed')
+        for name, count in (('TMC-20011', 2), ('TMC-20012', 30)):
+            text = re.sub(r'(?m)^(; ' + name + r' - [^;]+; High\s*;)\s*0\s*;',
+                          lambda m: m[1] + f' {count} ;', text)
+        self.write_reports(signoff=text)
+        with mock.patch.object(producer.async_inputs, 'verify', return_value=proof):
+            self.assertTrue(producer.timing_evidence(self.root, async_review='unit-wiring-control')['package_timing_admission'])
+        self.assertFalse(producer.timing_evidence(self.root)['package_timing_admission'])
+
+    def test_vendor_output_review_cannot_cover_an_extra_changed_or_waived_port(self):
+        raw = self.fixture['golden_top.tq.drc.signoff.rpt']
+        reference = producer.async_inputs.vendor_reference
+        self.assertEqual(set(reference.output_findings(raw)), reference.OUTPUTS)
+        for text in (raw.replace('; HDMI_TX_D[0] ', '; OTHER_OUTPUT '),
+                     raw.replace('; LED[7] ', '; LED[6] '),
+                     raw.replace('; HDMI_TX_D[1] ', '; HDMI_TX_D[0] '),
+                     re.sub(r'(?m)^(; HDMI_TX_DE\s*;[^;]+;)\s*;', r'\1 Yes ;', raw, count=1),
+                     raw.replace('No output delay was set on the output port.', 'Different finding.')):
+            self.assertNotEqual(text, raw)
+            with self.assertRaises(producer.BuildError):
+                reference.output_findings(text)
+
     def prepare_repository(self):
         paths = {producer.RECIPE: b'actual recipe', producer.ABI: b'actual ABI',
                  'cores/fes-menu/reader.v': b'module reader; endmodule',

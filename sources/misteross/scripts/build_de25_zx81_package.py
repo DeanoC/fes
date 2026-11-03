@@ -79,6 +79,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
             'f2s_data_width': 0, 'f2sdram_data_width': 0, 'hps_warm_reset_handshake': True,
             'reset_timing_policy': 'timed-bram-system-reset-release-v1',
             'signoff_policy': async_inputs.POLICY, 'seed': 1, 'threads': 2,
+            'hdmi_output_policy': async_inputs.vendor_reference.POLICY,
             'pixel_clock_hz': 74250000, 'system_clock_hz': 100000000,
             'execution_sha256': execution_digest(execution)}})
 
@@ -131,7 +132,8 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
                     hps_first=True, package_build_id=selected_id)
                 builder.generate(selected, hps, paths['quartus'], identities['quartus'].split(' sha256:')[0])
                 builder.compile_canonical(selected, hps, paths['quartus'])
-                review = async_inputs.collect(output / name, paths['quartus'].with_name('quartus_sta'))
+                review = async_inputs.collect(output / name, paths['quartus'].with_name('quartus_sta'),
+                                              vendor_archive=vendor_archive)
                 timing = timing_evidence(output / name, async_review=review)
                 (output / (name + '-timing.json')).write_text(json.dumps(timing, indent=2, sort_keys=True) + '\n')
                 return selected / 'hps/linux-boot.core.rbf', timing

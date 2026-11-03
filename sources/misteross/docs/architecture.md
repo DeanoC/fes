@@ -37,9 +37,17 @@ captured verifier and staged sources are checked before and after
 compilation. The existing firmware-only programming profile leaves the
 permanent Linux owner unavailable for DMA while retaining its programming
 exclusion; this BRAM package advertises no DDR or allocated scanout interface.
-The current reviewed two-input HDMI derivation and fitted review apply, with
-all 85 signoff rules, every timing family, zero additional exceptions/waivers
-and an independent identical RBF required for export. The shared report reader
+The current reviewed two-input HDMI derivation and fitted review apply. The
+board output policy uses the user-selected Terasic stock Linux/resources
+reference rather than inventing PCB delay values. It checks the locked rev-B
+HDMI_ASx4 example and SCS Golden_top against the actual 37 fitted pins, complete
+pixel PLL parameters, forwarded-clock source and all 33 transmitter writes.
+The complete derived controller/configuration bytes remain checked. Only the
+29 vendor HDMI outputs and asynchronous status LED may retain the reference's
+missing-output-delay findings. Raw findings remain visible; independently
+derived PCB timing is not claimed. All 85 signoff rules, every internal timing
+family, zero Quartus waivers and an independent identical RBF remain required;
+other output, reset or clock-crossing findings still block export. The shared report reader
 also checks Quartus's conditional Setup Data Delay rows for completeness,
 duplicates and finite nonnegative slack/TNS; none replace the seven required
 common timing families. Compile-only retains a

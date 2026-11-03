@@ -12,6 +12,7 @@ import shutil
 import subprocess
 
 from scripts.export_core_package import build_identity
+from boards.de25nano.scanout import vendor_reference
 from scripts.fes_build_common import BuildError
 
 POLICY = 'de25-menu-reviewed-async-inputs-v1'
@@ -163,7 +164,7 @@ def bindings(directory):
         'compiled_database': {p.relative_to(database).as_posix(): sha(p) for p in files}}
 
 
-def collect(directory, quartus_sta):
+def collect(directory, quartus_sta, *, vendor_archive=None):
     """Query a private copy, retaining the original fit and raw failed rules."""
     directory = Path(directory).resolve()
     output = directory.with_name(directory.name + '-async-input-review')
@@ -186,6 +187,9 @@ def collect(directory, quartus_sta):
     review_reports(reports)
     receipt = {'bindings': before, 'tool': tool_identity, 'command': command,
                'reports_sha256': {name: sha(reports / name) for name in REPORTS}}
+    if vendor_archive is not None:
+        receipt['vendor_hdmi_reference'] = vendor_reference.collect(
+            directory, output / 'vendor-reference', vendor_archive)
     (output / 'receipt.json').write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
     return output
 
@@ -196,5 +200,10 @@ def verify(directory, review):
     require(sha(receipt['tool']['path']) == receipt['tool']['sha256'], 'STA tool binding changed')
     reports = Path(review) / 'reports'
     require(receipt['reports_sha256'] == {n: sha(reports / n) for n in REPORTS}, 'report binding changed')
-    return {'policy': POLICY, 'receipt_sha256': sha(Path(review) / 'receipt.json'),
-            'fitted_inputs': review_reports(reports)}
+    result = {'policy': POLICY, 'receipt_sha256': sha(Path(review) / 'receipt.json'),
+              'fitted_inputs': review_reports(reports)}
+    if 'vendor_hdmi_reference' in receipt:
+        reference = vendor_reference.verify(directory, Path(review) / 'vendor-reference')
+        require(reference == receipt['vendor_hdmi_reference'], 'vendor HDMI reference binding changed')
+        result['vendor_hdmi_reference'] = reference
+    return result

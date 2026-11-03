@@ -164,6 +164,7 @@ def create_build_record(root, repository, revision, identities, execution, captu
             'hps_initialization': 'HPS FIRST', 'linux_dma': True,
             'f2sdram_master_profile': 'scanout-only', 'seed': 1, 'threads': 2,
             'signoff_policy': async_inputs.POLICY,
+            'hdmi_output_policy': async_inputs.vendor_reference.POLICY,
             'reset_release_timing': TIMED_RESET_RELEASE,
             'fabric_initiator_policy': MANAGED_FABRIC,
             'fifo_reset_sharing': SHARED_FIFO_RESETS,
@@ -234,6 +235,14 @@ def timing_evidence(directory, *, async_review=None):
                 raise BuildError('DE25 reviewed input finding count/waivers changed')
             reviewed.append({'id': 'TMC-20011', 'violations': 2,
                              'ports': async_inputs.input_findings(drc)})
+        if 'vendor_hdmi_reference' in proof:
+            outputs = next(r for r in rows if r[0] == 'TMC-20012')
+            if int(outputs[2]):
+                if outputs[2:] != ('30', '0'):
+                    raise BuildError('DE25 vendor HDMI output finding count/waivers changed')
+                reviewed.append({'id': 'TMC-20012', 'violations': 30,
+                    'ports': async_inputs.vendor_reference.output_findings(drc),
+                    'basis': async_inputs.vendor_reference.POLICY})
     unreviewed = failed - len(reviewed)
     return {'signoff_rules': total, 'failed_rules': failed,
         'unreviewed_failed_rules': unreviewed, 'reviewed_findings': reviewed,
@@ -307,7 +316,8 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
             version = identities['quartus'].split(' sha256:')[0]
             builder.generate(selected, combined, hps, display, paths['quartus'], version)
             builder.compile_project(selected, hps, display, paths['quartus'])
-            review = async_inputs.collect(selected, paths['quartus'].with_name('quartus_sta'))
+            review = async_inputs.collect(selected, paths['quartus'].with_name('quartus_sta'),
+                                          vendor_archive=vendor_archive)
             timing = timing_evidence(selected, async_review=review)
             (output / 'timing.json').write_text(json.dumps(timing, sort_keys=True, indent=2) + '\n')
             if not compile_only:
@@ -317,7 +327,8 @@ def build(root=ROOT, *, quartus_root, vendor_archive, output=None, package_outpu
                     hps_first=True, linux_dma=True, package_build_id=selected_id)
                 builder.generate(repeated, c2, h2, d2, paths['quartus'], version)
                 builder.compile_project(repeated, h2, d2, paths['quartus'])
-                repeat_review = async_inputs.collect(repeated, paths['quartus'].with_name('quartus_sta'))
+                repeat_review = async_inputs.collect(repeated, paths['quartus'].with_name('quartus_sta'),
+                                                     vendor_archive=vendor_archive)
                 repeat_timing = timing_evidence(repeated, async_review=repeat_review)
                 (output / 'repeat-timing.json').write_text(json.dumps(repeat_timing, sort_keys=True, indent=2) + '\n')
                 if not repeat_timing['package_timing_admission'] or sha(selected / 'combined/hps/linux-boot.core.rbf') != sha(repeated / 'combined/hps/linux-boot.core.rbf'):
