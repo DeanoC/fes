@@ -525,6 +525,65 @@ func TestSelectedProgramUsesSealedProducerExport(t *testing.T) {
 	t.Logf("PASS actual sealed FPGA package through native selected preflight: package=%s bytes=%d; source compatibility only, no hardware admission", plan.Identity().PackageID, len(plan.state.payload))
 }
 
+func TestSelectedCatalogueUsesDistinctSealedPackagesWithOneBootAnchor(t *testing.T) {
+	catalogue, anchor := os.Getenv("FES_NANO_SELECTED_CATALOGUE"), os.Getenv("FES_NANO_SELECTED_ANCHOR")
+	if catalogue == "" || anchor == "" {
+		t.Skip("provide a two-package sealed catalogue and its matched native SDK anchor")
+	}
+	readAnchor := func(name string) []byte {
+		raw, err := os.ReadFile(filepath.Join(anchor, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return raw
+	}
+	contextRaw := readAnchor("hps-context.json")
+	cpu := &computerCPU{digest: sha256.Sum256(contextRaw)}
+	v, err := NewHPSContextVerifier(cpu, contextRaw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, err := NewProgramLoader(v, readAnchor("program-platform.json"), readAnchor("hps-control.json"),
+		readAnchor("hps-configuration.json"), readAnchor("hps-computer.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := os.DirFS(catalogue)
+	choices, err := ReadProgramSelections(context.Background(), files, "FES/CORESEL.JSN")
+	if err != nil || len(choices) != 2 || choices[0].PackageID == choices[1].PackageID {
+		t.Fatalf("two distinct sealed selections required: %v %v", choices, err)
+	}
+	lease := &storedLease{}
+	lease.receipt.Owner, lease.receipt.Generation, lease.receipt.Active, lease.receipt.Prepared = 17, 3, true, true
+	store, err := packagestore.New(files, lease)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var previous *StoredConfigurationPlan
+	for _, index := range []int{0, 1, 0} {
+		selection, err := store.Retain(context.Background(), choices[index])
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := l.Preflight(selection)
+		if err != nil {
+			t.Fatal(err)
+		}
+		i := plan.Identity()
+		payloadHash := sha256.Sum256(plan.state.payload)
+		if i.PackageID != choices[index].PackageID || cpu.calls != 0 || !lease.receipt.Active ||
+			hex.EncodeToString(payloadHash[:]) != i.ProgrammedSHA256 {
+			t.Fatal("sealed catalogue lost retained identity, touched firmware or changed SD ownership")
+		}
+		if previous != nil && (i.BuildID == previous.Identity().BuildID ||
+			i.ProgrammedSHA256 == previous.Identity().ProgrammedSHA256) {
+			t.Fatal("catalogue entries relabel identical builds or FPGA payloads")
+		}
+		t.Logf("PASS real sealed catalogue index=%d package=%s build=%s payload=%s; preflight only", index, i.PackageID, i.BuildID, i.ProgrammedSHA256)
+		previous = plan
+	}
+}
+
 func TestSelectedArchiveCannotHideForeignRequirementsBehindMatchingMetadata(t *testing.T) {
 	for _, fault := range []string{"abi", "version", "profile", "required-interface"} {
 		t.Run(fault, func(t *testing.T) {
