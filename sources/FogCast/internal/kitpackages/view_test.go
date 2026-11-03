@@ -150,6 +150,14 @@ func TestFactoryReadCachesAnUnchangedROMMapPackage(t *testing.T) {
 			data[0] ^= 0xff
 		}
 	}
+	factory.verifyMu.Lock()
+	for _, field := range reflect.VisibleFields(reflect.TypeOf(verifiedPackage{})) {
+		if field.Type.Kind() == reflect.Slice && field.Type.Elem().Kind() == reflect.Uint8 {
+			factory.verifyMu.Unlock()
+			t.Fatalf("factory verification cache can retain archive bytes in %q", field.Name)
+		}
+	}
+	factory.verifyMu.Unlock()
 	if got := factoryVerifications.Load(); got != 1 {
 		t.Fatalf("full package reads = %d, want 1", got)
 	}
