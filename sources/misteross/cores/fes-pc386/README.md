@@ -355,7 +355,13 @@ Shift+A must reach INT 16h as the BIOS codes them. Then it stops as
 the runtime does (disk Freeze, DiskDirty, Saved; record Freeze and reads;
 Hold), checks the record (the restored settings and CMOS byte, CMOS 60h-62h,
 the configuration bytes and checksum), and makes the record's round trip
-through the RTC. The storage suite replays every scenario of the 1.1 golden
+through the RTC. Last it sweeps holds across port 2's write bursts, the
+capture's: trials release the machine and hold it again a little later each
+time, and port 2 must take write bursts again after a hold that cut one
+([#1372](https://github.com/DeanoC/fes/issues/1372)). A held port is its
+guard's, as on a kit: the rest of a cut burst goes with byte enables clear and
+read data is hidden (`hold()` in [`sim/pc386_ddr_model.h`](sim/pc386_ddr_model.h)).
+The storage suite replays every scenario of the 1.1 golden
 exchanges against the mailbox and the storage endpoint. The [1.1 record](../../../../docs/validation/2026-10-31-pc386-m5-computer11/summary.md)
 has the seal and the Kit B run through the runtime's library launch, and the
 [keyboard and mouse record](../../../../docs/validation/2026-11-01-pc386-m5-input/summary.md)

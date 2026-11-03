@@ -52,6 +52,7 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
   system   boots FreeDOS on pc386_system (everything below top.sv) at the
            sealed clock, with a host that does the runtime's launch and Stop
            through the mailbox and runs INPUT.COM to test keyboard and mouse.
+           After the Stop it sweeps holds across port 2's write bursts (#1372).
   governor boots cores/fes-pc386/sim/governor_test.asm on pc386_system under
            max and governor presets, set in the restored fes.pc386.machine
            record as FogCast writes it: an equivalent of Turbo Pascal's CRT
@@ -728,7 +729,7 @@ def parse_system(text: str) -> dict:
     report = {'identity': None, 'restore_cycle': None, 'clock_cycle': None, 'crc_rejected': None, 'disk': None,
               'release_cycle': None, 'post': [], 'debug': [], 'counters': [], 'prompt_cycle': None, 'screen': [],
               'status': None, 'save': None, 'record': None, 'roundtrip': None, 'record_checks': [], 'write_test': None,
-              'typed': [], 'mouse': [], 'mailbox': None, 'end': None}
+              'typed': [], 'mouse': [], 'holds': [], 'mailbox': None, 'end': None}
     for line in text.splitlines():
         kind, _, rest = line.partition(' ')
         if kind == 'IDENTITY':
@@ -774,6 +775,9 @@ def parse_system(text: str) -> dict:
             report['write_test'] = None if rest == 'absent' else int(rest)
         elif kind in ('RECORD', 'ROUNDTRIP'):
             report[kind.lower()] = [int(word) for word in rest.split()]
+        elif kind == 'HOLD':
+            cycle, owed = rest.split()
+            report['holds'].append({'cycle': int(cycle), 'owed': [int(n) for n in owed.split('=')[1].split(',')]})
         elif kind == 'CHECK':
             verdict, _, what = rest.partition(' ')
             report['record_checks'].append({'pass': verdict == 'PASS', 'check': what})

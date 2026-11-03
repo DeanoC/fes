@@ -32,7 +32,7 @@
 // RTC's CMOS setup is done, and reads the record back, so the CMOS RAM bytes
 // make the round trip through the RTC. Then it sweeps holds across port 2's
 // write bursts, the capture's (#1372): each of HOLD_TRIALS trials releases
-// the machine, runs it 37 clocks longer than the last and holds it again, and
+// the machine, runs it one clock longer than the last and holds it again, and
 // port 2 must go on writing after a hold that cut a burst. Nothing else
 // reaches inside the system, and no oracle backs the CPU: a CPU stop ends the
 // run. fes_hps_ddr is two synchronising flops from ddr_hold to each port's
@@ -60,10 +60,8 @@
 //                                            the Stop's disk save
 //   RECORD <72 words>                        the Stop's record
 //   ROUNDTRIP <72 words>                     the record after the restore and setup
-//   HOLD <cycle> owed=<p0>,<p1>,<p2>         each hold as the ports take it: the write
-//                                            beats of each port's open burst
-//   HOLD-TRIAL <n> run=<clocks> owed=<n>     a swept hold: clocks run since release,
-//                                            port 2's beats owed
+//   HOLD <cycle> owed=<p0>,<p1>,<p2>         a hold that cut a write burst: the beats
+//                                            each port's guard sends, byte enables clear
 //   CHECK <PASS|FAIL> <what>                 the record, round-trip and hold checks
 //   END <reason> cycles=<n> seconds=<simulated>
 // reason: prompt, stopped (the CPU stopped for good), stalled (no
@@ -105,8 +103,10 @@ enum : uint16_t { PREPARE = 0, COMMIT = 1, FREEZE = 3, SAVED = 5 };
 enum : uint16_t { DATA_FREEZE = 0, DATA_BEGIN = 1, DATA_COMMIT = 2 };
 constexpr uint16_t READY = 3, LOADING = 2, VERIFYING = 4, FLAG_ERROR = 8;
 constexpr unsigned WORDS = 72;
-// Holds swept across port 2's write bursts after the round trip.
-constexpr unsigned HOLD_TRIALS = 24;
+// Holds swept across port 2's write bursts after the round trip, one clock
+// apart. After a release the capture writes a short burst every 220 clocks or
+// so, on the VGA's reset raster, so the sweep spans that period.
+constexpr unsigned HOLD_TRIALS = 256;
 // The record the bench restores: preset max unless --preset says, the Sound
 // Blaster at 240h, IRQ 5, DMA 1, and a byte in the free CMOS (50h) that only
 // the record writes.
@@ -271,8 +271,9 @@ private:
         if (held && !port_held) {
             hold_owed = ddr2.beats_owed();
             hold_rose = true;
-            std::printf("HOLD %llu owed=%u,%u,%u\n", (unsigned long long)cycles, ddr0.beats_owed(),
-                        ddr1.beats_owed(), hold_owed);
+            if (ddr0.beats_owed() || ddr1.beats_owed() || hold_owed)
+                std::printf("HOLD %llu owed=%u,%u,%u\n", (unsigned long long)cycles, ddr0.beats_owed(),
+                            ddr1.beats_owed(), hold_owed);
         }
         port_held = held;
         top.p0_reset = top.p1_reset = top.p2_reset = held;
@@ -612,8 +613,7 @@ private:
         for (unsigned trial = 0; trial <= HOLD_TRIALS; ++trial) {
             exchange(OP_EXECUTION, 0, 1);
             uint64_t written = ddr2.beats_written;
-            unsigned run = 1024 + 37 * trial;
-            for (unsigned n = 0; n < run; ++n) clock();
+            for (unsigned n = 0; n < 1024 + trial; ++n) clock();
             resumed += cut && ddr2.beats_written > written;
             hold_rose = false;
             exchange(OP_EXECUTION, 0, 0);
@@ -621,7 +621,6 @@ private:
                 if (n == 100000) throw MailboxError("Execution hold did not hold the DDR ports");
                 clock();
             }
-            std::printf("HOLD-TRIAL %u run=%u owed=%u\n", trial, run, hold_owed);
             cut = trial < HOLD_TRIALS && hold_owed != 0;
             cuts += cut;
         }
