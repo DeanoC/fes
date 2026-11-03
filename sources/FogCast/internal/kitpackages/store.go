@@ -57,6 +57,7 @@ type selectionFile struct {
 type verifiedPackage struct {
 	key        string
 	inspection corepackage.Inspection
+	archive    []byte
 }
 
 type Store struct {

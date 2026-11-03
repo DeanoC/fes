@@ -1,6 +1,7 @@
 package kitpackages
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -91,10 +92,11 @@ func (f *Factory) Inspect(ctx context.Context, id string) (corepackage.Inspectio
 	if err != nil {
 		return corepackage.Inspection{}, err
 	}
-	return f.verify(id, before, inspection)
+	return f.verify(id, before, inspection, nil)
 }
 
-// Read returns the package and its canonical archive bytes.
+// Read returns the package and its canonical archive bytes. An unchanged
+// package reuses the bytes from its first full read.
 func (f *Factory) Read(ctx context.Context, id string) (corepackage.Inspection, []byte, error) {
 	if !packageIDRE.MatchString(id) {
 		return corepackage.Inspection{}, nil, ErrInvalidPackageID
@@ -106,12 +108,15 @@ func (f *Factory) Read(ctx context.Context, id string) (corepackage.Inspection, 
 	if err != nil {
 		return corepackage.Inspection{}, nil, err
 	}
+	if inspection, data, ok := f.cachedRead(id, before); ok {
+		return inspection, data, nil
+	}
 	factoryVerifications.Add(1)
 	inspection, data, err := corepackage.ReadPackage(filepath.Join(f.root, id))
 	if err != nil {
 		return corepackage.Inspection{}, nil, err
 	}
-	inspection, err = f.verify(id, before, inspection)
+	inspection, err = f.verify(id, before, inspection, data)
 	if err != nil {
 		return corepackage.Inspection{}, nil, err
 	}
@@ -120,16 +125,33 @@ func (f *Factory) Read(ctx context.Context, id string) (corepackage.Inspection, 
 
 // verify rejects a directory that does not hash to its name, and remembers
 // an inspection only when the directory did not change while it was read.
-func (f *Factory) verify(id, before string, inspection corepackage.Inspection) (corepackage.Inspection, error) {
+func (f *Factory) verify(id, before string, inspection corepackage.Inspection, archive []byte) (corepackage.Inspection, error) {
 	if inspection.PackageID != id {
 		return corepackage.Inspection{}, fmt.Errorf("%w: factory package %s hashes to %s", ErrInvalidPackage, id, inspection.PackageID)
 	}
 	if after, err := f.statKey(id); err == nil && after == before {
 		f.verifyMu.Lock()
-		f.verified[id] = verifiedPackage{key: after, inspection: inspection.Clone()}
+		cached := verifiedPackage{key: after, inspection: inspection.Clone()}
+		if previous, ok := f.verified[id]; ok && previous.key == after {
+			cached.archive = previous.archive
+		}
+		if archive != nil {
+			cached.archive = bytes.Clone(archive)
+		}
+		f.verified[id] = cached
 		f.verifyMu.Unlock()
 	}
 	return inspection, nil
+}
+
+func (f *Factory) cachedRead(id, key string) (corepackage.Inspection, []byte, bool) {
+	f.verifyMu.Lock()
+	defer f.verifyMu.Unlock()
+	hit, ok := f.verified[id]
+	if !ok || hit.key != key || hit.archive == nil {
+		return corepackage.Inspection{}, nil, false
+	}
+	return hit.inspection.Clone(), bytes.Clone(hit.archive), true
 }
 
 func (f *Factory) cachedVerified(id, key string) (corepackage.Inspection, bool) {
