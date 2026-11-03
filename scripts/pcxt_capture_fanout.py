@@ -56,27 +56,38 @@ class CaptureProcess:
     def stop(self, require_complete=True, timeout=5):
         if self.closed:
             raise CaptureError('capture child already closed')
-        running = self.proc.poll() is None
         try:
+            # WNOWAIT preserves the leader's PID until after every group
+            # signal, preventing us from signalling a reused process group.
+            observed = os.waitid(os.P_PID, self.proc.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            running = observed is None
             try:
                 os.killpg(self.proc.pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
-            try:
-                result = self.proc.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                try:
-                    os.killpg(self.proc.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                self.proc.wait(timeout=5)
-                raise CaptureError('capture child did not stop') from None
+            end = time.monotonic() + timeout
+            while observed is None and time.monotonic() < end:
+                time.sleep(min(.01, max(0, end-time.monotonic())))
+                observed = os.waitid(os.P_PID, self.proc.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            timed_out = observed is None
             # A descendant may have inherited the pipe even after the leader
-            # exits. Kill the owned group as a whole, not only its leader.
+            # exits. The leader is still unreaped while we kill the whole group.
             try:
                 os.killpg(self.proc.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+            try:
+                result = self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                raise CaptureError('capture child cleanup unverified') from None
+            try:
+                os.killpg(self.proc.pid, 0)
+            except ProcessLookupError:
+                pass
+            else:
+                raise CaptureError('capture process group cleanup unverified')
+            if timed_out:
+                raise CaptureError('capture child did not stop')
             if require_complete and (not self.completed or not running or result != -signal.SIGTERM):
                 raise CaptureError('capture child did not reach its planned stop')
             return result

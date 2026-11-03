@@ -1,11 +1,13 @@
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 
 from scripts import pcxt_capture_fanout as capture
 
@@ -49,6 +51,23 @@ class SourceTests(unittest.TestCase):
             self.assertEqual([f.sequence for f in source.take(1)], [7])
             self.assertEqual(source.stop(), -15)
             self.assertIsNotNone(source.proc.poll())
+
+    def test_group_signals_happen_before_leader_is_reaped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = capture.CaptureProcess([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                            Path(tmp)/'stderr', 4)
+            source.completed = True
+            original = os.killpg
+            signals = []
+            def checked(pid, sig):
+                if sig:
+                    # waitid raises ChildProcessError if the child was reaped.
+                    os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+                    signals.append(sig)
+                return original(pid, sig)
+            with mock.patch.object(capture.os, 'killpg', side_effect=checked):
+                source.stop()
+            self.assertEqual(signals, [15, 9])
 
     def test_capture_process_rejects_early_eof(self):
         with tempfile.TemporaryDirectory() as tmp:
