@@ -93,9 +93,10 @@ static int smmu_owns(void *context)
 {
     struct fes_nano_cold *s=context;
     unsigned control_scope=!s->control_expected;
-#if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
+#if (defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC) || \
+    (defined(FES_NANO_WINDOW_READ_DIAGNOSTIC) && FES_NANO_WINDOW_READ_DIAGNOSTIC)
     struct fes_nano_identity_probe *p=fes_nano_platform_identity_probe();
-    control_scope |= p && p->active && p->reader==2 && p->bridges==&fes_nano_owned_bridges &&
+    control_scope |= p && p->active && (p->reader==2 || p->reader==FES_NANO_READER_WINDOW) && p->bridges==&fes_nano_owned_bridges &&
         (p->stage==FES_ID_DDR_PREPARE || p->stage==FES_ID_DDR_RELEASE) &&
         s->control_expected==1 && !s->ddr_expected && fes_nano_owned_bridges.state.reset==13;
 #endif
@@ -230,7 +231,8 @@ static int fabric_owns(void *context)
     return s->control_expected && identity_probe.active && !identity_probe.first_error &&
         identity_probe.bridges==&fes_nano_owned_bridges &&
         (identity_probe.stage==FES_ID_CLOSE ||
-         (identity_probe.reader==2 && (identity_probe.stage==FES_ID_DDR_PREPARE || identity_probe.stage==FES_ID_DDR_RELEASE))) &&
+         ((identity_probe.reader==2 || identity_probe.reader==FES_NANO_READER_WINDOW) &&
+          (identity_probe.stage==FES_ID_DDR_PREPARE || identity_probe.stage==FES_ID_DDR_RELEASE))) &&
         fes_nano_owned_bridges.state.generation==fabric_generation &&
         fes_nano_owned_bridges.state.reset==(s->ddr_expected ? 5U : FES_NANO_BRIDGES_DATA) &&
         cold_master_owns(s,s->record.boot.owner,s->record.boot.epoch)==1;
@@ -322,6 +324,61 @@ static struct fes_nano_fabric_stop new_fabric_stop(unsigned qualified)
 #endif
     return out;
 }
+
+#if defined(FES_NANO_WINDOW_READ_DIAGNOSTIC) && FES_NANO_WINDOW_READ_DIAGNOSTIC
+#if !defined(FES_NANO_WINDOW_MEMORY) || !FES_NANO_WINDOW_MEMORY
+#error "window reads require their complete boot-pinned arena"
+#endif
+#if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
+#error "window reads cannot inherit the fixed-burst DDR recipe"
+#endif
+_Static_assert(FES_NANO_WINDOW_READ_ATTRS_VERIFIED==1,"sealed window adapter attributes required");
+static unsigned window_prepared,window_issued;
+static int window_gate(void)
+{
+    struct fes_nano_smmu_observation translation={0};
+    struct fes_nano_ddr_firewall_observation firewall={0};
+    int status=-1;
+    if(provider.control_expected!=1 || provider.ddr_expected || smmu_owns(&provider)!=1)goto out;
+    if(smmu_report(&provider,&translation) || firewall_report(&provider,&firewall)) { status=-5;goto out; }
+    if(!translation.bypass_controls_clear || !translation.secure_implemented ||
+       translation.registers.idr0!=0x080f7e3f || translation.registers.idr1!=0x0e739d18 ||
+       translation.registers.aidr!=1 || translation.registers.s_idr1!=0x80000018 ||
+       !firewall.layout_known || !firewall.window_covered)goto out;
+    status=0;
+out:
+    NOTICE("FES_NANO_WINDOW_GATE status=%d owner=%llx generation=%llu reset=%x bytes=%u permit=%s\n",
+        status,(unsigned long long)fes_nano_owned_bridges.state.owner,
+        (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,FES_NANO_READER_BYTES,
+        status?"denied":"owned-read");
+    return status;
+}
+int fes_nano_platform_window_prepare(void)
+{
+    if(window_prepared || window_issued || fabric_stop.attempted ||
+       !identity_probe.active || identity_probe.reader!=FES_NANO_READER_WINDOW ||
+       identity_probe.stage!=FES_ID_DDR_PREPARE || smmu_owns(&provider)!=1)return -1;
+    fabric_generation=fes_nano_owned_bridges.state.generation;
+    struct fes_nano_fabric_stop idle=fabric_stop;
+    /* No preparation callback may stop a busy producer to manufacture IDLE. */
+    if(fes_nano_fabric_stop(&idle) || idle.disable_issued || idle.probe.cancel_issued || window_gate())return -1;
+    window_prepared=1;
+    return 0;
+}
+int fes_nano_platform_ddr_target(unsigned open)
+{
+    if(!identity_probe.active || identity_probe.reader!=FES_NANO_READER_WINDOW ||
+       identity_probe.bridges!=&fes_nano_owned_bridges || open>1)return -1;
+    if(open) {
+        if(!window_prepared || window_issued || identity_probe.stage!=FES_ID_DDR_RELEASE)return -1;
+        window_prepared=0;window_issued=1;
+        if(window_gate())return -1;
+        return fes_nano_cold_ddr_target(&provider,provider.record.boot.owner,provider.record.boot.epoch);
+    }
+    if(!window_issued || identity_probe.stage!=FES_ID_CLOSE || !fabric_stop.done || fabric_stop.failed)return -1;
+    return fes_nano_cold_ddr_close_target(&provider,provider.record.boot.owner,provider.record.boot.epoch);
+}
+#endif
 
 #if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
 _Static_assert(FES_NANO_DDR_READ_ATTRS_VERIFIED==1,"sealed DDR adapter attributes required");

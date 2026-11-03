@@ -40,7 +40,7 @@ static int fes_nano_owned_enable(void *context, uint32_t mask, unsigned fabric)
     if (!probe || !probe->active || fabric!=FES_NANO_FABRIC_ABSENT) return -1;
     if (mask==FES_NANO_BRIDGES_CONTROL) {
         if (fes_nano_platform_control_target(1)) return -1;
-    } else if (mask==8 && probe->reader==2 && probe->stage==FES_ID_DDR_RELEASE) {
+    } else if (mask==8 && (probe->reader==2 || probe->reader==FES_NANO_READER_WINDOW) && probe->stage==FES_ID_DDR_RELEASE) {
         if (fes_nano_platform_ddr_target(1)) return -1;
     } else return -1;
     return fes_nano_raw_enable(mask);
@@ -58,7 +58,7 @@ static int fes_nano_owned_disable(void *context, uint32_t mask, unsigned fabric)
     if (!probe || !probe->active) return -1;
     if (mask==FES_NANO_BRIDGES_CONTROL) {
         if (fes_nano_platform_control_target(0)) return -1;
-    } else if (mask==10 && probe->reader==2 && probe->stage==FES_ID_CLOSE) {
+    } else if (mask==10 && (probe->reader==2 || probe->reader==FES_NANO_READER_WINDOW) && probe->stage==FES_ID_CLOSE) {
         if (fes_nano_platform_ddr_target(0)) return -1;
     } else return -1;
 #endif

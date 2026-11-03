@@ -66,6 +66,14 @@ static unsigned fpga_writes;
 uint32_t fes_test_reader_read(uint32_t);
 void fes_test_reader_write(uint32_t,uint32_t);
 #endif
+#ifdef FES_TEST_WINDOW_RTL
+static unsigned window_case,window_enables,window_closes;
+void fes_test_window_frame(unsigned);
+void fes_test_window_fault(unsigned);
+void fes_test_window_wait(void);
+uint32_t fes_test_window_probe_read(uint32_t);
+void fes_test_window_probe_write(uint32_t,uint32_t);
+#endif
 int mailbox_send_cmd(uint32_t job,uint32_t cmd,uint32_t *args,unsigned length,uint32_t urgent,
                        uint32_t *response,unsigned *words)
 {
@@ -246,6 +254,8 @@ uint32_t mmio_read_32(uintptr_t a)
     if(a>=FES_NANO_SMMU_BASE && a<FES_NANO_SMMU_BASE+0x10000) {
 #ifdef FES_TEST_CONFIGURATION_EPOCHS
         closed_configuration_query();
+#elif defined(FES_TEST_WINDOW_RTL)
+        assert(bridge==15 || bridge==13);
 #elif defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
         assert((bridge==15 || bridge==13) && !engine_calls);
 #else
@@ -279,6 +289,12 @@ uint32_t mmio_read_32(uintptr_t a)
         if(smmu_reads==53 && ddr_fault==10)release_locked=0;
         if(smmu_reads==53 && ddr_fault==11)per0&=~0x80U;
 #endif
+#ifdef FES_TEST_WINDOW_RTL
+        if(offset==FES_NANO_SMMU_IDR0)value=0x080f7e3f;
+        if(offset==FES_NANO_SMMU_IDR1)value=0x0e739d18;
+        if(offset==FES_NANO_SMMU_S_IDR1)value=0x80000018;
+        if(offset==FES_NANO_SMMU_CR0 && bridge==13 && window_case==1)value=1;
+#endif
         if(smmu_fault==10 && smmu_reads==8)value^=1;
         if(smmu_fault==11 && smmu_reads==1)sctlr=4;
         if(smmu_fault==12 && smmu_reads==1)per0&=~0x80U;
@@ -294,6 +310,8 @@ uint32_t mmio_read_32(uintptr_t a)
     if(a>=FES_NANO_DDR_FIREWALL_BASE && a<FES_NANO_DDR_FIREWALL_BASE+0x90) {
 #ifdef FES_TEST_CONFIGURATION_EPOCHS
         closed_configuration_query();
+#elif defined(FES_TEST_WINDOW_RTL)
+        assert(bridge==15 || bridge==13);
 #elif defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
         assert((bridge==15 || bridge==13) && !engine_calls);
 #else
@@ -304,6 +322,12 @@ uint32_t mmio_read_32(uintptr_t a)
         if(!offset)value=firewall_fault==1?0:firewall_fault==10?0x101:1;
         else if((offset-0x10)%16==8)value=offset==0x18?0xbfffffff:0xffff;
         else if(offset==0x10)value=0x80000000;
+#ifdef FES_TEST_WINDOW_RTL
+        if(bridge==13 && window_case==2) {
+            if(offset==0x10)value=0x95000000;
+            if(offset==0x18)value=0x95001fff; /* Only 8 KiB, not the full 4 MiB. */
+        }
+#endif
         if(firewall_fault==2 && offset==0x10)value|=1;
         if(firewall_fault==3 && offset==0x14)value=256;
         if(firewall_fault==4 && firewall_reads==34)value^=1;
@@ -327,7 +351,9 @@ uint32_t mmio_read_32(uintptr_t a)
     }
 #endif
     if(a>=FES_NANO_PROBE_CPU_BASE && a<FES_NANO_PROBE_CPU_BASE+FES_NANO_PROBE_SPAN) {
-#if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
+#if defined(FES_TEST_WINDOW_RTL)
+        assert(bridge==13 || bridge==5);probe_reads++;
+#elif defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
         assert((bridge==13 || bridge==5) && fpga_reads>=30);
 #else
         assert(bridge==13 && fpga_reads>30);probe_reads++;
@@ -337,6 +363,9 @@ uint32_t mmio_read_32(uintptr_t a)
         if(ddr_fault==9 && bridge==5)master_fault=4;
 #endif
         uint32_t offset=(uint32_t)(a-FES_NANO_PROBE_CPU_BASE),value=0;
+#ifdef FES_TEST_WINDOW_RTL
+        return fes_test_window_probe_read(offset);
+#endif
         if(offset==FES_DE25_DDR_PROBE_ID_OFFSET)value=FES_DE25_DDR_PROBE_IDENTITY^(master_fault==1);
         if(offset==FES_DE25_DDR_PROBE_VERSION_OFFSET)value=FES_DE25_DDR_PROBE_VERSION^(master_fault==2);
         if(offset==FES_DE25_DDR_PROBE_STATUS_OFFSET)value=master_fault==3?9:master_fault==4?2:1;
@@ -351,7 +380,9 @@ uint32_t mmio_read_32(uintptr_t a)
     }
 #endif
     if(a>=FES_NANO_CONTROL_BASE && a<FES_NANO_CONTROL_BASE+0x100) {
-#if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
+#if defined(FES_TEST_WINDOW_RTL)
+        assert(bridge==13 || bridge==5);fpga_reads++;
+#elif defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
         assert(bridge==13 || bridge==5);fpga_reads++;
 #else
         assert(bridge==FES_NANO_BRIDGES_DATA);fpga_reads++;
@@ -419,6 +450,10 @@ uint16_t mmio_read_16(uintptr_t a) { (void)a;assert(0);return 0; }
 void mmio_write_32(uintptr_t a,uint32_t v) {
 #ifdef FES_NANO_READER_CPU_BASE
     if(a==FES_NANO_PROBE_CPU_BASE+FES_DE25_DDR_PROBE_COMMAND_OFFSET) {
+#ifdef FES_TEST_WINDOW_RTL
+        assert(bridge==5 && v==FES_DE25_DDR_PROBE_COMMAND_CANCEL && !probe_writes);
+        probe_writes++;fes_test_window_probe_write(FES_DE25_DDR_PROBE_COMMAND_OFFSET,v);return;
+#endif
 #if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
         assert(master_fault==4 && bridge==5 && v==FES_DE25_DDR_PROBE_COMMAND_CANCEL);
 #else
@@ -459,7 +494,11 @@ void mmio_write_32(uintptr_t a,uint32_t v) {
 #endif
 #ifdef FES_TEST_READER_RTL
     if(a>=FES_NANO_CONTROL_BASE && a<FES_NANO_CONTROL_BASE+0x100) {
+#ifdef FES_TEST_WINDOW_RTL
+        assert(bridge==13 || bridge==5);fpga_writes++;
+#else
         assert(bridge==FES_NANO_BRIDGES_DATA);fpga_writes++;
+#endif
         fes_test_reader_write((uint32_t)(a-FES_NANO_CONTROL_BASE),v);
         if(fpga_writes==1 && configuration_mutation==78)per0&=~0x80U;
         if(fpga_writes==1 && configuration_mutation==80)sctlr=4;
@@ -487,7 +526,12 @@ uint64_t read_current_el(void) { return current_el; }
 uint64_t read_mpidr(void) { return mpidr; }
 uint64_t read_sctlr_el3(void) { return sctlr; }
 void dsbsy(void) {}
-void udelay(unsigned n) { assert(n==10); }
+void udelay(unsigned n) {
+    assert(n==10);
+#ifdef FES_TEST_WINDOW_RTL
+    fes_test_window_wait();
+#endif
+}
 static int reset_read(void *p,uint32_t *v) { (void)p;*v=bridge;return 0; }
 static int per_read(void *p,uint32_t *v) { (void)p;*v=per0;return 0; }
 static int per_assert(void *p,uint32_t v) { (void)p;(void)v;assert(0);return -1; }
@@ -495,6 +539,13 @@ static int driver(void *p,uint32_t m,unsigned f) { (void)p;(void)m;(void)f;retur
 #if defined(FES_NANO_CONTROL_PROBE) && FES_NANO_CONTROL_PROBE
 static int control_enable(void *p,uint32_t m,unsigned f) {
     (void)p;assert(f==1);
+#ifdef FES_TEST_WINDOW_RTL
+    if(m==8) {
+        assert(bridge==13 && !window_enables);
+        if(fes_nano_platform_ddr_target(1))return -1;
+        window_enables++;bridge&=~8U;return window_case==3?-60:0;
+    }
+#endif
 #if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
     if(m==8) {
         assert(bridge==13 && !ddr_enables);if(fes_nano_platform_ddr_target(1))return -1;
@@ -506,6 +557,14 @@ static int control_enable(void *p,uint32_t m,unsigned f) {
 }
 static int control_disable(void *p,uint32_t m,unsigned f) {
     (void)p;assert(f==1);
+#ifdef FES_TEST_WINDOW_RTL
+    if(m==10) {
+        assert(bridge==5 && !window_closes);
+        if(fes_nano_platform_ddr_target(0))return -1;
+        window_closes++;if(window_case==7)return -60;
+        bridge|=10U;return 0;
+    }
+#endif
 #if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
     if(m==10) {
         assert(bridge==5 && !ddr_closes);if(fes_nano_platform_ddr_target(0))return -1;
@@ -519,9 +578,15 @@ static int control_disable(void *p,uint32_t m,unsigned f) {
 }
 #endif
 static void barrier(void *p) { (void)p; }
+#ifdef FES_TEST_WINDOW_RTL
+#include "nano_window_runtime_test.inc"
+#endif
 int main(int argc,char **argv)
 {
     assert(argc==2);unsigned mutation=atoi(argv[1]);
+#ifdef FES_TEST_WINDOW_RTL
+    assert(mutation>=160 && mutation<=168);window_case=mutation-160;mutation=67;
+#endif
     unsigned sd_return_case=0;(void)sd_return_case;
 #if defined(FES_NANO_COLD_COMPUTER) && FES_NANO_COLD_COMPUTER && defined(FES_NANO_READER_CPU_BASE)
     if(mutation>=153 && mutation<=156){sd_return_case=mutation-152;mutation=146;}
@@ -628,8 +693,12 @@ int main(int argc,char **argv)
     }
     fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_READER,
                        record.owner,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+#ifdef FES_TEST_WINDOW_RTL
+    assert(reply[0]==2 && !reply[2] && !reply[3]);
+#else
     assert(reply[0]==FES_EMBEDDED_BRIDGE_NOT_READY &&
            reply[1]==(uint64_t)FES_EMBEDDED_BRIDGE_READER_TAG<<32 && !reply[2] && !reply[3]);
+#endif
     assert(!engine_calls && bridge==15);
 #if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
     if(mutation==0 || mutation>=43) {
@@ -642,9 +711,13 @@ int main(int argc,char **argv)
         assert(fes_nano_platform_identity_setup()==1 && fes_nano_platform_configuration_setup()==1);
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_READER,
                            record.owner+1,FES_EMBEDDED_BRIDGE_COOKIE,1,reply);
+#ifdef FES_TEST_WINDOW_RTL
+        assert(reply[0]==2 && !fes_nano_platform_identity_probe()->attempted && !fpga_reads && !config_calls);
+#else
         assert(reply[0]==(FES_NANO_CONTROL_ABI==0x10203040U ? 2U : FES_EMBEDDED_BRIDGE_NOT_READY) &&
                (reply[1]>>32)==FES_EMBEDDED_BRIDGE_READER_TAG &&
                !fes_nano_platform_identity_probe()->attempted && !fpga_reads && !config_calls);
+#endif
         if(mutation>=67) {
             assert(FES_NANO_CONTROLLED_SD && fes_nano_platform_sd_setup()==1);
             fes_nano_owned_call(FES_EMBEDDED_SD_CALL,FES_EMBEDDED_SD_RESUME,record.owner,FES_EMBEDDED_SD_COOKIE,1,reply);
@@ -688,7 +761,11 @@ int main(int argc,char **argv)
         for(unsigned index=0;index<sizeof(query_ops)/sizeof(query_ops[0]);index++) {
             unsigned op=query_ops[index];
             fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,op,record.owner,FES_EMBEDDED_BRIDGE_COOKIE,configuration_generation,reply);
+#ifdef FES_TEST_WINDOW_RTL
+            assert(reply[0] && !fpga_reads && !config_calls && !engine_calls);
+#else
             assert(reply[0]==1 && !fpga_reads && !config_calls && !engine_calls);
+#endif
         }
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
         assert(!reply[0] && reply[2]==record.owner && reply[3]==configuration_generation && (uint32_t)reply[1]==0xdf);
@@ -788,6 +865,9 @@ configured_bytes:
         assert(fes_nano_platform_configuration()->finished && !fes_nano_platform_configuration()->failed);
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,0,0,FES_EMBEDDED_BRIDGE_COOKIE,0,reply);
         assert(!reply[0] && reply[2]==record.owner && reply[3]==configuration_generation && (uint32_t)reply[1]==0xdf);
+#ifdef FES_TEST_WINDOW_RTL
+        return window_cycle(record.owner,configuration_generation);
+#endif
         if ((mutation>=90 && mutation<=102) || (mutation>=146 && mutation<=152)) {
             unsigned computer_case=mutation>=146 ? mutation-50 : mutation;
             if (computer_case==93) bad_open=1;

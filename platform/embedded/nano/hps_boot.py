@@ -61,6 +61,13 @@ def prepare(project, uboot, entry, pfg, output):
     ddr_read=native.get('native_handoff',{}).get('cold_boot_profile',{}).get('hps_ddr_read')
     if ddr_read is not None and ddr_read!=hps_context.ddr_read(project):
         raise ValueError('native DDR read contract differs from the sealed generated adapter')
+    window_profile=native.get('native_handoff',{}).get('cold_boot_profile',{})
+    window_read=window_profile.get('hps_window_read')
+    if (type(window_profile.get('window_read',False)) is not bool or
+            window_profile.get('window_read',False)!=(window_read is not None)):
+        raise ValueError('native window read selection differs from its sealed contract')
+    if window_read is not None and window_read!=hps_context.window_read(project):
+        raise ValueError('native window read contract differs from the complete sealed generated adapter')
     binary = pfg.parent.parent/'linux64/quartus_pfg'
     identity = 'wrapper-sha256:'+sha(pfg)+'; binary-sha256:'+sha(binary)
     if identity != pair['pfg_identity']:
@@ -133,6 +140,8 @@ def prepare(project, uboot, entry, pfg, output):
         'hps_control_sha256':hps_context.digest(control_map) if control_map is not None else None,
         'bounded_ddr_read':ddr_read is not None,
         'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read is not None else None,
+        'bounded_window_read':window_read is not None,
+        'hps_window_read_sha256':hps_context.digest(window_read) if window_read is not None else None,
         'trusted_boot_handoff': False, 'physical_programming_admission': False,
         'hardware_acceptance': 'not-run', 'inputs': hashes, 'commands': commands,
         'limitations': ['file composition only; no board, SD card or flash touched',

@@ -41,6 +41,13 @@ held. Native entry and cold firmware carry the same opt-in and map. This mode
 cannot use `--ddr-read` or the computer-control modes, and grants no display,
 buffer reuse or ordinary runtime admission.
 
+Adding `--window-read` binds the sealed full-frame access contract into Go,
+native entry and secure firmware. It reads the published frame through the
+existing native CSR driver and returns through firmware's independent
+all-master stop and DDR drain. Both the full memory window and its contents
+remain pinned until reboot, including on failure. Software and RTL model
+checks do not establish physical display or normal core-load acceptance.
+
 Nano images omit ELF symbols and DWARF sections to fit the sealed 8 MiB FIT
 loading window. Go's runtime PC/line metadata remains in the native image.
 

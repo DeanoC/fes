@@ -51,6 +51,7 @@ def entry(entry_build):
     hps_context.checked_control(receipt,program_key='native_program')
     configuration=hps_context.checked_configuration(receipt,program_key='native_program')
     reader_memory=hps_context.checked_reader_memory(receipt,program_key='native_program')
+    hps_context.checked_window_read(receipt,program_key='native_program')
     window=reader_memory is not None and reader_memory.get('scope')=='sealed-cold-window-reader-memory-v1'
     if type(receipt.get('window_memory',False)) is not bool or receipt.get('window_memory',False)!=window:
         raise ValueError('cold window memory requires the explicitly selected native entry')
@@ -72,7 +73,7 @@ def sources():
         FW/name for name in ('nano_cold.h','nano_cold.c','nano_cold_mmio.inc','nano_cold_platform.c','nano_boot.h',
                             'nano_sd.h','nano_sd.c','nano_sd_platform.h','nano_sd_platform.c','generated/fes_embedded_sd.h',
                             'nano_boot.c','nano_bridges.h','nano_bridges.c','nano_bridge_platform.inc','nano_bridge_platform.h',
-                            'nano_owned_sip.inc','nano_computer_control.inc','prepare_nano_owned.py','prepare_tfa.py','nano_digest.py',
+                            'nano_owned_sip.inc','nano_computer_control.inc','nano_window_control.inc','prepare_nano_owned.py','prepare_tfa.py','nano_digest.py',
                             'nano_mailbox.py','nano_mailbox_observe.inc','nano_mailbox_observe.h','nano_mailbox_status.inc',
                             'nano_bridge_sip.c','nano_bridge_sip.h','generated/fes_embedded_bridges.h',
                             'nano_identity.c','nano_identity.h','nano_configuration.c','nano_configuration.h','nano_smmu.c','nano_smmu.h',
@@ -92,6 +93,7 @@ def make(entry_build):
     reader_memory=hps_context.checked_reader_memory(build,program_key='native_program')
     cpu_map=hps_context.checked_cpu_mapping(build,program_key='native_program')
     ddr_read=hps_context.checked_ddr_read(build,program_key='native_program')
+    window_read=hps_context.checked_window_read(build,program_key='native_program')
     computer=hps_context.checked_computer(build,program_key='native_program')
     selected=sources()+ (hps_context.inputs() if context is not None else [])
     inputs={str(p.relative_to(ROOT)):sha(p) for p in selected}
@@ -115,6 +117,8 @@ def make(entry_build):
               'hps_ddr_read':ddr_read,'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read else None,
               'hps_computer':computer,'hps_computer_sha256':hps_context.digest(computer) if computer else None,
               'window_memory':build.get('window_memory',False),
+              'window_read':window_read is not None,'hps_window_read':window_read,
+              'hps_window_read_sha256':hps_context.digest(window_read) if window_read else None,
               'computer_reload':build.get('computer_reload',False),
               'computer_storage_return':build.get('computer_storage_return',False)}
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
@@ -127,14 +131,14 @@ def header(profile):
     def array(value):return '{'+','.join('0x'+value[i:i+2] for i in range(0,len(value),2))+'}'
     smmu=profile.get('smmu_observe',False)
     if type(smmu) is not bool or smmu and (profile['sd_pio'] or
-            any(profile.get(key) is not None for key in ('hps_context','hps_io','hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_computer'))):
+            any(profile.get(key) is not None for key in ('hps_context','hps_io','hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer'))):
         raise ValueError('boot SMMU observation requires its separate serial-only profile')
     control=profile.get('hps_control');extra='#define FES_NANO_CONTROL_PROBE '+str(int(control is not None))+'\n'
     io_map=profile.get('hps_io')
     extra+='#define FES_NANO_HPS_IO_OBSERVE '+str(int(io_map is not None))+'\n'
     if io_map is not None:
         if (profile['sd_pio'] or profile.get('hps_context') is None or
-                any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_computer')) or
+                any(profile.get(key) is not None for key in ('hps_control','hps_configuration','hps_reader_memory','hps_ddr_read','hps_window_read','hps_computer')) or
                 profile.get('hps_io_sha256')!=hps_context.digest(io_map)):
             raise ValueError('HPS I/O observation requires its separate sealed serial-only context')
         hps_context.validate_hps_io(io_map,profile['hps_context'])
@@ -217,6 +221,19 @@ def header(profile):
         extra+='#define FES_NANO_DDR_READ_ATTRS_VERIFIED 1\n'
         extra+='#define FES_NANO_DDR_READ_MAP_SHA '+array(profile['hps_ddr_read_sha256'])+'\n'
     extra+='#define FES_NANO_DDR_READ_DIAGNOSTIC '+str(int(ddr_read is not None))+'\n'
+    window_read=profile.get('hps_window_read')
+    if (type(profile.get('window_read',False)) is not bool or
+            profile.get('window_read',False)!=(window_read is not None)):
+        raise ValueError('window read requires its explicit native selection')
+    if window_read is not None:
+        if (profile.get('window_memory') is not True or reader_memory is None or
+                profile.get('hps_window_read_sha256')!=hps_context.digest(window_read) or ddr_read is not None or
+                profile.get('hps_computer') is not None):
+            raise ValueError('window access requires its complete separate cold profile')
+        hps_context.validate_window_read(profile['hps_context'],reader_memory,profile['hps_control_sha256'],window_read)
+        extra+='#define FES_NANO_WINDOW_READ_ATTRS_VERIFIED 1\n'
+        extra+='#define FES_NANO_WINDOW_READ_MAP_SHA '+array(profile['hps_window_read_sha256'])+'\n'
+    extra+='#define FES_NANO_WINDOW_READ_DIAGNOSTIC '+str(int(window_read is not None))+'\n'
     computer=profile.get('hps_computer')
     if computer is not None:
         if (not isinstance(computer,dict) or configuration is None or control is None or ddr_read is not None or not profile['sd_pio'] or

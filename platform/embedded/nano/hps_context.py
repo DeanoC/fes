@@ -146,12 +146,42 @@ def _ddr_adapter(project, vendor_sha):
 
 def _ddr_read(project):
     context=_derive(project);memory=_reader_memory(project);control_map=_control(project)
-    if memory is None:raise ValueError('active DDR read requires the sealed DDR diagnostic')
+    if memory is None or memory['scope']!='sealed-cold-ddr-reader-memory-v1':
+        raise ValueError('active DDR read requires the fixed sealed DDR diagnostic')
     inputs=json.loads((Path(project)/'board/hps/inputs.json').read_text())
     attributes=_ddr_adapter(project,inputs['vendor_archive_sha256'])
     return dict(format=1,scope='sealed-cold-ddr-read-v1',package_id=context['package_id'],
                 build_id=context['build_id'],reader_memory_sha256=digest(memory),
                 control_map_sha256=digest(control_map),read_bytes=32,open_mask=8,close_mask=10,**attributes)
+
+
+def window_read(project):
+    return _worker(project,'window-read')
+
+
+def _window_read(project):
+    context=_derive(project);memory=_reader_memory(project);control_map=_control(project)
+    if memory is None or memory['scope']!='sealed-cold-window-reader-memory-v1':
+        raise ValueError('window access requires its complete sealed memory reservation')
+    inputs=json.loads((Path(project)/'board/hps/inputs.json').read_text())
+    attributes=_ddr_adapter(project,inputs['vendor_archive_sha256'])
+    return dict(format=1,scope='sealed-cold-window-read-v1',package_id=context['package_id'],build_id=context['build_id'],
+                reader_memory_sha256=digest(memory),control_map_sha256=digest(control_map),
+                read_bytes=memory['frame_bytes'],open_mask=8,close_mask=10,**attributes)
+
+
+def validate_window_read(context,memory,control_sha,mapping):
+    validate_reader_memory(context,memory)
+    if (memory['scope']!='sealed-cold-window-reader-memory-v1' or not isinstance(mapping,dict) or
+            any(not isinstance(mapping.get(k),str) or not re.fullmatch('[0-9a-f]{64}',mapping[k]) or int(mapping[k],16)==0
+                for k in ('adapter_source_sha256','adapter_generated_sha256'))):
+        raise ValueError('complete sealed window adapter contract required')
+    expected=dict(format=1,scope='sealed-cold-window-read-v1',package_id=context['package_id'],build_id=context['build_id'],
+                  reader_memory_sha256=digest(memory),control_map_sha256=control_sha,
+                  adapter_source_sha256=mapping['adapter_source_sha256'],adapter_generated_sha256=mapping['adapter_generated_sha256'],
+                  arcache=2,arprot=3,aruser=224,read_bytes=memory['frame_bytes'],open_mask=8,close_mask=10)
+    if encode(mapping)!=encode(expected):raise ValueError('window access differs from the complete sealed source')
+    return expected
 
 
 def reader_pattern():
@@ -647,6 +677,25 @@ def checked_ddr_read(record, program_key='program'):
     return expected
 
 
+def checked_window_read(record,program_key='program'):
+    requested=record.get('window_read',False)
+    keys=('hps_window_read','hps_window_read_sha256')
+    if type(requested) is not bool:raise ValueError('window read selection must be explicit')
+    if not requested:
+        if any(record.get(k) is not None for k in keys):raise ValueError('window access supplied without explicit selection')
+        return None
+    if (record.get(program_key)!='fpgaload' or record.get('window_memory') is not True or
+            any(record.get(k) is None for k in keys) or record.get('hps_ddr_read') is not None or record.get('hps_computer') is not None):
+        raise ValueError('window access requires its dedicated native configuration mode')
+    memory=checked_reader_memory(record,program_key)
+    if memory is None or memory['scope']!='sealed-cold-window-reader-memory-v1':
+        raise ValueError('window access requires the complete pinned memory map')
+    expected=window_read(record['hps_project'])
+    if encode(record['hps_window_read'])!=encode(expected) or record['hps_window_read_sha256']!=digest(expected):
+        raise ValueError('window access differs from the sealed adapter')
+    return expected
+
+
 def checked_computer(record, program_key='program'):
     keys=('hps_computer','hps_computer_sha256')
     reload=record.get('computer_reload',False)
@@ -685,7 +734,7 @@ def checked_program_platform(record, program_key='program'):
 
 if __name__ == '__main__':
     actions = {'control': _control, 'configuration': _configuration, 'package': _package,
-               'reader-memory': _reader_memory, 'ddr-read': _ddr_read, 'computer': _computer,
+               'reader-memory': _reader_memory, 'ddr-read': _ddr_read, 'window-read': _window_read, 'computer': _computer,
                'hps-io': _hps_io, 'program-platform': _program_platform, 'selected-program': _selected_program}
     if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in actions:
         raise SystemExit('usage: hps_context.py SEALED_PROJECT ['+'|'.join(actions)+']')

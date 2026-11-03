@@ -103,6 +103,8 @@ type HPSContextVerifier struct {
 	readerMemoryRegion     *Region
 	windowMemory           *windowMemoryMap
 	windowMemorySHA        [32]byte
+	windowPublication      WindowMemoryObservation
+	windowArenaSHA         [32]byte
 	ddrReaderAttempted     bool
 	computerServiceClaimed bool
 	computerMu             sync.Mutex

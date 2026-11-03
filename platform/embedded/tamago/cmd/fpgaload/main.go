@@ -18,12 +18,14 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/fat"
 	"github.com/DeanoC/fes/platform/embedded/tamago/nativefabric"
 	"github.com/DeanoC/fes/platform/embedded/tamago/packagestore"
+	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 )
 
 var expectedBootContext, expectedControlMap, expectedConfigurationMap, expectedReaderMemoryMap string
 var expectedDDRReadMap string
 var expectedWindowMemory string
+var expectedWindowReadMap string
 var expectedComputerMap, expectedComputerReload string
 var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
@@ -60,6 +62,9 @@ func main() {
 		}
 		v, err = nativefabric.NewWindowHPSContextVerifier(cpu, decoded(expectedBootContext, 8192), control, decoded(expectedReaderMemoryMap, 8192))
 	} else {
+		if expectedWindowReadMap != "" {
+			panic("window reads require the complete compiled reservation")
+		}
 		v, err = nativefabric.NewHPSContextVerifier(cpu, decoded(expectedBootContext, 8192))
 	}
 	if err != nil {
@@ -235,6 +240,18 @@ func main() {
 		return
 	}
 	program(v, configuration, source)
+	if expectedWindowReadMap != "" {
+		limits := scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}
+		observation, err := v.ProbeWindowReader(context.Background(), control, decoded(expectedWindowReadMap, 8192), retained, limits)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("FES_NATIVE_FPGA_WINDOW_READ PASS package_id=%s build_id=%s owner=%x source_generation=%d closed_generation=%d reader_generation=%d cookie=%d bytes=%d crc32=%08x frame_sha256=%x access_map_sha256=%x data_closed=1 memory_retained=1 runtime_admission=unavailable\n",
+			id.PackageID, id.BuildID, observation.After.Owner, observation.Source.Bridges.Generation, observation.After.Generation,
+			observation.Frame.Generation, observation.Frame.Cookie, observation.Frame.DeliveredBytes, observation.Frame.CRC32,
+			observation.Memory.FrameSHA256, observation.AccessMapSHA256)
+		return
+	}
 	var observed nativefabric.FPGAIdentityObservation
 	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile || id.ProgrammingProfile == nativefabric.HPSFirstWindowDiagnosticProfile {
 		if expectedDDRReadMap != "" {

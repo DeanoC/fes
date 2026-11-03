@@ -255,3 +255,54 @@ class NanoConfigurationTests(unittest.TestCase):
                         self.assertRegex(result.stdout,r'phase=closed owner=[0-9a-f]+ generation=6 ')
                     else:self.assertIn('phase=before offset=',result.stdout)
             print('PASS 8 strong-provider/SD/configuration/actual-reader-RTL success and failure cases',flush=True)
+            # Join the same real SD lease, SHA-384 configuration gate and owned
+            # dispatcher to both real FPGA masters and the full-frame reader.
+            window_profile=(reader_profile.replace('FES_NANO_COLD_COMPUTER 1','FES_NANO_COLD_COMPUTER 0')
+                            .replace('0x10203041U','0x10203042U').replace('8192U','4194304U')
+                            .replace('2097152U','4194304U')+
+                '#define FES_NANO_WINDOW_MEMORY 1\n#define FES_NANO_WINDOW_READ_DIAGNOSTIC 1\n'
+                '#define FES_NANO_WINDOW_READ_ATTRS_VERIFIED 1\n'
+                '#define FES_NANO_WINDOW_FRAME_BYTES 3686400U\n#define FES_NANO_WINDOW_ROW_BYTES 5120U\n'
+                '#define FES_NANO_WINDOW_STRIDE 5120U\n#define FES_NANO_WINDOW_ROWS 720U\n')
+            (inc/'fes_nano_cold_profile.h').write_text(window_profile)
+            window_objects=[sha_object]
+            for name in reader_sources:
+                obj=base/('window-'+Path(name).name+'.o')
+                extra=['-DFES_TEST_READER_RTL','-DFES_TEST_WINDOW_RTL','-Dmain=fes_strong_window_main'] if name.startswith('tests/') else []
+                compiled=subprocess.run(['cc',*flags,'-Wextra','-DFES_TEST_HPS_CONTEXT',*extra,
+                                         '-c',str(FW/name),'-o',str(obj)],capture_output=True,text=True,timeout=30)
+                self.assertEqual(compiled.returncode,0,compiled.stderr)
+                window_objects.append(obj)
+            probe=base/'window-probe'
+            compiled=subprocess.run(['verilator','--cc','--build','-j','2','--top-module','fes_de25_ddr_probe',
+                '-Wall','--Mdir',str(probe),'-I'+str(fpga/'boards/de25nano/hps'),
+                str(fpga/'boards/de25nano/hps/fes_de25_ddr_probe.v')],capture_output=True,text=True,timeout=60)
+            self.assertEqual(compiled.returncode,0,compiled.stdout+'\n'+compiled.stderr)
+            window=base/'window-reader'
+            command=['verilator','--cc','--exe','--build','-j','2','--top-module','fes_de25_embedded',
+                '-Wall','-Wno-UNUSEDSIGNAL','--Mdir',str(window),'-I'+str(fpga/'cores/fes-common/generated'),
+                "-GBUILD_ID=128'h778899aabbccddee0011223344556677",'-GMEMORY_BACKEND=2',
+                "-GDDR_BASE=32'h95000000",'-GDDR_BYTES=4194304',
+                '-CFLAGS','-std=c++17 -O1 -UNDEBUG -fsanitize=undefined -fno-sanitize-recover=all -I'+str(FW)+
+                    ' -I'+str(fpga/'boards/de25nano/hps')+' -I'+str(probe),
+                '-LDFLAGS','-fsanitize=undefined '+' '.join(str(p) for p in window_objects)+
+                    ' '+str(probe/'Vfes_de25_ddr_probe__ALL.a'),
+                str(fpga/'cores/fes-common/rtl/fes_embedded_control.sv'),
+                *(str(fpga/'prototypes/embedded_control'/name) for name in ('fes_embedded_window_reader.sv','fes_embedded_window_control.sv')),
+                str(fpga/'prototypes/de25_board_control/fes_de25_embedded.sv'),str(FW/'tests/nano_window_runtime_test.cpp')]
+            compiled=subprocess.run(command,capture_output=True,text=True,timeout=90)
+            self.assertEqual(compiled.returncode,0,compiled.stdout+'\n'+compiled.stderr)
+            if evidence:
+                shutil.copytree(base,target/'window-build')
+                (target/'window-build/contract.json').write_text(json.dumps({'profile':window_profile,'command':command},indent=2)+'\n')
+            for mutation in range(160,169):
+                with self.subTest(strong_window_runtime=mutation):
+                    result=subprocess.run([window/'Vfes_de25_embedded',str(mutation)],capture_output=True,text=True,timeout=15)
+                    if evidence:(target/('window-'+str(mutation)+'.log')).write_text(result.stdout+result.stderr)
+                    self.assertEqual(result.returncode,0,result.stderr+'\n'+result.stdout[-4000:])
+                    self.assertIn('PASS strong window configuration/read/drain/return',result.stdout)
+                    if mutation in (160,167):
+                        self.assertIn('FES_TEST_WINDOW_FRAME bytes=3686400 crc32=9597d203',result.stdout)
+                    if mutation in (160,164,167):
+                        self.assertRegex(result.stdout,r'FES_NANO_MASTER_STOP status=0 .* disable=1 .* cancel=1 complete=1 data=active')
+            print('PASS 9 joined secure SD/configuration/window/all-master-drain/return cases',flush=True)

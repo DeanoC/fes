@@ -4,6 +4,7 @@
 #include "nano_bridges.h"
 #include "generated/fes_embedded_bridges.h"
 #include "generated/fes_embedded_control.h"
+#define FES_NANO_READER_WINDOW 3U
 
 struct fes_nano_identity_ops {
     void *context;
@@ -58,6 +59,8 @@ struct fes_nano_identity_probe *fes_nano_platform_identity_probe(void);
 int fes_nano_platform_identity_setup(void);
 int fes_nano_platform_control_target(unsigned open);
 int fes_nano_platform_ddr_target(unsigned open);
+/* Source-bound window gate; runs only in the owned control scope with data held. */
+int fes_nano_platform_window_prepare(void);
 void fes_nano_platform_identity_report(void);
 #ifdef __cplusplus
 }

@@ -214,6 +214,10 @@ def build(args):
     window_memory=getattr(args,'window_memory',False)
     if type(window_memory) is not bool or window_memory and (args.program!='fpgaload' or active_ddr):
         raise ValueError('--window-memory requires Nano fpgaload, separately from --ddr-read')
+    window_read=getattr(args,'window_read',False)
+    if type(window_read) is not bool or window_read and not window_memory:
+        raise ValueError('--window-read requires explicit --window-memory')
+    window_read_map=None
     if type(active_ddr) is not bool or active_ddr and args.program!='fpgaload':
         raise ValueError('--ddr-read requires the Nano fpgaload diagnostic')
     computer_control=getattr(args,'computer_control',False)
@@ -249,6 +253,7 @@ def build(args):
             reader_memory_map=hps.reader_memory(hps_project)
             cpu_map=hps.cpu_mapping(control_map,configuration_map,reader_memory_map)
             if active_ddr:ddr_read_map=hps.ddr_read(hps_project)
+            if window_read:window_read_map=hps.window_read(hps_project)
             if computer_control:computer_map=hps.computer(hps_project)
             if selected_programs:
                 program_platform=hps.program_platform(hps_project)
@@ -278,6 +283,7 @@ def build(args):
     if configuration_map is not None:(output/'hps-configuration.json').write_bytes(hps.encode(configuration_map))
     if reader_memory_map is not None:(output/'hps-reader-memory.json').write_bytes(hps.encode(reader_memory_map))
     if ddr_read_map is not None:(output/'hps-ddr-read.json').write_bytes(hps.encode(ddr_read_map))
+    if window_read_map is not None:(output/'hps-window-read.json').write_bytes(hps.encode(window_read_map))
     if computer_map is not None:(output/'hps-computer.json').write_bytes(hps.encode(computer_map))
     if program_platform is not None:
         (output/'program-platform.json').write_bytes(hps.encode(program_platform))
@@ -362,6 +368,7 @@ def build(args):
     if reader_memory_map is not None:link_flags+=' -X main.expectedReaderMemoryMap='+base64.b64encode(hps.encode(reader_memory_map)).decode()
     if ddr_read_map is not None:link_flags+=' -X main.expectedDDRReadMap='+base64.b64encode(hps.encode(ddr_read_map)).decode()
     if window_memory:link_flags+=' -X main.expectedWindowMemory=1'
+    if window_read_map is not None:link_flags+=' -X main.expectedWindowReadMap='+base64.b64encode(hps.encode(window_read_map)).decode()
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
     if computer_reload:link_flags+=' -X main.expectedComputerReload=1'
     if computer_storage_return:link_flags+=' -X main.expectedComputerStorageReturn=1'
@@ -388,6 +395,9 @@ def build(args):
     if ddr_read_map is not None and (hps.ddr_read(hps_project)!=ddr_read_map or
             base64.b64encode(hps.encode(ddr_read_map)) not in data):
         raise ValueError('sealed DDR read contract changed or was not linked into the native image')
+    if window_read_map is not None and (hps.window_read(hps_project)!=window_read_map or
+            base64.b64encode(hps.encode(window_read_map)) not in data):
+        raise ValueError('sealed full-window access changed or was not linked into the native image')
     if computer_map is not None and (hps.computer(hps_project)!=computer_map or
             base64.b64encode(hps.encode(computer_map)) not in data):
         raise ValueError('sealed computer control changed or was not linked into the native image')
@@ -406,6 +416,7 @@ def build(args):
               "hps_reader_memory":reader_memory_map,"hps_reader_memory_sha256":hps.digest(reader_memory_map) if reader_memory_map else None,
               "hps_ddr_read":ddr_read_map,"hps_ddr_read_sha256":hps.digest(ddr_read_map) if ddr_read_map else None,
               "window_memory":window_memory,
+              "window_read":window_read,"hps_window_read":window_read_map,"hps_window_read_sha256":hps.digest(window_read_map) if window_read_map else None,
               "hps_computer":computer_map,"hps_computer_sha256":hps.digest(computer_map) if computer_map else None,
               "computer_reload":computer_reload,
               "computer_storage_return":computer_storage_return,

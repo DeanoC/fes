@@ -138,6 +138,18 @@ the stop helper checks the window ABI's maintenance hold at `0xc8` and drains
 both FPGA masters. This establishes no DDR release, reuse or HDMI permission.
 Native source tests and cross-builds remain separate from physical acceptance.
 
+Adding `--window-read` selects a single owned control/DDR/return cycle.
+The completed compiled-source transfer and immutable 4 MiB publication must
+share the same closed owner and generation. Firmware checks the idle sealed
+master inventory, adapter attributes, live translation controls and coverage
+of the whole window before opening DDR alone. The native `WindowReader`
+checks full-frame delivery and CRC through ownership-bracketed CSR accesses.
+On success, cancellation or a known reader failure, firmware stops both FPGA
+masters and drains the active DDR path before closing it with control.
+An uncertain bridge mutation is consumed without replay. The allocation
+remains pinned on every outcome; this one-frame receipt permits no buffer
+reuse, HDMI or ordinary runtime admission.
+
 Before an injected actor retires its current owner, it checks that the retained
 package's exact target, programming profile and ABI version have an explicitly
 supplied identity profile. The profile gives the FPGA control ABI personality;

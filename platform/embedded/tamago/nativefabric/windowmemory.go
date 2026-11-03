@@ -133,8 +133,10 @@ func (v *HPSContextVerifier) ReserveWindowMemory(frame []byte, reserve func([]by
 		return WindowMemoryObservation{}, errors.New("native fabric: window publication lost bytes or closed ownership")
 	}
 	v.readerMemoryReady = true
-	return WindowMemoryObservation{Source: source, CPUBase: m.CPUBase, ArenaBytes: m.ArenaBytes,
+	v.windowArenaSHA = sha256.Sum256(staged)
+	v.windowPublication = WindowMemoryObservation{Source: source, CPUBase: m.CPUBase, ArenaBytes: m.ArenaBytes,
 		Geometry:   scanout.WindowGeometry{Base: uint32(m.BusBase), Bytes: uint32(m.Bytes), RowBytes: m.RowBytes, Stride: m.Stride, Rows: m.Rows},
 		FrameBytes: m.FrameBytes, MapSHA256: v.windowMemorySHA, FrameSHA256: sha256.Sum256(staged[:m.FrameBytes]),
-		CRC32: crc32.ChecksumIEEE(staged[:m.FrameBytes])}, nil
+		CRC32: crc32.ChecksumIEEE(staged[:m.FrameBytes])}
+	return v.windowPublication, nil
 }
