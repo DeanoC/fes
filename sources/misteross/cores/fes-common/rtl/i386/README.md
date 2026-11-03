@@ -741,11 +741,11 @@ retires and stops it. A fault is delivered:
   DC's skid takes the exception's entry (`dc_exc`): a NOP, at length 0,
   that starts the ROM's `vector` routine with the fault's vector, the one
   INTO enters.
-- **The frame.** D's EIP is the faulting instruction's, so the routine
-  pushes FLAGS, CS and its IP, and D's CS-limit check passes the entry, at
-  length 0, when that EIP is just past the limit.
-  The front end refetches from where it was, and the routine's far jump
-  discards that. In protected mode the routine is the delivery through the
+- **The frame.** D's EIP identifies the faulting instruction's first byte.
+  Every real-mode exception or external-interrupt delivery redirect
+  zero-extends EIP's low 16-bit IP before entry. Protected-mode deliveries
+  keep the full EIP. The front end refetches from where it was, and the
+  routine's far jump discards that. Protected-mode delivery goes through the
   IDT (see [Protected mode](#protected-mode)).
 - **A fault in a delivery** is delivered in its place, as Bochs's
   `exception()` does: with EXT (bit 0) set in its error code, or as a double

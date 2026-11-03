@@ -13,29 +13,32 @@ as not built.
   return whose target is past it raises #GP(0) at the branch, only when the
   branch is taken. A real-mode far transfer's offset, and a real-mode INT's
   vector offset, are checked against the limit CS already has
-  ([What changes](#what-changes)). `WHY_CS_LIMIT`, `cs_odd`, `wrap16` and
-  the 16-bit-only special cases are gone.
-- The RTL and the i386 lock's Yosys netlist give the same lockstep report
-  (but for its `yosys` field) ([Lockstep](#lockstep)):
-  - every corpus state passes (1,758,699), with every trace hash equal to
-    slice 2's;
-  - every protected-mode program passes (8,000);
-  - every directed case passes, among them 38 new CS-limit cases, 37 of
-    which fail on slice 2's RTL.
+  ([What changes](#what-changes)). The real-mode delivery redirect keeps the
+  386's 16-bit IP cut. `WHY_CS_LIMIT`, `cs_odd`, `wrap16` and the 16-bit-only
+  special cases are gone.
+- Full RTL and i386-lock Yosys-netlist lockstep runs at source head
+  `df7ff8a9cc68c85022c25e5af7733df0fc56079e` include the #1430 merge and the
+  restored real-mode delivery IP cut ([Lockstep](#lockstep)). Their
+  architectural reports match:
+  - all 1,758,699 corpus states pass;
+  - all 8,000 random protected-mode programs and all directed cases pass;
+  - the seven unreal-mode cases, including `cs-delivery`, pass;
+  - all 1,933 no-387 cases and 26 memory cases pass.
 
-  The new generator block runs 23,199 instructions and raises 1,299 #GP
-  deliveries under small CS limits. 1 of the 32,000 random programs fails,
-  the same way on slice 2's RTL: a harness gap for a REP string that stores
-  over its own bytes ([#1425](https://github.com/DeanoC/fes/issues/1425)).
-  Deano chose to record it and carry on. Five more failed, also on slice
-  2's RTL, until this branch merged #1411's fix for them
-  ([#1424](https://github.com/DeanoC/fes/issues/1424)).
+  One of 32,000 random programs still fails identically on RTL and netlist:
+  `random#1#1473`, the known REP string self-modifying-code harness gap
+  ([#1425](https://github.com/DeanoC/fes/issues/1425)). The new generator
+  block runs 23,199 instructions and raises 1,299 #GP deliveries under small
+  CS limits. Five more random failures present before the #1411 merge were
+  fixed by #1424.
 - The pc386 suites, the governor bench and test386 on the RTL give slice
   2's results: the boot on Bochs, system, devices and the governor bench
   pass, the governor suite meets the bench gap #1372 at 386DX-25 as
   before, test386 stops at POST 08h's paging as before, and FreeDOS boots
   on the RTL with a report byte for byte slice 2's ([Machine](#pc386-suites-governor-and-test386)).
-- Quartus 17.0.2 seals `fes.pc386` from a clean checkout of `5d231b804`:
+- Quartus 17.0.2 seals `fes.pc386` from a clean checkout of `5d231b804`,
+  before the #1430 merge and the final delivery-IP fix; the pc386 reseal
+  exemption covers both changes:
   every analysis passes at 61.44 MHz, the system clock at 72.76-73.53 MHz
   across the slow corners (setup +2.533 ns; slice 2's final seal 69.5-69.9
   MHz), for 28 more ALMs and 198 more registers ([Seal](#quartus-seal)).
@@ -49,13 +52,19 @@ as not built.
 
 ## Inputs
 
+- The lockstep reruns recorded below used the exact PR source head
+  `df7ff8a9cc68c85022c25e5af7733df0fc56079e` on 3 November 2026. That tree
+  contains the #1430 merge `81ab9086c` and restores the real-mode delivery IP
+  cut. The earlier PC/386, DOOM and seal results below remain tied to their
+  individually listed source commits.
 - FES branch `deano/i386-cs-limit`, stacked on `deano/i386-phase2-idt`
   (PR #1411) at `7224b11f6`. `01bc050ef` (#1411's record only) is merged in
   as `53bef7644`, and #1411's head `3f8687ed0` as `9683e2cb0`. That head
   brings the #1424 fix `d9773b8f2`, which changes only the order of a
   protected-mode IRET's and RETF's stack reads, and its four directed cases.
-- The CS-limit RTL is `5d231b804`'s; later commits change only docs, this
-  record and, by the merge, the #1424 fix. Which tree each run used:
+- The original CS-limit implementation is `5d231b804`. Later RTL changes
+  include #1424, the #1430 merge at `81ab9086c`, and `df7ff8a9`'s restoration
+  of the real-mode delivery IP cut. The historical runs used these trees:
   - `5d231b804`, a clean checkout: the seal.
   - `9683e2cb0`, the merge: the lockstep and the netlist lockstep, and
     `--suite boot --cpu rtl`. DOOM on the RTL, and on Bochs for comparison,
@@ -71,8 +80,11 @@ as not built.
   needs no reseal before merge, as #1411's own record says of `d9773b8f2`.
 - Oracle: Bochs 3.1 at CPU level 3 (the `fes-i386-oracle` build), corpus
   SingleStepTests/80386 `459d49fbe628`.
-- Verilator 5.032 on Powerboat. The netlist lockstep used the i386 lock's
-  Yosys `238eac9a4`. The seal used Quartus Prime Lite 17.0.2 with the
+- The lockstep reruns used system Verilator 5.020 with `-Wno-fatal` for two
+  pre-existing width warnings in the unchanged governor and BIU. The locked
+  Verilator `5e4151e3` hit an internal optimizer error at
+  `fes_i386_seq.sv:317` before simulation. The netlist run used the i386
+  lock's Yosys `238eac9a4`. The seal used Quartus Prime Lite 17.0.2 with the
   netlist from the pc386 lock's Yosys `0a7927bf`.
 - DOOM v1.9 under DOS/4GW, on slice 2's census disk (the games image,
   HIMEMX's full XMS, DOOM in `C:\DOOM`, SHA-256 `fa26f60b…`), a scratch copy
@@ -104,40 +116,47 @@ has the detail. In `fes_i386_cpu`:
 
 | Where | What |
 | --- | --- |
-| D | EIP plus the length against the limit plus one (`cs_gp`), split at bit 4 so it runs beside `d_eip_next`'s adder: the low nibble plus the length carries at most 1 into EIP's upper 28 bits, which are compared with the limit plus one's upper bits and those less 1, registered as CS is written (`cs_fl`). A delivery's entry, at length 0, passes at the EIP of an instruction that starts just past the limit. `d_eip_next` is EIP plus the length in 16-bit code too |
+| D | EIP plus the length against the limit plus one (`cs_gp`), split at bit 4 so it runs beside `d_eip_next`'s adder: the low nibble plus the length carries at most 1 into EIP's upper 28 bits, which are compared with the limit plus one's upper bits and those less 1, registered as CS is written (`cs_fl`). A delivery entry has length 0; real-mode redirects first zero-extend the low 16-bit IP. `d_eip_next` is EIP plus the length in 16-bit code too |
 | D | A far transfer's offset (`far_chk`, CALL r/m near's push too) against the limit: at a far CALL's probe, ahead of the probe's own check; at any other uop (`cs_late`) after the uop's own checks, at M1 |
 | AG | CALL rel's push: its target, the next EIP plus the displacement wrapped by operand size, beside the AGU's chains (`ag_call`) |
 | M1 | A near branch's or CALL rel's push's target against the limit (`tchk`): #GP(0) here for the push, after its own checks; carried to EX for a branch |
 | EX | #GP(0) for a taken branch whose target is past the limit; RET's and JMP r/m's from EX's operand; a real-mode INT's probe whose vector offset (T1, retired by then) is past it |
-| Redirect | A delivery's D EIP is the faulting instruction's, no longer cut to 16 bits in real mode |
+| Redirect | Real-mode exception and external-interrupt delivery redirects zero-extend EIP's low 16-bit IP; protected-mode deliveries keep the full EIP |
 
 Deleted: `WHY_CS_LIMIT` (so `WHY_TASK_RETURN` is now 8), `cs_odd`,
 `wrap16`, `past`, `eip16`, the 16-bit CALL rel32 target trick
 (`call_target_*`), `seg_cs_ffff`, `seg_cs_small`, `seg_cs_flat` and their
-staged `ds_*` copies, and the real-mode cut of a delivery's EIP. Nothing in
-the change waits: no uop issues later than before.
+staged `ds_*` copies. Nothing in the change waits: no uop issues later than
+before.
 
 ## Lockstep
 
-`scripts/test_fes_i386_lockstep.py` at `9683e2cb0`, the merge of #1411's
-head ([report](lockstep-report.json)), and with `--yosys` on the i386 lock's
-Yosys `238eac9a4` ([report](lockstep-netlist-report.json)). The two reports
-are identical but for the netlist's `yosys` field. Before the merge, at
-`9adde623c`, the reports were the same but for the five #1424 programs
-below and the four directed cases the merge brings.
+`scripts/test_fes_i386_lockstep.py` at the final RTL/testbench source head
+`df7ff8a9cc68c85022c25e5af7733df0fc56079e`, which includes the #1430 merge
+`81ab9086c` and the real-mode delivery IP restoration. The full RTL run is
+([lockstep-report.json](lockstep-report.json)); the full Yosys-netlist run
+uses the i386 lock's Yosys `238eac9a4`
+([lockstep-netlist-report.json](lockstep-netlist-report.json)). The netlist
+runner's `--same-as` check reports no architectural differences. After
+removing the `yosys` and `same_as` metadata, the reports are identical.
 
 | Run | Result |
 | --- | --- |
 | Corpus (SingleStepTests/80386, 941 files) | 1,758,699 pass, 0 fail; 3,517,401 retirements compared; 147,537 in an exception's handler |
-| Random programs (16 seeds × 2,000) | 31,999 pass, 1 fails (pre-existing, below); 8,204,246 retirements; 3,020 end at a shutdown, 707 at a fault in a delivery delivered |
+| Random programs (16 seeds × 2,000) | 31,999 pass, 1 known #1425 harness failure; 8,204,246 retirements; 3,020 end at a shutdown, 707 at a fault in a delivery delivered |
 | Protected-mode programs (16 seeds × 500) | 8,000 pass, 0 fail; 464,949 retirements, 374,688 of them (with the random programs') with PE set; 14,235 deliveries through the IDT; 1,483 shutdowns; 165 not-built stops |
-| Unbuilt encodings | 52,320 outside SCOPE, all stopped as not built |
+| Unbuilt encodings | 50,272 outside SCOPE, all stopped as not built |
 | Directed cases | 40 pass |
-| Unreal-mode cases | 6 pass |
-| Protected-mode cases | 89 pass (38 new here, 4 from #1411's #1424 fix) |
+| Unreal-mode cases | 7 pass, including `cs-delivery` |
+| Protected-mode cases | 89 pass (38 CS-limit cases, 4 from #1411's #1424 fix) |
+| No-387 cases | 1,933 pass |
 | Memory cases (DMA, FLUSH) | 26 pass |
 
-The latency-free reruns of seeds 1 and 2 retire the same trace.
+The latency-free reruns of seeds 1 and 2 retire the same trace. The random
+failure is `random#1#1473`: REP MOVSB stores over its own code, the same
+pre-existing harness gap on slice 2 and both current implementations.
+The focused `tests.test_fes_i386_lockstep` suite also passes all 11 tests,
+including the directed-suite `cs_limit` same-as comparison.
 
 **The new directed cases** (`--mode pmode`, 38 of the 89). Each far-jumps
 to code it places under a code descriptor of a small limit:
@@ -202,8 +221,10 @@ window, where Bochs makes no read (`mmio-reads.0.N`). With #1411's fix
 (`d9773b8f2`, merged in as `9683e2cb0`) all five pass, with the same
 retirements and trace hashes.
 
-**Against slice 2's report** (`3f8687ed0`'s `lockstep-report.json`, with
-the #1424 fix):
+**Historical comparison for the original CS-limit RTL** (`5d231b804`, before
+the #1430 merge and `df7ff8a9` restored the real-mode delivery IP cut),
+against slice 2's report (`3f8687ed0`'s `lockstep-report.json`, with the
+#1424 fix):
 - **Corpus:** every result field and trace hash is equal. The cycles grow
   by 2,628 of 174,952,508, spread up and down over 45 opcode files. They
   trace to one kind of test, `FE.0#106` the first: an 8-byte instruction at
@@ -222,8 +243,9 @@ the #1424 fix):
   `gp-stack-wrap` (+57). Their #GP now comes from M1, after the push's own
   check, as Bochs pushes first, where slice 2 raised it in D. The rest of
   the difference is the later cases' fetch-latency draws moving.
-- **Unreal-mode and memory cases:** equal, trace hashes and cycles
-  included.
+- **Unreal-mode and memory cases:** the original six unreal-mode cases and
+  26 memory cases were equal, including trace hashes and cycles. The final
+  head adds the seventh unreal-mode `cs-delivery` case, reported above.
 - **Random and protected-mode programs:** not comparable, as the generator's
   protected-mode blocks now draw the new block and its descriptors.
 
@@ -255,12 +277,15 @@ regressions, generated-consumer consistency and misteross's tests (1,627,
 `make build-fes-pc386-quartus` at seed 1 from a clean checkout of
 `5d231b804` ([`seal-summary.json`](seal-summary.json)), Quartus Prime Lite
 17.0.2 on the pc386 lock's Yosys `0a7927bf` netlist. All 109 input hashes
-match `5d231b804`; against the branch head only `fes_i386_decode.sv`,
-`fes_i386_pkg.sv` and `fes_i386_ucode_rom.sv` differ, the #1424 fix merged
-after the seal ([Inputs](#inputs)). Every analysis passes, with no illegal or
-unconstrained clocks. A first run of the same checkout was stopped by this
-session's 2-hour cap in the fitter, on a host at load 65-70 with another
-fit running; this one took 3 h 22 min.
+match `5d231b804`. The seal predates the #1430 merge (`81ab9086c`) and
+`df7ff8a9`'s restoration of the real-mode delivery IP cut. Both changes are
+covered by the pc386 reseal exemption and need no reseal before merge. When
+this seal was first recorded, the only later RTL difference was #1424's
+`fes_i386_decode.sv`, `fes_i386_pkg.sv` and `fes_i386_ucode_rom.sv` fix
+([Inputs](#inputs)). Every analysis passes, with no illegal or unconstrained
+clocks. A first run of the same checkout was stopped by this session's 2-hour
+cap in the fitter, on a host at load 65-70 with another fit running; this one
+took 3 h 22 min.
 
 | | This seal, `5d231b804` | Slice 2's final seal, `7224b11f6` |
 | --- | --- | --- |
