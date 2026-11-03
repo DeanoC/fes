@@ -62,10 +62,44 @@ def main(argv=None):
         finally:
             observer.tracing = previous
 
-    def scenario(original):
-        def run(runner, owned, args, rec, input_session_id, font):
+    def scenario(original, *, game=False):
+        def run(runner, owned, args, rec, input_session_id, font, **kwargs):
             floppy.require_main_head(args)
-            original(runner, owned, args, rec, input_session_id, font)
+            if game:
+                if 'observer_factory' in kwargs:
+                    raise app.pa.AcceptanceError('game observer factory is owned by the main wrapper')
+                def observer_factory(observe):
+                    global HEALTH_UNSAFE
+                    try:
+                        observer.prepare()
+                        def traced(deadline):
+                            observer.begin_trace()
+                            try:
+                                return observe(deadline)
+                            finally:
+                                observer.end_trace()
+                        delegate = app.PrestartedObserver(traced)
+                    except BaseException:
+                        HEALTH_UNSAFE = True
+                        raise
+                    class GuardedObserver:
+                        def check(self):
+                            global HEALTH_UNSAFE
+                            try:
+                                return delegate.check()
+                            except BaseException:
+                                HEALTH_UNSAFE = True
+                                raise
+                        def close(self):
+                            global HEALTH_UNSAFE
+                            try:
+                                return delegate.close()
+                            except BaseException:
+                                HEALTH_UNSAFE = True
+                                raise
+                    return GuardedObserver()
+                kwargs['observer_factory'] = observer_factory
+            original(runner, owned, args, rec, input_session_id, font, **kwargs)
             floppy.require_main_head(args)
         return run
 
@@ -98,7 +132,7 @@ def main(argv=None):
             raise
     app.parser, app.source_provenance = parser, source
     app._validate_active_once = guarded
-    app.run_com, app.run_game = scenario(original_com), scenario(original_game)
+    app.run_com, app.run_game = scenario(original_com), scenario(original_game, game=True)
     app.pa.Runner, app.validate_active = ObservedRunner, observed_validate
     # app.main parses its own args; the main-only defaults must be applied to
     # that namespace too, including every nested active-session observation.
