@@ -116,15 +116,22 @@ stages and consumers stay timed. The digital protocol does not establish
 physical CDC/reset or HDMI output timing. A common reset begins a new epoch
 and cannot prove prior traffic drained.
 
-Canonical MENU shares the original FIFO reset releases. One four-stage vendor
-chain plus its scalar output serves every FIFO side at 100 MHz; a second serves
-every side at 74.25 MHz. Both use the same OR of the original bridge reset inputs.
-The `shared-fifo-reset-release-v1` derivation checks and retains all eleven
-generated bridge/parent files, preserves their clock and reset polarity, and
-reproduces their derived bytes before and after compilation. Vendor reset and
-pointer SDC files are unchanged. The standalone diagnostic retains the vendor
-per-FIFO chains. This source repair supplies no reset exception, physical
-metastability proof or native recovery acceptance.
+Canonical MENU selects `shared-fifo-reset-release-v2`. Each FIFO side uses
+its existing local parent as the sole asynchronous reset of functional state.
+One five-register flag pipeline per receiving clock holds those same reset
+values synchronously until both parent releases have propagated for the
+original five edges. The local parent also asserts the flags asynchronously;
+only the peer parent enters the first data stage. This avoids a second
+asynchronous reset source for functional state and keeps local release,
+interstage and consumer timing required.
+
+The derivation checks and retains all eleven generated bridge/parent files,
+preserves command/response clock and reset polarity, and reproduces every
+changed byte before and after compilation. Vendor reset and pointer SDCs are
+unchanged. Canonical preparation adds only the two uniquely checked peer
+source-to-first-D cuts; the standalone diagnostic retains its original FIFO
+chains. The digital reset-envelope proof and generated transport tests do not
+establish metastability, global-reset allocation fencing or native recovery.
 
 Run from this directory:
 

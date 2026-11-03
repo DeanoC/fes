@@ -98,19 +98,26 @@ rechecked after generation and compilation, before Linux phase conversion;
 the canonical record binds the policy. The standalone diagnostic recipe keeps
 its original reset constraints.
 
-Canonical MENU also selects `shared-fifo-reset-release-v1`. The pinned eleven
-generated bridge files are retained before a checked derivation moves the
-eight duplicate FIFO release chains to one shared five-edge pipeline per clock
-in the peripheral parent. The reset source remains the OR of both original
-bridge resets, with asynchronous assertion and the original four stages plus
-scalar output stage. Command/response polarity and both clock mappings remain
-checked; pointer, storage, credit and transport logic stay unchanged. The
-shared instances retain the existing vendor SDC ingress names; the SDC bytes,
-pointer constraints and timed release fanout remain unchanged. Generation and
+Canonical MENU also selects `shared-fifo-reset-release-v2`. The pinned eleven
+generated bridge files are retained before a checked derivation shares one
+five-register release flag per receiving clock. Every functional FIFO register
+uses its existing local parent as its sole asynchronous reset, followed by a
+synchronous hold of the same reset values while the shared flag remains set.
+The flag itself asserts asynchronously from that same local parent; only the
+peer reset enters its first data stage. Actual parent-controller models prove
+the original five-edge effective release for arbitrary clock stops and phases;
+a four-edge control produces a counterexample. That reset-envelope proof does
+not establish full FIFO, metastability or hardware acceptance.
+
+Command/response polarity and both clock mappings remain checked. Pointer,
+storage, credit and transport equations are unchanged. Canonical preparation
+adds exactly two registered peer-source to first-D exceptions, with unique
+endpoint checks. Local parent release, all later stages and functional fanout
+stay timed. Vendor reset and pointer SDCs remain unchanged. Generation and
 compilation rederive all eleven files from the pinned originals and reject any
-source or receipt change. The captured helper and policy enter the canonical
-record before generation. This consolidates the FIFO reset cone; clock-monitor
-reset domains, physical reset behavior and native acceptance remain separate.
+source or receipt change. The captured helper, policy and constraints enter the
+canonical record before generation. Global-reset allocation epochs and native
+recovery remain separate acceptance gates.
 
 Canonical MENU also selects `managed-scanout-initiators-v3` before generation.
 It removes the vendor JTAG Avalon masters and their separate ACE5-Lite F2H

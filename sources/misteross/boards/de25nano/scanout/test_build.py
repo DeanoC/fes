@@ -102,6 +102,24 @@ class ScanoutBuildTests(unittest.TestCase):
             finally:
                 path.write_bytes(original)
 
+    def test_fifo_release_constraints_reject_later_stages_and_broader_cuts(self):
+        _, directory, _ = self.reset_timing_fixture()
+        project = directory / "project"
+        self.assertEqual(B.verify_reset_synchronizers(project)["fifo_peer_cdc_ingresses"], 2)
+        path = project / "fes_mailbox/clocks.sdc"
+        original = path.read_text()
+        for before, after in (
+                ("write_reset_sync|release_pipe[0]|d", "write_reset_sync|release_pipe[1]|d"),
+                ("set_false_path -from $fifo_peer_source -to $fifo_peer_head",
+                 "set_false_path -to $fifo_peer_head"),
+                ("[get_collection_size $fifo_peer_source]!=1", "[get_collection_size $fifo_peer_source]!=2")):
+            self.assertEqual(original.count(before), 1)
+            path.write_text(original.replace(before, after, 1))
+            with self.subTest(after=after), self.assertRaisesRegex(ValueError, "shared FIFO reset"):
+                B.verify_reset_synchronizers(project)
+        path.write_text(original)
+        self.assertEqual(B.verify_reset_synchronizers(project)["fifo_peer_cdc_ingresses"], 2)
+
     def test_reset_repair_rejects_unknown_vendor_files_inventory_links_and_profile(self):
         _, directory, _ = self.reset_timing_fixture()
         path = directory / "project/generated-0/altera_reset_controller.sdc"

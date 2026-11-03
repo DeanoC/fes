@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 import re
 
-POLICY = "shared-fifo-reset-release-v1"
+POLICY = "shared-fifo-reset-release-v2"
 ORIGINAL_SHA256 = {
     "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ctrl_cdc/mm_ccb_1941/synth/peripheral_subsys_fes_ctrl_cdc_mm_ccb_1941_evnq7wy.v": "327a7d7dfb1182ca0eba406788c3978e07e572ac83243937ca4f84de21949e56",
     "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_ctrl_cdc/mm_ccb_1941/synth/peripheral_subsys_fes_ctrl_cdc_mm_ccb_st_dc_fifo_1941_gbaclly.v": "60cccc095ab3f6f3281b15f10b02ba2efe6cb52ade7a3c943d973eb7e416e91d",
@@ -93,6 +93,49 @@ def instance_ports(text, name):
             re.findall(r"\.(\w+)\s*\(([^()]*|~[^()]*)\)", match[1])}
 
 
+def reset_functional_state_from_parent(text):
+    """Keep each side's parent as its sole asynchronous functional reset.
+
+    The shared five-edge flag then holds the original reset values synchronously.
+    Pinned input hashes and the complete block inventory precede every write.
+    """
+    masked = re.sub(r'//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\])*"',
+                    lambda match: " " * len(match[0]), text, flags=re.S)
+    pattern = (r'always\s*@\(\s*posedge\s+(in_clk|out_clk)\s+or\s+negedge\s+'
+               r'(internal_in_sclr_n|internal_out_sclr_n)\s*\)\s*begin\s*'
+               r'(?P<initial_if>if\s*\(\s*[!~]\s*\2\s*\)\s*)')
+    matches = list(re.finditer(pattern, masked))
+    require([sum(m[1] == clock for m in matches) for clock in ("in_clk", "out_clk")] == [8, 8],
+            "functional reset block inventory differs")
+    for match in reversed(matches):
+        clock, delayed = match[1], match[2]
+        require(delayed == ("internal_in_sclr_n" if clock == "in_clk" else "internal_out_sclr_n"),
+                "functional reset clock/polarity differs")
+        parent = "in_reset_n" if clock == "in_clk" else "out_reset_n"
+        cursor = match.end()
+        while masked[cursor].isspace():
+            cursor += 1
+        if masked[cursor:cursor + 5] == "begin":
+            depth, stop = 0, None
+            for token in re.finditer(r'\bbegin\b|\bend\b', masked[cursor:]):
+                depth += 1 if token[0] == "begin" else -1
+                if depth == 0:
+                    stop = cursor + token.end()
+                    break
+            require(stop is not None, "unterminated functional reset body")
+        else:
+            stop = masked.index(";", cursor) + 1
+        reset_body = text[cursor:stop]
+        prefix = text[match.start():match.start("initial_if")]
+        prefix = re.sub(r'negedge\s+' + delayed, 'negedge ' + parent, prefix, count=1)
+        replacement = (prefix + "if (!" + parent + ") " + reset_body + " else " +
+                       text[match.start("initial_if"):match.end()])
+        text = text[:match.start()] + replacement + text[match.end():]
+    require(not re.search(r'negedge\s+internal_(?:in|out)_sclr_n', text),
+            "delayed flag still drives an asynchronous functional reset")
+    return text
+
+
 def derive(originals):
     """Return the eleven derived files from the exact pinned Quartus inputs."""
     require(set(originals) == set(ORIGINAL_SHA256), "generated file inventory differs")
@@ -116,6 +159,7 @@ def derive(originals):
     assign internal_out_sclr = fes_shared_out_reset;
     assign internal_in_sclr_n = ~internal_in_sclr;
     assign internal_out_sclr_n = ~internal_out_sclr;''' + text[match.end():]
+        text = reset_functional_state_from_parent(text)
         changed[leaf] = replace_once(text, "    wire reset_merged;", "").encode()
         wrappers = [name for name in originals if name.startswith(directory + "mm_ccb_1941/synth/")
                     and "_mm_ccb_st_dc_fifo_" in name]
@@ -160,19 +204,28 @@ def derive(originals):
                                      ("fes_shared_m0_reset", "fes_shared_" + m0 + "_reset")])
     _, _, body, _ = port_region(text)
     shared = '''
-    // Same reset OR and five-edge release as every original FIFO.
-    // Names retain the existing vendor SDC ingress constraints unchanged.
+    // Every FIFO side uses its own existing parent as the sole asynchronous reset.
+    // Shared flags retain the original five-edge effective reset release.
     wire fes_shared_system_reset, fes_shared_pixel_reset;
-    wire fes_shared_reset_merged = ~fes_scanout_system_reset_out_reset_reset |
-                                   ~fes_scanout_pixel_reset_out_reset_reset;
-    altera_reset_synchronizer #(.ASYNC_RESET(1'b1), .DEPTH(4)) write_reset_sync (
-        .clk(periph_clk_out_clk_clk), .reset_in(fes_shared_reset_merged),
+    fes_de25_fifo_reset_delay write_reset_sync (
+        .clk(periph_clk_out_clk_clk), .local_reset(~fes_scanout_system_reset_out_reset_reset), .peer_reset(~fes_scanout_pixel_reset_out_reset_reset),
         .reset_out(fes_shared_system_reset));
-    altera_reset_synchronizer #(.ASYNC_RESET(1'b1), .DEPTH(4)) read_reset_sync (
-        .clk(fes_pixel_clk_out_clk_clk), .reset_in(fes_shared_reset_merged),
+    fes_de25_fifo_reset_delay read_reset_sync (
+        .clk(fes_pixel_clk_out_clk_clk), .local_reset(~fes_scanout_pixel_reset_out_reset_reset), .peer_reset(~fes_scanout_system_reset_out_reset_reset),
         .reset_out(fes_shared_pixel_reset));
 '''
-    changed[PARENT] = (text[:body] + shared + text[body:]).encode()
+    delay = '''
+// Only peer reset enters the first data stage. Local parent assertion resets
+// all delay flags and functional state together; its release stays timed.
+module fes_de25_fifo_reset_delay(input wire clk,local_reset,peer_reset,output wire reset_out);
+(* preserve, dont_merge, async_reg="true", altera_attribute="-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *)
+reg [4:0] release_pipe=5'b11111;
+always @(posedge clk or posedge local_reset) if(local_reset) release_pipe<=5'b11111;
+    else release_pipe<={release_pipe[3:0],peer_reset};
+assign reset_out=release_pipe[4];
+endmodule
+'''
+    changed[PARENT] = (text[:body] + shared + text[body:] + delay).encode()
     require(set(changed) == set(originals), "derived file inventory differs")
     return changed
 
@@ -194,7 +247,10 @@ def checked_file(root, name):
 
 def receipt(inputs, originals, derived):
     return {"policy": POLICY, "inputs_sha256": sha(inputs), "receiving_clocks_hz": [100000000, 74250000],
-            "release_edges": 5, "physical_sharing_acceptance": "separate fitted evidence required",
+            "release_edges": 5, "functional_async_reset": "existing local parent only",
+            "delayed_reset": "five-edge flag; synchronous functional hold",
+            "peer_reset_ingress": "first data stage only; local reset and later stages timed",
+            "physical_sharing_acceptance": "separate fitted evidence required",
             "files": {name: {"before_sha256": sha(originals[name]), "after_sha256": sha(derived[name])}
                       for name in sorted(originals)}}
 

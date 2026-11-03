@@ -128,7 +128,8 @@ acceptance require the configured Pro installation and a DE25-Nano board.
 The board definition lives in
 [`mister-packages`](../mister-packages/packages/board/de25_nano.yaml).
 The separate canonical DE25 MENU producer shares the four bridge FIFOs'
-five-edge reset releases through one pipeline per receiving clock. It checks
+five-edge reset releases through one flag pipeline per receiving clock; each
+FIFO side keeps its local parent as its sole asynchronous functional reset. It checks
 and retains the eleven exact generated inputs and verifies the derived wiring
 before and after compilation. Existing reset SDCs stay unchanged. This source
 repair does not close the remaining reset or HDMI signoff findings; package

@@ -23,7 +23,7 @@ LOCAL = ("build.py", "linux_dma.py", "hdmi_inputs.py", "shared_resets.py", "inte
          "generated/fes_de25_scanout.vh", "generated/fes_de25_scanout.h")
 TIMED_RESET_RELEASE = "timed-system-reset-release-v3"
 MANAGED_FABRIC = "managed-scanout-initiators-v3"
-SHARED_FIFO_RESETS = "shared-fifo-reset-release-v1"
+SHARED_FIFO_RESETS = "shared-fifo-reset-release-v2"
 RESET_SDC_SHA256 = "8834ac8de6421bc2c052c2ac8d7a71127477590111c6daab3bf9c8623501d769"
 TIMED_RESET_INSTANCES = ("soc_inst|rst_controller", "soc_inst|subsys_periph|rst_controller",
                          "soc_inst|rst_controller_002")
@@ -93,7 +93,24 @@ def timed_scanout_sdc(source):
                 "altera_reset_synchronizer_int_chain[" + str(stage) + "]|" + pin, "")
     source = replace_once(source, "$scanout_clear_count != 6", "$scanout_clear_count != 4")
     source = replace_once(source, "(expected 6)", "(expected 4)")
-    return replace_once(source, "exactly six configuration", "exactly four configuration")
+    source = replace_once(source, "exactly six configuration", "exactly four configuration")
+    return source + FIFO_RESET_SDC
+
+
+# Canonical MENU only: the two peer reset levels enter the first delay D.
+# Local parent release and every interstage/functional consumer remain timed.
+FIFO_RESET_SDC = """
+# FIFO release data crossings: only peer source to first D.
+foreach {source head} {
+ {soc_inst|rst_controller_001|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out} {soc_inst|subsys_periph|write_reset_sync|release_pipe[0]|d}
+ {soc_inst|rst_controller_002|alt_rst_sync_uq1|altera_reset_synchronizer_int_chain_out} {soc_inst|subsys_periph|read_reset_sync|release_pipe[0]|d}
+} {
+ set fifo_peer_source [get_registers $source]
+ set fifo_peer_head [get_pins -compatibility_mode -nocase -nowarn $head]
+ if {[get_collection_size $fifo_peer_source]!=1 || [get_collection_size $fifo_peer_head]!=1} {error "FIFO peer reset ingress changed"}
+ set_false_path -from $fifo_peer_source -to $fifo_peer_head
+}
+"""
 
 
 def timed_vendor_reset_sdc(original, *, timed_instances=TIMED_RESET_INSTANCES):
@@ -470,14 +487,19 @@ def verify_reset_synchronizers(project):
                 target not in sdc or
                 f"if{{[get_collection_size$scanout_{name}_source]!=1||[get_collection_size$scanout_{name}_head]!=1}}" not in sdc):
             raise ValueError("scanout registered " + name + " source to stage0 D changed")
+    timed_system = timed_reset_release(json.loads((project.parent / "inputs.json").read_text()))
+    fifo_sdc = compact(re.sub(r"#[^\n]*", "", FIFO_RESET_SDC))
+    if (sdc.count(fifo_sdc) != (1 if timed_system else 0)):
+        raise ValueError("scanout shared FIFO reset requires exactly two peer-to-first-D crossings")
     allowed_cuts = ["set_false_path -to $scanout_aclr", "set_false_path -to $scanout_clrn",
                     "set_false_path -from $hdmi_input -to $hdmi_input_head",
                     "set_false_path -from $retained_source -to $retained_head"] + [
         f"set_false_path -from $scanout_{name}_source -to $scanout_{name}_head" for name in ("fault", "visible", "ready")]
+    if timed_system:
+        allowed_cuts.append("set_false_path -from $fifo_peer_source -to $fifo_peer_head")
     cuts = [" ".join(v.split()) for v in re.findall(r"set_false_path[^;\n}]*", raw)]
     if sorted(cuts) != sorted(allowed_cuts) or any(cmd in sdc for cmd in ("set_clock_groups", "set_disable_timing", "set_multicycle_path")):
         raise ValueError("scanout SDC must cut only reviewed ingress; interstage/consumer paths stay timed")
-    timed_system = timed_reset_release(json.loads((project.parent / "inputs.json").read_text()))
     controllers = ("rst_controller_001",) if timed_system else ("rst_controller_001", "rst_controller_002")
     for pin in ("aclr", "clrn"):
         targets = {f"fes_video_inst|config_reset|sync_regs*|{pin}"} | {
@@ -493,7 +515,8 @@ def verify_reset_synchronizers(project):
             "assertion": "asynchronous", "deassertion": "synchronous per domain",
             "hdmi_data_de_gate": "retained pixel data; immediate qualification blanking and complete-sync rearm",
             "visibility_protocol": "retained-fault-token-v1", "fault_latency_system_edges": 3,
-            "readiness_loss_pixel_edges": 3, "retained_cdc_ingresses": len(crossings), "sdc_clear_pins": clear_pins}
+            "readiness_loss_pixel_edges": 3, "retained_cdc_ingresses": len(crossings),
+            "fifo_peer_cdc_ingresses": 2 if timed_system else 0, "sdc_clear_pins": clear_pins}
 
 
 def endpoint_build_identity(project, endpoint, hps, expected):
