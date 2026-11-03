@@ -273,6 +273,25 @@ func (r *FileRepository) Read() (s State, err error) {
 	err = r.withLock("state.lock", false, func() error { s, err = r.read(); return err })
 	return
 }
+
+// CompactReceipts prunes an existing ledger without waiting for the next
+// mutation, and writes only when that removes a receipt.
+func (r *FileRepository) CompactReceipts() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.withLock("state.lock", false, func() error {
+		s, err := r.read()
+		if err != nil {
+			return err
+		}
+		before := len(s.Receipts)
+		pruneReceipts(&s)
+		if len(s.Receipts) == before {
+			return nil
+		}
+		return r.write(s)
+	})
+}
 func (r *FileRepository) Update(fn func(*State) error) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

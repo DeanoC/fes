@@ -127,9 +127,10 @@ Only a pending queued operation can be cancelled. A service replacement already
 underway retains its maintenance ownership through completion or recovery.
 Mutations are sent once. If a response is lost, inspect status and the release
 inventory before repeating it. A matching completed receipt identifies the
-outcome; a newer generation rejects stale changes. The supervisor keeps every
-receipt for the current generation, the unreleased completion's, and the 64
-newest older ones. A replay of an older operation is refused as a conflict. The client dials with a
+outcome; a newer generation rejects stale changes. The supervisor keeps the
+receipts of the current generation and of the 64 newest older generations, and
+the unreleased completion's. A replay of an older operation is refused as a
+conflict. Its ID is forgotten, so always send a fresh request ID. The client dials with a
 10 second connect timeout and keeps `--timeout` (15 minutes by default) as
 the whole-operation deadline. After the request body is written it waits at
 most five minutes for response headers. Health, status, and list retry a
