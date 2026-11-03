@@ -86,6 +86,14 @@ def configuration(project):
     return _worker(project, 'configuration')
 
 
+def program_platform(project):
+    return _worker(project, 'program-platform')
+
+
+def selected_program(project):
+    return _worker(project, 'selected-program')
+
+
 def reader_memory(project):
     return _worker(project, 'reader-memory')
 
@@ -429,6 +437,76 @@ def _fabric_stop_inventory(project):
     return proof
 
 
+def _program_parameters(project):
+    """Read the complete fixed HPS/EMIF recipe without rewriting its review.
+
+    These are source compatibility assertions, not live memory qualification.
+    New personas retain the board's existing HPS subsystem and DDR settings.
+    """
+    hps = Path(project)/'board/hps'
+    record = json.loads((hps/'inputs.json').read_text())
+    expected = json.loads(json.dumps(record['vendor_hps_emif_parameters']))
+    hps_ip = 'hps_subsys/ip/hps_subsys/agilex_hps.ip'
+    names = {hps_ip, 'hps_subsys/ip/hps_subsys/f2sdram_adapter.ip',
+             'hps_subsys/ip/qsys_top/emif_io96b_hps.ip'}
+    if set(expected) != names or expected[hps_ip].get('f2s_data_width') != '256':
+        raise ValueError('complete pinned HPS/EMIF parameter inventory required')
+    expected[hps_ip]['f2s_data_width'] = '0'
+    defaults = ('ED_en_sim_gen', 'FPGA_EMAC0_tx_clk_en', 'FPGA_EMAC1_tx_clk_en',
+                'FPGA_EMAC2_tx_clk_en', 'FPGA_EMAC_PTP_clk_en')
+    if any(key in expected[hps_ip] for key in defaults):
+        raise ValueError('pinned HPS parameter defaults changed')
+    expected[hps_ip].update({key: 'true' for key in defaults})
+    ns = {'ip': 'http://www.accellera.org/XMLSchema/IPXACT/1685-2014',
+          'altera': 'http://www.altera.com/XMLSchema/IPXact2014/extensions'}
+    observed = {}
+    for name in sorted(names):
+        path = hps/'project'/name
+        if any(p.is_symlink() for p in (path, *path.parents)) or not 0 < path.stat().st_size <= 2<<20:
+            raise ValueError('private bounded HPS/EMIF parameter source required')
+        tree = ET.fromstring(path.read_bytes())
+        rows = [('', item) for item in tree.findall('.//altera:altera_module_parameters/ip:parameters/ip:parameter', ns)]
+        for module in tree.findall('.//altera:sub_module', ns):
+            prefix = module.get('{'+ns['altera']+'}name')
+            if not prefix:
+                raise ValueError('missing HPS/EMIF submodule name')
+            rows.extend(('submodule/'+prefix+'/', item) for item in module.findall('ip:parameters/ip:parameter', ns))
+        values = {}
+        for prefix, item in rows:
+            key = item.get('parameterId')
+            if not key or prefix+key in values:
+                raise ValueError('duplicate or missing HPS/EMIF parameter')
+            values[prefix+key] = item.findtext('ip:value', namespaces=ns) or ''
+        if values != expected[name]:
+            raise ValueError('HPS/EMIF parameters differ from the fixed compiled board recipe: '+name)
+        observed[name] = values
+    return observed
+
+
+def _program_platform(project, context=None):
+    context = _derive(project) if context is None else context
+    if context['programming_profile'] != 'de25-embedded-hps-first-ddr-diagnostic-v1':
+        raise ValueError('selected programs require the complete contained DDR-shell inventory')
+    parameters = _program_parameters(project)
+    pinmux = _hps_io(project)
+    inventory = _fabric_stop_inventory(Path(project))
+    platform = {key: context[key] for key in ('platform', 'device', 'programming_profile',
+                'abi', 'abi_major', 'abi_minor', 'control_abi', 'hps_io_hash', 'pfg_identity')}
+    platform.update(format=1, scope='nano-contained-program-platform-v1',
+                    hps_parameters_sha256=digest(parameters), hps_handoff_sha256=pinmux['handoff_sha256'],
+                    master_inventory_sha256=digest(inventory))
+    return {'format': 1, 'scope': 'nano-program-platform-source-v1',
+            'boot_context_sha256': digest(context), 'platform': platform}
+
+
+def _selected_program(project):
+    context = _derive(project)
+    return {'format': 1, 'scope': 'nano-selected-program-v1',
+            'package_id': context['package_id'], 'build_id': context['build_id'],
+            'platform': _program_platform(project, context)['platform'],
+            'control': _control(project), 'computer': _computer(project)}
+
+
 def checked(record, program_key='program'):
     keys = ('hps_context', 'hps_context_sha256', 'hps_project')
     if all(record.get(key) is None for key in keys):
@@ -557,8 +635,29 @@ def checked_computer(record, program_key='program'):
     return expected
 
 
+def checked_program_platform(record, program_key='program'):
+    selected = record.get('selected_programs', False)
+    keys = ('hps_program_platform', 'hps_program_platform_sha256')
+    if type(selected) is not bool:
+        raise ValueError('selected program mode requires an explicit boolean')
+    if not selected:
+        if any(record.get(key) is not None for key in keys):
+            raise ValueError('program platform requires selected program mode')
+        return None
+    if (record.get(program_key) != 'fpgaload' or checked_computer(record, program_key) is None or
+            record.get('computer_reload', False) and not record.get('computer_storage_return', False)):
+        raise ValueError('selected programs require the contained computer and fresh SD returns')
+    expected = program_platform(record['hps_project'])
+    if record.get(keys[0]) != expected or record.get(keys[1]) != digest(expected):
+        raise ValueError('program platform differs from the compiled boot source')
+    return expected
+
+
 if __name__ == '__main__':
-    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in ('control','configuration','package','reader-memory','ddr-read','computer','hps-io'):
-        raise SystemExit('usage: hps_context.py SEALED_PROJECT [control|configuration|package|reader-memory|ddr-read|computer|hps-io]')
-    action=_derive if len(sys.argv)==2 else {'control':_control,'configuration':_configuration,'package':_package,'reader-memory':_reader_memory,'ddr-read':_ddr_read,'computer':_computer,'hps-io':_hps_io}[sys.argv[2]]
+    actions = {'control': _control, 'configuration': _configuration, 'package': _package,
+               'reader-memory': _reader_memory, 'ddr-read': _ddr_read, 'computer': _computer,
+               'hps-io': _hps_io, 'program-platform': _program_platform, 'selected-program': _selected_program}
+    if len(sys.argv) not in (2,3) or len(sys.argv)==3 and sys.argv[2] not in actions:
+        raise SystemExit('usage: hps_context.py SEALED_PROJECT ['+'|'.join(actions)+']')
+    action = _derive if len(sys.argv)==2 else actions[sys.argv[2]]
     sys.stdout.buffer.write(encode(action(sys.argv[1])))

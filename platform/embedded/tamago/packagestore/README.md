@@ -1,5 +1,13 @@
 # Retained packages from owned storage
 
+`Request.MetadataPath` and `MetadataSHA256` optionally select an integrity-bound
+attachment of at most 16 KiB. The store closes the file and retains private bytes
+with the same prepared SD lease; `Selection.Metadata` returns a copy. Missing,
+changed, oversized or invalid metadata leaves healthy storage active and never
+publishes a partial selection. The native program loader interprets this
+attachment and checks its package/platform binding before containment. Retention
+alone grants no compatibility or hardware permission.
+
 `Store` reads canonical packages through `fs.FS`, using the existing FogCast
 `corepackage` validator and ROM linker. It accepts read-only FAT32 and holds an
 exclusive `sdcontrol.Session` lease. No writable fixture file, Linux filesystem

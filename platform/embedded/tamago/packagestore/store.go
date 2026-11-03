@@ -6,6 +6,7 @@
 package packagestore
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -42,6 +43,7 @@ type Source struct{ ID, Role, Path, SHA256 string }
 type Part struct{ ID, Path, SHA256 string }
 type Request struct {
 	Path, PackageID, ReceiptSHA256 string
+	MetadataPath, MetadataSHA256   string
 	Sources                        []Source
 	Parts                          []Part
 }
@@ -67,6 +69,17 @@ type Selection struct {
 	generation uint64
 	archive    *corepackage.Archive
 	linked     *corepackage.LinkedArchive
+	metadata   []byte
+}
+
+// Metadata is a private copy of a bounded, explicitly selected attachment. Its
+// digest is an integrity assertion; the runtime must validate its package and
+// platform binding before it can influence a launch.
+func (p *Selection) Metadata() []byte {
+	if p == nil {
+		return nil
+	}
+	return bytes.Clone(p.metadata)
 }
 
 func (p *Selection) Archive() *corepackage.Archive {
@@ -270,6 +283,10 @@ func (s *Store) Retain(ctx context.Context, request Request) (selection *Selecti
 	if !pathOK(request.Path) || !digest(request.PackageID) || len(request.Sources) > 2 || len(request.Parts) > 2 {
 		return nil, ErrState
 	}
+	if (request.MetadataPath == "") != (request.MetadataSHA256 == "") ||
+		request.MetadataPath != "" && (!pathOK(request.MetadataPath) || !digest(request.MetadataSHA256)) {
+		return nil, ErrState
+	}
 	for _, v := range request.Sources {
 		if !pathOK(v.Path) || !digest(v.SHA256) {
 			return nil, ErrState
@@ -295,6 +312,12 @@ func (s *Store) Retain(ctx context.Context, request Request) (selection *Selecti
 		return nil, errors.New("package store: retained package differs from selection")
 	}
 	selection = &Selection{store: s, generation: s.last.Generation, archive: archive}
+	if request.MetadataPath != "" {
+		selection.metadata, err = readInput(ctx, s.files, request.MetadataPath, 16<<10, -1, request.MetadataSHA256)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if inspection.Descriptor.Format == 2 {
 		if len(request.Sources) != 0 || len(request.Parts) != 0 || request.ReceiptSHA256 != "" {
 			return nil, ErrState

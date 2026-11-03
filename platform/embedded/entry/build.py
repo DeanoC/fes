@@ -64,7 +64,8 @@ def main():
         parser.error("cross-prefix must be absolute and end in -")
     profile_bytes = receipt_bytes = None
     native_sources = None
-    native_context = native_io = native_cpu_map = native_control = native_configuration = native_reader_memory = native_ddr_read = native_computer = None
+    native_context = native_io = native_cpu_map = native_control = native_configuration = native_reader_memory = native_ddr_read = native_computer = native_program_platform = None
+    native_selected_programs = False
     native_reload = False
     native_storage_return = False
     if args.target == "qemu":
@@ -101,6 +102,8 @@ def main():
         native_cpu_map=hps.checked_cpu_mapping(receipt)
         native_ddr_read=hps.checked_ddr_read(receipt)
         native_computer=hps.checked_computer(receipt)
+        native_program_platform=hps.checked_program_platform(receipt)
+        native_selected_programs=receipt.get('selected_programs',False)
         native_reload=receipt.get('computer_reload',False)
         native_storage_return=receipt.get('computer_storage_return',False)
         command=receipt.get('command',[])
@@ -109,6 +112,8 @@ def main():
             raise ValueError('computer reload selection differs from the native link command')
         if native_storage_return!=('-X main.expectedComputerStorageReturn=1' in flags):
             raise ValueError('computer storage-return selection differs from the native link command')
+        if native_selected_programs!=('-X main.expectedSelectedPrograms=1' in flags):
+            raise ValueError('selected program mode differs from the native link command')
         if native_context is not None and base64.b64encode(hps.encode(native_context)) not in payload.read_bytes():
             raise ValueError('HPS context is absent from the selected native ELF')
         if native_io is not None and base64.b64encode(hps.encode(native_io)) not in payload.read_bytes():
@@ -123,6 +128,8 @@ def main():
             raise ValueError('DDR read contract is absent from the selected native ELF')
         if native_computer is not None and base64.b64encode(hps.encode(native_computer)) not in payload.read_bytes():
             raise ValueError('computer control contract is absent from the selected native ELF')
+        if native_program_platform is not None and base64.b64encode(hps.encode(native_program_platform)) not in payload.read_bytes():
+            raise ValueError('program platform is absent from the selected native ELF')
         if native_configuration is not None:
             package=hps.package_archive(receipt['hps_project'],native_configuration)
             if (receipt.get('configuration_core_sha256')!=native_configuration['core_sha256'] or
@@ -270,6 +277,9 @@ def main():
               "hps_computer_sha256":hps.digest(native_computer) if native_computer is not None else None,
               "computer_reload":native_reload,
               "computer_storage_return":native_storage_return,
+              "selected_programs":native_selected_programs,
+              "hps_program_platform":native_program_platform,
+              "hps_program_platform_sha256":hps.digest(native_program_platform) if native_program_platform is not None else None,
               "hps_project":receipt['hps_project'] if native_context is not None else None,
               "sources": frozen, "tools": tools, "environment": env, "commands": commands,
               "limitations": ["no physical Nano, DDR, peripheral, DMA, bridge or reset proof",

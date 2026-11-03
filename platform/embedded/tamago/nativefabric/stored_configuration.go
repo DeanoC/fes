@@ -11,8 +11,8 @@ import (
 	"github.com/DeanoC/fes/platform/embedded/tamago/sdcontrol"
 )
 
-// StoredConfigurationPlan binds one retained selection to the compiled cold
-// source before its store is contained. It supplies no hardware permission or
+// StoredConfigurationPlan binds one retained selection to its validated program
+// and immutable boot source before its store is contained. It supplies no hardware permission or
 // general runtime compatibility admission. Keep the plan, any returned transfer
 // and the platform reservation until reboot on an uncertain outcome.
 type StoredConfigurationPlan struct {
@@ -24,6 +24,7 @@ type storedConfigurationPlan struct {
 	mu                     sync.Mutex
 	consumed               bool
 	v                      *HPSContextVerifier
+	program                *selectedProgram
 	selection              *packagestore.Selection
 	control, configuration []byte
 	payload                []byte
@@ -70,7 +71,7 @@ func (p *StoredConfigurationPlan) NewTransfer(handoff *packagestore.Handoff, res
 
 // NewReconfigurationTransfer consumes a fresh plan after this verifier's own
 // successful computer return. It never resumes storage or treats the older SD
-// receipt as live FPGA authority. Secure rearming still checks the compiled core.
+// receipt as live FPGA authority. Secure rearming still checks the captured program.
 func (p *StoredConfigurationPlan) NewReconfigurationTransfer(handoff *packagestore.Handoff, reserve func([]byte) (*Region, error)) (*ConfigurationTransfer, HPSBootObservation, error) {
 	return p.newTransfer(handoff, reserve, true)
 }
@@ -127,7 +128,7 @@ func (plan *StoredConfigurationPlan) newTransfer(handoff *packagestore.Handoff, 
 	if err != nil {
 		return nil, HPSBootObservation{}, err
 	}
-	transfer, err := v.newSourceConfigurationTransfer(p.control, p.configuration, region, source, rearm)
+	transfer, err := v.newSourceConfigurationTransfer(p.control, p.configuration, region, source, rearm, p.program)
 	if err != nil {
 		return nil, HPSBootObservation{}, err
 	}

@@ -25,6 +25,7 @@ var expectedBootContext, expectedControlMap, expectedConfigurationMap, expectedR
 var expectedDDRReadMap string
 var expectedComputerMap, expectedComputerReload string
 var expectedComputerStorageReturn string
+var expectedProgramPlatform, expectedSelectedPrograms string
 var retained *nativefabric.ConfigurationTransfer
 
 func decoded(s string, limit int) []byte {
@@ -55,6 +56,18 @@ func main() {
 	}
 	id := v.Identity()
 	control, configuration := decoded(expectedControlMap, 8192), decoded(expectedConfigurationMap, 32768)
+	var loader *nativefabric.ProgramLoader
+	if expectedSelectedPrograms != "" {
+		if expectedSelectedPrograms != "1" || expectedComputerMap == "" || expectedDDRReadMap != "" || expectedComputerReload == "1" && expectedComputerStorageReturn != "1" {
+			panic("selected programs require contained computer control and fresh SD retention")
+		}
+		loader, err = nativefabric.NewProgramLoader(v, decoded(expectedProgramPlatform, 16384), control, configuration, decoded(expectedComputerMap, 8192))
+		if err != nil {
+			panic(err)
+		}
+	} else if expectedProgramPlatform != "" {
+		panic("program platform provided without selected program mode")
+	}
 	disk, err := board.OpenStorage()
 	if err != nil {
 		panic(err)
@@ -67,18 +80,42 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	var choices []packagestore.Request
+	if loader != nil {
+		choices, err = nativefabric.ReadProgramSelections(context.Background(), volume, "FES/CORESEL.JSN")
+		if err != nil {
+			panic(err)
+		}
+		count := 1
+		if expectedComputerReload == "1" {
+			count = 2
+		}
+		if len(choices) != count {
+			panic("program selection count differs from this bounded boot test")
+		}
+	}
 	store, err := packagestore.New(volume, lease)
 	if err != nil {
 		panic(err)
 	}
-	selection, err := store.Retain(context.Background(), packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID})
+	request := packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID}
+	if loader != nil {
+		request = choices[0]
+	}
+	selection, err := store.Retain(context.Background(), request)
 	if err != nil {
 		panic(err)
 	}
-	plan, err := v.PreflightStoredConfiguration(control, configuration, selection)
+	var plan *nativefabric.StoredConfigurationPlan
+	if loader != nil {
+		plan, err = loader.Preflight(selection)
+	} else {
+		plan, err = v.PreflightStoredConfiguration(control, configuration, selection)
+	}
 	if err != nil {
 		panic(err)
 	}
+	id = plan.Identity()
 	handoff, err := store.Contain(selection)
 	if err != nil {
 		panic(err)
@@ -107,7 +144,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	afterResources, err := v.Verify(id)
+	afterResources, err := v.Verify(v.Identity())
 	if err != nil {
 		panic(err)
 	}
@@ -132,8 +169,8 @@ func main() {
 			if count == 2 {
 				fmt.Printf("FES_NATIVE_FPGA_CYCLE BEGIN cycle=%d count=2 owner=%x generation=%d\n", cycle, source.Bridges.Owner, source.Bridges.Generation)
 			}
-			program(v, configuration, source)
-			if err := probeComputer(v, control, mapping); err != nil {
+			program(v, loader, configuration, source)
+			if err := probeComputer(v, loader, control, mapping); err != nil {
 				panic(err)
 			}
 			if count == 2 {
@@ -141,7 +178,7 @@ func main() {
 			}
 			if cycle < count {
 				if expectedComputerStorageReturn == "1" {
-					returned, err := v.Verify(id)
+					returned, err := v.Verify(v.Identity())
 					if err != nil {
 						panic(err)
 					}
@@ -156,14 +193,23 @@ func main() {
 					}
 					fmt.Printf("FES_NATIVE_STORAGE_RETURN ACTIVE owner=%x generation=%d return_generation=%d writes=disabled\n",
 						active.Owner, active.Generation, returned.Bridges.Generation)
-					selection, err = store.Retain(context.Background(), packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID})
+					request = packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: id.PackageID}
+					if loader != nil {
+						request = choices[cycle]
+					}
+					selection, err = store.Retain(context.Background(), request)
 					if err != nil {
 						panic(err)
 					}
-					plan, err = v.PreflightStoredConfiguration(control, configuration, selection)
+					if loader != nil {
+						plan, err = loader.Preflight(selection)
+					} else {
+						plan, err = v.PreflightStoredConfiguration(control, configuration, selection)
+					}
 					if err != nil {
 						panic(err)
 					}
+					id = plan.Identity()
 					handoff, err = store.Contain(selection)
 					if err != nil {
 						panic(err)
@@ -188,7 +234,7 @@ func main() {
 		}
 		return
 	}
-	program(v, configuration, source)
+	program(v, loader, configuration, source)
 	var observed nativefabric.FPGAIdentityObservation
 	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
 		if expectedDDRReadMap != "" {
@@ -221,8 +267,11 @@ func main() {
 
 // One fixed transfer keeps the original deadline and retirement behavior.
 // The global transfer and board arena retain uncertain source/DMA ownership.
-func program(v *nativefabric.HPSContextVerifier, configuration []byte, source nativefabric.HPSBootObservation) {
-	id := v.Identity()
+func program(v *nativefabric.HPSContextVerifier, loader *nativefabric.ProgramLoader, configuration []byte, source nativefabric.HPSBootObservation) {
+	id, ok := retained.ProgramIdentity()
+	if !ok {
+		panic("configuration lacks its retained program identity")
+	}
 	size := retained.Status().RetainedBytes
 	fmt.Printf("FES_NATIVE_HPS_CONTEXT PASS sha256=%s package_id=%s build_id=%s owner=%x generation=%d runtime_programming=unavailable\n",
 		hex.EncodeToString(source.Digest[:]), id.PackageID, id.BuildID, source.Bridges.Owner, source.Bridges.Generation)
@@ -232,7 +281,13 @@ func program(v *nativefabric.HPSContextVerifier, configuration []byte, source na
 			return
 		}
 		if status := retained.Status(); status.Failed && status.Outstanding > 0 {
-			observation, err := v.RetireConfiguration(retained, source, configuration)
+			var observation nativefabric.ConfigurationRetirement
+			var err error
+			if loader != nil {
+				observation, err = loader.RetireConfiguration(retained, source)
+			} else {
+				observation, err = v.RetireConfiguration(retained, source, configuration)
+			}
 			if err != nil {
 				fmt.Printf("FES_NATIVE_FPGA_RETIRE REJECT error=%v retained=%d\n", err, status.RetainedBytes)
 			} else {
@@ -267,7 +322,7 @@ func program(v *nativefabric.HPSContextVerifier, configuration []byte, source na
 		}
 	}
 	status := retained.Status()
-	after, err := v.Verify(id)
+	after, err := v.Verify(v.Identity())
 	if err != nil || after != source || status.AcceptedBytes != size || status.CompletedBytes != size || status.Outstanding != 0 || !status.Done || status.Failed {
 		panic("FPGA configuration did not retain closed source ownership")
 	}
@@ -275,12 +330,20 @@ func program(v *nativefabric.HPSContextVerifier, configuration []byte, source na
 		id.PackageID, id.ProgrammedSHA256, size, source.Bridges.Owner, source.Bridges.Generation)
 }
 
-func probeComputer(v *nativefabric.HPSContextVerifier, control, mapping []byte) (err error) {
+func probeComputer(v *nativefabric.HPSContextVerifier, loader *nativefabric.ProgramLoader, control, mapping []byte) (err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	s, err := v.OpenComputer(ctx, control, mapping, retained, computer.Limits{
-		Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: runtime.Gosched,
-	})
+	limits := computer.Limits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: runtime.Gosched}
+	var s *nativefabric.ComputerSession
+	if loader != nil {
+		s, err = loader.OpenComputer(ctx, retained, limits)
+	} else {
+		s, err = v.OpenComputer(ctx, control, mapping, retained, limits)
+	}
+	id, valid := retained.ProgramIdentity()
+	if !valid {
+		return errors.New("computer lacks its selected program identity")
+	}
 	if err != nil {
 		return err
 	}
@@ -289,7 +352,7 @@ func probeComputer(v *nativefabric.HPSContextVerifier, control, mapping []byte) 
 		err = errors.Join(err, cleanup)
 		if err == nil && observed.HoldAcknowledged {
 			fmt.Printf("FES_NATIVE_COMPUTER_CONTROL PASS package_id=%s build_id=%s base=%x map_sha256=%x owner=%x generation=%d held_ack=1 data_held=1 execution_observed=1 runtime_admission=unavailable\n",
-				v.Identity().PackageID, v.Identity().BuildID, observed.CPUBase, observed.MapSHA256,
+				id.PackageID, id.BuildID, observed.CPUBase, observed.MapSHA256,
 				observed.After.Owner, observed.After.Generation)
 		}
 	}()

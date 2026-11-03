@@ -54,6 +54,7 @@ def entry(entry_build):
     hps_context.checked_cpu_mapping(receipt,program_key='native_program')
     hps_context.checked_ddr_read(receipt,program_key='native_program')
     hps_context.checked_computer(receipt,program_key='native_program')
+    hps_context.checked_program_platform(receipt,program_key='native_program')
     if context is not None and profile.name!=('sd-profile.json' if receipt.get('native_program')=='fpgaload' else 'probe-profile.json'):
         raise ValueError('HPS context diagnostic requires its source-derived serial/SD profile')
     if configuration is not None and [configuration['base'],configuration['base']+configuration['size']] not in receipt.get('staging_exclusions',[]):

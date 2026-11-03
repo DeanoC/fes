@@ -222,6 +222,11 @@ def build(args):
     computer_storage_return=getattr(args,'computer_storage_return',False)
     if type(computer_storage_return) is not bool or computer_storage_return and not computer_reload:
         raise ValueError('--computer-storage-return requires the selected two-load computer diagnostic')
+    selected_programs=getattr(args,'selected_programs',False)
+    if (type(selected_programs) is not bool or selected_programs and
+            (not computer_control or computer_reload and not computer_storage_return)):
+        raise ValueError('--selected-programs requires computer control and fresh SD retention between multiple loads')
+    program_platform=program_metadata=None
     package_archive=None
     hps_project=getattr(args,'hps_first_project',None)
     if args.program in ('bootcontext','hpsio','fpgacontext','fpgastatus','fpgaload'):
@@ -240,6 +245,9 @@ def build(args):
             cpu_map=hps.cpu_mapping(control_map,configuration_map,reader_memory_map)
             if active_ddr:ddr_read_map=hps.ddr_read(hps_project)
             if computer_control:computer_map=hps.computer(hps_project)
+            if selected_programs:
+                program_platform=hps.program_platform(hps_project)
+                program_metadata=hps.selected_program(hps_project)
             package_archive=hps.package_archive(hps_project,configuration_map)
             arena_start,arena_end=configuration_map['base'],configuration_map['base']+configuration_map['size']
             exclusions=[(start,start+size),(0x94000000,0x94800000)]+[(r['start'],r['start']+r['size']) for r in profile['reserved']]
@@ -266,6 +274,14 @@ def build(args):
     if reader_memory_map is not None:(output/'hps-reader-memory.json').write_bytes(hps.encode(reader_memory_map))
     if ddr_read_map is not None:(output/'hps-ddr-read.json').write_bytes(hps.encode(ddr_read_map))
     if computer_map is not None:(output/'hps-computer.json').write_bytes(hps.encode(computer_map))
+    if program_platform is not None:
+        (output/'program-platform.json').write_bytes(hps.encode(program_platform))
+        metadata=hps.encode(program_metadata)
+        (output/'PROGRAM.JSN').write_bytes(metadata)
+        request={'path':'FES/PKGTEST.BIN','package_id':context['package_id'],
+                 'metadata_path':'FES/PROGRAM.JSN','metadata_sha256':hashlib.sha256(metadata).hexdigest()}
+        choices={'format':1,'scope':'nano-program-selection-v1','programs':[request]*(2 if computer_reload else 1)}
+        (output/'CORESEL.JSN').write_bytes(hps.encode(choices))
     uart_base = 0x10c02000 + uart_index * 0x100
     generated = output / "profile.go"
     generated.write_text("//go:build tamago && arm64 && de25nano\n\npackage de25nano\nconst (\n" +
@@ -343,6 +359,9 @@ def build(args):
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
     if computer_reload:link_flags+=' -X main.expectedComputerReload=1'
     if computer_storage_return:link_flags+=' -X main.expectedComputerStorageReturn=1'
+    if program_platform is not None:
+        link_flags+=' -X main.expectedProgramPlatform='+base64.b64encode(hps.encode(program_platform)).decode()
+        link_flags+=' -X main.expectedSelectedPrograms=1'
     command = [str(compiler), "build", *options, "-trimpath", "-ldflags", link_flags, "-o", str(elf), "./cmd/" + args.program]
     with (output / "build.log").open("w") as log:
         subprocess.run(command, cwd=APP, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -366,6 +385,9 @@ def build(args):
     if computer_map is not None and (hps.computer(hps_project)!=computer_map or
             base64.b64encode(hps.encode(computer_map)) not in data):
         raise ValueError('sealed computer control changed or was not linked into the native image')
+    if program_platform is not None and (hps.program_platform(hps_project)!=program_platform or
+            hps.selected_program(hps_project)!=program_metadata or base64.b64encode(hps.encode(program_platform)) not in data):
+        raise ValueError('compiled program platform or example selected metadata changed')
     if sources != {str(p.relative_to(ROOT)): sha(p) for p in sorted(files)}:
         raise ValueError("sources changed while building")
     report = {"status": "cross-built", "board": "de25-nano", "program": args.program,
@@ -380,6 +402,8 @@ def build(args):
               "hps_computer":computer_map,"hps_computer_sha256":hps.digest(computer_map) if computer_map else None,
               "computer_reload":computer_reload,
               "computer_storage_return":computer_storage_return,
+              "selected_programs":selected_programs,
+              "hps_program_platform":program_platform,"hps_program_platform_sha256":hps.digest(program_platform) if program_platform else None,
               "configuration_core_sha256":configuration_map["core_sha256"] if configuration_map else None,
               "configuration_package_sha256":hashlib.sha256(package_archive).hexdigest() if package_archive is not None else None,
               "configuration_package_size":len(package_archive) if package_archive is not None else None,

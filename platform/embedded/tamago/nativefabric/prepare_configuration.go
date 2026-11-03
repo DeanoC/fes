@@ -98,21 +98,18 @@ func checkConfigurationBytes(m coldConfigurationMap, data []byte) error {
 // compiled sealed map. Preparation rechecks the staged bytes and original held
 // source immediately before START. This grants no runtime admission or release.
 func (v *HPSContextVerifier) NewColdConfigurationTransfer(control, configuration []byte, region *Region, source HPSBootObservation) (*ConfigurationTransfer, error) {
-	return v.newSourceConfigurationTransfer(control, configuration, region, source, false)
+	return v.newSourceConfigurationTransfer(control, configuration, region, source, false, nil)
 }
 
 // NewReconfigurationTransfer uses the same sealed bytes after an owned return.
 // Its region must carry a fresh platform lease; it never reuses or releases a
 // previous transfer's reservation. Secure rearming is deferred until START.
 func (v *HPSContextVerifier) NewReconfigurationTransfer(control, configuration []byte, region *Region, source HPSBootObservation) (*ConfigurationTransfer, error) {
-	return v.newSourceConfigurationTransfer(control, configuration, region, source, true)
+	return v.newSourceConfigurationTransfer(control, configuration, region, source, true, nil)
 }
 
-func (v *HPSContextVerifier) newSourceConfigurationTransfer(control, configuration []byte, region *Region, source HPSBootObservation, rearm bool) (*ConfigurationTransfer, error) {
-	if _, err := v.checkedControlMap(control); err != nil {
-		return nil, err
-	}
-	m, err := v.configurationMap(configuration)
+func (v *HPSContextVerifier) newSourceConfigurationTransfer(control, configuration []byte, region *Region, source HPSBootObservation, rearm bool, program *selectedProgram) (*ConfigurationTransfer, error) {
+	m, err := v.programConfiguration(control, configuration, program)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +123,7 @@ func (v *HPSContextVerifier) newSourceConfigurationTransfer(control, configurati
 	}
 	control, configuration = bytes.Clone(control), bytes.Clone(configuration)
 	beforeStart := func() error {
-		prepared, err := v.prepareConfiguration(control, configuration, region, rearm)
+		prepared, err := v.prepareProgramConfiguration(control, configuration, region, rearm, program)
 		if err != nil {
 			return err
 		}
@@ -139,7 +136,7 @@ func (v *HPSContextVerifier) newSourceConfigurationTransfer(control, configurati
 	if err != nil {
 		return nil, err
 	}
-	transfer.binding = &configurationBinding{v, source, rearm}
+	transfer.binding = &configurationBinding{verifier: v, source: source, rearm: rearm, program: program}
 	return transfer, nil
 }
 
@@ -161,10 +158,11 @@ func (v *HPSContextVerifier) PrepareReconfiguration(control, configuration []byt
 }
 
 func (v *HPSContextVerifier) prepareConfiguration(control, configuration []byte, region *Region, rearm bool) (HPSBootObservation, error) {
-	if _, err := v.checkedControlMap(control); err != nil {
-		return HPSBootObservation{}, err
-	}
-	m, err := v.configurationMap(configuration)
+	return v.prepareProgramConfiguration(control, configuration, region, rearm, nil)
+}
+
+func (v *HPSContextVerifier) prepareProgramConfiguration(control, configuration []byte, region *Region, rearm bool, program *selectedProgram) (HPSBootObservation, error) {
+	m, err := v.programConfiguration(control, configuration, program)
 	if err != nil {
 		return HPSBootObservation{}, err
 	}

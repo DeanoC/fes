@@ -34,7 +34,14 @@ type computerMap struct {
 }
 
 func (v *HPSContextVerifier) checkedComputerMap(control, raw []byte) (computerMap, error) {
-	m, err := v.checkedControlMap(control)
+	if v == nil {
+		return computerMap{}, errors.New("native fabric: compiled computer verifier missing")
+	}
+	return checkedComputerMapFor(v.context, control, raw)
+}
+
+func checkedComputerMapFor(source HPSBootContext, control, raw []byte) (computerMap, error) {
+	m, err := checkedControlMapFor(source, control)
 	if err != nil {
 		return computerMap{}, err
 	}
@@ -58,7 +65,7 @@ func (v *HPSContextVerifier) checkedComputerMap(control, raw []byte) (computerMa
 	canonical, err := json.Marshal(fields)
 	controlSHA := sha256.Sum256(control)
 	if err != nil || len(fields) != 13 || !bytes.Equal(raw, append(canonical, '\n')) ||
-		c.Format != 1 || c.Scope != "sealed-cold-computer-control-v1" || c.PackageID != v.context.PackageID || c.BuildID != v.context.BuildID ||
+		c.Format != 1 || c.Scope != "sealed-cold-computer-control-v1" || c.PackageID != source.PackageID || c.BuildID != source.BuildID ||
 		c.ControlMapSHA256 != hex.EncodeToString(controlSHA[:]) || c.HandoffSHA256 != m.HandoffSHA256 ||
 		c.CPUBase != m.ArchitecturalLWBase+m.BridgeBase+uint64(cg.FesDe25ComputerPeripheralOffset) || c.Span != cg.FesDe25ComputerSpan ||
 		c.Minor != 0 || c.Capabilities != cg.FesComputerCapabilityVideoFixed720p60|cg.FesComputerCapabilityKeyboardHid|cg.FesComputerCapabilityMediaZx81Tape ||
@@ -154,9 +161,18 @@ func (s *ComputerSession) Computer() *computer.Computer { return s.control }
 // permits one opening; subsequent openings also require a successful prior
 // return and a newly completed rearm. Other cold profiles reject this mode.
 func (v *HPSContextVerifier) OpenComputer(ctx context.Context, control, raw []byte, transfer *ConfigurationTransfer, limits computer.Limits) (_ *ComputerSession, err error) {
-	m, err := v.checkedComputerMap(control, raw)
-	if err != nil {
-		return nil, err
+	var m computerMap
+	if transfer != nil && transfer.binding != nil && transfer.binding.program != nil {
+		p := transfer.binding.program
+		if p.loader == nil || p.loader.boot != v || !bytes.Equal(control, p.controlRaw) || !bytes.Equal(raw, p.computerRaw) {
+			return nil, errors.New("native fabric: computer differs from selected program")
+		}
+		m = p.computer
+	} else {
+		m, err = v.checkedComputerMap(control, raw)
+		if err != nil {
+			return nil, err
+		}
 	}
 	cpu, ok := v.cpu.(CPUTransport)
 	if !ok {

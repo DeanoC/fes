@@ -51,7 +51,14 @@ type FPGAIdentityObservation struct {
 var ErrIdentityNotReady = errors.New("native fabric: secure FPGA identity probe not ready")
 
 func (v *HPSContextVerifier) checkedControlMap(raw []byte) (hpsControlMap, error) {
-	if v == nil || len(raw) == 0 || len(raw) > 4096 {
+	if v == nil {
+		return hpsControlMap{}, errors.New("native fabric: compiled control verifier missing")
+	}
+	return checkedControlMapFor(v.context, raw)
+}
+
+func checkedControlMapFor(source HPSBootContext, raw []byte) (hpsControlMap, error) {
+	if len(raw) == 0 || len(raw) > 4096 {
 		return hpsControlMap{}, errors.New("native fabric: bounded compiled control map required")
 	}
 	var m hpsControlMap
@@ -70,7 +77,7 @@ func (v *HPSContextVerifier) checkedControlMap(raw []byte) (hpsControlMap, error
 	}
 	canonical, err := json.Marshal(fields)
 	count := 10
-	if v.context.ProgrammingProfile == HPSFirstDDRDiagnosticProfile {
+	if source.ProgrammingProfile == HPSFirstDDRDiagnosticProfile {
 		count++
 		if m.FabricStop == nil || *m.FabricStop != (hpsFabricStopMap{"sealed-ddr-master-stop-v1", 0x20010100, 128, "held-reset-from-configuration"}) {
 			return hpsControlMap{}, errors.New("native fabric: sealed complete master stop map required")
@@ -88,9 +95,9 @@ func (v *HPSContextVerifier) checkedControlMap(raw []byte) (hpsControlMap, error
 	}
 	if err != nil || len(fields) != count || !bytes.Equal(raw, append(canonical, '\n')) ||
 		m.Format != 1 || m.Scope != "sealed-lw-identity-probe-v1" || m.ArchitecturalLWBase != 0x20000000 || m.BridgeBase != 0 ||
-		m.PeripheralOffset != uint64(v.context.PeripheralOffset) || m.Span != uint64(v.context.PeripheralSpan) ||
+		m.PeripheralOffset != uint64(source.PeripheralOffset) || m.Span != uint64(source.PeripheralSpan) ||
 		m.CPUBase != m.ArchitecturalLWBase+m.PeripheralOffset || !nonzeroDigest(m.HandoffSHA256) ||
-		m.PackageID != v.context.PackageID || m.BuildID != v.context.BuildID {
+		m.PackageID != source.PackageID || m.BuildID != source.BuildID {
 		return hpsControlMap{}, errors.New("native fabric: control map differs from compiled HPS source")
 	}
 	return m, nil

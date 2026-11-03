@@ -34,12 +34,13 @@ type ConfigurationTransfer struct {
 	binding             *configurationBinding
 }
 
-// Only the compiled-source constructor can bind completion to computer access.
+// Only boot/platform-bound constructors can bind completion to computer access.
 // A generic transfer, a copied descriptor or a source observation is insufficient.
 type configurationBinding struct {
 	verifier *HPSContextVerifier
 	source   HPSBootObservation
 	rearm    bool
+	program  *selectedProgram
 }
 
 // The pinned SiP engine has four buffer descriptors. BUSY accepts the latest

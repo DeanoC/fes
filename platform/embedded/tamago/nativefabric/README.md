@@ -1,5 +1,45 @@
 # Native contained-fabric endpoint
 
+`ProgramLoader` separates the immutable `HPSContextVerifier` boot anchor from
+each retained program. Its board-compiled platform record binds the device,
+HPS I/O/PFG identity, complete HPS/EMIF parameter fingerprint, bootloader handoff
+and complete master inventory. Selected metadata must match that record and
+the archive's package/build/target/ABI. Control addresses, stop policy and
+computer capabilities remain fixed by compiled maps. Required unsupported
+interfaces and HPS masters reject before SD containment. Metadata is an unsigned
+compatibility assertion; it does not establish live boot facts or authentication.
+
+Preflight derives whole/chunk digests from the selected archive, rather than
+requiring its package ID, build ID, core ID or payload in the boot image.
+The resulting single-use plan carries that private program into configuration,
+live computer identity, opening and failure retirement. Boot ownership and SD
+return are always checked against the original verifier. A completed transfer
+cannot be opened twice or through another loader. This supplies no new data
+release or ordinary physical programming profile.
+
+The opt-in `fpgaload --selected-programs --computer-control` frontend reads
+`FES/CORESEL.JSN`. Its `nano-program-selection-v1` record contains a bounded
+`programs` list with `path`, `package_id`, `metadata_path` and `metadata_sha256`.
+The store retains each archive and its at-most-16-KiB metadata before preflight
+and SD stop. `nano-selected-program-v1` metadata is produced from the sealed
+project by `hps_context.selected_program`. A two-load diagnostic also requires
+`--computer-reload --computer-storage-return` and two explicit choices. Choices
+are read from SD; there is no compiled package catalogue. The cross-builder
+exports example `PROGRAM.JSN` and `CORESEL.JSN` files for the sealed package.
+Changing an eligible selection requires no per-core firmware/native rebuild.
+
+Host tests execute three different canonical packages, builds, core IDs and
+payload sizes through retained selection, publication, transfer, Run, owned
+return, SD resume and fresh selection. They cover incompatible metadata and
+source/publication/write/completion/open/identity/Hold/close failures. An explicit
+sealed-project test also consumes the actual producer export and retained FPGA
+package. These are software results. The
+[per-load firmware hardware test](../../../../docs/validation/2026-11-03-de25-program-binding/README.md)
+uses one fixed diagnostic package twice; it does not qualify this new frontend
+or different physical packages. The current compiled contract still names the
+diagnostic ABI/profile. Normal Nano admission, ROM linking and native Tenfoot
+remain open.
+
 The separate `HPSContextVerifier.OpenComputer` path connects the native
 [`computer` driver](../computer/README.md) to a source-derived 32-byte Avalon
 window and the existing owned bridge service. It requires a completed
