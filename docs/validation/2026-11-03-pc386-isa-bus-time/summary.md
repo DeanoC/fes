@@ -11,7 +11,8 @@ table. A 512-word text-mode fill runs at 2.40 MB/s and 2.39 MB/s, within
 0.8% (one pass in a tick). The bench's charges equal the table on every
 loop and preset, in the RTL and the netlist. Nothing architectural changes:
 the lockstep at `max` equals main's, under 286-12 it equals `max`'s, and
-FreeDOS boots on the RTL exactly as on main. The seal (Quartus 17.0.2,
+FreeDOS boots on the RTL exactly as on main at `max` and still boots under
+286-12. The seal (Quartus 17.0.2,
 package `c86c5ebf…`) meets every analysis at 61.44 MHz. On Kit B at 286-12,
 Ultima VI's opening-fight sounds are PIT tones at 213.1 Hz on this package
 and on main's earlier seal alike. Its CPU-timed speaker routine did not
@@ -157,10 +158,12 @@ timing and rejected-alternatives text points at it.
   - The first run under 286-12 timed out 84 corpus states, all REP INSD,
     OUTSD and MOVSD in the MMIO window (`66 6D`, `66 6F`, `66 A5`, with and
     without `67`). The testbench gives a retirement 20,000 cycles; the ISA
-    time holds such a string for real time, and the corpus's longest took
-    31,668 cycles at 286-12 and 30,890 at 486DX2-66, against 1,894 at
-    `max`. Under a preset the bound is now 80,000 (`667d1a5e0`); at `max`
-    it stays 20,000.
+    time holds such a string for real time. Across those six corpus files
+    the longest retirement took 31,668 cycles at 286-12 and 30,890 at
+    486DX2-66, against 1,894 at `max`. Under a preset the bound is now
+    80,000 (`667d1a5e0`); at `max` it stays 20,000. It is the testbench's
+    hang bound, not a timing check, and the full-corpus run above under
+    286-12 is what checks it.
 - **System suite.** `cores/fes-pc386/sim/governor_test.asm` boots from a
   1 MiB disk on `pc386_system`, the preset set in the restored record
   (`sim_fes_pc386.py --suite governor`,
@@ -209,8 +212,12 @@ timing and rejected-alternatives text points at it.
   identical reports (0 of 139 fields differ) and byte-identical VGA traces:
   `dir` at the prompt at 4.1 simulated seconds, 113,098,555 instructions
   retired, the RTL alone, the VGA replay matching
-  ([`boot-rtl-max-report.json`](boot-rtl-max-report.json)). Under 286-12:
-  TODO
+  ([`boot-rtl-max-report.json`](boot-rtl-max-report.json)). Under 286-12
+  (`--preset 1`) it passes too: `dir` at the prompt at 14.1 simulated
+  seconds, the RTL alone, the VGA replay matching, 30,799,875 instructions
+  retired ([`boot-rtl-286-12-report.json`](boot-rtl-286-12-report.json)).
+  The M5 governor record's 286-12 boot, before ISA time and on an older
+  main, took 14.0 s and 30,826,678 instructions.
 - **Unit tests.** `tests/test_fes_i386_governor.py` (12, four new: the
   ISA cycles' rounding at every frequency, the charges, the generated
   `port16()`, a bad `[isa]` refused), `test_fes_i386_lockstep.py` and

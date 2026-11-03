@@ -159,8 +159,9 @@ constexpr uint32_t EFLAGS_MASK = 0x0003ffff;
 constexpr int EVENT_CYCLES = 20000;  // an RTL retirement or fault must come within this many cycles
                                      // (a REP string of 63 elements, each missing in both caches)
 constexpr int GOVERNED_EVENT_CYCLES = 80000;  // ... under a preset, whose ISA bus time holds a REP string of
-                                              // I/O or VGA memory dwords: the corpus's longest takes 31,668
-                                              // cycles at 286-12 and 30,890 at 486DX2-66 (#1362)
+                                              // I/O or VGA memory dwords: REP INSD, OUTSD and MOVSD's corpus
+                                              // files take up to 31,668 cycles at 286-12 and 30,890 at
+                                              // 486DX2-66 (#1362)
 
 std::string hex(uint64_t value) {
     char text[24];
