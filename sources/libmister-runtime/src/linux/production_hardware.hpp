@@ -15,6 +15,8 @@ namespace mister {
 Error CreateProductionHardware(LogSink& log,
 	std::unique_ptr<Hardware>* hardware);
 std::unique_ptr<Hardware> CreateUnavailableHardware(const Error& reason);
+bool RequiresProductionShutdown(const Hardware&);
+Error ShutdownProductionHardware(Hardware&);
 
 #if defined(MISTER_RUNTIME_TESTING)
 // Exercise the same guarded construction path without reading host identity or

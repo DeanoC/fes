@@ -75,8 +75,11 @@ Within a successful context, replacement verifies the retained outgoing overlay
 bytes/status before removing it, independently of the incoming profile. Any uncertainty after removal or submission
 permanently poisons the context and retains files/configuration. No retry,
 rollback program, destructor unload or close-as-drain operation exists. New
-contexts refuse old overlays; safe restart adoption remains required before
-normal platform admission. Software deadlines cannot interrupt a stalled
+contexts refuse old overlays. An explicit idle shutdown is separate from
+destruction: it verifies the retained overlay, applied/operating state and the
+staged firmware's size, permissions and SHA256 before removing either. Removal
+failure poisons the context without a retry. Unexpected-death adoption remains
+open. Software deadlines cannot interrupt a stalled
 configfs close, secure call or shared-service mutex. Physical failure fencing
 and allocated-DMA qualification remain separate open gates.
 
@@ -964,8 +967,15 @@ MenuMemory retirement precedes any replacement. OWNER_REAP must prove drain;
 OWNER_IDLE must subsequently show the last peer FD/VMA gone. A failed retirement
 remains sticky, including after the peer eventually closes. The kernel's file
 release may also attempt guarded revocation, but closure itself proves neither
-drain nor storage reuse. Restarting a manager refuses inherited overlays; safe
-artifact/boot/epoch adoption is still required for normal process restart.
+drain nor storage reuse. The DE25 daemon blocks TERM/INT before starting runtime
+workers and consumes them on a normal waiter thread. Server stop joins socket
+workers before Runtime destruction; explicit NativeHardware shutdown then
+requires idle MENU and uses the same retirement and quiesce boundary as core
+replacement. Only after successful REAP and OWNER_IDLE does it request verified
+configuration release. The existing exclusive lease stays held throughout.
+No hardware or allocator work runs in a signal handler. DE10 signal behavior
+is unchanged. Restarting a manager after an unexpected exit still refuses
+inherited overlays; neither closure nor a new process authorizes adoption.
 
 ELF menu-interface records describe the union of the two board-specific
 contracts, not one package containing all interfaces. Package target/profile

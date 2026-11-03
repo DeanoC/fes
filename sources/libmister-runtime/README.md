@@ -33,7 +33,14 @@ All standard firmware fallback locations must also lack the fixed RBF name;
 a stale fallback is refused before programming.
 Partial, failed or late programming poisons the context and retains the
 configuration. Software deadlines cannot abort an opaque configfs/SDM call.
-Safe process restart/adoption and whole-load failure bounds remain unfinished.
+On DE25, TERM/INT request a normal server stop. Once socket workers have ended,
+an idle MENU shutdown proves kernel drain and the end of peer mappings before
+explicitly releasing that daemon's verified overlay and staged firmware. A fresh
+daemon can then program its selected MENU. A running computer, pinned peer,
+changed artifact or uncertain context refuses this handoff. Destruction and
+unexpected process death preserve the configuration; inherited configurations
+remain refused. Whole-load failure bounds and unexpected-death adoption remain
+unfinished. The clean shutdown path requires its own native acceptance.
 
 The [programmer diagnostic](../../docs/validation/2026-10-31-de25-runtime-programmer/README.md)
 and [shared computer lifecycle diagnostic](../../docs/validation/2026-11-01-de25-shared-lifecycle/README.md)

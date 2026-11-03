@@ -261,6 +261,15 @@ public:
 		return result;
 	}
 	bool BootHpsDdrLayout() override { return boot_hps_ddr_layout; }
+	mister::native::NativeResult ReleaseConfiguration(std::uint64_t) override
+	{
+		events_.push_back("fpga.release");++release_calls;
+		if (on_release) on_release();
+		return release_result;
+	}
+	int release_calls = 0;
+	std::function<void()> on_release;
+	mister::native::NativeResult release_result;
 	mister::Error ReleaseHpsDdrPorts(std::uint64_t deadline) override
 	{
 		events_.push_back("fpga.hps_ddr");
@@ -5158,7 +5167,7 @@ void TestDe25SelectedPlatformLifecycle()
  assert(base.fpga.calls == programmed);
 }
 
-void TestDe25AllocatedMenuLaunchStopAndPinnedPeer()
+void TestDe25AllocatedMenuLaunchStopAndPinnedPeer(bool clean_shutdown = false)
 {
  using namespace mister;using namespace mister::native;
  namespace dm=mister_test::de25_menu;
@@ -5201,15 +5210,32 @@ void TestDe25AllocatedMenuLaunchStopAndPinnedPeer()
   ProgrammingProfile::de25_hps_first_v1,ProgrammingProfile::de25_linux_menu_v1,
   ProgrammingProfile::de25_hps_first_v1,ProgrammingProfile::de25_linux_menu_v1}));
  assert(base.fpga.hps_ddr_calls==0&&base.i2c.write_calls==0&&base.input.open_calls==0);
+ if(clean_shutdown) {
+  // No release while a computer owns the context. A normal Stop returns to
+  // MENU; the final shutdown must prove drain and OWNER_IDLE before release.
+  assert(runtime.LoadCore(game.path,game_package.package_id).ok());
+  assert(!hardware.Shutdown().ok()&&base.fpga.release_calls==0);
+  assert(runtime.Stop().ok());
+  const int reaps=operations.reaps;
+  base.fpga.on_release=[&] {
+   assert(operations.reaps==reaps+1&&!operations.allocated&&!operations.grant_open&&!operations.peers);
+  };
+  assert(hardware.Shutdown().ok()&&base.fpga.release_calls==1);
+  return;
+ }
  int peer=-1;assert(presenter.Share(&peer).ok());const int programs=base.fpga.calls;
+ assert(!hardware.Shutdown().ok()&&base.fpga.release_calls==0&&operations.peers==1);
  assert(!runtime.LoadCore(game.path,game_package.package_id).ok());
  assert(base.fpga.calls==programs&&runtime.status().state==State::reboot_required&&operations.peers==1);
  operations.Close(peer);assert(!runtime.Stop().ok()&&base.fpga.calls==programs);
+ assert(!hardware.Shutdown().ok()&&base.fpga.release_calls==0);
 }
 
 int main()
 {
  TestDe25AllocatedMenuLaunchStopAndPinnedPeer();
+ TestDe25AllocatedMenuLaunchStopAndPinnedPeer(true);
+ {Fixture de10;assert(de10.hardware.Shutdown().ok()&&de10.fpga.release_calls==0);}
  TestDe25SelectedPlatformLifecycle();
 	TestZx81ComputerDisplayPackageAdmittedWhenAdvertised();
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming();

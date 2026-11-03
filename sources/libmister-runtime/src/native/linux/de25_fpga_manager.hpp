@@ -42,6 +42,7 @@ public:
 #endif
     ~LinuxDe25FpgaManager() override;
     NativeResult Program(const Artifact&, ProgrammingProfile, std::uint64_t) override;
+    NativeResult ReleaseConfiguration(std::uint64_t) override;
     Error ReleaseHpsDdrPorts(std::uint64_t) override;
     bool BootHpsDdrLayout() override { return false; }
     bool Poisoned() const;

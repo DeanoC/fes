@@ -69,6 +69,12 @@ public:
 	// loaded; it never changes afterwards. Without it every DDR command is
 	// refused, so the interface is neither advertised nor admitted.
 	virtual bool BootHpsDdrLayout() = 0;
+	// Explicit process handoff, after the caller proves memory retirement.
+	// Destruction and process death never imply this boundary.
+	virtual NativeResult ReleaseConfiguration(std::uint64_t)
+	{
+		return {{ErrorCode::unsupported_interface, "configuration release is unavailable"}, false};
+	}
 };
 
 class NativeHardware final : public Hardware {
@@ -83,6 +89,7 @@ public:
 		NativePlatform platform = NativePlatform::de10_nano,
 		CoreDriver* de25_driver = nullptr, CoreDriver* de25_menu_driver = nullptr);
 	~NativeHardware();
+	Error Shutdown();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
  HardwareResult ConfigureMenuPackage(const std::string&,const std::string&) override;

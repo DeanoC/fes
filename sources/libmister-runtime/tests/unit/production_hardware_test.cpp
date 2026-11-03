@@ -39,6 +39,8 @@ void TestKnownDe10PreservesDriverLoadPolicy()
 					"injected driver load failure"} : mister::Error{};
 			});
 		assert(result.ok() && hardware && loads == 1);
+		assert(!mister::RequiresProductionShutdown(*hardware));
+		assert(mister::ShutdownProductionHardware(*hardware).ok());
 		assert(log.records.size() == (load_fails ? 1u : 0u));
 		if (load_fails) assert(log.records[0].operation == "window_driver");
 		// Construction is lazy. Do not start or program this physical adapter.

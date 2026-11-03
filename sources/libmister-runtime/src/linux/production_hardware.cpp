@@ -173,6 +173,8 @@ public:
         Error error = de25_fpga_->CheckPlatform(deadline);
         return error.ok() ? de25_menu_->CheckOwnerAbi(deadline) : error;
     }
+    bool RequiresShutdown() const { return de25_fpga_ != nullptr; }
+    Error Shutdown() { return hardware_->Shutdown(); }
 
 	void SetFaultSink(HardwareFaultSink* sink) override
 	{
@@ -380,6 +382,17 @@ Error ConstructProductionHardware(LogSink& log, std::unique_ptr<Hardware>* hardw
 
 } // namespace
 
+bool RequiresProductionShutdown(const Hardware& hardware)
+{
+    const auto* production = dynamic_cast<const ProductionHardware*>(&hardware);
+    return production != nullptr && production->RequiresShutdown();
+}
+
+Error ShutdownProductionHardware(Hardware& hardware)
+{
+    auto* production = dynamic_cast<ProductionHardware*>(&hardware);
+    return production != nullptr && production->RequiresShutdown() ? production->Shutdown() : Error{};
+}
 
 Error CreateProductionHardware(LogSink& log,
 	std::unique_ptr<Hardware>* hardware)

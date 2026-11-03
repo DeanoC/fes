@@ -310,6 +310,22 @@ NativeHardware::~NativeHardware()
 	if (input_open_) (void)StopInput(Deadline(clock_, timeouts_.core_io_ms));
 }
 
+Error NativeHardware::Shutdown()
+{
+    if (platform_ != NativePlatform::de25_nano) return {};
+    if (menu_unsafe_ || !menu_revoke_error_.ok())
+        return {ErrorCode::io_failed, "DE25 shutdown retains an uncertain MENU", "recovery"};
+    if (active_driver_ != nullptr && active_driver_ != de25_menu_driver_)
+        return {ErrorCode::busy, "DE25 process handoff requires idle MENU", "recovery"};
+    const HardwareResult quiesced = QuiesceForReplacement("shutdown", "", "");
+    if (!quiesced.error.ok()) return quiesced.error;
+    const NativeResult released = fpga_.ReleaseConfiguration(Deadline(clock_, timeouts_.core_io_ms));
+    log_.Write({"shutdown", "", "", "configuration_release", released.error});
+    if (!released.error.ok()) return released.error;
+    ForgetActiveCore(); menu_status_ = {}; menu_directory_.clear(); menu_package_id_.clear();
+    return {};
+}
+
 void NativeHardware::SetFaultSink(HardwareFaultSink* sink)
 {
 	std::lock_guard<std::mutex> lock(fault_sink_mutex_);

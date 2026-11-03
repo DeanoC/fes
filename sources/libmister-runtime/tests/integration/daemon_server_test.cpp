@@ -5,6 +5,7 @@
 #include "daemon/controller.hpp"
 #include "daemon/menu_frame_transport.hpp"
 #include "daemon/server.hpp"
+#include "daemon/signal_shutdown.hpp"
 #include "fake_hardware.hpp"
 #include "linux/stderr_log.hpp"
 
@@ -1451,8 +1452,57 @@ void TestMenuMultipleAndTruncatedDescriptorsClose()
  assert(fixture.hardware.menu_present_calls==0);
 }
 
+void TestCleanShutdownSignals()
+{
+ // Run real process-directed signals in owned children so a broken mask is
+ // an observed test failure, rather than killing the test runner or another job.
+ for(const bool queued : {true,false}) {
+  TempDirectory directory;const auto path=directory.Entry("shutdown.sock");
+  int ready[2];assert(pipe(ready)==0);
+  const pid_t child=fork();assert(child>=0);
+  if(child==0) {
+   close(ready[0]);
+   {
+    mister::daemon::ShutdownSignals signals(true);assert(signals.error().ok()&&signals.enabled());
+    Fixture fixture;fixture.Start();
+    mister::daemon::Controller controller(fixture.runtime,"signal-test");
+    mister::daemon::Server server(path,controller);
+    if(queued) assert(kill(getpid(),SIGTERM)==0);
+    mister::daemon::ShutdownWatch watch(signals,server);assert(watch.start_error().ok());
+    assert(write(ready[1],"r",1)==1);close(ready[1]);
+    assert(server.Serve().ok());assert(watch.Stop().ok());
+   }
+   assert(access(path.c_str(),F_OK)!=0&&errno==ENOENT);
+   _exit(0);
+  }
+  close(ready[1]);
+  // A bounded parent wait also covers a child stuck before reporting ready.
+  const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(3);
+  assert(fcntl(ready[0],F_SETFL,O_NONBLOCK)==0);
+  bool notified=false,finished=false;int status=0;
+  while(std::chrono::steady_clock::now()<deadline) {
+   char byte=0;
+   if(!notified&&read(ready[0],&byte,1)==1) {
+    notified=true;if(!queued) assert(kill(child,SIGTERM)==0);
+   }
+   const auto waited=waitpid(child,&status,WNOHANG);
+   assert(waited>=0);if(waited==child) {finished=true;break;}
+   std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  close(ready[0]);
+  if(!finished) {assert(kill(child,SIGKILL)==0);assert(waitpid(child,&status,0)==child);}
+  assert(finished&&notified&&WIFEXITED(status)&&WEXITSTATUS(status)==0);
+ }
+ sigset_t before{},after{};assert(pthread_sigmask(SIG_BLOCK,nullptr,&before)==0);
+ {mister::daemon::ShutdownSignals disabled(false);assert(!disabled.enabled()&&disabled.error().ok());}
+ assert(pthread_sigmask(SIG_BLOCK,nullptr,&after)==0);
+ assert(sigismember(&before,SIGTERM)==sigismember(&after,SIGTERM));
+ assert(sigismember(&before,SIGINT)==sigismember(&after,SIGINT));
+}
+
 int main()
 {
+ TestCleanShutdownSignals();
  TestSessionDescriptorExchangeDoesNotFollowReopenedPlane();
  TestMenuPatternClientAgainstDaemon();
  TestMenuMultipleAndTruncatedDescriptorsClose();
@@ -1491,6 +1541,6 @@ int main()
 	TestOversizedHardwareErrorUsesBoundedValidFallback();
 	TestDevelopmentInventsNoIdentityAndStderrEscapesFields();
 	TestComputerOperationsDispatchThroughController();
-	puts("daemon_server_test: 36 passed");
+	puts("daemon_server_test: 37 passed");
 	return 0;
 }

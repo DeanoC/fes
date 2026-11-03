@@ -127,6 +127,8 @@ class LinuxDe25FpgaManager::Impl {
 public:
     Clock& clock;
     std::vector<unsigned char> configured_overlay;
+    std::array<std::uint8_t, 32> programmed_digest{};
+    std::uint64_t programmed_size = 0;
     Fd lease;
     Error lease_error;
     bool poisoned = false, configuration_known = false, kernel_known = false, search_owned = false;
@@ -343,12 +345,14 @@ public:
         Fd output(openat(fw.n, kFirmware, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600));
         if (output.n < 0) return fail(SystemError("create exclusive firmware"));
         copied = true; unsigned char buffer[65536]; std::uint64_t offset = 0;
+        Sha256 copied_digest;
         while (offset < artifact.size()) {
             error = Check(deadline); if (!error.ok()) return fail(error);
             const auto count = std::min<std::uint64_t>(sizeof(buffer), artifact.size() - offset);
             ssize_t n = pread(artifact.fd(), buffer, count, offset);
             if (n < 0 && errno == EINTR) continue;
             if (n <= 0) return fail(Failure("retained firmware read failed"));
+            copied_digest.Update(buffer, n);
             ssize_t done = 0;
             while (done < n) {
                 error = Check(deadline); if (!error.ok()) return fail(error);
@@ -395,6 +399,71 @@ public:
         error = RestoreSearch(); if (!error.ok()) return fail(error);
         configuration_known = true;
         configured_overlay = blob;
+        programmed_digest = copied_digest.Final();
+        programmed_size = artifact.size();
+        return {{}, true};
+    }
+
+    NativeResult ReleaseConfiguration(std::uint64_t deadline) {
+        auto error = Check(deadline); if (!error.ok()) return {error, false};
+        Fd overlays(open((config + "/device-tree/overlays").c_str(),
+            O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        bool exists = false;
+        if (overlays.n < 0 || !DirectoryIsExclusive(overlays.n, &exists))
+            return {Failure("configuration directory unavailable or owned by another loader"), false};
+        Fd fw(open(firmware.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        struct stat staged{};
+        const bool staged_exists = fw.n >= 0 && !fstatat(fw.n, kFirmware, &staged, AT_SYMLINK_NOFOLLOW);
+        if (!configuration_known) {
+            if (exists || staged_exists)
+                return {Failure("configuration belongs to an earlier context; external recovery required"), false};
+            return {{}, false};
+        }
+        if (!exists || !staged_exists || !S_ISREG(staged.st_mode) ||
+            staged.st_uid != geteuid() || (staged.st_mode & 07777) != 0444 ||
+            staged.st_nlink != 1 || std::uint64_t(staged.st_size) != programmed_size)
+            return {Failure("owned configuration or firmware identity differs"), false};
+        struct stat staging_directory{};
+        if (fstat(fw.n, &staging_directory) || staging_directory.st_uid != geteuid() ||
+            (staging_directory.st_mode & 07777) != 0700)
+            return {Failure("firmware staging directory ownership/permissions differ"), false};
+        {
+        Fd dir(openat(overlays.n, kOverlay, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        Fd dtbo(dir.n < 0 ? -1 : openat(dir.n, "dtbo", O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+        std::vector<unsigned char> previous;
+        if (!Read(dtbo.n, &previous, configured_overlay.size()) || previous != configured_overlay ||
+            !Exact(config + "/device-tree/overlays/" + kOverlay + "/status", "applied") ||
+            !Exact(state, "operating"))
+            return {Failure("owned configuration is not verified/applied; retained for recovery"), false};
+        }
+        Fd payload(openat(fw.n, kFirmware, O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+        struct stat opened{};
+        if (payload.n < 0 || fstat(payload.n, &opened) || opened.st_dev != staged.st_dev ||
+            opened.st_ino != staged.st_ino || opened.st_size != staged.st_size)
+            return {Failure("owned firmware changed while opening"), false};
+        Sha256 digest; unsigned char buffer[65536]; std::uint64_t offset = 0;
+        while (offset < programmed_size) {
+            error = Check(deadline); if (!error.ok()) return {error, false};
+            const auto size = std::min<std::uint64_t>(sizeof(buffer), programmed_size - offset);
+            const ssize_t n = pread(payload.n, buffer, size, offset);
+            if (n < 0 && errno == EINTR) continue;
+            if (n <= 0) return {Failure("owned firmware read failed"), false};
+            digest.Update(buffer, n); offset += n;
+        }
+        if (digest.Final() != programmed_digest)
+            return {Failure("owned firmware bytes differ"), false};
+        error = Check(deadline); if (!error.ok()) return {error, false};
+        // The caller already proved REAP and OWNER_IDLE. The kernel notifier
+        // independently refuses overlay removal while suppliers remain busy.
+        if (Remove(overlays.n)) {
+            poisoned = true; return {SystemError("release owned configuration"), true};
+        }
+        error = Check(deadline);
+        if (!error.ok()) { poisoned = true; return {error, true}; }
+        if (unlinkat(fw.n, kFirmware, 0)) {
+            poisoned = true; return {SystemError("release owned firmware"), true};
+        }
+        configuration_known = false; configured_overlay.clear(); programmed_size = 0;
         return {{}, true};
     }
 };
@@ -413,6 +482,10 @@ LinuxDe25FpgaManager::~LinuxDe25FpgaManager() = default;
 NativeResult LinuxDe25FpgaManager::Program(const Artifact& a, ProgrammingProfile p, std::uint64_t d) {
     std::lock_guard<std::mutex> lock(impl_->mutex);
     return impl_->Program(a, p, d);
+}
+NativeResult LinuxDe25FpgaManager::ReleaseConfiguration(std::uint64_t d) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    return impl_->ReleaseConfiguration(d);
 }
 Error LinuxDe25FpgaManager::ReleaseHpsDdrPorts(std::uint64_t) { return {ErrorCode::unsupported_interface, "Cyclone V DDR port release is unavailable on DE25"}; }
 bool LinuxDe25FpgaManager::Poisoned() const { std::lock_guard<std::mutex> lock(impl_->mutex); return impl_->poisoned; }

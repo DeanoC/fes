@@ -105,6 +105,55 @@ void Positive() {
     assert(!r.error.ok() && !r.mutation_attempted && f.ops.written==2);
     std::cout<<"success applies on close, reprograms in context, and preserves state at destruction\n";
 }
+void CleanRelease() {
+    for (auto profile : {ProgrammingProfile::de25_hps_first_v1, ProgrammingProfile::de25_linux_menu_v1}) {
+        Fixture f;auto m=f.Manager();
+        const auto empty=m->ReleaseConfiguration(100);
+        assert(empty.error.ok() && !empty.mutation_attempted && !f.ops.removed);
+        assert(f.Program(*m,profile).error.ok());
+        const auto released=m->ReleaseConfiguration(100);
+        assert(released.error.ok() && released.mutation_attempted && !m->Poisoned());
+        assert(!Exists(f.ops.Dir()) && !Exists(f.paths.firmware+"/fes-runtime-core.rbf"));
+        assert(f.ops.removed==1 && Get(f.paths.search)=="\n");
+        m.reset();auto fresh=f.Manager();assert(f.Program(*fresh,profile).error.ok());
+        assert(f.ops.created==2 && f.ops.written==2);
+    }
+    std::cout<<"explicit verified release leaves no inherited configuration for a fresh manager\n";
+}
+void ReleaseRefusals() {
+    for (int fault=0;fault<8;++fault) {
+        Fixture f;auto m=f.Manager();assert(f.Program(*m).error.ok());
+        if(fault==0) {m.reset();m=f.Manager();}
+        if(fault==1) {
+            const auto path=f.paths.firmware+"/fes-runtime-core.rbf";
+            assert(!chmod(path.c_str(),0600));Put(path,"different test image");assert(!chmod(path.c_str(),0444));
+        }
+        if(fault==2) Put(f.ops.Dir()+"/dtbo","foreign overlay");
+        if(fault==3) Put(f.ops.Dir()+"/status","unapplied\n");
+        if(fault==4) f.clock.now=101;
+        if(fault==5) Put(f.paths.search,"/another/loader\n");
+        if(fault==6) {
+            const auto path=f.paths.firmware+"/fes-runtime-core.rbf";
+            assert(!unlink(path.c_str()));assert(!symlink((f.root+"/input.rbf").c_str(),path.c_str()));
+        }
+        if(fault==7) assert(!chmod(f.paths.firmware.c_str(),0755));
+        const auto r=m->ReleaseConfiguration(100);
+        assert(!r.error.ok() && !r.mutation_attempted && !f.ops.removed);f.Preserved();
+    }
+    {
+        Fixture f;auto m=f.Manager();assert(f.Program(*m).error.ok());f.ops.remove_error=true;
+        const auto r=m->ReleaseConfiguration(100);
+        assert(!r.error.ok() && r.mutation_attempted && m->Poisoned());f.Preserved();
+        assert(!m->ReleaseConfiguration(100).error.ok() && f.ops.removed==1);
+    }
+    {
+        Fixture f;auto m=f.Manager();f.ops.unapplied=true;
+        assert(!f.Program(*m).error.ok() && m->Poisoned());
+        const auto r=m->ReleaseConfiguration(100);
+        assert(!r.error.ok() && !r.mutation_attempted && !f.ops.removed);f.Preserved();
+    }
+    std::cout<<"release refuses inheritance, changed bytes/overlay/search, expiry and uncertain removal\n";
+}
 std::map<std::string, std::string> OverlayProperties(const std::vector<unsigned char>& blob) {
     auto word = [&](std::size_t offset) {
         assert(offset + 4 <= blob.size());
@@ -282,6 +331,6 @@ void ProfilesAndLease() {
 }
 int main(int argc,char** argv) {
     if(argc==2) {const auto v=De25ProgrammingOverlay();std::ofstream f(argv[1],std::ios::binary);f.write(reinterpret_cast<const char*>(v.data()),v.size());assert(f.good());return 0;}
-    Positive();AllocatedScanoutProfile();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();ProfilesAndLease();
+    Positive();CleanRelease();ReleaseRefusals();AllocatedScanoutProfile();Uncertain();BeforeMutation();FirmwareSearchLifecycle();FirmwareFallbacks();ExistingFailure();ProfilesAndLease();
     std::cout<<"de25_fpga_manager_test: passed\n";
 }
