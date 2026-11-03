@@ -134,4 +134,3 @@ func hasOption(options, expected string) bool {
 	}
 	return false
 }
-
