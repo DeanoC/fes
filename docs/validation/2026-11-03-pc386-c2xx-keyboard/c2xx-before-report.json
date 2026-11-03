@@ -1,0 +1,31 @@
+{
+  "bios_sha256": "fd0df1f9f64d3f20a90c16fa5140530c3f521b837a81bcc412eb6fce431f4be8",
+  "bios_source": "main 91628a795's firmware.lock (built by scripts/build_pc386_firmware.py from main's vendored source)",
+  "program": "C2TEST.COM",
+  "command": [
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+    "--bios",
+    "pc386-bios.bin (main)",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "the suite's disk.img",
+    "--limit-seconds",
+    "10",
+    "--type",
+    "c2test|abcdefghijklmnopq",
+    "--key-gap",
+    "0.008",
+    "--expect",
+    "C2 DONE ok",
+    "--cpu",
+    "oracle"
+  ],
+  "port_e9_lines": [],
+  "end": "END expected-text-missing steps=153223064 cycles=1000000076 seconds=10.000",
+  "last_screen_rows": [
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]",
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]",
+    "C:\\>c2test"
+  ]
+}

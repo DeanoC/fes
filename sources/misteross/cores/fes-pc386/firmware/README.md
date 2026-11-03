@@ -60,8 +60,8 @@ a modified library:
     keyboard again.
   - `mouse_exchange_begin` sends ADh. A byte already in the output buffer
     goes to its interrupt handler, INT 09h or INT 74h, with interrupts on, so
-    a key is not lost. A byte that no handler takes within about 4,096
-    status reads (its IRQ masked, or a higher IRQ in service) is discarded.
+    a key is not lost. A byte that no handler takes within 4,096 status
+    reads (its IRQ masked, or a higher IRQ in service) is discarded.
     INT 09h sends AEh as it exits, so ADh is sent again until the buffer is
     empty behind it.
   - `get_kbd_command_byte` reads the command byte (20h) for
