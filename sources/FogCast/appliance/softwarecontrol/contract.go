@@ -48,3 +48,13 @@ type Status struct {
 	HeldBack       string `json:"held_back,omitempty"`
 	HeldBackReason string `json:"held_back_reason,omitempty"`
 }
+
+// Identity is the software a kit runs and has selected, as authenticated agent
+// health reports it. Operations and receipts stay on GET /v1/kit/software;
+// health is polled, and the receipt ledger is not bounded.
+type Identity struct {
+	ActiveBundle string `json:"active_bundle"`
+	BaseIdentity string `json:"base_identity"`
+	Selected     string `json:"selected"`
+	Generation   uint64 `json:"generation"`
+}

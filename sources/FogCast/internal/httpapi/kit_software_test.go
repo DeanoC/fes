@@ -107,9 +107,14 @@ func TestSoftwareHealthSeparatesIdentityAndRestrictsStatus(t *testing.T) {
 	selected := strings.Repeat("a", 64)
 	socket := softwareSocket(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-		_ = json.NewEncoder(w).Encode(softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Generation: 3, Selected: selected}, ActiveBundle: selected, BaseIdentity: "base-contract"})
+		_ = json.NewEncoder(w).Encode(softwarecontrol.Status{
+			State: softwarecontrol.State{Version: 1, Generation: 3, Selected: selected, Previous: "private-previous",
+				Pending:  &softwarecontrol.Operation{Reason: "private-pending"},
+				Receipts: map[string]softwarecontrol.Receipt{"private-receipt": {Result: "succeeded"}}},
+			ActiveBundle: selected, BaseIdentity: "base-contract", StorageError: "private-storage",
+		})
 	}))
-	handler := httpapi.New(&fakeController{health: protocol.Health{APIVersion: "v1", Artifacts: &protocol.Artifacts{ImageSHA256: strings.Repeat("b", 64)}, Software: &softwarecontrol.Status{StorageError: "private controller status"}}}, "secret", "test", nil, httpapi.WithKitSoftware(socket))
+	handler := httpapi.New(&fakeController{health: protocol.Health{APIVersion: "v1", Artifacts: &protocol.Artifacts{ImageSHA256: strings.Repeat("b", 64)}, Software: &softwarecontrol.Identity{ActiveBundle: "controller"}}}, "secret", "test", nil, httpapi.WithKitSoftware(socket))
 	response := softwareAgentRequest(handler, "GET", "/v1/health", "", "", nil)
 	var health protocol.Health
 	if err := json.Unmarshal(response.Body.Bytes(), &health); err != nil {
@@ -122,7 +127,12 @@ func TestSoftwareHealthSeparatesIdentityAndRestrictsStatus(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &health); err != nil {
 		t.Fatal(err)
 	}
-	if health.Software == nil || health.Software.ActiveBundle != selected || health.Software.BaseIdentity != "base-contract" || health.Artifacts.ImageSHA256 != strings.Repeat("b", 64) {
+	want := softwarecontrol.Identity{ActiveBundle: selected, BaseIdentity: "base-contract", Selected: selected, Generation: 3}
+	if health.Software == nil || *health.Software != want || health.Artifacts.ImageSHA256 != strings.Repeat("b", 64) {
 		t.Fatalf("software/base identities: %+v", health)
+	}
+	// Health is polled; the operation ledger stays on GET /v1/kit/software.
+	if strings.Contains(response.Body.String(), "private") {
+		t.Fatalf("health carried supervisor operation status: %s", response.Body.String())
 	}
 }
