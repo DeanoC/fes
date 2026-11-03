@@ -105,8 +105,44 @@ catalog launch or normal-kit acceptance.
 Runtime logs also record `DE25 grant poll: Input/output error` during frame
 commit and failed idle cleanup. Later normal agent reads return HTTP 200 with
 `raw_idle_ready=false` and `MISTER_UNAVAILABLE`. Trial mode intentionally keeps
-the persistent core library unavailable; the agent itself does come up. The
-cause of the runtime/display failure remains to be established. The image is
+the persistent core library unavailable; the agent itself does come up. The later isolated test below identifies the observed failure as scanout
+underflow. The image is
 unconfirmed, the original software selection remains intact and the kit claim
 is retained. No trial is retried after this failure. Full normal-kit
 qualification remains open.
+
+## Full-frame scanout contention diagnostic
+
+The isolated production-daemon/canonical-tenfoot-client test identified one
+scanout underflow on the first real frame with the earlier 4 KiB reader.
+Source `e5de0e02e` selects a 32 KiB local pixel buffer on DE25 while retaining
+the 256-beat response-credit limit. Shared consumers keep their 4 KiB default.
+The previous reader fails a finite DDR-service-gap pixel test; the candidate
+passes it. This does not establish a physical latency bound.
+
+Two normal Quartus builds reproduce the same RBF and pass reported timing and
+signoff. Both fitted inventories pass paired setup/hold checks at four corners
+(248 board and 2,984 FIFO paths per build, minimum 0.098 ns, zero waivers).
+The generated-system model passes 95 cases.
+
+On native AArch64, the actual production daemon and canonical tenfoot client
+complete 90 full-frame publications, sequence 90, with zero underflows. Shared
+USB capture records changing colour patterns. Independent stock-watchdog expiry
+then returns authenticated Linux without a power action or software reboot call;
+the saved-data probe survives and services stop normally.
+
+This qualifies the recorded isolated draw/recovery diagnostic. The new managed
+image remains unconfirmed; normal managed MENU startup, catalog ZX81 execution,
+software handoff and full kit acceptance remain open. The broader suite identified one stale composition-proof receipt, caused by
+the captured display-builder source changing. The actual combined-controller
+proof then passes all 14 cases on native and AArch64 Cortex-A76 simulation
+in 884.361 seconds. Its exact generated receipt replaces the stale fixture;
+this establishes no physical partial-reconfiguration acceptance.
+
+[Exact draw, timing and recovery evidence](menu-contention.json) binds the
+recorded sources and artifacts. The two captures below show different frames
+from that same diagnostic.
+
+![A changing native MENU test frame](menu-frame-during.png)
+
+![Final native MENU test frame](menu-frame-final.png)
