@@ -134,3 +134,9 @@ apply the existing attempt and stop rules rather than automatically retrying.
 
 The input transport does not enforce a deadline before delivery. The gameplay
 probe does not claim that host timestamps establish when the guest saw a key.
+
+For the separate floppy persistence diagnostic, Stop/relaunch retains the same
+host coordinator session while the flight, core generation and input
+attachment change. The retained f6 write/verify receipts show that identity
+pattern; they are historical evidence for the contract, not acceptance of a
+new package or source commit.

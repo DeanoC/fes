@@ -299,7 +299,7 @@ class PersistenceAdmissionTest(unittest.TestCase):
             archive_sha256='d'*64,package_id='a'*64,rbf_sha256='e'*64,bundle_id='f'*64,
             image_sha256='1'*64,target_id='target',expected_boot='boot',evidence=Path('/unused'))
         prior=SimpleNamespace(**vars(owned()))
-        prior.session_id='oldsession';prior.generation=8;prior.flight_id='oldflight'
+        prior.session_id=owned().session_id;prior.generation=8;prior.flight_id='oldflight'
         provenance={'main_source':{'producer_commit':args.source_commit,'tool_commit':args.source_tool_commit},
                     'host':{'source_commit':args.source_commit},'software':{'source_commit':args.source_commit}}
         rec={'scenario':'com','source_commit':args.source_commit,'archive_sha256':args.archive_sha256,
@@ -308,7 +308,7 @@ class PersistenceAdmissionTest(unittest.TestCase):
              'disk':{'floppy_sha256':p.DISK_SHA},'provenance':provenance,'captures':[],
              'hid_events':[],'session':{'id':prior.session_id,'target':prior.target_name,
              'target_id':prior.target_id,'game_id':prior.game_id,'package_id':prior.package_id,
-             'generation':prior.generation,'flight_id':prior.flight_id}}
+             'generation':prior.generation,'flight_id':prior.flight_id,'input_session_id':'oldinput'}}
         class API:
             timeout=20
             calls=0
@@ -338,21 +338,21 @@ class PersistenceAdmissionTest(unittest.TestCase):
              mock.patch.object(p,'wait_for_output',return_value={'proof':'output'}), \
              mock.patch.object(p,'wait_for_copy',return_value={'proof':'copy'}):
             p.check_matching_sources(provenance,args.source_commit)
-            p.run_phase(runner,prior,args,rec,'input',b'font')
+            p.run_phase(runner,prior,args,rec,'oldinput',b'font')
             self.assertEqual(runner.api.calls,1)
             self.assertEqual(rec['saved_revision'],'9'*64)
             raw=json.dumps(rec).encode();receipt=Path(tmp)/'write.json';receipt.write_bytes(raw)
             args.phase='verify';args.write_receipt=receipt;args.write_receipt_sha256=hashlib.sha256(raw).hexdigest()
             verify={'provenance':copy.deepcopy(provenance),'captures':[],'hid_events':[]}
-            p.run_phase(runner,owned(),args,verify,'input',b'font')
+            p.run_phase(runner,owned(),args,verify,'newinput',b'font')
             self.assertEqual(verify['classification'],'physical diagnostic: DOS saved file restored after restart')
             self.assertEqual(runner.api.calls,1)
             verify['provenance']['main_source']['tool_commit']='c'*40
-            with self.assertRaises(p.pa.AcceptanceError):p.run_phase(runner,owned(),args,verify,'input',b'font')
+            with self.assertRaises(p.pa.AcceptanceError):p.run_phase(runner,owned(),args,verify,'newinput',b'font')
             verify['provenance']=copy.deepcopy(provenance);args.source_tool_commit='c'*40
-            with self.assertRaises(p.pa.AcceptanceError):p.run_phase(runner,owned(),args,verify,'input',b'font')
+            with self.assertRaises(p.pa.AcceptanceError):p.run_phase(runner,owned(),args,verify,'newinput',b'font')
             args.source_tool_commit='b'*40;args.source_commit='c'*40
-            with self.assertRaises(p.pa.AcceptanceError):p.run_phase(runner,owned(),args,verify,'input',b'font')
+            with self.assertRaises(p.pa.AcceptanceError):p.run_phase(runner,owned(),args,verify,'newinput',b'font')
 
     def test_exact_private_process_must_own_loopback_listener(self):
         with socket.socket() as sock:
@@ -374,15 +374,15 @@ class PersistenceAdmissionTest(unittest.TestCase):
              'package_id':args.package_id,'rbf_sha256':args.rbf_sha256,'bundle_id':args.bundle_id,
              'base_image_sha256':args.image_sha256,'target_id':'target','boot_id':'boot',
              'disk':{'floppy_sha256':p.DISK_SHA},'saved_revision':'9'*64,'provenance':{'same':True},
-             'session':{'id':'oldsession','target':'kit','target_id':'target','game_id':owned().game_id,
-                        'package_id':'a'*64,'generation':8,'flight_id':'oldflight'}}
+             'session':{'id':'session','target':'kit','target_id':'target','game_id':owned().game_id,
+                        'package_id':'a'*64,'generation':8,'flight_id':'oldflight','input_session_id':'oldinput'}}
         with tempfile.TemporaryDirectory() as tmp:
             file=Path(tmp)/'receipt.json'
             def check():
                 data=json.dumps(rec).encode();file.write_bytes(data)
-                return p.previous_receipt(file,hashlib.sha256(data).hexdigest(),args,owned(),{'same':True})
+                return p.previous_receipt(file,hashlib.sha256(data).hexdigest(),args,owned(),{'same':True},'newinput')
             self.assertEqual(check()[0]['saved_revision'],'9'*64)
-            for name,value in (('generation',9),('generation',True),('id','session'),('flight_id','newflight'),('target_id','other')):
+            for name,value in (('generation',9),('generation',True),('id','other'),('flight_id','newflight'),('input_session_id','newinput'),('target_id','other')):
                 old=rec['session'][name];rec['session'][name]=value
                 with self.assertRaises(p.pa.AcceptanceError): check()
                 rec['session'][name]=old
@@ -401,14 +401,14 @@ class PersistenceAdmissionTest(unittest.TestCase):
              'saved_revision':'9'*64,'provenance':{'same':True},
              'source_tip_observations':[{'tip':'8'*40,'monotonic_ns':1,'accepted':True},
                                         {'tip':'9'*40,'monotonic_ns':2,'accepted':True}],
-             'session':{'id':'oldsession','target':'kit','target_id':'target','game_id':owned().game_id,
-                        'package_id':'a'*64,'generation':8,'flight_id':'oldflight'}}
+             'session':{'id':'session','target':'kit','target_id':'target','game_id':owned().game_id,
+                        'package_id':'a'*64,'generation':8,'flight_id':'oldflight','input_session_id':'oldinput'}}
         with tempfile.TemporaryDirectory() as tmp:
             path=Path(tmp)/'receipt.json'
             raw=json.dumps(rec).encode();path.write_bytes(raw);sha=hashlib.sha256(raw).hexdigest()
-            p.previous_receipt(path,sha,args,owned(),{'same':True})
+            p.previous_receipt(path,sha,args,owned(),{'same':True},'newinput')
             args.source_minimum_tip='8'*40
-            with self.assertRaises(p.pa.AcceptanceError):p.previous_receipt(path,sha,args,owned(),{'same':True})
+            with self.assertRaises(p.pa.AcceptanceError):p.previous_receipt(path,sha,args,owned(),{'same':True},'newinput')
 
     def test_save_uses_exact_binding_once_and_checks_revision(self):
         expected=owned(); after=session('9'*64)

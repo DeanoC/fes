@@ -337,7 +337,7 @@ def unit_binding(session, owned, expected_revision=None):
     return revision
 
 
-def previous_receipt(path, expected_sha, args, owned, current_provenance):
+def previous_receipt(path, expected_sha, args, owned, current_provenance, input_session_id):
     raw, digest = pa._read_archive(path, maximum=1024*1024)
     if digest != expected_sha:
         raise pa.AcceptanceError('write-phase receipt hash differs')
@@ -354,8 +354,10 @@ def previous_receipt(path, expected_sha, args, owned, current_provenance):
                 sess['target'] != owned.target_name or sess['target_id'] != owned.target_id or
                 sess['game_id'] != owned.game_id or sess['package_id'] != owned.package_id or
                 type(sess['generation']) is not int or sess['generation'] == owned.generation or
-                not isinstance(sess['id'], str) or not sess['id'] or sess['id'] == owned.session_id or
+                not isinstance(sess['id'], str) or not sess['id'] or sess['id'] != owned.session_id or
                 not isinstance(sess['flight_id'], str) or not sess['flight_id'] or sess['flight_id'] == owned.flight_id or
+                not isinstance(sess.get('input_session_id'), str) or not sess['input_session_id'] or
+                not isinstance(input_session_id, str) or not input_session_id or sess['input_session_id'] == input_session_id or
                 not isinstance(rec['saved_revision'], str) or not HEX64.fullmatch(rec['saved_revision'])):
             raise ValueError('write receipt does not bind a distinct restart')
         if getattr(args, 'source_historical_main', False):
@@ -570,7 +572,7 @@ def run_phase(runner, owned, args, rec, input_session_id, font):
     if args.phase == 'write':
         unit_binding(runner.session(), owned, 'absent')
     else:
-        prior, digest = previous_receipt(args.write_receipt, args.write_receipt_sha256, args, owned, rec['provenance'])
+        prior, digest = previous_receipt(args.write_receipt, args.write_receipt_sha256, args, owned, rec['provenance'], input_session_id)
         unit_binding(runner.session(), owned, prior['saved_revision'])
         rec['write_receipt_sha256'] = digest
         rec['saved_revision'] = prior['saved_revision']
