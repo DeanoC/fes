@@ -417,10 +417,13 @@ class SmcStaleTrackerTest(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
-class Port0ModelTest(unittest.TestCase):
-    def test_waitrequest_holds_all_sixteen_byte_enable_lanes(self):
-        with tempfile.TemporaryDirectory(prefix='pc386-port0-model-') as directory:
-            binary = Path(directory) / 'pc386-port0-model-test'
+class DdrModelTest(unittest.TestCase):
+    def test_refusals_and_holds(self):
+        """Port 0's refused command holds all sixteen byte-enable lanes; a held
+        port finishes a write burst with byte enables clear, hides read data
+        and drops a refused command (#1372)."""
+        with tempfile.TemporaryDirectory(prefix='pc386-ddr-model-') as directory:
+            binary = Path(directory) / 'pc386-ddr-model-test'
             source = sim.CORE / 'sim/pc386_ddr_model_tb.cpp'
             compiler = shutil.which(os.environ.get('CXX', 'c++'))
             result = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
@@ -505,6 +508,8 @@ CHECK PASS CMOS 00h-0Dh retain seconds, minutes, hours, weekday, day and the 202
 ROUNDTRIP 0 0 0 0 576 5 1 0
 CHECK PASS the record's settings and CMOS RAM make the round trip through the RTC
 CHECK PASS the running clock keeps valid seconds, minutes, hours, weekday and date after restore
+HOLD 302000000 owed=0,0,12
+CHECK PASS holds cut a port 2 write burst in 4 of 256 trials, and port 2 took write beats after each release
 END prompt cycles=303000000 seconds=4.932
 """
 
@@ -531,7 +536,8 @@ class SystemTest(unittest.TestCase):
                                           'changed_chunks': [0]})
         self.assertEqual(report['write_test'], 444436)
         self.assertEqual(report['record'][:8], [0, 0, 0, 0, 576, 5, 1, 0])
-        self.assertEqual(len(report['record_checks']), 5)
+        self.assertEqual(len(report['record_checks']), 6)
+        self.assertEqual(report['holds'], [{'cycle': 302000000, 'owed': [0, 0, 12]}])
         self.assertEqual(report['end'], {'reason': 'prompt', 'cycles': 303000000, 'seconds': 4.932})
         self.assertEqual(sim.system_failures(report), [])
 
@@ -547,6 +553,7 @@ class SystemTest(unittest.TestCase):
             (SYSTEM_OUTPUT.replace('CHECK PASS the record keeps', 'CHECK FAIL the record keeps'),
              'record check failed: the record keeps'),
             (SYSTEM_OUTPUT.replace('ROUNDTRIP 0 0 0 0 576 5 1 0\n', ''), 'did not save'),
+            (SYSTEM_OUTPUT.replace('CHECK PASS holds cut', 'CHECK FAIL holds cut'), 'record check failed: holds cut'),
             (SYSTEM_OUTPUT.replace('END prompt', 'MAILBOX no acknowledgement for opcode 17\nEND mailbox'),
              'mailbox: no acknowledgement'),
             ('END limit cycles=1 seconds=0.000\n', 'no status words'),
