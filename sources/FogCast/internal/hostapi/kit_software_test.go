@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/appliance/software"
-	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/protocol"
@@ -19,11 +18,10 @@ import (
 
 func TestHealthProjectsActiveSoftwareWithoutOperationDetails(t *testing.T) {
 	active, base, selected := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
-	private := "private-operation-detail"
-	status := &softwarecontrol.Status{State: softwarecontrol.State{Selected: selected, Generation: 9, Pending: &softwarecontrol.Operation{Reason: private}, Receipts: map[string]softwarecontrol.Receipt{private: {Reason: private}}}, ActiveBundle: active, BaseIdentity: base, StorageError: private, ServiceFault: private}
+	status := &protocol.Identity{Selected: selected, Generation: 9, ActiveBundle: active, BaseIdentity: base}
 	for _, tc := range []struct {
 		name     string
-		software *softwarecontrol.Status
+		software *protocol.Identity
 		err      error
 		want     bool
 	}{
@@ -32,9 +30,6 @@ func TestHealthProjectsActiveSoftwareWithoutOperationDetails(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			service := &fakeService{health: protocol.Health{APIVersion: "v1", Software: tc.software, Artifacts: &protocol.Artifacts{RuntimeCommit: strings.Repeat("d", 40)}}, healthErr: tc.err}
 			response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/health")
-			if strings.Contains(response.Body.String(), private) {
-				t.Fatal("private supervisor status leaked")
-			}
 			var out struct {
 				Target struct {
 					APIVersion string         `json:"api_version"`
