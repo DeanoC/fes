@@ -15,8 +15,10 @@ FreeDOS boots on the RTL exactly as on main at `max` and still boots under
 286-12. The seal (Quartus 17.0.2,
 package `c86c5ebf…`) meets every analysis at 61.44 MHz. On Kit B at 286-12,
 Ultima VI's opening-fight sounds are PIT tones at 213.1 Hz on this package
-and on main's earlier seal alike. Its CPU-timed speaker routine did not
-play, so the ~2.5% drop expected there is not measured. The 286-12
+and on main's earlier seal alike. Its CPU-timed speaker routine (Iolo's
+lute) plays on both packages but reaches the kit's audio only as
+occasional single clicks, with no tone, so its pitch and the ~2.5% drop
+expected there cannot be measured from the audio. The 286-12
 system-suite run finished its test and then hit the bench gap
 [#1372](https://github.com/DeanoC/fes/issues/1372).
 
@@ -294,9 +296,71 @@ count of INC/CMP/JE passes. The delay scales with the CPU and the I/O does
 not. Worked out from the code, not measured: at 286-12 a pass is about 89
 clocks plus about 475 per delay unit. The two 8-bit cycles' charge (7
 clocks each) should lower those sounds' pitch by about 2.5% at one delay
-unit. None of them played in the capture, so there is no measured figure.
+unit. None of them played in `u6a`; run `u6i` played them, below.
 Whether either package sounds right is Deano's call by ear.
 
 The run left 21 paths in FogCast's data directories on Kit B (listed in the
 status log): the two sessions' game records, their media deltas and the
 staged disk image, which holds the game. They have not been removed.
+
+### The CPU-timed routine: run `u6i`
+
+Run `u6i`, 3 November 18:56-19:19 EET, claimed and released in
+`kitB-STATUS.md` on the same baseline (software `b3444abf`, image
+`f904961e`), core-only, no reboot, the same two packages at 286-12 and the
+same disk, each a fresh library game (`isa1362-u6i-new-286`,
+`isa1362-u6i-old-286`).
+
+**The trigger.** The routine (`retf 0Ah`, five word arguments, at 2B95h:0006
+in GAME.EXE's unpacked image, which is EXEPACKed) has twelve direct far
+calls: the avatar-death tune, the spell-cast sound, a clock's tick, Kal
+Lor, and the instrument cases of the sound-effect switch. Using an
+instrument calls it once per digit key, `0`-`9`, until a non-digit key.
+The `use` switch sends object 158 to sound case 18. That case calls the
+routine with a delay multiplier of 1 (one delay unit, the case modelled
+above), 2,000 steps and the key's note step. The game names object 158
+"lute" (`Use-lute` in its grabs), and Iolo starts the game carrying one.
+The sound-on word, `[2C72h]`, is 1, so the routine takes its port-61h path,
+not its silent delay-only path. So each session, at the first `Avatar:`
+prompt of the opening fight, pressed F4 (Iolo's inventory), U, Tab,
+Right, Enter (`Use-lute`), then digit keys 0.66 s apart: 30 × `6`, then
+30 × `1`, then Esc. The game sat in the lute's key loop until Esc, as the
+loop does, and the fight went on only after it. The branch's session first
+played `1`-`9`, `0` and then 16 more notes, the same way.
+
+**What the kit plays.** Nothing tonal, on either package. A gated 19.9 kHz
+carrier would average, in the mixer's box filter, to an envelope at the
+note's pitch. No such envelope is there, and no 19.9 kHz carrier either.
+The analyser (`u6_tones.py`: 5 ms frames, RMS threshold 300) finds no
+sound during the notes on either package. The only sounds it finds come
+after Esc, when the fight goes on: 213 Hz PIT tones. What the notes leave
+are single clicks, each a 2-4-sample pulse to about +16,000 followed by
+the DC blocker's decay. There are fewer clicks than notes, and their times
+follow neither the keys nor any fixed spacing. The table counts clicks
+between Enter and Esc.
+
+| Package | Notes | Clicks | Tones |
+| --- | ---: | ---: | ---: |
+| this branch, `c86c5ebf` | 60 (30 × `6`, 30 × `1`) | 30 | 0 |
+| | 26 (`1`-`9`, `0`, then `6`, `1`, `5`, `8`) | 21 | 0 |
+| main, `c7e06e04` | 60 (30 × `6`, 30 × `1`) | 22 | 0 |
+
+WAVs on Powerboat: `98425680…` and `30a0ce7e…` (this branch), `0ea48c6f…`
+(main). Some clicks pair up 60-62 ms or 118-119 ms apart, but the spacing
+varies by about 1 ms, which is most of the 2.5% (1.5 ms in 60). It is not a
+pitch, and the record gives none.
+
+So the routine does the same thing on both packages. Its port-61h I/O is
+what this change charges, but the kit's audio does not carry it as a tone,
+so the audio cannot measure the ~2.5% step-time change, and nobody can
+judge it by ear. That this change charges those two port accesses 7 ISA
+clocks each is shown by the bench's `io` loop and the system suite's
+speaker loop above. Why a gate-and-data toggle at this rate leaves only
+clicks (the mixer sums the speaker as 0 or 16,384, so a gated carrier
+should be heard) is not worked out here. The PIT is `KF8253`, and the
+speaker is `pit_out2 && port_b[1]` with gate 2 on `port_b[0]`. It happens
+on main's earlier seal too, so this change did not cause it.
+
+The run left 20 more paths in FogCast's data directories on Kit B (listed
+in the status log): the two sessions' game records and media deltas. They
+have not been removed.
