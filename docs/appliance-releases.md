@@ -122,9 +122,10 @@ with the [image commands](image-artifacts.md#de25-image-and-export-commands).
 `APPLIANCE_FACTORY` is still required.
 
 The [workflow evidence](validation/2026-11-02-de25-appliance-workflow/README.md)
-distinguishes routing/integrity fixtures from actual public refusals. No
-complete admitted DE25 factory/card has been produced: sealed MENU still
-depends on output/reset signoff and its remaining qualification gates. Native
+distinguishes the initial routing/integrity fixtures from actual public refusals.
+The [Terasic-based factory proof](validation/2026-11-03-de25-terasic-managed-factory/README.md)
+now produces a complete factory, real kernel/rootfs virtual boot, release,
+boot selector and matching independent card constructions. Native
 boot, watchdog, updates, peripherals and MENU/catalog ZX81 remain required.
 These commands do not write a physical device or authorize deployment.
 

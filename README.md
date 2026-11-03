@@ -14,8 +14,10 @@ launch acceptance remain open.
 The default appliance and playable packages target DE10-Nano.
 The [image commands](docs/image-artifacts.md#de25-image-and-export-commands)
 also select DE25 explicitly for managed factory assembly, verification and
-artifact export. Complete admitted factory/card and native kit acceptance
-remain open.
+artifact export. The [Terasic-based factory proof](docs/validation/2026-11-03-de25-terasic-managed-factory/README.md)
+builds the AArch64 runtime/agent, sealed MENU, release, boot selector and
+reproducible card through ordinary FES commands. Its real kernel/rootfs virtual
+boot passes; managed MENU/catalog ZX81 acceptance on the kit remains open.
 
 Agents: read [AGENTS.md](AGENTS.md), then the
 [development guide](docs/development.md) and the selected component's guidance.

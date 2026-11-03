@@ -5,6 +5,11 @@ the kit, show MENU, install and launch a core, deliver input/media, stop back to
 MENU, and recover/update through supported interfaces. Native CPU maintenance
 and JTAG diagnostics are intermediate evidence only.
 
+The [3 November Terasic-based factory proof](../validation/2026-11-03-de25-terasic-managed-factory/README.md)
+now completes ordinary source compilation, sealed MENU admission, actual
+kernel/rootfs virtual boot, release, bootstrap and two-pass card construction.
+Managed native boot and the workflow rows below still require kit acceptance.
+
 | Step | Owner | Acceptance on DE25 |
 | --- | --- | --- |
 | FES Linux baseline | FES image | Bottom-board FES SD and HPS-first QSPI pass cold startup and three software reboots; original flash readback retained |
@@ -121,8 +126,9 @@ package-selection set. Its offline acceptance reader does not establish native
 readiness.
 The [source verification proof](../validation/2026-11-02-de25-source-verification/README.md)
 records the current checks and external-cache/read-only verification boundary.
-Complete DE25 card/media and managed factory assembly, installation,
-watchdog/reboot recovery and the native workflow in the table remain open.
+The later factory/card proof completes managed factory and card/media assembly.
+Installation, watchdog/reboot recovery and the native workflow in the table
+remain open.
 
 The approved bottom-board baseline is the existing FES SD plus the exact
 HPS-first QSPI in the [persistent bootstrap trial](../de25-reboot-bootstrap.md).

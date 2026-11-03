@@ -112,8 +112,10 @@ selected artifacts and `factory.json`. Verification checks the bundle/base/MENU
 contracts, executable aliases, source hashes and critical tar/ext4 payloads.
 The output is an uninstalled candidate with closed normal admission. See the
 [factory action validation](validation/2026-11-02-de25-managed-factory/README.md)
-for its exact test coverage; complete factory assembly has not been run because
-the current MENU remains unsealed.
+for the initial wiring checks. The later
+[Terasic-based factory proof](validation/2026-11-03-de25-terasic-managed-factory/README.md)
+completes actual source compilation, factory verification and kernel/rootfs
+virtual boot with an admitted MENU package.
 
 The [ordinary image commands](#de25-image-and-export-commands) now route an
 explicit DE25 selection through this same factory producer. The
@@ -121,8 +123,9 @@ explicit DE25 selection through this same factory producer. The
 accept explicit DE25 factory selection for release, AArch64 bootstrap and
 regular-file card construction/verification. They require the actual factory,
 its bound structural report and successful image boot evidence; the real
-managed base is correctly refused. Complete admitted DE25 factory/card assembly
-and native acceptance remain required. Earlier shared-script fixtures retain their
+managed base is correctly refused. Actual release, bootstrap and two-pass card
+assembly now pass; native managed-kit acceptance remains required.
+Earlier shared-script fixtures retain their
 [factory-wiring validation scope](validation/2026-11-01-de25-factory-inputs/README.md).
 
 ## DE25 image and export commands
@@ -155,9 +158,10 @@ report/log. It reads recorded inputs by default; optional `IMAGE_ARTIFACTS`,
 package, kernel and owner compiler. The explicit board must agree with the
 profile. Omitting the board cannot select DE25 through `PROFILE` or metadata.
 The default DE10 commands retain their existing image and host-receipt checks.
-DE25 `build`, `rebuild`, `dev`, `host` and `doctor` routes remain unimplemented
-and are refused; this factory check does not claim the DE10 integration check's
-full scope. The shared host can still be built with ordinary `make host`.
+DE25 `build`, `rebuild` and `dev` use the
+[committed-source workflow](development.md#de25-source-development), with explicit
+managed SDK/base and owner kernel/compiler inputs. `make host BOARD=de25-nano`
+and `make doctor BOARD=de25-nano` use the shared host/profile checks.
 
 Export obtains fresh factory verification, then uses read-only `debugfs` to
 extract the six actual executables. It compares the four bundle programs with
@@ -171,8 +175,9 @@ publication. Existing outputs and factory/output overlap are refused.
 Both image operations and export use the existing media/build lease. They
 never write a physical device. The [entrypoint validation](validation/2026-11-02-de25-image-entrypoints/README.md)
 separates real ext4 fixtures and actual intermediate-image refusals from full
-factory/package admission. No complete admitted DE25 factory/export/card has
-been built; sealed MENU and native acceptance remain required.
+factory/package admission. The later actual factory/card proof covers ordinary
+source, release, bootstrap and media production. Export's payload extraction
+checks and native kit acceptance retain their own scopes.
 
 The six bootstrap binaries are `mister-agent`, `mister-runtime`, `fogcast-kit`,
 `fogcast-tenfoot`, `fes-kit-data` and `fes-kit-software`. The last two implement
