@@ -9,6 +9,14 @@ admission, arbitrary package selection and physical Tenfoot remain open. The
 updated spare requires its matched `phy-prepare` recovery SOF; retain the old
 FIT/manifest rollback copies and the safe factory card.
 
+The native loader now preflights each retained selection before stopping SD.
+Wrong package/map/digest choices leave storage usable. A single-use load plan
+freezes the checked inputs and requires the exact contained selection plus fresh
+secure ownership before a DMA reservation or START. Copies and concurrent uses
+cannot replay the plan. This source-bound preflight has software coverage; its
+changed native image needs a separate matched boot test. It does not enable an
+ordinary Nano programming profile or arbitrary package admission.
+
 `uart_transfer.send` supplies a bounded Kermit RAM transfer to an already owned
 exclusive recovery console. Its caller must first establish the complete live
 LMB ledger and reserve the window with a verified FAT load. The sender may exit

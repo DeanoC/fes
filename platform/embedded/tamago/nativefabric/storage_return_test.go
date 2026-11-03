@@ -56,7 +56,7 @@ func (l *computerStorageLease) ResumeAfterReturn(owner, generation uint64) error
 	return nil
 }
 
-func storedComputer(t *testing.T) (*HPSContextVerifier, *reloadCPU, *computerStorageLease, *packagestore.Store, *packagestore.Handoff, []byte, []byte, []byte, []byte) {
+func storedComputer(t *testing.T) (*HPSContextVerifier, *reloadCPU, *computerStorageLease, *packagestore.Store, *packagestore.Selection, []byte, []byte, []byte, []byte) {
 	t.Helper()
 	prototype, port, control, computerRaw := computerFixture(t, "")
 	_, configuration, region := configurationSource(t)
@@ -151,17 +151,21 @@ toolchain = "synthetic fixture; test only"
 	if err != nil {
 		t.Fatal(err)
 	}
-	handoff, err := store.Contain(selected)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return v, cpu, lease, store, handoff, control, configuration, computerRaw, data
+	return v, cpu, lease, store, selected, control, configuration, computerRaw, data
 }
 
 func TestNativeComputerReturnReopensSDReselectsAndRearmsUnderNewGeneration(t *testing.T) {
 	for _, fault := range []string{"pass", "grant", "changed-closure", "hold", "close", "closure-proof", "source"} {
 		t.Run(fault, func(t *testing.T) {
-			v, cpu, lease, store, handoff, control, configuration, computerMap, data := storedComputer(t)
+			v, cpu, lease, store, selected, control, configuration, computerMap, data := storedComputer(t)
+			plan, err := v.PreflightStoredConfiguration(control, configuration, selected)
+			if err != nil {
+				t.Fatal(err)
+			}
+			handoff, err := store.Contain(selected)
+			if err != nil {
+				t.Fatal(err)
+			}
 			arena, err := NewConfigurationArena(0x94800000, make([]byte, 256), func() error { return nil })
 			if err != nil {
 				t.Fatal(err)
@@ -173,9 +177,9 @@ func TestNativeComputerReturnReopensSDReselectsAndRearmsUnderNewGeneration(t *te
 				}
 				var transfer *ConfigurationTransfer
 				if cycle == 0 {
-					transfer, _, err = v.NewStoredConfigurationTransfer(control, configuration, handoff, arena.Reserve)
+					transfer, _, err = plan.NewTransfer(handoff, arena.Reserve)
 				} else {
-					transfer, _, err = v.NewStoredReconfigurationTransfer(control, configuration, handoff, arena.Reserve)
+					transfer, _, err = plan.NewReconfigurationTransfer(handoff, arena.Reserve)
 				}
 				if err != nil {
 					t.Fatal(cycle, err)
@@ -256,6 +260,10 @@ func TestNativeComputerReturnReopensSDReselectsAndRearmsUnderNewGeneration(t *te
 					t.Fatal("old handoff survived SD ownership", err)
 				}
 				selected, err := store.Retain(context.Background(), packagestore.Request{Path: "FES/PKGTEST.BIN", PackageID: v.Identity().PackageID})
+				if err != nil {
+					t.Fatal(err)
+				}
+				plan, err = v.PreflightStoredConfiguration(control, configuration, selected)
 				if err != nil {
 					t.Fatal(err)
 				}

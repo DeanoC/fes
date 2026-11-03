@@ -75,6 +75,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	plan, err := v.PreflightStoredConfiguration(control, configuration, selection)
+	if err != nil {
+		panic(err)
+	}
 	handoff, err := store.Contain(selection)
 	if err != nil {
 		panic(err)
@@ -95,7 +99,7 @@ func main() {
 		panic("on-chip reader cannot supply a DDR memory map")
 	}
 	var source nativefabric.HPSBootObservation
-	retained, source, err = v.NewStoredConfigurationTransfer(control, configuration, handoff, de25nano.ReserveConfiguration)
+	retained, source, err = plan.NewTransfer(handoff, de25nano.ReserveConfiguration)
 	if err != nil {
 		panic(err) // Board reservation remains pinned, including constructor errors.
 	}
@@ -156,6 +160,10 @@ func main() {
 					if err != nil {
 						panic(err)
 					}
+					plan, err = v.PreflightStoredConfiguration(control, configuration, selection)
+					if err != nil {
+						panic(err)
+					}
 					handoff, err = store.Contain(selection)
 					if err != nil {
 						panic(err)
@@ -166,8 +174,13 @@ func main() {
 					}
 					fmt.Printf("FES_NATIVE_STORAGE_RETURN CONTAINED owner=%x generation=%d return_generation=%d package_id=%s source=sd writes=disabled\n",
 						held.Owner, held.Generation, returned.Bridges.Generation, selection.Inspection().PackageID)
+				} else {
+					plan, err = v.PreflightStoredConfiguration(control, configuration, selection)
+					if err != nil {
+						panic(err)
+					}
 				}
-				retained, source, err = v.NewStoredReconfigurationTransfer(control, configuration, handoff, de25nano.ReserveConfiguration)
+				retained, source, err = plan.NewReconfigurationTransfer(handoff, de25nano.ReserveConfiguration)
 				if err != nil {
 					panic(err)
 				}

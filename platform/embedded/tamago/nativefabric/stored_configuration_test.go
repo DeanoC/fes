@@ -50,7 +50,7 @@ func (s *storedFiles) Open(path string) (fs.File, error) {
 	return s.files.Open(path)
 }
 
-func storedPackage(t *testing.T) ([]byte, []byte, []byte, []byte, *storedFiles, *storedLease, *packagestore.Store, *packagestore.Handoff) {
+func storedSelection(t *testing.T) ([]byte, []byte, []byte, []byte, *storedFiles, *storedLease, *packagestore.Store, *packagestore.Selection) {
 	t.Helper()
 	var source HPSBootContext
 	if err := json.Unmarshal(hpsContextFixture(t), &source); err != nil {
@@ -127,14 +127,37 @@ toolchain = "synthetic fixture; test only"
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A later read of the card would be both forbidden and corrupt. The loader
+	// must consume the real validator's privately retained bytes instead.
+	clear(archive)
+	return canonicalConfiguration(t, source), canonicalConfiguration(t, control), canonicalConfiguration(t, mapping), data, files, lease, store, selection
+}
+
+func storedPackage(t *testing.T) ([]byte, []byte, []byte, []byte, *storedFiles, *storedLease, *packagestore.Store, *packagestore.Handoff) {
+	t.Helper()
+	raw, control, mapping, data, files, lease, store, selection := storedSelection(t)
 	handoff, err := store.Contain(selection)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A later read of the card would be both forbidden and corrupt. The loader
-	// must consume the real validator's privately retained bytes instead.
-	clear(archive)
-	return canonicalConfiguration(t, source), canonicalConfiguration(t, control), canonicalConfiguration(t, mapping), data, files, lease, store, handoff
+	return raw, control, mapping, data, files, lease, store, handoff
+}
+
+// These fault fixtures begin with SD already contained. The separate preflight
+// tests and joined return test exercise preparation before the real SD stop.
+func storedTransfer(v *HPSContextVerifier, control, mapping []byte, handoff *packagestore.Handoff, reserve func([]byte) (*Region, error), rearm bool) (*ConfigurationTransfer, HPSBootObservation, error) {
+	selection, err := handoff.Selection()
+	if err != nil {
+		return nil, HPSBootObservation{}, err
+	}
+	plan, err := v.PreflightStoredConfiguration(control, mapping, selection)
+	if err != nil {
+		return nil, HPSBootObservation{}, err
+	}
+	if rearm {
+		return plan.NewReconfigurationTransfer(handoff, reserve)
+	}
+	return plan.NewTransfer(handoff, reserve)
 }
 
 func TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure(t *testing.T) {
@@ -250,7 +273,7 @@ func TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure(t
 				reserve = nil
 			}
 			opens := files.opens
-			transfer, source, err := v.NewStoredConfigurationTransfer(control, mapping, handoff, reserve)
+			transfer, source, err := storedTransfer(v, control, mapping, handoff, reserve, false)
 			constructorFailure := name == "no-handoff" || name == "bad-map" || name == "no-reservation" || name == "wrong-package" || name == "wrong-owner" || name == "wrong-generation" || name == "not-cold" || name == "resume-before-constructor" || name == "reservation-error"
 			if constructorFailure {
 				if err == nil || transfer != nil || starts != 0 || consumed != 0 {
@@ -367,7 +390,7 @@ func TestStoredReloadKeepsArchiveContainedAndRequiresSuccessfulReturn(t *testing
 				}
 				return &Region{Address: 0x94800000, Bytes: bytes.Clone(source), Release: func() error { releases++; return nil }}, nil
 			}
-			transfer, source, err := v.NewStoredReconfigurationTransfer(control, mapping, handoff, reserve)
+			transfer, source, err := storedTransfer(v, control, mapping, handoff, reserve, true)
 			if mode != "pass" && mode != "resume-in-reserve" {
 				if err == nil || transfer != nil || reservations != 0 || starts != 0 || files.opens != opens {
 					t.Fatal("invalid stored return reached reservation", err)

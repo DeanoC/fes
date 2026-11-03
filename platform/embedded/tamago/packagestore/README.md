@@ -31,8 +31,10 @@ held-data core-return record. The new `ResumeAfterReturn` operation requires an
 explicit returned owner/generation and a lease with that capability. It runs
 controller/card reinitialization before another package read. Previous handoffs
 are invalidated; the next `Handoff.ReturnedFrom()` retains the exact return as
-cached provenance. It supplies no concurrent core/SD access. Warm return is
-software-qualified and still needs its matched hardware test.
+cached provenance. It supplies no concurrent core/SD access. The
+[bounded recovery/warm-SD hardware sequence](../../../../docs/validation/2026-11-03-de25-uart-drain-warm-sd/README.md)
+passes warm return and fresh SD retention between two fixed-package native core
+cycles. This supplies no arbitrary-package or ordinary runtime admission.
 
 Host tests include read-only FAT32 with an unchanged disk hash, retention after
 source mutation, the existing format-3/4 linker against its independent output
@@ -54,10 +56,10 @@ The [bounded TRWU8CBL trial](../../../../docs/validation/2026-11-01-de25-ksz9031
 now passes that real cold SD retention/contain/resume/reread cycle. Returned-core
 storage access and physical runtime admission remain unqualified.
 
-The `fpgaload` consumer now joins a contained `Handoff` to the native cold
-configuration engine. It selects the exact compiled sealed package and copies
-its privately retained payload into the boot-pinned arena. Fresh secure
-owner/generation checks bracket preparation; storage resume invalidates the
-handoff before START. This joins the two native paths without granting general
-compatibility admission or storage access across an active core. The combined
-SD-to-configuration image still needs its own physical qualification.
+The `fpgaload` consumer preflights the exact compiled sealed package before
+containing SD. Native code freezes the checked selection and maps in a single-use
+load plan, then requires that same selection's current `Handoff` before copying
+into the boot-pinned arena. Fresh secure owner/generation checks bracket
+preparation; storage resume invalidates the handoff before START. The store
+still performs no compatibility decision or FPGA operation. The changed native
+preflight image needs its own physical qualification.

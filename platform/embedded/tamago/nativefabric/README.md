@@ -128,13 +128,17 @@ package. Arbitrary compatible packages and normal runtime admission remain open.
 Close, checks the exact live source/closure again, then requests the store's SD
 return operation once. A public observation cannot manufacture that authority.
 Fresh retention and containment carry the return into
-`NewStoredReconfigurationTransfer`, which checks the newer SD generation against
+`StoredConfigurationPlan.NewReconfigurationTransfer`, which checks the newer SD
+generation against
 the current secure snapshot. Failed or uncertain grants cannot replay. Joined
 software tests cover three configuration/Run/return cycles, two SD reopens and
 fresh selections. The secure provider separately verifies its own closure and
 stopped SD provenance before accepting the next activation. This path still
-selects the compiled diagnostic package; its hardware test and ordinary Nano
-admission remain open.
+selects the compiled diagnostic package. The
+[bounded recovery/warm-SD hardware sequence](../../../../docs/validation/2026-11-03-de25-uart-drain-warm-sd/README.md)
+passes two native load/Run/return cycles with fresh SD retention between them.
+Ordinary Nano admission remains open; the new preflight plan needs its own
+matched-image hardware check.
 
 `HPSContextVerifier.ProbeReader` adds a distinct owned firmware operation for
 the sealed diagnostic's on-chip reader. It checks the same compiled source and
@@ -152,21 +156,34 @@ DDR/master drain, boot admission, data release or physical launch/return
 acceptance. The native `fpgaload` caller now selects this reader operation;
 its changed matched boot chain needs separate physical qualification.
 
-`NewStoredConfigurationTransfer` consumes a `packagestore.Handoff`. It checks
-the retained format-2 archive against the compiled package/build/target/ABI and
-payload identities, compares the contained SD receipt to fresh secure ownership,
-and only then reserves DMA memory. Deferred preparation rechecks the handoff;
-resume or changed ownership cannot reach START. No filesystem is reopened and
-no failed reservation/transfer frees memory. This source-bound path does not
-supply the runtime compatibility decision for arbitrary packages.
+`PreflightStoredConfiguration` checks a retained `packagestore.Selection`
+before its store is contained. It compares the format-2 archive with the compiled
+package/build/target/ABI, payload size, whole SHA-256/SHA-384 and every chunk digest.
+It makes no firmware call, filesystem read, reservation or SD stop, so rejected
+choices leave storage usable. The resulting `StoredConfigurationPlan` privately
+freezes the maps, payload and exact selection. It supplies no hardware authority
+or runtime compatibility decision for arbitrary packages.
 
-`NewStoredReconfigurationTransfer` consumes that same retained archive after
+After `Store.Contain`, `plan.NewTransfer` consumes a current handoff for that
+same selection, compares its SD receipt to fresh secure ownership, and only then
+reserves DMA memory. The plan is consumed once, including on failure; copied
+handles and concurrent callers share that state. It retains a region even when
+the reservation callback returns it with an error. Deferred preparation rechecks
+the handoff, staged digests and live source before START. Resume or changed
+ownership cannot reach START. No filesystem is reopened and no failed
+reservation/transfer frees memory. Keep the plan, transfer and platform arena
+until reboot on an uncertain outcome.
+
+`plan.NewReconfigurationTransfer` consumes a fresh plan for a retained archive after
 this verifier's successful computer return. It requires the matching newer live
 closure and unchanged inactive SD lease. The older storage receipt proves only
 continued retention; it never substitutes for current FPGA ownership. Deferred
 preparation rejects a store resume before START. The native diagnostic selects
 one initial load by default; `--computer-control --computer-reload` selects two
-fixed-package load/Run/return cycles using the same retained handoff. Each
+fixed-package load/Run/return cycles using the same retained handoff. With
+`--computer-storage-return`, the caller reopens SD after its successful return,
+freshly retains and preflights a selection, then contains SD before consuming
+the next plan. Each
 transfer retains its 20-second deadline and each computer probe its five-second
 context. Strict framed trace checks require both cycles, fresh firmware
 activations/stops and fetch counters, continuous CPU timing and the same owner.
