@@ -224,7 +224,23 @@ def usages(text):
         raise ValueError('unsupported DOS command character') from None
 
 
-def wait_for_output(runner, owned, args, rec, font, anchor, dimensions, marker, phase):
+def output_proof(lines, command, marker, *, frame=None, anchor=None):
+    """Require the typed command, file contents and returned prompt in order."""
+    upper = [line.upper().strip() for line in lines]
+    for row in range(len(lines) - 2):
+        if upper[row] != 'A:\\>' + command or upper[row + 1] != marker:
+            continue
+        prompt_row = row + 2
+        plain = upper[prompt_row] == 'A:\\>'
+        cursor = (lines[prompt_row].upper().rstrip() == 'A:\\>?' and
+                  underline_cursor(frame, anchor, prompt_row, 4))
+        if plain or cursor:
+            return {'command_row': row, 'marker': marker, 'marker_row': row + 1,
+                    'prompt_row': prompt_row, 'screen': lines}
+    return None
+
+
+def wait_for_output(runner, owned, args, rec, font, anchor, dimensions, command, marker, phase):
     deadline = time.monotonic() + 120
     while True:
         n = len(rec['captures'])
@@ -232,13 +248,11 @@ def wait_for_output(runner, owned, args, rec, font, anchor, dimensions, marker, 
                                         args.evidence/f'{phase}-{n:03}.png', phase)
         rec['captures'].append(info)
         lines = app.read_anchored(frame, font, anchor, dimensions)
-        upper = [line.upper() for line in lines]
-        row = next((i for i, line in enumerate(upper) if marker in line), None)
-        later = next((i for i in range(row+1,len(lines)) if 'A:\\>' in upper[i]), None) if row is not None else None
-        if row is not None and later is not None:
-            return {'marker': marker, 'marker_row': row, 'prompt_row': later, 'screen': lines}
+        proof = output_proof(lines, command, marker, frame=frame, anchor=anchor)
+        if proof is not None:
+            return proof
         if time.monotonic() >= deadline:
-            raise pa.AcceptanceError(phase+' did not reach the required output and later prompt')
+            raise pa.AcceptanceError(phase+' did not reach the required command, output and prompt')
         time.sleep(1)
 
 
@@ -413,7 +427,7 @@ def run_phase(runner, owned, args, rec, input_session_id, font):
         raise pa.AcceptanceError('fresh screen already contains a test marker')
     if args.phase == 'write':
         app.type_keys(runner, owned, args, DISK_SHA, input_session_id, rec['hid_events'], usages('TYPE FESXT.TXT\n'))
-        rec['read_only_control'] = wait_for_output(runner, owned, args, rec, font, anchor, before[:2], MARKER, 'control')
+        rec['read_only_control'] = wait_for_output(runner, owned, args, rec, font, anchor, before[:2], 'TYPE FESXT.TXT', MARKER, 'control')
         unit_binding(runner.session(), owned, 'absent')
         app.type_keys(runner, owned, args, DISK_SHA, input_session_id, rec['hid_events'], usages('COPY FESXT.TXT FESSAVE.TXT\n'))
         rec['guest_copy'] = wait_for_copy(runner, owned, args, rec, font, anchor, before[:2])
@@ -421,7 +435,7 @@ def run_phase(runner, owned, args, rec, input_session_id, font):
         rec['classification'] = 'physical diagnostic: saved; restart pending'
     else:
         app.type_keys(runner, owned, args, DISK_SHA, input_session_id, rec['hid_events'], usages('TYPE FESSAVE.TXT\n'))
-        rec['restored_file'] = wait_for_output(runner, owned, args, rec, font, anchor, before[:2], MARKER, 'restored')
+        rec['restored_file'] = wait_for_output(runner, owned, args, rec, font, anchor, before[:2], 'TYPE FESSAVE.TXT', MARKER, 'restored')
         unit_binding(runner.session(), owned, rec['saved_revision'])
         rec['classification'] = 'physical diagnostic: DOS saved file restored after restart'
     require_pr_head(args,PhaseDeadline(args.phase_deadline_monotonic))
