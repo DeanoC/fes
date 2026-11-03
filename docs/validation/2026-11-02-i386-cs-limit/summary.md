@@ -16,8 +16,9 @@ as not built.
   ([What changes](#what-changes)). The real-mode delivery redirect keeps the
   386's 16-bit IP cut. `WHY_CS_LIMIT`, `cs_odd`, `wrap16` and the 16-bit-only
   special cases are gone.
-- Full RTL and i386-lock Yosys-netlist lockstep runs at source head
-  `c00efad2dfeba8cbe60a5b22229addfbe6507c3c` include the #1430 merge, the
+- Full RTL and Yosys-netlist lockstep runs at source head
+  `c00efad2dfeba8cbe60a5b22229addfbe6507c3c`, the netlist from the i386
+  lock's Yosys `238eac9a4`, include the #1430 merge, the
   restored real-mode delivery IP cut and the next-instruction redirect fix
   ([Lockstep](#lockstep)). Their architectural reports match:
   - all 1,758,699 corpus states pass;
@@ -84,12 +85,16 @@ as not built.
   needs no reseal before merge, as #1411's own record says of `d9773b8f2`.
 - Oracle: Bochs 3.1 at CPU level 3 (the `fes-i386-oracle` build), corpus
   SingleStepTests/80386 `459d49fbe628`.
-- The lockstep reruns used system Verilator 5.020 with `-Wno-fatal` for two
-  pre-existing width warnings in the unchanged governor and BIU. The locked
-  Verilator `5e4151e3` hit an internal optimizer error at
+- The RTL lockstep rerun used system Verilator 5.020 with `-Wno-fatal` for
+  two pre-existing width warnings in the unchanged governor and BIU. The
+  locked Verilator `5e4151e3` hit an internal optimizer error at
   `fes_i386_seq.sv:317` before simulation. The netlist run used the i386
-  lock's Yosys `0a7927bf126eb3d868c50b3bb5e11b69ff656ea9`. The seal used
-  Quartus Prime Lite 17.0.2 with the netlist from the pc386 lock's Yosys
+  lock's Yosys `238eac9a49002722cef800cacaa763911e01f240` and system
+  Verilator 5.032, whose netlist build the runner gives `-Wno-fatal`, at
+  `9b377b92a`, whose sources are `c00efad2`'s. It replaces a netlist run on
+  the pc386 lock's Yosys `0a7927bf`, taken for the i386 lock's by mistake;
+  the two reports differ only in their Yosys fields. The seal used Quartus
+  Prime Lite 17.0.2 with the netlist from the pc386 lock's Yosys
   `0a7927bf`.
 - DOOM v1.9 under DOS/4GW, on slice 2's census disk (the games image,
   HIMEMX's full XMS, DOOM in `C:\DOOM`, SHA-256 `fa26f60b…`), a scratch copy
@@ -141,11 +146,13 @@ before.
 `81ab9086c`, the real-mode delivery IP restoration and the next-instruction
 redirect fix. The full RTL run is
 ([lockstep-report.json](lockstep-report.json)); the full Yosys-netlist run
-uses the i386 lock's Yosys `0a7927bf126eb3d868c50b3bb5e11b69ff656ea9`
-([lockstep-netlist-report.json](lockstep-netlist-report.json)). The netlist
-runner's `--same-as` check reports no architectural differences. After
-removing the `yosys`, `yosys_commit` and `same_as` metadata, the reports are
-identical.
+uses the i386 lock's Yosys `238eac9a49002722cef800cacaa763911e01f240`
+([lockstep-netlist-report.json](lockstep-netlist-report.json)), at
+`9b377b92a`, whose sources are this head's. The netlist runner's
+`--same-as` check reports no architectural differences. After removing the
+`yosys`, `yosys_commit` and `same_as` metadata, the reports are identical.
+The runner does not write `source_commit` or `yosys_commit`; they are added
+to its reports by hand.
 
 | Run | Result |
 | --- | --- |
@@ -164,7 +171,8 @@ failure is `random#1#1473`: REP MOVSB stores over its own code, the same
 pre-existing harness gap on slice 2 and both current implementations.
 The focused `tests.test_fes_i386_lockstep` suite passes all 11 tests at this
 head, including short RTL and Yosys-netlist runs and the directed-suite
-`cs_limit` same-as comparison.
+`cs_limit` same-as comparison; at `9b377b92a`, `FES_I386_YOSYS` named the
+i386 lock's Yosys `238eac9a4` for the netlist run.
 
 **The original directed CS-limit cases** (`--mode pmode`, 38 of the 89 at
 `df7ff8a9`). Each far-jumps
