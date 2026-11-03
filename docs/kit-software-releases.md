@@ -344,9 +344,12 @@ They do not require an execution lease:
 | `POST /v1/kit/software/activate` | Queue `{id,candidate,requester,expected_generation}` |
 | `POST /v1/kit/software/cancel` | Cancel `{id,expected_generation}` while queued |
 
-Authenticated health has a separate `software` object with `active_bundle`,
-`base_identity` and supervisor state. Existing sealed image `artifacts` retain
-their base-image provenance. Public health omits software queue details.
+Authenticated health has a separate `software` object with only `active_bundle`,
+`base_identity`, `selected` and `generation`. Health is polled, so the operation
+queue and receipts stay on `GET /v1/kit/software`. If the supervisor cannot
+answer, health reports the bundle and base identity the agent was launched with.
+Existing sealed image `artifacts` retain their base-image provenance. Public
+health omits `software`.
 
 The supervisor owns the entire group lifecycle. Managed diagnostics use a private host and an explicitly installed software
 bundle. File-swap, baseline and restore commands refuse managed images before

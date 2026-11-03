@@ -379,9 +379,10 @@ that identity was rewritten. Host `GET /api/v1/health` adds a `host` identity
 (`version`, `revision`, `os`, `arch`) and forwards `target.artifacts` and
 `target.api_version` when the target is reachable. Authenticated target health
 also reports managed software independently of that sealed base-image record.
-The host projects only `target.software.active_bundle`, `base_identity`,
-`selected` and `generation`; it omits the operation journal, requester labels
-and diagnostic error strings. Unmanaged targets omit `target.software`, and
+Target health carries only `software.active_bundle`, `base_identity`,
+`selected` and `generation`, and the host forwards them as `target.software`;
+the operation journal, requester labels and diagnostic error strings stay on
+the target's `GET /v1/kit/software`. Unmanaged targets omit `target.software`, and
 failed health does not retain a previous identity. Public unauthenticated target
 health never exposes software status.
 

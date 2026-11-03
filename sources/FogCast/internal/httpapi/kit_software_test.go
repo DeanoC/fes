@@ -136,3 +136,37 @@ func TestSoftwareHealthSeparatesIdentityAndRestrictsStatus(t *testing.T) {
 		t.Fatalf("health carried supervisor operation status: %s", response.Body.String())
 	}
 }
+
+func TestSoftwareHealthFallsBackToLaunchIdentity(t *testing.T) {
+	t.Setenv("FES_SOFTWARE_BUNDLE_ID", strings.Repeat("a", 64))
+	t.Setenv("FES_SOFTWARE_BASE_IDENTITY", "base-contract")
+	launch := softwarecontrol.Identity{ActiveBundle: strings.Repeat("a", 64), BaseIdentity: "base-contract"}
+	for name, supervisor := range map[string]http.HandlerFunc{
+		"rejected": func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, `{"error":"storage"}`, http.StatusServiceUnavailable)
+		},
+		"garbled": func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"selected":`)) },
+		"null":    func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`null`)) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			handler := httpapi.New(&fakeController{health: protocol.Health{APIVersion: "v1"}}, "secret", "test", nil, httpapi.WithKitSoftware(softwareSocket(t, supervisor)))
+			var health protocol.Health
+			if err := json.Unmarshal(softwareAgentRequest(handler, "GET", "/v1/health", "secret", "", nil).Body.Bytes(), &health); err != nil {
+				t.Fatal(err)
+			}
+			if health.Software == nil || *health.Software != launch {
+				t.Fatalf("fallback identity: %+v", health.Software)
+			}
+		})
+	}
+	t.Run("unreachable", func(t *testing.T) {
+		handler := httpapi.New(&fakeController{health: protocol.Health{APIVersion: "v1"}}, "secret", "test", nil, httpapi.WithKitSoftware(testsock.Path(t, "absent.sock")))
+		var health protocol.Health
+		if err := json.Unmarshal(softwareAgentRequest(handler, "GET", "/v1/health", "secret", "", nil).Body.Bytes(), &health); err != nil {
+			t.Fatal(err)
+		}
+		if health.Software == nil || *health.Software != launch {
+			t.Fatalf("fallback identity: %+v", health.Software)
+		}
+	})
+}

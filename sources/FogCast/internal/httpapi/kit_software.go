@@ -114,7 +114,7 @@ func kitSoftwareHealth(parent context.Context, socket string) *softwarecontrol.I
 		return result
 	}
 	// Decoding into the identity skips the receipts without building them.
-	var status softwarecontrol.Identity
+	status := *result
 	if err := json.NewDecoder(io.LimitReader(response.Body, maxSoftwareControlResponse)).Decode(&status); err != nil {
 		return result
 	}
