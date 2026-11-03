@@ -12,13 +12,30 @@ import (
 // this type establishes neither physical ownership nor bridge permission.
 // Only a successful transfer's Release permits overwriting the previous lease.
 type ConfigurationArena struct {
-	mu      sync.Mutex
-	address uint64
-	memory  []byte
-	barrier func() error
-	active  *Region
-	ready   bool
-	failed  bool
+	mu       sync.Mutex
+	address  uint64
+	memory   []byte
+	metadata []byte
+	barrier  func() error
+	active   *Region
+	ready    bool
+	failed   bool
+}
+
+// NewProgramArena reserves the final page for the fixed secure descriptor.
+// The complete mapping stays pinned. This supplies no physical ownership or
+// programming authority; the platform must qualify the entire mapping.
+func NewProgramArena(address uint64, memory []byte, barrier func() error) (*ConfigurationArena, error) {
+	if len(memory) <= ProgramMetadataBytes {
+		return nil, errors.New("native fabric: program arena lacks its metadata page")
+	}
+	a, err := NewConfigurationArena(address, memory, barrier)
+	if err != nil {
+		return nil, err
+	}
+	limit := len(memory) - ProgramMetadataBytes
+	a.memory, a.metadata = memory[:limit:limit], memory[limit:]
+	return a, nil
 }
 
 func NewConfigurationArena(address uint64, memory []byte, barrier func() error) (*ConfigurationArena, error) {
@@ -49,6 +66,33 @@ func (a *ConfigurationArena) Reserve(source []byte) (*Region, error) {
 	owned := bytes.Clone(source)
 	region := &Region{Address: a.address, Bytes: a.memory[:len(owned):len(owned)]}
 	a.active, a.ready = region, false
+	published := false
+	var header []byte
+	if a.metadata != nil {
+		region.PublishConfiguration = func(raw []byte) error {
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			if a.failed || a.active != region || a.ready || published || len(raw) != ProgramHeaderBytes {
+				return errors.New("native fabric: configuration publication stale, consumed or invalid")
+			}
+			published = true
+			header = bytes.Clone(raw)
+			if err := a.barrier(); err != nil {
+				a.failed = true
+				return err
+			}
+			copy(a.metadata, header)
+			if err := a.barrier(); err != nil {
+				a.failed = true
+				return err
+			}
+			if !bytes.Equal(a.metadata[:len(header)], header) {
+				a.failed = true
+				return errors.New("native fabric: configuration publication changed")
+			}
+			return nil
+		}
+	}
 	region.Release = func() error {
 		a.mu.Lock()
 		defer a.mu.Unlock()
@@ -59,9 +103,14 @@ func (a *ConfigurationArena) Reserve(source []byte) (*Region, error) {
 			a.failed = true
 			return err
 		}
+		if a.metadata != nil && (!published || !bytes.Equal(a.metadata[:len(header)], header)) {
+			a.failed = true
+			return errors.New("native fabric: configuration metadata missing or changed at completion")
+		}
 		a.ready = true
 		return nil
 	}
+	clear(a.metadata)
 	copy(region.Bytes, owned)
 	if err := a.barrier(); err != nil {
 		a.failed = true

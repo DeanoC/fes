@@ -1,5 +1,13 @@
 # Nano recovery uploads and cold serial boot
 
+The current configuration code adds an owned per-load descriptor in the last
+page of the existing DMA reservation. Firmware captures and checks that binding
+instead of using a compiled payload digest table. The current native frontend
+still selects the compiled diagnostic package; ordinary package selection and
+runtime admission remain open. The changed native/firmware protocol requires a
+new matched image and board test. The earlier physical results below apply to
+their named source and artifacts.
+
 The [serial drain/recovery/warm-SD hardware sequence](../../../docs/validation/2026-11-03-de25-uart-drain-warm-sd/README.md)
 passes on TRWU8CBL. The spare now contains the matched `phy-prepare` recovery
 FIT; its serial upgrade, protected-file readbacks and repeated Ethernet uploads

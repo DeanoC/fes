@@ -42,7 +42,12 @@ func configurationSource(t *testing.T) ([]byte, []byte, *Region) {
 		CoreSize: len(data), Base: 0x94800000, Size: 8 << 20, DRAMBase: 0x80000000, ChunkBytes: 0xfffc0,
 		ChunkSHA384: []string{hex.EncodeToString(sum384[:])}}
 	return canonicalConfiguration(t, source), canonicalConfiguration(t, mapping),
-		&Region{Address: mapping.Base, Bytes: data, Release: func() error { t.Fatal("preparation released the reservation"); return nil }}
+		&Region{Address: mapping.Base, Bytes: data, PublishConfiguration: func(raw []byte) error {
+			if len(raw) != ProgramHeaderBytes {
+				t.Fatal("invalid publication size")
+			}
+			return nil
+		}, Release: func() error { t.Fatal("preparation released the reservation"); return nil }}
 }
 
 func TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart(t *testing.T) {
@@ -53,7 +58,7 @@ func TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart(t *test
 			if err := json.Unmarshal(mapping, &descriptor); err != nil {
 				t.Fatal(err)
 			}
-			replies := append(hpsContextReplies(sha256.Sum256(raw)), [4]uint64{0, 0x4643503100000080, 17, 1})
+			replies := append(hpsContextReplies(sha256.Sum256(raw)), [4]uint64{0, 0x4643503180000080, 17, 1})
 			replies = append(replies, replies[0])
 			source := HPSBootObservation{Digest: sha256.Sum256(raw), Bridges: BridgeSnapshot{
 				Capabilities: BridgeCapabilities{Mask: 15, ControlMask: 2, HardwareDrainMask: 12, FabricHandshake: FabricHandshakeAbsent},
@@ -117,10 +122,10 @@ func TestColdTransferUsesCompiledBlocksAndRechecksPreparationBeforeStart(t *test
 }
 
 func TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest(t *testing.T) {
-	for _, name := range []string{"pass", "status", "tag", "size", "owner", "generation", "transport", "after-owner", "after-mask", "after-transport", "preparation-stale-generation"} {
+	for _, name := range []string{"pass", "status", "tag", "fixed-source-reply", "publication-unavailable", "publication-error", "size", "owner", "generation", "transport", "after-owner", "after-mask", "after-transport", "preparation-stale-generation"} {
 		t.Run(name, func(t *testing.T) {
 			raw, mapping, region := configurationSource(t)
-			replies := append(hpsContextReplies(sha256.Sum256(raw)), [4]uint64{0, 0x4643503100000080, 17, 1})
+			replies := append(hpsContextReplies(sha256.Sum256(raw)), [4]uint64{0, 0x4643503180000080, 17, 1})
 			replies = append(replies, replies[0])
 			failure, maximum := -1, 5
 			switch name {
@@ -128,6 +133,14 @@ func TestColdConfigurationPreparationUsesFixedOwnerAndNoAddressRequest(t *testin
 				replies[4][0] = 5
 			case "tag":
 				replies[4][1] ^= 1 << 32
+			case "fixed-source-reply":
+				replies[4][1] &^= programBoundReply
+			case "publication-unavailable":
+				region.PublishConfiguration = nil
+				maximum = 4
+			case "publication-error":
+				region.PublishConfiguration = func([]byte) error { return errors.New("unknown publication") }
+				maximum = 4
 			case "size":
 				replies[4][1]++
 			case "owner":

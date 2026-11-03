@@ -77,7 +77,7 @@ func TestStoredPreflightFreezesMapsBeforeContainmentAndNeverReopensFiles(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	arena, err := NewConfigurationArena(0x94800000, make([]byte, 256), func() error { return nil })
+	arena, err := NewProgramArena(0x94800000, make([]byte, ProgramMetadataBytes+256), func() error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}

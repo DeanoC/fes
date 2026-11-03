@@ -17,12 +17,12 @@ func reconfigurationReplies(raw []byte) [][4]uint64 {
 		replies[i][1] &^= 64 // NeverEnabled is permanently cleared by owned control opening.
 		replies[i][3] = 3
 	}
-	replies = append(replies, [4]uint64{0, 0x4657523100000080, 17, 3}, replies[0])
+	replies = append(replies, [4]uint64{0, 0x4657523180000080, 17, 3}, replies[0])
 	return replies
 }
 
 func TestReconfigurationPreparationBindsNewClosedGeneration(t *testing.T) {
-	for _, name := range []string{"pass", "cold", "initial-generation", "exhausted-generation", "context", "reset", "masters", "status", "tag", "size", "owner", "generation", "transport", "after-owner", "after-generation", "after-reset", "after-transport"} {
+	for _, name := range []string{"pass", "cold", "initial-generation", "exhausted-generation", "context", "reset", "masters", "status", "tag", "fixed-source-reply", "size", "owner", "generation", "transport", "after-owner", "after-generation", "after-reset", "after-transport"} {
 		t.Run(name, func(t *testing.T) {
 			raw, mapping, region := configurationSource(t)
 			replies := reconfigurationReplies(raw)
@@ -54,7 +54,9 @@ func TestReconfigurationPreparationBindsNewClosedGeneration(t *testing.T) {
 			case "status":
 				replies[4][0] = 4
 			case "tag":
-				replies[4][1] = 0x4643503100000080 // A cold receipt cannot acknowledge rearming.
+				replies[4][1] = 0x4643503180000080 // A cold receipt cannot acknowledge rearming.
+			case "fixed-source-reply":
+				replies[4][1] &^= programBoundReply
 			case "size":
 				replies[4][1]++
 			case "owner":

@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package nativefabric
+
+import (
+	"encoding/binary"
+	"encoding/hex"
+	"errors"
+)
+
+const (
+	ProgramHeaderBytes   = 640
+	ProgramMetadataBytes = 4096
+	MaxProgramBytes      = (8 << 20) - ProgramMetadataBytes
+	maxProgramChunks     = 9
+	programBoundReply    = uint64(1 << 31)
+)
+
+// encodeProgramBinding contains byte identities and the already observed scope,
+// never a DMA address, bridge mask or hardware capability. Secure firmware reads
+// its fixed descriptor location and captures this request before checking the
+// actual staged bytes. It is not package authentication or boot attestation.
+func encodeProgramBinding(source HPSBootObservation, m coldConfigurationMap) ([]byte, error) {
+	if source.Digest == [32]byte{} || source.Bridges.Owner == 0 || source.Bridges.Generation == 0 ||
+		m.CoreSize <= 0 || m.CoreSize > MaxProgramBytes || m.CoreSize%4 != 0 ||
+		m.ChunkBytes <= 0 || m.ChunkBytes > 0xffff0 || m.ChunkBytes%64 != 0 ||
+		len(m.ChunkSHA384) != (m.CoreSize-1)/m.ChunkBytes+1 || len(m.ChunkSHA384) > maxProgramChunks {
+		return nil, errors.New("native fabric: invalid per-load program binding")
+	}
+	raw := make([]byte, ProgramHeaderBytes)
+	for offset, value := range map[int]uint32{0: 0x46505231, 4: 1, 8: ProgramHeaderBytes,
+		12: uint32(m.CoreSize), 16: uint32(m.ChunkBytes), 20: uint32(len(m.ChunkSHA384))} {
+		binary.LittleEndian.PutUint32(raw[offset:], value)
+	}
+	binary.LittleEndian.PutUint64(raw[24:], source.Bridges.Owner)
+	binary.LittleEndian.PutUint64(raw[32:], source.Bridges.Generation)
+	copy(raw[40:], source.Digest[:])
+	fields := []struct {
+		offset, bytes int
+		value         string
+	}{{72, 32, m.PackageID}, {104, 16, m.BuildID}, {120, 32, m.CoreSHA256}, {152, 48, m.CoreSHA384}}
+	for i, value := range m.ChunkSHA384 {
+		fields = append(fields, struct {
+			offset, bytes int
+			value         string
+		}{200 + i*48, 48, value})
+	}
+	for _, field := range fields {
+		if !validHex(field.value, field.bytes*2) {
+			return nil, errors.New("native fabric: malformed program identity or digest")
+		}
+		decoded, _ := hex.DecodeString(field.value)
+		nonzero := false
+		for _, b := range decoded {
+			nonzero = nonzero || b != 0
+		}
+		if !nonzero {
+			return nil, errors.New("native fabric: empty program identity or digest")
+		}
+		copy(raw[field.offset:], decoded)
+	}
+	return raw, nil
+}

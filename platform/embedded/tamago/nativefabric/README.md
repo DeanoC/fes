@@ -94,10 +94,22 @@ before release, and a failed release cannot be retried.
 
 The source-bound `HPSContextVerifier.PrepareConfiguration` method validates the
 compiled control and configuration maps, the staged whole/chunk digests and
-fresh closed ownership before issuing private operation 8. It carries no
-address or digest in the request. The secure provider independently checks its
-fixed arena and compiled digests. Preparation and transfer do not implement
+fresh closed ownership before publishing one per-load descriptor and issuing
+private operation 8. The SMC carries no address or digest. The descriptor contains
+the observed owner/generation and boot-context digest, requested package/build
+identity, payload size and whole/chunk digests. The secure provider samples its
+fixed metadata page twice, retains a secure copy, and independently checks the
+actual staged bytes throughout the transfer. It requires no compiled payload
+digest table. Preparation and transfer do not implement
 `BootHandoffVerifier`, admit a Nano programming profile or activate a core.
+The board uses `NewProgramArena` to reserve the last 4 KiB of its 8 MiB mapping
+for the fixed 640-byte descriptor. No package chooses that location. Publication
+is single-use for an exact active lease, checks live CPU mapping/ordering on
+both sides of the copy and retains uncertainty. Missing or changed metadata at
+completion cannot release the lease. The firmware response must carry the new
+bound-descriptor acknowledgement bit; an old fixed-source response rejects
+before START. The changed matched image still needs its own hardware test.
+
 The board's full arena remains pinned until reboot. `ConfigurationArena` permits
 a fresh lease only after the preceding transfer has checked every completion,
 final bytes and successful status and invoked Release. It never unmaps memory;
@@ -112,7 +124,10 @@ physical ownership or ordinary runtime permission.
 `PrepareReconfiguration` and `NewReconfigurationTransfer` use private operation
 11 to request another transfer of that same compiled source after a newer owned
 all-master closure. They retain the map, whole-image and chunk checks; the
-secure provider separately requires a successful prior transfer. Preparation
+secure provider separately requires a successful prior transfer. Its next
+descriptor may describe different bytes and size within the same fixed platform
+envelope, but the current native frontend still selects its compiled package.
+Preparation
 is deferred until START and checks that ownership still matches the captured
 return. Failed transfers retain their region and cannot replay. This is tested
 with injected firmware, including changed ownership, malformed acknowledgements

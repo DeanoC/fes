@@ -10,8 +10,8 @@
 #define FES_NANO_CONFIG_DRAM 0x80000000ULL
 #define FES_NANO_CONFIG_BUFFERS 4U
 
-/* Trusted platform check: compare the fixed staged whole image or indexed
- * chunk with its compiled digest. No non-secure address or digest is accepted. */
+/* Trusted platform check against its owned binding. No DMA address comes from
+ * a package. A platform may bind a fresh source once before checking its bytes. */
 struct fes_nano_configuration_ops {
     void *context;
     int (*check)(void *, uint64_t address, uint32_t bytes, unsigned whole);
@@ -19,6 +19,10 @@ struct fes_nano_configuration_ops {
     /* Trusted completion only: install a fresh platform activation after exact
      * final status/digests, before publishing finished. Errors stay terminal. */
     int (*complete)(void *, uint64_t owner, uint64_t generation, unsigned rearmed);
+    /* Optional for injected fixed-source engines. The physical cold provider
+     * captures a per-load descriptor and returns its bounded size. Failure is
+     * terminal; the engine never falls back to a preceding source. */
+    int (*bind)(void *, uint64_t owner, uint64_t generation, uint32_t *bytes);
 };
 enum fes_nano_configuration_stage {
     FES_CONFIG_INIT, FES_CONFIG_ARM, FES_CONFIG_START, FES_CONFIG_WRITE,
@@ -28,7 +32,7 @@ struct fes_nano_configuration {
     struct fes_nano_bridges *bridges;
     struct fes_nano_configuration_ops io;
     uint64_t base, owner, generation;
-    uint32_t bytes, chunk, completed, pending;
+    uint32_t bytes, maximum, chunk, completed, pending;
     unsigned initialized, attempted, prepared, started, finished, failed, rearmed;
     unsigned stage, issued;
     int first_error;

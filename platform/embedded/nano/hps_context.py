@@ -210,7 +210,7 @@ def _configuration(project):
     # down to our coherent arena's 64-byte alignment, keeping every DMA start
     # aligned without changing the source, arena or completion deadline.
     raw=path.read_bytes();chunk=0xfffc0
-    if (not raw or len(raw)>8<<20 or len(raw)&3 or len(raw)!=context['core_size'] or
+    if (not raw or len(raw)>(8<<20)-4096 or len(raw)&3 or len(raw)!=context['core_size'] or
             hashlib.sha256(raw).hexdigest()!=context['core_sha256']):
         raise ValueError('bounded word-aligned sealed core required for configuration')
     # Outside Go RAM 84000000..94000000, sealed FIT 94000000..94800000,

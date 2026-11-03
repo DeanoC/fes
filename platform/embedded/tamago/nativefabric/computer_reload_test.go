@@ -39,7 +39,7 @@ func (c *reloadCPU) Invoke(a [7]uint64) ([4]uint64, error) {
 			if warm {
 				tag = uint64(g.FesEmbeddedBridgeRearmTag)
 			}
-			return [4]uint64{0, tag<<32 | uint64(len(c.wire.source)), c.state.Owner, c.state.Generation}, nil
+			return [4]uint64{0, tag<<32 | programBoundReply | uint64(len(c.wire.source)), c.state.Owner, c.state.Generation}, nil
 		}
 		if a[1] == uint64(g.FesEmbeddedBridgeControl) && (!c.finished || c.generation != c.state.Generation) {
 			return [4]uint64{2}, nil
@@ -77,7 +77,7 @@ func TestNativeReloadJoinsPinnedArenaTransferComputerAndReturn(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			arena, err := NewConfigurationArena(0x94800000, make([]byte, 256), func() error {
+			arena, err := NewProgramArena(0x94800000, make([]byte, ProgramMetadataBytes+256), func() error {
 				if fault == "release" && cpu.configurations == 2 {
 					return errors.New("uncertain completion ordering")
 				}

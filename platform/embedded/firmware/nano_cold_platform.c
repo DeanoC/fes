@@ -10,6 +10,7 @@
 #include "nano_ddr_firewall.h"
 #include "nano_ddr_read.h"
 #include "nano_hps_io.h"
+#include "nano_program.h"
 #include "generated/fes_de25_ddr_probe.h"
 #include "fes_nano_cold_profile.h"
 #define FES_COLD_READ32(a) mmio_read_32(a)
@@ -32,6 +33,9 @@
 
 static struct fes_nano_cold_record captured;
 static struct fes_nano_cold provider;
+#if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
+static struct fes_nano_program configuration_program;
+#endif
 static unsigned capture_attempted, capture_valid;
 #if defined(FES_NANO_HPS_IO_OBSERVE) && FES_NANO_HPS_IO_OBSERVE
 static struct fes_nano_hps_io hps_io;
@@ -295,11 +299,15 @@ static int cold_master_quiescent(void *context,uint32_t *producers)
 
 static struct fes_nano_fabric_stop new_fabric_stop(unsigned qualified)
 {
-    return (struct fes_nano_fabric_stop){
+    struct fes_nano_fabric_stop out={
         .io={&provider,fabric_owns,fabric_read,fabric_write,fabric_wait},
         .probe={.io={&provider,fabric_owns,probe_read,probe_write,fabric_wait}},
         .abi=FES_NANO_CONTROL_ABI,.build=FES_NANO_CONTROL_BUILD,
         .bus_base=FES_NANO_READER_BUS_BASE,.bytes=FES_NANO_READER_BYTES,.cookie=7,.qualified=qualified};
+#if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
+    if(configuration_program.initialized && fes_nano_program_build(&configuration_program,out.build))out.qualified=0;
+#endif
+    return out;
 }
 
 #if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
@@ -573,13 +581,36 @@ int fes_nano_platform_identity_setup(void)
 static struct fes_nano_configuration configuration;
 /* Diagnostic time only; these counters never grant configuration authority. */
 static uint64_t configuration_hash_ticks;
-static const uint8_t configuration_hash[48]=FES_NANO_CONFIG_SHA384;
-static const uint8_t configuration_chunks[][48]=FES_NANO_CONFIG_CHUNK_DIGESTS;
 struct fes_nano_configuration *fes_nano_platform_configuration(void) { return &configuration; }
 int fes_nano_platform_configuration_diagnostic_ready(void)
 {
     return !(read_sctlr_el3()&5U) && !provider.control_expected &&
            fes_nano_cold_owns(&provider,provider.record.boot.owner,provider.record.boot.epoch)==1;
+}
+static int configuration_guard(void *context,uint64_t owner,uint64_t generation)
+{
+    struct fes_nano_bridge_snapshot current;
+    return context!=&provider || !fes_nano_platform_configuration_diagnostic_ready() ||
+        GET_EL(read_current_el())!=MODE_EL3 || fes_nano_cold_cpu_release_locked()!=1 ||
+        captured.core!=MPIDR_AFFLVL1_VAL(read_mpidr()) || fes_nano_owned_bridges.device_lease ||
+        fes_nano_bridges_observe(&fes_nano_owned_bridges,&current) ||
+        current.owner!=owner || current.generation!=generation ||
+        current.reset!=FES_NANO_BRIDGES_ALL || !current.masters_contained ? -1 : 0;
+}
+static int configuration_descriptor(void *context,uint8_t result[FES_NANO_PROGRAM_HEADER_BYTES])
+{
+    if(context!=&provider || !fes_nano_platform_configuration_diagnostic_ready())return -1;
+    dsbsy();
+    memcpy(result,(const void *)(uintptr_t)(FES_NANO_CONFIG_BASE+FES_NANO_CONFIG_ARENA_SIZE-
+                                          FES_NANO_PROGRAM_METADATA_BYTES),FES_NANO_PROGRAM_HEADER_BYTES);
+    dsbsy();
+    return fes_nano_platform_configuration_diagnostic_ready() ? 0 : -1;
+}
+static int configuration_bind(void *context,uint64_t owner,uint64_t generation,uint32_t *bytes)
+{
+    if(context!=&provider || !bytes || fes_nano_program_capture(&configuration_program,owner,generation))return -1;
+    *bytes=configuration_program.bytes;
+    return 0;
 }
 static int configuration_check(void *context, uint64_t address, uint32_t bytes, unsigned whole)
 {
@@ -587,19 +618,10 @@ static int configuration_check(void *context, uint64_t address, uint32_t bytes, 
     uint8_t observed[48];const uint8_t *expected;
     if(whole>1 || s->control_expected || (read_sctlr_el3()&5U) ||
        fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ||
-       address<FES_NANO_CONFIG_BASE || address>FES_NANO_CONFIG_BASE+FES_NANO_CONFIG_BYTES ||
-       !bytes || bytes>FES_NANO_CONFIG_BYTES-(address-FES_NANO_CONFIG_BASE))return -1;
-    if(whole) {
-        if(address!=FES_NANO_CONFIG_BASE || bytes!=FES_NANO_CONFIG_BYTES)return -1;
-        expected=configuration_hash;
-    } else {
-        uint64_t offset=address-FES_NANO_CONFIG_BASE;
-        unsigned index=(unsigned)(offset/FES_NANO_CONFIG_CHUNK);
-        uint32_t amount=FES_NANO_CONFIG_BYTES-(uint32_t)offset;
-        if(amount>FES_NANO_CONFIG_CHUNK)amount=FES_NANO_CONFIG_CHUNK;
-        if(offset%FES_NANO_CONFIG_CHUNK || index>=sizeof(configuration_chunks)/48 || bytes!=amount)return -1;
-        expected=configuration_chunks[index];
-    }
+       configuration_guard(context,configuration.owner,configuration.generation) ||
+       address<FES_NANO_CONFIG_BASE || address-FES_NANO_CONFIG_BASE>UINT32_MAX)return -1;
+    expected=fes_nano_program_expected(&configuration_program,(uint32_t)(address-FES_NANO_CONFIG_BASE),bytes,whole);
+    if(!expected)return -1;
     dsbsy();
     /* Use the already pinned vendor's pure SHA-384 primitives. Its convenience
      * sha384_start wrapper also touches the watchdog and is not used here. */
@@ -608,7 +630,7 @@ static int configuration_check(void *context, uint64_t address, uint32_t bytes, 
     sha384_init(&hash);sha384_update(&hash,(const uint8_t *)(uintptr_t)address,bytes);sha384_finish(&hash,observed);
     dsbsy();
     configuration_hash_ticks+=read_cntpct_el0()-before;
-    return (read_sctlr_el3()&5U) || fes_nano_cold_owns(s,s->record.boot.owner,s->record.boot.epoch)!=1 ||
+    return configuration_guard(context,configuration.owner,configuration.generation) ||
            memcmp(expected,observed,48) ? -1 : 0;
 }
 #ifdef FES_NANO_READER_CPU_BASE
@@ -655,10 +677,12 @@ static int configuration_complete(void *context, uint64_t owner, uint64_t genera
      * Construct a fresh stop from the compiled inventory; never reset a failed
      * activation or accept its cached reader/probe receipts for the new image. */
     fabric_stop=new_fabric_stop(1);
+    if(fabric_stop.qualified!=1)return -1;
     fabric_configuration_generation=generation;fabric_generation=0;
     NOTICE("FES_NANO_FABRIC_ACTIVATION owner=%llx generation=%llu previous=%llu rearm=%u complete=1 data_held=1\n",
            (unsigned long long)owner,(unsigned long long)generation,(unsigned long long)previous,rearmed);
 #endif
+    if(fes_nano_program_build(&configuration_program,identity_probe.build))return -1;
     return 0;
 }
 static void configuration_trace(void *context, unsigned stage, uint32_t completed, uint32_t pending)
@@ -669,21 +693,21 @@ static void configuration_trace(void *context, unsigned stage, uint32_t complete
     NOTICE("FES_NANO_CORE_TRANSFER phase=%s owner=%llx generation=%llu completed=%u pending=%u total=%u base=%llx counter=%llx hash_ticks=%llx\n",
            name,(unsigned long long)fes_nano_owned_bridges.state.owner,
            (unsigned long long)fes_nano_owned_bridges.state.generation,
-           completed,pending,FES_NANO_CONFIG_BYTES,(unsigned long long)FES_NANO_CONFIG_BASE,
+           completed,pending,configuration.bytes,(unsigned long long)FES_NANO_CONFIG_BASE,
            (unsigned long long)read_cntpct_el0(),(unsigned long long)configuration_hash_ticks);
 }
 int fes_nano_platform_configuration_setup(void)
 {
-    unsigned nonzero=0;
-    for(unsigned i=0;i<48;i++)nonzero|=configuration_hash[i];
-    unsigned qualified=nonzero && !(read_sctlr_el3()&5U) &&
+    static const uint8_t context[32]=FES_NANO_HPS_CONTEXT_SHA;
+    unsigned qualified=!(read_sctlr_el3()&5U) &&
         FES_NANO_CONFIG_BASE==0x94800000ULL && FES_NANO_CONFIG_ARENA_SIZE==(8U<<20) &&
-        FES_NANO_CONFIG_BYTES<=FES_NANO_CONFIG_ARENA_SIZE &&
-        FES_NANO_CONFIG_CHUNK>0 && FES_NANO_CONFIG_CHUNK<=0xffff0U && !(FES_NANO_CONFIG_CHUNK&63U) &&
-        sizeof(configuration_chunks)/48==(FES_NANO_CONFIG_BYTES+FES_NANO_CONFIG_CHUNK-1)/FES_NANO_CONFIG_CHUNK;
-    struct fes_nano_configuration_ops io={.context=&provider,.check=configuration_check,.trace=configuration_trace,.complete=configuration_complete};
+        FES_NANO_CONFIG_CHUNK>0 && FES_NANO_CONFIG_CHUNK<=0xffff0U && !(FES_NANO_CONFIG_CHUNK&63U);
+    struct fes_nano_program_ops program={&provider,configuration_guard,configuration_descriptor};
+    if(fes_nano_program_init(&configuration_program,program,context,FES_NANO_PROGRAM_MAX_BYTES,
+                             FES_NANO_CONFIG_CHUNK,qualified))return -1;
+    struct fes_nano_configuration_ops io={.context=&provider,.check=configuration_check,.trace=configuration_trace,.complete=configuration_complete,.bind=configuration_bind};
     return fes_nano_configuration_init(&configuration,&fes_nano_owned_bridges,io,FES_NANO_CONFIG_BASE,
-                                       FES_NANO_CONFIG_BYTES,FES_NANO_CONFIG_CHUNK,qualified) ? -1 : 1;
+                                       FES_NANO_PROGRAM_MAX_BYTES,FES_NANO_CONFIG_CHUNK,qualified) ? -1 : 1;
 }
 #endif
 

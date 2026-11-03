@@ -211,7 +211,7 @@ func TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure(t
 						if lease.receipt.Active || a[2] != owner || a[4] != generation {
 							t.Fatal("preparation bypassed live storage ownership", a)
 						}
-						return [4]uint64{0, 0x4643503100000000 | uint64(len(data)), owner, generation}, nil
+						return [4]uint64{0, 0x4643503100000000 | programBoundReply | uint64(len(data)), owner, generation}, nil
 					case 9:
 						retirements++
 						if a[2] != owner || a[4] != generation {
@@ -258,7 +258,12 @@ func TestStoredPackageJoinsContainmentToTwoBlockTransferAndRetainsEveryFailure(t
 				if name == "reservation-error" {
 					return nil, errors.New("reservation unavailable")
 				}
-				region = &Region{Address: 0x94800000, Bytes: bytes.Clone(source), Release: func() error { consumed++; return nil }}
+				region = &Region{Address: 0x94800000, Bytes: bytes.Clone(source), PublishConfiguration: func(raw []byte) error {
+					if len(raw) != ProgramHeaderBytes {
+						t.Fatal("invalid publication size")
+					}
+					return nil
+				}, Release: func() error { consumed++; return nil }}
 				if name == "changed-reservation" {
 					region.Bytes[0] ^= 1
 				}
@@ -343,7 +348,7 @@ func TestStoredReloadKeepsArchiveContainedAndRequiresSuccessfulReturn(t *testing
 				}
 			}
 			replies = append(replies, replies...)
-			replies = append(replies, [4]uint64{0, 0x4657523100000000 | uint64(len(data)), 17, 6}, replies[0])
+			replies = append(replies, [4]uint64{0, 0x4657523100000000 | programBoundReply | uint64(len(data)), 17, 6}, replies[0])
 			calls, starts, reservations, releases := 0, 0, 0, 0
 			operations := []uint64{0, 4, 5, 0, 0, 4, 5, 0, 11, 0}
 			cpu := bridgeFirmwareFunc(func(a [7]uint64) ([4]uint64, error) {
@@ -388,7 +393,12 @@ func TestStoredReloadKeepsArchiveContainedAndRequiresSuccessfulReturn(t *testing
 						t.Fatal(err)
 					}
 				}
-				return &Region{Address: 0x94800000, Bytes: bytes.Clone(source), Release: func() error { releases++; return nil }}, nil
+				return &Region{Address: 0x94800000, Bytes: bytes.Clone(source), PublishConfiguration: func(raw []byte) error {
+					if len(raw) != ProgramHeaderBytes {
+						t.Fatal("invalid publication size")
+					}
+					return nil
+				}, Release: func() error { releases++; return nil }}, nil
 			}
 			transfer, source, err := storedTransfer(v, control, mapping, handoff, reserve, true)
 			if mode != "pass" && mode != "resume-in-reserve" {

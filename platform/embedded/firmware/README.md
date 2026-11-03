@@ -6,6 +6,37 @@ adapter, and verification against actual FPGA RTL. These tools build firmware
 components; the Nano tools assemble the matched experimental boot images.
 Software tests and cross-builds remain distinct from hardware acceptance.
 
+The cold configuration provider now captures a per-load program descriptor
+instead of compiling each payload's expected digest table into firmware. Native
+code publishes the fixed 640-byte descriptor in the last page of the existing
+8 MiB configuration reservation. Payload capacity is therefore 8 MiB minus
+4 KiB. Neither the descriptor nor the SMC supplies a DMA address, bridge mask,
+master inventory or other platform capability.
+
+`nano_program.c` checks two identical descriptor samples under the live closed
+owner/generation and compiled boot-context digest, then retains its own secure
+copy. Whole-image and exact indexed-chunk SHA-384 checks use that copy before,
+during and after the contained transfer. Completion installs the requested build
+identity for the independent live endpoint check and the next master stop.
+The acknowledgement's bound-descriptor bit distinguishes this protocol from
+the earlier fixed-source response; mixed native/firmware versions reject before
+START. Malformed, changed, stale or uncertain bindings cannot retry.
+
+This is byte integrity and ownership, not package authentication or a boot
+attestation mechanism. The native selection frontend still restricts the load
+to its compiled diagnostic package. The new provider and metadata publication
+have host tests, including the actual configuration/bridge engines, pinned
+vendor SHA, paired native/C encoding and changed program sizes across owned
+returns. They need a new matched boot build and hardware test. The
+[previous fixed-package preflight trial](../../../docs/validation/2026-11-03-de25-stored-preflight/README.md)
+does not qualify these changed bytes. Ordinary package admission remains open.
+
+Altera permits phase-one and phase-two images from different projects of the
+same device when their PFG/SDM firmware and HPS I/O/DDR settings match; see
+[hardware compatibility in HPS-first mode](https://docs.altera.com/r/docs/813762/26.1/hard-processor-system-booting-user-guide-agilex-3-and-agilex-5-socs/hardware-design-compatibility-in-hps-boot-first-mode).
+The producer's assembler hash check is a build-time compatibility check. An
+unsigned package sidecar does not establish the running boot configuration.
+
 The separate network-recovery build now uses a private vendor source copy and
 an explicit `fesphy` command. It resets/configures the known KSZ9031 before the
 host accepts link readiness. Network startup consumes that prepared object;

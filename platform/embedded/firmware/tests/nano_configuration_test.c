@@ -60,7 +60,7 @@ static void init_bytes(struct fixture *f,unsigned bytes)
     memset(f,0,sizeof(*f));f->reset=15;f->masters=f->valid=1;
     struct fes_nano_bridge_ops b={f,owns,reset,masters,stop,disable,enable};
     assert(!fes_nano_bridges_init(&f->bridges,b,17,9,FES_NANO_FABRIC_ABSENT,1));
-    struct fes_nano_configuration_ops io={f,check,trace,complete};
+    struct fes_nano_configuration_ops io={.context=f,.check=check,.trace=trace,.complete=complete};
     assert(!fes_nano_configuration_init(&f->configuration,&f->bridges,io,0x94800000,bytes,64,1));
 }
 static void init(struct fixture *f) { init_bytes(f,128); }
@@ -331,7 +331,7 @@ int main(void)
     }
     for(unsigned mode=0;mode<8;mode++) {
         init(&f);memset(&f.configuration,0,sizeof(f.configuration));
-        struct fes_nano_configuration_ops io={&f,check,trace,complete};
+        struct fes_nano_configuration_ops io={.context=&f,.check=check,.trace=trace,.complete=complete};
         uint64_t base=0x94800000;uint32_t bytes=128,chunk=64;unsigned qualified=1;
         if(mode==0)base++;
         if(mode==1)base=UINT64_MAX-63;

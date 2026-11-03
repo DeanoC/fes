@@ -50,10 +50,10 @@ func (v *HPSContextVerifier) configurationMap(raw []byte) (coldConfigurationMap,
 	if err != nil || len(fields) != 12 || !bytes.Equal(raw, append(canonical, '\n')) ||
 		m.Format != 1 || m.Scope != "sealed-cold-configuration-v1" || m.PackageID != v.context.PackageID ||
 		m.BuildID != v.context.BuildID || m.CoreSHA256 != v.context.CoreSHA256 || int64(m.CoreSize) != v.context.CoreSize ||
-		m.CoreSize <= 0 || m.CoreSize > 8<<20 || m.CoreSize%4 != 0 || !validHex(m.CoreSHA384, 96) ||
+		m.CoreSize <= 0 || m.CoreSize > MaxProgramBytes || m.CoreSize%4 != 0 || !validHex(m.CoreSHA384, 96) ||
 		m.Base != 0x94800000 || m.Size != 8<<20 || m.DRAMBase != 0x80000000 ||
 		m.ChunkBytes <= 0 || m.ChunkBytes > 0xffff0 || m.ChunkBytes%64 != 0 ||
-		len(m.ChunkSHA384) != (m.CoreSize+m.ChunkBytes-1)/m.ChunkBytes {
+		len(m.ChunkSHA384) > maxProgramChunks || len(m.ChunkSHA384) != (m.CoreSize+m.ChunkBytes-1)/m.ChunkBytes {
 		return coldConfigurationMap{}, errors.New("native fabric: configuration map differs from compiled cold source")
 	}
 	for _, digest := range m.ChunkSHA384 {
@@ -188,12 +188,22 @@ func (v *HPSContextVerifier) prepareConfiguration(control, configuration []byte,
 	} else if !v.coldSource(source) {
 		return HPSBootObservation{}, errors.New("native fabric: cold preparation requires fresh closed source ownership")
 	}
+	if region.PublishConfiguration == nil {
+		return HPSBootObservation{}, errors.New("native fabric: per-load configuration publication unavailable")
+	}
+	header, err := encodeProgramBinding(source, m)
+	if err != nil {
+		return HPSBootObservation{}, err
+	}
+	if err := region.PublishConfiguration(header); err != nil {
+		return HPSBootObservation{}, err
+	}
 	r, err := v.cpu.Invoke([7]uint64{uint64(g.FesEmbeddedBridgeCall), operation, before.Owner,
 		uint64(g.FesEmbeddedBridgeCookie), before.Generation})
 	if err != nil {
 		return HPSBootObservation{}, err
 	}
-	if r != ([4]uint64{0, tag<<32 | uint64(m.CoreSize), before.Owner, before.Generation}) {
+	if r != ([4]uint64{0, tag<<32 | programBoundReply | uint64(m.CoreSize), before.Owner, before.Generation}) {
 		return HPSBootObservation{}, errors.New("native fabric: secure configuration preparation rejected")
 	}
 	after, err := (&FirmwareBridges{cpu: v.cpu}).ObserveBridges()

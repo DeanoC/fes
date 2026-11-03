@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 #include "nano_configuration.h"
+#include "nano_program.h"
 
 __attribute__((weak)) struct fes_nano_configuration *fes_nano_platform_configuration(void) { return 0; }
 __attribute__((weak)) int fes_nano_platform_configuration_setup(void) { return 0; }
@@ -48,6 +49,15 @@ static int check(struct fes_nano_configuration *s, unsigned whole)
     }
     return 1;
 }
+static int bind(struct fes_nano_configuration *s)
+{
+    if(!s->io.bind)return 1;
+    uint32_t bytes=0;
+    if(s->io.bind(s->io.context,s->owner,s->generation,&bytes) ||
+       !bytes || (bytes&3U) || bytes>s->maximum)return 0;
+    s->bytes=bytes;
+    return scope(s);
+}
 int fes_nano_configuration_init(struct fes_nano_configuration *s, struct fes_nano_bridges *b,
                                  struct fes_nano_configuration_ops io, uint64_t base,
                                  uint32_t bytes, uint32_t chunk, unsigned qualified)
@@ -57,7 +67,7 @@ int fes_nano_configuration_init(struct fes_nano_configuration *s, struct fes_nan
     if(qualified!=1 || !b || !io.check || !io.complete || base<0x82000000ULL || (base&63) ||
        !bytes || bytes>(8U<<20) || (bytes&3) || base>0xc0000000ULL-bytes ||
        !chunk || chunk>0xffff0U || (chunk&63))return fail(s,-22),-1;
-    s->base=base;s->bytes=bytes;s->chunk=chunk;
+    s->base=base;s->bytes=s->maximum=bytes;s->chunk=chunk;
     s->owner=b->state.owner;s->generation=b->state.generation;
     if(s->generation!=1 || !scope(s))return fail(s,-1),-1;
     return 0;
@@ -90,9 +100,9 @@ void fes_nano_configuration_prepare(struct fes_nano_configuration *s, uint64_t o
      * no generation change is allowed after this preparation. */
     s->generation=generation;
     s->attempted=1;
-    if(!check(s,1)){result[0]=fail(s,-1);return;}
+    if(!bind(s) || !check(s,1)){result[0]=fail(s,-1);return;}
     s->prepared=1;trace(s,FES_CONFIG_ARM);
-    result[0]=0;result[1]|=s->bytes;result[2]=s->owner;result[3]=s->generation;
+    result[0]=0;result[1]|=s->bytes|(s->io.bind ? FES_NANO_PROGRAM_BOUND_REPLY : 0U);result[2]=s->owner;result[3]=s->generation;
 }
 void fes_nano_configuration_rearm(struct fes_nano_configuration *s, uint64_t owner,
                                    uint64_t generation, unsigned configuring, uint64_t result[4])
@@ -113,9 +123,9 @@ void fes_nano_configuration_rearm(struct fes_nano_configuration *s, uint64_t own
      * bytes and the original error owned; no stale completion can rearm it. */
     s->generation=generation;s->rearmed=1;
     s->completed=s->pending=s->issued=0;s->started=s->finished=0;
-    if(!check(s,1)){result[0]=fail(s,-1);return;}
+    if(!bind(s) || !check(s,1)){result[0]=fail(s,-1);return;}
     s->prepared=1;trace(s,FES_CONFIG_ARM);
-    result[0]=0;result[1]|=s->bytes;result[2]=s->owner;result[3]=s->generation;
+    result[0]=0;result[1]|=s->bytes|(s->io.bind ? FES_NANO_PROGRAM_BOUND_REPLY : 0U);result[2]=s->owner;result[3]=s->generation;
 }
 int fes_nano_configuration_before(struct fes_nano_configuration *s, uint32_t fid,
                                     uint64_t address, uint64_t bytes, unsigned configuring)

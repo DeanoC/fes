@@ -23,7 +23,7 @@ var configurationArena *nativefabric.ConfigurationArena
 func ReserveConfiguration(source []byte) (*nativefabric.Region, error) {
 	configurationMu.Lock()
 	defer configurationMu.Unlock()
-	if profileConfigurationBase != 0x94800000 || profileConfigurationBytes != 8<<20 || len(source) == 0 || len(source) > profileConfigurationBytes {
+	if profileConfigurationBase != 0x94800000 || profileConfigurationBytes != 8<<20 || len(source) == 0 || len(source) > nativefabric.MaxProgramBytes {
 		return nil, errors.New("DE25: cold configuration reservation unavailable")
 	}
 	if configurationArena == nil {
@@ -35,7 +35,7 @@ func ReserveConfiguration(source []byte) (*nativefabric.Region, error) {
 			return nil, err
 		}
 		data := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(profileConfigurationBase))), profileConfigurationBytes)
-		arena, err := nativefabric.NewConfigurationArena(profileConfigurationBase, data, configurationPublication)
+		arena, err := nativefabric.NewProgramArena(profileConfigurationBase, data, configurationPublication)
 		if err != nil {
 			return nil, err
 		}

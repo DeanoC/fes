@@ -29,6 +29,9 @@ type Region struct {
 	Address uint64
 	Bytes   []byte
 	Release func() error
+	// The cold platform publishes one per-load descriptor in its separately
+	// reserved metadata page. Generic firmware transfers do not use this hook.
+	PublishConfiguration func([]byte) error
 }
 
 // Hooks are trusted, serialized, synchronous and bounded-return operations.

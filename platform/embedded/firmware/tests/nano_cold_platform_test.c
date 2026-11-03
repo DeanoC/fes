@@ -5,6 +5,7 @@
 #include "nano_bridge_platform.h"
 #include "nano_sd_platform.h"
 #include "nano_configuration.h"
+#include "nano_program.h"
 #include "fes_nano_cold_profile.h"
 #include "nano_smmu.h"
 #include "generated/fes_de25_ddr_probe.h"
@@ -191,6 +192,36 @@ static uint32_t fes_contained_isdone_detail(uint32_t a,uint32_t b) { (void)a;ret
 void fes_nano_platform_sd_report(void) {}
 #endif
 #include "nano_owned_sip.inc"
+#if defined(FES_NANO_COLD_CONFIG) && FES_NANO_COLD_CONFIG
+static uint8_t *configuration_memory;
+static void program_u32(uint8_t *p,uint32_t value)
+{ for(unsigned i=0;i<4;i++)p[i]=(uint8_t)(value>>(8*i)); }
+static void program_u64(uint8_t *p,uint64_t value)
+{ for(unsigned i=0;i<8;i++)p[i]=(uint8_t)(value>>(8*i)); }
+static void publish_program(uint64_t owner,uint64_t generation)
+{
+    static const uint8_t context[32]=FES_NANO_HPS_CONTEXT_SHA;
+    static const uint32_t build[4]=FES_NANO_CONTROL_BUILD;
+    static const uint8_t whole[48]=FES_NANO_CONFIG_SHA384;
+    static const uint8_t chunks[][48]=FES_NANO_CONFIG_CHUNK_DIGESTS;
+    uint8_t *h=configuration_memory+FES_NANO_CONFIG_ARENA_SIZE-FES_NANO_PROGRAM_METADATA_BYTES;
+    memset(h,0,FES_NANO_PROGRAM_HEADER_BYTES);
+    program_u32(h,FES_NANO_PROGRAM_MAGIC);program_u32(h+4,1);program_u32(h+8,FES_NANO_PROGRAM_HEADER_BYTES);
+    program_u32(h+12,FES_NANO_CONFIG_BYTES);program_u32(h+16,FES_NANO_CONFIG_CHUNK);
+    program_u32(h+20,sizeof(chunks)/48);program_u64(h+24,owner);program_u64(h+32,generation);
+    memcpy(h+40,context,32);h[72]=1;h[120]=1;
+    for(unsigned i=0;i<16;i++)h[104+i]=(uint8_t)(build[3-i/4]>>(24-8*(i%4)));
+    memcpy(h+152,whole,48);memcpy(h+200,chunks,sizeof(chunks));
+}
+static void fixture_owned_call(uint32_t fid,uint64_t x1,uint64_t x2,uint64_t x3,uint64_t x4,uint64_t r[4])
+{
+    if(configuration_memory && fid==FES_EMBEDDED_BRIDGE_CALL &&
+       (x1==FES_EMBEDDED_BRIDGE_PREPARE_CONFIGURATION || x1==FES_EMBEDDED_BRIDGE_REARM_CONFIGURATION))
+        publish_program(x2,x4);
+    fes_nano_owned_call(fid,x1,x2,x3,x4,r);
+}
+#define fes_nano_owned_call fixture_owned_call
+#endif
 uint32_t mmio_read_32(uintptr_t a)
 {
 #if defined(FES_NANO_HPS_IO_OBSERVE) && FES_NANO_HPS_IO_OBSERVE
@@ -605,6 +636,7 @@ int main(int argc,char **argv)
         uint8_t *data=mmap((void *)(uintptr_t)FES_NANO_CONFIG_BASE,FES_NANO_CONFIG_ARENA_SIZE,
                            PROT_READ|PROT_WRITE,MAP_ANONYMOUS|MAP_PRIVATE|MAP_FIXED_NOREPLACE,-1,0);
         assert(data==(void *)(uintptr_t)FES_NANO_CONFIG_BASE);
+        configuration_memory=data;
         for(unsigned i=0;i<FES_NANO_CONFIG_BYTES;i++)data[i]=(uint8_t)i;
         assert(fes_nano_platform_identity_setup()==1 && fes_nano_platform_configuration_setup()==1);
         fes_nano_owned_call(FES_EMBEDDED_BRIDGE_CALL,FES_EMBEDDED_BRIDGE_PROBE_READER,
@@ -649,7 +681,7 @@ int main(int argc,char **argv)
             assert(reply[0]==4 && !reply[2] && !reply[3] && !engine_calls && !fpga_reads && bridge==15);
             assert(fes_nano_platform_configuration()->failed && fes_nano_owned_bridges.failed);return 0;
         }
-        assert(!reply[0] && reply[1]==((uint64_t)FES_EMBEDDED_BRIDGE_PREPARATION_TAG<<32|FES_NANO_CONFIG_BYTES));
+        assert(!reply[0] && reply[1]==((uint64_t)FES_EMBEDDED_BRIDGE_PREPARATION_TAG<<32|FES_NANO_PROGRAM_BOUND_REPLY|FES_NANO_CONFIG_BYTES));
         assert(reply[2]==record.owner && reply[3]==configuration_generation && !engine_calls);
         const unsigned query_ops[]={4,5,6,7,FES_EMBEDDED_BRIDGE_PROBE_READER};
         for(unsigned index=0;index<sizeof(query_ops)/sizeof(query_ops[0]);index++) {
@@ -852,7 +884,7 @@ configured_bytes:
                     assert(reply[0] && engine_calls==calls);
                     puts("PASS strong computer rearm failure retained without START");return 0;
                 }
-                assert(!reply[0] && reply[1]==((uint64_t)FES_EMBEDDED_BRIDGE_REARM_TAG<<32|FES_NANO_CONFIG_BYTES) &&
+                assert(!reply[0] && reply[1]==((uint64_t)FES_EMBEDDED_BRIDGE_REARM_TAG<<32|FES_NANO_PROGRAM_BOUND_REPLY|FES_NANO_CONFIG_BYTES) &&
                        reply[2]==record.owner && reply[3]==configuration_generation && c->rearmed && !c->finished);
                 fes_nano_owned_call(INTEL_SIP_SMC_FPGA_CONFIG_START,0,0,0,0,reply);
                 assert(!reply[0]);
