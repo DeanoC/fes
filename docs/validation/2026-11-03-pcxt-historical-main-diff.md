@@ -12,7 +12,7 @@ The canonical raw diff identity is
 `5f6dbe211758571a71d9751baf572cb17519e1029184768708039fb9aa249396`:
 
 ```sh
-git diff --raw -z --no-abbrev --no-renames --no-ext-diff \
+GIT_NO_REPLACE_OBJECTS=1 git diff --raw -z --no-abbrev --no-renames --no-ext-diff \
   6974817dfecc1e86b89e04429738790af73e0285 \
   c25e8de270d0f6ab337df4813f10c39dceb6d7ea -- | sha256sum
 ```
