@@ -158,6 +158,10 @@ uint32_t window_top() { return mixed ? HOLE_HI : MMIO_HI; }  // code stays clear
 constexpr uint32_t EFLAGS_MASK = 0x0003ffff;
 constexpr int EVENT_CYCLES = 20000;  // an RTL retirement or fault must come within this many cycles
                                      // (a REP string of 63 elements, each missing in both caches)
+constexpr int GOVERNED_EVENT_CYCLES = 80000;  // ... under a preset, whose ISA bus time holds a REP string of
+                                              // I/O or VGA memory dwords: REP INSD, OUTSD and MOVSD's corpus
+                                              // files take up to 31,668 cycles at 286-12 and 30,890 at
+                                              // 486DX2-66 (#1362)
 
 std::string hex(uint64_t value) {
     char text[24];
@@ -613,6 +617,7 @@ public:
     }
 
     enum class Event { Retired, Unimplemented, Shutdown, Timeout };
+    int event_cycles = EVENT_CYCLES;  // GOVERNED_EVENT_CYCLES under a preset
 
     // Run until the next retirement, an exception's or interrupt's delivery
     // included (trace_exception), or stop. In HLT the RTL runs on only while
@@ -623,7 +628,7 @@ public:
         step_writes.clear();
         io.log.clear();
         const uint64_t acks = pic.acks;
-        for (int n = 0; n < EVENT_CYCLES; ++n) {
+        for (int n = 0; n < event_cycles; ++n) {
             if (top.trace_unimplemented || top.shutdown || (top.trace_halt && !pic.intr && !pic.nmi && pic.acks == acks))
                 break;
             if (tick) tick();
@@ -6453,15 +6458,17 @@ uint64_t env(const char *name, uint64_t fallback) {
 // ---- Governor -------------------------------------------------------------------------
 // The governor bench (scripts/test_fes_i386_governor.py): the RTL alone runs
 // the flat program FES_I386_PROGRAM at 0000:1000h in real mode, under the
-// governor settings main set, until it halts with IF clear. Every OUT to
+// governor settings main set, with A0000h-BFFFFh uncached MMIO as the
+// machine's VGA memory is, until it halts with IF clear. Every OUT to
 // ports 80h-8Fh prints, with the cycle the access completed and the reference
 // clocks the governor had charged before that OUT (trace_gov_charge, summed
 // two cycles later, so it holds every instruction before the OUT and not
 // the OUT itself):
 //   MARK <port> <value> <cycle> <charged>
 // With FES_I386_IRQ_PERIOD set, once the program marks 40h on port 80h it
-// raises INTR (vector 20h) that many cycles after the last one's handler
-// marked port 81h, until it marks port 8Fh, and prints each:
+// raises INTR (vector 20h) that many cycles after that mark, and after each
+// handler's mark on port 81h, until it marks port 8Fh (so the first one
+// waits out the debt the program's earlier loops left), and prints each:
 //   IRQ <cycle>
 // Last, the GPRs, EFLAGS and EIP it halted with, and the run:
 //   STATE <eax> <ecx> <edx> <ebx> <esp> <ebp> <esi> <edi> <eflags> <eip>
@@ -6472,6 +6479,7 @@ void run_governor(Rtl &rtl, Summary &summary) {
     std::ifstream file(path, std::ios::binary);
     const std::vector<uint8_t> program{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
     if (program.empty() || program.size() > 0x6000) throw std::runtime_error("governor: no program, or too long");
+    rtl.set_window(true);
     constexpr uint32_t ORIGIN = 0x1000;
     for (uint32_t i = 0; i < program.size(); ++i) rtl.poke(ORIGIN + i, program[i]);
     State state;
@@ -6507,7 +6515,10 @@ void run_governor(Rtl &rtl, Summary &summary) {
             const IoAccess &access = rtl.io.log[seen];
             if (!access.write || access.port < 0x80 || access.port > 0x8f) continue;
             marks.push_back({access.port, access.data, cycle});
-            if (access.port == 0x80 && access.data == 0x40) armed = true;
+            if (access.port == 0x80 && access.data == 0x40) {
+                armed = true;
+                next_irq = cycle + period;
+            }
             if (access.port == 0x81) {
                 handled = true;
                 next_irq = cycle + period;
@@ -6555,6 +6566,7 @@ int main(int argc, char **argv) {
     rtl.top.gov_preset = uint8_t(env("FES_I386_PRESET", 0));
     rtl.top.gov_frequency = uint16_t(env("FES_I386_FREQUENCY", 0));
     rtl.top.gov_turbo = uint8_t(env("FES_I386_TURBO", 0));
+    if (rtl.top.gov_preset) rtl.event_cycles = GOVERNED_EVENT_CYCLES;
     rtl.length = [&](uint32_t linear) {
         uint8_t bytes[15];
         for (uint32_t n = 0; n < 15; ++n) bytes[n] = linear + n < RAM_BYTES ? rtl.ram[linear + n] : 0xff;

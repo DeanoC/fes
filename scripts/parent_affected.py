@@ -37,7 +37,8 @@ GROUPS = {
         input_diagnostic kit_software_acceptance package_acceptance
         package_acceptance_isolated pcxt_diagnostic_acceptance pcxt_dos_application_acceptance
         pcxt_dos_hil_acceptance pcxt_dos_keyboard_acceptance pcxt_floppy_diagnostic_acceptance
-        pcxt_floppy_persistence_acceptance pcxt_health_evidence ramtest_notices target_acceptance'''),
+        pcxt_floppy_persistence_acceptance pcxt_health_evidence pcxt_main_application_acceptance
+        ramtest_notices target_acceptance'''),
 }
 
 # These assembly entrypoints and their subprocess helpers are consumed by the

@@ -3,16 +3,18 @@
 
 Host simulation only (docs/i386-cpu-design.md, "Speed control").
 cores/fes-common/sim/i386/governor_bench.asm runs in lockstep_tb.cpp's
-governor mode, the RTL alone with port 0 at its fixed latency and I/O done at
-once, under max and under each preset, at the package's sealed clock: GOV_N
-and GOV_D are the producer's (scripts/build_fes_pc386_quartus.py), so cycles
-are the kit's. For each benchmark loop, between its two marks:
+governor mode, the RTL alone with port 0 at its fixed latency, I/O and MMIO
+(A0000h-BFFFFh) done at once, under max and under each preset, at the
+package's sealed clock: GOV_N and GOV_D are the producer's
+(scripts/build_fes_pc386_quartus.py), so cycles are the kit's. For each
+benchmark loop, between its two marks:
 
   charges  the reference clocks the governor charged must equal the table's
            (governor.toml through scripts/fes_i386_governor.py), which
            BENCHES below lists instruction by instruction with each one's
            memory bus cycles, wait states and dword accesses on a 16-bit bus
-           included. Under max it charges nothing.
+           included, and the ISA bus time of its I/O and MMIO accesses.
+           Under max it charges nothing.
   pacing   the time between the marks must be within 5% (the budget) of
            those clocks at the preset's frequency, unless the RTL at max
            takes longer than the preset's time less 5%: then the preset is
@@ -21,7 +23,8 @@ are the kit's. For each benchmark loop, between its two marks:
            ACCEPTED must reach every loop.
 
 Two more runs check the record's other words: 286-12 with its frequency
-overridden to 6 MHz (word 1) must pace every loop at 6 MHz, and 286-12 with
+overridden to 6 MHz (word 1) must pace every loop at 6 MHz, its ISA cycles
+in 6 MHz clocks, and 286-12 with
 turbo at launch (word 3) must run each loop in exactly max's cycles and
 charge nothing.
 
@@ -79,12 +82,17 @@ OVERRIDE = (1, 60)  # 286-12 at 6 MHz
 class Op:
     """One instruction's charge: its class's cost column (1: taken, or a REP
     element), its memory bus cycles, whether they are dwords, and whether
-    its address is base, index and displacement."""
+    its address is base, index and displacement; its I/O access (port, and
+    size 0, 1 or 2 for a byte, word or dword), and the 16-bit halves of each
+    of its memory accesses that is MMIO."""
     cls: str
     column: int = 0
     accesses: int = 0
     dword: bool = False
     ea3: bool = False
+    port: int | None = None
+    size: int = 0
+    vga: tuple[int, ...] = ()
 
 
 def r(cls: str) -> Op:
@@ -95,15 +103,20 @@ def taken(cls: str) -> Op:
     return Op(cls, 1)
 
 
-def m(cls: str, accesses: int, dword: bool = False, ea3: bool = False) -> Op:
-    return Op(cls, 0, accesses, dword, ea3)
+def m(cls: str, accesses: int, dword: bool = False, ea3: bool = False, vga: tuple[int, ...] = ()) -> Op:
+    return Op(cls, 0, accesses, dword, ea3, vga=vga)
 
 
-def element(cls: str, accesses: int) -> Op:
-    return Op(cls, 1, accesses)
+def element(cls: str, accesses: int, dword: bool = False, vga: tuple[int, ...] = (), port: int | None = None,
+            size: int = 0) -> Op:
+    return Op(cls, 1, accesses, dword, port=port, size=size, vga=vga)
 
 
-START = [r('out_imm')]          # the first mark's OUT is charged inside the loop's span
+def io(cls: str, port: int, size: int = 0) -> Op:
+    return Op(cls, port=port, size=size)
+
+
+START = [io('out_imm', 0x80)]   # the first mark's OUT is charged inside the loop's span
 END = [r('mov_r')]              # MOV AL before the second mark's OUT
 DEC_JNZ = [r('alu_rr'), taken('jcc')]
 DEC_FALL = [r('alu_rr'), r('jcc')]
@@ -138,7 +151,8 @@ BENCHES: list[tuple[str, list[tuple[int, list[Op]]]]] = [
     ('crt', [(1, START + [r('mov_r'), r('alu_rr')]),
              (4999, [r('alu_ri'), r('alu_ri'), r('jcc'), m('cmp_load', 1), taken('jcc')]),
              (1, [r('alu_ri'), r('alu_ri'), taken('jcc')]), (1, END)]),
-    ('io', loop(2000, [r('in_imm'), r('alu_ri'), r('out_imm')])),
+    # A speaker loop: port 61h toggled, an 8-bit ISA cycle each way.
+    ('io', loop(2000, [io('in_imm', 0x61), r('alu_ri'), io('out_imm', 0x61)])),
     ('int', loop(500, [m('int', 5), m('iret', 3)])),
     ('misc', loop(2000, [m('lptr', 2), r('xchg_r'), m('lea', 0, ea3=True), r('flag'), r('flag')])),
     ('loop', [(1, START + [r('mov_r')]), (2999, [r('nop'), taken('loop')]), (1, [r('nop'), r('loop')]), (1, END)]),
@@ -147,6 +161,22 @@ BENCHES: list[tuple[str, list[tuple[int, list[Op]]]]] = [
     ('direct', loop(3000, [m('mov_load', 1), m('mov_store', 1)])),
     ('esc', loop(1000, [r('fninit'), r('fnstsw_ax'), m('fnstsw', 1), m('fldcw', 1), m('esc_m', 1, dword=True),
                         r('esc_r')])),
+    # VGA memory: each MMIO access's 16-bit halves.
+    ('vram', loop(200, [r('alu_rr'), r('mov_r'), m('rep_stos', 0), *[element('rep_stos', 1, vga=(1,))] * 16,
+                        r('mov_r'), m('rep_stos', 0), *[element('rep_stos', 1, vga=(1,))] * 8,
+                        r('mov_r'), m('rep_stos', 0), *[element('rep_stos', 1, dword=True, vga=(2,))] * 4,
+                        m('mov_store', 1, vga=(1,)), m('mov_store', 1, vga=(2,)), m('mov_load', 1, vga=(1,)),
+                        m('alu_rmw', 2, vga=(1, 1)),
+                        r('mov_r'), r('mov_r'), m('rep_movs', 0), *[element('rep_movs', 2, vga=(1,))] * 8,
+                        m('push_sreg', 1), m('push_sreg', 1), m('pop_sreg', 1), r('mov_r'), r('mov_r'),
+                        m('rep_movs', 0), *[element('rep_movs', 2, vga=(1, 1))] * 8, m('pop_sreg', 1)])),
+    # I/O by width against the port: 1F0h takes 16-bit cycles, 300h 8-bit ones.
+    ('iobus', loop(1000, [r('mov_r'), io('in_dx', 0x1f0, 1), io('out_dx', 0x1f0, 1), io('in_dx', 0x1f0, 2),
+                          r('mov_r'), m('rep_ins', 0), *[element('rep_ins', 1, port=0x1f0, size=1)] * 4,
+                          io('in_dx', 0x1f0, 0), r('mov_r'), io('in_dx', 0x1ee, 2), r('mov_r'), io('out_dx', 0x1ef, 2),
+                          r('mov_r'), io('out_dx', 0x300, 1), io('in_dx', 0x300, 2),
+                          r('mov_r'), m('rep_outs', 0), *[element('rep_outs', 1, port=0x300)] * 4,
+                          r('alu_ri'), r('alu_ri')])),
 ]
 IRQ_LOOP = [r('mov_r'), m('rep_movs', 0), element('rep_movs', 2), r('alu_ri'), r('mov_r'), r('alu_rr'),
             r('div16_r'), m('push_r', 1), m('pop_r', 1), r('alu_rr'), taken('jcc')]
@@ -157,17 +187,22 @@ class GovernorBenchError(RuntimeError):
     pass
 
 
-def charge(table: governor.Table, preset: governor.Preset, op: Op) -> int:
+def charge(table: governor.Table, preset: governor.Preset, op: Op, frequency: int = 0) -> int:
+    """op's reference clocks under preset, at frequency (100 kHz units; 0 the preset's)."""
+    frequency = frequency or preset.frequency
     cls = table.by_name(op.cls)
     t = preset.table
     clocks = (cls.cost if op.column == 0 else cls.column1)[t]
     clocks += int(op.ea3 and cls.memory)
-    per_access = preset.wait + (preset.wait + 2 if preset.bus16 and op.dword else 0)
-    return clocks + op.accesses * per_access
+    clocks += op.accesses * governor.per_access(preset, op.dword)
+    if op.port is not None:
+        clocks += governor.io_charge(table, frequency, op.port, op.size)
+    return clocks + sum(governor.mmio_charge(table, preset, frequency, halves, op.dword) for halves in op.vga)
 
 
-def expected(table: governor.Table, preset: governor.Preset, parts: list[tuple[int, list[Op]]]) -> int:
-    return sum(times * sum(charge(table, preset, op) for op in ops) for times, ops in parts)
+def expected(table: governor.Table, preset: governor.Preset, parts: list[tuple[int, list[Op]]],
+             frequency: int = 0) -> int:
+    return sum(times * sum(charge(table, preset, op, frequency) for op in ops) for times, ops in parts)
 
 
 def run(testbench: Path, program: Path, preset: int, period: int, frequency: int = 0, turbo: int = 0) -> dict:
@@ -324,7 +359,7 @@ def main() -> int:
     hz = OVERRIDE[1] * 100_000
     entry = {'preset': preset.name, 'frequency': OVERRIDE[1], 'loops': []}
     for span, (name, parts) in zip(spans(override), BENCHES):
-        want = expected(table, preset, parts)
+        want = expected(table, preset, parts, OVERRIDE[1])
         error = span['cycles'] / (want * clock_hz / hz) - 1
         entry['loops'].append({'name': name, 'cycles': span['cycles'], 'charged': span['charged'], 'error': round(error, 5)})
         if span['charged'] != want or abs(error) > BUDGET:

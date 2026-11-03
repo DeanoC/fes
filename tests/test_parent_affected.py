@@ -183,7 +183,8 @@ class ParentAffectedTests(unittest.TestCase):
     def test_pcxt_acceptance_modules_are_grouped_without_narrowing_unknown_sources(self):
         modules = policy.names('''pcxt_diagnostic_acceptance pcxt_dos_application_acceptance
             pcxt_dos_hil_acceptance pcxt_dos_keyboard_acceptance pcxt_floppy_diagnostic_acceptance
-            pcxt_floppy_persistence_acceptance pcxt_health_evidence''')
+            pcxt_floppy_persistence_acceptance pcxt_health_evidence
+            pcxt_main_application_acceptance''')
         self.assertTrue(modules <= policy.GROUPS['acceptance'])
         available = modules | {'test_new_unassigned'}
         room = policy.selected_modules(policy.select_groups([ROOM]), available)

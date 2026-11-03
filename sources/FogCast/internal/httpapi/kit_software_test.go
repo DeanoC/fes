@@ -105,13 +105,14 @@ func TestKitSoftwareProxyAuthenticatesBeforeSupervisorAccess(t *testing.T) {
 func TestSoftwareHealthSeparatesIdentityAndRestrictsStatus(t *testing.T) {
 	var calls atomic.Int32
 	selected := strings.Repeat("a", 64)
+	receiptID := strings.Repeat("b", 64)
 	socket := softwareSocket(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		_ = json.NewEncoder(w).Encode(softwarecontrol.Status{
-			State: softwarecontrol.State{Version: 1, Generation: 3, Selected: selected, Previous: "private-previous",
-				Pending:  &softwarecontrol.Operation{Reason: "private-pending"},
-				Receipts: map[string]softwarecontrol.Receipt{"private-receipt": {Result: "succeeded"}}},
-			ActiveBundle: selected, BaseIdentity: "base-contract", StorageError: "private-storage",
+			State: softwarecontrol.State{Version: 1, Generation: 3, Selected: selected, Previous: strings.Repeat("c", 64),
+				Pending:  &softwarecontrol.Operation{Request: softwarecontrol.Request{ID: strings.Repeat("d", 64), Candidate: strings.Repeat("e", 64), Requester: "private-owner", Generation: 3}, Previous: selected, Phase: "queued", Reason: "private-pending"},
+				Receipts: map[string]softwarecontrol.Receipt{receiptID: {Request: softwarecontrol.Request{ID: receiptID, Candidate: selected, Requester: "private-requester", Generation: 2}, Result: "accepted"}}},
+			ActiveBundle: selected, BaseIdentity: "base-contract", ServiceFault: "private-service",
 		})
 	}))
 	handler := httpapi.New(&fakeController{health: protocol.Health{APIVersion: "v1", Artifacts: &protocol.Artifacts{ImageSHA256: strings.Repeat("b", 64)}, Software: &protocol.Identity{ActiveBundle: "controller"}}}, "secret", "test", nil, httpapi.WithKitSoftware(socket))
@@ -146,7 +147,10 @@ func TestSoftwareHealthFallsBackToLaunchIdentity(t *testing.T) {
 			http.Error(w, `{"error":"storage"}`, http.StatusServiceUnavailable)
 		},
 		"garbled": func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{"selected":`)) },
-		"null":    func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`null`)) },
+		"partial type error": func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{"selected":"` + strings.Repeat("b", 64) + `","generation":"bad"}`))
+		},
+		"null": func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`null`)) },
 	} {
 		t.Run(name, func(t *testing.T) {
 			handler := httpapi.New(&fakeController{health: protocol.Health{APIVersion: "v1"}}, "secret", "test", nil, httpapi.WithKitSoftware(softwareSocket(t, supervisor)))
@@ -169,4 +173,39 @@ func TestSoftwareHealthFallsBackToLaunchIdentity(t *testing.T) {
 			t.Fatalf("fallback identity: %+v", health.Software)
 		}
 	})
+}
+
+func TestSoftwareHealthDoesNotPublishUnverifiedSelection(t *testing.T) {
+	active := strings.Repeat("a", 64)
+	selected := strings.Repeat("b", 64)
+	t.Setenv("FES_SOFTWARE_BUNDLE_ID", active)
+	t.Setenv("FES_SOFTWARE_BASE_IDENTITY", "launch-base")
+	valid := `{"version":1,"generation":0,"selected":"` + selected + `","receipts":{},"active_bundle":"` + selected + `","base_identity":"other-base"}`
+	for _, tc := range []struct{ name, body string }{
+		{"storage failure", strings.Replace(valid, `"version":1`, `"storage_error":"private-error","version":1`, 1)},
+		{"missing generation", strings.Replace(valid, `"generation":0,`, "", 1)},
+		{"duplicate selected", strings.Replace(valid, `"selected":`, `"selected":"`+selected+`","selected":`, 1)},
+		{"trailing document", valid + `{}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls atomic.Int32
+			socket := softwareSocket(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				_, _ = io.WriteString(w, tc.body)
+			}))
+			handler := httpapi.New(&fakeController{health: protocol.Health{APIVersion: "v1"}}, "secret", "test", nil, httpapi.WithKitSoftware(socket))
+			response := softwareAgentRequest(handler, "GET", "/v1/health", "secret", "", nil)
+			var health protocol.Health
+			if err := json.Unmarshal(response.Body.Bytes(), &health); err != nil {
+				t.Fatal(err)
+			}
+			want := protocol.Identity{ActiveBundle: active, BaseIdentity: "launch-base"}
+			if health.Software == nil || *health.Software != want || calls.Load() != 1 {
+				t.Fatalf("identity=%+v calls=%d", health.Software, calls.Load())
+			}
+			if strings.Contains(response.Body.String(), "private-error") || strings.Contains(response.Body.String(), "receipts") {
+				t.Fatalf("health leaked supervisor details: %s", response.Body.String())
+			}
+		})
+	}
 }
