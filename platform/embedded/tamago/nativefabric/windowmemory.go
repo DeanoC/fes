@@ -85,7 +85,9 @@ func (v *HPSContextVerifier) checkedWindowMemory(raw []byte) (windowMemoryMap, e
 }
 
 // WindowMemoryObservation covers CPU publication in a boot-pinned arena. The
-// descriptor's bus address and live source observation do not grant FPGA access.
+// Source records the reservation's initial closed grant. A WindowSession can
+// update publication hashes under its independently drained local reader. The
+// descriptor's bus address and source observation alone grant no FPGA access.
 type WindowMemoryObservation struct {
 	Source                 HPSBootObservation
 	CPUBase, ArenaBytes    uint64

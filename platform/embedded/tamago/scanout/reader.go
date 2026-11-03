@@ -60,6 +60,11 @@ type FrameRead struct {
 	Cookie, RequestedBytes, DeliveredBytes, CRC32 uint32
 }
 
+// ReaderDrain identifies a completed stop of this reader generation. It covers
+// the local endpoint only; the platform still owns other masters, bridge closure
+// and the pinned allocation. It supplies no allocation release or HDMI receipt.
+type ReaderDrain struct{ Generation, Cookie uint64 }
+
 // ReaderFailure preserves only observations already made by a failed operation.
 // Sample is a diagnostic snapshot, never a successful FrameRead or a drain
 // receipt. Inspecting or formatting the error performs no clock or device I/O.
@@ -96,6 +101,79 @@ type readerOperation struct {
 	ctx         context.Context
 	start, last time.Time
 	failure     ReaderFailure
+}
+
+type operationIO struct{ operation *readerOperation }
+
+func (p operationIO) Read32(offset uint32) (uint32, error) { return p.operation.read(offset) }
+func (p operationIO) Write32(offset, value uint32) error   { return p.operation.write(offset, value) }
+
+// Drain sends DISABLE once and waits for the exact generation/cookie receipt.
+// A completed stop retires this instance; a platform that retains exclusive
+// ownership may enable a newer generation after its protected CPU publication.
+// Failure retires access without claiming that pending traffic has stopped.
+func (r *WindowReader) Drain(ctx context.Context, cookie uint64) (result ReaderDrain, err error) {
+	if r == nil || cookie == 0 {
+		return result, ErrReaderArgument
+	}
+	o, err := r.begin(ctx, "drain")
+	if err != nil {
+		return result, err
+	}
+	defer func() {
+		r.retired = true
+		o.finish(err)
+		if err != nil {
+			result = ReaderDrain{}
+			err = o.failed(err)
+		}
+	}()
+	o.failure.Stage = "owner"
+	if err = o.owner(); err != nil {
+		return result, err
+	}
+	for _, entry := range []struct{ offset, value uint32 }{
+		{g.FesEmbeddedRegRequestGenerationLo, uint32(r.generation)},
+		{g.FesEmbeddedRegRequestGenerationHi, uint32(r.generation >> 32)},
+		{g.FesEmbeddedRegRequestCookieLo, uint32(cookie)},
+		{g.FesEmbeddedRegRequestCookieHi, uint32(cookie >> 32)},
+		{g.FesEmbeddedRegCommand, g.FesEmbeddedCommandDisable},
+	} {
+		o.failure.Stage = "prepare"
+		if entry.offset == g.FesEmbeddedRegCommand {
+			o.failure.Stage = "disable"
+		}
+		if err = o.write(entry.offset, entry.value); err != nil {
+			return result, err
+		}
+	}
+	control := embeddedcontrol.Control{IO: operationIO{o}}
+	for poll := uint32(0); poll < r.limits.MaxPolls; poll++ {
+		o.failure.Polls = poll + 1
+		o.failure.Stage = "poll-drain"
+		var sample embeddedcontrol.Snapshot
+		sample, err = control.Snapshot()
+		if err == nil {
+			if sample.Identity != r.want || sample.Generation != r.generation {
+				return result, ErrReaderIdentity
+			}
+			if sample.Status == g.FesEmbeddedStatusDrained && sample.Pending == 0 &&
+				sample.AckGeneration == r.generation && sample.Cookie == cookie {
+				return ReaderDrain{r.generation, cookie}, nil
+			}
+			if sample.Status != g.FesEmbeddedStatusDraining || sample.AckGeneration != 0 || sample.Cookie != 0 {
+				return result, ErrReaderProtocol
+			}
+		} else if !errors.Is(err, embeddedcontrol.ErrBusy) {
+			return result, err
+		}
+		r.limits.Yield()
+		if err = o.check(); err != nil {
+			return result, err
+		}
+	}
+	o.failure.Limit = "polls"
+	return result, ErrReaderLimit
 }
 
 func (r *WindowReader) begin(ctx context.Context, operation string) (*readerOperation, error) {

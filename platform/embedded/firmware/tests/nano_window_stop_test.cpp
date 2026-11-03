@@ -6,6 +6,44 @@
 int main() {
     try {
         unsigned cases=0,points=0;
+        {
+            Fixture f("",false);
+            f.stall=false;f.responses=true;
+            for(unsigned generation=1;generation<=9;generation++) {
+                f.request_row=f.request_offset=0;
+                f.csr_write(36,generation);f.csr_write(40,0);f.csr_write(52,1);
+                if(generation==9) { f.stall=true;f.responses=false; }
+                f.csr_write(0x84,generation);f.csr_write(0x88,0);f.csr_write(0x8c,1);f.csr_write(0x80,1);
+                if(generation==9)break;
+                for(unsigned poll=0;poll<400000 && !(f.access(false,0x90)&4);poll++)f.tick();
+                require((f.access(false,0x90)&4) && f.access(false,0xa4)==3686400,
+                    "repeated frame did not complete through the actual reader");
+                f.csr_write(44,generation+10);f.csr_write(48,0);f.csr_write(52,2);
+                for(unsigned poll=0;poll<4000 && f.access(false,56)!=4;poll++)f.tick();
+                require(f.access(false,56)==4 && f.access(false,64)==generation && f.access(false,72)==generation+10,
+                    "repeated frame did not produce its local drain receipt");
+            }
+            f.expected_stop_cookie=19;
+            require(!fes_nano_fabric_stop(&f.stop) && f.stop.done && f.stop.cookie==19 && f.writes==3,
+                "final firmware stop failed after eight independently drained frames");
+            require(!fes_nano_fabric_stopped(&f.stop),"repeated-frame final stop lost its receipt");cases++;
+            require(!(f.access(false,0x90)&4),"interrupted ninth frame fabricated completion");
+        }
+        for(uint64_t previous:std::array<uint64_t,3>{7ULL,0x100000008ULL,UINT64_MAX}) {
+            Fixture f;
+            if(previous!=UINT64_MAX)f.expected_stop_cookie=previous+1;
+            f.csr_write(44,(uint32_t)previous);f.csr_write(48,(uint32_t)(previous>>32));
+            int status=fes_nano_fabric_stop(&f.stop);
+            if(previous==UINT64_MAX) {
+                require(status==-75 && !f.writes && !f.cancels,"stop cookie wrapped or issued a command");
+                f.retired();
+            } else {
+                require(!status && f.stop.done && f.stop.cookie==previous+1 && f.writes==3,
+                    "final stop did not advance its complete 64-bit cookie");
+                require(!fes_nano_fabric_stopped(&f.stop),"advanced cookie receipt did not remain valid");
+            }
+            cases++;
+        }
         for(bool active:{false,true}) {
             Fixture f("",active);
             require(!fes_nano_fabric_stop(&f.stop),"window stop failed");

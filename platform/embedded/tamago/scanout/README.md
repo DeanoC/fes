@@ -72,6 +72,16 @@ and performs the separate endpoint and all-master drain. A `FrameRead` observes
 delivery into the FPGA diagnostic CRC sink; it grants no buffer reuse, vblank
 or HDMI authority. `Surface.Present` keeps its existing CPU-copy semantics.
 
+`Drain(ctx, cookie)` issues DISABLE once and waits for that exact 64-bit token,
+reader generation and zero pending traffic. It uses the same time/poll bounds
+and retires the instance on success or uncertainty. Drain cookies must increase
+across generations. The platform may enable a newer generation under its own
+exclusive ownership after publishing new pixels. The returned `ReaderDrain`
+covers only this endpoint; all other masters, bridge closure and the pinned
+allocation remain the platform's responsibility. The native
+[`WindowSession`](../nativefabric/README.md) combines these operations for
+controlled updates within one admitted arena.
+
 Failed open/frame operations can return `ReaderFailure`, retaining their stage,
 attempted read/write counts, START attempt and last complete latched sample.
 `errors.Is` still identifies the cause. The ordinary result stays empty on every
@@ -83,9 +93,10 @@ diagnostic profile and a fixed 4 MiB bus window. The ordinary fixed-reader boot
 constructor continues to reject it. Explicit `fpgaload --window-memory` binds
 the complete reservation to the native entry and cold firmware, publishes one
 actual tenfoot frame, and keeps FPGA data access held. Its separate stop contract
-uses the window maintenance register and both master-drain helpers. DDR release,
-native reader integration and physical qualification remain required before a
-Nano display can use this driver.
+uses the window maintenance register and both master-drain helpers. The
+[matched single-frame physical result](../../../../docs/validation/2026-11-04-de25-fullwidth-window/README.md)
+qualifies its recorded DDR read/drain/closure. Repeated native presentation,
+HDMI and ordinary Nano display admission remain open.
 
 The [owned window-source model](../../../../sources/misteross/docs/architecture.md#embedded-control-endpoint)
 now passes complete 1280×720 tenfoot frames through this CPU copy adapter and

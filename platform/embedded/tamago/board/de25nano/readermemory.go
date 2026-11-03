@@ -26,7 +26,11 @@ func ReserveReaderMemory(source []byte) (*nativefabric.Region, error) {
 // ReserveWindowMemory retains the complete compiled 4 MiB arena through reboot.
 // The same single-attempt owner prevents overlap with the fixed-reader API.
 func ReserveWindowMemory(source []byte) (*nativefabric.Region, error) {
-	return reserveReaderMemory(source, 4<<20, 4<<20)
+	region, err := reserveReaderMemory(source, 4<<20, 4<<20)
+	if err == nil {
+		region.OrderFrameStores = func() error { memoryBarrier(); return nil }
+	}
+	return region, err
 }
 
 func reserveReaderMemory(source []byte, arenaBytes uint64, sourceBytes int) (*nativefabric.Region, error) {

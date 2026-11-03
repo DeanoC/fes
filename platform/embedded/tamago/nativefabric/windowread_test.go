@@ -24,6 +24,8 @@ type windowCPU struct {
 	registers                   map[uint32]uint32
 	crc                         uint32
 	starts, dataOpens, releases int
+	disables                    int
+	lastDrainCookie             uint64
 	fault                       string
 	after                       func(string)
 }
@@ -104,12 +106,47 @@ func (c *windowCPU) WritePhysical32(address uint64, value uint32) error {
 	offset := uint32(address - 0x20010400)
 	c.registers[offset] = value
 	if offset == g.FesEmbeddedRegCommand {
-		c.registers[g.FesEmbeddedRegGenerationLo] = 1
-		c.registers[g.FesEmbeddedRegStatus] = g.FesEmbeddedStatusEnabled
+		generation := uint64(c.registers[g.FesEmbeddedRegRequestGenerationHi])<<32 | uint64(c.registers[g.FesEmbeddedRegRequestGenerationLo])
+		if value == g.FesEmbeddedCommandEnable {
+			previous := uint64(c.registers[g.FesEmbeddedRegGenerationHi])<<32 | uint64(c.registers[g.FesEmbeddedRegGenerationLo])
+			if generation <= previous || c.registers[g.FesEmbeddedRegPending] != 0 ||
+				(c.registers[g.FesEmbeddedRegStatus] != 0 && c.registers[g.FesEmbeddedRegStatus] != g.FesEmbeddedStatusDrained) {
+				return errors.New("invalid reader reenable")
+			}
+			c.registers[g.FesEmbeddedRegGenerationLo] = uint32(generation)
+			c.registers[g.FesEmbeddedRegGenerationHi] = uint32(generation >> 32)
+			c.registers[g.FesEmbeddedRegStatus] = g.FesEmbeddedStatusEnabled
+			c.registers[g.FesEmbeddedRegAckGenerationLo] = 0
+			c.registers[g.FesEmbeddedRegAckGenerationHi] = 0
+			c.registers[g.FesEmbeddedRegAckCookieLo] = 0
+			c.registers[g.FesEmbeddedRegAckCookieHi] = 0
+			c.registers[0x90] = (c.registers[0x90] & 4) | 1
+		} else if value == g.FesEmbeddedCommandDisable {
+			cookie := uint64(c.registers[g.FesEmbeddedRegRequestCookieHi])<<32 | uint64(c.registers[g.FesEmbeddedRegRequestCookieLo])
+			if c.registers[g.FesEmbeddedRegStatus] != g.FesEmbeddedStatusEnabled || cookie <= c.lastDrainCookie {
+				return errors.New("invalid reader disable")
+			}
+			c.disables++
+			c.lastDrainCookie = cookie
+			c.registers[g.FesEmbeddedRegStatus] = g.FesEmbeddedStatusDrained
+			c.registers[g.FesEmbeddedRegAckGenerationLo] = uint32(generation)
+			c.registers[g.FesEmbeddedRegAckGenerationHi] = uint32(generation >> 32)
+			c.registers[g.FesEmbeddedRegAckCookieLo] = uint32(cookie)
+			c.registers[g.FesEmbeddedRegAckCookieHi] = uint32(cookie >> 32)
+			if c.fault == "drain-held" {
+				c.registers[g.FesEmbeddedRegStatus] = g.FesEmbeddedStatusDraining
+				c.registers[g.FesEmbeddedRegPending] = 1
+				c.registers[g.FesEmbeddedRegAckGenerationLo] = 0
+				c.registers[g.FesEmbeddedRegAckCookieLo] = 0
+			}
+		} else {
+			return errors.New("unexpected reader command")
+		}
 	}
 	if offset == 0x80 {
 		c.starts++
-		c.registers[0x90], c.registers[0x94], c.registers[0x9c] = 5, 1, 1
+		c.registers[0x90], c.registers[0x94], c.registers[0x98], c.registers[0x9c] = 5,
+			c.registers[g.FesEmbeddedRegGenerationLo], c.registers[g.FesEmbeddedRegGenerationHi], c.registers[0x8c]
 		c.registers[0xa0], c.registers[0xa4], c.registers[0xa8] = 3686400, 3686400, c.crc
 		switch c.fault {
 		case "stall":

@@ -30,6 +30,15 @@ type Surface struct {
 	fault                 error
 }
 
+// CheckFrame validates dimensions and storage before a platform changes reader
+// ownership. It performs no memory writes and does not consume the surface.
+func (s *Surface) CheckFrame(frame *image.RGBA) error {
+	if frame == nil || frame.Rect.Dx() != s.width || frame.Rect.Dy() != s.height || frame.Stride < s.width*4 || frame.Stride > 1<<30 || uint64(len(frame.Pix)) < uint64(s.height-1)*uint64(frame.Stride)+uint64(s.width*4) {
+		return errors.New("scanout: frame does not match reserved geometry")
+	}
+	return nil
+}
+
 // New does not infer firmware identity, addresses or geometry. The board must
 // admit those before constructing the memory window, and must keep it pinned
 // on every failure, including a failure before this function returns.
@@ -49,8 +58,8 @@ func (s *Surface) Present(frame *image.RGBA) error {
 	if s.fault != nil {
 		return s.fault
 	}
-	if frame == nil || frame.Rect.Dx() != s.width || frame.Rect.Dy() != s.height || frame.Stride < s.width*4 || frame.Stride > 1<<30 || uint64(len(frame.Pix)) < uint64(s.height-1)*uint64(frame.Stride)+uint64(s.width*4) {
-		return errors.New("scanout: frame does not match reserved geometry")
+	if err := s.CheckFrame(frame); err != nil {
+		return err
 	}
 	for y := 0; y < s.height; y += 4 {
 		runtime.Gosched()

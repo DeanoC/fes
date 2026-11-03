@@ -55,22 +55,32 @@ func (v *HPSContextVerifier) checkedWindowRead(control, raw []byte) (hpsControlM
 // windowIO exposes only the selected read-only window engine. Every ordered
 // CSR operation is bracketed by fresh secure bridge ownership observations.
 type windowIO struct {
-	mu      sync.Mutex
-	cpu     CPUTransport
-	bridges *FirmwareBridges
-	want    BridgeSnapshot
-	base    uint64
-	retired bool
+	mu                      sync.Mutex
+	cpu                     CPUTransport
+	bridges                 *FirmwareBridges
+	want                    BridgeSnapshot
+	base                    uint64
+	generation, drainCookie uint64
+	retired                 bool
 }
 
 func (p *windowIO) access(offset uint32, write bool, value uint32) (uint32, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	read := offset&3 == 0 && ((offset <= 0x4c && offset != g.FesEmbeddedRegCommand) || (offset >= 0x90 && offset <= 0xac) || (offset >= 0xb0 && offset <= 0xc8))
-	writable := (offset == g.FesEmbeddedRegRequestGenerationLo && value == 1) ||
-		(offset == g.FesEmbeddedRegRequestGenerationHi && value == 0) ||
-		(offset == g.FesEmbeddedRegCommand && value == g.FesEmbeddedCommandEnable) ||
-		(offset == 0x84 && value == 1) || (offset == 0x88 && value == 0) || (offset == 0x8c && value == 1) || (offset == 0x80 && value == 1)
+	generation, cookie := p.generation, p.drainCookie
+	if generation == 0 {
+		generation = 1
+	}
+	if cookie == 0 {
+		cookie = 1
+	}
+	writable := (offset == g.FesEmbeddedRegRequestGenerationLo && value == uint32(generation)) ||
+		(offset == g.FesEmbeddedRegRequestGenerationHi && value == uint32(generation>>32)) ||
+		(offset == g.FesEmbeddedRegRequestCookieLo && value == uint32(cookie)) ||
+		(offset == g.FesEmbeddedRegRequestCookieHi && value == uint32(cookie>>32)) ||
+		(offset == g.FesEmbeddedRegCommand && (value == g.FesEmbeddedCommandEnable || value == g.FesEmbeddedCommandDisable)) ||
+		(offset == 0x84 && value == uint32(generation)) || (offset == 0x88 && value == uint32(generation>>32)) || (offset == 0x8c && value == 1) || (offset == 0x80 && value == 1)
 	if p.retired || write && !writable || !write && !read {
 		return 0, errors.New("native fabric: window aperture retired or outside contract")
 	}
@@ -110,142 +120,153 @@ type WindowReadObservation struct {
 	ControlMapSHA256, AccessMapSHA256 [32]byte
 }
 
-// ProbeWindowReader uses the actual native CSR driver after a completed source-
-// bound transfer. It consumes one attempt. A known open scope is closed through
-// firmware on success, cancellation and reader failure, independent of the
-// caller's cancelled context. An uncertain bridge mutation is never replayed.
-func (v *HPSContextVerifier) ProbeWindowReader(ctx context.Context, control, contract []byte, transfer *ConfigurationTransfer, limits scanout.ReaderLimits) (result WindowReadObservation, err error) {
+// ProbeWindowReader retains the one-frame diagnostic interface. Its session
+// always returns through independent firmware master stop and bridge closure.
+func (v *HPSContextVerifier) ProbeWindowReader(ctx context.Context, control, contract []byte, transfer *ConfigurationTransfer, limits scanout.ReaderLimits) (WindowReadObservation, error) {
+	s, err := v.openWindowSession(ctx, control, contract, transfer, limits, false)
+	if err != nil {
+		return WindowReadObservation{}, err
+	}
+	frame, readErr := s.readPublished(ctx)
+	returned, closeErr := s.Close()
+	if closeErr != nil {
+		return WindowReadObservation{}, closeErr
+	}
+	if readErr != nil {
+		return WindowReadObservation{}, readErr
+	}
+	return WindowReadObservation{Source: returned.Source, After: returned.After, Frame: frame, Memory: returned.Memory,
+		ControlMapSHA256: returned.ControlMapSHA256, AccessMapSHA256: returned.AccessMapSHA256}, nil
+}
+
+// OpenWindowSession consumes the completed transfer once and owns its boot-pinned
+// window until Close. Frame updates require a separate platform store-order hook.
+func (v *HPSContextVerifier) OpenWindowSession(ctx context.Context, control, contract []byte, transfer *ConfigurationTransfer, limits scanout.ReaderLimits) (*WindowSession, error) {
+	return v.openWindowSession(ctx, control, contract, transfer, limits, true)
+}
+func (v *HPSContextVerifier) openWindowSession(ctx context.Context, control, contract []byte, transfer *ConfigurationTransfer, limits scanout.ReaderLimits, updates bool) (_ *WindowSession, err error) {
 	if v == nil || ctx == nil || limits.Now == nil || limits.Yield == nil || limits.Timeout <= 0 || limits.Timeout > time.Second || limits.MaxPolls == 0 || limits.MaxPolls > 64 {
-		return result, errors.New("native fabric: bounded window context and limits required")
+		return nil, errors.New("native fabric: bounded window context and limits required")
 	}
 	if err = ctx.Err(); err != nil {
-		return result, err
+		return nil, err
 	}
 	m, err := v.checkedWindowRead(control, contract)
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 	cpu, ok := v.cpu.(CPUTransport)
 	if !ok {
-		return result, errors.New("native fabric: owned physical window CPU transport required")
+		return nil, errors.New("native fabric: owned physical window CPU transport required")
 	}
 	if !v.readerMemoryMu.TryLock() {
-		return result, scanout.ErrReaderBusy
+		return nil, scanout.ErrReaderBusy
 	}
-	defer v.readerMemoryMu.Unlock()
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			v.readerMemoryMu.Unlock()
+		}
+	}()
 	if v.ddrReaderAttempted || !v.readerMemoryReady || v.readerMemoryRegion == nil ||
 		v.readerMemoryRegion.Address != v.windowMemory.CPUBase || uint64(len(v.readerMemoryRegion.Bytes)) != v.windowMemory.ArenaBytes ||
 		sha256.Sum256(v.readerMemoryRegion.Bytes) != v.windowArenaSHA {
-		return result, errors.New("native fabric: fresh complete pinned window required")
+		return nil, errors.New("native fabric: fresh complete pinned window required")
+	}
+	if updates && v.readerMemoryRegion.OrderFrameStores == nil {
+		return nil, errors.New("native fabric: ordered frame publication hook required")
 	}
 	if transfer == nil || transfer.binding == nil {
-		return result, errors.New("native fabric: completed window transfer required")
+		return nil, errors.New("native fabric: completed window transfer required")
 	}
 	valid := transfer.done && transfer.err == nil && transfer.region == nil && transfer.phase == "complete" &&
 		len(transfer.source) != 0 && len(transfer.pending) == 0 && transfer.offset == len(transfer.source) && transfer.accepted == len(transfer.source) &&
 		transfer.binding.verifier == v && !transfer.binding.rearm && transfer.binding.program == nil
 	binding := *transfer.binding
 	if !valid {
-		return result, errors.New("native fabric: completed compiled-source window transfer required")
+		return nil, errors.New("native fabric: completed compiled-source window transfer required")
 	}
 	v.ddrReaderAttempted = true
 	source, err := v.Verify(v.Identity())
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 	if !v.coldSource(source) || source != binding.source || source != v.windowPublication.Source || source.Bridges.Generation > math.MaxUint64-3 {
-		return result, errors.New("native fabric: window opening lost completed transfer ownership")
+		return nil, errors.New("native fabric: window opening lost completed transfer ownership")
 	}
 	bridges := &FirmwareBridges{cpu: cpu}
 	opened, err := bridges.OpenBridges(BridgeOpenRequest{Before: source.Bridges, Mask: 2})
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 	want := source.Bridges
 	want.Generation++
 	want.ResetMask &^= 2
 	want.NeverEnabled = false
 	if opened != want {
-		return result, errors.New("native fabric: uncertain window control opening")
+		return nil, errors.New("native fabric: uncertain window control opening")
 	}
-	known := true
-	var port *windowIO
+	s := &WindowSession{region: v.readerMemoryRegion, bytes: v.readerMemoryRegion.Bytes, verifier: v, context: ctx, source: source, opened: opened, known: true,
+		bridges: bridges, limits: limits, generation: 1, nextDrain: 1,
+		controlSHA: sha256.Sum256(control), accessSHA: sha256.Sum256(contract)}
+	s.self = s
+	handedOff = true
 	defer func() {
-		if port != nil {
-			port.retire()
-		}
-		if !known {
-			result = WindowReadObservation{}
-			return
-		}
-		held := opened.ResetMask&13 == 13
-		closure, closeErr := bridges.CloseBridges(BridgeCloseRequest{Before: opened, PreserveDataContainment: held})
-		closed := opened
-		closed.Generation++
-		closed.ResetMask = 15
-		closed.MastersContained = true
-		if closeErr == nil && (closure.After != closed || !closure.ProducersQuiescent || closure.FabricAcknowledged ||
-			closure.DataRemainedContained != held || closure.HardwareDrainedMask != opened.Capabilities.HardwareDrainMask&^opened.ResetMask) {
-			closeErr = errors.New("native fabric: window return lacks complete owned drain")
-		}
-		if closeErr == nil {
-			after, verifyErr := v.Verify(v.Identity())
-			if verifyErr != nil || after.Digest != source.Digest || after.Bridges != closed || sha256.Sum256(v.readerMemoryRegion.Bytes) != v.windowArenaSHA {
-				closeErr = errors.New("native fabric: window return lost source, frame bytes or closed ownership")
+		if err != nil {
+			s.fail(err)
+			_, closeErr := s.Close()
+			if closeErr != nil {
+				err = closeErr
 			}
 		}
-		err = errors.Join(err, closeErr)
-		if err != nil {
-			result = WindowReadObservation{}
-			return
-		}
-		result.Source = source
-		result.After = closed
-		result.Memory = v.windowPublication
-		result.ControlMapSHA256 = sha256.Sum256(control)
-		result.AccessMapSHA256 = sha256.Sum256(contract)
 	}()
 	if err = ctx.Err(); err != nil {
-		return result, err
+		return nil, err
 	}
-	known = false // A failed mutation may have opened data; do not guess a held close.
+	s.known = false // A failed mutation may have opened data; do not guess a held close.
 	data, err := bridges.OpenBridges(BridgeOpenRequest{Before: opened, Mask: 8})
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 	want = opened
 	want.Generation++
 	want.ResetMask &^= 8
 	want.MastersContained = false
 	if data != want {
-		return result, errors.New("native fabric: uncertain window data opening")
+		return nil, errors.New("native fabric: uncertain window data opening")
 	}
 	opened = data
-	known = true
-	port = &windowIO{cpu: cpu, bridges: bridges, want: opened, base: m.CPUBase}
+	s.opened = data
+	s.known = true
+	s.port = &windowIO{cpu: cpu, bridges: bridges, want: opened, base: m.CPUBase, generation: 1, drainCookie: 1}
 	build, err := BuildWords(v.context.BuildID)
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 	identity := embeddedcontrol.Identity{ABI: scanout.WindowControlABI, Build: build}
-	endpoint := embeddedcontrol.Control{IO: port}
+	s.identity = identity
+	endpoint := embeddedcontrol.Control{IO: s.port}
 	initial, err := endpoint.Snapshot()
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 	if initial != (embeddedcontrol.Snapshot{Identity: identity}) {
-		return result, errors.New("native fabric: window reader was not fresh and idle")
+		return nil, errors.New("native fabric: window reader was not fresh and idle")
 	}
 	if err = endpoint.Enable(identity, 1); err != nil {
-		return result, err
+		return nil, err
 	}
-	reader, err := scanout.NewWindowReader(ctx, port, identity, 1, v.windowPublication.Geometry, limits)
+	reader, err := scanout.NewWindowReader(ctx, s.port, identity, 1, v.windowPublication.Geometry, limits)
 	if err != nil {
-		return result, err
+		return nil, err
 	}
-	result.Frame, err = reader.ReadFrame(ctx, v.windowPublication.CRC32)
-	if err == nil {
-		err = ctx.Err()
+	s.reader = reader
+	if updates {
+		s.memory = &windowFrameMemory{session: s}
+		s.surface, err = scanout.New(1280, 720, 5120, s.memory)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return result, err
+	return s, nil
 }

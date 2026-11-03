@@ -234,6 +234,83 @@ func (h windowHookIO) Write32(o, v uint32) error {
 }
 
 func TestWindowReaderActualAvalon(t *testing.T) {
+	t.Run("drain-ack-retires-generation", func(t *testing.T) {
+		p := newWindowProbe(t)
+		r := p.open(t, 1)
+		before := p.calls
+		if got, err := r.Drain(context.Background(), 0); !errors.Is(err, ErrReaderArgument) || got != (ReaderDrain{}) || p.calls != before {
+			t.Fatal("invalid drain changed ownership", got, err)
+		}
+		p.frame(t, r, 0, 1)
+		cookie := uint64(0x8000000000000001)
+		got, err := r.Drain(context.Background(), cookie)
+		if err != nil || got != (ReaderDrain{1, cookie}) {
+			t.Fatal("missing actual drain receipt", got, err)
+		}
+		p.retired(t, r)
+		before = p.calls
+		if _, err = r.Drain(context.Background(), cookie); !errors.Is(err, ErrReaderRetired) || p.calls != before {
+			t.Fatal("completed stop was replayed", err)
+		}
+		r = p.open(t, 2)
+		p.frame(t, r, 1, 1)
+		// Endpoint drain cookies remain monotonic across generations.
+		if _, err = r.Drain(context.Background(), cookie+1); err != nil {
+			t.Fatal(err)
+		}
+	})
+	for _, test := range []struct {
+		name string
+		mode int
+	}{{"drain-held-address", 1}, {"drain-held-response", 2}} {
+		t.Run(test.name, func(t *testing.T) {
+			p := newWindowProbe(t)
+			r := p.open(t, 1)
+			p.must(t, "mode %x", test.mode)
+			p.write(t, windowExpectLo, 1)
+			p.write(t, windowExpectLo+4, 0)
+			p.write(t, windowCookie, 1)
+			p.write(t, windowCommand, 1)
+			p.must(t, "tick 2000")
+			r.limits.MaxPolls = 2
+			got, err := r.Drain(context.Background(), 33)
+			if !errors.Is(err, ErrReaderLimit) || got != (ReaderDrain{}) {
+				t.Fatal("pending traffic supplied a drain", got, err)
+			}
+			p.retired(t, r)
+			control := embeddedcontrol.Control{IO: p}
+			if !errors.Is(control.Drained(p.want, 1, 33), embeddedcontrol.ErrBusy) {
+				t.Fatal("elapsed polls fabricated an acknowledgement")
+			}
+			p.must(t, "mode 0")
+			p.must(t, "tick 4000")
+			if err = control.Drained(p.want, 1, 33); err != nil {
+				t.Fatal("real traffic did not drain", err)
+			}
+		})
+	}
+	t.Run("drain-command-uncertainty", func(t *testing.T) {
+		p := newWindowProbe(t)
+		r := p.open(t, 1)
+		cause := errors.New("accepted DISABLE response was lost")
+		commands := 0
+		r.io = windowHookIO{p: p, afterWrite: func(offset, value uint32) error {
+			if offset == g.FesEmbeddedRegCommand && value == g.FesEmbeddedCommandDisable {
+				commands++
+				return cause
+			}
+			return nil
+		}}
+		got, err := r.Drain(context.Background(), 41)
+		if !errors.Is(err, cause) || got != (ReaderDrain{}) || commands != 1 {
+			t.Fatal("uncertain DISABLE was accepted or replayed", got, err, commands)
+		}
+		p.retired(t, r)
+		p.must(t, "tick 4000")
+		if err = (embeddedcontrol.Control{IO: p}).Drained(p.want, 1, 41); err != nil {
+			t.Fatal("accepted command disappeared", err)
+		}
+	})
 	t.Run("full-generation-token", func(t *testing.T) {
 		p := newWindowProbe(t)
 		generation := uint64(0x8000000000000001)

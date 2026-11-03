@@ -83,8 +83,15 @@ static int reader_stop(struct fes_nano_fabric_stop *s)
             if (!zero || drained(&v)) { s->last=v;return scope(s); }
             generation=pair(&v,GENERATION_LO);
             if (v.words[STATUS]!=FES_EMBEDDED_STATUS_ENABLED || !generation ||
-                pair(&v,REQUEST_LO)!=generation || pair(&v,ACK_LO) || pair(&v,ACK_COOKIE_LO) ||
-                s->cookie<=pair(&v,COOKIE_LO)) return fail(s,-71);
+                pair(&v,REQUEST_LO)!=generation || pair(&v,ACK_LO) || pair(&v,ACK_COOKIE_LO)) return fail(s,-71);
+            /* Frame updates may have completed earlier reader generations.
+             * Their cookies remain monotonic across ENABLE. Select a fresh
+             * stop token from this validated snapshot before issuing anything. */
+            uint64_t previous=pair(&v,COOKIE_LO);
+            if (s->cookie<=previous) {
+                if (previous==UINT64_MAX) return fail(s,-75);
+                s->cookie=previous+1;
+            }
             /* Record intent before a possibly issued write. No retry can turn
              * an uncertain command into a drain receipt. */
             s->disable_issued=1;

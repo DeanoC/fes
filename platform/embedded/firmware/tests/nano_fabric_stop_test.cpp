@@ -25,6 +25,7 @@ struct Fixture {
     unsigned reads=0,probe_reads=0,writes=0,cancels=0,waits=0,fail_read=0;
     bool owned=true,stall=true,responses=false,golden=false;
     unsigned addresses=0,beats=0;
+    uint64_t expected_stop_cookie=7;
     unsigned request_row=0,request_offset=0;
     static constexpr uint32_t build[4]={0xccddeeff,0x8899aabb,0x44556677,0x00112233};
     /* Independent little-endian vector from hps_context.reader_pattern(),
@@ -115,7 +116,9 @@ struct Fixture {
     }
     static int write(void *context,uint32_t offset,uint32_t value) {
         auto& f=*static_cast<Fixture*>(context);f.writes++;
-        require((offset==44 && value==7) || (offset==48 && !value) || (offset==52 && value==2),"stop enabled or changed reader");
+        require((offset==44 && value==(uint32_t)f.expected_stop_cookie) ||
+            (offset==48 && value==(uint32_t)(f.expected_stop_cookie>>32)) ||
+            (offset==52 && value==2),"stop enabled or changed reader");
         if(f.fault=="write-before")return -7;
         f.csr_write(offset,value);
         if(f.fault=="owner-after-write")f.owned=false;

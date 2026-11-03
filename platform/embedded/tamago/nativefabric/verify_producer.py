@@ -149,7 +149,7 @@ def main():
     window = json.loads((out / "window-stream/result.json").read_text())
     if (window["status"] != "passed" or window["physical_ddr"] or window["runtime_admission"] or
             window.get('read_width')!=dict(status='passed',groups=4,invalid_descriptors=6,page_bytes=4096,hps_data_bits=256,reader_data_bits=128) or
-            window['native_aperture']['status']!='passed' or len(window['native_aperture']['cases'])!=20 or
+            window['native_aperture']['status']!='passed' or len(window['native_aperture']['cases'])!=24 or
             not {'TestWindowReaderActualAvalon/partial-snapshot-1','TestWindowReaderActualAvalon/partial-snapshot-2'} <= set(window['native_aperture']['cases'])):
         raise RuntimeError("window stream did not remain a checked host model")
     if sources != {str(x.relative_to(ROOT)): sha(x) for x in sorted(files)}:

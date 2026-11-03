@@ -257,6 +257,7 @@ def main():
     events = [json.loads(line) for line in native.splitlines()]
     passed = [e['Test'] for e in events if e['Action']=='pass' and e.get('Test','').startswith('TestWindowReaderActualAvalon/')]
     expected_cases={f'TestWindowReaderActualAvalon/{name}' for name in (
+        'drain-ack-retires-generation','drain-held-address','drain-held-response','drain-command-uncertainty',
         'full-generation-token','two-frames-drain-new-owner','identity-geometry-arguments',
         'stale-cookie-and-register-rejection','latched-snapshot','rresp','rid','rlast','corrupt-pixel',
         'held-address','missing-responses','partial-snapshot-1','partial-snapshot-2',

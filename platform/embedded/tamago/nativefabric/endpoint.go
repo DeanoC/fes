@@ -29,6 +29,9 @@ type Region struct {
 	Address uint64
 	Bytes   []byte
 	Release func() error
+	// Orders CPU frame stores in this exact boot-pinned, Normal uncached region.
+	// It is synchronous and bounded; it supplies no reader or bridge drain.
+	OrderFrameStores func() error
 	// The cold platform publishes one per-load descriptor in its separately
 	// reserved metadata page. Generic firmware transfers do not use this hook.
 	PublishConfiguration func([]byte) error

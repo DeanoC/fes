@@ -150,6 +150,35 @@ An uncertain bridge mutation is consumed without replay. The allocation
 remains pinned on every outcome; this one-frame receipt permits no buffer
 reuse, HDMI or ordinary runtime admission.
 
+`OpenWindowSession` also provides an owned `Present` implementation for frame
+updates within that same admitted scope. The platform must supply the pinned
+region's bounded `OrderFrameStores` hook before opening. Each update verifies
+the previous complete arena, obtains the reader's real DISABLE acknowledgement,
+copies at most four rows per chunk, and orders the stores. Expected hashes and
+CRC cover the submitted XRGB bytes; complete readback also checks unchanged
+padding. Ownership checks bracket each chunk and publication. The next frame
+uses a newer reader generation and a globally increasing drain cookie, then
+returns only after frame delivery and its own local drain. `WindowPresentation`
+records those observations; the allocation remains owned until reboot.
+
+Only this fixed-source reader may reuse those bytes while the other sealed
+masters remain contained. `Close` independently performs firmware master stop,
+hardware drain and bridge closure once. Invalid frames reject before mutation;
+uncertain writes, barriers, frame reads, drains or ownership retire the session.
+Copied handles cannot take ownership. Concurrent presentation and Close reject
+without I/O, and repeated Close returns its cached result. No failure frees the
+region or supplies a successful presentation/return receipt.
+
+Host tests cover twelve changing frames, independent pixel/CRC/hash checks,
+publication and ownership failures, cancellation, token exhaustion and concurrent
+return. Actual RTL tests cover local drain, held addresses/responses and an
+accepted DISABLE whose response is lost. The real C/RTL stop test completes
+eight generations and drains an interrupted ninth with a fresh final cookie.
+These are software results. The [recorded physical result](../../../../docs/validation/2026-11-04-de25-fullwidth-window/README.md)
+qualifies its earlier single-frame image. The native command still selects
+that one-frame diagnostic; repeated native presentation, HDMI, USB hub input
+and ordinary package admission remain open.
+
 Before an injected actor retires its current owner, it checks that the retained
 package's exact target, programming profile and ABI version have an explicitly
 supplied identity profile. The profile gives the FPGA control ABI personality;

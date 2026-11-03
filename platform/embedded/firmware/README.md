@@ -451,6 +451,11 @@ or already-drained reader needs no command; an enabled reader receives one
 DISABLE, then a bounded wait for the same generation and cookie with zero
 pending traffic. The inherited probe independently receives CANCEL only if
 needed. A final fresh observation of both receipts precedes completion.
+The configured stop cookie is a nonzero minimum. If frame updates have advanced
+the endpoint's request cookie, the callback selects the next full 64-bit token
+from the validated snapshot before its single DISABLE. Exhaustion fails before
+any write; cookies never wrap. The C/RTL window test completes eight reader
+generations and then drains an interrupted ninth using this fresh final token.
 After control closes, the original cold ownership guards the retained receipt;
 the provider performs no FPGA reads through the closed aperture.
 
