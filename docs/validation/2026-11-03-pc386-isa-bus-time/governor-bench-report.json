@@ -14,12 +14,12 @@
     "286-12": {
       "name": "286-12",
       "run": {
-        "cycles": 11078817,
-        "retired": 258077,
+        "cycles": 11478177,
+        "retired": 263077,
         "halted": 1,
         "debt_max": 163,
-        "hold_cycles": 10219794,
-        "charged": 2163693
+        "hold_cycles": 10600155,
+        "charged": 2241693
       },
       "loops": [
         {
@@ -186,11 +186,11 @@
         },
         {
           "name": "iobus",
-          "cycles": 977951,
-          "charged": 191009,
-          "table_clocks": 191009,
-          "table_cycles": 977966.1,
-          "error": -2e-05,
+          "cycles": 1377311,
+          "charged": 269009,
+          "table_clocks": 269009,
+          "table_cycles": 1377326.1,
+          "error": -1e-05,
           "beyond_cpu": false
         }
       ],
@@ -205,12 +205,12 @@
     "386SX-16": {
       "name": "386SX-16",
       "run": {
-        "cycles": 8975681,
-        "retired": 257990,
+        "cycles": 9455699,
+        "retired": 262990,
         "halted": 1,
         "debt_max": 195,
-        "hold_cycles": 8113133,
-        "charged": 2337122
+        "hold_cycles": 8574115,
+        "charged": 2462122
       },
       "loops": [
         {
@@ -377,10 +377,10 @@
         },
         {
           "name": "iobus",
-          "cycles": 1159795,
-          "charged": 302019,
-          "table_clocks": 302019,
-          "table_cycles": 1159753.0,
+          "cycles": 1639813,
+          "charged": 427019,
+          "table_clocks": 427019,
+          "table_cycles": 1639753.0,
           "error": 4e-05,
           "beyond_cpu": false
         }
@@ -396,12 +396,12 @@
     "386DX-25": {
       "name": "386DX-25",
       "run": {
-        "cycles": 5534739,
-        "retired": 257852,
+        "cycles": 5952542,
+        "retired": 262852,
         "halted": 1,
         "debt_max": 243,
-        "hold_cycles": 4618579,
-        "charged": 2251678
+        "hold_cycles": 5017383,
+        "charged": 2421678
       },
       "loops": [
         {
@@ -568,10 +568,10 @@
         },
         {
           "name": "iobus",
-          "cycles": 929055,
-          "charged": 378025,
-          "table_clocks": 378025,
-          "table_cycles": 929034.2,
+          "cycles": 1346858,
+          "charged": 548025,
+          "table_clocks": 548025,
+          "table_cycles": 1346826.2,
           "error": 2e-05,
           "beyond_cpu": false
         }
@@ -587,12 +587,12 @@
     "386DX-33": {
       "name": "386DX-33",
       "run": {
-        "cycles": 4491087,
-        "retired": 257822,
+        "cycles": 4887772,
+        "retired": 262822,
         "halted": 1,
         "debt_max": 293,
-        "hold_cycles": 3548149,
-        "charged": 2433636
+        "hold_cycles": 3925802,
+        "charged": 2648636
       },
       "loops": [
         {
@@ -759,18 +759,18 @@
         },
         {
           "name": "iobus",
-          "cycles": 852466,
-          "charged": 462031,
-          "table_clocks": 462031,
-          "table_cycles": 852468.0,
+          "cycles": 1249151,
+          "charged": 677031,
+          "table_clocks": 677031,
+          "table_cycles": 1249152.7,
           "error": -0.0,
           "beyond_cpu": false
         }
       ],
       "latency": {
         "count": 28,
-        "max_clocks": 84.0,
-        "mean_clocks": 53.9,
+        "max_clocks": 75.9,
+        "mean_clocks": 57.3,
         "bound_clocks": 123,
         "debt_max": 293
       }
@@ -778,12 +778,12 @@
     "386DX-40": {
       "name": "386DX-40",
       "run": {
-        "cycles": 3966108,
-        "retired": 257807,
+        "cycles": 4353176,
+        "retired": 262807,
         "halted": 1,
         "debt_max": 335,
-        "hold_cycles": 2998296,
-        "charged": 2581496
+        "hold_cycles": 3366389,
+        "charged": 2833496
       },
       "loops": [
         {
@@ -815,11 +815,11 @@
         },
         {
           "name": "branch",
-          "cycles": 193604,
+          "cycles": 193603,
           "charged": 126036,
           "table_clocks": 126036,
           "table_cycles": 193591.3,
-          "error": 7e-05,
+          "error": 6e-05,
           "beyond_cpu": false
         },
         {
@@ -950,18 +950,18 @@
         },
         {
           "name": "iobus",
-          "cycles": 811056,
-          "charged": 528036,
-          "table_clocks": 528036,
-          "table_cycles": 811063.3,
+          "cycles": 1198125,
+          "charged": 780036,
+          "table_clocks": 780036,
+          "table_cycles": 1198135.3,
           "error": -1e-05,
           "beyond_cpu": false
         }
       ],
       "latency": {
         "count": 23,
-        "max_clocks": 81.4,
-        "mean_clocks": 66.7,
+        "max_clocks": 82.0,
+        "mean_clocks": 64.3,
         "bound_clocks": 123,
         "debt_max": 335
       }
@@ -969,12 +969,12 @@
     "486DX-33": {
       "name": "486DX-33",
       "run": {
-        "cycles": 3436953,
-        "retired": 257804,
+        "cycles": 3842862,
+        "retired": 262804,
         "halted": 1,
         "debt_max": 283,
-        "hold_cycles": 2427246,
-        "charged": 1825532
+        "hold_cycles": 2814156,
+        "charged": 2045532
       },
       "loops": [
         {
@@ -1006,11 +1006,11 @@
         },
         {
           "name": "branch",
-          "cycles": 147250,
+          "cycles": 147249,
           "charged": 51038,
           "table_clocks": 51038,
           "table_cycles": 94167.4,
-          "error": 0.5637,
+          "error": 0.56369,
           "beyond_cpu": true
         },
         {
@@ -1141,10 +1141,10 @@
         },
         {
           "name": "iobus",
-          "cycles": 883851,
-          "charged": 479038,
-          "table_clocks": 479038,
-          "table_cycles": 883846.7,
+          "cycles": 1289761,
+          "charged": 699038,
+          "table_clocks": 699038,
+          "table_cycles": 1289756.6,
           "error": 0.0,
           "beyond_cpu": false
         }
@@ -1160,12 +1160,12 @@
     "486DX2-66": {
       "name": "486DX2-66",
       "run": {
-        "cycles": 2636219,
-        "retired": 257771,
+        "cycles": 3004670,
+        "retired": 262771,
         "halted": 1,
         "debt_max": 485,
-        "hold_cycles": 1560497,
-        "charged": 2555443
+        "hold_cycles": 1909900,
+        "charged": 2955443
       },
       "loops": [
         {
@@ -1197,11 +1197,11 @@
         },
         {
           "name": "branch",
-          "cycles": 147151,
+          "cycles": 147150,
           "charged": 51062,
           "table_clocks": 51062,
           "table_cycles": 47035.2,
-          "error": 2.12853,
+          "error": 2.12851,
           "beyond_cpu": true
         },
         {
@@ -1332,18 +1332,18 @@
         },
         {
           "name": "iobus",
-          "cycles": 750784,
-          "charged": 815062,
-          "table_clocks": 815062,
-          "table_cycles": 750785.7,
+          "cycles": 1119238,
+          "charged": 1215062,
+          "table_clocks": 1215062,
+          "table_cycles": 1119241.5,
           "error": -0.0,
           "beyond_cpu": false
         }
       ],
       "latency": {
         "count": 11,
-        "max_clocks": 97.7,
-        "mean_clocks": 51.0,
+        "max_clocks": 70.6,
+        "mean_clocks": 50.8,
         "bound_clocks": 118,
         "debt_max": 485
       }
@@ -1368,7 +1368,7 @@
       },
       {
         "name": "branch",
-        "cycles": 147116,
+        "cycles": 147115,
         "charged": 0
       },
       {
@@ -1443,13 +1443,13 @@
       },
       {
         "name": "iobus",
-        "cycles": 100999,
+        "cycles": 124999,
         "charged": 0
       }
     ],
     "run": {
-      "cycles": 1133124,
-      "retired": 257753,
+      "cycles": 1157123,
+      "retired": 262753,
       "halted": 1,
       "debt_max": 0,
       "hold_cycles": 0,
@@ -1457,8 +1457,8 @@
     },
     "latency_cycles": [
       64,
+      57,
       35,
-      42,
       35,
       35
     ]
@@ -1577,8 +1577,8 @@
       },
       {
         "name": "iobus",
-        "cycles": 1280011,
-        "charged": 125004,
+        "cycles": 1699851,
+        "charged": 166004,
         "error": -2e-05
       }
     ]

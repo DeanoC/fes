@@ -4,6 +4,17 @@ Issue [#1362](https://github.com/DeanoC/fes/issues/1362), a follow-up to the
 speed governor ([#1357](https://github.com/DeanoC/fes/issues/1357),
 [record](../2026-11-01-pc386-m5-governor/summary.md)).
 
+**Evidence scope.** The seal and the Kit B run are of the RTL at
+`10f2e27d7`. After Codex's review, `e4f2f927d` changed how the governor
+charges I/O at the ATA data port: a byte there is now one 8-bit cycle, and
+a dword a 16-bit cycle and two 8-bit ones, as the machine splits them. Before,
+they were one and two 16-bit cycles. The head is not resealed (pc386's
+post-seal exemption; the next sealing PR covers it). The governor bench,
+the unit tests and the 286-12 lockstep were rerun on it. The system suite,
+both FreeDOS boots and the Kit B run were not. They make no byte or dword
+access at 1F0h: the machine's IDENTIFY offers no 32-bit PIO, so the BIOS
+moves sectors with INSW and OUTSW.
+
 **Result:** The governor now charges the period ISA bus time of I/O and
 VGA memory accesses. On `pc386_system`, a port 61h toggle loop paces at
 3.585 µs a pass at 286-12 and 2.881 µs at 386DX-25, within 0.04% of the
@@ -12,8 +23,8 @@ table. A 512-word text-mode fill runs at 2.40 MB/s and 2.39 MB/s, within
 loop and preset, in the RTL and the netlist. Nothing architectural changes:
 the lockstep at `max` equals main's, under 286-12 it equals `max`'s, and
 FreeDOS boots on the RTL exactly as on main at `max` and still boots under
-286-12. The seal (Quartus 17.0.2,
-package `c86c5ebf…`) meets every analysis at 61.44 MHz. On Kit B at 286-12,
+286-12. The seal at `10f2e27d7` (Quartus 17.0.2, package `c86c5ebf…`)
+meets every analysis at 61.44 MHz. On Kit B at 286-12,
 Ultima VI's opening-fight sounds are PIT tones at 213.1 Hz on this package
 and on main's earlier seal alike. Its CPU-timed speaker routine did not
 play, so the ~2.5% drop expected there is not measured. The 286-12
@@ -28,11 +39,14 @@ system RAM. It now also charges the period AT's ISA bus time
 ([`governor.toml`](../../../sources/misteross/cores/fes-common/rtl/i386/governor.toml)'s
 `[isa]`):
 
-- **I/O.** An access to an 8-bit port takes one 8-bit ISA cycle per byte
-  (a word two, a dword four), as the AT's bus controller splits it. The ATA
-  data port 1F0h takes one 16-bit cycle per word. The charge is the cycles
-  less the two clocks of the bus cycle the instruction's data-sheet count
-  already holds. VGA ports are 8-bit ports here, as on ISA VGAs.
+- **I/O.** An access takes the cycles the AT's bus controller splits it
+  into, as the machine's `pc386_io` does: from its first port up, a 16-bit
+  cycle at the ATA data port 1F0h with two or more bytes left, else an 8-bit
+  cycle a byte. So at an 8-bit port a word is two 8-bit cycles and a dword
+  four; at 1F0h a word is one 16-bit cycle, a byte one 8-bit cycle and a
+  dword a 16-bit cycle and two 8-bit ones (1F2h, 1F3h). The charge is the
+  cycles less the two clocks of the bus cycle the instruction's data-sheet
+  count already holds. VGA ports are 8-bit ports here, as on ISA VGAs.
 - **VGA memory.** An MMIO access (the machine maps only VGA memory,
   A0000h-BFFFFh, as MMIO) takes one VGA cycle per 16-bit half of the bus it
   touches: an aligned byte or word one, a dword two, a word at an odd
@@ -63,8 +77,9 @@ of a 12 MHz AT whose bus ran at 8 MHz.
 **Where it is worked out.** WB knows the committed uop's I/O port and size,
 and the attribute of its operand's physical address (a new register,
 `wb_mp`, beside the store's `wb_p0`) and of a `st2` store's. The governor
-registers them with the rest of the retirement, classifies the port
-(`port16()`, generated from `[isa]`) and works out both charges in the stage
+registers them with the rest of the retirement, finds whether the I/O
+access has a 16-bit cycle (`word16()`, generated from `[isa]`) and works out
+both charges in the stage
 that forms the ROM address, so the hold still follows a retirement by five
 clocks. `trace_gov_charge` widens to 13 bits.
 
@@ -101,8 +116,9 @@ timing and rejected-alternatives text points at it.
 
 - **Branch.** FES `deano/pc386-isa-time`, from main `9ef805e82`:
   `faad373dc` (the charges), `10f2e27d7` (the bench's interrupt test waits a
-  period after the program arms it) and `667d1a5e0` (the lockstep's
-  retirement bound under a preset).
+  period after the program arms it), `667d1a5e0` (the lockstep's
+  retirement bound under a preset) and `e4f2f927d` (I/O at 1F0h charged as
+  `pc386_io` splits it).
 - **Seal.** `fes.pc386` from a clean checkout of `10f2e27d7`, package
   `c86c5ebf…` ([Seal](#seal)).
 
@@ -113,7 +129,8 @@ timing and rejected-alternatives text points at it.
   STOSW and STOSD into A000h, word and odd-address word stores, a load, an
   RMW, REP MOVSW from RAM and REP MOVSB within VGA memory) and `iobus` (IN
   and OUT of a word and a dword at the ATA data port and at an 8-bit port,
-  REP INSW and REP OUTSB). Its existing `io` loop toggles port 61h. Every
+  REP INSW and REP OUTSB, a byte at the data port, and dwords across it from
+  1EEh and 1EFh). Its existing `io` loop toggles port 61h. Every
   loop's charge equals the table's on every preset; every loop at presets
   1-5 is within 0.13% of its table time (budget 5%); the locked Yosys's
   netlist charges the same on every loop and preset
@@ -126,8 +143,8 @@ timing and rejected-alternatives text points at it.
   | | 386DX-25 | 324,523 | 132,025 | +0.02% |
   | vram | 286-12 | 702,475 | 137,209 | −0.01% |
   | | 386DX-25 | 635,991 | 258,825 | −0.02% |
-  | iobus | 286-12 | 977,951 | 191,009 | −0.00% |
-  | | 386DX-25 | 929,055 | 378,025 | +0.00% |
+  | iobus | 286-12 | 1,377,311 | 269,009 | −0.00% |
+  | | 386DX-25 | 1,346,858 | 548,025 | +0.00% |
 
   Main's `io` loop charged 42,002 at 286-12 and 68,009 at 386DX-25: a
   toggle pass now costs 35 clocks at 286-12 (2.92 µs) against 21, and 66 at
@@ -145,10 +162,10 @@ timing and rejected-alternatives text points at it.
   | 286-12 | 113 | 84.8 | 67.4 | 115 | 163 |
   | 386SX-16 | 84 | 104.9 | 83.1 | 128 | 195 |
   | 386DX-25 | 38 | 81.4 | 68.3 | 123 | 243 |
-  | 386DX-33 | 28 | 84.0 | 53.9 | 123 | 293 |
-  | 386DX-40 | 23 | 81.4 | 66.7 | 123 | 335 |
+  | 386DX-33 | 28 | 75.9 | 57.3 | 123 | 293 |
+  | 386DX-40 | 23 | 82.0 | 64.3 | 123 | 335 |
   | 486DX-33 | 22 | 44.4 | 37.6 | 118 | 283 |
-  | 486DX2-66 | 11 | 97.7 | 51.0 | 118 | 485 |
+  | 486DX2-66 | 11 | 70.6 | 50.8 | 118 | 485 |
 
 - **Architectural invisibility.**
   - At `max` the branch's full lockstep (`test_fes_i386_lockstep.py`)
@@ -163,7 +180,8 @@ timing and rejected-alternatives text points at it.
     hash. The corpus took 214,761,555 cycles against 174,987,765, the random
     programs 803,152,306 against 115,132,760; replays and restarts for
     self-modifying code moved with the timing (107,864 and 12,390 against
-    109,525 and 12,391).
+    109,525 and 12,391). Rerun at `e4f2f927d`, it passes again with every
+    recorded field the same.
   - The first run under 286-12 timed out 84 corpus states, all REP INSD,
     OUTSD and MOVSD in the MMIO window (`66 6D`, `66 6F`, `66 A5`, with and
     without `67`). The testbench gives a retirement 20,000 cycles; the ISA
@@ -229,7 +247,7 @@ timing and rejected-alternatives text points at it.
   main, took 14.0 s and 30,826,678 instructions.
 - **Unit tests.** `tests/test_fes_i386_governor.py` (12, four new: the
   ISA cycles' rounding at every frequency, the charges, the generated
-  `port16()`, a bad `[isa]` refused), `test_fes_i386_lockstep.py` and
+  `word16()` against `pc386_io`'s split, a bad `[isa]` refused), `test_fes_i386_lockstep.py` and
   `test_build_fes_pc386_quartus.py` (44 together, one skipped),
   `test_pc386_machine.py` (36) and `fes_i386_governor.py --check` pass.
 
@@ -251,7 +269,9 @@ clean checkout of `10f2e27d7`
 - Machine elaborated by Yosys `0a7927bf1`; firmware BIOS `fd0df1f9…`,
   VGABios `69401dc8…`.
 
-`667d1a5e0`, after the seal, changes only the lockstep testbench.
+After the seal, `667d1a5e0` changes only the lockstep testbench, and
+`e4f2f927d` the governor's charge for I/O at 1F0h, which this seal does not
+cover (see "Evidence scope" at the top).
 
 ## Kit B: Ultima VI's speaker at 286-12
 
