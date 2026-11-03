@@ -406,28 +406,58 @@ package fes_i386_gov_pkg;
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd109};  // wait
             15'b1_00000110_???_?_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd110};  // clts
+            15'b0_11011011_100_1_?_?:
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd111};  // fninit
+            15'b0_11011111_100_1_?_?:
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd112};  // fnstsw_ax
+            15'b0_11011001_111_0_?_?, 15'b0_11011101_111_0_?_?:
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd113};  // fnstsw
+            15'b0_11011001_101_0_?_?:
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd114};  // fldcw
+            15'b0_11011001_110_0_?_?:
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd115};  // fnstenv
+            15'b0_11011001_100_0_?_?:
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd116};  // fldenv
+            15'b0_11011101_110_0_?_?:
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd117};  // fnsave
+            15'b0_11011101_100_0_?_?:
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd118};  // frstor
+            15'b0_11011000_???_1_?_?, 15'b0_11011001_???_1_?_?, 15'b0_11011010_???_1_?_?,
+            15'b0_11011100_???_1_?_?, 15'b0_11011101_???_1_?_?, 15'b0_11011110_???_1_?_?,
+            15'b0_11011011_000_1_?_?, 15'b0_11011011_001_1_?_?, 15'b0_11011011_010_1_?_?,
+            15'b0_11011011_011_1_?_?, 15'b0_11011011_101_1_?_?, 15'b0_11011011_110_1_?_?,
+            15'b0_11011011_111_1_?_?, 15'b0_11011111_000_1_?_?, 15'b0_11011111_001_1_?_?,
+            15'b0_11011111_010_1_?_?, 15'b0_11011111_011_1_?_?, 15'b0_11011111_101_1_?_?,
+            15'b0_11011111_110_1_?_?, 15'b0_11011111_111_1_?_?:
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd119};  // esc_r
+            15'b0_11011000_???_0_?_?, 15'b0_11011010_???_0_?_?, 15'b0_11011011_???_0_?_?,
+            15'b0_11011100_???_0_?_?, 15'b0_11011110_???_0_?_?, 15'b0_11011111_???_0_?_?,
+            15'b0_11011001_000_0_?_?, 15'b0_11011001_001_0_?_?, 15'b0_11011001_010_0_?_?,
+            15'b0_11011001_011_0_?_?, 15'b0_11011101_000_0_?_?, 15'b0_11011101_001_0_?_?,
+            15'b0_11011101_010_0_?_?, 15'b0_11011101_011_0_?_?, 15'b0_11011101_101_0_?_?:
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd120};  // esc_m
             15'b1_00000001_000_?_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd111};  // sgdt
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd121};  // sgdt
             15'b1_00000001_001_?_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd112};  // sidt
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd122};  // sidt
             15'b1_00000001_010_?_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd113};  // lgdt
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd123};  // lgdt
             15'b1_00000001_011_?_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd114};  // lidt
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd124};  // lidt
             15'b1_00000001_100_1_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd101};  // smsw_r
             15'b1_00000001_100_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd115};  // smsw_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd125};  // smsw_m
             15'b1_00000001_110_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd116};  // lmsw_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd126};  // lmsw_r
             15'b1_00000001_110_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd117};  // lmsw_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd127};  // lmsw_m
             15'b1_00000001_101_?_?_?, 15'b1_00000001_111_?_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd0};  // group7_ud
             15'b1_00100000_???_?_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd118};  // mov_from_cr
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd128};  // mov_from_cr
             15'b1_00100010_000_?_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd119};  // mov_to_cr0
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd129};  // mov_to_cr0
             15'b1_00100010_001_?_?_?, 15'b1_00100010_010_?_?_?, 15'b1_00100010_011_?_?_?,
             15'b1_00100010_100_?_?_?, 15'b1_00100010_101_?_?_?, 15'b1_00100010_110_?_?_?,
             15'b1_00100010_111_?_?_?:
@@ -441,35 +471,35 @@ package fes_i386_gov_pkg;
             15'b1_00000000_001_0_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd5};  // str_m
             15'b1_00000000_010_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd120};  // lldt_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd130};  // lldt_r
             15'b1_00000000_010_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd121};  // lldt_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd131};  // lldt_m
             15'b1_00000000_011_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd122};  // ltr_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd132};  // ltr_r
             15'b1_00000000_011_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd123};  // ltr_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd133};  // ltr_m
             15'b1_00000000_100_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd124};  // verr_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd134};  // verr_r
             15'b1_00000000_100_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd125};  // verr_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd135};  // verr_m
             15'b1_00000000_101_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd126};  // verw_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd136};  // verw_r
             15'b1_00000000_101_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd127};  // verw_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd137};  // verw_m
             15'b1_00000000_110_?_?_?, 15'b1_00000000_111_?_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd0};  // group6_ud
             15'b1_00000010_???_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd126};  // lar_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd136};  // lar_r
             15'b1_00000010_???_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd127};  // lar_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd137};  // lar_m
             15'b1_00000011_???_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd128};  // lsl_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd138};  // lsl_r
             15'b1_00000011_???_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd129};  // lsl_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd139};  // lsl_m
             15'b0_01100011_???_1_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd130};  // arpl_r
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd140};  // arpl_r
             15'b0_01100011_???_0_?_?:
-                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd131};  // arpl_m
+                classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b1, cls: 8'd141};  // arpl_m
             15'b0_11010110_???_?_?_?:
                 classify = '{elem: 1'b0, branch: 1'b0, memory: 1'b0, cls: 8'd0};  // salc
             default: ;

@@ -262,8 +262,9 @@ module fes_i386_seq (
         n.b_far = 1'b0;
         n.b_sys = 1'b0;
         n.b_t4 = 1'b0;
-        n.sys_idx = 4'd0;
-        n.plus2 = 1'b0;
+        n.sys_idx = 5'd0;
+        n.moff = 7'd0;
+        n.uop.x87p = 2'd0;
         n.nochk = 1'b0;
         n.gsz = 1'b0;
         n.errp = 1'b0;
@@ -411,7 +412,10 @@ module fes_i386_seq (
                 n.uop.shadow = w.shadow && d0.uop.seg2_idx == 3'(fes_i386_pkg::SEG_SS);
                 n.uop.nwrap = w.nwrap;
                 n.uop.vmchk = w.vmchk;
-                n.plus2 = w.plus2;
+                // LGDT's and SGDT's base, 2 bytes on; an x87 environment's
+                // field fpn (operand-sized) or its save image's dword fpj.
+                n.moff = w.plus2 ? 7'd2 : (n.opsize32 ? {2'b0, w.fpn, 2'b0} : {3'b0, w.fpn, 1'b0}) + {w.fpj, 2'b0};
+                n.uop.x87p = w.x87p;
                 n.nochk = w.nochk;
                 n.errp = w.errp;
                 n.dmode = w.dmode;
@@ -731,8 +735,9 @@ module fes_i386_seq (
         // A descriptor's access reads T0 for its address, and the accessed
         // bit's write T3; a uop with a check reads the descriptor staged
         // from T0-T3 (in M1), and ARPL's and LAR's kin's results T1 and T2
-        // or the staged descriptor; IRET's flags T4.
+        // or the staged descriptor; IRET's flags T4; FNSTENV's and FNSAVE's
+        // pointer words the x87 pointers, which WB writes too.
         n.t_rd = n.far_t || n.a_t1 || n.b_t1 || n.b_t4 || n.uop.desc != 3'd0 || n.uop.segchk != 4'd0
-              || n.b_sys && n.sys_idx >= 4'(fes_i386_pkg::SYS_RD_ARPL);
+              || n.b_sys && n.sys_idx >= 5'(fes_i386_pkg::SYS_RD_FIP);
     end
 endmodule

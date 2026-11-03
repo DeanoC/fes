@@ -7,10 +7,11 @@ and `fes_i386_cpu`, which runs the real-mode instructions `fes_i386_decode`
 lists from D to WB, with their memory forms, fixed uop sequences, the string
 instructions and ENTER, I/O on an I/O port, the microcode ROM, exception
 delivery, INTR and NMI, the multiply and divide unit, and the speed
-governor ([Speed governor](#speed-governor)); and Phase 2's first two
+governor ([Speed governor](#speed-governor)); Phase 2's first two
 slices, protected mode at CPL 0: unreal mode, delivery through the IDT,
 far calls and returns, the LDT, TR and the system-segment instructions
-(see [Protected mode](#protected-mode)). It reaches guest memory through an L1I,
+(see [Protected mode](#protected-mode)); and the ESC instructions of a 386
+with an empty 387 socket (see [ESC with no 387](#esc-with-no-387)). It reaches guest memory through an L1I,
 an L1D and a bus interface on HPS DDR port 0, with an uncached path to MMIO
 (see [Memory](#memory)). There is no L2 or paging yet.
 
@@ -251,7 +252,79 @@ which DC decodes after every other check, as the design's
 at WB as a system uop that jumps to the next instruction, so every
 instruction after it decodes once TS is clear, and no wait in D follows it.
 The jump is not cut to 16 bits: a CLTS that ends at FFFFh leaves EIP 10000h,
-as any other instruction does. The ESC instructions are not built.
+as any other instruction does. The ESC instructions raise #NM when EM or TS
+is set ([ESC with no 387](#esc-with-no-387)).
+
+**ESC with no 387.** Until the x87 phase the CPU is a 386 with an empty 387
+socket, as the design's [FPU](../../../../docs/i386-cpu-design.md#fpu)
+section specifies. DC decodes every ModRM of D8h-DFh:
+- **#NM.** An ESC instruction raises #NM when CR0.EM or CR0.TS is set
+  (`esc_nm`), after LOCK's #UD and the 15-byte #GP, as WAIT raises it when
+  MP and TS are both set.
+- **Stores of all ones.** FNSTSW m16 and FNSTCW store FFFFh, one uop each,
+  and FNSTSW AX (DF E0) moves FFFFh into AX. FNSTENV and FNSAVE store the
+  control word's all ones at the operand in DC's uop, then the ROM the rest
+  of the 387's 16- or 32-bit layout by the operand size: the status and tag
+  words' all ones, then the instruction pointer's offset and selector words
+  and the data pointer's, each an operand-sized field (`SYS_RD_ONES`,
+  `SYS_RD_FIP` to `SYS_RD_FDS`, through `b_sys`), in Bochs's order. FNSAVE
+  then stores the eight registers' 80 bytes as all ones, a dword at a time.
+  Each store checks its own limit, so one that faults leaves the fields
+  before it written; each field's offset wraps by address size, as Bochs's
+  do.
+- **Reads, discarded.** FLDCW loads its word; FLDENV and FRSTOR load every
+  field of the layout and FRSTOR the registers' 80 bytes, a dword at a time;
+  FLD, FILD, FBLD and the arithmetic forms load their operand, a word or
+  dword in one uop, and an 8- or 10-byte one from its highest part down
+  (`frd8`, `frd10`: the dword at 4, or the word at 8 and the dword at 4,
+  then the dword at 0). None writes a register. Each part is checked against
+  the limit on its own, wrapped by address size.
+- **No access.** FST, FSTP, FIST and FISTP of every size, FBSTP and the
+  reserved memory forms (D9 /1, DB /1, /4 and /6, DD /1 and /5, DF /1)
+  access nothing and check nothing: the operand's offset goes to AG as
+  LEA's does, for the data pointer. The design measured FST and FIST and
+  leaves FBSTP uncharacterized; this build gives FBSTP and the reserved
+  forms FST's behaviour, a choice: each is a store the 387 would make, and
+  the absent 387 never asks for the transfer.
+- **Register forms** do nothing: FNINIT, FNCLEX, FENI, FDISI and FSETPM
+  (DB E0-E4) are NOPs, and every other register form a NOP that writes the
+  instruction pointer.
+- **The ROM's addresses.** A word's `fpn` and `fpj` put its memory operand
+  `fpn` operand-sized fields and `fpj` dwords past the ModRM operand; `seq`
+  sums them into `dc.moff`, as it does LGDT's and SGDT's 2 (`plus2`), and D
+  adds `moff` to the displacement, wrapped by address size.
+- **Performance** does not matter here: no software uses the forms beyond
+  detecting the coprocessor. A uop that reads the x87 pointers waits in D
+  for every older uop that writes them to retire, as `t_rd` waits for T0 and
+  T1.
+
+**x87 pointers.** The 386 keeps the instruction and data pointers for its
+coprocessor, and FNSTENV and FNSAVE store them even with no 387. The CPU
+holds them in flip-flops (`fpu_ip`, `fpu_cs`, `fpu_dp`, `fpu_ds`), cleared
+at reset, with the real-mode layouts' linear forms beside them (`fpu_lip`,
+`fpu_ldp`: the selector times 16 plus the offset, a sum WB makes from
+registers).
+- **Who writes them.** An ESC instruction's last uop writes them as it
+  retires (`x87p`): its CS selector and EIP (the instruction's first byte,
+  prefixes included), and for a memory form the operand's segment selector
+  and offset (16 bits under a 16-bit address size). The 387's control
+  forms write nothing: FNINIT, FNCLEX, FENI, FDISI, FSETPM, FNSTSW, FNSTCW,
+  FLDCW, FNSTENV, FLDENV, FNSAVE and FRSTOR. This is Bochs's partition
+  (`FPU_update_last_instruction`), which follows Intel's. A form that faults
+  writes nothing.
+- **What this build chooses.** The design says FNINIT does nothing and
+  FLDENV and FRSTOR read and discard, so FNINIT and FNSAVE leave the
+  pointers and FLDENV and FRSTOR load nothing into them, where Bochs's 387
+  clears or loads them.
+- **The layouts.** Bochs's, with the 387's fields all ones: the control,
+  status and tag words; the opcode; the 32-bit layouts' reserved halves.
+  In protected mode (CR0.PE) the pointer words are the offset, then
+  07FFh:selector (32-bit: the opcode's 11 ones above the selector), the data
+  offset, then FFFFh:selector. In real mode they are FFFFh:the linear
+  address's low half, then the linear address's bits 31-16 at 27-12 with
+  the opcode's ones in 10-0 (16-bit: bits 19-16 at 15-12), and the data
+  pointer's likewise without the opcode. A 16-bit layout stores each word's
+  low half.
 
 **Control and table registers** (any mode, CPL 0):
 - MOV r32, CRn (CR0, CR2, CR3) and SMSW are an ALU move of the register,
@@ -464,6 +537,9 @@ every field and routine.
     `piret`, `pretf`, `pcall` and `pcallm`; `plldt`, `pltr`, `plar`,
     `plsl`, `pverr`, `pverw`, `parplr` and `parplm` (see
     [Protected mode](#protected-mode)).
+  - `fnstenv`, `fnsave`, `fldenv`, `frstor`, `frd8` and `frd10`: the ESC
+    forms with no 387 that take more than one uop
+    ([ESC with no 387](#esc-with-no-387)).
 - **Flags in EX.** PUSHF and POPF are single uops. EX's flag operations give
   FLAGS' image and load the writable real-mode flags in its running copy, as
   INT's and IRET's do.

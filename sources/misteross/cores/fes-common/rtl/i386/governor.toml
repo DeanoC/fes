@@ -829,6 +829,75 @@ name = "clts"
 stems = ["0F06"]
 cost = [2, 5, 7]
 
+# The ESC instructions (D8h-DFh), which with no 387 store all ones, read and
+# discard, or do nothing (docs/i386-cpu-design.md, FPU). No empty-socket
+# timing is recorded, so each charges what the instruction takes with a
+# coprocessor fitted: the 287, 387 and 486 columns of the same compilation's
+# floating-point table (https://www2.math.uni-wuppertal.de/~fpf/Uebungen/GdR-SS02/opcode_f.html),
+# the real-mode count where it gives two, and at most 255, the most a class
+# charges (FNSAVE and FRSTOR on the 387 take 375-376 and 308). The control
+# forms have their own rows; every other form charges FNOP's. FNINIT's class has FNCLEX, FENI,
+# FDISI and FSETPM too (DB E0-E4), FNSTSW AX's DF E1-E7, which a class
+# cannot tell apart.
+[[class]]
+name = "fninit"
+stems = ["DB.4/r"]
+cost = [5, 33, 17]
+
+[[class]]
+name = "fnstsw_ax"
+stems = ["DF.4/r"]
+cost = [13, 13, 3]
+
+[[class]]
+name = "fnstsw"
+stems = ["D9.7/m", "DD.7/m"]
+memory = true
+cost = [15, 15, 3]
+
+[[class]]
+name = "fldcw"
+stems = ["D9.5/m"]
+memory = true
+cost = [11, 19, 4]
+
+[[class]]
+name = "fnstenv"
+stems = ["D9.6/m"]
+memory = true
+cost = [45, 104, 67]
+
+[[class]]
+name = "fldenv"
+stems = ["D9.4/m"]
+memory = true
+cost = [40, 71, 44]
+
+[[class]]
+name = "fnsave"
+stems = ["DD.6/m"]
+memory = true
+cost = [202, 255, 154]
+
+[[class]]
+name = "frstor"
+stems = ["DD.4/m"]
+memory = true
+cost = [202, 255, 131]
+
+[[class]]
+name = "esc_r"
+stems = ["D8-DA/r", "DC-DE/r", "DB.0/r", "DB.1/r", "DB.2/r", "DB.3/r", "DB.5/r", "DB.6/r", "DB.7/r",
+         "DF.0/r", "DF.1/r", "DF.2/r", "DF.3/r", "DF.5/r", "DF.6/r", "DF.7/r"]
+cost = [13, 12, 3]
+
+[[class]]
+name = "esc_m"
+stems = ["D8/m", "DA-DC/m", "DE-DF/m", "D9.0/m", "D9.1/m", "D9.2/m", "D9.3/m", "DD.0/m", "DD.1/m", "DD.2/m",
+         "DD.3/m", "DD.5/m"]
+memory = true
+cost = [13, 12, 3]
+
 # Group 7 and MOV to and from CR0, CR2 and CR3 (Phase 2). The descriptor
 # table forms have only a memory operand.
 [[class]]

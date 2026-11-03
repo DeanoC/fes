@@ -171,12 +171,62 @@ func parseROMBlock(ctx context.Context, d *json.Decoder) (ROMBlock, error) {
 // otherwise silently discards excess elements when decoding into a Go array.
 type romMapWord [40]uint32
 
+// UnmarshalJSON reads the 40 destinations directly. The decoder has already
+// checked the value's JSON syntax; json.Unmarshal into the array would scan it
+// again and reflect per element, which dominated a 17 MB map on the kit.
+// Acceptance matches that path: each element is an unsigned 32-bit integer, or
+// null for zero.
 func (word *romMapWord) UnmarshalJSON(data []byte) error {
 	data = bytes.TrimSpace(data)
-	if len(data) < 2 || data[0] != '[' || data[len(data)-1] != ']' || bytes.Count(data, []byte(",")) != 39 {
+	if len(data) < 2 || data[0] != '[' || data[len(data)-1] != ']' {
 		return fmt.Errorf("ROM word must have 40 destinations")
 	}
-	return json.Unmarshal(data, (*[40]uint32)(word))
+	rest := data[1:]
+	for i := range word {
+		rest = bytes.TrimLeft(rest, " \t\r\n")
+		end := bytes.IndexAny(rest, " \t\r\n,]")
+		if end < 0 {
+			return fmt.Errorf("ROM word must have 40 destinations")
+		}
+		value, err := romMapDestination(rest[:end])
+		if err != nil {
+			return err
+		}
+		word[i] = value
+		rest = bytes.TrimLeft(rest[end:], " \t\r\n")
+		want := byte(',')
+		if i == len(word)-1 {
+			want = ']'
+		}
+		if len(rest) == 0 || rest[0] != want {
+			return fmt.Errorf("ROM word must have 40 destinations")
+		}
+		rest = rest[1:]
+	}
+	if len(rest) != 0 {
+		return fmt.Errorf("ROM word must have 40 destinations")
+	}
+	return nil
+}
+
+func romMapDestination(token []byte) (uint32, error) {
+	if string(token) == "null" {
+		return 0, nil
+	}
+	if len(token) == 0 || len(token) > 10 {
+		return 0, fmt.Errorf("invalid ROM destination %q", token)
+	}
+	var value uint64
+	for _, c := range token {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("invalid ROM destination %q", token)
+		}
+		value = value*10 + uint64(c-'0')
+	}
+	if value > 1<<32-1 {
+		return 0, fmt.Errorf("invalid ROM destination %q", token)
+	}
+	return uint32(value), nil
 }
 
 func romMapScalar[T int | string](d *json.Decoder, output *T) error {

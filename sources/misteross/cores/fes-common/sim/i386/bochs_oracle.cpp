@@ -436,6 +436,34 @@ public:
             pageWriteStampTable.decWriteStamp(bx_phy_address(page));
     }
 
+    X87Pointers x87_pointers() const override {
+        const i387_t &x87 = bx_cpu.the_i387;
+        return {Bit32u(x87.fip), Bit32u(x87.fdp), x87.fcs, x87.fds};
+    }
+
+    void set_x87_pointers(const X87Pointers &pointers) override {
+        i387_t &x87 = bx_cpu.the_i387;
+        x87.fip = pointers.ip;
+        x87.fdp = pointers.dp;
+        x87.fcs = pointers.cs;
+        x87.fds = pointers.ds;
+    }
+
+    // Bochs models a 387. Its words as the empty socket's data bus reads
+    // them, with TOP 7 so the status word's image is all ones too.
+    void empty_socket(bool status) override {
+        i387_t &x87 = bx_cpu.the_i387;
+        x87.cwd = 0xffff;
+        x87.twd = 0xffff;
+        x87.foo = 0x7ff;
+        x87.swd = status ? 0xffff : 0;
+        x87.tos = status ? 7 : 0;
+        for (floatx80 &reg : x87.st_space) {
+            reg.signif = ~Bit64u(0);
+            reg.signExp = 0xffff;
+        }
+    }
+
 private:
     static bool wake_pending() {
         return (bx_cpu.is_pending(BX_EVENT_PENDING_INTR) && bx_cpu.get_IF())

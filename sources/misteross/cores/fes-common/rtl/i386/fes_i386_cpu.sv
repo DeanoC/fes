@@ -271,6 +271,13 @@ module fes_i386_cpu #(
     logic             cr0_pe, cr0_mp, cr0_em, cr0_ts, cr0_et, cr0_pg;
     logic [31:0]      cr0_rd, cr2, cr3;
     assign cr0_rd = {cr0_pg, 26'h3ff_ffff, cr0_et, cr0_ts, cr0_em, cr0_mp, cr0_pe};
+    // The x87 pointers, which the 386 keeps for the 387 and FNSTENV and
+    // FNSAVE store ("x87 pointers"): the instruction pointer (CS's selector
+    // and the instruction's EIP) and the data pointer (the memory operand's
+    // segment selector and offset), and each as the real-mode layouts give
+    // it, the selector times 16 plus the offset.
+    logic [31:0]      fpu_ip, fpu_dp, fpu_lip, fpu_ldp;
+    logic [15:0]      fpu_cs, fpu_ds;
     // GDTR and IDTR, with GDTR's limit less 7 (a descriptor's last byte) and
     // IDTR's less 3 (a real-mode vector's) and 7 (a gate's), and whether
     // those are below zero.
@@ -441,13 +448,13 @@ module fes_i386_cpu #(
     logic       q_lea, q_has_base, q_has_index, q_opsize32;
     logic [2:0] q_base, q_index;
     fes_i386_decode decode (
-        .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .pe(cr0_pe), .uop(q_uop), .opsize32(q_opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
+        .q, .code32, .stack(dc_stack), .wait_nm(cr0_mp && cr0_ts), .esc_nm(cr0_em || cr0_ts), .pe(cr0_pe), .uop(q_uop), .opsize32(q_opsize32), .lea(q_lea), .lea_early(dc_q.lea_early),
         .lea_disp(dc_q.lea_disp), .branch(dc_branch), .consumes(dc_q.consumes), .reads_seg(dc_q.reads_seg),
         .seg_index(dc_q.seg_index), .stop(dc_q.stop), .stk(q_stk), .push_eip(dc_q.push_eip),
         .cs_base(dc_q.cs_base), .seq(q_seq), .sel_part(dc_q.sel_part), .far_jmp(dc_q.far_jmp), .far_chk(dc_q.far_chk),
         .far_sel(dc_q.far_sel), .wseg(dc_q.wseg), .upc(dc_q.upc), .direct(q_direct), .xlat(q_xlat),
         .m_seg(dc_q.m_seg), .slot(dc_q.slot), .str_op(dc_q.str_op), .str_rep(dc_q.str_rep), .ecnt(dc_q.ecnt),
-        .b_sys(dc_q.b_sys), .sys_idx(dc_q.sys_idx)
+        .b_sys(dc_q.b_sys), .sys_idx(dc_q.sys_idx), .moff(dc_q.moff)
     );
     // A stack operation's address is ESP, or EBP for LEAVE, with no index:
     // chosen here, so D's operand lookups start from dc's register.
@@ -500,7 +507,6 @@ module fes_i386_cpu #(
     assign dc_q.popad_esp = 1'b0;
     assign dc_q.b_far = 1'b0;
     assign dc_q.b_t4 = 1'b0;
-    assign dc_q.plus2 = 1'b0;
     assign dc_q.nochk = 1'b0;
     assign dc_q.gsz = 1'b0;
     assign dc_q.errp = 1'b0;
@@ -741,15 +747,15 @@ module fes_i386_cpu #(
         if (desc_drop || dc.errp && no_err && stk != fes_i386_pkg::STK_RETF) u.mem.kind = fes_i386_pkg::MEM_NONE;
         // LAR, LSL, VERR, VERW and ARPL (SEGOP_ZF): which, in imm[3:1], for
         // M1's result; ARPL's own in imm[0].
-        if (dc.b_sys && dc.sys_idx == 4'(fes_i386_pkg::SYS_RD_ARPL)) begin
+        if (dc.b_sys && dc.sys_idx == 5'(fes_i386_pkg::SYS_RD_ARPL)) begin
             u.imm[0] = arpl_adj;
             if (!arpl_adj) begin
                 u.dst.valid = 1'b0;
                 u.mem.kind = fes_i386_pkg::MEM_NONE;
             end
         end
-        if (dc.b_sys && dc.sys_idx >= 4'(fes_i386_pkg::SYS_RD_LAR))
-            u.imm[3:1] = 3'(dc.sys_idx - 4'(fes_i386_pkg::SYS_RD_LAR) + 4'd1);
+        if (dc.b_sys && dc.sys_idx >= 5'(fes_i386_pkg::SYS_RD_LAR))
+            u.imm[3:1] = 3'(dc.sys_idx - 5'(fes_i386_pkg::SYS_RD_LAR) + 4'd1);
         // A protected-mode delivery's EFLAGS image: its RF, and whether the
         // gate is a trap gate, which keeps IF.
         if (dc.uop.cls == fes_i386_pkg::UOP_ALU && dc.uop.op == 5'(fes_i386_pkg::ALU_FLAGS)
@@ -790,7 +796,8 @@ module fes_i386_cpu #(
     // A descriptor's part is at its selector's index times 8 in the table:
     // its low dword, its high dword (+4, LTR's busy store too) or its access
     // byte (+5); a delivery's gate at the vector times 8 in the IDT. LGDT's
-    // and SGDT's base is 2 bytes past the ModRM operand (plus2).
+    // and SGDT's base, a part of an x87 operand and an x87 environment's
+    // field are moff bytes past the ModRM operand.
     logic [31:0] desc_disp;
     always_comb
         case (dc.uop.desc)  // not cast to desc_e: DeanoC/yosys#72
@@ -800,11 +807,11 @@ module fes_i386_cpu #(
             3'(fes_i386_pkg::DESC_IDT_HI): desc_disp = {21'b0, dc.far_sel[9:2], 3'd4};
             default: desc_disp = {16'b0, t0[15:3], 3'd0};
         endcase
-    assign disp_add = dc.plus2 ? 32'd2 : dc.sel_part ? st_size
+    assign disp_add = dc.moff != 7'd0 ? {25'd0, dc.moff} : dc.sel_part ? st_size
                     : {sp_wraps ? -{12'd0, dc.esp_wrap} : 16'd0, 10'd0, dc.esp_adj};
     assign lea_disp = dc.uop.desc != 3'd0 ? desc_disp
                     : dc.uop.mem.system ? {16'b0, dc.far_sel[15:2], dc.sel_part, 1'b0}
-                    : !dc.sel_part && !dc.plus2 && dc.esp_adj == 6'd0 ? dc.lea_disp
+                    : !dc.sel_part && dc.moff == 7'd0 && dc.esp_adj == 6'd0 ? dc.lea_disp
                     : dc.uop.mem.addr32 ? dc.lea_disp + disp_add : {16'b0, dc.lea_disp[15:0] + disp_add[15:0]};
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
@@ -1020,6 +1027,10 @@ module fes_i386_cpu #(
     function automatic logic writes_temp(input pipe_t s);
         writes_temp = s.valid && writes_temp_u(s.uop);
     endfunction
+    // An ESC instruction's last uop writes the x87 pointers at WB too.
+    function automatic logic writes_x87p(input pipe_t s);
+        writes_x87p = s.valid && s.uop.x87p != 2'd0;
+    endfunction
     logic       seg_hazard, mseg_hazard;
     assign seg_hazard = d_seg_busy[seg_index];
     assign mseg_hazard = d_seg_busy[mseg];
@@ -1078,9 +1089,11 @@ module fes_i386_cpu #(
             df_busy <= issue && writes_df(u) || ag_s.valid && writes_df(ag_s.uop) || m1_s.valid && writes_df(m1_s.uop)
                     || m2_s.valid && writes_df(m2_s.uop);
             // T0 and T1 are written at WB, so a uop that reads them in D waits
-            // for every older one that writes either to retire.
-            t_busy <= issue && writes_temp_u(u) || writes_temp(ag_s) || writes_temp(m1_s) || writes_temp(m2_s)
-                   || writes_temp(ex_s);
+            // for every older one that writes either to retire; so are the
+            // x87 pointers, which FNSTENV and FNSAVE read.
+            t_busy <= issue && (writes_temp_u(u) || u.x87p != 2'd0) || writes_temp(ag_s) || writes_temp(m1_s)
+                   || writes_temp(m2_s) || writes_temp(ex_s) || writes_x87p(ag_s) || writes_x87p(m1_s)
+                   || writes_x87p(m2_s) || writes_x87p(ex_s);
             for (int k = 0; k < 6; k++)
                 d_seg_busy[k] <= issue && dc.wseg[k]
                                 || writes_seg(ag_s, k) || writes_seg(m1_s, k) || writes_seg(m2_s, k) || writes_seg(ex_s, k);
@@ -1108,21 +1121,28 @@ module fes_i386_cpu #(
     logic [15:0] ag_sp_hi;
     pipe_t       d_out;
     // A system register as src2's value (decoded_t b_sys). LAR's kin take
-    // theirs in M1, from the staged descriptor.
+    // theirs in M1, from the staged descriptor. The x87 pointers' words are
+    // the 387's layouts' ("x87 pointers"), by CR0.PE; a 16-bit layout
+    // stores their low halves.
     logic [31:0] sys_val;
     always_comb begin
         case (dc.sys_idx)  // not cast to sys_rd_e: DeanoC/yosys#72
-            4'(fes_i386_pkg::SYS_RD_CR0): sys_val = cr0_rd;
-            4'(fes_i386_pkg::SYS_RD_CR2): sys_val = cr2;
-            4'(fes_i386_pkg::SYS_RD_CR3): sys_val = cr3;
-            4'(fes_i386_pkg::SYS_RD_GDTL): sys_val = {16'd0, gdtr_limit};
-            4'(fes_i386_pkg::SYS_RD_GDTB): sys_val = gdtr_base;
-            4'(fes_i386_pkg::SYS_RD_IDTL): sys_val = {16'd0, idtr_limit};
-            4'(fes_i386_pkg::SYS_RD_IDTB): sys_val = idtr_base;
-            4'(fes_i386_pkg::SYS_RD_LDTR): sys_val = {16'd0, ldtr_sel};
-            4'(fes_i386_pkg::SYS_RD_TR): sys_val = {16'd0, tr_sel};
-            4'(fes_i386_pkg::SYS_RD_ERR): sys_val = {16'd0, exc_err};
-            4'(fes_i386_pkg::SYS_RD_ARPL): sys_val = {16'd0, t1[15:2], t2[1:0]};
+            5'(fes_i386_pkg::SYS_RD_CR0): sys_val = cr0_rd;
+            5'(fes_i386_pkg::SYS_RD_CR2): sys_val = cr2;
+            5'(fes_i386_pkg::SYS_RD_CR3): sys_val = cr3;
+            5'(fes_i386_pkg::SYS_RD_GDTL): sys_val = {16'd0, gdtr_limit};
+            5'(fes_i386_pkg::SYS_RD_GDTB): sys_val = gdtr_base;
+            5'(fes_i386_pkg::SYS_RD_IDTL): sys_val = {16'd0, idtr_limit};
+            5'(fes_i386_pkg::SYS_RD_IDTB): sys_val = idtr_base;
+            5'(fes_i386_pkg::SYS_RD_LDTR): sys_val = {16'd0, ldtr_sel};
+            5'(fes_i386_pkg::SYS_RD_TR): sys_val = {16'd0, tr_sel};
+            5'(fes_i386_pkg::SYS_RD_ERR): sys_val = {16'd0, exc_err};
+            5'(fes_i386_pkg::SYS_RD_ONES): sys_val = 32'hffff_ffff;
+            5'(fes_i386_pkg::SYS_RD_FIP): sys_val = cr0_pe ? fpu_ip : {16'hffff, fpu_lip[15:0]};
+            5'(fes_i386_pkg::SYS_RD_FCS): sys_val = cr0_pe ? {5'd0, 11'h7ff, fpu_cs} : {4'd0, fpu_lip[31:16], 1'b0, 11'h7ff};
+            5'(fes_i386_pkg::SYS_RD_FDP): sys_val = cr0_pe ? fpu_dp : {16'hffff, fpu_ldp[15:0]};
+            5'(fes_i386_pkg::SYS_RD_FDS): sys_val = cr0_pe ? {16'hffff, fpu_ds} : {4'd0, fpu_ldp[31:16], 12'd0};
+            5'(fes_i386_pkg::SYS_RD_ARPL): sys_val = {16'd0, t1[15:2], t2[1:0]};
             default: sys_val = 32'd0;
         endcase
     end
@@ -1906,6 +1926,10 @@ module fes_i386_cpu #(
     logic [7:0] int_vec;
     logic       wb_commit, at_boundary, in_hlt, wb_ss_load, wb_sti, sh_ss, int_shadow, nmi_ok, int_if;
     assign wb_commit = wb_s.valid && !halted && !freeze && !int_take && wb_fault == fes_i386_pkg::FAULT_NONE;
+    // An ESC memory form's offset, the x87 data pointer's: 16 bits under a
+    // 16-bit address size, zero-extended.
+    logic [31:0] wb_fdp;
+    assign wb_fdp = wb_s.uop.mem.addr32 ? wb_s.moff : {16'd0, wb_s.moff[15:0]};
     assign at_boundary = wb_commit && (wb_eoi || wb_s.uop.str_cx);
     assign in_hlt = hlt && !int_take;
     assign wb_ss_load = wb_s.uop.dst.valid && wb_s.uop.dst.space == fes_i386_pkg::RS_SEG
@@ -2044,6 +2068,12 @@ module fes_i386_cpu #(
             cr0_pg <= init_cr0[31];
             cr2 <= init_cr2;
             cr3 <= init_cr3;
+            fpu_ip <= 32'd0;
+            fpu_cs <= 16'd0;
+            fpu_dp <= 32'd0;
+            fpu_ds <= 16'd0;
+            fpu_lip <= 32'd0;
+            fpu_ldp <= 32'd0;
             gdtr_base <= init_gdtr_base;
             gdtr_limit <= init_gdtr_limit;
             gdt_lim7 <= init_gdtr_limit - 16'd7;
@@ -2147,6 +2177,18 @@ module fes_i386_cpu #(
                 if (wb_s.uop.str_si) gpr[6] <= str_wb_step(gpr[6], wb_str_by, wb_s.uop.mem.addr32);
                 if (wb_s.uop.str_di) gpr[7] <= str_wb_step(gpr[7], wb_str_by, wb_s.uop.mem.addr32);
                 if (wb_s.uop.str_cx) gpr[1] <= str_wb_step(gpr[1], 32'hffff_ffff, wb_s.uop.mem.addr32);
+                // An ESC instruction's last uop: the x87 instruction pointer,
+                // and a memory form's data pointer ("x87 pointers").
+                if (wb_s.uop.x87p != 2'd0) begin
+                    fpu_ip <= wb_s.eip;
+                    fpu_cs <= seg_sel[SEG_CS];
+                    fpu_lip <= {12'd0, seg_sel[SEG_CS], 4'd0} + wb_s.eip;
+                end
+                if (wb_s.uop.x87p == 2'(fes_i386_pkg::X87P_IPDP)) begin
+                    fpu_dp <= wb_fdp;
+                    fpu_ds <= seg_sel[wb_s.uop.mem.seg];
+                    fpu_ldp <= {12'd0, seg_sel[wb_s.uop.mem.seg], 4'd0} + wb_fdp;
+                end
                 // The system uops: CLTS, the CR0, CR2 and CR3 writes from T1,
                 // LMSW's (which cannot clear PE), and GDTR's and IDTR's from T0
                 // and T1.
