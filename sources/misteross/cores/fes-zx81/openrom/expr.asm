@@ -71,6 +71,8 @@ expr_byte:
 
 ; ---------------------------------------------------------------------
 operand:
+        ld bc,0                 ; every recursion comes through here: report 4
+        call test_room          ; before the machine stack reaches STKEND
         rst 0x18
         cp C_MINUS
         jr z,op_neg
@@ -313,7 +315,8 @@ scan_name:
         jr nc,set_ch
         inc hl
         inc b
-        jr .l
+        jr nz,.l
+        jr nonsense             ; 256 characters: the length is a byte
 
 ; A variable's value. With OF_LVAL set, where to assign it instead:
 ; TG_KIND 1 number at DEST, 2 new number (name at X_PTR, TG_LEN long),
@@ -420,6 +423,7 @@ subscripts:
         call expr_num
         pop bc
         inc b
+        jr z,subscript_error    ; 256 subscripts: the count is a byte
         rst 0x18
         cp C_COMMA
         jr nz,.end
@@ -907,10 +911,7 @@ tokenize:
         call make_room
         ld (hl),C_NUMBER
         inc hl
-        push hl
-        call stk_drop
-        pop de
-        ld bc,5
-        ldir
+        ex de,hl
+        call stk_pop_de
         ex de,hl
         jr .go

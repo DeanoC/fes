@@ -417,6 +417,15 @@ target_restore:
         ld (DEST),de
         jp (hl)
 
+; Pop the top value into the five bytes at DE.
+stk_pop_de:
+        push de
+        call stk_drop
+        pop de
+        ld bc,5
+        ldir
+        ret
+
 ; Store the value on the stack in the parse_target destination.
 assign: ld a,(TG_KIND)
         cp 3
@@ -424,11 +433,12 @@ assign: ld a,(TG_KIND)
         call need_num
         cp 2
         ld de,(DEST)
-        jr nz,.copy5
+        jr nz,stk_pop_de
         ld a,(TG_LEN)           ; a new number: name, then the value
         add a,5
         ld c,a
         ld b,0
+        rl b                    ; names up to 255 characters
         call var_room
         ld b,(iy+TG_LEN-0x4000)
         djnz .long
@@ -444,12 +454,7 @@ assign: ld a,(TG_KIND)
 .hdr:   ld (hl),a
         inc hl
         ex de,hl
-.copy5: push de
-        call stk_drop
-        pop de
-        ld bc,5
-        ldir
-        ret
+        jr stk_pop_de
 .str:   call need_str
         cp 4
         jr z,.fixed
@@ -620,10 +625,8 @@ st_next:
         add hl,de
         call stk_push           ; step
         call fp_add
-        call stk_drop
         pop de
-        ld bc,5
-        ldir
+        call stk_pop_de
         ld hl,(DEST)
         call for_test
         ret c
@@ -846,11 +849,18 @@ after_load:
 check_dfile:
         call collapsed
         ret c
-        ld hl,(VARS)
-        ld de,(D_FILE)
-        and a
-        sbc hl,de
-        ld de,24*33+1
-        sbc hl,de
+        call dfile_excess
         ret z
         jr cls
+
+; HL = the expanded display file's bytes after its leading NEWLINE, less 24
+; full rows: Z if exact, carry if short.
+dfile_excess:
+        ld hl,(VARS)
+        ld de,(D_FILE)
+        scf
+        sbc hl,de
+        ld de,24*33
+        and a
+        sbc hl,de
+        ret

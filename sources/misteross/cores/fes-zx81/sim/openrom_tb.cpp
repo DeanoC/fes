@@ -643,6 +643,58 @@ void test_cont_fast_pause(Machine &m) {
     std::cout << "FAST PAUSE: a key down before it ignored, W ended it\n";
 }
 
+// Programs loaded as images, too long to type: an expression nested deeper
+// than the machine stack can go stops with report 4 (and NEW still resets
+// the stack). On 16 KiB, a 255-character name stores and prints, a
+// 256-character one gives report C, and DIM with 256 dimensions gives 3.
+void test_deep_long_wide(Machine &m) {
+    const uint16_t ramtop = m.word(0x4004);
+    const std::vector<uint8_t> one = {0x1d, 0x7e, 0x81, 0, 0, 0, 0};   // 1 and its hidden value
+    const unsigned depth = (ramtop - 0x4000) / 6;                     // ~6 stack bytes a level
+    std::vector<uint8_t> deep = {0xf5};                                // PRINT ((("A")))
+    deep.insert(deep.end(), depth, 0x10);
+    deep.insert(deep.end(), {0x0b, 0x26, 0x0b});
+    deep.insert(deep.end(), depth, 0x11);
+    type(m, "A NL");
+    load_image(m, image_with_program(m, program_line(10, deep), 10, true));
+    const bool stopped = wait_for_row(m, 23, "4/10", 600);
+    std::cout << "deep expression: " << depth << " levels, report '" << row_text(m, 23) << "'\n";
+    require(stopped, "an expression nested past the stack did not stop with report 4");
+    type(m, "A NL");
+    require(m.word(0x4002) == ramtop - 4, "NEW after a deep expression did not reset the stack");
+    if (ramtop != 0x8000) return;
+
+    for (unsigned length : {255u, 256u}) {
+        std::vector<uint8_t> let = {0xf1}, print = {0xf5};          // LET name=1, PRINT name
+        let.insert(let.end(), length, 0x26);
+        let.push_back(0x14);
+        let.insert(let.end(), one.begin(), one.end());
+        print.insert(print.end(), length, 0x26);
+        auto program = program_line(10, let);
+        const auto line20 = program_line(20, print);
+        program.insert(program.end(), line20.begin(), line20.end());
+        type(m, "A NL");
+        load_image(m, image_with_program(m, program, 10, true));
+        const bool ok = length == 255 ? wait_for_row(m, 23, "0/20") && row_text(m, 0) == "1"
+                                      : wait_for_row(m, 23, "C/10");
+        require(ok && m.peek(m.word(0x4014) - 1) == 0x80,
+                length == 255 ? "a 255-character name did not store and print"
+                              : "a 256-character name did not give report C");
+    }
+
+    std::vector<uint8_t> dim = {0xe9, 0x26, 0x10};                     // DIM A(1,...,1)
+    for (unsigned i = 0; i != 256; ++i) {
+        if (i) dim.push_back(0x1a);
+        dim.insert(dim.end(), one.begin(), one.end());
+    }
+    dim.push_back(0x11);
+    type(m, "A NL");
+    load_image(m, image_with_program(m, program_line(10, dim), 10, true));
+    require(wait_for_row(m, 23, "3/10") && m.peek(m.word(0x4014) - 1) == 0x80,
+            "DIM with 256 dimensions did not give report 3");
+    std::cout << "names: 255 characters stored, 256 gave C; DIM of 256 dimensions gave 3\n";
+}
+
 void test_16k_regressions(Machine &m) {
     require(m.word(0x4004) == 0x8000, "16 KiB regressions need the 16 KiB ZX81 profile");
     m.acknowledge_keys = true;
@@ -788,6 +840,7 @@ int main(int argc, char **argv) {
     if (mode == "cont") {
         m.acknowledge_keys = true;
         test_cont_fast_pause(m);
+        test_deep_long_wide(m);
         return 0;
     }
     if (mode == "lowmem") {
@@ -1069,6 +1122,7 @@ int main(int argc, char **argv) {
     test_report_room_plot_function(m);
     test_slice_copy_gosub_room(m);
     test_cont_fast_pause(m);
+    test_deep_long_wide(m);
 
     // Exercise the display start/stop boundary repeatedly. The original
     // frame-sampling order could wait forever after the NMI stopped frames.
@@ -1104,6 +1158,7 @@ int main(int argc, char **argv) {
 
     std::cout << "FES ZX81 open ROM: display, keyboard and rollover, edit, PRINT AT, INPUT, RETURN, INKEY$, "
                  "FAST/SLOW SAVE/LOAD, SCROLL, PAUSE, DIM, report 4 while printing, PLOT, FUNCTION, "
-                 "overlapping slices, GOSUB room, BREAK/CONT, FAST PAUSE and NMI-boundary loop pass\n";
+                 "overlapping slices, GOSUB room, BREAK/CONT, FAST PAUSE, deep and wide expressions and "
+                 "NMI-boundary loop pass\n";
     return 0;
 }

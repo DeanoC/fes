@@ -191,7 +191,9 @@ ordinary programs, strings and slicing, numeric arrays, `FOR`/`GOSUB`, `RND`,
 - `SIN`, `COS`, `TAN`, `ASN`, `ACS`, `ATN`, `LN`, `EXP`, `SQR`, non-integer
   `**` and machine code calling the `RST 28` calculator stop with report A.
 - No string arrays; a `FOR` loop that should run zero times runs once.
-- A variable name ends at a space, so `LET MY VAR=1` gives report C.
+- A variable name ends at a space, so `LET MY VAR=1` gives report C. A name
+  can have up to 255 characters (a longer one gives report C), and an array
+  up to 255 dimensions (more give report 3).
 - `PAUSE 0` returns at once.
 - No up/down listing cursor keys (use `LIST n` and EDIT); no E-notation input
   (output is supported); `POKE` takes 0 to 255 only.
@@ -237,8 +239,9 @@ key and with Q held, a BREAK held past its report, `PAUSE` started with the
 `RUN` NEWLINE still down, `SCROLL` with `DF_SZ` 0, `DIM A (5)`, `PLOT -1,-1`,
 FUNCTION followed by a key with no function, an overlapping slice assignment,
 a `GOSUB` that recurses until report 4, BREAK then CONT on `10 GOTO 10` (also
-after a report 0 in between), CONT after STOP typed at `INPUT`, and a FAST
-`PAUSE` with a key already down. It enters
+after a report 0 in between), CONT after STOP typed at `INPUT`, a FAST
+`PAUSE` with a key already down, and an expression nested deeper than the
+machine stack can go (report 4, then NEW). It enters
 and runs programs, saves and loads them in both FAST and SLOW modes through the
 tape trap, scrolls the screen, and exercises the FAST/SLOW end-of-frame loop.
 On 1 KiB and 2 KiB it checks that a program that runs out of memory while
@@ -246,7 +249,8 @@ printing shows report 4 and returns to the editor. On 1 KiB it checks that a
 `DIM` that runs out of memory reports 4, and that `RETURN` from a subroutine
 that filled memory still returns. On 16 KiB it
 checks EDIT of a line longer than the screen, 20 STOP/CONT reports in SLOW
-mode, and a NEWLINE held through an autorun LOAD. When the FogCast starter
+mode, a NEWLINE held through an autorun LOAD, 255- and 256-character
+variable names, and a `DIM` with 256 dimensions. When the FogCast starter
 tapes are in the checkout, it also loads and lists two `.p` files made by other
 tools. A tape
 saved by Sinclair's own ROM is still a manual check (the `load` mode of

@@ -329,14 +329,7 @@ cls:    call collapsed
         ld bc,24
         call clear_rows
         jr .home
-.exp:   ld hl,(VARS)
-        ld de,(D_FILE)
-        and a
-        sbc hl,de
-        dec hl                  ; bytes after the leading NEWLINE
-        ld de,24*33
-        and a
-        sbc hl,de
+.exp:   call dfile_excess
         jr z,.fill
         ld b,h
         ld c,l
