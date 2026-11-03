@@ -58,6 +58,13 @@ version and at least the required minor. Supervisors that predate these keys
 ignore them, so a newer bundle still installs and runs on an older image. The
 image build fails when its own factory runtime does not accept its menu.
 
+A bundle manifest can also advertise what it offers a supervisor. These keys
+go only into the bundle, never into the image's `software-base.json`, so they
+neither hold a bundle back nor make `fes-update` refuse an image:
+`kit-host` (`1.x`) says `bin/fogcast-kit` has a `host` mode. A supervisor
+that knows the key starts the host for such a bundle and runs older bundles
+with the three services; an older supervisor ignores the key and runs three.
+
 The base image's supervisor checks this at install, activation, boot and
 recovery:
 
@@ -189,6 +196,25 @@ second to thirty seconds. If startup itself
 fails, the supervisor stays up, records the error in that log, and retries with
 backoff instead of exiting. A failure before the status socket is open retries
 the whole startup; a failure after it is open keeps the socket serving the error.
+
+**The kit's FogCast host** (#863 slice 5) is a fourth supervised process, kept
+apart from the service group above:
+
+- **When it runs.** The supervisor starts `bin/fogcast-kit host` only for a
+  bundle whose manifest advertises `kit-host` (next section), and only once the
+  launcher has published readiness for that bundle, so its start-up does not
+  compete with the agent and launcher.
+- **Not part of activation.** Its exit restarts it alone, with the launcher's
+  one-to-thirty-second backoff, and never stops the agent, runtime or a running
+  core. `GET /v1/kit/software`'s service fault reports it while it restarts.
+  Activation, recovery and their readiness window do not include it, so a host
+  that cannot start does not fail an activation. It receives the group
+  environment without `FES_SOFTWARE_REQUEST`, `FES_SOFTWARE_READY_FILE` and
+  `FES_SOFTWARE_RECOVERY_FENCE`.
+- **Stop.** It stops alongside the launcher, so four processes still fit three
+  sequential stop slots.
+- **Proofs.** The operator acknowledgement and power-cycle proofs check the
+  same three services whether a host is running, restarting or absent.
 
 Bundle verification completes before the service startup clock begins, while
 the current group is still running. Each start checks that the verified tree

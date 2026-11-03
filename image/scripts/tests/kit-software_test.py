@@ -165,7 +165,7 @@ class SoftwareABI(unittest.TestCase):
                  patch.object(software, 'base_contract', return_value=contract):
                 software.pack_update(root, payload, root / 'update.tar', 'new', root, 'a' * 40)
             self.assertEqual(packed[0]['interfaces'], {**software.INTERFACES, 'menu.fes.video.menu-display': '1.1',
-                                                       'menu.fes.video.menu-blitter': '1.0'})
+                                                       'menu.fes.video.menu-blitter': '1.0', 'kit-host': '1.0'})
             self.assertNotIn('requires', packed[0])
             with patch.object(software, 'run', side_effect=lambda *args: run(*args, dump='  [     0]  fes.video.fixed-720p60=1.0\n')), \
                  patch.object(software, 'base_contract', return_value=contract):

@@ -74,10 +74,11 @@ with the new list. Tenfoot reuses a Home room only while its release scope
 matches the current setting. A setup room opened for a running machine always
 keeps that machine.
 
-`cmd/fogcast-kit` is a stub. Base images whose supervisor runs
-`fogcast-kit --print-kit-ui` before starting the launcher get `tenfoot`; any
-other invocation fails. Kit software bundles still ship it for those bases.
-Delete it once every kit runs a base whose supervisor starts tenfoot directly.
+The bundle's `bin/fogcast-kit` is `cmd/fogcast-api` built under the kit's
+name, a multi-call binary. `fogcast-kit host` runs the kit's FogCast host
+(`fogcast-api -kit -headless`, see [kit mode](ARCHITECTURE.md#kit-mode)).
+Base images whose supervisor runs `fogcast-kit --print-kit-ui` before starting
+the launcher still get `tenfoot`; any other invocation fails.
 
 ## Menu display
 

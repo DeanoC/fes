@@ -2487,10 +2487,10 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 The kit UI is `fogcast-tenfoot -gfx menu-display -home rooms`. The base-image
 supervisor starts it after the runtime and agent. `ui/launcherconfig` reads the
 provisioned `launcher.json` (`api`, `token`, `target_id`) and ignores keys left
-by the removed grid launcher. `cmd/fogcast-kit` is a stub that prints `tenfoot`
-for `--print-kit-ui`; it exists only for bases whose supervisor probes it before
-starting the launcher, and kit software bundles carry it until every kit runs a
-base that starts tenfoot directly.
+by the removed grid launcher. The bundle's `bin/fogcast-kit` is
+`cmd/fogcast-api` built under the kit's name: `fogcast-kit host` is the kit's
+FogCast host ([kit mode](#kit-mode)), and `--print-kit-ui` still prints
+`tenfoot` for bases whose supervisor probes it before starting the launcher.
 
 A paired, authenticated host listener serves a restricted set of existing
 library, artwork, and session operations. The host keeps target and input lease

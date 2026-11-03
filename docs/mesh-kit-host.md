@@ -40,7 +40,9 @@ marked *proposed* are not yet decided.
 ## Decisions (22 October 2026)
 
 1. **Process.** `fogcast-api` is a fourth child of the base supervisor,
-   found by role, restarted alone like the launcher. Its death never stops the
+   found by role, restarted alone like the launcher (#863 slice 5: it is kept
+   apart from the service group and starts only for a bundle that advertises
+   `kit-host`; see [kit software releases](kit-software-releases.md)). Its death never stops the
    agent, the runtime or a running core. This is a base-image change and ships
    in the first image cut of #863.
 2. **Binary.** One multi-call binary, `fogcast-kit host` and

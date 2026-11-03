@@ -67,8 +67,16 @@ func PreparePowerCycle(ctx context.Context, req AcknowledgeRequest) (PowerCycleP
 		if err := sameExecutable(running.supervisor, running.supervisorExecutable); err != nil {
 			return fail(err)
 		}
+		root, err := c.preparedPath(ctx, req.Selected)
+		if err != nil {
+			return fail(err)
+		}
 		children, err := directChildren(running.supervisor)
 		if err != nil {
+			return fail(err)
+		}
+		// The kit host is not one of the services and may be restarting.
+		if children, err = withoutHost(children, root); err != nil {
 			return fail(err)
 		}
 		if len(children) != 3 {
@@ -81,10 +89,6 @@ func PreparePowerCycle(ctx context.Context, req AcknowledgeRequest) (PowerCycleP
 			if err := sameExecutable(pid, running.paths[pid]); err != nil {
 				return fail(err)
 			}
-		}
-		root, err := c.preparedPath(ctx, req.Selected)
-		if err != nil {
-			return fail(err)
 		}
 		current, err := os.Readlink(filepath.Join(acknowledgmentRunDir, "current"))
 		if err != nil {

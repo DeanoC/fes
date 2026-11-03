@@ -112,6 +112,14 @@ type ProcessController struct {
 	// readyStable and readyBudget override the readiness window in tests.
 	readyStable time.Duration
 	readyBudget time.Duration
+	// hostPlan is how to start the kit's FogCast host for the active bundle,
+	// or nil when the bundle does not advertise kit-host. host is the running
+	// host process. It is not a member of children: its exit restarts it
+	// alone, and the service group's health and recovery do not include it.
+	hostPlan    *hostPlan
+	host        *child
+	hostRestart time.Time
+	hostDelay   time.Duration
 	// holdRecoveryClaims is set only while a group restart is inside Start.
 	// The replacement agent closes execution claims before it serves, and Start
 	// confirms that fence before the launcher probe.
@@ -197,15 +205,54 @@ func (c *ProcessController) Stop(ctx context.Context) error {
 	return c.stopLocked(ctx)
 }
 func (c *ProcessController) stopLocked(ctx context.Context) error {
+	// The host stops alongside the launcher, so four services still fit
+	// three sequential stop slots inside StopGroupTimeout.
+	var hostStopped chan error
+	if c.host != nil {
+		hostStopped = make(chan error, 1)
+		go func(host *child) { hostStopped <- stopChild(ctx, host) }(c.host)
+	}
 	for i := len(c.children) - 1; i >= 0; i-- {
-		p := c.children[i]
+		if err := stopChild(ctx, c.children[i]); err != nil {
+			if hostStopped != nil {
+				<-hostStopped
+			}
+			return err
+		}
+	}
+	if hostStopped != nil {
+		if err := <-hostStopped; err != nil {
+			return err
+		}
+	}
+	c.host = nil
+	c.hostPlan = nil
+	c.children = nil
+	c.active = ""
+	return os.RemoveAll(filepath.Join(c.RunDir, "launcher-ready.json"))
+}
+
+// stopChild terminates p's process group: SIGTERM, then SIGKILL after
+// StopTermGrace, and confirms that no descendant survives.
+func stopChild(ctx context.Context, p *child) error {
+	select {
+	case <-p.done:
+	default:
+		if err := syscall.Kill(-p.cmd.Process.Pid, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
+			return err
+		}
+		timer := time.NewTimer(StopTermGrace)
 		select {
 		case <-p.done:
-		default:
-			if err := syscall.Kill(-p.cmd.Process.Pid, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
+			timer.Stop()
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+			if err := syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
 				return err
 			}
-			timer := time.NewTimer(StopTermGrace)
+			timer = time.NewTimer(StopKillGrace)
 			select {
 			case <-p.done:
 				timer.Stop()
@@ -213,32 +260,18 @@ func (c *ProcessController) stopLocked(ctx context.Context) error {
 				timer.Stop()
 				return ctx.Err()
 			case <-timer.C:
-				if err := syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
-					return err
-				}
-				timer = time.NewTimer(StopKillGrace)
-				select {
-				case <-p.done:
-					timer.Stop()
-				case <-ctx.Done():
-					timer.Stop()
-					return ctx.Err()
-				case <-timer.C:
-					return fmt.Errorf("process %d has not exited", p.cmd.Process.Pid)
-				}
+				return fmt.Errorf("process %d has not exited", p.cmd.Process.Pid)
 			}
 		}
-		// Descendants share the dedicated process group; a surviving descendant is
-		// equally unsafe even after the direct executable was reaped.
-		if err := syscall.Kill(-p.cmd.Process.Pid, 0); err == nil {
-			return fmt.Errorf("process group %d still exists", p.cmd.Process.Pid)
-		} else if !errors.Is(err, syscall.ESRCH) {
-			return err
-		}
 	}
-	c.children = nil
-	c.active = ""
-	return os.RemoveAll(filepath.Join(c.RunDir, "launcher-ready.json"))
+	// Descendants share the dedicated process group; a surviving descendant is
+	// equally unsafe even after the direct executable was reaped.
+	if err := syscall.Kill(-p.cmd.Process.Pid, 0); err == nil {
+		return fmt.Errorf("process group %d still exists", p.cmd.Process.Pid)
+	} else if !errors.Is(err, syscall.ESRCH) {
+		return err
+	}
+	return nil
 }
 
 // overlayEnv returns base plus overlay, with overlay keys replacing the
@@ -266,6 +299,17 @@ func overlayEnv(base []string, overlay ...string) []string {
 }
 
 func (c *ProcessController) start(path string, args []string, env []string, role string) error {
+	p, err := c.spawn(path, args, env, role)
+	if err != nil {
+		return err
+	}
+	c.children = append(c.children, p)
+	return nil
+}
+
+// spawn starts one supervised process in its own process group. start adds
+// it to the service group; the host is kept apart from that group.
+func (c *ProcessController) spawn(path string, args []string, env []string, role string) (*child, error) {
 	cmd := exec.Command(path, args...)
 	cmd.Env = overlayEnv(os.Environ(), env...)
 	output := c.Output
@@ -276,7 +320,7 @@ func (c *ProcessController) start(path string, args []string, env []string, role
 	cmd.Stderr = output
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
 	if err := cmd.Start(); err != nil {
-		return err
+		return nil, err
 	}
 	p := &child{
 		cmd:     cmd,
@@ -287,7 +331,6 @@ func (c *ProcessController) start(path string, args []string, env []string, role
 		role:    role,
 		started: time.Now(),
 	}
-	c.children = append(c.children, p)
 	pid := cmd.Process.Pid
 	go func() {
 		p.err = cmd.Wait()
@@ -298,7 +341,7 @@ func (c *ProcessController) start(path string, args []string, env []string, role
 		log.Printf("software process %s pid %d exited: %v", name, pid, p.err)
 		close(p.done)
 	}()
-	return nil
+	return p, nil
 }
 func (c *ProcessController) Start(ctx context.Context, id string, r Request) error {
 	// Factory trial startup calls Start directly. Engine paths always prepare
@@ -418,6 +461,7 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 		return err
 	}
 	c.active = id
+	c.planHostLocked(root, env)
 	return nil
 }
 
@@ -659,6 +703,13 @@ func (c *ProcessController) ServiceFault() string {
 	if c.active == "" {
 		return "kit software services are not running"
 	}
+	if c.host != nil {
+		select {
+		case <-c.host.done:
+			return fmt.Sprintf("%s host exited: %v; supervisor is restarting the host", filepath.Base(c.host.path), c.host.err)
+		default:
+		}
+	}
 	return ""
 }
 
@@ -875,6 +926,9 @@ func (c *ProcessController) RecoverAcceptedExits(ctx context.Context, pending Re
 	if c.pendingGroup == "" {
 		if c.active == "" || !acceptedServiceFailed(c.children) {
 			err := c.restartExitedLauncherLocked()
+			if hostErr := c.superviseHostLocked(); err == nil {
+				err = hostErr
+			}
 			c.mu.Unlock()
 			return err
 		}
