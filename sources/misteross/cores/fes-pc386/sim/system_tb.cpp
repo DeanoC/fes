@@ -36,8 +36,9 @@
 // port 2 must go on writing after a hold that cut a burst. Nothing else
 // reaches inside the system, and no oracle backs the CPU: a CPU stop ends the
 // run. fes_hps_ddr is two synchronising flops from ddr_hold to each port's
-// reset; a held port is not driven, as its guard takes over. The pixel clock
-// runs throughout, so the presenter and plane load port 2 as on a kit.
+// reset; a held port is its guard's, which finishes an open write burst with
+// byte enables clear and hides read data (pc386_ddr_model.h hold()). The pixel
+// clock runs throughout, so the presenter and plane load port 2 as on a kit.
 //
 // It prints:
 //   WRITE-TEST <offset>|absent              where the AUTOEXEC.BAT change went
@@ -276,9 +277,9 @@ private:
         port_held = held;
         top.p0_reset = top.p1_reset = top.p2_reset = held;
         if (held) {
-            top.p0_readdatavalid = 0; top.p0_waitrequest = 1;
-            top.p1_readdatavalid = 0; top.p1_waitrequest = 1;
-            top.p2_readdatavalid = 0; top.p2_waitrequest = 1;
+            ddr0.hold(p0);
+            ddr1.hold(port1(top));
+            ddr2.hold(port2(top));
         } else {
             ddr0.drive(p0, cycles);
             ddr1.drive(port1(top), cycles);
