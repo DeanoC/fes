@@ -606,9 +606,9 @@ private:
         hold_trials();
     }
 
-    // Holds swept across port 2's write bursts. The trial after one whose
-    // hold cut a burst must see port 2 take write beats again; the trial after
-    // the last cut only follows up.
+    // Holds swept across port 2's write bursts: HOLD_CUTS of them must cut
+    // one, and the trial after each must see port 2 take write beats again.
+    // The trial after the last cut only follows up.
     void hold_trials() {
         unsigned trials = 0, cuts = 0, resumed = 0;
         bool cut = false;
@@ -626,9 +626,9 @@ private:
             cut = hold_owed != 0 && cuts < HOLD_CUTS;
             cuts += cut;
         } while ((++trials < HOLD_TRIALS && cuts < HOLD_CUTS) || cut);
-        check(cuts != 0 && resumed == cuts, "holds cut a port 2 write burst in " + std::to_string(cuts) + " of " +
-                                                std::to_string(trials) +
-                                                " trials, and port 2 took write beats after each release");
+        check(cuts == HOLD_CUTS && resumed == cuts,
+              "holds cut a port 2 write burst in " + std::to_string(cuts) + " of " + std::to_string(trials) +
+                  " trials, and port 2 took write beats after each release");
     }
 
     // Text mode: character n at planar offset 2n in plane 0.
