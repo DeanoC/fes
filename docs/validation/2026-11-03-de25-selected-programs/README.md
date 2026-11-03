@@ -44,8 +44,12 @@ The opt-in `--selected-programs --computer-control` mode reads
 contains that package twice; different packages are exercised in software.
 The selection list is external to the boot image, with no compiled package list.
 
-All [eight affected scopes](software-summary.json), 1,342 exact selected parent
-tests and generated-consumer consistency checks pass. Native SD lease/PIO,
+All [eight affected scopes](software-summary.json) and generated-consumer
+consistency checks pass. Of 1,342 exact selected parent test IDs, 1,340 pass
+and two have [explicit environment skips](environment-skips.json): the unrelated
+media derivation lacks its locked upstream U-Boot cache, and the macOS-specific
+filesystem-layout check does not run on Linux. The matched Nano vendor chain
+builds and passes its own checks separately. Native SD lease/PIO,
 firmware/RTL, model launch/return and model Tenfoot integration pass. The new
 joined lifecycle test executes three different canonical synthetic packages,
 core IDs, build IDs and payload sizes (128/192/64 bytes), checking the actual
