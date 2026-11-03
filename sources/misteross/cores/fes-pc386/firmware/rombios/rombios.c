@@ -11314,6 +11314,14 @@ normal_post:
   mov al, #0x00 ; maximum count of 0000H = 18.2Hz
   out PORT_PIT_COUNTER0, al
   out PORT_PIT_COUNTER0, al
+  ;; FES 2026-11-03: timer1, the refresh timer, as an AT BIOS sets it: binary
+  ;; count, LSB only, mode 2, count 18 = 15.09 usec. Port 61h bit 4 toggles
+  ;; with its output, and INT 15h AH=86h counts those toggles; Bochs toggles
+  ;; the bit by itself, so upstream never programs the counter.
+  mov al, #0x54
+  out PORT_PIT_MODE, al
+  mov al, #18
+  out PORT_PIT_COUNTER1, al
 
   ;; Keyboard
   SET_INT_VECTOR(0x09, #0xF000, #int09_handler)

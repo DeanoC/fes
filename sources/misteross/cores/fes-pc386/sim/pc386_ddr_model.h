@@ -19,6 +19,9 @@
 // inside a write burst, and every beat of a write burst carries its first
 // beat's address and length, so a burst cut short and followed by another
 // is caught at the new burst's first beat.
+//
+// hold() stands in for drive() while fes_hps_ddr_guard holds the port: see
+// Port::hold.
 #pragma once
 
 #include <array>
@@ -143,7 +146,26 @@ public:
         }
     }
 
+    // Before each rising edge while fes_hps_ddr_guard holds the port, in place
+    // of drive(). The guard takes nothing from the master, which the same hold
+    // resets, and answers it with waitrequest and no read data. It sends the
+    // rest of a write burst the master started with byte enables clear, so
+    // those beats write nothing, and it hides the data of reads issued before
+    // the hold. The bench drives the master from this port as if the guard
+    // were not there, so a command the port refused never reached the guard,
+    // and the master's reset withdraws it. The guard's fill and drain take no
+    // clocks and no timing draws here.
+    void hold(const PortSignals &port) {
+        *port.waitrequest = 1;
+        *port.readdatavalid = 0;
+        beats_written += write_left;
+        write_left = 0;
+        reads.clear();
+        refused = false;
+    }
+
     bool idle() const { return reads.empty() && write_left == 0; }
+    unsigned beats_owed() const { return write_left; }  // of the write burst open
     uint64_t commands = 0, beats_read = 0, beats_written = 0;
 
 private:
@@ -254,7 +276,18 @@ public:
         }
     }
 
+    // As Port::hold.
+    template <typename Top> void hold(Top &top) {
+        top.ddr_waitrequest = 1;
+        top.ddr_readdatavalid = 0;
+        beats_written += write_left;
+        write_left = 0;
+        reads.clear();
+        refused = false;
+    }
+
     bool idle() const { return reads.empty() && write_left == 0; }
+    unsigned beats_owed() const { return write_left; }  // of the write burst open
     uint64_t commands = 0, beats_read = 0, beats_written = 0;
 
 private:

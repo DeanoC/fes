@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/appliance/software"
-	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const maxSoftwareControlResponse = 32 << 20
@@ -100,23 +100,23 @@ func softwareProxyError(w http.ResponseWriter, status int, message string) {
 	writeError(w, status, code, message)
 }
 
-func kitSoftwareHealth(parent context.Context, socket string) *softwarecontrol.Status {
+func kitSoftwareHealth(parent context.Context, socket string) *protocol.Identity {
 	ctx, cancel := context.WithTimeout(parent, 250*time.Millisecond)
 	defer cancel()
-	result := &softwarecontrol.Status{ActiveBundle: os.Getenv("FES_SOFTWARE_BUNDLE_ID"), BaseIdentity: os.Getenv("FES_SOFTWARE_BASE_IDENTITY")}
+	result := &protocol.Identity{ActiveBundle: os.Getenv("FES_SOFTWARE_BUNDLE_ID"), BaseIdentity: os.Getenv("FES_SOFTWARE_BASE_IDENTITY")}
 	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://software/v1/kit/software", nil)
 	response, err := softwareSupervisorClient(socket).Do(request)
 	if err != nil {
-		result.StorageError = "software supervisor unavailable"
 		return result
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		result.StorageError = "software supervisor unavailable"
 		return result
 	}
-	if err := json.NewDecoder(io.LimitReader(response.Body, maxSoftwareControlResponse)).Decode(result); err != nil {
-		result.StorageError = "software supervisor status is incomplete"
+	// Decoding into the identity skips the receipts without building them.
+	status := *result
+	if err := json.NewDecoder(io.LimitReader(response.Body, maxSoftwareControlResponse)).Decode(&status); err != nil {
+		return result
 	}
-	return result
+	return &status
 }

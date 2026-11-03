@@ -148,16 +148,7 @@ type targetHealth struct {
 	Ready      bool                      `json:"ready"`
 	APIVersion string                    `json:"api_version,omitempty"`
 	Artifacts  *protocol.Artifacts       `json:"artifacts,omitempty"`
-	Software   *targetSoftwareIdentity   `json:"software,omitempty"`
-}
-
-// Host health exposes release identity, not the authenticated supervisor's
-// operation journal, requester labels or diagnostic error strings.
-type targetSoftwareIdentity struct {
-	ActiveBundle string `json:"active_bundle"`
-	BaseIdentity string `json:"base_identity"`
-	Selected     string `json:"selected"`
-	Generation   uint64 `json:"generation"`
+	Software   *protocol.Identity        `json:"software,omitempty"`
 }
 
 type errorResult struct {
@@ -596,12 +587,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		if err == nil {
 			result.Target.APIVersion = target.APIVersion
 			result.Target.Artifacts = target.Artifacts
-			if software := target.Software; software != nil {
-				result.Target.Software = &targetSoftwareIdentity{
-					ActiveBundle: software.ActiveBundle, BaseIdentity: software.BaseIdentity,
-					Selected: software.Selected, Generation: software.Generation,
-				}
-			}
+			result.Target.Software = target.Software
 		}
 		writeJSON(w, http.StatusOK, result)
 	})

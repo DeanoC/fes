@@ -127,15 +127,15 @@ func TestColecoFormat4VideoShellLinksBIOSCartridgeAndParts(t *testing.T) {
 			if transport.PartsComposition == nil || transport.PartsComposition.Layout != layout || transport.SlotComposition != nil {
 				t.Fatalf("parts layout: %+v", transport.PartsComposition)
 			}
-			if !IsROMInputV2(transport.Data) || IsROMInput(transport.Data) {
+			if !IsROMInputV2(transport.Bytes()) || IsROMInput(transport.Bytes()) {
 				t.Fatal("parts input is not a two-source transport")
 			}
-			prepared, err := readPreparedROMInputV2(transport.Data)
+			prepared, err := readPreparedROMInputV2(transport.Bytes())
 			if err != nil || len(prepared.input.Parts) != 1 || prepared.input.Parts[0].ID != in.Parts[0].ID || !bytes.Equal(prepared.input.BIOS, in.BIOS) || !bytes.Equal(prepared.input.Cartridge, in.Cartridge) {
 				t.Fatalf("round trip: %v", err)
 			}
 			root := t.TempDir()
-			staged, err := StageROMInputV2(ctx, root, int64(len(transport.Data)), bytes.NewReader(transport.Data))
+			staged, err := StageROMInputV2(ctx, root, transport.Size(), transport.Reader())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -171,7 +171,7 @@ func TestColecoFormat4VideoShellLinksBIOSCartridgeAndParts(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			staged, err = StageROMInputV2(ctx, root, int64(len(transport.Data)), bytes.NewReader(transport.Data))
+			staged, err = StageROMInputV2(ctx, root, transport.Size(), transport.Reader())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -221,7 +221,7 @@ func TestColecoFormat4VideoShellRejectsBadInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := StageROMInputV2(ctx, t.TempDir(), int64(len(data.Data)), bytes.NewReader(data.Data)); err == nil || !strings.Contains(err.Error(), "socket") {
+	if _, err := StageROMInputV2(ctx, t.TempDir(), data.Size(), data.Reader()); err == nil || !strings.Contains(err.Error(), "socket") {
 		t.Fatalf("socket overlap staged without parts: %v", err)
 	}
 
@@ -241,7 +241,7 @@ func TestColecoFormat4VideoShellRejectsBadInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reader := &canonicalReader{data: transport.Data}
+	reader := &canonicalReader{data: transport.Bytes()}
 	receipt, err := reader.read("rom-link-v2.json", 4096)
 	if err != nil {
 		t.Fatal(err)
