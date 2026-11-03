@@ -789,6 +789,15 @@ CPU-timed loops, so their pitch comes from the governed instruction rate plus
 the 720 ns `isa8` cost of each OUT. That is one reason for the 286-class
 preset, and the acceptance test listens for it.
 
+Those loops write only a count to port 42h, never a control word, and toggle
+bits 0 and 1 together. They rely on channel 2 being in mode 3 with LSB-then-MSB
+counts, as an AT BIOS's POST beep leaves it: a low gate drives the output high,
+a rising gate reloads with the output still high, and a held gate gives the
+count's square wave. The 8254's power-on mode is undefined, and KF8253 resets
+to mode 0 with MSB-only counts, so POST programs channel 2 as an AT does
+([firmware](../cores/fes-pc386/firmware/README.md#local-changes),
+[#1457](https://github.com/DeanoC/fes/issues/1457)).
+
 ### OPL2
 
 Survey of open OPL2 RTL:
@@ -1186,6 +1195,7 @@ Alternatives not taken, kept as later options:
 | POST | PIC, PIT, DMA and 8042 init; keyboard self-test; CMOS memory size; option ROM scan at C0000; ATA detect by IDENTIFY | Present |
 | POST A20 | A20 gated off through the 8042 and port 92h before INT 19h | Local patch ([#1386](https://github.com/DeanoC/fes/issues/1386)) |
 | POST PIT channel 1 | Mode 2, count 18 (15.09 µs), the refresh rate the INT 15h AH=86h wait counts on port 61h bit 4 | Local patch ([#1150](https://github.com/DeanoC/fes/issues/1150)) |
+| POST PIT channel 2 | Mode 3, LSB then MSB, as an AT's POST beep leaves it, with the IBM BEEP count 0533h and the gate and speaker off; games write only a count | Local patch ([#1457](https://github.com/DeanoC/fes/issues/1457)) |
 | INT 10h | Modes 03h and 13h, font load, DAC and palette calls, cursor, scrolling. Games then reprogram registers for mode Y themselves | VGABIOS |
 | INT 13h | AH=00h–08h, 0Ah–0Dh, 10h, 11h, 15h; EDD 41h–48h, which FreeDOS uses for LBA | Present (`int13_harddisk`, EDD cases) |
 | INT 15h | 24h A20 (through the 8042 and port 92h; local patch), 87h block move and 88h extended size for HIMEM, E801h and E820h, C0h configuration, C2h PS/2 pointing device for CuteMouse, 86h wait (counts port 61h bit 4), 83h event wait (RTC periodic interrupt), 4Fh keyboard intercept | Present |

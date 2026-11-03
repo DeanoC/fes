@@ -48,6 +48,14 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            follow PIT counter 1 as POST programs it. Every check must print
            ok. With --cpu rtl, the RTL must run it without an oracle step or
            a stop; writes wait-rtl/.
+  speaker  runs cores/fes-pc386/sim/speaker_test.asm (SPKTEST.COM) at the
+           FreeDOS prompt (#1457): PIT counter 2 must be in mode 3 with LSB
+           then MSB counts, as an AT BIOS's POST leaves it, and a count-only
+           write of 60 must give what Ultima VI's port 61h toggles rely on:
+           output high after each rising gate, and a 19,886 Hz square wave
+           with the gate held. Every check must print ok. With --cpu rtl,
+           the RTL must run it without an oracle step or a stop; writes
+           speaker-rtl/.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
   game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
@@ -93,6 +101,7 @@ Examples:
   python3 scripts/sim_fes_pc386.py --suite rtl-stops
   python3 scripts/sim_fes_pc386.py --suite a20 --download
   python3 scripts/sim_fes_pc386.py --suite wait --cpu rtl
+  python3 scripts/sim_fes_pc386.py --suite speaker
   python3 scripts/sim_fes_pc386.py --suite sound --download
   python3 scripts/sim_fes_pc386.py --suite game --game ultima6
   python3 scripts/sim_fes_pc386.py --suite game --game wolf3d --cpu rtl
@@ -737,6 +746,31 @@ def run_wait(args, linked: list[Path]) -> dict:
     return {'run': run, 'checks': lines, 'failures': failures}
 
 
+# SPKTEST.COM's checks, in the order it runs them.
+SPEAKER_CHECKS = ('post', 'rise', 'carrier', 'DONE')
+
+
+def run_speaker(args, linked: list[Path]) -> dict:
+    """SPKTEST.COM at the FreeDOS prompt: PIT counter 2 as POST leaves it, and the carrier a count-only write gives."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    suite = 'speaker' + ('-rtl' if args.cpu == 'rtl' else '')
+    disk = fixture_with(args, suite, 'speaker_test.asm', 'SPKTEST.COM')
+    print(f'Running SPKTEST.COM on the {args.cpu} CPU', flush=True)
+    run = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                         '--type', 'spktest|', '--expect', 'SPK DONE ok', '--cpu', args.cpu],
+                      images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    run['lines'] = lines
+    failures = run['failures'] + [line for line in lines if not line.endswith(' ok')]
+    names = [line.split()[1] for line in lines if line.startswith('SPK ')]
+    if names != list(SPEAKER_CHECKS):
+        failures.append(f'SPKTEST.COM ran {names}, expected {list(SPEAKER_CHECKS)}')
+    if args.cpu == 'rtl':
+        failures += rtl_failures(run, 'speaker run')
+    return {'run': run, 'checks': lines, 'failures': failures}
+
+
 def run_bench(args, name: str, top: str, rtl: tuple[Path, ...], testbench: Path) -> dict:
     """A PASS/FAIL bench without the oracle."""
     binary = verilate(args.verilator, name, top, rtl, testbench, [], args.jobs)
@@ -1343,7 +1377,8 @@ def run_game(args, linked: list[Path]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
-                                            'a20', 'wait', 'sound', 'game', 'vga', 'system', 'governor', 'all'),
+                                            'a20', 'wait', 'speaker', 'sound', 'game', 'vga', 'system', 'governor',
+                                            'all'),
                         default='all',
                         help='simulation suite to run')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
@@ -1369,8 +1404,8 @@ def main() -> int:
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
-    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'wait'):
-        parser.error('--cpu rtl runs the boot, game, a20 and wait suites only')
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'wait', 'speaker'):
+        parser.error('--cpu rtl runs the boot, game, a20, wait and speaker suites only')
     if args.image != 'boot' and args.suite != 'boot':
         parser.error('--image is supported by the boot suite only')
     if (args.preset or args.frequency or args.turbo) and not (
@@ -1391,7 +1426,7 @@ def main() -> int:
             else (args.suite,)
         for suite in suites:
             args.limit_seconds = limit_seconds or (14 if suite == 'sound' else
-                                                   8 if suite in ('boot', 'governor', 'wait') else
+                                                   8 if suite in ('boot', 'governor', 'wait', 'speaker') else
                                                    2 if suite == 'rtl-stops' else 10 if suite == 'a20' else 12)
             args.type = typed or ('sound|' if suite == 'sound' else 'dir|')
             args.expect = expect or ('SOUND DONE' if suite == 'sound' else 'bytes free')
@@ -1419,6 +1454,8 @@ def main() -> int:
                 report = run_a20(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'wait':
                 report = run_wait(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'speaker':
+                report = run_speaker(args, oracle.link_inputs(args.jobs, args.download))
             else:
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))
