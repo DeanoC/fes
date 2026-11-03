@@ -646,6 +646,7 @@ class VideoEvidenceTest(unittest.TestCase):
             class Recorder:
                 def __init__(self, _device, evidence, _probe):
                     self.observer_guard = test_guard
+                    self.converter_identity = {'test':'scaler'}
                     self.path = evidence/'game-full.mkv'; self.path.write_bytes(b'video')
                     self.progress_path = evidence/'game-progress.jsonl'; self.progress_path.write_text('')
                     self.started_ns = 1; self.first_progress_ns = 2

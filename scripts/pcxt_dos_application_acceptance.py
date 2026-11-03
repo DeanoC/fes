@@ -855,6 +855,7 @@ def run_game(runner, owned, args, rec, input_session_id, font, *, probe=None, vi
         raise pa.AcceptanceError('game recorder does not feed the playback probe; no game keys sent')
     rec['video_start'] = {'requested_monotonic_ns': video.started_ns,
                           'first_progress_observed_monotonic_ns': video.first_progress_ns,
+                          'frame_converter':video.converter_identity,
                           'note': 'host timestamps are not exact target capture times'}
     error = None
     audio = None

@@ -70,6 +70,9 @@ def build_capture_helper(evidence, source, expected_source_sha256, *, check_inte
         raise capture.CaptureError('capture helper build failed')
     if source.read_bytes() != data:
         raise capture.CaptureError('capture helper source changed during build')
+    with compiler.open('rb') as f:
+        if hashlib.file_digest(f, 'sha256').hexdigest() != compiler_sha:
+            raise capture.CaptureError('capture helper compiler changed during build')
     with binary.open('rb') as f:
         binary_sha = hashlib.file_digest(f, 'sha256').hexdigest()
     return binary, {'source_sha256':expected_source_sha256, 'compiler':str(compiler),
@@ -86,6 +89,22 @@ class RGBConverter:
         if not sws_name or not av_name:
             raise capture.CaptureError('FFmpeg scale libraries are unavailable')
         self.sws = ctypes.CDLL(sws_name); av = ctypes.CDLL(av_name)
+        def library_identity(soname):
+            paths = set()
+            for line in Path('/proc/self/maps').read_text().splitlines():
+                parts = line.split(None, 5)
+                if len(parts) == 6 and Path(parts[5]).name.startswith(soname):
+                    paths.add(Path(parts[5]).resolve())
+            if len(paths) != 1:
+                raise capture.CaptureError('cannot identify the loaded FFmpeg scaler library')
+            path = paths.pop()
+            with path.open('rb') as f:
+                digest = hashlib.file_digest(f, 'sha256').hexdigest()
+            return {'path':str(path), 'sha256':digest}
+        self.sws.swscale_version.restype = ctypes.c_uint
+        av.avutil_version.restype = ctypes.c_uint
+        self.identity = {'swscale':{**library_identity(sws_name), 'version':self.sws.swscale_version()},
+                         'avutil':{**library_identity(av_name), 'version':av.avutil_version()}}
         av.av_get_pix_fmt.argtypes = [ctypes.c_char_p]; av.av_get_pix_fmt.restype = ctypes.c_int
         self.ptr = ctypes.POINTER(ctypes.c_uint8); self.planes = self.ptr*4; self.strides = ctypes.c_int*4
         self.sws.sws_getContext.argtypes = [ctypes.c_int]*7+[ctypes.c_void_p]*3
@@ -142,6 +161,7 @@ class GameCapture:
         self.started = threading.Event(); self.stop_requested = threading.Event()
         self.done = threading.Event(); self.error = None; self.result = None
         self.converter = RGBConverter()
+        self.converter_identity = self.converter.identity
         try:
             self.source = capture.CaptureProcess([str(helper),str(device)], evidence/'game-source.stderr')
         except BaseException:
@@ -217,4 +237,10 @@ class GameCapture:
             if self.result is not None and self.result.detector_stopped:
                 self.converter.close()
             raise capture.CaptureError('game observer dropped frames or stopped uncleanly')
-        self.converter.close()
+        try:
+            for library in self.converter_identity.values():
+                with Path(library['path']).open('rb') as stream:
+                    if hashlib.file_digest(stream, 'sha256').hexdigest() != library['sha256']:
+                        raise capture.CaptureError('game frame converter library changed during capture')
+        finally:
+            self.converter.close()

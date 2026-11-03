@@ -14,9 +14,11 @@ from pathlib import Path
 
 if __package__:
     from . import pcxt_digger_readiness as readiness
+    from . import pcxt_gameplay_capture as live_capture
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import pcxt_digger_readiness as readiness
+    import pcxt_gameplay_capture as live_capture
 
 CROPS = {
     'first': {'player':'e3313dd15768626a143e9cbad694c98f0a588a3c5b13f4a2a522ac1209f88ecc', 'threat':'4158cde94fc0282a89f70adf1f983e810da6e9ee5290290029490c9ed9fd866e', 'lives':'e24c1efead16f119fb9e9c64e5424d4b3d891c90d76ae62d017c11e5a265597f'},
@@ -61,6 +63,7 @@ def run(videos):
         if len({len(v) for v in dataset[name].values()}) != 1:
             raise ValueError(f'{name} streams have different frame counts')
     results = []
+    live_results = []
     for train, test in [('first', 'last'), ('last', 'first')]:
         templates = [dataset[train]['player'][int(t*2)] for t in (44, 45, 46, 48, 49)]
         obs = [readiness.classify(p, t, l, templates) for p, t, l in
@@ -78,8 +81,26 @@ def run(videos):
                         'first_candidate_pair_seconds': [pairs[0], pairs[0]+.5],
                         'positive_frames': len(initial), 'known_negative_matches': len(negatives),
                         'respawn_matches': len(respawns), 'threat_at_49_to_50_seconds': threat})
+        converter = live_capture.RGBConverter()
+        try:
+            samples = []
+            for second in (42, 44, 50, 57.5):
+                raw = subprocess.run(['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'error',
+                    '-ss', str(second), '-i', str(videos[test]), '-frames:v', '1',
+                    '-pix_fmt', 'yuyv422', '-f', 'rawvideo', 'pipe:1'],
+                    check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30).stdout
+                observed = live_capture.inspect_frame(converter, raw, templates)
+                samples.append({'seek_seconds':second, 'player':observed.player,
+                                'threat':observed.threat, 'initial_lives':observed.initial_lives})
+            if (samples[0]['player'] or not samples[1]['player'] or not samples[1]['initial_lives']
+                    or samples[1]['threat'] or not samples[2]['threat'] or samples[3]['initial_lives']):
+                raise ValueError(f'{train}/{test} live converter replay differs')
+            live_results.append({'trained_on':train, 'tested_on':test, 'samples':samples})
+        finally:
+            converter.close()
     return {'scope': 'offline cross-replay only; no fresh capture, controls or hardware proof',
             'videos_sha256': VIDEO_SHA, 'crop_sha256': CROPS, 'results': results,
+            'live_converter_samples':live_results,
             'limitations': ['The two captures are near-identical and cannot establish general detection accuracy.',
                             'Offline sampling does not prove live capture freshness.']}
 

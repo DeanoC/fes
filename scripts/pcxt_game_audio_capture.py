@@ -65,6 +65,7 @@ class AudioRecorder:
         if any(p.exists() for p in (self.path,self.progress_path,self.stderr_path,self.mapping_path)):
             raise AudioError('audio evidence already exists')
         self.proc = None; self.ready = threading.Event(); self.first_progress_ns = None
+        self.reader_ended = threading.Event(); self.reader_error = None; self.final_progress = False
         self.reader = None; self.stop_request_ns = None
         self.stderr = self.progress = None
     def start(self):
@@ -79,18 +80,11 @@ class AudioRecorder:
                 '-c:a','pcm_s16le','-progress','pipe:1','-stats_period','0.5',str(self.path)],
                 stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=self.stderr,text=True,bufsize=1)
             self.start_max_ns=time.monotonic_ns()
-            def read():
-                for line in self.proc.stdout:
-                    now=time.monotonic_ns(); self.progress.write(json.dumps({'monotonic_ns':now,'line':line.rstrip()})+'\n'); self.progress.flush()
-                    if line.startswith('out_time_us='):
-                        try: positive=int(line.split('=',1)[1])>0
-                        except ValueError: positive=False
-                        if positive and self.first_progress_ns is None:
-                            self.first_progress_ns=now; self.ready.set()
-            self.reader=threading.Thread(target=read,daemon=True); self.reader.start()
+            self.reader=threading.Thread(target=self._read_progress,daemon=True); self.reader.start()
             deadline=time.monotonic()+30
             while not self.ready.wait(0.1):
                 if self.proc.poll() is not None: raise AudioError('audio capture exited before samples arrived')
+                if self.reader_ended.is_set(): raise AudioError('audio progress reader stopped before samples arrived')
                 if time.monotonic()>deadline: raise AudioError('audio capture did not start within 30 seconds')
             self.check()
         except BaseException as original:
@@ -100,6 +94,21 @@ class AudioRecorder:
                 error.audio_cleanup_incomplete = True
                 raise error from cleanup
             raise
+
+    def _read_progress(self):
+        try:
+            for line in self.proc.stdout:
+                now=time.monotonic_ns(); self.progress.write(json.dumps({'monotonic_ns':now,'line':line.rstrip()})+'\n'); self.progress.flush()
+                if line.rstrip() == 'progress=end': self.final_progress=True
+                if line.startswith('out_time_us='):
+                    try: positive=int(line.split('=',1)[1])>0
+                    except ValueError: positive=False
+                    if positive and self.first_progress_ns is None:
+                        self.first_progress_ns=now; self.ready.set()
+        except BaseException as exc:
+            self.reader_error=repr(exc)
+        finally:
+            self.reader_ended.set()
     def _abort_start(self):
         """Close every opened fd and reap only our partially started process."""
         failure=None
@@ -127,6 +136,8 @@ class AudioRecorder:
         if failure is not None:raise AudioError('audio startup resources did not stop cleanly') from failure
     def check(self):
         if self.proc is None or self.proc.poll() is not None: raise AudioError('audio recorder stopped before diagnostic completed')
+        if self.reader_error is not None or self.reader_ended.is_set():
+            raise AudioError('audio progress reader failed or stopped early')
         if capture_identity(self.kit) != self.mapping: raise AudioError('audio/video capture mapping changed')
     def stop(self):
         if self.proc is None: raise AudioError('audio recorder was not started')
@@ -159,17 +170,39 @@ class AudioRecorder:
             self.progress.close(); self.stderr.close()
         if error is not None: raise error
         if not running: raise AudioError('audio recorder stopped before diagnostic completed')
+        if self.reader_error is not None or not self.reader_ended.is_set() or not self.final_progress:
+            raise AudioError('audio progress reader did not complete cleanly')
+        try:
+            progress_rows=[json.loads(line) for line in self.progress_path.read_text().splitlines()]
+            if (not progress_rows or any(not isinstance(row,dict) for row in progress_rows)
+                    or progress_rows[-1].get('line') != 'progress=end'
+                    or any(type(row.get('monotonic_ns')) is not int for row in progress_rows)
+                    or any(a['monotonic_ns'] > b['monotonic_ns'] for a,b in zip(progress_rows,progress_rows[1:]))):
+                raise ValueError('invalid progress trace')
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            raise AudioError('audio progress trace is incomplete') from exc
         if rc not in (0,255): raise AudioError('audio recorder failed, rc='+str(rc))
         try:
             with wave.open(str(self.path),'rb') as f:
                 if (f.getnchannels(),f.getsampwidth(),f.getframerate(),f.getcomptype()) != (2,2,48000,'NONE') or f.getnframes() < 48000:
                     raise AudioError('audio capture format or duration invalid')
                 frames=f.getnframes()
+                remaining=frames
+                while remaining:
+                    amount=min(remaining, 48000)
+                    data=f.readframes(amount)
+                    if len(data) != amount*4:
+                        raise AudioError('audio capture PCM data is truncated')
+                    remaining-=amount
         except (OSError,wave.Error) as exc: raise AudioError('audio capture not a complete WAV') from exc
         with self.path.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
+        with self.progress_path.open('rb') as stream: progress_sha=hashlib.file_digest(stream,'sha256').hexdigest()
+        with self.mapping_path.open('rb') as stream: mapping_sha=hashlib.file_digest(stream,'sha256').hexdigest()
         result={'file':self.path.name,'sha256':digest,'frames':frames,'sample_rate':48000,'device':self.device,
                 'spawn_before_monotonic_ns':self.start_min_ns,'spawn_after_monotonic_ns':self.start_max_ns,
                 'first_progress_monotonic_ns':self.first_progress_ns,'stop_requested_monotonic_ns':self.stop_request_ns,
-                'progress_file':self.progress_path.name,'mapping_file':self.mapping_path.name,'clock_note':'spawn and first progress bracket host observation only; buffering and device clock remain uncalibrated'}
+                'progress_file':self.progress_path.name,'progress_sha256':progress_sha,
+                'mapping_file':self.mapping_path.name,'mapping_sha256':mapping_sha,
+                'clock_note':'spawn and first progress bracket host observation only; buffering and device clock remain uncalibrated'}
         (self.evidence/'audio-capture.json').write_text(json.dumps(result,indent=2)+'\n')
         return result

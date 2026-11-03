@@ -125,5 +125,10 @@ timestamps. Speaker behavior also needs independent review; the clocks are
 not synchronized. Historical failed and inconclusive attempts remain part of
 the lineage.
 
+The existing ownership observation forks while capture threads are active.
+Its hard deadline fails closed if the observation wedges. A guard timeout is
+a diagnostic failure, not evidence of a gameplay defect; retain the trace and
+apply the existing attempt and stop rules rather than automatically retrying.
+
 The input transport does not enforce a deadline before delivery. The gameplay
 probe does not claim that host timestamps establish when the guest saw a key.
