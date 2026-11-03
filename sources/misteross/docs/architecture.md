@@ -75,11 +75,14 @@ observations, cancellation, concurrency and owner changes after completion.
 
 Backend/window/profile and both window RTL units enter the sealed board source
 closure. Generated handoff verification checks those installed bytes and the
-four-read issuing contract. The current native boot verifier rejects the new
-profile; its existing 2 MiB diagnostic grant supplies no authority for this
-4 MiB source. Trusted memory handoff, pixel-clock crossing, HDMI output and
-registered Nano admission remain unfinished. Prior physical diagnostics do not
-qualify these changed bytes.
+four-read issuing contract. The dedicated native cold path binds the full
+4 MiB reservation through secure firmware and retains it until reboot.
+The [matched full-width diagnostic](../../../docs/validation/2026-11-04-de25-fullwidth-window/README.md)
+passes one 3,686,400-byte frame, reader/master drain and hardware bridge closure
+on TRWU8CBL. Its FPGA producer uses 256-bit HPS reads and retains both 128-bit
+response halves in the endpoint's drain ledger. Pixel-clock crossing, HDMI,
+buffer reuse and registered Nano admission remain unfinished. Physical evidence
+applies to the exact producer and native sources named in that record.
 
 The separate `prototypes/de25_board_control` overlay builds a private copy of
 an explicitly selected DE25 ZX81 diagnostic producer and adds an Avalon

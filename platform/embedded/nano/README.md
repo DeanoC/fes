@@ -212,6 +212,22 @@ stage, START attempt and latched progress, plus the firmware's stable reader
 status/pending samples. Reporting rereads no reader registers and replays no
 controls. All outcomes keep the reservation pinned until reboot.
 
+The [full-width window trial](../../../docs/validation/2026-11-04-de25-fullwidth-window/README.md)
+passes on TRWU8CBL with FPGA producer `df234b524` and native/firmware source
+`74ef8736a`. The read boundary now uses aligned 256-bit transfers and splits
+each actual response into the endpoint's two 128-bit beats, retaining both
+halves through drain. The actual generated-interconnect model passes a complete
+frame and four held/abort cases with 32-byte HPS transfers enforced.
+
+The physical trial verifies both Ethernet uploads and fresh SD readbacks,
+native package retention, both full-window permission gates and all 3,686,400
+frame bytes. CRC `0xf7429b0e` matches the native CPU publication. Reader/master
+stop completes with two polls, followed by generation-7 bridge closure at
+reset `0xf` and hardware drain mask `0x8`. Independent replay of the complete
+saved capture agrees and rejects six damaged captures. The prior narrow-width
+failure remains retained. This qualifies one frame in this matched diagnostic;
+memory remains pinned and HDMI, reuse and ordinary admission remain open.
+
 The [bounded read candidate](../../../docs/validation/2026-11-02-de25-ddr-read-candidate/README.md)
 passes the complete software/RTL checks and matched cross-build. Its first
 TRWU8CBL attempt verifies both network uploads, then stops after the SPL handoff

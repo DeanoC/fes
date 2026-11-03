@@ -102,8 +102,11 @@ Avalon wrapper and native Go driver using rendered tenfoot frames. Its
 `--project` option additionally checks a current sealed window project's
 captured RTL and live model identity. The board `verify.py --project` dispatches
 to that check for window mode. Default/labelled working-tree runs remain host
-models. The existing native cold firmware rejects this new profile until its
-trusted 4 MiB handoff and physical DDR test are supplied.
+models. The dedicated native cold path supplies its trusted 4 MiB reservation.
+The [matched full-width hardware diagnostic](../../../../docs/validation/2026-11-04-de25-fullwidth-window/README.md)
+passes one complete frame, reader/master drain and bridge closure on TRWU8CBL.
+The reservation remains pinned until reboot; HDMI, reuse and ordinary package
+admission require their own qualification.
 
 The HPS memory port uses 256-bit transfers, as required by the direct-DDR
 [transfer-width contract](https://docs.altera.com/r/docs/814346/26.1/hard-processor-system-technical-reference-manual-agilex-5-socs/fpga-to-sdram-direct-cache-non-allocate).

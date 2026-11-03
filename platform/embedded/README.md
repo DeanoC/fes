@@ -22,6 +22,13 @@ now also passes one fixed 32-byte FPGA read, reader/master drain and bridge
 reclosure. Native tenfoot/input/video, general DDR use and ordinary FES admission
 remain open.
 
+The [full-width window hardware test](../../docs/validation/2026-11-04-de25-fullwidth-window/README.md)
+passes one complete 1280×720 tenfoot frame on TRWU8CBL. The new 256-bit DDR
+boundary delivers all 3,686,400 bytes with the native CPU publication's CRC,
+then completes reader/master drain and bridge reclosure. Its 4 MiB reservation
+stays pinned until reboot. Repeated presentation, buffer reuse, physical HDMI,
+USB hub input and ordinary package admission remain open.
+
 The [contained firmware/RTL prototype](firmware/README.md) prepares a pinned
 TF-A source variant and an FPGA identity/read-drain endpoint. The experimental
 [native endpoint](tamago/nativefabric/README.md) now connects their protocols
