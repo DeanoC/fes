@@ -43,12 +43,12 @@ class RecordedSender:
 class NanoUARTTransferTests(unittest.TestCase):
     def setUp(self):
         fixture=ROOT/'tests/fixtures/nano-kermit-exit'
-        self.body=(fixture/'sender-stdout.bin').read_bytes()
+        self.body=bytes.fromhex((fixture/'sender-stdout.hex').read_text())
         self.observation=json.loads((fixture/'observation.json').read_text())
         self.assertEqual(hashlib.sha256(self.body).hexdigest(),self.observation['sender_stdout_sha256'])
         self.assertEqual(self.body[-2:],bytes.fromhex(self.observation['queued_hex']))
         self.assertEqual(len(self.body),self.observation['generated_bytes'])
-        packets=(fixture/'target-packets.bin').read_bytes()
+        packets=bytes.fromhex((fixture/'target-packets.hex').read_text())
         self.assertEqual(hashlib.sha256(packets).hexdigest(),self.observation['target_packets_sha256'])
         self.assertEqual(packets[-6:],b'\x01#$YB\r')
     def exercise(self,sender,*,owned=lambda:True,limit=None):

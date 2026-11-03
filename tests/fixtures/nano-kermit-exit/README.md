@@ -7,9 +7,10 @@ exited with status zero. The host relay had sent 1,356 of 1,358 bytes and still
 held the final CR/LF pair. It stopped before finishing its queue, so the probe
 has no RAM readback acceptance and made no SD write.
 
-`sender-stdout.bin` contains the complete generated Kermit stream.
-`target-packets.bin` contains the five receiver acknowledgements, without the
-surrounding command/console text. The files contain the fixed test pattern and
+`sender-stdout.hex` contains the complete generated Kermit stream.
+`target-packets.hex` contains the five receiver acknowledgements, without the
+surrounding command/console text. Both packet files use lossless hexadecimal text; their decoded-byte hashes are
+unchanged. The files contain the fixed test pattern and
 protocol metadata; kit claim/session tokens are excluded. `observation.json`
 records exact source and byte identities. The regression replays successful
 sender exit with both queued bytes and unread stdout, and checks failure/claim/
