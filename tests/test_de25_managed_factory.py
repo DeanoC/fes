@@ -180,17 +180,58 @@ class ManagedFactoryTests(unittest.TestCase):
                 self.assertIn('/output:/export' + (':ro' if action == 'factory-verify' else ''), command)
                 self.assertNotIn('--privileged', command)
 
+    def test_verification_cache_separates_recorded_artifact_sets(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); cache = root / 'cache'
+            selections, arguments, snapshots = {}, [], {}
+            for name in ('first', 'second'):
+                output = root / name
+                artifacts, selection = self.fixture(output)
+                (selection[1][0]['directory'] / 'core.rbf').write_bytes(name.encode())
+                (artifacts / 'artifacts.json').write_text(json.dumps({'fixture': name}))
+                (output / 'factory.json').write_bytes(b'unqualified fixture')
+                selections[artifacts] = selection
+                snapshots[output] = {path.relative_to(output): path.read_bytes()
+                                     for path in output.rglob('*') if path.is_file()}
+                arguments.append(SimpleNamespace(action='verify-factory', output=output, cache=cache,
+                    kernel=None, sdk=None, artifacts=None, container_runtime='docker', jobs=2))
+            with mock.patch.object(FACTORY, 'verify_receipt'), \
+                    mock.patch.object(FACTORY, 'selected', side_effect=lambda path: selections[path]), \
+                    mock.patch.object(FACTORY.image, 'snapshot', return_value=('a' * 40, root / 'source')), \
+                    mock.patch.object(FACTORY.shutil, 'disk_usage', return_value=SimpleNamespace(free=40*1024**3)), \
+                    mock.patch.object(FACTORY.image, 'run'), \
+                    mock.patch.object(FACTORY.image_artifacts, 'stage'), \
+                    mock.patch.object(FACTORY.image, 'ensure_builder', return_value=FACTORY.base.sdk_lock()['builder_image']), \
+                    mock.patch.object(FACTORY.image, 'container'):
+                for args in arguments:
+                    FACTORY.publish(args)
+                entries = list((cache / 'package-preflight').glob('*/idle.rbf'))
+                self.assertEqual({path.read_bytes() for path in entries}, {b'first', b'second'})
+                first = next(path for path in entries if path.read_bytes() == b'first')
+                inode = first.stat().st_ino
+                FACTORY.publish(arguments[0])
+                self.assertEqual(first.stat().st_ino, inode)
+                first.chmod(0o600); first.write_bytes(b'corrupt cache')
+                with self.assertRaisesRegex(ValueError, 'cache idle differs'):
+                    FACTORY.publish(arguments[0])
+            for output, expected in snapshots.items():
+                self.assertEqual({path.relative_to(output): path.read_bytes()
+                                  for path in output.rglob('*') if path.is_file()}, expected)
+
     def test_verification_preflight_writes_only_the_external_cache(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); output = root / 'factory'; output.mkdir()
             receipt = output / 'factory.json'; receipt.write_bytes(b'unqualified fixture')
+            artifacts = output / 'artifacts'; artifacts.mkdir()
+            (artifacts / 'artifacts.json').write_bytes(b'recorded artifact fixture')
             before = (receipt.read_bytes(), receipt.stat().st_ino, receipt.stat().st_mtime_ns)
             args = SimpleNamespace(action='verify-factory', output=output, cache=root/'cache',
                                    kernel=None, sdk=None, artifacts=None, container_runtime='docker', jobs=2)
             def preflight(artifacts, fogcast, cache):
                 self.assertEqual(artifacts, output/'artifacts')
-                self.assertEqual(cache, args.cache/'package-preflight')
-                cache.mkdir(); (cache/'fixture-cache').write_bytes(b'cache work')
+                self.assertEqual(cache, args.cache/'package-preflight'/FACTORY.image.digest(
+                    output/'artifacts/artifacts.json'))
+                cache.mkdir(parents=True); (cache/'fixture-cache').write_bytes(b'cache work')
             with mock.patch.object(FACTORY, 'verify_receipt'), \
                     mock.patch.object(FACTORY.image, 'snapshot', return_value=('a'*40, root/'source')), \
                     mock.patch.object(FACTORY.shutil, 'disk_usage', return_value=SimpleNamespace(free=40*1024**3)), \
@@ -200,7 +241,7 @@ class ManagedFactoryTests(unittest.TestCase):
                     mock.patch.object(FACTORY.image, 'ensure_builder', return_value=FACTORY.base.sdk_lock()['builder_image']), \
                     mock.patch.object(FACTORY.image, 'container') as container:
                 FACTORY.publish(args)
-            self.assertEqual([p.name for p in output.iterdir()], ['factory.json'])
+            self.assertEqual({p.name for p in output.iterdir()}, {'factory.json', 'artifacts'})
             self.assertEqual(before, (receipt.read_bytes(), receipt.stat().st_ino, receipt.stat().st_mtime_ns))
             self.assertEqual(container.call_args.args[-2], 'factory-verify')
             for cache in (output, output/'cache', root):

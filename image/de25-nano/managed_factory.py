@@ -318,7 +318,10 @@ def publish(args):
         if not verify:
             (output / LOCK).write_text(runtime_lock(output / 'artifacts'))
         # The real selector must admit the package before any OS or compiler build.
-        preflight = cache / 'package-preflight' if verify else output / 'package-preflight'
+        # Each immutable artifact set keeps its own verified package cache.
+        # Existing entries still refuse changed or substituted payload bytes.
+        preflight = (cache / 'package-preflight' / image.digest(output / 'artifacts/artifacts.json')
+                     if verify else output / 'package-preflight')
         prepare_packages(output / 'artifacts', fogcast, preflight)
         # Immutable output generations share one serialized compiler/base cache.
         # The key inside the volume still separates recipe, SDK and kernel policy.

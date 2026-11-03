@@ -234,6 +234,10 @@ The factory producer now retains its compiler/base-package work across software
 generations in one cache volume per worktree/cache selection. Its base key still
 binds recipe, owner SDK, kernel and new policy fields; complete software inputs
 remain bound to the separate generation key and immutable output receipt.
+Verification scopes its external package-preflight cache by the recorded
+artifact manifest's SHA-256. A new MENU selection gets a separate entry;
+changed cached payload bytes still fail verification. Existing immutable
+factory outputs are never rewritten by this cache preparation.
 Each actual factory build refreshes the prebuilt runtime through Buildroot before
 assembling and checking the image. The
 [incremental factory-base record](validation/2026-11-02-de25-factory-incremental/README.md)
