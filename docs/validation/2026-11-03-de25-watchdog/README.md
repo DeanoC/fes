@@ -1,5 +1,10 @@
 # DE25 native watchdog recovery
 
+The later [managed ZX81 native integration](../2026-11-04-de25-normal-zx81/README.md)
+records confirmed ABI3 Linux, normal software activation, catalog/BASIC/media,
+persistence and ordinary reboot results. The dated trials below retain their
+original failures and evidence limits.
+
 The bottom DE25, serial `TRWU8J8G`, recovered to authenticated AArch64 Linux
 after genuine stock watchdog expiry in two FPGA states. No software reboot
 command, JTAG redelivery or power intervention was used in either expiry test.

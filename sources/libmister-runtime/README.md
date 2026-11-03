@@ -25,8 +25,9 @@ The maintenance CLI uses that same adapter. The computer client reports protocol
 `transport` and `request` phases so an identity failure remains readable by the
 agent after the runtime restores MENU; private DE25 phase names are not wire values.
 The first managed catalog trial exposed the missing address translation and
-invalid error phase. Its MENU recovery and clean service restart passed without
-a reboot; repaired catalog acceptance remains pending a new software bundle.
+invalid error phase. The [managed native integration diagnostic](../../docs/validation/2026-11-04-de25-normal-zx81/README.md)
+now passes ordinary catalog Play/Stop, HID BASIC editing and cassette reload
+on the recorded ABI3 image and software bundles.
 
 DE25 active capabilities include the selected driver's live tape-unit report,
 including its limits and ready/empty state. MENU and idle report no computer
@@ -61,7 +62,9 @@ unexpected process death preserve the configuration; inherited configurations
 remain refused. Whole-load failure bounds and unexpected-death adoption remain
 unfinished. The [dated clean-restart diagnostic](../../docs/validation/2026-11-03-de25-watchdog/README.md#exact-normal-menu-package-and-clean-daemon-replacement)
 passes two production-daemon contexts, each with 90 frames and zero underflows,
-in one native boot. Full managed software/image acceptance remains open.
+in one native boot. The later managed diagnostic also passes normal software
+replacement and ordinary reboot after Stop and from an active session. Full
+normal-kit acceptance and unexpected-death adoption remain open.
 
 The [programmer diagnostic](../../docs/validation/2026-10-31-de25-runtime-programmer/README.md)
 and [shared computer lifecycle diagnostic](../../docs/validation/2026-11-01-de25-shared-lifecycle/README.md)
@@ -103,10 +106,11 @@ are software evidence at their named producers.
 
 The [allocated DMA hardware diagnostic](../../docs/validation/2026-11-01-de25-read-ahead/README.md)
 records three captured frames, full allocation unmap, software reboot and fresh
-reload/repetition on its earlier ABI2 kernel. The new ABI3 factory/MENU path is
-not deployed or hardware-accepted. Normal agent/catalog startup, safe restart,
-physical tape SAVE, broader security/reset/failure fencing and full timing
-acceptance remain open.
+reload/repetition on its earlier ABI2 kernel. The later ABI3 factory/MENU path
+is deployed in the managed native diagnostic linked above. Its catalog, software
+replacement and ordinary reboot results qualify only the named artifacts and
+conditions. Physical tape SAVE, broader security/reset/failure fencing and full
+normal-kit acceptance remain open.
 
 The internal `De25PrControl` diagnostic consumes the generated DE25 PR-control
 register contract through an exclusive injected `Mmio` backend and an injected
@@ -127,9 +131,10 @@ full HID state or CRC/chunked tape delivery. Each command has one atomic GPO
 write; an uncertain completion permanently poisons the client without replay.
 Scripted-register unit tests and the DE25 ZX81 client/RTL co-simulation construct
 it. The latter executes the real client natively and under AArch64 QEMU against
-the real endpoint and machine RTL. It has no physical MMIO backend, daemon
-command, programming profile or production factory path;
-the ARMv7/DE10 guard above remains the production gate.
+the real endpoint and machine RTL. That co-simulation opens no physical device.
+Production DE25 construction uses the shared MMIO adapter and explicit
+driver/profile described above; the maintenance CLI remains separate from
+managed operation.
 
 `make de25-computer` builds an explicit maintenance CLI for an already loaded
 ZX81-HPS image on the FES DE25 rootfs. It uses the existing Linux MMIO adapter
