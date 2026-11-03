@@ -61,5 +61,6 @@ containing SD. Native code freezes the checked selection and maps in a single-us
 load plan, then requires that same selection's current `Handoff` before copying
 into the boot-pinned arena. Fresh secure owner/generation checks bracket
 preparation; storage resume invalidates the handoff before START. The store
-still performs no compatibility decision or FPGA operation. The changed native
-preflight image needs its own physical qualification.
+still performs no compatibility decision or FPGA operation. The
+[matched native preflight hardware sequence](../../../../docs/validation/2026-11-03-de25-stored-preflight/README.md)
+passes both load/Run/return cycles with fresh storage retention between them.

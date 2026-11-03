@@ -9,12 +9,13 @@ admission, arbitrary package selection and physical Tenfoot remain open. The
 updated spare requires its matched `phy-prepare` recovery SOF; retain the old
 FIT/manifest rollback copies and the safe factory card.
 
-The native loader now preflights each retained selection before stopping SD.
+The [native preflight/warm-return hardware sequence](../../../docs/validation/2026-11-03-de25-stored-preflight/README.md)
+passes on TRWU8CBL with the new matched native image. The loader preflights each retained selection before stopping SD.
 Wrong package/map/digest choices leave storage usable. A single-use load plan
 freezes the checked inputs and requires the exact contained selection plus fresh
 secure ownership before a DMA reservation or START. Copies and concurrent uses
-cannot replay the plan. This source-bound preflight has software coverage; its
-changed native image needs a separate matched boot test. It does not enable an
+cannot replay the plan. Both native load/Run/return cycles and fresh SD retention
+between them pass. It does not enable an
 ordinary Nano programming profile or arbitrary package admission.
 
 `uart_transfer.send` supplies a bounded Kermit RAM transfer to an already owned

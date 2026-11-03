@@ -137,8 +137,8 @@ stopped SD provenance before accepting the next activation. This path still
 selects the compiled diagnostic package. The
 [bounded recovery/warm-SD hardware sequence](../../../../docs/validation/2026-11-03-de25-uart-drain-warm-sd/README.md)
 passes two native load/Run/return cycles with fresh SD retention between them.
-Ordinary Nano admission remains open; the new preflight plan needs its own
-matched-image hardware check.
+The [new preflight image's matched hardware sequence](../../../../docs/validation/2026-11-03-de25-stored-preflight/README.md)
+also passes. Ordinary Nano admission remains open.
 
 `HPSContextVerifier.ProbeReader` adds a distinct owned firmware operation for
 the sealed diagnostic's on-chip reader. It checks the same compiled source and
