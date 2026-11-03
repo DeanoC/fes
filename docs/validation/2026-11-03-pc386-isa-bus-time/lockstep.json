@@ -1,0 +1,204 @@
+{
+ "main_9ef805e82_max": {
+  "corpus": {
+   "tests": 1758699,
+   "passed": 1758699,
+   "retired_to_hlt": 1758699,
+   "faults": 147537,
+   "retirements": 3517401,
+   "mmio_runs": 1596334,
+   "mmio_accesses": 522789,
+   "cycles": 174987765,
+   "io_accesses": 106349,
+   "replays": 2357,
+   "interrupts": 2767
+  },
+  "random": {
+   "runs": 32000,
+   "passed": 32000,
+   "retirements": 8347724,
+   "cycles": 115132760,
+   "halts": 9215,
+   "faults": 13487,
+   "retire_limits": 2459,
+   "load_wait_cycles": 35087936,
+   "io_accesses": 79762,
+   "external_interrupts": 700955,
+   "nmis": 282858,
+   "rep_interrupts": 7625,
+   "vector_moved_stops": 1606,
+   "window_code_stops": 72,
+   "code_store_stops": 82,
+   "stray_stops": 2129,
+   "mmio_runs": 27076,
+   "mmio_accesses": 1330726,
+   "replays": 109525,
+   "smc_restarts": 12391,
+   "port0_reads": 2365958,
+   "port0_writes": 3657310
+  },
+  "directed": {
+   "runs": 40,
+   "passed": 40,
+   "failed": 0,
+   "trace_hash": "68d44755edca35dc"
+  },
+  "memory": {
+   "runs": 26,
+   "passed": 26,
+   "failed": 0,
+   "trace_hash": "14650fb0739d0383"
+  },
+  "unbuilt": 50272,
+  "governor": {
+   "preset": 0
+  }
+ },
+ "branch_max": {
+  "corpus": {
+   "tests": 1758699,
+   "passed": 1758699,
+   "retired_to_hlt": 1758699,
+   "faults": 147537,
+   "retirements": 3517401,
+   "mmio_runs": 1596334,
+   "mmio_accesses": 522789,
+   "cycles": 174987765,
+   "io_accesses": 106349,
+   "replays": 2357,
+   "interrupts": 2767
+  },
+  "random": {
+   "runs": 32000,
+   "passed": 32000,
+   "retirements": 8347724,
+   "cycles": 115132760,
+   "halts": 9215,
+   "faults": 13487,
+   "retire_limits": 2459,
+   "load_wait_cycles": 35087936,
+   "io_accesses": 79762,
+   "external_interrupts": 700955,
+   "nmis": 282858,
+   "rep_interrupts": 7625,
+   "vector_moved_stops": 1606,
+   "window_code_stops": 72,
+   "code_store_stops": 82,
+   "stray_stops": 2129,
+   "mmio_runs": 27076,
+   "mmio_accesses": 1330726,
+   "replays": 109525,
+   "smc_restarts": 12391,
+   "port0_reads": 2365958,
+   "port0_writes": 3657310
+  },
+  "directed": {
+   "runs": 40,
+   "passed": 40,
+   "failed": 0,
+   "trace_hash": "68d44755edca35dc"
+  },
+  "memory": {
+   "runs": 26,
+   "passed": 26,
+   "failed": 0,
+   "trace_hash": "14650fb0739d0383"
+  },
+  "unbuilt": 50272,
+  "governor": {
+   "preset": 0
+  },
+  "random_trace_hashes": {
+   "1": "b34127df8735fc17",
+   "2": "cdf6546b55261a27",
+   "3": "2cb725e950c5ae04",
+   "4": "cd69c20775da1b27",
+   "5": "75b4c30a824c4bea",
+   "6": "6efed692168c74a5",
+   "7": "04addb02aca6a423",
+   "8": "a291147352806362",
+   "9": "28971953ff3dbee0",
+   "10": "f0f1418a839d043d",
+   "11": "3abea33e7c67df7a",
+   "12": "2919a66ebe8ebd74",
+   "13": "56cf12da5a972427",
+   "14": "cf9a4081dabef62f",
+   "15": "f3a571c889ce4069",
+   "16": "70ecce568d8bd04b"
+  }
+ },
+ "branch_preset1_286_12": {
+  "corpus": {
+   "tests": 1758699,
+   "passed": 1758699,
+   "retired_to_hlt": 1758699,
+   "faults": 147537,
+   "retirements": 3517401,
+   "mmio_runs": 1596334,
+   "mmio_accesses": 522789,
+   "cycles": 214761555,
+   "io_accesses": 106349,
+   "replays": 2357,
+   "interrupts": 2767
+  },
+  "random": {
+   "runs": 32000,
+   "passed": 32000,
+   "retirements": 8347724,
+   "cycles": 803152306,
+   "halts": 9215,
+   "faults": 13487,
+   "retire_limits": 2459,
+   "load_wait_cycles": 34517595,
+   "io_accesses": 79762,
+   "external_interrupts": 700955,
+   "nmis": 282858,
+   "rep_interrupts": 7625,
+   "vector_moved_stops": 1606,
+   "window_code_stops": 72,
+   "code_store_stops": 82,
+   "stray_stops": 2129,
+   "mmio_runs": 27076,
+   "mmio_accesses": 1330726,
+   "replays": 107864,
+   "smc_restarts": 12390,
+   "port0_reads": 2316066,
+   "port0_writes": 3666764
+  },
+  "directed": {
+   "runs": 40,
+   "passed": 40,
+   "failed": 0,
+   "trace_hash": "68d44755edca35dc"
+  },
+  "memory": {
+   "runs": 26,
+   "passed": 26,
+   "failed": 0,
+   "trace_hash": "14650fb0739d0383"
+  },
+  "unbuilt": 50272,
+  "governor": {
+   "preset": 1
+  },
+  "random_trace_hashes": {
+   "1": "b34127df8735fc17",
+   "2": "cdf6546b55261a27",
+   "3": "2cb725e950c5ae04",
+   "4": "cd69c20775da1b27",
+   "5": "75b4c30a824c4bea",
+   "6": "6efed692168c74a5",
+   "7": "04addb02aca6a423",
+   "8": "a291147352806362",
+   "9": "28971953ff3dbee0",
+   "10": "f0f1418a839d043d",
+   "11": "3abea33e7c67df7a",
+   "12": "2919a66ebe8ebd74",
+   "13": "56cf12da5a972427",
+   "14": "cf9a4081dabef62f",
+   "15": "f3a571c889ce4069",
+   "16": "70ecce568d8bd04b"
+  },
+  "same_as_max_differences": []
+ }
+}
