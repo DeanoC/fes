@@ -158,6 +158,9 @@ uint32_t window_top() { return mixed ? HOLE_HI : MMIO_HI; }  // code stays clear
 constexpr uint32_t EFLAGS_MASK = 0x0003ffff;
 constexpr int EVENT_CYCLES = 20000;  // an RTL retirement or fault must come within this many cycles
                                      // (a REP string of 63 elements, each missing in both caches)
+constexpr int GOVERNED_EVENT_CYCLES = 80000;  // ... under a preset, whose ISA bus time holds a REP string of
+                                              // I/O or VGA memory dwords: the corpus's longest takes 31,668
+                                              // cycles at 286-12 and 30,890 at 486DX2-66 (#1362)
 
 std::string hex(uint64_t value) {
     char text[24];
@@ -613,6 +616,7 @@ public:
     }
 
     enum class Event { Retired, Unimplemented, Shutdown, Timeout };
+    int event_cycles = EVENT_CYCLES;  // GOVERNED_EVENT_CYCLES under a preset
 
     // Run until the next retirement, an exception's or interrupt's delivery
     // included (trace_exception), or stop. In HLT the RTL runs on only while
@@ -623,7 +627,7 @@ public:
         step_writes.clear();
         io.log.clear();
         const uint64_t acks = pic.acks;
-        for (int n = 0; n < EVENT_CYCLES; ++n) {
+        for (int n = 0; n < event_cycles; ++n) {
             if (top.trace_unimplemented || top.shutdown || (top.trace_halt && !pic.intr && !pic.nmi && pic.acks == acks))
                 break;
             if (tick) tick();
@@ -6286,6 +6290,7 @@ int main(int argc, char **argv) {
     rtl.top.gov_preset = uint8_t(env("FES_I386_PRESET", 0));
     rtl.top.gov_frequency = uint16_t(env("FES_I386_FREQUENCY", 0));
     rtl.top.gov_turbo = uint8_t(env("FES_I386_TURBO", 0));
+    if (rtl.top.gov_preset) rtl.event_cycles = GOVERNED_EVENT_CYCLES;
     rtl.length = [&](uint32_t linear) {
         uint8_t bytes[15];
         for (uint32_t n = 0; n < 15; ++n) bytes[n] = linear + n < RAM_BYTES ? rtl.ram[linear + n] : 0xff;
