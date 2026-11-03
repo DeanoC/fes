@@ -24,6 +24,7 @@ public:
     virtual ssize_t Write(int dtbo_fd, const unsigned char*, std::size_t) = 0;
     virtual int Remove(int overlays_fd) = 0;
     virtual int Close(int dtbo_fd) = 0;
+    virtual ssize_t WriteSearch(int fd, const char*, std::size_t) = 0;
 };
 #endif
 

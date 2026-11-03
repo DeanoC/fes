@@ -22,8 +22,10 @@ struct Time final : Clock { std::uint64_t now = 0; std::uint64_t NowMs() const o
 struct Ops final : De25FpgaTestOperations {
     De25FpgaTestPaths& paths; Time& time;
     int created=0, written=0, removed=0, closed=0;
+    int search_writes=0;
     bool short_write=false, error_close=false, late_close=false, unapplied=false;
     bool remove_error=false, create_error=false, open_error=false;
+    bool short_search=false, restore_error=false, changed_search=false;
     Ops(De25FpgaTestPaths& p, Time& t):paths(p),time(t) {}
     std::string Dir() const {return paths.config+"/device-tree/overlays/fes-runtime";}
     int Create(int parent) override {
@@ -36,6 +38,10 @@ struct Ops final : De25FpgaTestOperations {
     ssize_t Write(int fd,const unsigned char* p,std::size_t n) override {
         ++written;
         assert(Get(Dir()+"/status")=="unapplied\n");
+        assert(Get(paths.search)==paths.firmware);
+        assert(Get(paths.firmware+"/fes-runtime-core.rbf")=="immutable test image");
+        struct stat staged{};assert(!stat((paths.firmware+"/fes-runtime-core.rbf").c_str(),&staged));
+        assert((staged.st_mode & 0777)==0444);
         // Model the actual pinned configfs binary attribute: nothing applies
         // at write; its release callback applies the complete buffered blob.
         return write(fd,p,short_write?n-1:n);
@@ -45,6 +51,7 @@ struct Ops final : De25FpgaTestOperations {
         if(late_close)time.now=1000;
         Put(Dir()+"/status",unapplied?"unapplied\n":"applied\n");
         Put(paths.state,unapplied?"write error\n":"operating\n");
+        if(changed_search)Put(paths.search,"/another/loader\n");
         if(error_close) {errno=EINTR;return -1;}
         return 0;
     }
@@ -53,6 +60,11 @@ struct Ops final : De25FpgaTestOperations {
         if(remove_error) {errno=EBUSY;return -1;}
         unlink((Dir()+"/dtbo").c_str());unlink((Dir()+"/status").c_str());
         return unlinkat(parent,"fes-runtime",AT_REMOVEDIR);
+    }
+    ssize_t WriteSearch(int fd,const char* p,std::size_t n) override {
+        ++search_writes;
+        if(restore_error && n==1) {errno=EIO;return -1;}
+        return write(fd,p,short_search && n>1?n-1:n);
     }
 };
 struct Fixture {
@@ -80,6 +92,7 @@ struct Fixture {
 void Positive() {
     Fixture f;auto m=f.Manager();assert(f.Program(*m).error.ok());
     assert(f.ops.closed==1 && !m->Poisoned());
+    assert(Get(f.paths.search)==std::string(1,'\0') && f.ops.search_writes==2);
     assert(Get(f.paths.firmware+"/fes-runtime-core.rbf")=="immutable test image");
     assert(f.Program(*m).error.ok());assert(f.ops.closed==2 && f.ops.removed==1);
     assert(!m->BootHpsDdrLayout());assert(!m->ReleaseHpsDdrPorts(100).ok());
@@ -175,6 +188,7 @@ void Uncertain() {
         Fixture f;auto m=f.Manager();f.ops.short_write=mode==0;f.ops.error_close=mode==1;f.ops.late_close=mode==2;f.ops.unapplied=mode==3;
         auto r=f.Program(*m);assert(!r.error.ok() && r.mutation_attempted && m->Poisoned());
         assert(f.ops.written==1 && f.ops.closed==1 && f.ops.removed==0);f.Preserved();
+        assert(Get(f.paths.search)==f.paths.firmware);
         f.clock.now=0;r=f.Program(*m);assert(!r.error.ok() && !r.mutation_attempted && f.ops.written==1);
         m.reset();auto fresh=f.Manager();r=f.Program(*fresh);assert(!r.error.ok() && !r.mutation_attempted && f.ops.removed==0);
     }
@@ -193,13 +207,39 @@ void BeforeMutation() {
         if(mode==7)Put(f.paths.record,"{}");
         if(mode==8)Put(f.paths.notes,"different running kernel");
         if(mode==9)assert(!chmod(f.paths.record.c_str(),0666));
-        if(mode==10) {assert(!mkdir((f.paths.firmware+"/updates").c_str(),0700));Put(f.paths.firmware+"/updates/fes-runtime-core.rbf","wrong image");}
+        if(mode==10)assert(!chmod(f.paths.firmware.c_str(),0755));
         auto r=f.Program(*m);assert(!r.error.ok() && !r.mutation_attempted);
         assert(f.ops.written==0 && f.ops.closed==0);
-        if(mode==5 || mode==6)assert(!Exists(f.paths.firmware+"/fes-runtime-core.rbf") && !Exists(f.ops.Dir()));
+        if(mode==5 || mode==6) {
+            assert(!Exists(f.paths.firmware+"/fes-runtime-core.rbf") && !Exists(f.ops.Dir()));
+            assert(Get(f.paths.search)==std::string(1,'\0'));
+        }
         if(mode==4)assert(Get(f.root+"/input.rbf")=="immutable test image");
     }
     std::cout<<"preflight/staging failures make no programming call and clean only new resources\n";
+}
+void FirmwareSearchLifecycle() {
+    {
+        Fixture f;auto m=f.Manager();f.ops.short_search=true;
+        auto r=f.Program(*m);assert(!r.error.ok() && !r.mutation_attempted && !m->Poisoned());
+        assert(!f.ops.created && !f.ops.written && Get(f.paths.search)==std::string(1,'\0'));
+        assert(!Exists(f.paths.firmware+"/fes-runtime-core.rbf"));
+    }
+    for(int mode=0;mode<3;++mode) {
+        Fixture f;auto m=f.Manager();
+        f.ops.restore_error=mode!=2;f.ops.create_error=mode==0;f.ops.changed_search=mode==2;
+        auto r=f.Program(*m);assert(!r.error.ok() && r.mutation_attempted==(mode!=0) && m->Poisoned());
+        assert(Exists(f.paths.firmware+"/fes-runtime-core.rbf"));
+        if(mode==2)assert(Get(f.paths.search)=="/another/loader\n");
+        const int writes=f.ops.written; m.reset();
+        auto fresh=f.Manager();r=f.Program(*fresh);assert(!r.error.ok() && !r.mutation_attempted && f.ops.written==writes);
+    }
+    {
+        Fixture f;auto m=f.Manager();
+        assert(!rmdir(f.paths.firmware.c_str()));assert(!symlink(f.root.c_str(),f.paths.firmware.c_str()));
+        auto r=f.Program(*m);assert(!r.error.ok() && !r.mutation_attempted && !f.ops.search_writes);
+    }
+    std::cout<<"private writable staging, exclusive search ownership, restoration and retained uncertain lookup pass\n";
 }
 void ExistingFailure() {
     Fixture f;auto m=f.Manager();assert(f.Program(*m).error.ok());
@@ -221,6 +261,6 @@ void ProfilesAndLease() {
 }
 int main(int argc,char** argv) {
     if(argc==2) {const auto v=De25ProgrammingOverlay();std::ofstream f(argv[1],std::ios::binary);f.write(reinterpret_cast<const char*>(v.data()),v.size());assert(f.good());return 0;}
-    Positive();AllocatedScanoutProfile();Uncertain();BeforeMutation();ExistingFailure();ProfilesAndLease();
+    Positive();AllocatedScanoutProfile();Uncertain();BeforeMutation();FirmwareSearchLifecycle();ExistingFailure();ProfilesAndLease();
     std::cout<<"de25_fpga_manager_test: passed\n";
 }

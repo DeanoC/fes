@@ -42,7 +42,7 @@ runtime, daemon, profile table or network API.
 The caller serializes physical transitions, quiesces its previous core and
 retains the existing DE25 maintenance lock. A duplicate descriptor holds that
 same lease. The adapter requires the FES owner board/kernel, root-only owner
-node and an empty firmware search override. The image assembler certifies the
+node and an initially empty firmware search override. The image assembler certifies the
 exact retained-programming source patch and extracts the linked kernel notes;
 the runtime verifies the actual running note digest against that receipt.
 An older kernel with the same release string cannot satisfy this contract.
@@ -55,6 +55,17 @@ opens it. A private overlay name and exclusive staging file refuse other
 loaders and symlink/pre-existing staging collisions. The pinned configfs binary
 attribute buffers writes and invokes programming on release: the adapter closes
 it once, then checks deadline, `applied` and `operating`.
+
+The staging directory is `/run/fes-de25-firmware`, owned by root with mode0700;
+no factory-root write is required. After closing the retained firmware copy,
+the adapter sets and verifies the kernel firmware search override to this
+directory, ahead of the standard `/lib/firmware` locations. Checks during
+submission require this context's exact override. A successful completion or
+failure before submission restores and verifies the empty value. Failed
+override restoration poisons the context; uncertain submission retains the
+override and file so a late firmware request can still resolve its bytes.
+Destruction does not clear that retained lookup. Foreign overrides and
+inherited overlay/staging files remain inadmissible to a new context.
 
 Within a successful context, replacement verifies the retained outgoing overlay
 bytes/status before removing it, independently of the incoming profile. Any uncertainty after removal or submission

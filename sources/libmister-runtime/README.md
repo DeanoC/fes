@@ -23,6 +23,12 @@ profile: `de25-hps-first-v1` is the BRAM computer, and `de25-linux-menu-v1` is t
 allocated MENU application. It retains the actual outgoing overlay bytes before
 MENU/computer replacement; an inherited or modified overlay is refused. Firmware
 comes from the retained Artifact and is closed before the kernel reads it.
+Staging uses the root-only `/run/fes-de25-firmware` directory so the factory
+root remains read-only. Under the existing exclusive lease, programming
+temporarily selects that directory with the kernel firmware search override;
+an unrelated override is refused. Successful completion and failures before
+submission restore the empty override. Uncertain submission retains its lookup
+path and staged bytes for a potentially late kernel request.
 Partial, failed or late programming poisons the context and retains the
 configuration. Software deadlines cannot abort an opaque configfs/SDM call.
 Safe process restart/adoption and whole-load failure bounds remain unfinished.

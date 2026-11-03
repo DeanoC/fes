@@ -120,9 +120,9 @@ public:
     std::vector<unsigned char> configured_overlay;
     Fd lease;
     Error lease_error;
-    bool poisoned = false, configuration_known = false, kernel_known = false;
+    bool poisoned = false, configuration_known = false, kernel_known = false, search_owned = false;
     mutable std::mutex mutex;
-    std::string config = "/sys/kernel/config", firmware = "/lib/firmware";
+    std::string config = "/sys/kernel/config", firmware = "/run/fes-de25-firmware";
     std::string state = "/sys/class/fpga_manager/fpga0/state";
     std::string search = "/sys/module/firmware_class/parameters/path";
     std::string record = "/usr/share/fes/kernel-modules.json", notes = "/sys/kernel/notes";
@@ -203,16 +203,33 @@ public:
             if (Sha256Hex(hash.Final()) != expected) return Failure("running kernel differs from programming receipt");
             kernel_known = true;
         }
-        if (!Exact(search, "")) return Failure("firmware search override is not empty");
-        // The normal firmware loader checks these locations before the base
-        // directory. Do not allow an old copy to shadow the retained artifact.
-        for (const auto& prefix : {"/updates/6.12.11-fes-de25-owner/", "/updates/", "/6.12.11-fes-de25-owner/"}) {
-            struct stat other{};
-            if (!lstat((firmware + prefix + kFirmware).c_str(), &other) ||
-                (errno != ENOENT && errno != ENOTDIR))
-                return Failure("higher-priority firmware path is occupied or inaccessible");
-        }
+        if (!Exact(search, search_owned ? firmware : ""))
+            return Failure("firmware search override differs from this programming context");
         return {};
+    }
+    Error SetSearch(const std::string& value) {
+        Fd fd(open(search.c_str(), O_WRONLY | O_TRUNC | O_CLOEXEC | O_NOFOLLOW));
+        if (fd.n < 0) return SystemError("open firmware search override");
+        // The kernel string parameter retains a newline as part of the path.
+        // A one-byte NUL clears it; a zero-byte sysfs write invokes no setter.
+        const std::string line = value.empty() ? std::string(1, '\0') : value;
+        ssize_t count;
+#if defined(MISTER_RUNTIME_TESTING)
+        if (test) count = test->WriteSearch(fd.n, line.data(), line.size());
+        else
+#endif
+        count = write(fd.n, line.data(), line.size());
+        const int closing = fd.n; fd.n = -1;
+        const int closed = close(closing);
+        if (count != ssize_t(line.size()) || closed || !Exact(search, value))
+            return Failure("firmware search override write/verification failed");
+        return {};
+    }
+    Error RestoreSearch() {
+        if (!Exact(search, firmware)) return Failure("owned firmware search override changed");
+        auto error = SetSearch("");
+        if (error.ok()) search_owned = false;
+        return error;
     }
     int Create(int fd) {
 #if defined(MISTER_RUNTIME_TESTING)
@@ -269,15 +286,20 @@ public:
         if (!Text(state, &manager) || (manager != "unknown" && manager != "operating"))
             return {Failure("FPGA manager is not in a known programming state"), false};
         bool attempted = false, copied = false, created = false;
-        if (!Testing() && mkdir(firmware.c_str(), 0755) && errno != EEXIST)
+        if (mkdir(firmware.c_str(), 0700) && errno != EEXIST)
             return {SystemError("create firmware directory"), false};
         Fd fw(open(firmware.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
-        if (fw.n < 0) return {SystemError("open firmware directory"), false};
+        struct stat directory{};
+        if (fw.n < 0 || fstat(fw.n, &directory) || !S_ISDIR(directory.st_mode) ||
+            directory.st_uid != geteuid() || (directory.st_mode & 07777) != 0700)
+            return {Failure("firmware staging directory ownership/permissions differ"), false};
         auto fail = [&](Error e) -> NativeResult {
             if (attempted) poisoned = true;
             else {
+                if (search_owned && !RestoreSearch().ok()) poisoned = true;
+                if (poisoned) return {e, false};
                 if (created && Remove(overlays.n)) poisoned = true;
-                if (copied && unlinkat(fw.n, kFirmware, 0)) poisoned = true;
+                if (!poisoned && copied && unlinkat(fw.n, kFirmware, 0)) poisoned = true;
             }
             return {e, attempted};
         };
@@ -323,6 +345,16 @@ public:
         const int copy_fd = output.n; output.n = -1;
         // request_firmware may deny reading a file that still has a writer.
         if (close(copy_fd)) return fail(SystemError("close firmware copy"));
+        error = Check(deadline); if (!error.ok()) return fail(error);
+        // firmware_class checks its explicit path before the immutable
+        // /lib/firmware search paths. Keep the override and retained bytes
+        // available if submission becomes uncertain or completes late.
+        error = SetSearch(firmware);
+        if (!error.ok()) {
+            if (!SetSearch("").ok()) poisoned = true;
+            return fail(error);
+        }
+        search_owned = true;
         if (Create(overlays.n)) return fail(SystemError("create configuration"));
         created = true;
         Fd dir(openat(overlays.n, kOverlay, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
@@ -342,6 +374,7 @@ public:
         error = Check(deadline); if (!error.ok()) return fail(error);
         if (!Exact(config + "/device-tree/overlays/" + kOverlay + "/status", "applied") || !Exact(state, "operating"))
             return fail(Failure("configuration completion/status is uncertain"));
+        error = RestoreSearch(); if (!error.ok()) return fail(error);
         configuration_known = true;
         configured_overlay = blob;
         return {{}, true};

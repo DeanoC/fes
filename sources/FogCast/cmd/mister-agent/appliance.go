@@ -52,10 +52,6 @@ func loadApplianceUpdate(coordinator *agent.Coordinator, cleanup func(context.Co
 		guardedReboot, board)
 }
 
-func openApplianceUpdate(factoryPath, mountInfoPath, root, bootPath string, coordinator *agent.Coordinator, cleanup, reboot func(context.Context) error) (*applianceupdate.Service, error) {
-	return openApplianceUpdateForBoard(factoryPath, mountInfoPath, root, bootPath, coordinator, cleanup, reboot, release.Board)
-}
-
 func openApplianceUpdateForBoard(factoryPath, mountInfoPath, root, bootPath string, coordinator *agent.Coordinator, cleanup, reboot func(context.Context) error, board string) (*applianceupdate.Service, error) {
 	info, err := os.Lstat(factoryPath)
 	if errors.Is(err, os.ErrNotExist) {

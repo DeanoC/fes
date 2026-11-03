@@ -153,7 +153,7 @@ func run(ctx context.Context, args []string, out, log io.Writer) error {
 }
 
 // imageSoftwareBase reads the software base record the image's supervisor
-// enforces. openRelease has already matched the image to its manifest.
+// enforces. openReleaseForBoard has already matched the image to its manifest.
 func imageSoftwareBase(image io.ReaderAt) (software.Compatibility, error) {
 	var base software.Compatibility
 	raw, err := ext4image.ReadFile(image, "/etc/fes/software-base.json", 64<<10)
@@ -269,10 +269,6 @@ func readReleaseManifestForBoard(dir string, log io.Writer, board string) (appli
 		fmt.Fprintf(log, "ignoring unknown release manifest fields: %s (manifest_format %s)\n", strings.Join(ignored, ","), manifest.ManifestFormat)
 	}
 	return manifest, nil
-}
-
-func openRelease(dir string, log io.Writer) (appliance.Manifest, *os.File, error) {
-	return openReleaseForBoard(dir, log, appliance.Board)
 }
 
 func openReleaseForBoard(dir string, log io.Writer, board string) (appliance.Manifest, *os.File, error) {
