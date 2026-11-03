@@ -392,9 +392,26 @@ func TestWindowReaderActualAvalon(t *testing.T) {
 			r.limits.MaxPolls = 4
 			r.limits.Now = func() time.Time { return time.Unix(100, 0) }
 			p.must(t, "mode %x", test.mode)
+			var reads, writes uint32
+			r.io = windowHookIO{p: p,
+				afterRead:  func(uint32, uint32) error { reads++; return nil },
+				afterWrite: func(uint32, uint32) error { writes++; return nil },
+			}
 			s, err := r.ReadFrame(context.Background(), p.crc(0))
 			if !errors.Is(err, ErrReaderLimit) || s != (FrameRead{}) {
 				t.Fatal(s, err)
+			}
+			var failure *ReaderFailure
+			if !errors.As(err, &failure) || failure.Operation != "frame" || failure.Stage != "poll-limit" || failure.Limit != "polls" ||
+				failure.Polls != 4 || failure.SamplePoll != 4 || failure.Reads != reads || failure.Writes != writes || writes != 4 ||
+				!failure.StartAttempted || !failure.SnapshotComplete || failure.Flags != windowBusy ||
+				failure.Sample.Generation != 1 || failure.Sample.Cookie != 1 ||
+				failure.Sample.RequestedBytes == 0 || failure.Sample.DeliveredBytes != 0 {
+				t.Fatalf("missing cached failed-frame progress: %+v", failure)
+			}
+			calls, now := p.calls, p.now
+			if fmt.Sprint(err) != ErrReaderLimit.Error() || p.calls != calls || p.now != now {
+				t.Fatal("formatting failure evidence performed I/O or changed the error")
 			}
 			p.retired(t, r)
 			control := embeddedcontrol.Control{IO: p}
@@ -415,6 +432,37 @@ func TestWindowReaderActualAvalon(t *testing.T) {
 			}
 			r = p.open(t, 2)
 			p.frame(t, r, 1, 1)
+		})
+	}
+	for _, failAt := range []uint32{1, 2} {
+		t.Run(fmt.Sprintf("partial-snapshot-%d", failAt), func(t *testing.T) {
+			p := newWindowProbe(t)
+			r := p.open(t, 1)
+			p.must(t, "mode 2")
+			r.limits.Now = func() time.Time { return time.Unix(100, 0) }
+			cause := errors.New("snapshot read return uncertain")
+			var snapshots uint32
+			r.io = windowHookIO{p: p, afterRead: func(offset, value uint32) error {
+				if offset == windowCRC {
+					snapshots++
+					if snapshots == failAt {
+						return cause
+					}
+				}
+				return nil
+			}}
+			result, err := r.ReadFrame(context.Background(), p.crc(0))
+			var failure *ReaderFailure
+			if result != (FrameRead{}) || !errors.Is(err, cause) || !errors.As(err, &failure) ||
+				failure.Stage != "poll-snapshot" || failure.Polls != failAt || failure.SamplePoll != failAt-1 ||
+				failure.SnapshotComplete != (failAt == 2) {
+				t.Fatalf("partial snapshot changed the last complete sample: %+v, %v", failure, err)
+			}
+			if failAt == 1 && failure.Sample != (FrameRead{}) {
+				t.Fatal("partial sample escaped", failure.Sample)
+			}
+			p.retired(t, r)
+			p.drain(t, 1, 43)
 		})
 	}
 	for _, name := range []string{"cancel-after-start", "uncertain-start-write", "late-start-return", "backwards-clock"} {
@@ -451,6 +499,15 @@ func TestWindowReaderActualAvalon(t *testing.T) {
 			s, err := r.ReadFrame(ctx, p.crc(0))
 			if !errors.Is(err, want) || s != (FrameRead{}) || p.starts != 1 {
 				t.Fatal("uncertain START was replayed or published", s, err, p.starts)
+			}
+			var diagnostic *ReaderFailure
+			if !errors.As(err, &diagnostic) || diagnostic.Stage != "start" || !diagnostic.StartAttempted ||
+				diagnostic.SnapshotComplete || diagnostic.Sample != (FrameRead{}) || diagnostic.Polls != 0 {
+				t.Fatalf("uncertain START fabricated a result: %+v", diagnostic)
+			}
+			if name == "late-start-return" && (diagnostic.Limit != "timeout" || diagnostic.Elapsed < 2*time.Second) ||
+				name == "backwards-clock" && (diagnostic.Limit != "clock" || diagnostic.Elapsed >= 0) {
+				t.Fatal("deadline and clock failures were conflated", diagnostic.Limit, diagnostic.Elapsed)
 			}
 			p.retired(t, r)
 			p.must(t, "tick 2000")

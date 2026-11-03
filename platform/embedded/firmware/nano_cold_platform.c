@@ -290,6 +290,13 @@ static int cold_master_quiesce(void *context,uint32_t producers)
     int error=fes_nano_fabric_stop(&fabric_stop);
     if (fabric_reported_generation!=fabric_generation) {
         fabric_reported_generation=fabric_generation;
+        if (error) {
+            const struct fes_nano_fabric_progress *first=&fabric_stop.first_observed,*last=&fabric_stop.last_observed;
+            NOTICE("FES_NANO_READER_STOP samples=%u last_poll=%u first_status=%x first_pending=%x last_status=%x last_pending=%x generation=%llu request_generation=%llu cookie=%llu ack_generation=%llu ack_cookie=%llu receipt=absent\n",
+                fabric_stop.observations,fabric_stop.observed_poll,first->status,first->pending,last->status,last->pending,
+                (unsigned long long)last->generation,(unsigned long long)last->request_generation,
+                (unsigned long long)last->cookie,(unsigned long long)last->ack_generation,(unsigned long long)last->ack_cookie);
+        }
         NOTICE("FES_NANO_MASTER_STOP status=%d owner=%llx generation=%llu reset=%x reader_reads=%u reader_polls=%u disable=%u probe_polls=%u cancel=%u complete=%u data=%s\n",
         error,(unsigned long long)fes_nano_owned_bridges.state.owner,
         (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,

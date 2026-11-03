@@ -60,6 +60,22 @@ type FrameRead struct {
 	Cookie, RequestedBytes, DeliveredBytes, CRC32 uint32
 }
 
+// ReaderFailure preserves only observations already made by a failed operation.
+// Sample is a diagnostic snapshot, never a successful FrameRead or a drain
+// receipt. Inspecting or formatting the error performs no clock or device I/O.
+type ReaderFailure struct {
+	Cause                            error
+	Operation, Stage, Limit          string
+	Polls, Reads, Writes, SamplePoll uint32
+	StartAttempted, SnapshotComplete bool
+	Flags                            uint32
+	Sample                           FrameRead
+	Elapsed                          time.Duration
+}
+
+func (f *ReaderFailure) Error() string { return f.Cause.Error() }
+func (f *ReaderFailure) Unwrap() error { return f.Cause }
+
 // WindowReader has one exclusive owner for an already enabled reader generation.
 // The platform supplies ordered, full-width, synchronous IO protected by its
 // bridge/ownership checks. It keeps the entire memory window pinned on every
@@ -79,9 +95,10 @@ type readerOperation struct {
 	r           *WindowReader
 	ctx         context.Context
 	start, last time.Time
+	failure     ReaderFailure
 }
 
-func (r *WindowReader) begin(ctx context.Context) (*readerOperation, error) {
+func (r *WindowReader) begin(ctx context.Context, operation string) (*readerOperation, error) {
 	if ctx == nil {
 		return nil, ErrReaderArgument
 	}
@@ -96,7 +113,13 @@ func (r *WindowReader) begin(ctx context.Context) (*readerOperation, error) {
 		return nil, ErrReaderRetired
 	}
 	now := r.limits.Now()
-	return &readerOperation{r: r, ctx: ctx, start: now, last: now}, nil
+	return &readerOperation{r: r, ctx: ctx, start: now, last: now, failure: ReaderFailure{Operation: operation, Limit: "none"}}, nil
+}
+
+func (o *readerOperation) failed(cause error) error {
+	f := o.failure
+	f.Cause = cause
+	return &f
 }
 func (o *readerOperation) finish(err error) {
 	if err != nil {
@@ -109,7 +132,13 @@ func (o *readerOperation) check() error {
 		return err
 	}
 	now := o.r.limits.Now()
-	if now.Before(o.last) || now.Sub(o.start) >= o.r.limits.Timeout {
+	o.failure.Elapsed = now.Sub(o.start)
+	if now.Before(o.last) {
+		o.failure.Limit = "clock"
+		return ErrReaderLimit
+	}
+	if o.failure.Elapsed >= o.r.limits.Timeout {
+		o.failure.Limit = "timeout"
 		return ErrReaderLimit
 	}
 	o.last = now
@@ -119,6 +148,7 @@ func (o *readerOperation) read(offset uint32) (uint32, error) {
 	if err := o.check(); err != nil {
 		return 0, err
 	}
+	o.failure.Reads++
 	v, err := o.r.io.Read32(offset)
 	if err != nil {
 		return 0, err
@@ -129,6 +159,7 @@ func (o *readerOperation) write(offset, value uint32) error {
 	if err := o.check(); err != nil {
 		return err
 	}
+	o.failure.Writes++
 	if err := o.r.io.Write32(offset, value); err != nil {
 		return err
 	}
@@ -199,6 +230,10 @@ func (o *readerOperation) snapshot() (FrameRead, uint32, error) {
 			return s, flags, err
 		}
 	}
+	o.failure.SnapshotComplete = true
+	o.failure.SamplePoll = o.failure.Polls
+	o.failure.Sample = s
+	o.failure.Flags = flags
 	if flags & ^uint32(63) != 0 {
 		return s, flags, ErrReaderProtocol
 	}
@@ -220,15 +255,22 @@ func NewWindowReader(ctx context.Context, registers embeddedcontrol.IO, want emb
 		return nil, ErrReaderArgument
 	}
 	r := &WindowReader{io: registers, want: want, generation: generation, frameBytes: geometry.RowBytes * geometry.Rows, limits: limits, nextCookie: 1}
-	o, err := r.begin(ctx)
+	o, err := r.begin(ctx, "open")
 	if err != nil {
 		return nil, err
 	}
-	defer func() { o.finish(err) }()
+	defer func() {
+		if err != nil {
+			err = o.failed(err)
+		}
+		o.finish(err)
+	}()
+	o.failure.Stage = "owner"
 	if err = o.owner(); err != nil {
 		return nil, err
 	}
 	values := []uint32{geometry.Base, geometry.Bytes, geometry.RowBytes, geometry.Stride, geometry.Rows, 0x31435746, 1}
+	o.failure.Stage = "geometry"
 	for i, want := range values {
 		var got uint32
 		got, err = o.read(windowBase + uint32(i)*4)
@@ -241,12 +283,14 @@ func NewWindowReader(ctx context.Context, registers embeddedcontrol.IO, want emb
 	}
 	var s FrameRead
 	var flags uint32
+	o.failure.Stage = "snapshot"
 	if s, flags, err = o.snapshot(); err != nil {
 		return nil, err
 	}
 	if flags&windowReady == 0 || flags&(windowBusy|windowFault|windowDisabled) != 0 || s.Generation >= generation && s.Cookie != 0 {
 		return nil, ErrReaderProtocol
 	}
+	o.failure.Stage = "verify"
 	if err = o.owner(); err != nil {
 		return nil, err
 	}
@@ -262,7 +306,7 @@ func (r *WindowReader) ReadFrame(ctx context.Context, expectedCRC uint32) (resul
 	if r == nil {
 		return result, ErrReaderArgument
 	}
-	o, err := r.begin(ctx)
+	o, err := r.begin(ctx, "frame")
 	if err != nil {
 		return result, err
 	}
@@ -270,13 +314,17 @@ func (r *WindowReader) ReadFrame(ctx context.Context, expectedCRC uint32) (resul
 		o.finish(err)
 		if err != nil {
 			result = FrameRead{}
+			err = o.failed(err)
 		}
 	}()
+	o.failure.Stage = "cookie"
 	if r.nextCookie == 0 {
+		o.failure.Limit = "cookie"
 		return result, ErrReaderLimit
 	}
 	cookie := r.nextCookie
 	r.nextCookie++
+	o.failure.Stage = "owner"
 	if err = o.owner(); err != nil {
 		return result, err
 	}
@@ -284,15 +332,23 @@ func (r *WindowReader) ReadFrame(ctx context.Context, expectedCRC uint32) (resul
 		{windowExpectLo, uint32(r.generation)}, {windowExpectLo + 4, uint32(r.generation >> 32)},
 		{windowCookie, cookie}, {windowCommand, 1},
 	} {
+		o.failure.Stage = "prepare"
+		if entry.offset == windowCommand {
+			o.failure.Stage = "start"
+			o.failure.StartAttempted = true
+		}
 		if err = o.write(entry.offset, entry.value); err != nil {
 			return result, err
 		}
 	}
 	for poll := uint32(0); poll < r.limits.MaxPolls; poll++ {
+		o.failure.Polls = poll + 1
+		o.failure.Stage = "poll-owner"
 		if err = o.owner(); err != nil {
 			return result, err
 		}
 		var flags uint32
+		o.failure.Stage = "poll-snapshot"
 		if result, flags, err = o.snapshot(); err != nil {
 			return FrameRead{}, err
 		}
@@ -308,6 +364,7 @@ func (r *WindowReader) ReadFrame(ctx context.Context, expectedCRC uint32) (resul
 			if result.CRC32 != expectedCRC {
 				return FrameRead{}, ErrReaderData
 			}
+			o.failure.Stage = "complete-owner"
 			if err = o.owner(); err != nil {
 				return FrameRead{}, err
 			}
@@ -316,10 +373,13 @@ func (r *WindowReader) ReadFrame(ctx context.Context, expectedCRC uint32) (resul
 		if flags&windowBusy == 0 {
 			return FrameRead{}, ErrReaderProtocol
 		}
+		o.failure.Stage = "yield"
 		r.limits.Yield()
 		if err = o.check(); err != nil {
 			return FrameRead{}, err
 		}
 	}
+	o.failure.Stage = "poll-limit"
+	o.failure.Limit = "polls"
 	return FrameRead{}, ErrReaderLimit
 }

@@ -70,6 +70,11 @@ static int reader_stop(struct fes_nano_fabric_stop *s)
         int error=stable(s,&v);
         if (error<0) return error;
         if (error) { s->io.wait(s->io.context);continue; }
+        struct fes_nano_fabric_progress observed={
+            pair(&v,GENERATION_LO),pair(&v,REQUEST_LO),pair(&v,COOKIE_LO),
+            pair(&v,ACK_LO),pair(&v,ACK_COOKIE_LO),v.words[STATUS],v.words[PENDING]};
+        if (!s->observations) s->first_observed=observed;
+        s->last_observed=observed;s->observations++;s->observed_poll=s->polls;
         if (!s->disable_issued) {
             /* A never-enabled or already-drained reader needs no command.
              * Every mutable word must agree; reset/status alone is insufficient. */

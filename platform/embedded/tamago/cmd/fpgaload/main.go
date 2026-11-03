@@ -244,6 +244,13 @@ func main() {
 		limits := scanout.ReaderLimits{Timeout: time.Second, MaxPolls: 64, Now: time.Now, Yield: func() { time.Sleep(time.Millisecond) }}
 		observation, err := v.ProbeWindowReader(context.Background(), control, decoded(expectedWindowReadMap, 8192), retained, limits)
 		if err != nil {
+			var failure *scanout.ReaderFailure
+			if errors.As(err, &failure) {
+				fmt.Printf("FES_NATIVE_FPGA_WINDOW_FAILURE operation=%s stage=%s limit=%s polls=%d reads=%d writes=%d start_attempted=%t snapshot_complete=%t sample_poll=%d flags=%x sample_generation=%d sample_cookie=%d requested=%d delivered=%d crc32=%08x elapsed_us=%d memory_retained=1 runtime_admission=unavailable\n",
+					failure.Operation, failure.Stage, failure.Limit, failure.Polls, failure.Reads, failure.Writes, failure.StartAttempted,
+					failure.SnapshotComplete, failure.SamplePoll, failure.Flags, failure.Sample.Generation, failure.Sample.Cookie,
+					failure.Sample.RequestedBytes, failure.Sample.DeliveredBytes, failure.Sample.CRC32, failure.Elapsed/time.Microsecond)
+			}
 			panic(err)
 		}
 		fmt.Printf("FES_NATIVE_FPGA_WINDOW_READ PASS package_id=%s build_id=%s owner=%x source_generation=%d closed_generation=%d reader_generation=%d cookie=%d bytes=%d crc32=%08x frame_sha256=%x access_map_sha256=%x data_closed=1 memory_retained=1 runtime_admission=unavailable\n",

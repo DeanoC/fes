@@ -79,6 +79,17 @@ class WindowTraceTests(unittest.TestCase):
         self.assertFalse(result['window_read']['memory_released'])
         with self.assertRaises(ValueError):self.decode(self.raw,window_read=None)
 
+    def test_cached_failure_details_never_upgrade_a_complete_trace(self):
+        failures=[
+            'NOTICE:  FES_NANO_READER_STOP samples=128 last_poll=128 first_status=1 first_pending=1 last_status=2 last_pending=1 generation=1 request_generation=1 cookie=7 ack_generation=0 ack_cookie=0 receipt=absent\n',
+            'FES_NATIVE_FPGA_WINDOW_FAILURE operation=frame stage=poll-limit limit=polls polls=64 reads=1229 writes=4 start_attempted=true snapshot_complete=true sample_poll=64 flags=2 sample_generation=1 sample_cookie=1 requested=4096 delivered=0 crc32=00000000 elapsed_us=64000 memory_retained=1 runtime_admission=unavailable\n']
+        for failure in failures:
+            for capture in (self.prefix+failure+self.suffix,self.raw+failure):
+                with self.subTest(failure=failure,capture_suffix=capture.endswith(failure)):
+                    result=self.decode(capture)
+                    self.assertFalse(result['complete'])
+                    self.assertFalse(result['core_load_acceptance'])
+
     def test_required_events_cannot_be_removed_or_repeated_and_prefixes_stay_incomplete(self):
         lines=self.raw.splitlines(keepends=True)
         for i,line in enumerate(lines):

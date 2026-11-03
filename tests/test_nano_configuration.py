@@ -305,6 +305,10 @@ class NanoConfigurationTests(unittest.TestCase):
                         self.assertIn('FES_TEST_WINDOW_FRAME bytes=3686400 crc32=9597d203',result.stdout)
                     if mutation in (160,164,167):
                         self.assertRegex(result.stdout,r'FES_NANO_MASTER_STOP status=0 .* disable=1 .* cancel=1 complete=1 data=active')
+                        self.assertNotIn('FES_NANO_READER_STOP ',result.stdout)
+                    if mutation==165:
+                        self.assertRegex(result.stdout,r'FES_NANO_READER_STOP samples=[1-9][0-9]* last_poll=128 first_status=1 first_pending=[0-9a-f]+ last_status=2 last_pending=[0-9a-f]+ generation=1 request_generation=1 cookie=7 ack_generation=0 ack_cookie=0 receipt=absent')
+                        self.assertRegex(result.stdout,r'FES_NANO_MASTER_STOP status=-110 .* reader_polls=128 disable=1 .* complete=0 data=active')
                     if mutation in (160,164):
                         self.assertRegex(result.stdout,r'FES_NANO_WINDOW_CLOSURE owner=[0-9a-f]+ generation=7 reset=f hardware_drained=8 data_remained_contained=0 producers_quiescent=1 fabric_acknowledged=0')
                     elif mutation==168:

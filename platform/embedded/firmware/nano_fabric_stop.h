@@ -16,6 +16,12 @@ struct fes_nano_fabric_stop_io {
     void (*wait)(void *);
 };
 struct fes_nano_fabric_snapshot { uint32_t words[22]; };
+/* Cached stable reader samples for failure diagnostics only. These do not
+ * authorize closure or substitute for the successful complete-master receipt. */
+struct fes_nano_fabric_progress {
+    uint64_t generation, request_generation, cookie, ack_generation, ack_cookie;
+    uint32_t status, pending;
+};
 struct fes_nano_fabric_stop {
     struct fes_nano_fabric_stop_io io;
     struct fes_nano_probe_stop probe;
@@ -24,6 +30,8 @@ struct fes_nano_fabric_stop {
     unsigned qualified, attempted, failed, done, disable_issued, polls, reads;
     int first_error;
     struct fes_nano_fabric_snapshot last;
+    struct fes_nano_fabric_progress first_observed, last_observed;
+    unsigned observations, observed_poll;
 };
 #ifdef __cplusplus
 extern "C" {

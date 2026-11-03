@@ -72,6 +72,12 @@ and performs the separate endpoint and all-master drain. A `FrameRead` observes
 delivery into the FPGA diagnostic CRC sink; it grants no buffer reuse, vblank
 or HDMI authority. `Surface.Present` keeps its existing CPU-copy semantics.
 
+Failed open/frame operations can return `ReaderFailure`, retaining their stage,
+attempted read/write counts, START attempt and last complete latched sample.
+`errors.Is` still identifies the cause. The ordinary result stays empty on every
+failure. Inspecting this cached diagnostic performs no device or clock access;
+its counters and CRC grant no completion, closure or memory reuse authority.
+
 The Nano source producer exposes this mode as `hps-ddr-window`, with a distinct
 diagnostic profile and a fixed 4 MiB bus window. The ordinary fixed-reader boot
 constructor continues to reject it. Explicit `fpgaload --window-memory` binds

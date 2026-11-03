@@ -41,6 +41,29 @@ int main() {
             Fixture f(fault);require(fes_nano_fabric_stop(&f.stop)<0,"invalid window stop accepted: "+fault);
             f.retired();cases++;
         }
+        for(const std::string fault:{"held","no-response"}) {
+            Fixture f(fault);
+            require(fes_nano_fabric_stop(&f.stop)==-110,"stalled reader lost timeout");
+            require(f.stop.observations && f.stop.observed_poll==128 &&
+                f.stop.first_observed.status==FES_EMBEDDED_STATUS_ENABLED &&
+                f.stop.last_observed.status==FES_EMBEDDED_STATUS_DRAINING &&
+                f.stop.last_observed.generation==1 && f.stop.last_observed.request_generation==1 &&
+                f.stop.last_observed.cookie==7 && !f.stop.last_observed.ack_generation &&
+                !f.stop.last_observed.ack_cookie,"missing cached stable failure samples");
+            require(f.stop.last_observed.pending==(fault=="held"?0x10000U:1U),
+                "cached sample did not distinguish held address and missing response");
+            for(auto word:f.stop.last.words)require(!word,"diagnostic sample invented a drain receipt");
+            auto samples=f.stop.observations;auto pending=f.stop.last_observed.pending;
+            f.retired();
+            require(f.stop.observations==samples && f.stop.last_observed.pending==pending,
+                "inspecting retired stop changed its failure samples");cases++;
+        }
+        for(const std::string fault:{"identity","unstable","owner-after-read"}) {
+            Fixture f(fault);
+            require(fes_nano_fabric_stop(&f.stop)<0 && !f.stop.observations,
+                "partial, unstable or unowned reads fabricated a diagnostic sample");
+            f.retired();cases++;
+        }
         for(unsigned point=1;point<=88;point++) {
             Fixture f;f.fail_read=point;
             require(fes_nano_fabric_stop(&f.stop)==-7 && f.reads==point,"window lost a failed read");f.retired();cases++;
