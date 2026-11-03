@@ -3,9 +3,10 @@
   "source_capture_sha256": "f80b7bbe0257e2540b0d5c0de0661360953eed1203a8f0d04688ef1211a3a9da",
   "source_record": "docs/validation/2026-11-03-de25-selected-upload/README.md",
   "files": {
-    "stop.txt": "2b5847d8054e98e88c0b145bbeeda20fd326530fdfd0ebadc90bc90f754d3933",
-    "launch.txt": "d344a54280d70ac3e000f16a128afc9823b370a4f48dde3953ec5a70b9da6d6d",
+    "stop.txt": "d2d3d291038f7732b7c78ea081c640a3e561f14cbd4330a7727fc79c5a1add61",
+    "launch.txt": "3c6db6c2fdf4de41db4c35d0129b23274d2999a05719e4f40d89e53786588311",
     "expected.json": "790b8b145d25f9de20bf362a1ef58576cc43503fdd40c231661581b685be93e8",
-    "boot.txt": "0e6f159eeaad50065368a8e1157923053f32defdff384893a6fb738db8351f2c"
-  }
+    "boot.txt": "0c03a25fdd0249fda35b120b54a204d81900d5157e1c53a80b935c2a5afec250"
+  },
+  "normalization": "CR bytes removed for LF text fixtures; byte-exact original retained under the source capture record"
 }

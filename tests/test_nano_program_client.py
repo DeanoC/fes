@@ -84,6 +84,11 @@ class ProgramClientTests(unittest.TestCase):
                 self.assertTrue(client.retired);count=len(model.commands)
                 with self.assertRaises(ValueError):client.request('return')
                 self.assertEqual(len(model.commands),count)
+    def test_real_uart_crlf_boot_and_reply_are_accepted(self):
+        model=Model()
+        initial=BOOT.replace(b'\n',b'\r\n')+model.bytes(model.ready).replace(b'\n',b'\r\n')
+        checked=startup(initial,SPEC['build_id'],SPEC['owner_seed'],SPEC['atf'],SPEC['package'],[p['identity'] for p in PROGRAMS])
+        self.assertEqual(checked['reply']['state'],'ready')
     def test_invalid_local_calls_never_issue_a_command_or_retire_client(self):
         model=Model();client=model.client()
         for command,reject in [({'op':'launch','owner':OWNER,'generation':0,'program':0},True),({'op':'return','owner':OWNER,'generation':0},False)]:
