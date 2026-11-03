@@ -115,6 +115,7 @@ main_report:
         ld c,0
         call print_uint
         ld (iy+Y_OFLAGS),1<<OF_REPORT
+        call sync_keys          ; a key still down is not typed over the report
         jr edit_main
 
 ; ---------------------------------------------------------------------

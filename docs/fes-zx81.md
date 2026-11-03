@@ -136,7 +136,10 @@ core's `.p` traps, and a loaded program keeps its FAST/SLOW state and autorun
 line. The FAST statement and `$0F23` clear the saved SLOW request; the internal
 `$02E7` entry preserves it. FAST returns only once the frame being drawn has
 ended, NEW goes FAST before it clears memory, and the editor restores SLOW
-after an error, including one while a line is being entered.
+after an error, including one while a line is being entered. A key that is
+still down when a report appears or `INPUT` starts is not typed, and `PAUSE`
+ends only on a key pressed during it. `FRAMES` keeps bit 15 set while bits 0
+to 14 count down.
 
 No Sinclair ROM image or file is used to build it. A few short sequences are
 nevertheless byte-for-byte the same as in Sinclair's ROM, because the display
@@ -153,6 +156,8 @@ ordinary programs, strings and slicing, numeric arrays, `FOR`/`GOSUB`, `RND`,
 - `SIN`, `COS`, `TAN`, `ASN`, `ACS`, `ATN`, `LN`, `EXP`, `SQR`, non-integer
   `**` and machine code calling the `RST 28` calculator stop with report A.
 - No string arrays; a `FOR` loop that should run zero times runs once.
+- A variable name ends at a space, so `LET MY VAR=1` gives report C.
+- `PAUSE 0` returns at once.
 - No up/down listing cursor keys (use `LIST n` and EDIT); no E-notation input
   (output is supported); `POKE` takes 0 to 255 only.
 - No syntax check on entry: errors are reported when the line runs.
@@ -164,11 +169,16 @@ ordinary programs, strings and slicing, numeric arrays, `FOR`/`GOSUB`, `RND`,
 machine RTL with 1 KiB and 16 KiB RAM and on the 2 KiB NTSC TS1000. On each it
 checks the display geometry against the original, key rollover, the display
 mode after a line-entry error, DF_CC after `PRINT AT`, `INPUT` into an existing
-variable over two rows, repeated `RETURN` without `GOSUB`, and `INKEY$` with no
-key and with Q held. It enters and runs programs, saves and loads them in both
-FAST and SLOW modes through the tape trap, scrolls the screen, and exercises
-the FAST/SLOW end-of-frame loop. When the FogCast starter tapes are in the
-checkout, it also loads and lists two `.p` files made by other tools. A tape
+variable over two rows, repeated `RETURN` without `GOSUB`, `INKEY$` with no
+key and with Q held, a BREAK held past its report, `PAUSE` started with the
+`RUN` NEWLINE still down, `SCROLL` with `DF_SZ` 0 and `DIM A (5)`. It enters
+and runs programs, saves and loads them in both FAST and SLOW modes through the
+tape trap, scrolls the screen, and exercises the FAST/SLOW end-of-frame loop.
+On 1 KiB it checks that a `DIM` that runs out of memory reports 4. On 16 KiB it
+checks EDIT of a line longer than the screen, 20 STOP/CONT reports in SLOW
+mode, and a NEWLINE held through an autorun LOAD. When the FogCast starter
+tapes are in the checkout, it also loads and lists two `.p` files made by other
+tools. A tape
 saved by Sinclair's own ROM is still a manual check (the `load` mode of
 `cores/fes-zx81/sim/openrom_tb.cpp`): the repository has no tape saved that
 way. `tests/test_zx81_openrom.py` checks the assembler, including that it

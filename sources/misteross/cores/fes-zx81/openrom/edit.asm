@@ -241,18 +241,35 @@ get_key:
         or 0x80
         ret
 
-; BC = a new key-down state from the frame keyboard reads. A held key
-; repeats after 24 frames, then every 4.
-get_key_raw:
+; One frame. BC = the keys down, MEM updated; NZ when keys went down that
+; were not down the frame before.
+key_frame:
         call wait_frame
         ld bc,(LAST_K)
         ld hl,(MEM)
         ld (MEM),bc
         ld a,c
         inc a
-        jr z,get_key_raw        ; no key down
+        ret z                   ; no key down
         and a
         sbc hl,bc
+        ret
+
+; MEM = the keys down now, so a key still held from before (BREAK, the
+; NEWLINE of RUN) is not a new press. It repeats only after 256 frames.
+sync_keys:
+        call wait_frame         ; a fresh scan: FAST mode leaves LAST_K old
+sync_keys_now:
+        ld hl,(LAST_K)
+        ld (MEM),hl
+        ld (iy+Y_DEBOUNCE),0
+        ret
+
+; BC = a new key-down state from the frame keyboard reads. A held key
+; repeats after 24 frames, then every 4. No key counts down the same way:
+; DECODE rejects the $FFFF it returns then.
+get_key_raw:
+        call key_frame
         ld a,24
         jr nz,.new
         dec (iy+DEBOUNCE-0x4000)

@@ -482,6 +482,43 @@ void test_slow_stop_continue(Machine &m) {
     std::cout << "STOP/CONT: 20 SLOW reports preserved ERR_SP\n";
 }
 
+// PAUSE ends only on a key pressed after it starts (the NEWLINE of RUN is
+// still down then), and that key is not typed over the report. SCROLL with
+// DF_SZ 0 keeps its new row out of the variables. DIM skips spaces.
+void test_pause_scroll_dim(Machine &m) {
+    type(m, "A NL");
+    type(m, "1 0 M 4 0 0 0 0 NL");
+    type(m, "2 0 P SHIFT+P X SHIFT+P NL");
+    type(m, "R NL");
+    m.run_frames(100);
+    require(row_text(m, 0).empty() && row_text(m, 23).empty(),
+            "PAUSE ended on the NEWLINE that ran it");
+    m.dut.keyboard = key_state({"Q"});
+    const bool paused = wait_for_row(m, 23, "0/20", 200);
+    m.run_frames(12);
+    m.dut.keyboard = 0xffffffffffull;
+    m.run_frames(6);
+    require(paused && row_text(m, 0) == "X", "a key pressed during PAUSE did not end it");
+    require(row_text(m, 23) == "0/20", "the key that ended PAUSE was typed over the report");
+    std::cout << "PAUSE: held NEWLINE ignored, Q ended it, report kept\n";
+
+    type(m, "A NL");
+    type(m, "1 0 O 1 6 4 1 8 SHIFT+. 0 NL");
+    type(m, "2 0 L A SHIFT+L 5 NL");
+    type(m, "3 0 B NL");
+    type(m, "4 0 P SHIFT+NL C 0 SHIFT+. 0 SHIFT+X A NL");
+    type(m, "5 0 O 1 6 4 1 8 SHIFT+. 2 NL");
+    type(m, "R NL");
+    const bool scrolled = wait_for_row(m, 23, "0/50");
+    std::cout << "SCROLL with DF_SZ 0: '" << row_text(m, 0) << "' report '" << row_text(m, 23) << "'\n";
+    require(scrolled && row_text(m, 0) == "5", "SCROLL with DF_SZ 0 lost the variables");
+
+    type(m, "A NL");
+    type(m, "1 0 D A SP SHIFT+I 5 SHIFT+O NL");
+    type(m, "R NL");
+    require(wait_for_row(m, 23, "0/10"), "DIM A (5) did not run");
+}
+
 void test_16k_regressions(Machine &m) {
     require(m.word(0x4004) == 0x8000, "16 KiB regressions need the 16 KiB ZX81 profile");
     m.acknowledge_keys = true;
@@ -613,6 +650,11 @@ int main(int argc, char **argv) {
             if (!row_text(m, r).empty()) std::cout << row_text(m, r) << '\n';
         return 0;
     }
+    if (mode == "pause") {
+        m.acknowledge_keys = true;
+        test_pause_scroll_dim(m);
+        return 0;
+    }
     if (mode == "lowmem") {
         test_low_memory_report(m);
         return 0;
@@ -628,7 +670,7 @@ int main(int argc, char **argv) {
         test_overlong_edit_line(m);
         return 0;
     }
-    require(mode == "check", "usage: geometry | check | load TAPE.p | lowmem | regress | overlong | shot OUT.pgm KEYS");
+    require(mode == "check", "usage: geometry | check | load TAPE.p | lowmem | pause | regress | overlong | shot OUT.pgm KEYS");
 
     // Boot: the same frame and picture position as the Sinclair ROM on this
     // core. PAL: 310 lines, the K cursor's cell at lines 243-250, pixels
@@ -736,9 +778,11 @@ int main(int argc, char **argv) {
         m.run_frames(1);
         stopped = m.peek(0x4000) == 0x0c;    // report D
     }
+    m.run_frames(12);                        // SPACE still down at the report
     m.dut.keyboard = 0xffffffffffull;
     m.run_frames(6);
     require(stopped, "BREAK did not stop the PRINT AT loop");
+    require(row_text(m, 23) == "D/20", "SPACE held after BREAK was typed over the report");
 
     // INPUT into an existing variable while the input line takes a second
     // row. On a collapsed display that row deletes upper row 21 and moves
@@ -886,6 +930,7 @@ int main(int argc, char **argv) {
               << row_text(m, 23) << "'\n";
     require(row_text(m, 21) == "30" && row_text(m, 20) == "29", "SCROLL lost the screen");
     require(row_text(m, 23) == "0/40", "the SCROLL loop did not end with 0/40");
+    test_pause_scroll_dim(m);
 
     // Exercise the display start/stop boundary repeatedly. The original
     // frame-sampling order could wait forever after the NMI stopped frames.
@@ -920,6 +965,6 @@ int main(int argc, char **argv) {
     if (ramtop == 0x8000) test_16k_regressions(m);
 
     std::cout << "FES ZX81 open ROM: display, keyboard and rollover, edit, PRINT AT, INPUT, RETURN, INKEY$, "
-                 "FAST/SLOW SAVE/LOAD, SCROLL and NMI-boundary loop pass\n";
+                 "FAST/SLOW SAVE/LOAD, SCROLL, PAUSE, DIM and NMI-boundary loop pass\n";
     return 0;
 }

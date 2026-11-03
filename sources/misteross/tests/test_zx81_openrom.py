@@ -47,9 +47,25 @@ class AssemblerTest(unittest.TestCase):
     def test_invalid_forms_are_rejected(self):
         for line in ("jr p,x", "jr m,x", "jr pe,x", "jr po,x",
                      "out (0xfe),b", "in b,(0xfe)",
-                     "rst 1", "rst 0x40", "bit 8,a", "set 9,(hl)"):
+                     "rst 1", "rst 0x40", "bit 8,a", "set 9,(hl)",
+                     "ld (hl),(hl)", "ld (ix+1),(hl)", "ld (ix+1),(iy+1)",
+                     "ld h,ixl", "ld ixh,l", "ld ixh,(hl)", "ld ixh,(ix+1)",
+                     "ld ixh,iyl"):
             with self.subTest(line=line), self.assertRaises(z80asm.AsmError):
                 assemble(f"        org 0\n        {line}\nx:      ret\n")
+
+    def test_index_loads_that_exist_still_encode(self):
+        image = assemble("""
+        org 0
+        ld ixh,a
+        ld ixl,ixh
+        ld iyh,b
+        ld h,(ix+1)
+        ld (iy+2),l
+        ld (hl),a
+        ld e,(hl)
+        """)
+        self.assertEqual(image[:14].hex(), "dd67" "dd6c" "fd60" "dd6601" "fd7502" "77" "5e")
 
     def test_index_displacement_is_one_expression(self):
         image = assemble("""

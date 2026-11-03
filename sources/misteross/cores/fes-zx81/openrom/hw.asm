@@ -238,6 +238,7 @@ frame_tasks:
         ld (LAST_K),hl
         ld hl,(FRAMES)
         dec hl
+        set 7,h                 ; bit 15 stays 1; bits 0-14 count down
         ld (FRAMES),hl
         ld b,VSYNC_PAD          ; hold vertical sync for a few lines
 .pad:   djnz .pad

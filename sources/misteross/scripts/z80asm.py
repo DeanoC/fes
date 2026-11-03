@@ -320,6 +320,21 @@ class Assembler:
         d8, s8 = self.r8(dst), self.r8(src)
         if d8 and s8:
             (pd, cd, dd), (ps, cs, ds_) = d8, s8
+            # ld (hl),(hl) is HALT, and an index prefix turns H, L and (HL) in
+            # the same instruction into its halves or (IX+d), so ld h,ixl,
+            # ld ixh,(ix+1) and ld ixh,iyl do not exist either.
+            if cd == cs == 6:
+                bad = True
+            elif pd is not None and ps is not None:
+                bad = pd != ps or 6 in (cd, cs)
+            elif pd is not None:
+                bad = cd != 6 and cs in (4, 5, 6)
+            elif ps is not None:
+                bad = cs != 6 and cd in (4, 5, 6)
+            else:
+                bad = False
+            if bad:
+                raise AsmError(f'ld {dst},{src} cannot be encoded')
             pre = pd if pd is not None else ps
             disp = dd if dd is not None else ds_
             return self.prefixed(pre, [0x40 | cd << 3 | cs], disp)

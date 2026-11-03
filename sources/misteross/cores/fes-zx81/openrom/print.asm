@@ -368,24 +368,29 @@ cls:    call collapsed
         jr print_at
 
 ; SCROLL the upper screen up one line; print position to its bottom line.
+; The new row goes in before the NEWLINE that ends the row above, so with
+; DF_SZ 0 (no lower screen) it is still inside the display file, not at VARS.
 scroll: ld a,24
         sub (iy+Y_DF_SZ)
+        ret z                   ; no upper screen
+        ret c
         ld b,a
         ld c,0
         call print_at
         call row_addr           ; the first row below the upper screen
+        dec hl
         ld bc,1
         call collapsed
         jr c,.one
         ld c,33
-.one:   call make_room          ; a blank row there
-.fz:    dec c
-        jr z,.nl
+.one:   call make_room          ; NEWLINE and a blank row there
+        ld (hl),C_NL
+.fz:    inc hl
+        dec c
+        jr z,.top
         ld (hl),0
-        inc hl
         jr .fz
-.nl:    ld (hl),C_NL
-        ld hl,(D_FILE)          ; then the top row goes
+.top:   ld hl,(D_FILE)          ; then the top row goes
         inc hl
         push hl
         call row_len

@@ -113,12 +113,11 @@ st_pause:
         ld a,b
         or c
         ret z
+        call sync_keys_now      ; only a key pressed during the pause ends it
 .l:     push bc
-        call wait_frame
+        call key_frame
         pop bc
-        ld a,(LAST_K)
-        inc a
-        ret nz
+        ret nz                  ; a key went down
         bit 7,b
         jr nz,.l
         dec bc
@@ -568,8 +567,9 @@ one_letter:
         jr nc,nonsense
         call scan_name
         dec b
-        ret z
-        jr nonsense
+        jr nz,nonsense
+        rst 0x18                ; the next character, past spaces
+        ret
 
 ; HL -> FOR entry. Carry if the value has passed the limit.
 for_test:
@@ -728,6 +728,7 @@ st_input:
         ld hl,(S_POSN)          ; the upper screen keeps its print position
         push hl
         set OF_INPUT,(iy+Y_OFLAGS)
+        call sync_keys          ; a key already down is not typed
         call edit_reset
         call edit_line
         res OF_INPUT,(iy+Y_OFLAGS)
@@ -822,9 +823,6 @@ after_load:
         call tape_mode
         call wait_frame         ; refresh the key scan after tape mode resumes
         call wait_frame         ; ignore the stale state from the transition frame
-        ld hl,(LAST_K)
-        ld (MEM),hl
-        ld (iy+Y_DEBOUNCE),24
         ld hl,(NXTLIN)          ; autostart: NXTLIN inside the program
         ld de,PROG
         call cp_hl_de
