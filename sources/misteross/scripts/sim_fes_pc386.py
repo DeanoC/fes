@@ -41,6 +41,13 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            and agree with memory. Every check must print ok. With --cpu rtl,
            the RTL must run both images without an oracle step or a stop;
            writes a20-rtl/.
+  c2xx     runs cores/fes-pc386/sim/c2xx_test.asm (C2TEST.COM) at the
+           FreeDOS prompt (#1330): INT 15h C205h with a key or an aux byte
+           already in the 8042's output buffer, one with IRQ1 masked, and
+           C205h again and again while the bench types keys held 8 ms. Every
+           reset must return, a waiting key must reach INT 16h, and every
+           typed key must arrive in order. With --cpu rtl, the RTL must run it
+           without an oracle step or a stop; writes c2xx-rtl/.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
   game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
@@ -84,6 +91,7 @@ Examples:
   python3 scripts/sim_fes_pc386.py --suite boot --image games --cpu rtl --type 'mem|' --expect 'high memory area'
   python3 scripts/sim_fes_pc386.py --suite rtl-stops
   python3 scripts/sim_fes_pc386.py --suite a20 --download
+  python3 scripts/sim_fes_pc386.py --suite c2xx --cpu rtl
   python3 scripts/sim_fes_pc386.py --suite sound --download
   python3 scripts/sim_fes_pc386.py --suite game --game ultima6
   python3 scripts/sim_fes_pc386.py --suite game --game wolf3d --cpu rtl
@@ -703,6 +711,34 @@ def run_a20(args, linked: list[Path]) -> dict:
     return {'runs': runs, 'checks': checks, 'failures': failures}
 
 
+# C2TEST.COM's checks in the order it runs them, and the keys the suite types
+# after the command (the program's typed_keys), each held 8 ms as system_tb
+# holds them.
+C2XX_CHECKS = ('stale-key', 'stale-aux', 'masked-key', 'typing', 'DONE')
+C2XX_KEYS = 'abcdefghijklmnopq'
+
+
+def run_c2xx(args, linked: list[Path]) -> dict:
+    """C2TEST.COM at the FreeDOS prompt: INT 15h C2xx with keyboard bytes at the 8042."""
+    images = firmware.images(args.download, args.jobs)
+    testbench = machine_testbench(args, linked)
+    suite = 'c2xx' + ('-rtl' if args.cpu == 'rtl' else '')
+    disk = fixture_with(args, suite, 'c2xx_test.asm', 'C2TEST.COM')
+    print(f'Running C2TEST.COM on the {args.cpu} CPU', flush=True)
+    run = run_machine(testbench, suite, ['--disk', str(disk), '--limit-seconds', str(args.limit_seconds),
+                                         '--type', f'c2test|{C2XX_KEYS}', '--key-gap', '0.008',
+                                         '--expect', 'C2 DONE ok', '--cpu', args.cpu], images)
+    lines = [entry['text'] for entry in run['debug'] if entry['port'] == '0e9']
+    run['lines'] = lines
+    failures = run['failures'] + [line for line in lines if not line.endswith(' ok')]
+    names = [line.split()[1] for line in lines if line.startswith('C2 ')]
+    if names != list(C2XX_CHECKS):
+        failures.append(f'C2TEST.COM ran {names}, expected {list(C2XX_CHECKS)}')
+    if args.cpu == 'rtl':
+        failures += rtl_failures(run, 'C2xx run')
+    return {'run': run, 'checks': lines, 'failures': failures}
+
+
 def run_bench(args, name: str, top: str, rtl: tuple[Path, ...], testbench: Path) -> dict:
     """A PASS/FAIL bench without the oracle."""
     binary = verilate(args.verilator, name, top, rtl, testbench, [], args.jobs)
@@ -1306,7 +1342,7 @@ def run_game(args, linked: list[Path]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--suite', choices=('devices', 'storage', 'audio', 'opl2', 'benches', 'boot', 'rtl-stops',
-                                            'a20', 'sound', 'game', 'vga', 'system', 'governor', 'all'),
+                                            'a20', 'c2xx', 'sound', 'game', 'vga', 'system', 'governor', 'all'),
                         default='all',
                         help='simulation suite to run')
     parser.add_argument('--download', action='store_true', help='fetch Bochs, dev86, FreeDOS and NASM if missing')
@@ -1332,8 +1368,8 @@ def main() -> int:
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 2, 16))
     args = parser.parse_args()
-    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20'):
-        parser.error('--cpu rtl runs the boot, game and a20 suites only')
+    if args.cpu == 'rtl' and args.suite not in ('boot', 'game', 'a20', 'c2xx'):
+        parser.error('--cpu rtl runs the boot, game, a20 and c2xx suites only')
     if args.image != 'boot' and args.suite != 'boot':
         parser.error('--image is supported by the boot suite only')
     if (args.preset or args.frequency or args.turbo) and not (
@@ -1354,7 +1390,8 @@ def main() -> int:
             else (args.suite,)
         for suite in suites:
             args.limit_seconds = limit_seconds or (14 if suite == 'sound' else 8 if suite in ('boot', 'governor') else
-                                                   2 if suite == 'rtl-stops' else 10 if suite == 'a20' else 12)
+                                                   2 if suite == 'rtl-stops' else
+                                                   10 if suite in ('a20', 'c2xx') else 12)
             args.type = typed or ('sound|' if suite == 'sound' else 'dir|')
             args.expect = expect or ('SOUND DONE' if suite == 'sound' else 'bytes free')
             if suite == 'devices':
@@ -1379,6 +1416,8 @@ def main() -> int:
                 report = run_rtl_stops(args, oracle.link_inputs(args.jobs, args.download))
             elif suite == 'a20':
                 report = run_a20(args, oracle.link_inputs(args.jobs, args.download))
+            elif suite == 'c2xx':
+                report = run_c2xx(args, oracle.link_inputs(args.jobs, args.download))
             else:
                 run = run_boot if suite == 'boot' else run_vga
                 report = run(args, oracle.link_inputs(args.jobs, args.download))

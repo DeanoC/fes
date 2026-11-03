@@ -19,8 +19,8 @@
 // prompt it types as the runtime sends a keyboard, KeyboardHid rows (each
 // key held 8 ms, 8 ms apart, Shift in the same change): ECHO M5:Kb!, whose
 // output must be M5:Kb!, then INPUT, which runs the disk's INPUT.COM
-// (input_test.asm), with Enter held until it reports MOUSE READY (#1330).
-// Then it sends ten
+// (input_test.asm). Enter's break reaches the 8042 during INPUT.COM's INT 15h
+// C205h, which must still report MOUSE READY (#1330). Then it sends ten
 // MouseRelative packets 20 ms apart (moves of 127 and -128, button presses
 // and releases on zero moves) and taps Up, F1, Delete, Shift+A and q; the
 // guest's sums must be the host's, with Y counted up, and its key codes the
@@ -468,14 +468,9 @@ private:
                       run_until(2, [&] { return screen_has(ECHO_TEXT) && last_row() == prompt; });
         check(echoed, std::string("the typed echo printed ") + ECHO_TEXT);
         if (reason != "prompt") return;
-        // Enter stays down until INPUT.COM has its mouse: the BIOS's INT 15h
-        // C2xx services spin with interrupts off if a key byte reaches the
-        // 8042 during them (#1330). Its init takes far less than the 500 ms
-        // typematic delay.
-        bool typed = type("input");
-        if (typed) key_rows(0x28, false, true);
-        bool ready = typed && run_until(3, [&] { return debug_seen("MOUSE READY"); });
-        if (typed) key_rows(0x28, false, false);
+        // Enter is tapped like every other key, so its break reaches the 8042
+        // while INPUT.COM's INT 15h C205h runs (#1330).
+        bool ready = type("input\n") && run_until(3, [&] { return debug_seen("MOUSE READY"); });
         check(ready, "INPUT.COM enabled the mouse through INT 15h C2xx");
         if (!ready) return;
         for (const auto &packet : PACKETS) {

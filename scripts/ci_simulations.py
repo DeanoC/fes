@@ -33,7 +33,7 @@ TARGETS = {
     'riscv': ('sim-fes-riscv',),
     'pcxt': ('sim-fes-pcxt', 'sim-fes-pcxt-fdc', 'sim-fes-pcxt-write',
              'sim-fes-pcxt-media', 'sim-fes-pcxt-mailbox', 'sim-fes-pcxt-dos'),
-    'pc386': ('sim-fes-pc386', 'sim-fes-pc386-fesenv', 'sim-fes-pc386-a20'),
+    'pc386': ('sim-fes-pc386', 'sim-fes-pc386-fesenv', 'sim-fes-pc386-a20', 'sim-fes-pc386-c2xx'),
 }
 
 # Slow families' PR-tier targets (each about 2.5 minutes or less on a runner).

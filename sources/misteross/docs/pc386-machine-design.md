@@ -487,13 +487,16 @@ The aux device accumulates them and reports standard 3-byte PS/2 packets.
   accumulated. The runtime splits large moves into packets of −128 to 127 per
   axis; the device's accumulator is wider than a packet, so a negated −128
   arrives as +128.
-- **Limitation of the locked BIOS** ([#1330](https://github.com/DeanoC/fes/issues/1330)):
-  its INT 15h C2xx services wait for the mouse's bytes with interrupts off
-  and read the command byte without first emptying the output buffer, so a
-  key byte that reaches the 8042 during one of them hangs the guest.
-  CuteMouse uses these services, and so does a game's INT 33h reset. A real
-  8042 has the same window; production BIOSes disable the keyboard
-  interface around these sequences.
+- **The BIOS's INT 15h C2xx services** wait for the mouse's bytes with
+  interrupts off. CuteMouse uses them, and so does a game's INT 33h reset.
+  Upstream they read the command byte without first emptying the output
+  buffer, so a key byte that reached the 8042 during one of them hung the
+  guest. A real 8042 has the same window. As production BIOSes do, the
+  locked BIOS now runs each call with the keyboard interface disabled (ADh)
+  and enables it again (AEh) as it returns
+  ([firmware](../cores/fes-pc386/firmware/README.md#local-changes),
+  [#1330](https://github.com/DeanoC/fes/issues/1330)). A key pressed meanwhile
+  waits in the keyboard's FIFO.
 
 ### A20 and CPU reset
 
@@ -1181,6 +1184,7 @@ Alternatives not taken, kept as later options:
 | --- | --- | --- |
 | POST | PIC, PIT, DMA and 8042 init; keyboard self-test; CMOS memory size; option ROM scan at C0000; ATA detect by IDENTIFY | Present |
 | POST A20 | A20 gated off through the 8042 and port 92h before INT 19h | Local patch ([#1386](https://github.com/DeanoC/fes/issues/1386)) |
+| INT 15h C2xx keyboard interface | Disabled (ADh) around each mouse exchange, the output buffer emptied first, enabled (AEh) on return | Local patch ([#1330](https://github.com/DeanoC/fes/issues/1330)) |
 | INT 10h | Modes 03h and 13h, font load, DAC and palette calls, cursor, scrolling. Games then reprogram registers for mode Y themselves | VGABIOS |
 | INT 13h | AH=00h–08h, 0Ah–0Dh, 10h, 11h, 15h; EDD 41h–48h, which FreeDOS uses for LBA | Present (`int13_harddisk`, EDD cases) |
 | INT 15h | 24h A20 (through the 8042 and port 92h; local patch), 87h block move and 88h extended size for HIMEM, E801h and E820h, C0h configuration, C2h PS/2 pointing device for CuteMouse, 86h wait (counts port 61h bit 4), 83h event wait (RTC periodic interrupt), 4Fh keyboard intercept | Present |

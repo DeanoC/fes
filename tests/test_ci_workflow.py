@@ -81,7 +81,7 @@ class ParentWorkflowTests(unittest.TestCase):
             '      - name: Simulate selected core scenarios\n', 1)[0]
         condition = ' '.join(step.split('if: >-', 1)[1].split('run:', 1)[0].split())
         self.assertEqual(condition, "matrix.target == 'sim-fes-pcxt-dos' || matrix.target == 'sim-fes-pc386-fesenv' "
-                                    "|| matrix.target == 'sim-fes-pc386-a20'")
+                                    "|| matrix.target == 'sim-fes-pc386-a20' || matrix.target == 'sim-fes-pc386-c2xx'")
         self.assertIn('sudo apt-get update && sudo apt-get install -y mtools', step)
 
     def test_host_workflow_delegates_build_and_ui_selection_and_keeps_test_shards(self):

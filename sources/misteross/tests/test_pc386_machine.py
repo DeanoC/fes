@@ -257,6 +257,52 @@ class A20TestTest(unittest.TestCase):
         self.assertIsNone(sim.HIMEMX_METHOD.search('Interface : XMS 3.00 80386 4G'))
 
 
+class C2xxTestTest(unittest.TestCase):
+    def test_suite_checks_and_keys_are_the_programs(self):
+        source = (sim.CORE / 'sim/c2xx_test.asm').read_text()
+        names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]
+        self.assertEqual(names, list(sim.C2XX_CHECKS))
+        self.assertIn(f"typed_keys:    db '{sim.C2XX_KEYS}'", source)
+        self.assertTrue(sim.C2XX_KEYS.endswith('q'))
+
+    @staticmethod
+    def suite(lines, cpu='oracle', oracle_steps=0):
+        commands = []
+        def run_machine(testbench, name, arguments, images):
+            commands.append(arguments)
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
+                    'rtl': {'counters': {'retired': 1000, 'oracle_steps': oracle_steps, 'protected_steps': 0},
+                            'stops': [], 'gaps': []}}
+        args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=10)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
+            return sim.run_c2xx(args, [])['failures'], commands[0]
+
+    def test_keys_are_typed_after_the_command_with_8_ms_holds(self):
+        _, command = self.suite([])
+        self.assertEqual(command[command.index('--type') + 1], 'c2test|' + sim.C2XX_KEYS)
+        self.assertEqual(command[command.index('--key-gap') + 1], '0.008')
+
+    def test_every_check_must_print_ok(self):
+        passing = [f'C2 {name} ok' for name in sim.C2XX_CHECKS]
+        self.assertEqual(self.suite(passing)[0], [])
+        self.assertEqual(self.suite(passing[:3] + ['C2 typing 9 resets abc FAIL'] + passing[4:])[0],
+                         ['C2 typing 9 resets abc FAIL'])
+
+    def test_a_reset_that_never_returns_fails(self):
+        failures, _ = self.suite([])
+        self.assertEqual(len(failures), 1)
+        self.assertIn('C2TEST.COM ran []', failures[0])
+
+    def test_rtl_runs_fail_on_oracle_steps(self):
+        passing = [f'C2 {name} ok' for name in sim.C2XX_CHECKS]
+        self.assertEqual(self.suite(passing, 'rtl')[0], [])
+        failures, _ = self.suite(passing, 'rtl', oracle_steps=2)
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('RTL oracle_steps=2'))
+
+
 class BootReportTest(unittest.TestCase):
     def test_games_mem_requires_exact_serpent_isle_memory_with_headroom(self):
         old_mem = ['Largest executable program size       573K (586,416 bytes)']
