@@ -1,0 +1,11 @@
+{
+  "classification": "historical hardware boot/configuration/closure fragments; service JSON replies in tests are simulated, not new hardware evidence",
+  "source_capture_sha256": "f80b7bbe0257e2540b0d5c0de0661360953eed1203a8f0d04688ef1211a3a9da",
+  "source_record": "docs/validation/2026-11-03-de25-selected-upload/README.md",
+  "files": {
+    "stop.txt": "2b5847d8054e98e88c0b145bbeeda20fd326530fdfd0ebadc90bc90f754d3933",
+    "launch.txt": "d344a54280d70ac3e000f16a128afc9823b370a4f48dde3953ec5a70b9da6d6d",
+    "expected.json": "790b8b145d25f9de20bf362a1ef58576cc43503fdd40c231661581b685be93e8",
+    "boot.txt": "0e6f159eeaad50065368a8e1157923053f32defdff384893a6fb738db8351f2c"
+  }
+}

@@ -1114,3 +1114,30 @@ This trial qualifies only serial CPU/RAM and the observed handoff. Native
 USB/network, active master stop/drain, HDMI and runtime FPGA programming still
 need physical qualification. Read-only SD/package retention has its separate
 tested profile; this serial-only procedure supplies no active SD drain proof.
+
+## Persistent native request-service checks
+
+`program_client.ProgramClient` checks one owned exchange with the contained
+native request service. The platform supplies the exclusive console, its current
+claim check and a synchronous, bounded exchange callback. The client never opens
+a device, initializes hardware, retries a command or confers package admission.
+Its expected catalogue and configuration maps come from the independently
+checked image and freshly verified SD files.
+
+Startup requires the actual matched SPL/loaded-BL31/EL3/loader/EL1 prefix and a
+single complete Ready reply whose boot owner and catalogue match. Each command
+is issued once. Replies have strict types/fields, one terminal JSON record,
+unchanged boot ownership and the expected session generation. A launch must
+include the complete real configuration/queue/fabric-activation sequence followed
+by the held-data control observations. Return/Park must include the exact
+same-owner master stop. Shared `configuration_trace.extract` retains the existing
+fixed-probe transfer grammar; it supplies no boot or bridge authority.
+
+The bounded `exercise` sequence runs three request-driven sessions using indices
+0/1/0. It checks safe rejected requests, running fetch progress, held stability,
+keyboard command acceptance, resumed progress, two owned returns and final Park.
+Any uncertain I/O, deadline, protocol, transfer, closure or fetch observation
+retires the client and stops the sequence. No native command follows Park or a
+failed proof. Serial identity is the service publication after its internally
+checked live opening; it is not a separate GP register dump or ordinary runtime
+admission. These host checks still require a matched-image board trial.
