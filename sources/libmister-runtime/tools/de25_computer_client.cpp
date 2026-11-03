@@ -5,6 +5,7 @@
 #include "native/generated/fes_de25_computer.hpp"
 #include "native/hardware.hpp"
 #include "native/linux/mmio.hpp"
+#include "native/linux/de25_computer_mmio.hpp"
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -30,19 +31,19 @@ std::string read(const char* path) {
 #endif
 class Registers final : public Mmio,public Clock {
     LinuxMmio physical_;
+    De25ComputerMmio registers_{physical_};
     int lease_=-1;
-    std::uint32_t base_;
 public:
     unsigned reads=0,writes=0;
-    Registers(std::uint32_t base,const std::string& boot):base_(base) {
+    Registers(std::uint32_t base,const std::string& boot) {
 #if !defined(__aarch64__) || !defined(__linux__)
-        (void)boot;throw std::runtime_error("maintenance hardware access requires AArch64 Linux");
+        (void)base;(void)boot;throw std::runtime_error("maintenance hardware access requires AArch64 Linux");
 #else
         require(geteuid()==0,"maintenance hardware access requires root");
         require(read("/etc/fes-board")=="de25-nano","FES DE25 rootfs identity differs");
         require(read("/sys/firmware/devicetree/base/model")=="SoCFPGA Agilex5 Terasic DE25-Nano","device-tree model differs");
         require(read("/proc/sys/kernel/random/boot_id")==boot,"selected boot epoch differs");
-        require(base_==0x20000000u+FesDe25ComputerPeripheralOffset,"explicit CPU resource base differs");
+        require(base==De25ComputerCpuBase,"explicit CPU resource base differs");
         lease_=open("/run/fes-de25-computer.lock",O_CREAT|O_RDWR|O_CLOEXEC|O_NOFOLLOW,0600);
         require(lease_>=0,"maintenance lock unavailable");
         if(flock(lease_,LOCK_EX|LOCK_NB)) {close(lease_);lease_=-1;throw std::runtime_error("computer already owned");}
@@ -51,12 +52,10 @@ public:
     ~Registers() override {if(lease_>=0)close(lease_);}
     std::uint64_t NowMs() const override {return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
     Error Read32(std::uint32_t offset,std::uint32_t* value) override {
-        if(offset>FesDe25ComputerVideoStatusOffset || (offset&3u))return {ErrorCode::io_failed,"outside computer read registers"};
-        __sync_synchronize();auto e=physical_.Read32(base_+offset,value);__sync_synchronize();++reads;return e;
+        auto e=registers_.Read32(offset,value);++reads;return e;
     }
     Error Write32(std::uint32_t offset,std::uint32_t value) override {
-        if(offset!=FesDe25ComputerGpoOffset)return {ErrorCode::io_failed,"outside computer command register"};
-        __sync_synchronize();auto e=physical_.Write32(base_+offset,value);__sync_synchronize();++writes;return e;
+        auto e=registers_.Write32(offset,value);++writes;return e;
     }
 };
 }

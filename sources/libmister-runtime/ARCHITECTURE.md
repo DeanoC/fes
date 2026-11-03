@@ -24,6 +24,15 @@ readiness. Missing/failed preparation uses the existing unavailable adapter and
 protocol with no programming capabilities. Compilation/model checks do not
 establish native factory or MENU support.
 
+The DE25 computer's protocol offsets are relative to its resource. Production
+construction supplies `De25ComputerMmio` over the existing lazy `LinuxMmio`,
+translating to CPU base `0x20010300` with a seven-register read allowlist and
+only the GPO write offset. The maintenance client shares this address translation.
+Construction performs no device access. Reads and writes use ordering barriers;
+an out-of-range, unaligned or null-output request fails before opening `/dev/mem`.
+The client uses the common protocol-2 `transport`/`request` error phases, keeping
+recovered idle failures visible through the strict agent decoder.
+
 `Runtime::Start` accepts an optional sealed MENU directory/package ID and loads
 it as the first idle image. The daemon passes `--menu-package` directly to that
 start. Without a selected package it keeps the existing splash recipe; DE25

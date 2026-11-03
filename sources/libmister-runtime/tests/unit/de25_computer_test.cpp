@@ -175,7 +175,8 @@ void TestSelectedIdentityRefusesMutations() {
 		if (fault == 5) f.bridge.maximum = FesComputerZx81TapeMaxBytes;
 		if (fault == 6) f.bridge.max_chunk = 256;
 		if (fault == 7) f.bridge.identity[6] = 1; // A 1.1 endpoint is not this selected 1.0 artifact.
-		assert(!f.client.Identify(kBuild, 1000000, &id).ok() && f.client.Poisoned());
+		const auto error = f.client.Identify(kBuild, 1000000, &id);
+		assert(!error.ok() && error.phase == "transport" && f.client.Poisoned());
 		const auto writes = f.bridge.writes.size(); assert(!f.client.Hold(1000000).ok());
 		assert(f.bridge.writes.size() == writes);
 		for (auto word : f.bridge.writes) assert(((word >> 24) & 127) == 1 || ((word >> 24) & 127) == 5);
@@ -184,7 +185,7 @@ void TestSelectedIdentityRefusesMutations() {
 void TestInputPreflightBeforeEffects() {
 	Fixture f; De25ComputerIdentity id;
 	for (const auto& text : {std::string{}, std::string(32, '0'), std::string(32, 'g')})
-		assert(!f.client.Identify(text, 1000000, &id).ok());
+		assert(f.client.Identify(text, 1000000, &id).phase == "request");
 	assert(!f.bridge.reads && f.bridge.writes.empty()); f.Probe();
 	const auto writes = f.bridge.writes.size();
 	KeyboardHidRows rows{}; rows[0] = 1; assert(!f.client.SetKeyboardHid(rows, 1000000).ok());
@@ -221,7 +222,8 @@ void TestMaximumTapeChunkOrdinals() {
 void TestHealthyRejectionsDoNotReplayOrPoison() {
 	Fixture f; f.Probe(); auto count = f.bridge.writes.size();
 	f.bridge.reject_next = FesComputerErrorInvalidState;
-	assert(f.client.Hold(1000000).code == ErrorCode::busy);
+	const auto error = f.client.Hold(1000000);
+	assert(error.code == ErrorCode::busy && error.phase == "transport");
 	assert(!f.client.Poisoned() && f.bridge.writes.size() == count + 1);
 	assert(f.client.Run(1000000).ok());
 	std::uint16_t data = 0, rejected = 0;

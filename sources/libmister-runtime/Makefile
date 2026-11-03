@@ -160,7 +160,7 @@ $(DAEMON): $(DAEMON_OBJECTS) $(ARCHIVE)
 .PHONY: de25-computer
 de25-computer: $(BUILD_DIR)/tools/de25-computer
 
-$(BUILD_DIR)/tools/de25-computer: tools/de25_computer_client.cpp src/native/de25_computer.cpp src/native/linux/mmio.cpp src/native/de25_computer.hpp src/native/generated/fes_de25_computer.hpp
+$(BUILD_DIR)/tools/de25-computer: tools/de25_computer_client.cpp src/native/de25_computer.cpp src/native/linux/mmio.cpp src/native/de25_computer.hpp src/native/generated/fes_de25_computer.hpp src/native/linux/de25_computer_mmio.hpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tools/de25_computer_client.cpp src/native/de25_computer.cpp src/native/linux/mmio.cpp -o $@
 
@@ -286,7 +286,7 @@ $(BUILD_DIR)/tests/unit/fpga_manager_test: tests/unit/fpga_manager_test.cpp \
 		src/native/linux/fpga_manager.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/mmio_test: tests/unit/mmio_test.cpp \
-		src/native/linux/mmio.cpp
+		src/native/linux/mmio.cpp src/native/linux/de25_computer_mmio.hpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) -DMISTER_RUNTIME_TESTING $(CXXFLAGS) \
 		tests/unit/mmio_test.cpp src/native/linux/mmio.cpp -o "$@"

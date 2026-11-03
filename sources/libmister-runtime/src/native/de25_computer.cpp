@@ -24,12 +24,12 @@ static_assert(FesComputerKeyboardRowCount == 9 && FesComputerKeyboardModifierRow
 static_assert(FesComputerMediaChunkMaxBytes == 512,
 	"DE25 default chunk must match the generated contract");
 
-Error Io(const std::string& message) { return {ErrorCode::io_failed, message, "de25-transport"}; }
-Error Invalid(const std::string& message) { return {ErrorCode::invalid_request, message, "de25-control"}; }
+Error Io(const std::string& message) { return {ErrorCode::io_failed, message, "transport"}; }
+Error Invalid(const std::string& message) { return {ErrorCode::invalid_request, message, "request"}; }
 Error Rejected(std::uint8_t opcode, std::uint16_t code)
 {
 	return {code == FesComputerErrorInvalidState ? ErrorCode::busy : ErrorCode::io_failed,
-		"DE25 command " + std::to_string(opcode) + " rejected with response " + std::to_string(code), "de25-command"};
+		"DE25 command " + std::to_string(opcode) + " rejected with response " + std::to_string(code), "transport"};
 }
 bool BuildId(const std::string& text, std::string* canonical)
 {

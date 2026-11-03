@@ -18,6 +18,16 @@ serve both boards; DE25 constructs no Cyclone V manager, DDR window or Linux I2C
 recipe. The daemon keeps its unavailable adapter on preparation failure.
 AArch64 compilation does not establish physical support.
 
+The DE25 production computer client uses resource-relative registers. Its shared
+MMIO adapter adds the audited CPU resource base `0x20010300`, permits only the
+seven computer-register reads and one full-word GPO write, and orders accesses.
+The maintenance CLI uses that same adapter. The computer client reports protocol-2
+`transport` and `request` phases so an identity failure remains readable by the
+agent after the runtime restores MENU; private DE25 phase names are not wire values.
+The first managed catalog trial exposed the missing address translation and
+invalid error phase. Its MENU recovery and clean service restart passed without
+a reboot; repaired catalog acceptance remains pending a new software bundle.
+
 DE25 advertises application and computer ABIs in ascending identity order,
 as required by the target agent's protocol-2 decoder. The native MENU fixture
 exports the production serialized status for an independent agent-client test;

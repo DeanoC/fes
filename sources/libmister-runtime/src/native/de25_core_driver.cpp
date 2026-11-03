@@ -39,7 +39,7 @@ Error De25ComputerCoreDriver::WaitVideoReady(std::uint64_t deadline)
 Error De25ComputerCoreDriver::Ready() const
 {
 	if (!selected_ || client_.Poisoned())
-		return {ErrorCode::io_failed, "DE25 driver requires a healthy selected identity", "de25-control"};
+		return {ErrorCode::io_failed, "DE25 driver requires a healthy selected identity", "transport"};
 	return {};
 }
 Error De25ComputerCoreDriver::Context(const CoreDriverContext& context) const

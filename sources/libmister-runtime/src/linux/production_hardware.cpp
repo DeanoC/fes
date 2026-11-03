@@ -7,6 +7,7 @@
 #include "native/core_driver.hpp"
 #include "native/fes_gp.hpp"
 #include "native/de25_core_driver.hpp"
+#include "native/linux/de25_computer_mmio.hpp"
 #include "native/linux/de25_fpga_manager.hpp"
 #include "native/linux/de25_menu.hpp"
 #include "native/hardware.hpp"
@@ -150,7 +151,8 @@ public:
         } else {
             de25_fpga_ = new native::LinuxDe25FpgaManager(clock_);
             fpga_.reset(de25_fpga_);
-            de25_.reset(new native::De25Computer(mmio_, clock_));
+            de25_registers_.reset(new native::De25ComputerMmio(mmio_));
+            de25_.reset(new native::De25Computer(*de25_registers_, clock_));
             de25_driver_.reset(new native::De25ComputerCoreDriver(*de25_));
             de25_menu_.reset(new native::LinuxDe25Menu(clock_));
             de25_menu_driver_.reset(new native::De25MenuCoreDriver(*de25_menu_));
@@ -336,6 +338,7 @@ private:
     std::unique_ptr<native::DiskWindow> disk_window_;
     std::unique_ptr<native::SplashVideoBringup> idle_video_;
     std::unique_ptr<native::FixedVideoBringup> game_video_;
+    std::unique_ptr<native::De25ComputerMmio> de25_registers_;
     std::unique_ptr<native::De25Computer> de25_;
     std::unique_ptr<native::De25ComputerCoreDriver> de25_driver_;
     std::unique_ptr<native::LinuxDe25Menu> de25_menu_;

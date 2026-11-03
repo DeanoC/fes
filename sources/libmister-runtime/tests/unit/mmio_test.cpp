@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "native/linux/mmio.hpp"
+#include "native/linux/de25_computer_mmio.hpp"
 
 #include <assert.h>
 #include <stdio.h>
@@ -87,6 +88,40 @@ void TestRejectsMisalignedAndMissingOutputWithoutMapping()
 	assert(operations.open_calls == 0);
 }
 
+void TestDe25ComputerUsesItsAuditedCpuResource()
+{
+	Operations operations;
+	{
+		mister::native::LinuxMmio physical(operations);
+		mister::native::De25ComputerMmio registers(physical);
+		assert(operations.open_calls == 0); // Construction never opens a device.
+		operations.values[0x300] = 0x44325a58;
+		operations.values[0x304] = 0x10001;
+		std::uint32_t value = 0;
+		assert(registers.Read32(0, &value).ok() && value == 0x44325a58);
+		assert(registers.Read32(4, &value).ok() && value == 0x10001);
+		assert(operations.pages == std::vector<std::uint64_t>{0x20010000u});
+		assert(registers.Write32(0xc, 0x81234567).ok());
+		assert(operations.writes.size() == 1);
+		assert(operations.writes[0] == std::make_pair(std::size_t(0x30c), std::uint32_t(0x81234567)));
+	}
+	assert(operations.unmap_calls == 1 && operations.close_calls == 1);
+}
+
+void TestDe25ComputerRefusesOtherRegistersBeforePhysicalAccess()
+{
+	Operations operations;
+	mister::native::LinuxMmio physical(operations);
+	mister::native::De25ComputerMmio registers(physical);
+	std::uint32_t value = 0;
+	for (const auto offset : {1u, 0x1cu, 0x20010300u, 0xfffffffcu})
+		assert(!registers.Read32(offset, &value).ok());
+	assert(!registers.Read32(0, nullptr).ok());
+	for (const auto offset : {0u, 4u, 8u, 0xdu, 0x10u, 0x18u, 0x2001030cu})
+		assert(!registers.Write32(offset, 1).ok());
+	assert(operations.open_calls == 0 && operations.map_calls == 0 && operations.writes.empty());
+}
+
 } // namespace
 
 int main()
@@ -94,6 +129,8 @@ int main()
 	TestMapsEachNeededPageOnceAndCleansUp();
 	TestReadAndWriteUseRegisterOffsetWithinPage();
 	TestRejectsMisalignedAndMissingOutputWithoutMapping();
-	puts("mmio_test: 3 passed");
+	TestDe25ComputerUsesItsAuditedCpuResource();
+	TestDe25ComputerRefusesOtherRegistersBeforePhysicalAccess();
+	puts("mmio_test: 5 passed");
 	return 0;
 }
