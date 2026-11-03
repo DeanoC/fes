@@ -195,6 +195,106 @@ class PersistenceAdmissionTest(unittest.TestCase):
         with self.assertRaises(p.pa.AcceptanceError):
             p.check_matching_sources(good,'a'*40)
 
+    def test_main_admission_binds_producer_and_separate_committed_tools(self):
+        args=SimpleNamespace(source_repository='Example/fes', source_pr=None, source_base='main',
+                             source_commit='a'*40, source_tool_commit='b'*40, source_main=True)
+        root=Path(p.__file__).resolve().parent.parent
+        main={'sha':'a'*40}
+        changed=[]
+        def command(argv, deadline, cwd=None):
+            if argv[:3] == ['git','rev-parse','HEAD']:
+                return b'b'*40+b'\n'
+            if argv[:2] == ['git','show']:
+                commit,path=argv[2].split(':',1)
+                data=(root/path).read_bytes()
+                return data+b'changed' if (commit,path) in changed else data
+            self.assertEqual(argv,['gh','api','repos/Example/fes/commits/main'])
+            return json.dumps(main).encode()
+        with mock.patch.object(p,'bounded_source_command',side_effect=command):
+            p.require_source(args)
+            main['sha']='c'*40
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            main['sha']='a'*40
+            changed.append(('b'*40,'scripts/pcxt_health_evidence.py'))
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            changed.clear()
+            changed.append(('a'*40,p.SOURCE_PATHS[-1]))
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            changed.clear()
+            args.source_pr=42
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            args.source_pr=None; args.source_base='other'
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            args.source_base='main'; args.source_tool_commit=None
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            args.source_tool_commit='b'*40; args.source_repository='../injected'
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+            args.source_repository='Example/fes'; args.source_main=False
+            with self.assertRaises(p.pa.AcceptanceError): p.require_source(args)
+
+    def test_main_write_then_restart_requires_same_producer_and_tools(self):
+        root=Path(p.__file__).resolve().parent.parent
+        args=SimpleNamespace(source_repository='Example/fes',source_pr=None,source_base='main',
+            source_commit='a'*40,source_tool_commit='b'*40,source_main=True,phase='write',
+            phase_deadline_monotonic=time.monotonic()+120,disk=Path('/unused'),
+            archive_sha256='d'*64,package_id='a'*64,rbf_sha256='e'*64,bundle_id='f'*64,
+            image_sha256='1'*64,target_id='target',expected_boot='boot',evidence=Path('/unused'))
+        prior=SimpleNamespace(**vars(owned()))
+        prior.session_id='oldsession';prior.generation=8;prior.flight_id='oldflight'
+        provenance={'main_source':{'producer_commit':args.source_commit,'tool_commit':args.source_tool_commit},
+                    'host':{'source_commit':args.source_commit},'software':{'source_commit':args.source_commit}}
+        rec={'scenario':'com','source_commit':args.source_commit,'archive_sha256':args.archive_sha256,
+             'package_id':args.package_id,'rbf_sha256':args.rbf_sha256,'bundle_id':args.bundle_id,
+             'base_image_sha256':args.image_sha256,'target_id':'target','boot_id':'boot',
+             'disk':{'floppy_sha256':p.DISK_SHA},'provenance':provenance,'captures':[],
+             'hid_events':[],'session':{'id':prior.session_id,'target':prior.target_name,
+             'target_id':prior.target_id,'game_id':prior.game_id,'package_id':prior.package_id,
+             'generation':prior.generation,'flight_id':prior.flight_id}}
+        class API:
+            timeout=20
+            calls=0
+            def request(self,*unused):
+                self.calls+=1
+                runner.revision='9'*64
+                return session(runner.revision)
+        class Runner:
+            api=API()
+            revision='absent'
+            def session(self):return session(self.revision)
+            def session_identity(self,*unused):return prior
+        runner=Runner()
+        def command(argv, deadline, cwd=None):
+            if argv[:3]==['git','rev-parse','HEAD']:return b'b'*40+b'\n'
+            if argv[:2]==['git','show']:
+                return (root/argv[2].split(':',1)[1]).read_bytes()
+            return json.dumps({'sha':'a'*40}).encode()
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(p,'bounded_source_command',side_effect=command), \
+             mock.patch.object(p.app,'verify_disk',return_value={'floppy_sha256':p.DISK_SHA}), \
+             mock.patch.object(p.app,'validate_active'), \
+             mock.patch.object(p.app,'capture_owned',return_value=((1,1,b''),{})), \
+             mock.patch.object(p.app.visual,'find_prompt',return_value=0), \
+             mock.patch.object(p.app,'read_anchored',return_value=[]), \
+             mock.patch.object(p.app,'type_keys'), \
+             mock.patch.object(p,'wait_for_output',return_value={'proof':'output'}), \
+             mock.patch.object(p,'wait_for_copy',return_value={'proof':'copy'}):
+            p.check_matching_sources(provenance,args.source_commit)
+            p.run_phase(runner,prior,args,rec,'input',b'font')
+            self.assertEqual(runner.api.calls,1)
+            self.assertEqual(rec['saved_revision'],'9'*64)
+            raw=json.dumps(rec).encode();receipt=Path(tmp)/'write.json';receipt.write_bytes(raw)
+            args.phase='verify';args.write_receipt=receipt;args.write_receipt_sha256=hashlib.sha256(raw).hexdigest()
+            verify={'provenance':copy.deepcopy(provenance),'captures':[],'hid_events':[]}
+            p.run_phase(runner,owned(),args,verify,'input',b'font')
+            self.assertEqual(verify['classification'],'physical diagnostic: DOS saved file restored after restart')
+            self.assertEqual(runner.api.calls,1)
+            verify['provenance']['main_source']['tool_commit']='c'*40
+            with self.assertRaises(p.pa.AcceptanceError):p.run_phase(runner,owned(),args,verify,'input',b'font')
+            verify['provenance']=copy.deepcopy(provenance);args.source_tool_commit='c'*40
+            with self.assertRaises(p.pa.AcceptanceError):p.run_phase(runner,owned(),args,verify,'input',b'font')
+            args.source_tool_commit='b'*40;args.source_commit='c'*40
+            with self.assertRaises(p.pa.AcceptanceError):p.run_phase(runner,owned(),args,verify,'input',b'font')
+
     def test_exact_private_process_must_own_loopback_listener(self):
         with socket.socket() as sock:
             sock.bind(('127.0.0.1',0));sock.listen()
@@ -490,6 +590,7 @@ class HealthObserverIntegration(unittest.TestCase):
  def execute_fixture(self,args,*,fail=False):
   class Parser:
    def add_argument(self,*a,**k):pass
+   def add_mutually_exclusive_group(self,**k):return self
    def parse_args(self,argv):return args
   response={'ready':True,'target':{'reachable':False,'ready':False}}
   class API:
