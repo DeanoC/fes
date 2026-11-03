@@ -33,12 +33,14 @@ from pathlib import Path
 if __package__:
     from . import package_acceptance as pa
     from . import pcxt_dos_hil_acceptance as visual
+    from . import pcxt_game_input_guard as game_guard
 else:
     # Isolated mode omits the script directory from sys.path. Load only
     # the helpers adjacent to this diagnostic, even under python -I.
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import package_acceptance as pa
     import pcxt_dos_hil_acceptance as visual
+    import pcxt_game_input_guard as game_guard
 
 FLOPPY_SIZE = 368640
 COM_SHA = '475054504cb7e96268576bcc97db4fdcbf4cf66063673145df2f69f8ff859c02'
@@ -489,7 +491,8 @@ def source_provenance(args, font):
             or software.get('base_image_sha256') != args.image_sha256):
         raise pa.AcceptanceError('software receipt does not match bundle and base image')
     root = Path(__file__).resolve().parents[1]
-    paths = ['scripts/pcxt_dos_application_acceptance.py', 'scripts/package_acceptance.py',
+    paths = ['scripts/pcxt_dos_application_acceptance.py', 'scripts/pcxt_game_input_guard.py',
+             'scripts/pcxt_digger_readiness.py', 'scripts/package_acceptance.py',
              'scripts/diagnostic_identity.py', 'scripts/input_diagnostic.py',
              'scripts/pcxt_dos_hil_acceptance.py', 'sources/misteross/scripts/core_package.py',
              'sources/misteross/scripts/rfc3986_validator.py',
@@ -725,7 +728,7 @@ def capture_owned(runner, owned, args, disk_sha, path, phase):
     return result
 
 
-def type_keys(runner, owned, args, disk_sha, input_session_id, events, usages):
+def type_keys(runner, owned, args, disk_sha, input_session_id, events, usages, *, dispatch_guard=None):
     """One host-owned press/release operation per key; never retry uncertainty."""
     for usage in usages:
         validate_active(runner, owned, args, disk_sha)
@@ -743,10 +746,17 @@ def type_keys(runner, owned, args, disk_sha, input_session_id, events, usages):
                 raise pa.AcceptanceError('host tap receipt is missing, malformed, or out of bound')
         old_timeout = runner.api.timeout
         runner.api.timeout = min(old_timeout, 5.0)
+        event_count = len(events)
         try:
-            traced_call(events, 'host tap request', usage, tap)
+            def send():
+                return traced_call(events, 'host tap request', usage, tap)
+            if dispatch_guard is None:
+                send()
+            else:
+                dispatch_guard.dispatch(usage, send)
         finally:
-            events[-1]['socket_timeout_seconds'] = runner.api.timeout
+            if len(events) > event_count:
+                events[-1]['socket_timeout_seconds'] = runner.api.timeout
             runner.api.timeout = old_timeout
         input_status(runner, input_session_id, events, usage, 'after tap input')
         validate_active(runner, owned, args, disk_sha)
@@ -807,7 +817,12 @@ def run_com(runner, owned, args, rec, input_session_id, font):
     rec['classification'] = 'owned-session COM execution diagnostic passed'
 
 
-def run_game(runner, owned, args, rec, input_session_id, font):
+def run_game(runner, owned, args, rec, input_session_id, font, *, dispatch_guard=None):
+    if not isinstance(dispatch_guard, game_guard.GameInputGuard):
+        raise pa.AcceptanceError('game input requires calibrated live readiness guard; no game keys sent')
+    dispatch_guard.require_identity({'kit':args.kit, 'target_id':args.target_id,
+        'source_commit':args.source_commit, 'package_id':owned.package_id,
+        'capture_device':args.capture_device, 'capture_producer_sha256':args.capture_producer_sha256})
     disk_sha = SCENARIOS['game']['floppy']
     before, info = capture_owned(runner, owned, args, disk_sha,
                                  args.evidence/'before.png', 'before Digger input')
@@ -815,6 +830,9 @@ def run_game(runner, owned, args, rec, input_session_id, font):
     if prompt(before, font) is None:
         raise pa.AcceptanceError('DOS prompt not observed before the game')
     video = VideoCapture(args.capture_device, args.evidence)
+    if getattr(video, 'observer_guard', None) is not dispatch_guard:
+        video.stop()
+        raise pa.AcceptanceError('game recorder does not feed the guarded observation stream; no game keys sent')
     rec['video_start'] = {'requested_monotonic_ns': video.started_ns,
                           'first_progress_observed_monotonic_ns': video.first_progress_ns,
                           'note': 'progress timestamps are host observations, not exact capture times'}
@@ -832,7 +850,8 @@ def run_game(runner, owned, args, rec, input_session_id, font):
         for direction, usage in DIRECTIONS:
             rec.setdefault('direction_intervals', []).append(
                 {'direction': direction, 'started_monotonic_ns': time.monotonic_ns()})
-            type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], (usage,)*4)
+            type_keys(runner, owned, args, disk_sha, input_session_id, rec['hid_events'], (usage,)*4,
+                      dispatch_guard=dispatch_guard)
             wait_owned(runner, owned, args, disk_sha, 5, video)
             rec['direction_intervals'][-1]['finished_monotonic_ns'] = time.monotonic_ns()
         wait_owned(runner, owned, args, disk_sha, 8, video)

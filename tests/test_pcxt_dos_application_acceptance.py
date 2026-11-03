@@ -627,14 +627,18 @@ class VideoEvidenceTest(unittest.TestCase):
     def test_game_capture_never_claims_gameplay_without_review(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
+            test_guard = mock.Mock(spec=app.game_guard.GameInputGuard)
             class Recorder:
                 def __init__(self, _device, evidence):
+                    self.observer_guard = test_guard
                     self.path = evidence/'game-full.mkv'; self.path.write_bytes(b'video')
                     self.progress_path = evidence/'game-progress.jsonl'; self.progress_path.write_text('')
                     self.started_ns = 1; self.first_progress_ns = 2
                     self.proc = type('Proc', (), {'poll': lambda _self: None})()
                 def stop(self): pass
-            args = type('Args', (), {'capture_device': 'synthetic', 'evidence': root})()
+            args = type('Args', (), {'capture_device': 'synthetic', 'evidence': root,
+                        'kit':'A', 'target_id':'target-1', 'source_commit':'a'*40,
+                        'capture_producer_sha256':'b'*64})()
             runner = FakeRunner(); owned = runner.session_identity(runner.value, 'fixture')
             rec = {'captures': [], 'hid_events': []}
             with mock.patch.object(app, 'capture_owned', return_value=((1, 1, b'abc'), {'file': 'before.png'})), \
@@ -644,10 +648,33 @@ class VideoEvidenceTest(unittest.TestCase):
                  mock.patch.object(app, 'wait_owned'), \
                  mock.patch.object(app, 'check_video', return_value={}), \
                  mock.patch.object(app, 'check_video_coverage', return_value={}):
-                app.run_game(runner, owned, args, rec, 'input-1', b'font')
+                app.run_game(runner, owned, args, rec, 'input-1', b'font',
+                             dispatch_guard=test_guard)
             self.assertEqual(rec['classification'], 'game capture complete; gameplay and movement review pending')
             self.assertIn('independent visual review', rec['game_video']['classification'])
             self.assertEqual(keys.call_count, 6)
+
+    def test_game_without_calibrated_guard_stops_before_capture_or_input(self):
+        with mock.patch.object(app, 'capture_owned') as take, mock.patch.object(app, 'type_keys') as keys:
+            with self.assertRaisesRegex(app.pa.AcceptanceError, 'no game keys sent'):
+                app.run_game(None, None, None, None, None, None)
+        take.assert_not_called()
+        keys.assert_not_called()
+
+    def test_game_rejects_recorder_from_other_observation_stream(self):
+        args = mock.Mock(kit='A', target_id='target', source_commit='a'*40,
+                         capture_device='fixture', capture_producer_sha256='b'*64, evidence=Path('/tmp'))
+        owner = mock.Mock(package_id='c'*64)
+        video = mock.Mock(spec=['stop'])
+        with mock.patch.object(app, 'capture_owned', return_value=((1, 1, b'x'), {'file':'before'})), \
+             mock.patch.object(app, 'prompt', return_value={}), \
+             mock.patch.object(app, 'VideoCapture', return_value=video), \
+             mock.patch.object(app, 'type_keys') as keys:
+            with self.assertRaisesRegex(app.pa.AcceptanceError, 'no game keys sent'):
+                app.run_game(None, owner, args, {'captures': []}, 'input', b'font',
+                             dispatch_guard=mock.Mock(spec=app.game_guard.GameInputGuard))
+        video.stop.assert_called_once()
+        keys.assert_not_called()
 
 
 @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'), 'ffmpeg and ffprobe required')

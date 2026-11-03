@@ -112,3 +112,15 @@ host, capture device, build and tool identities:
 
 No physical calibration, live game input, or hardware qualification has been
 performed by this study.
+
+`pcxt_game_input_guard.py` is a guarded dispatch prototype. It requires a
+separately pinned calibration document and evidence, checks the target and
+capture identity, rechecks the latest observation after the existing ownership
+and input-attachment checks, and consumes one observation before each planned
+key. Its calibration parser checks provenance and numerical structure; it
+cannot decide whether the underlying measurements justify the claimed bounds.
+An uncertain key response or missed deadline terminates the plan. The game CLI
+currently cannot construct a qualified guard or connect its recorder to one;
+it therefore rejects the game scenario before issuing game keys. The existing
+COM scenario is unaffected. The guarded game path does not yet capture speaker
+audio or establish audio/video synchronization.
