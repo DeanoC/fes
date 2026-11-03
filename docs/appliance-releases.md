@@ -55,8 +55,10 @@ passes stock DW watchdog expiry recovery both before programming and with MENU
 scanout active. The DE25 guard checks the exact AArch64 board, stock watchdog0
 device-tree address/driver and character-device identity, then uses the Linux
 watchdog API. Cyclone V reset-register preparation remains DE10-only. The
-installed older bootstrap still refuses DE25 trials; deploying the new
-bootstrap and accepting a complete native trial update remain separate gates.
+approved SD bootstrap now passes an ordinary native boot and automatic
+unconfirmed-trial fallback. A complete confirmed native update and managed
+runtime readiness remain separate gates; the trial's display/runtime failure
+is retained in that record.
 
 The [bootstrap record](validation/2026-11-01-de25-appliance-bootstrap/README.md)
 retains native/AArch64 CPU checks and a reproducible bootstrap image whose

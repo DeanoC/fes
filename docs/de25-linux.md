@@ -167,8 +167,10 @@ are off-board evidence. A later managed card boots FES Linux on the kit, and
 [native watchdog tests](validation/2026-11-03-de25-watchdog/README.md) recover
 without power intervention before programming and with MENU scanout active.
 The new guard admits that exact stock watchdog path without Cyclone V register
-access. Its bootstrap deployment and a complete managed trial update remain
-unaccepted; the installed older bootstrap still refuses DE25 trials.
+access. Its approved SD deployment passes ordinary boot and automatic
+unconfirmed-trial fallback on the kit. The new image boots and renders one FES
+Home frame, but runtime readiness fails. A confirmed managed update and full
+normal-kit acceptance remain open; no trial/storage gate was bypassed.
 
 The [factory-input record](validation/2026-11-01-de25-factory-inputs/README.md)
 covers explicit DE25/AArch64 artifact selection and shared factory startup

@@ -3,7 +3,7 @@
   "board": "de25-nano",
   "serial": "TRWU8J8G",
   "evidence_class": "native hardware diagnostic",
-  "production_bootstrap_acceptance": "not-run",
+  "production_bootstrap_acceptance": "native ordinary boot and automatic unconfirmed-trial fallback passed on exact54dbe2ac; managed readiness and confirmed update remain open",
   "baseline": {
     "state": "baseline-native-expiry-and-authenticated-boot-passed",
     "old_boot": "361cd8ea-11f3-45c4-be88-c825e5f3c167",
@@ -37,5 +37,103 @@
   "kernel_source": "59d3b43997b5827dda55125f0f651248a51e6ebf",
   "reset_observation": "Cold",
   "qspi_modified": false,
-  "software_reboot_calls": 0
+  "software_reboot_calls": 0,
+  "approved_native_bootstrap_trial": {
+    "source": "42970f384be6e01c1ff518f6cec8becf207ecfa3",
+    "image_sha256": "54dbe2acd9a4dc137afc6a26a02f51e2fd7b901f2645fd8e15db568e2734ea5f",
+    "binary_sha256": "ff6b17f6a2242f53ff01f2c9a6f60df5dc77cd2dd2bc2b2d041d4bd5cedea0e5",
+    "image_bytes": 33554432,
+    "write_readback": "PASS6.233s; exact32MiB, normal child/parent unmount, exclusive block open; original EBUSY pre-write refusal retained",
+    "ordinary_boot": {
+      "boot": "18e969b1-7361-4023-8acf-dacc1a525855",
+      "image": "3b985b15dd6bbc1e945ae67dfc892e048719e684a20aea48e96bb5a4fec784aa",
+      "bootstrap_init": "ff6b17f6a2242f53ff01f2c9a6f60df5dc77cd2dd2bc2b2d041d4bd5cedea0e5",
+      "bootstrap_factory_sha256": "87b54aa18ada9d2e0391a67be31e02b4955d4e8c09fa7cfd1faa6dfb85115a84",
+      "gate": {
+        "trial": false,
+        "pending": false,
+        "corrupt": false
+      },
+      "state": "new-bootstrap-ordinary-known-good-boot-passed",
+      "old_boot": "f9d0a520-f814-48b0-a8d6-c07625506d30",
+      "source": "42970f384be6e01c1ff518f6cec8becf207ecfa3",
+      "elapsed_seconds": 33.498
+    },
+    "protected_trial": {
+      "state": "protected-trial-recovery-passed",
+      "trial": {
+        "boot": "ab9dd774-dab4-4845-8e71-2f8ec000465f",
+        "image": "72160dff0d22df2098043c46430a9303212b4fe417b4683847b8f9bbd6614fcc",
+        "bootstrap_init": "ff6b17f6a2242f53ff01f2c9a6f60df5dc77cd2dd2bc2b2d041d4bd5cedea0e5",
+        "kernel_receipt": "bab2fe2ffc93e7086e028cffd7dd43bee754c91ed10fea890421110c0267004b",
+        "gate": {
+          "trial": true,
+          "pending": false,
+          "corrupt": false
+        },
+        "first_observed_seconds": 32.43
+      },
+      "returned": {
+        "boot": "b34218e0-4390-40b0-becf-98623b646316",
+        "image": "3b985b15dd6bbc1e945ae67dfc892e048719e684a20aea48e96bb5a4fec784aa",
+        "bootstrap_init": "ff6b17f6a2242f53ff01f2c9a6f60df5dc77cd2dd2bc2b2d041d4bd5cedea0e5",
+        "kernel_receipt": "6321985cf67f034b5e659bc7cb86c25bb89e1ef04355683da6f98567371c14f2",
+        "gate": {
+          "trial": false,
+          "pending": false,
+          "corrupt": false
+        }
+      },
+      "elapsed_seconds": 268.03,
+      "confirmation_called": false,
+      "observer_reboot_calls": 0
+    },
+    "scope": "Native bootstrap ordinary boot and autonomous unconfirmed-trial fallback passed; managed runtime readiness and complete image update not accepted",
+    "managed_failure": {
+      "runtime_source": "022eeb3457e6a812571dcbb279e2b342c15c6763",
+      "log": "DE25 grant poll: Input/output error; kit lease cleanup failed: kit runtime did not become idle",
+      "agent_readback": "GET /v1/update200 trialtrue/raw_idle_ready=false; GET /v1/status200 failed/MISTER_UNAVAILABLE",
+      "storage": "Trial refuses persistent core library by design; agent later served HTTP. No storage gate bypass or selection journal edits."
+    },
+    "capture": {
+      "file": "fes-home.png",
+      "sha256": "bb2779bcf2118eca22631ef658ccefaa906118f34f10c5c2e2237e347659622c",
+      "native_trial_bracketing": {
+        "capture": {
+          "returncode": 0,
+          "before_unix": 1793724373.6546657,
+          "after_unix": 1793724373.8182948,
+          "trial_boot": "ab9dd774-dab4-4845-8e71-2f8ec000465f",
+          "scope": "Passive capture after real managed startup frame-commit failure; no video acceptance"
+        },
+        "preceding_observation": {
+          "file": "31.stdout",
+          "unix": 1793724370.83507,
+          "boot": "ab9dd774-dab4-4845-8e71-2f8ec000465f",
+          "image": "72160dff0d22df2098043c46430a9303212b4fe417b4683847b8f9bbd6614fcc",
+          "gate": {
+            "trial": true,
+            "pending": false,
+            "corrupt": false
+          }
+        },
+        "following_observation": {
+          "file": "32.stdout",
+          "unix": 1793724374.1352055,
+          "boot": "ab9dd774-dab4-4845-8e71-2f8ec000465f",
+          "image": "72160dff0d22df2098043c46430a9303212b4fe417b4683847b8f9bbd6614fcc",
+          "gate": {
+            "trial": true,
+            "pending": false,
+            "corrupt": false
+          }
+        },
+        "same_native_trial_brackets_capture": true
+      },
+      "scope": "Single FES Home frame, host unreachable. No interactive, sustained video or core-launch acceptance."
+    },
+    "qspi_modified": false,
+    "kernel_modified": false,
+    "confirmation_called": false
+  }
 }

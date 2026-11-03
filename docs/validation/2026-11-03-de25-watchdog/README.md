@@ -5,10 +5,11 @@ after genuine stock watchdog expiry in two FPGA states. No software reboot
 command, JTAG redelivery or power intervention was used in either expiry test.
 The retained HPS-first QSPI configuration was unchanged.
 
-This qualifies the stock Linux watchdog reset path for the recorded kernel,
-boot setup and MENU artifact. It is a hardware diagnostic, not acceptance of
-the new bootstrap, managed daemon/agent/UI startup, image-update confirmation,
-software replacement or arbitrary failed-programming recovery.
+The initial tests qualify the stock Linux watchdog reset path for the recorded
+kernel, boot setup and MENU artifact. The later approved bootstrap trial below
+also passes ordinary boot and automatic unconfirmed-trial fallback. Managed
+runtime readiness, image-update confirmation, software replacement and
+arbitrary failed-programming recovery remain unaccepted.
 
 | Test | Result |
 | --- | --- |
@@ -52,9 +53,60 @@ tools are retained on Powerboat under
 `out/artifacts/de25-vendor-reference/2ba9334c3/managed-kit-private/`;
 credentials and raw console logs are not published.
 
-The installed stable bootstrap rejected the earlier new-root trial before
+The original stable bootstrap rejected the earlier new-root trial before
 executing that root and automatically returned to its known-good image.
-That failure is preserved. It was not overridden, directly confirmed or
-re-activated. The new DE25 guard source enables a subsequent bootstrap trial;
-that new boot configuration needs its own deployment approval and native
-acceptance. Full normal-kit qualification remains open.
+That failure is preserved. Its gate was not overridden or directly confirmed.
+The staged image was activated again only after the qualified guard was built,
+explicitly approved and deployed as described below.
+
+## Approved SD bootstrap trial
+
+Source `42970f384be6e01c1ff518f6cec8becf207ecfa3` builds the 32 MiB bootstrap
+twice identically, SHA-256
+`54dbe2acd9a4dc137afc6a26a02f51e2fd7b901f2645fd8e15db568e2734ea5f`.
+Its executable is
+`ff6b17f6a2242f53ff01f2c9a6f60df5dc77cd2dd2bc2b2d041d4bd5cedea0e5`.
+Deano explicitly approved this exact SD boot-selector trial. The kernel, DTB
+and QSPI flash remain unchanged. The new factory is image `72160dff...`;
+the existing image `3b985b15...` remains Good and retained for rollback.
+
+The first writer stopped before opening the block device because the old
+bootstrap retained an empty `/run` tmpfs beneath its mount. Read-only inspection
+found only the empty former pivot target and no process references. The corrected
+writer checks that exact shape, normally unmounts the child and parent, requires
+an exclusive block-device open, then writes and reads back all 33,554,432 bytes.
+No force/lazy unmount, mounted-filesystem write or weakened identity check is
+used. The write/readback passes in 6.233 seconds.
+
+Ordinary reboot then authenticates boot `18e969b1-7361-4023-8acf-dacc1a525855`
+on the existing Good image, with the new bootstrap executable and unchanged
+card/kernel. This passes in 33.928 seconds. The existing `Store.Activate`
+then selects the already verified new image once; the next ordinary reboot
+authenticates trial boot `ab9dd774-dab4-4845-8e71-2f8ec000465f` on image
+`72160dff0d22df2098043c46430a9303212b4fe417b4683847b8f9bbd6614fcc`.
+The actual independent `/sbin/init --guard` process is present.
+
+No confirmation is sent. UART records the guard deadline, watchdog unexpected
+close and `Reset state: Cold`. Without another reboot command or power action,
+Linux returns to Good in boot `b34218e0-4390-40b0-becf-98623b646316`.
+Authenticated return is observed after 268.030 seconds; the complete activation,
+reboot and observation job passes in 281.661 seconds. Trial/pending/corrupt
+state is clear. Normal service stop, full byte hashes of both retained system
+images and the persistent data probe pass in 17.316 seconds.
+
+The trial starts the actual managed runtime, agent and tenfoot UI. Capture
+observations immediately before and after the image below identify the same
+authenticated trial boot. It shows one FES Home frame, with the host unreachable
+at capture time. This is partial display evidence, not sustained video, input,
+catalog launch or normal-kit acceptance.
+
+![One native FES Home frame during the unconfirmed trial](fes-home.png)
+
+Runtime logs also record `DE25 grant poll: Input/output error` during frame
+commit and failed idle cleanup. Later normal agent reads return HTTP 200 with
+`raw_idle_ready=false` and `MISTER_UNAVAILABLE`. Trial mode intentionally keeps
+the persistent core library unavailable; the agent itself does come up. The
+cause of the runtime/display failure remains to be established. The image is
+unconfirmed, the original software selection remains intact and the kit claim
+is retained. No trial is retried after this failure. Full normal-kit
+qualification remains open.
