@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 import threading
@@ -98,23 +99,29 @@ for i in range(200):
             rec = {'captures':[], 'hid_events':[]}
             audio = mock.Mock(mapping={'hil_video':'synthetic'})
             audio.proc.poll.return_value = None
-            audio.stop.side_effect = lambda: (time.sleep(.2) or {'file':'hdmi-audio.wav'})
+            audio.stop.side_effect = lambda **_kwargs: (time.sleep(.2) or {'file':'hdmi-audio.wav'})
             source_hash = hashlib.sha256(helper.read_bytes()).hexdigest()
             def factory(device, evidence, selected_probe):
                 return GameCapture(device, evidence, selected_probe, helper, source_hash, [bytes(3264)], startup_timeout=10)
             def short_wait(_runner, _owned, _args, _disk, seconds, _video, **_kwargs):
                 if seconds == 6: time.sleep(.2)
             positive = Observation(True,False,True,0,0,100,100)
+            real_fork = os.fork
             with mock.patch.object(capture_module, 'inspect_frame', return_value=positive), \
                  mock.patch.object(app, 'capture_owned', return_value=((1,1,b'x'), {'file':'before'})), \
                  mock.patch.object(app, 'prompt', return_value={}), \
                  mock.patch.object(app, 'wait_owned', side_effect=short_wait), mock.patch.object(app, 'validate_active'), \
+                 mock.patch.object(app, '_observe_until', return_value={'owner':'fixture'}), \
+                 mock.patch.object(app.os, 'fork', side_effect=real_fork) as fork, \
                  mock.patch.object(app, 'input_status'), mock.patch.object(app, 'check_video', return_value={}):
                 app.run_game(runner, SimpleNamespace(), args, rec, 'input', b'font',
                              probe=probe, video_factory=factory, audio_factory=lambda *_:audio)
+            self.assertEqual(fork.call_count, 1)
             self.assertEqual([entry['direction'] for entry in rec['direction_intervals']], ['left','right','left'])
             self.assertEqual([item['usage'] for item in rec['direction_observations']], [0x50,0x4f,0x50])
             self.assertIn('independent visual review', rec['game_video']['classification'])
+            self.assertEqual(rec['game_video']['frame_metadata_sha256'],
+                             hashlib.sha256((root/rec['game_video']['frame_metadata_file']).read_bytes()).hexdigest())
             self.assertEqual(rec['classification'], 'game and audio captured; independent gameplay and speaker review pending')
 
 

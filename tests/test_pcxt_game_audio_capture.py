@@ -94,9 +94,32 @@ class AudioCaptureTests(unittest.TestCase):
             recorder.reader = mock.Mock(); recorder.reader.is_alive.return_value = False
             recorder.reader_ended.set(); recorder.final_progress = True
             recorder.progress = mock.Mock(); recorder.stderr = mock.Mock()
-            recorder.progress_path.write_text(json.dumps({'monotonic_ns':1, 'line':'progress=end'})+'\n')
+            recorder.progress_path.write_text(json.dumps({'monotonic_ns':1, 'line':'out_time_us=1000000'})+'\n'
+                                              +json.dumps({'monotonic_ns':2, 'line':'progress=end'})+'\n')
             with self.assertRaisesRegex(audio.AudioError, 'PCM data is truncated'):
                 recorder.stop()
+
+    def test_audio_progress_stalled_after_start_blocks_input(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            recorder = audio.AudioRecorder(Path(tmp), 'A')
+            recorder.proc = mock.Mock(); recorder.proc.poll.return_value = None
+            recorder.last_advance_ns = time.monotonic_ns()-audio.MAX_PROGRESS_STALL_NS-1
+            with self.assertRaisesRegex(audio.AudioError, 'progress stalled'):
+                recorder.check()
+
+    def test_audio_progress_must_cover_each_observation_window(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            recorder = audio.AudioRecorder(Path(tmp), 'A')
+            recorder.proc = mock.Mock(); recorder.proc.poll.return_value = None
+            recorder.proc.wait.return_value = 0
+            recorder.reader = mock.Mock(); recorder.reader.is_alive.return_value = False
+            recorder.reader_ended.set(); recorder.final_progress = True
+            recorder.progress = mock.Mock(); recorder.stderr = mock.Mock()
+            recorder.progress_path.write_text(json.dumps({'monotonic_ns':1, 'line':'out_time_us=1000000'})+'\n'
+                                              +json.dumps({'monotonic_ns':2, 'line':'progress=end'})+'\n')
+            phases = [{'observation_started_monotonic_ns':10, 'observation_finished_monotonic_ns':20}]*3
+            with self.assertRaisesRegex(audio.AudioError, 'does not cover'):
+                recorder.stop(phases=phases)
 
 
 if __name__ == '__main__': unittest.main()

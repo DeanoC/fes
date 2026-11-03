@@ -525,6 +525,38 @@ class InputSafetyTest(unittest.TestCase):
         self.assertEqual(len([c for c in self.runner.api.calls if c[0] == 'POST']), 1)
 
 
+class PrestartedObserverTest(unittest.TestCase):
+    def test_existing_observer_is_reused_while_capture_thread_runs(self):
+        observer = app.PrestartedObserver(lambda _deadline: {'owner':'fixture'}, seconds=1)
+        stop = threading.Event()
+        worker = threading.Thread(target=stop.wait, daemon=True)
+        worker.start()
+        try:
+            with mock.patch.object(app.os, 'fork', side_effect=AssertionError('unexpected late fork')):
+                self.assertEqual(observer.check(), {'owner':'fixture'})
+                self.assertEqual(observer.check(), {'owner':'fixture'})
+        finally:
+            stop.set(); worker.join(timeout=1); observer.close()
+        self.assertTrue(observer.reaped)
+
+    def test_stuck_observer_is_killed_and_reaped_without_input(self):
+        observer = app.PrestartedObserver(lambda _deadline: time.sleep(2), seconds=.05)
+        start = time.monotonic()
+        with self.assertRaisesRegex(app.pa.AcceptanceError, 'deadline'):
+            observer.check()
+        self.assertTrue(observer.reaped)
+        self.assertLess(time.monotonic()-start, 1)
+
+    def test_cannot_start_an_observer_after_threads_exist(self):
+        stop = threading.Event(); worker = threading.Thread(target=stop.wait, daemon=True); worker.start()
+        try:
+            with mock.patch.object(app.os, 'fork', side_effect=AssertionError('must not fork')):
+                with self.assertRaisesRegex(app.pa.AcceptanceError, 'before capture threads'):
+                    app.PrestartedObserver(lambda _deadline:{})
+        finally:
+            stop.set(); worker.join(timeout=1)
+
+
 class MainOwnershipTest(unittest.TestCase):
     def test_owned_session_success_and_failure_never_stop_or_release(self):
         for mode in ('ok', 'capture', 'cleanup', 'audio_cleanup', 'interrupt'):
@@ -668,7 +700,8 @@ class VideoEvidenceTest(unittest.TestCase):
                  mock.patch.object(app, 'check_video', return_value={}), \
                  mock.patch.object(app, 'check_source_coverage', return_value={}):
                 app.run_game(runner, owned, args, rec, 'input-1', b'font',
-                             probe=test_guard, video_factory=Recorder, audio_factory=lambda *_:audio)
+                             probe=test_guard, video_factory=Recorder, audio_factory=lambda *_:audio,
+                             observer_factory=lambda *_:mock.Mock())
             self.assertEqual(rec['classification'], 'game and audio captured; independent gameplay and speaker review pending')
             self.assertIn('independent visual review', rec['game_video']['classification'])
             self.assertEqual(keys.call_count, 8)
@@ -692,7 +725,8 @@ class VideoEvidenceTest(unittest.TestCase):
             with self.assertRaisesRegex(app.pa.AcceptanceError, 'no game keys sent'):
                 app.run_game(None, owner, args, {'captures': []}, 'input', b'font',
                              probe=mock.Mock(spec=app.gameplay.PlaybackProbe),
-                             video_factory=lambda *_: video, audio_factory=mock.Mock())
+                             video_factory=lambda *_: video, audio_factory=mock.Mock(),
+                             observer_factory=lambda *_:mock.Mock())
         video.stop.assert_called_once()
         keys.assert_not_called()
 

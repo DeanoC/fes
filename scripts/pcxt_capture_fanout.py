@@ -357,7 +357,11 @@ def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, jo
     def writer():
         try:
             while True:
-                frame = records.get()
+                try:
+                    frame = records.get(timeout=.05)
+                except queue.Empty:
+                    if stopping.is_set(): return
+                    continue
                 if frame is sentinel:
                     return
                 record(frame)
@@ -370,7 +374,11 @@ def fanout_frames(frames, record, detect, *, sample_every, record_capacity=8, jo
     def observer():
         try:
             while True:
-                frame = observations.get()
+                try:
+                    frame = observations.get(timeout=.05)
+                except queue.Empty:
+                    if stopping.is_set(): return
+                    continue
                 if frame is sentinel:
                     return
                 detect(frame)

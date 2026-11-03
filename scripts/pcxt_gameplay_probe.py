@@ -72,7 +72,21 @@ class PlaybackProbe:
             self.closed = True
             raise ProbeError('game input is outside the declared left/right/left sequence')
         try:
-            proof = self.snapshot(require_player=not self.sent)
+            # The newest source frame may currently be in the detector. Wait
+            # only for that pending read-only observation, never retry input.
+            end = time.monotonic()+.25
+            while True:
+                try:
+                    proof = self.snapshot(require_player=not self.sent)
+                    break
+                except ProbeError:
+                    with self.lock:
+                        pending = (not self.fault.is_set() and self.latest_source is not None
+                                   and self.latest_result is not None
+                                   and self.latest_source.sequence != self.latest_result[0].sequence)
+                    if not pending or time.monotonic() >= end:
+                        raise
+                    time.sleep(.005)
             value = action()
         except BaseException:
             self.closed = True

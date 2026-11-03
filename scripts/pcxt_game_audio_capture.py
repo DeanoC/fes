@@ -10,6 +10,7 @@ import time
 import wave
 
 class AudioError(RuntimeError): pass
+MAX_PROGRESS_STALL_NS = 8_000_000_000
 
 def capture_identity(kit, *, sysroot=Path('/sys'), procroot=Path('/proc'), devroot=Path('/dev'), runner=subprocess.run):
     """Bind ALSA and fanout video to one expected physical USB capture card."""
@@ -66,6 +67,7 @@ class AudioRecorder:
             raise AudioError('audio evidence already exists')
         self.proc = None; self.ready = threading.Event(); self.first_progress_ns = None
         self.reader_ended = threading.Event(); self.reader_error = None; self.final_progress = False
+        self.last_audio_us = 0; self.last_advance_ns = None
         self.reader = None; self.stop_request_ns = None
         self.stderr = self.progress = None
     def start(self):
@@ -101,8 +103,11 @@ class AudioRecorder:
                 now=time.monotonic_ns(); self.progress.write(json.dumps({'monotonic_ns':now,'line':line.rstrip()})+'\n'); self.progress.flush()
                 if line.rstrip() == 'progress=end': self.final_progress=True
                 if line.startswith('out_time_us='):
-                    try: positive=int(line.split('=',1)[1])>0
-                    except ValueError: positive=False
+                    try: position=int(line.split('=',1)[1])
+                    except ValueError: position=0
+                    positive=position>0
+                    if position>self.last_audio_us:
+                        self.last_audio_us=position; self.last_advance_ns=now
                     if positive and self.first_progress_ns is None:
                         self.first_progress_ns=now; self.ready.set()
         except BaseException as exc:
@@ -138,8 +143,23 @@ class AudioRecorder:
         if self.proc is None or self.proc.poll() is not None: raise AudioError('audio recorder stopped before diagnostic completed')
         if self.reader_error is not None or self.reader_ended.is_set():
             raise AudioError('audio progress reader failed or stopped early')
+        if self.last_advance_ns is None or time.monotonic_ns()-self.last_advance_ns > MAX_PROGRESS_STALL_NS:
+            raise AudioError('audio sample progress stalled')
         if capture_identity(self.kit) != self.mapping: raise AudioError('audio/video capture mapping changed')
-    def stop(self):
+
+    def wait_advanced_after(self, timestamp_ns, timeout=10):
+        if type(timestamp_ns) is not int or timestamp_ns <= 0:
+            raise AudioError('invalid audio coverage timestamp')
+        deadline=time.monotonic()+timeout
+        while True:
+            self.check()
+            if self.last_advance_ns is not None and self.last_advance_ns >= timestamp_ns:
+                return
+            if time.monotonic() >= deadline:
+                raise AudioError('audio did not advance after the final observation window')
+            time.sleep(.1)
+
+    def stop(self, phases=None):
         if self.proc is None: raise AudioError('audio recorder was not started')
         self.stop_request_ns=time.monotonic_ns()
         running = self.proc.poll() is None
@@ -181,6 +201,29 @@ class AudioRecorder:
                 raise ValueError('invalid progress trace')
         except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
             raise AudioError('audio progress trace is incomplete') from exc
+        advances=[]; previous_us=0
+        for row in progress_rows:
+            line=row.get('line','')
+            if not isinstance(line,str) or not line.startswith('out_time_us='): continue
+            try: value=int(line.split('=',1)[1])
+            except ValueError: continue
+            if previous_us and value<previous_us:
+                raise AudioError('audio sample progress moved backwards')
+            if value>previous_us:
+                advances.append((row['monotonic_ns'],value)); previous_us=value
+        if not advances or any(b[0]-a[0]>MAX_PROGRESS_STALL_NS for a,b in zip(advances,advances[1:])):
+            raise AudioError('audio progress coverage is missing or stalled')
+        if phases is not None:
+            if not isinstance(phases,list) or len(phases)!=3:
+                raise AudioError('three audio observation windows are required')
+            previous_end=0
+            for phase in phases:
+                if not isinstance(phase,dict): raise AudioError('invalid audio observation window')
+                begin,end=phase.get('observation_started_monotonic_ns'),phase.get('observation_finished_monotonic_ns')
+                if (type(begin) is not int or type(end) is not int or begin<previous_end or begin>end
+                        or not any(ns<=begin for ns,_ in advances) or not any(ns>=end for ns,_ in advances)):
+                    raise AudioError('audio progress does not cover an observation window')
+                previous_end=end
         if rc not in (0,255): raise AudioError('audio recorder failed, rc='+str(rc))
         try:
             with wave.open(str(self.path),'rb') as f:
@@ -194,6 +237,8 @@ class AudioRecorder:
                     if len(data) != amount*4:
                         raise AudioError('audio capture PCM data is truncated')
                     remaining-=amount
+                if phases is not None and frames*1_000_000_000 < (previous_end-phases[0]['observation_started_monotonic_ns'])*48000:
+                    raise AudioError('audio samples are shorter than the host observation window span')
         except (OSError,wave.Error) as exc: raise AudioError('audio capture not a complete WAV') from exc
         with self.path.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
         with self.progress_path.open('rb') as stream: progress_sha=hashlib.file_digest(stream,'sha256').hexdigest()
@@ -203,6 +248,10 @@ class AudioRecorder:
                 'first_progress_monotonic_ns':self.first_progress_ns,'stop_requested_monotonic_ns':self.stop_request_ns,
                 'progress_file':self.progress_path.name,'progress_sha256':progress_sha,
                 'mapping_file':self.mapping_path.name,'mapping_sha256':mapping_sha,
+                'progress_coverage':{'advance_count':len(advances),'first_advance_ns':advances[0][0],
+                                     'last_advance_ns':advances[-1][0], 'windows_checked':len(phases) if phases is not None else 0,
+                                     'window_span_ns':(previous_end-phases[0]['observation_started_monotonic_ns']) if phases is not None else None,
+                                     'max_host_progress_gap_ns':MAX_PROGRESS_STALL_NS},
                 'clock_note':'spawn and first progress bracket host observation only; buffering and device clock remain uncalibrated'}
         (self.evidence/'audio-capture.json').write_text(json.dumps(result,indent=2)+'\n')
         return result

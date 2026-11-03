@@ -125,8 +125,10 @@ timestamps. Speaker behavior also needs independent review; the clocks are
 not synchronized. Historical failed and inconclusive attempts remain part of
 the lineage.
 
-The existing ownership observation forks while capture threads are active.
-Its hard deadline fails closed if the observation wedges. A guard timeout is
+The game diagnostic starts one read-only ownership observer before its video
+and audio threads. Each check asks that observer for a fresh result, and the
+parent kills and reaps it if the hard deadline expires. The game path refuses
+to start when the parent already has another Python thread. A guard timeout is
 a diagnostic failure, not evidence of a gameplay defect; retain the trace and
 apply the existing attempt and stop rules rather than automatically retrying.
 
