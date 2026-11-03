@@ -334,6 +334,21 @@ static struct fes_nano_fabric_stop new_fabric_stop(unsigned qualified)
 #endif
 _Static_assert(FES_NANO_WINDOW_READ_ATTRS_VERIFIED==1,"sealed window adapter attributes required");
 static unsigned window_prepared,window_issued;
+void fes_nano_platform_window_report(unsigned phase)
+{
+    const struct fes_nano_bridge_snapshot *state=&fes_nano_owned_bridges.state;
+    if(phase>=1 && phase<=3) {
+        const char *scope=phase==1?"control":phase==2?"data":"close";
+        NOTICE("FES_NANO_WINDOW_SCOPE phase=%s owner=%llx generation=%llu reset=%x\n",scope,
+               (unsigned long long)state->owner,(unsigned long long)state->generation,state->reset);
+    } else if(phase==4) {
+        const struct fes_nano_bridge_closure *c=&fes_nano_owned_bridges.closure;
+        state=&c->after;
+        NOTICE("FES_NANO_WINDOW_CLOSURE owner=%llx generation=%llu reset=%x hardware_drained=%x data_remained_contained=%u producers_quiescent=%u fabric_acknowledged=%u\n",
+               (unsigned long long)state->owner,(unsigned long long)state->generation,state->reset,
+               c->hardware_drained,c->data_remained_contained,c->producers_quiescent,c->fabric_acknowledged);
+    }
+}
 static int window_gate(void)
 {
     struct fes_nano_smmu_observation translation={0};

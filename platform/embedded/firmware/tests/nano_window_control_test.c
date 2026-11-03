@@ -55,6 +55,7 @@ int fes_nano_platform_window_prepare(void)
     if(mutation==20)bridges.state.owner=19;
     return mutation==14?-7:0;
 }
+void fes_nano_platform_window_report(unsigned phase) { assert(phase>=1 && phase<=4); }
 static int call(struct fes_nano_configuration *c,uint64_t op,uint64_t owner,uint64_t generation,unsigned busy,uint64_t r[4])
 {
     r[0]=2;r[1]=r[2]=r[3]=0;

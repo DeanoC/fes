@@ -59,7 +59,10 @@ static int fes_nano_window_control(uint32_t fid,uint64_t operation,uint64_t owne
         p->active=1;p->stage=FES_ID_OPEN;
         fes_nano_bridge_sip(c->bridges,operation,owner,generation,busy,r);
         if(r[0])fes_nano_window_failure(p,-5);
-        else { fes_nano_window_phase=FES_WINDOW_CONTROL;p->stage=FES_ID_READ; }
+        else {
+            fes_nano_window_phase=FES_WINDOW_CONTROL;p->stage=FES_ID_READ;
+            fes_nano_platform_window_report(1);
+        }
         return 1;
     }
     if(!c || !c->bridges || !p || !p->active || p->failed || p->bridges!=c->bridges ||
@@ -75,15 +78,22 @@ static int fes_nano_window_control(uint32_t fid,uint64_t operation,uint64_t owne
         p->stage=FES_ID_DDR_RELEASE;
         fes_nano_bridge_sip(c->bridges,operation,owner,generation,0,r);
         if(r[0])fes_nano_window_failure(p,-5);
-        else { fes_nano_window_phase=FES_WINDOW_DATA;p->stage=FES_ID_DDR_READ; }
+        else {
+            fes_nano_window_phase=FES_WINDOW_DATA;p->stage=FES_ID_DDR_READ;
+            fes_nano_platform_window_report(2);
+        }
         return 1;
     }
     if(operation!=(FES_EMBEDDED_BRIDGE_CLOSE | (held?FES_EMBEDDED_BRIDGE_REQUEST_HELD:0U)))return 1;
     fes_nano_window_phase=FES_WINDOW_RETIRED;
     p->stage=FES_ID_CLOSE;
+    fes_nano_platform_window_report(3);
     fes_nano_bridge_sip(c->bridges,operation,owner,generation,0,r);
     if(r[0])fes_nano_window_failure(p,-5);
-    else { p->closure=c->bridges->closure;p->active=0;p->stage=FES_ID_COMPLETE; }
+    else {
+        p->closure=c->bridges->closure;p->active=0;p->stage=FES_ID_COMPLETE;
+        fes_nano_platform_window_report(4);
+    }
     return 1;
 }
 #endif

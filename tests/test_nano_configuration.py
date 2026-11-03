@@ -305,4 +305,9 @@ class NanoConfigurationTests(unittest.TestCase):
                         self.assertIn('FES_TEST_WINDOW_FRAME bytes=3686400 crc32=9597d203',result.stdout)
                     if mutation in (160,164,167):
                         self.assertRegex(result.stdout,r'FES_NANO_MASTER_STOP status=0 .* disable=1 .* cancel=1 complete=1 data=active')
+                    if mutation in (160,164):
+                        self.assertRegex(result.stdout,r'FES_NANO_WINDOW_CLOSURE owner=[0-9a-f]+ generation=7 reset=f hardware_drained=8 data_remained_contained=0 producers_quiescent=1 fabric_acknowledged=0')
+                    elif mutation==168:
+                        self.assertRegex(result.stdout,r'FES_NANO_WINDOW_CLOSURE owner=[0-9a-f]+ generation=6 reset=f hardware_drained=0 data_remained_contained=1 producers_quiescent=1 fabric_acknowledged=0')
+                    else:self.assertNotIn('FES_NANO_WINDOW_CLOSURE ',result.stdout)
             print('PASS 9 joined secure SD/configuration/window/all-master-drain/return cases',flush=True)

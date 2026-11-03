@@ -194,6 +194,16 @@ DDR hardware test now
 [passes on TRWU8CBL](../../../docs/validation/2026-11-02-de25-contained-console/README.md).
 Normal runtime admission stays unavailable.
 
+The separate `fpgaload --window-memory --window-read` path binds a complete
+4 MiB reservation and one rendered tenfoot frame to the window personality.
+Firmware reports its control/data scopes, both fresh full-window permission
+checks, all-master stop and actual hardware closure receipt. The independent
+`window_trace.py` audit requires these records plus the matching native frame
+checksum, retained-memory identity and closed owner/generation. Partial,
+replayed or contradictory traces remain incomplete. This is a bounded
+read/return diagnostic; native HDMI, buffer reuse and ordinary core admission
+still need their own qualification.
+
 The [bounded read candidate](../../../docs/validation/2026-11-02-de25-ddr-read-candidate/README.md)
 passes the complete software/RTL checks and matched cross-build. Its first
 TRWU8CBL attempt verifies both network uploads, then stops after the SPL handoff

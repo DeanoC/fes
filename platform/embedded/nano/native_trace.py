@@ -9,6 +9,7 @@ from configuration_trace import extract as extract_configuration
 from hps_context import reader_pattern, digest as context_digest
 from hps_io import validate as validate_hps_io
 from reader_trace import extract as extract_reader_trace,validate as validate_reader_trace
+from window_trace import decode as decode_window_trace
 
 MAX_BYTES = 1 << 20
 MASTER_RESET = 0xff21bfbf  # nano_boot.h: functional and OCP resets
@@ -76,6 +77,7 @@ RULES = [(name, re.compile(pattern)) for name, pattern in (
     ('fpga_identity', rf'FES_NATIVE_FPGA_IDENTITY PASS package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) abi=(?P<abi>{H}) base=(?P<base>{H}) map_sha256=(?P<map_sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<generation>{H}) data_held=1 (?:runtime_)?programming=unavailable'),
     ('computer_control', rf'FES_NATIVE_COMPUTER_CONTROL PASS package_id=(?P<package_id>[0-9a-f]{{64}}) build_id=(?P<build_id>[0-9a-f]{{32}}) base=(?P<base>{H}) map_sha256=(?P<map_sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) held_ack=1 data_held=1 execution_observed=(?P<execution_observed>[01]) runtime_admission=unavailable'),
     ('computer_activity', rf'FES_NATIVE_COMPUTER_ACTIVITY phase=(?P<phase>[a-z-]{{1,20}}) fetches=(?P<fetches>[0-9]{{1,10}}) address=(?P<address>{H})'),
+    ('window_memory', rf'FES_NATIVE_FPGA_WINDOW_MEMORY PINNED cpu_base=(?P<cpu_base>{H}) bus_base=(?P<bus_base>{H}) bytes=(?P<bytes>[0-9]{{1,10}}) frame_bytes=(?P<frame_bytes>[0-9]{{1,10}}) row_bytes=(?P<row_bytes>[0-9]{{1,10}}) stride=(?P<stride>[0-9]{{1,10}}) rows=(?P<rows>[0-9]{{1,10}}) map_sha256=(?P<map_sha256>[0-9a-f]{{64}}) frame_sha256=(?P<frame_sha256>[0-9a-f]{{64}}) crc32=(?P<crc32>[0-9a-f]{{8}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) fpga_access=held lifetime=until-reboot renderer=tenfoot'),
     ('reader_memory', rf'FES_NATIVE_FPGA_READER_MEMORY PINNED cpu_base=(?P<cpu_base>{H}) bus_base=(?P<bus_base>{H}) bytes=(?P<bytes>[0-9]{{1,10}}) arena_bytes=(?P<arena_bytes>[0-9]{{1,10}}) map_sha256=(?P<map_sha256>[0-9a-f]{{64}}) pattern_sha256=(?P<pattern_sha256>[0-9a-f]{{64}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) fpga_access=unqualified'),
     ('master_stop', rf'(?:NOTICE:[ \t]+)?FES_NANO_MASTER_STOP status=(?P<status>-?[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) reset=(?P<reset>{H}) reader_reads=(?P<reader_reads>[0-9]{{1,10}}) reader_polls=(?P<reader_polls>[0-9]{{1,10}}) disable=(?P<disable>[01]) probe_polls=(?P<probe_polls>[0-9]{{1,10}}) cancel=(?P<cancel>[01]) complete=(?P<complete>[01]) data=held'),
     ('ddr_firewall', rf'(?:NOTICE:[ \t]+)?FES_NANO_DDR_FIREWALL status=(?P<status>-?[0-9]{{1,10}}) owner=(?P<owner>{H}) generation=(?P<generation>[0-9]{{1,20}}) reset=(?P<reset>{H}) mpfe_reset=(?P<mpfe_reset>[01]) reads=(?P<reads>[0-9]{{1,10}}) enable=(?P<enable>[0-9a-f]{{1,8}}) base=(?P<base>{H}) bytes=(?P<bytes>[0-9]{{1,10}}) access=unqualified'),
@@ -99,8 +101,8 @@ DECIMAL = {'kind', 'valid', 'core', 'provider', 'result', 'status', 'counter',
            'cpu0', 'cpu1', 'cpu2', 'cpu3', 'setup', 'ready', 'bytes', 'sectors', 'sd_generation', 'payload_bytes','words','ordinal',
            'reads','identified','settled','bypass_controls_clear','arena_bytes','reader_reads','reader_polls','disable','probe_polls','cancel','complete',
            'index','layout_known','window_covered','mpfe_reset','fetches','execution_observed','part','pass','count','busy','error',
-           'ram_bytes','control_bytes','dma_bytes','reader_bytes','translations'}
-TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id','map_sha256','pattern_sha256','descriptor_sha256'}
+           'ram_bytes','control_bytes','dma_bytes','reader_bytes','translations','frame_bytes','row_bytes','stride','rows'}
+TEXT = {'id', 'phase', 'sha256', 'cid', 'package_id', 'payload_sha256', 'build_id','map_sha256','pattern_sha256','descriptor_sha256','frame_sha256'}
 
 
 class _ComputerContinuation:
@@ -113,7 +115,7 @@ class _ComputerContinuation:
 
 def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None, hps_context=None, hps_io=None, fpga_identity=None,
                        fpga_configuration=False, fpga_unready=False, fpga_status_only=False, configuration_storage=False,
-                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, _continuation=None):
+                       smmu_observe=False, reader_memory=None, computer=None, computer_activity=False, cpu_mapping=None, capture_trace=True, atf=None, _continuation=None, _window_prefix=False):
     """Retain partial progress, but qualify only one ordered, coherent boot.
 
     A bare prompt need not end in a newline. Other incomplete lines are held
@@ -130,6 +132,10 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         raise ValueError('secure capture trace selection must come from the checked build')
     if type(computer_activity) is not bool or computer_activity and computer is None:
         raise ValueError('computer activity requires its explicitly selected source-bound computer probe')
+    if (type(_window_prefix) is not bool or _window_prefix and
+            (not configuration_storage or reader_memory is None or fpga_identity is None or computer is not None or
+             fpga_unready or fpga_status_only or _continuation is not None)):
+        raise ValueError('window prefix requires its explicit stored memory/identity scope')
     continued=_continuation is not None
     if continued and (type(_continuation) is not _ComputerContinuation or
             any(type(v) is not int for v in (_continuation.owner,_continuation.generation,_continuation.previous)) or
@@ -168,7 +174,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
         raise ValueError('configuration/readiness observation requires the explicit FPGA identity diagnostic')
     if fpga_identity is not None:
         if (not isinstance(fpga_identity,dict) or set(fpga_identity)!={'sha256','package_id','build_id','control_abi','cpu_base','map_sha256'} or
-                type(fpga_identity['control_abi']) is not int or fpga_identity['control_abi']!=(0x10203041 if reader_memory is not None else 0x10203040) or
+                type(fpga_identity['control_abi']) is not int or fpga_identity['control_abi']!=(0x10203042 if _window_prefix else 0x10203041 if reader_memory is not None else 0x10203040) or
                 type(fpga_identity['cpu_base']) is not int or fpga_identity['cpu_base']!=0x20010400 or
                 not isinstance(fpga_identity['map_sha256'],str) or not re.fullmatch('[0-9a-f]{64}',fpga_identity['map_sha256']) or
                 int(fpga_identity['map_sha256'],16)==0):
@@ -193,18 +199,22 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     if cpu_mapping is not None:
         expected={'format':1,'scope':'pinned-tamago-el1-resources-v1','ram_base':0x84000000,'ram_bytes':256<<20,
                   'control_base':0x20010400,'control_bytes':256,'dma_base':0x94800000,'dma_bytes':8<<20,
-                  'reader_base':0x95000000 if reader_memory else 0,'reader_bytes':2<<20 if reader_memory else 0}
+                  'reader_base':0x95000000 if reader_memory else 0,'reader_bytes':(4<<20 if _window_prefix else 2<<20) if reader_memory else 0}
         if (not configuration_storage or not isinstance(cpu_mapping,dict) or cpu_mapping!=expected or
                 any(type(cpu_mapping[key]) is not int for key in expected if key!='scope')):
             raise ValueError('source-derived native CPU mapping contract and stored configuration required')
     if reader_memory is not None:
+        if _window_prefix:
+            from hps_context import validate_reader_memory
+            validate_reader_memory(dict(programming_profile='de25-embedded-hps-first-window-diagnostic-v1',
+                control_abi=0x10203042,package_id=fpga_identity['package_id'],build_id=fpga_identity['build_id']),reader_memory)
         expected={'format':1,'scope':'sealed-cold-ddr-reader-memory-v1',
             'package_id':fpga_identity['package_id'] if fpga_identity else None,
             'build_id':fpga_identity['build_id'] if fpga_identity else None,
             'cpu_base':0x95000000,'bus_base':0x95000000,'bytes':8192,'arena_base':0x95000000,'arena_bytes':2<<20,
             'cpu_attributes':'normal-uncached','lifetime':'until-reboot','fpga_addressing':'physical-identity-unqualified',
             'pattern':'le32-xor-nano-golden-v1','pattern_sha256':hashlib.sha256(reader_pattern()).hexdigest()}
-        if (not configuration_storage or not isinstance(reader_memory,dict) or reader_memory!=expected or
+        if not _window_prefix and (not configuration_storage or not isinstance(reader_memory,dict) or reader_memory!=expected or
                 any(type(reader_memory[key]) is not int for key in ('format','cpu_base','bus_base','bytes','arena_base','arena_bytes'))):
             raise ValueError('independently checked cold DDR reservation and stored configuration required')
     if computer is not None:
@@ -232,7 +242,8 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             'hps_io_end_0','hps_io_begin_1','hps_io_end_1','hps_io_pass')
     if fpga_identity is not None:
         if fpga_configuration:stages+=('fpga_query','fpga_status')
-        if fpga_status_only:stages+=('fpga_status_closed',)
+        if _window_prefix:pass
+        elif fpga_status_only:stages+=('fpga_status_closed',)
         elif fpga_unready:stages+=('fpga_unready',)
         elif computer is not None:
             if computer_activity:stages+=tuple('computer_activity_'+phase for phase in ACTIVITY_PHASES)
@@ -250,7 +261,10 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 ('package_probe','package_retained','package_contained','package_resumed','package_pass'))
         index=base_stages.index('provider')+1
         stages=base_stages[:index]+('sd_platform',)+base_stages[index:-1]+suffix
-    if reader_memory is not None:
+    if _window_prefix:
+        index=stages.index('hps_context');stages=stages[:index]+('window_memory',)+stages[index:]
+        stages+=('smmu','ddr_firewall',)+tuple('ddr_region_'+str(i) for i in range(8))+('ddr_firewall_end',)
+    elif reader_memory is not None:
         gate=('computer_activity_initial' if computer_activity else 'master_stop') if computer is not None else 'identity_open'
         for before,added in (((gate,'smmu'),) if continued else (('hps_context','reader_memory'),(gate,'smmu'))):
             index=stages.index(before);stages=stages[:index]+(added,)+stages[index:]
@@ -286,7 +300,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             match = pattern.fullmatch(line)
             if match is None:
                 continue
-            values = {key: value if key in TEXT else int(value, 10 if key in DECIMAL or name in ('reader_memory','master_stop','ddr_blocked','ddr_firewall','computer_control','hps_io_begin','hps_io_end','cpu_mapping') and key=='generation' else 16)
+            values = {key: value if key in TEXT else int(value, 10 if key in DECIMAL or name in ('reader_memory','window_memory','master_stop','ddr_blocked','ddr_firewall','computer_control','hps_io_begin','hps_io_end','cpu_mapping') and key=='generation' else 16)
                       for key, value in match.groupdict().items()}
             if name=='computer_control' and not computer_activity and values['execution_observed']==0:
                 # Preserve the already retained control-only record shape.
@@ -319,7 +333,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
             break
         else:
             if (line.startswith(('U-Boot ', 'FES_NANO_', 'FES_ENTRY', 'FES_NATIVE_GO_PROBE', 'FES_STORAGE_PROBE', 'FES_SD_PACKAGE_PROBE',
-                                 'FES_NATIVE_HPS_CONTEXT','FES_NATIVE_HPS_IO','FES_NATIVE_CPU_MAPPING','FES_NATIVE_FPGA_IDENTITY','FES_NATIVE_FPGA_UNREADY','FES_NATIVE_FPGA_STATUS','FES_NATIVE_FPGA_PROGRAMMED','FES_NATIVE_COMPUTER_CONTROL','FES_NATIVE_COMPUTER_ACTIVITY', 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
+                                 'FES_NATIVE_HPS_CONTEXT','FES_NATIVE_HPS_IO','FES_NATIVE_CPU_MAPPING','FES_NATIVE_FPGA_IDENTITY','FES_NATIVE_FPGA_UNREADY','FES_NATIVE_FPGA_STATUS','FES_NATIVE_FPGA_PROGRAMMED','FES_NATIVE_FPGA_WINDOW_','FES_NATIVE_COMPUTER_CONTROL','FES_NATIVE_COMPUTER_ACTIVITY', 'Trying to boot from ', 'DRAM:', 'SOCFPGA_AGILEX5 #')) or
                     line.startswith('NOTICE:') and 'FES_NANO_' in line):
                 report['errors'].append(f'malformed or unexpected probe marker at line {number}')
 
@@ -491,7 +505,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
     if reader_memory is not None:
         firewall=observed.get('ddr_firewall');end=observed.get('ddr_firewall_end')
         if firewall:
-            require(firewall['status']==0 and firewall['mpfe_reset']==0 and firewall['reads']==66 and firewall['base']==0x95000000 and firewall['bytes']==8192,
+            require(firewall['status']==0 and firewall['mpfe_reset']==0 and firewall['reads']==66 and firewall['base']==0x95000000 and firewall['bytes']==reader_memory['bytes'],
                     'DDR firewall sample failed or changed the fixed window')
             require(matched_owner is not None and firewall['owner']==matched_owner and firewall['generation']==source_generation and firewall['reset']==15,
                     'DDR firewall observation lost closed ownership')
@@ -503,13 +517,20 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
                 enabled=bool(firewall['enable']&(1<<r['index']))
                 known=known and all(0<=r[key]<=0xffffffff for key in ('base','baseext','limit','limitext')) and not (
                     r['base']&0xffff or r['limit']&0xffff!=0xffff or (r['baseext']|r['limitext'])&~255 or enabled and first>last)
-                covered=covered or enabled and first<=0x95000000 and last>=0x95001fff
+                covered=covered or enabled and first<=0x95000000 and last>=0x95000000+reader_memory['bytes']-1
             covered=bool(known and covered)
             require(end['layout_known']==int(known) and end['window_covered']==int(covered),
                     'DDR firewall interpretation differs from its raw region words')
             report['ddr_firewall_observation']=dict(firewall,regions=regions,layout_known=bool(known),window_covered=covered,access_qualified=False)
-        value=observed.get('reader_memory')
-        if value:
+        value=observed.get('window_memory') if _window_prefix else observed.get('reader_memory')
+        if value and _window_prefix:
+            require(all(value[key]==reader_memory[key] for key in ('cpu_base','bus_base','bytes','frame_bytes','row_bytes','stride','rows')) and
+                    value['map_sha256']==context_digest(reader_memory) and int(value['frame_sha256'],16)!=0,
+                    'window publication differs from its complete sealed memory map')
+            require(matched_owner is not None and value['owner']==matched_owner and value['generation']==source_generation,
+                    'window publication changed closed owner/generation')
+            report['window_memory_observation']=dict(value,fpga_access_qualified=False,memory_released=False)
+        elif value:
             require(all(value[key]==reader_memory[key] for key in ('cpu_base','bus_base','bytes','arena_bytes','pattern_sha256')) and
                     value['map_sha256']==context_digest(reader_memory),'DDR reservation differs from its sealed map/pattern')
             require(matched_owner is not None and value['owner']==matched_owner and value['generation']==source_generation,
@@ -596,7 +617,7 @@ def decode_native_boot(data, build_id, owner_seed, *, storage=None, package=None
 
 
 def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, configuration, from_storage=False, reader_memory=None, ddr_read=None, computer=None, computer_activity=False, cpu_mapping=None, atf=None,
-                                computer_reload=False, computer_storage_return=False, _continuation=None, _require_activation=False):
+                                computer_reload=False, computer_storage_return=False, window_read=None, _continuation=None, _require_activation=False, _window_prefix=False):
     """Observe a contained transfer followed by the selected reclosed probe.
 
     The maps come from independently checked build receipts. Variable-length
@@ -610,6 +631,13 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
         raise ValueError('computer reload must come from the checked build selection')
     if type(computer_storage_return) is not bool or computer_storage_return and not computer_reload:
         raise ValueError('computer storage return requires the selected two-load diagnostic')
+    if window_read is not None:
+        if (from_storage is not True or reader_memory is None or cpu_mapping is None or ddr_read is not None or computer is not None or computer_activity or
+                computer_reload or computer_storage_return or _continuation is not None or _require_activation or _window_prefix):
+            raise ValueError('window read requires its separate complete stored configuration path')
+        return decode_window_trace(data,identity=fpga_identity,memory=reader_memory,contract=window_read,rules=dict(RULES),
+            base_decode=lambda prefix:decode_native_configuration(prefix,build_id,owner_seed,fpga_identity=fpga_identity,
+                configuration=configuration,from_storage=True,reader_memory=reader_memory,cpu_mapping=cpu_mapping,atf=atf,_window_prefix=True))
     if computer_reload:
         if (from_storage is not True or reader_memory is None or computer is None or not computer_activity or
                 ddr_read is not None or _continuation is not None or _require_activation):
@@ -659,7 +687,7 @@ def decode_native_configuration(data, build_id, owner_seed, *, fpga_identity, co
     owner,offset=parsed['owner'],parsed['offset']
     def require(condition,reason):
         if not condition:errors.append(reason)
-    report=decode_native_boot(b'\n'.join(parts),build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True,configuration_storage=from_storage,reader_memory=reader_memory,computer=computer,computer_activity=computer_activity,cpu_mapping=cpu_mapping,atf=atf,_continuation=_continuation)
+    report=decode_native_boot(b'\n'.join(parts),build_id,owner_seed,fpga_identity=fpga_identity,fpga_configuration=True,configuration_storage=from_storage,reader_memory=reader_memory,computer=computer,computer_activity=computer_activity,cpu_mapping=cpu_mapping,atf=atf,_continuation=_continuation,_window_prefix=_window_prefix)
     observed={row['stage']:row for row in report['records']}
     source=observed.get('hps_context');query=observed.get('fpga_query')
     if extra:

@@ -7,6 +7,7 @@ __attribute__((weak)) int fes_nano_platform_identity_setup(void) { return 0; }
 __attribute__((weak)) int fes_nano_platform_control_target(unsigned open) { (void)open; return -1; }
 __attribute__((weak)) int fes_nano_platform_ddr_target(unsigned open) { (void)open; return -1; }
 __attribute__((weak)) int fes_nano_platform_window_prepare(void) { return -1; }
+__attribute__((weak)) void fes_nano_platform_window_report(unsigned phase) { (void)phase; }
 __attribute__((weak)) void fes_nano_platform_identity_report(void) {}
 
 static void trace(struct fes_nano_identity_probe *p, unsigned stage)
