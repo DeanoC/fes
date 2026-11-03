@@ -62,7 +62,7 @@ a modified library:
   Ultima VI write only a count to port 42h and toggle port 61h bits 0 and 1,
   so they need that mode. Upstream never programs the counter, which then stays
   in KF8253's reset state (mode 0, MSB-only counts), and those games' speaker
-  effects were silent ([#1457](https://github.com/DeanoC/fes/issues/1457)).
+  effects played no tones ([#1457](https://github.com/DeanoC/fes/issues/1457)).
   `rombios.h` names port 42h `PORT_PIT_COUNTER2`.
 
 The boot order and disk-only boot need no patch: the machine writes CMOS 2Dh,

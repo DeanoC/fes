@@ -18,8 +18,8 @@ does. It changes no RTL.
 **Result.** SPKTEST.COM finds counter 2 in mode 3 at the DOS prompt. It
 replays the routine's I/O and gets counter 2's output high after every rising
 gate, and a 19.9 kHz square wave while the gate stays high. With main's BIOS,
-all three checks fail, and the output never goes high. No kit has run the
-fix yet.
+all three checks fail: the output never reads high after a rise, and with the
+gate held there is no square wave. No kit has run the fix yet.
 
 ## Inputs
 
@@ -137,10 +137,11 @@ sim-fes-pc386-speaker`, in CI's pc386 full tier beside `wait`):
 | Check | Result |
 | --- | --- |
 | `speaker` suite, oracle CPU ([report](speaker-report.json)) | Passes: `SPK post 36h ok`, `SPK rise 64/64 ok`, `SPK carrier 19886Hz ok`, `SPK DONE ok`, and the prompt again at 3.8 s |
-| `speaker` suite, oracle CPU, main's BIOS `47a982a5` (same bench and disk; [summary](speaker-before-report.json)) | Fails, as the bench predicts: `SPK post 20h FAIL` (MSB only, mode 0: KF8253's reset state), `SPK rise 0/64 FAIL` and `SPK carrier 0Hz FAIL`. Counter 2's output never read high |
+| `speaker` suite, oracle CPU, main's BIOS `47a982a5` (same bench and disk; [summary](speaker-before-report.json)) | Fails: `SPK post 20h FAIL` (MSB only, mode 0: KF8253's reset state), `SPK rise 0/64 FAIL` and `SPK carrier 0Hz FAIL`. As the bench shows, the output is low after every rise. The carrier check holds the gate high until its 400,000-read timeout, about 0.3-0.4 s (the run reached the prompt again at 4.2 s against the fixed run's 3.8 s). In mode 0 the output can rise only once in that time, at terminal count 54.9 ms in, and then stays high, so there is no square wave. A single change prints as 0 Hz, the same as none, because the first change only starts the timer |
 | `speaker` suite, RTL CPU ([report](speaker-rtl-report.json)) | Passes with the same lines. `fes_i386_cpu` ran the whole boot and the program alone: 103,279,707 instructions retired, 0 oracle steps, no stops, the prompt again at 3.8 s |
 | `boot`, oracle CPU | Passes: FreeDOS to the prompt at 3.75 s, `dir`, every I/O at its class time, and the VGA trace replay against Bochs (81,109 events, no mismatch) |
 | `wait`, oracle CPU | Passes, with the same waits as #1451's record to within 1 µs (10 ms took 10,045 µs) |
+| `system` | Passes, every check: FreeDOS on `pc386_system` at the sealed clock to the prompt at 3.21 s, INPUT.COM's mouse and keys, the Stop's save and record checks, and the port 2 hold sweep (holds cut a write burst in 4 of 187 trials) |
 | Lockstep | Unaffected: the branch changes no RTL, and the lockstep reads no firmware |
 | Unit tests | At the branch head: the misteross suite (1,643 tests, including the new `SpeakerTestTest` cases), `check-generated`, whitespace checks and the CI matrix and workflow tests pass. The parent Python suite (1,346 tests) passes except `test_factory_video_parts`. That module failed 39 tests in a run from a dirty tree ("recorded source closure differs from Git revision") and passes (53 tests) at the clean head. The Makefile change puts every core's simulation and the host and runtime lanes in `test-changed`'s plan; those are left to CI |
 
@@ -153,10 +154,10 @@ None. Under the pc386 reseal exemption, the next sealing PR covers this BIOS.
 - **A kit run.** No package with this BIOS has been built or run on a kit. So
   Ultima VI's lute tones on Kit B, and #1453's pitch measurement that needs
   them, are still to do.
-- **The `system` and `governor` suites** were not run. Both boot on
-  `pc386_system`. This change adds five `OUT`s to POST, and #1451's record
-  says the 386DX-25 governor preset hits
-  [#1372](https://github.com/DeanoC/fes/issues/1372) when POST timing moves.
+- **The `governor` suite** was not run. It boots on `pc386_system`. This
+  change adds five `OUT`s to POST, and #1451's record says the 386DX-25
+  governor preset hits [#1372](https://github.com/DeanoC/fes/issues/1372) when
+  POST timing moves.
 - **A second KF8253 difference from the 8254,** found on the way and not
   fixed here. A control word only resets the counter's byte pointers when its
   RW field changes. So B6h, then one LSB, then B6h again, then 33h, 05h gives
