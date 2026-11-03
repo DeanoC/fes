@@ -83,9 +83,9 @@ func TestExplicitInitialDiskRecoveryRetainsSourcesUntilConfirmedStop(t *testing.
 			var attempted bool
 			var failure *protocol.APIError
 			if tc.kind == "plain" {
-				activation, attempted, failure = r.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data), inspection.PackageID)
+				activation, attempted, failure = r.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), transport.Size(), transport.Reader(), inspection.PackageID)
 			} else {
-				activation, attempted, failure = r.LoadComposedCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data), inspection.PackageID)
+				activation, attempted, failure = r.LoadComposedCoreOwned(context.Background(), context.Background(), context.Background(), transport.Size(), transport.Reader(), inspection.PackageID)
 			}
 			if !attempted || failure == nil || failure.Phase != "recovery" || activation.PackageID != "" || c.initialCalls != 1 || c.loadCalls != 1 {
 				t.Fatal("retained failed load succeeded or replayed", attempted, failure, activation, c.initialCalls, c.loadCalls)

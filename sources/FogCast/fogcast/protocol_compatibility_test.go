@@ -111,8 +111,19 @@ func TestProtocolAdmissionBeforeMutationAndDiscoveryAdoption(t *testing.T) {
 
 func TestV1DifferentBuildRevisionsRemainCompatible(t *testing.T) {
 	artifacts := &protocol.Artifacts{RuntimeCommit: strings.Repeat("b", 40), AgentRevision: strings.Repeat("c", 40)}
-	software := &softwarecontrol.Status{ActiveBundle: strings.Repeat("d", 64), BaseIdentity: strings.Repeat("e", 64)}
-	health := protocol.Health{APIVersion: "v1", Ready: true, Artifacts: artifacts, Software: software}
+	software := &protocol.Identity{ActiveBundle: strings.Repeat("d", 64), BaseIdentity: strings.Repeat("e", 64), Selected: strings.Repeat("d", 64), Generation: 4}
+	// An older agent sends the supervisor's whole status in health; the host
+	// keeps only the identity.
+	health := struct {
+		protocol.Health
+		Software softwarecontrol.Status `json:"software"`
+	}{
+		Health: protocol.Health{APIVersion: "v1", Ready: true, Artifacts: artifacts},
+		Software: softwarecontrol.Status{
+			State:        softwarecontrol.State{Version: 1, Generation: 4, Selected: software.Selected, Receipts: map[string]softwarecontrol.Receipt{"op": {Result: "succeeded"}}},
+			ActiveBundle: software.ActiveBundle, BaseIdentity: software.BaseIdentity, StorageError: "private",
+		},
+	}
 	peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/stop":

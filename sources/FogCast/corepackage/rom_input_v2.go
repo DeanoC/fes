@@ -132,7 +132,10 @@ func IsROMInputV2(data []byte) bool {
 
 func WriteROMInputV2(in ROMInputV2) ([]byte, error) {
 	transport, err := PrepareROMInputV2(context.Background(), in)
-	return transport.Data, err
+	if err != nil {
+		return nil, err
+	}
+	return transport.Bytes(), nil
 }
 
 // PrepareROMInputV2 validates both sources and emits a canonical archive.
@@ -172,11 +175,11 @@ func PrepareROMInputV2(ctx context.Context, in ROMInputV2) (ROMTransport, error)
 	if err != nil {
 		return ROMTransport{}, err
 	}
-	data, err := writeCanonicalMembers(append(members, parts...), MaxROMInputSize)
+	stream, err := newCanonicalStream(append(members, parts...), MaxROMInputSize)
 	if err != nil {
 		return ROMTransport{}, errors.New("two-source ROM input exceeds size limit")
 	}
-	return ROMTransport{Data: data, PartsComposition: receipt.PartsComposition}, nil
+	return ROMTransport{stream: stream, PartsComposition: receipt.PartsComposition}, nil
 }
 
 func readPreparedROMInputV2(data []byte) (preparedROMInputV2, error) {
@@ -328,6 +331,19 @@ func StageROMInputV2(ctx context.Context, root string, size int64, reader io.Rea
 	if int64(len(data)) != size {
 		return Staged{}, errors.New("two-source input size mismatch")
 	}
+	return stageROMInputV2(ctx, root, data, nil)
+}
+
+// StageROMInputV2Spooled stages a spooled envelope and publishes the spool
+// itself as input.tar.
+func StageROMInputV2Spooled(ctx context.Context, root string, in *SpooledInput) (Staged, error) {
+	return stageROMInputV2(ctx, root, in.Bytes(), in)
+}
+
+func stageROMInputV2(ctx context.Context, root string, data []byte, spool *SpooledInput) (Staged, error) {
+	if ctx == nil || len(data) < 1 || len(data) > MaxROMInputSize {
+		return Staged{}, errors.New("invalid two-source staging request")
+	}
 	prepared, err := readPreparedROMInputV2(data)
 	if err != nil {
 		return Staged{}, err
@@ -341,11 +357,11 @@ func StageROMInputV2(ctx context.Context, root string, size int64, reader io.Rea
 	var staged Staged
 	switch {
 	case linked.parts != nil:
-		staged, err = stagePartsBundle(ctx, root, *linked.parts)
+		staged, err = stagePartsBundle(ctx, root, *linked.parts, &linked.inspection)
 	case linked.bundle != nil:
-		staged, err = stageCompositionBundle(ctx, root, *linked.bundle)
+		staged, err = stageCompositionBundle(ctx, root, *linked.bundle, &linked.inspection)
 	default:
-		staged, err = Stage(ctx, root, int64(len(in.Package)), bytes.NewReader(in.Package))
+		staged, err = stageArchive(ctx, root, in.Package, &linked.inspection)
 	}
 	if err != nil {
 		return Staged{}, err
@@ -378,7 +394,10 @@ func StageROMInputV2(ctx context.Context, root string, size int64, reader io.Rea
 	if err != nil {
 		return Staged{}, err
 	}
-	for file, content := range map[string][]byte{"input.tar": data, "programmed.rbf": programmed, "identity.json": encoded} {
+	if err = writeInput(handle, filepath.Join(name, "input.tar"), data, spool); err != nil {
+		return Staged{}, err
+	}
+	for file, content := range map[string][]byte{"programmed.rbf": programmed, "identity.json": encoded} {
 		if err = ctx.Err(); err != nil {
 			return Staged{}, err
 		}
