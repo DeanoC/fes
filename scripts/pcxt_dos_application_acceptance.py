@@ -964,6 +964,15 @@ def main(argv=None):
                'gameplay requires separate video review; audio and disk writes are not tested',
                'diagnostic does not qualify whole-board timing or general XT compatibility']}
     try:
+        if getattr(args, 'source_historical_main', False):
+            observations = getattr(args, 'source_tip_observations', None)
+            if observations is None:
+                observations = []
+                args.source_tip_observations = observations
+            rec['source_minimum_tip'] = args.source_minimum_tip
+            # Keep the same list as subsequent admission checks, including if
+            # an initial ownership/input observation or later phase fails.
+            rec['source_tip_observations'] = observations
         (args.evidence/'host-receipt.json').write_bytes(host_receipt)
         (args.evidence/'software-receipt.json').write_bytes(software_receipt)
         validate_active(runner, owned, args, disk['floppy_sha256'])
