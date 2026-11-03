@@ -180,16 +180,30 @@ func WriteROMInput(in ROMInput) ([]byte, error) {
 
 func WriteROMInputContext(ctx context.Context, in ROMInput) ([]byte, error) {
 	transport, err := PrepareROMInput(ctx, in)
-	return transport.Data, err
+	if err != nil {
+		return nil, err
+	}
+	return transport.Bytes(), nil
 }
 
 // ROMTransport is a closed ROM input and, for slot cards, the v2 composition
-// the sender linked. The receiver relinks and must reproduce it exactly.
+// the sender linked. The receiver relinks and must reproduce it exactly. The
+// envelope is read from its sources in place, which stay immutable while it
+// is in use.
 type ROMTransport struct {
-	Data             []byte
+	stream           canonicalStream
 	SlotComposition  *expansion.SlotComposition
 	PartsComposition *expansion.PartsComposition
 }
+
+// Size is the envelope's exact length.
+func (t ROMTransport) Size() int64 { return t.stream.size }
+
+// Reader returns a new reader over the whole envelope.
+func (t ROMTransport) Reader() io.Reader { return t.stream.reader() }
+
+// Bytes copies the whole envelope.
+func (t ROMTransport) Bytes() []byte { return t.stream.bytes() }
 
 func PrepareROMInput(ctx context.Context, in ROMInput) (ROMTransport, error) {
 	prepared, err := prepareROMInput(ctx, in)
@@ -204,11 +218,11 @@ func PrepareROMInput(ctx context.Context, in ROMInput) (ROMTransport, error) {
 		}
 		receipt = linked.receipt
 	}
-	data, err := writeROMInputReceipt(in, receipt)
+	stream, err := writeROMInputReceipt(in, receipt)
 	if err != nil {
 		return ROMTransport{}, err
 	}
-	return ROMTransport{Data: data, SlotComposition: receipt.Composition, PartsComposition: receipt.PartsComposition}, nil
+	return ROMTransport{stream: stream, SlotComposition: receipt.Composition, PartsComposition: receipt.PartsComposition}, nil
 }
 
 // admitROMParts admits video parts, and an optional CPU part, against a
@@ -263,10 +277,10 @@ func orderedROMParts(parts []expansion.Asset) []expansion.Asset {
 	return ordered
 }
 
-func writeROMInputReceipt(in ROMInput, receipt romInputReceipt) ([]byte, error) {
+func writeROMInputReceipt(in ROMInput, receipt romInputReceipt) (canonicalStream, error) {
 	encoded, err := json.Marshal(receipt)
 	if err != nil {
-		return nil, err
+		return canonicalStream{}, err
 	}
 	members := []canonicalMember{{"rom-link.json", encoded}, {"package.tar", in.Package}, {"rom.bin", in.ROM}}
 	if in.InitialMedia != nil {
@@ -275,21 +289,21 @@ func writeROMInputReceipt(in ROMInput, receipt romInputReceipt) ([]byte, error) 
 	if in.Expansion != nil {
 		var asset bytes.Buffer
 		if err = in.Expansion.Write(&asset); err != nil {
-			return nil, err
+			return canonicalStream{}, err
 		}
 		members = append(members, canonicalMember{"expansion.tar", asset.Bytes()})
 	}
 	cards, err := slotAssetMembers(in.SlotExpansions)
 	if err != nil {
-		return nil, err
+		return canonicalStream{}, err
 	}
 	parts, err := romPartMembers(in.Parts)
 	if err != nil {
-		return nil, err
+		return canonicalStream{}, err
 	}
-	out, err := writeCanonicalMembers(append(append(members, cards...), parts...), MaxROMInputSize)
+	out, err := newCanonicalStream(append(append(members, cards...), parts...), MaxROMInputSize)
 	if err != nil {
-		return nil, errors.New("ROM input exceeds size limit")
+		return canonicalStream{}, errors.New("ROM input exceeds size limit")
 	}
 	return out, nil
 }
@@ -535,6 +549,16 @@ func StageROMInput(ctx context.Context, root string, size int64, reader io.Reade
 // The caller keeps data immutable until return; published files own independent
 // bytes afterward, including the source receipt and initial disk.
 func StageROMInputBytes(ctx context.Context, root string, data []byte) (Staged, error) {
+	return stageROMInput(ctx, root, data, nil)
+}
+
+// StageROMInputSpooled stages a spooled envelope and publishes the spool
+// itself as input.tar.
+func StageROMInputSpooled(ctx context.Context, root string, in *SpooledInput) (Staged, error) {
+	return stageROMInput(ctx, root, in.Bytes(), in)
+}
+
+func stageROMInput(ctx context.Context, root string, data []byte, spool *SpooledInput) (Staged, error) {
 	if ctx == nil || len(data) < 1 || len(data) > MaxROMInputSize {
 		return Staged{}, errors.New("invalid ROM input staging request")
 	}
@@ -551,13 +575,13 @@ func StageROMInputBytes(ctx context.Context, root string, data []byte) (Staged, 
 	var staged Staged
 	switch {
 	case linked.parts != nil:
-		staged, err = stagePartsBundle(ctx, root, *linked.parts)
+		staged, err = stagePartsBundle(ctx, root, *linked.parts, &linked.inspection)
 	case linked.bundle != nil:
-		staged, err = stageCompositionBundle(ctx, root, *linked.bundle)
+		staged, err = stageCompositionBundle(ctx, root, *linked.bundle, &linked.inspection)
 	case linked.slots != nil:
-		staged, err = stageSlotCompositionBundle(ctx, root, *linked.slots)
+		staged, err = stageSlotCompositionBundle(ctx, root, *linked.slots, &linked.inspection)
 	default:
-		staged, err = Stage(ctx, root, int64(len(in.Package)), bytes.NewReader(in.Package))
+		staged, err = stageArchive(ctx, root, in.Package, &linked.inspection)
 	}
 	if err != nil {
 		return Staged{}, err
@@ -590,7 +614,10 @@ func StageROMInputBytes(ctx context.Context, root string, data []byte) (Staged, 
 	if err != nil {
 		return Staged{}, err
 	}
-	files := map[string][]byte{"input.tar": data, "programmed.rbf": programmed, "identity.json": encoded}
+	if err = writeInput(handle, filepath.Join(name, "input.tar"), data, spool); err != nil {
+		return Staged{}, err
+	}
+	files := map[string][]byte{"programmed.rbf": programmed, "identity.json": encoded}
 	if in.InitialMedia != nil {
 		files["initial-media.st"] = in.InitialMedia.Bytes
 	}

@@ -1,0 +1,243 @@
+{
+ "kit": "B",
+ "run": "p2k2",
+ "package": "faf63b2fa101907f4ecf2f9674c44b0eaedd2b4cbd17feb516b929b21b23f171.fcore",
+ "disk": "p2k-doom.img",
+ "game": "p2idt-doom-p2k2",
+ "events": [
+  {
+   "op": "stage",
+   "disk": "p2k-doom.img",
+   "sha256": "fa26f60b2410c19ac2ef47b602a4208cbb0383d6ea29d80c429481dfc460f816",
+   "staged": true,
+   "already": true,
+   "t": "2026-11-02 11:30:57"
+  },
+  {
+   "seq": 1,
+   "cmd": {
+    "op": "load"
+   },
+   "result": {
+    "load": {
+     "state": "active"
+    },
+    "seconds": 10.17,
+    "active_interfaces": [
+     "fes.audio.pcm-s16-stereo-48k 1.0",
+     "fes.fabric.video.display-plane 1.0",
+     "fes.keyboard.hid 1.0",
+     "fes.media.ata-disk 1.0",
+     "fes.memory.hps-ddr 1.0",
+     "fes.mouse.relative 1.0",
+     "fes.pc386.machine 1.0",
+     "fes.persistence.words 1.0",
+     "fes.rtc.wall-clock 1.0",
+     "fes.video.fixed-720p60 1.0",
+     "fes.video.session-display 1.0"
+    ]
+   },
+   "t": "2026-11-02 11:31:08"
+  },
+  {
+   "seq": 2,
+   "cmd": {
+    "op": "wait_stable",
+    "min": 30,
+    "max": 120
+   },
+   "result": {
+    "stable_after": 32.5,
+    "changed": 0.0
+   },
+   "t": "2026-11-02 11:31:40"
+  },
+  {
+   "seq": 3,
+   "cmd": {
+    "op": "grab",
+    "name": "p2k2-prompt"
+   },
+   "result": {
+    "ok": true
+   },
+   "t": "2026-11-02 11:31:41"
+  },
+  {
+   "seq": 4,
+   "cmd": {
+    "op": "type",
+    "text": "mem\n"
+   },
+   "result": {},
+   "t": "2026-11-02 11:31:41"
+  },
+  {
+   "seq": 5,
+   "cmd": {
+    "op": "sleep",
+    "s": 6
+   },
+   "result": {},
+   "t": "2026-11-02 11:31:47"
+  },
+  {
+   "seq": 6,
+   "cmd": {
+    "op": "grab",
+    "name": "p2k2-mem"
+   },
+   "result": {
+    "ok": true
+   },
+   "t": "2026-11-02 11:31:48"
+  },
+  {
+   "seq": 7,
+   "cmd": {
+    "op": "audio_start",
+    "name": "p2k2-doom"
+   },
+   "result": {
+    "wav": "p2k2-doom.wav"
+   },
+   "t": "2026-11-02 11:31:48"
+  },
+  {
+   "seq": 8,
+   "cmd": {
+    "op": "type",
+    "text": "cls\ncd doom\ndoom\n"
+   },
+   "result": {},
+   "t": "2026-11-02 11:31:50"
+  },
+  {
+   "seq": 9,
+   "cmd": {
+    "op": "sleep",
+    "s": 4
+   },
+   "result": {},
+   "t": "2026-11-02 11:31:54"
+  },
+  {
+   "seq": 10,
+   "cmd": {
+    "op": "grab",
+    "name": "p2k2-doom-04"
+   },
+   "result": {
+    "ok": true
+   },
+   "t": "2026-11-02 11:31:54"
+  },
+  {
+   "seq": 11,
+   "cmd": {
+    "op": "sleep",
+    "s": 6
+   },
+   "result": {},
+   "t": "2026-11-02 11:32:00"
+  },
+  {
+   "seq": 12,
+   "cmd": {
+    "op": "grab",
+    "name": "p2k2-doom-10"
+   },
+   "result": {
+    "ok": true
+   },
+   "t": "2026-11-02 11:32:00"
+  },
+  {
+   "seq": 13,
+   "cmd": {
+    "op": "sleep",
+    "s": 10
+   },
+   "result": {},
+   "t": "2026-11-02 11:32:10"
+  },
+  {
+   "seq": 14,
+   "cmd": {
+    "op": "grab",
+    "name": "p2k2-doom-20"
+   },
+   "result": {
+    "ok": true
+   },
+   "t": "2026-11-02 11:32:11"
+  },
+  {
+   "seq": 15,
+   "cmd": {
+    "op": "sleep",
+    "s": 15
+   },
+   "result": {},
+   "t": "2026-11-02 11:32:26"
+  },
+  {
+   "seq": 16,
+   "cmd": {
+    "op": "grab",
+    "name": "p2k2-doom-35"
+   },
+   "result": {
+    "ok": true
+   },
+   "t": "2026-11-02 11:32:26"
+  },
+  {
+   "seq": 17,
+   "cmd": {
+    "op": "sleep",
+    "s": 25
+   },
+   "result": {},
+   "t": "2026-11-02 11:32:51"
+  },
+  {
+   "seq": 18,
+   "cmd": {
+    "op": "grab",
+    "name": "p2k2-doom-60"
+   },
+   "result": {
+    "ok": true
+   },
+   "t": "2026-11-02 11:32:52"
+  },
+  {
+   "seq": 19,
+   "cmd": {
+    "op": "audio_stop"
+   },
+   "result": {
+    "name": "p2k2-doom",
+    "seconds": 64.51,
+    "peak": 186
+   },
+   "t": "2026-11-02 11:32:52"
+  },
+  {
+   "seq": 20,
+   "cmd": {
+    "op": "stop"
+   },
+   "result": {
+    "state": "idle"
+   },
+   "t": "2026-11-02 11:32:56"
+  }
+ ],
+ "disk_sha256": "fa26f60b2410c19ac2ef47b602a4208cbb0383d6ea29d80c429481dfc460f816",
+ "after": {
+  "agent": "idle",
+  "lease": "revoking"
+ }
+}

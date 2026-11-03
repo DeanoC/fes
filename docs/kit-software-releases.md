@@ -344,9 +344,20 @@ They do not require an execution lease:
 | `POST /v1/kit/software/activate` | Queue `{id,candidate,requester,expected_generation}` |
 | `POST /v1/kit/software/cancel` | Cancel `{id,expected_generation}` while queued |
 
-Authenticated health has a separate `software` object with `active_bundle`,
-`base_identity` and supervisor state. Existing sealed image `artifacts` retain
-their base-image provenance. Public health omits software queue details.
+Authenticated health has a software identity. A host requests the compact
+`software_identity_v1` representation using `X-FES-Software-Identity: 1`;
+the agent emits it only after validating the complete supervisor status.
+Legacy hosts without this header receive the full `software` status, preserving
+compatibility; a new host validates that legacy status before using its
+selection. The compact-only, unmarked `software` response shipped by #1445
+cannot establish full-state validation: the new host suppresses its selection
+until the agent is upgraded to the negotiated protocol. Install the compatible
+agent before relying on selected-software admission on an upgraded host.
+If the supervisor cannot answer, the agent reports the independent
+bundle and base identity it was launched with, without a selected bundle. The
+compact form avoids transmitting the operation journal on upgraded hosts, but
+the agent and supervisor still read and validate it. Public health omits the
+software identity. Existing sealed image `artifacts` retain their provenance.
 
 The supervisor owns the entire group lifecycle. Managed diagnostics use a private host and an explicitly installed software
 bundle. File-swap, baseline and restore commands refuse managed images before

@@ -82,7 +82,7 @@ func (r *healthResponse) UnmarshalJSON(data []byte) error {
 		if ok {
 			health.Software = &status
 		} else if health.Software != nil {
-			// Preserve only independent environment identities, never selection.
+			// Preserve only the peer-reported active/base fields, never selection.
 			health.Software = &softwarecontrol.Status{ActiveBundle: health.Software.ActiveBundle, BaseIdentity: health.Software.BaseIdentity, StorageError: "software status unverified"}
 		}
 		health.SoftwareIdentityV1 = nil

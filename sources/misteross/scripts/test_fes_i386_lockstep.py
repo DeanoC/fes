@@ -132,6 +132,13 @@ SCOPE: frozenset[str] = frozenset([
     # from CR0, CR2 and CR3. The corpus has none; the random programs and
     # the protected-mode cases run them.
     '0F01', '0F20', '0F22',
+    # Phase 2's second slice: group 6 (SLDT, STR, LLDT, LTR, VERR, VERW),
+    # LAR, LSL and ARPL, #UD in real mode. The corpus has none of them
+    # either.
+    '0F00', '0F02', '0F03', '63',
+    # The ESC instructions with no 387. The corpus has none; the directed
+    # no-387 cases run every form.
+    *(f'{opcode:02X}' for opcode in range(0xD8, 0xE0)),
 ])
 
 
@@ -236,6 +243,46 @@ def run_unreal(testbench: str, env: dict) -> dict:
     return {'summary': summary, 'failures': failures}
 
 
+def run_pmode(testbench: str, env: dict) -> dict:
+    """The directed protected-mode cases (lockstep_tb.cpp's run_pmode_cases):
+    each fault's vector and error code, EXT, a double fault and shutdown,
+    INT n, INT3, INTO and IRET through interrupt and trap gates, far CALL and
+    RETF, LLDT, LTR, SLDT, STR, LAR, LSL, VERR, VERW, ARPL, their #UD in real
+    mode, and what stops as not built (a task gate, a return to an outer
+    privilege)."""
+    env = dict(env, FES_I386_MODE='pmode', FES_I386_LATENCY='1')
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'pmode cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != PMODE_CASES:
+        raise LockstepError(f'pmode cases: testbench ran {summary["runs"]} of {PMODE_CASES} cases')
+    return {'summary': summary, 'failures': failures}
+
+
+PMODE_CASES = 51
+
+
+def run_no387(testbench: str, env: dict) -> dict:
+    """The directed cases of the ESC instructions with no 387 (lockstep_tb.cpp's
+    run_no387_cases), against the oracle under the no-387 rule and against
+    what the bench works out the empty socket gives: every ESC form in real,
+    16-bit and 32-bit protected mode with the x87 pointers FNSTENV stores
+    after it, their faults, #NM under each combination of EM, MP and TS,
+    FNSTENV's and FNSAVE's layouts, and FPU detection routines."""
+    env = dict(env, FES_I386_MODE='no387', FES_I386_LATENCY='1')
+    result = subprocess.run([testbench], env=env, capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise LockstepError(f'no-387 cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
+    summary, failures = parse_output(result.stdout)
+    if summary['runs'] != NO387_CASES:
+        raise LockstepError(f'no-387 cases: testbench ran {summary["runs"]} of {NO387_CASES} cases')
+    return {'summary': summary, 'failures': failures}
+
+
+NO387_CASES = 1933
+
+
 def divergence_table(entries: list[dict], path: Path) -> None:
     """The opcode-class entries, for the testbench to apply per retirement."""
     lines = []
@@ -310,11 +357,11 @@ def run_biu_dma_test(verilator: str, jobs: int) -> dict:
 # real-mode CS loads under the 386 rule are compared as counts.
 SAME_CORPUS = ('tests', 'passed', 'retired_to_hlt', 'faults', 'retirements', 'mmio_runs', 'mmio_accesses',
                'io_accesses', 'interrupts')
-SAME_RANDOM = ('runs', 'passed', 'retirements', 'halts', 'faults', 'double_faults', 'retire_limits', 'io_accesses',
+SAME_RANDOM = ('runs', 'passed', 'retirements', 'halts', 'faults', 'shutdowns', 'nested', 'retire_limits', 'io_accesses',
                'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops', 'window_code_stops',
                'code_store_stops', 'stray_stops', 'mmio_runs', 'mmio_accesses', 'pm_retirements', 'cs_rule')
 SAME_MODE = ('runs', 'passed', 'failed', 'retirements', 'halts', 'interrupts', 'faults', 'fault_vectors',
-             'double_faults', 'io_accesses', 'external_interrupts', 'nmis', 'rep_interrupts', 'divergence_retirements',
+             'shutdowns', 'nested', 'io_accesses', 'external_interrupts', 'nmis', 'rep_interrupts', 'divergence_retirements',
              'pm_retirements', 'cs_rule', 'trace_hash')
 
 
@@ -340,9 +387,9 @@ def same_as(report: dict, other: dict) -> list[str]:
         compare(f'random {key}', report['random'].get(key), other['random'].get(key))
     for key in SAME_RANDOM:
         compare(f'pmode {key}', report['pmode']['totals'].get(key), other['pmode']['totals'].get(key))
-    for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'pm_stops'):
+    for key in ('seeds', 'programs_per_seed', 'trace_hashes', 'pm_deliveries', 'unbuilt_stops', 'pm_kinds'):
         compare(f'pmode {key}', report['pmode'].get(key), other['pmode'].get(key))
-    for mode in ('directed_cases', 'unreal_cases', 'memory_cases', 'reset_store'):
+    for mode in ('directed_cases', 'unreal_cases', 'pmode_cases', 'no387_cases', 'memory_cases', 'reset_store'):
         for key in SAME_MODE:
             compare(f'{mode} {key}', report[mode]['summary'].get(key), other[mode]['summary'].get(key))
     compare('unbuilt encodings', report['unbuilt']['encodings'], other['unbuilt']['encodings'])
@@ -467,6 +514,8 @@ def main() -> int:
         reset_store = run_reset_store(testbench, env)
         directed = run_directed(testbench, env)
         unreal = run_unreal(testbench, env)
+        pmode_cases = run_pmode(testbench, env)
+        no387 = run_no387(testbench, env)
         memory = run_memory(testbench, env)
 
         corpus = args.corpus or vectors.OUTPUT / 'corpus' / vectors.REVISION
@@ -528,15 +577,19 @@ def main() -> int:
     def random_sum(results: list[dict]) -> Counter:
         return sum((Counter({key: result['summary'][key] for key in
                              ('runs', 'passed', 'failed', 'retirements', 'cycles', 'halts', 'faults',
-                              'double_faults', 'retire_limits', 'load_wait_cycles', 'io_accesses',
+                              'shutdowns', 'nested', 'retire_limits', 'load_wait_cycles', 'io_accesses',
                               'external_interrupts', 'nmis', 'rep_interrupts', 'vector_moved_stops',
                               'window_code_stops', 'code_store_stops', 'stray_stops', 'mmio_runs',
                               'mmio_accesses', 'replays', 'smc_restarts', 'port0_reads', 'port0_writes',
-                              'pm_retirements', 'cs_rule')})
+                              'pm_retirements', 'cs_rule', 'ss_error_rule')})
                     for result in results), Counter())
     random_totals = random_sum(random_results)
     pmode_totals = random_sum(pmode_results)
-    pm_stops = sum((Counter(result['summary']['pm_stops']) for result in random_results + pmode_results), Counter())
+    pm_deliveries = sum((Counter(result['summary']['pm_deliveries']) for result in random_results + pmode_results),
+                        Counter())
+    unbuilt_stops = sum((Counter(result['summary']['unbuilt_stops']) for result in random_results + pmode_results),
+                        Counter())
+    pm_kinds = sum((Counter(result['summary']['pm_kinds']) for result in random_results + pmode_results), Counter())
     random_failures = [line for result in random_results + steady_results + pmode_results
                        for line in result['failures']]
     hash_mismatches = [result['seed'] for result in steady_results
@@ -556,7 +609,7 @@ def main() -> int:
     unbuilt_runs = sum(result['summary']['runs'] for result in unbuilt_results)
     random_failures += held
     reset_store_failures = reset_store['failures']
-    directed_failures = directed['failures'] + unreal['failures']
+    directed_failures = directed['failures'] + unreal['failures'] + pmode_cases['failures'] + no387['failures']
     memory_failures = memory['failures']
     if (biu_dma_failures or corpus_failures or random_failures or hash_mismatches or unbuilt_failures or reset_store_failures
             or directed_failures or memory_failures):
@@ -566,6 +619,8 @@ def main() -> int:
         'reset_store': reset_store,
         'directed_cases': directed,
         'unreal_cases': unreal,
+        'pmode_cases': pmode_cases,
+        'no387_cases': no387,
         'memory_cases': memory,
         'governor': {'preset': args.preset},
         'corpus': {'revision': vectors.REVISION, 'files': len(corpus_results), 'totals': dict(totals),
@@ -580,7 +635,8 @@ def main() -> int:
                    'trace_hash_mismatches': hash_mismatches, 'latency_free_gaps': gaps,
                    'failures': random_failures[:200]},
         'pmode': {'seeds': [result['seed'] for result in pmode_results], 'programs_per_seed': args.pm_programs,
-                  'pm_weight': PM_WEIGHT, 'totals': dict(pmode_totals), 'pm_stops': dict(pm_stops),
+                  'pm_weight': PM_WEIGHT, 'totals': dict(pmode_totals), 'pm_deliveries': dict(pm_deliveries),
+                  'unbuilt_stops': dict(unbuilt_stops), 'pm_kinds': dict(sorted(pm_kinds.items())),
                   'trace_hashes': {str(result['seed']): result['summary']['trace_hash'] for result in pmode_results}},
     })
     if args.same_as is not None:
@@ -599,7 +655,8 @@ def main() -> int:
     if random_results:
         print(f"random: {len(random_results)} seeds x {args.random_programs} programs, {random_totals['retirements']} "
               f"retirements: {random_totals['passed']} pass ({random_totals['halts']} to HLT, {random_totals['faults']} "
-              f"at a delivered exception, {random_totals['double_faults']} at a fault in a delivery, "
+              f"at a delivered exception ({random_totals['nested']} of them a fault in a delivery), "
+              f"{random_totals['shutdowns']} at a shutdown, "
               f"{random_totals['retire_limits']} at the retirement limit, "
               f"{random_totals['vector_moved_stops']} at an interrupt whose vector they had "
               f"rewritten, {random_totals['window_code_stops']} at code in the MMIO window, "
@@ -618,8 +675,11 @@ def main() -> int:
         print(f"protected mode: {len(pmode_results)} seeds x {args.pm_programs} programs dense with protected-mode "
               f"blocks, {pmode_totals['retirements']} retirements ({pmode_totals['pm_retirements'] + random_totals['pm_retirements']} "
               f"with PE set in these and the random programs): {pmode_totals['passed']} pass, "
-              f"{pmode_totals['failed']} fail; {sum(pm_stops.values())} stopped at an exception or interrupt with PE set "
-              f"{dict(sorted(pm_stops.items(), key=lambda item: int(item[0])))}; "
+              f"{pmode_totals['failed']} fail; {sum(pm_deliveries.values())} deliveries through the IDT by vector "
+              f"(256 + vector: an INTR) {dict(sorted(pm_deliveries.items(), key=lambda item: int(item[0])))}; "
+              f"{pmode_totals['shutdowns']} shutdowns, {pmode_totals['nested']} faults in a delivery delivered; "
+              f"{sum(unbuilt_stops.values())} stopped at what is not built, by reason "
+              f"{dict(sorted(unbuilt_stops.items()))}; retired with PE set {dict(sorted(pm_kinds.items()))}; "
               f"{pmode_totals['cs_rule'] + random_totals['cs_rule']} real-mode CS loads under the 386 rule")
         def share(histogram: dict, cycles: int) -> str:
             total = sum(histogram.values())
@@ -642,6 +702,11 @@ def main() -> int:
     print(f"directed cases: {directed['summary']['passed']} pass, {directed['summary']['failed']} fail")
     print(f"unreal-mode cases: {unreal['summary']['passed']} pass, {unreal['summary']['failed']} fail "
           f"({unreal['summary']['cs_rule']} real-mode CS loads under the 386 rule)")
+    print(f"protected-mode cases: {pmode_cases['summary']['passed']} pass, {pmode_cases['summary']['failed']} fail "
+          f"({pmode_cases['summary']['nested']} faults in a delivery delivered)")
+    print(f"no-387 cases: {no387['summary']['passed']} pass, {no387['summary']['failed']} fail "
+          f"({no387['summary']['no387_rule']} ESC instructions under the no-387 rule, "
+          f"{no387['summary']['no387_skips']} of them not stepped on the oracle)")
     print(f"memory cases (DMA, FLUSH): {memory['summary']['passed']} pass, {memory['summary']['failed']} fail")
     if args.preset:
         print(f'governor preset {args.preset}: the latency-free holds are not checked')

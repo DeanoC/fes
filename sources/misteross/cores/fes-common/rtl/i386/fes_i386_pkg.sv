@@ -108,11 +108,14 @@ package fes_i386_pkg;
         ALU_BSF, ALU_BSR, ALU_DAA, ALU_DAS, ALU_AAA, ALU_AAS, ALU_SALC, ALU_FLAGS, ALU_SIGN
     } alu_op_e;
 
-    // ALU_FLAGS, in imm[3:0]. LOAD writes the flags from src2 (POPF, IRET);
-    // READ gives FLAGS' image (PUSHF), READ_INT too, clearing IF and TF (INT).
+    // ALU_FLAGS, in imm[3:0]. LOAD writes the flags from src2 (POPF, IRET),
+    // LOAD_RF RF too (IRETD); READ gives FLAGS' image (PUSHF), READ_INT too,
+    // clearing IF and TF (a real-mode INT). READ_PM is a protected-mode
+    // delivery's EFLAGS image, RF (bit 16) from imm[4], and clears TF and NT,
+    // and IF unless imm[5] says the gate is a trap gate.
     typedef enum logic [3:0] {
         FLAG_CLC, FLAG_STC, FLAG_CMC, FLAG_CLI, FLAG_STI, FLAG_CLD, FLAG_STD, FLAG_SAHF, FLAG_LAHF,
-        FLAG_LOAD, FLAG_READ, FLAG_READ_INT
+        FLAG_LOAD, FLAG_READ, FLAG_READ_INT, FLAG_LOAD_RF, FLAG_READ_PM
     } flag_op_e;
 
     // UOP_SHIFT. The first eight follow the x86 group-2 order.
@@ -122,21 +125,27 @@ package fes_i386_pkg;
     } shift_op_e;
 
     // UOP_SEGMENT: a real-mode or V86 load of the selector in src2, which
-    // sets the base to selector * 16.
-    typedef enum logic [4:0] { SEGOP_LOAD_REAL } segment_op_e;
+    // sets the base to selector * 16; or ZF, the result of LAR, LSL, VERR,
+    // VERW or ARPL: ZF from imm[0], and the destination takes src2 when it
+    // is set, else keeps src1 (fes_i386_cpu, "System segments").
+    typedef enum logic [4:0] { SEGOP_LOAD_REAL, SEGOP_ZF } segment_op_e;
 
     // UOP_SPECIAL.
     typedef enum logic [4:0] { SPECIAL_NOP, SPECIAL_HLT } special_op_e;
 
     // UOP_SYSTEM: a write at WB of a register the decode or the address
-    // path reads. Each is a jump to the next instruction (fes_i386_exctl
-    // b_jmp), so every instruction after it decodes and reads it anew. CLTS
-    // clears CR0.TS; CR0, CR2 and CR3 take T1 (MOV CRn, r32); LMSW takes
-    // T1's PE, MP, EM and TS, and cannot clear PE; GDTR and IDTR take T0 as
-    // the limit and T1 as the base, its top byte cleared at a 16-bit size
-    // (LGDT, LIDT).
+    // path reads. Each but GATE is a jump to the next instruction
+    // (fes_i386_exctl b_jmp), so every instruction after it decodes and
+    // reads it anew. CLTS clears CR0.TS; CR0, CR2 and CR3 take T1 (MOV CRn,
+    // r32); LMSW takes T1's PE, MP, EM and TS, and cannot clear PE; GDTR and
+    // IDTR take T0 as the limit and T1 as the base, its top byte cleared at
+    // a 16-bit size (LGDT, LIDT); LDTR and TR take T0's descriptor (LLDT,
+    // LTR). GATE splits a protected-mode delivery's gate, T1 and T3: T0 the
+    // gate's selector, T1 its offset, and the gate's size and kind for the
+    // pushes (fes_i386_cpu, "Protected-mode delivery").
     typedef enum logic [4:0] {
-        SYSOP_CLTS, SYSOP_CR0, SYSOP_LMSW, SYSOP_CR2, SYSOP_CR3, SYSOP_GDTR, SYSOP_IDTR
+        SYSOP_CLTS, SYSOP_CR0, SYSOP_LMSW, SYSOP_CR2, SYSOP_CR3, SYSOP_GDTR, SYSOP_IDTR, SYSOP_LDTR, SYSOP_TR,
+        SYSOP_GATE
     } system_op_e;
 
     // UOP_MUL and UOP_DIV, in EX's multiply and divide unit (fes_i386_muldiv).
@@ -168,10 +177,24 @@ package fes_i386_pkg;
     } sys_reg_e;
 
     // A system register D reads as src2's value (decoded_t b_sys): MOV r32,
-    // CRn, SMSW, SGDT and SIDT.
-    typedef enum logic [2:0] {
-        SYS_RD_CR0, SYS_RD_CR2, SYS_RD_CR3, SYS_RD_GDTL, SYS_RD_GDTB, SYS_RD_IDTL, SYS_RD_IDTB
+    // CRn, SMSW, SGDT, SIDT, SLDT and STR; a delivery's error code (ERR);
+    // all ones, for the fields an absent 387 supplies (ONES); the x87
+    // instruction and data pointers' words of FNSTENV's and FNSAVE's
+    // layouts (FIP, FCS, FDP, FDS; fes_i386_cpu, "x87 pointers"); ARPL's
+    // adjusted selector (from T1 and T2). LAR, LSL, VERR and VERW name
+    // their result here; M1 puts it in from the staged descriptor. Those
+    // from FIP on are read in D behind the uops that write them (t_rd).
+    typedef enum logic [4:0] {
+        SYS_RD_CR0, SYS_RD_CR2, SYS_RD_CR3, SYS_RD_GDTL, SYS_RD_GDTB, SYS_RD_IDTL, SYS_RD_IDTB, SYS_RD_LDTR,
+        SYS_RD_TR, SYS_RD_ERR, SYS_RD_ONES, SYS_RD_FIP, SYS_RD_FCS, SYS_RD_FDP, SYS_RD_FDS, SYS_RD_ARPL,
+        SYS_RD_LAR, SYS_RD_LSL, SYS_RD_VERR, SYS_RD_VERW
     } sys_rd_e;
+
+    // The x87 pointers an ESC instruction's last uop writes as it retires
+    // (uop_t x87p): none (the control forms), the instruction pointer (CS
+    // and EIP), or both it and the data pointer (the memory operand's
+    // segment selector and offset).
+    typedef enum logic [1:0] { X87P_NONE, X87P_IP, X87P_IPDP } x87p_e;
 
     // A register operand. hi8 selects AH, CH, DH or BH for a byte-sized GPR.
     typedef struct packed {
@@ -223,7 +246,9 @@ package fes_i386_pkg;
     // (fes_i386_l1d), which WB restarts from its instruction instead of
     // delivering anything. GP_SEL, NP_SEL and SS_SEL are #GP, #NP and #SS
     // with the selector in T0 as their error code (a protected-mode segment
-    // load's checks, M1).
+    // load's checks, M1). GP_IDT and NP_IDT are #GP and #NP with the
+    // vector's IDT entry as their error code, vector * 8 + 2 (a delivery's
+    // gate checks).
     typedef enum logic [3:0] {
         FAULT_NONE          = 4'd0,
         FAULT_UD            = 4'd1,
@@ -236,8 +261,24 @@ package fes_i386_pkg;
         FAULT_REPLAY        = 4'd8,
         FAULT_GP_SEL        = 4'd9,
         FAULT_NP_SEL        = 4'd10,
-        FAULT_SS_SEL        = 4'd11
+        FAULT_SS_SEL        = 4'd11,
+        FAULT_GP_IDT        = 4'd12,
+        FAULT_NP_IDT        = 4'd13
     } fault_e;
+
+    // Why an instruction stops as not built (FAULT_UNIMPLEMENTED), kept
+    // with its uop (uop_t why) for trace_unbuilt: an encoding or form this
+    // build does not decode; a delivery through a task gate; an interrupt
+    // to an inner privilege, or a return or IRET to an outer one; a far
+    // transfer through a call gate, a TSS or a task gate; an IRET to V86
+    // mode; paging; a protected-mode 16-bit stack access past 64 KiB under
+    // a limit that reaches there; code under a CS limit other than FFFFh
+    // (16-bit) or FFFFFFFFh (32-bit), whose general check is not built; a
+    // protected-mode IRET with NT set, a return from a nested task.
+    typedef enum logic [3:0] {
+        WHY_ENCODING, WHY_TASK_GATE, WHY_INNER, WHY_OUTER, WHY_GATE, WHY_V86, WHY_PAGING, WHY_STACK64K,
+        WHY_CS_LIMIT, WHY_TASK_RETURN
+    } why_e;
 
     typedef struct packed {
         logic [3:0] cond;             // x86 condition code (tttn) for Jcc, SETcc
@@ -245,6 +286,7 @@ package fes_i386_pkg;
         logic       end_of_instruction;
         logic [3:0] ilen;             // x86 instruction length, on its last uop
         fault_e     fault;
+        why_e       why;              // FAULT_UNIMPLEMENTED's reason
     } control_t;
 
     // src1 is the destination's register whenever there is one: a byte or
@@ -278,15 +320,24 @@ package fes_i386_pkg;
     // signed, and writes no flags.
     // A protected-mode segment load (microcode, fes_i386_cpu "Protected
     // mode"): desc, the memory operand is the descriptor T0's selector
-    // names, its low dword (1), its high dword (2) or its access byte (3, the
-    // accessed bit's write); segchk, M1 raises the descriptor's checks for a
-    // data segment (1), SS (2) or CS by a far jump (3); seg2_pm, the second
-    // destination takes T0's descriptor rather than the real-mode rule;
-    // shadow, the uop ends a MOV SS or POP SS, after which no interrupt is
-    // taken.
+    // names (desc_e), or a delivery's IDT gate; segchk, M1 raises the staged
+    // descriptor's checks (segchk_e); seg2_pm, the second destination takes
+    // T0's descriptor rather than the real-mode rule; shadow, the uop ends a
+    // MOV SS or POP SS, after which no interrupt is taken. nwrap: a
+    // protected-mode far CALL's, RETF's or IRET's stack slot on a 16-bit
+    // stack, at SP plus or less sdisp without the 64 KiB wrap, as Bochs
+    // reads and writes it (M1). vmchk: IRETD's EFLAGS image, a protected-mode
+    // IRET's first uop, whose VM bit stops it as not built (EX). ntchk: the
+    // same uop, which EFLAGS.NT set stops as not built, a return from a
+    // nested task (EX). x87p: the uop is an ESC instruction's last, which
+    // writes the x87 pointers as it retires (x87p_e).
     typedef struct packed {
-        logic [1:0]  desc;
-        logic [1:0]  segchk;
+        logic [1:0]  x87p;
+        logic [2:0]  desc;
+        logic [3:0]  segchk;
+        logic        nwrap;
+        logic        vmchk;
+        logic        ntchk;
         logic        seg2_pm;
         logic        shadow;
         logic        bound;
@@ -484,17 +535,29 @@ package fes_i386_pkg;
         logic        str_cnt;
         logic        b_fp;
         logic        x_prev;
-        // src2's value is the far pointer's selector (b_far: a protected-mode
-        // far jump's T0), or the system register sys_idx names (b_sys,
-        // sys_rd_e). plus2: the memory operand is 2 bytes past the ModRM
-        // operand's, wrapped by address size (LGDT's and SGDT's base).
-        // nochk: the uop steps ESP after a protected-mode POP Sreg, with no
-        // access and no limit check, as Bochs pops after the load.
+            // src2's value is the far pointer's selector (b_far: a protected-mode
+        // far jump's T0), the system register sys_idx names (b_sys,
+        // sys_rd_e), or T4 (b_t4, IRET's EFLAGS image). moff: the memory
+        // operand is moff bytes past the ModRM operand's, wrapped by address
+        // size (LGDT's and SGDT's base, 2; a part of an x87 operand, or a
+        // field of an x87 environment or save image). nochk: the uop steps ESP after a
+        // protected-mode POP Sreg, with no access and no limit check, as
+        // Bochs pops after the load.
+        // A protected-mode delivery's uops (fes_i386_cpu, "Protected-mode
+        // delivery"): gsz, the operand size is the gate's (16 or 32 bits),
+        // not the instruction's; errp, the error code's slot, whose probe
+        // and store a delivery without one drops, and whose jump steps ESP
+        // one slot less then. dmode: how a descriptor read treats its
+        // selector (dmode_e).
         logic        b_far;
         logic        b_sys;
-        logic [2:0]  sys_idx;
-        logic        plus2;
+        logic        b_t4;
+        logic [4:0]  sys_idx;
+        logic [6:0]  moff;
         logic        nochk;
+        logic        gsz;
+        logic        errp;
+        logic [1:0]  dmode;
         // Which of ESI, EDI and ECX (bits 0-2) the uop reads, as a source,
         // a CL count or an address register (str_reads): D holds it while
         // a string element that steps one is in flight.
@@ -528,9 +591,10 @@ package fes_i386_pkg;
     // STK_PEEK reads or writes a stack slot without moving ESP (RETF's
     // loads, PUSHA's and POPA's slots); one that writes ESP (sp_write) steps
     // it past eight slots, down from a slot below ESP, up from one above.
-    // STK_RETF is RETF's step of ESP, at its jump; STK_PROBE reads the lower
-    // slot of a far call's two pushes, or INT's three, only for its limit
-    // check.
+    // STK_RETF steps ESP at a far transfer's jump by its slot, -8 to 7, of
+    // operand-sized slots (RETF's 2, IRET's 3, a protected-mode CALL's -2,
+    // a delivery's -3 or -4) plus imm; STK_PROBE reads the lower slot of a
+    // far call's two pushes, or INT's three, only for its limit check.
     typedef enum logic [2:0] { STK_NONE, STK_PUSH, STK_POP, STK_RET_IMM, STK_LEAVE, STK_PEEK, STK_RETF, STK_PROBE } stk_e;
     typedef enum logic [4:0] {
         SEQ_NONE, SEQ_CALL, SEQ_LPTR, SEQ_CALLF, SEQ_RETF, SEQ_JMPFM, SEQ_CALLFM, SEQ_UCODE,
@@ -542,6 +606,25 @@ package fes_i386_pkg;
     // A uop's I/O access (uop_t io).
     typedef enum logic [1:0] { IO_NONE, IO_IN, IO_OUT } io_e;
     typedef enum logic { PROBE_NONE, PROBE_INT } probe_e;
+    // A protected-mode memory operand's part of a descriptor (uop_t desc):
+    // T0's selector's low dword, high dword, access byte (the accessed bit's
+    // store) or high dword again as a store (LTR's busy bit); a delivery's
+    // IDT gate, its low and high dword, at IDTR's base plus the vector times
+    // 8.
+    typedef enum logic [2:0] { DESC_NONE, DESC_LO, DESC_HI, DESC_ACC, DESC_IDT_LO, DESC_IDT_HI, DESC_BUSY } desc_e;
+    // The staged descriptor's checks M1 raises (uop_t segchk;
+    // fes_i386_cpu "Protected mode: a segment load's descriptor"): a data
+    // segment's load, SS's, a far JMP's CS, a delivery's gate, a delivery's
+    // CS with the gate's offset, a far CALL's CS, its offset, a RETF's or
+    // IRET's CS with its offset, LLDT's descriptor, LTR's.
+    typedef enum logic [3:0] {
+        CHK_NONE, CHK_DATA, CHK_SS, CHK_JMP, CHK_GATE, CHK_INTCS, CHK_CALL, CHK_OFF, CHK_RET, CHK_LDT, CHK_TSS
+    } segchk_e;
+    // How a descriptor read treats its selector (decoded_t dmode): load and
+    // check it; LAR, LSL, VERR and VERW, which read nothing for a selector
+    // past its table and raise nothing; LLDT and LTR, which read nothing for
+    // TI=1 (their check raises #GP).
+    typedef enum logic [1:0] { DM_LOAD, DM_PROBE, DM_GDT } dmode_e;
 
     // A microcode ROM word (fes_i386_ucode_rom, built by
     // scripts/fes_i386_ucode.py from ucode.toml): the fields of one uop that
@@ -586,13 +669,22 @@ package fes_i386_pkg;
         logic        rg;         // s1_idx and s2_idx are the instruction's register, which its first uop has in src1
         logic        rm;         // the memory operand is the instruction's ModRM operand, not a stack slot
         logic        bound;      // BOUND's compare (uop_t bound)
-        logic [1:0]  desc;       // uop_t desc
-        logic [1:0]  segchk;     // uop_t segchk
+        logic [2:0]  desc;       // uop_t desc (desc_e)
+        logic [3:0]  segchk;     // uop_t segchk (segchk_e)
         logic        segw;       // the uop writes segment register seg2 from T0's descriptor (uop_t seg2_pm)
         logic        shadow;     // uop_t shadow, when the segment is SS
         logic        nochk;      // ESP's step after a POP Sreg: no access, no limit check
         logic        plus2;      // the address is the ModRM operand's plus 2 (LGDT's and SGDT's base)
-        logic [2:0]  sys;        // b = "sys": the system register sys_e names
+        logic [2:0]  fpn;        // ... plus fpn operand-sized fields (an x87 environment's)
+        logic [4:0]  fpj;        // ... plus fpj dwords (an x87 save image's registers, an x87 operand's part)
+        logic [1:0]  x87p;       // uop_t x87p
+        logic [4:0]  sys;        // b = "sys": the system register sys_rd_e names
+        logic [1:0]  dmode;      // decoded_t dmode
+        logic        gsz;        // decoded_t gsz: the gate's operand size
+        logic        errp;       // decoded_t errp: the error code's slot
+        logic        nwrap;      // uop_t nwrap
+        logic        vmchk;      // uop_t vmchk
+        logic        iimm;       // imm is the instruction's (RETF imm16's), not the word's
     } ucode_t;
 
     // The shifter's controls (fes_i386_shift), decoded in M2. sel gates
@@ -634,14 +726,17 @@ package fes_i386_pkg;
         logic       ot_lo, ot_mid, ot_h8, ot_hi;
         logic       kp_lo, kp_mid, kp_hi;
         logic       r_logic, r_lea, r_y, r_movsx, r_setcc, r_lahf, r_sign;  // the other results
-        logic       r_flags;                   // FLAGS' image (PUSHF, INT's push)
+        logic       r_flags;                   // FLAGS' image (PUSHF, INT's push), with RF from imm[4] (f_clrpm)
+        logic       r_zf;                      // SEGOP_ZF: src2 when imm[0] is set, else src1, and ZF from imm[0]
         logic       l_or, l_xor;               // the logic unit; AND otherwise
         logic       f_add;                     // CF comes from the adder
         logic       f_arith;                   // OF, SF, ZF, AF and PF come from the adder
         logic       f_logic, f_shift;          // ... from the logic unit; from the shift, at WB
         logic       f_cf, f_if, f_df, f_szap;  // the flag instructions (fl_* the value)
         logic       f_load;                    // the writable flags from y (POPF, IRET)
+        logic       f_rf;                      // ... and RF (IRETD); every other uop clears RF, but IRET's last
         logic       f_clrit;                   // IF and TF cleared (INT)
+        logic       f_clrpm;                   // TF and NT cleared, and IF unless imm[5] (a protected-mode delivery)
         logic       fl_cf, fl_cmc, fl_set;
         // BT, BTS, BTR and BTC: the flags (f_bt) and result (r_bt) of the bit
         // the shifter's count numbers, which BTS ORs in (bt_or), BTR clears
@@ -693,6 +788,7 @@ package fes_i386_pkg;
         logic [31:0] mlow;        // D: an expand-down segment's limit, at or below which every offset faults
         logic        mexpd;       // D: ... the segment is expand-down
         logic        pbad;        // M1: a probe's slots straddle the 64 KiB wrap (#SS at M2)
+        logic [7:0]  sdisp;       // D: a stack slot's displacement from ESP, signed (uop nwrap)
         logic        nodata;      // D: a load whose data nothing uses, made for its limit check (fes_i386_cpu):
                                   // the L1D reads nothing for it
         fault_e      dfault;      // D: the fault of a second address's limit check (uop st2), which M1

@@ -130,7 +130,7 @@ func TestColecoVideoTargetLinksBIOSCartridgeAndPart(t *testing.T) {
 	control := &colecoVideoTargetControl{twoROMTargetControl: &twoROMTargetControl{romTargetControl: newROMTargetControl(t, 1)}}
 	root := t.TempDir()
 	runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(root))
-	active, attempted, failure := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data))
+	active, attempted, failure := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), transport.Size(), transport.Reader())
 	if failure != nil || !attempted || control.partsCalls != 1 || control.calls != 0 || active.ROMLink != nil || active.ROMLinks == nil || !reflect.DeepEqual(active.PartsComposition, transport.PartsComposition) {
 		t.Fatalf("activation=%+v attempted=%v failure=%v dispatch=%d/%d", active, attempted, failure, control.partsCalls, control.calls)
 	}
@@ -160,7 +160,7 @@ func TestColecoVideoTargetRequiresPairedOperation(t *testing.T) {
 	}
 	control := &twoROMTargetControl{romTargetControl: newROMTargetControl(t, 1)}
 	runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(t.TempDir()))
-	_, attempted, failure := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(transport.Data)), bytes.NewReader(transport.Data))
+	_, attempted, failure := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), transport.Size(), transport.Reader())
 	if failure == nil || attempted || control.calls != 0 || control.loadCalls != 0 {
 		t.Fatalf("attempted=%v failure=%v calls=%d/%d", attempted, failure, control.calls, control.loadCalls)
 	}

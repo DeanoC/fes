@@ -80,7 +80,7 @@ func TestOfflineAgentHealthSerialDelay(t *testing.T) {
 	health, err := client.Health(ctx)
 	elapsed := time.Since(start)
 	<-control.completed
-	if err != nil || health.TargetID != "01234567-89ab-cdef-0123-456789abcdef" || health.Software == nil || !health.Ready || health.Software.Selected != selected || health.Software.ActiveBundle != selected || health.Software.BaseIdentity != "base-contract" {
+	if err != nil || health.TargetID != "01234567-89ab-cdef-0123-456789abcdef" || health.SoftwareIdentityV1 == nil || !health.Ready || health.SoftwareIdentityV1.Selected != selected || health.SoftwareIdentityV1.ActiveBundle != selected || health.SoftwareIdentityV1.BaseIdentity != "base-contract" {
 		t.Fatalf("health response err=%v", err)
 	}
 	control.mu.Lock()

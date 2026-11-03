@@ -246,15 +246,26 @@ func StageParts(ctx context.Context, root string, size int64, input io.Reader) (
 	if int64(len(data)) != size {
 		return Staged{}, errors.New("parts archive size mismatch")
 	}
+	return StagePartsBytes(ctx, root, data)
+}
+
+// StagePartsBytes stages a parts archive the caller already holds, without
+// copying it.
+func StagePartsBytes(ctx context.Context, root string, data []byte) (Staged, error) {
+	if len(data) < 1 || len(data) > MaxPartsArchiveSize {
+		return Staged{}, errors.New("invalid parts archive size")
+	}
 	bundle, err := ReadPartsBundle(ctx, data)
 	if err != nil {
 		return Staged{}, err
 	}
-	return stagePartsBundle(ctx, root, bundle)
+	return stagePartsBundle(ctx, root, bundle, nil)
 }
 
-func stagePartsBundle(ctx context.Context, root string, bundle PartsBundle) (Staged, error) {
-	staged, err := Stage(ctx, root, int64(len(bundle.Package)), bytes.NewReader(bundle.Package))
+// stagePartsBundle publishes the bundle. verified is the base package's
+// inspection when the caller already decoded bundle.Package.
+func stagePartsBundle(ctx context.Context, root string, bundle PartsBundle, verified *Inspection) (Staged, error) {
+	staged, err := stageArchive(ctx, root, bundle.Package, verified)
 	if err != nil {
 		return Staged{}, err
 	}

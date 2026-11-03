@@ -44,9 +44,12 @@
 // with the instruction's operand size, vector and memory operand kept. A
 // word's memory operand is a stack slot, the vector's entry, (rm) the
 // instruction's ModRM operand, or (desc) a part of the descriptor T0's
-// selector names; its registers are GPRs, or (rg) the instruction's
-// register, which the first uop carries in src1. A segment load's segment
-// register is the first uop's seg2_idx; the far jump's is CS.
+// selector names or of a delivery's IDT gate; its registers are GPRs, or
+// (rg) the instruction's register, which the first uop carries in src1. A
+// segment load's segment register is the first uop's seg2_idx; the far
+// jump's is CS. A word marked gsz takes the operand size of the gate a
+// protected-mode delivery goes through (gate32, set as its GATE uop
+// retires, before any uop after it issues), the rest the instruction's.
 //
 // The moves through T1, each waiting for T1's load to retire (b_t1):
 //   SEQ_XCHGM  (XCHG r/m, r with a memory operand): the operand into T1;
@@ -115,6 +118,7 @@ module fes_i386_seq (
     input  fes_i386_pkg::decoded_t d0,  // the instruction's first uop
     input  fes_i386_pkg::ucode_t   w,
     input  logic [2:0]             cnt, // the string engine's count is 2, 1, 0 (bits 2:0)
+    input  logic                   gate32, // a protected-mode delivery's gate is a 386 gate
     output fes_i386_pkg::decoded_t n
 );
     // A ROM word's size: the operand size, 16, 32 or 8 bits (size_e).
@@ -251,15 +255,25 @@ module fes_i386_seq (
         n.uop.iret = 1'b0;
         n.uop.bound = 1'b0;
         n.uop.bound_pair = 1'b0;
-        n.uop.desc = 2'd0;
-        n.uop.segchk = 2'd0;
+        n.uop.desc = 3'd0;
+        n.uop.segchk = 4'd0;
         n.uop.seg2_pm = 1'b0;
         n.uop.shadow = 1'b0;
         n.b_far = 1'b0;
         n.b_sys = 1'b0;
-        n.sys_idx = 3'd0;
-        n.plus2 = 1'b0;
+        n.b_t4 = 1'b0;
+        n.sys_idx = 5'd0;
+        n.moff = 7'd0;
+        n.uop.x87p = 2'd0;
         n.nochk = 1'b0;
+        n.gsz = 1'b0;
+        n.errp = 1'b0;
+        n.dmode = 2'd0;
+        n.uop.nwrap = 1'b0;
+        n.uop.vmchk = 1'b0;
+        n.uop.ntchk = 1'b0;
+        n.uop.ctl.why = fes_i386_pkg::WHY_ENCODING;
+        n.opsize32 = d0.opsize32;
         // The rewritten fields, from the first uop.
         n.uop.sp_write = d0.uop.sp_write;
         n.uop.cls = d0.uop.cls;
@@ -327,6 +341,7 @@ module fes_i386_seq (
                     n.uop.dst.valid = 1'b0;
                     n.uop.sp_add = 1'b1;
                     n.stk = fes_i386_pkg::STK_RETF;
+                    n.slot = 4'd2;
                     n.far_chk = 1'b1;
                     n.far_t = 1'b1;
                 end
@@ -374,9 +389,11 @@ module fes_i386_seq (
                 n.more = !w.last;
                 n.uop.cls = fes_i386_pkg::uop_class_e'(w.cls);
                 n.uop.op = w.op;
-                n.uop.imm = {28'd0, w.imm};
-                n.uop.size = uc_size(w.size, d.opsize32);
-                n.uop.src_size = uc_size(w.src_size, d.opsize32);
+                n.uop.imm = w.iimm ? d0.uop.imm : {28'd0, w.imm};
+                n.gsz = w.gsz;
+                n.opsize32 = w.gsz ? gate32 : d0.opsize32;
+                n.uop.size = uc_size(w.size, n.opsize32);
+                n.uop.src_size = uc_size(w.src_size, n.opsize32);
                 n.uop.count_cl = 1'b0;
                 n.uop.src1 = '{valid: w.s1, space: fes_i386_pkg::RS_GPR,
                                index: {1'b0, w.rg ? d0.uop.src1.index[2:0] : w.s1_idx}, hi8: 1'b0};
@@ -385,15 +402,23 @@ module fes_i386_seq (
                 n.uop.dst = '{valid: w.d, space: fes_i386_pkg::reg_space_e'(w.d_space),
                               index: w.rg && w.d_space == 2'd0 ? {1'b0, d0.uop.src1.index[2:0]} : w.d_idx, hi8: 1'b0};
                 n.uop.mem.kind = fes_i386_pkg::mem_kind_e'(w.mkind);
-                n.uop.mem.bytes = w.mbytes == 2'd0 ? (d.opsize32 ? 4'd4 : 4'd2)
+                n.uop.mem.bytes = w.mbytes == 2'd0 ? (n.opsize32 ? 4'd4 : 4'd2)
                                 : w.mbytes == 2'd1 ? 4'd2 : w.mbytes == 2'd2 ? 4'd4 : 4'd1;
                 n.uop.mem.in_a = w.in_a;
-                n.uop.mem.system = w.ivt || w.desc != 2'd0;
+                n.uop.mem.system = w.ivt || w.desc != 3'd0;
                 n.uop.desc = w.desc;
-                n.uop.segchk = w.segchk == 2'd1 && d0.uop.seg2_idx == 3'(fes_i386_pkg::SEG_SS) ? 2'd2 : w.segchk;
+                n.uop.segchk = w.segchk == 4'(fes_i386_pkg::CHK_DATA) && d0.uop.seg2_idx == 3'(fes_i386_pkg::SEG_SS)
+                             ? 4'(fes_i386_pkg::CHK_SS) : w.segchk;
                 n.uop.shadow = w.shadow && d0.uop.seg2_idx == 3'(fes_i386_pkg::SEG_SS);
-                n.plus2 = w.plus2;
+                n.uop.nwrap = w.nwrap;
+                n.uop.vmchk = w.vmchk;
+                // LGDT's and SGDT's base, 2 bytes on; an x87 environment's
+                // field fpn (operand-sized) or its save image's dword fpj.
+                n.moff = w.plus2 ? 7'd2 : (n.opsize32 ? {2'b0, w.fpn, 2'b0} : {3'b0, w.fpn, 1'b0}) + {w.fpj, 2'b0};
+                n.uop.x87p = w.x87p;
                 n.nochk = w.nochk;
+                n.errp = w.errp;
+                n.dmode = w.dmode;
                 // A stack access is SS's; the vector table's reads come
                 // before any, so they have the first uop's segment.
                 if (w.stk != 3'd0) n.uop.mem.seg = fes_i386_pkg::SEG_SS;
@@ -428,6 +453,7 @@ module fes_i386_seq (
                 n.b_far = w.b == 3'd3;
                 n.b_t1 = w.b == 3'd4;
                 n.b_sys = w.b == 3'd5;
+                n.b_t4 = w.b == 3'd6;
                 n.sys_idx = w.sys;
                 n.seg_index = w.seg;
                 n.far_jmp = w.far_jmp;
@@ -707,7 +733,11 @@ module fes_i386_seq (
         n.rd_str = fes_i386_pkg::str_reads(n.uop, n.lea, n.has_base, n.base, n.has_index, n.index);
         // One bit for D's wait on a temporary, so the wait reads one register.
         // A descriptor's access reads T0 for its address, and the accessed
-        // bit's write T3.
-        n.t_rd = n.far_t || n.a_t1 || n.b_t1 || n.uop.desc != 2'd0;
+        // bit's write T3; a uop with a check reads the descriptor staged
+        // from T0-T3 (in M1), and ARPL's and LAR's kin's results T1 and T2
+        // or the staged descriptor; IRET's flags T4; FNSTENV's and FNSAVE's
+        // pointer words the x87 pointers, which WB writes too.
+        n.t_rd = n.far_t || n.a_t1 || n.b_t1 || n.b_t4 || n.uop.desc != 3'd0 || n.uop.segchk != 4'd0
+              || n.b_sys && n.sys_idx >= 5'(fes_i386_pkg::SYS_RD_FIP);
     end
 endmodule

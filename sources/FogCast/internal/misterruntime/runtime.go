@@ -268,13 +268,16 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	if admission.Err() != nil {
 		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
 	}
-	body := make([]byte, int(size)+1)
-	n, err := io.ReadFull(&contextReader{ctx: admission, reader: content}, body)
-	if (err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF)) || int64(n) != size {
+	// The body goes once to a private file in the staging root and is read
+	// through a mapping, not onto the heap (#863). Nothing staged keeps its
+	// bytes, so the mapping ends with this call.
+	spool, err := corepackage.SpoolInput(admission, r.corePackageRoot, size, maxInputSize, content)
+	if err != nil {
 		return CoreActivation{}, false, &protocol.APIError{
 			Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
 	}
-	body = body[:n]
+	defer spool.Close()
+	body := spool.Bytes()
 	romLinkedV2 := corepackage.IsROMInputV2(body)
 	romLinked := romLinkedV2 || corepackage.IsROMInput(body)
 	pcxtInitial := corepackage.IsPcxtInitialInput(body)
@@ -296,9 +299,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 			body = decoded.Package
 			composed = false
 		}
-		size = int64(len(body))
 	}
-	content = bytes.NewReader(body)
 	if parts {
 		if _, ok := r.control.(protocol2PartsControl); !ok {
 			return CoreActivation{}, false, unsupportedOperationError()
@@ -308,9 +309,9 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 				return CoreActivation{}, false, unsupportedOperationError()
 			}
 		}
-		staged, err = corepackage.StageParts(admission, r.corePackageRoot, size, content)
+		staged, err = corepackage.StagePartsBytes(admission, r.corePackageRoot, body)
 	} else if pcxtInitial && !composed && libraryID != "" && machine == nil {
-		staged, err = corepackage.StagePcxtInitialInput(admission, r.corePackageRoot, body)
+		staged, err = corepackage.StagePcxtInitialInputSpooled(admission, r.corePackageRoot, spool)
 	} else if romLinked {
 		if romLinkedV2 {
 			if _, ok := r.control.(protocol2ROMLinksControl); !ok {
@@ -331,9 +332,9 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 			return CoreActivation{}, false, unsupportedOperationError()
 		}
 		if romLinkedV2 {
-			staged, err = corepackage.StageROMInputV2(admission, r.corePackageRoot, size, content)
+			staged, err = corepackage.StageROMInputV2Spooled(admission, r.corePackageRoot, spool)
 		} else {
-			staged, err = corepackage.StageROMInputBytes(admission, r.corePackageRoot, body)
+			staged, err = corepackage.StageROMInputSpooled(admission, r.corePackageRoot, spool)
 		}
 		composed = staged.Composition != nil || staged.SlotComposition != nil || staged.PartsComposition != nil
 	} else if composed {
@@ -342,11 +343,23 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		if (corepackage.IsSlotCompositionBundle(body) && !slots) || (!corepackage.IsSlotCompositionBundle(body) && !single) {
 			return CoreActivation{}, false, unsupportedOperationError()
 		}
-		staged, err = corepackage.StageComposition(admission, r.corePackageRoot, size, content)
+		staged, err = corepackage.StageCompositionBytes(admission, r.corePackageRoot, body)
 	} else {
-		staged, err = corepackage.Stage(admission, r.corePackageRoot, size, content)
+		staged, err = corepackage.StageBytes(admission, r.corePackageRoot, body)
 	}
 	if err != nil {
+		return CoreActivation{}, false, &protocol.APIError{
+			Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
+	}
+	// The published files own their bytes now. Release the spool before the
+	// load so tmpfs holds one copy; a ROM input keeps it as input.tar.
+	if romInit != nil {
+		romInit.Programmed = bytes.Clone(romInit.Programmed)
+	}
+	if err := spool.Close(); err != nil {
+		if cleanupErr := staged.Cleanup(); cleanupErr != nil {
+			r.retainRetired(staged)
+		}
 		return CoreActivation{}, false, &protocol.APIError{
 			Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
 	}
