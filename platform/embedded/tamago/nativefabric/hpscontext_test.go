@@ -8,6 +8,8 @@ import (
 	"errors"
 	"os"
 	"testing"
+
+	"github.com/DeanoC/fes/platform/embedded/tamago/scanout"
 )
 
 func hpsContextFixture(t *testing.T) []byte {
@@ -17,6 +19,34 @@ func hpsContextFixture(t *testing.T) []byte {
 		t.Fatal(err)
 	}
 	return raw
+}
+
+func TestWindowDiagnosticCannotInheritTheFixedReaderBootGrant(t *testing.T) {
+	for _, profile := range []string{"de25-embedded-window-diagnostic-v1", "de25-embedded-hps-first-window-diagnostic-v1"} {
+		t.Run(profile, func(t *testing.T) {
+			var fields map[string]any
+			if err := json.Unmarshal(hpsContextFixture(t), &fields); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := fields["programming_profile"]; !ok {
+				t.Fatal("fixture is missing its original programming profile")
+			}
+			fields["programming_profile"] = profile
+			fields["control_abi"] = scanout.WindowControlABI
+			raw, err := json.Marshal(fields)
+			if err != nil {
+				t.Fatal(err)
+			}
+			calls := 0
+			cpu := bridgeFirmwareFunc(func([7]uint64) ([4]uint64, error) {
+				calls++
+				return [4]uint64{}, errors.New("unexpected firmware access")
+			})
+			if _, err := NewHPSContextVerifier(cpu, append(raw, '\n')); err == nil || calls != 0 {
+				t.Fatal("window profile reused the existing boot/2 MiB grant", err, calls)
+			}
+		})
+	}
 }
 
 func hpsContextReplies(digest [32]byte) [][4]uint64 {

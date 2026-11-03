@@ -26,6 +26,14 @@ CONTRACT = 'sources/misteross/cores/fes-common/generated/fes_embedded_control.vh
 SOURCES = [RECIPE, CONTRACT,
     'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
     'sources/misteross/prototypes/embedded_control/fes_embedded_window_reader.sv',
+    'sources/misteross/prototypes/embedded_control/fes_embedded_window_control.sv',
+    'sources/misteross/prototypes/de25_board_control/fes_de25_embedded.sv',
+    'sources/misteross/prototypes/de25_board_control/aperture_window_probe.cpp',
+    'sources/misteross/prototypes/de25_board_control/verify.py',
+    'sources/misteross/prototypes/de25_board_control/build.py',
+    'sources/misteross/prototypes/de25_board_control/reader_memory.py',
+    'sources/misteross/prototypes/de25_board_control/computer_model.py',
+    'sources/misteross/prototypes/de25_board_control/seal.py',
     'sources/misteross/prototypes/embedded_control/embedded_window_top.sv',
     'sources/misteross/prototypes/embedded_control/window_probe.cpp',
     'sources/misteross/prototypes/embedded_control/producer.py',
@@ -34,6 +42,9 @@ SOURCES = [RECIPE, CONTRACT,
     'platform/embedded/firmware/generated/fes_embedded_control.h',
     'platform/embedded/tamago/scanout/testdata/frame/main.go',
     'platform/embedded/tamago/scanout/surface.go',
+    'platform/embedded/tamago/scanout/surface_test.go',
+    'platform/embedded/tamago/scanout/reader.go',
+    'platform/embedded/tamago/scanout/reader_integration_test.go',
     'platform/embedded/tamago/go.mod', 'platform/embedded/tamago/go.sum',
     'sources/FogCast/go.mod', 'sources/FogCast/go.sum']
 
@@ -99,12 +110,37 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=FES/'out'/('embedded-window-'+uuid.uuid4().hex))
     parser.add_argument('--allow-dirty', action='store_true')
+    parser.add_argument('--project', type=Path, help='verify the current sealed hps-ddr-window project through its captured Avalon RTL')
     args = parser.parse_args()
     output = args.output.absolute()
     if (output.exists() or not output.is_relative_to(FES/'out') or '..' in output.parts or
             any(p.is_symlink() for p in (output, *output.parents))):
         raise ValueError('fresh private FES out/ directory required')
     output.mkdir(parents=True)
+    project_identity = None
+    local = None
+    cpu_base = 0x94000000
+    if args.project:
+        project = args.project.absolute()
+        if (not project.is_relative_to(FES/'out') or '..' in project.parts or
+                any(p.is_symlink() for p in (project, *project.parents))):
+            raise ValueError('project must be a private FES out/ path')
+        sys.path.insert(0, str(HERE.parent/'de25_board_control'))
+        import verify as board_verifier
+        inputs, _, local = board_verifier.inputs_for(project)
+        if inputs['reader_memory']['backend'] != 'hps-ddr-window' or not inputs['embedded_control'].get('build_inputs_sha256'):
+            raise ValueError('current sealed window-reader project required')
+        cpu_base = inputs['reader_memory']['bus_base']
+        if inputs['reader_memory']['bytes'] != 4 << 20:
+            raise ValueError('sealed window span differs')
+        for name, source in (('fes_embedded_control.sv', FES/'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv'),
+                ('fes_embedded_window_reader.sv', HERE/'fes_embedded_window_reader.sv'),
+                ('fes_embedded_window_control.sv', HERE/'fes_embedded_window_control.sv'),
+                ('fes_de25_embedded.sv', HERE.parent/'de25_board_control/fes_de25_embedded.sv')):
+            if sha(local/name) != sha(source):
+                raise ValueError('captured project differs from current window model: '+name)
+        project_identity = dict(build_id=inputs['embedded_control']['build_id'],
+            build_inputs_sha256=inputs['embedded_control']['build_inputs_sha256'])
     environment = os.environ.copy()
     root = subprocess.check_output(['go', '-C', str(FES/'platform/embedded/tamago'), 'env', 'GOROOT'],
                                    cwd=FES, env=environment, text=True, timeout=30).strip()
@@ -149,6 +185,11 @@ def main():
             source_roots=primary, source_inputs={name: source[name] for name in primary},
             parameters=dict(top='embedded_window_top', control_abi=0x10203042,
                 window_base=base, window_bytes=8<<20, row_bytes=5120, rows=720, stride_bytes=stride,
+                cpu_aperture_top='fes_de25_embedded', cpu_memory_backend=2,
+                cpu_window_base=cpu_base, cpu_window_bytes=4<<20,
+                cpu_row_bytes=5120, cpu_stride_bytes=5120, cpu_rows=720, cpu_crc='ieee-reflected-crc32',
+                cpu_project_build_id=project_identity['build_id'] if project_identity else 'this-functional-record',
+                cpu_project_record_sha256=project_identity['build_inputs_sha256'] if project_identity else 'not-a-board-project',
                 source_state='working-tree' if dirty else 'committed', simulation_only=True,
                 frame0_sha256=frames['sha256'][0], frame1_sha256=frames['sha256'][1],
                 renderer_executable_sha256=sha(output/'frame-renderer'),
@@ -180,14 +221,47 @@ def main():
         rows.append(dict(geometry=label, build_id=build_id, build_inputs_sha256=sha(case/'build-inputs.json'),
                          executable_sha256=sha(executable), frames=frames, observed=observed,
                          invalid_geometry_windows=8, wrong_identity_rejected=True, corrupt_pixel_rejected=True))
+    # The same actual rendered CPU bytes now pass through the board's Avalon
+    # wrapper, fixed-window CRC sink and real native Go command/receipt driver.
+    aperture = output/'aperture'
+    aperture.mkdir()
+    cpu_id = project_identity['build_id'] if project_identity else rows[0]['build_id']
+    rtl = local if local else HERE
+    board_rtl = local/'fes_de25_embedded.sv' if local else HERE.parent/'de25_board_control/fes_de25_embedded.sv'
+    endpoint = local/'fes_embedded_control.sv' if local else FES/'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv'
+    includes = local/'generated' if local else FES/Path(CONTRACT).parent
+    command = [paths['verilator'], '--cc', '--exe', '--build', '-j', '2', '--top-module', 'fes_de25_embedded',
+        '-Wall', '-Wno-UNUSEDSIGNAL', '--Mdir', aperture/'obj', '-I'+str(includes),
+        "-DFES_DE25_COMPUTER_BUILD_ID=128'h"+cpu_id, '-GMEMORY_BACKEND=2',
+        '-GDDR_BASE='+str(cpu_base), '-GDDR_BYTES='+str(4<<20), '-CFLAGS', '-std=c++17 -O2',
+        endpoint, rtl/'fes_embedded_window_reader.sv', rtl/'fes_embedded_window_control.sv', board_rtl,
+        HERE.parent/'de25_board_control/aperture_window_probe.cpp']
+    run(aperture, 'build', command, model_env)
+    executable = aperture/'obj/Vfes_de25_embedded'
+    descriptor = dict(build_id=cpu_id, base=cpu_base, bytes=4<<20,
+        frames=[str(output/f'packed/frames/frame-{i}.bin') for i in range(2)])
+    (aperture/'descriptor.json').write_bytes(producer.canonical(descriptor))
+    native_env = dict(environment, FES_WINDOW_APERTURE_DIR=str(aperture))
+    native = run(aperture, 'native', [go, '-C', 'platform/embedded/tamago', 'test', '-race', '-count=1',
+        '-json', './scanout'], native_env, cap=60)
+    events = [json.loads(line) for line in native.splitlines()]
+    passed = [e['Test'] for e in events if e['Action']=='pass' and e.get('Test','').startswith('TestWindowReaderActualAvalon/')]
+    assert len(passed)==len(set(passed))==18
+    assert not any(e['Action'] in ('skip','fail') for e in events)
+    assert any(e['Action']=='pass' and e.get('Test')=='TestWindowReaderActualAvalon' for e in events)
+    native_aperture = dict(status='passed', build_id=cpu_id, base=cpu_base, bytes=4<<20,
+        executable_sha256=sha(executable), descriptor_sha256=sha(aperture/'descriptor.json'),
+        native_log_sha256=sha(aperture/'native.log'), cases=passed, project_identity=project_identity,
+        physical_ddr=False, pixel_clock_and_hdmi=False, runtime_admission=False)
     # No source may change while the renderer and RTL artifacts are produced.
     assert all(sha(FES/name)==digest for name,digest in source.items())
     report = dict(status='passed', classification='tenfoot/native-XRGB/owned-AXI-window host simulation',
         source_commit=producer.git('rev-parse', 'HEAD').stdout.strip(), source_state='working-tree' if dirty else 'committed',
         source_sha256=source, renderer_executable_sha256=sha(output/'frame-renderer'), variants=rows,
+        native_aperture=native_aperture,
         physical_ddr=False, pixel_clock_and_hdmi=False, bridge_release=False, runtime_admission=False)
     (output/'result.json').write_text(json.dumps(report, indent=2)+'\n')
-    print('PASS actual tenfoot frames, two window geometries,30 lifecycle/fault cases and16 invalid windows:', output, flush=True)
+    print('PASS actual tenfoot frames,30 source lifecycle/fault cases,16 invalid windows and18 native Avalon cases:', output, flush=True)
 
 
 if __name__ == '__main__':

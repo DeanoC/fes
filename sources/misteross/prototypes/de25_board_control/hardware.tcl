@@ -5,6 +5,10 @@ foreach name {FES_DE25_SOF FES_DE25_DEVICE FES_DE25_MASTER FES_DE25_BASE FES_DE2
     if {![info exists env($name)] || $env($name) eq {}} {error "missing explicit $name"}
 }
 if {![regexp {^[0-9a-f]{32}$} $env(FES_DE25_BUILD_ID)]} {error "invalid expected build ID"}
+if {![string is integer -strict $env(FES_DE25_ABI)] || $env(FES_DE25_ABI) != 0x10203040} {
+    puts "FES_PROFILE_REJECTED writes=0"
+    error "this injected-response recipe requires the on-chip diagnostic ABI"
+}
 set design [design_load $env(FES_DE25_SOF)]
 set device $env(FES_DE25_DEVICE)
 set until [expr {[clock milliseconds] + 10000}]

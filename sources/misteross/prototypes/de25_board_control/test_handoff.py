@@ -21,10 +21,14 @@ FILES = ("qsys_top/qsys_top.sopcinfo", "fes_mailbox/fes_de25_embedded.sv",
          "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_de25_embedded.sv",
          "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_embedded_control.sv",
          "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/fes_embedded_control.vh")
+WINDOW_FILES = tuple(prefix + name for prefix in (
+    "fes_mailbox/",
+    "peripheral_subsys/ip/peripheral_subsys/peripheral_subsys_fes_embedded/fes_de25_embedded_10/synth/",
+) for name in ("fes_embedded_window_reader.sv", "fes_embedded_window_control.sv"))
 
 
 def copy_project(source, target):
-    for name in FILES:
+    for name in FILES + WINDOW_FILES:
         dst = target / name
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source / name, dst)
@@ -60,6 +64,15 @@ def mutate(project, kind):
         interface=next(i for i in definition.findall('boundary/interfaces/interface') if i.findtext('name')=='mem')
         port=next(p for p in interface.findall('ports/port') if p.findtext('role')=='wdata')
         port.find('width').text='129'
+        value.text=ET.tostring(definition,encoding='unicode')
+    elif kind in ('ddr-read-issuing','ddr-combined-issuing'):
+        component=next(m for m in root.findall('module') if m.get('path')=='subsys_periph.fes_embedded')
+        value=component.find("parameter[@name='componentDefinition']/value")
+        definition=ET.fromstring(value.text)
+        interface=next(i for i in definition.findall('boundary/interfaces/interface') if i.findtext('name')=='mem')
+        key='readIssuingCapability' if kind=='ddr-read-issuing' else 'combinedIssuingCapability'
+        entry=next(e for e in interface.findall('parameters/parameterValueMap/entry') if e.findtext('key')==key)
+        entry.find('value').text='99'
         value.text=ET.tostring(definition,encoding='unicode')
     elif kind in ('missing-maintenance-hold','live-maintenance-reset','duplicate-maintenance-reset'):
         target='subsys_debug_jtag_rst_in.in_reset'
@@ -116,10 +129,13 @@ def main():
         observed = BUILD.verify_control(positive, hps, board, memory)
         results = []
         cases = (("wrong-base", "peripheral base differs"), ("missing-jtag", "subsys_debug_fpga_m.master"),
-                 ("wrong-span", "embedded lw map differs"), ("changed-generated-source", "generated embedded source differs"))
-        if memory['backend']=='hps-ddr':
+                 ("wrong-span", "embedded lw map differs"), ("changed-generated-source", "generated embedded source differs"),
+                 ("changed-window-source", "generated embedded source differs"))
+        if BUILD.reader_memory.mode(memory):
             cases += tuple((name,'embedded DDR route differs') for name in ('missing-ddr','duplicate-ddr','wrong-ddr-target'))
             cases += (('ddr-port-width','DDR AXI interface differs'),
+                      ('ddr-read-issuing','DDR issuing contract differs'),
+                      ('ddr-combined-issuing','DDR issuing contract differs'),
                       ('wrong-forwarded-window','memory parameters differ'),
                       ('parent-override','memory parameters differ'),
                       ('untied-write','generated embedded source differs'),
@@ -135,6 +151,9 @@ def main():
             copy_project(source, trial)
             if name == "changed-generated-source":
                 target = trial / FILES[-2]
+                target.write_bytes(target.read_bytes() + b"\n// altered for negative test\n")
+            elif name == "changed-window-source":
+                target = trial / WINDOW_FILES[-1]
                 target.write_bytes(target.read_bytes() + b"\n// altered for negative test\n")
             elif name=='wrong-forwarded-window':
                 target=trial/FILES[-4]

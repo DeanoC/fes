@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Diagnostic Avalon aperture. The explicit DDR backend uses one bounded AXI
-// burst at a time; the default on-chip responder never issues DDR traffic.
+// Diagnostic Avalon aperture. DDR mode 1 accepts a single bounded manual
+// burst; mode 2 reads a CPU-started fixed window into its CRC sink. The default
+// on-chip responder never issues DDR traffic.
 // DDR mode holds the maintenance subsystem in reset through its exported
 // reset source. Reader drain does not cover the separate DDR probe.
 `ifndef FES_DE25_COMPUTER_BUILD_ID
@@ -61,8 +62,9 @@ module fes_de25_embedded #(
     input wire ddr_bid,
     output wire ddr_bready
 );
-    localparam DDR_MODE = MEMORY_BACKEND == 1;
-    localparam [31:0] ENDPOINT_ABI = DDR_MODE ? CONTROL_ABI ^ 32'd1 : CONTROL_ABI;
+    localparam DDR_MODE = MEMORY_BACKEND == 1 || MEMORY_BACKEND == 2;
+    localparam WINDOW_MODE = MEMORY_BACKEND == 2;
+    localparam [31:0] ENDPOINT_ABI = CONTROL_ABI ^ 32'(MEMORY_BACKEND);
     localparam [7:0] DIAG_COMMAND = 8'h80, DIAG_ADDRESS = 8'h84,
                      DIAG_LENGTH = 8'h88, DIAG_STATUS = 8'h8c,
                      DIAG_HELD_ADDRESS = 8'h90, DIAG_BYTES = 8'h94,
@@ -150,17 +152,40 @@ module fes_de25_embedded #(
                           reader_abort, response_valid, memory_active,
                           m_arvalid, reader_valid, reader_ready};
 
-    wire [63:0] unused_reader_generation;
+    wire [63:0] reader_generation;
+    wire window_valid, window_rready, window_error;
+    wire [31:0] window_address, window_rdata;
+    wire [7:0] window_length;
+    generate if (WINDOW_MODE) begin : window_backend
+        fes_embedded_window_control #(.WINDOW_BASE(DDR_BASE),.WINDOW_BYTES(DDR_BYTES)) window_control (
+            .clk(clk),.reset_n(reset_n),.maintenance_held(!maintenance_reset_n),
+            .valid(accept && !embedded_request && !(read && write)),.write(write),
+            .address(address),.wdata(writedata),.wstrb(byteenable),
+            .rdata(window_rdata),.error(window_error),
+            .reader_valid(window_valid),.reader_address(window_address),.reader_length(window_length),
+            .reader_ready(reader_ready),.reader_abort(reader_abort),.reader_generation(reader_generation),
+            .reader_rvalid(reader_rvalid),.reader_rdata(reader_rdata),.reader_rready(window_rready)
+        );
+    end else begin : manual_backend
+        assign window_valid=1'b0;
+        assign window_address=32'd0;
+        assign window_length=8'd0;
+        assign window_rready=1'b0;
+        assign window_rdata=32'd0;
+        assign window_error=1'b0;
+    end endgenerate
     fes_embedded_control #(.BUILD_ID(BUILD_ID), .ABI_ID(ENDPOINT_ABI), .DATA_WIDTH(128)) control (
         .clk(clk), .reset_n(reset_n),
         .csr_valid(accept && embedded_request), .csr_write(write), .csr_address(address),
         .csr_wdata(writedata), .csr_wstrb(byteenable), .csr_ready(csr_ready),
         .csr_response_valid(csr_response_valid), .csr_error(csr_error), .csr_rdata(csr_rdata),
         .csr_response_ready(1'b1),
-        .reader_valid(reader_valid), .reader_address(offered_address), .reader_length(offered_length),
+        .reader_valid(WINDOW_MODE ? window_valid : reader_valid),
+        .reader_address(WINDOW_MODE ? window_address : offered_address),
+        .reader_length(WINDOW_MODE ? window_length : offered_length),
         .reader_ready(reader_ready), .reader_rvalid(reader_rvalid), .reader_rdata(reader_rdata),
-        .reader_rlast(reader_rlast), .reader_rready(allow_reader), .reader_abort(reader_abort),
-        .reader_generation(unused_reader_generation),
+        .reader_rlast(reader_rlast), .reader_rready(WINDOW_MODE ? window_rready : allow_reader), .reader_abort(reader_abort),
+        .reader_generation(reader_generation),
         .m_arvalid(m_arvalid), .m_araddr(m_araddr), .m_arlen(m_arlen), .m_arsize(m_arsize),
         .m_arburst(m_arburst), .m_arid(m_arid), .m_arready(m_arready),
         .m_rvalid(response_valid), .m_rdata(response_data), .m_rlast(response_last),
@@ -205,6 +230,7 @@ module fes_de25_embedded #(
                 pending_local <= !embedded_request; local_error <= 0; local_data <= 0;
                 if (!embedded_request) begin
                     if ((read && write) || address[1:0] != 0) local_error <= 1;
+                    else if (WINDOW_MODE) begin local_error <= window_error; local_data <= window_rdata; end
                     else if (read) begin
                         case (address)
                             DIAG_COMMAND: local_data <= {29'd0, allow_reader, 1'b0, allow_address};

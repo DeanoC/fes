@@ -55,6 +55,29 @@ core/session display transitions remain separate, unfinished work.
 
 ## Probes and evidence
 
+`NewWindowReader` controls the separate CPU-started window diagnostic through
+platform-supplied relative register I/O. The platform has already admitted and
+enabled its exact reader generation and keeps the entire reservation pinned.
+Opening checks the live build/ABI, generation and compiled geometry. Each
+`ReadFrame(ctx, expectedCRC)` issues START once with that generation and a fresh
+cookie. It reads a latched byte-count/IEEE CRC32 result, then checks ownership
+again before returning it. The caller keeps its published bytes unchanged for
+the operation; the expected CRC covers visible row bytes in memory order.
+
+Operations use at most 64 polls and a caller-selected deadline up to one second,
+with bounded monotonic-clock and yield hooks. Cancellation after submission,
+bus/protocol/CRC failure, lost ownership and uncertain command completion retire
+the instance. Later calls perform no I/O. The platform retains the reservation
+and performs the separate endpoint and all-master drain. A `FrameRead` observes
+delivery into the FPGA diagnostic CRC sink; it grants no buffer reuse, vblank
+or HDMI authority. `Surface.Present` keeps its existing CPU-copy semantics.
+
+The Nano source producer exposes this mode as `hps-ddr-window`, with a distinct
+diagnostic profile and a fixed 4 MiB bus window. The current native boot contract
+continues to reject that profile: its 2 MiB fixed-read grant cannot enable this
+wider source. Trusted memory/bridge integration and physical qualification are
+required before wiring this driver into the Nano provider.
+
 The [owned window-source model](../../../../sources/misteross/docs/architecture.md#embedded-control-endpoint)
 now passes complete 1280×720 tenfoot frames through this CPU copy adapter and
 the actual FPGA read/drain endpoint. Run
@@ -63,8 +86,12 @@ the FES root with committed inputs, or add `--allow-dirty` for a labelled
 working-tree model. It checks packed and padded/page-edge windows, every pixel,
 frame boundaries, backpressure, failures and generation-bound restart after
 real response drain. It produces model receipts and rendered frame files under
-`out/`. This is no physical scanout, bridge/DDR grant, HDMI result or automatic
-Nano display binding.
+`out/`. The same check also runs this native driver against the actual board
+Avalon wrapper, with two complete rendered frames, coherent snapshots, CRC
+corruption, stale/busy requests, uncertain writes, cancellation and ownership
+loss. Both the model and Go tests run through the existing producer integration
+lane. These remain host results; physical DDR/HDMI and Nano display binding are
+unfinished.
 
 `run.py display --board qemu` boots a display-only native program, captures its
 actual RAMFB color bars, sends serial `n`, and captures inverted bars. Every

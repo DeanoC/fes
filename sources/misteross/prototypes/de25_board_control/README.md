@@ -28,8 +28,9 @@ Neither address is a verified CPU physical address. The default read responder
 is an on-chip test fixture with experimental ABI `0x10203040`. The explicit
 `--reader-memory hps-ddr` option connects the endpoint's read-only AXI port to
 the existing HPS DDR adapter, with distinct ABI `0x10203041` and diagnostic
-programming profiles. Neither option is a registered Nano runtime profile or
-global containment gate.
+programming profiles. `--reader-memory hps-ddr-window` instead selects the
+CPU-started fixed-window source with ABI `0x10203042` and its own diagnostic
+programming profiles. These remain unregistered Nano runtime profiles.
 
 `--computer-model zx81` (the default) retains the captured ZX81 machine and
 firmware. `--computer-model zx80` selects the captured machine's ZX80 decoder,
@@ -51,7 +52,7 @@ bridges. The native cold DDR diagnostic can observe its pinned buffer, SMMU,
 firewalls and source-bound idle master receipts with data held. Its earlier
 on-chip physical pass does not qualify this changed producer or DDR traffic.
 
-The DDR reader offers one burst at a time, rejecting unaligned, out-of-window,
+The manual DDR reader offers one burst at a time, rejecting unaligned, out-of-window,
 wrapping and 4 KiB-crossing requests before AXI traffic. It snapshots a staged
 descriptor, holds a stalled real address through disable, and consumes actual
 RID/RRESP/RLAST and response backpressure. It has no synthetic response command
@@ -61,13 +62,48 @@ wire, fitting the existing shared HPS adapter without changing its ID width.
 An unsolicited write response faults the reader. The generation/cookie drain endpoint remains
 the authority; debug byte/data/checksum observations do not grant drain.
 
-At the diagnostic aperture, DDR mode accepts only command bit 2 (reader ready)
+At the diagnostic aperture, manual DDR mode accepts only command bit 2 (reader ready)
 and bit 3 (offer the staged request) at `0x80`; the on-chip responder's address
 acceptance and injected-response bits reject. The existing address/length
 registers are at `0x84`/`0x88`. Read-only offsets `0x94`/`0x98` report returned
 bytes/XOR checksum, `0xa0..0xac` the last four data words, and `0xb0`/`0xb4` the
 compiled bus window. They observe bus data even while disable drains a burst.
 They do not implement scanout, CPU cache ownership or other-master shutdown.
+
+The window mode requires exactly `--ddr-bytes 4194304` and a page-aligned bus
+base. It reads packed 1280×720 XRGB frames, with up to four outstanding reads,
+into a diagnostic IEEE CRC32 sink. Its private register map replaces the manual
+diagnostic bank; the shared identity/enable/disable registers below `0x80`
+retain their contract:
+
+| Offsets | Window diagnostic operation |
+| --- | --- |
+| `0x80` | Full-width write `1`: START, only when ready and the staged generation/cookie are valid |
+| `0x84`, `0x88` | Expected reader generation, low/high words |
+| `0x8c` | Nonzero frame cookie, strictly increasing within a reader generation |
+| `0x90` | STATUS; captures the following result registers together |
+| `0x94`, `0x98`, `0x9c` | Captured frame generation low/high and cookie |
+| `0xa0`, `0xa4`, `0xa8` | Requested bytes, delivered bytes and finalized CRC32 |
+| `0xb0`, `0xb4`, `0xb8`, `0xbc`, `0xc0` | Compiled base, span, row bytes, stride and rows |
+| `0xc4` | Signature `0x31435746` (`FWC1`) |
+| `0xc8` | Local maintenance-reset hold output; global containment also requires the generated routes and other-master stop |
+
+STATUS bits 0–5 are ready, busy, complete, aborted, fault and endpoint-aborting.
+Staging during an active frame, stale/zero/reused tokens, unknown addresses,
+partial accesses and invalid commands return a bus error without starting a
+frame. The native `scanout.WindowReader` verifies identity, ownership and geometry,
+submits START once, then checks the latched result and expected CPU-frame CRC.
+It retires on uncertain failure and leaves drain and the boot-pinned arena to
+its platform owner. Completion covers frame delivery into this sink; HDMI,
+pixel clocks, buffer reclamation and global drain require their own proofs.
+
+`verify_window.py` in the adjacent embedded-control prototype tests the actual
+Avalon wrapper and native Go driver using rendered tenfoot frames. Its
+`--project` option additionally checks a current sealed window project's
+captured RTL and live model identity. The board `verify.py --project` dispatches
+to that check for window mode. Default/labelled working-tree runs remain host
+models. The existing native cold firmware rejects this new profile until its
+trusted 4 MiB handoff and physical DDR test are supplied.
 
 DDR mode disables the unused coherent F2H hard interface and removes its JTAG
 manager and translator. The DDR-only generator requires exactly the

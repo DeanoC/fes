@@ -44,9 +44,16 @@ class SealedIdentityTests(unittest.TestCase):
                 changed=dict(inputs,reader_memory=value)
                 self.assertNotEqual(seal.build_identity(first),seal.build_identity(record(changed)))
                 self.assertEqual(json.loads(record(changed))['parameters']['control_abi'],0x10203041)
+            window=seal.reader_memory.selection('hps-ddr-window',0x95000000,4<<20)
+            changed=dict(inputs,reader_memory=window)
+            self.assertNotEqual(seal.build_identity(record(dict(inputs,reader_memory=ddr))),seal.build_identity(record(changed)))
+            self.assertEqual(json.loads(record(changed))['parameters']['control_abi'],0x10203042)
+            self.assertEqual(seal.profile_for(changed),seal.WINDOW_PROFILE)
+            self.assertEqual(seal.profile_for(dict(hps_first,reader_memory=window)),seal.HPS_WINDOW_PROFILE)
             for backend,base,size in (('unknown',0,0),('onchip',4096,0),('onchip',0,4096),
                  ('hps-ddr',0,0),('hps-ddr',1,4096),('hps-ddr',4096,16),
-                 ('hps-ddr',-4096,4096),('hps-ddr',0xfffff000,8192),('hps-ddr',True,4096)):
+                 ('hps-ddr',-4096,4096),('hps-ddr',0xfffff000,8192),('hps-ddr',True,4096),
+                 ('hps-ddr-window',0x95000000,2<<20),('hps-ddr-window',0x95000000,8<<20)):
                 with self.subTest(backend=backend,base=base,size=size),self.assertRaises(ValueError):
                     seal.reader_memory.selection(backend,base,size)
             dirty = dict(inputs, overlay_source_state="working-tree")

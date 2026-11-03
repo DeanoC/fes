@@ -213,6 +213,9 @@ def main():
         if (project is not None and not project.is_dir()) or output.exists():
             raise ValueError("project must exist and output must be fresh")
         inputs, generation, local = inputs_for(project) if project else (None, None, None)
+        if inputs and inputs['reader_memory']['backend']=='hps-ddr-window':
+            return subprocess.run([sys.executable,str(HERE.parent/'embedded_control/verify_window.py'),
+                '--project',str(project),'--output',str(output)],timeout=180).returncode
         if inputs and inputs['reader_memory']['backend']=='hps-ddr':
             return subprocess.run([sys.executable,str(HERE/'verify_ddr.py'),'--project',str(project),'--output',str(output)],timeout=180).returncode
         output.mkdir(parents=True)
@@ -265,6 +268,10 @@ def main():
                      marker="FES_DIAGNOSTIC_PASS")
         if "FES_DRAIN_PASS" not in result or "FES_FAULT_PASS" not in result or "FES_MASTER_CLOSED" not in result:
             raise ValueError("JTAG diagnostic did not report all cases and closure")
+        for unsupported in (0x10203041,0x10203042):
+            rejected_env=dict(tcl_env,FES_DE25_ABI=str(unsupported))
+            run('jtag-unsupported-'+hex(unsupported),[tcl,HERE/'sim_jtag.tcl'],ROOT,rejected_env,output,
+                expect=1,marker='FES_PROFILE_REJECTED writes=0')
         native_env = dict(os.environ)
         for name in ("GOOS", "GOARCH", "GOARM", "GOAMD64", "GOARM64", "GOOSPKG", "GOFLAGS", "GOTOOLCHAIN",
                      "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS", "PYTHON"):

@@ -58,9 +58,28 @@ four outstanding reads, missing/error/stale responses, rejected stops, reset,
 and reuse only after actual response drain. Invalid windows offer no read.
 Its functional record binds the RTL, parameters, actual renderer executable and
 both frame images. A digested sidecar records the selected first-party renderer
-source closure within the existing functional-record size bound. This source
-has no board CSR adapter, pixel-clock crossing, HDMI output or registered Nano
-profile; no existing physical diagnostic is evidence for these changed bytes.
+source closure within the existing functional-record size bound.
+
+The real Nano Avalon adapter now has a separate `hps-ddr-window` diagnostic
+backend (`0x10203042`). It connects this source to a fixed 1280×720/5120-byte
+stride, 4 MiB bus window and an IEEE CRC32 sink. CPU START must match the enabled
+reader generation and carry a fresh cookie. STATUS latches the frame generation,
+cookie, byte counts and CRC together; completion grants no reader drain. Up to
+four reads use the same AXI endpoint and its actual disable/drain ledger. The
+new native `scanout.WindowReader` checks the live identity and geometry, submits
+each command once, verifies full counts and expected CRC, and checks ownership
+again before publishing a result. Uncertain operations retire it and leave
+memory and containment with the platform. The integrated host model exercises
+the actual Avalon wrapper and native driver, including corruption, coherent
+observations, cancellation, concurrency and owner changes after completion.
+
+Backend/window/profile and both window RTL units enter the sealed board source
+closure. Generated handoff verification checks those installed bytes and the
+four-read issuing contract. The current native boot verifier rejects the new
+profile; its existing 2 MiB diagnostic grant supplies no authority for this
+4 MiB source. Trusted memory handoff, pixel-clock crossing, HDMI output and
+registered Nano admission remain unfinished. Prior physical diagnostics do not
+qualify these changed bytes.
 
 The separate `prototypes/de25_board_control` overlay builds a private copy of
 an explicitly selected DE25 ZX81 diagnostic producer and adds an Avalon
@@ -77,7 +96,7 @@ overlay records its board and overlay revisions separately. Generated handoff
 checks the 256-byte peripheral-relative window, its clock/reset and the JTAG
 route; a JTAG address is not a CPU physical address. The default on-chip responder
 exercises held addresses, partial bursts and faults without DDR. The explicit
-DDR variant routes the same control/drain endpoint's read-only AXI port to
+manual DDR variant routes the same control/drain endpoint's read-only AXI port to
 the HPS memory adapter. It bounds each snapshotted request to a compiled bus
 window and one 4 KiB page, permits one burst at a time, and uses actual AXI
 response/error/backpressure signals. Backend, window and distinct control ABI

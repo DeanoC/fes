@@ -29,12 +29,14 @@ ROOT = MISTEROSS.parents[1]
 BOARD = "sources/misteross/boards/de25nano/"
 OVERLAY = "sources/misteross/prototypes/de25_board_control/"
 ENDPOINT = "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv"
+WINDOW_READER = "sources/misteross/prototypes/embedded_control/fes_embedded_window_reader.sv"
+WINDOW_CONTROL = "sources/misteross/prototypes/embedded_control/fes_embedded_window_control.sv"
 DEFINITION = "sources/misteross/cores/fes-common/generated/fes_embedded_control.vh"
 INPUTS = (OVERLAY + "build.py", OVERLAY + "fes_de25_embedded.sv",
           OVERLAY + "fes_de25_embedded_hw.tcl", OVERLAY + "integrate.tcl", OVERLAY + "seal.py",
           OVERLAY + "fes_de25_computer.v", OVERLAY + "generated/fes_de25_computer.vh",
           OVERLAY + "generated/fes_de25_computer.hpp",
-          OVERLAY + "reader_memory.py", OVERLAY + "computer_model.py", ENDPOINT, DEFINITION)
+          OVERLAY + "reader_memory.py", OVERLAY + "computer_model.py", ENDPOINT, WINDOW_READER, WINDOW_CONTROL, DEFINITION)
 BOOTSTRAP = ("build.py", "display/build.py", "zx81/build.py", "zx81-hps/build.py")
 BASE = 0x10400
 SPAN = 0x100
@@ -194,6 +196,8 @@ def overlay_project(output, board, sources, identity, record=None):
                            (OVERLAY + "generated/fes_de25_computer.vh", "generated/fes_de25_computer.vh"),
                            (OVERLAY + "generated/fes_de25_computer.hpp", "generated/fes_de25_computer.hpp"),
                            (ENDPOINT, "fes_embedded_control.sv"),
+                           (WINDOW_READER, "fes_embedded_window_reader.sv"),
+                           (WINDOW_CONTROL, "fes_embedded_window_control.sv"),
                            (DEFINITION, "generated/fes_embedded_control.vh")):
         (local / target).write_bytes(sources[source])
     integration = project / "integrate-mailbox.tcl"
@@ -205,7 +209,7 @@ def overlay_project(output, board, sources, identity, record=None):
     for name in ('fes_de25_computer.v','generated/fes_de25_computer.vh','generated/fes_de25_computer.hpp'):
         inputs['computer']['source_sha256'][name]=digest(sources[OVERLAY+name])
     memory = reader_memory.checked(inputs['reader_memory'])
-    mode = int(memory['backend'] == 'hps-ddr')
+    mode = reader_memory.mode(memory)
     script = script.replace('@MEMORY_BACKEND@', str(mode)).replace('@DDR_BASE@', str(memory['bus_base'])).replace('@DDR_BYTES@', str(memory['bytes']))
     if mode:
         # The held coherent maintenance manager is pruned during synthesis.
@@ -284,7 +288,7 @@ def overlay_project(output, board, sources, identity, record=None):
 
 def verify_control(project, hps, board, memory=None):
     memory = reader_memory.checked(memory if memory is not None else reader_memory.selection('onchip',0,0))
-    mode = int(memory['backend'] == 'hps-ddr')
+    mode = reader_memory.mode(memory)
     tree = ET.parse(project / "qsys_top/qsys_top.sopcinfo")
     modules = {m.get("path"): m for m in tree.findall("module")}
     component = modules.get("subsys_periph.fes_embedded")
@@ -302,6 +306,8 @@ def verify_control(project, hps, board, memory=None):
     local = project / "fes_mailbox"
     for generated_name, source_name in (("fes_de25_embedded.sv", "fes_de25_embedded.sv"),
                                         ("fes_embedded_control.sv", "fes_embedded_control.sv"),
+                                        ("fes_embedded_window_reader.sv", "fes_embedded_window_reader.sv"),
+                                        ("fes_embedded_window_control.sv", "fes_embedded_window_control.sv"),
                                         ("fes_embedded_control.vh", "generated/fes_embedded_control.vh")):
         if (material / generated_name).read_bytes() != (local / source_name).read_bytes():
             raise ValueError("generated embedded source differs: " + generated_name)
@@ -351,6 +357,19 @@ def verify_control(project, hps, board, memory=None):
           'bvalid':('Input',1),'bresp':('Input',2),'bid':('Input',1),'bready':('Output',1)}
         if hps.component_ports(component,'mem')!=expected_mem:
             raise ValueError('generated embedded DDR AXI interface differs')
+        definition=ET.fromstring(component.findtext("parameter[@name='componentDefinition']/value",''))
+        points=[i for i in definition.findall('boundary/interfaces/interface') if i.findtext('name')=='mem']
+        if len(points)!=1:
+            raise ValueError('generated embedded DDR issuing contract differs')
+        entries=points[0].findall('parameters/parameterValueMap/entry')
+        properties={e.findtext('key'):e.findtext('value') for e in entries}
+        issuing=str(4 if mode==2 else 1)
+        expected_properties={'associatedClock':'clk','associatedReset':'reset',
+            'readIssuingCapability':issuing,'combinedIssuingCapability':issuing,
+            'maximumBurstLength':'256','issuesINCRBursts':'true',
+            'issuesWRAPBursts':'false','issuesFIXEDBursts':'false'}
+        if len(properties)!=len(entries) or any(properties.get(k)!=v for k,v in expected_properties.items()):
+            raise ValueError('generated embedded DDR issuing contract differs')
         if (len(memory_routes)!=1 or memory_routes[0].get('end')!='subsys_hps_f2sdram_adapter.axi4_sub' or
             int(memory_routes[0].findtext("parameter[@name='baseAddress']/value",'-1'),0)!=0):
             raise ValueError('generated embedded DDR route differs')
@@ -477,7 +496,7 @@ def main():
     parser.add_argument("--allow-dirty", action="store_true")
     parser.add_argument("--sealed-diagnostic", action="store_true", help="build a committed diagnostic-only format-2 package")
     parser.add_argument("--hps-first", action="store_true", help="select the captured board producer's HPS-first profile")
-    parser.add_argument('--reader-memory', choices=('onchip', 'hps-ddr'), default='onchip')
+    parser.add_argument('--reader-memory', choices=('onchip', 'hps-ddr', 'hps-ddr-window'), default='onchip')
     parser.add_argument('--ddr-bus-base', type=lambda x:int(x,0), default=0)
     parser.add_argument('--ddr-bytes', type=lambda x:int(x,0), default=0)
     parser.add_argument('--computer-model', choices=computer_model.MODELS, default='zx81',
@@ -527,7 +546,7 @@ def main():
         print("DE25 embedded diagnostic:", result, "build ID:", build_id, flush=True)
         if args.action != "project":
             tool, version = hps.BOARD_BUILD.locate_quartus(args.quartus_root)
-            if memory['backend']=='hps-ddr':
+            if reader_memory.mode(memory):
                 generate_ddr_project(result,hps,board,tool,version)
             else:
                 board.generate(result, hps, tool, version)
@@ -538,7 +557,7 @@ def main():
             if args.action == "build":
                 artifact = compile_project(result / "hps", tool)
                 computer_model.verify(result/'hps/project', json.loads(inputs_file.read_text()), sources)
-                if memory['backend']=='hps-ddr' and review_ddr_parameters(result/'hps',hps)!=evidence['reviewed_ddr_hps_parameters']:
+                if reader_memory.mode(memory) and review_ddr_parameters(result/'hps',hps)!=evidence['reviewed_ddr_hps_parameters']:
                     raise ValueError('compile changed reviewed DDR HPS/EMIF parameters')
                 checks = {"system": board.pll_review(result / "hps/project/ip/pll", 100000000),
                           "pixel": board.pll_review(result / "hps/project/sys_pll", 74250000)}

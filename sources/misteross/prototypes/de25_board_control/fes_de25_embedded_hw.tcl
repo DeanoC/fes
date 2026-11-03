@@ -7,7 +7,7 @@ set_module_property INSTANTIATE_IN_SYSTEM_MODULE true
 set_module_property EDITABLE false
 set_module_property ELABORATION_CALLBACK elaborate
 add_parameter MEMORY_BACKEND INTEGER 0
-set_parameter_property MEMORY_BACKEND ALLOWED_RANGES {0 1}
+set_parameter_property MEMORY_BACKEND ALLOWED_RANGES {0 1 2}
 set_parameter_property MEMORY_BACKEND HDL_PARAMETER true
 add_parameter DDR_BASE STD_LOGIC_VECTOR 0
 set_parameter_property DDR_BASE WIDTH 32
@@ -19,6 +19,8 @@ add_fileset QUARTUS_SYNTH QUARTUS_SYNTH
 set_fileset_property QUARTUS_SYNTH TOP_LEVEL fes_de25_embedded
 add_fileset_file fes_de25_embedded.sv SYSTEM_VERILOG PATH fes_de25_embedded.sv TOP_LEVEL_FILE
 add_fileset_file fes_embedded_control.sv SYSTEM_VERILOG PATH fes_embedded_control.sv
+add_fileset_file fes_embedded_window_reader.sv SYSTEM_VERILOG PATH fes_embedded_window_reader.sv
+add_fileset_file fes_embedded_window_control.sv SYSTEM_VERILOG PATH fes_embedded_window_control.sv
 add_fileset_file fes_embedded_control.vh VERILOG_INCLUDE PATH generated/fes_embedded_control.vh
 add_interface clk clock sink
 add_interface_port clk clk clk Input 1
@@ -86,6 +88,10 @@ foreach {name role direction width} {
     ddr_bid bid Input 1 ddr_bready bready Output 1
 } { add_interface_port mem $name $role $direction $width }
 proc elaborate {} {
-    set_interface_property mem ENABLED [get_parameter_value MEMORY_BACKEND]
-    set_interface_property maintenance_reset ENABLED [get_parameter_value MEMORY_BACKEND]
+    set mode [get_parameter_value MEMORY_BACKEND]
+    set_interface_property mem ENABLED [expr {$mode != 0}]
+    set_interface_property maintenance_reset ENABLED [expr {$mode != 0}]
+    set outstanding [expr {$mode == 2 ? 4 : 1}]
+    set_interface_property mem readIssuingCapability $outstanding
+    set_interface_property mem combinedIssuingCapability $outstanding
 }

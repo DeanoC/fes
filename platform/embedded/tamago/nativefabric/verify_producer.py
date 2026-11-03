@@ -147,14 +147,16 @@ def main():
     run("window-stream", [sys.executable, PRODUCER.parent / "verify_window.py",
                           "--output", out / "window-stream", *extra])
     window = json.loads((out / "window-stream/result.json").read_text())
-    if window["status"] != "passed" or window["physical_ddr"] or window["runtime_admission"]:
+    if (window["status"] != "passed" or window["physical_ddr"] or window["runtime_admission"] or
+            window['native_aperture']['status']!='passed' or len(window['native_aperture']['cases'])!=18):
         raise RuntimeError("window stream did not remain a checked host model")
     if sources != {str(x.relative_to(ROOT)): sha(x) for x in sorted(files)}:
         raise RuntimeError("native integration sources changed during verification")
     report = {"status": "passed", "classification": "host-only producer simulation and native Go control; no RBF or hardware acceptance",
               "tool_search_order": "passed", "commands": commands, "first": first, "second": second, "go_sha256": sha(go.resolve()),
               "native_source_sha256": sources,
-              "window_stream": {"receipt_sha256": sha(out / "window-stream/result.json"), "variants": window["variants"]},
+              "window_stream": {"receipt_sha256": sha(out / "window-stream/result.json"), "variants": window["variants"],
+                                "native_aperture": window['native_aperture']},
               "logs_sha256": {name: sha(out / (name + ".log")) for name in ("first-build", "second-build", "first-verify", "wrong-live-id", "wrong-live-abi", "wrong-descriptor", "wrong-record", "wrong-live-binding", "wrong-artifact", "native-binding", "window-stream")},
               "limitations": ["host executables are not RBFs or FES packages", "no Nano source pinout, actual producer, physical timing or hardware qualification", "record/tool hashes are diagnostic correlations, not authenticated production seals"]}
     (out / "result.json").write_text(json.dumps(report, indent=2) + "\n")

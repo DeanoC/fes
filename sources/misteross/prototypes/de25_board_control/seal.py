@@ -33,6 +33,8 @@ DEFINITION = "sources/misteross/cores/fes-common/generated/fes_embedded_control.
 ROOTS = sorted(("sources/misteross/prototypes/de25_board_control",
                 "sources/misteross/scripts",
                 "sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv",
+                "sources/misteross/prototypes/embedded_control/fes_embedded_window_reader.sv",
+                "sources/misteross/prototypes/embedded_control/fes_embedded_window_control.sv",
                 DEFINITION))
 PLATFORM = "de25_nano"
 DEVICE = "A5EB013BB23BE4SCS"
@@ -40,6 +42,8 @@ PROFILE = "de25-embedded-diagnostic-v1"
 HPS_PROFILE = "de25-embedded-hps-first-diagnostic-v1"
 DDR_PROFILE = "de25-embedded-ddr-diagnostic-v1"
 HPS_DDR_PROFILE = "de25-embedded-hps-first-ddr-diagnostic-v1"
+WINDOW_PROFILE = "de25-embedded-window-diagnostic-v1"
+HPS_WINDOW_PROFILE = "de25-embedded-hps-first-window-diagnostic-v1"
 ABI = "fes.de25-embedded-diagnostic"
 SPL_MEMBER = "Demonstration/SoC_FPGA/GHRD/software/u-boot/spl/u-boot-spl-dtb.hex"
 
@@ -52,9 +56,9 @@ def boot_order(inputs):
 
 
 def profile_for(inputs):
-    ddr=reader_memory.checked(inputs['reader_memory'])['backend']=='hps-ddr'
-    if boot_order(inputs)=='HPS FIRST':return HPS_DDR_PROFILE if ddr else HPS_PROFILE
-    return DDR_PROFILE if ddr else PROFILE
+    mode=reader_memory.mode(inputs['reader_memory'])
+    profiles=(HPS_PROFILE,HPS_DDR_PROFILE,HPS_WINDOW_PROFILE) if boot_order(inputs)=='HPS FIRST' else (PROFILE,DDR_PROFILE,WINDOW_PROFILE)
+    return profiles[mode]
 
 
 def sha(data):
