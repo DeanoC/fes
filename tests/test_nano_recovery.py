@@ -69,7 +69,7 @@ class NanoRecoveryTests(unittest.TestCase):
             (root/'build/spl').mkdir(parents=True)
             fit, spl, config = (root/name for name in ('build/u-boot.itb','build/spl/u-boot-spl-dtb.hex','build/.config'))
             fit.write_bytes(b'synthetic FIT'); spl.write_bytes(b'synthetic SPL')
-            elf=root/'build/u-boot';elf.write_bytes(b'host fixture; readelf output mocked explicitly')
+            elf=root/'build/u-boot';elf.write_bytes(('U-Boot 2025.01'+recovery.LOCALVERSION+' (fixture; readelf explicitly mocked)').encode())
             boot_settings = ('CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR=0x200\n'
                              'CONFIG_SPL_FS_FAT=y\nCONFIG_SYS_MMCSD_FS_BOOT=y\n'
                              'CONFIG_SYS_MMCSD_FS_BOOT_PARTITION=1\n'
@@ -87,6 +87,11 @@ class NanoRecoveryTests(unittest.TestCase):
             receipt['network_recovery']['phy_sources']=recovery.prepare_phy_sources(root/'source')
             record = root/'result.json'
             record.write_text(json.dumps(receipt));package.checked_build(root)
+            actual_elf=elf.read_bytes()
+            elf.write_bytes(actual_elf.replace(recovery.LOCALVERSION.encode(),b'-wrong-profile'))
+            record.write_text(json.dumps(dict(receipt,uboot_elf_sha256=package.sha(elf))))
+            with self.assertRaisesRegex(ValueError,'selected version banner'):package.checked_build(root)
+            elf.write_bytes(actual_elf);record.write_text(json.dumps(receipt))
             for key in ('fit_sha256','spl_sha256','config_sha256','producer_sha256','uboot_elf_sha256'):
                 bad = dict(receipt, **{key:'0'*64});record.write_text(json.dumps(bad))
                 with self.subTest(key=key), self.assertRaises(ValueError):package.checked_build(root)
@@ -157,7 +162,7 @@ class RecoveryPHYSourceTests(unittest.TestCase):
                 self.assertEqual(before,{str(p.relative_to(source)):p.read_bytes() for p in source.rglob('*') if p.is_file()})
 
     def test_self_consistent_modified_driver_state_command_or_receipt_rejects(self):
-        for name in (*recovery.PINNED_PHY_SOURCES,'cmd/fes_nano_phy.c','.scmversion'):
+        for name in (*recovery.PINNED_PHY_SOURCES,'cmd/fes_nano_phy.c'):
             with self.subTest(name=name),tempfile.TemporaryDirectory() as temp:
                 source=Path(temp)/'source';shutil.copytree(self.fixture,source)
                 record=recovery.prepare_phy_sources(source)

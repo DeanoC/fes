@@ -40,6 +40,8 @@ def checked_build(directory):
         raise ValueError('not a current separate Nano recovery build')
     text = config.read_text()
     recovery.check(text)
+    if ('U-Boot 2025.01'+recovery.LOCALVERSION+' (').encode() not in (directory/'build/u-boot').read_bytes():
+        raise ValueError('actual recovery ELF does not contain its selected version banner')
     recovery.check_linked(subprocess.check_output(['readelf','-Ws',directory/'build/u-boot'],text=True,timeout=30))
     if 'CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR=0x200\n' not in text:
         raise ValueError('recovery SPL raw FIT offset differs')

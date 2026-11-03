@@ -13,8 +13,7 @@ DISABLE = ('NO_NET', 'NET_RANDOM_ETHADDR', 'USB', 'CMD_SAVEENV',
            'ENV_IS_IN_FAT', 'ENV_IS_IN_MMC', 'ENV_IS_IN_SPI_FLASH', 'ENV_IS_IN_UBI',
            'MMC_SDHCI_SDMA', 'MMC_SDHCI_ADMA', 'MMC_SDHCI_ADMA_64BIT',
            'SPL_MMC_SDHCI_SDMA', 'SPL_MMC_SDHCI_ADMA')
-LOCALVERSION = '-fes-nano-recovery-phy-prepare'
-SOURCE_SUFFIX = '-gd0f8813fd6bf'
+LOCALVERSION = '-fes-nano-recovery-phy-prepare-gd0f8813fd6bf'
 # Exact top-kit readback, not the synthetic PHY used by native host tests.
 PHY = {'address':1, 'id':0x00221622, 'driver':'Micrel ksz9031', 'aneg_timeout_ms':4000,
        'prepare_command':'fesphy', 'prepare_before_link':True}
@@ -135,8 +134,6 @@ def prepare_phy_sources(source):
             raise ValueError('recovery PHY source differs from the pinned Terasic driver: '+name)
     command=source/'cmd/fes_nano_phy.c'
     if command.exists() or command.is_symlink():raise ValueError('recovery PHY command already exists')
-    version=source/'.scmversion'
-    if version.exists() or version.is_symlink():raise ValueError('recovery source version already exists')
     driver=originals['drivers/net/dwc_eth_xgmac.c'].decode()
     start=driver.index('\t/*\n\t * if PHY was already connected and configured,')
     end=driver.index('\n\tret = phy_startup(xgmac->phy);',start)
@@ -153,7 +150,7 @@ def prepare_phy_sources(source):
     header+='\nint fes_nano_recovery_phy_prepare(struct udevice *dev);\n'
     changed={'drivers/net/dwc_eth_xgmac.c':driver,'drivers/net/dwc_eth_xgmac.h':header,
              'cmd/Makefile':originals['cmd/Makefile'].decode()+'\nobj-y += fes_nano_phy.o\n',
-             'cmd/fes_nano_phy.c':PHY_COMMAND,'.scmversion':SOURCE_SUFFIX+'\n'}
+             'cmd/fes_nano_phy.c':PHY_COMMAND}
     for name,text in changed.items():(source/name).write_text(text)
     return {'scope':'recovery-explicit-phy-before-link-v1','originals':dict(PINNED_PHY_SOURCES),
             'prepared':{name:hashlib.sha256(text.encode()).hexdigest() for name,text in changed.items()}}
@@ -161,7 +158,7 @@ def prepare_phy_sources(source):
 
 def check_phy_sources(source,record):
     """Reconstruct all pinned inputs; a self-consistent edited receipt is insufficient."""
-    names=set(PINNED_PHY_SOURCES)|{'cmd/fes_nano_phy.c','.scmversion'}
+    names=set(PINNED_PHY_SOURCES)|{'cmd/fes_nano_phy.c'}
     if (not isinstance(record,dict) or set(record)!={'scope','originals','prepared'} or
             record['scope']!='recovery-explicit-phy-before-link-v1' or
             record['originals']!=PINNED_PHY_SOURCES or not isinstance(record['prepared'],dict) or
@@ -187,7 +184,7 @@ def check_phy_sources(source,record):
     declaration='\nint fes_nano_recovery_phy_prepare(struct udevice *dev);\n'
     suffix='\nobj-y += fes_nano_phy.o\n'
     if (header.count(fields)!=1 or not header.endswith(declaration) or not actual['cmd/Makefile'].endswith(suffix) or
-            actual['cmd/fes_nano_phy.c']!=PHY_COMMAND or actual['.scmversion']!=SOURCE_SUFFIX+'\n'):
+            actual['cmd/fes_nano_phy.c']!=PHY_COMMAND):
         raise ValueError('recovery PHY state or command transformation differs')
     reconstructed={'drivers/net/dwc_eth_xgmac.c':driver,'drivers/net/dwc_eth_xgmac.h':header[:-len(declaration)].replace(fields,''),
                    'cmd/Makefile':actual['cmd/Makefile'][:-len(suffix)]}

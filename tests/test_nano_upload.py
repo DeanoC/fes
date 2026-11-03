@@ -27,7 +27,7 @@ class Model:
     def command(self,c,timeout):
         self.commands.append(c)
         if c=='version':
-            return 'U-Boot 2025.01'+('-fes-nano-recovery-ksz9031' if self.fault=='old-loader' else upload.recovery.LOCALVERSION)+'-gd0f8813fd6bf'
+            return 'U-Boot 2025.01'+('-fes-nano-recovery-ksz9031-gd0f8813fd6bf' if self.fault=='old-loader' else upload.recovery.LOCALVERSION)
         if c=='echo FES_UPLOAD_SESSION=${fes_upload_session}':return 'FES_UPLOAD_SESSION='+self.marker+'\r\n'
         if c.startswith('setenv fes_upload_session '):self.marker=c.split()[2];return ''
         if c=='bdinfo':
