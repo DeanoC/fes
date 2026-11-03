@@ -294,6 +294,11 @@ they are not a distributed ownership, failover, or recovery protocol.
 
 ### Source ownership
 
+The native target-image selector copies a closed core package into its private
+cache and explicitly seals each copied member as `0444` before publication.
+The caller's private `077` umask does not change those final artifact modes;
+image assembly still requires exact `0555` directories and `0444` members.
+
 Appliance release manifests and immutable image storage form the independent
 Go module `github.com/DeanoC/FogCast/appliance` in `appliance/`. The store lives
 in `appliance/store`; both boot selection and target update handling consume

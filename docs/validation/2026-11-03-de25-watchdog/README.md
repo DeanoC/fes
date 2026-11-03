@@ -31,6 +31,13 @@ sysfs path and matching character-device identity without opening the device;
 the guard rechecks that identity on its opened descriptor. It uses standard
 Linux watchdog operations and never invokes the DE10 reset-register helper.
 
+The new production preflight from `1790b1ff5fe13c419c2b9896c3e0d97b0c7451e1`
+also passed on native AArch64, identifying actual watchdog0 `246:0` without
+opening it. Its statically compiled opt-in test binary SHA-256 is
+`a04abe6c9f07046dd9b7a2e2c9629026b4f633343b34ecbbb44c55f7f613db33`.
+The focused platform suite and affected parent/consistency checks passed on
+that source. This metadata test does not arm the production guard.
+
 The MENU diagnostic links the real production hardware factory and runtime
 library from `022eeb3457e6a812571dcbb279e2b342c15c6763`. A bounded watchdog
 feeder covers startup, then stops after `Runtime.Start` reports idle. The
