@@ -3,6 +3,7 @@ package expansion
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -13,7 +14,7 @@ func oracleROMMapWord(data []byte) ([40]uint32, error) {
 	var word [40]uint32
 	data = bytes.TrimSpace(data)
 	if len(data) < 2 || data[0] != '[' || data[len(data)-1] != ']' || bytes.Count(data, []byte(",")) != 39 {
-		return word, json.Unmarshal([]byte("x"), &word)
+		return word, errors.New("ROM word must have 40 destinations")
 	}
 	return word, json.Unmarshal(data, &word)
 }
