@@ -47,10 +47,14 @@ def run(bench):
         run_board()
         return
     output, sources = prepare(bench)
+    # These benches drive top-level pins and only read internal RTL state.
+    # Writable internal visibility needlessly makes every signal an input to eval.
+    observers = output / "read-only-observers.vlt"
+    observers.write_text('`verilator_config\npublic_flat_rd -module "*" -var "*"\n')
     parameters = ["-GBUILD_ID=128'h00112233445566778899aabbccddeeff"] if bench == "endpoint" else []
     testbench = HERE / ("endpoint_tb.cpp" if bench == "endpoint" else "computer_tb.cpp")
     subprocess.run(["verilator", "--cc", "--exe", "--build", "-j", "2",
-                    "--public-flat-rw", "-O3", "--top-module", "fes_de25_computer",
+                    str(observers), "-O3", "--top-module", "fes_de25_computer",
                     "-Wno-UNOPTFLAT", "-Wno-CASEINCOMPLETE", "-Wno-WIDTHTRUNC",
                     "-Wno-WIDTHEXPAND", "-Wno-PINCONNECTEMPTY", "-Wno-IMPLICITSTATIC",
                     "-Wno-CASEX", "-I" + str(HERE), "-I" + str(HERE / "generated"),

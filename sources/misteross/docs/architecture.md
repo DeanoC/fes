@@ -299,6 +299,14 @@ they do not generate the client's mailbox commands. The existing board bench
 shares those clock and observation helpers. This remains software/RTL evidence
 with behavioral memory and no physical HPS/MMIO or programming backend.
 
+The endpoint/machine benches in `zx81-hps/sim.py` and the combined RAM-persona
+proof in `link-proof/zx81-computer/proof.py` expose internal RTL state read-only
+through a generated Verilator configuration. Their C++ benches drive top-level
+pins. This preserves internal observations without turning every internal signal
+into an external writer; clock events, assertions and proof time limits are
+unchanged. The separate board bench retains writable access for its modeled PLL
+and HDMI-configuration injections.
+
 [`boards/de25nano/combined/`](../boards/de25nano/combined/README.md) composes
 that local display with the preserved GHRD HPS/LPDDR4, mailbox and read-only
 DDR probe. It uses a single configuration reset endpoint and separate system
