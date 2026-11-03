@@ -6,16 +6,90 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"strings"
 	"testing"
 	"testing/iotest"
 	"time"
+	"unicode/utf8"
 
 	"github.com/DeanoC/FogCast/internal/testsock"
 	"github.com/DeanoC/FogCast/protocol"
 )
+
+// Exercise both forms allowed by io.Reader: EOF accompanying the last bytes,
+// and EOF on the next read. Compare the streaming check with Go's UTF-8 check.
+type healthChunkReader struct {
+	data        []byte
+	chunk       int
+	eofWithData bool
+}
+
+func (r *healthChunkReader) Read(p []byte) (int, error) {
+	if len(r.data) == 0 {
+		return 0, io.EOF
+	}
+	n := min(len(p), r.chunk, len(r.data))
+	copy(p, r.data[:n])
+	r.data = r.data[n:]
+	if len(r.data) == 0 && r.eofWithData {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+func TestSoftwareHealthUTF8Differential(t *testing.T) {
+	rng := rand.New(rand.NewSource(22419))
+	for i := 0; i < 1000; i++ {
+		var data []byte
+		if i%2 == 0 {
+			data = make([]byte, rng.Intn(60))
+			_, _ = rng.Read(data)
+		} else {
+			var text strings.Builder
+			for j, n := 0, rng.Intn(20); j < n; j++ {
+				text.WriteRune(rune(rng.Intn(0x110000)))
+			}
+			data = []byte(text.String())
+		}
+		for chunk := 1; chunk <= 8; chunk++ {
+			for _, eofWithData := range []bool{false, true} {
+				reader := &statusUTF8Reader{reader: &healthChunkReader{data: data, chunk: chunk, eofWithData: eofWithData}}
+				got, err := io.ReadAll(reader)
+				if err != nil || !bytes.Equal(got, data) || reader.invalid == utf8.Valid(data) {
+					t.Fatalf("case %d chunk %d EOF with data %v: got %x, want %x, err %v, invalid %v", i, chunk, eofWithData, got, data, err, reader.invalid)
+				}
+			}
+		}
+	}
+}
+
+type healthErrorAfterReader struct {
+	data []byte
+	err  error
+}
+
+func (r *healthErrorAfterReader) Read(p []byte) (int, error) {
+	n := copy(p, r.data)
+	r.data = r.data[n:]
+	if len(r.data) == 0 {
+		return n, r.err
+	}
+	return n, nil
+}
+
+func TestSoftwareHealthRejectsTransportErrorAfterDocument(t *testing.T) {
+	for _, err := range []error{io.ErrUnexpectedEOF, io.ErrClosedPipe} {
+		for _, suffix := range []string{"", " ", "\n"} {
+			reader := &healthErrorAfterReader{data: []byte(validHealthStatus() + suffix), err: err}
+			if _, ok := decodeSoftwareHealth(reader); ok {
+				t.Errorf("accepted complete document with transport error %v and suffix %q", err, suffix)
+			}
+		}
+	}
+}
 
 func validHealthStatus() string {
 	return `{"version":1,"generation":0,"selected":"` + strings.Repeat("a", 64) + `","receipts":{},"active_bundle":"` + strings.Repeat("b", 64) + `","base_identity":"base"}`
