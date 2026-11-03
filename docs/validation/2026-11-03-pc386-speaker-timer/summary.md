@@ -138,11 +138,11 @@ sim-fes-pc386-speaker`, in CI's pc386 full tier beside `wait`):
 | --- | --- |
 | `speaker` suite, oracle CPU ([report](speaker-report.json)) | Passes: `SPK post 36h ok`, `SPK rise 64/64 ok`, `SPK carrier 19886Hz ok`, `SPK DONE ok`, and the prompt again at 3.8 s |
 | `speaker` suite, oracle CPU, main's BIOS `47a982a5` (same bench and disk; [summary](speaker-before-report.json)) | Fails, as the bench predicts: `SPK post 20h FAIL` (MSB only, mode 0: KF8253's reset state), `SPK rise 0/64 FAIL` and `SPK carrier 0Hz FAIL`. Counter 2's output never read high |
-| `speaker` suite, RTL CPU ([report](speaker-rtl-report.json)) | RTL_RESULT |
+| `speaker` suite, RTL CPU ([report](speaker-rtl-report.json)) | Passes with the same lines. `fes_i386_cpu` ran the whole boot and the program alone: 103,279,707 instructions retired, 0 oracle steps, no stops, the prompt again at 3.8 s |
 | `boot`, oracle CPU | Passes: FreeDOS to the prompt at 3.75 s, `dir`, every I/O at its class time, and the VGA trace replay against Bochs (81,109 events, no mismatch) |
 | `wait`, oracle CPU | Passes, with the same waits as #1451's record to within 1 µs (10 ms took 10,045 µs) |
 | Lockstep | Unaffected: the branch changes no RTL, and the lockstep reads no firmware |
-| Unit tests | UNIT_RESULT |
+| Unit tests | At the branch head: the misteross suite (1,643 tests, including the new `SpeakerTestTest` cases), `check-generated`, whitespace checks and the CI matrix and workflow tests pass. The parent Python suite (1,346 tests) passes except `test_factory_video_parts`. That module failed 39 tests in a run from a dirty tree ("recorded source closure differs from Git revision") and passes (53 tests) at the clean head. The Makefile change puts every core's simulation and the host and runtime lanes in `test-changed`'s plan; those are left to CI |
 
 ## Seal
 
