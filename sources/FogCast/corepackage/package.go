@@ -1262,7 +1262,9 @@ func ValidateDescriptor(d Descriptor) error {
 	if err := identifier(d.Target.ProgrammingProfile, "target.programming_profile"); err != nil {
 		return err
 	}
-	if d.Target.Platform != "de10_nano" || d.Target.Device != "5CSEBA6U23I7" {
+	knownTarget := d.Target.Platform == "de10_nano" && d.Target.Device == "5CSEBA6U23I7" ||
+		d.Target.Platform == "de25_nano" && d.Target.Device == "A5EB013BB23BE4SCS"
+	if !knownTarget {
 		return errors.New("core package: unsupported target")
 	}
 	if d.Payload.File != "core.rbf" {

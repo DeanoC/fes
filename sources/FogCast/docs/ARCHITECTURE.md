@@ -533,6 +533,10 @@ inspects closed directories or restricted uncompressed ustar archives,
 validates the closed typed manifest and payload bytes, and computes package
 identity from the original manifest and payload. Unknown but well-formed ABIs
 remain inspectable; hardware compatibility belongs to the native runtime.
+Target validation accepts the exact DE10-Nano/Cyclone V and
+DE25-Nano/Agilex 5 SCS platform/device pairs. Crossed pairs and other devices
+remain invalid. Catalog import establishes archive validity; native profile,
+interface and hardware admission still run before launch.
 `corepackage.InspectPackage` returns the package ID and closed `Descriptor`
 from the same pinned read for identity-reporting consumers such as
 `core-inspect`; the smaller `Inspect` wrapper returns only the descriptor.
