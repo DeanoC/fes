@@ -215,6 +215,8 @@ jobs:
           persist-credentials: false
       - name: Compiler read-audit dependency
         run: sudo apt-get update && sudo apt-get install -y strace
+      - name: PC/XT acceptance image dependencies
+        run: sudo apt-get install -y binutils mtools
       - name: FPGA producer and package software tests
         run: |
           python3 - <<'PYCODE'

@@ -8,6 +8,8 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 
 from scripts.affected import plan
 from scripts.ci_simulations import simulation_matrix, tier_for_event
@@ -83,6 +85,94 @@ class ParentWorkflowTests(unittest.TestCase):
         self.assertEqual(condition, "matrix.target == 'sim-fes-pcxt-dos' || matrix.target == 'sim-fes-pc386-fesenv' "
                                     "|| matrix.target == 'sim-fes-pc386-a20' || matrix.target == 'sim-fes-pc386-wait'")
         self.assertIn('sudo apt-get update && sudo apt-get install -y mtools', step)
+
+    def test_pcxt_fixture_test_has_image_tools(self):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
+        producer = workflow.split('  fpga-producer:\n', 1)[1].split('  simulation-tools:\n', 1)[0]
+        self.assertIn('sudo apt-get install -y binutils mtools', producer)
+
+    def test_pcxt_com_nightly_is_main_only_and_reports_failure(self):
+        repository = Path(__file__).resolve().parents[1]
+        nightly = (repository / '.github/workflows/nightly.yml').read_text()
+        job = nightly.split('  pcxt-com:\n', 1)[1].split('  report:\n', 1)[0]
+        report = nightly.split('  report:\n', 1)[1]
+        self.assertEqual(workflow_events(repository / '.github/workflows/nightly.yml'),
+                         {'schedule', 'workflow_dispatch'})
+        for condition in ("github.repository == 'DeanoC/fes'", "github.ref == 'refs/heads/main'",
+                          "github.event_name == 'schedule'", "github.event_name == 'workflow_dispatch'"):
+            self.assertIn(condition, job)
+        self.assertIn('environment: pcxt-nightly-main', job)
+        self.assertIn('runs-on: [self-hosted, linux, x64, chip-3090]', job)
+        self.assertIn('persist-credentials: false', job)
+        self.assertIn('ref: ${{ github.sha }}', job)
+        self.assertIn('test "$(git rev-parse HEAD)" = "$GITHUB_SHA"', job)
+        self.assertIn('timeout --signal=TERM --kill-after=30s 11700s', job)
+        self.assertIn('test -s sources/misteross/build/sim/fes-pcxt/dos-com/result.json', job)
+        self.assertIn('dos-com/result-pending.json', job)
+        self.assertIn('name: pcxt-com-evidence-', job)
+        self.assertNotIn('sudo ', job)
+        self.assertIn('needs: [regression, pcxt-com]', report)
+        self.assertIn("needs.regression.result == 'failure' || needs.pcxt-com.result == 'failure'", report)
+        for tier in ('smoke', 'full'):
+            self.assertNotIn('sim-fes-pcxt-com',
+                             [row['target'] for row in simulation_matrix(['pcxt'], tier)['include']])
+
+    def test_pcxt_com_preflight_and_cleanup_are_scoped(self):
+        nightly = (Path(__file__).resolve().parents[1] / '.github/workflows/nightly.yml').read_text()
+        job = nightly.split('  pcxt-com:\n', 1)[1].split('  report:\n', 1)[0]
+        def shell_step(name):
+            step = job.split('      - name: ' + name + '\n', 1)[1].split('\n      - ', 1)[0]
+            return textwrap.dedent(step.split('        run: |\n', 1)[1])
+        setup = shell_step('Create isolated directories and check free space')
+        collect = shell_step('Collect COM diagnostics')
+        cleanup = shell_step("Remove only this job's directories")
+        disk_code = re.search(r"python3 -c '\n(.*?)\n'", setup, re.S).group(1)
+        for free in (30 * 1024**3 - 1, 30 * 1024**3):
+            with self.subTest(free=free), mock.patch.dict(os.environ, {
+                'GITHUB_WORKSPACE': '/workspace', 'RUNNER_TEMP': '/scratch',
+            }), mock.patch('shutil.disk_usage', return_value=SimpleNamespace(free=free)):
+                if free < 30 * 1024**3:
+                    with self.assertRaises(SystemExit):
+                        exec(disk_code, {})
+                else:
+                    exec(disk_code, {})
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workspace, scratch, bin_dir = (root / name for name in ('workspace', 'scratch', 'bin'))
+            for path in (workspace, scratch, bin_dir): path.mkdir()
+            (bin_dir / 'python3').write_text('#!/bin/sh\nexit 0\n')
+            (bin_dir / 'python3').chmod(0o755)
+            output = root / 'output'
+            output.touch()
+            env = {**os.environ, 'PATH': str(bin_dir) + os.pathsep + os.environ['PATH'],
+                   'GITHUB_WORKSPACE': str(workspace), 'RUNNER_TEMP': str(scratch),
+                   'GITHUB_OUTPUT': str(output), 'GITHUB_RUN_ID': '123',
+                   'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_REF': 'refs/heads/other'}
+            self.assertNotEqual(subprocess.run(['bash', '-c', setup], env=env).returncode, 0)
+            self.assertEqual(list(workspace.iterdir()), [])
+            env['GITHUB_REF'] = 'refs/heads/main'
+            subprocess.run(['bash', '-c', setup], env=env, check=True)
+            paths = dict(line.split('=', 1) for line in output.read_text().splitlines())
+            result_dir = Path(paths['workspace']) / 'sources/misteross/build/sim/fes-pcxt/dos-com'
+            result_dir.mkdir(parents=True)
+            for name in ('inputs.json', 'result.json'):
+                (result_dir / name).write_text(name)
+            (Path(paths['private']) / 'simulation.log').write_text('simulation')
+            env.update(WORKSPACE=paths['workspace'], PRIVATE=paths['private'])
+            subprocess.run(['bash', '-c', collect], env=env, check=True)
+            evidence = Path(paths['private']) / 'evidence'
+            self.assertEqual({path.name for path in evidence.iterdir()},
+                             {'simulation.log', 'inputs.json', 'result.json'})
+            sentinel = root / 'unrelated'
+            sentinel.mkdir()
+            env.update(WORKSPACE=str(sentinel), PRIVATE=paths['private'])
+            self.assertNotEqual(subprocess.run(['bash', '-c', cleanup], env=env).returncode, 0)
+            self.assertTrue(sentinel.exists())
+            env['WORKSPACE'] = paths['workspace']
+            subprocess.run(['bash', '-c', cleanup], env=env, check=True)
+            self.assertFalse(Path(paths['workspace']).exists())
+            self.assertFalse(Path(paths['private']).exists())
+            self.assertTrue(sentinel.exists())
 
     def test_host_workflow_delegates_build_and_ui_selection_and_keeps_test_shards(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
