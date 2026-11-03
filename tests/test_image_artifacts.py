@@ -475,11 +475,24 @@ class DE25ImageCommandTests(unittest.TestCase):
         import media
         root = Path(__file__).resolve().parents[1]
         args = SimpleNamespace(action='image', output=None, kernel=Path('/kernel'), sdk=Path('/sdk'), artifacts=Path('/artifacts'))
-        with patch.object(artifacts, 'load') as load, \
-                patch.object(media, 'operation', return_value=contextlib.nullcontext()) as lease, \
-                patch.object(de25_appliance.subprocess, 'run') as run:
+        events = []
+
+        def admit(directory, *, board):
+            self.assertEqual((directory, board), (args.artifacts, 'de25-nano'))
+            events.append('admit')
+
+        @contextlib.contextmanager
+        def held_lease():
+            events.append('lease')
+            yield
+            events.append('release')
+
+        with patch.object(artifacts, 'load', side_effect=admit), \
+                patch.object(media, 'operation', side_effect=lambda *a, **kw: held_lease()) as lease, \
+                patch.object(de25_appliance.subprocess, 'run', side_effect=lambda *a, **kw: events.append('produce')) as run:
             de25_appliance.image_action(root, args)
-        load.assert_called_once_with(args.artifacts, board='de25-nano')
+        # Admission precedes output/lease work and is rechecked under the lease.
+        self.assertEqual(events, ['admit', 'lease', 'admit', 'produce', 'release'])
         lease.assert_called_once_with(root, 'de25-nano', board='de25-nano')
         command = run.call_args.args[0]
         self.assertEqual(command[1:3], [root / 'image/de25-nano/build.py', 'managed-factory'])
