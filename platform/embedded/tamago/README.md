@@ -48,6 +48,16 @@ all-master stop and DDR drain. Both the full memory window and its contents
 remain pinned until reboot, including on failure. Software and RTL model
 checks do not establish physical display or normal core-load acceptance.
 
+Adding `--window-present` selects the owned presenter in the native command.
+It renders twelve changing tenfoot states and waits for the matching full-frame
+CRC and local reader drain before updating the same pinned arena. Each frame
+records its generation, publication hash, read checksum and drain cookie.
+The final return uses secure firmware's independent master stop and bridge
+closure; its cached reader acknowledgement must match frame twelve. Build,
+entry and cold-firmware receipts carry this separate selection. Failure logs
+use cached observations and keep memory pinned. Native HDMI and ordinary
+runtime admission still need separate implementation and hardware acceptance.
+
 Nano images omit ELF symbols and DWARF sections to fit the sealed 8 MiB FIT
 loading window. Go's runtime PC/line metadata remains in the native image.
 

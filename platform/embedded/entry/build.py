@@ -65,6 +65,23 @@ def window_read_option(receipt,mapping):
     return selected
 
 
+def window_present_option(receipt):
+    selected=receipt.get('window_present',False)
+    if (type(selected) is not bool or selected and
+            (receipt.get('window_read') is not True or receipt.get('window_memory') is not True)):
+        raise ValueError('window presentation requires the complete selected read path')
+    command=receipt.get('command',[])
+    try:tokens=shlex.split(command[command.index('-ldflags')+1])
+    except (ValueError,IndexError,AttributeError,TypeError):
+        raise ValueError('window presentation requires the native link command') from None
+    options=[(i,word) for i,word in enumerate(tokens) if 'main.expectedWindowPresent' in word]
+    if selected:
+        if len(options)!=1 or options[0][1]!='main.expectedWindowPresent=1' or options[0][0]==0 or tokens[options[0][0]-1]!='-X':
+            raise ValueError('window presentation differs from the native link assignment')
+    elif options:raise ValueError('unselected window presentation appears in the native link command')
+    return selected
+
+
 class Segment(ctypes.Structure):
     _fields_ = [(name, ctypes.c_uint64) for name in ("address", "memory_size", "file_offset", "file_size")]
 
@@ -111,6 +128,7 @@ def main():
     native_storage_return = False
     native_window_memory = False
     native_window_read = None
+    native_window_present = False
     if args.target == "qemu":
         if args.nano_build or args.profile or args.image_address is not None:
             parser.error("Nano receipt, profile and load address are only valid with --target de25-nano")
@@ -152,6 +170,11 @@ def main():
         native_storage_return=receipt.get('computer_storage_return',False)
         native_window_memory=window_memory_option(receipt,native_reader_memory)
         window_read_option(receipt,native_window_read)
+        native_window_present=window_present_option(receipt)
+        if native_window_present and any(value not in payload.read_bytes() for value in
+                (b'FES_NATIVE_FPGA_WINDOW_PRESENT FRAME ',b'FES_NATIVE_FPGA_WINDOW_PRESENT PASS ',
+                 b'WindowSession).PresentFrame',b'WindowReader).Drain')):
+            raise ValueError('window presentation is absent from the selected native ELF')
         command=receipt.get('command',[])
         flags=command[command.index('-ldflags')+1] if isinstance(command,list) and '-ldflags' in command and command.index('-ldflags')+1<len(command) else ''
         if not isinstance(flags,str) or native_reload!=('-X main.expectedComputerReload=1' in flags):
@@ -326,6 +349,7 @@ def main():
               "computer_reload":native_reload,
               "window_memory":native_window_memory,
               "window_read":native_window_read is not None,"hps_window_read":native_window_read,
+              "window_present":native_window_present,
               "hps_window_read_sha256":hps.digest(native_window_read) if native_window_read else None,
               "computer_storage_return":native_storage_return,
               "selected_programs":native_selected_programs,

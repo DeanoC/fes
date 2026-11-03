@@ -302,6 +302,17 @@ static int cold_master_quiesce(void *context,uint32_t producers)
         (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,
         fabric_stop.reads,fabric_stop.polls,fabric_stop.disable_issued,fabric_stop.probe.polls,
         fabric_stop.probe.cancel_issued,fabric_stop.done,s->ddr_expected ? "active" : "held");
+#if defined(FES_NANO_WINDOW_PRESENT_DIAGNOSTIC) && FES_NANO_WINDOW_PRESENT_DIAGNOSTIC
+        if(!error && s->ddr_expected) {
+            const struct fes_nano_fabric_progress *last=&fabric_stop.last_observed;
+            NOTICE("FES_NANO_WINDOW_READER_DRAIN owner=%llx generation=%llu reset=%x reader_generation=%llu request_generation=%llu cookie=%llu ack_generation=%llu ack_cookie=%llu status=%x pending=%x\n",
+                (unsigned long long)fes_nano_owned_bridges.state.owner,
+                (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,
+                (unsigned long long)last->generation,(unsigned long long)last->request_generation,
+                (unsigned long long)last->cookie,(unsigned long long)last->ack_generation,
+                (unsigned long long)last->ack_cookie,last->status,last->pending);
+        }
+#endif
     }
     return error ? master_failure(s,error) : 0;
 }

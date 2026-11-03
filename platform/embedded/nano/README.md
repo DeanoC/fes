@@ -228,6 +228,18 @@ saved capture agrees and rejects six damaged captures. The prior narrow-width
 failure remains retained. This qualifies one frame in this matched diagnostic;
 memory remains pinned and HDMI, reuse and ordinary admission remain open.
 
+`fpgaload --window-memory --window-read --window-present` selects twelve
+changing real tenfoot frames through the owned `WindowSession` presenter.
+Each publication is read completely and locally drained before that arena is
+updated; reader generations advance from 2 through 13 and drain cookies
+advance with them. The final secure master stop checks the already-drained
+reader and reports its cached generation/cookie acknowledgement without an
+extra device read. The trace audit requires every changing frame, its matching
+publication/read CRC, local drain and final firmware closure. The selection is
+bound into native ELF, entry, cold profile and composition receipts. This is
+the next bounded native diagnostic; the preceding single-frame hardware pass
+does not qualify this new repeated-frame command, HDMI or ordinary core loads.
+
 The [bounded read candidate](../../../docs/validation/2026-11-02-de25-ddr-read-candidate/README.md)
 passes the complete software/RTL checks and matched cross-build. Its first
 TRWU8CBL attempt verifies both network uploads, then stops after the SPL handoff

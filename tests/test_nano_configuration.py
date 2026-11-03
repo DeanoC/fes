@@ -262,6 +262,7 @@ class NanoConfigurationTests(unittest.TestCase):
                             .replace('0x10203041U','0x10203042U').replace('8192U','4194304U')
                             .replace('2097152U','4194304U')+
                 '#define FES_NANO_WINDOW_MEMORY 1\n#define FES_NANO_WINDOW_READ_DIAGNOSTIC 1\n'
+                '#define FES_NANO_WINDOW_PRESENT_DIAGNOSTIC 1\n'
                 '#define FES_NANO_WINDOW_READ_ATTRS_VERIFIED 1\n'
                 '#define FES_NANO_WINDOW_FRAME_BYTES 3686400U\n#define FES_NANO_WINDOW_ROW_BYTES 5120U\n'
                 '#define FES_NANO_WINDOW_STRIDE 5120U\n#define FES_NANO_WINDOW_ROWS 720U\n')
@@ -308,6 +309,8 @@ class NanoConfigurationTests(unittest.TestCase):
                     if mutation in (160,164,167):
                         self.assertRegex(result.stdout,r'FES_NANO_MASTER_STOP status=0 .* disable=1 .* cancel=1 complete=1 data=active')
                         self.assertNotIn('FES_NANO_READER_STOP ',result.stdout)
+                        self.assertRegex(result.stdout,r'FES_NANO_WINDOW_READER_DRAIN owner=[0-9a-f]+ generation=6 reset=5 reader_generation=1 request_generation=1 cookie=7 ack_generation=1 ack_cookie=7 status=4 pending=0')
+                    else:self.assertNotIn('FES_NANO_WINDOW_READER_DRAIN ',result.stdout)
                     if mutation==165:
                         self.assertRegex(result.stdout,r'FES_NANO_READER_STOP samples=[1-9][0-9]* last_poll=128 first_status=1 first_pending=[0-9a-f]+ last_status=2 last_pending=[0-9a-f]+ generation=1 request_generation=1 cookie=7 ack_generation=0 ack_cookie=0 receipt=absent')
                         self.assertRegex(result.stdout,r'FES_NANO_MASTER_STOP status=-110 .* reader_polls=128 disable=1 .* complete=0 data=active')

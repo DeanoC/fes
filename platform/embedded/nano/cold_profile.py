@@ -117,6 +117,7 @@ def make(entry_build):
               'hps_ddr_read':ddr_read,'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read else None,
               'hps_computer':computer,'hps_computer_sha256':hps_context.digest(computer) if computer else None,
               'window_memory':build.get('window_memory',False),
+              'window_present':build.get('window_present',False),
               'window_read':window_read is not None,'hps_window_read':window_read,
               'hps_window_read_sha256':hps_context.digest(window_read) if window_read else None,
               'computer_reload':build.get('computer_reload',False),
@@ -234,6 +235,10 @@ def header(profile):
         extra+='#define FES_NANO_WINDOW_READ_ATTRS_VERIFIED 1\n'
         extra+='#define FES_NANO_WINDOW_READ_MAP_SHA '+array(profile['hps_window_read_sha256'])+'\n'
     extra+='#define FES_NANO_WINDOW_READ_DIAGNOSTIC '+str(int(window_read is not None))+'\n'
+    present=profile.get('window_present',False)
+    if type(present) is not bool or present and window_read is None:
+        raise ValueError('window presentation requires its complete selected read path')
+    extra+='#define FES_NANO_WINDOW_PRESENT_DIAGNOSTIC '+str(int(present))+'\n'
     computer=profile.get('hps_computer')
     if computer is not None:
         if (not isinstance(computer,dict) or configuration is None or control is None or ddr_read is not None or not profile['sd_pio'] or

@@ -62,6 +62,26 @@ class WindowContractTests(unittest.TestCase):
             with self.subTest(flags=flags),self.assertRaises(ValueError):entry.window_read_option(receipt(flags),self.access)
         with self.assertRaises(ValueError):entry.window_read_option(receipt('-X '+assignment,False),None)
 
+    def test_presentation_requires_one_exact_link_selection_and_complete_window(self):
+        def receipt(flags='-X main.expectedWindowPresent=1'):
+            return dict(window_present=True,window_read=True,window_memory=True,
+                        command=['compiler','build','-ldflags',flags])
+        self.assertTrue(entry.window_present_option(receipt()))
+        unselected={'command':['compiler','build','-ldflags','-s -w']}
+        self.assertFalse(entry.window_present_option(unselected))
+        for changes in ({'window_present':1},{'window_present':None},{'window_read':False},
+                        {'window_read':1},{'window_memory':False},{'window_memory':1},
+                        {'command':[]},{'command':['compiler','build','-ldflags']}):
+            with self.subTest(changes=changes),self.assertRaises(ValueError):
+                entry.window_present_option(dict(receipt(),**changes))
+        for flags in ('','main.expectedWindowPresent=1','-X main.expectedWindowPresent=0',
+                      '-X=main.expectedWindowPresent=1',
+                      '-X main.expectedWindowPresent=1 -X main.expectedWindowPresent=1'):
+            with self.subTest(flags=flags),self.assertRaises(ValueError):
+                entry.window_present_option(receipt(flags))
+        with self.assertRaises(ValueError):
+            entry.window_present_option(dict(receipt(),window_present=False))
+
     def test_firmware_header_binds_window_mode_full_memory_and_access_identity(self):
         configuration={'base':0x94800000,'size':8<<20,'core_size':128,'chunk_bytes':65536,
                        'core_sha384':'d'*96,'chunk_sha384':['d'*96]}
@@ -74,11 +94,15 @@ class WindowContractTests(unittest.TestCase):
         profile['cpu_mapping_sha256']=context.digest(profile['cpu_mapping'])
         header=cold.header(profile)
         for line in ('#define FES_NANO_WINDOW_READ_DIAGNOSTIC 1','#define FES_NANO_WINDOW_READ_ATTRS_VERIFIED 1',
-                     '#define FES_NANO_READER_BYTES 4194304U','#define FES_NANO_WINDOW_FRAME_BYTES 3686400U'):
+                     '#define FES_NANO_READER_BYTES 4194304U','#define FES_NANO_WINDOW_FRAME_BYTES 3686400U',
+                     '#define FES_NANO_WINDOW_PRESENT_DIAGNOSTIC 0'):
             self.assertIn(line,header)
+        self.assertIn('#define FES_NANO_WINDOW_PRESENT_DIAGNOSTIC 1',cold.header(dict(profile,window_present=True)))
         for key,value in (('window_memory',False),('window_read',False),('window_read',1),('hps_window_read_sha256','0'*64),
-                          ('hps_ddr_read',{}),('hps_computer',{})):
+                          ('hps_ddr_read',{}),('hps_computer',{}),('window_present',1),('window_present',None)):
             with self.subTest(key=key),self.assertRaises(ValueError):cold.header(dict(profile,**{key:value}))
+        with self.assertRaises(ValueError):
+            cold.header(dict(profile,window_present=True,window_read=False,hps_window_read=None))
 
 class WindowFirmwareTests(unittest.TestCase):
     def test_actual_dispatcher_uses_owned_control_ddr_and_complete_return(self):
