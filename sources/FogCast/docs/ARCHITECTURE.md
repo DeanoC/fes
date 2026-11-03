@@ -1866,6 +1866,14 @@ and runtime Stop. Ownership becomes available only after successful cleanup;
 failed recovery leaves it blocked. Agent startup performs the same cleanup.
 The retained uinput device survives lease release.
 
+Signal cancellation stops agent serving before deferred lease cleanup. The
+Coordinator operation lifetime remains live until lease Close has drained
+admitted requests and performed its owned Stop, then is canceled before the
+remaining runtime dependencies are destroyed. Shutdown Stop retains its existing
+five-second deadline and lease Close its existing thirty-second bound. Signal
+cancellation cannot pre-cancel that cleanup operation; request and lease
+cancellation still fence admission, and ordinary operation deadlines remain.
+
 An operator using the configured bearer credential may explicitly request
 `POST /v1/kit/takeover` with `request_id`, `owner`, `purpose`,
 `expected_generation`, and a nonempty `reason`. Takeover revokes the previous

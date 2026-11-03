@@ -404,9 +404,14 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			}
 		}()
 	}
+	// Signal cancellation closes admission and serving first. Keep already-owned
+	// mutations alive until the deferred lease Close drains them and stops the
+	// runtime; every operation keeps its existing deadline.
+	operationContext, cancelOperations := context.WithCancel(context.WithoutCancel(ctx))
+	defer cancelOperations()
 	coordinator := agent.New(runtime, 10*time.Second, 5*time.Second,
 		agent.WithCoreLoadTimeout(dependencies.coreLoadTimeout),
-		agent.WithOperationContext(ctx), agent.WithEventSink(diagnostics),
+		agent.WithOperationContext(operationContext), agent.WithEventSink(diagnostics),
 		agent.WithArtifacts(buildinputs.Snapshot(buildinputs.Paths{}, version.Revision)))
 	content := agent.NewContentController(coordinator, cache)
 	startup, cancel := context.WithTimeout(ctx, 40*time.Second)
