@@ -55,6 +55,17 @@ core/session display transitions remain separate, unfinished work.
 
 ## Probes and evidence
 
+The [owned window-source model](../../../../sources/misteross/docs/architecture.md#embedded-control-endpoint)
+now passes complete 1280×720 tenfoot frames through this CPU copy adapter and
+the actual FPGA read/drain endpoint. Run
+`python3 sources/misteross/prototypes/embedded_control/verify_window.py` from
+the FES root with committed inputs, or add `--allow-dirty` for a labelled
+working-tree model. It checks packed and padded/page-edge windows, every pixel,
+frame boundaries, backpressure, failures and generation-bound restart after
+real response drain. It produces model receipts and rendered frame files under
+`out/`. This is no physical scanout, bridge/DDR grant, HDMI result or automatic
+Nano display binding.
+
 `run.py display --board qemu` boots a display-only native program, captures its
 actual RAMFB color bars, sends serial `n`, and captures inverted bars. Every
 RGB pixel in both QMP captures must match the expected pattern. There is no

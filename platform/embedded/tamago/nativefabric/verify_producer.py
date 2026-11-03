@@ -62,7 +62,7 @@ def main():
                  "MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GNUMAKEFLAGS", "PYTHON"):
         native_env.pop(name, None)
     files = {HERE / "verify_producer.py"}
-    for directory in (HERE, TAMAGO / "embeddedcontrol", TAMAGO / "fabricmodel"):
+    for directory in (HERE, TAMAGO / "embeddedcontrol", TAMAGO / "fabricmodel", TAMAGO / "scanout"):
         files.update(x for x in directory.rglob("*.go") if x.is_file())
     sources = {str(x.relative_to(ROOT)): sha(x) for x in sorted(files)}
     commands = []
@@ -142,12 +142,20 @@ def main():
     go = Path(root) / "bin/go"
     run("native-binding", [go, "test", "-race", "-count=1", "-timeout", "45s", "-v", "-run", "^TestProducedIdentityBindsNativeControl$", "./nativefabric"], cwd=TAMAGO,
         extra_env={"FES_DE25_PRODUCER_DIR": str(a), "GOWORK": "off", "GOTOOLCHAIN": "local", "GOPROXY": "off", "GOSUMDB": "off"})
+    # Reuse this existing software integration lane for the actual renderer,
+    # native XRGB copy and generation-bound FPGA window source.
+    run("window-stream", [sys.executable, PRODUCER.parent / "verify_window.py",
+                          "--output", out / "window-stream", *extra])
+    window = json.loads((out / "window-stream/result.json").read_text())
+    if window["status"] != "passed" or window["physical_ddr"] or window["runtime_admission"]:
+        raise RuntimeError("window stream did not remain a checked host model")
     if sources != {str(x.relative_to(ROOT)): sha(x) for x in sorted(files)}:
         raise RuntimeError("native integration sources changed during verification")
     report = {"status": "passed", "classification": "host-only producer simulation and native Go control; no RBF or hardware acceptance",
               "tool_search_order": "passed", "commands": commands, "first": first, "second": second, "go_sha256": sha(go.resolve()),
               "native_source_sha256": sources,
-              "logs_sha256": {name: sha(out / (name + ".log")) for name in ("first-build", "second-build", "first-verify", "wrong-live-id", "wrong-live-abi", "wrong-descriptor", "wrong-record", "wrong-live-binding", "wrong-artifact", "native-binding")},
+              "window_stream": {"receipt_sha256": sha(out / "window-stream/result.json"), "variants": window["variants"]},
+              "logs_sha256": {name: sha(out / (name + ".log")) for name in ("first-build", "second-build", "first-verify", "wrong-live-id", "wrong-live-abi", "wrong-descriptor", "wrong-record", "wrong-live-binding", "wrong-artifact", "native-binding", "window-stream")},
               "limitations": ["host executables are not RBFs or FES packages", "no Nano source pinout, actual producer, physical timing or hardware qualification", "record/tool hashes are diagnostic correlations, not authenticated production seals"]}
     (out / "result.json").write_text(json.dumps(report, indent=2) + "\n")
     print("PASS:", out)

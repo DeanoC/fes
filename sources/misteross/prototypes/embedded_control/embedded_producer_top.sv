@@ -23,6 +23,7 @@ module embedded_producer_top #(
     output wire reader_rlast,
     input wire reader_rready,
     output wire reader_abort,
+    output wire [63:0] reader_generation,
     output wire m_arvalid,
     output wire [31:0] m_araddr,
     output wire [7:0] m_arlen,

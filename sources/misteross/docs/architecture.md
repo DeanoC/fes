@@ -40,6 +40,28 @@ see the [contract](../../mister-packages/docs/embedded-control.md) and
 [verifier](../../../platform/embedded/firmware/README.md). This simulation is
 not an RBF, timing result or hardware acceptance.
 
+The separate `prototypes/embedded_control/verify_window.py` simulation connects
+the endpoint to a fixed XRGB8888 window source. It renders the actual tenfoot
+App/Presenter, stages those pixels through the native `scanout.Surface`, and
+checks every returned pixel against an independent external AXI memory model.
+Requests stop at each row and 4 KiB boundary; padded rows do not enter the pixel
+stream. Full frames may repeat within an admitted reader generation. A partial
+or aborted frame requires a strictly newer admitted generation before restart;
+the endpoint exposes that generation directly to the source. A frame-complete
+event is only delivery, and never supplies the endpoint's generation/cookie
+drain acknowledgement or permission to reclaim memory.
+Resetting only the window cannot adopt a previously active endpoint; losing
+only the endpoint generation poisons the still-owned window source.
+
+The model covers held addresses, consumer stalls through the final beat,
+four outstanding reads, missing/error/stale responses, rejected stops, reset,
+and reuse only after actual response drain. Invalid windows offer no read.
+Its functional record binds the RTL, parameters, actual renderer executable and
+both frame images. A digested sidecar records the selected first-party renderer
+source closure within the existing functional-record size bound. This source
+has no board CSR adapter, pixel-clock crossing, HDMI output or registered Nano
+profile; no existing physical diagnostic is evidence for these changed bytes.
+
 The separate `prototypes/de25_board_control` overlay builds a private copy of
 an explicitly selected DE25 ZX81 diagnostic producer and adds an Avalon
 aperture for this endpoint. It includes its adapter and endpoint sources in

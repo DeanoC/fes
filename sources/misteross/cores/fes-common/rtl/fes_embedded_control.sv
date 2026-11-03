@@ -25,6 +25,7 @@ module fes_embedded_control #(
     output wire reader_rlast,
     input wire reader_rready,
     output wire reader_abort,
+    output wire [63:0] reader_generation,
     output wire m_arvalid,
     output wire [31:0] m_araddr,
     output wire [7:0] m_arlen,
@@ -57,6 +58,7 @@ module fes_embedded_control #(
     assign csr_ready = !csr_response_valid || csr_response_ready;
     assign reader_ready = enabled && !disable_now && !fault && !skid_valid && count < 4;
     assign reader_abort = !enabled || disable_now || fault;
+    assign reader_generation = generation;
     // An address already offered to AXI must remain valid/stable on disable.
     assign m_arvalid = skid_valid && count < 4;
     assign m_araddr = skid_address;

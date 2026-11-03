@@ -58,6 +58,29 @@ class TestChangedTest(unittest.TestCase):
         command = next(c for c in self.plan()["commands"] if c["label"] == "embedded producer identity and native control integration")
         self.assertNotIn("--allow-dirty", command["argv"])
 
+    def test_window_stream_inputs_schedule_existing_producer_integration(self):
+        paths = ('sources/misteross/prototypes/embedded_control/fes_embedded_window_reader.sv',
+                 'sources/misteross/cores/fes-common/rtl/fes_embedded_control.sv',
+                 'platform/embedded/tamago/scanout/surface.go',
+                 'platform/embedded/tamago/scanout/testdata/frame/main.go')
+        for path in paths:
+            with self.subTest(path=path):
+                self.change(path)
+                command = next(c for c in self.plan()['commands']
+                               if c['label'] == 'embedded producer identity and native control integration')
+                self.assertEqual(command['cwd'], '.')
+                self.assertEqual(command['argv'][1:],
+                                 ['platform/embedded/tamago/nativefabric/verify_producer.py', '--allow-dirty'])
+                self.assertIn('go', command['tools'])
+                self.assertIn('verilator', command['tools'])
+                (self.root / path).unlink()
+        self.change(paths[0])
+        git(self.root, 'add', '.')
+        git(self.root, 'commit', '-qm', 'window stream')
+        command = next(c for c in self.plan()['commands']
+                       if c['label'] == 'embedded producer identity and native control integration')
+        self.assertNotIn('--allow-dirty', command['argv'])
+
     def test_native_sd_changes_schedule_c_go_pio_lifecycle(self):
         self.change("platform/embedded/tamago/sdcontrol/session.go")
         result = self.plan()

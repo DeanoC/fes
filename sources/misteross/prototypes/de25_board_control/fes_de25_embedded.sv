@@ -150,6 +150,7 @@ module fes_de25_embedded #(
                           reader_abort, response_valid, memory_active,
                           m_arvalid, reader_valid, reader_ready};
 
+    wire [63:0] unused_reader_generation;
     fes_embedded_control #(.BUILD_ID(BUILD_ID), .ABI_ID(ENDPOINT_ABI), .DATA_WIDTH(128)) control (
         .clk(clk), .reset_n(reset_n),
         .csr_valid(accept && embedded_request), .csr_write(write), .csr_address(address),
@@ -159,6 +160,7 @@ module fes_de25_embedded #(
         .reader_valid(reader_valid), .reader_address(offered_address), .reader_length(offered_length),
         .reader_ready(reader_ready), .reader_rvalid(reader_rvalid), .reader_rdata(reader_rdata),
         .reader_rlast(reader_rlast), .reader_rready(allow_reader), .reader_abort(reader_abort),
+        .reader_generation(unused_reader_generation),
         .m_arvalid(m_arvalid), .m_araddr(m_araddr), .m_arlen(m_arlen), .m_arsize(m_arsize),
         .m_arburst(m_arburst), .m_arid(m_arid), .m_arready(m_arready),
         .m_rvalid(response_valid), .m_rdata(response_data), .m_rlast(response_last),

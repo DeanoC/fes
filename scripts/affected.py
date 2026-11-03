@@ -76,6 +76,8 @@ def embedded_board_control_check_input(path):
 def embedded_producer_check_input(path):
     return (embedded_control_input(path) or embedded_producer_input(path) or
             path in ('platform/embedded/tamago/nativefabric/binding.go',
+                     'platform/embedded/tamago/scanout/surface.go',
+                     'platform/embedded/tamago/scanout/testdata/frame/main.go',
                      'platform/embedded/tamago/nativefabric/binding_test.go',
                      'platform/embedded/tamago/nativefabric/endpoint.go',
                      'platform/embedded/tamago/nativefabric/endpoint_test.go',
