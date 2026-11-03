@@ -25,7 +25,8 @@ class NanoRecoveryTests(unittest.TestCase):
     def config(self):
         return (''.join('CONFIG_' + name + '=y\n' for name in recovery.ENABLE) +
                 'CONFIG_BOOTDELAY=-1\nCONFIG_BOOTCOMMAND=""\nCONFIG_PHY_ANEG_TIMEOUT=4000\n'+
-                'CONFIG_LOCALVERSION="'+recovery.LOCALVERSION+'"\n')
+                'CONFIG_LOCALVERSION="'+recovery.LOCALVERSION+'"\n'+
+                'CONFIG_IDENT_STRING="socfpga_agilex5"\n')
 
     def test_requires_network_sd_checksum_and_manual_boot(self):
         config = self.config()
@@ -40,6 +41,10 @@ class NanoRecoveryTests(unittest.TestCase):
             recovery.check(config.replace('CONFIG_BOOTDELAY=-1', 'CONFIG_BOOTDELAY=0'))
         with self.assertRaises(ValueError):
             recovery.check(config.replace('CONFIG_PHY_ANEG_TIMEOUT=4000','CONFIG_PHY_ANEG_TIMEOUT=15000'))
+        for bad in ('', 'socfpga_agilex5_other'):
+            with self.subTest(board=bad), self.assertRaises(ValueError):
+                recovery.check(config.replace('CONFIG_IDENT_STRING="socfpga_agilex5"\n',
+                                             'CONFIG_IDENT_STRING="'+bad+'"\n'))
 
     symbols=('   1: 0000000080200000 64 FUNC LOCAL DEFAULT 1 ksz9031_config\n'
              '   2: 0000000080210000 80 OBJECT GLOBAL DEFAULT 2 _u_boot_list_2_phy_driver_2_ksz9031\n'

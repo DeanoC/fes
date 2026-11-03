@@ -1,7 +1,8 @@
 # Recovery PHY preparation and UART bootstrap prototype
 
 **The recovery PHY ordering repair, matched bundles and UART bootstrap prototype
-pass their off-board checks. No new kit test has run.** The prior
+pass their off-board checks. One kit test stopped at the old-loader version check
+before the UART probe, SD writes or native boot.** The prior
 [recovery-network failure](../2026-11-03-de25-returned-sd/README.md) remains a
 failed trial; returned-core SD access and ordinary Nano admission remain open.
 
@@ -85,13 +86,38 @@ are checked again. Failure consumes the attempt and cannot activate the result.
 Fifteen [persistent card/LMB model cases](serial-upgrade-model.json) pass,
 including partial/unknown writes, readback failures and rejection of replay.
 
-The compound hardware controller still needs its final assembly, fault checks
-and fresh claim/USB/UART/source preflight. The next sequence is one old recovery
-boot, the bounded UART probe/upgrade, one corrected recovery boot and owned
-Ethernet uploads/readbacks, then the native warm-SD two-load/return test.
-Prompt 50 seconds, initial SD 100 seconds, each core observer 45 seconds,
-returned SD 100 seconds and each configuration 20 seconds remain the selected
-bounds. Factory media stays safe; the exclusive top-kit claim/spare are retained.
+The completed compound controller passes 248 actual success/failure cases,
+18 real UploadSession/card cases, eleven transport/phase checks and four
+SDK/entry selection checks. Fresh source/claim/USB/UART preflight passed on
+validation checkout `6cfd241e63331a40241eecf342650b3f06c8f15a`, with unchanged
+tested/build code `1bf9fe81404f130e914b4ff801e836a2864760a0`.
+
+The [bounded TRWU8CBL trial](hardware-evidence.json) on 2026-11-03 booted the
+qualified old recovery loader, then stopped after its single `version` command.
+The vendor appends `socfpga_agilex5` directly after the build date; the prototype
+and public uploader had omitted that exact suffix from their checks. There was
+no RAM probe, SD write, corrected-recovery boot, Ethernet operation or native
+attempt. Independent saved-byte and cleanup checks pass: 15 MHz read back before
+stopping the owned private JTAG service, exact USB permissions restored, UART
+free, same exclusive claim/spare and factory card safe. The failed sequence was
+not retried. Frozen controllers/input plan and the complete stopped trace were
+separately archived and read back.
+
+The follow-up repair requires the complete profile/date/board banner and checks
+`CONFIG_IDENT_STRING="socfpga_agilex5"` in the selected configuration. A
+[captured vendor response](../../../tests/fixtures/nano-recovery-version.txt)
+now exercises the uploader through successful admission using the new profile
+name; the actual old profile, missing/foreign/extended/duplicate/prefixed banners
+reject before card commands. All 41 focused recovery/upload tests pass. Full
+changed-input checks and a fresh recovery build are the next off-board gates;
+this parser repair has no physical acceptance yet.
+
+The next hardware sequence still requires a new frozen controller/preflight:
+one qualified old boot, UART RAM probe/verified spare upgrade, one corrected
+recovery boot and owned Ethernet uploads/readbacks, then the native warm-SD
+two-load/return test. Prompt 50 seconds, initial SD 100 seconds, each core
+observer 45 seconds, returned SD 100 seconds and each configuration 20 seconds
+remain unchanged. No native/core-load acceptance was gained by the failed test.
 
 Artifacts, failed off-board checks, exact controller source and restartable
 state are under `out/nano-phy-prepare-20261103/`; software results are under

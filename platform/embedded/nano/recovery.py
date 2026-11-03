@@ -1,5 +1,6 @@
 """Explicit network/SD-writing U-Boot recovery profile; never native handoff."""
 import hashlib
+import re
 from pathlib import Path
 
 # Keep recovery independent of native device ownership. It uses vendor Ethernet
@@ -14,6 +15,7 @@ DISABLE = ('NO_NET', 'NET_RANDOM_ETHADDR', 'USB', 'CMD_SAVEENV',
            'MMC_SDHCI_SDMA', 'MMC_SDHCI_ADMA', 'MMC_SDHCI_ADMA_64BIT',
            'SPL_MMC_SDHCI_SDMA', 'SPL_MMC_SDHCI_ADMA')
 LOCALVERSION = '-fes-nano-recovery-phy-prepare-gd0f8813fd6bf'
+IDENT_STRING = 'socfpga_agilex5'
 # Exact top-kit readback, not the synthetic PHY used by native host tests.
 PHY = {'address':1, 'id':0x00221622, 'driver':'Micrel ksz9031', 'aneg_timeout_ms':4000,
        'prepare_command':'fesphy', 'prepare_before_link':True}
@@ -193,6 +195,17 @@ def check_phy_sources(source,record):
     return record
 
 
+def check_version(output):
+    # Pinned common/version.c appends CONFIG_IDENT_STRING directly after the
+    # build date. Check the whole banner; an older profile or extra suffix is
+    # not evidence for this recovery path.
+    lines = re.findall(r'(?m)^U-Boot [^\r\n]*\r?$', output)
+    expected = (re.escape('U-Boot 2025.01' + LOCALVERSION) +
+                r' \([^()\r\n]{1,100}\)' + re.escape(IDENT_STRING) + r'\r?')
+    if len(lines) != 1 or re.fullmatch(expected, lines[0]) is None:
+        raise ValueError('not the expected recovery loader')
+
+
 def check(config):
     if any('CONFIG_' + name + '=y\n' not in config for name in ENABLE):
         raise ValueError('network recovery lacks a required Ethernet, checksum or SD-writing option')
@@ -201,7 +214,8 @@ def check(config):
     if 'CONFIG_BOOTDELAY=-1\n' not in config or 'CONFIG_BOOTCOMMAND=""\n' not in config:
         raise ValueError('network recovery must stop without automatic boot or writes')
     if ('CONFIG_PHY_ANEG_TIMEOUT=4000\n' not in config or
-            'CONFIG_LOCALVERSION="'+LOCALVERSION+'"\n' not in config):
+            'CONFIG_LOCALVERSION="'+LOCALVERSION+'"\n' not in config or
+            'CONFIG_IDENT_STRING="'+IDENT_STRING+'"\n' not in config):
         raise ValueError('network recovery PHY deadline or identified vendor profile differs')
 
 

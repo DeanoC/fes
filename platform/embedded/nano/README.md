@@ -1,5 +1,12 @@
 # Nano recovery uploads and cold serial boot
 
+The recovery version check requires the complete pinned profile banner,
+including the build date and Terasic's `socfpga_agilex5` board suffix. The
+selected configuration must contain that exact `CONFIG_IDENT_STRING`.
+The captured old-loader response tests the vendor format while remaining
+ineligible for the new PHY-preparation upload path. Missing, duplicate,
+extended or foreign banners reject before any card command.
+
 The current recovery profile provides `fesphy`. After selecting the stable MAC
 and probing Ethernet, the uploader invokes this command before checking PHY
 identity and two consecutive link/negotiation-ready samples. It prepares the

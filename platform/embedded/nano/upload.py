@@ -209,9 +209,7 @@ class UploadSession:
                 raise ValueError('wrong recovery card manifest')
             digest(address,len(kit['manifest']),sha(kit['manifest']))
             self.memory.loaded(address, len(kit['manifest']))
-        version='U-Boot 2025.01'+recovery.LOCALVERSION
-        if not re.search(r'(?m)^'+re.escape(version)+r'(?: \([^\r\n]{1,100}\))?\r?$',command('version')):
-            raise ValueError('not the expected recovery loader')
+        recovery.check_version(command('version'))
         self._observe_memory(command, receipt, 'admit')
         command('mmc dev 0')
         info = command('mmcinfo')

@@ -27,7 +27,8 @@ class Model:
     def command(self,c,timeout):
         self.commands.append(c)
         if c=='version':
-            return 'U-Boot 2025.01'+('-fes-nano-recovery-ksz9031-gd0f8813fd6bf' if self.fault=='old-loader' else upload.recovery.LOCALVERSION)
+            return ('U-Boot 2025.01'+('-fes-nano-recovery-ksz9031-gd0f8813fd6bf' if self.fault=='old-loader' else upload.recovery.LOCALVERSION)+
+                    ' (Jun 27 2025 - 01:40:35 +0000)socfpga_agilex5\r\n')
         if c=='echo FES_UPLOAD_SESSION=${fes_upload_session}':return 'FES_UPLOAD_SESSION='+self.marker+'\r\n'
         if c.startswith('setenv fes_upload_session '):self.marker=c.split()[2];return ''
         if c=='bdinfo':
@@ -134,6 +135,29 @@ class NanoUploadTests(unittest.TestCase):
         writes=[c for c in model.commands if c.startswith('fatwrite')]
         self.assertEqual(writes,[f'fatwrite mmc 0:1 82000000 FES/UPLOAD.BIN {len(self.payload):x}'])
         self.assertTrue(r['recovery_manifest_unchanged'])
+
+    def test_captured_vendor_version_suffix_is_required_before_any_card_access(self):
+        captured=(ROOT/'tests/fixtures/nano-recovery-version.txt').read_text()
+        current=captured.replace('-fes-nano-recovery-ksz9031-gd0f8813fd6bf', upload.recovery.LOCALVERSION)
+        responses=(current, captured, current.replace('socfpga_agilex5',''),
+                   current.replace('socfpga_agilex5','socfpga_agilex5_other'),
+                   current.replace('gd0f8813fd6bf','gd0f8813fd6bf-dirty'),
+                   current+current, current.replace('U-Boot ', 'unexpected U-Boot '))
+        for index,response in enumerate(responses):
+            with self.subTest(response=response), patch('builtins.print'), patch.object(upload.time,'sleep'):
+                model,session=self.session();original=model.command
+                def command(value,timeout):
+                    if value=='version':model.commands.append(value);return response
+                    return original(value,timeout)
+                model.command=command
+                if index==0:
+                    receipt={'commands':[]};session.upload(model.payload,receipt)
+                    self.assertEqual(receipt['status'],'verified');self.assertEqual(model.writes,1)
+                else:
+                    with self.assertRaisesRegex(ValueError,'expected recovery loader'):
+                        session.upload(model.payload,{'commands':[]})
+                    self.assertEqual(model.commands,['version']);self.assertEqual(model.writes,0)
+                    self.assertTrue(session.retired)
     def test_package_upload_uses_only_the_separate_fixed_file_and_preserves_boot(self):
         model,r=self.run_upload(purpose='package')
         self.assertEqual(r['destination'],'FES/PKGTEST.BIN')
