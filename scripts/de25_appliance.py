@@ -93,6 +93,16 @@ def verification_output(root, output):
     return workspace if source else factory
 
 
+def _build_factory(root, output, *, kernel, sdk, artifacts):
+    """Run with the caller's parent build lock and DE25 media lease held."""
+    import image_artifacts
+    image_artifacts.load(artifacts, board=BOARD)
+    subprocess.run([sys.executable, root / 'image/de25-nano/build.py', 'managed-factory',
+                    '--output', output, '--cache', root / 'out/cache/de25-factory',
+                    '--kernel', kernel, '--sdk', sdk, '--artifacts', artifacts,
+                    '--container-runtime', os.environ.get('CONTAINER_RUNTIME', 'docker')], check=True)
+
+
 def image_action(root, args):
     """Route ordinary image commands through the existing factory producer."""
     import image_artifacts
@@ -105,10 +115,7 @@ def image_action(root, args):
         # Independent board/ELF/interface checks precede tools and output creation.
         image_artifacts.load(args.artifacts, board=BOARD)
         with media.operation(root, PROFILE, board=BOARD):
-            subprocess.run([sys.executable, root / 'image/de25-nano/build.py', 'managed-factory',
-                            '--output', output, '--cache', root / 'out/cache/de25-factory',
-                            '--kernel', args.kernel, '--sdk', args.sdk, '--artifacts', args.artifacts,
-                            '--container-runtime', os.environ.get('CONTAINER_RUNTIME', 'docker')], check=True)
+            _build_factory(root, output, kernel=args.kernel, sdk=args.sdk, artifacts=args.artifacts)
         return
     if args.action != 'verify':
         raise ValueError('unsupported DE25 image action')

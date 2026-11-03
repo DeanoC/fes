@@ -102,7 +102,7 @@ class DE25SourceWorkflowTests(unittest.TestCase):
                 json.loads((path / 'artifacts.json').read_text()), image_artifacts.packages_at(
                     path, [self.package['inputs']], board='de25-nano'))), None, None))
         self.patch(image_artifacts, 'pack', side_effect=self.pack)
-        self.factory = self.patch(de25_appliance, 'image_action', side_effect=self.build_factory)
+        self.factory = self.patch(de25_appliance, '_build_factory', side_effect=self.build_factory)
         self.verify = self.patch(de25_appliance, 'verified_inputs', side_effect=self.verify_factory)
         self.factory_count = 0
 
@@ -167,7 +167,14 @@ class DE25SourceWorkflowTests(unittest.TestCase):
         shutil.copytree(package, output / 'core-packages' / ('a' * 64))
         shutil.copyfile(selection, output / 'fes-menu.package-selection.toml')
 
-    def build_factory(self, root, args):
+    def build_factory(self, root, output, *, kernel, sdk, artifacts):
+        # Exercise the real outer locks: a fully mocked image_action hid the
+        # nested parent-lock acquisition in the normal source build.
+        for path in (root / 'out/build.lock', root / 'out/locks/media-de25-nano.lock'):
+            with path.open('a') as contender:
+                with self.assertRaises(BlockingIOError):
+                    fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        args = SimpleNamespace(output=output, kernel=kernel, sdk=sdk, artifacts=artifacts)
         self.factory_count += 1
         args.output.mkdir()
         (args.output / 'rootfs.ext4').write_bytes(('fixture generation ' + str(self.factory_count)).encode())

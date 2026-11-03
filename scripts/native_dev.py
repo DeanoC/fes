@@ -162,6 +162,7 @@ def build_de25_development(root, args):
     """
     import build as parent
     import kit_software as software
+    import media
     import module_sources
     from scripts import de25_appliance, platform as platform_build
     import image_artifacts
@@ -294,9 +295,9 @@ def build_de25_development(root, args):
                     revisions['FogCast'], revisions['libmister-runtime'], attempt / 'artifacts', board='de25-nano')
                 (attempt / 'software-build.json').write_text(json.dumps(
                     {'go': go_record, 'runtime': runtime_record}, indent=2, sort_keys=True) + '\n')
-            with diagnostics.measure('DE25 managed factory'):
-                de25_appliance.image_action(root, SimpleNamespace(action='image', output=attempt / 'factory',
-                    kernel=Path(args.kernel), sdk=Path(args.sdk), artifacts=attempt / 'artifacts'))
+            with diagnostics.measure('DE25 managed factory'), media.lease(root, 'de25-nano', board='de25-nano'):
+                de25_appliance._build_factory(root, attempt / 'factory', kernel=Path(args.kernel),
+                    sdk=Path(args.sdk), artifacts=attempt / 'artifacts')
             verify_generation(attempt)
             if generation.exists():
                 # Rebuilds preserve the previous same-input generation as well.
