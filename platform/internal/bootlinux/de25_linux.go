@@ -67,10 +67,17 @@ func PrepareDe25BootVolume() error {
 	return nil
 }
 
-func validateDe25BootVolume(arch string, model, compatible, mountinfo, rootDevice []byte) (bool, error) {
+func validateDe25Board(arch string, model, compatible []byte) error {
 	if arch != "arm64" || !bytes.Equal(model, []byte("SoCFPGA Agilex5 Terasic DE25-Nano\x00")) ||
 		!bytes.Equal(compatible, []byte("intel,socfpga-agilex5-socdk\x00intel,socfpga-agilex5\x00")) {
-		return false, errors.New("partition bootstrap requires AArch64 Terasic DE25-Nano Agilex 5")
+		return errors.New("bootstrap requires AArch64 Terasic DE25-Nano Agilex 5")
+	}
+	return nil
+}
+
+func validateDe25BootVolume(arch string, model, compatible, mountinfo, rootDevice []byte) (bool, error) {
+	if err := validateDe25Board(arch, model, compatible); err != nil {
+		return false, err
 	}
 	root := strings.TrimSuffix(string(rootDevice), "\n")
 	if root == "" || string(rootDevice) != root+"\n" || strings.ContainsAny(root, " \t\r\n") {

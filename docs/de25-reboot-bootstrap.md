@@ -8,6 +8,12 @@ initial physical cycle was needed after programming to start the new flash.
 FPGA cores remain separate Linux-loaded artifacts; this acceptance applies
 only to the recorded board and exact bootstrap/core files.
 
+The later [native watchdog proof](validation/2026-11-03-de25-watchdog/README.md)
+also recovers through the retained HPS-first flash after actual watchdog expiry,
+including while the production runtime library owns MENU and active scanout.
+This is a hardware diagnostic; it does not establish managed image-update,
+software-replacement or arbitrary failed-FPGA-load recovery acceptance.
+
 The [cold-reset investigation](validation/2026-10-30-de25-reboot/README.md)
 records working factory-QSPI reboot and stalled temporary JTAG reboot.
 [The HPS-first proof](https://github.com/DeanoC/fes/pull/1303) then boots the

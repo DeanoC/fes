@@ -163,9 +163,12 @@ explicit DE25 selection binds its board file, AArch64 executable, factory
 manifest and stable kernel. It admits Terasic's partition-2 ext4 root, makes
 that bootstrap read-only and mounts partition 1 at `/media/fat` for the shared
 release store before root switching. CPU admission tests and image construction
-are off-board evidence. The bootstrap is not installed; the managed factory,
-complete card layout and native boot still need integration. DE25 trial boots
-are refused before watchdog guard startup until native recovery is qualified.
+are off-board evidence. A later managed card boots FES Linux on the kit, and
+[native watchdog tests](validation/2026-11-03-de25-watchdog/README.md) recover
+without power intervention before programming and with MENU scanout active.
+The new guard admits that exact stock watchdog path without Cyclone V register
+access. Its bootstrap deployment and a complete managed trial update remain
+unaccepted; the installed older bootstrap still refuses DE25 trials.
 
 The [factory-input record](validation/2026-11-01-de25-factory-inputs/README.md)
 covers explicit DE25/AArch64 artifact selection and shared factory startup

@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "board": "de25-nano",
+  "serial": "TRWU8J8G",
+  "evidence_class": "native hardware diagnostic",
+  "production_bootstrap_acceptance": "not-run",
+  "baseline": {
+    "state": "baseline-native-expiry-and-authenticated-boot-passed",
+    "old_boot": "361cd8ea-11f3-45c4-be88-c825e5f3c167",
+    "new_boot": "45073511-ba86-46ee-ad5e-4c015274967c",
+    "image": "3b985b15dd6bbc1e945ae67dfc892e048719e684a20aea48e96bb5a4fec784aa",
+    "kernel_notes": "47b21fcf0a7a63b0ed940efe53c6f39daea8eddd8299539d71ecb731c0adaf34"
+  },
+  "active_menu": {
+    "state": "active-menu-watchdog-expiry-and-authenticated-boot-passed",
+    "old_boot": "45073511-ba86-46ee-ad5e-4c015274967c",
+    "new_boot": "f9d0a520-f814-48b0-a8d6-c07625506d30",
+    "root_image": "3b985b15dd6bbc1e945ae67dfc892e048719e684a20aea48e96bb5a4fec784aa",
+    "runtime_source": "022eeb3457e6a812571dcbb279e2b342c15c6763",
+    "kernel_image": "28201c24220c9ed11ac5943aa2583f647904d2f694796407d66a7728c1c1456b",
+    "kernel_notes": "47b21fcf0a7a63b0ed940efe53c6f39daea8eddd8299539d71ecb731c0adaf34",
+    "menu_package": "e489b4ee2e3817074ede4d478a0e265c57aedba1794dec8272a22906333b1e4a",
+    "rbf_sha256": "99e1d564d01734f47aeec965196df2cc60b04061d4c5f39a6e2cde454db74116",
+    "build_id": "93eb139a58a2516b4776de5d4a08d208",
+    "elapsed_observation_seconds": 47.822,
+    "proof": "Production factory+Runtime.Start reached idle after observed allocated scanout bootstrap; watchdog then expired with MENU/allocation alive; no software reboot call. New native boot+SSH image/CID/kernel verified.",
+    "scope": "Internal programming+MENU/DMA+watchdog recovery diagnostic; managed daemon/agent/UI startup and arbitrary failed-load fencing remain unqualified",
+    "capture": "during-diagnostic.png timing was after reset/unknown; not used for video acceptance"
+  },
+  "stock_device": {
+    "path": "/dev/watchdog0",
+    "driver": "dw_wdt",
+    "compatible": "snps,dw-wdt",
+    "register_address": "0x10d00200",
+    "register_size": "0x100"
+  },
+  "kernel_source": "59d3b43997b5827dda55125f0f651248a51e6ebf",
+  "reset_observation": "Cold",
+  "qspi_modified": false,
+  "software_reboot_calls": 0
+}

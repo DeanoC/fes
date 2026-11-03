@@ -46,13 +46,15 @@ func TestBootStoreUsesSelectedBoard(t *testing.T) {
 	}
 }
 
-func TestUnqualifiedDe25TrialRefusedBeforeGuardStart(t *testing.T) {
-	for _, board := range []string{release.BoardDE25, "", "other"} {
-		if err := (linuxPlatform{board: board}).Arm(context.Background(), store.Selection{}); err == nil || !strings.Contains(err.Error(), "not qualified") {
+func TestUnknownTrialBoardRefusedBeforeGuardStart(t *testing.T) {
+	for _, board := range []string{"", "other"} {
+		if err := (linuxPlatform{board: board}).Arm(context.Background(), store.Selection{}); err == nil || !strings.Contains(err.Error(), "qualified") {
 			t.Fatalf("unqualified trial %s: %v", board, err)
 		}
 	}
-	if err := trialSupported(release.Board); err != nil {
-		t.Fatal(err)
+	for _, board := range []string{release.Board, release.BoardDE25} {
+		if err := trialSupported(board); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

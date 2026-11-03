@@ -50,9 +50,13 @@ root device, remounts that stable root read-only, then mounts partition 1 at
 `/media/fat` with device, executable and set-ID use disabled. It reuses the
 existing verified release selection and root-switching implementation. The
 prepared kernel has the required loop/ext4/FAT/codepage support built in.
-DE25 trial boots are refused before starting the watchdog guard; Cyclone V
-reset-register preparation remains DE10-only. Native watchdog recovery must
-be qualified before DE25 trial updates can execute.
+The [native DE25 watchdog proof](validation/2026-11-03-de25-watchdog/README.md)
+passes stock DW watchdog expiry recovery both before programming and with MENU
+scanout active. The DE25 guard checks the exact AArch64 board, stock watchdog0
+device-tree address/driver and character-device identity, then uses the Linux
+watchdog API. Cyclone V reset-register preparation remains DE10-only. The
+installed older bootstrap still refuses DE25 trials; deploying the new
+bootstrap and accepting a complete native trial update remain separate gates.
 
 The [bootstrap record](validation/2026-11-01-de25-appliance-bootstrap/README.md)
 retains native/AArch64 CPU checks and a reproducible bootstrap image whose

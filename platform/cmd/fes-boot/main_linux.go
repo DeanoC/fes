@@ -129,10 +129,17 @@ func guardMain(bootID, image string) error {
 	if err != nil {
 		return err
 	}
-	if err := bootlinux.PrepareSoCFPGAWatchdogReset(); err != nil {
+	cfg := bootlinux.GuardConfig{BootID: bootID, ImageSHA256: image}
+	if board == release.BoardDE25 {
+		cfg.Device = "/dev/watchdog0"
+		cfg.ExpectedDevice, err = bootlinux.PrepareDe25WatchdogReset()
+	} else {
+		err = bootlinux.PrepareSoCFPGAWatchdogReset()
+	}
+	if err != nil {
 		return err
 	}
-	return bootlinux.RunGuard(context.Background(), bootlinux.GuardConfig{BootID: bootID, ImageSHA256: image}, ready,
+	return bootlinux.RunGuard(context.Background(), cfg, ready,
 		func(ctx context.Context, id, hash string) (bool, error) {
 			return s.ConfirmedContext(ctx, id, hash)
 		})
@@ -152,8 +159,8 @@ func (linuxRoot linuxRoot) Exec() error {
 	return linuxRoot.PivotAndExec("/sbin/init", []string{"/sbin/init"}, []string{"PATH=/sbin:/bin:/usr/sbin:/usr/bin", "HOME=/", "TERM=linux"})
 }
 func trialSupported(board string) error {
-	if board != release.Board {
-		return errors.New("trial watchdog recovery requires qualified DE10-nano; DE25 recovery is not qualified")
+	if board != release.Board && board != release.BoardDE25 {
+		return errors.New("trial watchdog recovery requires a qualified DE10-nano or DE25-nano board")
 	}
 	return nil
 }
