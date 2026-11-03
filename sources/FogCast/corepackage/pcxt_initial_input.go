@@ -106,11 +106,21 @@ func readPcxtInitialInput(data []byte) (PcxtInitialInput, Inspection, error) {
 }
 
 func StagePcxtInitialInput(ctx context.Context, root string, data []byte) (Staged, error) {
-	in, _, err := readPcxtInitialInput(data)
+	return stagePcxtInitialInput(ctx, root, data, nil)
+}
+
+// StagePcxtInitialInputSpooled stages a spooled envelope and publishes the
+// spool itself as input.tar.
+func StagePcxtInitialInputSpooled(ctx context.Context, root string, in *SpooledInput) (Staged, error) {
+	return stagePcxtInitialInput(ctx, root, in.Bytes(), in)
+}
+
+func stagePcxtInitialInput(ctx context.Context, root string, data []byte, spool *SpooledInput) (Staged, error) {
+	in, inspection, err := readPcxtInitialInput(data)
 	if err != nil {
 		return Staged{}, err
 	}
-	staged, err := Stage(ctx, root, int64(len(in.Package)), bytes.NewReader(in.Package))
+	staged, err := stageArchive(ctx, root, in.Package, &inspection)
 	if err != nil {
 		return Staged{}, err
 	}
@@ -138,13 +148,14 @@ func StagePcxtInitialInput(ctx context.Context, root string, data []byte) (Stage
 		return Staged{}, err
 	}
 	staged.companions = append(staged.companions, Staged{root: root, rootInfo: info, publication: name, publicationInfo: retained})
-	for file, content := range map[string][]byte{"input.tar": data, "initial-media.img": in.Media.Bytes} {
-		if err = ctx.Err(); err != nil {
-			return Staged{}, err
-		}
-		if err = writePrivate(handle, filepath.Join(name, file), content); err != nil {
-			return Staged{}, err
-		}
+	if err = writeInput(handle, filepath.Join(name, "input.tar"), data, spool); err != nil {
+		return Staged{}, err
+	}
+	if err = ctx.Err(); err != nil {
+		return Staged{}, err
+	}
+	if err = writePrivate(handle, filepath.Join(name, "initial-media.img"), in.Media.Bytes); err != nil {
+		return Staged{}, err
 	}
 	if err = handle.Chmod(name, 0500); err != nil {
 		return Staged{}, err

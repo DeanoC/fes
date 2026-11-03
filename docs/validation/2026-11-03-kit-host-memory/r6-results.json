@@ -1,0 +1,18 @@
+{
+ "tag": "r6",
+ "head": "754dbe0f173ca724d020ecf4e8ec5dc28cacfee3",
+ "bundle": "334fb6bb3e0774a671f98c99b4220dcfe748ca6da255932da154389b173d2071",
+ "api_gomemlimit": "",
+ "api_ready_s": 2.7,
+ "install_s": 22.765402396093123,
+ "game_id": "fpga-st-k863-878cbbbd017f",
+ "bundled_firmware": "{\"firmware\":[{\"id\":\"amstrad-spectrum-128k\",\"name\":\"ZX Spectrum 128K ROMs\",\"version\":\"128K ROM 0 and ROM 1 (spectrum-roms 20081224)\",\"core_id\":\"fes.spectrum128\",\"rom_id\":\"spectrum128-firmware\",\"size\":32768,\"media_id\":\"c1ff621d7910105d4ee45c31e9fd8fd0d79a545c78b66c69a562ee1ffbae8d72\",\"licence\":\"LicenseRef-Amstrad-ROM-permission\",\"licence_name\":\"Amstrad's permission to redistribute\",\"notice\":\"These ROMs are copyright Amstrad and their copyright messages are unaltered. Amstrad have kindly given their permission for the redistribution of their copyrighted material but retain that copyright. FES makes no charge for them.\",\"origin_url\":\"https://deb.debian.org/debian/pool/non-free/s/spectrum-roms/spectrum-roms_20081224.orig.tar.gz\"},{\"id\":\"amstrad-spectrum-48k\",\"name\":\"ZX Spectrum 48K ROM\",\"version\":\"48K BASIC (spectrum-roms 20081224)\",\"core_id\":\"fes.spectrum\",\"rom_id\":\"spectrum-firmware\",\"size\":16384,\"media_id\":\"d55daa439b673b0e3f5897f99ac37ecb45f974d1862b4dadb85dec34af99cb42\",\"licence\":\"LicenseRef-Amstrad-ROM-permission\",\"licence_name\":\"Amstrad's permission to redistribute\",\"notice\":\"These ROMs are copyright Amstrad and their copyright messages are unaltered. Amstrad have kindly given their permission for the redistribution of their copyrighted material but retain that copyright. FES makes no charge for them.\",\"origin_url\":\"https://deb.debian.org/debian/pool/non-free/s/spectrum-roms/spectrum-roms_20081224.orig.tar.gz\"},{\"id\":\"amstrad-spectrum-plus3\",\"name\":\"ZX Spectrum +2A/+3 ROMs\",\"version\":\"+3 ROMs 0-3 with +3DOS (spectrum-roms 20081224)\",\"core_id\":\"fes.spectrum-plus3\",\"rom_id\":\"spectrum-plus3-firmware\",\"size\":65536,\"media_id\":\"ee8218fa43ecb672ed45370114294228213a82318c6d1b007ec86bee3293d1f2\",\"licence\":\"LicenseRef-Amstrad-ROM-permission\",\"licence_name\":\"Amstrad's permission to redistribute\",\"notice\":\"These ROMs are copyright Amstrad and their copyright messages are unaltered. Amstrad have kindly given their permission for the redistribution of their copyrighted material",
+ "launch_start_uptime": "156175.44",
+ "launch_rc": 0,
+ "launch_s": 63.6,
+ "launch_end_uptime": "156239.34",
+ "stop_s": 4.0658930509816855,
+ "restored_sw": true,
+ "lease": "idle free",
+ "leftover": "end"
+}

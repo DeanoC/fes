@@ -379,9 +379,10 @@ that identity was rewritten. Host `GET /api/v1/health` adds a `host` identity
 (`version`, `revision`, `os`, `arch`) and forwards `target.artifacts` and
 `target.api_version` when the target is reachable. Authenticated target health
 also reports managed software independently of that sealed base-image record.
-The host projects only `target.software.active_bundle`, `base_identity`,
-`selected` and `generation`; it omits the operation journal, requester labels
-and diagnostic error strings. Unmanaged targets omit `target.software`, and
+Target health carries only `software.active_bundle`, `base_identity`,
+`selected` and `generation`, and the host forwards them as `target.software`;
+the operation journal, requester labels and diagnostic error strings stay on
+the target's `GET /v1/kit/software`. Unmanaged targets omit `target.software`, and
 failed health does not retain a previous identity. Public unauthenticated target
 health never exposes software status.
 
@@ -1425,9 +1426,10 @@ stale pixels. Identical whole frames still do no pixel copies. Other devices
 replay their normal commands; the Device and runtime wire contracts are
 unchanged.
 The grid CLI and tenfoot CPU kit backends (`menu-display` / `linuxfb`) default
-to a 96 MiB soft Go memory limit, honoring an explicit `GOMEMLIMIT`. This
-collects and scavenges temporary decode heaps sooner; it is not a hard RSS cap.
-Desktop SDL retains the normal runtime policy. Wheel summaries are rebuilt on
+to a 96 MiB soft Go memory limit; the target agent defaults to 64 MiB. An
+explicit `GOMEMLIMIT` overrides either default. These limits make Go collect
+and scavenge temporary decode heaps sooner; they are not hard RSS caps. Desktop
+SDL retains the normal runtime policy. Wheel summaries are rebuilt on
 catalog replacement and volatile-field refresh; idle prefetch reads those
 representatives without catalog scans, and frame construction follows the paint
 gate. Bounded wheel refreshes compare the complete frame content and reuse
@@ -2787,12 +2789,24 @@ expansion as unavailable. If selected video assets are present, it checks
 video part as unavailable, while a successful check leaves the preparation
 failure classified as a ROM admission error. A ROM-less shell sends
 `corepackage.SlotCompositionBundle` (`slot-composition.json`, `package.tar`,
-`slot-N.tar`, `linked.rbf`) through the existing compose route. The agent's
-`corepackage.StageROMInput` /
-`StageComposition` relink independently and refuse different evidence, then
-publish the shell, one `slot-N-<publication>` directory per card (exactly
-`manifest.json` and `cart.rbf`) and `composition-<publication>/linked.rbf`.
-Restart adoption relinks those retained members. `internal/misterruntime/slots.go`
+`slot-N.tar`, `linked.rbf`) through the existing compose route. The target agent
+streams each bounded launch body once into a private file in the core-package
+staging root and reads it through a read-only mapping.
+`corepackage.StageROMInputSpooled` and
+`corepackage.StageROMInputV2Spooled` independently relink ROM input and publish
+the original envelope as `input.tar`; PC/XT library launch uses
+`corepackage.StagePcxtInitialInputSpooled`, and the compose route uses
+`corepackage.StageCompositionBytes`. After staging, the agent closes the mapping
+before the runtime load; the published `input.tar` remains available for
+restart adoption.
+Publishing ROM and PC/XT input requires hard-link support in the staging-root
+filesystem. The kit staging root uses tmpfs; FAT does not support the required
+links, so admission fails if the root cannot create one. The ROM stagers refuse
+differing link evidence, and the composition stager independently verifies its
+linked payload. They publish the shell, one
+`slot-N-<publication>` directory per card (exactly `manifest.json` and
+`cart.rbf`) and `composition-<publication>/linked.rbf`. Restart adoption
+relinks those retained members. `internal/misterruntime/slots.go`
 sends the runtime v2 form of `load_rom_composed_core` / `load_composed_core`
 (also `load_initialized_composed_core`, which no producer uses yet):
 
