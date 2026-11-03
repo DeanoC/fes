@@ -35,8 +35,11 @@ source/publication/write/completion/open/identity/Hold/close failures. An explic
 sealed-project test also consumes the actual producer export and retained FPGA
 package. These are software results. The
 [per-load firmware hardware test](../../../../docs/validation/2026-11-03-de25-program-binding/README.md)
-uses one fixed diagnostic package twice; it does not qualify this new frontend
-or different physical packages. The current compiled contract still names the
+uses one fixed diagnostic package twice. The later
+[SD-selected frontend test](../../../../docs/validation/2026-11-03-de25-selected-upload/README.md)
+passes four Ethernet uploads and fresh readbacks followed by two native load/Run/return
+cycles with fresh SD selection between them. Both physical choices use that same
+package; different physical packages remain untested. The current compiled contract still names the
 diagnostic ABI/profile. Normal Nano admission, ROM linking and native Tenfoot
 remain open.
 

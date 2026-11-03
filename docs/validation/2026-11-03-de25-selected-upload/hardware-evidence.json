@@ -1,0 +1,280 @@
+{
+  "verification_status": "passed",
+  "source_commit": "9657ff54ff24f995d8f999322e52b9a89285053d",
+  "implementation_source_commit": "068495f0cf1d6011c31447a63bde4b70e7056702",
+  "upload_source_commit": "9657ff54ff24f995d8f999322e52b9a89285053d",
+  "native_build_source_commit": "068495f0cf1d6011c31447a63bde4b70e7056702",
+  "hardware_result": "native-sd-selected-four-uploads-four-readbacks-warm-sd-two-load-returns-passed",
+  "experiment_passed": true,
+  "serial_recovery_upgrade": false,
+  "recovery_phy_prepared_before_link": true,
+  "native_boot_id": "145213088b9b4dbb",
+  "raw_console_sha256": "f80b7bbe0257e2540b0d5c0de0661360953eed1203a8f0d04688ef1211a3a9da",
+  "raw_bytes": 16996,
+  "selected_programs": true,
+  "upload_purposes": [
+    "boot",
+    "package",
+    "metadata",
+    "selection"
+  ],
+  "different_physical_packages": false,
+  "upload_receipts_sha256": {
+    "boot": "c97070b2a2f1b7cce60f614906023e7d73cd17c4419952c2f7a91911955fe263",
+    "package": "dee621ec3b6a846a1468f4a9377db2fab555d2b917fbc3a7aef257c46291293a",
+    "metadata": "cd0ccbc6f52e632bab33f4891d1d228c46545c42f3b9c213aa97ced47cbe7aac",
+    "selection": "9da84433e4d5d3d536e06b34ad3ea19cc31c1a57d5b20735eaa7a5c2a66fa5a9"
+  },
+  "fresh_receipts_sha256": {
+    "boot": "a630a02c839f4807bbe7ff99bcf4deec82f663182cb50a12af23d89b6ed03709",
+    "package": "0efe63fcfb6b44b95505509802762b457a3b9d70cdaf594964a923ff5b095222",
+    "metadata": "16ce952b17ee65c7e7fb6f28799b4c7f5a84da3515fe7df7f3518f8dc7212c8b",
+    "selection": "cbdf210bdc3f3572b68630a7fe00a0973eea7fd3b1c48db8590b7579c9298f81"
+  },
+  "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37",
+  "fpga_build_id": "dda236646bb868e63c72bd0e777f3dd6",
+  "cpu_mapping": {
+    "el": 1,
+    "sctlr": 818944005,
+    "tcr": 8589948185,
+    "root": 2214608896,
+    "mair": 4521728,
+    "mmfr0": 1052962,
+    "mpidr": 2164260864,
+    "ram_base": 2214592512,
+    "ram_bytes": 268435456,
+    "control_base": 536937472,
+    "control_bytes": 256,
+    "dma_base": 2491416576,
+    "dma_bytes": 8388608,
+    "reader_base": 2499805184,
+    "reader_bytes": 2097152,
+    "reads": 3604,
+    "translations": 5176,
+    "bytes": 278921472,
+    "descriptor_sha256": "a7a774a49043a257a7876a79c09875816c1058c4ba523f7b99588863ff0ff98b",
+    "owner": 4057622633492187571,
+    "generation": 4,
+    "scope": "EL1-identity-mapping-only",
+    "runtime_admission": false
+  },
+  "configuration_intervals_seconds": [
+    13.3440413025,
+    13.3466395525
+  ],
+  "storage_seconds": 59.34077123191673,
+  "source_mapping_sha256": "d4fe0201d08baf6902d7f786b21592f151a07c6f689e808f8067c09452b69c37",
+  "storage_return_observation": {
+    "complete": true,
+    "records": [
+      {
+        "stage": "storage_return_begin",
+        "line": 137,
+        "values": {
+          "owner": 4057622633492187571,
+          "generation": 6,
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37"
+        }
+      },
+      {
+        "stage": "storage_return_active",
+        "line": 138,
+        "values": {
+          "owner": 4057622633492187571,
+          "generation": 8,
+          "return_generation": 6
+        }
+      },
+      {
+        "stage": "storage_return_contained",
+        "line": 139,
+        "values": {
+          "owner": 4057622633492187571,
+          "generation": 9,
+          "return_generation": 6,
+          "package_id": "b2353f540cc81b9896db86867248880aceffce8c81314042b02317f76f947f37"
+        }
+      }
+    ],
+    "runtime_admission": false
+  },
+  "observer_phases": [
+    {
+      "phase": "first_core",
+      "bound_seconds": 45,
+      "elapsed_seconds": 18.52136623999104
+    },
+    {
+      "phase": "returned_storage",
+      "bound_seconds": 100,
+      "elapsed_seconds": 55.158675662009045
+    },
+    {
+      "phase": "second_core",
+      "bound_seconds": 45,
+      "elapsed_seconds": 18.29096990393009
+    }
+  ],
+  "saved_capture_rejections": [
+    {
+      "case": "missing-cpu",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-cpu",
+      "accepted": false
+    },
+    {
+      "case": "late-panic",
+      "accepted": false
+    },
+    {
+      "case": "cpu-el",
+      "accepted": false
+    },
+    {
+      "case": "cpu-root",
+      "accepted": false
+    },
+    {
+      "case": "cpu-mair",
+      "accepted": false
+    },
+    {
+      "case": "cpu-mpidr",
+      "accepted": false
+    },
+    {
+      "case": "cpu-reads",
+      "accepted": false
+    },
+    {
+      "case": "cpu-translations",
+      "accepted": false
+    },
+    {
+      "case": "cpu-ram_base",
+      "accepted": false
+    },
+    {
+      "case": "cpu-dma_bytes",
+      "accepted": false
+    },
+    {
+      "case": "cpu-descriptor_sha256",
+      "accepted": false
+    },
+    {
+      "case": "cpu-owner",
+      "accepted": false
+    },
+    {
+      "case": "cpu-generation",
+      "accepted": false
+    },
+    {
+      "case": "cpu-data_held",
+      "accepted": false
+    },
+    {
+      "case": "cpu-runtime_admission",
+      "accepted": false
+    },
+    {
+      "case": "109-activation-complete",
+      "accepted": false
+    },
+    {
+      "case": "109-activation-data_held",
+      "accepted": false
+    },
+    {
+      "case": "154-activation-complete",
+      "accepted": false
+    },
+    {
+      "case": "154-activation-data_held",
+      "accepted": false
+    },
+    {
+      "case": "missing-BEGIN",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-BEGIN",
+      "accepted": false
+    },
+    {
+      "case": "storage-BEGIN-owner",
+      "accepted": false
+    },
+    {
+      "case": "storage-BEGIN-generation",
+      "accepted": false
+    },
+    {
+      "case": "missing-ACTIVE",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-ACTIVE",
+      "accepted": false
+    },
+    {
+      "case": "storage-ACTIVE-owner",
+      "accepted": false
+    },
+    {
+      "case": "storage-ACTIVE-generation",
+      "accepted": false
+    },
+    {
+      "case": "missing-CONTAINED",
+      "accepted": false
+    },
+    {
+      "case": "duplicate-CONTAINED",
+      "accepted": false
+    },
+    {
+      "case": "storage-CONTAINED-owner",
+      "accepted": false
+    },
+    {
+      "case": "storage-CONTAINED-generation",
+      "accepted": false
+    }
+  ],
+  "original_clock_restored": true,
+  "usb_permissions_restored": true,
+  "private_server_stopped": true,
+  "uart_free": true,
+  "claim_retained": true,
+  "spare_retained": true,
+  "factory_restored": false,
+  "full_ram_clock_qualification": false,
+  "trusted_boot_handoff": false,
+  "runtime_admission": false,
+  "core_load_acceptance": false,
+  "input_sha256": {
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/native-console.log": "f80b7bbe0257e2540b0d5c0de0661360953eed1203a8f0d04688ef1211a3a9da",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/native-result.json": "51567ab67cf093cee4414205cb4b0655391e784f6f1615aab3b4f5ce2a632625",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/experiment-result.json": "22d7769bb8b8297e333551790a261445ba0b918ceb8609353f87dd91c728519d",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/preflight.json": "d5f5b11bc70b8a842d38fd48fb7041ca2a2eae16cd4229b22fa97b1c4090d941",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/transport.json": "230450156b06947accd2248aaf6944a1bb9684741bd81e316f83caf229d8c5ec",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/recovery-boot-result.json": "c92dabb33ff3addae6d7d4e72194b32968ba4633aedf03d65575b74ae05cc18e",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/recovery-boot-console.log": "08f71211664d0b0670c09131e98e3574409bdcac5a9bcbf828ddf74c7e8fcbb6",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/upload-boot/result.json": "c97070b2a2f1b7cce60f614906023e7d73cd17c4419952c2f7a91911955fe263",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/upload-package/result.json": "dee621ec3b6a846a1468f4a9377db2fab555d2b917fbc3a7aef257c46291293a",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/upload-metadata/result.json": "cd0ccbc6f52e632bab33f4891d1d228c46545c42f3b9c213aa97ced47cbe7aac",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/upload-selection/result.json": "9da84433e4d5d3d536e06b34ad3ea19cc31c1a57d5b20735eaa7a5c2a66fa5a9",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/live-fit.json": "a630a02c839f4807bbe7ff99bcf4deec82f663182cb50a12af23d89b6ed03709",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/live-package.json": "0efe63fcfb6b44b95505509802762b457a3b9d70cdaf594964a923ff5b095222",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/live-metadata.json": "16ce952b17ee65c7e7fb6f28799b4c7f5a84da3515fe7df7f3518f8dc7212c8b",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/live-selection.json": "cbdf210bdc3f3572b68630a7fe00a0973eea7fd3b1c48db8590b7579c9298f81",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/trial/uploads/result.json": "7f65e9a5647a821e91db4ac53905b594d61fd36fe6543eae3ee8fd09f267b1c6",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-upload-20261103/hardware-result.json": "5a9dcb846f2e7fbe29ef0bacde8b5f3db0596a2841c805e69f979ac4236350fd",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-program-20261103/native-uboot/result.json": "bfd9a3e37334bac707573cf164fc83ffc87ae11529e1b64b88cd754e57f0af0c",
+    "/home/deano/fes/out/dev/de25-embedded-os/out/nano-selected-program-20261103/native-composition/result.json": "a43f389d2370c8b57b634f4816b759628a6999286a4c8384209674a5396d1778"
+  }
+}

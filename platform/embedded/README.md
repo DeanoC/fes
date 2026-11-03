@@ -9,8 +9,10 @@ owns FPGA programming, reset, input delivery and DMA lifetime.
 The experimental [native computer driver](tamago/computer/README.md) now checks
 the captured DE25 ZX81 Avalon/GP interface through injected platform I/O. Its
 explicit host model tests cover release, input, tape transfer, hold, relaunch
-and faults against the actual captured core RTL. Physical mapping/ownership,
-board execution and ordinary runtime core admission remain open.
+and faults against the actual captured core RTL. A matched
+[SD-selected native diagnostic](../../docs/validation/2026-11-03-de25-selected-upload/README.md)
+now loads/runs/returns the same sealed ZX81 package twice on TRWU8CBL. Physical
+input/video and ordinary runtime core admission remain open.
 
 The [contained firmware/RTL prototype](firmware/README.md) prepares a pinned
 TF-A source variant and an FPGA identity/read-drain endpoint. The experimental
@@ -118,7 +120,8 @@ The independent [Zephyr reference](zephyr/README.md) owns separate tests.
 | Separate Zephyr storage reference | NVMe FAT32 mount and boot-config read |
 | Separate Zephyr TCP reference | Builds/starts; E1000 packet exchange remains unverified |
 | Physical CPU and read-only SD | Bounded native boot, FAT32/package retention and secure SD stop/resume pass |
-| Physical USB, native Ethernet, display and FPGA | Require board verification and qualified lifecycle integration |
+| Physical contained FPGA loading | SD-selected same-package load/Run/return twice, with fresh retention and guarded control; diagnostic profile only |
+| Physical USB, native Ethernet and display | Require board verification and qualified lifecycle integration |
 
 The native software renderer yields in small raster/copy chunks on TamaGo,
 so network goroutines can progress during a frame. A controlled renderer-plus-
