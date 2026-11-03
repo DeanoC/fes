@@ -24,7 +24,7 @@ import (
 )
 
 type Controller interface {
-	Health(string) protocol.Health
+	HealthContext(context.Context, string) protocol.Health
 	Status() protocol.Status
 	Stop(context.Context) (protocol.Status, *protocol.APIError)
 }
@@ -48,7 +48,10 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/health", func(w http.ResponseWriter, r *http.Request) {
-		health := controller.Health(version)
+		health := controller.HealthContext(r.Context(), version)
+		if r.Context().Err() != nil {
+			return
+		}
 		health.TargetID = ""
 		health.Software = nil
 		if authenticatedRequest(r, token) {
@@ -56,6 +59,9 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 			if settings.kitSoftwareSocket != "" {
 				health.Software = kitSoftwareHealth(r.Context(), settings.kitSoftwareSocket)
 			}
+		}
+		if r.Context().Err() != nil {
+			return
 		}
 		writeJSON(w, http.StatusOK, health)
 	})

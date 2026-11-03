@@ -80,7 +80,7 @@ func (f *fakeDevelopmentController) LoadDevelopmentRBF(_ context.Context, size i
 	return f.status, nil
 }
 
-func (f *fakeController) Health(version string) protocol.Health {
+func (f *fakeController) HealthContext(_ context.Context, version string) protocol.Health {
 	f.healthVersion = version
 	return f.health
 }

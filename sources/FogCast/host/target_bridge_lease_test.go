@@ -24,8 +24,10 @@ import (
 
 type leaseProbeController struct{}
 
-func (leaseProbeController) Health(string) protocol.Health { return protocol.Health{} }
-func (leaseProbeController) Status() protocol.Status       { return protocol.Status{} }
+func (leaseProbeController) HealthContext(context.Context, string) protocol.Health {
+	return protocol.Health{}
+}
+func (leaseProbeController) Status() protocol.Status { return protocol.Status{} }
 func (leaseProbeController) Stop(context.Context) (protocol.Status, *protocol.APIError) {
 	return protocol.Status{}, nil
 }

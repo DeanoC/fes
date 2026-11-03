@@ -173,7 +173,7 @@ func (r *callerBoundStopRuntime) Stop(ctx context.Context) (string, *protocol.AP
 	return "", &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
 }
 
-func (f *fakeRuntime) Health(string) protocol.Health {
+func (f *fakeRuntime) HealthContext(context.Context, string) protocol.Health {
 	return f.health
 }
 
@@ -1107,5 +1107,30 @@ func TestCompositionStatusReturnsDefensiveCopy(t *testing.T) {
 	first.CorePackage.Composition.ExpansionID = "changed"
 	if got := coordinator.Status().CorePackage.Composition.ExpansionID; got != "original" {
 		t.Fatalf("caller changed retained composition: %q", got)
+	}
+}
+
+type canceledIdleRuntime struct {
+	fakeRuntime
+	started chan struct{}
+}
+
+func (r *canceledIdleRuntime) ConfirmIdle(ctx context.Context) bool {
+	close(r.started)
+	<-ctx.Done()
+	return true // a late response must not clear the failed state
+}
+func TestCanceledHealthDoesNotPublishRecoveredIdle(t *testing.T) {
+	runtime := &canceledIdleRuntime{fakeRuntime: fakeRuntime{health: protocol.Health{Ready: true}, reconciled: protocol.Status{State: protocol.StateFailed, LastError: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable}}}, started: make(chan struct{})}
+	coordinator := agent.New(runtime, time.Second, time.Second)
+	coordinator.Initialize(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan protocol.Health, 1)
+	go func() { result <- coordinator.HealthContext(ctx, "test") }()
+	<-runtime.started
+	cancel()
+	health := <-result
+	if health.Ready || coordinator.Status().State != protocol.StateFailed {
+		t.Fatalf("canceled health published idle: health=%#v status=%#v", health, coordinator.Status())
 	}
 }

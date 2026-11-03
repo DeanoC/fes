@@ -22,7 +22,9 @@ import (
 
 type meshAPI struct{}
 
-func (meshAPI) Health(string) protocol.Health { return protocol.Health{Ready: true} }
+func (meshAPI) HealthContext(context.Context, string) protocol.Health {
+	return protocol.Health{Ready: true}
+}
 func (meshAPI) Status() protocol.Status {
 	return protocol.Status{State: protocol.StateIdle}
 }

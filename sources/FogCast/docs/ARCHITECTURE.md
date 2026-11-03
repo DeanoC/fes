@@ -392,7 +392,11 @@ selection only after a complete, validated supervisor response; on failure it
 keeps the independent running-bundle and base identities. Host health also
 clears selection when an older agent reports a supervisor storage error or
 invalid selection state. Public
-unauthenticated target health never exposes software status.
+unauthenticated target health never exposes software status. The HTTP request
+context bounds its native runtime observation and any failed-state idle
+confirmation; a canceled probe does not continue into the software supervisor.
+Runtime health is observed before the authenticated software snapshot.
+Non-HTTP health callers retain their existing process-owned context.
 
 `GET /api/v1/kit/software/releases` reads the selected target's immutable release
 inventory through the authenticated target client, without acquiring a lease or
