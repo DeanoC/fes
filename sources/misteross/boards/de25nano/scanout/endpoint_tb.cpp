@@ -110,7 +110,7 @@ public:
             }
             if (accepts) {
                 require(pending.size() + dut.avm_burstcount <= 256,
-                        "accepted responses exceed the entire reader FIFO capacity");
+                        "accepted responses exceed the crossing response-credit limit");
                 const auto address = std::uint64_t(dut.avm_address);
                 const auto slot = unsigned((address - base_) / FES_DE25_SCANOUT_SLOT_BYTES);
                 const auto start = base_ + std::uint64_t(slot) * FES_DE25_SCANOUT_SLOT_BYTES;
@@ -328,6 +328,21 @@ static void two_complete_frames(bool zero_latency) {
     require(e.returned >= 2u * FES_DE25_SCANOUT_FRAME_BYTES / 16u, "displayed bytes not all fetched");
     e.check_pixels = false; e.stop_and_drain();
 }
+static void transient_ddr_contention_preserves_complete_frame() {
+    Endpoint e; Descriptor d; e.check_pixels = true; e.submit(d);
+    for (unsigned clocks = 0; e.active_pixels < 12000 && clocks < 200000; ++clocks) e.idle();
+    require(e.active_pixels >= 12000, "contention test never reached active scanout");
+    // Host writes and page-table maintenance can delay the shared DDR path.
+    // Exercise a finite service gap; this is a modeled elasticity requirement,
+    // not a claim that physical memory latency has been bounded.
+    e.stall = true; e.responses = false; e.idle(6000);
+    e.stall = false; e.responses = true;
+    const auto complete = e.wait_displayed(d.sequence);
+    equal(complete.errors(), 0, "finite DDR gap faulted scanout");
+    equal(complete.words[8], 0, "finite DDR gap lost a pixel");
+    equal(e.active_pixels, FES_DE25_SCANOUT_FRAME_BYTES / 4u, "contention frame was incomplete");
+    e.stop_and_drain();
+}
 static void stop_keeps_stalled_command_and_accepted_responses() {
     Endpoint e; Descriptor d; e.stall = true; e.responses = false; e.submit(d); e.wait_request();
     const auto address = e.dut.avm_address; const auto beats = e.dut.avm_burstcount;
@@ -500,6 +515,7 @@ int main(int argc, char** argv) {
         RUN(clock_fault_does_not_shorten_active_hsync);
         two_complete_frames(false); ++groups; std::cout << "PASS two_complete_frames_delayed\n";
         two_complete_frames(true); ++groups; std::cout << "PASS two_complete_frames_zero_latency\n";
+        RUN(transient_ddr_contention_preserves_complete_frame);
         RUN(stop_keeps_stalled_command_and_accepted_responses);
         RUN(read_ahead_reserves_capacity_and_stop_drains_every_accepted_beat);
         RUN(reset_midburst_restores_idle_submit_and_clear);

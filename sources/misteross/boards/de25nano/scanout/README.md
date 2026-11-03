@@ -66,8 +66,9 @@ most sixteen 16-byte beats, split at 4 KiB boundaries, and retain their full
 32-bit byte addresses. The FPGA has a real memory connection and no local
 pattern responder in this lane. DE25 enables the reader's optional read-ahead:
 up to sixteen short bursts can overlap, while FIFO occupancy plus all accepted
-and held response reservations never exceeds 256 beats. Its memory crossing
-has a 256-beat response FIFO. STOP still drains every accepted command before
+and held response reservations never exceeds the 2,048-beat (32 KiB) local
+pixel buffer. Accepted and held responses are independently capped at 256
+beats to match the memory crossing's response FIFO. STOP still drains every accepted command before
 ownership can be released; read-ahead does not relax underflow detection.
 
 The generic reader/video extensions default to the existing static-base,
@@ -226,7 +227,10 @@ M20K hint adaptation used by the build. They cover complete frames and lane
 ordering with delayed/zero-latency responses, descriptor/sequence/slot checks,
 snapshots/byte enables, command stalls/drain, reset during accepted and stalled
 bursts followed by SUBMIT/CLEAR, missing responses, underflow, response errors
-and sticky clock failure. Separate benches cover the exact
+and sticky clock failure. A complete-frame case pauses commands and responses
+for 6,000 pixel clocks during active scanout, then checks every pixel, zero
+underflows and complete STOP drain. This models buffer elasticity; it does not
+bound physical DDR latency or qualify concurrent CPU rendering. Separate benches cover the exact
 last-pixel submission corner, full HS/VS continuity through endpoint disable
 and reset, clock-shell startup/brief unlock/relock, and pixel-domain HDMI
 gating at a complete sync boundary using digital PLL/I2C models. The actual guard

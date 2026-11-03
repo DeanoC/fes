@@ -165,7 +165,7 @@ endmodule
     def test_unexpected_menu_fifo_declaration_refuses_target_adaptation(self):
         original = B.SOURCE_PATHS['fes_menu_reader.v'].read_bytes()
         with self.assertRaisesRegex(ValueError, 'FIFO RAM hint/declaration changed'):
-            B.retarget_menu_ram(original.replace(b'fifo [0:255]', b'fifo [0:511]'))
+            B.retarget_menu_ram(original.replace(b'FIFO_ADDR_BITS)-1]', b'FIFO_ADDR_BITS)-2]'))
 
     def test_captured_git_revision_ignores_later_working_tree_bytes(self):
         repository = self.root / 'repository'

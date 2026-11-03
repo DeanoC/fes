@@ -331,6 +331,11 @@ and completion only after a whole good frame. Explicit Platform Designer
 `mm_ccb` bridges carry control from 100 MHz to 74.25 MHz and memory traffic
 back to the preserved F2SDRAM path. The shared reader/video extensions are
 opt-in; existing consumers retain their default configuration.
+DE25 selects a 2,048-beat (32 KiB) local pixel FIFO, while accepted and held
+memory responses remain capped at 256 beats to match the crossing. Other
+consumers retain the 256-beat reader default. Temporary DDR service gaps are
+modeled with complete-frame pixel checks; physical CPU/scanout contention
+still requires native validation with zero underflows.
 
 For explicit `--linux-dma --hps-first`, the recipe exposes the fixed nonsecure
 SMMU stream and removes the DDR probe/control window and external memory-debug
