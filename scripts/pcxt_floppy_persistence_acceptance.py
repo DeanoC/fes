@@ -74,6 +74,14 @@ def bounded_source_command(argv, deadline, *, cwd=None):
         return result
 
 
+SOURCE_PATHS = ['scripts/pcxt_floppy_persistence_acceptance.py', 'scripts/pcxt_health_evidence.py',
+                'scripts/pcxt_dos_application_acceptance.py', 'scripts/pcxt_dos_hil_acceptance.py',
+                'scripts/package_acceptance.py', 'scripts/diagnostic_identity.py', 'scripts/input_diagnostic.py',
+                'sources/misteross/scripts/core_package.py', 'sources/misteross/scripts/rfc3986_validator.py',
+                'sources/misteross/cores/fes-pcxt/firmware/hardware-dos.json',
+                'sources/misteross/cores/fes-pcxt/sim/bios.lock']
+
+
 def require_pr_head(args, deadline=None):
     """Verify an explicitly named open PR and its exact local source checkout."""
     try:
@@ -89,13 +97,7 @@ def require_pr_head(args, deadline=None):
         current = bounded_source_command(['git', 'rev-parse', 'HEAD'], deadline, cwd=root).decode('ascii').strip()
         if current != commit:
             raise ValueError('local source changed')
-        paths = ['scripts/pcxt_floppy_persistence_acceptance.py', 'scripts/pcxt_health_evidence.py',
-                 'scripts/pcxt_dos_application_acceptance.py', 'scripts/pcxt_dos_hil_acceptance.py',
-                 'scripts/package_acceptance.py', 'scripts/diagnostic_identity.py', 'scripts/input_diagnostic.py',
-                 'sources/misteross/scripts/core_package.py', 'sources/misteross/scripts/rfc3986_validator.py',
-                 'sources/misteross/cores/fes-pcxt/firmware/hardware-dos.json',
-                 'sources/misteross/cores/fes-pcxt/sim/bios.lock']
-        for path in paths:
+        for path in SOURCE_PATHS:
             committed = bounded_source_command(['git', 'show', f'{commit}:{path}'], deadline, cwd=root)
             if (root / path).read_bytes() != committed:
                 raise ValueError('diagnostic source changed')
@@ -114,6 +116,50 @@ def require_pr_head(args, deadline=None):
         deadline.remaining(1)
     except (OSError, ValueError, TypeError, subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError):
         raise pa.AcceptanceError('cannot verify the requested open PR and exact local source') from None
+
+
+def require_main_head(args, deadline=None):
+    """Bind a committed local diagnostic to an independently built main head."""
+    try:
+        deadline = deadline or PhaseDeadline(time.monotonic()+21)
+        repo, base, producer, tool = (args.source_repository, args.source_base,
+                                      args.source_commit, args.source_tool_commit)
+        parts = repo.split('/') if isinstance(repo, str) else []
+        if (len(parts) != 2 or any(not re.fullmatch(r'[A-Za-z0-9_.-]{1,100}', part)
+                                   or part in ('.', '..') for part in parts)
+                or base != 'main' or getattr(args, 'source_pr', None) is not None
+                or not isinstance(producer, str) or not re.fullmatch(r'[0-9a-f]{40}', producer)
+                or not isinstance(tool, str) or not re.fullmatch(r'[0-9a-f]{40}', tool)):
+            raise ValueError('invalid main source identity')
+        root = Path(__file__).resolve().parent.parent
+        current = bounded_source_command(['git', 'rev-parse', 'HEAD'], deadline, cwd=root).decode('ascii').strip()
+        if current != tool:
+            raise ValueError('local diagnostic commit changed')
+        for path in SOURCE_PATHS:
+            committed = bounded_source_command(['git', 'show', f'{tool}:{path}'], deadline, cwd=root)
+            if (root / path).read_bytes() != committed:
+                raise ValueError('diagnostic source changed')
+        # The visual decoder and BIOS lock must describe the producer too.
+        for path in SOURCE_PATHS[-2:]:
+            if bounded_source_command(['git', 'show', f'{producer}:{path}'], deadline, cwd=root) != (root / path).read_bytes():
+                raise ValueError('producer BIOS inputs differ')
+        result = bounded_source_command(['gh', 'api', f'repos/{repo}/commits/main'], deadline)
+        value = json.loads(result)
+        if not isinstance(value, dict) or value.get('sha') != producer:
+            raise ValueError('main head changed')
+        deadline.remaining(1)
+    except (OSError, ValueError, TypeError, UnicodeError, subprocess.CalledProcessError,
+            subprocess.TimeoutExpired, json.JSONDecodeError):
+        raise pa.AcceptanceError('cannot verify the requested main head and exact diagnostic source') from None
+
+
+def require_source(args, deadline=None):
+    if getattr(args, 'source_main', False):
+        require_main_head(args, deadline)
+    else:
+        if getattr(args, 'source_tool_commit', None) is not None:
+            raise pa.AcceptanceError('tool commit is only valid for main source mode')
+        require_pr_head(args, deadline)
 
 
 def running_private_host(pid, origin, executable):
@@ -369,7 +415,7 @@ def save_response_observation(value, owned):
 
 
 def save_once(runner, owned, args, rec):
-    require_pr_head(args,PhaseDeadline(args.phase_deadline_monotonic))
+    require_source(args,PhaseDeadline(args.phase_deadline_monotonic))
     app.validate_active(runner, owned, args, DISK_SHA)
     before = runner.session()
     unit_binding(before, owned, 'absent')
@@ -405,7 +451,7 @@ def save_once(runner, owned, args, rec):
 
 
 def run_phase(runner, owned, args, rec, input_session_id, font):
-    require_pr_head(args,PhaseDeadline(args.phase_deadline_monotonic))
+    require_source(args,PhaseDeadline(args.phase_deadline_monotonic))
     disk = app.verify_disk(args.disk, 'com')
     if disk['floppy_sha256'] != DISK_SHA:
         raise pa.AcceptanceError('unexpected immutable disk image')
@@ -438,7 +484,7 @@ def run_phase(runner, owned, args, rec, input_session_id, font):
         rec['restored_file'] = wait_for_output(runner, owned, args, rec, font, anchor, before[:2], 'TYPE FESSAVE.TXT', MARKER, 'restored')
         unit_binding(runner.session(), owned, rec['saved_revision'])
         rec['classification'] = 'physical diagnostic: DOS saved file restored after restart'
-    require_pr_head(args,PhaseDeadline(args.phase_deadline_monotonic))
+    require_source(args,PhaseDeadline(args.phase_deadline_monotonic))
     rec['limitations'] = ['physical diagnostic only; not hil-queue acceptance',
                           'caller owns Stop, restart, restoration and kit release',
                           'does not establish whole-board timing or general DOS compatibility']
@@ -484,9 +530,12 @@ def main(argv=None):
     def parser():
         p = original_parser()
         p.add_argument('--phase', required=True, choices=('write', 'verify'))
-        p.add_argument('--source-repository', required=True, help='GitHub owner/repository containing the PR head')
-        p.add_argument('--source-pr', required=True, type=int, help='open pull request number')
-        p.add_argument('--source-base', required=True, help='expected pull request base branch')
+        p.add_argument('--source-repository', required=True, help='GitHub owner/repository containing the source')
+        source_mode = p.add_mutually_exclusive_group(required=True)
+        source_mode.add_argument('--source-pr', type=int, help='open pull request number')
+        source_mode.add_argument('--source-main', action='store_true', help='require the producer commit to be the live main head')
+        p.add_argument('--source-base', required=True, help='expected PR base branch, or main')
+        p.add_argument('--source-tool-commit', help='full diagnostic checkout commit, required in main mode')
         p.add_argument('--phase-deadline-monotonic', required=True, type=float)
         p.add_argument('--host-pid', required=True, type=int)
         p.add_argument('--write-receipt', type=Path)
@@ -495,6 +544,9 @@ def main(argv=None):
     def source(args, font):
         result, host_raw, software_raw = original_source(args, font)
         check_matching_sources(result, args.source_commit)
+        if args.source_main:
+            result['main_source'] = {'repository': args.source_repository, 'branch': args.source_base,
+                                     'producer_commit': args.source_commit, 'tool_commit': args.source_tool_commit}
         result['diagnostic_file_sha256']['scripts/pcxt_floppy_persistence_acceptance.py'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
         result['diagnostic_file_sha256']['scripts/pcxt_health_evidence.py'] = hashlib.sha256(Path(health_evidence.__file__).read_bytes()).hexdigest()
         return result, host_raw, software_raw
@@ -503,7 +555,7 @@ def main(argv=None):
     def scenario(runner, owned, args, rec, input_session_id, font):
         if not math.isfinite(args.phase_deadline_monotonic) or args.phase_deadline_monotonic <= time.monotonic()+1:
             raise pa.AcceptanceError('valid floppy phase deadline required')
-        require_pr_head(args, PhaseDeadline(args.phase_deadline_monotonic))
+        require_source(args, PhaseDeadline(args.phase_deadline_monotonic))
         if args.scenario != 'com':
             raise pa.AcceptanceError('only the pinned COM base image is admitted')
         if args.phase == 'write' and (args.write_receipt is not None or args.write_receipt_sha256 is not None):
