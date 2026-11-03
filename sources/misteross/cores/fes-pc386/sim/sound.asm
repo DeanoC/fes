@@ -314,9 +314,7 @@ adlib:  push ax
         ret
 
 ; CX:DX microseconds, counted on PIT channel 0 (mode 2, one count per
-; 1/1,193,182 s), as games time short waits. The Bochs BIOS's INT 15h AH=86h
-; counts port 61h bit 4, which follows PIT channel 1, and that BIOS never
-; programs channel 1.
+; 1/1,193,182 s), as games time short waits.
 wait_us:
         pushad
         mov ax, cx

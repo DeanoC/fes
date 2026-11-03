@@ -1,0 +1,31 @@
+{
+  "bios_sha256": "fd0df1f9f64d3f20a90c16fa5140530c3f521b837a81bcc412eb6fce431f4be8",
+  "bios_source": "main 91628a795's firmware.lock (built by scripts/build_pc386_firmware.py from main's vendored source)",
+  "program": "WAITTEST.COM",
+  "command": [
+    "build/sim/fes-pc386/machine/obj/Vpc386_machine",
+    "--bios",
+    "pc386-bios.bin (main)",
+    "--vgabios",
+    "build/firmware/pc386/pc386-vgabios.bin",
+    "--disk",
+    "the suite's disk.img",
+    "--limit-seconds",
+    "8",
+    "--type",
+    "waittest|",
+    "--expect",
+    "WAIT DONE ok",
+    "--cpu",
+    "oracle"
+  ],
+  "port_e9_lines": [
+    "WAIT zero 5us ok"
+  ],
+  "end": "END expected-text-missing steps=101844571 cycles=800000029 seconds=8.000",
+  "last_screen_rows": [
+    "FreeCom version 0.86 - WATCOMC - XMS_Swap [Dec 30 2024 22:10:51]",
+    "C:\\>waittest",
+    "WAIT zero 5us ok"
+  ]
+}
