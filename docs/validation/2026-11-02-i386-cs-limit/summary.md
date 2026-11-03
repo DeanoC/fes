@@ -17,11 +17,12 @@ as not built.
   386's 16-bit IP cut. `WHY_CS_LIMIT`, `cs_odd`, `wrap16` and the 16-bit-only
   special cases are gone.
 - Full RTL and i386-lock Yosys-netlist lockstep runs at source head
-  `df7ff8a9cc68c85022c25e5af7733df0fc56079e` include the #1430 merge and the
-  restored real-mode delivery IP cut ([Lockstep](#lockstep)). Their
-  architectural reports match:
+  `c00efad2dfeba8cbe60a5b22229addfbe6507c3c` include the #1430 merge, the
+  restored real-mode delivery IP cut and the next-instruction redirect fix
+  ([Lockstep](#lockstep)). Their architectural reports match:
   - all 1,758,699 corpus states pass;
   - all 8,000 random protected-mode programs and all directed cases pass;
+  - all 92 directed protected-mode cases pass;
   - the seven unreal-mode cases, including `cs-delivery`, pass;
   - all 1,933 no-387 cases and 26 memory cases pass.
 
@@ -37,8 +38,9 @@ as not built.
   before, test386 stops at POST 08h's paging as before, and FreeDOS boots
   on the RTL with a report byte for byte slice 2's ([Machine](#pc386-suites-governor-and-test386)).
 - Quartus 17.0.2 seals `fes.pc386` from a clean checkout of `5d231b804`,
-  before the #1430 merge and the final delivery-IP fix; the pc386 reseal
-  exemption covers both changes:
+  before the #1430 merge, the final delivery-IP fix and `c00efad2`'s
+  next-instruction redirect fix; the pc386 reseal exemption covers these
+  changes:
   every analysis passes at 61.44 MHz, the system clock at 72.76-73.53 MHz
   across the slow corners (setup +2.533 ns; slice 2's final seal 69.5-69.9
   MHz), for 28 more ALMs and 198 more registers ([Seal](#quartus-seal)).
@@ -53,18 +55,20 @@ as not built.
 ## Inputs
 
 - The lockstep reruns recorded below used the exact PR source head
-  `df7ff8a9cc68c85022c25e5af7733df0fc56079e` on 3 November 2026. That tree
-  contains the #1430 merge `81ab9086c` and restores the real-mode delivery IP
-  cut. The earlier PC/386, DOOM and seal results below remain tied to their
-  individually listed source commits.
+  `c00efad2dfeba8cbe60a5b22229addfbe6507c3c` on 3 November 2026. That tree
+  contains the #1430 merge `81ab9086c`, restores the real-mode delivery IP
+  cut and fixes next-instruction redirects past 64 KiB. The earlier PC/386,
+  DOOM and seal results below remain tied to their individually listed source
+  commits.
 - FES branch `deano/i386-cs-limit`, stacked on `deano/i386-phase2-idt`
   (PR #1411) at `7224b11f6`. `01bc050ef` (#1411's record only) is merged in
   as `53bef7644`, and #1411's head `3f8687ed0` as `9683e2cb0`. That head
   brings the #1424 fix `d9773b8f2`, which changes only the order of a
   protected-mode IRET's and RETF's stack reads, and its four directed cases.
 - The original CS-limit implementation is `5d231b804`. Later RTL changes
-  include #1424, the #1430 merge at `81ab9086c`, and `df7ff8a9`'s restoration
-  of the real-mode delivery IP cut. The historical runs used these trees:
+  include #1424, the #1430 merge at `81ab9086c`, `df7ff8a9`'s restoration of
+  the real-mode delivery IP cut, and `c00efad2`'s next-instruction redirect
+  fix. The historical runs used these trees:
   - `5d231b804`, a clean checkout: the seal.
   - `9683e2cb0`, the merge: the lockstep and the netlist lockstep, and
     `--suite boot --cpu rtl`. DOOM on the RTL, and on Bochs for comparison,
@@ -84,8 +88,9 @@ as not built.
   pre-existing width warnings in the unchanged governor and BIU. The locked
   Verilator `5e4151e3` hit an internal optimizer error at
   `fes_i386_seq.sv:317` before simulation. The netlist run used the i386
-  lock's Yosys `238eac9a4`. The seal used Quartus Prime Lite 17.0.2 with the
-  netlist from the pc386 lock's Yosys `0a7927bf`.
+  lock's Yosys `0a7927bf126eb3d868c50b3bb5e11b69ff656ea9`. The seal used
+  Quartus Prime Lite 17.0.2 with the netlist from the pc386 lock's Yosys
+  `0a7927bf`.
 - DOOM v1.9 under DOS/4GW, on slice 2's census disk (the games image,
   HIMEMX's full XMS, DOOM in `C:\DOOM`, SHA-256 `fa26f60b…`), a scratch copy
   only. No game bytes are in the repository.
@@ -132,13 +137,15 @@ before.
 ## Lockstep
 
 `scripts/test_fes_i386_lockstep.py` at the final RTL/testbench source head
-`df7ff8a9cc68c85022c25e5af7733df0fc56079e`, which includes the #1430 merge
-`81ab9086c` and the real-mode delivery IP restoration. The full RTL run is
+`c00efad2dfeba8cbe60a5b22229addfbe6507c3c`, which includes the #1430 merge
+`81ab9086c`, the real-mode delivery IP restoration and the next-instruction
+redirect fix. The full RTL run is
 ([lockstep-report.json](lockstep-report.json)); the full Yosys-netlist run
-uses the i386 lock's Yosys `238eac9a4`
+uses the i386 lock's Yosys `0a7927bf126eb3d868c50b3bb5e11b69ff656ea9`
 ([lockstep-netlist-report.json](lockstep-netlist-report.json)). The netlist
 runner's `--same-as` check reports no architectural differences. After
-removing the `yosys` and `same_as` metadata, the reports are identical.
+removing the `yosys`, `yosys_commit` and `same_as` metadata, the reports are
+identical.
 
 | Run | Result |
 | --- | --- |
@@ -148,17 +155,19 @@ removing the `yosys` and `same_as` metadata, the reports are identical.
 | Unbuilt encodings | 50,272 outside SCOPE, all stopped as not built |
 | Directed cases | 40 pass |
 | Unreal-mode cases | 7 pass, including `cs-delivery` |
-| Protected-mode cases | 89 pass (38 CS-limit cases, 4 from #1411's #1424 fix) |
+| Protected-mode cases | 92 pass (41 CS-limit cases, 4 from #1411's #1424 fix) |
 | No-387 cases | 1,933 pass |
 | Memory cases (DMA, FLUSH) | 26 pass |
 
 The latency-free reruns of seeds 1 and 2 retire the same trace. The random
 failure is `random#1#1473`: REP MOVSB stores over its own code, the same
 pre-existing harness gap on slice 2 and both current implementations.
-The focused `tests.test_fes_i386_lockstep` suite also passes all 11 tests,
-including the directed-suite `cs_limit` same-as comparison.
+The focused `tests.test_fes_i386_lockstep` suite passes all 11 tests at this
+head, including short RTL and Yosys-netlist runs and the directed-suite
+`cs_limit` same-as comparison.
 
-**The new directed cases** (`--mode pmode`, 38 of the 89). Each far-jumps
+**The original directed CS-limit cases** (`--mode pmode`, 38 of the 89 at
+`df7ff8a9`). Each far-jumps
 to code it places under a code descriptor of a small limit:
 - 16-bit and 32-bit code (78h, 80h, limit 0Fh):
   - running off the end, an instruction across the limit, a HLT at the
@@ -180,6 +189,12 @@ Each ending is checked (the #GP's handler, error code 0 in protected mode,
 or the HLT), and every retirement against Bochs. With slice 2's RTL 37 of
 the 38 fail (stops as not built, or #GP at the wrong place); the 38th, the
 far jump's own offset, was already built.
+
+`c00efad2` adds three 16-bit cases: `cs16-sysop-next-limit` and
+`cs16-into-next-limit` check the next fetch when a system uop or INTO ends at
+10000h under a 64 KiB CS limit; `cs16-sysop-past-64k` checks that a system uop
+keeps the full next EIP when sequential execution has crossed 64 KiB under a
+larger limit. This brings the directed protected-mode suite to 92 cases.
 
 **The random protected-mode programs** gain two code descriptors at the
 program's CS base in place of two of the GDT's random entries: 22 (B0h),
@@ -278,8 +293,9 @@ regressions, generated-consumer consistency and misteross's tests (1,627,
 `5d231b804` ([`seal-summary.json`](seal-summary.json)), Quartus Prime Lite
 17.0.2 on the pc386 lock's Yosys `0a7927bf` netlist. All 109 input hashes
 match `5d231b804`. The seal predates the #1430 merge (`81ab9086c`) and
-`df7ff8a9`'s restoration of the real-mode delivery IP cut. Both changes are
-covered by the pc386 reseal exemption and need no reseal before merge. When
+`df7ff8a9`'s restoration of the real-mode delivery IP cut, and `c00efad2`'s
+next-instruction redirect fix. The existing pc386 reseal exemption covers
+these changes; no reseal is required before merge. When
 this seal was first recorded, the only later RTL difference was #1424's
 `fes_i386_decode.sv`, `fes_i386_pkg.sv` and `fes_i386_ucode_rom.sv` fix
 ([Inputs](#inputs)). Every analysis passes, with no illegal or unconstrained
