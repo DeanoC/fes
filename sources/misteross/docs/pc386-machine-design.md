@@ -1016,6 +1016,10 @@ It also proves that the runtime's cache clean reached DDR.
   86Box). It also gets a disk builder that makes a bootable FAT16 image from
   FreeDOS plus a folder of the player's game files, shipping FreeDOS with its
   GPL source obligations met ([below](#freedos-in-the-fogcast-disk-builder)).
+  It formats FAT16 with DOS FORMAT's 2 KiB clusters (16 to 128 MiB), not the
+  512 bytes mtools picks at 32 MiB: FreeDOS follows a file's FAT chain from
+  its first cluster on every backward seek, so small clusters make random
+  reads of a large file slow (DOOM's 11 MB WAD, #1437).
   The builder is follow-up work in FogCast, not part of this design's PR.
   Until it lands, Phase 3 test images come from repository tooling that uses
   the same pinned FreeDOS archives.
