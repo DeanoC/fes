@@ -6186,8 +6186,9 @@ uint64_t env(const char *name, uint64_t fallback) {
 // the OUT itself):
 //   MARK <port> <value> <cycle> <charged>
 // With FES_I386_IRQ_PERIOD set, once the program marks 40h on port 80h it
-// raises INTR (vector 20h) that many cycles after the last one's handler
-// marked port 81h, until it marks port 8Fh, and prints each:
+// raises INTR (vector 20h) that many cycles after that mark, and after each
+// handler's mark on port 81h, until it marks port 8Fh (so the first one
+// waits out the debt the program's earlier loops left), and prints each:
 //   IRQ <cycle>
 // Last, the GPRs, EFLAGS and EIP it halted with, and the run:
 //   STATE <eax> <ecx> <edx> <ebx> <esp> <ebp> <esi> <edi> <eflags> <eip>
@@ -6234,7 +6235,10 @@ void run_governor(Rtl &rtl, Summary &summary) {
             const IoAccess &access = rtl.io.log[seen];
             if (!access.write || access.port < 0x80 || access.port > 0x8f) continue;
             marks.push_back({access.port, access.data, cycle});
-            if (access.port == 0x80 && access.data == 0x40) armed = true;
+            if (access.port == 0x80 && access.data == 0x40) {
+                armed = true;
+                next_irq = cycle + period;
+            }
             if (access.port == 0x81) {
                 handled = true;
                 next_irq = cycle + period;
