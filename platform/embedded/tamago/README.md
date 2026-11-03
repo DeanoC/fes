@@ -33,6 +33,14 @@ activation support. See the
 [board selection and firmware contract](board/README.md) for exact scope and
 bring-up commands. The bounded [Nano boot and read-only SD diagnostics](../nano/README.md)
 now pass; other physical device and core-launch qualification remains open.
+The explicit `fpgaload --window-memory` mode accepts only the sealed
+`hps-ddr-window` personality and its complete 4 MiB reservation. It links the
+existing tenfoot renderer, publishes one XRGB frame under closed ownership,
+then configures and checks the matched endpoint while keeping FPGA data access
+held. Native entry and cold firmware carry the same opt-in and map. This mode
+cannot use `--ddr-read` or the computer-control modes, and grants no display,
+buffer reuse or ordinary runtime admission.
+
 The Nano-only `fpga` program cross-builds a read-only TF-A SDM mailbox probe.
 It reports silicon IDCODE and configuration status, without programming,
 opening bridges or establishing a live package identity. See [SDM](sdm/README.md).

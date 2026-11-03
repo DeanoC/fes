@@ -11,6 +11,11 @@
 #include <cstring>
 
 struct Fixture {
+#ifdef FES_WINDOW_STOP_TEST
+    static constexpr bool window=true;
+#else
+    static constexpr bool window=false;
+#endif
     Vfes_de25_embedded d;
     Probe p;
     struct fes_nano_fabric_stop stop{};
@@ -20,6 +25,7 @@ struct Fixture {
     unsigned reads=0,probe_reads=0,writes=0,cancels=0,waits=0,fail_read=0;
     bool owned=true,stall=true,responses=false,golden=false;
     unsigned addresses=0,beats=0;
+    unsigned request_row=0,request_offset=0;
     static constexpr uint32_t build[4]={0xccddeeff,0x8899aabb,0x44556677,0x00112233};
     /* Independent little-endian vector from hps_context.reader_pattern(),
      * not the helper under test, supplies the external memory bus. */
@@ -27,14 +33,15 @@ struct Fixture {
                                              0x369ca8ab,0x59542ed2,0xfb0d9419,0x1dc51a40};
     explicit Fixture(std::string f="",bool active=true):fault(std::move(f)) {
         stop.io={this,owns,read,write,wait};stop.probe.io={this,owns,probe_read,probe_write,wait};
-        stop.abi=0x10203041;std::copy(std::begin(build),std::end(build),stop.build);
-        stop.bus_base=0x95000000;stop.bytes=8192;stop.cookie=7;stop.qualified=1;
+        stop.abi=window?0x10203042:0x10203041;std::copy(std::begin(build),std::end(build),stop.build);
+        stop.bus_base=0x95000000;stop.bytes=window?(4U<<20):8192;stop.cookie=7;stop.qualified=1;
         d.reset_n=0;d.address=0;d.read=0;d.write=0;d.byteenable=15;d.writedata=0;
         d.ddr_bvalid=0;d.ddr_bresp=0;d.ddr_bid=0;d.ddr_awready=0;d.ddr_wready=0;
         tick();tick();d.reset_n=1;tick();
         if(active) {
             csr_write(36,1);csr_write(40,0);csr_write(52,1);
-            csr_write(0x84,0x95000000);csr_write(0x88,1);csr_write(0x80,12);
+            if(window) {csr_write(0x84,1);csr_write(0x88,0);csr_write(0x8c,1);csr_write(0x80,1);}
+            else {csr_write(0x84,0x95000000);csr_write(0x88,1);csr_write(0x80,12);}
             p.start(Descriptor{});
         }
     }
@@ -50,7 +57,13 @@ struct Fixture {
         d.eval();bool ar=d.ddr_arvalid && d.ddr_arready,r=d.ddr_rvalid && d.ddr_rready;
         require(!d.ddr_awvalid && !d.ddr_wvalid && !d.ddr_wstrb,"reader issued a DDR write");
         unsigned count=d.ddr_arlen+1;
-        if(ar) { require(d.ddr_araddr==0x95000000 && d.ddr_arsize==4 && count==2,"reader address/length differs");addresses++; }
+        if(ar) {
+            uint32_t expected=window?0x95000000+request_row*5120+request_offset:0x95000000;
+            unsigned bytes=window?std::min(5120-request_offset,4096-(expected&4095)):32;
+            require(d.ddr_araddr==expected && d.ddr_arsize==4 && count*16==bytes,"reader address/length differs");
+            if(window) {request_offset+=bytes;if(request_offset==5120){request_offset=0;request_row++;}}
+            addresses++;
+        }
         d.clk=1;d.eval();
         if(r) { beats++;pending.front().index++;if(!--pending.front().left)pending.pop_front(); }
         if(ar)pending.push_back({count});
@@ -80,7 +93,7 @@ struct Fixture {
         if(f.fault=="build" && offset==12)*value^=1;
         if(f.fault=="base" && offset==0xb0)*value^=4096;
         if(f.fault=="span" && offset==0xb4)*value^=4096;
-        if(f.fault=="maintenance" && offset==0xb8)*value=0;
+        if(f.fault=="maintenance" && offset==(window?0xc8U:0xb8U))*value=0;
         if(f.fault=="reserved" && offset==56)*value|=16;
         if(f.fault=="pending" && offset==60)*value|=8;
         if(f.fault=="queue" && offset==60)*value=5;
@@ -135,6 +148,7 @@ struct Fixture {
 
 #include "nano_ddr_read_test.inc"
 
+#ifndef FES_WINDOW_STOP_TEST
 int main() {
     try {
         unsigned cases=0,points=0;
@@ -184,3 +198,4 @@ int main() {
         return 0;
     } catch(const std::exception& e) {std::cerr<<"fabric stop: "<<e.what()<<"\n";return 1;}
 }
+#endif

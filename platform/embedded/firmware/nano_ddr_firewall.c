@@ -36,7 +36,8 @@ int fes_nano_ddr_firewall_observe(struct fes_nano_ddr_firewall_probe *s,struct f
     if (s->failed) return s->first_error;
     if (s->attempted) return -1;
     s->attempted=1;
-    if (!s->io.owns || !s->io.read32) return fail(s,-22);
+    const uint32_t bytes=s->window_bytes;
+    if (!s->io.owns || !s->io.read32 || (bytes!=8192U && bytes!=(4U<<20))) return fail(s,-22);
     struct fes_nano_ddr_firewall_snapshot a,b;
     if (sample(s,&a) || sample(s,&b)) return s->first_error;
     if (memcmp(&a,&b,sizeof(a))) return fail(s,-11);
@@ -49,10 +50,11 @@ int fes_nano_ddr_firewall_observe(struct fes_nano_ddr_firewall_probe *s,struct f
         if ((r->base&0xffffU) || (r->limit&0xffffU)!=0xffffU ||
             (r->baseext|r->limitext)&~255U || ((b.enable&(1U<<i)) && first>last)) observed.layout_known=0;
         if ((b.enable&(1U<<i)) && first<=FES_NANO_DDR_FIREWALL_WINDOW &&
-            last>=FES_NANO_DDR_FIREWALL_WINDOW+FES_NANO_DDR_FIREWALL_BYTES-1) observed.window_covered=1;
+            last>=FES_NANO_DDR_FIREWALL_WINDOW+bytes-1) observed.window_covered=1;
     }
     observed.window_covered&=observed.layout_known;
     if (scope(s)) return s->first_error;
+    if (s->window_bytes!=bytes) return fail(s,-1);
     *out=observed;
     return 0;
 }

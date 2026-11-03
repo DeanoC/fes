@@ -103,7 +103,9 @@ separate requirements. No observer result grants a bridge or DMA capability.
 
 The cold DDR profile also observes all eight F2SDRAM firewall regions twice
 through `nano_ddr_firewall.c`. It checks the RC28 register layout and whether
-an enabled region covers the fixed 8192-byte bus window. The provider requires
+an enabled region covers the explicitly selected 8192-byte or 4 MiB sealed bus
+window. Missing, unsupported or changed window requests reject without a usable
+observation. The provider requires
 closed cold ownership, EL3 with MMU/cache off, and MPFE out of reset around
 every read. Unstable samples, access failures and lost scope retire the
 observation without replay. The helper has no write or bridge callbacks.

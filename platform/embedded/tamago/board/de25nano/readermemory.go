@@ -20,9 +20,19 @@ var readerMemoryRegion *nativefabric.Region
 // heap, FIT, configuration DMA and entry staging. It stays owned until reboot,
 // including after a failed mapping or caller check. It supplies no Release.
 func ReserveReaderMemory(source []byte) (*nativefabric.Region, error) {
+	return reserveReaderMemory(source, 2<<20, 8192)
+}
+
+// ReserveWindowMemory retains the complete compiled 4 MiB arena through reboot.
+// The same single-attempt owner prevents overlap with the fixed-reader API.
+func ReserveWindowMemory(source []byte) (*nativefabric.Region, error) {
+	return reserveReaderMemory(source, 4<<20, 4<<20)
+}
+
+func reserveReaderMemory(source []byte, arenaBytes uint64, sourceBytes int) (*nativefabric.Region, error) {
 	readerMemoryMu.Lock()
 	defer readerMemoryMu.Unlock()
-	if readerMemoryAttempted || profileReaderMemoryBase != 0x95000000 || profileReaderMemoryArenaBytes != 2<<20 || len(source) != 8192 {
+	if readerMemoryAttempted || profileReaderMemoryBase != 0x95000000 || profileReaderMemoryArenaBytes != arenaBytes || len(source) != sourceBytes {
 		return nil, errors.New("DE25: cold reader reservation unavailable")
 	}
 	readerMemoryAttempted = true

@@ -18,14 +18,15 @@ static uint64_t pair(const struct fes_nano_fabric_snapshot *v,unsigned low)
 { return v->words[low] | ((uint64_t)v->words[low+1]<<32); }
 static int snapshot(struct fes_nano_fabric_stop *s,struct fes_nano_fabric_snapshot *v)
 {
-    static const uint32_t offsets[]={FES_EMBEDDED_REG_MAGIC,FES_EMBEDDED_REG_VERSION,FES_EMBEDDED_REG_ABI,
+    const uint32_t offsets[]={FES_EMBEDDED_REG_MAGIC,FES_EMBEDDED_REG_VERSION,FES_EMBEDDED_REG_ABI,
         FES_EMBEDDED_REG_BUILD0,FES_EMBEDDED_REG_BUILD1,FES_EMBEDDED_REG_BUILD2,FES_EMBEDDED_REG_BUILD3,
         FES_EMBEDDED_REG_GENERATION_LO,FES_EMBEDDED_REG_GENERATION_HI,
         FES_EMBEDDED_REG_REQUEST_GENERATION_LO,FES_EMBEDDED_REG_REQUEST_GENERATION_HI,
         FES_EMBEDDED_REG_REQUEST_COOKIE_LO,FES_EMBEDDED_REG_REQUEST_COOKIE_HI,
         FES_EMBEDDED_REG_STATUS,FES_EMBEDDED_REG_PENDING,
         FES_EMBEDDED_REG_ACK_GENERATION_LO,FES_EMBEDDED_REG_ACK_GENERATION_HI,
-        FES_EMBEDDED_REG_ACK_COOKIE_LO,FES_EMBEDDED_REG_ACK_COOKIE_HI,0xb0,0xb4,0xb8};
+        FES_EMBEDDED_REG_ACK_COOKIE_LO,FES_EMBEDDED_REG_ACK_COOKIE_HI,0xb0,0xb4,
+        s->abi==0x10203042U ? 0xc8U : 0xb8U};
     for (unsigned i=0;i<22;i++) {
         if (scope(s)) return s->first_error;
         s->reads++;
@@ -114,8 +115,10 @@ int fes_nano_fabric_stop(struct fes_nano_fabric_stop *s)
     s->attempted=1;
     unsigned build=0;
     for (unsigned i=0;i<4;i++) build|=s->build[i];
-    if (s->qualified!=1 || s->abi!=0x10203041U || !build || !s->cookie ||
-        s->bus_base!=0x95000000U || s->bytes!=8192U ||
+    unsigned reader=(s->abi==0x10203041U && s->bytes==8192U) ||
+                    (s->abi==0x10203042U && s->bytes==(4U<<20));
+    if (s->qualified!=1 || !reader || !build || !s->cookie ||
+        s->bus_base!=0x95000000U ||
         !s->io.owns || !s->io.read32 || !s->io.write32 || !s->io.wait ||
         !s->probe.io.owns || !s->probe.io.read32 || !s->probe.io.write32 || !s->probe.io.wait)
         return fail(s,-22);

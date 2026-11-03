@@ -373,7 +373,8 @@ uint32_t mmio_read_32(uintptr_t a)
 #ifdef FES_NANO_READER_CPU_BASE
         if(offset==0xb0)value=FES_NANO_READER_BUS_BASE^(master_fault==6);
         if(offset==0xb4)value=FES_NANO_READER_BYTES^(master_fault==7);
-        if(offset==0xb8)value=master_fault==5?0:1;
+        if(offset==(FES_NANO_CONTROL_ABI==0x10203042U?0xc8U:0xb8U))value=master_fault==5?0:1;
+        if(FES_NANO_CONTROL_ABI==0x10203042U && offset==0xb8U)assert(0); /* row bytes are not maintenance hold */
         if(master_fault==8 && fpga_reads>30 && offset==FES_EMBEDDED_REG_BUILD0)value^=1;
         if(master_fault==11 && fpga_reads==31)release_locked=0;
         if(master_fault==12 && fpga_reads>30 && offset==FES_EMBEDDED_REG_STATUS)value=16;

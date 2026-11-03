@@ -84,6 +84,60 @@ class HPSContextTests(unittest.TestCase):
             with patch.object(context,'_derive',return_value=self.descriptor):
                 self.assertIsNone(context._reader_memory(project))
 
+    def test_window_memory_requires_its_explicit_geometry_identity_and_stop_contract(self):
+        descriptor=dict(self.descriptor,programming_profile='de25-embedded-hps-first-window-diagnostic-v1',
+                        control_abi=0x10203042,package_id='d'*64,build_id='e'*32)
+        params={'reader_memory_backend':'hps-ddr-window','reader_memory_base':0x95000000,'reader_memory_bytes':4<<20}
+        memory=context.reader_memory_contract(descriptor,params)
+        fixture=ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-window-memory.json'
+        self.assertEqual(context.encode(memory),fixture.read_bytes())
+        self.assertEqual(context.validate_reader_memory(descriptor,memory),memory)
+        for key,value in (('reader_memory_backend','hps-ddr'),('reader_memory_base',0x95001000),
+                          ('reader_memory_bytes',8192),('reader_memory_bytes',True)):
+            with self.subTest(parameter=key),self.assertRaises(ValueError):
+                context.reader_memory_contract(descriptor,dict(params,**{key:value}))
+        configuration={'base':0x94800000,'size':8<<20,'core_size':128,'chunk_bytes':65536,
+                       'core_sha384':'d'*96,'chunk_sha384':['d'*96]}
+        control={'cpu_base':0x20010400,'span':256,'fabric_stop':{'scope':'sealed-window-master-stop-v1',
+                 'probe_cpu_base':0x20010100,'probe_span':128,'maintenance':'held-reset-from-configuration'}}
+        profile={'sd_pio':True,'chain_sha256':'a'*64,'owner_seed':1,'entry_image_sha256':'b'*64,'entry_image_size':128,
+                 'window_memory':True,'hps_context':descriptor,'hps_context_sha256':context.digest(descriptor),
+                 'hps_control':control,'hps_control_sha256':'c'*64,'hps_configuration':configuration,
+                 'hps_reader_memory':memory,'hps_reader_memory_sha256':context.digest(memory)}
+        profile['cpu_mapping']=context.cpu_mapping(control,configuration,memory)
+        profile['cpu_mapping_sha256']=context.digest(profile['cpu_mapping'])
+        self.assertEqual(profile['cpu_mapping']['reader_bytes'],4<<20)
+        header=cold.header(profile)
+        for line in ('#define FES_NANO_WINDOW_MEMORY 1','#define FES_NANO_READER_BYTES 4194304U',
+                     '#define FES_NANO_READER_ARENA_BYTES 4194304U','#define FES_NANO_WINDOW_FRAME_BYTES 3686400U',
+                     '#define FES_NANO_WINDOW_ROW_BYTES 5120U','#define FES_NANO_WINDOW_ROWS 720U',
+                     '#define FES_NANO_DDR_READ_DIAGNOSTIC 0'):
+            self.assertIn(line,header)
+        self.assertNotIn('FES_NANO_READER_PATTERN_SHA',header)
+        for key,value in memory.items():
+            changed=dict(memory,**{key:True if type(value) is int else 'changed'})
+            with self.subTest(memory_field=key),self.assertRaises(ValueError):
+                cold.header(dict(profile,hps_reader_memory=changed,hps_reader_memory_sha256=context.digest(changed)))
+        for key,value in (('window_memory',False),('window_memory',1),('hps_reader_memory',None),
+                          ('hps_ddr_read',{}),('hps_computer',{}),
+                          ('hps_control',dict(control,fabric_stop=dict(control['fabric_stop'],scope='sealed-ddr-master-stop-v1')))):
+            with self.subTest(header_field=key),self.assertRaises(ValueError):cold.header(dict(profile,**{key:value}))
+
+    def test_window_entry_mode_requires_the_exact_single_linker_assignment(self):
+        spec=importlib.util.spec_from_file_location('window_native_entry',NANO.parent/'entry/build.py')
+        entry=importlib.util.module_from_spec(spec);spec.loader.exec_module(entry)
+        memory={'scope':'sealed-cold-window-reader-memory-v1'}
+        def receipt(flags,selected=True):return {'window_memory':selected,'command':['compiler','build','-ldflags',flags]}
+        self.assertTrue(entry.window_memory_option(receipt('-T 0x84000000 -X main.expectedWindowMemory=1'),memory))
+        self.assertFalse(entry.window_memory_option(receipt('-T 0x84000000',False),None))
+        for flags in ('-X main.expectedWindowMemory=10','-X main.expectedWindowMemory=1 -X main.expectedWindowMemory=1',
+                      'main.expectedWindowMemory=1','-X=main.expectedWindowMemory=1','-X "main.expectedWindowMemory=1', ''):
+            with self.subTest(flags=flags),self.assertRaises(ValueError):entry.window_memory_option(receipt(flags),memory)
+        for changed in (receipt('-X main.expectedWindowMemory=1',False),receipt('-X main.expectedWindowMemory=1',1),
+                        {'window_memory':True,'command':[]},{'window_memory':True,'command':['-ldflags',1]}):
+            with self.subTest(changed=changed),self.assertRaises(ValueError):entry.window_memory_option(changed,memory)
+        with self.assertRaises(ValueError):entry.window_memory_option(receipt('-X main.expectedWindowMemory=1'),None)
+
     def test_configuration_receipt_requires_its_dedicated_source_and_map(self):
         mapping={'format':1,'base':0x94800000,'size':8<<20,'core_size':128,
                  'chunk_bytes':65536,'core_sha384':hashlib.sha384(bytes(128)).hexdigest(),
@@ -117,7 +171,8 @@ class HPSContextTests(unittest.TestCase):
             self.assertIsNone(context.checked_reader_memory(dict(self.record,program='fpgaload')))
             with self.assertRaises(ValueError):context.checked_reader_memory(record)
         self.assertIsNone(context.checked_reader_memory({'program':'fpgastatus'}))
-        ddr=dict(self.descriptor,programming_profile='de25-embedded-hps-first-ddr-diagnostic-v1',control_abi=0x10203041)
+        ddr=dict(self.descriptor,programming_profile='de25-embedded-hps-first-ddr-diagnostic-v1',control_abi=0x10203041,
+                 package_id=memory['package_id'],build_id=memory['build_id'])
         header_profile={'sd_pio':True,'chain_sha256':'a'*64,'owner_seed':1,'entry_image_sha256':'b'*64,'entry_image_size':128,
                         'hps_context':ddr,'hps_context_sha256':context.digest(ddr),
                         'hps_control':{'cpu_base':0x20010400,'span':256,'fabric_stop':{'scope':'sealed-ddr-master-stop-v1',
@@ -291,7 +346,10 @@ class HPSContextTests(unittest.TestCase):
             output = Path(temp)/'not-created'
             common = [sys.executable, str(ROOT/'platform/embedded/tamago/run.py'),
                       '--compiler', '/bin/false', '--output', str(output)]
-            for args in (['bootcontext'], ['fpgacontext'], ['fpgastatus'],
+            for args in (['bootcontext'], ['fpgacontext'], ['fpgastatus'],['probe','--window-memory'],
+                         ['probe','--board','de25-nano','--profile',str(NANO/'probe-profile.json'),'--window-memory'],
+                         ['fpgaload','--board','de25-nano','--profile',str(NANO/'sd-profile.json'),'--window-memory','--ddr-read'],
+                         ['fpgaload','--board','de25-nano','--profile',str(NANO/'sd-profile.json'),'--window-memory','--computer-control'],
                          ['tenfoot','--board','de25-nano','--profile',str(NANO/'smmu-profile.json')],
                          ['bootcontext', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],
                          ['fpgacontext', '--board', 'de25-nano', '--profile', str(NANO/'probe-profile.json')],

@@ -440,12 +440,12 @@ int main(void) {
             header='#define FES_NANO_COLD_CHAIN {0x42,0x17}\n#define FES_NANO_COLD_OWNER_SEED 17ULL\n'
             command=['cc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=undefined','-fno-sanitize-recover=all',
                      '-I'+str(inc),'-I'+str(FW),*(str(FW/name) for name in ('nano_cold_platform.c','nano_cold.c','nano_boot.c','nano_bridges.c','nano_bridge_sip.c','nano_sd.c','nano_sd_platform.c','nano_identity.c','nano_configuration.c','nano_program.c','nano_smmu.c','nano_fabric_stop.c','nano_probe_stop.c','nano_ddr_firewall.c','nano_ddr_read.c','nano_hps_io.c','tests/nano_cold_platform_test.c'))]
-            for sd,context,probe,ddr,smmu_boot,active,io_probe in ((0,0,0,0,0,0,0),(0,1,0,0,0,0,0),(1,0,0,0,0,0,0),(1,1,0,0,0,0,0),(0,0,1,0,0,0,0),(0,1,1,0,0,0,0),(0,1,1,1,0,0,0),(0,0,0,0,1,0,0),(0,1,1,1,0,1,0),(0,1,0,0,0,0,1)):
+            for sd,context,probe,ddr,smmu_boot,active,io_probe in ((0,0,0,0,0,0,0),(0,1,0,0,0,0,0),(1,0,0,0,0,0,0),(1,1,0,0,0,0,0),(0,0,1,0,0,0,0),(0,1,1,0,0,0,0),(0,1,1,1,0,0,0),(0,0,0,0,1,0,0),(0,1,1,1,0,1,0),(0,1,0,0,0,0,1),(0,1,1,2,0,0,0)):
                 values=','.join(str(i) for i in range(32)) if context else '0'
                 extra=('#define FES_NANO_CONTROL_PROBE '+str(probe)+'\n'
                        '#define FES_NANO_SMMU_BOOT_OBSERVE '+str(smmu_boot)+'\n'
                        '#define FES_NANO_CONTROL_BASE 0x20010400UL\n'
-                       '#define FES_NANO_CONTROL_ABI '+('0x10203041U' if ddr else '0x10203040U')+'\n'
+                       '#define FES_NANO_CONTROL_ABI '+('0x10203042U' if ddr==2 else '0x10203041U' if ddr else '0x10203040U')+'\n'
                        '#define FES_NANO_CONTROL_BUILD {0x44556677,0x00112233,0xbbccddee,0x778899aa}\n'
                        '#define FES_NANO_CONTROL_MAP_SHA {1}\n')
                 if ddr:extra+=('#define FES_NANO_READER_CPU_BASE 0x95000000ULL\n'
@@ -456,6 +456,12 @@ int main(void) {
                                '#define FES_NANO_PROBE_SPAN 128U\n')
                 if active:extra+=('#define FES_NANO_DDR_READ_DIAGNOSTIC 1\n'
                                   '#define FES_NANO_DDR_READ_ATTRS_VERIFIED 1\n')
+                if ddr==2:
+                    extra=extra.replace('FES_NANO_READER_BYTES 8192U','FES_NANO_READER_BYTES 4194304U').replace(
+                        'FES_NANO_READER_ARENA_BYTES 2097152U','FES_NANO_READER_ARENA_BYTES 4194304U')
+                    extra+=('#define FES_NANO_WINDOW_MEMORY 1\n#define FES_NANO_WINDOW_FRAME_BYTES 3686400U\n'
+                            '#define FES_NANO_WINDOW_ROW_BYTES 5120U\n#define FES_NANO_WINDOW_STRIDE 5120U\n'
+                            '#define FES_NANO_WINDOW_ROWS 720U\n')
                 if io_probe:
                     import json
                     rows=json.loads((ROOT/'platform/embedded/tamago/nativefabric/testdata/hps-io.json').read_bytes())['registers']

@@ -164,6 +164,23 @@ def _reader_memory(project):
     if context['programming_profile'] == 'de25-embedded-hps-first-diagnostic-v1':
         return None
     parameters = json.loads((Path(project)/'board/hps/build-inputs.json').read_text())['parameters']
+    return reader_memory_contract(context, parameters)
+
+
+def reader_memory_contract(context, parameters):
+    """Exact compiled memory layout. This descriptor grants no FPGA access."""
+    if context['programming_profile']=='de25-embedded-hps-first-window-diagnostic-v1':
+        if (context['control_abi']!=0x10203042 or parameters.get('reader_memory_backend')!='hps-ddr-window' or
+                type(parameters.get('reader_memory_base')) is not int or parameters['reader_memory_base']!=0x95000000 or
+                type(parameters.get('reader_memory_bytes')) is not int or parameters['reader_memory_bytes']!=4<<20):
+            raise ValueError('native window reader requires its exact sealed 4 MiB window')
+        return {'format':1,'scope':'sealed-cold-window-reader-memory-v1',
+                'package_id':context['package_id'],'build_id':context['build_id'],
+                'cpu_base':0x95000000,'bus_base':0x95000000,'bytes':4<<20,
+                'arena_base':0x95000000,'arena_bytes':4<<20,
+                'cpu_attributes':'normal-uncached','lifetime':'until-reboot',
+                'fpga_addressing':'physical-identity-unqualified',
+                'row_bytes':5120,'stride':5120,'rows':720,'frame_bytes':3686400,'pixel_format':'xrgb8888'}
     if (context['programming_profile'] != 'de25-embedded-hps-first-ddr-diagnostic-v1' or
             context['control_abi'] != 0x10203041 or
             parameters.get('reader_memory_backend') != 'hps-ddr' or
@@ -179,6 +196,17 @@ def _reader_memory(project):
             'cpu_attributes': 'normal-uncached', 'lifetime': 'until-reboot',
             'fpga_addressing': 'physical-identity-unqualified',
             'pattern': 'le32-xor-nano-golden-v1', 'pattern_sha256': hashlib.sha256(reader_pattern()).hexdigest()}
+
+
+def validate_reader_memory(context, mapping):
+    if not isinstance(mapping,dict):
+        raise ValueError('compiled reader memory descriptor required')
+    window=context['programming_profile']=='de25-embedded-hps-first-window-diagnostic-v1'
+    expected=reader_memory_contract(context,{'reader_memory_backend':'hps-ddr-window' if window else 'hps-ddr',
+        'reader_memory_base':mapping.get('bus_base'),'reader_memory_bytes':mapping.get('bytes')})
+    if encode(mapping)!=encode(expected):
+        raise ValueError('reader memory differs from its compiled geometry and lifetime')
+    return expected
 
 
 def package_archive(project, mapping):
@@ -311,7 +339,7 @@ def _control(project):
     result={'format':1,'scope':'sealed-lw-identity-probe-v1','architectural_lw_base':base,
             'bridge_base':bridge,'peripheral_offset':offset,'span':end-start,'cpu_base':base+bridge+offset,
             'handoff_sha256':sha,'package_id':context['package_id'],'build_id':context['build_id']}
-    if context['programming_profile']=='de25-embedded-hps-first-ddr-diagnostic-v1':
+    if context['programming_profile'] in ('de25-embedded-hps-first-ddr-diagnostic-v1','de25-embedded-hps-first-window-diagnostic-v1'):
         _fabric_stop_inventory(Path(project))
         route=parameters('subsys_periph_pb_cpu_0.m0','subsys_periph_fes_ddr_probe.avs')
         probes=[s for s in slaves if s.get('name')=='subsys_periph.fes_ddr_probe.avs']
@@ -319,7 +347,8 @@ def _control(project):
                 int(probes[0].get('start'),0)!=0x10100 or int(probes[0].get('end'),0)!=0x10180 or
                 probes[0].get('datawidth')!='32'):
             raise ValueError('inherited DDR probe control route differs')
-        result['fabric_stop']={'scope':'sealed-ddr-master-stop-v1','probe_cpu_base':base+0x10100,
+        stop_scope='sealed-window-master-stop-v1' if context['control_abi']==0x10203042 else 'sealed-ddr-master-stop-v1'
+        result['fabric_stop']={'scope':stop_scope,'probe_cpu_base':base+0x10100,
                                'probe_span':128,'maintenance':'held-reset-from-configuration'}
     return result
 
@@ -414,8 +443,9 @@ def _fabric_stop_inventory(project):
     hps_tools=load('native_fabric_stop_hps',ROOT/'sources/misteross/boards/de25nano/hps/build.py')
     hps=project/'board/hps';record=json.loads((hps/'inputs.json').read_text())
     source=record['functional_snapshot_sha256'];memory=record['reader_memory']
-    if memory!={'backend':'hps-ddr','bus_base':0x95000000,'bytes':8192}:
-        raise ValueError('master stop requires the fixed DDR diagnostic')
+    if memory not in ({'backend':'hps-ddr','bus_base':0x95000000,'bytes':8192},
+                      {'backend':'hps-ddr-window','bus_base':0x95000000,'bytes':4<<20}):
+        raise ValueError('master stop requires an exact compiled DDR reader window')
     board=SimpleNamespace(JTAG_CONTROL_BRIDGE_BASE=record['embedded_control']['jtag_bridge_base'])
     proof=builder.verify_control(hps/'project',hps_tools,board,memory)
     if (proof['maintenance_masters']!='held-reset-from-configuration' or
@@ -571,7 +601,7 @@ def cpu_mapping(control_map, configuration_map, reader_map):
             'reader_bytes':reader_map['arena_bytes'] if reader_map else 0}
     if (any(type(v) is not int for v in fields.values()) or
             (fields['control_base'],fields['control_bytes'],fields['dma_base'],fields['dma_bytes'])!=(0x20010400,256,0x94800000,8<<20) or
-            (fields['reader_base'],fields['reader_bytes']) not in ((0,0),(0x95000000,2<<20))):
+            (fields['reader_base'],fields['reader_bytes']) not in ((0,0),(0x95000000,2<<20),(0x95000000,4<<20))):
         raise ValueError('unsupported source-derived native CPU resource layout')
     return dict(format=1,scope='pinned-tamago-el1-resources-v1',**fields)
 

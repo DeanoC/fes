@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import shlex
 import struct
 import subprocess
 
@@ -22,6 +23,27 @@ ROOT = HERE.parents[2]
 QEMU_IMAGE_ADDRESS = 0x58080000
 QEMU_RAM_START, QEMU_RAM_END = 0x40000000, 0x50000000
 QEMU_UART_BASE = 0x09000000
+
+
+def window_memory_option(receipt, memory):
+    selected=receipt.get('window_memory',False)
+    if (type(selected) is not bool or selected !=
+            (memory is not None and memory.get('scope')=='sealed-cold-window-reader-memory-v1')):
+        raise ValueError('window memory selection differs from its complete compiled map')
+    command=receipt.get('command',[])
+    try:
+        flags=command[command.index('-ldflags')+1]
+        tokens=shlex.split(flags)
+    except (ValueError,IndexError,AttributeError,TypeError):
+        raise ValueError('window memory requires the native link command') from None
+    options=[(i,word) for i,word in enumerate(tokens) if 'main.expectedWindowMemory' in word]
+    if selected:
+        if (len(options)!=1 or options[0][1]!='main.expectedWindowMemory=1' or
+                options[0][0]==0 or tokens[options[0][0]-1]!='-X'):
+            raise ValueError('window memory selection differs from the native link command')
+    elif options:
+        raise ValueError('unselected window memory appears in the native link command')
+    return selected
 
 
 class Segment(ctypes.Structure):
@@ -68,6 +90,7 @@ def main():
     native_selected_programs = False
     native_reload = False
     native_storage_return = False
+    native_window_memory = False
     if args.target == "qemu":
         if args.nano_build or args.profile or args.image_address is not None:
             parser.error("Nano receipt, profile and load address are only valid with --target de25-nano")
@@ -106,6 +129,7 @@ def main():
         native_selected_programs=receipt.get('selected_programs',False)
         native_reload=receipt.get('computer_reload',False)
         native_storage_return=receipt.get('computer_storage_return',False)
+        native_window_memory=window_memory_option(receipt,native_reader_memory)
         command=receipt.get('command',[])
         flags=command[command.index('-ldflags')+1] if isinstance(command,list) and '-ldflags' in command and command.index('-ldflags')+1<len(command) else ''
         if not isinstance(flags,str) or native_reload!=('-X main.expectedComputerReload=1' in flags):
@@ -276,6 +300,7 @@ def main():
               "hps_computer":native_computer,
               "hps_computer_sha256":hps.digest(native_computer) if native_computer is not None else None,
               "computer_reload":native_reload,
+              "window_memory":native_window_memory,
               "computer_storage_return":native_storage_return,
               "selected_programs":native_selected_programs,
               "hps_program_platform":native_program_platform,

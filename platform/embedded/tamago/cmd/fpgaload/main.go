@@ -23,6 +23,7 @@ import (
 
 var expectedBootContext, expectedControlMap, expectedConfigurationMap, expectedReaderMemoryMap string
 var expectedDDRReadMap string
+var expectedWindowMemory string
 var expectedComputerMap, expectedComputerReload string
 var expectedComputerStorageReturn string
 var expectedProgramPlatform, expectedSelectedPrograms string
@@ -50,12 +51,21 @@ func main() {
 		panic("storage return requires the selected two-load computer diagnostic")
 	}
 	cpu := de25nano.FabricCPUTransport{}
-	v, err := nativefabric.NewHPSContextVerifier(cpu, decoded(expectedBootContext, 8192))
+	control, configuration := decoded(expectedControlMap, 8192), decoded(expectedConfigurationMap, 32768)
+	var v *nativefabric.HPSContextVerifier
+	var err error
+	if expectedWindowMemory != "" {
+		if expectedWindowMemory != "1" || expectedDDRReadMap != "" || expectedComputerMap != "" || expectedComputerReload != "" || expectedProgramPlatform != "" || expectedSelectedPrograms != "" || expectedComputerStorageReturn != "" {
+			panic("window memory requires its separate contained frame diagnostic")
+		}
+		v, err = nativefabric.NewWindowHPSContextVerifier(cpu, decoded(expectedBootContext, 8192), control, decoded(expectedReaderMemoryMap, 8192))
+	} else {
+		v, err = nativefabric.NewHPSContextVerifier(cpu, decoded(expectedBootContext, 8192))
+	}
 	if err != nil {
 		panic(err)
 	}
 	id := v.Identity()
-	control, configuration := decoded(expectedControlMap, 8192), decoded(expectedConfigurationMap, 32768)
 	var loader *nativefabric.ProgramLoader
 	if expectedSelectedPrograms != "" {
 		if expectedSelectedPrograms != "1" || expectedComputerMap == "" || expectedDDRReadMap != "" || expectedComputerReload != "1" || expectedComputerStorageReturn != "1" {
@@ -114,6 +124,21 @@ func main() {
 		}
 		fmt.Printf("FES_NATIVE_FPGA_READER_MEMORY PINNED cpu_base=%x bus_base=%x bytes=%d arena_bytes=%d map_sha256=%x pattern_sha256=%x owner=%x generation=%d fpga_access=unqualified\n",
 			memory.CPUBase, memory.BusBase, memory.Bytes, memory.ArenaBytes, memory.MapSHA256, memory.PatternSHA256, closed.Owner, closed.Generation)
+	} else if expectedWindowMemory == "1" {
+		frame, err := windowFrame()
+		if err != nil {
+			panic(err)
+		}
+		memory, err := v.ReserveWindowMemory(frame, de25nano.ReserveWindowMemory)
+		if err != nil {
+			panic(err)
+		}
+		if memory.Source.Bridges.Owner != closed.Owner || memory.Source.Bridges.Generation != closed.Generation {
+			panic("window publication differs from storage containment")
+		}
+		fmt.Printf("FES_NATIVE_FPGA_WINDOW_MEMORY PINNED cpu_base=%x bus_base=%x bytes=%d frame_bytes=%d row_bytes=%d stride=%d rows=%d map_sha256=%x frame_sha256=%x crc32=%08x owner=%x generation=%d fpga_access=held lifetime=until-reboot renderer=tenfoot\n",
+			memory.CPUBase, memory.Geometry.Base, memory.ArenaBytes, memory.FrameBytes, memory.Geometry.RowBytes, memory.Geometry.Stride, memory.Geometry.Rows,
+			memory.MapSHA256, memory.FrameSHA256, memory.CRC32, closed.Owner, closed.Generation)
 	} else if expectedReaderMemoryMap != "" {
 		panic("on-chip reader cannot supply a DDR memory map")
 	}
@@ -211,7 +236,7 @@ func main() {
 	}
 	program(v, configuration, source)
 	var observed nativefabric.FPGAIdentityObservation
-	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
+	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile || id.ProgrammingProfile == nativefabric.HPSFirstWindowDiagnosticProfile {
 		if expectedDDRReadMap != "" {
 			observed, err = v.ProbeDDRReader(control, decoded(expectedReaderMemoryMap, 8192), decoded(expectedDDRReadMap, 8192))
 		} else {
@@ -228,7 +253,9 @@ func main() {
 	}
 	fmt.Printf("FES_NATIVE_FPGA_IDENTITY PASS package_id=%s build_id=%s abi=%x base=%x map_sha256=%s owner=%x generation=%d data_held=1 runtime_programming=unavailable\n",
 		id.PackageID, id.BuildID, observed.Identity.ABI, observed.CPUBase, hex.EncodeToString(observed.ControlMapSHA256[:]), observed.After.Owner, observed.After.Generation)
-	if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
+	if id.ProgrammingProfile == nativefabric.HPSFirstWindowDiagnosticProfile {
+		fmt.Printf("FES_NATIVE_FPGA_WINDOW_READER BLOCKED owner=%x generation=%d data_held=1 translation=unqualified runtime_programming=unavailable\n", observed.After.Owner, observed.After.Generation)
+	} else if id.ProgrammingProfile == nativefabric.HPSFirstDDRDiagnosticProfile {
 		if expectedDDRReadMap != "" {
 			fmt.Printf("FES_NATIVE_FPGA_DDR_READER PASS owner=%x generation=%d reader_generation=1 cookie=7 bytes=32 data_closed=1 runtime_programming=unavailable\n", observed.After.Owner, observed.After.Generation)
 		} else {

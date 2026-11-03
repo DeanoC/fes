@@ -170,6 +170,44 @@ func TestUnsupportedCPUStateRejectsBeforeAnyTableOrTargetAccess(t *testing.T) {
 	}
 }
 
+func TestCompleteWindowUsesBothUncachedBlocksAndRejectsTheSecondBlockChanging(t *testing.T) {
+	for fault := 0; fault < 3; fault++ {
+		m := tables()
+		mapper, err := NewMapper(m, 0x84000000, 256<<20)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = mapper.Map(0x95000000, 4<<20); err != nil {
+			t.Fatal(err)
+		}
+		if m.sets != 1 || m.writes != 4 {
+			t.Fatal("the complete arena did not publish both blocks", m.sets, m.writes)
+		}
+		second := uint64(0x84006000) + ((uint64(0x95200000)>>21)&511)*8
+		if fault == 1 {
+			m.words[second] &^= 7 << 2 // The later half is Device, not Normal uncached.
+		} else if fault == 2 {
+			m.words[second] ^= 1 << 21 // The later half aliases the first block.
+		}
+		observation, err := mapper.Inspect([]Range{{0x95000000, 4 << 20, Uncached}})
+		if fault != 0 {
+			if err == nil || observation != (Observation{}) {
+				t.Fatal(fault, observation, err)
+			}
+			continue
+		}
+		if err != nil || observation.Bytes != 4<<20 || observation.Translations == 0 {
+			t.Fatal(observation, err)
+		}
+		for _, write := range []bool{false, true} {
+			physical, err := m.Translate(0x953fffff, write)
+			if err != nil || (physical&pageMask) != 0x953ff000 || physical>>56 != 0x44 {
+				t.Fatal("last page lacks the requested mapping", physical, err)
+			}
+		}
+	}
+}
+
 func TestUnmappedOrAliasedTablePageIsNeverDereferenced(t *testing.T) {
 	for _, bad := range []uint64{0, 0x86000000 | 0x705, 0x84000000 | 0x701, 0x84000000 | 0x785} {
 		m := tables()

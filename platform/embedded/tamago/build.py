@@ -211,10 +211,13 @@ def build(args):
     expected_package_id=package_option(args.program,args.package_id,profile)
     context=io_map=cpu_map=control_map=configuration_map=reader_memory_map=ddr_read_map=computer_map=None
     active_ddr=getattr(args,'ddr_read',False)
+    window_memory=getattr(args,'window_memory',False)
+    if type(window_memory) is not bool or window_memory and (args.program!='fpgaload' or active_ddr):
+        raise ValueError('--window-memory requires Nano fpgaload, separately from --ddr-read')
     if type(active_ddr) is not bool or active_ddr and args.program!='fpgaload':
         raise ValueError('--ddr-read requires the Nano fpgaload diagnostic')
     computer_control=getattr(args,'computer_control',False)
-    if type(computer_control) is not bool or computer_control and (args.program!='fpgaload' or active_ddr):
+    if type(computer_control) is not bool or computer_control and (args.program!='fpgaload' or active_ddr or window_memory):
         raise ValueError('--computer-control requires control-only Nano fpgaload, separately from --ddr-read')
     computer_reload=getattr(args,'computer_reload',False)
     if type(computer_reload) is not bool or computer_reload and not computer_control:
@@ -237,6 +240,8 @@ def build(args):
         hps=importlib.util.module_from_spec(spec);spec.loader.exec_module(hps)
         hps_project=hps_project.resolve(strict=True)
         context=hps.derive(hps_project)
+        if (context['programming_profile']=='de25-embedded-hps-first-window-diagnostic-v1')!=window_memory:
+            raise ValueError('the window source requires explicit --window-memory and cannot inherit a fixed-reader diagnostic')
         if args.program=='hpsio':io_map=hps.hps_io(hps_project)
         if args.program in ('fpgacontext','fpgastatus','fpgaload'):control_map=hps.control(hps_project)
         if args.program=='fpgaload':
@@ -356,6 +361,7 @@ def build(args):
     if configuration_map is not None:link_flags+=' -X main.expectedConfigurationMap='+base64.b64encode(hps.encode(configuration_map)).decode()
     if reader_memory_map is not None:link_flags+=' -X main.expectedReaderMemoryMap='+base64.b64encode(hps.encode(reader_memory_map)).decode()
     if ddr_read_map is not None:link_flags+=' -X main.expectedDDRReadMap='+base64.b64encode(hps.encode(ddr_read_map)).decode()
+    if window_memory:link_flags+=' -X main.expectedWindowMemory=1'
     if computer_map is not None:link_flags+=' -X main.expectedComputerMap='+base64.b64encode(hps.encode(computer_map)).decode()
     if computer_reload:link_flags+=' -X main.expectedComputerReload=1'
     if computer_storage_return:link_flags+=' -X main.expectedComputerStorageReturn=1'
@@ -399,6 +405,7 @@ def build(args):
               "hps_configuration":configuration_map,"hps_configuration_sha256":hps.digest(configuration_map) if configuration_map else None,
               "hps_reader_memory":reader_memory_map,"hps_reader_memory_sha256":hps.digest(reader_memory_map) if reader_memory_map else None,
               "hps_ddr_read":ddr_read_map,"hps_ddr_read_sha256":hps.digest(ddr_read_map) if ddr_read_map else None,
+              "window_memory":window_memory,
               "hps_computer":computer_map,"hps_computer_sha256":hps.digest(computer_map) if computer_map else None,
               "computer_reload":computer_reload,
               "computer_storage_return":computer_storage_return,

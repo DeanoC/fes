@@ -77,9 +77,13 @@ func checkedControlMapFor(source HPSBootContext, raw []byte) (hpsControlMap, err
 	}
 	canonical, err := json.Marshal(fields)
 	count := 10
-	if source.ProgrammingProfile == HPSFirstDDRDiagnosticProfile {
+	if source.ProgrammingProfile == HPSFirstDDRDiagnosticProfile || source.ProgrammingProfile == HPSFirstWindowDiagnosticProfile {
 		count++
-		if m.FabricStop == nil || *m.FabricStop != (hpsFabricStopMap{"sealed-ddr-master-stop-v1", 0x20010100, 128, "held-reset-from-configuration"}) {
+		stopScope := "sealed-ddr-master-stop-v1"
+		if source.ProgrammingProfile == HPSFirstWindowDiagnosticProfile {
+			stopScope = "sealed-window-master-stop-v1"
+		}
+		if m.FabricStop == nil || *m.FabricStop != (hpsFabricStopMap{stopScope, 0x20010100, 128, "held-reset-from-configuration"}) {
 			return hpsControlMap{}, errors.New("native fabric: sealed complete master stop map required")
 		}
 		var stopFields map[string]json.RawMessage

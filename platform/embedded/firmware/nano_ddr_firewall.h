@@ -21,6 +21,7 @@ struct fes_nano_ddr_firewall_observation {
 };
 struct fes_nano_ddr_firewall_probe {
     struct fes_nano_ddr_firewall_io io;
+    uint32_t window_bytes; /* explicitly selected sealed 8192-byte or 4 MiB window */
     unsigned attempted,failed,reads;
     int first_error;
 };
@@ -30,7 +31,7 @@ extern "C" {
 int fes_nano_ddr_firewall_offset(uint32_t);
 /* One read-only pair of all eight regions. Failed, unstable or repeated calls
  * leave output unchanged and perform no retry. Coverage is an observation of
- * the fixed bus window, not permission, address translation or a drain receipt.
+ * the explicitly selected bus window, not permission, address translation or a drain receipt.
  * No register-write, bridge, allocation or memory-release callback exists. */
 int fes_nano_ddr_firewall_observe(struct fes_nano_ddr_firewall_probe *,struct fes_nano_ddr_firewall_observation *);
 #ifdef __cplusplus

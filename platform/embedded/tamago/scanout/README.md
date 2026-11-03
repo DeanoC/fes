@@ -23,7 +23,7 @@ held-frame behavior. They do not establish a physical scanout drain.
 
 ## Nano firmware contract
 
-The current schema-7 profile includes `display` and `handoff.display_platform_ready`. Disabled display
+The current schema-8 profile includes `display` and `handoff.display_platform_ready`. Disabled display
 is `null` with readiness false. Enabling it requires exactly these fields:
 
 - `base`, `size`: a dedicated, 2 MiB-aligned, **4 MiB** HPS DDR reservation,
@@ -73,10 +73,13 @@ delivery into the FPGA diagnostic CRC sink; it grants no buffer reuse, vblank
 or HDMI authority. `Surface.Present` keeps its existing CPU-copy semantics.
 
 The Nano source producer exposes this mode as `hps-ddr-window`, with a distinct
-diagnostic profile and a fixed 4 MiB bus window. The current native boot contract
-continues to reject that profile: its 2 MiB fixed-read grant cannot enable this
-wider source. Trusted memory/bridge integration and physical qualification are
-required before wiring this driver into the Nano provider.
+diagnostic profile and a fixed 4 MiB bus window. The ordinary fixed-reader boot
+constructor continues to reject it. Explicit `fpgaload --window-memory` binds
+the complete reservation to the native entry and cold firmware, publishes one
+actual tenfoot frame, and keeps FPGA data access held. Its separate stop contract
+uses the window maintenance register and both master-drain helpers. DDR release,
+native reader integration and physical qualification remain required before a
+Nano display can use this driver.
 
 The [owned window-source model](../../../../sources/misteross/docs/architecture.md#embedded-control-endpoint)
 now passes complete 1280×720 tenfoot frames through this CPU copy adapter and

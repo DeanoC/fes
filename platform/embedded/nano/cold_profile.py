@@ -51,6 +51,9 @@ def entry(entry_build):
     hps_context.checked_control(receipt,program_key='native_program')
     configuration=hps_context.checked_configuration(receipt,program_key='native_program')
     reader_memory=hps_context.checked_reader_memory(receipt,program_key='native_program')
+    window=reader_memory is not None and reader_memory.get('scope')=='sealed-cold-window-reader-memory-v1'
+    if type(receipt.get('window_memory',False)) is not bool or receipt.get('window_memory',False)!=window:
+        raise ValueError('cold window memory requires the explicitly selected native entry')
     hps_context.checked_cpu_mapping(receipt,program_key='native_program')
     hps_context.checked_ddr_read(receipt,program_key='native_program')
     hps_context.checked_computer(receipt,program_key='native_program')
@@ -111,6 +114,7 @@ def make(entry_build):
               'hps_reader_memory':reader_memory,'hps_reader_memory_sha256':hps_context.digest(reader_memory) if reader_memory else None,
               'hps_ddr_read':ddr_read,'hps_ddr_read_sha256':hps_context.digest(ddr_read) if ddr_read else None,
               'hps_computer':computer,'hps_computer_sha256':hps_context.digest(computer) if computer else None,
+              'window_memory':build.get('window_memory',False),
               'computer_reload':build.get('computer_reload',False),
               'computer_storage_return':build.get('computer_storage_return',False)}
     identity['chain_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True).encode()).hexdigest()
@@ -165,12 +169,15 @@ def header(profile):
                 '#define FES_NANO_CONFIG_CHUNK_DIGESTS {'+','.join(array(value) for value in configuration['chunk_sha384'])+'}\n')
     reader_memory=profile.get('hps_reader_memory')
     if reader_memory is not None:
+        window=reader_memory.get('scope')=='sealed-cold-window-reader-memory-v1'
         if (configuration is None or control is None or not profile['sd_pio'] or
-                profile['hps_context']['programming_profile']!='de25-embedded-hps-first-ddr-diagnostic-v1' or
+                profile['hps_context']['programming_profile']!=('de25-embedded-hps-first-window-diagnostic-v1' if window else 'de25-embedded-hps-first-ddr-diagnostic-v1') or
+                type(profile.get('window_memory',False)) is not bool or profile.get('window_memory',False)!=window or
                 profile.get('hps_reader_memory_sha256')!=hps_context.digest(reader_memory)):
             raise ValueError('cold reader memory requires its source-bound DDR configuration profile')
+        hps_context.validate_reader_memory(profile['hps_context'],reader_memory)
         stop=control.get('fabric_stop')
-        if stop!={'scope':'sealed-ddr-master-stop-v1','probe_cpu_base':0x20010100,
+        if stop!={'scope':'sealed-window-master-stop-v1' if window else 'sealed-ddr-master-stop-v1','probe_cpu_base':0x20010100,
                   'probe_span':128,'maintenance':'held-reset-from-configuration'}:
             raise ValueError('cold DDR reader requires the sealed complete master stop map')
         extra+=('#define FES_NANO_READER_CPU_BASE '+hex(reader_memory['cpu_base'])+'ULL\n'
@@ -178,9 +185,19 @@ def header(profile):
                 '#define FES_NANO_READER_BYTES '+str(reader_memory['bytes'])+'U\n'
                 '#define FES_NANO_READER_ARENA_BYTES '+str(reader_memory['arena_bytes'])+'U\n'
                 '#define FES_NANO_READER_MAP_SHA '+array(profile['hps_reader_memory_sha256'])+'\n'
-                '#define FES_NANO_READER_PATTERN_SHA '+array(reader_memory['pattern_sha256'])+'\n'
                 '#define FES_NANO_PROBE_CPU_BASE '+hex(stop['probe_cpu_base'])+'UL\n'
                 '#define FES_NANO_PROBE_SPAN '+str(stop['probe_span'])+'U\n')
+        if window:
+            if profile.get('hps_ddr_read') is not None or profile.get('hps_computer') is not None:
+                raise ValueError('window memory cannot inherit a fixed-burst or computer command recipe')
+            extra+=('#define FES_NANO_WINDOW_MEMORY 1\n'
+                    '#define FES_NANO_WINDOW_FRAME_BYTES '+str(reader_memory['frame_bytes'])+'U\n'
+                    '#define FES_NANO_WINDOW_ROW_BYTES '+str(reader_memory['row_bytes'])+'U\n'
+                    '#define FES_NANO_WINDOW_STRIDE '+str(reader_memory['stride'])+'U\n'
+                    '#define FES_NANO_WINDOW_ROWS '+str(reader_memory['rows'])+'U\n')
+        else:extra+='#define FES_NANO_READER_PATTERN_SHA '+array(reader_memory['pattern_sha256'])+'\n'
+    elif profile.get('window_memory',False) is not False:
+        raise ValueError('window memory requires its complete compiled reservation')
     ddr_read=profile.get('hps_ddr_read')
     if ddr_read is not None:
         if (reader_memory is None or profile.get('hps_ddr_read_sha256')!=hps_context.digest(ddr_read) or

@@ -3,7 +3,7 @@
 #define FES_NANO_FABRIC_STOP_H
 #include "nano_probe_stop.h"
 
-/* The fixed DDR diagnostic has two live readers and two maintenance masters
+/* The fixed-burst and fixed-window DDR diagnostics have two live readers and two maintenance masters
  * held in reset from configuration. A qualified adapter binds their complete
  * sealed inventory and apertures; this helper accepts no address, reset,
  * bridge, memory release or configuration callback. */

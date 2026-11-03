@@ -10,6 +10,7 @@ import (
 
 const HPSFirstDiagnosticProfile = "de25-embedded-hps-first-diagnostic-v1"
 const HPSFirstDDRDiagnosticProfile = "de25-embedded-hps-first-ddr-diagnostic-v1"
+const HPSFirstWindowDiagnosticProfile = "de25-embedded-hps-first-window-diagnostic-v1"
 
 // HPSFirstPair is the producer's content-bound, unsigned diagnostic receipt.
 // Its phase-one hash is useful only when compared with a trusted boot handoff.

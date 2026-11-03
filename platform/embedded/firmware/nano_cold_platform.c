@@ -163,12 +163,24 @@ static struct fes_nano_identity_probe identity_probe;
 static unsigned identity_reported;
 struct fes_nano_identity_probe *fes_nano_platform_identity_probe(void) { return &identity_probe; }
 #ifdef FES_NANO_READER_CPU_BASE
+#if defined(FES_NANO_WINDOW_MEMORY) && FES_NANO_WINDOW_MEMORY
+_Static_assert(FES_NANO_CONTROL_ABI==0x10203042U && FES_NANO_READER_CPU_BASE==0x95000000ULL &&
+    FES_NANO_READER_BUS_BASE==0x95000000ULL && FES_NANO_READER_BYTES==(4U<<20) &&
+    FES_NANO_READER_ARENA_BYTES==(4U<<20) && FES_NANO_WINDOW_FRAME_BYTES==3686400U &&
+    FES_NANO_WINDOW_ROW_BYTES==5120U && FES_NANO_WINDOW_STRIDE==5120U && FES_NANO_WINDOW_ROWS==720U &&
+    FES_NANO_PROBE_CPU_BASE==0x20010100UL && FES_NANO_PROBE_SPAN==FES_DE25_DDR_PROBE_SPAN,
+    "source-bound cold window memory profile");
+#if defined(FES_NANO_DDR_READ_DIAGNOSTIC) && FES_NANO_DDR_READ_DIAGNOSTIC
+#error "The window profile cannot use the fixed-burst DDR recipe"
+#endif
+#else
 _Static_assert(FES_NANO_CONTROL_ABI==0x10203041U && FES_NANO_READER_CPU_BASE==0x95000000ULL &&
     FES_NANO_READER_BUS_BASE==0x95000000ULL && FES_NANO_READER_BYTES==8192U &&
     FES_NANO_READER_ARENA_BYTES==(2U<<20) && FES_NANO_PROBE_CPU_BASE==0x20010100UL &&
     FES_NANO_PROBE_SPAN==FES_DE25_DDR_PROBE_SPAN,"source-bound cold DDR reader profile");
+#endif
 _Static_assert(FES_NANO_READER_BUS_BASE==FES_NANO_DDR_FIREWALL_WINDOW &&
-    FES_NANO_READER_BYTES==FES_NANO_DDR_FIREWALL_BYTES,"fixed observed DDR firewall window");
+    (FES_NANO_READER_BYTES==8192U || FES_NANO_READER_BYTES==(4U<<20)),"sealed observed DDR firewall window");
 static uint32_t firewall_bridge;
 static int firewall_owns(void *context)
 {
@@ -185,14 +197,14 @@ static int firewall_read(void *context,uint32_t offset,uint32_t *value)
 }
 static int firewall_report(struct fes_nano_cold *s,struct fes_nano_ddr_firewall_observation *out)
 {
-    struct fes_nano_ddr_firewall_probe probe={.io={s,firewall_owns,firewall_read}};
+    struct fes_nano_ddr_firewall_probe probe={.io={s,firewall_owns,firewall_read},.window_bytes=FES_NANO_READER_BYTES};
     struct fes_nano_ddr_firewall_observation observation={0};
     firewall_bridge=0;
     int status=fes_nano_ddr_firewall_observe(&probe,&observation);
     NOTICE("FES_NANO_DDR_FIREWALL status=%d owner=%llx generation=%llu reset=%x mpfe_reset=%u reads=%u enable=%x base=%llx bytes=%u access=unqualified\n",
         status,(unsigned long long)fes_nano_owned_bridges.state.owner,
         (unsigned long long)fes_nano_owned_bridges.state.generation,fes_nano_owned_bridges.state.reset,
-        !!(firewall_bridge&0x40U),probe.reads,observation.registers.enable,(unsigned long long)FES_NANO_DDR_FIREWALL_WINDOW,FES_NANO_DDR_FIREWALL_BYTES);
+        !!(firewall_bridge&0x40U),probe.reads,observation.registers.enable,(unsigned long long)FES_NANO_DDR_FIREWALL_WINDOW,FES_NANO_READER_BYTES);
     for (unsigned i=0;i<8;i++) {
         const struct fes_nano_ddr_region *r=&observation.registers.region[i];
         NOTICE("FES_NANO_DDR_REGION index=%u base=%x baseext=%x limit=%x limitext=%x\n",i,r->base,r->baseext,r->limit,r->limitext);
@@ -225,7 +237,8 @@ static int fabric_owns(void *context)
 }
 static int fabric_read(void *context,uint32_t offset,uint32_t *value)
 {
-    if ((offset>0x4c && offset!=0xb0 && offset!=0xb4 && offset!=0xb8) ||
+    const uint32_t held=FES_NANO_CONTROL_ABI==0x10203042U ? 0xc8U : 0xb8U;
+    if ((offset>0x4c && offset!=0xb0 && offset!=0xb4 && offset!=held) ||
         offset==FES_EMBEDDED_REG_COMMAND || offset&3U || fabric_owns(context)!=1) return -1;
     dsbsy();*value=mmio_read_32(FES_NANO_CONTROL_BASE+offset);dsbsy();
     return fabric_owns(context)==1 ? 0 : -1;

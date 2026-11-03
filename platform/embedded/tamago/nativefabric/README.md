@@ -126,6 +126,18 @@ one 32-byte read, forced reader drain, complete master stop and bridge reclosure
 That result grants no wider window access, buffer reclamation or ordinary
 runtime admission.
 
+The window personality has a separate constructor,
+`NewWindowHPSContextVerifier`, which requires its compiled control and 4 MiB
+memory maps before any firmware call. `ReserveWindowMemory` publishes a complete
+1280×720 XRGB frame and zeroed trailing padding under fresh closed ownership.
+The board retains the entire uncached arena through every failure and until
+reboot. Normal fixed-reader construction continues to reject this personality.
+The native `fpgaload --window-memory` image renders one actual tenfoot frame
+before publication. Its entry and cold firmware bind the same complete map;
+the stop helper checks the window ABI's maintenance hold at `0xc8` and drains
+both FPGA masters. This establishes no DDR release, reuse or HDMI permission.
+Native source tests and cross-builds remain separate from physical acceptance.
+
 Before an injected actor retires its current owner, it checks that the retained
 package's exact target, programming profile and ABI version have an explicitly
 supplied identity profile. The profile gives the FPGA control ABI personality;

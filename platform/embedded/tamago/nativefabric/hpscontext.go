@@ -101,6 +101,8 @@ type HPSContextVerifier struct {
 	readerMemoryAttempted  bool
 	readerMemoryReady      bool
 	readerMemoryRegion     *Region
+	windowMemory           *windowMemoryMap
+	windowMemorySHA        [32]byte
 	ddrReaderAttempted     bool
 	computerServiceClaimed bool
 	computerMu             sync.Mutex
@@ -111,6 +113,10 @@ type HPSContextVerifier struct {
 }
 
 func NewHPSContextVerifier(cpu FirmwareCaller, source []byte) (*HPSContextVerifier, error) {
+	return newHPSContextVerifier(cpu, source, false)
+}
+
+func newHPSContextVerifier(cpu FirmwareCaller, source []byte, window bool) (*HPSContextVerifier, error) {
 	if cpu == nil || len(source) == 0 || len(source) > 4096 {
 		return nil, errors.New("native fabric: bounded compiled HPS source context required")
 	}
@@ -133,7 +139,8 @@ func NewHPSContextVerifier(cpu FirmwareCaller, source []byte) (*HPSContextVerifi
 		return nil, errors.New("native fabric: HPS source context is not canonical")
 	}
 	profileMatchesABI := c.ProgrammingProfile == HPSFirstDiagnosticProfile && c.ControlABI == 0x10203040 ||
-		c.ProgrammingProfile == HPSFirstDDRDiagnosticProfile && c.ControlABI == 0x10203041
+		c.ProgrammingProfile == HPSFirstDDRDiagnosticProfile && c.ControlABI == 0x10203041 ||
+		window && c.ProgrammingProfile == HPSFirstWindowDiagnosticProfile && c.ControlABI == 0x10203042
 	if c.Format != 1 || c.Scope != hpsContextScope || c.Platform != "de25_nano" || c.Device != "A5EB013BB23BE4SCS" ||
 		!profileMatchesABI || c.CoreID != "fes.de25-embedded-diagnostic" || c.ABI != c.CoreID ||
 		c.Major != 1 || c.Minor != 0 || c.HPSInitialization != "HPS FIRST" ||
