@@ -148,7 +148,7 @@ func (v *View) Read(ctx context.Context, id string) (corepackage.Inspection, []b
 	}
 	ctx, cancel := boundedContext(ctx)
 	defer cancel()
-	inspection, data, err := store.Read(ctx, id)
+	inspection, data, err := store.ReadCached(ctx, id)
 	if errors.Is(err, ErrPackageNotFound) {
 		return v.factory.Read(ctx, id)
 	}

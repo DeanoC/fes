@@ -281,6 +281,35 @@ func (s *Store) Read(ctx context.Context, id string) (corepackage.Inspection, []
 	return s.read(ctx, r, id)
 }
 
+// ReadCached is Read that trusts the stat-fingerprint cache, as List does:
+// an unchanged package returns its archive bytes without hashing the unpacked
+// members or decoding a ROM map again. The kit host sends those bytes to
+// mister-agent, which verifies them before programming; the agent's own
+// selection and launch paths keep the full Read.
+func (s *Store) ReadCached(ctx context.Context, id string) (corepackage.Inspection, []byte, error) {
+	if !packageIDRE.MatchString(id) {
+		return corepackage.Inspection{}, nil, ErrInvalidPackageID
+	}
+	r, unlock, err := s.lock(ctx)
+	if err != nil {
+		return corepackage.Inspection{}, nil, err
+	}
+	defer unlock()
+	if key, err := packageStatKey(r, id); err == nil {
+		if cached, ok := s.cachedVerified(id, key); ok {
+			inspection, data, err := s.archives.Read(ctx, id)
+			if err != nil {
+				return corepackage.Inspection{}, nil, err
+			}
+			if inspection.PackageID != cached.PackageID {
+				return corepackage.Inspection{}, nil, errors.New("kit packages: installed archive identity changed")
+			}
+			return inspection, data, nil
+		}
+	}
+	return s.read(ctx, r, id)
+}
+
 // Inspect is Read without the archive bytes. An unchanged package is not
 // read or hashed again.
 func (s *Store) Inspect(ctx context.Context, id string) (corepackage.Inspection, error) {

@@ -229,6 +229,31 @@ func TestDurableInspectHashesAnUnchangedPackageOnce(t *testing.T) {
 	}
 }
 
+func TestViewReadOfAnUnchangedDurablePackageHashesItOnce(t *testing.T) {
+	ctx := context.Background()
+	durable := newStore(t)
+	archive, want := fixture(t, "1.0.0", "fes.pong")
+	install(t, durable, archive)
+	view := openedView(durable, NewFactory(newFactoryRoot(t)))
+	fullVerificationReads.Store(0)
+	for range 3 {
+		got, data, err := view.Read(ctx, want.PackageID)
+		if err != nil || got.PackageID != want.PackageID || !bytes.Equal(data, archive) {
+			t.Fatalf("read %+v equal=%v %v", got, bytes.Equal(data, archive), err)
+		}
+	}
+	if got := fullVerificationReads.Load(); got != 0 {
+		t.Fatalf("full verifications after install = %d, want 0", got)
+	}
+	// The agent's Read still verifies the members every time.
+	if _, _, err := durable.Read(ctx, want.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	if got := fullVerificationReads.Load(); got != 1 {
+		t.Fatalf("full verifications after Store.Read = %d, want 1", got)
+	}
+}
+
 // Another process installs through its own Store on the same root, as
 // mister-agent does beside the kit host.
 func TestViewSeesAnotherStoreInstanceAndBoundsItsLockWait(t *testing.T) {

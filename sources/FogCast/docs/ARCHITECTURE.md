@@ -2721,7 +2721,10 @@ once instead of waiting. The lock waits until the caller's context ends, so a
 list, inspect or read without a deadline is bounded to one minute. An import
 reads its whole body under the lock and keeps the caller's context, as the
 agent's own install does. Durable and factory inspections are cached by stat
-fingerprint, as above. If the durable store cannot be opened, the host follows
+fingerprint, as above. A durable read for the host trusts that fingerprint too
+(`Store.ReadCached`) and returns the archive bytes without hashing the members
+or decoding a ROM map again; mister-agent verifies those bytes before
+programming, and its own select and launch paths keep the full `Read`. If the durable store cannot be opened, the host follows
 the agent: it withholds the factory packages too and reports HTTP 503
 `CORE_PACKAGE_STORE_UNAVAILABLE` for list, inspect, read and import, carrying
 the open error. It retries the open at most every five seconds, so a host that
