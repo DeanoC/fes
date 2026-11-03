@@ -31,9 +31,9 @@
 // Last it restores that record into the held machine, releases it until the
 // RTC's CMOS setup is done, and reads the record back, so the CMOS RAM bytes
 // make the round trip through the RTC. Then it sweeps holds across port 2's
-// write bursts, the capture's (#1372): each of HOLD_TRIALS trials releases
-// the machine, runs it one clock longer than the last and holds it again, and
-// port 2 must go on writing after a hold that cut a burst. Nothing else
+// write bursts, the capture's (#1372): each trial releases the machine, runs
+// it one clock longer than the last and holds it again, until HOLD_CUTS holds
+// have cut a burst, and port 2 must go on writing after each. Nothing else
 // reaches inside the system, and no oracle backs the CPU: a CPU stop ends the
 // run. fes_hps_ddr is two synchronising flops from ddr_hold to each port's
 // reset; a held port is its guard's, which finishes an open write burst with
@@ -104,9 +104,11 @@ enum : uint16_t { DATA_FREEZE = 0, DATA_BEGIN = 1, DATA_COMMIT = 2 };
 constexpr uint16_t READY = 3, LOADING = 2, VERIFYING = 4, FLAG_ERROR = 8;
 constexpr unsigned WORDS = 72;
 // Holds swept across port 2's write bursts after the round trip, one clock
-// apart. After a release the capture writes a short burst every 220 clocks or
-// so, on the VGA's reset raster, so the sweep spans that period.
-constexpr unsigned HOLD_TRIALS = 256;
+// apart, until HOLD_CUTS have cut one or HOLD_TRIALS have run. After a
+// release the capture writes a short burst every 220 clocks or so, on the
+// VGA's reset raster. The CPU's memory traffic moves a hold a clock or two,
+// so one pass over that period can cut as few as two.
+constexpr unsigned HOLD_CUTS = 4, HOLD_TRIALS = 1024;
 // The record the bench restores: preset max unless --preset says, the Sound
 // Blaster at 240h, IRQ 5, DMA 1, and a byte in the free CMOS (50h) that only
 // the record writes.
@@ -605,15 +607,15 @@ private:
     }
 
     // Holds swept across port 2's write bursts. The trial after one whose
-    // hold cut a burst must see port 2 take write beats again; the last trial
-    // only follows up.
+    // hold cut a burst must see port 2 take write beats again; the trial after
+    // the last cut only follows up.
     void hold_trials() {
-        unsigned cuts = 0, resumed = 0;
+        unsigned trials = 0, cuts = 0, resumed = 0;
         bool cut = false;
-        for (unsigned trial = 0; trial <= HOLD_TRIALS; ++trial) {
+        do {
             exchange(OP_EXECUTION, 0, 1);
             uint64_t written = ddr2.beats_written;
-            for (unsigned n = 0; n < 1024 + trial; ++n) clock();
+            for (unsigned n = 0; n < 1024 + trials; ++n) clock();
             resumed += cut && ddr2.beats_written > written;
             hold_rose = false;
             exchange(OP_EXECUTION, 0, 0);
@@ -621,11 +623,11 @@ private:
                 if (n == 100000) throw MailboxError("Execution hold did not hold the DDR ports");
                 clock();
             }
-            cut = trial < HOLD_TRIALS && hold_owed != 0;
+            cut = hold_owed != 0 && cuts < HOLD_CUTS;
             cuts += cut;
-        }
+        } while ((++trials < HOLD_TRIALS && cuts < HOLD_CUTS) || cut);
         check(cuts != 0 && resumed == cuts, "holds cut a port 2 write burst in " + std::to_string(cuts) + " of " +
-                                                std::to_string(HOLD_TRIALS) +
+                                                std::to_string(trials) +
                                                 " trials, and port 2 took write beats after each release");
     }
 
