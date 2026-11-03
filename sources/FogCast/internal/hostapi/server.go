@@ -16,7 +16,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/fogcast"
@@ -149,7 +148,7 @@ type targetHealth struct {
 	Ready      bool                      `json:"ready"`
 	APIVersion string                    `json:"api_version,omitempty"`
 	Artifacts  *protocol.Artifacts       `json:"artifacts,omitempty"`
-	Software   *softwarecontrol.Identity `json:"software,omitempty"`
+	Software   *protocol.Identity        `json:"software,omitempty"`
 }
 
 type errorResult struct {

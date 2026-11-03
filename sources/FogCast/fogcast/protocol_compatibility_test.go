@@ -111,7 +111,7 @@ func TestProtocolAdmissionBeforeMutationAndDiscoveryAdoption(t *testing.T) {
 
 func TestV1DifferentBuildRevisionsRemainCompatible(t *testing.T) {
 	artifacts := &protocol.Artifacts{RuntimeCommit: strings.Repeat("b", 40), AgentRevision: strings.Repeat("c", 40)}
-	software := &softwarecontrol.Identity{ActiveBundle: strings.Repeat("d", 64), BaseIdentity: strings.Repeat("e", 64), Selected: strings.Repeat("d", 64), Generation: 4}
+	software := &protocol.Identity{ActiveBundle: strings.Repeat("d", 64), BaseIdentity: strings.Repeat("e", 64), Selected: strings.Repeat("d", 64), Generation: 4}
 	// An older agent sends the supervisor's whole status in health; the host
 	// keeps only the identity.
 	health := struct {

@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/appliance/software"
-	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/protocol"
@@ -19,10 +18,10 @@ import (
 
 func TestHealthProjectsActiveSoftwareWithoutOperationDetails(t *testing.T) {
 	active, base, selected := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
-	status := &softwarecontrol.Identity{Selected: selected, Generation: 9, ActiveBundle: active, BaseIdentity: base}
+	status := &protocol.Identity{Selected: selected, Generation: 9, ActiveBundle: active, BaseIdentity: base}
 	for _, tc := range []struct {
 		name     string
-		software *softwarecontrol.Identity
+		software *protocol.Identity
 		err      error
 		want     bool
 	}{
