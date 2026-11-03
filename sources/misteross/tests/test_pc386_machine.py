@@ -302,6 +302,42 @@ class C2xxTestTest(unittest.TestCase):
         self.assertEqual(len(failures), 1)
         self.assertTrue(failures[0].startswith('RTL oracle_steps=2'))
 
+class WaitTestTest(unittest.TestCase):
+    def test_suite_checks_are_the_programs_names(self):
+        source = (sim.CORE / 'sim/wait_test.asm').read_text()
+        names = [line.split("'")[1].rstrip('$') for line in source.splitlines() if line.startswith('name_')]
+        self.assertEqual(names, list(sim.WAIT_CHECKS))
+
+    @staticmethod
+    def suite(lines, cpu='oracle', oracle_steps=0):
+        def run_machine(testbench, name, arguments, images):
+            return {'debug': [{'port': '0e9', 'text': line} for line in lines], 'failures': [],
+                    'rtl': {'counters': {'retired': 1000, 'oracle_steps': oracle_steps, 'protected_steps': 0},
+                            'stops': [], 'gaps': []}}
+        args = mock.Mock(cpu=cpu, download=False, jobs=1, limit_seconds=8)
+        with mock.patch.object(sim.firmware, 'images', return_value={}), \
+                mock.patch.object(sim, 'machine_testbench'), mock.patch.object(sim, 'fixture_with'), \
+                mock.patch.object(sim, 'run_machine', run_machine), mock.patch('builtins.print'):
+            return sim.run_wait(args, [])['failures']
+
+    def test_every_check_must_print_ok(self):
+        passing = [f'WAIT {name} 1us ok' for name in sim.WAIT_CHECKS]
+        self.assertEqual(self.suite(passing), [])
+        self.assertEqual(self.suite(passing[:2] + ['WAIT 100us 900us FAIL'] + passing[3:]),
+                         ['WAIT 100us 900us FAIL'])
+
+    def test_a_wait_that_never_returns_fails(self):
+        failures = self.suite(['WAIT zero 4us ok'])
+        self.assertEqual(len(failures), 1)
+        self.assertIn("WAITTEST.COM ran ['zero']", failures[0])
+
+    def test_rtl_runs_fail_on_oracle_steps(self):
+        passing = [f'WAIT {name} 1us ok' for name in sim.WAIT_CHECKS]
+        self.assertEqual(self.suite(passing, 'rtl'), [])
+        failures = self.suite(passing, 'rtl', oracle_steps=3)
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith('RTL oracle_steps=3'))
+
 
 class BootReportTest(unittest.TestCase):
     def test_games_mem_requires_exact_serpent_isle_memory_with_headroom(self):
@@ -426,10 +462,13 @@ class SmcStaleTrackerTest(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which(os.environ.get('CXX', 'c++')), 'requires a C++ compiler')
-class Port0ModelTest(unittest.TestCase):
-    def test_waitrequest_holds_all_sixteen_byte_enable_lanes(self):
-        with tempfile.TemporaryDirectory(prefix='pc386-port0-model-') as directory:
-            binary = Path(directory) / 'pc386-port0-model-test'
+class DdrModelTest(unittest.TestCase):
+    def test_refusals_and_holds(self):
+        """Port 0's refused command holds all sixteen byte-enable lanes; a held
+        port finishes a write burst with byte enables clear, hides read data
+        and drops a refused command (#1372)."""
+        with tempfile.TemporaryDirectory(prefix='pc386-ddr-model-') as directory:
+            binary = Path(directory) / 'pc386-ddr-model-test'
             source = sim.CORE / 'sim/pc386_ddr_model_tb.cpp'
             compiler = shutil.which(os.environ.get('CXX', 'c++'))
             result = subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
@@ -514,6 +553,8 @@ CHECK PASS CMOS 00h-0Dh retain seconds, minutes, hours, weekday, day and the 202
 ROUNDTRIP 0 0 0 0 576 5 1 0
 CHECK PASS the record's settings and CMOS RAM make the round trip through the RTC
 CHECK PASS the running clock keeps valid seconds, minutes, hours, weekday and date after restore
+HOLD 302000000 owed=0,0,12
+CHECK PASS holds cut a port 2 write burst in 4 of 256 trials, and port 2 took write beats after each release
 END prompt cycles=303000000 seconds=4.932
 """
 
@@ -540,7 +581,8 @@ class SystemTest(unittest.TestCase):
                                           'changed_chunks': [0]})
         self.assertEqual(report['write_test'], 444436)
         self.assertEqual(report['record'][:8], [0, 0, 0, 0, 576, 5, 1, 0])
-        self.assertEqual(len(report['record_checks']), 5)
+        self.assertEqual(len(report['record_checks']), 6)
+        self.assertEqual(report['holds'], [{'cycle': 302000000, 'owed': [0, 0, 12]}])
         self.assertEqual(report['end'], {'reason': 'prompt', 'cycles': 303000000, 'seconds': 4.932})
         self.assertEqual(sim.system_failures(report), [])
 
@@ -556,6 +598,7 @@ class SystemTest(unittest.TestCase):
             (SYSTEM_OUTPUT.replace('CHECK PASS the record keeps', 'CHECK FAIL the record keeps'),
              'record check failed: the record keeps'),
             (SYSTEM_OUTPUT.replace('ROUNDTRIP 0 0 0 0 576 5 1 0\n', ''), 'did not save'),
+            (SYSTEM_OUTPUT.replace('CHECK PASS holds cut', 'CHECK FAIL holds cut'), 'record check failed: holds cut'),
             (SYSTEM_OUTPUT.replace('END prompt', 'MAILBOX no acknowledgement for opcode 17\nEND mailbox'),
              'mailbox: no acknowledgement'),
             ('END limit cycles=1 seconds=0.000\n', 'no status words'),

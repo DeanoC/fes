@@ -302,6 +302,15 @@ module fes_i386_cpu #(
     logic [5:0][31:0]      seg_low;
     logic [5:0]            seg_expd, seg_rbad, seg_wbad;
     fes_i386_pkg::seg_chk_t [5:0] init_chk;  // reset's, from init_limit and init_ar
+    // D's fetch check of CS's limit (see D): the limit plus one's bits 32:4,
+    // those less 1, and its bits 3:0, as CS is written.
+    logic [61:0]           cs_fl;
+    function automatic logic [61:0] fetch_lim(input logic [31:0] limit);
+        logic [32:0] end1, end15;
+        end1 = {1'b0, limit} + 33'd1;
+        end15 = {1'b0, limit} - 33'd15;
+        fetch_lim = {end1[32:4], end15[32:4], end1[3:0]};
+    endfunction
     always_comb for (int k = 0; k < 6; k++) init_chk[k] = fes_i386_pkg::seg_chk(init_limit[k], init_ar[k]);
     logic             code32;
     assign code32 = seg_ar[SEG_CS][14];
@@ -397,15 +406,19 @@ module fes_i386_cpu #(
     end
     // A delivery refetches from the faulting instruction, or the one before
     // (start_linear is a cycle old), which the delivery's far jump discards.
-    // D's EIP is the faulting instruction's, in real mode cut to 16 bits: the
-    // IP the routine pushes, which D's CS-limit check then passes. An
-    // interrupt's is the next instruction's. The address selects key on WB's
-    // fault field and int_take, registers (a taken branch has neither), so
+    // D's EIP is the faulting instruction's, limit+1 on a fetch fault, so it
+    // passes at the entry's length 0. Real-mode delivery redirects also cut
+    // out-of-range EIPs to the low 16-bit IP. An interrupt's EIP is the next
+    // instruction's. The address selects key on WB's fault field and int_take,
+    // registers (a taken branch has neither), so
     // the fetch address stays off exc_take's path.
     logic wb_faulted;
     assign wb_faulted = wb_s.uop.ctl.fault != fes_i386_pkg::FAULT_NONE;
     assign redirect = start == 2'd2 || !freeze && (wb_redir || int_take);
     assign redirect_linear = start == 2'd2 || wb_faulted || int_take ? start_linear : wb_s.target;
+    // Real-mode interrupt and exception frames carry only the low IP, and
+    // their delivery entry must restart at that same 16-bit offset. Keep the
+    // full EIP for protected-mode deliveries.
     assign redirect_eip = start == 2'd2 ? eip : wb_faulted || int_take ? {cr0_pe ? eip[31:16] : 16'd0, eip[15:0]}
                         : wb_s.target_eip;
 
@@ -577,52 +590,43 @@ module fes_i386_cpu #(
     logic cur_valid;
     assign cur_valid = dc_valid && !d_stop;
 
-    // EIP of the instruction in D, and of the next. In 16-bit code EIP is
-    // not cut to 16 bits: an instruction that ends at offset FFFFh leaves
-    // EIP 10000h. CS's limit is FFFFh after every real-mode CS load, and an
-    // instruction that starts or runs past it raises #GP(0) at its fetch,
-    // before anything its decode found (cs_gp). Under a larger limit the
-    // general CS-limit check is not built yet, so that is
-    // FAULT_UNIMPLEMENTED (wrap16). A faulting uop keeps its destination,
-    // which nothing reads: it stops at WB, which writes nothing for a fault,
-    // and D issues nothing after it (d_stop).
+    // EIP of the instruction in D, and of the next: EIP plus the length, in
+    // 16-bit code too, so an instruction that ends at offset FFFFh leaves
+    // EIP 10000h, as Bochs's does. An instruction that starts or runs past
+    // CS's limit raises #GP(0) at its fetch, at its first byte, before
+    // anything its decode found (cs_gp): when EIP plus the length passes
+    // the limit plus one. A delivery's entry (dc_exc, length 0) passes when
+    // its EIP is within the limit; real-mode delivery redirects use the low
+    // 16-bit IP so an out-of-range EIP can still reach its handler. The
+    // compare is split at bit 4 so it runs beside d_eip_next's adder: the
+    // low nibble plus the length carries at most 1 into EIP's upper 28
+    // bits, which are compared with the limit plus one's upper bits (cs_lh)
+    // and those less 1 (cs_lh1), both registered as CS is written (cs_fl).
+    // A faulting uop keeps its destination, which nothing reads: it stops
+    // at WB, which writes nothing for a fault, and D issues nothing after
+    // it (d_stop).
     logic [31:0] d_eip, d_eip_next;
-    logic [16:0] eip16;
-    logic        past, wrap16, cs_gp, seg_cs_ffff, seg_cs_small, seg_cs_flat, seg_ss_rm, seg_ss_big, cs_odd;
-    // The CS-limit check is built for 16-bit code under a limit of FFFFh or
-    // more (past it, wrap16), and 32-bit code under limit FFFFFFFFh (flat);
-    // code under a smaller limit is FAULT_UNIMPLEMENTED (cs_odd).
-    // seg_cs_ffff, seg_cs_small and seg_cs_flat are registered as CS is
-    // written.
-    assign cs_odd = code32 ? !seg_cs_flat : seg_cs_small;
-    assign eip16 = {1'b0, d_eip[15:0]} + {13'd0, dc.length};
-    assign past = !code32 && (d_eip[31:16] != 16'd0 || eip16 > 17'h1_0000);
-    assign cs_gp = past && seg_cs_ffff;
-    assign wrap16 = past && !seg_cs_ffff;
-    assign d_eip_next = code32 ? d_eip + {28'd0, dc.length} : {15'd0, eip16};
-
-    // A 32-bit near CALL in 16-bit code does not truncate its target. Check it
-    // on the first (push) uop so an out-of-limit target faults before WB can
-    // commit the return-address store or ESP update. The next EIP is EIP's
-    // low half plus the length, so the target is that plus imm, and its high
-    // half is imm's plus what the low halves carry: one sum of the three low
-    // halves (a 3:2 row, then one carry chain), beside two compares of imm's
-    // high half. A carry of 2 needs the next EIP past 10000h, which faults
-    // the same way (cs_gp, wrap16), so the sum's bit 17 is left out.
-    logic [15:0] call_s, call_k;
-    logic [16:0] call_low;
-    logic        call_target_zero, call_target_past, call_target_gp, call_target_unimpl;
-    assign call_s = d_eip[15:0] ^ dc.uop.imm[15:0] ^ {12'd0, dc.length};
-    assign call_k = d_eip[15:0] & dc.uop.imm[15:0] | (d_eip[15:0] | dc.uop.imm[15:0]) & {12'd0, dc.length};
-    assign call_low = {1'b0, call_s} + {call_k, 1'b0};
-    assign call_target_zero = call_low[16] ? dc.uop.imm[31:16] == 16'hffff : dc.uop.imm[31:16] == 16'd0;
-    assign call_target_past = dc.seq == fes_i386_pkg::SEQ_CALL && dc.step == 3'd0 && dc.opsize32 && !code32
-                           && !call_target_zero;
-    assign call_target_gp = call_target_past && seg_cs_ffff;
-    assign call_target_unimpl = call_target_past && !seg_cs_ffff;
+    logic [4:0]  eip_lo;
+    logic [28:0] cs_lh, cs_lh1, eip_hi;
+    logic [3:0]  cs_ll;
+    logic        cs_gt, cs_eq, cs_eq1, cs_gp, seg_ss_rm, seg_ss_big;
+    assign cs_lh = cs_fl[61:33];
+    assign cs_lh1 = cs_fl[32:4];
+    assign cs_ll = cs_fl[3:0];
+    assign eip_hi = {1'b0, d_eip[31:4]};
+    assign eip_lo = {1'b0, d_eip[3:0]} + {1'b0, dc.length};
+    assign cs_gt = eip_hi > cs_lh;
+    assign cs_eq = eip_hi == cs_lh;
+    assign cs_eq1 = eip_hi == cs_lh1;
+    assign cs_gp = eip_lo[4] ? cs_gt || cs_eq || cs_eq1 && eip_lo[3:0] > cs_ll : cs_gt || cs_eq && eip_lo[3:0] > cs_ll;
+    assign d_eip_next = d_eip + {28'd0, dc.length};
 
     uop_t        u;
     logic        opsize32, lea, lea_early, consumes, reads_seg, stop;
+    logic        d_next_instruction;
+    assign d_next_instruction = u.eoi_taken
+                             || (u.cls == fes_i386_pkg::UOP_SYSTEM
+                                 && u.op != 5'(fes_i386_pkg::SYSOP_GATE));
     // The string engine's copies (see below).
     logic [31:0] r_src, r_dst, r_fp, r_cnt, s_tgt;
     logic        s_down;
@@ -709,19 +713,23 @@ module fes_i386_cpu #(
     // INT's probe is built for a 16-bit stack under SS's real-mode limit
     // (seg_ss_rm), or one whose limit passes 10000h (seg_ss_big), where no
     // slot can fault.
-    assign d_unimpl = !s_kill1 && (wrap16 || cs_odd || call_target_unimpl
-                   || (dc.uop.probe != fes_i386_pkg::PROBE_NONE && !seg_ss_rm && !seg_ss_big));
+    assign d_unimpl = !s_kill1 && dc.uop.probe != fes_i386_pkg::PROBE_NONE && !seg_ss_rm && !seg_ss_big;
 
     // A far transfer's selector and offset, from the instruction or from T0
-    // and T1. In 16-bit code an offset past CS's limit raises #GP(0) at the
-    // uop that checks it, the transfer's first to write anything; under a
-    // larger limit that is FAULT_UNIMPLEMENTED, as wrap16.
+    // and T1. An offset past CS's limit, the limit before the transfer as
+    // Bochs checks a real-mode one, raises #GP(0) at the uop that checks it
+    // (far_chk; CALL r/m's too, a near call to T1), before anything is
+    // written: at a far CALL's probe, ahead of the probe's own check, as
+    // Bochs checks before it pushes; at any other uop (CALL r/m's push,
+    // RETF's jump, IRET's FLAGS read) after the uop's own checks, at M1
+    // (cs_late), as Bochs pushes or pops first. A protected-mode transfer
+    // checks its offset against the new descriptor's limit (CHK_OFF).
     logic [15:0] far_sel;
     logic [31:0] far_off;
     logic        far_bad, t_busy, t_wait;
     assign far_sel = dc.far_t ? t0 : dc.far_sel;
     assign far_off = dc.far_t ? t1 : dc.uop.imm;
-    assign far_bad = dc.far_chk && !code32 && far_off[31:16] != 16'd0;
+    assign far_bad = dc.far_chk && far_off > seg_limit[SEG_CS];
     assign t_wait = dc.t_rd && t_busy;
     // A protected-mode segment load reads nothing for a null selector, and
     // writes the accessed bit only when the descriptor's is clear (T3's bit
@@ -768,13 +776,11 @@ module fes_i386_cpu #(
         if (dc.popad_esp && !(dc.opsize32 && !ss32)) u.dst.valid = 1'b0;
         if (!s_kill1 && d_unimpl && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
             u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
-            u.ctl.why = wrap16 || cs_odd || call_target_unimpl ? fes_i386_pkg::WHY_CS_LIMIT : fes_i386_pkg::WHY_STACK64K;
+            u.ctl.why = fes_i386_pkg::WHY_STACK64K;
         end
-        if (!s_kill1 && far_bad && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
-            u.ctl.fault = seg_cs_ffff ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_UNIMPLEMENTED;
-            u.ctl.why = fes_i386_pkg::WHY_CS_LIMIT;
-        end
-        if (!s_kill1 && (cs_gp || call_target_gp)) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
+        if (far_bad && stk == fes_i386_pkg::STK_PROBE && dc.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+            u.ctl.fault = fes_i386_pkg::FAULT_GP0;
+        if (!s_kill1 && cs_gp) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
         if (cr0_gp && u.ctl.fault == fes_i386_pkg::FAULT_NONE) u.ctl.fault = fes_i386_pkg::FAULT_GP0;
         if (cr0_pg_unimpl && u.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
             u.ctl.fault = fes_i386_pkg::FAULT_UNIMPLEMENTED;
@@ -821,7 +827,7 @@ module fes_i386_cpu #(
     assign consumes = dc.consumes;
     assign reads_seg = dc.reads_seg;
     assign seg_index = dc.seg_index;
-    assign stop = !s_kill1 && (dc.stop || d_unimpl || cs_gp || far_bad || call_target_gp || cr0_gp || cr0_pg_unimpl);
+    assign stop = !s_kill1 && (dc.stop || d_unimpl || cs_gp || far_bad || cr0_gp || cr0_pg_unimpl);
 
     // The producers in AG, M1, M2 and EX.
     logic [3:0]       prod_valid, prod_early, prod_sp;
@@ -1121,7 +1127,7 @@ module fes_i386_cpu #(
     logic [31:0] ag_row, ag_last, ag_disp, ag_seg_term;
     logic [15:0] ag_seg_hi, ag_seg_hi_plus1;
     logic [1:0]  ag_late, ag_late_hi;
-    logic        ag_stack, ag_ss32, ag_leave;
+    logic        ag_stack, ag_ss32, ag_leave, ag_call, ag_o32;
     logic [31:0] ag_sp_disp;
     logic [15:0] ag_sp_hi;
     pipe_t       d_out;
@@ -1202,6 +1208,14 @@ module fes_i386_cpu #(
         d_out.target = dc.str_two ? str_daddr : s_tgt;
         d_out.dfault = dc.str_two && str_dbad && !s_kill1 ? (str_ss ? fes_i386_pkg::FAULT_SS0 : fes_i386_pkg::FAULT_GP0)
                                                           : fes_i386_pkg::FAULT_NONE;
+        // The uops whose target M1 checks against CS's limit (tchk): a near
+        // branch by a displacement (Jcc, JMP, LOOP and its kin, JCXZ; not a
+        // far jump, nor INTO's JNO to the next instruction), and CALL rel's
+        // push, whose target AG works out (ag_call). A far transfer's offset
+        // past the limit at a uop other than a probe (cs_late).
+        d_out.tchk = u.cls == fes_i386_pkg::UOP_BRANCH && u.op < 5'd10 && !dc.far_jmp && !u.eoi_taken
+                  || dc.seq == fes_i386_pkg::SEQ_CALL && dc.step == 3'd0;
+        d_out.cs_late = far_bad && stk != fes_i386_pkg::STK_PROBE;
         // A string's first element with a count of 1 is the last, with no
         // REPE or REPNE exit; with a count of 0, a NOP that ends the
         // instruction.
@@ -1240,6 +1254,8 @@ module fes_i386_cpu #(
             ag_stack <= stk != fes_i386_pkg::STK_NONE;
             ag_ss32 <= sst;
             ag_leave <= stk == fes_i386_pkg::STK_LEAVE;
+            ag_call <= dc.seq == fes_i386_pkg::SEQ_CALL && dc.step == 3'd0;
+            ag_o32 <= opsize32;
             // ENTER's last uop: ESP from the engine's offset, its high half
             // the copy's.
             ag_sp_disp <= dc.str_fin ? str_off : st_sp_disp;
@@ -1274,14 +1290,16 @@ module fes_i386_cpu #(
             ag_seg_hi_plus1 <= lea || dc.uop.mem.system ? 16'd0 : seg_hi1[mseg];
         end else begin
             // A branch's target: CS.base + EIP + length + displacement,
-            // wrapped by operand size.
-            ag_addr32 <= opsize32;
-            ag_row <= opsize32 ? d_eip : {16'b0, d_eip[15:0]};
+            // wrapped by operand size. System uops and INTO's JNO target
+            // the next instruction with full EIP, regardless of operand size.
+            ag_addr32 <= opsize32 || d_next_instruction;
+            ag_row <= opsize32 || d_next_instruction ? d_eip : {16'b0, d_eip[15:0]};
             ag_last <= {28'd0, dc.length};
             ag_late <= 2'd0;
             ag_late_hi <= 2'd0;
-            ag_disp <= u.imm;
-            ag_seg_term <= opsize32 ? seg_base[SEG_CS] : {16'b0, seg_base[SEG_CS][15:0]};
+            ag_disp <= d_next_instruction ? 32'd0 : u.imm;
+            ag_seg_term <= opsize32 || d_next_instruction ? seg_base[SEG_CS]
+                                                          : {16'b0, seg_base[SEG_CS][15:0]};
             ag_seg_hi <= seg_base[SEG_CS][31:16];
             ag_seg_hi_plus1 <= seg_hi1[SEG_CS];
         end
@@ -1324,7 +1342,17 @@ module fes_i386_cpu #(
     end
     assign sp_new = ag_ss32 ? sp_sum : {sp_hi_ag, sp_sum[15:0]};
 
+    // CALL rel's push: its target, the next EIP (b) plus the displacement
+    // (imm), wrapped by operand size, for M1's check (tchk), beside the
+    // AGU's chains.
+    logic [31:0] call_tgt;
+    assign call_tgt = ag_s.b + ag_s.uop.imm;
+
     pipe_t ag_out;
+    logic ag_next_instruction;
+    assign ag_next_instruction = ag_s.uop.rep_stop != 2'd0 || ag_s.uop.eoi_taken
+                              || (ag_s.uop.cls == fes_i386_pkg::UOP_SYSTEM
+                                  && ag_s.uop.op != 5'(fes_i386_pkg::SYSOP_GATE));
     always_comb begin
         ag_out = capture(ag_s, 3'd4, wb_s.result);
         // A stack operation's result until EX is its new ESP, so ESP forwards
@@ -1332,9 +1360,10 @@ module fes_i386_cpu #(
         ag_out.result = ag_stack ? sp_new : offset;
         ag_out.sp_new = sp_new;
         // D's target for a st2 uop (its store) or a REPE or REPNE element
-        // (the next instruction, also its EIP).
+        // (the next instruction, also its EIP); CALL rel's push's target EIP.
         ag_out.target = ag_s.uop.st2 || ag_s.uop.rep_stop != 2'd0 ? ag_s.target : linear;
-        ag_out.target_eip = ag_s.uop.rep_stop != 2'd0 ? ag_s.eip_next : offset;
+        ag_out.target_eip = ag_next_instruction ? ag_s.eip_next
+                          : ag_call ? {ag_o32 ? call_tgt[31:16] : 16'd0, call_tgt[15:0]} : offset;
         ag_out.maddr = linear;
         ag_out.moff = offset;
     end
@@ -1428,6 +1457,11 @@ module fes_i386_cpu #(
     // LAR, LSL, VERR and VERW (SEGOP_ZF, imm[3:1]): ZF in imm[0] and LAR's
     // and LSL's result in b, from the staged descriptor.
     logic [2:0] m1_zk;
+    // A near branch's target, or CALL rel's push's, past CS's limit (tchk):
+    // #GP(0) here for the push, after its own checks, as Bochs pushes
+    // first; EX raises it for a branch that is taken.
+    logic m1_tpast;
+    assign m1_tpast = m1_s.tchk && m1_s.target_eip > seg_limit[SEG_CS];
     assign m1_zk = m1_s.uop.cls == fes_i386_pkg::UOP_SEGMENT && m1_s.uop.op == 5'(fes_i386_pkg::SEGOP_ZF)
                  ? m1_s.uop.imm[3:1] : 3'd0;
     always_comb begin
@@ -1447,8 +1481,10 @@ module fes_i386_cpu #(
             m1_out.uop.ctl.fault = m1_segchk;
             m1_out.uop.ctl.why = m1_why;
         end else if (m1_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
-            m1_out.uop.ctl.fault = m1_s.dfault;
+            m1_out.uop.ctl.fault = m1_s.cs_late || m1_tpast && m1_s.uop.cls != fes_i386_pkg::UOP_BRANCH
+                                 ? fes_i386_pkg::FAULT_GP0 : m1_s.dfault;
         end
+        m1_out.tchk = m1_tpast;
         case (m1_zk)
             3'd1: begin
                 m1_out.uop.imm[0] = ds_lar_ok;
@@ -1689,14 +1725,16 @@ module fes_i386_cpu #(
             ex_out.target = ex_ind_target;
             ex_out.target_eip = ex_ind_eip;
         end
-        // In 16-bit code a RET or JMP r/m past offset FFFFh raises #GP(0)
-        // at the branch, under CS's real-mode limit (FAULT_UNIMPLEMENTED
-        // under a larger one, as wrap16 in D). A fault M1 found stands.
-        if (ex_s.exc.b_ind && !code32 && ex_ind_eip[31:16] != 16'd0
-            && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE) begin
-            ex_out.uop.ctl.fault = seg_cs_ffff ? fes_i386_pkg::FAULT_GP0 : fes_i386_pkg::FAULT_UNIMPLEMENTED;
-            ex_out.uop.ctl.why = fes_i386_pkg::WHY_CS_LIMIT;
-        end
+        // A branch whose target is past CS's limit raises #GP(0) at the
+        // branch, as Bochs's branch_near does: RET or JMP r/m's (b_ind)
+        // here, a taken one by a displacement from M1's check (tchk). So
+        // does a real-mode INT's probe whose vector's offset, in T1, is past
+        // it: T1's load, two uops ahead, has retired. A fault M1 found
+        // stands.
+        if ((ex_s.exc.b_ind && ex_ind_eip > seg_limit[SEG_CS] || ex_s.tchk && ex_taken
+             || ex_s.uop.probe == fes_i386_pkg::PROBE_INT && t1 > seg_limit[SEG_CS])
+            && ex_s.uop.ctl.fault == fes_i386_pkg::FAULT_NONE)
+            ex_out.uop.ctl.fault = fes_i386_pkg::FAULT_GP0;
         // A faulting branch terminates the pipeline without redirecting to its
         // rejected target. This also covers faults already found in M1.
         ex_out.taken = ex_taken && ex_out.uop.ctl.fault == fes_i386_pkg::FAULT_NONE;
@@ -2066,9 +2104,7 @@ module fes_i386_cpu #(
             seg_limit <= init_limit;
             seg_ar <= init_ar;
             for (int k = 0; k < 6; k++) seg_hi1[k] <= init_base[k][31:16] + 16'd1;
-            seg_cs_ffff <= init_limit[SEG_CS] == 32'h0000_ffff;
-            seg_cs_flat <= init_limit[SEG_CS] == 32'hffff_ffff;
-            seg_cs_small <= init_limit[SEG_CS] < 32'h0000_ffff;
+            cs_fl <= fetch_lim(init_limit[SEG_CS]);
             seg_ss_rm <= ss_rm(init_limit[SEG_SS], init_ar[SEG_SS]);
             seg_ss_big <= ss_big(init_limit[SEG_SS], init_ar[SEG_SS]);
             for (int k = 0; k < 6; k++) begin
@@ -2284,9 +2320,7 @@ module fes_i386_cpu #(
                     seg_limit[seg_w_idx] <= seg_w_limit;
                     seg_ar[seg_w_idx] <= seg_w_ar;
                     if (seg_w_idx == 3'(SEG_CS)) begin
-                        seg_cs_ffff <= wb_s.uop.seg2_pm ? ds_ffff : 1'b1;
-                        seg_cs_flat <= wb_s.uop.seg2_pm && ds_flat;
-                        seg_cs_small <= wb_s.uop.seg2_pm && ds_small;
+                        cs_fl <= wb_s.uop.seg2_pm ? fetch_lim(ds_limit) : fetch_lim(32'h0000_ffff);
                     end
                     if (seg_w_idx == 3'(SEG_SS)) begin
                         seg_ss_rm <= ss_rm(seg_w_limit, seg_w_ar);
@@ -2380,7 +2414,7 @@ module fes_i386_cpu #(
     assign dd_lar = dd_type == 4'd1 || dd_type == 4'd2 || dd_type == 4'd3 || dd_type == 4'd4 || dd_type == 4'd5
                  || dd_type == 4'd9 || dd_type == 4'd11 || dd_type == 4'd12;
     assign dd_lsl = dd_type == 4'd1 || dd_type == 4'd2 || dd_type == 4'd3 || dd_type == 4'd9 || dd_type == 4'd11;
-    logic                   ds_ffff, ds_flat, ds_small, ds_null;
+    logic                   ds_null;
     logic [31:0]            ds_base, ds_limit, ds_lar;
     logic [15:0]            ds_ar, ds_sar, ds_hi1;
     logic                   ds_lar_ok, ds_lsl_ok, ds_verr_ok, ds_verw_ok;
@@ -2420,9 +2454,6 @@ module fes_i386_cpu #(
         ds_ar <= dd_null ? 16'h0010 : dd_ar;
         ds_hi1 <= (dd_null ? 16'd0 : dd_base[31:16]) + 16'd1;
         ds_chk <= fes_i386_pkg::seg_chk(dd_null ? 32'd0 : dd_limit, dd_null ? 16'h0010 : dd_ar);
-        ds_ffff <= !dd_null && dd_limit == 32'h0000_ffff;
-        ds_flat <= !dd_null && dd_limit == 32'hffff_ffff;
-        ds_small <= dd_null || dd_limit < 32'h0000_ffff;
         ds_fault_data <= dd_null ? fes_i386_pkg::FAULT_NONE
                        : !dd_s || dd_code && !dd_rw || (!dd_code || !dd_conf) && dd_dpl < dd_rpl ? fes_i386_pkg::FAULT_GP_SEL
                        : !dd_p ? fes_i386_pkg::FAULT_NP_SEL : fes_i386_pkg::FAULT_NONE;

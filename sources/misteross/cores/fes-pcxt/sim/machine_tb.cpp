@@ -25,8 +25,45 @@ int main(int argc,char** argv) {
             unsigned refreshes=0,dma2=0,dma3=0,locked_memory=0,terminal_bytes=0;
             bool previous_owner=false,previous_commit=false;
             int audio_min=32767,audio_max=-32768;bool pw=false;
+            unsigned audio_phase=0, bit_pos=0, serial_word=0, left_word=0, stereo_frames=0, nonzero_frames=0, silent_frames=0;
+            int serial_min=32767, serial_max=-32768;
+            bool old_sclk=0, old_lrclk=0, left_valid=false;
+            unsigned audio_test_state=0, audio_test_start=0, audio_test_silent=0, audio_test_nonzero=0;
+            // 12.288 MHz MCLK sampled against the 100 MHz motherboard clock.
+            auto audio_step = [&]() {
+                audio_phase += 3072;
+                if (audio_phase < 12500) return;
+                audio_phase -= 12500;
+                d.audio_clk = !d.audio_clk; d.eval();
+                if (!d.audio_locked) {
+                    left_valid=false; old_sclk=d.i2s_sclk; old_lrclk=d.i2s_lrclk;
+                    bit_pos=0; serial_word=0;
+                    return;
+                }
+                if (!old_sclk && d.i2s_sclk) {
+                    bool lr = d.i2s_lrclk;
+                    if (lr != old_lrclk) { bit_pos=0; serial_word=0; old_lrclk=lr; }
+                    if (bit_pos >= 1 && bit_pos <= 16)
+                        serial_word=(serial_word<<1)|d.i2s_data;
+                    if (bit_pos == 16) {
+                        if (!lr) { left_word=serial_word; left_valid=true; }
+                        else if (left_valid) {
+                            check(left_word==serial_word,"I2S channels differ");
+                            ++stereo_frames;
+                            if (serial_word) ++nonzero_frames; else ++silent_frames;
+                            if (mem[0x601]==4) {
+                                int value=int16_t(serial_word);
+                                serial_min=std::min(serial_min,value); serial_max=std::max(serial_max,value);
+                            }
+                        }
+                    }
+                    ++bit_pos;
+                }
+                old_sclk=d.i2s_sclk;
+            };
+            d.audio_clk=0;d.audio_locked=1;d.audio_hold=0;
             d.reset=1;d.code_valid=0;d.code=0;d.switches=switches;d.memory_done=0;d.memory_ready=0;
-            for(unsigned i=0;i<32;i++){d.clk=0;d.eval();d.clk=1;d.eval();}d.reset=0;
+            for(unsigned i=0;i<32;i++){d.clk=0;d.eval();audio_step();d.clk=1;d.eval();}d.reset=0;
             while(ticks++<6000000 && !passed) {
                 d.memory_done=0;d.memory_ready=!pending && (!waits || ticks%4!=0);
                 if(pending && delay--==0) {
@@ -37,9 +74,30 @@ int main(int argc,char** argv) {
                         check(pd==0xaa,"invalid success marker");passed=true;
                     }
                 }
+                if (mem[0x601]==4) {
+                    if (audio_test_state==0 && nonzero_frames>4) {
+                        d.audio_hold=1; audio_test_start=ticks; audio_test_state=1;
+                    } else if (audio_test_state==1 && ticks-audio_test_start==10000) {
+                        audio_test_silent=silent_frames; audio_test_nonzero=nonzero_frames; audio_test_state=2;
+                    } else if (audio_test_state==2 && ticks-audio_test_start==20000) {
+                        check(silent_frames>audio_test_silent+2 && nonzero_frames==audio_test_nonzero,
+                              "active-tone hold did not mute I2S");
+                        d.audio_hold=0; audio_test_start=ticks; audio_test_state=3;
+                    } else if (audio_test_state==3 && ticks-audio_test_start==20000) {
+                        check(nonzero_frames>audio_test_nonzero+2, "tone did not resume after hold");
+                        d.audio_locked=0; left_valid=false; audio_test_start=ticks; audio_test_state=4;
+                    } else if (audio_test_state==4 && ticks-audio_test_start==1000) {
+                        check(!d.i2s_data, "I2S data active without PLL lock");
+                        d.audio_locked=1; left_valid=false; old_lrclk=d.i2s_lrclk; old_sclk=d.i2s_sclk; bit_pos=0;
+                        audio_test_nonzero=nonzero_frames; audio_test_start=ticks; audio_test_state=5;
+                    } else if (audio_test_state==5 && ticks-audio_test_start==20000) {
+                        check(nonzero_frames>audio_test_nonzero+2, "tone did not resume after PLL relock");
+                        audio_test_state=6;
+                    }
+                }
                 d.code_valid=mem[0x601]==4 && keys<2;
                 d.code=keys==0 ? 0x1e : 0x9e;
-                d.clk=0;d.eval();
+                d.clk=0;d.eval();audio_step();
                 if(d.code_valid && d.code_ready)++keys;
                 if(d.audio_valid && mem[0x601]==4) {
                     ++audio_samples;int value=int16_t(d.audio_sample);
@@ -91,6 +149,9 @@ int main(int argc,char** argv) {
             check(mem[0x619]==(switches>>4) && mem[0x618]==(switches&0x0f),"equipment switch profile");
             check(audio_samples>50 && audio_max-audio_min>7000,"CPU programmed speaker tone");
             check(!d.speaker,"ROM did not mute speaker");
+            check(stereo_frames>20 && nonzero_frames>5 && serial_max-serial_min>7000,
+                  "guest tone did not reach I2S");
+            check(audio_test_state==6, "active-tone hold and lock recovery not exercised");
             check(dma2==8 && dma3==4 && terminal_bytes==2,"DMA byte/TC coverage");
             check(refreshes>1000 && locked_memory>=160 && mem[0x5100]==40,"refresh/LOCK coverage");
             for(unsigned a=0x3000;a<0x3008;a++)check(mem[a]==0x6d,"DMA RAM result");

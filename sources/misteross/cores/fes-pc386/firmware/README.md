@@ -68,6 +68,14 @@ a modified library:
     `inhibit_mouse_int_and_events` and `enable_mouse_int_and_events`,
     discarding an aux byte ahead of the reply.
 
+- `rombios.c`, `rombios.h`: POST programs PIT counter 1, the refresh timer,
+  as an AT BIOS does: binary, LSB only, mode 2, count 18 (15.09 µs). Port 61h
+  bit 4 toggles with its output, and INT 15h AH=86h counts those toggles as
+  15 µs each. Bochs toggles the bit by itself, so upstream never set the
+  counter, and on pc386 every AH=86h wait that needed a toggle never returned
+  ([#1150](https://github.com/DeanoC/fes/issues/1150)). `rombios.h` names port
+  41h `PORT_PIT_COUNTER1`.
+
 The boot order and disk-only boot need no patch: the machine writes CMOS 2Dh,
 38h, 3Dh and 3Fh. The floppy POST and INT 13h floppy paths stay; CMOS 10h says
 no drives and the unclaimed controller ports read FFh. The Bochs debug ports

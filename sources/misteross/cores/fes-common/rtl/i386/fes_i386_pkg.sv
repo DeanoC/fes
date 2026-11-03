@@ -272,12 +272,11 @@ package fes_i386_pkg;
     // to an inner privilege, or a return or IRET to an outer one; a far
     // transfer through a call gate, a TSS or a task gate; an IRET to V86
     // mode; paging; a protected-mode 16-bit stack access past 64 KiB under
-    // a limit that reaches there; code under a CS limit other than FFFFh
-    // (16-bit) or FFFFFFFFh (32-bit), whose general check is not built; a
-    // protected-mode IRET with NT set, a return from a nested task.
+    // a limit that reaches there; a protected-mode IRET with NT set, a
+    // return from a nested task.
     typedef enum logic [3:0] {
         WHY_ENCODING, WHY_TASK_GATE, WHY_INNER, WHY_OUTER, WHY_GATE, WHY_V86, WHY_PAGING, WHY_STACK64K,
-        WHY_CS_LIMIT, WHY_TASK_RETURN
+        WHY_TASK_RETURN
     } why_e;
 
     typedef struct packed {
@@ -303,7 +302,8 @@ package fes_i386_pkg;
     // uop, so nothing needs the new ESP sooner).
     // probe: the uop reads the lowest slot of INT's three pushes, and M1
     // also faults when they cross the 64 KiB wrap misaligned, so INT writes
-    // nothing before it can fault.
+    // nothing before it can fault. EX then checks the vector's offset, in
+    // T1, against CS's limit, as Bochs does after the pushes.
     // eoi_taken: the uop ends the instruction when it is a taken branch
     // (INTO's JNO, past which the rest of the routine is the interrupt).
     // A string element's last uop steps ESI, EDI and ECX at WB (str_si,
@@ -793,6 +793,11 @@ package fes_i386_pkg;
                                   // the L1D reads nothing for it
         fault_e      dfault;      // D: the fault of a second address's limit check (uop st2), which M1
                                   // takes when the first passes
+        logic        cs_late;     // D: a far transfer's offset past CS's limit (far_chk), #GP(0) at M1
+                                  // when the uop's own checks pass
+        logic        tchk;        // D: a near branch, or CALL rel's push, whose target_eip M1 checks
+                                  // against CS's limit; M1: that target is past it (#GP(0) at M1 for
+                                  // the push, at EX for a taken branch)
         logic [31:0] ld;          // M2: the loaded value, zero-extended (fes_i386_exctl xl, yl)
         logic [31:0] result;      // AG: LEA's offset; EX: the destination's new value
         logic [31:0] target;      // AG: a branch's target linear address; D: a st2 uop's store address,

@@ -790,7 +790,9 @@ endmodule
 
 // PC/XT has a resettable SDRAM medium. Keep that physical invalidation
 // explicit instead of changing the port contract of existing 1.0 shells.
-module fes_computer_mailbox_pcxt #(parameter bit ENABLE_KEYBOARD = 0, ENABLE_WRITE = 0) (
+module fes_computer_mailbox_pcxt #(
+    parameter bit ENABLE_KEYBOARD = 0, ENABLE_AUDIO = 0, ENABLE_WRITE = 0
+) (
     input wire clk,
     input wire [31:0] gpo,
     input wire [127:0] build_id,
@@ -812,7 +814,9 @@ module fes_computer_mailbox_pcxt #(parameter bit ENABLE_KEYBOARD = 0, ENABLE_WRI
 );
     /* verilator lint_off PINCONNECTEMPTY */
     fes_computer_mailbox_core #(
-        .ENABLE_PCXT_FLOPPY(1), .ENABLE_PCXT_FLOPPY_WRITE(ENABLE_WRITE), .ENABLE_KEYBOARD(ENABLE_KEYBOARD), .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(19),
+        .ENABLE_PCXT_FLOPPY(1), .ENABLE_PCXT_FLOPPY_WRITE(ENABLE_WRITE),
+        .ENABLE_KEYBOARD(ENABLE_KEYBOARD), .ENABLE_AUDIO(ENABLE_AUDIO),
+        .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(19),
         .UNIT0_MIN(`FES_COMPUTER_PCXT_FLOPPY_BYTES),
         .UNIT0_MAX(`FES_COMPUTER_PCXT_FLOPPY_BYTES)
     ) core (
