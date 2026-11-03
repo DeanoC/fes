@@ -152,7 +152,7 @@ class LockstepRunTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(', 0 fail;', result.stdout)
         self.assertIn('directed cases: 40 pass, 0 fail', result.stdout)
-        self.assertIn('unreal-mode cases: 6 pass, 0 fail', result.stdout)
+        self.assertIn('unreal-mode cases: 7 pass, 0 fail', result.stdout)
         self.assertRegex(result.stdout, r'protected mode: 2 seeds x 100 programs .*: 200 pass, 0 fail;')
         self.assertIn('memory cases (DMA, FLUSH): 26 pass, 0 fail', result.stdout)
         self.assertIn('trace unchanged', result.stdout)

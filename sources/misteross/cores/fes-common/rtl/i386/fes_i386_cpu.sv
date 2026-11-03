@@ -406,15 +406,21 @@ module fes_i386_cpu #(
     end
     // A delivery refetches from the faulting instruction, or the one before
     // (start_linear is a cycle old), which the delivery's far jump discards.
-    // D's EIP is the faulting instruction's, which D's CS-limit check passes
-    // at the entry's length 0. An interrupt's is the next instruction's. The address selects key on WB's
-    // fault field and int_take, registers (a taken branch has neither), so
+    // D's EIP is the faulting instruction's, limit+1 on a fetch fault, so it
+    // passes at the entry's length 0. Real-mode delivery redirects also cut
+    // out-of-range EIPs to the low 16-bit IP. An interrupt's EIP is the next
+    // instruction's. The address selects key on WB's fault field and int_take,
+    // registers (a taken branch has neither), so
     // the fetch address stays off exc_take's path.
     logic wb_faulted;
     assign wb_faulted = wb_s.uop.ctl.fault != fes_i386_pkg::FAULT_NONE;
     assign redirect = start == 2'd2 || !freeze && (wb_redir || int_take);
     assign redirect_linear = start == 2'd2 || wb_faulted || int_take ? start_linear : wb_s.target;
-    assign redirect_eip = start == 2'd2 || wb_faulted || int_take ? eip : wb_s.target_eip;
+    // Real-mode interrupt and exception frames carry only the low IP, and
+    // their delivery entry must restart at that same 16-bit offset. Keep the
+    // full EIP for protected-mode deliveries.
+    assign redirect_eip = start == 2'd2 ? eip : wb_faulted || int_take ? {cr0_pe ? eip[31:16] : 16'd0, eip[15:0]}
+                        : wb_s.target_eip;
 
     // ---- F1 to Q ------------------------------------------------------------------
     logic        q_valid, d_ready, fe_mem_load;
@@ -589,8 +595,9 @@ module fes_i386_cpu #(
     // EIP 10000h, as Bochs's does. An instruction that starts or runs past
     // CS's limit raises #GP(0) at its fetch, at its first byte, before
     // anything its decode found (cs_gp): when EIP plus the length passes
-    // the limit plus one. A delivery's entry (dc_exc, length 0) at the EIP
-    // of an instruction that starts just past the limit so passes. The
+    // the limit plus one. A delivery's entry (dc_exc, length 0) passes when
+    // its EIP is within the limit; real-mode delivery redirects use the low
+    // 16-bit IP so an out-of-range EIP can still reach its handler. The
     // compare is split at bit 4 so it runs beside d_eip_next's adder: the
     // low nibble plus the length carries at most 1 into EIP's upper 28
     // bits, which are compared with the limit plus one's upper bits (cs_lh)

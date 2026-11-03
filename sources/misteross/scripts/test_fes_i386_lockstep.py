@@ -232,14 +232,15 @@ def run_unreal(testbench: str, env: dict) -> dict:
     """The directed unreal-mode cases (lockstep_tb.cpp's run_unreal_cases):
     extended DS, ES, FS, GS and SS limits that survive real-mode reloads, a
     normal GS and SS that fault at FFFFh, the 386 real-mode CS rule, and a
-    protected-mode MOV Sreg reading its selector from a segment's last word."""
+    protected-mode MOV Sreg reading its selector from a segment's last word;
+    and #GP delivery after a 32-bit real-mode far jump beyond the new CS limit."""
     env = dict(env, FES_I386_MODE='unreal', FES_I386_LATENCY='1')
     result = subprocess.run([testbench], env=env, capture_output=True, text=True)
     if result.returncode not in (0, 1):
         raise LockstepError(f'unreal cases: testbench exited with {result.returncode}\n{result.stderr[-4000:]}')
     summary, failures = parse_output(result.stdout)
-    if summary['runs'] != 6:
-        raise LockstepError(f'unreal cases: testbench ran {summary["runs"]} of 6 cases')
+    if summary['runs'] != 7:
+        raise LockstepError(f'unreal cases: testbench ran {summary["runs"]} of 7 cases')
     return {'summary': summary, 'failures': failures}
 
 

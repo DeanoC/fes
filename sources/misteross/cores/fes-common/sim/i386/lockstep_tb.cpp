@@ -5851,13 +5851,20 @@ int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
     };
     const uint64_t gdt[5] = {0, desc(0, 0xffff, 0x9b, false, false), desc(0, 0xfffff, 0x93, true, false),
                              desc(0, 0xffff, 0x93, false, false), desc(0, 0xfffff, 0x9b, true, false)};
-    struct Case { const char *label; uint16_t code_sel; uint16_t gs_sel, ss_sel; int ending; };  // ending: 0 HLT, else vector
+    struct Case {
+        const char *label;
+        uint16_t code_sel;
+        uint16_t gs_sel, ss_sel;
+        int ending;
+        bool far_target_past_real_limit = false;
+    };  // ending: negative HLT, else delivered vector
     const Case cases[] = {
         {"unreal", 0x08, 0x10, 0x10, -1},
         {"normal-gs", 0x08, 0x18, 0x10, 13},
         {"normal-ss", 0x08, 0x10, 0x18, 12},
         {"cs-rule", 0x20, 0x10, 0x10, 13},
         {"cs-rule-hlt", 0x20, 0x10, 0x10, -2},
+        {"cs-delivery", 0x20, 0x10, 0x10, 13, true},
         {"pm-sreg-limit", 0x08, 0x10, 0x10, -3},
     };
     for (const Case &c : cases) {
@@ -5883,33 +5890,37 @@ int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
             a.op({0x66, 0xbb}); a.d(0x10000);              // MOV EBX, 10000h
             a.op({0x2e, 0x67, 0x8b, 0x03});                // MOV AX, CS:[EBX]: CS's 4 GiB limit, PE clear
         }
-        const size_t jmp_rm = a.here();
-        a.op({0xea}); a.w(0); a.w(0);                       // JMP 0000:rm
-        const uint16_t rm = uint16_t(CODE + a.here());
-        a.b[jmp_rm + 1] = uint8_t(rm); a.b[jmp_rm + 2] = uint8_t(rm >> 8);
-        if (c.ending <= -2) {
-            a.op({0xf4});
+        if (c.far_target_past_real_limit) {
+            a.op({0x66, 0xea}); a.d(0x12345); a.w(0);      // o32 JMP 0000:00012345 under the kept 4 GiB CS limit
         } else {
-            // Real-mode reloads, then accesses.
-            a.op({0xb8, 0x00, 0x01, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xe0, 0x8e, 0xe8, 0x8e, 0xd0});
-            a.op({0xbc, 0x00, 0x08});                       // MOV SP, 0800h (SS.base 1000h)
-            if (c.ending == -1) {
-                a.op({0x66, 0xbb}); a.d(0x00200000);         // MOV EBX, 200000h
-                a.op({0x67, 0x66, 0x8b, 0x03});              // MOV EAX, [EBX]
-                a.op({0x26, 0x67, 0x66, 0x89, 0x03});        // MOV ES:[EBX], EAX
-                a.op({0x64, 0x67, 0x66, 0x89, 0x43, 0x04});  // MOV FS:[EBX+4], EAX
-                a.op({0x65, 0x67, 0x66, 0x8b, 0x4b, 0x08});  // MOV ECX, GS:[EBX+8]
-                a.op({0x36, 0x67, 0x66, 0x89, 0x4b, 0x0c});  // MOV SS:[EBX+12], ECX
-                a.op({0xf4});
-            } else if (c.ending == 12) {
-                a.op({0xbb, 0xff, 0xff, 0x36, 0x8b, 0x07});  // MOV BX, FFFFh; MOV AX, SS:[BX]
-                a.op({0xf4});
-            } else if (c.code_sel == 0x20) {
-                a.op({0x2e, 0x8b, 0x1e, 0xff, 0xff});        // MOV BX, CS:[FFFFh]
+            const size_t jmp_rm = a.here();
+            a.op({0xea}); a.w(0); a.w(0);                   // JMP 0000:rm
+            const uint16_t rm = uint16_t(CODE + a.here());
+            a.b[jmp_rm + 1] = uint8_t(rm); a.b[jmp_rm + 2] = uint8_t(rm >> 8);
+            if (c.ending <= -2) {
                 a.op({0xf4});
             } else {
-                a.op({0x65, 0x8b, 0x06, 0xff, 0xff});        // MOV AX, GS:[FFFFh]
-                a.op({0xf4});
+                // Real-mode reloads, then accesses.
+                a.op({0xb8, 0x00, 0x01, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xe0, 0x8e, 0xe8, 0x8e, 0xd0});
+                a.op({0xbc, 0x00, 0x08});                   // MOV SP, 0800h (SS.base 1000h)
+                if (c.ending == -1) {
+                    a.op({0x66, 0xbb}); a.d(0x00200000);     // MOV EBX, 200000h
+                    a.op({0x67, 0x66, 0x8b, 0x03});          // MOV EAX, [EBX]
+                    a.op({0x26, 0x67, 0x66, 0x89, 0x03});    // MOV ES:[EBX], EAX
+                    a.op({0x64, 0x67, 0x66, 0x89, 0x43, 0x04});  // MOV FS:[EBX+4], EAX
+                    a.op({0x65, 0x67, 0x66, 0x8b, 0x4b, 0x08});  // MOV ECX, GS:[EBX+8]
+                    a.op({0x36, 0x67, 0x66, 0x89, 0x4b, 0x0c});  // MOV SS:[EBX+12], ECX
+                    a.op({0xf4});
+                } else if (c.ending == 12) {
+                    a.op({0xbb, 0xff, 0xff, 0x36, 0x8b, 0x07});  // MOV BX, FFFFh; MOV AX, SS:[BX]
+                    a.op({0xf4});
+                } else if (c.code_sel == 0x20) {
+                    a.op({0x2e, 0x8b, 0x1e, 0xff, 0xff});    // MOV BX, CS:[FFFFh]
+                    a.op({0xf4});
+                } else {
+                    a.op({0x65, 0x8b, 0x06, 0xff, 0xff});    // MOV AX, GS:[FFFFh]
+                    a.op({0xf4});
+                }
             }
         }
         std::vector<std::pair<uint32_t, uint8_t>> image;
@@ -5953,6 +5964,13 @@ int run_unreal_cases(fes_i386::Oracle &oracle, OracleBus &bus, Rtl &rtl, const s
             if (outcome.exception >= 0) out.add(label + ".exception", 0xff, uint32_t(outcome.exception));
         } else if (outcome.exception != c.ending) {
             out.add(label + ".exception", uint32_t(c.ending), outcome.exception < 0 ? 0xffu : uint32_t(outcome.exception));
+        }
+        if (c.far_target_past_real_limit) {
+            const uint32_t frame = s.seg[fes_i386::SEG_SS].base + 0x0efa;
+            const uint32_t ip = rtl.ram[frame] | uint32_t(rtl.ram[frame + 1]) << 8;
+            if ((s.gpr[fes_i386::REG_ESP] & 0xffff) != 0x0efa)
+                out.add(label + ".esp", 0x0efa, s.gpr[fes_i386::REG_ESP] & 0xffff);
+            if (ip != 0x2345) out.add(label + ".pushed-ip", 0x2345, ip);
         }
         if (c.ending == -3 && s.seg[fes_i386::SEG_ES].selector != 0x10)
             out.add(label + ".es", 0x10, s.seg[fes_i386::SEG_ES].selector);
