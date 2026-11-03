@@ -67,8 +67,9 @@
 // (trace_unimplemented), with its reason (trace_unbuilt).
 //
 // The speed governor (fes_i386_governor) charges each instruction and REP
-// element WB retires its reference cost and holds D at the next one's first
-// uop while the debt is over its window; under max it never holds. Holding
+// element WB retires its reference cost, with the period ISA bus time of its
+// I/O and MMIO accesses, and holds D at the next one's first uop while the
+// debt is over its window; under max it never holds. Holding
 // D is all it does, so no result depends on it.
 //
 // init_* is the architectural state reset loads. A machine ties it to the
@@ -193,7 +194,7 @@ module fes_i386_cpu #(
     output logic             trace_ex_store,       // a store in EX, one stage before it can retire
     output logic             trace_gov_hold,       // the governor's debt is over its window: D starts nothing
     output logic [11:0]      trace_gov_debt,       // ... the debt, in whole reference clocks
-    output logic [8:0]       trace_gov_charge,     // ... what it adds this cycle: a retirement's cost, 3 cycles on
+    output logic [12:0]      trace_gov_charge,     // ... what it adds this cycle: a retirement's cost, 3 cycles on
     // The store WB commits: the bytes trace_store_mask names of the eight
     // from trace_store_addr's dword, at linear addresses.
     output logic             trace_store,
@@ -1810,7 +1811,9 @@ module fes_i386_cpu #(
 
     // The store's physical line and the next one's, with their attributes,
     // registered as it enters WB; whether its lanes run into the next line.
-    logic [PA:0]          wb_p0, wb_p1;
+    // wb_mp: the memory operand's physical address, which differs from the
+    // store's for a st2 uop (the governor's MMIO charge).
+    logic [PA:0]          wb_p0, wb_p1, wb_mp;
     fes_i386_pkg::attr_e  wb_at0, wb_at1;
     logic                 wb_cross;
     logic [31:0]          ex_saddr;
@@ -1818,6 +1821,7 @@ module fes_i386_cpu #(
     always_ff @(posedge clk) if (!freeze) begin
         wb_p0 <= fes_i386_pkg::phys(ex_saddr, a20m);
         wb_p1 <= fes_i386_pkg::phys({ex_saddr[31:5] + 27'd1, 5'd0}, a20m);
+        wb_mp <= fes_i386_pkg::phys(ex_s.maddr, a20m);
     end
     assign wb_at0 = fes_i386_pkg::attr(wb_p0, attr_upper, ram_top);
     assign wb_at1 = fes_i386_pkg::attr(wb_p1, attr_upper, ram_top);
@@ -1958,15 +1962,29 @@ module fes_i386_cpu #(
     // or REP element's end (at_boundary), with WB's taken branch other than
     // a far jump, and each committed uop's memory bus cycles: a load or
     // store one, a read-modify-write two, and a st2 store one more. A load
-    // whose data nothing uses (nodata: a probe) reads nothing.
-    logic [1:0] gov_accesses;
+    // whose data nothing uses (nodata: a probe) reads nothing. Its ISA bus
+    // time: the uop's I/O access, and which of its memory accesses are MMIO,
+    // the operand's at maddr (wb_mp) and a st2 store's at target (wb_p0),
+    // with the 16-bit halves each touches.
+    logic [1:0] gov_accesses, gov_mmio;
+    logic       gov_mmio_st2;
     assign gov_accesses = !wb_commit || wb_s.nodata ? 2'd0
                         : 2'(wb_s.uop.mem.kind == fes_i386_pkg::MEM_RMW) + 2'(wb_s.uop.mem.kind != fes_i386_pkg::MEM_NONE)
                           + 2'(wb_s.uop.st2);
+    assign gov_mmio = !wb_commit || wb_s.nodata || fes_i386_pkg::attr(wb_mp, attr_upper, ram_top) != fes_i386_pkg::ATTR_MMIO
+                    ? 2'd0
+                    : 2'(wb_s.uop.mem.kind == fes_i386_pkg::MEM_RMW) + 2'(wb_s.uop.mem.kind != fes_i386_pkg::MEM_NONE);
+    assign gov_mmio_st2 = wb_commit && !wb_s.nodata && wb_s.uop.st2 && wb_at0 == fes_i386_pkg::ATTR_MMIO;
+    function automatic logic [2:0] halves(input logic a0, input logic [3:0] bytes);
+        halves = 3'((4'(a0) + bytes + 4'd1) >> 1);
+    endfunction
     fes_i386_governor #(.GOV_N(GOV_N), .GOV_D(GOV_D)) governor (
         .clk, .reset, .preset(gov_preset), .frequency(gov_frequency), .turbo(gov_turbo),
         .boundary(at_boundary), .eoi(wb_eoi), .element(wb_s.uop.str_cx), .taken(wb_s.taken && !wb_s.uop.seg2),
         .gov(wb_s.gov), .accesses(gov_accesses), .dword(wb_s.uop.mem.bytes[2] || wb_s.uop.mem.bytes[3]),
+        .io(wb_commit && wb_s.uop.io != 2'd0), .io_port, .io_size,
+        .mmio(gov_mmio), .mmio_halves(halves(wb_s.maddr[0], wb_s.uop.mem.bytes)),
+        .mmio_st2(gov_mmio_st2), .mmio_st2_halves(halves(wb_s.target[0], wb_s.uop.mem.bytes)),
         .hold(gov_hold), .debt_clocks(trace_gov_debt), .charge(trace_gov_charge)
     );
 

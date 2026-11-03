@@ -29,11 +29,55 @@
 # and a 386 instruction as the 386 does. On every table an address of base,
 # index and displacement costs one more (memory = true classes).
 #
+# The data sheets' counts assume a zero-wait-state local bus. [isa] gives the
+# period AT's ISA bus time, which the governor charges on top for each I/O
+# access and each MMIO access (the machine's VGA memory, A0000h-BFFFFh).
+#
+#   I/O    an access to a port in ports16 takes one 16-bit cycle per word
+#          (a byte, a word: one; a dword: two); to any other port one 8-bit
+#          cycle per byte, as the AT's bus controller splits it. It is
+#          charged its cycles less the 2 clocks of the bus cycle the I/O
+#          instruction's count holds.
+#   MMIO   each access takes one VGA cycle per 16-bit half of the bus it
+#          touches (an aligned byte or word one, a dword two, a word at an
+#          odd address two), less what the table and the wait-state charge
+#          already give it: 2 clocks, the wait states, and on a 16-bit bus a
+#          dword's second cycle.
+#
+# A cycle is io8, io16 or vga ISA clocks of clock_ns each, in reference
+# clocks at the frequency the governor runs at (the preset's or the record's
+# override): rounded to the nearest clock, halves up. Neither charge goes
+# below zero. The machine's own device time (docs/pc386-machine-design.md,
+# "I/O timing") is apart: it spends the lead the window allows, so a loop of
+# such accesses takes the larger of the two.
+#
 # Sources: the 286, 386 and 486 columns of "80x86 Integer Instruction Set
 # (8088 - Pentium)" (https://www2.math.uni-wuppertal.de/~fpf/Uebungen/GdR-SS02/opcode_i.html),
 # which compiles the Intel data sheets' counts, checked against MAME's 386
 # and 486 tables (src/devices/cpu/i386/cycles.h) and 286 table
 # (src/devices/cpu/i86/i286.cpp). Where they differ the compiled table wins.
+#
+# The ISA figures: a standard AT inserts one wait state on a 16-bit device's
+# bus cycle (three bus clocks) and four on an 8-bit device's (six), on I/O
+# and memory alike (M. Abrash, "Demystifying 16-Bit VGA", Dr. Dobb's Journal,
+# May 1990; the bus references the pc386 M1 record checks, in
+# docs/validation/2026-10-26-pc386-m1-freedos-boot). The ISA bus ran near
+# 8 MHz whatever the CPU: 120 ns is the machine's 8.33 MHz
+# (cores/fes-pc386/rtl/pc386_io.sv), so io8 is its 720 ns isa8 cycle and
+# io16 its 360 ns isa16 one. An ISA VGA held the CPU for each display memory
+# access ("three wait states per byte-sized access to display memory on an
+# AT", Abrash). vga is one six-clock cycle per 16-bit half: a word each
+# 720 ns, 2.8 MB/s at most, inside the 1.2 MB/s (Trident TVGA8900B and
+# 9000B) to 3.7-5.5 MB/s (Tseng ET4000AX) that Vidspeed measured on 16-bit
+# ISA VGAs with the bus at 10-11 MHz (os2museum.com, "Fast Unaccelerated
+# VGA?", October 2015). It is a starting point, like the wait states.
+
+[isa]
+clock_ns = 120
+io8 = 6
+io16 = 3
+ports16 = ["1F0"]
+vga = 6
 
 [[preset]]
 id = 1
@@ -753,7 +797,8 @@ stems = ["6E:rep", "6F:rep"]
 cost = [5, 12, 17]
 element = [4, 5, 5]
 
-# ---- I/O: the instruction's own cost; the machine's device time is apart
+# ---- I/O: the instruction's own cost, with one zero-wait bus cycle; [isa]
+# adds the ISA cycles. The machine's device time is apart
 # (docs/pc386-machine-design.md, "I/O timing").
 
 [[class]]

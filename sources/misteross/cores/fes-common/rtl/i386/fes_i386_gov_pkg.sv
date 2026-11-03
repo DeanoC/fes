@@ -7,11 +7,17 @@
 // element; branch, column 1 is its taken cost; memory, an address of base,
 // index and displacement costs one more. preset() gives a preset's cost table
 // (0 286, 1 386, 2 486), frequency in 100 kHz, wait states per memory bus
-// cycle and a 16-bit bus. cost_rom_index() is the ROM's address.
+// cycle and a 16-bit bus. cost_rom_index() is the ROM's address. The ISA
+// bus: an ISA clock is frequency * ISA_STEP / 2**ISA_FRAC reference clocks;
+// an 8-bit I/O cycle ISA_IO8 of them, a 16-bit one (a port16() port)
+// ISA_IO16, and an MMIO access ISA_VGA per 16-bit half.
 package fes_i386_gov_pkg;
     localparam int CLASS_BITS = 8;
     localparam int ROM_ABITS = 10;
     localparam logic [7:0] CLASS_DEFAULT = 8'd0;
+    localparam int ISA_FRAC = 20;
+    localparam logic [13:0] ISA_STEP = 14'd12583;  // 120 ns
+    localparam logic [3:0] ISA_IO8 = 4'd6, ISA_IO16 = 4'd3, ISA_VGA = 4'd6;
     typedef struct packed {
         logic                  elem;
         logic                  branch;
@@ -518,6 +524,10 @@ package fes_i386_gov_pkg;
             3'd7: preset = '{tbl: 2'd2, frequency: 10'd667, wait_states: 2'd0, bus16: 1'b0};  // 486DX2-66
             default: ;
         endcase
+    endfunction
+
+    function automatic logic port16(input logic [15:0] port);
+        port16 = port == 16'h01f0;
     endfunction
 
     function automatic logic [ROM_ABITS-1:0] cost_rom_index(input logic [1:0] tbl, input logic [CLASS_BITS-1:0] cls);

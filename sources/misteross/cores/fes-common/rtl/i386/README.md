@@ -1072,6 +1072,16 @@ Classes that cost the same share a ROM row. Run it after editing the table;
   WB commits: its memory bus cycles (a load or store one, a read-modify-write
   two, a `st2` store one more; a `nodata` probe none) times the preset's wait
   states, and on a 16-bit bus a dword access's second cycle.
+- **ISA bus time.** Also on every uop WB commits: its I/O access's ISA cycles
+  (8-bit ones a byte each, or at a `port16()` port 16-bit ones a word each)
+  less the data sheet's two-clock bus cycle; and for each of its memory
+  accesses that is MMIO (`attr` of `wb_mp`, the operand's physical address,
+  or of `wb_p0` for a `st2` store) a VGA cycle per 16-bit half it touches,
+  less the bus cycle and wait-state charge it already has. Neither goes
+  below zero. `governor.toml`'s `[isa]` gives the cycles in ISA clocks; the
+  governor turns them into reference clocks at its frequency at reset
+  (`ISA_STEP`/`2**ISA_FRAC` an ISA clock per 100 kHz, rounded as the exact
+  figure is at every frequency the record can set).
 - **The pipeline.** Registers from WB: the retirement; the class, the ROM's
   address and the memory charge; the ROM's word; the charge; the debt (in
   1/65536 reference clock, never below zero); `hold`, the debt over 64
@@ -1088,10 +1098,13 @@ Classes that cost the same share a ROM row. Run it after editing the table;
   benches.
 
 `scripts/test_fes_i386_governor.py` runs [`governor_bench.asm`](../../sim/i386/governor_bench.asm)
-in the lockstep testbench's governor mode under max and every preset: each
-loop's charge must equal the table's, its time must be within 5% of the
-table time at the preset's frequency, interrupt latency must stay within the
-window, and the frequency override and turbo must act as the record says.
+in the lockstep testbench's governor mode (A0000h-BFFFFh MMIO) under max and
+every preset: each loop's charge must equal the table's, its time must be
+within 5% of the table time at the preset's frequency, interrupt latency
+must stay within the window, and the frequency override and turbo must act
+as the record says. `sim_fes_pc386.py --suite governor` times the delay,
+speaker (port 61h) and VRAM fill loops of `governor_test.asm` against the
+BIOS tick on `pc386_system`, with the machine's device time.
 `test_fes_i386_lockstep.py --preset N --same-as <max report>` reruns the
 lockstep under a preset and fails on any architectural difference from max.
 
