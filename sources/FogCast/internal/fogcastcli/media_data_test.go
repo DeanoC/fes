@@ -23,7 +23,13 @@ func TestSaveDiskCLIUsesBoundSessionAndSingleMutation(t *testing.T) {
 				t.Error(r.URL, r.Header)
 			}
 		}
-		json.NewEncoder(w).Encode(map[string]any{"id": "session", "target": "dev", "state": "active", "core_package": map[string]any{"package_id": id, "generation": 9, "abi": map[string]any{"id": "fes.computer", "major": 1, "minor": 0}, "media_units": []protocol.MediaUnitStatus{unit}, "persistence_mode": "persistent", "active_interfaces": []protocol.RuntimeInterface{{ID: protocol.AtariStFloppyInterface().ID, Major: 1}, {ID: protocol.AtariStFloppyWriteInterface().ID, Major: 1}}}})
+		replyUnit := unit
+		if r.Method == "POST" && unit.Persistence != nil {
+			binding := *unit.Persistence
+			binding.Revision = strings.Repeat("c", 64)
+			replyUnit.Persistence = &binding
+		}
+		json.NewEncoder(w).Encode(map[string]any{"id": "session", "target": "dev", "state": "active", "core_package": map[string]any{"package_id": id, "generation": 9, "abi": map[string]any{"id": "fes.computer", "major": 1, "minor": 0}, "media_units": []protocol.MediaUnitStatus{replyUnit}, "persistence_mode": "persistent", "active_interfaces": []protocol.RuntimeInterface{{ID: protocol.AtariStFloppyInterface().ID, Major: 1}, {ID: protocol.AtariStFloppyWriteInterface().ID, Major: 1}}}})
 	}))
 	defer server.Close()
 	if result := runLiveMediaCommand(context.Background(), server.URL, []string{"save-disk"}); result.err != nil || posts != 1 {

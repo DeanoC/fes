@@ -101,10 +101,10 @@ func DecodeManifest(data []byte) (Manifest, error) {
 	switch strings.TrimSpace(m.DestinationPanel) {
 	case "", PanelStrip:
 		m.DestinationPanel = PanelStrip
-	case PanelHero:
-		m.DestinationPanel = PanelHero
+	case PanelHero, PanelNone:
+		m.DestinationPanel = strings.TrimSpace(m.DestinationPanel)
 	default:
-		return Manifest{}, fmt.Errorf("destination_panel %q must be %q or %q", m.DestinationPanel, PanelStrip, PanelHero)
+		return Manifest{}, fmt.Errorf("destination_panel %q must be %q, %q or %q", m.DestinationPanel, PanelStrip, PanelHero, PanelNone)
 	}
 	if m.Theme.Background != "" {
 		if _, err := ParseHexColor(m.Theme.Background); err != nil {

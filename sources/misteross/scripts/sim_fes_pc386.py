@@ -36,9 +36,11 @@ docs/pc386-machine-design.md, "Verification" and phases M1-M3.
            must be off at the prompt, INT 15h AH=24h and 87h must turn it on,
            off and back whichever control set it, and a shutdown-byte resume
            must keep it. On the games image, HIMEMX's /VERBOSE banner must
-           name a real A20 method, not "Always on", and XMS must agree with
-           memory. Every check must print ok. With --cpu rtl, the boot image
-           only; writes a20-rtl/.
+           name a real A20 method, not "Always on", A20 must be off at the
+           prompt, and XMS 03h/04h and 05h/06h must turn it on and off again
+           and agree with memory. Every check must print ok. With --cpu rtl,
+           the RTL must run both images without an oracle step or a stop;
+           writes a20-rtl/.
   sound    boots FreeDOS and runs SOUND.COM; checks the speaker and DSP tones,
            OPL2 output and DSP interrupts.
   game     starts Wolfenstein 3D or Ultima VI from user-supplied eXoDOS files
@@ -207,6 +209,8 @@ VGA_RTL = (
     CORE / 'rtl/pc386_vga_scanout.sv',
     CORE / 'sim/vga_replay_top.sv',
 )
+SERPENT_ISLE_MIN_CONVENTIONAL_BYTES = 573 * 1024
+GAMES_CONVENTIONAL_HEADROOM_BYTES = 1024
 PRESENTER_RTL = (CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_presenter.sv')
 CAPTURE_RTL = (
     CORE / 'rtl/pc386_rate.sv', CORE / 'rtl/pc386_ram.sv', CORE / 'rtl/pc386_vga_scanout.sv',
@@ -564,11 +568,29 @@ def run_boot(args, linked: list[Path]) -> dict:
                                             '--type', args.type, '--expect', args.expect, '--trace', str(trace),
                                             '--cpu', args.cpu, '--mouse', '0:0,0,0',
                                             *governor_arguments(args)], images)
+    typed_commands = {command.strip().lower() for command in args.type.split('|')}
+    if args.image == 'games' and 'mem' in typed_commands:
+        report['failures'] += games_memory_failures(report['screen'])
     report['failures'] += rtl_boot_failures(report, args.cpu)
     print('Replaying the boot\'s VGA trace against Bochs\'s VGA', flush=True)
     report['replay'] = run_replay(args, suite, trace)
     report['failures'] += report['replay']['failures']
     return report
+
+
+def games_memory_failures(screen: list[str]) -> list[str]:
+    """Check MEM's exact conventional-memory count against the Serpent Isle requirement."""
+    text = '\n'.join(screen)
+    match = re.search(r'Largest executable program size\s+\d+K\s+\(\s*([\d,]+) bytes\)', text)
+    if not match:
+        return ['games image MEM output is missing the largest executable program size']
+    available = int(match.group(1).replace(',', ''))
+    required = SERPENT_ISLE_MIN_CONVENTIONAL_BYTES + GAMES_CONVENTIONAL_HEADROOM_BYTES
+    if available < required:
+        return [f'games image has {available:,} conventional bytes free; '
+                f'Serpent Isle needs {SERPENT_ISLE_MIN_CONVENTIONAL_BYTES:,} bytes '
+                f'with {GAMES_CONVENTIONAL_HEADROOM_BYTES:,} bytes of headroom ({required:,} total)']
+    return []
 
 
 def vga_test_disk(args) -> Path:
@@ -636,17 +658,17 @@ def run_rtl_stops(args, linked: list[Path]) -> dict:
 # A20TEST.COM's checks on each image, and HIMEMX's /VERBOSE line naming its A20 method.
 A20_CHECKS = {
     'boot': ('boot', 'query', 'query-2403', 'bios', 'kbc', 'port92', 'move', 'move-kbc', 'resume', 'DONE'),
-    'games': ('xms-query', 'xms-local', 'DONE'),
+    'games': ('xms-start', 'xms-query', 'xms-global', 'xms-lock', 'DONE'),
 }
 HIMEMX_METHOD = re.compile(r'(\S.*?) A20 method used')
 
 
 def run_a20(args, linked: list[Path]) -> dict:
-    """A20TEST.COM at the FreeDOS prompt on the boot image and, on the oracle, the games image."""
+    """A20TEST.COM at the FreeDOS prompt on the boot and games images."""
     images = firmware.images(args.download, args.jobs)
     testbench = machine_testbench(args, linked)
     rtl = '-rtl' if args.cpu == 'rtl' else ''
-    profiles = ('boot',) if args.cpu == 'rtl' else tuple(A20_CHECKS)
+    profiles = tuple(A20_CHECKS)
     disks = {profile: fixture_with(args, f'a20{rtl}/{profile}', 'a20_test.asm', 'A20TEST.COM',
                                    freedos.image(args.download, args.jobs, profile)) for profile in profiles}
 
@@ -677,9 +699,7 @@ def run_a20(args, linked: list[Path]) -> dict:
             if len(methods) != 1 or methods[0].lower().startswith('always on'):
                 failures.append(f'games: HIMEMX must pick a real A20 method, its banner says {methods}')
         if rtl:
-            stops = (run.get('rtl') or {}).get('gaps', [])
-            checks += [f'{profile}: RTL stop {gap["kind"]} {gap["stem"]} x{gap["stops"]}, run on the oracle'
-                       for gap in stops]
+            failures += [f'{profile}: {failure}' for failure in rtl_failures(run, 'A20 run')]
     return {'runs': runs, 'checks': checks, 'failures': failures}
 
 

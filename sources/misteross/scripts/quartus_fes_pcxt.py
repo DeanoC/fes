@@ -95,6 +95,7 @@ def elaboration(source: Path, work: Path, library: Path, *, package_profile=Fals
     quote = lambda p: '"' + str(p).replace('\\', '\\\\').replace('"', '\\"') + '"'
     parameters = '-set MDA 0 -set SCANLINES 0 -set HALF_RATE_BOARD ' + ('0' if package_profile else '1')
     parameters += ' -set HARDWARE_DOS ' + ('1' if dos_profile else '0')
+    parameters += ' -set ENABLE_PCXT_FLOPPY_WRITE ' + ('1' if dos_profile else '0')
     if package_profile:
         if not isinstance(build_id, str) or not re.fullmatch('[0-9a-f]{32}', build_id):
             raise ValueError('package profile requires an explicit BUILD_ID')
@@ -384,6 +385,7 @@ def main(argv=None) -> int:
               'profile': {'MDA': 0, 'SCANLINES': 0, 'HALF_RATE_BOARD': int(not args.package_profile),
                           'ENABLE_FES_COMPUTER': int(args.package_profile),
                           'ENABLE_PCXT_MEDIA': int(args.package_profile),
+                          'ENABLE_PCXT_FLOPPY_WRITE': int(args.dos_profile),
                           'HARDWARE_DOS': int(args.dos_profile), 'BUILD_ID': args.build_id},
               'clock_targets_mhz': {'cpu': 100, 'board': 100 if args.package_profile else 50, 'pixel': 74.25},
               'operations': [], 'runs': [], 'hardware': False, 'status': 'preparing'}

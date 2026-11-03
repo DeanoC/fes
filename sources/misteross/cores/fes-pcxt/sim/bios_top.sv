@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Real assembled machine. Observations below do not drive any guest state.
 module bios_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0, WAIT_FOR_MEDIA = 0,
-                  WITH_RUNTIME_KEYBOARD = 0) (
+                  WITH_RUNTIME_KEYBOARD = 0, WITH_WRITABLE = 0) (
     input wire clk, clk_pixel, cold_reset, reset_pixel, warm_reset, hold,
     input wire firmware_valid,
     input wire [15:0] firmware_address,
@@ -74,18 +74,25 @@ module bios_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0, WAIT_FO
     wire [18:0] active_disk_address;
     wire [7:0] active_disk_data;
     wire runtime_hold;
+    wire media_frozen, media_write_busy, media_changed, snapshot_read_valid, snapshot_read_ready;
+    wire [19:0] snapshot_read_address;
+    wire [7:0] snapshot_read_data;
     generate if (WITH_RUNTIME_MEDIA) begin: runtime_media
         wire [18:0] source_addr;
         wire [15:0] source_data;
         wire [1:0] source_enable;
         wire source_ready;
         wire [31:0] unused_unit_size;
-        fes_computer_mailbox_pcxt #(.ENABLE_KEYBOARD(WITH_RUNTIME_KEYBOARD)) gp_mailbox (
+        /* verilator lint_off PINCONNECTEMPTY */
+        fes_computer_mailbox_pcxt #(.ENABLE_KEYBOARD(WITH_RUNTIME_KEYBOARD), .ENABLE_WRITE(WITH_WRITABLE)) gp_mailbox (
             .clk(clk), .gpo(media_gpo), .build_id(128'd0), .gpi(media_gpi),
             .exec_reset(runtime_hold), .media_reset(cold_reset),
             .keyboard_rows(keyboard_rows),
             .media_write_addr(source_addr), .media_write_data(source_data), .media_write_enable(source_enable),
-            .media_write_ready(source_ready), .media_write_busy(1'b0), .unit0_state(media_state), .unit0_size(unused_unit_size));
+            .media_write_ready(source_ready), .media_changed(media_changed), .media_frozen(media_frozen),
+            .media_read_req(snapshot_read_valid), .media_read_addr(snapshot_read_address),
+            .media_read_ready(snapshot_read_ready), .media_read_data(snapshot_read_data), .media_write_busy(media_write_busy), .unit0_state(media_state), .unit0_size(unused_unit_size));
+        /* verilator lint_on PINCONNECTEMPTY */
         pcxt_media adapter (
             .clk(clk), .cold_reset(cold_reset), .unit_state(media_state),
             .source_addr(source_addr), .source_data(source_data), .source_enable(source_enable),
@@ -96,6 +103,9 @@ module bios_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0, WAIT_FO
         assign disk_load_done = 1'b0;
         wire unused_direct = &{1'b0, media_present, disk_restart, disk_load_valid, disk_load_address, disk_load_data};
     end else begin: direct_media
+        assign media_frozen = 1'b0;
+        assign snapshot_read_valid = 1'b0;
+        assign snapshot_read_address = 20'b0;
         assign runtime_hold = 1'b0;
         assign keyboard_rows = 144'd0;
         assign media_gpi = 0;
@@ -115,8 +125,11 @@ module bios_top #(parameter bit WITH_FLOPPY = 0, WITH_RUNTIME_MEDIA = 0, WAIT_FO
         .clk(clk), .cold_reset(cold_reset), .media_present(active_media_present),
         .start_without_media(start_without_media), .hold(boot_media_hold));
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_system #(.DIAGNOSTIC_PROBE(0), .FLOPPY(WITH_FLOPPY),
+    pcxt_system #(.DIAGNOSTIC_PROBE(0), .FLOPPY(WITH_FLOPPY), .FLOPPY_WRITE(WITH_WRITABLE),
                   .SWITCHES(WITH_FLOPPY ? 8'h2d : 8'h2c)) system (
+        .media_frozen(media_frozen), .media_write_busy(media_write_busy), .media_changed(media_changed),
+        .snapshot_read_valid(snapshot_read_valid), .snapshot_read_address(snapshot_read_address),
+        .snapshot_read_ready(snapshot_read_ready), .snapshot_read_data(snapshot_read_data),
         .clk_cpu(clk), .clk_pin(clk), .hold(hold | runtime_hold | boot_media_hold),
         .media_present(active_media_present), .disk_restart(active_disk_restart),
         .disk_load_valid(active_disk_valid), .disk_load_ready(active_disk_ready), .disk_load_done(active_disk_done),

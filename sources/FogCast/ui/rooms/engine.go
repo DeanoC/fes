@@ -26,6 +26,16 @@ import (
 //go:embed stdlib
 var stdlibFS embed.FS
 
+// Setup is the first-run setup state a room sees. Step is the open setup
+// room's 1-based position among Steps (0 for a room outside setup).
+// Unfinished is true after setup was skipped and before it is finished;
+// Skipped lists the steps not yet done.
+type Setup struct {
+	Step, Steps int
+	Unfinished  bool
+	Skipped     []string
+}
+
 // Services is what a room may ask the launcher's host for. Calls run on
 // engine goroutines; results are delivered back on the launcher thread by Step.
 type Services interface {
@@ -98,6 +108,9 @@ type Options struct {
 	// drifting art). The launcher owns the preference; scripts read
 	// room.reduced_motion.
 	ReducedMotion bool
+	// Setup is the first-run setup position the room is opened at, shown to
+	// scripts as room.setup.
+	Setup Setup
 	// ReleaseOnly leaves out cores outside the v1 release (release.Shown).
 	// The launcher sets it unless its Show all cores preference is on; a
 	// change applies to rooms opened after it.

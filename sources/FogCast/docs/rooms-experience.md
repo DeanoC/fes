@@ -8,18 +8,23 @@ packs remain supported; see [room authoring](rooms.md) and
 
 ## Home and system selection
 
-Home shows installed machines and prepared library systems with plain model
-names. The product wordmark appears once in shared chrome; package names,
-versions, hashes and test labels do not become machine headings or default
-setup titles. Unknown systems retain their supplied name. User-authored game
-and setup titles remain distinct from machine identity.
+Home shows computer-family tiles and, when available, a Recently played row.
+Each family uses plain model names and summarizes its models and readiness;
+opening a family enters its workbench without launching a core. Play on a
+recent title starts that title directly. The product wordmark appears once in
+shared chrome; package names, versions, hashes and test labels do not become
+machine headings or default setup titles. Unknown systems retain their
+supplied name. User-authored game and setup titles remain distinct from
+machine identity.
 
-Library, Systems and Settings are visible header routes. Confirm on a Ready
-shelf item plays directly. Up moves into its Play/Details controls; a second
-Up reaches the header. Left/Right moves within a row, while Down or Back
-returns to the same shelf selection. Delayed catalog or artwork replies must
-not move focus. A changed item, readiness intent, package, media, target or
-session invalidates captured action focus before activation.
+In the v1 release scope, Settings is Home's only header route. Up moves from
+the family tiles to Recently played when present, then to the hero actions and
+header. On compact screens, Home shows a family list and hides Recently played.
+Back at the release-scoped Home root leaves Home open; the room picker remains
+the fallback when Home cannot open. Show all cores restores the Library and
+Systems routes and the remaining families. Delayed catalog or artwork replies
+must not move focus. A changed item, readiness intent, package, media, target
+or session invalidates captured action focus before activation.
 
 Systems lists prepared entries and their editions. Confirm starts the selected
 entry; Set up opens its exact model and entry. An empty shelf offers Add system.

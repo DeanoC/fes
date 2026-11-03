@@ -194,6 +194,7 @@ private:
 	bool keyboard_hid_ = false;
 	bool mouse_relative_ = false;
 	bool floppy_write_ = false;
+	bool pcxt_floppy_write_ = false;
 	bool tape_write_ = false;
 	bool wall_clock_ = false;
 	bool ata_disk_ = false;

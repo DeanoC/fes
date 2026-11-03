@@ -7,6 +7,7 @@ module top #(
     parameter bit PHASED_HDMI_CLOCK = 0,
     parameter bit ENABLE_FES_COMPUTER = 0,
     parameter bit ENABLE_PCXT_MEDIA = 0,
+    parameter bit ENABLE_PCXT_FLOPPY_WRITE = 0,
     parameter [127:0] BUILD_ID = 128'h00000000000000000000000000000000
 ) (
     input wire FPGA_CLK1_50,
@@ -83,6 +84,10 @@ module top #(
     wire exec_reset;
     wire [143:0] keyboard_rows;
     localparam bit LIVE_MEDIA = ENABLE_FES_COMPUTER && ENABLE_PCXT_MEDIA;
+    localparam bit LIVE_MEDIA_WRITE = LIVE_MEDIA && HARDWARE_DOS && ENABLE_PCXT_FLOPPY_WRITE;
+    wire media_frozen, media_write_busy, media_changed, snapshot_read_valid, snapshot_read_ready;
+    wire [19:0] snapshot_read_address;
+    wire [7:0] snapshot_read_data;
     wire media_present, disk_restart, disk_load_valid, disk_load_ready, disk_load_done, disk_loaded;
     wire [1:0] media_unit_state;
     wire [18:0] disk_load_address;
@@ -96,12 +101,14 @@ module top #(
             wire [15:0] source_data;
             wire [1:0] source_enable;
             wire source_ready;
-            fes_computer_mailbox_pcxt #(.ENABLE_KEYBOARD(HARDWARE_DOS)) gp_mailbox (
+            fes_computer_mailbox_pcxt #(.ENABLE_KEYBOARD(HARDWARE_DOS), .ENABLE_WRITE(LIVE_MEDIA_WRITE)) gp_mailbox (
                 .clk(clk_memory), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
                 .exec_reset(exec_reset), .keyboard_rows(keyboard_rows), .media_reset(board_reset_live),
                 .media_write_addr(source_addr), .media_write_data(source_data),
                 .media_write_enable(source_enable), .media_write_ready(source_ready),
-                .media_write_busy(1'b0), .unit0_state(media_unit_state), .unit0_size());
+                .media_changed(media_changed), .media_frozen(media_frozen), .media_read_req(snapshot_read_valid),
+                .media_read_addr(snapshot_read_address), .media_read_ready(snapshot_read_ready),
+                .media_read_data(snapshot_read_data), .media_write_busy(media_write_busy), .unit0_state(media_unit_state), .unit0_size());
             pcxt_media media (
                 .clk(clk_memory), .cold_reset(board_reset_live), .unit_state(media_unit_state),
                 .source_addr(source_addr), .source_data(source_data), .source_enable(source_enable),
@@ -133,6 +140,9 @@ module top #(
         .valid(firmware_valid), .ready(firmware_ready), .done(firmware_done),
         .address(firmware_address), .data(firmware_data));
     generate if (!LIVE_MEDIA) begin: no_disk_boot
+        assign media_frozen = 1'b0;
+        assign snapshot_read_valid = 1'b0;
+        assign snapshot_read_address = 20'b0;
         assign media_present = 1'b0;
         assign disk_restart = 1'b0;
         assign disk_load_valid = 1'b0;
@@ -184,7 +194,11 @@ module top #(
     end endgenerate
     pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD),
                   .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD), .FLOPPY(HARDWARE_DOS || LIVE_MEDIA),
+                  .FLOPPY_WRITE(LIVE_MEDIA_WRITE),
                   .DIAGNOSTIC_PROBE(!(HARDWARE_DOS || LIVE_MEDIA))) system (
+        .media_frozen(media_frozen), .media_write_busy(media_write_busy), .media_changed(media_changed),
+        .snapshot_read_valid(snapshot_read_valid), .snapshot_read_address(snapshot_read_address),
+        .snapshot_read_ready(snapshot_read_ready), .snapshot_read_data(snapshot_read_data),
         .media_present(media_present), .disk_restart(disk_restart), .disk_load_valid(disk_load_valid), .disk_load_address(disk_load_address),
         .disk_load_data(disk_load_data), .disk_load_ready(disk_load_ready), .disk_load_done(disk_load_done),
         .disk_loaded(disk_loaded),

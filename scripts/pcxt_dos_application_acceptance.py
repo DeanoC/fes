@@ -8,6 +8,7 @@ session, or restores/releases the kit. The caller remains responsible for all
 session and kit cleanup even on failure.
 """
 import argparse
+import ctypes
 import fcntl
 import hashlib
 import io
@@ -15,6 +16,8 @@ import json
 import math
 import os
 import re
+import select
+import socket
 import shutil
 import signal
 import subprocess
@@ -508,9 +511,12 @@ def source_provenance(args, font):
              'extracted_font_sha256': hashlib.sha256(font).hexdigest()}, host_raw, software_raw)
 
 
-def validate_active(runner, expected, args, disk_sha):
+def _validate_active_once(runner, expected, args, disk_sha, *, session_guard=None):
     check_interrupted()
     claim = check_claim(args.kit, args.owner, args.target_id, args.queue_lock_fd)
+    # Re-read the pinned receipt identities and host executable before every
+    # input/capture; a previously validated receipt must not be swapped later.
+    source_provenance(args, visual.load_font())
     check_private_config(args.config, args.target_id, expected.target_name)
     check_live_settings(runner.api.get('/api/v1/library/settings'), args.target_id, expected.target_name)
     health = runner.api.get('/api/v1/health')
@@ -520,12 +526,23 @@ def validate_active(runner, expected, args, disk_sha):
         raise pa.AcceptanceError(str(exc)) from exc
     target = health.get('target', {})
     connection, software = target.get('connection', {}), target.get('software', {})
+    selected = software.get('selected')
     if (connection.get('boot_id') != args.expected_boot or connection.get('state') not in ('ready', 'active')
-            or software.get('selected') != args.bundle_id):
-        raise pa.AcceptanceError('target boot, connection or selected software changed')
+            or (selected not in (None, '') and selected != args.bundle_id)):
+        # Retain only identity and state fields; do not weaken the guard or
+        # expose the host config/token in the failure receipt.
+        observed = {'observed_boot_id': connection.get('boot_id'), 'expected_boot_id': args.expected_boot,
+                    'observed_connection_state': connection.get('state'),
+                    'allowed_connection_states': ['ready', 'active'],
+                    'observed_selected_bundle': software.get('selected'), 'expected_selected_bundle': args.bundle_id,
+                    'observed_active_bundle': software.get('active_bundle'),
+                    'observed_monotonic_ns': time.monotonic_ns()}
+        raise pa.AcceptanceError('target boot, connection or selected software changed: ' + json.dumps(observed, sort_keys=True))
     current = runner.session()
-    if (runner.session_identity(current, 'foreground application diagnostic') != expected
-            or runner.session_identity(runner.session(expected.target_name), 'owned application diagnostic') != expected):
+    if runner.session_identity(current, 'foreground application diagnostic') != expected:
+        raise pa.AcceptanceError('owned session identity or foreground target changed')
+    target_current = runner.session(expected.target_name)
+    if runner.session_identity(target_current, 'owned application diagnostic') != expected:
         raise pa.AcceptanceError('owned session identity or foreground target changed')
     package = current.get('core_package', {})
     if package.get('core_id') != 'fes.pcxt-dos':
@@ -538,7 +555,167 @@ def validate_active(runner, expected, args, disk_sha):
     entry = runner.validate_entry(runner.read_entry(expected.game_id), expected.game_id, 'active selection')
     if entry.get('media_role') != 'disk' or entry.get('media_id') != disk_sha:
         raise pa.AcceptanceError('active library entry does not select the expected floppy')
-    return claim
+    # Extension checks use exactly these already identity-checked snapshots;
+    # failure still precedes the final ownership check and any target input.
+    if session_guard is not None:
+        session_guard(current, target_current)
+    # Recheck ownership after every health and session observation. In particular,
+    # an incomplete response must not allow a stale claim into the next poll.
+    claim = check_claim(args.kit, args.owner, args.target_id, args.queue_lock_fd)
+    return claim, selected == args.bundle_id
+
+
+class _DeadlineReadOnlyAPI:
+    """Limit every GET to the remaining phase time and forbid mutations."""
+    def __init__(self, api, deadline):
+        self.api, self.deadline = api, deadline
+
+    def get(self, *args, **kwargs):
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise pa.AcceptanceError('selected software observation exceeded phase deadline')
+        old_timeout = self.api.timeout
+        try:
+            self.api.timeout = min(old_timeout, remaining)
+            result = self.api.get(*args, **kwargs)
+        finally:
+            self.api.timeout = old_timeout
+        if time.monotonic() >= self.deadline:
+            raise pa.AcceptanceError('selected software observation exceeded phase deadline')
+        return result
+
+
+def _observe_until(runner, expected, args, disk_sha, deadline):
+    original_api = runner.api
+    runner.api = _DeadlineReadOnlyAPI(original_api, deadline)
+    try:
+        while True:
+            if time.monotonic() >= deadline:
+                raise pa.AcceptanceError('selected software remained unavailable before phase deadline')
+            claim, complete = _validate_active_once(runner, expected, args, disk_sha)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise pa.AcceptanceError('selected software observation exceeded phase deadline')
+            if complete:
+                return claim
+            check_interrupted()
+            time.sleep(min(0.2, remaining))
+    finally:
+        runner.api = original_api
+
+
+def _kill_and_reap_observer(pid, *, timeout=2.0):
+    """Do not wait forever for a child stuck in uninterruptible I/O."""
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    deadline = time.monotonic() + timeout
+    while True:
+        done, _ = os.waitpid(pid, os.WNOHANG)
+        if done:
+            return
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise pa.AcceptanceError('observer cleanup unverified; retain kit claim')
+        time.sleep(min(0.01, remaining))
+
+
+def _decode_observer_result(raw):
+    if not raw or len(raw) > 8192:
+        raise pa.AcceptanceError('observer returned no valid result')
+    try:
+        return json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
+        raise pa.AcceptanceError('observer returned invalid result') from None
+
+
+def _hard_deadline_observation(observe, seconds=5.0):
+    """Reap our read-only observer before accepting its result or returning."""
+    deadline = time.monotonic() + seconds
+    parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+    parent_pid = os.getpid()
+    libc = ctypes.CDLL(None, use_errno=True)
+    try:
+        pid = os.fork()
+    except BaseException:
+        parent.close(); child.close()
+        raise
+    if pid == 0:
+        parent.close()
+        # Linux delivers SIGKILL if the diagnostic parent dies unexpectedly;
+        # close the race where it died before this setting was installed.
+        if libc.prctl(1, signal.SIGKILL, 0, 0, 0) != 0 or os.getppid() != parent_pid:
+            os._exit(1)
+        try:
+            result = {'ok': True, 'claim': observe(deadline)}
+        except BaseException as exc:
+            result = {'ok': False, 'error': str(exc)[:2048]}
+        try:
+            message = json.dumps(result).encode()
+            if len(message) > 8192:
+                message = b'{"ok":false,"error":"observation result too large"}'
+            child.send(message)
+        except BaseException:
+            pass
+        finally:
+            child.close()
+            os._exit(0)
+    child.close()
+    reaped = False
+    result = None
+    try:
+        while True:
+            check_interrupted()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise pa.AcceptanceError('selected software observation exceeded hard phase deadline')
+            if result is None:
+                readable, _, _ = select.select([parent], [], [], min(remaining, 0.05))
+                if readable:
+                    result = _decode_observer_result(parent.recv(8193))
+            done, status = os.waitpid(pid, os.WNOHANG)
+            if done:
+                reaped = True
+                if result is None:
+                    # The child can send its packet just after select times out
+                    # and exit before waitpid runs. Its packet remains queued
+                    # after close, so drain it once without blocking.
+                    try:
+                        raw = parent.recv(8193, socket.MSG_DONTWAIT)
+                    except BlockingIOError:
+                        raw = None
+                    if raw:
+                        result = _decode_observer_result(raw)
+                if time.monotonic() >= deadline:
+                    raise pa.AcceptanceError('selected software observation exceeded hard phase deadline')
+                if status != 0 or not isinstance(result, dict) or result.get('ok') not in (True, False):
+                    raise pa.AcceptanceError('observer failed without a complete result')
+                if not result['ok']:
+                    raise pa.AcceptanceError(result.get('error', 'observer failed'))
+                if not isinstance(result.get('claim'), dict):
+                    raise pa.AcceptanceError('observer did not confirm the claim')
+                return result['claim']
+            if result is not None:
+                time.sleep(min(0.01, remaining))
+    finally:
+        parent.close()
+        if not reaped:
+            original_error = sys.exception()
+            try:
+                _kill_and_reap_observer(pid)
+            except BaseException:
+                if original_error is None:
+                    raise
+                original_error.add_note('observer cleanup unverified; retain kit claim')
+
+
+def validate_active(runner, expected, args, disk_sha):
+    # The child is read-only and is killed and reaped on any parent exit. The
+    # parent performs no input or capture unless a complete fresh observation
+    # returns before the hard deadline.
+    return _hard_deadline_observation(
+        lambda deadline: _observe_until(runner, expected, args, disk_sha, deadline))
 
 
 def capture_owned(runner, owned, args, disk_sha, path, phase):

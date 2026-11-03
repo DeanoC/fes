@@ -9,7 +9,7 @@ struct Simulation {
     Sdram<Vmemory_top> ram;
     uint64_t cycles=0;
     explicit Simulation(unsigned delay) : ram(delay) {
-        d.memory_valid=0; d.firmware_valid=0; d.disk_load_valid=0; d.media_read_valid=0;
+        d.memory_valid=0; d.firmware_valid=0; d.disk_load_valid=0; d.media_read_valid=0; d.media_read_reset_safe=0;
         d.cold_reset=1; d.reset=1;
         idle(8); d.cold_reset=0;
         for(unsigned i=0; !d.initialized && i<20000; ++i) step();
@@ -167,6 +167,9 @@ int main(int argc,char** argv) {
     reads=s.ram.reads; s.idle(80);
     require(!d.media_read_ready && s.ram.reads==reads,"disk read admitted during reset",s.cycles);
     d.media_read_valid=0; d.eval();
+    d.media_read_reset_safe=1;
+    require(s.disk_read(1)==0x5a,"snapshot read while held in reset",s.cycles);
+    d.media_read_reset_safe=0; s.step();
     d.firmware_address=0x4321; d.firmware_data=0xe1; d.firmware_valid=1;
     d.disk_load_address=4; d.disk_load_data=0x71; d.disk_load_valid=1; d.eval();
     require(d.firmware_ready && !d.disk_load_ready,"simultaneous upload priority",s.cycles);

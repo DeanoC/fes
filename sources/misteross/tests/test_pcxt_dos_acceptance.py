@@ -81,6 +81,12 @@ class SimulationProcessTest(unittest.TestCase):
                 with self.subTest(scenario=scenario), self.assertRaisesRegex(ValueError, '30 GiB'):
                     simulation.check_space('.', scenario)
 
+    def test_writable_dos_is_rejected_when_disk_is_low(self):
+        with mock.patch.object(simulation.shutil, 'disk_usage') as usage:
+            usage.return_value = type('Disk', (), {'free': 30 * 1024**3 - 1})()
+            with self.assertRaisesRegex(ValueError, '30 GiB'):
+                simulation.check_space('.', 'dos', writable=True)
+
     @unittest.skipUnless(hasattr(os, 'fork') and Path('/proc').exists(), 'POSIX process groups required')
     def test_sigterm_reaps_stubborn_simulator_and_fork(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -308,6 +308,28 @@ func (m *Manager) Forget(id string) error {
 	return os.ErrNotExist
 }
 
+// ForgetAll removes every saved drive and any process-only SMB credentials.
+func (m *Manager) ForgetAll() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	clear(m.smbPasswords)
+	if m.ConfigPath == "" {
+		return nil
+	}
+	if err := os.Remove(m.ConfigPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	directory, err := os.Open(filepath.Dir(m.ConfigPath))
+	if err != nil {
+		return err
+	}
+	defer directory.Close()
+	return directory.Sync()
+}
+
 func (m *Manager) drive(id string) (Drive, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

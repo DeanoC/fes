@@ -284,7 +284,15 @@ func (a *App) handleRoomLocked(cmd Command) {
 	if a.handleBrowseActionsLocked(cmd) {
 		return
 	}
-	if cmd == CmdUp && a.enterBrowseActionsLocked(0) {
+	if cmd == CmdUp && a.browseActionsAllowedLocked() {
+		// Home's lower rows take Up first. From its top row Up reaches the
+		// hero's actions, or the header when the hero has none.
+		if a.room.Input("up") || a.enterBrowseActionsLocked(0) {
+			a.applyRoomActionsLocked()
+			return
+		}
+		a.room.Input(homeHeaderCommand)
+		a.applyRoomActionsLocked()
 		return
 	}
 	if cmd == CmdSearch || cmd == CmdDetails {
@@ -302,8 +310,13 @@ func (a *App) handleRoomLocked(cmd Command) {
 			return
 		}
 	}
-	if cmd == CmdBack && a.roomCoreDetail != "" {
-		a.roomCoreDetail = ""
+	if cmd == CmdBack && a.setupRoomOpenLocked() {
+		// Back goes one setup step back; Welcome has nowhere to go.
+		a.runSetupActionLocked("setup_back")
+		return
+	}
+	if cmd == CmdBack && a.roomHeroDetail != "" {
+		a.roomHeroDetail = ""
 		return
 	}
 	if cmd == CmdBack {
@@ -438,7 +451,12 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 		return true
 	case rooms.ConfirmEnterRoom:
 		if dest.RoomID != "" {
-			a.openNestedRoomLocked(dest.RoomID, "")
+			// A family opens its workbench on the model the room chose.
+			gameID, coreID := "", ""
+			if dest.Kind == rooms.KindFamily {
+				gameID, coreID = dest.GameID, dest.CoreID
+			}
+			a.openNestedRoomLocked(dest.RoomID, gameID, coreID)
 			return true
 		}
 		return false
@@ -473,6 +491,8 @@ func (a *App) runLauncherActionLocked(id string) {
 		return
 	}
 	switch id {
+	case "setup_continue", "setup_back", "setup_skip", "setup_finish", "setup_resume":
+		a.runSetupActionLocked(id)
 	case "settings":
 		if a.settingsBlockedLocked() {
 			a.status = "Settings are unavailable during play."
@@ -516,8 +536,10 @@ func (a *App) openRoomDetailsLocked() {
 		a.openRoomChoiceLocked(dest)
 		return
 	case rooms.ConfirmEnterRoom:
-		a.status = dest.Status
-		return
+		if dest.Kind != rooms.KindFamily {
+			a.status = dest.Status
+			return
+		}
 	case rooms.ConfirmOpenLibraryBrowse:
 		a.status = dest.Status
 		return
@@ -530,9 +552,10 @@ func (a *App) openRoomDetailsLocked() {
 		a.openRoomDetailsForLocked(game)
 		return
 	}
-	if dest.Kind == rooms.KindCore && a.room != nil && a.room.Hero() {
-		// The hero shows the package's identity and verbatim local status.
-		a.roomCoreDetail = dest.PackageID
+	if key := heroDetailKey(dest); key != "" && a.room != nil && a.room.Hero() {
+		// The hero shows the package's identity and verbatim local status,
+		// or a family's models.
+		a.roomHeroDetail = key
 		return
 	}
 	if dest.LeaseHeld || dest.Status == rooms.InUseStatus {

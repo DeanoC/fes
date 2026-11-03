@@ -44,6 +44,9 @@ module system_top #(parameter bit MDA = 0, SCANLINES = 0, HALF_RATE_BOARD = 0) (
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES), .HALF_RATE_BOARD(HALF_RATE_BOARD),
                   .EXTERNAL_CS_REGISTER(HALF_RATE_BOARD)) system (
+        .media_frozen(1'b0), .media_write_busy(), .media_changed(),
+        .snapshot_read_valid(1'b0), .snapshot_read_address(20'b0),
+        .snapshot_read_ready(), .snapshot_read_data(),
         .media_present(1'b0), .disk_restart(1'b0), .disk_load_valid(1'b0), .disk_load_address(19'b0),
         .disk_load_data(8'b0), .disk_load_ready(), .disk_load_done(), .disk_loaded(),
         .keyboard_clock(1'b1), .keyboard_data(1'b0),

@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Eight registered slots: CGA index 1, MDA index 2, optional floppy index 3.
-module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, FLOPPY = 0,
+module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, FLOPPY = 0, FLOPPY_WRITE = 0,
     parameter integer CLOCK_HZ = 100000000) (
     input wire clk, reset, cycle_valid,
-    input wire media_present,
+    input wire media_present, cold_reset, media_frozen,
+    output wire media_write_busy, media_write_valid,
+    output wire [9:0] media_write_lba,
+    input wire [8:0] media_write_index,
+    output wire [7:0] media_write_data,
+    input wire media_write_ready, media_write_error,
     output wire media_read_valid,
     output wire [18:0] media_read_addr,
     input wire media_read_ready,
@@ -56,12 +61,16 @@ module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, FLOPPY = 0,
                 .unsupported_interlace(unsupported_interlace[1])
             );
         end else if (n == 3 && FLOPPY) begin: floppy
-            pcxt_fdc_card card (
-                .clk(clk), .reset(reset), .guest_ce(guest_ce),
+            pcxt_fdc_card_rw card (
+                .clk(clk), .reset(reset), .cold_reset(cold_reset), .guest_ce(guest_ce),
                 .request(card_request), .response(card_response),
                 .media_present(media_present), .media_read_valid(media_read_valid),
                 .media_read_addr(media_read_addr), .media_read_ready(media_read_ready),
-                .media_read_data(media_read_data)
+                .media_read_data(media_read_data), .media_writable(FLOPPY_WRITE), .media_frozen(media_frozen),
+                .media_write_busy(media_write_busy), .media_write_valid(media_write_valid),
+                .media_write_lba(media_write_lba), .media_write_index(media_write_index),
+                .media_write_data(media_write_data), .media_write_ready(media_write_ready),
+                .media_write_error(media_write_error)
             );
         end else if (n == 0 && DIAGNOSTIC_PROBE && !FLOPPY) begin: probe
             /* verilator lint_off PINCONNECTEMPTY */
@@ -77,6 +86,11 @@ module pcxt_display_bus #(parameter bit DIAGNOSTIC_PROBE = 0, FLOPPY = 0,
     generate if (!FLOPPY) begin: no_floppy
         assign media_read_valid = 1'b0;
         assign media_read_addr = 19'b0;
+        assign media_write_busy = 1'b0;
+        assign media_write_valid = 1'b0;
+        assign media_write_lba = 10'b0;
+        assign media_write_data = 8'b0;
     end endgenerate
-    wire unused_media_inputs = &{1'b0, media_present, media_read_ready, media_read_data};
+    wire unused_media_inputs = &{1'b0, media_present, media_read_ready, media_read_data, cold_reset,
+                                 media_frozen, media_write_index, media_write_ready, media_write_error};
 endmodule

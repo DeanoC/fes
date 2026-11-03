@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Boot a real 8088 XT BIOS and read-only FreeDOS floppy in host simulation."""
+"""Boot a real 8088 XT BIOS and FreeDOS floppy in host simulation."""
 import argparse
 import fcntl
 import json
@@ -19,9 +19,9 @@ import pcxt_acceptance_media as acceptance
 ROOT = sim.ROOT
 
 
-def check_space(path, scenario):
-    """Keep the long COM and game simulations off nearly full filesystems."""
-    if scenario in ('com', 'game') and shutil.disk_usage(path).free < 30 * 1024**3:
+def check_space(path, scenario, writable=False):
+    """Keep long application and writable simulations off nearly full filesystems."""
+    if (writable or scenario in ('com', 'game')) and shutil.disk_usage(path).free < 30 * 1024**3:
         raise ValueError('PC/XT simulation requires at least 30 GiB free')
 
 
@@ -98,6 +98,7 @@ def main():
     parser.add_argument('--bios', type=Path, help='local copy of the BIOS selected by bios.lock')
     parser.add_argument('--font', type=Path, help='external normalized 4096-byte CGA font')
     parser.add_argument('--download', action='store_true', help='fetch pinned BIOS, FreeDOS sources and assembler if absent')
+    parser.add_argument('--writable-test', action='store_true', help='exercise guest writes and snapshot/restore')
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
     args = parser.parse_args()
     if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
@@ -112,13 +113,17 @@ def main():
 
 
 def run(args):
-    build = ROOT / 'build/sim/fes-pcxt' / ('dos' if args.scenario == 'dos' else 'dos-' + args.scenario)
+    name = 'dos' if args.scenario == 'dos' else 'dos-' + args.scenario
+    build = ROOT / 'build/sim/fes-pcxt' / (name + ('-write' if args.writable_test else ''))
     build.mkdir(parents=True, exist_ok=True)
     for name in ('result.json', 'result-pending.json', 'dos.ppm', 'screen.bin', 'screen.txt',
                  'inputs.json', 'bus.log', 'candidate.json', 'title-before-start.ppm',
-                 'start-control.ppm', 'start-key.ppm', 'right-control.ppm', 'right-key.ppm'):
+                 'start-control.ppm', 'start-key.ppm', 'right-control.ppm', 'right-key.ppm',
+                 'saved-floppy.img'):
         (build / name).unlink(missing_ok=True)
-    check_space(build, args.scenario)
+    if args.writable_test and args.scenario != 'dos':
+        raise ValueError('writable test requires the dos scenario')
+    check_space(build, args.scenario, args.writable_test)
     bios.fixture_inputs(build, args.bios, args.font, args.download)
     # Validate the exact bytes supplied to the device against the pinned boot
     # code, geometry and all 8086 FreeDOS files, while allowing harmless
@@ -164,16 +169,19 @@ def run(args):
         '--timescale-override', '1ns/1ps',
         str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt'), str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt'),
         "-GWITH_FLOPPY=1'b1", "-GWITH_RUNTIME_MEDIA=1'b1", "-GWAIT_FOR_MEDIA=1'b1",
-        "-GWITH_RUNTIME_KEYBOARD=1'b1", '--top-module', 'bios_top', '--Mdir', str(build), '-I' + str(build),
+        "-GWITH_RUNTIME_KEYBOARD=1'b1", *(["-GWITH_WRITABLE=1'b1"] if args.writable_test else []), '--top-module', 'bios_top', '--Mdir', str(build), '-I' + str(build),
         '-I' + str(ROOT / 'cores/fes-common/generated'),
         *('-I' + str(sim.vendor_dir(name)) for name in sim.CHIP_VENDORS),
-        '-CFLAGS', '-std=c++17 -O2', '-I' + str(ROOT / 'cores/fes-pcxt/sim'),
+        '-CFLAGS', '-std=c++17 -O2' + (' -DPCXT_WRITABLE_TEST=1' if args.writable_test else ''), '-I' + str(ROOT / 'cores/fes-pcxt/sim'),
         *(str(ROOT / path) for path in sources)], check=True)
     if args.prepare_only:
         print('Inputs and simulation compilation complete; no simulation run.', flush=True)
         return
     cmd = [str(build / 'Vbios_top'), str(build / 'firmware.bin'), str(build / 'floppy.img'), args.scenario]
     run_simulation(cmd, build, args.scenario)
+    if args.writable_test:
+        verify_snapshot(build)
+        return
     if args.scenario == 'game':
         verify_game(build)
         return
@@ -196,6 +204,15 @@ def run(args):
     pending.write_text(json.dumps(result, indent=2) + '\n')
     pending.replace(build / 'result.json')
     print('PASS 720p DOS ' + args.scenario + ' glyphs:', proof, flush=True)
+
+
+def verify_snapshot(build):
+    image = str(build / 'saved-floppy.img')
+    original = subprocess.run(['mtype', '-i', image, '::FESXT.TXT'], check=True, capture_output=True).stdout
+    saved = subprocess.run(['mtype', '-i', image, '::SAVE.TXT'], check=True, capture_output=True).stdout
+    if not original or saved != original:
+        raise ValueError('DOS copy not present or differs in captured floppy image')
+    print('PASS DOS guest copy, SDRAM snapshot and restored image:', len(saved), 'file bytes', flush=True)
 
 
 # SHA-256 of exact 1280x720 PPM output from the independently reviewed,

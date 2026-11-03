@@ -1575,10 +1575,7 @@ func TestSettingsReleaseKitFreesAnIdleLeaseAndLaunchesAgain(t *testing.T) {
 	if len(got) != 2 || got[0] != `{"retain_lease":true}` || got[1] != "" {
 		t.Fatalf("stop bodies = %#v", got)
 	}
-	app.HandleCommand(CmdBack, now)
-	waitSnapshot(t, app, func(snap Snapshot) bool {
-		return !snap.Settings.Open
-	})
+	leaveSettings(t, app, now)
 	app.Press(CmdSelect, now)
 	waitSnapshot(t, app, func(snap Snapshot) bool {
 		return snap.Session.State == "active"
@@ -1734,10 +1731,7 @@ func TestSettingsReleaseKitDoesNotStopAMenuLaunchAfterIdleObservation(t *testing
 	case <-time.After(testwait.Timeout):
 		t.Fatal("idle release did not post after reading the session")
 	}
-	app.HandleCommand(CmdBack, now)
-	waitSnapshot(t, app, func(snap Snapshot) bool {
-		return !snap.Settings.Open
-	})
+	leaveSettings(t, app, now)
 	app.Press(CmdSelect, now)
 	app.mu.Lock()
 	status := app.status
