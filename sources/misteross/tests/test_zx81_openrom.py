@@ -50,7 +50,9 @@ class AssemblerTest(unittest.TestCase):
                      "rst 1", "rst 0x40", "bit 8,a", "set 9,(hl)",
                      "ld (hl),(hl)", "ld (ix+1),(hl)", "ld (ix+1),(iy+1)",
                      "ld h,ixl", "ld ixh,l", "ld ixh,(hl)", "ld ixh,(ix+1)",
-                     "ld ixh,iyl", "adc ix,bc", "sbc iy,de", "add ix,iy"):
+                     "ld ixh,iyl", "adc ix,bc", "sbc iy,de", "add ix,iy",
+                     "add a,(hl),b", "push bc,de", "jp 1,2,3", "in a,0xfe",
+                     "ld bc,0x12345", "dw 0x10000"):
             with self.subTest(line=line), self.assertRaises(z80asm.AsmError):
                 assemble(f"        org 0\n        {line}\nx:      ret\n")
 
@@ -122,6 +124,25 @@ b:      ret
         """, 0x200)
         self.assertEqual(image[:3], bytes([0xc3, 0x91, 0x00]))      # jp a
         self.assertEqual(image[0x111:0x114], bytes([0x18, 0x00, 0xc9]))   # jr b, b: ret
+
+    def test_labels_after_a_jump_share_a_section(self):
+        image = assemble("""
+        floatlimit 8
+        org 0
+        jp two
+        org 7
+        ret
+        autofloat
+one:    jp three
+two:
+three:  ret
+        endautofloat
+        """, 8)
+        self.assertEqual(image[:7], bytes([0xc3, 0x06, 0x00, 0xc3, 0x06, 0x00, 0xc9]))
+
+    def test_empty_floating_section_is_rejected(self):
+        with self.assertRaises(z80asm.AsmError):
+            assemble("        float\nx:\n        endfloat\n")
 
 
 class OpenRomImageTest(unittest.TestCase):

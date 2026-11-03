@@ -138,8 +138,8 @@ line. The FAST statement and `$0F23` clear the saved SLOW request; the internal
 ended, NEW goes FAST before it clears memory, and the editor restores SLOW
 after an error, including one while a line is being entered. A key that is
 still down when a report appears or `INPUT` starts is not typed, and `PAUSE`
-ends only on a key pressed during it. `FRAMES` keeps bit 15 set while bits 0
-to 14 count down. A program that runs out of memory while it prints still gets
+ends only on a key pressed during it, in FAST mode too. `FRAMES` keeps bit 15
+set while bits 0 to 14 count down. A program that runs out of memory while it prints still gets
 report 4 on a 1 KiB or 2 KiB machine: the report is printed with a smaller
 memory margin. A `GOSUB` that would leave too little room stops with report
 4, keeping enough to type NEW or RUN. A slice assignment copies its source
@@ -154,23 +154,79 @@ the row), the first 14 bytes of the NMI at `$0066`, BREAK-1 (four instructions
 reading the SPACE row) and the key tables at `$007E`, which programs index
 directly.
 
+### v1 compatibility
+
+v1 must match the real ZX81 on the five points below, apart from the known
+gaps listed after them; any other difference on one of them is a defect.
+Everything else is best effort. A difference there is a known
+gap: it is added to the lists below when found and does not block a release.
+Where Sinclair's *ZX81 BASIC Programming* manual says nothing, v1's behaviour
+is best effort too.
+
+1. **Interface.** The system variable addresses and the meaning of each one
+   the ROM uses, the `.p` layout from `VERSN`, the restarts, the display
+   routines and their timing, the key tables, the character codes and tokens,
+   the tape trap addresses and the entry points listed above.
+2. **Tapes.** A `.p` program that uses only what v1 supports loads, lists and
+   runs, and keeps its FAST/SLOW state and autorun line.
+3. **BASIC.** Each supported statement, function and operator gives the
+   result, priority and report that the manual describes. A report names the
+   line that was running, or 0 for a command. After report p/q, CONT goes to
+   line q, or to q+1 when p is 9 (STOP). Report 0 does not move it. BREAK is
+   checked before each line runs, so CONT after report D runs that line.
+4. **Keyboard and editor.** The K, L, F and G cursors, the keyword and shifted
+   tokens, entering, editing and deleting lines, the listing, `INPUT`, and the
+   behaviours this section states.
+5. **Integrity.** A BASIC program that does not use `POKE` or `USR` cannot
+   crash the machine or corrupt memory. It cannot lock the machine up so that
+   BREAK, or STOP typed at `INPUT`, no longer stops it. When it runs out of
+   memory, it stops with report 4.
+
+### Known gaps
+
 This is stage 1: the editor, the BASIC statements and arithmetic needed by
 ordinary programs, strings and slicing, numeric arrays, `FOR`/`GOSUB`, `RND`,
-`INKEY$`, `PEEK`/`POKE`/`USR`, `PLOT`/`UNPLOT`, `SCROLL` and `PAUSE`. Known gaps:
+`INKEY$`, `PEEK`/`POKE`/`USR`, `PLOT`/`UNPLOT`, `SCROLL` and `PAUSE`. Missing:
 
 - `SIN`, `COS`, `TAN`, `ASN`, `ACS`, `ATN`, `LN`, `EXP`, `SQR`, non-integer
   `**` and machine code calling the `RST 28` calculator stop with report A.
 - No string arrays; a `FOR` loop that should run zero times runs once.
 - A variable name ends at a space, so `LET MY VAR=1` gives report C.
 - `PAUSE 0` returns at once.
-- Printing follows the print position in `S_POSN`; setting `DF_CC` alone (by
-  `POKE` or machine code) does not move it. PRINT-AT `$08F5` sets both.
 - No up/down listing cursor keys (use `LIST n` and EDIT); no E-notation input
   (output is supported); `POKE` takes 0 to 255 only.
 - No syntax check on entry: errors are reported when the line runs.
 - No printer: `LPRINT`, `LLIST` and `COPY` do nothing.
 - `LOAD`/`SAVE` ignore the name and work only through the core's tape unit.
 - `fes.zx80`'s 4 KiB ROM has no open substitute.
+
+Best-effort differences:
+
+- **Memory margins.** v1 keeps more memory spare than Sinclair's ROM, so
+  report 4 can come sooner. `GOSUB` needs about 88 free bytes, where the ZX81
+  needs about 45, so a program that only just fits a real 1 KiB ZX81 can stop
+  at its first `GOSUB`. A program that fills memory to within about 40 bytes
+  can leave too little room to type. A tape that leaves less than about
+  40 bytes free may not get back to the editor after `LOAD`.
+- **Speed.** How fast BASIC runs, and the key repeat and debounce timing.
+- **Arithmetic.** Results can differ beyond the digits `PRINT` shows. An
+  integer `**` with an exponent of 2^32 or more gives report 6. So does one
+  with a negative exponent whose positive power overflows (`10**-40`), where
+  the ZX81 gives 0 or a tiny number.
+- **CONT after a command's report.** Such a report shows line 0, but CONT
+  still goes where the last program report left it, not to line 0.
+- **Machine code and spare memory.** Only the entry points listed above are
+  supported. This ROM keeps its flags in SPARE1 (`$4021`) and a pointer in
+  SPARE2 (`$407B`), and uses the printer buffer (`$403C`) and `MEMBOT` as
+  scratch. A program that keeps data or machine code there can fail. Printing
+  follows the print position in `S_POSN`, so setting `DF_CC` alone (by `POKE`
+  or machine code) does not move it; PRINT-AT `$08F5` sets both.
+- **The assembler.** `scripts/z80asm.py` is this ROM's build tool, not a
+  general Z80 assembler. It rejects malformed lines and instructions the Z80
+  cannot encode. A mis-encoding of an instruction the ROM does not use is a
+  gap, not a defect.
+
+### Simulation
 
 `make sim-fes-zx81-openrom` (part of `make sim-fes-zx81`) boots the ROM on the
 machine RTL with 1 KiB and 16 KiB RAM and on the 2 KiB NTSC TS1000. On each it
@@ -180,13 +236,15 @@ variable over two rows, repeated `RETURN` without `GOSUB`, `INKEY$` with no
 key and with Q held, a BREAK held past its report, `PAUSE` started with the
 `RUN` NEWLINE still down, `SCROLL` with `DF_SZ` 0, `DIM A (5)`, `PLOT -1,-1`,
 FUNCTION followed by a key with no function, an overlapping slice assignment,
-a `GOSUB` that recurses until report 4, and `RETURN` from a subroutine that
-filled memory. It enters
+a `GOSUB` that recurses until report 4, BREAK then CONT on `10 GOTO 10` (also
+after a report 0 in between), CONT after STOP typed at `INPUT`, and a FAST
+`PAUSE` with a key already down. It enters
 and runs programs, saves and loads them in both FAST and SLOW modes through the
 tape trap, scrolls the screen, and exercises the FAST/SLOW end-of-frame loop.
 On 1 KiB and 2 KiB it checks that a program that runs out of memory while
-printing shows report 4 and returns to the editor, and on 1 KiB that a `DIM`
-that runs out of memory reports 4. On 16 KiB it
+printing shows report 4 and returns to the editor. On 1 KiB it checks that a
+`DIM` that runs out of memory reports 4, and that `RETURN` from a subroutine
+that filled memory still returns. On 16 KiB it
 checks EDIT of a line longer than the screen, 20 STOP/CONT reports in SLOW
 mode, and a NEWLINE held through an autorun LOAD. When the FogCast starter
 tapes are in the checkout, it also loads and lists two `.p` files made by other
@@ -194,7 +252,8 @@ tools. A tape
 saved by Sinclair's own ROM is still a manual check (the `load` mode of
 `cores/fes-zx81/sim/openrom_tb.cpp`): the repository has no tape saved that
 way. `tests/test_zx81_openrom.py` checks the assembler, including that it
-rejects instructions it cannot encode, and the image's fixed interface bytes.
+rejects malformed lines and instructions it cannot encode, and the image's
+fixed interface bytes.
 The ROM has no kit acceptance yet.
 
 ## Validation

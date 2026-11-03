@@ -115,12 +115,13 @@ st_pause:
         ld a,b
         or c
         ret z
-        call sync_keys_now      ; only a key pressed during the pause ends it
+        call sync_keys          ; only a key pressed during the pause ends it;
+        jr .c                   ; the fresh scan (FAST) is its first frame
 .l:     push bc
         call key_frame
         pop bc
         ret nz                  ; a key went down
-        bit 7,b
+.c:     bit 7,b
         jr nz,.l
         dec bc
         ld a,b

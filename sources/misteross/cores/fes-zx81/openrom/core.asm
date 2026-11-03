@@ -71,10 +71,10 @@ error_2:                        ; RST 8 continues here
         ld sp,(ERR_SP)
         ret
 
-; Show the report as code/line at the bottom. CONT goes back to the line
-; that failed, or on past a STOP, a BREAK or the end. The report is printed
-; with test_room's smaller margin, so report 4 has room for itself; if even
-; that runs out, what was printed of it stays.
+; Show the report as code/line at the bottom. CONT goes back to that line
+; (GOTO q), or on past a STOP; report 0 and a command's report leave it. The
+; report is printed with test_room's smaller margin, so report 4 has room for
+; itself; if even that runs out, what was printed of it stays.
 main_report:
         ld sp,(ERR_SP)          ; restore atomically; NMI may land here
         call line_workspace     ; discard temporary strings and calculator stack
@@ -94,14 +94,12 @@ main_report:
 .prog:  push hl
         ld a,(iy+Y_ERR_NR)
         cp R_OK
-        jr z,.next
+        jr z,.keep
         cp R_STOP
-        jr z,.next
-        cp R_BREAK
         jr nz,.set
-.next:  inc hl
+        inc hl
 .set:   ld (OLDPPC),hl
-        pop hl
+.keep:  pop hl
 .show:  push hl
         ld (iy+Y_DF_SZ),2
         call clear_lower
@@ -462,11 +460,12 @@ run_loop:
         ld (CH_ADD),hl
         add hl,de
         ld (NXTLIN),hl
+        call break_1            ; BREAK before the line runs: CONT runs it
+        jr nc,.brk
         call line_workspace
         call statement
-        call break_1
-        jr c,run_next
-        rst 8
+        jr run_next
+.brk:   rst 8
         db R_BREAK
 .end:   rst 8
         db R_OK

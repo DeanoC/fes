@@ -247,7 +247,6 @@ key_frame:
 ; NEWLINE of RUN) is not a new press. It repeats only after 256 frames.
 sync_keys:
         call wait_frame         ; a fresh scan: FAST mode leaves LAST_K old
-sync_keys_now:
         ld hl,(LAST_K)
         ld (MEM),hl
         ld (iy+Y_DEBOUNCE),0

@@ -584,6 +584,65 @@ void test_slice_copy_gosub_room(Machine &m) {
     require(wait_for_row(m, 23, "9/30"), "RETURN after a full subroutine did not reach STOP");
 }
 
+// BREAK is checked before a line runs, and CONT after report D goes back to
+// the line it names (the manual's GOTO q), so 10 GOTO 10 loops on. A report 0
+// in between leaves CONT where it was. STOP typed at INPUT gives D, and CONT
+// asks again. In FAST mode PAUSE takes a fresh key scan first, so a key that
+// went down before it does not end it.
+void test_cont_fast_pause(Machine &m) {
+    type(m, "A NL");
+    type(m, "1 0 G 1 0 NL");
+    type(m, "2 0 P 1 NL");
+    type(m, "R NL");
+    const char *const steps[] = {"", "G 2 0 NL", nullptr};
+    for (const char *between : steps) {
+        m.dut.keyboard = key_state({"SP"});      // BREAK
+        const bool stopped = wait_for_row(m, 23, "D/10", 100);
+        m.dut.keyboard = 0xffffffffffull;
+        m.run_frames(6);
+        require(stopped, "BREAK did not stop 10 GOTO 10 with D/10");
+        if (!between) break;
+        type(m, between);                        // GOTO 20 ends with 0/20
+        require(!*between || row_text(m, 23) == "0/20", "GOTO 20 did not end with 0/20");
+        type(m, "C NL");
+        require(m.word(0x4007) == 10, "CONT after BREAK did not go back to line 10");
+    }
+
+    type(m, "A NL");
+    type(m, "1 0 I A NL");
+    type(m, "2 0 P A NL");
+    type(m, "R NL");
+    type(m, "SHIFT+A NL");
+    require(wait_for_row(m, 23, "D/10", 100), "STOP typed at INPUT did not give D/10");
+    type(m, "C NL");
+    type(m, "5 NL");
+    require(wait_for_row(m, 23, "0/20", 100) && row_text(m, 0) == "5",
+            "CONT after STOP at INPUT did not ask again");
+    std::cout << "BREAK/CONT: 10 GOTO 10 loops on, report 0 kept it, INPUT asked again\n";
+
+    type(m, "A NL");
+    type(m, "1 0 SHIFT+F NL");
+    type(m, "2 0 M 1 0 0 NL");
+    type(m, "3 0 SHIFT+D NL");
+    type(m, "R");
+    submit_enter(m);
+    const uint64_t deadline = m.ticks + 50000000ull;
+    while ((m.peek(0x403b) & 0xa0) && m.ticks < deadline) m.tick();
+    require(!(m.peek(0x403b) & 0xa0), "FAST did not stop the frames");
+    m.dut.keyboard = key_state({"Q"});           // down before PAUSE starts
+    m.run_frames(40);
+    require(m.word(0x4007) == 20 && row_text(m, 23).empty(),
+            "a key down before a FAST PAUSE ended it");
+    m.dut.keyboard = 0xffffffffffull;
+    m.run_frames(4);
+    m.dut.keyboard = key_state({"W"});
+    const bool ended = wait_for_row(m, 23, "0/30", 100);
+    m.dut.keyboard = 0xffffffffffull;
+    m.run_frames(6);
+    require(ended, "a key pressed during a FAST PAUSE did not end it");
+    std::cout << "FAST PAUSE: a key down before it ignored, W ended it\n";
+}
+
 void test_16k_regressions(Machine &m) {
     require(m.word(0x4004) == 0x8000, "16 KiB regressions need the 16 KiB ZX81 profile");
     m.acknowledge_keys = true;
@@ -726,6 +785,11 @@ int main(int argc, char **argv) {
         test_slice_copy_gosub_room(m);
         return 0;
     }
+    if (mode == "cont") {
+        m.acknowledge_keys = true;
+        test_cont_fast_pause(m);
+        return 0;
+    }
     if (mode == "lowmem") {
         test_low_memory_report(m);
         return 0;
@@ -741,7 +805,7 @@ int main(int argc, char **argv) {
         test_overlong_edit_line(m);
         return 0;
     }
-    require(mode == "check", "usage: geometry | check | load TAPE.p | lowmem | pause | printmem | regress | overlong | shot OUT.pgm KEYS");
+    require(mode == "check", "usage: geometry | check | load TAPE.p | lowmem | pause | printmem | cont | regress | overlong | shot OUT.pgm KEYS");
 
     // Boot: the same frame and picture position as the Sinclair ROM on this
     // core. PAL: 310 lines, the K cursor's cell at lines 243-250, pixels
@@ -1004,6 +1068,7 @@ int main(int argc, char **argv) {
     test_pause_scroll_dim(m);
     test_report_room_plot_function(m);
     test_slice_copy_gosub_room(m);
+    test_cont_fast_pause(m);
 
     // Exercise the display start/stop boundary repeatedly. The original
     // frame-sampling order could wait forever after the NMI stopped frames.
@@ -1039,6 +1104,6 @@ int main(int argc, char **argv) {
 
     std::cout << "FES ZX81 open ROM: display, keyboard and rollover, edit, PRINT AT, INPUT, RETURN, INKEY$, "
                  "FAST/SLOW SAVE/LOAD, SCROLL, PAUSE, DIM, report 4 while printing, PLOT, FUNCTION, "
-                 "overlapping slices, GOSUB room and NMI-boundary loop pass\n";
+                 "overlapping slices, GOSUB room, BREAK/CONT, FAST PAUSE and NMI-boundary loop pass\n";
     return 0;
 }

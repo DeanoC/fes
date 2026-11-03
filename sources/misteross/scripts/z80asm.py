@@ -44,6 +44,13 @@ SIMPLE = {
     'ldir': [0xed, 0xb0], 'cpir': [0xed, 0xb1], 'inir': [0xed, 0xb2], 'otir': [0xed, 0xb3],
     'lddr': [0xed, 0xb8], 'cpdr': [0xed, 0xb9], 'indr': [0xed, 0xba], 'otdr': [0xed, 0xbb],
 }
+# How many operands each instruction takes.
+OPERANDS = {'im': (1,), 'rst': (1,), 'ex': (2,), 'push': (1,), 'pop': (1,), 'inc': (1,),
+            'dec': (1,), 'djnz': (1,), 'ret': (0, 1), 'jp': (1, 2), 'call': (1, 2),
+            'jr': (1, 2), 'bit': (2,), 'set': (2,), 'res': (2,), 'in': (2,), 'out': (2,),
+            'ld': (2,)}
+OPERANDS.update({m: (1, 2) for m in ALU})
+OPERANDS.update({m: (1,) for m in ROT})
 
 
 ZX81_TEXT = {' ': 0, '"': 11, '£': 12, '$': 13, ':': 14, '?': 15, '(': 16,
@@ -179,6 +186,8 @@ class Assembler:
 
     # -- emission ----------------------------------------------------------
     def word(self, value):
+        if self.final_pass and not -0x8000 <= value <= 0xffff:
+            raise AsmError(f'word out of range: {value:#x}')
         value &= 0xffff
         return [value & 0xff, value >> 8]
 
@@ -200,6 +209,8 @@ class Assembler:
         lows = [o.lower().replace(' ', '') for o in ops]
         if m in SIMPLE and not ops:
             return list(SIMPLE[m])
+        if m in OPERANDS and len(ops) not in OPERANDS[m]:
+            raise AsmError(f'{m} takes {" or ".join(map(str, OPERANDS[m]))} operands')
         if m == 'im':
             return [0xed, {0: 0x46, 1: 0x56, 2: 0x5e}[self.value(ops[0])]]
         if m == 'rst':
@@ -248,16 +259,22 @@ class Assembler:
                 return [0xed, 0x40 | R8[lows[0]] << 3]
             if lows[0] != 'a':
                 raise AsmError('in r,(n) needs A')
-            return [0xdb, self.byte(self.memory(ops[1]))]
+            return [0xdb, self.byte(self.port(ops[1]))]
         if m == 'out':
             if lows[0] == '(c)':
                 return [0xed, 0x41 | R8[lows[1]] << 3]
             if lows[1] != 'a':
                 raise AsmError('out (n),r needs A')
-            return [0xd3, self.byte(self.memory(ops[0]))]
+            return [0xd3, self.byte(self.port(ops[0]))]
         if m == 'ld':
             return self.load(ops, lows)
         raise AsmError(f'unknown instruction {mnemonic} {", ".join(ops)}')
+
+    def port(self, op):
+        port = self.memory(op)
+        if port is None:
+            raise AsmError(f'port {op} needs brackets')
+        return port
 
     def prefixed(self, pre, out, disp):
         if pre is None:
@@ -566,6 +583,7 @@ class Assembler:
             if self.in_float is not None:
                 self.statement('endfloat', image, owner, where)
             self.statement('float', image, owner, where)
+            self.flow_ended = False     # a second label joins this section
         if m:
             label = m.group(1)
             if not label.startswith('.'):
@@ -622,6 +640,8 @@ class Assembler:
             return
         if mnemonic == 'endfloat':
             index, saved = self.in_float
+            if self.pc == self.float_start:
+                raise AsmError('empty floating section: its labels would have no place')
             self.float_size[index] = self.pc - self.float_start
             if index not in self.float_at:
                 self.scratch_next = self.pc
