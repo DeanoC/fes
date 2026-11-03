@@ -1107,16 +1107,20 @@ func closeAPIComposition(closeRemoteInput func() error, cleanup []func() error) 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	open := func(ctx context.Context, paths fogcast.Paths) (service, error) {
-		opened, err := fogcast.Open(ctx, paths, nil)
-		if err != nil {
-			return nil, err
-		}
-		opened.EnableMeshContent()
-		opened.EnableMeshPlacement()
-		return opened, nil
+	if filepath.Base(os.Args[0]) == kitBinaryName {
+		os.Exit(kitMain(ctx, os.Args[1:], os.Stdout, os.Stderr, openFogcast))
 	}
-	os.Exit(run(ctx, os.Args[1:], os.Stdout, os.Stderr, open))
+	os.Exit(run(ctx, os.Args[1:], os.Stdout, os.Stderr, openFogcast))
+}
+
+func openFogcast(ctx context.Context, paths fogcast.Paths) (service, error) {
+	opened, err := fogcast.Open(ctx, paths, nil)
+	if err != nil {
+		return nil, err
+	}
+	opened.EnableMeshContent()
+	opened.EnableMeshPlacement()
+	return opened, nil
 }
 
 type runCloser struct {
