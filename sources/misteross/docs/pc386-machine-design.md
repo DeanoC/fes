@@ -44,8 +44,8 @@ settings. FES selects revisions and records acceptance.
 ## Intended result
 
 `fes.pc386` is an AT-class 386 PC on the DE10-Nano. It hosts `fes_i386_cpu`
-and plays Wolfenstein 3D, Ultima VI and the DOS editions of Ultima VII: The
-Black Gate and Ultima VII Part Two: Serpent Isle, installed on a hard-disk
+and plays Wolfenstein 3D, Ultima VI, DOOM and the DOS editions of Ultima VII:
+The Black Gate and Ultima VII Part Two: Serpent Isle, installed on a hard-disk
 image under FreeDOS or another DOS the player supplies.
 
 It is not a cycle-exact AT. Devices keep the timing software can observe:
@@ -751,13 +751,14 @@ There is no video-part socket in Phase 3. A CRAM-linked socket needs a reserved
 rectangle; Direct or Scanlines can join after the first sealed package, as on
 Coleco.
 
-### Modes the three games need
+### Modes the acceptance games need
 
 | Title | Modes | Features exercised |
 | --- | --- | --- |
 | FreeDOS and installers | Mode 03h, 80 × 25 text at 720 × 400 | Font load into plane 2, cursor, blink, scrolling |
 | Wolfenstein 3D | Mode 13h set through INT 10h, then unchained ("mode Y"): chain-4 and odd/even off | Map-mask writes per wall post, write mode 1 latch copies (`VL_LatchToScreen`), page flips by start address with pixel panning (`VL_SetScreen`), retrace waits on 3DAh bits 0 and 3, DAC fades, line compare (`VL_SetSplitScreen`) ([id Software source](https://github.com/id-Software/wolf3d/tree/master/WOLFSRC)) |
 | Ultima VI | MCGA/VGA mode 13h | Chained 256-colour, palette cycling |
+| DOOM | Mode 13h set through INT 10h, then unchained ("mode Y") | Map-mask writes, page flips by start address, DAC palette loads for its damage and pickup flashes; the exact use is recorded in Phase 3 |
 | Ultima VII (both) | VGA 256-colour, 320 × 200 | Whether they run chained or unchained is recorded in Phase 3; both work |
 
 The planar 16-colour modes (0Dh, 0Eh, 10h, 12h) and CGA modes 04h–06h come from
@@ -787,6 +788,15 @@ removes static cone drive. Ultima VI's effects toggle port 61h bit 1 in
 CPU-timed loops, so their pitch comes from the governed instruction rate plus
 the 720 ns `isa8` cost of each OUT. That is one reason for the 286-class
 preset, and the acceptance test listens for it.
+
+Those loops write only a count to port 42h, never a control word, and toggle
+bits 0 and 1 together. They rely on channel 2 being in mode 3 with LSB-then-MSB
+counts, as an AT BIOS's POST beep leaves it: a low gate drives the output high,
+a rising gate reloads with the output still high, and a held gate gives the
+count's square wave. The 8254's power-on mode is undefined, and KF8253 resets
+to mode 0 with MSB-only counts, so POST programs channel 2 as an AT does
+([firmware](../cores/fes-pc386/firmware/README.md#local-changes),
+[#1457](https://github.com/DeanoC/fes/issues/1457)).
 
 ### OPL2
 
@@ -885,8 +895,8 @@ cases the guide leaves open.
 - DREQ on channel 1 at the sample rate; the IRQ at block end on the set line,
   acknowledged by reading base+E.
 - The DAC holds the last sample, muted while the speaker is off.
-- ADPCM DMA (74h–77h, 16h–17h, 7Dh–7Fh, 1Fh) is deferred: none of the three
-  games is known to use it. Unknown commands are consumed and ignored, with
+- ADPCM DMA (74h–77h, 16h–17h, 7Dh–7Fh, 1Fh) is deferred: none of the
+  acceptance games is known to use it. Unknown commands are consumed and ignored, with
   the argument bytes DOSBox-X's command table gives them, so an ADPCM length
   is not taken for a command.
 - E2h writes DOSBox-X's identification byte (a running sum seeded AAh with a
@@ -1185,6 +1195,7 @@ Alternatives not taken, kept as later options:
 | POST | PIC, PIT, DMA and 8042 init; keyboard self-test; CMOS memory size; option ROM scan at C0000; ATA detect by IDENTIFY | Present |
 | POST A20 | A20 gated off through the 8042 and port 92h before INT 19h | Local patch ([#1386](https://github.com/DeanoC/fes/issues/1386)) |
 | POST PIT channel 1 | Mode 2, count 18 (15.09 µs), the refresh rate the INT 15h AH=86h wait counts on port 61h bit 4 | Local patch ([#1150](https://github.com/DeanoC/fes/issues/1150)) |
+| POST PIT channel 2 | Mode 3, LSB then MSB, as an AT's POST beep leaves it, with the IBM BEEP count 0533h and the gate and speaker off; games write only a count | Local patch ([#1457](https://github.com/DeanoC/fes/issues/1457)) |
 | INT 10h | Modes 03h and 13h, font load, DAC and palette calls, cursor, scrolling. Games then reprogram registers for mode Y themselves | VGABIOS |
 | INT 13h | AH=00h–08h, 0Ah–0Dh, 10h, 11h, 15h; EDD 41h–48h, which FreeDOS uses for LBA | Present (`int13_harddisk`, EDD cases) |
 | INT 15h | 24h A20 (through the 8042 and port 92h; local patch), 87h block move and 88h extended size for HIMEM, E801h and E820h, C0h configuration, C2h PS/2 pointing device for CuteMouse, 86h wait (counts port 61h bit 4), 83h event wait (RTC periodic interrupt), 4Fh keyboard intercept | Present |
@@ -1416,6 +1427,7 @@ the exact sealed package. Games are user-supplied.
 | --- | --- |
 | FreeDOS | Boots from the ATA image to a prompt. HIMEMX loads and its A20 test passes. CuteMouse finds the PS/2 mouse. `MEM` shows the free conventional memory each game needs. Date and time match the kit. A file written before Stop is there after relaunch. `BLASTER` matches the Sound Blaster setting, including after changing it to 240h and IRQ 5, and a game's sound still works at that setting once its setup has been rerun. |
 | Wolfenstein 3D | Sound Blaster and AdLib selected in setup. Title, menus with mouse and keyboard, a level played through. Digitised effects (single-cycle DMA) and AdLib music audible. Page flips without tearing; frame rate recorded from captured frames. A saved game loads after relaunch. |
+| DOOM | Sound Blaster selected in its setup for both sound effects and music, at 220h, IRQ 7 and DMA 1. DOS/4GW starts under HIMEMX with no EMM386, and DOOM runs with the 387 socket empty. Title, demo playback, and a level played with keyboard and mouse. Digitised effects and OPL music audible. At `max`: the `-timedemo demo3` result and the frame rate from captured frames, which DOOM caps at 35 fps, are recorded. A saved game loads after relaunch. |
 | Ultima VI | VGA and AdLib selected. Music plays; PC speaker effects play at the reference pitch under the 286-class preset; walking speed matches the reference. A saved game loads after relaunch. |
 | Ultima VII: The Black Gate | Voodoo memory manager starts: unreal mode, A20, 2 MiB XMS free with HIMEMX, no EMM386. Sound Blaster digitised speech and music. 386-class preset; NPC pace matches the reference. Save and load across relaunch. |
 | Ultima VII Part Two: Serpent Isle | As The Black Gate, at `max`. Its `INSTALL`, run from the game directory, changes only the sound setup: Sound Blaster, not Sound Blaster Pro, at 220h and IRQ 7, because the machine's card is a Sound Blaster 2.0 (the Pro is [#1441](https://github.com/DeanoC/fes/issues/1441)). eXoDOS's copy ships set up for the Sound Blaster Pro, with which the game exits as it starts ([#1426](https://github.com/DeanoC/fes/issues/1426)). |
@@ -1435,7 +1447,7 @@ first playable.
 | M2 | VGA, capture, presenter, plane on port 2 | Trace replay matches the reference; VGABIOS text, mode 13h and mode Y frames correct at 720p in simulation; first machine-only synthesis numbers | CPU Phases 1–2 |
 | M3 | Speaker, OPL2 import, DSP, mixer | OPL2 sample-exact; DSP sequences pass; game start-up audio from the oracle machine sounds right | CPU Phase 2 |
 | M4 | Machine diagnostic shell on a kit: a development package where a mailbox-driven bus master stands in for the CPU and issues I/O and MMIO cycles | Hardware diagnostic: VGA modes captured from HDMI, OPL2 and DSP audio, a disk load and save round trip with the runtime, port 2 underflow counters at zero, load time measured | Before CPU Phase 3 |
-| M5 = CPU Phase 3 | The RTL CPU in the machine | FreeDOS boots in simulation with the RTL CPU; first sealed package; the four games pass the checks above on a kit, with both presets recorded | — |
+| M5 = CPU Phase 3 | The RTL CPU in the machine | FreeDOS boots in simulation with the RTL CPU; first sealed package; the five games pass the checks above on a kit, with both presets recorded | — |
 
 **M4 as built** ([record](../../../docs/validation/2026-10-28-pc386-m4-diagnostic/summary.md)):
 the bus master takes its commands from a ring in the DDR window on port 0, not
@@ -1469,7 +1481,7 @@ machine through the mailbox as the runtime does. The keyboard and mouse
 slice declares `fes.keyboard.hid` and `fes.mouse.relative`: the mailbox's rows
 go to the HID row model ahead of the 8042's keyboard and its packets to the
 aux mouse, and the system simulation types at the FreeDOS prompt and drives
-the mouse through the BIOS's PS/2 services. The four games follow.
+the mouse through the BIOS's PS/2 services. The five games follow.
 
 After first playable: CPU Phase 5 brings JEMM386 and Wolfenstein 3D with EMS;
 CPU Phase 6 wires FERR to IRQ13 and port F0h. Machine follow-ups wait for a

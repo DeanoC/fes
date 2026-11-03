@@ -11322,6 +11322,17 @@ normal_post:
   out PORT_PIT_MODE, al
   mov al, #18
   out PORT_PIT_COUNTER1, al
+  ;; FES 2026-11-03: timer2, the speaker timer, in the mode an AT BIOS's POST
+  ;; beep leaves it (binary count, LSB then MSB, mode 3), with the IBM BEEP
+  ;; count 0533h, gate and speaker off. Games that write only a count to port
+  ;; 42h and toggle port 61h bits 0-1 need this mode; upstream never programs
+  ;; the counter, and the 8254's power-on mode is undefined.
+  mov al, #0xb6
+  out PORT_PIT_MODE, al
+  mov al, #0x33
+  out PORT_PIT_COUNTER2, al
+  mov al, #0x05
+  out PORT_PIT_COUNTER2, al
 
   ;; Keyboard
   SET_INT_VECTOR(0x09, #0xF000, #int09_handler)
