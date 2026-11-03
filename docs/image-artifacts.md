@@ -62,6 +62,10 @@ compiled in this path. The existing rootfs checks validate software-bundle
 binaries against the new base's ELF libraries before sealing the factory bundle.
 This is interface validation, not kit acceptance.
 
+Installed core packages have exact directory mode0555 and member mode0444.
+Assembly clears inherited directory setgid before checking the seal, including
+when its destination is on a shared build disk.
+
 The same selector has an explicit DE25 lane:
 
 ```sh
