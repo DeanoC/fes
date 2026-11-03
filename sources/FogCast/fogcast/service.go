@@ -519,9 +519,7 @@ func OpenWithHostProcessStarter(ctx context.Context, paths Paths, httpClient *ht
 		})
 	}
 	if config.CorePackages.Kit {
-		service.corePackages = kitpackages.NewView(func() (*kitpackages.Store, error) {
-			return kitpackages.OpenPersistent(kitpackages.DefaultRoot)
-		}, kitpackages.NewFactory(kitpackages.FactoryRoot))
+		service.corePackages = kitpackages.NewView(openKitCorePackages, kitpackages.NewFactory(kitpackages.FactoryRoot))
 	} else {
 		packageRoot := paths.CorePackages
 		if packageRoot == "" {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log"
 	"reflect"
 	"regexp"
 	"time"
@@ -59,6 +60,21 @@ type corePackageStore interface {
 }
 
 const coreStoreUnavailableMessage = "core package storage is unavailable"
+
+var kitCorePackagesLogf = log.Printf
+
+// openKitCorePackages opens the kit's durable store and logs the outcome,
+// because callers only see CORE_PACKAGE_STORE_UNAVAILABLE.
+func openKitCorePackages() (*kitpackages.Store, error) {
+	started := time.Now()
+	store, err := kitpackages.OpenPersistent(kitpackages.DefaultRoot)
+	if err != nil {
+		kitCorePackagesLogf("fogcast: kit core packages unavailable after %s: %v", time.Since(started).Round(time.Millisecond), err)
+		return nil, err
+	}
+	kitCorePackagesLogf("fogcast: kit core packages open after %s", time.Since(started).Round(time.Millisecond))
+	return store, nil
+}
 
 type coreInspectionClient interface {
 	InspectCore(context.Context, int64, io.Reader) (protocol.CoreInspection, error)
